@@ -104,9 +104,10 @@ namespace kvtest {
          *
          * @param key the key to set
          * @param val the value to set
+         * @param val the number of bytes in the value
          * @param cb callback that will fire with true if the set succeeded
          */
-        virtual void set(std::string &key, const char *val,
+        virtual void set(std::string &key, const char *val, size_t nbytes,
                          Callback<bool> &cb) = 0;
 
         /**

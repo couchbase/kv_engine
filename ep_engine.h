@@ -169,7 +169,7 @@ public:
         backend->get(k, getCb);
         getCb.waitForValue();
         if (getCb.val.success) {
-            *item = new Item(k, 0, 0, getCb.val.value.c_str(),
+            *item = new Item(k, nkey, 0, getCb.val.value.c_str(),
                              getCb.val.value.length());
             return ENGINE_SUCCESS;
         } else {
@@ -200,7 +200,7 @@ public:
         (void)cookie;
         Item *it = static_cast<Item*>(item);
         if (operation == OPERATION_SET) {
-            backend->set(it->key, it->data, ignoreCallback);
+            backend->set(it->key, it->data, it->nbytes, ignoreCallback);
             *cas = 0;
             return ENGINE_SUCCESS;
         } else {

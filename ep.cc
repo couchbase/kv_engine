@@ -70,8 +70,9 @@ namespace kvtest {
     }
 
     void EventuallyPersistentStore::set(std::string &key, const char *val,
+                                        size_t nbytes,
                                         Callback<bool> &cb) {
-        mutation_type_t mtype = storage.set(key, val);
+        mutation_type_t mtype = storage.set(key, val, nbytes);
 
         if (mtype == WAS_CLEAN || mtype == NOT_FOUND) {
             LockHolder lh(&mutex);
@@ -97,8 +98,9 @@ namespace kvtest {
         LockHolder lh(storage.getMutex(bucket_num));
         StoredValue *v = storage.unlocked_find(key, bucket_num);
         bool success = v != NULL;
-        const char *sval = v ? v->getValue() : NULL;
-        kvtest::GetValue rv(success ? sval : std::string(":("),
+        size_t nbytes = 0;
+        const char *sval = v ? v->getValue(&nbytes) : NULL;
+        kvtest::GetValue rv(success ? std::string(sval, nbytes) : std::string(":("),
                             success);
         cb.callback(rv);
         lh.unlock();
@@ -161,15 +163,16 @@ namespace kvtest {
         bool found = v != NULL;
         bool isDirty = (found && v->isDirty());
         const char *val = NULL;
+        size_t nbytes = 0;
         if (isDirty) {
             v->markClean();
             // Copy it for the duration.
-            val = strdup(v->getValue());
+            val = strdup(v->getValue(&nbytes));
         }
         lh.unlock();
 
         if (found && isDirty) {
-            underlying->set(key, val, cb);
+            underlying->set(key, val, nbytes, cb);
         } else if (!found) {
             underlying->del(key, cb);
         }

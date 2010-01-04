@@ -20,7 +20,11 @@ namespace kvtest {
     }
 
     void PreparedStatement::bind(int pos, const char *s) {
-        sqlite3_bind_text(st, pos, s, (int)strlen(s), SQLITE_STATIC);
+        bind(pos, s, strlen(s));
+    }
+
+    void PreparedStatement::bind(int pos, const char *s, size_t nbytes) {
+        sqlite3_bind_text(st, pos, s, (int)nbytes, SQLITE_STATIC);
     }
 
     int PreparedStatement::execute() {
@@ -190,13 +194,13 @@ namespace kvtest {
 
     void Sqlite3::set(std::string &key, std::string &val,
                           kvtest::Callback<bool> &cb) {
-        set(key, val.c_str(), cb);
+        set(key, val.c_str(), val.size(), cb);
     }
 
-    void Sqlite3::set(std::string &key, const char *val,
+    void Sqlite3::set(std::string &key, const char *val, size_t nbytes,
                       kvtest::Callback<bool> &cb) {
         ins_stmt->bind(1, key.c_str());
-        ins_stmt->bind(2, val);
+        ins_stmt->bind(2, val, nbytes);
         bool rv = ins_stmt->execute() == 1;
         cb.callback(rv);
         ins_stmt->reset();

@@ -28,12 +28,22 @@ namespace kvtest {
         ~PreparedStatement();
 
         /**
-         * Bind a string parameter to a binding in this statement.
+         * Bind a null-terminated string parameter to a binding in
+         * this statement.
          *
          * @param pos the binding position (starting at 1)
          * @param s the value to bind
          */
         void bind(int pos, const char *s);
+
+        /**
+         * Bind a string parameter to a binding in this statement.
+         *
+         * @param pos the binding position (starting at 1)
+         * @param s the value to bind
+         * @param nbytes number of bytes in the string.
+         */
+        void bind(int pos, const char *s, size_t nbytes);
 
         /**
          * Execute a prepared statement that does not return results.
@@ -170,7 +180,8 @@ namespace kvtest {
         /**
          * Overrides set().
          */
-        void set(std::string &key, const char *val, Callback<bool> &cb);
+        void set(std::string &key, const char *val, size_t nbytes,
+                 Callback<bool> &cb);
 
         /**
          * Overrides get().

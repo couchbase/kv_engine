@@ -26,12 +26,13 @@ namespace kvtest {
         StoredValue() {
             next = NULL;
             value = NULL;
+            nvalue = 0;
             dirty = false;
         }
-        StoredValue(std::string &k, const char *v, StoredValue *n) {
+        StoredValue(std::string &k, const char *v, size_t nv, StoredValue *n) {
             key = k;
             value = NULL;
-            setValue(v);
+            setValue(v, nv);
             dirty = true;
             next = n;
         }
@@ -51,12 +52,15 @@ namespace kvtest {
         bool isClean() {
             return !dirty;
         }
-        const char* getValue() {
+        const char* getValue(size_t *size_out) {
+            *size_out = nvalue;
             return value;
         }
-        void setValue(const char *v) {
+        void setValue(const char *v, const size_t nv) {
             free((void*)value);
-            value = strdup(v);
+            value = (const char *)calloc(nv, sizeof(char));
+            nvalue = nv;
+            memcpy((char*)value, v, nvalue);
             markDirty();
         }
     private:
@@ -66,6 +70,7 @@ namespace kvtest {
         bool dirty;
         std::string key;
         const char *value;
+        size_t nvalue;
         StoredValue *next;
         DISALLOW_COPY_AND_ASSIGN(StoredValue);
     };
@@ -122,10 +127,10 @@ namespace kvtest {
 
         // True if this existed and was clean
         mutation_type_t set(std::string &key, std::string &val) {
-            return set(key, val.c_str());
+            return set(key, val.c_str(), val.size());
         }
 
-        mutation_type_t set(std::string &key, const char *val) {
+        mutation_type_t set(std::string &key, const char *val, size_t nbytes) {
             assert(active);
             mutation_type_t rv = NOT_FOUND;
             int bucket_num = bucket(key);
@@ -133,9 +138,9 @@ namespace kvtest {
             StoredValue *v = unlocked_find(key, bucket_num);
             if (v) {
                 rv = v->isClean() ? WAS_CLEAN : WAS_DIRTY;
-                v->setValue(val);
+                v->setValue(val, nbytes);
             } else {
-                v = new StoredValue(key, val, values[bucket_num]);
+                v = new StoredValue(key, val, nbytes, values[bucket_num]);
                 values[bucket_num] = v;
             }
             return rv;
@@ -231,7 +236,7 @@ namespace kvtest {
         void set(std::string &key, std::string &val,
                  Callback<bool> &cb);
 
-        void set(std::string &key, const char *val,
+        void set(std::string &key, const char *val, size_t nbytes,
                  Callback<bool> &cb);
 
         void get(std::string &key, Callback<GetValue> &cb);
