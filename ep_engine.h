@@ -88,6 +88,8 @@ public:
     {
         ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
 
+        pthread_mutex_init(&stats.lock, NULL);
+
         if (config != NULL) {
             struct config_item items[3];
             char *dbn = NULL;
