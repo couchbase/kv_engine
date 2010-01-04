@@ -20,10 +20,7 @@ AS_IF([test "x$SUNCC" = "xyes"],
       [
         CPPFLAGS="-xldscope=hidden $CPPFLAGS"
         CXXFLAGS="-erroff=truncwarn1,signextwarn,notused,inllargeuse $CXXFLAGS"
-      ],
-      [ AS_IF([test "x$GCC" = "xyes" ],
-              [ CPPFLAGS="-fvisibility=hidden $CPPFLAGS" ])
-     ])
+      ])
 
 AH_BOTTOM([
 #if ((defined (__SUNPRO_C) || defined(__SUNPRO_CC)) || defined GCC)
