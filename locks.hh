@@ -1,3 +1,4 @@
+/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 #ifndef LOCKS_H
 #define LOCKS_H 1
 
@@ -15,12 +16,8 @@ namespace kvtest {
         /**
          * Acquire the lock in the given mutex.
          */
-        LockHolder(pthread_mutex_t *m) {
-            mutex = m;
-            if(pthread_mutex_lock(mutex) != 0) {
-                throw std::runtime_error("Failed to acquire lock.");
-            }
-            unlocked = false;
+        LockHolder(pthread_mutex_t* m) : mutex(m), locked(false) {
+            lock();
         }
 
         /**
@@ -30,16 +27,27 @@ namespace kvtest {
             unlock();
         }
 
+        void lock() {
+            if (pthread_mutex_lock(mutex) != 0) {
+                throw std::runtime_error("Failed to acquire lock.");
+            }
+            locked = true;
+
+        }
+
+
         void unlock() {
-            if (!unlocked) {
-                pthread_mutex_unlock(mutex);
-                unlocked = true;
+            if (locked) {
+                if (pthread_mutex_unlock(mutex) != 0) {
+                    throw std::runtime_error("Failed to release lock.");
+                }
+                locked = false;
             }
         }
 
     private:
         pthread_mutex_t *mutex;
-        bool unlocked;
+        bool locked;
 
         DISALLOW_COPY_AND_ASSIGN(LockHolder);
     };
