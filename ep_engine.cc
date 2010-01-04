@@ -195,7 +195,7 @@ extern "C" {
 } // C linkage
 
 EventuallyPersistentEngine::EventuallyPersistentEngine(SERVER_HANDLE_V1 *sApi) :
-    backend(new EventuallyPersistentStore(new Sqlite3("/usr/tmp/test.db")))
+    dbname("/tmp/test.db")
 {
     interface.interface = 1;
     ENGINE_HANDLE_V1::get_info = EvpGetInfo;
@@ -218,5 +218,4 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(SERVER_HANDLE_V1 *sApi) :
     ENGINE_HANDLE_V1::item_get_clsid = EvpItemGetClsid;
 
     serverApi = *sApi;
-    backend->reset();
 }

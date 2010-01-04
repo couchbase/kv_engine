@@ -86,8 +86,39 @@ class EventuallyPersistentEngine : public ENGINE_HANDLE_V1 {
 public:
     ENGINE_ERROR_CODE initialize(const char* config)
     {
-        (void)config;
-        return ENGINE_SUCCESS;
+        ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
+
+        if (config != NULL) {
+            struct config_item items[3];
+            char *dbn = NULL;
+            items[0].key = "dbname";
+            items[0].datatype = DT_STRING;
+            items[0].value.dt_string = &dbn;
+
+            items[1].key = "config_file";
+            items[1].datatype = DT_CONFIGFILE;
+
+            items[2].key = NULL;
+
+            if (serverApi.parse_config(config, items, stderr) != 0) {
+                ret = ENGINE_FAILED;
+            } else {
+                if (dbn != NULL) {
+                    dbname = dbn;
+                }
+            }
+        }
+
+        if (ret == ENGINE_SUCCESS) {
+            backend = new EventuallyPersistentStore(new Sqlite3(dbname));
+            if (backend == NULL) {
+                ret = ENGINE_ENOMEM;
+            } else {
+                backend->reset();
+            }
+        }
+
+        return ret;
     }
 
     void destroy()
@@ -197,6 +228,7 @@ private:
                                              GET_SERVER_API get_server_api,
                                              ENGINE_HANDLE **handle);
 
+    const char *dbname;
     SERVER_HANDLE_V1 serverApi;
     IgnoreCallback ignoreCallback;
     KVStore *backend;
