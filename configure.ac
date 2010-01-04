@@ -4,7 +4,7 @@
 #
 # Use and distribution licensed under the BSD license.  See
 # the COPYING file in this directory for full text.
-AC_PREREQ(2.63)
+AC_PREREQ(2.61)
 m4_include([m4/version.m4])
 AC_INIT(epengine, VERSION_NUMBER, trond.norbye@gmail.com)
 AC_CONFIG_SRCDIR([suite.hh])
