@@ -2,9 +2,10 @@
 #ifndef LOCKS_H
 #define LOCKS_H 1
 
+#include <stdexcept>
+#include <iostream>
+#include <sstream>
 #include <pthread.h>
-
-#include "base-test.hh"
 
 namespace kvtest {
 
@@ -49,9 +50,9 @@ namespace kvtest {
         pthread_mutex_t *mutex;
         bool locked;
 
-        DISALLOW_COPY_AND_ASSIGN(LockHolder);
+        LockHolder(const LockHolder&);
+        void operator=(const LockHolder&);
     };
-
 }
 
 #endif /* LOCKS_H */
