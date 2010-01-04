@@ -21,6 +21,7 @@ extern "C" {
 
     static const char* EvpGetInfo(ENGINE_HANDLE* handle)
     {
+        (void)handle;
         return "EP engine v0.1";
     }
 
@@ -101,18 +102,22 @@ extern "C" {
                                            uint64_t *cas,
                                            uint64_t *result)
     {
+        (void)handle; (void)cookie; (void)key; (void)nkey;
+        (void)increment; (void)create; (void)delta; (void)initial;
+        (void)exptime; (void)cas; (void)result;
         return ENGINE_ENOTSUP;
     }
 
     static ENGINE_ERROR_CODE EvpFlush(ENGINE_HANDLE* handle,
                                       const void* cookie, time_t when)
     {
+        (void)cookie;
         return getHandle(handle)->flush(cookie, when);
     }
 
     static void EvpResetStats(ENGINE_HANDLE* handle, const void *cookie)
     {
-        (void) cookie;
+        (void)cookie;
         return getHandle(handle)->resetStats();
     }
 
@@ -121,6 +126,9 @@ extern "C" {
                                                protocol_binary_request_header *request,
                                                ADD_RESPONSE response)
     {
+        (void)handle;
+        (void)cookie;
+        (void)request;
         if (response(NULL, 0, NULL, 0, NULL, 0,
                      PROTOCOL_BINARY_RAW_BYTES,
                      PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND, 0, cookie)) {
@@ -131,10 +139,13 @@ extern "C" {
     }
 
     static uint64_t EvpItemGetCas(const item *item) {
+        (void)item;
         return 0;
     }
 
     static void EvpItemSetCas(item *item, uint64_t cas) {
+        (void)item;
+        (void)cas;
         // empty
     }
 
@@ -147,6 +158,7 @@ extern "C" {
     }
 
     static uint8_t EvpItemGetClsid(const item *item) {
+        (void)item;
         return 0;
     }
 

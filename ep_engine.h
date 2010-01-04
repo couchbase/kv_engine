@@ -39,8 +39,8 @@ private:
          const int fl, const rel_time_t exp) :
         key(static_cast<const char*>(k), nk)
     {
-        nkey = nk;
-        nbytes = nb;
+        nkey = static_cast<uint16_t>(nk);
+        nbytes = static_cast<uint32_t>(nb);
         flags = fl;
         iflag = 0;
         exptime = exp;
@@ -51,8 +51,8 @@ private:
          const void *dta, const size_t nb) :
         key(k)
     {
-        nkey = key.length();
-        nbytes = nb;
+        nkey = static_cast<uint16_t>(key.length());
+        nbytes = static_cast<uint32_t>(nb);
         flags = fl;
         iflag = 0;
         exptime = exp;
@@ -86,6 +86,7 @@ class EventuallyPersistentEngine : public ENGINE_HANDLE_V1 {
 public:
     ENGINE_ERROR_CODE initialize(const char* config)
     {
+        (void)config;
         return ENGINE_SUCCESS;
     }
 
@@ -102,6 +103,7 @@ public:
                                    const int flags,
                                    const rel_time_t exptime)
     {
+        (void)cookie;
         *item = new Item(key, nkey, nbytes, flags, exptime);
         if (*item == NULL) {
             return ENGINE_ENOMEM;
@@ -112,12 +114,14 @@ public:
 
     ENGINE_ERROR_CODE itemDelete(const void* cookie, item *item)
     {
+        (void)cookie;
+        (void)item;
         return ENGINE_ENOTSUP;
-
     }
 
     void itemRelease(const void* cookie, item *item)
     {
+        (void)cookie;
         delete (Item*)item;
     }
 
@@ -126,6 +130,7 @@ public:
                           const void* key,
                           const int nkey)
     {
+        (void)cookie;
         std::string k(static_cast<const char*>(key), nkey);
         RememberingCallback<GetValue> getCb;
         backend->get(k, getCb);
@@ -144,6 +149,9 @@ public:
                                int nkey,
                                ADD_STAT add_stat)
     {
+        (void)cookie;
+        (void)nkey;
+        (void)add_stat;
         LockHolder lh(&stats.lock);
         if (stat_key == NULL) {
             // @todo add interesting stats
@@ -156,9 +164,11 @@ public:
                             uint64_t *cas,
                             ENGINE_STORE_OPERATION operation)
     {
+        (void)cookie;
         Item *it = static_cast<Item*>(item);
         if (operation == OPERATION_SET) {
             backend->set(it->key, it->data, ignoreCallback);
+            *cas = 0;
             return ENGINE_SUCCESS;
         } else {
             return ENGINE_ENOTSUP;
@@ -167,6 +177,7 @@ public:
 
     ENGINE_ERROR_CODE flush(const void *cookie, time_t when)
     {
+        (void)cookie;
         if (when != 0) {
             return ENGINE_ENOTSUP;
         }
