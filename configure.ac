@@ -6,7 +6,7 @@
 # the COPYING file in this directory for full text.
 AC_PREREQ(2.63)
 m4_include([m4/version.m4])
-AC_INIT(sqlengine, VERSION_NUMBER, trond.norbye@gmail.com)
+AC_INIT(epengine, VERSION_NUMBER, trond.norbye@gmail.com)
 AC_CONFIG_SRCDIR([suite.hh])
 AC_CONFIG_AUX_DIR(config)
 AM_CONFIG_HEADER([config.h])
