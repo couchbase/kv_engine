@@ -14,7 +14,4 @@ ep_la_SOURCES = \
                  ep_engine.h \
                  locks.hh \
                  sqlite-base.cc \
-                 sqlite-base.hh \
-                 sqlite-base.hh \
-                 suite.hh \
-                 tests.hh
+                 sqlite-base.hh

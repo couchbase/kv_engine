@@ -4,7 +4,6 @@
 #include <sqlite3.h>
 
 #include "base-test.hh"
-#include "suite.hh"
 
 namespace kvtest {
 
