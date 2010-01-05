@@ -55,6 +55,7 @@ namespace kvtest {
 
     void EventuallyPersistentStore::initQueue() {
         assert(!towrite);
+        stats.queue_size = 0;
         towrite = new std::queue<std::string>;
     }
 
@@ -124,6 +125,7 @@ namespace kvtest {
     void EventuallyPersistentStore::queueDirty(std::string &key) {
         // Assume locked.
         towrite->push(key);
+        stats.queue_size++;
         if(pthread_cond_signal(&cond) != 0) {
             throw std::runtime_error("Error signaling change.");
         }
@@ -148,11 +150,17 @@ namespace kvtest {
             RememberingCallback<bool> cb;
             assert(underlying);
 
+            stats.flusher_todo = q->size();
+
             underlying->begin();
             while (!q->empty()) {
                 flushSome(q, cb);
             }
+            time_t cstart = time(NULL);
             underlying->commit();
+            // One more lock to update a stat.
+            LockHolder lh_stat(&mutex);
+            stats.commit_time = time(NULL) - cstart;
 
             delete q;
         }
@@ -185,6 +193,7 @@ namespace kvtest {
             val = (const char *)malloc(sizeof(char) * nbytes);
             memcpy((char*)val, vtmp, nbytes);
         }
+        stats.flusher_todo--;
         lh.unlock();
 
         if (found && isDirty) {

@@ -22,6 +22,9 @@ namespace kvtest {
     struct ep_stats {
         time_t dirtyAge;
         time_t dirtyAgeHighWat;
+        size_t queue_size;
+        size_t flusher_todo;
+        time_t commit_time;
     };
 
     // Forward declaration for StoredValue

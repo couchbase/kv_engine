@@ -192,11 +192,23 @@ public:
             ((EventuallyPersistentStore*)backend)->getStats(&epstats);
             char ageS[32];
             snprintf(ageS, sizeof(ageS), "%u", (unsigned int)epstats.dirtyAge);
-            const char *key = "storage_age";
+            const char *key = "ep_storage_age";
             add_stat(key, strlen(key), ageS, strlen(ageS), cookie);
 
             snprintf(ageS, sizeof(ageS), "%u", (unsigned int)epstats.dirtyAgeHighWat);
-            key = "storage_age_highwat";
+            key = "ep_storage_age_highwat";
+            add_stat(key, strlen(key), ageS, strlen(ageS), cookie);
+
+            snprintf(ageS, sizeof(ageS), "%u", (unsigned int)epstats.queue_size);
+            key = "ep_queue_size";
+            add_stat(key, strlen(key), ageS, strlen(ageS), cookie);
+
+            snprintf(ageS, sizeof(ageS), "%u", (unsigned int)epstats.flusher_todo);
+            key = "ep_flusher_todo";
+            add_stat(key, strlen(key), ageS, strlen(ageS), cookie);
+
+            snprintf(ageS, sizeof(ageS), "%u", (unsigned int)epstats.commit_time);
+            key = "ep_commit_time";
             add_stat(key, strlen(key), ageS, strlen(ageS), cookie);
         }
         return ENGINE_SUCCESS;
