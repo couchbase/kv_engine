@@ -209,6 +209,9 @@ public:
             snprintf(ageS, sizeof(ageS), "%u", (unsigned int)epstats.commit_time);
             key = "ep_commit_time";
             add_stat(key, strlen(key), ageS, strlen(ageS), cookie);
+
+            key = "dbname";
+            add_stat(key, strlen(key), dbname, strlen(dbname), cookie);
         }
         return ENGINE_SUCCESS;
     }
