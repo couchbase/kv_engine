@@ -14,15 +14,6 @@ extern "C" {
 }
 
 /**
- * Statistic information collected by the eventually persistent engine
- */
-struct engine_stats {
-    /** All access to the members should be guarded by the lock */
-    pthread_mutex_t lock;
-    // @todo add interesting stats
-};
-
-/**
  * The Item structure we use to pass information between the memcached
  * core and the backend. Please note that the kvstore don't store these
  * objects, so we do have an extra layer of memory copying :(
@@ -85,8 +76,6 @@ public:
     ENGINE_ERROR_CODE initialize(const char* config)
     {
         ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-
-        pthread_mutex_init(&stats.lock, NULL);
 
         if (config != NULL) {
             char *dbn = NULL;
@@ -203,7 +192,6 @@ public:
         (void)add_stat;
 
         const char *key;
-        LockHolder lh(&stats.lock);
         if (stat_key == NULL) {
             // @todo add interesting stats
             struct ep_stats epstats;
@@ -279,7 +267,6 @@ public:
 
     void resetStats()
     {
-        LockHolder lh(&stats.lock);
         EventuallyPersistentStore *epstore;
         epstore = dynamic_cast<EventuallyPersistentStore *>(backend);
 
@@ -301,5 +288,4 @@ private:
     SERVER_HANDLE_V1 serverApi;
     IgnoreCallback ignoreCallback;
     KVStore *backend;
-    struct engine_stats stats;
 };

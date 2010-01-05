@@ -101,22 +101,13 @@ public:
         n_locks = l;
         active = true;
         values = (StoredValue**)calloc(s, sizeof(StoredValue**));
-        mutexes = (pthread_mutex_t*)calloc(l, sizeof(pthread_mutex_t));
-        for (int i = 0; i < (int)n_locks; i++) {
-            pthread_mutex_init(&mutexes[i], NULL);
-        }
+        mutexes = new Mutex[l];
     }
 
     ~HashTable() {
         clear();
-        for (int i = 0; i < (int)n_locks; i++) {
-            pthread_mutex_destroy(&mutexes[i]);
-        }
-        free(mutexes);
+        delete []mutexes;
         free(values);
-        mutexes = NULL;
-        values = NULL;
-        active = false;
     }
 
     void clear() {
@@ -184,14 +175,14 @@ public:
     }
 
     // Get the mutex for a bucket (for doing your own lock management)
-    inline pthread_mutex_t *getMutex(int bucket_num) {
+    inline Mutex &getMutex(int bucket_num) {
         assert(active);
         assert(bucket_num < (int)size);
         assert(bucket_num >= 0);
         int lock_num = bucket_num % (int)n_locks;
         assert(lock_num < (int)n_locks);
         assert(lock_num >= 0);
-        return &mutexes[lock_num];
+        return mutexes[lock_num];
     }
 
     // True if it existed
@@ -231,7 +222,7 @@ private:
     size_t            n_locks;
     bool              active;
     StoredValue     **values;
-    pthread_mutex_t  *mutexes;
+    Mutex            *mutexes;
 
     DISALLOW_COPY_AND_ASSIGN(HashTable);
 };
@@ -299,8 +290,7 @@ private:
     size_t                   est_size;
     Flusher                 *flusher;
     HashTable                storage;
-    pthread_mutex_t          mutex;
-    pthread_cond_t           cond;
+    SyncObject               mutex;
     std::queue<std::string> *towrite;
     pthread_t                thread;
     struct ep_stats          stats;

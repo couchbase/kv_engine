@@ -2,6 +2,8 @@
 #ifndef CALLBACKS_H
 #define CALLBACKS_H 1
 
+#include "locks.hh"
+
 /**
  * Interface for callbacks from storage APIs.
  */
@@ -30,34 +32,22 @@ public:
     /**
      * Construct a remembering callback.
      */
-    RememberingCallback() {
-        if(pthread_mutex_init(&mutex, NULL) != 0) {
-            throw std::runtime_error("Failed to initialize mutex.");
-        }
-        if(pthread_cond_init(&cond, NULL) != 0) {
-            throw std::runtime_error("Failed to initialize condition.");
-        }
-        fired = false;
-    }
+    RememberingCallback() : fired(false), so() { }
 
     /**
      * Clean up (including lock resources).
      */
     ~RememberingCallback() {
-        pthread_mutex_destroy(&mutex);
-        pthread_cond_destroy(&cond);
     }
 
     /**
      * The callback implementation -- just store a value.
      */
     void callback(T &value) {
-        LockHolder lh(&mutex);
+        LockHolder lh(so);
         val = value;
         fired = true;
-        if(pthread_cond_broadcast(&cond) != 0) {
-            throw std::runtime_error("Failed to broadcast change.");
-        }
+        so.notify();
     }
 
     /**
@@ -68,11 +58,9 @@ public:
      * to arrive.
      */
     void waitForValue() {
-        LockHolder lh(&mutex);
+        LockHolder lh(so);
         if (!fired) {
-            if(pthread_cond_wait(&cond, &mutex) != 0) {
-                throw std::runtime_error("Failed to wait for condition.");
-            }
+            so.wait();
         }
         assert(fired);
     }
@@ -87,8 +75,7 @@ public:
     bool fired;
 
 private:
-    pthread_mutex_t mutex;
-    pthread_cond_t  cond;
+    SyncObject so;
 
     DISALLOW_COPY_AND_ASSIGN(RememberingCallback);
 };

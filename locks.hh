@@ -5,17 +5,16 @@
 #include <stdexcept>
 #include <iostream>
 #include <sstream>
-#include <pthread.h>
 
-/**
- * pthread mutex holder (maintains lock while active).
- */
+#include "mutex.hh"
+#include "syncobject.hh"
+
 class LockHolder {
 public:
     /**
      * Acquire the lock in the given mutex.
      */
-    LockHolder(pthread_mutex_t* m) : mutex(m), locked(false) {
+    LockHolder(Mutex &m) : mutex(m), locked(false) {
         lock();
     }
 
@@ -27,25 +26,19 @@ public:
     }
 
     void lock() {
-        if (pthread_mutex_lock(mutex) != 0) {
-            throw std::runtime_error("Failed to acquire lock.");
-        }
+        mutex.aquire();
         locked = true;
-
     }
-
 
     void unlock() {
         if (locked) {
-            if (pthread_mutex_unlock(mutex) != 0) {
-                throw std::runtime_error("Failed to release lock.");
-            }
+            mutex.release();
             locked = false;
         }
     }
 
 private:
-    pthread_mutex_t *mutex;
+    Mutex &mutex;
     bool locked;
 
     LockHolder(const LockHolder&);

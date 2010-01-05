@@ -20,8 +20,6 @@ EventuallyPersistentStore::EventuallyPersistentStore(KVStore *t,
                                                      size_t est) :
     loadStorageKVPairCallback(storage)
 {
-    pthread_mutex_init(&mutex, NULL);
-    pthread_cond_init(&cond, NULL);
     est_size = est;
     towrite = NULL;
     memset(&stats, 0, sizeof(stats));
@@ -39,17 +37,13 @@ EventuallyPersistentStore::EventuallyPersistentStore(KVStore *t,
 }
 
 EventuallyPersistentStore::~EventuallyPersistentStore() {
-    LockHolder lh(&mutex);
+    LockHolder lh(mutex);
     flusher->stop();
-    if(pthread_cond_signal(&cond) != 0) {
-        throw std::runtime_error("Error signaling change.");
-    }
+    mutex.notify();
     lh.unlock();
     pthread_join(thread, NULL);
     delete flusher;
     delete towrite;
-    pthread_cond_destroy(&cond);
-    pthread_mutex_destroy(&mutex);
 }
 
 void EventuallyPersistentStore::initQueue() {
@@ -63,7 +57,7 @@ void EventuallyPersistentStore::set(std::string &key, std::string &val,
     mutation_type_t mtype = storage.set(key, val);
 
     if (mtype == WAS_CLEAN || mtype == NOT_FOUND) {
-        LockHolder lh(&mutex);
+        LockHolder lh(mutex);
         queueDirty(key);
     }
     bool rv = true;
@@ -76,7 +70,7 @@ void EventuallyPersistentStore::set(std::string &key, const char *val,
     mutation_type_t mtype = storage.set(key, val, nbytes);
 
     if (mtype == WAS_CLEAN || mtype == NOT_FOUND) {
-        LockHolder lh(&mutex);
+        LockHolder lh(mutex);
         queueDirty(key);
     }
     bool rv = true;
@@ -85,7 +79,7 @@ void EventuallyPersistentStore::set(std::string &key, const char *val,
 
 void EventuallyPersistentStore::reset() {
     flush(false);
-    LockHolder lh(&mutex);
+    LockHolder lh(mutex);
     underlying->reset();
     delete towrite;
     towrite = NULL;
@@ -109,12 +103,12 @@ void EventuallyPersistentStore::get(std::string &key,
 }
 
 void EventuallyPersistentStore::getStats(struct ep_stats *out) {
-    LockHolder lh(&mutex);
+    LockHolder lh(mutex);
     *out = stats;
 }
 
 void EventuallyPersistentStore::resetStats(void) {
-    LockHolder lh(&mutex);
+    LockHolder lh(mutex);
     memset(&stats, 0, sizeof(stats));
 }
 
@@ -130,20 +124,16 @@ void EventuallyPersistentStore::queueDirty(std::string &key) {
     // Assume locked.
     towrite->push(key);
     stats.queue_size++;
-    if(pthread_cond_signal(&cond) != 0) {
-        throw std::runtime_error("Error signaling change.");
-    }
+    mutex.notify();
 }
 
 void EventuallyPersistentStore::flush(bool shouldWait) {
-    LockHolder lh(&mutex);
+    LockHolder lh(mutex);
 
     if (towrite->empty()) {
         stats.dirtyAge = 0;
         if (shouldWait) {
-            if(pthread_cond_wait(&cond, &mutex) != 0) {
-                throw std::runtime_error("Error waiting for signal.");
-            }
+            mutex.wait();
         }
     } else {
         std::queue<std::string> *q = towrite;
@@ -163,7 +153,7 @@ void EventuallyPersistentStore::flush(bool shouldWait) {
         time_t cstart = time(NULL);
         underlying->commit();
         // One more lock to update a stat.
-        LockHolder lh_stat(&mutex);
+        LockHolder lh_stat(mutex);
         stats.commit_time = time(NULL) - cstart;
 
         delete q;
