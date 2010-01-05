@@ -241,10 +241,10 @@ public:
                 add_stat(key, strlen(key), ageS, strlen(ageS), cookie);
             }
 
-            key = "dbname";
+            key = "ep_dbname";
             add_stat(key, strlen(key), dbname, strlen(dbname), cookie);
 
-            key = "warmup";
+            key = "ep_warmup";
             const char *val = warmup ? "true" : "false";
             add_stat(key, strlen(key), val, strlen(val), cookie);
         }
