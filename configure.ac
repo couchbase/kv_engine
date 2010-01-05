@@ -7,7 +7,7 @@
 AC_PREREQ(2.61)
 m4_include([m4/version.m4])
 AC_INIT(epengine, VERSION_NUMBER, trond.norbye@gmail.com)
-AC_CONFIG_SRCDIR([suite.hh])
+AC_CONFIG_SRCDIR([kvstore.hh])
 AC_CONFIG_AUX_DIR(config)
 AM_CONFIG_HEADER([config.h])
 AC_CONFIG_MACRO_DIR([m4])
