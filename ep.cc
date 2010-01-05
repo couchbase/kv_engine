@@ -17,8 +17,9 @@ extern "C" {
 }
 
 EventuallyPersistentStore::EventuallyPersistentStore(KVStore *t,
-                                                     size_t est) {
-
+                                                     size_t est) :
+    loadStorageKVPairCallback(storage)
+{
     pthread_mutex_init(&mutex, NULL);
     pthread_cond_init(&cond, NULL);
     est_size = est;

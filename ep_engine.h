@@ -89,17 +89,27 @@ public:
         pthread_mutex_init(&stats.lock, NULL);
 
         if (config != NULL) {
-            struct config_item items[3];
-            memset(items, 0, sizeof(items));
             char *dbn = NULL;
-            items[0].key = "dbname";
-            items[0].datatype = DT_STRING;
-            items[0].value.dt_string = &dbn;
+            const int max_items = 4;
+            struct config_item items[max_items];
+            int ii = 0;
+            memset(items, 0, sizeof(items));
 
-            items[1].key = "config_file";
-            items[1].datatype = DT_CONFIGFILE;
+            items[ii].key = "dbname";
+            items[ii].datatype = DT_STRING;
+            items[ii].value.dt_string = &dbn;
 
-            items[2].key = NULL;
+            ++ii;
+            items[ii].key = "warmup";
+            items[ii].datatype = DT_BOOL;
+            items[ii].value.dt_bool = &warmup;
+
+            ++ii;
+            items[ii].key = "config_file";
+            items[ii].datatype = DT_CONFIGFILE;
+
+            ++ii;
+            items[ii].key = NULL;
 
             if (serverApi.parse_config(config, items, stderr) != 0) {
                 ret = ENGINE_FAILED;
@@ -111,11 +121,19 @@ public:
         }
 
         if (ret == ENGINE_SUCCESS) {
-            backend = new EventuallyPersistentStore(new Sqlite3(dbname));
+            Sqlite3 *db = new Sqlite3(dbname);
+            EventuallyPersistentStore *epstore;
+            backend = epstore = new EventuallyPersistentStore(db);
+
             if (backend == NULL) {
                 ret = ENGINE_ENOMEM;
             } else {
-                backend->reset();
+                if (warmup) {
+                    db->init();
+                    db->dump(epstore->getLoadStorageKVPairCallback());
+                } else {
+                    backend->reset();
+                }
             }
         }
 
@@ -212,6 +230,10 @@ public:
 
             key = "dbname";
             add_stat(key, strlen(key), dbname, strlen(dbname), cookie);
+
+            key = "warmup";
+            const char *val = warmup ? "true" : "false";
+            add_stat(key, strlen(key), val, strlen(val), cookie);
         }
         return ENGINE_SUCCESS;
     }
@@ -255,6 +277,7 @@ private:
                                              ENGINE_HANDLE **handle);
 
     const char *dbname;
+    bool warmup;
     SERVER_HANDLE_V1 serverApi;
     IgnoreCallback ignoreCallback;
     KVStore *backend;

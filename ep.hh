@@ -239,6 +239,22 @@ private:
 // Forward declaration
 class Flusher;
 
+/**
+ * Helper class used to insert items into the storage by using
+ * the KVStore::dump method to load items from the database
+ */
+class LoadStorageKVPairCallback : public Callback<KVPair> {
+public:
+    LoadStorageKVPairCallback(HashTable &ht) : hashtable(ht) { }
+
+    void callback(KVPair &pair) {
+        hashtable.set(pair.key, pair.value);
+    }
+
+private:
+    HashTable& hashtable;
+};
+
 class EventuallyPersistentStore : public KVStore {
 public:
 
@@ -258,7 +274,15 @@ public:
 
     void getStats(struct ep_stats *out);
 
+    virtual void dump(Callback<KVPair>&) {
+        throw std::runtime_error("not implemented");
+    }
+
     void reset();
+
+    Callback<KVPair> &getLoadStorageKVPairCallback() {
+        return loadStorageKVPairCallback;
+    }
 
 private:
 
@@ -278,6 +302,7 @@ private:
     std::queue<std::string> *towrite;
     pthread_t                thread;
     struct ep_stats          stats;
+    LoadStorageKVPairCallback loadStorageKVPairCallback;
     DISALLOW_COPY_AND_ASSIGN(EventuallyPersistentStore);
 };
 

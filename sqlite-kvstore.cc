@@ -225,3 +225,16 @@ void Sqlite3::del(std::string &key, Callback<bool> &cb) {
     cb.callback(rv);
     del_stmt->reset();
 }
+
+void Sqlite3::dump(Callback<KVPair> &cb) {
+
+    PreparedStatement st(db, "select k,v from kv");
+    while (st.fetch()) {
+        std::string key(st.column(0));
+        std::string value(st.column(1));
+        KVPair pair(key, value);
+        cb.callback(pair);
+    }
+
+    st.reset();
+}

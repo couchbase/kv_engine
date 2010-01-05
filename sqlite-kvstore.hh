@@ -153,13 +153,14 @@ protected:
      */
     sqlite3 *db;
 
+    void open();
+    void close();
+
 private:
 
     const char *filename;
     bool intransaction;
 
-    void open();
-    void close();
 };
 
 class Sqlite3 : public BaseSqlite3 {
@@ -190,6 +191,18 @@ public:
      * Overrides del().
      */
     void del(std::string &key, Callback<bool> &cb);
+
+    /**
+     * Overrides dump
+     */
+    virtual void dump(Callback<KVPair> &cb);
+
+    void init(void) {
+        open();
+        initTables();
+        initStatements();
+        execute("vacuum");
+    }
 
 protected:
 

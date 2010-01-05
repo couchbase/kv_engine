@@ -46,6 +46,20 @@ public:
 };
 
 /**
+ * Helper class to store a key-value tuple
+ */
+class KVPair {
+public:
+    KVPair() : key(), value() { }
+
+    KVPair(const std::string &k, const std::string &v) : key(k), value(v) {}
+
+    std::string key;
+    std::string value;
+};
+
+
+/**
  * An individual kv storage (or way to access a kv storage).
  */
 class KVStore {
@@ -107,6 +121,12 @@ public:
      *           existed and then was deleted
      */
     virtual void del(std::string &key, Callback<bool> &cb) = 0;
+
+    /**
+     * Dump the kvstore
+     * @param cb callback that will fire with the key / value pair
+     */
+    virtual void dump(Callback<KVPair> &cb) = 0;
 
     /**
      * For things that support transactions, this signals the
