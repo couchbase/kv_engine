@@ -90,6 +90,7 @@ public:
 
         if (config != NULL) {
             struct config_item items[3];
+            memset(items, 0, sizeof(items));
             char *dbn = NULL;
             items[0].key = "dbname";
             items[0].datatype = DT_STRING;
