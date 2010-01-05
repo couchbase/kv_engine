@@ -188,6 +188,16 @@ public:
         LockHolder lh(&stats.lock);
         if (stat_key == NULL) {
             // @todo add interesting stats
+            struct ep_stats epstats;
+            ((EventuallyPersistentStore*)backend)->getStats(&epstats);
+            char ageS[32];
+            snprintf(ageS, sizeof(ageS), "%u", (unsigned int)epstats.dirtyAge);
+            const char *key = "storage_age";
+            add_stat(key, strlen(key), ageS, strlen(ageS), cookie);
+
+            snprintf(ageS, sizeof(ageS), "%u", (unsigned int)epstats.dirtyAgeHighWat);
+            key = "storage_age_highwat";
+            add_stat(key, strlen(key), ageS, strlen(ageS), cookie);
         }
         return ENGINE_SUCCESS;
     }

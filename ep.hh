@@ -6,6 +6,7 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <stdexcept>
 #include <iostream>
 #include <queue>
@@ -18,6 +19,11 @@
 
 namespace kvtest {
 
+    struct ep_stats {
+        time_t dirtyAge;
+        time_t dirtyAgeHighWat;
+    };
+
     // Forward declaration for StoredValue
     class HashTable;
 
@@ -27,13 +33,13 @@ namespace kvtest {
             next = NULL;
             value = NULL;
             nvalue = 0;
-            dirty = false;
+            dirtied = 0;
         }
         StoredValue(std::string &k, const char *v, size_t nv, StoredValue *n) {
             key = k;
             value = NULL;
+            dirtied = 0;
             setValue(v, nv);
-            dirty = true;
             next = n;
         }
         ~StoredValue() {
@@ -41,16 +47,21 @@ namespace kvtest {
             value = NULL;
         }
         void markDirty() {
-            dirty = true;
+            if (!isDirty()) {
+                dirtied = time(NULL);
+            }
         }
-        void markClean() {
-            dirty = false;
+        // returns time this object was dirtied.
+        time_t markClean() {
+            time_t rv = dirtied;
+            dirtied = 0;
+            return rv;
         }
         bool isDirty() {
-            return dirty;
+            return dirtied != 0;
         }
         bool isClean() {
-            return !dirty;
+            return dirtied == 0;
         }
         const char* getValue(size_t *size_out) {
             *size_out = nvalue;
@@ -67,7 +78,7 @@ namespace kvtest {
 
         friend class HashTable;
 
-        bool dirty;
+        time_t dirtied;
         std::string key;
         const char *value;
         size_t nvalue;
@@ -243,6 +254,8 @@ namespace kvtest {
 
         void del(std::string &key, Callback<bool> &cb);
 
+        void getStats(struct ep_stats *out);
+
         void reset();
 
     private:
@@ -262,6 +275,7 @@ namespace kvtest {
         pthread_cond_t           cond;
         std::queue<std::string> *towrite;
         pthread_t                thread;
+        struct ep_stats          stats;
         DISALLOW_COPY_AND_ASSIGN(EventuallyPersistentStore);
     };
 

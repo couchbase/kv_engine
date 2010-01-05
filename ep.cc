@@ -25,6 +25,7 @@ namespace kvtest {
         pthread_cond_init(&cond, NULL);
         est_size = est;
         towrite = NULL;
+        memset(&stats, 0, sizeof(stats));
         initQueue();
         flusher = new Flusher(this);
 
@@ -88,6 +89,7 @@ namespace kvtest {
         underlying->reset();
         delete towrite;
         towrite = NULL;
+        memset(&stats, 0, sizeof(stats));
         initQueue();
         storage.clear();
     }
@@ -104,6 +106,11 @@ namespace kvtest {
                             success);
         cb.callback(rv);
         lh.unlock();
+    }
+
+    void EventuallyPersistentStore::getStats(struct ep_stats *out) {
+        LockHolder lh(&mutex);
+        memcpy(out, &stats, sizeof(stats));
     }
 
     void EventuallyPersistentStore::del(std::string &key, Callback<bool> &cb) {
@@ -126,6 +133,7 @@ namespace kvtest {
         LockHolder lh(&mutex);
 
         if (towrite->empty()) {
+            stats.dirtyAge = 0;
             if (shouldWait) {
                 if(pthread_cond_wait(&cond, &mutex) != 0) {
                     throw std::runtime_error("Error waiting for signal.");
@@ -165,9 +173,17 @@ namespace kvtest {
         const char *val = NULL;
         size_t nbytes = 0;
         if (isDirty) {
-            v->markClean();
+            time_t dirtied = v->markClean();
+            assert(dirtied > 0);
+            // Calculate stats if this had a positive time.
+            stats.dirtyAge = time(NULL) - dirtied;
+            assert(stats.dirtyAge < (86400 * 30));
+            stats.dirtyAgeHighWat = stats.dirtyAge > stats.dirtyAgeHighWat
+                ? stats.dirtyAge : stats.dirtyAgeHighWat;
             // Copy it for the duration.
-            val = strdup(v->getValue(&nbytes));
+            const char *vtmp = v->getValue(&nbytes);
+            val = (const char *)malloc(sizeof(char) * nbytes);
+            memcpy((char*)val, vtmp, nbytes);
         }
         lh.unlock();
 
