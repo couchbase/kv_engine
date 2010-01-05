@@ -4,7 +4,7 @@ lib_LTLIBRARIES = ep.la
 
 ep_la_LDFLAGS = -module -dynamic ${LIBSQLITE3}
 ep_la_SOURCES = \
-                 base-test.hh \
+                 kvstore.hh \
                  callbacks.hh \
                  config.h \
                  ep.cc ep.hh \

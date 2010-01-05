@@ -3,8 +3,6 @@
 #include "ep.hh"
 #include "sqlite-base.hh"
 
-using namespace kvtest;
-
 extern "C" {
     EXPORT_FUNCTION
     ENGINE_ERROR_CODE create_instance(uint64_t interface,

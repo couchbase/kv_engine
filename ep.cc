@@ -4,205 +4,201 @@
 
 #include <string.h>
 
-namespace kvtest {
-
-    extern "C" {
-        static void* launch_flusher_thread(void* arg) {
-            Flusher *flusher = (Flusher*) arg;
-            try {
-                flusher->run();
-            } catch(...) {
-                std::cerr << "Caught a fatal exception in the thread" << std::endl;
-            }
-            return NULL;
+extern "C" {
+    static void* launch_flusher_thread(void* arg) {
+        Flusher *flusher = (Flusher*) arg;
+        try {
+            flusher->run();
+        } catch(...) {
+            std::cerr << "Caught a fatal exception in the thread" << std::endl;
         }
+        return NULL;
+    }
+}
+
+EventuallyPersistentStore::EventuallyPersistentStore(KVStore *t,
+                                                     size_t est) {
+
+    pthread_mutex_init(&mutex, NULL);
+    pthread_cond_init(&cond, NULL);
+    est_size = est;
+    towrite = NULL;
+    memset(&stats, 0, sizeof(stats));
+    initQueue();
+    flusher = new Flusher(this);
+
+    // Run in a thread...
+    if(pthread_create(&thread, NULL, launch_flusher_thread, flusher)
+       != 0) {
+        throw std::runtime_error("Error initializing queue thread");
     }
 
-    EventuallyPersistentStore::EventuallyPersistentStore(KVStore *t,
-                                                         size_t est) {
+    underlying = t;
+    assert(underlying);
+}
 
-        pthread_mutex_init(&mutex, NULL);
-        pthread_cond_init(&cond, NULL);
-        est_size = est;
-        towrite = NULL;
-        memset(&stats, 0, sizeof(stats));
-        initQueue();
-        flusher = new Flusher(this);
+EventuallyPersistentStore::~EventuallyPersistentStore() {
+    LockHolder lh(&mutex);
+    flusher->stop();
+    if(pthread_cond_signal(&cond) != 0) {
+        throw std::runtime_error("Error signaling change.");
+    }
+    lh.unlock();
+    pthread_join(thread, NULL);
+    delete flusher;
+    delete towrite;
+    pthread_cond_destroy(&cond);
+    pthread_mutex_destroy(&mutex);
+}
 
-        // Run in a thread...
-        if(pthread_create(&thread, NULL, launch_flusher_thread, flusher)
-           != 0) {
-            throw std::runtime_error("Error initializing queue thread");
+void EventuallyPersistentStore::initQueue() {
+    assert(!towrite);
+    stats.queue_size = 0;
+    towrite = new std::queue<std::string>;
+}
+
+void EventuallyPersistentStore::set(std::string &key, std::string &val,
+                                    Callback<bool> &cb) {
+    mutation_type_t mtype = storage.set(key, val);
+
+    if (mtype == WAS_CLEAN || mtype == NOT_FOUND) {
+        LockHolder lh(&mutex);
+        queueDirty(key);
+    }
+    bool rv = true;
+    cb.callback(rv);
+}
+
+void EventuallyPersistentStore::set(std::string &key, const char *val,
+                                    size_t nbytes,
+                                    Callback<bool> &cb) {
+    mutation_type_t mtype = storage.set(key, val, nbytes);
+
+    if (mtype == WAS_CLEAN || mtype == NOT_FOUND) {
+        LockHolder lh(&mutex);
+        queueDirty(key);
+    }
+    bool rv = true;
+    cb.callback(rv);
+}
+
+void EventuallyPersistentStore::reset() {
+    flush(false);
+    LockHolder lh(&mutex);
+    underlying->reset();
+    delete towrite;
+    towrite = NULL;
+    memset(&stats, 0, sizeof(stats));
+    initQueue();
+    storage.clear();
+}
+
+void EventuallyPersistentStore::get(std::string &key,
+                                    Callback<GetValue> &cb) {
+    int bucket_num = storage.bucket(key);
+    LockHolder lh(storage.getMutex(bucket_num));
+    StoredValue *v = storage.unlocked_find(key, bucket_num);
+    bool success = v != NULL;
+    size_t nbytes = 0;
+    const char *sval = v ? v->getValue(&nbytes) : NULL;
+    GetValue rv(success ? std::string(sval, nbytes) : std::string(":("),
+                success);
+    cb.callback(rv);
+    lh.unlock();
+}
+
+void EventuallyPersistentStore::getStats(struct ep_stats *out) {
+    LockHolder lh(&mutex);
+    memcpy(out, &stats, sizeof(stats));
+}
+
+void EventuallyPersistentStore::del(std::string &key, Callback<bool> &cb) {
+    bool existed = storage.del(key);
+    if (existed) {
+        queueDirty(key);
+    }
+    cb.callback(existed);
+}
+
+void EventuallyPersistentStore::queueDirty(std::string &key) {
+    // Assume locked.
+    towrite->push(key);
+    stats.queue_size++;
+    if(pthread_cond_signal(&cond) != 0) {
+        throw std::runtime_error("Error signaling change.");
+    }
+}
+
+void EventuallyPersistentStore::flush(bool shouldWait) {
+    LockHolder lh(&mutex);
+
+    if (towrite->empty()) {
+        stats.dirtyAge = 0;
+        if (shouldWait) {
+            if(pthread_cond_wait(&cond, &mutex) != 0) {
+                throw std::runtime_error("Error waiting for signal.");
+            }
         }
+    } else {
+        std::queue<std::string> *q = towrite;
+        towrite = NULL;
+        initQueue();
+        lh.unlock();
 
-        underlying = t;
+        RememberingCallback<bool> cb;
         assert(underlying);
-    }
 
-    EventuallyPersistentStore::~EventuallyPersistentStore() {
-        LockHolder lh(&mutex);
-        flusher->stop();
-        if(pthread_cond_signal(&cond) != 0) {
-            throw std::runtime_error("Error signaling change.");
+        stats.flusher_todo = q->size();
+
+        underlying->begin();
+        while (!q->empty()) {
+            flushSome(q, cb);
         }
-        lh.unlock();
-        pthread_join(thread, NULL);
-        delete flusher;
-        delete towrite;
-        pthread_cond_destroy(&cond);
-        pthread_mutex_destroy(&mutex);
+        time_t cstart = time(NULL);
+        underlying->commit();
+        // One more lock to update a stat.
+        LockHolder lh_stat(&mutex);
+        stats.commit_time = time(NULL) - cstart;
+
+        delete q;
+    }
+}
+
+void EventuallyPersistentStore::flushSome(std::queue<std::string> *q,
+                                          Callback<bool> &cb) {
+
+    std::string key = q->front();
+    q->pop();
+
+    int bucket_num = storage.bucket(key);
+    LockHolder lh(storage.getMutex(bucket_num));
+    StoredValue *v = storage.unlocked_find(key, bucket_num);
+
+    bool found = v != NULL;
+    bool isDirty = (found && v->isDirty());
+    const char *val = NULL;
+    size_t nbytes = 0;
+    if (isDirty) {
+        time_t dirtied = v->markClean();
+        assert(dirtied > 0);
+        // Calculate stats if this had a positive time.
+        stats.dirtyAge = time(NULL) - dirtied;
+        assert(stats.dirtyAge < (86400 * 30));
+        stats.dirtyAgeHighWat = stats.dirtyAge > stats.dirtyAgeHighWat
+            ? stats.dirtyAge : stats.dirtyAgeHighWat;
+        // Copy it for the duration.
+        const char *vtmp = v->getValue(&nbytes);
+        val = (const char *)malloc(sizeof(char) * nbytes);
+        memcpy((char*)val, vtmp, nbytes);
+    }
+    stats.flusher_todo--;
+    lh.unlock();
+
+    if (found && isDirty) {
+        underlying->set(key, val, nbytes, cb);
+    } else if (!found) {
+        underlying->del(key, cb);
     }
 
-    void EventuallyPersistentStore::initQueue() {
-        assert(!towrite);
-        stats.queue_size = 0;
-        towrite = new std::queue<std::string>;
-    }
-
-    void EventuallyPersistentStore::set(std::string &key, std::string &val,
-                                        Callback<bool> &cb) {
-        mutation_type_t mtype = storage.set(key, val);
-
-        if (mtype == WAS_CLEAN || mtype == NOT_FOUND) {
-            LockHolder lh(&mutex);
-            queueDirty(key);
-        }
-        bool rv = true;
-        cb.callback(rv);
-    }
-
-    void EventuallyPersistentStore::set(std::string &key, const char *val,
-                                        size_t nbytes,
-                                        Callback<bool> &cb) {
-        mutation_type_t mtype = storage.set(key, val, nbytes);
-
-        if (mtype == WAS_CLEAN || mtype == NOT_FOUND) {
-            LockHolder lh(&mutex);
-            queueDirty(key);
-        }
-        bool rv = true;
-        cb.callback(rv);
-    }
-
-    void EventuallyPersistentStore::reset() {
-        flush(false);
-        LockHolder lh(&mutex);
-        underlying->reset();
-        delete towrite;
-        towrite = NULL;
-        memset(&stats, 0, sizeof(stats));
-        initQueue();
-        storage.clear();
-    }
-
-    void EventuallyPersistentStore::get(std::string &key,
-                                        Callback<kvtest::GetValue> &cb) {
-        int bucket_num = storage.bucket(key);
-        LockHolder lh(storage.getMutex(bucket_num));
-        StoredValue *v = storage.unlocked_find(key, bucket_num);
-        bool success = v != NULL;
-        size_t nbytes = 0;
-        const char *sval = v ? v->getValue(&nbytes) : NULL;
-        kvtest::GetValue rv(success ? std::string(sval, nbytes) : std::string(":("),
-                            success);
-        cb.callback(rv);
-        lh.unlock();
-    }
-
-    void EventuallyPersistentStore::getStats(struct ep_stats *out) {
-        LockHolder lh(&mutex);
-        memcpy(out, &stats, sizeof(stats));
-    }
-
-    void EventuallyPersistentStore::del(std::string &key, Callback<bool> &cb) {
-        bool existed = storage.del(key);
-        if (existed) {
-            queueDirty(key);
-        }
-        cb.callback(existed);
-    }
-
-    void EventuallyPersistentStore::queueDirty(std::string &key) {
-        // Assume locked.
-        towrite->push(key);
-        stats.queue_size++;
-        if(pthread_cond_signal(&cond) != 0) {
-            throw std::runtime_error("Error signaling change.");
-        }
-    }
-
-    void EventuallyPersistentStore::flush(bool shouldWait) {
-        LockHolder lh(&mutex);
-
-        if (towrite->empty()) {
-            stats.dirtyAge = 0;
-            if (shouldWait) {
-                if(pthread_cond_wait(&cond, &mutex) != 0) {
-                    throw std::runtime_error("Error waiting for signal.");
-                }
-            }
-        } else {
-            std::queue<std::string> *q = towrite;
-            towrite = NULL;
-            initQueue();
-            lh.unlock();
-
-            RememberingCallback<bool> cb;
-            assert(underlying);
-
-            stats.flusher_todo = q->size();
-
-            underlying->begin();
-            while (!q->empty()) {
-                flushSome(q, cb);
-            }
-            time_t cstart = time(NULL);
-            underlying->commit();
-            // One more lock to update a stat.
-            LockHolder lh_stat(&mutex);
-            stats.commit_time = time(NULL) - cstart;
-
-            delete q;
-        }
-    }
-
-    void EventuallyPersistentStore::flushSome(std::queue<std::string> *q,
-                                             Callback<bool> &cb) {
-
-        std::string key = q->front();
-        q->pop();
-
-        int bucket_num = storage.bucket(key);
-        LockHolder lh(storage.getMutex(bucket_num));
-        StoredValue *v = storage.unlocked_find(key, bucket_num);
-
-        bool found = v != NULL;
-        bool isDirty = (found && v->isDirty());
-        const char *val = NULL;
-        size_t nbytes = 0;
-        if (isDirty) {
-            time_t dirtied = v->markClean();
-            assert(dirtied > 0);
-            // Calculate stats if this had a positive time.
-            stats.dirtyAge = time(NULL) - dirtied;
-            assert(stats.dirtyAge < (86400 * 30));
-            stats.dirtyAgeHighWat = stats.dirtyAge > stats.dirtyAgeHighWat
-                ? stats.dirtyAge : stats.dirtyAgeHighWat;
-            // Copy it for the duration.
-            const char *vtmp = v->getValue(&nbytes);
-            val = (const char *)malloc(sizeof(char) * nbytes);
-            memcpy((char*)val, vtmp, nbytes);
-        }
-        stats.flusher_todo--;
-        lh.unlock();
-
-        if (found && isDirty) {
-            underlying->set(key, val, nbytes, cb);
-        } else if (!found) {
-            underlying->del(key, cb);
-        }
-
-        free((void*)val);
-    }
-
+    free((void*)val);
 }

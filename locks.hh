@@ -7,52 +7,49 @@
 #include <sstream>
 #include <pthread.h>
 
-namespace kvtest {
+/**
+ * pthread mutex holder (maintains lock while active).
+ */
+class LockHolder {
+public:
+    /**
+     * Acquire the lock in the given mutex.
+     */
+    LockHolder(pthread_mutex_t* m) : mutex(m), locked(false) {
+        lock();
+    }
 
     /**
-     * pthread mutex holder (maintains lock while active).
+     * Release the lock.
      */
-    class LockHolder {
-    public:
-        /**
-         * Acquire the lock in the given mutex.
-         */
-        LockHolder(pthread_mutex_t* m) : mutex(m), locked(false) {
-            lock();
-        }
+    ~LockHolder() {
+        unlock();
+    }
 
-        /**
-         * Release the lock.
-         */
-        ~LockHolder() {
-            unlock();
+    void lock() {
+        if (pthread_mutex_lock(mutex) != 0) {
+            throw std::runtime_error("Failed to acquire lock.");
         }
+        locked = true;
 
-        void lock() {
-            if (pthread_mutex_lock(mutex) != 0) {
-                throw std::runtime_error("Failed to acquire lock.");
+    }
+
+
+    void unlock() {
+        if (locked) {
+            if (pthread_mutex_unlock(mutex) != 0) {
+                throw std::runtime_error("Failed to release lock.");
             }
-            locked = true;
-
+            locked = false;
         }
+    }
 
+private:
+    pthread_mutex_t *mutex;
+    bool locked;
 
-        void unlock() {
-            if (locked) {
-                if (pthread_mutex_unlock(mutex) != 0) {
-                    throw std::runtime_error("Failed to release lock.");
-                }
-                locked = false;
-            }
-        }
-
-    private:
-        pthread_mutex_t *mutex;
-        bool locked;
-
-        LockHolder(const LockHolder&);
-        void operator=(const LockHolder&);
-    };
-}
+    LockHolder(const LockHolder&);
+    void operator=(const LockHolder&);
+};
 
 #endif /* LOCKS_H */
