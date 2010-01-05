@@ -129,7 +129,6 @@ public:
                 ret = ENGINE_ENOMEM;
             } else {
                 if (warmup) {
-                    db->init();
                     db->dump(epstore->getLoadStorageKVPairCallback());
                 } else {
                     backend->reset();

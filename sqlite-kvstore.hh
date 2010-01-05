@@ -166,9 +166,13 @@ private:
 class Sqlite3 : public BaseSqlite3 {
 public:
 
-    Sqlite3(const char *path, bool is_auditable=false) : BaseSqlite3(path) {
-        ins_stmt = sel_stmt = del_stmt = NULL;
-        auditable = is_auditable;
+    Sqlite3(const char *path, bool is_auditable=false) :
+        BaseSqlite3(path), ins_stmt(NULL), sel_stmt(NULL), del_stmt(NULL),
+        auditable(is_auditable)
+    {
+        open();
+        initTables();
+        initStatements();
     }
 
     /**
@@ -196,13 +200,6 @@ public:
      * Overrides dump
      */
     virtual void dump(Callback<KVPair> &cb);
-
-    void init(void) {
-        open();
-        initTables();
-        initStatements();
-        execute("vacuum");
-    }
 
 protected:
 
