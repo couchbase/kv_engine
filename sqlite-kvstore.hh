@@ -167,8 +167,8 @@ class Sqlite3 : public BaseSqlite3 {
 public:
 
     Sqlite3(const char *path, bool is_auditable=false) :
-        BaseSqlite3(path), ins_stmt(NULL), sel_stmt(NULL), del_stmt(NULL),
-        auditable(is_auditable)
+        BaseSqlite3(path), auditable(is_auditable), ins_stmt(NULL),
+        sel_stmt(NULL), del_stmt(NULL)
     {
         open();
         initTables();
