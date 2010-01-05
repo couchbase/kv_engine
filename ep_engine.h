@@ -1,7 +1,7 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 #include "locks.hh"
 #include "ep.hh"
-#include "sqlite-base.hh"
+#include "sqlite-kvstore.hh"
 
 extern "C" {
     EXPORT_FUNCTION

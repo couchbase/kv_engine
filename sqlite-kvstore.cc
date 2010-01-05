@@ -1,7 +1,7 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 #include <string.h>
 
-#include "sqlite-base.hh"
+#include "sqlite-kvstore.hh"
 
 #define MAX_STEPS 10000
 

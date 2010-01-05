@@ -4,14 +4,9 @@ lib_LTLIBRARIES = ep.la
 
 ep_la_LDFLAGS = -module -dynamic ${LIBSQLITE3}
 ep_la_SOURCES = \
-                 kvstore.hh \
                  callbacks.hh \
-                 config.h \
                  ep.cc ep.hh \
-                 ep.hh \
-                 ep_engine.cc \
-                 ep_engine.h \
-                 ep_engine.h \
+                 ep_engine.cc ep_engine.h \
+                 kvstore.hh \
                  locks.hh \
-                 sqlite-base.cc \
-                 sqlite-base.hh
+                 sqlite-kvstore.cc sqlite-kvstore.hh
