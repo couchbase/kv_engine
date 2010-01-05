@@ -202,31 +202,45 @@ public:
         (void)cookie;
         (void)nkey;
         (void)add_stat;
+
+        const char *key;
         LockHolder lh(&stats.lock);
         if (stat_key == NULL) {
             // @todo add interesting stats
             struct ep_stats epstats;
-            ((EventuallyPersistentStore*)backend)->getStats(&epstats);
-            char ageS[32];
-            snprintf(ageS, sizeof(ageS), "%u", (unsigned int)epstats.dirtyAge);
-            const char *key = "ep_storage_age";
-            add_stat(key, strlen(key), ageS, strlen(ageS), cookie);
 
-            snprintf(ageS, sizeof(ageS), "%u", (unsigned int)epstats.dirtyAgeHighWat);
-            key = "ep_storage_age_highwat";
-            add_stat(key, strlen(key), ageS, strlen(ageS), cookie);
+            EventuallyPersistentStore *epstore;
+            epstore = dynamic_cast<EventuallyPersistentStore *>(backend);
 
-            snprintf(ageS, sizeof(ageS), "%u", (unsigned int)epstats.queue_size);
-            key = "ep_queue_size";
-            add_stat(key, strlen(key), ageS, strlen(ageS), cookie);
+            if (epstore) {
+                epstore->getStats(&epstats);
 
-            snprintf(ageS, sizeof(ageS), "%u", (unsigned int)epstats.flusher_todo);
-            key = "ep_flusher_todo";
-            add_stat(key, strlen(key), ageS, strlen(ageS), cookie);
+                char ageS[32];
+                snprintf(ageS, sizeof(ageS), "%u",
+                         (unsigned int)epstats.dirtyAge);
+                key = "ep_storage_age";
+                add_stat(key, strlen(key), ageS, strlen(ageS), cookie);
 
-            snprintf(ageS, sizeof(ageS), "%u", (unsigned int)epstats.commit_time);
-            key = "ep_commit_time";
-            add_stat(key, strlen(key), ageS, strlen(ageS), cookie);
+                snprintf(ageS, sizeof(ageS), "%u",
+                         (unsigned int)epstats.dirtyAgeHighWat);
+                key = "ep_storage_age_highwat";
+                add_stat(key, strlen(key), ageS, strlen(ageS), cookie);
+
+                snprintf(ageS, sizeof(ageS), "%u",
+                         (unsigned int)epstats.queue_size);
+                key = "ep_queue_size";
+                add_stat(key, strlen(key), ageS, strlen(ageS), cookie);
+
+                snprintf(ageS, sizeof(ageS), "%u",
+                         (unsigned int)epstats.flusher_todo);
+                key = "ep_flusher_todo";
+                add_stat(key, strlen(key), ageS, strlen(ageS), cookie);
+
+                snprintf(ageS, sizeof(ageS), "%u",
+                         (unsigned int)epstats.commit_time);
+                key = "ep_commit_time";
+                add_stat(key, strlen(key), ageS, strlen(ageS), cookie);
+            }
 
             key = "dbname";
             add_stat(key, strlen(key), dbname, strlen(dbname), cookie);
@@ -267,6 +281,13 @@ public:
     void resetStats()
     {
         LockHolder lh(&stats.lock);
+        EventuallyPersistentStore *epstore;
+        epstore = dynamic_cast<EventuallyPersistentStore *>(backend);
+
+        if (epstore) {
+            epstore->resetStats();
+        }
+
         // @todo reset statistics
     }
 

@@ -110,7 +110,12 @@ void EventuallyPersistentStore::get(std::string &key,
 
 void EventuallyPersistentStore::getStats(struct ep_stats *out) {
     LockHolder lh(&mutex);
-    memcpy(out, &stats, sizeof(stats));
+    *out = stats;
+}
+
+void EventuallyPersistentStore::resetStats(void) {
+    LockHolder lh(&mutex);
+    memset(&stats, 0, sizeof(stats));
 }
 
 void EventuallyPersistentStore::del(std::string &key, Callback<bool> &cb) {

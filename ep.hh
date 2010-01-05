@@ -274,6 +274,8 @@ public:
 
     void getStats(struct ep_stats *out);
 
+    void resetStats(void);
+
     virtual void dump(Callback<KVPair>&) {
         throw std::runtime_error("not implemented");
     }
