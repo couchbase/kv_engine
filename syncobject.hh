@@ -25,20 +25,12 @@ public:
     }
 
     void wait() {
-        if (!locked) {
-            throw std::runtime_error("MUTEX ERROR: trying to wait without locking mutex first");
-        }
-
         if (pthread_cond_wait(&cond, &mutex) != 0) {
             throw std::runtime_error("Failed to wait for condition.");
         }
     }
 
     void notify() {
-        if (!locked) {
-            throw std::runtime_error("MUTEX ERROR: trying to notify without locking mutex first");
-        }
-
         if(pthread_cond_broadcast(&cond) != 0) {
             throw std::runtime_error("Failed to broadcast change.");
         }
