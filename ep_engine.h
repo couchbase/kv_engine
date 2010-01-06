@@ -191,7 +191,6 @@ public:
         (void)nkey;
         (void)add_stat;
 
-        const char *key;
         if (stat_key == NULL) {
             // @todo add interesting stats
             struct ep_stats epstats;
@@ -202,39 +201,21 @@ public:
             if (epstore) {
                 epstore->getStats(&epstats);
 
-                char ageS[32];
-                snprintf(ageS, sizeof(ageS), "%u",
-                         (unsigned int)epstats.dirtyAge);
-                key = "ep_storage_age";
-                add_stat(key, strlen(key), ageS, strlen(ageS), cookie);
-
-                snprintf(ageS, sizeof(ageS), "%u",
-                         (unsigned int)epstats.dirtyAgeHighWat);
-                key = "ep_storage_age_highwat";
-                add_stat(key, strlen(key), ageS, strlen(ageS), cookie);
-
-                snprintf(ageS, sizeof(ageS), "%u",
-                         (unsigned int)epstats.queue_size);
-                key = "ep_queue_size";
-                add_stat(key, strlen(key), ageS, strlen(ageS), cookie);
-
-                snprintf(ageS, sizeof(ageS), "%u",
-                         (unsigned int)epstats.flusher_todo);
-                key = "ep_flusher_todo";
-                add_stat(key, strlen(key), ageS, strlen(ageS), cookie);
-
-                snprintf(ageS, sizeof(ageS), "%u",
-                         (unsigned int)epstats.commit_time);
-                key = "ep_commit_time";
-                add_stat(key, strlen(key), ageS, strlen(ageS), cookie);
+                add_casted_stat("ep_storage_age",
+                                epstats.dirtyAge, add_stat, cookie);
+                add_casted_stat("ep_storage_age_highwat",
+                                epstats.dirtyAgeHighWat, add_stat, cookie);
+                add_casted_stat("ep_queue_size",
+                                epstats.queue_size, add_stat, cookie);
+                add_casted_stat("ep_flusher_todo",
+                                epstats.flusher_todo, add_stat, cookie);
+                add_casted_stat("ep_commit_time",
+                                epstats.commit_time, add_stat, cookie);
             }
 
-            key = "ep_dbname";
-            add_stat(key, strlen(key), dbname, strlen(dbname), cookie);
-
-            key = "ep_warmup";
-            const char *val = warmup ? "true" : "false";
-            add_stat(key, strlen(key), val, strlen(val), cookie);
+            add_casted_stat("ep_dbname", dbname, add_stat, cookie);
+            add_casted_stat("ep_warmup", warmup ? "true" : "false",
+                            add_stat, cookie);
         }
         return ENGINE_SUCCESS;
     }
@@ -282,6 +263,19 @@ private:
     friend ENGINE_ERROR_CODE create_instance(uint64_t interface,
                                              GET_SERVER_API get_server_api,
                                              ENGINE_HANDLE **handle);
+
+    void add_casted_stat(const char *k, const char *v,
+                         ADD_STAT add_stat, const void *cookie) {
+        add_stat(k, static_cast<uint16_t>(strlen(k)),
+                 v, static_cast<uint32_t>(strlen(v)), cookie);
+    }
+
+    void add_casted_stat(const char *k, size_t v,
+                         ADD_STAT add_stat, const void *cookie) {
+        char valS[32];
+        snprintf(valS, sizeof(valS), "%lu", static_cast<unsigned long>(v));
+        add_casted_stat(k, valS, add_stat, cookie);
+    }
 
     const char *dbname;
     bool warmup;
