@@ -23,7 +23,7 @@ AS_IF([test "x$SUNCC" = "xyes"],
       ])
 
 AH_BOTTOM([
-#if ((defined (__SUNPRO_C) || defined(__SUNPRO_CC)) || defined GCC)
+#if ((defined (__SUNPRO_C) || defined(__SUNPRO_CC)) || defined __GNUC__)
 #define EXPORT_FUNCTION __attribute__ ((visibility("default")))
 #else
 #define EXPORT_FUNCTION
