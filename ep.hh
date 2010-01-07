@@ -291,7 +291,7 @@ private:
 
     void queueDirty(std::string &key);
     void flush(bool shouldWait);
-    void flushSome(std::queue<std::string> *q, Callback<bool> &cb);
+    size_t flushSome(std::queue<std::string> *q, Callback<bool> &cb);
     void flusherStopped();
     void initQueue();
 

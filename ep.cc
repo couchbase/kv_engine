@@ -189,8 +189,8 @@ void EventuallyPersistentStore::flush(bool shouldWait) {
     }
 }
 
-void EventuallyPersistentStore::flushSome(std::queue<std::string> *q,
-                                          Callback<bool> &cb) {
+size_t EventuallyPersistentStore::flushSome(std::queue<std::string> *q,
+                                            Callback<bool> &cb) {
 
     std::string key = q->front();
     q->pop();
@@ -215,6 +215,7 @@ void EventuallyPersistentStore::flushSome(std::queue<std::string> *q,
         const char *vtmp = v->getValue(&nbytes);
         val = (const char *)malloc(sizeof(char) * nbytes);
         memcpy((char*)val, vtmp, nbytes);
+        nbytes += key.size();
     }
     stats.flusher_todo--;
     lh.unlock();
@@ -226,6 +227,7 @@ void EventuallyPersistentStore::flushSome(std::queue<std::string> *q,
     }
 
     free((void*)val);
+    return nbytes;
 }
 
 void EventuallyPersistentStore::flusherStopped() {
