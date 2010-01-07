@@ -25,6 +25,7 @@ can do this:
     cd ~/prog
     git clone git@github.com:northscale/ep-engine.git
     cd ep-engine
+    ./config/autorun.sh
     ./configure --with-memcached=$HOME/prog/memcached
     make
 
