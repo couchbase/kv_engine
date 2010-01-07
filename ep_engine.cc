@@ -121,6 +121,16 @@ extern "C" {
         return getHandle(handle)->resetStats();
     }
 
+    static protocol_binary_response_status stopFlusher(EventuallyPersistentEngine *e,
+                                                       const char **msg) {
+        return e->stopFlusher(msg);
+    }
+
+    static protocol_binary_response_status startFlusher(EventuallyPersistentEngine *e,
+                                                        const char **msg) {
+        return e->startFlusher(msg);
+    }
+
     static ENGINE_ERROR_CODE EvpUnknownCommand(ENGINE_HANDLE* handle,
                                                const void* cookie,
                                                protocol_binary_request_header *request,
@@ -129,13 +139,40 @@ extern "C" {
         (void)handle;
         (void)cookie;
         (void)request;
-        if (response(NULL, 0, NULL, 0, NULL, 0,
-                     PROTOCOL_BINARY_RAW_BYTES,
-                     PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND, 0, cookie)) {
-            return ENGINE_SUCCESS;
-        } else {
-            return ENGINE_FAILED;
+
+        bool handled = true;
+        protocol_binary_response_status res =
+            PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND;
+        const char *msg;
+
+        EventuallyPersistentEngine *h = getHandle(handle);
+
+        switch (request->request.opcode) {
+        case CMD_STOP_PERSISTENCE:
+            res = stopFlusher(h, &msg);
+            break;
+        case CMD_START_PERSISTENCE:
+            res = startFlusher(h, &msg);
+            break;
+        default:
+            /* unknown command */
+            handled = false;
+            break;
         }
+
+        if (handled) {
+            size_t msg_size = msg ? strlen(msg) : 0;
+            response(msg, static_cast<uint16_t>(msg_size),
+                     NULL, 0, NULL, 0,
+                     PROTOCOL_BINARY_RAW_BYTES,
+                     static_cast<uint16_t>(res), 0, cookie);
+        } else {
+            response(NULL, 0, NULL, 0, NULL, 0,
+                     PROTOCOL_BINARY_RAW_BYTES,
+                     PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND, 0, cookie);
+        }
+
+        return ENGINE_SUCCESS;
     }
 
     static uint64_t EvpItemGetCas(const item *item) {

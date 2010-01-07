@@ -24,13 +24,11 @@ EventuallyPersistentStore::EventuallyPersistentStore(KVStore *t,
     towrite = NULL;
     memset(&stats, 0, sizeof(stats));
     initQueue();
+
     flusher = new Flusher(this);
 
-    // Run in a thread...
-    if(pthread_create(&thread, NULL, launch_flusher_thread, flusher)
-       != 0) {
-        throw std::runtime_error("Error initializing queue thread");
-    }
+    flusherState = STOPPED;
+    startFlusher();
 
     underlying = t;
     assert(underlying);
@@ -38,12 +36,43 @@ EventuallyPersistentStore::EventuallyPersistentStore(KVStore *t,
 
 EventuallyPersistentStore::~EventuallyPersistentStore() {
     LockHolder lh(mutex);
-    flusher->stop();
+    stopFlusher();
     mutex.notify();
     lh.unlock();
-    pthread_join(thread, NULL);
+    if (flusherState != STOPPED) {
+        pthread_join(thread, NULL);
+    }
     delete flusher;
     delete towrite;
+}
+
+void EventuallyPersistentStore::startFlusher() {
+    LockHolder lh(mutex);
+    if (flusherState != STOPPED) {
+        return;
+    }
+
+    // Run in a thread...
+    if(pthread_create(&thread, NULL, launch_flusher_thread, flusher)
+       != 0) {
+        throw std::runtime_error("Error initializing queue thread");
+    }
+    flusherState = RUNNING;
+}
+
+void EventuallyPersistentStore::stopFlusher() {
+    LockHolder lh(mutex);
+    if (flusherState != RUNNING) {
+        return;
+    }
+
+    flusherState = SHUTTING_DOWN;
+    flusher->stop();
+}
+
+flusher_state EventuallyPersistentStore::getFlusherState() {
+    LockHolder lh(mutex);
+    return flusherState;
 }
 
 void EventuallyPersistentStore::initQueue() {
@@ -197,4 +226,9 @@ void EventuallyPersistentStore::flushSome(std::queue<std::string> *q,
     }
 
     free((void*)val);
+}
+
+void EventuallyPersistentStore::flusherStopped() {
+    LockHolder lh(mutex);
+    flusherState = STOPPED;
 }

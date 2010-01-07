@@ -13,6 +13,9 @@ extern "C" {
     static char *EvpItemGetData(const item *it);
 }
 
+#define CMD_STOP_PERSISTENCE  0x80
+#define CMD_START_PERSISTENCE 0x81
+
 /**
  * The Item structure we use to pass information between the memcached
  * core and the backend. Please note that the kvstore don't store these
@@ -244,6 +247,38 @@ public:
         }
 
         return ENGINE_SUCCESS;
+    }
+
+    protocol_binary_response_status stopFlusher(const char **msg) {
+        protocol_binary_response_status rv = PROTOCOL_BINARY_RESPONSE_SUCCESS;
+        EventuallyPersistentStore *epstore;
+        epstore = dynamic_cast<EventuallyPersistentStore *>(backend);
+        *msg = NULL;
+        if (epstore->getFlusherState() == RUNNING) {
+            epstore->stopFlusher();
+        } else {
+            std::cerr << "Attempted to stop flusher in state "
+                      << epstore->getFlusherState() << std::endl;
+            *msg = "Flusher not running.";
+            rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
+        }
+        return rv;
+    }
+
+    protocol_binary_response_status startFlusher(const char **msg) {
+        protocol_binary_response_status rv = PROTOCOL_BINARY_RESPONSE_SUCCESS;
+        EventuallyPersistentStore *epstore;
+        epstore = dynamic_cast<EventuallyPersistentStore *>(backend);
+        *msg = NULL;
+        if (epstore->getFlusherState() == STOPPED) {
+            epstore->startFlusher();
+        } else {
+            std::cerr << "Attempted to stop flusher in state "
+                      << epstore->getFlusherState() << std::endl;
+            *msg = "Flusher not shut down.";
+            rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
+        }
+        return rv;
     }
 
     void resetStats()

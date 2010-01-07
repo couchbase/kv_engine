@@ -246,6 +246,10 @@ private:
     HashTable& hashtable;
 };
 
+typedef enum {
+    STOPPED=0, RUNNING=1, SHUTTING_DOWN=2
+} flusher_state;
+
 class EventuallyPersistentStore : public KVStore {
 public:
 
@@ -267,6 +271,12 @@ public:
 
     void resetStats(void);
 
+    void stopFlusher(void);
+
+    void startFlusher(void);
+
+    flusher_state getFlusherState();
+
     virtual void dump(Callback<KVPair>&) {
         throw std::runtime_error("not implemented");
     }
@@ -282,19 +292,21 @@ private:
     void queueDirty(std::string &key);
     void flush(bool shouldWait);
     void flushSome(std::queue<std::string> *q, Callback<bool> &cb);
+    void flusherStopped();
     void initQueue();
 
     friend class Flusher;
 
-    KVStore                 *underlying;
-    size_t                   est_size;
-    Flusher                 *flusher;
-    HashTable                storage;
-    SyncObject               mutex;
-    std::queue<std::string> *towrite;
-    pthread_t                thread;
-    struct ep_stats          stats;
-    LoadStorageKVPairCallback loadStorageKVPairCallback;
+    KVStore                   *underlying;
+    size_t                     est_size;
+    Flusher                   *flusher;
+    HashTable                  storage;
+    SyncObject                 mutex;
+    std::queue<std::string>   *towrite;
+    pthread_t                  thread;
+    struct ep_stats            stats;
+    LoadStorageKVPairCallback  loadStorageKVPairCallback;
+    flusher_state              flusherState;
     DISALLOW_COPY_AND_ASSIGN(EventuallyPersistentStore);
 };
 
@@ -311,6 +323,7 @@ public:
         running = false;
     }
     void run() {
+        running = true;
         try {
             while(running) {
                 store->flush(true);
@@ -321,6 +334,8 @@ public:
                       << e.what() << std::endl;
             assert(false);
         }
+        // Signal our completion.
+        store->flusherStopped();
     }
 private:
     EventuallyPersistentStore *store;
