@@ -157,8 +157,16 @@ public:
     ENGINE_ERROR_CODE itemDelete(const void* cookie, item *item)
     {
         (void)cookie;
-        (void)item;
-        return ENGINE_ENOTSUP;
+        RememberingCallback<bool> delCb;
+        Item *it = static_cast<Item*>(item);
+
+        backend->del(it->key, delCb);;
+        delCb.waitForValue();
+        if (delCb.val) {
+            return ENGINE_SUCCESS;
+        } else {
+            return ENGINE_KEY_ENOENT;
+        }
     }
 
     void itemRelease(const void* cookie, item *item)
