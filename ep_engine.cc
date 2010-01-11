@@ -232,7 +232,7 @@ extern "C" {
 } // C linkage
 
 EventuallyPersistentEngine::EventuallyPersistentEngine(SERVER_HANDLE_V1 *sApi) :
-    dbname("/tmp/test.db"), warmup(true)
+    dbname("/tmp/test.db"), warmup(true), warmupComplete(false)
 {
     interface.interface = 1;
     ENGINE_HANDLE_V1::get_info = EvpGetInfo;

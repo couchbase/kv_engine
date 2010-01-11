@@ -122,6 +122,7 @@ public:
             } else {
                 if (warmup) {
                     db->dump(epstore->getLoadStorageKVPairCallback());
+                    warmupComplete = true;
                 } else {
                     backend->reset();
                 }
@@ -219,6 +220,10 @@ public:
             add_casted_stat("ep_dbname", dbname, add_stat, cookie);
             add_casted_stat("ep_warmup", warmup ? "true" : "false",
                             add_stat, cookie);
+            if (warmup) {
+                add_casted_stat("ep_warmup_thread", warmupComplete ? "complete" : "running",
+                                add_stat, cookie);
+            }
         }
         return ENGINE_SUCCESS;
     }
@@ -314,6 +319,7 @@ private:
 
     const char *dbname;
     bool warmup;
+    volatile bool warmupComplete;
     SERVER_HANDLE_V1 serverApi;
     IgnoreCallback ignoreCallback;
     KVStore *backend;
