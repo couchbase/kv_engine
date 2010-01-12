@@ -113,16 +113,14 @@ public:
         }
 
         if (ret == ENGINE_SUCCESS) {
-            Sqlite3 *db = new Sqlite3(dbname);
-            EventuallyPersistentStore *epstore;
-            backend = epstore = new EventuallyPersistentStore(db);
+            sqliteDb = new Sqlite3(dbname);
+            backend = epstore = new EventuallyPersistentStore(sqliteDb);
 
             if (backend == NULL) {
                 ret = ENGINE_ENOMEM;
             } else {
                 if (warmup) {
-                    db->dump(epstore->getLoadStorageKVPairCallback());
-                    warmupComplete = true;
+                    loadDatabase();
                 } else {
                     backend->reset();
                 }
@@ -207,9 +205,6 @@ public:
             // @todo add interesting stats
             struct ep_stats epstats;
 
-            EventuallyPersistentStore *epstore;
-            epstore = dynamic_cast<EventuallyPersistentStore *>(backend);
-
             if (epstore) {
                 epstore->getStats(&epstats);
 
@@ -283,8 +278,6 @@ public:
 
     protocol_binary_response_status stopFlusher(const char **msg) {
         protocol_binary_response_status rv = PROTOCOL_BINARY_RESPONSE_SUCCESS;
-        EventuallyPersistentStore *epstore;
-        epstore = dynamic_cast<EventuallyPersistentStore *>(backend);
         *msg = NULL;
         if (epstore->getFlusherState() == RUNNING) {
             epstore->stopFlusher();
@@ -299,8 +292,6 @@ public:
 
     protocol_binary_response_status startFlusher(const char **msg) {
         protocol_binary_response_status rv = PROTOCOL_BINARY_RESPONSE_SUCCESS;
-        EventuallyPersistentStore *epstore;
-        epstore = dynamic_cast<EventuallyPersistentStore *>(backend);
         *msg = NULL;
         if (epstore->getFlusherState() == STOPPED) {
             epstore->startFlusher();
@@ -315,14 +306,16 @@ public:
 
     void resetStats()
     {
-        EventuallyPersistentStore *epstore;
-        epstore = dynamic_cast<EventuallyPersistentStore *>(backend);
-
         if (epstore) {
             epstore->resetStats();
         }
 
         // @todo reset statistics
+    }
+
+    static void loadDatabase(EventuallyPersistentEngine *instance) {
+        instance->sqliteDb->dump(instance->epstore->getLoadStorageKVPairCallback());
+        instance->warmupComplete = true;
     }
 
 private:
@@ -344,10 +337,14 @@ private:
         add_casted_stat(k, valS, add_stat, cookie);
     }
 
+    void loadDatabase(void);
+
     const char *dbname;
     bool warmup;
     volatile bool warmupComplete;
     SERVER_HANDLE_V1 serverApi;
     IgnoreCallback ignoreCallback;
     KVStore *backend;
+    Sqlite3 *sqliteDb;
+    EventuallyPersistentStore *epstore;
 };

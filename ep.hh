@@ -150,6 +150,21 @@ public:
         return rv;
     }
 
+    bool add(std::string &key, const char *val, size_t nbytes) {
+        assert(active);
+        int bucket_num = bucket(key);
+        LockHolder lh(getMutex(bucket_num));
+        StoredValue *v = unlocked_find(key, bucket_num);
+        if (v) {
+            return false;
+        } else {
+            v = new StoredValue(key, val, nbytes, values[bucket_num]);
+            values[bucket_num] = v;
+        }
+
+        return true;
+    }
+
     StoredValue *unlocked_find(std::string &key, int bucket_num) {
         StoredValue *v = values[bucket_num];
         while (v) {
@@ -239,7 +254,7 @@ public:
     LoadStorageKVPairCallback(HashTable &ht) : hashtable(ht) { }
 
     void callback(KVPair &pair) {
-        hashtable.set(pair.key, pair.value);
+        hashtable.add(pair.key, pair.value.c_str(), pair.value.length());
     }
 
 private:

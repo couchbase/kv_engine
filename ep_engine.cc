@@ -229,10 +229,15 @@ extern "C" {
         return ENGINE_SUCCESS;
     }
 
+    void *loadDataseThread(void*arg) {
+        EventuallyPersistentEngine::loadDatabase(static_cast<EventuallyPersistentEngine*>(arg));
+        return NULL;
+    }
 } // C linkage
 
 EventuallyPersistentEngine::EventuallyPersistentEngine(SERVER_HANDLE_V1 *sApi) :
-    dbname("/tmp/test.db"), warmup(true), warmupComplete(false)
+    dbname("/tmp/test.db"), warmup(true), warmupComplete(false), sqliteDb(NULL),
+    epstore(NULL)
 {
     interface.interface = 1;
     ENGINE_HANDLE_V1::get_info = EvpGetInfo;
@@ -255,4 +260,13 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(SERVER_HANDLE_V1 *sApi) :
     ENGINE_HANDLE_V1::item_get_clsid = EvpItemGetClsid;
 
     serverApi = *sApi;
+}
+
+void EventuallyPersistentEngine::loadDatabase(void)
+{
+    pthread_t tid;
+    if (pthread_create(&tid, NULL, loadDataseThread, this) != 0) {
+        throw std::runtime_error("Error creating thread to load database");
+    }
+    pthread_detach(tid);
 }
