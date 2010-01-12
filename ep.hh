@@ -31,22 +31,14 @@ class HashTable;
 
 class StoredValue {
 public:
-    StoredValue() {
-        next = NULL;
-        value = NULL;
-        nvalue = 0;
-        dirtied = 0;
+    StoredValue() : key(), value(), dirtied(0), next(NULL) {
     }
-    StoredValue(std::string &k, const char *v, size_t nv, StoredValue *n) {
-        key = k;
-        value = NULL;
-        dirtied = 0;
+    StoredValue(std::string &k, const char *v, size_t nv, StoredValue *n) :
+        key(k), value(), dirtied(0), next(n)
+    {
         setValue(v, nv);
-        next = n;
     }
     ~StoredValue() {
-        free((void*)value);
-        value = NULL;
     }
     void markDirty() {
         if (!isDirty()) {
@@ -59,31 +51,30 @@ public:
         dirtied = 0;
         return rv;
     }
+
     bool isDirty() {
         return dirtied != 0;
     }
+
     bool isClean() {
         return dirtied == 0;
     }
-    const char* getValue(size_t *size_out) {
-        *size_out = nvalue;
+
+    const std::string &getValue() {
         return value;
     }
+
     void setValue(const char *v, const size_t nv) {
-        free((void*)value);
-        value = (const char *)calloc(nv, sizeof(char));
-        nvalue = nv;
-        memcpy((char*)value, v, nvalue);
+        value.assign(v, nv);
         markDirty();
     }
 private:
 
     friend class HashTable;
 
-    time_t dirtied;
     std::string key;
-    const char *value;
-    size_t nvalue;
+    std::string value;
+    time_t dirtied;
     StoredValue *next;
     DISALLOW_COPY_AND_ASSIGN(StoredValue);
 };
@@ -306,7 +297,7 @@ private:
 
     void queueDirty(std::string &key);
     void flush(bool shouldWait);
-    size_t flushSome(std::queue<std::string> *q, Callback<bool> &cb);
+    void flushSome(std::queue<std::string> *q, Callback<bool> &cb);
     void flusherStopped();
     void initQueue();
 

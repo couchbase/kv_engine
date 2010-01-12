@@ -123,9 +123,7 @@ void EventuallyPersistentStore::get(std::string &key,
     LockHolder lh(storage.getMutex(bucket_num));
     StoredValue *v = storage.unlocked_find(key, bucket_num);
     bool success = v != NULL;
-    size_t nbytes = 0;
-    const char *sval = v ? v->getValue(&nbytes) : NULL;
-    GetValue rv(success ? std::string(sval, nbytes) : std::string(":("),
+    GetValue rv(success ? v->getValue() : std::string(":("),
                 success);
     cb.callback(rv);
     lh.unlock();
@@ -189,8 +187,8 @@ void EventuallyPersistentStore::flush(bool shouldWait) {
     }
 }
 
-size_t EventuallyPersistentStore::flushSome(std::queue<std::string> *q,
-                                            Callback<bool> &cb) {
+void EventuallyPersistentStore::flushSome(std::queue<std::string> *q,
+                                          Callback<bool> &cb) {
 
     std::string key = q->front();
     q->pop();
@@ -201,8 +199,7 @@ size_t EventuallyPersistentStore::flushSome(std::queue<std::string> *q,
 
     bool found = v != NULL;
     bool isDirty = (found && v->isDirty());
-    const char *val = NULL;
-    size_t nbytes = 0;
+    std::string val;
     if (isDirty) {
         time_t dirtied = v->markClean();
         assert(dirtied > 0);
@@ -212,22 +209,16 @@ size_t EventuallyPersistentStore::flushSome(std::queue<std::string> *q,
         stats.dirtyAgeHighWat = stats.dirtyAge > stats.dirtyAgeHighWat
             ? stats.dirtyAge : stats.dirtyAgeHighWat;
         // Copy it for the duration.
-        const char *vtmp = v->getValue(&nbytes);
-        val = (const char *)malloc(sizeof(char) * nbytes);
-        memcpy((char*)val, vtmp, nbytes);
-        nbytes += key.size();
+        val.assign(v->getValue());
     }
     stats.flusher_todo--;
     lh.unlock();
 
     if (found && isDirty) {
-        underlying->set(key, val, nbytes, cb);
+        underlying->set(key, val, cb);
     } else if (!found) {
         underlying->del(key, cb);
     }
-
-    free((void*)val);
-    return nbytes;
 }
 
 void EventuallyPersistentStore::flusherStopped() {
