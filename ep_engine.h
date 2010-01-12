@@ -237,16 +237,35 @@ public:
     }
 
     ENGINE_ERROR_CODE store(const void *cookie,
-                            item* item,
+                            item* itm,
                             uint64_t *cas,
                             ENGINE_STORE_OPERATION operation)
     {
-        (void)cookie;
-        Item *it = static_cast<Item*>(item);
+        Item *it = static_cast<Item*>(itm);
         if (operation == OPERATION_SET) {
             backend->set(it->key, it->data, it->nbytes, ignoreCallback);
             *cas = 0;
             return ENGINE_SUCCESS;
+        } else if (operation == OPERATION_ADD) {
+            item *i;
+            if (get(cookie, &i, it->key.c_str(), it->nkey) == ENGINE_SUCCESS) {
+                itemRelease(cookie, i);
+                return ENGINE_NOT_STORED;
+            } else {
+                backend->set(it->key, it->data, it->nbytes, ignoreCallback);
+                *cas = 0;
+                return ENGINE_SUCCESS;
+            }
+        } else if (operation == OPERATION_REPLACE) {
+            item *i;
+            if (get(cookie, &i, it->key.c_str(), it->nkey) == ENGINE_SUCCESS) {
+                itemRelease(cookie, i);
+                backend->set(it->key, it->data, it->nbytes, ignoreCallback);
+                *cas = 0;
+                return ENGINE_SUCCESS;
+            } else {
+                return ENGINE_NOT_STORED;
+            }
         } else {
             return ENGINE_ENOTSUP;
         }
