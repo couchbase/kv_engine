@@ -19,10 +19,14 @@
 #include "locks.hh"
 
 struct ep_stats {
+    // How long an object is dirty before written.
     time_t dirtyAge;
     time_t dirtyAgeHighWat;
+    // size of the input queue
     size_t queue_size;
+    // Size of the in-process (output) queue.
     size_t flusher_todo;
+    // Amount of time spent in the commit phase.
     time_t commit_time;
 };
 
