@@ -32,6 +32,9 @@ struct ep_stats {
     // How long an object is dirty before written.
     rel_time_t dirtyAge;
     rel_time_t dirtyAgeHighWat;
+    // How old persisted data was when it hit the persistence layer
+    rel_time_t dataAge;
+    rel_time_t dataAgeHighWat;
     // Amount of time spent in the commit phase.
     rel_time_t commit_time;
 };
@@ -51,15 +54,21 @@ public:
     ~StoredValue() {
     }
     void markDirty() {
+        data_age = ep_current_time();
         if (!isDirty()) {
-            dirtied = ep_current_time();
+            dirtied = data_age;
         }
     }
     // returns time this object was dirtied.
-    rel_time_t markClean() {
-        rel_time_t rv = dirtied;
+    void markClean(rel_time_t *dirtyAge, rel_time_t *dataAge) {
+        if (dirtyAge) {
+            *dirtyAge = dirtied;
+        }
+        if (dataAge) {
+            *dataAge = data_age;
+        }
         dirtied = 0;
-        return rv;
+        data_age = 0;
     }
 
     bool isDirty() {
@@ -85,6 +94,7 @@ private:
     std::string key;
     std::string value;
     rel_time_t dirtied;
+    rel_time_t data_age;
     StoredValue *next;
     DISALLOW_COPY_AND_ASSIGN(StoredValue);
 };

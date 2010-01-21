@@ -208,13 +208,19 @@ void EventuallyPersistentStore::flushSome(std::queue<std::string> *q,
     bool isDirty = (found && v->isDirty());
     std::string val;
     if (isDirty) {
-        rel_time_t dirtied = v->markClean();
+        rel_time_t queued, dirtied;
+        v->markClean(&queued, &dirtied);
         assert(dirtied > 0);
         // Calculate stats if this had a positive time.
-        stats.dirtyAge = ep_current_time() - dirtied;
+        rel_time_t now = ep_current_time();
+        stats.dirtyAge = now - queued;
+        stats.dataAge = now - dirtied;
         assert(stats.dirtyAge < (86400 * 30));
+        assert(stats.dataAge <= stats.dirtyAge);
         stats.dirtyAgeHighWat = stats.dirtyAge > stats.dirtyAgeHighWat
             ? stats.dirtyAge : stats.dirtyAgeHighWat;
+        stats.dataAgeHighWat = stats.dataAge > stats.dataAgeHighWat
+            ? stats.dataAge : stats.dataAgeHighWat;
         // Copy it for the duration.
         val.assign(v->getValue());
     }
