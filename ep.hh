@@ -15,19 +15,25 @@
 #include <set>
 #include <queue>
 
+#include <memcached/engine.h>
+
 #include "kvstore.hh"
 #include "locks.hh"
 
+extern "C" {
+    extern rel_time_t (*ep_current_time)();
+}
+
 struct ep_stats {
-    // How long an object is dirty before written.
-    time_t dirtyAge;
-    time_t dirtyAgeHighWat;
     // size of the input queue
     size_t queue_size;
     // Size of the in-process (output) queue.
     size_t flusher_todo;
+    // How long an object is dirty before written.
+    rel_time_t dirtyAge;
+    rel_time_t dirtyAgeHighWat;
     // Amount of time spent in the commit phase.
-    time_t commit_time;
+    rel_time_t commit_time;
 };
 
 // Forward declaration for StoredValue
@@ -46,12 +52,12 @@ public:
     }
     void markDirty() {
         if (!isDirty()) {
-            dirtied = time(NULL);
+            dirtied = ep_current_time();
         }
     }
     // returns time this object was dirtied.
-    time_t markClean() {
-        time_t rv = dirtied;
+    rel_time_t markClean() {
+        rel_time_t rv = dirtied;
         dirtied = 0;
         return rv;
     }
@@ -78,7 +84,7 @@ private:
 
     std::string key;
     std::string value;
-    time_t dirtied;
+    rel_time_t dirtied;
     StoredValue *next;
     DISALLOW_COPY_AND_ASSIGN(StoredValue);
 };

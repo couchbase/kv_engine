@@ -234,6 +234,8 @@ extern "C" {
             return ENGINE_ENOMEM;
         }
 
+        ep_current_time = api->get_current_time;
+
         *handle = reinterpret_cast<ENGINE_HANDLE*> (engine);
         return ENGINE_SUCCESS;
     }

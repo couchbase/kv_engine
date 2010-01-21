@@ -2,6 +2,7 @@
 #include "ep.hh"
 #include "locks.hh"
 
+#include <time.h>
 #include <string.h>
 
 extern "C" {
@@ -14,6 +15,12 @@ extern "C" {
         }
         return NULL;
     }
+
+    static rel_time_t uninitialized_current_time(void) {
+        abort();
+    }
+
+    rel_time_t (*ep_current_time)() = uninitialized_current_time;
 }
 
 EventuallyPersistentStore::EventuallyPersistentStore(KVStore *t,
@@ -177,11 +184,11 @@ void EventuallyPersistentStore::flush(bool shouldWait) {
         while (!q->empty()) {
             flushSome(q, cb);
         }
-        time_t cstart = time(NULL);
+        rel_time_t cstart = ep_current_time();
         underlying->commit();
         // One more lock to update a stat.
         LockHolder lh_stat(mutex);
-        stats.commit_time = time(NULL) - cstart;
+        stats.commit_time = ep_current_time() - cstart;
 
         delete q;
     }
@@ -201,10 +208,10 @@ void EventuallyPersistentStore::flushSome(std::queue<std::string> *q,
     bool isDirty = (found && v->isDirty());
     std::string val;
     if (isDirty) {
-        time_t dirtied = v->markClean();
+        rel_time_t dirtied = v->markClean();
         assert(dirtied > 0);
         // Calculate stats if this had a positive time.
-        stats.dirtyAge = time(NULL) - dirtied;
+        stats.dirtyAge = ep_current_time() - dirtied;
         assert(stats.dirtyAge < (86400 * 30));
         stats.dirtyAgeHighWat = stats.dirtyAge > stats.dirtyAgeHighWat
             ? stats.dirtyAge : stats.dirtyAgeHighWat;
