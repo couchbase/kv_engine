@@ -35,6 +35,9 @@ struct ep_stats {
     // How old persisted data was when it hit the persistence layer
     rel_time_t dataAge;
     rel_time_t dataAgeHighWat;
+    // How long does it take to do an entire flush cycle.
+    rel_time_t flushDuration;
+    rel_time_t flushDurationHighWat;
     // Amount of time spent in the commit phase.
     rel_time_t commit_time;
 };

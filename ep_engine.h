@@ -229,6 +229,10 @@ public:
                                 epstats.flusher_todo, add_stat, cookie);
                 add_casted_stat("ep_commit_time",
                                 epstats.commit_time, add_stat, cookie);
+                add_casted_stat("ep_flush_duration",
+                                epstats.flushDuration, add_stat, cookie);
+                add_casted_stat("ep_flush_duration_highwat",
+                                epstats.flushDurationHighWat, add_stat, cookie);
             }
 
             add_casted_stat("ep_dbname", dbname, add_stat, cookie);

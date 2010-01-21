@@ -170,6 +170,8 @@ void EventuallyPersistentStore::flush(bool shouldWait) {
             mutex.wait();
         }
     } else {
+        rel_time_t flush_start = ep_current_time();
+
         std::queue<std::string> *q = towrite;
         towrite = NULL;
         initQueue();
@@ -188,9 +190,14 @@ void EventuallyPersistentStore::flush(bool shouldWait) {
         underlying->commit();
         // One more lock to update a stat.
         LockHolder lh_stat(mutex);
-        stats.commit_time = ep_current_time() - cstart;
+        rel_time_t complete_time = ep_current_time();
+        stats.commit_time = complete_time - cstart;
 
         delete q;
+
+        stats.flushDuration = complete_time - flush_start;
+        stats.flushDurationHighWat = stats.flushDuration > stats.flushDurationHighWat
+                                     ? stats.flushDuration : stats.flushDurationHighWat;
     }
 }
 
