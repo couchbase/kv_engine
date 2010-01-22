@@ -111,7 +111,6 @@ extern "C" {
     static ENGINE_ERROR_CODE EvpFlush(ENGINE_HANDLE* handle,
                                       const void* cookie, time_t when)
     {
-        (void)cookie;
         return getHandle(handle)->flush(cookie, when);
     }
 
@@ -199,6 +198,16 @@ extern "C" {
         return 0;
     }
 
+
+    struct observer_walker_item EvpTapWalker(ENGINE_HANDLE* handle, const void *cookie) {
+        return getHandle(handle)->walkTapQueue(cookie);
+    }
+
+    TAP_WALKER EvpGetTapWalker(ENGINE_HANDLE* handle, const void* cookie) {
+        getHandle(handle)->createTapQueue(cookie);
+        return EvpTapWalker;
+    }
+
     /**
      * The only public interface to the eventually persistance engine.
      * Allocate a new instance and initialize it
@@ -253,6 +262,7 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(SERVER_HANDLE_V1 *sApi) :
     ENGINE_HANDLE_V1::arithmetic = EvpArithmetic;
     ENGINE_HANDLE_V1::flush = EvpFlush;
     ENGINE_HANDLE_V1::unknown_command = EvpUnknownCommand;
+    ENGINE_HANDLE_V1::get_tap_walker = EvpGetTapWalker;
     ENGINE_HANDLE_V1::item_get_cas = EvpItemGetCas;
     ENGINE_HANDLE_V1::item_set_cas = EvpItemSetCas;
     ENGINE_HANDLE_V1::item_get_key = EvpItemGetKey;

@@ -3,6 +3,9 @@
 #include "ep.hh"
 #include "sqlite-kvstore.hh"
 
+#include <map>
+#include <list>
+
 extern "C" {
     EXPORT_FUNCTION
     ENGINE_ERROR_CODE create_instance(uint64_t interface,
@@ -54,6 +57,10 @@ private:
 
     ~Item() {
         delete []data;
+    }
+
+    Item* clone() {
+        return new Item(key, flags, exptime, data, nbytes);
     }
 
     std::string key;
@@ -240,6 +247,7 @@ public:
         if (operation == OPERATION_SET) {
             backend->set(it->key, it->data, it->nbytes, ignoreCallback);
             *cas = 0;
+            addMutationEvent(it);
             return ENGINE_SUCCESS;
         } else if (operation == OPERATION_ADD) {
             item *i;
@@ -249,6 +257,7 @@ public:
             } else {
                 backend->set(it->key, it->data, it->nbytes, ignoreCallback);
                 *cas = 0;
+                addMutationEvent(it);
                 return ENGINE_SUCCESS;
             }
         } else if (operation == OPERATION_REPLACE) {
@@ -257,6 +266,7 @@ public:
                 itemRelease(cookie, i);
                 backend->set(it->key, it->data, it->nbytes, ignoreCallback);
                 *cas = 0;
+                addMutationEvent(it);
                 return ENGINE_SUCCESS;
             } else {
                 return ENGINE_NOT_STORED;
@@ -274,6 +284,31 @@ public:
         }
 
         return ENGINE_SUCCESS;
+    }
+
+    struct observer_walker_item walkTapQueue(const void *cookie) {
+        (void)cookie;
+        struct observer_walker_item ret;
+
+        LockHolder lh(tapQueueMapLock);
+        std::list<std::string> &list = tapQueueMap[cookie];
+        ret.event = 0;
+        if (!list.empty()) {
+            std::string key = list.front();
+            list.pop_front();
+
+            if (get(cookie, &ret.data.itm, key.c_str(), key.length()) == ENGINE_SUCCESS) {
+                ret.event = 1;
+            }
+        }
+
+        return ret;
+    }
+
+    void createTapQueue(const void *cookie) {
+        // map is set-assocative, so this will create an instance here..
+        LockHolder lh(tapQueueMapLock);
+        tapQueueMap[cookie];
     }
 
     protocol_binary_response_status stopFlusher(const char **msg) {
@@ -324,6 +359,26 @@ private:
                                              GET_SERVER_API get_server_api,
                                              ENGINE_HANDLE **handle);
 
+    void addMutationEvent(Item *it) {
+        const void* clients[10];
+        int ii = 0;
+        {
+            LockHolder lh(tapQueueMapLock);
+            std::map<const void*, std::list<std::string> >::iterator iter;
+            for (iter = tapQueueMap.begin(); iter != tapQueueMap.end(); iter++) {
+                bool empty = iter->second.empty();
+                iter->second.push_back(it->key);
+                if (empty) {
+                    clients[ii++] = iter->first;
+                }
+            }
+        }
+
+        for (int i = 0; i < ii; ++i) {
+            serverApi.perform_callbacks(ON_TAP_QUEUE, NULL, clients[i]);
+        }
+    }
+
     void add_casted_stat(const char *k, const char *v,
                          ADD_STAT add_stat, const void *cookie) {
         add_stat(k, static_cast<uint16_t>(strlen(k)),
@@ -347,4 +402,7 @@ private:
     KVStore *backend;
     Sqlite3 *sqliteDb;
     EventuallyPersistentStore *epstore;
+    std::map<const void*, std::list<std::string> > tapQueueMap;
+
+    Mutex tapQueueMapLock;
 };
