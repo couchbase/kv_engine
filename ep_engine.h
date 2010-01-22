@@ -234,6 +234,14 @@ public:
                 add_casted_stat("ep_warmup_thread", warmupComplete ? "complete" : "running",
                                 add_stat, cookie);
             }
+
+            LockHolder lh(tapQueueMapLock);
+            std::map<const void*, std::list<std::string> >::iterator iter;
+            for (iter = tapQueueMap.begin(); iter != tapQueueMap.end(); iter++) {
+                char tap[80];
+                sprintf(tap, "ep_tapq:%lx", (long)iter->first);
+                add_casted_stat(tap, iter->second.size(), add_stat, cookie);
+            }
         }
         return ENGINE_SUCCESS;
     }
