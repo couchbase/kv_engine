@@ -270,6 +270,7 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(SERVER_HANDLE_V1 *sApi) :
     ENGINE_HANDLE_V1::item_get_key = EvpItemGetKey;
     ENGINE_HANDLE_V1::item_get_data = EvpItemGetData;
     ENGINE_HANDLE_V1::item_get_clsid = EvpItemGetClsid;
+    ENGINE_HANDLE_V1::get_stats_struct = NULL;
 
     serverApi = *sApi;
 }
