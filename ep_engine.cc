@@ -198,9 +198,8 @@ extern "C" {
         return 0;
     }
 
-
-    static struct observer_walker_item EvpTapWalker(ENGINE_HANDLE* handle, const void *cookie) {
-        return getHandle(handle)->walkTapQueue(cookie);
+    static int EvpTapWalker(ENGINE_HANDLE* handle, const void *cookie, item **itm) {
+        return getHandle(handle)->walkTapQueue(cookie, itm);
     }
 
     static TAP_WALKER EvpGetTapWalker(ENGINE_HANDLE* handle, const void* cookie) {
