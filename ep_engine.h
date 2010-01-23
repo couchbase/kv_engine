@@ -129,6 +129,11 @@ private:
         return ret;
     }
 
+    TapConnection(const char *n) : client(n) {
+        recordsFetched = 0;
+        pendingFlush = false;
+    }
+
     /**
      * String used to identify the client.
      * @todo design the connect packet and fill inn som info here
@@ -147,6 +152,8 @@ private:
      * Do we have a pending flush command?
      */
     bool pendingFlush;
+
+    DISALLOW_COPY_AND_ASSIGN(TapConnection);
 };
 
 /**
@@ -316,17 +323,17 @@ public:
             }
 
             LockHolder lh(tapQueueMapLock);
-            std::map<const void*, TapConnection>::iterator iter;
+            std::map<const void*, TapConnection*>::iterator iter;
             size_t totalQueue = 0;
             size_t totalFetched = 0;
             for (iter = tapConnectionMap.begin(); iter != tapConnectionMap.end(); iter++) {
                 char tap[80];
-                sprintf(tap, "%s:qlen", iter->second.client.c_str());
-                add_casted_stat(tap, iter->second.queue.size(), add_stat, cookie);
-                totalQueue += iter->second.queue.size();
-                sprintf(tap, "%s:rec_fetched", iter->second.client.c_str());
-                add_casted_stat(tap, iter->second.recordsFetched, add_stat, cookie);
-                totalFetched += iter->second.recordsFetched;
+                sprintf(tap, "%s:qlen", iter->second->client.c_str());
+                add_casted_stat(tap, iter->second->queue.size(), add_stat, cookie);
+                totalQueue += iter->second->queue.size();
+                sprintf(tap, "%s:rec_fetched", iter->second->client.c_str());
+                add_casted_stat(tap, iter->second->recordsFetched, add_stat, cookie);
+                totalFetched += iter->second->recordsFetched;
             }
 
             add_casted_stat("ep_tap_total_queue", totalQueue, add_stat, cookie);
@@ -389,11 +396,11 @@ public:
     int walkTapQueue(const void *cookie, item **itm) {
         (void)cookie;
         LockHolder lh(tapQueueMapLock);
-        TapConnection &connection = tapConnectionMap[cookie];
+        TapConnection *connection = tapConnectionMap[cookie];
         int ret = 0;
 
-        if (!connection.empty()) {
-            std::string key = connection.next();
+        if (!connection->empty()) {
+            std::string key = connection->next();
 
             ENGINE_ERROR_CODE r;
             r = get(cookie, itm, key.c_str(), key.length());
@@ -409,7 +416,7 @@ public:
                     ret = 0;
                 }
             }
-        } else if (connection.shouldFlush()) {
+        } else if (connection->shouldFlush()) {
             ret = 3;
         }
 
@@ -419,11 +426,9 @@ public:
     void createTapQueue(const void *cookie) {
         // map is set-assocative, so this will create an instance here..
         LockHolder lh(tapQueueMapLock);
-        TapConnection c;
         char name[80];
         snprintf(name, sizeof(name), "ep_tapq:%lx", (long)cookie);
-        c.client.assign(name);
-        tapConnectionMap[cookie] = c;
+        tapConnectionMap[cookie] = new TapConnection(name);
     }
 
     protocol_binary_response_status stopFlusher(const char **msg) {
@@ -488,9 +493,9 @@ private:
         {
             LockHolder lh(tapQueueMapLock);
 
-            std::map<const void*, TapConnection>::iterator iter;
+            std::map<const void*, TapConnection*>::iterator iter;
             for (iter = tapConnectionMap.begin(); iter != tapConnectionMap.end(); iter++) {
-                if (iter->second.addEvent(it)) {
+                if (iter->second->addEvent(it)) {
                     clients.push_back(iter->first);
                 }
             }
@@ -506,9 +511,9 @@ private:
     void addFlushEvent() {
         std::list<const void*> clients;
         LockHolder lh(tapQueueMapLock);
-        std::map<const void*, TapConnection>::iterator iter;
+        std::map<const void*, TapConnection*>::iterator iter;
         for (iter = tapConnectionMap.begin(); iter != tapConnectionMap.end(); iter++) {
-            iter->second.flush();
+            iter->second->flush();
             clients.push_back(iter->first);
         }
         lh.unlock();
@@ -538,7 +543,7 @@ private:
     KVStore *backend;
     Sqlite3 *sqliteDb;
     EventuallyPersistentStore *epstore;
-    std::map<const void*, TapConnection> tapConnectionMap;
+    std::map<const void*, TapConnection*> tapConnectionMap;
 
     Mutex tapQueueMapLock;
 };
