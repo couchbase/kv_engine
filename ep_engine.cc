@@ -199,11 +199,11 @@ extern "C" {
     }
 
 
-    struct observer_walker_item EvpTapWalker(ENGINE_HANDLE* handle, const void *cookie) {
+    static struct observer_walker_item EvpTapWalker(ENGINE_HANDLE* handle, const void *cookie) {
         return getHandle(handle)->walkTapQueue(cookie);
     }
 
-    TAP_WALKER EvpGetTapWalker(ENGINE_HANDLE* handle, const void* cookie) {
+    static TAP_WALKER EvpGetTapWalker(ENGINE_HANDLE* handle, const void* cookie) {
         getHandle(handle)->createTapQueue(cookie);
         return EvpTapWalker;
     }
@@ -240,7 +240,7 @@ extern "C" {
         return ENGINE_SUCCESS;
     }
 
-    void *loadDataseThread(void*arg) {
+    static void *loadDataseThread(void*arg) {
         EventuallyPersistentEngine::loadDatabase(static_cast<EventuallyPersistentEngine*>(arg));
         return NULL;
     }
