@@ -270,7 +270,7 @@ public:
         backend->get(k, getCb);
         getCb.waitForValue();
         if (getCb.val.success) {
-            *item = new Item(k, nkey, 0, getCb.val.value.c_str(),
+            *item = new Item(k, 0, 0, getCb.val.value.c_str(),
                              getCb.val.value.length());
             return ENGINE_SUCCESS;
         } else {
