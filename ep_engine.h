@@ -403,7 +403,7 @@ public:
             std::string key = connection->next();
 
             ENGINE_ERROR_CODE r;
-            r = get(cookie, itm, key.c_str(), key.length());
+            r = get(cookie, itm, key.c_str(), (int)key.length());
             if (r == ENGINE_SUCCESS) {
                 ret = 1;
             } else if (r == ENGINE_KEY_ENOENT) {
