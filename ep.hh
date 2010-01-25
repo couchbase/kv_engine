@@ -317,15 +317,23 @@ public:
     }
 
 private:
+    /* Queue an item to be written to persistent layer. */
+    void queueDirty(std::string &key) {
+        if (doPersistence) {
+            // Assume locked.
+            towrite->push(key);
+            stats.queue_size++;
+            mutex.notify();
+        }
+    }
 
-    void queueDirty(std::string &key);
     void flush(bool shouldWait);
     void flushSome(std::queue<std::string> *q, Callback<bool> &cb);
     void flusherStopped();
     void initQueue();
 
     friend class Flusher;
-
+    bool doPersistence;
     KVStore                   *underlying;
     size_t                     est_size;
     Flusher                   *flusher;

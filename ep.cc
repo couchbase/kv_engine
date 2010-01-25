@@ -32,6 +32,7 @@ EventuallyPersistentStore::EventuallyPersistentStore(KVStore *t,
     memset(&stats, 0, sizeof(stats));
     initQueue();
 
+    doPersistence = getenv("EP_NO_PERSITENCE") == NULL;
     flusher = new Flusher(this);
 
     flusherState = STOPPED;
@@ -152,13 +153,6 @@ void EventuallyPersistentStore::del(std::string &key, Callback<bool> &cb) {
         queueDirty(key);
     }
     cb.callback(existed);
-}
-
-void EventuallyPersistentStore::queueDirty(std::string &key) {
-    // Assume locked.
-    towrite->push(key);
-    stats.queue_size++;
-    mutex.notify();
 }
 
 void EventuallyPersistentStore::flush(bool shouldWait) {
