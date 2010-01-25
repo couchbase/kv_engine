@@ -64,15 +64,16 @@ class MemcachedClient(object):
             rv=self.s.recv(remaining)
         else:
             rv=""
-        assert magic == RES_MAGIC_BYTE, "Got magic:  %d" % magic
+        assert (((magic == RES_MAGIC_BYTE) or (magic == REQ_MAGIC_BYTE)),
+                "Got magic:  %d" % magic)
         assert myopaque is None or opaque == myopaque, \
             "expected opaque %x, got %x" % (myopaque, opaque)
         if errcode != 0:
             raise MemcachedError(errcode,  rv)
-        return opaque, cas, keylen, rv
+        return cmd, opaque, cas, keylen, extralen, rv
 
     def _handleSingleResponse(self, myopaque):
-        opaque, cas, keylen, data = self._handleKeyedResponse(myopaque)
+        cmd, opaque, cas, keylen, extralen, data = self._handleKeyedResponse(myopaque)
         return opaque, cas, data
 
     def _doCmd(self, cmd, key, val, extraHeader='', cas=0):
@@ -194,6 +195,22 @@ class MemcachedClient(object):
 
         return rv
 
+    def tap(self, cb=None):
+        """Wire tap - see all mutations.
+
+        cb(cmd_opcode, opaque, cas, key, data)"""
+        self._sendCmd(memcacheConstants.CMD_TAP_CONNECT, '', '', 0)
+        while True:
+            cmd, opaque, cas, klen, extralen, data = self._handleKeyedResponse(None)
+            extra = data[0:extralen]
+            key = data[extralen:(extralen+klen)]
+            val = data[(extralen+klen):]
+            if cb:
+                cb(cmd, opaque, cas, key, val)
+            else:
+                print "%s: ``%s'' (%d bytes)" % (memcacheConstants.COMMAND_NAMES[cmd],
+                                                 key, len(val))
+
     def stats(self, sub=''):
         """Get stats."""
         opaque=self.r.randint(0, 2**32)
@@ -201,7 +218,7 @@ class MemcachedClient(object):
         done = False
         rv = {}
         while not done:
-            opaque, cas, klen, data = self._handleKeyedResponse(None)
+            cmd, opaque, cas, klen, extralen, data = self._handleKeyedResponse(None)
             if klen:
                 rv[data[0:klen]] = data[klen:]
             else:
