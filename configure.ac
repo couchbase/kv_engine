@@ -14,8 +14,6 @@ AC_CONFIG_MACRO_DIR([m4])
 
 PANDORA_CANONICAL_TARGET
 
-PANDORA_HAVE_LIBSQLITE3
-
 AS_IF([test "x$SUNCC" = "xyes"],
       [
         CPPFLAGS="-xldscope=hidden $CPPFLAGS"
