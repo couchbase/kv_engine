@@ -246,8 +246,9 @@ extern "C" {
 } // C linkage
 
 EventuallyPersistentEngine::EventuallyPersistentEngine(SERVER_HANDLE_V1 *sApi) :
-    dbname("/tmp/test.db"), warmup(true), warmupComplete(false), sqliteDb(NULL),
-    epstore(NULL)
+    dbname("/tmp/test.db"), warmup(true), warmupComplete(false),
+    warmupTime(0), sqliteDb(NULL),
+    epstore(NULL), databaseInitTime(0)
 {
     interface.interface = 1;
     ENGINE_HANDLE_V1::get_info = EvpGetInfo;
