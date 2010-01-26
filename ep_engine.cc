@@ -198,14 +198,37 @@ extern "C" {
         return 0;
     }
 
-    static int EvpTapWalker(ENGINE_HANDLE* handle, const void *cookie, item **itm) {
+    static int EvpTapIterator(ENGINE_HANDLE* handle, const void *cookie, item **itm) {
         return getHandle(handle)->walkTapQueue(cookie, itm);
     }
 
-    static TAP_WALKER EvpGetTapWalker(ENGINE_HANDLE* handle, const void* cookie) {
-        getHandle(handle)->createTapQueue(cookie);
-        return EvpTapWalker;
+    static TAP_ITERATOR EvpGetTapIterator(ENGINE_HANDLE* handle,
+                                          const void* cookie,
+                                          const void* client,
+                                          size_t nclient,
+                                          uint32_t flags,
+                                          const void* userdata,
+                                          size_t nuserdata) {
+        std::string c(static_cast<const char*>(client), nclient);
+        // Figure out what we want from the userdata before adding it to the API
+        // to the handle
+        (void)userdata;
+        (void)nuserdata;
+        getHandle(handle)->createTapQueue(cookie, c, flags);
+        return EvpTapIterator;
     }
+
+    void EvpHandleDisconnect(const void *cookie,
+                             ENGINE_EVENT_TYPE type,
+                             const void *event_data,
+                             const void *cb_data)
+    {
+        assert(type == ON_DISCONNECT);
+        assert(event_data == NULL);
+        void *c = const_cast<void*>(cb_data);
+        return getHandle(static_cast<ENGINE_HANDLE*>(c))->handleDisconnect(cookie);
+    }
+
 
     /**
      * The only public interface to the eventually persistance engine.
@@ -264,7 +287,7 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(SERVER_HANDLE_V1 *sApi) :
     ENGINE_HANDLE_V1::arithmetic = EvpArithmetic;
     ENGINE_HANDLE_V1::flush = EvpFlush;
     ENGINE_HANDLE_V1::unknown_command = EvpUnknownCommand;
-    ENGINE_HANDLE_V1::get_tap_walker = EvpGetTapWalker;
+    ENGINE_HANDLE_V1::get_tap_iterator = EvpGetTapIterator;
     ENGINE_HANDLE_V1::item_get_cas = EvpItemGetCas;
     ENGINE_HANDLE_V1::item_set_cas = EvpItemSetCas;
     ENGINE_HANDLE_V1::item_get_key = EvpItemGetKey;

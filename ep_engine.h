@@ -14,6 +14,10 @@ extern "C" {
 
     static const char *EvpItemGetKey(const item *it);
     static char *EvpItemGetData(const item *it);
+    void EvpHandleDisconnect(const void *cookie,
+                             ENGINE_EVENT_TYPE type,
+                             const void *event_data,
+                             const void *cb_data);
 }
 
 #define CMD_STOP_PERSISTENCE  0x80
@@ -129,7 +133,7 @@ private:
         return ret;
     }
 
-    TapConnection(const char *n) : client(n) {
+    TapConnection(const std::string &n, uint32_t f) : client(n), flags(f) {
         recordsFetched = 0;
         pendingFlush = false;
     }
@@ -152,6 +156,11 @@ private:
      * Do we have a pending flush command?
      */
     bool pendingFlush;
+
+    /**
+     * Flags passed by the client
+     */
+    uint32_t flags;
 
     DISALLOW_COPY_AND_ASSIGN(TapConnection);
 };
@@ -211,6 +220,8 @@ public:
                 } else {
                     backend->reset();
                 }
+
+                serverApi.register_callback(ON_DISCONNECT, EvpHandleDisconnect, this);
             }
         }
 
@@ -400,7 +411,6 @@ public:
     }
 
     int walkTapQueue(const void *cookie, item **itm) {
-        (void)cookie;
         LockHolder lh(tapQueueMapLock);
         TapConnection *connection = tapConnectionMap[cookie];
         int ret = 0;
@@ -429,12 +439,46 @@ public:
         return ret;
     }
 
-    void createTapQueue(const void *cookie) {
+    void createTapQueue(const void *cookie, std::string &client, uint32_t flags) {
         // map is set-assocative, so this will create an instance here..
         LockHolder lh(tapQueueMapLock);
-        char name[80];
-        snprintf(name, sizeof(name), "ep_tapq:%lx", (long)cookie);
-        tapConnectionMap[cookie] = new TapConnection(name);
+        std::string name = "eq_tapq:";
+        if (client.length() == 0) {
+            char buffer[32];
+            snprintf(buffer, sizeof(buffer), "%p", cookie);
+            name.append(buffer);
+        } else {
+            name.append(client);
+        }
+
+        TapConnection *tap = NULL;
+
+        std::map<const void*, TapConnection*>::iterator iter;
+        for (iter = tapConnectionMap.begin(); iter != tapConnectionMap.end(); ++iter) {
+            if (iter->second->client == name) {
+                tap = iter->second;
+                tapConnectionMap.erase(iter);
+                break;
+            }
+        }
+
+        // @todo ensure that we don't have this client alredy
+        // if so this should be a reconnect...
+        if (tap == NULL) {
+            tapConnectionMap[cookie] = new TapConnection(name, flags);
+        } else {
+            tapConnectionMap[cookie] = tap;
+        }
+    }
+
+    void handleDisconnect(const void *cookie) {
+        LockHolder lh(tapQueueMapLock);
+        std::map<const void*, TapConnection*>::iterator iter;
+        iter = tapConnectionMap.find(cookie);
+        if (iter != tapConnectionMap.end()) {
+            delete iter->second;
+            tapConnectionMap.erase(iter);
+        }
     }
 
     protocol_binary_response_status stopFlusher(const char **msg) {
