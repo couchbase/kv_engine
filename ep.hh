@@ -82,6 +82,10 @@ public:
         return dirtied == 0;
     }
 
+    const std::string &getKey() {
+        return key;
+    }
+
     const std::string &getValue() {
         return value;
     }
@@ -105,6 +109,12 @@ private:
 typedef enum {
     NOT_FOUND, WAS_CLEAN, WAS_DIRTY
 } mutation_type_t;
+
+class HashTableVisitor {
+public:
+    virtual ~HashTableVisitor() {}
+    virtual void visit(StoredValue *v) = 0;
+};
 
 class HashTable {
 public:
@@ -246,6 +256,17 @@ public:
         return false;
     }
 
+    void visit(HashTableVisitor &visitor) {
+        for (int i = 0; i < (int)size; i++) {
+            LockHolder lh(getMutex(i));
+            StoredValue *v = values[i];
+            while (v) {
+                visitor.visit(v);
+                v = v->next;
+            }
+        }
+    }
+
 private:
     size_t            size;
     size_t            n_locks;
@@ -314,6 +335,10 @@ public:
 
     Callback<KVPair> &getLoadStorageKVPairCallback() {
         return loadStorageKVPairCallback;
+    }
+
+    void visit(HashTableVisitor &visitor) {
+        storage.visit(visitor);
     }
 
 private:

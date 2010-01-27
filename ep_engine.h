@@ -89,6 +89,7 @@ class IgnoreCallback : public Callback<bool>
  */
 class TapConnection {
 friend class EventuallyPersistentEngine;
+friend class BackFillVisitor;
 private:
     /**
      * Add a new item to the tap queue.
@@ -102,7 +103,7 @@ private:
      * Add a key to the tap queue.
      * @return true if the the queue was empty
      */
-    bool addEvent(std::string &key) {
+    bool addEvent(const std::string &key) {
         bool ret = queue.empty();
         /* @todo don't insert the key if it's already in the list! */
         queue.push_back(key);
@@ -163,6 +164,20 @@ private:
     uint32_t flags;
 
     DISALLOW_COPY_AND_ASSIGN(TapConnection);
+};
+
+class BackFillVisitor : public HashTableVisitor {
+public:
+    BackFillVisitor(TapConnection *tc) {
+        tapConn = tc;
+    }
+
+    void visit(StoredValue *v) {
+        tapConn->addEvent(v->getKey());
+    }
+
+private:
+    TapConnection *tapConn;
 };
 
 /**
@@ -465,10 +480,17 @@ public:
         // @todo ensure that we don't have this client alredy
         // if so this should be a reconnect...
         if (tap == NULL) {
-            tapConnectionMap[cookie] = new TapConnection(name, flags);
+            TapConnection *tc = new TapConnection(name, flags);
+            tapConnectionMap[cookie] = tc;
+            queueBackfill(tc);
         } else {
             tapConnectionMap[cookie] = tap;
         }
+    }
+
+    void queueBackfill(TapConnection *tc) {
+        BackFillVisitor bfv(tc);
+        epstore->visit(bfv);
     }
 
     void handleDisconnect(const void *cookie) {
