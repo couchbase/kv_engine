@@ -366,6 +366,9 @@ public:
                 store->flush(true);
             }
             std::cout << "Shutting down flusher." << std::endl;
+            store->flush(false);
+            std::cout << "Flusher stopped" << std::endl;
+
         } catch(std::runtime_error &e) {
             std::cerr << "Exception in executor loop: "
                       << e.what() << std::endl;

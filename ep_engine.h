@@ -525,6 +525,11 @@ public:
         instance->warmupComplete = true;
     }
 
+    ~EventuallyPersistentEngine() {
+        delete epstore;
+        delete sqliteDb;
+    }
+
 private:
     EventuallyPersistentEngine(SERVER_HANDLE_V1 *sApi);
     friend ENGINE_ERROR_CODE create_instance(uint64_t interface,

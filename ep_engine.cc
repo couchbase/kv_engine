@@ -34,6 +34,7 @@ extern "C" {
     static void EvpDestroy(ENGINE_HANDLE* handle)
     {
         getHandle(handle)->destroy();
+        delete getHandle(handle);
     }
 
     static ENGINE_ERROR_CODE EvpItemAllocate(ENGINE_HANDLE* handle,

@@ -43,10 +43,7 @@ EventuallyPersistentStore::EventuallyPersistentStore(KVStore *t,
 }
 
 EventuallyPersistentStore::~EventuallyPersistentStore() {
-    LockHolder lh(mutex);
     stopFlusher();
-    mutex.notify();
-    lh.unlock();
     if (flusherState != STOPPED) {
         pthread_join(thread, NULL);
     }
@@ -76,6 +73,7 @@ void EventuallyPersistentStore::stopFlusher() {
 
     flusherState = SHUTTING_DOWN;
     flusher->stop();
+    mutex.notify();
 }
 
 flusher_state EventuallyPersistentStore::getFlusherState() {
