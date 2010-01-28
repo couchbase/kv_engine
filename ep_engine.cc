@@ -103,10 +103,9 @@ extern "C" {
                                            uint64_t *cas,
                                            uint64_t *result)
     {
-        (void)handle; (void)cookie; (void)key; (void)nkey;
-        (void)increment; (void)create; (void)delta; (void)initial;
-        (void)exptime; (void)cas; (void)result;
-        return ENGINE_ENOTSUP;
+        return getHandle(handle)->arithmetic(cookie, key, nkey, increment,
+                                             create, delta, initial, exptime,
+                                             cas, result);
     }
 
     static ENGINE_ERROR_CODE EvpFlush(ENGINE_HANDLE* handle,

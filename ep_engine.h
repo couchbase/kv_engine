@@ -5,6 +5,7 @@
 
 #include <map>
 #include <list>
+#include <errno.h>
 
 extern "C" {
     EXPORT_FUNCTION
@@ -441,6 +442,70 @@ public:
         }
     }
 
+    ENGINE_ERROR_CODE arithmetic(const void* cookie,
+                                 const void* key,
+                                 const int nkey,
+                                 const bool increment,
+                                 const bool create,
+                                 const uint64_t delta,
+                                 const uint64_t initial,
+                                 const rel_time_t exptime,
+                                 uint64_t *cas,
+                                 uint64_t *result)
+    {
+        // Arithmetic is supposed to be atomic, so we cannot let two threads
+        // do this currently (for that we have to wait until we implement cas)
+        LockHolder lh(arithmeticMutex);
+        item *it = NULL;
+
+        ENGINE_ERROR_CODE ret;
+        ret = get(cookie, &it, key, nkey);
+        if (ret == ENGINE_SUCCESS) {
+            Item *item = static_cast<Item*>(it);
+            char *endptr;
+            uint64_t val = strtoull(item->data, &endptr, 10);
+            if ((errno != ERANGE) && (isspace(*endptr) || (*endptr == '\0' && endptr != item->data))) {
+                if (increment) {
+                    val += delta;
+                } else {
+                    if (delta > val) {
+                        val = 0;
+                    } else {
+                        val -= delta;
+                    }
+                }
+
+                char value[80];
+                size_t nb = snprintf(value, sizeof(value), "%llu\r\n",
+                                     (unsigned long long)val);
+                *result = val;
+                Item *nit = new Item(key, nkey, item->flags, exptime, value, nb);
+                ret = store(cookie, nit, cas, OPERATION_SET);
+                delete nit;
+            } else {
+                ret = ENGINE_EINVAL;
+            }
+
+            delete item;
+        } else if (ret == ENGINE_KEY_ENOENT && create) {
+            char value[80];
+            size_t nb = snprintf(value, sizeof(value), "%llu\r\n",
+                                 (unsigned long long)initial);
+            *result = initial;
+            Item *item = new Item(key, nkey, 0, exptime, value, nb);
+            ret = store(cookie, item, cas, OPERATION_ADD);
+            delete item;
+            if (ret == ENGINE_KEY_EEXISTS) {
+                return arithmetic(cookie, key, nkey, increment, create, delta,
+                                  initial, exptime, cas, result);
+            }
+        }
+
+        return ret;
+    }
+
+
+
     ENGINE_ERROR_CODE flush(const void *cookie, time_t when)
     {
         (void)cookie;
@@ -720,4 +785,5 @@ private:
     std::map<const void*, TapConnection*> tapConnectionMap;
     time_t databaseInitTime;
     Mutex tapQueueMapLock;
+    Mutex arithmeticMutex;
 };
