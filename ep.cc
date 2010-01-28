@@ -87,26 +87,12 @@ void EventuallyPersistentStore::initQueue() {
     towrite = new std::queue<std::string>;
 }
 
-void EventuallyPersistentStore::set(std::string &key, std::string &val,
-                                    Callback<bool> &cb) {
-    mutation_type_t mtype = storage.set(key, val);
+void EventuallyPersistentStore::set(const Item &item, Callback<bool> &cb) {
+    mutation_type_t mtype = storage.set(item);
 
     if (mtype == WAS_CLEAN || mtype == NOT_FOUND) {
         LockHolder lh(mutex);
-        queueDirty(key);
-    }
-    bool rv = true;
-    cb.callback(rv);
-}
-
-void EventuallyPersistentStore::set(std::string &key, const char *val,
-                                    size_t nbytes,
-                                    Callback<bool> &cb) {
-    mutation_type_t mtype = storage.set(key, val, nbytes);
-
-    if (mtype == WAS_CLEAN || mtype == NOT_FOUND) {
-        LockHolder lh(mutex);
-        queueDirty(key);
+        queueDirty(item.getKey());
     }
     bool rv = true;
     cb.callback(rv);
@@ -123,15 +109,20 @@ void EventuallyPersistentStore::reset() {
     storage.clear();
 }
 
-void EventuallyPersistentStore::get(std::string &key,
+void EventuallyPersistentStore::get(const std::string &key,
                                     Callback<GetValue> &cb) {
     int bucket_num = storage.bucket(key);
     LockHolder lh(storage.getMutex(bucket_num));
     StoredValue *v = storage.unlocked_find(key, bucket_num);
-    bool success = v != NULL;
-    GetValue rv(success ? v->getValue() : std::string(":("),
-                success);
-    cb.callback(rv);
+
+    if (v) {
+        GetValue rv(new Item(v->getKey(), v->getFlags(), v->getExptime(),
+                             v->getValue()));
+        cb.callback(rv);
+    } else {
+        GetValue rv(false);
+        cb.callback(rv);
+    }
     lh.unlock();
 }
 
@@ -145,7 +136,7 @@ void EventuallyPersistentStore::resetStats(void) {
     memset(&stats, 0, sizeof(stats));
 }
 
-void EventuallyPersistentStore::del(std::string &key, Callback<bool> &cb) {
+void EventuallyPersistentStore::del(const std::string &key, Callback<bool> &cb) {
     bool existed = storage.del(key);
     if (existed) {
         queueDirty(key);
@@ -205,7 +196,7 @@ void EventuallyPersistentStore::flushSome(std::queue<std::string> *q,
 
     bool found = v != NULL;
     bool isDirty = (found && v->isDirty());
-    std::string val;
+    Item *val = NULL;
     if (isDirty) {
         rel_time_t queued, dirtied;
         v->markClean(&queued, &dirtied);
@@ -221,15 +212,19 @@ void EventuallyPersistentStore::flushSome(std::queue<std::string> *q,
         stats.dataAgeHighWat = stats.dataAge > stats.dataAgeHighWat
             ? stats.dataAge : stats.dataAgeHighWat;
         // Copy it for the duration.
-        val.assign(v->getValue());
+        val = new Item(key, v->getFlags(), v->getExptime(), v->getValue());
     }
     stats.flusher_todo--;
     lh.unlock();
 
     if (found && isDirty) {
-        underlying->set(key, val, cb);
+        underlying->set(*val, cb);
     } else if (!found) {
         underlying->del(key, cb);
+    }
+
+    if (val != NULL) {
+        delete val;
     }
 }
 

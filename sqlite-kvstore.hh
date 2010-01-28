@@ -176,30 +176,24 @@ public:
     }
 
     /**
-     * Overrides set() to call the char* variant.
-     */
-    void set(std::string &key, std::string &val, Callback<bool> &cb);
-
-    /**
      * Overrides set().
      */
-    void set(std::string &key, const char *val, size_t nbytes,
-             Callback<bool> &cb);
+    void set(const Item &item, Callback<bool> &cb);
 
     /**
      * Overrides get().
      */
-    void get(std::string &key, Callback<GetValue> &cb);
+    void get(const std::string &key, Callback<GetValue> &cb);
 
     /**
      * Overrides del().
      */
-    void del(std::string &key, Callback<bool> &cb);
+    void del(const std::string &key, Callback<bool> &cb);
 
     /**
      * Overrides dump
      */
-    virtual void dump(Callback<KVPair> &cb);
+    virtual void dump(Callback<GetValue> &cb);
 
 protected:
 

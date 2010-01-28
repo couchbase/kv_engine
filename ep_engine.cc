@@ -186,11 +186,11 @@ extern "C" {
     }
 
     static const char *EvpItemGetKey(const item *it) {
-        return static_cast<const Item*>(it)->key.c_str();
+        return static_cast<const Item*>(it)->getKey().c_str();
     }
 
     static char *EvpItemGetData(const item *it) {
-        return static_cast<const Item*>(it)->data;
+        return const_cast<Item*>(static_cast<const Item*>(it))->getData();
     }
 
     static uint8_t EvpItemGetClsid(const item *item) {

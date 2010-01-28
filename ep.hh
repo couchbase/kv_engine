@@ -47,13 +47,19 @@ class HashTable;
 
 class StoredValue {
 public:
-    StoredValue() : key(), value(), dirtied(0), next(NULL) {
+    StoredValue() : key(), value(), flags(0), exptime(0), dirtied(0), next(NULL) {
     }
     StoredValue(std::string &k, const char *v, size_t nv, StoredValue *n) :
-        key(k), value(), dirtied(0), next(n)
+        key(k), value(), flags(0), exptime(0), dirtied(0), next(n)
     {
         setValue(v, nv);
     }
+
+    StoredValue(const Item &itm, StoredValue *n) :
+        key(itm.getKey()), value(const_cast<Item&>(itm).getData(), itm.nbytes), flags(itm.flags),
+        exptime(itm.exptime), dirtied(0), next(n)
+    { }
+
     ~StoredValue() {
     }
     void markDirty() {
@@ -74,32 +80,43 @@ public:
         data_age = 0;
     }
 
-    bool isDirty() {
+    bool isDirty() const {
         return dirtied != 0;
     }
 
-    bool isClean() {
+    bool isClean() const {
         return dirtied == 0;
     }
 
-    const std::string &getKey() {
+    const std::string &getKey() const {
         return key;
     }
 
-    const std::string &getValue() {
+    const std::string &getValue() const {
         return value;
+    }
+
+    rel_time_t getExptime() const {
+        return exptime;
+    }
+
+    uint32_t getFlags() const {
+        return flags;
     }
 
     void setValue(const char *v, const size_t nv) {
         value.assign(v, nv);
         markDirty();
     }
+
 private:
 
     friend class HashTable;
 
     std::string key;
     std::string value;
+    uint32_t flags;
+    rel_time_t exptime;
     rel_time_t dirtied;
     rel_time_t data_age;
     StoredValue *next;
@@ -153,43 +170,39 @@ public:
         return unlocked_find(key, bucket_num);
     }
 
-    // True if this existed and was clean
-    mutation_type_t set(std::string &key, std::string &val) {
-        return set(key, val.c_str(), val.size());
-    }
-
-    mutation_type_t set(std::string &key, const char *val, size_t nbytes) {
+    mutation_type_t set(const Item &val) {
         assert(active);
         mutation_type_t rv = NOT_FOUND;
-        int bucket_num = bucket(key);
+        int bucket_num = bucket(val.getKey());
         LockHolder lh(getMutex(bucket_num));
-        StoredValue *v = unlocked_find(key, bucket_num);
+        StoredValue *v = unlocked_find(val.getKey(), bucket_num);
+        Item &itm = const_cast<Item&>(val);
         if (v) {
             rv = v->isClean() ? WAS_CLEAN : WAS_DIRTY;
-            v->setValue(val, nbytes);
+            v->setValue(itm.getData(), itm.nbytes);
         } else {
-            v = new StoredValue(key, val, nbytes, values[bucket_num]);
+            v = new StoredValue(itm, values[bucket_num]);
             values[bucket_num] = v;
         }
         return rv;
     }
 
-    bool add(std::string &key, const char *val, size_t nbytes) {
+    bool add(const Item &val) {
         assert(active);
-        int bucket_num = bucket(key);
+        int bucket_num = bucket(val.getKey());
         LockHolder lh(getMutex(bucket_num));
-        StoredValue *v = unlocked_find(key, bucket_num);
+        StoredValue *v = unlocked_find(val.getKey(), bucket_num);
         if (v) {
             return false;
         } else {
-            v = new StoredValue(key, val, nbytes, values[bucket_num]);
+            v = new StoredValue(const_cast<Item&>(val), values[bucket_num]);
             values[bucket_num] = v;
         }
 
         return true;
     }
 
-    StoredValue *unlocked_find(std::string &key, int bucket_num) {
+    StoredValue *unlocked_find(const std::string &key, int bucket_num) {
         StoredValue *v = values[bucket_num];
         while (v) {
             if (key.compare(v->key) == 0) {
@@ -200,11 +213,11 @@ public:
         return NULL;
     }
 
-    inline int bucket(std::string &key) {
+    inline int bucket(const std::string &key) {
         assert(active);
         int h=5381;
         int i=0;
-        const char *str=key.c_str();
+        const char *str = key.c_str();
 
         for(i=0; str[i] != 0x00; i++) {
             h = ((h << 5) + h) ^ str[i];
@@ -225,7 +238,7 @@ public:
     }
 
     // True if it existed
-    bool del(std::string &key) {
+    bool del(const std::string &key) {
         assert(active);
         int bucket_num = bucket(key);
         LockHolder lh(getMutex(bucket_num));
@@ -284,12 +297,15 @@ class Flusher;
  * Helper class used to insert items into the storage by using
  * the KVStore::dump method to load items from the database
  */
-class LoadStorageKVPairCallback : public Callback<KVPair> {
+class LoadStorageKVPairCallback : public Callback<GetValue> {
 public:
     LoadStorageKVPairCallback(HashTable &ht) : hashtable(ht) { }
 
-    void callback(KVPair &pair) {
-        hashtable.add(pair.key, pair.value.c_str(), pair.value.length());
+    void callback(GetValue &val) {
+        if (val.value != NULL) {
+            hashtable.add(*val.value);
+            delete val.value;
+        }
     }
 
 private:
@@ -307,15 +323,11 @@ public:
 
     ~EventuallyPersistentStore();
 
-    void set(std::string &key, std::string &val,
-             Callback<bool> &cb);
+    void set(const Item &item, Callback<bool> &cb);
 
-    void set(std::string &key, const char *val, size_t nbytes,
-             Callback<bool> &cb);
+    void get(const std::string &key, Callback<GetValue> &cb);
 
-    void get(std::string &key, Callback<GetValue> &cb);
-
-    void del(std::string &key, Callback<bool> &cb);
+    void del(const std::string &key, Callback<bool> &cb);
 
     void getStats(struct ep_stats *out);
 
@@ -327,13 +339,13 @@ public:
 
     flusher_state getFlusherState();
 
-    virtual void dump(Callback<KVPair>&) {
+    virtual void dump(Callback<GetValue>&) {
         throw std::runtime_error("not implemented");
     }
 
     void reset();
 
-    Callback<KVPair> &getLoadStorageKVPairCallback() {
+    Callback<GetValue> &getLoadStorageKVPairCallback() {
         return loadStorageKVPairCallback;
     }
 
@@ -343,7 +355,7 @@ public:
 
 private:
     /* Queue an item to be written to persistent layer. */
-    void queueDirty(std::string &key) {
+    void queueDirty(const std::string &key) {
         if (doPersistence) {
             // Assume locked.
             towrite->push(key);

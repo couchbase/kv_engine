@@ -17,47 +17,28 @@
     void operator=(const TypeName&)
 
 #include "callbacks.hh"
+#include "item.hh"
 
 /**
  * Value for callback for GET operations.
  */
 class GetValue {
 public:
-    GetValue() { }
+    GetValue() : value(NULL), success(false) { }
 
-    GetValue(std::string v, bool s) {
-        value = v;
-        success = s;
-    }
-
-    friend std::ostream& operator<<(std::ostream &o, GetValue &gv) {
-        return o << "{GetValue success=" << gv.success
-                 << ", value=\"" << gv.value << "\"}";
-    }
+    GetValue(bool s) : value(NULL), success(s) { }
+    GetValue(Item *v) : value(v), success(true) { }
 
     /**
      * The value retrieved for the key.
      */
-    std::string value;
+    Item* value;
+
     /**
      * True if a value was successfully retrieved.
      */
     bool success;
 };
-
-/**
- * Helper class to store a key-value tuple
- */
-class KVPair {
-public:
-    KVPair() : key(), value() { }
-
-    KVPair(const std::string &k, const std::string &v) : key(k), value(v) {}
-
-    std::string key;
-    std::string value;
-};
-
 
 /**
  * An individual kv storage (or way to access a kv storage).
@@ -91,19 +72,7 @@ public:
      * @param val the value to set
      * @param cb callback that will fire with true if the set succeeded
      */
-    virtual void set(std::string &key, std::string &val,
-                     Callback<bool> &cb) = 0;
-
-    /**
-     * Set a given key and (character) value.
-     *
-     * @param key the key to set
-     * @param val the value to set
-     * @param val the number of bytes in the value
-     * @param cb callback that will fire with true if the set succeeded
-     */
-    virtual void set(std::string &key, const char *val, size_t nbytes,
-                     Callback<bool> &cb) = 0;
+    virtual void set(const Item &item, Callback<bool> &cb) = 0;
 
     /**
      * Get the value for the given key.
@@ -111,7 +80,7 @@ public:
      * @param key the key
      * @param cb callback that will fire with the retrieved value
      */
-    virtual void get(std::string &key, Callback<GetValue> &cb) = 0;
+    virtual void get(const std::string &key, Callback<GetValue> &cb) = 0;
 
     /**
      * Delete a value for a key.
@@ -120,13 +89,13 @@ public:
      * @param cb callback that will fire with true if the value
      *           existed and then was deleted
      */
-    virtual void del(std::string &key, Callback<bool> &cb) = 0;
+    virtual void del(const std::string &key, Callback<bool> &cb) = 0;
 
     /**
      * Dump the kvstore
-     * @param cb callback that will fire with the key / value pair
+     * @param cb callback that will fire with the value
      */
-    virtual void dump(Callback<KVPair> &cb) = 0;
+    virtual void dump(Callback<GetValue> &cb) = 0;
 
     /**
      * For things that support transactions, this signals the

@@ -190,50 +190,46 @@ void Sqlite3::destroyTables() {
     execute("drop trigger if exists on_audit_delete");
 }
 
-void Sqlite3::set(std::string &key, std::string &val,
-                  Callback<bool> &cb) {
-    set(key, val.c_str(), val.size(), cb);
-}
-
-void Sqlite3::set(std::string &key, const char *val, size_t nbytes,
-                  Callback<bool> &cb) {
-    ins_stmt->bind(1, key.c_str());
-    ins_stmt->bind(2, val, nbytes);
+void Sqlite3::set(const Item &itm, Callback<bool> &cb) {
+    /* @todo store flags and exptime */
+    ins_stmt->bind(1, itm.getKey().c_str());
+    ins_stmt->bind(2, const_cast<Item&>(itm).getData(), itm.nbytes);
     bool rv = ins_stmt->execute() == 1;
     cb.callback(rv);
     ins_stmt->reset();
 }
 
-void Sqlite3::get(std::string &key, Callback<GetValue> &cb) {
+void Sqlite3::get(const std::string &key, Callback<GetValue> &cb) {
     sel_stmt->bind(1, key.c_str());
 
     if(sel_stmt->fetch()) {
         std::string str(sel_stmt->column(0));
-        GetValue rv(str, true);
+        /* @todo get flags and exptime */
+        GetValue rv(new Item(key, 0, 0, str));
         cb.callback(rv);
     } else {
-        std::string str(":(");
-        GetValue rv(str, false);
+        GetValue rv(false);
         cb.callback(rv);
     }
     sel_stmt->reset();
 }
 
-void Sqlite3::del(std::string &key, Callback<bool> &cb) {
+void Sqlite3::del(const std::string &key, Callback<bool> &cb) {
     del_stmt->bind(1, key.c_str());
     bool rv = del_stmt->execute() == 1;
     cb.callback(rv);
     del_stmt->reset();
 }
 
-void Sqlite3::dump(Callback<KVPair> &cb) {
+void Sqlite3::dump(Callback<GetValue> &cb) {
 
     PreparedStatement st(db, "select k,v from kv");
     while (st.fetch()) {
         std::string key(st.column(0));
         std::string value(st.column(1));
-        KVPair pair(key, value);
-        cb.callback(pair);
+        /* @todo get flags and value */
+        GetValue rv(new Item(key, 0, 0, value));
+        cb.callback(rv);
     }
 
     st.reset();

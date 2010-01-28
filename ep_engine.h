@@ -25,79 +25,6 @@ extern "C" {
 #define CMD_START_PERSISTENCE 0x81
 
 /**
- * The Item structure we use to pass information between the memcached
- * core and the backend. Please note that the kvstore don't store these
- * objects, so we do have an extra layer of memory copying :(
- */
-class Item : public item {
-private:
-    friend class EventuallyPersistentEngine;
-    friend const char *EvpItemGetKey(const item *it);
-    friend char *EvpItemGetData(const item *it);
-    friend class TapConnection;
-
-    Item(const void* k, const size_t nk, const size_t nb,
-         const int fl, const rel_time_t exp) :
-        key(static_cast<const char*>(k), nk)
-    {
-        nkey = static_cast<uint16_t>(nk);
-        nbytes = static_cast<uint32_t>(nb);
-        flags = fl;
-        iflag = 0;
-        exptime = exp;
-        data = new char[nbytes];
-    }
-
-    Item(const std::string &k, const int fl, const rel_time_t exp,
-         const void *dta, const size_t nb) :
-        key(k)
-    {
-        nkey = static_cast<uint16_t>(key.length());
-        nbytes = static_cast<uint32_t>(nb);
-        flags = fl;
-        iflag = 0;
-        exptime = exp;
-        data = new char[nbytes];
-        memcpy(data, dta, nbytes);
-    }
-
-    Item(const void *k, uint16_t nk, const int fl, const rel_time_t exp,
-         const void *dta, const size_t nb) :
-         key(static_cast<const char*>(k), nk)
-    {
-
-        nkey = static_cast<uint16_t>(key.length());
-        const char *c = static_cast<const char*>(dta);
-        bool append = false;
-        nbytes = static_cast<uint32_t>(nb);
-        if (nbytes < 2 || memcmp(c + nb - 2, "\r\n", 2) != 0) {
-            nbytes += 2;
-            append = true;
-        }
-        flags = fl;
-        iflag = 0;
-        exptime = exp;
-
-        data = new char[nbytes];
-        memcpy(data, dta, nbytes);
-        if (append) {
-            memcpy(data + nb, "\r\n", 2);
-        }
-    }
-
-    ~Item() {
-        delete []data;
-    }
-
-    Item* clone() {
-        return new Item(key, flags, exptime, data, nbytes);
-    }
-
-    std::string key;
-    char *data;
-};
-
-/**
  * I don't care about the set callbacks right now, but since this is a
  * demo, let's dump core if one of them fails so that we can debug it later
  */
@@ -121,7 +48,7 @@ private:
      * @return true if the the queue was empty
      */
     bool addEvent(Item *it) {
-        return addEvent(it->key);
+        return addEvent(it->getKey());
     }
 
     /**
@@ -292,10 +219,10 @@ public:
 
     ENGINE_ERROR_CODE itemDelete(const void* cookie, item *item)
     {
-        return itemDelete(cookie, static_cast<Item*>(item)->key);
+        return itemDelete(cookie, static_cast<Item*>(item)->getKey());
     }
 
-    ENGINE_ERROR_CODE itemDelete(const void* cookie, std::string &key)
+    ENGINE_ERROR_CODE itemDelete(const void* cookie, const std::string &key)
     {
         (void)cookie;
         RememberingCallback<bool> delCb;
@@ -328,8 +255,7 @@ public:
         backend->get(k, getCb);
         getCb.waitForValue();
         if (getCb.val.success) {
-            *item = new Item(k, 0, 0, getCb.val.value.c_str(),
-                             getCb.val.value.length());
+            *item = getCb.val.value;
             return ENGINE_SUCCESS;
         } else {
             return ENGINE_KEY_ENOENT;
@@ -411,26 +337,26 @@ public:
     {
         Item *it = static_cast<Item*>(itm);
         if (operation == OPERATION_SET) {
-            backend->set(it->key, it->data, it->nbytes, ignoreCallback);
+            backend->set(*it, ignoreCallback);
             *cas = 0;
             addMutationEvent(it);
             return ENGINE_SUCCESS;
         } else if (operation == OPERATION_ADD) {
             item *i;
-            if (get(cookie, &i, it->key.c_str(), it->nkey) == ENGINE_SUCCESS) {
+            if (get(cookie, &i, it->getKey().c_str(), it->nkey) == ENGINE_SUCCESS) {
                 itemRelease(cookie, i);
                 return ENGINE_NOT_STORED;
             } else {
-                backend->set(it->key, it->data, it->nbytes, ignoreCallback);
+                backend->set(*it, ignoreCallback);
                 *cas = 0;
                 addMutationEvent(it);
                 return ENGINE_SUCCESS;
             }
         } else if (operation == OPERATION_REPLACE) {
             item *i;
-            if (get(cookie, &i, it->key.c_str(), it->nkey) == ENGINE_SUCCESS) {
+            if (get(cookie, &i, it->getKey().c_str(), it->nkey) == ENGINE_SUCCESS) {
                 itemRelease(cookie, i);
-                backend->set(it->key, it->data, it->nbytes, ignoreCallback);
+                backend->set(*it, ignoreCallback);
                 *cas = 0;
                 addMutationEvent(it);
                 return ENGINE_SUCCESS;
@@ -463,8 +389,8 @@ public:
         if (ret == ENGINE_SUCCESS) {
             Item *item = static_cast<Item*>(it);
             char *endptr;
-            uint64_t val = strtoull(item->data, &endptr, 10);
-            if ((errno != ERANGE) && (isspace(*endptr) || (*endptr == '\0' && endptr != item->data))) {
+            uint64_t val = strtoull(item->getData(), &endptr, 10);
+            if ((errno != ERANGE) && (isspace(*endptr) || (*endptr == '\0' && endptr != item->getData()))) {
                 if (increment) {
                     val += delta;
                 } else {
