@@ -199,8 +199,31 @@ extern "C" {
         return 0;
     }
 
-    static int EvpTapIterator(ENGINE_HANDLE* handle, const void *cookie, item **itm) {
-        return getHandle(handle)->walkTapQueue(cookie, itm);
+    static ENGINE_ERROR_CODE EvpTapNotify(ENGINE_HANDLE* handle,
+                                        const void *cookie,
+                                        void *engine_specific,
+                                        uint16_t nengine,
+                                        uint8_t ttl,
+                                        uint16_t tap_flags,
+                                        tap_event_t tap_event,
+                                        uint32_t tap_seqno,
+                                        const void *key,
+                                        size_t nkey,
+                                        uint32_t flags,
+                                        uint32_t exptime,
+                                        uint64_t cas,
+                                        const void *data,
+                                        size_t ndata)
+    {
+        return getHandle(handle)->tapNotify(cookie, engine_specific, nengine,
+                                            ttl, tap_flags, tap_event,
+                                            tap_seqno, key, nkey, flags,
+                                            exptime, cas, data, ndata);
+    }
+
+
+    static tap_event_t EvpTapIterator(ENGINE_HANDLE* handle, const void *cookie, item **itm, void **es, uint16_t *nes, uint8_t *ttl, uint16_t *flags, uint32_t *seqno) {
+        return getHandle(handle)->walkTapQueue(cookie, itm, es, nes, ttl, flags, seqno);
     }
 
     static TAP_ITERATOR EvpGetTapIterator(ENGINE_HANDLE* handle,
@@ -289,6 +312,7 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(SERVER_HANDLE_V1 *sApi) :
     ENGINE_HANDLE_V1::flush = EvpFlush;
     ENGINE_HANDLE_V1::unknown_command = EvpUnknownCommand;
     ENGINE_HANDLE_V1::get_tap_iterator = EvpGetTapIterator;
+    ENGINE_HANDLE_V1::tap_notify = EvpTapNotify;
     ENGINE_HANDLE_V1::item_get_cas = EvpItemGetCas;
     ENGINE_HANDLE_V1::item_set_cas = EvpItemSetCas;
     ENGINE_HANDLE_V1::item_get_key = EvpItemGetKey;

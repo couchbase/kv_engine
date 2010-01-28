@@ -60,6 +60,30 @@ private:
         memcpy(data, dta, nbytes);
     }
 
+    Item(const void *k, uint16_t nk, const int fl, const rel_time_t exp,
+         const void *dta, const size_t nb) :
+         key(static_cast<const char*>(k), nk)
+    {
+
+        nkey = static_cast<uint16_t>(key.length());
+        const char *c = static_cast<const char*>(dta);
+        bool append = false;
+        nbytes = static_cast<uint32_t>(nb);
+        if (nbytes < 2 || memcmp(c + nb - 2, "\r\n", 2) != 0) {
+            nbytes += 2;
+            append = true;
+        }
+        flags = fl;
+        iflag = 0;
+        exptime = exp;
+
+        data = new char[nbytes];
+        memcpy(data, dta, nbytes);
+        if (append) {
+            memcpy(data + nb, "\r\n", 2);
+        }
+    }
+
     ~Item() {
         delete []data;
     }
@@ -267,19 +291,24 @@ public:
 
     ENGINE_ERROR_CODE itemDelete(const void* cookie, item *item)
     {
+        return itemDelete(cookie, static_cast<Item*>(item)->key);
+    }
+
+    ENGINE_ERROR_CODE itemDelete(const void* cookie, std::string &key)
+    {
         (void)cookie;
         RememberingCallback<bool> delCb;
-        Item *it = static_cast<Item*>(item);
 
-        backend->del(it->key, delCb);;
+        backend->del(key, delCb);;
         delCb.waitForValue();
         if (delCb.val) {
-            addDeleteEvent(it);
+            addDeleteEvent(key);
             return ENGINE_SUCCESS;
         } else {
             return ENGINE_KEY_ENOENT;
         }
     }
+
 
     void itemRelease(const void* cookie, item *item)
     {
@@ -425,10 +454,16 @@ public:
         return ENGINE_SUCCESS;
     }
 
-    int walkTapQueue(const void *cookie, item **itm) {
+    tap_event_t walkTapQueue(const void *cookie, item **itm, void **es, uint16_t *nes, uint8_t *ttl, uint16_t *flags, uint32_t *seqno) {
         LockHolder lh(tapQueueMapLock);
         TapConnection *connection = tapConnectionMap[cookie];
-        int ret = 0;
+        tap_event_t ret = TAP_PAUSE;
+
+        *es = NULL;
+        *nes = 0;
+        *ttl = (uint8_t)-1;
+        *seqno = 0;
+        *flags = 0;
 
         if (!connection->empty()) {
             std::string key = connection->next();
@@ -436,19 +471,19 @@ public:
             ENGINE_ERROR_CODE r;
             r = get(cookie, itm, key.c_str(), (int)key.length());
             if (r == ENGINE_SUCCESS) {
-                ret = 1;
+                ret = TAP_MUTATION;
             } else if (r == ENGINE_KEY_ENOENT) {
-                ret = 2;
+                ret = TAP_DELETION;
                 r = itemAllocate(cookie, itm,
                                  key.c_str(), key.length(), 0, 0, 0);
                 if (r != ENGINE_SUCCESS) {
                     std::cerr << "Failed to allocate memory for deletion of: "
                               << key.c_str() << std::endl;
-                    ret = 0;
+                    ret = TAP_PAUSE;
                 }
             }
         } else if (connection->shouldFlush()) {
-            ret = 3;
+            ret = TAP_FLUSH;
         }
 
         return ret;
@@ -487,6 +522,55 @@ public:
             tapConnectionMap[cookie] = tap;
         }
     }
+
+    ENGINE_ERROR_CODE tapNotify(const void *cookie,
+                                void *engine_specific,
+                                uint16_t nengine,
+                                uint8_t ttl,
+                                uint16_t tap_flags,
+                                tap_event_t tap_event,
+                                uint32_t tap_seqno,
+                                const void *key,
+                                size_t nkey,
+                                uint32_t flags,
+                                uint32_t exptime,
+                                uint64_t cas,
+                                const void *data,
+                                size_t ndata)
+    {
+        (void)engine_specific;
+        (void)nengine;
+        (void)ttl;
+        (void)tap_flags;
+        (void)tap_seqno;
+
+        switch (tap_event) {
+        case TAP_FLUSH:
+            return flush(cookie, 0);
+        case TAP_DELETION:
+        {
+            std::string k(static_cast<const char*>(key), nkey);
+            return itemDelete(cookie, k);
+        }
+
+        case TAP_MUTATION:
+        {
+            Item *item = new Item(key, nkey, flags, exptime, data, ndata);
+            /* @TODO we don't have CAS now.. we might in the future.. */
+            (void)cas;
+            uint64_t ncas;
+            return store(cookie, item, &ncas, OPERATION_SET);
+        }
+
+
+        default:
+            abort();
+        }
+
+        return ENGINE_SUCCESS;
+    }
+
+
 
     void queueBackfill(TapConnection *tc) {
         BackFillVisitor bfv(tc);
@@ -582,9 +666,19 @@ private:
         notifyTapQueues(clients);
     }
 
-    void addDeleteEvent(Item *it) {
-        /** The internal datastructures for mutation and delete is the same */
-        addMutationEvent(it);
+    void addDeleteEvent(const std::string &key) {
+        std::list<const void*> clients;
+        {
+            LockHolder lh(tapQueueMapLock);
+
+            std::map<const void*, TapConnection*>::iterator iter;
+            for (iter = tapConnectionMap.begin(); iter != tapConnectionMap.end(); iter++) {
+                if (iter->second->addEvent(key)) {
+                    clients.push_back(iter->first);
+                }
+            }
+        }
+        notifyTapQueues(clients);
     }
 
     void addFlushEvent() {
