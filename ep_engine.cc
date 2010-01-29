@@ -285,8 +285,13 @@ extern "C" {
         return ENGINE_SUCCESS;
     }
 
-    static void *loadDataseThread(void*arg) {
+    static void *EvpLoadDataseThread(void*arg) {
         EventuallyPersistentEngine::loadDatabase(static_cast<EventuallyPersistentEngine*>(arg));
+        return NULL;
+    }
+
+    static void *EvpNotifyTapIo(void*arg) {
+        static_cast<EventuallyPersistentEngine*>(arg)->notifyTapIoThread();
         return NULL;
     }
 } // C linkage
@@ -294,7 +299,7 @@ extern "C" {
 EventuallyPersistentEngine::EventuallyPersistentEngine(SERVER_HANDLE_V1 *sApi) :
     dbname("/tmp/test.db"), warmup(true), warmupComplete(false),
     warmupTime(0), sqliteDb(NULL),
-    epstore(NULL), databaseInitTime(0)
+    epstore(NULL), databaseInitTime(0), shutdown(false)
 {
     interface.interface = 1;
     ENGINE_HANDLE_V1::get_info = EvpGetInfo;
@@ -322,11 +327,17 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(SERVER_HANDLE_V1 *sApi) :
     serverApi = *sApi;
 }
 
-void EventuallyPersistentEngine::loadDatabase(void)
+void EventuallyPersistentEngine::startEngineThreads(void)
 {
     pthread_t tid;
-    if (pthread_create(&tid, NULL, loadDataseThread, this) != 0) {
-        throw std::runtime_error("Error creating thread to load database");
+    if (warmup) {
+        if (pthread_create(&tid, NULL, EvpLoadDataseThread, this) != 0) {
+            throw std::runtime_error("Error creating thread to load database");
+        }
+        pthread_detach(tid);
     }
-    pthread_detach(tid);
+
+    if (pthread_create(&notifyThreadId, NULL, EvpNotifyTapIo, this) != 0) {
+        throw std::runtime_error("Error creating thread to notify Tap connections");
+    }
 }

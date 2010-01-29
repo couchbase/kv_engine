@@ -19,6 +19,7 @@ extern "C" {
                              ENGINE_EVENT_TYPE type,
                              const void *event_data,
                              const void *cb_data);
+    static void *EvpNotifyTapIo(void*arg);
 }
 
 #define CMD_STOP_PERSISTENCE  0x80
@@ -197,14 +198,13 @@ public:
             if (backend == NULL) {
                 ret = ENGINE_ENOMEM;
             } else {
-                if (warmup) {
-                    loadDatabase();
-                } else {
+                if (!warmup) {
                     backend->reset();
                 }
 
                 serverApi.register_callback(ON_DISCONNECT, EvpHandleDisconnect, this);
             }
+            startEngineThreads();
         }
 
         return ret;
@@ -212,7 +212,7 @@ public:
 
     void destroy()
     {
-        // empty
+        stopEngineThreads();
     }
 
     ENGINE_ERROR_CODE itemAllocate(const void* cookie,
@@ -329,7 +329,7 @@ public:
             size_t totalQueue = 0;
             size_t totalFetched = 0;
             {
-                LockHolder lh(tapQueueMapLock);
+                LockHolder lh(tapNotifySync);
                 for (iter = tapConnectionMap.begin(); iter != tapConnectionMap.end(); iter++) {
                     char tap[80];
                     sprintf(tap, "%s:qlen", iter->second->client.c_str());
@@ -468,7 +468,7 @@ public:
     }
 
     tap_event_t walkTapQueue(const void *cookie, item **itm, void **es, uint16_t *nes, uint8_t *ttl, uint16_t *flags, uint32_t *seqno) {
-        LockHolder lh(tapQueueMapLock);
+        LockHolder lh(tapNotifySync);
         TapConnection *connection = tapConnectionMap[cookie];
         tap_event_t ret = TAP_PAUSE;
 
@@ -504,7 +504,7 @@ public:
 
     void createTapQueue(const void *cookie, std::string &client, uint32_t flags) {
         // map is set-assocative, so this will create an instance here..
-        LockHolder lh(tapQueueMapLock);
+        LockHolder lh(tapNotifySync);
         std::string name = "eq_tapq:";
         if (client.length() == 0) {
             char buffer[32];
@@ -595,7 +595,7 @@ public:
     }
 
     void handleDisconnect(const void *cookie) {
-        LockHolder lh(tapQueueMapLock);
+        LockHolder lh(tapNotifySync);
         std::map<const void*, TapConnection*>::iterator iter;
         iter = tapConnectionMap.find(cookie);
         if (iter != tapConnectionMap.end()) {
@@ -659,11 +659,34 @@ private:
                                              GET_SERVER_API get_server_api,
                                              ENGINE_HANDLE **handle);
 
-    void notifyTapQueues(std::list<const void*> &clients)
-    {
-        std::list<const void*>::iterator iter;
-        for (iter = clients.begin(); iter != clients.end(); iter++) {
-            serverApi.perform_callbacks(ON_TAP_QUEUE, NULL, *iter);
+    friend void *EvpNotifyTapIo(void*arg);
+    void notifyTapIoThread(void) {
+        LockHolder lh(tapNotifySync);
+        // Fix clean shutdown!!!
+        while (!shutdown) {
+            purgeExpiredTapConnections_UNLOCKED();
+            // see if I have some channels that I have to signal..
+            bool shouldPause = true;
+            std::map<const void*, TapConnection*>::iterator iter;
+            for (iter = tapConnectionMap.begin(); iter != tapConnectionMap.end(); iter++) {
+                if (!iter->second->queue.empty()) {
+                    shouldPause = false;
+                }
+            }
+
+            if (shouldPause) {
+                tapNotifySync.wait();
+                purgeExpiredTapConnections_UNLOCKED();
+            }
+
+            // Create a copy of the list so that we can release the lock
+            std::map<const void*, TapConnection*> tcm = tapConnectionMap;
+
+            tapNotifySync.release();
+            for (iter = tcm.begin(); iter != tcm.end(); iter++) {
+                serverApi.notify_io_complete(iter->first, ENGINE_SUCCESS);
+            }
+            tapNotifySync.aquire();
         }
     }
 
@@ -691,19 +714,19 @@ private:
 
     void addEvent(const std::string &str)
     {
-        std::list<const void*> clients;
-        {
-            LockHolder lh(tapQueueMapLock);
-            purgeExpiredTapConnections_UNLOCKED();
+        bool notify = false;
+        LockHolder lh(tapNotifySync);
 
-            std::map<const void*, TapConnection*>::iterator iter;
-            for (iter = tapConnectionMap.begin(); iter != tapConnectionMap.end(); iter++) {
-                if (iter->second->addEvent(str)) {
-                    clients.push_back(iter->first);
-                }
+        std::map<const void*, TapConnection*>::iterator iter;
+        for (iter = tapConnectionMap.begin(); iter != tapConnectionMap.end(); iter++) {
+            if (iter->second->addEvent(str)) {
+                notify = true;
             }
         }
-        notifyTapQueues(clients);
+
+        if (notify) {
+            tapNotifySync.notify();
+        }
     }
 
     void addMutationEvent(Item *it) {
@@ -717,16 +740,16 @@ private:
     }
 
     void addFlushEvent() {
-        std::list<const void*> clients;
-        LockHolder lh(tapQueueMapLock);
-        purgeExpiredTapConnections_UNLOCKED();
+        LockHolder lh(tapNotifySync);
+        bool notify = false;
         std::map<const void*, TapConnection*>::iterator iter;
         for (iter = tapConnectionMap.begin(); iter != tapConnectionMap.end(); iter++) {
             iter->second->flush();
-            clients.push_back(iter->first);
+            notify = true;
         }
-        lh.unlock();
-        notifyTapQueues(clients);
+        if (notify) {
+            tapNotifySync.notify();
+        }
     }
 
     void add_casted_stat(const char *k, const char *v,
@@ -742,7 +765,14 @@ private:
         add_casted_stat(k, valS, add_stat, cookie);
     }
 
-    void loadDatabase(void);
+    void startEngineThreads(void);
+    void stopEngineThreads(void) {
+        LockHolder lh(tapNotifySync);
+        shutdown = true;
+        tapNotifySync.notify();
+        tapNotifySync.release();
+        pthread_join(notifyThreadId, NULL);
+    }
 
     const char *dbname;
     bool warmup;
@@ -756,6 +786,8 @@ private:
     std::map<const void*, TapConnection*> tapConnectionMap;
     time_t databaseInitTime;
     size_t tapKeepAlive;
-    Mutex tapQueueMapLock;
+    pthread_t notifyThreadId;
     Mutex arithmeticMutex;
+    SyncObject tapNotifySync;
+    volatile bool shutdown;
 };
