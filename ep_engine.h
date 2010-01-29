@@ -86,10 +86,10 @@ private:
         return ret;
     }
 
-    TapConnection(const std::string &n, uint32_t f) : client(n), flags(f) {
-        recordsFetched = 0;
-        pendingFlush = false;
-    }
+    TapConnection(const std::string &n, uint32_t f) : client(n), flags(f),
+        recordsFetched(0), pendingFlush(false), expiry_time((rel_time_t)-1),
+        reconnects(0)
+    { }
 
     /**
      * String used to identify the client.
@@ -101,6 +101,10 @@ private:
      */
     std::list<std::string> queue;
     /**
+     * Flags passed by the client
+     */
+    uint32_t flags;
+    /**
      * Counter of the number of records fetched from this stream since the
      * beginning
      */
@@ -110,10 +114,16 @@ private:
      */
     bool pendingFlush;
 
+
     /**
-     * Flags passed by the client
+     * when this tap conneciton expires.
      */
-    uint32_t flags;
+    rel_time_t expiry_time;
+
+    /**
+     * Number of times this client reconnected
+     */
+    uint32_t reconnects;
 
     DISALLOW_COPY_AND_ASSIGN(TapConnection);
 };
@@ -143,7 +153,7 @@ public:
 
         if (config != NULL) {
             char *dbn = NULL;
-            const int max_items = 4;
+            const int max_items = 5;
             struct config_item items[max_items];
             int ii = 0;
             memset(items, 0, sizeof(items));
@@ -156,6 +166,11 @@ public:
             items[ii].key = "warmup";
             items[ii].datatype = DT_BOOL;
             items[ii].value.dt_bool = &warmup;
+
+            ++ii;
+            items[ii].key = "tap_keepalive";
+            items[ii].datatype = DT_SIZE;
+            items[ii].value.dt_size = &tapKeepAlive;
 
             ++ii;
             items[ii].key = "config_file";
@@ -310,22 +325,29 @@ public:
                 }
             }
 
-            LockHolder lh(tapQueueMapLock);
             std::map<const void*, TapConnection*>::iterator iter;
             size_t totalQueue = 0;
             size_t totalFetched = 0;
-            for (iter = tapConnectionMap.begin(); iter != tapConnectionMap.end(); iter++) {
-                char tap[80];
-                sprintf(tap, "%s:qlen", iter->second->client.c_str());
-                add_casted_stat(tap, iter->second->queue.size(), add_stat, cookie);
-                totalQueue += iter->second->queue.size();
-                sprintf(tap, "%s:rec_fetched", iter->second->client.c_str());
-                add_casted_stat(tap, iter->second->recordsFetched, add_stat, cookie);
-                totalFetched += iter->second->recordsFetched;
+            {
+                LockHolder lh(tapQueueMapLock);
+                for (iter = tapConnectionMap.begin(); iter != tapConnectionMap.end(); iter++) {
+                    char tap[80];
+                    sprintf(tap, "%s:qlen", iter->second->client.c_str());
+                    add_casted_stat(tap, iter->second->queue.size(), add_stat, cookie);
+                    totalQueue += iter->second->queue.size();
+                    sprintf(tap, "%s:rec_fetched", iter->second->client.c_str());
+                    add_casted_stat(tap, iter->second->recordsFetched, add_stat, cookie);
+                    totalFetched += iter->second->recordsFetched;
+                    if (iter->second->reconnects > 0) {
+                        sprintf(tap, "%s:reconnects", iter->second->client.c_str());
+                        add_casted_stat(tap, iter->second->reconnects, add_stat, cookie);
+                    }
+                }
             }
 
             add_casted_stat("ep_tap_total_queue", totalQueue, add_stat, cookie);
             add_casted_stat("ep_tap_total_fetched", totalFetched, add_stat, cookie);
+            add_casted_stat("ep_tap_keepalive", tapKeepAlive, add_stat, cookie);
         }
         return ENGINE_SUCCESS;
     }
@@ -499,6 +521,8 @@ public:
             if (iter->second->client == name) {
                 tap = iter->second;
                 tapConnectionMap.erase(iter);
+                tap->expiry_time = (rel_time_t)-1;
+                ++tap->reconnects;
                 break;
             }
         }
@@ -575,9 +599,9 @@ public:
         std::map<const void*, TapConnection*>::iterator iter;
         iter = tapConnectionMap.find(cookie);
         if (iter != tapConnectionMap.end()) {
-            delete iter->second;
-            tapConnectionMap.erase(iter);
+            iter->second->expiry_time = serverApi.get_current_time() + tapKeepAlive;
         }
+        purgeExpiredTapConnections_UNLOCKED();
     }
 
     protocol_binary_response_status stopFlusher(const char **msg) {
@@ -643,15 +667,38 @@ private:
         }
     }
 
+    void purgeExpiredTapConnections_UNLOCKED() {
+        rel_time_t now = serverApi.get_current_time();
+        std::list<const void*> deadClients;
 
-    void addMutationEvent(Item *it) {
+        std::map<const void*, TapConnection*>::iterator iter;
+        for (iter = tapConnectionMap.begin(); iter != tapConnectionMap.end(); iter++) {
+            if (iter->second->expiry_time <= now) {
+                deadClients.push_back(iter->first);
+            }
+        }
+
+        if (deadClients.size() > 0) {
+            std::list<const void*>::iterator it;
+            for (it = deadClients.begin(); it != deadClients.end(); it++) {
+                std::map<const void*, TapConnection*>::iterator dead;
+                dead = tapConnectionMap.find(*it);
+                delete dead->second;
+                tapConnectionMap.erase(dead);
+            }
+        }
+    }
+
+    void addEvent(const std::string &str)
+    {
         std::list<const void*> clients;
         {
             LockHolder lh(tapQueueMapLock);
+            purgeExpiredTapConnections_UNLOCKED();
 
             std::map<const void*, TapConnection*>::iterator iter;
             for (iter = tapConnectionMap.begin(); iter != tapConnectionMap.end(); iter++) {
-                if (iter->second->addEvent(it)) {
+                if (iter->second->addEvent(str)) {
                     clients.push_back(iter->first);
                 }
             }
@@ -659,24 +706,20 @@ private:
         notifyTapQueues(clients);
     }
 
-    void addDeleteEvent(const std::string &key) {
-        std::list<const void*> clients;
-        {
-            LockHolder lh(tapQueueMapLock);
+    void addMutationEvent(Item *it) {
+        // Currently we use the same queue for all kinds of events..
+        addEvent(it->getKey());
+    }
 
-            std::map<const void*, TapConnection*>::iterator iter;
-            for (iter = tapConnectionMap.begin(); iter != tapConnectionMap.end(); iter++) {
-                if (iter->second->addEvent(key)) {
-                    clients.push_back(iter->first);
-                }
-            }
-        }
-        notifyTapQueues(clients);
+    void addDeleteEvent(const std::string &key) {
+        // Currently we use the same queue for all kinds of events..
+        addEvent(key);
     }
 
     void addFlushEvent() {
         std::list<const void*> clients;
         LockHolder lh(tapQueueMapLock);
+        purgeExpiredTapConnections_UNLOCKED();
         std::map<const void*, TapConnection*>::iterator iter;
         for (iter = tapConnectionMap.begin(); iter != tapConnectionMap.end(); iter++) {
             iter->second->flush();
@@ -712,6 +755,7 @@ private:
     EventuallyPersistentStore *epstore;
     std::map<const void*, TapConnection*> tapConnectionMap;
     time_t databaseInitTime;
+    size_t tapKeepAlive;
     Mutex tapQueueMapLock;
     Mutex arithmeticMutex;
 };
