@@ -550,7 +550,9 @@ public:
             /* @TODO we don't have CAS now.. we might in the future.. */
             (void)cas;
             uint64_t ncas;
-            return store(cookie, item, &ncas, OPERATION_SET);
+            ENGINE_ERROR_CODE ret = store(cookie, item, &ncas, OPERATION_SET);
+            delete item;
+            return ret;
         }
 
 
