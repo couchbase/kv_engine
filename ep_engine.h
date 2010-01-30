@@ -427,7 +427,7 @@ public:
                 size_t nb = snprintf(value, sizeof(value), "%llu\r\n",
                                      (unsigned long long)val);
                 *result = val;
-                Item *nit = new Item(key, nkey, item->flags, exptime, value, nb);
+                Item *nit = new Item(key, (uint16_t)nkey, item->flags, exptime, value, nb);
                 ret = store(cookie, nit, cas, OPERATION_SET);
                 delete nit;
             } else {
@@ -440,7 +440,7 @@ public:
             size_t nb = snprintf(value, sizeof(value), "%llu\r\n",
                                  (unsigned long long)initial);
             *result = initial;
-            Item *item = new Item(key, nkey, 0, exptime, value, nb);
+            Item *item = new Item(key, (uint16_t)nkey, 0, exptime, value, nb);
             ret = store(cookie, item, cas, OPERATION_ADD);
             delete item;
             if (ret == ENGINE_KEY_EEXISTS) {
@@ -570,7 +570,7 @@ public:
 
         case TAP_MUTATION:
         {
-            Item *item = new Item(key, nkey, flags, exptime, data, ndata);
+            Item *item = new Item(key, (uint16_t)nkey, flags, exptime, data, ndata);
             /* @TODO we don't have CAS now.. we might in the future.. */
             (void)cas;
             uint64_t ncas;
