@@ -58,8 +58,10 @@ private:
      */
     bool addEvent(const std::string &key) {
         bool ret = queue.empty();
-        /* @todo don't insert the key if it's already in the list! */
-        queue.push_back(key);
+        if (!ret && queue_set.count(key) == 0) {
+            queue.push_back(key);
+            queue_set.insert(key);
+        }
         return ret;
     }
 
@@ -67,6 +69,7 @@ private:
         assert(!empty());
         std::string key = queue.front();
         queue.pop_front();
+        queue_set.erase(key);
         ++recordsFetched;
         return key;
     }
@@ -79,6 +82,7 @@ private:
         pendingFlush = true;
         /* No point of keeping the rep queue when someone wants to flush it */
         queue.clear();
+        queue_set.clear();
     }
 
     bool shouldFlush() {
@@ -101,6 +105,13 @@ private:
      * The queue of keys that needs to be sent (this is the "live stream")
      */
     std::list<std::string> queue;
+    /**
+     * Set to prevent duplicate queue entries.
+     *
+     * Note that stl::set is O(log n) for ops we care about, so we'll
+     * want to look out for this.
+     */
+    std::set<std::string> queue_set;
     /**
      * Flags passed by the client
      */
