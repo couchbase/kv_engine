@@ -58,7 +58,7 @@ private:
      */
     bool addEvent(const std::string &key) {
         bool ret = queue.empty();
-        if (!ret && queue_set.count(key) == 0) {
+        if (queue_set.count(key) == 0) {
             queue.push_back(key);
             queue_set.insert(key);
         }
