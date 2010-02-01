@@ -610,7 +610,8 @@ public:
         std::map<const void*, TapConnection*>::iterator iter;
         iter = tapConnectionMap.find(cookie);
         if (iter != tapConnectionMap.end()) {
-            iter->second->expiry_time = serverApi.get_current_time() + tapKeepAlive;
+            iter->second->expiry_time = serverApi.get_current_time()
+                + (int)tapKeepAlive;
         }
         purgeExpiredTapConnections_UNLOCKED();
     }
