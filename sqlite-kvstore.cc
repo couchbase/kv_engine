@@ -25,6 +25,10 @@ void PreparedStatement::bind(int pos, const char *s, size_t nbytes) {
     sqlite3_bind_text(st, pos, s, (int)nbytes, SQLITE_STATIC);
 }
 
+void PreparedStatement::bind(int pos, int v) {
+    sqlite3_bind_int(st, pos, v);
+}
+
 int PreparedStatement::execute() {
     int steps_run = 0, rc = 0;
     while ((rc = sqlite3_step(st)) != SQLITE_DONE) {
@@ -63,6 +67,10 @@ bool PreparedStatement::fetch() {
 
 const char *PreparedStatement::column(int x) {
     return (char*)sqlite3_column_text(st, x);
+}
+
+int PreparedStatement::column_int(int x) {
+    return sqlite3_column_int(st, x);
 }
 
 void PreparedStatement::reset() {
@@ -148,8 +156,12 @@ void BaseSqlite3::execute(const char *query) {
 
 
 void Sqlite3::initStatements() {
-    ins_stmt = new PreparedStatement(db, "insert into kv(k,v) values(?, ?)");
-    sel_stmt = new PreparedStatement(db, "select v from kv where k = ?");
+    ins_stmt = new PreparedStatement(db,
+                                     "insert into kv(k, v, flags, exptime) "
+                                     "values(?, ?, ?, ?)");
+    sel_stmt = new PreparedStatement(db,
+                                     "select v, flags, exptime "
+                                     "from kv where k = ?");
     del_stmt = new PreparedStatement(db, "delete from kv where k = ?");
 }
 
@@ -163,7 +175,9 @@ void Sqlite3::destroyStatements() {
 void Sqlite3::initTables() {
     execute("create table if not exists kv"
             " (k varchar(250) primary key on conflict replace,"
-            "  v text)");
+            "  v text,"
+            "  flags integer,"
+            "  exptime integer)");
     if(auditable) {
         execute("create table if not exists history ("
                 " id integer primary key autoincrement,"
@@ -191,9 +205,10 @@ void Sqlite3::destroyTables() {
 }
 
 void Sqlite3::set(const Item &itm, Callback<bool> &cb) {
-    /* @todo store flags and exptime */
     ins_stmt->bind(1, itm.getKey().c_str());
     ins_stmt->bind(2, const_cast<Item&>(itm).getData(), itm.nbytes);
+    ins_stmt->bind(3, itm.flags);
+    ins_stmt->bind(4, itm.exptime);
     bool rv = ins_stmt->execute() == 1;
     cb.callback(rv);
     ins_stmt->reset();
@@ -204,8 +219,10 @@ void Sqlite3::get(const std::string &key, Callback<GetValue> &cb) {
 
     if(sel_stmt->fetch()) {
         std::string str(sel_stmt->column(0));
-        /* @todo get flags and exptime */
-        GetValue rv(new Item(key, 0, 0, str));
+        GetValue rv(new Item(key,
+                             sel_stmt->column_int(1),
+                             sel_stmt->column_int(2),
+                             str));
         cb.callback(rv);
     } else {
         GetValue rv(false);
@@ -223,12 +240,14 @@ void Sqlite3::del(const std::string &key, Callback<bool> &cb) {
 
 void Sqlite3::dump(Callback<GetValue> &cb) {
 
-    PreparedStatement st(db, "select k,v from kv");
+    PreparedStatement st(db, "select k,v,flags,exptime from kv");
     while (st.fetch()) {
         std::string key(st.column(0));
         std::string value(st.column(1));
-        /* @todo get flags and value */
-        GetValue rv(new Item(key, 0, 0, value));
+        GetValue rv(new Item(key,
+                             st.column_int(2),
+                             st.column_int(3),
+                             value));
         cb.callback(rv);
     }
 

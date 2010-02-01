@@ -44,6 +44,14 @@ public:
     void bind(int pos, const char *s, size_t nbytes);
 
     /**
+     * Bind a uint32 value.
+     *
+     * @param pos the binding position (starting at 1)
+     * @param d the value to bind
+     */
+    void bind(int pos, int d);
+
+    /**
      * Execute a prepared statement that does not return results.
      *
      * @return how many rows were affected
@@ -74,6 +82,16 @@ public:
      * @return the value
      */
     const char *column(int x);
+
+    /**
+     * Get the integer valueof the given column at the current row.
+     *
+     * Use this along with fetch.
+     *
+     * @param x the column number (starting at 1)
+     * @return the value
+     */
+    int column_int(int x);
 
 private:
     sqlite3      *db;
