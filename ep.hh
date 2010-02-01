@@ -58,7 +58,9 @@ public:
     StoredValue(const Item &itm, StoredValue *n) :
         key(itm.getKey()), value(const_cast<Item&>(itm).getData(), itm.nbytes), flags(itm.flags),
         exptime(itm.exptime), dirtied(0), next(n)
-    { }
+    {
+        markDirty();
+    }
 
     ~StoredValue() {
     }
