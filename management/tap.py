@@ -40,8 +40,7 @@ class TapConnection(mc_bin_server.MemcachedBinaryChannel):
                         opaque, cas)
         return msg + extraHeader + key + val
 
-    def processCommand(self, cmd, klen, cas, data):
-        extralen = memcacheConstants.EXTRA_HDR_SIZES.get(cmd, 0)
+    def processCommand(self, cmd, klen, extralen, cas, data):
         extra = data[0:extralen]
         key = data[extralen:(extralen+klen)]
         val = data[(extralen+klen):]

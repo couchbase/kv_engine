@@ -332,7 +332,7 @@ class MemcachedBinaryChannel(asyncore.dispatcher):
             # Remove this request from the read buffer
             self.rbuf=self.rbuf[MIN_RECV_PACKET+remaining:]
             # Process the command
-            cmdVal = self.processCommand(cmd, keylen, cas, data)
+            cmdVal = self.processCommand(cmd, keylen, extralen, cas, data)
             # Queue the response to the client if applicable.
             if cmdVal:
                 try:

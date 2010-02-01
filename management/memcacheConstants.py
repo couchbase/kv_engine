@@ -42,7 +42,7 @@ CMD_TAP_CONNECT = 0x40
 CMD_TAP_MUTATION = 0x41
 CMD_TAP_DELETE = 0x42
 CMD_TAP_FLUSH = 0x43
-CMD_SWITCHOVER = 0x44
+CMD_TAP_OPAQUE = 0x44
 
 COMMAND_NAMES = dict(((globals()[k], k) for k in globals() if k.startswith("CMD_")))
 
@@ -54,6 +54,11 @@ GET_RES_FMT=">I"
 
 # How long until the deletion takes effect.
 DEL_PKT_FMT=""
+
+## TAP stuff
+# eng-specific length, flags, ttl, [res, res, res]; item flags, exp
+TAP_MUTATION_PKT_FMT = "HHbxxxII"
+TAP_GENERAL_PKT_FMT = "HHbxxx"
 
 # amount, initial value, expiration
 INCRDECR_PKT_FMT=">QQI"
@@ -85,7 +90,11 @@ EXTRA_HDR_FMTS={
     CMD_DECR: INCRDECR_PKT_FMT,
     CMD_DELETE: DEL_PKT_FMT,
     CMD_FLUSH: FLUSH_PKT_FMT,
-    CMD_TAP_MUTATION: SET_PKT_FMT
+    CMD_TAP_MUTATION: TAP_MUTATION_PKT_FMT,
+    CMD_TAP_DELETE: TAP_GENERAL_PKT_FMT,
+    CMD_TAP_FLUSH: TAP_GENERAL_PKT_FMT,
+    CMD_TAP_OPAQUE: TAP_GENERAL_PKT_FMT
+
 }
 
 EXTRA_HDR_SIZES=dict(

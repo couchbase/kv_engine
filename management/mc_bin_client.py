@@ -195,22 +195,6 @@ class MemcachedClient(object):
 
         return rv
 
-    def tap(self, cb=None):
-        """Wire tap - see all mutations.
-
-        cb(cmd_opcode, opaque, cas, key, data)"""
-        self._sendCmd(memcacheConstants.CMD_TAP_CONNECT, '', '', 0)
-        while True:
-            cmd, opaque, cas, klen, extralen, data = self._handleKeyedResponse(None)
-            extra = data[0:extralen]
-            key = data[extralen:(extralen+klen)]
-            val = data[(extralen+klen):]
-            if cb:
-                cb(cmd, opaque, cas, key, val)
-            else:
-                print "%s: ``%s'' (%d bytes)" % (memcacheConstants.COMMAND_NAMES[cmd],
-                                                 key, len(val))
-
     def stats(self, sub=''):
         """Get stats."""
         opaque=self.r.randint(0, 2**32)
