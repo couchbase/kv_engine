@@ -58,11 +58,17 @@ class TapClient(object):
         for (h,p) in servers:
             tc = TapConnection(h, p, callback)
 
+def abbrev(v, maxlen=30):
+    if len(v) > maxlen:
+        return v[:maxlen] + "..."
+    else:
+        return v
+
 if __name__ == '__main__':
     connections = (a.split(':') for a in sys.argv[1:])
     def cb(identifier, cmd, extra, key, val, cas):
         print "%s: ``%s'' -> ``%s'' (%d bytes from %s)" % (
             memcacheConstants.COMMAND_NAMES[cmd],
-            key, val, len(val), identifier)
+            key, abbrev(val), len(val), identifier)
     TapClient(((h, int(p)) for (h,p) in connections), cb)
     asyncore.loop()
