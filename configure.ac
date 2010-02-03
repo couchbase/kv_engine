@@ -16,8 +16,9 @@ PANDORA_CANONICAL_TARGET
 
 AS_IF([test "x$SUNCC" = "xyes"],
       [
-        CPPFLAGS="-xldscope=hidden $CPPFLAGS"
-        CXXFLAGS="-erroff=truncwarn1,signextwarn,notused,inllargeuse $CXXFLAGS"
+        CFLAGS="-D_XOPEN_SOURCE=600 $CFLAGS"
+        CPPFLAGS="-xldscope=hidden -mt $CPPFLAGS"
+        CXXFLAGS="-erroff=truncwarn1,signextwarn,notused,inllargeuse,wunreachable $CXXFLAGS"
       ])
 
 AH_BOTTOM([

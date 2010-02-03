@@ -17,4 +17,4 @@ ep_la_LIBADD = libsqlite3.la
 ep_la_DEPENDENCIES = libsqlite3.la
 
 libsqlite3_la_SOURCES = sqlite3.h sqlite3.c
-libsqlite3_la_CFLAGS = -O2
+libsqlite3_la_CFLAGS = $(AM_CFLAGS) ${NO_WERROR}

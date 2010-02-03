@@ -18,6 +18,7 @@ extern "C" {
 
     static rel_time_t uninitialized_current_time(void) {
         abort();
+        return 0;
     }
 
     rel_time_t (*ep_current_time)() = uninitialized_current_time;
