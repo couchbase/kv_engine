@@ -93,7 +93,7 @@ private:
 
     TapConnection(const std::string &n, uint32_t f) : client(n), flags(f),
         recordsFetched(0), pendingFlush(false), expiry_time((rel_time_t)-1),
-        reconnects(0)
+        reconnects(0), connected(true)
     { }
 
     /**
@@ -136,6 +136,11 @@ private:
      * Number of times this client reconnected
      */
     uint32_t reconnects;
+
+    /**
+     * Is connected?
+     */
+    bool connected;
 
     DISALLOW_COPY_AND_ASSIGN(TapConnection);
 };
@@ -336,22 +341,23 @@ public:
                 }
             }
 
-            std::map<const void*, TapConnection*>::iterator iter;
+            std::list<TapConnection*>::iterator iter;
             size_t totalQueue = 0;
             size_t totalFetched = 0;
             {
                 LockHolder lh(tapNotifySync);
-                for (iter = tapConnectionMap.begin(); iter != tapConnectionMap.end(); iter++) {
+                for (iter = allTaps.begin(); iter != allTaps.end(); iter++) {
                     char tap[80];
-                    sprintf(tap, "%s:qlen", iter->second->client.c_str());
-                    add_casted_stat(tap, iter->second->queue.size(), add_stat, cookie);
-                    totalQueue += iter->second->queue.size();
-                    sprintf(tap, "%s:rec_fetched", iter->second->client.c_str());
-                    add_casted_stat(tap, iter->second->recordsFetched, add_stat, cookie);
-                    totalFetched += iter->second->recordsFetched;
-                    if (iter->second->reconnects > 0) {
-                        sprintf(tap, "%s:reconnects", iter->second->client.c_str());
-                        add_casted_stat(tap, iter->second->reconnects, add_stat, cookie);
+                    TapConnection *tc = *iter;
+                    sprintf(tap, "%s:qlen", tc->client.c_str());
+                    add_casted_stat(tap, tc->queue.size(), add_stat, cookie);
+                    totalQueue += tc->queue.size();
+                    sprintf(tap, "%s:rec_fetched", tc->client.c_str());
+                    add_casted_stat(tap, tc->recordsFetched, add_stat, cookie);
+                    totalFetched += tc->recordsFetched;
+                    if (tc->reconnects > 0) {
+                        sprintf(tap, "%s:reconnects", tc->client.c_str());
+                        add_casted_stat(tap, tc->reconnects, add_stat, cookie);
                     }
                 }
             }
@@ -478,9 +484,12 @@ public:
         return ENGINE_SUCCESS;
     }
 
-    tap_event_t walkTapQueue(const void *cookie, item **itm, void **es, uint16_t *nes, uint8_t *ttl, uint16_t *flags, uint32_t *seqno) {
+    tap_event_t walkTapQueue(const void *cookie, item **itm, void **es,
+                             uint16_t *nes, uint8_t *ttl, uint16_t *flags,
+                             uint32_t *seqno) {
         LockHolder lh(tapNotifySync);
         TapConnection *connection = tapConnectionMap[cookie];
+        assert(connection);
         tap_event_t ret = TAP_PAUSE;
 
         *es = NULL;
@@ -527,14 +536,15 @@ public:
 
         TapConnection *tap = NULL;
 
-        std::map<const void*, TapConnection*>::iterator iter;
-        for (iter = tapConnectionMap.begin(); iter != tapConnectionMap.end(); ++iter) {
-            if (iter->second->client == name) {
-                tap = iter->second;
-                tapConnectionMap.erase(iter);
+        std::list<TapConnection*>::iterator iter;
+        for (iter = allTaps.begin(); iter != allTaps.end(); ++iter) {
+            tap = *iter;
+            if (tap->client == name) {
                 tap->expiry_time = (rel_time_t)-1;
                 ++tap->reconnects;
                 break;
+            } else {
+                tap = NULL;
             }
         }
 
@@ -542,10 +552,12 @@ public:
         // if so this should be a reconnect...
         if (tap == NULL) {
             TapConnection *tc = new TapConnection(name, flags);
+            allTaps.push_back(tc);
             tapConnectionMap[cookie] = tc;
             queueBackfill(tc);
         } else {
             tapConnectionMap[cookie] = tap;
+            tap->connected = true;
         }
     }
 
@@ -612,6 +624,8 @@ public:
         if (iter != tapConnectionMap.end()) {
             iter->second->expiry_time = serverApi.get_current_time()
                 + (int)tapKeepAlive;
+            iter->second->connected = false;
+            tapConnectionMap.erase(iter);
         }
         purgeExpiredTapConnections_UNLOCKED();
     }
@@ -696,6 +710,7 @@ private:
 
             tapNotifySync.release();
             for (iter = tcm.begin(); iter != tcm.end(); iter++) {
+                assert(iter->second->connected);
                 serverApi.notify_io_complete(iter->first, ENGINE_SUCCESS);
             }
             tapNotifySync.aquire();
@@ -704,23 +719,20 @@ private:
 
     void purgeExpiredTapConnections_UNLOCKED() {
         rel_time_t now = serverApi.get_current_time();
-        std::list<const void*> deadClients;
+        std::list<TapConnection*> deadClients;
 
-        std::map<const void*, TapConnection*>::iterator iter;
-        for (iter = tapConnectionMap.begin(); iter != tapConnectionMap.end(); iter++) {
-            if (iter->second->expiry_time <= now) {
-                deadClients.push_back(iter->first);
+        std::list<TapConnection*>::iterator iter;
+        for (iter = allTaps.begin(); iter != allTaps.end(); iter++) {
+            TapConnection *tc = *iter;
+            if (tc->expiry_time <= now) {
+                deadClients.push_back(tc);
             }
         }
 
-        if (deadClients.size() > 0) {
-            std::list<const void*>::iterator it;
-            for (it = deadClients.begin(); it != deadClients.end(); it++) {
-                std::map<const void*, TapConnection*>::iterator dead;
-                dead = tapConnectionMap.find(*it);
-                delete dead->second;
-                tapConnectionMap.erase(dead);
-            }
+        for (iter = deadClients.begin(); iter != deadClients.end(); iter++) {
+            TapConnection *tc = *iter;
+            allTaps.remove(tc);
+            delete tc;
         }
     }
 
@@ -729,9 +741,10 @@ private:
         bool notify = false;
         LockHolder lh(tapNotifySync);
 
-        std::map<const void*, TapConnection*>::iterator iter;
-        for (iter = tapConnectionMap.begin(); iter != tapConnectionMap.end(); iter++) {
-            if (iter->second->addEvent(str)) {
+        std::list<TapConnection*>::iterator iter;
+        for (iter = allTaps.begin(); iter != allTaps.end(); iter++) {
+            TapConnection *tc = *iter;
+            if (tc->addEvent(str)) {
                 notify = true;
             }
         }
@@ -754,9 +767,10 @@ private:
     void addFlushEvent() {
         LockHolder lh(tapNotifySync);
         bool notify = false;
-        std::map<const void*, TapConnection*>::iterator iter;
-        for (iter = tapConnectionMap.begin(); iter != tapConnectionMap.end(); iter++) {
-            iter->second->flush();
+        std::list<TapConnection*>::iterator iter;
+        for (iter = allTaps.begin(); iter != allTaps.end(); iter++) {
+            TapConnection *tc = *iter;
+            tc->flush();
             notify = true;
         }
         if (notify) {
@@ -796,6 +810,7 @@ private:
     Sqlite3 *sqliteDb;
     EventuallyPersistentStore *epstore;
     std::map<const void*, TapConnection*> tapConnectionMap;
+    std::list<TapConnection*> allTaps;
     time_t databaseInitTime;
     size_t tapKeepAlive;
     pthread_t notifyThreadId;
