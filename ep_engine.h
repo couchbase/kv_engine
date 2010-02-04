@@ -741,6 +741,15 @@ private:
         for (iter = deadClients.begin(); iter != deadClients.end(); iter++) {
             TapConnection *tc = *iter;
             allTaps.remove(tc);
+
+            /* Assert that the connection doesn't live in the map.. */
+            /* TROND: Remove this when we're sure we don't have a bug here */
+            std::map<const void*, TapConnection*>::iterator it;
+            for (it = tapConnectionMap.begin();
+                 it != tapConnectionMap.end();
+                 ++it) {
+                assert(it->second != tc);
+            }
             delete tc;
         }
     }
