@@ -93,7 +93,7 @@ private:
 
     TapConnection(const std::string &n, uint32_t f) : client(n), flags(f),
         recordsFetched(0), pendingFlush(false), expiry_time((rel_time_t)-1),
-        reconnects(0), connected(true)
+        reconnects(0), connected(true), paused(false)
     { }
 
     /**
@@ -141,6 +141,11 @@ private:
      * Is connected?
      */
     bool connected;
+
+    /**
+     * is his paused
+     */
+    bool paused;
 
     DISALLOW_COPY_AND_ASSIGN(TapConnection);
 };
@@ -491,6 +496,7 @@ public:
         TapConnection *connection = tapConnectionMap[cookie];
         assert(connection);
         tap_event_t ret = TAP_PAUSE;
+        connection->paused = false;
 
         *es = NULL;
         *nes = 0;
@@ -517,6 +523,8 @@ public:
             }
         } else if (connection->shouldFlush()) {
             ret = TAP_FLUSH;
+        } else {
+            connection->paused = true;
         }
 
         return ret;
@@ -710,8 +718,9 @@ private:
 
             tapNotifySync.release();
             for (iter = tcm.begin(); iter != tcm.end(); iter++) {
-                assert(iter->second->connected);
-                serverApi.notify_io_complete(iter->first, ENGINE_SUCCESS);
+                if (iter->second->paused) {
+                    serverApi.notify_io_complete(iter->first, ENGINE_SUCCESS);
+                }
             }
             tapNotifySync.aquire();
         }
