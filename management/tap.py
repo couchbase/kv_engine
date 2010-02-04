@@ -7,6 +7,7 @@ Copyright (c) 2010  Dustin Sallings <dustin@spy.net>
 
 import sys
 import socket
+import string
 import random
 import struct
 import asyncore
@@ -21,15 +22,18 @@ import memcacheConstants
 
 class TapConnection(mc_bin_server.MemcachedBinaryChannel):
 
-    def __init__(self, server, port, callback):
+    def __init__(self, server, port, callback, clientId=None):
         mc_bin_server.MemcachedBinaryChannel.__init__(self, None, None,
-                                                   self._createTapCall())
+                                                   self._createTapCall(clientId))
         self.callback = callback
         self.identifier = (server, port)
         self.create_socket(socket.AF_INET, socket.SOCK_STREAM)
         self.connect((server, port))
 
-    def _createTapCall(self, key="", extraHeader="", val=""):
+    def _createTapCall(self, key=None, extraHeader="", val=""):
+        # Client identifier
+        if not key:
+            key = "".join(random.sample(string.letters, 16))
         dtype=0
         opaque=0
         cas=0
