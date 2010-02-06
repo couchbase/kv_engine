@@ -506,6 +506,7 @@ public:
 
         if (!connection->empty()) {
             std::string key = connection->next();
+            lh.unlock();
 
             ENGINE_ERROR_CODE r;
             r = get(cookie, itm, key.c_str(), (int)key.length());
