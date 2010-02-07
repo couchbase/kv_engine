@@ -69,6 +69,17 @@ public:
         markDirty();
     }
 
+    StoredValue(const Item &itm, StoredValue *n, bool setDirty) :
+        key(itm.getKey()), value(const_cast<Item&>(itm).getData(), itm.nbytes), flags(itm.flags),
+        exptime(itm.exptime), dirtied(0), next(n)
+    {
+        if (setDirty) {
+            markDirty();
+        } else {
+            markClean(NULL, NULL);
+        }
+    }
+
     ~StoredValue() {
     }
     void markDirty() {
@@ -196,7 +207,7 @@ public:
         return rv;
     }
 
-    bool add(const Item &val) {
+    bool add(const Item &val, bool isDirty) {
         assert(active);
         int bucket_num = bucket(val.getKey());
         LockHolder lh(getMutex(bucket_num));
@@ -204,11 +215,15 @@ public:
         if (v) {
             return false;
         } else {
-            v = new StoredValue(const_cast<Item&>(val), values[bucket_num]);
+            v = new StoredValue(const_cast<Item&>(val), values[bucket_num], isDirty);
             values[bucket_num] = v;
         }
 
         return true;
+    }
+
+    bool add(const Item &val) {
+        return add(val, true);
     }
 
     StoredValue *unlocked_find(const std::string &key, int bucket_num) {
@@ -313,7 +328,7 @@ public:
 
     void callback(GetValue &val) {
         if (val.value != NULL) {
-            hashtable.add(*val.value);
+            hashtable.add(*val.value, false);
             delete val.value;
         }
         stats.warmedUp++;
