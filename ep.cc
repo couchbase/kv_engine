@@ -10,8 +10,10 @@ extern "C" {
         Flusher *flusher = (Flusher*) arg;
         try {
             flusher->run();
+        } catch (std::exception& e) {
+            std::cerr << "flusher exception caught: " << e.what() << std::endl;
         } catch(...) {
-            std::cerr << "Caught a fatal exception in the thread" << std::endl;
+            std::cerr << "Caught a fatal exception in the flusher thread" << std::endl;
         }
         return NULL;
     }
