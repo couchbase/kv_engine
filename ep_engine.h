@@ -763,7 +763,7 @@ private:
         std::list<TapConnection*>::iterator iter;
         for (iter = allTaps.begin(); iter != allTaps.end(); iter++) {
             TapConnection *tc = *iter;
-            if (tc->addEvent(str)) {
+            if (tc->addEvent(str) && tc->paused) {
                 notify = true;
             }
         }
