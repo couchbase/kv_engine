@@ -57,12 +57,13 @@ private:
      * @return true if the the queue was empty
      */
     bool addEvent(const std::string &key) {
-        bool ret = queue.empty();
-        if (queue_set.count(key) == 0) {
+        bool wasEmpty = queue.empty();
+        std::pair<std::set<std::string>::iterator, bool> ret;
+        ret = queue_set.insert(key);
+        if (ret.second) {
             queue.push_back(key);
-            queue_set.insert(key);
         }
-        return ret;
+        return wasEmpty;
     }
 
     std::string next() {
