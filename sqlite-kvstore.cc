@@ -172,6 +172,14 @@ void Sqlite3::destroyStatements() {
     ins_stmt = sel_stmt = del_stmt = NULL;
 }
 
+void Sqlite3::initPragmas() {
+    execute("pragma page_size = 8192");
+    execute("pragma cache_size = 65535");
+    execute("pragma journal_mode = TRUNCATE");
+    execute("pragma locking_mode = EXCLUSIVE");
+    execute("pragma synchronous = NORMAL");
+}
+
 void Sqlite3::initTables() {
     execute("create table if not exists kv"
             " (k varchar(250) primary key on conflict replace,"

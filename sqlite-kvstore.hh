@@ -156,6 +156,11 @@ protected:
     virtual void destroyStatements() {}
 
     /**
+     * Set up database parameters.
+     */
+    virtual void initPragmas() {}
+
+    /**
      * Set up the tables.
      */
     virtual void initTables() {}
@@ -218,6 +223,8 @@ protected:
     void initStatements();
 
     void destroyStatements();
+
+    void initPragmas();
 
     void initTables();
 
