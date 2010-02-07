@@ -37,6 +37,7 @@ EventuallyPersistentStore::EventuallyPersistentStore(KVStore *t,
     flusher = new Flusher(this);
 
     flusherState = STOPPED;
+    txnSize = DEFAULT_TXN_SIZE;
     startFlusher();
 
     underlying = t;
@@ -166,16 +167,10 @@ void EventuallyPersistentStore::flush(bool shouldWait) {
 
         stats.flusher_todo = q->size();
 
-        underlying->begin();
         while (!q->empty()) {
             flushSome(q, cb);
         }
-        rel_time_t cstart = ep_current_time();
-        underlying->commit();
-        // One more lock to update a stat.
-        LockHolder lh_stat(mutex);
         rel_time_t complete_time = ep_current_time();
-        stats.commit_time = complete_time - cstart;
 
         delete q;
 
@@ -186,7 +181,21 @@ void EventuallyPersistentStore::flush(bool shouldWait) {
 }
 
 void EventuallyPersistentStore::flushSome(std::queue<std::string> *q,
-                                          Callback<bool> &cb) {
+                                         Callback<bool> &cb) {
+    underlying->begin();
+    for (int i = 0; i < txnSize && !q->empty(); i++) {
+        flushOne(q, cb);
+    }
+    rel_time_t cstart = ep_current_time();
+    underlying->commit();
+    rel_time_t complete_time = ep_current_time();
+    // One more lock to update a stat.
+    LockHolder lh_stat(mutex);
+    stats.commit_time = complete_time - cstart;
+}
+
+void EventuallyPersistentStore::flushOne(std::queue<std::string> *q,
+                                         Callback<bool> &cb) {
 
     std::string key = q->front();
     q->pop();

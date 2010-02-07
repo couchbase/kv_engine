@@ -21,6 +21,8 @@
 #include "locks.hh"
 #include "sqlite-kvstore.hh"
 
+#define DEFAULT_TXN_SIZE 25000
+
 extern "C" {
     extern rel_time_t (*ep_current_time)();
 }
@@ -393,6 +395,7 @@ private:
 
     void flush(bool shouldWait);
     void flushSome(std::queue<std::string> *q, Callback<bool> &cb);
+    void flushOne(std::queue<std::string> *q, Callback<bool> &cb);
     void flusherStopped();
     void initQueue();
 
@@ -408,6 +411,7 @@ private:
     struct ep_stats            stats;
     LoadStorageKVPairCallback  loadStorageKVPairCallback;
     flusher_state              flusherState;
+    int                        txnSize;
     DISALLOW_COPY_AND_ASSIGN(EventuallyPersistentStore);
 };
 
