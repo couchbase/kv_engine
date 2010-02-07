@@ -21,7 +21,7 @@
 #include "locks.hh"
 #include "sqlite-kvstore.hh"
 
-#define DEFAULT_TXN_SIZE 25000
+#define DEFAULT_TXN_SIZE 100000
 
 extern "C" {
     extern rel_time_t (*ep_current_time)();
