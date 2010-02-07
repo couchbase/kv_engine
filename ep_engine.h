@@ -339,10 +339,12 @@ public:
             add_casted_stat("ep_warmup", warmup ? "true" : "false",
                             add_stat, cookie);
             if (warmup) {
-                add_casted_stat("ep_warmup_thread", warmupComplete ? "complete" : "running",
+                add_casted_stat("ep_warmup_thread",
+                                epstats.warmupComplete ? "complete" : "running",
                                 add_stat, cookie);
-                if (warmupComplete) {
-                    add_casted_stat("ep_warmup_time", warmupTime, add_stat, cookie);
+                if (epstats.warmupComplete) {
+                    add_casted_stat("ep_warmup_time", epstats.warmupTime,
+                                    add_stat, cookie);
                 }
             }
 
@@ -676,13 +678,6 @@ public:
         // @todo reset statistics
     }
 
-    static void loadDatabase(EventuallyPersistentEngine *instance) {
-        time_t start = time(NULL);
-        instance->sqliteDb->dump(instance->epstore->getLoadStorageKVPairCallback());
-        instance->warmupTime = time(NULL) - start;
-        instance->warmupComplete = true;
-    }
-
     ~EventuallyPersistentEngine() {
         delete epstore;
         delete sqliteDb;
@@ -821,8 +816,6 @@ private:
 
     const char *dbname;
     bool warmup;
-    volatile bool warmupComplete;
-    volatile time_t warmupTime;
     SERVER_HANDLE_V1 serverApi;
     IgnoreCallback ignoreCallback;
     KVStore *backend;

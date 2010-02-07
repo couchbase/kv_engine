@@ -285,11 +285,6 @@ extern "C" {
         return ENGINE_SUCCESS;
     }
 
-    static void *EvpLoadDataseThread(void*arg) {
-        EventuallyPersistentEngine::loadDatabase(static_cast<EventuallyPersistentEngine*>(arg));
-        return NULL;
-    }
-
     static void *EvpNotifyTapIo(void*arg) {
         static_cast<EventuallyPersistentEngine*>(arg)->notifyTapIoThread();
         return NULL;
@@ -297,8 +292,7 @@ extern "C" {
 } // C linkage
 
 EventuallyPersistentEngine::EventuallyPersistentEngine(SERVER_HANDLE_V1 *sApi) :
-    dbname("/tmp/test.db"), warmup(true), warmupComplete(false),
-    warmupTime(0), sqliteDb(NULL),
+    dbname("/tmp/test.db"), warmup(true), sqliteDb(NULL),
     epstore(NULL), databaseInitTime(0), shutdown(false)
 {
     interface.interface = 1;
@@ -329,14 +323,6 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(SERVER_HANDLE_V1 *sApi) :
 
 void EventuallyPersistentEngine::startEngineThreads(void)
 {
-    pthread_t tid;
-    if (warmup) {
-        if (pthread_create(&tid, NULL, EvpLoadDataseThread, this) != 0) {
-            throw std::runtime_error("Error creating thread to load database");
-        }
-        pthread_detach(tid);
-    }
-
     if (pthread_create(&notifyThreadId, NULL, EvpNotifyTapIo, this) != 0) {
         throw std::runtime_error("Error creating thread to notify Tap connections");
     }

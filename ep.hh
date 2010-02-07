@@ -19,12 +19,17 @@
 
 #include "kvstore.hh"
 #include "locks.hh"
+#include "sqlite-kvstore.hh"
 
 extern "C" {
     extern rel_time_t (*ep_current_time)();
 }
 
 struct ep_stats {
+    // How long it took us to load the data from disk.
+    time_t warmupTime;
+    // Whether we're warming up.
+    bool warmupComplete;
     // size of the input queue
     size_t queue_size;
     // Size of the in-process (output) queue.
@@ -355,6 +360,10 @@ public:
         storage.visit(visitor);
     }
 
+    void warmup() {
+        static_cast<Sqlite3*>(underlying)->dump(getLoadStorageKVPairCallback());
+    }
+
 private:
     /* Queue an item to be written to persistent layer. */
     void queueDirty(const std::string &key) {
@@ -400,6 +409,10 @@ public:
     }
     void run() {
         running = true;
+        time_t start = time(NULL);
+        store->warmup();
+        store->stats.warmupTime = time(NULL) - start;
+        store->stats.warmupComplete = true;
         try {
             while(running) {
                 store->flush(true);
