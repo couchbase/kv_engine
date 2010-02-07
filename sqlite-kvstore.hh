@@ -2,6 +2,8 @@
 #ifndef SQLITE_BASE_H
 #define SQLITE_BASE_H 1
 
+#include <vector>
+
 #include <sqlite3.h>
 
 #include "kvstore.hh"
@@ -186,6 +188,7 @@ private:
 
 };
 
+
 class Sqlite3 : public BaseSqlite3 {
 public:
 
@@ -235,6 +238,109 @@ private:
     PreparedStatement *ins_stmt;
     PreparedStatement *sel_stmt;
     PreparedStatement *del_stmt;
+};
+
+// ----------------------------------------------------------------------
+// Multi-table SQLite implementation.
+// ----------------------------------------------------------------------
+
+class Statements {
+public:
+    Statements(sqlite3 *dbh, std::string tab) {
+        db = dbh;
+        tableName = tab;
+        initStatements();
+    }
+
+    ~Statements() {
+        delete ins_stmt;
+        delete sel_stmt;
+        delete del_stmt;
+        ins_stmt = sel_stmt = del_stmt = NULL;
+    }
+
+    PreparedStatement *ins() {
+        return ins_stmt;
+    }
+
+    PreparedStatement *sel() {
+        return sel_stmt;
+    }
+
+    PreparedStatement *del() {
+        return del_stmt;
+    }
+private:
+
+    void initStatements() {
+        char buf[1024];
+        snprintf(buf, sizeof(buf),
+                 "insert into %s (k, v, flags, exptime) "
+                 "values(?, ?, ?, ?)", tableName.c_str());
+        ins_stmt = new PreparedStatement(db, buf);
+        snprintf(buf, sizeof(buf),
+                 "select v, flags, exptime "
+                 "from %s where k = ?", tableName.c_str());
+        sel_stmt = new PreparedStatement(db, buf);
+        snprintf(buf, sizeof(buf), "delete from %s where k = ?", tableName.c_str());
+    }
+
+    sqlite3           *db;
+    std::string        tableName;
+    PreparedStatement *ins_stmt;
+    PreparedStatement *sel_stmt;
+    PreparedStatement *del_stmt;
+};
+
+class MultiTableSqlite3 : public BaseSqlite3 {
+public:
+
+    MultiTableSqlite3(const char *path, int num_tables=10) :
+        BaseSqlite3(path), numTables(num_tables)
+    {
+        open();
+        initTables();
+        initStatements();
+    }
+
+    /**
+     * Overrides set().
+     */
+    void set(const Item &item, Callback<bool> &cb);
+
+    /**
+     * Overrides get().
+     */
+    void get(const std::string &key, Callback<GetValue> &cb);
+
+    /**
+     * Overrides del().
+     */
+    void del(const std::string &key, Callback<bool> &cb);
+
+    /**
+     * Overrides dump
+     */
+    virtual void dump(Callback<GetValue> &cb);
+
+protected:
+
+    void initStatements();
+
+    void destroyStatements();
+
+    void initPragmas();
+
+    void initTables();
+
+    void destroyTables();
+
+private:
+    Statements* forKey(const std::string &key);
+
+    bool                     auditable;
+    int                      numTables;
+    std::vector<Statements*> stmts;
 };
 
 #endif /* SQLITE_BASE_H */

@@ -261,3 +261,122 @@ void Sqlite3::dump(Callback<GetValue> &cb) {
 
     st.reset();
 }
+
+// ----------------------------------------------------------------------
+// MultiDB class
+// ----------------------------------------------------------------------
+
+void MultiTableSqlite3::initStatements() {
+    char buf[64];
+    for (int i = 0; i < numTables; i++) {
+        snprintf(buf, sizeof(buf), "kv_%d", i);
+        stmts.push_back(new Statements(db, std::string(buf)));
+    }
+}
+
+void MultiTableSqlite3::destroyStatements() {
+    std::vector<Statements*>::iterator iter;
+    for (iter = stmts.begin(); iter != stmts.end(); iter++) {
+        Statements *st = *iter;
+        delete st;
+    }
+}
+
+void MultiTableSqlite3::initPragmas() {
+    execute("pragma page_size = 8192");
+    execute("pragma cache_size = 65535");
+    execute("pragma journal_mode = TRUNCATE");
+    execute("pragma locking_mode = EXCLUSIVE");
+    execute("pragma synchronous = NORMAL");
+}
+
+void MultiTableSqlite3::initTables() {
+    char buf[1024];
+    for (int i = 0; i < numTables; i++) {
+        snprintf(buf, sizeof(buf),
+                 "create table if not exists kv_%d"
+                 " (k varchar(250) primary key on conflict replace,"
+                 "  v text,"
+                 "  flags integer,"
+                 "  exptime integer)", i);
+        execute(buf);
+    }
+}
+
+void MultiTableSqlite3::destroyTables() {
+    char buf[64];
+    for (int i = 0; i < numTables; i++) {
+        snprintf(buf, sizeof(buf), "drop table if exists kv_%d", i);
+        execute(buf);
+    }
+}
+
+Statements* MultiTableSqlite3::forKey(const std::string &key) {
+    int h=5381;
+    int i=0;
+    const char *str = key.c_str();
+
+    for(i=0; str[i] != 0x00; i++) {
+        h = ((h << 5) + h) ^ str[i];
+    }
+
+    return stmts[abs(h) % (int)stmts.size()];
+}
+
+void MultiTableSqlite3::set(const Item &itm, Callback<bool> &cb) {
+    PreparedStatement *ins_stmt = forKey(itm.getKey())->ins();
+    ins_stmt->bind(1, itm.getKey().c_str());
+    ins_stmt->bind(2, const_cast<Item&>(itm).getData(), itm.nbytes);
+    ins_stmt->bind(3, itm.flags);
+    ins_stmt->bind(4, itm.exptime);
+    bool rv = ins_stmt->execute() == 1;
+    cb.callback(rv);
+    ins_stmt->reset();
+}
+
+void MultiTableSqlite3::get(const std::string &key, Callback<GetValue> &cb) {
+    PreparedStatement *sel_stmt = forKey(key)->sel();
+    sel_stmt->bind(1, key.c_str());
+
+    if(sel_stmt->fetch()) {
+        std::string str(sel_stmt->column(0));
+        GetValue rv(new Item(key,
+                             sel_stmt->column_int(1),
+                             sel_stmt->column_int(2),
+                             str));
+        cb.callback(rv);
+    } else {
+        GetValue rv(false);
+        cb.callback(rv);
+    }
+    sel_stmt->reset();
+}
+
+void MultiTableSqlite3::del(const std::string &key, Callback<bool> &cb) {
+    PreparedStatement *del_stmt = forKey(key)->del();
+    del_stmt->bind(1, key.c_str());
+    bool rv = del_stmt->execute() == 1;
+    cb.callback(rv);
+    del_stmt->reset();
+}
+
+void MultiTableSqlite3::dump(Callback<GetValue> &cb) {
+
+    char buf[128];
+    for (int i = 0; i < numTables; i++) {
+        snprintf(buf, sizeof(buf), "select k,v,flags,exptime from kv_%d", i);
+
+        PreparedStatement st(db, buf);
+        while (st.fetch()) {
+            std::string key(st.column(0));
+            std::string value(st.column(1));
+            GetValue rv(new Item(key,
+                                 st.column_int(2),
+                                 st.column_int(3),
+                                 value));
+            cb.callback(rv);
+        }
+
+        st.reset();
+    }
+}

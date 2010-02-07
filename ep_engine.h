@@ -213,7 +213,7 @@ public:
 
         if (ret == ENGINE_SUCCESS) {
             time_t start = time(NULL);
-            sqliteDb = new Sqlite3(dbname);
+            sqliteDb = new MultiTableSqlite3(dbname);
             databaseInitTime = time(NULL) - start;
             backend = epstore = new EventuallyPersistentStore(sqliteDb);
 
@@ -821,7 +821,7 @@ private:
     SERVER_HANDLE_V1 serverApi;
     IgnoreCallback ignoreCallback;
     KVStore *backend;
-    Sqlite3 *sqliteDb;
+    MultiTableSqlite3 *sqliteDb;
     EventuallyPersistentStore *epstore;
     std::map<const void*, TapConnection*> tapConnectionMap;
     std::list<TapConnection*> allTaps;

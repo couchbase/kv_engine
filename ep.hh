@@ -379,7 +379,7 @@ public:
     }
 
     void warmup() {
-        static_cast<Sqlite3*>(underlying)->dump(loadStorageKVPairCallback);
+        static_cast<MultiTableSqlite3*>(underlying)->dump(loadStorageKVPairCallback);
     }
 
 private:
