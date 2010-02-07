@@ -274,7 +274,7 @@ void MultiTableSqlite3::initStatements() {
     }
 }
 
-void MultiTableSqlite3::destroyStatements() {
+void BaseMultiSqlite3::destroyStatements() {
     std::vector<Statements*>::iterator iter;
     for (iter = stmts.begin(); iter != stmts.end(); iter++) {
         Statements *st = *iter;
@@ -282,7 +282,7 @@ void MultiTableSqlite3::destroyStatements() {
     }
 }
 
-void MultiTableSqlite3::initPragmas() {
+void BaseMultiSqlite3::initPragmas() {
     execute("pragma page_size = 8192");
     execute("pragma cache_size = 65535");
     execute("pragma journal_mode = TRUNCATE");
@@ -311,7 +311,7 @@ void MultiTableSqlite3::destroyTables() {
     }
 }
 
-Statements* MultiTableSqlite3::forKey(const std::string &key) {
+Statements* BaseMultiSqlite3::forKey(const std::string &key) {
     int h=5381;
     int i=0;
     const char *str = key.c_str();
@@ -323,7 +323,7 @@ Statements* MultiTableSqlite3::forKey(const std::string &key) {
     return stmts[abs(h) % (int)stmts.size()];
 }
 
-void MultiTableSqlite3::set(const Item &itm, Callback<bool> &cb) {
+void BaseMultiSqlite3::set(const Item &itm, Callback<bool> &cb) {
     PreparedStatement *ins_stmt = forKey(itm.getKey())->ins();
     ins_stmt->bind(1, itm.getKey().c_str());
     ins_stmt->bind(2, const_cast<Item&>(itm).getData(), itm.nbytes);
@@ -334,7 +334,7 @@ void MultiTableSqlite3::set(const Item &itm, Callback<bool> &cb) {
     ins_stmt->reset();
 }
 
-void MultiTableSqlite3::get(const std::string &key, Callback<GetValue> &cb) {
+void BaseMultiSqlite3::get(const std::string &key, Callback<GetValue> &cb) {
     PreparedStatement *sel_stmt = forKey(key)->sel();
     sel_stmt->bind(1, key.c_str());
 
@@ -352,7 +352,7 @@ void MultiTableSqlite3::get(const std::string &key, Callback<GetValue> &cb) {
     sel_stmt->reset();
 }
 
-void MultiTableSqlite3::del(const std::string &key, Callback<bool> &cb) {
+void BaseMultiSqlite3::del(const std::string &key, Callback<bool> &cb) {
     PreparedStatement *del_stmt = forKey(key)->del();
     del_stmt->bind(1, key.c_str());
     bool rv = del_stmt->execute() == 1;
@@ -365,6 +365,62 @@ void MultiTableSqlite3::dump(Callback<GetValue> &cb) {
     char buf[128];
     for (int i = 0; i < numTables; i++) {
         snprintf(buf, sizeof(buf), "select k,v,flags,exptime from kv_%d", i);
+
+        PreparedStatement st(db, buf);
+        while (st.fetch()) {
+            std::string key(st.column(0));
+            std::string value(st.column(1));
+            GetValue rv(new Item(key,
+                                 st.column_int(2),
+                                 st.column_int(3),
+                                 value));
+            cb.callback(rv);
+        }
+
+        st.reset();
+    }
+}
+
+// ----------------------------------------------------------------------
+// Multi database sqlite3 implementation
+// ----------------------------------------------------------------------
+
+void MultiDBSqlite3::initStatements() {
+    char buf[64];
+    for (int i = 0; i < numTables; i++) {
+        snprintf(buf, sizeof(buf), "kv_%d.kv", i);
+        stmts.push_back(new Statements(db, std::string(buf)));
+    }
+}
+
+void MultiDBSqlite3::initTables() {
+    char buf[1024];
+    for (int i = 0; i < numTables; i++) {
+        snprintf(buf, sizeof(buf), "attach database \"%s-%d.sqlite\" as kv_%d",
+                 filename, i, i);
+        execute(buf);
+        snprintf(buf, sizeof(buf),
+                 "create table if not exists kv_%d.kv"
+                 " (k varchar(250) primary key on conflict replace,"
+                 "  v text,"
+                 "  flags integer,"
+                 "  exptime integer)", i);
+        execute(buf);
+    }
+}
+
+void MultiDBSqlite3::destroyTables() {
+    char buf[64];
+    for (int i = 0; i < numTables; i++) {
+        snprintf(buf, sizeof(buf), "drop table if exists kv_%d.kv", i);
+        execute(buf);
+    }
+}
+
+void MultiDBSqlite3::dump(Callback<GetValue> &cb) {
+    char buf[128];
+    for (int i = 0; i < numTables; i++) {
+        snprintf(buf, sizeof(buf), "select k,v,flags,exptime from kv_%d.kv", i);
 
         PreparedStatement st(db, buf);
         while (st.fetch()) {

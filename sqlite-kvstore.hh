@@ -181,9 +181,10 @@ protected:
     void open();
     void close();
 
+    const char *filename;
+
 private:
 
-    const char *filename;
     bool intransaction;
 
 };
@@ -229,7 +230,7 @@ protected:
 
     void initPragmas();
 
-    void initTables();
+    virtual void initTables();
 
     void destroyTables();
 
@@ -292,15 +293,11 @@ private:
     PreparedStatement *del_stmt;
 };
 
-class MultiTableSqlite3 : public BaseSqlite3 {
+class BaseMultiSqlite3 : public BaseSqlite3 {
 public:
 
-    MultiTableSqlite3(const char *path, int num_tables=10) :
-        BaseSqlite3(path), numTables(num_tables)
-    {
-        open();
-        initTables();
-        initStatements();
+    BaseMultiSqlite3(const char *path, int num_tables) :
+        BaseSqlite3(path), numTables(num_tables) {
     }
 
     /**
@@ -321,26 +318,75 @@ public:
     /**
      * Overrides dump
      */
-    virtual void dump(Callback<GetValue> &cb);
+    virtual void dump(Callback<GetValue> &cb) = 0;
 
 protected:
 
-    void initStatements();
+    virtual void initStatements() {}
 
     void destroyStatements();
 
     void initPragmas();
 
+    virtual void initTables() {}
+
+    virtual void destroyTables() {}
+
+    int                      numTables;
+    std::vector<Statements*> stmts;
+private:
+    virtual Statements* forKey(const std::string &key);
+};
+
+class MultiTableSqlite3 : public BaseMultiSqlite3 {
+public:
+
+    MultiTableSqlite3(const char *path, int num_tables=10) :
+        BaseMultiSqlite3(path, num_tables)
+    {
+        open();
+        initTables();
+        initStatements();
+    }
+
+    /**
+     * Overrides dump
+     */
+    void dump(Callback<GetValue> &cb);
+
+protected:
+
+    void initStatements();
+
+    void initTables();
+
+    void destroyTables();
+};
+
+class MultiDBSqlite3 : public BaseMultiSqlite3 {
+public:
+
+    MultiDBSqlite3(const char *path, int num_tables=10) :
+        BaseMultiSqlite3(path, num_tables)
+    {
+        open();
+        initTables();
+        initStatements();
+    }
+
+    /**
+     * Overrides dump
+     */
+    void dump(Callback<GetValue> &cb);
+
+protected:
+
+    void initStatements();
+
     void initTables();
 
     void destroyTables();
 
-private:
-    Statements* forKey(const std::string &key);
-
-    bool                     auditable;
-    int                      numTables;
-    std::vector<Statements*> stmts;
 };
 
 #endif /* SQLITE_BASE_H */
