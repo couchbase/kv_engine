@@ -342,6 +342,7 @@ public:
                 add_casted_stat("ep_warmup_thread",
                                 epstats.warmupComplete ? "complete" : "running",
                                 add_stat, cookie);
+                add_casted_stat("ep_warmed_up", epstats.warmedUp, add_stat, cookie);
                 if (epstats.warmupComplete) {
                     add_casted_stat("ep_warmup_time", epstats.warmupTime,
                                     add_stat, cookie);

@@ -26,7 +26,7 @@ extern "C" {
 
 EventuallyPersistentStore::EventuallyPersistentStore(KVStore *t,
                                                      size_t est) :
-    loadStorageKVPairCallback(storage)
+    loadStorageKVPairCallback(storage, stats)
 {
     est_size = est;
     towrite = NULL;

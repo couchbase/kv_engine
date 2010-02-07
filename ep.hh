@@ -30,6 +30,8 @@ struct ep_stats {
     time_t warmupTime;
     // Whether we're warming up.
     bool warmupComplete;
+    // Number of records warmed up.
+    size_t warmedUp;
     // size of the input queue
     size_t queue_size;
     // Size of the in-process (output) queue.
@@ -306,17 +308,20 @@ class Flusher;
  */
 class LoadStorageKVPairCallback : public Callback<GetValue> {
 public:
-    LoadStorageKVPairCallback(HashTable &ht) : hashtable(ht) { }
+    LoadStorageKVPairCallback(HashTable &ht, struct ep_stats &st)
+        : hashtable(ht), stats(st) { }
 
     void callback(GetValue &val) {
         if (val.value != NULL) {
             hashtable.add(*val.value);
             delete val.value;
         }
+        stats.warmedUp++;
     }
 
 private:
-    HashTable& hashtable;
+    HashTable       &hashtable;
+    struct ep_stats &stats;
 };
 
 typedef enum {
@@ -352,16 +357,12 @@ public:
 
     void reset();
 
-    Callback<GetValue> &getLoadStorageKVPairCallback() {
-        return loadStorageKVPairCallback;
-    }
-
     void visit(HashTableVisitor &visitor) {
         storage.visit(visitor);
     }
 
     void warmup() {
-        static_cast<Sqlite3*>(underlying)->dump(getLoadStorageKVPairCallback());
+        static_cast<Sqlite3*>(underlying)->dump(loadStorageKVPairCallback);
     }
 
 private:
