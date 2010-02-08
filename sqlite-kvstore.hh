@@ -228,7 +228,7 @@ protected:
 
     void destroyStatements();
 
-    void initPragmas();
+    virtual void initPragmas();
 
     virtual void initTables();
 
@@ -325,8 +325,6 @@ protected:
     virtual void initStatements() {}
 
     void destroyStatements();
-
-    void initPragmas();
 
     virtual void initTables() {}
 

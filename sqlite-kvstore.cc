@@ -282,14 +282,6 @@ void BaseMultiSqlite3::destroyStatements() {
     }
 }
 
-void BaseMultiSqlite3::initPragmas() {
-    execute("pragma page_size = 8192");
-    execute("pragma cache_size = 8192");
-    execute("pragma journal_mode = TRUNCATE");
-    execute("pragma locking_mode = EXCLUSIVE");
-    execute("pragma synchronous = NORMAL");
-}
-
 void MultiTableSqlite3::initTables() {
     char buf[1024];
     for (int i = 0; i < numTables; i++) {
