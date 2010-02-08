@@ -1,6 +1,5 @@
 * Stats Definitions
 
-|-------------------------------+------------------------------------------|
 | Stat                          | Description                              |
 |-------------------------------+------------------------------------------|
 | ep_storage_age                | Seconds since most recently              |
@@ -27,7 +26,6 @@
 | ep_tap_total_queue            | Sum of tap queue sizes.                  |
 | ep_tap_total_fetched          | Sum of tap messages sent.                |
 | ep_tap_keepalive              | Tap keepalive time.                      |
-|-------------------------------+------------------------------------------|
 
 * Details
 
