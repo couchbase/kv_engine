@@ -168,13 +168,24 @@ void EventuallyPersistentStore::flush(bool shouldWait) {
         assert(underlying);
 
         stats.flusher_todo = q->size();
+        std::queue<std::string> *rejectQueue = new std::queue<std::string>();
 
         while (!q->empty()) {
-            flushSome(q, cb);
+            flushSome(q, cb, rejectQueue);
         }
         rel_time_t complete_time = ep_current_time();
 
         delete q;
+
+        // Requeue the rejects.
+        LockHolder lh_reject(mutex);
+        while (!rejectQueue->empty()) {
+            std::string key = rejectQueue->front();
+            rejectQueue->pop();
+            towrite->push(key);
+            stats.queue_size++;
+        }
+        delete rejectQueue;
 
         stats.flushDuration = complete_time - flush_start;
         stats.flushDurationHighWat = stats.flushDuration > stats.flushDurationHighWat
@@ -183,10 +194,11 @@ void EventuallyPersistentStore::flush(bool shouldWait) {
 }
 
 void EventuallyPersistentStore::flushSome(std::queue<std::string> *q,
-                                         Callback<bool> &cb) {
+                                          Callback<bool> &cb,
+                                          std::queue<std::string> *rejectQueue) {
     underlying->begin();
     for (int i = 0; i < txnSize && !q->empty(); i++) {
-        flushOne(q, cb);
+        flushOne(q, cb, rejectQueue);
     }
     rel_time_t cstart = ep_current_time();
     underlying->commit();
@@ -197,7 +209,8 @@ void EventuallyPersistentStore::flushSome(std::queue<std::string> *q,
 }
 
 void EventuallyPersistentStore::flushOne(std::queue<std::string> *q,
-                                         Callback<bool> &cb) {
+                                         Callback<bool> &cb,
+                                         std::queue<std::string> *rejectQueue) {
 
     std::string key = q->front();
     q->pop();
@@ -215,16 +228,26 @@ void EventuallyPersistentStore::flushOne(std::queue<std::string> *q,
         assert(dirtied > 0);
         // Calculate stats if this had a positive time.
         rel_time_t now = ep_current_time();
-        stats.dirtyAge = now - queued;
-        stats.dataAge = now - dirtied;
-        assert(stats.dirtyAge < (86400 * 30));
-        assert(stats.dataAge <= stats.dirtyAge);
-        stats.dirtyAgeHighWat = stats.dirtyAge > stats.dirtyAgeHighWat
-            ? stats.dirtyAge : stats.dirtyAgeHighWat;
-        stats.dataAgeHighWat = stats.dataAge > stats.dataAgeHighWat
-            ? stats.dataAge : stats.dataAgeHighWat;
-        // Copy it for the duration.
-        val = new Item(key, v->getFlags(), v->getExptime(), v->getValue());
+        int dataAge = now - dirtied;
+
+        if (dataAge < MIN_DATA_AGE) {
+            // Skip this one.  It's too young.
+            isDirty = false;
+            stats.tooYoung++;
+            v->reDirty(queued, dirtied);
+            rejectQueue->push(key);
+        } else {
+            stats.dirtyAge = now - queued;
+            stats.dataAge = dataAge;
+            assert(stats.dirtyAge < (86400 * 30));
+            assert(stats.dataAge <= stats.dirtyAge);
+            stats.dirtyAgeHighWat = stats.dirtyAge > stats.dirtyAgeHighWat
+                ? stats.dirtyAge : stats.dirtyAgeHighWat;
+            stats.dataAgeHighWat = stats.dataAge > stats.dataAgeHighWat
+                ? stats.dataAge : stats.dataAgeHighWat;
+            // Copy it for the duration.
+            val = new Item(key, v->getFlags(), v->getExptime(), v->getValue());
+        }
     }
     stats.flusher_todo--;
     lh.unlock();

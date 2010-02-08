@@ -22,6 +22,7 @@
 #include "sqlite-kvstore.hh"
 
 #define DEFAULT_TXN_SIZE 100000
+#define MIN_DATA_AGE 120
 
 extern "C" {
     extern rel_time_t (*ep_current_time)();
@@ -38,6 +39,8 @@ struct ep_stats {
     size_t queue_size;
     // Size of the in-process (output) queue.
     size_t flusher_todo;
+    // Objects that were rejected from persistence for being too fresh.
+    size_t tooYoung;
     // How long an object is dirty before written.
     rel_time_t dirtyAge;
     rel_time_t dirtyAgeHighWat;
@@ -90,6 +93,12 @@ public:
             dirtied = data_age;
         }
     }
+
+    void reDirty(rel_time_t dirtyAge, rel_time_t dataAge) {
+        data_age = dataAge;
+        dirtied = dirtyAge;
+    }
+
     // returns time this object was dirtied.
     void markClean(rel_time_t *dirtyAge, rel_time_t *dataAge) {
         if (dirtyAge) {
@@ -394,8 +403,10 @@ private:
     }
 
     void flush(bool shouldWait);
-    void flushSome(std::queue<std::string> *q, Callback<bool> &cb);
-    void flushOne(std::queue<std::string> *q, Callback<bool> &cb);
+    void flushSome(std::queue<std::string> *q, Callback<bool> &cb,
+                   std::queue<std::string> *rejectQueue);
+    void flushOne(std::queue<std::string> *q, Callback<bool> &cb,
+                  std::queue<std::string> *rejectQueue);
     void flusherStopped();
     void initQueue();
 

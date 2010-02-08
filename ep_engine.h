@@ -323,6 +323,8 @@ public:
                                 epstats.dataAge, add_stat, cookie);
                 add_casted_stat("ep_data_age_highwat",
                                 epstats.dataAgeHighWat, add_stat, cookie);
+                add_casted_stat("ep_too_young",
+                                epstats.tooYoung, add_stat, cookie);
                 add_casted_stat("ep_queue_size",
                                 epstats.queue_size, add_stat, cookie);
                 add_casted_stat("ep_flusher_todo",
