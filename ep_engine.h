@@ -7,6 +7,8 @@
 #include <list>
 #include <errno.h>
 
+#define NUMBER_OF_SHARDS 4
+
 extern "C" {
     EXPORT_FUNCTION
     ENGINE_ERROR_CODE create_instance(uint64_t interface,
@@ -213,7 +215,7 @@ public:
 
         if (ret == ENGINE_SUCCESS) {
             time_t start = time(NULL);
-            sqliteDb = new MultiDBSqlite3(dbname);
+            sqliteDb = new MultiDBSqlite3(dbname, NUMBER_OF_SHARDS);
             databaseInitTime = time(NULL) - start;
             backend = epstore = new EventuallyPersistentStore(sqliteDb);
 
