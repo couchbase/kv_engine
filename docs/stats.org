@@ -1,0 +1,85 @@
+* Stats Definitions
+
+|-------------------------------+------------------------------------------|
+| Stat                          | Description                              |
+|-------------------------------+------------------------------------------|
+| ep_storage_age                | Seconds since most recently              |
+|                               | stored object was initially queued.      |
+| ep_storage_age_highwat        | ep_storage_age high water mark           |
+| ep_data_age                   | Second since most recently               |
+|                               | stored object was modified.              |
+| ep_data_age_highwat           | ep_data_age high water mark              |
+| ep_too_young                  | Number of times an object was            |
+|                               | not stored due to being too young.       |
+| ep_queue_size                 | Number of items queued for storage.      |
+| ep_flusher_todo               | Number of items remaining to be written. |
+| ep_commit_time                | Number of seconds of most recent commit. |
+| ep_flush_duration             | Number of seconds of most recent flush.  |
+| ep_flush_duration_highwat     | ep_flush_duration high water mark.       |
+| ep_dbname                     | DB path.                                 |
+| ep_dbinit                     | Number of seconds to initialize DB.      |
+| ep_warmup                     | true if warmup is enabled.               |
+| ep_warmup_thread              | Warmup thread status.                    |
+| ep_warmed_up                  | Number of items warmed up.               |
+| ep_warmup_time                | Number of seconds spent warming data.    |
+| eq_tapq:client_id:qlen        | Queue size for the given client_id.      |
+| eq_tapq:client_id:rec_fetched | Tap messages sent to the client.         |
+| ep_tap_total_queue            | Sum of tap queue sizes.                  |
+| ep_tap_total_fetched          | Sum of tap messages sent.                |
+| ep_tap_keepalive              | Tap keepalive time.                      |
+|-------------------------------+------------------------------------------|
+
+* Details
+
+** Ages
+
+The difference between =ep_storage_age= and =ep_data_age= is somewhat
+subtle, but when you consider that a given record may be updated
+multiple times before hitting persistence, it starts to be clearer.
+
+=ep_data_age= is how old the data we actually wrote is.
+
+=ep_storage_age= is how long the object has been waiting to be
+persisted.
+
+** Too Young
+
+=ep_too_young= is incremented every time an object is encountered
+whose =data age= is more recent than is allowable for the persistence
+layer.
+
+For example, if an object that was queued five minutes ago is picked
+off the =todo= queue and found to have been updated fifteen seconds
+ago, it will not be stored, =ep_too_young= will be incremented, and
+the key will go back on the input queue.
+
+** Warming Up
+
+Opening the data store is broken into three distinct phases:
+
+*** Initializing
+
+During the initialization phase, the server is not accepting
+connections or otherwise functional.  This is often quick, but in a
+server crash can take some time to perform recovery of the underlying
+storage.
+
+This time is made available via the =ep_dbinit= stat.
+
+*** Warming Up
+
+After initialization, warmup begins.  At this point, the server is
+capable of taking new writes and responding to reads.  However, only
+records that have been pulled out of the storage or have been updated
+from other clients will be available for request.
+
+(note that records read from persistence will not overwrite new
+records captured from the network)
+
+During this phase, =ep_warmup_thread= will report =running= and
+=ep_warmed_up= will be increasing as records are being read.
+
+*** Complete
+
+Once complete, =ep_warmed_up= will stop increasing and
+=ep_warmup_thread= will report =complete=.
