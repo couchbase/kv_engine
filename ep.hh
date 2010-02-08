@@ -21,7 +21,7 @@
 #include "locks.hh"
 #include "sqlite-kvstore.hh"
 
-#define DEFAULT_TXN_SIZE 100000
+#define DEFAULT_TXN_SIZE 500000
 #define MIN_DATA_AGE 120
 
 extern "C" {
