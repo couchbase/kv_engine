@@ -185,6 +185,7 @@ void EventuallyPersistentStore::flush(bool shouldWait) {
             towrite->push(key);
             stats.queue_size++;
         }
+        lh_reject.unlock();
         delete rejectQueue;
 
         stats.flushDuration = complete_time - flush_start;
