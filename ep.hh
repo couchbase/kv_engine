@@ -444,6 +444,9 @@ public:
         store->warmup();
         store->stats.warmupTime = time(NULL) - start;
         store->stats.warmupComplete = true;
+        // We're not going to write any data newer than this, so just
+        // wait for it.
+        sleep(MIN_DATA_AGE);
         try {
             while(running) {
                 store->flush(true);
