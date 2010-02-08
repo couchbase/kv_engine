@@ -347,6 +347,7 @@ public:
         open();
         initTables();
         initStatements();
+        initPragmas();
     }
 
     /**
@@ -372,6 +373,7 @@ public:
         open();
         initTables();
         initStatements();
+        initPragmas();
     }
 
     /**
