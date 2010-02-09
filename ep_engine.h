@@ -542,6 +542,8 @@ public:
     void createTapQueue(const void *cookie, std::string &client, uint32_t flags) {
         // map is set-assocative, so this will create an instance here..
         LockHolder lh(tapNotifySync);
+        purgeExpiredTapConnections_UNLOCKED();
+
         std::string name = "eq_tapq:";
         if (client.length() == 0) {
             char buffer[32];
