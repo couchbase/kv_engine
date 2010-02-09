@@ -567,6 +567,25 @@ public:
             }
         }
 
+        // Disconnects aren't quite immediate yet, so if we see a
+        // connection request for a client *and* expiry_time is 0, we
+        // should kill this guy off.
+        if (tap != NULL && tapKeepAlive == 0) {
+            std::cerr << "Forcing close of tap client " << name << std::endl;
+            std::map<const void*, TapConnection*>::iterator miter;
+            for (miter = tapConnectionMap.begin();
+                 miter != tapConnectionMap.end();
+                 ++miter) {
+                if (miter->second == tap) {
+                    break;
+                }
+            }
+            assert(miter != tapConnectionMap.end());
+            tapConnectionMap.erase(miter);
+            purgeSingleExpiredTapConnection(tap);
+            tap = NULL;
+        }
+
         // @todo ensure that we don't have this client alredy
         // if so this should be a reconnect...
         if (tap == NULL) {
@@ -758,7 +777,7 @@ private:
         std::list<TapConnection*>::iterator iter;
         for (iter = allTaps.begin(); iter != allTaps.end(); iter++) {
             TapConnection *tc = *iter;
-            if (!mapped(tc) && tc->expiry_time <= now) {
+            if (tc->expiry_time <= now && !mapped(tc) && !tc->connected) {
                 deadClients.push_back(tc);
             }
         }
