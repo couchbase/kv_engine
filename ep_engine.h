@@ -728,6 +728,27 @@ private:
         }
     }
 
+    void purgeSingleExpiredTapConnection(TapConnection *tc) {
+        allTaps.remove(tc);
+        /* Assert that the connection doesn't live in the map.. */
+        /* TROND: Remove this when we're sure we don't have a bug here */
+        assert(!mapped(tc));
+        delete tc;
+    }
+
+    bool mapped(TapConnection *tc) {
+        bool rv = false;
+        std::map<const void*, TapConnection*>::iterator it;
+        for (it = tapConnectionMap.begin();
+             it != tapConnectionMap.end();
+             ++it) {
+            if (it->second == tc) {
+                rv = true;
+            }
+        }
+        return rv;
+    }
+
     void purgeExpiredTapConnections_UNLOCKED() {
         rel_time_t now = serverApi.get_current_time();
         std::list<TapConnection*> deadClients;
@@ -735,24 +756,14 @@ private:
         std::list<TapConnection*>::iterator iter;
         for (iter = allTaps.begin(); iter != allTaps.end(); iter++) {
             TapConnection *tc = *iter;
-            if (tc->expiry_time <= now) {
+            if (!mapped(tc) && tc->expiry_time <= now) {
                 deadClients.push_back(tc);
             }
         }
 
         for (iter = deadClients.begin(); iter != deadClients.end(); iter++) {
             TapConnection *tc = *iter;
-            allTaps.remove(tc);
-
-            /* Assert that the connection doesn't live in the map.. */
-            /* TROND: Remove this when we're sure we don't have a bug here */
-            std::map<const void*, TapConnection*>::iterator it;
-            for (it = tapConnectionMap.begin();
-                 it != tapConnectionMap.end();
-                 ++it) {
-                assert(it->second != tc);
-            }
-            delete tc;
+            purgeSingleExpiredTapConnection(tc);
         }
     }
 
