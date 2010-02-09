@@ -431,6 +431,7 @@ public:
     Flusher(EventuallyPersistentStore *st) {
         store = st;
         running = true;
+        hasInitialized = false;
     }
     ~Flusher() {
         stop();
@@ -438,8 +439,7 @@ public:
     void stop() {
         running = false;
     }
-    void run() {
-        running = true;
+    void initialize() {
         time_t start = time(NULL);
         store->warmup();
         store->stats.warmupTime = time(NULL) - start;
@@ -447,6 +447,13 @@ public:
         // We're not going to write any data newer than this, so just
         // wait for it.
         sleep(MIN_DATA_AGE);
+        hasInitialized = true;
+    }
+    void run() {
+        running = true;
+        if (!hasInitialized) {
+            initialize();
+        }
         try {
             while(running) {
                 store->flush(true);
@@ -466,6 +473,7 @@ public:
 private:
     EventuallyPersistentStore *store;
     volatile bool running;
+    bool hasInitialized;
 };
 
 #endif /* EP_HH */
