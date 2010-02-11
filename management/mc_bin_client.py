@@ -171,6 +171,10 @@ class MemcachedClient(object):
     def start_persistence(self):
         return self._doCmd(memcacheConstants.CMD_START_PERSISTENCE, '', '')
 
+    def set_flush_param(self, key, val):
+        print "setting flush param:", key, val
+        return self._doCmd(memcacheConstants.CMD_SET_FLUSH_PARAM, key, val)
+
     def getMulti(self, keys):
         """Get values for any available keys in the given iterable.
 
