@@ -468,6 +468,8 @@ public:
         }
         try {
             while(running) {
+                // Avoid thrashing when there's a lot of recent data
+                sleep(5);
                 store->flush(true);
             }
             std::cout << "Shutting down flusher." << std::endl;
