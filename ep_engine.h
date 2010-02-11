@@ -321,6 +321,8 @@ public:
                                 epstats.dirtyAge, add_stat, cookie);
                 add_casted_stat("ep_storage_age_highwat",
                                 epstats.dirtyAgeHighWat, add_stat, cookie);
+                add_casted_stat("ep_min_data_age",
+                                epstats.min_data_age, add_stat, cookie);
                 add_casted_stat("ep_data_age",
                                 epstats.dataAge, add_stat, cookie);
                 add_casted_stat("ep_data_age_highwat",

@@ -33,6 +33,7 @@ EventuallyPersistentStore::EventuallyPersistentStore(KVStore *t,
     est_size = est;
     towrite = NULL;
     memset(&stats, 0, sizeof(stats));
+    stats.min_data_age = DEFAULT_MIN_DATA_AGE;
     initQueue();
 
     doPersistence = getenv("EP_NO_PERSITENCE") == NULL;
@@ -231,7 +232,7 @@ void EventuallyPersistentStore::flushOne(std::queue<std::string> *q,
         rel_time_t now = ep_current_time();
         int dataAge = now - dirtied;
 
-        if (dataAge < MIN_DATA_AGE) {
+        if (dataAge < stats.min_data_age) {
             // Skip this one.  It's too young.
             isDirty = false;
             stats.tooYoung++;

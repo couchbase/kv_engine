@@ -22,7 +22,7 @@
 #include "sqlite-kvstore.hh"
 
 #define DEFAULT_TXN_SIZE 500000
-#define MIN_DATA_AGE 120
+#define DEFAULT_MIN_DATA_AGE 120
 
 extern "C" {
     extern rel_time_t (*ep_current_time)();
@@ -52,6 +52,8 @@ struct ep_stats {
     rel_time_t flushDurationHighWat;
     // Amount of time spent in the commit phase.
     rel_time_t commit_time;
+    // Minimum data age before a record can be persisted
+    uint16_t min_data_age;
 };
 
 // Forward declaration for StoredValue
@@ -446,7 +448,7 @@ public:
         store->stats.warmupComplete = true;
         // We're not going to write any data newer than this, so just
         // wait for it.
-        sleep(MIN_DATA_AGE);
+        sleep(store->stats.min_data_age);
         hasInitialized = true;
     }
     void run() {
