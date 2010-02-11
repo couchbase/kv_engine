@@ -442,13 +442,19 @@ public:
         running = false;
     }
     void initialize() {
-        time_t start = time(NULL);
+        rel_time_t start = ep_current_time();
         store->warmup();
         store->stats.warmupTime = time(NULL) - start;
         store->stats.warmupComplete = true;
         // We're not going to write any data newer than this, so just
         // wait for it.
-        sleep(store->stats.min_data_age);
+        //
+        // We do this in a loop sleeping 1 second at a time to allow
+        // for quick shutdown on the initial flush.
+        rel_time_t sleep_end = start + store->stats.min_data_age;
+        while (running && ep_current_time() < sleep_end) {
+            sleep(1);
+        }
         hasInitialized = true;
     }
     void run() {
