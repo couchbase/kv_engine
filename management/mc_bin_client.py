@@ -64,8 +64,7 @@ class MemcachedClient(object):
             rv=self.s.recv(remaining)
         else:
             rv=""
-        assert (((magic == RES_MAGIC_BYTE) or (magic == REQ_MAGIC_BYTE)),
-                "Got magic:  %d" % magic)
+        assert (magic in (RES_MAGIC_BYTE, REQ_MAGIC_BYTE)), "Got magic: %d" % magic
         assert myopaque is None or opaque == myopaque, \
             "expected opaque %x, got %x" % (myopaque, opaque)
         if errcode != 0:
