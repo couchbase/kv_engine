@@ -136,6 +136,11 @@ void EventuallyPersistentStore::getStats(struct ep_stats *out) {
     *out = stats;
 }
 
+void EventuallyPersistentStore::setMinDataAge(int to) {
+    LockHolder lh(mutex);
+    stats.min_data_age = to;
+}
+
 void EventuallyPersistentStore::resetStats(void) {
     LockHolder lh(mutex);
     memset(&stats, 0, sizeof(stats));
@@ -232,7 +237,7 @@ void EventuallyPersistentStore::flushOne(std::queue<std::string> *q,
         rel_time_t now = ep_current_time();
         int dataAge = now - dirtied;
 
-        if (dataAge < stats.min_data_age) {
+        if (dataAge < (int)stats.min_data_age) {
             // Skip this one.  It's too young.
             isDirty = false;
             stats.tooYoung++;

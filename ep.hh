@@ -24,6 +24,8 @@
 #define DEFAULT_TXN_SIZE 500000
 #define DEFAULT_MIN_DATA_AGE 120
 
+#define MAX_DATA_AGE_PARAM 86400
+
 extern "C" {
     extern rel_time_t (*ep_current_time)();
 }
@@ -53,7 +55,7 @@ struct ep_stats {
     // Amount of time spent in the commit phase.
     rel_time_t commit_time;
     // Minimum data age before a record can be persisted
-    uint16_t min_data_age;
+    uint32_t min_data_age;
 };
 
 // Forward declaration for StoredValue
@@ -370,6 +372,8 @@ public:
     void del(const std::string &key, Callback<bool> &cb);
 
     void getStats(struct ep_stats *out);
+
+    void setMinDataAge(int to);
 
     void resetStats(void);
 

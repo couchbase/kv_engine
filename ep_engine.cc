@@ -1,5 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 #include "config.h"
+#include <arpa/inet.h>
 #include <assert.h>
 
 #include <memcached/engine.h>
@@ -130,6 +131,50 @@ extern "C" {
         return e->startFlusher(msg);
     }
 
+    static protocol_binary_response_status setFlushParam(EventuallyPersistentEngine *e,
+                                                         protocol_binary_request_header *request,
+                                                         const char **msg) {
+        protocol_binary_request_no_extras *req =
+            (protocol_binary_request_no_extras*)request;
+
+        char keyz[32];
+        char valz[32];
+
+        // Read the key.
+        int keylen = ntohs(req->message.header.request.keylen);
+        if (keylen >= (int)sizeof(keyz)) {
+            *msg = "Key is too large.";
+            return PROTOCOL_BINARY_RESPONSE_EINVAL;
+        }
+        memcpy(keyz, ((char*)request) + sizeof(req->message.header), keylen);
+        keyz[keylen] = 0x00;
+
+        // Read the value.
+        size_t bodylen = ntohl(req->message.header.request.bodylen)
+            - ntohs(req->message.header.request.keylen);
+        if (bodylen >= sizeof(valz)) {
+            *msg = "Value is too large.";
+            return PROTOCOL_BINARY_RESPONSE_EINVAL;
+        }
+        memcpy(valz, (char*)request + sizeof(req->message.header)
+               + keylen, bodylen);
+        valz[bodylen] = 0x00;
+
+        if (strcmp(keyz, "min_data_age") == 0) {
+            int newVal = atoi(valz);
+            if (newVal < 0 || newVal > MAX_DATA_AGE_PARAM) {
+                newVal = DEFAULT_MIN_DATA_AGE;
+            }
+            e->setMinDataAge(newVal);
+            *msg = "Updated";
+        } else {
+            *msg = "Unknown config param";
+            return PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
+        }
+
+        return PROTOCOL_BINARY_RESPONSE_SUCCESS;
+    }
+
     static ENGINE_ERROR_CODE EvpUnknownCommand(ENGINE_HANDLE* handle,
                                                const void* cookie,
                                                protocol_binary_request_header *request,
@@ -152,6 +197,9 @@ extern "C" {
             break;
         case CMD_START_PERSISTENCE:
             res = startFlusher(h, &msg);
+            break;
+        case CMD_SET_FLUSH_PARAM:
+            res = setFlushParam(h, request, &msg);
             break;
         default:
             /* unknown command */
