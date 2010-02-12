@@ -149,6 +149,7 @@ void EventuallyPersistentStore::resetStats(void) {
 void EventuallyPersistentStore::del(const std::string &key, Callback<bool> &cb) {
     bool existed = storage.del(key);
     if (existed) {
+        LockHolder lh(mutex);
         queueDirty(key);
     }
     cb.callback(existed);
