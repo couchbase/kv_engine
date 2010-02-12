@@ -284,6 +284,7 @@ private:
                  "from %s where k = ?", tableName.c_str());
         sel_stmt = new PreparedStatement(db, buf);
         snprintf(buf, sizeof(buf), "delete from %s where k = ?", tableName.c_str());
+        del_stmt = new PreparedStatement(db, buf);
     }
 
     sqlite3           *db;
