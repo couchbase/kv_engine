@@ -1,5 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 #include <string.h>
+#include <cstdlib>
 
 #include "sqlite-kvstore.hh"
 
@@ -312,7 +313,7 @@ Statements* BaseMultiSqlite3::forKey(const std::string &key) {
         h = ((h << 5) + h) ^ str[i];
     }
 
-    return stmts[abs(h) % (int)stmts.size()];
+    return stmts[std::abs(h) % (int)stmts.size()];
 }
 
 void BaseMultiSqlite3::set(const Item &itm, Callback<bool> &cb) {
