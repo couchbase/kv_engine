@@ -502,14 +502,17 @@ public:
     ENGINE_ERROR_CODE flush(const void *cookie, time_t when)
     {
         (void)cookie;
-        if (when != 0) {
-            return ENGINE_ENOTSUP;
-        } else {
+        ENGINE_ERROR_CODE ret= ENGINE_ENOTSUP;
+
+        if (when == 0) {
+            ;
+#if 0
             epstore->reset();
             addFlushEvent();
+#endif
         }
 
-        return ENGINE_SUCCESS;
+        return ret;
     }
 
     tap_event_t walkTapQueue(const void *cookie, item **itm, void **es,
