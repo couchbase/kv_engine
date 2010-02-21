@@ -49,10 +49,10 @@ static void storeMany(HashTable &h, std::vector<std::string> &keys) {
     }
 }
 
-static std::vector<std::string> generateKeys(int num) {
+static std::vector<std::string> generateKeys(int num, int start=0) {
     std::vector<std::string> rv;
 
-    for (int i = 0; i < num; i++) {
+    for (int i = start; i < num; i++) {
         char buf[64];
         snprintf(buf, sizeof(buf), "key%d", i);
         std::string key(buf);
@@ -128,10 +128,28 @@ static void testForwardDeletions() {
     assert(count(h) == 0);
 }
 
+static void testFind() {
+    HashTable h(5, 1);
+    const int nkeys = 5000;
+
+    std::vector<std::string> keys = generateKeys(nkeys);
+    storeMany(h, keys);
+
+    std::string missingKey = "aMissingKey";
+    assert(h.find(missingKey) == NULL);
+
+    std::vector<std::string>::iterator it;
+    for (it = keys.begin(); it != keys.end(); it++) {
+        std::string key = *it;
+        assert(h.find(key));
+    }
+}
+
 int main() {
     testHashSize();
     testHashSizeTwo();
     testReverseDeletions();
     testForwardDeletions();
+    testFind();
     exit(0);
 }
