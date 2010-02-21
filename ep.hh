@@ -303,6 +303,8 @@ public:
                 v->next = v->next->next;
                 delete tmp;
                 return true;
+            } else {
+                v = v->next;
             }
         }
 
