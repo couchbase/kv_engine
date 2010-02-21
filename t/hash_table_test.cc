@@ -107,7 +107,6 @@ static void testReverseDeletions() {
     }
 
     assert(count(h) == 0);
-    std::cout << "Finished reverse deletions" << std::endl;
 }
 
 static void testForwardDeletions() {
@@ -127,7 +126,6 @@ static void testForwardDeletions() {
     }
 
     assert(count(h) == 0);
-    std::cout << "Finished forward deletions" << std::endl;
 }
 
 int main() {
