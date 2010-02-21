@@ -451,7 +451,7 @@ public:
     void initialize() {
         rel_time_t start = ep_current_time();
         store->warmup();
-        store->stats.warmupTime = time(NULL) - start;
+        store->stats.warmupTime = ep_current_time() - start;
         store->stats.warmupComplete = true;
         // We're not going to write any data newer than this, so just
         // wait for it.
