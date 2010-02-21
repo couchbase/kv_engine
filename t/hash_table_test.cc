@@ -49,6 +49,16 @@ static void storeMany(HashTable &h, std::vector<std::string> &keys) {
     }
 }
 
+static void addMany(HashTable &h, std::vector<std::string> &keys, bool expect) {
+    std::vector<std::string>::iterator it;
+    for (it = keys.begin(); it != keys.end(); it++) {
+        std::string k = *it;
+        Item i(k, 0, 0, k.c_str(), k.length());
+        bool v = h.add(i);
+        assert(expect == v);
+    }
+}
+
 static std::vector<std::string> generateKeys(int num, int start=0) {
     std::vector<std::string> rv;
 
@@ -145,11 +155,35 @@ static void testFind() {
     }
 }
 
+static void testAdd() {
+    HashTable h(5, 1);
+    const int nkeys = 5000;
+
+    std::vector<std::string> keys = generateKeys(nkeys);
+    addMany(h, keys, true);
+
+    std::string missingKey = "aMissingKey";
+    assert(h.find(missingKey) == NULL);
+
+    std::vector<std::string>::iterator it;
+    for (it = keys.begin(); it != keys.end(); it++) {
+        std::string key = *it;
+        assert(h.find(key));
+    }
+
+    addMany(h, keys, false);
+    for (it = keys.begin(); it != keys.end(); it++) {
+        std::string key = *it;
+        assert(h.find(key));
+    }
+}
+
 int main() {
     testHashSize();
     testHashSizeTwo();
     testReverseDeletions();
     testForwardDeletions();
     testFind();
+    testAdd();
     exit(0);
 }
