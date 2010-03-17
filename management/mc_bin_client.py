@@ -62,10 +62,13 @@ class MemcachedClient(object):
         assert len(response) == MIN_RECV_PACKET
         magic, cmd, keylen, extralen, dtype, errcode, remaining, opaque, cas=\
             struct.unpack(RES_PKT_FMT, response)
-        if remaining > 0:
-            rv=self.s.recv(remaining)
-        else:
-            rv=""
+
+        rv = ""
+        while remaining > 0:
+            data = self.s.recv(remaining)
+            rv += data
+            remaining -= len(data)
+
         assert (magic in (RES_MAGIC_BYTE, REQ_MAGIC_BYTE)), "Got magic: %d" % magic
         assert myopaque is None or opaque == myopaque, \
             "expected opaque %x, got %x" % (myopaque, opaque)
