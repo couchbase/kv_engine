@@ -105,7 +105,7 @@ public:
      * @param x the column number
      * @return the number of bytes found
      */
-    const int column_bytes(int x);
+    int column_bytes(int x);
 
     /**
      * Get the integer valueof the given column at the current row.

@@ -23,7 +23,7 @@ void PreparedStatement::bind(int pos, const char *s) {
 }
 
 void PreparedStatement::bind(int pos, const char *s, size_t nbytes) {
-    sqlite3_bind_text(st, pos, s, (int)nbytes, SQLITE_STATIC);
+    sqlite3_bind_blob(st, pos, s, (int)nbytes, SQLITE_STATIC);
 }
 
 void PreparedStatement::bind(int pos, int v) {
@@ -74,7 +74,7 @@ const void *PreparedStatement::column_blob(int x) {
     return (char*)sqlite3_column_text(st, x);
 }
 
-const int PreparedStatement::column_bytes(int x) {
+int PreparedStatement::column_bytes(int x) {
     return sqlite3_column_bytes(st, x);
 }
 
@@ -426,7 +426,7 @@ void MultiDBSqlite3::dump(Callback<GetValue> &cb) {
         PreparedStatement st(db, buf);
         while (st.fetch()) {
             GetValue rv(new Item(st.column_blob(0),
-                                 st.column_bytes(0),
+                                 (uint16_t)st.column_bytes(0),
                                  st.column_int(2),
                                  st.column_int(3),
                                  st.column_blob(1),
