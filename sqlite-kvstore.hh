@@ -80,7 +80,7 @@ public:
      *
      * Use this along with fetch.
      *
-     * @param x the column number (starting at 1)
+     * @param x the column number
      * @return the value
      */
     const char *column(int x);
@@ -112,7 +112,7 @@ public:
      *
      * Use this along with fetch.
      *
-     * @param x the column number (starting at 1)
+     * @param x the column number
      * @return the value
      */
     int column_int(int x);
