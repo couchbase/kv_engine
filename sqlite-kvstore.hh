@@ -86,6 +86,28 @@ public:
     const char *column(int x);
 
     /**
+     * Get the value as a blob from the given column in the current
+     * row.
+     *
+     * Use this along with fetch and column_bytes().
+     *
+     * @param x the column number
+     * @return the value
+     */
+    const void *column_blob(int x);
+
+    /**
+     * Get the number of bytes stored in the given column for the
+     * current row.
+     *
+     * Use this along with fetch and column() or column_blob().
+     *
+     * @param x the column number
+     * @return the number of bytes found
+     */
+    const int column_bytes(int x);
+
+    /**
      * Get the integer valueof the given column at the current row.
      *
      * Use this along with fetch.

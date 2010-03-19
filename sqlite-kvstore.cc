@@ -70,6 +70,14 @@ const char *PreparedStatement::column(int x) {
     return (char*)sqlite3_column_text(st, x);
 }
 
+const void *PreparedStatement::column_blob(int x) {
+    return (char*)sqlite3_column_text(st, x);
+}
+
+const int PreparedStatement::column_bytes(int x) {
+    return sqlite3_column_bytes(st, x);
+}
+
 int PreparedStatement::column_int(int x) {
     return sqlite3_column_int(st, x);
 }
@@ -417,12 +425,12 @@ void MultiDBSqlite3::dump(Callback<GetValue> &cb) {
 
         PreparedStatement st(db, buf);
         while (st.fetch()) {
-            std::string key(st.column(0));
-            std::string value(st.column(1));
-            GetValue rv(new Item(key,
+            GetValue rv(new Item(st.column_blob(0),
+                                 st.column_bytes(0),
                                  st.column_int(2),
                                  st.column_int(3),
-                                 value));
+                                 st.column_blob(1),
+                                 st.column_bytes(1)));
             cb.callback(rv);
         }
 
