@@ -6,6 +6,8 @@
 #include <iostream>
 #include <sstream>
 #include <pthread.h>
+#include <cerrno>
+#include <cstring>
 
 /**
  * Abstraction built on top of pthread mutexes
@@ -14,25 +16,33 @@ class Mutex {
 public:
     Mutex() {
         if (pthread_mutex_init(&mutex, NULL) != 0) {
-            throw std::runtime_error("MUTEX ERROR: Failed to initialize mutex.");
+            std::string message = "MUTEX ERROR: Failed to initialize mutex: ";
+            message.append(strerror(errno));
+            throw std::runtime_error(message);
         }
     }
 
     virtual ~Mutex() {
         if (pthread_mutex_destroy(&mutex) != 0) {
-            throw std::runtime_error("MUTEX ERROR: Failed to destroy mutex.");
+            std::string message = "MUTEX ERROR: Failed to destroy mutex: ";
+            message.append(strerror(errno));
+            throw std::runtime_error(message);
         }
     }
 
     void aquire() {
         if (pthread_mutex_lock(&mutex) != 0) {
-            throw std::runtime_error("MUTEX ERROR: Failed to acquire lock.");
+            std::string message = "MUTEX ERROR: Failed to acquire lock: ";
+            message.append(strerror(errno));
+            throw std::runtime_error(message);
         }
     }
 
     void release() {
         if (pthread_mutex_unlock(&mutex) != 0) {
-            throw std::runtime_error("MUTEX_ERROR: Failed to release lock.");
+            std::string message = "MUTEX_ERROR: Failed to release lock: ";
+            message.append(strerror(errno));
+            throw std::runtime_error(message);
         }
     }
 
