@@ -234,7 +234,20 @@ public:
 
         if (ret == ENGINE_SUCCESS) {
             time_t start = time(NULL);
-            sqliteDb = new MultiDBSqlite3(dbname, NUMBER_OF_SHARDS);
+            try {
+                sqliteDb = new MultiDBSqlite3(dbname, NUMBER_OF_SHARDS);
+            } catch (std::exception& e) {
+                std::cerr << "Failed to create database: " << e.what()
+                          << std::endl;
+
+                if (!dbAccess()) {
+                    std::cerr << "No access to \"" << dbname << "\"."
+                              << std::endl;
+                }
+
+                return ENGINE_FAILED;
+            }
+
             databaseInitTime = time(NULL) - start;
             backend = epstore = new EventuallyPersistentStore(sqliteDb);
 
@@ -897,6 +910,25 @@ private:
         tapNotifySync.notify();
         tapNotifySync.release();
         pthread_join(notifyThreadId, NULL);
+    }
+
+
+    bool dbAccess(void) {
+        bool ret = true;
+        if (access(dbname, F_OK) == -1) {
+            // file does not exist.. let's try to create it..
+            FILE *fp = fopen(dbname, "w");
+            if (fp == NULL) {
+                ret= false;
+            } else {
+                fclose(fp);
+                std::remove(dbname);
+            }
+        } else if (access(dbname, R_OK) == -1 || access(dbname, W_OK) == -1) {
+            ret = false;
+        }
+
+        return ret;
     }
 
     const char *dbname;
