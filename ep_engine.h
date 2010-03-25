@@ -2,6 +2,7 @@
 #include "locks.hh"
 #include "ep.hh"
 #include "sqlite-kvstore.hh"
+#include <memcached/util.h>
 
 #include <map>
 #include <list>
@@ -109,7 +110,7 @@ private:
 
     TapConnection(const std::string &n, uint32_t f) : client(n), flags(f),
         recordsFetched(0), pendingFlush(false), expiry_time((rel_time_t)-1),
-        reconnects(0), connected(true), paused(false)
+        reconnects(0), connected(true), paused(false), backfillAge(0)
     { }
 
     /**
@@ -162,6 +163,11 @@ private:
      * is his paused
      */
     bool paused;
+
+    /**
+     * Backfill age for the connection
+     */
+    uint64_t backfillAge;
 
     DISALLOW_COPY_AND_ASSIGN(TapConnection);
 };
@@ -387,6 +393,10 @@ public:
                         sprintf(tap, "%s:reconnects", tc->client.c_str());
                         add_casted_stat(tap, tc->reconnects, add_stat, cookie);
                     }
+                    if (tc->backfillAge != 0) {
+                        sprintf(tap, "%s:backfill_age", tc->client.c_str());
+                        add_casted_stat(tap, tc->backfillAge, add_stat, cookie);
+                    }
                 }
             }
 
@@ -557,7 +567,9 @@ public:
         return ret;
     }
 
-    void createTapQueue(const void *cookie, std::string &client, uint32_t flags) {
+    void createTapQueue(const void *cookie, std::string &client, uint32_t flags,
+                        const void *userdata,
+                        size_t nuserdata) {
         // map is set-assocative, so this will create an instance here..
         LockHolder lh(tapNotifySync);
         purgeExpiredTapConnections_UNLOCKED();
@@ -610,7 +622,17 @@ public:
             TapConnection *tc = new TapConnection(name, flags);
             allTaps.push_back(tc);
             tapConnectionMap[cookie] = tc;
-            queueBackfill(tc);
+
+            if (flags & TAP_CONNECT_FLAG_BACKFILL) { /* */
+                uint64_t age;
+                assert(nuserdata >= sizeof(age));
+                memcpy(&age, userdata, sizeof(age));
+                tc->backfillAge = ntohll(age);
+            }
+
+            if (tc->backfillAge < (uint64_t)time(NULL)) {
+                queueBackfill(tc);
+            }
         } else {
             tapConnectionMap[cookie] = tap;
             tap->connected = true;
@@ -667,7 +689,10 @@ public:
     }
 
 
-
+    /**
+     * Visit the objects and add them to the tap connecitons queue.
+     * @todo this code should honor the backfill time!
+     */
     void queueBackfill(TapConnection *tc) {
         BackFillVisitor bfv(tc);
         epstore->visit(bfv);

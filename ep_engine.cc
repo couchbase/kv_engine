@@ -283,9 +283,8 @@ extern "C" {
         std::string c(static_cast<const char*>(client), nclient);
         // Figure out what we want from the userdata before adding it to the API
         // to the handle
-        (void)userdata;
-        (void)nuserdata;
-        getHandle(handle)->createTapQueue(cookie, c, flags);
+        getHandle(handle)->createTapQueue(cookie, c, flags,
+                                          userdata, nuserdata);
         return EvpTapIterator;
     }
 
