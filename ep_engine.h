@@ -426,9 +426,12 @@ public:
                             ENGINE_STORE_OPERATION operation)
     {
         Item *it = static_cast<Item*>(itm);
+        if (it->getCas() == 0) {
+            it->setCas();
+        }
         if (operation == OPERATION_SET) {
             backend->set(*it, ignoreCallback);
-            *cas = 0;
+            *cas = it->getCas();
             addMutationEvent(it);
             return ENGINE_SUCCESS;
         } else if (operation == OPERATION_ADD) {
@@ -438,7 +441,7 @@ public:
                 return ENGINE_NOT_STORED;
             } else {
                 backend->set(*it, ignoreCallback);
-                *cas = 0;
+                *cas = it->getCas();
                 addMutationEvent(it);
                 return ENGINE_SUCCESS;
             }
@@ -447,7 +450,7 @@ public:
             if (get(cookie, &i, it->getKey().c_str(), it->nkey) == ENGINE_SUCCESS) {
                 itemRelease(cookie, i);
                 backend->set(*it, ignoreCallback);
-                *cas = 0;
+                *cas = it->getCas();
                 addMutationEvent(it);
                 return ENGINE_SUCCESS;
             } else {

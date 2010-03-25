@@ -122,7 +122,7 @@ void EventuallyPersistentStore::get(const std::string &key,
 
     if (v) {
         GetValue rv(new Item(v->getKey(), v->getFlags(), v->getExptime(),
-                             v->getValue()));
+                             v->getValue(), v->getCas()));
         cb.callback(rv);
     } else {
         GetValue rv(false);
@@ -254,7 +254,7 @@ void EventuallyPersistentStore::flushOne(std::queue<std::string> *q,
             stats.dataAgeHighWat = stats.dataAge > stats.dataAgeHighWat
                 ? stats.dataAge : stats.dataAgeHighWat;
             // Copy it for the duration.
-            val = new Item(key, v->getFlags(), v->getExptime(), v->getValue());
+            val = new Item(key, v->getFlags(), v->getExptime(), v->getValue(), v->getCas());
         }
     }
     stats.flusher_todo--;

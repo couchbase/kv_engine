@@ -223,14 +223,11 @@ extern "C" {
     }
 
     static uint64_t EvpItemGetCas(const item *item) {
-        (void)item;
-        return 0;
+        return static_cast<const Item*>(item)->getCas();
     }
 
     static void EvpItemSetCas(item *item, uint64_t cas) {
-        (void)item;
-        (void)cas;
-        // empty
+        static_cast<Item*>(item)->setCas(cas);
     }
 
     static const char *EvpItemGetKey(const item *it) {

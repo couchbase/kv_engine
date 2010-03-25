@@ -9,6 +9,7 @@ ep_la_SOURCES = \
                  ep.cc ep.hh \
                  ep_engine.cc ep_engine.h \
                  kvstore.hh \
+                 item.cc item.hh \
                  locks.hh \
                  mutex.hh \
                  sqlite-kvstore.cc sqlite-kvstore.hh \
