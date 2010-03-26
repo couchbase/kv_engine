@@ -417,10 +417,10 @@ private:
         }
     }
 
-    void flush(bool shouldWait);
-    void flushSome(std::queue<std::string> *q, Callback<bool> &cb,
-                   std::queue<std::string> *rejectQueue);
-    void flushOne(std::queue<std::string> *q, Callback<bool> &cb,
+    int flush(bool shouldWait);
+    int flushSome(std::queue<std::string> *q, Callback<bool> &cb,
+                  std::queue<std::string> *rejectQueue);
+    int flushOne(std::queue<std::string> *q, Callback<bool> &cb,
                   std::queue<std::string> *rejectQueue);
     void flusherStopped();
     void initQueue();
@@ -459,29 +459,29 @@ public:
         store->warmup();
         store->stats.warmupTime = ep_current_time() - start;
         store->stats.warmupComplete = true;
-        // We're not going to write any data newer than this, so just
-        // wait for it.
-        //
-        // We do this in a loop sleeping 1 second at a time to allow
-        // for quick shutdown on the initial flush.
-        rel_time_t sleep_end = start + store->stats.min_data_age;
-        while (running && ep_current_time() < sleep_end) {
-            sleep(1);
-        }
         hasInitialized = true;
     }
+
     void run() {
         running = true;
         if (!hasInitialized) {
             initialize();
         }
         try {
-            while(running) {
-                // Avoid thrashing when there's a lot of recent data
-                sleep(5);
-                store->flush(true);
+            while (running) {
+                rel_time_t start = ep_current_time();
+
+                int n = store->flush(true);
+                if (n > 0) {
+                    rel_time_t sleep_end = start + n;
+                    while (running && ep_current_time() < sleep_end) {
+                        sleep(1);
+                    }
+                }
             }
-            std::cout << "Shutting down flusher." << std::endl;
+            std::cout << "Shutting down flusher (Write of all dirty items)"
+                      << std::endl;
+            store->stats.min_data_age = 0;
             store->flush(false);
             std::cout << "Flusher stopped" << std::endl;
 

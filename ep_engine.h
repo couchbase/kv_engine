@@ -408,7 +408,7 @@ public:
                     }
                     if (tc->backfillAge != 0) {
                         sprintf(tap, "%s:backfill_age", tc->client.c_str());
-                        add_casted_stat(tap, tc->backfillAge, add_stat, cookie);
+                        add_casted_stat(tap, (size_t)tc->backfillAge, add_stat, cookie);
                     }
                 }
             }

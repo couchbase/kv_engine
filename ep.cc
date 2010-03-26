@@ -2,6 +2,7 @@
 #include "ep.hh"
 #include "locks.hh"
 
+#include <vector>
 #include <time.h>
 #include <string.h>
 
@@ -47,11 +48,39 @@ EventuallyPersistentStore::EventuallyPersistentStore(KVStore *t,
     assert(underlying);
 }
 
+class VerifyStoredVisitor : public HashTableVisitor {
+public:
+    std::vector<std::string> dirty;
+    virtual void visit(StoredValue *v) {
+        if (v->isDirty()) {
+            dirty.push_back(v->getKey());
+        }
+    }
+};
+
 EventuallyPersistentStore::~EventuallyPersistentStore() {
     stopFlusher();
     if (flusherState != STOPPED) {
         pthread_join(thread, NULL);
     }
+
+    // Verify that we don't have any dirty objects!
+    if (getenv("EP_VERIFY_SHUTDOWN_FLUSH") != NULL) {
+        VerifyStoredVisitor walker;
+        storage.visit(walker);
+        if (!walker.dirty.empty()) {
+            std::vector<std::string>::const_iterator iter;
+            for (iter = walker.dirty.begin();
+                 iter != walker.dirty.end();
+                 ++iter) {
+                std::cerr << "ERROR: Object dirty after flushing: "
+                          << iter->c_str() << std::endl;
+            }
+
+            throw std::runtime_error("Internal error, objects dirty objects exists");
+        }
+    }
+
     delete flusher;
     delete towrite;
 }
@@ -155,14 +184,16 @@ void EventuallyPersistentStore::del(const std::string &key, Callback<bool> &cb) 
     cb.callback(existed);
 }
 
-void EventuallyPersistentStore::flush(bool shouldWait) {
+int EventuallyPersistentStore::flush(bool shouldWait) {
     LockHolder lh(mutex);
 
+    int oldest = stats.min_data_age;
     if (towrite->empty()) {
         stats.dirtyAge = 0;
         if (shouldWait) {
             mutex.wait();
         }
+        oldest = 0;
     } else {
         rel_time_t flush_start = ep_current_time();
 
@@ -178,7 +209,10 @@ void EventuallyPersistentStore::flush(bool shouldWait) {
         std::queue<std::string> *rejectQueue = new std::queue<std::string>();
 
         while (!q->empty()) {
-            flushSome(q, cb, rejectQueue);
+            int n = flushSome(q, cb, rejectQueue);
+            if (n < oldest) {
+                oldest = n;
+            }
         }
         rel_time_t complete_time = ep_current_time();
 
@@ -199,14 +233,20 @@ void EventuallyPersistentStore::flush(bool shouldWait) {
         stats.flushDurationHighWat = stats.flushDuration > stats.flushDurationHighWat
                                      ? stats.flushDuration : stats.flushDurationHighWat;
     }
+
+    return oldest;
 }
 
-void EventuallyPersistentStore::flushSome(std::queue<std::string> *q,
-                                          Callback<bool> &cb,
-                                          std::queue<std::string> *rejectQueue) {
+int EventuallyPersistentStore::flushSome(std::queue<std::string> *q,
+                                         Callback<bool> &cb,
+                                         std::queue<std::string> *rejectQueue) {
     underlying->begin();
+    int oldest = stats.min_data_age;
     for (int i = 0; i < txnSize && !q->empty(); i++) {
-        flushOne(q, cb, rejectQueue);
+        int n = flushOne(q, cb, rejectQueue);
+        if (n != 0 && n < oldest) {
+            oldest = n;
+        }
     }
     rel_time_t cstart = ep_current_time();
     underlying->commit();
@@ -214,11 +254,13 @@ void EventuallyPersistentStore::flushSome(std::queue<std::string> *q,
     // One more lock to update a stat.
     LockHolder lh_stat(mutex);
     stats.commit_time = complete_time - cstart;
+
+    return oldest;
 }
 
-void EventuallyPersistentStore::flushOne(std::queue<std::string> *q,
-                                         Callback<bool> &cb,
-                                         std::queue<std::string> *rejectQueue) {
+int EventuallyPersistentStore::flushOne(std::queue<std::string> *q,
+                                        Callback<bool> &cb,
+                                        std::queue<std::string> *rejectQueue) {
 
     std::string key = q->front();
     q->pop();
@@ -230,6 +272,9 @@ void EventuallyPersistentStore::flushOne(std::queue<std::string> *q,
     bool found = v != NULL;
     bool isDirty = (found && v->isDirty());
     Item *val = NULL;
+
+    int ret = 0;
+
     if (isDirty) {
         rel_time_t queued, dirtied;
         v->markClean(&queued, &dirtied);
@@ -240,6 +285,7 @@ void EventuallyPersistentStore::flushOne(std::queue<std::string> *q,
 
         if (dataAge < (int)stats.min_data_age) {
             // Skip this one.  It's too young.
+            ret = stats.min_data_age - dataAge;
             isDirty = false;
             stats.tooYoung++;
             v->reDirty(queued, dirtied);
@@ -269,6 +315,8 @@ void EventuallyPersistentStore::flushOne(std::queue<std::string> *q,
     if (val != NULL) {
         delete val;
     }
+
+    return ret;
 }
 
 void EventuallyPersistentStore::flusherStopped() {
