@@ -47,6 +47,11 @@ CMD_TAP_OPAQUE = 0x44
 
 COMMAND_NAMES = dict(((globals()[k], k) for k in globals() if k.startswith("CMD_")))
 
+# TAP flags
+TAP_FLAG_BACKFILL = 0x01
+
+TAP_FLAG_TYPES = {TAP_FLAG_BACKFILL: ">Q"}
+
 # Flags, expiration
 SET_PKT_FMT=">II"
 
