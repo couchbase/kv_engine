@@ -174,10 +174,10 @@ void BaseSqlite3::execute(const char *query) {
 
 void Sqlite3::initStatements() {
     ins_stmt = new PreparedStatement(db,
-                                     "insert into kv(k, v, flags, exptime) "
-                                     "values(?, ?, ?, ?)");
+                                     "insert into kv(k, v, flags, exptime, cas) "
+                                     "values(?, ?, ?, ?, ?)");
     sel_stmt = new PreparedStatement(db,
-                                     "select v, flags, exptime "
+                                     "select v, flags, exptime, cas "
                                      "from kv where k = ?");
     del_stmt = new PreparedStatement(db, "delete from kv where k = ?");
 }
@@ -202,7 +202,8 @@ void Sqlite3::initTables() {
             " (k varchar(250) primary key on conflict replace,"
             "  v text,"
             "  flags integer,"
-            "  exptime integer)");
+            "  exptime integer,"
+            "  cas integer)");
     if(auditable) {
         execute("create table if not exists history ("
                 " id integer primary key autoincrement,"
@@ -234,11 +235,13 @@ void Sqlite3::set(const Item &itm, Callback<bool> &cb) {
     ins_stmt->bind(2, const_cast<Item&>(itm).getData(), itm.nbytes);
     ins_stmt->bind(3, itm.flags);
     ins_stmt->bind(4, itm.exptime);
+    ins_stmt->bind64(5, itm.getCas());
     bool rv = ins_stmt->execute() == 1;
     cb.callback(rv);
     ins_stmt->reset();
 }
 
+// XXX:  This needs to die.  It's incorrect and not the way forward.
 void Sqlite3::get(const std::string &key, Callback<GetValue> &cb) {
     sel_stmt->bind(1, key.c_str());
 
@@ -265,14 +268,15 @@ void Sqlite3::del(const std::string &key, Callback<bool> &cb) {
 
 void Sqlite3::dump(Callback<GetValue> &cb) {
 
-    PreparedStatement st(db, "select k,v,flags,exptime from kv");
+    PreparedStatement st(db, "select k,v,flags,exptime,cas from kv");
     while (st.fetch()) {
         std::string key(st.column(0));
         std::string value(st.column(1));
         GetValue rv(new Item(key,
                              st.column_int(2),
                              st.column_int(3),
-                             value));
+                             value,
+                             st.column_int64(4)));
         cb.callback(rv);
     }
 
@@ -307,7 +311,8 @@ void MultiTableSqlite3::initTables() {
                  " (k varchar(250) primary key on conflict replace,"
                  "  v text,"
                  "  flags integer,"
-                 "  exptime integer)", i);
+                 "  exptime integer,"
+                 "  cas integer)", i);
         execute(buf);
     }
 }
@@ -338,11 +343,13 @@ void BaseMultiSqlite3::set(const Item &itm, Callback<bool> &cb) {
     ins_stmt->bind(2, const_cast<Item&>(itm).getData(), itm.nbytes);
     ins_stmt->bind(3, itm.flags);
     ins_stmt->bind(4, itm.exptime);
+    ins_stmt->bind64(5, itm.getCas());
     bool rv = ins_stmt->execute() == 1;
     cb.callback(rv);
     ins_stmt->reset();
 }
 
+// XXX:  This needs to die.  It's incorrect and not the way forward.
 void BaseMultiSqlite3::get(const std::string &key, Callback<GetValue> &cb) {
     PreparedStatement *sel_stmt = forKey(key)->sel();
     sel_stmt->bind(1, key.c_str());
@@ -373,7 +380,7 @@ void MultiTableSqlite3::dump(Callback<GetValue> &cb) {
 
     char buf[128];
     for (int i = 0; i < numTables; i++) {
-        snprintf(buf, sizeof(buf), "select k,v,flags,exptime from kv_%d", i);
+        snprintf(buf, sizeof(buf), "select k,v,flags,exptime,cas from kv_%d", i);
 
         PreparedStatement st(db, buf);
         while (st.fetch()) {
@@ -382,7 +389,8 @@ void MultiTableSqlite3::dump(Callback<GetValue> &cb) {
             GetValue rv(new Item(key,
                                  st.column_int(2),
                                  st.column_int(3),
-                                 value));
+                                 value,
+                                 st.column_int64(4)));
             cb.callback(rv);
         }
 
@@ -413,7 +421,8 @@ void MultiDBSqlite3::initTables() {
                  " (k varchar(250) primary key on conflict replace,"
                  "  v text,"
                  "  flags integer,"
-                 "  exptime integer)", i);
+                 "  exptime integer,"
+                 "  cas integer)", i);
         execute(buf);
     }
 }
@@ -429,7 +438,7 @@ void MultiDBSqlite3::destroyTables() {
 void MultiDBSqlite3::dump(Callback<GetValue> &cb) {
     char buf[128];
     for (int i = 0; i < numTables; i++) {
-        snprintf(buf, sizeof(buf), "select k,v,flags,exptime from kv_%d.kv", i);
+        snprintf(buf, sizeof(buf), "select k,v,flags,exptime,cas from kv_%d.kv", i);
 
         PreparedStatement st(db, buf);
         while (st.fetch()) {
@@ -438,7 +447,8 @@ void MultiDBSqlite3::dump(Callback<GetValue> &cb) {
                                  st.column_int(2),
                                  st.column_int(3),
                                  st.column_blob(1),
-                                 st.column_bytes(1)));
+                                 st.column_bytes(1),
+                                 st.column_int64(4)));
             cb.callback(rv);
         }
 

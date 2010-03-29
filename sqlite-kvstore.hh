@@ -317,11 +317,11 @@ private:
     void initStatements() {
         char buf[1024];
         snprintf(buf, sizeof(buf),
-                 "insert into %s (k, v, flags, exptime) "
-                 "values(?, ?, ?, ?)", tableName.c_str());
+                 "insert into %s (k, v, flags, exptime, cas) "
+                 "values(?, ?, ?, ?, ?)", tableName.c_str());
         ins_stmt = new PreparedStatement(db, buf);
         snprintf(buf, sizeof(buf),
-                 "select v, flags, exptime "
+                 "select v, flags, exptime, cas "
                  "from %s where k = ?", tableName.c_str());
         sel_stmt = new PreparedStatement(db, buf);
         snprintf(buf, sizeof(buf), "delete from %s where k = ?", tableName.c_str());
