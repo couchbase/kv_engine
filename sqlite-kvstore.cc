@@ -30,6 +30,10 @@ void PreparedStatement::bind(int pos, int v) {
     sqlite3_bind_int(st, pos, v);
 }
 
+void PreparedStatement::bind64(int pos, uint64_t v) {
+    sqlite3_bind_int64(st, pos, v);
+}
+
 int PreparedStatement::execute() {
     int steps_run = 0, rc = 0;
     while ((rc = sqlite3_step(st)) != SQLITE_DONE) {

@@ -54,6 +54,14 @@ public:
     void bind(int pos, int d);
 
     /**
+     * Bind a uint64 value.
+     *
+     * @param pos the binding position (starting at 1)
+     * @param d the value to bind
+     */
+    void bind64(int pos, uint64_t d);
+
+    /**
      * Execute a prepared statement that does not return results.
      *
      * @return how many rows were affected
