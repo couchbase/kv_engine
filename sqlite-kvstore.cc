@@ -86,6 +86,10 @@ int PreparedStatement::column_int(int x) {
     return sqlite3_column_int(st, x);
 }
 
+uint64_t PreparedStatement::column_int64(int x) {
+    return sqlite3_column_int64(st, x);
+}
+
 void PreparedStatement::reset() {
     if(sqlite3_reset(st) != SQLITE_OK) {
         throw std::runtime_error("Error resetting statement.");

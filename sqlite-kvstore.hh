@@ -125,6 +125,17 @@ public:
      */
     int column_int(int x);
 
+    /**
+     * Get the 64-bit integer value of the given column at the current
+     * row.
+     *
+     * Use this along with fetch.
+     *
+     * @param x the column number
+     * @return the value
+     */
+    uint64_t column_int64(int x);
+
 private:
     sqlite3      *db;
     sqlite3_stmt *st;
