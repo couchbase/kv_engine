@@ -69,7 +69,7 @@ public:
     StoredValue(std::string &k, const char *v, size_t nv, StoredValue *n) :
         key(k), value(), flags(0), exptime(0), dirtied(0), next(n)
     {
-        setValue(v, nv, 0);
+        setValue(v, nv, 0, 0, 0);
     }
 
     StoredValue(const Item &itm, StoredValue *n) :
@@ -140,8 +140,11 @@ public:
         return flags;
     }
 
-    void setValue(const char *v, const size_t nv, uint64_t theCas) {
+    void setValue(const char *v, const size_t nv,
+                  uint32_t newFlags, rel_time_t newExp, uint64_t theCas) {
         cas = theCas;
+        flags = newFlags;
+        exptime = newExp;
         value.assign(v, nv);
         markDirty();
     }
@@ -221,7 +224,9 @@ public:
         Item &itm = const_cast<Item&>(val);
         if (v) {
             rv = v->isClean() ? WAS_CLEAN : WAS_DIRTY;
-            v->setValue(itm.getData(), itm.nbytes, itm.getCas());
+            v->setValue(itm.getData(), itm.nbytes,
+                        itm.flags, itm.exptime,
+                        itm.getCas());
         } else {
             v = new StoredValue(itm, values[bucket_num]);
             values[bucket_num] = v;
