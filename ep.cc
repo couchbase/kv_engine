@@ -42,9 +42,10 @@ EventuallyPersistentStore::EventuallyPersistentStore(KVStore *t,
 
     flusherState = STOPPED;
     txnSize = DEFAULT_TXN_SIZE;
-    startFlusher();
 
     underlying = t;
+
+    startFlusher();
     assert(underlying);
 }
 
