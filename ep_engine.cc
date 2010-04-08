@@ -53,9 +53,11 @@ extern "C" {
 
     static ENGINE_ERROR_CODE EvpItemDelete(ENGINE_HANDLE* handle,
                                            const void* cookie,
-                                           item* item)
+                                           const void* key,
+                                           const size_t nkey,
+                                           uint64_t cas)
     {
-        return getHandle(handle)->itemDelete(cookie, item);
+        return getHandle(handle)->itemDelete(cookie, key, nkey, cas);
     }
 
     static void EvpItemRelease(ENGINE_HANDLE* handle,
@@ -312,7 +314,7 @@ extern "C" {
                                       ENGINE_HANDLE **handle)
     {
         SERVER_HANDLE_V1 *api;
-        api = static_cast<SERVER_HANDLE_V1 *>(get_server_api(1));
+        api = static_cast<SERVER_HANDLE_V1 *>(get_server_api(server_handle_v1));
         if (interface != 1 || api == NULL) {
             return ENGINE_ENOTSUP;
         }

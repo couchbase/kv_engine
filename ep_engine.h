@@ -288,9 +288,14 @@ public:
         }
     }
 
-    ENGINE_ERROR_CODE itemDelete(const void* cookie, item *item)
+    ENGINE_ERROR_CODE itemDelete(const void* cookie, 
+                                 const void* key,
+                                 const size_t nkey,
+                                 uint64_t cas)
     {
-        return itemDelete(cookie, static_cast<Item*>(item)->getKey());
+        (void)cas;
+        std::string k(static_cast<const char*>(key), nkey);
+        return itemDelete(cookie, k);
     }
 
     ENGINE_ERROR_CODE itemDelete(const void* cookie, const std::string &key)
