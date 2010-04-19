@@ -38,15 +38,19 @@ extern "C" {
 #define CMD_START_PERSISTENCE 0x81
 #define CMD_SET_FLUSH_PARAM 0x82
 
-/**
- * I don't care about the set callbacks right now, but since this is a
- * demo, let's dump core if one of them fails so that we can debug it later
- */
-class IgnoreCallback : public Callback<bool>
+class BoolCallback : public Callback<bool>
 {
-    virtual void callback(bool &value) {
-        assert(value);
+public:
+    virtual void callback(bool &theValue) {
+        value = theValue;
     }
+
+    bool getValue() {
+        return value;
+    }
+
+private:
+    bool value;
 };
 
 /**
@@ -429,22 +433,24 @@ public:
                             uint64_t *cas,
                             ENGINE_STORE_OPERATION operation)
     {
+        BoolCallback callback;
         Item *it = static_cast<Item*>(itm);
-        if (it->getCas() == 0) {
-            it->setCas();
-        }
-        if (operation == OPERATION_SET) {
-            backend->set(*it, ignoreCallback);
-            *cas = it->getCas();
-            addMutationEvent(it);
-            return ENGINE_SUCCESS;
+        if (operation == OPERATION_SET || operation == OPERATION_CAS) {
+            backend->set(*it, callback);
+            if (callback.getValue()) {
+                *cas = it->getCas();
+                addMutationEvent(it);
+                return ENGINE_SUCCESS;
+            } else {
+                return ENGINE_KEY_EEXISTS;
+            }
         } else if (operation == OPERATION_ADD) {
             item *i;
             if (get(cookie, &i, it->getKey().c_str(), it->getNKey()) == ENGINE_SUCCESS) {
                 itemRelease(cookie, i);
                 return ENGINE_NOT_STORED;
             } else {
-                backend->set(*it, ignoreCallback);
+                backend->set(*it, callback);
                 *cas = it->getCas();
                 addMutationEvent(it);
                 return ENGINE_SUCCESS;
@@ -453,7 +459,7 @@ public:
             item *i;
             if (get(cookie, &i, it->getKey().c_str(), it->getNKey()) == ENGINE_SUCCESS) {
                 itemRelease(cookie, i);
-                backend->set(*it, ignoreCallback);
+                backend->set(*it, callback);
                 *cas = it->getCas();
                 addMutationEvent(it);
                 return ENGINE_SUCCESS;
@@ -476,9 +482,6 @@ public:
                                  uint64_t *cas,
                                  uint64_t *result)
     {
-        // Arithmetic is supposed to be atomic, so we cannot let two threads
-        // do this currently (for that we have to wait until we implement cas)
-        LockHolder lh(arithmeticMutex);
         item *it = NULL;
 
         ENGINE_ERROR_CODE ret;
@@ -504,7 +507,8 @@ public:
                 *result = val;
                 Item *nit = new Item(key, (uint16_t)nkey, item->getFlags(),
                                      exptime, value, nb);
-                ret = store(cookie, nit, cas, OPERATION_SET);
+                nit->setCas(item->getCas());
+                ret = store(cookie, nit, cas, OPERATION_CAS);
                 delete nit;
             } else {
                 ret = ENGINE_EINVAL;
@@ -519,10 +523,12 @@ public:
             Item *item = new Item(key, (uint16_t)nkey, 0, exptime, value, nb);
             ret = store(cookie, item, cas, OPERATION_ADD);
             delete item;
-            if (ret == ENGINE_KEY_EEXISTS) {
-                return arithmetic(cookie, key, nkey, increment, create, delta,
-                                  initial, exptime, cas, result);
-            }
+        }
+
+        /* We had a race condition.. just call ourself recursively to retry */
+        if (ret == ENGINE_KEY_EEXISTS) {
+            return arithmetic(cookie, key, nkey, increment, create, delta,
+                              initial, exptime, cas, result);
         }
 
         return ret;
@@ -946,7 +952,6 @@ private:
     const char *dbname;
     bool warmup;
     SERVER_HANDLE_V1 serverApi;
-    IgnoreCallback ignoreCallback;
     KVStore *backend;
     MultiDBSqlite3 *sqliteDb;
     EventuallyPersistentStore *epstore;
@@ -955,7 +960,6 @@ private:
     time_t databaseInitTime;
     size_t tapKeepAlive;
     pthread_t notifyThreadId;
-    Mutex arithmeticMutex;
     SyncObject tapNotifySync;
     volatile bool shutdown;
     GET_SERVER_API getServerApi;

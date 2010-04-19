@@ -64,14 +64,6 @@ class HashTable;
 
 class StoredValue {
 public:
-    StoredValue() : key(), value(), flags(0), exptime(0), dirtied(0), next(NULL), cas(0) {
-    }
-    StoredValue(std::string &k, const char *v, size_t nv, StoredValue *n) :
-        key(k), value(), flags(0), exptime(0), dirtied(0), next(n)
-    {
-        setValue(v, nv, 0, 0, 0);
-    }
-
     StoredValue(const Item &itm, StoredValue *n) :
         key(itm.getKey()), value(const_cast<Item&>(itm).getData(), itm.getNBytes()),
         flags(itm.getFlags()), exptime(itm.getExptime()), dirtied(0), next(n),
@@ -171,7 +163,7 @@ private:
 };
 
 typedef enum {
-    NOT_FOUND, WAS_CLEAN, WAS_DIRTY
+    NOT_FOUND, INVALID_CAS, WAS_CLEAN, WAS_DIRTY
 } mutation_type_t;
 
 class HashTableVisitor {
@@ -217,7 +209,7 @@ public:
         return unlocked_find(key, bucket_num);
     }
 
-    mutation_type_t set(const Item &val) {
+    mutation_type_t set(const Item &val, bool preserveCas = false) {
         assert(active);
         mutation_type_t rv = NOT_FOUND;
         int bucket_num = bucket(val.getKey());
@@ -225,6 +217,12 @@ public:
         StoredValue *v = unlocked_find(val.getKey(), bucket_num);
         Item &itm = const_cast<Item&>(val);
         if (v) {
+            if (val.getCas() != 0 && val.getCas() != v->getCas()) {
+                return INVALID_CAS;
+            }
+            if (!preserveCas) {
+                itm.setCas();
+            }
             rv = v->isClean() ? WAS_CLEAN : WAS_DIRTY;
             v->setValue(itm.getData(), itm.getNBytes(),
                         itm.getFlags(), itm.getExptime(),
@@ -236,7 +234,7 @@ public:
         return rv;
     }
 
-    bool add(const Item &val, bool isDirty) {
+    bool add(const Item &val, bool isDirty, bool preserveCas = false) {
         assert(active);
         int bucket_num = bucket(val.getKey());
         LockHolder lh(getMutex(bucket_num));
@@ -244,7 +242,11 @@ public:
         if (v) {
             return false;
         } else {
-            v = new StoredValue(const_cast<Item&>(val), values[bucket_num], isDirty);
+            Item &itm = const_cast<Item&>(val);
+            if (!preserveCas) {
+                itm.setCas();
+            }
+            v = new StoredValue(itm, values[bucket_num], isDirty);
             values[bucket_num] = v;
         }
 
@@ -359,7 +361,7 @@ public:
 
     void callback(GetValue &val) {
         if (val.value != NULL) {
-            hashtable.add(*val.value, false);
+            hashtable.add(*val.value, false, true);
             delete val.value;
         }
         stats.warmedUp++;

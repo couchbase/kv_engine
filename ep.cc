@@ -124,12 +124,14 @@ void EventuallyPersistentStore::initQueue() {
 
 void EventuallyPersistentStore::set(const Item &item, Callback<bool> &cb) {
     mutation_type_t mtype = storage.set(item);
+    bool rv = true;
 
-    if (mtype == WAS_CLEAN || mtype == NOT_FOUND) {
+    if (mtype == INVALID_CAS) {
+        rv = false;
+    } else if (mtype == WAS_CLEAN || mtype == NOT_FOUND) {
         LockHolder lh(mutex);
         queueDirty(item.getKey());
     }
-    bool rv = true;
     cb.callback(rv);
 }
 
