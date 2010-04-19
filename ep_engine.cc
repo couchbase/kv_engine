@@ -20,10 +20,9 @@ static inline EventuallyPersistentEngine* getHandle(ENGINE_HANDLE* handle)
 // The Engine API specifies C linkage for the functions..
 extern "C" {
 
-    static const char* EvpGetInfo(ENGINE_HANDLE* handle)
+    static const engine_info* EvpGetInfo(ENGINE_HANDLE* handle)
     {
-        (void)handle;
-        return "EP engine v0.1";
+        return getHandle(handle)->getInfo();
     }
 
     static ENGINE_ERROR_CODE EvpInitialize(ENGINE_HANDLE* handle,
@@ -224,25 +223,9 @@ extern "C" {
         return ENGINE_SUCCESS;
     }
 
-    static uint64_t EvpItemGetCas(const item *item) {
-        return static_cast<const Item*>(item)->getCas();
-    }
-
-    static void EvpItemSetCas(item *item, uint64_t cas) {
+    static void EvpItemSetCas(ENGINE_HANDLE* handle, item *item, uint64_t cas) {
+        (void)handle;
         static_cast<Item*>(item)->setCas(cas);
-    }
-
-    static const char *EvpItemGetKey(const item *it) {
-        return static_cast<const Item*>(it)->getKey().c_str();
-    }
-
-    static char *EvpItemGetData(const item *it) {
-        return const_cast<Item*>(static_cast<const Item*>(it))->getData();
-    }
-
-    static uint8_t EvpItemGetClsid(const item *item) {
-        (void)item;
-        return 0;
     }
 
     static ENGINE_ERROR_CODE EvpTapNotify(ENGINE_HANDLE* handle,
@@ -320,7 +303,7 @@ extern "C" {
         }
 
         EventuallyPersistentEngine *engine;
-        engine = new struct EventuallyPersistentEngine(api);
+        engine = new struct EventuallyPersistentEngine(get_server_api);
         if (engine == NULL) {
             return ENGINE_ENOMEM;
         }
@@ -335,11 +318,31 @@ extern "C" {
         static_cast<EventuallyPersistentEngine*>(arg)->notifyTapIoThread();
         return NULL;
     }
+
+    static bool EvpGetItemInfo(ENGINE_HANDLE *handle, const item* item, item_info *item_info)
+    {
+        (void)handle;
+        const Item *it = reinterpret_cast<const Item*>(item);
+        if (item_info->nvalue < 1) {
+            return false;
+        }
+        item_info->cas = it->getCas();
+        item_info->exptime = it->getExptime();
+        item_info->nbytes = it->getNBytes();
+        item_info->flags = it->getFlags();
+        item_info->clsid = 0;
+        item_info->nkey = static_cast<uint16_t>(it->getNKey());
+        item_info->nvalue = 1;
+        item_info->key = it->getKey().c_str();
+        item_info->value[0].iov_base = const_cast<Item*>(it)->getData();
+        item_info->value[0].iov_len = it->getNBytes();
+        return true;
+    }
 } // C linkage
 
-EventuallyPersistentEngine::EventuallyPersistentEngine(SERVER_HANDLE_V1 *sApi) :
+EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server_api) :
     dbname("/tmp/test.db"), warmup(true), sqliteDb(NULL),
-    epstore(NULL), databaseInitTime(0), shutdown(false)
+    epstore(NULL), databaseInitTime(0), shutdown(false), getServerApi(get_server_api)
 {
     interface.interface = 1;
     ENGINE_HANDLE_V1::get_info = EvpGetInfo;
@@ -357,14 +360,17 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(SERVER_HANDLE_V1 *sApi) :
     ENGINE_HANDLE_V1::unknown_command = EvpUnknownCommand;
     ENGINE_HANDLE_V1::get_tap_iterator = EvpGetTapIterator;
     ENGINE_HANDLE_V1::tap_notify = EvpTapNotify;
-    ENGINE_HANDLE_V1::item_get_cas = EvpItemGetCas;
     ENGINE_HANDLE_V1::item_set_cas = EvpItemSetCas;
-    ENGINE_HANDLE_V1::item_get_key = EvpItemGetKey;
-    ENGINE_HANDLE_V1::item_get_data = EvpItemGetData;
-    ENGINE_HANDLE_V1::item_get_clsid = EvpItemGetClsid;
+    ENGINE_HANDLE_V1::get_item_info = EvpGetItemInfo;
     ENGINE_HANDLE_V1::get_stats_struct = NULL;
 
-    serverApi = *sApi;
+    serverApi = *(SERVER_HANDLE_V1*)getServerApi(server_handle_v1);
+
+    memset(&info, 0, sizeof(info));
+    info.info.description = "EP engine v0.1";
+    info.info.features[info.info.num_features++].feature = ENGINE_FEATURE_CAS;
+    info.info.features[info.info.num_features++].feature = ENGINE_FEATURE_PERSISTENT_STORAGE;
+    info.info.features[info.info.num_features++].feature = ENGINE_FEATURE_LRU;
 }
 
 void EventuallyPersistentEngine::startEngineThreads(void)

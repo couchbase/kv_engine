@@ -232,9 +232,9 @@ void Sqlite3::destroyTables() {
 
 void Sqlite3::set(const Item &itm, Callback<bool> &cb) {
     ins_stmt->bind(1, itm.getKey().c_str());
-    ins_stmt->bind(2, const_cast<Item&>(itm).getData(), itm.nbytes);
-    ins_stmt->bind(3, itm.flags);
-    ins_stmt->bind(4, itm.exptime);
+    ins_stmt->bind(2, const_cast<Item&>(itm).getData(), itm.getNBytes());
+    ins_stmt->bind(3, itm.getFlags());
+    ins_stmt->bind(4, itm.getExptime());
     ins_stmt->bind64(5, itm.getCas());
     bool rv = ins_stmt->execute() == 1;
     cb.callback(rv);
@@ -340,9 +340,9 @@ Statements* BaseMultiSqlite3::forKey(const std::string &key) {
 void BaseMultiSqlite3::set(const Item &itm, Callback<bool> &cb) {
     PreparedStatement *ins_stmt = forKey(itm.getKey())->ins();
     ins_stmt->bind(1, itm.getKey().c_str());
-    ins_stmt->bind(2, const_cast<Item&>(itm).getData(), itm.nbytes);
-    ins_stmt->bind(3, itm.flags);
-    ins_stmt->bind(4, itm.exptime);
+    ins_stmt->bind(2, const_cast<Item&>(itm).getData(), itm.getNBytes());
+    ins_stmt->bind(3, itm.getFlags());
+    ins_stmt->bind(4, itm.getExptime());
     ins_stmt->bind64(5, itm.getCas());
     bool rv = ins_stmt->execute() == 1;
     cb.callback(rv);

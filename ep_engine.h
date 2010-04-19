@@ -15,9 +15,6 @@ extern "C" {
     ENGINE_ERROR_CODE create_instance(uint64_t interface,
                                       GET_SERVER_API get_server_api,
                                       ENGINE_HANDLE **handle);
-
-    static const char *EvpItemGetKey(const item *it);
-    static char *EvpItemGetData(const item *it);
     void EvpHandleDisconnect(const void *cookie,
                              ENGINE_EVENT_TYPE type,
                              const void *event_data,
@@ -258,7 +255,9 @@ public:
                     backend->reset();
                 }
 
-                serverApi.register_callback(ON_DISCONNECT, EvpHandleDisconnect, this);
+                SERVER_CALLBACK_API *sapi;
+                sapi=  (SERVER_CALLBACK_API *)getServerApi(server_callback_api);
+                sapi->register_callback(ON_DISCONNECT, EvpHandleDisconnect, this);
             }
             startEngineThreads();
         }
@@ -288,7 +287,7 @@ public:
         }
     }
 
-    ENGINE_ERROR_CODE itemDelete(const void* cookie, 
+    ENGINE_ERROR_CODE itemDelete(const void* cookie,
                                  const void* key,
                                  const size_t nkey,
                                  uint64_t cas)
@@ -441,7 +440,7 @@ public:
             return ENGINE_SUCCESS;
         } else if (operation == OPERATION_ADD) {
             item *i;
-            if (get(cookie, &i, it->getKey().c_str(), it->nkey) == ENGINE_SUCCESS) {
+            if (get(cookie, &i, it->getKey().c_str(), it->getNKey()) == ENGINE_SUCCESS) {
                 itemRelease(cookie, i);
                 return ENGINE_NOT_STORED;
             } else {
@@ -452,7 +451,7 @@ public:
             }
         } else if (operation == OPERATION_REPLACE) {
             item *i;
-            if (get(cookie, &i, it->getKey().c_str(), it->nkey) == ENGINE_SUCCESS) {
+            if (get(cookie, &i, it->getKey().c_str(), it->getNKey()) == ENGINE_SUCCESS) {
                 itemRelease(cookie, i);
                 backend->set(*it, ignoreCallback);
                 *cas = it->getCas();
@@ -503,7 +502,8 @@ public:
                 size_t nb = snprintf(value, sizeof(value), "%llu\r\n",
                                      (unsigned long long)val);
                 *result = val;
-                Item *nit = new Item(key, (uint16_t)nkey, item->flags, exptime, value, nb);
+                Item *nit = new Item(key, (uint16_t)nkey, item->getFlags(),
+                                     exptime, value, nb);
                 ret = store(cookie, nit, cas, OPERATION_SET);
                 delete nit;
             } else {
@@ -778,8 +778,12 @@ public:
         delete sqliteDb;
     }
 
+    engine_info *getInfo() {
+        return &info.info;
+    }
+
 private:
-    EventuallyPersistentEngine(SERVER_HANDLE_V1 *sApi);
+    EventuallyPersistentEngine(GET_SERVER_API get_server_api);
     friend ENGINE_ERROR_CODE create_instance(uint64_t interface,
                                              GET_SERVER_API get_server_api,
                                              ENGINE_HANDLE **handle);
@@ -954,4 +958,9 @@ private:
     Mutex arithmeticMutex;
     SyncObject tapNotifySync;
     volatile bool shutdown;
+    GET_SERVER_API getServerApi;
+    union {
+        engine_info info;
+        char buffer[sizeof(engine_info) + 10 * sizeof(feature_info) ];
+    } info;
 };

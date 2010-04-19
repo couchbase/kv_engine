@@ -73,15 +73,17 @@ public:
     }
 
     StoredValue(const Item &itm, StoredValue *n) :
-        key(itm.getKey()), value(const_cast<Item&>(itm).getData(), itm.nbytes), flags(itm.flags),
-        exptime(itm.exptime), dirtied(0), next(n), cas(itm.getCas())
+        key(itm.getKey()), value(const_cast<Item&>(itm).getData(), itm.getNBytes()),
+        flags(itm.getFlags()), exptime(itm.getExptime()), dirtied(0), next(n),
+        cas(itm.getCas())
     {
         markDirty();
     }
 
     StoredValue(const Item &itm, StoredValue *n, bool setDirty) :
-        key(itm.getKey()), value(const_cast<Item&>(itm).getData(), itm.nbytes), flags(itm.flags),
-        exptime(itm.exptime), dirtied(0), next(n), cas(itm.getCas())
+        key(itm.getKey()), value(const_cast<Item&>(itm).getData(), itm.getNBytes()),
+        flags(itm.getFlags()), exptime(itm.getExptime()), dirtied(0), next(n),
+        cas(itm.getCas())
     {
         if (setDirty) {
             markDirty();
@@ -224,8 +226,8 @@ public:
         Item &itm = const_cast<Item&>(val);
         if (v) {
             rv = v->isClean() ? WAS_CLEAN : WAS_DIRTY;
-            v->setValue(itm.getData(), itm.nbytes,
-                        itm.flags, itm.exptime,
+            v->setValue(itm.getData(), itm.getNBytes(),
+                        itm.getFlags(), itm.getExptime(),
                         itm.getCas());
         } else {
             v = new StoredValue(itm, values[bucket_num]);

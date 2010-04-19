@@ -13,7 +13,7 @@
  * core and the backend. Please note that the kvstore don't store these
  * objects, so we do have an extra layer of memory copying :(
  */
-class Item : public item {
+class Item {
 public:
     Item() {
         initialize("", 0, 0, NULL, 0, 0);
@@ -93,6 +93,22 @@ public:
         return key;
     }
 
+    int getNKey() const {
+        return key.length();
+    }
+
+    uint32_t getNBytes() const {
+        return nbytes;
+    }
+
+    rel_time_t getExptime() const {
+        return exptime;
+    }
+
+    int getFlags() const {
+        return flags;
+    }
+
     uint64_t getCas() const {
         return cas;
     }
@@ -115,10 +131,8 @@ private:
                     const char *dta, const size_t nb, uint64_t theCas)
     {
         key.assign(k);
-        nkey = static_cast<uint16_t>(key.length());
         nbytes = static_cast<uint32_t>(nb);
         flags = fl;
-        iflag = 0;
         exptime = exp;
         cas = theCas;
 
@@ -142,6 +156,9 @@ private:
         }
     }
 
+    int flags;
+    rel_time_t exptime;
+    uint32_t nbytes;
     std::string key;
     char *data;
     uint64_t cas;
