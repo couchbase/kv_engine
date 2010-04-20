@@ -224,7 +224,7 @@ public:
             ++ii;
             items[ii].key = NULL;
 
-            if (serverApi.parse_config(config, items, stderr) != 0) {
+            if (serverApi->core->parse_config(config, items, stderr) != 0) {
                 ret = ENGINE_FAILED;
             } else {
                 if (dbn != NULL) {
@@ -260,7 +260,7 @@ public:
                 }
 
                 SERVER_CALLBACK_API *sapi;
-                sapi=  (SERVER_CALLBACK_API *)getServerApi(server_callback_api);
+                sapi = getServerApi()->callback;
                 sapi->register_callback(ON_DISCONNECT, EvpHandleDisconnect, this);
             }
             startEngineThreads();
@@ -730,7 +730,7 @@ public:
         std::map<const void*, TapConnection*>::iterator iter;
         iter = tapConnectionMap.find(cookie);
         if (iter != tapConnectionMap.end()) {
-            iter->second->expiry_time = serverApi.get_current_time()
+            iter->second->expiry_time = serverApi->core->get_current_time()
                 + (int)tapKeepAlive;
             iter->second->connected = false;
             tapConnectionMap.erase(iter);
@@ -820,7 +820,7 @@ private:
             tapNotifySync.release();
             for (iter = tcm.begin(); iter != tcm.end(); iter++) {
                 if (iter->second->paused) {
-                    serverApi.notify_io_complete(iter->first, ENGINE_SUCCESS);
+                    serverApi->core->notify_io_complete(iter->first, ENGINE_SUCCESS);
                 }
             }
             tapNotifySync.aquire();
@@ -849,7 +849,7 @@ private:
     }
 
     void purgeExpiredTapConnections_UNLOCKED() {
-        rel_time_t now = serverApi.get_current_time();
+        rel_time_t now = serverApi->core->get_current_time();
         std::list<TapConnection*> deadClients;
 
         std::list<TapConnection*>::iterator iter;
@@ -951,7 +951,7 @@ private:
 
     const char *dbname;
     bool warmup;
-    SERVER_HANDLE_V1 serverApi;
+    SERVER_HANDLE_V1 *serverApi;
     KVStore *backend;
     MultiDBSqlite3 *sqliteDb;
     EventuallyPersistentStore *epstore;

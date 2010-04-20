@@ -296,8 +296,7 @@ extern "C" {
                                       GET_SERVER_API get_server_api,
                                       ENGINE_HANDLE **handle)
     {
-        SERVER_HANDLE_V1 *api;
-        api = static_cast<SERVER_HANDLE_V1 *>(get_server_api(server_handle_v1));
+        SERVER_HANDLE_V1 *api = get_server_api();
         if (interface != 1 || api == NULL) {
             return ENGINE_ENOTSUP;
         }
@@ -308,7 +307,7 @@ extern "C" {
             return ENGINE_ENOMEM;
         }
 
-        ep_current_time = api->get_current_time;
+        ep_current_time = api->core->get_current_time;
 
         *handle = reinterpret_cast<ENGINE_HANDLE*> (engine);
         return ENGINE_SUCCESS;
@@ -364,7 +363,7 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server
     ENGINE_HANDLE_V1::get_item_info = EvpGetItemInfo;
     ENGINE_HANDLE_V1::get_stats_struct = NULL;
 
-    serverApi = *(SERVER_HANDLE_V1*)getServerApi(server_handle_v1);
+    serverApi = getServerApi();
 
     memset(&info, 0, sizeof(info));
     info.info.description = "EP engine v0.1";
