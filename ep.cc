@@ -181,7 +181,13 @@ void EventuallyPersistentStore::setQueueAgeCap(int to) {
 
 void EventuallyPersistentStore::resetStats(void) {
     LockHolder lh(mutex);
-    memset(&stats, 0, sizeof(stats));
+    stats.tooYoung = 0;
+    stats.tooOld = 0;
+    stats.dirtyAge = 0;
+    stats.dirtyAgeHighWat = 0;
+    stats.flushDuration = 0;
+    stats.flushDurationHighWat = 0;
+    stats.commit_time = 0;
 }
 
 void EventuallyPersistentStore::del(const std::string &key, Callback<bool> &cb) {
