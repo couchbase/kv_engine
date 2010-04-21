@@ -22,6 +22,8 @@
 #include "locks.hh"
 #include "sqlite-kvstore.hh"
 
+extern EXTENSION_LOGGER_DESCRIPTOR *getLogger(void);
+
 #define DEFAULT_TXN_SIZE 500000
 #define DEFAULT_MIN_DATA_AGE 120
 #define DEFAULT_MIN_DATA_AGE_CAP 900
@@ -495,15 +497,19 @@ public:
                     }
                 }
             }
-            std::cout << "Shutting down flusher (Write of all dirty items)"
-                      << std::endl;
+            std::stringstream ss;
+            ss << "Shutting down flusher (Write of all dirty items)"
+               << std::endl;
+            getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "%s",
+                             ss.str().c_str());
             store->stats.min_data_age = 0;
             store->flush(false);
-            std::cout << "Flusher stopped" << std::endl;
-
+            getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "Flusher stopped\n");
         } catch(std::runtime_error &e) {
-            std::cerr << "Exception in executor loop: "
-                      << e.what() << std::endl;
+            std::stringstream ss;
+            ss << "Exception if flusher loop: " << e.what() << std::endl;
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL, "%s",
+                             ss.str().c_str());
             assert(false);
         }
         // Signal our completion.

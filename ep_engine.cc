@@ -346,6 +346,16 @@ extern "C" {
     }
 } // C linkage
 
+static SERVER_EXTENSION_API *extensionApi;
+
+EXTENSION_LOGGER_DESCRIPTOR *getLogger(void) {
+    if (extensionApi != NULL) {
+        return (EXTENSION_LOGGER_DESCRIPTOR*)extensionApi->get_extension(EXTENSION_LOGGER);
+    }
+
+    return NULL;
+}
+
 EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server_api) :
     dbname("/tmp/test.db"), warmup(true), sqliteDb(NULL),
     epstore(NULL), databaseInitTime(0), shutdown(false), getServerApi(get_server_api)
@@ -371,7 +381,7 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server
     ENGINE_HANDLE_V1::get_stats_struct = NULL;
 
     serverApi = getServerApi();
-
+    extensionApi = serverApi->extension;
     memset(&info, 0, sizeof(info));
     info.info.description = "EP engine v0.1";
     info.info.features[info.info.num_features++].feature = ENGINE_FEATURE_CAS;

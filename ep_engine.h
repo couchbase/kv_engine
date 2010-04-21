@@ -238,14 +238,15 @@ public:
             try {
                 sqliteDb = new MultiDBSqlite3(dbname, NUMBER_OF_SHARDS);
             } catch (std::exception& e) {
-                std::cerr << "Failed to create database: " << e.what()
-                          << std::endl;
-
+                std::stringstream ss;
+                ss << "Failed to create database: " << e.what() << std::endl;
                 if (!dbAccess()) {
-                    std::cerr << "No access to \"" << dbname << "\"."
+                    ss << "No access to \"" << dbname << "\"."
                               << std::endl;
                 }
 
+                getLogger()->log(EXTENSION_LOG_WARNING, NULL, "%s",
+                                 ss.str().c_str());
                 return ENGINE_FAILED;
             }
 
@@ -584,8 +585,11 @@ public:
                 r = itemAllocate(cookie, itm,
                                  key.c_str(), key.length(), 0, 0, 0);
                 if (r != ENGINE_SUCCESS) {
-                    std::cerr << "Failed to allocate memory for deletion of: "
-                              << key.c_str() << std::endl;
+                    EXTENSION_LOGGER_DESCRIPTOR *logger;
+                    logger = (EXTENSION_LOGGER_DESCRIPTOR*)serverApi->extension->get_extension(EXTENSION_LOGGER);
+
+                    getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                     "Failed to allocate memory for deletion of: %s\n", key.c_str());
                     ret = TAP_PAUSE;
                 }
             }
@@ -632,7 +636,9 @@ public:
         // connection request for a client *and* expiry_time is 0, we
         // should kill this guy off.
         if (tap != NULL && tapKeepAlive == 0) {
-            std::cerr << "Forcing close of tap client " << name << std::endl;
+            getLogger()->log(EXTENSION_LOG_INFO, NULL,
+                             "Forcing close of tap client [%s]\n",
+                             name.c_str());
             std::map<const void*, TapConnection*>::iterator miter;
             for (miter = tapConnectionMap.begin();
                  miter != tapConnectionMap.end();
@@ -748,8 +754,12 @@ public:
         if (epstore->getFlusherState() == RUNNING) {
             epstore->stopFlusher();
         } else {
-            std::cerr << "Attempted to stop flusher in state "
-                      << epstore->getFlusherState() << std::endl;
+            const char * const states[] = {
+                "stopped", "running", "shutting down"
+            };
+            getLogger()->log(EXTENSION_LOG_INFO, NULL,
+                             "Attempted to stop flusher in state [%s]\n",
+                             states[epstore->getFlusherState()]);
             *msg = "Flusher not running.";
             rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
         }
@@ -762,8 +772,12 @@ public:
         if (epstore->getFlusherState() == STOPPED) {
             epstore->startFlusher();
         } else {
-            std::cerr << "Attempted to stop flusher in state "
-                      << epstore->getFlusherState() << std::endl;
+            const char * const states[] = {
+                "stopped", "running", "shutting down"
+            };
+            getLogger()->log(EXTENSION_LOG_INFO, NULL,
+                             "Attempted to start flusher in state [%s]\n",
+                             states[epstore->getFlusherState()]);
             *msg = "Flusher not shut down.";
             rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
         }
