@@ -132,6 +132,9 @@ void EventuallyPersistentStore::set(const Item &item, Callback<bool> &cb) {
     } else if (mtype == WAS_CLEAN || mtype == NOT_FOUND) {
         LockHolder lh(mutex);
         queueDirty(item.getKey());
+        if (mtype == NOT_FOUND) {
+            ++stats.curr_items;
+        }
     }
     cb.callback(rv);
 }
@@ -195,6 +198,7 @@ void EventuallyPersistentStore::del(const std::string &key, Callback<bool> &cb) 
     if (existed) {
         LockHolder lh(mutex);
         queueDirty(key);
+        --stats.curr_items;
     }
     cb.callback(existed);
 }

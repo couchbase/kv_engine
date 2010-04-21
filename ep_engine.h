@@ -387,6 +387,8 @@ public:
                                 epstats.flushDuration, add_stat, cookie);
                 add_casted_stat("ep_flush_duration_highwat",
                                 epstats.flushDurationHighWat, add_stat, cookie);
+                add_casted_stat("curr_items", epstats.curr_items, add_stat,
+                                cookie);
             }
 
             add_casted_stat("ep_dbname", dbname, add_stat, cookie);
