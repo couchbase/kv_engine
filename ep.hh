@@ -410,6 +410,14 @@ public:
 
     flusher_state getFlusherState();
 
+    const char *getFlusherStateAsString() {
+        static const char * const flusherStates[] = {
+            "stopped", "running", "shutting down"
+        };
+        assert(flusherState >= STOPPED && flusherState <= SHUTTING_DOWN);
+        return flusherStates[flusherState];
+    }
+
     virtual void dump(Callback<GetValue>&) {
         throw std::runtime_error("not implemented");
     }

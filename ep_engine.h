@@ -378,6 +378,9 @@ public:
                                 epstats.queue_size, add_stat, cookie);
                 add_casted_stat("ep_flusher_todo",
                                 epstats.flusher_todo, add_stat, cookie);
+                add_casted_stat("ep_flusher_state",
+                                epstore->getFlusherStateAsString(),
+                                add_stat, cookie);
                 add_casted_stat("ep_commit_time",
                                 epstats.commit_time, add_stat, cookie);
                 add_casted_stat("ep_flush_duration",
@@ -754,12 +757,9 @@ public:
         if (epstore->getFlusherState() == RUNNING) {
             epstore->stopFlusher();
         } else {
-            const char * const states[] = {
-                "stopped", "running", "shutting down"
-            };
             getLogger()->log(EXTENSION_LOG_INFO, NULL,
                              "Attempted to stop flusher in state [%s]\n",
-                             states[epstore->getFlusherState()]);
+                             epstore->getFlusherStateAsString());
             *msg = "Flusher not running.";
             rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
         }
@@ -772,12 +772,9 @@ public:
         if (epstore->getFlusherState() == STOPPED) {
             epstore->startFlusher();
         } else {
-            const char * const states[] = {
-                "stopped", "running", "shutting down"
-            };
             getLogger()->log(EXTENSION_LOG_INFO, NULL,
                              "Attempted to start flusher in state [%s]\n",
-                             states[epstore->getFlusherState()]);
+                             epstore->getFlusherStateAsString());
             *msg = "Flusher not shut down.";
             rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
         }
