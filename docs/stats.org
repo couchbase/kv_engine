@@ -22,11 +22,15 @@
 | ep_storage_age                | Seconds since most recently              |
 |                               | stored object was initially queued.      |
 | ep_storage_age_highwat        | ep_storage_age high water mark           |
+| ep_min_data_age               | Minimum data age setting.                |
+| ep_queue_age_cap              | Queue age cap setting.                   |
 | ep_data_age                   | Second since most recently               |
 |                               | stored object was modified.              |
 | ep_data_age_highwat           | ep_data_age high water mark              |
 | ep_too_young                  | Number of times an object was            |
 |                               | not stored due to being too young.       |
+| ep_too_old                    | Number of times an object was            |
+|                               | stored after being dirty too long.       |
 | ep_queue_size                 | Number of items queued for storage.      |
 | ep_flusher_todo               | Number of items remaining to be written. |
 | ep_commit_time                | Number of seconds of most recent commit. |
@@ -67,6 +71,14 @@ For example, if an object that was queued five minutes ago is picked
 off the =todo= queue and found to have been updated fifteen seconds
 ago, it will not be stored, =ep_too_young= will be incremented, and
 the key will go back on the input queue.
+
+** Too Old
+
+=ep_too_old= is incremented every time an object is encountered whose
+=queue age= exceeds the =ep_queue_age_cap= setting.
+
+=ep_queue_age_cap= generally exists as a safety net to prevent the
+=ep_min_data_age= setting from preventing persistence altogether.
 
 ** Warming Up
 
