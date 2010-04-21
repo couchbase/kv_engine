@@ -168,6 +168,13 @@ extern "C" {
             }
             e->setMinDataAge(newVal);
             *msg = "Updated";
+        } else if (strcmp(keyz, "queue_age_cap") == 0) {
+            int newVal = atoi(valz);
+            if (newVal < 0 || newVal > MAX_DATA_AGE_PARAM) {
+                newVal = DEFAULT_MIN_DATA_AGE_CAP;
+            }
+            e->setQueueAgeCap(newVal);
+            *msg = "Updated";
         } else {
             *msg = "Unknown config param";
             return PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;

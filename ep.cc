@@ -35,6 +35,7 @@ EventuallyPersistentStore::EventuallyPersistentStore(KVStore *t,
     towrite = NULL;
     memset(&stats, 0, sizeof(stats));
     stats.min_data_age = DEFAULT_MIN_DATA_AGE;
+    stats.queue_age_cap = DEFAULT_MIN_DATA_AGE_CAP;
     initQueue();
 
     doPersistence = getenv("EP_NO_PERSITENCE") == NULL;
@@ -173,6 +174,11 @@ void EventuallyPersistentStore::setMinDataAge(int to) {
     stats.min_data_age = to;
 }
 
+void EventuallyPersistentStore::setQueueAgeCap(int to) {
+    LockHolder lh(mutex);
+    stats.queue_age_cap = to;
+}
+
 void EventuallyPersistentStore::resetStats(void) {
     LockHolder lh(mutex);
     memset(&stats, 0, sizeof(stats));
@@ -285,16 +291,23 @@ int EventuallyPersistentStore::flushOne(std::queue<std::string> *q,
         // Calculate stats if this had a positive time.
         rel_time_t now = ep_current_time();
         int dataAge = now - dirtied;
+        int dirtyAge = now - queued;
+        bool eligible = true;
 
-        if (dataAge < (int)stats.min_data_age) {
+        if (dirtyAge > (int)stats.queue_age_cap) {
+            stats.tooOld++;
+        } else if (dataAge < (int)stats.min_data_age) {
+            eligible = false;
             // Skip this one.  It's too young.
             ret = stats.min_data_age - dataAge;
             isDirty = false;
             stats.tooYoung++;
             v->reDirty(queued, dirtied);
             rejectQueue->push(key);
-        } else {
-            stats.dirtyAge = now - queued;
+        }
+
+        if (eligible) {
+            stats.dirtyAge = dirtyAge;
             stats.dataAge = dataAge;
             assert(stats.dirtyAge < (86400 * 30));
             assert(stats.dataAge <= stats.dirtyAge);
@@ -303,7 +316,8 @@ int EventuallyPersistentStore::flushOne(std::queue<std::string> *q,
             stats.dataAgeHighWat = stats.dataAge > stats.dataAgeHighWat
                 ? stats.dataAge : stats.dataAgeHighWat;
             // Copy it for the duration.
-            val = new Item(key, v->getFlags(), v->getExptime(), v->getValue(), v->getCas());
+            val = new Item(key, v->getFlags(), v->getExptime(), v->getValue(),
+                           v->getCas());
         }
     }
     stats.flusher_todo--;

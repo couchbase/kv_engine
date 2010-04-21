@@ -363,12 +363,16 @@ public:
                                 epstats.dirtyAgeHighWat, add_stat, cookie);
                 add_casted_stat("ep_min_data_age",
                                 epstats.min_data_age, add_stat, cookie);
+                add_casted_stat("ep_queue_age_cap",
+                                epstats.queue_age_cap, add_stat, cookie);
                 add_casted_stat("ep_data_age",
                                 epstats.dataAge, add_stat, cookie);
                 add_casted_stat("ep_data_age_highwat",
                                 epstats.dataAgeHighWat, add_stat, cookie);
                 add_casted_stat("ep_too_young",
                                 epstats.tooYoung, add_stat, cookie);
+                add_casted_stat("ep_too_old",
+                                epstats.tooOld, add_stat, cookie);
                 add_casted_stat("ep_queue_size",
                                 epstats.queue_size, add_stat, cookie);
                 add_casted_stat("ep_flusher_todo",
@@ -777,6 +781,10 @@ public:
 
     void setMinDataAge(int to) {
         epstore->setMinDataAge(to);
+    }
+
+    void setQueueAgeCap(int to) {
+        epstore->setQueueAgeCap(to);
     }
 
     ~EventuallyPersistentEngine() {

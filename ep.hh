@@ -24,6 +24,7 @@
 
 #define DEFAULT_TXN_SIZE 500000
 #define DEFAULT_MIN_DATA_AGE 120
+#define DEFAULT_MIN_DATA_AGE_CAP 900
 
 #define MAX_DATA_AGE_PARAM 86400
 
@@ -44,6 +45,8 @@ struct ep_stats {
     size_t flusher_todo;
     // Objects that were rejected from persistence for being too fresh.
     size_t tooYoung;
+    // Objects that were forced into persistence for being too old.
+    size_t tooOld;
     // How long an object is dirty before written.
     rel_time_t dirtyAge;
     rel_time_t dirtyAgeHighWat;
@@ -57,6 +60,8 @@ struct ep_stats {
     rel_time_t commit_time;
     // Minimum data age before a record can be persisted
     uint32_t min_data_age;
+    // Maximum data age before a record is forced to be persisted
+    uint32_t queue_age_cap;
 };
 
 // Forward declaration for StoredValue
@@ -392,6 +397,8 @@ public:
     void getStats(struct ep_stats *out);
 
     void setMinDataAge(int to);
+
+    void setQueueAgeCap(int to);
 
     void resetStats(void);
 

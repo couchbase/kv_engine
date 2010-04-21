@@ -19,7 +19,8 @@ def usage():
     print >> sys.stderr, "  or   %s host:port set param value" % sys.argv[0]
     print >> sys.stderr, ""
     print >> sys.stderr, " Available params:"
-    print >> sys.stderr, "    min_data_age - minimum age before flushing data"
+    print >> sys.stderr, "    min_data_age  - minimum data age before flushing data"
+    print >> sys.stderr, "    queue_age_cap - maximum queue age before flushing data"
     exit(1)
 
 if __name__ == '__main__':
