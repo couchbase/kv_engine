@@ -476,6 +476,37 @@ public:
             } else {
                 return ENGINE_NOT_STORED;
             }
+        } else if (operation == OPERATION_APPEND ||
+                   operation == OPERATION_PREPEND) {
+            ENGINE_ERROR_CODE ret;
+            do {
+                item *i;
+                if ((ret = get(cookie, &i, it->getKey().c_str(),
+                               it->getNKey())) == ENGINE_SUCCESS) {
+                    Item *old = reinterpret_cast<Item*>(i);
+                    Item *theItem = new Item(it->getKey().c_str(),
+                                             it->getNKey(),
+                                             old->getFlags(),
+                                             old->getExptime(), NULL,
+                                             old->getNBytes() + it->getNBytes() - 2);
+                    if (operation == OPERATION_APPEND) {
+                        memcpy(theItem->getData(), old->getData(),
+                               old->getNBytes() - 2);
+                        memcpy(theItem->getData() + old->getNBytes() - 2,
+                               it->getData(), it->getNBytes());
+                    } else {
+                        memcpy(theItem->getData(), it->getData(),
+                               it->getNBytes() - 2);
+                        memcpy(theItem->getData() + it->getNBytes() - 2,
+                               old->getData(), old->getNBytes());
+                    }
+                    theItem->setCas(old->getCas());
+                    ret = store(cookie, theItem, cas, OPERATION_CAS);
+                    delete theItem;
+                    itemRelease(cookie, i);
+                }
+            } while (ret == ENGINE_KEY_EEXISTS);
+            return ret;
         } else {
             return ENGINE_ENOTSUP;
         }
