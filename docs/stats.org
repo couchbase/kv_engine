@@ -44,8 +44,10 @@
 | ep_warmup_time                | Number of seconds spent warming data.    |
 | eq_tapq:client_id:qlen        | Queue size for the given client_id.      |
 | eq_tapq:client_id:rec_fetched | Tap messages sent to the client.         |
-| ep_tap_total_queue            | Sum of tap queue sizes.                  |
-| ep_tap_total_fetched          | Sum of tap messages sent.                |
+| ep_tap_total_queue            | Sum of tap queue sizes on the current    |
+|                               | tap queues                               |
+| ep_tap_total_fetched          | Sum of tap messages sent on the current  |
+|                               | tap queues                               |
 | ep_tap_keepalive              | Tap keepalive time.                      |
 
 * Details
