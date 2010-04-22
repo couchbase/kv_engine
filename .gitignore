@@ -26,6 +26,7 @@
 /config/mkinstalldirs
 /config/plugin.ac
 /configure
+/hash_table_test
 /libtool
 /m4/version.m4
 /stamp-h1
