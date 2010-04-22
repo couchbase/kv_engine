@@ -8,7 +8,7 @@ ep_la_SOURCES = \
                  callbacks.hh \
                  ep.cc ep.hh \
                  ep_engine.cc ep_engine.h \
-                 stored-value.hh \
+                 stored-value.hh flusher.hh \
                  kvstore.hh \
                  item.cc item.hh \
                  locks.hh \

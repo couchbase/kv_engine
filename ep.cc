@@ -1,5 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 #include "ep.hh"
+#include "flusher.hh"
 #include "locks.hh"
 
 #include <vector>
