@@ -170,6 +170,12 @@ private:
      */
     uint64_t backfillAge;
 
+
+    /**
+     * Dump and disconnect?
+     */
+    bool dumpQueue;
+
     DISALLOW_COPY_AND_ASSIGN(TapConnection);
 };
 
@@ -635,6 +641,10 @@ public:
             connection->paused = true;
         }
 
+        if (connection->dumpQueue && ret == TAP_PAUSE && connection->empty()) {
+            ret = TAP_DISCONNECT;
+        }
+
         return ret;
     }
 
@@ -706,6 +716,8 @@ public:
             if (tc->backfillAge < (uint64_t)time(NULL)) {
                 queueBackfill(tc);
             }
+
+            tc->dumpQueue = flags & TAP_CONNECT_FLAG_DUMP;
         } else {
             tapConnectionMap[cookie] = tap;
             tap->connected = true;
@@ -753,6 +765,8 @@ public:
             return ret;
         }
 
+        case TAP_OPAQUE:
+            break;
 
         default:
             abort();
@@ -926,7 +940,7 @@ private:
         std::list<TapConnection*>::iterator iter;
         for (iter = allTaps.begin(); iter != allTaps.end(); iter++) {
             TapConnection *tc = *iter;
-            if (tc->addEvent(str) && tc->paused) {
+            if (!tc->dumpQueue && tc->addEvent(str) && tc->paused) {
                 notify = true;
             }
         }
@@ -952,8 +966,10 @@ private:
         std::list<TapConnection*>::iterator iter;
         for (iter = allTaps.begin(); iter != allTaps.end(); iter++) {
             TapConnection *tc = *iter;
-            tc->flush();
-            notify = true;
+            if (!tc->dumpQueue) {
+                tc->flush();
+                notify = true;
+            }
         }
         if (notify) {
             tapNotifySync.notify();
