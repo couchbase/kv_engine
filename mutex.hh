@@ -9,6 +9,8 @@
 #include <cerrno>
 #include <cstring>
 
+#include "common.hh"
+
 /**
  * Abstraction built on top of pthread mutexes
  */
@@ -49,8 +51,7 @@ public:
 protected:
     pthread_mutex_t mutex;
 
-    Mutex(const Mutex&);
-    void operator=(const Mutex&);
+    DISALLOW_COPY_AND_ASSIGN(Mutex);
 };
 
 #endif

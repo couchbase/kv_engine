@@ -7,6 +7,8 @@
 #include <sstream>
 #include <pthread.h>
 
+#include "common.hh"
+
 /**
  * Abstraction built on top of pthread mutexes
  */
@@ -39,8 +41,7 @@ public:
 private:
     pthread_cond_t cond;
 
-    SyncObject(const SyncObject&);
-    void operator=(const SyncObject&);
+    DISALLOW_COPY_AND_ASSIGN(SyncObject);
 };
 
 #endif

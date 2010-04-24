@@ -5,6 +5,7 @@ noinst_LTLIBRARIES = libsqlite3.la
 
 ep_la_LDFLAGS = -module -dynamic
 ep_la_SOURCES = \
+                 common.hh \
                  callbacks.hh \
                  ep.cc ep.hh \
                  ep_engine.cc ep_engine.h \

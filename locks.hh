@@ -6,6 +6,7 @@
 #include <iostream>
 #include <sstream>
 
+#include "common.hh"
 #include "mutex.hh"
 #include "syncobject.hh"
 
@@ -41,8 +42,7 @@ private:
     Mutex &mutex;
     bool locked;
 
-    LockHolder(const LockHolder&);
-    void operator=(const LockHolder&);
+    DISALLOW_COPY_AND_ASSIGN(LockHolder);
 };
 
 #endif /* LOCKS_H */
