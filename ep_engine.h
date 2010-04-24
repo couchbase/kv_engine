@@ -334,8 +334,8 @@ public:
         RememberingCallback<GetValue> getCb;
         backend->get(k, getCb);
         getCb.waitForValue();
-        if (getCb.val.success) {
-            *item = getCb.val.value;
+        if (getCb.val.isSuccess()) {
+            *item = getCb.val.getValue();
             return ENGINE_SUCCESS;
         } else {
             return ENGINE_KEY_ENOENT;

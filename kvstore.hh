@@ -32,11 +32,16 @@ public:
     /**
      * The value retrieved for the key.
      */
-    Item* value;
+    Item* getValue() { return value; }
 
     /**
      * True if a value was successfully retrieved.
      */
+    bool isSuccess() const { return success; }
+
+private:
+
+    Item* value;
     bool success;
 };
 

@@ -84,9 +84,10 @@ public:
         : hashtable(ht), stats(st) { }
 
     void callback(GetValue &val) {
-        if (val.value != NULL) {
-            hashtable.add(*val.value, false, true);
-            delete val.value;
+        Item *i = val.getValue();
+        if (i != NULL) {
+            hashtable.add(*i, true);
+            delete i;
         }
         stats.warmedUp++;
     }
