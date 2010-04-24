@@ -16,10 +16,7 @@ public:
     /**
      * Method called on callback.
      */
-    virtual void callback(RV &value) {
-        (void)value;
-        throw std::runtime_error("Nobody should call this.");
-    }
+    virtual void callback(RV &value) = 0;
 };
 
 /**
