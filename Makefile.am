@@ -3,7 +3,7 @@ ACLOCAL_AMFLAGS = -I m4 --force
 lib_LTLIBRARIES = ep.la
 noinst_LTLIBRARIES = libsqlite3.la
 
-ep_la_CPPFLAGS = -I@MEMCACHED_DIR@/include
+ep_la_CPPFLAGS = -I@MEMCACHED_DIR@/include $(AM_CPPFLAGS) -DSQLITE_HAS_CODEC=0
 ep_la_LDFLAGS = -module -dynamic
 ep_la_SOURCES = \
                  common.hh \
