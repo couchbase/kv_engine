@@ -6,10 +6,8 @@
 
 class Flusher {
 public:
-    Flusher(EventuallyPersistentStore *st) {
-        store = st;
-        running = true;
-        hasInitialized = false;
+    Flusher(EventuallyPersistentStore *st):
+        store(st), running(true), hasInitialized(false) {
     }
     ~Flusher() {
         stop();
