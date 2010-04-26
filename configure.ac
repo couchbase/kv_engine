@@ -15,6 +15,29 @@ AC_DISABLE_STATIC
 
 PANDORA_CANONICAL_TARGET
 
+AC_DEFUN([AC_C_HTONLL],
+[
+    AC_CACHE_CHECK([for htonll],[av_cv_have_htonll],[
+    AC_RUN_IFELSE([
+       AC_LANG_PROGRAM([[
+#include <sys/types.h>
+#include <netinet/in.h>
+#include <inttypes.h>
+       ]],[[
+          return htonll(0);
+       ]])
+    ], [
+      ac_cv_have_htonll=yes
+    ],[
+      ac_cv_have_htonll=no
+    ])])
+
+    AS_IF([test "x$ac_cv_have_htonll" = "xyes"],[
+      AC_DEFINE([HAVE_HTONLL], [1], [Have ntohll])])
+])
+
+AC_C_HTONLL
+
 AS_IF([test "x$SUNCC" = "xyes"],
       [
         CFLAGS="-D_XOPEN_SOURCE=600 $CFLAGS"
@@ -92,6 +115,18 @@ if test $ac_cv_memcached_dir != "(system)"; then
     CPPFLAGS="-I$ac_cv_memcached_dir $CPPFLAGS"
   fi
 fi
+
+MEMCACHED_DIR=$ac_cv_memcached_dir
+AS_IF([test "${MEMCACHED_DIR}" = "(system)"],
+      [
+      AS_IF([test "x$ac_cv_have_htonll" = "xyes"],[ MEMCACHED_DIR=. ], [
+        AC_MSG_ERROR([
+ep-engine needs to link with a utility lib from memcached.
+Specify its path using --with-memcached. ex: --with-memcached=../memcached
+])
+        ])
+      ])
+AC_SUBST(MEMCACHED_DIR)
 
 dnl ----------------------------------------------------------------------------
 

@@ -3,6 +3,7 @@ ACLOCAL_AMFLAGS = -I m4 --force
 lib_LTLIBRARIES = ep.la
 noinst_LTLIBRARIES = libsqlite3.la
 
+ep_la_CPPFLAGS = -I@MEMCACHED_DIR@/include
 ep_la_LDFLAGS = -module -dynamic
 ep_la_SOURCES = \
                  common.hh \
@@ -16,7 +17,7 @@ ep_la_SOURCES = \
                  mutex.hh \
                  sqlite-kvstore.cc sqlite-kvstore.hh \
                  syncobject.hh
-ep_la_LIBADD = libsqlite3.la
+ep_la_LIBADD = libsqlite3.la @MEMCACHED_DIR@/libmcd_util.la
 ep_la_DEPENDENCIES = libsqlite3.la
 
 libsqlite3_la_SOURCES = sqlite3.h sqlite3.c
