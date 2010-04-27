@@ -141,7 +141,7 @@ void EventuallyPersistentStore::set(const Item &item, Callback<bool> &cb) {
 }
 
 void EventuallyPersistentStore::reset() {
-    flush(false);
+    // flush(false); // XXX:  I think reset may not be used.
     LockHolder lh(mutex);
     underlying->reset();
     delete towrite;
@@ -204,57 +204,45 @@ void EventuallyPersistentStore::del(const std::string &key, Callback<bool> &cb) 
     cb.callback(existed);
 }
 
-int EventuallyPersistentStore::flush(bool shouldWait) {
+std::queue<std::string>* EventuallyPersistentStore::beginFlush(bool shouldWait) {
     LockHolder lh(mutex);
+    std::queue<std::string>* rv = NULL;
 
-    int oldest = stats.min_data_age;
     if (towrite->empty()) {
         stats.dirtyAge = 0;
         if (shouldWait) {
             mutex.wait();
         }
-        oldest = 0;
     } else {
-        rel_time_t flush_start = ep_current_time();
-
-        std::queue<std::string> *q = towrite;
+        rv = towrite;
         towrite = NULL;
         initQueue();
         lh.unlock();
 
-        RememberingCallback<bool> cb;
         assert(underlying);
 
-        stats.flusher_todo = q->size();
-        std::queue<std::string> *rejectQueue = new std::queue<std::string>();
+        stats.flusher_todo = rv->size();
+    }
+    return rv;
+}
 
-        while (!q->empty()) {
-            int n = flushSome(q, cb, rejectQueue);
-            if (n < oldest) {
-                oldest = n;
-            }
-        }
-        rel_time_t complete_time = ep_current_time();
-
-        delete q;
-
-        // Requeue the rejects.
-        LockHolder lh_reject(mutex);
-        while (!rejectQueue->empty()) {
-            std::string key = rejectQueue->front();
-            rejectQueue->pop();
-            towrite->push(key);
-            stats.queue_size++;
-        }
-        lh_reject.unlock();
-        delete rejectQueue;
-
-        stats.flushDuration = complete_time - flush_start;
-        stats.flushDurationHighWat = stats.flushDuration > stats.flushDurationHighWat
-                                     ? stats.flushDuration : stats.flushDurationHighWat;
+void EventuallyPersistentStore::completeFlush(std::queue<std::string> *rej,
+                                              rel_time_t flush_start) {
+    // Requeue the rejects.
+    LockHolder lh(mutex);
+    while (!rej->empty()) {
+        std::string key = rej->front();
+        rej->pop();
+        towrite->push(key);
+        stats.queue_size++;
     }
 
-    return oldest;
+    lh.unlock();
+
+    rel_time_t complete_time = ep_current_time();
+    stats.flushDuration = complete_time - flush_start;
+    stats.flushDurationHighWat = stats.flushDuration > stats.flushDurationHighWat
+                               ? stats.flushDuration : stats.flushDurationHighWat;
 }
 
 int EventuallyPersistentStore::flushSome(std::queue<std::string> *q,

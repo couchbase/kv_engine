@@ -161,7 +161,10 @@ private:
         }
     }
 
-    int flush(bool shouldWait);
+    std::queue<std::string> *beginFlush(bool shouldWait);
+    void completeFlush(std::queue<std::string> *rejects,
+                       rel_time_t flush_start);
+
     int flushSome(std::queue<std::string> *q, Callback<bool> &cb,
                   std::queue<std::string> *rejectQueue);
     int flushOne(std::queue<std::string> *q, Callback<bool> &cb,

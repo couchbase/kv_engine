@@ -52,5 +52,32 @@ void Flusher::run(void) {
 }
 
 int Flusher::doFlush(bool shouldWait) {
-    return store->flush(shouldWait);
+    int rv(0);
+    std::queue<std::string> *q = store->beginFlush(shouldWait);
+    getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                     "Looking for something to flush.\n");
+    if (q) {
+        getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                         "Flushing a write queue.\n");
+        std::queue<std::string> *rejectQueue = new std::queue<std::string>();
+        RememberingCallback<bool> cb;
+        rel_time_t flush_start = ep_current_time();
+        rv = store->stats.min_data_age;
+
+        while (!q->empty()) {
+            int n = store->flushSome(q, cb, rejectQueue);
+            if (n < rv) {
+                rv = n;
+            }
+        }
+
+        store->completeFlush(rejectQueue, flush_start);
+
+        getLogger()->log(EXTENSION_LOG_INFO, NULL,
+                         "Completed a flush, age of oldest item was %ds\n",
+                         rv);
+
+        delete rejectQueue;
+    }
+    return rv;
 }
