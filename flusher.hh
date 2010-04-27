@@ -2,6 +2,7 @@
 #ifndef FLUSHER_H
 #define FLUSHER_H 1
 
+#include "common.hh"
 #include "ep.hh"
 
 class Flusher {
@@ -24,6 +25,8 @@ private:
     bool hasInitialized;
 
     int doFlush(bool shouldWait);
+
+    DISALLOW_COPY_AND_ASSIGN(Flusher);
 };
 
 #endif /* FLUSHER_H */
