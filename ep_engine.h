@@ -1,6 +1,7 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 #include "locks.hh"
 #include "ep.hh"
+#include "flusher.hh"
 #include "sqlite-kvstore.hh"
 #include <memcached/util.h>
 
@@ -385,7 +386,7 @@ public:
                 add_casted_stat("ep_flusher_todo",
                                 epstats.flusher_todo, add_stat, cookie);
                 add_casted_stat("ep_flusher_state",
-                                epstore->getFlusherStateAsString(),
+                                epstore->getFlusher()->stateName(),
                                 add_stat, cookie);
                 add_casted_stat("ep_commit_time",
                                 epstats.commit_time, add_stat, cookie);
@@ -804,12 +805,10 @@ public:
     protocol_binary_response_status stopFlusher(const char **msg) {
         protocol_binary_response_status rv = PROTOCOL_BINARY_RESPONSE_SUCCESS;
         *msg = NULL;
-        if (epstore->getFlusherState() == RUNNING) {
-            epstore->stopFlusher();
-        } else {
+        if (!epstore->pauseFlusher()) {
             getLogger()->log(EXTENSION_LOG_INFO, NULL,
                              "Attempted to stop flusher in state [%s]\n",
-                             epstore->getFlusherStateAsString());
+                             epstore->getFlusher()->stateName());
             *msg = "Flusher not running.";
             rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
         }
@@ -819,12 +818,10 @@ public:
     protocol_binary_response_status startFlusher(const char **msg) {
         protocol_binary_response_status rv = PROTOCOL_BINARY_RESPONSE_SUCCESS;
         *msg = NULL;
-        if (epstore->getFlusherState() == STOPPED) {
-            epstore->startFlusher();
-        } else {
+        if (!epstore->resumeFlusher()) {
             getLogger()->log(EXTENSION_LOG_INFO, NULL,
                              "Attempted to start flusher in state [%s]\n",
-                             epstore->getFlusherStateAsString());
+                             epstore->getFlusher()->stateName());
             *msg = "Flusher not shut down.";
             rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
         }

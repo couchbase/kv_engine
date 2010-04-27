@@ -97,10 +97,6 @@ private:
     struct ep_stats &stats;
 };
 
-typedef enum {
-    STOPPED=0, RUNNING=1, SHUTTING_DOWN=2
-} flusher_state;
-
 class EventuallyPersistentStore : public KVStore {
 public:
 
@@ -126,15 +122,8 @@ public:
 
     void startFlusher(void);
 
-    flusher_state getFlusherState();
-
-    const char *getFlusherStateAsString() {
-        static const char * const flusherStates[] = {
-            "stopped", "running", "shutting down"
-        };
-        assert(flusherState >= STOPPED && flusherState <= SHUTTING_DOWN);
-        return flusherStates[flusherState];
-    }
+    bool pauseFlusher(void);
+    bool resumeFlusher(void);
 
     virtual void dump(Callback<GetValue>&) {
         throw std::runtime_error("not implemented");
@@ -149,6 +138,8 @@ public:
     void warmup() {
         static_cast<MultiDBSqlite3*>(underlying)->dump(loadStorageKVPairCallback);
     }
+
+    const Flusher* getFlusher();
 
 private:
     /* Queue an item to be written to persistent layer. */
@@ -169,7 +160,6 @@ private:
                   std::queue<std::string> *rejectQueue);
     int flushOne(std::queue<std::string> *q, Callback<bool> &cb,
                   std::queue<std::string> *rejectQueue);
-    void flusherStopped();
     void initQueue();
 
     friend class Flusher;
@@ -183,7 +173,6 @@ private:
     pthread_t                  thread;
     struct ep_stats            stats;
     LoadStorageKVPairCallback  loadStorageKVPairCallback;
-    flusher_state              flusherState;
     int                        txnSize;
     DISALLOW_COPY_AND_ASSIGN(EventuallyPersistentStore);
 };

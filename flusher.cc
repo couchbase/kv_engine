@@ -2,8 +2,66 @@
 
 #include "flusher.hh"
 
-void Flusher::stop(void) {
-    running = false;
+bool Flusher::stop(void) {
+    return transition_state(stopping);
+}
+
+bool Flusher::pause(void) {
+    return transition_state(pausing);
+}
+
+bool Flusher::resume(void) {
+    return transition_state(running);
+}
+
+static bool validTransition(enum flusher_state from,
+                            enum flusher_state to)
+{
+    bool rv(true);
+    if (from == running && to == pausing) {
+    } else if (from == running && to == stopping) {
+    } else if (from == pausing && to == paused) {
+    } else if (from == stopping && to == stopped) {
+    } else if (from == paused && to == running) {
+    } else if (from == paused && to == stopping) {
+    } else if (from == pausing && to == stopping) {
+    } else {
+        rv = false;
+    }
+    return rv;
+}
+
+const char * const Flusher::stateName(enum flusher_state st) const {
+    static const char * const stateNames[] = {
+        "running", "pausing", "paused", "stopping", "stopped"
+    };
+    assert(st >= running && st <= stopped);
+    return stateNames[st];
+}
+
+bool Flusher::transition_state(enum flusher_state to) {
+
+    getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                     "Attempting transition from %s to %s\n",
+                     stateName(_state), stateName(to));
+
+    if (!validTransition(_state, to)) {
+        return false;
+    }
+
+    getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "Transitioning from %s to %s\n",
+                     stateName(_state), stateName(to));
+
+    _state = to;
+    return true;
+}
+
+const char * const Flusher::stateName() const {
+    return stateName(_state);
+}
+
+enum flusher_state Flusher::state() const {
+    return _state;
 }
 
 void Flusher::initialize(void) {
@@ -14,19 +72,28 @@ void Flusher::initialize(void) {
     hasInitialized = true;
 }
 
+void Flusher::maybePause(void) {
+    if (_state == pausing) {
+        transition_state(paused);
+        while (_state == paused) {
+            sleep(1);
+        }
+    }
+}
+
 void Flusher::run(void) {
-    running = true;
     if (!hasInitialized) {
         initialize();
     }
     try {
-        while (running) {
-            rel_time_t start = ep_current_time();
+        while (_state != stopping) {
+            maybePause();
 
+            rel_time_t start = ep_current_time();
             int n = doFlush(true);
             if (n > 0) {
                 rel_time_t sleep_end = start + n;
-                while (running && ep_current_time() < sleep_end) {
+                while (_state == running && ep_current_time() < sleep_end) {
                     sleep(1);
                 }
             }
@@ -47,8 +114,7 @@ void Flusher::run(void) {
                          ss.str().c_str());
         assert(false);
     }
-    // Signal our completion.
-    store->flusherStopped();
+    transition_state(stopped);
 }
 
 int Flusher::doFlush(bool shouldWait) {
@@ -66,6 +132,7 @@ int Flusher::doFlush(bool shouldWait) {
 
         while (!q->empty()) {
             int n = store->flushSome(q, cb, rejectQueue);
+            maybePause();
             if (n < rv) {
                 rv = n;
             }

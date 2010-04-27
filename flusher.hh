@@ -5,24 +5,41 @@
 #include "common.hh"
 #include "ep.hh"
 
+enum flusher_state {
+    running,
+    pausing,
+    paused,
+    stopping,
+    stopped
+};
+
 class Flusher {
 public:
     Flusher(EventuallyPersistentStore *st):
-        store(st), running(true), hasInitialized(false) {
+        store(st), _state(running), hasInitialized(false) {
     }
     ~Flusher() {
         stop();
     }
 
-    void stop();
+    bool stop();
+    bool pause();
+    bool resume();
 
     void initialize();
 
     void run(void);
+
+    bool transition_state(enum flusher_state to);
+
+    enum flusher_state state() const;
+    const char * const stateName() const;
 private:
     EventuallyPersistentStore *store;
-    volatile bool running;
+    volatile enum flusher_state _state;
     bool hasInitialized;
+    const char * const stateName(enum flusher_state st) const;
+    void maybePause(void);
 
     int doFlush(bool shouldWait);
 
