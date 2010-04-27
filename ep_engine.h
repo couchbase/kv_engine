@@ -512,6 +512,9 @@ public:
                     itemRelease(cookie, i);
                 }
             } while (ret == ENGINE_KEY_EEXISTS);
+            if (ret == ENGINE_KEY_ENOENT) {
+                ret = ENGINE_NOT_STORED;
+            }
             return ret;
         } else {
             return ENGINE_ENOTSUP;
