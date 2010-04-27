@@ -177,6 +177,7 @@ public:
                         itm.getFlags(), itm.getExptime(),
                         itm.getCas());
         } else {
+            itm.setCas();
             v = new StoredValue(itm, values[bucket_num]);
             values[bucket_num] = v;
         }
