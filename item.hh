@@ -15,70 +15,52 @@
  */
 class Item {
 public:
-    Item() {
-        initialize("", 0, 0, NULL, 0, 0);
+    Item() : flags(0), exptime(0), cas(0)
+    {
+        key.assign("");
+        setData(NULL, 0);
     }
 
     Item(const void* k, const size_t nk, const size_t nb,
-         const int fl, const rel_time_t exp)
+         const int fl, const rel_time_t exp, uint64_t theCas = 0) :
+        flags(fl), exptime(exp), cas(theCas)
     {
-        std::string _k(static_cast<const char*>(k), nk);
-        initialize(_k, fl, exp, NULL, nb, 0);
-    }
-
-    Item(const void* k, const size_t nk, const size_t nb,
-         const int fl, const rel_time_t exp, uint64_t theCas)
-    {
-        std::string _k(static_cast<const char*>(k), nk);
-        initialize(_k, fl, exp, NULL, nb, theCas);
+        key.assign(static_cast<const char*>(k), nk);
+        setData(NULL, nb);
     }
 
     Item(const std::string &k, const int fl, const rel_time_t exp,
-         const void *dta, const size_t nb)
+         const void *dta, const size_t nb, uint64_t theCas = 0) :
+        flags(fl), exptime(exp), cas(theCas)
     {
-        initialize(k, fl, exp, static_cast<const char*>(dta), nb, 0);
+        key.assign(k);
+        setData(static_cast<const char*>(dta), nb);
     }
 
     Item(const std::string &k, const int fl, const rel_time_t exp,
-         const void *dta, const size_t nb, uint64_t theCas)
+         const std::string &val, uint64_t theCas = 0) :
+        flags(fl), exptime(exp), cas(theCas)
     {
-        initialize(k, fl, exp, static_cast<const char*>(dta), nb, theCas);
-    }
-
-    Item(const std::string &k, const int fl, const rel_time_t exp,
-         const std::string &val)
-    {
-        initialize(k, fl, exp, val.c_str(), val.size(), 0);
-    }
-
-    Item(const std::string &k, const int fl, const rel_time_t exp,
-         const std::string &val, uint64_t theCas)
-    {
-        initialize(k, fl, exp, val.c_str(), val.size(), theCas);
+        key.assign(k);
+        setData(val.c_str(), val.size());
     }
 
     Item(const void *k, uint16_t nk, const int fl, const rel_time_t exp,
-         const void *dta, const size_t nb) :
-        key(static_cast<const char*>(k), nk)
+         const void *dta, const size_t nb, uint64_t theCas = 0) :
+        flags(fl), exptime(exp), cas(theCas)
     {
-        std::string _k(static_cast<const char*>(k), nk);
-        initialize(_k, fl, exp, static_cast<const char*>(dta), nb, 0);
+        key.assign(static_cast<const char*>(k), nk);
+        setData(static_cast<const char*>(dta), nb);
     }
 
-    Item(const void *k, uint16_t nk, const int fl, const rel_time_t exp,
-         const void *dta, const size_t nb, uint64_t theCas) :
-        key(static_cast<const char*>(k), nk)
+    Item(const Item &itm) : flags(itm.flags), exptime(itm.exptime), cas(itm.cas)
     {
-        std::string _k(static_cast<const char*>(k), nk);
-        initialize(_k, fl, exp, static_cast<const char*>(dta), nb, theCas);
+        key.assign(itm.key);
+        setData(itm.data, itm.nbytes);
     }
 
     ~Item() {
         delete []data;
-    }
-
-    Item(const Item &itm) {
-        initialize(itm.key, itm.flags, itm.exptime, itm.data, itm.nbytes, itm.cas);
     }
 
     Item* clone() {
@@ -121,20 +103,14 @@ public:
         cas = ncas;
     }
 
+
 private:
     /**
-     * Initialize all of the members in this object. Unfortunately the items
-     * needs to end with "\r\n". Initialize adds this sequence if you pass
-     * data along and append this sequence.
+     * Set the item's data. This is only used by constructors, so we
+     * make it private.
      */
-    void initialize(const std::string &k, const int fl, const rel_time_t exp,
-                    const char *dta, const size_t nb, uint64_t theCas)
-    {
-        key.assign(k);
+    void setData(const char *dta, const size_t nb) {
         nbytes = static_cast<uint32_t>(nb);
-        flags = fl;
-        exptime = exp;
-        cas = theCas;
 
         if (dta != NULL) {
             if (nbytes < 2 || memcmp(dta + nb - 2, "\r\n", 2) != 0) {
