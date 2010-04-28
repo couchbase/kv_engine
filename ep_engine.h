@@ -453,6 +453,11 @@ public:
         BoolCallback callback;
         Item *it = static_cast<Item*>(itm);
         if (operation == OPERATION_SET || operation == OPERATION_CAS) {
+            if (operation == OPERATION_CAS && it->getCas() == 0) {
+                /* Using a cas command with a cas wildcard doesn't make sense */
+                return ENGINE_NOT_STORED;
+            }
+
             backend->set(*it, callback);
             if (callback.getValue()) {
                 *cas = it->getCas();
