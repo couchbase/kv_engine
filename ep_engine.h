@@ -450,81 +450,91 @@ public:
                             uint64_t *cas,
                             ENGINE_STORE_OPERATION operation)
     {
+        ENGINE_ERROR_CODE ret;
         BoolCallback callback;
         Item *it = static_cast<Item*>(itm);
-        if (operation == OPERATION_SET || operation == OPERATION_CAS) {
-            if (operation == OPERATION_CAS && it->getCas() == 0) {
-                /* Using a cas command with a cas wildcard doesn't make sense */
-                return ENGINE_NOT_STORED;
-            }
+        item *i;
 
-            backend->set(*it, callback);
-            if (callback.getValue()) {
-                *cas = it->getCas();
-                addMutationEvent(it);
-                return ENGINE_SUCCESS;
-            } else {
-                return ENGINE_KEY_EEXISTS;
-            }
-        } else if (operation == OPERATION_ADD) {
-            item *i;
-            if (get(cookie, &i, it->getKey().c_str(), it->getNKey()) == ENGINE_SUCCESS) {
-                itemRelease(cookie, i);
-                return ENGINE_NOT_STORED;
-            } else {
-                backend->set(*it, callback);
-                *cas = it->getCas();
-                addMutationEvent(it);
-                return ENGINE_SUCCESS;
-            }
-        } else if (operation == OPERATION_REPLACE) {
-            item *i;
-            if (get(cookie, &i, it->getKey().c_str(), it->getNKey()) == ENGINE_SUCCESS) {
-                itemRelease(cookie, i);
-                backend->set(*it, callback);
-                *cas = it->getCas();
-                addMutationEvent(it);
-                return ENGINE_SUCCESS;
-            } else {
-                return ENGINE_NOT_STORED;
-            }
-        } else if (operation == OPERATION_APPEND ||
-                   operation == OPERATION_PREPEND) {
-            ENGINE_ERROR_CODE ret;
-            do {
-                item *i;
-                if ((ret = get(cookie, &i, it->getKey().c_str(),
-                               it->getNKey())) == ENGINE_SUCCESS) {
-                    Item *old = reinterpret_cast<Item*>(i);
-                    Item *theItem = new Item(it->getKey().c_str(),
-                                             it->getNKey(),
-                                             old->getFlags(),
-                                             old->getExptime(), NULL,
-                                             old->getNBytes() + it->getNBytes() - 2);
-                    if (operation == OPERATION_APPEND) {
-                        memcpy(theItem->getData(), old->getData(),
-                               old->getNBytes() - 2);
-                        memcpy(theItem->getData() + old->getNBytes() - 2,
-                               it->getData(), it->getNBytes());
-                    } else {
-                        memcpy(theItem->getData(), it->getData(),
-                               it->getNBytes() - 2);
-                        memcpy(theItem->getData() + it->getNBytes() - 2,
-                               old->getData(), old->getNBytes());
-                    }
-                    theItem->setCas(old->getCas());
-                    ret = store(cookie, theItem, cas, OPERATION_CAS);
-                    delete theItem;
-                    itemRelease(cookie, i);
+        switch (operation) {
+            case OPERATION_CAS:
+                if (it->getCas() == 0) {
+                    // Using a cas command with a cas wildcard doesn't make sense
+                    ret = ENGINE_NOT_STORED;
+                    break;
                 }
-            } while (ret == ENGINE_KEY_EEXISTS);
-            if (ret == ENGINE_KEY_ENOENT) {
-                ret = ENGINE_NOT_STORED;
-            }
-            return ret;
-        } else {
-            return ENGINE_ENOTSUP;
+                // FALLTHROUGH
+            case OPERATION_SET:
+                backend->set(*it, callback);
+                if (callback.getValue()) {
+                    *cas = it->getCas();
+                    addMutationEvent(it);
+                    ret = ENGINE_SUCCESS;
+                } else {
+                    ret = ENGINE_KEY_EEXISTS;
+                }
+                break;
+
+            case OPERATION_ADD:
+                // @todo this isn't atomic!
+                if (get(cookie, &i, it->getKey().c_str(), it->getNKey()) == ENGINE_SUCCESS) {
+                    itemRelease(cookie, i);
+                    ret = ENGINE_NOT_STORED;
+                } else {
+                    backend->set(*it, callback);
+                    *cas = it->getCas();
+                    addMutationEvent(it);
+                    ret = ENGINE_SUCCESS;
+                }
+                break;
+
+            case OPERATION_REPLACE:
+                // @todo this isn't atomic!
+                if (get(cookie, &i, it->getKey().c_str(), it->getNKey()) == ENGINE_SUCCESS) {
+                    itemRelease(cookie, i);
+                    backend->set(*it, callback);
+                    *cas = it->getCas();
+                    addMutationEvent(it);
+                    ret = ENGINE_SUCCESS;
+                } else {
+                    ret = ENGINE_NOT_STORED;
+                }
+                break;
+
+            case OPERATION_APPEND:
+            case OPERATION_PREPEND:
+                do {
+                    if ((ret = get(cookie, &i, it->getKey().c_str(),
+                                   it->getNKey())) == ENGINE_SUCCESS) {
+                        Item *old = reinterpret_cast<Item*>(i);
+
+                        if (operation == OPERATION_APPEND) {
+                            if (!old->append(*it)) {
+                                itemRelease(cookie, i);
+                                return ENGINE_ENOMEM;
+                            }
+                        } else {
+                            if (!old->prepend(*it)) {
+                                itemRelease(cookie, i);
+                                return ENGINE_ENOMEM;
+                            }
+                        }
+
+                        ret = store(cookie, old, cas, OPERATION_CAS);
+                        itemRelease(cookie, i);
+                    }
+                } while (ret == ENGINE_KEY_EEXISTS);
+
+                // Map the error code back to what memcacpable expects
+                if (ret == ENGINE_KEY_ENOENT) {
+                    ret = ENGINE_NOT_STORED;
+                }
+                break;
+
+            default:
+                ret = ENGINE_ENOTSUP;
         }
+
+        return ret;
     }
 
     ENGINE_ERROR_CODE arithmetic(const void* cookie,

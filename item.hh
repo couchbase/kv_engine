@@ -103,6 +103,51 @@ public:
         cas = ncas;
     }
 
+    /**
+     * Append another item to this item
+     *
+     * @param item the item to append to this one
+     * @return true if success
+     */
+    bool append(const Item &item) {
+        size_t ns = nbytes + item.nbytes - 2;
+        char *c = new char[ns];
+        if (c == NULL) {
+            return false;
+        }
+
+        memcpy(c, data, nbytes - 2);
+        memcpy(c + nbytes - 2, item.data, item.nbytes);
+
+        delete []data;
+        data = c;
+        nbytes = ns;
+
+        return true;
+    }
+
+    /**
+     * Prepend another item to this item
+     *
+     * @param item the item to prepend to this one
+     * @return true if success
+     */
+    bool prepend(const Item &item) {
+        size_t ns = nbytes + item.nbytes - 2;
+        char *c = new char[ns];
+        if (c == NULL) {
+            return false;
+        }
+
+        memcpy(c, item.data, item.nbytes - 2);
+        memcpy(c + item.nbytes - 2, data, nbytes);
+
+        delete []data;
+        data = c;
+        nbytes = ns;
+
+        return true;
+    }
 
 private:
     /**
