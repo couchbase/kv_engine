@@ -158,7 +158,7 @@ public:
         return unlocked_find(key, bucket_num);
     }
 
-    mutation_type_t set(const Item &val, bool preserveCas = false) {
+    mutation_type_t set(const Item &val) {
         assert(active);
         mutation_type_t rv = NOT_FOUND;
         int bucket_num = bucket(val.getKey());
@@ -169,19 +169,14 @@ public:
             if (val.getCas() != 0 && val.getCas() != v->getCas()) {
                 return INVALID_CAS;
             }
-            if (!preserveCas) {
-                itm.setCas();
-            }
+            itm.setCas();
             rv = v->isClean() ? WAS_CLEAN : WAS_DIRTY;
             v->setValue(itm.getData(), itm.getNBytes(),
                         itm.getFlags(), itm.getExptime(),
                         itm.getCas());
         } else {
-            if (!preserveCas) {
-                if (itm.getCas() != 0) {
-                    return INVALID_CAS;
-                }
-                itm.setCas();
+            if (itm.getCas() != 0) {
+                return INVALID_CAS;
             }
 
             v = new StoredValue(itm, values[bucket_num]);
@@ -190,7 +185,7 @@ public:
         return rv;
     }
 
-    bool add(const Item &val, bool isDirty, bool preserveCas = false) {
+    bool add(const Item &val, bool isDirty = true) {
         assert(active);
         int bucket_num = bucket(val.getKey());
         LockHolder lh(getMutex(bucket_num));
@@ -199,18 +194,12 @@ public:
             return false;
         } else {
             Item &itm = const_cast<Item&>(val);
-            if (!preserveCas) {
-                itm.setCas();
-            }
+            itm.setCas();
             v = new StoredValue(itm, values[bucket_num], isDirty);
             values[bucket_num] = v;
         }
 
         return true;
-    }
-
-    bool add(const Item &val) {
-        return add(val, true);
     }
 
     StoredValue *unlocked_find(const std::string &key, int bucket_num) {
