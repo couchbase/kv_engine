@@ -50,6 +50,8 @@ struct ep_stats {
     size_t tooYoung;
     // Objects that were forced into persistence for being too old.
     size_t tooOld;
+    // Number of times an item flush failed.
+    size_t flushFailed;
     // How long an object is dirty before written.
     rel_time_t dirtyAge;
     rel_time_t dirtyAgeHighWat;

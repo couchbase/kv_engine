@@ -37,8 +37,9 @@ void PreparedStatement::bind64(int pos, uint64_t v) {
 int PreparedStatement::execute() {
     int steps_run = 0, rc = 0;
     while ((rc = sqlite3_step(st)) != SQLITE_DONE) {
-        steps_run++;
-        assert(steps_run < MAX_STEPS);
+        if (++steps_run > MAX_STEPS) {
+            return -1;
+        }
         if (rc == SQLITE_ROW) {
             // This is rather normal
         } else if (rc == SQLITE_BUSY) {
@@ -46,7 +47,7 @@ int PreparedStatement::execute() {
         } else {
             const char *msg = sqlite3_errmsg(db);
             std::cerr << "sqlite error:  " << msg << std::endl;
-            assert(false);
+            return -1;
         }
     }
     return sqlite3_changes(db);
@@ -91,9 +92,10 @@ uint64_t PreparedStatement::column_int64(int x) {
 }
 
 void PreparedStatement::reset() {
-    if(sqlite3_reset(st) != SQLITE_OK) {
-        throw std::runtime_error("Error resetting statement.");
-    }
+    // The result of this is ignored as it indicates the last error
+    // returned from step calls, not whether reset works.
+    // http://www.sqlite.org/c3ref/reset.html
+    sqlite3_reset(st);
 }
 
 BaseSqlite3::BaseSqlite3(const char *fn) {

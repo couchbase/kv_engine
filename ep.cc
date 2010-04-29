@@ -269,6 +269,38 @@ int EventuallyPersistentStore::flushSome(std::queue<std::string> *q,
     return oldest;
 }
 
+
+// This class exists to create a closure around a few variables within
+// EventuallyPersistentStore::flushOne so that an object can be
+// requeued in case of failure to store in the underlying layer.
+
+class Requeuer : public Callback<bool> {
+public:
+
+    Requeuer(const std::string k, std::queue<std::string> *q,
+             StoredValue *v, rel_time_t qd, rel_time_t d, struct ep_stats *s) :
+        key(k), rq(q), sval(v), queued(qd), dirtied(d), stats(s) {
+        assert(rq);
+        assert(s);
+    }
+
+    void callback(bool &value) {
+        if (!value) {
+            stats->flushFailed++;
+            sval->reDirty(queued, dirtied);
+            rq->push(key);
+        }
+    }
+private:
+    const std::string key;
+    std::queue<std::string> *rq;
+    StoredValue *sval;
+    rel_time_t queued;
+    rel_time_t dirtied;
+    struct ep_stats *stats;
+    DISALLOW_COPY_AND_ASSIGN(Requeuer);
+};
+
 int EventuallyPersistentStore::flushOne(std::queue<std::string> *q,
                                         std::queue<std::string> *rejectQueue) {
 
@@ -282,11 +314,11 @@ int EventuallyPersistentStore::flushOne(std::queue<std::string> *q,
     bool found = v != NULL;
     bool isDirty = (found && v->isDirty());
     Item *val = NULL;
+    rel_time_t queued(0), dirtied(0);
 
     int ret = 0;
 
     if (isDirty) {
-        rel_time_t queued, dirtied;
         v->markClean(&queued, &dirtied);
         assert(dirtied > 0);
         // Calculate stats if this had a positive time.
@@ -325,10 +357,10 @@ int EventuallyPersistentStore::flushOne(std::queue<std::string> *q,
     lh.unlock();
 
     if (found && isDirty) {
-        RememberingCallback<bool> cb;
+        Requeuer cb(key, rejectQueue, v, queued, dirtied, &stats);
         underlying->set(*val, cb);
     } else if (!found) {
-        RememberingCallback<bool> cb;
+        Requeuer cb(key, rejectQueue, v, queued, dirtied, &stats);
         underlying->del(key, cb);
     }
 
