@@ -126,12 +126,11 @@ int Flusher::doFlush(bool shouldWait) {
         getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
                          "Flushing a write queue.\n");
         std::queue<std::string> *rejectQueue = new std::queue<std::string>();
-        RememberingCallback<bool> cb;
         rel_time_t flush_start = ep_current_time();
         rv = store->stats.min_data_age;
 
         while (!q->empty()) {
-            int n = store->flushSome(q, cb, rejectQueue);
+            int n = store->flushSome(q, rejectQueue);
             maybePause();
             if (n < rv) {
                 rv = n;

@@ -250,12 +250,11 @@ void EventuallyPersistentStore::completeFlush(std::queue<std::string> *rej,
 }
 
 int EventuallyPersistentStore::flushSome(std::queue<std::string> *q,
-                                         Callback<bool> &cb,
                                          std::queue<std::string> *rejectQueue) {
     underlying->begin();
     int oldest = stats.min_data_age;
     for (int i = 0; i < txnSize && !q->empty(); i++) {
-        int n = flushOne(q, cb, rejectQueue);
+        int n = flushOne(q, rejectQueue);
         if (n != 0 && n < oldest) {
             oldest = n;
         }
@@ -271,7 +270,6 @@ int EventuallyPersistentStore::flushSome(std::queue<std::string> *q,
 }
 
 int EventuallyPersistentStore::flushOne(std::queue<std::string> *q,
-                                        Callback<bool> &cb,
                                         std::queue<std::string> *rejectQueue) {
 
     std::string key = q->front();
@@ -327,8 +325,10 @@ int EventuallyPersistentStore::flushOne(std::queue<std::string> *q,
     lh.unlock();
 
     if (found && isDirty) {
+        RememberingCallback<bool> cb;
         underlying->set(*val, cb);
     } else if (!found) {
+        RememberingCallback<bool> cb;
         underlying->del(key, cb);
     }
 

@@ -156,9 +156,9 @@ private:
     void completeFlush(std::queue<std::string> *rejects,
                        rel_time_t flush_start);
 
-    int flushSome(std::queue<std::string> *q, Callback<bool> &cb,
+    int flushSome(std::queue<std::string> *q,
                   std::queue<std::string> *rejectQueue);
-    int flushOne(std::queue<std::string> *q, Callback<bool> &cb,
+    int flushOne(std::queue<std::string> *q,
                   std::queue<std::string> *rejectQueue);
     void initQueue();
 
