@@ -109,7 +109,7 @@ void Flusher::run(void) {
         getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "Flusher stopped\n");
     } catch(std::runtime_error &e) {
         std::stringstream ss;
-        ss << "Exception if flusher loop: " << e.what() << std::endl;
+        ss << "Exception in flusher loop: " << e.what() << std::endl;
         getLogger()->log(EXTENSION_LOG_WARNING, NULL, "%s",
                          ss.str().c_str());
         assert(false);
