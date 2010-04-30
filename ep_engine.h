@@ -205,7 +205,7 @@ public:
 
         if (config != NULL) {
             char *dbn = NULL;
-            const int max_items = 5;
+            const int max_items = 6;
             struct config_item items[max_items];
             int ii = 0;
             memset(items, 0, sizeof(items));
@@ -218,6 +218,11 @@ public:
             items[ii].key = "warmup";
             items[ii].datatype = DT_BOOL;
             items[ii].value.dt_bool = &warmup;
+
+            ++ii;
+            items[ii].key = "waitforwarmup";
+            items[ii].datatype = DT_BOOL;
+            items[ii].value.dt_bool = &wait_for_warmup;
 
             ++ii;
             items[ii].key = "tap_keepalive";
@@ -273,6 +278,17 @@ public:
             }
             startEngineThreads();
         }
+
+        // If requested, don't complete the initialization until the
+        // flusher transitions out of the initializing state (i.e
+        // warmup is finished).
+        const Flusher *flusher = epstore->getFlusher();
+        if (wait_for_warmup && flusher) {
+            while (flusher->state() == initializing) {
+                sleep(1);
+            }
+        }
+        getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "Engine init complete.\n");
 
         return ret;
     }
@@ -1036,6 +1052,7 @@ private:
 
     const char *dbname;
     bool warmup;
+    bool wait_for_warmup;
     SERVER_HANDLE_V1 *serverApi;
     KVStore *backend;
     MultiDBSqlite3 *sqliteDb;
