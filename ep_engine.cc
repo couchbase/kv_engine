@@ -383,7 +383,7 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server
     serverApi = getServerApi();
     extensionApi = serverApi->extension;
     memset(&info, 0, sizeof(info));
-    info.info.description = "EP engine v0.1";
+    info.info.description = "EP engine v" VERSION;
     info.info.features[info.info.num_features++].feature = ENGINE_FEATURE_CAS;
     info.info.features[info.info.num_features++].feature = ENGINE_FEATURE_PERSISTENT_STORAGE;
     info.info.features[info.info.num_features++].feature = ENGINE_FEATURE_LRU;
