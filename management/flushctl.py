@@ -11,6 +11,7 @@ import string
 import random
 import struct
 import exceptions
+import time
 
 import mc_bin_client
 
@@ -41,4 +42,12 @@ if __name__ == '__main__':
 
     print "Issuing %s command" % cmd
     f(*sys.argv[3:])
+
+    if cmd == 'stop':
+        stopped = False
+        while not stopped:
+            time.sleep(0.5)
+            stats = mc.stats()
+            if stats['ep_flusher_state'] == 'paused':
+                stopped = True
 
