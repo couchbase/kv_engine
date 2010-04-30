@@ -18,7 +18,8 @@ static bool validTransition(enum flusher_state from,
                             enum flusher_state to)
 {
     bool rv(true);
-    if (from == running && to == pausing) {
+    if (from == initializing && to == running) {
+    } else if (from == running && to == pausing) {
     } else if (from == running && to == stopping) {
     } else if (from == pausing && to == paused) {
     } else if (from == stopping && to == stopped) {
@@ -33,9 +34,9 @@ static bool validTransition(enum flusher_state from,
 
 const char * const Flusher::stateName(enum flusher_state st) const {
     static const char * const stateNames[] = {
-        "running", "pausing", "paused", "stopping", "stopped"
+        "initializing", "running", "pausing", "paused", "stopping", "stopped"
     };
-    assert(st >= running && st <= stopped);
+    assert(st >= initializing && st <= stopped);
     return stateNames[st];
 }
 
@@ -70,6 +71,7 @@ void Flusher::initialize(void) {
     store->stats.warmupTime = ep_current_time() - start;
     store->stats.warmupComplete = true;
     hasInitialized = true;
+    transition_state(running);
 }
 
 void Flusher::maybePause(void) {

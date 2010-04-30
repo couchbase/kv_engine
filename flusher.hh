@@ -6,6 +6,7 @@
 #include "ep.hh"
 
 enum flusher_state {
+    initializing,
     running,
     pausing,
     paused,
@@ -16,7 +17,7 @@ enum flusher_state {
 class Flusher {
 public:
     Flusher(EventuallyPersistentStore *st):
-        store(st), _state(running), hasInitialized(false) {
+        store(st), _state(initializing), hasInitialized(false) {
     }
     ~Flusher() {
         stop();
