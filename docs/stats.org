@@ -19,6 +19,7 @@
 
 | Stat                          | Description                              |
 |-------------------------------+------------------------------------------|
+| ep_version                    | Version number of ep_engine.             |
 | ep_storage_age                | Seconds since most recently              |
 |                               | stored object was initially queued.      |
 | ep_storage_age_highwat        | ep_storage_age high water mark           |
@@ -31,8 +32,11 @@
 |                               | not stored due to being too young.       |
 | ep_too_old                    | Number of times an object was            |
 |                               | stored after being dirty too long.       |
+| ep_item_flush_failed          | Number of times an item failed to flush  |
+|                               | due to storage errors.                   |
 | ep_queue_size                 | Number of items queued for storage.      |
 | ep_flusher_todo               | Number of items remaining to be written. |
+| ep_flusher_state              | Current state of the flusher thread.     |
 | ep_commit_time                | Number of seconds of most recent commit. |
 | ep_flush_duration             | Number of seconds of most recent flush.  |
 | ep_flush_duration_highwat     | ep_flush_duration high water mark.       |
