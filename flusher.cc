@@ -66,10 +66,16 @@ enum flusher_state Flusher::state() const {
 }
 
 void Flusher::initialize(void) {
-    rel_time_t start = ep_current_time();
+    getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                     "Initializing flusher; warming up\n");
+
+    time_t start = time(NULL);
     store->warmup();
-    store->stats.warmupTime = ep_current_time() - start;
+    store->stats.warmupTime = time(NULL) - start;
     store->stats.warmupComplete = true;
+
+    getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                     "Warmup completed in %ds\n", store->stats.warmupTime);
     hasInitialized = true;
     transition_state(running);
 }
