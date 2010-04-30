@@ -73,6 +73,7 @@ void Flusher::initialize(void) {
     store->warmup();
     store->stats.warmupTime = time(NULL) - start;
     store->stats.warmupComplete = true;
+    store->stats.curr_items += store->stats.warmedUp;
 
     getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
                      "Warmup completed in %ds\n", store->stats.warmupTime);
