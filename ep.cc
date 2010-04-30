@@ -287,7 +287,9 @@ public:
     void callback(bool &value) {
         if (!value) {
             stats->flushFailed++;
-            sval->reDirty(queued, dirtied);
+            if (sval != NULL) {
+                sval->reDirty(queued, dirtied);
+            }
             rq->push(key);
         }
     }

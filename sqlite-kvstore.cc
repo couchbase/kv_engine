@@ -263,7 +263,7 @@ void Sqlite3::get(const std::string &key, Callback<GetValue> &cb) {
 
 void Sqlite3::del(const std::string &key, Callback<bool> &cb) {
     del_stmt->bind(1, key.c_str());
-    bool rv = del_stmt->execute() == 1;
+    bool rv = del_stmt->execute() >= 0;
     cb.callback(rv);
     del_stmt->reset();
 }
@@ -373,7 +373,7 @@ void BaseMultiSqlite3::get(const std::string &key, Callback<GetValue> &cb) {
 void BaseMultiSqlite3::del(const std::string &key, Callback<bool> &cb) {
     PreparedStatement *del_stmt = forKey(key)->del();
     del_stmt->bind(1, key.c_str());
-    bool rv = del_stmt->execute() == 1;
+    bool rv = del_stmt->execute() >= 0;
     cb.callback(rv);
     del_stmt->reset();
 }
