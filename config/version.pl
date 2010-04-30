@@ -34,13 +34,6 @@ if ($version =~ m/^(\d+\.\d+\.\d+)_rc(\d+)$/) {
     $RELEASE = '1';
 }
 
-my $spec = read_file('memcached.spec.in');
-$spec =~ s/\@VERSION\@/$VERSION/gm;
-$spec =~ s/\@FULLVERSION\@/$FULLVERSION/gm;
-$spec =~ s/\@RELEASE\@/$RELEASE/gm;
-
-write_file('memcached.spec', $spec);
-
 sub write_file {
     my $file = shift;
     my $data = shift;
