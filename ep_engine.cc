@@ -132,6 +132,12 @@ extern "C" {
         return e->startFlusher(msg);
     }
 
+    static void validate(int v, int l, int h) {
+        if (v < l || v > h) {
+            throw std::runtime_error("value out of range.");
+        }
+    }
+
     static protocol_binary_response_status setFlushParam(EventuallyPersistentEngine *e,
                                                          protocol_binary_request_header *request,
                                                          const char **msg) {
@@ -161,33 +167,32 @@ extern "C" {
                + keylen, bodylen);
         valz[bodylen] = 0x00;
 
-        if (strcmp(keyz, "min_data_age") == 0) {
-            int newVal = atoi(valz);
-            if (newVal < 0 || newVal > MAX_DATA_AGE_PARAM) {
-                newVal = DEFAULT_MIN_DATA_AGE;
+        // Assume all is well by default.
+        protocol_binary_response_status rv = PROTOCOL_BINARY_RESPONSE_SUCCESS;
+        *msg = "Updated";
+
+        // Handle the actual mutation.
+        try {
+            int v = atoi(valz);
+            if (strcmp(keyz, "min_data_age") == 0) {
+                validate(v, 1, MAX_DATA_AGE_PARAM);
+                e->setMinDataAge(v);
+            } else if (strcmp(keyz, "queue_age_cap") == 0) {
+                validate(v, 1, MAX_DATA_AGE_PARAM);
+                e->setQueueAgeCap(v);
+            } else if (strcmp(keyz, "max_txn_size") == 0) {
+                validate(v, 1, MAX_TXN_SIZE);
+                e->setTxnSize(v);
+            } else {
+                *msg = "Unknown config param";
+                rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
             }
-            e->setMinDataAge(newVal);
-            *msg = "Updated";
-        } else if (strcmp(keyz, "queue_age_cap") == 0) {
-            int newVal = atoi(valz);
-            if (newVal < 0 || newVal > MAX_DATA_AGE_PARAM) {
-                newVal = DEFAULT_MIN_DATA_AGE_CAP;
-            }
-            e->setQueueAgeCap(newVal);
-            *msg = "Updated";
-        } else if (strcmp(keyz, "max_txn_size") == 0) {
-            int newVal = atoi(valz);
-            if (newVal < 0 || newVal > MAX_TXN_SIZE) {
-                newVal = DEFAULT_TXN_SIZE;
-            }
-            e->setTxnSize(newVal);
-            *msg = "Updated";
-        } else {
-            *msg = "Unknown config param";
-            return PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
+        } catch(std::runtime_error ignored_exception) {
+            *msg = "Value out of range.";
+            rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
         }
 
-        return PROTOCOL_BINARY_RESPONSE_SUCCESS;
+        return rv;
     }
 
     static ENGINE_ERROR_CODE EvpUnknownCommand(ENGINE_HANDLE* handle,
