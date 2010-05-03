@@ -22,6 +22,7 @@ def usage():
     print >> sys.stderr, " Available params:"
     print >> sys.stderr, "    min_data_age  - minimum data age before flushing data"
     print >> sys.stderr, "    queue_age_cap - maximum queue age before flushing data"
+    print >> sys.stderr, "    max_txn_size - maximum number of items in a flusher transaction"
     exit(1)
 
 if __name__ == '__main__':

@@ -390,6 +390,8 @@ public:
                                 epstats.min_data_age, add_stat, cookie);
                 add_casted_stat("ep_queue_age_cap",
                                 epstats.queue_age_cap, add_stat, cookie);
+                add_casted_stat("ep_max_txn_size",
+                                epstore->getTxnSize(), add_stat, cookie);
                 add_casted_stat("ep_data_age",
                                 epstats.dataAge, add_stat, cookie);
                 add_casted_stat("ep_data_age_highwat",
@@ -877,6 +879,10 @@ public:
 
     void setQueueAgeCap(int to) {
         epstore->setQueueAgeCap(to);
+    }
+
+    void setTxnSize(int to) {
+        epstore->setTxnSize(to);
     }
 
     ~EventuallyPersistentEngine() {

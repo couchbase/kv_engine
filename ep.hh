@@ -26,6 +26,7 @@
 extern EXTENSION_LOGGER_DESCRIPTOR *getLogger(void);
 
 #define DEFAULT_TXN_SIZE 50000
+#define MAX_TXN_SIZE 10000000
 
 #define DEFAULT_MIN_DATA_AGE 120
 #define DEFAULT_MIN_DATA_AGE_CAP 900
@@ -140,6 +141,16 @@ public:
 
     void warmup() {
         static_cast<MultiDBSqlite3*>(underlying)->dump(loadStorageKVPairCallback);
+    }
+
+    int getTxnSize() {
+        LockHolder lh(mutex);
+        return txnSize;
+    }
+
+    void setTxnSize(int to) {
+        LockHolder lh(mutex);
+        txnSize = to;
     }
 
     const Flusher* getFlusher();

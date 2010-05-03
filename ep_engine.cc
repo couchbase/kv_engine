@@ -175,6 +175,13 @@ extern "C" {
             }
             e->setQueueAgeCap(newVal);
             *msg = "Updated";
+        } else if (strcmp(keyz, "max_txn_size") == 0) {
+            int newVal = atoi(valz);
+            if (newVal < 0 || newVal > MAX_TXN_SIZE) {
+                newVal = DEFAULT_TXN_SIZE;
+            }
+            e->setTxnSize(newVal);
+            *msg = "Updated";
         } else {
             *msg = "Unknown config param";
             return PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;

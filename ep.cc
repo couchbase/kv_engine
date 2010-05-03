@@ -251,9 +251,10 @@ void EventuallyPersistentStore::completeFlush(std::queue<std::string> *rej,
 
 int EventuallyPersistentStore::flushSome(std::queue<std::string> *q,
                                          std::queue<std::string> *rejectQueue) {
+    int tsz = getTxnSize();
     underlying->begin();
     int oldest = stats.min_data_age;
-    for (int i = 0; i < txnSize && !q->empty(); i++) {
+    for (int i = 0; i < tsz && !q->empty(); i++) {
         int n = flushOne(q, rejectQueue);
         if (n != 0 && n < oldest) {
             oldest = n;
