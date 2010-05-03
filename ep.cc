@@ -177,6 +177,26 @@ void EventuallyPersistentStore::getStats(struct ep_stats *out) {
     *out = stats;
 }
 
+bool EventuallyPersistentStore::getKeyStats(const std::string &key,
+                                            struct key_stats &kstats)
+{
+    bool found = false;
+    int bucket_num = storage.bucket(key);
+    LockHolder lh(storage.getMutex(bucket_num));
+    StoredValue *v = storage.unlocked_find(key, bucket_num);
+
+    found = (v != NULL);
+    if (found) {
+        kstats.dirty = v->isDirty();
+        kstats.exptime = v->getExptime();
+        kstats.flags = v->getFlags();
+        kstats.cas = v->getCas();
+        kstats.dirtied = v->getDirtied();
+        kstats.data_age = v->getDataAge();
+    }
+    return found;
+}
+
 void EventuallyPersistentStore::setMinDataAge(int to) {
     LockHolder lh(mutex);
     stats.min_data_age = to;

@@ -96,6 +96,15 @@ public:
         return cas;
     }
 
+    // for stats
+    rel_time_t getDirtied() const {
+        return dirtied;
+    }
+
+    rel_time_t getDataAge() const {
+        return data_age;
+    }
+
 private:
 
     friend class HashTable;

@@ -378,104 +378,13 @@ public:
                                int nkey,
                                ADD_STAT add_stat)
     {
-        (void)cookie;
-        (void)nkey;
-        (void)add_stat;
-
+        ENGINE_ERROR_CODE rv = ENGINE_KEY_ENOENT;
         if (stat_key == NULL) {
-            // @todo add interesting stats
-            struct ep_stats epstats;
-
-            if (epstore) {
-                epstore->getStats(&epstats);
-
-                add_casted_stat("ep_version", VERSION, add_stat, cookie);
-                add_casted_stat("ep_storage_age",
-                                epstats.dirtyAge, add_stat, cookie);
-                add_casted_stat("ep_storage_age_highwat",
-                                epstats.dirtyAgeHighWat, add_stat, cookie);
-                add_casted_stat("ep_min_data_age",
-                                epstats.min_data_age, add_stat, cookie);
-                add_casted_stat("ep_queue_age_cap",
-                                epstats.queue_age_cap, add_stat, cookie);
-                add_casted_stat("ep_max_txn_size",
-                                epstore->getTxnSize(), add_stat, cookie);
-                add_casted_stat("ep_data_age",
-                                epstats.dataAge, add_stat, cookie);
-                add_casted_stat("ep_data_age_highwat",
-                                epstats.dataAgeHighWat, add_stat, cookie);
-                add_casted_stat("ep_too_young",
-                                epstats.tooYoung, add_stat, cookie);
-                add_casted_stat("ep_too_old",
-                                epstats.tooOld, add_stat, cookie);
-                add_casted_stat("ep_total_enqueued",
-                                epstats.totalEnqueued, add_stat, cookie);
-                add_casted_stat("ep_total_persisted",
-                                epstats.totalPersisted, add_stat, cookie);
-                add_casted_stat("ep_item_flush_failed",
-                                epstats.flushFailed, add_stat, cookie);
-                add_casted_stat("ep_queue_size",
-                                epstats.queue_size, add_stat, cookie);
-                add_casted_stat("ep_flusher_todo",
-                                epstats.flusher_todo, add_stat, cookie);
-                add_casted_stat("ep_flusher_state",
-                                epstore->getFlusher()->stateName(),
-                                add_stat, cookie);
-                add_casted_stat("ep_commit_time",
-                                epstats.commit_time, add_stat, cookie);
-                add_casted_stat("ep_flush_duration",
-                                epstats.flushDuration, add_stat, cookie);
-                add_casted_stat("ep_flush_duration_highwat",
-                                epstats.flushDurationHighWat, add_stat, cookie);
-                add_casted_stat("curr_items", epstats.curr_items, add_stat,
-                                cookie);
-            }
-
-            add_casted_stat("ep_dbname", dbname, add_stat, cookie);
-            add_casted_stat("ep_dbinit", databaseInitTime, add_stat, cookie);
-            add_casted_stat("ep_warmup", warmup ? "true" : "false",
-                            add_stat, cookie);
-            if (warmup) {
-                add_casted_stat("ep_warmup_thread",
-                                epstats.warmupComplete ? "complete" : "running",
-                                add_stat, cookie);
-                add_casted_stat("ep_warmed_up", epstats.warmedUp, add_stat, cookie);
-                if (epstats.warmupComplete) {
-                    add_casted_stat("ep_warmup_time", epstats.warmupTime,
-                                    add_stat, cookie);
-                }
-            }
-
-            std::list<TapConnection*>::iterator iter;
-            size_t totalQueue = 0;
-            size_t totalFetched = 0;
-            {
-                LockHolder lh(tapNotifySync);
-                for (iter = allTaps.begin(); iter != allTaps.end(); iter++) {
-                    char tap[80];
-                    TapConnection *tc = *iter;
-                    sprintf(tap, "%s:qlen", tc->client.c_str());
-                    add_casted_stat(tap, tc->queue.size(), add_stat, cookie);
-                    totalQueue += tc->queue.size();
-                    sprintf(tap, "%s:rec_fetched", tc->client.c_str());
-                    add_casted_stat(tap, tc->recordsFetched, add_stat, cookie);
-                    totalFetched += tc->recordsFetched;
-                    if (tc->reconnects > 0) {
-                        sprintf(tap, "%s:reconnects", tc->client.c_str());
-                        add_casted_stat(tap, tc->reconnects, add_stat, cookie);
-                    }
-                    if (tc->backfillAge != 0) {
-                        sprintf(tap, "%s:backfill_age", tc->client.c_str());
-                        add_casted_stat(tap, (size_t)tc->backfillAge, add_stat, cookie);
-                    }
-                }
-            }
-
-            add_casted_stat("ep_tap_total_queue", totalQueue, add_stat, cookie);
-            add_casted_stat("ep_tap_total_fetched", totalFetched, add_stat, cookie);
-            add_casted_stat("ep_tap_keepalive", tapKeepAlive, add_stat, cookie);
+            rv = doEngineStats(cookie, add_stat);
+        } else if (nkey > 4 && strncmp(stat_key, "key ", 4) == 0) {
+            rv = doKeyStats(cookie, add_stat, &stat_key[4], nkey-4);
         }
-        return ENGINE_SUCCESS;
+        return rv;
     }
 
     ENGINE_ERROR_CODE store(const void *cookie,
@@ -1086,6 +995,125 @@ private:
         }
 
         return ret;
+    }
+
+    ENGINE_ERROR_CODE doEngineStats(const void *cookie, ADD_STAT add_stat)
+    {
+        // @todo add interesting stats
+        struct ep_stats epstats;
+
+        if (epstore) {
+            epstore->getStats(&epstats);
+
+            add_casted_stat("ep_version", VERSION, add_stat, cookie);
+            add_casted_stat("ep_storage_age",
+                            epstats.dirtyAge, add_stat, cookie);
+            add_casted_stat("ep_storage_age_highwat",
+                            epstats.dirtyAgeHighWat, add_stat, cookie);
+            add_casted_stat("ep_min_data_age",
+                            epstats.min_data_age, add_stat, cookie);
+            add_casted_stat("ep_queue_age_cap",
+                            epstats.queue_age_cap, add_stat, cookie);
+            add_casted_stat("ep_max_txn_size",
+                            epstore->getTxnSize(), add_stat, cookie);
+            add_casted_stat("ep_data_age",
+                            epstats.dataAge, add_stat, cookie);
+            add_casted_stat("ep_data_age_highwat",
+                            epstats.dataAgeHighWat, add_stat, cookie);
+            add_casted_stat("ep_too_young",
+                            epstats.tooYoung, add_stat, cookie);
+            add_casted_stat("ep_too_old",
+                            epstats.tooOld, add_stat, cookie);
+            add_casted_stat("ep_total_enqueued",
+                            epstats.totalEnqueued, add_stat, cookie);
+            add_casted_stat("ep_total_persisted",
+                            epstats.totalPersisted, add_stat, cookie);
+            add_casted_stat("ep_item_flush_failed",
+                            epstats.flushFailed, add_stat, cookie);
+            add_casted_stat("ep_queue_size",
+                            epstats.queue_size, add_stat, cookie);
+            add_casted_stat("ep_flusher_todo",
+                            epstats.flusher_todo, add_stat, cookie);
+            add_casted_stat("ep_flusher_state",
+                            epstore->getFlusher()->stateName(),
+                            add_stat, cookie);
+            add_casted_stat("ep_commit_time",
+                            epstats.commit_time, add_stat, cookie);
+            add_casted_stat("ep_flush_duration",
+                            epstats.flushDuration, add_stat, cookie);
+            add_casted_stat("ep_flush_duration_highwat",
+                            epstats.flushDurationHighWat, add_stat, cookie);
+            add_casted_stat("curr_items", epstats.curr_items, add_stat,
+                            cookie);
+        }
+
+        add_casted_stat("ep_dbname", dbname, add_stat, cookie);
+        add_casted_stat("ep_dbinit", databaseInitTime, add_stat, cookie);
+        add_casted_stat("ep_warmup", warmup ? "true" : "false",
+                        add_stat, cookie);
+        if (warmup) {
+            add_casted_stat("ep_warmup_thread",
+                            epstats.warmupComplete ? "complete" : "running",
+                            add_stat, cookie);
+            add_casted_stat("ep_warmed_up", epstats.warmedUp, add_stat, cookie);
+            if (epstats.warmupComplete) {
+                add_casted_stat("ep_warmup_time", epstats.warmupTime,
+                                add_stat, cookie);
+            }
+        }
+
+        std::list<TapConnection*>::iterator iter;
+        size_t totalQueue = 0;
+        size_t totalFetched = 0;
+        {
+            LockHolder lh(tapNotifySync);
+            for (iter = allTaps.begin(); iter != allTaps.end(); iter++) {
+                char tap[80];
+                TapConnection *tc = *iter;
+                sprintf(tap, "%s:qlen", tc->client.c_str());
+                add_casted_stat(tap, tc->queue.size(), add_stat, cookie);
+                totalQueue += tc->queue.size();
+                sprintf(tap, "%s:rec_fetched", tc->client.c_str());
+                add_casted_stat(tap, tc->recordsFetched, add_stat, cookie);
+                totalFetched += tc->recordsFetched;
+                if (tc->reconnects > 0) {
+                    sprintf(tap, "%s:reconnects", tc->client.c_str());
+                    add_casted_stat(tap, tc->reconnects, add_stat, cookie);
+                }
+                if (tc->backfillAge != 0) {
+                    sprintf(tap, "%s:backfill_age", tc->client.c_str());
+                    add_casted_stat(tap, (size_t)tc->backfillAge, add_stat, cookie);
+                }
+            }
+        }
+
+        add_casted_stat("ep_tap_total_queue", totalQueue, add_stat, cookie);
+        add_casted_stat("ep_tap_total_fetched", totalFetched, add_stat, cookie);
+        add_casted_stat("ep_tap_keepalive", tapKeepAlive, add_stat, cookie);
+        return ENGINE_SUCCESS;
+    }
+
+    ENGINE_ERROR_CODE doKeyStats(const void *cookie, ADD_STAT add_stat,
+                                 const char *key, int nkey)
+    {
+        std::string k(key, nkey);
+        ENGINE_ERROR_CODE rv = ENGINE_KEY_ENOENT;
+        if (epstore) {
+            struct key_stats kstats;
+            rel_time_t now = ep_current_time();
+            if (epstore->getKeyStats(k, kstats)) {
+                add_casted_stat("key_is_dirty", kstats.dirty, add_stat, cookie);
+                add_casted_stat("key_exptime", kstats.exptime, add_stat, cookie);
+                add_casted_stat("key_flags", kstats.flags, add_stat, cookie);
+                add_casted_stat("key_cas", kstats.cas, add_stat, cookie);
+                add_casted_stat("key_dirtied", kstats.dirty ? now -
+                                kstats.dirtied : 0, add_stat, cookie);
+                add_casted_stat("key_data_age", kstats.dirty ? now -
+                                kstats.data_age : 0, add_stat, cookie);
+                rv = ENGINE_SUCCESS;
+            }
+        }
+        return rv;
     }
 
     const char *dbname;
