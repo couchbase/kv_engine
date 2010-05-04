@@ -31,7 +31,7 @@ libsqlite3_la_CFLAGS = $(AM_CFLAGS) ${NO_WERROR}
 check_PROGRAMS=hash_table_test
 TESTS=${check_PROGRAMS}
 
-hash_table_test_CXXFLAGS = $(AM_CXXFLAGS) -I $(top_srcdir) ${NO_WERROR}
+hash_table_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
 hash_table_test_SOURCES = t/hash_table_test.cc item.cc
 hash_table_test_DEPENDENCIES = ep.hh item.hh
 
