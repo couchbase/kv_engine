@@ -3,7 +3,7 @@ ACLOCAL_AMFLAGS = -I m4 --force
 lib_LTLIBRARIES = ep.la
 noinst_LTLIBRARIES = libsqlite3.la
 
-ep_la_CPPFLAGS = -I@MEMCACHED_DIR@/include $(AM_CPPFLAGS) -DSQLITE_HAS_CODEC=0
+ep_la_CPPFLAGS = -I@MEMCACHED_DIR@/include -I$(top_srcdir) $(AM_CPPFLAGS) -DSQLITE_HAS_CODEC=0
 ep_la_LDFLAGS = -module -dynamic
 ep_la_SOURCES = \
                  callbacks.hh \
@@ -25,7 +25,7 @@ ep_la_SOURCES = \
 ep_la_LIBADD = libsqlite3.la @MEMCACHED_DIR@/libmcd_util.la
 ep_la_DEPENDENCIES = libsqlite3.la
 
-libsqlite3_la_SOURCES = sqlite3.h sqlite3.c
+libsqlite3_la_SOURCES = embedded/sqlite3.h embedded/sqlite3.c
 libsqlite3_la_CFLAGS = $(AM_CFLAGS) ${NO_WERROR}
 
 check_PROGRAMS=hash_table_test

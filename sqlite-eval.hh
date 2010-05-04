@@ -4,7 +4,7 @@
 
 #include <cassert>
 
-#include "sqlite3.h"
+#include "embedded/sqlite3.h"
 
 class SqliteEvaluator {
 public:

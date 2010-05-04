@@ -4,7 +4,7 @@
 
 #include <vector>
 
-#include <sqlite3.h>
+#include "embedded/sqlite3.h"
 
 #include "kvstore.hh"
 #include "sqlite-pst.hh"
