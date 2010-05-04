@@ -153,55 +153,6 @@ private:
 // Multi-table SQLite implementation.
 // ----------------------------------------------------------------------
 
-class Statements {
-public:
-    Statements(sqlite3 *dbh, std::string tab) {
-        db = dbh;
-        tableName = tab;
-        initStatements();
-    }
-
-    ~Statements() {
-        delete ins_stmt;
-        delete sel_stmt;
-        delete del_stmt;
-        ins_stmt = sel_stmt = del_stmt = NULL;
-    }
-
-    PreparedStatement *ins() {
-        return ins_stmt;
-    }
-
-    PreparedStatement *sel() {
-        return sel_stmt;
-    }
-
-    PreparedStatement *del() {
-        return del_stmt;
-    }
-private:
-
-    void initStatements() {
-        char buf[1024];
-        snprintf(buf, sizeof(buf),
-                 "insert into %s (k, v, flags, exptime, cas) "
-                 "values(?, ?, ?, ?, ?)", tableName.c_str());
-        ins_stmt = new PreparedStatement(db, buf);
-        snprintf(buf, sizeof(buf),
-                 "select v, flags, exptime, cas "
-                 "from %s where k = ?", tableName.c_str());
-        sel_stmt = new PreparedStatement(db, buf);
-        snprintf(buf, sizeof(buf), "delete from %s where k = ?", tableName.c_str());
-        del_stmt = new PreparedStatement(db, buf);
-    }
-
-    sqlite3           *db;
-    std::string        tableName;
-    PreparedStatement *ins_stmt;
-    PreparedStatement *sel_stmt;
-    PreparedStatement *del_stmt;
-};
-
 class BaseMultiSqlite3 : public BaseSqlite3 {
 public:
 
