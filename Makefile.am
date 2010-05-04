@@ -16,6 +16,7 @@ ep_la_SOURCES = \
                  locks.hh \
                  mutex.hh \
                  sqlite-pst.hh sqlite-pst.cc \
+                 sqlite-strategies.hh sqlite-strategies.cc \
                  sqlite-kvstore.cc sqlite-kvstore.hh \
                  syncobject.hh
 ep_la_LIBADD = libsqlite3.la @MEMCACHED_DIR@/libmcd_util.la

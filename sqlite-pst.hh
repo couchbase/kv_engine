@@ -2,7 +2,11 @@
 #ifndef SQLITE_PST_H
 #define SQLITE_PST_H 1
 
+#include <string>
+
 #include <sqlite3.h>
+
+#include "common.hh"
 
 /**
  * A sqlite prepared statement.
@@ -151,6 +155,7 @@ public:
         delete ins_stmt;
         delete sel_stmt;
         delete del_stmt;
+        delete all_stmt;
         ins_stmt = sel_stmt = del_stmt = NULL;
     }
 
@@ -165,6 +170,10 @@ public:
     PreparedStatement *del() {
         return del_stmt;
     }
+
+    PreparedStatement *all() {
+        return all_stmt;
+    }
 private:
 
     void initStatements() {
@@ -177,6 +186,10 @@ private:
                  "select v, flags, exptime, cas "
                  "from %s where k = ?", tableName.c_str());
         sel_stmt = new PreparedStatement(db, buf);
+        snprintf(buf, sizeof(buf),
+                 "select k, v, flags, exptime, cas "
+                 "from %s", tableName.c_str());
+        all_stmt = new PreparedStatement(db, buf);
         snprintf(buf, sizeof(buf), "delete from %s where k = ?", tableName.c_str());
         del_stmt = new PreparedStatement(db, buf);
     }
@@ -186,6 +199,9 @@ private:
     PreparedStatement *ins_stmt;
     PreparedStatement *sel_stmt;
     PreparedStatement *del_stmt;
+    PreparedStatement *all_stmt;
+
+    DISALLOW_COPY_AND_ASSIGN(Statements);
 };
 
 #endif /* SQLITE_PST_H */

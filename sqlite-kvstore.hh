@@ -8,106 +8,67 @@
 
 #include "kvstore.hh"
 #include "sqlite-pst.hh"
+#include "sqlite-strategies.hh"
 
-/**
- * The sqlite driver.
- */
-class BaseSqlite3 : public KVStore {
+class StrategicSqlite3 : public KVStore {
 public:
 
     /**
      * Construct an instance of sqlite with the given database name.
      */
-    BaseSqlite3(const char *fn);
+    StrategicSqlite3(SqliteStrategy *s) : strategy(s), intransaction(false) {
+        open();
+    }
 
     /**
      * Cleanup.
      */
-    ~BaseSqlite3();
+    ~StrategicSqlite3() {
+        close();
+    }
 
     /**
      * Reset database to a clean state.
      */
-    void reset();
+    void reset() {
+        if (db) {
+            rollback();
+            close();
+            open();
+            strategy->destroyTables();
+            strategy->initTables();
+            execute("vacuum");
+        }
+    }
 
     /**
      * Begin a transaction (if not already in one).
      */
-    void begin();
+    void begin() {
+        if(!intransaction) {
+            execute("begin");
+            intransaction = true;
+        }
+    }
 
     /**
      * Commit a transaction (unless not currently in one).
      */
-    void commit();
+    void commit() {
+        if(intransaction) {
+            execute("commit");
+            intransaction = false;
+        }
+    }
 
     /**
      * Rollback a transaction (unless not currently in one).
      */
-    void rollback();
-
-protected:
-
-    /**
-     * Shortcut to execute a simple query.
-     *
-     * @param query a simple query with no bindings to execute directly
-     */
-    void execute(const char *query);
-
-    /**
-     * After setting up the DB, this is called to initialize our
-     * prepared statements.
-     */
-    virtual void initStatements() {}
-
-    /**
-     * When tearing down, tear down the statements set up by
-     * initStatements.
-     */
-    virtual void destroyStatements() {}
-
-    /**
-     * Set up database parameters.
-     */
-    virtual void initPragmas() {}
-
-    /**
-     * Set up the tables.
-     */
-    virtual void initTables() {}
-
-    /**
-     * Clean up the tables.
-     */
-    virtual void destroyTables() {}
-
-protected:
-    /**
-     * Direct access to the DB.
-     */
-    sqlite3 *db;
-
-    void open();
-    void close();
-
-    const char *filename;
-
-private:
-
-    bool intransaction;
-
-};
-
-class Sqlite3 : public BaseSqlite3 {
-public:
-
-    Sqlite3(const char *path, bool is_auditable=false) :
-        BaseSqlite3(path), auditable(is_auditable), ins_stmt(NULL),
-        sel_stmt(NULL), del_stmt(NULL)
-    {
-        open();
-        initTables();
-        initStatements();
+    void rollback() {
+        if(intransaction) {
+            intransaction = false;
+            execute("rollback");
+        }
     }
 
     /**
@@ -130,123 +91,37 @@ public:
      */
     virtual void dump(Callback<GetValue> &cb);
 
-protected:
-
-    void initStatements();
-
-    void destroyStatements();
-
-    virtual void initPragmas();
-
-    virtual void initTables();
-
-    void destroyTables();
-
 private:
-    bool               auditable;
-    PreparedStatement *ins_stmt;
-    PreparedStatement *sel_stmt;
-    PreparedStatement *del_stmt;
-};
-
-// ----------------------------------------------------------------------
-// Multi-table SQLite implementation.
-// ----------------------------------------------------------------------
-
-class BaseMultiSqlite3 : public BaseSqlite3 {
-public:
-
-    BaseMultiSqlite3(const char *path, int num_tables) :
-        BaseSqlite3(path), numTables(num_tables) {
+    /**
+     * Shortcut to execute a simple query.
+     *
+     * @param query a simple query with no bindings to execute directly
+     */
+    void execute(const char *query) {
+        PreparedStatement st(db, query);
+        st.execute();
     }
 
     /**
-     * Overrides set().
+     * Direct access to the DB.
      */
-    void set(const Item &item, Callback<bool> &cb);
+    sqlite3 *db;
 
-    /**
-     * Overrides get().
-     */
-    void get(const std::string &key, Callback<GetValue> &cb);
-
-    /**
-     * Overrides del().
-     */
-    void del(const std::string &key, Callback<bool> &cb);
-
-    /**
-     * Overrides dump
-     */
-    virtual void dump(Callback<GetValue> &cb) = 0;
-
-protected:
-
-    virtual void initStatements() {}
-
-    void destroyStatements();
-
-    virtual void initTables() {}
-
-    virtual void destroyTables() {}
-
-    int                      numTables;
-    std::vector<Statements*> stmts;
-private:
-    virtual Statements* forKey(const std::string &key);
-};
-
-class MultiTableSqlite3 : public BaseMultiSqlite3 {
-public:
-
-    MultiTableSqlite3(const char *path, int num_tables=10) :
-        BaseMultiSqlite3(path, num_tables)
-    {
-        open();
-        initTables();
-        initStatements();
-        initPragmas();
+    void open() {
+        assert(strategy);
+        db = strategy->open();
+        intransaction = false;
     }
 
-    /**
-     * Overrides dump
-     */
-    void dump(Callback<GetValue> &cb);
-
-protected:
-
-    void initStatements();
-
-    void initTables();
-
-    void destroyTables();
-};
-
-class MultiDBSqlite3 : public BaseMultiSqlite3 {
-public:
-
-    MultiDBSqlite3(const char *path, int num_tables=10) :
-        BaseMultiSqlite3(path, num_tables)
-    {
-        open();
-        initTables();
-        initStatements();
-        initPragmas();
+    void close() {
+        strategy->close();
+        intransaction = false;
+        db = NULL;
     }
 
-    /**
-     * Overrides dump
-     */
-    void dump(Callback<GetValue> &cb);
+    SqliteStrategy *strategy;
 
-protected:
-
-    void initStatements();
-
-    void initTables();
-
-    void destroyTables();
-
+    bool intransaction;
 };
 
 #endif /* SQLITE_BASE_H */

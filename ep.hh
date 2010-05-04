@@ -140,7 +140,7 @@ public:
     }
 
     void warmup() {
-        static_cast<MultiDBSqlite3*>(underlying)->dump(loadStorageKVPairCallback);
+        static_cast<StrategicSqlite3*>(underlying)->dump(loadStorageKVPairCallback);
     }
 
     int getTxnSize() {

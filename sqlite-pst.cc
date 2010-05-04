@@ -11,6 +11,8 @@
 #define MAX_STEPS 10000
 
 PreparedStatement::PreparedStatement(sqlite3 *d, const char *query) {
+    assert(d);
+    assert(query);
     db = d;
     if(sqlite3_prepare_v2(db, query, (int)strlen(query), &st, NULL)
        != SQLITE_OK) {

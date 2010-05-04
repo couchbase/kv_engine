@@ -248,7 +248,8 @@ public:
         if (ret == ENGINE_SUCCESS) {
             time_t start = time(NULL);
             try {
-                sqliteDb = new MultiDBSqlite3(dbname, NUMBER_OF_SHARDS);
+                SqliteStrategy *strategy = new SqliteStrategy("/tmp/test-strategy.db");
+                sqliteDb = new StrategicSqlite3(strategy);
             } catch (std::exception& e) {
                 std::stringstream ss;
                 ss << "Failed to create database: " << e.what() << std::endl;
@@ -1062,7 +1063,7 @@ private:
     bool wait_for_warmup;
     SERVER_HANDLE_V1 *serverApi;
     KVStore *backend;
-    MultiDBSqlite3 *sqliteDb;
+    StrategicSqlite3 *sqliteDb;
     EventuallyPersistentStore *epstore;
     std::map<const void*, TapConnection*> tapConnectionMap;
     std::list<TapConnection*> allTaps;
