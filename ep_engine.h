@@ -248,7 +248,8 @@ public:
         if (ret == ENGINE_SUCCESS) {
             time_t start = time(NULL);
             try {
-                SqliteStrategy *strategy = new SqliteStrategy("/tmp/test-strategy.db");
+                MultiDBSqliteStrategy *strategy =
+                    new MultiDBSqliteStrategy(dbname, NUMBER_OF_SHARDS);
                 sqliteDb = new StrategicSqlite3(strategy);
             } catch (std::exception& e) {
                 std::stringstream ss;

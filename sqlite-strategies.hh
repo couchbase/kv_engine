@@ -47,13 +47,34 @@ public:
     sqlite3 *open(void);
     void close(void);
 
-private:
-
+protected:
     const char * const filename;
     sqlite3 *db;
     std::vector<Statements *> statements;
 
+private:
     DISALLOW_COPY_AND_ASSIGN(SqliteStrategy);
+};
+
+//
+// ----------------------------------------------------------------------
+// Multi DB strategy
+// ----------------------------------------------------------------------
+//
+
+class MultiDBSqliteStrategy : public SqliteStrategy {
+public:
+    MultiDBSqliteStrategy(const char * const fn, int n=4):
+        SqliteStrategy(fn),
+        numTables(n)
+    {}
+
+    void initTables(void);
+    void initStatements(void);
+    void destroyTables(void);
+
+private:
+    int numTables;
 };
 
 #endif /* SQLITE_STRATEGIES_H */

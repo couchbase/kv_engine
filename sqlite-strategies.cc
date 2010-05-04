@@ -71,3 +71,42 @@ void SqliteStrategy::execute(const char * const query) {
     PreparedStatement st(db, query);
     st.execute();
 }
+
+//
+// ----------------------------------------------------------------------
+// Multi DB strategy
+// ----------------------------------------------------------------------
+//
+
+void MultiDBSqliteStrategy::initTables() {
+    char buf[1024];
+    for (int i = 0; i < numTables; i++) {
+        snprintf(buf, sizeof(buf), "attach database \"%s-%d.sqlite\" as kv_%d",
+                 filename, i, i);
+        execute(buf);
+        snprintf(buf, sizeof(buf),
+                 "create table if not exists kv_%d.kv"
+                 " (k varchar(250) primary key on conflict replace,"
+                 "  v text,"
+                 "  flags integer,"
+                 "  exptime integer,"
+                 "  cas integer)", i);
+        execute(buf);
+    }
+}
+
+void MultiDBSqliteStrategy::initStatements() {
+    char buf[64];
+    for (int i = 0; i < numTables; i++) {
+        snprintf(buf, sizeof(buf), "kv_%d.kv", i);
+        statements.push_back(new Statements(db, std::string(buf)));
+    }
+}
+
+void MultiDBSqliteStrategy::destroyTables() {
+    char buf[1024];
+    for (int i = 0; i < numTables; i++) {
+        snprintf(buf, sizeof(buf), "drop table if exists kv_%d.kv", i);
+        execute(buf);
+    }
+}
