@@ -174,6 +174,16 @@ class MemcachedClient(object):
         print "setting flush param:", key, val
         return self._doCmd(memcacheConstants.CMD_SET_FLUSH_PARAM, key, val)
 
+    def stop_replication(self):
+        return self._doCmd(memcacheConstants.CMD_STOP_REPLICATION, '', '')
+
+    def start_replication(self):
+        return self._doCmd(memcacheConstants.CMD_START_REPLICATION, '', '')
+
+    def set_tap_param(self, key, val):
+        print "setting tap param:", key, val
+        return self._doCmd(memcacheConstants.CMD_SET_TAP_PARAM, key, val)
+
     def getMulti(self, keys):
         """Get values for any available keys in the given iterable.
 
