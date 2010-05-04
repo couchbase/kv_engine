@@ -6,20 +6,22 @@ noinst_LTLIBRARIES = libsqlite3.la
 ep_la_CPPFLAGS = -I@MEMCACHED_DIR@/include $(AM_CPPFLAGS) -DSQLITE_HAS_CODEC=0
 ep_la_LDFLAGS = -module -dynamic
 ep_la_SOURCES = \
-                 common.hh \
                  callbacks.hh \
+                 common.hh \
                  ep.cc ep.hh \
                  ep_engine.cc ep_engine.h \
-                 stored-value.hh flusher.hh flusher.cc \
-                 kvstore.hh \
+                 flusher.cc flusher.hh \
                  item.cc item.hh \
+                 kvstore.hh \
                  locks.hh \
                  mutex.hh \
+                 sqlite-eval.hh sqlite-eval.cc \
+                 sqlite-kvstore.cc sqlite-kvstore.hh \
                  sqlite-pst.hh sqlite-pst.cc \
                  sqlite-strategies.hh sqlite-strategies.cc \
-                 sqlite-kvstore.cc sqlite-kvstore.hh \
-                 sqlite-eval.hh sqlite-eval.cc \
+                 stored-value.hh \
                  syncobject.hh
+
 ep_la_LIBADD = libsqlite3.la @MEMCACHED_DIR@/libmcd_util.la
 ep_la_DEPENDENCIES = libsqlite3.la
 
