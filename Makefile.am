@@ -18,6 +18,7 @@ ep_la_SOURCES = \
                  sqlite-pst.hh sqlite-pst.cc \
                  sqlite-strategies.hh sqlite-strategies.cc \
                  sqlite-kvstore.cc sqlite-kvstore.hh \
+                 sqlite-eval.hh sqlite-eval.cc \
                  syncobject.hh
 ep_la_LIBADD = libsqlite3.la @MEMCACHED_DIR@/libmcd_util.la
 ep_la_DEPENDENCIES = libsqlite3.la
