@@ -10,9 +10,11 @@
 class SqliteStrategy {
 public:
 
-    SqliteStrategy(const char * const fn) : filename(fn),
-                                            db(NULL),
-                                            statements(NULL)
+    SqliteStrategy(const char * const fn, const char * const finit = NULL) :
+        filename(fn),
+        initFile(finit),
+        db(NULL),
+        statements(NULL)
     { }
 
     virtual ~SqliteStrategy() {
@@ -49,6 +51,7 @@ public:
 
 protected:
     const char * const filename;
+    const char * const initFile;
     sqlite3 *db;
     std::vector<Statements *> statements;
 
@@ -64,8 +67,10 @@ private:
 
 class MultiDBSqliteStrategy : public SqliteStrategy {
 public:
-    MultiDBSqliteStrategy(const char * const fn, int n=4):
-        SqliteStrategy(fn),
+    MultiDBSqliteStrategy(const char * const fn,
+                          const char * const finit = NULL,
+                          int n=4):
+        SqliteStrategy(fn, finit),
         numTables(n)
     {}
 

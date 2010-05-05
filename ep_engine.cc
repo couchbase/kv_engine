@@ -364,8 +364,9 @@ EXTENSION_LOGGER_DESCRIPTOR *getLogger(void) {
 }
 
 EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server_api) :
-    dbname("/tmp/test.db"), warmup(true), wait_for_warmup(true), sqliteDb(NULL),
-    epstore(NULL), databaseInitTime(0), shutdown(false), getServerApi(get_server_api)
+    dbname("/tmp/test.db"), initFile(NULL), warmup(true), wait_for_warmup(true),
+    sqliteDb(NULL), epstore(NULL), databaseInitTime(0), shutdown(false),
+    getServerApi(get_server_api)
 {
     interface.interface = 1;
     ENGINE_HANDLE_V1::get_info = EvpGetInfo;

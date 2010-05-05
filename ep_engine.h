@@ -204,8 +204,8 @@ public:
         ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
 
         if (config != NULL) {
-            char *dbn = NULL;
-            const int max_items = 6;
+            char *dbn = NULL, *initf;
+            const int max_items = 7;
             struct config_item items[max_items];
             int ii = 0;
             memset(items, 0, sizeof(items));
@@ -213,6 +213,11 @@ public:
             items[ii].key = "dbname";
             items[ii].datatype = DT_STRING;
             items[ii].value.dt_string = &dbn;
+
+            ++ii;
+            items[ii].key = "initfile";
+            items[ii].datatype = DT_STRING;
+            items[ii].value.dt_string = &initf;
 
             ++ii;
             items[ii].key = "warmup";
@@ -242,6 +247,9 @@ public:
                 if (dbn != NULL) {
                     dbname = dbn;
                 }
+                if (initf != NULL) {
+                    initFile = initf;
+                }
             }
         }
 
@@ -249,7 +257,9 @@ public:
             time_t start = time(NULL);
             try {
                 MultiDBSqliteStrategy *strategy =
-                    new MultiDBSqliteStrategy(dbname, NUMBER_OF_SHARDS);
+                    new MultiDBSqliteStrategy(dbname,
+                                              initFile,
+                                              NUMBER_OF_SHARDS);
                 sqliteDb = new StrategicSqlite3(strategy);
             } catch (std::exception& e) {
                 std::stringstream ss;
@@ -1060,6 +1070,7 @@ private:
     }
 
     const char *dbname;
+    const char *initFile;
     bool warmup;
     bool wait_for_warmup;
     SERVER_HANDLE_V1 *serverApi;

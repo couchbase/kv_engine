@@ -5,6 +5,8 @@
 #include <stdexcept>
 
 #include "sqlite-strategies.hh"
+#include "sqlite-eval.hh"
+#include "ep.hh"
 
 sqlite3 *SqliteStrategy::open(void) {
     if(!db) {
@@ -60,11 +62,12 @@ void SqliteStrategy::destroyTables(void) {
 }
 
 void SqliteStrategy::initPragmas(void) {
-    execute("pragma page_size = 8192");
-    execute("pragma cache_size = 8192");
-    execute("pragma journal_mode = TRUNCATE");
-    execute("pragma locking_mode = EXCLUSIVE");
-    execute("pragma synchronous = NORMAL");
+    if (initFile) {
+        SqliteEvaluator eval(db);
+        getLogger()->log(EXTENSION_LOG_INFO, NULL,
+                         "Initializing DB session from %s\n", initFile);
+        eval.eval(initFile);
+    }
 }
 
 void SqliteStrategy::execute(const char * const query) {
