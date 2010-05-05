@@ -6,6 +6,7 @@
 #include <iostream>
 #include <sstream>
 #include <pthread.h>
+#include <sys/time.h>
 
 #include "common.hh"
 
@@ -30,6 +31,28 @@ public:
         if (pthread_cond_wait(&cond, &mutex) != 0) {
             throw std::runtime_error("Failed to wait for condition.");
         }
+    }
+
+    bool wait(const struct timeval &tv) {
+        struct timespec ts;
+        ts.tv_sec = tv.tv_sec + 0;
+        ts.tv_nsec = tv.tv_usec * 1000;
+
+        switch (pthread_cond_timedwait(&cond, &mutex, &ts)) {
+        case 0:
+            return true;
+        case ETIMEDOUT:
+            return false;
+        default:
+            throw std::runtime_error("Failed timed_wait for condition.");
+        }
+    }
+
+    bool wait(const double secs) {
+        struct timeval tv;
+        gettimeofday(&tv, NULL);
+        advance_tv(tv, secs);
+        return wait(tv);
     }
 
     void notify() {
