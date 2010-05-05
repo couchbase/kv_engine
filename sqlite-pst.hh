@@ -3,7 +3,7 @@
 #define SQLITE_PST_H 1
 
 #include <string>
-
+#include <stdio.h>
 #include <sqlite3.h>
 
 #include "common.hh"
