@@ -1,0 +1,25 @@
+#+TITLE:     EP Parameters
+#+AUTHOR:    Dustin Sallings
+#+EMAIL:     dustin@spy.net
+#+DATE:      2010-05-05 Wed
+#+DESCRIPTION:
+#+KEYWORDS:
+#+LANGUAGE:  en
+#+OPTIONS:   H:3 num:t toc:t \n:nil @:t ::t |:t ^:nil -:t f:t *:t <:t
+#+OPTIONS:   TeX:t LaTeX:nil skip:nil d:nil todo:t pri:nil tags:not-in-toc
+#+INFOJS_OPT: view:nil toc:nil ltoc:t mouse:underline buttons:0 path:http://orgmode.org/org-info.js
+#+EXPORT_SELECT_TAGS: export
+#+EXPORT_EXCLUDE_TAGS: noexport
+#+LINK_UP:
+#+LINK_HOME:
+#+STYLE:  <link rel="stylesheet" type="text/css" href="myorg.css" />
+
+* Parameters for the EP Engine
+
+| key           | type   | descr                                        |
+|---------------+--------+----------------------------------------------|
+| dbname        | string | Path to on-disk storage.                     |
+| initfile      | string | Optional SQL script to run after opening DB  |
+| warmup        | bool   | Whether to load existing data at startup.    |
+| waitforwarmup | bool   | Whether to block server start during warmup. |
+| tap_keepalive | int    | Seconds to hold open named tap connections.  |
