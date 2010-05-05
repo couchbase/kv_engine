@@ -403,3 +403,9 @@ void EventuallyPersistentEngine::startEngineThreads(void)
         throw std::runtime_error("Error creating thread to notify Tap connections");
     }
 }
+
+void EventuallyPersistentEngine::queueBackfill(TapConnection *tc) {
+    BackFillVisitor bfv(this, tc);
+    epstore->visit(bfv);
+    tc->doRunBackfill = false;
+}

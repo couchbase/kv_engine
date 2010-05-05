@@ -112,7 +112,8 @@ private:
 
     TapConnection(const std::string &n, uint32_t f) : client(n), flags(f),
         recordsFetched(0), pendingFlush(false), expiry_time((rel_time_t)-1),
-        reconnects(0), connected(true), paused(false), backfillAge(0)
+        reconnects(0), connected(true), paused(false), backfillAge(0),
+        doRunBackfill(false)
     { }
 
     /**
@@ -177,21 +178,16 @@ private:
      */
     bool dumpQueue;
 
+    /**
+     * We don't want to do the backfill in the thread used by the client,
+     * because that would block all clients bound to the same thread.
+     * Instead we run the backfill the first time we try to walk the
+     * stream (that would be in the TAP thread). This would cause the other
+     * tap streams to block, but allows all clients to use the cache.
+     */
+    bool doRunBackfill;
+
     DISALLOW_COPY_AND_ASSIGN(TapConnection);
-};
-
-class BackFillVisitor : public HashTableVisitor {
-public:
-    BackFillVisitor(TapConnection *tc) {
-        tapConn = tc;
-    }
-
-    void visit(StoredValue *v) {
-        tapConn->addEvent(v->getKey());
-    }
-
-private:
-    TapConnection *tapConn;
 };
 
 /**
@@ -657,6 +653,13 @@ public:
         LockHolder lh(tapNotifySync);
         TapConnection *connection = tapConnectionMap[cookie];
         assert(connection);
+
+        if (connection->doRunBackfill) {
+            lh.unlock();
+            queueBackfill(connection);
+            lh.lock();
+        }
+
         tap_event_t ret = TAP_PAUSE;
         connection->paused = false;
 
@@ -766,7 +769,7 @@ public:
             }
 
             if (tc->backfillAge < (uint64_t)time(NULL)) {
-                queueBackfill(tc);
+                tc->doRunBackfill = true;
             }
 
             tc->dumpQueue = flags & TAP_CONNECT_FLAG_DUMP;
@@ -832,10 +835,7 @@ public:
      * Visit the objects and add them to the tap connecitons queue.
      * @todo this code should honor the backfill time!
      */
-    void queueBackfill(TapConnection *tc) {
-        BackFillVisitor bfv(tc);
-        epstore->visit(bfv);
-    }
+    void queueBackfill(TapConnection *tc);
 
     void handleDisconnect(const void *cookie) {
         LockHolder lh(tapNotifySync);
@@ -984,6 +984,21 @@ private:
         }
     }
 
+    friend class BackFillVisitor;
+    void addEvent(TapConnection *tc, const std::string &str)
+    {
+        bool notify = false;
+        LockHolder lh(tapNotifySync);
+
+        if (!tc->dumpQueue && tc->addEvent(str) && tc->paused) {
+            notify = true;
+        }
+
+        if (notify) {
+            tapNotifySync.notify();
+        }
+    }
+
     void addEvent(const std::string &str)
     {
         bool notify = false;
@@ -1089,4 +1104,21 @@ private:
         engine_info info;
         char buffer[sizeof(engine_info) + 10 * sizeof(feature_info) ];
     } info;
+};
+
+class BackFillVisitor : public HashTableVisitor {
+public:
+    BackFillVisitor(EventuallyPersistentEngine *e, TapConnection *tc):
+        engine(e), tapConn(tc)
+    {
+        // empty
+    }
+
+    void visit(StoredValue *v) {
+        engine->addEvent(tapConn, v->getKey());
+    }
+
+private:
+    EventuallyPersistentEngine *engine;
+    TapConnection *tapConn;
 };
