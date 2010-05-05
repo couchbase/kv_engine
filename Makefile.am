@@ -9,6 +9,7 @@ ep_la_SOURCES = \
                  atomic.hh \
                  callbacks.hh \
                  common.hh \
+                 dispatcher.cc dispatcher.hh \
                  ep.cc ep.hh \
                  ep_engine.cc ep_engine.h \
                  flusher.cc flusher.hh \
@@ -33,7 +34,7 @@ libsqlite3_la_CFLAGS = $(AM_CFLAGS) ${NO_WERROR}
 check_PROGRAMS=hash_table_test priority_test atomic_test
 TESTS=${check_PROGRAMS}
 
-hash_table_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) -I$(top_srcdir)/libatomic_ops/src ${NO_WERROR}
+hash_table_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
 hash_table_test_SOURCES = t/hash_table_test.cc item.cc
 hash_table_test_DEPENDENCIES = ep.hh item.hh
 
