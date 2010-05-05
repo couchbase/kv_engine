@@ -52,6 +52,10 @@ struct ep_stats {
     size_t tooYoung;
     // Objects that were forced into persistence for being too old.
     size_t tooOld;
+    // Number of items persisted.
+    size_t totalPersisted;
+    // Cumulative number of items added to the queue.
+    size_t totalEnqueued;
     // Number of times an item flush failed.
     size_t flushFailed;
     // How long an object is dirty before written.
@@ -162,6 +166,7 @@ private:
             // Assume locked.
             towrite->push(key);
             stats.queue_size++;
+            stats.totalEnqueued++;
             mutex.notify();
         }
     }

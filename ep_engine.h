@@ -408,6 +408,10 @@ public:
                                 epstats.tooYoung, add_stat, cookie);
                 add_casted_stat("ep_too_old",
                                 epstats.tooOld, add_stat, cookie);
+                add_casted_stat("ep_total_enqueued",
+                                epstats.totalEnqueued, add_stat, cookie);
+                add_casted_stat("ep_total_persisted",
+                                epstats.totalPersisted, add_stat, cookie);
                 add_casted_stat("ep_item_flush_failed",
                                 epstats.flushFailed, add_stat, cookie);
                 add_casted_stat("ep_queue_size",

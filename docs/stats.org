@@ -32,6 +32,9 @@
 |                               | not stored due to being too young.       |
 | ep_too_old                    | Number of times an object was            |
 |                               | stored after being dirty too long.       |
+| ep_total_enqueued             | Total number of items queued for         |
+|                               | persistence.                             |
+| ep_total_persisted            | Total number of items persisted.         |
 | ep_item_flush_failed          | Number of times an item failed to flush  |
 |                               | due to storage errors.                   |
 | ep_queue_size                 | Number of items queued for storage.      |

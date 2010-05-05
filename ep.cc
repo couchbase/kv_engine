@@ -354,6 +354,10 @@ int EventuallyPersistentStore::flushOne(std::queue<std::string> *q,
             // Copy it for the duration.
             val = new Item(key, v->getFlags(), v->getExptime(), v->getValue(),
                            v->getCas());
+
+            // Consider this persisted as it is our intention, though
+            // it may fail and be requeued later.
+            stats.totalPersisted++;
         }
     }
     stats.flusher_todo--;
