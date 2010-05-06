@@ -228,6 +228,9 @@ engine_test_t* get_tests(void) {
         {"test restart", test_restart, NULL, teardown, NULL},
         {"delete", test_delete, NULL, teardown, NULL},
         {"flush", NULL, NULL, teardown, NULL},
+        {"stats", NULL, NULL, teardown, NULL},
+        {"stats key", NULL, NULL, teardown, NULL},
+        {"stats vkey", NULL, NULL, teardown, NULL},
         {NULL, NULL, NULL, NULL, NULL}
     };
     return tests;

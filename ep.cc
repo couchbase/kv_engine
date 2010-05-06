@@ -7,6 +7,7 @@
 #include <vector>
 #include <time.h>
 #include <string.h>
+#include <iostream>
 
 extern "C" {
     static rel_time_t uninitialized_current_time(void) {
@@ -16,6 +17,24 @@ extern "C" {
 
     rel_time_t (*ep_current_time)() = uninitialized_current_time;
 }
+
+class GetCallback : public DispatcherCallback {
+public:
+    GetCallback(KVStore *kvs, const std::string &k,
+                shared_ptr<Callback<GetValue> > cb) :
+               store(kvs), key(k), _callback(cb) {}
+
+    virtual bool callback(Dispatcher &d, TaskId t) {
+        (void)d; (void)t;
+        store->get(key, *_callback);
+        return false;
+    }
+
+private:
+    KVStore *store;
+    std::string key;
+    shared_ptr<Callback<GetValue> > _callback;
+};
 
 EventuallyPersistentStore::EventuallyPersistentStore(KVStore *t,
                                                      size_t est) :
@@ -176,6 +195,12 @@ bool EventuallyPersistentStore::getLocked(const std::string &key,
     }
     lh.unlock();
     return true;
+}
+
+void EventuallyPersistentStore::getFromUnderlying(const std::string &key,
+                                                  shared_ptr<Callback<GetValue> > cb) {
+    shared_ptr<GetCallback> dcb(new GetCallback(underlying, key, cb));
+    dispatcher->schedule(dcb, -1);
 }
 
 bool EventuallyPersistentStore::getKeyStats(const std::string &key,

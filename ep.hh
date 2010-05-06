@@ -78,6 +78,9 @@ public:
 
     void get(const std::string &key, Callback<GetValue> &cb);
 
+    void getFromUnderlying(const std::string &key,
+                           shared_ptr<Callback<GetValue> > cb);
+
     void del(const std::string &key, Callback<bool> &cb);
 
     EPStats& getStats() { return stats; }
