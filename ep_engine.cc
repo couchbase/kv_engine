@@ -409,9 +409,42 @@ void EventuallyPersistentEngine::startEngineThreads(void)
     }
 }
 
+class BackFillThreadData {
+public:
+
+    BackFillThreadData(EventuallyPersistentEngine *e, TapConnection *tc,
+                       EventuallyPersistentStore *s):
+        bfv(e, tc), epstore(s) {
+    }
+
+    BackFillVisitor bfv;
+    EventuallyPersistentStore *epstore;
+};
+
+
+extern "C" {
+    static void* launch_backfill_thread(void *arg) {
+
+        if (pthread_detach(pthread_self()) != 0) {
+            abort(); // pthread_detach is not supposed to be able to fail here
+        }
+
+        BackFillThreadData *bftd = static_cast<BackFillThreadData *>(arg);
+
+        bftd->epstore->visit(bftd->bfv);
+        bftd->bfv.apply();
+
+        delete bftd;
+        return NULL;
+    }
+}
+
 void EventuallyPersistentEngine::queueBackfill(TapConnection *tc) {
-    BackFillVisitor bfv(this, tc);
-    epstore->visit(bfv);
-    bfv.apply();
     tc->doRunBackfill = false;
+    BackFillThreadData *bftd = new BackFillThreadData(this, tc, epstore);
+
+    pthread_t tid;
+    if (pthread_create(&tid, NULL, launch_backfill_thread, bftd) != 0) {
+        throw std::runtime_error("Error creating tap queue backfill thread");
+    }
 }
