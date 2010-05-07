@@ -7,7 +7,6 @@
 
 #include <map>
 #include <list>
-#include <vector>
 #include <errno.h>
 
 #define NUMBER_OF_SHARDS 4
@@ -76,33 +75,33 @@ private:
      * @return true if the the queue was empty
      */
     bool addEvent(const std::string &key) {
-        bool wasEmpty = queue.empty();
+        bool wasEmpty = queue->empty();
         std::pair<std::set<std::string>::iterator, bool> ret;
-        ret = queue_set.insert(key);
+        ret = queue_set->insert(key);
         if (ret.second) {
-            queue.push_back(key);
+            queue->push_back(key);
         }
         return wasEmpty;
     }
 
     std::string next() {
         assert(!empty());
-        std::string key = queue.front();
-        queue.pop_front();
-        queue_set.erase(key);
+        std::string key = queue->front();
+        queue->pop_front();
+        queue_set->erase(key);
         ++recordsFetched;
         return key;
     }
 
     bool empty() {
-        return queue.empty();
+        return queue->empty();
     }
 
     void flush() {
         pendingFlush = true;
         /* No point of keeping the rep queue when someone wants to flush it */
-        queue.clear();
-        queue_set.clear();
+        queue->clear();
+        queue_set->clear();
     }
 
     bool shouldFlush() {
@@ -111,11 +110,34 @@ private:
         return ret;
     }
 
-    TapConnection(const std::string &n, uint32_t f) : client(n), flags(f),
+    void replaceQueues(std::list<std::string> *q,
+                       std::set<std::string> *qs) {
+        delete queue_set;
+        queue_set = qs;
+
+        std::list<std::string> *old = queue;
+        queue = q;
+
+        while (!old->empty()) {
+            addEvent(old->front());
+            old->pop_front();
+        }
+    }
+
+    TapConnection(const std::string &n, uint32_t f):
+        client(n), queue(NULL), queue_set(NULL), flags(f),
         recordsFetched(0), pendingFlush(false), expiry_time((rel_time_t)-1),
         reconnects(0), connected(true), paused(false), backfillAge(0),
         doRunBackfill(false)
-    { }
+    {
+        queue = new std::list<std::string>;
+        queue_set = new std::set<std::string>;
+    }
+
+    ~TapConnection() {
+        delete queue;
+        delete queue_set;
+    }
 
     /**
      * String used to identify the client.
@@ -125,14 +147,14 @@ private:
     /**
      * The queue of keys that needs to be sent (this is the "live stream")
      */
-    std::list<std::string> queue;
+    std::list<std::string> *queue;
     /**
      * Set to prevent duplicate queue entries.
      *
      * Note that stl::set is O(log n) for ops we care about, so we'll
      * want to look out for this.
      */
-    std::set<std::string> queue_set;
+    std::set<std::string> *queue_set;
     /**
      * Flags passed by the client
      */
@@ -146,7 +168,6 @@ private:
      * Do we have a pending flush command?
      */
     bool pendingFlush;
-
 
     /**
      * when this tap conneciton expires.
@@ -836,7 +857,7 @@ private:
             bool shouldPause = true;
             std::map<const void*, TapConnection*>::iterator iter;
             for (iter = tapConnectionMap.begin(); iter != tapConnectionMap.end(); iter++) {
-                if (!iter->second->queue.empty()) {
+                if (!iter->second->queue->empty()) {
                     shouldPause = false;
                 }
             }
@@ -899,22 +920,29 @@ private:
     }
 
     friend class BackFillVisitor;
-    void addEvents(TapConnection *tc, const std::vector<std::string> &e)
+    bool setEvents(const std::string &name,
+                   std::list<std::string> *q,
+                   std::set<std::string> *qs)
     {
-        bool notify = false;
+        bool notify = true;
+        bool found = false;
         LockHolder lh(tapNotifySync);
 
-        std::vector<std::string>::const_iterator it;
-        for (it = e.begin(); it != e.end(); ++it) {
-            const std::string str = *it;
-            if (!tc->dumpQueue && tc->addEvent(str) && tc->paused) {
-                notify = true;
+        std::list<TapConnection*>::iterator iter;
+        for (iter = allTaps.begin(); iter != allTaps.end(); iter++) {
+            TapConnection *tc = *iter;
+            if (tc->client == name) {
+                found = true;
+                tc->replaceQueues(q, qs);
+                notify = tc->paused; // notify if paused
             }
         }
 
         if (notify) {
             tapNotifySync.notify();
         }
+
+        return found;
     }
 
     void addEvent(const std::string &str)
@@ -1076,8 +1104,8 @@ private:
                 char tap[80];
                 TapConnection *tc = *iter;
                 sprintf(tap, "%s:qlen", tc->client.c_str());
-                add_casted_stat(tap, tc->queue.size(), add_stat, cookie);
-                totalQueue += tc->queue.size();
+                add_casted_stat(tap, tc->queue->size(), add_stat, cookie);
+                totalQueue += tc->queue->size();
                 sprintf(tap, "%s:rec_fetched", tc->client.c_str());
                 add_casted_stat(tap, tc->recordsFetched, add_stat, cookie);
                 totalFetched += tc->recordsFetched;
@@ -1145,30 +1173,36 @@ private:
 
 class BackFillVisitor : public HashTableVisitor {
 public:
-    BackFillVisitor(EventuallyPersistentEngine *e, TapConnection *tc, int bufSize=8192):
-        engine(e), tapConn(tc), keys(), visits(0), maxVisits(bufSize)
+    BackFillVisitor(EventuallyPersistentEngine *e, TapConnection *tc):
+        engine(e), name(tc->client)
     {
-        // empty
+        queue = new std::list<std::string>;
+        queue_set = new std::set<std::string>;
+    }
+
+    ~BackFillVisitor() {
+        delete queue;
+        delete queue_set;
     }
 
     void visit(StoredValue *v) {
-        keys.push_back(v->getKey());
-        if (++visits > maxVisits) {
-            flush();
+        std::string key(v->getKey());
+        std::pair<std::set<std::string>::iterator, bool> ret(queue_set->insert(key));
+        if (ret.second) {
+            queue->push_back(key);
         }
     }
 
-    void flush() {
-        if (!keys.empty()) {
-            engine->addEvents(tapConn, keys);
-            keys.clear();
+    void apply(void) {
+        if (engine->setEvents(name, queue, queue_set)) {
+            queue = NULL;
+            queue_set = NULL;
         }
     }
 
 private:
     EventuallyPersistentEngine *engine;
-    TapConnection *tapConn;
-    std::vector<std::string> keys;
-    int visits;
-    int maxVisits;
+    std::string name;
+    std::list<std::string> *queue;
+    std::set<std::string> *queue_set;
 };
