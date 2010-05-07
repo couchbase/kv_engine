@@ -129,13 +129,15 @@ void EventuallyPersistentStore::get(const std::string &key,
     if (v) {
         // return an invalid cas value if the item is locked
         GetValue rv(new Item(v->getKey(), v->getFlags(), v->getExptime(),
-                             v->getValue(), v->isLocked(ep_current_time()) ? -1 : v->getCas()));
+                             v->getValue(),
+                             v->isLocked(ep_current_time()) ? -1 : v->getCas()));
+        lh.unlock();
         cb.callback(rv);
     } else {
         GetValue rv(false);
+        lh.unlock();
         cb.callback(rv);
     }
-    lh.unlock();
 }
 
 bool EventuallyPersistentStore::getLocked(const std::string &key,
