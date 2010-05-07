@@ -16,6 +16,15 @@ static inline EventuallyPersistentEngine* getHandle(ENGINE_HANDLE* handle)
     return reinterpret_cast<EventuallyPersistentEngine*>(handle);
 }
 
+void LookupCallback::callback(GetValue &value) {
+    if (value.isSuccess()) {
+        engine->addLookupResult(cookie, value.getValue());
+    } else {
+        engine->addLookupResult(cookie, NULL);
+    }
+    engine->getServerApi()->core->notify_io_complete(cookie, ENGINE_SUCCESS);
+}
+
 // The Engine API specifies C linkage for the functions..
 extern "C" {
 

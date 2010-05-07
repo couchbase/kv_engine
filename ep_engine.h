@@ -57,6 +57,19 @@ private:
     bool value;
 };
 
+class EventuallyPersistentEngine;
+
+class LookupCallback : public Callback<GetValue> {
+public:
+    LookupCallback(EventuallyPersistentEngine *e, const void* c) :
+       engine(e), cookie(c) {}
+
+    virtual void callback(GetValue &value);
+private:
+    EventuallyPersistentEngine *engine;
+    const void *cookie;
+};
+
 /**
  * Class used by the EventuallyPersistentEngine to keep track of all
  * information needed per Tap connection.
@@ -229,6 +242,7 @@ private:
  *
  */
 class EventuallyPersistentEngine : public ENGINE_HANDLE_V1 {
+friend class LookupCallback;
 public:
     ENGINE_ERROR_CODE initialize(const char* config)
     {
@@ -449,7 +463,11 @@ public:
         } else if (nkey == 4 && strncmp(stat_key, "hash", 3) == 0) {
             rv = doHashStats(cookie, add_stat);
         } else if (nkey > 4 && strncmp(stat_key, "key ", 4) == 0) {
-            rv = doKeyStats(cookie, add_stat, &stat_key[4], nkey-4);
+            // Non-validating, non-blocking version
+            rv = doKeyStats(cookie, add_stat, &stat_key[4], nkey-4, false);
+        } else if (nkey > 5 && strncmp(stat_key, "vkey ", 5) == 0) {
+            // Validating version; blocks
+            rv = doKeyStats(cookie, add_stat, &stat_key[5], nkey-5, true);
         }
         return rv;
     }
@@ -1245,15 +1263,97 @@ private:
         return ENGINE_SUCCESS;
     }
 
+    void addLookupResult(const void *cookie, Item *result) {
+        LockHolder lh(lookupMutex);
+        std::map<const void*, Item*>::iterator it = lookups.find(cookie);
+        if (it != lookups.end()) {
+            if (it->second != NULL) {
+                getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                    "Cleaning up old lookup result for '%s'\n",
+                    it->second->getKey().c_str());
+                delete it->second;
+            } else {
+                getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                    "Cleaning up old null lookup result\n");
+            }
+            lookups.erase(it);
+        }
+        lookups[cookie] = result;
+    }
+
+    bool fetchLookupResult(const void *cookie, Item **item) {
+        // This will return *and erase* the lookup result for a connection.
+        // You look it up, you own it.
+        LockHolder lh(lookupMutex);
+        std::map<const void*, Item*>::iterator it = lookups.find(cookie);
+        if (it != lookups.end()) {
+            *item = it->second;
+            lookups.erase(it);
+            return true;
+        } else {
+            return false;
+        }
+    }
+
     ENGINE_ERROR_CODE doKeyStats(const void *cookie, ADD_STAT add_stat,
-                                 const char *key, int nkey)
+                                 const char *k, int nkey, bool validate=false)
     {
-        std::string k(key, nkey);
-        ENGINE_ERROR_CODE rv = ENGINE_KEY_ENOENT;
+        std::string key(k, nkey);
+        ENGINE_ERROR_CODE rv = ENGINE_FAILED;
+
         if (epstore) {
+            Item *it = NULL;
+            shared_ptr<Item> diskItem;
             struct key_stats kstats;
             rel_time_t now = ep_current_time();
+            if (fetchLookupResult(cookie, &it)) {
+                diskItem.reset(it); // Will be null if the key was not found
+                if (!validate) {
+                    getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                        "Found lookup results for non-validating key stat call. Would have leaked\n");
+                    diskItem.reset();
+                }
+            } else if (validate) {
+                shared_ptr<LookupCallback> cb(new LookupCallback(this, cookie));
+                epstore->getFromUnderlying(key, cb);
+                return ENGINE_EWOULDBLOCK;
+            }
+
             if (epstore->getKeyStats(k, kstats)) {
+                std::string valid("this_is_a_bug");
+                if (validate) {
+                    if (kstats.dirty) {
+                        valid.assign("dirty");
+                    } else {
+                        RememberingCallback<GetValue> cb;
+                        backend->get(key, cb);
+                        cb.waitForValue();
+                        if (cb.val.isSuccess()) {
+                            shared_ptr<Item> item(cb.val.getValue());
+                            if (diskItem.get()) {
+                                // Both items exist
+                                if (diskItem->getNBytes() != item->getNBytes()) {
+                                    valid.assign("length_mismatch");
+                                } else if (memcmp(diskItem->getData(), item->getData(),
+                                           diskItem->getNBytes()) != 0) {
+                                    valid.assign("data_mismatch");
+                                } else if (diskItem->getFlags() != item->getFlags()) {
+                                    valid.assign("flags_mismatch");
+                                } else {
+                                    valid.assign("valid");
+                                }
+                            } else {
+                                // Since we do the disk lookup first, this could
+                                // be transient
+                                valid.assign("ram_but_not_disk");
+                            }
+                        } else {
+                            valid.assign("item_deleted");
+                        }
+                    }
+                    getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "Key '%s' is %s\n",
+                                     key.c_str(), valid.c_str());
+                }
                 add_casted_stat("key_is_dirty", kstats.dirty, add_stat, cookie);
                 add_casted_stat("key_exptime", kstats.exptime, add_stat, cookie);
                 add_casted_stat("key_flags", kstats.flags, add_stat, cookie);
@@ -1262,7 +1362,12 @@ private:
                                 kstats.dirtied : 0, add_stat, cookie);
                 add_casted_stat("key_data_age", kstats.dirty ? now -
                                 kstats.data_age : 0, add_stat, cookie);
+                if (validate) {
+                    add_casted_stat("key_valid", valid.c_str(), add_stat, cookie);
+                }
                 rv = ENGINE_SUCCESS;
+            } else {
+                rv = ENGINE_KEY_ENOENT;
             }
         }
         return rv;
@@ -1278,6 +1383,8 @@ private:
     EventuallyPersistentStore *epstore;
     std::map<const void*, TapConnection*> tapConnectionMap;
     std::list<TapConnection*> allTaps;
+    std::map<const void*, Item*> lookups;
+    Mutex lookupMutex;
     time_t databaseInitTime;
     size_t tapKeepAlive;
     pthread_t notifyThreadId;
