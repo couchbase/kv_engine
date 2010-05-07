@@ -412,5 +412,6 @@ void EventuallyPersistentEngine::startEngineThreads(void)
 void EventuallyPersistentEngine::queueBackfill(TapConnection *tc) {
     BackFillVisitor bfv(this, tc);
     epstore->visit(bfv);
+    bfv.flush();
     tc->doRunBackfill = false;
 }

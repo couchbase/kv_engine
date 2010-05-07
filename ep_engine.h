@@ -7,6 +7,7 @@
 
 #include <map>
 #include <list>
+#include <vector>
 #include <errno.h>
 
 #define NUMBER_OF_SHARDS 4
@@ -898,13 +899,17 @@ private:
     }
 
     friend class BackFillVisitor;
-    void addEvent(TapConnection *tc, const std::string &str)
+    void addEvents(TapConnection *tc, const std::vector<std::string> &e)
     {
         bool notify = false;
         LockHolder lh(tapNotifySync);
 
-        if (!tc->dumpQueue && tc->addEvent(str) && tc->paused) {
-            notify = true;
+        std::vector<std::string>::const_iterator it;
+        for (it = e.begin(); it != e.end(); ++it) {
+            const std::string str = *it;
+            if (!tc->dumpQueue && tc->addEvent(str) && tc->paused) {
+                notify = true;
+            }
         }
 
         if (notify) {
@@ -1140,17 +1145,30 @@ private:
 
 class BackFillVisitor : public HashTableVisitor {
 public:
-    BackFillVisitor(EventuallyPersistentEngine *e, TapConnection *tc):
-        engine(e), tapConn(tc)
+    BackFillVisitor(EventuallyPersistentEngine *e, TapConnection *tc, int bufSize=8192):
+        engine(e), tapConn(tc), keys(), visits(0), maxVisits(bufSize)
     {
         // empty
     }
 
     void visit(StoredValue *v) {
-        engine->addEvent(tapConn, v->getKey());
+        keys.push_back(v->getKey());
+        if (++visits > maxVisits) {
+            flush();
+        }
+    }
+
+    void flush() {
+        if (!keys.empty()) {
+            engine->addEvents(tapConn, keys);
+            keys.clear();
+        }
     }
 
 private:
     EventuallyPersistentEngine *engine;
     TapConnection *tapConn;
+    std::vector<std::string> keys;
+    int visits;
+    int maxVisits;
 };
