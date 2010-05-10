@@ -5,6 +5,24 @@
 #include <sys/time.h>
 #include <memcached/engine.h>
 
+#include "config.h"
+
+#if defined(HAVE_MEMORY)
+# include <memory>
+#endif
+#if defined(HAVE_TR1_MEMORY)
+# include <tr1/memory>
+#endif
+#if defined(HAVE_BOOST_SHARED_PTR_HPP)
+# include <boost/shared_ptr.hpp>
+#endif
+
+#if defined(SHARED_PTR_NAMESPACE)
+using SHARED_PTR_NAMESPACE::shared_ptr;
+#else
+# error No shared pointer implementation found!
+#endif
+
 // Stolen from http://google-styleguide.googlecode.com/svn/trunk/cppguide.xml
 // A macro to disallow the copy constructor and operator= functions
 // This should be used in the private: declarations for a class
