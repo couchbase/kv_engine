@@ -16,18 +16,21 @@ public:
     }
 
     bool operator<(const Priority &other) const {
-        return this == &Low;
+        return this == &Low && other == High;
     }
 
     bool operator>(const Priority &other) const {
-        return this == &High;
+        return this == &High && other == Low;
     }
 
     const std::string &toString() const {
         return name;
     }
 
-private:
+    // gcc didn't like the idea of having a class with no constructor
+    // available to anyone.. let's make it protected instead to shut
+    // gcc up :(
+protected:
     Priority(const char *nm) : name(nm) { };
     std::string name;
     DISALLOW_COPY_AND_ASSIGN(Priority);

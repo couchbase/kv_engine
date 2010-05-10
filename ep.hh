@@ -71,7 +71,7 @@ struct ep_stats {
     rel_time_t commit_time;
     // Total number of items; this would be total_items if we recycled
     // items, but we don't right now.
-    uint32_t curr_items;
+    size_t curr_items;
     // Beyond this point are config items
     // Minimum data age before a record can be persisted
     uint32_t min_data_age;

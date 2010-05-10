@@ -76,7 +76,7 @@ public:
     }
 
     int getNKey() const {
-        return key.length();
+        return static_cast<int>(key.length());
     }
 
     uint32_t getNBytes() const {
@@ -110,7 +110,7 @@ public:
      * @return true if success
      */
     bool append(const Item &item) {
-        size_t ns = nbytes + item.nbytes - 2;
+        uint32_t ns = nbytes + item.nbytes - 2;
         char *c = new char[ns];
         if (c == NULL) {
             return false;
@@ -133,7 +133,7 @@ public:
      * @return true if success
      */
     bool prepend(const Item &item) {
-        size_t ns = nbytes + item.nbytes - 2;
+        uint32_t ns = nbytes + item.nbytes - 2;
         char *c = new char[ns];
         if (c == NULL) {
             return false;

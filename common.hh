@@ -37,10 +37,10 @@ extern EXTENSION_LOGGER_DESCRIPTOR *getLogger(void);
 inline void advance_tv(struct timeval &tv, const double secs) {
     double ip, fp;
     fp = modf(secs, &ip);
-    int usec = (fp * 1e6) + tv.tv_usec;
+    int usec = static_cast<int>(fp * 1e6) + static_cast<int>(tv.tv_usec);
     int quot = usec / 1000000;
     int rem = usec % 1000000;
-    tv.tv_sec = ip + tv.tv_sec + quot;
+    tv.tv_sec = static_cast<int>(ip) + tv.tv_sec + quot;
     tv.tv_usec = rem;
 }
 

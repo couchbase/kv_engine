@@ -34,12 +34,12 @@ public:
     bool transition_state(enum flusher_state to);
 
     enum flusher_state state() const;
-    const char * const stateName() const;
+    const char * stateName() const;
 private:
     EventuallyPersistentStore *store;
     volatile enum flusher_state _state;
     bool hasInitialized;
-    const char * const stateName(enum flusher_state st) const;
+    const char * stateName(enum flusher_state st) const;
     void maybePause(void);
 
     int doFlush(bool shouldWait);

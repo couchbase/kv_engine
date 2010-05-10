@@ -32,7 +32,7 @@ static bool validTransition(enum flusher_state from,
     return rv;
 }
 
-const char * const Flusher::stateName(enum flusher_state st) const {
+const char * Flusher::stateName(enum flusher_state st) const {
     static const char * const stateNames[] = {
         "initializing", "running", "pausing", "paused", "stopping", "stopped"
     };
@@ -57,7 +57,7 @@ bool Flusher::transition_state(enum flusher_state to) {
     return true;
 }
 
-const char * const Flusher::stateName() const {
+const char * Flusher::stateName() const {
     return stateName(_state);
 }
 

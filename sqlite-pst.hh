@@ -4,6 +4,7 @@
 
 #include <string>
 #include <stdio.h>
+#include <inttypes.h>
 #include "embedded/sqlite3.h"
 
 #include "common.hh"

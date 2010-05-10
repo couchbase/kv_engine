@@ -207,7 +207,7 @@ extern "C" {
         bool handled = true;
         protocol_binary_response_status res =
             PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND;
-        const char *msg;
+        const char *msg = NULL;
 
         EventuallyPersistentEngine *h = getHandle(handle);
 

@@ -1,10 +1,12 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
+
 #include "locks.hh"
 #include "ep.hh"
 #include "flusher.hh"
 #include "sqlite-kvstore.hh"
 #include <memcached/util.h>
 
+#include <cstdio>
 #include <map>
 #include <list>
 #include <errno.h>
@@ -995,11 +997,11 @@ private:
                  v, static_cast<uint32_t>(strlen(v)), cookie);
     }
 
-    void add_casted_stat(const char *k, size_t v,
+    void add_casted_stat(const char *k, uint64_t v,
                          ADD_STAT add_stat, const void *cookie) {
-        char valS[32];
-        snprintf(valS, sizeof(valS), "%lu", static_cast<unsigned long>(v));
-        add_casted_stat(k, valS, add_stat, cookie);
+        std::stringstream vals;
+        vals << v;
+        add_casted_stat(k, vals.str().c_str(), add_stat, cookie);
     }
 
     void startEngineThreads(void);

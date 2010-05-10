@@ -2,6 +2,7 @@
 #ifndef SQLITE_STRATEGIES_H
 #define SQLITE_STRATEGIES_H 1
 
+#include <cstdlib>
 #include <vector>
 
 #include "common.hh"
@@ -14,7 +15,7 @@ public:
         filename(fn),
         initFile(finit),
         db(NULL),
-        statements(NULL)
+        statements()
     { }
 
     virtual ~SqliteStrategy() {
