@@ -3,6 +3,7 @@
 
 #include <math.h>
 #include <sys/time.h>
+#include <memcached/engine.h>
 
 // Stolen from http://google-styleguide.googlecode.com/svn/trunk/cppguide.xml
 // A macro to disallow the copy constructor and operator= functions
@@ -11,6 +12,10 @@
     TypeName(const TypeName&);                  \
     void operator=(const TypeName&)
 
+// Utility functions implemented in various modules.
+extern EXTENSION_LOGGER_DESCRIPTOR *getLogger(void);
+
+// Time handling functions
 inline void advance_tv(struct timeval &tv, const double secs) {
     double ip, fp;
     fp = modf(secs, &ip);
