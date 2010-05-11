@@ -34,6 +34,7 @@
 /m4/ltsugar.m4
 /m4/ltversion.m4
 /m4/version.m4
+/priority_test
 /stamp-h1
 Makefile
 Makefile.in
