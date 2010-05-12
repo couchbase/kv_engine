@@ -2,6 +2,8 @@
 #ifndef EP_HH
 #define EP_HH 1
 
+#include "config.h"
+
 #include <pthread.h>
 #include <assert.h>
 #include <stdbool.h>

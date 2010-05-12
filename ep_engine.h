@@ -533,12 +533,13 @@ public:
                     }
                 }
 
-                char value[80];
-                size_t nb = snprintf(value, sizeof(value), "%llu\r\n",
-                                     (unsigned long long)val);
+
+                std::stringstream vals;
+                vals << val << "\r\n";
+                size_t nb = vals.str().length();
                 *result = val;
                 Item *nit = new Item(key, (uint16_t)nkey, item->getFlags(),
-                                     exptime, value, nb);
+                                     exptime, vals.str().c_str(), nb);
                 nit->setCas(item->getCas());
                 ret = store(cookie, nit, cas, OPERATION_CAS);
                 delete nit;
@@ -548,11 +549,13 @@ public:
 
             delete item;
         } else if (ret == ENGINE_KEY_ENOENT && create) {
-            char value[80];
-            size_t nb = snprintf(value, sizeof(value), "%llu\r\n",
-                                 (unsigned long long)initial);
+            std::stringstream vals;
+            vals << initial << "\r\n";
+            size_t nb = vals.str().length();
+
             *result = initial;
-            Item *item = new Item(key, (uint16_t)nkey, 0, exptime, value, nb);
+            Item *item = new Item(key, (uint16_t)nkey, 0, exptime,
+                                  vals.str().c_str(), nb);
             ret = store(cookie, item, cas, OPERATION_ADD);
             delete item;
         }

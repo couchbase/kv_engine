@@ -1,0 +1,53 @@
+# Hard coded Makefile for windows
+
+CC = gcc
+
+MEMCACHED=../memcached
+
+OBJDIR = .libs .libs/embedded
+BINARIES= .libs/ep.so
+LIB=-L/usr/local/lib
+INCLUDE= -Iwin32 -I.libs -I${MEMCACHED}/include -I/usr/local/include -I.
+MC_UTIL= ${MEMCACHED}/.libs/util.o
+GENFILES=.libs/config_version.h
+
+all: ${BINARIES}
+
+CFLAGS = -std=gnu99 -O2 -DNDEBUG -fno-strict-aliasing -Wall \
+ -Wstrict-prototypes -Wmissing-prototypes -Wmissing-declarations -Wredundant-decls \
+ ${INCLUDE} -Iinclude -Iwin32 -I.libs -DHAVE_CONFIG_H
+
+CXXFLAGS = -std=gnu++0x -O2 -Wall ${INCLUDE} -DHAVE_CONFIG_H \
+           -Werror -Wall -pedantic -Wshadow -fdiagnostics-show-option \
+           -Wformat=2 -Wconversion -Wstrict-aliasing -Wextra \
+           -Woverloaded-virtual -Wnon-virtual-dtor -Wctor-dtor-privacy \
+           -Wno-long-long  -Wmissing-declarations -Wno-redundant-decls
+
+
+EP_ENGINE_CC_SRC = ep_engine.cc ep.cc flusher.cc item.cc priority.cc \
+                   sqlite-eval.cc sqlite-kvstore.cc sqlite-pst.cc \
+                   sqlite-strategies.cc
+EP_ENGINE_C_SRC = embedded/sqlite3.c
+EP_ENGINE_OBJS = ${EP_ENGINE_C_SRC:%.c=.libs/%.o} ${EP_ENGINE_CC_SRC:%.cc=.libs/%.o}
+
+.libs/ep.so: ${OBJDIR} ${GENFILES} $(EP_ENGINE_OBJS)
+	${LINK.cc} -o $@ -shared ${EP_ENGINE_OBJS} ${MC_UTIL} \
+                  ${LIB} -lpthread \
+                  -lws2_32
+
+.libs/config_version.h:
+	./win32/config.sh
+
+.libs .libs/embedded:; -@mkdir $@
+
+.libs/%.o: %.cc
+	${COMPILE.cc} -MMD $< -o $@
+
+.libs/%.o: %.c
+	${COMPILE.c} -MMD $< -o $@
+
+clean:
+	$(RM) ${EP_ENGINE_OBJS} ${BINARIES} ${EP_ENGINE_OBJS:.o=.d} \
+              ${GENFILES}
+
+-include ${EP_ENGINE_OBJS:.o=.d}
