@@ -4,6 +4,7 @@
 #include "ep.hh"
 #include "flusher.hh"
 #include "sqlite-kvstore.hh"
+#include "ep_extension.h"
 #include <memcached/util.h>
 
 #include <cstdio>
@@ -22,7 +23,7 @@ extern "C" {
                              ENGINE_EVENT_TYPE type,
                              const void *event_data,
                              const void *cb_data);
-    static void *EvpNotifyTapIo(void*arg);
+    void *EvpNotifyTapIo(void*arg);
 }
 
 #ifdef linux
@@ -320,6 +321,12 @@ public:
                 sleep(1);
             }
         }
+
+        if (ret == ENGINE_SUCCESS) {
+            getlExtension = new GetlExtension(backend, getServerApi);
+            getlExtension->initialize();
+        }
+
         getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "Engine init complete.\n");
 
         return ret;
@@ -368,6 +375,8 @@ public:
             addDeleteEvent(key);
             return ENGINE_SUCCESS;
         } else {
+            // in case of the item being locked, we should probably
+            // return a more relavent return code. @TODO
             return ENGINE_KEY_ENOENT;
         }
     }
@@ -395,6 +404,7 @@ public:
         } else {
             return ENGINE_KEY_ENOENT;
         }
+
     }
 
     ENGINE_ERROR_CODE getStats(const void* cookie,
@@ -435,7 +445,8 @@ public:
                 // FALLTHROUGH
             case OPERATION_SET:
                 backend->set(*it, callback);
-                if (callback.getValue()) {
+                if (callback.getValue() &&
+                    ((mutation_type_t)callback.getStatus() != IS_LOCKED)) {
                     *cas = it->getCas();
                     addMutationEvent(it);
                     ret = ENGINE_SUCCESS;
@@ -451,6 +462,10 @@ public:
                     ret = ENGINE_NOT_STORED;
                 } else {
                     backend->set(*it, callback);
+                    // unable to set if the key is locked
+                    if ((mutation_type_t)callback.getStatus() == IS_LOCKED) {
+                        return ENGINE_KEY_EEXISTS;
+                    }
                     *cas = it->getCas();
                     addMutationEvent(it);
                     ret = ENGINE_SUCCESS;
@@ -462,6 +477,10 @@ public:
                 if (get(cookie, &i, it->getKey().c_str(), it->getNKey()) == ENGINE_SUCCESS) {
                     itemRelease(cookie, i);
                     backend->set(*it, callback);
+                    // unable to set if the key is locked
+                    if ((mutation_type_t)callback.getStatus() == IS_LOCKED) {
+                        return ENGINE_KEY_EEXISTS;
+                    }
                     *cas = it->getCas();
                     addMutationEvent(it);
                     ret = ENGINE_SUCCESS;
@@ -537,13 +556,12 @@ public:
                     }
                 }
 
-
-                std::stringstream vals;
-                vals << val << "\r\n";
-                size_t nb = vals.str().length();
+                char value[80];
+                size_t nb = snprintf(value, sizeof(value), "%llu\r\n",
+                                     (unsigned long long)val);
                 *result = val;
                 Item *nit = new Item(key, (uint16_t)nkey, item->getFlags(),
-                                     exptime, vals.str().c_str(), nb);
+                                     exptime, value, nb);
                 nit->setCas(item->getCas());
                 ret = store(cookie, nit, cas, OPERATION_CAS);
                 delete nit;
@@ -553,13 +571,11 @@ public:
 
             delete item;
         } else if (ret == ENGINE_KEY_ENOENT && create) {
-            std::stringstream vals;
-            vals << initial << "\r\n";
-            size_t nb = vals.str().length();
-
+            char value[80];
+            size_t nb = snprintf(value, sizeof(value), "%llu\r\n",
+                                 (unsigned long long)initial);
             *result = initial;
-            Item *item = new Item(key, (uint16_t)nkey, 0, exptime,
-                                  vals.str().c_str(), nb);
+            Item *item = new Item(key, (uint16_t)nkey, 0, exptime, value, nb);
             ret = store(cookie, item, cas, OPERATION_ADD);
             delete item;
         }
@@ -844,6 +860,7 @@ public:
     ~EventuallyPersistentEngine() {
         delete epstore;
         delete sqliteDb;
+        delete getlExtension;
     }
 
     engine_info *getInfo() {
@@ -1227,6 +1244,7 @@ private:
         engine_info info;
         char buffer[sizeof(engine_info) + 10 * sizeof(feature_info) ];
     } info;
+    GetlExtension *getlExtension;
 };
 
 class BackFillVisitor : public HashTableVisitor {

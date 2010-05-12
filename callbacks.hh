@@ -17,6 +17,18 @@ public:
      * Method called on callback.
      */
     virtual void callback(RV &value) = 0;
+
+    virtual void setStatus(int status) {
+        myStatus = status;
+    }
+
+    virtual int getStatus() {
+        return myStatus;
+    }
+
+private:
+
+    int myStatus;
 };
 
 /**

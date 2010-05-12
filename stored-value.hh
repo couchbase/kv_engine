@@ -19,7 +19,7 @@ public:
     StoredValue(const Item &itm, StoredValue *n) :
         key(itm.getKey()), value(itm.getValue()),
         flags(itm.getFlags()), exptime(itm.getExptime()), dirtied(0), next(n),
-        cas(itm.getCas())
+        cas(itm.getCas()), locked(false), lock_expiry(0)
     {
         markDirty();
     }
@@ -108,6 +108,28 @@ public:
         return data_age;
     }
 
+    void setCas(uint64_t c) {
+        cas = c;
+    }
+
+    void lock(rel_time_t expiry) {
+        locked = true;
+        lock_expiry = expiry;
+    }
+
+    void unlock() {
+        locked = false;
+        lock_expiry = 0;
+    }
+
+    bool isLocked(rel_time_t curtime)  {
+        if (locked && (curtime > lock_expiry)) {
+            locked = false;
+            return locked;
+        }
+        return locked;
+    }
+
 private:
 
     friend class HashTable;
@@ -120,11 +142,13 @@ private:
     rel_time_t data_age;
     StoredValue *next;
     uint64_t cas;
+    bool locked;
+    rel_time_t lock_expiry;
     DISALLOW_COPY_AND_ASSIGN(StoredValue);
 };
 
 typedef enum {
-    NOT_FOUND, INVALID_CAS, WAS_CLEAN, WAS_DIRTY
+    NOT_FOUND, INVALID_CAS, WAS_CLEAN, WAS_DIRTY, IS_LOCKED, SUCCESS
 } mutation_type_t;
 
 class HashTableVisitor {
@@ -207,7 +231,18 @@ public:
         StoredValue *v = unlocked_find(val.getKey(), bucket_num);
         Item &itm = const_cast<Item&>(val);
         if (v) {
-            if (val.getCas() != 0 && val.getCas() != v->getCas()) {
+
+            if (v->isLocked(ep_current_time())) {
+                /*
+                 * item is locked, deny if there is cas value mismatch
+                 * or no cas value is provided by the user
+                 */
+                 if (val.getCas() != v->getCas()) {
+                     return IS_LOCKED;
+                 }
+                 /* allow operation*/
+                 v->unlock();
+            } else if (val.getCas() != 0 && val.getCas() != v->getCas()) {
                 return INVALID_CAS;
             }
             itm.setCas();
@@ -295,6 +330,9 @@ public:
 
         // Special case the first one
         if (key.compare(v->key) == 0) {
+            if (v->isLocked(ep_current_time())) {
+                return false;
+            }
             values[bucket_num] = v->next;
             depths[bucket_num]--;
             delete v;
@@ -304,6 +342,9 @@ public:
         while (v->next) {
             if (key.compare(v->next->key) == 0) {
                 StoredValue *tmp = v->next;
+                if (tmp->isLocked(ep_current_time())) {
+                    return false;
+                }
                 v->next = v->next->next;
                 delete tmp;
                 depths[bucket_num]--;

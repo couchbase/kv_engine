@@ -12,6 +12,7 @@ ep_la_SOURCES = \
                  dispatcher.cc dispatcher.hh \
                  ep.cc ep.hh \
                  ep_engine.cc ep_engine.h \
+                 ep_extension.cc ep_extension.h \
                  flusher.cc flusher.hh \
                  item.cc item.hh \
                  kvstore.hh \

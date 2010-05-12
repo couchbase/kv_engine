@@ -2,8 +2,6 @@
 #ifndef EP_HH
 #define EP_HH 1
 
-#include "config.h"
-
 #include <pthread.h>
 #include <assert.h>
 #include <stdbool.h>
@@ -129,6 +127,8 @@ public:
     const Flusher* getFlusher();
 
     bool getKeyStats(const std::string &key, key_stats &kstats);
+
+    bool getLocked(const std::string &key, Callback<GetValue> &cb, rel_time_t currentTime, uint32_t lockTimeout);
 
 private:
     /* Queue an item to be written to persistent layer. */

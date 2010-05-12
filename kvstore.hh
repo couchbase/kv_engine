@@ -116,6 +116,18 @@ public:
      */
     virtual void rollback() {}
 
+    /**
+     * get the value for a give item and lock it
+     */
+    virtual bool getLocked(const std::string &key, Callback<GetValue> &cb, rel_time_t currentTime, uint32_t lockTimeout) {
+        (void)key;
+        (void)currentTime;
+        (void) lockTimeout;
+        GetValue v(false);
+        cb.callback(v);
+        return false;
+    }
+
 private:
     DISALLOW_COPY_AND_ASSIGN(KVStore);
 };

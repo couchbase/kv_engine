@@ -122,7 +122,7 @@ void EventuallyPersistentStore::set(const Item &item, Callback<bool> &cb) {
     mutation_type_t mtype = storage.set(item);
     bool rv = true;
 
-    if (mtype == INVALID_CAS) {
+    if (mtype == INVALID_CAS || mtype == IS_LOCKED) {
         rv = false;
     } else if (mtype == WAS_CLEAN || mtype == NOT_FOUND) {
         queueDirty(item.getKey());
@@ -130,6 +130,8 @@ void EventuallyPersistentStore::set(const Item &item, Callback<bool> &cb) {
             stats.curr_items.incr();
         }
     }
+
+    cb.setStatus((int)mtype);
     cb.callback(rv);
 }
 
@@ -140,14 +142,53 @@ void EventuallyPersistentStore::get(const std::string &key,
     StoredValue *v = storage.unlocked_find(key, bucket_num);
 
     if (v) {
+        // return an invalid cas value if the item is locked
         GetValue rv(new Item(v->getKey(), v->getFlags(), v->getExptime(),
-                             v->getValue(), v->getCas()));
+                             v->getValue(), v->isLocked(ep_current_time()) ? -1 : v->getCas()));
         cb.callback(rv);
     } else {
         GetValue rv(false);
         cb.callback(rv);
     }
     lh.unlock();
+}
+
+bool EventuallyPersistentStore::getLocked(const std::string &key,
+                                          Callback<GetValue> &cb,
+                                          rel_time_t currentTime,
+                                          uint32_t lockTimeout) {
+
+    int bucket_num = storage.bucket(key);
+    LockHolder lh(storage.getMutex(bucket_num));
+    StoredValue *v = storage.unlocked_find(key, bucket_num);
+
+    if (v) {
+        if (v->isLocked(currentTime)) {
+            GetValue rv(false);
+            cb.callback(rv);
+            lh.unlock();
+            return false;
+        }
+
+        // acquire lock and increment cas value
+
+        v->lock(currentTime + lockTimeout);
+
+        Item *it = new Item(v->getKey(), v->getFlags(), v->getExptime(),
+                v->getValue(), v->getCas());
+
+         it->setCas();
+         v->setCas(it->getCas());
+
+        GetValue rv(it);
+        cb.callback(rv);
+
+    } else {
+        GetValue rv(false);
+        cb.callback(rv);
+    }
+    lh.unlock();
+    return true;
 }
 
 bool EventuallyPersistentStore::getKeyStats(const std::string &key,

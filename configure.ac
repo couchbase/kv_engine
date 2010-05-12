@@ -39,8 +39,6 @@ AC_DEFUN([AC_C_HTONLL],
 
 AC_C_HTONLL
 
-AC_CHECK_HEADERS([arpa/inet.h])
-
 AS_IF([test "x$SUNCC" = "xyes"],
       [
         CFLAGS="-D_XOPEN_SOURCE=600 $CFLAGS"
@@ -53,10 +51,6 @@ AH_BOTTOM([
 #define EXPORT_FUNCTION __attribute__ ((visibility("default")))
 #else
 #define EXPORT_FUNCTION
-#endif
-
-#if HAVE_ARPA_INET_H
-#include <arpa/inet.h>
 #endif
 ])
 

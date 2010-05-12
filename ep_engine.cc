@@ -1,7 +1,8 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 #include "config.h"
-
+#include <arpa/inet.h>
 #include <assert.h>
+
 #include <memcached/engine.h>
 
 #include "ep_engine.h"
@@ -331,7 +332,7 @@ extern "C" {
         return ENGINE_SUCCESS;
     }
 
-    static void *EvpNotifyTapIo(void*arg) {
+    void *EvpNotifyTapIo(void*arg) {
         static_cast<EventuallyPersistentEngine*>(arg)->notifyTapIoThread();
         return NULL;
     }
