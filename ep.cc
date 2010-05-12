@@ -39,7 +39,7 @@ EventuallyPersistentStore::EventuallyPersistentStore(KVStore *t,
     stats.queue_age_cap = DEFAULT_MIN_DATA_AGE_CAP;
     initQueue();
 
-    doPersistence = getenv("EP_NO_PERSITENCE") == NULL;
+    doPersistence = getenv("EP_NO_PERSISTENCE") == NULL;
     flusher = new Flusher(this);
 
     txnSize = DEFAULT_TXN_SIZE;
