@@ -52,13 +52,12 @@ void StrategicSqlite3::dump(Callback<GetValue> &cb) {
         PreparedStatement *st = (*it)->all();
         st->reset();
         while (st->fetch()) {
-            std::string key(st->column(0));
-            std::string value(st->column(1));
-            GetValue rv(new Item(key,
+            GetValue rv(new Item(st->column_blob(0),
+                                 st->column_bytes(0),
                                  st->column_int(2),
                                  st->column_int(3),
-                                 value,
-                                 st->column_int64(4)));
+                                 st->column_blob(1),
+                                 st->column_bytes(1)));
             cb.callback(rv);
         }
 
