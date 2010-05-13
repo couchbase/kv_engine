@@ -47,11 +47,6 @@ public:
         setData(static_cast<const char*>(dta), nb);
     }
 
-    Item(const Item &itm) : flags(itm.flags), exptime(itm.exptime), cas(itm.cas)
-    {
-        key.assign(itm.key);
-        setData(itm.data, itm.nbytes);
-    }
 
     ~Item() {
         delete []data;
@@ -196,6 +191,7 @@ private:
     static void (*casNotifier)(uint64_t);
     static uint64_t casCounter;
     static Mutex casMutex;
+    DISALLOW_COPY_AND_ASSIGN(Item);
 };
 
 #endif
