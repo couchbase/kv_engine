@@ -17,17 +17,17 @@ void StrategicSqlite3::set(const Item &itm, Callback<bool> &cb) {
     ins_stmt->reset();
 }
 
-// XXX:  This needs to die.  It's incorrect and not the way forward.
 void StrategicSqlite3::get(const std::string &key, Callback<GetValue> &cb) {
     PreparedStatement *sel_stmt = strategy->forKey(key)->sel();
     sel_stmt->bind(1, key.c_str());
 
     if(sel_stmt->fetch()) {
-        std::string str(sel_stmt->column(0));
-        GetValue rv(new Item(key,
+        GetValue rv(new Item(key.c_str(),
+                             key.length(),
                              sel_stmt->column_int(1),
                              sel_stmt->column_int(2),
-                             str));
+                             sel_stmt->column_blob(0),
+                             sel_stmt->column_bytes(0)));
         cb.callback(rv);
     } else {
         GetValue rv(false);
