@@ -150,14 +150,60 @@ extern "C" {
         }
     }
 
+    static protocol_binary_response_status setTapParam(EventuallyPersistentEngine *e,
+                                                       const char *keyz, const char *valz,
+                                                       const char **msg) {
+        protocol_binary_response_status rv = PROTOCOL_BINARY_RESPONSE_SUCCESS;
+
+        if (strcmp(keyz, "tap_peer") == 0) {
+            e->setTapPeer(valz);
+            *msg = "Updated";
+        } else {
+            *msg = "Unknown config param";
+            rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
+        }
+
+        return rv;
+    }
+
     static protocol_binary_response_status setFlushParam(EventuallyPersistentEngine *e,
-                                                         protocol_binary_request_header *request,
+                                                         const char *keyz, const char *valz,
                                                          const char **msg) {
+        *msg = "Updated";
+        protocol_binary_response_status rv = PROTOCOL_BINARY_RESPONSE_SUCCESS;
+
+        // Handle the actual mutation.
+        try {
+            int v = atoi(valz);
+            if (strcmp(keyz, "min_data_age") == 0) {
+                validate(v, 1, MAX_DATA_AGE_PARAM);
+                e->setMinDataAge(v);
+            } else if (strcmp(keyz, "queue_age_cap") == 0) {
+                validate(v, 1, MAX_DATA_AGE_PARAM);
+                e->setQueueAgeCap(v);
+            } else if (strcmp(keyz, "max_txn_size") == 0) {
+                validate(v, 1, MAX_TXN_SIZE);
+                e->setTxnSize(v);
+            } else {
+                *msg = "Unknown config param";
+                rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
+            }
+        } catch(std::runtime_error ignored_exception) {
+            *msg = "Value out of range.";
+            rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
+        }
+
+        return rv;
+    }
+
+    static protocol_binary_response_status setParam(EventuallyPersistentEngine *e,
+                                                    protocol_binary_request_header *request,
+                                                    const char **msg) {
         protocol_binary_request_no_extras *req =
             (protocol_binary_request_no_extras*)request;
 
         char keyz[32];
-        char valz[32];
+        char valz[512];
 
         // Read the key.
         int keylen = ntohs(req->message.header.request.keylen);
@@ -179,29 +225,17 @@ extern "C" {
                + keylen, bodylen);
         valz[bodylen] = 0x00;
 
-        // Assume all is well by default.
-        protocol_binary_response_status rv = PROTOCOL_BINARY_RESPONSE_SUCCESS;
-        *msg = "Updated";
+        protocol_binary_response_status rv;
 
-        // Handle the actual mutation.
-        try {
-            int v = atoi(valz);
-            if (strcmp(keyz, "min_data_age") == 0) {
-                validate(v, 1, MAX_DATA_AGE_PARAM);
-                e->setMinDataAge(v);
-            } else if (strcmp(keyz, "queue_age_cap") == 0) {
-                validate(v, 1, MAX_DATA_AGE_PARAM);
-                e->setQueueAgeCap(v);
-            } else if (strcmp(keyz, "max_txn_size") == 0) {
-                validate(v, 1, MAX_TXN_SIZE);
-                e->setTxnSize(v);
-            } else {
-                *msg = "Unknown config param";
-                rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
-            }
-        } catch(std::runtime_error ignored_exception) {
-            *msg = "Value out of range.";
-            rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
+        switch (request->request.opcode) {
+        case CMD_SET_FLUSH_PARAM:
+            rv = setFlushParam(e, keyz, valz, msg);
+            break;
+        case CMD_SET_TAP_PARAM:
+            rv = setTapParam(e, keyz, valz, msg);
+            break;
+        default:
+            rv = PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND;
         }
 
         return rv;
@@ -231,7 +265,22 @@ extern "C" {
             res = startFlusher(h, &msg);
             break;
         case CMD_SET_FLUSH_PARAM:
-            res = setFlushParam(h, request, &msg);
+        case CMD_SET_TAP_PARAM:
+            res = setParam(h, request, &msg);
+            break;
+        case CMD_START_REPLICATION:
+            if (h->startReplication()) {
+                msg = "Started";
+                res = PROTOCOL_BINARY_RESPONSE_SUCCESS;
+            } else {
+                msg = "Error - is the peer set?";
+               res = PROTOCOL_BINARY_RESPONSE_EINVAL;
+            }
+            break;
+        case CMD_STOP_REPLICATION:
+            h->stopReplication();
+            res = PROTOCOL_BINARY_RESPONSE_SUCCESS;
+            msg = "Stopped";
             break;
         default:
             /* unknown command */
