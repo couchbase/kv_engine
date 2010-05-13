@@ -14,7 +14,7 @@ class HashTable;
 class StoredValue {
 public:
     StoredValue(const Item &itm, StoredValue *n) :
-        key(itm.getKey()), value(const_cast<Item&>(itm).getData(), itm.getNBytes()),
+        key(itm.getKey()), value(itm.getValue()),
         flags(itm.getFlags()), exptime(itm.getExptime()), dirtied(0), next(n),
         cas(itm.getCas())
     {
@@ -22,7 +22,7 @@ public:
     }
 
     StoredValue(const Item &itm, StoredValue *n, bool setDirty) :
-        key(itm.getKey()), value(const_cast<Item&>(itm).getData(), itm.getNBytes()),
+        key(itm.getKey()), value(itm.getValue()),
         flags(itm.getFlags()), exptime(itm.getExptime()), dirtied(0), next(n),
         cas(itm.getCas())
     {
@@ -71,7 +71,7 @@ public:
         return key;
     }
 
-    const std::string &getValue() const {
+    value_t getValue() const {
         return value;
     }
 
@@ -83,12 +83,12 @@ public:
         return flags;
     }
 
-    void setValue(const char *v, const size_t nv,
+    void setValue(value_t v,
                   uint32_t newFlags, rel_time_t newExp, uint64_t theCas) {
         cas = theCas;
         flags = newFlags;
         exptime = newExp;
-        value.assign(v, nv);
+        value = v;
         markDirty();
     }
 
@@ -110,7 +110,7 @@ private:
     friend class HashTable;
 
     std::string key;
-    std::string value;
+    value_t value;
     uint32_t flags;
     rel_time_t exptime;
     rel_time_t dirtied;
@@ -180,7 +180,7 @@ public:
             }
             itm.setCas();
             rv = v->isClean() ? WAS_CLEAN : WAS_DIRTY;
-            v->setValue(itm.getData(), itm.getNBytes(),
+            v->setValue(itm.getValue(),
                         itm.getFlags(), itm.getExptime(),
                         itm.getCas());
         } else {

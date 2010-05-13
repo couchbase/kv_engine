@@ -8,6 +8,8 @@
 #include <stdio.h>
 #include <memcached/engine.h>
 
+typedef shared_ptr<const std::string> value_t;
+
 /**
  * The Item structure we use to pass information between the memcached
  * core and the backend. Please note that the kvstore don't store these
@@ -32,11 +34,10 @@ public:
     }
 
     Item(const std::string &k, const int fl, const rel_time_t exp,
-         const std::string &val, uint64_t theCas = 0) :
-        flags(fl), exptime(exp), cas(theCas)
+         value_t val, uint64_t theCas = 0) :
+        flags(fl), exptime(exp), value(val), cas(theCas)
     {
         key.assign(k);
-        setData(val.c_str(), val.size());
     }
 
     Item(const void *k, uint16_t nk, const int fl, const rel_time_t exp,
@@ -47,13 +48,14 @@ public:
         setData(static_cast<const char*>(dta), nb);
     }
 
+    ~Item() {}
 
-    ~Item() {
-        delete []data;
+    const char *getData() const {
+        return value->c_str();
     }
 
-    char *getData() {
-        return data;
+    value_t getValue() const {
+        return value;
     }
 
     const std::string &getKey() const {
@@ -65,7 +67,7 @@ public:
     }
 
     uint32_t getNBytes() const {
-        return nbytes;
+        return value->length();
     }
 
     rel_time_t getExptime() const {
@@ -95,20 +97,14 @@ public:
      * @return true if success
      */
     bool append(const Item &item) {
-        uint32_t ns = nbytes + item.nbytes - 2;
-        char *c = new char[ns];
-        if (c == NULL) {
+        std::string *newValue = new std::string(*value, 0, value->length() - 2);
+        if (newValue != NULL) {
+            newValue->append(*item.getValue());
+            value.reset(newValue);
+            return true;
+        } else {
             return false;
         }
-
-        memcpy(c, data, nbytes - 2);
-        memcpy(c + nbytes - 2, item.data, item.nbytes);
-
-        delete []data;
-        data = c;
-        nbytes = ns;
-
-        return true;
     }
 
     /**
@@ -118,20 +114,14 @@ public:
      * @return true if success
      */
     bool prepend(const Item &item) {
-        uint32_t ns = nbytes + item.nbytes - 2;
-        char *c = new char[ns];
-        if (c == NULL) {
+        std::string *newValue = new std::string(*item.getValue(), 0, item.getNBytes() - 2);
+        if (newValue != NULL) {
+            newValue->append(*value);
+            value.reset(newValue);
+            return true;
+        } else {
             return false;
         }
-
-        memcpy(c, item.data, item.nbytes - 2);
-        memcpy(c + item.nbytes - 2, data, nbytes);
-
-        delete []data;
-        data = c;
-        nbytes = ns;
-
-        return true;
     }
 
 private:
@@ -140,33 +130,29 @@ private:
      * make it private.
      */
     void setData(const char *dta, const size_t nb) {
-        nbytes = static_cast<uint32_t>(nb);
-
-        if (dta != NULL) {
-            if (nbytes < 2 || memcmp(dta + nb - 2, "\r\n", 2) != 0) {
-                nbytes += 2;
-            }
-        }
-
-        if (nbytes > 0) {
-            data = new char[nbytes];
+        std::string *data;
+        if (dta == NULL) {
+            data = new std::string(nb, '\0');
         } else {
-            data = NULL;
+            data = new std::string(dta, nb);
+            if (data != NULL) {
+                if ((*data)[nb-2] != '\r' || (*data)[nb-1] != '\n') {
+                    data->append("\r\n");
+                }
+            }
         }
 
-        if (data && dta) {
-            memcpy(data, dta, nbytes);
-            if (nb != nbytes) {
-                memcpy(data + nb, "\r\n", 2);
-            }
+        if (data != NULL) {
+           value.reset(data);
+        } else {
+           throw std::runtime_error("Out of memory allocating value for item");
         }
     }
 
     int flags;
     rel_time_t exptime;
-    uint32_t nbytes;
     std::string key;
-    char *data;
+    value_t value;
     uint64_t cas;
 
     static uint64_t nextCas(void) {

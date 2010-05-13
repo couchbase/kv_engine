@@ -351,7 +351,7 @@ extern "C" {
         item_info->nkey = static_cast<uint16_t>(it->getNKey());
         item_info->nvalue = 1;
         item_info->key = it->getKey().c_str();
-        item_info->value[0].iov_base = const_cast<Item*>(it)->getData();
+        item_info->value[0].iov_base = const_cast<char*>(it->getData());
         item_info->value[0].iov_len = it->getNBytes();
         return true;
     }
