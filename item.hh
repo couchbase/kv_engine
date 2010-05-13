@@ -63,10 +63,6 @@ public:
         delete []data;
     }
 
-    Item* clone() {
-        return new Item(key, flags, exptime, data, nbytes, cas);
-    }
-
     char *getData() {
         return data;
     }
