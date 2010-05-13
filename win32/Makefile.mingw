@@ -27,7 +27,7 @@ CXXFLAGS = -std=gnu++0x \
 
 EP_ENGINE_CC_SRC = ep_engine.cc ep.cc flusher.cc item.cc priority.cc \
                    sqlite-eval.cc sqlite-kvstore.cc sqlite-pst.cc \
-                   sqlite-strategies.cc
+                   sqlite-strategies.cc dispatcher.cc
 EP_ENGINE_C_SRC = embedded/sqlite3.c
 EP_ENGINE_OBJS = ${EP_ENGINE_C_SRC:%.c=.libs/%.o} ${EP_ENGINE_CC_SRC:%.cc=.libs/%.o}
 
