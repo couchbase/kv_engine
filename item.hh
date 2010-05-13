@@ -15,12 +15,6 @@
  */
 class Item {
 public:
-    Item() : flags(0), exptime(0), cas(0)
-    {
-        key.assign("");
-        setData(NULL, 0);
-    }
-
     Item(const void* k, const size_t nk, const size_t nb,
          const int fl, const rel_time_t exp, uint64_t theCas = 0) :
         flags(fl), exptime(exp), cas(theCas)
