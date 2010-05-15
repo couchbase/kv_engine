@@ -405,6 +405,10 @@ public:
         ENGINE_ERROR_CODE rv = ENGINE_KEY_ENOENT;
         if (stat_key == NULL) {
             rv = doEngineStats(cookie, add_stat);
+        } else if (nkey == 3 && strncmp(stat_key, "tap", 3) == 0) {
+            rv = doTapStats(cookie, add_stat);
+        } else if (nkey == 4 && strncmp(stat_key, "hash", 3) == 0) {
+            rv = doHashStats(cookie, add_stat);
         } else if (nkey > 4 && strncmp(stat_key, "key ", 4) == 0) {
             rv = doKeyStats(cookie, add_stat, &stat_key[4], nkey-4);
         }
@@ -861,10 +865,13 @@ private:
             // see if I have some channels that I have to signal..
             bool shouldPause = true;
             std::map<const void*, TapConnection*>::iterator iter;
+            size_t depth = 0, totalSent = 0;
             for (iter = tapConnectionMap.begin(); iter != tapConnectionMap.end(); iter++) {
                 if (!iter->second->queue->empty()) {
+                    depth += iter->second->queue->size();
                     shouldPause = false;
                 }
+                totalSent += iter->second->recordsFetched;
             }
 
             if (shouldPause) {
@@ -876,6 +883,10 @@ private:
             std::map<const void*, TapConnection*> tcm = tapConnectionMap;
 
             tapNotifySync.release();
+
+            // Use the depth and number of records fetched we calculated above.
+            epstore->setTapStats(depth, totalSent);
+
             for (iter = tcm.begin(); iter != tcm.end(); iter++) {
                 if (iter->second->paused) {
                     serverApi->core->notify_io_complete(iter->first, ENGINE_SUCCESS);
@@ -1083,11 +1094,6 @@ private:
                             epstats.flushDurationHighWat, add_stat, cookie);
             add_casted_stat("curr_items", epstats.curr_items, add_stat,
                             cookie);
-
-            HashTableDepthStatVisitor depthVisitor;
-            epstore->visitDepth(depthVisitor);
-            add_casted_stat("ep_hash_min_depth", depthVisitor.min, add_stat, cookie);
-            add_casted_stat("ep_hash_max_depth", depthVisitor.max, add_stat, cookie);
         }
 
         add_casted_stat("ep_dbname", dbname, add_stat, cookie);
@@ -1105,34 +1111,51 @@ private:
             }
         }
 
+        add_casted_stat("ep_tap_total_queue", epstats.tap_queue, add_stat, cookie);
+        add_casted_stat("ep_tap_total_fetched", epstats.tap_fetched, add_stat, cookie);
+        add_casted_stat("ep_tap_keepalive", tapKeepAlive, add_stat, cookie);
+        return ENGINE_SUCCESS;
+    }
+
+    ENGINE_ERROR_CODE doHashStats(const void *cookie, ADD_STAT add_stat) {
+        HashTableDepthStatVisitor depthVisitor;
+        if (epstore) {
+            epstore->visitDepth(depthVisitor);
+        }
+        add_casted_stat("ep_hash_min_depth", depthVisitor.min, add_stat, cookie);
+        add_casted_stat("ep_hash_max_depth", depthVisitor.max, add_stat, cookie);
+        return ENGINE_SUCCESS;
+    }
+
+    ENGINE_ERROR_CODE doTapStats(const void *cookie, ADD_STAT add_stat) {
         std::list<TapConnection*>::iterator iter;
-        size_t totalQueue = 0;
-        size_t totalFetched = 0;
-        {
-            LockHolder lh(tapNotifySync);
-            for (iter = allTaps.begin(); iter != allTaps.end(); iter++) {
-                char tap[80];
-                TapConnection *tc = *iter;
-                sprintf(tap, "%s:qlen", tc->client.c_str());
-                add_casted_stat(tap, tc->queue->size(), add_stat, cookie);
-                totalQueue += tc->queue->size();
-                sprintf(tap, "%s:rec_fetched", tc->client.c_str());
-                add_casted_stat(tap, tc->recordsFetched, add_stat, cookie);
-                totalFetched += tc->recordsFetched;
-                if (tc->reconnects > 0) {
-                    sprintf(tap, "%s:reconnects", tc->client.c_str());
-                    add_casted_stat(tap, tc->reconnects, add_stat, cookie);
-                }
-                if (tc->backfillAge != 0) {
-                    sprintf(tap, "%s:backfill_age", tc->client.c_str());
-                    add_casted_stat(tap, (size_t)tc->backfillAge, add_stat, cookie);
-                }
+        struct ep_stats epstats;
+        if (epstore) {
+            epstore->getStats(&epstats);
+            add_casted_stat("ep_tap_total_queue", epstats.tap_queue, add_stat, cookie);
+            add_casted_stat("ep_tap_total_fetched", epstats.tap_fetched, add_stat, cookie);
+            add_casted_stat("ep_tap_keepalive", tapKeepAlive, add_stat, cookie);
+        }
+        int totalTaps = 0;
+        LockHolder lh(tapNotifySync);
+        for (iter = allTaps.begin(); iter != allTaps.end(); iter++) {
+            char tap[80];
+            totalTaps++;
+            TapConnection *tc = *iter;
+            sprintf(tap, "%s:qlen", tc->client.c_str());
+            add_casted_stat(tap, tc->queue->size(), add_stat, cookie);
+            sprintf(tap, "%s:rec_fetched", tc->client.c_str());
+            add_casted_stat(tap, tc->recordsFetched, add_stat, cookie);
+            if (tc->reconnects > 0) {
+                sprintf(tap, "%s:reconnects", tc->client.c_str());
+                add_casted_stat(tap, tc->reconnects, add_stat, cookie);
+            }
+            if (tc->backfillAge != 0) {
+                sprintf(tap, "%s:backfill_age", tc->client.c_str());
+                add_casted_stat(tap, (size_t)tc->backfillAge, add_stat, cookie);
             }
         }
-
-        add_casted_stat("ep_tap_total_queue", totalQueue, add_stat, cookie);
-        add_casted_stat("ep_tap_total_fetched", totalFetched, add_stat, cookie);
-        add_casted_stat("ep_tap_keepalive", tapKeepAlive, add_stat, cookie);
+        add_casted_stat("ep_tap_count", totalTaps, add_stat, cookie);
         return ENGINE_SUCCESS;
     }
 

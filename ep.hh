@@ -79,6 +79,10 @@ struct ep_stats {
     uint32_t min_data_age;
     // Maximum data age before a record is forced to be persisted
     uint32_t queue_age_cap;
+    // Current tap queue size.
+    size_t tap_queue;
+    // Total number of tap messages sent.
+    size_t tap_fetched;
 };
 
 struct key_stats {
@@ -170,6 +174,12 @@ public:
     void setTxnSize(int to) {
         LockHolder lh(mutex);
         txnSize = to;
+    }
+
+    void setTapStats(size_t depth, size_t fetched) {
+        LockHolder lh(mutex);
+        stats.tap_queue = depth;
+        stats.tap_fetched = fetched;
     }
 
     const Flusher* getFlusher();
