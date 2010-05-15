@@ -1207,9 +1207,8 @@ private:
 class BackFillVisitor : public HashTableVisitor {
 public:
     BackFillVisitor(EventuallyPersistentEngine *e, TapConnection *tc):
-        engine(e), name(tc->client)
+        engine(e), name(tc->client), queue(NULL)
     {
-        queue = new std::list<std::string>;
         queue_set = new std::set<std::string>;
     }
 
@@ -1220,13 +1219,12 @@ public:
 
     void visit(StoredValue *v) {
         std::string key(v->getKey());
-        std::pair<std::set<std::string>::iterator, bool> ret(queue_set->insert(key));
-        if (ret.second) {
-            queue->push_back(key);
-        }
+        queue_set->insert(key);
     }
 
     void apply(void) {
+        queue = new std::list<std::string>(queue_set->begin(),
+                                           queue_set->end());
         if (engine->setEvents(name, queue, queue_set)) {
             queue = NULL;
             queue_set = NULL;
