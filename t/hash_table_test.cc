@@ -24,8 +24,8 @@ public:
     void visit(StoredValue *v) {
         count += 1;
         std::string key = v->getKey();
-        std::string val = v->getValue();
-        std::string subval = val.substr(0, val.length() - 2);
+        value_t val = v->getValue();
+        std::string subval = val->substr(0, val->length() - 2);
         assert(key.compare(subval) == 0);
     }
 };
