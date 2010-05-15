@@ -856,22 +856,37 @@ private:
                                              GET_SERVER_API get_server_api,
                                              ENGINE_HANDLE **handle);
 
+    void updateTapStats(void) {
+        LockHolder lh(tapNotifySync);
+        size_t depth = 0, totalSent = 0;
+        std::map<const void*, TapConnection*>::iterator iter;
+        for (iter = tapConnectionMap.begin(); iter != tapConnectionMap.end(); iter++) {
+            depth += iter->second->queue->size();
+            totalSent += iter->second->recordsFetched;
+        }
+        lh.unlock();
+
+        // Use the depth and number of records fetched we calculated above.
+        epstore->setTapStats(depth, totalSent);
+    }
+
     friend void *EvpNotifyTapIo(void*arg);
     void notifyTapIoThread(void) {
-        LockHolder lh(tapNotifySync);
         // Fix clean shutdown!!!
         while (!shutdown) {
-            purgeExpiredTapConnections_UNLOCKED();
+
+            updateTapStats();
+
+            LockHolder lh(tapNotifySync);
+            // We should pause unless we purged some connections or
+            // all queues have items.
+            bool shouldPause = purgeExpiredTapConnections_UNLOCKED() == 0;
             // see if I have some channels that I have to signal..
-            bool shouldPause = true;
             std::map<const void*, TapConnection*>::iterator iter;
-            size_t depth = 0, totalSent = 0;
             for (iter = tapConnectionMap.begin(); iter != tapConnectionMap.end(); iter++) {
                 if (!iter->second->queue->empty()) {
-                    depth += iter->second->queue->size();
                     shouldPause = false;
                 }
-                totalSent += iter->second->recordsFetched;
             }
 
             if (shouldPause) {
@@ -884,9 +899,6 @@ private:
 
             tapNotifySync.release();
 
-            // Use the depth and number of records fetched we calculated above.
-            epstore->setTapStats(depth, totalSent);
-
             for (iter = tcm.begin(); iter != tcm.end(); iter++) {
                 if (iter->second->paused) {
                     serverApi->core->notify_io_complete(iter->first, ENGINE_SUCCESS);
@@ -896,7 +908,6 @@ private:
             // Prevent the notify thread from busy-looping while
             // holding locks when there's work to do.
             sleep(1);
-            tapNotifySync.aquire();
         }
     }
 
@@ -921,7 +932,7 @@ private:
         return rv;
     }
 
-    void purgeExpiredTapConnections_UNLOCKED() {
+    int purgeExpiredTapConnections_UNLOCKED() {
         rel_time_t now = serverApi->core->get_current_time();
         std::list<TapConnection*> deadClients;
 
@@ -937,6 +948,8 @@ private:
             TapConnection *tc = *iter;
             purgeSingleExpiredTapConnection(tc);
         }
+
+        return static_cast<int>(deadClients.size());
     }
 
     friend class BackFillVisitor;
