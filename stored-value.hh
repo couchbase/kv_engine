@@ -2,6 +2,8 @@
 #ifndef STORED_VALUE_H
 #define STORED_VALUE_H 1
 
+#include <algorithm>
+
 #include "locks.hh"
 
 extern "C" {
@@ -138,14 +140,15 @@ public:
         size = s;
         n_locks = l;
         active = true;
-        values = (StoredValue**)calloc(s, sizeof(StoredValue**));
+        values = new StoredValue*[s];
+        std::fill_n(values, s, static_cast<StoredValue*>(NULL));
         mutexes = new Mutex[l];
     }
 
     ~HashTable() {
         clear();
         delete []mutexes;
-        free(values);
+        delete []values;
     }
 
     void clear() {
