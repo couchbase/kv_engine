@@ -1083,6 +1083,11 @@ private:
                             epstats.flushDurationHighWat, add_stat, cookie);
             add_casted_stat("curr_items", epstats.curr_items, add_stat,
                             cookie);
+
+            HashTableDepthStatVisitor depthVisitor;
+            epstore->visitDepth(depthVisitor);
+            add_casted_stat("ep_hash_min_depth", depthVisitor.min, add_stat, cookie);
+            add_casted_stat("ep_hash_max_depth", depthVisitor.max, add_stat, cookie);
         }
 
         add_casted_stat("ep_dbname", dbname, add_stat, cookie);

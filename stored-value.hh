@@ -2,6 +2,7 @@
 #ifndef STORED_VALUE_H
 #define STORED_VALUE_H 1
 
+#include <climits>
 #include <algorithm>
 
 #include "locks.hh"
@@ -132,6 +133,30 @@ public:
     virtual void visit(StoredValue *v) = 0;
 };
 
+class HashTableDepthVisitor {
+public:
+    virtual ~HashTableDepthVisitor() {}
+    virtual void visit(int bucket, int depth) = 0;
+};
+
+class HashTableDepthStatVisitor : public HashTableDepthVisitor {
+public:
+
+    HashTableDepthStatVisitor() : depths(), min(INT_MAX), max(0) {}
+
+    void visit(int bucket, int depth) {
+        depths.reserve(bucket+1);
+        depths[bucket] = depth;
+
+        min = std::min(min, depth);
+        max = std::max(max, depth);
+    }
+
+    std::vector<int> depths;
+    int min;
+    int max;
+};
+
 class HashTable {
 public:
 
@@ -143,12 +168,15 @@ public:
         values = new StoredValue*[s];
         std::fill_n(values, s, static_cast<StoredValue*>(NULL));
         mutexes = new Mutex[l];
+        depths = new int[s];
+        std::fill_n(depths, s, 0);
     }
 
     ~HashTable() {
         clear();
         delete []mutexes;
         delete []values;
+        delete []depths;
     }
 
     void clear() {
@@ -160,6 +188,7 @@ public:
                 values[i] = v->next;
                 delete v;
             }
+            depths[i] = 0;
         }
     }
 
@@ -193,6 +222,7 @@ public:
             itm.setCas();
             v = new StoredValue(itm, values[bucket_num]);
             values[bucket_num] = v;
+            depths[bucket_num]++;
         }
         return rv;
     }
@@ -209,6 +239,7 @@ public:
             itm.setCas();
             v = new StoredValue(itm, values[bucket_num], isDirty);
             values[bucket_num] = v;
+            depths[bucket_num]++;
         }
 
         return true;
@@ -265,6 +296,7 @@ public:
         // Special case the first one
         if (key.compare(v->key) == 0) {
             values[bucket_num] = v->next;
+            depths[bucket_num]--;
             delete v;
             return true;
         }
@@ -274,6 +306,7 @@ public:
                 StoredValue *tmp = v->next;
                 v->next = v->next->next;
                 delete tmp;
+                depths[bucket_num]--;
                 return true;
             } else {
                 v = v->next;
@@ -294,12 +327,20 @@ public:
         }
     }
 
+    void visitDepth(HashTableDepthVisitor &visitor) {
+        for (int i = 0; i < (int)size; i++) {
+            LockHolder lh(getMutex(i));
+            visitor.visit(i, depths[i]);
+        }
+    }
+
 private:
-    size_t            size;
-    size_t            n_locks;
-    bool              active;
-    StoredValue     **values;
-    Mutex            *mutexes;
+    size_t        size;
+    size_t        n_locks;
+    bool          active;
+    StoredValue **values;
+    Mutex        *mutexes;
+    int          *depths;
 
     DISALLOW_COPY_AND_ASSIGN(HashTable);
 };

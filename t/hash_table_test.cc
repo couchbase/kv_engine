@@ -178,6 +178,19 @@ static void testAdd() {
     }
 }
 
+static void testDepthCounting() {
+    HashTable h(5, 1);
+    const int nkeys = 5000;
+
+    std::vector<std::string> keys = generateKeys(nkeys);
+    storeMany(h, keys);
+
+    HashTableDepthStatVisitor depthCounter;
+    h.visitDepth(depthCounter);
+    // std::cout << "Max depth:  " << depthCounter.maxDepth << std::endl;
+    assert(depthCounter.max > 1000);
+}
+
 int main() {
     testHashSize();
     testHashSizeTwo();
@@ -185,5 +198,6 @@ int main() {
     testForwardDeletions();
     testFind();
     testAdd();
+    testDepthCounting();
     exit(0);
 }

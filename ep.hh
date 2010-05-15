@@ -154,6 +154,10 @@ public:
         storage.visit(visitor);
     }
 
+    void visitDepth(HashTableDepthVisitor &visitor) {
+        storage.visitDepth(visitor);
+    }
+
     void warmup() {
         static_cast<StrategicSqlite3*>(underlying)->dump(loadStorageKVPairCallback);
     }
