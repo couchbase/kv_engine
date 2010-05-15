@@ -892,6 +892,10 @@ private:
                     serverApi->core->notify_io_complete(iter->first, ENGINE_SUCCESS);
                 }
             }
+
+            // Prevent the notify thread from busy-looping while
+            // holding locks when there's work to do.
+            sleep(1);
             tapNotifySync.aquire();
         }
     }
