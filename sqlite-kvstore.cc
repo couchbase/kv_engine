@@ -23,7 +23,7 @@ void StrategicSqlite3::get(const std::string &key, Callback<GetValue> &cb) {
 
     if(sel_stmt->fetch()) {
         GetValue rv(new Item(key.c_str(),
-                             key.length(),
+                             static_cast<uint16_t>(key.length()),
                              sel_stmt->column_int(1),
                              sel_stmt->column_int(2),
                              sel_stmt->column_blob(0),
@@ -53,7 +53,7 @@ void StrategicSqlite3::dump(Callback<GetValue> &cb) {
         st->reset();
         while (st->fetch()) {
             GetValue rv(new Item(st->column_blob(0),
-                                 st->column_bytes(0),
+                                 static_cast<uint16_t>(st->column_bytes(0)),
                                  st->column_int(2),
                                  st->column_int(3),
                                  st->column_blob(1),
