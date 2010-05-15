@@ -224,7 +224,7 @@ public:
         ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
 
         if (config != NULL) {
-            char *dbn = NULL, *initf;
+            char *dbn = NULL, *initf = NULL;
             const int max_items = 7;
             struct config_item items[max_items];
             int ii = 0;
