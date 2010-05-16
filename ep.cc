@@ -33,11 +33,9 @@ EventuallyPersistentStore::EventuallyPersistentStore(KVStore *t,
     loadStorageKVPairCallback(storage, stats)
 {
     est_size = est;
-    towrite = NULL;
     memset(&stats, 0, sizeof(stats));
     stats.min_data_age = DEFAULT_MIN_DATA_AGE;
     stats.queue_age_cap = DEFAULT_MIN_DATA_AGE_CAP;
-    initQueue();
 
     doPersistence = getenv("EP_NO_PERSISTENCE") == NULL;
     flusher = new Flusher(this);
@@ -84,7 +82,6 @@ EventuallyPersistentStore::~EventuallyPersistentStore() {
     }
 
     delete flusher;
-    delete towrite;
 }
 
 const Flusher* EventuallyPersistentStore::getFlusher() {
@@ -122,12 +119,6 @@ bool EventuallyPersistentStore::resumeFlusher() {
     return true;
 }
 
-void EventuallyPersistentStore::initQueue() {
-    assert(!towrite);
-    stats.queue_size = 0;
-    towrite = new std::queue<std::string>;
-}
-
 void EventuallyPersistentStore::set(const Item &item, Callback<bool> &cb) {
     mutation_type_t mtype = storage.set(item);
     bool rv = true;
@@ -135,10 +126,9 @@ void EventuallyPersistentStore::set(const Item &item, Callback<bool> &cb) {
     if (mtype == INVALID_CAS) {
         rv = false;
     } else if (mtype == WAS_CLEAN || mtype == NOT_FOUND) {
-        LockHolder lh(mutex);
         queueDirty(item.getKey());
         if (mtype == NOT_FOUND) {
-            ++stats.curr_items;
+            curr_items.incr();
         }
     }
     cb.callback(rv);
@@ -163,6 +153,8 @@ void EventuallyPersistentStore::get(const std::string &key,
 
 void EventuallyPersistentStore::getStats(struct ep_stats *out) {
     LockHolder lh(mutex);
+    stats.totalEnqueued = totalEnqueued.get();
+    stats.curr_items = curr_items.get();
     *out = stats;
 }
 
@@ -210,48 +202,41 @@ void EventuallyPersistentStore::resetStats(void) {
 void EventuallyPersistentStore::del(const std::string &key, Callback<bool> &cb) {
     bool existed = storage.del(key);
     if (existed) {
-        LockHolder lh(mutex);
         queueDirty(key);
-        --stats.curr_items;
+        curr_items.incr(-1);
     }
     cb.callback(existed);
 }
 
-std::queue<std::string>* EventuallyPersistentStore::beginFlush(bool shouldWait) {
-    LockHolder lh(mutex);
-    std::queue<std::string>* rv = NULL;
-
-    if (towrite->empty()) {
+std::queue<std::string> *EventuallyPersistentStore::beginFlush(bool shouldWait) {
+    if (towrite.empty() && writing.empty()) {
         stats.dirtyAge = 0;
         if (shouldWait) {
             mutex.wait();
+        } else {
+            getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "Nothing to flush\n");
+            return &writing;
         }
-    } else {
-        rv = towrite;
-        towrite = NULL;
-        initQueue();
-        lh.unlock();
-
-        assert(underlying);
-
-        stats.flusher_todo = rv->size();
     }
-    return rv;
+    assert(underlying);
+    towrite.getAll(writing);
+    stats.flusher_todo = writing.size();
+    stats.queue_size = towrite.size() + writing.size();
+    getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "Flushing %d items with %d still in queue\n",
+                     writing.size(), towrite.size());
+    return &writing;
 }
 
 void EventuallyPersistentStore::completeFlush(std::queue<std::string> *rej,
                                               rel_time_t flush_start) {
     // Requeue the rejects.
-    LockHolder lh(mutex);
+    getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "Rejected %d items\n", rej->size());
     while (!rej->empty()) {
-        std::string key = rej->front();
+        writing.push(rej->front());
         rej->pop();
-        towrite->push(key);
-        stats.queue_size++;
     }
 
-    lh.unlock();
-
+    stats.queue_size = towrite.size() + writing.size();
     rel_time_t complete_time = ep_current_time();
     stats.flushDuration = complete_time - flush_start;
     stats.flushDurationHighWat = stats.flushDuration > stats.flushDurationHighWat

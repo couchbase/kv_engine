@@ -24,6 +24,7 @@
 #include "locks.hh"
 #include "sqlite-kvstore.hh"
 #include "stored-value.hh"
+#include "atomic.hh"
 
 extern EXTENSION_LOGGER_DESCRIPTOR *getLogger(void);
 
@@ -189,9 +190,8 @@ private:
     void queueDirty(const std::string &key) {
         if (doPersistence) {
             // Assume locked.
-            towrite->push(key);
-            stats.queue_size++;
-            stats.totalEnqueued++;
+            towrite.push(key);
+            totalEnqueued.incr();
             mutex.notify();
         }
     }
@@ -204,7 +204,6 @@ private:
                   std::queue<std::string> *rejectQueue);
     int flushOne(std::queue<std::string> *q,
                   std::queue<std::string> *rejectQueue);
-    void initQueue();
 
     friend class Flusher;
     bool doPersistence;
@@ -213,9 +212,12 @@ private:
     Flusher                   *flusher;
     HashTable                  storage;
     SyncObject                 mutex;
-    std::queue<std::string>   *towrite;
+    AtomicQueue<std::string>   towrite;
+    std::queue<std::string>    writing;
     pthread_t                  thread;
     struct ep_stats            stats;
+    Atomic<size_t>     totalEnqueued;
+    Atomic<size_t>     curr_items;
     LoadStorageKVPairCallback  loadStorageKVPairCallback;
     int                        txnSize;
     DISALLOW_COPY_AND_ASSIGN(EventuallyPersistentStore);
