@@ -6,6 +6,7 @@ noinst_LTLIBRARIES = libsqlite3.la
 ep_la_CPPFLAGS = -I@MEMCACHED_DIR@/include -I$(top_srcdir) $(AM_CPPFLAGS) -DSQLITE_HAS_CODEC=0
 ep_la_LDFLAGS = -module -dynamic
 ep_la_SOURCES = \
+                 atomic.hh \
                  callbacks.hh \
                  common.hh \
                  ep.cc ep.hh \
@@ -29,7 +30,7 @@ ep_la_DEPENDENCIES = libsqlite3.la
 libsqlite3_la_SOURCES = embedded/sqlite3.h embedded/sqlite3.c
 libsqlite3_la_CFLAGS = $(AM_CFLAGS) ${NO_WERROR}
 
-check_PROGRAMS=hash_table_test priority_test
+check_PROGRAMS=hash_table_test priority_test atomic_test
 TESTS=${check_PROGRAMS}
 
 hash_table_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
@@ -38,5 +39,9 @@ hash_table_test_DEPENDENCIES = ep.hh item.hh
 
 priority_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
 priority_test_SOURCES = t/priority_test.cc priority.hh priority.cc
+
+atomic_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
+atomic_test_SOURCES = t/atomic_test.cc atomic.hh
+atomic_test_DEPENDENCIES = atomic.hh
 
 test: check-TESTS
