@@ -152,8 +152,6 @@ public:
         throw std::runtime_error("not implemented");
     }
 
-    void reset();
-
     void visit(HashTableVisitor &visitor) {
         storage.visit(visitor);
     }

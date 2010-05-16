@@ -144,17 +144,6 @@ void EventuallyPersistentStore::set(const Item &item, Callback<bool> &cb) {
     cb.callback(rv);
 }
 
-void EventuallyPersistentStore::reset() {
-    // flush(false); // XXX:  I think reset may not be used.
-    LockHolder lh(mutex);
-    underlying->reset();
-    delete towrite;
-    towrite = NULL;
-    memset(&stats, 0, sizeof(stats));
-    initQueue();
-    storage.clear();
-}
-
 void EventuallyPersistentStore::get(const std::string &key,
                                     Callback<GetValue> &cb) {
     int bucket_num = storage.bucket(key);
