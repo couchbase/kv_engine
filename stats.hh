@@ -23,6 +23,8 @@ struct ep_stats {
     size_t totalEnqueued;
     // Number of times an item flush failed.
     size_t flushFailed;
+    // Number of times a commit failed.
+    size_t commitFailed;
     // How long an object is dirty before written.
     rel_time_t dirtyAge;
     rel_time_t dirtyAgeHighWat;

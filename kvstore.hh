@@ -105,8 +105,10 @@ public:
     /**
      * For things that support transactions, this signals the
      * successful completion of one.
+     *
+     * Returns true on success.
      */
-    virtual void commit() {}
+    virtual bool commit() { return true; }
 
     /**
      * For things that support transactions, this signals the

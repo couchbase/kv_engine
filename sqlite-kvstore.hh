@@ -53,12 +53,16 @@ public:
 
     /**
      * Commit a transaction (unless not currently in one).
+     *
+     * Returns false if the commit fails.
      */
-    void commit() {
+    bool commit() {
         if(intransaction) {
-            execute("commit");
-            intransaction = false;
+            // If commit returns -1, we're still in a transaction.
+            intransaction = (execute("commit") == -1);
         }
+        // !intransaction == not in a transaction == committed
+        return !intransaction;
     }
 
     /**
@@ -97,9 +101,9 @@ private:
      *
      * @param query a simple query with no bindings to execute directly
      */
-    void execute(const char *query) {
+    int execute(const char *query) {
         PreparedStatement st(db, query);
-        st.execute();
+        return st.execute();
     }
 
     /**

@@ -255,7 +255,11 @@ int EventuallyPersistentStore::flushSome(std::queue<std::string> *q,
         }
     }
     rel_time_t cstart = ep_current_time();
-    underlying->commit();
+    while (!underlying->commit()) {
+        sleep(1);
+        LockHolder lh_stat(mutex);
+        stats.commitFailed++;
+    }
     rel_time_t complete_time = ep_current_time();
     // One more lock to update a stat.
     LockHolder lh_stat(mutex);
