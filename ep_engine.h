@@ -1035,6 +1035,12 @@ private:
         add_casted_stat(k, vals.str().c_str(), add_stat, cookie);
     }
 
+    template <typename T>
+    void add_casted_stat(const char *k, StatValue<T> v,
+                         ADD_STAT add_stat, const void *cookie) {
+        add_casted_stat(k, v.get(), add_stat, cookie);
+    }
+
     void startEngineThreads(void);
     void stopEngineThreads(void) {
         LockHolder lh(tapNotifySync);
@@ -1066,7 +1072,7 @@ private:
     ENGINE_ERROR_CODE doEngineStats(const void *cookie, ADD_STAT add_stat)
     {
         // @todo add interesting stats
-        struct ep_stats epstats;
+        EPStats epstats;
 
         if (epstore) {
             epstore->getStats(&epstats);
@@ -1121,10 +1127,10 @@ private:
                         add_stat, cookie);
         if (warmup) {
             add_casted_stat("ep_warmup_thread",
-                            epstats.warmupComplete ? "complete" : "running",
+                            epstats.warmupComplete.get() ? "complete" : "running",
                             add_stat, cookie);
             add_casted_stat("ep_warmed_up", epstats.warmedUp, add_stat, cookie);
-            if (epstats.warmupComplete) {
+            if (epstats.warmupComplete.get()) {
                 add_casted_stat("ep_warmup_time", epstats.warmupTime,
                                 add_stat, cookie);
             }
@@ -1148,7 +1154,7 @@ private:
 
     ENGINE_ERROR_CODE doTapStats(const void *cookie, ADD_STAT add_stat) {
         std::list<TapConnection*>::iterator iter;
-        struct ep_stats epstats;
+        EPStats epstats;
         if (epstore) {
             epstore->getStats(&epstats);
             add_casted_stat("ep_tap_total_queue", epstats.tap_queue, add_stat, cookie);

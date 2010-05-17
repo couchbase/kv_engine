@@ -50,7 +50,7 @@ class Flusher;
  */
 class LoadStorageKVPairCallback : public Callback<GetValue> {
 public:
-    LoadStorageKVPairCallback(HashTable &ht, struct ep_stats &st)
+    LoadStorageKVPairCallback(HashTable &ht, EPStats &st)
         : hashtable(ht), stats(st) { }
 
     void callback(GetValue &val) {
@@ -59,12 +59,12 @@ public:
             hashtable.add(*i, true);
             delete i;
         }
-        stats.warmedUp++;
+        stats.warmedUp.incr();
     }
 
 private:
     HashTable       &hashtable;
-    struct ep_stats &stats;
+    EPStats &stats;
 };
 
 class EventuallyPersistentStore : public KVStore {
@@ -80,7 +80,7 @@ public:
 
     void del(const std::string &key, Callback<bool> &cb);
 
-    void getStats(struct ep_stats *out);
+    void getStats(EPStats *out);
 
     void setMinDataAge(int to);
 
@@ -123,8 +123,8 @@ public:
 
     void setTapStats(size_t depth, size_t fetched) {
         LockHolder lh(mutex);
-        stats.tap_queue = depth;
-        stats.tap_fetched = fetched;
+        stats.tap_queue.set(depth);
+        stats.tap_fetched.set(fetched);
     }
 
     const Flusher* getFlusher();
@@ -135,9 +135,9 @@ private:
     /* Queue an item to be written to persistent layer. */
     void queueDirty(const std::string &key) {
         if (doPersistence) {
-            // Assume locked.
             towrite.push(key);
-            totalEnqueued.incr();
+            stats.queue_size.incr();
+            stats.totalEnqueued.incr();
             mutex.notify();
         }
     }
@@ -152,7 +152,7 @@ private:
                   std::queue<std::string> *rejectQueue);
 
     friend class Flusher;
-    bool doPersistence;
+    bool                       doPersistence;
     KVStore                   *underlying;
     size_t                     est_size;
     Flusher                   *flusher;
@@ -161,9 +161,7 @@ private:
     AtomicQueue<std::string>   towrite;
     std::queue<std::string>    writing;
     pthread_t                  thread;
-    struct ep_stats            stats;
-    Atomic<size_t>     totalEnqueued;
-    Atomic<size_t>     curr_items;
+    EPStats                    stats;
     LoadStorageKVPairCallback  loadStorageKVPairCallback;
     int                        txnSize;
     DISALLOW_COPY_AND_ASSIGN(EventuallyPersistentStore);

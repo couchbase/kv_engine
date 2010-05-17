@@ -2,52 +2,84 @@
 
 #include <memcached/engine.h>
 
-struct ep_stats {
+#include "common.hh"
+
+template <typename T>
+class StatValue {
+public:
+
+    StatValue() : v(0) {}
+
+    void incr(int by=1) {
+        v += by;
+    }
+
+    void decr(int by=1) {
+        v -= by;
+    }
+
+    void set(T to) {
+        v = to;
+    }
+
+    T get(void) {
+        return v;
+    }
+
+private:
+    T v;
+};
+
+class EPStats {
+public:
+
+    EPStats() {}
+
     // How long it took us to load the data from disk.
-    time_t warmupTime;
+    StatValue<time_t> warmupTime;
     // Whether we're warming up.
-    bool warmupComplete;
+    StatValue<bool> warmupComplete;
     // Number of records warmed up.
-    size_t warmedUp;
+    StatValue<size_t> warmedUp;
     // size of the input queue
-    size_t queue_size;
+    StatValue<size_t> queue_size;
     // Size of the in-process (output) queue.
-    size_t flusher_todo;
+    StatValue<size_t> flusher_todo;
     // Objects that were rejected from persistence for being too fresh.
-    size_t tooYoung;
+    StatValue<size_t> tooYoung;
     // Objects that were forced into persistence for being too old.
-    size_t tooOld;
+    StatValue<size_t> tooOld;
     // Number of items persisted.
-    size_t totalPersisted;
+    StatValue<size_t> totalPersisted;
     // Cumulative number of items added to the queue.
-    size_t totalEnqueued;
+    StatValue<size_t> totalEnqueued;
     // Number of times an item flush failed.
-    size_t flushFailed;
+    StatValue<size_t> flushFailed;
     // Number of times a commit failed.
-    size_t commitFailed;
+    StatValue<size_t> commitFailed;
     // How long an object is dirty before written.
-    rel_time_t dirtyAge;
-    rel_time_t dirtyAgeHighWat;
+    StatValue<rel_time_t> dirtyAge;
+    StatValue<rel_time_t> dirtyAgeHighWat;
     // How old persisted data was when it hit the persistence layer
-    rel_time_t dataAge;
-    rel_time_t dataAgeHighWat;
+    StatValue<rel_time_t> dataAge;
+    StatValue<rel_time_t> dataAgeHighWat;
     // How long does it take to do an entire flush cycle.
-    rel_time_t flushDuration;
-    rel_time_t flushDurationHighWat;
+    StatValue<rel_time_t> flushDuration;
+    StatValue<rel_time_t> flushDurationHighWat;
     // Amount of time spent in the commit phase.
-    rel_time_t commit_time;
+    StatValue<rel_time_t> commit_time;
     // Total number of items; this would be total_items if we recycled
     // items, but we don't right now.
-    size_t curr_items;
+    StatValue<size_t> curr_items;
     // Beyond this point are config items
     // Minimum data age before a record can be persisted
-    uint32_t min_data_age;
+    StatValue<int> min_data_age;
     // Maximum data age before a record is forced to be persisted
-    uint32_t queue_age_cap;
+    StatValue<int> queue_age_cap;
     // Current tap queue size.
-    size_t tap_queue;
+    StatValue<size_t> tap_queue;
     // Total number of tap messages sent.
-    size_t tap_fetched;
+    StatValue<size_t> tap_fetched;
 };
 
 struct key_stats {

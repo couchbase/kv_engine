@@ -71,12 +71,12 @@ void Flusher::initialize(void) {
 
     time_t start = time(NULL);
     store->warmup();
-    store->stats.warmupTime = time(NULL) - start;
-    store->stats.warmupComplete = true;
-    store->stats.curr_items += store->stats.warmedUp;
+    store->stats.warmupTime.set(time(NULL) - start);
+    store->stats.warmupComplete.set(true);
+    store->stats.curr_items.incr(store->stats.warmedUp.get());
 
     getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                     "Warmup completed in %ds\n", store->stats.warmupTime);
+                     "Warmup completed in %ds\n", store->stats.warmupTime.get());
     hasInitialized = true;
     transition_state(running);
 }
@@ -113,7 +113,7 @@ void Flusher::run(void) {
            << std::endl;
         getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "%s",
                          ss.str().c_str());
-        store->stats.min_data_age = 0;
+        store->stats.min_data_age.set(0);
         doFlush(false);
         getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "Flusher stopped\n");
     } catch(std::runtime_error &e) {
@@ -136,7 +136,7 @@ int Flusher::doFlush(bool shouldWait) {
                          "Flushing a write queue.\n");
         std::queue<std::string> *rejectQueue = new std::queue<std::string>();
         rel_time_t flush_start = ep_current_time();
-        rv = store->stats.min_data_age;
+        rv = store->stats.min_data_age.get();
 
         while (!q->empty()) {
             int n = store->flushSome(q, rejectQueue);

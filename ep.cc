@@ -33,9 +33,8 @@ EventuallyPersistentStore::EventuallyPersistentStore(KVStore *t,
     loadStorageKVPairCallback(storage, stats)
 {
     est_size = est;
-    memset(&stats, 0, sizeof(stats));
-    stats.min_data_age = DEFAULT_MIN_DATA_AGE;
-    stats.queue_age_cap = DEFAULT_MIN_DATA_AGE_CAP;
+    stats.min_data_age.set(DEFAULT_MIN_DATA_AGE);
+    stats.queue_age_cap.set(DEFAULT_MIN_DATA_AGE_CAP);
 
     doPersistence = getenv("EP_NO_PERSISTENCE") == NULL;
     flusher = new Flusher(this);
@@ -128,7 +127,7 @@ void EventuallyPersistentStore::set(const Item &item, Callback<bool> &cb) {
     } else if (mtype == WAS_CLEAN || mtype == NOT_FOUND) {
         queueDirty(item.getKey());
         if (mtype == NOT_FOUND) {
-            curr_items.incr();
+            stats.curr_items.incr();
         }
     }
     cb.callback(rv);
@@ -151,10 +150,8 @@ void EventuallyPersistentStore::get(const std::string &key,
     lh.unlock();
 }
 
-void EventuallyPersistentStore::getStats(struct ep_stats *out) {
+void EventuallyPersistentStore::getStats(EPStats *out) {
     LockHolder lh(mutex);
-    stats.totalEnqueued = totalEnqueued.get();
-    stats.curr_items = curr_items.get();
     *out = stats;
 }
 
@@ -180,37 +177,37 @@ bool EventuallyPersistentStore::getKeyStats(const std::string &key,
 
 void EventuallyPersistentStore::setMinDataAge(int to) {
     LockHolder lh(mutex);
-    stats.min_data_age = to;
+    stats.min_data_age.set(to);
 }
 
 void EventuallyPersistentStore::setQueueAgeCap(int to) {
     LockHolder lh(mutex);
-    stats.queue_age_cap = to;
+    stats.queue_age_cap.set(to);
 }
 
 void EventuallyPersistentStore::resetStats(void) {
     LockHolder lh(mutex);
-    stats.tooYoung = 0;
-    stats.tooOld = 0;
-    stats.dirtyAge = 0;
-    stats.dirtyAgeHighWat = 0;
-    stats.flushDuration = 0;
-    stats.flushDurationHighWat = 0;
-    stats.commit_time = 0;
+    stats.tooYoung.set(0);
+    stats.tooOld.set(0);
+    stats.dirtyAge.set(0);
+    stats.dirtyAgeHighWat.set(0);
+    stats.flushDuration.set(0);
+    stats.flushDurationHighWat.set(0);
+    stats.commit_time.set(0);
 }
 
 void EventuallyPersistentStore::del(const std::string &key, Callback<bool> &cb) {
     bool existed = storage.del(key);
     if (existed) {
         queueDirty(key);
-        curr_items.incr(-1);
+        stats.curr_items.decr();
     }
     cb.callback(existed);
 }
 
 std::queue<std::string> *EventuallyPersistentStore::beginFlush(bool shouldWait) {
     if (towrite.empty() && writing.empty()) {
-        stats.dirtyAge = 0;
+        stats.dirtyAge.set(0);
         if (shouldWait) {
             mutex.wait();
         } else {
@@ -220,8 +217,8 @@ std::queue<std::string> *EventuallyPersistentStore::beginFlush(bool shouldWait) 
     }
     assert(underlying);
     towrite.getAll(writing);
-    stats.flusher_todo = writing.size();
-    stats.queue_size = towrite.size() + writing.size();
+    stats.flusher_todo.set(writing.size());
+    stats.queue_size.set(towrite.size() + writing.size());
     getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "Flushing %d items with %d still in queue\n",
                      writing.size(), towrite.size());
     return &writing;
@@ -234,20 +231,21 @@ void EventuallyPersistentStore::completeFlush(std::queue<std::string> *rej,
     while (!rej->empty()) {
         writing.push(rej->front());
         rej->pop();
+        stats.queue_size.incr();
     }
 
-    stats.queue_size = towrite.size() + writing.size();
+    stats.queue_size.set(towrite.size() + writing.size());
     rel_time_t complete_time = ep_current_time();
-    stats.flushDuration = complete_time - flush_start;
-    stats.flushDurationHighWat = stats.flushDuration > stats.flushDurationHighWat
-                               ? stats.flushDuration : stats.flushDurationHighWat;
+    stats.flushDuration.set(complete_time - flush_start);
+    stats.flushDurationHighWat.set(std::max(stats.flushDuration.get(),
+                                            stats.flushDurationHighWat.get()));
 }
 
 int EventuallyPersistentStore::flushSome(std::queue<std::string> *q,
                                          std::queue<std::string> *rejectQueue) {
     int tsz = getTxnSize();
     underlying->begin();
-    int oldest = stats.min_data_age;
+    int oldest = stats.min_data_age.get();
     for (int i = 0; i < tsz && !q->empty(); i++) {
         int n = flushOne(q, rejectQueue);
         if (n != 0 && n < oldest) {
@@ -258,12 +256,12 @@ int EventuallyPersistentStore::flushSome(std::queue<std::string> *q,
     while (!underlying->commit()) {
         sleep(1);
         LockHolder lh_stat(mutex);
-        stats.commitFailed++;
+        stats.commitFailed.incr();
     }
     rel_time_t complete_time = ep_current_time();
     // One more lock to update a stat.
     LockHolder lh_stat(mutex);
-    stats.commit_time = complete_time - cstart;
+    stats.commit_time.set(complete_time - cstart);
 
     return oldest;
 }
@@ -277,7 +275,7 @@ class Requeuer : public Callback<bool> {
 public:
 
     Requeuer(const std::string k, std::queue<std::string> *q,
-             StoredValue *v, rel_time_t qd, rel_time_t d, struct ep_stats *s) :
+             StoredValue *v, rel_time_t qd, rel_time_t d, struct EPStats *s) :
         key(k), rq(q), sval(v), queued(qd), dirtied(d), stats(s) {
         assert(rq);
         assert(s);
@@ -285,7 +283,7 @@ public:
 
     void callback(bool &value) {
         if (!value) {
-            stats->flushFailed++;
+            stats->flushFailed.incr();
             if (sval != NULL) {
                 sval->reDirty(queued, dirtied);
             }
@@ -298,7 +296,7 @@ private:
     StoredValue *sval;
     rel_time_t queued;
     rel_time_t dirtied;
-    struct ep_stats *stats;
+    struct EPStats *stats;
     DISALLOW_COPY_AND_ASSIGN(Requeuer);
 };
 
@@ -328,37 +326,37 @@ int EventuallyPersistentStore::flushOne(std::queue<std::string> *q,
         int dirtyAge = now - queued;
         bool eligible = true;
 
-        if (dirtyAge > (int)stats.queue_age_cap) {
-            stats.tooOld++;
-        } else if (dataAge < (int)stats.min_data_age) {
+        if (dirtyAge > stats.queue_age_cap.get()) {
+            stats.tooOld.incr();
+        } else if (dataAge < stats.min_data_age.get()) {
             eligible = false;
             // Skip this one.  It's too young.
-            ret = stats.min_data_age - dataAge;
+            ret = stats.min_data_age.get() - dataAge;
             isDirty = false;
-            stats.tooYoung++;
+            stats.tooYoung.incr();
             v->reDirty(queued, dirtied);
             rejectQueue->push(key);
         }
 
         if (eligible) {
-            stats.dirtyAge = dirtyAge;
-            stats.dataAge = dataAge;
-            assert(stats.dirtyAge < (86400 * 30));
-            assert(stats.dataAge <= stats.dirtyAge);
-            stats.dirtyAgeHighWat = stats.dirtyAge > stats.dirtyAgeHighWat
-                ? stats.dirtyAge : stats.dirtyAgeHighWat;
-            stats.dataAgeHighWat = stats.dataAge > stats.dataAgeHighWat
-                ? stats.dataAge : stats.dataAgeHighWat;
+            assert(dirtyAge < (86400 * 30));
+            assert(dataAge <= dirtyAge);
+            stats.dirtyAge.set(dirtyAge);
+            stats.dataAge.set(dataAge);
+            stats.dirtyAgeHighWat.set(std::max(stats.dirtyAge.get(),
+                                               stats.dirtyAgeHighWat.get()));
+            stats.dataAgeHighWat.set(std::max(stats.dataAge.get(),
+                                              stats.dataAgeHighWat.get()));
             // Copy it for the duration.
             val = new Item(key, v->getFlags(), v->getExptime(), v->getValue(),
                            v->getCas());
 
             // Consider this persisted as it is our intention, though
             // it may fail and be requeued later.
-            stats.totalPersisted++;
+            stats.totalPersisted.incr();
         }
     }
-    stats.flusher_todo--;
+    stats.flusher_todo.decr();
     lh.unlock();
 
     if (found && isDirty) {
