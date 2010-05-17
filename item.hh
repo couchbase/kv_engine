@@ -157,7 +157,7 @@ private:
 
     static uint64_t nextCas(void) {
         uint64_t ret;
-        casMutex.aquire();
+        casMutex.acquire();
         ret = casCounter++;
         casMutex.release();
         if ((ret % casNotificationFrequency) == 0) {

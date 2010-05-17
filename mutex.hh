@@ -32,7 +32,7 @@ public:
         }
     }
 
-    void aquire() {
+    void acquire() {
         if (pthread_mutex_lock(&mutex) != 0) {
             std::string message = "MUTEX ERROR: Failed to acquire lock: ";
             message.append(std::strerror(errno));

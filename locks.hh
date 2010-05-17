@@ -27,7 +27,7 @@ public:
     }
 
     void lock() {
-        mutex.aquire();
+        mutex.acquire();
         locked = true;
     }
 
