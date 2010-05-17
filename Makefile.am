@@ -22,6 +22,7 @@ ep_la_SOURCES = \
                  sqlite-kvstore.cc sqlite-kvstore.hh \
                  sqlite-pst.hh sqlite-pst.cc \
                  sqlite-strategies.hh sqlite-strategies.cc \
+                 stats.hh \
                  stored-value.hh \
                  syncobject.hh
 
