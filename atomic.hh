@@ -194,7 +194,7 @@ public:
     void getAll(std::queue<T> &outQueue) {
         std::queue<T> *q(swapQueue()); // Grab my own queue
         std::queue<T> *newQueue(NULL);
-        int i(0), count(0);
+        int count(0);
 
         // Will start empty unless this thread is adding stuff
         while (!q->empty()) {
@@ -203,8 +203,8 @@ public:
             ++count;
         }
 
-        int c = counter;
-        for (i = 0; i < c; ++i) {
+        size_t c(counter);
+        for (size_t i = 0; i < c; ++i) {
             // Swap with another thread
             newQueue = queues[i].swapIfNot(NULL, q);
             // Empty the queue
@@ -236,7 +236,7 @@ public:
 private:
     AtomicPtr<std::queue<T> > *initialize() {
         std::queue<T> *q = new std::queue<T>;
-        int i = counter++;
+        size_t i(counter++);
         queues[i] = q;
         threadQueue = &queues[i];
         return &queues[i];
