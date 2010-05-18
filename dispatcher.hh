@@ -81,8 +81,7 @@ private:
 
 class CompareTasks {
 public:
-    bool operator()(TaskId &t1, TaskId &t2) {
-        getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "Comparing two tasks\n");
+    bool operator()(TaskId t1, TaskId t2) {
         if (t1->state == task_running) {
             if (t2->state == task_running) {
                 return t1->priority > t2->priority;
