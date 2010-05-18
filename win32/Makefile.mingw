@@ -10,16 +10,16 @@ LIB=-L/usr/local/lib
 INCLUDE= -Iwin32 -I.libs -I${MEMCACHED}/include -I/usr/local/include -I.
 MC_UTIL= ${MEMCACHED}/.libs/util.o
 GENFILES=.libs/config_version.h
-CPPFLAGS= -march=i686
+CPPFLAGS= -march=i686 -O2 -DHAVE_CONFIG_H ${INCLUDE} -Wall
 
 all: ${BINARIES}
 
-CFLAGS = -std=gnu99 -O2 -DNDEBUG -fno-strict-aliasing -Wall \
- -Wstrict-prototypes -Wmissing-prototypes -Wmissing-declarations -Wredundant-decls \
- ${INCLUDE} -Iinclude -Iwin32 -I.libs -DHAVE_CONFIG_H
+CFLAGS = -std=gnu99 -DNDEBUG \
+           -fno-strict-aliasing -Wstrict-prototypes -Wmissing-prototypes \
+           -Wmissing-declarations -Wredundant-decls \
 
-CXXFLAGS = -std=gnu++0x -O2 -Wall ${INCLUDE} -DHAVE_CONFIG_H \
-           -Werror -Wall -pedantic -Wshadow -fdiagnostics-show-option \
+CXXFLAGS = -std=gnu++0x \
+           -Werror -pedantic -Wshadow -fdiagnostics-show-option \
            -Wformat=2 -Wconversion -Wstrict-aliasing -Wextra \
            -Woverloaded-virtual -Wnon-virtual-dtor -Wctor-dtor-privacy \
            -Wno-long-long  -Wmissing-declarations -Wno-redundant-decls
