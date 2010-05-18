@@ -110,13 +110,11 @@ public:
     }
 
     int getTxnSize() {
-        LockHolder lh(mutex);
-        return txnSize;
+        return txnSize.get();
     }
 
     void setTxnSize(int to) {
-        LockHolder lh(mutex);
-        txnSize = to;
+        txnSize.set(to);
     }
 
     void setTapStats(size_t depth, size_t fetched) {
@@ -162,7 +160,7 @@ private:
     pthread_t                  thread;
     EPStats                    stats;
     LoadStorageKVPairCallback  loadStorageKVPairCallback;
-    int                        txnSize;
+    Atomic<int>                txnSize;
     DISALLOW_COPY_AND_ASSIGN(EventuallyPersistentStore);
 };
 

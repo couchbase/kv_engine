@@ -39,7 +39,7 @@ EventuallyPersistentStore::EventuallyPersistentStore(KVStore *t,
     doPersistence = getenv("EP_NO_PERSISTENCE") == NULL;
     flusher = new Flusher(this);
 
-    txnSize = DEFAULT_TXN_SIZE;
+    setTxnSize(DEFAULT_TXN_SIZE);
 
     underlying = t;
 
