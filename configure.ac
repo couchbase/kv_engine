@@ -39,6 +39,8 @@ AC_DEFUN([AC_C_HTONLL],
 
 AC_C_HTONLL
 
+AC_SEARCH_LIBS(pthread_create, pthread)
+
 AS_IF([test "x$SUNCC" = "xyes"],
       [
         CFLAGS="-D_XOPEN_SOURCE=600 $CFLAGS"
