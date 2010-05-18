@@ -106,11 +106,13 @@ bool GetlExtension::executeGetl(int argc, token_t *argv, void *response_cookie, 
             item->getNBytes() -2 << " " << item->getCas() << "\r\n";
 
         std::string strVal = strm.str();
-        int len = strVal.length();
+        size_t len = strVal.length();
 
-        ret = response_handler(response_cookie, len, strVal.c_str()) &&
-            response_handler(response_cookie, item->getNBytes(), item->getData()) &&
-            response_handler(response_cookie, 5, "END\r\n");
+        ret = response_handler(response_cookie, static_cast<int>(len),
+                               strVal.c_str())
+            && response_handler(response_cookie, item->getNBytes(),
+                                item->getData())
+            && response_handler(response_cookie, 5, "END\r\n");
 
     } else if (!gotLock){
         ret = response_handler(response_cookie, sizeof("LOCK_ERROR\r\n") - 1, "LOCK_ERROR\r\n");
