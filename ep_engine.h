@@ -1036,7 +1036,7 @@ private:
     }
 
     template <typename T>
-    void add_casted_stat(const char *k, StatValue<T> v,
+    void add_casted_stat(const char *k, const Atomic<T> &v,
                          ADD_STAT add_stat, const void *cookie) {
         add_casted_stat(k, v.get(), add_stat, cookie);
     }
@@ -1071,11 +1071,8 @@ private:
 
     ENGINE_ERROR_CODE doEngineStats(const void *cookie, ADD_STAT add_stat)
     {
-        // @todo add interesting stats
-        EPStats epstats;
-
         if (epstore) {
-            epstore->getStats(&epstats);
+            EPStats &epstats = epstore->getStats();
 
             add_casted_stat("ep_version", VERSION, add_stat, cookie);
             add_casted_stat("ep_storage_age",
@@ -1119,26 +1116,30 @@ private:
                             epstats.flushDurationHighWat, add_stat, cookie);
             add_casted_stat("curr_items", epstats.curr_items, add_stat,
                             cookie);
+
+            if (warmup) {
+                add_casted_stat("ep_warmup_thread",
+                                epstats.warmupComplete.get() ? "complete" : "running",
+                                add_stat, cookie);
+                add_casted_stat("ep_warmed_up", epstats.warmedUp, add_stat, cookie);
+                if (epstats.warmupComplete.get()) {
+                    add_casted_stat("ep_warmup_time", epstats.warmupTime,
+                                    add_stat, cookie);
+                }
+            }
+
+            add_casted_stat("ep_tap_total_queue", epstats.tap_queue,
+                            add_stat, cookie);
+            add_casted_stat("ep_tap_total_fetched", epstats.tap_fetched,
+                            add_stat, cookie);
+            add_casted_stat("ep_tap_keepalive", tapKeepAlive,
+                            add_stat, cookie);
         }
 
         add_casted_stat("ep_dbname", dbname, add_stat, cookie);
         add_casted_stat("ep_dbinit", databaseInitTime, add_stat, cookie);
         add_casted_stat("ep_warmup", warmup ? "true" : "false",
                         add_stat, cookie);
-        if (warmup) {
-            add_casted_stat("ep_warmup_thread",
-                            epstats.warmupComplete.get() ? "complete" : "running",
-                            add_stat, cookie);
-            add_casted_stat("ep_warmed_up", epstats.warmedUp, add_stat, cookie);
-            if (epstats.warmupComplete.get()) {
-                add_casted_stat("ep_warmup_time", epstats.warmupTime,
-                                add_stat, cookie);
-            }
-        }
-
-        add_casted_stat("ep_tap_total_queue", epstats.tap_queue, add_stat, cookie);
-        add_casted_stat("ep_tap_total_fetched", epstats.tap_fetched, add_stat, cookie);
-        add_casted_stat("ep_tap_keepalive", tapKeepAlive, add_stat, cookie);
         return ENGINE_SUCCESS;
     }
 
@@ -1154,9 +1155,8 @@ private:
 
     ENGINE_ERROR_CODE doTapStats(const void *cookie, ADD_STAT add_stat) {
         std::list<TapConnection*>::iterator iter;
-        EPStats epstats;
         if (epstore) {
-            epstore->getStats(&epstats);
+            EPStats &epstats = epstore->getStats();
             add_casted_stat("ep_tap_total_queue", epstats.tap_queue, add_stat, cookie);
             add_casted_stat("ep_tap_total_fetched", epstats.tap_fetched, add_stat, cookie);
             add_casted_stat("ep_tap_keepalive", tapKeepAlive, add_stat, cookie);

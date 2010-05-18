@@ -80,7 +80,7 @@ public:
 
     void del(const std::string &key, Callback<bool> &cb);
 
-    void getStats(EPStats *out);
+    EPStats& getStats() { return stats; }
 
     void setMinDataAge(int to);
 
@@ -122,7 +122,6 @@ public:
     }
 
     void setTapStats(size_t depth, size_t fetched) {
-        LockHolder lh(mutex);
         stats.tap_queue.set(depth);
         stats.tap_fetched.set(fetched);
     }

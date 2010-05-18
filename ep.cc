@@ -150,11 +150,6 @@ void EventuallyPersistentStore::get(const std::string &key,
     lh.unlock();
 }
 
-void EventuallyPersistentStore::getStats(EPStats *out) {
-    LockHolder lh(mutex);
-    *out = stats;
-}
-
 bool EventuallyPersistentStore::getKeyStats(const std::string &key,
                                             struct key_stats &kstats)
 {
@@ -176,17 +171,14 @@ bool EventuallyPersistentStore::getKeyStats(const std::string &key,
 }
 
 void EventuallyPersistentStore::setMinDataAge(int to) {
-    LockHolder lh(mutex);
     stats.min_data_age.set(to);
 }
 
 void EventuallyPersistentStore::setQueueAgeCap(int to) {
-    LockHolder lh(mutex);
     stats.queue_age_cap.set(to);
 }
 
 void EventuallyPersistentStore::resetStats(void) {
-    LockHolder lh(mutex);
     stats.tooYoung.set(0);
     stats.tooOld.set(0);
     stats.dirtyAge.set(0);
@@ -228,10 +220,10 @@ void EventuallyPersistentStore::completeFlush(std::queue<std::string> *rej,
                                               rel_time_t flush_start) {
     // Requeue the rejects.
     getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "Rejected %d items\n", rej->size());
+    stats.queue_size.incr(rej->size());
     while (!rej->empty()) {
         writing.push(rej->front());
         rej->pop();
-        stats.queue_size.incr();
     }
 
     stats.queue_size.set(towrite.size() + writing.size());
@@ -255,12 +247,10 @@ int EventuallyPersistentStore::flushSome(std::queue<std::string> *q,
     rel_time_t cstart = ep_current_time();
     while (!underlying->commit()) {
         sleep(1);
-        LockHolder lh_stat(mutex);
         stats.commitFailed.incr();
     }
     rel_time_t complete_time = ep_current_time();
-    // One more lock to update a stat.
-    LockHolder lh_stat(mutex);
+
     stats.commit_time.set(complete_time - cstart);
 
     return oldest;
