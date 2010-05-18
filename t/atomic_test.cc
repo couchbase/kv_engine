@@ -14,7 +14,7 @@ struct thread_args {
 
 void *launch_consumer_thread(void *arg) {
     struct thread_args *args = static_cast<struct thread_args *>(arg);
-    int count;
+    int count(0);
     std::queue<int> outQueue;
     LockHolder lh(args->mutex);
     args->gate.acquire();
@@ -25,10 +25,7 @@ void *launch_consumer_thread(void *arg) {
     lh.unlock();
 
     while(count < NUM_THREADS * NUM_ITEMS) {
-        int size = args->queue.size();
-        if (size != 0) {
-            std::cerr << "Popping " << size << " items from queue" << std::endl;
-        }
+        args->queue.size();
         args->queue.getAll(outQueue);
         while (!outQueue.empty()) {
             count++;
@@ -69,11 +66,8 @@ int main() {
     rc = pthread_create(&consumer, NULL, launch_consumer_thread, &args);
     assert(rc == 0);
 
-    std::cerr << "Started consumer thread" << std::endl;
-
     for (i = 0; i < NUM_THREADS; ++i) {
         rc = pthread_create(&threads[i], NULL, launch_test_thread, &args);
-        std::cerr << "Starting producer thread " << i << std::endl;
         assert(rc == 0);
     }
 
@@ -82,23 +76,19 @@ int main() {
     while (true) {
         LockHolder lh(args.gate);
         counter = args.counter;
-        std::cerr << counter << " threads waiting" << std::endl;
         if (counter == NUM_THREADS + 1) {
             break;
         }
         args.gate.wait();
     }
-    std::cerr << "GO!" << std::endl;
     args.mutex.notify();
 
     for (i = 0; i < NUM_THREADS; ++i) {
-        std::cerr << "Waiting for producer thread " << i << std::endl;
         rc = pthread_join(threads[i], reinterpret_cast<void **>(&result));
         assert(rc == 0);
         assert(result == 0);
     }
 
-    std::cerr << "Waiting for consumer thread" << std::endl;
     rc = pthread_join(consumer, reinterpret_cast<void **>(&result));
     assert(rc == 0);
     assert(result == 0);

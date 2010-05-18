@@ -122,8 +122,6 @@ public:
             rv = get();
             if (cas(rv, newValue)) {
                 break;
-            } else {
-                std::cerr << "Detected race on swap" << std::endl;
             }
         }
         return rv;
