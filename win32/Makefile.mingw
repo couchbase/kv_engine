@@ -10,6 +10,7 @@ LIB=-L/usr/local/lib
 INCLUDE= -Iwin32 -I.libs -I${MEMCACHED}/include -I/usr/local/include -I.
 MC_UTIL= ${MEMCACHED}/.libs/util.o
 GENFILES=.libs/config_version.h
+CPPFLAGS= -march=i686
 
 all: ${BINARIES}
 
