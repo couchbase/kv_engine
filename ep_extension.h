@@ -12,7 +12,8 @@ public:
 
     void initialize();
 
-    bool executeGetl(int argc, token_t *argv, void *cookie, bool (*response_handler) (const void*, int, const char*));
+    bool executeGetl(int argc, token_t *argv, void *cookie,
+                     bool (*response_handler)(const void*, int, const char*));
 
 private:
     SERVER_HANDLE_V1 *serverApi;

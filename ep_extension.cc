@@ -29,7 +29,9 @@ extern "C" {
             RESPONSE_HANDLER_T response_handler) {
         (void) cmd_cookie;
 
-        bool ret = getExtension(cmd_cookie)->executeGetl(argc, argv, (void *)cookie, response_handler);
+        bool ret = getExtension(cmd_cookie)->executeGetl(argc, argv,
+                                                         (void *)cookie,
+                                                         response_handler);
 
         return ret;
     }
@@ -45,8 +47,7 @@ extern "C" {
         return argc >= 1 && strncmp(argv[0].value, "getl", argv[0].length) == 0;
     }
 
-    static void ext_abort(const void *cmd_cookie, const void *cookie)
-    {
+    static void ext_abort(const void *cmd_cookie, const void *cookie) {
         (void) cmd_cookie;
         (void) cookie;
     }
@@ -74,7 +75,8 @@ void GetlExtension::initialize()
     }
 }
 
-bool GetlExtension::executeGetl(int argc, token_t *argv, void *response_cookie, RESPONSE_HANDLER_T response_handler)
+bool GetlExtension::executeGetl(int argc, token_t *argv, void *response_cookie,
+                                RESPONSE_HANDLER_T response_handler)
 {
     uint32_t lockTimeout = ITEM_LOCK_TIMEOUT;
 
@@ -84,7 +86,9 @@ bool GetlExtension::executeGetl(int argc, token_t *argv, void *response_cookie, 
             lockTimeout = ITEM_LOCK_TIMEOUT;
         }
     } else if (argc != 2) {
-        return (response_handler(response_cookie, sizeof("CLIENT_ERROR\r\n") - 1 , "CLIENT_ERROR\r\n"));
+        return (response_handler(response_cookie,
+                                 sizeof("CLIENT_ERROR\r\n") - 1,
+                                 "CLIENT_ERROR\r\n"));
     }
 
     std::string k(argv[1].value, argv[1].length);
@@ -102,8 +106,8 @@ bool GetlExtension::executeGetl(int argc, token_t *argv, void *response_cookie, 
         item = getCb.val.getValue();
         std::stringstream strm;
 
-        strm << "VALUE " << item->getKey() << " " << item->getFlags() << " " <<
-            item->getNBytes() -2 << " " << item->getCas() << "\r\n";
+        strm << "VALUE " << item->getKey() << " " << item->getFlags()
+             << " " << item->getNBytes() -2 << " " << item->getCas() << "\r\n";
 
         std::string strVal = strm.str();
         size_t len = strVal.length();
@@ -115,9 +119,11 @@ bool GetlExtension::executeGetl(int argc, token_t *argv, void *response_cookie, 
             && response_handler(response_cookie, 5, "END\r\n");
 
     } else if (!gotLock){
-        ret = response_handler(response_cookie, sizeof("LOCK_ERROR\r\n") - 1, "LOCK_ERROR\r\n");
+        ret = response_handler(response_cookie,
+                               sizeof("LOCK_ERROR\r\n") - 1, "LOCK_ERROR\r\n");
     } else {
-        ret = response_handler(response_cookie, sizeof("NOT_FOUND\r\n") - 1, "NOT_FOUND\r\n");
+        ret = response_handler(response_cookie,
+                               sizeof("NOT_FOUND\r\n") - 1, "NOT_FOUND\r\n");
     }
 
     if (item != NULL) delete item;
