@@ -251,7 +251,7 @@ std::queue<std::string> *EventuallyPersistentStore::beginFlush(bool shouldWait) 
     assert(underlying);
     towrite.getAll(writing);
     stats.flusher_todo.set(writing.size());
-    stats.queue_size.set(towrite.size() + writing.size());
+    stats.queue_size.set(towrite.size());
     getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "Flushing %d items with %d still in queue\n",
                      writing.size(), towrite.size());
     return &writing;
