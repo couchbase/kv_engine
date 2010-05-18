@@ -4,6 +4,7 @@
 
 #include "common.hh"
 #include "ep.hh"
+#include "dispatcher.hh"
 
 enum flusher_state {
     initializing,
@@ -14,22 +15,36 @@ enum flusher_state {
     stopped
 };
 
+class Flusher;
+
+class FlusherStepper : public DispatcherCallback {
+public:
+    FlusherStepper(Flusher* f) : flusher(f) { }
+    virtual bool callback(Dispatcher &d, TaskId t);
+private:
+    Flusher *flusher;
+};
+
 class Flusher {
 public:
-    Flusher(EventuallyPersistentStore *st):
-        store(st), _state(initializing), hasInitialized(false) {
+    Flusher(EventuallyPersistentStore *st, Dispatcher *d) :
+        store(st), _state(initializing), dispatcher(d) {
     }
     ~Flusher() {
         stop();
+        wait();
     }
 
     bool stop();
+    void wait();
     bool pause();
     bool resume();
 
     void initialize();
 
-    void run(void);
+    void start(void);
+    void wake(void);
+    bool step(Dispatcher&, TaskId);
 
     bool transition_state(enum flusher_state to);
 
@@ -38,11 +53,10 @@ public:
 private:
     EventuallyPersistentStore *store;
     volatile enum flusher_state _state;
-    bool hasInitialized;
+    TaskId task;
+    Dispatcher *dispatcher;
     const char * stateName(enum flusher_state st) const;
-    void maybePause(void);
-
-    int doFlush(bool shouldWait);
+    int doFlush();
 
     DISALLOW_COPY_AND_ASSIGN(Flusher);
 };

@@ -2,24 +2,13 @@
 #include "ep.hh"
 #include "flusher.hh"
 #include "locks.hh"
+#include "dispatcher.hh"
 
 #include <vector>
 #include <time.h>
 #include <string.h>
 
 extern "C" {
-    static void* launch_flusher_thread(void* arg) {
-        Flusher *flusher = (Flusher*) arg;
-        try {
-            flusher->run();
-        } catch (std::exception& e) {
-            std::cerr << "flusher exception caught: " << e.what() << std::endl;
-        } catch(...) {
-            std::cerr << "Caught a fatal exception in the flusher thread" << std::endl;
-        }
-        return NULL;
-    }
-
     static rel_time_t uninitialized_current_time(void) {
         abort();
         return 0;
@@ -37,12 +26,14 @@ EventuallyPersistentStore::EventuallyPersistentStore(KVStore *t,
     stats.queue_age_cap.set(DEFAULT_MIN_DATA_AGE_CAP);
 
     doPersistence = getenv("EP_NO_PERSISTENCE") == NULL;
-    flusher = new Flusher(this);
+    dispatcher = new Dispatcher();
+    flusher = new Flusher(this, dispatcher);
 
     setTxnSize(DEFAULT_TXN_SIZE);
 
     underlying = t;
 
+    startDispatcher();
     startFlusher();
     assert(underlying);
 }
@@ -59,9 +50,7 @@ public:
 
 EventuallyPersistentStore::~EventuallyPersistentStore() {
     stopFlusher();
-    if (flusher != NULL) {
-        pthread_join(thread, NULL);
-    }
+    dispatcher->stop();
 
     // Verify that we don't have any dirty objects!
     if (getenv("EP_VERIFY_SHUTDOWN_FLUSH") != NULL) {
@@ -81,40 +70,36 @@ EventuallyPersistentStore::~EventuallyPersistentStore() {
     }
 
     delete flusher;
+    delete dispatcher;
 }
+
+void EventuallyPersistentStore::startDispatcher() {
+    dispatcher->start();
+}
+
 
 const Flusher* EventuallyPersistentStore::getFlusher() {
     return flusher;
 }
 
 void EventuallyPersistentStore::startFlusher() {
-    LockHolder lh(mutex);
-
-    // Run in a thread...
-    if(pthread_create(&thread, NULL, launch_flusher_thread, flusher)
-       != 0) {
-        throw std::runtime_error("Error initializing queue thread");
-    }
-    mutex.notify();
+    flusher->start();
 }
 
 void EventuallyPersistentStore::stopFlusher() {
-    LockHolder lh(mutex);
-    flusher->stop();
-    mutex.notify();
+    bool rv = flusher->stop();
+    if (rv) {
+        flusher->wait();
+    }
 }
 
 bool EventuallyPersistentStore::pauseFlusher() {
-    LockHolder lh(mutex);
     flusher->pause();
-    mutex.notify();
     return true;
 }
 
 bool EventuallyPersistentStore::resumeFlusher() {
-    LockHolder lh(mutex);
     flusher->resume();
-    mutex.notify();
     return true;
 }
 
@@ -238,30 +223,27 @@ void EventuallyPersistentStore::del(const std::string &key, Callback<bool> &cb) 
     cb.callback(existed);
 }
 
-std::queue<std::string> *EventuallyPersistentStore::beginFlush(bool shouldWait) {
+std::queue<std::string>* EventuallyPersistentStore::beginFlush() {
+    std::queue<std::string> *rv(NULL);
     if (towrite.empty() && writing.empty()) {
-        stats.dirtyAge.set(0);
-        if (shouldWait) {
-            mutex.wait();
-        } else {
-            getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "Nothing to flush\n");
-            return &writing;
-        }
+        stats.dirtyAge = 0;
+    } else {
+        assert(underlying);
+        towrite.getAll(writing);
+        stats.flusher_todo.set(writing.size());
+        stats.queue_size.set(towrite.size());
+        getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                         "Flushing %d items with %d still in queue\n",
+                         writing.size(), towrite.size());
+        rv = &writing;
     }
-    assert(underlying);
-    towrite.getAll(writing);
-    stats.flusher_todo.set(writing.size());
-    stats.queue_size.set(towrite.size());
-    getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "Flushing %d items with %d still in queue\n",
-                     writing.size(), towrite.size());
-    return &writing;
+    return rv;
 }
 
 void EventuallyPersistentStore::completeFlush(std::queue<std::string> *rej,
                                               rel_time_t flush_start) {
     // Requeue the rejects.
-    getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "Rejected %d items\n", rej->size());
-    stats.queue_size.incr(rej->size());
+    stats.queue_size += rej->size();
     while (!rej->empty()) {
         writing.push(rej->front());
         rej->pop();
@@ -278,7 +260,7 @@ int EventuallyPersistentStore::flushSome(std::queue<std::string> *q,
                                          std::queue<std::string> *rejectQueue) {
     int tsz = getTxnSize();
     underlying->begin();
-    int oldest = stats.min_data_age.get();
+    int oldest = stats.min_data_age;
     for (int i = 0; i < tsz && !q->empty(); i++) {
         int n = flushOne(q, rejectQueue);
         if (n != 0 && n < oldest) {
@@ -403,4 +385,13 @@ int EventuallyPersistentStore::flushOne(std::queue<std::string> *q,
     }
 
     return ret;
+}
+
+void EventuallyPersistentStore::queueDirty(const std::string &key) {
+    if (doPersistence) {
+        // Assume locked.
+        towrite.push(key);
+        stats.totalEnqueued++;
+        stats.queue_size = towrite.size();
+    }
 }

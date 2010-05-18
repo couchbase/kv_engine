@@ -18,14 +18,16 @@
 
 #include <memcached/engine.h>
 
+extern EXTENSION_LOGGER_DESCRIPTOR *getLogger(void);
+
 #include "stats.hh"
 #include "kvstore.hh"
 #include "locks.hh"
 #include "sqlite-kvstore.hh"
 #include "stored-value.hh"
 #include "atomic.hh"
+#include "dispatcher.hh"
 
-extern EXTENSION_LOGGER_DESCRIPTOR *getLogger(void);
 
 #define DEFAULT_TXN_SIZE 50000
 #define MAX_TXN_SIZE 10000000
@@ -86,6 +88,8 @@ public:
 
     void resetStats(void);
 
+    void startDispatcher(void);
+
     void stopFlusher(void);
 
     void startFlusher(void);
@@ -130,16 +134,9 @@ public:
 
 private:
     /* Queue an item to be written to persistent layer. */
-    void queueDirty(const std::string &key) {
-        if (doPersistence) {
-            towrite.push(key);
-            stats.queue_size.incr();
-            stats.totalEnqueued.incr();
-            mutex.notify();
-        }
-    }
+    void queueDirty(const std::string &key);
 
-    std::queue<std::string> *beginFlush(bool shouldWait);
+    std::queue<std::string> *beginFlush();
     void completeFlush(std::queue<std::string> *rejects,
                        rel_time_t flush_start);
 
@@ -152,6 +149,7 @@ private:
     bool                       doPersistence;
     KVStore                   *underlying;
     size_t                     est_size;
+    Dispatcher                *dispatcher;
     Flusher                   *flusher;
     HashTable                  storage;
     SyncObject                 mutex;
