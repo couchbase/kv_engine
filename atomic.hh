@@ -64,9 +64,8 @@ public:
 template <typename T>
 class Atomic {
 public:
-    Atomic() {}
 
-    Atomic(const T &initial) {
+    Atomic(const T &initial = 0) {
         set(initial);
     }
 
