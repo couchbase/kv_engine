@@ -53,9 +53,13 @@ extern "C" {
                                            const void* cookie,
                                            const void* key,
                                            const size_t nkey,
-                                           uint64_t cas)
+                                           uint64_t cas,
+                                           uint16_t vbucket)
     {
-        return getHandle(handle)->itemDelete(cookie, key, nkey, cas);
+        if (vbucket != 0) {
+            return ENGINE_ENOTSUP;
+        }
+        return getHandle(handle)->itemDelete(cookie, key, nkey, cas, vbucket);
     }
 
     static void EvpItemRelease(ENGINE_HANDLE* handle,
@@ -69,9 +73,13 @@ extern "C" {
                                     const void* cookie,
                                     item** item,
                                     const void* key,
-                                    const int nkey)
+                                    const int nkey,
+                                    uint16_t vbucket)
     {
-        return getHandle(handle)->get(cookie, item, key, nkey);
+        if (vbucket != 0) {
+            return ENGINE_ENOTSUP;
+        }
+        return getHandle(handle)->get(cookie, item, key, nkey, vbucket);
     }
 
     static ENGINE_ERROR_CODE EvpGetStats(ENGINE_HANDLE* handle,
@@ -87,9 +95,13 @@ extern "C" {
                                       const void *cookie,
                                       item* item,
                                       uint64_t *cas,
-                                      ENGINE_STORE_OPERATION operation)
+                                      ENGINE_STORE_OPERATION operation,
+                                      uint16_t vbucket)
     {
-        return getHandle(handle)->store(cookie, item, cas, operation);
+        if (vbucket != 0) {
+            return ENGINE_ENOTSUP;
+        }
+        return getHandle(handle)->store(cookie, item, cas, operation, vbucket);
     }
 
     static ENGINE_ERROR_CODE EvpArithmetic(ENGINE_HANDLE* handle,
@@ -102,11 +114,15 @@ extern "C" {
                                            const uint64_t initial,
                                            const rel_time_t exptime,
                                            uint64_t *cas,
-                                           uint64_t *result)
+                                           uint64_t *result,
+                                           uint16_t vbucket)
     {
+        if (vbucket != 0) {
+            return ENGINE_ENOTSUP;
+        }
         return getHandle(handle)->arithmetic(cookie, key, nkey, increment,
                                              create, delta, initial, exptime,
-                                             cas, result);
+                                             cas, result, vbucket);
     }
 
     static ENGINE_ERROR_CODE EvpFlush(ENGINE_HANDLE* handle,
@@ -247,30 +263,37 @@ extern "C" {
     }
 
     static ENGINE_ERROR_CODE EvpTapNotify(ENGINE_HANDLE* handle,
-                                        const void *cookie,
-                                        void *engine_specific,
-                                        uint16_t nengine,
-                                        uint8_t ttl,
-                                        uint16_t tap_flags,
-                                        tap_event_t tap_event,
-                                        uint32_t tap_seqno,
-                                        const void *key,
-                                        size_t nkey,
-                                        uint32_t flags,
-                                        uint32_t exptime,
-                                        uint64_t cas,
-                                        const void *data,
-                                        size_t ndata)
+                                          const void *cookie,
+                                          void *engine_specific,
+                                          uint16_t nengine,
+                                          uint8_t ttl,
+                                          uint16_t tap_flags,
+                                          tap_event_t tap_event,
+                                          uint32_t tap_seqno,
+                                          const void *key,
+                                          size_t nkey,
+                                          uint32_t flags,
+                                          uint32_t exptime,
+                                          uint64_t cas,
+                                          const void *data,
+                                          size_t ndata,
+                                          uint16_t vbucket)
     {
         return getHandle(handle)->tapNotify(cookie, engine_specific, nengine,
                                             ttl, tap_flags, tap_event,
                                             tap_seqno, key, nkey, flags,
-                                            exptime, cas, data, ndata);
+                                            exptime, cas, data, ndata,
+                                            vbucket);
     }
 
 
-    static tap_event_t EvpTapIterator(ENGINE_HANDLE* handle, const void *cookie, item **itm, void **es, uint16_t *nes, uint8_t *ttl, uint16_t *flags, uint32_t *seqno) {
-        return getHandle(handle)->walkTapQueue(cookie, itm, es, nes, ttl, flags, seqno);
+    static tap_event_t EvpTapIterator(ENGINE_HANDLE* handle,
+                                      const void *cookie, item **itm,
+                                      void **es, uint16_t *nes, uint8_t *ttl,
+                                      uint16_t *flags, uint32_t *seqno,
+                                      uint16_t *vbucket) {
+        return getHandle(handle)->walkTapQueue(cookie, itm, es, nes, ttl,
+                                               flags, seqno, vbucket);
     }
 
     static TAP_ITERATOR EvpGetTapIterator(ENGINE_HANDLE* handle,

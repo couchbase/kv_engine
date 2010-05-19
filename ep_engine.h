@@ -357,9 +357,11 @@ public:
     ENGINE_ERROR_CODE itemDelete(const void* cookie,
                                  const void* key,
                                  const size_t nkey,
-                                 uint64_t cas)
+                                 uint64_t cas,
+                                 uint16_t vbucket)
     {
         (void)cas;
+        (void)vbucket;
         std::string k(static_cast<const char*>(key), nkey);
         return itemDelete(cookie, k);
     }
@@ -391,9 +393,11 @@ public:
     ENGINE_ERROR_CODE get(const void* cookie,
                           item** item,
                           const void* key,
-                          const int nkey)
+                          const int nkey,
+                          uint16_t vbucket)
     {
         (void)cookie;
+        (void)vbucket;
         std::string k(static_cast<const char*>(key), nkey);
         RememberingCallback<GetValue> getCb;
         backend->get(k, getCb);
@@ -428,7 +432,8 @@ public:
     ENGINE_ERROR_CODE store(const void *cookie,
                             item* itm,
                             uint64_t *cas,
-                            ENGINE_STORE_OPERATION operation)
+                            ENGINE_STORE_OPERATION operation,
+                            uint16_t vbucket)
     {
         ENGINE_ERROR_CODE ret;
         BoolCallback callback;
@@ -457,7 +462,8 @@ public:
 
             case OPERATION_ADD:
                 // @todo this isn't atomic!
-                if (get(cookie, &i, it->getKey().c_str(), it->getNKey()) == ENGINE_SUCCESS) {
+                if (get(cookie, &i, it->getKey().c_str(), it->getNKey(),
+                        vbucket) == ENGINE_SUCCESS) {
                     itemRelease(cookie, i);
                     ret = ENGINE_NOT_STORED;
                 } else {
@@ -474,7 +480,8 @@ public:
 
             case OPERATION_REPLACE:
                 // @todo this isn't atomic!
-                if (get(cookie, &i, it->getKey().c_str(), it->getNKey()) == ENGINE_SUCCESS) {
+                if (get(cookie, &i, it->getKey().c_str(), it->getNKey(),
+                        vbucket) == ENGINE_SUCCESS) {
                     itemRelease(cookie, i);
                     backend->set(*it, callback);
                     // unable to set if the key is locked
@@ -493,7 +500,7 @@ public:
             case OPERATION_PREPEND:
                 do {
                     if ((ret = get(cookie, &i, it->getKey().c_str(),
-                                   it->getNKey())) == ENGINE_SUCCESS) {
+                                   it->getNKey(), vbucket)) == ENGINE_SUCCESS) {
                         Item *old = reinterpret_cast<Item*>(i);
 
                         if (operation == OPERATION_APPEND) {
@@ -508,7 +515,7 @@ public:
                             }
                         }
 
-                        ret = store(cookie, old, cas, OPERATION_CAS);
+                        ret = store(cookie, old, cas, OPERATION_CAS, vbucket);
                         itemRelease(cookie, i);
                     }
                 } while (ret == ENGINE_KEY_EEXISTS);
@@ -535,12 +542,13 @@ public:
                                  const uint64_t initial,
                                  const rel_time_t exptime,
                                  uint64_t *cas,
-                                 uint64_t *result)
+                                 uint64_t *result,
+                                 uint16_t vbucket)
     {
         item *it = NULL;
 
         ENGINE_ERROR_CODE ret;
-        ret = get(cookie, &it, key, nkey);
+        ret = get(cookie, &it, key, nkey, vbucket);
         if (ret == ENGINE_SUCCESS) {
             Item *item = static_cast<Item*>(it);
             char *endptr;
@@ -563,7 +571,7 @@ public:
                 Item *nit = new Item(key, (uint16_t)nkey, item->getFlags(),
                                      exptime, vals.str().c_str(), nb);
                 nit->setCas(item->getCas());
-                ret = store(cookie, nit, cas, OPERATION_CAS);
+                ret = store(cookie, nit, cas, OPERATION_CAS, vbucket);
                 delete nit;
             } else {
                 ret = ENGINE_EINVAL;
@@ -577,15 +585,16 @@ public:
             size_t nb = vals.str().length();
 
             *result = initial;
-            Item *item = new Item(key, (uint16_t)nkey, 0, exptime, vals.str().c_str(), nb);
-            ret = store(cookie, item, cas, OPERATION_ADD);
+            Item *item = new Item(key, (uint16_t)nkey, 0, exptime,
+                                  vals.str().c_str(), nb);
+            ret = store(cookie, item, cas, OPERATION_ADD, vbucket);
             delete item;
         }
 
         /* We had a race condition.. just call ourself recursively to retry */
         if (ret == ENGINE_KEY_EEXISTS) {
             return arithmetic(cookie, key, nkey, increment, create, delta,
-                              initial, exptime, cas, result);
+                              initial, exptime, cas, result, vbucket);
         }
 
         return ret;
@@ -611,7 +620,7 @@ public:
 
     tap_event_t walkTapQueue(const void *cookie, item **itm, void **es,
                              uint16_t *nes, uint8_t *ttl, uint16_t *flags,
-                             uint32_t *seqno) {
+                             uint32_t *seqno, uint16_t *vbucket) {
         LockHolder lh(tapNotifySync);
         TapConnection *connection = tapConnectionMap[cookie];
         assert(connection);
@@ -636,7 +645,9 @@ public:
             lh.unlock();
 
             ENGINE_ERROR_CODE r;
-            r = get(cookie, itm, key.c_str(), (int)key.length());
+            /* @todo need to fill in the vbucket id! */
+            *vbucket = 0;
+            r = get(cookie, itm, key.c_str(), (int)key.length(), 0);
             if (r == ENGINE_SUCCESS) {
                 ret = TAP_MUTATION;
             } else if (r == ENGINE_KEY_ENOENT) {
@@ -754,7 +765,8 @@ public:
                                 uint32_t exptime,
                                 uint64_t cas,
                                 const void *data,
-                                size_t ndata)
+                                size_t ndata,
+                                uint16_t vbucket)
     {
         (void)engine_specific;
         (void)nengine;
@@ -777,7 +789,8 @@ public:
             /* @TODO we don't have CAS now.. we might in the future.. */
             (void)cas;
             uint64_t ncas;
-            ENGINE_ERROR_CODE ret = store(cookie, item, &ncas, OPERATION_SET);
+            ENGINE_ERROR_CODE ret = store(cookie, item, &ncas, OPERATION_SET,
+                                          vbucket);
             delete item;
             return ret;
         }
