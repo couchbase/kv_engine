@@ -59,7 +59,7 @@ public:
             hashtable.add(*i, true);
             delete i;
         }
-        stats.warmedUp.incr();
+        stats.warmedUp++;
     }
 
 private:

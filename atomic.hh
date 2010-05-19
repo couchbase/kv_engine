@@ -119,12 +119,12 @@ public:
         return __sync_add_and_fetch(&value, -decrement);
     }
 
-    T incr(const T &increment = 1) {
+    T incr(const T &increment) {
         // Returns the old value
         return __sync_fetch_and_add(&value, increment);
     }
 
-    T decr(const T &decrement = 1) {
+    T decr(const T &decrement) {
         return __sync_add_and_fetch(&value, -decrement);
     }
 

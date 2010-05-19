@@ -112,7 +112,7 @@ void EventuallyPersistentStore::set(const Item &item, Callback<bool> &cb) {
     } else if (mtype == WAS_CLEAN || mtype == NOT_FOUND) {
         queueDirty(item.getKey());
         if (mtype == NOT_FOUND) {
-            stats.curr_items.incr();
+            stats.curr_items++;
         }
     }
 
@@ -218,7 +218,7 @@ void EventuallyPersistentStore::del(const std::string &key, Callback<bool> &cb) 
     bool existed = storage.del(key);
     if (existed) {
         queueDirty(key);
-        stats.curr_items.decr();
+        stats.curr_items--;
     }
     cb.callback(existed);
 }
@@ -270,7 +270,7 @@ int EventuallyPersistentStore::flushSome(std::queue<std::string> *q,
     rel_time_t cstart = ep_current_time();
     while (!underlying->commit()) {
         sleep(1);
-        stats.commitFailed.incr();
+        stats.commitFailed++;
     }
     rel_time_t complete_time = ep_current_time();
 
@@ -296,7 +296,7 @@ public:
 
     void callback(bool &value) {
         if (!value) {
-            stats->flushFailed.incr();
+            stats->flushFailed++;
             if (sval != NULL) {
                 sval->reDirty(queued, dirtied);
             }
@@ -340,13 +340,13 @@ int EventuallyPersistentStore::flushOne(std::queue<std::string> *q,
         bool eligible = true;
 
         if (dirtyAge > stats.queue_age_cap.get()) {
-            stats.tooOld.incr();
+            stats.tooOld++;
         } else if (dataAge < stats.min_data_age.get()) {
             eligible = false;
             // Skip this one.  It's too young.
             ret = stats.min_data_age.get() - dataAge;
             isDirty = false;
-            stats.tooYoung.incr();
+            stats.tooYoung++;
             v->reDirty(queued, dirtied);
             rejectQueue->push(key);
         }
@@ -366,10 +366,10 @@ int EventuallyPersistentStore::flushOne(std::queue<std::string> *q,
 
             // Consider this persisted as it is our intention, though
             // it may fail and be requeued later.
-            stats.totalPersisted.incr();
+            stats.totalPersisted++;
         }
     }
-    stats.flusher_todo.decr();
+    stats.flusher_todo--;
     lh.unlock();
 
     if (found && isDirty) {
