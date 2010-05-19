@@ -101,6 +101,15 @@ public:
         return __sync_fetch_and_add(&value, 1);
     }
 
+    T operator --() { // prefix
+        return __sync_add_and_fetch(&value, -1);
+    }
+
+    T operator --(int ignored) { // postfix
+        (void)ignored;
+        return __sync_fetch_and_add(&value, -1);
+    }
+
     T operator +=(T increment) {
         // Returns the new value
         return __sync_add_and_fetch(&value, increment);
