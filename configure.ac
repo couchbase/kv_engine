@@ -41,6 +41,72 @@ AC_DEFUN([AC_C_HTONLL],
 AC_C_HTONLL
 
 AC_CHECK_HEADERS([arpa/inet.h])
+AC_DEFUN([AC_CXX_GCC_ATOMICS],
+[
+   AC_LANG_PUSH(C++)
+   AC_CACHE_CHECK([for flags for __sync_bool_compare_and_swap],
+                  [av_cv_flags_sync_bool_compare_and_swap],[
+     AC_TRY_LINK([
+#include <inttypes.h>
+       ],[
+          uint32_t value;
+          uint32_t oldValue;
+          uint32_t newValue;
+          __sync_bool_compare_and_swap(&value, oldValue, newValue);
+
+          return 0;
+       ],[
+         av_cv_flags_sync_bool_compare_and_swap=
+         retry=no;
+       ],[
+         retry=yes
+       ])
+
+     AS_IF([test "x$retry" = "xyes"], [
+       SAVED_CPPFLAGS="$CPPFLAGS"
+       # Someone with more insight on cpu instruction sets should probably
+       # sort this list
+       for option in i686 pentium2 pentium3 pentium3m pentium-m pentium4 \
+                     pentium4m prescott nocona core2 atom k6 k6-2 k6-3 athlon \
+                     athlon-tbird athlon-4 athlon-xp athlon-mp k8 opteron \
+                     athlon64 athlon-fx k8-sse opteron-sse3 athlon64-sse3 \
+                     amdfam10 barcelona
+       do
+          CPPFLAGS="-march=$option $SAVED_CPPFLAGS"
+          AC_TRY_LINK([
+#include <inttypes.h>
+               ],[
+            uint32_t value;
+            uint32_t oldValue;
+            uint32_t newValue;
+            __sync_bool_compare_and_swap(&value, oldValue, newValue);
+
+            return 0;
+               ], [
+                 av_cv_flags_sync_bool_compare_and_swap=-march=$option
+                 retry=no
+                 break
+               ],[
+                 retry=yes
+               ])
+       done
+       CPPFLAGS="$SAVED_CPPFLAGS"
+       AS_IF([test "x$retry" = "xyes"], [
+         AC_MSG_ERROR([
+
+Don't know how to link a program using gcc atomics
+
+         ])
+       ])
+     ])
+  ])
+  AC_LANG_POP()
+])
+
+AS_IF([test "x$GCC" = "xyes"], [
+      AC_CXX_GCC_ATOMICS
+      CPPFLAGS="$CPPFLAGS $av_cv_flags_sync_bool_compare_and_swap"
+      ])
 
 AC_SEARCH_LIBS(pthread_create, pthread)
 
