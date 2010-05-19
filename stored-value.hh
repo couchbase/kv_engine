@@ -5,6 +5,8 @@
 #include <climits>
 #include <algorithm>
 
+#include "common.hh"
+#include "item.hh"
 #include "locks.hh"
 
 extern "C" {
