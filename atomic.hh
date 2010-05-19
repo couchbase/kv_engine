@@ -3,6 +3,9 @@
 
 #include <pthread.h>
 #include <queue>
+#include <sched.h>
+
+#include "callbacks.hh"
 #include "locks.hh"
 
 #define MAX_THREADS 100
@@ -172,6 +175,141 @@ public:
     T operator *() {
         return *Atomic<T*>::get();
     }
+};
+
+class SpinLock {
+public:
+    SpinLock() : lock(0) {}
+
+    bool tryAcquire() {
+        return __sync_lock_test_and_set(&lock, 1) == 0;
+    }
+
+    void acquire() {
+        while (!tryAcquire()) {
+            sched_yield();
+        }
+    }
+
+    void release() {
+        __sync_lock_release(&lock);
+    }
+
+private:
+    volatile int lock;
+    DISALLOW_COPY_AND_ASSIGN(SpinLock);
+};
+
+class SpinLockHolder {
+public:
+    SpinLockHolder(SpinLock *theLock) : sl(theLock) {
+        lock();
+    }
+
+    ~SpinLockHolder() {
+        unlock();
+    }
+
+    void lock() {
+        sl->acquire();
+        locked = true;
+    }
+
+    void unlock() {
+        if (locked) {
+            sl->release();
+            locked = false;
+        }
+    }
+private:
+    SpinLock *sl;
+    bool locked;
+};
+
+template <class T> class RCPtr;
+
+class RCValue {
+public:
+    RCValue() : _rc_refcount(0) {}
+    ~RCValue() {}
+private:
+    template <class TT> friend class RCPtr;
+    int _rc_incref() {
+        return ++_rc_refcount;
+    }
+
+    int _rc_decref() {
+        return --_rc_refcount;
+    }
+
+    Atomic<int> _rc_refcount;
+};
+
+template <class C>
+class RCPtr {
+public:
+    RCPtr(C *init = NULL) : value(init) {
+        if (init != NULL) {
+            static_cast<RCValue *>(value)->_rc_incref();
+            assert(static_cast<RCValue *>(value)->_rc_refcount > 0);
+        }
+    }
+
+    RCPtr(RCPtr<C> &other) : value(other.gimme()) {}
+
+    ~RCPtr() {
+        if (value != NULL && static_cast<RCValue *>(value)->_rc_decref() == 0) {
+            delete value;
+        }
+    }
+
+    void reset(C *newValue = NULL) {
+        if (newValue != NULL) {
+            static_cast<RCValue *>(newValue)->_rc_incref();
+        }
+        swap(newValue);
+    }
+
+    void reset(RCPtr<C> &other) {
+        swap(other.gimme());
+    }
+
+    // safe for the lifetime of this instance
+    C *get() {
+        return value;
+    }
+
+    C *operator =(RCPtr<C> &other) {
+        reset(other);
+    }
+
+    C &operator *() const {
+        return *value;
+    }
+
+    C *operator ->() const {
+        return value;
+    }
+private:
+    C *gimme() {
+        SpinLockHolder lh(&lock);
+        if (value != NULL) {
+            static_cast<RCValue *>(value)->_rc_incref();
+        }
+        return value;
+    }
+
+    void swap(C *newValue) {
+        SpinLockHolder lh(&lock);
+        C *tmp(value.swap(newValue));
+        lh.unlock();
+        if (tmp != NULL && static_cast<RCValue *>(tmp)->_rc_decref() == 0) {
+            delete tmp;
+        }
+    }
+
+    AtomicPtr<C> value;
+    SpinLock lock; // exists solely for the purpose of implementing reset() safely
 };
 
 template <typename T>
