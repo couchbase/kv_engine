@@ -39,6 +39,8 @@ AC_DEFUN([AC_C_HTONLL],
 
 AC_C_HTONLL
 
+AC_CHECK_HEADERS([arpa/inet.h])
+
 AC_SEARCH_LIBS(pthread_create, pthread)
 
 AS_IF([test "x$SUNCC" = "xyes"],
@@ -53,6 +55,10 @@ AH_BOTTOM([
 #define EXPORT_FUNCTION __attribute__ ((visibility("default")))
 #else
 #define EXPORT_FUNCTION
+#endif
+
+#if HAVE_ARPA_INET_H
+#include <arpa/inet.h>
 #endif
 ])
 
