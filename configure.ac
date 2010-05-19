@@ -13,7 +13,8 @@ AM_CONFIG_HEADER([config.h])
 AC_CONFIG_MACRO_DIR([m4])
 AC_DISABLE_STATIC
 
-PANDORA_CANONICAL_TARGET
+PANDORA_CANONICAL_TARGET(less-warnings, warnings-always-on, require-cxx,
+                         force-gcc42)
 PANDORA_SHARED_PTR
 
 AC_DEFUN([AC_C_HTONLL],
@@ -148,6 +149,7 @@ echo "   * Installation prefix:       $prefix"
 echo "   * System type:               $host_vendor-$host_os"
 echo "   * Host CPU:                  $host_cpu"
 echo "   * C Compiler:                $CC_VERSION"
+echo "   * C++ Compiler:              $CXX_VERSION"
 echo "   * Assertions enabled:        $ac_cv_assert"
 echo "   * Debug enabled:             $with_debug"
 echo "   * Warnings as failure:       $ac_cv_warnings_as_errors"
