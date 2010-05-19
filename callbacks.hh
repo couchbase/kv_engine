@@ -2,6 +2,8 @@
 #ifndef CALLBACKS_H
 #define CALLBACKS_H 1
 
+#include <cassert>
+
 #include "locks.hh"
 
 /**
