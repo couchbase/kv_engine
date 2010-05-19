@@ -19,7 +19,7 @@ PANDORA_SHARED_PTR
 
 AC_DEFUN([AC_C_HTONLL],
 [
-    AC_CACHE_CHECK([for htonll],[av_cv_have_htonll],[
+    AC_CACHE_CHECK([for htonll],[ac_cv_have_htonll],[
     AC_RUN_IFELSE([
        AC_LANG_PROGRAM([[
 #include <sys/types.h>
