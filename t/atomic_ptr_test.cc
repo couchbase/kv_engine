@@ -14,6 +14,10 @@ public:
         numInstances++;
     }
 
+    Doodad(const Doodad& src) : RCValue(src) {
+        numInstances++;
+    }
+
     ~Doodad() {
         numInstances--;
     }
@@ -61,7 +65,7 @@ public:
                 {
                     while (true) {
                         RCPtr<Doodad> d1(*ptr);
-                        RCPtr<Doodad> d2(new Doodad);
+                        RCPtr<Doodad> d2(new Doodad(*d1));
                         if (ptr->cas(d1, d2)) {
                             break;
                         }

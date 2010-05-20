@@ -231,6 +231,7 @@ template <class T> class RCPtr;
 class RCValue {
 public:
     RCValue() : _rc_refcount(0) {}
+    RCValue(const RCValue &other) : _rc_refcount(0) {(void)other;}
     ~RCValue() {}
 private:
     template <class TT> friend class RCPtr;
