@@ -243,15 +243,15 @@ public:
     ~RCValue() {}
 private:
     template <class TT> friend class RCPtr;
-    int _rc_incref() {
+    int _rc_incref() const {
         return ++_rc_refcount;
     }
 
-    int _rc_decref() {
+    int _rc_decref() const {
         return --_rc_refcount;
     }
 
-    Atomic<int> _rc_refcount;
+    mutable Atomic<int> _rc_refcount;
 };
 
 template <class C>
@@ -259,11 +259,11 @@ class RCPtr {
 public:
     RCPtr(C *init = NULL) : value(init) {
         if (init != NULL) {
-            static_cast<RCValue *>(value)->_rc_incref();
+            static_cast<RCValue*>(value)->_rc_incref();
         }
     }
 
-    RCPtr(RCPtr<C> &other) : value(other.gimme()) {}
+    RCPtr(const RCPtr<C> &other) : value(other.gimme()) {}
 
     ~RCPtr() {
         if (value && static_cast<RCValue *>(value)->_rc_decref() == 0) {
@@ -278,7 +278,7 @@ public:
         swap(newValue);
     }
 
-    void reset(RCPtr<C> &other) {
+    void reset(const RCPtr<C> &other) {
         swap(other.gimme());
     }
 
@@ -302,7 +302,7 @@ public:
         return value;
     }
 
-    C *operator =(RCPtr<C> &other) {
+    void operator =(RCPtr<C> &other) {
         reset(other);
     }
 
@@ -323,7 +323,7 @@ public:
     }
 
 private:
-    C *gimme() {
+    C *gimme() const {
         SpinLockHolder lh(&lock);
         if (value) {
             static_cast<RCValue *>(value)->_rc_incref();
@@ -341,7 +341,7 @@ private:
     }
 
     AtomicPtr<C> value;
-    SpinLock lock; // exists solely for the purpose of implementing reset() safely
+    mutable SpinLock lock; // exists solely for the purpose of implementing reset() safely
 };
 
 template <typename T>
