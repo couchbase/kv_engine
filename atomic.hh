@@ -274,6 +274,20 @@ public:
         swap(other.gimme());
     }
 
+    bool cas(C *oldValue, RCPtr<C> &newValue) {
+        SpinLockHolder lh(&lock);
+        if (value == oldValue) {
+            value = newValue.gimme();
+            if (oldValue != NULL &&
+                static_cast<RCValue *>(oldValue)->_rc_decref() == 0) {
+                lh.unlock();
+                delete oldValue;
+            }
+            return true;
+        }
+        return false;
+    }
+
     // safe for the lifetime of this instance
     C *get() {
         return value;

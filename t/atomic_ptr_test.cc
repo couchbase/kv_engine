@@ -35,7 +35,7 @@ public:
 
     bool operator()() {
         for (int i = 0; i < NUM_TIMES; ++i) {
-            switch (rand() % 4) {
+            switch (rand() % 5) {
             case 0:
                 ptr->reset(new Doodad);
                 break;
@@ -55,6 +55,14 @@ public:
                 {
                     RCPtr<Doodad> d(*ptr);
                     d.reset();
+                }
+                break;
+            case 4:
+                {
+                    RCPtr<Doodad> d1(*ptr);
+                    RCPtr<Doodad> d2(new Doodad);
+                    Doodad *oldValue = d1.get();
+                    ptr->cas(oldValue, d2);
                 }
                 break;
             default:
