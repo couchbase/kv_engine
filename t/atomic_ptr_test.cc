@@ -31,18 +31,18 @@ Atomic<int> Doodad::numInstances(0);
 class AtomicPtrTest : public Generator<bool> {
 public:
 
-    AtomicPtrTest(RCPtr<Doodad> p) : ptr(p) {}
+    AtomicPtrTest(RCPtr<Doodad> *p) : ptr(p) {}
 
     bool operator()() {
         for (int i = 0; i < NUM_TIMES; ++i) {
             switch (rand() % 4) {
             case 0:
-                ptr.reset(new Doodad);
+                ptr->reset(new Doodad);
                 break;
             case 1:
                 {
                     RCPtr<Doodad> d(new Doodad);
-                    ptr.reset(d);
+                    ptr->reset(d);
                 }
                 break;
             case 2:
@@ -53,7 +53,7 @@ public:
                 break;
             case 3:
                 {
-                    RCPtr<Doodad> d(ptr);
+                    RCPtr<Doodad> d(*ptr);
                     d.reset();
                 }
                 break;
@@ -66,13 +66,13 @@ public:
     }
 
 private:
-    RCPtr<Doodad> ptr;
+    RCPtr<Doodad> *ptr;
 };
 
 static void testAtomicPtr() {
     // Just do a bunch.
     RCPtr<Doodad> dd;
-    AtomicPtrTest *testGen = new AtomicPtrTest(dd);
+    AtomicPtrTest *testGen = new AtomicPtrTest(&dd);
 
     getCompletedThreads<bool>(NUM_THREADS, testGen);
 
