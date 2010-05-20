@@ -17,33 +17,37 @@
 class Mutex {
 public:
     Mutex() {
-        if (pthread_mutex_init(&mutex, NULL) != 0) {
+        int e(0);
+        if ((e = pthread_mutex_init(&mutex, NULL)) != 0) {
             std::string message = "MUTEX ERROR: Failed to initialize mutex: ";
-            message.append(std::strerror(errno));
+            message.append(std::strerror(e));
             throw std::runtime_error(message);
         }
     }
 
     virtual ~Mutex() {
-        if (pthread_mutex_destroy(&mutex) != 0) {
+        int e(0);
+        if ((e = pthread_mutex_destroy(&mutex)) != 0) {
             std::string message = "MUTEX ERROR: Failed to destroy mutex: ";
-            message.append(std::strerror(errno));
+            message.append(std::strerror(e));
             throw std::runtime_error(message);
         }
     }
 
     void acquire() {
-        if (pthread_mutex_lock(&mutex) != 0) {
+        int e(0);
+        if ((e = pthread_mutex_lock(&mutex)) != 0) {
             std::string message = "MUTEX ERROR: Failed to acquire lock: ";
-            message.append(std::strerror(errno));
+            message.append(std::strerror(e));
             throw std::runtime_error(message);
         }
     }
 
     void release() {
-        if (pthread_mutex_unlock(&mutex) != 0) {
+        int e(0);
+        if ((e = pthread_mutex_unlock(&mutex)) != 0) {
             std::string message = "MUTEX_ERROR: Failed to release lock: ";
-            message.append(std::strerror(errno));
+            message.append(std::strerror(e));
             throw std::runtime_error(message);
         }
     }
