@@ -3,7 +3,7 @@
 #include <pthread.h>
 #include "assert.h"
 #define NUM_THREADS 90
-#define NUM_ITEMS 1000000
+#define NUM_ITEMS 100000
 
 struct thread_args {
     SyncObject mutex;
