@@ -198,6 +198,7 @@ public:
 
     ~HashTable() {
         clear();
+        active = false;
         delete []mutexes;
         delete []values;
         delete []depths;
@@ -205,8 +206,8 @@ public:
 
     void clear() {
         assert(active);
+        MultiLockHolder(mutexes, n_locks);
         for (int i = 0; i < (int)size; i++) {
-            LockHolder lh(getMutex(i));
             while (values[i]) {
                 StoredValue *v = values[i];
                 values[i] = v->next;

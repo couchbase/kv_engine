@@ -45,4 +45,43 @@ private:
     DISALLOW_COPY_AND_ASSIGN(LockHolder);
 };
 
+class MultiLockHolder {
+public:
+
+    MultiLockHolder(Mutex *m, size_t n) : mutexes(m),
+                                          locked(NULL),
+                                          n_locks(n) {
+        locked = new bool[n];
+        lock();
+    }
+
+    ~MultiLockHolder() {
+        unlock();
+        delete[] locked;
+    }
+
+    void lock() {
+        for (size_t i = 0; i < n_locks; i++) {
+            mutexes[i].acquire();
+            locked[i] = true;
+        }
+    }
+
+    void unlock() {
+        for (size_t i = 0; i < n_locks; i++) {
+            if (locked[i]) {
+                mutexes[i].release();
+            }
+            locked[i] = false;
+        }
+    }
+
+private:
+    Mutex  *mutexes;
+    bool   *locked;
+    size_t  n_locks;
+
+    DISALLOW_COPY_AND_ASSIGN(MultiLockHolder);
+};
+
 #endif /* LOCKS_H */
