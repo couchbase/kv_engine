@@ -105,6 +105,23 @@ static void testAtomicPtr() {
     assert(Doodad::getNumInstances() == 0);
 }
 
+static void testOperators() {
+    RCPtr<Doodad> dd;
+    assert(!dd);
+    dd.reset(new Doodad);
+    assert(dd);
+    dd.reset();
+    assert(!dd);
+
+    Doodad *d = new Doodad;
+    dd.reset(d);
+    assert((void*)(d) == (void*)(&(*dd)));
+    dd.reset();
+
+    assert(Doodad::getNumInstances() == 0);
+}
+
 int main() {
+    testOperators();
     testAtomicPtr();
 }

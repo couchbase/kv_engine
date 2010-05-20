@@ -175,6 +175,14 @@ public:
     T operator *() {
         return *Atomic<T*>::get();
     }
+
+    operator bool() const {
+        return Atomic<T*>::get() != NULL;
+    }
+
+    bool operator !() const {
+        return  Atomic<T*>::get() == NULL;
+    }
 };
 
 class SpinLock {
@@ -258,7 +266,7 @@ public:
     RCPtr(RCPtr<C> &other) : value(other.gimme()) {}
 
     ~RCPtr() {
-        if (value != NULL && static_cast<RCValue *>(value)->_rc_decref() == 0) {
+        if (value && static_cast<RCValue *>(value)->_rc_decref() == 0) {
             delete value;
         }
     }
@@ -305,10 +313,19 @@ public:
     C *operator ->() const {
         return value;
     }
+
+    bool operator! () const {
+        return !value;
+    }
+
+    operator bool () const {
+        return (bool)value;
+    }
+
 private:
     C *gimme() {
         SpinLockHolder lh(&lock);
-        if (value != NULL) {
+        if (value) {
             static_cast<RCValue *>(value)->_rc_incref();
         }
         return value;
