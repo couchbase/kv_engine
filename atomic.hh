@@ -251,7 +251,6 @@ public:
     RCPtr(C *init = NULL) : value(init) {
         if (init != NULL) {
             static_cast<RCValue *>(value)->_rc_incref();
-            assert(static_cast<RCValue *>(value)->_rc_refcount > 0);
         }
     }
 
@@ -274,14 +273,15 @@ public:
         swap(other.gimme());
     }
 
-    bool cas(C *oldValue, RCPtr<C> &newValue) {
+    bool cas(RCPtr<C> &oldValue, RCPtr<C> &newValue) {
         SpinLockHolder lh(&lock);
-        if (value == oldValue) {
+        if (value == oldValue.get()) {
+            C *tmp = value;
             value = newValue.gimme();
-            if (oldValue != NULL &&
-                static_cast<RCValue *>(oldValue)->_rc_decref() == 0) {
+            if (tmp != NULL &&
+                static_cast<RCValue *>(tmp)->_rc_decref() == 0) {
                 lh.unlock();
-                delete oldValue;
+                delete tmp;
             }
             return true;
         }
