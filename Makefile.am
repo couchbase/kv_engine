@@ -33,8 +33,12 @@ ep_la_DEPENDENCIES = libsqlite3.la
 libsqlite3_la_SOURCES = embedded/sqlite3.h embedded/sqlite3.c
 libsqlite3_la_CFLAGS = $(AM_CFLAGS) ${NO_WERROR}
 
-check_PROGRAMS=atomic_ptr_test atomic_queue_test hash_table_test priority_test
+check_PROGRAMS=atomic_test atomic_ptr_test atomic_queue_test hash_table_test priority_test
 TESTS=${check_PROGRAMS}
+
+atomic_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
+atomic_test_SOURCES = t/atomic_test.cc atomic.hh
+atomic_test_DEPENDENCIES = atomic.hh
 
 atomic_ptr_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
 atomic_ptr_test_SOURCES = t/atomic_ptr_test.cc atomic.hh
