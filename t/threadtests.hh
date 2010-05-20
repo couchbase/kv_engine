@@ -96,11 +96,12 @@ template <typename T>
 static void waiter(SyncTestThread<T> &t) { t.join(); }
 
 template <typename T>
-std::vector<T> getCompletedThreads(T n, Generator<T> *gen) {
+std::vector<T> getCompletedThreads(size_t n, Generator<T> *gen) {
     CountDownLatch startingLine(n), pistol(1);
 
     SyncTestThread<T> proto(&startingLine, &pistol, gen);
     std::vector<SyncTestThread<T> > threads(n, proto);
+    assert(threads.size() == n);
     std::for_each(threads.begin(), threads.end(), starter<T>);
 
     startingLine.wait();
