@@ -78,7 +78,7 @@ static void testConcurrentUpdate(void) {
 int main(int argc, char **argv) {
     (void)argc; (void)argv;
 
-    alarm(10);
+    alarm(60);
 
     testVBucketLookup();
     testConcurrentUpdate();
