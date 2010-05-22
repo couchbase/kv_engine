@@ -465,7 +465,7 @@ public:
                 if (get(cookie, &i, it->getKey().c_str(), it->getNKey(),
                         vbucket) == ENGINE_SUCCESS) {
                     itemRelease(cookie, i);
-                    ret = ENGINE_NOT_STORED;
+                    ret = ENGINE_KEY_EEXISTS;
                 } else {
                     backend->set(*it, callback);
                     // unable to set if the key is locked
