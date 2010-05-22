@@ -1,6 +1,6 @@
 ACLOCAL_AMFLAGS = -I m4 --force
 
-lib_LTLIBRARIES = ep.la
+lib_LTLIBRARIES = ep.la ep_testsuite.la
 noinst_LTLIBRARIES = libsqlite3.la
 
 ep_la_CPPFLAGS = -I@MEMCACHED_DIR@/include -I$(top_srcdir) $(AM_CPPFLAGS) -DSQLITE_HAS_CODEC=0
@@ -36,6 +36,9 @@ libsqlite3_la_CFLAGS = $(AM_CFLAGS) ${NO_WERROR}
 check_PROGRAMS=atomic_test atomic_ptr_test atomic_queue_test hash_table_test priority_test vbucket_test
 TESTS=${check_PROGRAMS}
 
+ep_testsuite_la_SOURCES= ep_testsuite.c
+ep_testsuite_la_LDFLAGS= -module -dynamic
+
 atomic_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
 atomic_test_SOURCES = t/atomic_test.cc atomic.hh
 atomic_test_DEPENDENCIES = atomic.hh
@@ -59,4 +62,5 @@ vbucket_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
 vbucket_test_SOURCES = t/vbucket_test.cc vbucket.hh
 vbucket_test_DEPENDENCIES = vbucket.hh
 
-test: check-TESTS
+test: ep_testsuite.la check-TESTS
+	@MEMCACHED_DIR@/engine_testapp -E .libs/ep.so -T .libs/ep_testsuite.so
