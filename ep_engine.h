@@ -921,7 +921,7 @@ private:
         // Create a copy of the list so that we can release the lock
         std::map<const void*, TapConnection*> tcm = tapConnectionMap;
 
-        tapNotifySync.release();
+        lh.unlock();
 
         for (iter = tcm.begin(); iter != tcm.end(); iter++) {
             if (iter->second->paused) {
@@ -1079,7 +1079,7 @@ private:
         LockHolder lh(tapNotifySync);
         shutdown = true;
         tapNotifySync.notify();
-        tapNotifySync.release();
+        lh.unlock();
         pthread_join(notifyThreadId, NULL);
     }
 

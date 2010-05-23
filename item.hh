@@ -2,11 +2,14 @@
 #ifndef ITEM_HH
 #define ITEM_HH
 #include "config.h"
-#include "mutex.hh"
+
 #include <string>
 #include <string.h>
 #include <stdio.h>
 #include <memcached/engine.h>
+
+#include "mutex.hh"
+#include "locks.hh"
 
 typedef shared_ptr<const std::string> value_t;
 
@@ -157,9 +160,9 @@ private:
 
     static uint64_t nextCas(void) {
         uint64_t ret;
-        casMutex.acquire();
+        LockHolder lh(casMutex);
         ret = casCounter++;
-        casMutex.release();
+        lh.unlock();
         if ((ret % casNotificationFrequency) == 0) {
             casNotifier(ret);
         }

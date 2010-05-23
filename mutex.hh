@@ -35,6 +35,12 @@ public:
         }
     }
 
+protected:
+
+    // The holders of locks twiddle these flags.
+    friend class LockHolder;
+    friend class MultiLockHolder;
+
     void acquire() {
         int e(0);
         if ((e = pthread_mutex_lock(&mutex)) != 0) {
@@ -56,7 +62,6 @@ public:
         }
     }
 
-protected:
     pthread_mutex_t mutex;
     pthread_t holder;
 
