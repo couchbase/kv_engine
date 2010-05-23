@@ -33,8 +33,8 @@ public:
 
     void unlock() {
         if (locked) {
-            mutex.release();
             locked = false;
+            mutex.release();
         }
     }
 
@@ -70,9 +70,9 @@ public:
     void unlock() {
         for (size_t i = 0; i < n_locks; i++) {
             if (locked[i]) {
+                locked[i] = false;
                 mutexes[i].release();
             }
-            locked[i] = false;
         }
     }
 
