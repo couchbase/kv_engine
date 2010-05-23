@@ -626,9 +626,7 @@ public:
         assert(connection);
 
         if (connection->doRunBackfill) {
-            lh.unlock();
             queueBackfill(connection);
-            lh.lock();
         }
 
         tap_event_t ret = TAP_PAUSE;
