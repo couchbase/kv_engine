@@ -902,40 +902,43 @@ private:
         epstore->setTapStats(depth, totalSent);
     }
 
+    void notifyTapIoThreadMain(void) {
+        LockHolder lh(tapNotifySync);
+        // We should pause unless we purged some connections or
+        // all queues have items.
+        bool shouldPause = purgeExpiredTapConnections_UNLOCKED() == 0;
+        // see if I have some channels that I have to signal..
+        std::map<const void*, TapConnection*>::iterator iter;
+        for (iter = tapConnectionMap.begin(); iter != tapConnectionMap.end(); iter++) {
+            if (!iter->second->queue->empty()) {
+                shouldPause = false;
+            }
+        }
+
+        if (shouldPause) {
+            tapNotifySync.wait();
+            purgeExpiredTapConnections_UNLOCKED();
+        }
+
+        // Create a copy of the list so that we can release the lock
+        std::map<const void*, TapConnection*> tcm = tapConnectionMap;
+
+        tapNotifySync.release();
+
+        for (iter = tcm.begin(); iter != tcm.end(); iter++) {
+            if (iter->second->paused) {
+                serverApi->core->notify_io_complete(iter->first, ENGINE_SUCCESS);
+            }
+        }
+    }
+
     friend void *EvpNotifyTapIo(void*arg);
     void notifyTapIoThread(void) {
         // Fix clean shutdown!!!
         while (!shutdown) {
 
             updateTapStats();
-
-            LockHolder lh(tapNotifySync);
-            // We should pause unless we purged some connections or
-            // all queues have items.
-            bool shouldPause = purgeExpiredTapConnections_UNLOCKED() == 0;
-            // see if I have some channels that I have to signal..
-            std::map<const void*, TapConnection*>::iterator iter;
-            for (iter = tapConnectionMap.begin(); iter != tapConnectionMap.end(); iter++) {
-                if (!iter->second->queue->empty()) {
-                    shouldPause = false;
-                }
-            }
-
-            if (shouldPause) {
-                tapNotifySync.wait();
-                purgeExpiredTapConnections_UNLOCKED();
-            }
-
-            // Create a copy of the list so that we can release the lock
-            std::map<const void*, TapConnection*> tcm = tapConnectionMap;
-
-            tapNotifySync.release();
-
-            for (iter = tcm.begin(); iter != tcm.end(); iter++) {
-                if (iter->second->paused) {
-                    serverApi->core->notify_io_complete(iter->first, ENGINE_SUCCESS);
-                }
-            }
+            notifyTapIoThreadMain();
 
             // Prevent the notify thread from busy-looping while
             // holding locks when there's work to do.
