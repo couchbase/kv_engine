@@ -8,6 +8,7 @@
 #include <pthread.h>
 #include <cerrno>
 #include <cstring>
+#include <cassert>
 
 #include "common.hh"
 
@@ -16,7 +17,7 @@
  */
 class Mutex {
 public:
-    Mutex() {
+    Mutex() : holder(0) {
         int e(0);
         if ((e = pthread_mutex_init(&mutex, NULL)) != 0) {
             std::string message = "MUTEX ERROR: Failed to initialize mutex: ";
@@ -41,9 +42,12 @@ public:
             message.append(std::strerror(e));
             throw std::runtime_error(message);
         }
+        holder = pthread_self();
     }
 
     void release() {
+        assert (holder == pthread_self());
+        holder = 0;
         int e(0);
         if ((e = pthread_mutex_unlock(&mutex)) != 0) {
             std::string message = "MUTEX_ERROR: Failed to release lock: ";
@@ -54,6 +58,7 @@ public:
 
 protected:
     pthread_mutex_t mutex;
+    pthread_t holder;
 
     DISALLOW_COPY_AND_ASSIGN(Mutex);
 };
