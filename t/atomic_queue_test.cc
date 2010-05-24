@@ -17,9 +17,9 @@ void *launch_consumer_thread(void *arg) {
     int count(0);
     std::queue<int> outQueue;
     LockHolder lh(args->mutex);
-    args->gate.acquire();
+    LockHolder lhg(args->gate);
     args->counter++;
-    args->gate.release();
+    lhg.unlock();
     args->gate.notify();
     args->mutex.wait();
     lh.unlock();
@@ -42,9 +42,9 @@ void *launch_test_thread(void *arg) {
     struct thread_args *args = static_cast<struct thread_args *>(arg);
     int i(0);
     LockHolder lh(args->mutex);
-    args->gate.acquire();
+    LockHolder lhg(args->gate);
     args->counter++;
-    args->gate.release();
+    lhg.unlock();
     args->gate.notify();
     args->mutex.wait();
     lh.unlock();
