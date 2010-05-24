@@ -20,14 +20,14 @@ static bool teardown(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return true;
 }
 
-static ENGINE_ERROR_CODE store(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                               const void *cookie,
-                               ENGINE_STORE_OPERATION op,
-                               const char *key, const char *value,
-                               item **outitem) {
+static ENGINE_ERROR_CODE storeCas(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                                  const void *cookie,
+                                  ENGINE_STORE_OPERATION op,
+                                  const char *key, const char *value,
+                                  item **outitem, uint64_t casIn) {
 
     item *it = NULL;
-    uint64_t cas;
+    uint64_t cas = 0;
 
     ENGINE_ERROR_CODE rv = ENGINE_SUCCESS;
 
@@ -42,6 +42,7 @@ static ENGINE_ERROR_CODE store(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     }
 
     memcpy(info.value[0].iov_base, value, strlen(value));
+    h1->item_set_cas(h, it, casIn);
 
     rv = h1->store(h, cookie, it, &cas, op, 0);
 
@@ -50,6 +51,14 @@ static ENGINE_ERROR_CODE store(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     }
 
     return rv;
+}
+
+static ENGINE_ERROR_CODE store(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                               const void *cookie,
+                               ENGINE_STORE_OPERATION op,
+                               const char *key, const char *value,
+                               item **outitem) {
+    return storeCas(h, h1, cookie, op, key, value, outitem, 0);
 }
 
 static ENGINE_ERROR_CODE verify_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
@@ -66,7 +75,7 @@ static enum test_result check_key_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
         return FAIL;
     }
 
-    item_info info;
+    item_info info = { .nvalue = 1 };
     if (!h1->get_item_info(h, i, &info)) {
         return FAIL;
     }
@@ -106,6 +115,31 @@ static enum test_result test_set_get_hit(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
         return FAIL;
     }
     return check_status(ENGINE_SUCCESS, verify_key(h, h1, "key"));
+}
+
+static enum test_result test_cas(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    item *i = NULL;
+    if (store(h, h1, "cookie", OPERATION_SET, "key", "somevalue", &i) != ENGINE_SUCCESS) {
+        return FAIL;
+    }
+    if (store(h, h1, "cookie", OPERATION_CAS, "key", "failcas", &i) == ENGINE_SUCCESS) {
+        return FAIL;
+    }
+    if (check_key_value(h, h1, "key", "somevalue", 9) == FAIL) {
+        return FAIL;
+    }
+    if (h1->get(h, NULL, &i, "key", 3, 0) != ENGINE_SUCCESS) {
+        return FAIL;
+    }
+    item_info info = { .nvalue = 1 };
+    if (!h1->get_item_info(h, i, &info)) {
+        abort();
+    }
+    if (storeCas(h, h1, "cookie", OPERATION_CAS, "key", "winCas", &i,
+                 info.cas) != ENGINE_SUCCESS) {
+        return FAIL;
+    }
+    return check_key_value(h, h1, "key", "winCas", 6);
 }
 
 static enum test_result test_add(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
@@ -170,6 +204,7 @@ engine_test_t* get_tests(void) {
         {"set", test_set, NULL, teardown, NULL},
         {"set+get hit", test_set_get_hit, NULL, teardown, NULL},
         {"add", test_add, NULL, teardown, NULL},
+        {"cas", test_cas, NULL, teardown, NULL},
         {"incr miss", test_incr_miss, NULL, teardown, NULL},
         {"incr with default", test_incr_default, NULL, teardown, NULL},
         {"delete", test_delete, NULL, teardown, NULL},
