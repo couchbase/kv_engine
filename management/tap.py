@@ -53,8 +53,9 @@ class TapConnection(mc_bin_server.MemcachedBinaryChannel):
         val = []
         for op in sorted(opts.keys()):
             header |= op
-            val.append(struct.pack(memcacheConstants.TAP_FLAG_TYPES[op],
-                                   opts[op]))
+            if memcacheConstants.TAP_FLAG_TYPES[op]:
+                val.append(struct.pack(memcacheConstants.TAP_FLAG_TYPES[op],
+                                       opts[op]))
         return struct.pack(">I", header), ''.join(val)
 
     def processCommand(self, cmd, klen, extralen, cas, data):

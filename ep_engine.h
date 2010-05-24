@@ -125,13 +125,20 @@ private:
             addEvent(old->front());
             old->pop_front();
         }
+
+        // replaceQueues is called when the backfill is complete.
+        pendingBackfill = false;
+    }
+
+    bool complete(void) {
+        return dumpQueue && empty() && !pendingBackfill;
     }
 
     TapConnection(const std::string &n, uint32_t f):
         client(n), queue(NULL), queue_set(NULL), flags(f),
         recordsFetched(0), pendingFlush(false), expiry_time((rel_time_t)-1),
         reconnects(0), connected(true), paused(false), backfillAge(0),
-        doRunBackfill(false)
+        doRunBackfill(false), pendingBackfill(true)
     {
         queue = new std::list<std::string>;
         queue_set = new std::set<std::string>;
@@ -211,6 +218,9 @@ private:
      * tap streams to block, but allows all clients to use the cache.
      */
     bool doRunBackfill;
+
+    // True until a backfill has dumped all the content.
+    bool pendingBackfill;
 
     DISALLOW_COPY_AND_ASSIGN(TapConnection);
 };
@@ -667,7 +677,7 @@ public:
             connection->paused = true;
         }
 
-        if (connection->dumpQueue && ret == TAP_PAUSE && connection->empty()) {
+        if (ret == TAP_PAUSE && connection->complete()) {
             ret = TAP_DISCONNECT;
         }
 
@@ -741,6 +751,7 @@ public:
 
             if (tc->backfillAge < (uint64_t)time(NULL)) {
                 tc->doRunBackfill = true;
+                tc->pendingBackfill = true;
             }
 
             tc->dumpQueue = flags & TAP_CONNECT_FLAG_DUMP;

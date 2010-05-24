@@ -49,8 +49,10 @@ COMMAND_NAMES = dict(((globals()[k], k) for k in globals() if k.startswith("CMD_
 
 # TAP flags
 TAP_FLAG_BACKFILL = 0x01
+TAP_FLAG_DUMP = 0x02
 
-TAP_FLAG_TYPES = {TAP_FLAG_BACKFILL: ">Q"}
+TAP_FLAG_TYPES = {TAP_FLAG_BACKFILL: ">Q",
+                  TAP_FLAG_DUMP: ""}
 
 # Flags, expiration
 SET_PKT_FMT=">II"
