@@ -211,18 +211,7 @@ public:
     size_t getSize(void) { return size; }
     size_t getNumLocks(void) { return n_locks; }
 
-    void clear() {
-        assert(active);
-        MultiLockHolder(mutexes, n_locks);
-        for (int i = 0; i < (int)size; i++) {
-            while (values[i]) {
-                StoredValue *v = values[i];
-                values[i] = v->next;
-                delete v;
-            }
-            depths[i] = 0;
-        }
-    }
+    void clear();
 
     StoredValue *find(std::string &key) {
         assert(active);
@@ -365,23 +354,9 @@ public:
         return false;
     }
 
-    void visit(HashTableVisitor &visitor) {
-        for (int i = 0; i < (int)size; i++) {
-            LockHolder lh(getMutex(i));
-            StoredValue *v = values[i];
-            while (v) {
-                visitor.visit(v);
-                v = v->next;
-            }
-        }
-    }
+    void visit(HashTableVisitor &visitor);
 
-    void visitDepth(HashTableDepthVisitor &visitor) {
-        for (int i = 0; i < (int)size; i++) {
-            LockHolder lh(getMutex(i));
-            visitor.visit(i, depths[i]);
-        }
-    }
+    void visitDepth(HashTableDepthVisitor &visitor);
 
     static size_t getNumBuckets(size_t);
     static size_t getNumLocks(size_t);

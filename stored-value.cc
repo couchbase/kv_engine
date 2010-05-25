@@ -49,3 +49,34 @@ void HashTable::setDefaultNumLocks(size_t to) {
         defaultNumLocks = to;
     }
 }
+
+void HashTable::clear() {
+    assert(active);
+    MultiLockHolder(mutexes, n_locks);
+    for (int i = 0; i < (int)size; i++) {
+        while (values[i]) {
+            StoredValue *v = values[i];
+            values[i] = v->next;
+            delete v;
+        }
+        depths[i] = 0;
+    }
+}
+
+void HashTable::visit(HashTableVisitor &visitor) {
+    for (int i = 0; i < (int)size; i++) {
+        LockHolder lh(getMutex(i));
+        StoredValue *v = values[i];
+        while (v) {
+            visitor.visit(v);
+            v = v->next;
+        }
+    }
+}
+
+void HashTable::visitDepth(HashTableDepthVisitor &visitor) {
+    for (int i = 0; i < (int)size; i++) {
+        LockHolder lh(getMutex(i));
+        visitor.visit(i, depths[i]);
+    }
+}
