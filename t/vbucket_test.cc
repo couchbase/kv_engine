@@ -78,6 +78,9 @@ static void testConcurrentUpdate(void) {
 int main(int argc, char **argv) {
     (void)argc; (void)argv;
 
+    HashTable::setDefaultNumBuckets(5);
+    HashTable::setDefaultNumLocks(1);
+
     alarm(60);
 
     testVBucketLookup();
