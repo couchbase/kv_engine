@@ -187,15 +187,17 @@ class HashTable {
 public:
 
     // Construct with number of buckets and locks.
-    HashTable(size_t s = 196613, size_t l = 193) {
-        size = s;
-        n_locks = l;
+    HashTable(size_t s = 0, size_t l = 0) {
+        size = HashTable::getNumBuckets(s);
+        n_locks = HashTable::getNumLocks(l);
+        assert(size > 0);
+        assert(n_locks > 0);
         active = true;
-        values = new StoredValue*[s];
-        std::fill_n(values, s, static_cast<StoredValue*>(NULL));
-        mutexes = new Mutex[l];
-        depths = new int[s];
-        std::fill_n(depths, s, 0);
+        values = new StoredValue*[size];
+        std::fill_n(values, size, static_cast<StoredValue*>(NULL));
+        mutexes = new Mutex[n_locks];
+        depths = new int[size];
+        std::fill_n(depths, size, 0);
     }
 
     ~HashTable() {
@@ -205,6 +207,9 @@ public:
         delete []values;
         delete []depths;
     }
+
+    size_t getSize(void) { return size; }
+    size_t getNumLocks(void) { return n_locks; }
 
     void clear() {
         assert(active);
@@ -378,6 +383,12 @@ public:
         }
     }
 
+    static size_t getNumBuckets(size_t);
+    static size_t getNumLocks(size_t);
+
+    static void setDefaultNumBuckets(size_t);
+    static void setDefaultNumLocks(size_t);
+
 private:
     size_t        size;
     size_t        n_locks;
@@ -385,6 +396,9 @@ private:
     StoredValue **values;
     Mutex        *mutexes;
     int          *depths;
+
+    static size_t defaultNumBuckets;
+    static size_t defaultNumLocks;
 
     DISALLOW_COPY_AND_ASSIGN(HashTable);
 };

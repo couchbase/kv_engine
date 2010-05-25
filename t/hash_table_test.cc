@@ -122,6 +122,8 @@ static void testReverseDeletions() {
 static void testForwardDeletions() {
     alarm(10);
     HashTable h(5, 1);
+    assert(h.getSize() == 5);
+    assert(h.getNumLocks() == 1);
     assert(count(h) == 0);
     const int nkeys = 10000;
 

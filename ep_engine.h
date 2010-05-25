@@ -236,7 +236,10 @@ public:
 
         if (config != NULL) {
             char *dbn = NULL, *initf = NULL;
-            const int max_items = 7;
+            size_t htBuckets = 0;
+            size_t htLocks = 0;
+
+            const int max_items = 9;
             struct config_item items[max_items];
             int ii = 0;
             memset(items, 0, sizeof(items));
@@ -266,6 +269,16 @@ public:
             items[ii].value.dt_size = &tapKeepAlive;
 
             ++ii;
+            items[ii].key = "ht_size";
+            items[ii].datatype = DT_SIZE;
+            items[ii].value.dt_size = &htBuckets;
+
+            ++ii;
+            items[ii].key = "ht_locks";
+            items[ii].datatype = DT_SIZE;
+            items[ii].value.dt_size = &htLocks;
+
+            ++ii;
             items[ii].key = "config_file";
             items[ii].datatype = DT_CONFIGFILE;
 
@@ -281,6 +294,8 @@ public:
                 if (initf != NULL) {
                     initFile = initf;
                 }
+                HashTable::setDefaultNumBuckets(htBuckets);
+                HashTable::setDefaultNumLocks(htLocks);
             }
         }
 
@@ -1192,6 +1207,8 @@ private:
         if (epstore) {
             epstore->visitDepth(depthVisitor);
         }
+        add_casted_stat("ep_hash_bucket_size", epstore->getHashSize(), add_stat, cookie);
+        add_casted_stat("ep_hash_num_locks", epstore->getHashLocks(), add_stat, cookie);
         add_casted_stat("ep_hash_min_depth", depthVisitor.min, add_stat, cookie);
         add_casted_stat("ep_hash_max_depth", depthVisitor.max, add_stat, cookie);
         return ENGINE_SUCCESS;

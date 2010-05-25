@@ -24,7 +24,7 @@ ep_la_SOURCES = \
                  sqlite-pst.hh sqlite-pst.cc \
                  sqlite-strategies.hh sqlite-strategies.cc \
                  stats.hh \
-                 stored-value.hh \
+                 stored-value.hh stored-value.cc \
                  syncobject.hh
 
 ep_la_LIBADD = libsqlite3.la @MEMCACHED_DIR@/libmcd_util.la
@@ -56,15 +56,15 @@ dispatcher_test_SOURCES = t/dispatcher_test.cc dispatcher.cc dispatcher.hh
 dispatcher_test_DEPENDENCIES = dispatcher.hh dispatcher.cc
 
 hash_table_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
-hash_table_test_SOURCES = t/hash_table_test.cc item.cc
-hash_table_test_DEPENDENCIES = ep.hh item.hh
+hash_table_test_SOURCES = t/hash_table_test.cc item.cc stored-value.cc stored-value.hh
+hash_table_test_DEPENDENCIES = stored-value.cc stored-value.hh ep.hh item.hh
 
 priority_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
 priority_test_SOURCES = t/priority_test.cc priority.hh priority.cc
 
 vbucket_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
-vbucket_test_SOURCES = t/vbucket_test.cc vbucket.hh
-vbucket_test_DEPENDENCIES = vbucket.hh
+vbucket_test_SOURCES = t/vbucket_test.cc vbucket.hh stored-value.cc stored-value.hh
+vbucket_test_DEPENDENCIES = vbucket.hh stored-value.cc stored-value.hh
 
 test: ep_testsuite.la check-TESTS
 	@MEMCACHED_DIR@/engine_testapp -E .libs/ep.so -T .libs/ep_testsuite.so

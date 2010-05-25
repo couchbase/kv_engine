@@ -109,6 +109,14 @@ public:
         storage.visitDepth(visitor);
     }
 
+    size_t getHashSize() {
+        return storage.getSize();
+    }
+
+    size_t getHashLocks() {
+        return storage.getNumLocks();
+    }
+
     void warmup() {
         static_cast<StrategicSqlite3*>(underlying)->dump(loadStorageKVPairCallback);
     }
