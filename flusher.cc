@@ -65,6 +65,7 @@ bool Flusher::transition_state(enum flusher_state to) {
 
     _state = to;
     //Reschedule the task
+    assert(task.get());
     dispatcher->cancel(task);
     start();
     return true;
@@ -78,7 +79,8 @@ enum flusher_state Flusher::state() const {
     return _state;
 }
 
-void Flusher::initialize(void) {
+void Flusher::initialize(TaskId tid) {
+    task = tid;
     getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
                      "Initializing flusher; warming up\n");
 
@@ -94,10 +96,11 @@ void Flusher::initialize(void) {
 }
 
 void Flusher::start(void) {
-    task = dispatcher->schedule(shared_ptr<FlusherStepper>(new FlusherStepper(this)));
+    dispatcher->schedule(shared_ptr<FlusherStepper>(new FlusherStepper(this)));
 }
 
 void Flusher::wake(void) {
+    assert(task.get());
     dispatcher->wake(task);
 }
 
@@ -105,7 +108,7 @@ bool Flusher::step(Dispatcher &d, TaskId tid) {
     try {
         switch (_state) {
         case initializing:
-            initialize();
+            initialize(tid);
             return true;
         case paused:
             return false;

@@ -40,7 +40,7 @@ public:
     bool pause();
     bool resume();
 
-    void initialize();
+    void initialize(TaskId);
 
     void start(void);
     void wake(void);

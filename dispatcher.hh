@@ -133,6 +133,7 @@ public:
                 mutex.wait();
             } else {
                 TaskId task = queue.top();
+                assert(task);
                 LockHolder tlh(task->mutex);
                 switch (task->state) {
                 case task_sleeping:
