@@ -250,8 +250,8 @@ void EventuallyPersistentStore::del(const std::string &key, Callback<bool> &cb) 
     cb.callback(existed);
 }
 
-std::queue<std::string>* EventuallyPersistentStore::beginFlush() {
-    std::queue<std::string> *rv(NULL);
+std::queue<QueuedItem>* EventuallyPersistentStore::beginFlush() {
+    std::queue<QueuedItem> *rv(NULL);
     if (towrite.empty() && writing.empty()) {
         stats.dirtyAge = 0;
     } else {
@@ -267,7 +267,7 @@ std::queue<std::string>* EventuallyPersistentStore::beginFlush() {
     return rv;
 }
 
-void EventuallyPersistentStore::completeFlush(std::queue<std::string> *rej,
+void EventuallyPersistentStore::completeFlush(std::queue<QueuedItem> *rej,
                                               rel_time_t flush_start) {
     // Requeue the rejects.
     stats.queue_size += rej->size();
@@ -283,8 +283,8 @@ void EventuallyPersistentStore::completeFlush(std::queue<std::string> *rej,
                                             stats.flushDurationHighWat.get()));
 }
 
-int EventuallyPersistentStore::flushSome(std::queue<std::string> *q,
-                                         std::queue<std::string> *rejectQueue) {
+int EventuallyPersistentStore::flushSome(std::queue<QueuedItem> *q,
+                                         std::queue<QueuedItem> *rejectQueue) {
     int tsz = getTxnSize();
     underlying->begin();
     int oldest = stats.min_data_age;
@@ -314,9 +314,9 @@ int EventuallyPersistentStore::flushSome(std::queue<std::string> *q,
 class Requeuer : public Callback<bool> {
 public:
 
-    Requeuer(const std::string k, std::queue<std::string> *q,
+    Requeuer(const QueuedItem &qi, std::queue<QueuedItem> *q,
              StoredValue *v, rel_time_t qd, rel_time_t d, struct EPStats *s) :
-        key(k), rq(q), sval(v), queued(qd), dirtied(d), stats(s) {
+        queuedItem(qi), rq(q), sval(v), queued(qd), dirtied(d), stats(s) {
         assert(rq);
         assert(s);
     }
@@ -327,12 +327,12 @@ public:
             if (sval != NULL) {
                 sval->reDirty(queued, dirtied);
             }
-            rq->push(key);
+            rq->push(queuedItem.getKey());
         }
     }
 private:
-    const std::string key;
-    std::queue<std::string> *rq;
+    const QueuedItem queuedItem;
+    std::queue<QueuedItem> *rq;
     StoredValue *sval;
     rel_time_t queued;
     rel_time_t dirtied;
@@ -340,15 +340,15 @@ private:
     DISALLOW_COPY_AND_ASSIGN(Requeuer);
 };
 
-int EventuallyPersistentStore::flushOne(std::queue<std::string> *q,
-                                        std::queue<std::string> *rejectQueue) {
+int EventuallyPersistentStore::flushOne(std::queue<QueuedItem> *q,
+                                        std::queue<QueuedItem> *rejectQueue) {
 
-    std::string key = q->front();
+    QueuedItem qi = q->front();
     q->pop();
 
-    int bucket_num = storage.bucket(key);
+    int bucket_num = storage.bucket(qi.getKey());
     LockHolder lh(storage.getMutex(bucket_num));
-    StoredValue *v = storage.unlocked_find(key, bucket_num);
+    StoredValue *v = storage.unlocked_find(qi.getKey(), bucket_num);
 
     bool found = v != NULL;
     bool isDirty = (found && v->isDirty());
@@ -375,7 +375,7 @@ int EventuallyPersistentStore::flushOne(std::queue<std::string> *q,
             isDirty = false;
             stats.tooYoung++;
             v->reDirty(queued, dirtied);
-            rejectQueue->push(key);
+            rejectQueue->push(qi.getKey());
         }
 
         if (eligible) {
@@ -388,8 +388,8 @@ int EventuallyPersistentStore::flushOne(std::queue<std::string> *q,
             stats.dataAgeHighWat.set(std::max(stats.dataAge.get(),
                                               stats.dataAgeHighWat.get()));
             // Copy it for the duration.
-            val = new Item(key, v->getFlags(), v->getExptime(), v->getValue(),
-                           v->getCas());
+            val = new Item(qi.getKey(), v->getFlags(), v->getExptime(),
+                           v->getValue(), v->getCas());
 
             // Consider this persisted as it is our intention, though
             // it may fail and be requeued later.
@@ -400,11 +400,11 @@ int EventuallyPersistentStore::flushOne(std::queue<std::string> *q,
     lh.unlock();
 
     if (found && isDirty) {
-        Requeuer cb(key, rejectQueue, v, queued, dirtied, &stats);
+        Requeuer cb(qi, rejectQueue, v, queued, dirtied, &stats);
         underlying->set(*val, cb);
     } else if (!found) {
-        Requeuer cb(key, rejectQueue, v, queued, dirtied, &stats);
-        underlying->del(key, cb);
+        Requeuer cb(qi, rejectQueue, v, queued, dirtied, &stats);
+        underlying->del(qi.getKey(), cb);
     }
 
     if (val != NULL) {

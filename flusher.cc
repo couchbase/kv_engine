@@ -160,11 +160,11 @@ bool Flusher::step(Dispatcher &d, TaskId tid) {
 
 int Flusher::doFlush() {
     int rv(store->stats.min_data_age);
-    std::queue<std::string> *q = store->beginFlush();
+    std::queue<QueuedItem> *q = store->beginFlush();
     if (q) {
         getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
                          "Flushing a write queue.\n");
-        std::queue<std::string> *rejectQueue = new std::queue<std::string>();
+        std::queue<QueuedItem> *rejectQueue = new std::queue<QueuedItem>();
         rel_time_t flush_start = ep_current_time();
 
         while (!q->empty()) {

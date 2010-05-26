@@ -28,7 +28,6 @@ extern EXTENSION_LOGGER_DESCRIPTOR *getLogger(void);
 #include "atomic.hh"
 #include "dispatcher.hh"
 
-
 #define DEFAULT_TXN_SIZE 50000
 #define MAX_TXN_SIZE 10000000
 
@@ -40,6 +39,16 @@ extern EXTENSION_LOGGER_DESCRIPTOR *getLogger(void);
 extern "C" {
     extern rel_time_t (*ep_current_time)();
 }
+
+class QueuedItem {
+public:
+    QueuedItem(const std::string &k) : key(k) {}
+
+    std::string getKey(void) const { return key; }
+
+private:
+    std::string key;
+};
 
 // Forward declaration
 class Flusher;
@@ -147,14 +156,14 @@ private:
     /* Queue an item to be written to persistent layer. */
     void queueDirty(const std::string &key);
 
-    std::queue<std::string> *beginFlush();
-    void completeFlush(std::queue<std::string> *rejects,
+    std::queue<QueuedItem> *beginFlush();
+    void completeFlush(std::queue<QueuedItem> *rejects,
                        rel_time_t flush_start);
 
-    int flushSome(std::queue<std::string> *q,
-                  std::queue<std::string> *rejectQueue);
-    int flushOne(std::queue<std::string> *q,
-                  std::queue<std::string> *rejectQueue);
+    int flushSome(std::queue<QueuedItem> *q,
+                  std::queue<QueuedItem> *rejectQueue);
+    int flushOne(std::queue<QueuedItem> *q,
+                  std::queue<QueuedItem> *rejectQueue);
 
     friend class Flusher;
     bool                       doPersistence;
@@ -164,8 +173,8 @@ private:
     Flusher                   *flusher;
     HashTable                  storage;
     SyncObject                 mutex;
-    AtomicQueue<std::string>   towrite;
-    std::queue<std::string>    writing;
+    AtomicQueue<QueuedItem>    towrite;
+    std::queue<QueuedItem>     writing;
     pthread_t                  thread;
     EPStats                    stats;
     LoadStorageKVPairCallback  loadStorageKVPairCallback;
