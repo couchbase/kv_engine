@@ -66,5 +66,5 @@ vbucket_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
 vbucket_test_SOURCES = t/vbucket_test.cc vbucket.hh stored-value.cc stored-value.hh
 vbucket_test_DEPENDENCIES = vbucket.hh stored-value.cc stored-value.hh
 
-test: ep_testsuite.la check-TESTS
+test: ep_testsuite.la ep.la check-TESTS
 	@MEMCACHED_DIR@/engine_testapp -E .libs/ep.so -T .libs/ep_testsuite.so
