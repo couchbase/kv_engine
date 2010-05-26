@@ -10,6 +10,11 @@
 MEMCACHED_PUBLIC_API
 engine_test_t* get_tests(void);
 
+MEMCACHED_PUBLIC_API
+bool setup_suite(struct test_harness *);
+
+struct test_harness testHarness;
+
 static bool teardown(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     (void)h; (void)h1;
     unlink("/tmp/test.db");
@@ -198,6 +203,19 @@ static enum test_result test_delete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return check_status(ENGINE_KEY_ENOENT, verify_key(h, h1, "key"));
 }
 
+static enum test_result test_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    item *i = NULL;
+    if (store(h, h1, "cookie", OPERATION_SET, "key", "somevalue", &i) != ENGINE_SUCCESS) {
+        return FAIL;
+    }
+
+    testHarness.reload_engine(&h, &h1,
+                              testHarness.engine_path,
+                              testHarness.default_engine_cfg,
+                              true);
+    return check_status(ENGINE_SUCCESS, verify_key(h, h1, "key"));
+}
+
 engine_test_t* get_tests(void) {
     static engine_test_t tests[]  = {
         {"get miss", test_get_miss, NULL, teardown, NULL},
@@ -207,9 +225,15 @@ engine_test_t* get_tests(void) {
         {"cas", test_cas, NULL, teardown, NULL},
         {"incr miss", test_incr_miss, NULL, teardown, NULL},
         {"incr with default", test_incr_default, NULL, teardown, NULL},
+        {"test restart", test_restart, NULL, teardown, NULL},
         {"delete", test_delete, NULL, teardown, NULL},
         {"flush", NULL, NULL, teardown, NULL},
         {NULL, NULL, NULL, NULL, NULL}
     };
     return tests;
+}
+
+bool setup_suite(struct test_harness *th) {
+    testHarness = *th;
+    return true;
 }
