@@ -1,9 +1,11 @@
 /* -*- Mode: C; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 
 #include <assert.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+
 #include <memcached/engine.h>
 #include <memcached/engine_testapp.h>
 
@@ -82,11 +84,13 @@ static enum test_result check_key_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 
     item_info info = { .nvalue = 1 };
     if (!h1->get_item_info(h, i, &info)) {
+        fprintf(stderr, "get_item_info failed\n");
         return FAIL;
     }
 
     assert(info.nvalue == 1);
     if (!vlen == info.value[0].iov_len) {
+        fprintf(stderr, "vlen=%d, info.value[0].iov_len=%d\n", (int)vlen, (int)info.value[0].iov_len);
         return FAIL;
     }
 
@@ -205,7 +209,8 @@ static enum test_result test_delete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
 static enum test_result test_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
-    if (store(h, h1, "cookie", OPERATION_SET, "key", "somevalue", &i) != ENGINE_SUCCESS) {
+    static const char val[] = "somevalue";
+    if (store(h, h1, "cookie", OPERATION_SET, "key", val, &i) != ENGINE_SUCCESS) {
         return FAIL;
     }
 
@@ -213,7 +218,7 @@ static enum test_result test_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                               testHarness.engine_path,
                               testHarness.default_engine_cfg,
                               true);
-    return check_status(ENGINE_SUCCESS, verify_key(h, h1, "key"));
+    return check_key_value(h, h1, "key", val, strlen(val));
 }
 
 engine_test_t* get_tests(void) {
