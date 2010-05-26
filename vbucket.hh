@@ -1,5 +1,8 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 
+#ifndef VBUCKET_HH
+#define VBUCKET_HH 1
+
 #include <cassert>
 
 #include <map>
@@ -159,3 +162,5 @@ private:
 
     DISALLOW_COPY_AND_ASSIGN(VBucketMap);
 };
+
+#endif /* VBUCKET_HH */
