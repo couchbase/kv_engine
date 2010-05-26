@@ -9,6 +9,8 @@
 #include <sstream>
 #include <list>
 
+#include <memcached/engine.h>
+
 #include "common.hh"
 #include "callbacks.hh"
 #include "item.hh"
@@ -18,10 +20,10 @@
  */
 class GetValue {
 public:
-    GetValue() : value(NULL), success(false) { }
+    GetValue() : value(NULL), status(ENGINE_KEY_ENOENT) { }
 
-    GetValue(bool s) : value(NULL), success(s) { }
-    GetValue(Item *v) : value(v), success(true) { }
+    GetValue(ENGINE_ERROR_CODE s) : value(NULL), status(s) { }
+    GetValue(Item *v) : value(v), status(ENGINE_SUCCESS) { }
 
     /**
      * The value retrieved for the key.
@@ -29,14 +31,14 @@ public:
     Item* getValue() { return value; }
 
     /**
-     * True if a value was successfully retrieved.
+     * Engine code describing what happened.
      */
-    bool isSuccess() const { return success; }
+    ENGINE_ERROR_CODE getStatus() const { return status; }
 
 private:
 
     Item* value;
-    bool success;
+    ENGINE_ERROR_CODE status;
 };
 
 /**
@@ -77,18 +79,22 @@ public:
      * Get the value for the given key.
      *
      * @param key the key
+     * @param vbucket the vbucket ID where this belongs
      * @param cb callback that will fire with the retrieved value
      */
-    virtual void get(const std::string &key, Callback<GetValue> &cb) = 0;
+    virtual void get(const std::string &key, uint16_t vbucket,
+                     Callback<GetValue> &cb) = 0;
 
     /**
      * Delete a value for a key.
      *
      * @param key the key
+     * @param vbucket the vbucket ID where this item should live
      * @param cb callback that will fire with true if the value
      *           existed and then was deleted
      */
-    virtual void del(const std::string &key, Callback<bool> &cb) = 0;
+    virtual void del(const std::string &key,
+                     uint16_t vbucket, Callback<bool> &cb) = 0;
 
     /**
      * Dump the kvstore
@@ -119,10 +125,15 @@ public:
     /**
      * get the value for a give item and lock it
      */
-    virtual bool getLocked(const std::string &key, Callback<GetValue> &cb, rel_time_t currentTime, uint32_t lockTimeout) {
+    virtual bool getLocked(const std::string &key,
+                           uint16_t vbucketid,
+                           Callback<GetValue> &cb,
+                           rel_time_t currentTime,
+                           uint32_t lockTimeout) {
         (void)key;
         (void)currentTime;
         (void) lockTimeout;
+        (void)vbucketid;
         GetValue v(false);
         cb.callback(v);
         return false;

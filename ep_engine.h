@@ -402,24 +402,22 @@ public:
         (void)cas;
         (void)vbucket;
         std::string k(static_cast<const char*>(key), nkey);
-        return itemDelete(cookie, k);
+        return itemDelete(cookie, k, vbucket);
     }
 
-    ENGINE_ERROR_CODE itemDelete(const void* cookie, const std::string &key)
+    ENGINE_ERROR_CODE itemDelete(const void* cookie,
+                                 const std::string &key,
+                                 uint16_t vbucket)
     {
         (void)cookie;
         RememberingCallback<bool> delCb;
 
-        backend->del(key, delCb);;
+        backend->del(key, vbucket, delCb);
         delCb.waitForValue();
         if (delCb.val) {
             addDeleteEvent(key);
-            return ENGINE_SUCCESS;
-        } else {
-            // in case of the item being locked, we should probably
-            // return a more relavent return code. @TODO
-            return ENGINE_KEY_ENOENT;
         }
+        return static_cast<ENGINE_ERROR_CODE>(delCb.getStatus());
     }
 
 
@@ -439,13 +437,13 @@ public:
         (void)vbucket;
         std::string k(static_cast<const char*>(key), nkey);
         RememberingCallback<GetValue> getCb;
-        backend->get(k, getCb);
+        backend->get(k, vbucket, getCb);
         getCb.waitForValue();
-        if (getCb.val.isSuccess()) {
+        if (getCb.val.getStatus() == ENGINE_SUCCESS) {
             *item = getCb.val.getValue();
-            return ENGINE_SUCCESS;
+            return getCb.val.getStatus();
         } else {
-            return ENGINE_KEY_ENOENT;
+            return getCb.val.getStatus();
         }
 
     }
@@ -483,6 +481,8 @@ public:
         Item *it = static_cast<Item*>(itm);
         item *i;
 
+        it->setVBucketId(vbucket);
+
         switch (operation) {
             case OPERATION_CAS:
                 if (it->getCas() == 0) {
@@ -498,6 +498,8 @@ public:
                     *cas = it->getCas();
                     addMutationEvent(it);
                     ret = ENGINE_SUCCESS;
+                } else if (callback.getStatus() == INVALID_VBUCKET) {
+                    ret = ENGINE_NOT_MY_VBUCKET;
                 } else {
                     ret = ENGINE_KEY_EEXISTS;
                 }
@@ -514,6 +516,8 @@ public:
                     // unable to set if the key is locked
                     if ((mutation_type_t)callback.getStatus() == IS_LOCKED) {
                         return ENGINE_KEY_EEXISTS;
+                    } else if (callback.getStatus() == INVALID_VBUCKET) {
+                        return ENGINE_NOT_MY_VBUCKET;
                     }
                     *cas = it->getCas();
                     addMutationEvent(it);
@@ -621,6 +625,8 @@ public:
             }
 
             delete item;
+        } else if (ret == ENGINE_NOT_MY_VBUCKET) {
+            return ret;
         } else if (ret == ENGINE_KEY_ENOENT && create) {
             std::stringstream vals;
 
@@ -822,7 +828,8 @@ public:
         case TAP_DELETION:
         {
             std::string k(static_cast<const char*>(key), nkey);
-            return itemDelete(cookie, k);
+            // TODO:  Get vbucket ID here.
+            return itemDelete(cookie, k, 0);
         }
 
         case TAP_MUTATION:
@@ -1315,20 +1322,23 @@ private:
                 }
             } else if (validate) {
                 shared_ptr<LookupCallback> cb(new LookupCallback(this, cookie));
-                epstore->getFromUnderlying(key, cb);
+                // TODO:  Need a proper vbucket ID here.
+                epstore->getFromUnderlying(key, 0, cb);
                 return ENGINE_EWOULDBLOCK;
             }
 
-            if (epstore->getKeyStats(k, kstats)) {
+            // TODO:  Need a proper vbucket ID here.
+            if (epstore->getKeyStats(k, 0, kstats)) {
                 std::string valid("this_is_a_bug");
                 if (validate) {
                     if (kstats.dirty) {
                         valid.assign("dirty");
                     } else {
                         RememberingCallback<GetValue> cb;
-                        backend->get(key, cb);
+                        // TODO:  Need a proper vbucket ID here.
+                        backend->get(key, 0, cb);
                         cb.waitForValue();
-                        if (cb.val.isSuccess()) {
+                        if (cb.getStatus() == ENGINE_SUCCESS) {
                             shared_ptr<Item> item(cb.val.getValue());
                             if (diskItem.get()) {
                                 // Both items exist

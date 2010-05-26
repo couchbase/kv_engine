@@ -27,11 +27,12 @@ static bool teardown(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return true;
 }
 
-static ENGINE_ERROR_CODE storeCas(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                                  const void *cookie,
-                                  ENGINE_STORE_OPERATION op,
-                                  const char *key, const char *value,
-                                  item **outitem, uint64_t casIn) {
+static ENGINE_ERROR_CODE storeCasVb(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                                    const void *cookie,
+                                    ENGINE_STORE_OPERATION op,
+                                    const char *key, const char *value,
+                                    item **outitem, uint64_t casIn,
+                                    uint16_t vb) {
 
     item *it = NULL;
     uint64_t cas = 0;
@@ -51,13 +52,21 @@ static ENGINE_ERROR_CODE storeCas(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     memcpy(info.value[0].iov_base, value, strlen(value));
     h1->item_set_cas(h, it, casIn);
 
-    rv = h1->store(h, cookie, it, &cas, op, 0);
+    rv = h1->store(h, cookie, it, &cas, op, vb);
 
     if (outitem) {
         *outitem = it;
     }
 
     return rv;
+}
+
+static ENGINE_ERROR_CODE storeCas(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                                  const void *cookie,
+                                  ENGINE_STORE_OPERATION op,
+                                  const char *key, const char *value,
+                                  item **outitem, uint64_t casIn) {
+    return storeCasVb(h, h1, cookie, op, key, value, outitem, casIn, 0);
 }
 
 static ENGINE_ERROR_CODE store(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
@@ -68,10 +77,16 @@ static ENGINE_ERROR_CODE store(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     return storeCas(h, h1, cookie, op, key, value, outitem, 0);
 }
 
+
+static ENGINE_ERROR_CODE verify_vb_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                                       const char* key, uint16_t vbucket) {
+    item *i = NULL;
+    return h1->get(h, NULL, &i, key, strlen(key), vbucket);
+}
+
 static ENGINE_ERROR_CODE verify_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                     const char* key) {
-    item *i = NULL;
-    return h1->get(h, NULL, &i, key, strlen(key), 0);
+    return verify_vb_key(h, h1, key, 0);
 }
 
 static enum test_result check_key_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
@@ -99,7 +114,18 @@ static enum test_result check_key_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 
 static enum test_result check_status(ENGINE_ERROR_CODE wanted,
                                      ENGINE_ERROR_CODE got) {
+    if (wanted != got) {
+        fprintf(stderr, "Wanted %d, got %d\n", wanted, got);
+    }
     return wanted == got ? SUCCESS : FAIL;
+}
+
+static enum test_result test_wrong_vb_mutation(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                                               ENGINE_STORE_OPERATION op) {
+    item *i = NULL;
+    ENGINE_ERROR_CODE rv = storeCasVb(h, h1, "cookie", op,
+                                      "key", "somevalue", &i, 11, 1);
+    return rv == ENGINE_NOT_MY_VBUCKET ? SUCCESS : FAIL;
 }
 
 //
@@ -221,8 +247,38 @@ static enum test_result test_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return check_key_value(h, h1, "key", val, strlen(val));
 }
 
+static enum test_result test_wrong_vb_get(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    return check_status(ENGINE_NOT_MY_VBUCKET, verify_vb_key(h, h1, "key", 1));
+}
+
+static enum test_result test_wrong_vb_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    return test_wrong_vb_mutation(h, h1, OPERATION_SET);
+}
+
+static enum test_result test_wrong_vb_cas(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    return test_wrong_vb_mutation(h, h1, OPERATION_CAS);
+}
+
+static enum test_result test_wrong_vb_add(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    return test_wrong_vb_mutation(h, h1, OPERATION_ADD);
+}
+
+static enum test_result test_wrong_vb_append(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    return test_wrong_vb_mutation(h, h1, OPERATION_APPEND);
+}
+
+static enum test_result test_wrong_vb_prepend(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    return test_wrong_vb_mutation(h, h1, OPERATION_PREPEND);
+}
+
+static enum test_result test_wrong_vb_del(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    return check_status(ENGINE_NOT_MY_VBUCKET,
+                        h1->remove(h, "cookie", "key", 3, 0, 1));
+}
+
 engine_test_t* get_tests(void) {
     static engine_test_t tests[]  = {
+        // basic tests
         {"get miss", test_get_miss, NULL, teardown, NULL},
         {"set", test_set, NULL, teardown, NULL},
         {"set+get hit", test_set_get_hit, NULL, teardown, NULL},
@@ -230,12 +286,22 @@ engine_test_t* get_tests(void) {
         {"cas", test_cas, NULL, teardown, NULL},
         {"incr miss", test_incr_miss, NULL, teardown, NULL},
         {"incr with default", test_incr_default, NULL, teardown, NULL},
-        {"test restart", test_restart, NULL, teardown, NULL},
         {"delete", test_delete, NULL, teardown, NULL},
         {"flush", NULL, NULL, teardown, NULL},
+        // Stats tests
         {"stats", NULL, NULL, teardown, NULL},
         {"stats key", NULL, NULL, teardown, NULL},
         {"stats vkey", NULL, NULL, teardown, NULL},
+        // restart tests
+        {"test restart", test_restart, NULL, teardown, NULL},
+        // vbucket negative tests
+        {"test wrong vbucket get", test_wrong_vb_get, NULL, teardown, NULL},
+        {"test wrong vbucket set", test_wrong_vb_set, NULL, teardown, NULL},
+        {"test wrong vbucket add", test_wrong_vb_add, NULL, teardown, NULL},
+        {"test wrong vbucket cas", test_wrong_vb_cas, NULL, teardown, NULL},
+        {"test wrong vbucket append", test_wrong_vb_append, NULL, teardown, NULL},
+        {"test wrong vbucket prepend", test_wrong_vb_prepend, NULL, teardown, NULL},
+        {"test wrong vbucket del", test_wrong_vb_del, NULL, teardown, NULL},
         {NULL, NULL, NULL, NULL, NULL}
     };
     return tests;

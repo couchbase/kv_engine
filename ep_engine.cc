@@ -17,7 +17,7 @@ static inline EventuallyPersistentEngine* getHandle(ENGINE_HANDLE* handle)
 }
 
 void LookupCallback::callback(GetValue &value) {
-    if (value.isSuccess()) {
+    if (value.getStatus() == ENGINE_SUCCESS) {
         engine->addLookupResult(cookie, value.getValue());
     } else {
         engine->addLookupResult(cookie, NULL);
@@ -65,9 +65,6 @@ extern "C" {
                                            uint64_t cas,
                                            uint16_t vbucket)
     {
-        if (vbucket != 0) {
-            return ENGINE_ENOTSUP;
-        }
         return getHandle(handle)->itemDelete(cookie, key, nkey, cas, vbucket);
     }
 
@@ -85,9 +82,6 @@ extern "C" {
                                     const int nkey,
                                     uint16_t vbucket)
     {
-        if (vbucket != 0) {
-            return ENGINE_ENOTSUP;
-        }
         return getHandle(handle)->get(cookie, item, key, nkey, vbucket);
     }
 
@@ -107,9 +101,6 @@ extern "C" {
                                       ENGINE_STORE_OPERATION operation,
                                       uint16_t vbucket)
     {
-        if (vbucket != 0) {
-            return ENGINE_ENOTSUP;
-        }
         return getHandle(handle)->store(cookie, item, cas, operation, vbucket);
     }
 
@@ -126,9 +117,6 @@ extern "C" {
                                            uint64_t *result,
                                            uint16_t vbucket)
     {
-        if (vbucket != 0) {
-            return ENGINE_ENOTSUP;
-        }
         return getHandle(handle)->arithmetic(cookie, key, nkey, increment,
                                              create, delta, initial, exptime,
                                              cas, result, vbucket);

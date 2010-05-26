@@ -27,6 +27,7 @@ extern EXTENSION_LOGGER_DESCRIPTOR *getLogger(void);
 #include "stored-value.hh"
 #include "atomic.hh"
 #include "dispatcher.hh"
+#include "vbucket.hh"
 
 #define DEFAULT_TXN_SIZE 50000
 #define MAX_TXN_SIZE 10000000
@@ -42,12 +43,14 @@ extern "C" {
 
 class QueuedItem {
 public:
-    QueuedItem(const std::string &k) : key(k) {}
+    QueuedItem(const std::string &k, const uint16_t vb) : key(k), vbucket(vb) {}
 
     std::string getKey(void) const { return key; }
+    uint16_t getVBucketId(void) const { return vbucket; }
 
 private:
     std::string key;
+    uint16_t vbucket;
 };
 
 // Forward declaration
@@ -59,21 +62,24 @@ class Flusher;
  */
 class LoadStorageKVPairCallback : public Callback<GetValue> {
 public:
-    LoadStorageKVPairCallback(HashTable &ht, EPStats &st)
-        : hashtable(ht), stats(st) { }
+    LoadStorageKVPairCallback(VBucketMap &vb, EPStats &st)
+        : vbuckets(vb), stats(st) { }
 
     void callback(GetValue &val) {
         Item *i = val.getValue();
         if (i != NULL) {
-            hashtable.add(*i, true);
+            // TODO: Something smarter for multiple vbuckets.
+            RCPtr<VBucket> vb = vbuckets.getBucket(0);
+            assert(vb);
+            vb->ht.add(*i, true);
             delete i;
         }
         stats.warmedUp++;
     }
 
 private:
-    HashTable       &hashtable;
-    EPStats &stats;
+    VBucketMap &vbuckets;
+    EPStats    &stats;
 };
 
 class EventuallyPersistentStore : public KVStore {
@@ -85,12 +91,14 @@ public:
 
     void set(const Item &item, Callback<bool> &cb);
 
-    void get(const std::string &key, Callback<GetValue> &cb);
+    void get(const std::string &key, uint16_t vbucket,
+             Callback<GetValue> &cb);
 
-    void getFromUnderlying(const std::string &key,
+    void getFromUnderlying(const std::string &key, uint16_t vbucket,
                            shared_ptr<Callback<GetValue> > cb);
 
-    void del(const std::string &key, Callback<bool> &cb);
+    void del(const std::string &key, uint16_t vbucket,
+             Callback<bool> &cb);
 
     EPStats& getStats() { return stats; }
 
@@ -114,19 +122,31 @@ public:
     }
 
     void visit(HashTableVisitor &visitor) {
-        storage.visit(visitor);
+        // TODO: Something smarter for multiple vbuckets.
+        RCPtr<VBucket> vb = vbuckets.getBucket(0);
+        assert(vb);
+        vb->ht.visit(visitor);
     }
 
     void visitDepth(HashTableDepthVisitor &visitor) {
-        storage.visitDepth(visitor);
+        // TODO: Something smarter for multiple vbuckets.
+        RCPtr<VBucket> vb = vbuckets.getBucket(0);
+        assert(vb);
+        vb->ht.visitDepth(visitor);
     }
 
     size_t getHashSize() {
-        return storage.getSize();
+        // TODO: Something smarter for multiple vbuckets.
+        RCPtr<VBucket> vb = vbuckets.getBucket(0);
+        assert(vb);
+        return vb->ht.getSize();
     }
 
     size_t getHashLocks() {
-        return storage.getNumLocks();
+        // TODO: Something smarter for multiple vbuckets.
+        RCPtr<VBucket> vb = vbuckets.getBucket(0);
+        assert(vb);
+        return vb->ht.getNumLocks();
     }
 
     void warmup() {
@@ -148,13 +168,16 @@ public:
 
     const Flusher* getFlusher();
 
-    bool getKeyStats(const std::string &key, key_stats &kstats);
+    bool getKeyStats(const std::string &key, uint16_t vbucket,
+                     key_stats &kstats);
 
-    bool getLocked(const std::string &key, Callback<GetValue> &cb, rel_time_t currentTime, uint32_t lockTimeout);
+    bool getLocked(const std::string &key, uint16_t vbucket,
+                   Callback<GetValue> &cb,
+                   rel_time_t currentTime, uint32_t lockTimeout);
 
 private:
     /* Queue an item to be written to persistent layer. */
-    void queueDirty(const std::string &key);
+    void queueDirty(const std::string &key, uint16_t vbid);
 
     std::queue<QueuedItem> *beginFlush();
     void completeFlush(std::queue<QueuedItem> *rejects,
@@ -171,7 +194,7 @@ private:
     size_t                     est_size;
     Dispatcher                *dispatcher;
     Flusher                   *flusher;
-    HashTable                  storage;
+    VBucketMap                 vbuckets;
     SyncObject                 mutex;
     AtomicQueue<QueuedItem>    towrite;
     std::queue<QueuedItem>     writing;

@@ -150,7 +150,10 @@ private:
 };
 
 typedef enum {
-    NOT_FOUND, INVALID_CAS, WAS_CLEAN, WAS_DIRTY, IS_LOCKED, SUCCESS
+    INVALID_VBUCKET, NOT_FOUND, INVALID_CAS,
+    WAS_CLEAN, WAS_DIRTY,
+    IS_LOCKED,
+    SUCCESS
 } mutation_type_t;
 
 class HashTableVisitor {

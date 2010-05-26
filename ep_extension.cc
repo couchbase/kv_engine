@@ -94,7 +94,8 @@ bool GetlExtension::executeGetl(int argc, token_t *argv, void *response_cookie,
     std::string k(argv[1].value, argv[1].length);
     RememberingCallback<GetValue> getCb;
 
-    bool gotLock = backend->getLocked(k, getCb,
+    // TODO:  Get vbucket ID here.
+    bool gotLock = backend->getLocked(k, 0, getCb,
             serverApi->core->get_current_time(),
             lockTimeout);
 
@@ -102,7 +103,7 @@ bool GetlExtension::executeGetl(int argc, token_t *argv, void *response_cookie,
     bool ret = true;
 
     getCb.waitForValue();
-    if (getCb.val.isSuccess()) {
+    if (getCb.val.getStatus() == ENGINE_SUCCESS) {
         item = getCb.val.getValue();
         std::stringstream strm;
 

@@ -22,16 +22,17 @@ class VBucket : public RCValue {
 public:
 
     VBucket(int i, vbucket_state_t initialState) :
-        id(i), state(initialState), ht() {}
+        ht(), id(i), state(initialState) {}
 
     int getId(void) { return id; }
     vbucket_state_t getState(void) { return state; }
     void setState(vbucket_state_t to) { state = to; }
 
+    HashTable               ht;
+
 private:
     int                     id;
     Atomic<vbucket_state_t> state;
-    HashTable               ht;
 
     DISALLOW_COPY_AND_ASSIGN(VBucket);
 };

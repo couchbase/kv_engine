@@ -21,24 +21,25 @@ extern "C" {
 class GetCallback : public DispatcherCallback {
 public:
     GetCallback(KVStore *kvs, const std::string &k,
-                shared_ptr<Callback<GetValue> > cb) :
-               store(kvs), key(k), _callback(cb) {}
+                uint16_t vbid, shared_ptr<Callback<GetValue> > cb) :
+        store(kvs), key(k), vbucket(vbid), _callback(cb) {}
 
     virtual bool callback(Dispatcher &d, TaskId t) {
         (void)d; (void)t;
-        store->get(key, *_callback);
+        store->get(key, vbucket, *_callback);
         return false;
     }
 
 private:
     KVStore *store;
     std::string key;
+    uint16_t vbucket;
     shared_ptr<Callback<GetValue> > _callback;
 };
 
 EventuallyPersistentStore::EventuallyPersistentStore(KVStore *t,
                                                      size_t est) :
-    loadStorageKVPairCallback(storage, stats)
+    loadStorageKVPairCallback(vbuckets, stats)
 {
     est_size = est;
     stats.min_data_age.set(DEFAULT_MIN_DATA_AGE);
@@ -51,6 +52,9 @@ EventuallyPersistentStore::EventuallyPersistentStore(KVStore *t,
     setTxnSize(DEFAULT_TXN_SIZE);
 
     underlying = t;
+
+    RCPtr<VBucket> vb(new VBucket(0, active));
+    vbuckets.addBucket(vb);
 
     startDispatcher();
     startFlusher();
@@ -74,7 +78,10 @@ EventuallyPersistentStore::~EventuallyPersistentStore() {
     // Verify that we don't have any dirty objects!
     if (getenv("EP_VERIFY_SHUTDOWN_FLUSH") != NULL) {
         VerifyStoredVisitor walker;
-        storage.visit(walker);
+        // TODO: Something smarter for multiple vbuckets.
+        RCPtr<VBucket> vb = vbuckets.getBucket(0);
+        assert(vb);
+        vb->ht.visit(walker);
         if (!walker.dirty.empty()) {
             std::vector<std::string>::const_iterator iter;
             for (iter = walker.dirty.begin();
@@ -123,13 +130,21 @@ bool EventuallyPersistentStore::resumeFlusher() {
 }
 
 void EventuallyPersistentStore::set(const Item &item, Callback<bool> &cb) {
-    mutation_type_t mtype = storage.set(item);
+    RCPtr<VBucket> vb = vbuckets.getBucket(item.getVBucketId());
+    if (!vb) {
+        bool rv = false;
+        cb.setStatus(static_cast<int>(INVALID_VBUCKET));
+        cb.callback(rv);
+        return;
+    }
+
+    mutation_type_t mtype = vb->ht.set(item);
     bool rv = true;
 
     if (mtype == INVALID_CAS || mtype == IS_LOCKED) {
         rv = false;
     } else if (mtype == WAS_CLEAN || mtype == NOT_FOUND) {
-        queueDirty(item.getKey());
+        queueDirty(item.getKey(), item.getVBucketId());
         if (mtype == NOT_FOUND) {
             stats.curr_items++;
         }
@@ -140,10 +155,18 @@ void EventuallyPersistentStore::set(const Item &item, Callback<bool> &cb) {
 }
 
 void EventuallyPersistentStore::get(const std::string &key,
+                                    uint16_t vbucket,
                                     Callback<GetValue> &cb) {
-    int bucket_num = storage.bucket(key);
-    LockHolder lh(storage.getMutex(bucket_num));
-    StoredValue *v = storage.unlocked_find(key, bucket_num);
+    RCPtr<VBucket> vb = vbuckets.getBucket(vbucket);
+    if (!vb) {
+        GetValue rv(ENGINE_NOT_MY_VBUCKET);
+        cb.callback(rv);
+        return;
+    }
+
+    int bucket_num = vb->ht.bucket(key);
+    LockHolder lh(vb->ht.getMutex(bucket_num));
+    StoredValue *v = vb->ht.unlocked_find(key, bucket_num);
 
     if (v) {
         // return an invalid cas value if the item is locked
@@ -153,24 +176,32 @@ void EventuallyPersistentStore::get(const std::string &key,
         lh.unlock();
         cb.callback(rv);
     } else {
-        GetValue rv(false);
+        GetValue rv;
         lh.unlock();
         cb.callback(rv);
     }
 }
 
 bool EventuallyPersistentStore::getLocked(const std::string &key,
+                                          uint16_t vbucket,
                                           Callback<GetValue> &cb,
                                           rel_time_t currentTime,
                                           uint32_t lockTimeout) {
+    RCPtr<VBucket> vb = vbuckets.getBucket(vbucket);
+    assert(vb);
+    if (!vb) {
+        GetValue rv(ENGINE_NOT_MY_VBUCKET);
+        cb.callback(rv);
+        return false;
+    }
 
-    int bucket_num = storage.bucket(key);
-    LockHolder lh(storage.getMutex(bucket_num));
-    StoredValue *v = storage.unlocked_find(key, bucket_num);
+    int bucket_num = vb->ht.bucket(key);
+    LockHolder lh(vb->ht.getMutex(bucket_num));
+    StoredValue *v = vb->ht.unlocked_find(key, bucket_num);
 
     if (v) {
         if (v->isLocked(currentTime)) {
-            GetValue rv(false);
+            GetValue rv;
             cb.callback(rv);
             lh.unlock();
             return false;
@@ -190,7 +221,7 @@ bool EventuallyPersistentStore::getLocked(const std::string &key,
         cb.callback(rv);
 
     } else {
-        GetValue rv(false);
+        GetValue rv;
         cb.callback(rv);
     }
     lh.unlock();
@@ -198,18 +229,26 @@ bool EventuallyPersistentStore::getLocked(const std::string &key,
 }
 
 void EventuallyPersistentStore::getFromUnderlying(const std::string &key,
+                                                  uint16_t vbucket,
                                                   shared_ptr<Callback<GetValue> > cb) {
-    shared_ptr<GetCallback> dcb(new GetCallback(underlying, key, cb));
+    shared_ptr<GetCallback> dcb(new GetCallback(underlying, key, vbucket, cb));
     dispatcher->schedule(dcb, -1);
 }
 
 bool EventuallyPersistentStore::getKeyStats(const std::string &key,
+                                            uint16_t vbucket,
                                             struct key_stats &kstats)
 {
+    RCPtr<VBucket> vb = vbuckets.getBucket(vbucket);
+    assert(vb);
+    if (!vb) {
+        return false;
+    }
+
     bool found = false;
-    int bucket_num = storage.bucket(key);
-    LockHolder lh(storage.getMutex(bucket_num));
-    StoredValue *v = storage.unlocked_find(key, bucket_num);
+    int bucket_num = vb->ht.bucket(key);
+    LockHolder lh(vb->ht.getMutex(bucket_num));
+    StoredValue *v = vb->ht.unlocked_find(key, bucket_num);
 
     found = (v != NULL);
     if (found) {
@@ -241,10 +280,21 @@ void EventuallyPersistentStore::resetStats(void) {
     stats.commit_time.set(0);
 }
 
-void EventuallyPersistentStore::del(const std::string &key, Callback<bool> &cb) {
-    bool existed = storage.del(key);
+void EventuallyPersistentStore::del(const std::string &key,
+                                    uint16_t vbucket,
+                                    Callback<bool> &cb) {
+    RCPtr<VBucket> vb = vbuckets.getBucket(vbucket);
+    if (!vb) {
+        bool rv(false);
+        cb.setStatus(ENGINE_NOT_MY_VBUCKET);
+        cb.callback(rv);
+        return;
+    }
+
+    bool existed = vb->ht.del(key);
+    cb.setStatus(existed ? ENGINE_SUCCESS : ENGINE_KEY_ENOENT);
     if (existed) {
-        queueDirty(key);
+        queueDirty(key, vbucket);
         stats.curr_items--;
     }
     cb.callback(existed);
@@ -327,7 +377,7 @@ public:
             if (sval != NULL) {
                 sval->reDirty(queued, dirtied);
             }
-            rq->push(queuedItem.getKey());
+            rq->push(queuedItem);
         }
     }
 private:
@@ -346,9 +396,16 @@ int EventuallyPersistentStore::flushOne(std::queue<QueuedItem> *q,
     QueuedItem qi = q->front();
     q->pop();
 
-    int bucket_num = storage.bucket(qi.getKey());
-    LockHolder lh(storage.getMutex(bucket_num));
-    StoredValue *v = storage.unlocked_find(qi.getKey(), bucket_num);
+    RCPtr<VBucket> vb = vbuckets.getBucket(qi.getVBucketId());
+    assert(vb);
+    if (!vb) {
+        stats.flusher_todo--;
+        return 0;
+    }
+
+    int bucket_num = vb->ht.bucket(qi.getKey());
+    LockHolder lh(vb->ht.getMutex(bucket_num));
+    StoredValue *v = vb->ht.unlocked_find(qi.getKey(), bucket_num);
 
     bool found = v != NULL;
     bool isDirty = (found && v->isDirty());
@@ -375,7 +432,7 @@ int EventuallyPersistentStore::flushOne(std::queue<QueuedItem> *q,
             isDirty = false;
             stats.tooYoung++;
             v->reDirty(queued, dirtied);
-            rejectQueue->push(qi.getKey());
+            rejectQueue->push(qi);
         }
 
         if (eligible) {
@@ -404,7 +461,7 @@ int EventuallyPersistentStore::flushOne(std::queue<QueuedItem> *q,
         underlying->set(*val, cb);
     } else if (!found) {
         Requeuer cb(qi, rejectQueue, v, queued, dirtied, &stats);
-        underlying->del(qi.getKey(), cb);
+        underlying->del(qi.getKey(), qi.getVBucketId(), cb);
     }
 
     if (val != NULL) {
@@ -414,10 +471,10 @@ int EventuallyPersistentStore::flushOne(std::queue<QueuedItem> *q,
     return ret;
 }
 
-void EventuallyPersistentStore::queueDirty(const std::string &key) {
+void EventuallyPersistentStore::queueDirty(const std::string &key, uint16_t vbid) {
     if (doPersistence) {
         // Assume locked.
-        towrite.push(key);
+        towrite.push(QueuedItem(key, vbid));
         stats.totalEnqueued++;
         stats.queue_size = towrite.size();
     }

@@ -83,12 +83,14 @@ public:
     /**
      * Overrides get().
      */
-    void get(const std::string &key, Callback<GetValue> &cb);
+    void get(const std::string &key, uint16_t vbucket,
+             Callback<GetValue> &cb);
 
     /**
      * Overrides del().
      */
-    void del(const std::string &key, Callback<bool> &cb);
+    void del(const std::string &key, uint16_t vbucket,
+             Callback<bool> &cb);
 
     /**
      * Overrides dump

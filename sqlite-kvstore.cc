@@ -17,7 +17,10 @@ void StrategicSqlite3::set(const Item &itm, Callback<bool> &cb) {
     ins_stmt->reset();
 }
 
-void StrategicSqlite3::get(const std::string &key, Callback<GetValue> &cb) {
+void StrategicSqlite3::get(const std::string &key, uint16_t vbucket,
+                           Callback<GetValue> &cb) {
+    // TODO:  Use vbucket.
+    (void)vbucket;
     PreparedStatement *sel_stmt = strategy->forKey(key)->sel();
     sel_stmt->bind(1, key.c_str());
 
@@ -36,7 +39,10 @@ void StrategicSqlite3::get(const std::string &key, Callback<GetValue> &cb) {
     sel_stmt->reset();
 }
 
-void StrategicSqlite3::del(const std::string &key, Callback<bool> &cb) {
+void StrategicSqlite3::del(const std::string &key, uint16_t vbucket,
+                           Callback<bool> &cb) {
+    // TODO:  Use vbucket
+    (void)vbucket;
     PreparedStatement *del_stmt = strategy->forKey(key)->del();
     del_stmt->bind(1, key.c_str());
     bool rv = del_stmt->execute() >= 0;
@@ -52,6 +58,7 @@ void StrategicSqlite3::dump(Callback<GetValue> &cb) {
         PreparedStatement *st = (*it)->all();
         st->reset();
         while (st->fetch()) {
+            // TODO:  Grab vbucket
             GetValue rv(new Item(st->column_blob(0),
                                  static_cast<uint16_t>(st->column_bytes(0)),
                                  st->column_int(2),
