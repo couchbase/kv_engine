@@ -3,6 +3,8 @@ ACLOCAL_AMFLAGS = -I m4 --force
 lib_LTLIBRARIES = ep.la ep_testsuite.la
 noinst_LTLIBRARIES = libsqlite3.la
 
+noinst_PROGRAMS = sizes
+
 ep_la_CPPFLAGS = -I@MEMCACHED_DIR@/include -I$(top_srcdir) $(AM_CPPFLAGS) -DSQLITE_HAS_CODEC=0
 ep_la_LDFLAGS = -module -dynamic
 ep_la_SOURCES = \
@@ -19,6 +21,7 @@ ep_la_SOURCES = \
                  locks.hh \
                  mutex.hh \
                  priority.hh priority.cc \
+                 sizes.cc \
                  sqlite-eval.hh sqlite-eval.cc \
                  sqlite-kvstore.cc sqlite-kvstore.hh \
                  sqlite-pst.hh sqlite-pst.cc \
@@ -62,9 +65,13 @@ hash_table_test_DEPENDENCIES = stored-value.cc stored-value.hh ep.hh item.hh
 priority_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
 priority_test_SOURCES = t/priority_test.cc priority.hh priority.cc
 
+sizes_SOURCES = sizes.cc
+sizes_DEPENDENCIES = vbucket.hh stored-value.hh item.hh
+
 vbucket_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
 vbucket_test_SOURCES = t/vbucket_test.cc vbucket.hh stored-value.cc stored-value.hh
 vbucket_test_DEPENDENCIES = vbucket.hh stored-value.cc stored-value.hh
 
 test: ep_testsuite.la ep.la check-TESTS
 	@MEMCACHED_DIR@/engine_testapp -E .libs/ep.so -T .libs/ep_testsuite.so
+	./sizes
