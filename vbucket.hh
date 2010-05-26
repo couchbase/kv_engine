@@ -6,19 +6,11 @@
 #include <vector>
 #include <algorithm>
 
+#include <memcached/engine.h>
+
 #include "common.hh"
 #include "atomic.hh"
 #include "stored-value.hh"
-
-/**
- * State a vbucket is in.
- */
-enum vbucket_state {
-    active,                     /**< Actively servicing a vbucket. */
-    replica,                    /**< Servicing a vbucket as a replica only. */
-    pending,                    /**< Pending active. */
-    dead                        /**< Not in use, pending deletion. */
-};
 
 /**
  * An individual vbucket.
@@ -26,17 +18,17 @@ enum vbucket_state {
 class VBucket : public RCValue {
 public:
 
-    VBucket(int i, enum vbucket_state initialState) :
+    VBucket(int i, vbucket_state_t initialState) :
         id(i), state(initialState), ht() {}
 
     int getId(void) { return id; }
-    enum vbucket_state getState(void) { return state; }
-    void setState(enum vbucket_state to) { state = to; }
+    vbucket_state_t getState(void) { return state; }
+    void setState(vbucket_state_t to) { state = to; }
 
 private:
-    int                        id;
-    Atomic<enum vbucket_state> state;
-    HashTable                  ht;
+    int                     id;
+    Atomic<vbucket_state_t> state;
+    HashTable               ht;
 
     DISALLOW_COPY_AND_ASSIGN(VBucket);
 };
