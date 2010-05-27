@@ -106,31 +106,35 @@ private:
      * Add a new item to the tap queue.
      * @return true if the the queue was empty
      */
-    bool addEvent(Item *it) {
-        return addEvent(it->getKey());
+    bool addEvent(Item *it, uint16_t vbid) {
+        return addEvent(it->getKey(), vbid);
+    }
+
+    bool addEvent(const QueuedItem &it) {
+        bool wasEmpty = queue->empty();
+        std::pair<std::set<QueuedItem>::iterator, bool> ret;
+        ret = queue_set->insert(it);
+        if (ret.second) {
+            queue->push_back(it);
+        }
+        return wasEmpty;
     }
 
     /**
      * Add a key to the tap queue.
      * @return true if the the queue was empty
      */
-    bool addEvent(const std::string &key) {
-        bool wasEmpty = queue->empty();
-        std::pair<std::set<std::string>::iterator, bool> ret;
-        ret = queue_set->insert(key);
-        if (ret.second) {
-            queue->push_back(key);
-        }
-        return wasEmpty;
+    bool addEvent(const std::string &key, uint16_t vbid) {
+        return addEvent(QueuedItem(key, vbid));
     }
 
-    std::string next() {
+    QueuedItem next() {
         assert(!empty());
-        std::string key = queue->front();
+        QueuedItem qi = queue->front();
         queue->pop_front();
-        queue_set->erase(key);
+        queue_set->erase(qi);
         ++recordsFetched;
-        return key;
+        return qi;
     }
 
     bool empty() {
@@ -150,12 +154,12 @@ private:
         return ret;
     }
 
-    void replaceQueues(std::list<std::string> *q,
-                       std::set<std::string> *qs) {
+    void replaceQueues(std::list<QueuedItem> *q,
+                       std::set<QueuedItem> *qs) {
         delete queue_set;
         queue_set = qs;
 
-        std::list<std::string> *old = queue;
+        std::list<QueuedItem> *old = queue;
         queue = q;
 
         while (!old->empty()) {
@@ -177,8 +181,8 @@ private:
         reconnects(0), connected(true), paused(false), backfillAge(0),
         doRunBackfill(false), pendingBackfill(true)
     {
-        queue = new std::list<std::string>;
-        queue_set = new std::set<std::string>;
+        queue = new std::list<QueuedItem>;
+        queue_set = new std::set<QueuedItem>;
     }
 
     ~TapConnection() {
@@ -194,14 +198,14 @@ private:
     /**
      * The queue of keys that needs to be sent (this is the "live stream")
      */
-    std::list<std::string> *queue;
+    std::list<QueuedItem> *queue;
     /**
      * Set to prevent duplicate queue entries.
      *
      * Note that stl::set is O(log n) for ops we care about, so we'll
      * want to look out for this.
      */
-    std::set<std::string> *queue_set;
+    std::set<QueuedItem> *queue_set;
     /**
      * Flags passed by the client
      */
@@ -460,7 +464,7 @@ public:
         backend->del(key, vbucket, delCb);
         delCb.waitForValue();
         if (delCb.val) {
-            addDeleteEvent(key);
+            addDeleteEvent(key, vbucket);
         }
         return static_cast<ENGINE_ERROR_CODE>(delCb.getStatus());
     }
@@ -546,7 +550,7 @@ public:
                 if (callback.getValue() &&
                     ((mutation_type_t)callback.getStatus() != IS_LOCKED)) {
                     *cas = it->getCas();
-                    addMutationEvent(it);
+                    addMutationEvent(it, vbucket);
                     ret = ENGINE_SUCCESS;
                 } else if (callback.getStatus() == INVALID_VBUCKET) {
                     ret = ENGINE_NOT_MY_VBUCKET;
@@ -570,7 +574,7 @@ public:
                         return ENGINE_NOT_MY_VBUCKET;
                     }
                     *cas = it->getCas();
-                    addMutationEvent(it);
+                    addMutationEvent(it, vbucket);
                     ret = ENGINE_SUCCESS;
                 }
                 break;
@@ -586,7 +590,7 @@ public:
                         return ENGINE_KEY_EEXISTS;
                     }
                     *cas = it->getCas();
-                    addMutationEvent(it);
+                    addMutationEvent(it, vbucket);
                     ret = ENGINE_SUCCESS;
                 } else {
                     ret = ENGINE_NOT_STORED;
@@ -736,13 +740,13 @@ public:
         *flags = 0;
 
         if (!connection->empty()) {
-            std::string key = connection->next();
+            QueuedItem qi = connection->next();
             lh.unlock();
 
             ENGINE_ERROR_CODE r;
-            /* @todo need to fill in the vbucket id! */
-            *vbucket = 0;
-            r = get(cookie, itm, key.c_str(), (int)key.length(), 0);
+            *vbucket = qi.getVBucketId();
+            std::string key = qi.getKey();
+            r = get(cookie, itm, key.c_str(), (int)key.length(), qi.getVBucketId());
             if (r == ENGINE_SUCCESS) {
                 ret = TAP_MUTATION;
             } else if (r == ENGINE_KEY_ENOENT) {
@@ -1141,8 +1145,8 @@ private:
 
     friend class BackFillVisitor;
     bool setEvents(const std::string &name,
-                   std::list<std::string> *q,
-                   std::set<std::string> *qs)
+                   std::list<QueuedItem> *q,
+                   std::set<QueuedItem> *qs)
     {
         bool notify = true;
         bool found = false;
@@ -1165,7 +1169,7 @@ private:
         return found;
     }
 
-    void addEvent(const std::string &str)
+    void addEvent(const std::string &str, uint16_t vbid)
     {
         bool notify = false;
         LockHolder lh(tapNotifySync);
@@ -1173,7 +1177,7 @@ private:
         std::list<TapConnection*>::iterator iter;
         for (iter = allTaps.begin(); iter != allTaps.end(); iter++) {
             TapConnection *tc = *iter;
-            if (!tc->dumpQueue && tc->addEvent(str) && tc->paused) {
+            if (!tc->dumpQueue && tc->addEvent(str, vbid) && tc->paused) {
                 notify = true;
             }
         }
@@ -1183,14 +1187,14 @@ private:
         }
     }
 
-    void addMutationEvent(Item *it) {
+    void addMutationEvent(Item *it, uint16_t vbid) {
         // Currently we use the same queue for all kinds of events..
-        addEvent(it->getKey());
+        addEvent(it->getKey(), vbid);
     }
 
-    void addDeleteEvent(const std::string &key) {
+    void addDeleteEvent(const std::string &key, uint16_t vbid) {
         // Currently we use the same queue for all kinds of events..
-        addEvent(key);
+        addEvent(key, vbid);
     }
 
     void addFlushEvent() {
@@ -1577,9 +1581,10 @@ private:
 class BackFillVisitor : public HashTableVisitor {
 public:
     BackFillVisitor(EventuallyPersistentEngine *e, TapConnection *tc):
-        engine(e), name(tc->client), queue(NULL)
+        engine(e), name(tc->client), queue(NULL), queue_set(NULL),
+        currentBucket(0)
     {
-        queue_set = new std::set<std::string>;
+        queue_set = new std::set<QueuedItem>;
     }
 
     ~BackFillVisitor() {
@@ -1587,14 +1592,18 @@ public:
         delete queue_set;
     }
 
+    void setCurrentBucket(uint16_t to) {
+        currentBucket = to;
+    }
+
     void visit(StoredValue *v) {
         std::string key(v->getKey());
-        queue_set->insert(key);
+        queue_set->insert(QueuedItem(key, currentBucket));
     }
 
     void apply(void) {
-        queue = new std::list<std::string>(queue_set->begin(),
-                                           queue_set->end());
+        queue = new std::list<QueuedItem>(queue_set->begin(),
+                                          queue_set->end());
         if (engine->setEvents(name, queue, queue_set)) {
             queue = NULL;
             queue_set = NULL;
@@ -1604,8 +1613,9 @@ public:
 private:
     EventuallyPersistentEngine *engine;
     std::string name;
-    std::list<std::string> *queue;
-    std::set<std::string> *queue_set;
+    std::list<QueuedItem> *queue;
+    std::set<QueuedItem> *queue_set;
+    uint16_t currentBucket;
 };
 
 #endif

@@ -48,6 +48,10 @@ public:
     std::string getKey(void) const { return key; }
     uint16_t getVBucketId(void) const { return vbucket; }
 
+    bool operator <(const QueuedItem &other) const {
+        return vbucket == other.vbucket ? key < other.key : vbucket < other.vbucket;
+    }
+
 private:
     std::string key;
     uint16_t vbucket;
