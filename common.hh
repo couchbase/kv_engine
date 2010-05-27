@@ -3,6 +3,7 @@
 
 #include <cassert>
 #include <errno.h>
+#include <stdint.h>
 #include <limits.h>
 
 #include <math.h>
