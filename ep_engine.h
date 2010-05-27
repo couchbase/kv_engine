@@ -518,6 +518,11 @@ public:
             // Validating version; blocks
             rv = doKeyStats(cookie, add_stat, &stat_key[5], nkey-5, true);
         }
+
+        // The server doesn't terminate stats other than null
+        if (stat_key != NULL) {
+            add_stat(NULL, 0, NULL, 0, cookie);
+        }
         return rv;
     }
 
