@@ -28,6 +28,13 @@ using SHARED_PTR_NAMESPACE::shared_ptr;
 # error No shared pointer implementation found!
 #endif
 
+/* Linux' limits don't bring this in in c++ mode without doing weird
+   stuff.  It's a known constant, so we'll just make it if we don't
+   have it. */
+#ifndef UINT16_MAX
+#define UINT16_MAX 65535
+#endif /* UINT16_MAX */
+
 // Stolen from http://google-styleguide.googlecode.com/svn/trunk/cppguide.xml
 // A macro to disallow the copy constructor and operator= functions
 // This should be used in the private: declarations for a class
