@@ -3,7 +3,9 @@
 
 #include <cassert>
 #include <errno.h>
+#include <stdlib.h>
 #include <stdint.h>
+#include <inttypes.h>
 #include <limits.h>
 
 #include <math.h>
