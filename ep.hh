@@ -85,9 +85,11 @@ public:
     void callback(GetValue &val) {
         Item *i = val.getValue();
         if (i != NULL) {
-            // TODO: Something smarter for multiple vbuckets.
-            RCPtr<VBucket> vb = vbuckets.getBucket(0);
-            assert(vb);
+            RCPtr<VBucket> vb = vbuckets.getBucket(i->getVBucketId());
+            if (!vb) {
+                vb.reset(new VBucket(i->getVBucketId(), pending));
+                vbuckets.addBucket(vb);
+            }
             vb->ht.add(*i, true);
             delete i;
         }

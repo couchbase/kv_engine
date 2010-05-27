@@ -19,6 +19,7 @@ void StrategicSqlite3::insert(const Item &itm, Callback<std::pair<bool, int64_t>
     ins_stmt->bind(3, itm.getFlags());
     ins_stmt->bind(4, itm.getExptime());
     ins_stmt->bind64(5, itm.getCas());
+    ins_stmt->bind(6, itm.getVBucketId());
     bool rv = ins_stmt->execute() == 1;
 
     int64_t newId = lastRowId();
@@ -59,6 +60,7 @@ void StrategicSqlite3::get(const std::string &key, uint16_t vbucket,
     (void)vbucket;
     PreparedStatement *sel_stmt = strategy->forKey(key)->sel();
     sel_stmt->bind(1, key.c_str());
+    sel_stmt->bind(2, vbucket);
 
     if(sel_stmt->fetch()) {
         GetValue rv(new Item(key.c_str(),
@@ -66,7 +68,8 @@ void StrategicSqlite3::get(const std::string &key, uint16_t vbucket,
                              sel_stmt->column_int(1),
                              sel_stmt->column_int(2),
                              sel_stmt->column_blob(0),
-                             sel_stmt->column_bytes(0)));
+                             sel_stmt->column_bytes(0),
+                             vbucket));
         cb.callback(rv);
     } else {
         GetValue rv(false);
@@ -91,9 +94,9 @@ void StrategicSqlite3::del(const std::string &key, uint16_t vbucket,
                            Callback<bool> &cb) {
     // TODO:  Use vbucket
     (void)vbucket;
-
     PreparedStatement *del_stmt = strategy->forKey(key)->del();
     del_stmt->bind(1, key.c_str());
+    del_stmt->bind(2, vbucket);
     bool rv = del_stmt->execute() >= 0;
     cb.callback(rv);
     del_stmt->reset();
@@ -107,7 +110,6 @@ void StrategicSqlite3::dump(Callback<GetValue> &cb) {
         PreparedStatement *st = (*it)->all();
         st->reset();
         while (st->fetch()) {
-            // TODO:  Grab vbucket
             GetValue rv(new Item(st->column_blob(0),
                                  static_cast<uint16_t>(st->column_bytes(0)),
                                  st->column_int(2),
@@ -115,7 +117,8 @@ void StrategicSqlite3::dump(Callback<GetValue> &cb) {
                                  st->column_blob(1),
                                  st->column_bytes(1),
                                  0,
-                                 st->column_int64(5)));
+                                 st->column_int64(6),
+                                 static_cast<uint16_t>(st->column_int(5))));
             cb.callback(rv);
         }
 

@@ -48,7 +48,8 @@ void SqliteStrategy::initTables(void) {
             "  v text,"
             "  flags integer,"
             "  exptime integer,"
-            "  cas integer)");
+            "  cas integer,"
+            "  vbucket integer)");
 }
 
 void SqliteStrategy::initStatements(void) {
@@ -93,7 +94,8 @@ void MultiDBSqliteStrategy::initTables() {
                  "  v text,"
                  "  flags integer,"
                  "  exptime integer,"
-                 "  cas integer)", i);
+                 "  cas integer,"
+                 "  vbucket integer)", i);
         execute(buf);
     }
 }
