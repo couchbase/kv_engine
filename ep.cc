@@ -156,6 +156,10 @@ void EventuallyPersistentStore::set(const Item &item,
     cb.callback(p);
 }
 
+RCPtr<VBucket> EventuallyPersistentStore::getVBucket(uint16_t vbucket) {
+    return vbuckets.getBucket(vbucket);
+}
+
 void EventuallyPersistentStore::get(const std::string &key,
                                     uint16_t vbucket,
                                     Callback<GetValue> &cb) {

@@ -244,6 +244,54 @@ extern "C" {
         return rv;
     }
 
+    static protocol_binary_response_status getVbucket(EventuallyPersistentEngine *e,
+                                                      protocol_binary_request_header *request,
+                                                      const char **msg) {
+        protocol_binary_request_no_extras *req =
+            reinterpret_cast<protocol_binary_request_no_extras*>(request);
+        assert(req);
+
+        char keyz[8]; // stringy 2^16 int
+
+        // Read the key.
+        int keylen = ntohs(req->message.header.request.keylen);
+        if (keylen >= (int)sizeof(keyz)) {
+            *msg = "Key is too large.";
+            return PROTOCOL_BINARY_RESPONSE_EINVAL;
+        }
+        memcpy(keyz, ((char*)request) + sizeof(req->message.header), keylen);
+        keyz[keylen] = 0x00;
+
+        protocol_binary_response_status rv(PROTOCOL_BINARY_RESPONSE_SUCCESS);
+
+        uint16_t vbucket = 0;
+        if (!parseUint16(keyz, &vbucket)) {
+            *msg = "Value out of range.";
+            rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
+        } else {
+            RCPtr<VBucket> vb = e->getVBucket(vbucket);
+            if (!vb || vb->getState() == dead) {
+                *msg = "That's not my bucket.";
+                rv = PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET;
+            } else {
+                *msg = vb->getStateString();
+                assert(msg);
+                rv = PROTOCOL_BINARY_RESPONSE_SUCCESS;
+            }
+        }
+
+        return rv;
+    }
+
+    static protocol_binary_response_status setVbucket(EventuallyPersistentEngine *e,
+                                                      protocol_binary_request_header *req,
+                                                      const char **msg) {
+        (void)e;
+        (void)req;
+        (void)msg;
+        return PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND;
+    }
+
     static ENGINE_ERROR_CODE EvpUnknownCommand(ENGINE_HANDLE* handle,
                                                const void* cookie,
                                                protocol_binary_request_header *request,
@@ -284,6 +332,12 @@ extern "C" {
             h->stopReplication();
             res = PROTOCOL_BINARY_RESPONSE_SUCCESS;
             msg = "Stopped";
+            break;
+        case CMD_GET_VBUCKET:
+            res = getVbucket(h, request, &msg);
+            break;
+        case CMD_SET_VBUCKET:
+            res = setVbucket(h, request, &msg);
             break;
         default:
             /* unknown command */

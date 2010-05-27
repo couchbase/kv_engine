@@ -9,6 +9,8 @@
 #include <memcached/engine.h>
 #include <memcached/engine_testapp.h>
 
+#include "command_ids.h"
+
 bool abort_msg(const char *expr, const char *msg, int line);
 
 #define check(expr, msg) \
@@ -157,6 +159,60 @@ static enum test_result test_wrong_vb_mutation(ENGINE_HANDLE *h, ENGINE_HANDLE_V
                      "key", "somevalue", &i, 11, 1) == ENGINE_NOT_MY_VBUCKET,
         "Expected not_my_vbucket");
     return SUCCESS;
+}
+
+protocol_binary_response_status last_status = 0;
+char *last_key = NULL;
+char *last_body = NULL;
+
+static bool add_response(const void *key, uint16_t keylen,
+                         const void *ext, uint8_t extlen,
+                         const void *body, uint32_t bodylen,
+                         uint8_t datatype, uint16_t status,
+                         uint64_t cas, const void *cookie) {
+    (void)ext;
+    (void)extlen;
+    (void)datatype;
+    (void)cas;
+    (void)cookie;
+    last_status = status;
+    if (last_body) {
+        free(last_body);
+        last_body = NULL;
+    }
+    if (bodylen > 0) {
+        last_body = malloc(bodylen);
+        assert(last_body);
+        memcpy(last_body, body, bodylen);
+    }
+    if (last_key) {
+        free(last_key);
+        last_key = NULL;
+    }
+    if (keylen > 0) {
+        last_key = malloc(keylen);
+        assert(last_key);
+        memcpy(last_key, key, keylen);
+    }
+    return true;
+}
+
+static void* create_packet(uint8_t opcode, const char *key, const char *val) {
+    char *pkt_raw = calloc(1,
+                           sizeof(protocol_binary_request_header)
+                           + strlen(key)
+                           + strlen(val));
+    assert(pkt_raw);
+    protocol_binary_request_header *req =
+        (protocol_binary_request_header*)pkt_raw;
+    req->request.opcode = opcode;
+    req->request.bodylen = htonl(strlen(key) + strlen(val));
+    req->request.keylen = htons(strlen(key));
+    memcpy(pkt_raw + sizeof(protocol_binary_request_header),
+           key, strlen(key));
+    memcpy(pkt_raw + sizeof(protocol_binary_request_header) + strlen(key),
+           val, strlen(val));
+    return pkt_raw;
 }
 
 //
@@ -448,6 +504,28 @@ static enum test_result test_alloc_limit(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+static enum test_result test_vbucket_get_miss(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    void *pkt = create_packet(CMD_GET_VBUCKET, "1", "");
+    if (h1->unknown_command(h, "cookie", pkt, add_response) != ENGINE_SUCCESS) {
+        return FAIL;
+    }
+
+    return last_status == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET ? SUCCESS : FAIL;
+}
+
+static enum test_result test_vbucket_get(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    void *pkt = create_packet(CMD_GET_VBUCKET, "0", "");
+    if (h1->unknown_command(h, "cookie", pkt, add_response) != ENGINE_SUCCESS) {
+        return FAIL;
+    }
+
+    if (last_status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+        return FAIL;
+    }
+
+    return strcmp("active", last_key) == 0 ? SUCCESS : FAIL;
+}
+
 engine_test_t* get_tests(void) {
     static engine_test_t tests[]  = {
         // basic tests
@@ -480,6 +558,11 @@ engine_test_t* get_tests(void) {
         {"test wrong vbucket append", test_wrong_vb_append, NULL, teardown, NULL},
         {"test wrong vbucket prepend", test_wrong_vb_prepend, NULL, teardown, NULL},
         {"test wrong vbucket del", test_wrong_vb_del, NULL, teardown, NULL},
+        // Vbucket management tests
+        {"test vbucket get", test_vbucket_get, NULL, teardown, NULL},
+        {"test vbucket get missing", test_vbucket_get_miss, NULL, teardown, NULL},
+        {"test vbucket create", NULL, NULL, teardown, NULL},
+        {"test vbucket destroy", NULL, NULL, teardown, NULL},
         {NULL, NULL, NULL, NULL, NULL}
     };
     return tests;

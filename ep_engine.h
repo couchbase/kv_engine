@@ -15,6 +15,8 @@
 #include <list>
 #include <errno.h>
 
+#include "command_ids.h"
+
 #define NUMBER_OF_SHARDS 4
 
 extern "C" {
@@ -48,14 +50,6 @@ extern "C" {
 #undef htons
 #undef htonl
 #endif
-
-#define CMD_STOP_PERSISTENCE  0x80
-#define CMD_START_PERSISTENCE 0x81
-#define CMD_SET_FLUSH_PARAM 0x82
-
-#define CMD_START_REPLICATION 0x90
-#define CMD_STOP_REPLICATION 0x91
-#define CMD_SET_TAP_PARAM 0x92
 
 class BoolCallback : public Callback<bool> {
 public:
@@ -1020,6 +1014,10 @@ public:
 
     void setTapPeer(std::string peer) {
         tapConnect(peer);
+    }
+
+    RCPtr<VBucket> getVBucket(uint16_t vbucket) {
+        return epstore->getVBucket(vbucket);
     }
 
     ~EventuallyPersistentEngine() {

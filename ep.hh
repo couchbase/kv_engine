@@ -119,6 +119,8 @@ public:
     bool pauseFlusher(void);
     bool resumeFlusher(void);
 
+    RCPtr<VBucket> getVBucket(uint16_t vbid);
+
     virtual void dump(Callback<GetValue>&) {
         throw std::runtime_error("not implemented");
     }
