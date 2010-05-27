@@ -1020,6 +1020,10 @@ public:
         return epstore->getVBucket(vbucket);
     }
 
+    void setVBucketState(uint16_t vbid, vbucket_state_t to) {
+        epstore->setVBucketState(vbid, to);
+    }
+
     ~EventuallyPersistentEngine() {
         delete epstore;
         delete sqliteDb;

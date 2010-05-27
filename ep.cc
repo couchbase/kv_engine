@@ -160,6 +160,19 @@ RCPtr<VBucket> EventuallyPersistentStore::getVBucket(uint16_t vbucket) {
     return vbuckets.getBucket(vbucket);
 }
 
+void EventuallyPersistentStore::setVBucketState(uint16_t vbid,
+                                                vbucket_state_t to) {
+    // Lock to prevent a race condition between a failed update and add.
+    LockHolder lh(vbsetMutex);
+    RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
+    if (vb) {
+        vb->setState(to);
+    } else {
+        RCPtr<VBucket> newvb(new VBucket(vbid, to));
+        vbuckets.addBucket(newvb);
+    }
+}
+
 void EventuallyPersistentStore::get(const std::string &key,
                                     uint16_t vbucket,
                                     Callback<GetValue> &cb) {

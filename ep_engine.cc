@@ -284,12 +284,61 @@ extern "C" {
     }
 
     static protocol_binary_response_status setVbucket(EventuallyPersistentEngine *e,
-                                                      protocol_binary_request_header *req,
+                                                      protocol_binary_request_header *request,
                                                       const char **msg) {
-        (void)e;
-        (void)req;
-        (void)msg;
-        return PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND;
+        protocol_binary_request_no_extras *req =
+            reinterpret_cast<protocol_binary_request_no_extras*>(request);
+        assert(req);
+
+        char keyz[32];
+        char valz[32];
+
+        // Read the key.
+        int keylen = ntohs(req->message.header.request.keylen);
+        if (keylen >= (int)sizeof(keyz)) {
+            *msg = "Key is too large.";
+            return PROTOCOL_BINARY_RESPONSE_EINVAL;
+        }
+        memcpy(keyz, ((char*)request) + sizeof(req->message.header), keylen);
+        keyz[keylen] = 0x00;
+
+        // Read the value.
+        size_t bodylen = ntohl(req->message.header.request.bodylen)
+            - ntohs(req->message.header.request.keylen);
+        if (bodylen >= sizeof(valz)) {
+            *msg = "Value is too large.";
+            return PROTOCOL_BINARY_RESPONSE_EINVAL;
+        }
+        memcpy(valz, (char*)request + sizeof(req->message.header)
+               + keylen, bodylen);
+        valz[bodylen] = 0x00;
+
+        protocol_binary_response_status rv(PROTOCOL_BINARY_RESPONSE_SUCCESS);
+        *msg = "Configured";
+
+        vbucket_state_t state;
+        if (strcmp(valz, "active") == 0) {
+            state = active;
+        } else if(strcmp(valz, "replica") == 0) {
+            state = replica;
+        } else if(strcmp(valz, "pending") == 0) {
+            state = pending;
+        } else if(strcmp(valz, "dead") == 0) {
+            state = dead;
+        } else {
+            *msg = "Invalid state.";
+            return PROTOCOL_BINARY_RESPONSE_EINVAL;
+        }
+
+        uint16_t vbucket = 0;
+        if (!parseUint16(keyz, &vbucket)) {
+            *msg = "Value out of range.";
+            rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
+        } else {
+            e->setVBucketState(vbucket, state);
+        }
+
+        return rv;
     }
 
     static ENGINE_ERROR_CODE EvpUnknownCommand(ENGINE_HANDLE* handle,

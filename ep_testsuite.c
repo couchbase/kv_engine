@@ -198,7 +198,7 @@ static bool add_response(const void *key, uint16_t keylen,
         last_body = NULL;
     }
     if (bodylen > 0) {
-        last_body = malloc(bodylen);
+        last_body = calloc(1, bodylen + 1);
         assert(last_body);
         memcpy(last_body, body, bodylen);
     }
@@ -207,7 +207,7 @@ static bool add_response(const void *key, uint16_t keylen,
         last_key = NULL;
     }
     if (keylen > 0) {
-        last_key = malloc(keylen);
+        last_key = calloc(1, keylen + 1);
         assert(last_key);
         memcpy(last_key, key, keylen);
     }
@@ -230,6 +230,49 @@ static void* create_packet(uint8_t opcode, const char *key, const char *val) {
     memcpy(pkt_raw + sizeof(protocol_binary_request_header) + strlen(key),
            val, strlen(val));
     return pkt_raw;
+}
+
+static bool set_vbucket_state(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                              uint16_t vb, const char *state) {
+    char vbid[8];
+    snprintf(vbid, sizeof(vbid), "%d", vb);
+
+    void *pkt = create_packet(CMD_SET_VBUCKET, vbid, state);
+    if (h1->unknown_command(h, "cookie", pkt, add_response) != ENGINE_SUCCESS) {
+        return false;
+    }
+
+    return last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS;
+}
+
+static bool verify_vbucket_state(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                                 uint16_t vb, const char *expected) {
+    char vbid[8];
+    snprintf(vbid, sizeof(vbid), "%d", vb);
+
+    void *pkt = create_packet(CMD_GET_VBUCKET, vbid, "");
+    if (h1->unknown_command(h, "cookie", pkt, add_response) != ENGINE_SUCCESS) {
+        return false;
+    }
+
+    if (last_status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+        return false;
+    }
+
+    return strcmp(expected, last_key) == 0;
+}
+
+static bool verify_vbucket_missing(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                                   uint16_t vb) {
+    char vbid[8];
+    snprintf(vbid, sizeof(vbid), "%d", vb);
+
+    void *pkt = create_packet(CMD_GET_VBUCKET, vbid, "");
+    if (h1->unknown_command(h, "cookie", pkt, add_response) != ENGINE_SUCCESS) {
+        return false;
+    }
+
+    return last_status == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET;
 }
 
 //
@@ -522,25 +565,37 @@ static enum test_result test_alloc_limit(ENGINE_HANDLE *h,
 }
 
 static enum test_result test_vbucket_get_miss(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    void *pkt = create_packet(CMD_GET_VBUCKET, "1", "");
-    if (h1->unknown_command(h, "cookie", pkt, add_response) != ENGINE_SUCCESS) {
-        return FAIL;
-    }
-
-    return last_status == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET ? SUCCESS : FAIL;
+    return verify_vbucket_missing(h, h1, 1) ? SUCCESS : FAIL;
 }
 
 static enum test_result test_vbucket_get(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    void *pkt = create_packet(CMD_GET_VBUCKET, "0", "");
-    if (h1->unknown_command(h, "cookie", pkt, add_response) != ENGINE_SUCCESS) {
+    return verify_vbucket_state(h, h1, 0, "active") ? SUCCESS : FAIL;
+}
+
+static enum test_result test_vbucket_create(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    if (!verify_vbucket_missing(h, h1, 1)) {
+        fprintf(stderr, "vbucket wasn't missing.\n");
         return FAIL;
     }
 
-    if (last_status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+    if (!set_vbucket_state(h, h1, 1, "active")) {
+        fprintf(stderr, "set state failed.\n");
         return FAIL;
     }
 
-    return strcmp("active", last_key) == 0 ? SUCCESS : FAIL;
+    return verify_vbucket_state(h, h1, 1, "active") ? SUCCESS : FAIL;
+}
+
+static enum test_result test_vbucket_destroy(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    if (verify_vbucket_missing(h, h1, 0)) {
+        return FAIL;
+    }
+
+    if (!set_vbucket_state(h, h1, 0, "dead")) {
+        return FAIL;
+    }
+
+    return verify_vbucket_missing(h, h1, 0) ? SUCCESS : FAIL;
 }
 
 engine_test_t* get_tests(void) {
@@ -578,8 +633,8 @@ engine_test_t* get_tests(void) {
         // Vbucket management tests
         {"test vbucket get", test_vbucket_get, NULL, teardown, NULL},
         {"test vbucket get missing", test_vbucket_get_miss, NULL, teardown, NULL},
-        {"test vbucket create", NULL, NULL, teardown, NULL},
-        {"test vbucket destroy", NULL, NULL, teardown, NULL},
+        {"test vbucket create", test_vbucket_create, NULL, teardown, NULL},
+        {"test vbucket destroy", test_vbucket_destroy, NULL, teardown, NULL},
         {NULL, NULL, NULL, NULL, NULL}
     };
     return tests;

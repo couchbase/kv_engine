@@ -120,6 +120,7 @@ public:
     bool resumeFlusher(void);
 
     RCPtr<VBucket> getVBucket(uint16_t vbid);
+    void setVBucketState(uint16_t vbid, vbucket_state_t state);
 
     virtual void dump(Callback<GetValue>&) {
         throw std::runtime_error("not implemented");
@@ -206,6 +207,7 @@ private:
     EPStats                    stats;
     LoadStorageKVPairCallback  loadStorageKVPairCallback;
     Atomic<int>                txnSize;
+    Mutex                      vbsetMutex;
     DISALLOW_COPY_AND_ASSIGN(EventuallyPersistentStore);
 };
 
