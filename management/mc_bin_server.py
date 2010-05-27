@@ -309,7 +309,7 @@ class MemcachedBinaryChannel(asyncore.dispatcher):
     def __hasEnoughBytes(self):
         rv=False
         if len(self.rbuf) >= MIN_RECV_PACKET:
-            magic, cmd, keylen, extralen, datatype, remaining, opaque, cas=\
+            magic, cmd, keylen, extralen, datatype, vb, remaining, opaque, cas=\
                 struct.unpack(REQ_PKT_FMT, self.rbuf[:MIN_RECV_PACKET])
             rv = len(self.rbuf) - MIN_RECV_PACKET >= remaining
         return rv
@@ -320,7 +320,7 @@ class MemcachedBinaryChannel(asyncore.dispatcher):
     def handle_read(self):
         self.rbuf += self.recv(self.BUFFER_SIZE)
         while self.__hasEnoughBytes():
-            magic, cmd, keylen, extralen, datatype, remaining, opaque, cas=\
+            magic, cmd, keylen, extralen, datatype, vb, remaining, opaque, cas=\
                 struct.unpack(REQ_PKT_FMT, self.rbuf[:MIN_RECV_PACKET])
             assert magic == REQ_MAGIC_BYTE
             assert keylen <= remaining, "Keylen is too big: %d > %d" \

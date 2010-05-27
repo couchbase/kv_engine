@@ -43,7 +43,7 @@ class TapConnection(mc_bin_server.MemcachedBinaryChannel):
 
         msg=struct.pack(REQ_PKT_FMT, REQ_MAGIC_BYTE,
                         memcacheConstants.CMD_TAP_CONNECT,
-                        len(key), len(extraHeader), dtype,
+                        len(key), len(extraHeader), dtype, 0,
                         len(key) + len(extraHeader) + len(val),
                         opaque, cas)
         return msg + extraHeader + key + val

@@ -50,6 +50,10 @@ CMD_TAP_DELETE = 0x42
 CMD_TAP_FLUSH = 0x43
 CMD_TAP_OPAQUE = 0x44
 
+# vbucket stuff
+CMD_SET_VBUCKET_STATE = 0x83
+CMD_GET_VBUCKET_STATE = 0x84
+
 COMMAND_NAMES = dict(((globals()[k], k) for k in globals() if k.startswith("CMD_")))
 
 # TAP flags
@@ -86,8 +90,8 @@ MAGIC_BYTE = 0x80
 REQ_MAGIC_BYTE = 0x80
 RES_MAGIC_BYTE = 0x81
 
-# magic, opcode, keylen, extralen, datatype, [reserved], bodylen, opaque, cas
-REQ_PKT_FMT=">BBHBBxxIIQ"
+# magic, opcode, keylen, extralen, datatype, vbucket, bodylen, opaque, cas
+REQ_PKT_FMT=">BBHBBHIIQ"
 # magic, opcode, keylen, extralen, datatype, status, bodylen, opaque, cas
 RES_PKT_FMT=">BBHBBHIIQ"
 # min recv packet size
@@ -106,8 +110,7 @@ EXTRA_HDR_FMTS={
     CMD_TAP_MUTATION: TAP_MUTATION_PKT_FMT,
     CMD_TAP_DELETE: TAP_GENERAL_PKT_FMT,
     CMD_TAP_FLUSH: TAP_GENERAL_PKT_FMT,
-    CMD_TAP_OPAQUE: TAP_GENERAL_PKT_FMT
-
+    CMD_TAP_OPAQUE: TAP_GENERAL_PKT_FMT,
 }
 
 EXTRA_HDR_SIZES=dict(

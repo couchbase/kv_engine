@@ -35,6 +35,8 @@ class MemcachedError(exceptions.Exception):
 class MemcachedClient(object):
     """Simple memcached client."""
 
+    vbucketId = 0
+
     def __init__(self, host='127.0.0.1', port=11211):
         self.s=socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.s.connect_ex((host, port))
@@ -49,7 +51,7 @@ class MemcachedClient(object):
     def _sendCmd(self, cmd, key, val, opaque, extraHeader='', cas=0):
         dtype=0
         msg=struct.pack(REQ_PKT_FMT, REQ_MAGIC_BYTE,
-            cmd, len(key), len(extraHeader), dtype,
+            cmd, len(key), len(extraHeader), dtype, self.vbucketId,
                 len(key) + len(extraHeader) + len(val), opaque, cas)
         self.s.send(msg + extraHeader + key + val)
 
@@ -183,6 +185,10 @@ class MemcachedClient(object):
     def set_tap_param(self, key, val):
         print "setting tap param:", key, val
         return self._doCmd(memcacheConstants.CMD_SET_TAP_PARAM, key, val)
+
+    def set_vbucket_state(self, vbucket, state):
+        return self._doCmd(memcacheConstants.CMD_SET_VBUCKET_STATE,
+                           str(vbucket), state)
 
     def getMulti(self, keys):
         """Get values for any available keys in the given iterable.
