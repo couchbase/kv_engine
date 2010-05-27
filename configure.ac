@@ -49,10 +49,11 @@ AC_DEFUN([AC_CXX_GCC_ATOMICS],
      AC_TRY_LINK([
 #include <inttypes.h>
        ],[
-          uint32_t value;
-          uint32_t oldValue;
-          uint32_t newValue;
+          uint64_t value;
+          uint64_t oldValue;
+          uint64_t newValue;
           __sync_bool_compare_and_swap(&value, oldValue, newValue);
+          __sync_fetch_and_add(&value, newValue);
 
           return 0;
        ],[
@@ -76,10 +77,11 @@ AC_DEFUN([AC_CXX_GCC_ATOMICS],
           AC_TRY_LINK([
 #include <inttypes.h>
                ],[
-            uint32_t value;
-            uint32_t oldValue;
-            uint32_t newValue;
+            uint64_t value;
+            uint64_t oldValue;
+            uint64_t newValue;
             __sync_bool_compare_and_swap(&value, oldValue, newValue);
+            __sync_fetch_and_add(&value, newValue);
 
             return 0;
                ], [
