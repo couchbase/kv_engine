@@ -36,7 +36,7 @@ ep_la_DEPENDENCIES = libsqlite3.la
 libsqlite3_la_SOURCES = embedded/sqlite3.h embedded/sqlite3.c
 libsqlite3_la_CFLAGS = $(AM_CFLAGS) ${NO_WERROR}
 
-check_PROGRAMS=atomic_test atomic_ptr_test atomic_queue_test hash_table_test priority_test vbucket_test dispatcher_test
+check_PROGRAMS=atomic_test atomic_ptr_test atomic_queue_test hash_table_test priority_test vbucket_test dispatcher_test misc_test
 TESTS=${check_PROGRAMS}
 
 ep_testsuite_la_SOURCES= ep_testsuite.c
@@ -61,6 +61,10 @@ dispatcher_test_DEPENDENCIES = dispatcher.hh dispatcher.cc
 hash_table_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
 hash_table_test_SOURCES = t/hash_table_test.cc item.cc stored-value.cc stored-value.hh
 hash_table_test_DEPENDENCIES = stored-value.cc stored-value.hh ep.hh item.hh
+
+misc_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
+misc_test_SOURCES = t/misc_test.cc common.hh
+misc_test_DEPENDENCIES = common.hh
 
 priority_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
 priority_test_SOURCES = t/priority_test.cc priority.hh priority.cc

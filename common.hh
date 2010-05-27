@@ -1,6 +1,10 @@
 #ifndef COMMON_H
 #define COMMON_H 1
 
+#include <cassert>
+#include <errno.h>
+#include <limits.h>
+
 #include <math.h>
 #include <sys/time.h>
 #include <memcached/engine.h>
@@ -51,5 +55,22 @@ inline bool less_tv(const struct timeval &tv1, const struct timeval &tv2) {
         return tv1.tv_sec < tv2.tv_sec;
     }
 }
+
+inline bool parseUint16(const char *in, uint16_t *out) {
+    assert(out != NULL);
+    errno = 0;
+    *out = 0;
+    char *endptr;
+    long num = strtol(in, &endptr, 10);
+    if (errno == ERANGE || num < 0 || num > UINT16_MAX) {
+        return false;
+    }
+    if (isspace(*endptr) || (*endptr == '\0' && endptr != in)) {
+        *out = static_cast<uint16_t>(num);
+        return true;
+    }
+    return false;
+}
+
 
 #endif /* COMMON_H */
