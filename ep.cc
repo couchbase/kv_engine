@@ -495,7 +495,8 @@ int EventuallyPersistentStore::flushOne(std::queue<QueuedItem> *q,
                                               stats.dataAgeHighWat.get()));
             // Copy it for the duration.
             val = new Item(qi.getKey(), v->getFlags(), v->getExptime(),
-                           v->getValue(), v->getCas(), v->getId());
+                           v->getValue(), v->getCas(), v->getId(),
+                           qi.getVBucketId());
 
             // Consider this persisted as it is our intention, though
             // it may fail and be requeued later.
