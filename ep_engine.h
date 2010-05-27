@@ -1578,11 +1578,10 @@ private:
     size_t maxItemSize;
 };
 
-class BackFillVisitor : public HashTableVisitor {
+class BackFillVisitor : public VBucketVisitor {
 public:
     BackFillVisitor(EventuallyPersistentEngine *e, TapConnection *tc):
-        engine(e), name(tc->client), queue(NULL), queue_set(NULL),
-        currentBucket(0)
+        VBucketVisitor(), engine(e), name(tc->client), queue(NULL), queue_set(NULL)
     {
         queue_set = new std::set<QueuedItem>;
     }
@@ -1590,10 +1589,6 @@ public:
     ~BackFillVisitor() {
         delete queue;
         delete queue_set;
-    }
-
-    void setCurrentBucket(uint16_t to) {
-        currentBucket = to;
     }
 
     void visit(StoredValue *v) {
@@ -1615,7 +1610,6 @@ private:
     std::string name;
     std::list<QueuedItem> *queue;
     std::set<QueuedItem> *queue_set;
-    uint16_t currentBucket;
 };
 
 #endif

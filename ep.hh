@@ -57,6 +57,19 @@ private:
     uint16_t vbucket;
 };
 
+class VBucketVisitor : public HashTableVisitor {
+public:
+
+    VBucketVisitor() : HashTableVisitor(), currentBucket(0) { }
+
+    void setCurrentBucket(uint16_t to) {
+        currentBucket = to;
+    }
+
+protected:
+    uint16_t currentBucket;
+};
+
 // Forward declaration
 class Flusher;
 
@@ -130,11 +143,18 @@ public:
         throw std::runtime_error("not implemented");
     }
 
-    void visit(HashTableVisitor &visitor) {
-        // TODO: Something smarter for multiple vbuckets.
-        RCPtr<VBucket> vb = vbuckets.getBucket(0);
-        assert(vb);
-        vb->ht.visit(visitor);
+    void visit(VBucketVisitor &visitor) {
+        std::vector<int> vbucketIds(vbuckets.getBuckets());
+        std::vector<int>::iterator it;
+        for (it = vbucketIds.begin(); it != vbucketIds.end(); ++it) {
+            int vbid = *it;
+            RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
+            visitor.setCurrentBucket(vbid);
+            // We could've lost this along the way.
+            if (vb && vb->getState() != dead) {
+                vb->ht.visit(visitor);
+            }
+        }
     }
 
     void visitDepth(HashTableDepthVisitor &visitor) {
