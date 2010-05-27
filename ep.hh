@@ -62,8 +62,10 @@ public:
 
     VBucketVisitor() : HashTableVisitor(), currentBucket(0) { }
 
-    void setCurrentBucket(uint16_t to) {
-        currentBucket = to;
+    virtual bool visitBucket(uint16_t vbid, vbucket_state_t state) {
+        (void)state;
+        currentBucket = vbid;
+        return true;
     }
 
 protected:
@@ -151,9 +153,9 @@ public:
         for (it = vbucketIds.begin(); it != vbucketIds.end(); ++it) {
             int vbid = *it;
             RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
-            visitor.setCurrentBucket(vbid);
+            bool wantData = visitor.visitBucket(vbid, vb ? vb->getState() : dead);
             // We could've lost this along the way.
-            if (vb && vb->getState() != dead) {
+            if (wantData) {
                 vb->ht.visit(visitor);
             }
         }

@@ -29,7 +29,13 @@ public:
     void setState(vbucket_state_t to) { state = to; }
 
     const char * getStateString(void) {
-        switch(state) {
+        return VBucket::toString(state);
+    }
+
+    HashTable               ht;
+
+    static const char* toString(vbucket_state_t s) {
+        switch(s) {
         case active: return "active"; break;
         case replica: return "replica"; break;
         case pending: return "pending"; break;
@@ -37,8 +43,6 @@ public:
         }
         return "unknown";
     }
-
-    HashTable               ht;
 
 private:
     int                     id;

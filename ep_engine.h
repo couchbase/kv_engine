@@ -94,6 +94,46 @@ private:
     const void *cookie;
 };
 
+static void add_casted_stat(const char *k, const char *v,
+                            ADD_STAT add_stat, const void *cookie) {
+    add_stat(k, static_cast<uint16_t>(strlen(k)),
+             v, static_cast<uint32_t>(strlen(v)), cookie);
+}
+
+static void add_casted_stat(const char *k, uint64_t v,
+                            ADD_STAT add_stat, const void *cookie) {
+    std::stringstream vals;
+    vals << v;
+    add_casted_stat(k, vals.str().c_str(), add_stat, cookie);
+}
+
+template <typename T>
+static void add_casted_stat(const char *k, const Atomic<T> &v,
+                            ADD_STAT add_stat, const void *cookie) {
+    add_casted_stat(k, v.get(), add_stat, cookie);
+}
+
+class StatVBucketVisitor : public VBucketVisitor {
+public:
+    StatVBucketVisitor(const void *c, ADD_STAT a) : cookie(c), add_stat(a) {}
+
+    bool visitBucket(uint16_t vbid, vbucket_state_t state) {
+        char buf[16];
+        snprintf(buf, sizeof(buf), "vb_%d", vbid);
+        add_casted_stat(buf, VBucket::toString(state), add_stat, cookie);
+        return false;
+    }
+
+    void visit(StoredValue* v) {
+        (void)v;
+        assert(false); // this does not happen
+    }
+
+private:
+    const void *cookie;
+    ADD_STAT add_stat;
+};
+
 /**
  * Class used by the EventuallyPersistentEngine to keep track of all
  * information needed per Tap connection.
@@ -509,6 +549,8 @@ public:
             rv = doTapStats(cookie, add_stat);
         } else if (nkey == 4 && strncmp(stat_key, "hash", 3) == 0) {
             rv = doHashStats(cookie, add_stat);
+        } else if (nkey == 7 && strncmp(stat_key, "vbucket", 7) == 0) {
+            rv = doVBucketStats(cookie, add_stat);
         } else if (nkey > 4 && strncmp(stat_key, "key ", 4) == 0) {
             // Non-validating, non-blocking version
             rv = doKeyStats(cookie, add_stat, &stat_key[4], nkey-4, false);
@@ -1213,25 +1255,6 @@ private:
         }
     }
 
-    void add_casted_stat(const char *k, const char *v,
-                         ADD_STAT add_stat, const void *cookie) {
-        add_stat(k, static_cast<uint16_t>(strlen(k)),
-                 v, static_cast<uint32_t>(strlen(v)), cookie);
-    }
-
-    void add_casted_stat(const char *k, uint64_t v,
-                         ADD_STAT add_stat, const void *cookie) {
-        std::stringstream vals;
-        vals << v;
-        add_casted_stat(k, vals.str().c_str(), add_stat, cookie);
-    }
-
-    template <typename T>
-    void add_casted_stat(const char *k, const Atomic<T> &v,
-                         ADD_STAT add_stat, const void *cookie) {
-        add_casted_stat(k, v.get(), add_stat, cookie);
-    }
-
     void startEngineThreads(void);
     void stopEngineThreads(void) {
         LockHolder lh(tapNotifySync);
@@ -1331,6 +1354,14 @@ private:
         add_casted_stat("ep_dbinit", databaseInitTime, add_stat, cookie);
         add_casted_stat("ep_warmup", warmup ? "true" : "false",
                         add_stat, cookie);
+        return ENGINE_SUCCESS;
+    }
+
+    ENGINE_ERROR_CODE doVBucketStats(const void *cookie, ADD_STAT add_stat) {
+        if (epstore) {
+            StatVBucketVisitor svbv(cookie, add_stat);
+            epstore->visit(svbv);
+        }
         return ENGINE_SUCCESS;
     }
 
