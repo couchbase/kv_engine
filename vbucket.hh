@@ -28,6 +28,16 @@ public:
     vbucket_state_t getState(void) { return state; }
     void setState(vbucket_state_t to) { state = to; }
 
+    const char * getStateString(void) {
+        switch(state) {
+        case active: return "active"; break;
+        case replica: return "replica"; break;
+        case pending: return "pending"; break;
+        case dead: return "dead"; break;
+        }
+        return "unknown";
+    }
+
     HashTable               ht;
 
 private:
