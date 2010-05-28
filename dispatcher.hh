@@ -178,7 +178,7 @@ public:
 
     void stop() {
         LockHolder lh(mutex);
-        if (state == dispatcher_stopped) {
+        if (state == dispatcher_stopped || state == dispatcher_stopping) {
             return;
         }
         getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "Stopping dispatcher\n");
