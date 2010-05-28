@@ -47,7 +47,8 @@ if __name__ == '__main__':
             print "ERROR: %s" % e.msg
 
 
-    stats = mc.stats()
+    stats = mc.stats("tap")
+
     print
     print "Current replication stats: "
     print "ep_replication_peer  : %s" % stats['ep_replication_peer']
@@ -55,3 +56,9 @@ if __name__ == '__main__':
     print "ep_replication_status: %s" % stats['ep_replication_status']
     print
 
+    if int(stats['ep_tap_count']) > 0:
+        print "Replication clients:"
+        for t in [ t for t in stats if ':qlen' in t ]:
+            k = t.split(':')
+            print "%s:%s - backlog: %s" %( k[1], k[2], stats[t])
+        print
