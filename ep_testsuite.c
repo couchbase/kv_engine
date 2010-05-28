@@ -27,13 +27,14 @@ static bool teardown(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return true;
 }
 
-static ENGINE_ERROR_CODE storeCasVb(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                                    const void *cookie,
-                                    ENGINE_STORE_OPERATION op,
-                                    const char *key, const char *value,
-                                    item **outitem, uint64_t casIn,
-                                    uint16_t vb) {
-
+static ENGINE_ERROR_CODE storeCasVb11(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                                      const void *cookie,
+                                      ENGINE_STORE_OPERATION op,
+                                      const char *key,
+                                      const char *value, size_t vlen,
+                                      uint32_t flags,
+                                      item **outitem, uint64_t casIn,
+                                      uint16_t vb) {
     item *it = NULL;
     uint64_t cas = 0;
 
@@ -41,7 +42,7 @@ static ENGINE_ERROR_CODE storeCasVb(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 
     rv = h1->allocate(h, cookie, &it,
                       key, strlen(key),
-                      strlen(value), 9258, 3600);
+                      vlen, flags, 3600);
     assert(rv == ENGINE_SUCCESS);
 
     item_info info = { .nvalue = 1 };
@@ -49,7 +50,7 @@ static ENGINE_ERROR_CODE storeCasVb(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
         abort();
     }
 
-    memcpy(info.value[0].iov_base, value, strlen(value));
+    memcpy(info.value[0].iov_base, value, vlen);
     h1->item_set_cas(h, it, casIn);
 
     rv = h1->store(h, cookie, it, &cas, op, vb);
@@ -59,6 +60,17 @@ static ENGINE_ERROR_CODE storeCasVb(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     }
 
     return rv;
+}
+
+static ENGINE_ERROR_CODE storeCasVb(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                                    const void *cookie,
+                                    ENGINE_STORE_OPERATION op,
+                                    const char *key, const char *value,
+                                    item **outitem, uint64_t casIn,
+                                    uint16_t vb) {
+    return storeCasVb11(h, h1, cookie, op, key, value, strlen(value), 9258,
+                        outitem, casIn, vb);
+
 }
 
 static ENGINE_ERROR_CODE storeCas(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
@@ -89,6 +101,20 @@ static ENGINE_ERROR_CODE verify_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     return verify_vb_key(h, h1, key, 0);
 }
 
+static bool get_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                      const char* key, item_info *info) {
+    item *i = NULL;
+    if (h1->get(h, NULL, &i, key, strlen(key), 0) != ENGINE_SUCCESS) {
+        return false;
+    }
+    info->nvalue = 1;
+    if (!h1->get_item_info(h, i, info)) {
+        fprintf(stderr, "get_item_info failed\n");
+        return false;
+    }
+    return true;
+}
+
 static enum test_result check_key_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                         const char* key,
                                         const char* val, size_t vlen) {
@@ -105,7 +131,8 @@ static enum test_result check_key_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 
     assert(info.nvalue == 1);
     if (!vlen == info.value[0].iov_len) {
-        fprintf(stderr, "vlen=%d, info.value[0].iov_len=%d\n", (int)vlen, (int)info.value[0].iov_len);
+        fprintf(stderr, "vlen=%d, info.value[0].iov_len=%d\n",
+                (int)vlen, (int)info.value[0].iov_len);
         return FAIL;
     }
 
@@ -150,6 +177,44 @@ static enum test_result test_set_get_hit(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
         return FAIL;
     }
     return check_status(ENGINE_SUCCESS, verify_key(h, h1, "key"));
+}
+
+static enum test_result test_set_get_hit_bin(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    char binaryData[] = "abcdefg\0gfedcba";
+    assert(sizeof(binaryData) != strlen(binaryData));
+
+    item *i = NULL;
+    if (storeCasVb11(h, h1, "cookie", OPERATION_SET, "key",
+                     binaryData, sizeof(binaryData), 82758, &i, 0, 0)
+        != ENGINE_SUCCESS) {
+        return FAIL;
+    }
+    return check_key_value(h, h1, "key", binaryData, sizeof(binaryData));
+}
+
+static enum test_result test_set_change_flags(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    item *i = NULL;
+    if (store(h, h1, "cookie", OPERATION_SET, "key", "somevalue", &i) != ENGINE_SUCCESS) {
+        return FAIL;
+    }
+    item_info info;
+    uint32_t flags = 828258;
+    if (!get_value(h, h1, "key", &info)) {
+        return FAIL;
+    }
+    assert(info.flags != flags);
+
+    if (storeCasVb11(h, h1, "cookie", OPERATION_SET, "key",
+                     "newvalue", strlen("newvalue"), flags, &i, 0, 0)
+        != ENGINE_SUCCESS) {
+        return FAIL;
+    }
+
+    if (!get_value(h, h1, "key", &info)) {
+        return FAIL;
+    }
+
+    return info.flags == flags ? SUCCESS : FAIL;
 }
 
 static enum test_result test_cas(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
@@ -247,6 +312,28 @@ static enum test_result test_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return check_key_value(h, h1, "key", val, strlen(val));
 }
 
+static enum test_result test_restart_bin_val(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+
+
+
+    char binaryData[] = "abcdefg\0gfedcba";
+    assert(sizeof(binaryData) != strlen(binaryData));
+
+    item *i = NULL;
+    if (storeCasVb11(h, h1, "cookie", OPERATION_SET, "key",
+                     binaryData, sizeof(binaryData), 82758, &i, 0, 0)
+        != ENGINE_SUCCESS) {
+        return FAIL;
+    }
+
+    testHarness.reload_engine(&h, &h1,
+                              testHarness.engine_path,
+                              testHarness.default_engine_cfg,
+                              true);
+
+    return check_key_value(h, h1, "key", binaryData, sizeof(binaryData));
+}
+
 static enum test_result test_wrong_vb_get(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return check_status(ENGINE_NOT_MY_VBUCKET, verify_vb_key(h, h1, "key", 1));
 }
@@ -282,6 +369,8 @@ engine_test_t* get_tests(void) {
         {"get miss", test_get_miss, NULL, teardown, NULL},
         {"set", test_set, NULL, teardown, NULL},
         {"set+get hit", test_set_get_hit, NULL, teardown, NULL},
+        {"set+get hit (bin)", test_set_get_hit_bin, NULL, teardown, NULL},
+        {"set+change flags", test_set_change_flags, NULL, teardown, NULL},
         {"add", test_add, NULL, teardown, NULL},
         {"cas", test_cas, NULL, teardown, NULL},
         {"incr miss", test_incr_miss, NULL, teardown, NULL},
@@ -294,6 +383,7 @@ engine_test_t* get_tests(void) {
         {"stats vkey", NULL, NULL, teardown, NULL},
         // restart tests
         {"test restart", test_restart, NULL, teardown, NULL},
+        {"set+get+restart+hit (bin)", test_restart_bin_val, NULL, teardown, NULL},
         // vbucket negative tests
         {"test wrong vbucket get", test_wrong_vb_get, NULL, teardown, NULL},
         {"test wrong vbucket set", test_wrong_vb_set, NULL, teardown, NULL},
