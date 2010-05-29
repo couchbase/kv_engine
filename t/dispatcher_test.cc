@@ -4,7 +4,6 @@
 #include "atomic.hh"
 #include "locks.hh"
 
-Dispatcher dispatcher;
 static Atomic<int> callbacks;
 
 class Thing;
@@ -22,16 +21,20 @@ private:
 
 class Thing {
 public:
+    Thing(Dispatcher *d) : dispatcher(d) {}
+
     void start(void) {
-        dispatcher.schedule(shared_ptr<TestCallback>(new TestCallback(this)));
+        dispatcher->schedule(shared_ptr<TestCallback>(new TestCallback(this)));
     }
 
     bool doSomething(Dispatcher &d, TaskId &t) {
         (void)t;
-        assert(&d == &dispatcher);
+        assert(&d == dispatcher);
         ++callbacks;
         return true;
     }
+private:
+    Dispatcher *dispatcher;
 };
 
 bool TestCallback::callback(Dispatcher &d, TaskId t) {
@@ -62,8 +65,9 @@ int main(int argc, char **argv) {
     (void)argc; (void)argv;
     std::cerr << "The dispatcher test is currently broken pending rework." << std::endl;
     exit(0);
+    Dispatcher dispatcher;
     dispatcher.start();
-    Thing t;
+    Thing t(&dispatcher);
     t.start();
     dispatcher.stop();
     if (callbacks != 1) {
