@@ -1,8 +1,11 @@
+#include <unistd.h>
 #include <cassert>
 
 #include "dispatcher.hh"
 #include "atomic.hh"
 #include "locks.hh"
+
+#define EXPECTED_NUM_CALLBACKS 3
 
 Dispatcher dispatcher;
 static Atomic<int> callbacks;
@@ -23,22 +26,17 @@ private:
 class Thing {
 public:
     void start(void) {
-        LockHolder lh(m);
-        TaskId t = dispatcher.schedule(shared_ptr<TestCallback>(new TestCallback(this)));
-        sleep(1); // simulate an artificial delay allowing another thread in
-        tid = t;
+        dispatcher.schedule(shared_ptr<TestCallback>(new TestCallback(this)),
+                            &tid);
     }
 
     bool doSomething(Dispatcher &d, TaskId &t) {
-        LockHolder lh(m);
         assert(t == tid);
         assert(&d == &dispatcher);
-        ++callbacks;
-        return true;
+        return(++callbacks < EXPECTED_NUM_CALLBACKS);
     }
 private:
     TaskId tid;
-    Mutex m;
 };
 
 bool TestCallback::callback(Dispatcher &d, TaskId t) {
@@ -67,9 +65,20 @@ EXTENSION_LOGGER_DESCRIPTOR* getLogger() {
 
 int main(int argc, char **argv) {
     (void)argc; (void)argv;
+    alarm(5);
     dispatcher.start();
     Thing t;
     t.start();
+
+    // Wait for some callbacks
+    while (callbacks < EXPECTED_NUM_CALLBACKS) {
+        usleep(1);
+    }
+
     dispatcher.stop();
-    assert(callbacks == 1);
+    if (callbacks != EXPECTED_NUM_CALLBACKS) {
+        std::cerr << "Expected 1 callback, got " << callbacks << std::endl;
+        return 1;
+    }
+    return 0;
 }

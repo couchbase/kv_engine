@@ -103,10 +103,11 @@ public:
         stop();
     }
 
-    TaskId schedule(shared_ptr<DispatcherCallback> callback, int priority=0,
-                    double sleeptime=0);
+    void schedule(shared_ptr<DispatcherCallback> callback,
+                  TaskId *outtid,
+                  int priority=0, double sleeptime=0);
 
-    TaskId wake(TaskId task);
+    void wake(TaskId task, TaskId *outtid);
 
     void start();
     void stop();

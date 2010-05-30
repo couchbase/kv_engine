@@ -19,6 +19,7 @@ static void* launch_dispatcher_thread(void *arg) {
 }
 
 void Dispatcher::start() {
+    assert(state == dispatcher_running);
     if(pthread_create(&thread, NULL, launch_dispatcher_thread, this) != 0) {
         throw std::runtime_error("Error initializing dispatcher thread");
     }
@@ -80,7 +81,7 @@ void Dispatcher::run() {
 
 void Dispatcher::stop() {
     LockHolder lh(mutex);
-    if (state == dispatcher_stopped) {
+    if (state == dispatcher_stopped || state == dispatcher_stopping) {
         return;
     }
     getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "Stopping dispatcher\n");
@@ -91,21 +92,27 @@ void Dispatcher::stop() {
     getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "Dispatcher stopped\n");
 }
 
-TaskId Dispatcher::schedule(shared_ptr<DispatcherCallback> callback, int priority,
-                            double sleeptime) {
+void Dispatcher::schedule(shared_ptr<DispatcherCallback> callback,
+                          TaskId *outtid,
+                          int priority, double sleeptime) {
     getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "Scheduling a new task\n");
     LockHolder lh(mutex);
     TaskId task(new Task(callback, priority, sleeptime));
+    if (outtid) {
+        *outtid = TaskId(task);
+    }
     queue.push(task);
     mutex.notify();
-    return TaskId(task);
 }
 
-TaskId Dispatcher::wake(TaskId task) {
+void Dispatcher::wake(TaskId task, TaskId *outtid) {
     cancel(task);
+    LockHolder lh(mutex);
     TaskId oldTask(task);
     TaskId newTask(new Task(*oldTask));
+    if (outtid) {
+        *outtid = TaskId(task);
+    }
     queue.push(newTask);
     mutex.notify();
-    return TaskId(newTask);
 }
