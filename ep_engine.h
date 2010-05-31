@@ -458,7 +458,6 @@ public:
 
                 tapConnect(tapPeer);
             }
-
         }
 
         if (ret == ENGINE_SUCCESS) {

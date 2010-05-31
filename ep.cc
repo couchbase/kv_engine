@@ -231,8 +231,9 @@ bool EventuallyPersistentStore::getLocked(const std::string &key,
 void EventuallyPersistentStore::getFromUnderlying(const std::string &key,
                                                   uint16_t vbucket,
                                                   shared_ptr<Callback<GetValue> > cb) {
+
     shared_ptr<GetCallback> dcb(new GetCallback(underlying, key, vbucket, cb));
-    dispatcher->schedule(dcb, -1);
+    dispatcher->schedule(dcb, NULL, -1);
 }
 
 bool EventuallyPersistentStore::getKeyStats(const std::string &key,

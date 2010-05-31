@@ -1,9 +1,13 @@
+#include <unistd.h>
 #include <cassert>
 
 #include "dispatcher.hh"
 #include "atomic.hh"
 #include "locks.hh"
 
+#define EXPECTED_NUM_CALLBACKS 3
+
+Dispatcher dispatcher;
 static Atomic<int> callbacks;
 
 class Thing;
@@ -21,20 +25,18 @@ private:
 
 class Thing {
 public:
-    Thing(Dispatcher *d) : dispatcher(d) {}
-
     void start(void) {
-        dispatcher->schedule(shared_ptr<TestCallback>(new TestCallback(this)));
+        dispatcher.schedule(shared_ptr<TestCallback>(new TestCallback(this)),
+                            &tid);
     }
 
     bool doSomething(Dispatcher &d, TaskId &t) {
-        (void)t;
-        assert(&d == dispatcher);
-        ++callbacks;
-        return true;
+        assert(t == tid);
+        assert(&d == &dispatcher);
+        return(++callbacks < EXPECTED_NUM_CALLBACKS);
     }
 private:
-    Dispatcher *dispatcher;
+    TaskId tid;
 };
 
 bool TestCallback::callback(Dispatcher &d, TaskId t) {
@@ -63,14 +65,18 @@ EXTENSION_LOGGER_DESCRIPTOR* getLogger() {
 
 int main(int argc, char **argv) {
     (void)argc; (void)argv;
-    std::cerr << "The dispatcher test is currently broken pending rework." << std::endl;
-    exit(0);
-    Dispatcher dispatcher;
+    alarm(5);
     dispatcher.start();
-    Thing t(&dispatcher);
+    Thing t;
     t.start();
+
+    // Wait for some callbacks
+    while (callbacks < EXPECTED_NUM_CALLBACKS) {
+        usleep(1);
+    }
+
     dispatcher.stop();
-    if (callbacks != 1) {
+    if (callbacks != EXPECTED_NUM_CALLBACKS) {
         std::cerr << "Expected 1 callback, got " << callbacks << std::endl;
         return 1;
     }

@@ -51,12 +51,15 @@ public:
     enum flusher_state state() const;
     const char * stateName() const;
 private:
+    int doFlush();
+    void schedule_UNLOCKED();
+
     EventuallyPersistentStore *store;
     volatile enum flusher_state _state;
+    Mutex taskMutex;
     TaskId task;
     Dispatcher *dispatcher;
     const char * stateName(enum flusher_state st) const;
-    int doFlush();
 
     DISALLOW_COPY_AND_ASSIGN(Flusher);
 };
