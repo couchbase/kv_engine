@@ -1,4 +1,5 @@
 ACLOCAL_AMFLAGS = -I m4 --force
+bin_SCRIPTS = management/analyze_core
 
 lib_LTLIBRARIES = ep.la ep_testsuite.la
 noinst_LTLIBRARIES = libsqlite3.la

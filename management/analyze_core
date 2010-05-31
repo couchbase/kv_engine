@@ -1,0 +1,134 @@
+#! /bin/ksh
+#
+# Copyright (c) 2010, NorthScale, Inc.
+# All rights reserved
+#
+root=/opt/NorthScale/bin
+
+usage()
+{
+  cat <<EOF
+
+Usage $0 [-r root] [-f reportfile] corefile
+   -r root       Search for the binary in root
+   -f reportfile Use the specified file for output.
+
+EOF
+  exit 1
+}
+
+set -- `getopt r:f:h $*`
+if [ $? != 0 ]
+then
+   usage
+fi
+
+for i in $*
+do
+   case $i in
+   -r)  root=$2
+        shift 2
+        ;;
+   -f)  report=$2
+        shift 2
+        ;;
+   -h)  usage
+        ;;
+    --) shift
+        break
+        ;;
+   esac
+done
+
+corefile=$1
+if [ "x${corefile}" = "x" ]
+then
+   usage
+fi
+
+if [ -z "${report}" ]
+then
+   report=${corefile}.log
+fi
+
+if ! [ -r ${corefile} ]
+then
+   echo "Can't read ${corefile}"
+   exit 1
+fi
+
+touch ${report} 2>/dev/zero
+if [ $? -ne 0 ]
+then
+   echo "Can't write to ${report}"
+   exit 1
+fi
+
+binary=`file ${corefile} | cut -f 2 -d \'`
+if [ "x${binary}" = "x" ]
+then
+   echo "Failed to determine the binary name from the corefile"
+   exit 1
+fi
+
+executable=`find $root -name $binary`
+if [ "x${executable}" = "x" ]
+then
+   echo "Failed to locate the binary for the corefile"
+   exit 1
+fi
+
+cat > ${report}  <<EOF
+Basic crash dump analysis of ${corefile}.
+
+Please send the file to support@northscale.com
+
+--------------------------------------------------------------------------------
+File information:
+EOF
+
+ls -l ${executable} ${corefile} >> ${report}
+md5sum ${executable} >> ${report}
+md5sum ${corefile} >> ${report}
+strings ${executable} | egrep '[0-9]+\.[0-9]+\.[0-9]+_[0-9]+_........' >> ${report}
+
+cat >> ${report} <<EOF
+--------------------------------------------------------------------------------
+Core file callstacks:
+EOF
+
+cmdfile=/tmp/gdb-commands.$$
+cat > $cmdfile <<EOF
+thread apply all bt
+quit
+EOF
+gdb --command=$cmdfile ${executable} ${corefile} >> ${report}
+rm $cmdfile
+
+cat >> ${report} <<EOF
+--------------------------------------------------------------------------------
+Module information:
+EOF
+mlines=`grep "^Loaded symbols for " ${report}`
+for module in $mlines
+do
+   if [ "$module" != "Loaded" -a "$module" != "symbols" -a "$module" != "for" ]
+   then
+      echo ${module}:
+      ls -l ${module}
+      strings ${module} | egrep '[0-9]+\.[0-9]+\.[0-9]+_[0-9]+_........'
+      md5sum ${module}
+   fi
+done >> ${report}
+
+cat <<EOF
+
+${report} contains initial debug information to try to identify
+the problem. The log may not contain all information we may need,
+so it is recommended that you preserve the corefile and the binary
+for a more deep analysis. If the program use any shared libraries
+(such as memcached engines) you should also preserve them.
+
+Please send ${report} to support@northscale.com
+
+EOF
