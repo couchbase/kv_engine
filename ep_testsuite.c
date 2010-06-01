@@ -9,6 +9,11 @@
 #include <memcached/engine.h>
 #include <memcached/engine_testapp.h>
 
+bool abort_msg(const char *expr, const char *msg, int line);
+
+#define check(expr, msg) \
+    (expr) ? 0 : abort_msg(#expr, msg, __LINE__)
+
 MEMCACHED_PUBLIC_API
 engine_test_t* get_tests(void);
 
@@ -16,6 +21,14 @@ MEMCACHED_PUBLIC_API
 bool setup_suite(struct test_harness *);
 
 struct test_harness testHarness;
+
+bool abort_msg(const char *expr, const char *msg, int line) {
+    fprintf(stderr, "%s:%d Test failed: `%s' (%s)\n",
+            __FILE__, line, msg, expr);
+    abort();
+    // UNREACHABLE
+    return false;
+}
 
 static bool teardown(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     (void)h; (void)h1;
@@ -43,7 +56,7 @@ static ENGINE_ERROR_CODE storeCasVb11(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     rv = h1->allocate(h, cookie, &it,
                       key, strlen(key),
                       vlen, flags, 3600);
-    assert(rv == ENGINE_SUCCESS);
+    check(rv == ENGINE_SUCCESS, "Allocation failed.");
 
     item_info info = { .nvalue = 1 };
     if (!h1->get_item_info(h, it, &info)) {
@@ -119,41 +132,28 @@ static enum test_result check_key_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                         const char* key,
                                         const char* val, size_t vlen) {
     item *i = NULL;
-    if (h1->get(h, NULL, &i, key, strlen(key), 0) != ENGINE_SUCCESS) {
-        return FAIL;
-    }
+    check(h1->get(h, NULL, &i, key, strlen(key), 0) == ENGINE_SUCCESS,
+          "Failed to get in check_key_value");
 
     item_info info = { .nvalue = 1 };
-    if (!h1->get_item_info(h, i, &info)) {
-        fprintf(stderr, "get_item_info failed\n");
-        return FAIL;
-    }
+    check(h1->get_item_info(h, i, &info), "check_key_value");
 
     assert(info.nvalue == 1);
-    if (!vlen == info.value[0].iov_len) {
-        fprintf(stderr, "vlen=%d, info.value[0].iov_len=%d\n",
-                (int)vlen, (int)info.value[0].iov_len);
-        return FAIL;
-    }
+    check(vlen == info.value[0].iov_len, "Length mismatch.");
 
-    return memcmp(info.value[0].iov_base, val, vlen) == 0 ? SUCCESS : FAIL;
-}
+    check(memcmp(info.value[0].iov_base, val, vlen) == 0, "Data mismatch");
 
-static enum test_result check_status(ENGINE_ERROR_CODE wanted,
-                                     ENGINE_ERROR_CODE got) {
-    if (wanted != got) {
-        fprintf(stderr, "Wanted %d, got %d\n", wanted, got);
-    }
-    return wanted == got ? SUCCESS : FAIL;
+    return SUCCESS;
 }
 
 static enum test_result test_wrong_vb_mutation(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                                ENGINE_STORE_OPERATION op) {
     return PENDING;
     item *i = NULL;
-    ENGINE_ERROR_CODE rv = storeCasVb(h, h1, "cookie", op,
-                                      "key", "somevalue", &i, 11, 1);
-    return rv == ENGINE_NOT_MY_VBUCKET ? SUCCESS : FAIL;
+    check(storeCasVb(h, h1, "cookie", op,
+                     "key", "somevalue", &i, 11, 1) == ENGINE_NOT_MY_VBUCKET,
+        "Expected not_my_vbucket");
+    return SUCCESS;
 }
 
 //
@@ -163,21 +163,24 @@ static enum test_result test_wrong_vb_mutation(ENGINE_HANDLE *h, ENGINE_HANDLE_V
 //
 
 static enum test_result test_get_miss(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    return check_status(ENGINE_KEY_ENOENT, verify_key(h, h1, "k"));
+    check(verify_key(h, h1, "k") == ENGINE_KEY_ENOENT, "Expected miss.");
+    return SUCCESS;
 }
 
 static enum test_result test_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
-    return check_status(ENGINE_SUCCESS,
-                        store(h, h1, "cookie", OPERATION_SET, "key", "somevalue", &i));
+    check(ENGINE_SUCCESS ==
+          store(h, h1, "cookie", OPERATION_SET, "key", "somevalue", &i),
+          "Error setting.");
+    return SUCCESS;
 }
 
 static enum test_result test_set_get_hit(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
-    if (store(h, h1, "cookie", OPERATION_SET, "key", "somevalue", &i) != ENGINE_SUCCESS) {
-        return FAIL;
-    }
-    return check_status(ENGINE_SUCCESS, verify_key(h, h1, "key"));
+    check(store(h, h1, "cookie", OPERATION_SET, "key", "somevalue", &i) == ENGINE_SUCCESS,
+          "store failure");
+    check_key_value(h, h1, "key", "somevalue", 9);
+    return SUCCESS;
 }
 
 static enum test_result test_set_get_hit_bin(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
@@ -185,72 +188,59 @@ static enum test_result test_set_get_hit_bin(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 
     assert(sizeof(binaryData) != strlen(binaryData));
 
     item *i = NULL;
-    if (storeCasVb11(h, h1, "cookie", OPERATION_SET, "key",
-                     binaryData, sizeof(binaryData), 82758, &i, 0, 0)
-        != ENGINE_SUCCESS) {
-        return FAIL;
-    }
+    check(ENGINE_SUCCESS ==
+          storeCasVb11(h, h1, "cookie", OPERATION_SET, "key",
+                       binaryData, sizeof(binaryData), 82758, &i, 0, 0),
+          "Failed to set.");
     return check_key_value(h, h1, "key", binaryData, sizeof(binaryData));
 }
 
 static enum test_result test_set_change_flags(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
-    if (store(h, h1, "cookie", OPERATION_SET, "key", "somevalue", &i) != ENGINE_SUCCESS) {
-        return FAIL;
-    }
+    check(store(h, h1, "cookie", OPERATION_SET, "key", "somevalue", &i) == ENGINE_SUCCESS,
+          "Failed to set.");
+
     item_info info;
     uint32_t flags = 828258;
-    if (!get_value(h, h1, "key", &info)) {
-        return FAIL;
-    }
+    check(get_value(h, h1, "key", &info), "Failed to get value.");
     assert(info.flags != flags);
 
-    if (storeCasVb11(h, h1, "cookie", OPERATION_SET, "key",
-                     "newvalue", strlen("newvalue"), flags, &i, 0, 0)
-        != ENGINE_SUCCESS) {
-        return FAIL;
-    }
+    check(storeCasVb11(h, h1, "cookie", OPERATION_SET, "key",
+                       "newvalue", strlen("newvalue"), flags, &i, 0, 0) == ENGINE_SUCCESS,
+          "Failed to set again.");
 
-    if (!get_value(h, h1, "key", &info)) {
-        return FAIL;
-    }
+    check(get_value(h, h1, "key", &info), "Failed to get value.");
 
     return info.flags == flags ? SUCCESS : FAIL;
 }
 
 static enum test_result test_cas(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
-    if (store(h, h1, "cookie", OPERATION_SET, "key", "somevalue", &i) != ENGINE_SUCCESS) {
-        return FAIL;
-    }
-    if (store(h, h1, "cookie", OPERATION_CAS, "key", "failcas", &i) == ENGINE_SUCCESS) {
-        return FAIL;
-    }
-    if (check_key_value(h, h1, "key", "somevalue", 9) == FAIL) {
-        return FAIL;
-    }
-    if (h1->get(h, NULL, &i, "key", 3, 0) != ENGINE_SUCCESS) {
-        return FAIL;
-    }
+    check(store(h, h1, "cookie", OPERATION_SET, "key", "somevalue", &i) == ENGINE_SUCCESS,
+          "Failed to do initial set.");
+    check(store(h, h1, "cookie", OPERATION_CAS, "key", "failcas", &i) != ENGINE_SUCCESS,
+          "Failed to fail initial CAS.");
+    check_key_value(h, h1, "key", "somevalue", 9);
+
+    check(h1->get(h, NULL, &i, "key", 3, 0) == ENGINE_SUCCESS,
+          "Failed to get value.");
+
     item_info info = { .nvalue = 1 };
-    if (!h1->get_item_info(h, i, &info)) {
-        abort();
-    }
-    if (storeCas(h, h1, "cookie", OPERATION_CAS, "key", "winCas", &i,
-                 info.cas) != ENGINE_SUCCESS) {
-        return FAIL;
-    }
-    return check_key_value(h, h1, "key", "winCas", 6);
+    check(h1->get_item_info(h, i, &info), "Failed to get item info.");
+
+    check(storeCas(h, h1, "cookie", OPERATION_CAS, "key", "winCas", &i,
+                   info.cas) == ENGINE_SUCCESS,
+          "Failed to store CAS");
+    check_key_value(h, h1, "key", "winCas", 6);
+    return SUCCESS;
 }
 
 static enum test_result test_add(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
-    if (store(h, h1, "cookie", OPERATION_ADD,"key", "somevalue", &i) != ENGINE_SUCCESS) {
-        return FAIL;
-    }
-    if (store(h, h1, "cookie", OPERATION_ADD,"key", "somevalue", &i) != ENGINE_KEY_EEXISTS) {
-        return FAIL;
-    }
+    check(store(h, h1, "cookie", OPERATION_ADD,"key", "somevalue", &i) == ENGINE_SUCCESS,
+          "Failed to add value.");
+    check(store(h, h1, "cookie", OPERATION_ADD,"key", "somevalue", &i) == ENGINE_KEY_EEXISTS,
+          "Failed to fail to re-add value.");
     return check_key_value(h, h1, "key", "somevalue", 9);
 }
 
@@ -259,52 +249,51 @@ static enum test_result test_incr_miss(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     h1->arithmetic(h, "cookie", "key", 3, true, false, 1, 0, 0,
                    &cas, &result,
                    0);
-    return check_status(ENGINE_KEY_ENOENT, verify_key(h, h1, "key"));
+    check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key"), "Expected to not find key");
+    return SUCCESS;
 }
 
 static enum test_result test_incr_default(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     uint64_t cas = 0, result = 0;
-    h1->arithmetic(h, "cookie", "key", 3, true, true, 1, 1, 0,
-                   &cas, &result,
-                   0);
-    if (result != 1) {
-        return FAIL;
-    }
-    h1->arithmetic(h, "cookie", "key", 3, true, false, 1, 1, 0,
-                   &cas, &result,
-                   0);
-    if (result != 2) {
-        return FAIL;
-    }
-    h1->arithmetic(h, "cookie", "key", 3, true, true, 1, 1, 0,
-                   &cas, &result,
-                   0);
-    if (result != 3) {
-        return FAIL;
-    }
+    check(h1->arithmetic(h, "cookie", "key", 3, true, true, 1, 1, 0,
+                         &cas, &result,
+                         0) == ENGINE_SUCCESS,
+          "Failed first arith");
+    check(result == 1, "Failed result verification.");
+
+    check(h1->arithmetic(h, "cookie", "key", 3, true, false, 1, 1, 0,
+                         &cas, &result,
+                         0) == ENGINE_SUCCESS,
+          "Failed second arith.");
+    check(result == 2, "Failed second result verification.");
+
+    check(h1->arithmetic(h, "cookie", "key", 3, true, true, 1, 1, 0,
+                         &cas, &result,
+                         0) == ENGINE_SUCCESS,
+          "Failed third arith.");
+    check(result == 3, "Failed third result verification.");
     return check_key_value(h, h1, "key", "3", 1);
 }
 
 static enum test_result test_delete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
-    if (store(h, h1, "cookie", OPERATION_SET, "key", "somevalue", &i) != ENGINE_SUCCESS) {
-        return FAIL;
-    }
-    if (check_key_value(h, h1, "key", "somevalue", 9) != SUCCESS) {
-        return FAIL;
-    }
-    if (h1->remove(h, "cookie", "key", 3, 0, 0) != ENGINE_SUCCESS) {
-        return FAIL;
-    }
-    return check_status(ENGINE_KEY_ENOENT, verify_key(h, h1, "key"));
+    // First try to delete something we know to not be there.
+    check(h1->remove(h, "cookie", "key", 3, 0, 0) == ENGINE_KEY_ENOENT,
+          "Failed to fail initial delete.");
+    check(store(h, h1, "cookie", OPERATION_SET, "key", "somevalue", &i) == ENGINE_SUCCESS,
+          "Failed set.");
+    check_key_value(h, h1, "key", "somevalue", 9);
+    check(h1->remove(h, "cookie", "key", 3, 0, 0) == ENGINE_SUCCESS,
+          "Failed remove with value.");
+    check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key"), "Expected missing key");
+    return SUCCESS;
 }
 
 static enum test_result test_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
     static const char val[] = "somevalue";
-    if (store(h, h1, "cookie", OPERATION_SET, "key", val, &i) != ENGINE_SUCCESS) {
-        return FAIL;
-    }
+    check(store(h, h1, "cookie", OPERATION_SET, "key", val, &i) == ENGINE_SUCCESS,
+          "Failed set.");
 
     testHarness.reload_engine(&h, &h1,
                               testHarness.engine_path,
@@ -321,11 +310,10 @@ static enum test_result test_restart_bin_val(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 
     assert(sizeof(binaryData) != strlen(binaryData));
 
     item *i = NULL;
-    if (storeCasVb11(h, h1, "cookie", OPERATION_SET, "key",
-                     binaryData, sizeof(binaryData), 82758, &i, 0, 0)
-        != ENGINE_SUCCESS) {
-        return FAIL;
-    }
+    check(storeCasVb11(h, h1, "cookie", OPERATION_SET, "key",
+                       binaryData, sizeof(binaryData), 82758, &i, 0, 0)
+          == ENGINE_SUCCESS,
+          "Failed set.");
 
     testHarness.reload_engine(&h, &h1,
                               testHarness.engine_path,
@@ -336,8 +324,8 @@ static enum test_result test_restart_bin_val(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 
 }
 
 static enum test_result test_wrong_vb_get(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    (void)h; (void)h1;
     return PENDING;
-    return check_status(ENGINE_NOT_MY_VBUCKET, verify_vb_key(h, h1, "key", 1));
 }
 
 static enum test_result test_wrong_vb_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
@@ -361,9 +349,8 @@ static enum test_result test_wrong_vb_prepend(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
 }
 
 static enum test_result test_wrong_vb_del(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    (void)h; (void)h1;
     return PENDING;
-    return check_status(ENGINE_NOT_MY_VBUCKET,
-                        h1->remove(h, "cookie", "key", 3, 0, 1));
 }
 
 engine_test_t* get_tests(void) {
