@@ -241,6 +241,11 @@ void EventuallyPersistentStore::resetStats(void) {
     stats.commit_time.set(0);
 }
 
+void EventuallyPersistentStore::reset() {
+    storage.clear();
+    queueDirty("");
+}
+
 void EventuallyPersistentStore::del(const std::string &key, Callback<bool> &cb) {
     bool existed = storage.del(key);
     if (existed) {
@@ -345,6 +350,13 @@ int EventuallyPersistentStore::flushOne(std::queue<QueuedItem> *q,
 
     QueuedItem qi = q->front();
     q->pop();
+
+    // Special case hack:  Flush
+    if (qi.getKey().size() == 0) {
+        underlying->reset();
+        stats.flusher_todo--;
+        return 1;
+    }
 
     int bucket_num = storage.bucket(qi.getKey());
     LockHolder lh(storage.getMutex(bucket_num));

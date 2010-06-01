@@ -751,11 +751,9 @@ public:
         ENGINE_ERROR_CODE ret= ENGINE_ENOTSUP;
 
         if (when == 0) {
-            ;
-#if 0
             epstore->reset();
             addFlushEvent();
-#endif
+            ret = ENGINE_SUCCESS;
         }
 
         return ret;

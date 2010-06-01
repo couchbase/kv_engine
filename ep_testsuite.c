@@ -275,6 +275,66 @@ static enum test_result test_incr_default(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     return check_key_value(h, h1, "key", "3", 1);
 }
 
+static enum test_result test_flush(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    item *i = NULL;
+    // First try to delete something we know to not be there.
+    check(h1->remove(h, "cookie", "key", 3, 0, 0) == ENGINE_KEY_ENOENT,
+          "Failed to fail initial delete.");
+    check(store(h, h1, "cookie", OPERATION_SET, "key", "somevalue", &i) == ENGINE_SUCCESS,
+          "Failed set.");
+    check_key_value(h, h1, "key", "somevalue", 9);
+    check(h1->flush(h, "cookie", 0) == ENGINE_SUCCESS,
+          "Failed to flush");
+    check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key"), "Expected missing key");
+
+    check(store(h, h1, "cookie", OPERATION_SET, "key", "somevalue", &i) == ENGINE_SUCCESS,
+          "Failed post-flush set.");
+    check_key_value(h, h1, "key", "somevalue", 9);
+
+    return SUCCESS;
+}
+
+static enum test_result test_flush_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    item *i = NULL;
+    // First try to delete something we know to not be there.
+    check(h1->remove(h, "cookie", "key", 3, 0, 0) == ENGINE_KEY_ENOENT,
+          "Failed to fail initial delete.");
+    check(store(h, h1, "cookie", OPERATION_SET, "key", "somevalue", &i) == ENGINE_SUCCESS,
+          "Failed set.");
+    check_key_value(h, h1, "key", "somevalue", 9);
+
+    // Restart once to ensure written to disk.
+    testHarness.reload_engine(&h, &h1,
+                              testHarness.engine_path,
+                              testHarness.default_engine_cfg,
+                              true);
+
+    // Read value from disk.
+    check_key_value(h, h1, "key", "somevalue", 9);
+
+    // Flush
+    check(h1->flush(h, "cookie", 0) == ENGINE_SUCCESS,
+          "Failed to flush");
+
+    check(store(h, h1, "cookie", OPERATION_SET, "key2", "somevalue", &i) == ENGINE_SUCCESS,
+          "Failed post-flush set.");
+    check_key_value(h, h1, "key2", "somevalue", 9);
+
+    // Restart again, ensure written to disk.
+    testHarness.reload_engine(&h, &h1,
+                              testHarness.engine_path,
+                              testHarness.default_engine_cfg,
+                              true);
+
+    check(store(h, h1, "cookie", OPERATION_SET, "key3", "somevalue", &i) == ENGINE_SUCCESS,
+          "Failed post-flush, post-restart set.");
+    check_key_value(h, h1, "key3", "somevalue", 9);
+
+    // Read value again, should not be there.
+    check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key"), "Expected missing key");
+    return SUCCESS;
+}
+
 static enum test_result test_delete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
     // First try to delete something we know to not be there.
@@ -366,7 +426,7 @@ engine_test_t* get_tests(void) {
         {"incr miss", test_incr_miss, NULL, teardown, NULL},
         {"incr with default", test_incr_default, NULL, teardown, NULL},
         {"delete", test_delete, NULL, teardown, NULL},
-        {"flush", NULL, NULL, teardown, NULL},
+        {"flush", test_flush, NULL, teardown, NULL},
         // Stats tests
         {"stats", NULL, NULL, teardown, NULL},
         {"stats key", NULL, NULL, teardown, NULL},
@@ -374,6 +434,7 @@ engine_test_t* get_tests(void) {
         // restart tests
         {"test restart", test_restart, NULL, teardown, NULL},
         {"set+get+restart+hit (bin)", test_restart_bin_val, NULL, teardown, NULL},
+        {"flush+restart", test_flush_restart, NULL, teardown, NULL},
         // vbucket negative tests
         {"test wrong vbucket get", test_wrong_vb_get, NULL, teardown, NULL},
         {"test wrong vbucket set", test_wrong_vb_set, NULL, teardown, NULL},

@@ -92,6 +92,8 @@ public:
 
     void del(const std::string &key, Callback<bool> &cb);
 
+    void reset();
+
     EPStats& getStats() { return stats; }
 
     void setMinDataAge(int to);

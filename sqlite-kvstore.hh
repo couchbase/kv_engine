@@ -30,16 +30,7 @@ public:
     /**
      * Reset database to a clean state.
      */
-    void reset() {
-        if (db) {
-            rollback();
-            close();
-            open();
-            strategy->destroyTables();
-            strategy->initTables();
-            execute("vacuum");
-        }
-    }
+    void reset();
 
     /**
      * Begin a transaction (if not already in one).
