@@ -25,7 +25,7 @@ public:
         count += 1;
         std::string key = v->getKey();
         value_t val = v->getValue();
-        std::string subval = val->substr(0, val->length() - 2);
+        std::string subval = val->substr(0, val->length());
         assert(key.compare(subval) == 0);
     }
 };
