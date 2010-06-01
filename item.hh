@@ -150,11 +150,6 @@ private:
             data = new std::string(nb, '\0');
         } else {
             data = new std::string(dta, nb);
-            if (data != NULL) {
-                if ((*data)[nb-2] != '\r' || (*data)[nb-1] != '\n') {
-                    data->append("\r\n");
-                }
-            }
         }
 
         if (data != NULL) {
