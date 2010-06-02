@@ -171,17 +171,14 @@ public:
 class HashTableDepthStatVisitor : public HashTableDepthVisitor {
 public:
 
-    HashTableDepthStatVisitor() : depths(), min(INT_MAX), max(0) {}
+    HashTableDepthStatVisitor() : min(INT_MAX), max(0) {}
 
     void visit(int bucket, int depth) {
-        depths.reserve(bucket+1);
-        depths[bucket] = depth;
-
+        (void)bucket;
         min = std::min(min, depth);
         max = std::max(max, depth);
     }
 
-    std::vector<int> depths;
     int min;
     int max;
 };
