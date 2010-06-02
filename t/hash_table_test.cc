@@ -25,7 +25,8 @@ public:
         count += 1;
         std::string key = v->getKey();
         value_t val = v->getValue();
-        std::string subval = val->substr(0, val->length());
+        // Value has length beyond the value that's requested to be stored.
+        std::string subval = val->substr(0, val->length() - 2);
         assert(key.compare(subval) == 0);
     }
 };

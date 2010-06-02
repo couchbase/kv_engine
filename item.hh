@@ -71,7 +71,7 @@ public:
     }
 
     uint32_t getNBytes() const {
-        return static_cast<uint32_t>(value->length());
+        return static_cast<uint32_t>(value->length() - 2);
     }
 
     rel_time_t getExptime() const {
@@ -141,11 +141,9 @@ private:
             data = new std::string(dta, nb);
         }
 
-        if (data != NULL) {
-           value.reset(data);
-        } else {
-           throw std::runtime_error("Out of memory allocating value for item");
-        }
+        assert(data);
+        data->append("\r\n");
+        value.reset(data);
     }
 
     int flags;

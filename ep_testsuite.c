@@ -142,6 +142,9 @@ static enum test_result check_key_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     check(vlen == info.value[0].iov_len, "Length mismatch.");
 
     check(memcmp(info.value[0].iov_base, val, vlen) == 0, "Data mismatch");
+    char *data = (char*)info.value[0].iov_base;
+    check(data[vlen] == '\r', "Missing CR");
+    check(data[vlen+1] == '\n', "Missing LF");
 
     return SUCCESS;
 }

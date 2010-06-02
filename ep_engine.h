@@ -724,7 +724,7 @@ public:
         } else if (ret == ENGINE_KEY_ENOENT && create) {
             std::stringstream vals;
 
-            vals << initial << "\r\n";
+            vals << initial;
             size_t nb = vals.str().length();
 
             *result = initial;
