@@ -708,7 +708,7 @@ public:
                 }
 
                 std::stringstream vals;
-                vals << val;
+                vals << val << "\r\n";
                 size_t nb = vals.str().length();
                 *result = val;
                 Item *nit = new Item(key, (uint16_t)nkey, item->getFlags(),
@@ -724,7 +724,7 @@ public:
         } else if (ret == ENGINE_KEY_ENOENT && create) {
             std::stringstream vals;
 
-            vals << initial;
+            vals << initial << "\r\n";
             size_t nb = vals.str().length();
 
             *result = initial;

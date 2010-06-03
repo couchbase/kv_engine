@@ -71,7 +71,7 @@ public:
     }
 
     uint32_t getNBytes() const {
-        return static_cast<uint32_t>(value->length() - 2);
+        return static_cast<uint32_t>(value->length());
     }
 
     rel_time_t getExptime() const {
@@ -142,7 +142,6 @@ private:
         }
 
         assert(data);
-        data->append("\r\n");
         value.reset(data);
     }
 

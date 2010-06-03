@@ -142,9 +142,6 @@ static enum test_result check_key_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     check(vlen == info.value[0].iov_len, "Length mismatch.");
 
     check(memcmp(info.value[0].iov_base, val, vlen) == 0, "Data mismatch");
-    char *data = (char*)info.value[0].iov_base;
-    check(data[vlen] == '\r', "Missing CR");
-    check(data[vlen+1] == '\n', "Missing LF");
 
     return SUCCESS;
 }
@@ -275,7 +272,21 @@ static enum test_result test_incr_default(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
                          0) == ENGINE_SUCCESS,
           "Failed third arith.");
     check(result == 3, "Failed third result verification.");
-    return check_key_value(h, h1, "key", "3", 1);
+    return check_key_value(h, h1, "key", "3\r\n", 3);
+}
+
+static enum test_result test_incr(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    uint64_t cas = 0, result = 0;
+    item *i = NULL;
+    check(store(h, h1, "cookie", OPERATION_ADD,"key", "1", &i) == ENGINE_SUCCESS,
+          "Failed to add value.");
+
+    check(h1->arithmetic(h, "cookie", "key", 3, true, false, 1, 1, 0,
+                         &cas, &result,
+                         0) == ENGINE_SUCCESS,
+          "Failed to incr value.");
+
+    return check_key_value(h, h1, "key", "2\r\n", 3);
 }
 
 static enum test_result test_flush(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
@@ -427,6 +438,7 @@ engine_test_t* get_tests(void) {
         {"add", test_add, NULL, teardown, NULL},
         {"cas", test_cas, NULL, teardown, NULL},
         {"incr miss", test_incr_miss, NULL, teardown, NULL},
+        {"incr", test_incr, NULL, teardown, NULL},
         {"incr with default", test_incr_default, NULL, teardown, NULL},
         {"delete", test_delete, NULL, teardown, NULL},
         {"flush", test_flush, NULL, teardown, NULL},
