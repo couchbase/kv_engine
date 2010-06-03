@@ -28,7 +28,8 @@ ep_la_SOURCES = \
                  sqlite-strategies.hh sqlite-strategies.cc \
                  stats.hh \
                  stored-value.hh stored-value.cc \
-                 syncobject.hh
+                 syncobject.hh \
+                 tapclient.hh tapclient.cc
 
 ep_la_LIBADD = libsqlite3.la @MEMCACHED_DIR@/libmcd_util.la
 ep_la_DEPENDENCIES = libsqlite3.la

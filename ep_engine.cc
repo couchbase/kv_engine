@@ -1,8 +1,11 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 #include "config.h"
 #include <assert.h>
+#include <poll.h>
+#include <fcntl.h>
 
 #include <memcached/engine.h>
+#include <memcached/protocol_binary.h>
 
 #include "ep_engine.h"
 
@@ -436,29 +439,6 @@ extern "C" {
         item_info->value[0].iov_len = it->getNBytes();
         return true;
     }
-
-    void EvpHandleTapCallback(const void *cookie,
-                              ENGINE_EVENT_TYPE type,
-                              const void *event_data,
-                              const void *cb_data)
-    {
-        assert(type == ON_TAP_TIMEOUT || type == ON_TAP_CONNECT);
-        ENGINE_HANDLE *c = static_cast<ENGINE_HANDLE*>(const_cast<void*>(cb_data));
-        getHandle(c)->onTapConnect(cookie, type, event_data);
-    }
-
-    void EvpClockHandler(const void *cookie,
-                         ENGINE_EVENT_TYPE type,
-                         const void *event_data,
-                         const void *cb_data)
-    {
-        (void) cookie;
-        (void) event_data;
-        assert(type == ON_TIMER);
-        ENGINE_HANDLE *c = static_cast<ENGINE_HANDLE*>(const_cast<void*>(cb_data));
-        getHandle(c)->clockHandler();
-    }
-
 } // C linkage
 
 static SERVER_EXTENSION_API *extensionApi;
@@ -474,7 +454,7 @@ EXTENSION_LOGGER_DESCRIPTOR *getLogger(void) {
 EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server_api) :
     dbname("/tmp/test.db"), initFile(NULL), warmup(true), wait_for_warmup(true),
     sqliteDb(NULL), epstore(NULL), databaseInitTime(0), shutdown(false),
-    getServerApi(get_server_api), tapEnabled(false), tapRunning(false)
+    getServerApi(get_server_api), tapEnabled(false)
 {
     interface.interface = 1;
     ENGINE_HANDLE_V1::get_info = EvpGetInfo;
