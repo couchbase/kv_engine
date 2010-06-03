@@ -294,11 +294,19 @@ void EventuallyPersistentStore::del(const std::string &key,
 
     bool existed = vb->ht.del(key);
     cb.setStatus(existed ? ENGINE_SUCCESS : ENGINE_KEY_ENOENT);
+
     if (existed) {
         queueDirty(key, vbucket);
         stats.curr_items--;
     }
     cb.callback(existed);
+}
+
+void EventuallyPersistentStore::reset() {
+    // TODO: Something smarter for multiple vbuckets.
+    RCPtr<VBucket> vb = vbuckets.getBucket(0);
+    vb->ht.clear();
+    queueDirty("", 0);
 }
 
 std::queue<QueuedItem>* EventuallyPersistentStore::beginFlush() {
@@ -396,6 +404,13 @@ int EventuallyPersistentStore::flushOne(std::queue<QueuedItem> *q,
 
     QueuedItem qi = q->front();
     q->pop();
+
+    // Special case hack:  Flush
+    if (qi.getKey().size() == 0) {
+        underlying->reset();
+        stats.flusher_todo--;
+        return 1;
+    }
 
     RCPtr<VBucket> vb = vbuckets.getBucket(qi.getVBucketId());
     assert(vb);

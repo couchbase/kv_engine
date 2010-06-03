@@ -152,11 +152,8 @@ private:
             data = new std::string(dta, nb);
         }
 
-        if (data != NULL) {
-           value.reset(data);
-        } else {
-           throw std::runtime_error("Out of memory allocating value for item");
-        }
+        assert(data);
+        value.reset(data);
     }
 
     int flags;

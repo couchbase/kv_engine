@@ -711,7 +711,7 @@ public:
                 }
 
                 std::stringstream vals;
-                vals << val;
+                vals << val << "\r\n";
                 size_t nb = vals.str().length();
                 *result = val;
                 Item *nit = new Item(key, (uint16_t)nkey, item->getFlags(),
@@ -756,11 +756,9 @@ public:
         ENGINE_ERROR_CODE ret= ENGINE_ENOTSUP;
 
         if (when == 0) {
-            ;
-#if 0
             epstore->reset();
             addFlushEvent();
-#endif
+            ret = ENGINE_SUCCESS;
         }
 
         return ret;

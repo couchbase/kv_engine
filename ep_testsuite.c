@@ -139,7 +139,11 @@ static enum test_result check_key_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     check(h1->get_item_info(h, i, &info), "check_key_value");
 
     assert(info.nvalue == 1);
-    check(vlen == info.value[0].iov_len, "Length mismatch.");
+    if (vlen != info.value[0].iov_len) {
+        fprintf(stderr, "Expected length %zd, got %zd\n",
+                vlen, info.value[0].iov_len);
+        check(vlen == info.value[0].iov_len, "Length mismatch.");
+    }
 
     check(memcmp(info.value[0].iov_base, val, vlen) == 0, "Data mismatch");
 
@@ -271,7 +275,82 @@ static enum test_result test_incr_default(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
                          0) == ENGINE_SUCCESS,
           "Failed third arith.");
     check(result == 3, "Failed third result verification.");
-    return check_key_value(h, h1, "key", "3", 1);
+
+    return check_key_value(h, h1, "key", "3\r\n", 3);
+}
+
+static enum test_result test_incr(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    uint64_t cas = 0, result = 0;
+    item *i = NULL;
+    check(store(h, h1, "cookie", OPERATION_ADD,"key", "1", &i) == ENGINE_SUCCESS,
+          "Failed to add value.");
+
+    check(h1->arithmetic(h, "cookie", "key", 3, true, false, 1, 1, 0,
+                         &cas, &result,
+                         0) == ENGINE_SUCCESS,
+          "Failed to incr value.");
+
+    return check_key_value(h, h1, "key", "2\r\n", 3);
+}
+
+static enum test_result test_flush(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    item *i = NULL;
+    // First try to delete something we know to not be there.
+    check(h1->remove(h, "cookie", "key", 3, 0, 0) == ENGINE_KEY_ENOENT,
+          "Failed to fail initial delete.");
+    check(store(h, h1, "cookie", OPERATION_SET, "key", "somevalue", &i) == ENGINE_SUCCESS,
+          "Failed set.");
+    check_key_value(h, h1, "key", "somevalue", 9);
+    check(h1->flush(h, "cookie", 0) == ENGINE_SUCCESS,
+          "Failed to flush");
+    check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key"), "Expected missing key");
+
+    check(store(h, h1, "cookie", OPERATION_SET, "key", "somevalue", &i) == ENGINE_SUCCESS,
+          "Failed post-flush set.");
+    check_key_value(h, h1, "key", "somevalue", 9);
+
+    return SUCCESS;
+}
+
+static enum test_result test_flush_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    item *i = NULL;
+    // First try to delete something we know to not be there.
+    check(h1->remove(h, "cookie", "key", 3, 0, 0) == ENGINE_KEY_ENOENT,
+          "Failed to fail initial delete.");
+    check(store(h, h1, "cookie", OPERATION_SET, "key", "somevalue", &i) == ENGINE_SUCCESS,
+          "Failed set.");
+    check_key_value(h, h1, "key", "somevalue", 9);
+
+    // Restart once to ensure written to disk.
+    testHarness.reload_engine(&h, &h1,
+                              testHarness.engine_path,
+                              testHarness.default_engine_cfg,
+                              true);
+
+    // Read value from disk.
+    check_key_value(h, h1, "key", "somevalue", 9);
+
+    // Flush
+    check(h1->flush(h, "cookie", 0) == ENGINE_SUCCESS,
+          "Failed to flush");
+
+    check(store(h, h1, "cookie", OPERATION_SET, "key2", "somevalue", &i) == ENGINE_SUCCESS,
+          "Failed post-flush set.");
+    check_key_value(h, h1, "key2", "somevalue", 9);
+
+    // Restart again, ensure written to disk.
+    testHarness.reload_engine(&h, &h1,
+                              testHarness.engine_path,
+                              testHarness.default_engine_cfg,
+                              true);
+
+    check(store(h, h1, "cookie", OPERATION_SET, "key3", "somevalue", &i) == ENGINE_SUCCESS,
+          "Failed post-flush, post-restart set.");
+    check_key_value(h, h1, "key3", "somevalue", 9);
+
+    // Read value again, should not be there.
+    check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key"), "Expected missing key");
+    return SUCCESS;
 }
 
 static enum test_result test_delete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
@@ -365,9 +444,10 @@ engine_test_t* get_tests(void) {
         {"add", test_add, NULL, teardown, NULL},
         {"cas", test_cas, NULL, teardown, NULL},
         {"incr miss", test_incr_miss, NULL, teardown, NULL},
+        {"incr", test_incr, NULL, teardown, NULL},
         {"incr with default", test_incr_default, NULL, teardown, NULL},
         {"delete", test_delete, NULL, teardown, NULL},
-        {"flush", NULL, NULL, teardown, NULL},
+        {"flush", test_flush, NULL, teardown, NULL},
         // Stats tests
         {"stats", NULL, NULL, teardown, NULL},
         {"stats key", NULL, NULL, teardown, NULL},
@@ -375,6 +455,7 @@ engine_test_t* get_tests(void) {
         // restart tests
         {"test restart", test_restart, NULL, teardown, NULL},
         {"set+get+restart+hit (bin)", test_restart_bin_val, NULL, teardown, NULL},
+        {"flush+restart", test_flush_restart, NULL, teardown, NULL},
         // vbucket negative tests
         {"test wrong vbucket get", test_wrong_vb_get, NULL, teardown, NULL},
         {"test wrong vbucket set", test_wrong_vb_set, NULL, teardown, NULL},

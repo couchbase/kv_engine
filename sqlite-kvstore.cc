@@ -39,10 +39,23 @@ void StrategicSqlite3::get(const std::string &key, uint16_t vbucket,
     sel_stmt->reset();
 }
 
+void StrategicSqlite3::reset() {
+    if (db) {
+        rollback();
+        close();
+        open();
+        strategy->destroyTables();
+        close();
+        open();
+        execute("vacuum");
+    }
+}
+
 void StrategicSqlite3::del(const std::string &key, uint16_t vbucket,
                            Callback<bool> &cb) {
     // TODO:  Use vbucket
     (void)vbucket;
+
     PreparedStatement *del_stmt = strategy->forKey(key)->del();
     del_stmt->bind(1, key.c_str());
     bool rv = del_stmt->execute() >= 0;

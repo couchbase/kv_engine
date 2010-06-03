@@ -100,6 +100,8 @@ public:
     void del(const std::string &key, uint16_t vbucket,
              Callback<bool> &cb);
 
+    void reset();
+
     EPStats& getStats() { return stats; }
 
     void setMinDataAge(int to);
