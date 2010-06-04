@@ -58,11 +58,10 @@ void Dispatcher::run() {
                         reschedule(task);
                     }
                 } catch (std::exception& e) {
-                    std::cerr << "exception caught in task "
-                              << task->name << ": " << e.what() << std::endl;
+                    getLogger()->log(EXTENSION_LOG_WARNING, NULL, "exception caught in task %s: %s\n", task->name.c_str(),
+                                     e.what());
                 } catch(...) {
-                    std::cerr << "Caught a fatal exception in task"
-                              << task->name <<std::endl;
+                    getLogger()->log(EXTENSION_LOG_WARNING, NULL, "fatal exception caught in task %s\n", task->name.c_str());
                 }
                 break;
             case task_dead:

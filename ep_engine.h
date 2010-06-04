@@ -1073,11 +1073,11 @@ public:
                 assert(tapClientConnectionMap[cookie] == NULL);
                 tc->setFailed();
                 if (tapEnabled && tc->peer == tapPeer && tc->shouldRetry()) {
-                    std::cerr << "ERROR: Tap connection to " << tc->peer << " failed."
-                              << " Next retry in " << tc->retry_interval << " secs." <<  std::endl;
+                    getLogger()->log(EXTENSION_LOG_WARNING, NULL, "Tap connection to %s failed. Next retry in %d secs.\n",
+                                     tc->peer.c_str(), tc->retry_interval);
                 } else {
-                    std::cerr << "ERROR: Tap connection to " << tc->peer
-                              << " exceeded maximum retries." << std::endl;
+                    getLogger()->log(EXTENSION_LOG_WARNING, NULL, "Tap connection to %s exceeded maximum retries.\n",
+                                     tc->peer.c_str());
                     clientTaps.remove(tc);
                     delete tc;
                 }
