@@ -538,12 +538,12 @@ public:
                 if (get(cookie, &i, it->getKey().c_str(), it->getNKey(),
                         vbucket) == ENGINE_SUCCESS) {
                     itemRelease(cookie, i);
-                    ret = ENGINE_KEY_EEXISTS;
+                    ret = ENGINE_NOT_STORED;
                 } else {
                     backend->set(*it, callback);
                     // unable to set if the key is locked
                     if ((mutation_type_t)callback.getStatus() == IS_LOCKED) {
-                        return ENGINE_KEY_EEXISTS;
+                        return ENGINE_NOT_STORED;
                     }
                     *cas = it->getCas();
                     addMutationEvent(it);

@@ -239,7 +239,7 @@ static enum test_result test_add(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
     check(store(h, h1, "cookie", OPERATION_ADD,"key", "somevalue", &i) == ENGINE_SUCCESS,
           "Failed to add value.");
-    check(store(h, h1, "cookie", OPERATION_ADD,"key", "somevalue", &i) == ENGINE_KEY_EEXISTS,
+    check(store(h, h1, "cookie", OPERATION_ADD,"key", "somevalue", &i) == ENGINE_NOT_STORED,
           "Failed to fail to re-add value.");
     return check_key_value(h, h1, "key", "somevalue", 9);
 }
