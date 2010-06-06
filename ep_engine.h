@@ -271,7 +271,7 @@ public:
             size_t htBuckets = 0;
             size_t htLocks = 0;
 
-            const int max_items = 10;
+            const int max_items = 11;
             struct config_item items[max_items];
             int ii = 0;
             memset(items, 0, sizeof(items));
@@ -318,6 +318,11 @@ public:
             ++ii;
             items[ii].key = "config_file";
             items[ii].datatype = DT_CONFIGFILE;
+
+            ++ii;
+            items[ii].key = "max_item_size";
+            items[ii].datatype = DT_SIZE;
+            items[ii].value.dt_size = &maxItemSize;
 
             ++ii;
             items[ii].key = NULL;
@@ -415,6 +420,10 @@ public:
                                    const rel_time_t exptime)
     {
         (void)cookie;
+        if (nbytes > maxItemSize) {
+            return ENGINE_E2BIG;
+        }
+
         *item = new Item(key, nkey, nbytes, flags, exptime);
         if (*item == NULL) {
             return ENGINE_ENOMEM;
@@ -1533,6 +1542,7 @@ private:
     Mutex tapMutex;
     TapClientConnection* clientTap;
     bool tapEnabled;
+    size_t maxItemSize;
 };
 
 class BackFillVisitor : public HashTableVisitor {

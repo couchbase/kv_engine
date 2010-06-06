@@ -427,9 +427,25 @@ static enum test_result test_wrong_vb_del(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     return PENDING;
 }
 
+static enum test_result test_alloc_limit(ENGINE_HANDLE *h,
+                                         ENGINE_HANDLE_V1 *h1) {
+    item *it = NULL;
+    ENGINE_ERROR_CODE rv;
+
+    rv = h1->allocate(h, NULL, &it, "key", 3, 20 * 1024 * 1024, 0, 0);
+    check(rv == ENGINE_SUCCESS, "Allocated 20MB item");
+    h1->release(h, NULL, it);
+
+    rv = h1->allocate(h, NULL, &it, "key", 3, (20 * 1024 * 1024) + 1, 0, 0);
+    check(rv == ENGINE_E2BIG, "Object too big");
+
+    return SUCCESS;
+}
+
 engine_test_t* get_tests(void) {
     static engine_test_t tests[]  = {
         // basic tests
+        {"test alloc limit", test_alloc_limit, NULL, teardown, NULL},
         {"get miss", test_get_miss, NULL, teardown, NULL},
         {"set", test_set, NULL, teardown, NULL},
         {"set+get hit", test_set_get_hit, NULL, teardown, NULL},
