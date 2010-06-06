@@ -41,6 +41,7 @@ AC_DEFUN([AC_C_HTONLL],
 AC_C_HTONLL
 
 AC_CHECK_HEADERS([arpa/inet.h])
+AC_CHECK_HEADERS([netdb.h])
 AC_DEFUN([AC_CXX_GCC_ATOMICS],
 [
    AC_LANG_PUSH(C++)
@@ -129,6 +130,11 @@ AH_BOTTOM([
 #if HAVE_ARPA_INET_H
 #include <arpa/inet.h>
 #endif
+
+#ifdef HAVE_NETDB_H
+#include <netdb.h>
+#endif
+
 ])
 
 trymemcacheddir=""

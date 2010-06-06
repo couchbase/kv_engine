@@ -1,4 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
+#ifndef EP_ENGINE_H
+#define EP_ENGINE_H 1
 
 #include "locks.hh"
 #include "ep.hh"
@@ -6,6 +8,7 @@
 #include "sqlite-kvstore.hh"
 #include "ep_extension.h"
 #include <memcached/util.h>
+#include "tapclient.hh"
 
 #include <cstdio>
 #include <map>
@@ -13,10 +16,6 @@
 #include <errno.h>
 
 #define NUMBER_OF_SHARDS 4
-#define CONNECTION_TIMEOUT 15000
-#define MAX_RECONNECT_INTERVAL 30
-#define MIN_RECONNECT_INTERVAL 5
-#define MAX_RECONNECT_ATTEMPTS 300
 
 extern "C" {
     EXPORT_FUNCTION
@@ -73,6 +72,8 @@ private:
     bool value;
 };
 
+// Forward decl
+class BinaryMessage;
 class EventuallyPersistentEngine;
 
 class LookupCallback : public Callback<GetValue> {
@@ -255,72 +256,6 @@ private:
 };
 
 /**
- * Tap client connection
- */
-class TapClientConnection {
-friend class EventuallyPersistentEngine;
-private:
-    TapClientConnection(const std::string &n, uint32_t f) : peer(n), flags(f),
-        connected(false), reconnects(0), failed(false), retry_interval(0), last_retry(0)
-    { }
-
-    void setFailed() {
-        failed = true;
-        connected = false;
-        retry_interval = last_retry += MIN_RECONNECT_INTERVAL;
-        if (retry_interval > MAX_RECONNECT_INTERVAL) {
-            retry_interval = last_retry = MIN_RECONNECT_INTERVAL;
-        }
-    }
-
-    bool shouldRetry() {
-        if (reconnects++ > MAX_RECONNECT_ATTEMPTS) {
-            return false;
-        }
-
-        return failed;
-    }
-
-    /**
-     * String used to identify the peer.
-     */
-    std::string peer;
-
-    /**
-     * Flags passed to the peer
-     */
-    uint32_t flags;
-
-    /**
-     * Is connected?
-     */
-    bool connected;
-
-    /**
-     * Number of reconnect attempts
-     */
-    int reconnects;
-
-    /**
-     * connection attempt failed
-     */
-    bool failed;
-
-    /**
-     * Next retry in seconds
-     */
-    int retry_interval;
-
-    /**
-     * retry interval in seconds
-     */
-    int last_retry;
-
-
-    DISALLOW_COPY_AND_ASSIGN(TapClientConnection);
-};
-
-/**
  *
  */
 class EventuallyPersistentEngine : public ENGINE_HANDLE_V1 {
@@ -435,9 +370,6 @@ public:
                 SERVER_CALLBACK_API *sapi;
                 sapi = getServerApi()->callback;
                 sapi->register_callback(ON_DISCONNECT, EvpHandleDisconnect, this);
-                sapi->register_callback(ON_TAP_CONNECT, EvpHandleTapCallback, this);
-                sapi->register_callback(ON_TAP_TIMEOUT, EvpHandleTapCallback, this);
-                sapi->register_callback(ON_TIMER, EvpClockHandler, this);
             }
             startEngineThreads();
 
@@ -452,11 +384,8 @@ public:
             }
 
             if (master != NULL) {
-                tapEnabled = true;
-                tapPeer.assign((const char *)master);
+                setTapPeer(master);
                 free(master);
-
-                tapConnect(tapPeer);
             }
         }
 
@@ -472,6 +401,7 @@ public:
 
     void destroy()
     {
+        stopReplication();
         stopEngineThreads();
     }
 
@@ -609,12 +539,12 @@ public:
                 if (get(cookie, &i, it->getKey().c_str(), it->getNKey(),
                         vbucket) == ENGINE_SUCCESS) {
                     itemRelease(cookie, i);
-                    ret = ENGINE_KEY_EEXISTS;
+                    ret = ENGINE_NOT_STORED;
                 } else {
                     backend->set(*it, callback);
                     // unable to set if the key is locked
                     if ((mutation_type_t)callback.getStatus() == IS_LOCKED) {
-                        return ENGINE_KEY_EEXISTS;
+                        return ENGINE_NOT_STORED;
                     } else if (callback.getStatus() == INVALID_VBUCKET) {
                         return ENGINE_NOT_MY_VBUCKET;
                     }
@@ -919,7 +849,7 @@ public:
         (void)tap_flags;
         (void)tap_seqno;
 
-        if (!tapEnabled || tapClientConnectionMap[cookie] == NULL) {
+        if (!tapEnabled) {
             return ENGINE_DISCONNECT;
         }
 
@@ -935,7 +865,13 @@ public:
 
         case TAP_MUTATION:
         {
-            Item *item = new Item(key, (uint16_t)nkey, flags, exptime, data, ndata);
+            // We don't get the trailing CRLF in tap mutation but should store it
+            // to satisfy memcached expectations. Allocate the Item object with
+            // two extra bytes and copy CRLF there.
+
+            Item *item = new Item(key, (uint16_t)nkey, flags, exptime, data, ndata + 2);
+            memcpy((char*)item->getData() + item->getNBytes() - 2, "\r\n", 2);
+
             /* @TODO we don't have CAS now.. we might in the future.. */
             (void)cas;
             uint64_t ncas;
@@ -973,30 +909,6 @@ public:
             tapConnectionMap.erase(iter);
         }
         purgeExpiredTapConnections_UNLOCKED();
-
-        {
-            LockHolder tm(tapMutex);
-            std::map<const void*, TapClientConnection*>::iterator citer;
-            citer = tapClientConnectionMap.find(cookie);
-            if (citer != tapClientConnectionMap.end()) {
-                TapClientConnection *tc = citer->second;
-                if (tc != NULL) {
-                    tc->setFailed();
-                    if (tapEnabled && tc->peer == tapPeer && tc->shouldRetry()) {
-                        getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                                         "WARN: Tap connection to %s disconnected. Next retry in %d secs.\n",
-                                         tc->peer.c_str(), tc->retry_interval);
-                    } else {
-                        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                         "Tap connection to %s disconnected.\n",
-                                         tc->peer.c_str());
-                        clientTaps.remove(citer->second);
-                        delete citer->second;
-                    }
-                }
-                tapClientConnectionMap.erase(citer);
-            }
-        }
     }
 
     protocol_binary_response_status stopFlusher(const char **msg) {
@@ -1046,87 +958,41 @@ public:
         epstore->setTxnSize(to);
     }
 
-    void onTapConnect(const void *cookie,
-                      ENGINE_EVENT_TYPE status,
-                      const void *data)
-    {
-        (void)cookie;
-
-        LockHolder lh(tapMutex);
-
-        TapClientConnection *tc = NULL;
-        if (data != NULL) {
-            const tap_connection_data_t *d = static_cast<const tap_connection_data_t*>(data);
-            tc = static_cast<TapClientConnection*>(d->engine_specific);
-            delete reinterpret_cast<const char*>(data);
-        }
-
-        if (status == ON_TAP_CONNECT) {
-            if (tc != NULL) {
-                assert(tapClientConnectionMap[cookie] == NULL);
-                tapClientConnectionMap[cookie] = tc;
-                tc->connected = true;
-                tc->failed = false;
-            }
-        } else {
-            if (tc != NULL) {
-                assert(tapClientConnectionMap[cookie] == NULL);
-                tc->setFailed();
-                if (tapEnabled && tc->peer == tapPeer && tc->shouldRetry()) {
-                    getLogger()->log(EXTENSION_LOG_WARNING, NULL, "Tap connection to %s failed. Next retry in %d secs.\n",
-                                     tc->peer.c_str(), tc->retry_interval);
-                } else {
-                    getLogger()->log(EXTENSION_LOG_WARNING, NULL, "Tap connection to %s exceeded maximum retries.\n",
-                                     tc->peer.c_str());
-                    clientTaps.remove(tc);
-                    delete tc;
-                }
-            }
-        }
-    }
-
-    void clockHandler() {
-        LockHolder lh(tapMutex);
-        std::list<TapClientConnection*>::iterator iter;
-        for (iter = clientTaps.begin(); iter != clientTaps.end(); iter++) {
-            TapClientConnection *tc = *iter;
-            if (tc->failed && --tc->retry_interval == 0) {
-                tc->failed = false;
-                tapConnect(tc);
-            }
-        }
-    }
-
     bool startReplication() {
         LockHolder lh(tapMutex);
-        if (!tapPeer.empty() && !tapEnabled && clientTaps.empty()) {
-            tapEnabled = true;
-            lh.unlock();
-
-            tapConnect(tapPeer);
-            return true;
+        tapEnabled = true;
+        if (clientTap != NULL) {
+            try {
+                clientTap->start();
+                return true;
+            } catch (std::runtime_error &e) {
+                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                 "Failed to start replication: %s\n",
+                                 e.what());
+            }
         }
         return false;
     }
 
-    void stopReplication() {
+    bool stopReplication() {
         LockHolder ltm(tapMutex);
         tapEnabled = false;
 
-        std::map<const void*, TapClientConnection*>::iterator citer;
-        citer = tapClientConnectionMap.begin();
-        while (citer != tapClientConnectionMap.end()) {
-            serverApi->core->notify_io_complete(citer->first, ENGINE_DISCONNECT);
-            citer++;
+        if (clientTap != NULL) {
+            try {
+                clientTap->stop();
+                return true;
+            } catch (std::runtime_error &e) {
+                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                 "Failed to start replication: %s\n",
+                                 e.what());
+            }
         }
+        return false;
     }
 
-    void setTapPeer(const char *peer) {
-        std::string newPeer = peer;
-        if (tapPeer != newPeer) {
-            tapEnabled = false;
-            tapPeer = newPeer;
-        }
+    void setTapPeer(std::string peer) {
+        tapConnect(peer);
     }
 
     ~EventuallyPersistentEngine() {
@@ -1476,30 +1342,31 @@ private:
         }
         add_casted_stat("ep_tap_count", totalTaps, add_stat, cookie);
 
-        add_casted_stat("ep_replication_peer",
-                        tapPeer.empty()? "none": tapPeer.c_str(), add_stat, cookie);
         add_casted_stat("ep_replication_state",
                         tapEnabled? "enabled": "disabled", add_stat, cookie);
 
-        bool tapFound = false;
-        bool tapConnected = false;
+        const char *repStatus = "stopped";
+        std::string tapPeer;
+
         {
             LockHolder ltm(tapMutex);
-            std::list<TapClientConnection*>::iterator tap_iter;
-            for (tap_iter = clientTaps.begin(); tap_iter != clientTaps.end(); tap_iter++) {
-                TapClientConnection *tc = *tap_iter;
-                tapFound = true;
-                if (tc->connected) tapConnected = true;
+            if (clientTap != NULL) {
+                tapPeer.assign(clientTap->peer);
+                if (clientTap->connected) {
+                    if (!tapEnabled) {
+                        repStatus = "stopping";
+                    } else {
+                        repStatus = "running";
+                    }
+                } else if (clientTap->running && tapEnabled) {
+                    repStatus = "connecting";
+                }
             }
+
         }
-        const char *repStatus;
-        if (tapFound) {
-            if (tapConnected && !tapEnabled) repStatus = "stopping";
-            else if (tapConnected) repStatus = "running";
-            else repStatus = "connecting";
-        } else {
-            repStatus = "stopped";
-        }
+        add_casted_stat("ep_replication_peer",
+                        tapPeer.empty()? "none":
+                        tapPeer.c_str(), add_stat, cookie);
         add_casted_stat("ep_replication_status", repStatus, add_stat, cookie);
 
         return ENGINE_SUCCESS;
@@ -1623,42 +1490,29 @@ private:
 
         LockHolder lh(tapMutex);
         bool found = false;
-        std::list<TapClientConnection*>::iterator iter;
-        for (iter = clientTaps.begin(); iter != clientTaps.end(); iter++) {
-            TapClientConnection *tc = *iter;
-            assert(tc->peer == tapPeer);
-            found = true;
-            break;
+        if (clientTap != NULL) {
+            if (clientTap->peer != peer) {
+                delete clientTap;
+            } else {
+                found = true;
+            }
         }
 
         if (!found) {
-            TapClientConnection *tc = new TapClientConnection(peer, flags);
-            clientTaps.push_back(tc);
-            tapConnect(tc);
+            clientTap = new TapClientConnection(peer, flags, this);
+            tapConnect();
         }
     }
 
-    void tapConnect(TapClientConnection *tc) {
-        char *backfill;
-        uint64_t backfillage;
-
-        char *data = new char[sizeof(tap_connection_data_t) + sizeof(backfillage) + 1];
-        tap_connection_data_t *cdata = reinterpret_cast<tap_connection_data_t*>(data);
-
-        cdata->flags = 0;
-        cdata->engine_specific = tc;
-        cdata->nuserdata = 0;
-        cdata->userdata = data + sizeof(tap_connection_data_t);
-
-        if ((backfill = getenv("MEMCACHED_TAP_BACKFILL_AGE")) != NULL) {
-            backfillage = strtoull(backfill, NULL, 10);
-            cdata->flags |= TAP_CONNECT_FLAG_BACKFILL;
-            backfillage = htonll(backfillage);
-            cdata->nuserdata = sizeof(backfillage);
-            memcpy(cdata->userdata, &backfillage, sizeof(backfillage));
+    void tapConnect() {
+        try {
+            tapEnabled = true;
+            clientTap->start();
+        } catch (std::runtime_error &e) {
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                             "Failed to create TAP connection: %s\n",
+                             e.what());
         }
-
-        serverApi->core->tap_connect(tc->peer.c_str(), CONNECTION_TIMEOUT, cdata);
     }
 
     const char *dbname;
@@ -1685,12 +1539,9 @@ private:
     } info;
     GetlExtension *getlExtension;
 
-    std::string tapPeer;
-    std::map<const void*, TapClientConnection*> tapClientConnectionMap;
     Mutex tapMutex;
-    std::list<TapClientConnection*> clientTaps;
+    TapClientConnection* clientTap;
     bool tapEnabled;
-    bool tapRunning;
 };
 
 class BackFillVisitor : public HashTableVisitor {
@@ -1726,3 +1577,5 @@ private:
     std::list<std::string> *queue;
     std::set<std::string> *queue_set;
 };
+
+#endif

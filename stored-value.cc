@@ -3,7 +3,11 @@
 #include <cassert>
 #include "stored-value.hh"
 
-size_t HashTable::defaultNumBuckets = 196613;
+#ifndef DEFAULT_HT_SIZE
+#define DEFAULT_HT_SIZE 12582917
+#endif
+
+size_t HashTable::defaultNumBuckets = DEFAULT_HT_SIZE;
 size_t HashTable::defaultNumLocks = 193;
 
 static inline size_t getDefault(size_t x, size_t d) {
