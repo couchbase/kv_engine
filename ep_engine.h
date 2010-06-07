@@ -57,11 +57,24 @@ extern "C" {
 #define CMD_STOP_REPLICATION 0x91
 #define CMD_SET_TAP_PARAM 0x92
 
-class BoolCallback : public Callback<bool>
-{
+class BoolCallback : public Callback<bool> {
 public:
     virtual void callback(bool &theValue) {
         value = theValue;
+    }
+
+    bool getValue() {
+        return value;
+    }
+
+private:
+    bool value;
+};
+
+class BoolPairCallback : public Callback<std::pair<bool, int64_t> > {
+public:
+    virtual void callback(std::pair<bool, int64_t> &theValue) {
+        value = theValue.first;
     }
 
     bool getValue() {
@@ -518,7 +531,7 @@ public:
                             uint16_t vbucket)
     {
         ENGINE_ERROR_CODE ret;
-        BoolCallback callback;
+        BoolPairCallback callback;
         Item *it = static_cast<Item*>(itm);
         item *i;
 

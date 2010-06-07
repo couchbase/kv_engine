@@ -22,32 +22,37 @@ typedef shared_ptr<const std::string> value_t;
 class Item {
 public:
     Item(const void* k, const size_t nk, const size_t nb,
-         const int fl, const rel_time_t exp, uint64_t theCas = 0) :
-        flags(fl), exptime(exp), cas(theCas)
+         const int fl, const rel_time_t exp, uint64_t theCas = 0,
+         int64_t i = -1) :
+        flags(fl), exptime(exp), cas(theCas), id(i)
     {
         key.assign(static_cast<const char*>(k), nk);
+        assert(id != 0);
         setData(NULL, nb);
     }
 
     Item(const std::string &k, const int fl, const rel_time_t exp,
-         const void *dta, const size_t nb, uint64_t theCas = 0) :
-        flags(fl), exptime(exp), cas(theCas)
+         const void *dta, const size_t nb, uint64_t theCas = 0, int64_t i = -1) :
+        flags(fl), exptime(exp), cas(theCas), id(i)
     {
         key.assign(k);
+        assert(id != 0);
         setData(static_cast<const char*>(dta), nb);
     }
 
     Item(const std::string &k, const int fl, const rel_time_t exp,
-         value_t val, uint64_t theCas = 0) :
-        flags(fl), exptime(exp), value(val), cas(theCas)
+         value_t val, uint64_t theCas = 0, int64_t i = -1) :
+        flags(fl), exptime(exp), value(val), cas(theCas), id(i)
     {
+        assert(id != 0);
         key.assign(k);
     }
 
     Item(const void *k, uint16_t nk, const int fl, const rel_time_t exp,
-         const void *dta, const size_t nb, uint64_t theCas = 0) :
-        flags(fl), exptime(exp), cas(theCas)
+         const void *dta, const size_t nb, uint64_t theCas = 0, int64_t i = -1) :
+        flags(fl), exptime(exp), cas(theCas), id(i)
     {
+        assert(id != 0);
         key.assign(static_cast<const char*>(k), nk);
         setData(static_cast<const char*>(dta), nb);
     }
@@ -64,6 +69,10 @@ public:
 
     const std::string &getKey() const {
         return key;
+    }
+
+    int64_t getId() const {
+        return id;
     }
 
     int getNKey() const {
@@ -150,6 +159,7 @@ private:
     std::string key;
     value_t value;
     uint64_t cas;
+    int64_t id;
 
     static uint64_t nextCas(void) {
         uint64_t ret;

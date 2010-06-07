@@ -21,7 +21,7 @@ public:
     StoredValue(const Item &itm, StoredValue *n) :
         key(itm.getKey()), value(itm.getValue()),
         flags(itm.getFlags()), exptime(itm.getExptime()), dirtied(0), next(n),
-        cas(itm.getCas()), locked(false), lock_expiry(0)
+        cas(itm.getCas()), id(itm.getId()), locked(false), lock_expiry(0)
     {
         markDirty();
     }
@@ -29,7 +29,7 @@ public:
     StoredValue(const Item &itm, StoredValue *n, bool setDirty) :
         key(itm.getKey()), value(itm.getValue()),
         flags(itm.getFlags()), exptime(itm.getExptime()), dirtied(0), next(n),
-        cas(itm.getCas())
+        cas(itm.getCas()), id(itm.getId())
     {
         if (setDirty) {
             markDirty();
@@ -124,6 +124,19 @@ public:
         lock_expiry = 0;
     }
 
+    bool hasId() {
+        return id > 0;
+    }
+
+    int64_t getId() {
+        return id;
+    }
+
+    void setId(int64_t to) {
+        assert(!hasId());
+        id = to;
+    }
+
     bool isLocked(rel_time_t curtime)  {
         if (locked && (curtime > lock_expiry)) {
             locked = false;
@@ -144,6 +157,7 @@ private:
     rel_time_t data_age;
     StoredValue *next;
     uint64_t cas;
+    int64_t id;
     bool locked;
     rel_time_t lock_expiry;
     DISALLOW_COPY_AND_ASSIGN(StoredValue);

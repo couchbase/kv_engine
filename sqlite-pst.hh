@@ -154,6 +154,7 @@ public:
 
     ~Statements() {
         delete ins_stmt;
+        delete upd_stmt;
         delete sel_stmt;
         delete del_stmt;
         delete all_stmt;
@@ -162,6 +163,10 @@ public:
 
     PreparedStatement *ins() {
         return ins_stmt;
+    }
+
+    PreparedStatement *upd() {
+        return upd_stmt;
     }
 
     PreparedStatement *sel() {
@@ -184,20 +189,26 @@ private:
                  "values(?, ?, ?, ?, ?)", tableName.c_str());
         ins_stmt = new PreparedStatement(db, buf);
         snprintf(buf, sizeof(buf),
+                 "update %s set k=?, v=?, flags=?, exptime=?, cas=? "
+                 " where rowid = ?", tableName.c_str());
+        upd_stmt = new PreparedStatement(db, buf);
+        snprintf(buf, sizeof(buf),
                  "select v, flags, exptime, cas "
-                 "from %s where k = ?", tableName.c_str());
+                 "from %s where rowid = ?", tableName.c_str());
         sel_stmt = new PreparedStatement(db, buf);
         snprintf(buf, sizeof(buf),
-                 "select k, v, flags, exptime, cas "
+                 "select k, v, flags, exptime, cas, rowid "
                  "from %s", tableName.c_str());
         all_stmt = new PreparedStatement(db, buf);
-        snprintf(buf, sizeof(buf), "delete from %s where k = ?", tableName.c_str());
+        snprintf(buf, sizeof(buf), "delete from %s where k = ?",
+                 tableName.c_str());
         del_stmt = new PreparedStatement(db, buf);
     }
 
     sqlite3           *db;
     std::string        tableName;
     PreparedStatement *ins_stmt;
+    PreparedStatement *upd_stmt;
     PreparedStatement *sel_stmt;
     PreparedStatement *del_stmt;
     PreparedStatement *all_stmt;

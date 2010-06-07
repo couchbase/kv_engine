@@ -69,7 +69,7 @@ public:
     /**
      * Overrides set().
      */
-    void set(const Item &item, Callback<bool> &cb);
+    void set(const Item &item, Callback<std::pair<bool, int64_t> > &cb);
 
     /**
      * Overrides get().
@@ -96,6 +96,10 @@ private:
         PreparedStatement st(db, query);
         return st.execute();
     }
+
+    void insert(const Item &itm, Callback<std::pair<bool, int64_t> > &cb);
+    void update(const Item &itm, Callback<std::pair<bool, int64_t> > &cb);
+    int64_t lastRowId();
 
     /**
      * Direct access to the DB.

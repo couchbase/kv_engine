@@ -44,7 +44,7 @@ void SqliteStrategy::destroyStatements() {
 void SqliteStrategy::initTables(void) {
     assert(db);
     execute("create table if not exists kv"
-            " (k varchar(250) primary key on conflict replace,"
+            " (k varchar(250), "
             "  v text,"
             "  flags integer,"
             "  exptime integer,"
@@ -89,7 +89,7 @@ void MultiDBSqliteStrategy::initTables() {
         execute(buf);
         snprintf(buf, sizeof(buf),
                  "create table if not exists kv_%d.kv"
-                 " (k varchar(250) primary key on conflict replace,"
+                 " (k varchar(250),"
                  "  v text,"
                  "  flags integer,"
                  "  exptime integer,"

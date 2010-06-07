@@ -83,7 +83,7 @@ public:
 
     ~EventuallyPersistentStore();
 
-    void set(const Item &item, Callback<bool> &cb);
+    void set(const Item &item, Callback<std::pair<bool, int64_t> > &cb);
 
     void get(const std::string &key, Callback<GetValue> &cb);
 

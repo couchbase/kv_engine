@@ -71,7 +71,8 @@ public:
      * @param val the value to set
      * @param cb callback that will fire with true if the set succeeded
      */
-    virtual void set(const Item &item, Callback<bool> &cb) = 0;
+    virtual void set(const Item &item,
+                     Callback<std::pair<bool, int64_t> > &cb) = 0;
 
     /**
      * Get the value for the given key.
