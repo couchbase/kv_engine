@@ -57,11 +57,24 @@ extern "C" {
 #define CMD_STOP_REPLICATION 0x91
 #define CMD_SET_TAP_PARAM 0x92
 
-class BoolCallback : public Callback<bool>
-{
+class BoolCallback : public Callback<bool> {
 public:
     virtual void callback(bool &theValue) {
         value = theValue;
+    }
+
+    bool getValue() {
+        return value;
+    }
+
+private:
+    bool value;
+};
+
+class BoolPairCallback : public Callback<std::pair<bool, int64_t> > {
+public:
+    virtual void callback(std::pair<bool, int64_t> &theValue) {
+        value = theValue.first;
     }
 
     bool getValue() {
@@ -271,7 +284,7 @@ public:
             size_t htBuckets = 0;
             size_t htLocks = 0;
 
-            const int max_items = 10;
+            const int max_items = 11;
             struct config_item items[max_items];
             int ii = 0;
             memset(items, 0, sizeof(items));
@@ -318,6 +331,11 @@ public:
             ++ii;
             items[ii].key = "config_file";
             items[ii].datatype = DT_CONFIGFILE;
+
+            ++ii;
+            items[ii].key = "max_item_size";
+            items[ii].datatype = DT_SIZE;
+            items[ii].value.dt_size = &maxItemSize;
 
             ++ii;
             items[ii].key = NULL;
@@ -414,6 +432,10 @@ public:
                                    const rel_time_t exptime)
     {
         (void)cookie;
+        if (nbytes > maxItemSize) {
+            return ENGINE_E2BIG;
+        }
+
         *item = new Item(key, nkey, nbytes, flags, exptime);
         if (*item == NULL) {
             return ENGINE_ENOMEM;
@@ -506,7 +528,7 @@ public:
                             uint16_t vbucket)
     {
         ENGINE_ERROR_CODE ret;
-        BoolCallback callback;
+        BoolPairCallback callback;
         Item *it = static_cast<Item*>(itm);
         item *i;
 
@@ -1542,6 +1564,7 @@ private:
     Mutex tapMutex;
     TapClientConnection* clientTap;
     bool tapEnabled;
+    size_t maxItemSize;
 };
 
 class BackFillVisitor : public HashTableVisitor {

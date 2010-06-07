@@ -129,12 +129,13 @@ bool EventuallyPersistentStore::resumeFlusher() {
     return true;
 }
 
-void EventuallyPersistentStore::set(const Item &item, Callback<bool> &cb) {
+void EventuallyPersistentStore::set(const Item &item,
+                                    Callback<std::pair<bool, int64_t> > &cb) {
     RCPtr<VBucket> vb = vbuckets.getBucket(item.getVBucketId());
     if (!vb) {
-        bool rv = false;
         cb.setStatus(static_cast<int>(INVALID_VBUCKET));
-        cb.callback(rv);
+        std::pair<bool, int64_t> p(false, 0);
+        cb.callback(p);
         return;
     }
 
@@ -151,7 +152,8 @@ void EventuallyPersistentStore::set(const Item &item, Callback<bool> &cb) {
     }
 
     cb.setStatus((int)mtype);
-    cb.callback(rv);
+    std::pair<bool, int64_t> p(rv, 0);
+    cb.callback(p);
 }
 
 void EventuallyPersistentStore::get(const std::string &key,
@@ -370,7 +372,8 @@ int EventuallyPersistentStore::flushSome(std::queue<QueuedItem> *q,
 // EventuallyPersistentStore::flushOne so that an object can be
 // requeued in case of failure to store in the underlying layer.
 
-class Requeuer : public Callback<bool> {
+class Requeuer : public Callback<std::pair<bool, int64_t> >,
+                 public Callback<bool> {
 public:
 
     Requeuer(const QueuedItem &qi, std::queue<QueuedItem> *q,
@@ -378,6 +381,18 @@ public:
         queuedItem(qi), rq(q), sval(v), queued(qd), dirtied(d), stats(s) {
         assert(rq);
         assert(s);
+    }
+
+    void callback(std::pair<bool, int64_t> &value) {
+        if (value.first && sval != NULL && value.second > 0) {
+            sval->setId(value.second);
+        } else if (!value.first) {
+            stats->flushFailed++;
+            if (sval != NULL) {
+                sval->reDirty(queued, dirtied);
+            }
+            rq->push(queuedItem);
+        }
     }
 
     void callback(bool &value) {
@@ -389,6 +404,7 @@ public:
             rq->push(queuedItem);
         }
     }
+
 private:
     const QueuedItem queuedItem;
     std::queue<QueuedItem> *rq;
@@ -462,7 +478,7 @@ int EventuallyPersistentStore::flushOne(std::queue<QueuedItem> *q,
                                               stats.dataAgeHighWat.get()));
             // Copy it for the duration.
             val = new Item(qi.getKey(), v->getFlags(), v->getExptime(),
-                           v->getValue(), v->getCas());
+                           v->getValue(), v->getCas(), v->getId());
 
             // Consider this persisted as it is our intention, though
             // it may fail and be requeued later.
