@@ -1,4 +1,6 @@
-/* -*- Mode: C; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
+/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
+
+#include <iostream>
 
 #include <assert.h>
 #include <stdio.h>
@@ -33,11 +35,13 @@ bool abort_msg(const char *expr, const char *msg, int line);
 #define check(expr, msg) \
     (expr) ? 0 : abort_msg(#expr, msg, __LINE__)
 
-MEMCACHED_PUBLIC_API
-engine_test_t* get_tests(void);
+extern "C" {
+    MEMCACHED_PUBLIC_API
+    engine_test_t* get_tests(void);
 
-MEMCACHED_PUBLIC_API
-bool setup_suite(struct test_harness *);
+    MEMCACHED_PUBLIC_API
+    bool setup_suite(struct test_harness *);
+}
 
 struct test_harness testHarness;
 
@@ -77,7 +81,8 @@ static ENGINE_ERROR_CODE storeCasVb11(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                       vlen, flags, 3600);
     check(rv == ENGINE_SUCCESS, "Allocation failed.");
 
-    item_info info = { .nvalue = 1 };
+    item_info info;
+    info.nvalue = 1;
     if (!h1->get_item_info(h, it, &info)) {
         abort();
     }
@@ -94,31 +99,14 @@ static ENGINE_ERROR_CODE storeCasVb11(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     return rv;
 }
 
-static ENGINE_ERROR_CODE storeCasVb(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                                    const void *cookie,
-                                    ENGINE_STORE_OPERATION op,
-                                    const char *key, const char *value,
-                                    item **outitem, uint64_t casIn,
-                                    uint16_t vb) {
-    return storeCasVb11(h, h1, cookie, op, key, value, strlen(value), 9258,
-                        outitem, casIn, vb);
-
-}
-
-static ENGINE_ERROR_CODE storeCas(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                                  const void *cookie,
-                                  ENGINE_STORE_OPERATION op,
-                                  const char *key, const char *value,
-                                  item **outitem, uint64_t casIn) {
-    return storeCasVb(h, h1, cookie, op, key, value, outitem, casIn, 0);
-}
-
 static ENGINE_ERROR_CODE store(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                const void *cookie,
                                ENGINE_STORE_OPERATION op,
                                const char *key, const char *value,
-                               item **outitem) {
-    return storeCas(h, h1, cookie, op, key, value, outitem, 0);
+                               item **outitem, uint64_t casIn = 0,
+                               uint16_t vb = 0) {
+    return storeCasVb11(h, h1, cookie, op, key, value, strlen(value),
+                        9258, outitem, casIn, vb);
 }
 
 
@@ -154,13 +142,14 @@ static enum test_result check_key_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     check(h1->get(h, NULL, &i, key, strlen(key), 0) == ENGINE_SUCCESS,
           "Failed to get in check_key_value");
 
-    item_info info = { .nvalue = 1 };
+    item_info info;
+    info.nvalue = 1;
     check(h1->get_item_info(h, i, &info), "check_key_value");
 
     assert(info.nvalue == 1);
     if (vlen != info.value[0].iov_len) {
-        fprintf(stderr, "Expected length %zd, got %zd\n",
-                vlen, info.value[0].iov_len);
+        std::cerr << "Expected length " << vlen
+                  << " got " << info.value[0].iov_len << std::endl;
         check(vlen == info.value[0].iov_len, "Length mismatch.");
     }
 
@@ -172,13 +161,13 @@ static enum test_result check_key_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 static enum test_result test_wrong_vb_mutation(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                                ENGINE_STORE_OPERATION op) {
     item *i = NULL;
-    check(storeCasVb(h, h1, "cookie", op,
-                     "key", "somevalue", &i, 11, 1) == ENGINE_NOT_MY_VBUCKET,
+    check(store(h, h1, "cookie", op,
+                "key", "somevalue", &i, 11, 1) == ENGINE_NOT_MY_VBUCKET,
         "Expected not_my_vbucket");
     return SUCCESS;
 }
 
-protocol_binary_response_status last_status = 0;
+protocol_binary_response_status last_status(static_cast<protocol_binary_response_status>(0));
 char *last_key = NULL;
 char *last_body = NULL;
 
@@ -192,13 +181,13 @@ static bool add_response(const void *key, uint16_t keylen,
     (void)datatype;
     (void)cas;
     (void)cookie;
-    last_status = status;
+    last_status = static_cast<protocol_binary_response_status>(status);
     if (last_body) {
         free(last_body);
         last_body = NULL;
     }
     if (bodylen > 0) {
-        last_body = calloc(1, bodylen + 1);
+        last_body = static_cast<char*>(malloc(bodylen));
         assert(last_body);
         memcpy(last_body, body, bodylen);
     }
@@ -207,18 +196,20 @@ static bool add_response(const void *key, uint16_t keylen,
         last_key = NULL;
     }
     if (keylen > 0) {
-        last_key = calloc(1, keylen + 1);
+        last_key = static_cast<char*>(malloc(keylen));
         assert(last_key);
         memcpy(last_key, key, keylen);
     }
     return true;
 }
 
-static void* create_packet(uint8_t opcode, const char *key, const char *val) {
-    char *pkt_raw = calloc(1,
-                           sizeof(protocol_binary_request_header)
-                           + strlen(key)
-                           + strlen(val));
+static protocol_binary_request_header* create_packet(uint8_t opcode,
+                                                     const char *key,
+                                                     const char *val) {
+    char *pkt_raw = static_cast<char*>(calloc(1,
+                                              sizeof(protocol_binary_request_header)
+                                              + strlen(key)
+                                              + strlen(val)));
     assert(pkt_raw);
     protocol_binary_request_header *req =
         (protocol_binary_request_header*)pkt_raw;
@@ -229,7 +220,7 @@ static void* create_packet(uint8_t opcode, const char *key, const char *val) {
            key, strlen(key));
     memcpy(pkt_raw + sizeof(protocol_binary_request_header) + strlen(key),
            val, strlen(val));
-    return pkt_raw;
+    return req;
 }
 
 static bool set_vbucket_state(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
@@ -237,7 +228,7 @@ static bool set_vbucket_state(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     char vbid[8];
     snprintf(vbid, sizeof(vbid), "%d", vb);
 
-    void *pkt = create_packet(CMD_SET_VBUCKET, vbid, state);
+    protocol_binary_request_header *pkt = create_packet(CMD_SET_VBUCKET, vbid, state);
     if (h1->unknown_command(h, "cookie", pkt, add_response) != ENGINE_SUCCESS) {
         return false;
     }
@@ -250,16 +241,19 @@ static bool verify_vbucket_state(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     char vbid[8];
     snprintf(vbid, sizeof(vbid), "%d", vb);
 
-    void *pkt = create_packet(CMD_GET_VBUCKET, vbid, "");
-    if (h1->unknown_command(h, "cookie", pkt, add_response) != ENGINE_SUCCESS) {
+    protocol_binary_request_header *pkt = create_packet(CMD_GET_VBUCKET, vbid, "");
+    ENGINE_ERROR_CODE errcode = h1->unknown_command(h, "cookie", pkt, add_response);
+    if (errcode != ENGINE_SUCCESS) {
+        fprintf(stderr, "Error code when getting vbucket %d\n", errcode);
         return false;
     }
 
     if (last_status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+        fprintf(stderr, "Last protocol status was %d\n", last_status);
         return false;
     }
 
-    return strcmp(expected, last_key) == 0;
+    return strncmp(expected, last_key, strlen(expected)) == 0;
 }
 
 static bool verify_vbucket_missing(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
@@ -267,7 +261,7 @@ static bool verify_vbucket_missing(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     char vbid[8];
     snprintf(vbid, sizeof(vbid), "%d", vb);
 
-    void *pkt = create_packet(CMD_GET_VBUCKET, vbid, "");
+    protocol_binary_request_header *pkt = create_packet(CMD_GET_VBUCKET, vbid, "");
     if (h1->unknown_command(h, "cookie", pkt, add_response) != ENGINE_SUCCESS) {
         return false;
     }
@@ -344,11 +338,12 @@ static enum test_result test_cas(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(h1->get(h, NULL, &i, "key", 3, 0) == ENGINE_SUCCESS,
           "Failed to get value.");
 
-    item_info info = { .nvalue = 1 };
+    item_info info;
+    info.nvalue = 1;
     check(h1->get_item_info(h, i, &info), "Failed to get item info.");
 
-    check(storeCas(h, h1, "cookie", OPERATION_CAS, "key", "winCas", &i,
-                   info.cas) == ENGINE_SUCCESS,
+    check(store(h, h1, "cookie", OPERATION_CAS, "key", "winCas", &i,
+                info.cas) == ENGINE_SUCCESS,
           "Failed to store CAS");
     check_key_value(h, h1, "key", "winCas", 6);
     return SUCCESS;
