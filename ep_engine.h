@@ -135,6 +135,29 @@ private:
 };
 
 /**
+ * The tap stream may include other events than data mutation events,
+ * but the data structures in the TapConnection does only store a key
+ * for the item to store. We don't want to add more data to those elements,
+ * because that could potentially consume a lot of memory (the tap queue
+ * may have a lot of elements).
+ */
+class TapVBucketEvent {
+public:
+    /**
+     * Create a new instance of the TapVBucketEvent and initialize
+     * its members.
+     * @param ev Type of event
+     * @param b The bucket this event belongs to
+     * @param s The state change for this event
+     */
+    TapVBucketEvent(tap_event_t ev, uint16_t b, vbucket_state_t s) :
+        event(ev), vbucket(b), state(s) {}
+    tap_event_t event;
+    uint16_t vbucket;
+    vbucket_state_t state;
+};
+
+/**
  * Class used by the EventuallyPersistentEngine to keep track of all
  * information needed per Tap connection.
  */
@@ -144,20 +167,25 @@ friend class BackFillVisitor;
 private:
     /**
      * Add a new item to the tap queue.
+     * The item may be ignored if the TapConnection got a vbucket filter
+     * associated and the item's vbucket isn't part of the filter.
+     *
      * @return true if the the queue was empty
      */
-    bool addEvent(Item *it, uint16_t vbid) {
-        return addEvent(it->getKey(), vbid);
-    }
-
     bool addEvent(const QueuedItem &it) {
-        bool wasEmpty = queue->empty();
-        std::pair<std::set<QueuedItem>::iterator, bool> ret;
-        ret = queue_set->insert(it);
-        if (ret.second) {
-            queue->push_back(it);
+        if (vbucketFilter.size() == 0 || find(vbucketFilter.begin(),
+                                              vbucketFilter.end(),
+                                              it.getVBucketId()) != vbucketFilter.end()) {
+            bool wasEmpty = queue->empty();
+            std::pair<std::set<QueuedItem>::iterator, bool> ret;
+            ret = queue_set->insert(it);
+            if (ret.second) {
+                queue->push_back(it);
+            }
+            return wasEmpty;
+        } else {
+            return queue->empty();
         }
-        return wasEmpty;
     }
 
     /**
@@ -175,6 +203,51 @@ private:
         queue_set->erase(qi);
         ++recordsFetched;
         return qi;
+    }
+
+    /**
+     * Add a new high priority TapVBucketEvent to this TapConnection. A high
+     * priority TapVBucketEvent will bypass the the normal queue of events to
+     * be sent to the client, and be sent the next time it is possible to
+     * send data over the tap connection.
+     */
+    void addVBucketHighPriority(TapVBucketEvent &ev) {
+        vBucketHighPriority.push(ev);
+    }
+
+    /**
+     * Get the next high priority TapVBucketEvent for this TapConnection.
+     */
+    TapVBucketEvent nextVBucketHighPriority() {
+        TapVBucketEvent ret(TAP_PAUSE, 0, active);
+        if (!vBucketHighPriority.empty()) {
+            ret = vBucketHighPriority.front();
+            vBucketHighPriority.pop();
+            ++recordsFetched;
+        }
+        return ret;
+    }
+
+    /**
+     * Add a new low priority TapVBucketEvent to this TapConnection. A low
+     * priority TapVBucketEvent will only be sent when the tap connection
+     * doesn't have any other events to send.
+     */
+    void addVBucketLowPriority(TapVBucketEvent &ev) {
+        vBucketLowPriority.push(ev);
+    }
+
+    /**
+     * Get the next low priority TapVBucketEvent for this TapConnection.
+     */
+    TapVBucketEvent nextVBucketLowPriority() {
+        TapVBucketEvent ret(TAP_PAUSE, 0, active);
+        if (!vBucketLowPriority.empty()) {
+            ret = vBucketLowPriority.front();
+            vBucketLowPriority.pop();
+            ++recordsFetched;
+        }
+        return ret;
     }
 
     bool empty() {
@@ -219,7 +292,8 @@ private:
         client(n), queue(NULL), queue_set(NULL), flags(f),
         recordsFetched(0), pendingFlush(false), expiry_time((rel_time_t)-1),
         reconnects(0), connected(true), paused(false), backfillAge(0),
-        doRunBackfill(false), pendingBackfill(true)
+        doRunBackfill(false), pendingBackfill(true), vbucketFilter(),
+        vBucketHighPriority(), vBucketLowPriority()
     {
         queue = new std::list<QueuedItem>;
         queue_set = new std::set<QueuedItem>;
@@ -302,6 +376,20 @@ private:
 
     // True until a backfill has dumped all the content.
     bool pendingBackfill;
+
+    /**
+     * Filter for the buckets we want (0 entries == all buckets)
+     */
+    std::vector<uint16_t> vbucketFilter;
+
+    /**
+     * VBucket status messages immediately (before userdata)
+     */
+    std::queue<TapVBucketEvent> vBucketHighPriority;
+    /**
+     * VBucket status messages sent when there is nothing else to send
+     */
+    std::queue<TapVBucketEvent> vBucketLowPriority;
 
     DISALLOW_COPY_AND_ASSIGN(TapConnection);
 };
@@ -784,6 +872,13 @@ public:
         *seqno = 0;
         *flags = 0;
 
+        TapVBucketEvent ev = connection->nextVBucketHighPriority();
+        if (ev.event != TAP_PAUSE) {
+            *vbucket = ev.vbucket;
+            *flags = static_cast<uint16_t>(ev.state);
+            return ev.event;
+        }
+
         if (!connection->empty()) {
             QueuedItem qi = connection->next();
             lh.unlock();
@@ -814,6 +909,16 @@ public:
         }
 
         if (ret == TAP_PAUSE && connection->complete()) {
+            ev = connection->nextVBucketLowPriority();
+            if (ev.event != TAP_PAUSE) {
+                *vbucket = ev.vbucket;
+                *flags = static_cast<uint16_t>(ev.state);
+                if (ev.state == active) {
+                    epstore->setVBucketState(ev.vbucket, dead);
+                }
+                return ev.event;
+            }
+
             ret = TAP_DISCONNECT;
         }
 
@@ -871,6 +976,38 @@ public:
             tap = NULL;
         }
 
+        // Start decoding the userdata section of the packet...
+        const char *ptr = static_cast<const char*>(userdata);
+        uint64_t backfillAge = 0;
+        std::vector<uint16_t> vbuckets;
+
+        if (flags & TAP_CONNECT_FLAG_BACKFILL) { /* */
+            assert(nuserdata >= sizeof(backfillAge));
+            // use memcpy to avoid alignemt issues
+            memcpy(&backfillAge, ptr, sizeof(backfillAge));
+            backfillAge = ntohll(backfillAge);
+            nuserdata -= sizeof(backfillAge);
+            ptr += sizeof(backfillAge);
+        }
+
+        if (flags & TAP_CONNECT_FLAG_LIST_VBUCKETS) {
+            uint16_t nvbuckets;
+            assert(nuserdata >= sizeof(nvbuckets));
+            memcpy(&nvbuckets, ptr, sizeof(nvbuckets));
+            nuserdata -= sizeof(nvbuckets);
+            ptr += sizeof(nvbuckets);
+            nvbuckets = ntohs(nvbuckets);
+            if (nvbuckets > 0) {
+                assert(nuserdata >= (sizeof(uint16_t) * nvbuckets));
+                for (uint16_t ii = 0; ii < nvbuckets; ++ii) {
+                    uint16_t val;
+                    memcpy(&val, ptr, sizeof(nvbuckets));
+                    ptr += sizeof(uint16_t);
+                    vbuckets.push_back(ntohs(val));
+                }
+            }
+        }
+
         // @todo ensure that we don't have this client alredy
         // if so this should be a reconnect...
         if (tap == NULL) {
@@ -878,11 +1015,8 @@ public:
             allTaps.push_back(tc);
             tapConnectionMap[cookie] = tc;
 
-            if (flags & TAP_CONNECT_FLAG_BACKFILL) { /* */
-                uint64_t age;
-                assert(nuserdata >= sizeof(age));
-                memcpy(&age, userdata, sizeof(age));
-                tc->backfillAge = ntohll(age);
+            if (flags & TAP_CONNECT_FLAG_BACKFILL) {
+                tc->backfillAge = backfillAge;
             }
 
             if (tc->backfillAge < (uint64_t)time(NULL)) {
@@ -890,7 +1024,21 @@ public:
                 tc->pendingBackfill = true;
             }
 
+            if (flags & TAP_CONNECT_FLAG_LIST_VBUCKETS) {
+                tc->vbucketFilter = vbuckets;
+            }
+
             tc->dumpQueue = flags & TAP_CONNECT_FLAG_DUMP;
+           if (flags & TAP_CONNECT_FLAG_TAKEOVER_VBUCKETS) {
+               for (std::vector<uint16_t>::iterator it = vbuckets.begin();
+                    it != vbuckets.end(); ++it) {
+                   TapVBucketEvent hi(TAP_VBUCKET_SET, *it, pending);
+                   TapVBucketEvent lo(TAP_VBUCKET_SET, *it, active);
+                   tc->addVBucketHighPriority(hi);
+                   tc->addVBucketLowPriority(lo);
+               }
+               tc->dumpQueue = true;
+           }
         } else {
             tapConnectionMap[cookie] = tap;
             tap->connected = true;
@@ -951,6 +1099,16 @@ public:
         }
 
         case TAP_OPAQUE:
+            break;
+
+        case TAP_VBUCKET_SET:
+            {
+                vbucket_state_t state = static_cast<vbucket_state_t>(tap_flags);
+                epstore->setVBucketState(vbucket, state);
+                if (state == active) {
+                    return ENGINE_DISCONNECT;
+                }
+            }
             break;
 
         default:
