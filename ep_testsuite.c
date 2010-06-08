@@ -5,11 +5,28 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <netinet/in.h>
+
+#ifdef HAS_ARPA_INET_H
+#include <arpa/inet.h>
+#endif
 
 #include <memcached/engine.h>
 #include <memcached/engine_testapp.h>
 
 #include "command_ids.h"
+
+#ifdef linux
+/* /usr/include/netinet/in.h defines macros from ntohs() to _bswap_nn to
+ * optimize the conversion functions, but the prototypes generate warnings
+ * from gcc. The conversion methods isn't the bottleneck for my app, so
+ * just remove the warnings by undef'ing the optimization ..
+ */
+#undef ntohs
+#undef ntohl
+#undef htons
+#undef htonl
+#endif
 
 bool abort_msg(const char *expr, const char *msg, int line);
 
