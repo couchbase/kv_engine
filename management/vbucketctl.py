@@ -1,13 +1,6 @@
 #!/usr/bin/env python
 
-import sys
-
-import mc_bin_client
-
-def usage():
-    print >> sys.stderr, "Usage: %s host:port list" % sys.argv[0]
-    print >> sys.stderr, "  or   %s host:port set [vbid] [vbstate]" % sys.argv[0]
-    sys.exit(1)
+import clitool
 
 def listvb(mc):
     vbs = mc.stats('vbucket')
@@ -16,19 +9,9 @@ def listvb(mc):
 
 if __name__ == '__main__':
 
-    try:
-        hp, cmd = sys.argv[1:3]
-        host, port = hp.split(':')
-        port = int(port)
-    except ValueError:
-        usage()
+    c = clitool.CliTool()
 
-    mc = mc_bin_client.MemcachedClient(host, port)
-    f = {'list': lambda: listvb(mc),
-         'set': mc.set_vbucket_state}.get(cmd)
+    c.addCommand('list', listvb)
+    c.addCommand('set', 'set_vbucket_state', 'set [vbid] [vbstate]')
 
-    if not f:
-        usage()
-
-    print "Issuing %s command" % cmd
-    f(*sys.argv[3:])
+    c.execute()
