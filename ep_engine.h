@@ -659,6 +659,9 @@ public:
                         }
 
                         ret = store(cookie, old, cas, OPERATION_CAS, vbucket);
+                        if (ret == ENGINE_SUCCESS) {
+                            addMutationEvent(static_cast<Item*>(i), vbucket);
+                        }
                         itemRelease(cookie, i);
                     }
                 } while (ret == ENGINE_KEY_EEXISTS);
