@@ -926,8 +926,7 @@ public:
         case TAP_DELETION:
         {
             std::string k(static_cast<const char*>(key), nkey);
-            // TODO:  Get vbucket ID here.
-            return itemDelete(cookie, k, 0);
+            return itemDelete(cookie, k, vbucket);
         }
 
         case TAP_MUTATION:
