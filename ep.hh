@@ -106,7 +106,7 @@ private:
 class EventuallyPersistentStore : public KVStore {
 public:
 
-    EventuallyPersistentStore(KVStore *t, size_t est=32768);
+    EventuallyPersistentStore(KVStore *t, bool startVb0);
 
     ~EventuallyPersistentStore();
 
@@ -224,7 +224,6 @@ private:
     friend class Flusher;
     bool                       doPersistence;
     KVStore                   *underlying;
-    size_t                     est_size;
     Dispatcher                *dispatcher;
     Flusher                   *flusher;
     VBucketMap                 vbuckets;

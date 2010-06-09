@@ -544,7 +544,7 @@ EXTENSION_LOGGER_DESCRIPTOR *getLogger(void) {
 
 EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server_api) :
     dbname("/tmp/test.db"), initFile(NULL), warmup(true), wait_for_warmup(true),
-    sqliteDb(NULL), epstore(NULL), databaseInitTime(0), shutdown(false),
+    startVb0(true), sqliteDb(NULL), epstore(NULL), databaseInitTime(0), shutdown(false),
     getServerApi(get_server_api), tapEnabled(false), maxItemSize(20*1024*1024)
 {
     interface.interface = 1;

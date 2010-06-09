@@ -410,7 +410,7 @@ public:
             size_t htBuckets = 0;
             size_t htLocks = 0;
 
-            const int max_items = 11;
+            const int max_items = 12;
             struct config_item items[max_items];
             int ii = 0;
             memset(items, 0, sizeof(items));
@@ -433,6 +433,11 @@ public:
             items[ii].key = "waitforwarmup";
             items[ii].datatype = DT_BOOL;
             items[ii].value.dt_bool = &wait_for_warmup;
+
+            ++ii;
+            items[ii].key = "vb0";
+            items[ii].datatype = DT_BOOL;
+            items[ii].value.dt_bool = &startVb0;
 
             ++ii;
             items[ii].key = "tap_keepalive";
@@ -502,7 +507,7 @@ public:
             }
 
             databaseInitTime = time(NULL) - start;
-            backend = epstore = new EventuallyPersistentStore(sqliteDb);
+            backend = epstore = new EventuallyPersistentStore(sqliteDb, startVb0);
 
             if (backend == NULL) {
                 ret = ENGINE_ENOMEM;
@@ -1753,6 +1758,7 @@ private:
     const char *initFile;
     bool warmup;
     bool wait_for_warmup;
+    bool startVb0;
     SERVER_HANDLE_V1 *serverApi;
     KVStore *backend;
     StrategicSqlite3 *sqliteDb;

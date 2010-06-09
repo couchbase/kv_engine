@@ -38,10 +38,9 @@ private:
 };
 
 EventuallyPersistentStore::EventuallyPersistentStore(KVStore *t,
-                                                     size_t est) :
+                                                     bool startVb0) :
     loadStorageKVPairCallback(vbuckets, stats)
 {
-    est_size = est;
     stats.min_data_age.set(DEFAULT_MIN_DATA_AGE);
     stats.queue_age_cap.set(DEFAULT_MIN_DATA_AGE_CAP);
 
@@ -53,8 +52,10 @@ EventuallyPersistentStore::EventuallyPersistentStore(KVStore *t,
 
     underlying = t;
 
-    RCPtr<VBucket> vb(new VBucket(0, active));
-    vbuckets.addBucket(vb);
+    if (startVb0) {
+        RCPtr<VBucket> vb(new VBucket(0, active));
+        vbuckets.addBucket(vb);
+    }
 
     startDispatcher();
     startFlusher();

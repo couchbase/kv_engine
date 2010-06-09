@@ -621,6 +621,11 @@ static enum test_result test_tap_rcvr_mutate(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 
     return SUCCESS;
 }
 
+static enum test_result test_novb0(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    check(verify_vbucket_missing(h, h1, 0), "vb0 existed and shouldn't have.");
+    return SUCCESS;
+}
+
 engine_test_t* get_tests(void) {
     static engine_test_t tests[]  = {
         // basic tests
@@ -656,6 +661,7 @@ engine_test_t* get_tests(void) {
         {"test wrong vbucket prepend", test_wrong_vb_prepend, NULL, teardown, NULL},
         {"test wrong vbucket del", test_wrong_vb_del, NULL, teardown, NULL},
         // Vbucket management tests
+        {"no vb0 at startup", test_novb0, NULL, teardown, "vb0=false"},
         {"test vbucket get", test_vbucket_get, NULL, teardown, NULL},
         {"test vbucket get missing", test_vbucket_get_miss, NULL, teardown, NULL},
         {"test vbucket create", test_vbucket_create, NULL, teardown, NULL},
