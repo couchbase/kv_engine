@@ -140,12 +140,16 @@ void EventuallyPersistentStore::set(const Item &item,
         return;
     }
 
+    bool cas_op = (item.getCas() != 0);
+
     mutation_type_t mtype = vb->ht.set(item);
     bool rv = true;
 
-    if (mtype == INVALID_CAS || mtype == IS_LOCKED) {
+    if (mtype == INVALID_CAS || mtype == IS_LOCKED ||
+        (cas_op != 0 && mtype == NOT_FOUND)) {
         rv = false;
     } else if (mtype == WAS_CLEAN || mtype == NOT_FOUND) {
+
         queueDirty(item.getKey(), item.getVBucketId());
         if (mtype == NOT_FOUND) {
             stats.curr_items++;

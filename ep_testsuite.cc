@@ -355,6 +355,11 @@ static enum test_result test_cas(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                 info.cas) == ENGINE_SUCCESS,
           "Failed to store CAS");
     check_key_value(h, h1, "key", "winCas", 6);
+
+    uint64_t cval = 99999;
+    check(store(h, h1, "cookie", OPERATION_CAS, "non-existing", "winCas", &i,
+                cval) == ENGINE_KEY_ENOENT,
+          "CAS for non-existing key returned the wrong error code");
     return SUCCESS;
 }
 

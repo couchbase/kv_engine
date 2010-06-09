@@ -690,7 +690,12 @@ public:
                 } else if (callback.getStatus() == INVALID_VBUCKET) {
                     ret = ENGINE_NOT_MY_VBUCKET;
                 } else {
-                    ret = ENGINE_KEY_EEXISTS;
+                    if (operation == OPERATION_CAS &&
+                        ((mutation_type_t)callback.getStatus() == NOT_FOUND)) {
+                        ret = ENGINE_KEY_ENOENT;
+                    } else {
+                        ret = ENGINE_KEY_EEXISTS;;
+                    }
                 }
                 break;
 

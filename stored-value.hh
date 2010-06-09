@@ -263,7 +263,7 @@ public:
                         itm.getCas());
         } else {
             if (itm.getCas() != 0) {
-                return INVALID_CAS;
+                return NOT_FOUND;
             }
             itm.setCas();
             v = new StoredValue(itm, values[bucket_num]);
