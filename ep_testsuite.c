@@ -462,6 +462,7 @@ engine_test_t* get_tests(void) {
         {"stats", NULL, NULL, teardown, NULL},
         {"stats key", NULL, NULL, teardown, NULL},
         {"stats vkey", NULL, NULL, teardown, NULL},
+        // tap tests
         // restart tests
         {"test restart", test_restart, NULL, teardown, NULL},
         {"set+get+restart+hit (bin)", test_restart_bin_val, NULL, teardown, NULL},
