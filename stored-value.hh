@@ -295,6 +295,11 @@ public:
         StoredValue *v = values[bucket_num];
         while (v) {
             if (key.compare(v->key) == 0) {
+                // check the expiry time
+                if (v->getExptime() != 0 && v->getExptime() < ep_current_time()) {
+                    (void)unlocked_del(key, bucket_num);
+                    return NULL;
+                }
                 return v;
             }
             v = v->next;
@@ -326,12 +331,17 @@ public:
         return mutexes[lock_num];
     }
 
-    // True if it existed
-    bool del(const std::string &key) {
+    /**
+     * Delete a key from the cache without trying to lock the cache first
+     * (Please note that you <b>MUST</b> acquire the mutex before calling
+     * this function!!!
+     *
+     * @param key the key to delete
+     * @param bucket_num the bucket to look in (must already be locked)
+     * @return true if an object was deleted, false otherwise
+     */
+    bool unlocked_del(const std::string &key, int bucket_num) {
         assert(active);
-        int bucket_num = bucket(key);
-        LockHolder lh(getMutex(bucket_num));
-
         StoredValue *v = values[bucket_num];
 
         // Special case empty bucket.
@@ -366,6 +376,14 @@ public:
         }
 
         return false;
+    }
+
+    // True if it existed
+    bool del(const std::string &key) {
+        assert(active);
+        int bucket_num = bucket(key);
+        LockHolder lh(getMutex(bucket_num));
+        return unlocked_del(key, bucket_num);
     }
 
     void visit(HashTableVisitor &visitor);

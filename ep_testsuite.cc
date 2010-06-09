@@ -558,6 +558,28 @@ static enum test_result test_wrong_vb_del(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     return SUCCESS;
 }
 
+static enum test_result test_expiry(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    const char *key = "test_expiry";
+
+    item *it = NULL;
+
+    ENGINE_ERROR_CODE rv;
+    rv = h1->allocate(h, NULL, &it, key, strlen(key), 10, 0, 1);
+    check(rv == ENGINE_SUCCESS, "Allocation failed.");
+
+    uint64_t cas = 0;
+    rv = h1->store(h, NULL, it, &cas, OPERATION_SET, 0);
+    check(rv == ENGINE_SUCCESS, "Set failed.");
+
+    h1->release(h, NULL, it);
+    sleep(2);
+
+    check(h1->get(h, NULL, &it, key, strlen(key), 0) == ENGINE_KEY_ENOENT,
+          "Item didn't expire");
+
+    return SUCCESS;
+}
+
 static enum test_result test_alloc_limit(ENGINE_HANDLE *h,
                                          ENGINE_HANDLE_V1 *h1) {
     item *it = NULL;
@@ -647,6 +669,7 @@ engine_test_t* get_tests(void) {
         {"incr with default", test_incr_default, NULL, teardown, NULL},
         {"delete", test_delete, NULL, teardown, NULL},
         {"flush", test_flush, NULL, teardown, NULL},
+        {"expiry", test_expiry, NULL, teardown, NULL},
         // Stats tests
         {"stats", NULL, NULL, teardown, NULL},
         {"stats key", NULL, NULL, teardown, NULL},
