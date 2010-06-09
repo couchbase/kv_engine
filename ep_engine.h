@@ -1085,11 +1085,19 @@ public:
         case TAP_MUTATION:
         {
             // We don't get the trailing CRLF in tap mutation but should store it
-            // to satisfy memcached expectations. Allocate the Item object with
-            // two extra bytes and copy CRLF there.
+            // to satisfy memcached expectations.
+            //
+            // We do this by manually constructing the item using its
+            // value_t constructor to reduce memory copies as much as
+            // possible.
 
-            Item *item = new Item(key, (uint16_t)nkey, flags, exptime, data, ndata + 2);
-            memcpy((char*)item->getData() + item->getNBytes() - 2, "\r\n", 2);
+            std::string k(static_cast<const char *>(key), nkey);
+            shared_ptr<std::string> s(new std::string);
+            s->reserve(ndata+2);
+            s->append(static_cast<const char*>(data), ndata);
+            s->append("\r\n");
+
+            Item *item = new Item(k, flags, exptime, s);
 
             /* @TODO we don't have CAS now.. we might in the future.. */
             (void)cas;

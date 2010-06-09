@@ -1,6 +1,7 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 
 #include <iostream>
+#include <sstream>
 
 #include <assert.h>
 #include <stdio.h>
@@ -137,7 +138,9 @@ static bool get_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 
 static enum test_result check_key_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                         const char* key,
-                                        const char* val, size_t vlen) {
+                                        const char* val, size_t vlen,
+                                        bool checkcrlf = false) {
+    int crlfOffset = checkcrlf ? 2 : 0;
     item *i = NULL;
     check(h1->get(h, NULL, &i, key, strlen(key), 0) == ENGINE_SUCCESS,
           "Failed to get in check_key_value");
@@ -147,13 +150,19 @@ static enum test_result check_key_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     check(h1->get_item_info(h, i, &info), "check_key_value");
 
     assert(info.nvalue == 1);
-    if (vlen != info.value[0].iov_len) {
-        std::cerr << "Expected length " << vlen
+    if (vlen + crlfOffset != info.value[0].iov_len) {
+        std::cerr << "Expected length " << vlen + crlfOffset
                   << " got " << info.value[0].iov_len << std::endl;
-        check(vlen == info.value[0].iov_len, "Length mismatch.");
+        check(vlen + crlfOffset == info.value[0].iov_len, "Length mismatch.");
     }
 
-    check(memcmp(info.value[0].iov_base, val, vlen) == 0, "Data mismatch");
+    check(memcmp(info.value[0].iov_base, val, vlen) == 0,
+          "Data mismatch");
+
+    if (checkcrlf) {
+        const char *s = static_cast<const char*>(info.value[0].iov_base);
+        check(memcmp(s + vlen, "\r\n", 2) == 0, "missing crlf");
+    }
 
     return SUCCESS;
 }
@@ -593,6 +602,25 @@ static enum test_result test_vbucket_destroy(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 
     return verify_vbucket_missing(h, h1, 0) ? SUCCESS : FAIL;
 }
 
+static enum test_result test_tap_rcvr_mutate(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    char eng_specific[64];
+    memset(eng_specific, 0, sizeof(eng_specific));
+    for (size_t i = 0; i < 8192; ++i) {
+        char *data = static_cast<char *>(malloc(i));
+        memset(data, 'x', i);
+        check(h1->tap_notify(h, "cookie", eng_specific, sizeof(eng_specific),
+                             1, 0, TAP_MUTATION, 1, "key", 3, 828, 0, 0,
+                             data, i, 0) == ENGINE_SUCCESS,
+              "Failed tap notify.");
+        std::stringstream ss;
+        ss << "failed key at " << i;
+        check(check_key_value(h, h1, "key", data, i, true) == SUCCESS,
+              ss.str().c_str());
+        free(data);
+    }
+    return SUCCESS;
+}
+
 engine_test_t* get_tests(void) {
     static engine_test_t tests[]  = {
         // basic tests
@@ -613,6 +641,8 @@ engine_test_t* get_tests(void) {
         {"stats", NULL, NULL, teardown, NULL},
         {"stats key", NULL, NULL, teardown, NULL},
         {"stats vkey", NULL, NULL, teardown, NULL},
+        // tap tests
+        {"tap receiver mutation", test_tap_rcvr_mutate, NULL, teardown, NULL},
         // restart tests
         {"test restart", test_restart, NULL, teardown, NULL},
         {"set+get+restart+hit (bin)", test_restart_bin_val, NULL, teardown, NULL},
