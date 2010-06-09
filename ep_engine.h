@@ -1067,7 +1067,9 @@ public:
         (void)tap_flags;
         (void)tap_seqno;
 
-        if (!tapEnabled) {
+        // If cookie is null, this is the internal tap client, so we
+        // should disconnect it if tap isn't enabled.
+        if (!cookie && !tapEnabled) {
             return ENGINE_DISCONNECT;
         }
 
