@@ -41,6 +41,7 @@ libsqlite3_la_CFLAGS = $(AM_CFLAGS) ${NO_WERROR}
 check_PROGRAMS=atomic_test atomic_ptr_test atomic_queue_test hash_table_test priority_test vbucket_test dispatcher_test misc_test
 TESTS=${check_PROGRAMS}
 
+ep_testsuite_la_CFLAGS = $(AM_CFLAGS) ${NO_WERROR}
 ep_testsuite_la_SOURCES= ep_testsuite.cc
 ep_testsuite_la_LDFLAGS= -module -dynamic
 
