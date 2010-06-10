@@ -1,13 +1,15 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
-#include "ep.hh"
-#include "flusher.hh"
-#include "locks.hh"
-#include "dispatcher.hh"
 
 #include <vector>
 #include <time.h>
 #include <string.h>
 #include <iostream>
+
+#include "ep.hh"
+#include "flusher.hh"
+#include "locks.hh"
+#include "dispatcher.hh"
+#include "sqlite-kvstore.hh"
 
 extern "C" {
     static rel_time_t uninitialized_current_time(void) {
@@ -20,7 +22,7 @@ extern "C" {
 
 class GetCallback : public DispatcherCallback {
 public:
-    GetCallback(KVStore *kvs, const std::string &k,
+    GetCallback(StrategicSqlite3 *kvs, const std::string &k,
                 uint16_t vbid, shared_ptr<Callback<GetValue> > cb) :
         store(kvs), key(k), vbucket(vbid), _callback(cb) {}
 
@@ -31,13 +33,13 @@ public:
     }
 
 private:
-    KVStore *store;
+    StrategicSqlite3 *store;
     std::string key;
     uint16_t vbucket;
     shared_ptr<Callback<GetValue> > _callback;
 };
 
-EventuallyPersistentStore::EventuallyPersistentStore(KVStore *t,
+EventuallyPersistentStore::EventuallyPersistentStore(StrategicSqlite3 *t,
                                                      bool startVb0) :
     loadStorageKVPairCallback(vbuckets, stats)
 {

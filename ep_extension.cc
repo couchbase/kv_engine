@@ -54,7 +54,8 @@ extern "C" {
 
 }  /* extern C */
 
-GetlExtension::GetlExtension(KVStore *kvstore, GET_SERVER_API get_server_api):
+GetlExtension::GetlExtension(EventuallyPersistentStore *kvstore,
+                             GET_SERVER_API get_server_api):
     backend(kvstore)
 {
     serverApi = get_server_api();

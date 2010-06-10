@@ -6,6 +6,34 @@
 
 #include "locks.hh"
 
+class Item;
+
+/**
+ * Value for callback for GET operations.
+ */
+class GetValue {
+public:
+    GetValue() : value(NULL), status(ENGINE_KEY_ENOENT) { }
+
+    GetValue(ENGINE_ERROR_CODE s) : value(NULL), status(s) { }
+    GetValue(Item *v) : value(v), status(ENGINE_SUCCESS) { }
+
+    /**
+     * The value retrieved for the key.
+     */
+    Item* getValue() { return value; }
+
+    /**
+     * Engine code describing what happened.
+     */
+    ENGINE_ERROR_CODE getStatus() const { return status; }
+
+private:
+
+    Item* value;
+    ENGINE_ERROR_CODE status;
+};
+
 /**
  * Interface for callbacks from storage APIs.
  */

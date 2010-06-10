@@ -6,11 +6,11 @@
 
 #include "embedded/sqlite3.h"
 
-#include "kvstore.hh"
 #include "sqlite-pst.hh"
 #include "sqlite-strategies.hh"
+#include "item.hh"
 
-class StrategicSqlite3 : public KVStore {
+class StrategicSqlite3 {
 public:
 
     /**
@@ -86,7 +86,7 @@ public:
     /**
      * Overrides dump
      */
-    virtual void dump(Callback<GetValue> &cb);
+    void dump(Callback<GetValue> &cb);
 
 private:
     /**

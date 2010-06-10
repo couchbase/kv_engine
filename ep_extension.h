@@ -8,7 +8,7 @@
 
 class GetlExtension: public EXTENSION_ASCII_PROTOCOL_DESCRIPTOR {
 public:
-    GetlExtension(KVStore *kvstore, GET_SERVER_API get_server_api);
+    GetlExtension(EventuallyPersistentStore *kvstore, GET_SERVER_API get_server_api);
 
     void initialize();
 
@@ -17,5 +17,5 @@ public:
 
 private:
     SERVER_HANDLE_V1 *serverApi;
-    KVStore *backend;
+    EventuallyPersistentStore *backend;
 };

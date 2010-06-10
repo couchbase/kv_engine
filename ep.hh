@@ -21,7 +21,6 @@
 extern EXTENSION_LOGGER_DESCRIPTOR *getLogger(void);
 
 #include "stats.hh"
-#include "kvstore.hh"
 #include "locks.hh"
 #include "sqlite-kvstore.hh"
 #include "stored-value.hh"
@@ -103,10 +102,10 @@ private:
     EPStats    &stats;
 };
 
-class EventuallyPersistentStore : public KVStore {
+class EventuallyPersistentStore {
 public:
 
-    EventuallyPersistentStore(KVStore *t, bool startVb0);
+    EventuallyPersistentStore(StrategicSqlite3 *t, bool startVb0);
 
     ~EventuallyPersistentStore();
 
@@ -142,10 +141,6 @@ public:
 
     RCPtr<VBucket> getVBucket(uint16_t vbid);
     void setVBucketState(uint16_t vbid, vbucket_state_t state);
-
-    virtual void dump(Callback<GetValue>&) {
-        throw std::runtime_error("not implemented");
-    }
 
     void visit(VBucketVisitor &visitor) {
         std::vector<int> vbucketIds(vbuckets.getBuckets());
@@ -223,7 +218,7 @@ private:
 
     friend class Flusher;
     bool                       doPersistence;
-    KVStore                   *underlying;
+    StrategicSqlite3          *underlying;
     Dispatcher                *dispatcher;
     Flusher                   *flusher;
     VBucketMap                 vbuckets;

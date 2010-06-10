@@ -18,7 +18,6 @@ ep_la_SOURCES = \
                  ep_extension.cc ep_extension.h \
                  flusher.cc flusher.hh \
                  item.cc item.hh \
-                 kvstore.hh \
                  locks.hh \
                  mutex.hh \
                  priority.hh priority.cc \

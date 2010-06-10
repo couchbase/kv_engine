@@ -507,6 +507,7 @@ public:
             }
 
             databaseInitTime = time(NULL) - start;
+            // TODO:  Kill one of these
             backend = epstore = new EventuallyPersistentStore(sqliteDb, startVb0);
 
             if (backend == NULL) {
@@ -1765,7 +1766,7 @@ private:
     bool wait_for_warmup;
     bool startVb0;
     SERVER_HANDLE_V1 *serverApi;
-    KVStore *backend;
+    EventuallyPersistentStore *backend;
     StrategicSqlite3 *sqliteDb;
     EventuallyPersistentStore *epstore;
     std::map<const void*, TapConnection*> tapConnectionMap;
