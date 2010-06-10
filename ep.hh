@@ -109,7 +109,7 @@ public:
 
     ~EventuallyPersistentStore();
 
-    void set(const Item &item, Callback<std::pair<bool, int64_t> > &cb);
+    ENGINE_ERROR_CODE set(const Item &item);
 
     void get(const std::string &key, uint16_t vbucket,
              Callback<GetValue> &cb);

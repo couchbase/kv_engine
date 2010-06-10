@@ -144,18 +144,15 @@ RCPtr<VBucket> EventuallyPersistentStore::getVBucket(uint16_t vbid,
     }
 }
 
-void EventuallyPersistentStore::set(const Item &item,
-                                    Callback<std::pair<bool, int64_t> > &cb) {
+ENGINE_ERROR_CODE EventuallyPersistentStore::set(const Item &item) {
+
     RCPtr<VBucket> vb = getVBucket(item.getVBucketId(), active);
     if (!vb || vb->getState() == dead) {
-        cb.setStatus(static_cast<int>(INVALID_VBUCKET));
-        std::pair<bool, int64_t> p(false, 0);
-        cb.callback(p);
-        return;
+        return ENGINE_NOT_MY_VBUCKET;
     } else if (vb->getState() == active) {
         // OK
     } else if(vb->getState() == replica) {
-        assert(false);
+        return ENGINE_NOT_MY_VBUCKET;
     } else if(vb->getState() == pending) {
         assert(false);
     }
@@ -163,22 +160,21 @@ void EventuallyPersistentStore::set(const Item &item,
     bool cas_op = (item.getCas() != 0);
 
     mutation_type_t mtype = vb->ht.set(item);
-    bool rv = true;
 
-    if (mtype == INVALID_CAS || mtype == IS_LOCKED ||
-        (cas_op != 0 && mtype == NOT_FOUND)) {
-        rv = false;
+    if (cas_op && mtype == NOT_FOUND) {
+        return ENGINE_KEY_ENOENT;
+    } else if (mtype == INVALID_CAS) {
+        return ENGINE_KEY_EEXISTS;
+    } else if (mtype == IS_LOCKED) {
+        return ENGINE_KEY_EEXISTS;
     } else if (mtype == WAS_CLEAN || mtype == NOT_FOUND) {
-
         queueDirty(item.getKey(), item.getVBucketId());
         if (mtype == NOT_FOUND) {
             stats.curr_items++;
         }
     }
 
-    cb.setStatus((int)mtype);
-    std::pair<bool, int64_t> p(rv, 0);
-    cb.callback(p);
+    return ENGINE_SUCCESS;
 }
 
 RCPtr<VBucket> EventuallyPersistentStore::getVBucket(uint16_t vbucket) {

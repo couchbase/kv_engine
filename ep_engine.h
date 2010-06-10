@@ -666,7 +666,6 @@ public:
                             uint16_t vbucket)
     {
         ENGINE_ERROR_CODE ret;
-        BoolPairCallback callback;
         Item *it = static_cast<Item*>(itm);
         item *i;
 
@@ -681,22 +680,12 @@ public:
                 }
                 // FALLTHROUGH
             case OPERATION_SET:
-                epstore->set(*it, callback);
-                if (callback.getValue() &&
-                    ((mutation_type_t)callback.getStatus() != IS_LOCKED)) {
+                ret = epstore->set(*it);
+                if (ret == ENGINE_SUCCESS) {
                     *cas = it->getCas();
                     addMutationEvent(it, vbucket);
-                    ret = ENGINE_SUCCESS;
-                } else if (callback.getStatus() == INVALID_VBUCKET) {
-                    ret = ENGINE_NOT_MY_VBUCKET;
-                } else {
-                    if (operation == OPERATION_CAS &&
-                        ((mutation_type_t)callback.getStatus() == NOT_FOUND)) {
-                        ret = ENGINE_KEY_ENOENT;
-                    } else {
-                        ret = ENGINE_KEY_EEXISTS;;
-                    }
                 }
+
                 break;
 
             case OPERATION_ADD:
@@ -706,16 +695,11 @@ public:
                     itemRelease(cookie, i);
                     ret = ENGINE_NOT_STORED;
                 } else {
-                    epstore->set(*it, callback);
-                    // unable to set if the key is locked
-                    if ((mutation_type_t)callback.getStatus() == IS_LOCKED) {
-                        return ENGINE_NOT_STORED;
-                    } else if (callback.getStatus() == INVALID_VBUCKET) {
-                        return ENGINE_NOT_MY_VBUCKET;
-                    }
+                    ret = epstore->set(*it);
                     *cas = it->getCas();
-                    addMutationEvent(it, vbucket);
-                    ret = ENGINE_SUCCESS;
+                    if (ret == ENGINE_SUCCESS) {
+                        addMutationEvent(it, vbucket);
+                    }
                 }
                 break;
 
@@ -724,14 +708,10 @@ public:
                 if (get(cookie, &i, it->getKey().c_str(), it->getNKey(),
                         vbucket) == ENGINE_SUCCESS) {
                     itemRelease(cookie, i);
-                    epstore->set(*it, callback);
-                    // unable to set if the key is locked
-                    if ((mutation_type_t)callback.getStatus() == IS_LOCKED) {
-                        return ENGINE_KEY_EEXISTS;
+                    if ( (ret = epstore->set(*it)) == ENGINE_SUCCESS) {
+                        *cas = it->getCas();
+                        addMutationEvent(it, vbucket);
                     }
-                    *cas = it->getCas();
-                    addMutationEvent(it, vbucket);
-                    ret = ENGINE_SUCCESS;
                 } else {
                     ret = ENGINE_NOT_STORED;
                 }
