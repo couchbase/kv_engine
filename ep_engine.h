@@ -507,14 +507,13 @@ public:
             }
 
             databaseInitTime = time(NULL) - start;
-            // TODO:  Kill one of these
-            backend = epstore = new EventuallyPersistentStore(sqliteDb, startVb0);
+            epstore = new EventuallyPersistentStore(sqliteDb, startVb0);
 
-            if (backend == NULL) {
+            if (epstore == NULL) {
                 ret = ENGINE_ENOMEM;
             } else {
                 if (!warmup) {
-                    backend->reset();
+                    epstore->reset();
                 }
 
                 SERVER_CALLBACK_API *sapi;
@@ -540,7 +539,7 @@ public:
         }
 
         if (ret == ENGINE_SUCCESS) {
-            getlExtension = new GetlExtension(backend, getServerApi);
+            getlExtension = new GetlExtension(epstore, getServerApi);
             getlExtension->initialize();
         }
 
@@ -595,7 +594,7 @@ public:
         (void)cookie;
         RememberingCallback<bool> delCb;
 
-        backend->del(key, vbucket, delCb);
+        epstore->del(key, vbucket, delCb);
         delCb.waitForValue();
         if (delCb.val) {
             addDeleteEvent(key, vbucket);
@@ -620,7 +619,7 @@ public:
         (void)vbucket;
         std::string k(static_cast<const char*>(key), nkey);
         RememberingCallback<GetValue> getCb;
-        backend->get(k, vbucket, getCb);
+        epstore->get(k, vbucket, getCb);
         getCb.waitForValue();
         if (getCb.val.getStatus() == ENGINE_SUCCESS) {
             *item = getCb.val.getValue();
@@ -682,7 +681,7 @@ public:
                 }
                 // FALLTHROUGH
             case OPERATION_SET:
-                backend->set(*it, callback);
+                epstore->set(*it, callback);
                 if (callback.getValue() &&
                     ((mutation_type_t)callback.getStatus() != IS_LOCKED)) {
                     *cas = it->getCas();
@@ -707,7 +706,7 @@ public:
                     itemRelease(cookie, i);
                     ret = ENGINE_NOT_STORED;
                 } else {
-                    backend->set(*it, callback);
+                    epstore->set(*it, callback);
                     // unable to set if the key is locked
                     if ((mutation_type_t)callback.getStatus() == IS_LOCKED) {
                         return ENGINE_NOT_STORED;
@@ -725,7 +724,7 @@ public:
                 if (get(cookie, &i, it->getKey().c_str(), it->getNKey(),
                         vbucket) == ENGINE_SUCCESS) {
                     itemRelease(cookie, i);
-                    backend->set(*it, callback);
+                    epstore->set(*it, callback);
                     // unable to set if the key is locked
                     if ((mutation_type_t)callback.getStatus() == IS_LOCKED) {
                         return ENGINE_KEY_EEXISTS;
@@ -1683,7 +1682,7 @@ private:
                     } else {
                         RememberingCallback<GetValue> cb;
                         // TODO:  Need a proper vbucket ID here.
-                        backend->get(key, 0, cb);
+                        epstore->get(key, 0, cb);
                         cb.waitForValue();
                         if (cb.getStatus() == ENGINE_SUCCESS) {
                             shared_ptr<Item> item(cb.val.getValue());
@@ -1766,7 +1765,6 @@ private:
     bool wait_for_warmup;
     bool startVb0;
     SERVER_HANDLE_V1 *serverApi;
-    EventuallyPersistentStore *backend;
     StrategicSqlite3 *sqliteDb;
     EventuallyPersistentStore *epstore;
     std::map<const void*, TapConnection*> tapConnectionMap;
