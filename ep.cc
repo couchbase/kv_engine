@@ -26,7 +26,7 @@ public:
                 uint16_t vbid, shared_ptr<Callback<GetValue> > cb) :
         store(kvs), key(k), vbucket(vbid), _callback(cb) {}
 
-    virtual bool callback(Dispatcher &d, TaskId t) {
+    bool callback(Dispatcher &d, TaskId t) {
         (void)d; (void)t;
         store->get(key, vbucket, *_callback);
         return false;
@@ -67,7 +67,7 @@ EventuallyPersistentStore::EventuallyPersistentStore(StrategicSqlite3 *t,
 class VerifyStoredVisitor : public HashTableVisitor {
 public:
     std::vector<std::string> dirty;
-    virtual void visit(StoredValue *v) {
+    void visit(StoredValue *v) {
         if (v->isDirty()) {
             dirty.push_back(v->getKey());
         }

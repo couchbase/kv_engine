@@ -53,7 +53,7 @@ extern "C" {
 
 class BoolCallback : public Callback<bool> {
 public:
-    virtual void callback(bool &theValue) {
+    void callback(bool &theValue) {
         value = theValue;
     }
 
@@ -67,7 +67,7 @@ private:
 
 class BoolPairCallback : public Callback<std::pair<bool, int64_t> > {
 public:
-    virtual void callback(std::pair<bool, int64_t> &theValue) {
+    void callback(std::pair<bool, int64_t> &theValue) {
         value = theValue.first;
     }
 

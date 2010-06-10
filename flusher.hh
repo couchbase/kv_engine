@@ -20,7 +20,7 @@ class Flusher;
 class FlusherStepper : public DispatcherCallback {
 public:
     FlusherStepper(Flusher* f) : flusher(f) { }
-    virtual bool callback(Dispatcher &d, TaskId t);
+    bool callback(Dispatcher &d, TaskId t);
 private:
     Flusher *flusher;
 };
