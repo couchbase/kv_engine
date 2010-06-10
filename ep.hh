@@ -204,6 +204,9 @@ public:
                    rel_time_t currentTime, uint32_t lockTimeout);
 
 private:
+
+    RCPtr<VBucket> getVBucket(uint16_t vbid, vbucket_state_t wanted_state);
+
     /* Queue an item to be written to persistent layer. */
     void queueDirty(const std::string &key, uint16_t vbid);
 

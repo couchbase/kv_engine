@@ -82,7 +82,7 @@ EventuallyPersistentStore::~EventuallyPersistentStore() {
     if (getenv("EP_VERIFY_SHUTDOWN_FLUSH") != NULL) {
         VerifyStoredVisitor walker;
         // TODO: Something smarter for multiple vbuckets.
-        RCPtr<VBucket> vb = vbuckets.getBucket(0);
+        RCPtr<VBucket> vb = getVBucket(0);
         assert(vb);
         vb->ht.visit(walker);
         if (!walker.dirty.empty()) {
@@ -132,14 +132,32 @@ bool EventuallyPersistentStore::resumeFlusher() {
     return true;
 }
 
+RCPtr<VBucket> EventuallyPersistentStore::getVBucket(uint16_t vbid,
+                                                     vbucket_state_t wanted_state) {
+    RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
+    vbucket_state_t found_state(vb ? vb->getState() : dead);
+    if (found_state == wanted_state) {
+        return vb;
+    } else {
+        RCPtr<VBucket> rv;
+        return rv;
+    }
+}
+
 void EventuallyPersistentStore::set(const Item &item,
                                     Callback<std::pair<bool, int64_t> > &cb) {
-    RCPtr<VBucket> vb = vbuckets.getBucket(item.getVBucketId());
-    if (!vb) {
+    RCPtr<VBucket> vb = getVBucket(item.getVBucketId(), active);
+    if (!vb || vb->getState() == dead) {
         cb.setStatus(static_cast<int>(INVALID_VBUCKET));
         std::pair<bool, int64_t> p(false, 0);
         cb.callback(p);
         return;
+    } else if (vb->getState() == active) {
+        // OK
+    } else if(vb->getState() == replica) {
+        assert(false);
+    } else if(vb->getState() == pending) {
+        assert(false);
     }
 
     bool cas_op = (item.getCas() != 0);
@@ -183,7 +201,7 @@ void EventuallyPersistentStore::setVBucketState(uint16_t vbid,
 void EventuallyPersistentStore::get(const std::string &key,
                                     uint16_t vbucket,
                                     Callback<GetValue> &cb) {
-    RCPtr<VBucket> vb = vbuckets.getBucket(vbucket);
+    RCPtr<VBucket> vb = getVBucket(vbucket, active);
     if (!vb) {
         GetValue rv(ENGINE_NOT_MY_VBUCKET);
         cb.callback(rv);
@@ -213,8 +231,7 @@ bool EventuallyPersistentStore::getLocked(const std::string &key,
                                           Callback<GetValue> &cb,
                                           rel_time_t currentTime,
                                           uint32_t lockTimeout) {
-    RCPtr<VBucket> vb = vbuckets.getBucket(vbucket);
-    assert(vb);
+    RCPtr<VBucket> vb = getVBucket(vbucket, active);
     if (!vb) {
         GetValue rv(ENGINE_NOT_MY_VBUCKET);
         cb.callback(rv);
@@ -266,8 +283,7 @@ bool EventuallyPersistentStore::getKeyStats(const std::string &key,
                                             uint16_t vbucket,
                                             struct key_stats &kstats)
 {
-    RCPtr<VBucket> vb = vbuckets.getBucket(vbucket);
-    assert(vb);
+    RCPtr<VBucket> vb = getVBucket(vbucket, active);
     if (!vb) {
         return false;
     }
@@ -310,7 +326,7 @@ void EventuallyPersistentStore::resetStats(void) {
 void EventuallyPersistentStore::del(const std::string &key,
                                     uint16_t vbucket,
                                     Callback<bool> &cb) {
-    RCPtr<VBucket> vb = vbuckets.getBucket(vbucket);
+    RCPtr<VBucket> vb = getVBucket(vbucket, active);
     if (!vb) {
         bool rv(false);
         cb.setStatus(ENGINE_NOT_MY_VBUCKET);
@@ -330,9 +346,11 @@ void EventuallyPersistentStore::del(const std::string &key,
 
 void EventuallyPersistentStore::reset() {
     // TODO: Something smarter for multiple vbuckets.
-    RCPtr<VBucket> vb = vbuckets.getBucket(0);
-    vb->ht.clear();
-    queueDirty("", 0);
+    RCPtr<VBucket> vb = getVBucket(0, active);
+    if (vb) {
+        vb->ht.clear();
+        queueDirty("", 0);
+    }
 }
 
 std::queue<QueuedItem>* EventuallyPersistentStore::beginFlush() {
@@ -452,8 +470,7 @@ int EventuallyPersistentStore::flushOne(std::queue<QueuedItem> *q,
         return 1;
     }
 
-    RCPtr<VBucket> vb = vbuckets.getBucket(qi.getVBucketId());
-    assert(vb);
+    RCPtr<VBucket> vb = getVBucket(qi.getVBucketId());
     if (!vb) {
         stats.flusher_todo--;
         return 0;
