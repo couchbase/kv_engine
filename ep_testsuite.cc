@@ -278,6 +278,28 @@ static bool verify_vbucket_missing(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     return last_status == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET;
 }
 
+static enum test_result test_pending_vb_mutation(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                                                 ENGINE_STORE_OPERATION op) {
+    item *i = NULL;
+    check(set_vbucket_state(h, h1, 1, "pending"), "Failed to set vbucket state.");
+    check(verify_vbucket_state(h, h1, 1, "pending"), "Bucket state was not set to pending.");
+    check(store(h, h1, "cookie", op,
+                "key", "somevalue", &i, 11, 1) == ENGINE_EWOULDBLOCK,
+        "Expected woodblock");
+    return SUCCESS;
+}
+
+static enum test_result test_replica_vb_mutation(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                                                 ENGINE_STORE_OPERATION op) {
+    item *i = NULL;
+    check(set_vbucket_state(h, h1, 1, "replica"), "Failed to set vbucket state.");
+    check(verify_vbucket_state(h, h1, 1, "replica"), "Bucket state was not set to replica.");
+    check(store(h, h1, "cookie", op,
+                "key", "somevalue", &i, 11, 1) == ENGINE_NOT_MY_VBUCKET,
+        "Expected not my vbucket");
+    return SUCCESS;
+}
+
 //
 // ----------------------------------------------------------------------
 // The actual tests are below.
@@ -629,6 +651,50 @@ static enum test_result test_vbucket_destroy(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 
     return verify_vbucket_missing(h, h1, 0) ? SUCCESS : FAIL;
 }
 
+static enum test_result test_vb_set_pending(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    return test_pending_vb_mutation(h, h1, OPERATION_SET);
+}
+
+static enum test_result test_vb_add_pending(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    return test_pending_vb_mutation(h, h1, OPERATION_ADD);
+}
+
+static enum test_result test_vb_cas_pending(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    return test_pending_vb_mutation(h, h1, OPERATION_CAS);
+}
+
+static enum test_result test_vb_append_pending(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    (void)h; (void)h1;
+    return PENDING;
+    // return test_pending_vb_mutation(h, h1, OPERATION_APPEND);
+}
+
+static enum test_result test_vb_prepend_pending(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    (void)h; (void)h1;
+    return PENDING;
+    // return test_pending_vb_mutation(h, h1, OPERATION_PREPEND);
+}
+
+static enum test_result test_vb_set_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    return test_replica_vb_mutation(h, h1, OPERATION_SET);
+}
+
+static enum test_result test_vb_add_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    return test_replica_vb_mutation(h, h1, OPERATION_ADD);
+}
+
+static enum test_result test_vb_cas_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    return test_replica_vb_mutation(h, h1, OPERATION_CAS);
+}
+
+static enum test_result test_vb_append_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    return test_replica_vb_mutation(h, h1, OPERATION_APPEND);
+}
+
+static enum test_result test_vb_prepend_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    return test_replica_vb_mutation(h, h1, OPERATION_PREPEND);
+}
+
 static enum test_result test_tap_rcvr_mutate(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     char eng_specific[64];
     memset(eng_specific, 0, sizeof(eng_specific));
@@ -683,11 +749,23 @@ engine_test_t* get_tests(void) {
         // vbucket negative tests
         {"test wrong vbucket get", test_wrong_vb_get, NULL, teardown, NULL},
         {"test wrong vbucket set", test_wrong_vb_set, NULL, teardown, NULL},
+        {"vbucket set (pending)", test_vb_set_pending, NULL, teardown, NULL},
+        {"vbucket set (replica)", test_vb_set_replica, NULL, teardown, NULL},
         {"test wrong vbucket add", test_wrong_vb_add, NULL, teardown, NULL},
+        {"vbucket add (pending)", test_vb_add_pending, NULL, teardown, NULL},
+        {"vbucket add (replica)", test_vb_add_replica, NULL, teardown, NULL},
         {"test wrong vbucket cas", test_wrong_vb_cas, NULL, teardown, NULL},
+        {"vbucket cas (pending)", test_vb_cas_pending, NULL, teardown, NULL},
+        {"vbucket cas (replica)", test_vb_cas_replica, NULL, teardown, NULL},
         {"test wrong vbucket append", test_wrong_vb_append, NULL, teardown, NULL},
+        {"vbucket append (pending)", test_vb_append_pending, NULL, teardown, NULL},
+        {"vbucket append (replica)", test_vb_append_replica, NULL, teardown, NULL},
         {"test wrong vbucket prepend", test_wrong_vb_prepend, NULL, teardown, NULL},
+        {"vbucket prepend (pending)", test_vb_prepend_pending, NULL, teardown, NULL},
+        {"vbucket prepend (replica)", test_vb_prepend_replica, NULL, teardown, NULL},
         {"test wrong vbucket del", test_wrong_vb_del, NULL, teardown, NULL},
+        {"vbucket del (pending)", NULL, NULL, teardown, NULL},
+        {"vbucket del (replica)", NULL, NULL, teardown, NULL},
         // Vbucket management tests
         {"no vb0 at startup", test_novb0, NULL, teardown, "vb0=false"},
         {"test vbucket get", test_vbucket_get, NULL, teardown, NULL},
