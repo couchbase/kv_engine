@@ -568,6 +568,35 @@ static enum test_result test_vb_get_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
     return SUCCESS;
 }
 
+static enum test_result test_wrong_vb_incr(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    uint64_t cas, result;
+    check(h1->arithmetic(h, "cookie", "key", 3, true, false, 1, 1, 0,
+                         &cas, &result,
+                         1) == ENGINE_NOT_MY_VBUCKET,
+          "Expected not my vbucket.");
+    return SUCCESS;
+}
+
+static enum test_result test_vb_incr_pending(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    uint64_t cas, result;
+    check(set_vbucket_state(h, h1, 1, "pending"), "Failed to set vbucket state.");
+    check(h1->arithmetic(h, "cookie", "key", 3, true, false, 1, 1, 0,
+                         &cas, &result,
+                         1) == ENGINE_EWOULDBLOCK,
+          "Expected woodblock.");
+    return SUCCESS;
+}
+
+static enum test_result test_vb_incr_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    uint64_t cas, result;
+    check(set_vbucket_state(h, h1, 1, "replica"), "Failed to set vbucket state.");
+    check(h1->arithmetic(h, "cookie", "key", 3, true, false, 1, 1, 0,
+                         &cas, &result,
+                         1) == ENGINE_NOT_MY_VBUCKET,
+          "Expected not my bucket.");
+    return SUCCESS;
+}
+
 static enum test_result test_wrong_vb_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return test_wrong_vb_mutation(h, h1, OPERATION_SET);
 }
@@ -771,6 +800,9 @@ engine_test_t* get_tests(void) {
         {"set+get+restart+hit (bin)", test_restart_bin_val, NULL, teardown, NULL},
         {"flush+restart", test_flush_restart, NULL, teardown, NULL},
         // vbucket negative tests
+        {"vbucket incr (dead)", test_wrong_vb_incr, NULL, teardown, NULL},
+        {"vbucket incr (pending)", test_vb_incr_pending, NULL, teardown, NULL},
+        {"vbucket incr (replica)", test_vb_incr_replica, NULL, teardown, NULL},
         {"vbucket get (dead)", test_wrong_vb_get, NULL, teardown, NULL},
         {"vbucket get (pending)", test_vb_get_pending, NULL, teardown, NULL},
         {"vbucket get (replica)", test_vb_get_replica, NULL, teardown, NULL},
