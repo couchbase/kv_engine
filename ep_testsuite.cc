@@ -692,15 +692,11 @@ static enum test_result test_vb_cas_pending(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
 }
 
 static enum test_result test_vb_append_pending(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    (void)h; (void)h1;
-    return PENDING;
-    // return test_pending_vb_mutation(h, h1, OPERATION_APPEND);
+    return test_pending_vb_mutation(h, h1, OPERATION_APPEND);
 }
 
 static enum test_result test_vb_prepend_pending(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    (void)h; (void)h1;
-    return PENDING;
-    // return test_pending_vb_mutation(h, h1, OPERATION_PREPEND);
+    return test_pending_vb_mutation(h, h1, OPERATION_PREPEND);
 }
 
 static enum test_result test_vb_set_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
