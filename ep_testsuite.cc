@@ -767,6 +767,35 @@ static enum test_result test_tap_rcvr_mutate(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 
     return SUCCESS;
 }
 
+static enum test_result test_tap_rcvr_mutate_dead(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    char eng_specific[1];
+    check(h1->tap_notify(h, "cookie", eng_specific, 1,
+                         1, 0, TAP_MUTATION, 1, "key", 3, 828, 0, 0,
+                         "data", 4, 1) == ENGINE_NOT_MY_VBUCKET,
+          "Expected not my vbucket.");
+    return SUCCESS;
+}
+
+static enum test_result test_tap_rcvr_mutate_pending(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    check(set_vbucket_state(h, h1, 1, "pending"), "Failed to set vbucket state.");
+    char eng_specific[1];
+    check(h1->tap_notify(h, "cookie", eng_specific, 1,
+                         1, 0, TAP_MUTATION, 1, "key", 3, 828, 0, 0,
+                         "data", 4, 1) == ENGINE_SUCCESS,
+          "Expected expected success.");
+    return SUCCESS;
+}
+
+static enum test_result test_tap_rcvr_mutate_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    check(set_vbucket_state(h, h1, 1, "replica"), "Failed to set vbucket state.");
+    char eng_specific[1];
+    check(h1->tap_notify(h, "cookie", eng_specific, 1,
+                         1, 0, TAP_MUTATION, 1, "key", 3, 828, 0, 0,
+                         "data", 4, 1) == ENGINE_SUCCESS,
+          "Expected expected success.");
+    return SUCCESS;
+}
+
 static enum test_result test_novb0(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(verify_vbucket_missing(h, h1, 0), "vb0 existed and shouldn't have.");
     return SUCCESS;
@@ -795,6 +824,12 @@ engine_test_t* get_tests(void) {
         {"stats vkey", NULL, NULL, teardown, NULL},
         // tap tests
         {"tap receiver mutation", test_tap_rcvr_mutate, NULL, teardown, NULL},
+        {"tap receiver mutation (dead)", test_tap_rcvr_mutate_dead,
+         NULL, teardown, NULL},
+        {"tap receiver mutation (pending)", test_tap_rcvr_mutate_pending,
+         NULL, teardown, NULL},
+        {"tap receiver mutation (replica)", test_tap_rcvr_mutate_replica,
+         NULL, teardown, NULL},
         // restart tests
         {"test restart", test_restart, NULL, teardown, NULL},
         {"set+get+restart+hit (bin)", test_restart_bin_val, NULL, teardown, NULL},

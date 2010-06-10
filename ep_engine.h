@@ -1086,12 +1086,15 @@ public:
             s->append("\r\n");
 
             Item *item = new Item(k, flags, exptime, s);
+            item->setVBucketId(vbucket);
 
             /* @TODO we don't have CAS now.. we might in the future.. */
             (void)cas;
-            uint64_t ncas;
-            ENGINE_ERROR_CODE ret = store(cookie, item, &ncas, OPERATION_SET,
-                                          vbucket);
+            ENGINE_ERROR_CODE ret = epstore->set(*item, true);
+            if (ret == ENGINE_SUCCESS) {
+                addMutationEvent(item, vbucket);
+            }
+
             delete item;
             return ret;
         }

@@ -144,16 +144,16 @@ RCPtr<VBucket> EventuallyPersistentStore::getVBucket(uint16_t vbid,
     }
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentStore::set(const Item &item) {
+ENGINE_ERROR_CODE EventuallyPersistentStore::set(const Item &item, bool force) {
 
     RCPtr<VBucket> vb = getVBucket(item.getVBucketId());
     if (!vb || vb->getState() == dead) {
         return ENGINE_NOT_MY_VBUCKET;
     } else if (vb->getState() == active) {
         // OK
-    } else if(vb->getState() == replica) {
+    } else if(vb->getState() == replica && !force) {
         return ENGINE_NOT_MY_VBUCKET;
-    } else if(vb->getState() == pending) {
+    } else if(vb->getState() == pending && !force) {
         return ENGINE_EWOULDBLOCK;
     }
 

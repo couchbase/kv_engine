@@ -109,7 +109,7 @@ public:
 
     ~EventuallyPersistentStore();
 
-    ENGINE_ERROR_CODE set(const Item &item);
+    ENGINE_ERROR_CODE set(const Item &item, bool force=false);
 
     GetValue get(const std::string &key, uint16_t vbucket);
 
