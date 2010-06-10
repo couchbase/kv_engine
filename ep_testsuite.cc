@@ -602,6 +602,20 @@ static enum test_result test_expiry(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return SUCCESS;
 }
 
+static enum test_result test_vb_del_pending(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    check(set_vbucket_state(h, h1, 1, "pending"), "Failed to set vbucket state.");
+    check(ENGINE_EWOULDBLOCK == h1->remove(h, "cookie", "key", 3, 0, 1),
+          "Expected woodblock.");
+    return SUCCESS;
+}
+
+static enum test_result test_vb_del_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    check(set_vbucket_state(h, h1, 1, "replica"), "Failed to set vbucket state.");
+    check(ENGINE_NOT_MY_VBUCKET == h1->remove(h, "cookie", "key", 3, 0, 1),
+          "Expected not my vbucket.");
+    return SUCCESS;
+}
+
 static enum test_result test_alloc_limit(ENGINE_HANDLE *h,
                                          ENGINE_HANDLE_V1 *h1) {
     item *it = NULL;
@@ -764,8 +778,8 @@ engine_test_t* get_tests(void) {
         {"vbucket prepend (pending)", test_vb_prepend_pending, NULL, teardown, NULL},
         {"vbucket prepend (replica)", test_vb_prepend_replica, NULL, teardown, NULL},
         {"test wrong vbucket del", test_wrong_vb_del, NULL, teardown, NULL},
-        {"vbucket del (pending)", NULL, NULL, teardown, NULL},
-        {"vbucket del (replica)", NULL, NULL, teardown, NULL},
+        {"vbucket del (pending)", test_vb_del_pending, NULL, teardown, NULL},
+        {"vbucket del (replica)", test_vb_del_replica, NULL, teardown, NULL},
         // Vbucket management tests
         {"no vb0 at startup", test_novb0, NULL, teardown, "vb0=false"},
         {"test vbucket get", test_vbucket_get, NULL, teardown, NULL},

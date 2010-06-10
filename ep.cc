@@ -319,25 +319,27 @@ void EventuallyPersistentStore::resetStats(void) {
     stats.commit_time.set(0);
 }
 
-void EventuallyPersistentStore::del(const std::string &key,
-                                    uint16_t vbucket,
-                                    Callback<bool> &cb) {
-    RCPtr<VBucket> vb = getVBucket(vbucket, active);
-    if (!vb) {
-        bool rv(false);
-        cb.setStatus(ENGINE_NOT_MY_VBUCKET);
-        cb.callback(rv);
-        return;
+ENGINE_ERROR_CODE EventuallyPersistentStore::del(const std::string &key,
+                                                 uint16_t vbucket) {
+    RCPtr<VBucket> vb = getVBucket(vbucket);
+    if (!vb || vb->getState() == dead) {
+        return ENGINE_NOT_MY_VBUCKET;
+    } else if (vb->getState() == active) {
+        // OK
+    } else if(vb->getState() == replica) {
+        return ENGINE_NOT_MY_VBUCKET;
+    } else if(vb->getState() == pending) {
+        return ENGINE_EWOULDBLOCK;
     }
 
     bool existed = vb->ht.del(key);
-    cb.setStatus(existed ? ENGINE_SUCCESS : ENGINE_KEY_ENOENT);
+    ENGINE_ERROR_CODE rv = existed ? ENGINE_SUCCESS : ENGINE_KEY_ENOENT;
 
     if (existed) {
         queueDirty(key, vbucket);
         stats.curr_items--;
     }
-    cb.callback(existed);
+    return rv;
 }
 
 void EventuallyPersistentStore::reset() {

@@ -592,14 +592,12 @@ public:
                                  uint16_t vbucket)
     {
         (void)cookie;
-        RememberingCallback<bool> delCb;
+        ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
 
-        epstore->del(key, vbucket, delCb);
-        delCb.waitForValue();
-        if (delCb.val) {
+        if ( (ret = epstore->del(key, vbucket)) == ENGINE_SUCCESS) {
             addDeleteEvent(key, vbucket);
         }
-        return static_cast<ENGINE_ERROR_CODE>(delCb.getStatus());
+        return ret;
     }
 
 

@@ -117,8 +117,7 @@ public:
     void getFromUnderlying(const std::string &key, uint16_t vbucket,
                            shared_ptr<Callback<GetValue> > cb);
 
-    void del(const std::string &key, uint16_t vbucket,
-             Callback<bool> &cb);
+    ENGINE_ERROR_CODE del(const std::string &key, uint16_t vbucket);
 
     void reset();
 
