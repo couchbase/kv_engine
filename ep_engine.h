@@ -615,16 +615,16 @@ public:
     {
         (void)cookie;
         (void)vbucket;
+
         std::string k(static_cast<const char*>(key), nkey);
-        RememberingCallback<GetValue> getCb;
-        epstore->get(k, vbucket, getCb);
-        getCb.waitForValue();
-        if (getCb.val.getStatus() == ENGINE_SUCCESS) {
-            *item = getCb.val.getValue();
-            return getCb.val.getStatus();
-        } else {
-            return getCb.val.getStatus();
+
+        GetValue gv(epstore->get(k, vbucket));
+
+        if (gv.getStatus() == ENGINE_SUCCESS) {
+            *item = gv.getValue();
         }
+
+        return gv.getStatus();
 
     }
 
@@ -1658,12 +1658,10 @@ private:
                     if (kstats.dirty) {
                         valid.assign("dirty");
                     } else {
-                        RememberingCallback<GetValue> cb;
                         // TODO:  Need a proper vbucket ID here.
-                        epstore->get(key, 0, cb);
-                        cb.waitForValue();
-                        if (cb.getStatus() == ENGINE_SUCCESS) {
-                            shared_ptr<Item> item(cb.val.getValue());
+                        GetValue gv(epstore->get(key, 0));
+                        if (gv.getStatus() == ENGINE_SUCCESS) {
+                            shared_ptr<Item> item(gv.getValue());
                             if (diskItem.get()) {
                                 // Both items exist
                                 if (diskItem->getNBytes() != item->getNBytes()) {

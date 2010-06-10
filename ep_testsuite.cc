@@ -554,6 +554,20 @@ static enum test_result test_wrong_vb_get(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     return SUCCESS;
 }
 
+static enum test_result test_vb_get_pending(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    check(set_vbucket_state(h, h1, 1, "pending"), "Failed to set vbucket state.");
+    check(ENGINE_EWOULDBLOCK == verify_vb_key(h, h1, "key", 1),
+          "Expected woodblock.");
+    return SUCCESS;
+}
+
+static enum test_result test_vb_get_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    check(set_vbucket_state(h, h1, 1, "replica"), "Failed to set vbucket state.");
+    check(ENGINE_NOT_MY_VBUCKET == verify_vb_key(h, h1, "key", 1),
+          "Expected not my bucket.");
+    return SUCCESS;
+}
+
 static enum test_result test_wrong_vb_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return test_wrong_vb_mutation(h, h1, OPERATION_SET);
 }
@@ -762,6 +776,8 @@ engine_test_t* get_tests(void) {
         {"flush+restart", test_flush_restart, NULL, teardown, NULL},
         // vbucket negative tests
         {"test wrong vbucket get", test_wrong_vb_get, NULL, teardown, NULL},
+        {"vbucket get (pending)", test_vb_get_pending, NULL, teardown, NULL},
+        {"vbucket get (replica)", test_vb_get_replica, NULL, teardown, NULL},
         {"test wrong vbucket set", test_wrong_vb_set, NULL, teardown, NULL},
         {"vbucket set (pending)", test_vb_set_pending, NULL, teardown, NULL},
         {"vbucket set (replica)", test_vb_set_replica, NULL, teardown, NULL},

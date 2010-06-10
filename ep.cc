@@ -194,14 +194,17 @@ void EventuallyPersistentStore::setVBucketState(uint16_t vbid,
     }
 }
 
-void EventuallyPersistentStore::get(const std::string &key,
-                                    uint16_t vbucket,
-                                    Callback<GetValue> &cb) {
-    RCPtr<VBucket> vb = getVBucket(vbucket, active);
-    if (!vb) {
-        GetValue rv(ENGINE_NOT_MY_VBUCKET);
-        cb.callback(rv);
-        return;
+GetValue EventuallyPersistentStore::get(const std::string &key,
+                                        uint16_t vbucket) {
+    RCPtr<VBucket> vb = getVBucket(vbucket);
+    if (!vb || vb->getState() == dead) {
+        return GetValue(ENGINE_NOT_MY_VBUCKET);
+    } else if (vb->getState() == active) {
+        // OK
+    } else if(vb->getState() == replica) {
+        return GetValue(ENGINE_NOT_MY_VBUCKET);
+    } else if(vb->getState() == pending) {
+        return GetValue(ENGINE_EWOULDBLOCK);
     }
 
     int bucket_num = vb->ht.bucket(key);
@@ -214,11 +217,11 @@ void EventuallyPersistentStore::get(const std::string &key,
                              v->getValue(),
                              v->isLocked(ep_current_time()) ? -1 : v->getCas()));
         lh.unlock();
-        cb.callback(rv);
+        return rv;
     } else {
         GetValue rv;
         lh.unlock();
-        cb.callback(rv);
+        return rv;
     }
 }
 

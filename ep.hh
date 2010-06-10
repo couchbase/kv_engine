@@ -111,8 +111,7 @@ public:
 
     ENGINE_ERROR_CODE set(const Item &item);
 
-    void get(const std::string &key, uint16_t vbucket,
-             Callback<GetValue> &cb);
+    GetValue get(const std::string &key, uint16_t vbucket);
 
     void getFromUnderlying(const std::string &key, uint16_t vbucket,
                            shared_ptr<Callback<GetValue> > cb);
