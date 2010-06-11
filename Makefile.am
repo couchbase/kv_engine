@@ -29,7 +29,8 @@ ep_la_SOURCES = \
                  stats.hh \
                  stored-value.hh stored-value.cc \
                  syncobject.hh \
-                 tapclient.hh tapclient.cc
+                 tapclient.hh tapclient.cc \
+                 vbucket.hh vbucket.cc
 
 ep_la_LIBADD = libsqlite3.la @MEMCACHED_DIR@/libmcd_util.la
 ep_la_DEPENDENCIES = libsqlite3.la

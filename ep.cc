@@ -39,6 +39,23 @@ private:
     shared_ptr<Callback<GetValue> > _callback;
 };
 
+class SetVBStateCallback : public DispatcherCallback {
+public:
+    SetVBStateCallback(RCPtr<VBucket> vb, vbucket_state_t st, SERVER_CORE_API *c)
+         : vbucket(vb), state(st), core(c) {}
+
+    bool callback(Dispatcher &d, TaskId t) {
+        (void)d; (void)t;
+        vbucket->setState(state, core);
+        return false;
+    }
+
+private:
+    RCPtr<VBucket>   vbucket;
+    vbucket_state_t  state;
+    SERVER_CORE_API *core;
+};
+
 EventuallyPersistentStore::EventuallyPersistentStore(StrategicSqlite3 *t,
                                                      bool startVb0) :
     loadStorageKVPairCallback(vbuckets, stats)
@@ -144,7 +161,9 @@ RCPtr<VBucket> EventuallyPersistentStore::getVBucket(uint16_t vbid,
     }
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentStore::set(const Item &item, bool force) {
+ENGINE_ERROR_CODE EventuallyPersistentStore::set(const Item &item,
+                                                 const void *cookie,
+                                                 bool force) {
 
     RCPtr<VBucket> vb = getVBucket(item.getVBucketId());
     if (!vb || vb->getState() == dead) {
@@ -154,7 +173,9 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::set(const Item &item, bool force) {
     } else if(vb->getState() == replica && !force) {
         return ENGINE_NOT_MY_VBUCKET;
     } else if(vb->getState() == pending && !force) {
-        return ENGINE_EWOULDBLOCK;
+        if (vb->addPendingOp(cookie)) {
+            return ENGINE_EWOULDBLOCK;
+        }
     }
 
     bool cas_op = (item.getCas() != 0);
@@ -182,12 +203,16 @@ RCPtr<VBucket> EventuallyPersistentStore::getVBucket(uint16_t vbucket) {
 }
 
 void EventuallyPersistentStore::setVBucketState(uint16_t vbid,
-                                                vbucket_state_t to) {
+                                                vbucket_state_t to,
+                                                SERVER_CORE_API *core) {
     // Lock to prevent a race condition between a failed update and add.
     LockHolder lh(vbsetMutex);
     RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
     if (vb) {
-        vb->setState(to);
+        dispatcher->schedule(shared_ptr<DispatcherCallback>(new SetVBStateCallback(vb,
+                                                                                   to,
+                                                                                   core)),
+                             NULL, -1);
     } else {
         RCPtr<VBucket> newvb(new VBucket(vbid, to));
         vbuckets.addBucket(newvb);
@@ -195,7 +220,8 @@ void EventuallyPersistentStore::setVBucketState(uint16_t vbid,
 }
 
 GetValue EventuallyPersistentStore::get(const std::string &key,
-                                        uint16_t vbucket) {
+                                        uint16_t vbucket,
+                                        const void *cookie) {
     RCPtr<VBucket> vb = getVBucket(vbucket);
     if (!vb || vb->getState() == dead) {
         return GetValue(ENGINE_NOT_MY_VBUCKET);
@@ -204,7 +230,9 @@ GetValue EventuallyPersistentStore::get(const std::string &key,
     } else if(vb->getState() == replica) {
         return GetValue(ENGINE_NOT_MY_VBUCKET);
     } else if(vb->getState() == pending) {
-        return GetValue(ENGINE_EWOULDBLOCK);
+        if (vb->addPendingOp(cookie)) {
+            return GetValue(ENGINE_EWOULDBLOCK);
+        }
     }
 
     int bucket_num = vb->ht.bucket(key);
@@ -323,7 +351,8 @@ void EventuallyPersistentStore::resetStats(void) {
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentStore::del(const std::string &key,
-                                                 uint16_t vbucket) {
+                                                 uint16_t vbucket,
+                                                 const void *cookie) {
     RCPtr<VBucket> vb = getVBucket(vbucket);
     if (!vb || vb->getState() == dead) {
         return ENGINE_NOT_MY_VBUCKET;
@@ -332,7 +361,9 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::del(const std::string &key,
     } else if(vb->getState() == replica) {
         return ENGINE_NOT_MY_VBUCKET;
     } else if(vb->getState() == pending) {
-        return ENGINE_EWOULDBLOCK;
+        if (vb->addPendingOp(cookie)) {
+            return ENGINE_EWOULDBLOCK;
+        }
     }
 
     bool existed = vb->ht.del(key);

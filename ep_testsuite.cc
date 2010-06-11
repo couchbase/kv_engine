@@ -270,12 +270,21 @@ static bool verify_vbucket_missing(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     char vbid[8];
     snprintf(vbid, sizeof(vbid), "%d", vb);
 
-    protocol_binary_request_header *pkt = create_packet(CMD_GET_VBUCKET, vbid, "");
-    if (h1->unknown_command(h, "cookie", pkt, add_response) != ENGINE_SUCCESS) {
-        return false;
+    // Try up to three times to verify the bucket is missing.  Bucket
+    // state changes are async.
+    for (int i = 0; i < 3; i++) {
+        protocol_binary_request_header *pkt = create_packet(CMD_GET_VBUCKET, vbid, "");
+        if (h1->unknown_command(h, "cookie", pkt, add_response) != ENGINE_SUCCESS) {
+            return false;
+        }
+
+        if (last_status == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET) {
+            return true;
+        }
+        usleep(500000);
     }
 
-    return last_status == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET;
+    return false;
 }
 
 static enum test_result test_pending_vb_mutation(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,

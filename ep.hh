@@ -109,14 +109,18 @@ public:
 
     ~EventuallyPersistentStore();
 
-    ENGINE_ERROR_CODE set(const Item &item, bool force=false);
+    ENGINE_ERROR_CODE set(const Item &item,
+                          const void *cookie,
+                          bool force=false);
 
-    GetValue get(const std::string &key, uint16_t vbucket);
+    GetValue get(const std::string &key, uint16_t vbucket,
+                 const void *cookie);
 
     void getFromUnderlying(const std::string &key, uint16_t vbucket,
                            shared_ptr<Callback<GetValue> > cb);
 
-    ENGINE_ERROR_CODE del(const std::string &key, uint16_t vbucket);
+    ENGINE_ERROR_CODE del(const std::string &key, uint16_t vbucket,
+                          const void *cookie);
 
     void reset();
 
@@ -138,7 +142,7 @@ public:
     bool resumeFlusher(void);
 
     RCPtr<VBucket> getVBucket(uint16_t vbid);
-    void setVBucketState(uint16_t vbid, vbucket_state_t state);
+    void setVBucketState(uint16_t vbid, vbucket_state_t state, SERVER_CORE_API *core);
 
     void visit(VBucketVisitor &visitor) {
         std::vector<int> vbucketIds(vbuckets.getBuckets());

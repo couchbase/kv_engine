@@ -591,10 +591,9 @@ public:
                                  const std::string &key,
                                  uint16_t vbucket)
     {
-        (void)cookie;
-        ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
+        ENGINE_ERROR_CODE ret = epstore->del(key, vbucket, cookie);
 
-        if ( (ret = epstore->del(key, vbucket)) == ENGINE_SUCCESS) {
+        if (ret == ENGINE_SUCCESS) {
             addDeleteEvent(key, vbucket);
         }
         return ret;
@@ -613,12 +612,9 @@ public:
                           const int nkey,
                           uint16_t vbucket)
     {
-        (void)cookie;
-        (void)vbucket;
-
         std::string k(static_cast<const char*>(key), nkey);
 
-        GetValue gv(epstore->get(k, vbucket));
+        GetValue gv(epstore->get(k, vbucket, cookie));
 
         if (gv.getStatus() == ENGINE_SUCCESS) {
             *item = gv.getValue();
@@ -678,7 +674,7 @@ public:
                 }
                 // FALLTHROUGH
             case OPERATION_SET:
-                ret = epstore->set(*it);
+                ret = epstore->set(*it, cookie);
                 if (ret == ENGINE_SUCCESS) {
                     *cas = it->getCas();
                     addMutationEvent(it, vbucket);
@@ -693,7 +689,7 @@ public:
                     itemRelease(cookie, i);
                     ret = ENGINE_NOT_STORED;
                 } else {
-                    ret = epstore->set(*it);
+                    ret = epstore->set(*it, cookie);
                     *cas = it->getCas();
                     if (ret == ENGINE_SUCCESS) {
                         addMutationEvent(it, vbucket);
@@ -706,7 +702,8 @@ public:
                 if (get(cookie, &i, it->getKey().c_str(), it->getNKey(),
                         vbucket) == ENGINE_SUCCESS) {
                     itemRelease(cookie, i);
-                    if ( (ret = epstore->set(*it)) == ENGINE_SUCCESS) {
+                    ret = epstore->set(*it, cookie);
+                    if (ret == ENGINE_SUCCESS) {
                         *cas = it->getCas();
                         addMutationEvent(it, vbucket);
                     }
@@ -902,7 +899,7 @@ public:
                 *vbucket = ev.vbucket;
                 *flags = static_cast<uint16_t>(ev.state);
                 if (ev.state == active) {
-                    epstore->setVBucketState(ev.vbucket, dead);
+                    epstore->setVBucketState(ev.vbucket, dead, NULL);
                 }
                 return ev.event;
             }
@@ -1090,7 +1087,7 @@ public:
 
             /* @TODO we don't have CAS now.. we might in the future.. */
             (void)cas;
-            ENGINE_ERROR_CODE ret = epstore->set(*item, true);
+            ENGINE_ERROR_CODE ret = epstore->set(*item, cookie, true);
             if (ret == ENGINE_SUCCESS) {
                 addMutationEvent(item, vbucket);
             }
@@ -1105,7 +1102,7 @@ public:
         case TAP_VBUCKET_SET:
             {
                 vbucket_state_t state = static_cast<vbucket_state_t>(tap_flags);
-                epstore->setVBucketState(vbucket, state);
+                epstore->setVBucketState(vbucket, state, serverApi->core);
                 if (state == active) {
                     return ENGINE_DISCONNECT;
                 }
@@ -1228,7 +1225,7 @@ public:
     }
 
     void setVBucketState(uint16_t vbid, vbucket_state_t to) {
-        epstore->setVBucketState(vbid, to);
+        epstore->setVBucketState(vbid, to, serverApi->core);
     }
 
     ~EventuallyPersistentEngine() {
@@ -1662,7 +1659,7 @@ private:
                         valid.assign("dirty");
                     } else {
                         // TODO:  Need a proper vbucket ID here.
-                        GetValue gv(epstore->get(key, 0));
+                        GetValue gv(epstore->get(key, 0, cookie));
                         if (gv.getStatus() == ENGINE_SUCCESS) {
                             shared_ptr<Item> item(gv.getValue());
                             if (diskItem.get()) {

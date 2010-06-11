@@ -15,6 +15,18 @@
 #include "atomic.hh"
 #include "stored-value.hh"
 
+class VBucketFirer {
+public:
+
+    VBucketFirer(const SERVER_CORE_API *c, ENGINE_ERROR_CODE r);
+
+    void operator()(const void *cookie);
+
+private:
+    const SERVER_CORE_API    *core;
+    ENGINE_ERROR_CODE         code;
+};
+
 /**
  * An individual vbucket.
  */
@@ -26,11 +38,28 @@ public:
 
     int getId(void) { return id; }
     vbucket_state_t getState(void) { return state; }
-    void setState(vbucket_state_t to) { state = to; }
+    void setState(vbucket_state_t to, SERVER_CORE_API *core = NULL) {
+        state = to;
+        if (to == active && core) {
+            fireAllOps(core);
+        }
+    }
 
     const char * getStateString(void) {
         return VBucket::toString(state);
     }
+
+    bool addPendingOp(const void *cookie) {
+        LockHolder lh(pendingOpLock);
+        if (state == active) {
+            // State transitioned while we were waiting.
+            return false;
+        }
+        pendingOps.push_back(cookie);
+        return true;
+    }
+
+    void fireAllOps(SERVER_CORE_API *core, ENGINE_ERROR_CODE code = ENGINE_SUCCESS);
 
     HashTable               ht;
 
@@ -45,8 +74,11 @@ public:
     }
 
 private:
-    int                     id;
-    Atomic<vbucket_state_t> state;
+
+    int                      id;
+    Atomic<vbucket_state_t>  state;
+    Mutex                    pendingOpLock;
+    std::vector<const void*> pendingOps;
 
     DISALLOW_COPY_AND_ASSIGN(VBucket);
 };
