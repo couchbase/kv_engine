@@ -1,5 +1,6 @@
 #include <cassert>
 #include <iostream>
+#include <unistd.h>
 
 #include "common.hh"
 
@@ -32,5 +33,6 @@ static void testUint16() {
 
 int main(int argc, char **argv) {
     (void)argc; (void)argv;
+    alarm(60);
     testUint16();
 }

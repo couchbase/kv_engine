@@ -1,6 +1,7 @@
 #include "atomic.hh"
 #include "locks.hh"
 #include <pthread.h>
+#include <unistd.h>
 #include "assert.h"
 #define NUM_THREADS 90
 #define NUM_ITEMS 100000
@@ -60,6 +61,8 @@ int main() {
     pthread_t consumer;
     int i(0), rc(0), result(-1);
     struct thread_args args;
+
+    alarm(60);
 
     args.counter = 0;
 

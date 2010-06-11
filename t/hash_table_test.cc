@@ -1,5 +1,6 @@
 #include <signal.h>
 #include <assert.h>
+#include <unistd.h>
 
 #include <algorithm>
 
@@ -195,6 +196,7 @@ static void testDepthCounting() {
 }
 
 int main() {
+    alarm(60);
     testHashSize();
     testHashSizeTwo();
     testReverseDeletions();

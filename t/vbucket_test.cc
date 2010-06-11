@@ -2,6 +2,7 @@
 
 #include <pthread.h>
 #include <signal.h>
+#include <unistd.h>
 
 #include <cassert>
 #include <vector>

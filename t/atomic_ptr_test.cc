@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <pthread.h>
+#include <unistd.h>
 
 #include "atomic.hh"
 #include "locks.hh"
@@ -122,6 +123,7 @@ static void testOperators() {
 }
 
 int main() {
+    alarm(60);
     testOperators();
     testAtomicPtr();
 }

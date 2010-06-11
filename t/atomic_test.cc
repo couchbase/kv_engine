@@ -1,6 +1,7 @@
 #include <cassert>
 #include <vector>
 #include <algorithm>
+#include <unistd.h>
 
 #include "atomic.hh"
 #include "threadtests.hh"
@@ -41,5 +42,6 @@ static void testAtomicInt() {
 }
 
 int main() {
+    alarm(60);
     testAtomicInt();
 }
