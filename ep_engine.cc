@@ -341,9 +341,9 @@ extern "C" {
         return rv;
     }
 
-    protocol_binary_response_status deleteVBucket(EventuallyPersistentEngine *e,
-                                                  protocol_binary_request_header *request,
-                                                  const char **msg) {
+    static protocol_binary_response_status deleteVBucket(EventuallyPersistentEngine *e,
+                                                         protocol_binary_request_header *request,
+                                                         const char **msg) {
         protocol_binary_request_no_extras *req =
             reinterpret_cast<protocol_binary_request_no_extras*>(request);
         assert(req);

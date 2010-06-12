@@ -1162,10 +1162,6 @@ public:
         return rv;
     }
 
-    protocol_binary_response_status deleteVBucket(EventuallyPersistentEngine *e,
-                                                  protocol_binary_request_header *request,
-                                                  const char **msg);
-
     bool deleteVBucket(uint16_t vbid) {
         return epstore->deleteVBucket(vbid);
     }
