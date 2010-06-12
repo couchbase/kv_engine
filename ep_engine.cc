@@ -341,6 +341,53 @@ extern "C" {
         return rv;
     }
 
+    protocol_binary_response_status deleteVBucket(EventuallyPersistentEngine *e,
+                                                  protocol_binary_request_header *request,
+                                                  const char **msg) {
+        protocol_binary_request_no_extras *req =
+            reinterpret_cast<protocol_binary_request_no_extras*>(request);
+        assert(req);
+
+        char keyz[8]; // stringy 2^16 int
+
+        // Read the key.
+        int keylen = ntohs(req->message.header.request.keylen);
+        if (keylen >= (int)sizeof(keyz)) {
+            *msg = "Key is too large.";
+            return PROTOCOL_BINARY_RESPONSE_EINVAL;
+        }
+        memcpy(keyz, ((char*)request) + sizeof(req->message.header), keylen);
+        keyz[keylen] = 0x00;
+
+        protocol_binary_response_status rv(PROTOCOL_BINARY_RESPONSE_SUCCESS);
+
+        uint16_t vbucket = 0;
+        if (!parseUint16(keyz, &vbucket)) {
+            *msg = "Value out of range.";
+            rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
+        } else {
+            if (e->deleteVBucket(vbucket)) {
+                *msg = "Deleted.";
+            } else {
+                // If we fail to delete, try to figure out why.
+                RCPtr<VBucket> vb = e->getVBucket(vbucket);
+                if (!vb) {
+                    *msg = "Failed to delete vbucket.  Bucket not found.";
+                    rv = PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET;
+                } else if(vb->getState() != dead) {
+                    *msg = "Failed to delete vbucket.  Must be in the dead state.";
+                    rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
+                } else {
+                    *msg = "Failed to delete vbucket.  Unknown reason.";
+                    rv = PROTOCOL_BINARY_RESPONSE_EINTERNAL;
+                }
+            }
+        }
+
+        assert(msg);
+        return rv;
+    }
+
     static ENGINE_ERROR_CODE EvpUnknownCommand(ENGINE_HANDLE* handle,
                                                const void* cookie,
                                                protocol_binary_request_header *request,
@@ -363,6 +410,9 @@ extern "C" {
             break;
         case CMD_START_PERSISTENCE:
             res = startFlusher(h, &msg);
+            break;
+        case CMD_DEL_VBUCKET:
+            res = deleteVBucket(h, request, &msg);
             break;
         case CMD_SET_FLUSH_PARAM:
         case CMD_SET_TAP_PARAM:

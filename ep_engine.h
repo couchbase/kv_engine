@@ -1162,6 +1162,14 @@ public:
         return rv;
     }
 
+    protocol_binary_response_status deleteVBucket(EventuallyPersistentStore *h,
+                                                  protocol_binary_request_header *request,
+                                                  const char **msg);
+
+    bool deleteVBucket(uint16_t vbid) {
+        return epstore->deleteVBucket(vbid);
+    }
+
     void resetStats()
     {
         if (epstore) {

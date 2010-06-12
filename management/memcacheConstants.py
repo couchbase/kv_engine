@@ -53,6 +53,7 @@ CMD_TAP_OPAQUE = 0x44
 # vbucket stuff
 CMD_SET_VBUCKET_STATE = 0x83
 CMD_GET_VBUCKET_STATE = 0x84
+CMD_DELETE_VBUCKET = 0x85
 
 COMMAND_NAMES = dict(((globals()[k], k) for k in globals() if k.startswith("CMD_")))
 

@@ -13,5 +13,6 @@ if __name__ == '__main__':
 
     c.addCommand('list', listvb)
     c.addCommand('set', 'set_vbucket_state', 'set [vbid] [vbstate]')
+    c.addCommand('rm', 'delete_vbucket', 'rm [vbid]')
 
     c.execute()

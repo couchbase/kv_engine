@@ -219,6 +219,19 @@ void EventuallyPersistentStore::setVBucketState(uint16_t vbid,
     }
 }
 
+bool EventuallyPersistentStore::deleteVBucket(uint16_t vbid) {
+    // Lock to prevent a race condition between a failed update and add (and delete).
+    LockHolder lh(vbsetMutex);
+    bool rv(false);
+
+    RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
+    if (vb && vb->getState() == dead) {
+        vbuckets.removeBucket(vbid);
+        rv = true;
+    }
+    return rv;
+}
+
 GetValue EventuallyPersistentStore::get(const std::string &key,
                                         uint16_t vbucket,
                                         const void *cookie) {

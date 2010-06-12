@@ -190,6 +190,9 @@ class MemcachedClient(object):
         return self._doCmd(memcacheConstants.CMD_SET_VBUCKET_STATE,
                            str(vbucket), state)
 
+    def delete_vbucket(self, vbucket):
+        return self._doCmd(memcacheConstants.CMD_DELETE_VBUCKET, str(vbucket), '')
+
     def getMulti(self, keys):
         """Get values for any available keys in the given iterable.
 

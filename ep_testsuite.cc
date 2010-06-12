@@ -281,21 +281,24 @@ static bool verify_vbucket_state(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 static bool verify_vbucket_missing(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                    uint16_t vb) {
     char vbid[8];
-    snprintf(vbid, sizeof(vbid), "%d", vb);
+    snprintf(vbid, sizeof(vbid), "vb_%d", vb);
+    std::string vbstr(vbid);
 
     // Try up to three times to verify the bucket is missing.  Bucket
     // state changes are async.
     for (int i = 0; i < 3; i++) {
-        protocol_binary_request_header *pkt = create_packet(CMD_GET_VBUCKET, vbid, "");
-        if (h1->unknown_command(h, "cookie", pkt, add_response) != ENGINE_SUCCESS) {
-            return false;
-        }
+        vals.clear();
+        check(h1->get_stats(h, "cookie", NULL, 0, add_stats) == ENGINE_SUCCESS,
+              "Failed to get stats.");
 
-        if (last_status == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET) {
+        if (vals.find(vbstr) == vals.end()) {
             return true;
         }
+
         usleep(500000);
     }
+
+    std::cerr << "Expected bucket missing, got " << vals[vbstr] << std::endl;
 
     return false;
 }
@@ -719,15 +722,34 @@ static enum test_result test_vbucket_create(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
 }
 
 static enum test_result test_vbucket_destroy(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    if (verify_vbucket_missing(h, h1, 0)) {
-        return FAIL;
-    }
+    check(set_vbucket_state(h, h1, 1, "active"), "Failed to set vbucket state.");
+    usleep(2600); // XXX:  racist (vbucket set state happens on the dispatcher)
 
-    if (!set_vbucket_state(h, h1, 0, "dead")) {
-        return FAIL;
-    }
+    protocol_binary_request_header *pkt = create_packet(CMD_DEL_VBUCKET, "1", "");
+    check(h1->unknown_command(h, "cookie", pkt, add_response) == ENGINE_SUCCESS,
+          "Failed to request delete bucket");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL,
+          "Expected failure deleting active bucket.");
 
-    return verify_vbucket_missing(h, h1, 0) ? SUCCESS : FAIL;
+    pkt = create_packet(CMD_DEL_VBUCKET, "2", "");
+    check(h1->unknown_command(h, "cookie", pkt, add_response) == ENGINE_SUCCESS,
+          "Failed to request delete bucket");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET,
+          "Expected failure deleting non-existent bucket.");
+
+    check(set_vbucket_state(h, h1, 1, "dead"), "Failed set set vbucket 0 state.");
+    usleep(2600); // XXX:  racist (vbucket set state happens on the dispatcher)
+
+    pkt = create_packet(CMD_DEL_VBUCKET, "1", "");
+    check(h1->unknown_command(h, "cookie", pkt, add_response) == ENGINE_SUCCESS,
+          "Failed to delete dead bucket.");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+          "Expected failure deleting non-existent bucket.");
+
+    check(verify_vbucket_missing(h, h1, 1),
+          "vbucket 0 was not missing after deleting it.");
+
+    return SUCCESS;
 }
 
 static enum test_result test_vb_set_pending(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
