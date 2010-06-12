@@ -2,6 +2,8 @@
 
 #include <iostream>
 #include <sstream>
+#include <map>
+#include <string>
 
 #include <assert.h>
 #include <stdio.h>
@@ -44,6 +46,11 @@ extern "C" {
     bool setup_suite(struct test_harness *);
 }
 
+protocol_binary_response_status last_status(static_cast<protocol_binary_response_status>(0));
+char *last_key = NULL;
+char *last_body = NULL;
+std::map<std::string, std::string> vals;
+
 struct test_harness testHarness;
 
 bool abort_msg(const char *expr, const char *msg, int line) {
@@ -61,6 +68,7 @@ static bool teardown(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     unlink("/tmp/test.db-1.sqlite");
     unlink("/tmp/test.db-2.sqlite");
     unlink("/tmp/test.db-3.sqlite");
+    vals.clear();
     return true;
 }
 
@@ -176,9 +184,14 @@ static enum test_result test_wrong_vb_mutation(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     return SUCCESS;
 }
 
-protocol_binary_response_status last_status(static_cast<protocol_binary_response_status>(0));
-char *last_key = NULL;
-char *last_body = NULL;
+static void add_stats(const char *key, const uint16_t klen,
+                      const char *val, const uint32_t vlen,
+                      const void *cookie) {
+    (void)cookie;
+    std::string k(key, klen);
+    std::string v(val, vlen);
+    vals[k] = v;
+}
 
 static bool add_response(const void *key, uint16_t keylen,
                          const void *ext, uint8_t extlen,
@@ -810,6 +823,14 @@ static enum test_result test_novb0(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return SUCCESS;
 }
 
+static enum test_result test_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    check(h1->get_stats(h, "cookie", NULL, 0, add_stats) == ENGINE_SUCCESS,
+          "Failed to get stats.");
+    check(vals.size() > 10, "Kind of expected more stats than that.");
+    check(vals.find("ep_version") != vals.end(), "Found no ep_version.");
+    return SUCCESS;
+}
+
 engine_test_t* get_tests(void) {
     static engine_test_t tests[]  = {
         // basic tests
@@ -829,7 +850,7 @@ engine_test_t* get_tests(void) {
         {"flush", test_flush, NULL, teardown, NULL},
         {"expiry", test_expiry, NULL, teardown, NULL},
         // Stats tests
-        {"stats", NULL, NULL, teardown, NULL},
+        {"stats", test_stats, NULL, teardown, NULL},
         {"stats key", NULL, NULL, teardown, NULL},
         {"stats vkey", NULL, NULL, teardown, NULL},
         // tap tests
