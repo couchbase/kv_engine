@@ -147,10 +147,10 @@ static bool get_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 static enum test_result check_key_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                         const char* key,
                                         const char* val, size_t vlen,
-                                        bool checkcrlf = false) {
+                                        bool checkcrlf = false, uint16_t vbucket = 0) {
     int crlfOffset = checkcrlf ? 2 : 0;
     item *i = NULL;
-    check(h1->get(h, NULL, &i, key, strlen(key), 0) == ENGINE_SUCCESS,
+    check(h1->get(h, NULL, &i, key, strlen(key), vbucket) == ENGINE_SUCCESS,
           "Failed to get in check_key_value");
 
     item_info info;
@@ -484,6 +484,29 @@ static enum test_result test_flush(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return SUCCESS;
 }
 
+static enum test_result test_flush_multiv(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    item *i = NULL;
+    check(set_vbucket_state(h, h1, 2, "active"), "Failed to set vbucket state.");
+    check(store(h, h1, "cookie", OPERATION_SET, "key", "somevalue", &i) == ENGINE_SUCCESS,
+          "Failed set.");
+    check(store(h, h1, "cookie", OPERATION_SET, "key2", "somevalue", &i,
+                0, 2) == ENGINE_SUCCESS,
+          "Failed set in vb2.");
+
+    check(ENGINE_SUCCESS == verify_key(h, h1, "key"), "Expected key");
+    check(ENGINE_SUCCESS == verify_vb_key(h, h1, "key2", 2), "Expected key2");
+
+    check_key_value(h, h1, "key", "somevalue", 9);
+    check_key_value(h, h1, "key2", "somevalue", 9, false, 2);
+
+    check(h1->flush(h, "cookie", 0) == ENGINE_SUCCESS, "Failed to flush");
+
+    check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key"), "Expected missing key");
+    check(ENGINE_KEY_ENOENT == verify_vb_key(h, h1, "key2", 2), "Expected missing key");
+
+    return SUCCESS;
+}
+
 static enum test_result test_flush_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
     // First try to delete something we know to not be there.
@@ -522,6 +545,40 @@ static enum test_result test_flush_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
 
     // Read value again, should not be there.
     check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key"), "Expected missing key");
+    return SUCCESS;
+}
+
+static enum test_result test_flush_multiv_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    item *i = NULL;
+    check(set_vbucket_state(h, h1, 2, "active"), "Failed to set vbucket state.");
+    check(store(h, h1, "cookie", OPERATION_SET, "key", "somevalue", &i) == ENGINE_SUCCESS,
+          "Failed set.");
+    check(store(h, h1, "cookie", OPERATION_SET, "key2", "somevalue", &i,
+                0, 2) == ENGINE_SUCCESS,
+          "Failed set in vb2.");
+
+    // Restart once to ensure written to disk.
+    testHarness.reload_engine(&h, &h1,
+                              testHarness.engine_path,
+                              testHarness.default_engine_cfg,
+                              true);
+
+    // Read value from disk.
+    check_key_value(h, h1, "key", "somevalue", 9);
+
+    // Flush
+    check(h1->flush(h, "cookie", 0) == ENGINE_SUCCESS,
+          "Failed to flush");
+
+    // Restart again, ensure written to disk.
+    testHarness.reload_engine(&h, &h1,
+                              testHarness.engine_path,
+                              testHarness.default_engine_cfg,
+                              true);
+
+    // Read value again, should not be there.
+    check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key"), "Expected missing key");
+    check(verify_vbucket_missing(h, h1, 2), "Bucket 2 came back.");
     return SUCCESS;
 }
 
@@ -870,6 +927,7 @@ engine_test_t* get_tests(void) {
         {"incr with default", test_incr_default, NULL, teardown, NULL},
         {"delete", test_delete, NULL, teardown, NULL},
         {"flush", test_flush, NULL, teardown, NULL},
+        {"flush multi vbuckets", test_flush_multiv, NULL, teardown, NULL},
         {"expiry", test_expiry, NULL, teardown, NULL},
         // Stats tests
         {"stats", test_stats, NULL, teardown, NULL},
@@ -887,6 +945,7 @@ engine_test_t* get_tests(void) {
         {"test restart", test_restart, NULL, teardown, NULL},
         {"set+get+restart+hit (bin)", test_restart_bin_val, NULL, teardown, NULL},
         {"flush+restart", test_flush_restart, NULL, teardown, NULL},
+        {"flush multiv+restart", test_flush_multiv_restart, NULL, teardown, NULL},
         // vbucket negative tests
         {"vbucket incr (dead)", test_wrong_vb_incr, NULL, teardown, NULL},
         {"vbucket incr (pending)", test_vb_incr_pending, NULL, teardown, NULL},

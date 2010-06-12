@@ -390,11 +390,14 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::del(const std::string &key,
 }
 
 void EventuallyPersistentStore::reset() {
-    // TODO: Something smarter for multiple vbuckets.
-    RCPtr<VBucket> vb = getVBucket(0, active);
-    if (vb) {
-        vb->ht.clear();
-        queueDirty("", 0);
+    std::vector<int> buckets = vbuckets.getBuckets();
+    std::vector<int>::iterator it;
+    for (it = buckets.begin(); it != buckets.end(); ++it) {
+        RCPtr<VBucket> vb = getVBucket(*it, active);
+        if (vb) {
+            vb->ht.clear();
+            queueDirty("", *it);
+        }
     }
 }
 
