@@ -30,8 +30,11 @@ void Dispatcher::run() {
     while (state == dispatcher_running) {
         LockHolder lh(mutex);
         if (queue.empty()) {
-            // Wait forever
-            mutex.wait();
+            // Wait forever as long as the state didn't change while
+            // we grabbed the lock.
+            if (state == dispatcher_running) {
+                mutex.wait();
+            }
         } else {
             TaskId task = queue.top();
             assert(task);
