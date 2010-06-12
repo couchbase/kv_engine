@@ -1273,6 +1273,9 @@ private:
 
         if (shouldPause) {
             tapNotifySync.wait();
+            if (shutdown) {
+                return;
+            }
             purgeExpiredTapConnections_UNLOCKED();
         }
 
@@ -1296,9 +1299,14 @@ private:
             updateTapStats();
             notifyTapIoThreadMain();
 
+            if (shutdown) {
+                return;
+            }
+
             // Prevent the notify thread from busy-looping while
             // holding locks when there's work to do.
-            sleep(1);
+            LockHolder lh(tapNotifySync);
+            tapNotifySync.wait(1.0);
         }
     }
 
