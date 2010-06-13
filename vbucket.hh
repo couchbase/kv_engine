@@ -15,18 +15,6 @@
 #include "atomic.hh"
 #include "stored-value.hh"
 
-class VBucketFirer {
-public:
-
-    VBucketFirer(const SERVER_CORE_API *c, ENGINE_ERROR_CODE r);
-
-    void operator()(const void *cookie);
-
-private:
-    const SERVER_CORE_API    *core;
-    ENGINE_ERROR_CODE         code;
-};
-
 /**
  * An individual vbucket.
  */
