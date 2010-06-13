@@ -13,6 +13,6 @@ if __name__ == '__main__':
 
     c = clitool.CliTool()
 
-    c.addCommand('vkey', stats_vkey, 'keyname')
+    c.addCommand('vkey', stats_vkey, 'vkey keyname')
 
     c.execute()
