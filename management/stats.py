@@ -15,10 +15,18 @@ def stats_vkey(mc, key):
     print "verification for key", key
     stats_formatter(vbs)
 
+def stats_all(mc):
+    stats_formatter(mc.stats())
+
+def stats_hash(mc):
+    stats_formatter(mc.stats('hash'))
+
 if __name__ == '__main__':
 
     c = clitool.CliTool()
 
     c.addCommand('vkey', stats_vkey, 'vkey keyname')
+    c.addCommand('all', stats_all)
+    c.addCommand('hash', stats_hash)
 
     c.execute()
