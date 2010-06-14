@@ -44,6 +44,7 @@ public:
             holder = pthread_self();
             return true;
         case ETIMEDOUT:
+            holder = pthread_self();
             return false;
         default:
             throw std::runtime_error("Failed timed_wait for condition.");
