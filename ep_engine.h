@@ -404,6 +404,7 @@ public:
     {
         ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
         char *master = NULL;
+        char *tap_id = NULL;
 
         if (config != NULL) {
             char *dbn = NULL, *initf = NULL;
@@ -458,6 +459,11 @@ public:
             items[ii].key = "tap_peer";
             items[ii].datatype = DT_STRING;
             items[ii].value.dt_string = &master;
+
+            ++ii;
+            items[ii].key = "tap_id";
+            items[ii].datatype = DT_STRING;
+            items[ii].value.dt_string = &tap_id;
 
             ++ii;
             items[ii].key = "config_file";
@@ -530,6 +536,11 @@ public:
                 while (flusher->state() == initializing) {
                     sleep(1);
                 }
+            }
+
+            if (tap_id != NULL) {
+                tapId.assign(tap_id);
+                free(tap_id);
             }
 
             if (master != NULL) {
@@ -1727,7 +1738,7 @@ private:
         }
 
         if (!found) {
-            clientTap = new TapClientConnection(peer, flags, this);
+            clientTap = new TapClientConnection(peer, tapId, flags, this);
             tapConnect();
         }
     }
@@ -1735,6 +1746,10 @@ private:
     void tapConnect() {
         try {
             tapEnabled = true;
+            std::stringstream ss;
+            ss << "Setting up TAP connection to: " << clientTap->peer
+               << std::endl;
+            getLogger()->log(EXTENSION_LOG_DEBUG, NULL, ss.str().c_str());
             clientTap->start();
         } catch (std::runtime_error &e) {
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
@@ -1769,6 +1784,7 @@ private:
 
     Mutex tapMutex;
     TapClientConnection* clientTap;
+    std::string tapId;
     bool tapEnabled;
     size_t maxItemSize;
 };
