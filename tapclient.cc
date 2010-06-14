@@ -49,16 +49,16 @@ public:
 
 class TapConnectBinaryMessage : public BinaryMessage {
 public:
-    TapConnectBinaryMessage(const std::string &peer, uint32_t flags,
+    TapConnectBinaryMessage(const std::string &id, uint32_t flags,
                             uint64_t backfill) {
-        size = sizeof(data.tap_connect->bytes) + peer.length();
+        size = sizeof(data.tap_connect->bytes) + id.length();
         if (flags & TAP_CONNECT_FLAG_BACKFILL) {
             size += sizeof(backfill);
         }
         data.rawBytes = new char[size];
         data.req->request.magic = PROTOCOL_BINARY_REQ;
         data.req->request.opcode = PROTOCOL_BINARY_CMD_TAP_CONNECT;
-        data.req->request.keylen = ntohs(static_cast<uint16_t>(peer.length()));
+        data.req->request.keylen = ntohs(static_cast<uint16_t>(id.length()));
         data.req->request.extlen = 4;
         data.req->request.datatype = PROTOCOL_BINARY_RAW_BYTES;
         data.req->request.vbucket = 0;
@@ -68,8 +68,8 @@ public:
         data.req->request.cas = 0;
         data.tap_connect->message.body.flags = htonl(flags);
         char *ptr = data.rawBytes + sizeof(data.tap_connect->bytes);
-        memcpy(ptr, peer.c_str(), peer.length());
-        ptr += peer.length();
+        memcpy(ptr, id.c_str(), id.length());
+        ptr += id.length();
 
         if (flags & TAP_CONNECT_FLAG_BACKFILL) {
             backfill = htonll(backfill);
@@ -144,7 +144,7 @@ bool TapClientConnection::connect() throw (std::runtime_error) {
             if (errno == EINPROGRESS || errno == EALREADY) {
                 return false;
             } else if (errno == EISCONN) {
-                TapConnectBinaryMessage msg(peer, flags, backfillage);
+                TapConnectBinaryMessage msg(tapId, flags, backfillage);
                 connected = true;
                 if (send(sock, msg.data.rawBytes, msg.size, 0) !=
                     static_cast<ssize_t>(msg.size)) {

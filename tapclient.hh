@@ -35,10 +35,10 @@ friend class EventuallyPersistentEngine;
 friend void* tapClientConnectionMain(void *arg);
 
 private:
-    TapClientConnection(const std::string &n, uint32_t f,
+    TapClientConnection(const std::string &n, const std::string &id, uint32_t f,
                         EventuallyPersistentEngine *e) :
-        running(false), peer(n), flags(f), connected(false), reconnects(0),
-        failed(false), retry_interval(0), last_retry(0),
+        running(false), peer(n), tapId(id), flags(f), connected(false),
+        reconnects(0), failed(false), retry_interval(0), last_retry(0),
         connect_timeout(CONNECTION_TIMEOUT),
         sock(-1), ai(NULL), message(NULL), engine(e), terminate(false),
         backfillage(0), zombie(false)
@@ -135,6 +135,11 @@ private:
      * String used to identify the peer.
      */
     std::string peer;
+
+    /**
+     * String used to identify me
+     */
+    std::string tapId;
 
     /**
      * Flags passed to the peer
