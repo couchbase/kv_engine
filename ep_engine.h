@@ -411,7 +411,7 @@ public:
             size_t htBuckets = 0;
             size_t htLocks = 0;
 
-            const int max_items = 12;
+            const int max_items = 13;
             struct config_item items[max_items];
             int ii = 0;
             memset(items, 0, sizeof(items));
@@ -476,6 +476,8 @@ public:
 
             ++ii;
             items[ii].key = NULL;
+
+            assert(ii < max_items);
 
             if (serverApi->core->parse_config(config, items, stderr) != 0) {
                 ret = ENGINE_FAILED;
