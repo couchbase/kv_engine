@@ -174,6 +174,9 @@ private:
     /** Numbers of second left before a connect timeout */
     int connect_timeout;
 
+    /** Number of seconds left until the idle timeout expires */
+    size_t idleTimeout;
+
     /** The socket used for communication to our tap provider */
     int sock;
 
