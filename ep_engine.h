@@ -18,6 +18,7 @@
 #include "command_ids.h"
 
 #define NUMBER_OF_SHARDS 4
+#define DEFAULT_TAP_IDLE_TIMEOUT 600
 
 extern "C" {
     EXPORT_FUNCTION
@@ -498,6 +499,12 @@ public:
             }
         }
 
+        if (tapIdleTimeout == 0) {
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                             "Invalid value for tap_idle_timeout specified. Using default\n");
+            tapIdleTimeout = DEFAULT_TAP_IDLE_TIMEOUT;
+        }
+
         if (ret == ENGINE_SUCCESS) {
             time_t start = time(NULL);
             try {
@@ -910,6 +917,7 @@ public:
         if (ret == TAP_PAUSE && connection->complete()) {
             ev = connection->nextVBucketLowPriority();
             if (ev.event != TAP_PAUSE) {
+                connection->paused = false;
                 *vbucket = ev.vbucket;
                 *flags = static_cast<uint16_t>(ev.state);
                 if (ev.state == active) {
@@ -1281,6 +1289,12 @@ private:
     }
 
     void notifyTapIoThreadMain(void) {
+        bool addNoop = false;
+
+        if (ep_current_time() > nextTapNoop) {
+            addNoop = true;
+            nextTapNoop = ep_current_time() + (tapIdleTimeout / 2);
+        }
         LockHolder lh(tapNotifySync);
         // We should pause unless we purged some connections or
         // all queues have items.
@@ -1290,11 +1304,16 @@ private:
         for (iter = tapConnectionMap.begin(); iter != tapConnectionMap.end(); iter++) {
             if (!iter->second->queue->empty()) {
                 shouldPause = false;
+            } else if (addNoop) {
+                TapVBucketEvent hi(TAP_NOOP, 0, pending);
+                iter->second->addVBucketHighPriority(hi);
+                shouldPause = false;
             }
         }
 
         if (shouldPause) {
-            tapNotifySync.wait();
+            double sleeptime = nextTapNoop - ep_current_time();
+            tapNotifySync.wait(sleeptime);
             if (shutdown) {
                 return;
             }
@@ -1784,6 +1803,7 @@ private:
     time_t databaseInitTime;
     size_t tapKeepAlive;
     size_t tapIdleTimeout;
+    size_t nextTapNoop;
     pthread_t notifyThreadId;
     SyncObject tapNotifySync;
     volatile bool shutdown;
