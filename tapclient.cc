@@ -350,19 +350,19 @@ void TapClientConnection::consume() {
             }
         } else if (nr == 0) {
             throw std::runtime_error("stream closed");
-        }
-
-        offset += nr;
-        if (nr == static_cast<ssize_t>(nbytes)) {
-            // we got everything..
-            offset = 0;
-            if (message == NULL) {
-                message = new BinaryMessage(header);
-            } else {
-                /* Call the tap notify function!! */
-                apply();
-                delete message;
-                message = NULL;
+        } else {
+            offset += nr;
+            if (nr == static_cast<ssize_t>(nbytes)) {
+                // we got everything..
+                offset = 0;
+                if (message == NULL) {
+                    message = new BinaryMessage(header);
+                } else {
+                    /* Call the tap notify function!! */
+                    apply();
+                    delete message;
+                    message = NULL;
+                }
             }
         }
 
