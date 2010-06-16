@@ -146,6 +146,7 @@ bool TapClientConnection::connect() throw (std::runtime_error) {
             } else if (errno == EISCONN) {
                 TapConnectBinaryMessage msg(tapId, flags, backfillage);
                 connected = true;
+                idleTimeout = engine->getTapIdleTimeout();
                 if (send(sock, msg.data.rawBytes, msg.size, 0) !=
                     static_cast<ssize_t>(msg.size)) {
                     // It's unlikely that we're not able to send that few
@@ -235,6 +236,13 @@ bool TapClientConnection::wait(short mask) throw (std::runtime_error) {
             (void)close(sock);
             sock = -1;
             throw std::runtime_error(msg.str());
+        }
+
+        if (error == 0 && connected) {
+            --idleTimeout;
+            if (idleTimeout == 0) {
+                throw std::runtime_error(std::string("Disconnecting.. Connection idle too long"));
+            }
         }
 
         return false;
@@ -350,19 +358,20 @@ void TapClientConnection::consume() {
             }
         } else if (nr == 0) {
             throw std::runtime_error("stream closed");
-        }
-
-        offset += nr;
-        if (nr == static_cast<ssize_t>(nbytes)) {
-            // we got everything..
-            offset = 0;
-            if (message == NULL) {
-                message = new BinaryMessage(header);
-            } else {
-                /* Call the tap notify function!! */
-                apply();
-                delete message;
-                message = NULL;
+        } else {
+            offset += nr;
+            if (nr == static_cast<ssize_t>(nbytes)) {
+                // we got everything..
+                offset = 0;
+                if (message == NULL) {
+                    message = new BinaryMessage(header);
+                } else {
+                    /* Call the tap notify function!! */
+                    apply();
+                    delete message;
+                    message = NULL;
+                    idleTimeout = engine->getTapIdleTimeout();
+                }
             }
         }
 

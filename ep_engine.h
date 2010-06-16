@@ -285,7 +285,7 @@ public:
             size_t htBuckets = 0;
             size_t htLocks = 0;
 
-            const int max_items = 12;
+            const int max_items = 14;
             struct config_item items[max_items];
             int ii = 0;
             memset(items, 0, sizeof(items));
@@ -333,6 +333,11 @@ public:
             items[ii].key = "tap_id";
             items[ii].datatype = DT_STRING;
             items[ii].value.dt_string = &tap_id;
+
+            ++ii;
+            items[ii].key = "tap_idle_timeout";
+            items[ii].datatype = DT_SIZE;
+            items[ii].value.dt_size = &tapIdleTimeout;
 
             ++ii;
             items[ii].key = "config_file";
@@ -1040,6 +1045,10 @@ public:
         return &info.info;
     }
 
+    size_t getTapIdleTimeout() const {
+        return tapIdleTimeout;
+    }
+
 private:
     EventuallyPersistentEngine(GET_SERVER_API get_server_api);
     friend ENGINE_ERROR_CODE create_instance(uint64_t interface,
@@ -1565,6 +1574,7 @@ private:
     Mutex lookupMutex;
     time_t databaseInitTime;
     size_t tapKeepAlive;
+    size_t tapIdleTimeout;
     pthread_t notifyThreadId;
     SyncObject tapNotifySync;
     volatile bool shutdown;
