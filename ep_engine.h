@@ -500,9 +500,7 @@ public:
         }
 
         if (tapIdleTimeout == 0) {
-            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "Invalid value for tap_idle_timeout specified. Using default\n");
-            tapIdleTimeout = DEFAULT_TAP_IDLE_TIMEOUT;
+            tapIdleTimeout = (size_t)-1;
         }
 
         if (ret == ENGINE_SUCCESS) {
@@ -1312,8 +1310,13 @@ private:
         }
 
         if (shouldPause) {
-            double sleeptime = nextTapNoop - ep_current_time();
-            tapNotifySync.wait(sleeptime);
+            double diff = nextTapNoop - ep_current_time();
+            if (diff > 0) {
+                tapNotifySync.wait(diff);
+            } else {
+                tapNotifySync.wait();
+            }
+
             if (shutdown) {
                 return;
             }
