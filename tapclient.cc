@@ -291,9 +291,11 @@ void TapClientConnection::apply() {
     }
 
     if (ignore) {
-        getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                         "Ignoring unknown packet on tap stream: 0x%02x\n",
-                         static_cast<unsigned int>(tap->message.header.request.opcode));
+        if (tap->message.header.request.opcode != PROTOCOL_BINARY_CMD_NOOP) {
+            getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                             "Ignoring unknown packet on tap stream: 0x%02x\n",
+                             static_cast<unsigned int>(tap->message.header.request.opcode));
+        }
     } else {
         if (event == TAP_MUTATION) {
             protocol_binary_request_tap_mutation *mutation;
@@ -365,6 +367,12 @@ void TapClientConnection::consume() {
                 offset = 0;
                 if (message == NULL) {
                     message = new BinaryMessage(header);
+                    if (ntohl(header.request.bodylen) == 0) {
+                        apply();
+                        delete message;
+                        message = NULL;
+                        idleTimeout = engine->getTapIdleTimeout();
+                    }
                 } else {
                     /* Call the tap notify function!! */
                     apply();
