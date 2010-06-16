@@ -179,10 +179,10 @@ extern "C" {
         try {
             int v = atoi(valz);
             if (strcmp(keyz, "min_data_age") == 0) {
-                validate(v, 1, MAX_DATA_AGE_PARAM);
+                validate(v, 0, MAX_DATA_AGE_PARAM);
                 e->setMinDataAge(v);
             } else if (strcmp(keyz, "queue_age_cap") == 0) {
-                validate(v, 1, MAX_DATA_AGE_PARAM);
+                validate(v, 0, MAX_DATA_AGE_PARAM);
                 e->setQueueAgeCap(v);
             } else if (strcmp(keyz, "max_txn_size") == 0) {
                 validate(v, 1, MAX_TXN_SIZE);
