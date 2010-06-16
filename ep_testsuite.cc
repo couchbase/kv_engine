@@ -756,6 +756,31 @@ static enum test_result test_alloc_limit(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+static enum test_result test_memory_limit(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    item *i = NULL;
+    // So if we add an item,
+    check(store(h, h1, "cookie", OPERATION_SET, "key", "somevalue", &i) == ENGINE_SUCCESS,
+          "store failure");
+    check_key_value(h, h1, "key", "somevalue", 9);
+
+    // There should be no room for another.
+    check(store(h, h1, "cookie", OPERATION_SET, "key2", "somevalue2", &i) == ENGINE_ENOMEM,
+          "should have failed second set");
+    check_key_value(h, h1, "key", "somevalue", 9);
+    check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key2"), "Expected missing key");
+
+    // Until we remove that item
+    check(h1->remove(h, "cookie", "key", 3, 0, 0) == ENGINE_SUCCESS,
+          "Failed remove with value.");
+    check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key"), "Expected missing key");
+
+    check(store(h, h1, "cookie", OPERATION_SET, "key2", "somevalue2", &i) == ENGINE_SUCCESS,
+          "should have succeded on the last set");
+    check_key_value(h, h1, "key2", "somevalue2", 10);
+
+    return SUCCESS;
+}
+
 static enum test_result test_vbucket_get_miss(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return verify_vbucket_missing(h, h1, 1) ? SUCCESS : FAIL;
 }
@@ -914,6 +939,7 @@ engine_test_t* get_tests(void) {
     static engine_test_t tests[]  = {
         // basic tests
         {"test alloc limit", test_alloc_limit, NULL, teardown, NULL},
+        {"test total memory limit", test_memory_limit, NULL, teardown, "max_size=128"},
         {"get miss", test_get_miss, NULL, teardown, NULL},
         {"set", test_set, NULL, teardown, NULL},
         {"set+get hit", test_set_get_hit, NULL, teardown, NULL},

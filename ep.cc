@@ -184,6 +184,8 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::set(const Item &item,
 
     if (cas_op && mtype == NOT_FOUND) {
         return ENGINE_KEY_ENOENT;
+    } else if (mtype == NOMEM) {
+        return ENGINE_ENOMEM;
     } else if (mtype == INVALID_CAS) {
         return ENGINE_KEY_EEXISTS;
     } else if (mtype == IS_LOCKED) {

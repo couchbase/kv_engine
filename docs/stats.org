@@ -45,6 +45,7 @@
 | ep_commit_time                | Number of seconds of most recent commit. |
 | ep_flush_duration             | Number of seconds of most recent flush.  |
 | ep_flush_duration_highwat     | ep_flush_duration high water mark.       |
+| mem_used                      | Total memory used for storing values.    |
 | ep_dbname                     | DB path.                                 |
 | ep_dbinit                     | Number of seconds to initialize DB.      |
 | ep_warmup                     | true if warmup is enabled.               |

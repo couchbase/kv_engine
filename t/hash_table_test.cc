@@ -40,7 +40,7 @@ static int count(HashTable &h) {
 
 static void store(HashTable &h, std::string &k) {
     Item i(k, 0, 0, k.c_str(), k.length());
-    h.set(i);
+    assert(h.set(i) == NOT_FOUND);
 }
 
 static void storeMany(HashTable &h, std::vector<std::string> &keys) {

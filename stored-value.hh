@@ -24,6 +24,7 @@ public:
         cas(itm.getCas()), id(itm.getId()), locked(false), lock_expiry(0)
     {
         markDirty();
+        increaseCurrentSize(size());
     }
 
     StoredValue(const Item &itm, StoredValue *n, bool setDirty) :
@@ -36,10 +37,13 @@ public:
         } else {
             markClean(NULL, NULL);
         }
+        increaseCurrentSize(size());
     }
 
     ~StoredValue() {
+        reduceCurrentSize(size());
     }
+
     void markDirty() {
         data_age = ep_current_time();
         if (!isDirty()) {
@@ -90,11 +94,13 @@ public:
 
     void setValue(value_t v,
                   uint32_t newFlags, rel_time_t newExp, uint64_t theCas) {
+        reduceCurrentSize(size());
         cas = theCas;
         flags = newFlags;
         exptime = newExp;
         value = v;
         markDirty();
+        increaseCurrentSize(size());
     }
 
     uint64_t getCas() const {
@@ -137,6 +143,10 @@ public:
         id = to;
     }
 
+    size_t size() {
+        return sizeof(StoredValue) + key.length() + value->length();
+    }
+
     bool isLocked(rel_time_t curtime)  {
         if (locked && (curtime > lock_expiry)) {
             locked = false;
@@ -145,9 +155,20 @@ public:
         return locked;
     }
 
+    static void setMaxDataSize(size_t);
+    static size_t getMaxDataSize();
+    static size_t getCurrentSize();
+
 private:
 
     friend class HashTable;
+
+    static void increaseCurrentSize(size_t by);
+    static void reduceCurrentSize(size_t by);
+    static bool hasAvailableSpace(const Item &item);
+
+    static size_t maxDataSize;
+    static Atomic<size_t> currentSize;
 
     std::string key;
     value_t value;
@@ -166,7 +187,7 @@ private:
 typedef enum {
     INVALID_VBUCKET, NOT_FOUND, INVALID_CAS,
     WAS_CLEAN, WAS_DIRTY,
-    IS_LOCKED,
+    IS_LOCKED, NOMEM,
     SUCCESS
 } mutation_type_t;
 
@@ -265,6 +286,11 @@ public:
             if (itm.getCas() != 0) {
                 return NOT_FOUND;
             }
+
+            if (!StoredValue::hasAvailableSpace(itm)) {
+                return NOMEM;
+            }
+
             itm.setCas();
             v = new StoredValue(itm, values[bucket_num]);
             values[bucket_num] = v;
@@ -283,6 +309,9 @@ public:
         } else {
             Item &itm = const_cast<Item&>(val);
             itm.setCas();
+            if (!StoredValue::hasAvailableSpace(itm)) {
+                return NOMEM;
+            }
             v = new StoredValue(itm, values[bucket_num], isDirty);
             values[bucket_num] = v;
             depths[bucket_num]++;

@@ -411,8 +411,9 @@ public:
             char *dbn = NULL, *initf = NULL;
             size_t htBuckets = 0;
             size_t htLocks = 0;
+            size_t maxSize = 0;
 
-            const int max_items = 14;
+            const int max_items = 15;
             struct config_item items[max_items];
             int ii = 0;
             memset(items, 0, sizeof(items));
@@ -457,6 +458,11 @@ public:
             items[ii].value.dt_size = &htLocks;
 
             ++ii;
+            items[ii].key = "max_size";
+            items[ii].datatype = DT_SIZE;
+            items[ii].value.dt_size = &maxSize;
+
+            ++ii;
             items[ii].key = "tap_peer";
             items[ii].datatype = DT_STRING;
             items[ii].value.dt_string = &master;
@@ -496,6 +502,7 @@ public:
                 }
                 HashTable::setDefaultNumBuckets(htBuckets);
                 HashTable::setDefaultNumLocks(htLocks);
+                StoredValue::setMaxDataSize(maxSize);
             }
         }
 
@@ -1539,6 +1546,8 @@ private:
             add_casted_stat("ep_flush_duration_highwat",
                             epstats.flushDurationHighWat, add_stat, cookie);
             add_casted_stat("curr_items", epstats.curr_items, add_stat,
+                            cookie);
+            add_casted_stat("mem_used", StoredValue::getCurrentSize(), add_stat,
                             cookie);
 
             if (warmup) {
