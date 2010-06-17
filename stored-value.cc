@@ -9,7 +9,7 @@
 
 #ifndef DEFAULT_MAX_DATA_SIZE
 /* Something something something ought to be enough for anybody */
-#define DEFAULT_MAX_DATA_SIZE (512L * 1024 * 1024 * 1024)
+#define DEFAULT_MAX_DATA_SIZE (static_cast<size_t>(-1))
 #endif
 
 size_t HashTable::defaultNumBuckets = DEFAULT_HT_SIZE;
@@ -126,7 +126,7 @@ void StoredValue::increaseCurrentSize(size_t by) {
 
 void StoredValue::reduceCurrentSize(size_t by) {
     currentSize.decr(by);
-    assert(static_cast<int64_t>(getCurrentSize()) >= 0);
+    assert(static_cast<ssize_t>(getCurrentSize()) >= 0);
 }
 
 /**
