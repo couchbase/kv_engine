@@ -507,22 +507,19 @@ private:
     DISALLOW_COPY_AND_ASSIGN(Requeuer);
 };
 
-int EventuallyPersistentStore::flushOne(std::queue<QueuedItem> *q,
-                                        std::queue<QueuedItem> *rejectQueue) {
+int EventuallyPersistentStore::flushOneDeleteAll() {
+    underlying->reset();
+    return 1;
+}
 
-    QueuedItem qi = q->front();
-    q->pop();
-
-    // If it's a flush, we're destroying a bunch of junk and moving on.
-    if (qi.getOperation() == queue_op_flush) {
-        underlying->reset();
-        stats.flusher_todo--;
-        return 1;
-    }
+// While I actually know whether a delete or set was intended, I'm
+// still a bit better off running the older code that figures it out
+// based on what's in memory.
+int EventuallyPersistentStore::flushOneDelOrSet(QueuedItem &qi,
+                                           std::queue<QueuedItem> *rejectQueue) {
 
     RCPtr<VBucket> vb = getVBucket(qi.getVBucketId());
     if (!vb) {
-        stats.flusher_todo--;
         return 0;
     }
 
@@ -577,7 +574,6 @@ int EventuallyPersistentStore::flushOne(std::queue<QueuedItem> *q,
             stats.totalPersisted++;
         }
     }
-    stats.flusher_todo--;
     lh.unlock();
 
     if (found && isDirty) {
@@ -593,6 +589,29 @@ int EventuallyPersistentStore::flushOne(std::queue<QueuedItem> *q,
     }
 
     return ret;
+}
+
+int EventuallyPersistentStore::flushOne(std::queue<QueuedItem> *q,
+                                        std::queue<QueuedItem> *rejectQueue) {
+
+    QueuedItem qi = q->front();
+    q->pop();
+    stats.flusher_todo--;
+
+    int rv = 0;
+    switch (qi.getOperation()) {
+    case queue_op_flush:
+        rv = flushOneDeleteAll();
+        break;
+    case queue_op_set:
+        // FALLTHROUGH
+    case queue_op_del:
+        rv = flushOneDelOrSet(qi, rejectQueue);
+        break;
+    }
+
+    return rv;
+
 }
 
 void EventuallyPersistentStore::queueDirty(const std::string &key, uint16_t vbid,
