@@ -26,12 +26,7 @@ public:
 
     int getId(void) { return id; }
     vbucket_state_t getState(void) { return state; }
-    void setState(vbucket_state_t to, SERVER_CORE_API *core = NULL) {
-        state = to;
-        if (to == active && core) {
-            fireAllOps(core);
-        }
-    }
+    void setState(vbucket_state_t to, SERVER_CORE_API *core = NULL);
 
     const char * getStateString(void) {
         return VBucket::toString(state);

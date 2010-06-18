@@ -10,3 +10,16 @@ void VBucket::fireAllOps(SERVER_CORE_API *core, ENGINE_ERROR_CODE code) {
                   std::bind2nd(std::ptr_fun(core->notify_io_complete), code));
     pendingOps.clear();
 }
+
+void VBucket::setState(vbucket_state_t to, SERVER_CORE_API *core) {
+    state = to;
+    if (core) {
+        if (to == active) {
+            fireAllOps(core, ENGINE_SUCCESS);
+        } else if (to == pending) {
+            // Nothing
+        } else {
+            fireAllOps(core, ENGINE_NOT_MY_VBUCKET);
+        }
+    }
+}
