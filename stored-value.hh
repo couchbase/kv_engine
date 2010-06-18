@@ -269,11 +269,11 @@ public:
                  * item is locked, deny if there is cas value mismatch
                  * or no cas value is provided by the user
                  */
-                 if (val.getCas() != v->getCas()) {
-                     return IS_LOCKED;
-                 }
-                 /* allow operation*/
-                 v->unlock();
+                if (val.getCas() != v->getCas()) {
+                    return IS_LOCKED;
+                }
+                /* allow operation*/
+                v->unlock();
             } else if (val.getCas() != 0 && val.getCas() != v->getCas()) {
                 return INVALID_CAS;
             }

@@ -42,7 +42,7 @@ private:
 class SetVBStateCallback : public DispatcherCallback {
 public:
     SetVBStateCallback(RCPtr<VBucket> vb, vbucket_state_t st, SERVER_CORE_API *c)
-         : vbucket(vb), state(st), core(c) {}
+        : vbucket(vb), state(st), core(c) {}
 
     bool callback(Dispatcher &d, TaskId t) {
         (void)d; (void)t;
@@ -297,10 +297,10 @@ bool EventuallyPersistentStore::getLocked(const std::string &key,
         v->lock(currentTime + lockTimeout);
 
         Item *it = new Item(v->getKey(), v->getFlags(), v->getExptime(),
-                v->getValue(), v->getCas());
+                            v->getValue(), v->getCas());
 
-         it->setCas();
-         v->setCas(it->getCas());
+        it->setCas();
+        v->setCas(it->getCas());
 
         GetValue rv(it);
         cb.callback(rv);

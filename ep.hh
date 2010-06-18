@@ -220,7 +220,7 @@ private:
     int flushSome(std::queue<QueuedItem> *q,
                   std::queue<QueuedItem> *rejectQueue);
     int flushOne(std::queue<QueuedItem> *q,
-                  std::queue<QueuedItem> *rejectQueue);
+                 std::queue<QueuedItem> *rejectQueue);
 
     friend class Flusher;
     bool                       doPersistence;

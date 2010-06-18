@@ -87,7 +87,7 @@ class EventuallyPersistentEngine;
 class LookupCallback : public Callback<GetValue> {
 public:
     LookupCallback(EventuallyPersistentEngine *e, const void* c) :
-       engine(e), cookie(c) {}
+        engine(e), cookie(c) {}
 
     virtual void callback(GetValue &value);
 private:
@@ -163,8 +163,8 @@ public:
  * information needed per Tap connection.
  */
 class TapConnection {
-friend class EventuallyPersistentEngine;
-friend class BackFillVisitor;
+    friend class EventuallyPersistentEngine;
+    friend class BackFillVisitor;
 private:
     /**
      * Add a new item to the tap queue.
@@ -399,7 +399,7 @@ private:
  *
  */
 class EventuallyPersistentEngine : public ENGINE_HANDLE_V1 {
-friend class LookupCallback;
+    friend class LookupCallback;
 public:
     ENGINE_ERROR_CODE initialize(const char* config)
     {
@@ -523,7 +523,7 @@ public:
                 ss << "Failed to create database: " << e.what() << std::endl;
                 if (!dbAccess()) {
                     ss << "No access to \"" << dbname << "\"."
-                              << std::endl;
+                       << std::endl;
                 }
 
                 getLogger()->log(EXTENSION_LOG_WARNING, NULL, "%s",
@@ -692,87 +692,87 @@ public:
         it->setVBucketId(vbucket);
 
         switch (operation) {
-            case OPERATION_CAS:
-                if (it->getCas() == 0) {
-                    // Using a cas command with a cas wildcard doesn't make sense
-                    ret = ENGINE_NOT_STORED;
-                    break;
+        case OPERATION_CAS:
+            if (it->getCas() == 0) {
+                // Using a cas command with a cas wildcard doesn't make sense
+                ret = ENGINE_NOT_STORED;
+                break;
+            }
+            // FALLTHROUGH
+        case OPERATION_SET:
+            ret = epstore->set(*it, cookie);
+            if (ret == ENGINE_SUCCESS) {
+                *cas = it->getCas();
+                addMutationEvent(it, vbucket);
+            }
+
+            break;
+
+        case OPERATION_ADD:
+            // @todo this isn't atomic!
+            if (get(cookie, &i, it->getKey().c_str(), it->getNKey(),
+                    vbucket) == ENGINE_SUCCESS) {
+                itemRelease(cookie, i);
+                ret = ENGINE_NOT_STORED;
+            } else {
+                ret = epstore->set(*it, cookie);
+                *cas = it->getCas();
+                if (ret == ENGINE_SUCCESS) {
+                    addMutationEvent(it, vbucket);
                 }
-                // FALLTHROUGH
-            case OPERATION_SET:
+            }
+            break;
+
+        case OPERATION_REPLACE:
+            // @todo this isn't atomic!
+            if (get(cookie, &i, it->getKey().c_str(), it->getNKey(),
+                    vbucket) == ENGINE_SUCCESS) {
+                itemRelease(cookie, i);
                 ret = epstore->set(*it, cookie);
                 if (ret == ENGINE_SUCCESS) {
                     *cas = it->getCas();
                     addMutationEvent(it, vbucket);
                 }
+            } else {
+                ret = ENGINE_NOT_STORED;
+            }
+            break;
 
-                break;
+        case OPERATION_APPEND:
+        case OPERATION_PREPEND:
+            do {
+                if ((ret = get(cookie, &i, it->getKey().c_str(),
+                               it->getNKey(), vbucket)) == ENGINE_SUCCESS) {
+                    Item *old = reinterpret_cast<Item*>(i);
 
-            case OPERATION_ADD:
-                // @todo this isn't atomic!
-                if (get(cookie, &i, it->getKey().c_str(), it->getNKey(),
-                        vbucket) == ENGINE_SUCCESS) {
-                    itemRelease(cookie, i);
-                    ret = ENGINE_NOT_STORED;
-                } else {
-                    ret = epstore->set(*it, cookie);
-                    *cas = it->getCas();
-                    if (ret == ENGINE_SUCCESS) {
-                        addMutationEvent(it, vbucket);
-                    }
-                }
-                break;
-
-            case OPERATION_REPLACE:
-                // @todo this isn't atomic!
-                if (get(cookie, &i, it->getKey().c_str(), it->getNKey(),
-                        vbucket) == ENGINE_SUCCESS) {
-                    itemRelease(cookie, i);
-                    ret = epstore->set(*it, cookie);
-                    if (ret == ENGINE_SUCCESS) {
-                        *cas = it->getCas();
-                        addMutationEvent(it, vbucket);
-                    }
-                } else {
-                    ret = ENGINE_NOT_STORED;
-                }
-                break;
-
-            case OPERATION_APPEND:
-            case OPERATION_PREPEND:
-                do {
-                    if ((ret = get(cookie, &i, it->getKey().c_str(),
-                                   it->getNKey(), vbucket)) == ENGINE_SUCCESS) {
-                        Item *old = reinterpret_cast<Item*>(i);
-
-                        if (operation == OPERATION_APPEND) {
-                            if (!old->append(*it)) {
-                                itemRelease(cookie, i);
-                                return ENGINE_ENOMEM;
-                            }
-                        } else {
-                            if (!old->prepend(*it)) {
-                                itemRelease(cookie, i);
-                                return ENGINE_ENOMEM;
-                            }
+                    if (operation == OPERATION_APPEND) {
+                        if (!old->append(*it)) {
+                            itemRelease(cookie, i);
+                            return ENGINE_ENOMEM;
                         }
-
-                        ret = store(cookie, old, cas, OPERATION_CAS, vbucket);
-                        if (ret == ENGINE_SUCCESS) {
-                            addMutationEvent(static_cast<Item*>(i), vbucket);
+                    } else {
+                        if (!old->prepend(*it)) {
+                            itemRelease(cookie, i);
+                            return ENGINE_ENOMEM;
                         }
-                        itemRelease(cookie, i);
                     }
-                } while (ret == ENGINE_KEY_EEXISTS);
 
-                // Map the error code back to what memcacpable expects
-                if (ret == ENGINE_KEY_ENOENT) {
-                    ret = ENGINE_NOT_STORED;
+                    ret = store(cookie, old, cas, OPERATION_CAS, vbucket);
+                    if (ret == ENGINE_SUCCESS) {
+                        addMutationEvent(static_cast<Item*>(i), vbucket);
+                    }
+                    itemRelease(cookie, i);
                 }
-                break;
+            } while (ret == ENGINE_KEY_EEXISTS);
 
-            default:
-                ret = ENGINE_ENOTSUP;
+            // Map the error code back to what memcacpable expects
+            if (ret == ENGINE_KEY_ENOENT) {
+                ret = ENGINE_NOT_STORED;
+            }
+            break;
+
+        default:
+            ret = ENGINE_ENOTSUP;
         }
 
         return ret;
@@ -1041,16 +1041,16 @@ public:
             }
 
             tc->dumpQueue = flags & TAP_CONNECT_FLAG_DUMP;
-           if (flags & TAP_CONNECT_FLAG_TAKEOVER_VBUCKETS) {
-               for (std::vector<uint16_t>::iterator it = vbuckets.begin();
-                    it != vbuckets.end(); ++it) {
-                   TapVBucketEvent hi(TAP_VBUCKET_SET, *it, pending);
-                   TapVBucketEvent lo(TAP_VBUCKET_SET, *it, active);
-                   tc->addVBucketHighPriority(hi);
-                   tc->addVBucketLowPriority(lo);
-               }
-               tc->dumpQueue = true;
-           }
+            if (flags & TAP_CONNECT_FLAG_TAKEOVER_VBUCKETS) {
+                for (std::vector<uint16_t>::iterator it = vbuckets.begin();
+                     it != vbuckets.end(); ++it) {
+                    TapVBucketEvent hi(TAP_VBUCKET_SET, *it, pending);
+                    TapVBucketEvent lo(TAP_VBUCKET_SET, *it, active);
+                    tc->addVBucketHighPriority(hi);
+                    tc->addVBucketLowPriority(lo);
+                }
+                tc->dumpQueue = true;
+            }
         } else {
             tapConnectionMap[cookie] = tap;
             tap->connected = true;
@@ -1089,39 +1089,39 @@ public:
         case TAP_FLUSH:
             return flush(cookie, 0);
         case TAP_DELETION:
-        {
-            std::string k(static_cast<const char*>(key), nkey);
-            return itemDelete(cookie, k, vbucket);
-        }
-
-        case TAP_MUTATION:
-        {
-            // We don't get the trailing CRLF in tap mutation but should store it
-            // to satisfy memcached expectations.
-            //
-            // We do this by manually constructing the item using its
-            // value_t constructor to reduce memory copies as much as
-            // possible.
-
-            std::string k(static_cast<const char *>(key), nkey);
-            shared_ptr<std::string> s(new std::string);
-            s->reserve(ndata+2);
-            s->append(static_cast<const char*>(data), ndata);
-            s->append("\r\n");
-
-            Item *item = new Item(k, flags, exptime, s);
-            item->setVBucketId(vbucket);
-
-            /* @TODO we don't have CAS now.. we might in the future.. */
-            (void)cas;
-            ENGINE_ERROR_CODE ret = epstore->set(*item, cookie, true);
-            if (ret == ENGINE_SUCCESS) {
-                addMutationEvent(item, vbucket);
+            {
+                std::string k(static_cast<const char*>(key), nkey);
+                return itemDelete(cookie, k, vbucket);
             }
 
-            delete item;
-            return ret;
-        }
+        case TAP_MUTATION:
+            {
+                // We don't get the trailing CRLF in tap mutation but should store it
+                // to satisfy memcached expectations.
+                //
+                // We do this by manually constructing the item using its
+                // value_t constructor to reduce memory copies as much as
+                // possible.
+
+                std::string k(static_cast<const char *>(key), nkey);
+                shared_ptr<std::string> s(new std::string);
+                s->reserve(ndata+2);
+                s->append(static_cast<const char*>(data), ndata);
+                s->append("\r\n");
+
+                Item *item = new Item(k, flags, exptime, s);
+                item->setVBucketId(vbucket);
+
+                /* @TODO we don't have CAS now.. we might in the future.. */
+                (void)cas;
+                ENGINE_ERROR_CODE ret = epstore->set(*item, cookie, true);
+                if (ret == ENGINE_SUCCESS) {
+                    addMutationEvent(item, vbucket);
+                }
+
+                delete item;
+                return ret;
+            }
 
         case TAP_OPAQUE:
             break;
@@ -1661,12 +1661,12 @@ private:
         if (it != lookups.end()) {
             if (it->second != NULL) {
                 getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                    "Cleaning up old lookup result for '%s'\n",
-                    it->second->getKey().c_str());
+                                 "Cleaning up old lookup result for '%s'\n",
+                                 it->second->getKey().c_str());
                 delete it->second;
             } else {
                 getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                    "Cleaning up old null lookup result\n");
+                                 "Cleaning up old null lookup result\n");
             }
             lookups.erase(it);
         }
@@ -1702,7 +1702,7 @@ private:
                 diskItem.reset(it); // Will be null if the key was not found
                 if (!validate) {
                     getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                        "Found lookup results for non-validating key stat call. Would have leaked\n");
+                                     "Found lookup results for non-validating key stat call. Would have leaked\n");
                     diskItem.reset();
                 }
             } else if (validate) {
@@ -1728,7 +1728,7 @@ private:
                                 if (diskItem->getNBytes() != item->getNBytes()) {
                                     valid.assign("length_mismatch");
                                 } else if (memcmp(diskItem->getData(), item->getData(),
-                                           diskItem->getNBytes()) != 0) {
+                                                  diskItem->getNBytes()) != 0) {
                                     valid.assign("data_mismatch");
                                 } else if (diskItem->getFlags() != item->getFlags()) {
                                     valid.assign("flags_mismatch");

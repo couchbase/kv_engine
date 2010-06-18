@@ -424,7 +424,7 @@ extern "C" {
                 res = PROTOCOL_BINARY_RESPONSE_SUCCESS;
             } else {
                 msg = "Error - is the peer set?";
-               res = PROTOCOL_BINARY_RESPONSE_EINVAL;
+                res = PROTOCOL_BINARY_RESPONSE_EINVAL;
             }
             break;
         case CMD_STOP_REPLICATION:
