@@ -43,7 +43,8 @@ extern "C" {
 enum queue_operation {
     queue_op_set,
     queue_op_del,
-    queue_op_flush
+    queue_op_flush,
+    queue_op_vb_flush
 };
 
 class QueuedItem {
@@ -231,6 +232,7 @@ private:
     int flushOne(std::queue<QueuedItem> *q,
                  std::queue<QueuedItem> *rejectQueue);
     int flushOneDeleteAll(void);
+    int flushOneDeleteVBucket(QueuedItem &qi, std::queue<QueuedItem> *rejectQueue);
     int flushOneDelOrSet(QueuedItem &qi, std::queue<QueuedItem> *rejectQueue);
 
     friend class Flusher;

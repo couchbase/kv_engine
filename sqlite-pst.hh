@@ -157,8 +157,9 @@ public:
         delete upd_stmt;
         delete sel_stmt;
         delete del_stmt;
+        delete del_vb_stmt;
         delete all_stmt;
-        ins_stmt = sel_stmt = del_stmt = NULL;
+        ins_stmt = upd_stmt = sel_stmt = del_stmt = del_vb_stmt = all_stmt = NULL;
     }
 
     PreparedStatement *ins() {
@@ -177,6 +178,10 @@ public:
         return del_stmt;
     }
 
+    PreparedStatement *del_vb() {
+        return del_vb_stmt;
+    }
+
     PreparedStatement *all() {
         return all_stmt;
     }
@@ -190,6 +195,7 @@ private:
     PreparedStatement *upd_stmt;
     PreparedStatement *sel_stmt;
     PreparedStatement *del_stmt;
+    PreparedStatement *del_vb_stmt;
     PreparedStatement *all_stmt;
 
     DISALLOW_COPY_AND_ASSIGN(Statements);

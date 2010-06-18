@@ -834,6 +834,62 @@ static enum test_result test_vbucket_destroy(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 
     return SUCCESS;
 }
 
+static enum test_result test_vbucket_destroy_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    check(set_vbucket_state(h, h1, 1, "active"), "Failed to set vbucket state.");
+    usleep(2600); // XXX:  racist (vbucket set state happens on the dispatcher)
+
+    protocol_binary_request_header *pkt = create_packet(CMD_DEL_VBUCKET, "1", "");
+    check(h1->unknown_command(h, "cookie", pkt, add_response) == ENGINE_SUCCESS,
+          "Failed to request delete bucket");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL,
+          "Expected failure deleting active bucket.");
+
+    // Store a value so the restart will try to resurrect it.
+    item *i = NULL;
+    check(store(h, h1, "cookie", OPERATION_SET, "key", "somevalue", &i, 0, 1)
+          == ENGINE_SUCCESS, "Failed to set a value");
+    check_key_value(h, h1, "key", "somevalue", 9, false, 1);
+
+    // Reload to get a flush forced.
+    testHarness.reload_engine(&h, &h1,
+                              testHarness.engine_path,
+                              testHarness.default_engine_cfg,
+                              true);
+
+    check(verify_vbucket_state(h, h1, 1, "pending"),
+          "Bucket state was not pending after restart.");
+    check(set_vbucket_state(h, h1, 1, "active"), "Failed to set vbucket state.");
+    usleep(2600); // *sigh*
+    check_key_value(h, h1, "key", "somevalue", 9, false, 1);
+
+    check(set_vbucket_state(h, h1, 1, "dead"), "Failed set set vbucket 1 state.");
+    usleep(2600); // XXX:  racist (vbucket set state happens on the dispatcher)
+
+    pkt = create_packet(CMD_DEL_VBUCKET, "1", "");
+    check(h1->unknown_command(h, "cookie", pkt, add_response) == ENGINE_SUCCESS,
+          "Failed to delete dead bucket.");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+          "Expected failure deleting non-existent bucket.");
+
+    check(verify_vbucket_missing(h, h1, 1),
+          "vbucket 1 was not missing after deleting it.");
+
+    testHarness.reload_engine(&h, &h1,
+                              testHarness.engine_path,
+                              testHarness.default_engine_cfg,
+                              true);
+
+    if (verify_vbucket_state(h, h1, 1, "pending")) {
+        std::cerr << "Bucket came up in pending state after delete." << std::endl;
+        abort();
+    }
+
+    check(verify_vbucket_missing(h, h1, 1),
+          "vbucket 1 was not missing after restart.");
+
+    return SUCCESS;
+}
+
 static enum test_result test_vb_set_pending(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return test_pending_vb_mutation(h, h1, OPERATION_SET);
 }
@@ -1006,6 +1062,8 @@ engine_test_t* get_tests(void) {
         {"test vbucket get missing", test_vbucket_get_miss, NULL, teardown, NULL},
         {"test vbucket create", test_vbucket_create, NULL, teardown, NULL},
         {"test vbucket destroy", test_vbucket_destroy, NULL, teardown, NULL},
+        {"test vbucket destroy restart", test_vbucket_destroy_restart,
+         NULL, teardown, NULL},
         {NULL, NULL, NULL, NULL, NULL}
     };
     return tests;

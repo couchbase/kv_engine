@@ -131,4 +131,8 @@ void Statements::initStatements() {
              "delete from %s where k = ? and vbucket = ?",
              tableName.c_str());
     del_stmt = new PreparedStatement(db, buf);
+
+    snprintf(buf, sizeof(buf),
+             "delete from %s where vbucket = ?", tableName.c_str());
+    del_vb_stmt = new PreparedStatement(db, buf);
 }

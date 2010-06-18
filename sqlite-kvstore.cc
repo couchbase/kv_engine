@@ -100,6 +100,19 @@ void StrategicSqlite3::del(const std::string &key, uint16_t vbucket,
     del_stmt->reset();
 }
 
+bool StrategicSqlite3::delVBucket(uint16_t vbucket) {
+    bool rv = true;
+    const std::vector<Statements*> statements = strategy->allStatements();
+    std::vector<Statements*>::const_iterator it;
+    for (it = statements.begin(); it != statements.end(); ++it) {
+        PreparedStatement *del_stmt = (*it)->del_vb();
+        del_stmt->bind(1, vbucket);
+        rv &= del_stmt->execute() >= 0;
+        del_stmt->reset();
+    }
+    return rv;
+}
+
 void StrategicSqlite3::dump(Callback<GetValue> &cb) {
 
     const std::vector<Statements*> statements = strategy->allStatements();

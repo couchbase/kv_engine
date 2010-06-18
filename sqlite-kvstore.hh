@@ -83,6 +83,8 @@ public:
     void del(const std::string &key, uint16_t vbucket,
              Callback<bool> &cb);
 
+    bool delVBucket(uint16_t vbucket);
+
     /**
      * Overrides dump
      */

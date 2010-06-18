@@ -229,6 +229,7 @@ bool EventuallyPersistentStore::deleteVBucket(uint16_t vbid) {
     RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
     if (vb && vb->getState() == dead) {
         vbuckets.removeBucket(vbid);
+        queueDirty("", vbid, queue_op_vb_flush);
         rv = true;
     }
     return rv;
@@ -591,6 +592,17 @@ int EventuallyPersistentStore::flushOneDelOrSet(QueuedItem &qi,
     return ret;
 }
 
+int EventuallyPersistentStore::flushOneDeleteVBucket(QueuedItem &qi,
+                                                     std::queue<QueuedItem> *rejectQueue) {
+    getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                     "Deleting vbucket %d from disk\n", qi.getVBucketId());
+    if (!underlying->delVBucket(qi.getVBucketId())) {
+        rejectQueue->push(qi);
+    }
+    return 1;
+}
+
+
 int EventuallyPersistentStore::flushOne(std::queue<QueuedItem> *q,
                                         std::queue<QueuedItem> *rejectQueue) {
 
@@ -602,6 +614,9 @@ int EventuallyPersistentStore::flushOne(std::queue<QueuedItem> *q,
     switch (qi.getOperation()) {
     case queue_op_flush:
         rv = flushOneDeleteAll();
+        break;
+    case queue_op_vb_flush:
+        rv = flushOneDeleteVBucket(qi, rejectQueue);
         break;
     case queue_op_set:
         // FALLTHROUGH
