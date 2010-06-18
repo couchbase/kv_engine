@@ -7,6 +7,7 @@
 
 #include <map>
 #include <vector>
+#include <sstream>
 #include <algorithm>
 
 #include <memcached/engine.h>
@@ -14,6 +15,40 @@
 #include "common.hh"
 #include "atomic.hh"
 #include "stored-value.hh"
+
+class VBucketFilter {
+public:
+
+    explicit VBucketFilter() : acceptable() {}
+
+    explicit VBucketFilter(std::vector<uint16_t> a) : acceptable(a) {
+        std::sort(acceptable.begin(), acceptable.end());
+    }
+
+    bool operator ()(uint16_t v) {
+        return acceptable.empty() || std::binary_search(acceptable.begin(),
+                                                        acceptable.end(), v);
+    }
+
+    std::string to_s() {
+        std::stringstream s;
+        if (acceptable.empty()) {
+            s << "{VBucketFilter < all >}";
+        } else {
+            s << "{VBucketFilter <";
+            for (std::vector<uint16_t>::iterator it = acceptable.begin();
+                 it != acceptable.end(); ++it) {
+                s << " " << *it;
+            }
+            s << " >}";
+        }
+        return s.str();
+    }
+
+private:
+
+    std::vector<uint16_t> acceptable;
+};
 
 /**
  * An individual vbucket.

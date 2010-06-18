@@ -76,6 +76,43 @@ static void testConcurrentUpdate(void) {
     assert(vbm.getBuckets().size() == ((numThreads * vbucketsEach) / 2));
 }
 
+static void testVBucketFilter() {
+    VBucketFilter empty;
+
+    assert(empty(0));
+    assert(empty(1));
+    assert(empty(2));
+
+    std::vector<uint16_t> v;
+
+    VBucketFilter emptyTwo(v);
+    assert(emptyTwo(0));
+    assert(emptyTwo(1));
+    assert(emptyTwo(2));
+
+    v.push_back(2);
+
+    VBucketFilter hasOne(v);
+    assert(!hasOne(0));
+    assert(!hasOne(1));
+    assert(hasOne(2));
+
+    v.push_back(0);
+
+    VBucketFilter hasTwo(v);
+    assert(hasTwo(0));
+    assert(!hasTwo(1));
+    assert(hasTwo(2));
+
+    v.push_back(1);
+
+    VBucketFilter hasThree(v);
+    assert(hasThree(0));
+    assert(hasThree(1));
+    assert(hasThree(2));
+    assert(!hasThree(3));
+}
+
 int main(int argc, char **argv) {
     (void)argc; (void)argv;
 
@@ -86,4 +123,5 @@ int main(int argc, char **argv) {
 
     testVBucketLookup();
     testConcurrentUpdate();
+    testVBucketFilter();
 }

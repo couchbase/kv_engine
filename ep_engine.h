@@ -175,9 +175,7 @@ private:
      * @return true if the the queue was empty
      */
     bool addEvent(const QueuedItem &it) {
-        if (vbucketFilter.size() == 0 || find(vbucketFilter.begin(),
-                                              vbucketFilter.end(),
-                                              it.getVBucketId()) != vbucketFilter.end()) {
+        if (vbucketFilter(it.getVBucketId())) {
             bool wasEmpty = queue->empty();
             std::pair<std::set<QueuedItem>::iterator, bool> ret;
             ret = queue_set->insert(it);
@@ -384,9 +382,9 @@ private:
     bool pendingBackfill;
 
     /**
-     * Filter for the buckets we want (0 entries == all buckets)
+     * Filter for the buckets we want.
      */
-    std::vector<uint16_t> vbucketFilter;
+    VBucketFilter vbucketFilter;
 
     /**
      * VBucket status messages immediately (before userdata)
@@ -1045,7 +1043,7 @@ public:
             }
 
             if (flags & TAP_CONNECT_FLAG_LIST_VBUCKETS) {
-                tc->vbucketFilter = vbuckets;
+                tc->vbucketFilter = VBucketFilter(vbuckets);
             }
 
             tc->dumpQueue = flags & TAP_CONNECT_FLAG_DUMP;
