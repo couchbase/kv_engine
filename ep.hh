@@ -66,11 +66,22 @@ private:
     uint16_t vbucket;
 };
 
+/**
+ * vbucket-aware hashtable visitor.
+ */
 class VBucketVisitor : public HashTableVisitor {
 public:
 
     VBucketVisitor() : HashTableVisitor(), currentBucket(0) { }
 
+    /**
+     * Begin visiting a bucket.
+     *
+     * @param vbid the vbucket ID we are beginning to visit
+     * @param state the state of this vbucket
+     *
+     * @return true iff we want to walk the hashtable in this vbucket
+     */
     virtual bool visitBucket(uint16_t vbid, vbucket_state_t state) {
         (void)state;
         currentBucket = vbid;

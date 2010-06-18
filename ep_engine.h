@@ -1854,11 +1854,18 @@ public:
         delete queue_set;
     }
 
+    bool visitBucket(uint16_t vbid, vbucket_state_t state) {
+        if (filter(vbid)) {
+            VBucketVisitor::visitBucket(vbid, state);
+            return true;
+        }
+        return false;
+    }
+
     void visit(StoredValue *v) {
         std::string key(v->getKey());
-        if (filter(currentBucket)) {
-            queue_set->insert(QueuedItem(key, currentBucket, queue_op_set));
-        }
+        assert(filter(currentBucket));
+        queue_set->insert(QueuedItem(key, currentBucket, queue_op_set));
     }
 
     void apply(void) {
