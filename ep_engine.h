@@ -193,8 +193,8 @@ private:
      * Add a key to the tap queue.
      * @return true if the the queue was empty
      */
-    bool addEvent(const std::string &key, uint16_t vbid) {
-        return addEvent(QueuedItem(key, vbid));
+    bool addEvent(const std::string &key, uint16_t vbid, enum queue_operation op) {
+        return addEvent(QueuedItem(key, vbid, op));
     }
 
     QueuedItem next() {
@@ -1431,7 +1431,7 @@ private:
         return found;
     }
 
-    void addEvent(const std::string &str, uint16_t vbid)
+    void addEvent(const std::string &str, uint16_t vbid, enum queue_operation op)
     {
         bool notify = false;
         LockHolder lh(tapNotifySync);
@@ -1439,7 +1439,7 @@ private:
         std::list<TapConnection*>::iterator iter;
         for (iter = allTaps.begin(); iter != allTaps.end(); iter++) {
             TapConnection *tc = *iter;
-            if (!tc->dumpQueue && tc->addEvent(str, vbid) && tc->paused) {
+            if (!tc->dumpQueue && tc->addEvent(str, vbid, op) && tc->paused) {
                 notify = true;
             }
         }
@@ -1451,12 +1451,12 @@ private:
 
     void addMutationEvent(Item *it, uint16_t vbid) {
         // Currently we use the same queue for all kinds of events..
-        addEvent(it->getKey(), vbid);
+        addEvent(it->getKey(), vbid, queue_op_set);
     }
 
     void addDeleteEvent(const std::string &key, uint16_t vbid) {
         // Currently we use the same queue for all kinds of events..
-        addEvent(key, vbid);
+        addEvent(key, vbid, queue_op_del);
     }
 
     void addFlushEvent() {
@@ -1851,7 +1851,7 @@ public:
 
     void visit(StoredValue *v) {
         std::string key(v->getKey());
-        queue_set->insert(QueuedItem(key, currentBucket));
+        queue_set->insert(QueuedItem(key, currentBucket, queue_op_set));
     }
 
     void apply(void) {

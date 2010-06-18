@@ -191,7 +191,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::set(const Item &item,
     } else if (mtype == IS_LOCKED) {
         return ENGINE_KEY_EEXISTS;
     } else if (mtype == WAS_CLEAN || mtype == NOT_FOUND) {
-        queueDirty(item.getKey(), item.getVBucketId());
+        queueDirty(item.getKey(), item.getVBucketId(), queue_op_set);
         if (mtype == NOT_FOUND) {
             stats.curr_items++;
         }
@@ -385,7 +385,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::del(const std::string &key,
     ENGINE_ERROR_CODE rv = existed ? ENGINE_SUCCESS : ENGINE_KEY_ENOENT;
 
     if (existed) {
-        queueDirty(key, vbucket);
+        queueDirty(key, vbucket, queue_op_del);
         stats.curr_items--;
     }
     return rv;
@@ -398,9 +398,9 @@ void EventuallyPersistentStore::reset() {
         RCPtr<VBucket> vb = getVBucket(*it, active);
         if (vb) {
             vb->ht.clear();
-            queueDirty("", *it);
         }
     }
+    queueDirty("", 0, queue_op_flush);
 }
 
 std::queue<QueuedItem>* EventuallyPersistentStore::beginFlush() {
@@ -513,8 +513,8 @@ int EventuallyPersistentStore::flushOne(std::queue<QueuedItem> *q,
     QueuedItem qi = q->front();
     q->pop();
 
-    // Special case hack:  Flush
-    if (qi.getKey().size() == 0) {
+    // If it's a flush, we're destroying a bunch of junk and moving on.
+    if (qi.getOperation() == queue_op_flush) {
         underlying->reset();
         stats.flusher_todo--;
         return 1;
@@ -595,10 +595,11 @@ int EventuallyPersistentStore::flushOne(std::queue<QueuedItem> *q,
     return ret;
 }
 
-void EventuallyPersistentStore::queueDirty(const std::string &key, uint16_t vbid) {
+void EventuallyPersistentStore::queueDirty(const std::string &key, uint16_t vbid,
+                                           enum queue_operation op) {
     if (doPersistence) {
         // Assume locked.
-        towrite.push(QueuedItem(key, vbid));
+        towrite.push(QueuedItem(key, vbid, op));
         stats.totalEnqueued++;
         stats.queue_size = towrite.size();
     }

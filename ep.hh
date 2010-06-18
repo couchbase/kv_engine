@@ -40,12 +40,20 @@ extern "C" {
     extern rel_time_t (*ep_current_time)();
 }
 
+enum queue_operation {
+    queue_op_set,
+    queue_op_del,
+    queue_op_flush
+};
+
 class QueuedItem {
 public:
-    QueuedItem(const std::string &k, const uint16_t vb) : key(k), vbucket(vb) {}
+    QueuedItem(const std::string &k, const uint16_t vb, enum queue_operation o)
+        : key(k), op(o), vbucket(vb) {}
 
     std::string getKey(void) const { return key; }
     uint16_t getVBucketId(void) const { return vbucket; }
+    enum queue_operation getOperation(void) const { return op; }
 
     bool operator <(const QueuedItem &other) const {
         return vbucket == other.vbucket ? key < other.key : vbucket < other.vbucket;
@@ -53,6 +61,7 @@ public:
 
 private:
     std::string key;
+    enum queue_operation op;
     uint16_t vbucket;
 };
 
@@ -211,7 +220,7 @@ private:
     RCPtr<VBucket> getVBucket(uint16_t vbid, vbucket_state_t wanted_state);
 
     /* Queue an item to be written to persistent layer. */
-    void queueDirty(const std::string &key, uint16_t vbid);
+    void queueDirty(const std::string &key, uint16_t vbid, enum queue_operation op);
 
     std::queue<QueuedItem> *beginFlush();
     void completeFlush(std::queue<QueuedItem> *rejects,
