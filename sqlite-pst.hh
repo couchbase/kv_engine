@@ -182,34 +182,7 @@ public:
     }
 private:
 
-    void initStatements() {
-        char buf[1024];
-        snprintf(buf, sizeof(buf),
-                 "insert into %s (k, v, flags, exptime, cas, vbucket) "
-                 "values(?, ?, ?, ?, ?, ?)", tableName.c_str());
-        ins_stmt = new PreparedStatement(db, buf);
-
-        // Note that vbucket IDs don't change here.
-        snprintf(buf, sizeof(buf),
-                 "update %s set k=?, v=?, flags=?, exptime=?, cas=? "
-                 " where rowid = ?", tableName.c_str());
-        upd_stmt = new PreparedStatement(db, buf);
-
-        snprintf(buf, sizeof(buf),
-                 "select v, flags, exptime, cas "
-                 "from %s where rowid = ?", tableName.c_str());
-        sel_stmt = new PreparedStatement(db, buf);
-
-        snprintf(buf, sizeof(buf),
-                 "select k, v, flags, exptime, cas, vbucket, rowid "
-                 "from %s", tableName.c_str());
-        all_stmt = new PreparedStatement(db, buf);
-
-        snprintf(buf, sizeof(buf),
-                 "delete from %s where k = ? and vbucket = ?",
-                 tableName.c_str());
-        del_stmt = new PreparedStatement(db, buf);
-    }
+    void initStatements();
 
     sqlite3           *db;
     std::string        tableName;
