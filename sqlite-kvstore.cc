@@ -92,8 +92,6 @@ void StrategicSqlite3::reset() {
 
 void StrategicSqlite3::del(const std::string &key, uint16_t vbucket,
                            Callback<bool> &cb) {
-    // TODO:  Use vbucket
-    (void)vbucket;
     PreparedStatement *del_stmt = strategy->forKey(key)->del();
     del_stmt->bind(1, key.c_str());
     del_stmt->bind(2, vbucket);
