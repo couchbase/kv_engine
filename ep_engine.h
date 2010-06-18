@@ -1422,6 +1422,9 @@ private:
         }
 
         if (notify) {
+            // To avoid a race condition, we're going to make sure the
+            // tapNotifyIoThread has something to do.
+            nextTapNoop = ep_current_time() - 1;
             tapNotifySync.notify();
         }
 
