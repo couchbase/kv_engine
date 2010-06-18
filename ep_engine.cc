@@ -9,6 +9,8 @@
 
 #include "ep_engine.h"
 
+Atomic<uint64_t> TapConnection::tapCounter(1);
+
 /**
  * Helper function to avoid typing in the long cast all over the place
  * @param handle pointer to the engine

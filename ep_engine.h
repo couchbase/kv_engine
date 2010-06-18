@@ -13,6 +13,7 @@
 #include <cstdio>
 #include <map>
 #include <list>
+#include <sstream>
 #include <errno.h>
 
 #include "command_ids.h"
@@ -305,6 +306,10 @@ private:
         delete queue_set;
     }
 
+    static uint64_t nextTapId() {
+        return tapCounter++;
+    }
+
     /**
      * String used to identify the client.
      * @todo design the connect packet and fill inn som info here
@@ -391,6 +396,8 @@ private:
      * VBucket status messages sent when there is nothing else to send
      */
     std::queue<TapVBucketEvent> vBucketLowPriority;
+
+    static Atomic<uint64_t> tapCounter;
 
     DISALLOW_COPY_AND_ASSIGN(TapConnection);
 };
@@ -946,9 +953,10 @@ public:
 
         std::string name = "eq_tapq:";
         if (client.length() == 0) {
-            char buffer[32];
-            snprintf(buffer, sizeof(buffer), "%p", cookie);
-            name.append(buffer);
+            std::stringstream s;
+            s << "anon_";
+            s << TapConnection::nextTapId();
+            name.append(s.str());
         } else {
             name.append(client);
         }
