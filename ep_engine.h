@@ -1845,10 +1845,9 @@ private:
 class BackFillVisitor : public VBucketVisitor {
 public:
     BackFillVisitor(EventuallyPersistentEngine *e, TapConnection *tc):
-        VBucketVisitor(), engine(e), name(tc->client), queue(NULL), queue_set(NULL)
-    {
-        queue_set = new std::set<QueuedItem>;
-    }
+        VBucketVisitor(), engine(e), name(tc->client),
+        queue(NULL), queue_set(new std::set<QueuedItem>),
+        filter(tc->vbucketFilter) { }
 
     ~BackFillVisitor() {
         delete queue;
@@ -1857,7 +1856,9 @@ public:
 
     void visit(StoredValue *v) {
         std::string key(v->getKey());
-        queue_set->insert(QueuedItem(key, currentBucket, queue_op_set));
+        if (filter(currentBucket)) {
+            queue_set->insert(QueuedItem(key, currentBucket, queue_op_set));
+        }
     }
 
     void apply(void) {
@@ -1874,6 +1875,7 @@ private:
     std::string name;
     std::list<QueuedItem> *queue;
     std::set<QueuedItem> *queue_set;
+    VBucketFilter filter;
 };
 
 #endif
