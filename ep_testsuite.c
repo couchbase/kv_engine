@@ -139,7 +139,11 @@ static enum test_result check_key_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     check(h1->get_item_info(h, i, &info), "check_key_value");
 
     assert(info.nvalue == 1);
-    check(vlen == info.value[0].iov_len, "Length mismatch.");
+    if (vlen != info.value[0].iov_len) {
+        fprintf(stderr, "Expected length of %zd, got %zd\n",
+                vlen, info.value[0].iov_len);
+        abort();
+    }
 
     check(memcmp(info.value[0].iov_base, val, vlen) == 0, "Data mismatch");
 

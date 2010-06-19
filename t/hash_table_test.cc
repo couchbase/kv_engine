@@ -25,7 +25,7 @@ public:
         count += 1;
         std::string key = v->getKey();
         value_t val = v->getValue();
-        assert(key.compare(*val) == 0);
+        assert(key.compare(val->to_s()) == 0);
     }
 };
 

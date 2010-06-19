@@ -937,12 +937,13 @@ public:
             // possible.
 
             std::string k(static_cast<const char *>(key), nkey);
-            shared_ptr<std::string> s(new std::string);
-            s->reserve(ndata+2);
-            s->append(static_cast<const char*>(data), ndata);
-            s->append("\r\n");
+            std::string v;
+            v.reserve(ndata+2);
+            v.append(static_cast<const char*>(data), ndata);
+            v.append("\r\n");
+            shared_ptr<const Blob> vblob(Blob::New(v));
 
-            Item *item = new Item(k, flags, exptime, s);
+            Item *item = new Item(k, flags, exptime, vblob);
 
             /* @TODO we don't have CAS now.. we might in the future.. */
             (void)cas;
