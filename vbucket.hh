@@ -30,21 +30,6 @@ public:
                                                         acceptable.end(), v);
     }
 
-    std::string to_s() {
-        std::stringstream s;
-        if (acceptable.empty()) {
-            s << "{VBucketFilter < all >}";
-        } else {
-            s << "{VBucketFilter <";
-            for (std::vector<uint16_t>::iterator it = acceptable.begin();
-                 it != acceptable.end(); ++it) {
-                s << " " << *it;
-            }
-            s << " >}";
-        }
-        return s.str();
-    }
-
 private:
 
     std::vector<uint16_t> acceptable;
