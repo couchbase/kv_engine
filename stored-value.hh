@@ -3,6 +3,7 @@
 #define STORED_VALUE_H 1
 
 #include <climits>
+#include <cstring>
 #include <algorithm>
 
 #include "common.hh"
@@ -18,17 +19,22 @@ class HashTable;
 
 class StoredValue {
 public:
-    StoredValue(const Item &itm, StoredValue *n, bool setDirty = true) :
-        key(itm.getKey()), value(itm.getValue()),
-        flags(itm.getFlags()), exptime(itm.getExptime()), dirtied(0), next(n),
-        cas(itm.getCas()), id(itm.getId()), locked(false), lock_expiry(0)
-    {
-        if (setDirty) {
-            markDirty();
-        } else {
-            markClean(NULL, NULL);
-        }
+
+    static StoredValue* New(const Item &itm, StoredValue *n, bool setDirty = true) {
+        std::string key = itm.getKey();
+        size_t len = key.length() + sizeof(StoredValue);
+
+        StoredValue *t = new (::operator new(len))
+            StoredValue(itm, n, setDirty);
+        t->keylen = key.length();
+        std::memcpy(t->keybytes, key.data(), key.length());
+
+        return t;
     }
+
+    void operator delete(void* p) {
+        ::operator delete(p);
+     }
 
     ~StoredValue() {
     }
@@ -65,8 +71,21 @@ public:
         return dirtied == 0;
     }
 
-    const std::string &getKey() const {
-        return key;
+    const char* getKeyBytes() const {
+        return keybytes;
+    }
+
+    uint8_t getKeyLen() const {
+        return keylen;
+    }
+
+    bool hasKey(const std::string &k) const {
+        return k.length() == keylen
+            && (std::memcmp(k.data(), keybytes, keylen) == 0);
+    }
+
+    const std::string getKey() const {
+        return std::string(keybytes, keylen);
     }
 
     value_t getValue() const {
@@ -140,9 +159,20 @@ public:
 
 private:
 
+    StoredValue(const Item &itm, StoredValue *n, bool setDirty = true) :
+        value(itm.getValue()),
+        flags(itm.getFlags()), exptime(itm.getExptime()), dirtied(0), next(n),
+        cas(itm.getCas()), id(itm.getId()), locked(false), lock_expiry(0)
+    {
+        if (setDirty) {
+            markDirty();
+        } else {
+            markClean(NULL, NULL);
+        }
+    }
+
     friend class HashTable;
 
-    std::string key;
     value_t value;
     uint32_t flags;
     rel_time_t exptime;
@@ -153,6 +183,8 @@ private:
     int64_t id;
     bool locked;
     rel_time_t lock_expiry;
+    uint8_t keylen;
+    char keybytes[1];
     DISALLOW_COPY_AND_ASSIGN(StoredValue);
 };
 
@@ -256,7 +288,7 @@ public:
                 return INVALID_CAS;
             }
             itm.setCas();
-            v = new StoredValue(itm, values[bucket_num]);
+            v = StoredValue::New(itm, values[bucket_num]);
             values[bucket_num] = v;
             depths[bucket_num]++;
         }
@@ -273,7 +305,7 @@ public:
         } else {
             Item &itm = const_cast<Item&>(val);
             itm.setCas();
-            v = new StoredValue(itm, values[bucket_num], isDirty);
+            v = StoredValue::New(itm, values[bucket_num], isDirty);
             values[bucket_num] = v;
             depths[bucket_num]++;
         }
@@ -284,7 +316,7 @@ public:
     StoredValue *unlocked_find(const std::string &key, int bucket_num) {
         StoredValue *v = values[bucket_num];
         while (v) {
-            if (key.compare(v->key) == 0) {
+            if (v->hasKey(key)) {
                 return v;
             }
             v = v->next;
@@ -292,17 +324,19 @@ public:
         return NULL;
     }
 
-    inline int bucket(const std::string &key) {
+    inline int bucket(const char *str, const size_t len) {
         assert(active);
         int h=5381;
-        int i=0;
-        const char *str = key.c_str();
 
-        for(i=0; str[i] != 0x00; i++) {
+        for(size_t i=0; i < len; i++) {
             h = ((h << 5) + h) ^ str[i];
         }
 
         return abs(h) % (int)size;
+    }
+
+    inline int bucket(const std::string &s) {
+        return bucket(s.data(), s.length());
     }
 
     // Get the mutex for a bucket (for doing your own lock management)
@@ -330,7 +364,7 @@ public:
         }
 
         // Special case the first one
-        if (key.compare(v->key) == 0) {
+        if (v->hasKey(key)) {
             if (v->isLocked(ep_current_time())) {
                 return false;
             }
@@ -341,7 +375,7 @@ public:
         }
 
         while (v->next) {
-            if (key.compare(v->next->key) == 0) {
+            if (v->next->hasKey(key)) {
                 StoredValue *tmp = v->next;
                 if (tmp->isLocked(ep_current_time())) {
                     return false;

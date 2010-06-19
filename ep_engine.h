@@ -1647,8 +1647,7 @@ public:
     }
 
     void visit(StoredValue *v) {
-        std::string key(v->getKey());
-        queue_set->insert(key);
+        queue_set->insert(v->getKey());
     }
 
     void apply(void) {
