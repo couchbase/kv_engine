@@ -338,7 +338,7 @@ public:
             if (sval != NULL) {
                 sval->reDirty(dirtied);
             }
-            rq->push(queuedItem.getKey());
+            rq->push(queuedItem);
         }
     }
 
@@ -348,7 +348,7 @@ public:
             if (sval != NULL) {
                 sval->reDirty(dirtied);
             }
-            rq->push(queuedItem.getKey());
+            rq->push(queuedItem);
         }
     }
 
@@ -403,7 +403,7 @@ int EventuallyPersistentStore::flushOne(std::queue<QueuedItem> *q,
             isDirty = false;
             stats.tooYoung++;
             v->reDirty(dirtied);
-            rejectQueue->push(qi.getKey());
+            rejectQueue->push(qi);
         }
 
         if (eligible) {
@@ -444,7 +444,7 @@ int EventuallyPersistentStore::flushOne(std::queue<QueuedItem> *q,
 void EventuallyPersistentStore::queueDirty(const std::string &key) {
     if (doPersistence) {
         // Assume locked.
-        towrite.push(key);
+        towrite.push(QueuedItem(key));
         stats.totalEnqueued++;
         stats.queue_size = towrite.size();
     }

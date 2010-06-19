@@ -42,7 +42,7 @@ extern "C" {
 
 class QueuedItem {
 public:
-    QueuedItem(const std::string &k) : key(k), dirtied(ep_current_time()) {}
+    explicit QueuedItem(const std::string &k) : key(k), dirtied(ep_current_time()) {}
 
     const std::string& getKey(void) const { return key; }
     rel_time_t getDirtied(void) const { return dirtied; }
