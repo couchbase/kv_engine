@@ -85,3 +85,33 @@ void HashTable::visitDepth(HashTableDepthVisitor &visitor) {
         visitor.visit(i, depths[i]);
     }
 }
+
+bool HashTable::setDefaultStorageValueType(const char *t) {
+    bool rv = false;
+    if (t && strcmp(t, "featured") == 0) {
+        setDefaultStorageValueType(featured);
+        rv = true;
+    } else if (t && strcmp(t, "small") == 0) {
+        setDefaultStorageValueType(small);
+        rv = true;
+    }
+    return rv;
+}
+
+void HashTable::setDefaultStorageValueType(enum stored_value_type t) {
+    defaultStoredValueType = t;
+}
+
+enum stored_value_type HashTable::getDefaultStorageValueType() {
+    return defaultStoredValueType;
+}
+
+const char* HashTable::getDefaultStorageValueTypeStr() {
+    const char *rv = "unknown";
+    switch(getDefaultStorageValueType()) {
+    case small: rv = "small"; break;
+    case featured: rv = "featured"; break;
+    default: abort();
+    }
+    return rv;
+}

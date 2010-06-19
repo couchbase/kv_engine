@@ -318,6 +318,7 @@ public:
         : valFact(t) {
         size = HashTable::getNumBuckets(s);
         n_locks = HashTable::getNumLocks(l);
+        valFact = StoredValueFactory(getDefaultStorageValueType());
         assert(size > 0);
         assert(n_locks > 0);
         active = true;
@@ -493,7 +494,18 @@ public:
 
     static void setDefaultNumBuckets(size_t);
     static void setDefaultNumLocks(size_t);
+
+    /**
+     * Set the stored value type by name.
+     *
+     * @param t either "small" or "featured"
+     *
+     * @rteurn true if this type is not handled.
+     */
+    static bool setDefaultStorageValueType(const char *t);
     static void setDefaultStorageValueType(enum stored_value_type);
+    static enum stored_value_type getDefaultStorageValueType();
+    static const char* getDefaultStorageValueTypeStr();
 
 private:
     size_t               size;
