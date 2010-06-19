@@ -56,7 +56,7 @@ void HashTable::setDefaultNumLocks(size_t to) {
 }
 
 void HashTable::clear() {
-    assert(active);
+    assert(active());
     MultiLockHolder(mutexes, n_locks);
     for (int i = 0; i < (int)size; i++) {
         while (values[i]) {
@@ -64,7 +64,6 @@ void HashTable::clear() {
             values[i] = v->next;
             delete v;
         }
-        depths[i] = 0;
     }
 }
 
@@ -82,7 +81,13 @@ void HashTable::visit(HashTableVisitor &visitor) {
 void HashTable::visitDepth(HashTableDepthVisitor &visitor) {
     for (int i = 0; i < (int)size; i++) {
         LockHolder lh(getMutex(i));
-        visitor.visit(i, depths[i]);
+        size_t depth = 0;
+        StoredValue *p = values[i];
+        while (p) {
+            depth++;
+            p = p->next;
+        }
+        visitor.visit(i, depth);
     }
 }
 

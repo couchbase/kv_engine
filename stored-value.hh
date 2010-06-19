@@ -346,20 +346,16 @@ public:
         valFact = StoredValueFactory(getDefaultStorageValueType());
         assert(size > 0);
         assert(n_locks > 0);
-        active = true;
         values = new StoredValue*[size];
         std::fill_n(values, size, static_cast<StoredValue*>(NULL));
         mutexes = new Mutex[n_locks];
-        depths = new int[size];
-        std::fill_n(depths, size, 0);
     }
 
     ~HashTable() {
         clear();
-        active = false;
         delete []mutexes;
         delete []values;
-        delete []depths;
+        values = NULL;
     }
 
     size_t getSize(void) { return size; }
@@ -368,14 +364,14 @@ public:
     void clear();
 
     StoredValue *find(std::string &key) {
-        assert(active);
+        assert(active());
         int bucket_num = bucket(key);
         LockHolder lh(getMutex(bucket_num));
         return unlocked_find(key, bucket_num);
     }
 
     mutation_type_t set(const Item &val) {
-        assert(active);
+        assert(active());
         mutation_type_t rv = NOT_FOUND;
         int bucket_num = bucket(val.getKey());
         LockHolder lh(getMutex(bucket_num));
@@ -408,13 +404,12 @@ public:
             itm.setCas();
             v = valFact(itm, values[bucket_num]);
             values[bucket_num] = v;
-            depths[bucket_num]++;
         }
         return rv;
     }
 
     bool add(const Item &val, bool isDirty = true) {
-        assert(active);
+        assert(active());
         int bucket_num = bucket(val.getKey());
         LockHolder lh(getMutex(bucket_num));
         StoredValue *v = unlocked_find(val.getKey(), bucket_num);
@@ -425,7 +420,6 @@ public:
             itm.setCas();
             v = valFact(itm, values[bucket_num], isDirty);
             values[bucket_num] = v;
-            depths[bucket_num]++;
         }
 
         return true;
@@ -443,7 +437,7 @@ public:
     }
 
     inline int bucket(const char *str, const size_t len) {
-        assert(active);
+        assert(active());
         int h=5381;
 
         for(size_t i=0; i < len; i++) {
@@ -459,7 +453,7 @@ public:
 
     // Get the mutex for a bucket (for doing your own lock management)
     inline Mutex &getMutex(int bucket_num) {
-        assert(active);
+        assert(active());
         assert(bucket_num < (int)size);
         assert(bucket_num >= 0);
         int lock_num = bucket_num % (int)n_locks;
@@ -470,7 +464,7 @@ public:
 
     // True if it existed
     bool del(const std::string &key) {
-        assert(active);
+        assert(active());
         int bucket_num = bucket(key);
         LockHolder lh(getMutex(bucket_num));
 
@@ -487,7 +481,6 @@ public:
                 return false;
             }
             values[bucket_num] = v->next;
-            depths[bucket_num]--;
             delete v;
             return true;
         }
@@ -500,7 +493,6 @@ public:
                 }
                 v->next = v->next->next;
                 delete tmp;
-                depths[bucket_num]--;
                 return true;
             } else {
                 v = v->next;
@@ -533,12 +525,13 @@ public:
     static const char* getDefaultStorageValueTypeStr();
 
 private:
+
+    inline bool active() { return values != NULL; }
+
     size_t               size;
     size_t               n_locks;
-    bool                 active;
     StoredValue        **values;
     Mutex               *mutexes;
-    int                 *depths;
     StoredValueFactory   valFact;
 
     static size_t                 defaultNumBuckets;
