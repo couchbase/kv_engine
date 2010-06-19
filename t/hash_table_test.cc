@@ -139,8 +139,7 @@ static void testForwardDeletions() {
     assert(count(h) == 0);
 }
 
-static void testFind() {
-    HashTable h(5, 1);
+static void testFind(HashTable &h) {
     const int nkeys = 5000;
 
     std::vector<std::string> keys = generateKeys(nkeys);
@@ -154,6 +153,16 @@ static void testFind() {
         std::string key = *it;
         assert(h.find(key));
     }
+}
+
+static void testFind() {
+    HashTable h(5, 1);
+    testFind(h);
+}
+
+static void testFindSmall() {
+    HashTable h(5, 1, small);
+    testFind(h);
 }
 
 static void testAdd() {
@@ -198,6 +207,7 @@ int main() {
     testReverseDeletions();
     testForwardDeletions();
     testFind();
+    testFindSmall();
     testAdd();
     testDepthCounting();
     exit(0);
