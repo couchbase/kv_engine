@@ -29,6 +29,7 @@
 /config/mkinstalldirs
 /config/plugin.ac
 /configure
+/docs/doxy
 /libtool
 /m4/libtool.m4
 /m4/ltoptions.m4
