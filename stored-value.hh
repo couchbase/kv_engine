@@ -29,35 +29,28 @@ public:
     }
 
     void markDirty() {
-        data_age = ep_current_time();
-        if (!isDirty()) {
-            dirtied = data_age;
-        }
+        // We eat the last second of time for our dirty flag.
+        dirtiness = ep_current_time() | 1;
     }
 
-    void reDirty(rel_time_t dirtyAge, rel_time_t dataAge) {
-        data_age = dataAge;
-        dirtied = dirtyAge;
+    void reDirty(rel_time_t dataAge) {
+        dirtiness = dataAge | 1;
     }
 
     // returns time this object was dirtied.
-    void markClean(rel_time_t *dirtyAge, rel_time_t *dataAge) {
-        if (dirtyAge) {
-            *dirtyAge = dirtied;
-        }
+    void markClean(rel_time_t *dataAge) {
         if (dataAge) {
-            *dataAge = data_age;
+            *dataAge = dirtiness;
         }
-        dirtied = 0;
-        data_age = 0;
+        dirtiness = 0;
     }
 
     bool isDirty() const {
-        return dirtied != 0;
+        return dirtiness & 1;
     }
 
     bool isClean() const {
-        return dirtied == 0;
+        return !isDirty();
     }
 
     virtual const char* getKeyBytes() const = 0;
@@ -93,13 +86,8 @@ public:
         return 0;
     }
 
-    // for stats
-    rel_time_t getDirtied() const {
-        return dirtied;
-    }
-
     rel_time_t getDataAge() const {
-        return data_age;
+        return dirtiness;
     }
 
     virtual void setCas(uint64_t c) {
@@ -134,13 +122,12 @@ public:
 protected:
 
     StoredValue(const Item &itm, StoredValue *n, bool setDirty = true) :
-        value(itm.getValue()), next(n), id(itm.getId()),
-        dirtied(0), data_age(0)
+        value(itm.getValue()), next(n), id(itm.getId())
     {
         if (setDirty) {
             markDirty();
         } else {
-            markClean(NULL, NULL);
+            markClean(NULL);
         }
     }
 
@@ -150,8 +137,7 @@ protected:
     value_t value;
     StoredValue *next;
     int64_t id;
-    rel_time_t dirtied;
-    rel_time_t data_age;
+    uint32_t dirtiness;
     DISALLOW_COPY_AND_ASSIGN(StoredValue);
 };
 
@@ -186,7 +172,7 @@ private:
         if (setDirty) {
             markDirty();
         } else {
-            markClean(NULL, NULL);
+            markClean(NULL);
         }
     }
 

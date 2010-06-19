@@ -211,7 +211,11 @@ static enum test_result test_set_change_flags(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
 
     check(get_value(h, h1, "key", &info), "Failed to get value.");
 
-    return info.flags == flags ? SUCCESS : FAIL;
+    if (info.flags != flags) {
+        fprintf(stderr, "Expected flags:  %ul, got %ul\n", flags, info.flags);
+        abort();
+    }
+    return SUCCESS;
 }
 
 static enum test_result test_cas(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {

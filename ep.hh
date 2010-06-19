@@ -42,12 +42,14 @@ extern "C" {
 
 class QueuedItem {
 public:
-    QueuedItem(const std::string &k) : key(k) {}
+    QueuedItem(const std::string &k) : key(k), dirtied(ep_current_time()) {}
 
-    std::string getKey(void) const { return key; }
+    const std::string& getKey(void) const { return key; }
+    rel_time_t getDirtied(void) const { return dirtied; }
 
 private:
     std::string key;
+    rel_time_t  dirtied;
 };
 
 // Forward declaration
