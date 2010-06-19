@@ -14,6 +14,7 @@ int main(int argc, char **argv) {
 
     std::string s();
     display("Stored Value", sizeof(StoredValue));
+    display("Featured Stored Value", sizeof(FeaturedStoredValue));
     display("HashTable", sizeof(HashTable));
     display("Item", sizeof(Item));
     display("QueuedItem", sizeof(QueuedItem));

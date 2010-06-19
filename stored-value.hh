@@ -36,7 +36,7 @@ public:
         ::operator delete(p);
      }
 
-    ~StoredValue() {
+    virtual ~StoredValue() {
     }
 
     void markDirty() {
@@ -92,25 +92,25 @@ public:
         return value;
     }
 
-    rel_time_t getExptime() const {
-        return exptime;
+    virtual rel_time_t getExptime() const {
+        return 0;
     }
 
-    uint32_t getFlags() const {
-        return flags;
+    virtual uint32_t getFlags() const {
+        return 0;
     }
 
-    void setValue(value_t v,
+    virtual void setValue(value_t v,
                   uint32_t newFlags, rel_time_t newExp, uint64_t theCas) {
-        cas = theCas;
-        flags = newFlags;
-        exptime = newExp;
+        (void)newFlags;
+        (void)newExp;
+        (void)theCas;
         value = v;
         markDirty();
     }
 
-    uint64_t getCas() const {
-        return cas;
+    virtual uint64_t getCas() const {
+        return 0;
     }
 
     // for stats
@@ -122,18 +122,15 @@ public:
         return data_age;
     }
 
-    void setCas(uint64_t c) {
-        cas = c;
+    virtual void setCas(uint64_t c) {
+        (void)c;
     }
 
     void lock(rel_time_t expiry) {
-        locked = true;
-        lock_expiry = expiry;
+        (void)expiry;
     }
 
-    void unlock() {
-        locked = false;
-        lock_expiry = 0;
+    virtual void unlock() {
     }
 
     bool hasId() {
@@ -149,20 +146,16 @@ public:
         id = to;
     }
 
-    bool isLocked(rel_time_t curtime)  {
-        if (locked && (curtime > lock_expiry)) {
-            locked = false;
-            return locked;
-        }
-        return locked;
+    virtual bool isLocked(rel_time_t curtime) {
+        (void)curtime;
+        return false;
     }
 
-private:
+protected:
 
     StoredValue(const Item &itm, StoredValue *n, bool setDirty = true) :
-        value(itm.getValue()),
-        flags(itm.getFlags()), exptime(itm.getExptime()), dirtied(0), next(n),
-        cas(itm.getCas()), id(itm.getId()), locked(false), lock_expiry(0)
+        value(itm.getValue()), next(n), id(itm.getId()),
+        dirtied(0), data_age(0), keylen(0)
     {
         if (setDirty) {
             markDirty();
@@ -174,18 +167,87 @@ private:
     friend class HashTable;
 
     value_t value;
-    uint32_t flags;
-    rel_time_t exptime;
+    StoredValue *next;
+    int64_t id;
     rel_time_t dirtied;
     rel_time_t data_age;
-    StoredValue *next;
-    uint64_t cas;
-    int64_t id;
-    bool locked;
-    rel_time_t lock_expiry;
     uint8_t keylen;
     char keybytes[1];
     DISALLOW_COPY_AND_ASSIGN(StoredValue);
+};
+
+class FeaturedStoredValue : protected StoredValue {
+public:
+
+    static StoredValue* New(const Item &itm, StoredValue *n, bool setDirty = true) {
+        std::string key = itm.getKey();
+        size_t len = key.length() + sizeof(FeaturedStoredValue);
+
+        FeaturedStoredValue *t = new (::operator new(len))
+            FeaturedStoredValue(itm, n, setDirty);
+        t->keylen = key.length();
+        std::memcpy(t->keybytes, key.data(), key.length());
+
+        return t;
+    }
+
+    bool isLocked(rel_time_t curtime) {
+        if (locked && (curtime > lock_expiry)) {
+            locked = false;
+            return locked;
+        }
+        return locked;
+    }
+
+    void unlock() {
+        locked = false;
+        lock_expiry = 0;
+    }
+
+    void lock(rel_time_t expiry) {
+        locked = true;
+        lock_expiry = expiry;
+    }
+
+    void setCas(uint64_t c) {
+        cas = c;
+    }
+
+    uint64_t getCas() const {
+        return cas;
+    }
+
+    rel_time_t getExptime() const {
+        return exptime;
+    }
+
+    uint32_t getFlags() const {
+        return flags;
+    }
+
+    virtual void setValue(value_t v,
+                  uint32_t newFlags, rel_time_t newExp, uint64_t theCas) {
+        cas = theCas;
+        flags = newFlags;
+        exptime = newExp;
+        StoredValue::setValue(v, newFlags, newExp, theCas);
+    }
+
+private:
+
+    FeaturedStoredValue(const Item &itm, StoredValue *n, bool setDirty = true) :
+        StoredValue(itm, n, setDirty),
+        cas(itm.getCas()),
+        flags(itm.getFlags()),
+        exptime(itm.getExptime()),
+        locked(false), lock_expiry(0) {
+    }
+
+    uint64_t cas;
+    uint32_t flags;
+    rel_time_t exptime;
+    bool locked;
+    rel_time_t lock_expiry;
 };
 
 typedef enum {
@@ -219,11 +281,41 @@ public:
     int max;
 };
 
+enum stored_value_type {
+    small, featured
+};
+
+class StoredValueFactory {
+public:
+
+    StoredValueFactory(enum stored_value_type t = featured) : type(t) {}
+
+    StoredValue *operator ()(const Item &itm, StoredValue *n,
+                             bool setDirty = true) {
+        switch(type) {
+        case small:
+            return StoredValue::New(itm, n, setDirty);
+            break;
+        case featured:
+            return FeaturedStoredValue::New(itm, n, setDirty);
+            break;
+        default:
+            abort();
+        };
+    }
+
+private:
+
+    enum stored_value_type type;
+
+};
+
 class HashTable {
 public:
 
     // Construct with number of buckets and locks.
-    HashTable(size_t s = 0, size_t l = 0) {
+    HashTable(size_t s = 0, size_t l = 0, enum stored_value_type t = featured)
+        : valFact(t) {
         size = HashTable::getNumBuckets(s);
         n_locks = HashTable::getNumLocks(l);
         assert(size > 0);
@@ -288,7 +380,7 @@ public:
                 return INVALID_CAS;
             }
             itm.setCas();
-            v = StoredValue::New(itm, values[bucket_num]);
+            v = valFact(itm, values[bucket_num]);
             values[bucket_num] = v;
             depths[bucket_num]++;
         }
@@ -305,7 +397,7 @@ public:
         } else {
             Item &itm = const_cast<Item&>(val);
             itm.setCas();
-            v = StoredValue::New(itm, values[bucket_num], isDirty);
+            v = valFact(itm, values[bucket_num], isDirty);
             values[bucket_num] = v;
             depths[bucket_num]++;
         }
@@ -401,17 +493,20 @@ public:
 
     static void setDefaultNumBuckets(size_t);
     static void setDefaultNumLocks(size_t);
+    static void setDefaultStorageValueType(enum stored_value_type);
 
 private:
-    size_t        size;
-    size_t        n_locks;
-    bool          active;
-    StoredValue **values;
-    Mutex        *mutexes;
-    int          *depths;
+    size_t               size;
+    size_t               n_locks;
+    bool                 active;
+    StoredValue        **values;
+    Mutex               *mutexes;
+    int                 *depths;
+    StoredValueFactory   valFact;
 
-    static size_t defaultNumBuckets;
-    static size_t defaultNumLocks;
+    static size_t                 defaultNumBuckets;
+    static size_t                 defaultNumLocks;
+    static enum stored_value_type defaultStoredValueType;
 
     DISALLOW_COPY_AND_ASSIGN(HashTable);
 };

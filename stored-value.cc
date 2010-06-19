@@ -9,6 +9,7 @@
 
 size_t HashTable::defaultNumBuckets = DEFAULT_HT_SIZE;
 size_t HashTable::defaultNumLocks = 193;
+enum stored_value_type HashTable::defaultStoredValueType = featured;
 
 static inline size_t getDefault(size_t x, size_t d) {
     return x == 0 ? d : x;
