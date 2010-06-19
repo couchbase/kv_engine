@@ -1842,6 +1842,9 @@ private:
     size_t maxItemSize;
 };
 
+/**
+ * VBucketVisitor to backfill a TapConnection.
+ */
 class BackFillVisitor : public VBucketVisitor {
 public:
     BackFillVisitor(EventuallyPersistentEngine *e, TapConnection *tc):

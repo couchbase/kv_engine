@@ -96,9 +96,7 @@ void HashTable::visitDepth(HashTableDepthVisitor &visitor) {
 /**
  * Get the maximum amount of memory available for storing data.
  *
- * @param n the current max data size
- *
- * @return the number of locks to create
+ * @return the memory ceiling
  */
 size_t StoredValue::getMaxDataSize() {
     return maxDataSize;

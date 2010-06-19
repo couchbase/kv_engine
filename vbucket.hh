@@ -16,11 +16,21 @@
 #include "atomic.hh"
 #include "stored-value.hh"
 
+/**
+ * Function object that returns true if the given vbucket is acceptable.
+ */
 class VBucketFilter {
 public:
 
+    /**
+     * Instiatiate a VBucketFilter that always returns true.
+     */
     explicit VBucketFilter() : acceptable() {}
 
+    /**
+     * Instantiate a VBucketFilter that returns true for any of the
+     * given vbucket IDs.
+     */
     explicit VBucketFilter(std::vector<uint16_t> a) : acceptable(a) {
         std::sort(acceptable.begin(), acceptable.end());
     }

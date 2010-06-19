@@ -191,18 +191,40 @@ typedef enum {
     SUCCESS
 } mutation_type_t;
 
+/**
+ * Base class for visiting a hash table.
+ */
 class HashTableVisitor {
 public:
     virtual ~HashTableVisitor() {}
+
+    /**
+     * Visit an individual item within a hash table.
+     *
+     * @param v a pointer to a value in the hash table
+     */
     virtual void visit(StoredValue *v) = 0;
 };
 
+/**
+ * Hash table visitor that reports the depth of each hashtable bucket.
+ */
 class HashTableDepthVisitor {
 public:
     virtual ~HashTableDepthVisitor() {}
+
+    /**
+     * Called once for each hashtable bucket with its depth.
+     *
+     * @param bucket the index of the hashtable bucket
+     * @param depth the number of entries in this hashtable bucket
+     */
     virtual void visit(int bucket, int depth) = 0;
 };
 
+/**
+ * Hash table visitor that finds the min and max bucket depths.
+ */
 class HashTableDepthStatVisitor : public HashTableDepthVisitor {
 public:
 
@@ -218,6 +240,9 @@ public:
     int max;
 };
 
+/**
+ * Hash table that stores all of the items in memory.
+ */
 class HashTable {
 public:
 
