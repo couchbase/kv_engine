@@ -445,9 +445,8 @@ public:
     void operator() (std::pair<uint16_t, std::string> vk) {
         RCPtr<VBucket> vb = e->getVBucket(vk.first);
         if (vb) {
-            int bucket_num = vb->ht.bucket(vk.second);
-            LockHolder lh(vb->ht.getMutex(bucket_num));
-
+            int bucket_num(0);
+            LockHolder lh = vb->ht.getLockedBucket(vk.second, &bucket_num);
             StoredValue *v = vb->ht.unlocked_find(vk.second, bucket_num);
             if (v) {
                 if (vb->ht.unlocked_softDelete(vk.second, 0, bucket_num) == WAS_CLEAN) {
@@ -493,8 +492,8 @@ protocol_binary_response_status EventuallyPersistentStore::evictKey(const std::s
         return PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET;
     }
 
-    int bucket_num = vb->ht.bucket(key);
-    LockHolder lh(vb->ht.getMutex(bucket_num));
+    int bucket_num(0);
+    LockHolder lh = vb->ht.getLockedBucket(key, &bucket_num);
     StoredValue *v = fetchValidValue(vb, key, bucket_num);
 
     protocol_binary_response_status rv(PROTOCOL_BINARY_RESPONSE_SUCCESS);
@@ -760,8 +759,8 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
 
     RCPtr<VBucket> vb = getVBucket(vbucket);
     if (vb && vb->getState() == active && gcb.val.getStatus() == ENGINE_SUCCESS) {
-        int bucket_num = vb->ht.bucket(key);
-        LockHolder vblh(vb->ht.getMutex(bucket_num));
+        int bucket_num(0);
+        LockHolder hlh = vb->ht.getLockedBucket(key, &bucket_num);
         StoredValue *v = fetchValidValue(vb, key, bucket_num);
 
         if (v && !v->isResident()) {
@@ -831,8 +830,8 @@ GetValue EventuallyPersistentStore::get(const std::string &key,
         }
     }
 
-    int bucket_num = vb->ht.bucket(key);
-    LockHolder lh(vb->ht.getMutex(bucket_num));
+    int bucket_num(0);
+    LockHolder lh = vb->ht.getLockedBucket(key, &bucket_num);
     StoredValue *v = fetchValidValue(vb, key, bucket_num);
 
     if (v) {
@@ -878,8 +877,8 @@ EventuallyPersistentStore::getFromUnderlying(const std::string &key,
         }
     }
 
-    int bucket_num = vb->ht.bucket(key);
-    LockHolder lh(vb->ht.getMutex(bucket_num));
+    int bucket_num(0);
+    LockHolder lh = vb->ht.getLockedBucket(key, &bucket_num);
     StoredValue *v = fetchValidValue(vb, key, bucket_num);
 
     if (v) {
@@ -909,8 +908,8 @@ bool EventuallyPersistentStore::getLocked(const std::string &key,
         return false;
     }
 
-    int bucket_num = vb->ht.bucket(key);
-    LockHolder lh(vb->ht.getMutex(bucket_num));
+    int bucket_num(0);
+    LockHolder lh = vb->ht.getLockedBucket(key, &bucket_num);
     StoredValue *v = fetchValidValue(vb, key, bucket_num);
 
     if (v) {
@@ -965,8 +964,8 @@ EventuallyPersistentStore::unlockKey(const std::string &key,
         return ENGINE_NOT_MY_VBUCKET;
     }
 
-    int bucket_num = vb->ht.bucket(key);
-    LockHolder lh(vb->ht.getMutex(bucket_num));
+    int bucket_num(0);
+    LockHolder lh = vb->ht.getLockedBucket(key, &bucket_num);
     StoredValue *v = fetchValidValue(vb, key, bucket_num);
 
     if (v) {
@@ -992,8 +991,8 @@ bool EventuallyPersistentStore::getKeyStats(const std::string &key,
     }
 
     bool found = false;
-    int bucket_num = vb->ht.bucket(key);
-    LockHolder lh(vb->ht.getMutex(bucket_num));
+    int bucket_num(0);
+    LockHolder lh = vb->ht.getLockedBucket(key, &bucket_num);
     StoredValue *v = fetchValidValue(vb, key, bucket_num);
 
     found = (v != NULL);
@@ -1201,8 +1200,8 @@ public:
             }
             RCPtr<VBucket> vb = store->getVBucket(queuedItem.getVBucketId());
             if (vb && vb->getState() != active) {
-                int bucket_num = vb->ht.bucket(queuedItem.getKey());
-                LockHolder lh(vb->ht.getMutex(bucket_num));
+                int bucket_num(0);
+                LockHolder lh = vb->ht.getLockedBucket(queuedItem.getKey(), &bucket_num);
                 StoredValue *v = store->fetchValidValue(vb, queuedItem.getKey(),
                                                         bucket_num, true);
                 double current = static_cast<double>(StoredValue::getCurrentSize(*stats));
@@ -1242,8 +1241,8 @@ public:
             // may now remove it from the hash table.
             RCPtr<VBucket> vb = store->getVBucket(queuedItem.getVBucketId());
             if (vb) {
-                int bucket_num = vb->ht.bucket(queuedItem.getKey());
-                LockHolder lh(vb->ht.getMutex(bucket_num));
+                int bucket_num(0);
+                LockHolder lh = vb->ht.getLockedBucket(queuedItem.getKey(), &bucket_num);
                 StoredValue *v = store->fetchValidValue(vb, queuedItem.getKey(),
                                                         bucket_num, true);
 
@@ -1310,8 +1309,8 @@ int EventuallyPersistentStore::flushOneDelOrSet(QueuedItem &qi,
         return 0;
     }
 
-    int bucket_num = vb->ht.bucket(qi.getKey());
-    LockHolder lh(vb->ht.getMutex(bucket_num));
+    int bucket_num(0);
+    LockHolder lh = vb->ht.getLockedBucket(qi.getKey(), &bucket_num);
     StoredValue *v = fetchValidValue(vb, qi.getKey(), bucket_num, true);
 
     int64_t rowid = v != NULL ? v->getId() : -1;

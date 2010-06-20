@@ -1,14 +1,17 @@
 #include "config.h"
+
 #include <signal.h>
-#include <assert.h>
 #include <unistd.h>
 
+#include <limits>
+#include <cassert>
 #include <algorithm>
 
 #include <ep.hh>
 #include <item.hh>
 #include <stats.hh>
 
+#include "threadtests.hh"
 
 time_t time_offset;
 
@@ -195,20 +198,24 @@ static void testForwardDeletions() {
     assert(global_stats.currentSize.get() == initialSize);
 }
 
+static void verifyFound(HashTable &h, const std::vector<std::string> keys) {
+    std::string missingKey = "aMissingKey";
+    assert(h.find(missingKey) == NULL);
+
+    std::vector<std::string>::const_iterator it;
+    for (it = keys.begin(); it != keys.end(); it++) {
+        std::string key = *it;
+        assert(h.find(key));
+    }
+}
+
 static void testFind(HashTable &h) {
     const int nkeys = 5000;
 
     std::vector<std::string> keys = generateKeys(nkeys);
     storeMany(h, keys);
 
-    std::string missingKey = "aMissingKey";
-    assert(h.find(missingKey) == NULL);
-
-    std::vector<std::string>::iterator it;
-    for (it = keys.begin(); it != keys.end(); it++) {
-        std::string key = *it;
-        assert(h.find(key));
-    }
+    verifyFound(h, keys);
 }
 
 static void testFind() {
@@ -240,7 +247,88 @@ static void testAddExpiry() {
     assert(v);
     assert(!v->isExpired(ep_real_time()));
     assert(v->isExpired(ep_real_time() + 6));
+}
 
+static void testResize() {
+    HashTable h(global_stats, 5, 3);
+
+    std::vector<std::string> keys = generateKeys(5000);
+    storeMany(h, keys);
+
+    verifyFound(h, keys);
+
+    h.resize(6143);
+    assert(h.getSize() == 6143);
+
+    verifyFound(h, keys);
+
+    h.resize(769);
+    assert(h.getSize() == 769);
+
+    verifyFound(h, keys);
+
+    h.resize(static_cast<size_t>(std::numeric_limits<int>::max()) + 17);
+    assert(h.getSize() == 769);
+
+    verifyFound(h, keys);
+}
+
+class AccessGenerator : public Generator<bool> {
+public:
+
+    AccessGenerator(const std::vector<std::string> &k,
+                    HashTable &h) : keys(k), ht(h), size(10000) {
+        std::random_shuffle(keys.begin(), keys.end());
+    }
+
+    bool operator()() {
+        std::vector<std::string>::iterator it;
+        for (it = keys.begin(); it != keys.end(); ++it) {
+            if (rand() % 111 == 0) {
+                resize();
+            }
+            ht.del(*it);
+        }
+        return true;
+    }
+
+private:
+
+    void resize() {
+        ht.resize(size);
+        size = size == 10000 ? 30000 : 10000;
+    }
+
+    std::vector<std::string>  keys;
+    HashTable                &ht;
+    size_t                    size;
+};
+
+static void testConcurrentAccessResize() {
+    HashTable h(global_stats, 5, 3);
+
+    std::vector<std::string> keys = generateKeys(20000);
+    h.resize(keys.size());
+    storeMany(h, keys);
+
+    verifyFound(h, keys);
+
+    srand(918475);
+    AccessGenerator gen(keys, h);
+    getCompletedThreads(16, &gen);
+}
+
+static void testAutoResize() {
+    HashTable h(global_stats, 5, 3);
+
+    std::vector<std::string> keys = generateKeys(5000);
+    storeMany(h, keys);
+
+    verifyFound(h, keys);
+
+    h.resize();
+    assert(h.getSize() == 6143);
+    verifyFound(h, keys);
 }
 
 static void testAdd() {
@@ -312,5 +400,8 @@ int main() {
     testAddExpiry();
     testDepthCounting();
     testPoisonKey();
+    testResize();
+    testConcurrentAccessResize();
+    testAutoResize();
     exit(0);
 }

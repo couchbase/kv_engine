@@ -848,6 +848,16 @@ public:
     HashTableStatVisitor clear(bool deactivate = false);
 
     /**
+     * Automatically resize to fit the current data.
+     */
+    void resize();
+
+    /**
+     * Resize to the specified size.
+     */
+    void resize(size_t to);
+
+    /**
      * Find the item with the given key.
      *
      * @param key the key to find
@@ -855,8 +865,8 @@ public:
      */
     StoredValue *find(std::string &key) {
         assert(active());
-        int bucket_num = bucket(key);
-        LockHolder lh(getMutex(bucket_num));
+        int bucket_num(0);
+        LockHolder lh = getLockedBucket(key, &bucket_num);
         return unlocked_find(key, bucket_num);
     }
 
@@ -875,8 +885,8 @@ public:
         }
 
         mutation_type_t rv = NOT_FOUND;
-        int bucket_num = bucket(val.getKey());
-        LockHolder lh(getMutex(bucket_num));
+        int bucket_num(0);
+        LockHolder lh = getLockedBucket(val.getKey(), &bucket_num);
         StoredValue *v = unlocked_find(val.getKey(), bucket_num, true);
         if (v) {
             if (v->isLocked(ep_current_time())) {
@@ -923,8 +933,8 @@ public:
      */
     add_type_t add(const Item &val, bool isDirty = true, bool storeVal = true) {
         assert(active());
-        int bucket_num = bucket(val.getKey());
-        LockHolder lh(getMutex(bucket_num));
+        int bucket_num(0);
+        LockHolder lh = getLockedBucket(val.getKey(), &bucket_num);
         StoredValue *v = unlocked_find(val.getKey(), bucket_num, true);
         add_type_t rv = ADD_SUCCESS;
         if (v && !v->isDeleted() && !v->isExpired(ep_real_time())) {
@@ -969,8 +979,8 @@ public:
     mutation_type_t softDelete(const std::string &key, uint64_t cas,
                                int64_t &row_id) {
         assert(active());
-        int bucket_num = bucket(key);
-        LockHolder lh(getMutex(bucket_num));
+        int bucket_num(0);
+        LockHolder lh = getLockedBucket(key, &bucket_num);
         StoredValue *v = unlocked_find(key, bucket_num);
         if (v) {
             row_id = v->getId();
@@ -1034,13 +1044,14 @@ public:
     }
 
     /**
-     * Get the bucket number for the given C string key.
+     * Compute a hash for the given string.
      *
-     * @param str the string
-     * @param len the number of bytes to use for hash computation
-     * @return the bucket number for this key
+     * @param str the beginning of the string
+     * @param len the number of bytes in the string
+     *
+     * @return the hash value
      */
-    inline int bucket(const char *str, const size_t len) {
+    inline int hash(const char *str, const size_t len) {
         assert(active());
         int h=5381;
 
@@ -1048,40 +1059,61 @@ public:
             h = ((h << 5) + h) ^ str[i];
         }
 
-        return abs(h % (int)size);
+        return h;
     }
 
     /**
-     * Get the bucket number for the given string.
+     * Compute a hash for the given string.
+     *
+     * @param s the string
+     * @return the hash value
+     */
+    inline int hash(const std::string &s) {
+        return hash(s.data(), s.length());
+    }
+
+    /**
+     * Get a lock holder holding a lock for the bucket for the given
+     * hash.
+     *
+     * @param hash the input hash
+     * @param bucket output parameter to receive a bucket
+     * @return a locked LockHolder
+     */
+    inline LockHolder getLockedBucket(int h, int *bucket) {
+        while (true) {
+            assert(active());
+            *bucket = getBucketForHash(h);
+            LockHolder rv(mutexes[mutexForBucket(*bucket)]);
+            if (*bucket == getBucketForHash(h)) {
+                return rv;
+            }
+        }
+    }
+
+    /**
+     * Get a lock holder holding a lock for the bucket for the hash of
+     * the given key.
+     *
+     * @param s the start of the key
+     * @param n the size of the key
+     * @param bucket output parameter to receive a bucket
+     * @return a locked LockHolder
+     */
+    inline LockHolder getLockedBucket(const char *s, size_t n, int *bucket) {
+        return getLockedBucket(hash(s, n), bucket);
+    }
+
+    /**
+     * Get a lock holder holding a lock for the bucket for the hash of
+     * the given key.
      *
      * @param s the key
-     * @return the bucket number for this key
+     * @param bucket output parameter to receive a bucket
+     * @return a locked LockHolder
      */
-    inline int bucket(const std::string &s) {
-        return bucket(s.data(), s.length());
-    }
-
-    /**
-     * Get the Mutex for the given lock.
-     *
-     * @param lock_num the lock number to get
-     * @return the Mutex
-     */
-    inline Mutex &getMutexForLock(int lock_num) {
-        assert(active());
-        assert(lock_num < (int)n_locks);
-        assert(lock_num >= 0);
-        return mutexes[lock_num];
-    }
-
-    /**
-     * Get the mutex for a bucket (for doing your own lock management).
-     *
-     * @param bucket_num the bucket number
-     * @return the Mutex covering that bucket
-     */
-    inline Mutex &getMutex(int bucket_num) {
-        return getMutexForLock(mutexForBucket(bucket_num));
+    inline LockHolder getLockedBucket(const std::string &s, int *bucket) {
+        return getLockedBucket(hash(s.data(), s.size()), bucket);
     }
 
     /**
@@ -1141,8 +1173,8 @@ public:
      */
     bool del(const std::string &key) {
         assert(active());
-        int bucket_num = bucket(key);
-        LockHolder lh(getMutex(bucket_num));
+        int bucket_num(0);
+        LockHolder lh = getLockedBucket(key, &bucket_num);
         return unlocked_del(key, bucket_num);
     }
 
@@ -1222,12 +1254,15 @@ private:
     static size_t                 defaultNumLocks;
     static enum stored_value_type defaultStoredValueType;
 
+    int getBucketForHash(int h) {
+        return abs(h % static_cast<int>(size));
+    }
+
     inline int mutexForBucket(int bucket_num) {
         assert(active());
-        assert(bucket_num < (int)size);
         assert(bucket_num >= 0);
-        int lock_num = bucket_num % (int)n_locks;
-        assert(lock_num < (int)n_locks);
+        int lock_num = bucket_num % static_cast<int>(n_locks);
+        assert(lock_num < static_cast<int>(n_locks));
         assert(lock_num >= 0);
         return lock_num;
     }

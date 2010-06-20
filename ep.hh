@@ -713,8 +713,8 @@ private:
             return false;
         }
 
-        int bucket_num = vb->ht.bucket(key);
-        LockHolder lh(vb->ht.getMutex(bucket_num));
+        int bucket_num(0);
+        LockHolder lh = vb->ht.getLockedBucket(key, &bucket_num);
         StoredValue *v = vb->ht.unlocked_find(key, bucket_num, true);
 
         if (v) {
