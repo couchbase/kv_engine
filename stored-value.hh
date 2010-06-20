@@ -346,15 +346,14 @@ public:
         valFact = StoredValueFactory(getDefaultStorageValueType());
         assert(size > 0);
         assert(n_locks > 0);
-        values = new StoredValue*[size];
-        std::fill_n(values, size, static_cast<StoredValue*>(NULL));
+        values = static_cast<StoredValue**>(calloc(size, sizeof(StoredValue*)));
         mutexes = new Mutex[n_locks];
     }
 
     ~HashTable() {
         clear();
         delete []mutexes;
-        delete []values;
+        free(values);
         values = NULL;
     }
 
