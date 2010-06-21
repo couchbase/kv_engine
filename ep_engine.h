@@ -692,7 +692,7 @@ public:
     {
         ENGINE_ERROR_CODE ret;
         Item *it = static_cast<Item*>(itm);
-        item *i;
+        item *i = NULL;
 
         it->setVBucketId(vbucket);
 
