@@ -241,6 +241,32 @@ public:
 };
 
 /**
+ * Track the current number of hashtable visitors.
+ *
+ * This class is a pretty generic counter holder that increments on
+ * entry and decrements on return providing RAII guarantees around an
+ * atomic counter.
+ */
+class VisitorTracker {
+public:
+
+    /**
+     * Mark a visitor as visiting.
+     *
+     * @param c the counter that should be incremented (and later
+     * decremented).
+     */
+    explicit VisitorTracker(Atomic<size_t> *c) : counter(c) {
+        ++(*counter);
+    }
+    ~VisitorTracker() {
+        --(*counter);
+    }
+private:
+    Atomic<size_t> *counter;
+};
+
+/**
  * Hash table that stores all of the items in memory.
  */
 class HashTable {
@@ -252,6 +278,7 @@ public:
         n_locks = HashTable::getNumLocks(l);
         assert(size > 0);
         assert(n_locks > 0);
+        assert(visitors == 0);
         active = true;
         values = new StoredValue*[size];
         std::fill_n(values, size, static_cast<StoredValue*>(NULL));
@@ -261,8 +288,11 @@ public:
     }
 
     ~HashTable() {
-        clear();
-        active = false;
+        clear(true);
+        // Wait for any outstanding visitors to finish.
+        while (visitors > 0) {
+            usleep(100);
+        }
         delete []mutexes;
         delete []values;
         delete []depths;
@@ -271,7 +301,7 @@ public:
     size_t getSize(void) { return size; }
     size_t getNumLocks(void) { return n_locks; }
 
-    void clear();
+    void clear(bool deactivate = false);
 
     StoredValue *find(std::string &key) {
         assert(active);
@@ -451,12 +481,13 @@ public:
     static void setDefaultNumLocks(size_t);
 
 private:
-    size_t        size;
-    size_t        n_locks;
-    bool          active;
-    StoredValue **values;
-    Mutex        *mutexes;
-    int          *depths;
+    size_t           size;
+    size_t           n_locks;
+    bool             active;
+    StoredValue    **values;
+    Mutex           *mutexes;
+    int             *depths;
+    Atomic<size_t>   visitors;
 
     static size_t defaultNumBuckets;
     static size_t defaultNumLocks;

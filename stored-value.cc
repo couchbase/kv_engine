@@ -62,9 +62,15 @@ void HashTable::setDefaultNumLocks(size_t to) {
     }
 }
 
-void HashTable::clear() {
-    assert(active);
+void HashTable::clear(bool deactivate) {
+    if (!deactivate) {
+        // If not deactivating, assert we're already active.
+        assert(active);
+    }
     MultiLockHolder(mutexes, n_locks);
+    if (deactivate) {
+        active = false;
+    }
     for (int i = 0; i < (int)size; i++) {
         while (values[i]) {
             StoredValue *v = values[i];
@@ -76,8 +82,15 @@ void HashTable::clear() {
 }
 
 void HashTable::visit(HashTableVisitor &visitor) {
-    for (int i = 0; i < (int)size; i++) {
+    if (!active) {
+        return;
+    }
+    VisitorTracker vt(&visitors);
+    for (size_t i = 0; active && i < size; i++) {
         LockHolder lh(getMutex(i));
+        if (!active) {
+            return;
+        }
         StoredValue *v = values[i];
         while (v) {
             visitor.visit(v);
@@ -87,8 +100,15 @@ void HashTable::visit(HashTableVisitor &visitor) {
 }
 
 void HashTable::visitDepth(HashTableDepthVisitor &visitor) {
-    for (int i = 0; i < (int)size; i++) {
+    if (!active) {
+        return;
+    }
+    VisitorTracker vt(&visitors);
+    for (size_t i = 0; active && i < size; i++) {
         LockHolder lh(getMutex(i));
+        if (!active) {
+            return;
+        }
         visitor.visit(i, depths[i]);
     }
 }
