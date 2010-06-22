@@ -97,7 +97,6 @@ void Dispatcher::stop() {
 void Dispatcher::schedule(shared_ptr<DispatcherCallback> callback,
                           TaskId *outtid,
                           int priority, double sleeptime) {
-    getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "Scheduling a new task\n");
     LockHolder lh(mutex);
     TaskId task(new Task(callback, priority, sleeptime));
     if (outtid) {
