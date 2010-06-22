@@ -47,6 +47,20 @@ void StrategicSqlite3::update(const Item &itm, Callback<std::pair<bool, int64_t>
     upd_stmt->reset();
 }
 
+std::map<uint16_t, std::string> StrategicSqlite3::listPersistedVbuckets() {
+    std::map<uint16_t, std::string> rv;
+
+    PreparedStatement *st = strategy->getGetVBucketStateST();
+
+    while (st->fetch()) {
+        rv[st->column_int(0)] = st->column(1);
+    }
+
+    st->reset();
+
+    return rv;
+}
+
 void StrategicSqlite3::set(const Item &itm, Callback<std::pair<bool, int64_t> > &cb) {
     if (itm.getId() <= 0) {
         insert(itm, cb);

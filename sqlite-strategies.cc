@@ -45,6 +45,7 @@ void SqliteStrategy::destroyStatements() {
 void SqliteStrategy::destroyMetaStatements(void) {
     delete set_vb_stmt;
     delete del_vb_stmt;
+    delete sel_vb_stmt;
 }
 
 void SqliteStrategy::initTables(void) {
@@ -65,6 +66,9 @@ void SqliteStrategy::initMetaStatements(void) {
 
     const char *del_query = "delete from vbucket_states where vbid = ?";
     del_vb_stmt = new PreparedStatement(db, del_query);
+
+    const char *sel_query = "select vbid, state from vbucket_states";
+    sel_vb_stmt = new PreparedStatement(db, sel_query);
 }
 
 void SqliteStrategy::initStatements(void) {

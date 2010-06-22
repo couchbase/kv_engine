@@ -2,6 +2,7 @@
 #ifndef SQLITE_BASE_H
 #define SQLITE_BASE_H 1
 
+#include <map>
 #include <vector>
 
 #include "embedded/sqlite3.h"
@@ -85,6 +86,7 @@ public:
 
     bool delVBucket(uint16_t vbucket);
     bool setVBState(uint16_t vbucket, const std::string &to);
+    std::map<uint16_t, std::string> listPersistedVbuckets(void);
 
     /**
      * Overrides dump

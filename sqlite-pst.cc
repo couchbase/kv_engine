@@ -1,6 +1,7 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 
 #include <string.h>
+#include <sstream>
 #include <cstdlib>
 #include <stdexcept>
 #include <iostream>
@@ -62,7 +63,8 @@ int PreparedStatement::execute() {
 bool PreparedStatement::fetch() {
     bool rv = true;
     assert(st);
-    switch(sqlite3_step(st)) {
+    int x = sqlite3_step(st);
+    switch(x) {
     case SQLITE_BUSY:
         throw std::runtime_error("DB was busy.");
         break;
@@ -72,7 +74,9 @@ bool PreparedStatement::fetch() {
         rv = false;
         break;
     default:
-        throw std::runtime_error("Unhandled case.");
+        std::stringstream ss;
+        ss << "Unhandled fetch case.  step returned " << x;
+        throw std::runtime_error(ss.str());
     }
     return rv;
 }

@@ -105,6 +105,14 @@ public:
     LoadStorageKVPairCallback(VBucketMap &vb, EPStats &st)
         : vbuckets(vb), stats(st) { }
 
+    void initVBucket(uint16_t vbid, vbucket_state_t state = pending) {
+        RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
+        if (!vb) {
+            vb.reset(new VBucket(vbid, state));
+            vbuckets.addBucket(vb);
+        }
+    }
+
     void callback(GetValue &val) {
         Item *i = val.getValue();
         if (i != NULL) {
@@ -203,7 +211,15 @@ public:
     }
 
     void warmup() {
-        static_cast<StrategicSqlite3*>(underlying)->dump(loadStorageKVPairCallback);
+        std::map<uint16_t, std::string> state = underlying->listPersistedVbuckets();
+        std::map<uint16_t, std::string>::iterator it;
+        for (it = state.begin(); it != state.end(); ++it) {
+            getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                             "Reloading vbucket %d - was in %s state\n",
+                             it->first, it->second.c_str());
+            loadStorageKVPairCallback.initVBucket(it->first);
+        }
+        underlying->dump(loadStorageKVPairCallback);
     }
 
     int getTxnSize() {

@@ -47,6 +47,10 @@ public:
         return del_vb_stmt;
     }
 
+    PreparedStatement *getGetVBucketStateST() {
+        return sel_vb_stmt;
+    }
+
     virtual void initTables(void);
     virtual void initStatements(void);
     virtual void destroyTables(void);
@@ -69,6 +73,7 @@ protected:
 
     PreparedStatement *set_vb_stmt;
     PreparedStatement *del_vb_stmt;
+    PreparedStatement *sel_vb_stmt;
 
 private:
     DISALLOW_COPY_AND_ASSIGN(SqliteStrategy);
