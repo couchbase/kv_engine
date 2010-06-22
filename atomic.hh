@@ -10,6 +10,9 @@
 
 #define MAX_THREADS 100
 
+/**
+ * Container of thread-local data.
+ */
 template<typename T>
 class ThreadLocal {
 public:
@@ -44,6 +47,9 @@ private:
     pthread_key_t key;
 };
 
+/**
+ * Container for a thread-local pointer.
+ */
 template <typename T>
 class ThreadLocalPtr : public ThreadLocal<T*> {
 public:
@@ -64,6 +70,9 @@ public:
     }
 };
 
+/**
+ * Holder of atomic values.
+ */
 template <typename T>
 class Atomic {
 public:
@@ -160,7 +169,11 @@ private:
     volatile T value;
 };
 
-
+/**
+ * Atomic pointer.
+ *
+ * This does *not* make the item that's pointed to atomic.
+ */
 template <typename T>
 class AtomicPtr : public Atomic<T*> {
 public:
@@ -185,6 +198,11 @@ public:
     }
 };
 
+/**
+ * A lighter-weight, smaller lock than a mutex.
+ *
+ * This is primarily useful when contention is rare.
+ */
 class SpinLock {
 public:
     SpinLock() : lock(0) {}
@@ -208,6 +226,9 @@ private:
     DISALLOW_COPY_AND_ASSIGN(SpinLock);
 };
 
+/**
+ * Safe LockHolder for SpinLock instances.
+ */
 class SpinLockHolder {
 public:
     SpinLockHolder(SpinLock *theLock) : sl(theLock) {
@@ -254,6 +275,9 @@ private:
     mutable Atomic<int> _rc_refcount;
 };
 
+/**
+ * Concurrent reference counted pointer.
+ */
 template <class C>
 class RCPtr {
 public:
@@ -344,6 +368,9 @@ private:
     mutable SpinLock lock; // exists solely for the purpose of implementing reset() safely
 };
 
+/**
+ * Efficient approximate-FIFO queue optimize for concurrent writers.
+ */
 template <typename T>
 class AtomicQueue {
 public:
@@ -356,6 +383,9 @@ public:
         }
     }
 
+    /**
+     * Place an item in the queue.
+     */
     void push(T value) {
         std::queue<T> *q = swapQueue(); // steal our queue
         q->push(value);
@@ -373,6 +403,12 @@ public:
         q = swapQueue(q);
     }
 
+    /**
+     * Grab all items from this queue an place them into the provided
+     * output queue.
+     *
+     * @param outQueue a destination queue to fill
+     */
     void getAll(std::queue<T> &outQueue) {
         std::queue<T> *q(swapQueue()); // Grab my own queue
         std::queue<T> *newQueue(NULL);
@@ -404,14 +440,23 @@ public:
         numItems -= count;
     }
 
+    /**
+     * Get the number of queues internally maintained.
+     */
     size_t getNumQueues() const {
         return counter;
     }
 
+    /**
+     * True if this queue is empty.
+     */
     bool empty() const {
         return size() == 0;
     }
 
+    /**
+     * Return the number of queued items.
+     */
     size_t size() const {
         return numItems;
     }
