@@ -597,7 +597,8 @@ EXTENSION_LOGGER_DESCRIPTOR *getLogger(void) {
 EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server_api) :
     dbname("/tmp/test.db"), initFile(NULL), warmup(true), wait_for_warmup(true),
     startVb0(true), sqliteDb(NULL), epstore(NULL), databaseInitTime(0),
-    tapIdleTimeout(DEFAULT_TAP_IDLE_TIMEOUT), nextTapNoop(0), shutdown(false),
+    tapIdleTimeout(DEFAULT_TAP_IDLE_TIMEOUT), nextTapNoop(0),
+    startedEngineThreads(false), shutdown(false),
     getServerApi(get_server_api), getlExtension(NULL), clientTap(NULL),
     tapEnabled(false), maxItemSize(20*1024*1024)
 {
@@ -632,9 +633,11 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server
 
 void EventuallyPersistentEngine::startEngineThreads(void)
 {
+    assert(!startedEngineThreads);
     if (pthread_create(&notifyThreadId, NULL, EvpNotifyTapIo, this) != 0) {
         throw std::runtime_error("Error creating thread to notify Tap connections");
     }
+    startedEngineThreads = true;
 }
 
 class BackFillThreadData {

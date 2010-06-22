@@ -1483,11 +1483,13 @@ private:
 
     void startEngineThreads(void);
     void stopEngineThreads(void) {
-        LockHolder lh(tapNotifySync);
-        shutdown = true;
-        tapNotifySync.notify();
-        lh.unlock();
-        pthread_join(notifyThreadId, NULL);
+        if (startedEngineThreads) {
+            LockHolder lh(tapNotifySync);
+            shutdown = true;
+            tapNotifySync.notify();
+            lh.unlock();
+            pthread_join(notifyThreadId, NULL);
+        }
     }
 
 
@@ -1826,6 +1828,7 @@ private:
     size_t tapIdleTimeout;
     size_t nextTapNoop;
     pthread_t notifyThreadId;
+    bool startedEngineThreads;
     SyncObject tapNotifySync;
     volatile bool shutdown;
     GET_SERVER_API getServerApi;
