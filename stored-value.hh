@@ -18,19 +18,10 @@ class HashTable;
 
 class StoredValue {
 public:
-    StoredValue(const Item &itm, StoredValue *n) :
+    StoredValue(const Item &itm, StoredValue *n, bool setDirty = true) :
         key(itm.getKey()), value(itm.getValue()),
         flags(itm.getFlags()), exptime(itm.getExptime()), dirtied(0), next(n),
         cas(itm.getCas()), id(itm.getId()), locked(false), lock_expiry(0)
-    {
-        markDirty();
-        increaseCurrentSize(size());
-    }
-
-    StoredValue(const Item &itm, StoredValue *n, bool setDirty) :
-        key(itm.getKey()), value(itm.getValue()),
-        flags(itm.getFlags()), exptime(itm.getExptime()), dirtied(0), next(n),
-        cas(itm.getCas()), id(itm.getId())
     {
         if (setDirty) {
             markDirty();
