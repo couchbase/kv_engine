@@ -110,6 +110,20 @@ bool StrategicSqlite3::delVBucket(uint16_t vbucket) {
         rv &= del_stmt->execute() >= 0;
         del_stmt->reset();
     }
+    PreparedStatement *dst = strategy->getDelVBucketStateST();
+    dst->bind(1, vbucket);
+    rv &= dst->execute() >= 0;
+    dst->reset();
+
+    return rv;
+}
+
+bool StrategicSqlite3::setVBState(uint16_t vbucket, const std::string& state_str) {
+    PreparedStatement *st = strategy->getSetVBucketStateST();
+    st->bind(1, vbucket);
+    st->bind(2, state_str.data(), state_str.length());
+    bool rv = st->execute() >= 0;
+    st->reset();
     return rv;
 }
 

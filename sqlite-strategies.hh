@@ -39,11 +39,22 @@ public:
         return statements.at(std::abs(h) % (int)statements.size());
     }
 
+    PreparedStatement *getSetVBucketStateST() {
+        return set_vb_stmt;
+    }
+
+    PreparedStatement *getDelVBucketStateST() {
+        return del_vb_stmt;
+    }
+
     virtual void initTables(void);
     virtual void initStatements(void);
     virtual void destroyTables(void);
     virtual void initPragmas(void);
     void destroyStatements(void);
+
+    virtual void initMetaStatements(void);
+    virtual void destroyMetaStatements(void);
 
     void execute(const char * const query);
 
@@ -55,6 +66,9 @@ protected:
     const char * const initFile;
     sqlite3 *db;
     std::vector<Statements *> statements;
+
+    PreparedStatement *set_vb_stmt;
+    PreparedStatement *del_vb_stmt;
 
 private:
     DISALLOW_COPY_AND_ASSIGN(SqliteStrategy);

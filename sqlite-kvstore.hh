@@ -84,6 +84,7 @@ public:
              Callback<bool> &cb);
 
     bool delVBucket(uint16_t vbucket);
+    bool setVBState(uint16_t vbucket, const std::string &to);
 
     /**
      * Overrides dump
