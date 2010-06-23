@@ -1,4 +1,8 @@
-# Eventually Persistent
+# The membase engine
+
+This is the membase engine.  Initially, somewhat jokingly, it was
+called the "eventually persistent" engine.  The name stuck, we think
+mostly because it's easy to say.
 
 ## Building
 
