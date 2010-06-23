@@ -54,6 +54,14 @@ public:
     VBucket(int i, vbucket_state_t initialState) :
         ht(), id(i), state(initialState) {}
 
+    ~VBucket() {
+        if (!pendingOps.empty()) {
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                             "Have %d pending ops while destroying vbucket\n",
+                             pendingOps.size());
+        }
+    }
+
     int getId(void) { return id; }
     vbucket_state_t getState(void) { return state; }
     void setState(vbucket_state_t to, SERVER_CORE_API *core = NULL);
@@ -64,7 +72,7 @@ public:
 
     bool addPendingOp(const void *cookie) {
         LockHolder lh(pendingOpLock);
-        if (state == active) {
+        if (state != pending) {
             // State transitioned while we were waiting.
             return false;
         }
