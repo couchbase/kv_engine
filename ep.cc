@@ -57,7 +57,9 @@ private:
 class SetVBStateCallback : public DispatcherCallback {
 public:
     SetVBStateCallback(RCPtr<VBucket> vb, vbucket_state_t st, SERVER_CORE_API *c)
-        : vbucket(vb), state(st), core(c) {}
+        : vbucket(vb), state(st), core(c) {
+        assert(core);
+    }
 
     bool callback(Dispatcher &d, TaskId t) {
         (void)d; (void)t;

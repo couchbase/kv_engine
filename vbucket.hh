@@ -64,7 +64,7 @@ public:
 
     int getId(void) { return id; }
     vbucket_state_t getState(void) { return state; }
-    void setState(vbucket_state_t to, SERVER_CORE_API *core = NULL);
+    void setState(vbucket_state_t to, SERVER_CORE_API *core);
 
     const char * getStateString(void) {
         return VBucket::toString(state);

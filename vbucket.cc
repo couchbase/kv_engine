@@ -12,14 +12,13 @@ void VBucket::fireAllOps(SERVER_CORE_API *core, ENGINE_ERROR_CODE code) {
 }
 
 void VBucket::setState(vbucket_state_t to, SERVER_CORE_API *core) {
+    assert(core);
     state = to;
-    if (core) {
-        if (to == active) {
-            fireAllOps(core, ENGINE_SUCCESS);
-        } else if (to == pending) {
-            // Nothing
-        } else {
-            fireAllOps(core, ENGINE_NOT_MY_VBUCKET);
-        }
+    if (to == active) {
+        fireAllOps(core, ENGINE_SUCCESS);
+    } else if (to == pending) {
+        // Nothing
+    } else {
+        fireAllOps(core, ENGINE_NOT_MY_VBUCKET);
     }
 }

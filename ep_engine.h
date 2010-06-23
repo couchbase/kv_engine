@@ -931,7 +931,7 @@ public:
                 *vbucket = ev.vbucket;
                 *flags = static_cast<uint16_t>(ev.state);
                 if (ev.state == active) {
-                    epstore->setVBucketState(ev.vbucket, dead, NULL);
+                    epstore->setVBucketState(ev.vbucket, dead, serverApi->core);
                 }
                 return ev.event;
             }
