@@ -247,9 +247,12 @@ static enum test_result test_add(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
     check(store(h, h1, "cookie", OPERATION_ADD,"key", "somevalue", &i) == ENGINE_SUCCESS,
           "Failed to add value.");
-    check(store(h, h1, "cookie", OPERATION_ADD,"key", "somevalue", &i) == ENGINE_NOT_STORED,
+    check(store(h, h1, "cookie", OPERATION_ADD,"key", "somevalue2", &i) == ENGINE_NOT_STORED,
           "Failed to fail to re-add value.");
-    return check_key_value(h, h1, "key", "somevalue", 9);
+    check_key_value(h, h1, "key", "somevalue", 9);
+    check(store(h, h1, "cookie", OPERATION_SET,"key", "somevalue3", &i) == ENGINE_SUCCESS,
+          "Failed to overwrite added value.");
+    return check_key_value(h, h1, "key", "somevalue3", 10);
 }
 
 static enum test_result test_incr_miss(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
@@ -374,6 +377,7 @@ static enum test_result test_delete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 static enum test_result test_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
     static const char val[] = "somevalue";
+    static const char newval[] = "somevalue2";
     check(store(h, h1, "cookie", OPERATION_SET, "key", val, &i) == ENGINE_SUCCESS,
           "Failed set.");
 
@@ -381,7 +385,12 @@ static enum test_result test_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                               testHarness.engine_path,
                               testHarness.default_engine_cfg,
                               true);
-    return check_key_value(h, h1, "key", val, strlen(val));
+    check_key_value(h, h1, "key", val, strlen(val));
+
+    check(store(h, h1, "cookie", OPERATION_SET, "key", newval, &i) == ENGINE_SUCCESS,
+          "Failed set after restart.");
+    return check_key_value(h, h1, "key", newval, strlen(newval));
+
 }
 
 static enum test_result test_restart_bin_val(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
