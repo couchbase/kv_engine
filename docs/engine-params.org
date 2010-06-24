@@ -3,23 +3,40 @@
 #+EMAIL:     dustin@spy.net
 #+DATE:      2010-05-05 Wed
 #+DESCRIPTION:
-#+KEYWORDS:
 #+LANGUAGE:  en
 #+OPTIONS:   H:3 num:t toc:t \n:nil @:t ::t |:t ^:nil -:t f:t *:t <:t
 #+OPTIONS:   TeX:t LaTeX:nil skip:nil d:nil todo:t pri:nil tags:not-in-toc
 #+INFOJS_OPT: view:nil toc:nil ltoc:t mouse:underline buttons:0 path:http://orgmode.org/org-info.js
 #+EXPORT_SELECT_TAGS: export
 #+EXPORT_EXCLUDE_TAGS: noexport
-#+LINK_UP:
-#+LINK_HOME:
-#+STYLE:  <link rel="stylesheet" type="text/css" href="myorg.css" />
+
+* Configuring the Engine
+
+Engine parameters may be specified using the =-e= option to
+memcached.  These parameters control various aspects of the behavior
+of the engine.
+
+For example, if you would like to store your database in =/data/base=
+and prevent it from having objects larger than 1MB, you would run
+memcached like this:
+
+: memcached -E ep.so -e 'dbfile=/data/base;max_size=1048576'
 
 * Parameters for the EP Engine
 
-| key           | type   | descr                                        |
-|---------------+--------+----------------------------------------------|
-| dbname        | string | Path to on-disk storage.                     |
-| initfile      | string | Optional SQL script to run after opening DB  |
-| warmup        | bool   | Whether to load existing data at startup.    |
-| waitforwarmup | bool   | Whether to block server start during warmup. |
-| tap_keepalive | int    | Seconds to hold open named tap connections.  |
+| key              | type   | descr                                        |
+|------------------+--------+----------------------------------------------|
+| config_file      | string | Path to additional parameters.               |
+| dbname           | string | Path to on-disk storage.                     |
+| ht_locks         | int    | Number of locks per hash table.              |
+| ht_size          | int    | Number of buckets per hash table.            |
+| initfile         | string | Optional SQL script to run after opening DB  |
+| max_item_size    | int    | Maximum number of bytes allowed for an item. |
+| max_size         | int    | Max cumulative item size in bytes.           |
+| tap_id           | string | Local tap identifier for remote peer.        |
+| tap_idle_timeout | int    | Tap client idle timeout.                     |
+| tap_keepalive    | int    | Seconds to hold open named tap connections.  |
+| tap_peer         | string | Upstream server to contact.                  |
+| vb0              | bool   | If true, start with an active vbucket 0      |
+| waitforwarmup    | bool   | Whether to block server start during warmup. |
+| warmup           | bool   | Whether to load existing data at startup.    |
