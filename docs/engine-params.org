@@ -40,3 +40,5 @@ memcached like this:
 | vb0              | bool   | If true, start with an active vbucket 0      |
 | waitforwarmup    | bool   | Whether to block server start during warmup. |
 | warmup           | bool   | Whether to load existing data at startup.    |
+| min_data_age     | int    | Minimum data stability time before persist.  |
+| queue_age_cap    | int    | Maximum queue time before forcing persist.   |

@@ -77,9 +77,6 @@ EventuallyPersistentStore::EventuallyPersistentStore(StrategicSqlite3 *t,
                                                      bool startVb0) :
     loadStorageKVPairCallback(vbuckets, stats)
 {
-    stats.min_data_age.set(DEFAULT_MIN_DATA_AGE);
-    stats.queue_age_cap.set(DEFAULT_MIN_DATA_AGE_CAP);
-
     doPersistence = getenv("EP_NO_PERSISTENCE") == NULL;
     dispatcher = new Dispatcher();
     flusher = new Flusher(this, dispatcher);

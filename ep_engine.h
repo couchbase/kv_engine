@@ -21,6 +21,14 @@
 #define NUMBER_OF_SHARDS 4
 #define DEFAULT_TAP_IDLE_TIMEOUT 600
 
+#ifndef DEFAULT_MIN_DATA_AGE
+#define DEFAULT_MIN_DATA_AGE 120
+#endif
+
+#ifndef DEFAULT_QUEUE_AGE_CAP
+#define DEFAULT_QUEUE_AGE_CAP 900
+#endif
+
 extern "C" {
     EXPORT_FUNCTION
     ENGINE_ERROR_CODE create_instance(uint64_t interface,
@@ -418,7 +426,7 @@ public:
             size_t htLocks = 0;
             size_t maxSize = 0;
 
-            const int max_items = 15;
+            const int max_items = 17;
             struct config_item items[max_items];
             int ii = 0;
             memset(items, 0, sizeof(items));
@@ -492,6 +500,16 @@ public:
             items[ii].value.dt_size = &maxItemSize;
 
             ++ii;
+            items[ii].key = "min_data_age";
+            items[ii].datatype = DT_SIZE;
+            items[ii].value.dt_size = &minDataAge;
+
+            ++ii;
+            items[ii].key = "queue_age_cap";
+            items[ii].datatype = DT_SIZE;
+            items[ii].value.dt_size = &queueAgeCap;
+
+            ++ii;
             items[ii].key = NULL;
 
             assert(ii < max_items);
@@ -538,6 +556,8 @@ public:
 
             databaseInitTime = time(NULL) - start;
             epstore = new EventuallyPersistentStore(sqliteDb, startVb0);
+            setMinDataAge(minDataAge);
+            setQueueAgeCap(queueAgeCap);
 
             if (epstore == NULL) {
                 ret = ENGINE_ENOMEM;
@@ -1843,6 +1863,8 @@ private:
     std::string tapId;
     bool tapEnabled;
     size_t maxItemSize;
+    size_t minDataAge;
+    size_t queueAgeCap;
 };
 
 /**

@@ -615,7 +615,8 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server
     tapIdleTimeout(DEFAULT_TAP_IDLE_TIMEOUT), nextTapNoop(0),
     startedEngineThreads(false), shutdown(false),
     getServerApi(get_server_api), getlExtension(NULL), clientTap(NULL),
-    tapEnabled(false), maxItemSize(20*1024*1024)
+    tapEnabled(false), maxItemSize(20*1024*1024), minDataAge(DEFAULT_MIN_DATA_AGE),
+    queueAgeCap(DEFAULT_QUEUE_AGE_CAP)
 {
     interface.interface = 1;
     ENGINE_HANDLE_V1::get_info = EvpGetInfo;
