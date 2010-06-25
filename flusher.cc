@@ -144,15 +144,11 @@ bool Flusher::step(Dispatcher &d, TaskId tid) {
         case running:
             {
                 int n = doFlush();
-                if (n > 0) {
-                    if (_state == running) {
-                        d.snooze(tid, n);
-                        return true;
-                    } else {
-                        return false;
-                    }
-                } else {
+                if (_state == running) {
+                    d.snooze(tid, std::max(n, 1));
                     return true;
+                } else {
+                    return false;
                 }
             }
         case stopping:
