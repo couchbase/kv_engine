@@ -434,6 +434,17 @@ static enum test_result test_add(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return check_key_value(h, h1, "key", "somevalue", 9);
 }
 
+static enum test_result test_replace(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    item *i = NULL;
+    check(store(h, h1, "cookie", OPERATION_REPLACE,"key", "somevalue", &i) == ENGINE_NOT_STORED,
+          "Failed to fail to replace non-existing value.");
+    check(store(h, h1, "cookie", OPERATION_SET,"key", "somevalue", &i) == ENGINE_SUCCESS,
+          "Failed to set value.");
+    check(store(h, h1, "cookie", OPERATION_REPLACE,"key", "somevalue", &i) == ENGINE_SUCCESS,
+          "Failed to replace existing value.");
+    return check_key_value(h, h1, "key", "somevalue", 9);
+}
+
 static enum test_result test_incr_miss(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     uint64_t cas = 0, result = 0;
     h1->arithmetic(h, "cookie", "key", 3, true, false, 1, 0, 0,
@@ -706,6 +717,10 @@ static enum test_result test_wrong_vb_add(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     return test_wrong_vb_mutation(h, h1, OPERATION_ADD);
 }
 
+static enum test_result test_wrong_vb_replace(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    return test_wrong_vb_mutation(h, h1, OPERATION_REPLACE);
+}
+
 static enum test_result test_wrong_vb_append(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return test_wrong_vb_mutation(h, h1, OPERATION_APPEND);
 }
@@ -929,6 +944,14 @@ static enum test_result test_vb_set_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
     return test_replica_vb_mutation(h, h1, OPERATION_SET);
 }
 
+static enum test_result test_vb_replace_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    return test_replica_vb_mutation(h, h1, OPERATION_REPLACE);
+}
+
+static enum test_result test_vb_replace_pending(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    return test_pending_vb_mutation(h, h1, OPERATION_REPLACE);
+}
+
 static enum test_result test_vb_add_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return test_replica_vb_mutation(h, h1, OPERATION_ADD);
 }
@@ -1019,6 +1042,7 @@ engine_test_t* get_tests(void) {
         {"set+change flags", test_set_change_flags, NULL, teardown, NULL},
         {"add", test_add, NULL, teardown, NULL},
         {"cas", test_cas, NULL, teardown, NULL},
+        {"replace", test_replace, NULL, teardown, NULL},
         {"incr miss", test_incr_miss, NULL, teardown, NULL},
         {"incr", test_incr, NULL, teardown, NULL},
         {"incr with default", test_incr_default, NULL, teardown, NULL},
@@ -1056,6 +1080,9 @@ engine_test_t* get_tests(void) {
         {"vbucket set (dead)", test_wrong_vb_set, NULL, teardown, NULL},
         {"vbucket set (pending)", test_vb_set_pending, NULL, teardown, NULL},
         {"vbucket set (replica)", test_vb_set_replica, NULL, teardown, NULL},
+        {"vbucket replace (dead)", test_wrong_vb_replace, NULL, teardown, NULL},
+        {"vbucket replace (pending)", test_vb_replace_pending, NULL, teardown, NULL},
+        {"vbucket replace (replica)", test_vb_replace_replica, NULL, teardown, NULL},
         {"vbucket add (dead)", test_wrong_vb_add, NULL, teardown, NULL},
         {"vbucket add (pending)", test_vb_add_pending, NULL, teardown, NULL},
         {"vbucket add (replica)", test_vb_add_replica, NULL, teardown, NULL},

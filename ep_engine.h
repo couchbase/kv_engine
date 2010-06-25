@@ -750,19 +750,25 @@ public:
 
         case OPERATION_REPLACE:
             // @todo this isn't atomic!
-            if (get(cookie, &i, it->getKey().c_str(), it->getNKey(),
-                    vbucket) == ENGINE_SUCCESS) {
+            ret = get(cookie, &i, it->getKey().c_str(),
+                      it->getNKey(), vbucket);
+            switch (ret) {
+            case ENGINE_SUCCESS:
                 itemRelease(cookie, i);
                 ret = epstore->set(*it, cookie);
                 if (ret == ENGINE_SUCCESS) {
                     *cas = it->getCas();
                     addMutationEvent(it, vbucket);
                 }
-            } else {
+                break;
+            case ENGINE_KEY_ENOENT:
                 ret = ENGINE_NOT_STORED;
+                break;
+            default:
+                // Just return the error we got.
+                break;
             }
             break;
-
         case OPERATION_APPEND:
         case OPERATION_PREPEND:
             do {
