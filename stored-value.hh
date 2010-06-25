@@ -16,21 +16,10 @@ extern "C" {
 
 // Forward declaration for StoredValue
 class HashTable;
+class StoredValueFactory;
 
 class StoredValue {
 public:
-
-    static StoredValue* New(const Item &itm, StoredValue *n, bool setDirty = true) {
-        std::string key = itm.getKey();
-        size_t len = key.length() + sizeof(StoredValue);
-
-        StoredValue *t = new (::operator new(len))
-            StoredValue(itm, n, setDirty);
-        t->keylen = key.length();
-        std::memcpy(t->keybytes, key.data(), key.length());
-
-        return t;
-    }
 
     void operator delete(void* p) {
         ::operator delete(p);
@@ -71,22 +60,13 @@ public:
         return dirtied == 0;
     }
 
-    const char* getKeyBytes() const {
-        return keybytes;
-    }
+    virtual const char* getKeyBytes() const = 0;
 
-    uint8_t getKeyLen() const {
-        return keylen;
-    }
+    virtual uint8_t getKeyLen() const = 0;
 
-    bool hasKey(const std::string &k) const {
-        return k.length() == keylen
-            && (std::memcmp(k.data(), keybytes, keylen) == 0);
-    }
+    virtual bool hasKey(const std::string &k) const = 0;
 
-    const std::string getKey() const {
-        return std::string(keybytes, keylen);
-    }
+    virtual const std::string getKey() const = 0;
 
     value_t getValue() const {
         return value;
@@ -155,7 +135,7 @@ protected:
 
     StoredValue(const Item &itm, StoredValue *n, bool setDirty = true) :
         value(itm.getValue()), next(n), id(itm.getId()),
-        dirtied(0), data_age(0), keylen(0)
+        dirtied(0), data_age(0)
     {
         if (setDirty) {
             markDirty();
@@ -165,31 +145,57 @@ protected:
     }
 
     friend class HashTable;
+    friend class StoredValueFactory;
 
     value_t value;
     StoredValue *next;
     int64_t id;
     rel_time_t dirtied;
     rel_time_t data_age;
+    DISALLOW_COPY_AND_ASSIGN(StoredValue);
+};
+
+class SmallStoredValue : protected StoredValue {
+public:
+
+    const std::string getKey() const{
+        return std::string(keybytes, keylen);
+    }
+
+    const char* getKeyBytes() const {
+        return keybytes;
+    }
+
+    uint8_t getKeyLen() const {
+        return keylen;
+    }
+
+    bool hasKey(const std::string &k) const {
+        return k.length() == keylen
+            && (std::memcmp(k.data(), keybytes, keylen) == 0);
+    }
+
+private:
+
+    friend class StoredValueFactory;
+
+    SmallStoredValue(const Item &itm, StoredValue *n, bool setDirty = true) :
+        StoredValue(itm, n, setDirty),
+        keylen(static_cast<uint8_t>(itm.getKey().length()))
+    {
+        if (setDirty) {
+            markDirty();
+        } else {
+            markClean(NULL, NULL);
+        }
+    }
+
     uint8_t keylen;
     char keybytes[1];
-    DISALLOW_COPY_AND_ASSIGN(StoredValue);
 };
 
 class FeaturedStoredValue : protected StoredValue {
 public:
-
-    static StoredValue* New(const Item &itm, StoredValue *n, bool setDirty = true) {
-        std::string key = itm.getKey();
-        size_t len = key.length() + sizeof(FeaturedStoredValue);
-
-        FeaturedStoredValue *t = new (::operator new(len))
-            FeaturedStoredValue(itm, n, setDirty);
-        t->keylen = key.length();
-        std::memcpy(t->keybytes, key.data(), key.length());
-
-        return t;
-    }
 
     bool isLocked(rel_time_t curtime) {
         if (locked && (curtime > lock_expiry)) {
@@ -233,21 +239,42 @@ public:
         StoredValue::setValue(v, newFlags, newExp, theCas);
     }
 
+    const std::string getKey() const{
+        return std::string(keybytes, keylen);
+    }
+
+    const char* getKeyBytes() const {
+        return keybytes;
+    }
+
+    uint8_t getKeyLen() const {
+        return keylen;
+    }
+
+    bool hasKey(const std::string &k) const {
+        return k.length() == keylen
+            && (std::memcmp(k.data(), keybytes, keylen) == 0);
+    }
+
 private:
+
+    friend class StoredValueFactory;
 
     FeaturedStoredValue(const Item &itm, StoredValue *n, bool setDirty = true) :
         StoredValue(itm, n, setDirty),
         cas(itm.getCas()),
         flags(itm.getFlags()),
         exptime(itm.getExptime()),
-        locked(false), lock_expiry(0) {
-    }
+        locked(false), lock_expiry(0),
+        keylen(static_cast<uint8_t>(itm.getKey().length())) {}
 
     uint64_t cas;
     uint32_t flags;
     rel_time_t exptime;
     bool locked;
     rel_time_t lock_expiry;
+    uint8_t keylen;
+    char keybytes[1];
 };
 
 typedef enum {
@@ -294,10 +321,10 @@ public:
                              bool setDirty = true) {
         switch(type) {
         case small:
-            return StoredValue::New(itm, n, setDirty);
+            return newStoredValue<SmallStoredValue>(itm, n, setDirty);
             break;
         case featured:
-            return FeaturedStoredValue::New(itm, n, setDirty);
+            return newStoredValue<FeaturedStoredValue>(itm, n, setDirty);
             break;
         default:
             abort();
@@ -305,6 +332,18 @@ public:
     }
 
 private:
+
+    template <typename SV>
+    StoredValue* newStoredValue(const Item &itm, StoredValue *n, bool setDirty = true) {
+        std::string key = itm.getKey();
+        assert(key.length() < 256);
+        size_t len = key.length() + sizeof(SV);
+
+        SV *t = new (::operator new(len)) SV(itm, n, setDirty);
+        std::memcpy(t->keybytes, key.data(), key.length());
+
+        return t;
+    }
 
     enum stored_value_type type;
 
