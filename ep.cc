@@ -243,7 +243,7 @@ bool EventuallyPersistentStore::deleteVBucket(uint16_t vbid) {
 
     RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
     if (vb && vb->getState() == dead) {
-        vbuckets.removeBucket(vbid);
+        stats.curr_items.decr(vbuckets.removeBucket(vbid));
         queueDirty("", vbid, queue_op_vb_flush);
         rv = true;
     }
@@ -413,7 +413,7 @@ void EventuallyPersistentStore::reset() {
     for (it = buckets.begin(); it != buckets.end(); ++it) {
         RCPtr<VBucket> vb = getVBucket(*it, active);
         if (vb) {
-            vb->ht.clear();
+            stats.curr_items -= vb->ht.clear();
         }
     }
     queueDirty("", 0, queue_op_flush);

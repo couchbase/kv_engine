@@ -219,16 +219,18 @@ public:
 class HashTableDepthStatVisitor : public HashTableDepthVisitor {
 public:
 
-    HashTableDepthStatVisitor() : min(INT_MAX), max(0) {}
+    HashTableDepthStatVisitor() : min(INT_MAX), max(0), size(0) {}
 
     void visit(int bucket, int depth) {
         (void)bucket;
         min = std::min(min, depth);
         max = std::max(max, depth);
+        size += depth;
     }
 
-    int min;
-    int max;
+    int    min;
+    int    max;
+    size_t size;
 };
 
 /**
@@ -292,7 +294,14 @@ public:
     size_t getSize(void) { return size; }
     size_t getNumLocks(void) { return n_locks; }
 
-    void clear(bool deactivate = false);
+    /**
+     * Clear the hash table.
+     *
+     * @param deactivate true when this hash table is being destroyed completely
+     *
+     * @return the number of items removed
+     */
+    size_t clear(bool deactivate = false);
 
     StoredValue *find(std::string &key) {
         assert(active);

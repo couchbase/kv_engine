@@ -1029,6 +1029,64 @@ static enum test_result test_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return SUCCESS;
 }
 
+static void verify_curr_items(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                              int exp, const char *msg) {
+    vals.clear();
+    check(h1->get_stats(h, "cookie", NULL, 0, add_stats) == ENGINE_SUCCESS,
+          "Failed to get stats.");
+    std::string s = vals["curr_items"];
+    int curr_items = atoi(s.c_str());
+    if (curr_items != exp) {
+        std::cerr << "Expected "<< exp << " curr_items after " << msg
+                  << ", got " << curr_items << std::endl;
+        abort();
+    }
+}
+
+static enum test_result test_curr_items(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    item *i = NULL;
+
+    // Verify initial case.
+    verify_curr_items(h, h1, 0, "init");
+
+    // Verify set and add case
+    check(store(h, h1, "cookie", OPERATION_ADD,"k1", "v1", &i) == ENGINE_SUCCESS,
+          "Failed to fail to store an item.");
+    check(store(h, h1, "cookie", OPERATION_SET,"k2", "v2", &i) == ENGINE_SUCCESS,
+          "Failed to fail to store an item.");
+    check(store(h, h1, "cookie", OPERATION_SET,"k3", "v3", &i) == ENGINE_SUCCESS,
+          "Failed to fail to store an item.");
+    verify_curr_items(h, h1, 3, "three items stored");
+
+    // Verify delete case.
+    check(h1->remove(h, "cookie", "k1", 2, 0, 0) == ENGINE_SUCCESS,
+          "Failed remove with value.");
+    verify_curr_items(h, h1, 2, "one item deleted");
+
+    // Verify flush case (remove the two remaining from above)
+    check(h1->flush(h, "cookie", 0) == ENGINE_SUCCESS,
+          "Failed to flush");
+    verify_curr_items(h, h1, 0, "flush");
+
+    // Verify delete vbucket case.
+    check(store(h, h1, "cookie", OPERATION_SET,"k1", "v1", &i) == ENGINE_SUCCESS,
+          "Failed to fail to store an item.");
+    check(store(h, h1, "cookie", OPERATION_SET,"k2", "v2", &i) == ENGINE_SUCCESS,
+          "Failed to fail to store an item.");
+    check(store(h, h1, "cookie", OPERATION_SET,"k3", "v3", &i) == ENGINE_SUCCESS,
+          "Failed to fail to store an item.");
+    check(set_vbucket_state(h, h1, 0, "dead"), "Failed set set vbucket 0 state.");
+    usleep(2600); // XXX:  racist (vbucket set state happens on the dispatcher)
+    protocol_binary_request_header *pkt = create_packet(CMD_DEL_VBUCKET, "0", "");
+    check(h1->unknown_command(h, "cookie", pkt, add_response) == ENGINE_SUCCESS,
+          "Failed to delete dead bucket.");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+          "Expected success deleting vbucket.");
+    verify_curr_items(h, h1, 0, "del vbucket");
+
+    return SUCCESS;
+}
+
 engine_test_t* get_tests(void) {
     static engine_test_t tests[]  = {
         // basic tests
@@ -1054,6 +1112,7 @@ engine_test_t* get_tests(void) {
         {"stats", test_stats, NULL, teardown, NULL},
         {"stats key", NULL, NULL, teardown, NULL},
         {"stats vkey", NULL, NULL, teardown, NULL},
+        {"stats curr_items", test_curr_items, NULL, teardown, NULL},
         // tap tests
         {"tap receiver mutation", test_tap_rcvr_mutate, NULL, teardown, NULL},
         {"tap receiver mutation (dead)", test_tap_rcvr_mutate_dead,

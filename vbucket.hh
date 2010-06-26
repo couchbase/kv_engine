@@ -82,6 +82,12 @@ public:
 
     void fireAllOps(SERVER_CORE_API *core, ENGINE_ERROR_CODE code = ENGINE_SUCCESS);
 
+    size_t size(void) {
+        HashTableDepthStatVisitor v;
+        ht.visitDepth(v);
+        return v.size;
+    }
+
     HashTable               ht;
 
     static const char* toString(vbucket_state_t s) {
@@ -144,11 +150,23 @@ public:
         }
     }
 
-    void removeBucket(int id) {
+    /**
+     * Remove a vbucket by ID.
+     *
+     * @return the number of items removed
+     */
+    size_t removeBucket(int id) {
         assert(id >= 0);
+        size_t rv = 0;
+
         if (static_cast<size_t>(id) < size) {
+            // Theoretically, this could be off slightly.  In
+            // practice, this happens only on dead vbuckets.
+            rv = buckets[id]->size();
             buckets[id].reset();
         }
+
+        return rv;
     }
 
     std::vector<int> getBuckets(void) const {
@@ -188,9 +206,9 @@ public:
         }
     }
 
-    void removeBucket(int id) {
+    size_t removeBucket(int id) {
         RCPtr<VBucketHolder> o(buckets);
-        o->removeBucket(id);
+        return o->removeBucket(id);
     }
 
     void addBuckets(const std::vector<VBucket*> &newBuckets) {

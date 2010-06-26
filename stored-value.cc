@@ -62,7 +62,9 @@ void HashTable::setDefaultNumLocks(size_t to) {
     }
 }
 
-void HashTable::clear(bool deactivate) {
+size_t HashTable::clear(bool deactivate) {
+    size_t rv = 0;
+
     if (!deactivate) {
         // If not deactivating, assert we're already active.
         assert(active);
@@ -73,12 +75,15 @@ void HashTable::clear(bool deactivate) {
     }
     for (int i = 0; i < (int)size; i++) {
         while (values[i]) {
+            ++rv;
             StoredValue *v = values[i];
             values[i] = v->next;
             delete v;
         }
         depths[i] = 0;
     }
+
+    return rv;
 }
 
 void HashTable::visit(HashTableVisitor &visitor) {
