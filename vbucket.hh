@@ -60,6 +60,8 @@ public:
                              "Have %d pending ops while destroying vbucket\n",
                              pendingOps.size());
         }
+        getLogger()->log(EXTENSION_LOG_INFO, NULL,
+                         "Destroying vbucket %d\n", id);
     }
 
     int getId(void) { return id; }
@@ -145,6 +147,9 @@ public:
     void addBucket(const RCPtr<VBucket> &b) {
         if (static_cast<size_t>(b->getId()) < size) {
             buckets[b->getId()].reset(b);
+            getLogger()->log(EXTENSION_LOG_INFO, NULL,
+                             "Mapped new vbucket %d in state %s\n",
+                             b->getId(), VBucket::toString(b->getState()));
         } else {
             throw new NeedMoreBuckets;
         }
