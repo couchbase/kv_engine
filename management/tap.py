@@ -76,18 +76,32 @@ class TapClient(object):
         for (h,p) in servers:
             tc = TapConnection(h, p, callback, clientId, opts)
 
+def buildGoodSet(goodChars=string.printable, badChar='?'):
+    """Build a translation table that turns all characters not in goodChars
+    to badChar"""
+    allChars=string.maketrans("", "")
+    badchars=string.translate(allChars, allChars, goodChars)
+    rv=string.maketrans(badchars, badChar * len(badchars))
+    return rv
+
+# Build a translation table that includes only characters
+transt=buildGoodSet()
+
 def abbrev(v, maxlen=30):
     if len(v) > maxlen:
         return v[:maxlen] + "..."
     else:
         return v
 
+def keyprint(v):
+    return string.translate(abbrev(v), transt)
+
 if __name__ == '__main__':
     connections = (a.split(':') for a in sys.argv[1:])
     def cb(identifier, cmd, extra, key, val, cas):
         print "%s: ``%s'' -> ``%s'' (%d bytes from %s)" % (
             memcacheConstants.COMMAND_NAMES[cmd],
-            key, abbrev(val), len(val), identifier)
+            key, keyprint(val), len(val), identifier)
 
     # This is an example opts parameter to do future-only tap:
     opts = {memcacheConstants.TAP_FLAG_BACKFILL: 0xffffffff}
