@@ -765,7 +765,11 @@ public:
                              uint32_t *seqno, uint16_t *vbucket) {
         LockHolder lh(tapNotifySync);
         TapConnection *connection = tapConnectionMap[cookie];
-        assert(connection);
+        if (!connection) {
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                             "Walking a non-existent tap queue, disconnecting\n");
+            return TAP_DISCONNECT;
+        }
 
         if (connection->doRunBackfill) {
             queueBackfill(connection, cookie);
