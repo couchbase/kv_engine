@@ -68,7 +68,7 @@ void HashTable::clear() {
 }
 
 void HashTable::visit(HashTableVisitor &visitor) {
-    for (int i = 0; i < (int)size; i++) {
+    for (int i = 0; visitor.shouldContinue() && i < (int)size; i++) {
         LockHolder lh(getMutex(i));
         StoredValue *v = values[i];
         while (v) {

@@ -257,6 +257,7 @@ class HashTableVisitor {
 public:
     virtual ~HashTableVisitor() {}
     virtual void visit(StoredValue *v) = 0;
+    virtual bool shouldContinue() { return true; }
 };
 
 class HashTableDepthVisitor {

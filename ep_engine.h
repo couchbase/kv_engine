@@ -768,7 +768,7 @@ public:
         assert(connection);
 
         if (connection->doRunBackfill) {
-            queueBackfill(connection);
+            queueBackfill(connection, cookie);
         }
 
         tap_event_t ret = TAP_PAUSE;
@@ -884,6 +884,7 @@ public:
             }
 
             if (tc->backfillAge < (uint64_t)time(NULL)) {
+                setTapValidity(tc->client, cookie);
                 tc->doRunBackfill = true;
                 tc->pendingBackfill = true;
             }
@@ -972,7 +973,7 @@ public:
      * Visit the objects and add them to the tap connecitons queue.
      * @todo this code should honor the backfill time!
      */
-    void queueBackfill(TapConnection *tc);
+    void queueBackfill(TapConnection *tc, const void *tok);
 
     void handleDisconnect(const void *cookie) {
         LockHolder lh(tapNotifySync);
@@ -1216,6 +1217,7 @@ private:
         bool notify = true;
         bool found = false;
         LockHolder lh(tapNotifySync);
+        clearTapValidity(name);
 
         std::list<TapConnection*>::iterator iter;
         for (iter = allTaps.begin(); iter != allTaps.end(); iter++) {
@@ -1233,6 +1235,10 @@ private:
 
         return found;
     }
+
+    void setTapValidity(const std::string &name, const void* token);
+    void clearTapValidity(const std::string &name);
+    bool checkTapValidity(const std::string &name, const void* token);
 
     void addEvent(const std::string &str)
     {
@@ -1626,6 +1632,7 @@ private:
     StrategicSqlite3 *sqliteDb;
     EventuallyPersistentStore *epstore;
     std::map<const void*, TapConnection*> tapConnectionMap;
+    std::map<const std::string, const void*> backfillValidityMap;
     std::list<TapConnection*> allTaps;
     std::map<const void*, Item*> lookups;
     Mutex lookupMutex;
@@ -1652,10 +1659,11 @@ private:
 
 class BackFillVisitor : public HashTableVisitor {
 public:
-    BackFillVisitor(EventuallyPersistentEngine *e, TapConnection *tc):
-        engine(e), name(tc->client), queue(NULL)
+    BackFillVisitor(EventuallyPersistentEngine *e, TapConnection *tc,
+                    const void *token):
+        engine(e), name(tc->client), queue(NULL),
+        queue_set(new std::set<std::string>), validityToken(token), valid(true)
     {
-        queue_set = new std::set<std::string>;
     }
 
     ~BackFillVisitor() {
@@ -1667,20 +1675,35 @@ public:
         queue_set->insert(v->getKey());
     }
 
+    bool shouldContinue() {
+        valid = engine->checkTapValidity(name, validityToken);
+        if (!valid) {
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                             "Backfilling token for %s went invalid, aborting.\n",
+                             name.c_str());
+        }
+
+        return valid;
+    }
+
     void apply(void) {
-        queue = new std::list<std::string>(queue_set->begin(),
-                                           queue_set->end());
-        if (engine->setEvents(name, queue, queue_set)) {
-            queue = NULL;
-            queue_set = NULL;
+        if (valid) {
+            queue = new std::list<std::string>(queue_set->begin(),
+                                               queue_set->end());
+            if (engine->setEvents(name, queue, queue_set)) {
+                queue = NULL;
+                queue_set = NULL;
+            }
         }
     }
 
 private:
     EventuallyPersistentEngine *engine;
-    std::string name;
+    const std::string name;
     std::list<std::string> *queue;
     std::set<std::string> *queue_set;
+    const void *validityToken;
+    bool valid;
 };
 
 #endif
