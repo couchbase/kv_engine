@@ -167,6 +167,7 @@ private:
         return ret;
     }
 
+    // This method is called while holding the tapNotifySync lock.
     void replaceQueues(std::list<std::string> *q,
                        std::set<std::string> *qs) {
         delete queue_set;
@@ -179,6 +180,8 @@ private:
             addEvent(old->front());
             old->pop_front();
         }
+
+        delete old;
 
         // replaceQueues is called when the backfill is complete.
         pendingBackfill = false;
