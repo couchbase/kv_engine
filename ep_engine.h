@@ -168,20 +168,8 @@ private:
     }
 
     // This method is called while holding the tapNotifySync lock.
-    void replaceQueues(std::list<std::string> *q,
-                       std::set<std::string> *qs) {
-        delete queue_set;
-        queue_set = qs;
-
-        std::list<std::string> *old = queue;
-        queue = q;
-
-        while (!old->empty()) {
-            addEvent(old->front());
-            old->pop_front();
-        }
-
-        delete old;
+    void appendQueue(std::list<std::string> *q) {
+        queue->splice(queue->end(), *q);
     }
 
     void completeBackfill() {
@@ -1228,8 +1216,7 @@ private:
 
     friend class BackFillVisitor;
     bool setEvents(const std::string &name,
-                   std::list<std::string> *q,
-                   std::set<std::string> *qs)
+                   std::list<std::string> *q)
     {
         bool notify = true;
         bool found = false;
@@ -1238,7 +1225,7 @@ private:
         TapConnection *tc = findTapConnByName_UNLOCKED(name);
         if (tc) {
             found = true;
-            tc->replaceQueues(q, qs);
+            tc->appendQueue(q);
             notify = tc->paused; // notify if paused
         }
 
@@ -1690,23 +1677,21 @@ class BackFillVisitor : public HashTableVisitor {
 public:
     BackFillVisitor(EventuallyPersistentEngine *e, TapConnection *tc,
                     const void *token):
-        engine(e), name(tc->client), queue(NULL),
-        queue_set(new std::set<std::string>), validityToken(token),
-        valid(true)
+        engine(e), name(tc->client), queue(new std::list<std::string>),
+        validityToken(token), valid(true)
     {
     }
 
     ~BackFillVisitor() {
         delete queue;
-        delete queue_set;
     }
 
     void visit(StoredValue *v) {
-        queue_set->insert(v->getKey());
+        queue->push_back(v->getKey());
     }
 
     bool shouldContinue() {
-        setEvents(true);
+        setEvents();
         return valid;
     }
 
@@ -1719,7 +1704,7 @@ public:
 
 private:
 
-    void setEvents(bool recreate=false) {
+    void setEvents() {
         valid = engine->checkTapValidity(name, validityToken);
         if (!valid) {
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
@@ -1728,23 +1713,13 @@ private:
         }
 
         if (valid) {
-            queue = new std::list<std::string>(queue_set->begin(),
-                                               queue_set->end());
-            if (engine->setEvents(name, queue, queue_set)) {
-                queue = NULL;
-                if (recreate) {
-                    queue_set = new std::set<std::string>;
-                } else {
-                    queue_set = NULL;
-                }
-            }
+            engine->setEvents(name, queue);
         }
     }
 
     EventuallyPersistentEngine *engine;
     const std::string name;
     std::list<std::string> *queue;
-    std::set<std::string> *queue_set;
     const void *validityToken;
     bool valid;
 };
