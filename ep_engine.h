@@ -1252,6 +1252,18 @@ private:
         }
     }
 
+    ssize_t queueDepth(const std::string &name) {
+        ssize_t rv = -1;
+        LockHolder lh(tapNotifySync);
+
+        TapConnection *tc = findTapConnByName_UNLOCKED(name);
+        if (tc) {
+            rv = tc->queue->size();
+        }
+
+        return rv;
+    }
+
     void setTapValidity(const std::string &name, const void* token);
     void clearTapValidity(const std::string &name);
     bool checkTapValidity(const std::string &name, const void* token);
@@ -1678,7 +1690,7 @@ public:
     BackFillVisitor(EventuallyPersistentEngine *e, TapConnection *tc,
                     const void *token):
         engine(e), name(tc->client), queue(new std::list<std::string>),
-        validityToken(token), valid(true)
+        validityToken(token), maxBackfillSize(250000), valid(true)
     {
     }
 
@@ -1696,8 +1708,8 @@ public:
     }
 
     void apply(void) {
+        setEvents();
         if (valid) {
-            setEvents();
             engine->completeBackfill(name);
         }
     }
@@ -1705,22 +1717,60 @@ public:
 private:
 
     void setEvents() {
-        valid = engine->checkTapValidity(name, validityToken);
-        if (!valid) {
-            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "Backfilling token for %s went invalid, aborting.\n",
+        if (checkValidity()) {
+            engine->setEvents(name, queue);
+            waitForQueue();
+        }
+    }
+
+    void waitForQueue() {
+        bool reported(false);
+        bool tooBig(true);
+
+        while (checkValidity() && tooBig) {
+            ssize_t theSize(engine->queueDepth(name));
+            if (theSize < 0) {
+                getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                                 "TapConnection %s went away.  Stopping backfill.\n",
+                                 name.c_str());
+                valid = false;
+                return;
+            }
+
+            tooBig = theSize > maxBackfillSize;
+
+            if (tooBig) {
+                if (!reported) {
+                    getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                                     "Tap queue depth too big for %s, sleeping\n",
+                                     name.c_str());
+                    reported = true;
+                }
+                sleep(1);
+            }
+        }
+        if (reported) {
+            getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                             "Resuming backfill of %s.\n",
                              name.c_str());
         }
+    }
 
-        if (valid) {
-            engine->setEvents(name, queue);
+    bool checkValidity() {
+        valid = valid && engine->checkTapValidity(name, validityToken);
+        if (!valid) {
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                             "Backfilling token for %s went invalid.  Stopping backfill.\n",
+                             name.c_str());
         }
+        return valid;
     }
 
     EventuallyPersistentEngine *engine;
     const std::string name;
     std::list<std::string> *queue;
     const void *validityToken;
+    ssize_t maxBackfillSize;
     bool valid;
 };
 
