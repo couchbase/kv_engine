@@ -24,8 +24,44 @@ extern "C" {
 #endif
 
 // Forward decl
-class BinaryMessage;
 class EventuallyPersistentEngine;
+
+class BinaryMessage {
+public:
+    BinaryMessage() : size(0) {
+        data.rawBytes = NULL;
+    }
+
+    BinaryMessage(const protocol_binary_request_header &h) throw (std::runtime_error)
+        : size(ntohl(h.request.bodylen) + sizeof(h.bytes))
+    {
+        // verify the internal
+        if (h.request.magic != PROTOCOL_BINARY_REQ &&
+            h.request.magic != PROTOCOL_BINARY_RES) {
+            throw std::runtime_error("Invalid package detected on the wire");
+        }
+        data.rawBytes = new char[size];
+        memcpy(data.rawBytes, reinterpret_cast<const char*>(&h),
+               sizeof(h.bytes));
+    }
+
+    virtual ~BinaryMessage() {
+        delete []data.rawBytes;
+    }
+
+    size_t size;
+    union {
+        protocol_binary_request_header *req;
+        protocol_binary_request_tap_no_extras *tap;
+        protocol_binary_request_tap_connect *tap_connect;
+        protocol_binary_request_tap_mutation *mutation;
+        protocol_binary_request_tap_delete *remove;
+        protocol_binary_request_tap_flush *flush;
+        protocol_binary_request_tap_opaque *opaque;
+        protocol_binary_request_tap_vbucket_set *vs;
+        char *rawBytes;
+    } data;
+};
 
 /**
  * Tap client connection
@@ -55,6 +91,7 @@ private:
         if (ai != NULL) {
             freeaddrinfo(ai);
         }
+        delete message;
     }
 
     void setFailed() {
