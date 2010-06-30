@@ -68,27 +68,44 @@ void HashTable::clear() {
 }
 
 void HashTable::visit(HashTableVisitor &visitor) {
-    for (int i = 0; visitor.shouldContinue() && i < (int)size; i++) {
-        LockHolder lh(getMutex(i));
-        StoredValue *v = values[i];
-        while (v) {
-            visitor.visit(v);
-            v = v->next;
+
+    size_t visited = 0;
+    bool aborted = !visitor.shouldContinue();
+    for (int l = 0; !aborted && l < static_cast<int>(n_locks); l++) {
+        LockHolder lh(getMutex(l));
+        for (int i = l; i < static_cast<int>(size); i+= n_locks) {
+            assert(l == mutexForBucket(i));
+            StoredValue *v = values[i];
+            while (v) {
+                visitor.visit(v);
+                v = v->next;
+            }
+            visited++;
         }
+        lh.unlock();
+        aborted = !visitor.shouldContinue();
     }
+    assert(aborted || visited == size);
 }
 
 void HashTable::visitDepth(HashTableDepthVisitor &visitor) {
-    for (int i = 0; i < (int)size; i++) {
-        LockHolder lh(getMutex(i));
-        size_t depth = 0;
-        StoredValue *p = values[i];
-        while (p) {
-            depth++;
-            p = p->next;
+
+    size_t visited = 0;
+    for (int l = 0; l < static_cast<int>(n_locks); l++) {
+        LockHolder lh(getMutex(l));
+        for (int i = l; i < static_cast<int>(size); i+= n_locks) {
+            assert(l == mutexForBucket(i));
+            size_t depth(0);
+            StoredValue *v = values[i];
+            while (v) {
+                ++depth;
+                v = v->next;
+            }
+            visitor.visit(i, depth);
+            visited++;
         }
-        visitor.visit(i, depth);
     }
+    assert(visited == size);
 }
 
 bool HashTable::setDefaultStorageValueType(const char *t) {

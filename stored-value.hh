@@ -444,15 +444,16 @@ public:
         return bucket(s.data(), s.length());
     }
 
-    // Get the mutex for a bucket (for doing your own lock management)
-    inline Mutex &getMutex(int bucket_num) {
+    inline Mutex &getMutexForLock(int lock_num) {
         assert(active());
-        assert(bucket_num < (int)size);
-        assert(bucket_num >= 0);
-        int lock_num = bucket_num % (int)n_locks;
         assert(lock_num < (int)n_locks);
         assert(lock_num >= 0);
         return mutexes[lock_num];
+    }
+
+    // Get the mutex for a bucket (for doing your own lock management)
+    inline Mutex &getMutex(int bucket_num) {
+        return getMutexForLock(mutexForBucket(bucket_num));
     }
 
     // True if it existed
@@ -530,6 +531,16 @@ private:
     static size_t                 defaultNumBuckets;
     static size_t                 defaultNumLocks;
     static enum stored_value_type defaultStoredValueType;
+
+    inline int mutexForBucket(int bucket_num) {
+        assert(active());
+        assert(bucket_num < (int)size);
+        assert(bucket_num >= 0);
+        int lock_num = bucket_num % (int)n_locks;
+        assert(lock_num < (int)n_locks);
+        assert(lock_num >= 0);
+        return lock_num;
+    }
 
     DISALLOW_COPY_AND_ASSIGN(HashTable);
 };
