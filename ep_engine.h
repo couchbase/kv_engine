@@ -182,8 +182,9 @@ private:
         }
 
         delete old;
+    }
 
-        // replaceQueues is called when the backfill is complete.
+    void completeBackfill() {
         pendingBackfill = false;
     }
 
@@ -1213,6 +1214,18 @@ private:
         return static_cast<int>(deadClients.size());
     }
 
+    TapConnection* findTapConnByName_UNLOCKED(const std::string&name) {
+        TapConnection *rv(NULL);
+        std::list<TapConnection*>::iterator iter;
+        for (iter = allTaps.begin(); iter != allTaps.end(); iter++) {
+            TapConnection *tc = *iter;
+            if (tc->client == name) {
+                rv = tc;
+            }
+        }
+        return rv;
+    }
+
     friend class BackFillVisitor;
     bool setEvents(const std::string &name,
                    std::list<std::string> *q,
@@ -1221,16 +1234,12 @@ private:
         bool notify = true;
         bool found = false;
         LockHolder lh(tapNotifySync);
-        clearTapValidity(name);
 
-        std::list<TapConnection*>::iterator iter;
-        for (iter = allTaps.begin(); iter != allTaps.end(); iter++) {
-            TapConnection *tc = *iter;
-            if (tc->client == name) {
-                found = true;
-                tc->replaceQueues(q, qs);
-                notify = tc->paused; // notify if paused
-            }
+        TapConnection *tc = findTapConnByName_UNLOCKED(name);
+        if (tc) {
+            found = true;
+            tc->replaceQueues(q, qs);
+            notify = tc->paused; // notify if paused
         }
 
         if (notify) {
@@ -1238,6 +1247,22 @@ private:
         }
 
         return found;
+    }
+
+    void completeBackfill(const std::string &name) {
+        bool notify(true);
+        LockHolder lh(tapNotifySync);
+        clearTapValidity(name);
+
+        TapConnection *tc = findTapConnByName_UNLOCKED(name);
+        if (tc) {
+            tc->completeBackfill();
+            notify = tc->paused; // notify if paused
+        }
+
+        if (notify) {
+            tapNotifySync.notify();
+        }
     }
 
     void setTapValidity(const std::string &name, const void* token);
@@ -1666,7 +1691,8 @@ public:
     BackFillVisitor(EventuallyPersistentEngine *e, TapConnection *tc,
                     const void *token):
         engine(e), name(tc->client), queue(NULL),
-        queue_set(new std::set<std::string>), validityToken(token), valid(true)
+        queue_set(new std::set<std::string>), validityToken(token),
+        valid(true)
     {
     }
 
@@ -1680,6 +1706,20 @@ public:
     }
 
     bool shouldContinue() {
+        setEvents(true);
+        return valid;
+    }
+
+    void apply(void) {
+        if (valid) {
+            setEvents();
+            engine->completeBackfill(name);
+        }
+    }
+
+private:
+
+    void setEvents(bool recreate=false) {
         valid = engine->checkTapValidity(name, validityToken);
         if (!valid) {
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
@@ -1687,21 +1727,20 @@ public:
                              name.c_str());
         }
 
-        return valid;
-    }
-
-    void apply(void) {
         if (valid) {
             queue = new std::list<std::string>(queue_set->begin(),
                                                queue_set->end());
             if (engine->setEvents(name, queue, queue_set)) {
                 queue = NULL;
-                queue_set = NULL;
+                if (recreate) {
+                    queue_set = new std::set<std::string>;
+                } else {
+                    queue_set = NULL;
+                }
             }
         }
     }
 
-private:
     EventuallyPersistentEngine *engine;
     const std::string name;
     std::list<std::string> *queue;
