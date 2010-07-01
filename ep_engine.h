@@ -13,6 +13,7 @@
 #include <cstdio>
 #include <map>
 #include <list>
+#include <algorithm>
 #include <errno.h>
 
 #define NUMBER_OF_SHARDS 4
@@ -1135,16 +1136,20 @@ private:
             purgeExpiredTapConnections_UNLOCKED();
         }
 
-        // Create a copy of the list so that we can release the lock
-        std::map<const void*, TapConnection*> tcm = tapConnectionMap;
+        // Collect the list of connections that need to be signaled.
+        std::list<const void *> toNotify;
+        for (iter = tapConnectionMap.begin(); iter != tapConnectionMap.end(); iter++) {
+            if (iter->second->paused) {
+                toNotify.push_back(iter->first);
+            }
+        }
 
         lh.unlock();
 
-        for (iter = tcm.begin(); iter != tcm.end(); iter++) {
-            if (iter->second->paused) {
-                serverApi->core->notify_io_complete(iter->first, ENGINE_SUCCESS);
-            }
-        }
+        // Signal all outstanding, paused connections.
+        std::for_each(toNotify.begin(), toNotify.end(),
+                      std::bind2nd(std::ptr_fun(serverApi->core->notify_io_complete),
+                                   ENGINE_SUCCESS));
     }
 
     friend void *EvpNotifyTapIo(void*arg);
