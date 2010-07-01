@@ -233,6 +233,20 @@ void TapClientConnection::apply() {
     tap_event_t event = TAP_OPAQUE;
     bool ignore = false;
 
+    if (ndata > message->size) {
+        std::stringstream ss;
+        ss << "Trying to process a message whose size exceeds the message size:  "
+           << ndata << " bytes in a " << message->size << " byte message.";
+        throw std::runtime_error(ss.str());
+    }
+
+    if (ndata > VERY_BIG) {
+        std::stringstream ss;
+        ss << "Trying to process an absurdly large message:  "
+           << ndata << " bytes";
+        throw std::runtime_error(ss.str());
+    }
+
     switch (tap->message.header.request.opcode) {
     case PROTOCOL_BINARY_CMD_TAP_MUTATION:
         event = TAP_MUTATION;

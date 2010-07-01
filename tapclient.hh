@@ -2,6 +2,8 @@
 #ifndef TAPCLIENT_HH
 #define TAPCLIENT_HH 1
 
+#include <sstream>
+
 extern "C" {
     void* tapClientConnectionMain(void *arg);
 }
@@ -23,6 +25,8 @@ extern "C" {
 #undef htonl
 #endif
 
+#define VERY_BIG (20 * 1024 * 1024)
+
 // Forward decl
 class EventuallyPersistentEngine;
 
@@ -39,6 +43,12 @@ public:
         if (h.request.magic != PROTOCOL_BINARY_REQ &&
             h.request.magic != PROTOCOL_BINARY_RES) {
             throw std::runtime_error("Invalid package detected on the wire");
+        }
+        if (size > VERY_BIG) {
+            std::stringstream ss;
+            ss << "E!  Too big.  Trying to create a BinaryMessage of "
+               << size << " bytes.";
+            throw std::runtime_error(ss.str());
         }
         data.rawBytes = new char[size];
         memcpy(data.rawBytes, reinterpret_cast<const char*>(&h),
