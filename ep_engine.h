@@ -1113,7 +1113,7 @@ private:
     void notifyTapIoThreadMain(void) {
         bool addNoop = false;
 
-        if (ep_current_time() > nextTapNoop) {
+        if (ep_current_time() > nextTapNoop && tapIdleTimeout != (size_t)-1) {
             addNoop = true;
             nextTapNoop = ep_current_time() + (tapIdleTimeout / 2);
         }
