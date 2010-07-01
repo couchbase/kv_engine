@@ -163,7 +163,7 @@ void TapClientConnection::run() {
             msg << "An exception occured in the tap stream: " << e.what()
                 << std::endl;
             getLogger()->log(EXTENSION_LOG_DEBUG, NULL, msg.str().c_str());
-            setFailed();
+            terminate = true;
         }
         lh.lock();
     }
