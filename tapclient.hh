@@ -86,8 +86,8 @@ private:
         running(false), peer(n), tapId(id), flags(f), connected(false),
         reconnects(0), failed(false), retry_interval(0), last_retry(0),
         connect_timeout(CONNECTION_TIMEOUT),
-        sock(-1), ai(NULL), message(NULL), engine(e), terminate(false),
-        backfillage(0), zombie(false)
+        sock(-1), ai(NULL), message(NULL), offset(0), engine(e),
+        terminate(false), backfillage(0), zombie(false)
     {
         char *backfill;
         if ((backfill = getenv("MEMCACHED_TAP_BACKFILL_AGE")) != NULL) {
@@ -110,10 +110,15 @@ private:
         failed = true;
         connected = false;
         connect_timeout = CONNECTION_TIMEOUT;
+        offset = 0;
+        delete message;
+        message = NULL;
         retry_interval = last_retry += MIN_RECONNECT_INTERVAL;
         if (retry_interval > MAX_RECONNECT_INTERVAL) {
             retry_interval = last_retry = MIN_RECONNECT_INTERVAL;
         }
+        getLogger()->log(EXTENSION_LOG_INFO, NULL,
+                         "tap client marked failed.\n");
     }
 
     bool shouldRetry() {
@@ -156,6 +161,8 @@ private:
     void stop() {
         LockHolder lh(mutex);
         if (running) {
+            getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                             "tap client terminate requested.  Terminating.\n");
             terminate = true;
             lh.unlock();
             // @todo this will delay the client up to a sec...

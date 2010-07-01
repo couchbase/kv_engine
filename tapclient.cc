@@ -103,6 +103,8 @@ bool TapClientConnection::connect() throw (std::runtime_error) {
             createSocket();
         }
 
+        getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "Tap client connecting.\n");
+
         while (::connect(sock, ai->ai_addr, ai->ai_addrlen) == -1) {
             if (errno == EINPROGRESS || errno == EALREADY) {
                 return false;
@@ -114,6 +116,8 @@ bool TapClientConnection::connect() throw (std::runtime_error) {
                     static_cast<ssize_t>(msg.size)) {
                     // It's unlikely that we're not able to send that few
                     // bytes, so just retry if it happens..
+                    getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                     "Tap client failed to send initial request.\n");
                     setFailed();
                     return false;
                 }
@@ -153,6 +157,9 @@ void TapClientConnection::run() {
                     if (connect_timeout == 0) {
                         setFailed();
                         if (!shouldRetry()) {
+                            getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                                             "Exceeded max reconnect attempts.  "
+                                             "Terminating tap client.\n");
                             terminate = true;
                         }
                     }
@@ -163,7 +170,7 @@ void TapClientConnection::run() {
             msg << "An exception occured in the tap stream: " << e.what()
                 << std::endl;
             getLogger()->log(EXTENSION_LOG_DEBUG, NULL, msg.str().c_str());
-            terminate = true;
+            setFailed();
         }
         lh.lock();
     }
@@ -176,6 +183,9 @@ void TapClientConnection::run() {
 
     running = false;
     zombie = true;
+
+    getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                     "Tap client is complete.\n");
 }
 
 bool TapClientConnection::wait(short mask) throw (std::runtime_error) {
@@ -233,20 +243,6 @@ void TapClientConnection::apply() {
     tap_event_t event = TAP_OPAQUE;
     bool ignore = false;
 
-    if (ndata > message->size) {
-        std::stringstream ss;
-        ss << "Trying to process a message whose size exceeds the message size:  "
-           << ndata << " bytes in a " << message->size << " byte message.";
-        throw std::runtime_error(ss.str());
-    }
-
-    if (ndata > VERY_BIG) {
-        std::stringstream ss;
-        ss << "Trying to process an absurdly large message:  "
-           << ndata << " bytes";
-        throw std::runtime_error(ss.str());
-    }
-
     switch (tap->message.header.request.opcode) {
     case PROTOCOL_BINARY_CMD_TAP_MUTATION:
         event = TAP_MUTATION;
@@ -274,6 +270,20 @@ void TapClientConnection::apply() {
                              static_cast<unsigned int>(tap->message.header.request.opcode));
         }
     } else {
+        if (ndata > message->size) {
+            std::stringstream ss;
+            ss << "Trying to process a message whose size exceeds the message size:  "
+               << ndata << " bytes in a " << message->size << " byte message.";
+            throw std::runtime_error(ss.str());
+        }
+
+        if (ndata > VERY_BIG) {
+            std::stringstream ss;
+            ss << "Trying to process an absurdly large message:  "
+               << ndata << " bytes";
+            throw std::runtime_error(ss.str());
+        }
+
         if (event == TAP_MUTATION) {
             protocol_binary_request_tap_mutation *mutation;
             mutation = message->data.mutation;
@@ -294,15 +304,14 @@ void TapClientConnection::apply() {
         switch (ret) {
         case ENGINE_SUCCESS:
             break;
-        case ENGINE_DISCONNECT:
-            terminate = true;
-            // FALLTHROUGH
         default:
             getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
                              "tapNotify returned: %d\n", static_cast<int>(ret));
         }
 
         if (ret == ENGINE_DISCONNECT) {
+            getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                             "tapNotify requested disconnect.  Disconnecting.\n");
             terminate = true;
         }
     }
