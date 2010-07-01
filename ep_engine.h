@@ -754,11 +754,15 @@ public:
                              uint16_t *nes, uint8_t *ttl, uint16_t *flags,
                              uint32_t *seqno, uint16_t *vbucket) {
         LockHolder lh(tapNotifySync);
-        TapConnection *connection = tapConnectionMap[cookie];
-        if (!connection) {
+        std::map<const void*, TapConnection*>::iterator iter;
+        TapConnection *connection = NULL;
+        iter = tapConnectionMap.find(cookie);
+        if (iter == tapConnectionMap.end()) {
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                              "Walking a non-existent tap queue, disconnecting\n");
             return TAP_DISCONNECT;
+        } else {
+            connection = iter->second;
         }
 
         if (connection->doRunBackfill) {
@@ -974,9 +978,15 @@ public:
         std::map<const void*, TapConnection*>::iterator iter;
         iter = tapConnectionMap.find(cookie);
         if (iter != tapConnectionMap.end()) {
-            iter->second->expiry_time = serverApi->core->get_current_time()
-                + (int)tapKeepAlive;
-            iter->second->connected = false;
+            if (iter->second) {
+                iter->second->expiry_time = serverApi->core->get_current_time()
+                    + (int)tapKeepAlive;
+                iter->second->connected = false;
+            } else {
+                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                 "Found half-linked tap connection at: %p\n",
+                                 cookie);
+            }
             tapConnectionMap.erase(iter);
         }
         purgeExpiredTapConnections_UNLOCKED();
