@@ -437,7 +437,7 @@ public:
             h = ((h << 5) + h) ^ str[i];
         }
 
-        return abs(h) % (int)size;
+        return abs(h % (int)size);
     }
 
     inline int bucket(const std::string &s) {

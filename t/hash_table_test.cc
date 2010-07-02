@@ -201,6 +201,15 @@ static void testDepthCounting() {
     assert(depthCounter.max > 1000);
 }
 
+static void testPoisonKey() {
+    std::string k("A\\NROBs_oc)$zqJ1C.9?XU}Vn^(LW\"`+K/4lykF[ue0{ram;fvId6h=p&Zb3T~SQ]82'ixDP");
+
+    HashTable h(5, 1);
+
+    store(h, k);
+    assert(count(h) == 1);
+}
+
 int main() {
     testHashSize();
     testHashSizeTwo();
@@ -210,5 +219,6 @@ int main() {
     testFindSmall();
     testAdd();
     testDepthCounting();
+    testPoisonKey();
     exit(0);
 }
