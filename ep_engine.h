@@ -1162,9 +1162,6 @@ public:
             {
                 vbucket_state_t state = static_cast<vbucket_state_t>(tap_flags);
                 epstore->setVBucketState(vbucket, state, serverApi->core);
-                if (state == active) {
-                    return ENGINE_DISCONNECT;
-                }
             }
             break;
 
