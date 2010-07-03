@@ -12,11 +12,22 @@
 #include "locks.hh"
 #include "atomic.hh"
 
+/**
+ * A blob is a minimal sized storage for data up to 2^32 bytes long.
+ */
 class Blob {
 public:
 
     // Constructors.
 
+    /**
+     * Create a new Blob holding the given data.
+     *
+     * @param start the beginning of the data to copy into this blob
+     * @param len the amount of data to copy in
+     *
+     * @return the new Blob instance
+     */
     static Blob* New(const char *start, const size_t len) {
         size_t total_len = len + sizeof(Blob);
         Blob *t = new (::operator new(total_len)) Blob(start, len);
@@ -24,10 +35,25 @@ public:
         return t;
     }
 
+    /**
+     * Create a new Blob holding the contents of the given string.
+     *
+     * @param s the string whose contents go into the blob
+     *
+     * @return the new Blob instance
+     */
     static Blob* New(const std::string& s) {
         return New(s.data(), s.length());
     }
 
+    /**
+     * Create a new Blob pre-filled with the given character.
+     *
+     * @param len the size of the blob
+     * @param c the character to fill the blob with
+     *
+     * @return the new Blob instance
+     */
     static Blob* New(const size_t len, const char c) {
         size_t total_len = len + sizeof(Blob);
         Blob *t = new (::operator new(total_len)) Blob(c, len);
@@ -37,14 +63,23 @@ public:
 
     // Actual accessorish things.
 
+    /**
+     * Get the pointer to the contents of this Blob.
+     */
     const char* getData() const {
         return data;
     }
 
+    /**
+     * Get the length of this Blob.
+     */
     size_t length() const {
         return size;
     }
 
+    /**
+     * Get a std::string representation of this blob.
+     */
     const std::string to_s() const {
         return std::string(data, size);
     }
