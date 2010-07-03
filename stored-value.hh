@@ -571,10 +571,19 @@ private:
 
 };
 
+/**
+ * A container of StoredValue instances.
+ */
 class HashTable {
 public:
 
-    // Construct with number of buckets and locks.
+    /**
+     * Create a HashTable.
+     *
+     * @param s the number of hash table buckets
+     * @param l the number of locks in the hash table
+     * @param t the type of StoredValues this hash table will contain
+     */
     HashTable(size_t s = 0, size_t l = 0, enum stored_value_type t = featured)
         : valFact(t) {
         size = HashTable::getNumBuckets(s);
@@ -599,7 +608,14 @@ public:
         values = NULL;
     }
 
+    /**
+     * Get the number of hash table buckets this hash table has.
+     */
     size_t getSize(void) { return size; }
+
+    /**
+     * Get the number of locks in this hash table.
+     */
     size_t getNumLocks(void) { return n_locks; }
 
     /**
@@ -611,6 +627,12 @@ public:
      */
     size_t clear(bool deactivate = false);
 
+    /**
+     * Find the item with the given key.
+     *
+     * @param key the key to find
+     * @return a pointer to a StoredValue -- NULL if not found
+     */
     StoredValue *find(std::string &key) {
         assert(active());
         int bucket_num = bucket(key);
@@ -618,6 +640,12 @@ public:
         return unlocked_find(key, bucket_num);
     }
 
+    /**
+     * Set a new Item into this hashtable.
+     *
+     * @param the Item to store
+     * @return a result indicating the status of the store
+     */
     mutation_type_t set(const Item &val) {
         assert(active());
         mutation_type_t rv = NOT_FOUND;
@@ -661,6 +689,13 @@ public:
         return rv;
     }
 
+    /**
+     * Add an item to the hash table iff it doesn't already exist.
+     *
+     * @param val the item to store
+     * @param isDirty true if the item should be marked dirty on store
+     * @return true if the item is newly stored
+     */
     bool add(const Item &val, bool isDirty = true) {
         assert(active());
         int bucket_num = bucket(val.getKey());
@@ -681,6 +716,15 @@ public:
         return true;
     }
 
+    /**
+     * Find an item within a specific bucket assuming you already
+     * locked the bucket.
+     *
+     * @param key the key of the item to find
+     * @param bucket_Num the bucket number
+     *
+     * @return a pointer to a StoredValue -- NULL if not found
+     */
     StoredValue *unlocked_find(const std::string &key, int bucket_num) {
         StoredValue *v = values[bucket_num];
         while (v) {
@@ -697,6 +741,13 @@ public:
         return NULL;
     }
 
+    /**
+     * Get the bucket number for the given C string key.
+     *
+     * @param str the string
+     * @param len the number of bytes to use for hash computation
+     * @return the bucket number for this key
+     */
     inline int bucket(const char *str, const size_t len) {
         assert(active());
         int h=5381;
@@ -708,10 +759,22 @@ public:
         return abs(h % (int)size);
     }
 
+    /**
+     * Get the bucket number for the given string.
+     *
+     * @param s the key
+     * @return the bucket number for this key
+     */
     inline int bucket(const std::string &s) {
         return bucket(s.data(), s.length());
     }
 
+    /**
+     * Get the Mutex for the given lock.
+     *
+     * @param lock_num the lock number to get
+     * @return the Mutex
+     */
     inline Mutex &getMutexForLock(int lock_num) {
         assert(active());
         assert(lock_num < (int)n_locks);
@@ -719,7 +782,12 @@ public:
         return mutexes[lock_num];
     }
 
-    // Get the mutex for a bucket (for doing your own lock management)
+    /**
+     * Get the mutex for a bucket (for doing your own lock management).
+     *
+     * @param bucket_num the bucket number
+     * @return the Mutex covering that bucket
+     */
     inline Mutex &getMutex(int bucket_num) {
         return getMutexForLock(mutexForBucket(bucket_num));
     }
@@ -769,7 +837,12 @@ public:
         return false;
     }
 
-    // True if it existed
+    /**
+     * Delete the item with the given key.
+     *
+     * @param key the key to delete
+     * @return true if the item existed before this call
+     */
     bool del(const std::string &key) {
         assert(active());
         int bucket_num = bucket(key);
@@ -777,14 +850,38 @@ public:
         return unlocked_del(key, bucket_num);
     }
 
+    /**
+     * Visit all items within this hashtable.
+     */
     void visit(HashTableVisitor &visitor);
 
+    /**
+     * Visit all items within this call with a depth visitor.
+     */
     void visitDepth(HashTableDepthVisitor &visitor);
 
-    static size_t getNumBuckets(size_t);
-    static size_t getNumLocks(size_t);
+    /**
+     * Get the number of buckets that should be used for initialization.
+     *
+     * @param s if 0, return the default number of buckets, else return s
+     */
+    static size_t getNumBuckets(size_t s);
 
+    /**
+     * Get the number of locks that should be used for initialization.
+     *
+     * @param s if 0, return the default number of locks, else return s
+     */
+    static size_t getNumLocks(size_t s);
+
+    /**
+     * Set the default number of buckets.
+     */
     static void setDefaultNumBuckets(size_t);
+
+    /**
+     * Set the default number of locks.
+     */
     static void setDefaultNumLocks(size_t);
 
     /**
@@ -795,8 +892,20 @@ public:
      * @rteurn true if this type is not handled.
      */
     static bool setDefaultStorageValueType(const char *t);
+
+    /**
+     * Set the default StoredValue type by enum value.
+     */
     static void setDefaultStorageValueType(enum stored_value_type);
+
+    /**
+     * Get the default StoredValue type.
+     */
     static enum stored_value_type getDefaultStorageValueType();
+
+    /**
+     * Get the default StoredValue type as a string.
+     */
     static const char* getDefaultStorageValueTypeStr();
 
 private:
