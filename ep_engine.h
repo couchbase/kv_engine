@@ -14,6 +14,7 @@
 #include <map>
 #include <list>
 #include <sstream>
+#include <algorithm>
 #include <errno.h>
 
 #include "command_ids.h"
@@ -275,20 +276,18 @@ private:
         return ret;
     }
 
-    void replaceQueues(std::list<QueuedItem> *q,
-                       std::set<QueuedItem> *qs) {
-        delete queue_set;
-        queue_set = qs;
+    bool shouldNoop() {
+        bool ret = pendingNoop;
+        pendingNoop = false;
+        return ret;
+    }
 
-        std::list<QueuedItem> *old = queue;
-        queue = q;
+    // This method is called while holding the tapNotifySync lock.
+    void appendQueue(std::list<QueuedItem> *q) {
+        queue->splice(queue->end(), *q);
+    }
 
-        while (!old->empty()) {
-            addEvent(old->front());
-            old->pop_front();
-        }
-
-        // replaceQueues is called when the backfill is complete.
+    void completeBackfill() {
         pendingBackfill = false;
     }
 
@@ -345,6 +344,11 @@ private:
      * Do we have a pending flush command?
      */
     bool pendingFlush;
+
+    /**
+     * Do we have a pending noop command?
+     */
+    bool pendingNoop;
 
     /**
      * when this tap conneciton expires.
@@ -421,12 +425,12 @@ public:
         char *tap_id = NULL;
 
         if (config != NULL) {
-            char *dbn = NULL, *initf = NULL;
+            char *dbn = NULL, *initf = NULL, *svaltype = NULL;
             size_t htBuckets = 0;
             size_t htLocks = 0;
             size_t maxSize = 0;
 
-            const int max_items = 17;
+            const int max_items = 18;
             struct config_item items[max_items];
             int ii = 0;
             memset(items, 0, sizeof(items));
@@ -464,6 +468,11 @@ public:
             items[ii].key = "ht_size";
             items[ii].datatype = DT_SIZE;
             items[ii].value.dt_size = &htBuckets;
+
+            ++ii;
+            items[ii].key = "stored_val_type";
+            items[ii].datatype = DT_STRING;
+            items[ii].value.dt_string = &svaltype;
 
             ++ii;
             items[ii].key = "ht_locks";
@@ -526,6 +535,12 @@ public:
                 HashTable::setDefaultNumBuckets(htBuckets);
                 HashTable::setDefaultNumLocks(htLocks);
                 StoredValue::setMaxDataSize(maxSize);
+
+                if (svaltype && !HashTable::setDefaultStorageValueType(svaltype)) {
+                    getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                     "Unhandled storage value type: %s",
+                                     svaltype);
+                }
             }
         }
 
@@ -898,11 +913,19 @@ public:
                              uint16_t *nes, uint8_t *ttl, uint16_t *flags,
                              uint32_t *seqno, uint16_t *vbucket) {
         LockHolder lh(tapNotifySync);
-        TapConnection *connection = tapConnectionMap[cookie];
-        assert(connection);
+        std::map<const void*, TapConnection*>::iterator iter;
+        TapConnection *connection = NULL;
+        iter = tapConnectionMap.find(cookie);
+        if (iter == tapConnectionMap.end()) {
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                             "Walking a non-existent tap queue, disconnecting\n");
+            return TAP_DISCONNECT;
+        } else {
+            connection = iter->second;
+        }
 
         if (connection->doRunBackfill) {
-            queueBackfill(connection);
+            queueBackfill(connection, cookie);
         }
 
         tap_event_t ret = TAP_PAUSE;
@@ -946,6 +969,8 @@ public:
             }
         } else if (connection->shouldFlush()) {
             ret = TAP_FLUSH;
+        } else if (connection->shouldNoop()) {
+            ret = TAP_NOOP;
         } else {
             connection->paused = true;
         }
@@ -1064,6 +1089,7 @@ public:
             }
 
             if (tc->backfillAge < (uint64_t)time(NULL)) {
+                setTapValidity(tc->client, cookie);
                 tc->doRunBackfill = true;
                 tc->pendingBackfill = true;
             }
@@ -1136,12 +1162,13 @@ public:
                 // possible.
 
                 std::string k(static_cast<const char *>(key), nkey);
-                shared_ptr<std::string> s(new std::string);
-                s->reserve(ndata+2);
-                s->append(static_cast<const char*>(data), ndata);
-                s->append("\r\n");
+                std::string v;
+                v.reserve(ndata+2);
+                v.append(static_cast<const char*>(data), ndata);
+                v.append("\r\n");
+                shared_ptr<const Blob> vblob(Blob::New(v));
 
-                Item *item = new Item(k, flags, exptime, s);
+                Item *item = new Item(k, flags, exptime, vblob);
                 item->setVBucketId(vbucket);
 
                 /* @TODO we don't have CAS now.. we might in the future.. */
@@ -1177,16 +1204,22 @@ public:
      * Visit the objects and add them to the tap connecitons queue.
      * @todo this code should honor the backfill time!
      */
-    void queueBackfill(TapConnection *tc);
+    void queueBackfill(TapConnection *tc, const void *tok);
 
     void handleDisconnect(const void *cookie) {
         LockHolder lh(tapNotifySync);
         std::map<const void*, TapConnection*>::iterator iter;
         iter = tapConnectionMap.find(cookie);
         if (iter != tapConnectionMap.end()) {
-            iter->second->expiry_time = serverApi->core->get_current_time()
-                + (int)tapKeepAlive;
-            iter->second->connected = false;
+            if (iter->second) {
+                iter->second->expiry_time = serverApi->core->get_current_time()
+                    + (int)tapKeepAlive;
+                iter->second->connected = false;
+            } else {
+                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                 "Found half-linked tap connection at: %p\n",
+                                 cookie);
+            }
             tapConnectionMap.erase(iter);
         }
         purgeExpiredTapConnections_UNLOCKED();
@@ -1325,7 +1358,7 @@ private:
     void notifyTapIoThreadMain(void) {
         bool addNoop = false;
 
-        if (ep_current_time() > nextTapNoop) {
+        if (ep_current_time() > nextTapNoop && tapIdleTimeout != (size_t)-1) {
             addNoop = true;
             nextTapNoop = ep_current_time() + (tapIdleTimeout / 2);
         }
@@ -1359,16 +1392,20 @@ private:
             purgeExpiredTapConnections_UNLOCKED();
         }
 
-        // Create a copy of the list so that we can release the lock
-        std::map<const void*, TapConnection*> tcm = tapConnectionMap;
+        // Collect the list of connections that need to be signaled.
+        std::list<const void *> toNotify;
+        for (iter = tapConnectionMap.begin(); iter != tapConnectionMap.end(); iter++) {
+            if (iter->second->paused) {
+                toNotify.push_back(iter->first);
+            }
+        }
 
         lh.unlock();
 
-        for (iter = tcm.begin(); iter != tcm.end(); iter++) {
-            if (iter->second->paused) {
-                serverApi->core->notify_io_complete(iter->first, ENGINE_SUCCESS);
-            }
-        }
+        // Signal all outstanding, paused connections.
+        std::for_each(toNotify.begin(), toNotify.end(),
+                      std::bind2nd(std::ptr_fun(serverApi->core->notify_io_complete),
+                                   ENGINE_SUCCESS));
     }
 
     friend void *EvpNotifyTapIo(void*arg);
@@ -1431,23 +1468,31 @@ private:
         return static_cast<int>(deadClients.size());
     }
 
+    TapConnection* findTapConnByName_UNLOCKED(const std::string&name) {
+        TapConnection *rv(NULL);
+        std::list<TapConnection*>::iterator iter;
+        for (iter = allTaps.begin(); iter != allTaps.end(); iter++) {
+            TapConnection *tc = *iter;
+            if (tc->client == name) {
+                rv = tc;
+            }
+        }
+        return rv;
+    }
+
     friend class BackFillVisitor;
     bool setEvents(const std::string &name,
-                   std::list<QueuedItem> *q,
-                   std::set<QueuedItem> *qs)
+                   std::list<QueuedItem> *q)
     {
         bool notify = true;
         bool found = false;
         LockHolder lh(tapNotifySync);
 
-        std::list<TapConnection*>::iterator iter;
-        for (iter = allTaps.begin(); iter != allTaps.end(); iter++) {
-            TapConnection *tc = *iter;
-            if (tc->client == name) {
-                found = true;
-                tc->replaceQueues(q, qs);
-                notify = tc->paused; // notify if paused
-            }
+        TapConnection *tc = findTapConnByName_UNLOCKED(name);
+        if (tc) {
+            found = true;
+            tc->appendQueue(q);
+            notify = tc->paused; // notify if paused
         }
 
         if (notify) {
@@ -1459,6 +1504,38 @@ private:
 
         return found;
     }
+
+    void completeBackfill(const std::string &name) {
+        bool notify(true);
+        LockHolder lh(tapNotifySync);
+        clearTapValidity(name);
+
+        TapConnection *tc = findTapConnByName_UNLOCKED(name);
+        if (tc) {
+            tc->completeBackfill();
+            notify = tc->paused; // notify if paused
+        }
+
+        if (notify) {
+            tapNotifySync.notify();
+        }
+    }
+
+    ssize_t queueDepth(const std::string &name) {
+        ssize_t rv = -1;
+        LockHolder lh(tapNotifySync);
+
+        TapConnection *tc = findTapConnByName_UNLOCKED(name);
+        if (tc) {
+            rv = tc->queue->size();
+        }
+
+        return rv;
+    }
+
+    void setTapValidity(const std::string &name, const void* token);
+    void clearTapValidity(const std::string &name);
+    bool checkTapValidity(const std::string &name, const void* token);
 
     void addEvent(const std::string &str, uint16_t vbid, enum queue_operation op)
     {
@@ -1583,6 +1660,9 @@ private:
                             cookie);
             add_casted_stat("mem_used", StoredValue::getCurrentSize(), add_stat,
                             cookie);
+            add_casted_stat("ep_storage_type",
+                            HashTable::getDefaultStorageValueTypeStr(),
+                            add_stat, cookie);
 
             if (warmup) {
                 add_casted_stat("ep_warmup_thread",
@@ -1843,6 +1923,7 @@ private:
     StrategicSqlite3 *sqliteDb;
     EventuallyPersistentStore *epstore;
     std::map<const void*, TapConnection*> tapConnectionMap;
+    std::map<const std::string, const void*> backfillValidityMap;
     std::list<TapConnection*> allTaps;
     std::map<const void*, Item*> lookups;
     Mutex lookupMutex;
@@ -1875,14 +1956,15 @@ private:
  */
 class BackFillVisitor : public VBucketVisitor {
 public:
-    BackFillVisitor(EventuallyPersistentEngine *e, TapConnection *tc):
+    BackFillVisitor(EventuallyPersistentEngine *e, TapConnection *tc,
+                    const void *token):
         VBucketVisitor(), engine(e), name(tc->client),
-        queue(NULL), queue_set(new std::set<QueuedItem>),
-        filter(tc->vbucketFilter) { }
+        queue(new std::list<QueuedItem>),
+        filter(tc->vbucketFilter), validityToken(token),
+        maxBackfillSize(250000), valid(true) { }
 
     ~BackFillVisitor() {
         delete queue;
-        delete queue_set;
     }
 
     bool visitBucket(uint16_t vbid, vbucket_state_t state) {
@@ -1894,26 +1976,82 @@ public:
     }
 
     void visit(StoredValue *v) {
-        std::string key(v->getKey());
-        assert(filter(currentBucket));
-        queue_set->insert(QueuedItem(key, currentBucket, queue_op_set));
+        std::string k = v->getKey();
+        QueuedItem qi(k, currentBucket, queue_op_set);
+        queue->push_back(qi);
+    }
+
+    bool shouldContinue() {
+        setEvents();
+        return valid;
     }
 
     void apply(void) {
-        queue = new std::list<QueuedItem>(queue_set->begin(),
-                                          queue_set->end());
-        if (engine->setEvents(name, queue, queue_set)) {
-            queue = NULL;
-            queue_set = NULL;
+        setEvents();
+        if (valid) {
+            engine->completeBackfill(name);
         }
     }
 
 private:
+
+    void setEvents() {
+        if (checkValidity()) {
+            engine->setEvents(name, queue);
+            waitForQueue();
+        }
+    }
+
+    void waitForQueue() {
+        bool reported(false);
+        bool tooBig(true);
+
+        while (checkValidity() && tooBig) {
+            ssize_t theSize(engine->queueDepth(name));
+            if (theSize < 0) {
+                getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                                 "TapConnection %s went away.  Stopping backfill.\n",
+                                 name.c_str());
+                valid = false;
+                return;
+            }
+
+            tooBig = theSize > maxBackfillSize;
+
+            if (tooBig) {
+                if (!reported) {
+                    getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                                     "Tap queue depth too big for %s, sleeping\n",
+                                     name.c_str());
+                    reported = true;
+                }
+                sleep(1);
+            }
+        }
+        if (reported) {
+            getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                             "Resuming backfill of %s.\n",
+                             name.c_str());
+        }
+    }
+
+    bool checkValidity() {
+        valid = valid && engine->checkTapValidity(name, validityToken);
+        if (!valid) {
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                             "Backfilling token for %s went invalid.  Stopping backfill.\n",
+                             name.c_str());
+        }
+        return valid;
+    }
+
     EventuallyPersistentEngine *engine;
-    std::string name;
+    const std::string name;
     std::list<QueuedItem> *queue;
-    std::set<QueuedItem> *queue_set;
     VBucketFilter filter;
+    const void *validityToken;
+    ssize_t maxBackfillSize;
+    bool valid;
 };
 
 #endif

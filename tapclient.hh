@@ -2,6 +2,8 @@
 #ifndef TAPCLIENT_HH
 #define TAPCLIENT_HH 1
 
+#include <sstream>
+
 extern "C" {
     void* tapClientConnectionMain(void *arg);
 }
@@ -23,9 +25,53 @@ extern "C" {
 #undef htonl
 #endif
 
+#define VERY_BIG (20 * 1024 * 1024)
+
 // Forward decl
-class BinaryMessage;
 class EventuallyPersistentEngine;
+
+class BinaryMessage {
+public:
+    BinaryMessage() : size(0) {
+        data.rawBytes = NULL;
+    }
+
+    BinaryMessage(const protocol_binary_request_header &h) throw (std::runtime_error)
+        : size(ntohl(h.request.bodylen) + sizeof(h.bytes))
+    {
+        // verify the internal
+        if (h.request.magic != PROTOCOL_BINARY_REQ &&
+            h.request.magic != PROTOCOL_BINARY_RES) {
+            throw std::runtime_error("Invalid package detected on the wire");
+        }
+        if (size > VERY_BIG) {
+            std::stringstream ss;
+            ss << "E!  Too big.  Trying to create a BinaryMessage of "
+               << size << " bytes.";
+            throw std::runtime_error(ss.str());
+        }
+        data.rawBytes = new char[size];
+        memcpy(data.rawBytes, reinterpret_cast<const char*>(&h),
+               sizeof(h.bytes));
+    }
+
+    virtual ~BinaryMessage() {
+        delete []data.rawBytes;
+    }
+
+    size_t size;
+    union {
+        protocol_binary_request_header *req;
+        protocol_binary_request_tap_no_extras *tap;
+        protocol_binary_request_tap_connect *tap_connect;
+        protocol_binary_request_tap_mutation *mutation;
+        protocol_binary_request_tap_delete *remove;
+        protocol_binary_request_tap_flush *flush;
+        protocol_binary_request_tap_opaque *opaque;
+        protocol_binary_request_tap_vbucket_set *vs;
+        char *rawBytes;
+    } data;
+};
 
 /**
  * Tap client connection
@@ -40,8 +86,8 @@ private:
         running(false), peer(n), tapId(id), flags(f), connected(false),
         reconnects(0), failed(false), retry_interval(0), last_retry(0),
         connect_timeout(CONNECTION_TIMEOUT),
-        sock(-1), ai(NULL), message(NULL), engine(e), terminate(false),
-        backfillage(0), zombie(false)
+        sock(-1), ai(NULL), message(NULL), offset(0), engine(e),
+        terminate(false), backfillage(0), zombie(false)
     {
         char *backfill;
         if ((backfill = getenv("MEMCACHED_TAP_BACKFILL_AGE")) != NULL) {
@@ -55,6 +101,7 @@ private:
         if (ai != NULL) {
             freeaddrinfo(ai);
         }
+        delete message;
     }
 
     void setFailed() {
@@ -63,10 +110,15 @@ private:
         failed = true;
         connected = false;
         connect_timeout = CONNECTION_TIMEOUT;
+        offset = 0;
+        delete message;
+        message = NULL;
         retry_interval = last_retry += MIN_RECONNECT_INTERVAL;
         if (retry_interval > MAX_RECONNECT_INTERVAL) {
             retry_interval = last_retry = MIN_RECONNECT_INTERVAL;
         }
+        getLogger()->log(EXTENSION_LOG_INFO, NULL,
+                         "tap client marked failed.\n");
     }
 
     bool shouldRetry() {
@@ -109,6 +161,8 @@ private:
     void stop() {
         LockHolder lh(mutex);
         if (running) {
+            getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                             "tap client terminate requested.  Terminating.\n");
             terminate = true;
             lh.unlock();
             // @todo this will delay the client up to a sec...

@@ -357,7 +357,8 @@ bool EventuallyPersistentStore::getKeyStats(const std::string &key,
         kstats.exptime = v->getExptime();
         kstats.flags = v->getFlags();
         kstats.cas = v->getCas();
-        kstats.dirtied = v->getDirtied();
+        // TODO:  Know this somehow.
+        kstats.dirtied = 0; // v->getDirtied();
         kstats.data_age = v->getDataAge();
     }
     return found;
@@ -497,7 +498,7 @@ public:
         } else if (!value.first) {
             stats->flushFailed++;
             if (sval != NULL) {
-                sval->reDirty(queued, dirtied);
+                sval->reDirty(dirtied);
             }
             rq->push(queuedItem);
         }
@@ -507,7 +508,7 @@ public:
         if (!value) {
             stats->flushFailed++;
             if (sval != NULL) {
-                sval->reDirty(queued, dirtied);
+                sval->reDirty(dirtied);
             }
             rq->push(queuedItem);
         }
@@ -546,13 +547,12 @@ int EventuallyPersistentStore::flushOneDelOrSet(QueuedItem &qi,
     bool found = v != NULL;
     bool isDirty = (found && v->isDirty());
     Item *val = NULL;
-    rel_time_t queued(0), dirtied(0);
+    rel_time_t queued(qi.getDirtied()), dirtied(0);
 
     int ret = 0;
 
     if (isDirty) {
-        v->markClean(&queued, &dirtied);
-        assert(dirtied > 0);
+        v->markClean(&dirtied);
         // Calculate stats if this had a positive time.
         rel_time_t now = ep_current_time();
         int dataAge = now - dirtied;
@@ -567,13 +567,12 @@ int EventuallyPersistentStore::flushOneDelOrSet(QueuedItem &qi,
             ret = stats.min_data_age.get() - dataAge;
             isDirty = false;
             stats.tooYoung++;
-            v->reDirty(queued, dirtied);
+            v->reDirty(dirtied);
             rejectQueue->push(qi);
         }
 
         if (eligible) {
             assert(dirtyAge < (86400 * 30));
-            assert(dataAge <= dirtyAge);
             stats.dirtyAge.set(dirtyAge);
             stats.dataAge.set(dataAge);
             stats.dirtyAgeHighWat.set(std::max(stats.dirtyAge.get(),

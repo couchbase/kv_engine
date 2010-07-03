@@ -26,9 +26,7 @@ public:
         count += 1;
         std::string key = v->getKey();
         value_t val = v->getValue();
-        // Value has length beyond the value that's requested to be stored.
-        std::string subval = val->substr(0, val->length());
-        assert(key.compare(subval) == 0);
+        assert(key.compare(val->to_s()) == 0);
     }
 };
 
@@ -142,8 +140,7 @@ static void testForwardDeletions() {
     assert(count(h) == 0);
 }
 
-static void testFind() {
-    HashTable h(5, 1);
+static void testFind(HashTable &h) {
     const int nkeys = 5000;
 
     std::vector<std::string> keys = generateKeys(nkeys);
@@ -157,6 +154,16 @@ static void testFind() {
         std::string key = *it;
         assert(h.find(key));
     }
+}
+
+static void testFind() {
+    HashTable h(5, 1);
+    testFind(h);
+}
+
+static void testFindSmall() {
+    HashTable h(5, 1, small);
+    testFind(h);
 }
 
 static void testAdd() {
@@ -195,6 +202,15 @@ static void testDepthCounting() {
     assert(depthCounter.max > 1000);
 }
 
+static void testPoisonKey() {
+    std::string k("A\\NROBs_oc)$zqJ1C.9?XU}Vn^(LW\"`+K/4lykF[ue0{ram;fvId6h=p&Zb3T~SQ]82'ixDP");
+
+    HashTable h(5, 1);
+
+    store(h, k);
+    assert(count(h) == 1);
+}
+
 int main() {
     alarm(60);
     testHashSize();
@@ -202,7 +218,9 @@ int main() {
     testReverseDeletions();
     testForwardDeletions();
     testFind();
+    testFindSmall();
     testAdd();
     testDepthCounting();
+    testPoisonKey();
     exit(0);
 }

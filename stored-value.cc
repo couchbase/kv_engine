@@ -14,6 +14,7 @@
 
 size_t HashTable::defaultNumBuckets = DEFAULT_HT_SIZE;
 size_t HashTable::defaultNumLocks = 193;
+enum stored_value_type HashTable::defaultStoredValueType = featured;
 
 size_t StoredValue::maxDataSize = DEFAULT_MAX_DATA_SIZE;
 Atomic<size_t> StoredValue::currentSize;
@@ -67,11 +68,11 @@ size_t HashTable::clear(bool deactivate) {
 
     if (!deactivate) {
         // If not deactivating, assert we're already active.
-        assert(active);
+        assert(active());
     }
     MultiLockHolder(mutexes, n_locks);
     if (deactivate) {
-        active = false;
+        active(false);
     }
     for (int i = 0; i < (int)size; i++) {
         while (values[i]) {
@@ -80,42 +81,87 @@ size_t HashTable::clear(bool deactivate) {
             values[i] = v->next;
             delete v;
         }
-        depths[i] = 0;
     }
 
     return rv;
 }
 
 void HashTable::visit(HashTableVisitor &visitor) {
-    if (!active) {
+    if (!active()) {
         return;
     }
     VisitorTracker vt(&visitors);
-    for (size_t i = 0; active && i < size; i++) {
-        LockHolder lh(getMutex(i));
-        if (!active) {
-            return;
+    bool aborted = !visitor.shouldContinue();
+    size_t visited = 0;
+    for (int l = 0; active() && !aborted && l < static_cast<int>(n_locks); l++) {
+        LockHolder lh(getMutex(l));
+        for (int i = l; i < static_cast<int>(size); i+= n_locks) {
+            assert(l == mutexForBucket(i));
+            StoredValue *v = values[i];
+            while (v) {
+                visitor.visit(v);
+                v = v->next;
+            }
+            ++visited;
         }
-        StoredValue *v = values[i];
-        while (v) {
-            visitor.visit(v);
-            v = v->next;
-        }
+        lh.unlock();
+        aborted = !visitor.shouldContinue();
     }
+    assert(aborted || visited == size);
 }
 
 void HashTable::visitDepth(HashTableDepthVisitor &visitor) {
-    if (!active) {
+    if (!active()) {
         return;
     }
+    size_t visited = 0;
     VisitorTracker vt(&visitors);
-    for (size_t i = 0; active && i < size; i++) {
-        LockHolder lh(getMutex(i));
-        if (!active) {
-            return;
+
+    for (int l = 0; l < static_cast<int>(n_locks); l++) {
+        LockHolder lh(getMutex(l));
+        for (int i = l; i < static_cast<int>(size); i+= n_locks) {
+            size_t depth = 0;
+            StoredValue *p = values[i];
+            while (p) {
+                depth++;
+                p = p->next;
+            }
+            visitor.visit(i, depth);
+            ++visited;
         }
-        visitor.visit(i, depths[i]);
     }
+
+    assert(visited == size);
+}
+
+bool HashTable::setDefaultStorageValueType(const char *t) {
+    bool rv = false;
+    if (t && strcmp(t, "featured") == 0) {
+        setDefaultStorageValueType(featured);
+        rv = true;
+    } else if (t && strcmp(t, "small") == 0) {
+        setDefaultStorageValueType(small);
+        rv = true;
+    }
+    return rv;
+}
+
+void HashTable::setDefaultStorageValueType(enum stored_value_type t) {
+    defaultStoredValueType = t;
+}
+
+enum stored_value_type HashTable::getDefaultStorageValueType() {
+    return defaultStoredValueType;
+}
+
+const char* HashTable::getDefaultStorageValueTypeStr() {
+    const char *rv = "unknown";
+    switch(getDefaultStorageValueType()) {
+    case small: rv = "small"; break;
+    case featured: rv = "featured"; break;
+    default: abort();
+    }
+    return rv;
 }
 
 /**

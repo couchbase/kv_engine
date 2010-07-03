@@ -3,6 +3,7 @@
 #define STORED_VALUE_H 1
 
 #include <climits>
+#include <cstring>
 #include <algorithm>
 
 #include "common.hh"
@@ -15,60 +16,91 @@ extern "C" {
 
 // Forward declaration for StoredValue
 class HashTable;
+class StoredValueFactory;
+
+// One of the following structs overlays at the end of StoredItem.
+// This is figured out dynamically and stored in one bit in
+// StoredValue so it can figure it out at runtime.
+
+struct small_data {
+    uint8_t      keylen;
+    char         keybytes[1];
+};
+
+struct feature_data {
+    uint64_t     cas;
+    uint32_t     flags;
+    rel_time_t   exptime;
+    rel_time_t   lock_expiry;
+    bool         locked;
+    uint8_t      keylen;
+    char         keybytes[1];
+};
+
+union stored_value_bodies {
+    struct small_data   small;
+    struct feature_data feature;
+};
 
 class StoredValue {
 public:
-    StoredValue(const Item &itm, StoredValue *n, bool setDirty = true) :
-        key(itm.getKey()), value(itm.getValue()),
-        flags(itm.getFlags()), exptime(itm.getExptime()), dirtied(0), next(n),
-        cas(itm.getCas()), id(itm.getId()), locked(false), lock_expiry(0)
-    {
-        if (setDirty) {
-            markDirty();
-        } else {
-            markClean(NULL, NULL);
-        }
-        increaseCurrentSize(size());
-    }
+
+    void operator delete(void* p) {
+        ::operator delete(p);
+     }
 
     ~StoredValue() {
         reduceCurrentSize(size());
     }
 
     void markDirty() {
-        data_age = ep_current_time();
-        if (!isDirty()) {
-            dirtied = data_age;
-        }
+        reDirty(ep_current_time());
     }
 
-    void reDirty(rel_time_t dirtyAge, rel_time_t dataAge) {
-        data_age = dataAge;
-        dirtied = dirtyAge;
+    void reDirty(rel_time_t dataAge) {
+        dirtiness = dataAge >> 2;
+        _isDirty = 1;
     }
 
     // returns time this object was dirtied.
-    void markClean(rel_time_t *dirtyAge, rel_time_t *dataAge) {
-        if (dirtyAge) {
-            *dirtyAge = dirtied;
-        }
+    void markClean(rel_time_t *dataAge) {
         if (dataAge) {
-            *dataAge = data_age;
+            *dataAge = dirtiness << 2;
         }
-        dirtied = 0;
-        data_age = 0;
+        _isDirty = 0;
     }
 
     bool isDirty() const {
-        return dirtied != 0;
+        return _isDirty;
     }
 
     bool isClean() const {
-        return dirtied == 0;
+        return !isDirty();
     }
 
-    const std::string &getKey() const {
-        return key;
+    const char* getKeyBytes() const {
+        if (_isSmall) {
+            return extra.small.keybytes;
+        } else {
+            return extra.feature.keybytes;
+        }
+    }
+
+    uint8_t getKeyLen() const {
+        if (_isSmall) {
+            return extra.small.keylen;
+        } else {
+            return extra.feature.keylen;
+        }
+    }
+
+    bool hasKey(const std::string &k) const {
+        return k.length() == getKeyLen()
+            && (std::memcmp(k.data(), getKeyBytes(), getKeyLen()) == 0);
+    }
+
+    const std::string getKey() const {
+        return std::string(getKeyBytes(), getKeyLen());
     }
 
     value_t getValue() const {
@@ -76,49 +108,64 @@ public:
     }
 
     rel_time_t getExptime() const {
-        return exptime;
+        if (_isSmall) {
+            return 0;
+        } else {
+            return extra.feature.exptime;
+        }
     }
 
     uint32_t getFlags() const {
-        return flags;
+        if (_isSmall) {
+            return 0;
+        } else {
+            return extra.feature.flags;
+        }
     }
 
     void setValue(value_t v,
                   uint32_t newFlags, rel_time_t newExp, uint64_t theCas) {
         reduceCurrentSize(size());
-        cas = theCas;
-        flags = newFlags;
-        exptime = newExp;
         value = v;
+        if (!_isSmall) {
+            extra.feature.cas = theCas;
+            extra.feature.flags = newFlags;
+            extra.feature.exptime = newExp;
+        }
         markDirty();
         increaseCurrentSize(size());
     }
 
     uint64_t getCas() const {
-        return cas;
-    }
-
-    // for stats
-    rel_time_t getDirtied() const {
-        return dirtied;
+        if (_isSmall) {
+            return 0;
+        } else {
+            return extra.feature.cas;
+        }
     }
 
     rel_time_t getDataAge() const {
-        return data_age;
+        return dirtiness << 2;
     }
 
     void setCas(uint64_t c) {
-        cas = c;
+        if (!_isSmall) {
+            extra.feature.cas = c;
+        }
     }
 
     void lock(rel_time_t expiry) {
-        locked = true;
-        lock_expiry = expiry;
+        if (!_isSmall) {
+            extra.feature.locked = true;
+            extra.feature.lock_expiry = expiry;
+        }
     }
 
     void unlock() {
-        locked = false;
-        lock_expiry = 0;
+        if (!_isSmall) {
+            extra.feature.locked = false;
+            extra.feature.lock_expiry = 0;
+        }
     }
 
     bool hasId() {
@@ -135,15 +182,36 @@ public:
     }
 
     size_t size() {
-        return sizeof(StoredValue) + key.length() + value->length();
+        return sizeOf(_isSmall) + getKeyLen() + value->length();
     }
 
-    bool isLocked(rel_time_t curtime)  {
-        if (locked && (curtime > lock_expiry)) {
-            locked = false;
-            return locked;
+    bool isLocked(rel_time_t curtime) {
+        if (_isSmall) {
+            return false;
+        } else {
+            if (extra.feature.locked && (curtime > extra.feature.lock_expiry)) {
+                extra.feature.locked = false;
+                return false;
+            }
+            return extra.feature.locked;
         }
-        return locked;
+    }
+
+    /**
+     * Get the size of a StoredValue object.
+     *
+     * This method exists because the size of a StoredValue as used
+     * cannot be determined entirely at compile time due to the two
+     * different extras sections that are used.
+     *
+     * @param small if true, we want the small variety, otherwise featured
+     *
+     * @return the size in bytes required (minus key) for a StoredValue.
+     */
+    static size_t sizeOf(bool small) {
+        // Subtract one because the length of the string is computed on demand.
+        size_t base = sizeof(StoredValue) - sizeof(union stored_value_bodies) - 1;
+        return base + (small ? sizeof(struct small_data) : sizeof(struct feature_data));
     }
 
     static void setMaxDataSize(size_t);
@@ -152,7 +220,43 @@ public:
 
 private:
 
+    StoredValue(const Item &itm, StoredValue *n, bool setDirty = true,
+                bool small = false) :
+        value(itm.getValue()), next(n), id(itm.getId()),
+        dirtiness(0), _isSmall(small)
+    {
+
+        if (_isSmall) {
+            extra.small.keylen = itm.getKey().length();
+        } else {
+            extra.feature.cas = itm.getCas();
+            extra.feature.flags = itm.getFlags();
+            extra.feature.exptime = itm.getExptime();
+            extra.feature.locked = false;
+            extra.feature.lock_expiry = 0;
+            extra.feature.keylen = itm.getKey().length();
+        }
+
+        if (setDirty) {
+            markDirty();
+        } else {
+            markClean(NULL);
+        }
+
+        increaseCurrentSize(size());
+    }
+
     friend class HashTable;
+    friend class StoredValueFactory;
+
+    value_t      value;           // 16 bytes
+    StoredValue *next;            // 8 bytes
+    int64_t      id;              // 8 bytes
+    uint32_t     dirtiness : 30;  // 30 bits -+
+    bool         _isSmall  :  1;  // 1 bit    | 4 bytes
+    bool         _isDirty  :  1;  // 1 bit  --+
+
+    union stored_value_bodies extra;
 
     static void increaseCurrentSize(size_t by);
     static void reduceCurrentSize(size_t by);
@@ -161,17 +265,6 @@ private:
     static size_t maxDataSize;
     static Atomic<size_t> currentSize;
 
-    std::string key;
-    value_t value;
-    uint32_t flags;
-    rel_time_t exptime;
-    rel_time_t dirtied;
-    rel_time_t data_age;
-    StoredValue *next;
-    uint64_t cas;
-    int64_t id;
-    bool locked;
-    rel_time_t lock_expiry;
     DISALLOW_COPY_AND_ASSIGN(StoredValue);
 };
 
@@ -195,6 +288,7 @@ public:
      * @param v a pointer to a value in the hash table
      */
     virtual void visit(StoredValue *v) = 0;
+    virtual bool shouldContinue() { return true; }
 };
 
 /**
@@ -262,22 +356,69 @@ private:
 /**
  * Hash table that stores all of the items in memory.
  */
+enum stored_value_type {
+    small, featured
+};
+
+class StoredValueFactory {
+public:
+
+    StoredValueFactory(enum stored_value_type t = featured) : type(t) {}
+
+    StoredValue *operator ()(const Item &itm, StoredValue *n,
+                             bool setDirty = true) {
+        switch(type) {
+        case small:
+            return newStoredValue(itm, n, setDirty, 1);
+            break;
+        case featured:
+            return newStoredValue(itm, n, setDirty, 0);
+            break;
+        default:
+            abort();
+        };
+    }
+
+private:
+
+    StoredValue* newStoredValue(const Item &itm, StoredValue *n, bool setDirty,
+                                bool small) {
+        size_t base = StoredValue::sizeOf(small);
+
+        std::string key = itm.getKey();
+        assert(key.length() < 256);
+        size_t len = key.length() + base;
+
+        StoredValue *t = new (::operator new(len))
+            StoredValue(itm, n, setDirty, small);
+        if (small) {
+            std::memcpy(t->extra.small.keybytes, key.data(), key.length());
+        } else {
+            std::memcpy(t->extra.feature.keybytes, key.data(), key.length());
+        }
+
+        return t;
+    }
+
+    enum stored_value_type type;
+
+};
+
 class HashTable {
 public:
 
     // Construct with number of buckets and locks.
-    HashTable(size_t s = 0, size_t l = 0) {
+    HashTable(size_t s = 0, size_t l = 0, enum stored_value_type t = featured)
+        : valFact(t) {
         size = HashTable::getNumBuckets(s);
         n_locks = HashTable::getNumLocks(l);
+        valFact = StoredValueFactory(getDefaultStorageValueType());
         assert(size > 0);
         assert(n_locks > 0);
         assert(visitors == 0);
-        active = true;
-        values = new StoredValue*[size];
-        std::fill_n(values, size, static_cast<StoredValue*>(NULL));
+        values = static_cast<StoredValue**>(calloc(size, sizeof(StoredValue*)));
         mutexes = new Mutex[n_locks];
-        depths = new int[size];
-        std::fill_n(depths, size, 0);
+        activeState = true;
     }
 
     ~HashTable() {
@@ -287,8 +428,8 @@ public:
             usleep(100);
         }
         delete []mutexes;
-        delete []values;
-        delete []depths;
+        free(values);
+        values = NULL;
     }
 
     size_t getSize(void) { return size; }
@@ -304,14 +445,14 @@ public:
     size_t clear(bool deactivate = false);
 
     StoredValue *find(std::string &key) {
-        assert(active);
+        assert(active());
         int bucket_num = bucket(key);
         LockHolder lh(getMutex(bucket_num));
         return unlocked_find(key, bucket_num);
     }
 
     mutation_type_t set(const Item &val) {
-        assert(active);
+        assert(active());
         mutation_type_t rv = NOT_FOUND;
         int bucket_num = bucket(val.getKey());
         LockHolder lh(getMutex(bucket_num));
@@ -347,15 +488,14 @@ public:
             }
 
             itm.setCas();
-            v = new StoredValue(itm, values[bucket_num]);
+            v = valFact(itm, values[bucket_num]);
             values[bucket_num] = v;
-            depths[bucket_num]++;
         }
         return rv;
     }
 
     bool add(const Item &val, bool isDirty = true) {
-        assert(active);
+        assert(active());
         int bucket_num = bucket(val.getKey());
         LockHolder lh(getMutex(bucket_num));
         StoredValue *v = unlocked_find(val.getKey(), bucket_num);
@@ -367,9 +507,8 @@ public:
             if (!StoredValue::hasAvailableSpace(itm)) {
                 return NOMEM;
             }
-            v = new StoredValue(itm, values[bucket_num], isDirty);
+            v = valFact(itm, values[bucket_num], isDirty);
             values[bucket_num] = v;
-            depths[bucket_num]++;
         }
 
         return true;
@@ -378,7 +517,7 @@ public:
     StoredValue *unlocked_find(const std::string &key, int bucket_num) {
         StoredValue *v = values[bucket_num];
         while (v) {
-            if (key.compare(v->key) == 0) {
+            if (v->hasKey(key)) {
                 // check the expiry time
                 if (v->getExptime() != 0 && v->getExptime() < ep_current_time()) {
                     (void)unlocked_del(key, bucket_num);
@@ -391,28 +530,31 @@ public:
         return NULL;
     }
 
-    inline int bucket(const std::string &key) {
-        assert(active);
+    inline int bucket(const char *str, const size_t len) {
+        assert(active());
         int h=5381;
-        int i=0;
-        const char *str = key.c_str();
 
-        for(i=0; str[i] != 0x00; i++) {
+        for(size_t i=0; i < len; i++) {
             h = ((h << 5) + h) ^ str[i];
         }
 
-        return abs(h) % (int)size;
+        return abs(h % (int)size);
+    }
+
+    inline int bucket(const std::string &s) {
+        return bucket(s.data(), s.length());
+    }
+
+    inline Mutex &getMutexForLock(int lock_num) {
+        assert(active());
+        assert(lock_num < (int)n_locks);
+        assert(lock_num >= 0);
+        return mutexes[lock_num];
     }
 
     // Get the mutex for a bucket (for doing your own lock management)
     inline Mutex &getMutex(int bucket_num) {
-        assert(active);
-        assert(bucket_num < (int)size);
-        assert(bucket_num >= 0);
-        int lock_num = bucket_num % (int)n_locks;
-        assert(lock_num < (int)n_locks);
-        assert(lock_num >= 0);
-        return mutexes[lock_num];
+        return getMutexForLock(mutexForBucket(bucket_num));
     }
 
     /**
@@ -425,7 +567,7 @@ public:
      * @return true if an object was deleted, false otherwise
      */
     bool unlocked_del(const std::string &key, int bucket_num) {
-        assert(active);
+        assert(active());
         StoredValue *v = values[bucket_num];
 
         // Special case empty bucket.
@@ -434,25 +576,23 @@ public:
         }
 
         // Special case the first one
-        if (key.compare(v->key) == 0) {
+        if (v->hasKey(key)) {
             if (v->isLocked(ep_current_time())) {
                 return false;
             }
             values[bucket_num] = v->next;
-            depths[bucket_num]--;
             delete v;
             return true;
         }
 
         while (v->next) {
-            if (key.compare(v->next->key) == 0) {
+            if (v->next->hasKey(key)) {
                 StoredValue *tmp = v->next;
                 if (tmp->isLocked(ep_current_time())) {
                     return false;
                 }
                 v->next = v->next->next;
                 delete tmp;
-                depths[bucket_num]--;
                 return true;
             } else {
                 v = v->next;
@@ -464,7 +604,7 @@ public:
 
     // True if it existed
     bool del(const std::string &key) {
-        assert(active);
+        assert(active());
         int bucket_num = bucket(key);
         LockHolder lh(getMutex(bucket_num));
         return unlocked_del(key, bucket_num);
@@ -480,17 +620,43 @@ public:
     static void setDefaultNumBuckets(size_t);
     static void setDefaultNumLocks(size_t);
 
-private:
-    size_t           size;
-    size_t           n_locks;
-    bool             active;
-    StoredValue    **values;
-    Mutex           *mutexes;
-    int             *depths;
-    Atomic<size_t>   visitors;
+    /**
+     * Set the stored value type by name.
+     *
+     * @param t either "small" or "featured"
+     *
+     * @rteurn true if this type is not handled.
+     */
+    static bool setDefaultStorageValueType(const char *t);
+    static void setDefaultStorageValueType(enum stored_value_type);
+    static enum stored_value_type getDefaultStorageValueType();
+    static const char* getDefaultStorageValueTypeStr();
 
-    static size_t defaultNumBuckets;
-    static size_t defaultNumLocks;
+private:
+    inline bool active() { return activeState = true; }
+    inline void active(bool newv) { activeState = newv; }
+
+    size_t               size;
+    size_t               n_locks;
+    StoredValue        **values;
+    Mutex               *mutexes;
+    StoredValueFactory   valFact;
+    Atomic<size_t>       visitors;
+    bool                 activeState;
+
+    static size_t                 defaultNumBuckets;
+    static size_t                 defaultNumLocks;
+    static enum stored_value_type defaultStoredValueType;
+
+    inline int mutexForBucket(int bucket_num) {
+        assert(active());
+        assert(bucket_num < (int)size);
+        assert(bucket_num >= 0);
+        int lock_num = bucket_num % (int)n_locks;
+        assert(lock_num < (int)n_locks);
+        assert(lock_num >= 0);
+        return lock_num;
+    }
 
     DISALLOW_COPY_AND_ASSIGN(HashTable);
 };

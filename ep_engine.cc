@@ -656,12 +656,30 @@ void EventuallyPersistentEngine::startEngineThreads(void)
     startedEngineThreads = true;
 }
 
+// These two methods are always called with a lock.
+void EventuallyPersistentEngine::setTapValidity(const std::string &name,
+                                                const void* token) {
+    backfillValidityMap[name] = token;
+}
+void EventuallyPersistentEngine::clearTapValidity(const std::string &name) {
+    backfillValidityMap.erase(name);
+}
+
+// This is always called without a lock.
+bool EventuallyPersistentEngine::checkTapValidity(const std::string &name,
+                                                  const void* token) {
+    LockHolder lh(tapNotifySync);
+    std::map<const std::string, const void*>::iterator viter =
+        backfillValidityMap.find(name);
+    return viter != backfillValidityMap.end() && viter->second == token;
+}
+
 class BackFillThreadData {
 public:
 
     BackFillThreadData(EventuallyPersistentEngine *e, TapConnection *tc,
-                       EventuallyPersistentStore *s):
-        bfv(e, tc), epstore(s) {
+                       EventuallyPersistentStore *s, const void *tok):
+        bfv(e, tc, tok), epstore(s) {
     }
 
     BackFillVisitor bfv;
@@ -686,9 +704,9 @@ extern "C" {
     }
 }
 
-void EventuallyPersistentEngine::queueBackfill(TapConnection *tc) {
+void EventuallyPersistentEngine::queueBackfill(TapConnection *tc, const void *tok) {
     tc->doRunBackfill = false;
-    BackFillThreadData *bftd = new BackFillThreadData(this, tc, epstore);
+    BackFillThreadData *bftd = new BackFillThreadData(this, tc, epstore, tok);
 
     pthread_t tid;
     if (pthread_create(&tid, NULL, launch_backfill_thread, bftd) != 0) {

@@ -63,10 +63,11 @@ enum queue_operation {
 class QueuedItem {
 public:
     QueuedItem(const std::string &k, const uint16_t vb, enum queue_operation o)
-        : key(k), op(o), vbucket(vb) {}
+        : key(k), op(o), vbucket(vb), dirtied(ep_current_time()) {}
 
     std::string getKey(void) const { return key; }
     uint16_t getVBucketId(void) const { return vbucket; }
+    rel_time_t getDirtied(void) const { return dirtied; }
     enum queue_operation getOperation(void) const { return op; }
 
     bool operator <(const QueuedItem &other) const {
@@ -77,6 +78,7 @@ private:
     std::string key;
     enum queue_operation op;
     uint16_t vbucket;
+    rel_time_t dirtied;
 };
 
 /**

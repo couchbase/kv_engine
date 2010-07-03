@@ -72,9 +72,33 @@ class TapConnection(mc_bin_server.MemcachedBinaryChannel):
 
 class TapClient(object):
 
-    def __init__(self, servers, callback, clientId=None, opts={}):
-        for (h,p) in servers:
-            tc = TapConnection(h, p, callback, clientId, opts)
+    def __init__(self, servers, callback, opts={}):
+        for t in servers:
+            tc = TapConnection(t.host, t.port, callback, t.id, opts)
+
+def buildGoodSet(goodChars=string.printable, badChar='?'):
+    """Build a translation table that turns all characters not in goodChars
+    to badChar"""
+    allChars=string.maketrans("", "")
+    badchars=string.translate(allChars, allChars, goodChars)
+    rv=string.maketrans(badchars, badChar * len(badchars))
+    return rv
+
+class TapDescriptor(object):
+    port = 11211
+    id = None
+
+    def __init__(self, s):
+        self.host = s
+        if ':' in s:
+            self.host, self.port = s.split(':', 1)
+            self.port = int(self.port)
+
+        if '@' in self.host:
+            self.id, self.host = self.host.split('@', 1)
+
+# Build a translation table that includes only characters
+transt=buildGoodSet()
 
 def abbrev(v, maxlen=30):
     if len(v) > maxlen:
@@ -82,12 +106,15 @@ def abbrev(v, maxlen=30):
     else:
         return v
 
+def keyprint(v):
+    return string.translate(abbrev(v), transt)
+
 if __name__ == '__main__':
-    connections = (a.split(':') for a in sys.argv[1:])
+    connections = (TapDescriptor(a) for a in sys.argv[1:])
     def cb(identifier, cmd, extra, key, val, cas):
         print "%s: ``%s'' -> ``%s'' (%d bytes from %s)" % (
             memcacheConstants.COMMAND_NAMES[cmd],
-            key, abbrev(val), len(val), identifier)
+            key, keyprint(val), len(val), identifier)
 
     # This is an example opts parameter to do future-only tap:
     opts = {memcacheConstants.TAP_FLAG_BACKFILL: 0xffffffff}
@@ -95,5 +122,5 @@ if __name__ == '__main__':
     # will get all data.
     opts = {}
 
-    TapClient(((h, int(p)) for (h,p) in connections), cb, opts=opts)
+    TapClient(connections, cb, opts=opts)
     asyncore.loop()

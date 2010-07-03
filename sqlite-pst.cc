@@ -5,6 +5,7 @@
 #include <cstdlib>
 #include <stdexcept>
 #include <iostream>
+#include <sstream>
 #include <assert.h>
 
 #include "sqlite-pst.hh"
@@ -63,11 +64,8 @@ int PreparedStatement::execute() {
 bool PreparedStatement::fetch() {
     bool rv = true;
     assert(st);
-    int x = sqlite3_step(st);
-    switch(x) {
-    case SQLITE_BUSY:
-        throw std::runtime_error("DB was busy.");
-        break;
+    int rc = sqlite3_step(st);
+    switch(rc) {
     case SQLITE_ROW:
         break;
     case SQLITE_DONE:
@@ -75,7 +73,11 @@ bool PreparedStatement::fetch() {
         break;
     default:
         std::stringstream ss;
-        ss << "Unhandled fetch case.  step returned " << x;
+        ss << "Unhandled case in sqlite-pst:  " << rc;
+        const char *msg = sqlite3_errmsg(db);
+        if (msg) {
+            ss << " (" << msg << ")";
+        }
         throw std::runtime_error(ss.str());
     }
     return rv;

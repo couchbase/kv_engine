@@ -12,7 +12,65 @@
 #include "locks.hh"
 #include "atomic.hh"
 
-typedef shared_ptr<const std::string> value_t;
+class Blob {
+public:
+
+    // Constructors.
+
+    static Blob* New(const char *start, const size_t len) {
+        size_t total_len = len + sizeof(Blob);
+        Blob *t = new (::operator new(total_len)) Blob(start, len);
+        assert(t->length() == len);
+        return t;
+    }
+
+    static Blob* New(const std::string& s) {
+        return New(s.data(), s.length());
+    }
+
+    static Blob* New(const size_t len, const char c) {
+        size_t total_len = len + sizeof(Blob);
+        Blob *t = new (::operator new(total_len)) Blob(c, len);
+        assert(t->length() == len);
+        return t;
+    }
+
+    // Actual accessorish things.
+
+    const char* getData() const {
+        return data;
+    }
+
+    size_t length() const {
+        return size;
+    }
+
+    const std::string to_s() const {
+        return std::string(data, size);
+    }
+
+    // This is necessary for making C++ happy when I'm doing a
+    // placement new on fairly "normal" c++ heap allocations, just
+    // with variable-sized objects.
+    void operator delete(void* p) { ::operator delete(p); }
+
+private:
+
+    explicit Blob(const char *start, const size_t len) : size(static_cast<uint32_t>(len)) {
+        std::memcpy(data, start, len);
+    }
+
+    explicit Blob(const char c, const size_t len) : size(static_cast<uint32_t>(len)) {
+        std::memset(data, c, len);
+    }
+
+    const uint32_t size;
+    char data[1];
+
+    DISALLOW_COPY_AND_ASSIGN(Blob);
+};
+
+typedef shared_ptr<const Blob> value_t;
 
 /**
  * The Item structure we use to pass information between the memcached
@@ -62,7 +120,7 @@ public:
     ~Item() {}
 
     const char *getData() const {
-        return value->c_str();
+        return value->getData();
     }
 
     value_t getValue() const {
@@ -112,14 +170,10 @@ public:
      * @return true if success
      */
     bool append(const Item &item) {
-        std::string *newValue = new std::string(*value, 0, value->length() - 2);
-        if (newValue != NULL) {
-            newValue->append(*item.getValue());
-            value.reset(newValue);
-            return true;
-        } else {
-            return false;
-        }
+        std::string newValue(value->getData(), 0, value->length() - 2);
+        newValue.append(item.getValue()->to_s());
+        value.reset(Blob::New(newValue));
+        return true;
     }
 
     /**
@@ -129,14 +183,10 @@ public:
      * @return true if success
      */
     bool prepend(const Item &item) {
-        std::string *newValue = new std::string(*item.getValue(), 0, item.getNBytes() - 2);
-        if (newValue != NULL) {
-            newValue->append(*value);
-            value.reset(newValue);
-            return true;
-        } else {
-            return false;
-        }
+        std::string newValue(item.getValue()->to_s(), 0, item.getNBytes() - 2);
+        newValue.append(value->to_s());
+        value.reset(Blob::New(newValue));
+        return true;
     }
 
     uint16_t getVBucketId(void) const {
@@ -153,11 +203,11 @@ private:
      * make it private.
      */
     void setData(const char *dta, const size_t nb) {
-        std::string *data;
+        Blob *data;
         if (dta == NULL) {
-            data = new std::string(nb, '\0');
+            data = Blob::New(nb, '\0');
         } else {
-            data = new std::string(dta, nb);
+            data = Blob::New(dta, nb);
         }
 
         assert(data);
