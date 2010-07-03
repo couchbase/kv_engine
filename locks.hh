@@ -10,6 +10,12 @@
 #include "mutex.hh"
 #include "syncobject.hh"
 
+/**
+ * RAII lock holder to guarantee release of the lock.
+ *
+ * It is a very bad idea to unlock a lock held by a LockHolder without
+ * using the LockHolder::unlock method.
+ */
 class LockHolder {
 public:
     /**
@@ -26,11 +32,17 @@ public:
         unlock();
     }
 
+    /**
+     * Relock a lock that was manually unlocked.
+     */
     void lock() {
         mutex.acquire();
         locked = true;
     }
 
+    /**
+     * Manually unlock a lock.
+     */
     void unlock() {
         if (locked) {
             locked = false;
@@ -45,9 +57,18 @@ private:
     DISALLOW_COPY_AND_ASSIGN(LockHolder);
 };
 
+/**
+ * RAII lock holder over multiple locks.
+ */
 class MultiLockHolder {
 public:
 
+    /**
+     * Acquire a series of locks.
+     *
+     * @param m beginning of an array of locks
+     * @param n the number of locks to lock
+     */
     MultiLockHolder(Mutex *m, size_t n) : mutexes(m),
                                           locked(NULL),
                                           n_locks(n) {
@@ -60,6 +81,9 @@ public:
         delete[] locked;
     }
 
+    /**
+     * Relock the series after having manually unlocked it.
+     */
     void lock() {
         for (size_t i = 0; i < n_locks; i++) {
             mutexes[i].acquire();
@@ -67,6 +91,9 @@ public:
         }
     }
 
+    /**
+     * Manually unlock the series.
+     */
     void unlock() {
         for (size_t i = 0; i < n_locks; i++) {
             if (locked[i]) {
