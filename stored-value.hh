@@ -507,17 +507,31 @@ private:
 };
 
 /**
- * Hash table that stores all of the items in memory.
+ * Types of stored values.
  */
 enum stored_value_type {
-    small, featured
+    small,                      //!< Small (minimally featured) stored values.
+    featured                    //!< Full featured stored values.
 };
 
+/**
+ * Creator of StoredValue instances.
+ */
 class StoredValueFactory {
 public:
 
+    /**
+     * Create a new StoredValueFactory of the given type.
+     */
     StoredValueFactory(enum stored_value_type t = featured) : type(t) {}
 
+    /**
+     * Create a new StoredValue with the given item.
+     *
+     * @param itm the item the StoredValue should contain
+     * @param n the the top of the hash bucket into which this will be inserted
+     * @param setDirty if true, mark this item as dirty after creating it
+     */
     StoredValue *operator ()(const Item &itm, StoredValue *n,
                              bool setDirty = true) {
         switch(type) {
