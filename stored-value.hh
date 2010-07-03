@@ -405,11 +405,21 @@ private:
     DISALLOW_COPY_AND_ASSIGN(StoredValue);
 };
 
+/**
+ * Mutation types as returned by store commands.
+ */
 typedef enum {
-    INVALID_VBUCKET, NOT_FOUND, INVALID_CAS,
-    WAS_CLEAN, WAS_DIRTY,
-    IS_LOCKED, NOMEM,
-    SUCCESS
+    /**
+     * Storage was attempted on a vbucket not managed by this node.
+     */
+    INVALID_VBUCKET,
+    NOT_FOUND,                  //!< The item was not found for update
+    INVALID_CAS,                //!< The wrong CAS identifier was sent for a CAS update
+    WAS_CLEAN,                  //!< The item was clean before this mutation
+    WAS_DIRTY,                  //!< This item was already dirty before this mutation
+    IS_LOCKED,                  //!< The item is locked and can't be updated.
+    NOMEM,                      //!< Insufficient memory to store this item.
+    SUCCESS                     //!< Stoarage was successful (see also WAS_CLEAN/WAS_DIRTY)
 } mutation_type_t;
 
 /**
