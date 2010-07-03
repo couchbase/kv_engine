@@ -22,26 +22,38 @@ class StoredValueFactory;
 // This is figured out dynamically and stored in one bit in
 // StoredValue so it can figure it out at runtime.
 
+/**
+ * StoredValue "small" data storage.
+ */
 struct small_data {
-    uint8_t      keylen;
-    char         keybytes[1];
+    uint8_t keylen;             //!< Length of the key.
+    char    keybytes[1];        //!< The key itself.
 };
 
+/**
+ * StoredValue "featured" data type.
+ */
 struct feature_data {
-    uint64_t     cas;
-    uint32_t     flags;
-    rel_time_t   exptime;
-    rel_time_t   lock_expiry;
-    bool         locked;
-    uint8_t      keylen;
-    char         keybytes[1];
+    uint64_t   cas;             //!< CAS identifier.
+    uint32_t   flags;           //!< Client-specified flags.
+    rel_time_t exptime;         //!< Expiration time of this item.
+    rel_time_t lock_expiry;     //!< getl lock expiration
+    bool       locked;          //!< True if this item is locked
+    uint8_t    keylen;          //!< Length of the key
+    char       keybytes[1];     //!< The key itself.
 };
 
+/**
+ * Union of StoredValue data.
+ */
 union stored_value_bodies {
-    struct small_data   small;
-    struct feature_data feature;
+    struct small_data   small;  //!< The small type.
+    struct feature_data feature; //!< The featured type.
 };
 
+/**
+ * In-memory storage for an item.
+ */
 class StoredValue {
 public:
 
@@ -53,16 +65,33 @@ public:
         reduceCurrentSize(size());
     }
 
+    /**
+     * Mark this item as needing to be persisted.
+     */
     void markDirty() {
         reDirty(ep_current_time());
     }
 
+    /**
+     * Mark this item as dirty as of a certain time.
+     *
+     * This method is primarily used to mark an item as dirty again
+     * after a storage failure.
+     *
+     * @param dataAge the previous dataAge of this record
+     */
     void reDirty(rel_time_t dataAge) {
         dirtiness = dataAge >> 2;
         _isDirty = 1;
     }
 
     // returns time this object was dirtied.
+    /**
+     * Mark this item as clean.
+     *
+     * @param dataAge an output parameter that captures the time this
+     *                item was marked dirty
+     */
     void markClean(rel_time_t *dataAge) {
         if (dataAge) {
             *dataAge = dirtiness << 2;
@@ -70,14 +99,23 @@ public:
         _isDirty = 0;
     }
 
+    /**
+     * True if this object is dirty.
+     */
     bool isDirty() const {
         return _isDirty;
     }
 
+    /**
+     * True if this object is not dirty.
+     */
     bool isClean() const {
         return !isDirty();
     }
 
+    /**
+     * Get the pointer to the beginning of the key.
+     */
     const char* getKeyBytes() const {
         if (_isSmall) {
             return extra.small.keybytes;
@@ -86,6 +124,9 @@ public:
         }
     }
 
+    /**
+     * Get the length of the key.
+     */
     uint8_t getKeyLen() const {
         if (_isSmall) {
             return extra.small.keylen;
@@ -94,19 +135,36 @@ public:
         }
     }
 
+    /**
+     * True of this item is for the given key.
+     *
+     * @param the key we're checking
+     * @return true if this item's key is equal to k
+     */
     bool hasKey(const std::string &k) const {
         return k.length() == getKeyLen()
             && (std::memcmp(k.data(), getKeyBytes(), getKeyLen()) == 0);
     }
 
+    /**
+     * Get this item's key.
+     */
     const std::string getKey() const {
         return std::string(getKeyBytes(), getKeyLen());
     }
 
+    /**
+     * Get this item's value.
+     */
     value_t getValue() const {
         return value;
     }
 
+    /**
+     * Get the expiration time of this item.
+     *
+     * @return the expiration time for feature items, 0 for small items
+     */
     rel_time_t getExptime() const {
         if (_isSmall) {
             return 0;
@@ -115,6 +173,11 @@ public:
         }
     }
 
+    /**
+     * Get the client-defined flags of this item.
+     *
+     * @return the flags for feature items, 0 for small items
+     */
     uint32_t getFlags() const {
         if (_isSmall) {
             return 0;
@@ -123,6 +186,14 @@ public:
         }
     }
 
+    /**
+     * Set a new value for this item.
+     *
+     * @param v the new value
+     * @param newFlags the new client-defined flags
+     * @param newExp the new expiration
+     * @param theCas thenew CAS identifier
+     */
     void setValue(value_t v,
                   uint32_t newFlags, rel_time_t newExp, uint64_t theCas) {
         reduceCurrentSize(size());
@@ -136,6 +207,11 @@ public:
         increaseCurrentSize(size());
     }
 
+    /**
+     * Get this item's CAS identifier.
+     *
+     * @return the cas ID for feature items, 0 for small items
+     */
     uint64_t getCas() const {
         if (_isSmall) {
             return 0;
@@ -144,16 +220,32 @@ public:
         }
     }
 
+    /**
+     * Get the time of dirtiness of this item.
+     *
+     * Note that the clock loses four bits of resolution, so the
+     * timestamp only has four seconds of accuracy.
+     */
     rel_time_t getDataAge() const {
         return dirtiness << 2;
     }
 
+    /**
+     * Set a new CAS ID.
+     *
+     * This is a NOOP for small item types.
+     */
     void setCas(uint64_t c) {
         if (!_isSmall) {
             extra.feature.cas = c;
         }
     }
 
+    /**
+     * Lock this item until the given time.
+     *
+     * This is a NOOP for small item types.
+     */
     void lock(rel_time_t expiry) {
         if (!_isSmall) {
             extra.feature.locked = true;
@@ -161,6 +253,9 @@ public:
         }
     }
 
+    /**
+     * Unlock this item.
+     */
     void unlock() {
         if (!_isSmall) {
             extra.feature.locked = false;
@@ -168,23 +263,51 @@ public:
         }
     }
 
+    /**
+     * True if this item has an ID.
+     *
+     * An item always has an ID after it's been persisted.
+     */
     bool hasId() {
         return id > 0;
     }
 
+    /**
+     * Get this item's ID.
+     *
+     * @return the ID for the item; 0 if the item has no ID
+     */
     int64_t getId() {
         return id;
     }
 
+    /**
+     * Set the ID for this item.
+     *
+     * This is used by the persistene layer.
+     *
+     * It is an error to set an ID on an item that already has one.
+     */
     void setId(int64_t to) {
         assert(!hasId());
         id = to;
     }
 
+    /**
+     * Get the total size of this item.
+     *
+     * @return the amount of memory used by this item.
+     */
     size_t size() {
         return sizeOf(_isSmall) + getKeyLen() + value->length();
     }
 
+    /**
+     * Return true if this item is locked as of the given timestamp.
+     *
+     * @param curtime lock expiration marker (usually the current time)
+     * @return true if the item is locked
+     */
     bool isLocked(rel_time_t curtime) {
         if (_isSmall) {
             return false;
@@ -214,8 +337,22 @@ public:
         return base + (small ? sizeof(struct small_data) : sizeof(struct feature_data));
     }
 
+    /**
+     * Set the maximum amount of data this instance can store.
+     *
+     * While there's other overhead, this only takes into
+     * consideration the sum of StoredValue::size() values.
+     */
     static void setMaxDataSize(size_t);
+
+    /**
+     * Get the maximum amount of memory this instance can store.
+     */
     static size_t getMaxDataSize();
+
+    /**
+     * Get the current amount of of data stored.
+     */
     static size_t getCurrentSize();
 
 private:
