@@ -425,6 +425,12 @@ public:
      * @param v a pointer to a value in the hash table
      */
     virtual void visit(StoredValue *v) = 0;
+    /**
+     * True if the visiting should continue.
+     *
+     * This is called periodically to ensure the visitor still wants
+     * to visit items.
+     */
     virtual bool shouldContinue() { return true; }
 };
 
