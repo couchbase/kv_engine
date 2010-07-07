@@ -27,5 +27,6 @@ if __name__ == '__main__':
     c.addCommand('stop', stop)
     c.addCommand('start', 'start_persistence')
     c.addCommand('set', 'set_flush_param', 'set param value')
+    c.addCommand('evict', 'evict_key', "evict key")
 
     c.execute()

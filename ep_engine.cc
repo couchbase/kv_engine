@@ -216,6 +216,34 @@ extern "C" {
         return rv;
     }
 
+    static protocol_binary_response_status evictKey(EventuallyPersistentEngine *e,
+                                                    protocol_binary_request_header *request,
+                                                    const char **msg) {
+        protocol_binary_request_no_extras *req =
+            (protocol_binary_request_no_extras*)request;
+
+        char keyz[256];
+
+        // Read the key.
+        int keylen = ntohs(req->message.header.request.keylen);
+        if (keylen >= (int)sizeof(keyz)) {
+            *msg = "Key is too large.";
+            return PROTOCOL_BINARY_RESPONSE_EINVAL;
+        }
+        memcpy(keyz, ((char*)request) + sizeof(req->message.header), keylen);
+        keyz[keylen] = 0x00;
+
+        uint16_t vbucket = ntohs(request->request.vbucket);
+
+        std::string key(keyz, keylen);
+
+        getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                         "Manually evicting object with key %s\n",
+                         keyz);
+
+        return e->evictKey(key, vbucket, msg);
+    }
+
     static protocol_binary_response_status setParam(EventuallyPersistentEngine *e,
                                                     protocol_binary_request_header *request,
                                                     const char **msg) {
@@ -454,6 +482,9 @@ extern "C" {
             break;
         case CMD_SET_VBUCKET:
             res = setVbucket(h, request, &msg);
+            break;
+        case CMD_EVICT_KEY:
+            res = evictKey(h, request, &msg);
             break;
         default:
             /* unknown command */

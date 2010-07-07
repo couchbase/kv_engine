@@ -169,6 +169,10 @@ public:
         assert(false);
     }
 
+    protocol_binary_response_status evictKey(const std::string &key,
+                                             uint16_t vbucket,
+                                             const char **msg);
+
     ENGINE_ERROR_CODE del(const std::string &key, uint16_t vbucket,
                           const void *cookie);
 

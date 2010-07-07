@@ -182,6 +182,35 @@ RCPtr<VBucket> EventuallyPersistentStore::getVBucket(uint16_t vbid,
     }
 }
 
+protocol_binary_response_status EventuallyPersistentStore::evictKey(const std::string &key,
+                                                                    uint16_t vbucket,
+                                                                    const char **msg) {
+    RCPtr<VBucket> vb = getVBucket(vbucket);
+    if (!(vb && vb->getState() == active)) {
+        return PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET;
+    }
+
+    int bucket_num = vb->ht.bucket(key);
+    LockHolder lh(vb->ht.getMutex(bucket_num));
+    StoredValue *v = vb->ht.unlocked_find(key, bucket_num);
+
+    protocol_binary_response_status rv(PROTOCOL_BINARY_RESPONSE_SUCCESS);
+
+    if (v) {
+        if (v->isResident()) {
+            v->ejectValue();
+            *msg = "Ejected.";
+        } else {
+            *msg = "Already ejected.";
+        }
+    } else {
+        *msg = "Not found.";
+        rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
+    }
+
+    return rv;
+}
+
 ENGINE_ERROR_CODE EventuallyPersistentStore::set(const Item &item,
                                                  const void *cookie,
                                                  bool force) {

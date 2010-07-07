@@ -11,5 +11,6 @@
 #define CMD_START_REPLICATION 0x90
 #define CMD_STOP_REPLICATION  0x91
 #define CMD_SET_TAP_PARAM     0x92
+#define CMD_EVICT_KEY         0x93
 
 #endif /* COMMAND_IDS_H */
