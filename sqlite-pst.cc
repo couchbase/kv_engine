@@ -124,7 +124,7 @@ void Statements::initStatements() {
     upd_stmt = new PreparedStatement(db, buf);
 
     snprintf(buf, sizeof(buf),
-             "select v, flags, exptime, cas "
+             "select v, flags, exptime, cas, rowid "
              "from %s where rowid = ?", tableName.c_str());
     sel_stmt = new PreparedStatement(db, buf);
 

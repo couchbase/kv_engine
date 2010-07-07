@@ -69,12 +69,10 @@ void StrategicSqlite3::set(const Item &itm, Callback<std::pair<bool, int64_t> > 
     }
 }
 
-void StrategicSqlite3::get(const std::string &key, uint16_t vbucket,
-                           Callback<GetValue> &cb) {
-    (void)vbucket;
+void StrategicSqlite3::get(const std::string &key,
+                           uint64_t rowid, Callback<GetValue> &cb) {
     PreparedStatement *sel_stmt = strategy->forKey(key)->sel();
-    sel_stmt->bind(1, key.c_str());
-    sel_stmt->bind(2, vbucket);
+    sel_stmt->bind64(1, rowid);
 
     if(sel_stmt->fetch()) {
         GetValue rv(new Item(key.c_str(),
@@ -83,7 +81,7 @@ void StrategicSqlite3::get(const std::string &key, uint16_t vbucket,
                              sel_stmt->column_int(2),
                              sel_stmt->column_blob(0),
                              sel_stmt->column_bytes(0),
-                             vbucket));
+                             static_cast<uint16_t>(sel_stmt->column_int(4))));
         cb.callback(rv);
     } else {
         GetValue rv;

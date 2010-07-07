@@ -75,8 +75,7 @@ public:
     /**
      * Overrides get().
      */
-    void get(const std::string &key, uint16_t vbucket,
-             Callback<GetValue> &cb);
+    void get(const std::string &key, uint64_t rowid, Callback<GetValue> &cb);
 
     /**
      * Overrides del().
