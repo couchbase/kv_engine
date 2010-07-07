@@ -161,7 +161,13 @@ public:
                  const void *cookie);
 
     void getFromUnderlying(const std::string &key, uint16_t vbucket,
-                           shared_ptr<Callback<GetValue> > cb);
+                           shared_ptr<Callback<GetValue> > cb) {
+        // TODO:  Get this implemented and try it some time.
+        (void)key;
+        (void)vbucket;
+        (void)cb;
+        assert(false);
+    }
 
     ENGINE_ERROR_CODE del(const std::string &key, uint16_t vbucket,
                           const void *cookie);

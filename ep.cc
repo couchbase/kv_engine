@@ -35,24 +35,6 @@ extern "C" {
     rel_time_t (*ep_current_time)() = uninitialized_current_time;
 }
 
-class GetCallback : public DispatcherCallback {
-public:
-    GetCallback(StrategicSqlite3 *kvs, const std::string &k,
-                uint16_t vbid, shared_ptr<Callback<GetValue> > cb) :
-        store(kvs), key(k), vbucket(vbid), _callback(cb) {}
-
-    bool callback(Dispatcher &d, TaskId t) {
-        (void)d; (void)t;
-        store->get(key, vbucket, *_callback);
-        return false;
-    }
-
-private:
-    StrategicSqlite3 *store;
-    std::string key;
-    uint16_t vbucket;
-    shared_ptr<Callback<GetValue> > _callback;
-};
 
 class SetVBStateCallback : public DispatcherCallback {
 public:
@@ -327,14 +309,6 @@ bool EventuallyPersistentStore::getLocked(const std::string &key,
     }
     lh.unlock();
     return true;
-}
-
-void EventuallyPersistentStore::getFromUnderlying(const std::string &key,
-                                                  uint16_t vbucket,
-                                                  shared_ptr<Callback<GetValue> > cb) {
-
-    shared_ptr<GetCallback> dcb(new GetCallback(underlying, key, vbucket, cb));
-    dispatcher->schedule(dcb, NULL, -1);
 }
 
 bool EventuallyPersistentStore::getKeyStats(const std::string &key,
