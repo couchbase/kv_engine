@@ -237,14 +237,14 @@ GetValue EventuallyPersistentStore::get(const std::string &key,
                                         const void *cookie) {
     RCPtr<VBucket> vb = getVBucket(vbucket);
     if (!vb || vb->getState() == dead) {
-        return GetValue(ENGINE_NOT_MY_VBUCKET);
+        return GetValue(NULL, ENGINE_NOT_MY_VBUCKET);
     } else if (vb->getState() == active) {
         // OK
     } else if(vb->getState() == replica) {
-        return GetValue(ENGINE_NOT_MY_VBUCKET);
+        return GetValue(NULL, ENGINE_NOT_MY_VBUCKET);
     } else if(vb->getState() == pending) {
         if (vb->addPendingOp(cookie)) {
-            return GetValue(ENGINE_EWOULDBLOCK);
+            return GetValue(NULL, ENGINE_EWOULDBLOCK);
         }
     }
 
@@ -273,7 +273,7 @@ bool EventuallyPersistentStore::getLocked(const std::string &key,
                                           uint32_t lockTimeout) {
     RCPtr<VBucket> vb = getVBucket(vbucket, active);
     if (!vb) {
-        GetValue rv(ENGINE_NOT_MY_VBUCKET);
+        GetValue rv(NULL, ENGINE_NOT_MY_VBUCKET);
         cb.callback(rv);
         return false;
     }

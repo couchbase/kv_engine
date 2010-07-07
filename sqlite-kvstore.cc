@@ -86,7 +86,7 @@ void StrategicSqlite3::get(const std::string &key, uint16_t vbucket,
                              vbucket));
         cb.callback(rv);
     } else {
-        GetValue rv(false);
+        GetValue rv;
         cb.callback(rv);
     }
     sel_stmt->reset();

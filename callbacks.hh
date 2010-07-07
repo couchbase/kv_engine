@@ -15,8 +15,8 @@ class GetValue {
 public:
     GetValue() : value(NULL), status(ENGINE_KEY_ENOENT) { }
 
-    GetValue(ENGINE_ERROR_CODE s) : value(NULL), status(s) { }
-    GetValue(Item *v) : value(v), status(ENGINE_SUCCESS) { }
+    explicit GetValue(Item *v, ENGINE_ERROR_CODE s=ENGINE_SUCCESS) :
+        value(v), status(s) { }
 
     /**
      * The value retrieved for the key.
