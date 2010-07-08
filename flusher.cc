@@ -160,7 +160,7 @@ bool Flusher::step(Dispatcher &d, TaskId tid) {
                                  ss.str().c_str());
             }
             store->stats.min_data_age = 0;
-            doFlush();
+            completeFlush();
             getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "Flusher stopped\n");
             transition_state(stopped);
             return false;
@@ -180,30 +180,48 @@ bool Flusher::step(Dispatcher &d, TaskId tid) {
     }
 }
 
-int Flusher::doFlush() {
-    int rv(store->stats.min_data_age);
-    std::queue<QueuedItem> *q = store->beginFlush();
-    if (q) {
-        getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                         "Flushing a write queue.\n");
-        std::queue<QueuedItem> *rejectQueue = new std::queue<QueuedItem>();
-        rel_time_t flush_start = ep_current_time();
+void Flusher::completeFlush() {
+    doFlush();
+    while (flushQueue) {
+        doFlush();
+    }
+}
 
-        while (!q->empty()) {
-            int n = store->flushSome(q, rejectQueue);
+int Flusher::doFlush() {
+
+    // On a fresh entry, flushQueue is null and we need to build one.
+    if (!flushQueue) {
+        flushRv = store->stats.min_data_age;
+        flushQueue = store->beginFlush();
+        if (flushQueue) {
+            getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                             "Beginning a write queue flush.\n");
+            rejectQueue = new std::queue<QueuedItem>();
+            flushStart = ep_current_time();
+        }
+    }
+
+    // Now do the every pass thing.
+    if (flushQueue) {
+        if (!flushQueue->empty()) {
+            int n = store->flushSome(flushQueue, rejectQueue);
             if (_state == pausing) {
                 transition_state(paused);
             }
-            if (n < rv) {
-                rv = n;
-            }
+            flushRv = std::min(n, flushRv);
         }
-        store->completeFlush(rejectQueue, flush_start);
-        getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                         "Completed a flush, age of oldest item was %ds\n",
-                         rv);
 
-        delete rejectQueue;
+        if (flushQueue->empty()) {
+            store->completeFlush(rejectQueue, flushStart);
+            getLogger()->log(EXTENSION_LOG_INFO, NULL,
+                             "Completed a flush, age of oldest item was %ds\n",
+                             flushRv);
+
+            delete rejectQueue;
+            rejectQueue = NULL;
+            flushQueue = NULL;
+        }
     }
-    return rv;
+
+    return flushRv;
 }
