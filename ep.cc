@@ -291,6 +291,8 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
                                                 uint64_t rowid,
                                                 const void *cookie,
                                                 SERVER_CORE_API *core) {
+    --bgFetchQueue;
+
     // Go find the data
     RememberingCallback<GetValue> gcb;
     getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
@@ -327,6 +329,11 @@ void EventuallyPersistentStore::bgFetch(const std::string &key,
                                         SERVER_CORE_API *core) {
     shared_ptr<BGFetchCallback> dcb(new BGFetchCallback(this, core, key,
                                                         vbucket, rowid, cookie));
+    ++bgFetchQueue;
+    assert(bgFetchQueue > 0);
+    getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                     "Queued a background fetch, now at %zd\n",
+                     bgFetchQueue.get());
     dispatcher->schedule(dcb, NULL, -1, bgFetchDelay);
 }
 
@@ -537,7 +544,7 @@ int EventuallyPersistentStore::flushSome(std::queue<QueuedItem> *q,
     int tsz = getTxnSize();
     underlying->begin();
     int oldest = stats.min_data_age;
-    for (int i = 0; i < tsz && !q->empty(); i++) {
+    for (int i = 0; i < tsz && !q->empty() && bgFetchQueue == 0; i++) {
         int n = flushOne(q, rejectQueue);
         if (n != 0 && n < oldest) {
             oldest = n;

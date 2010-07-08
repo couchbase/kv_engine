@@ -342,6 +342,7 @@ private:
     EPStats                    stats;
     LoadStorageKVPairCallback  loadStorageKVPairCallback;
     Atomic<int>                txnSize;
+    Atomic<size_t>             bgFetchQueue;
     Mutex                      vbsetMutex;
     uint32_t                   bgFetchDelay;
 
