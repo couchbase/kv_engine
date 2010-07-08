@@ -135,7 +135,7 @@ public:
                 vb.reset(new VBucket(i->getVBucketId(), pending));
                 vbuckets.addBucket(vb);
             }
-            vb->ht.add(*i, true);
+            vb->ht.add(*i, false);
             delete i;
         }
         stats.warmedUp++;
