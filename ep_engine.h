@@ -1276,6 +1276,10 @@ public:
         epstore->setTxnSize(to);
     }
 
+    void setBGFetchDelay(uint32_t to) {
+        epstore->setBGFetchDelay(to);
+    }
+
     bool startReplication() {
         LockHolder lh(tapMutex);
         tapEnabled = true;

@@ -20,9 +20,10 @@ def stop(mc):
 if __name__ == '__main__':
 
     c = clitool.CliTool("""Available params:
-    min_data_age  - minimum data age before flushing data"
-    queue_age_cap - maximum queue age before flushing data"
-    max_txn_size - maximum number of items in a flusher transaction""")
+    min_data_age   - minimum data age before flushing data"
+    queue_age_cap  - maximum queue age before flushing data"
+    max_txn_size   - maximum number of items in a flusher transaction
+    bg_fetch_delay - delay before executing a bg fetch (test feature)""")
 
     c.addCommand('stop', stop)
     c.addCommand('start', 'start_persistence')

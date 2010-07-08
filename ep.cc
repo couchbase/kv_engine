@@ -82,7 +82,7 @@ private:
 
 EventuallyPersistentStore::EventuallyPersistentStore(StrategicSqlite3 *t,
                                                      bool startVb0) :
-    loadStorageKVPairCallback(vbuckets, stats)
+    loadStorageKVPairCallback(vbuckets, stats), bgFetchDelay(0)
 {
     doPersistence = getenv("EP_NO_PERSISTENCE") == NULL;
     dispatcher = new Dispatcher();
@@ -327,7 +327,7 @@ void EventuallyPersistentStore::bgFetch(const std::string &key,
                                         SERVER_CORE_API *core) {
     shared_ptr<BGFetchCallback> dcb(new BGFetchCallback(this, core, key,
                                                         vbucket, rowid, cookie));
-    dispatcher->schedule(dcb, NULL, -1);
+    dispatcher->schedule(dcb, NULL, -1, bgFetchDelay);
 }
 
 GetValue EventuallyPersistentStore::get(const std::string &key,

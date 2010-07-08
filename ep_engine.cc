@@ -204,6 +204,9 @@ extern "C" {
             } else if (strcmp(keyz, "max_txn_size") == 0) {
                 validate(v, 1, MAX_TXN_SIZE);
                 e->setTxnSize(v);
+            } else if (strcmp(keyz, "bg_fetch_delay") == 0) {
+                validate(v, 0, MAX_BG_FETCH_DELAY);
+                e->setBGFetchDelay(static_cast<uint32_t>(v));
             } else {
                 *msg = "Unknown config param";
                 rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;

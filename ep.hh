@@ -47,6 +47,7 @@ extern EXTENSION_LOGGER_DESCRIPTOR *getLogger(void);
 #define MAX_TXN_SIZE 10000000
 
 #define MAX_DATA_AGE_PARAM 86400
+#define MAX_BG_FETCH_DELAY 900
 
 extern "C" {
     extern rel_time_t (*ep_current_time)();
@@ -181,6 +182,20 @@ public:
     EPStats& getStats() { return stats; }
 
     void setMinDataAge(int to);
+
+    /**
+     * Set the background fetch delay.
+     *
+     * This exists for debugging and testing purposes.  It
+     * artificially injects delays into background fetches that are
+     * performed when the user requests an item whose value is not
+     * currently resident.
+     *
+     * @param to how long to delay before performing a bg fetch
+     */
+    void setBGFetchDelay(uint32_t to) {
+        bgFetchDelay = to;
+    }
 
     void setQueueAgeCap(int to);
 
@@ -328,6 +343,8 @@ private:
     LoadStorageKVPairCallback  loadStorageKVPairCallback;
     Atomic<int>                txnSize;
     Mutex                      vbsetMutex;
+    uint32_t                   bgFetchDelay;
+
     DISALLOW_COPY_AND_ASSIGN(EventuallyPersistentStore);
 };
 
