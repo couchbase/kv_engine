@@ -38,7 +38,8 @@ struct feature_data {
     uint32_t   flags;           //!< Client-specified flags.
     rel_time_t exptime;         //!< Expiration time of this item.
     rel_time_t lock_expiry;     //!< getl lock expiration
-    bool       locked;          //!< True if this item is locked
+    bool       locked : 1;      //!< True if this item is locked
+    bool       resident : 1;    //!< True if this object's value is in memory.
     uint8_t    keylen;          //!< Length of the key
     char       keybytes[1];     //!< The key itself.
 };
@@ -49,6 +50,14 @@ struct feature_data {
 union stored_value_bodies {
     struct small_data   small;  //!< The small type.
     struct feature_data feature; //!< The featured type.
+};
+
+/**
+ * Contents stored when swapped out.
+ */
+union blobval {
+    uint32_t len;               //!< The length as an integer.
+    char     chlen[4];          //!< The length as a four byte integer
 };
 
 /**
@@ -207,6 +216,36 @@ public:
         increaseCurrentSize(size());
     }
 
+    size_t valLength() {
+        if (isResident()) {
+            return value->length();
+        } else {
+            blobval uval;
+            assert(value->length() == sizeof(uval));
+            std::memcpy(uval.chlen, value->getData(), sizeof(uval));
+            return static_cast<size_t>(uval.len);
+        }
+    }
+
+    void ejectValue() {
+        if (isResident() && isClean() && !_isSmall) {
+            blobval uval;
+            uval.len = valLength();
+            shared_ptr<Blob> sp(Blob::New(uval.chlen, sizeof(uval)));
+            extra.feature.resident = false;
+            value = sp;
+        }
+    }
+
+    void restoreValue(value_t v) {
+        if (!isResident()) {
+            assert(v);
+            assert(v->length() == valLength());
+            extra.feature.resident = true;
+            value = v;
+        }
+    }
+
     /**
      * Get this item's CAS identifier.
      *
@@ -321,6 +360,17 @@ public:
     }
 
     /**
+     * True if this value is resident in memory currently.
+     */
+    bool isResident() {
+        if (_isSmall) {
+            return true;
+        } else {
+            return extra.feature.resident;
+        }
+    }
+
+    /**
      * Get the size of a StoredValue object.
      *
      * This method exists because the size of a StoredValue as used
@@ -370,6 +420,7 @@ private:
             extra.feature.flags = itm.getFlags();
             extra.feature.exptime = itm.getExptime();
             extra.feature.locked = false;
+            extra.feature.resident = true;
             extra.feature.lock_expiry = 0;
             extra.feature.keylen = itm.getKey().length();
         }

@@ -684,7 +684,7 @@ public:
     {
         std::string k(static_cast<const char*>(key), nkey);
 
-        GetValue gv(epstore->get(k, vbucket, cookie));
+        GetValue gv(epstore->get(k, vbucket, cookie, serverApi->core));
 
         if (gv.getStatus() == ENGINE_SUCCESS) {
             *item = gv.getValue();
@@ -1833,8 +1833,8 @@ private:
                     if (kstats.dirty) {
                         valid.assign("dirty");
                     } else {
-                        // TODO:  Need a proper vbucket ID here.
-                        GetValue gv(epstore->get(key, 0, cookie));
+                        // TODO:  Need a proper vbucket ID here -- and server API
+                        GetValue gv(epstore->get(key, 0, cookie, NULL));
                         if (gv.getStatus() == ENGINE_SUCCESS) {
                             shared_ptr<Item> item(gv.getValue());
                             if (diskItem.get()) {

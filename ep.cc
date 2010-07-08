@@ -35,6 +35,31 @@ extern "C" {
     rel_time_t (*ep_current_time)() = uninitialized_current_time;
 }
 
+class BGFetchCallback : public DispatcherCallback {
+public:
+    BGFetchCallback(EventuallyPersistentStore *e, SERVER_CORE_API *capi,
+                    const std::string &k, uint16_t vbid, uint64_t r,
+                    const void *c) :
+        ep(e), core(capi), key(k), vbucket(vbid), rowid(r), cookie(c) {
+        assert(ep);
+        assert(core);
+        assert(cookie);
+    }
+
+    bool callback(Dispatcher &d, TaskId t) {
+        (void)d; (void)t;
+        ep->completeBGFetch(key, vbucket, rowid, cookie, core);
+        return false;
+    }
+
+private:
+    EventuallyPersistentStore *ep;
+    SERVER_CORE_API           *core;
+    std::string                key;
+    uint16_t                   vbucket;
+    uint64_t                   rowid;
+    const void                *cookie;
+};
 
 class SetVBStateCallback : public DispatcherCallback {
 public:
@@ -232,9 +257,54 @@ bool EventuallyPersistentStore::deleteVBucket(uint16_t vbid) {
     return rv;
 }
 
+void EventuallyPersistentStore::completeBGFetch(const std::string &key,
+                                                uint16_t vbucket,
+                                                uint64_t rowid,
+                                                const void *cookie,
+                                                SERVER_CORE_API *core) {
+    // Go find the data
+    RememberingCallback<GetValue> gcb;
+    getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                     "Fetching `%s' in the background\n", key.c_str());
+
+    underlying->get(key, rowid, gcb);
+    gcb.waitForValue();
+    assert(gcb.fired);
+
+    // Lock to prevent a race condition between a fetch for restore and delete
+    LockHolder lh(vbsetMutex);
+
+    RCPtr<VBucket> vb = getVBucket(vbucket);
+    if (vb && vb->getState() == active && gcb.val.getStatus() == ENGINE_SUCCESS) {
+        int bucket_num = vb->ht.bucket(key);
+        LockHolder vblh(vb->ht.getMutex(bucket_num));
+        StoredValue *v = vb->ht.unlocked_find(key, bucket_num);
+
+        if (v) {
+            v->restoreValue(gcb.val.getValue()->getValue());
+        }
+    }
+
+    lh.unlock();
+
+    core->notify_io_complete(cookie, gcb.val.getStatus());
+    delete gcb.val.getValue();
+}
+
+void EventuallyPersistentStore::bgFetch(const std::string &key,
+                                        uint16_t vbucket,
+                                        uint64_t rowid,
+                                        const void *cookie,
+                                        SERVER_CORE_API *core) {
+    shared_ptr<BGFetchCallback> dcb(new BGFetchCallback(this, core, key,
+                                                        vbucket, rowid, cookie));
+    dispatcher->schedule(dcb, NULL, -1);
+}
+
 GetValue EventuallyPersistentStore::get(const std::string &key,
                                         uint16_t vbucket,
-                                        const void *cookie) {
+                                        const void *cookie,
+                                        SERVER_CORE_API *core) {
     RCPtr<VBucket> vb = getVBucket(vbucket);
     if (!vb || vb->getState() == dead) {
         return GetValue(NULL, ENGINE_NOT_MY_VBUCKET);
@@ -253,6 +323,12 @@ GetValue EventuallyPersistentStore::get(const std::string &key,
     StoredValue *v = vb->ht.unlocked_find(key, bucket_num);
 
     if (v) {
+        // If the value is not resident, wait for it...
+        if (!v->isResident()) {
+            bgFetch(key, vbucket, v->getId(), cookie, core);
+            return GetValue(NULL, ENGINE_EWOULDBLOCK);
+        }
+
         // return an invalid cas value if the item is locked
         GetValue rv(new Item(v->getKey(), v->getFlags(), v->getExptime(),
                              v->getValue(),

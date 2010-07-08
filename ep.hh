@@ -158,7 +158,7 @@ public:
                           bool force=false);
 
     GetValue get(const std::string &key, uint16_t vbucket,
-                 const void *cookie);
+                 const void *cookie, SERVER_CORE_API *core);
 
     void getFromUnderlying(const std::string &key, uint16_t vbucket,
                            shared_ptr<Callback<GetValue> > cb) {
@@ -190,6 +190,32 @@ public:
 
     bool pauseFlusher(void);
     bool resumeFlusher(void);
+
+    /**
+     * Enqueue a background fetch for a key.
+     *
+     * @param the key to be bg fetched
+     * @param vbucket the vbucket in which the key lives
+     * @param cookie the cookie of the requestor
+     */
+    void bgFetch(const std::string &key,
+                 uint16_t vbucket,
+                 uint64_t rowid,
+                 const void *cookie,
+                 SERVER_CORE_API *core);
+
+    /**
+     * Complete a background fetch.
+     *
+     * @param key the key that was fetched
+     * @param vbucket the vbucket in which the key lived
+     * @param gv the result
+     */
+    void completeBGFetch(const std::string &key,
+                         uint16_t vbucket,
+                         uint64_t rowid,
+                         const void *cookie,
+                         SERVER_CORE_API *core);
 
     RCPtr<VBucket> getVBucket(uint16_t vbid);
     void setVBucketState(uint16_t vbid, vbucket_state_t state, SERVER_CORE_API *core);
