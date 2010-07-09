@@ -9,8 +9,8 @@
  *       http://www.apache.org/licenses/LICENSE-2.0
  *
  *   Unless required by applicable law or agreed to in writing, software
- *   distributed under the License is distributed on an "AS IS" BASIS, 
- *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  
+ *   distributed under the License is distributed on an "AS IS" BASIS,
+ *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
@@ -193,7 +193,7 @@ static enum test_result check_key_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 static enum test_result test_wrong_vb_mutation(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                                ENGINE_STORE_OPERATION op) {
     item *i = NULL;
-    check(store(h, h1, "cookie", op,
+    check(store(h, h1, NULL, op,
                 "key", "somevalue", &i, 11, 1) == ENGINE_NOT_MY_VBUCKET,
         "Expected not_my_vbucket");
     return SUCCESS;
@@ -266,7 +266,7 @@ static bool set_vbucket_state(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     snprintf(vbid, sizeof(vbid), "%d", vb);
 
     protocol_binary_request_header *pkt = create_packet(CMD_SET_VBUCKET, vbid, state);
-    if (h1->unknown_command(h, "cookie", pkt, add_response) != ENGINE_SUCCESS) {
+    if (h1->unknown_command(h, NULL, pkt, add_response) != ENGINE_SUCCESS) {
         return false;
     }
 
@@ -279,7 +279,7 @@ static bool verify_vbucket_state(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     snprintf(vbid, sizeof(vbid), "%d", vb);
 
     protocol_binary_request_header *pkt = create_packet(CMD_GET_VBUCKET, vbid, "");
-    ENGINE_ERROR_CODE errcode = h1->unknown_command(h, "cookie", pkt, add_response);
+    ENGINE_ERROR_CODE errcode = h1->unknown_command(h, NULL, pkt, add_response);
     if (errcode != ENGINE_SUCCESS) {
         fprintf(stderr, "Error code when getting vbucket %d\n", errcode);
         return false;
@@ -303,7 +303,7 @@ static bool verify_vbucket_missing(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     // state changes are async.
     for (int i = 0; i < 3; i++) {
         vals.clear();
-        check(h1->get_stats(h, "cookie", NULL, 0, add_stats) == ENGINE_SUCCESS,
+        check(h1->get_stats(h, NULL, NULL, 0, add_stats) == ENGINE_SUCCESS,
               "Failed to get stats.");
 
         if (vals.find(vbstr) == vals.end()) {
@@ -320,12 +320,15 @@ static bool verify_vbucket_missing(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 
 static enum test_result test_pending_vb_mutation(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                                  ENGINE_STORE_OPERATION op) {
+    const void *cookie = testHarness.create_cookie();
+    testHarness.set_ewouldblock_handling(cookie, false);
     item *i = NULL;
     check(set_vbucket_state(h, h1, 1, "pending"), "Failed to set vbucket state.");
     check(verify_vbucket_state(h, h1, 1, "pending"), "Bucket state was not set to pending.");
-    check(store(h, h1, "cookie", op,
+    check(store(h, h1, cookie, op,
                 "key", "somevalue", &i, 11, 1) == ENGINE_EWOULDBLOCK,
         "Expected woodblock");
+    testHarness.destroy_cookie(cookie);
     return SUCCESS;
 }
 
@@ -334,7 +337,7 @@ static enum test_result test_replica_vb_mutation(ENGINE_HANDLE *h, ENGINE_HANDLE
     item *i = NULL;
     check(set_vbucket_state(h, h1, 1, "replica"), "Failed to set vbucket state.");
     check(verify_vbucket_state(h, h1, 1, "replica"), "Bucket state was not set to replica.");
-    check(store(h, h1, "cookie", op,
+    check(store(h, h1, NULL, op,
                 "key", "somevalue", &i, 11, 1) == ENGINE_NOT_MY_VBUCKET,
         "Expected not my vbucket");
     return SUCCESS;
@@ -354,14 +357,14 @@ static enum test_result test_get_miss(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 static enum test_result test_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
     check(ENGINE_SUCCESS ==
-          store(h, h1, "cookie", OPERATION_SET, "key", "somevalue", &i),
+          store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i),
           "Error setting.");
     return SUCCESS;
 }
 
 static enum test_result test_set_get_hit(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
-    check(store(h, h1, "cookie", OPERATION_SET, "key", "somevalue", &i) == ENGINE_SUCCESS,
+    check(store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i) == ENGINE_SUCCESS,
           "store failure");
     check_key_value(h, h1, "key", "somevalue", 9);
     return SUCCESS;
@@ -373,7 +376,7 @@ static enum test_result test_set_get_hit_bin(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 
 
     item *i = NULL;
     check(ENGINE_SUCCESS ==
-          storeCasVb11(h, h1, "cookie", OPERATION_SET, "key",
+          storeCasVb11(h, h1, NULL, OPERATION_SET, "key",
                        binaryData, sizeof(binaryData), 82758, &i, 0, 0),
           "Failed to set.");
     return check_key_value(h, h1, "key", binaryData, sizeof(binaryData));
@@ -381,7 +384,7 @@ static enum test_result test_set_get_hit_bin(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 
 
 static enum test_result test_set_change_flags(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
-    check(store(h, h1, "cookie", OPERATION_SET, "key", "somevalue", &i) == ENGINE_SUCCESS,
+    check(store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i) == ENGINE_SUCCESS,
           "Failed to set.");
 
     item_info info;
@@ -389,7 +392,7 @@ static enum test_result test_set_change_flags(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
     check(get_value(h, h1, "key", &info), "Failed to get value.");
     assert(info.flags != flags);
 
-    check(storeCasVb11(h, h1, "cookie", OPERATION_SET, "key",
+    check(storeCasVb11(h, h1, NULL, OPERATION_SET, "key",
                        "newvalue", strlen("newvalue"), flags, &i, 0, 0) == ENGINE_SUCCESS,
           "Failed to set again.");
 
@@ -400,9 +403,9 @@ static enum test_result test_set_change_flags(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
 
 static enum test_result test_cas(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
-    check(store(h, h1, "cookie", OPERATION_SET, "key", "somevalue", &i) == ENGINE_SUCCESS,
+    check(store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i) == ENGINE_SUCCESS,
           "Failed to do initial set.");
-    check(store(h, h1, "cookie", OPERATION_CAS, "key", "failcas", &i) != ENGINE_SUCCESS,
+    check(store(h, h1, NULL, OPERATION_CAS, "key", "failcas", &i) != ENGINE_SUCCESS,
           "Failed to fail initial CAS.");
     check_key_value(h, h1, "key", "somevalue", 9);
 
@@ -413,13 +416,13 @@ static enum test_result test_cas(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     info.nvalue = 1;
     check(h1->get_item_info(h, i, &info), "Failed to get item info.");
 
-    check(store(h, h1, "cookie", OPERATION_CAS, "key", "winCas", &i,
+    check(store(h, h1, NULL, OPERATION_CAS, "key", "winCas", &i,
                 info.cas) == ENGINE_SUCCESS,
           "Failed to store CAS");
     check_key_value(h, h1, "key", "winCas", 6);
 
     uint64_t cval = 99999;
-    check(store(h, h1, "cookie", OPERATION_CAS, "non-existing", "winCas", &i,
+    check(store(h, h1, NULL, OPERATION_CAS, "non-existing", "winCas", &i,
                 cval) == ENGINE_KEY_ENOENT,
           "CAS for non-existing key returned the wrong error code");
     return SUCCESS;
@@ -427,27 +430,27 @@ static enum test_result test_cas(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
 static enum test_result test_add(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
-    check(store(h, h1, "cookie", OPERATION_ADD,"key", "somevalue", &i) == ENGINE_SUCCESS,
+    check(store(h, h1, NULL, OPERATION_ADD,"key", "somevalue", &i) == ENGINE_SUCCESS,
           "Failed to add value.");
-    check(store(h, h1, "cookie", OPERATION_ADD,"key", "somevalue", &i) == ENGINE_NOT_STORED,
+    check(store(h, h1, NULL, OPERATION_ADD,"key", "somevalue", &i) == ENGINE_NOT_STORED,
           "Failed to fail to re-add value.");
     return check_key_value(h, h1, "key", "somevalue", 9);
 }
 
 static enum test_result test_replace(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
-    check(store(h, h1, "cookie", OPERATION_REPLACE,"key", "somevalue", &i) == ENGINE_NOT_STORED,
+    check(store(h, h1, NULL, OPERATION_REPLACE,"key", "somevalue", &i) == ENGINE_NOT_STORED,
           "Failed to fail to replace non-existing value.");
-    check(store(h, h1, "cookie", OPERATION_SET,"key", "somevalue", &i) == ENGINE_SUCCESS,
+    check(store(h, h1, NULL, OPERATION_SET,"key", "somevalue", &i) == ENGINE_SUCCESS,
           "Failed to set value.");
-    check(store(h, h1, "cookie", OPERATION_REPLACE,"key", "somevalue", &i) == ENGINE_SUCCESS,
+    check(store(h, h1, NULL, OPERATION_REPLACE,"key", "somevalue", &i) == ENGINE_SUCCESS,
           "Failed to replace existing value.");
     return check_key_value(h, h1, "key", "somevalue", 9);
 }
 
 static enum test_result test_incr_miss(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     uint64_t cas = 0, result = 0;
-    h1->arithmetic(h, "cookie", "key", 3, true, false, 1, 0, 0,
+    h1->arithmetic(h, NULL, "key", 3, true, false, 1, 0, 0,
                    &cas, &result,
                    0);
     check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key"), "Expected to not find key");
@@ -456,19 +459,19 @@ static enum test_result test_incr_miss(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
 static enum test_result test_incr_default(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     uint64_t cas = 0, result = 0;
-    check(h1->arithmetic(h, "cookie", "key", 3, true, true, 1, 1, 0,
+    check(h1->arithmetic(h, NULL, "key", 3, true, true, 1, 1, 0,
                          &cas, &result,
                          0) == ENGINE_SUCCESS,
           "Failed first arith");
     check(result == 1, "Failed result verification.");
 
-    check(h1->arithmetic(h, "cookie", "key", 3, true, false, 1, 1, 0,
+    check(h1->arithmetic(h, NULL, "key", 3, true, false, 1, 1, 0,
                          &cas, &result,
                          0) == ENGINE_SUCCESS,
           "Failed second arith.");
     check(result == 2, "Failed second result verification.");
 
-    check(h1->arithmetic(h, "cookie", "key", 3, true, true, 1, 1, 0,
+    check(h1->arithmetic(h, NULL, "key", 3, true, true, 1, 1, 0,
                          &cas, &result,
                          0) == ENGINE_SUCCESS,
           "Failed third arith.");
@@ -480,10 +483,10 @@ static enum test_result test_incr_default(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
 static enum test_result test_incr(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     uint64_t cas = 0, result = 0;
     item *i = NULL;
-    check(store(h, h1, "cookie", OPERATION_ADD,"key", "1", &i) == ENGINE_SUCCESS,
+    check(store(h, h1, NULL, OPERATION_ADD,"key", "1", &i) == ENGINE_SUCCESS,
           "Failed to add value.");
 
-    check(h1->arithmetic(h, "cookie", "key", 3, true, false, 1, 1, 0,
+    check(h1->arithmetic(h, NULL, "key", 3, true, false, 1, 1, 0,
                          &cas, &result,
                          0) == ENGINE_SUCCESS,
           "Failed to incr value.");
@@ -494,16 +497,16 @@ static enum test_result test_incr(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 static enum test_result test_flush(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
     // First try to delete something we know to not be there.
-    check(h1->remove(h, "cookie", "key", 3, 0, 0) == ENGINE_KEY_ENOENT,
+    check(h1->remove(h, NULL, "key", 3, 0, 0) == ENGINE_KEY_ENOENT,
           "Failed to fail initial delete.");
-    check(store(h, h1, "cookie", OPERATION_SET, "key", "somevalue", &i) == ENGINE_SUCCESS,
+    check(store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i) == ENGINE_SUCCESS,
           "Failed set.");
     check_key_value(h, h1, "key", "somevalue", 9);
-    check(h1->flush(h, "cookie", 0) == ENGINE_SUCCESS,
+    check(h1->flush(h, NULL, 0) == ENGINE_SUCCESS,
           "Failed to flush");
     check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key"), "Expected missing key");
 
-    check(store(h, h1, "cookie", OPERATION_SET, "key", "somevalue", &i) == ENGINE_SUCCESS,
+    check(store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i) == ENGINE_SUCCESS,
           "Failed post-flush set.");
     check_key_value(h, h1, "key", "somevalue", 9);
 
@@ -513,9 +516,9 @@ static enum test_result test_flush(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 static enum test_result test_flush_multiv(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
     check(set_vbucket_state(h, h1, 2, "active"), "Failed to set vbucket state.");
-    check(store(h, h1, "cookie", OPERATION_SET, "key", "somevalue", &i) == ENGINE_SUCCESS,
+    check(store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i) == ENGINE_SUCCESS,
           "Failed set.");
-    check(store(h, h1, "cookie", OPERATION_SET, "key2", "somevalue", &i,
+    check(store(h, h1, NULL, OPERATION_SET, "key2", "somevalue", &i,
                 0, 2) == ENGINE_SUCCESS,
           "Failed set in vb2.");
 
@@ -525,7 +528,7 @@ static enum test_result test_flush_multiv(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     check_key_value(h, h1, "key", "somevalue", 9);
     check_key_value(h, h1, "key2", "somevalue", 9, false, 2);
 
-    check(h1->flush(h, "cookie", 0) == ENGINE_SUCCESS, "Failed to flush");
+    check(h1->flush(h, NULL, 0) == ENGINE_SUCCESS, "Failed to flush");
 
     check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key"), "Expected missing key");
     check(ENGINE_KEY_ENOENT == verify_vb_key(h, h1, "key2", 2), "Expected missing key");
@@ -536,9 +539,9 @@ static enum test_result test_flush_multiv(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
 static enum test_result test_flush_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
     // First try to delete something we know to not be there.
-    check(h1->remove(h, "cookie", "key", 3, 0, 0) == ENGINE_KEY_ENOENT,
+    check(h1->remove(h, NULL, "key", 3, 0, 0) == ENGINE_KEY_ENOENT,
           "Failed to fail initial delete.");
-    check(store(h, h1, "cookie", OPERATION_SET, "key", "somevalue", &i) == ENGINE_SUCCESS,
+    check(store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i) == ENGINE_SUCCESS,
           "Failed set.");
     check_key_value(h, h1, "key", "somevalue", 9);
 
@@ -552,10 +555,10 @@ static enum test_result test_flush_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     check_key_value(h, h1, "key", "somevalue", 9);
 
     // Flush
-    check(h1->flush(h, "cookie", 0) == ENGINE_SUCCESS,
+    check(h1->flush(h, NULL, 0) == ENGINE_SUCCESS,
           "Failed to flush");
 
-    check(store(h, h1, "cookie", OPERATION_SET, "key2", "somevalue", &i) == ENGINE_SUCCESS,
+    check(store(h, h1, NULL, OPERATION_SET, "key2", "somevalue", &i) == ENGINE_SUCCESS,
           "Failed post-flush set.");
     check_key_value(h, h1, "key2", "somevalue", 9);
 
@@ -565,7 +568,7 @@ static enum test_result test_flush_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
                               testHarness.default_engine_cfg,
                               true);
 
-    check(store(h, h1, "cookie", OPERATION_SET, "key3", "somevalue", &i) == ENGINE_SUCCESS,
+    check(store(h, h1, NULL, OPERATION_SET, "key3", "somevalue", &i) == ENGINE_SUCCESS,
           "Failed post-flush, post-restart set.");
     check_key_value(h, h1, "key3", "somevalue", 9);
 
@@ -577,9 +580,9 @@ static enum test_result test_flush_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
 static enum test_result test_flush_multiv_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
     check(set_vbucket_state(h, h1, 2, "active"), "Failed to set vbucket state.");
-    check(store(h, h1, "cookie", OPERATION_SET, "key", "somevalue", &i) == ENGINE_SUCCESS,
+    check(store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i) == ENGINE_SUCCESS,
           "Failed set.");
-    check(store(h, h1, "cookie", OPERATION_SET, "key2", "somevalue", &i,
+    check(store(h, h1, NULL, OPERATION_SET, "key2", "somevalue", &i,
                 0, 2) == ENGINE_SUCCESS,
           "Failed set in vb2.");
 
@@ -593,7 +596,7 @@ static enum test_result test_flush_multiv_restart(ENGINE_HANDLE *h, ENGINE_HANDL
     check_key_value(h, h1, "key", "somevalue", 9);
 
     // Flush
-    check(h1->flush(h, "cookie", 0) == ENGINE_SUCCESS,
+    check(h1->flush(h, NULL, 0) == ENGINE_SUCCESS,
           "Failed to flush");
 
     // Restart again, ensure written to disk.
@@ -611,12 +614,12 @@ static enum test_result test_flush_multiv_restart(ENGINE_HANDLE *h, ENGINE_HANDL
 static enum test_result test_delete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
     // First try to delete something we know to not be there.
-    check(h1->remove(h, "cookie", "key", 3, 0, 0) == ENGINE_KEY_ENOENT,
+    check(h1->remove(h, NULL, "key", 3, 0, 0) == ENGINE_KEY_ENOENT,
           "Failed to fail initial delete.");
-    check(store(h, h1, "cookie", OPERATION_SET, "key", "somevalue", &i) == ENGINE_SUCCESS,
+    check(store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i) == ENGINE_SUCCESS,
           "Failed set.");
     check_key_value(h, h1, "key", "somevalue", 9);
-    check(h1->remove(h, "cookie", "key", 3, 0, 0) == ENGINE_SUCCESS,
+    check(h1->remove(h, NULL, "key", 3, 0, 0) == ENGINE_SUCCESS,
           "Failed remove with value.");
     check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key"), "Expected missing key");
     return SUCCESS;
@@ -625,7 +628,7 @@ static enum test_result test_delete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 static enum test_result test_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
     static const char val[] = "somevalue";
-    check(store(h, h1, "cookie", OPERATION_SET, "key", val, &i) == ENGINE_SUCCESS,
+    check(store(h, h1, NULL, OPERATION_SET, "key", val, &i) == ENGINE_SUCCESS,
           "Failed set.");
 
     testHarness.reload_engine(&h, &h1,
@@ -643,7 +646,7 @@ static enum test_result test_restart_bin_val(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 
     assert(sizeof(binaryData) != strlen(binaryData));
 
     item *i = NULL;
-    check(storeCasVb11(h, h1, "cookie", OPERATION_SET, "key",
+    check(storeCasVb11(h, h1, NULL, OPERATION_SET, "key",
                        binaryData, sizeof(binaryData), 82758, &i, 0, 0)
           == ENGINE_SUCCESS,
           "Failed set.");
@@ -664,8 +667,14 @@ static enum test_result test_wrong_vb_get(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
 
 static enum test_result test_vb_get_pending(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(set_vbucket_state(h, h1, 1, "pending"), "Failed to set vbucket state.");
-    check(ENGINE_EWOULDBLOCK == verify_vb_key(h, h1, "key", 1),
+    const void *cookie = testHarness.create_cookie();
+    testHarness.set_ewouldblock_handling(cookie, false);
+
+    item *i = NULL;
+    check(ENGINE_EWOULDBLOCK == h1->get(h, cookie, &i, "key", strlen("key"), 1),
           "Expected woodblock.");
+
+    testHarness.destroy_cookie(cookie);
     return SUCCESS;
 }
 
@@ -678,7 +687,7 @@ static enum test_result test_vb_get_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
 
 static enum test_result test_wrong_vb_incr(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     uint64_t cas, result;
-    check(h1->arithmetic(h, "cookie", "key", 3, true, false, 1, 1, 0,
+    check(h1->arithmetic(h, NULL, "key", 3, true, false, 1, 1, 0,
                          &cas, &result,
                          1) == ENGINE_NOT_MY_VBUCKET,
           "Expected not my vbucket.");
@@ -686,19 +695,22 @@ static enum test_result test_wrong_vb_incr(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
 }
 
 static enum test_result test_vb_incr_pending(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    const void *cookie = testHarness.create_cookie();
+    testHarness.set_ewouldblock_handling(cookie, false);
     uint64_t cas, result;
     check(set_vbucket_state(h, h1, 1, "pending"), "Failed to set vbucket state.");
-    check(h1->arithmetic(h, "cookie", "key", 3, true, false, 1, 1, 0,
+    check(h1->arithmetic(h, cookie, "key", 3, true, false, 1, 1, 0,
                          &cas, &result,
                          1) == ENGINE_EWOULDBLOCK,
           "Expected woodblock.");
+    testHarness.destroy_cookie(cookie);
     return SUCCESS;
 }
 
 static enum test_result test_vb_incr_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     uint64_t cas, result;
     check(set_vbucket_state(h, h1, 1, "replica"), "Failed to set vbucket state.");
-    check(h1->arithmetic(h, "cookie", "key", 3, true, false, 1, 1, 0,
+    check(h1->arithmetic(h, NULL, "key", 3, true, false, 1, 1, 0,
                          &cas, &result,
                          1) == ENGINE_NOT_MY_VBUCKET,
           "Expected not my bucket.");
@@ -730,7 +742,7 @@ static enum test_result test_wrong_vb_prepend(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
 }
 
 static enum test_result test_wrong_vb_del(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    check(ENGINE_NOT_MY_VBUCKET == h1->remove(h, "cookie", "key", 3, 0, 1),
+    check(ENGINE_NOT_MY_VBUCKET == h1->remove(h, NULL, "key", 3, 0, 1),
           "Expected wrong bucket.");
     return SUCCESS;
 }
@@ -758,15 +770,18 @@ static enum test_result test_expiry(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 }
 
 static enum test_result test_vb_del_pending(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    const void *cookie = testHarness.create_cookie();
+    testHarness.set_ewouldblock_handling(cookie, false);
     check(set_vbucket_state(h, h1, 1, "pending"), "Failed to set vbucket state.");
-    check(ENGINE_EWOULDBLOCK == h1->remove(h, "cookie", "key", 3, 0, 1),
+    check(ENGINE_EWOULDBLOCK == h1->remove(h, cookie, "key", 3, 0, 1),
           "Expected woodblock.");
+    testHarness.destroy_cookie(cookie);
     return SUCCESS;
 }
 
 static enum test_result test_vb_del_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(set_vbucket_state(h, h1, 1, "replica"), "Failed to set vbucket state.");
-    check(ENGINE_NOT_MY_VBUCKET == h1->remove(h, "cookie", "key", 3, 0, 1),
+    check(ENGINE_NOT_MY_VBUCKET == h1->remove(h, NULL, "key", 3, 0, 1),
           "Expected not my vbucket.");
     return SUCCESS;
 }
@@ -789,22 +804,22 @@ static enum test_result test_alloc_limit(ENGINE_HANDLE *h,
 static enum test_result test_memory_limit(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
     // So if we add an item,
-    check(store(h, h1, "cookie", OPERATION_SET, "key", "somevalue", &i) == ENGINE_SUCCESS,
+    check(store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i) == ENGINE_SUCCESS,
           "store failure");
     check_key_value(h, h1, "key", "somevalue", 9);
 
     // There should be no room for another.
-    check(store(h, h1, "cookie", OPERATION_SET, "key2", "somevalue2", &i) == ENGINE_ENOMEM,
+    check(store(h, h1, NULL, OPERATION_SET, "key2", "somevalue2", &i) == ENGINE_ENOMEM,
           "should have failed second set");
     check_key_value(h, h1, "key", "somevalue", 9);
     check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key2"), "Expected missing key");
 
     // Until we remove that item
-    check(h1->remove(h, "cookie", "key", 3, 0, 0) == ENGINE_SUCCESS,
+    check(h1->remove(h, NULL, "key", 3, 0, 0) == ENGINE_SUCCESS,
           "Failed remove with value.");
     check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key"), "Expected missing key");
 
-    check(store(h, h1, "cookie", OPERATION_SET, "key2", "somevalue2", &i) == ENGINE_SUCCESS,
+    check(store(h, h1, NULL, OPERATION_SET, "key2", "somevalue2", &i) == ENGINE_SUCCESS,
           "should have succeded on the last set");
     check_key_value(h, h1, "key2", "somevalue2", 10);
 
@@ -838,13 +853,13 @@ static enum test_result test_vbucket_destroy(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 
     usleep(2600); // XXX:  racist (vbucket set state happens on the dispatcher)
 
     protocol_binary_request_header *pkt = create_packet(CMD_DEL_VBUCKET, "1", "");
-    check(h1->unknown_command(h, "cookie", pkt, add_response) == ENGINE_SUCCESS,
+    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Failed to request delete bucket");
     check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL,
           "Expected failure deleting active bucket.");
 
     pkt = create_packet(CMD_DEL_VBUCKET, "2", "");
-    check(h1->unknown_command(h, "cookie", pkt, add_response) == ENGINE_SUCCESS,
+    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Failed to request delete bucket");
     check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET,
           "Expected failure deleting non-existent bucket.");
@@ -853,7 +868,7 @@ static enum test_result test_vbucket_destroy(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 
     usleep(2600); // XXX:  racist (vbucket set state happens on the dispatcher)
 
     pkt = create_packet(CMD_DEL_VBUCKET, "1", "");
-    check(h1->unknown_command(h, "cookie", pkt, add_response) == ENGINE_SUCCESS,
+    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Failed to delete dead bucket.");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
           "Expected failure deleting non-existent bucket.");
@@ -869,14 +884,14 @@ static enum test_result test_vbucket_destroy_restart(ENGINE_HANDLE *h, ENGINE_HA
     usleep(2600); // XXX:  racist (vbucket set state happens on the dispatcher)
 
     protocol_binary_request_header *pkt = create_packet(CMD_DEL_VBUCKET, "1", "");
-    check(h1->unknown_command(h, "cookie", pkt, add_response) == ENGINE_SUCCESS,
+    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Failed to request delete bucket");
     check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL,
           "Expected failure deleting active bucket.");
 
     // Store a value so the restart will try to resurrect it.
     item *i = NULL;
-    check(store(h, h1, "cookie", OPERATION_SET, "key", "somevalue", &i, 0, 1)
+    check(store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i, 0, 1)
           == ENGINE_SUCCESS, "Failed to set a value");
     check_key_value(h, h1, "key", "somevalue", 9, false, 1);
 
@@ -896,7 +911,7 @@ static enum test_result test_vbucket_destroy_restart(ENGINE_HANDLE *h, ENGINE_HA
     usleep(2600); // XXX:  racist (vbucket set state happens on the dispatcher)
 
     pkt = create_packet(CMD_DEL_VBUCKET, "1", "");
-    check(h1->unknown_command(h, "cookie", pkt, add_response) == ENGINE_SUCCESS,
+    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Failed to delete dead bucket.");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
           "Expected failure deleting non-existent bucket.");
@@ -974,7 +989,7 @@ static enum test_result test_tap_rcvr_mutate(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 
     for (size_t i = 0; i < 8192; ++i) {
         char *data = static_cast<char *>(malloc(i));
         memset(data, 'x', i);
-        check(h1->tap_notify(h, "cookie", eng_specific, sizeof(eng_specific),
+        check(h1->tap_notify(h, NULL, eng_specific, sizeof(eng_specific),
                              1, 0, TAP_MUTATION, 1, "key", 3, 828, 0, 0,
                              data, i, 0) == ENGINE_SUCCESS,
               "Failed tap notify.");
@@ -989,7 +1004,7 @@ static enum test_result test_tap_rcvr_mutate(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 
 
 static enum test_result test_tap_rcvr_mutate_dead(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     char eng_specific[1];
-    check(h1->tap_notify(h, "cookie", eng_specific, 1,
+    check(h1->tap_notify(h, NULL, eng_specific, 1,
                          1, 0, TAP_MUTATION, 1, "key", 3, 828, 0, 0,
                          "data", 4, 1) == ENGINE_NOT_MY_VBUCKET,
           "Expected not my vbucket.");
@@ -999,7 +1014,7 @@ static enum test_result test_tap_rcvr_mutate_dead(ENGINE_HANDLE *h, ENGINE_HANDL
 static enum test_result test_tap_rcvr_mutate_pending(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(set_vbucket_state(h, h1, 1, "pending"), "Failed to set vbucket state.");
     char eng_specific[1];
-    check(h1->tap_notify(h, "cookie", eng_specific, 1,
+    check(h1->tap_notify(h, NULL, eng_specific, 1,
                          1, 0, TAP_MUTATION, 1, "key", 3, 828, 0, 0,
                          "data", 4, 1) == ENGINE_SUCCESS,
           "Expected expected success.");
@@ -1009,7 +1024,7 @@ static enum test_result test_tap_rcvr_mutate_pending(ENGINE_HANDLE *h, ENGINE_HA
 static enum test_result test_tap_rcvr_mutate_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(set_vbucket_state(h, h1, 1, "replica"), "Failed to set vbucket state.");
     char eng_specific[1];
-    check(h1->tap_notify(h, "cookie", eng_specific, 1,
+    check(h1->tap_notify(h, NULL, eng_specific, 1,
                          1, 0, TAP_MUTATION, 1, "key", 3, 828, 0, 0,
                          "data", 4, 1) == ENGINE_SUCCESS,
           "Expected expected success.");
@@ -1022,7 +1037,7 @@ static enum test_result test_novb0(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 }
 
 static enum test_result test_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    check(h1->get_stats(h, "cookie", NULL, 0, add_stats) == ENGINE_SUCCESS,
+    check(h1->get_stats(h, NULL, NULL, 0, add_stats) == ENGINE_SUCCESS,
           "Failed to get stats.");
     check(vals.size() > 10, "Kind of expected more stats than that.");
     check(vals.find("ep_version") != vals.end(), "Found no ep_version.");
@@ -1032,7 +1047,7 @@ static enum test_result test_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 static void verify_curr_items(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                               int exp, const char *msg) {
     vals.clear();
-    check(h1->get_stats(h, "cookie", NULL, 0, add_stats) == ENGINE_SUCCESS,
+    check(h1->get_stats(h, NULL, NULL, 0, add_stats) == ENGINE_SUCCESS,
           "Failed to get stats.");
     std::string s = vals["curr_items"];
     int curr_items = atoi(s.c_str());
@@ -1050,35 +1065,35 @@ static enum test_result test_curr_items(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
     verify_curr_items(h, h1, 0, "init");
 
     // Verify set and add case
-    check(store(h, h1, "cookie", OPERATION_ADD,"k1", "v1", &i) == ENGINE_SUCCESS,
+    check(store(h, h1, NULL, OPERATION_ADD,"k1", "v1", &i) == ENGINE_SUCCESS,
           "Failed to fail to store an item.");
-    check(store(h, h1, "cookie", OPERATION_SET,"k2", "v2", &i) == ENGINE_SUCCESS,
+    check(store(h, h1, NULL, OPERATION_SET,"k2", "v2", &i) == ENGINE_SUCCESS,
           "Failed to fail to store an item.");
-    check(store(h, h1, "cookie", OPERATION_SET,"k3", "v3", &i) == ENGINE_SUCCESS,
+    check(store(h, h1, NULL, OPERATION_SET,"k3", "v3", &i) == ENGINE_SUCCESS,
           "Failed to fail to store an item.");
     verify_curr_items(h, h1, 3, "three items stored");
 
     // Verify delete case.
-    check(h1->remove(h, "cookie", "k1", 2, 0, 0) == ENGINE_SUCCESS,
+    check(h1->remove(h, NULL, "k1", 2, 0, 0) == ENGINE_SUCCESS,
           "Failed remove with value.");
     verify_curr_items(h, h1, 2, "one item deleted");
 
     // Verify flush case (remove the two remaining from above)
-    check(h1->flush(h, "cookie", 0) == ENGINE_SUCCESS,
+    check(h1->flush(h, NULL, 0) == ENGINE_SUCCESS,
           "Failed to flush");
     verify_curr_items(h, h1, 0, "flush");
 
     // Verify delete vbucket case.
-    check(store(h, h1, "cookie", OPERATION_SET,"k1", "v1", &i) == ENGINE_SUCCESS,
+    check(store(h, h1, NULL, OPERATION_SET,"k1", "v1", &i) == ENGINE_SUCCESS,
           "Failed to fail to store an item.");
-    check(store(h, h1, "cookie", OPERATION_SET,"k2", "v2", &i) == ENGINE_SUCCESS,
+    check(store(h, h1, NULL, OPERATION_SET,"k2", "v2", &i) == ENGINE_SUCCESS,
           "Failed to fail to store an item.");
-    check(store(h, h1, "cookie", OPERATION_SET,"k3", "v3", &i) == ENGINE_SUCCESS,
+    check(store(h, h1, NULL, OPERATION_SET,"k3", "v3", &i) == ENGINE_SUCCESS,
           "Failed to fail to store an item.");
     check(set_vbucket_state(h, h1, 0, "dead"), "Failed set set vbucket 0 state.");
     usleep(2600); // XXX:  racist (vbucket set state happens on the dispatcher)
     protocol_binary_request_header *pkt = create_packet(CMD_DEL_VBUCKET, "0", "");
-    check(h1->unknown_command(h, "cookie", pkt, add_response) == ENGINE_SUCCESS,
+    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Failed to delete dead bucket.");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
           "Expected success deleting vbucket.");
