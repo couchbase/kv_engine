@@ -207,6 +207,7 @@ public:
                   uint32_t newFlags, rel_time_t newExp, uint64_t theCas) {
         reduceCurrentSize(size());
         value = v;
+        setResident();
         if (!_isSmall) {
             extra.feature.cas = theCas;
             extra.feature.flags = newFlags;
@@ -432,6 +433,12 @@ private:
         }
 
         increaseCurrentSize(size());
+    }
+
+    void setResident() {
+        if (!_isSmall) {
+            extra.feature.resident = 1;
+        }
     }
 
     friend class HashTable;

@@ -1141,6 +1141,31 @@ static enum test_result test_disk_gt_ram_golden(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+static enum test_result test_disk_gt_ram_update_paged_out(ENGINE_HANDLE *h,
+                                                          ENGINE_HANDLE_V1 *h1) {
+    item *i = NULL;
+    assert(0 == get_int_stat(h, h1, "ep_bg_fetched"));
+    int numStored = get_int_stat(h, h1, "ep_total_persisted");
+    check(store(h, h1, NULL, OPERATION_ADD, "k1", "some value", &i) == ENGINE_SUCCESS,
+          "Failed to store an item.");
+
+    // Wait for persistence...
+    while (get_int_stat(h, h1, "ep_total_persisted") == numStored) {
+        usleep(100);
+    }
+
+    evict_key(h, h1, "k1");
+
+    check(store(h, h1, NULL, OPERATION_SET, "k1", "new value", &i) == ENGINE_SUCCESS,
+          "Failed to update an item.");
+
+    check_key_value(h, h1, "k1", "new value", 9);
+
+    assert(0 == get_int_stat(h, h1, "ep_bg_fetched"));
+
+    return SUCCESS;
+}
+
 engine_test_t* get_tests(void) {
     static engine_test_t tests[]  = {
         // basic tests
@@ -1182,7 +1207,8 @@ engine_test_t* get_tests(void) {
         {"flush multiv+restart", test_flush_multiv_restart, NULL, teardown, NULL},
         // disk>RAM tests
         {"disk>RAM golden path", test_disk_gt_ram_golden, NULL, teardown, NULL},
-        {"disk>RAM updated paged-out", NULL, NULL, teardown, NULL},
+        {"disk>RAM update paged-out", test_disk_gt_ram_update_paged_out, NULL,
+         teardown, NULL},
         {"disk>RAM deleted paged-out", NULL, NULL, teardown, NULL},
         {"disk>RAM set bgfetch race", NULL, NULL, teardown, NULL},
         {"disk>RAM delete bgfetch race", NULL, NULL, teardown, NULL},
