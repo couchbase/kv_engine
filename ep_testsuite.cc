@@ -1166,6 +1166,31 @@ static enum test_result test_disk_gt_ram_update_paged_out(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+static enum test_result test_disk_gt_ram_delete_paged_out(ENGINE_HANDLE *h,
+                                                          ENGINE_HANDLE_V1 *h1) {
+    item *i = NULL;
+    assert(0 == get_int_stat(h, h1, "ep_bg_fetched"));
+    int numStored = get_int_stat(h, h1, "ep_total_persisted");
+    check(store(h, h1, NULL, OPERATION_ADD, "k1", "some value", &i) == ENGINE_SUCCESS,
+          "Failed to store an item.");
+
+    // Wait for persistence...
+    while (get_int_stat(h, h1, "ep_total_persisted") == numStored) {
+        usleep(100);
+    }
+
+    evict_key(h, h1, "k1");
+
+    check(h1->remove(h, NULL, "k1", 2, 0, 0) == ENGINE_SUCCESS,
+          "Failed to delete.");
+
+    check(verify_key(h, h1, "k1") == ENGINE_KEY_ENOENT, "Expected miss.");
+
+    assert(0 == get_int_stat(h, h1, "ep_bg_fetched"));
+
+    return SUCCESS;
+}
+
 engine_test_t* get_tests(void) {
     static engine_test_t tests[]  = {
         // basic tests
@@ -1209,7 +1234,8 @@ engine_test_t* get_tests(void) {
         {"disk>RAM golden path", test_disk_gt_ram_golden, NULL, teardown, NULL},
         {"disk>RAM update paged-out", test_disk_gt_ram_update_paged_out, NULL,
          teardown, NULL},
-        {"disk>RAM deleted paged-out", NULL, NULL, teardown, NULL},
+        {"disk>RAM delete paged-out", test_disk_gt_ram_delete_paged_out, NULL,
+         teardown, NULL},
         {"disk>RAM set bgfetch race", NULL, NULL, teardown, NULL},
         {"disk>RAM delete bgfetch race", NULL, NULL, teardown, NULL},
         // vbucket negative tests
