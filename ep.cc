@@ -292,6 +292,7 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
                                                 const void *cookie,
                                                 SERVER_CORE_API *core) {
     --bgFetchQueue;
+    ++stats.bg_fetched;
 
     // Go find the data
     RememberingCallback<GetValue> gcb;

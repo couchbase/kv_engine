@@ -1673,6 +1673,8 @@ private:
             add_casted_stat("ep_storage_type",
                             HashTable::getDefaultStorageValueTypeStr(),
                             add_stat, cookie);
+            add_casted_stat("ep_bg_fetched", epstats.bg_fetched, add_stat,
+                            cookie);
 
             if (warmup) {
                 add_casted_stat("ep_warmup_thread",

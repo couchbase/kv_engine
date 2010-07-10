@@ -59,6 +59,7 @@
 | ep_tap_total_fetched          | Sum of tap messages sent on the current  |
 |                               | tap queues                               |
 | ep_tap_keepalive              | Tap keepalive time.                      |
+| ep_bg_fetched                 | Number of items fetched from disk.       |
 
 * Details
 

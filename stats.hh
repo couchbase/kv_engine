@@ -65,6 +65,8 @@ public:
     Atomic<size_t> tap_queue;
     //! Total number of tap messages sent.
     Atomic<size_t> tap_fetched;
+    //! Number of times background fetches occurred.
+    Atomic<size_t> bg_fetched;
 
 private:
 
