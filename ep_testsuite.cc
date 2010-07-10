@@ -1044,13 +1044,18 @@ static enum test_result test_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return SUCCESS;
 }
 
+static int get_int_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                        const char *statname) {
+    check(h1->get_stats(h, NULL, NULL, 0, add_stats) == ENGINE_SUCCESS,
+          "Failed to get stats.");
+    std::string s = vals[statname];
+    return atoi(s.c_str());
+}
+
 static void verify_curr_items(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                               int exp, const char *msg) {
     vals.clear();
-    check(h1->get_stats(h, NULL, NULL, 0, add_stats) == ENGINE_SUCCESS,
-          "Failed to get stats.");
-    std::string s = vals["curr_items"];
-    int curr_items = atoi(s.c_str());
+    int curr_items = get_int_stat(h, h1, "curr_items");
     if (curr_items != exp) {
         std::cerr << "Expected "<< exp << " curr_items after " << msg
                   << ", got " << curr_items << std::endl;
@@ -1102,6 +1107,40 @@ static enum test_result test_curr_items(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
     return SUCCESS;
 }
 
+static void evict_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                      const char *key, uint16_t vbucketId=0) {
+    protocol_binary_request_header *pkt = create_packet(CMD_EVICT_KEY,
+                                                        key, "");
+    pkt->request.vbucket = htons(vbucketId);
+
+    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
+          "Failed to evict key.");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+          "Expected success evicting key.");
+}
+
+static enum test_result test_disk_gt_ram_golden(ENGINE_HANDLE *h,
+                                                ENGINE_HANDLE_V1 *h1) {
+    item *i = NULL;
+    assert(0 == get_int_stat(h, h1, "ep_bg_fetched"));
+    int numStored = get_int_stat(h, h1, "ep_total_persisted");
+    check(store(h, h1, NULL, OPERATION_ADD, "k1", "some value", &i) == ENGINE_SUCCESS,
+          "Failed to store an item.");
+
+    // Wait for persistence...
+    while (get_int_stat(h, h1, "ep_total_persisted") == numStored) {
+        usleep(100);
+    }
+
+    evict_key(h, h1, "k1");
+
+    check_key_value(h, h1, "k1", "some value", 10);
+
+    assert(1 == get_int_stat(h, h1, "ep_bg_fetched"));
+
+    return SUCCESS;
+}
+
 engine_test_t* get_tests(void) {
     static engine_test_t tests[]  = {
         // basic tests
@@ -1141,6 +1180,12 @@ engine_test_t* get_tests(void) {
         {"set+get+restart+hit (bin)", test_restart_bin_val, NULL, teardown, NULL},
         {"flush+restart", test_flush_restart, NULL, teardown, NULL},
         {"flush multiv+restart", test_flush_multiv_restart, NULL, teardown, NULL},
+        // disk>RAM tests
+        {"disk>RAM golden path", test_disk_gt_ram_golden, NULL, teardown, NULL},
+        {"disk>RAM updated paged-out", NULL, NULL, teardown, NULL},
+        {"disk>RAM deleted paged-out", NULL, NULL, teardown, NULL},
+        {"disk>RAM set bgfetch race", NULL, NULL, teardown, NULL},
+        {"disk>RAM delete bgfetch race", NULL, NULL, teardown, NULL},
         // vbucket negative tests
         {"vbucket incr (dead)", test_wrong_vb_incr, NULL, teardown, NULL},
         {"vbucket incr (pending)", test_vb_incr_pending, NULL, teardown, NULL},

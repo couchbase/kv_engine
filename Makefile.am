@@ -82,5 +82,5 @@ vbucket_test_DEPENDENCIES = vbucket.hh stored-value.cc stored-value.hh
 
 test: all check-TESTS
 	@MEMCACHED_DIR@/engine_testapp -E .libs/ep.so -T .libs/ep_testsuite.so \
-		-e 'ht_size=13;ht_locks=7;initfile=t/test_pragma.sql'
+		-e 'ht_size=13;ht_locks=7;initfile=t/test_pragma.sql;min_data_age=0'
 	./sizes
