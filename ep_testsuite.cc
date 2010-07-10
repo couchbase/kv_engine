@@ -68,6 +68,13 @@ std::map<std::string, std::string> vals;
 
 struct test_harness testHarness;
 
+class ThreadData {
+public:
+    ThreadData(ENGINE_HANDLE *eh, ENGINE_HANDLE_V1 *ehv1) : h(eh), h1(ehv1) {}
+    ENGINE_HANDLE    *h;
+    ENGINE_HANDLE_V1 *h1;
+};
+
 bool abort_msg(const char *expr, const char *msg, int line) {
     fprintf(stderr, "%s:%d Test failed: `%s' (%s)\n",
             __FILE__, line, msg, expr);
@@ -278,6 +285,17 @@ static bool set_vbucket_state(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     snprintf(vbid, sizeof(vbid), "%d", vb);
 
     protocol_binary_request_header *pkt = create_packet(CMD_SET_VBUCKET, vbid, state);
+    if (h1->unknown_command(h, NULL, pkt, add_response) != ENGINE_SUCCESS) {
+        return false;
+    }
+
+    return last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS;
+}
+
+static bool set_flush_param(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                            const char *param, const char *val) {
+    protocol_binary_request_header *pkt = create_packet(CMD_SET_FLUSH_PARAM,
+                                                        param, val);
     if (h1->unknown_command(h, NULL, pkt, add_response) != ENGINE_SUCCESS) {
         return false;
     }
@@ -1263,6 +1281,43 @@ static enum test_result test_disk_gt_ram_delete_paged_out(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+extern "C" {
+    static void* bg_set_thread(void *arg) {
+        ThreadData *td(static_cast<ThreadData*>(arg));
+
+        item *i = NULL;
+        check(store(td->h, td->h1, NULL, OPERATION_SET,
+                    "k1", "new value", &i) == ENGINE_SUCCESS,
+              "Failed to update an item.");
+
+        delete td;
+        return NULL;
+    }
+}
+
+static enum test_result test_disk_gt_ram_set_race(ENGINE_HANDLE *h,
+                                                  ENGINE_HANDLE_V1 *h1) {
+    wait_for_persisted_value(h, h1, "k1", "some value");
+
+    set_flush_param(h, h1, "bg_fetch_delay", "1");
+
+    evict_key(h, h1, "k1");
+
+    pthread_t tid;
+    if (pthread_create(&tid, NULL, bg_set_thread, new ThreadData(h, h1)) != 0) {
+        abort();
+    }
+
+    check_key_value(h, h1, "k1", "new value", 9);
+
+    // Should have bg_fetched, but discarded the old value.
+    assert(1 == get_int_stat(h, h1, "ep_bg_fetched"));
+
+    assert(pthread_join(tid, NULL) == 0);
+
+    return SUCCESS;
+}
+
 engine_test_t* get_tests(void) {
     static engine_test_t tests[]  = {
         // basic tests
@@ -1309,7 +1364,8 @@ engine_test_t* get_tests(void) {
          teardown, NULL},
         {"disk>RAM delete paged-out", test_disk_gt_ram_delete_paged_out, NULL,
          teardown, NULL},
-        {"disk>RAM set bgfetch race", NULL, NULL, teardown, NULL},
+        {"disk>RAM set bgfetch race", test_disk_gt_ram_set_race, NULL,
+         teardown, NULL},
         {"disk>RAM delete bgfetch race", NULL, NULL, teardown, NULL},
         // vbucket negative tests
         {"vbucket incr (dead)", test_wrong_vb_incr, NULL, teardown, NULL},
