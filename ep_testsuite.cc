@@ -1293,6 +1293,16 @@ extern "C" {
         delete td;
         return NULL;
     }
+
+    static void* bg_del_thread(void *arg) {
+        ThreadData *td(static_cast<ThreadData*>(arg));
+
+        check(td->h1->remove(td->h, NULL, "k1", 2, 0, 0) == ENGINE_SUCCESS,
+              "Failed to delete.");
+
+        delete td;
+        return NULL;
+    }
 }
 
 static enum test_result test_disk_gt_ram_set_race(ENGINE_HANDLE *h,
@@ -1309,6 +1319,29 @@ static enum test_result test_disk_gt_ram_set_race(ENGINE_HANDLE *h,
     }
 
     check_key_value(h, h1, "k1", "new value", 9);
+
+    // Should have bg_fetched, but discarded the old value.
+    assert(1 == get_int_stat(h, h1, "ep_bg_fetched"));
+
+    assert(pthread_join(tid, NULL) == 0);
+
+    return SUCCESS;
+}
+
+static enum test_result test_disk_gt_ram_rm_race(ENGINE_HANDLE *h,
+                                                 ENGINE_HANDLE_V1 *h1) {
+    wait_for_persisted_value(h, h1, "k1", "some value");
+
+    set_flush_param(h, h1, "bg_fetch_delay", "1");
+
+    evict_key(h, h1, "k1");
+
+    pthread_t tid;
+    if (pthread_create(&tid, NULL, bg_del_thread, new ThreadData(h, h1)) != 0) {
+        abort();
+    }
+
+    check(verify_key(h, h1, "k1") == ENGINE_KEY_ENOENT, "Expected miss.");
 
     // Should have bg_fetched, but discarded the old value.
     assert(1 == get_int_stat(h, h1, "ep_bg_fetched"));
@@ -1366,7 +1399,8 @@ engine_test_t* get_tests(void) {
          teardown, NULL},
         {"disk>RAM set bgfetch race", test_disk_gt_ram_set_race, NULL,
          teardown, NULL},
-        {"disk>RAM delete bgfetch race", NULL, NULL, teardown, NULL},
+        {"disk>RAM delete bgfetch race", test_disk_gt_ram_rm_race, NULL,
+         teardown, NULL},
         // vbucket negative tests
         {"vbucket incr (dead)", test_wrong_vb_incr, NULL, teardown, NULL},
         {"vbucket incr (pending)", test_vb_incr_pending, NULL, teardown, NULL},
