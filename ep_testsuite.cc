@@ -343,6 +343,41 @@ static enum test_result test_replica_vb_mutation(ENGINE_HANDLE *h, ENGINE_HANDLE
     return SUCCESS;
 }
 
+static int get_int_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                        const char *statname) {
+    check(h1->get_stats(h, NULL, NULL, 0, add_stats) == ENGINE_SUCCESS,
+          "Failed to get stats.");
+    std::string s = vals[statname];
+    return atoi(s.c_str());
+}
+
+static void verify_curr_items(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                              int exp, const char *msg) {
+    vals.clear();
+    int curr_items = get_int_stat(h, h1, "curr_items");
+    if (curr_items != exp) {
+        std::cerr << "Expected "<< exp << " curr_items after " << msg
+                  << ", got " << curr_items << std::endl;
+        abort();
+    }
+}
+
+static void wait_for_persisted_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                                     const char *key, const char *val,
+                                     uint16_t vbucketId=0) {
+
+    item *i = NULL;
+    assert(0 == get_int_stat(h, h1, "ep_bg_fetched"));
+    int numStored = get_int_stat(h, h1, "ep_total_persisted");
+    check(store(h, h1, NULL, OPERATION_SET, key, val, &i, vbucketId) == ENGINE_SUCCESS,
+          "Failed to store an item.");
+
+    // Wait for persistence...
+    while (get_int_stat(h, h1, "ep_total_persisted") == numStored) {
+        usleep(100);
+    }
+}
+
 //
 // ----------------------------------------------------------------------
 // The actual tests are below.
@@ -1044,25 +1079,6 @@ static enum test_result test_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return SUCCESS;
 }
 
-static int get_int_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                        const char *statname) {
-    check(h1->get_stats(h, NULL, NULL, 0, add_stats) == ENGINE_SUCCESS,
-          "Failed to get stats.");
-    std::string s = vals[statname];
-    return atoi(s.c_str());
-}
-
-static void verify_curr_items(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                              int exp, const char *msg) {
-    vals.clear();
-    int curr_items = get_int_stat(h, h1, "curr_items");
-    if (curr_items != exp) {
-        std::cerr << "Expected "<< exp << " curr_items after " << msg
-                  << ", got " << curr_items << std::endl;
-        abort();
-    }
-}
-
 static enum test_result test_curr_items(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
 
@@ -1121,16 +1137,7 @@ static void evict_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 
 static enum test_result test_disk_gt_ram_golden(ENGINE_HANDLE *h,
                                                 ENGINE_HANDLE_V1 *h1) {
-    item *i = NULL;
-    assert(0 == get_int_stat(h, h1, "ep_bg_fetched"));
-    int numStored = get_int_stat(h, h1, "ep_total_persisted");
-    check(store(h, h1, NULL, OPERATION_ADD, "k1", "some value", &i) == ENGINE_SUCCESS,
-          "Failed to store an item.");
-
-    // Wait for persistence...
-    while (get_int_stat(h, h1, "ep_total_persisted") == numStored) {
-        usleep(100);
-    }
+    wait_for_persisted_value(h, h1, "k1", "some value");
 
     evict_key(h, h1, "k1");
 
@@ -1143,19 +1150,11 @@ static enum test_result test_disk_gt_ram_golden(ENGINE_HANDLE *h,
 
 static enum test_result test_disk_gt_ram_update_paged_out(ENGINE_HANDLE *h,
                                                           ENGINE_HANDLE_V1 *h1) {
-    item *i = NULL;
-    assert(0 == get_int_stat(h, h1, "ep_bg_fetched"));
-    int numStored = get_int_stat(h, h1, "ep_total_persisted");
-    check(store(h, h1, NULL, OPERATION_ADD, "k1", "some value", &i) == ENGINE_SUCCESS,
-          "Failed to store an item.");
-
-    // Wait for persistence...
-    while (get_int_stat(h, h1, "ep_total_persisted") == numStored) {
-        usleep(100);
-    }
+    wait_for_persisted_value(h, h1, "k1", "some value");
 
     evict_key(h, h1, "k1");
 
+    item *i = NULL;
     check(store(h, h1, NULL, OPERATION_SET, "k1", "new value", &i) == ENGINE_SUCCESS,
           "Failed to update an item.");
 
@@ -1168,16 +1167,7 @@ static enum test_result test_disk_gt_ram_update_paged_out(ENGINE_HANDLE *h,
 
 static enum test_result test_disk_gt_ram_delete_paged_out(ENGINE_HANDLE *h,
                                                           ENGINE_HANDLE_V1 *h1) {
-    item *i = NULL;
-    assert(0 == get_int_stat(h, h1, "ep_bg_fetched"));
-    int numStored = get_int_stat(h, h1, "ep_total_persisted");
-    check(store(h, h1, NULL, OPERATION_ADD, "k1", "some value", &i) == ENGINE_SUCCESS,
-          "Failed to store an item.");
-
-    // Wait for persistence...
-    while (get_int_stat(h, h1, "ep_total_persisted") == numStored) {
-        usleep(100);
-    }
+    wait_for_persisted_value(h, h1, "k1", "some value");
 
     evict_key(h, h1, "k1");
 
