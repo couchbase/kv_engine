@@ -260,6 +260,18 @@ static protocol_binary_request_header* create_packet(uint8_t opcode,
     return req;
 }
 
+static void evict_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                      const char *key, uint16_t vbucketId=0) {
+    protocol_binary_request_header *pkt = create_packet(CMD_EVICT_KEY,
+                                                        key, "");
+    pkt->request.vbucket = htons(vbucketId);
+
+    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
+          "Failed to evict key.");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+          "Expected success evicting key.");
+}
+
 static bool set_vbucket_state(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                               uint16_t vb, const char *state) {
     char vbid[8];
@@ -1066,6 +1078,88 @@ static enum test_result test_tap_rcvr_mutate_replica(ENGINE_HANDLE *h, ENGINE_HA
     return SUCCESS;
 }
 
+
+static enum test_result verify_item(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                                    item *i,
+                                    const char* key, size_t klen,
+                                    const char* val, size_t vlen)
+{
+    item_info info;
+    info.nvalue = 1;
+    check(h1->get_item_info(h, i, &info), "get item info failed");
+    check(info.nvalue == 1, "iovectors not supported");
+    check(klen == info.nkey, "Incorrect key length");
+    check(memcmp(info.key, key, klen) == 0, "Incorect key value");
+    check(vlen == info.value[0].iov_len, "Incorrect value length");
+    check(memcmp(info.value[0].iov_base, val, vlen) == 0,
+          "Data mismatch");
+
+    return SUCCESS;
+}
+
+extern "C" {
+    static void *tap_client_main(void *arg) {
+        ENGINE_HANDLE *h = reinterpret_cast<ENGINE_HANDLE*>(arg);
+        ENGINE_HANDLE_V1 *h1 = reinterpret_cast<ENGINE_HANDLE_V1*>(arg);
+
+        const void *cookie = testHarness.create_cookie();
+        testHarness.lock_cookie(cookie);
+        std::string name = "tap_client_thread";
+        TAP_ITERATOR iter = h1->get_tap_iterator(h, cookie, name.c_str(),
+                                                 name.length(),
+                                                 TAP_CONNECT_FLAG_DUMP, NULL,
+                                                 0);
+        check(iter != NULL, "Failed to create a tap iterator");
+
+        item *it;
+        void *engine_specific;
+        uint16_t nengine_specific;
+        uint8_t ttl;
+        uint16_t flags;
+        uint32_t seqno;
+        uint16_t vbucket;
+
+        tap_event_t event;
+
+        do {
+            event = iter(h, cookie, &it, &engine_specific,
+                         &nengine_specific, &ttl, &flags,
+                         &seqno, &vbucket);
+
+            if (event == TAP_PAUSE) {
+                testHarness.waitfor_cookie(cookie);
+                event = TAP_NOOP;
+            }
+        } while (event == TAP_NOOP);
+
+        check(event == TAP_MUTATION, "Expected TAP Mutation");
+        check(verify_item(h, h1, it, "key", 3, "value", 5) == SUCCESS,
+              "Unexpected item arrived on tap stream");
+        testHarness.unlock_cookie(cookie);
+        h1->release(h, cookie, it);
+
+        return (void*)SUCCESS;
+    }
+}
+
+static enum test_result test_tap_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    item *i = NULL;
+
+    check(store(h, h1, NULL, OPERATION_SET, "key", "value",
+                &i) == ENGINE_SUCCESS, "store failure");
+    check_key_value(h, h1, "key", "value", 5);
+    evict_key(h, h1, "key");
+
+    pthread_t tid;
+    check(pthread_create(&tid, NULL, tap_client_main, h) == 0,
+          "Failed to create tap client thread");
+
+    void *rval;
+    check(pthread_join(tid, &rval) == 0, "Failed to join thread");
+    check(rval == (void*)SUCCESS, "tap client successfull");
+    return SUCCESS;
+}
+
 static enum test_result test_novb0(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(verify_vbucket_missing(h, h1, 0), "vb0 existed and shouldn't have.");
     return SUCCESS;
@@ -1121,18 +1215,6 @@ static enum test_result test_curr_items(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
     verify_curr_items(h, h1, 0, "del vbucket");
 
     return SUCCESS;
-}
-
-static void evict_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                      const char *key, uint16_t vbucketId=0) {
-    protocol_binary_request_header *pkt = create_packet(CMD_EVICT_KEY,
-                                                        key, "");
-    pkt->request.vbucket = htons(vbucketId);
-
-    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
-          "Failed to evict key.");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
-          "Expected success evicting key.");
 }
 
 static enum test_result test_disk_gt_ram_golden(ENGINE_HANDLE *h,
@@ -1215,6 +1297,7 @@ engine_test_t* get_tests(void) {
          NULL, teardown, NULL},
         {"tap receiver mutation (replica)", test_tap_rcvr_mutate_replica,
          NULL, teardown, NULL},
+        {"tap stream", test_tap_stream, NULL, teardown, NULL},
         // restart tests
         {"test restart", test_restart, NULL, teardown, NULL},
         {"set+get+restart+hit (bin)", test_restart_bin_val, NULL, teardown, NULL},

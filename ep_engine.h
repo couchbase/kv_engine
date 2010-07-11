@@ -944,8 +944,17 @@ public:
             return ev.event;
         }
 
-        if (!connection->empty()) {
-            QueuedItem qi = connection->next();
+        QueuedItem *qip;
+        qip = reinterpret_cast<QueuedItem*>(serverApi->core->get_engine_specific(cookie));
+        if (qip != NULL || !connection->empty()) {
+            QueuedItem qi("", 0, queue_op_set);
+            if (qip != NULL) {
+                qi = *qip;
+                delete qip;
+                serverApi->core->store_engine_specific(cookie, NULL);
+            } else {
+                qi = connection->next();
+            }
             lh.unlock();
 
             ENGINE_ERROR_CODE r;
@@ -966,6 +975,10 @@ public:
                                      "Failed to allocate memory for deletion of: %s\n", key.c_str());
                     ret = TAP_PAUSE;
                 }
+            } else if (r == ENGINE_EWOULDBLOCK) {
+                qip = new QueuedItem(qi);
+                serverApi->core->store_engine_specific(cookie, qip);
+                return TAP_PAUSE;
             }
         } else if (connection->shouldFlush()) {
             ret = TAP_FLUSH;
