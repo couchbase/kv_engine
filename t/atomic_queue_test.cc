@@ -13,7 +13,8 @@ struct thread_args {
     int counter;
 };
 
-void *launch_consumer_thread(void *arg) {
+extern "C" {
+static void *launch_consumer_thread(void *arg) {
     struct thread_args *args = static_cast<struct thread_args *>(arg);
     int count(0);
     std::queue<int> outQueue;
@@ -39,7 +40,7 @@ void *launch_consumer_thread(void *arg) {
     return static_cast<void *>(0);
 }
 
-void *launch_test_thread(void *arg) {
+static void *launch_test_thread(void *arg) {
     struct thread_args *args = static_cast<struct thread_args *>(arg);
     int i(0);
     LockHolder lh(args->mutex);
@@ -54,6 +55,7 @@ void *launch_test_thread(void *arg) {
     }
 
     return static_cast<void *>(0);
+}
 }
 
 int main() {
