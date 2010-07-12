@@ -1256,6 +1256,29 @@ static enum test_result test_curr_items(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
     return SUCCESS;
 }
 
+
+static enum test_result test_value_eviction(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    item *i = NULL;
+    check(store(h, h1, NULL, OPERATION_SET,"k1", "v1", &i) == ENGINE_SUCCESS,
+          "Failed to fail to store an item.");
+    h1->release(h, NULL, i);
+    evict_key(h, h1, "k1", 0, "Can't eject: Dirty or a small object.");
+    wait_for_persisted_value(h, h1, "k1", "some value");
+    evict_key(h, h1, "k1", 0, "Ejected.");
+    evict_key(h, h1, "k1", 0, "Already ejected.");
+
+    protocol_binary_request_header *pkt = create_packet(CMD_EVICT_KEY,
+                                                        "missing-key", "");
+    pkt->request.vbucket = htons(0);
+
+    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
+          "Failed to evict key.");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT,
+          "expected the key to be missing...");
+
+    return SUCCESS;
+}
+
 static enum test_result test_disk_gt_ram_golden(ENGINE_HANDLE *h,
                                                 ENGINE_HANDLE_V1 *h1) {
     wait_for_persisted_value(h, h1, "k1", "some value");
@@ -1398,6 +1421,8 @@ engine_test_t* get_tests(void) {
         {"stats key", NULL, NULL, teardown, NULL},
         {"stats vkey", NULL, NULL, teardown, NULL},
         {"stats curr_items", test_curr_items, NULL, teardown, NULL},
+        // eviction
+        {"value eviction", test_value_eviction, NULL, teardown, NULL},
         // tap tests
         {"tap receiver mutation", test_tap_rcvr_mutate, NULL, teardown, NULL},
         {"tap receiver mutation (dead)", test_tap_rcvr_mutate_dead,

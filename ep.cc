@@ -198,8 +198,11 @@ protocol_binary_response_status EventuallyPersistentStore::evictKey(const std::s
 
     if (v) {
         if (v->isResident()) {
-            v->ejectValue();
-            *msg = "Ejected.";
+            if (v->ejectValue()) {
+                *msg = "Ejected.";
+            } else {
+                *msg = "Can't eject: Dirty or a small object.";
+            }
         } else {
             *msg = "Already ejected.";
         }

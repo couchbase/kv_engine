@@ -228,14 +228,16 @@ public:
         }
     }
 
-    void ejectValue() {
+    bool ejectValue() {
         if (isResident() && isClean() && !_isSmall) {
             blobval uval;
             uval.len = valLength();
             shared_ptr<Blob> sp(Blob::New(uval.chlen, sizeof(uval)));
             extra.feature.resident = false;
             value = sp;
+            return true;
         }
+        return false;
     }
 
     void restoreValue(value_t v) {
