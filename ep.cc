@@ -199,6 +199,7 @@ protocol_binary_response_status EventuallyPersistentStore::evictKey(const std::s
     if (v) {
         if (v->isResident()) {
             if (v->ejectValue()) {
+                ++stats.numValueEjects;
                 *msg = "Ejected.";
             } else {
                 *msg = "Can't eject: Dirty or a small object.";
@@ -470,6 +471,7 @@ void EventuallyPersistentStore::resetStats(void) {
     stats.flushDuration.set(0);
     stats.flushDurationHighWat.set(0);
     stats.commit_time.set(0);
+    stats.numValueEjects.set(0);
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentStore::del(const std::string &key,

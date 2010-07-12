@@ -1682,6 +1682,8 @@ private:
                         add_stat, cookie);
         add_casted_stat("ep_bg_fetched", epstats.bg_fetched, add_stat,
                         cookie);
+        add_casted_stat("ep_num_value_ejects", epstats.numValueEjects, add_stat,
+                        cookie);
 
         if (warmup) {
             add_casted_stat("ep_warmup_thread",

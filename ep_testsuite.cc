@@ -1259,6 +1259,10 @@ static enum test_result test_curr_items(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
 
 static enum test_result test_value_eviction(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
+    h1->reset_stats(h, NULL);
+    check(get_int_stat(h, h1, "ep_num_value_ejects") == 0,
+          "Expected reset stats to set ep_num_value_ejects to zero");
+
     check(store(h, h1, NULL, OPERATION_SET,"k1", "v1", &i) == ENGINE_SUCCESS,
           "Failed to fail to store an item.");
     h1->release(h, NULL, i);
@@ -1275,6 +1279,13 @@ static enum test_result test_value_eviction(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
           "Failed to evict key.");
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT,
           "expected the key to be missing...");
+
+    check(get_int_stat(h, h1, "ep_num_value_ejects") == 1,
+          "Expected only one value to be ejected");
+
+    h1->reset_stats(h, NULL);
+    check(get_int_stat(h, h1, "ep_num_value_ejects") == 0,
+          "Expected reset stats to set ep_num_value_ejects to zero");
 
     return SUCCESS;
 }

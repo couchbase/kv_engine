@@ -67,6 +67,8 @@ public:
     Atomic<size_t> tap_fetched;
     //! Number of times background fetches occurred.
     Atomic<size_t> bg_fetched;
+    //! Number of times a value is ejected
+    Atomic<size_t> numValueEjects;
 
 private:
 
