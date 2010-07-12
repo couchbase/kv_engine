@@ -1270,11 +1270,7 @@ public:
 
     void resetStats()
     {
-        if (epstore) {
-            epstore->resetStats();
-        }
-
-        // @todo reset statistics
+        epstore->resetStats();
     }
 
     void setMinDataAge(int to) {
@@ -1636,77 +1632,74 @@ private:
 
     ENGINE_ERROR_CODE doEngineStats(const void *cookie, ADD_STAT add_stat)
     {
-        if (epstore) {
-            EPStats &epstats = epstore->getStats();
+        EPStats &epstats = epstore->getStats();
+        add_casted_stat("ep_version", VERSION, add_stat, cookie);
+        add_casted_stat("ep_storage_age",
+                        epstats.dirtyAge, add_stat, cookie);
+        add_casted_stat("ep_storage_age_highwat",
+                        epstats.dirtyAgeHighWat, add_stat, cookie);
+        add_casted_stat("ep_min_data_age",
+                        epstats.min_data_age, add_stat, cookie);
+        add_casted_stat("ep_queue_age_cap",
+                        epstats.queue_age_cap, add_stat, cookie);
+        add_casted_stat("ep_max_txn_size",
+                        epstore->getTxnSize(), add_stat, cookie);
+        add_casted_stat("ep_data_age",
+                        epstats.dataAge, add_stat, cookie);
+        add_casted_stat("ep_data_age_highwat",
+                        epstats.dataAgeHighWat, add_stat, cookie);
+        add_casted_stat("ep_too_young",
+                        epstats.tooYoung, add_stat, cookie);
+        add_casted_stat("ep_too_old",
+                        epstats.tooOld, add_stat, cookie);
+        add_casted_stat("ep_total_enqueued",
+                        epstats.totalEnqueued, add_stat, cookie);
+        add_casted_stat("ep_total_persisted",
+                        epstats.totalPersisted, add_stat, cookie);
+        add_casted_stat("ep_item_flush_failed",
+                        epstats.flushFailed, add_stat, cookie);
+        add_casted_stat("ep_item_commit_failed",
+                        epstats.commitFailed, add_stat, cookie);
+        add_casted_stat("ep_queue_size",
+                        epstats.queue_size, add_stat, cookie);
+        add_casted_stat("ep_flusher_todo",
+                        epstats.flusher_todo, add_stat, cookie);
+        add_casted_stat("ep_flusher_state",
+                        epstore->getFlusher()->stateName(),
+                        add_stat, cookie);
+        add_casted_stat("ep_commit_time",
+                        epstats.commit_time, add_stat, cookie);
+        add_casted_stat("ep_flush_duration",
+                        epstats.flushDuration, add_stat, cookie);
+        add_casted_stat("ep_flush_duration_highwat",
+                        epstats.flushDurationHighWat, add_stat, cookie);
+        add_casted_stat("curr_items", epstats.curr_items, add_stat,
+                        cookie);
+        add_casted_stat("mem_used", StoredValue::getCurrentSize(), add_stat,
+                        cookie);
+        add_casted_stat("ep_storage_type",
+                        HashTable::getDefaultStorageValueTypeStr(),
+                        add_stat, cookie);
+        add_casted_stat("ep_bg_fetched", epstats.bg_fetched, add_stat,
+                        cookie);
 
-            add_casted_stat("ep_version", VERSION, add_stat, cookie);
-            add_casted_stat("ep_storage_age",
-                            epstats.dirtyAge, add_stat, cookie);
-            add_casted_stat("ep_storage_age_highwat",
-                            epstats.dirtyAgeHighWat, add_stat, cookie);
-            add_casted_stat("ep_min_data_age",
-                            epstats.min_data_age, add_stat, cookie);
-            add_casted_stat("ep_queue_age_cap",
-                            epstats.queue_age_cap, add_stat, cookie);
-            add_casted_stat("ep_max_txn_size",
-                            epstore->getTxnSize(), add_stat, cookie);
-            add_casted_stat("ep_data_age",
-                            epstats.dataAge, add_stat, cookie);
-            add_casted_stat("ep_data_age_highwat",
-                            epstats.dataAgeHighWat, add_stat, cookie);
-            add_casted_stat("ep_too_young",
-                            epstats.tooYoung, add_stat, cookie);
-            add_casted_stat("ep_too_old",
-                            epstats.tooOld, add_stat, cookie);
-            add_casted_stat("ep_total_enqueued",
-                            epstats.totalEnqueued, add_stat, cookie);
-            add_casted_stat("ep_total_persisted",
-                            epstats.totalPersisted, add_stat, cookie);
-            add_casted_stat("ep_item_flush_failed",
-                            epstats.flushFailed, add_stat, cookie);
-            add_casted_stat("ep_item_commit_failed",
-                            epstats.commitFailed, add_stat, cookie);
-            add_casted_stat("ep_queue_size",
-                            epstats.queue_size, add_stat, cookie);
-            add_casted_stat("ep_flusher_todo",
-                            epstats.flusher_todo, add_stat, cookie);
-            add_casted_stat("ep_flusher_state",
-                            epstore->getFlusher()->stateName(),
+        if (warmup) {
+            add_casted_stat("ep_warmup_thread",
+                            epstats.warmupComplete.get() ? "complete" : "running",
                             add_stat, cookie);
-            add_casted_stat("ep_commit_time",
-                            epstats.commit_time, add_stat, cookie);
-            add_casted_stat("ep_flush_duration",
-                            epstats.flushDuration, add_stat, cookie);
-            add_casted_stat("ep_flush_duration_highwat",
-                            epstats.flushDurationHighWat, add_stat, cookie);
-            add_casted_stat("curr_items", epstats.curr_items, add_stat,
-                            cookie);
-            add_casted_stat("mem_used", StoredValue::getCurrentSize(), add_stat,
-                            cookie);
-            add_casted_stat("ep_storage_type",
-                            HashTable::getDefaultStorageValueTypeStr(),
-                            add_stat, cookie);
-            add_casted_stat("ep_bg_fetched", epstats.bg_fetched, add_stat,
-                            cookie);
-
-            if (warmup) {
-                add_casted_stat("ep_warmup_thread",
-                                epstats.warmupComplete.get() ? "complete" : "running",
+            add_casted_stat("ep_warmed_up", epstats.warmedUp, add_stat, cookie);
+            if (epstats.warmupComplete.get()) {
+                add_casted_stat("ep_warmup_time", epstats.warmupTime,
                                 add_stat, cookie);
-                add_casted_stat("ep_warmed_up", epstats.warmedUp, add_stat, cookie);
-                if (epstats.warmupComplete.get()) {
-                    add_casted_stat("ep_warmup_time", epstats.warmupTime,
-                                    add_stat, cookie);
-                }
             }
-
-            add_casted_stat("ep_tap_total_queue", epstats.tap_queue,
-                            add_stat, cookie);
-            add_casted_stat("ep_tap_total_fetched", epstats.tap_fetched,
-                            add_stat, cookie);
-            add_casted_stat("ep_tap_keepalive", tapKeepAlive,
-                            add_stat, cookie);
         }
+
+        add_casted_stat("ep_tap_total_queue", epstats.tap_queue,
+                        add_stat, cookie);
+        add_casted_stat("ep_tap_total_fetched", epstats.tap_fetched,
+                        add_stat, cookie);
+        add_casted_stat("ep_tap_keepalive", tapKeepAlive,
+                        add_stat, cookie);
 
         add_casted_stat("ep_dbname", dbname, add_stat, cookie);
         add_casted_stat("ep_dbinit", databaseInitTime, add_stat, cookie);
@@ -1716,18 +1709,14 @@ private:
     }
 
     ENGINE_ERROR_CODE doVBucketStats(const void *cookie, ADD_STAT add_stat) {
-        if (epstore) {
-            StatVBucketVisitor svbv(cookie, add_stat);
-            epstore->visit(svbv);
-        }
+        StatVBucketVisitor svbv(cookie, add_stat);
+        epstore->visit(svbv);
         return ENGINE_SUCCESS;
     }
 
     ENGINE_ERROR_CODE doHashStats(const void *cookie, ADD_STAT add_stat) {
         HashTableDepthStatVisitor depthVisitor;
-        if (epstore) {
-            epstore->visitDepth(depthVisitor);
-        }
+        epstore->visitDepth(depthVisitor);
         add_casted_stat("ep_hash_bucket_size", epstore->getHashSize(), add_stat, cookie);
         add_casted_stat("ep_hash_num_locks", epstore->getHashLocks(), add_stat, cookie);
         add_casted_stat("ep_hash_min_depth", depthVisitor.min, add_stat, cookie);
@@ -1737,12 +1726,11 @@ private:
 
     ENGINE_ERROR_CODE doTapStats(const void *cookie, ADD_STAT add_stat) {
         std::list<TapConnection*>::iterator iter;
-        if (epstore) {
-            EPStats &epstats = epstore->getStats();
-            add_casted_stat("ep_tap_total_queue", epstats.tap_queue, add_stat, cookie);
-            add_casted_stat("ep_tap_total_fetched", epstats.tap_fetched, add_stat, cookie);
-            add_casted_stat("ep_tap_keepalive", tapKeepAlive, add_stat, cookie);
-        }
+        EPStats &epstats = epstore->getStats();
+        add_casted_stat("ep_tap_total_queue", epstats.tap_queue, add_stat, cookie);
+        add_casted_stat("ep_tap_total_fetched", epstats.tap_fetched, add_stat, cookie);
+        add_casted_stat("ep_tap_keepalive", tapKeepAlive, add_stat, cookie);
+
         int totalTaps = 0;
         LockHolder lh(tapNotifySync);
         for (iter = allTaps.begin(); iter != allTaps.end(); iter++) {
@@ -1832,76 +1820,75 @@ private:
         std::string key(k, nkey);
         ENGINE_ERROR_CODE rv = ENGINE_FAILED;
 
-        if (epstore) {
-            Item *it = NULL;
-            shared_ptr<Item> diskItem;
-            struct key_stats kstats;
-            rel_time_t now = ep_current_time();
-            if (fetchLookupResult(cookie, &it)) {
-                diskItem.reset(it); // Will be null if the key was not found
-                if (!validate) {
-                    getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                                     "Found lookup results for non-validating key stat call. Would have leaked\n");
-                    diskItem.reset();
-                }
-            } else if (validate) {
-                shared_ptr<LookupCallback> cb(new LookupCallback(this, cookie));
-                // TODO:  Need a proper vbucket ID here.
-                epstore->getFromUnderlying(key, 0, cb);
-                return ENGINE_EWOULDBLOCK;
+        Item *it = NULL;
+        shared_ptr<Item> diskItem;
+        struct key_stats kstats;
+        rel_time_t now = ep_current_time();
+        if (fetchLookupResult(cookie, &it)) {
+            diskItem.reset(it); // Will be null if the key was not found
+            if (!validate) {
+                getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                                 "Found lookup results for non-validating key stat call. Would have leaked\n");
+                diskItem.reset();
             }
-
+        } else if (validate) {
+            shared_ptr<LookupCallback> cb(new LookupCallback(this, cookie));
             // TODO:  Need a proper vbucket ID here.
-            if (epstore->getKeyStats(k, 0, kstats)) {
-                std::string valid("this_is_a_bug");
-                if (validate) {
-                    if (kstats.dirty) {
-                        valid.assign("dirty");
-                    } else {
-                        // TODO:  Need a proper vbucket ID here -- and server API
-                        GetValue gv(epstore->get(key, 0, cookie, NULL));
-                        if (gv.getStatus() == ENGINE_SUCCESS) {
-                            shared_ptr<Item> item(gv.getValue());
-                            if (diskItem.get()) {
-                                // Both items exist
-                                if (diskItem->getNBytes() != item->getNBytes()) {
-                                    valid.assign("length_mismatch");
-                                } else if (memcmp(diskItem->getData(), item->getData(),
-                                                  diskItem->getNBytes()) != 0) {
-                                    valid.assign("data_mismatch");
-                                } else if (diskItem->getFlags() != item->getFlags()) {
-                                    valid.assign("flags_mismatch");
-                                } else {
-                                    valid.assign("valid");
-                                }
+            epstore->getFromUnderlying(key, 0, cb);
+            return ENGINE_EWOULDBLOCK;
+        }
+
+        // TODO:  Need a proper vbucket ID here.
+        if (epstore->getKeyStats(k, 0, kstats)) {
+            std::string valid("this_is_a_bug");
+            if (validate) {
+                if (kstats.dirty) {
+                    valid.assign("dirty");
+                } else {
+                    // TODO:  Need a proper vbucket ID here -- and server API
+                    GetValue gv(epstore->get(key, 0, cookie, NULL));
+                    if (gv.getStatus() == ENGINE_SUCCESS) {
+                        shared_ptr<Item> item(gv.getValue());
+                        if (diskItem.get()) {
+                            // Both items exist
+                            if (diskItem->getNBytes() != item->getNBytes()) {
+                                valid.assign("length_mismatch");
+                            } else if (memcmp(diskItem->getData(), item->getData(),
+                                              diskItem->getNBytes()) != 0) {
+                                valid.assign("data_mismatch");
+                            } else if (diskItem->getFlags() != item->getFlags()) {
+                                valid.assign("flags_mismatch");
                             } else {
-                                // Since we do the disk lookup first, this could
-                                // be transient
-                                valid.assign("ram_but_not_disk");
+                                valid.assign("valid");
                             }
                         } else {
-                            valid.assign("item_deleted");
+                            // Since we do the disk lookup first, this could
+                            // be transient
+                            valid.assign("ram_but_not_disk");
                         }
+                    } else {
+                        valid.assign("item_deleted");
                     }
-                    getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "Key '%s' is %s\n",
-                                     key.c_str(), valid.c_str());
                 }
-                add_casted_stat("key_is_dirty", kstats.dirty, add_stat, cookie);
-                add_casted_stat("key_exptime", kstats.exptime, add_stat, cookie);
-                add_casted_stat("key_flags", kstats.flags, add_stat, cookie);
-                add_casted_stat("key_cas", kstats.cas, add_stat, cookie);
-                add_casted_stat("key_dirtied", kstats.dirty ? now -
-                                kstats.dirtied : 0, add_stat, cookie);
-                add_casted_stat("key_data_age", kstats.dirty ? now -
-                                kstats.data_age : 0, add_stat, cookie);
-                if (validate) {
-                    add_casted_stat("key_valid", valid.c_str(), add_stat, cookie);
-                }
-                rv = ENGINE_SUCCESS;
-            } else {
-                rv = ENGINE_KEY_ENOENT;
+                getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "Key '%s' is %s\n",
+                                 key.c_str(), valid.c_str());
             }
+            add_casted_stat("key_is_dirty", kstats.dirty, add_stat, cookie);
+            add_casted_stat("key_exptime", kstats.exptime, add_stat, cookie);
+            add_casted_stat("key_flags", kstats.flags, add_stat, cookie);
+            add_casted_stat("key_cas", kstats.cas, add_stat, cookie);
+            add_casted_stat("key_dirtied", kstats.dirty ? now -
+                            kstats.dirtied : 0, add_stat, cookie);
+            add_casted_stat("key_data_age", kstats.dirty ? now -
+                            kstats.data_age : 0, add_stat, cookie);
+            if (validate) {
+                add_casted_stat("key_valid", valid.c_str(), add_stat, cookie);
+            }
+            rv = ENGINE_SUCCESS;
+        } else {
+            rv = ENGINE_KEY_ENOENT;
         }
+
         return rv;
     }
 
