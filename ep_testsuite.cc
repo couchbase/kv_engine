@@ -316,7 +316,8 @@ static bool verify_vbucket_state(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     }
 
     if (last_status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-        fprintf(stderr, "Last protocol status was %d\n", last_status);
+        fprintf(stderr, "Last protocol status was %d (%s)\n",
+                last_status, last_key ? last_key : "unknown");
         return false;
     }
 
