@@ -231,18 +231,20 @@ static bool add_response(const void *key, uint16_t keylen,
         last_body = NULL;
     }
     if (bodylen > 0) {
-        last_body = static_cast<char*>(malloc(bodylen));
+        last_body = static_cast<char*>(malloc(bodylen + 1));
         assert(last_body);
         memcpy(last_body, body, bodylen);
+        last_body[bodylen] = '\0';
     }
     if (last_key) {
         free(last_key);
         last_key = NULL;
     }
     if (keylen > 0) {
-        last_key = static_cast<char*>(malloc(keylen));
+        last_key = static_cast<char*>(malloc(keylen + 1));
         assert(last_key);
         memcpy(last_key, key, keylen);
+        last_key[keylen] = '\0';
     }
     return true;
 }
