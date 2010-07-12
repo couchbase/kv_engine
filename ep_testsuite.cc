@@ -270,7 +270,8 @@ static protocol_binary_request_header* create_packet(uint8_t opcode,
 }
 
 static void evict_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                      const char *key, uint16_t vbucketId=0) {
+                      const char *key, uint16_t vbucketId=0,
+                      const char *msg = NULL) {
     protocol_binary_request_header *pkt = create_packet(CMD_EVICT_KEY,
                                                         key, "");
     pkt->request.vbucket = htons(vbucketId);
@@ -279,6 +280,11 @@ static void evict_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
           "Failed to evict key.");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
           "Expected success evicting key.");
+
+    if (msg != NULL) {
+        check(strcmp(last_key, msg) == 0,
+              "Expected eject to return a certain status");
+    }
 }
 
 static bool set_vbucket_state(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
@@ -1180,12 +1186,8 @@ extern "C" {
 }
 
 static enum test_result test_tap_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    item *i = NULL;
-
-    check(store(h, h1, NULL, OPERATION_SET, "key", "value",
-                &i) == ENGINE_SUCCESS, "store failure");
-    check_key_value(h, h1, "key", "value", 5);
-    evict_key(h, h1, "key");
+    wait_for_persisted_value(h, h1, "key", "value");
+    evict_key(h, h1, "key", 0, "Ejected.");
 
     pthread_t tid;
     check(pthread_create(&tid, NULL, tap_client_main, h) == 0,
