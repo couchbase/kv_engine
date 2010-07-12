@@ -304,20 +304,25 @@ static bool set_flush_param(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 }
 
 static bool verify_vbucket_state(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                                 uint16_t vb, const char *expected) {
+                                 uint16_t vb, const char *expected,
+                                 bool mute = false) {
     char vbid[8];
     snprintf(vbid, sizeof(vbid), "%d", vb);
 
     protocol_binary_request_header *pkt = create_packet(CMD_GET_VBUCKET, vbid, "");
     ENGINE_ERROR_CODE errcode = h1->unknown_command(h, NULL, pkt, add_response);
     if (errcode != ENGINE_SUCCESS) {
-        fprintf(stderr, "Error code when getting vbucket %d\n", errcode);
+        if (!mute) {
+            fprintf(stderr, "Error code when getting vbucket %d\n", errcode);
+        }
         return false;
     }
 
     if (last_status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-        fprintf(stderr, "Last protocol status was %d (%s)\n",
-                last_status, last_key ? last_key : "unknown");
+        if (!mute) {
+            fprintf(stderr, "Last protocol status was %d (%s)\n",
+                    last_status, last_key ? last_key : "unknown");
+        }
         return false;
     }
 
@@ -1225,7 +1230,15 @@ static enum test_result test_curr_items(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
     check(store(h, h1, NULL, OPERATION_SET,"k3", "v3", &i) == ENGINE_SUCCESS,
           "Failed to fail to store an item.");
     check(set_vbucket_state(h, h1, 0, "dead"), "Failed set set vbucket 0 state.");
-    usleep(2600); // XXX:  racist (vbucket set state happens on the dispatcher)
+
+    // wait for the bucket to die..
+    while (!verify_vbucket_state(h, h1, 0, "dead", true)) {
+        if (strcmp(last_key, "That's not my bucket.") == 0) {
+            break;
+        }
+        usleep(100);
+    }
+
     protocol_binary_request_header *pkt = create_packet(CMD_DEL_VBUCKET, "0", "");
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Failed to delete dead bucket.");
