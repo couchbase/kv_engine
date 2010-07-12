@@ -329,6 +329,17 @@ static bool verify_vbucket_state(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     return strncmp(expected, last_key, strlen(expected)) == 0;
 }
 
+static void waitfor_vbucket_state(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                                  uint16_t vb, const char *state) {
+    bool dead = strcmp(state, "dead") == 0;
+    while (!verify_vbucket_state(h, h1, vb, state, true)) {
+        if (dead && strcmp(last_key, "That's not my bucket.") == 0) {
+            break;
+        }
+        usleep(100);
+    }
+}
+
 static bool verify_vbucket_missing(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                    uint16_t vb) {
     char vbid[8];
@@ -921,7 +932,7 @@ static enum test_result test_vbucket_create(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
 
 static enum test_result test_vbucket_destroy(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(set_vbucket_state(h, h1, 1, "active"), "Failed to set vbucket state.");
-    usleep(2600); // XXX:  racist (vbucket set state happens on the dispatcher)
+    waitfor_vbucket_state(h, h1, 1, "active");
 
     protocol_binary_request_header *pkt = create_packet(CMD_DEL_VBUCKET, "1", "");
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
@@ -935,8 +946,8 @@ static enum test_result test_vbucket_destroy(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 
     check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET,
           "Expected failure deleting non-existent bucket.");
 
-    check(set_vbucket_state(h, h1, 1, "dead"), "Failed set set vbucket 0 state.");
-    usleep(2600); // XXX:  racist (vbucket set state happens on the dispatcher)
+    check(set_vbucket_state(h, h1, 1, "dead"), "Failed set set vbucket 1 state.");
+    waitfor_vbucket_state(h, h1, 1, "dead");
 
     pkt = create_packet(CMD_DEL_VBUCKET, "1", "");
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
@@ -952,7 +963,7 @@ static enum test_result test_vbucket_destroy(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 
 
 static enum test_result test_vbucket_destroy_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(set_vbucket_state(h, h1, 1, "active"), "Failed to set vbucket state.");
-    usleep(2600); // XXX:  racist (vbucket set state happens on the dispatcher)
+    waitfor_vbucket_state(h, h1, 1, "active");
 
     protocol_binary_request_header *pkt = create_packet(CMD_DEL_VBUCKET, "1", "");
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
@@ -975,11 +986,11 @@ static enum test_result test_vbucket_destroy_restart(ENGINE_HANDLE *h, ENGINE_HA
     check(verify_vbucket_state(h, h1, 1, "pending"),
           "Bucket state was not pending after restart.");
     check(set_vbucket_state(h, h1, 1, "active"), "Failed to set vbucket state.");
-    usleep(2600); // *sigh*
+    waitfor_vbucket_state(h, h1, 1, "active");
     check_key_value(h, h1, "key", "somevalue", 9, false, 1);
 
     check(set_vbucket_state(h, h1, 1, "dead"), "Failed set set vbucket 1 state.");
-    usleep(2600); // XXX:  racist (vbucket set state happens on the dispatcher)
+    waitfor_vbucket_state(h, h1, 1, "dead");
 
     pkt = create_packet(CMD_DEL_VBUCKET, "1", "");
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
@@ -995,7 +1006,7 @@ static enum test_result test_vbucket_destroy_restart(ENGINE_HANDLE *h, ENGINE_HA
                               testHarness.default_engine_cfg,
                               true);
 
-    if (verify_vbucket_state(h, h1, 1, "pending")) {
+    if (verify_vbucket_state(h, h1, 1, "pending", true)) {
         std::cerr << "Bucket came up in pending state after delete." << std::endl;
         abort();
     }
@@ -1230,15 +1241,7 @@ static enum test_result test_curr_items(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
     check(store(h, h1, NULL, OPERATION_SET,"k3", "v3", &i) == ENGINE_SUCCESS,
           "Failed to fail to store an item.");
     check(set_vbucket_state(h, h1, 0, "dead"), "Failed set set vbucket 0 state.");
-
-    // wait for the bucket to die..
-    while (!verify_vbucket_state(h, h1, 0, "dead", true)) {
-        if (strcmp(last_key, "That's not my bucket.") == 0) {
-            break;
-        }
-        usleep(100);
-    }
-
+    waitfor_vbucket_state(h, h1, 0, "dead");
     protocol_binary_request_header *pkt = create_packet(CMD_DEL_VBUCKET, "0", "");
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Failed to delete dead bucket.");
