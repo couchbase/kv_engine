@@ -194,8 +194,12 @@ void StoredValue::increaseCurrentSize(size_t by) {
 }
 
 void StoredValue::reduceCurrentSize(size_t by) {
-    currentSize.decr(by);
-    assert(static_cast<ssize_t>(getCurrentSize()) >= 0);
+    size_t val;
+
+    do {
+        val = currentSize.get();
+        assert(val >= by);
+    } while (!currentSize.cas(val, val - by));;
 }
 
 /**
