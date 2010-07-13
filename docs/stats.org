@@ -76,7 +76,7 @@
 | ep_bg_max_load                | The longest load time                     |
 | ep_bg_load_avg                | The average time for an item to be loaded |
 |                               | from the persistence layer                |
-
+| ep_num_non_resident           | The number of non-resident items          |
 
 
 * Details

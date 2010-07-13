@@ -70,6 +70,9 @@ public:
     //! Number of times a value is ejected
     Atomic<size_t> numValueEjects;
 
+    //! Number of nonResident items
+    Atomic<size_t> numNonResident;
+
     //! Number of read related io operations
     Atomic<size_t> io_num_read;
     //! Number of write related io operations

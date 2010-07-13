@@ -1354,13 +1354,18 @@ static enum test_result test_value_eviction(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
     h1->reset_stats(h, NULL);
     check(get_int_stat(h, h1, "ep_num_value_ejects") == 0,
           "Expected reset stats to set ep_num_value_ejects to zero");
-
+    check(get_int_stat(h, h1, "ep_num_non_resident") == 0,
+          "Expected all items to be resident");
     check(store(h, h1, NULL, OPERATION_SET,"k1", "v1", &i) == ENGINE_SUCCESS,
           "Failed to fail to store an item.");
     h1->release(h, NULL, i);
     evict_key(h, h1, "k1", 0, "Can't eject: Dirty or a small object.");
     wait_for_persisted_value(h, h1, "k1", "some value");
     evict_key(h, h1, "k1", 0, "Ejected.");
+
+    check(get_int_stat(h, h1, "ep_num_non_resident") == 1,
+          "Expected one non-resident item");
+
     evict_key(h, h1, "k1", 0, "Already ejected.");
 
     protocol_binary_request_header *pkt = create_packet(CMD_EVICT_KEY,
@@ -1378,6 +1383,10 @@ static enum test_result test_value_eviction(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
     h1->reset_stats(h, NULL);
     check(get_int_stat(h, h1, "ep_num_value_ejects") == 0,
           "Expected reset stats to set ep_num_value_ejects to zero");
+
+    check_key_value(h, h1, "k1", "some value", 10);
+    check(get_int_stat(h, h1, "ep_num_non_resident") == 0,
+          "Expected all items to be resident");
 
     return SUCCESS;
 }

@@ -1761,6 +1761,8 @@ private:
                             add_stat, cookie);
         }
 
+        add_casted_stat("ep_num_non_resident", stats.numNonResident, add_stat, cookie);
+
         return ENGINE_SUCCESS;
     }
 

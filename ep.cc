@@ -224,6 +224,7 @@ protocol_binary_response_status EventuallyPersistentStore::evictKey(const std::s
         if (v->isResident()) {
             if (v->ejectValue()) {
                 ++stats.numValueEjects;
+                ++stats.numNonResident;
                 *msg = "Ejected.";
             } else {
                 *msg = "Can't eject: Dirty or a small object.";
@@ -341,7 +342,9 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
         StoredValue *v = vb->ht.unlocked_find(key, bucket_num);
 
         if (v) {
-            v->restoreValue(gcb.val.getValue()->getValue());
+            if (v->restoreValue(gcb.val.getValue()->getValue())) {
+                --stats.numNonResident;
+            }
         }
     }
 

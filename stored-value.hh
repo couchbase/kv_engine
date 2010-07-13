@@ -249,7 +249,7 @@ public:
         return false;
     }
 
-    void restoreValue(value_t v) {
+    bool restoreValue(value_t v) {
         if (!isResident()) {
             size_t oldsize = size();
             assert(v);
@@ -263,7 +263,9 @@ public:
             } else if (newsize < oldsize) {
                 reduceCurrentSize(oldsize - newsize, true);
             }
+            return true;
         }
+        return false;
     }
 
     /**
