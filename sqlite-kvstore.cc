@@ -29,6 +29,9 @@ void StrategicSqlite3::insert(const Item &itm, Callback<std::pair<bool, int64_t>
     ins_stmt->bind64(5, itm.getCas());
     ins_stmt->bind(6, itm.getVBucketId());
     bool rv = ins_stmt->execute() == 1;
+    if (rv) {
+        stats.totalPersisted++;
+    }
 
     int64_t newId = lastRowId();
 
@@ -48,7 +51,11 @@ void StrategicSqlite3::update(const Item &itm, Callback<std::pair<bool, int64_t>
     upd_stmt->bind(4, itm.getExptime());
     upd_stmt->bind64(5, itm.getCas());
     upd_stmt->bind64(6, itm.getId());
+
     bool rv = upd_stmt->execute() == 1;
+    if (rv) {
+        stats.totalPersisted++;
+    }
 
     std::pair<bool, int64_t> p(rv, 0);
     cb.callback(p);
@@ -116,6 +123,9 @@ void StrategicSqlite3::del(const std::string &key, uint16_t vbucket,
     del_stmt->bind(1, key.c_str());
     del_stmt->bind(2, vbucket);
     bool rv = del_stmt->execute() >= 0;
+    if (rv) {
+        stats.totalPersisted++;
+    }
     cb.callback(rv);
     del_stmt->reset();
 }

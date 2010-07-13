@@ -668,9 +668,6 @@ int EventuallyPersistentStore::flushOneDelOrSet(QueuedItem &qi,
                            v->getValue(), v->getCas(), v->getId(),
                            qi.getVBucketId());
 
-            // Consider this persisted as it is our intention, though
-            // it may fail and be requeued later.
-            stats.totalPersisted++;
         }
     }
     lh.unlock();
