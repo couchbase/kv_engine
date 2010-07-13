@@ -230,11 +230,20 @@ public:
 
     bool ejectValue() {
         if (isResident() && isClean() && !_isSmall) {
+            size_t oldsize = size();
             blobval uval;
             uval.len = valLength();
             shared_ptr<Blob> sp(Blob::New(uval.chlen, sizeof(uval)));
             extra.feature.resident = false;
             value = sp;
+            size_t newsize = size();
+
+            // ejecting the value may increase the object size....
+            if (oldsize < newsize) {
+                increaseCurrentSize(newsize - oldsize);
+            } else if (newsize < oldsize) {
+                reduceCurrentSize(oldsize - newsize);
+            }
             return true;
         }
         return false;
@@ -242,10 +251,18 @@ public:
 
     void restoreValue(value_t v) {
         if (!isResident()) {
+            size_t oldsize = size();
             assert(v);
             assert(v->length() == valLength());
             extra.feature.resident = true;
             value = v;
+
+            size_t newsize = size();
+            if (oldsize < newsize) {
+                increaseCurrentSize(newsize - oldsize);
+            } else if (newsize < oldsize) {
+                reduceCurrentSize(oldsize - newsize);
+            }
         }
     }
 

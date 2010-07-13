@@ -1209,6 +1209,23 @@ static enum test_result test_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
           "Failed to get stats.");
     check(vals.size() > 10, "Kind of expected more stats than that.");
     check(vals.find("ep_version") != vals.end(), "Found no ep_version.");
+
+    return SUCCESS;
+}
+
+static enum test_result test_mem_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    char value[2048];
+    memset(value, 'b', sizeof(value));
+    strcpy(value + sizeof(value) - 4, "\r\n");
+    wait_for_persisted_value(h, h1, "key", value);
+    int mem_used = get_int_stat(h, h1, "mem_used");
+    evict_key(h, h1, "key", 0, "Ejected.");
+    check(get_int_stat(h, h1, "mem_used") < mem_used,
+          "Expected mem_used to decrease when an item is evicted");
+    check_key_value(h, h1, "key", value, strlen(value), false, 0);
+    check(get_int_stat(h, h1, "mem_used") == mem_used,
+          "Expected mem_used to decrease when an item is evicted");
+
     return SUCCESS;
 }
 
@@ -1498,6 +1515,7 @@ engine_test_t* get_tests(void) {
         {"stats", test_stats, NULL, teardown, NULL},
         {"io stats", test_io_stats, NULL, teardown, NULL},
         {"bg stats", test_bg_stats, NULL, teardown, NULL},
+        {"mem stats", test_mem_stats, NULL, teardown, NULL},
         {"stats key", NULL, NULL, teardown, NULL},
         {"stats vkey", NULL, NULL, teardown, NULL},
         {"stats curr_items", test_curr_items, NULL, teardown, NULL},
