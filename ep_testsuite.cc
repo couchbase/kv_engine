@@ -1212,6 +1212,49 @@ static enum test_result test_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return SUCCESS;
 }
 
+static enum test_result test_io_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    h1->reset_stats(h, NULL);
+    check(get_int_stat(h, h1, "ep_io_num_read") == 0,
+          "Expected reset stats to set io_num_read to zero");
+    check(get_int_stat(h, h1, "ep_io_num_write") == 0,
+          "Expected reset stats to set io_num_write to zero");
+    check(get_int_stat(h, h1, "ep_io_read_bytes") == 0,
+          "Expected reset stats to set io_read_bytes to zero");
+    check(get_int_stat(h, h1, "ep_io_write_bytes") == 0,
+          "Expected reset stats to set io_write_bytes to zero");
+    wait_for_persisted_value(h, h1, "a", "b\r\n");
+    check(get_int_stat(h, h1, "ep_io_num_read") == 0 &&
+          get_int_stat(h, h1, "ep_io_read_bytes") == 0,
+          "Expected storing one value to not change the read counter");
+
+    check(get_int_stat(h, h1, "ep_io_num_write") == 1 &&
+          get_int_stat(h, h1, "ep_io_write_bytes") == 4,
+          "Expected storing the key to update the write counter");
+    evict_key(h, h1, "a", 0, "Ejected.");
+
+    check_key_value(h, h1, "a", "b\r\n", 3, false, 0);
+
+    check(get_int_stat(h, h1, "ep_io_num_read") == 1 &&
+          get_int_stat(h, h1, "ep_io_read_bytes") == 4,
+          "Expected reading the value back in to update the read counter");
+    check(get_int_stat(h, h1, "ep_io_num_write") == 1 &&
+          get_int_stat(h, h1, "ep_io_write_bytes") == 4,
+          "Expected reading the value back in to not update the write counter");
+
+    h1->reset_stats(h, NULL);
+    check(get_int_stat(h, h1, "ep_io_num_read") == 0,
+          "Expected reset stats to set io_num_read to zero");
+    check(get_int_stat(h, h1, "ep_io_num_write") == 0,
+          "Expected reset stats to set io_num_write to zero");
+    check(get_int_stat(h, h1, "ep_io_read_bytes") == 0,
+          "Expected reset stats to set io_read_bytes to zero");
+    check(get_int_stat(h, h1, "ep_io_write_bytes") == 0,
+          "Expected reset stats to set io_write_bytes to zero");
+
+
+    return SUCCESS;
+}
+
 static enum test_result test_curr_items(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
 
@@ -1429,6 +1472,7 @@ engine_test_t* get_tests(void) {
         {"expiry", test_expiry, NULL, teardown, NULL},
         // Stats tests
         {"stats", test_stats, NULL, teardown, NULL},
+        {"io stats", test_io_stats, NULL, teardown, NULL},
         {"stats key", NULL, NULL, teardown, NULL},
         {"stats vkey", NULL, NULL, teardown, NULL},
         {"stats curr_items", test_curr_items, NULL, teardown, NULL},

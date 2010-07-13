@@ -28,6 +28,10 @@ void StrategicSqlite3::insert(const Item &itm, Callback<std::pair<bool, int64_t>
     ins_stmt->bind(4, itm.getExptime());
     ins_stmt->bind64(5, itm.getCas());
     ins_stmt->bind(6, itm.getVBucketId());
+
+    ++stats.io_num_write;
+    stats.io_write_bytes += itm.getKey().length() + itm.getNBytes();
+
     bool rv = ins_stmt->execute() == 1;
     if (rv) {
         stats.totalPersisted++;
@@ -56,6 +60,8 @@ void StrategicSqlite3::update(const Item &itm, Callback<std::pair<bool, int64_t>
     if (rv) {
         stats.totalPersisted++;
     }
+    ++stats.io_num_write;
+    stats.io_write_bytes += itm.getKey().length() + itm.getNBytes();
 
     std::pair<bool, int64_t> p(rv, 0);
     cb.callback(p);
@@ -68,6 +74,7 @@ std::map<uint16_t, std::string> StrategicSqlite3::listPersistedVbuckets() {
     PreparedStatement *st = strategy->getGetVBucketStateST();
 
     while (st->fetch()) {
+        ++stats.io_num_read;
         rv[st->column_int(0)] = st->column(1);
     }
 
@@ -89,6 +96,8 @@ void StrategicSqlite3::get(const std::string &key,
     PreparedStatement *sel_stmt = strategy->forKey(key)->sel();
     sel_stmt->bind64(1, rowid);
 
+    ++stats.io_num_read;
+
     if(sel_stmt->fetch()) {
         GetValue rv(new Item(key.c_str(),
                              static_cast<uint16_t>(key.length()),
@@ -97,6 +106,7 @@ void StrategicSqlite3::get(const std::string &key,
                              sel_stmt->column_blob(0),
                              sel_stmt->column_bytes(0),
                              static_cast<uint16_t>(sel_stmt->column_int(4))));
+        stats.io_read_bytes += key.length() + rv.getValue()->getNBytes();
         cb.callback(rv);
     } else {
         GetValue rv;
@@ -142,6 +152,7 @@ bool StrategicSqlite3::delVBucket(uint16_t vbucket) {
     }
     PreparedStatement *dst = strategy->getDelVBucketStateST();
     dst->bind(1, vbucket);
+    ++stats.io_num_write;
     rv &= dst->execute() >= 0;
     dst->reset();
 
@@ -152,6 +163,7 @@ bool StrategicSqlite3::setVBState(uint16_t vbucket, const std::string& state_str
     PreparedStatement *st = strategy->getSetVBucketStateST();
     st->bind(1, vbucket);
     st->bind(2, state_str.data(), state_str.length());
+    ++stats.io_num_write;
     bool rv = st->execute() >= 0;
     st->reset();
     return rv;
@@ -165,6 +177,7 @@ void StrategicSqlite3::dump(Callback<GetValue> &cb) {
         PreparedStatement *st = (*it)->all();
         st->reset();
         while (st->fetch()) {
+            ++stats.io_num_read;
             GetValue rv(new Item(st->column_blob(0),
                                  static_cast<uint16_t>(st->column_bytes(0)),
                                  st->column_int(2),
@@ -174,6 +187,7 @@ void StrategicSqlite3::dump(Callback<GetValue> &cb) {
                                  0,
                                  st->column_int64(6),
                                  static_cast<uint16_t>(st->column_int(5))));
+            stats.io_read_bytes += rv.getValue()->getKey().length() + rv.getValue()->getNBytes();
             cb.callback(rv);
         }
 

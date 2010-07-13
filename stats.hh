@@ -70,6 +70,15 @@ public:
     //! Number of times a value is ejected
     Atomic<size_t> numValueEjects;
 
+    //! Number of read related io operations
+    Atomic<size_t> io_num_read;
+    //! Number of write related io operations
+    Atomic<size_t> io_num_write;
+    //! Number of bytes read
+    Atomic<uint64_t> io_read_bytes;
+    //! Number of bytes written
+    Atomic<uint64_t> io_write_bytes;
+
 private:
 
     DISALLOW_COPY_AND_ASSIGN(EPStats);

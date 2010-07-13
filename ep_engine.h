@@ -1278,6 +1278,10 @@ public:
         stats.flushDurationHighWat.set(0);
         stats.commit_time.set(0);
         stats.numValueEjects.set(0);
+        stats.io_num_read.set(0);
+        stats.io_num_write.set(0);
+        stats.io_read_bytes.set(0);
+        stats.io_write_bytes.set(0);
     }
 
     void setMinDataAge(int to) {
@@ -1718,6 +1722,12 @@ private:
         add_casted_stat("ep_dbinit", databaseInitTime, add_stat, cookie);
         add_casted_stat("ep_warmup", warmup ? "true" : "false",
                         add_stat, cookie);
+
+        add_casted_stat("ep_io_num_read", epstats.io_num_read, add_stat, cookie);
+        add_casted_stat("ep_io_num_write", epstats.io_num_write, add_stat, cookie);
+        add_casted_stat("ep_io_read_bytes", epstats.io_read_bytes, add_stat, cookie);
+        add_casted_stat("ep_io_write_bytes", epstats.io_write_bytes, add_stat, cookie);
+
         return ENGINE_SUCCESS;
     }
 
