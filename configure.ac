@@ -42,6 +42,7 @@ AC_C_HTONLL
 
 AC_CHECK_HEADERS([arpa/inet.h])
 AC_CHECK_HEADERS([netdb.h])
+AC_CHECK_HEADERS([mach/mach_time.h])
 AC_DEFUN([AC_CXX_GCC_ATOMICS],
 [
    AC_LANG_PUSH(C++)
@@ -106,6 +107,12 @@ Don't know how to link a program using gcc atomics
   AC_LANG_POP()
 ])
 
+AC_CHECK_FUNCS(gethrtime)
+AC_SEARCH_LIBS(clock_gettime, rt)
+AC_CHECK_FUNCS(clock_gettime)
+AC_CHECK_FUNCS(mach_absolute_time)
+AM_CONDITIONAL(BUILD_GETHRTIME, test "$ac_cv_func_gethrtime" = "no")
+
 AS_IF([test "x$GCC" = "xyes"], [
       AC_CXX_GCC_ATOMICS
       CPPFLAGS="$CPPFLAGS $av_cv_flags_sync_bool_compare_and_swap"
@@ -133,6 +140,21 @@ AH_BOTTOM([
 
 #ifdef HAVE_NETDB_H
 #include <netdb.h>
+#endif
+
+#ifndef HAVE_GETHRTIME
+typedef uint64_t hrtime_t;
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+   extern hrtime_t gethrtime(void);
+
+#ifdef __cplusplus
+}
+#endif
+
 #endif
 
 ])

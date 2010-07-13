@@ -38,7 +38,7 @@ ep_la_DEPENDENCIES = libsqlite3.la
 libsqlite3_la_SOURCES = embedded/sqlite3.h embedded/sqlite3.c
 libsqlite3_la_CFLAGS = $(AM_CFLAGS) ${NO_WERROR}
 
-check_PROGRAMS=atomic_test atomic_ptr_test atomic_queue_test hash_table_test priority_test vbucket_test dispatcher_test misc_test
+check_PROGRAMS=atomic_test atomic_ptr_test atomic_queue_test hash_table_test priority_test vbucket_test dispatcher_test misc_test hrtime_test
 TESTS=${check_PROGRAMS}
 
 ep_testsuite_la_CFLAGS = $(AM_CFLAGS) ${NO_WERROR}
@@ -79,6 +79,14 @@ sizes_DEPENDENCIES = vbucket.hh stored-value.hh item.hh
 vbucket_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
 vbucket_test_SOURCES = t/vbucket_test.cc vbucket.hh stored-value.cc stored-value.hh
 vbucket_test_DEPENDENCIES = vbucket.hh stored-value.cc stored-value.hh
+
+hrtime_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
+hrtime_test_SOURCES = t/hrtime_test.cc common.hh
+
+if BUILD_GETHRTIME
+ep_la_SOURCES += gethrtime.c
+hrtime_test_SOURCES += gethrtime.c
+endif
 
 test: all check-TESTS
 	@MEMCACHED_DIR@/engine_testapp -E .libs/ep.so -T .libs/ep_testsuite.so \

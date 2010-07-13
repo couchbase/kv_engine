@@ -31,6 +31,8 @@ using SHARED_PTR_NAMESPACE::shared_ptr;
 # error No shared pointer implementation found!
 #endif
 
+#include <sstream>
+
 /* Linux' limits don't bring this in in c++ mode without doing weird
    stuff.  It's a known constant, so we'll just make it if we don't
    have it. */
@@ -81,6 +83,30 @@ inline bool parseUint16(const char *in, uint16_t *out) {
         return true;
     }
     return false;
+}
+
+/**
+ * Convert a time (in ns) to a human readable form...
+ * @param time the time in nanoseconds
+ * @param buffer where to store the result
+ * @param size the size of the buffer
+ * @return buffer
+ */
+inline std::string hrtime2text(hrtime_t time) {
+   const char * const extensions[] = { " usec", " ms", " s", NULL };
+   int id = 0;
+
+   while (time > 9999) {
+      ++id;
+      time /= 1000;
+      if (extensions[id + 1] == NULL) {
+         break;
+      }
+   }
+
+   std::stringstream ss;
+   ss << time << extensions[id];
+   return ss.str();
 }
 
 
