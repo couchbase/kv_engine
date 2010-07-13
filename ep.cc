@@ -41,7 +41,8 @@ public:
     BGFetchCallback(EventuallyPersistentStore *e, SERVER_CORE_API *capi,
                     const std::string &k, uint16_t vbid, uint64_t r,
                     const void *c) :
-        ep(e), core(capi), key(k), vbucket(vbid), rowid(r), cookie(c) {
+        ep(e), core(capi), key(k), vbucket(vbid), rowid(r), cookie(c),
+        init(gethrtime()), start(0) {
         assert(ep);
         assert(core);
         assert(cookie);
@@ -49,7 +50,24 @@ public:
 
     bool callback(Dispatcher &d, TaskId t) {
         (void)d; (void)t;
+        start = gethrtime();
         ep->completeBGFetch(key, vbucket, rowid, cookie, core);
+        hrtime_t stop = gethrtime();
+
+        if (stop > start && start > init) {
+            // skip the measurement if the counter wrapped...
+            ++ep->stats.bgNumOperations;
+            hrtime_t w = (start - init) / 1000;
+            ep->stats.bgWait += w;
+            ep->stats.bgMinWait.setIfLess(w);
+            ep->stats.bgMaxWait.setIfBigger(w);
+
+            hrtime_t l = (stop - start) / 1000;
+            ep->stats.bgLoad += l;
+            ep->stats.bgMinLoad.setIfLess(l);
+            ep->stats.bgMaxLoad.setIfBigger(l);
+        }
+
         return false;
     }
 
@@ -60,6 +78,9 @@ private:
     uint16_t                   vbucket;
     uint64_t                   rowid;
     const void                *cookie;
+
+    hrtime_t init;
+    hrtime_t start;
 };
 
 class SetVBStateCallback : public DispatcherCallback {

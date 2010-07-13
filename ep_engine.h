@@ -424,6 +424,8 @@ public:
         char *master = NULL;
         char *tap_id = NULL;
 
+        resetStats();
+
         if (config != NULL) {
             char *dbn = NULL, *initf = NULL, *svaltype = NULL;
             size_t htBuckets = 0;
@@ -1282,6 +1284,13 @@ public:
         stats.io_num_write.set(0);
         stats.io_read_bytes.set(0);
         stats.io_write_bytes.set(0);
+        stats.bgNumOperations.set(0);
+        stats.bgWait.set(0);
+        stats.bgLoad.set(0);
+        stats.bgMinWait.set(999999999);
+        stats.bgMaxWait.set(0);
+        stats.bgMinLoad.set(999999999);
+        stats.bgMaxLoad.set(0);
     }
 
     void setMinDataAge(int to) {
@@ -1727,6 +1736,28 @@ private:
         add_casted_stat("ep_io_num_write", epstats.io_num_write, add_stat, cookie);
         add_casted_stat("ep_io_read_bytes", epstats.io_read_bytes, add_stat, cookie);
         add_casted_stat("ep_io_write_bytes", epstats.io_write_bytes, add_stat, cookie);
+
+        if (epstats.bgNumOperations > 0) {
+            add_casted_stat("ep_bg_num_samples", epstats.bgNumOperations, add_stat, cookie);
+            add_casted_stat("ep_bg_min_wait",
+                            hrtime2text(epstats.bgMinWait).c_str(),
+                            add_stat, cookie);
+            add_casted_stat("ep_bg_max_wait",
+                            hrtime2text(epstats.bgMaxWait).c_str(),
+                            add_stat, cookie);
+            add_casted_stat("ep_bg_wait_avg",
+                            hrtime2text(epstats.bgWait / epstats.bgNumOperations).c_str(),
+                            add_stat, cookie);
+            add_casted_stat("ep_bg_min_load",
+                            hrtime2text(epstats.bgMinLoad).c_str(),
+                            add_stat, cookie);
+            add_casted_stat("ep_bg_max_load",
+                            hrtime2text(epstats.bgMaxLoad).c_str(),
+                            add_stat, cookie);
+            add_casted_stat("ep_bg_load_avg",
+                            hrtime2text(epstats.bgLoad / epstats.bgNumOperations).c_str(),
+                            add_stat, cookie);
+        }
 
         return ENGINE_SUCCESS;
     }

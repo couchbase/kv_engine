@@ -79,6 +79,26 @@ public:
     //! Number of bytes written
     Atomic<uint64_t> io_write_bytes;
 
+    //! The number of samples the bgWaitDelta and bgLoadDelta contains of
+    Atomic<uint64_t> bgNumOperations;
+    /** The sum of the deltas (in usec) from an item was put in queue until
+     *  the dispatcher started the work for this item
+     */
+    Atomic<hrtime_t> bgWait;
+    //! The shortest wait time
+    Atomic<hrtime_t> bgMinWait;
+    //! The longest wait time
+    Atomic<hrtime_t> bgMaxWait;
+
+    /** The sum of the deltas (in usec) from the dispatcher started to load
+     *  item until was done
+     */
+    Atomic<hrtime_t> bgLoad;
+    //! The shortest load time
+    Atomic<hrtime_t> bgMinLoad;
+    //! The longest load time
+    Atomic<hrtime_t> bgMaxLoad;
+
 private:
 
     DISALLOW_COPY_AND_ASSIGN(EPStats);

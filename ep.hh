@@ -330,6 +330,7 @@ private:
 
     friend class Flusher;
 
+    friend class BGFetchCallback;
     EventuallyPersistentEngine &engine;
     EPStats                    &stats;
     bool                       doPersistence;

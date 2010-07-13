@@ -1255,6 +1255,30 @@ static enum test_result test_io_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return SUCCESS;
 }
 
+static enum test_result test_bg_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    h1->reset_stats(h, NULL);
+    wait_for_persisted_value(h, h1, "a", "b\r\n");
+    evict_key(h, h1, "a", 0, "Ejected.");
+    check_key_value(h, h1, "a", "b\r\n", 3, false, 0);
+
+    check(get_int_stat(h, h1, "ep_bg_num_samples") == 1,
+          "Expected one sample");
+
+    check(vals.find("ep_bg_min_wait") != vals.end(), "Found no ep_bg_min_wait.");
+    check(vals.find("ep_bg_max_wait") != vals.end(), "Found no ep_bg_max_wait.");
+    check(vals.find("ep_bg_wait_avg") != vals.end(), "Found no ep_bg_wait_avg.");
+    check(vals.find("ep_bg_min_load") != vals.end(), "Found no ep_bg_min_load.");
+    check(vals.find("ep_bg_max_load") != vals.end(), "Found no ep_bg_max_load.");
+    check(vals.find("ep_bg_load_avg") != vals.end(), "Found no ep_bg_load_avg.");
+
+    evict_key(h, h1, "a", 0, "Ejected.");
+    check_key_value(h, h1, "a", "b\r\n", 3, false, 0);
+    check(get_int_stat(h, h1, "ep_bg_num_samples") == 2,
+          "Expected one sample");
+
+    return SUCCESS;
+}
+
 static enum test_result test_curr_items(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
 
@@ -1473,6 +1497,7 @@ engine_test_t* get_tests(void) {
         // Stats tests
         {"stats", test_stats, NULL, teardown, NULL},
         {"io stats", test_io_stats, NULL, teardown, NULL},
+        {"bg stats", test_bg_stats, NULL, teardown, NULL},
         {"stats key", NULL, NULL, teardown, NULL},
         {"stats vkey", NULL, NULL, teardown, NULL},
         {"stats curr_items", test_curr_items, NULL, teardown, NULL},
