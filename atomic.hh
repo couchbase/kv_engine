@@ -165,6 +165,29 @@ public:
         }
         return oldValue;
     }
+
+   void setIfLess(const T &newValue) {
+      T oldValue = get();
+
+      while (newValue < oldValue) {
+         if (cas(oldValue, newValue)) {
+            break;
+         }
+         oldValue = get();
+      }
+   }
+
+   void setIfBigger(const T &newValue) {
+      T oldValue = get();
+
+      while (newValue > oldValue) {
+         if (cas(oldValue, newValue)) {
+            break;
+         }
+         oldValue = get();
+      }
+   }
+
 private:
     volatile T value;
 };

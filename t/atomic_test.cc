@@ -41,7 +41,29 @@ static void testAtomicInt() {
     assert(intgen.latest() == (numThreads * numIterations));
 }
 
+static void testSetIfLess() {
+    Atomic<int> x;
+
+    x.set(842);
+    x.setIfLess(924);
+    assert(x.get() == 842);
+    x.setIfLess(813);
+    assert(x.get() == 813);
+}
+
+static void testSetIfBigger() {
+    Atomic<int> x;
+
+    x.set(842);
+    x.setIfBigger(13);
+    assert(x.get() == 842);
+    x.setIfBigger(924);
+    assert(x.get() == 924);
+}
+
 int main() {
     alarm(60);
     testAtomicInt();
+    testSetIfLess();
+    testSetIfBigger();
 }
