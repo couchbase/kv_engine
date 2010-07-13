@@ -147,10 +147,13 @@ private:
     EPStats    &stats;
 };
 
+class EventuallyPersistentEngine;
+
 class EventuallyPersistentStore {
 public:
 
-    EventuallyPersistentStore(StrategicSqlite3 *t, bool startVb0);
+    EventuallyPersistentStore(EventuallyPersistentEngine &theEngine,
+                              StrategicSqlite3 *t, bool startVb0);
 
     ~EventuallyPersistentStore();
 
@@ -179,8 +182,6 @@ public:
 
     void reset();
 
-    EPStats& getStats() { return stats; }
-
     void setMinDataAge(int to);
 
     /**
@@ -198,8 +199,6 @@ public:
     }
 
     void setQueueAgeCap(int to);
-
-    void resetStats(void);
 
     void startDispatcher(void);
 
@@ -330,6 +329,9 @@ private:
     int flushVBSet(QueuedItem &qi, std::queue<QueuedItem> *rejectQueue);
 
     friend class Flusher;
+
+    EventuallyPersistentEngine &engine;
+    EPStats                    &stats;
     bool                       doPersistence;
     StrategicSqlite3          *underlying;
     Dispatcher                *dispatcher;
@@ -339,7 +341,6 @@ private:
     AtomicQueue<QueuedItem>    towrite;
     std::queue<QueuedItem>     writing;
     pthread_t                  thread;
-    EPStats                    stats;
     LoadStorageKVPairCallback  loadStorageKVPairCallback;
     Atomic<int>                txnSize;
     Atomic<size_t>             bgFetchQueue;

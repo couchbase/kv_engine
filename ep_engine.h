@@ -552,10 +552,10 @@ public:
             time_t start = time(NULL);
             try {
                 MultiDBSqliteStrategy *strategy =
-                    new MultiDBSqliteStrategy(dbname,
+                    new MultiDBSqliteStrategy(*this, dbname,
                                               initFile,
                                               NUMBER_OF_SHARDS);
-                sqliteDb = new StrategicSqlite3(strategy);
+                sqliteDb = new StrategicSqlite3(*this, strategy);
             } catch (std::exception& e) {
                 std::stringstream ss;
                 ss << "Failed to create database: " << e.what() << std::endl;
@@ -570,7 +570,7 @@ public:
             }
 
             databaseInitTime = time(NULL) - start;
-            epstore = new EventuallyPersistentStore(sqliteDb, startVb0);
+            epstore = new EventuallyPersistentStore(*this, sqliteDb, startVb0);
             setMinDataAge(minDataAge);
             setQueueAgeCap(queueAgeCap);
 
@@ -1270,7 +1270,14 @@ public:
 
     void resetStats()
     {
-        epstore->resetStats();
+        stats.tooYoung.set(0);
+        stats.tooOld.set(0);
+        stats.dirtyAge.set(0);
+        stats.dirtyAgeHighWat.set(0);
+        stats.flushDuration.set(0);
+        stats.flushDurationHighWat.set(0);
+        stats.commit_time.set(0);
+        stats.numValueEjects.set(0);
     }
 
     void setMinDataAge(int to) {
@@ -1352,6 +1359,10 @@ public:
 
     size_t getTapIdleTimeout() const {
         return tapIdleTimeout;
+    }
+
+    EPStats &getEpStats() {
+        return stats;
     }
 
 private:
@@ -1632,7 +1643,7 @@ private:
 
     ENGINE_ERROR_CODE doEngineStats(const void *cookie, ADD_STAT add_stat)
     {
-        EPStats &epstats = epstore->getStats();
+        EPStats &epstats = getEpStats();
         add_casted_stat("ep_version", VERSION, add_stat, cookie);
         add_casted_stat("ep_storage_age",
                         epstats.dirtyAge, add_stat, cookie);
@@ -1728,7 +1739,7 @@ private:
 
     ENGINE_ERROR_CODE doTapStats(const void *cookie, ADD_STAT add_stat) {
         std::list<TapConnection*>::iterator iter;
-        EPStats &epstats = epstore->getStats();
+        EPStats &epstats = getEpStats();
         add_casted_stat("ep_tap_total_queue", epstats.tap_queue, add_stat, cookie);
         add_casted_stat("ep_tap_total_fetched", epstats.tap_fetched, add_stat, cookie);
         add_casted_stat("ep_tap_keepalive", tapKeepAlive, add_stat, cookie);
@@ -1963,6 +1974,7 @@ private:
     size_t maxItemSize;
     size_t minDataAge;
     size_t queueAgeCap;
+    EPStats stats;
 };
 
 /**

@@ -11,15 +11,16 @@
 #include "sqlite-strategies.hh"
 #include "item.hh"
 
+class EventuallyPersistentEngine;
+class EPStats;
+
 class StrategicSqlite3 {
 public:
 
     /**
      * Construct an instance of sqlite with the given database name.
      */
-    StrategicSqlite3(SqliteStrategy *s) : strategy(s), intransaction(false) {
-        open();
-    }
+    StrategicSqlite3(EventuallyPersistentEngine &theEngine, SqliteStrategy *s);
 
     /**
      * Cleanup.
@@ -106,6 +107,9 @@ private:
     void insert(const Item &itm, Callback<std::pair<bool, int64_t> > &cb);
     void update(const Item &itm, Callback<std::pair<bool, int64_t> > &cb);
     int64_t lastRowId();
+
+    EventuallyPersistentEngine &engine;
+    EPStats &stats;
 
     /**
      * Direct access to the DB.

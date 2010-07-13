@@ -25,6 +25,7 @@
 #include "locks.hh"
 #include "dispatcher.hh"
 #include "sqlite-kvstore.hh"
+#include "ep_engine.h"
 
 extern "C" {
     static rel_time_t uninitialized_current_time(void) {
@@ -80,8 +81,10 @@ private:
     SERVER_CORE_API *core;
 };
 
-EventuallyPersistentStore::EventuallyPersistentStore(StrategicSqlite3 *t,
+EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine &theEngine,
+                                                     StrategicSqlite3 *t,
                                                      bool startVb0) :
+    engine(theEngine), stats(engine.getEpStats()),
     loadStorageKVPairCallback(vbuckets, stats), bgFetchDelay(0)
 {
     doPersistence = getenv("EP_NO_PERSISTENCE") == NULL;
@@ -461,17 +464,6 @@ void EventuallyPersistentStore::setMinDataAge(int to) {
 
 void EventuallyPersistentStore::setQueueAgeCap(int to) {
     stats.queue_age_cap.set(to);
-}
-
-void EventuallyPersistentStore::resetStats(void) {
-    stats.tooYoung.set(0);
-    stats.tooOld.set(0);
-    stats.dirtyAge.set(0);
-    stats.dirtyAgeHighWat.set(0);
-    stats.flushDuration.set(0);
-    stats.flushDurationHighWat.set(0);
-    stats.commit_time.set(0);
-    stats.numValueEjects.set(0);
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentStore::del(const std::string &key,

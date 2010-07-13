@@ -4,6 +4,14 @@
 
 #include "sqlite-kvstore.hh"
 #include "sqlite-pst.hh"
+#include "ep_engine.h"
+
+StrategicSqlite3::StrategicSqlite3(EventuallyPersistentEngine &theEngine, SqliteStrategy *s) :
+    engine(theEngine), stats(engine.getEpStats()), strategy(s),
+    intransaction(false) {
+    open();
+}
+
 
 int64_t StrategicSqlite3::lastRowId() {
     assert(db);

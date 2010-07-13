@@ -8,10 +8,13 @@
 #include "common.hh"
 #include "sqlite-pst.hh"
 
+class EventuallyPersistentEngine;
+
 class SqliteStrategy {
 public:
 
-    SqliteStrategy(const char * const fn, const char * const finit = NULL) :
+    SqliteStrategy(EventuallyPersistentEngine &theEngine, const char * const fn, const char * const finit = NULL) :
+        engine(theEngine),
         filename(fn),
         initFile(finit),
         db(NULL),
@@ -66,6 +69,7 @@ public:
     void close(void);
 
 protected:
+    EventuallyPersistentEngine &engine;
     const char * const filename;
     const char * const initFile;
     sqlite3 *db;
@@ -87,10 +91,11 @@ private:
 
 class MultiDBSqliteStrategy : public SqliteStrategy {
 public:
-    MultiDBSqliteStrategy(const char * const fn,
+    MultiDBSqliteStrategy(EventuallyPersistentEngine &theEngine,
+                          const char * const fn,
                           const char * const finit = NULL,
                           int n=4):
-        SqliteStrategy(fn, finit),
+        SqliteStrategy(theEngine, fn, finit),
         numTables(n)
     {}
 
