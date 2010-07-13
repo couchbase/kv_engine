@@ -1219,7 +1219,15 @@ static enum test_result test_mem_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     strcpy(value + sizeof(value) - 4, "\r\n");
     wait_for_persisted_value(h, h1, "key", value);
     int mem_used = get_int_stat(h, h1, "mem_used");
+    int tot_used = get_int_stat(h, h1, "ep_total_cache_size");
+    check(mem_used == tot_used,
+          "Expected total to be the sum of resident and on-disk");
     evict_key(h, h1, "key", 0, "Ejected.");
+
+    check(get_int_stat(h, h1, "mem_used") < get_int_stat(h, h1, "ep_total_cache_size"),
+          "Resident should be less than the complete cache");
+    check(get_int_stat(h, h1, "ep_total_cache_size") == tot_used,
+          "Evict a value shouldn't increase the total cache size");
     check(get_int_stat(h, h1, "mem_used") < mem_used,
           "Expected mem_used to decrease when an item is evicted");
     check_key_value(h, h1, "key", value, strlen(value), false, 0);

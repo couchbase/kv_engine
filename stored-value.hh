@@ -240,9 +240,9 @@ public:
 
             // ejecting the value may increase the object size....
             if (oldsize < newsize) {
-                increaseCurrentSize(newsize - oldsize);
+                increaseCurrentSize(newsize - oldsize, true);
             } else if (newsize < oldsize) {
-                reduceCurrentSize(oldsize - newsize);
+                reduceCurrentSize(oldsize - newsize, true);
             }
             return true;
         }
@@ -259,9 +259,9 @@ public:
 
             size_t newsize = size();
             if (oldsize < newsize) {
-                increaseCurrentSize(newsize - oldsize);
+                increaseCurrentSize(newsize - oldsize, true);
             } else if (newsize < oldsize) {
-                reduceCurrentSize(oldsize - newsize);
+                reduceCurrentSize(oldsize - newsize, true);
             }
         }
     }
@@ -425,6 +425,11 @@ public:
      */
     static size_t getCurrentSize();
 
+    /**
+     * Get the total size of all items in the cache
+     */
+    static size_t getTotalCacheSize();
+
 private:
 
     StoredValue(const Item &itm, StoredValue *n, bool setDirty = true,
@@ -472,12 +477,13 @@ private:
 
     union stored_value_bodies extra;
 
-    static void increaseCurrentSize(size_t by);
-    static void reduceCurrentSize(size_t by);
+    static void increaseCurrentSize(size_t by, bool residentOnly = false);
+    static void reduceCurrentSize(size_t by, bool residentOnly = false);
     static bool hasAvailableSpace(const Item &item);
 
     static size_t maxDataSize;
     static Atomic<size_t> currentSize;
+    static Atomic<size_t> totalCacheSize;
 
     DISALLOW_COPY_AND_ASSIGN(StoredValue);
 };

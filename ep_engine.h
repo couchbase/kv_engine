@@ -1701,6 +1701,8 @@ private:
                         cookie);
         add_casted_stat("mem_used", StoredValue::getCurrentSize(), add_stat,
                         cookie);
+        add_casted_stat("ep_total_cache_size", StoredValue::getTotalCacheSize(),
+                        add_stat, cookie);
         add_casted_stat("ep_storage_type",
                         HashTable::getDefaultStorageValueTypeStr(),
                         add_stat, cookie);

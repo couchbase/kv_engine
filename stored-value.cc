@@ -18,6 +18,7 @@ enum stored_value_type HashTable::defaultStoredValueType = featured;
 
 size_t StoredValue::maxDataSize = DEFAULT_MAX_DATA_SIZE;
 Atomic<size_t> StoredValue::currentSize;
+Atomic<size_t> StoredValue::totalCacheSize;
 
 static inline size_t getDefault(size_t x, size_t d) {
     return x == 0 ? d : x;
@@ -189,17 +190,28 @@ size_t StoredValue::getCurrentSize() {
     return currentSize.get();
 }
 
-void StoredValue::increaseCurrentSize(size_t by) {
+size_t StoredValue::getTotalCacheSize() {
+    return totalCacheSize.get();
+}
+
+void StoredValue::increaseCurrentSize(size_t by, bool residentOnly) {
+    if (!residentOnly) {
+        totalCacheSize.incr(by);
+    }
     currentSize.incr(by);
 }
 
-void StoredValue::reduceCurrentSize(size_t by) {
+void StoredValue::reduceCurrentSize(size_t by, bool residentOnly) {
     size_t val;
 
     do {
         val = currentSize.get();
         assert(val >= by);
     } while (!currentSize.cas(val, val - by));;
+
+    if (!residentOnly) {
+        totalCacheSize.decr(by);
+    }
 }
 
 /**
