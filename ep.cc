@@ -26,6 +26,7 @@
 #include "dispatcher.hh"
 #include "sqlite-kvstore.hh"
 #include "ep_engine.h"
+#include "item_pager.hh"
 
 extern "C" {
     static rel_time_t uninitialized_current_time(void) {
@@ -120,6 +121,9 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
         RCPtr<VBucket> vb(new VBucket(0, active));
         vbuckets.addBucket(vb);
     }
+
+    dispatcher->schedule(shared_ptr<DispatcherCallback>(new ItemPager(this, stats)),
+                         NULL, 5, 10);
 
     startDispatcher();
     startFlusher();
