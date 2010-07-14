@@ -307,7 +307,7 @@ private:
         recordsFetched(0), pendingFlush(false), expiry_time((rel_time_t)-1),
         reconnects(0), connected(true), paused(false), backfillAge(0),
         doRunBackfill(false), pendingBackfill(true), vbucketFilter(),
-        vBucketHighPriority(), vBucketLowPriority()
+        vBucketHighPriority(), vBucketLowPriority(), doDisconnect(false)
     {
         queue = new std::list<QueuedItem>;
         queue_set = new std::set<QueuedItem>;
@@ -321,6 +321,14 @@ private:
     static uint64_t nextTapId() {
         return tapCounter++;
     }
+
+    static std::string getAnonTapName() {
+        std::stringstream s;
+        s << "eq_tapq:anon_";
+        s << TapConnection::nextTapId();
+        return s.str();
+    }
+
 
     /**
      * String used to identify the client.
@@ -415,6 +423,9 @@ private:
     std::queue<TapVBucketEvent> vBucketLowPriority;
 
     static Atomic<uint64_t> tapCounter;
+
+    // True if this should be disconnected as soon as possible
+    bool doDisconnect;
 
     DISALLOW_COPY_AND_ASSIGN(TapConnection);
 };
@@ -957,6 +968,12 @@ public:
             connection = iter->second;
         }
 
+        if (connection->doDisconnect) {
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                             "Disconnecting pending connection\n");
+            return TAP_DISCONNECT;
+        }
+
         if (connection->doRunBackfill) {
             queueBackfill(connection, cookie);
         }
@@ -1048,10 +1065,7 @@ public:
 
         std::string name = "eq_tapq:";
         if (client.length() == 0) {
-            std::stringstream s;
-            s << "anon_";
-            s << TapConnection::nextTapId();
-            name.append(s.str());
+            name.assign(TapConnection::getAnonTapName());
         } else {
             name.append(client);
         }
@@ -1073,10 +1087,7 @@ public:
         // Disconnects aren't quite immediate yet, so if we see a
         // connection request for a client *and* expiry_time is 0, we
         // should kill this guy off.
-        if (tap != NULL && tapKeepAlive == 0) {
-            getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                             "Forcing close of tap client [%s]\n",
-                             name.c_str());
+        if (tap != NULL) {
             std::map<const void*, TapConnection*>::iterator miter;
             for (miter = tapConnectionMap.begin();
                  miter != tapConnectionMap.end();
@@ -1085,10 +1096,25 @@ public:
                     break;
                 }
             }
-            assert(miter != tapConnectionMap.end());
-            tapConnectionMap.erase(miter);
-            purgeSingleExpiredTapConnection(tap);
-            tap = NULL;
+
+            if (tapKeepAlive == 0) {
+                getLogger()->log(EXTENSION_LOG_INFO, NULL,
+                                 "The TAP channel (\"%s\") exists, but should be nuked\n",
+                                 name.c_str());
+                tap->client.assign(TapConnection::getAnonTapName());
+                tap->doDisconnect = true;
+                tap->paused = true;
+                tap = NULL;
+            } else {
+                getLogger()->log(EXTENSION_LOG_INFO, NULL,
+                                 "The TAP channel (\"%s\") exists... grabbing the channel\n",
+                                 name.c_str());
+                TapConnection *n = new TapConnection(TapConnection::getAnonTapName(), 0);
+                n->doDisconnect = true;
+                n->paused = true;
+                allTaps.push_back(n);
+                tapConnectionMap[miter->first] = n;
+            }
         }
 
         // Start decoding the userdata section of the packet...
@@ -1159,6 +1185,7 @@ public:
             tapConnectionMap[cookie] = tap;
             tap->connected = true;
         }
+        tapNotifySync.notify();
     }
 
     ENGINE_ERROR_CODE tapNotify(const void *cookie,
@@ -1258,8 +1285,12 @@ public:
         iter = tapConnectionMap.find(cookie);
         if (iter != tapConnectionMap.end()) {
             if (iter->second) {
-                iter->second->expiry_time = serverApi->core->get_current_time()
-                    + (int)tapKeepAlive;
+                iter->second->expiry_time = serverApi->core->get_current_time();
+                if (iter->second->doDisconnect) {
+                    iter->second->expiry_time--;
+                } else {
+                    iter->second->expiry_time += (int)tapKeepAlive;
+                }
                 iter->second->connected = false;
             } else {
                 getLogger()->log(EXTENSION_LOG_WARNING, NULL,
