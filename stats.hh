@@ -1,4 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
+#ifndef STATS_HH
+#define STATS_HH 1
 
 #include <memcached/engine.h>
 
@@ -124,3 +126,5 @@ struct key_stats {
     //! True if this item is dirty.
     bool dirty;
 };
+
+#endif /* STATS_HH */
