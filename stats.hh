@@ -75,6 +75,11 @@ public:
     //! Number of nonResident items
     Atomic<size_t> numNonResident;
 
+    //! Pager low water mark.
+    Atomic<size_t> mem_low_wat;
+    //! Pager high water mark
+    Atomic<size_t> mem_high_wat;
+
     //! Number of read related io operations
     Atomic<size_t> io_num_read;
     //! Number of write related io operations

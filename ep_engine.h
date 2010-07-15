@@ -633,6 +633,9 @@ public:
                 memHighWat = static_cast<double>(StoredValue::getMaxDataSize()) * 0.75;
             }
 
+            stats.mem_low_wat = memLowWat;
+            stats.mem_high_wat = memHighWat;
+
             shared_ptr<DispatcherCallback> cb(new ItemPager(epstore, stats,
                                                             memLowWat, memHighWat));
             epstore->getDispatcher()->schedule(cb, NULL, 5, 10);
@@ -1729,6 +1732,8 @@ private:
                         cookie);
         add_casted_stat("mem_used", StoredValue::getCurrentSize(), add_stat,
                         cookie);
+        add_casted_stat("ep_mem_low_wat", epstats.mem_low_wat, add_stat, cookie);
+        add_casted_stat("ep_mem_high_wat", epstats.mem_high_wat, add_stat, cookie);
         add_casted_stat("ep_total_cache_size", StoredValue::getTotalCacheSize(),
                         add_stat, cookie);
         add_casted_stat("ep_storage_type",
