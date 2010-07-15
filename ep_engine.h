@@ -7,6 +7,8 @@
 #include "flusher.hh"
 #include "sqlite-kvstore.hh"
 #include "ep_extension.h"
+#include "dispatcher.hh"
+#include "item_pager.hh"
 #include <memcached/util.h>
 #include "tapclient.hh"
 
@@ -16,6 +18,7 @@
 #include <sstream>
 #include <algorithm>
 #include <errno.h>
+#include <limits>
 
 #include "command_ids.h"
 
@@ -436,7 +439,7 @@ public:
             size_t htLocks = 0;
             size_t maxSize = 0;
 
-            const int max_items = 18;
+            const int max_items = 20;
             struct config_item items[max_items];
             int ii = 0;
             memset(items, 0, sizeof(items));
@@ -518,6 +521,16 @@ public:
             items[ii].key = "min_data_age";
             items[ii].datatype = DT_SIZE;
             items[ii].value.dt_size = &minDataAge;
+
+            ++ii;
+            items[ii].key = "mem_low_wat";
+            items[ii].datatype = DT_SIZE;
+            items[ii].value.dt_size = &memLowWat;
+
+            ++ii;
+            items[ii].key = "mem_high_wat";
+            items[ii].datatype = DT_SIZE;
+            items[ii].value.dt_size = &memHighWat;
 
             ++ii;
             items[ii].key = "queue_age_cap";
@@ -612,6 +625,17 @@ public:
                 setTapPeer(master);
                 free(master);
             }
+
+            if (memLowWat == std::numeric_limits<size_t>::max()) {
+                memLowWat = static_cast<double>(StoredValue::getMaxDataSize()) * 0.6;
+            }
+            if (memHighWat == std::numeric_limits<size_t>::max()) {
+                memHighWat = static_cast<double>(StoredValue::getMaxDataSize()) * 0.75;
+            }
+
+            shared_ptr<DispatcherCallback> cb(new ItemPager(epstore, stats,
+                                                            memLowWat, memHighWat));
+            epstore->getDispatcher()->schedule(cb, NULL, 5, 10);
         }
 
         if (ret == ENGINE_SUCCESS) {
@@ -2021,6 +2045,8 @@ private:
     std::string tapId;
     bool tapEnabled;
     size_t maxItemSize;
+    size_t memLowWat;
+    size_t memHighWat;
     size_t minDataAge;
     size_t queueAgeCap;
     EPStats stats;

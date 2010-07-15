@@ -14,6 +14,9 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
+
+#include <limits>
+
 #include "config.h"
 #include <assert.h>
 #include <poll.h>
@@ -649,7 +652,10 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server
     tapIdleTimeout(DEFAULT_TAP_IDLE_TIMEOUT), nextTapNoop(0),
     startedEngineThreads(false), shutdown(false),
     getServerApi(get_server_api), getlExtension(NULL), clientTap(NULL),
-    tapEnabled(false), maxItemSize(20*1024*1024), minDataAge(DEFAULT_MIN_DATA_AGE),
+    tapEnabled(false), maxItemSize(20*1024*1024),
+    memLowWat(std::numeric_limits<size_t>::max()),
+    memHighWat(std::numeric_limits<size_t>::max()),
+    minDataAge(DEFAULT_MIN_DATA_AGE),
     queueAgeCap(DEFAULT_QUEUE_AGE_CAP)
 {
     interface.interface = 1;

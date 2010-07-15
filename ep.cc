@@ -122,9 +122,6 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
         vbuckets.addBucket(vb);
     }
 
-    dispatcher->schedule(shared_ptr<DispatcherCallback>(new ItemPager(this, stats)),
-                         NULL, 5, 10);
-
     startDispatcher();
     startFlusher();
     assert(underlying);

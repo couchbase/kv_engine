@@ -202,6 +202,17 @@ public:
 
     void startDispatcher(void);
 
+    /**
+     * Get the current dispatcher.
+     *
+     * You can use this to queue jobs.  Don't do stupid things with
+     * it.
+     */
+    Dispatcher* getDispatcher(void) {
+        assert(dispatcher);
+        return dispatcher;
+    }
+
     void stopFlusher(void);
 
     void startFlusher(void);

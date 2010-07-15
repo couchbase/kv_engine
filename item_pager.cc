@@ -20,10 +20,9 @@ public:
      * Construct a PagingVisitor that will attempt to evict the given
      * percentage of objects.
      *
-     * @param pcnt percentage of objects to attempt to evict
+     * @param pcnt percentage of objects to attempt to evict (0-1)
      */
-    PagingVisitor(double pcnt) :
-        percent(pcnt / 100.0), ejected(0) {}
+    PagingVisitor(double pcnt) : percent(pcnt), ejected(0) {}
 
     void visit(StoredValue *v) {
 
@@ -44,16 +43,16 @@ private:
 };
 
 bool ItemPager::callback(Dispatcher &d, TaskId t) {
-    double percentInUse = 100.0
-        * static_cast<double>(StoredValue::getCurrentSize())
-        / static_cast<double>(StoredValue::getMaxDataSize());
+    double current = static_cast<double>(StoredValue::getCurrentSize());
+    if (current > upper) {
 
-    if (percentInUse > threshold) {
+        double toKill = (current - static_cast<double>(lower)) / current;
+
         getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                         "Using %.2f%% of memory, paging out some items.\n",
-                         percentInUse);
+                         "Using %zd bytes of memory, paging out %0f%% of items.\n",
+                         StoredValue::getCurrentSize(), (toKill*100.0));
 
-        PagingVisitor pv(percentInUse - threshold + 5.0);
+        PagingVisitor pv(toKill);
         store->visit(pv);
 
         stats.numValueEjects.incr(pv.numEjected());
