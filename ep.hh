@@ -128,6 +128,10 @@ public:
         }
     }
 
+    bool shouldBeResident() {
+        return StoredValue::getCurrentSize() < stats.mem_low_wat;
+    }
+
     void callback(GetValue &val) {
         Item *i = val.getValue();
         if (i != NULL) {
@@ -136,7 +140,13 @@ public:
                 vb.reset(new VBucket(i->getVBucketId(), pending));
                 vbuckets.addBucket(vb);
             }
-            vb->ht.add(*i, false);
+            if (!vb->ht.add(*i, false, shouldBeResident())) {
+                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                 "Failed to load item due to memory constraint.\n");
+            }
+            ++stats.numValueEjects;
+            ++stats.numNonResident;
+
             delete i;
         }
         stats.warmedUp++;

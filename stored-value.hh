@@ -779,9 +779,10 @@ public:
      *
      * @param val the item to store
      * @param isDirty true if the item should be marked dirty on store
+     * @param storeVal true if the value should be stored (paged-in)
      * @return true if the item is newly stored
      */
-    bool add(const Item &val, bool isDirty = true) {
+    bool add(const Item &val, bool isDirty = true, bool storeVal = true) {
         assert(active());
         int bucket_num = bucket(val.getKey());
         LockHolder lh(getMutex(bucket_num));
@@ -795,6 +796,9 @@ public:
                 return NOMEM;
             }
             v = valFact(itm, values[bucket_num], isDirty);
+            if (!storeVal) {
+                v->ejectValue();
+            }
             values[bucket_num] = v;
         }
 
