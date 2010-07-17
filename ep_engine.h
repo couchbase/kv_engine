@@ -259,6 +259,10 @@ private:
         return ret;
     }
 
+    bool idle() {
+        return queue->empty() && vBucketLowPriority.empty() && vBucketHighPriority.empty();
+    }
+
     bool empty() {
         return queue->empty();
     }
@@ -1412,7 +1416,7 @@ private:
         // see if I have some channels that I have to signal..
         std::map<const void*, TapConnection*>::iterator iter;
         for (iter = tapConnectionMap.begin(); iter != tapConnectionMap.end(); iter++) {
-            if (!iter->second->queue->empty()) {
+            if (!iter->second->idle()) {
                 shouldPause = false;
             } else if (addNoop) {
                 TapVBucketEvent hi(TAP_NOOP, 0, pending);
