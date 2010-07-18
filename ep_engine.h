@@ -283,12 +283,6 @@ private:
         return ret;
     }
 
-    bool shouldNoop() {
-        bool ret = pendingNoop;
-        pendingNoop = false;
-        return ret;
-    }
-
     // This method is called while holding the tapNotifySync lock.
     void appendQueue(std::list<QueuedItem> *q) {
         queue->splice(queue->end(), *q);
@@ -359,11 +353,6 @@ private:
      * Do we have a pending flush command?
      */
     bool pendingFlush;
-
-    /**
-     * Do we have a pending noop command?
-     */
-    bool pendingNoop;
 
     /**
      * when this tap conneciton expires.
@@ -1032,8 +1021,6 @@ public:
             }
         } else if (connection->shouldFlush()) {
             ret = TAP_FLUSH;
-        } else if (connection->shouldNoop()) {
-            ret = TAP_NOOP;
         } else {
             connection->paused = true;
         }
