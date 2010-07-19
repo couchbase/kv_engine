@@ -1482,6 +1482,22 @@ extern "C" {
         delete td;
         return NULL;
     }
+
+    static void* bg_incr_thread(void *arg) {
+        ThreadData *td(static_cast<ThreadData*>(arg));
+
+        usleep(2600); // Exacerbate race condition.
+
+        uint64_t cas = 0, result = 0;
+        check(td->h1->arithmetic(td->h, NULL, "k1", 2, true, false, 1, 1, 0,
+                                 &cas, &result,
+                                 0) == ENGINE_SUCCESS,
+              "Failed to incr value.");
+
+        delete td;
+        return NULL;
+    }
+
 }
 
 static enum test_result test_disk_gt_ram_set_race(ENGINE_HANDLE *h,
@@ -1501,6 +1517,35 @@ static enum test_result test_disk_gt_ram_set_race(ENGINE_HANDLE *h,
 
     // Should have bg_fetched, but discarded the old value.
     assert(1 == get_int_stat(h, h1, "ep_bg_fetched"));
+
+    assert(pthread_join(tid, NULL) == 0);
+
+    return SUCCESS;
+}
+
+static enum test_result test_disk_gt_ram_incr_race(ENGINE_HANDLE *h,
+                                                   ENGINE_HANDLE_V1 *h1) {
+    wait_for_persisted_value(h, h1, "k1", "13");
+
+    set_flush_param(h, h1, "bg_fetch_delay", "1");
+
+    evict_key(h, h1, "k1");
+
+    pthread_t tid;
+    if (pthread_create(&tid, NULL, bg_incr_thread, new ThreadData(h, h1)) != 0) {
+        abort();
+    }
+
+    // Value is as it was before.
+    check_key_value(h, h1, "k1", "13", 2);
+    // Should have bg_fetched to retrieve it even with a concurrent incr.
+    assert(1 == get_int_stat(h, h1, "ep_bg_fetched"));
+
+    // Give incr time to finish (it's doing another background fetch)
+    while (1 == get_int_stat(h, h1, "ep_bg_fetched")) { usleep(10); }
+
+    // The incr mutated the value.
+    check_key_value(h, h1, "k1", "14\r\n", 4);
 
     assert(pthread_join(tid, NULL) == 0);
 
@@ -1584,6 +1629,8 @@ engine_test_t* get_tests(void) {
         {"disk>RAM paged-out incr", test_disk_gt_ram_incr, NULL,
          teardown, NULL},
         {"disk>RAM set bgfetch race", test_disk_gt_ram_set_race, NULL,
+         teardown, NULL},
+        {"disk>RAM incr bgfetch race", test_disk_gt_ram_incr_race, NULL,
          teardown, NULL},
         {"disk>RAM delete bgfetch race", test_disk_gt_ram_rm_race, NULL,
          teardown, NULL},
