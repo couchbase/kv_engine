@@ -1460,6 +1460,8 @@ extern "C" {
     static void* bg_set_thread(void *arg) {
         ThreadData *td(static_cast<ThreadData*>(arg));
 
+        usleep(2600); // Exacerbate race condition.
+
         item *i = NULL;
         check(store(td->h, td->h1, NULL, OPERATION_SET,
                     "k1", "new value", &i) == ENGINE_SUCCESS,
@@ -1471,6 +1473,8 @@ extern "C" {
 
     static void* bg_del_thread(void *arg) {
         ThreadData *td(static_cast<ThreadData*>(arg));
+
+        usleep(2600); // Exacerbate race condition.
 
         check(td->h1->remove(td->h, NULL, "k1", 2, 0, 0) == ENGINE_SUCCESS,
               "Failed to delete.");
