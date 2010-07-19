@@ -419,6 +419,10 @@ private:
     DISALLOW_COPY_AND_ASSIGN(TapConnection);
 };
 
+static size_t percentOf(size_t val, double percent) {
+    return static_cast<size_t>(static_cast<double>(val) * percent);
+}
+
 /**
  *
  */
@@ -627,10 +631,10 @@ public:
             }
 
             if (memLowWat == std::numeric_limits<size_t>::max()) {
-                memLowWat = static_cast<double>(StoredValue::getMaxDataSize()) * 0.6;
+                memLowWat = percentOf(StoredValue::getMaxDataSize(), 0.6);
             }
             if (memHighWat == std::numeric_limits<size_t>::max()) {
-                memHighWat = static_cast<double>(StoredValue::getMaxDataSize()) * 0.75;
+                memHighWat = percentOf(StoredValue::getMaxDataSize(), 0.75);
             }
 
             stats.mem_low_wat = memLowWat;
