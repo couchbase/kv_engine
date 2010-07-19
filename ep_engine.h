@@ -875,13 +875,18 @@ public:
     {
         item *it = NULL;
 
-        ENGINE_ERROR_CODE ret;
-        ret = get(cookie, &it, key, nkey, vbucket);
+        ENGINE_ERROR_CODE ret = get(cookie, &it, key, nkey, vbucket);
         if (ret == ENGINE_SUCCESS) {
             Item *item = static_cast<Item*>(it);
-            char *endptr;
-            uint64_t val = strtoull(item->getData(), &endptr, 10);
-            if ((errno != ERANGE) && (isspace(*endptr) || (*endptr == '\0' && endptr != item->getData()))) {
+            char *endptr = NULL;
+            char data[24];
+            size_t len = std::min(static_cast<uint32_t>(sizeof(data) - 1),
+                                  item->getNBytes());
+            data[len] = 0;
+            memcpy(data, item->getData(), len);
+            uint64_t val = strtoull(data, &endptr, 10);
+            if ((errno != ERANGE) && (isspace(*endptr)
+                                      || (*endptr == '\0' && endptr != data))) {
                 if (increment) {
                     val += delta;
                 } else {
