@@ -1404,6 +1404,25 @@ static enum test_result test_disk_gt_ram_golden(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+static enum test_result test_disk_gt_ram_incr(ENGINE_HANDLE *h,
+                                              ENGINE_HANDLE_V1 *h1) {
+    uint64_t cas = 0, result = 0;
+    wait_for_persisted_value(h, h1, "k1", "13");
+
+    evict_key(h, h1, "k1");
+
+    check(h1->arithmetic(h, NULL, "k1", 2, true, false, 1, 1, 0,
+                         &cas, &result,
+                         0) == ENGINE_SUCCESS,
+          "Failed to incr value.");
+
+    check_key_value(h, h1, "k1", "14\r\n", 4);
+
+    assert(1 == get_int_stat(h, h1, "ep_bg_fetched"));
+
+    return SUCCESS;
+}
+
 static enum test_result test_disk_gt_ram_update_paged_out(ENGINE_HANDLE *h,
                                                           ENGINE_HANDLE_V1 *h1) {
     wait_for_persisted_value(h, h1, "k1", "some value");
@@ -1557,6 +1576,8 @@ engine_test_t* get_tests(void) {
         {"disk>RAM update paged-out", test_disk_gt_ram_update_paged_out, NULL,
          teardown, NULL},
         {"disk>RAM delete paged-out", test_disk_gt_ram_delete_paged_out, NULL,
+         teardown, NULL},
+        {"disk>RAM paged-out incr", test_disk_gt_ram_incr, NULL,
          teardown, NULL},
         {"disk>RAM set bgfetch race", test_disk_gt_ram_set_race, NULL,
          teardown, NULL},
