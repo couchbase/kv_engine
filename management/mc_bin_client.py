@@ -58,7 +58,10 @@ class MemcachedClient(object):
     def _handleKeyedResponse(self, myopaque):
         response = ""
         while len(response) < MIN_RECV_PACKET:
-            response += self.s.recv(MIN_RECV_PACKET - len(response))
+            data = self.s.recv(MIN_RECV_PACKET - len(response))
+            if data == '':
+                raise exceptions.EOFError("Got empty data (remote died?).")
+            response += data
         assert len(response) == MIN_RECV_PACKET
         magic, cmd, keylen, extralen, dtype, errcode, remaining, opaque, cas=\
             struct.unpack(RES_PKT_FMT, response)
@@ -66,6 +69,8 @@ class MemcachedClient(object):
         rv = ""
         while remaining > 0:
             data = self.s.recv(remaining)
+            if data == '':
+                raise exceptions.EOFError("Got empty data (remote died?).")
             rv += data
             remaining -= len(data)
 
