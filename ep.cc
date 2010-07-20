@@ -326,8 +326,6 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
 
     // Go find the data
     RememberingCallback<GetValue> gcb;
-    getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                     "Fetching `%s' in the background\n", key.c_str());
 
     underlying->get(key, rowid, gcb);
     gcb.waitForValue();
