@@ -677,6 +677,8 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server
     ENGINE_HANDLE_V1::item_set_cas = EvpItemSetCas;
     ENGINE_HANDLE_V1::get_item_info = EvpGetItemInfo;
     ENGINE_HANDLE_V1::get_stats_struct = NULL;
+    ENGINE_HANDLE_V1::errinfo = NULL;
+    ENGINE_HANDLE_V1::aggregate_stats = NULL;
 
     serverApi = getServerApi();
     extensionApi = serverApi->extension;
