@@ -1824,9 +1824,23 @@ static enum test_result test_max_size_settings(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+static enum test_result test_validate_engine_handle(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
+{
+    (void)h;
+    check(h1->get_stats_struct == NULL, "get_stats_struct member should be initialized to NULL");
+    check(h1->aggregate_stats == NULL, "aggregate_stats member should be initialized to NULL");
+    check(h1->unknown_command != NULL, "unknown_command member should be initialized to a non-NULL value");
+    check(h1->tap_notify != NULL, "tap_notify member should be initialized to a non-NULL value");
+    check(h1->get_tap_iterator != NULL, "get_tap_iterator member should be initialized to a non-NULL value");
+    check(h1->errinfo == NULL, "errinfo member should be initialized to NULL");
+
+    return SUCCESS;
+}
+
 engine_test_t* get_tests(void) {
 
     static engine_test_t tests[]  = {
+        {"validate engine handle", test_validate_engine_handle, NULL, teardown, NULL},
         // basic tests
         {"test alloc limit", test_alloc_limit, NULL, teardown, NULL},
         {"test total memory limit", test_memory_limit, NULL, teardown,
