@@ -123,6 +123,7 @@ AC_CHECK_FUNCS(gethrtime)
 AC_SEARCH_LIBS(clock_gettime, rt)
 AC_CHECK_FUNCS(clock_gettime)
 AC_CHECK_FUNCS(mach_absolute_time)
+AC_CHECK_FUNCS(gettimeofday)
 AM_CONDITIONAL(BUILD_GETHRTIME, test "$ac_cv_func_gethrtime" = "no")
 
 AS_IF([test "x$GCC" = "xyes"], [

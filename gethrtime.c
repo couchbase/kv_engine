@@ -18,6 +18,7 @@
 #include "config.h"
 #include <stdlib.h>
 #include <time.h>
+#include <sys/time.h>
 #include <assert.h>
 
 #ifdef HAVE_MACH_MACH_TIME_H
@@ -77,8 +78,18 @@ hrtime_t gethrtime(void) {
         abort();
     }
     return (((hrtime_t)tm.tv_sec) * 1000000000) + tm.tv_nsec;
+#elif HAVE_GETTIMEOFDAY
+
+    hrtime_t ret;
+    struct timeval tv;
+    if (gettimeofday(&tv, NULL) == -1) {
+      return (-1ULL);
+    }
+
+    ret = tv.tv_sec * 1000000000;
+    ret += tv.tv_usec * 1000;
+    return ret;
 #else
 #error "I don't know how to build a highres clock..."
 #endif
 }
-
