@@ -19,7 +19,6 @@
 
 #include "config.h"
 #include <assert.h>
-#include <poll.h>
 #include <fcntl.h>
 
 #include <memcached/engine.h>
@@ -178,14 +177,19 @@ extern "C" {
                                                        const char **msg) {
         protocol_binary_response_status rv = PROTOCOL_BINARY_RESPONSE_SUCCESS;
 
+#ifdef ENABLE_INTERNAL_TAP
         if (strcmp(keyz, "tap_peer") == 0) {
             e->setTapPeer(valz);
             *msg = "Updated";
         } else {
+#endif
             *msg = "Unknown config param";
             rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
+#ifdef ENABLE_INTERNAL_TAP
         }
-
+#else
+        (void)e; (void)keyz; (void)valz;
+#endif
         return rv;
     }
 
@@ -469,6 +473,7 @@ extern "C" {
         case CMD_SET_TAP_PARAM:
             res = setParam(h, request, &msg);
             break;
+#ifdef ENABLE_INTERNAL_TAP
         case CMD_START_REPLICATION:
             if (h->startReplication()) {
                 msg = "Started";
@@ -483,6 +488,7 @@ extern "C" {
             res = PROTOCOL_BINARY_RESPONSE_SUCCESS;
             msg = "Stopped";
             break;
+#endif
         case CMD_GET_VBUCKET:
             res = getVbucket(h, request, &msg);
             break;
@@ -651,7 +657,10 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server
     startVb0(true), sqliteDb(NULL), epstore(NULL), databaseInitTime(0),
     tapIdleTimeout(DEFAULT_TAP_IDLE_TIMEOUT), nextTapNoop(0),
     startedEngineThreads(false), shutdown(false),
-    getServerApi(get_server_api), getlExtension(NULL), clientTap(NULL),
+    getServerApi(get_server_api), getlExtension(NULL),
+#ifdef ENABLE_INTERNAL_TAP
+    clientTap(NULL),
+#endif
     tapEnabled(false), maxItemSize(20*1024*1024),
     memLowWat(std::numeric_limits<size_t>::max()),
     memHighWat(std::numeric_limits<size_t>::max()),

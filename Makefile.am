@@ -33,7 +33,6 @@ ep_la_SOURCES = \
                  stats.hh \
                  stored-value.hh stored-value.cc \
                  syncobject.hh \
-                 tapclient.hh tapclient.cc \
                  vbucket.hh vbucket.cc
 
 
@@ -104,6 +103,10 @@ hrtime_test_SOURCES = t/hrtime_test.cc common.hh
 if BUILD_GETHRTIME
 ep_la_SOURCES += gethrtime.c
 hrtime_test_SOURCES += gethrtime.c
+endif
+
+if ENABLE_INTERNAL_TAP
+ep_la_SOURCES += tapclient.cc tapclient.hh
 endif
 
 test: all check-TESTS

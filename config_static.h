@@ -38,5 +38,8 @@ extern "C" {
 
 #endif
 
+#ifdef HAVE_POLL_H
+#include <poll.h>
+#endif
 
 #endif

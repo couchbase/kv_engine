@@ -10,7 +10,9 @@
 #include "dispatcher.hh"
 #include "item_pager.hh"
 #include <memcached/util.h>
+#ifdef ENABLE_INTERNAL_TAP
 #include "tapclient.hh"
+#endif
 
 #include <cstdio>
 #include <map>
@@ -432,8 +434,10 @@ public:
     ENGINE_ERROR_CODE initialize(const char* config)
     {
         ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
+#ifdef ENABLE_INTERNAL_TAP
         char *master = NULL;
         char *tap_id = NULL;
+#endif
 
         resetStats();
 
@@ -497,6 +501,7 @@ public:
             items[ii].datatype = DT_SIZE;
             items[ii].value.dt_size = &maxSize;
 
+#ifdef ENABLE_INTERNAL_TAP
             ++ii;
             items[ii].key = "tap_peer";
             items[ii].datatype = DT_STRING;
@@ -506,6 +511,7 @@ public:
             items[ii].key = "tap_id";
             items[ii].datatype = DT_STRING;
             items[ii].value.dt_string = &tap_id;
+#endif
 
             ++ii;
             items[ii].key = "tap_idle_timeout";
@@ -620,6 +626,7 @@ public:
                 }
             }
 
+#ifdef ENABLE_INTERNAL_TAP
             if (tap_id != NULL) {
                 tapId.assign(tap_id);
                 free(tap_id);
@@ -629,6 +636,7 @@ public:
                 setTapPeer(master);
                 free(master);
             }
+#endif
 
             if (memLowWat == std::numeric_limits<size_t>::max()) {
                 memLowWat = percentOf(StoredValue::getMaxDataSize(), 0.6);
@@ -657,7 +665,9 @@ public:
 
     void destroy()
     {
+#ifdef ENABLE_INTERNAL_TAP
         stopReplication();
+#endif
         stopEngineThreads();
     }
 
@@ -1369,6 +1379,11 @@ public:
         epstore->setBGFetchDelay(to);
     }
 
+#ifdef ENABLE_INTERNAL_TAP
+    void setTapPeer(std::string peer) {
+        tapConnect(peer);
+    }
+
     bool startReplication() {
         LockHolder lh(tapMutex);
         tapEnabled = true;
@@ -1382,6 +1397,7 @@ public:
                                  e.what());
             }
         }
+
         return false;
     }
 
@@ -1399,17 +1415,15 @@ public:
                                  e.what());
             }
         }
+
         return false;
     }
+#endif
 
     protocol_binary_response_status evictKey(const std::string &key,
                                              uint16_t vbucket,
                                              const char **msg) {
         return epstore->evictKey(key, vbucket, msg);
-    }
-
-    void setTapPeer(std::string peer) {
-        tapConnect(peer);
     }
 
     RCPtr<VBucket> getVBucket(uint16_t vbucket) {
@@ -1877,6 +1891,7 @@ private:
         const char *repStatus = "stopped";
         std::string tapPeer;
 
+#ifdef ENABLE_INTERNAL_TAP
         {
             LockHolder ltm(tapMutex);
             if (clientTap != NULL) {
@@ -1891,8 +1906,9 @@ private:
                     repStatus = "connecting";
                 }
             }
-
         }
+#endif
+
         add_casted_stat("ep_replication_peer",
                         tapPeer.empty()? "none":
                         tapPeer.c_str(), add_stat, cookie);
@@ -2011,6 +2027,7 @@ private:
         return rv;
     }
 
+#ifdef ENABLE_INTERNAL_TAP
     void tapConnect(std::string &peer) {
         uint32_t flags = 0;
 
@@ -2044,6 +2061,7 @@ private:
                              e.what());
         }
     }
+#endif
 
     const char *dbname;
     const char *initFile;
@@ -2074,8 +2092,10 @@ private:
     GetlExtension *getlExtension;
 
     Mutex tapMutex;
+#ifdef ENABLE_INTERNAL_TAP
     TapClientConnection* clientTap;
     std::string tapId;
+#endif
     bool tapEnabled;
     size_t maxItemSize;
     size_t memLowWat;
