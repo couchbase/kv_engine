@@ -1142,7 +1142,7 @@ private:
         rel_time_t now = ep_current_time();
         if (now > nextTapNoop && tapIdleTimeout != (size_t)-1) {
             addNoop = true;
-            nextTapNoop = now + (tapIdleTimeout / 2);
+            nextTapNoop = now + (tapIdleTimeout / 3);
         }
         LockHolder lh(tapNotifySync);
         // We should pause unless we purged some connections or
@@ -1163,8 +1163,6 @@ private:
             double diff = nextTapNoop - now;
             if (diff > 0) {
                 tapNotifySync.wait(diff);
-            } else {
-                tapNotifySync.wait();
             }
 
             if (shutdown) {
