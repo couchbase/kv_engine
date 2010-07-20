@@ -1,9 +1,20 @@
 #include "config_version.h"
+
+#undef  _WIN32_WINNT
+#define _WIN32_WINNT    0x0501        /* Needed to resolve getaddrinfo et al. */
+
+// there seems to be a bad macro redefine for sleep in unistd.h, so let's
+// include it before any other files..
+#include <unistd.h>
+
 #include <winsock2.h>
+#include <ws2tcpip.h>
 
 /* Windows doesn't have sleep, but Sleep(millisecond) */
 
 #define sleep(a) Sleep(a * 1000)
+// This doesn't work for our short sleeps... figure out a better one
+#define usleep(a) sleep(a / 1000)
 
 #define HAVE_ASSERT_H 1
 #define HAVE_DLFCN_H 1
@@ -41,3 +52,11 @@
 #else
 #define EXPORT_FUNCTION
 #endif
+#define HAVE_GETTIMEOFDAY 1
+
+#define EAI_SYSTEM -11
+
+#include "config_static.h"
+
+#undef small
+#undef interface

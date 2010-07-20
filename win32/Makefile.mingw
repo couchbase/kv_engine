@@ -2,15 +2,20 @@
 
 CC = gcc
 
+LOCAL=/usr/local
+LOCALLIB=-L${LOCAL}/lib
+LOCALINC=-I${LOCAL}/include
+MARCH=-march=i686
+
 MEMCACHED=../memcached
 
-OBJDIR = .libs .libs/embedded
+OBJDIR = .libs .libs/embedded .libs/poll
 BINARIES= .libs/ep.so
-LIB=-L/usr/local/lib
-INCLUDE= -Iwin32 -I.libs -I${MEMCACHED}/include -I/usr/local/include -I.
+LIB=$(LOCALLIB) -L${MEMCACHED}/lib
+INCLUDE= -Iwin32 -I.libs -I${MEMCACHED}/include -I. $(LOCALINC)
 MC_UTIL= ${MEMCACHED}/.libs/util.o
 GENFILES=.libs/config_version.h
-CPPFLAGS= -march=i686 -O2 -DHAVE_CONFIG_H ${INCLUDE} -Wall
+CPPFLAGS= $(MARCH) -O2 -DHAVE_CONFIG_H ${INCLUDE} -Wall
 
 all: ${BINARIES}
 
@@ -19,16 +24,30 @@ CFLAGS = -std=gnu99 -DNDEBUG \
            -Wmissing-declarations -Wredundant-decls \
 
 CXXFLAGS = -std=gnu++0x \
-           -Werror -pedantic -Wshadow -fdiagnostics-show-option \
+           -pedantic -Wshadow -fdiagnostics-show-option \
            -Wformat=2 -Wconversion -Wstrict-aliasing -Wextra \
            -Woverloaded-virtual -Wnon-virtual-dtor -Wctor-dtor-privacy \
            -Wno-long-long  -Wmissing-declarations -Wno-redundant-decls
 
-
-EP_ENGINE_CC_SRC = ep_engine.cc ep.cc flusher.cc item.cc priority.cc \
-                   sqlite-eval.cc sqlite-kvstore.cc sqlite-pst.cc \
-                   sqlite-strategies.cc dispatcher.cc
-EP_ENGINE_C_SRC = embedded/sqlite3.c
+EP_ENGINE_CC_SRC = \
+                 dispatcher.cc \
+                 ep.cc \
+                 ep_engine.cc \
+                 ep_extension.cc \
+                 flusher.cc \
+                 item.cc \
+                 item_pager.cc \
+                 priority.cc \
+                 sizes.cc \
+                 sqlite-eval.cc \
+                 sqlite-kvstore.cc \
+                 sqlite-pst.cc \
+                 sqlite-strategies.cc \
+                 stored-value.cc \
+                 vbucket.cc
+EP_ENGINE_C_SRC = \
+		embedded/sqlite3.c \
+		gethrtime.c
 EP_ENGINE_OBJS = ${EP_ENGINE_C_SRC:%.c=.libs/%.o} ${EP_ENGINE_CC_SRC:%.cc=.libs/%.o}
 
 .libs/ep.so: ${OBJDIR} ${GENFILES} $(EP_ENGINE_OBJS)
@@ -39,7 +58,7 @@ EP_ENGINE_OBJS = ${EP_ENGINE_C_SRC:%.c=.libs/%.o} ${EP_ENGINE_CC_SRC:%.cc=.libs/
 .libs/config_version.h:
 	./win32/config.sh
 
-.libs .libs/embedded:; -@mkdir $@
+.libs .libs/embedded .libs/poll:; -@mkdir $@
 
 .libs/%.o: %.cc
 	${COMPILE.cc} -MMD $< -o $@
