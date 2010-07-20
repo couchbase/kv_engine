@@ -17,8 +17,12 @@
  */
 class Mutex {
 public:
-    Mutex() : holder(0) {
-        int e(0);
+    Mutex()
+#ifndef WIN32
+        : holder(0)
+#endif
+    {
+        int e;
         if ((e = pthread_mutex_init(&mutex, NULL)) != 0) {
             std::string message = "MUTEX ERROR: Failed to initialize mutex: ";
             message.append(std::strerror(e));
@@ -27,7 +31,7 @@ public:
     }
 
     virtual ~Mutex() {
-        int e(0);
+        int e;
         if ((e = pthread_mutex_destroy(&mutex)) != 0) {
             std::string message = "MUTEX ERROR: Failed to destroy mutex: ";
             message.append(std::strerror(e));
@@ -42,19 +46,21 @@ protected:
     friend class MultiLockHolder;
 
     void acquire() {
-        int e(0);
+        int e;
         if ((e = pthread_mutex_lock(&mutex)) != 0) {
             std::string message = "MUTEX ERROR: Failed to acquire lock: ";
             message.append(std::strerror(e));
             throw std::runtime_error(message);
         }
-        holder = pthread_self();
+        setHolder();
     }
 
     void release() {
-        assert (holder == pthread_self());
+#ifndef WIN32
+        assert(holder == pthread_self());
         holder = 0;
-        int e(0);
+#endif
+        int e;
         if ((e = pthread_mutex_unlock(&mutex)) != 0) {
             std::string message = "MUTEX_ERROR: Failed to release lock: ";
             message.append(std::strerror(e));
@@ -62,8 +68,16 @@ protected:
         }
     }
 
+    void setHolder() {
+#ifndef WIN32
+        holder = pthread_self();
+#endif
+    }
+
     pthread_mutex_t mutex;
+#ifndef WIN32
     pthread_t holder;
+#endif
 
     DISALLOW_COPY_AND_ASSIGN(Mutex);
 };

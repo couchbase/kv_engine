@@ -31,7 +31,7 @@ public:
         if (pthread_cond_wait(&cond, &mutex) != 0) {
             throw std::runtime_error("Failed to wait for condition.");
         }
-        holder = pthread_self();
+        setHolder();
     }
 
     bool wait(const struct timeval &tv) {
@@ -41,10 +41,10 @@ public:
 
         switch (pthread_cond_timedwait(&cond, &mutex, &ts)) {
         case 0:
-            holder = pthread_self();
+            setHolder();
             return true;
         case ETIMEDOUT:
-            holder = pthread_self();
+            setHolder();
             return false;
         default:
             throw std::runtime_error("Failed timed_wait for condition.");
