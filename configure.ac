@@ -142,36 +142,24 @@ AS_IF([test "x$SUNCC" = "xyes"],
         CXXFLAGS="-erroff=truncwarn1,signextwarn,notused,inllargeuse,wunreachable $CXXFLAGS"
       ])
 
+AH_TOP([
+#ifndef CONFIG_H
+#define CONFIG_H
+/*
+ * Copyright (C) 2010 NorthScale, Inc
+ * All rights reserved.
+ *
+ * Use and distribution licensed under the BSD license.  See
+ * the COPYING file in this directory for full text.
+ */
+#ifdef _SYS_FEATURE_TESTS_H
+#error "You should include config.h as your first include file"
+#endif
+])
+
 AH_BOTTOM([
-#if ((defined (__SUNPRO_C) || defined(__SUNPRO_CC)) || defined __GNUC__)
-#define EXPORT_FUNCTION __attribute__ ((visibility("default")))
-#else
-#define EXPORT_FUNCTION
+#include "config_static.h"
 #endif
-
-#if HAVE_ARPA_INET_H
-#include <arpa/inet.h>
-#endif
-
-#ifdef HAVE_NETDB_H
-#include <netdb.h>
-#endif
-
-#ifndef HAVE_GETHRTIME
-typedef uint64_t hrtime_t;
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-   extern hrtime_t gethrtime(void);
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif
-
 ])
 
 trymemcacheddir=""

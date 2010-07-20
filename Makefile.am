@@ -14,6 +14,7 @@ ep_la_SOURCES = \
                  atomic.hh \
                  callbacks.hh \
                  common.hh \
+                 config_static.h \
                  dispatcher.cc dispatcher.hh \
                  ep.cc ep.hh \
                  ep_engine.cc ep_engine.h \
