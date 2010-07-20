@@ -731,11 +731,6 @@ public:
 
 extern "C" {
     static void* launch_backfill_thread(void *arg) {
-
-        if (pthread_detach(pthread_self()) != 0) {
-            abort(); // pthread_detach is not supposed to be able to fail here
-        }
-
         BackFillThreadData *bftd = static_cast<BackFillThreadData *>(arg);
 
         bftd->epstore->visit(bftd->bfv);
@@ -749,9 +744,17 @@ extern "C" {
 void EventuallyPersistentEngine::queueBackfill(TapConnection *tc, const void *tok) {
     tc->doRunBackfill = false;
     BackFillThreadData *bftd = new BackFillThreadData(this, tc, epstore, tok);
+    pthread_attr_t attr;
+
+    if (pthread_attr_init(&attr) != 0 ||
+        pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED) != 0) {
+        throw std::runtime_error("Error setting up thread attributes");
+    }
 
     pthread_t tid;
-    if (pthread_create(&tid, NULL, launch_backfill_thread, bftd) != 0) {
+    if (pthread_create(&tid, &attr, launch_backfill_thread, bftd) != 0) {
         throw std::runtime_error("Error creating tap queue backfill thread");
     }
+
+    pthread_attr_destroy(&attr);
 }
