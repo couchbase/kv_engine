@@ -46,9 +46,18 @@ if __name__ == '__main__':
 
     if cmd == 'stop':
         stopped = False
+        success = False
         while not stopped:
             time.sleep(0.5)
-            stats = mc.stats()
+            try:
+                stats = mc.stats()
+                success = True
+            except:
+                if success:
+                    mc = mc_bin_client.MemcachedClient(host, port)
+                else:
+                    raise
+                success = False
             if stats['ep_flusher_state'] == 'paused':
                 stopped = True
 
