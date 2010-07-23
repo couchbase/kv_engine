@@ -5,7 +5,11 @@
 #include <map>
 #include <vector>
 
+#ifdef USE_SYSTEM_LIBSQLITE3
+#include <sqlite3.h>
+#else
 #include "embedded/sqlite3.h"
+#endif
 
 #include "sqlite-pst.hh"
 #include "sqlite-strategies.hh"

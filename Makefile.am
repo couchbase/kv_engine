@@ -2,7 +2,7 @@ ACLOCAL_AMFLAGS = -I m4 --force
 bin_SCRIPTS = management/analyze_core
 
 lib_LTLIBRARIES = ep.la ep_testsuite.la
-noinst_LTLIBRARIES = libsqlite3.la
+noinst_LTLIBRARIES =
 
 noinst_PROGRAMS = sizes
 
@@ -33,8 +33,17 @@ ep_la_SOURCES = \
                  tapclient.hh tapclient.cc \
                  vbucket.hh vbucket.cc
 
-ep_la_LIBADD = libsqlite3.la @MEMCACHED_DIR@/libmcd_util.la
-ep_la_DEPENDENCIES = libsqlite3.la
+
+ep_la_LIBADD = @MEMCACHED_DIR@/libmcd_util.la
+ep_la_DEPENDENCIES =
+
+if BUILD_EMBEDDED_LIBSQLITE3
+ep_la_LIBADD += libsqlite3.la
+ep_la_DEPENDENCIES += libsqlite3.la
+noinst_LTLIBRARIES += libsqlite3.la
+else
+ep_la_LIBADD += $(LIBSQLITE3)
+endif
 
 libsqlite3_la_SOURCES = embedded/sqlite3.h embedded/sqlite3.c
 libsqlite3_la_CFLAGS = $(AM_CFLAGS) ${NO_WERROR}

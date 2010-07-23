@@ -5,7 +5,11 @@
 #include <string>
 #include <stdio.h>
 #include <inttypes.h>
+#ifdef USE_SYSTEM_LIBSQLITE3
+#include <sqlite3.h>
+#else
 #include "embedded/sqlite3.h"
+#endif
 
 #include "common.hh"
 

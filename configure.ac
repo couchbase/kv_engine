@@ -17,6 +17,18 @@ PANDORA_CANONICAL_TARGET(less-warnings, warnings-always-on, require-cxx,
                          force-gcc42)
 PANDORA_SHARED_PTR
 
+AC_ARG_ENABLE([system-libsqlite3],
+    [AS_HELP_STRING([--enable-system-libsqlite3],
+            [Build with system installed libsqlite3. @<:@default=off@:>@])],
+    [ac_enable_system_libsqlite3="$enableval"],
+    [ac_enable_system_libsqlite3="no"])
+
+AS_IF([test "$ac_enable_system_libsqlite3" = "yes"],
+      [ PANDORA_REQUIRE_LIBSQLITE3
+        AC_DEFINE(USE_SYSTEM_LIBSQLITE3, 1, "Set if you want to use a system installed sqlite3")
+      ])
+AM_CONDITIONAL(BUILD_EMBEDDED_LIBSQLITE3, test "$ac_enable_system_libsqlite3" = "no")
+
 AC_DEFUN([AC_C_HTONLL],
 [
     AC_CACHE_CHECK([for htonll],[ac_cv_have_htonll],[
