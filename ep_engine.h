@@ -1058,6 +1058,8 @@ public:
         // map is set-assocative, so this will create an instance here..
         LockHolder lh(tapNotifySync);
         purgeExpiredTapConnections_UNLOCKED();
+        char cookiehex[32];
+        snprintf(cookiehex, sizeof(cookiehex), "%p", cookie);
 
         std::string name = "eq_tapq:";
         if (client.length() == 0) {

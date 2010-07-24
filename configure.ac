@@ -132,6 +132,8 @@ AS_IF([test "x$GCC" = "xyes"], [
 
 AC_SEARCH_LIBS(pthread_create, pthread)
 
+AC_SEARCH_LIBS(dlopen, dl)
+
 AS_IF([test "x$SUNCC" = "xyes"],
       [
         CFLAGS="-D_XOPEN_SOURCE=600 $CFLAGS"

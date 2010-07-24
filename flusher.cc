@@ -130,7 +130,6 @@ void Flusher::wake(void) {
 }
 
 bool Flusher::step(Dispatcher &d, TaskId tid) {
-    assert(task.get() == tid.get());
     try {
         switch (_state) {
         case initializing:

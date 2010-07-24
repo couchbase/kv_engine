@@ -35,7 +35,6 @@ struct small_data {
  */
 struct feature_data {
     uint64_t   cas;             //!< CAS identifier.
-    uint32_t   flags;           //!< Client-specified flags.
     rel_time_t exptime;         //!< Expiration time of this item.
     rel_time_t lock_expiry;     //!< getl lock expiration
     bool       locked : 1;      //!< True if this item is locked
@@ -188,11 +187,7 @@ public:
      * @return the flags for feature items, 0 for small items
      */
     uint32_t getFlags() const {
-        if (_isSmall) {
-            return 0;
-        } else {
-            return extra.feature.flags;
-        }
+        return flags;
     }
 
     /**
@@ -208,9 +203,9 @@ public:
         reduceCurrentSize(size());
         value = v;
         setResident();
+        flags = newFlags;
         if (!_isSmall) {
             extra.feature.cas = theCas;
-            extra.feature.flags = newFlags;
             extra.feature.exptime = newExp;
         }
         markDirty();
@@ -437,14 +432,13 @@ private:
     StoredValue(const Item &itm, StoredValue *n, bool setDirty = true,
                 bool small = false) :
         value(itm.getValue()), next(n), id(itm.getId()),
-        dirtiness(0), _isSmall(small)
+        dirtiness(0), _isSmall(small), flags(itm.getFlags())
     {
 
         if (_isSmall) {
             extra.small.keylen = itm.getKey().length();
         } else {
             extra.feature.cas = itm.getCas();
-            extra.feature.flags = itm.getFlags();
             extra.feature.exptime = itm.getExptime();
             extra.feature.locked = false;
             extra.feature.resident = true;
@@ -470,12 +464,14 @@ private:
     friend class HashTable;
     friend class StoredValueFactory;
 
-    value_t      value;           // 16 bytes
-    StoredValue *next;            // 8 bytes
-    int64_t      id;              // 8 bytes
-    uint32_t     dirtiness : 30;  // 30 bits -+
-    bool         _isSmall  :  1;  // 1 bit    | 4 bytes
-    bool         _isDirty  :  1;  // 1 bit  --+
+    value_t      value;          // 16 bytes
+    StoredValue *next;           // 8 bytes
+    int64_t      id;             // 8 bytes
+    uint32_t     dirtiness : 30; // 30 bits -+
+    bool         _isSmall  :  1; // 1 bit    | 4 bytes
+    bool         _isDirty  :  1; // 1 bit  --+
+    uint32_t     flags;          // 4 bytes
+
 
     union stored_value_bodies extra;
 

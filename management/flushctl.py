@@ -13,9 +13,19 @@ def stop(mc):
     stopped = False
     while not stopped:
         time.sleep(0.5)
-        stats = mc.stats()
-        if stats['ep_flusher_state'] == 'paused':
-            stopped = True
+        try:
+            stats = mc.stats()
+            success = True
+        except:
+            if success:
+                # XXX: Need some way to force a reconnect.
+                # mc = mc_bin_client.MemcachedClient(host, port)
+                raise
+            else:
+                raise
+            success = False
+            if stats['ep_flusher_state'] == 'paused':
+                stopped = True
 
 if __name__ == '__main__':
 

@@ -4,6 +4,8 @@ bin_SCRIPTS = management/analyze_core
 lib_LTLIBRARIES = ep.la ep_testsuite.la
 noinst_LTLIBRARIES =
 
+bin_PROGRAMS = management/sqlite3
+
 noinst_PROGRAMS = sizes
 
 ep_la_CPPFLAGS = -I@MEMCACHED_DIR@/include -I$(top_srcdir) $(AM_CPPFLAGS) -DSQLITE_HAS_CODEC=0
@@ -85,6 +87,11 @@ priority_test_SOURCES = t/priority_test.cc priority.hh priority.cc
 sizes_CPPFLAGS = -I@MEMCACHED_DIR@/include -I$(top_srcdir) $(AM_CPPFLAGS) -DSQLITE_HAS_CODEC=0
 sizes_SOURCES = sizes.cc
 sizes_DEPENDENCIES = vbucket.hh stored-value.hh item.hh
+
+management_sqlite3_SOURCES = embedded/sqlite3-shell.c
+management_sqlite3_CFLAGS = $(AM_CFLAGS) ${NO_WERROR}
+management_sqlite3_DEPENDENCIES = libsqlite3.la
+management_sqlite3_LDADD = libsqlite3.la
 
 vbucket_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
 vbucket_test_SOURCES = t/vbucket_test.cc vbucket.hh stored-value.cc stored-value.hh
