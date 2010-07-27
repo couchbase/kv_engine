@@ -109,8 +109,18 @@ def abbrev(v, maxlen=30):
 def keyprint(v):
     return string.translate(abbrev(v), transt)
 
+def mainLoop(serverList, cb, opts={}):
+    """Run the given callback for each tap message from any of the
+    upstream servers.
+
+    loops until all connections drop
+    """
+
+    connections = (TapDescriptor(a) for a in serverList)
+    TapClient(connections, cb, opts=opts)
+    asyncore.loop()
+
 if __name__ == '__main__':
-    connections = (TapDescriptor(a) for a in sys.argv[1:])
     def cb(identifier, cmd, extra, key, val, cas):
         print "%s: ``%s'' -> ``%s'' (%d bytes from %s)" % (
             memcacheConstants.COMMAND_NAMES[cmd],
@@ -122,5 +132,4 @@ if __name__ == '__main__':
     # will get all data.
     opts = {}
 
-    TapClient(connections, cb, opts=opts)
-    asyncore.loop()
+    mainLoop(sys.argv[1:], cb, opts)
