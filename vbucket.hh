@@ -40,6 +40,8 @@ public:
                                                         acceptable.end(), v);
     }
 
+    size_t size() { return acceptable.size(); }
+
 private:
 
     std::vector<uint16_t> acceptable;

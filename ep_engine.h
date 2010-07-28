@@ -1857,6 +1857,20 @@ private:
         return ENGINE_SUCCESS;
     }
 
+    template <typename T>
+    static void addTapStat(const char *name, TapConnection *tc, T val,
+                           ADD_STAT add_stat, const void *cookie) {
+        char tap[80];
+        assert(strlen(name) + tc->client.size() + 2 < sizeof(tap));
+        sprintf(tap, "%s:%s", tc->client.c_str(), name);
+        add_casted_stat(tap, val, add_stat, cookie);
+    }
+
+    static void addTapStat(const char *name, TapConnection *tc, bool val,
+                           ADD_STAT add_stat, const void *cookie) {
+        addTapStat(name, tc, val ? "true" : "false", add_stat, cookie);
+    }
+
     ENGINE_ERROR_CODE doTapStats(const void *cookie, ADD_STAT add_stat) {
         std::list<TapConnection*>::iterator iter;
         EPStats &epstats = getEpStats();
@@ -1867,20 +1881,25 @@ private:
         int totalTaps = 0;
         LockHolder lh(tapNotifySync);
         for (iter = allTaps.begin(); iter != allTaps.end(); iter++) {
-            char tap[80];
             totalTaps++;
             TapConnection *tc = *iter;
-            sprintf(tap, "%s:qlen", tc->client.c_str());
-            add_casted_stat(tap, tc->queue->size(), add_stat, cookie);
-            sprintf(tap, "%s:rec_fetched", tc->client.c_str());
-            add_casted_stat(tap, tc->recordsFetched, add_stat, cookie);
+            addTapStat("qlen", tc, tc->queue->size(), add_stat, cookie);
+            addTapStat("qlen_high_pri", tc, tc->vBucketHighPriority.size(), add_stat, cookie);
+            addTapStat("qlen_low_pri", tc, tc->vBucketLowPriority.size(), add_stat, cookie);
+            addTapStat("vb_filters", tc, tc->vbucketFilter.size(), add_stat, cookie);
+            addTapStat("rec_fetched", tc, tc->recordsFetched, add_stat, cookie);
+            addTapStat("idle", tc, tc->idle(), add_stat, cookie);
+            addTapStat("empty", tc, tc->empty(), add_stat, cookie);
+            addTapStat("complete", tc, tc->complete(), add_stat, cookie);
+            addTapStat("flags", tc, tc->flags, add_stat, cookie);
+            addTapStat("connected", tc, tc->connected, add_stat, cookie);
+            addTapStat("paused", tc, tc->paused, add_stat, cookie);
+            addTapStat("pending_backfill", tc, tc->pendingBackfill, add_stat, cookie);
             if (tc->reconnects > 0) {
-                sprintf(tap, "%s:reconnects", tc->client.c_str());
-                add_casted_stat(tap, tc->reconnects, add_stat, cookie);
+                addTapStat("reconnects", tc, tc->reconnects, add_stat, cookie);
             }
             if (tc->backfillAge != 0) {
-                sprintf(tap, "%s:backfill_age", tc->client.c_str());
-                add_casted_stat(tap, (size_t)tc->backfillAge, add_stat, cookie);
+                addTapStat("backfill_age", tc, (size_t)tc->backfillAge, add_stat, cookie);
             }
         }
         add_casted_stat("ep_tap_count", totalTaps, add_stat, cookie);
