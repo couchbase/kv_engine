@@ -292,6 +292,12 @@ private:
 
     void completeBackfill() {
         pendingBackfill = false;
+
+        if (complete() && idle()) {
+            // There is no data for this connection..
+            // Just go ahead and disconnect it.
+            doDisconnect = true;
+        }
     }
 
     bool complete(void) {
@@ -1487,7 +1493,7 @@ private:
         // see if I have some channels that I have to signal..
         std::map<const void*, TapConnection*>::iterator iter;
         for (iter = tapConnectionMap.begin(); iter != tapConnectionMap.end(); iter++) {
-            if (!iter->second->idle()) {
+            if (iter->second->doDisconnect || !iter->second->idle()) {
                 shouldPause = false;
             } else if (addNoop) {
                 TapVBucketEvent hi(TAP_NOOP, 0, pending);
@@ -1511,7 +1517,7 @@ private:
         // Collect the list of connections that need to be signaled.
         std::list<const void *> toNotify;
         for (iter = tapConnectionMap.begin(); iter != tapConnectionMap.end(); iter++) {
-            if (iter->second->paused) {
+            if (iter->second->paused || iter->second->doDisconnect) {
                 toNotify.push_back(iter->first);
             }
         }
@@ -1612,9 +1618,6 @@ private:
         }
 
         if (notify) {
-            // To avoid a race condition, we're going to make sure the
-            // tapNotifyIoThread has something to do.
-            nextTapNoop = ep_current_time() - 1;
             tapNotifySync.notify();
         }
 
@@ -1893,6 +1896,7 @@ private:
             addTapStat("complete", tc, tc->complete(), add_stat, cookie);
             addTapStat("flags", tc, tc->flags, add_stat, cookie);
             addTapStat("connected", tc, tc->connected, add_stat, cookie);
+            addTapStat("pending_disconnect", tc, tc->doDisconnect, add_stat, cookie);
             addTapStat("paused", tc, tc->paused, add_stat, cookie);
             addTapStat("pending_backfill", tc, tc->pendingBackfill, add_stat, cookie);
             if (tc->reconnects > 0) {
@@ -2170,7 +2174,10 @@ private:
 
     void setEvents() {
         if (checkValidity()) {
-            engine->setEvents(name, queue);
+            if (!queue->empty()) {
+                // Don't notify unless we've got some data..
+                engine->setEvents(name, queue);
+            }
             waitForQueue();
         }
     }
