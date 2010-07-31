@@ -114,12 +114,12 @@ static ENGINE_ERROR_CODE storeCasVb11(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 
     item_info info;
     info.nvalue = 1;
-    if (!h1->get_item_info(h, it, &info)) {
+    if (!h1->get_item_info(h, cookie, it, &info)) {
         abort();
     }
 
     memcpy(info.value[0].iov_base, value, vlen);
-    h1->item_set_cas(h, it, casIn);
+    h1->item_set_cas(h, cookie, it, casIn);
 
     rv = h1->store(h, cookie, it, &cas, op, vb);
 
@@ -159,7 +159,7 @@ static bool get_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
         return false;
     }
     info->nvalue = 1;
-    if (!h1->get_item_info(h, i, info)) {
+    if (!h1->get_item_info(h, NULL, i, info)) {
         fprintf(stderr, "get_item_info failed\n");
         return false;
     }
@@ -177,7 +177,7 @@ static enum test_result check_key_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 
     item_info info;
     info.nvalue = 1;
-    check(h1->get_item_info(h, i, &info), "check_key_value");
+    check(h1->get_item_info(h, NULL, i, &info), "check_key_value");
 
     assert(info.nvalue == 1);
     if (vlen + crlfOffset != info.value[0].iov_len) {
@@ -504,7 +504,7 @@ static enum test_result test_cas(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     item_info info;
     info.nvalue = 1;
-    check(h1->get_item_info(h, i, &info), "Failed to get item info.");
+    check(h1->get_item_info(h, NULL, i, &info), "Failed to get item info.");
 
     check(store(h, h1, NULL, OPERATION_CAS, "key", "winCas", &i,
                 info.cas) == ENGINE_SUCCESS,
@@ -1129,7 +1129,7 @@ static enum test_result verify_item(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 {
     item_info info;
     info.nvalue = 1;
-    check(h1->get_item_info(h, i, &info), "get item info failed");
+    check(h1->get_item_info(h, NULL, i, &info), "get item info failed");
     check(info.nvalue == 1, "iovectors not supported");
     check(klen == info.nkey, "Incorrect key length");
     check(memcmp(info.key, key, klen) == 0, "Incorect key value");

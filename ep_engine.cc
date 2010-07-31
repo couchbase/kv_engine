@@ -519,8 +519,10 @@ extern "C" {
         return ENGINE_SUCCESS;
     }
 
-    static void EvpItemSetCas(ENGINE_HANDLE* handle, item *item, uint64_t cas) {
+    static void EvpItemSetCas(ENGINE_HANDLE* handle, const void *cookie,
+                              item *item, uint64_t cas) {
         (void)handle;
+        (void)cookie;
         static_cast<Item*>(item)->setCas(cas);
     }
 
@@ -621,9 +623,11 @@ extern "C" {
         return NULL;
     }
 
-    static bool EvpGetItemInfo(ENGINE_HANDLE *handle, const item* item, item_info *item_info)
+    static bool EvpGetItemInfo(ENGINE_HANDLE *handle, const void *cookie,
+                               const item* item, item_info *item_info)
     {
         (void)handle;
+        (void)cookie;
         const Item *it = reinterpret_cast<const Item*>(item);
         if (item_info->nvalue < 1) {
             return false;
