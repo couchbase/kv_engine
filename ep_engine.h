@@ -618,7 +618,8 @@ public:
 
                 SERVER_CALLBACK_API *sapi;
                 sapi = getServerApi()->callback;
-                sapi->register_callback(ON_DISCONNECT, EvpHandleDisconnect, this);
+                sapi->register_callback(reinterpret_cast<ENGINE_HANDLE*>(this),
+                                        ON_DISCONNECT, EvpHandleDisconnect, this);
             }
             startEngineThreads();
 
