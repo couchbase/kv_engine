@@ -1778,6 +1778,7 @@ private:
                         cookie);
         add_casted_stat("mem_used", StoredValue::getCurrentSize(stats), add_stat,
                         cookie);
+        add_casted_stat("ep_max_data_size", epstats.maxDataSize, add_stat, cookie);
         add_casted_stat("ep_mem_low_wat", epstats.mem_low_wat, add_stat, cookie);
         add_casted_stat("ep_mem_high_wat", epstats.mem_high_wat, add_stat, cookie);
         add_casted_stat("ep_total_cache_size", StoredValue::getTotalCacheSize(stats),
