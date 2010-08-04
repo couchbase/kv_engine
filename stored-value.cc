@@ -16,10 +16,6 @@ size_t HashTable::defaultNumBuckets = DEFAULT_HT_SIZE;
 size_t HashTable::defaultNumLocks = 193;
 enum stored_value_type HashTable::defaultStoredValueType = featured;
 
-size_t StoredValue::maxDataSize = DEFAULT_MAX_DATA_SIZE;
-Atomic<size_t> StoredValue::currentSize;
-Atomic<size_t> StoredValue::totalCacheSize;
-
 static inline size_t getDefault(size_t x, size_t d) {
     return x == 0 ? d : x;
 }
@@ -170,54 +166,52 @@ const char* HashTable::getDefaultStorageValueTypeStr() {
  *
  * @return the memory ceiling
  */
-size_t StoredValue::getMaxDataSize() {
-    return maxDataSize;
+size_t StoredValue::getMaxDataSize(EPStats& st) {
+    return st.maxDataSize;
 }
 
 /**
  * Set the default number of bytes available for stored values.
  */
-void StoredValue::setMaxDataSize(size_t to) {
-    if (to != 0) {
-        maxDataSize = to;
-    }
+void StoredValue::setMaxDataSize(EPStats &st, size_t to) {
+    st.maxDataSize = to == 0 ? DEFAULT_MAX_DATA_SIZE : to;
 }
 
 /**
  * What's the total size of allocations?
  */
-size_t StoredValue::getCurrentSize() {
-    return currentSize.get();
+size_t StoredValue::getCurrentSize(EPStats &st) {
+    return st.currentSize.get();
 }
 
-size_t StoredValue::getTotalCacheSize() {
-    return totalCacheSize.get();
+size_t StoredValue::getTotalCacheSize(EPStats &st) {
+    return st.totalCacheSize.get();
 }
 
-void StoredValue::increaseCurrentSize(size_t by, bool residentOnly) {
+void StoredValue::increaseCurrentSize(EPStats &st, size_t by, bool residentOnly) {
     if (!residentOnly) {
-        totalCacheSize.incr(by);
+        st.totalCacheSize.incr(by);
     }
-    currentSize.incr(by);
+    st.currentSize.incr(by);
 }
 
-void StoredValue::reduceCurrentSize(size_t by, bool residentOnly) {
+void StoredValue::reduceCurrentSize(EPStats &st, size_t by, bool residentOnly) {
     size_t val;
 
     do {
-        val = currentSize.get();
+        val = st.currentSize.get();
         assert(val >= by);
-    } while (!currentSize.cas(val, val - by));;
+    } while (!st.currentSize.cas(val, val - by));;
 
     if (!residentOnly) {
-        totalCacheSize.decr(by);
+        st.totalCacheSize.decr(by);
     }
 }
 
 /**
  * Is there enough space for this thing?
  */
-bool StoredValue::hasAvailableSpace(const Item &item) {
-    return getCurrentSize() + sizeof(StoredValue) + item.getNKey() + item.getNBytes()
-        <= getMaxDataSize();
+bool StoredValue::hasAvailableSpace(EPStats &st, const Item &item) {
+    return getCurrentSize(st) + sizeof(StoredValue) + item.getNKey() + item.getNBytes()
+        <= getMaxDataSize(st);
 }

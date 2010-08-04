@@ -72,6 +72,12 @@ public:
     //! Number of times a value is ejected
     Atomic<size_t> numValueEjects;
 
+    //! Max allowable memory size.
+    Atomic<size_t> maxDataSize;
+    //! Total size of stored objects.
+    Atomic<size_t> currentSize;
+    //! Total size used by resident objects.
+    Atomic<size_t> totalCacheSize;
     //! Number of nonResident items
     Atomic<size_t> numNonResident;
 

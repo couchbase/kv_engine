@@ -119,7 +119,7 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
     underlying = t;
 
     if (startVb0) {
-        RCPtr<VBucket> vb(new VBucket(0, active));
+        RCPtr<VBucket> vb(new VBucket(0, active, stats));
         vbuckets.addBucket(vb);
     }
 
@@ -224,7 +224,7 @@ protocol_binary_response_status EventuallyPersistentStore::evictKey(const std::s
 
     if (v) {
         if (v->isResident()) {
-            if (v->ejectValue()) {
+            if (v->ejectValue(stats)) {
                 ++stats.numValueEjects;
                 ++stats.numNonResident;
                 *msg = "Ejected.";
@@ -297,7 +297,7 @@ void EventuallyPersistentStore::setVBucketState(uint16_t vbid,
                                                                                    core)),
                              NULL, -1);
     } else {
-        RCPtr<VBucket> newvb(new VBucket(vbid, to));
+        RCPtr<VBucket> newvb(new VBucket(vbid, to, stats));
         vbuckets.addBucket(newvb);
     }
     queueDirty(VBucket::toString(to), vbid, queue_op_vb_set);
@@ -342,7 +342,7 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
         StoredValue *v = vb->ht.unlocked_find(key, bucket_num);
 
         if (v) {
-            if (v->restoreValue(gcb.val.getValue()->getValue())) {
+            if (v->restoreValue(gcb.val.getValue()->getValue(), stats)) {
                 --stats.numNonResident;
             }
         }

@@ -9,18 +9,22 @@
 #include <algorithm>
 
 #include "vbucket.hh"
+#include "stats.hh"
 #include "threadtests.hh"
 
 static const size_t numThreads = 10;
 static const size_t vbucketsEach = 100;
 
+EPStats global_stats;
+
 class VBucketGenerator {
 public:
-    VBucketGenerator(int start = 1) : i(start) {}
+    VBucketGenerator(EPStats &s, int start = 1) : st(s), i(start) {}
     VBucket *operator()() {
-        return new VBucket(i++, active);
+        return new VBucket(i++, active, st);
     }
 private:
+    EPStats &st;
     int i;
 };
 
@@ -51,7 +55,7 @@ static void assertVBucket(const VBucketMap& vbm, int id) {
 }
 
 static void testVBucketLookup() {
-    VBucketGenerator vbgen;
+    VBucketGenerator vbgen(global_stats);
     std::vector<VBucket*> bucketList(3);
     std::generate_n(bucketList.begin(), bucketList.capacity(), vbgen);
 
@@ -71,7 +75,7 @@ public:
         for (size_t j = 0; j < vbucketsEach; j++) {
             int newId = ++i;
 
-            RCPtr<VBucket> v(new VBucket(newId, active));
+            RCPtr<VBucket> v(new VBucket(newId, active, global_stats));
             vbm->addBucket(v);
             assert(vbm->getBucket(newId) == v);
 

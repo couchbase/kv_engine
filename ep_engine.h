@@ -569,7 +569,7 @@ public:
                 }
                 HashTable::setDefaultNumBuckets(htBuckets);
                 HashTable::setDefaultNumLocks(htLocks);
-                StoredValue::setMaxDataSize(maxSize);
+                StoredValue::setMaxDataSize(stats, maxSize);
 
                 if (svaltype && !HashTable::setDefaultStorageValueType(svaltype)) {
                     getLogger()->log(EXTENSION_LOG_WARNING, NULL,
@@ -646,10 +646,10 @@ public:
 #endif
 
             if (memLowWat == std::numeric_limits<size_t>::max()) {
-                memLowWat = percentOf(StoredValue::getMaxDataSize(), 0.6);
+                memLowWat = percentOf(StoredValue::getMaxDataSize(stats), 0.6);
             }
             if (memHighWat == std::numeric_limits<size_t>::max()) {
-                memHighWat = percentOf(StoredValue::getMaxDataSize(), 0.75);
+                memHighWat = percentOf(StoredValue::getMaxDataSize(stats), 0.75);
             }
 
             stats.mem_low_wat = memLowWat;
@@ -1776,11 +1776,11 @@ private:
                         epstats.flushDurationHighWat, add_stat, cookie);
         add_casted_stat("curr_items", epstats.curr_items, add_stat,
                         cookie);
-        add_casted_stat("mem_used", StoredValue::getCurrentSize(), add_stat,
+        add_casted_stat("mem_used", StoredValue::getCurrentSize(stats), add_stat,
                         cookie);
         add_casted_stat("ep_mem_low_wat", epstats.mem_low_wat, add_stat, cookie);
         add_casted_stat("ep_mem_high_wat", epstats.mem_high_wat, add_stat, cookie);
-        add_casted_stat("ep_total_cache_size", StoredValue::getTotalCacheSize(),
+        add_casted_stat("ep_total_cache_size", StoredValue::getTotalCacheSize(stats),
                         add_stat, cookie);
         add_casted_stat("ep_storage_type",
                         HashTable::getDefaultStorageValueTypeStr(),

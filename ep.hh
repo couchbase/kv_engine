@@ -123,13 +123,13 @@ public:
     void initVBucket(uint16_t vbid, vbucket_state_t state = pending) {
         RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
         if (!vb) {
-            vb.reset(new VBucket(vbid, state));
+            vb.reset(new VBucket(vbid, state, stats));
             vbuckets.addBucket(vb);
         }
     }
 
     bool shouldBeResident() {
-        return StoredValue::getCurrentSize() < stats.mem_low_wat;
+        return StoredValue::getCurrentSize(stats) < stats.mem_low_wat;
     }
 
     void callback(GetValue &val) {
@@ -137,7 +137,7 @@ public:
         if (i != NULL) {
             RCPtr<VBucket> vb = vbuckets.getBucket(i->getVBucketId());
             if (!vb) {
-                vb.reset(new VBucket(i->getVBucketId(), pending));
+                vb.reset(new VBucket(i->getVBucketId(), pending, stats));
                 vbuckets.addBucket(vb);
             }
             if (!vb->ht.add(*i, false, shouldBeResident())) {

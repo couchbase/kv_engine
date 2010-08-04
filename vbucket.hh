@@ -53,8 +53,8 @@ private:
 class VBucket : public RCValue {
 public:
 
-    VBucket(int i, vbucket_state_t initialState) :
-        ht(), id(i), state(initialState) {}
+    VBucket(int i, vbucket_state_t initialState, EPStats &stats) :
+        ht(stats), id(i), state(initialState) {}
 
     ~VBucket() {
         if (!pendingOps.empty()) {

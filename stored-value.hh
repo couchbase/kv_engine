@@ -9,6 +9,7 @@
 #include "common.hh"
 #include "item.hh"
 #include "locks.hh"
+#include "stats.hh"
 
 extern "C" {
     extern rel_time_t (*ep_current_time)();
@@ -68,10 +69,6 @@ public:
     void operator delete(void* p) {
         ::operator delete(p);
      }
-
-    ~StoredValue() {
-        reduceCurrentSize(size());
-    }
 
     /**
      * Mark this item as needing to be persisted.
@@ -199,8 +196,9 @@ public:
      * @param theCas thenew CAS identifier
      */
     void setValue(value_t v,
-                  uint32_t newFlags, rel_time_t newExp, uint64_t theCas) {
-        reduceCurrentSize(size());
+                  uint32_t newFlags, rel_time_t newExp, uint64_t theCas,
+                  EPStats &stats) {
+        reduceCurrentSize(stats, size());
         value = v;
         setResident();
         flags = newFlags;
@@ -209,7 +207,7 @@ public:
             extra.feature.exptime = newExp;
         }
         markDirty();
-        increaseCurrentSize(size());
+        increaseCurrentSize(stats, size());
     }
 
     size_t valLength() {
@@ -223,7 +221,7 @@ public:
         }
     }
 
-    bool ejectValue() {
+    bool ejectValue(EPStats &stats) {
         if (isResident() && isClean() && !_isSmall) {
             size_t oldsize = size();
             blobval uval;
@@ -235,16 +233,16 @@ public:
 
             // ejecting the value may increase the object size....
             if (oldsize < newsize) {
-                increaseCurrentSize(newsize - oldsize, true);
+                increaseCurrentSize(stats, newsize - oldsize, true);
             } else if (newsize < oldsize) {
-                reduceCurrentSize(oldsize - newsize, true);
+                reduceCurrentSize(stats, oldsize - newsize, true);
             }
             return true;
         }
         return false;
     }
 
-    bool restoreValue(value_t v) {
+    bool restoreValue(value_t v, EPStats &stats) {
         if (!isResident()) {
             size_t oldsize = size();
             assert(v);
@@ -254,9 +252,9 @@ public:
 
             size_t newsize = size();
             if (oldsize < newsize) {
-                increaseCurrentSize(newsize - oldsize, true);
+                increaseCurrentSize(stats, newsize - oldsize, true);
             } else if (newsize < oldsize) {
-                reduceCurrentSize(oldsize - newsize, true);
+                reduceCurrentSize(stats, oldsize - newsize, true);
             }
             return true;
         }
@@ -410,27 +408,27 @@ public:
      * While there's other overhead, this only takes into
      * consideration the sum of StoredValue::size() values.
      */
-    static void setMaxDataSize(size_t);
+    static void setMaxDataSize(EPStats&, size_t);
 
     /**
      * Get the maximum amount of memory this instance can store.
      */
-    static size_t getMaxDataSize();
+    static size_t getMaxDataSize(EPStats&);
 
     /**
      * Get the current amount of of data stored.
      */
-    static size_t getCurrentSize();
+    static size_t getCurrentSize(EPStats&);
 
     /**
      * Get the total size of all items in the cache
      */
-    static size_t getTotalCacheSize();
+    static size_t getTotalCacheSize(EPStats&);
 
 private:
 
-    StoredValue(const Item &itm, StoredValue *n, bool setDirty = true,
-                bool small = false) :
+    StoredValue(const Item &itm, StoredValue *n, EPStats &stats,
+                bool setDirty = true, bool small = false) :
         value(itm.getValue()), next(n), id(itm.getId()),
         dirtiness(0), _isSmall(small), flags(itm.getFlags())
     {
@@ -452,7 +450,7 @@ private:
             markClean(NULL);
         }
 
-        increaseCurrentSize(size());
+        increaseCurrentSize(stats, size());
     }
 
     void setResident() {
@@ -475,13 +473,9 @@ private:
 
     union stored_value_bodies extra;
 
-    static void increaseCurrentSize(size_t by, bool residentOnly = false);
-    static void reduceCurrentSize(size_t by, bool residentOnly = false);
-    static bool hasAvailableSpace(const Item &item);
-
-    static size_t maxDataSize;
-    static Atomic<size_t> currentSize;
-    static Atomic<size_t> totalCacheSize;
+    static void increaseCurrentSize(EPStats&, size_t by, bool residentOnly = false);
+    static void reduceCurrentSize(EPStats&, size_t by, bool residentOnly = false);
+    static bool hasAvailableSpace(EPStats&, const Item &item);
 
     DISALLOW_COPY_AND_ASSIGN(StoredValue);
 };
@@ -604,7 +598,7 @@ public:
     /**
      * Create a new StoredValueFactory of the given type.
      */
-    StoredValueFactory(enum stored_value_type t = featured) : type(t) {}
+    StoredValueFactory(EPStats &s, enum stored_value_type t = featured) : stats(&s), type(t) {}
 
     /**
      * Create a new StoredValue with the given item.
@@ -638,7 +632,7 @@ private:
         size_t len = key.length() + base;
 
         StoredValue *t = new (::operator new(len))
-            StoredValue(itm, n, setDirty, small);
+            StoredValue(itm, n, *stats, setDirty, small);
         if (small) {
             std::memcpy(t->extra.small.keybytes, key.data(), key.length());
         } else {
@@ -648,7 +642,8 @@ private:
         return t;
     }
 
-    enum stored_value_type type;
+    EPStats                *stats;
+    enum stored_value_type  type;
 
 };
 
@@ -665,11 +660,11 @@ public:
      * @param l the number of locks in the hash table
      * @param t the type of StoredValues this hash table will contain
      */
-    HashTable(size_t s = 0, size_t l = 0, enum stored_value_type t = featured)
-        : valFact(t) {
+    HashTable(EPStats &st, size_t s = 0, size_t l = 0,
+              enum stored_value_type t = featured) : stats(st), valFact(st, t) {
         size = HashTable::getNumBuckets(s);
         n_locks = HashTable::getNumLocks(l);
-        valFact = StoredValueFactory(getDefaultStorageValueType());
+        valFact = StoredValueFactory(st, getDefaultStorageValueType());
         assert(size > 0);
         assert(n_locks > 0);
         assert(visitors == 0);
@@ -753,13 +748,13 @@ public:
             rv = v->isClean() ? WAS_CLEAN : WAS_DIRTY;
             v->setValue(itm.getValue(),
                         itm.getFlags(), itm.getExptime(),
-                        itm.getCas());
+                        itm.getCas(), stats);
         } else {
             if (itm.getCas() != 0) {
                 return NOT_FOUND;
             }
 
-            if (!StoredValue::hasAvailableSpace(itm)) {
+            if (!StoredValue::hasAvailableSpace(stats, itm)) {
                 return NOMEM;
             }
 
@@ -788,12 +783,12 @@ public:
         } else {
             Item &itm = const_cast<Item&>(val);
             itm.setCas();
-            if (!StoredValue::hasAvailableSpace(itm)) {
+            if (!StoredValue::hasAvailableSpace(stats, itm)) {
                 return NOMEM;
             }
             v = valFact(itm, values[bucket_num], isDirty);
             if (!storeVal) {
-                v->ejectValue();
+                v->ejectValue(stats);
             }
             values[bucket_num] = v;
         }
@@ -901,6 +896,7 @@ public:
                 return false;
             }
             values[bucket_num] = v->next;
+            v->reduceCurrentSize(stats, v->size());
             delete v;
             return true;
         }
@@ -1001,6 +997,7 @@ private:
     size_t               n_locks;
     StoredValue        **values;
     Mutex               *mutexes;
+    EPStats&             stats;
     StoredValueFactory   valFact;
     Atomic<size_t>       visitors;
     bool                 activeState;

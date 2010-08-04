@@ -7,6 +7,7 @@
 
 #include <ep.hh>
 #include <item.hh>
+#include <stats.hh>
 
 extern "C" {
     static rel_time_t basic_current_time(void) {
@@ -15,6 +16,8 @@ extern "C" {
 
     rel_time_t (*ep_current_time)() = basic_current_time;
 }
+
+EPStats global_stats;
 
 class Counter : public HashTableVisitor {
 public:
@@ -78,7 +81,7 @@ static std::vector<std::string> generateKeys(int num, int start=0) {
 // ----------------------------------------------------------------------
 
 static void testHashSize() {
-    HashTable h;
+    HashTable h(global_stats);
     assert(count(h) == 0);
 
     std::string k = "testkey";
@@ -88,7 +91,7 @@ static void testHashSize() {
 }
 
 static void testHashSizeTwo() {
-    HashTable h;
+    HashTable h(global_stats);
     assert(count(h) == 0);
 
     std::vector<std::string> keys = generateKeys(5);
@@ -101,7 +104,7 @@ static void testHashSizeTwo() {
 
 static void testReverseDeletions() {
     alarm(10);
-    HashTable h(5, 1);
+    HashTable h(global_stats, 5, 1);
     assert(count(h) == 0);
     const int nkeys = 10000;
 
@@ -122,7 +125,7 @@ static void testReverseDeletions() {
 
 static void testForwardDeletions() {
     alarm(10);
-    HashTable h(5, 1);
+    HashTable h(global_stats, 5, 1);
     assert(h.getSize() == 5);
     assert(h.getNumLocks() == 1);
     assert(count(h) == 0);
@@ -158,17 +161,17 @@ static void testFind(HashTable &h) {
 }
 
 static void testFind() {
-    HashTable h(5, 1);
+    HashTable h(global_stats, 5, 1);
     testFind(h);
 }
 
 static void testFindSmall() {
-    HashTable h(5, 1, small);
+    HashTable h(global_stats, 5, 1, small);
     testFind(h);
 }
 
 static void testAdd() {
-    HashTable h(5, 1);
+    HashTable h(global_stats, 5, 1);
     const int nkeys = 5000;
 
     std::vector<std::string> keys = generateKeys(nkeys);
@@ -191,7 +194,7 @@ static void testAdd() {
 }
 
 static void testDepthCounting() {
-    HashTable h(5, 1);
+    HashTable h(global_stats, 5, 1);
     const int nkeys = 5000;
 
     std::vector<std::string> keys = generateKeys(nkeys);
@@ -206,13 +209,14 @@ static void testDepthCounting() {
 static void testPoisonKey() {
     std::string k("A\\NROBs_oc)$zqJ1C.9?XU}Vn^(LW\"`+K/4lykF[ue0{ram;fvId6h=p&Zb3T~SQ]82'ixDP");
 
-    HashTable h(5, 1);
+    HashTable h(global_stats, 5, 1);
 
     store(h, k);
     assert(count(h) == 1);
 }
 
 int main() {
+    global_stats.maxDataSize = 64*1024*1024;
     alarm(60);
     testHashSize();
     testHashSizeTwo();
