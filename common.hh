@@ -75,7 +75,7 @@ inline bool parseUint16(const char *in, uint16_t *out) {
     *out = 0;
     char *endptr;
     long num = strtol(in, &endptr, 10);
-    if (errno == ERANGE || num < 0 || num > UINT16_MAX) {
+    if (errno == ERANGE || num < 0 || num > (long)UINT16_MAX) {
         return false;
     }
     if (isspace(*endptr) || (*endptr == '\0' && endptr != in)) {
