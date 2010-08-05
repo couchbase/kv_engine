@@ -15,6 +15,7 @@
  *   limitations under the License.
  */
 
+#include "config.h"
 #include <iostream>
 #include <fstream>
 #include <stdexcept>

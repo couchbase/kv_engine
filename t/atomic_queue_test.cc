@@ -1,3 +1,4 @@
+#include "config.h"
 #include "atomic.hh"
 #include "locks.hh"
 #include <pthread.h>

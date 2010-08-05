@@ -1,3 +1,4 @@
+#include "config.h"
 #include <signal.h>
 #include <assert.h>
 #include <unistd.h>
