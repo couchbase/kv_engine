@@ -4,7 +4,7 @@ bin_SCRIPTS = management/analyze_core
 lib_LTLIBRARIES = ep.la ep_testsuite.la
 noinst_LTLIBRARIES =
 
-bin_PROGRAMS = management/sqlite3
+bin_PROGRAMS =
 
 noinst_PROGRAMS = sizes
 
@@ -43,6 +43,7 @@ if BUILD_EMBEDDED_LIBSQLITE3
 ep_la_LIBADD += libsqlite3.la
 ep_la_DEPENDENCIES += libsqlite3.la
 noinst_LTLIBRARIES += libsqlite3.la
+bin_PROGRAMS += management/sqlite3
 else
 ep_la_LIBADD += $(LIBSQLITE3)
 endif
