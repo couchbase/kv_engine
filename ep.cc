@@ -737,6 +737,7 @@ int EventuallyPersistentStore::flushOne(std::queue<QueuedItem> *q,
 
     QueuedItem qi = q->front();
     q->pop();
+    stats.memOverhead.decr(qi.size());
     stats.flusher_todo--;
 
     int rv = 0;
@@ -765,7 +766,9 @@ void EventuallyPersistentStore::queueDirty(const std::string &key, uint16_t vbid
                                            enum queue_operation op) {
     if (doPersistence) {
         // Assume locked.
-        towrite.push(QueuedItem(key, vbid, op));
+        QueuedItem qi(key, vbid, op);
+        towrite.push(qi);
+        stats.memOverhead.incr(qi.size());
         stats.totalEnqueued++;
         stats.queue_size = towrite.size();
     }

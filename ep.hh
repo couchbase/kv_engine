@@ -75,6 +75,10 @@ public:
         return vbucket == other.vbucket ? key < other.key : vbucket < other.vbucket;
     }
 
+    size_t size() {
+        return sizeof(QueuedItem) + key.size();
+    }
+
 private:
     std::string key;
     enum queue_operation op;
