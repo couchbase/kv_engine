@@ -53,8 +53,11 @@ private:
 class VBucket : public RCValue {
 public:
 
-    VBucket(int i, vbucket_state_t initialState, EPStats &stats) :
-        ht(stats), id(i), state(initialState) {}
+    VBucket(int i, vbucket_state_t initialState, EPStats &st) :
+        ht(st), id(i), state(initialState), stats(st) {
+        stats.memOverhead.incr(sizeof(VBucket)
+                               + ht.memorySize());
+    }
 
     ~VBucket() {
         if (!pendingOps.empty()) {
@@ -62,6 +65,7 @@ public:
                              "Have %d pending ops while destroying vbucket\n",
                              pendingOps.size());
         }
+        stats.memOverhead.decr(sizeof(VBucket) + ht.memorySize());
         getLogger()->log(EXTENSION_LOG_INFO, NULL,
                          "Destroying vbucket %d\n", id);
     }
@@ -110,6 +114,7 @@ private:
     Atomic<vbucket_state_t>  state;
     Mutex                    pendingOpLock;
     std::vector<const void*> pendingOps;
+    EPStats                 &stats;
 
     DISALLOW_COPY_AND_ASSIGN(VBucket);
 };

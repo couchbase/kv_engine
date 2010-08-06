@@ -684,6 +684,12 @@ public:
         values = NULL;
     }
 
+    size_t memorySize() {
+        return sizeof(HashTable)
+            + (size * sizeof(StoredValue*))
+            + (n_locks * sizeof(Mutex));
+    }
+
     /**
      * Get the number of hash table buckets this hash table has.
      */
