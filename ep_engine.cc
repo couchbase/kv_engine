@@ -47,6 +47,13 @@ void LookupCallback::callback(GetValue &value) {
     engine->getServerApi()->core->notify_io_complete(cookie, ENGINE_SUCCESS);
 }
 
+template <typename T>
+static void validate(T v, T l, T h) {
+    if (v < l || v > h) {
+        throw std::runtime_error("value out of range.");
+    }
+}
+
 // The Engine API specifies C linkage for the functions..
 extern "C" {
 
@@ -166,12 +173,6 @@ extern "C" {
         return e->startFlusher(msg);
     }
 
-    static void validate(int v, int l, int h) {
-        if (v < l || v > h) {
-            throw std::runtime_error("value out of range.");
-        }
-    }
-
     static protocol_binary_response_status setTapParam(EventuallyPersistentEngine *e,
                                                        const char *keyz, const char *valz,
                                                        const char **msg) {
@@ -214,6 +215,14 @@ extern "C" {
             } else if (strcmp(keyz, "bg_fetch_delay") == 0) {
                 validate(v, 0, MAX_BG_FETCH_DELAY);
                 e->setBGFetchDelay(static_cast<uint32_t>(v));
+            } else if (strcmp(keyz, "max_size") == 0) {
+                // Want more bits than int.
+                char *ptr = NULL;
+                // TODO:  This parser isn't perfect.
+                uint64_t vsize = strtoull(valz, &ptr, 10);
+                validate(vsize, static_cast<uint64_t>(0),
+                         std::numeric_limits<uint64_t>::max());
+                e->getEpStats().maxDataSize = vsize;
             } else {
                 *msg = "Unknown config param";
                 rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
