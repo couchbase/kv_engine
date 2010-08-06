@@ -178,7 +178,7 @@ void StoredValue::setMaxDataSize(EPStats &st, size_t to) {
  * What's the total size of allocations?
  */
 size_t StoredValue::getCurrentSize(EPStats &st) {
-    return st.currentSize.get();
+    return st.currentSize.get() + st.memOverhead.get();
 }
 
 size_t StoredValue::getTotalCacheSize(EPStats &st) {

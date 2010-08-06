@@ -892,16 +892,25 @@ static enum test_result test_alloc_limit(ENGINE_HANDLE *h,
 }
 
 static enum test_result test_memory_limit(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    int used = get_int_stat(h, h1, "mem_used");
+    int max = get_int_stat(h, h1, "ep_max_data_size");
+    assert(used < max);
+
+    char data[8192];
+    memset(data, 'x', sizeof(data));
+    size_t vlen = max - used - 128;
+    data[vlen] = 0x00;
+
     item *i = NULL;
     // So if we add an item,
-    check(store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i) == ENGINE_SUCCESS,
+    check(store(h, h1, NULL, OPERATION_SET, "key", data, &i) == ENGINE_SUCCESS,
           "store failure");
-    check_key_value(h, h1, "key", "somevalue", 9);
+    check_key_value(h, h1, "key", data, vlen);
 
     // There should be no room for another.
-    check(store(h, h1, NULL, OPERATION_SET, "key2", "somevalue2", &i) == ENGINE_ENOMEM,
+    check(store(h, h1, NULL, OPERATION_SET, "key2", data, &i) == ENGINE_ENOMEM,
           "should have failed second set");
-    check_key_value(h, h1, "key", "somevalue", 9);
+    check_key_value(h, h1, "key", data, vlen);
     check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key2"), "Expected missing key");
 
     // Until we remove that item
@@ -1220,12 +1229,11 @@ static enum test_result test_mem_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     wait_for_persisted_value(h, h1, "key", value);
     int mem_used = get_int_stat(h, h1, "mem_used");
     int tot_used = get_int_stat(h, h1, "ep_total_cache_size");
-    check(mem_used == tot_used,
-          "Expected total to be the sum of resident and on-disk");
+    int overhead = get_int_stat(h, h1, "ep_overhead");
+    check(mem_used == tot_used + overhead,
+          "mem_used seems wrong");
     evict_key(h, h1, "key", 0, "Ejected.");
 
-    check(get_int_stat(h, h1, "mem_used") < get_int_stat(h, h1, "ep_total_cache_size"),
-          "Resident should be less than the complete cache");
     check(get_int_stat(h, h1, "ep_total_cache_size") == tot_used,
           "Evict a value shouldn't increase the total cache size");
     check(get_int_stat(h, h1, "mem_used") < mem_used,
@@ -1576,10 +1584,12 @@ static enum test_result test_disk_gt_ram_rm_race(ENGINE_HANDLE *h,
 }
 
 engine_test_t* get_tests(void) {
+
     static engine_test_t tests[]  = {
         // basic tests
         {"test alloc limit", test_alloc_limit, NULL, teardown, NULL},
-        {"test total memory limit", test_memory_limit, NULL, teardown, "max_size=128"},
+        {"test total memory limit", test_memory_limit, NULL, teardown,
+         "max_size=4096;ht_locks=1;ht_size=3"},
         {"get miss", test_get_miss, NULL, teardown, NULL},
         {"set", test_set, NULL, teardown, NULL},
         {"set+get hit", test_set_get_hit, NULL, teardown, NULL},
