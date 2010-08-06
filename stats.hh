@@ -78,6 +78,8 @@ public:
     Atomic<size_t> currentSize;
     //! Total size used by resident objects.
     Atomic<size_t> totalCacheSize;
+    //! Amount of memory used to track items and what-not.
+    Atomic<size_t> memOverhead;
     //! Number of nonResident items
     Atomic<size_t> numNonResident;
 

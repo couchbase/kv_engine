@@ -45,7 +45,8 @@
 | ep_commit_time                | Number of seconds of most recent commit.  |
 | ep_flush_duration             | Number of seconds of most recent flush.   |
 | ep_flush_duration_highwat     | ep_flush_duration high water mark.        |
-| mem_used                      | Memory used for storing values.           |
+| ep_kv_size                    | Memory used to store keys and values.     |
+| ep_overhead                   | Extra memory used by rep queues, etc..    |
 | ep_max_data_size              | Max amount of data allowed in memory.     |
 | ep_mem_low_wat                | Low water mark for auto-evictions.        |
 | ep_mem_high_wat               | High water mark for auto-evictions.       |

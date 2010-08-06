@@ -1776,8 +1776,10 @@ private:
                         epstats.flushDurationHighWat, add_stat, cookie);
         add_casted_stat("curr_items", epstats.curr_items, add_stat,
                         cookie);
-        add_casted_stat("mem_used", StoredValue::getCurrentSize(stats), add_stat,
+        add_casted_stat("mem_used", stats.currentSize + stats.memOverhead, add_stat,
                         cookie);
+        add_casted_stat("ep_kv_size", stats.currentSize, add_stat, cookie);
+        add_casted_stat("ep_overhead", stats.memOverhead, add_stat, cookie);
         add_casted_stat("ep_max_data_size", epstats.maxDataSize, add_stat, cookie);
         add_casted_stat("ep_mem_low_wat", epstats.mem_low_wat, add_stat, cookie);
         add_casted_stat("ep_mem_high_wat", epstats.mem_high_wat, add_stat, cookie);

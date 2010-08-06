@@ -114,6 +114,8 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
     dispatcher = new Dispatcher();
     flusher = new Flusher(this, dispatcher);
 
+    stats.memOverhead = sizeof(EventuallyPersistentStore);
+
     setTxnSize(DEFAULT_TXN_SIZE);
 
     underlying = t;
