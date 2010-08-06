@@ -7,13 +7,18 @@
 #include "common.hh"
 #include "atomic.hh"
 
+#ifndef DEFAULT_MAX_DATA_SIZE
+/* Something something something ought to be enough for anybody */
+#define DEFAULT_MAX_DATA_SIZE (static_cast<size_t>(-1))
+#endif
+
 /**
  * Global engine stats container.
  */
 class EPStats {
 public:
 
-    EPStats() {}
+    EPStats() : maxDataSize(DEFAULT_MAX_DATA_SIZE) {}
 
     //! How long it took us to load the data from disk.
     Atomic<time_t> warmupTime;

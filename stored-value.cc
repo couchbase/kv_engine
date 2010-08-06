@@ -7,11 +7,6 @@
 #define DEFAULT_HT_SIZE 12582917
 #endif
 
-#ifndef DEFAULT_MAX_DATA_SIZE
-/* Something something something ought to be enough for anybody */
-#define DEFAULT_MAX_DATA_SIZE (static_cast<size_t>(-1))
-#endif
-
 size_t HashTable::defaultNumBuckets = DEFAULT_HT_SIZE;
 size_t HashTable::defaultNumLocks = 193;
 enum stored_value_type HashTable::defaultStoredValueType = featured;
@@ -174,7 +169,9 @@ size_t StoredValue::getMaxDataSize(EPStats& st) {
  * Set the default number of bytes available for stored values.
  */
 void StoredValue::setMaxDataSize(EPStats &st, size_t to) {
-    st.maxDataSize = to == 0 ? DEFAULT_MAX_DATA_SIZE : to;
+    if (to != 0) {
+        st.maxDataSize = to;
+    }
 }
 
 /**
