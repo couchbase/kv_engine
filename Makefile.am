@@ -33,6 +33,7 @@ ep_la_SOURCES = \
                  stats.hh \
                  stored-value.hh stored-value.cc \
                  syncobject.hh \
+                 tapconnection.cc \
                  vbucket.hh vbucket.cc
 
 

@@ -108,6 +108,11 @@ public:
         return "unknown";
     }
 
+    static const vbucket_state_t ACTIVE;
+    static const vbucket_state_t REPLICA;
+    static const vbucket_state_t PENDING;
+    static const vbucket_state_t DEAD;
+
 private:
 
     int                      id;

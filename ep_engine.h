@@ -320,6 +320,9 @@ private:
         delete queue_set;
     }
 
+    void encodeVBucketStateTransition(const TapVBucketEvent &ev, void **es,
+                                      uint16_t *nes, uint16_t *vbucket) const;
+
     static uint64_t nextTapId() {
         return tapCounter++;
     }
@@ -1003,8 +1006,8 @@ public:
 
         TapVBucketEvent ev = connection->nextVBucketHighPriority();
         if (ev.event != TAP_PAUSE) {
-            *vbucket = ev.vbucket;
-            *flags = static_cast<uint16_t>(ev.state);
+            assert(ev.event == TAP_VBUCKET_SET || ev.event == TAP_NOOP);
+            connection->encodeVBucketStateTransition(ev, es, nes, vbucket);
             return ev.event;
         }
 
@@ -1052,15 +1055,16 @@ public:
         if (ret == TAP_PAUSE && connection->complete()) {
             ev = connection->nextVBucketLowPriority();
             if (ev.event != TAP_PAUSE) {
-                *vbucket = ev.vbucket;
-                *flags = static_cast<uint16_t>(ev.state);
+                assert(ev.event == TAP_VBUCKET_SET);
+                connection->paused = false;
+                connection->encodeVBucketStateTransition(ev, es, nes, vbucket);
                 if (ev.state == active) {
                     epstore->setVBucketState(ev.vbucket, dead, serverApi->core);
                 }
-                return ev.event;
+                ret = ev.event;
+            } else {
+                ret = TAP_DISCONNECT;
             }
-
-            ret = TAP_DISCONNECT;
         }
 
         connection->paused = ret == TAP_PAUSE;
@@ -1273,7 +1277,19 @@ public:
 
         case TAP_VBUCKET_SET:
             {
-                vbucket_state_t state = static_cast<vbucket_state_t>(tap_flags);
+                if (nengine != sizeof(vbucket_state_t)) {
+                    // illegal datasize
+                    return ENGINE_DISCONNECT;
+                }
+
+                vbucket_state_t state;
+                memcpy(&state, engine_specific, nengine);
+                state = (vbucket_state_t)ntohl(state);
+
+                if (!is_valid_vbucket_state_t(state)) {
+                    return ENGINE_DISCONNECT;
+                }
+
                 epstore->setVBucketState(vbucket, state, serverApi->core);
             }
             break;

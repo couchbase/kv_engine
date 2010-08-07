@@ -4,6 +4,11 @@
 
 #include "vbucket.hh"
 
+const vbucket_state_t VBucket::ACTIVE = static_cast<vbucket_state_t>(htonl(active));
+const vbucket_state_t VBucket::REPLICA = static_cast<vbucket_state_t>(htonl(replica));
+const vbucket_state_t VBucket::PENDING = static_cast<vbucket_state_t>(htonl(pending));
+const vbucket_state_t VBucket::DEAD = static_cast<vbucket_state_t>(htonl(dead));
+
 void VBucket::fireAllOps(SERVER_CORE_API *core, ENGINE_ERROR_CODE code) {
     LockHolder lh(pendingOpLock);
     std::for_each(pendingOps.begin(), pendingOps.end(),

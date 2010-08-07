@@ -42,4 +42,11 @@ extern "C" {
 #include <poll.h>
 #endif
 
+#ifdef linux
+#undef ntohs
+#undef ntohl
+#undef htons
+#undef htonl
+#endif
+
 #endif
