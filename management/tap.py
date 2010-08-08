@@ -53,10 +53,21 @@ class TapConnection(mc_bin_server.MemcachedBinaryChannel):
         val = []
         for op in sorted(opts.keys()):
             header |= op
-            if memcacheConstants.TAP_FLAG_TYPES[op]:
+            if op in memcacheConstants.TAP_FLAG_TYPES:
                 val.append(struct.pack(memcacheConstants.TAP_FLAG_TYPES[op],
                                        opts[op]))
+            elif op == memcacheConstants.TAP_FLAG_LIST_VBUCKETS:
+                val.append(self._encodeVBucketList(opts[op]))
+            else:
+                val.append(opts[op])
         return struct.pack(">I", header), ''.join(val)
+
+    def _encodeVBucketList(self, vbl):
+        l = list(vbl) # in case it's a generator
+        vals = [struct.pack("!H", len(l))]
+        for v in vbl:
+            vals.append(struct.pack("!H", v))
+        return ''.join(vals)
 
     def processCommand(self, cmd, klen, extralen, cas, data):
         extra = data[0:extralen]
