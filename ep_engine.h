@@ -994,7 +994,6 @@ public:
         }
 
         tap_event_t ret = TAP_PAUSE;
-        connection->paused = false;
 
         *es = NULL;
         *nes = 0;
@@ -1043,18 +1042,16 @@ public:
             } else if (r == ENGINE_EWOULDBLOCK) {
                 qip = new QueuedItem(qi);
                 serverApi->core->store_engine_specific(cookie, qip);
+                connection->paused = true;
                 return TAP_PAUSE;
             }
         } else if (connection->shouldFlush()) {
             ret = TAP_FLUSH;
-        } else {
-            connection->paused = true;
         }
 
         if (ret == TAP_PAUSE && connection->complete()) {
             ev = connection->nextVBucketLowPriority();
             if (ev.event != TAP_PAUSE) {
-                connection->paused = false;
                 *vbucket = ev.vbucket;
                 *flags = static_cast<uint16_t>(ev.state);
                 if (ev.state == active) {
@@ -1066,6 +1063,7 @@ public:
             ret = TAP_DISCONNECT;
         }
 
+        connection->paused = ret == TAP_PAUSE;
         return ret;
     }
 
