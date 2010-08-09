@@ -319,11 +319,6 @@ public:
         txnSize.set(to);
     }
 
-    void setTapStats(size_t depth, size_t fetched) {
-        stats.tap_queue.set(depth);
-        stats.tap_fetched.set(fetched);
-    }
-
     const Flusher* getFlusher();
 
     bool getKeyStats(const std::string &key, uint16_t vbucket,

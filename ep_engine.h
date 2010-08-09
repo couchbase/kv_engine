@@ -1202,20 +1202,6 @@ private:
                                              GET_SERVER_API get_server_api,
                                              ENGINE_HANDLE **handle);
 
-    void updateTapStats(void) {
-        LockHolder lh(tapNotifySync);
-        size_t depth = 0, totalSent = 0;
-        std::map<const void*, TapConnection*>::iterator iter;
-        for (iter = tapConnectionMap.begin(); iter != tapConnectionMap.end(); iter++) {
-            depth += iter->second->queue->size();
-            totalSent += iter->second->recordsFetched;
-        }
-        lh.unlock();
-
-        // Use the depth and number of records fetched we calculated above.
-        epstore->setTapStats(depth, totalSent);
-    }
-
     void notifyTapIoThreadMain(void) {
         bool addNoop = false;
 
@@ -1273,7 +1259,6 @@ private:
         // Fix clean shutdown!!!
         while (!shutdown) {
 
-            updateTapStats();
             notifyTapIoThreadMain();
 
             if (shutdown) {
@@ -1541,10 +1526,6 @@ private:
             }
         }
 
-        add_casted_stat("ep_tap_total_queue", epstats.tap_queue,
-                        add_stat, cookie);
-        add_casted_stat("ep_tap_total_fetched", epstats.tap_fetched,
-                        add_stat, cookie);
         add_casted_stat("ep_tap_keepalive", tapKeepAlive,
                         add_stat, cookie);
 
@@ -1617,12 +1598,8 @@ private:
 
     ENGINE_ERROR_CODE doTapStats(const void *cookie, ADD_STAT add_stat) {
         std::list<TapConnection*>::iterator iter;
-        EPStats &epstats = getEpStats();
-        add_casted_stat("ep_tap_total_queue", epstats.tap_queue, add_stat, cookie);
-        add_casted_stat("ep_tap_total_fetched", epstats.tap_fetched, add_stat, cookie);
-        add_casted_stat("ep_tap_keepalive", tapKeepAlive, add_stat, cookie);
-
         int totalTaps = 0;
+        size_t tap_queue = 0, tap_fetched = 0;
         LockHolder lh(tapNotifySync);
         for (iter = allTaps.begin(); iter != allTaps.end(); iter++) {
             totalTaps++;
@@ -1646,7 +1623,15 @@ private:
             if (tc->backfillAge != 0) {
                 addTapStat("backfill_age", tc, (size_t)tc->backfillAge, add_stat, cookie);
             }
+
+            tap_queue += tc->queue->size();
+            tap_fetched += tc->recordsFetched;
         }
+
+        add_casted_stat("ep_tap_total_queue", tap_queue, add_stat, cookie);
+        add_casted_stat("ep_tap_total_fetched", tap_fetched, add_stat, cookie);
+        add_casted_stat("ep_tap_keepalive", tapKeepAlive, add_stat, cookie);
+
         add_casted_stat("ep_tap_count", totalTaps, add_stat, cookie);
 
         add_casted_stat("ep_replication_state",

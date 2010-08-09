@@ -68,10 +68,6 @@ public:
     Atomic<int> min_data_age;
     //! Maximum data age before a record is forced to be persisted
     Atomic<int> queue_age_cap;
-    //! Current tap queue size.
-    Atomic<size_t> tap_queue;
-    //! Total number of tap messages sent.
-    Atomic<size_t> tap_fetched;
     //! Number of times background fetches occurred.
     Atomic<size_t> bg_fetched;
     //! Number of times a value is ejected
