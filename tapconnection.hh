@@ -30,6 +30,38 @@ public:
     vbucket_state_t state;
 };
 
+class TapLogElement {
+public:
+    TapLogElement(uint32_t s, const TapVBucketEvent &e) :
+        seqno(s),
+        event(e.event),
+        vbucket(e.vbucket),
+        state(e.state),
+        key() // Not used, but need to initialize
+    {
+        // EMPTY
+    }
+
+
+    TapLogElement(uint32_t s, const QueuedItem &i) :
+        seqno(s),
+        event(TAP_MUTATION), // just set it to TAP_MUTATION.. I'll fix it if I have to replay the log
+        vbucket(i.getVBucketId()),
+        state(active),  // Not used, but I need to initialize...
+        key(i.getKey())
+    {
+        // EMPTY
+    }
+
+    uint32_t seqno;
+    tap_event_t event;
+    uint16_t vbucket;
+
+    vbucket_state_t state;
+    std::string key;
+};
+
+
 /**
  * Class used by the EventuallyPersistentEngine to keep track of all
  * information needed per Tap connection.
@@ -67,12 +99,29 @@ private:
         return addEvent(QueuedItem(key, vbid, op));
     }
 
+    void addTapLogElement(const QueuedItem &qi) {
+        if (ackSupported) {
+            TapLogElement log(seqno, qi);
+            tapLog.push_back(log);
+        }
+    }
+
+    void addTapLogElement(const TapVBucketEvent &e) {
+        if (ackSupported && e.event != TAP_NOOP) {
+            // add to the log!
+            TapLogElement log(seqno, e);
+            tapLog.push_back(log);
+        }
+    }
+
     QueuedItem next() {
         assert(!empty());
         QueuedItem qi = queue->front();
         queue->pop_front();
         queue_set->erase(qi);
         ++recordsFetched;
+        addTapLogElement(qi);
+
         return qi;
     }
 
@@ -95,6 +144,7 @@ private:
             ret = vBucketHighPriority.front();
             vBucketHighPriority.pop();
             ++recordsFetched;
+            addTapLogElement(ret);
         }
         return ret;
     }
@@ -117,6 +167,7 @@ private:
             ret = vBucketLowPriority.front();
             vBucketLowPriority.pop();
             ++recordsFetched;
+            addTapLogElement(ret);
         }
         return ret;
     }
@@ -166,10 +217,16 @@ private:
         recordsFetched(0), pendingFlush(false), expiry_time((rel_time_t)-1),
         reconnects(0), connected(true), paused(false), backfillAge(0),
         doRunBackfill(false), pendingBackfill(true), vbucketFilter(),
-        vBucketHighPriority(), vBucketLowPriority(), doDisconnect(false)
+        vBucketHighPriority(), vBucketLowPriority(), doDisconnect(false),
+        seqno(0), seqnoReceived(static_cast<uint32_t>(-1)),
+        ackSupported((f & TAP_CONNECT_SUPPORT_ACK) == TAP_CONNECT_SUPPORT_ACK)
     {
         queue = new std::list<QueuedItem>;
         queue_set = new std::set<QueuedItem>;
+
+        if (ackSupported) {
+            expiry_time = ep_current_time() + ackGracePeriod;
+        }
     }
 
     ~TapConnection() {
@@ -177,9 +234,35 @@ private:
         delete queue_set;
     }
 
+    ENGINE_ERROR_CODE processAck(uint32_t seqno, uint16_t status, const std::string &msg);
+
+    /**
+     * Is the tap ack window full?
+     * @return true if the window is full and no more items should be sent
+     */
+    bool windowIsFull();
+
+    /**
+     * Should we request a TAP ack for this message?
+     * @return true if we should request a tap ack (and start a new sequence)
+     */
+    bool requestAck();
+
+    /**
+     * Get the current tap sequence number.
+     */
+    uint32_t getSeqno() {
+        return seqno;
+    }
+
+    /**
+     * Rollback the tap stream to the last ack
+     */
+    void rollback();
+
+
     void encodeVBucketStateTransition(const TapVBucketEvent &ev, void **es,
                                       uint16_t *nes, uint16_t *vbucket) const;
-
 
 
     static uint64_t nextTapId() {
@@ -285,6 +368,24 @@ private:
 
     // True if this should be disconnected as soon as possible
     bool doDisconnect;
+
+    // Current tap sequence number (for ack's)
+    uint32_t seqno;
+
+    // The last tap sequence number received
+    uint32_t seqnoReceived;
+
+    // does the client support tap acking?
+    bool ackSupported;
+
+    std::list<TapLogElement> tapLog;
+
+    // Constants used to enforce the tap ack protocol
+    static const uint32_t ackWindowSize;
+    static const uint32_t ackHighChunkThreshold;
+    static const uint32_t ackMediumChunkThreshold;
+    static const uint32_t ackLowChunkThreshold;
+    static const rel_time_t ackGracePeriod;
 
     DISALLOW_COPY_AND_ASSIGN(TapConnection);
 };
