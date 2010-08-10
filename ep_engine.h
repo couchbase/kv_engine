@@ -792,7 +792,7 @@ public:
                 connection->paused = false;
                 connection->encodeVBucketStateTransition(ev, es, nes, vbucket);
                 if (ev.state == active) {
-                    epstore->setVBucketState(ev.vbucket, dead, serverApi->core);
+                    epstore->setVBucketState(ev.vbucket, dead, serverApi->core, false);
                 }
                 ret = ev.event;
             } else {
@@ -1023,7 +1023,7 @@ public:
                     return ENGINE_DISCONNECT;
                 }
 
-                epstore->setVBucketState(vbucket, state, serverApi->core);
+                epstore->setVBucketState(vbucket, state, serverApi->core, false);
             }
             break;
 
