@@ -770,6 +770,16 @@ public:
                 serverApi->core->store_engine_specific(cookie, qip);
                 connection->paused = true;
                 return TAP_PAUSE;
+            } else {
+                if (r == ENGINE_NOT_MY_VBUCKET) {
+                    getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                     "Trying to fetch an item for a bucket that don't exist on this server <%s>. Diconnecting\n", connection->client.c_str());
+
+                } else {
+                    getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                     "Tap internal error Internal error! <%s>:%d. Disconnecting\n", connection->client.c_str(), r);
+                }
+                return TAP_DISCONNECT;
             }
         } else if (connection->shouldFlush()) {
             ret = TAP_FLUSH;
