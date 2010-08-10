@@ -18,6 +18,9 @@ def stats_vkey(mc, key):
 def stats_all(mc):
     stats_formatter(mc.stats())
 
+def stats_tap(mc):
+    stats_formatter(mc.stats('tap'))
+
 def stats_hash(mc):
     stats_formatter(mc.stats('hash'))
 
@@ -28,5 +31,6 @@ if __name__ == '__main__':
     c.addCommand('vkey', stats_vkey, 'vkey keyname')
     c.addCommand('all', stats_all)
     c.addCommand('hash', stats_hash)
+    c.addCommand('tap', stats_tap)
 
     c.execute()
