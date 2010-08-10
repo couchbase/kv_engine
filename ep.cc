@@ -289,15 +289,18 @@ RCPtr<VBucket> EventuallyPersistentStore::getVBucket(uint16_t vbucket) {
 
 void EventuallyPersistentStore::setVBucketState(uint16_t vbid,
                                                 vbucket_state_t to,
-                                                SERVER_CORE_API *core) {
+                                                SERVER_CORE_API *core,
+                                                bool async) {
     // Lock to prevent a race condition between a failed update and add.
     LockHolder lh(vbsetMutex);
     RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
     if (vb) {
-        dispatcher->schedule(shared_ptr<DispatcherCallback>(new SetVBStateCallback(vb,
-                                                                                   to,
-                                                                                   core)),
-                             NULL, -1);
+        if (async) {
+            dispatcher->schedule(shared_ptr<DispatcherCallback>(new SetVBStateCallback(vb, to, core)),
+                                 NULL, -1);
+        } else {
+            vb->setState(to, core);
+        }
     } else {
         RCPtr<VBucket> newvb(new VBucket(vbid, to, stats));
         vbuckets.addBucket(newvb);
@@ -582,7 +585,6 @@ int EventuallyPersistentStore::flushSome(std::queue<QueuedItem> *q,
     rel_time_t complete_time = ep_current_time();
 
     stats.commit_time.set(complete_time - cstart);
-
     return oldest;
 }
 
