@@ -44,6 +44,7 @@ EP_ENGINE_CC_SRC = \
                  sqlite-pst.cc \
                  sqlite-strategies.cc \
                  stored-value.cc \
+                 tapconnection.cc \
                  vbucket.cc
 EP_ENGINE_C_SRC = \
 		embedded/sqlite3.c \
