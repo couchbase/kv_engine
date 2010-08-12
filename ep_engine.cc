@@ -334,7 +334,7 @@ extern "C" {
             rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
         } else {
             RCPtr<VBucket> vb = e->getVBucket(vbucket);
-            if (!vb || vb->getState() == dead) {
+            if (!vb) {
                 *msg = "That's not my bucket.";
                 rv = PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET;
             } else {
