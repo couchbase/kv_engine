@@ -796,7 +796,7 @@ public:
                 assert(ev.event == TAP_VBUCKET_SET);
                 connection->encodeVBucketStateTransition(ev, es, nes, vbucket);
                 if (ev.state == active) {
-                    epstore->setVBucketState(ev.vbucket, dead, serverApi->core, false);
+                    epstore->setVBucketState(ev.vbucket, dead, serverApi->core);
                 }
                 ret = ev.event;
             } else {
@@ -1045,7 +1045,7 @@ public:
                     return ENGINE_DISCONNECT;
                 }
 
-                epstore->setVBucketState(vbucket, state, serverApi->core, false);
+                epstore->setVBucketState(vbucket, state, serverApi->core);
             }
             break;
 
