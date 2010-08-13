@@ -128,26 +128,6 @@ EventuallyPersistentStore::~EventuallyPersistentStore() {
     stopFlusher();
     dispatcher->stop();
 
-    // Verify that we don't have any dirty objects!
-    if (getenv("EP_VERIFY_SHUTDOWN_FLUSH") != NULL) {
-        VerifyStoredVisitor walker;
-        // TODO: Something smarter for multiple vbuckets.
-        RCPtr<VBucket> vb = getVBucket(0);
-        assert(vb);
-        vb->ht.visit(walker);
-        if (!walker.dirty.empty()) {
-            std::vector<std::string>::const_iterator iter;
-            for (iter = walker.dirty.begin();
-                 iter != walker.dirty.end();
-                 ++iter) {
-                std::cerr << "ERROR: Object dirty after flushing: "
-                          << iter->c_str() << std::endl;
-            }
-
-            throw std::runtime_error("Internal error, objects dirty objects exists");
-        }
-    }
-
     delete flusher;
     delete dispatcher;
 }
