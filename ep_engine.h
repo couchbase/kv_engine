@@ -347,6 +347,17 @@ public:
                 sapi->register_callback(reinterpret_cast<ENGINE_HANDLE*>(this),
                                         ON_DISCONNECT, EvpHandleDisconnect, this);
             }
+
+            if (memLowWat == std::numeric_limits<size_t>::max()) {
+                memLowWat = percentOf(StoredValue::getMaxDataSize(stats), 0.6);
+            }
+            if (memHighWat == std::numeric_limits<size_t>::max()) {
+                memHighWat = percentOf(StoredValue::getMaxDataSize(stats), 0.75);
+            }
+
+            stats.mem_low_wat = memLowWat;
+            stats.mem_high_wat = memHighWat;
+
             startEngineThreads();
 
             // If requested, don't complete the initialization until the
@@ -370,16 +381,6 @@ public:
                 free(master);
             }
 #endif
-
-            if (memLowWat == std::numeric_limits<size_t>::max()) {
-                memLowWat = percentOf(StoredValue::getMaxDataSize(stats), 0.6);
-            }
-            if (memHighWat == std::numeric_limits<size_t>::max()) {
-                memHighWat = percentOf(StoredValue::getMaxDataSize(stats), 0.75);
-            }
-
-            stats.mem_low_wat = memLowWat;
-            stats.mem_high_wat = memHighWat;
 
             shared_ptr<DispatcherCallback> cb(new ItemPager(epstore, stats,
                                                             memLowWat, memHighWat));
