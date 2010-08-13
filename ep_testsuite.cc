@@ -1534,6 +1534,7 @@ static enum test_result test_disk_gt_ram_set_race(ENGINE_HANDLE *h,
 static enum test_result test_disk_gt_ram_incr_race(ENGINE_HANDLE *h,
                                                    ENGINE_HANDLE_V1 *h1) {
     wait_for_persisted_value(h, h1, "k1", "13");
+    assert(1 == get_int_stat(h, h1, "ep_total_enqueued"));
 
     set_flush_param(h, h1, "bg_fetch_delay", "1");
 
@@ -1551,6 +1552,7 @@ static enum test_result test_disk_gt_ram_incr_race(ENGINE_HANDLE *h,
 
     // Give incr time to finish (it's doing another background fetch)
     while (1 == get_int_stat(h, h1, "ep_bg_fetched")) { usleep(10); }
+    while (1 == get_int_stat(h, h1, "ep_total_enqueued")) { usleep(10); }
 
     // The incr mutated the value.
     check_key_value(h, h1, "k1", "14\r\n", 4);
