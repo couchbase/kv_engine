@@ -53,23 +53,8 @@ public:
     bool callback(Dispatcher &d, TaskId t) {
         (void)d; (void)t;
         start = gethrtime();
-        ep->completeBGFetch(key, vbucket, rowid, cookie, core);
-        hrtime_t stop = gethrtime();
-
-        if (stop > start && start > init) {
-            // skip the measurement if the counter wrapped...
-            ++ep->stats.bgNumOperations;
-            hrtime_t w = (start - init) / 1000;
-            ep->stats.bgWait += w;
-            ep->stats.bgMinWait.setIfLess(w);
-            ep->stats.bgMaxWait.setIfBigger(w);
-
-            hrtime_t l = (stop - start) / 1000;
-            ep->stats.bgLoad += l;
-            ep->stats.bgMinLoad.setIfLess(l);
-            ep->stats.bgMaxLoad.setIfBigger(l);
-        }
-
+        ep->completeBGFetch(key, vbucket, rowid, cookie, core,
+                            init, start);
         return false;
     }
 
@@ -321,7 +306,8 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
                                                 uint16_t vbucket,
                                                 uint64_t rowid,
                                                 const void *cookie,
-                                                SERVER_CORE_API *core) {
+                                                SERVER_CORE_API *core,
+                                                hrtime_t init, hrtime_t start) {
     --bgFetchQueue;
     ++stats.bg_fetched;
 
@@ -349,6 +335,22 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
     }
 
     lh.unlock();
+
+    hrtime_t stop = gethrtime();
+
+    if (stop > start && start > init) {
+        // skip the measurement if the counter wrapped...
+        ++stats.bgNumOperations;
+        hrtime_t w = (start - init) / 1000;
+        stats.bgWait += w;
+        stats.bgMinWait.setIfLess(w);
+        stats.bgMaxWait.setIfBigger(w);
+
+        hrtime_t l = (stop - start) / 1000;
+        stats.bgLoad += l;
+        stats.bgMinLoad.setIfLess(l);
+        stats.bgMaxLoad.setIfBigger(l);
+    }
 
     core->notify_io_complete(cookie, gcb.val.getStatus());
     delete gcb.val.getValue();

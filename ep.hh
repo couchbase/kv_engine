@@ -258,7 +258,8 @@ public:
                          uint16_t vbucket,
                          uint64_t rowid,
                          const void *cookie,
-                         SERVER_CORE_API *core);
+                         SERVER_CORE_API *core,
+                         hrtime_t init, hrtime_t start);
 
     RCPtr<VBucket> getVBucket(uint16_t vbid);
     void setVBucketState(uint16_t vbid,
