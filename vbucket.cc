@@ -10,10 +10,25 @@ const vbucket_state_t VBucket::PENDING = static_cast<vbucket_state_t>(htonl(pend
 const vbucket_state_t VBucket::DEAD = static_cast<vbucket_state_t>(htonl(dead));
 
 void VBucket::fireAllOps(SERVER_CORE_API *core, ENGINE_ERROR_CODE code) {
-    LockHolder lh(pendingOpLock);
     std::for_each(pendingOps.begin(), pendingOps.end(),
                   std::bind2nd(std::ptr_fun(core->notify_io_complete), code));
     pendingOps.clear();
+
+    getLogger()->log(EXTENSION_LOG_INFO, NULL,
+                     "Fired pendings ops for vbucket %d in state %s\n",
+                     id, VBucket::toString(state));
+}
+
+void VBucket::fireAllOps(SERVER_CORE_API *core) {
+    LockHolder lh(pendingOpLock);
+
+    if (state == active) {
+        fireAllOps(core, ENGINE_SUCCESS);
+    } else if (state == pending) {
+        // Nothing
+    } else {
+        fireAllOps(core, ENGINE_NOT_MY_VBUCKET);
+    }
 }
 
 void VBucket::setState(vbucket_state_t to, SERVER_CORE_API *core) {
@@ -21,19 +36,8 @@ void VBucket::setState(vbucket_state_t to, SERVER_CORE_API *core) {
     vbucket_state_t oldstate(state);
 
     getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                     "Beginning vbucket transition of %d from %s to %s\n",
+                     "transitioning vbucket %d from %s to %s\n",
                      id, VBucket::toString(oldstate), VBucket::toString(to));
 
     state = to;
-    if (to == active) {
-        fireAllOps(core, ENGINE_SUCCESS);
-    } else if (to == pending) {
-        // Nothing
-    } else {
-        fireAllOps(core, ENGINE_NOT_MY_VBUCKET);
-    }
-
-    getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                     "Completed vbucket transition of %d from %s to %s\n",
-                     id, VBucket::toString(oldstate), VBucket::toString(to));
 }

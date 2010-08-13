@@ -87,20 +87,19 @@ private:
 
 class SetVBStateCallback : public DispatcherCallback {
 public:
-    SetVBStateCallback(RCPtr<VBucket> vb, vbucket_state_t st, SERVER_CORE_API *c)
-        : vbucket(vb), state(st), core(c) {
+    SetVBStateCallback(RCPtr<VBucket> vb, SERVER_CORE_API *c)
+        : vbucket(vb), core(c) {
         assert(core);
     }
 
     bool callback(Dispatcher &d, TaskId t) {
         (void)d; (void)t;
-        vbucket->setState(state, core);
+        vbucket->fireAllOps(core);
         return false;
     }
 
 private:
     RCPtr<VBucket>   vbucket;
-    vbucket_state_t  state;
     SERVER_CORE_API *core;
 };
 
@@ -289,18 +288,14 @@ RCPtr<VBucket> EventuallyPersistentStore::getVBucket(uint16_t vbucket) {
 
 void EventuallyPersistentStore::setVBucketState(uint16_t vbid,
                                                 vbucket_state_t to,
-                                                SERVER_CORE_API *core,
-                                                bool async) {
+                                                SERVER_CORE_API *core) {
     // Lock to prevent a race condition between a failed update and add.
     LockHolder lh(vbsetMutex);
     RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
     if (vb) {
-        if (async) {
-            dispatcher->schedule(shared_ptr<DispatcherCallback>(new SetVBStateCallback(vb, to, core)),
-                                 NULL, -1);
-        } else {
-            vb->setState(to, core);
-        }
+        vb->setState(to, core);
+        dispatcher->schedule(shared_ptr<DispatcherCallback>(new SetVBStateCallback(vb, core)),
+                             NULL, -1);
     } else {
         RCPtr<VBucket> newvb(new VBucket(vbid, to, stats));
         vbuckets.addBucket(newvb);

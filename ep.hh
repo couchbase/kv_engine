@@ -263,8 +263,7 @@ public:
     RCPtr<VBucket> getVBucket(uint16_t vbid);
     void setVBucketState(uint16_t vbid,
                          vbucket_state_t state,
-                         SERVER_CORE_API *core,
-                         bool async = true);
+                         SERVER_CORE_API *core);
     bool deleteVBucket(uint16_t vbid);
 
     void visit(VBucketVisitor &visitor) {

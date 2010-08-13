@@ -88,7 +88,7 @@ public:
         return true;
     }
 
-    void fireAllOps(SERVER_CORE_API *core, ENGINE_ERROR_CODE code = ENGINE_SUCCESS);
+    void fireAllOps(SERVER_CORE_API *core);
 
     size_t size(void) {
         HashTableDepthStatVisitor v;
@@ -114,6 +114,8 @@ public:
     static const vbucket_state_t DEAD;
 
 private:
+
+    void fireAllOps(SERVER_CORE_API *core, ENGINE_ERROR_CODE code);
 
     int                      id;
     Atomic<vbucket_state_t>  state;
