@@ -1402,12 +1402,16 @@ static enum test_result test_value_eviction(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
 static enum test_result test_disk_gt_ram_golden(ENGINE_HANDLE *h,
                                                 ENGINE_HANDLE_V1 *h1) {
     wait_for_persisted_value(h, h1, "k1", "some value");
+    assert(0 == get_int_stat(h, h1, "ep_bg_fetched"));
+    assert(1 == get_int_stat(h, h1, "ep_total_enqueued"));
 
     evict_key(h, h1, "k1");
 
     check_key_value(h, h1, "k1", "some value", 10);
 
     assert(1 == get_int_stat(h, h1, "ep_bg_fetched"));
+    // Should not have marked the thing dirty.
+    assert(1 == get_int_stat(h, h1, "ep_total_enqueued"));
 
     return SUCCESS;
 }
