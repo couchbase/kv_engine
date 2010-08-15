@@ -290,6 +290,9 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
                                                 hrtime_t init, hrtime_t start) {
     --bgFetchQueue;
     ++stats.bg_fetched;
+    getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                     "Completed a background fetch, now at %zd\n",
+                     bgFetchQueue.get());
 
     // Go find the data
     RememberingCallback<GetValue> gcb;
