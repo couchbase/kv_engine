@@ -1401,17 +1401,95 @@ static enum test_result test_value_eviction(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
 
 static enum test_result test_disk_gt_ram_golden(ENGINE_HANDLE *h,
                                                 ENGINE_HANDLE_V1 *h1) {
+    // Check/grab initial state.
+    int overhead = get_int_stat(h, h1, "ep_overhead");
+    check(get_int_stat(h, h1, "ep_kv_size") == 0,
+          "Initial kv_size was not zero.");
+
+    // Store some data and check post-set state.
     wait_for_persisted_value(h, h1, "k1", "some value");
     assert(0 == get_int_stat(h, h1, "ep_bg_fetched"));
     assert(1 == get_int_stat(h, h1, "ep_total_enqueued"));
+    int kv_size = get_int_stat(h, h1, "ep_kv_size");
+    int mem_used = get_int_stat(h, h1, "mem_used");
+    check(get_int_stat(h, h1, "ep_overhead") >= overhead,
+          "Fell below initial overhead.");
 
+    // Evict the data.
     evict_key(h, h1, "k1");
 
+    int kv_size2 = get_int_stat(h, h1, "ep_kv_size");
+    int mem_used2 = get_int_stat(h, h1, "mem_used");
+    check(get_int_stat(h, h1, "ep_overhead") >= overhead,
+          "Fell below initial overhead.");
+
+    assert(kv_size2 < kv_size);
+    assert(mem_used2 < mem_used);
+
+    // Reload the data.
     check_key_value(h, h1, "k1", "some value", 10);
+
+    int kv_size3 = get_int_stat(h, h1, "ep_kv_size");
+    int mem_used3 = get_int_stat(h, h1, "mem_used");
+    check(get_int_stat(h, h1, "ep_overhead") >= overhead,
+          "Fell below initial overhead.");
 
     assert(1 == get_int_stat(h, h1, "ep_bg_fetched"));
     // Should not have marked the thing dirty.
     assert(1 == get_int_stat(h, h1, "ep_total_enqueued"));
+
+    assert(kv_size == kv_size3);
+    assert(mem_used == mem_used3);
+
+    // Delete the value and make sure things return correctly.
+    int numStored = get_int_stat(h, h1, "ep_total_persisted");
+    check(h1->remove(h, h1, "k1", 2, 0, 0) == ENGINE_SUCCESS,
+          "Failed remove with value.");
+    while (get_int_stat(h, h1, "ep_total_persisted") == numStored) {
+        usleep(100);
+    }
+
+    check(get_int_stat(h, h1, "ep_kv_size") == 0,
+          "Initial kv_size was not zero.");
+    check(get_int_stat(h, h1, "ep_overhead") == overhead,
+          "Fell below initial overhead.");
+    check(get_int_stat(h, h1, "mem_used") == overhead,
+          "Fell below initial overhead.");
+
+    return SUCCESS;
+}
+
+static enum test_result test_disk_gt_ram_paged_rm(ENGINE_HANDLE *h,
+                                                  ENGINE_HANDLE_V1 *h1) {
+    // Check/grab initial state.
+    int overhead = get_int_stat(h, h1, "ep_overhead");
+    check(get_int_stat(h, h1, "ep_kv_size") == 0,
+          "Initial kv_size was not zero.");
+
+    // Store some data and check post-set state.
+    wait_for_persisted_value(h, h1, "k1", "some value");
+    assert(0 == get_int_stat(h, h1, "ep_bg_fetched"));
+    assert(1 == get_int_stat(h, h1, "ep_total_enqueued"));
+    check(get_int_stat(h, h1, "ep_overhead") >= overhead,
+          "Fell below initial overhead.");
+
+    // Evict the data.
+    evict_key(h, h1, "k1");
+
+    // Delete the value and make sure things return correctly.
+    int numStored = get_int_stat(h, h1, "ep_total_persisted");
+    check(h1->remove(h, h1, "k1", 2, 0, 0) == ENGINE_SUCCESS,
+          "Failed remove with value.");
+    while (get_int_stat(h, h1, "ep_total_persisted") == numStored) {
+        usleep(100);
+    }
+
+    check(get_int_stat(h, h1, "ep_kv_size") == 0,
+          "Initial kv_size was not zero.");
+    check(get_int_stat(h, h1, "ep_overhead") == overhead,
+          "Fell below initial overhead.");
+    check(get_int_stat(h, h1, "mem_used") == overhead,
+          "Fell below initial overhead.");
 
     return SUCCESS;
 }
@@ -1638,6 +1716,7 @@ engine_test_t* get_tests(void) {
         {"flush multiv+restart", test_flush_multiv_restart, NULL, teardown, NULL},
         // disk>RAM tests
         {"disk>RAM golden path", test_disk_gt_ram_golden, NULL, teardown, NULL},
+        {"disk>RAM paged-out rm", test_disk_gt_ram_paged_rm, NULL, teardown, NULL},
         {"disk>RAM update paged-out", test_disk_gt_ram_update_paged_out, NULL,
          teardown, NULL},
         {"disk>RAM delete paged-out", test_disk_gt_ram_delete_paged_out, NULL,
