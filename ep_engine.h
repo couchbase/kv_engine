@@ -1567,6 +1567,7 @@ private:
         add_casted_stat("ep_mem_high_wat", epstats.mem_high_wat, add_stat, cookie);
         add_casted_stat("ep_total_cache_size", StoredValue::getTotalCacheSize(stats),
                         add_stat, cookie);
+        add_casted_stat("ep_oom_errors", stats.oom_errors, add_stat, cookie);
         add_casted_stat("ep_storage_type",
                         HashTable::getDefaultStorageValueTypeStr(),
                         add_stat, cookie);

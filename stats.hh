@@ -89,6 +89,9 @@ public:
     //! Pager high water mark
     Atomic<size_t> mem_high_wat;
 
+    //! Number of ENOMEM errors produced.
+    Atomic<size_t> oom_errors;
+
     //! Number of read related io operations
     Atomic<size_t> io_num_read;
     //! Number of write related io operations
