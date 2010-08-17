@@ -588,6 +588,7 @@ public:
         if (value.first && sval != NULL && value.second > 0) {
             sval->setId(value.second);
         } else if (!value.first) {
+            stats->memOverhead.incr(queuedItem.size());
             stats->flushFailed++;
             if (sval != NULL) {
                 sval->reDirty(dirtied);

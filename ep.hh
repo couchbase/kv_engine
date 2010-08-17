@@ -75,7 +75,7 @@ public:
         return vbucket == other.vbucket ? key < other.key : vbucket < other.vbucket;
     }
 
-    size_t size() {
+    size_t size() const {
         return sizeof(QueuedItem) + key.size();
     }
 
