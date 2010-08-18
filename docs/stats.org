@@ -71,6 +71,9 @@
 | ep_io_num_write               | Number of io write operations             |
 | ep_io_read_bytes              | Number of bytes read (key + values)       |
 | ep_io_write_bytes             | Number of bytes written (key + values)    |
+| ep_pending_ops                | Number of ops awaiting pending vbuckets   |
+| ep_pending_ops_max            | Max ops seen awaiting 1 pending vbucket   |
+| ep_pending_ops_max_duration   | Max time used waiting on pending vbuckets |
 | ep_bg_num_samples             | The number of samples included in the avg |
 | ep_bg_min_wait                | The shortest time in the wait queue       |
 | ep_bg_max_wait                | The longest time in the wait queue        |

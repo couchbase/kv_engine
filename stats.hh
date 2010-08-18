@@ -101,6 +101,13 @@ public:
     //! Number of bytes written
     Atomic<uint64_t> io_write_bytes;
 
+    //! Number of ops blocked on all vbuckets in pending state
+    Atomic<uint64_t> pendingOps;
+    //! High water value for ops blocked for any individual pending vbucket
+    Atomic<uint64_t> pendingOpsMax;
+    //! High water value for time an op is blocked on a pending vbucket
+    Atomic<hrtime_t> pendingOpsMaxDuration;
+
     //! The number of samples the bgWaitDelta and bgLoadDelta contains of
     Atomic<uint64_t> bgNumOperations;
     /** The sum of the deltas (in usec) from an item was put in queue until

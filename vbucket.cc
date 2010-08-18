@@ -10,6 +10,17 @@ const vbucket_state_t VBucket::PENDING = static_cast<vbucket_state_t>(htonl(pend
 const vbucket_state_t VBucket::DEAD = static_cast<vbucket_state_t>(htonl(dead));
 
 void VBucket::fireAllOps(SERVER_CORE_API *core, ENGINE_ERROR_CODE code) {
+    if (pendingOpsStart > 0) {
+        hrtime_t now = gethrtime();
+        if (now > pendingOpsStart) {
+            hrtime_t d = (now - pendingOpsStart) / 1000;
+            stats.pendingOpsMaxDuration.setIfBigger(d);
+        }
+    }
+    pendingOpsStart = 0;
+    stats.pendingOps.decr(pendingOps.size());
+    stats.pendingOpsMax.setIfBigger(pendingOps.size());
+
     std::for_each(pendingOps.begin(), pendingOps.end(),
                   std::bind2nd(std::ptr_fun(core->notify_io_complete), code));
     pendingOps.clear();

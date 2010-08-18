@@ -1138,6 +1138,9 @@ public:
         stats.bgMaxWait.set(0);
         stats.bgMinLoad.set(999999999);
         stats.bgMaxLoad.set(0);
+        stats.pendingOps.set(0);
+        stats.pendingOpsMax.set(0);
+        stats.pendingOpsMaxDuration.set(0);
     }
 
     void setMinDataAge(int to) {
@@ -1599,6 +1602,12 @@ private:
         add_casted_stat("ep_io_num_write", epstats.io_num_write, add_stat, cookie);
         add_casted_stat("ep_io_read_bytes", epstats.io_read_bytes, add_stat, cookie);
         add_casted_stat("ep_io_write_bytes", epstats.io_write_bytes, add_stat, cookie);
+
+        add_casted_stat("ep_pending_ops", epstats.pendingOps, add_stat, cookie);
+        add_casted_stat("ep_pending_ops_max", epstats.pendingOpsMax, add_stat, cookie);
+        add_casted_stat("ep_pending_ops_max_duration",
+                        hrtime2text(epstats.pendingOpsMaxDuration).c_str(),
+                        add_stat, cookie);
 
         if (epstats.bgNumOperations > 0) {
             add_casted_stat("ep_bg_num_samples", epstats.bgNumOperations, add_stat, cookie);

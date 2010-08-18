@@ -55,6 +55,7 @@ public:
 
     VBucket(int i, vbucket_state_t initialState, EPStats &st) :
         ht(st), id(i), state(initialState), stats(st) {
+        pendingOpsStart = 0;
         stats.memOverhead.incr(sizeof(VBucket)
                                + ht.memorySize());
     }
@@ -84,7 +85,12 @@ public:
             // State transitioned while we were waiting.
             return false;
         }
+        // Start a timer when enqueuing the first client.
+        if (pendingOps.empty()) {
+            pendingOpsStart = gethrtime();
+        }
         pendingOps.push_back(cookie);
+        ++stats.pendingOps;
         return true;
     }
 
@@ -121,6 +127,7 @@ private:
     Atomic<vbucket_state_t>  state;
     Mutex                    pendingOpLock;
     std::vector<const void*> pendingOps;
+    hrtime_t                 pendingOpsStart;
     EPStats                 &stats;
 
     DISALLOW_COPY_AND_ASSIGN(VBucket);
