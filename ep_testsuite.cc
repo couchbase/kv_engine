@@ -281,9 +281,10 @@ static void evict_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
           "Expected success evicting key.");
 
-    if (msg != NULL) {
-        check(strcmp(last_key, msg) == 0,
-              "Expected eject to return a certain status");
+    if (msg != NULL && strcmp(last_key, msg) != 0) {
+        fprintf(stderr, "Expected evict to return ``%s'', but it returned ``%s''\n",
+                msg, last_key);
+        abort();
     }
 }
 
@@ -1144,8 +1145,11 @@ static enum test_result verify_item(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     info.nvalue = 1;
     check(h1->get_item_info(h, NULL, i, &info), "get item info failed");
     check(info.nvalue == 1, "iovectors not supported");
-    check(klen == info.nkey, "Incorrect key length");
-    check(memcmp(info.key, key, klen) == 0, "Incorect key value");
+    // We can pass in a NULL key to avoid the key check (for tap streams)
+    if (key) {
+        check(klen == info.nkey, "Incorrect key length");
+        check(memcmp(info.key, key, klen) == 0, "Incorrect key value");
+    }
     check(vlen == info.value[0].iov_len, "Incorrect value length");
     check(memcmp(info.value[0].iov_base, val, vlen) == 0,
           "Data mismatch");
