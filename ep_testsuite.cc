@@ -54,6 +54,8 @@ bool abort_msg(const char *expr, const char *msg, int line);
 #define check(expr, msg) \
     static_cast<void>((expr) ? 0 : abort_msg(#expr, msg, __LINE__))
 
+#define WHITESPACE_DB "whitespace sucks.db"
+
 extern "C" {
     MEMCACHED_PUBLIC_API
     engine_test_t* get_tests(void);
@@ -893,6 +895,30 @@ static enum test_result test_alloc_limit(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+static enum test_result test_whitespace_db(ENGINE_HANDLE *h,
+                                           ENGINE_HANDLE_V1 *h1) {
+    check(h1->get_stats(h, NULL, NULL, 0, add_stats) == ENGINE_SUCCESS,
+          "Failed to get stats.");
+    if (vals["ep_dbname"] != std::string(WHITESPACE_DB)) {
+        std::cerr << "Expected dbname = ``" << WHITESPACE_DB << "''"
+                  << ", got ``" << vals["ep_dbname"] << "''" << std::endl;
+        return FAIL;
+    }
+
+    check(remove(WHITESPACE_DB) == 0,
+          "Error removing whitespace remanant.");
+    check(remove(WHITESPACE_DB "-0.sqlite") == 0,
+          "Error removing whitespace remnant.");
+    check(remove(WHITESPACE_DB "-1.sqlite") == 0,
+          "Error removing whitespace remnant.");
+    check(remove(WHITESPACE_DB "-2.sqlite") == 0,
+          "Error removing whitespace remnant.");
+    check(remove(WHITESPACE_DB "-3.sqlite") == 0,
+          "Error removing whitespace remnant.");
+
+    return SUCCESS;
+}
+
 static enum test_result test_memory_limit(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     int used = get_int_stat(h, h1, "mem_used");
     int max = get_int_stat(h, h1, "ep_max_data_size");
@@ -1707,6 +1733,8 @@ engine_test_t* get_tests(void) {
         {"test alloc limit", test_alloc_limit, NULL, teardown, NULL},
         {"test total memory limit", test_memory_limit, NULL, teardown,
          "max_size=4096;ht_locks=1;ht_size=3"},
+        {"test whitespace dbname", test_whitespace_db, NULL, teardown,
+         "dbname=" WHITESPACE_DB ";ht_locks=1;ht_size=3"},
         {"get miss", test_get_miss, NULL, teardown, NULL},
         {"set", test_set, NULL, teardown, NULL},
         {"set+get hit", test_set_get_hit, NULL, teardown, NULL},
