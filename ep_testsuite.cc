@@ -19,6 +19,7 @@
 #include <sstream>
 #include <map>
 #include <string>
+#include <vector>
 
 #include <assert.h>
 #include <stdio.h>
@@ -1157,62 +1158,86 @@ static enum test_result verify_item(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     return SUCCESS;
 }
 
-extern "C" {
-    static void *tap_client_main(void *arg) {
-        ENGINE_HANDLE *h = reinterpret_cast<ENGINE_HANDLE*>(arg);
-        ENGINE_HANDLE_V1 *h1 = reinterpret_cast<ENGINE_HANDLE_V1*>(arg);
-
-        const void *cookie = testHarness.create_cookie();
-        testHarness.lock_cookie(cookie);
-        std::string name = "tap_client_thread";
-        TAP_ITERATOR iter = h1->get_tap_iterator(h, cookie, name.c_str(),
-                                                 name.length(),
-                                                 TAP_CONNECT_FLAG_DUMP, NULL,
-                                                 0);
-        check(iter != NULL, "Failed to create a tap iterator");
-
-        item *it;
-        void *engine_specific;
-        uint16_t nengine_specific;
-        uint8_t ttl;
-        uint16_t flags;
-        uint32_t seqno;
-        uint16_t vbucket;
-
-        tap_event_t event;
-
-        do {
-            event = iter(h, cookie, &it, &engine_specific,
-                         &nengine_specific, &ttl, &flags,
-                         &seqno, &vbucket);
-
-            if (event == TAP_PAUSE) {
-                testHarness.waitfor_cookie(cookie);
-                event = TAP_NOOP;
-            }
-        } while (event == TAP_NOOP);
-
-        check(event == TAP_MUTATION, "Expected TAP Mutation");
-        check(verify_item(h, h1, it, "key", 3, "value", 5) == SUCCESS,
-              "Unexpected item arrived on tap stream");
-        testHarness.unlock_cookie(cookie);
-        h1->release(h, cookie, it);
-
-        return (void*)SUCCESS;
-    }
-}
-
 static enum test_result test_tap_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    wait_for_persisted_value(h, h1, "key", "value");
-    evict_key(h, h1, "key", 0, "Ejected.");
+    std::vector<std::string> keys;
+    for (int i = 0; i < 29; ++i) {
+        std::stringstream ss;
+        ss << "key" << i;
+        keys.push_back(ss.str());
+    }
+    int initialPersisted = get_int_stat(h, h1, "ep_total_persisted");
+    // set_flush_param(h, h1, "bg_fetch_delay", "1");
 
-    pthread_t tid;
-    check(pthread_create(&tid, NULL, tap_client_main, h) == 0,
-          "Failed to create tap client thread");
+    std::vector<std::string>::iterator keyit;
+    for (keyit = keys.begin(); keyit != keys.end(); ++keyit) {
+        item *i = NULL;
+        check(store(h, h1, NULL, OPERATION_SET, keyit->c_str(),
+                    "value", &i, 0, 0) == ENGINE_SUCCESS,
+              "Failed to store an item.");
+    }
 
-    void *rval;
-    check(pthread_join(tid, &rval) == 0, "Failed to join thread");
-    check(rval == (void*)SUCCESS, "tap client successfull");
+    while (get_int_stat(h, h1, "ep_total_persisted")
+           < initialPersisted + static_cast<int>(keys.size())) {
+        usleep(100);
+    }
+
+    for (keyit = keys.begin(); keyit != keys.end(); ++keyit) {
+        evict_key(h, h1, keyit->c_str(), 0, "Ejected.");
+    }
+
+    const void *cookie = testHarness.create_cookie();
+    testHarness.lock_cookie(cookie);
+    std::string name = "tap_client_thread";
+    TAP_ITERATOR iter = h1->get_tap_iterator(h, cookie, name.c_str(),
+                                             name.length(),
+                                             TAP_CONNECT_FLAG_DUMP, NULL,
+                                             0);
+    check(iter != NULL, "Failed to create a tap iterator");
+
+    item *it;
+    void *engine_specific;
+    uint16_t nengine_specific;
+    uint8_t ttl;
+    uint16_t flags;
+    uint32_t seqno;
+    uint16_t vbucket;
+
+    tap_event_t event;
+    int found = 0;
+
+    do {
+        event = iter(h, cookie, &it, &engine_specific,
+                     &nengine_specific, &ttl, &flags,
+                     &seqno, &vbucket);
+
+        switch (event) {
+        case TAP_PAUSE:
+            testHarness.waitfor_cookie(cookie);
+            break;
+        case TAP_NOOP:
+            break;
+        case TAP_MUTATION:
+            ++found;
+            check(verify_item(h, h1, it, NULL, 0, "value", 5) == SUCCESS,
+                  "Unexpected item arrived on tap stream");
+            break;
+        case TAP_DISCONNECT:
+            break;
+        default:
+            std::cerr << "Unexpected event:  " << event << std::endl;
+            return FAIL;
+        }
+
+    } while (event != TAP_DISCONNECT);
+
+    if (found != static_cast<int>(keys.size())) {
+        std::cerr << "Expected " << keys.size()
+                  << " items in stream, got " << found << std::endl;
+        return FAIL;
+    }
+
+    testHarness.unlock_cookie(cookie);
+    h1->release(h, cookie, it);
     return SUCCESS;
 }
 
