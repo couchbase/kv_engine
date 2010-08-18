@@ -1447,7 +1447,7 @@ static enum test_result test_disk_gt_ram_golden(ENGINE_HANDLE *h,
 
     // Delete the value and make sure things return correctly.
     int numStored = get_int_stat(h, h1, "ep_total_persisted");
-    check(h1->remove(h, h1, "k1", 2, 0, 0) == ENGINE_SUCCESS,
+    check(h1->remove(h, NULL, "k1", 2, 0, 0) == ENGINE_SUCCESS,
           "Failed remove with value.");
     while (get_int_stat(h, h1, "ep_total_persisted") == numStored) {
         usleep(100);
@@ -1482,7 +1482,7 @@ static enum test_result test_disk_gt_ram_paged_rm(ENGINE_HANDLE *h,
 
     // Delete the value and make sure things return correctly.
     int numStored = get_int_stat(h, h1, "ep_total_persisted");
-    check(h1->remove(h, h1, "k1", 2, 0, 0) == ENGINE_SUCCESS,
+    check(h1->remove(h, NULL, "k1", 2, 0, 0) == ENGINE_SUCCESS,
           "Failed remove with value.");
     while (get_int_stat(h, h1, "ep_total_persisted") == numStored) {
         usleep(100);
