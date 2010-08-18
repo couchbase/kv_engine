@@ -1139,6 +1139,7 @@ public:
         stats.bgMinLoad.set(999999999);
         stats.bgMaxLoad.set(0);
         stats.pendingOps.set(0);
+        stats.pendingOpsTotal.set(0);
         stats.pendingOpsMax.set(0);
         stats.pendingOpsMaxDuration.set(0);
     }
@@ -1604,6 +1605,8 @@ private:
         add_casted_stat("ep_io_write_bytes", epstats.io_write_bytes, add_stat, cookie);
 
         add_casted_stat("ep_pending_ops", epstats.pendingOps, add_stat, cookie);
+        add_casted_stat("ep_pending_ops_total", epstats.pendingOpsTotal,
+                        add_stat, cookie);
         add_casted_stat("ep_pending_ops_max", epstats.pendingOpsMax, add_stat, cookie);
         add_casted_stat("ep_pending_ops_max_duration",
                         hrtime2text(epstats.pendingOpsMaxDuration).c_str(),

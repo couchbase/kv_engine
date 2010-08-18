@@ -103,6 +103,8 @@ public:
 
     //! Number of ops blocked on all vbuckets in pending state
     Atomic<uint64_t> pendingOps;
+    //! Total number of ops ever blocked on all vbuckets in pending state
+    Atomic<uint64_t> pendingOpsTotal;
     //! High water value for ops blocked for any individual pending vbucket
     Atomic<uint64_t> pendingOpsMax;
     //! High water value for time an op is blocked on a pending vbucket

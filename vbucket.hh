@@ -91,6 +91,7 @@ public:
         }
         pendingOps.push_back(cookie);
         ++stats.pendingOps;
+        ++stats.pendingOpsTotal;
         return true;
     }
 

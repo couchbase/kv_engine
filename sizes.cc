@@ -46,5 +46,6 @@ int main(int argc, char **argv) {
     display("VBucket", sizeof(VBucket));
     display("VBucketHolder", sizeof(VBucketHolder));
     display("VBucketMap", sizeof(VBucketMap));
+    display("Stats", sizeof(EPStats));
     return 0;
 }
