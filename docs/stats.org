@@ -76,7 +76,7 @@
 | ep_bg_max_wait                | The longest time in the wait queue        |
 | ep_bg_wait_avg                | The average wait time for an item before  |
 |                               | it is serviced by the dispatcher          |
-| ep_bg_min_load                | The shortes load time                     |
+| ep_bg_min_load                | The shortest load time                    |
 | ep_bg_max_load                | The longest load time                     |
 | ep_bg_load_avg                | The average time for an item to be loaded |
 |                               | from the persistence layer                |
