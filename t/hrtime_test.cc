@@ -12,8 +12,13 @@ int main(int argc, char **argv) {
    assert(hrtime2text(10000) == "10 ms");
    assert(hrtime2text(9999999) == "9999 ms");
    assert(hrtime2text(10000000) == "10 s");
-   assert(hrtime2text(9999999999) == "9999 s");
-   assert(hrtime2text(10000000000) == "10000 s");
+
+   // Using math for some of the bigger ones because compilers on 32
+   // bit systems whine about large integer constants.
+   hrtime_t val = 10000;
+   val *= 1000000;
+   assert(hrtime2text(val) == "10000 s");
+   assert(hrtime2text(val - 1) == "9999 s");
 
    hrtime_t now = gethrtime();
    usleep(200);
