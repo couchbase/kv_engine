@@ -28,7 +28,7 @@ public:
     void visit(StoredValue *v) {
 
         double r = static_cast<double>(std::rand()) / static_cast<double>(RAND_MAX);
-        if (percent >= r && v->isResident() && v->ejectValue(stats)) {
+        if (percent >= r && v->ejectValue(stats)) {
             ++ejected;
         }
     }
