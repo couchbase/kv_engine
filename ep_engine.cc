@@ -222,7 +222,11 @@ extern "C" {
                 uint64_t vsize = strtoull(valz, &ptr, 10);
                 validate(vsize, static_cast<uint64_t>(0),
                          std::numeric_limits<uint64_t>::max());
-                e->getEpStats().maxDataSize = vsize;
+                EPStats &stats = e->getEpStats();
+                stats.maxDataSize = vsize;
+
+                stats.mem_low_wat = percentOf(StoredValue::getMaxDataSize(stats), 0.6);
+                stats.mem_high_wat = percentOf(StoredValue::getMaxDataSize(stats), 0.75);
             } else {
                 *msg = "Unknown config param";
                 rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;

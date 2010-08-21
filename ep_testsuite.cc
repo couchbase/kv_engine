@@ -1726,6 +1726,35 @@ static enum test_result test_disk_gt_ram_rm_race(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+static enum test_result test_max_size_settings(ENGINE_HANDLE *h,
+                                               ENGINE_HANDLE_V1 *h1) {
+    check(get_int_stat(h, h1, "ep_max_data_size") == 1000, "Incorrect initial size.");
+    check(get_int_stat(h, h1, "ep_mem_low_wat") == 600,
+          "Incorrect initial low wat.");
+    check(get_int_stat(h, h1, "ep_mem_high_wat") == 750,
+          "Incorrect initial high wat.");
+
+    set_flush_param(h, h1, "max_size", "1000000");
+
+    check(get_int_stat(h, h1, "ep_max_data_size") == 1000000,
+          "Incorrect new size.");
+    check(get_int_stat(h, h1, "ep_mem_low_wat") == 600000,
+          "Incorrect larger low wat.");
+    check(get_int_stat(h, h1, "ep_mem_high_wat") == 750000,
+          "Incorrect larger high wat.");
+
+    set_flush_param(h, h1, "max_size", "100");
+
+    check(get_int_stat(h, h1, "ep_max_data_size") == 100,
+          "Incorrect smaller size.");
+    check(get_int_stat(h, h1, "ep_mem_low_wat") == 60,
+          "Incorrect smaller low wat.");
+    check(get_int_stat(h, h1, "ep_mem_high_wat") == 75,
+          "Incorrect smaller high wat.");
+
+    return SUCCESS;
+}
+
 engine_test_t* get_tests(void) {
 
     static engine_test_t tests[]  = {
@@ -1733,6 +1762,8 @@ engine_test_t* get_tests(void) {
         {"test alloc limit", test_alloc_limit, NULL, teardown, NULL},
         {"test total memory limit", test_memory_limit, NULL, teardown,
          "max_size=4096;ht_locks=1;ht_size=3"},
+        {"test max_size changes", test_max_size_settings, NULL, teardown,
+         "max_size=1000;ht_locks=1;ht_size=3"},
         {"test whitespace dbname", test_whitespace_db, NULL, teardown,
          "dbname=" WHITESPACE_DB ";ht_locks=1;ht_size=3"},
         {"get miss", test_get_miss, NULL, teardown, NULL},
