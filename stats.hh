@@ -70,8 +70,12 @@ public:
     Atomic<int> queue_age_cap;
     //! Number of times background fetches occurred.
     Atomic<size_t> bg_fetched;
+    //! Number of times we needed to kick in the pager
+    Atomic<size_t> pagerRuns;
     //! Number of times a value is ejected
     Atomic<size_t> numValueEjects;
+    //! Number of times a value could not be ejected
+    Atomic<size_t> numFailedEjects;
 
     //! Max allowable memory size.
     Atomic<size_t> maxDataSize;

@@ -65,8 +65,11 @@
 |                               | tap queues                                |
 | ep_tap_keepalive              | Tap keepalive time.                       |
 | ep_bg_fetched                 | Number of items fetched from disk.        |
+| ep_num_pager_runs             | Number of times we ran pager loops        |
+|                               | to seek additional memory.                |
 | ep_num_value_ejects           | Number of times item values got ejected   |
 |                               | from memory to disk                       |
+| ep_num_eject_failures         | Number of items that could not be ejected |
 | ep_io_num_read                | Number of io read operations              |
 | ep_io_num_write               | Number of io write operations             |
 | ep_io_read_bytes              | Number of bytes read (key + values)       |

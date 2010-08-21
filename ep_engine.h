@@ -1126,7 +1126,9 @@ public:
         stats.flushDuration.set(0);
         stats.flushDurationHighWat.set(0);
         stats.commit_time.set(0);
+        stats.pagerRuns.set(0);
         stats.numValueEjects.set(0);
+        stats.numFailedEjects.set(0);
         stats.io_num_read.set(0);
         stats.io_num_write.set(0);
         stats.io_read_bytes.set(0);
@@ -1577,7 +1579,11 @@ private:
                         add_stat, cookie);
         add_casted_stat("ep_bg_fetched", epstats.bg_fetched, add_stat,
                         cookie);
+        add_casted_stat("ep_num_pager_runs", epstats.pagerRuns, add_stat,
+                        cookie);
         add_casted_stat("ep_num_value_ejects", epstats.numValueEjects, add_stat,
+                        cookie);
+        add_casted_stat("ep_num_eject_failures", epstats.numFailedEjects, add_stat,
                         cookie);
 
         if (warmup) {
