@@ -144,12 +144,15 @@ public:
                 vb.reset(new VBucket(i->getVBucketId(), pending, stats));
                 vbuckets.addBucket(vb);
             }
-            if (!vb->ht.add(*i, false, shouldBeResident())) {
+            bool retain = shouldBeResident();
+            if (!vb->ht.add(*i, false, retain)) {
                 getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                                  "Failed to load item due to memory constraint.\n");
             }
-            ++stats.numValueEjects;
-            ++stats.numNonResident;
+            if (!retain) {
+                ++stats.numValueEjects;
+                ++stats.numNonResident;
+            }
 
             delete i;
         }
