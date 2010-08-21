@@ -21,20 +21,15 @@ public:
      *
      * @param s the store (where we'll visit)
      * @param st the stats
-     * @param l lower boundary (how far down we'll aim to go when evicting)
-     * @param u the upper boundary (threshold at which we begin evicting)
      */
-    ItemPager(EventuallyPersistentStore *s, EPStats &st,
-              size_t l, size_t u) : store(s), stats(st),
-                                    lower(l), upper(u) {}
+    ItemPager(EventuallyPersistentStore *s, EPStats &st) :
+        store(s), stats(st) {}
 
     bool callback(Dispatcher &d, TaskId t);
 
 private:
     EventuallyPersistentStore *store;
     EPStats                   &stats;
-    size_t                     lower;
-    size_t                     upper;
 };
 
 #endif /* ITEM_PAGER_HH */

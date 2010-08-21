@@ -382,8 +382,7 @@ public:
             }
 #endif
 
-            shared_ptr<DispatcherCallback> cb(new ItemPager(epstore, stats,
-                                                            memLowWat, memHighWat));
+            shared_ptr<DispatcherCallback> cb(new ItemPager(epstore, stats));
             epstore->getDispatcher()->schedule(cb, NULL, 5, 10);
         }
 

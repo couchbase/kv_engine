@@ -61,6 +61,8 @@ private:
 
 bool ItemPager::callback(Dispatcher &d, TaskId t) {
     double current = static_cast<double>(StoredValue::getCurrentSize(stats));
+    double upper = static_cast<double>(stats.mem_high_wat);
+    double lower = static_cast<double>(stats.mem_low_wat);
     if (current > upper) {
 
         ++stats.pagerRuns;
