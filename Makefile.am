@@ -13,6 +13,7 @@ ep_la_LDFLAGS = -module -dynamic
 ep_la_SOURCES = \
                  atomic.hh \
                  callbacks.hh \
+                 command_ids.h \
                  common.hh \
                  config_static.h \
                  dispatcher.cc dispatcher.hh \

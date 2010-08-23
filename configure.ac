@@ -242,7 +242,7 @@ AS_IF([test "${MEMCACHED_DIR}" = "(system)"],
       [
       AS_IF([test "x$ac_cv_have_htonll" = "xyes"],[ MEMCACHED_DIR=. ], [
         AC_MSG_ERROR([
-ep-engine needs to link with a utility lib from memcached.
+ep-engine needs to link with memcached containing engine support.
 Specify its path using --with-memcached. ex: --with-memcached=../memcached
 ])
         ])
