@@ -46,6 +46,7 @@ static bool validTransition(enum flusher_state from,
 {
     bool rv(true);
     if (from == initializing && to == running) {
+    } else if (from == initializing && to == stopping) {
     } else if (from == running && to == pausing) {
     } else if (from == running && to == stopping) {
     } else if (from == pausing && to == paused) {
