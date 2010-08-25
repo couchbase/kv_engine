@@ -32,8 +32,12 @@ public:
         flushQueue(NULL) {
     }
     ~Flusher() {
-        stop();
-        wait();
+        if (_state != stopped) {
+            getLogger()->log(EXTENSION_LOG_WARN, NULL,
+                             "Flusher being destroyed in state %s\n",
+                             stateName(_state));
+
+        }
     }
 
     bool stop();
