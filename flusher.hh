@@ -33,7 +33,7 @@ public:
     }
     ~Flusher() {
         if (_state != stopped) {
-            getLogger()->log(EXTENSION_LOG_WARN, NULL,
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                              "Flusher being destroyed in state %s\n",
                              stateName(_state));
 
