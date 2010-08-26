@@ -6,6 +6,8 @@ noinst_LTLIBRARIES =
 
 bin_PROGRAMS =
 
+EXTRA_DIST = docs management README.markdown win32 Doxyfile LICENSE
+
 noinst_PROGRAMS = sizes
 
 ep_la_CPPFLAGS = -I@MEMCACHED_DIR@/include -I$(top_srcdir) $(AM_CPPFLAGS) -DSQLITE_HAS_CODEC=0
