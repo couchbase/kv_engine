@@ -1084,6 +1084,9 @@ public:
             tapConnectionMap.erase(iter);
         }
         purgeExpiredTapConnections_UNLOCKED();
+        lh.unlock();
+        serverApi->core->notify_io_complete(cookie,
+                                            ENGINE_DISCONNECT);
     }
 
     protocol_binary_response_status stopFlusher(const char **msg) {
@@ -1306,7 +1309,7 @@ private:
         // Collect the list of connections that need to be signaled.
         std::list<const void *> toNotify;
         for (iter = tapConnectionMap.begin(); iter != tapConnectionMap.end(); iter++) {
-            if (iter->second->paused || iter->second->doDisconnect) {
+            if (iter->second->paused && !iter->second->doDisconnect) {
                 toNotify.push_back(iter->first);
             }
         }
