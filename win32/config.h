@@ -1,3 +1,6 @@
+#ifndef CONFIG_H
+#define CONFIG_H
+
 #include "config_version.h"
 
 #undef  _WIN32_WINNT
@@ -58,5 +61,14 @@
 
 #include "config_static.h"
 
+#if defined(__cplusplus) && defined(__WIN64__)
+// There is a bug in the headerfiles from the 64bit mingw compiler I'm
+// using that _Exit isn't defined... Let's just add the C99 definition
+// here...
+extern "C" void _Exit(int status);
+#endif
+
 #undef small
 #undef interface
+
+#endif
