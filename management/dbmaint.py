@@ -26,7 +26,7 @@ def main():
         usage()
 
     cmd_dir = os.path.dirname(sys.argv[0])
-    bin_dir = '/usr/local/bin'
+    bin_dir = cmd_dir
     flushctl = os.path.join(cmd_dir, 'flushctl.py')
     sqlitebin = os.path.join(bin_dir, 'sqlite3')
 
