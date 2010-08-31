@@ -2,10 +2,16 @@
 #ifndef TAPCONNECTION_HH
 #define TAPCONNECTION_HH 1
 
+#include "mutex.hh"
+
 // forward decl
 class EventuallyPersistentEngine;
 class BackFillVisitor;
-
+class StrategicSqlite3;
+class TapBGFetchCallback;
+class CompleteBackfillOperation;
+class Dispatcher;
+class Item;
 
 /**
  * The tap stream may include other events than data mutation events,
@@ -61,15 +67,46 @@ public:
     std::string key;
 };
 
+class TapBGFetchQueueItem {
+public:
+    TapBGFetchQueueItem(const std::string &k, uint64_t i) :
+        key(k), id(i) {}
+
+    const std::string key;
+    const uint64_t id;
+};
 
 /**
  * Class used by the EventuallyPersistentEngine to keep track of all
  * information needed per Tap connection.
  */
 class TapConnection {
+public:
+    void completeBackfill() {
+        pendingBackfill = false;
+
+        if (complete() && idle()) {
+            std::cout << "Complete and idle.  Disconnecting." << std::endl;
+            // There is no data for this connection..
+            // Just go ahead and disconnect it.
+            doDisconnect = true;
+        }
+    }
+
+    /**
+     * Invoked each time a background item fetch completes.
+     */
+    void gotBGItem(Item *item);
+
+    /**
+     * Invoked once per batch bg fetch job.
+     */
+    void completedBGFetchJob();
+
+private:
     friend class EventuallyPersistentEngine;
     friend class BackFillVisitor;
-private:
+    friend class TapBGFetchCallback;
     /**
      * Add a new item to the tap queue.
      * The item may be ignored if the TapConnection got a vbucket filter
@@ -173,12 +210,22 @@ private:
     }
 
     bool idle() {
-        return queue->empty() && vBucketLowPriority.empty() && vBucketHighPriority.empty();
+        return empty() && vBucketLowPriority.empty() && vBucketHighPriority.empty();
+    }
+
+    bool hasItem() {
+        return bgResultSize != 0;
+    }
+
+    bool hasQueuedItem() {
+        return !queue->empty();
     }
 
     bool empty() {
-        return queue->empty();
+        return bgQueueSize == 0 && bgResultSize == 0 && queue->empty();
     }
+
+    Item* nextFetchedItem();
 
     void flush() {
         pendingFlush = true;
@@ -198,19 +245,35 @@ private:
         queue->splice(queue->end(), *q);
     }
 
-    void completeBackfill() {
-        pendingBackfill = false;
-
-        if (complete() && idle()) {
-            // There is no data for this connection..
-            // Just go ahead and disconnect it.
-            doDisconnect = true;
-        }
+    /**
+     * A backfill is pending if the iterator is active or there are
+     * background fetch jobs running.
+     */
+    bool isPendingBackfill() {
+        return pendingBackfill || (bgJobIssued - bgJobCompleted) != 0;
     }
 
+    /**
+     * A TapConnection is complete when it has nothing to transmit and
+     * a disconnect was requested at the end.
+     */
     bool complete(void) {
-        return dumpQueue && empty() && !pendingBackfill;
+        return dumpQueue && empty() && !isPendingBackfill();
     }
+
+    /**
+     * Queue an item to be background fetched.
+     *
+     * @param key the item's key
+     * @param id the disk id of the item to fetch
+     */
+    void queueBGFetch(const std::string &key, uint64_t id);
+
+    /**
+     * Run some background fetch jobs.
+     */
+    void runBGFetch(EventuallyPersistentEngine *e, Dispatcher *dispatcher,
+                    SERVER_CORE_API* core, const void *cookie);
 
     TapConnection(const std::string &n, uint32_t f):
         client(n), queue(NULL), queue_set(NULL), flags(f),
@@ -366,6 +429,13 @@ private:
 
     static Atomic<uint64_t> tapCounter;
 
+    Atomic<size_t> bgQueueSize;
+    Atomic<size_t> bgQueued;
+    Atomic<size_t> bgResultSize;
+    Atomic<size_t> bgResults;
+    Atomic<size_t> bgJobIssued;
+    Atomic<size_t> bgJobCompleted;
+
     // True if this should be disconnected as soon as possible
     bool doDisconnect;
 
@@ -379,6 +449,10 @@ private:
     bool ackSupported;
 
     std::list<TapLogElement> tapLog;
+
+    Mutex backfillLock;
+    std::queue<TapBGFetchQueueItem> backfillQueue;
+    std::queue<Item*> backfilledItems;
 
     // Constants used to enforce the tap ack protocol
     static const uint32_t ackWindowSize;

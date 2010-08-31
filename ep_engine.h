@@ -153,6 +153,28 @@ private:
     ADD_STAT add_stat;
 };
 
+template <typename V>
+class TapOperation {
+public:
+    virtual ~TapOperation() {}
+    virtual void perform(TapConnection *tc, V arg) = 0;
+};
+
+class CompleteBackfillTapOperation : public TapOperation<void*> {
+public:
+    void perform(TapConnection *tc, void* arg);
+};
+
+class ReceivedItemTapOperation : public TapOperation<Item*> {
+public:
+    void perform(TapConnection *tc, Item* arg);
+};
+
+class CompletedBGFetchTapOperation : public TapOperation<void*> {
+public:
+    void perform(TapConnection *tc, void* arg);
+};
+
 static size_t percentOf(size_t val, double percent) {
     return static_cast<size_t>(static_cast<double>(val) * percent);
 }
@@ -740,24 +762,30 @@ public:
             return ev.event;
         }
 
-        QueuedItem *qip;
-        qip = reinterpret_cast<QueuedItem*>(serverApi->core->get_engine_specific(cookie));
-        if (qip != NULL || !connection->empty()) {
-            QueuedItem qi("", 0, queue_op_set);
-            if (qip != NULL) {
-                qi = *qip;
-                delete qip;
-                serverApi->core->store_engine_specific(cookie, NULL);
+        if (connection->hasItem()) {
+            ret = TAP_MUTATION;
+            Item *item = connection->nextFetchedItem();
+            lh.unlock();
+            // If there's a better version in memory, grab it, else go
+            // with what we pulled from disk.
+            GetValue gv(epstore->get(item->getKey(), item->getVBucketId(),
+                                     cookie, serverApi->core, false));
+            if (gv.getStatus() == ENGINE_SUCCESS) {
+                *itm = gv.getValue();
             } else {
-                qi = connection->next();
+                *itm = item;
             }
+        } else if (connection->hasQueuedItem()) {
+            QueuedItem qi = connection->next();
             lh.unlock();
 
-            ENGINE_ERROR_CODE r;
             *vbucket = qi.getVBucketId();
             std::string key = qi.getKey();
-            r = get(cookie, itm, key.c_str(), (int)key.length(), qi.getVBucketId());
+            GetValue gv(epstore->get(key, qi.getVBucketId(), cookie,
+                                     serverApi->core, false));
+            ENGINE_ERROR_CODE r = gv.getStatus();
             if (r == ENGINE_SUCCESS) {
+                *itm = gv.getValue();
                 ret = TAP_MUTATION;
             } else if (r == ENGINE_KEY_ENOENT) {
                 ret = TAP_DELETION;
@@ -772,9 +800,15 @@ public:
                     ret = TAP_PAUSE;
                 }
             } else if (r == ENGINE_EWOULDBLOCK) {
-                qip = new QueuedItem(qi);
-                serverApi->core->store_engine_specific(cookie, qip);
-                return TAP_PAUSE;
+                connection->queueBGFetch(key, gv.getId());
+                // This can optionally collect a few and batch them.
+                connection->runBGFetch(this, epstore->getDispatcher(),
+                                       serverApi->core, cookie);
+                // If there's an item ready, return NOOP so we'll come
+                // back immediately, otherwise pause the connection
+                // while we wait.
+                return (connection->hasQueuedItem() || connection->hasItem())
+                    ? TAP_NOOP : TAP_PAUSE;
             } else {
                 if (r == ENGINE_NOT_MY_VBUCKET) {
                     getLogger()->log(EXTENSION_LOG_WARNING, NULL,
@@ -1237,6 +1271,30 @@ public:
         return stats;
     }
 
+    template <typename V>
+    void performTapOp(const std::string &name, TapOperation<V> &tapop, V arg) {
+        bool notify(true);
+        bool clear(true);
+        LockHolder lh(tapNotifySync);
+
+        TapConnection *tc = findTapConnByName_UNLOCKED(name);
+        if (tc) {
+            tapop.perform(tc, arg);
+            notify = tc->paused; // notify if paused
+            clear = tc->doDisconnect;
+        }
+
+        if (clear) {
+            clearTapValidity(name);
+        }
+
+        if (notify) {
+            tapNotifySync.notify();
+        }
+    }
+
+    EventuallyPersistentStore* getEpStore() { return epstore; }
+
 private:
     EventuallyPersistentEngine(GET_SERVER_API get_server_api);
     friend ENGINE_ERROR_CODE create_instance(uint64_t interface,
@@ -1413,22 +1471,6 @@ private:
         }
 
         return found;
-    }
-
-    void completeBackfill(const std::string &name) {
-        bool notify(true);
-        LockHolder lh(tapNotifySync);
-        clearTapValidity(name);
-
-        TapConnection *tc = findTapConnByName_UNLOCKED(name);
-        if (tc) {
-            tc->completeBackfill();
-            notify = tc->paused; // notify if paused
-        }
-
-        if (notify) {
-            tapNotifySync.notify();
-        }
     }
 
     ssize_t queueDepth(const std::string &name) {
@@ -2003,7 +2045,8 @@ public:
     void apply(void) {
         setEvents();
         if (valid) {
-            engine->completeBackfill(name);
+            CompleteBackfillTapOperation tapop;
+            engine->performTapOp(name, tapop, static_cast<void*>(NULL));
         }
     }
 

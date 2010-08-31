@@ -17,6 +17,7 @@
 
 #include "config.h"
 #include "ep_engine.h"
+#include "dispatcher.hh"
 
 const uint32_t TapConnection::ackWindowSize = 10;
 const uint32_t TapConnection::ackHighChunkThreshold = 1000;
@@ -146,3 +147,97 @@ void TapConnection::encodeVBucketStateTransition(const TapVBucketEvent &ev, void
     *nes = sizeof(vbucket_state_t);
 }
 
+class TapBGFetchCallback : public DispatcherCallback {
+public:
+    TapBGFetchCallback(EventuallyPersistentEngine *e, const std::string &n,
+                       SERVER_CORE_API *capi, const std::string &k,
+                       uint64_t r, const void *c) :
+        epe(e), name(n), core(capi), key(k), rowid(r), cookie(c),
+        init(gethrtime()), start(0) {
+        assert(epe);
+        assert(core);
+        assert(cookie);
+    }
+
+    bool callback(Dispatcher &d, TaskId t) {
+        (void)d; (void)t;
+
+        start = gethrtime();
+        RememberingCallback<GetValue> gcb;
+
+        EventuallyPersistentStore *epstore = epe->getEpStore();
+        assert(epstore);
+
+        epstore->getUnderlying()->get(key, rowid, gcb);
+        gcb.waitForValue();
+        assert(gcb.fired);
+
+        if (gcb.val.getStatus() == ENGINE_SUCCESS) {
+            ReceivedItemTapOperation tapop;
+            epe->performTapOp(name, tapop, gcb.val.getValue());
+            core->notify_io_complete(cookie, ENGINE_SUCCESS);
+        }
+
+        CompletedBGFetchTapOperation tapop;
+        epe->performTapOp(name, tapop, static_cast<void*>(NULL));
+
+        return false;
+    }
+
+private:
+    EventuallyPersistentEngine *epe;
+    const std::string           name;
+    SERVER_CORE_API            *core;
+    std::string                 key;
+    uint64_t                    rowid;
+    const void                 *cookie;
+
+    hrtime_t init;
+    hrtime_t start;
+};
+
+void TapConnection::queueBGFetch(const std::string &key, uint64_t id) {
+    LockHolder lh(backfillLock);
+    backfillQueue.push(TapBGFetchQueueItem(key, id));
+    ++bgQueued;
+    ++bgQueueSize;
+    assert(!empty());
+    assert(!idle());
+    assert(!complete());
+}
+
+void TapConnection::runBGFetch(EventuallyPersistentEngine *e, Dispatcher *dispatcher,
+                               SERVER_CORE_API *core, const void *cookie) {
+    LockHolder lh(backfillLock);
+    TapBGFetchQueueItem qi(backfillQueue.front());
+    backfillQueue.pop();
+    --bgQueueSize;
+    lh.unlock();
+
+    shared_ptr<TapBGFetchCallback> dcb(new TapBGFetchCallback(e, client, core,
+                                                              qi.key, qi.id,
+                                                              cookie));
+    ++bgJobIssued;
+    dispatcher->schedule(dcb, NULL, -1);
+}
+
+void TapConnection::gotBGItem(Item *i) {
+    LockHolder lh(backfillLock);
+    backfilledItems.push(i);
+    ++bgResultSize;
+    assert(hasItem());
+}
+
+void TapConnection::completedBGFetchJob() {
+    ++bgJobCompleted;
+}
+
+Item* TapConnection::nextFetchedItem() {
+    assert(hasItem());
+    LockHolder lh(backfillLock);
+    Item *rv = backfilledItems.front();
+    assert(rv);
+    backfilledItems.pop();
+    --bgResultSize;
+    return rv;
+}

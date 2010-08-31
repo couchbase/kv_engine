@@ -784,3 +784,17 @@ void EventuallyPersistentEngine::queueBackfill(TapConnection *tc, const void *to
 
     pthread_attr_destroy(&attr);
 }
+
+void CompleteBackfillTapOperation::perform(TapConnection *tc, void *arg) {
+    (void)arg;
+    tc->completeBackfill();
+}
+
+void ReceivedItemTapOperation::perform(TapConnection *tc, Item *arg) {
+    tc->gotBGItem(arg);
+}
+
+void CompletedBGFetchTapOperation::perform(TapConnection *tc, void *arg) {
+    (void)arg;
+    tc->completedBGFetchJob();
+}

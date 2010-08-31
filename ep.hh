@@ -346,6 +346,11 @@ public:
                    Callback<GetValue> &cb,
                    rel_time_t currentTime, uint32_t lockTimeout);
 
+    StrategicSqlite3* getUnderlying() {
+        // This method might also be called leakAbstraction()
+        return underlying;
+    }
+
 private:
 
     RCPtr<VBucket> getVBucket(uint16_t vbid, vbucket_state_t wanted_state);
