@@ -357,7 +357,8 @@ void EventuallyPersistentStore::bgFetch(const std::string &key,
 GetValue EventuallyPersistentStore::get(const std::string &key,
                                         uint16_t vbucket,
                                         const void *cookie,
-                                        SERVER_CORE_API *core) {
+                                        SERVER_CORE_API *core,
+                                        bool queueBG) {
     RCPtr<VBucket> vb = getVBucket(vbucket);
     if (!vb || vb->getState() == dead) {
         return GetValue(NULL, ENGINE_NOT_MY_VBUCKET);
@@ -378,7 +379,9 @@ GetValue EventuallyPersistentStore::get(const std::string &key,
     if (v) {
         // If the value is not resident, wait for it...
         if (!v->isResident()) {
-            bgFetch(key, vbucket, v->getId(), cookie, core);
+            if (queueBG) {
+                bgFetch(key, vbucket, v->getId(), cookie, core);
+            }
             return GetValue(NULL, ENGINE_EWOULDBLOCK);
         }
 

@@ -178,8 +178,20 @@ public:
                           const void *cookie,
                           bool force=false);
 
+    /**
+     * Retrieve a value.
+     *
+     * @param key the key to fetch
+     * @param vbucket the vbucket from which to retrieve the key
+     * @param cookie the connection cookie
+     * @param core the server API
+     * @param queueBG if true, automatically queue a background fetch if necessary
+     *
+     * @return a GetValue representing the result of the request
+     */
     GetValue get(const std::string &key, uint16_t vbucket,
-                 const void *cookie, SERVER_CORE_API *core);
+                 const void *cookie, SERVER_CORE_API *core,
+                 bool queueBG=true);
 
     void getFromUnderlying(const std::string &key, uint16_t vbucket,
                            shared_ptr<Callback<GetValue> > cb) {
