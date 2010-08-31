@@ -23,9 +23,9 @@ def stop(mc):
                 raise
             else:
                 raise
-            success = False
-            if stats['ep_flusher_state'] == 'paused':
-                stopped = True
+        success = False
+        if stats['ep_flusher_state'] == 'paused':
+            stopped = True
 
 if __name__ == '__main__':
 
