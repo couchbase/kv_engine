@@ -382,13 +382,14 @@ GetValue EventuallyPersistentStore::get(const std::string &key,
             if (queueBG) {
                 bgFetch(key, vbucket, v->getId(), cookie, core);
             }
-            return GetValue(NULL, ENGINE_EWOULDBLOCK);
+            return GetValue(NULL, ENGINE_EWOULDBLOCK, v->getId());
         }
 
         // return an invalid cas value if the item is locked
         GetValue rv(new Item(v->getKey(), v->getFlags(), v->getExptime(),
                              v->getValue(),
-                             v->isLocked(ep_current_time()) ? -1 : v->getCas()));
+                             v->isLocked(ep_current_time()) ? -1 : v->getCas()),
+                    ENGINE_SUCCESS, v->getId());
         lh.unlock();
         return rv;
     } else {

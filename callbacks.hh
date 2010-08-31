@@ -13,10 +13,11 @@ class Item;
  */
 class GetValue {
 public:
-    GetValue() : value(NULL), status(ENGINE_KEY_ENOENT) { }
+    GetValue() : value(NULL), id(-1), status(ENGINE_KEY_ENOENT) { }
 
-    explicit GetValue(Item *v, ENGINE_ERROR_CODE s=ENGINE_SUCCESS) :
-        value(v), status(s) { }
+    explicit GetValue(Item *v, ENGINE_ERROR_CODE s=ENGINE_SUCCESS,
+                      uint64_t i=-1) :
+        value(v), id(i), status(s) { }
 
     /**
      * The value retrieved for the key.
@@ -28,9 +29,15 @@ public:
      */
     ENGINE_ERROR_CODE getStatus() const { return status; }
 
+    /**
+     * Get the item's underlying ID (if applicable).
+     */
+    uint64_t getId() { return id; }
+
 private:
 
     Item* value;
+    uint64_t id;
     ENGINE_ERROR_CODE status;
 };
 
