@@ -772,6 +772,7 @@ public:
                                      cookie, serverApi->core, false));
             if (gv.getStatus() == ENGINE_SUCCESS) {
                 *itm = gv.getValue();
+                delete item;
             } else {
                 *itm = item;
             }
