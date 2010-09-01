@@ -1735,6 +1735,14 @@ private:
             addTapStat("idle", tc, tc->idle(), add_stat, cookie);
             addTapStat("empty", tc, tc->empty(), add_stat, cookie);
             addTapStat("complete", tc, tc->complete(), add_stat, cookie);
+            addTapStat("has_item", tc, tc->hasItem(), add_stat, cookie);
+            addTapStat("has_queued_item", tc, tc->hasQueuedItem(), add_stat, cookie);
+            addTapStat("bg_queue_size", tc, tc->bgQueueSize, add_stat, cookie);
+            addTapStat("bg_queued", tc, tc->bgQueued, add_stat, cookie);
+            addTapStat("bg_result_size", tc, tc->bgResultSize, add_stat, cookie);
+            addTapStat("bg_results", tc, tc->bgResults, add_stat, cookie);
+            addTapStat("bg_jobs_issued", tc, tc->bgJobIssued, add_stat, cookie);
+            addTapStat("bg_jobs_completed", tc, tc->bgJobCompleted, add_stat, cookie);
             addTapStat("flags", tc, tc->flags, add_stat, cookie);
             addTapStat("connected", tc, tc->connected, add_stat, cookie);
             addTapStat("pending_disconnect", tc, tc->doDisconnect, add_stat, cookie);
