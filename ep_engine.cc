@@ -794,7 +794,7 @@ void ReceivedItemTapOperation::perform(TapConnection *tc, Item *arg) {
     tc->gotBGItem(arg);
 }
 
-void CompletedBGFetchTapOperation::perform(TapConnection *tc, void *arg) {
-    (void)arg;
-    tc->completedBGFetchJob();
+void CompletedBGFetchTapOperation::perform(TapConnection *tc,
+                                           EventuallyPersistentEngine *epe) {
+    tc->completedBGFetchJob(epe);
 }

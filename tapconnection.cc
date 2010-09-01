@@ -179,7 +179,7 @@ public:
         }
 
         CompletedBGFetchTapOperation tapop;
-        epe->performTapOp(name, tapop, static_cast<void*>(NULL));
+        epe->performTapOp(name, tapop, epe);
 
         return false;
     }
@@ -218,6 +218,7 @@ void TapConnection::runBGFetch(EventuallyPersistentEngine *e, Dispatcher *dispat
                                                               qi.key, qi.id,
                                                               cookie));
     ++bgJobIssued;
+    ++e->getEpStore()->bgFetchQueue;
     dispatcher->schedule(dcb, NULL, -1);
 }
 
@@ -228,8 +229,9 @@ void TapConnection::gotBGItem(Item *i) {
     assert(hasItem());
 }
 
-void TapConnection::completedBGFetchJob() {
+void TapConnection::completedBGFetchJob(EventuallyPersistentEngine *epe) {
     ++bgJobCompleted;
+    --epe->getEpStore()->bgFetchQueue;
 }
 
 Item* TapConnection::nextFetchedItem() {

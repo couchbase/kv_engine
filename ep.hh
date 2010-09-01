@@ -374,6 +374,7 @@ private:
     friend class Flusher;
 
     friend class BGFetchCallback;
+    friend class TapConnection;
     EventuallyPersistentEngine &engine;
     EPStats                    &stats;
     bool                       doPersistence;

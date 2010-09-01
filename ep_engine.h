@@ -170,9 +170,9 @@ public:
     void perform(TapConnection *tc, Item* arg);
 };
 
-class CompletedBGFetchTapOperation : public TapOperation<void*> {
+class CompletedBGFetchTapOperation : public TapOperation<EventuallyPersistentEngine*> {
 public:
-    void perform(TapConnection *tc, void* arg);
+    void perform(TapConnection *tc, EventuallyPersistentEngine* arg);
 };
 
 static size_t percentOf(size_t val, double percent) {

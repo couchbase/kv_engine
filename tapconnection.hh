@@ -101,7 +101,7 @@ public:
     /**
      * Invoked once per batch bg fetch job.
      */
-    void completedBGFetchJob();
+    void completedBGFetchJob(EventuallyPersistentEngine *epe);
 
 private:
     friend class EventuallyPersistentEngine;
