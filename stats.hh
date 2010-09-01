@@ -30,6 +30,14 @@ public:
     Atomic<size_t> queue_size;
     //! Size of the in-process (output) queue.
     Atomic<size_t> flusher_todo;
+    //! Number of transaction commits.
+    Atomic<size_t> flusherCommits;
+    //! Number of times the flusher was preempted for a read
+    Atomic<size_t> flusherPreempts;
+    //! Total time spent flushing.
+    Atomic<size_t> cumulativeFlushTime;
+    //! Total time spent committing.
+    Atomic<size_t> cumulativeCommitTime;
     //! Objects that were rejected from persistence for being too fresh.
     Atomic<size_t> tooYoung;
     //! Objects that were forced into persistence for being too old.

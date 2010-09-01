@@ -42,8 +42,12 @@
 | ep_queue_size                 | Number of items queued for storage.       |
 | ep_flusher_todo               | Number of items remaining to be written.  |
 | ep_flusher_state              | Current state of the flusher thread.      |
+| ep_commit_num                 | Total number of write commits.            |
 | ep_commit_time                | Number of seconds of most recent commit.  |
+| ep_commit_time_total          | Cumulative seconds spent committing.      |
+| ep_flush_preempts             | Num of flush early exits for read reqs.   |
 | ep_flush_duration             | Number of seconds of most recent flush.   |
+| ep_flush_duration_total       | Cumulative seconds spent flushing.        |
 | ep_flush_duration_highwat     | ep_flush_duration high water mark.        |
 | ep_kv_size                    | Memory used to store keys and values.     |
 | ep_overhead                   | Extra memory used by rep queues, etc..    |

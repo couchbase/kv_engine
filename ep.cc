@@ -548,6 +548,7 @@ void EventuallyPersistentStore::completeFlush(std::queue<QueuedItem> *rej,
     stats.flushDuration.set(complete_time - flush_start);
     stats.flushDurationHighWat.set(std::max(stats.flushDuration.get(),
                                             stats.flushDurationHighWat.get()));
+    stats.cumulativeFlushTime.incr(complete_time - flush_start);
 }
 
 int EventuallyPersistentStore::flushSome(std::queue<QueuedItem> *q,
@@ -561,14 +562,19 @@ int EventuallyPersistentStore::flushSome(std::queue<QueuedItem> *q,
             oldest = n;
         }
     }
+    if (bgFetchQueue > 0) {
+        ++stats.flusherPreempts;
+    }
     rel_time_t cstart = ep_current_time();
     while (!underlying->commit()) {
         sleep(1);
         stats.commitFailed++;
     }
+    ++stats.flusherCommits;
     rel_time_t complete_time = ep_current_time();
 
     stats.commit_time.set(complete_time - cstart);
+    stats.cumulativeCommitTime.incr(complete_time - cstart);
     return oldest;
 }
 
