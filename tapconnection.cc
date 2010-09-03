@@ -219,7 +219,7 @@ void TapConnection::runBGFetch(EventuallyPersistentEngine *e, Dispatcher *dispat
                                                               cookie));
     ++bgJobIssued;
     ++e->getEpStore()->bgFetchQueue;
-    dispatcher->schedule(dcb, NULL, Priority::BgFetcherPriority);
+    dispatcher->schedule(dcb, NULL, Priority::TapBgFetcherPriority);
 }
 
 void TapConnection::gotBGItem(Item *i) {

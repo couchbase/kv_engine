@@ -18,7 +18,8 @@
 #include "priority.hh"
 
 const Priority Priority::BgFetcherPriority("bg_fetcher_priority", 0);
-const Priority Priority::SetVBucketPriority("set_vbucket_priority", 1);
+const Priority Priority::TapBgFetcherPriority("bg_fetcher_priority", 1);
+const Priority Priority::SetVBucketPriority("set_vbucket_priority", 2);
 const Priority Priority::FlusherPriority("flusher_priority", 5);
 const Priority Priority::ItemPagerPriority("item_pager_priority", 7);
 const Priority Priority::VBucketDeletionPriority("vbucket_deletion_priority", 9);

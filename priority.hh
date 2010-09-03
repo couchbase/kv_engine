@@ -12,6 +12,7 @@
 class Priority {
 public:
     static const Priority BgFetcherPriority;
+    static const Priority TapBgFetcherPriority;
     static const Priority SetVBucketPriority;
     static const Priority FlusherPriority;
     static const Priority ItemPagerPriority;
