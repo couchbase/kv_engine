@@ -110,10 +110,6 @@ ep_la_SOURCES += gethrtime.c
 hrtime_test_SOURCES += gethrtime.c
 endif
 
-if ENABLE_INTERNAL_TAP
-ep_la_SOURCES += tapclient.cc tapclient.hh
-endif
-
 test: all check-TESTS
 	@MEMCACHED_DIR@/engine_testapp -E .libs/ep.so -T .libs/ep_testsuite.so \
 		-e 'ht_size=13;ht_locks=7;initfile=t/test_pragma.sql;min_data_age=0'

@@ -180,21 +180,11 @@ extern "C" {
     static protocol_binary_response_status setTapParam(EventuallyPersistentEngine *e,
                                                        const char *keyz, const char *valz,
                                                        const char **msg) {
+        (void)e; (void)keyz; (void)valz;
         protocol_binary_response_status rv = PROTOCOL_BINARY_RESPONSE_SUCCESS;
 
-#ifdef ENABLE_INTERNAL_TAP
-        if (strcmp(keyz, "tap_peer") == 0) {
-            e->setTapPeer(valz);
-            *msg = "Updated";
-        } else {
-#endif
-            *msg = "Unknown config param";
-            rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
-#ifdef ENABLE_INTERNAL_TAP
-        }
-#else
-        (void)e; (void)keyz; (void)valz;
-#endif
+        *msg = "Unknown config param";
+        rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
         return rv;
     }
 
@@ -490,22 +480,6 @@ extern "C" {
         case CMD_SET_TAP_PARAM:
             res = setParam(h, request, &msg);
             break;
-#ifdef ENABLE_INTERNAL_TAP
-        case CMD_START_REPLICATION:
-            if (h->startReplication()) {
-                msg = "Started";
-                res = PROTOCOL_BINARY_RESPONSE_SUCCESS;
-            } else {
-                msg = "Error - is the peer set?";
-                res = PROTOCOL_BINARY_RESPONSE_EINVAL;
-            }
-            break;
-        case CMD_STOP_REPLICATION:
-            h->stopReplication();
-            res = PROTOCOL_BINARY_RESPONSE_SUCCESS;
-            msg = "Stopped";
-            break;
-#endif
         case CMD_GET_VBUCKET:
             res = getVbucket(h, request, &msg);
             break;
@@ -679,9 +653,6 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server
     tapIdleTimeout(DEFAULT_TAP_IDLE_TIMEOUT), nextTapNoop(0),
     startedEngineThreads(false), shutdown(false),
     getServerApi(get_server_api), getlExtension(NULL),
-#ifdef ENABLE_INTERNAL_TAP
-    clientTap(NULL),
-#endif
     tapEnabled(false), maxItemSize(20*1024*1024),
     memLowWat(std::numeric_limits<size_t>::max()),
     memHighWat(std::numeric_limits<size_t>::max()),
@@ -721,13 +692,8 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-#ifdef ENABLE_INTERNAL_TAP
-    char *master = NULL;
-    char *tap_id = NULL;
-#endif
 
     resetStats();
-
     if (config != NULL) {
         char *dbn = NULL, *initf = NULL, *svaltype = NULL;
         size_t htBuckets = 0;
@@ -787,18 +753,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         items[ii].key = "max_size";
         items[ii].datatype = DT_SIZE;
         items[ii].value.dt_size = &maxSize;
-
-#ifdef ENABLE_INTERNAL_TAP
-        ++ii;
-        items[ii].key = "tap_peer";
-        items[ii].datatype = DT_STRING;
-        items[ii].value.dt_string = &master;
-
-        ++ii;
-        items[ii].key = "tap_id";
-        items[ii].datatype = DT_STRING;
-        items[ii].value.dt_string = &tap_id;
-#endif
 
         ++ii;
         items[ii].key = "tap_idle_timeout";
@@ -925,18 +879,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
             }
         }
 
-#ifdef ENABLE_INTERNAL_TAP
-        if (tap_id != NULL) {
-            tapId.assign(tap_id);
-            free(tap_id);
-        }
-
-        if (master != NULL) {
-            setTapPeer(master);
-            free(master);
-        }
-#endif
-
         shared_ptr<DispatcherCallback> cb(new ItemPager(epstore, stats));
         epstore->getDispatcher()->schedule(cb, NULL, Priority::ItemPagerPriority, 10);
     }
@@ -952,9 +894,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
 }
 
 void EventuallyPersistentEngine::destroy() {
-#ifdef ENABLE_INTERNAL_TAP
-    stopReplication();
-#endif
     stopEngineThreads();
 }
 
@@ -1821,32 +1760,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTapStats(const void *cookie,
 
     add_casted_stat("ep_replication_state",
                     tapEnabled? "enabled": "disabled", add_stat, cookie);
-
-    const char *repStatus = "stopped";
-    std::string tapPeer;
-
-#ifdef ENABLE_INTERNAL_TAP
-    {
-        LockHolder ltm(tapMutex);
-        if (clientTap != NULL) {
-            tapPeer.assign(clientTap->peer);
-            if (clientTap->connected) {
-                if (!tapEnabled) {
-                    repStatus = "stopping";
-                } else {
-                    repStatus = "running";
-                }
-            } else if (clientTap->running && tapEnabled) {
-                repStatus = "connecting";
-            }
-        }
-    }
-#endif
-
-    add_casted_stat("ep_replication_peer",
-                    tapPeer.empty()? "none":
-                    tapPeer.c_str(), add_stat, cookie);
-    add_casted_stat("ep_replication_status", repStatus, add_stat, cookie);
 
     add_casted_stat("ep_tap_ack_window_size", TapConnection::ackWindowSize,
                     add_stat, cookie);

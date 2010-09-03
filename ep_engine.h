@@ -10,9 +10,6 @@
 #include "dispatcher.hh"
 #include "item_pager.hh"
 #include <memcached/util.h>
-#ifdef ENABLE_INTERNAL_TAP
-#include "tapclient.hh"
-#endif
 
 #include <cstdio>
 #include <map>
@@ -469,47 +466,6 @@ public:
         epstore->setBGFetchDelay(to);
     }
 
-#ifdef ENABLE_INTERNAL_TAP
-    void setTapPeer(std::string peer) {
-        tapConnect(peer);
-    }
-
-    bool startReplication() {
-        LockHolder lh(tapMutex);
-        tapEnabled = true;
-        if (clientTap != NULL) {
-            try {
-                clientTap->start();
-                return true;
-            } catch (std::runtime_error &e) {
-                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                 "Failed to start replication: %s\n",
-                                 e.what());
-            }
-        }
-
-        return false;
-    }
-
-    bool stopReplication() {
-        LockHolder ltm(tapMutex);
-        tapEnabled = false;
-
-        if (clientTap != NULL) {
-            try {
-                clientTap->stop();
-                return true;
-            } catch (std::runtime_error &e) {
-                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                 "Failed to start replication: %s\n",
-                                 e.what());
-            }
-        }
-
-        return false;
-    }
-#endif
-
     protocol_binary_response_status evictKey(const std::string &key,
                                              uint16_t vbucket,
                                              const char **msg) {
@@ -790,42 +746,6 @@ private:
         }
     }
 
-#ifdef ENABLE_INTERNAL_TAP
-    void tapConnect(std::string &peer) {
-        uint32_t flags = 0;
-
-        LockHolder lh(tapMutex);
-        bool found = false;
-        if (clientTap != NULL) {
-            if (clientTap->peer != peer) {
-                delete clientTap;
-            } else {
-                found = true;
-            }
-        }
-
-        if (!found) {
-            clientTap = new TapClientConnection(peer, tapId, flags, this);
-            tapConnect();
-        }
-    }
-
-    void tapConnect() {
-        try {
-            tapEnabled = true;
-            std::stringstream ss;
-            ss << "Setting up TAP connection to: " << clientTap->peer
-               << std::endl;
-            getLogger()->log(EXTENSION_LOG_DEBUG, NULL, ss.str().c_str());
-            clientTap->start();
-        } catch (std::runtime_error &e) {
-            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "Failed to create TAP connection: %s\n",
-                             e.what());
-        }
-    }
-#endif
-
     const char *dbname;
     const char *initFile;
     bool warmup;
@@ -855,10 +775,6 @@ private:
     GetlExtension *getlExtension;
 
     Mutex tapMutex;
-#ifdef ENABLE_INTERNAL_TAP
-    TapClientConnection* clientTap;
-    std::string tapId;
-#endif
     bool tapEnabled;
     size_t maxItemSize;
     size_t memLowWat;

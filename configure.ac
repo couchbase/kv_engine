@@ -164,16 +164,6 @@ AH_BOTTOM([
 #endif
 ])
 
-AC_ARG_ENABLE([internal_tap],
-  [AS_HELP_STRING([--enable-internal-tapclient],
-     [Enable builtin TAP client (deprecated) @<:@default=off@:>@])],
-  [ac_enable_internal_tap="$enableval"],
-  [ac_enable_internal_tap="no"])
-
-AM_CONDITIONAL(ENABLE_INTERNAL_TAP, test "$ac_enable_internal_tap" = "yes")
-AS_IF(test "x$ac_enable_internal_tap" = "xyes",
-      AC_DEFINE(ENABLE_INTERNAL_TAP, 1, Define to build internal tap client))
-
 trymemcacheddir=""
 AC_ARG_WITH(memcached,
        [  --with-memcached=PATH     Specify path to memcached installation ],
