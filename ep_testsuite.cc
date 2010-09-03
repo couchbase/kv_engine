@@ -1068,10 +1068,6 @@ static enum test_result test_vbucket_destroy_stats(ENGINE_HANDLE *h,
 }
 
 static enum test_result test_vbucket_destroy_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    (void)h; (void)h1;
-    return PENDING;
-
-#if 0
     check(set_vbucket_state(h, h1, 1, "active"), "Failed to set vbucket state.");
     waitfor_vbucket_state(h, h1, 1, "active");
 
@@ -1102,6 +1098,8 @@ static enum test_result test_vbucket_destroy_restart(ENGINE_HANDLE *h, ENGINE_HA
     check(set_vbucket_state(h, h1, 1, "dead"), "Failed set set vbucket 1 state.");
     waitfor_vbucket_state(h, h1, 1, "dead");
 
+    int vbucketDel = get_int_stat(h, h1, "ep_vbucket_del");
+
     pkt = create_packet(CMD_DEL_VBUCKET, "1", "");
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Failed to delete dead bucket.");
@@ -1110,6 +1108,8 @@ static enum test_result test_vbucket_destroy_restart(ENGINE_HANDLE *h, ENGINE_HA
 
     check(verify_vbucket_missing(h, h1, 1),
           "vbucket 1 was not missing after deleting it.");
+
+    wait_for_stat_change(h, h1, "ep_vbucket_del", vbucketDel);
 
     testHarness.reload_engine(&h, &h1,
                               testHarness.engine_path,
@@ -1125,7 +1125,6 @@ static enum test_result test_vbucket_destroy_restart(ENGINE_HANDLE *h, ENGINE_HA
           "vbucket 1 was not missing after restart.");
 
     return SUCCESS;
-#endif
 }
 
 static enum test_result test_vb_set_pending(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {

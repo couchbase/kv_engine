@@ -292,7 +292,10 @@ void EventuallyPersistentStore::completeVBucketDeletion(uint16_t vbid) {
 
     RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
     if(!vb || vb->getState() == dead) {
-        if (!underlying->delVBucket(vbid)) {
+        if (underlying->delVBucket(vbid)) {
+            ++stats.vbucketDeletions;
+        } else {
+            ++stats.vbucketDeletionFail;
             getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
                              "Rescheduling a task to delete vbucket %d from disk\n", vbid);
             dispatcher->schedule(shared_ptr<DispatcherCallback>(new VBucketDeletionCallback(this, vbid)),

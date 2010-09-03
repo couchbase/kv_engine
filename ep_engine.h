@@ -1611,6 +1611,10 @@ private:
                         epstats.commit_time, add_stat, cookie);
         add_casted_stat("ep_commit_time_total",
                         epstats.cumulativeFlushTime, add_stat, cookie);
+        add_casted_stat("ep_vbucket_del",
+                        epstats.vbucketDeletions, add_stat, cookie);
+        add_casted_stat("ep_vbucket_del_fail",
+                        epstats.vbucketDeletionFail, add_stat, cookie);
         add_casted_stat("ep_flush_preempts",
                         epstats.flusherPreempts, add_stat, cookie);
         add_casted_stat("ep_flush_duration",

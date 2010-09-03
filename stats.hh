@@ -64,6 +64,10 @@ public:
     Atomic<rel_time_t> flushDurationHighWat;
     //! Amount of time spent in the commit phase.
     Atomic<rel_time_t> commit_time;
+    //! Number of times we deleted a vbucket.
+    Atomic<size_t> vbucketDeletions;
+    //! Number of times we failed to delete a vbucket.
+    Atomic<size_t> vbucketDeletionFail;
     /**
      * Total number of items.
      *
