@@ -1892,6 +1892,83 @@ void EventuallyPersistentEngine::resetStats()
     stats.numTapFetched.set(0);
 }
 
+void EventuallyPersistentEngine::notifyTapIoThreadMain(void) {
+    bool addNoop = false;
+
+    rel_time_t now = ep_current_time();
+    if (now > nextTapNoop && tapIdleTimeout != (size_t)-1) {
+        addNoop = true;
+        nextTapNoop = now + (tapIdleTimeout / 3);
+    }
+    LockHolder lh(tapNotifySync);
+    // We should pause unless we purged some connections or
+    // all queues have items.
+    bool shouldPause = purgeExpiredTapConnections_UNLOCKED() == 0;
+    // see if I have some channels that I have to signal..
+    std::map<const void*, TapConnection*>::iterator iter;
+    for (iter = tapConnectionMap.begin(); iter != tapConnectionMap.end(); iter++) {
+        if (iter->second->ackSupported &&
+            (iter->second->expiry_time < now) &&
+            iter->second->windowIsFull())
+            {
+                shouldPause = false;
+                iter->second->doDisconnect = true;
+            } else if (iter->second->doDisconnect || !iter->second->idle()) {
+            shouldPause = false;
+        } else if (addNoop) {
+            TapVBucketEvent hi(TAP_NOOP, 0, pending);
+            iter->second->addVBucketHighPriority(hi);
+            shouldPause = false;
+        }
+    }
+
+    if (shouldPause) {
+        double diff = nextTapNoop - now;
+        if (diff > 0) {
+            tapNotifySync.wait(diff);
+        }
+
+        if (shutdown) {
+            return;
+        }
+        purgeExpiredTapConnections_UNLOCKED();
+    }
+
+    // Collect the list of connections that need to be signaled.
+    std::list<const void *> toNotify;
+    for (iter = tapConnectionMap.begin(); iter != tapConnectionMap.end(); iter++) {
+        if (iter->second->paused && !iter->second->doDisconnect) {
+            toNotify.push_back(iter->first);
+        }
+    }
+
+    lh.unlock();
+
+    // Signal all outstanding, paused connections.
+    std::for_each(toNotify.begin(), toNotify.end(),
+                  std::bind2nd(std::ptr_fun(serverApi->core->notify_io_complete),
+                               ENGINE_SUCCESS));
+}
+
+void EventuallyPersistentEngine::notifyTapIoThread(void) {
+    // Fix clean shutdown!!!
+    while (!shutdown) {
+
+        notifyTapIoThreadMain();
+
+        if (shutdown) {
+            return;
+        }
+
+        // Prevent the notify thread from busy-looping while
+        // holding locks when there's work to do.
+        LockHolder lh(tapNotifySync);
+        tapNotifySync.wait(1.0);
+    }
+}
+
+
+
 void CompleteBackfillTapOperation::perform(TapConnection *tc, void *arg) {
     (void)arg;
     tc->completeBackfill();
