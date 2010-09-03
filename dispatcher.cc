@@ -112,9 +112,9 @@ void Dispatcher::stop() {
 
 void Dispatcher::schedule(shared_ptr<DispatcherCallback> callback,
                           TaskId *outtid,
-                          int priority, double sleeptime) {
+                          const Priority &priority, double sleeptime) {
     LockHolder lh(mutex);
-    TaskId task(new Task(callback, priority, sleeptime));
+    TaskId task(new Task(callback, priority.getPriorityValue(), sleeptime));
     if (outtid) {
         *outtid = TaskId(task);
     }

@@ -7,6 +7,7 @@
 
 #include "common.hh"
 #include "locks.hh"
+#include "priority.hh"
 
 class Dispatcher;
 
@@ -59,7 +60,7 @@ friend class CompareTasks;
 public:
     ~Task() { }
 private:
-    Task(shared_ptr<DispatcherCallback> cb, int p=0, double sleeptime=0) :
+    Task(shared_ptr<DispatcherCallback> cb,  int p, double sleeptime=0) :
          callback(cb), priority(p) {
         if (sleeptime > 0) {
             snooze(sleeptime);
@@ -134,12 +135,12 @@ public:
      *
      * @param callback a shared_ptr to the callback to run
      * @param outtid an output variable that will receive the task ID (may be NULL)
-     * @param priority job priority (higher numbers are lower priority)
+     * @param priority job priority instance that defines a job's priority
      * @param sleeptime how long (in seconds) to wait before starting the job
      */
     void schedule(shared_ptr<DispatcherCallback> callback,
                   TaskId *outtid,
-                  int priority=0, double sleeptime=0);
+                  const Priority &priority, double sleeptime=0);
 
     /**
      * Wake up the given task.

@@ -17,5 +17,8 @@
 #include "config.h"
 #include "priority.hh"
 
-const Priority Priority::Low("low");
-const Priority Priority::High("high");
+const Priority Priority::BgFetcherPriority("bg_fetcher_priority", 0);
+const Priority Priority::SetVBucketPriority("set_vbucket_priority", 1);
+const Priority Priority::FlusherPriority("flusher_priority", 5);
+const Priority Priority::ItemPagerPriority("item_pager_priority", 7);
+const Priority Priority::VBucketDeletionPriority("vbucket_deletion_priority", 9);

@@ -5,6 +5,7 @@
 #include "dispatcher.hh"
 #include "atomic.hh"
 #include "locks.hh"
+#include "priority.hh"
 
 #define EXPECTED_NUM_CALLBACKS 3
 
@@ -28,7 +29,7 @@ class Thing {
 public:
     void start(void) {
         dispatcher.schedule(shared_ptr<TestCallback>(new TestCallback(this)),
-                            &tid);
+                            &tid, Priority::BgFetcherPriority);
     }
 
     bool doSomething(Dispatcher &d, TaskId &t) {

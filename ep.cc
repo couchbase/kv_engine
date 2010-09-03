@@ -260,7 +260,7 @@ void EventuallyPersistentStore::setVBucketState(uint16_t vbid,
     if (vb) {
         vb->setState(to, core);
         dispatcher->schedule(shared_ptr<DispatcherCallback>(new SetVBStateCallback(vb, core)),
-                             NULL, -1);
+                             NULL, Priority::SetVBucketPriority);
     } else {
         RCPtr<VBucket> newvb(new VBucket(vbid, to, stats));
         vbuckets.addBucket(newvb);
@@ -351,7 +351,7 @@ void EventuallyPersistentStore::bgFetch(const std::string &key,
     getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
                      "Queued a background fetch, now at %zd\n",
                      bgFetchQueue.get());
-    dispatcher->schedule(dcb, NULL, -1, bgFetchDelay);
+    dispatcher->schedule(dcb, NULL, Priority::BgFetcherPriority, bgFetchDelay);
 }
 
 GetValue EventuallyPersistentStore::get(const std::string &key,

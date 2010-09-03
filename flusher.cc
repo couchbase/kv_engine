@@ -116,7 +116,7 @@ void Flusher::initialize(TaskId tid) {
 
 void Flusher::schedule_UNLOCKED() {
     dispatcher->schedule(shared_ptr<FlusherStepper>(new FlusherStepper(this)),
-                         &task);
+                         &task, Priority::FlusherPriority);
     assert(task.get());
 }
 

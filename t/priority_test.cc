@@ -7,14 +7,10 @@
 int main(int argc, char **argv) {
    (void)argc; (void)argv;
 
-   assert(Priority::Low < Priority::High);
-   assert(!(Priority::High < Priority::Low));
-   assert(Priority::High > Priority::Low);
-   assert(!(Priority::Low > Priority::High));
-   assert(!(Priority::Low == Priority::High));
-   assert(!(Priority::High == Priority::Low));
-   assert(Priority::Low == Priority::Low);
-   assert(Priority::High == Priority::High);
+   assert(Priority::BgFetcherPriority > Priority::SetVBucketPriority);
+   assert(Priority::SetVBucketPriority > Priority::FlusherPriority);
+   assert(Priority::FlusherPriority > Priority::ItemPagerPriority);
+   assert(Priority::ItemPagerPriority > Priority::VBucketDeletionPriority);
 
    return 0;
 }
