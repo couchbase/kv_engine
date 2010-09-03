@@ -755,6 +755,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         items[ii].value.dt_size = &maxSize;
 
         ++ii;
+        items[ii].key = "cache_size";
+        items[ii].datatype = DT_SIZE;
+        items[ii].value.dt_size = &maxSize;
+
+        ++ii;
         items[ii].key = "tap_idle_timeout";
         items[ii].datatype = DT_SIZE;
         items[ii].value.dt_size = &tapIdleTimeout;
