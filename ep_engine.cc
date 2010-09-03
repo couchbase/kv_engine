@@ -1395,6 +1395,114 @@ bool EventuallyPersistentEngine::checkTapValidity(const std::string &name,
     return viter != backfillValidityMap.end() && viter->second == token;
 }
 
+
+/**
+ * VBucketVisitor to backfill a TapConnection.
+ */
+class BackFillVisitor : public VBucketVisitor {
+public:
+    BackFillVisitor(EventuallyPersistentEngine *e, TapConnection *tc,
+                    const void *token):
+        VBucketVisitor(), engine(e), name(tc->client),
+        queue(new std::list<QueuedItem>),
+        filter(tc->vbucketFilter), validityToken(token),
+        maxBackfillSize(250000), valid(true) { }
+
+    ~BackFillVisitor() {
+        delete queue;
+    }
+
+    bool visitBucket(uint16_t vbid, vbucket_state_t state) {
+        if (filter(vbid)) {
+            VBucketVisitor::visitBucket(vbid, state);
+            return true;
+        }
+        return false;
+    }
+
+    void visit(StoredValue *v) {
+        std::string k = v->getKey();
+        QueuedItem qi(k, currentBucket, queue_op_set);
+        queue->push_back(qi);
+    }
+
+    bool shouldContinue() {
+        setEvents();
+        return valid;
+    }
+
+    void apply(void) {
+        setEvents();
+        if (valid) {
+            CompleteBackfillTapOperation tapop;
+            engine->performTapOp(name, tapop, static_cast<void*>(NULL));
+        }
+    }
+
+private:
+
+    void setEvents() {
+        if (checkValidity()) {
+            if (!queue->empty()) {
+                // Don't notify unless we've got some data..
+                engine->setEvents(name, queue);
+            }
+            waitForQueue();
+        }
+    }
+
+    void waitForQueue() {
+        bool reported(false);
+        bool tooBig(true);
+
+        while (checkValidity() && tooBig) {
+            ssize_t theSize(engine->queueDepth(name));
+            if (theSize < 0) {
+                getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                                 "TapConnection %s went away.  Stopping backfill.\n",
+                                 name.c_str());
+                valid = false;
+                return;
+            }
+
+            tooBig = theSize > maxBackfillSize;
+
+            if (tooBig) {
+                if (!reported) {
+                    getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                                     "Tap queue depth too big for %s, sleeping\n",
+                                     name.c_str());
+                    reported = true;
+                }
+                sleep(1);
+            }
+        }
+        if (reported) {
+            getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                             "Resuming backfill of %s.\n",
+                             name.c_str());
+        }
+    }
+
+    bool checkValidity() {
+        valid = valid && engine->checkTapValidity(name, validityToken);
+        if (!valid) {
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                             "Backfilling token for %s went invalid.  Stopping backfill.\n",
+                             name.c_str());
+        }
+        return valid;
+    }
+
+    EventuallyPersistentEngine *engine;
+    const std::string name;
+    std::list<QueuedItem> *queue;
+    VBucketFilter filter;
+    const void *validityToken;
+    ssize_t maxBackfillSize;
+    bool valid;
+};
+
 class BackFillThreadData {
 public:
 
