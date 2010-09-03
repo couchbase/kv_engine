@@ -57,7 +57,6 @@ enum queue_operation {
     queue_op_set,
     queue_op_del,
     queue_op_flush,
-    queue_op_vb_flush,
     queue_op_vb_set
 };
 
@@ -280,6 +279,8 @@ public:
     void setVBucketState(uint16_t vbid,
                          vbucket_state_t state,
                          SERVER_CORE_API *core);
+
+    void completeVBucketDeletion(uint16_t vbid);
     bool deleteVBucket(uint16_t vbid);
 
     void visit(VBucketVisitor &visitor) {
@@ -367,7 +368,6 @@ private:
     int flushOne(std::queue<QueuedItem> *q,
                  std::queue<QueuedItem> *rejectQueue);
     int flushOneDeleteAll(void);
-    int flushOneDeleteVBucket(QueuedItem &qi, std::queue<QueuedItem> *rejectQueue);
     int flushOneDelOrSet(QueuedItem &qi, std::queue<QueuedItem> *rejectQueue);
     int flushVBSet(QueuedItem &qi, std::queue<QueuedItem> *rejectQueue);
 

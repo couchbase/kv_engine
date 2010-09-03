@@ -1063,6 +1063,10 @@ static enum test_result test_vbucket_destroy_stats(ENGINE_HANDLE *h,
 }
 
 static enum test_result test_vbucket_destroy_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    (void)h; (void)h1;
+    return PENDING;
+
+#if 0
     check(set_vbucket_state(h, h1, 1, "active"), "Failed to set vbucket state.");
     waitfor_vbucket_state(h, h1, 1, "active");
 
@@ -1116,6 +1120,7 @@ static enum test_result test_vbucket_destroy_restart(ENGINE_HANDLE *h, ENGINE_HA
           "vbucket 1 was not missing after restart.");
 
     return SUCCESS;
+#endif
 }
 
 static enum test_result test_vb_set_pending(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {

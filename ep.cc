@@ -88,6 +88,25 @@ private:
     SERVER_CORE_API *core;
 };
 
+class VBucketDeletionCallback : public DispatcherCallback {
+public:
+    VBucketDeletionCallback(EventuallyPersistentStore *e, uint16_t vbid)
+        : ep(e), vbucket(vbid) {
+        assert(ep);
+    }
+
+    bool callback(Dispatcher &d, TaskId t) {
+        (void)d; (void)t;
+        ep->completeVBucketDeletion(vbucket);
+        return false;
+    }
+
+private:
+    EventuallyPersistentStore *ep;
+    uint16_t                   vbucket;
+
+};
+
 EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine &theEngine,
                                                      StrategicSqlite3 *t,
                                                      bool startVb0) :
@@ -268,6 +287,20 @@ void EventuallyPersistentStore::setVBucketState(uint16_t vbid,
     queueDirty(VBucket::toString(to), vbid, queue_op_vb_set);
 }
 
+void EventuallyPersistentStore::completeVBucketDeletion(uint16_t vbid) {
+    LockHolder lh(vbsetMutex);
+
+    RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
+    if(!vb || vb->getState() == dead) {
+        if (!underlying->delVBucket(vbid)) {
+            getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                             "Rescheduling a task to delete vbucket %d from disk\n", vbid);
+            dispatcher->schedule(shared_ptr<DispatcherCallback>(new VBucketDeletionCallback(this, vbid)),
+                                 NULL, Priority::VBucketDeletionPriority, 10);
+        }
+    }
+}
+
 bool EventuallyPersistentStore::deleteVBucket(uint16_t vbid) {
     // Lock to prevent a race condition between a failed update and add (and delete).
     LockHolder lh(vbsetMutex);
@@ -280,7 +313,8 @@ bool EventuallyPersistentStore::deleteVBucket(uint16_t vbid) {
         stats.numNonResident.decr(statvis.numNonResident);
         stats.currentSize.decr(statvis.memSize);
         stats.totalCacheSize.decr(statvis.memSize);
-        queueDirty("", vbid, queue_op_vb_flush);
+        dispatcher->schedule(shared_ptr<DispatcherCallback>(new VBucketDeletionCallback(this, vbid)),
+                             NULL, Priority::VBucketDeletionPriority);
         rv = true;
     }
     return rv;
@@ -710,16 +744,6 @@ int EventuallyPersistentStore::flushOneDelOrSet(QueuedItem &qi,
     return ret;
 }
 
-int EventuallyPersistentStore::flushOneDeleteVBucket(QueuedItem &qi,
-                                                     std::queue<QueuedItem> *rejectQueue) {
-    getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                     "Deleting vbucket %d from disk\n", qi.getVBucketId());
-    if (!underlying->delVBucket(qi.getVBucketId())) {
-        rejectQueue->push(qi);
-    }
-    return 1;
-}
-
 int EventuallyPersistentStore::flushVBSet(QueuedItem &qi,
                                           std::queue<QueuedItem> *rejectQueue) {
 
@@ -741,9 +765,6 @@ int EventuallyPersistentStore::flushOne(std::queue<QueuedItem> *q,
     switch (qi.getOperation()) {
     case queue_op_flush:
         rv = flushOneDeleteAll();
-        break;
-    case queue_op_vb_flush:
-        rv = flushOneDeleteVBucket(qi, rejectQueue);
         break;
     case queue_op_set:
         // FALLTHROUGH
