@@ -853,6 +853,9 @@ public:
         if (ret == TAP_PAUSE) {
             connection->paused = true;
         } else if (ret != TAP_DISCONNECT) {
+            if (ret != TAP_NOOP) {
+                ++stats.numTapFetched;
+            }
             connection->paused = false;
             *seqno = connection->getSeqno();
             if (connection->requestAck()) {
@@ -1181,6 +1184,7 @@ public:
         stats.pendingOpsTotal.set(0);
         stats.pendingOpsMax.set(0);
         stats.pendingOpsMaxDuration.set(0);
+        stats.numTapFetched.set(0);
     }
 
     void setMinDataAge(int to) {
@@ -1731,7 +1735,7 @@ private:
     ENGINE_ERROR_CODE doTapStats(const void *cookie, ADD_STAT add_stat) {
         std::list<TapConnection*>::iterator iter;
         int totalTaps = 0;
-        size_t tap_queue = 0, tap_fetched = 0;
+        size_t tap_queue = 0;
         LockHolder lh(tapNotifySync);
         for (iter = allTaps.begin(); iter != allTaps.end(); iter++) {
             totalTaps++;
@@ -1765,7 +1769,6 @@ private:
             }
 
             tap_queue += tc->queue->size();
-            tap_fetched += tc->recordsFetched;
 
             if (tc->ackSupported) {
                 addTapStat("ack_seqno", tc, tc->seqno, add_stat, cookie);
@@ -1784,7 +1787,7 @@ private:
         }
 
         add_casted_stat("ep_tap_total_queue", tap_queue, add_stat, cookie);
-        add_casted_stat("ep_tap_total_fetched", tap_fetched, add_stat, cookie);
+        add_casted_stat("ep_tap_total_fetched", stats.numTapFetched, add_stat, cookie);
         add_casted_stat("ep_tap_keepalive", tapKeepAlive, add_stat, cookie);
 
         add_casted_stat("ep_tap_count", totalTaps, add_stat, cookie);

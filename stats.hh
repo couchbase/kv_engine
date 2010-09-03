@@ -142,6 +142,11 @@ public:
     //! The longest load time
     Atomic<hrtime_t> bgMaxLoad;
 
+    /* TAP related stats */
+    //! The total number of tap events sent (not including noops)
+    Atomic<uint64_t> numTapFetched;
+
+
 private:
 
     DISALLOW_COPY_AND_ASSIGN(EPStats);

@@ -65,8 +65,7 @@
 | eq_tapq:client_id:rec_fetched | Tap messages sent to the client.          |
 | ep_tap_total_queue            | Sum of tap queue sizes on the current     |
 |                               | tap queues                                |
-| ep_tap_total_fetched          | Sum of tap messages sent on the current   |
-|                               | tap queues                                |
+| ep_tap_total_fetched          | Sum of all tap messages sent              |
 | ep_tap_keepalive              | Tap keepalive time.                       |
 | ep_bg_fetched                 | Number of items fetched from disk.        |
 | ep_num_pager_runs             | Number of times we ran pager loops        |

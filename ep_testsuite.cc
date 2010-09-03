@@ -403,8 +403,9 @@ static enum test_result test_replica_vb_mutation(ENGINE_HANDLE *h, ENGINE_HANDLE
 }
 
 static int get_int_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                        const char *statname) {
-    check(h1->get_stats(h, NULL, NULL, 0, add_stats) == ENGINE_SUCCESS,
+                        const char *statname, const char *statkey = NULL) {
+    check(h1->get_stats(h, NULL, statkey, statkey == NULL ? 0 : strlen(statkey),
+                        add_stats) == ENGINE_SUCCESS,
           "Failed to get stats.");
     std::string s = vals[statname];
     return atoi(s.c_str());
@@ -1264,6 +1265,13 @@ static enum test_result test_tap_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
 
     testHarness.unlock_cookie(cookie);
     h1->release(h, cookie, it);
+
+    check(get_int_stat(h, h1, "ep_tap_total_fetched", "tap") != 0,
+          "http://bugs.northscale.com/show_bug.cgi?id=1695");
+    h1->reset_stats(h, NULL);
+    check(get_int_stat(h, h1, "ep_tap_total_fetched", "tap") == 0,
+          "Expected reset stats to clear ep_tap_total_fetched");
+
     return SUCCESS;
 }
 
