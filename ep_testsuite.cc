@@ -422,6 +422,13 @@ static void verify_curr_items(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     }
 }
 
+static void wait_for_stat_change(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                                 const char *stat, int initial) {
+    while (get_int_stat(h, h1, stat) == initial) {
+        usleep(100);
+    }
+}
+
 static void wait_for_persisted_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                      const char *key, const char *val,
                                      uint16_t vbucketId=0) {
@@ -433,9 +440,7 @@ static void wait_for_persisted_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
           "Failed to store an item.");
 
     // Wait for persistence...
-    while (get_int_stat(h, h1, "ep_total_persisted") == numStored) {
-        usleep(100);
-    }
+    wait_for_stat_change(h, h1, "ep_total_persisted", numStored);
 }
 
 //
@@ -1569,9 +1574,7 @@ static enum test_result test_disk_gt_ram_golden(ENGINE_HANDLE *h,
     int numStored = get_int_stat(h, h1, "ep_total_persisted");
     check(h1->remove(h, NULL, "k1", 2, 0, 0) == ENGINE_SUCCESS,
           "Failed remove with value.");
-    while (get_int_stat(h, h1, "ep_total_persisted") == numStored) {
-        usleep(100);
-    }
+    wait_for_stat_change(h, h1, "ep_total_persisted", numStored);
 
     check(get_int_stat(h, h1, "ep_kv_size") == 0,
           "Initial kv_size was not zero.");
@@ -1604,9 +1607,7 @@ static enum test_result test_disk_gt_ram_paged_rm(ENGINE_HANDLE *h,
     int numStored = get_int_stat(h, h1, "ep_total_persisted");
     check(h1->remove(h, NULL, "k1", 2, 0, 0) == ENGINE_SUCCESS,
           "Failed remove with value.");
-    while (get_int_stat(h, h1, "ep_total_persisted") == numStored) {
-        usleep(100);
-    }
+    wait_for_stat_change(h, h1, "ep_total_persisted", numStored);
 
     check(get_int_stat(h, h1, "ep_kv_size") == 0,
           "Initial kv_size was not zero.");
@@ -1757,8 +1758,8 @@ static enum test_result test_disk_gt_ram_incr_race(ENGINE_HANDLE *h,
     assert(1 == get_int_stat(h, h1, "ep_bg_fetched"));
 
     // Give incr time to finish (it's doing another background fetch)
-    while (1 == get_int_stat(h, h1, "ep_bg_fetched")) { usleep(10); }
-    while (1 == get_int_stat(h, h1, "ep_total_enqueued")) { usleep(10); }
+    wait_for_stat_change(h, h1, "ep_bg_fetched", 1);
+    wait_for_stat_change(h, h1, "ep_total_enqueued", 1);
 
     // The incr mutated the value.
     check_key_value(h, h1, "k1", "14\r\n", 4);
