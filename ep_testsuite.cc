@@ -404,6 +404,7 @@ static enum test_result test_replica_vb_mutation(ENGINE_HANDLE *h, ENGINE_HANDLE
 
 static int get_int_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                         const char *statname, const char *statkey = NULL) {
+    vals.clear();
     check(h1->get_stats(h, NULL, statkey, statkey == NULL ? 0 : strlen(statkey),
                         add_stats) == ENGINE_SUCCESS,
           "Failed to get stats.");
@@ -413,7 +414,6 @@ static int get_int_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 
 static void verify_curr_items(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                               int exp, const char *msg) {
-    vals.clear();
     int curr_items = get_int_stat(h, h1, "curr_items");
     if (curr_items != exp) {
         std::cerr << "Expected "<< exp << " curr_items after " << msg
@@ -898,6 +898,7 @@ static enum test_result test_alloc_limit(ENGINE_HANDLE *h,
 
 static enum test_result test_whitespace_db(ENGINE_HANDLE *h,
                                            ENGINE_HANDLE_V1 *h1) {
+    vals.clear();
     check(h1->get_stats(h, NULL, NULL, 0, add_stats) == ENGINE_SUCCESS,
           "Failed to get stats.");
     if (vals["ep_dbname"] != std::string(WHITESPACE_DB)) {
@@ -1281,6 +1282,7 @@ static enum test_result test_novb0(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 }
 
 static enum test_result test_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    vals.clear();
     check(h1->get_stats(h, NULL, NULL, 0, add_stats) == ENGINE_SUCCESS,
           "Failed to get stats.");
     check(vals.size() > 10, "Kind of expected more stats than that.");
