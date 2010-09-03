@@ -26,6 +26,10 @@
 
 #include "ep_engine.h"
 
+static size_t percentOf(size_t val, double percent) {
+    return static_cast<size_t>(static_cast<double>(val) * percent);
+}
+
 Atomic<uint64_t> TapConnection::tapCounter(1);
 
 /**
@@ -588,10 +592,10 @@ extern "C" {
         return EvpTapIterator;
     }
 
-    void EvpHandleDisconnect(const void *cookie,
-                             ENGINE_EVENT_TYPE type,
-                             const void *event_data,
-                             const void *cb_data)
+    static void EvpHandleDisconnect(const void *cookie,
+                                    ENGINE_EVENT_TYPE type,
+                                    const void *event_data,
+                                    const void *cb_data)
     {
         assert(type == ON_DISCONNECT);
         assert(event_data == NULL);
@@ -713,6 +717,245 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server
     info.info.features[info.info.num_features++].feature = ENGINE_FEATURE_CAS;
     info.info.features[info.info.num_features++].feature = ENGINE_FEATURE_PERSISTENT_STORAGE;
     info.info.features[info.info.num_features++].feature = ENGINE_FEATURE_LRU;
+}
+
+ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
+    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
+#ifdef ENABLE_INTERNAL_TAP
+    char *master = NULL;
+    char *tap_id = NULL;
+#endif
+
+    resetStats();
+
+    if (config != NULL) {
+        char *dbn = NULL, *initf = NULL, *svaltype = NULL;
+        size_t htBuckets = 0;
+        size_t htLocks = 0;
+        size_t maxSize = 0;
+
+        const int max_items = 20;
+        struct config_item items[max_items];
+        int ii = 0;
+        memset(items, 0, sizeof(items));
+
+        items[ii].key = "dbname";
+        items[ii].datatype = DT_STRING;
+        items[ii].value.dt_string = &dbn;
+
+        ++ii;
+        items[ii].key = "initfile";
+        items[ii].datatype = DT_STRING;
+        items[ii].value.dt_string = &initf;
+
+        ++ii;
+        items[ii].key = "warmup";
+        items[ii].datatype = DT_BOOL;
+        items[ii].value.dt_bool = &warmup;
+
+        ++ii;
+        items[ii].key = "waitforwarmup";
+        items[ii].datatype = DT_BOOL;
+        items[ii].value.dt_bool = &wait_for_warmup;
+
+        ++ii;
+        items[ii].key = "vb0";
+        items[ii].datatype = DT_BOOL;
+        items[ii].value.dt_bool = &startVb0;
+
+        ++ii;
+        items[ii].key = "tap_keepalive";
+        items[ii].datatype = DT_SIZE;
+        items[ii].value.dt_size = &tapKeepAlive;
+
+        ++ii;
+        items[ii].key = "ht_size";
+        items[ii].datatype = DT_SIZE;
+        items[ii].value.dt_size = &htBuckets;
+
+        ++ii;
+        items[ii].key = "stored_val_type";
+        items[ii].datatype = DT_STRING;
+        items[ii].value.dt_string = &svaltype;
+
+        ++ii;
+        items[ii].key = "ht_locks";
+        items[ii].datatype = DT_SIZE;
+        items[ii].value.dt_size = &htLocks;
+
+        ++ii;
+        items[ii].key = "max_size";
+        items[ii].datatype = DT_SIZE;
+        items[ii].value.dt_size = &maxSize;
+
+#ifdef ENABLE_INTERNAL_TAP
+        ++ii;
+        items[ii].key = "tap_peer";
+        items[ii].datatype = DT_STRING;
+        items[ii].value.dt_string = &master;
+
+        ++ii;
+        items[ii].key = "tap_id";
+        items[ii].datatype = DT_STRING;
+        items[ii].value.dt_string = &tap_id;
+#endif
+
+        ++ii;
+        items[ii].key = "tap_idle_timeout";
+        items[ii].datatype = DT_SIZE;
+        items[ii].value.dt_size = &tapIdleTimeout;
+
+        ++ii;
+        items[ii].key = "config_file";
+        items[ii].datatype = DT_CONFIGFILE;
+
+        ++ii;
+        items[ii].key = "max_item_size";
+        items[ii].datatype = DT_SIZE;
+        items[ii].value.dt_size = &maxItemSize;
+
+        ++ii;
+        items[ii].key = "min_data_age";
+        items[ii].datatype = DT_SIZE;
+        items[ii].value.dt_size = &minDataAge;
+
+        ++ii;
+        items[ii].key = "mem_low_wat";
+        items[ii].datatype = DT_SIZE;
+        items[ii].value.dt_size = &memLowWat;
+
+        ++ii;
+        items[ii].key = "mem_high_wat";
+        items[ii].datatype = DT_SIZE;
+        items[ii].value.dt_size = &memHighWat;
+
+        ++ii;
+        items[ii].key = "queue_age_cap";
+        items[ii].datatype = DT_SIZE;
+        items[ii].value.dt_size = &queueAgeCap;
+
+        ++ii;
+        items[ii].key = NULL;
+
+        assert(ii < max_items);
+
+        if (serverApi->core->parse_config(config, items, stderr) != 0) {
+            ret = ENGINE_FAILED;
+        } else {
+            if (dbn != NULL) {
+                dbname = dbn;
+            }
+            if (initf != NULL) {
+                initFile = initf;
+            }
+            HashTable::setDefaultNumBuckets(htBuckets);
+            HashTable::setDefaultNumLocks(htLocks);
+            StoredValue::setMaxDataSize(stats, maxSize);
+
+            if (svaltype && !HashTable::setDefaultStorageValueType(svaltype)) {
+                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                 "Unhandled storage value type: %s",
+                                 svaltype);
+            }
+        }
+    }
+
+    if (tapIdleTimeout == 0) {
+        tapIdleTimeout = (size_t)-1;
+    }
+
+    if (ret == ENGINE_SUCCESS) {
+        time_t start = time(NULL);
+        try {
+            MultiDBSqliteStrategy *strategy =
+                new MultiDBSqliteStrategy(*this, dbname,
+                                          initFile,
+                                          NUMBER_OF_SHARDS);
+            sqliteDb = new StrategicSqlite3(*this, strategy);
+        } catch (std::exception& e) {
+            std::stringstream ss;
+            ss << "Failed to create database: " << e.what() << std::endl;
+            if (!dbAccess()) {
+                ss << "No access to \"" << dbname << "\"."
+                   << std::endl;
+            }
+
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL, "%s",
+                             ss.str().c_str());
+            return ENGINE_FAILED;
+        }
+
+        databaseInitTime = time(NULL) - start;
+        epstore = new EventuallyPersistentStore(*this, sqliteDb, startVb0);
+        setMinDataAge(minDataAge);
+        setQueueAgeCap(queueAgeCap);
+
+        if (epstore == NULL) {
+            ret = ENGINE_ENOMEM;
+        } else {
+            if (!warmup) {
+                epstore->reset();
+            }
+
+            SERVER_CALLBACK_API *sapi;
+            sapi = getServerApi()->callback;
+            sapi->register_callback(reinterpret_cast<ENGINE_HANDLE*>(this),
+                                    ON_DISCONNECT, EvpHandleDisconnect, this);
+        }
+
+        if (memLowWat == std::numeric_limits<size_t>::max()) {
+            memLowWat = percentOf(StoredValue::getMaxDataSize(stats), 0.6);
+        }
+        if (memHighWat == std::numeric_limits<size_t>::max()) {
+            memHighWat = percentOf(StoredValue::getMaxDataSize(stats), 0.75);
+        }
+
+        stats.mem_low_wat = memLowWat;
+        stats.mem_high_wat = memHighWat;
+
+        startEngineThreads();
+
+        // If requested, don't complete the initialization until the
+        // flusher transitions out of the initializing state (i.e
+        // warmup is finished).
+        const Flusher *flusher = epstore->getFlusher();
+        if (wait_for_warmup && flusher) {
+            while (flusher->state() == initializing) {
+                sleep(1);
+            }
+        }
+
+#ifdef ENABLE_INTERNAL_TAP
+        if (tap_id != NULL) {
+            tapId.assign(tap_id);
+            free(tap_id);
+        }
+
+        if (master != NULL) {
+            setTapPeer(master);
+            free(master);
+        }
+#endif
+
+        shared_ptr<DispatcherCallback> cb(new ItemPager(epstore, stats));
+        epstore->getDispatcher()->schedule(cb, NULL, Priority::ItemPagerPriority, 10);
+    }
+
+    if (ret == ENGINE_SUCCESS) {
+        getlExtension = new GetlExtension(epstore, getServerApi);
+        getlExtension->initialize();
+    }
+
+    getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "Engine init complete.\n");
+
+    return ret;
+}
+
+void EventuallyPersistentEngine::destroy() {
+#ifdef ENABLE_INTERNAL_TAP
+    stopReplication();
+#endif
+    stopEngineThreads();
 }
 
 void EventuallyPersistentEngine::startEngineThreads(void)
