@@ -20,7 +20,7 @@ For example, if you would like to store your database in =/data/base=
 and prevent it from having objects larger than 1MB, you would run
 memcached like this:
 
-: memcached -E ep.so -e 'dbfile=/data/base;max_size=1048576'
+: memcached -E ep.so -e 'dbfile=/data/base;max_item_size=1048576'
 
 * Parameters for the EP Engine
 
