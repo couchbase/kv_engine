@@ -103,6 +103,10 @@ public:
      */
     void completedBGFetchJob(EventuallyPersistentEngine *epe);
 
+    const std::string& getName() const {
+        return client;
+    }
+
 private:
     friend class EventuallyPersistentEngine;
     friend class BackFillVisitor;
@@ -338,7 +342,6 @@ private:
         s << TapConnection::nextTapId();
         return s.str();
     }
-
 
     /**
      * String used to identify the client.
