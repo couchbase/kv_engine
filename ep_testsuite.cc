@@ -429,7 +429,7 @@ static void wait_for_persisted_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     item *i = NULL;
     assert(0 == get_int_stat(h, h1, "ep_bg_fetched"));
     int numStored = get_int_stat(h, h1, "ep_total_persisted");
-    check(store(h, h1, NULL, OPERATION_SET, key, val, &i, vbucketId) == ENGINE_SUCCESS,
+    check(store(h, h1, NULL, OPERATION_SET, key, val, &i, 0, vbucketId) == ENGINE_SUCCESS,
           "Failed to store an item.");
 
     // Wait for persistence...
@@ -1008,6 +1008,56 @@ static enum test_result test_vbucket_destroy(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 
 
     check(verify_vbucket_missing(h, h1, 1),
           "vbucket 0 was not missing after deleting it.");
+
+    return SUCCESS;
+}
+
+static enum test_result test_vbucket_destroy_stats(ENGINE_HANDLE *h,
+                                                   ENGINE_HANDLE_V1 *h1) {
+
+    int mem_used = get_int_stat(h, h1, "mem_used");
+    // int cacheSize = get_int_stat(h, h1, "ep_total_cache_size");
+    int overhead = get_int_stat(h, h1, "ep_overhead");
+    int nonResident = get_int_stat(h, h1, "ep_num_non_resident");
+
+    check(set_vbucket_state(h, h1, 1, "active"), "Failed to set vbucket state.");
+    waitfor_vbucket_state(h, h1, 1, "active");
+
+    item *i = NULL;
+    check(ENGINE_SUCCESS ==
+          store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i, 0, 1),
+          "Error setting.");
+    wait_for_persisted_value(h, h1, "key2", "value2", 1);
+    evict_key(h, h1, "key2", 1, "Ejected.");
+
+    check(set_vbucket_state(h, h1, 1, "dead"), "Failed set set vbucket 1 state.");
+    waitfor_vbucket_state(h, h1, 1, "dead");
+
+    protocol_binary_request_header *pkt = create_packet(CMD_DEL_VBUCKET, "1", "");
+    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
+          "Failed to delete dead bucket.");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+          "Expected failure deleting non-existent bucket.");
+
+    check(verify_vbucket_missing(h, h1, 1),
+          "vbucket 0 was not missing after deleting it.");
+
+    // Wait for persistence queue to run and drain the vbucket deletion job
+    while (get_int_stat(h, h1, "ep_flusher_todo")
+           + get_int_stat(h, h1, "ep_queue_size") > 0) {
+        usleep(100);
+    }
+
+    int mem_used2 = get_int_stat(h, h1, "mem_used");
+    // int cacheSize2 = get_int_stat(h, h1, "ep_total_cache_size");
+    int overhead2 = get_int_stat(h, h1, "ep_overhead");
+    int nonResident2 = get_int_stat(h, h1, "ep_num_non_resident");
+
+    assert(mem_used2 == mem_used);
+    // XXX:  This does not work correctly.
+    // assert(cacheSize2 == cacheSize);
+    assert(overhead2 == overhead);
+    assert(nonResident2 == nonResident);
 
     return SUCCESS;
 }
@@ -1868,6 +1918,8 @@ engine_test_t* get_tests(void) {
         {"test vbucket get missing", test_vbucket_get_miss, NULL, teardown, NULL},
         {"test vbucket create", test_vbucket_create, NULL, teardown, NULL},
         {"test vbucket destroy", test_vbucket_destroy, NULL, teardown, NULL},
+        {"test vbucket destroy stats", test_vbucket_destroy_stats,
+         NULL, teardown, NULL},
         {"test vbucket destroy restart", test_vbucket_destroy_restart,
          NULL, teardown, NULL},
         {NULL, NULL, NULL, NULL, NULL}

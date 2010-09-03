@@ -556,6 +556,27 @@ public:
 };
 
 /**
+ * Hash table visitor that collects stats of what's inside.
+ */
+class HashTableStatVisitor : public HashTableVisitor {
+public:
+
+    HashTableStatVisitor() : numNonResident(0), numTotal(0), memSize(0) {}
+
+    void visit(StoredValue *v) {
+        ++numTotal;
+        memSize += v->size();
+        if (!v->isResident()) {
+            ++numNonResident;
+        }
+    };
+
+    size_t numNonResident;
+    size_t numTotal;
+    size_t memSize;
+};
+
+/**
  * Track the current number of hashtable visitors.
  *
  * This class is a pretty generic counter holder that increments on

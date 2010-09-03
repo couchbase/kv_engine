@@ -182,14 +182,14 @@ public:
      *
      * @return the number of items removed
      */
-    size_t removeBucket(int id) {
+    HashTableStatVisitor removeBucket(int id) {
         assert(id >= 0);
-        size_t rv = 0;
+        HashTableStatVisitor rv;
 
         if (static_cast<size_t>(id) < size) {
             // Theoretically, this could be off slightly.  In
             // practice, this happens only on dead vbuckets.
-            rv = buckets[id]->size();
+            buckets[id]->ht.visit(rv);
             buckets[id].reset();
         }
 
@@ -233,7 +233,7 @@ public:
         }
     }
 
-    size_t removeBucket(int id) {
+    HashTableStatVisitor removeBucket(int id) {
         RCPtr<VBucketHolder> o(buckets);
         return o->removeBucket(id);
     }
