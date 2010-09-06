@@ -632,10 +632,10 @@ public:
                              bool setDirty = true) {
         switch(type) {
         case small:
-            return newStoredValue(itm, n, setDirty, 1);
+            return newStoredValue(itm, n, setDirty, true);
             break;
         case featured:
-            return newStoredValue(itm, n, setDirty, 0);
+            return newStoredValue(itm, n, setDirty, false);
             break;
         default:
             abort();
