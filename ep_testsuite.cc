@@ -86,13 +86,17 @@ bool abort_msg(const char *expr, const char *msg, int line) {
     return false;
 }
 
-static bool teardown(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    (void)h; (void)h1;
+static void rmdb(void) {
     unlink("/tmp/test.db");
     unlink("/tmp/test.db-0.sqlite");
     unlink("/tmp/test.db-1.sqlite");
     unlink("/tmp/test.db-2.sqlite");
     unlink("/tmp/test.db-3.sqlite");
+}
+
+static bool teardown(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    (void)h; (void)h1;
+    atexit(rmdb);
     vals.clear();
     return true;
 }
