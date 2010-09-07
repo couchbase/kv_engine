@@ -958,6 +958,9 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
         ret = TAP_MUTATION;
         Item *item = connection->nextFetchedItem();
         lh.unlock();
+
+        ++stats.numTapBGFetched;
+
         // If there's a better version in memory, grab it, else go
         // with what we pulled from disk.
         GetValue gv(epstore->get(item->getKey(), item->getVBucketId(),
@@ -980,6 +983,8 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
         if (r == ENGINE_SUCCESS) {
             *itm = gv.getValue();
             ret = TAP_MUTATION;
+
+            ++stats.numTapFGFetched;
         } else if (r == ENGINE_KEY_ENOENT) {
             ret = TAP_DELETION;
             r = itemAllocate(cookie, itm,
@@ -989,6 +994,7 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
                                  "Failed to allocate memory for deletion of: %s\n", key.c_str());
                 ret = TAP_PAUSE;
             }
+            ++stats.numTapDeletes;
         } else if (r == ENGINE_EWOULDBLOCK) {
             connection->queueBGFetch(key, gv.getId());
             // This can optionally collect a few and batch them.
@@ -1759,6 +1765,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTapStats(const void *cookie,
 
     add_casted_stat("ep_tap_total_queue", tap_queue, add_stat, cookie);
     add_casted_stat("ep_tap_total_fetched", stats.numTapFetched, add_stat, cookie);
+    add_casted_stat("ep_tap_bg_fetched", stats.numTapBGFetched, add_stat, cookie);
+    add_casted_stat("ep_tap_fg_fetched", stats.numTapFGFetched, add_stat, cookie);
+    add_casted_stat("ep_tap_deletes", stats.numTapDeletes, add_stat, cookie);
     add_casted_stat("ep_tap_keepalive", tapKeepAlive, add_stat, cookie);
 
     add_casted_stat("ep_tap_count", totalTaps, add_stat, cookie);

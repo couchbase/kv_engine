@@ -149,7 +149,12 @@ public:
     /* TAP related stats */
     //! The total number of tap events sent (not including noops)
     Atomic<uint64_t> numTapFetched;
-
+    //! Number of background fetched tap items
+    Atomic<uint64_t> numTapBGFetched;
+    //! Number of foreground fetched tap items
+    Atomic<uint64_t> numTapFGFetched;
+    //! Number of tap deletes.
+    Atomic<uint64_t> numTapDeletes;
 
 private:
 
