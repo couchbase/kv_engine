@@ -499,9 +499,10 @@ public:
     }
 
     template <typename V>
-    void performTapOp(const std::string &name, TapOperation<V> &tapop, V arg) {
+    bool performTapOp(const std::string &name, TapOperation<V> &tapop, V arg) {
         bool notify(true);
         bool clear(true);
+        bool ret(true);
         LockHolder lh(tapNotifySync);
 
         TapConnection *tc = findTapConnByName_UNLOCKED(name);
@@ -509,6 +510,8 @@ public:
             tapop.perform(tc, arg);
             notify = tc->paused; // notify if paused
             clear = tc->doDisconnect;
+        } else {
+            ret = false;
         }
 
         if (clear) {
@@ -518,6 +521,8 @@ public:
         if (notify) {
             tapNotifySync.notify();
         }
+
+        return ret;
     }
 
     EventuallyPersistentStore* getEpStore() { return epstore; }

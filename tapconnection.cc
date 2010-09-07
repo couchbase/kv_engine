@@ -174,7 +174,10 @@ public:
 
         if (gcb.val.getStatus() == ENGINE_SUCCESS) {
             ReceivedItemTapOperation tapop;
-            epe->performTapOp(name, tapop, gcb.val.getValue());
+            // if the tap connection is closed, then free an Item instance
+            if (!epe->performTapOp(name, tapop, gcb.val.getValue())) {
+                delete gcb.val.getValue();
+            }
             core->notify_io_complete(cookie, ENGINE_SUCCESS);
         }
 
