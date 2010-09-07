@@ -623,7 +623,7 @@ private:
 
         TapConnection *tc = findTapConnByName_UNLOCKED(name);
         if (tc) {
-            rv = tc->queue->size();
+            rv = tc->getBacklogSize();
         }
 
         return rv;

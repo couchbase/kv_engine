@@ -229,6 +229,14 @@ private:
         return bgQueueSize == 0 && bgResultSize == 0 && queue->empty();
     }
 
+    /**
+     * Find out how much stuff this thing has to do.
+     */
+    size_t getBacklogSize() {
+        return bgResultSize + bgQueueSize
+            + (bgJobIssued - bgJobCompleted) + queue->size();
+    }
+
     Item* nextFetchedItem();
 
     void flush() {

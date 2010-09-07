@@ -1733,6 +1733,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTapStats(const void *cookie,
         addTapStat("bg_results", tc, tc->bgResults, add_stat, cookie);
         addTapStat("bg_jobs_issued", tc, tc->bgJobIssued, add_stat, cookie);
         addTapStat("bg_jobs_completed", tc, tc->bgJobCompleted, add_stat, cookie);
+        addTapStat("bg_backlog_size", tc, tc->getBacklogSize(), add_stat, cookie);
         addTapStat("flags", tc, tc->flags, add_stat, cookie);
         addTapStat("connected", tc, tc->connected, add_stat, cookie);
         addTapStat("pending_disconnect", tc, tc->doDisconnect, add_stat, cookie);
