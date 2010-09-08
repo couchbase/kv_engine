@@ -18,8 +18,9 @@ For example, assume you keep all of your projects in `~/prog/`, you
 can do this:
 
     cd ~/prog
-    git clone -b engine git://github.com/dustin/memcached.git
+    git clone -b engine git://github.com/northscale/memcached.git
     cd memcached
+    git checkout engine
     ./config/autorun.sh
     ./configure
     make
