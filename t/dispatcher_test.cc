@@ -7,8 +7,6 @@
 #include "locks.hh"
 #include "priority.hh"
 
-#define EXPECTED_NUM_CALLBACKS 3
-
 Dispatcher dispatcher;
 static Atomic<int> callbacks;
 
@@ -27,18 +25,20 @@ private:
 
 class Thing {
 public:
-    void start(void) {
+    void start(double sleeptime=0) {
         dispatcher.schedule(shared_ptr<TestCallback>(new TestCallback(this)),
-                            &tid, Priority::BgFetcherPriority);
+                            NULL, Priority::BgFetcherPriority, sleeptime);
+        dispatcher.schedule(shared_ptr<TestCallback>(new TestCallback(this)),
+                            NULL, Priority::FlusherPriority, sleeptime);
+        dispatcher.schedule(shared_ptr<TestCallback>(new TestCallback(this)),
+                            NULL, Priority::VBucketDeletionPriority, 0, false);
     }
 
     bool doSomething(Dispatcher &d, TaskId &t) {
-        assert(t == tid);
-        assert(&d == &dispatcher);
-        return(++callbacks < EXPECTED_NUM_CALLBACKS);
+        (void)d; (void)t;
+        ++callbacks;
+        return false;
     }
-private:
-    TaskId tid;
 };
 
 bool TestCallback::callback(Dispatcher &d, TaskId t) {
@@ -67,19 +67,29 @@ EXTENSION_LOGGER_DESCRIPTOR* getLogger() {
 
 int main(int argc, char **argv) {
     (void)argc; (void)argv;
+    int expected_num_callbacks=3;
+    Thing t;
+
     alarm(5);
     dispatcher.start();
-    Thing t;
     t.start();
-
     // Wait for some callbacks
-    while (callbacks < EXPECTED_NUM_CALLBACKS) {
+    while (callbacks < expected_num_callbacks) {
         usleep(1);
     }
+    if (callbacks != expected_num_callbacks) {
+        std::cerr << "Expected " << expected_num_callbacks << " callbacks, but got "
+                  << callbacks << std::endl;
+        return 1;
+    }
 
+    callbacks=0;
+    expected_num_callbacks=1;
+    t.start(3);
     dispatcher.stop();
-    if (callbacks != EXPECTED_NUM_CALLBACKS) {
-        std::cerr << "Expected 1 callback, got " << callbacks << std::endl;
+    if (callbacks != expected_num_callbacks) {
+        std::cerr << "Expected " << expected_num_callbacks << " callbacks, but got "
+                  << callbacks << std::endl;
         return 1;
     }
     return 0;

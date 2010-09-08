@@ -296,7 +296,7 @@ void EventuallyPersistentStore::completeVBucketDeletion(uint16_t vbid) {
             getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
                              "Rescheduling a task to delete vbucket %d from disk\n", vbid);
             dispatcher->schedule(shared_ptr<DispatcherCallback>(new VBucketDeletionCallback(this, vbid)),
-                                 NULL, Priority::VBucketDeletionPriority, 10);
+                                 NULL, Priority::VBucketDeletionPriority, 10, false);
         }
     }
 }
@@ -314,7 +314,7 @@ bool EventuallyPersistentStore::deleteVBucket(uint16_t vbid) {
         assert(stats.currentSize.get() < GIGANTOR);
         stats.totalCacheSize.decr(statvis.memSize);
         dispatcher->schedule(shared_ptr<DispatcherCallback>(new VBucketDeletionCallback(this, vbid)),
-                             NULL, Priority::VBucketDeletionPriority);
+                             NULL, Priority::VBucketDeletionPriority, 0, false);
         rv = true;
     }
     return rv;

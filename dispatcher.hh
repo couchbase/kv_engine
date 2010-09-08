@@ -60,8 +60,8 @@ friend class CompareTasks;
 public:
     ~Task() { }
 private:
-    Task(shared_ptr<DispatcherCallback> cb,  int p, double sleeptime=0) :
-         callback(cb), priority(p) {
+    Task(shared_ptr<DispatcherCallback> cb,  int p, double sleeptime=0, bool isDaemon=true) :
+        callback(cb), priority(p), isDaemonTask(isDaemon) {
         if (sleeptime > 0) {
             snooze(sleeptime);
         } else {
@@ -73,6 +73,7 @@ private:
         priority = task.priority;
         state = task_running;
         callback = task.callback;
+        isDaemonTask = task.isDaemonTask;
     }
 
     void snooze(const double secs) {
@@ -98,6 +99,7 @@ private:
     int priority;
     enum task_state state;
     Mutex mutex;
+    bool isDaemonTask;
 };
 
 /**
@@ -137,10 +139,11 @@ public:
      * @param outtid an output variable that will receive the task ID (may be NULL)
      * @param priority job priority instance that defines a job's priority
      * @param sleeptime how long (in seconds) to wait before starting the job
+     * @param isDaemon a flag indicating if a task is daemon or not
      */
     void schedule(shared_ptr<DispatcherCallback> callback,
                   TaskId *outtid,
-                  const Priority &priority, double sleeptime=0);
+                  const Priority &priority, double sleeptime=0, bool isDaemon=true);
 
     /**
      * Wake up the given task.
@@ -188,6 +191,11 @@ private:
         LockHolder lh(mutex);
         queue.push(task);
     }
+
+    /**
+     * Complete all the non-daemon tasks before stopping the dispatcher
+     */
+    void completeNonDaemonTasks();
 
     pthread_t thread;
     SyncObject mutex;

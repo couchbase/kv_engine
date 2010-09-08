@@ -100,6 +100,7 @@ void Dispatcher::run() {
         }
     }
 
+    completeNonDaemonTasks();
     state = dispatcher_stopped;
     mutex.notify();
     getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "Dispatcher exited\n");
@@ -120,9 +121,9 @@ void Dispatcher::stop() {
 
 void Dispatcher::schedule(shared_ptr<DispatcherCallback> callback,
                           TaskId *outtid,
-                          const Priority &priority, double sleeptime) {
+                          const Priority &priority, double sleeptime, bool isDaemon) {
     LockHolder lh(mutex);
-    TaskId task(new Task(callback, priority.getPriorityValue(), sleeptime));
+    TaskId task(new Task(callback, priority.getPriorityValue(), sleeptime, isDaemon));
     if (outtid) {
         *outtid = TaskId(task);
     }
@@ -140,4 +141,45 @@ void Dispatcher::wake(TaskId task, TaskId *outtid) {
     }
     queue.push(newTask);
     mutex.notify();
+}
+
+void Dispatcher::completeNonDaemonTasks() {
+    LockHolder lh(mutex);
+    while (!queue.empty()) {
+        TaskId task = queue.top();
+        assert(task);
+        // Skip a daemon task
+        if (task->isDaemonTask) {
+            queue.pop();
+            continue;
+        }
+
+        LockHolder tlh(task->mutex);
+        switch (task->state) {
+        case task_sleeping:
+            task->state = task_running;
+        case task_running:
+            queue.pop();
+            tlh.unlock();
+            try {
+                task->run(*this, TaskId(task));
+            } catch (std::exception& e) {
+                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                 "exception caught in task %s: %s\n",
+                                 task->name.c_str(), e.what());
+            } catch(...) {
+                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                 "fatal exception caught in task %s\n",
+                                  task->name.c_str());
+            }
+            break;
+        case task_dead:
+            queue.pop();
+            break;
+        default:
+            throw std::runtime_error("Unexpected state for task");
+        }
+    }
+
+    getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "Completed all the non-daemon tasks\n");
 }
