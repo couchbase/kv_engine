@@ -192,6 +192,7 @@ void StoredValue::increaseCurrentSize(EPStats &st, size_t by, bool residentOnly)
         st.totalCacheSize.incr(by);
     }
     st.currentSize.incr(by);
+    assert(st.currentSize.get() < GIGANTOR);
 }
 
 void StoredValue::reduceCurrentSize(EPStats &st, size_t by, bool residentOnly) {

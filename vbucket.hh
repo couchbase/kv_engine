@@ -58,6 +58,7 @@ public:
         pendingOpsStart = 0;
         stats.memOverhead.incr(sizeof(VBucket)
                                + ht.memorySize());
+        assert(stats.memOverhead.get() < GIGANTOR);
     }
 
     ~VBucket() {
@@ -67,6 +68,7 @@ public:
                              pendingOps.size());
         }
         stats.memOverhead.decr(sizeof(VBucket) + ht.memorySize());
+        assert(stats.memOverhead.get() < GIGANTOR);
         getLogger()->log(EXTENSION_LOG_INFO, NULL,
                          "Destroying vbucket %d\n", id);
     }

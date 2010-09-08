@@ -311,6 +311,7 @@ bool EventuallyPersistentStore::deleteVBucket(uint16_t vbid) {
         HashTableStatVisitor statvis(vbuckets.removeBucket(vbid));
         stats.numNonResident.decr(statvis.numNonResident);
         stats.currentSize.decr(statvis.memSize);
+        assert(stats.currentSize.get() < GIGANTOR);
         stats.totalCacheSize.decr(statvis.memSize);
         dispatcher->schedule(shared_ptr<DispatcherCallback>(new VBucketDeletionCallback(this, vbid)),
                              NULL, Priority::VBucketDeletionPriority);
@@ -631,6 +632,7 @@ public:
             sval->setId(value.second);
         } else if (!value.first) {
             stats->memOverhead.incr(queuedItem.size());
+            assert(stats->memOverhead.get() < GIGANTOR);
             stats->flushFailed++;
             if (sval != NULL) {
                 sval->reDirty(dirtied);
@@ -753,6 +755,7 @@ int EventuallyPersistentStore::flushOne(std::queue<QueuedItem> *q,
     QueuedItem qi = q->front();
     q->pop();
     stats.memOverhead.decr(qi.size());
+    assert(stats.memOverhead.get() < GIGANTOR);
     stats.flusher_todo--;
 
     int rv = 0;
@@ -781,6 +784,7 @@ void EventuallyPersistentStore::queueDirty(const std::string &key, uint16_t vbid
         QueuedItem qi(key, vbid, op);
         towrite.push(qi);
         stats.memOverhead.incr(qi.size());
+        assert(stats.memOverhead.get() < GIGANTOR);
         stats.totalEnqueued++;
         stats.queue_size = towrite.size();
     }

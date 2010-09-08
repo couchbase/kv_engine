@@ -110,4 +110,5 @@ inline std::string hrtime2text(hrtime_t time) {
 }
 
 
+#define GIGANTOR ((size_t)1<<(sizeof(size_t)*8-1))
 #endif /* COMMON_H */
