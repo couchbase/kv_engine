@@ -22,7 +22,7 @@
 #include "vbucket.hh"
 
 static void display(const char *name, size_t size) {
-    printf("%s\t%d\n", name, (int)size);
+    std::cout << name << "\t" << size << std::endl;
 }
 
 int main(int argc, char **argv) {
@@ -30,6 +30,7 @@ int main(int argc, char **argv) {
 
     std::string s();
 
+    display("GIGANTOR", GIGANTOR);
     display("Small Stored Value", StoredValue::sizeOf(true));
     display("Featured Stored Value", StoredValue::sizeOf(false));
 
