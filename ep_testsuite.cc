@@ -1469,14 +1469,26 @@ static enum test_result test_curr_items(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
           "Failed to flush");
     verify_curr_items(h, h1, 0, "flush");
 
-    // Verify delete vbucket case.
+    // Verify dead vbucket case.
     check(store(h, h1, NULL, OPERATION_SET,"k1", "v1", &i) == ENGINE_SUCCESS,
           "Failed to fail to store an item.");
     check(store(h, h1, NULL, OPERATION_SET,"k2", "v2", &i) == ENGINE_SUCCESS,
           "Failed to fail to store an item.");
     check(store(h, h1, NULL, OPERATION_SET,"k3", "v3", &i) == ENGINE_SUCCESS,
           "Failed to fail to store an item.");
-    check(set_vbucket_state(h, h1, 0, "dead"), "Failed set set vbucket 0 state.");
+    check(set_vbucket_state(h, h1, 0, "dead"), "Failed set vbucket 0 state.");
+    waitfor_vbucket_state(h, h1, 0, "dead");
+
+    verify_curr_items(h, h1, 0, "dead vbucket");
+
+    // Then resurrect.
+    check(set_vbucket_state(h, h1, 0, "active"), "Failed set vbucket 0 state.");
+    waitfor_vbucket_state(h, h1, 0, "active");
+
+    verify_curr_items(h, h1, 3, "resurrected vbucket");
+
+    // Now completely delete it.
+    check(set_vbucket_state(h, h1, 0, "dead"), "Failed set vbucket 0 state.");
     waitfor_vbucket_state(h, h1, 0, "dead");
     protocol_binary_request_header *pkt = create_packet(CMD_DEL_VBUCKET, "0", "");
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,

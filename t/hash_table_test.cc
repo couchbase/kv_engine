@@ -37,6 +37,7 @@ public:
 static int count(HashTable &h) {
     Counter c;
     h.visit(c);
+    assert(c.count == h.getNumItems());
     return c.count;
 }
 

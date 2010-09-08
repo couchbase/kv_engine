@@ -75,6 +75,8 @@ size_t HashTable::clear(bool deactivate) {
         }
     }
 
+    numItems.set(0);
+
     return rv;
 }
 

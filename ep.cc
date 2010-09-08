@@ -258,9 +258,6 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::set(const Item &item,
         return ENGINE_KEY_EEXISTS;
     } else if (mtype == WAS_CLEAN || mtype == NOT_FOUND) {
         queueDirty(item.getKey(), item.getVBucketId(), queue_op_set);
-        if (mtype == NOT_FOUND) {
-            stats.curr_items++;
-        }
     }
 
     return ENGINE_SUCCESS;
@@ -312,7 +309,6 @@ bool EventuallyPersistentStore::deleteVBucket(uint16_t vbid) {
     RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
     if (vb && vb->getState() == dead) {
         HashTableStatVisitor statvis(vbuckets.removeBucket(vbid));
-        stats.curr_items.decr(statvis.numTotal);
         stats.numNonResident.decr(statvis.numNonResident);
         stats.currentSize.decr(statvis.memSize);
         stats.totalCacheSize.decr(statvis.memSize);
@@ -537,7 +533,6 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::del(const std::string &key,
 
     if (existed) {
         queueDirty(key, vbucket, queue_op_del);
-        stats.curr_items--;
     }
     return rv;
 }
@@ -548,7 +543,7 @@ void EventuallyPersistentStore::reset() {
     for (it = buckets.begin(); it != buckets.end(); ++it) {
         RCPtr<VBucket> vb = getVBucket(*it, active);
         if (vb) {
-            stats.curr_items -= vb->ht.clear();
+            vb->ht.clear();
         }
     }
     queueDirty("", 0, queue_op_flush);

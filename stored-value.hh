@@ -722,6 +722,11 @@ public:
     size_t getNumLocks(void) { return n_locks; }
 
     /**
+     * Get the number of items within this hash table.
+     */
+    size_t getNumItems(void) { return numItems; }
+
+    /**
      * Clear the hash table.
      *
      * @param deactivate true when this hash table is being destroyed completely
@@ -789,6 +794,7 @@ public:
             itm.setCas();
             v = valFact(itm, values[bucket_num]);
             values[bucket_num] = v;
+            ++numItems;
         }
         return rv;
     }
@@ -820,6 +826,7 @@ public:
                 v->ejectValue(stats);
             }
             values[bucket_num] = v;
+            ++numItems;
         }
 
         return true;
@@ -927,6 +934,7 @@ public:
             values[bucket_num] = v->next;
             v->reduceCurrentSize(stats, v->size());
             delete v;
+            --numItems;
             return true;
         }
 
@@ -938,6 +946,7 @@ public:
                 }
                 v->next = v->next->next;
                 delete tmp;
+                --numItems;
                 return true;
             } else {
                 v = v->next;
@@ -1029,6 +1038,7 @@ private:
     EPStats&             stats;
     StoredValueFactory   valFact;
     Atomic<size_t>       visitors;
+    Atomic<size_t>       numItems;
     bool                 activeState;
 
     static size_t                 defaultNumBuckets;

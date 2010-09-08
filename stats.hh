@@ -68,13 +68,6 @@ public:
     Atomic<size_t> vbucketDeletions;
     //! Number of times we failed to delete a vbucket.
     Atomic<size_t> vbucketDeletionFail;
-    /**
-     * Total number of items.
-     *
-     * This would be total_items if we recycled items, but we don't
-     * right now.
-     */
-    Atomic<size_t> curr_items;
     //! Beyond this point are config items
     //! Minimum data age before a record can be persisted
     Atomic<int> min_data_age;
