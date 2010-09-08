@@ -1367,9 +1367,9 @@ public:
         delete queue;
     }
 
-    bool visitBucket(uint16_t vbid, vbucket_state_t state) {
-        if (filter(vbid)) {
-            VBucketVisitor::visitBucket(vbid, state);
+    bool visitBucket(RCPtr<VBucket> vb) {
+        if (filter(vb->getId())) {
+            VBucketVisitor::visitBucket(vb);
             return true;
         }
         return false;
@@ -1377,7 +1377,7 @@ public:
 
     void visit(StoredValue *v) {
         std::string k = v->getKey();
-        QueuedItem qi(k, currentBucket, queue_op_set);
+        QueuedItem qi(k, currentBucket->getId(), queue_op_set);
         queue->push_back(qi);
     }
 
@@ -1676,10 +1676,10 @@ class StatVBucketVisitor : public VBucketVisitor {
 public:
     StatVBucketVisitor(const void *c, ADD_STAT a) : cookie(c), add_stat(a) {}
 
-    bool visitBucket(uint16_t vbid, vbucket_state_t state) {
+    bool visitBucket(RCPtr<VBucket> vb) {
         char buf[16];
-        snprintf(buf, sizeof(buf), "vb_%d", vbid);
-        add_casted_stat(buf, VBucket::toString(state), add_stat, cookie);
+        snprintf(buf, sizeof(buf), "vb_%d", vb->getId());
+        add_casted_stat(buf, VBucket::toString(vb->getState()), add_stat, cookie);
         return false;
     }
 

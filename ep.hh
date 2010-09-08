@@ -91,24 +91,22 @@ private:
 class VBucketVisitor : public HashTableVisitor {
 public:
 
-    VBucketVisitor() : HashTableVisitor(), currentBucket(0) { }
+    VBucketVisitor() : HashTableVisitor() { }
 
     /**
      * Begin visiting a bucket.
      *
-     * @param vbid the vbucket ID we are beginning to visit
-     * @param state the state of this vbucket
+     * @param vbid the vbucket we are beginning to visit
      *
      * @return true iff we want to walk the hashtable in this vbucket
      */
-    virtual bool visitBucket(uint16_t vbid, vbucket_state_t state) {
-        (void)state;
-        currentBucket = vbid;
+    virtual bool visitBucket(RCPtr<VBucket> vb) {
+        currentBucket = vb;
         return true;
     }
 
 protected:
-    uint16_t currentBucket;
+    RCPtr<VBucket> currentBucket;
 };
 
 // Forward declaration
@@ -289,10 +287,12 @@ public:
         for (it = vbucketIds.begin(); it != vbucketIds.end(); ++it) {
             int vbid = *it;
             RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
-            bool wantData = visitor.visitBucket(vbid, vb ? vb->getState() : dead);
-            // We could've lost this along the way.
-            if (wantData) {
-                vb->ht.visit(visitor);
+            if (vb) {
+                bool wantData = visitor.visitBucket(vb);
+                // We could've lost this along the way.
+                if (wantData) {
+                    vb->ht.visit(visitor);
+                }
             }
         }
     }
