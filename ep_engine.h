@@ -782,6 +782,7 @@ private:
     Mutex tapMutex;
     bool tapEnabled;
     size_t maxItemSize;
+    size_t tapBacklogLimit;
     size_t memLowWat;
     size_t memHighWat;
     size_t minDataAge;

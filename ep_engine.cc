@@ -653,7 +653,7 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server
     tapIdleTimeout(DEFAULT_TAP_IDLE_TIMEOUT), nextTapNoop(0),
     startedEngineThreads(false), shutdown(false),
     getServerApi(get_server_api), getlExtension(NULL),
-    tapEnabled(false), maxItemSize(20*1024*1024),
+    tapEnabled(false), maxItemSize(20*1024*1024), tapBacklogLimit(250000),
     memLowWat(std::numeric_limits<size_t>::max()),
     memHighWat(std::numeric_limits<size_t>::max()),
     minDataAge(DEFAULT_MIN_DATA_AGE),
@@ -792,6 +792,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         items[ii].key = "queue_age_cap";
         items[ii].datatype = DT_SIZE;
         items[ii].value.dt_size = &queueAgeCap;
+
+        ++ii;
+        items[ii].key = "tap_backlog_limit";
+        items[ii].datatype = DT_SIZE;
+        items[ii].value.dt_size = &tapBacklogLimit;
 
         ++ii;
         items[ii].key = NULL;
@@ -1356,7 +1361,7 @@ public:
         VBucketVisitor(), engine(e), name(tc->client),
         queue(new std::list<QueuedItem>),
         filter(tc->vbucketFilter), validityToken(token),
-        maxBackfillSize(250000), valid(true) { }
+        maxBackfillSize(e->tapBacklogLimit), valid(true) { }
 
     ~BackFillVisitor() {
         delete queue;
