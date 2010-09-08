@@ -431,11 +431,9 @@ GetValue EventuallyPersistentStore::get(const std::string &key,
                              v->getValue(),
                              v->isLocked(ep_current_time()) ? -1 : v->getCas()),
                     ENGINE_SUCCESS, v->getId());
-        lh.unlock();
         return rv;
     } else {
         GetValue rv;
-        lh.unlock();
         return rv;
     }
 }
@@ -460,7 +458,6 @@ bool EventuallyPersistentStore::getLocked(const std::string &key,
         if (v->isLocked(currentTime)) {
             GetValue rv;
             cb.callback(rv);
-            lh.unlock();
             return false;
         }
 
@@ -481,7 +478,6 @@ bool EventuallyPersistentStore::getLocked(const std::string &key,
         GetValue rv;
         cb.callback(rv);
     }
-    lh.unlock();
     return true;
 }
 
