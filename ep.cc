@@ -643,6 +643,8 @@ public:
 
     void callback(bool &value) {
         if (!value) {
+            stats->memOverhead.incr(queuedItem.size());
+            assert(stats->memOverhead.get() < GIGANTOR);
             stats->flushFailed++;
             if (sval != NULL) {
                 sval->reDirty(dirtied);
