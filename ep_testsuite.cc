@@ -1824,6 +1824,14 @@ static enum test_result test_max_size_settings(ENGINE_HANDLE *h,
     check(get_int_stat(h, h1, "ep_mem_high_wat") == 750000,
           "Incorrect larger high wat.");
 
+    set_flush_param(h, h1, "mem_low_wat", "700000");
+    set_flush_param(h, h1, "mem_high_wat", "800000");
+
+    check(get_int_stat(h, h1, "ep_mem_low_wat") == 700000,
+          "Incorrect even larger low wat.");
+    check(get_int_stat(h, h1, "ep_mem_high_wat") == 800000,
+          "Incorrect even larger high wat.");
+
     set_flush_param(h, h1, "max_size", "100");
 
     check(get_int_stat(h, h1, "ep_max_data_size") == 100,
@@ -1832,6 +1840,14 @@ static enum test_result test_max_size_settings(ENGINE_HANDLE *h,
           "Incorrect smaller low wat.");
     check(get_int_stat(h, h1, "ep_mem_high_wat") == 75,
           "Incorrect smaller high wat.");
+
+    set_flush_param(h, h1, "mem_low_wat", "50");
+    set_flush_param(h, h1, "mem_high_wat", "70");
+
+    check(get_int_stat(h, h1, "ep_mem_low_wat") == 50,
+          "Incorrect even smaller low wat.");
+    check(get_int_stat(h, h1, "ep_mem_high_wat") == 70,
+          "Incorrect even smaller high wat.");
 
     return SUCCESS;
 }

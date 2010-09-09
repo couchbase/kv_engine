@@ -221,6 +221,24 @@ extern "C" {
 
                 stats.mem_low_wat = percentOf(StoredValue::getMaxDataSize(stats), 0.6);
                 stats.mem_high_wat = percentOf(StoredValue::getMaxDataSize(stats), 0.75);
+            } else if (strcmp(keyz, "mem_low_wat") == 0) {
+                // Want more bits than int.
+                char *ptr = NULL;
+                // TODO:  This parser isn't perfect.
+                uint64_t vsize = strtoull(valz, &ptr, 10);
+                validate(vsize, static_cast<uint64_t>(0),
+                         std::numeric_limits<uint64_t>::max());
+                EPStats &stats = e->getEpStats();
+                stats.mem_low_wat = vsize;
+            } else if (strcmp(keyz, "mem_high_wat") == 0) {
+                // Want more bits than int.
+                char *ptr = NULL;
+                // TODO:  This parser isn't perfect.
+                uint64_t vsize = strtoull(valz, &ptr, 10);
+                validate(vsize, static_cast<uint64_t>(0),
+                         std::numeric_limits<uint64_t>::max());
+                EPStats &stats = e->getEpStats();
+                stats.mem_high_wat = vsize;
             } else {
                 *msg = "Unknown config param";
                 rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
