@@ -25,8 +25,8 @@ static void* launch_dispatcher_thread(void *arg) {
     try {
         dispatcher->run();
     } catch (std::exception& e) {
-        getLogger()->log(EXTENSION_LOG_WARNING, NULL, "dispatcher exception caught: %s\n",
-                         e.what());
+        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                         "dispatcher exception caught: %s\n", e.what());
     } catch(...) {
         getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                          "Caught a fatal exception in the dispatcher thread\n");
@@ -77,10 +77,13 @@ void Dispatcher::run() {
                         reschedule(task);
                     }
                 } catch (std::exception& e) {
-                    getLogger()->log(EXTENSION_LOG_WARNING, NULL, "exception caught in task %s: %s\n", task->name.c_str(),
-                                     e.what());
+                    getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                     "exception caught in task %s: %s\n",
+                                     task->name.c_str(), e.what());
                 } catch(...) {
-                    getLogger()->log(EXTENSION_LOG_WARNING, NULL, "fatal exception caught in task %s\n", task->name.c_str());
+                    getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                     "fatal exception caught in task %s\n",
+                                     task->name.c_str());
                 }
                 break;
             case task_dead:
