@@ -43,8 +43,13 @@ void Dispatcher::start() {
 
 void Dispatcher::run() {
     getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "Dispatcher starting\n");
-    while (state == dispatcher_running) {
+    for (;;) {
         LockHolder lh(mutex);
+        // Having acquired the lock, verify our state and break out if
+        // it's changed.
+        if (state != dispatcher_running) {
+            break;
+        }
         if (queue.empty()) {
             // Wait forever as long as the state didn't change while
             // we grabbed the lock.
