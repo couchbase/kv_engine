@@ -708,6 +708,8 @@ int EventuallyPersistentStore::flushOneDelOrSet(QueuedItem &qi,
             stats.tooYoung++;
             v->reDirty(dirtied);
             rejectQueue->push(qi);
+            stats.memOverhead.incr(qi.size());
+            assert(stats.memOverhead.get() < GIGANTOR);
         }
 
         if (eligible) {
@@ -746,6 +748,8 @@ int EventuallyPersistentStore::flushVBSet(QueuedItem &qi,
                                           std::queue<QueuedItem> *rejectQueue) {
 
     if (!underlying->setVBState(qi.getVBucketId(), qi.getKey())) {
+        stats.memOverhead.incr(qi.size());
+        assert(stats.memOverhead.get() < GIGANTOR);
         rejectQueue->push(qi);
     }
     return 1;
