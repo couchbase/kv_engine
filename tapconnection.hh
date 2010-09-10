@@ -290,8 +290,8 @@ private:
     TapConnection(const std::string &n, uint32_t f):
         client(n), queue(NULL), queue_set(NULL), flags(f),
         recordsFetched(0), pendingFlush(false), expiry_time((rel_time_t)-1),
-        reconnects(0), connected(true), paused(false), backfillAge(0),
-        doRunBackfill(false), pendingBackfill(true), vbucketFilter(),
+        reconnects(0), disconnects(0), connected(true), paused(false),
+        backfillAge(0), doRunBackfill(false), pendingBackfill(true), vbucketFilter(),
         vBucketHighPriority(), vBucketLowPriority(), doDisconnect(false),
         seqno(0), seqnoReceived(static_cast<uint32_t>(-1)),
         ackSupported((f & TAP_CONNECT_SUPPORT_ACK) == TAP_CONNECT_SUPPORT_ACK)
@@ -390,6 +390,11 @@ private:
      * Number of times this client reconnected
      */
     uint32_t reconnects;
+
+    /**
+     * Number of disconnects from this client
+     */
+    uint32_t disconnects;
 
     /**
      * Is connected?

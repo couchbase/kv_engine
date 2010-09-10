@@ -407,6 +407,7 @@ public:
                     iter->second->expiry_time += (int)tapKeepAlive;
                 }
                 iter->second->connected = false;
+                iter->second->disconnects++;
             } else {
                 getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                                  "Found half-linked tap connection at: %p\n",

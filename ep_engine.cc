@@ -1790,6 +1790,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTapStats(const void *cookie,
         if (tc->reconnects > 0) {
             addTapStat("reconnects", tc, tc->reconnects, add_stat, cookie);
         }
+        if (tc->disconnects > 0) {
+            addTapStat("disconnects", tc, tc->disconnects, add_stat, cookie);
+        }
         if (tc->backfillAge != 0) {
             addTapStat("backfill_age", tc, (size_t)tc->backfillAge, add_stat, cookie);
         }

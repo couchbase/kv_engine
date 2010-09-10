@@ -65,6 +65,10 @@
 | ep_warmup_time                | Number of seconds spent warming data.     |
 | eq_tapq:client_id:qlen        | Queue size for the given client_id.       |
 | eq_tapq:client_id:rec_fetched | Tap messages sent to the client.          |
+| eq_tapq:client_id:reconnects  | Number of reconnects from the given       |
+|                               | client_id                                 |
+| eq_tapq:client_id:disconnects | Number of disconnects from the given      |
+|                               | client_id                                 |
 | ep_tap_total_queue            | Sum of tap queue sizes on the current     |
 |                               | tap queues                                |
 | ep_tap_total_fetched          | Sum of all tap messages sent              |
