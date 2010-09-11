@@ -106,7 +106,9 @@ void StrategicSqlite3::get(const std::string &key,
                              sel_stmt->column_int(2),
                              sel_stmt->column_blob(0),
                              sel_stmt->column_bytes(0),
-                             static_cast<uint16_t>(sel_stmt->column_int(4))));
+                             sel_stmt->column_int64(3),
+                             sel_stmt->column_int64(4),
+                             static_cast<uint16_t>(sel_stmt->column_int(5))));
         stats.io_read_bytes += key.length() + rv.getValue()->getNBytes();
         cb.callback(rv);
     } else {

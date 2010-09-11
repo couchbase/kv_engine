@@ -123,11 +123,13 @@ void Statements::initStatements() {
              " where rowid = ?", tableName.c_str());
     upd_stmt = new PreparedStatement(db, buf);
 
+    // v=0, flags=1, exptime=2, cas=3, rowid=4, vbucket=5
     snprintf(buf, sizeof(buf),
-             "select v, flags, exptime, cas, rowid "
+             "select v, flags, exptime, cas, rowid, vbucket "
              "from %s where rowid = ?", tableName.c_str());
     sel_stmt = new PreparedStatement(db, buf);
 
+    // k=0, v=1, flags=2, exptime=3, cas=4, vbucket=5, rowid=6
     snprintf(buf, sizeof(buf),
              "select k, v, flags, exptime, cas, vbucket, rowid "
              "from %s", tableName.c_str());
