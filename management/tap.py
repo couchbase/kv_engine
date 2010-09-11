@@ -69,11 +69,11 @@ class TapConnection(mc_bin_server.MemcachedBinaryChannel):
             vals.append(struct.pack("!H", v))
         return ''.join(vals)
 
-    def processCommand(self, cmd, klen, extralen, cas, data):
+    def processCommand(self, cmd, klen, vb, extralen, cas, data):
         extra = data[0:extralen]
         key = data[extralen:(extralen+klen)]
         val = data[(extralen+klen):]
-        self.callback(self.identifier, cmd, extra, key, val, cas)
+        self.callback(self.identifier, cmd, extra, key, vb, val, cas)
 
     def handle_connect(self):
         pass
@@ -132,10 +132,10 @@ def mainLoop(serverList, cb, opts={}):
     asyncore.loop()
 
 if __name__ == '__main__':
-    def cb(identifier, cmd, extra, key, val, cas):
-        print "%s: ``%s'' -> ``%s'' (%d bytes from %s)" % (
+    def cb(identifier, cmd, extra, key, vb, val, cas):
+        print "%s: ``%s'' (vb:%d) -> ``%s'' (%d bytes from %s)" % (
             memcacheConstants.COMMAND_NAMES[cmd],
-            key, keyprint(val), len(val), identifier)
+            key, vb, keyprint(val), len(val), identifier)
 
     # This is an example opts parameter to do future-only tap:
     opts = {memcacheConstants.TAP_FLAG_BACKFILL: 0xffffffff}

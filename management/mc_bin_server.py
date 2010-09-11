@@ -72,7 +72,7 @@ class BaseBackend(object):
     def _error(self, which, msg):
         return which, 0, msg
 
-    def processCommand(self, cmd, keylen, cas, data):
+    def processCommand(self, cmd, keylen, vb, cas, data):
         """Entry point for command processing.  Lower level protocol
         implementations deliver values here."""
 
@@ -314,8 +314,8 @@ class MemcachedBinaryChannel(asyncore.dispatcher):
             rv = len(self.rbuf) - MIN_RECV_PACKET >= remaining
         return rv
 
-    def processCommand(self, cmd, keylen, cas, data):
-        return self.backend.processCommand(cmd, keylen, cas, data)
+    def processCommand(self, cmd, keylen, vb, cas, data):
+        return self.backend.processCommand(cmd, keylen, vb, cas, data)
 
     def handle_read(self):
         self.rbuf += self.recv(self.BUFFER_SIZE)
@@ -333,7 +333,7 @@ class MemcachedBinaryChannel(asyncore.dispatcher):
             # Remove this request from the read buffer
             self.rbuf=self.rbuf[MIN_RECV_PACKET+remaining:]
             # Process the command
-            cmdVal = self.processCommand(cmd, keylen, extralen, cas, data)
+            cmdVal = self.processCommand(cmd, keylen, vb, extralen, cas, data)
             # Queue the response to the client if applicable.
             if cmdVal:
                 try:
