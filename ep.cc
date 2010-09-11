@@ -20,6 +20,7 @@
 #include <time.h>
 #include <string.h>
 #include <iostream>
+#include <functional>
 
 #include "ep.hh"
 #include "flusher.hh"
@@ -611,7 +612,6 @@ int EventuallyPersistentStore::flushSome(std::queue<QueuedItem> *q,
     return oldest;
 }
 
-
 // This class exists to create a closure around a few variables within
 // EventuallyPersistentStore::flushOne so that an object can be
 // requeued in case of failure to store in the underlying layer.
@@ -621,42 +621,50 @@ class Requeuer : public Callback<std::pair<bool, int64_t> >,
 public:
 
     Requeuer(const QueuedItem &qi, std::queue<QueuedItem> *q,
-             StoredValue *v, rel_time_t qd, rel_time_t d, struct EPStats *s) :
-        queuedItem(qi), rq(q), sval(v), queued(qd), dirtied(d), stats(s) {
+             EventuallyPersistentStore *st,
+             rel_time_t qd, rel_time_t d, struct EPStats *s) :
+        queuedItem(qi), rq(q), store(st), queued(qd), dirtied(d), stats(s) {
         assert(rq);
         assert(s);
     }
 
     void callback(std::pair<bool, int64_t> &value) {
-        if (value.first && sval != NULL && value.second > 0) {
-            sval->setId(value.second);
+        if (value.first && value.second > 0) {
+            setId(value.second);
         } else if (!value.first) {
-            stats->memOverhead.incr(queuedItem.size());
-            assert(stats->memOverhead.get() < GIGANTOR);
-            stats->flushFailed++;
-            if (sval != NULL) {
-                sval->reDirty(dirtied);
-            }
-            rq->push(queuedItem);
+            redirty();
         }
     }
 
     void callback(bool &value) {
         if (!value) {
-            stats->memOverhead.incr(queuedItem.size());
-            assert(stats->memOverhead.get() < GIGANTOR);
-            stats->flushFailed++;
-            if (sval != NULL) {
-                sval->reDirty(dirtied);
-            }
-            rq->push(queuedItem);
+            redirty();
         }
     }
 
 private:
+
+    void setId(int64_t id) {
+        store->invokeOnLockedStoredValue(queuedItem.getKey(),
+                                         queuedItem.getVBucketId(),
+                                         std::mem_fun(&StoredValue::setId),
+                                         id);
+    }
+
+    void redirty() {
+        stats->memOverhead.incr(queuedItem.size());
+        assert(stats->memOverhead.get() < GIGANTOR);
+        stats->flushFailed++;
+        store->invokeOnLockedStoredValue(queuedItem.getKey(),
+                                         queuedItem.getVBucketId(),
+                                         std::mem_fun(&StoredValue::reDirty),
+                                         dirtied);
+        rq->push(queuedItem);
+    };
+
     const QueuedItem queuedItem;
     std::queue<QueuedItem> *rq;
-    StoredValue *sval;
+    EventuallyPersistentStore *store;
     rel_time_t queued;
     rel_time_t dirtied;
     struct EPStats *stats;
@@ -730,10 +738,10 @@ int EventuallyPersistentStore::flushOneDelOrSet(QueuedItem &qi,
     lh.unlock();
 
     if (found && isDirty) {
-        Requeuer cb(qi, rejectQueue, v, queued, dirtied, &stats);
+        Requeuer cb(qi, rejectQueue, this, queued, dirtied, &stats);
         underlying->set(*val, cb);
     } else if (!found) {
-        Requeuer cb(qi, rejectQueue, v, queued, dirtied, &stats);
+        Requeuer cb(qi, rejectQueue, this, queued, dirtied, &stats);
         underlying->del(qi.getKey(), qi.getVBucketId(), cb);
     }
 

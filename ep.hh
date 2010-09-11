@@ -359,6 +359,37 @@ private:
     /* Queue an item to be written to persistent layer. */
     void queueDirty(const std::string &key, uint16_t vbid, enum queue_operation op);
 
+    /**
+     * Retrieve a StoredValue and invoke a method on it.
+     *
+     * Note that because of complications with void/non-void methods
+     * and potentially missing StoredValues along with the way I
+     * actually intend to use this, I don't return any values from
+     * this.
+     *
+     * @param key the item's key to retrieve
+     * @param vbid the vbucket containing the item
+     * @param f the method to invoke on the item (see std::mem_fun)
+     * @param arg the argument to supply to the method f
+     */
+    template<typename A>
+    void invokeOnLockedStoredValue(const std::string &key, uint16_t vbid,
+                                   std::mem_fun1_t<void, StoredValue, A> f,
+                                   A arg) {
+        RCPtr<VBucket> vb = getVBucket(vbid);
+        if (!vb) {
+            return;
+        }
+
+        int bucket_num = vb->ht.bucket(key);
+        LockHolder lh(vb->ht.getMutex(bucket_num));
+        StoredValue *v = vb->ht.unlocked_find(key, bucket_num);
+
+        if (v) {
+            f(v, arg);
+        }
+    }
+
     std::queue<QueuedItem> *beginFlush();
     void completeFlush(std::queue<QueuedItem> *rejects,
                        rel_time_t flush_start);
@@ -375,6 +406,8 @@ private:
 
     friend class BGFetchCallback;
     friend class TapConnection;
+    friend class Requeuer;
+
     EventuallyPersistentEngine &engine;
     EPStats                    &stats;
     bool                       doPersistence;
