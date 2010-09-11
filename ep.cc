@@ -630,6 +630,13 @@ public:
         assert(s);
     }
 
+    // This callback is invoked for set only.
+    //
+    // The pair is <success?, objId>.  If successful, we may receive a
+    // new object ID for this object and need to tell the object what
+    // its ID is (this is how we'll find it on disk later).  We also
+    // can succeed *without* receiving a new ID (which is how we'd
+    // distinguish an insert from an update if we cared).
     void callback(std::pair<bool, int64_t> &value) {
         if (value.first && value.second > 0) {
             setId(value.second);
@@ -638,6 +645,10 @@ public:
         }
     }
 
+    // This callback is invoked for deletions only.
+    //
+    // The boolean indicates whether the underlying storage
+    // successfully deleted the item.
     void callback(bool &value) {
         if (!value) {
             redirty();
