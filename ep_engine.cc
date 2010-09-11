@@ -994,6 +994,7 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
         } else {
             *itm = item;
         }
+        *vbucket = static_cast<Item*>(*itm)->getVBucketId();
     } else if (connection->hasQueuedItem()) {
         QueuedItem qi = connection->next();
         lh.unlock();

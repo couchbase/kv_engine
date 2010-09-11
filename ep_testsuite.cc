@@ -1296,7 +1296,10 @@ static enum test_result test_tap_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
     tap_event_t event;
     int found = 0;
 
+    uint16_t unlikely_vbucket_identifier = 17293;
+
     do {
+        vbucket = unlikely_vbucket_identifier;
         event = iter(h, cookie, &it, &engine_specific,
                      &nengine_specific, &ttl, &flags,
                      &seqno, &vbucket);
@@ -1309,6 +1312,7 @@ static enum test_result test_tap_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
             break;
         case TAP_MUTATION:
             ++found;
+            assert(vbucket != unlikely_vbucket_identifier);
             check(verify_item(h, h1, it, NULL, 0, "value", 5) == SUCCESS,
                   "Unexpected item arrived on tap stream");
             break;
