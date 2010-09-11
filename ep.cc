@@ -329,9 +329,10 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
                                                 hrtime_t init, hrtime_t start) {
     --bgFetchQueue;
     ++stats.bg_fetched;
-    getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                     "Completed a background fetch, now at %zd\n",
-                     bgFetchQueue.get());
+    std::stringstream ss;
+    ss << "Completed a background fetch, now at " << bgFetchQueue.get()
+       << std::endl;
+    getLogger()->log(EXTENSION_LOG_DEBUG, NULL, ss.str().c_str());
 
     // Go find the data
     RememberingCallback<GetValue> gcb;
@@ -387,9 +388,10 @@ void EventuallyPersistentStore::bgFetch(const std::string &key,
                                                         vbucket, rowid, cookie));
     ++bgFetchQueue;
     assert(bgFetchQueue > 0);
-    getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                     "Queued a background fetch, now at %zd\n",
-                     bgFetchQueue.get());
+    std::stringstream ss;
+    ss << "Queued a background fetch, now at " << bgFetchQueue.get()
+       << std::endl;
+    getLogger()->log(EXTENSION_LOG_DEBUG, NULL, ss.str().c_str());
     dispatcher->schedule(dcb, NULL, Priority::BgFetcherPriority, bgFetchDelay);
 }
 

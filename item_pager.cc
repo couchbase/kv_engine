@@ -69,10 +69,11 @@ bool ItemPager::callback(Dispatcher &d, TaskId t) {
 
         double toKill = (current - static_cast<double>(lower)) / current;
 
-        getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                         "Using %zd bytes of memory, paging out %0f%% of items.\n",
-                         StoredValue::getCurrentSize(stats), (toKill*100.0));
-
+        std::stringstream ss;
+        ss << "Using " << StoredValue::getCurrentSize(stats)
+           << " bytes of memory, paging out %0f%% of items." << std::endl;
+        getLogger()->log(EXTENSION_LOG_INFO, NULL, ss.str().c_str(),
+                         (toKill*100.0));
         PagingVisitor pv(stats, toKill);
         store->visit(pv);
 
