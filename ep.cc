@@ -73,19 +73,23 @@ private:
 
 class SetVBStateCallback : public DispatcherCallback {
 public:
-    SetVBStateCallback(RCPtr<VBucket> vb, SERVER_CORE_API *c)
-        : vbucket(vb), core(c) {
+    SetVBStateCallback(EventuallyPersistentStore *e, RCPtr<VBucket> vb,
+                       const std::string &k, SERVER_CORE_API *c)
+        : ep(e), vbucket(vb), key(k), core(c) {
         assert(core);
     }
 
     bool callback(Dispatcher &d, TaskId t) {
         (void)d; (void)t;
         vbucket->fireAllOps(core);
+        ep->completeSetVBState(vbucket->getId(), key, core);
         return false;
     }
 
 private:
+    EventuallyPersistentStore *ep;
     RCPtr<VBucket>   vbucket;
+    std::string key;
     SERVER_CORE_API *core;
 };
 
@@ -268,6 +272,20 @@ RCPtr<VBucket> EventuallyPersistentStore::getVBucket(uint16_t vbucket) {
     return vbuckets.getBucket(vbucket);
 }
 
+void EventuallyPersistentStore::completeSetVBState(uint16_t vbid, const std::string &key,
+                                                   SERVER_CORE_API *core) {
+    LockHolder lh(vbsetMutex);
+
+    if (!underlying->setVBState(vbid, key)) {
+        RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
+        getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                             "Rescheduling a task to set the state of vbucket %d in disc\n", vbid);
+        dispatcher->schedule(shared_ptr<DispatcherCallback>(new SetVBStateCallback(this, vb,
+                                                            key, core)),
+                             NULL, Priority::SetVBucketPriority, 5, false);
+    }
+}
+
 void EventuallyPersistentStore::setVBucketState(uint16_t vbid,
                                                 vbucket_state_t to,
                                                 SERVER_CORE_API *core) {
@@ -276,13 +294,13 @@ void EventuallyPersistentStore::setVBucketState(uint16_t vbid,
     RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
     if (vb) {
         vb->setState(to, core);
-        dispatcher->schedule(shared_ptr<DispatcherCallback>(new SetVBStateCallback(vb, core)),
-                             NULL, Priority::SetVBucketPriority);
+        dispatcher->schedule(shared_ptr<DispatcherCallback>(new SetVBStateCallback(this, vb,
+                                                            VBucket::toString(to), core)),
+                             NULL, Priority::SetVBucketPriority, 0, false);
     } else {
         RCPtr<VBucket> newvb(new VBucket(vbid, to, stats));
         vbuckets.addBucket(newvb);
     }
-    queueDirty(VBucket::toString(to), vbid, queue_op_vb_set);
 }
 
 void EventuallyPersistentStore::completeVBucketDeletion(uint16_t vbid) {
@@ -765,17 +783,6 @@ int EventuallyPersistentStore::flushOneDelOrSet(QueuedItem &qi,
     return ret;
 }
 
-int EventuallyPersistentStore::flushVBSet(QueuedItem &qi,
-                                          std::queue<QueuedItem> *rejectQueue) {
-
-    if (!underlying->setVBState(qi.getVBucketId(), qi.getKey())) {
-        stats.memOverhead.incr(qi.size());
-        assert(stats.memOverhead.get() < GIGANTOR);
-        rejectQueue->push(qi);
-    }
-    return 1;
-}
-
 int EventuallyPersistentStore::flushOne(std::queue<QueuedItem> *q,
                                         std::queue<QueuedItem> *rejectQueue) {
 
@@ -794,9 +801,6 @@ int EventuallyPersistentStore::flushOne(std::queue<QueuedItem> *q,
         // FALLTHROUGH
     case queue_op_del:
         rv = flushOneDelOrSet(qi, rejectQueue);
-        break;
-    case queue_op_vb_set:
-        rv = flushVBSet(qi, rejectQueue);
         break;
     }
 

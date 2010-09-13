@@ -56,8 +56,7 @@ extern "C" {
 enum queue_operation {
     queue_op_set,
     queue_op_del,
-    queue_op_flush,
-    queue_op_vb_set
+    queue_op_flush
 };
 
 class QueuedItem {
@@ -274,6 +273,10 @@ public:
                          hrtime_t init, hrtime_t start);
 
     RCPtr<VBucket> getVBucket(uint16_t vbid);
+
+    void completeSetVBState(uint16_t vbid,
+                            const std::string &key,
+                            SERVER_CORE_API *core);
     void setVBucketState(uint16_t vbid,
                          vbucket_state_t state,
                          SERVER_CORE_API *core);
@@ -400,7 +403,6 @@ private:
                  std::queue<QueuedItem> *rejectQueue);
     int flushOneDeleteAll(void);
     int flushOneDelOrSet(QueuedItem &qi, std::queue<QueuedItem> *rejectQueue);
-    int flushVBSet(QueuedItem &qi, std::queue<QueuedItem> *rejectQueue);
 
     friend class Flusher;
 

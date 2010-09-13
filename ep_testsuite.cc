@@ -1042,6 +1042,8 @@ static enum test_result test_vbucket_destroy_stats(ENGINE_HANDLE *h,
     check(set_vbucket_state(h, h1, 1, "dead"), "Failed set set vbucket 1 state.");
     waitfor_vbucket_state(h, h1, 1, "dead");
 
+    int vbucketDel = get_int_stat(h, h1, "ep_vbucket_del");
+
     protocol_binary_request_header *pkt = create_packet(CMD_DEL_VBUCKET, "1", "");
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Failed to delete dead bucket.");
@@ -1051,11 +1053,7 @@ static enum test_result test_vbucket_destroy_stats(ENGINE_HANDLE *h,
     check(verify_vbucket_missing(h, h1, 1),
           "vbucket 0 was not missing after deleting it.");
 
-    // Wait for persistence queue to run and drain the vbucket deletion job
-    while (get_int_stat(h, h1, "ep_flusher_todo")
-           + get_int_stat(h, h1, "ep_queue_size") > 0) {
-        usleep(100);
-    }
+    wait_for_stat_change(h, h1, "ep_vbucket_del", vbucketDel);
 
     int mem_used2 = get_int_stat(h, h1, "mem_used");
     // int cacheSize2 = get_int_stat(h, h1, "ep_total_cache_size");
@@ -1102,8 +1100,6 @@ static enum test_result test_vbucket_destroy_restart(ENGINE_HANDLE *h, ENGINE_HA
     check(set_vbucket_state(h, h1, 1, "dead"), "Failed set set vbucket 1 state.");
     waitfor_vbucket_state(h, h1, 1, "dead");
 
-    int vbucketDel = get_int_stat(h, h1, "ep_vbucket_del");
-
     pkt = create_packet(CMD_DEL_VBUCKET, "1", "");
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Failed to delete dead bucket.");
@@ -1112,8 +1108,6 @@ static enum test_result test_vbucket_destroy_restart(ENGINE_HANDLE *h, ENGINE_HA
 
     check(verify_vbucket_missing(h, h1, 1),
           "vbucket 1 was not missing after deleting it.");
-
-    wait_for_stat_change(h, h1, "ep_vbucket_del", vbucketDel);
 
     testHarness.reload_engine(&h, &h1,
                               testHarness.engine_path,
