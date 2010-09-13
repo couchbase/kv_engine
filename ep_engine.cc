@@ -1477,6 +1477,7 @@ private:
     bool valid;
 };
 
+/// @cond DETAILS
 class BackFillThreadData {
 public:
 
@@ -1488,7 +1489,7 @@ public:
     BackFillVisitor bfv;
     EventuallyPersistentStore *epstore;
 };
-
+/// @endcond
 
 extern "C" {
     static void* launch_backfill_thread(void *arg) {
