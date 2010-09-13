@@ -59,11 +59,10 @@ public:
     void wake(void);
     bool step(Dispatcher&, TaskId);
 
-    bool transition_state(enum flusher_state to);
-
     enum flusher_state state() const;
     const char * stateName() const;
 private:
+    bool transition_state(enum flusher_state to);
     int doFlush();
     void completeFlush();
     void schedule_UNLOCKED();
