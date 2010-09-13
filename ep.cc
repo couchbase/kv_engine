@@ -839,9 +839,21 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
         }
         bool retain = shouldBeResident();
         if (!vb->ht.add(*i, false, retain)) {
-            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "Warmup dataload failure: max_size too low.\n");
-            exit(1); // I'd like EX_CONFIG here, but lacking sysexits here.
+            if (hasPurged) {
+                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                 "Warmup dataload failure: max_size too low.\n");
+                exit(1); // I'd like EX_CONFIG here, but lacking sysexits here.
+            } else {
+                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                 "Emergency startup purge to free space for load.\n");
+                purge();
+                // Try that item again.
+                if (!vb->ht.add(*i, false, retain)) {
+                    getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                     "Cannot store an item after emergency purge.\n");
+                    exit(1);
+                }
+            }
         }
         if (!retain) {
             ++stats.numValueEjects;
@@ -851,4 +863,33 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
         delete i;
     }
     stats.warmedUp++;
+}
+
+void LoadStorageKVPairCallback::purge() {
+
+    class EmergencyPurgeVisitor : public HashTableVisitor {
+    public:
+        EmergencyPurgeVisitor(EPStats &s) : stats(s) {}
+
+        void visit(StoredValue *v) {
+            if (v->ejectValue(stats)) {
+                ++stats.numValueEjects;
+                ++stats.numNonResident;
+            }
+        }
+    private:
+        EPStats &stats;
+    };
+
+    std::vector<int> vbucketIds(vbuckets.getBuckets());
+    std::vector<int>::iterator it;
+    EmergencyPurgeVisitor epv(stats);
+    for (it = vbucketIds.begin(); it != vbucketIds.end(); ++it) {
+        int vbid = *it;
+        RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
+        if (vb) {
+            vb->ht.visit(epv);
+        }
+    }
+    hasPurged = true;
 }

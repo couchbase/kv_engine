@@ -118,7 +118,7 @@ class Flusher;
 class LoadStorageKVPairCallback : public Callback<GetValue> {
 public:
     LoadStorageKVPairCallback(VBucketMap &vb, EPStats &st)
-        : vbuckets(vb), stats(st) { }
+        : vbuckets(vb), stats(st), hasPurged(false) { }
 
     void initVBucket(uint16_t vbid, vbucket_state_t state = pending);
     void callback(GetValue &val);
@@ -129,8 +129,11 @@ private:
         return StoredValue::getCurrentSize(stats) < stats.mem_low_wat;
     }
 
+    void purge();
+
     VBucketMap &vbuckets;
     EPStats    &stats;
+    bool        hasPurged;
 };
 
 class EventuallyPersistentEngine;
