@@ -840,7 +840,8 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
         bool retain = shouldBeResident();
         if (!vb->ht.add(*i, false, retain)) {
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "Failed to load item due to memory constraint.\n");
+                             "Warmup dataload failure: max_size too low.\n");
+            exit(1); // I'd like EX_CONFIG here, but lacking sysexits here.
         }
         if (!retain) {
             ++stats.numValueEjects;
