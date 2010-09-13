@@ -907,8 +907,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
             }
         }
 
-        shared_ptr<DispatcherCallback> cb(new ItemPager(epstore, stats));
-        epstore->getDispatcher()->schedule(cb, NULL, Priority::ItemPagerPriority, 10);
+        if (HashTable::getDefaultStorageValueType() != small) {
+            shared_ptr<DispatcherCallback> cb(new ItemPager(epstore, stats));
+            epstore->getDispatcher()->schedule(cb, NULL, Priority::ItemPagerPriority, 10);
+        }
     }
 
     if (ret == ENGINE_SUCCESS) {
