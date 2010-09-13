@@ -295,15 +295,16 @@ public:
     }
 
     void warmup() {
+        LoadStorageKVPairCallback cb(vbuckets, stats);
         std::map<uint16_t, std::string> state = underlying->listPersistedVbuckets();
         std::map<uint16_t, std::string>::iterator it;
         for (it = state.begin(); it != state.end(); ++it) {
             getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
                              "Reloading vbucket %d - was in %s state\n",
                              it->first, it->second.c_str());
-            loadStorageKVPairCallback.initVBucket(it->first);
+            cb.initVBucket(it->first);
         }
-        underlying->dump(loadStorageKVPairCallback);
+        underlying->dump(cb);
     }
 
     int getTxnSize() {
@@ -394,7 +395,6 @@ private:
     AtomicQueue<QueuedItem>    towrite;
     std::queue<QueuedItem>     writing;
     pthread_t                  thread;
-    LoadStorageKVPairCallback  loadStorageKVPairCallback;
     Atomic<int>                txnSize;
     Atomic<size_t>             bgFetchQueue;
     Mutex                      vbsetMutex;

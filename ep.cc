@@ -115,8 +115,7 @@ private:
 EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine &theEngine,
                                                      StrategicSqlite3 *t,
                                                      bool startVb0) :
-    engine(theEngine), stats(engine.getEpStats()),
-    loadStorageKVPairCallback(vbuckets, stats), bgFetchDelay(0)
+    engine(theEngine), stats(engine.getEpStats()), bgFetchDelay(0)
 {
     doPersistence = getenv("EP_NO_PERSISTENCE") == NULL;
     dispatcher = new Dispatcher();
