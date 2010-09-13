@@ -148,6 +148,25 @@ public:
     Atomic<uint64_t> numTapFGFetched;
     //! Number of tap deletes.
     Atomic<uint64_t> numTapDeletes;
+    //! The number of samples the tapBgWaitDelta and tapBgLoadDelta contains of
+    Atomic<uint64_t> tapBgNumOperations;
+    /** The sum of the deltas (in usec) from a tap item was put in queue until
+     *  the dispatcher started the work for this item
+     */
+    Atomic<hrtime_t> tapBgWait;
+    //! The shortest tap bg wait time
+    Atomic<hrtime_t> tapBgMinWait;
+    //! The longest tap bg wait time
+    Atomic<hrtime_t> tapBgMaxWait;
+
+    /** The sum of the deltas (in usec) from the dispatcher started to load
+     *  a tap item until was done
+     */
+    Atomic<hrtime_t> tapBgLoad;
+    //! The shortest tap load time
+    Atomic<hrtime_t> tapBgMinLoad;
+    //! The longest tap load time
+    Atomic<hrtime_t> tapBgMaxLoad;
 
 private:
 

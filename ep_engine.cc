@@ -1843,6 +1843,28 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTapStats(const void *cookie,
                     TapConnection::ackGracePeriod,
                     add_stat, cookie);
 
+    add_casted_stat("ep_tap_bg_num_samples", stats.tapBgNumOperations, add_stat, cookie);
+    add_casted_stat("ep_tap_bg_min_wait",
+                    hrtime2text(stats.tapBgMinWait).c_str(),
+                    add_stat, cookie);
+    add_casted_stat("ep_tap_bg_max_wait",
+                    hrtime2text(stats.tapBgMaxWait).c_str(),
+                    add_stat, cookie);
+    add_casted_stat("ep_tap_bg_wait_avg",
+                    stats.tapBgNumOperations > 0 ?
+                    hrtime2text(stats.tapBgWait / stats.tapBgNumOperations).c_str() : "n/a",
+                    add_stat, cookie);
+    add_casted_stat("ep_tap_bg_min_load",
+                    hrtime2text(stats.tapBgMinLoad).c_str(),
+                    add_stat, cookie);
+    add_casted_stat("ep_tap_bg_max_load",
+                    hrtime2text(stats.tapBgMaxLoad).c_str(),
+                    add_stat, cookie);
+    add_casted_stat("ep_tap_bg_load_avg",
+                    stats.tapBgNumOperations > 0 ?
+                    hrtime2text(stats.tapBgLoad / stats.tapBgNumOperations).c_str() : "n/a",
+                    add_stat, cookie);
+
     return ENGINE_SUCCESS;
 }
 
@@ -1973,6 +1995,13 @@ void EventuallyPersistentEngine::resetStats()
     stats.bgMaxWait.set(0);
     stats.bgMinLoad.set(999999999);
     stats.bgMaxLoad.set(0);
+    stats.tapBgNumOperations.set(0);
+    stats.tapBgWait.set(0);
+    stats.tapBgLoad.set(0);
+    stats.tapBgMinWait.set(999999999);
+    stats.tapBgMaxWait.set(0);
+    stats.tapBgMinLoad.set(999999999);
+    stats.tapBgMaxLoad.set(0);
     stats.pendingOps.set(0);
     stats.pendingOpsTotal.set(0);
     stats.pendingOpsMax.set(0);

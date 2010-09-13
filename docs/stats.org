@@ -73,6 +73,20 @@
 |                               | tap queues                                |
 | ep_tap_total_fetched          | Sum of all tap messages sent              |
 | ep_tap_keepalive              | Tap keepalive time.                       |
+| ep_tap_bg_num_samples         | The number of tap bg fetch samples        |
+|                               | included in the avg                       |
+| ep_tap_bg_min_wait            | The shortest time for a tap item          |
+|                               | before it is serviced by the dispatcher   |
+| ep_tap_bg_max_wait            | The longest time for a tap item           |
+|                               | before it is serviced by the dispatcher   |
+| ep_tap_bg_wait_avg            | The average wait time for a tap item      |
+|                               | before it is serviced by the dispatcher   |
+| ep_tap_bg_min_load            | The shortest time for a tap item to be    |
+|                               | loaded from the persistence layer         |
+| ep_tap_bg_max_load            | The longest time for a tap item to be     |
+|                               | loaded from the persistence layer         |
+| ep_tap_bg_load_avg            | The average time for a tap item to be     |
+|                               | loaded from the persistence layer         |
 | ep_bg_fetched                 | Number of items fetched from disk.        |
 | ep_num_pager_runs             | Number of times we ran pager loops        |
 |                               | to seek additional memory.                |

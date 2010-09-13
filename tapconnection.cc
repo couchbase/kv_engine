@@ -184,6 +184,23 @@ public:
         CompletedBGFetchTapOperation tapop;
         epe->performTapOp(name, tapop, epe);
 
+        hrtime_t stop = gethrtime();
+        EPStats &stats = epe->getEpStats();
+
+        if (stop > start && start > init) {
+            // skip the measurement if the counter wrapped...
+            ++stats.tapBgNumOperations;
+            hrtime_t w = (start - init) / 1000;
+            stats.tapBgWait += w;
+            stats.tapBgMinWait.setIfLess(w);
+            stats.tapBgMaxWait.setIfBigger(w);
+
+            hrtime_t l = (stop - start) / 1000;
+            stats.tapBgLoad += l;
+            stats.tapBgMinLoad.setIfLess(l);
+            stats.tapBgMaxLoad.setIfBigger(l);
+        }
+
         return false;
     }
 
