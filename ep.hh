@@ -120,42 +120,15 @@ public:
     LoadStorageKVPairCallback(VBucketMap &vb, EPStats &st)
         : vbuckets(vb), stats(st) { }
 
-    void initVBucket(uint16_t vbid, vbucket_state_t state = pending) {
-        RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
-        if (!vb) {
-            vb.reset(new VBucket(vbid, state, stats));
-            vbuckets.addBucket(vb);
-        }
-    }
+    void initVBucket(uint16_t vbid, vbucket_state_t state = pending);
+    void callback(GetValue &val);
+
+private:
 
     bool shouldBeResident() {
         return StoredValue::getCurrentSize(stats) < stats.mem_low_wat;
     }
 
-    void callback(GetValue &val) {
-        Item *i = val.getValue();
-        if (i != NULL) {
-            RCPtr<VBucket> vb = vbuckets.getBucket(i->getVBucketId());
-            if (!vb) {
-                vb.reset(new VBucket(i->getVBucketId(), pending, stats));
-                vbuckets.addBucket(vb);
-            }
-            bool retain = shouldBeResident();
-            if (!vb->ht.add(*i, false, retain)) {
-                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                 "Failed to load item due to memory constraint.\n");
-            }
-            if (!retain) {
-                ++stats.numValueEjects;
-                ++stats.numNonResident;
-            }
-
-            delete i;
-        }
-        stats.warmedUp++;
-    }
-
-private:
     VBucketMap &vbuckets;
     EPStats    &stats;
 };

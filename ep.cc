@@ -820,3 +820,35 @@ void EventuallyPersistentStore::queueDirty(const std::string &key, uint16_t vbid
         stats.queue_size = towrite.size();
     }
 }
+
+void LoadStorageKVPairCallback::initVBucket(uint16_t vbid,
+                                            vbucket_state_t state) {
+    RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
+    if (!vb) {
+        vb.reset(new VBucket(vbid, state, stats));
+        vbuckets.addBucket(vb);
+    }
+}
+
+void LoadStorageKVPairCallback::callback(GetValue &val) {
+    Item *i = val.getValue();
+    if (i != NULL) {
+        RCPtr<VBucket> vb = vbuckets.getBucket(i->getVBucketId());
+        if (!vb) {
+            vb.reset(new VBucket(i->getVBucketId(), pending, stats));
+            vbuckets.addBucket(vb);
+        }
+        bool retain = shouldBeResident();
+        if (!vb->ht.add(*i, false, retain)) {
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                             "Failed to load item due to memory constraint.\n");
+        }
+        if (!retain) {
+            ++stats.numValueEjects;
+            ++stats.numNonResident;
+        }
+
+        delete i;
+    }
+    stats.warmedUp++;
+}
