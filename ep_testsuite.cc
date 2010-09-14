@@ -1805,21 +1805,25 @@ static enum test_result test_disk_gt_ram_rm_race(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+static bool epsilon(int val, int target, int ep=5) {
+    return abs(val - target) < ep;
+}
+
 static enum test_result test_max_size_settings(ENGINE_HANDLE *h,
                                                ENGINE_HANDLE_V1 *h1) {
     check(get_int_stat(h, h1, "ep_max_data_size") == 1000, "Incorrect initial size.");
-    check(get_int_stat(h, h1, "ep_mem_low_wat") == 600,
+    check(epsilon(get_int_stat(h, h1, "ep_mem_low_wat"), 600),
           "Incorrect initial low wat.");
-    check(get_int_stat(h, h1, "ep_mem_high_wat") == 750,
+    check(epsilon(get_int_stat(h, h1, "ep_mem_high_wat"), 750),
           "Incorrect initial high wat.");
 
     set_flush_param(h, h1, "max_size", "1000000");
 
     check(get_int_stat(h, h1, "ep_max_data_size") == 1000000,
           "Incorrect new size.");
-    check(get_int_stat(h, h1, "ep_mem_low_wat") == 600000,
+    check(epsilon(get_int_stat(h, h1, "ep_mem_low_wat"), 600000),
           "Incorrect larger low wat.");
-    check(get_int_stat(h, h1, "ep_mem_high_wat") == 750000,
+    check(epsilon(get_int_stat(h, h1, "ep_mem_high_wat"), 750000),
           "Incorrect larger high wat.");
 
     set_flush_param(h, h1, "mem_low_wat", "700000");
@@ -1834,9 +1838,9 @@ static enum test_result test_max_size_settings(ENGINE_HANDLE *h,
 
     check(get_int_stat(h, h1, "ep_max_data_size") == 100,
           "Incorrect smaller size.");
-    check(get_int_stat(h, h1, "ep_mem_low_wat") == 60,
+    check(epsilon(get_int_stat(h, h1, "ep_mem_low_wat"), 60),
           "Incorrect smaller low wat.");
-    check(get_int_stat(h, h1, "ep_mem_high_wat") == 75,
+    check(epsilon(get_int_stat(h, h1, "ep_mem_high_wat"), 75),
           "Incorrect smaller high wat.");
 
     set_flush_param(h, h1, "mem_low_wat", "50");
