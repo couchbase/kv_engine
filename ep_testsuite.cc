@@ -1767,8 +1767,10 @@ static enum test_result test_disk_gt_ram_incr_race(ENGINE_HANDLE *h,
 
     // Value is as it was before.
     check_key_value(h, h1, "k1", "13", 2);
-    // Should have bg_fetched to retrieve it even with a concurrent incr.
-    assert(1 == get_int_stat(h, h1, "ep_bg_fetched"));
+    // Should have bg_fetched to retrieve it even with a concurrent
+    // incr.  We *may* at this point have also completed the incr.
+    // 1 == get only, 2 == get+incr.
+    assert(get_int_stat(h, h1, "ep_bg_fetched") >= 1);
 
     // Give incr time to finish (it's doing another background fetch)
     wait_for_stat_change(h, h1, "ep_bg_fetched", 1);
