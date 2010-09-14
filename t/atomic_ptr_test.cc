@@ -8,7 +8,7 @@
 #include "threadtests.hh"
 
 #define NUM_THREADS 50
-#define NUM_TIMES 1000000
+#define NUM_TIMES 100000
 
 class Doodad : public RCValue {
 public:
