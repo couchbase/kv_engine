@@ -110,7 +110,9 @@ ep_la_SOURCES += gethrtime.c
 hrtime_test_SOURCES += gethrtime.c
 endif
 
-test: all check-TESTS
+engine_tests: all
 	@MEMCACHED_DIR@/engine_testapp -E .libs/ep.so -T .libs/ep_testsuite.so \
 		-e 'ht_size=13;ht_locks=7;initfile=t/test_pragma.sql;min_data_age=0'
+
+test: all check-TESTS engine_tests sizes
 	./sizes
