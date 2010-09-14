@@ -38,6 +38,10 @@ extern "C" {
 
 #endif
 
+#ifndef SQLITE_HAS_CODEC
+#define SQLITE_HAS_CODEC 0
+#endif
+
 #ifdef HAVE_POLL_H
 #include <poll.h>
 #endif

@@ -10,7 +10,7 @@ EXTRA_DIST = docs management README.markdown win32 Doxyfile LICENSE
 
 noinst_PROGRAMS = sizes
 
-ep_la_CPPFLAGS = -I@MEMCACHED_DIR@/include -I$(top_srcdir) $(AM_CPPFLAGS) -DSQLITE_HAS_CODEC=0
+ep_la_CPPFLAGS = -I@MEMCACHED_DIR@/include -I$(top_srcdir) $(AM_CPPFLAGS)
 ep_la_LDFLAGS = -module -dynamic
 ep_la_SOURCES = \
                  atomic.hh \
@@ -89,7 +89,7 @@ misc_test_DEPENDENCIES = common.hh
 priority_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
 priority_test_SOURCES = t/priority_test.cc priority.hh priority.cc
 
-sizes_CPPFLAGS = -I@MEMCACHED_DIR@/include -I$(top_srcdir) $(AM_CPPFLAGS) -DSQLITE_HAS_CODEC=0
+sizes_CPPFLAGS = -I@MEMCACHED_DIR@/include -I$(top_srcdir) $(AM_CPPFLAGS)
 sizes_SOURCES = sizes.cc
 sizes_DEPENDENCIES = vbucket.hh stored-value.hh item.hh
 
