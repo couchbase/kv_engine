@@ -564,9 +564,16 @@ void EventuallyPersistentStore::reset() {
     for (it = buckets.begin(); it != buckets.end(); ++it) {
         RCPtr<VBucket> vb = getVBucket(*it, active);
         if (vb) {
+            HashTableStatVisitor statvis;
+            vb->ht.visit(statvis);
+            stats.numNonResident.decr(statvis.numNonResident);
+            stats.currentSize.decr(statvis.memSize);
+            assert(stats.currentSize.get() < GIGANTOR);
+            stats.totalCacheSize.decr(statvis.memSize);
             vb->ht.clear();
         }
     }
+
     queueDirty("", 0, queue_op_flush);
 }
 

@@ -617,6 +617,52 @@ static enum test_result test_flush(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return SUCCESS;
 }
 
+static enum test_result test_flush_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    item *i = NULL;
+    int mem_used = get_int_stat(h, h1, "mem_used");
+    int overhead = get_int_stat(h, h1, "ep_overhead");
+    int cacheSize = get_int_stat(h, h1, "ep_total_cache_size");
+    int nonResident = get_int_stat(h, h1, "ep_num_non_resident");
+
+    check(store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i) == ENGINE_SUCCESS,
+          "Failed set.");
+    check(store(h, h1, NULL, OPERATION_SET, "key2", "somevalue", &i) == ENGINE_SUCCESS,
+          "Failed set.");
+
+    check(ENGINE_SUCCESS == verify_key(h, h1, "key"), "Expected key");
+    check(ENGINE_SUCCESS == verify_key(h, h1, "key2"), "Expected key2");
+
+    check_key_value(h, h1, "key", "somevalue", 9);
+    check_key_value(h, h1, "key2", "somevalue", 9);
+
+    int mem_used2 = get_int_stat(h, h1, "mem_used");
+    int overhead2 = get_int_stat(h, h1, "ep_overhead");
+    int cacheSize2 = get_int_stat(h, h1, "ep_total_cache_size");
+    int nonResident2 = get_int_stat(h, h1, "ep_num_non_resident");
+
+    assert(mem_used2 > mem_used);
+    assert(overhead2 > overhead);
+
+    check(h1->flush(h, NULL, 0) == ENGINE_SUCCESS, "Failed to flush");
+    int queue_size = get_int_stat(h, h1, "ep_queue_size");
+    check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key"), "Expected missing key");
+    check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key2"), "Expected missing key");
+
+    wait_for_stat_change(h, h1, "ep_queue_size", queue_size);
+
+    mem_used2 = get_int_stat(h, h1, "mem_used");
+    overhead2 = get_int_stat(h, h1, "ep_overhead");
+    cacheSize2 = get_int_stat(h, h1, "ep_total_cache_size");
+    nonResident2 = get_int_stat(h, h1, "ep_num_non_resident");
+
+    assert(mem_used2 == mem_used);
+    assert(overhead2 == overhead);
+    assert(nonResident2 == nonResident);
+    assert(cacheSize2 == cacheSize);
+
+    return SUCCESS;
+}
+
 static enum test_result test_flush_multiv(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
     check(set_vbucket_state(h, h1, 2, "active"), "Failed to set vbucket state.");
@@ -1895,6 +1941,7 @@ engine_test_t* get_tests(void) {
         {"incr with default", test_incr_default, NULL, teardown, NULL},
         {"delete", test_delete, NULL, teardown, NULL},
         {"flush", test_flush, NULL, teardown, NULL},
+        {"flush with stats", test_flush_stats, NULL, teardown, NULL},
         {"flush multi vbuckets", test_flush_multiv, NULL, teardown, NULL},
         {"expiry", test_expiry, NULL, teardown, NULL},
         // Stats tests
