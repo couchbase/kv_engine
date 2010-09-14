@@ -28,6 +28,7 @@ ep_la_SOURCES = \
                  histo.hh \
                  item.cc item.hh \
                  item_pager.cc item_pager.hh \
+                 statsnap.cc statsnap.hh \
                  locks.hh \
                  mutex.hh \
                  priority.hh priority.cc \

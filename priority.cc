@@ -26,3 +26,4 @@ const Priority Priority::FlusherPriority("flusher_priority", 5);
 const Priority Priority::ItemPagerPriority("item_pager_priority", 7);
 const Priority Priority::VBucketDeletionPriority("vbucket_deletion_priority", 9);
 const Priority Priority::VBucketPersistPriority("vbucket_persist_priority", 9);
+const Priority Priority::StatSnapPriority("statsnap_priority", 9);

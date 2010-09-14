@@ -108,6 +108,11 @@ public:
     std::map<uint16_t, std::string> listPersistedVbuckets(void);
 
     /**
+     * Take a snapshot of the stats in the main DB.
+     */
+    bool snapshotStats(const std::map<std::string, std::string> &m);
+
+    /**
      * Overrides dump
      */
     void dump(Callback<GetValue> &cb);

@@ -23,7 +23,8 @@ public:
         postInitFile(pfinit),
         db(NULL),
         statements(),
-        set_vb_stmt(NULL), del_vb_stmt(NULL), sel_vb_stmt(NULL)
+        set_vb_stmt(NULL), del_vb_stmt(NULL), sel_vb_stmt(NULL),
+        clear_stats_stmt(NULL), ins_stat_stmt(NULL)
     { }
 
     virtual ~SqliteStrategy() {
@@ -59,7 +60,17 @@ public:
         return sel_vb_stmt;
     }
 
+
     virtual void initMetaTables();
+
+    PreparedStatement *getClearStatsST() {
+        return clear_stats_stmt;
+    }
+
+    PreparedStatement *getInsStatST() {
+        return ins_stat_stmt;
+    }
+
     virtual void initTables(void);
     virtual void initStatements(void);
     virtual void destroyTables(void);
@@ -86,6 +97,9 @@ protected:
     PreparedStatement *sel_vb_stmt;
 
     void doFile(const char * const filename);
+
+    PreparedStatement *clear_stats_stmt;
+    PreparedStatement *ins_stat_stmt;
 
 private:
     DISALLOW_COPY_AND_ASSIGN(SqliteStrategy);

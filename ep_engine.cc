@@ -25,6 +25,7 @@
 #include <memcached/protocol_binary.h>
 
 #include "ep_engine.h"
+#include "statsnap.hh"
 
 static size_t percentOf(size_t val, double percent) {
     return static_cast<size_t>(static_cast<double>(val) * percent);
@@ -964,6 +965,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
             epstore->getDispatcher()->schedule(exp_cb, NULL, Priority::ItemPagerPriority,
                                                expiryPagerSleeptime);
         }
+
+        shared_ptr<StatSnap> sscb(new StatSnap(this));
+        epstore->getDispatcher()->schedule(sscb, NULL, Priority::StatSnapPriority,
+                                           STATSNAP_FREQ);
     }
 
     if (ret == ENGINE_SUCCESS) {

@@ -171,6 +171,33 @@ bool StrategicSqlite3::setVBState(uint16_t vbucket, const std::string& state_str
     return rv;
 }
 
+bool StrategicSqlite3::snapshotStats(const std::map<std::string, std::string> &m) {
+    bool rv(false);
+    execute("begin transaction");
+    try {
+        PreparedStatement *delst = strategy->getClearStatsST();
+        bool deleted = delst->execute() >= 0;
+        rv &= deleted;
+        delst->reset();
+
+        PreparedStatement *ins = strategy->getInsStatST();
+        std::map<std::string, std::string>::const_iterator it;
+        for (it = m.begin(); it != m.end(); ++it) {
+            ins->bind(1, it->first.data(), it->first.size());
+            ins->bind(2, it->second.data(), it->second.size());
+            bool inserted = ins->execute() == 1;
+            ins->reset();
+            rv &= inserted;
+        }
+
+        execute("commit");
+        rv = true;
+    } catch(...) {
+        execute("rollback");
+    }
+    return rv;
+}
+
 void StrategicSqlite3::dump(Callback<GetValue> &cb) {
 
     const std::vector<Statements*> statements = strategy->allStatements();

@@ -48,6 +48,8 @@ void SqliteStrategy::destroyMetaStatements(void) {
     delete set_vb_stmt;
     delete del_vb_stmt;
     delete sel_vb_stmt;
+    delete clear_stats_stmt;
+    delete ins_stat_stmt;
 }
 
 void SqliteStrategy::initMetaTables() {
@@ -79,6 +81,13 @@ void SqliteStrategy::initMetaStatements(void) {
 
     const char *sel_query = "select vbid, state from vbucket_states";
     sel_vb_stmt = new PreparedStatement(db, sel_query);
+
+    const char *clear_stats_query = "delete from stats_snap";
+    clear_stats_stmt = new PreparedStatement(db, clear_stats_query);
+
+    const char *ins_stat_query = "insert into stats_snap "
+        "(name, value, last_change) values (?, ?, current_timestamp)";
+    ins_stat_stmt = new PreparedStatement(db, ins_stat_query);
 }
 
 void SqliteStrategy::initStatements(void) {
@@ -114,6 +123,16 @@ void SqliteStrategy::execute(const char * const query) {
 
 void MultiDBSqliteStrategy::initTables() {
     char buf[1024];
+    execute("create table if not exists vbucket_states"
+            " (vbid integer primary key on conflict replace,"
+            "  state varchar(16),"
+            "  last_change datetime)");
+
+    execute("create table if not exists stats_snap"
+            " (name varchar(16),"
+            "  value varchar(24),"
+            "  last_change datetime)");
+
     for (int i = 0; i < numTables; i++) {
         snprintf(buf, sizeof(buf), "attach database \"%s-%d.sqlite\" as kv_%d",
                  filename, i, i);
