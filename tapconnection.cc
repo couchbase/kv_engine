@@ -26,6 +26,38 @@ const uint32_t TapConnection::ackLowChunkThreshold = 10;
 const rel_time_t TapConnection::ackGracePeriod = 5 * 60;
 
 
+TapConnection::TapConnection(EventuallyPersistentEngine &theEngine, const std::string &n, uint32_t f):
+    engine(theEngine),
+    client(n),
+    queue(NULL),
+    queue_set(NULL),
+    flags(f),
+    recordsFetched(0),
+    pendingFlush(false),
+    expiry_time((rel_time_t)-1),
+    reconnects(0),
+    disconnects(0),
+    connected(true),
+    paused(false),
+    backfillAge(0),
+    doRunBackfill(false),
+    pendingBackfill(true),
+    vbucketFilter(),
+    vBucketHighPriority(),
+    vBucketLowPriority(),
+    doDisconnect(false),
+    seqno(0),
+    seqnoReceived(static_cast<uint32_t>(-1)),
+    ackSupported((f & TAP_CONNECT_SUPPORT_ACK) == TAP_CONNECT_SUPPORT_ACK)
+{
+    queue = new std::list<QueuedItem>;
+    queue_set = new std::set<QueuedItem>;
+
+    if (ackSupported) {
+        expiry_time = ep_current_time() + ackGracePeriod;
+    }
+}
+
 bool TapConnection::windowIsFull() {
     if (!ackSupported) {
         return false;
@@ -150,12 +182,11 @@ void TapConnection::encodeVBucketStateTransition(const TapVBucketEvent &ev, void
 class TapBGFetchCallback : public DispatcherCallback {
 public:
     TapBGFetchCallback(EventuallyPersistentEngine *e, const std::string &n,
-                       SERVER_CORE_API *capi, const std::string &k,
+                       const std::string &k,
                        uint64_t r, const void *c) :
-        epe(e), name(n), core(capi), key(k), rowid(r), cookie(c),
+        epe(e), name(n), key(k), rowid(r), cookie(c),
         init(gethrtime()), start(0) {
         assert(epe);
-        assert(core);
         assert(cookie);
     }
 
@@ -178,7 +209,7 @@ public:
             if (!epe->performTapOp(name, tapop, gcb.val.getValue())) {
                 delete gcb.val.getValue();
             }
-            core->notify_io_complete(cookie, ENGINE_SUCCESS);
+            epe->getServerApi()->cookie->notify_io_complete(cookie, ENGINE_SUCCESS);
         }
 
         CompletedBGFetchTapOperation tapop;
@@ -207,7 +238,6 @@ public:
 private:
     EventuallyPersistentEngine *epe;
     const std::string           name;
-    SERVER_CORE_API            *core;
     std::string                 key;
     uint64_t                    rowid;
     const void                 *cookie;
@@ -226,19 +256,18 @@ void TapConnection::queueBGFetch(const std::string &key, uint64_t id) {
     assert(!complete());
 }
 
-void TapConnection::runBGFetch(EventuallyPersistentEngine *e, Dispatcher *dispatcher,
-                               SERVER_CORE_API *core, const void *cookie) {
+void TapConnection::runBGFetch(Dispatcher *dispatcher, const void *cookie) {
     LockHolder lh(backfillLock);
     TapBGFetchQueueItem qi(backfillQueue.front());
     backfillQueue.pop();
     --bgQueueSize;
     lh.unlock();
 
-    shared_ptr<TapBGFetchCallback> dcb(new TapBGFetchCallback(e, client, core,
+    shared_ptr<TapBGFetchCallback> dcb(new TapBGFetchCallback(&engine, client,
                                                               qi.key, qi.id,
                                                               cookie));
     ++bgJobIssued;
-    ++e->getEpStore()->bgFetchQueue;
+    ++engine.getEpStore()->bgFetchQueue;
     dispatcher->schedule(dcb, NULL, Priority::TapBgFetcherPriority);
 }
 
@@ -249,9 +278,9 @@ void TapConnection::gotBGItem(Item *i) {
     assert(hasItem());
 }
 
-void TapConnection::completedBGFetchJob(EventuallyPersistentEngine *epe) {
+void TapConnection::completedBGFetchJob() {
     ++bgJobCompleted;
-    --epe->getEpStore()->bgFetchQueue;
+    --engine.getEpStore()->bgFetchQueue;
 }
 
 Item* TapConnection::nextFetchedItem() {

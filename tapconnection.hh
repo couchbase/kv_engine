@@ -101,7 +101,7 @@ public:
     /**
      * Invoked once per batch bg fetch job.
      */
-    void completedBGFetchJob(EventuallyPersistentEngine *epe);
+    void completedBGFetchJob();
 
     const std::string& getName() const {
         return client;
@@ -284,25 +284,11 @@ private:
     /**
      * Run some background fetch jobs.
      */
-    void runBGFetch(EventuallyPersistentEngine *e, Dispatcher *dispatcher,
-                    SERVER_CORE_API* core, const void *cookie);
+    void runBGFetch(Dispatcher *dispatcher, const void *cookie);
 
-    TapConnection(const std::string &n, uint32_t f):
-        client(n), queue(NULL), queue_set(NULL), flags(f),
-        recordsFetched(0), pendingFlush(false), expiry_time((rel_time_t)-1),
-        reconnects(0), disconnects(0), connected(true), paused(false),
-        backfillAge(0), doRunBackfill(false), pendingBackfill(true), vbucketFilter(),
-        vBucketHighPriority(), vBucketLowPriority(), doDisconnect(false),
-        seqno(0), seqnoReceived(static_cast<uint32_t>(-1)),
-        ackSupported((f & TAP_CONNECT_SUPPORT_ACK) == TAP_CONNECT_SUPPORT_ACK)
-    {
-        queue = new std::list<QueuedItem>;
-        queue_set = new std::set<QueuedItem>;
-
-        if (ackSupported) {
-            expiry_time = ep_current_time() + ackGracePeriod;
-        }
-    }
+    TapConnection(EventuallyPersistentEngine &theEngine,
+                  const std::string &n,
+                  uint32_t f);
 
     ~TapConnection() {
         delete queue;
@@ -350,6 +336,11 @@ private:
         s << TapConnection::nextTapId();
         return s.str();
     }
+
+    /**
+     * The engine that owns the connection
+     */
+    EventuallyPersistentEngine &engine;
 
     /**
      * String used to identify the client.

@@ -421,8 +421,8 @@ public:
         }
         purgeExpiredTapConnections_UNLOCKED();
         lh.unlock();
-        serverApi->core->notify_io_complete(cookie,
-                                            ENGINE_DISCONNECT);
+        serverApi->cookie->notify_io_complete(cookie,
+                                              ENGINE_DISCONNECT);
     }
 
     protocol_binary_response_status stopFlusher(const char **msg) {
@@ -482,7 +482,7 @@ public:
     }
 
     void setVBucketState(uint16_t vbid, vbucket_state_t to) {
-        epstore->setVBucketState(vbid, to, serverApi->core);
+        epstore->setVBucketState(vbid, to);
     }
 
     ~EventuallyPersistentEngine() {
@@ -535,6 +535,8 @@ public:
     size_t getItemExpiryWindow() const {
         return itemExpiryWindow;
     }
+
+    SERVER_HANDLE_V1* getServerApi() { return serverApi; }
 
 private:
     EventuallyPersistentEngine(GET_SERVER_API get_server_api);
@@ -781,7 +783,7 @@ private:
     bool startedEngineThreads;
     SyncObject tapNotifySync;
     volatile bool shutdown;
-    GET_SERVER_API getServerApi;
+    GET_SERVER_API getServerApiFunc;
     union {
         engine_info info;
         char buffer[sizeof(engine_info) + 10 * sizeof(feature_info) ];

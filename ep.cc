@@ -46,27 +46,24 @@ extern "C" {
 
 class BGFetchCallback : public DispatcherCallback {
 public:
-    BGFetchCallback(EventuallyPersistentStore *e, SERVER_CORE_API *capi,
+    BGFetchCallback(EventuallyPersistentStore *e,
                     const std::string &k, uint16_t vbid, uint64_t r,
                     const void *c) :
-        ep(e), core(capi), key(k), vbucket(vbid), rowid(r), cookie(c),
+        ep(e), key(k), vbucket(vbid), rowid(r), cookie(c),
         init(gethrtime()), start(0) {
         assert(ep);
-        assert(core);
         assert(cookie);
     }
 
     bool callback(Dispatcher &d, TaskId t) {
         (void)d; (void)t;
         start = gethrtime();
-        ep->completeBGFetch(key, vbucket, rowid, cookie, core,
-                            init, start);
+        ep->completeBGFetch(key, vbucket, rowid, cookie, init, start);
         return false;
     }
 
 private:
     EventuallyPersistentStore *ep;
-    SERVER_CORE_API           *core;
     std::string                key;
     uint16_t                   vbucket;
     uint64_t                   rowid;
@@ -79,15 +76,15 @@ private:
 class SetVBStateCallback : public DispatcherCallback {
 public:
     SetVBStateCallback(EventuallyPersistentStore *e, RCPtr<VBucket> vb,
-                       const std::string &k, SERVER_CORE_API *c)
-        : ep(e), vbucket(vb), key(k), core(c) {
-        assert(core);
+                       const std::string &k, SERVER_HANDLE_V1 *a)
+        : ep(e), vbucket(vb), key(k), api(a) {
+        assert(api);
     }
 
     bool callback(Dispatcher &d, TaskId t) {
         (void)d; (void)t;
-        vbucket->fireAllOps(core);
-        ep->completeSetVBState(vbucket->getId(), key, core);
+        vbucket->fireAllOps(api);
+        ep->completeSetVBState(vbucket->getId(), key);
         return false;
     }
 
@@ -95,7 +92,7 @@ private:
     EventuallyPersistentStore *ep;
     RCPtr<VBucket>   vbucket;
     std::string key;
-    SERVER_CORE_API *core;
+    SERVER_HANDLE_V1 *api;
 };
 
 class VBucketDeletionCallback : public DispatcherCallback {
@@ -324,30 +321,27 @@ RCPtr<VBucket> EventuallyPersistentStore::getVBucket(uint16_t vbucket) {
     return vbuckets.getBucket(vbucket);
 }
 
-void EventuallyPersistentStore::completeSetVBState(uint16_t vbid, const std::string &key,
-                                                   SERVER_CORE_API *core) {
+void EventuallyPersistentStore::completeSetVBState(uint16_t vbid, const std::string &key) {
     LockHolder lh(vbsetMutex);
 
     if (!underlying->setVBState(vbid, key)) {
         RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
         getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
                              "Rescheduling a task to set the state of vbucket %d in disc\n", vbid);
-        dispatcher->schedule(shared_ptr<DispatcherCallback>(new SetVBStateCallback(this, vb,
-                                                            key, core)),
+        dispatcher->schedule(shared_ptr<DispatcherCallback>(new SetVBStateCallback(this, vb, key, engine.getServerApi())),
                              NULL, Priority::SetVBucketPriority, 5, false);
     }
 }
 
 void EventuallyPersistentStore::setVBucketState(uint16_t vbid,
-                                                vbucket_state_t to,
-                                                SERVER_CORE_API *core) {
+                                                vbucket_state_t to) {
     // Lock to prevent a race condition between a failed update and add.
     LockHolder lh(vbsetMutex);
     RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
     if (vb) {
-        vb->setState(to, core);
+        vb->setState(to, engine.getServerApi());
         dispatcher->schedule(shared_ptr<DispatcherCallback>(new SetVBStateCallback(this, vb,
-                                                            VBucket::toString(to), core)),
+                                                                                   VBucket::toString(to), engine.getServerApi())),
                              NULL, Priority::SetVBucketPriority, 0, false);
     } else {
         RCPtr<VBucket> newvb(new VBucket(vbid, to, stats));
@@ -395,7 +389,6 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
                                                 uint16_t vbucket,
                                                 uint64_t rowid,
                                                 const void *cookie,
-                                                SERVER_CORE_API *core,
                                                 hrtime_t init, hrtime_t start) {
     --bgFetchQueue;
     ++stats.bg_fetched;
@@ -445,16 +438,15 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
         stats.bgMaxLoad.setIfBigger(l);
     }
 
-    core->notify_io_complete(cookie, gcb.val.getStatus());
+    engine.getServerApi()->cookie->notify_io_complete(cookie, gcb.val.getStatus());
     delete gcb.val.getValue();
 }
 
 void EventuallyPersistentStore::bgFetch(const std::string &key,
                                         uint16_t vbucket,
                                         uint64_t rowid,
-                                        const void *cookie,
-                                        SERVER_CORE_API *core) {
-    shared_ptr<BGFetchCallback> dcb(new BGFetchCallback(this, core, key,
+                                        const void *cookie) {
+    shared_ptr<BGFetchCallback> dcb(new BGFetchCallback(this, key,
                                                         vbucket, rowid, cookie));
     ++bgFetchQueue;
     assert(bgFetchQueue > 0);
@@ -468,7 +460,6 @@ void EventuallyPersistentStore::bgFetch(const std::string &key,
 GetValue EventuallyPersistentStore::get(const std::string &key,
                                         uint16_t vbucket,
                                         const void *cookie,
-                                        SERVER_CORE_API *core,
                                         bool queueBG) {
     RCPtr<VBucket> vb = getVBucket(vbucket);
     if (!vb || vb->getState() == dead) {
@@ -491,7 +482,7 @@ GetValue EventuallyPersistentStore::get(const std::string &key,
         // If the value is not resident, wait for it...
         if (!v->isResident()) {
             if (queueBG) {
-                bgFetch(key, vbucket, v->getId(), cookie, core);
+                bgFetch(key, vbucket, v->getId(), cookie);
             }
             return GetValue(NULL, ENGINE_EWOULDBLOCK, v->getId());
         }

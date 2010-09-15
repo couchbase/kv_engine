@@ -165,8 +165,7 @@ public:
      * @return a GetValue representing the result of the request
      */
     GetValue get(const std::string &key, uint16_t vbucket,
-                 const void *cookie, SERVER_CORE_API *core,
-                 bool queueBG=true);
+                 const void *cookie, bool queueBG=true);
 
     void getFromUnderlying(const std::string &key, uint16_t vbucket,
                            shared_ptr<Callback<GetValue> > cb) {
@@ -234,8 +233,7 @@ public:
     void bgFetch(const std::string &key,
                  uint16_t vbucket,
                  uint64_t rowid,
-                 const void *cookie,
-                 SERVER_CORE_API *core);
+                 const void *cookie);
 
     /**
      * Complete a background fetch.
@@ -248,17 +246,14 @@ public:
                          uint16_t vbucket,
                          uint64_t rowid,
                          const void *cookie,
-                         SERVER_CORE_API *core,
                          hrtime_t init, hrtime_t start);
 
     RCPtr<VBucket> getVBucket(uint16_t vbid);
 
     void completeSetVBState(uint16_t vbid,
-                            const std::string &key,
-                            SERVER_CORE_API *core);
+                            const std::string &key);
     void setVBucketState(uint16_t vbid,
-                         vbucket_state_t state,
-                         SERVER_CORE_API *core);
+                         vbucket_state_t state);
 
     void completeVBucketDeletion(uint16_t vbid);
     bool deleteVBucket(uint16_t vbid);

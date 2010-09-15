@@ -48,7 +48,7 @@ void LookupCallback::callback(GetValue &value) {
     } else {
         engine->addLookupResult(cookie, NULL);
     }
-    engine->getServerApi()->core->notify_io_complete(cookie, ENGINE_SUCCESS);
+    engine->getServerApi()->cookie->notify_io_complete(cookie, ENGINE_SUCCESS);
 }
 
 template <typename T>
@@ -670,7 +670,7 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server
     startVb0(true), sqliteDb(NULL), epstore(NULL), databaseInitTime(0),
     tapIdleTimeout(DEFAULT_TAP_IDLE_TIMEOUT), nextTapNoop(0),
     startedEngineThreads(false), shutdown(false),
-    getServerApi(get_server_api), getlExtension(NULL),
+    getServerApiFunc(get_server_api), getlExtension(NULL),
     tapEnabled(false), maxItemSize(20*1024*1024), tapBacklogLimit(250000),
     memLowWat(std::numeric_limits<size_t>::max()),
     memHighWat(std::numeric_limits<size_t>::max()),
@@ -700,7 +700,7 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server
     ENGINE_HANDLE_V1::errinfo = NULL;
     ENGINE_HANDLE_V1::aggregate_stats = NULL;
 
-    serverApi = getServerApi();
+    serverApi = getServerApiFunc();
     extensionApi = serverApi->extension;
     memset(&info, 0, sizeof(info));
     info.info.description = "EP engine v" VERSION;
@@ -920,7 +920,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     }
 
     if (ret == ENGINE_SUCCESS) {
-        getlExtension = new GetlExtension(epstore, getServerApi);
+        getlExtension = new GetlExtension(epstore, getServerApiFunc);
         getlExtension->initialize();
     }
 
@@ -995,7 +995,7 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
         // If there's a better version in memory, grab it, else go
         // with what we pulled from disk.
         GetValue gv(epstore->get(item->getKey(), item->getVBucketId(),
-                                 cookie, serverApi->core, false));
+                                 cookie, false));
         if (gv.getStatus() == ENGINE_SUCCESS) {
             *itm = gv.getValue();
             delete item;
@@ -1010,7 +1010,7 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
         *vbucket = qi.getVBucketId();
         std::string key = qi.getKey();
         GetValue gv(epstore->get(key, qi.getVBucketId(), cookie,
-                                 serverApi->core, false));
+                                 false));
         ENGINE_ERROR_CODE r = gv.getStatus();
         if (r == ENGINE_SUCCESS) {
             *itm = gv.getValue();
@@ -1030,8 +1030,7 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
         } else if (r == ENGINE_EWOULDBLOCK) {
             connection->queueBGFetch(key, gv.getId());
             // This can optionally collect a few and batch them.
-            connection->runBGFetch(this, epstore->getDispatcher(),
-                                   serverApi->core, cookie);
+            connection->runBGFetch(epstore->getDispatcher(), cookie);
             // If there's an item ready, return NOOP so we'll come
             // back immediately, otherwise pause the connection
             // while we wait.
@@ -1058,7 +1057,7 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
             assert(ev.event == TAP_VBUCKET_SET);
             connection->encodeVBucketStateTransition(ev, es, nes, vbucket);
             if (ev.state == active) {
-                epstore->setVBucketState(ev.vbucket, dead, serverApi->core);
+                epstore->setVBucketState(ev.vbucket, dead);
             }
             ret = ev.event;
         } else {
@@ -1156,7 +1155,7 @@ void EventuallyPersistentEngine::createTapQueue(const void *cookie,
                              "The TAP channel (\"%s\") exists... grabbing the channel\n",
                              name.c_str());
             if (miter->first != NULL) {
-                TapConnection *n = new TapConnection(TapConnection::getAnonTapName(), 0);
+                TapConnection *n = new TapConnection(*this, TapConnection::getAnonTapName(), 0);
                 n->doDisconnect = true;
                 n->paused = true;
                 allTaps.push_back(n);
@@ -1200,7 +1199,9 @@ void EventuallyPersistentEngine::createTapQueue(const void *cookie,
     // @todo ensure that we don't have this client alredy
     // if so this should be a reconnect...
     if (tap == NULL) {
-        TapConnection *tc = new TapConnection(name, flags);
+        TapConnection *tc = new TapConnection(*this, name, flags);
+        serverApi->cookie->set_tap_nack_mode(cookie, tc->ackSupported);
+
         allTaps.push_back(tc);
         tapConnectionMap[cookie] = tc;
 
@@ -1316,7 +1317,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
                 return ENGINE_DISCONNECT;
             }
 
-            epstore->setVBucketState(vbucket, state, serverApi->core);
+            epstore->setVBucketState(vbucket, state);
         }
         break;
 
@@ -2075,7 +2076,7 @@ void EventuallyPersistentEngine::notifyTapIoThreadMain(void) {
 
     // Signal all outstanding, paused connections.
     std::for_each(toNotify.begin(), toNotify.end(),
-                  std::bind2nd(std::ptr_fun(serverApi->core->notify_io_complete),
+                  std::bind2nd(std::ptr_fun(serverApi->cookie->notify_io_complete),
                                ENGINE_SUCCESS));
 }
 
@@ -2109,5 +2110,6 @@ void ReceivedItemTapOperation::perform(TapConnection *tc, Item *arg) {
 
 void CompletedBGFetchTapOperation::perform(TapConnection *tc,
                                            EventuallyPersistentEngine *epe) {
-    tc->completedBGFetchJob(epe);
+    (void)epe;
+    tc->completedBGFetchJob();
 }

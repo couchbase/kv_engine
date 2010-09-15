@@ -75,7 +75,7 @@ public:
 
     int getId(void) { return id; }
     vbucket_state_t getState(void) { return state; }
-    void setState(vbucket_state_t to, SERVER_CORE_API *core);
+    void setState(vbucket_state_t to, SERVER_HANDLE_V1 *sapi);
 
     const char * getStateString(void) {
         return VBucket::toString(state);
@@ -97,7 +97,7 @@ public:
         return true;
     }
 
-    void fireAllOps(SERVER_CORE_API *core);
+    void fireAllOps(SERVER_HANDLE_V1 *sapi);
 
     size_t size(void) {
         HashTableDepthStatVisitor v;
@@ -124,7 +124,7 @@ public:
 
 private:
 
-    void fireAllOps(SERVER_CORE_API *core, ENGINE_ERROR_CODE code);
+    void fireAllOps(SERVER_HANDLE_V1 *sapi, ENGINE_ERROR_CODE code);
 
     int                      id;
     Atomic<vbucket_state_t>  state;
