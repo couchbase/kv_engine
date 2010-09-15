@@ -6,10 +6,12 @@ import shutil
 import getopt
 import mc_bin_client
 
+DEFAULT_PORT="11210"
+
 def usage(err=None):
     print >> sys.stderr, """
-Usage: %s [--vacuum] [--backupto=<dest_dir>]
-""" % os.path.basename(sys.argv[0])
+Usage: %s [--vacuum] [--backupto=<dest_dir>] [--port=%s]
+""" % (os.path.basename(sys.argv[0]), DEFAULT_PORT)
 
     if err:
         print >> sys.stderr, err
@@ -18,7 +20,7 @@ Usage: %s [--vacuum] [--backupto=<dest_dir>]
 def main():
 
     try:
-        opts, args = getopt.getopt(sys.argv[1:], '', ['vacuum', 'backupto='])
+        opts, args = getopt.getopt(sys.argv[1:], '', ['vacuum', 'backupto=', 'port='])
     except getopt.GetoptError, e:
         usage(e.msg)
 
@@ -34,13 +36,14 @@ def main():
     shouldVacuum = '--vacuum' in optdict
 
     dest_dir = optdict.get("--backupto")
+    port = int(optdict.get("--port", DEFAULT_PORT))
 
-    mc = mc_bin_client.MemcachedClient('127.0.0.1')
+    mc = mc_bin_client.MemcachedClient('127.0.0.1', port=port)
     db_path = mc.stats()['ep_dbname']
     db_files = glob.glob('%s*' % db_path)
 
     print 'Pausing persistence... ',
-    os.system('"%s" 127.0.0.1:11211 stop' % flushctl)
+    os.system('"%s" 127.0.0.1:%d stop' % (flushctl, port))
     print 'paused.'
     try:
         for fn in db_files:
@@ -55,7 +58,7 @@ def main():
                 shutil.copyfile(fn, dest_fn)
     finally:
         print 'Unpausing persistence.'
-        os.system('"%s" 127.0.0.1:11211 start' % flushctl)
+        os.system('"%s" 127.0.0.1:%d start' % (flushctl, port))
 
 
 if __name__ == '__main__':
