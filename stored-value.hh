@@ -819,7 +819,7 @@ public:
             itm.setCas();
             if (!StoredValue::hasAvailableSpace(stats, itm)) {
                 ++stats.oom_errors;
-                return NOMEM;
+                return false;
             }
             v = valFact(itm, values[bucket_num], isDirty);
             if (!storeVal) {
