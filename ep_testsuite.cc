@@ -899,18 +899,29 @@ static enum test_result test_wrong_vb_del(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
 
 static enum test_result test_expiry(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const char *key = "test_expiry";
+    const char *data = "some test data here.";
 
     item *it = NULL;
 
     ENGINE_ERROR_CODE rv;
-    rv = h1->allocate(h, NULL, &it, key, strlen(key), 10, 0, 1);
+    rv = h1->allocate(h, NULL, &it, key, strlen(key), strlen(data), 0, 1);
     check(rv == ENGINE_SUCCESS, "Allocation failed.");
+
+    item_info info;
+    info.nvalue = 1;
+    if (!h1->get_item_info(h, NULL, it, &info)) {
+        abort();
+    }
+    memcpy(info.value[0].iov_base, data, strlen(data));
 
     uint64_t cas = 0;
     rv = h1->store(h, NULL, it, &cas, OPERATION_SET, 0);
     check(rv == ENGINE_SUCCESS, "Set failed.");
 
     h1->release(h, NULL, it);
+
+    check_key_value(h, h1, key, data, strlen(data));
+
     sleep(2);
 
     check(h1->get(h, NULL, &it, key, strlen(key), 0) == ENGINE_KEY_ENOENT,
