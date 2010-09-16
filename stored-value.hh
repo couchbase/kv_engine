@@ -846,7 +846,10 @@ public:
         while (v) {
             if (v->hasKey(key)) {
                 // check the expiry time
-                if (v->getExptime() != 0 && v->getExptime() < ep_current_time()) {
+                // As the memcached server does not provide an API that returns
+                // the absolute current time, we use time function here as a
+                // temporary solution to get the absolute current time
+                if (v->getExptime() != 0 && v->getExptime() < time(NULL)) {
                     (void)unlocked_del(key, bucket_num);
                     return NULL;
                 }

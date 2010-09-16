@@ -103,7 +103,13 @@ public:
             return ENGINE_E2BIG;
         }
 
-        *item = new Item(key, nkey, nbytes, flags, exptime);
+        // As the memcached server does not provide an API that returns
+        // the absolute current time, we use time function here as a
+        // temporary solution to get the absolute current time
+        // 0 means a permanent item
+        rel_time_t expiretime = (exptime == 0) ? 0 : time(NULL) + exptime;
+
+        *item = new Item(key, nkey, nbytes, flags, expiretime);
         if (*item == NULL) {
             return ENGINE_ENOMEM;
         } else {
@@ -286,6 +292,12 @@ public:
     {
         item *it = NULL;
 
+        // As the memcached server does not provide an API that returns
+        // the absolute current time, we use time function here as a
+        // temporary solution to get the absolute current time.
+        // 0 means a permanent item
+        rel_time_t expiretime = (exptime == 0) ? 0 : time(NULL) + exptime;
+
         ENGINE_ERROR_CODE ret = get(cookie, &it, key, nkey, vbucket);
         if (ret == ENGINE_SUCCESS) {
             Item *item = static_cast<Item*>(it);
@@ -313,7 +325,7 @@ public:
                 size_t nb = vals.str().length();
                 *result = val;
                 Item *nit = new Item(key, (uint16_t)nkey, item->getFlags(),
-                                     exptime, vals.str().c_str(), nb);
+                                     expiretime, vals.str().c_str(), nb);
                 nit->setCas(item->getCas());
                 ret = store(cookie, nit, cas, OPERATION_CAS, vbucket);
                 delete nit;
@@ -331,7 +343,7 @@ public:
             size_t nb = vals.str().length();
 
             *result = initial;
-            Item *item = new Item(key, (uint16_t)nkey, 0, exptime,
+            Item *item = new Item(key, (uint16_t)nkey, 0, expiretime,
                                   vals.str().c_str(), nb);
             ret = store(cookie, item, cas, OPERATION_ADD, vbucket);
             delete item;
@@ -340,7 +352,7 @@ public:
         /* We had a race condition.. just call ourself recursively to retry */
         if (ret == ENGINE_KEY_EEXISTS) {
             return arithmetic(cookie, key, nkey, increment, create, delta,
-                              initial, exptime, cas, result, vbucket);
+                              initial, expiretime, cas, result, vbucket);
         }
 
         return ret;
