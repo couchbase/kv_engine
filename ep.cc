@@ -197,6 +197,19 @@ RCPtr<VBucket> EventuallyPersistentStore::getVBucket(uint16_t vbid,
     }
 }
 
+StoredValue *EventuallyPersistentStore::fetchValidValue(RCPtr<VBucket> vb,
+                                                        const std::string &key,
+                                                        int bucket_num) {
+    StoredValue *v = vb->ht.unlocked_find(key, bucket_num);
+    if (v && v->isExpired(time(NULL))) {
+        if (vb->ht.unlocked_del(key, bucket_num)) {
+            queueDirty(key, vb->getId(), queue_op_del);
+        }
+        return NULL;
+    }
+    return v;
+}
+
 protocol_binary_response_status EventuallyPersistentStore::evictKey(const std::string &key,
                                                                     uint16_t vbucket,
                                                                     const char **msg) {
@@ -207,7 +220,7 @@ protocol_binary_response_status EventuallyPersistentStore::evictKey(const std::s
 
     int bucket_num = vb->ht.bucket(key);
     LockHolder lh(vb->ht.getMutex(bucket_num));
-    StoredValue *v = vb->ht.unlocked_find(key, bucket_num);
+    StoredValue *v = fetchValidValue(vb, key, bucket_num);
 
     protocol_binary_response_status rv(PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
@@ -372,7 +385,7 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
     if (vb && vb->getState() == active && gcb.val.getStatus() == ENGINE_SUCCESS) {
         int bucket_num = vb->ht.bucket(key);
         LockHolder vblh(vb->ht.getMutex(bucket_num));
-        StoredValue *v = vb->ht.unlocked_find(key, bucket_num);
+        StoredValue *v = fetchValidValue(vb, key, bucket_num);
 
         if (v) {
             if (v->restoreValue(gcb.val.getValue()->getValue(), stats)) {
@@ -439,7 +452,7 @@ GetValue EventuallyPersistentStore::get(const std::string &key,
 
     int bucket_num = vb->ht.bucket(key);
     LockHolder lh(vb->ht.getMutex(bucket_num));
-    StoredValue *v = vb->ht.unlocked_find(key, bucket_num);
+    StoredValue *v = fetchValidValue(vb, key, bucket_num);
 
     if (v) {
         // If the value is not resident, wait for it...
@@ -476,7 +489,7 @@ bool EventuallyPersistentStore::getLocked(const std::string &key,
 
     int bucket_num = vb->ht.bucket(key);
     LockHolder lh(vb->ht.getMutex(bucket_num));
-    StoredValue *v = vb->ht.unlocked_find(key, bucket_num);
+    StoredValue *v = fetchValidValue(vb, key, bucket_num);
 
     if (v) {
         if (v->isLocked(currentTime)) {
@@ -517,7 +530,7 @@ bool EventuallyPersistentStore::getKeyStats(const std::string &key,
     bool found = false;
     int bucket_num = vb->ht.bucket(key);
     LockHolder lh(vb->ht.getMutex(bucket_num));
-    StoredValue *v = vb->ht.unlocked_find(key, bucket_num);
+    StoredValue *v = fetchValidValue(vb, key, bucket_num);
 
     found = (v != NULL);
     if (found) {
@@ -733,7 +746,7 @@ int EventuallyPersistentStore::flushOneDelOrSet(QueuedItem &qi,
 
     int bucket_num = vb->ht.bucket(qi.getKey());
     LockHolder lh(vb->ht.getMutex(bucket_num));
-    StoredValue *v = vb->ht.unlocked_find(qi.getKey(), bucket_num);
+    StoredValue *v = fetchValidValue(vb, qi.getKey(), bucket_num);
 
     bool found = v != NULL;
     bool isDirty = (found && v->isDirty());

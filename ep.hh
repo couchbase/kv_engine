@@ -363,7 +363,7 @@ private:
 
         int bucket_num = vb->ht.bucket(key);
         LockHolder lh(vb->ht.getMutex(bucket_num));
-        StoredValue *v = vb->ht.unlocked_find(key, bucket_num);
+        StoredValue *v = fetchValidValue(vb, key, bucket_num);
 
         if (v) {
             f(v, arg);
@@ -380,6 +380,9 @@ private:
                  std::queue<QueuedItem> *rejectQueue);
     int flushOneDeleteAll(void);
     int flushOneDelOrSet(QueuedItem &qi, std::queue<QueuedItem> *rejectQueue);
+
+    StoredValue *fetchValidValue(RCPtr<VBucket> vb, const std::string &key,
+                                 int bucket_num);
 
     friend class Flusher;
 
