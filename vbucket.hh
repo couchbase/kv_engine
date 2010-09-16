@@ -35,12 +35,14 @@ public:
         std::sort(acceptable.begin(), acceptable.end());
     }
 
-    bool operator ()(uint16_t v) {
+    bool operator ()(uint16_t v) const {
         return acceptable.empty() || std::binary_search(acceptable.begin(),
                                                         acceptable.end(), v);
     }
 
-    size_t size() { return acceptable.size(); }
+    size_t size() const { return acceptable.size(); }
+
+    bool empty() const { return acceptable.empty(); }
 
 private:
 
@@ -73,11 +75,11 @@ public:
                          "Destroying vbucket %d\n", id);
     }
 
-    int getId(void) { return id; }
-    vbucket_state_t getState(void) { return state; }
+    int getId(void) const { return id; }
+    vbucket_state_t getState(void) const { return state; }
     void setState(vbucket_state_t to, SERVER_HANDLE_V1 *sapi);
 
-    const char * getStateString(void) {
+    const char * getStateString(void) const {
         return VBucket::toString(state);
     }
 
@@ -105,7 +107,7 @@ public:
         return v.size;
     }
 
-    HashTable               ht;
+    HashTable ht;
 
     static const char* toString(vbucket_state_t s) {
         switch(s) {
