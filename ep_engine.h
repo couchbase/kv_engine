@@ -540,6 +540,10 @@ public:
 
     EventuallyPersistentStore* getEpStore() { return epstore; }
 
+    size_t getItemExpiryWindow() const {
+        return itemExpiryWindow;
+    }
+
 private:
     EventuallyPersistentEngine(GET_SERVER_API get_server_api);
     friend ENGINE_ERROR_CODE create_instance(uint64_t interface,
@@ -800,6 +804,7 @@ private:
     size_t memHighWat;
     size_t minDataAge;
     size_t queueAgeCap;
+    size_t itemExpiryWindow;
     EPStats stats;
 };
 

@@ -232,6 +232,20 @@ public:
         vbucketId = to;
     }
 
+    /**
+     * Check if this item is expired or not.
+     *
+     * @param asOf the time to be compared with this item's expiry time
+     * @return true if this item's expiry time < asOf
+     */
+    bool isExpired(time_t asOf) const {
+        rel_time_t as_of = (rel_time_t) asOf;
+        if (getExptime() != 0 && getExptime() < as_of) {
+            return true;
+        }
+        return false;
+    }
+
 private:
     /**
      * Set the item's data. This is only used by constructors, so we

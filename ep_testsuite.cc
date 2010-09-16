@@ -930,6 +930,30 @@ static enum test_result test_expiry(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return SUCCESS;
 }
 
+static enum test_result test_expiry_flush(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    const char *key = "test_expiry_flush";
+
+    item *it = NULL;
+
+    ENGINE_ERROR_CODE rv;
+    // Expiry time set to 2 seconds from now
+    // ep_engine has 3 seconds of expiry window which means that
+    // an item expired in 3 seconds won't be persisted
+    rv = h1->allocate(h, NULL, &it, key, strlen(key), 10, 0, 2);
+    check(rv == ENGINE_SUCCESS, "Allocation failed.");
+
+    int item_flush_expired = get_int_stat(h, h1, "ep_item_flush_expired");
+    uint64_t cas = 0;
+    rv = h1->store(h, NULL, it, &cas, OPERATION_SET, 0);
+    check(rv == ENGINE_SUCCESS, "Set failed.");
+
+    h1->release(h, NULL, it);
+
+    wait_for_stat_change(h, h1, "ep_item_flush_expired", item_flush_expired);
+
+    return SUCCESS;
+}
+
 static enum test_result test_vb_del_pending(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const void *cookie = testHarness.create_cookie();
     testHarness.set_ewouldblock_handling(cookie, false);
@@ -1955,6 +1979,7 @@ engine_test_t* get_tests(void) {
         {"flush with stats", test_flush_stats, NULL, teardown, NULL},
         {"flush multi vbuckets", test_flush_multiv, NULL, teardown, NULL},
         {"expiry", test_expiry, NULL, teardown, NULL},
+        {"expiry_flush", test_expiry_flush, NULL, teardown, NULL},
         // Stats tests
         {"stats", test_stats, NULL, teardown, NULL},
         {"io stats", test_io_stats, NULL, teardown, NULL},

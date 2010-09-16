@@ -45,3 +45,5 @@ memcached like this:
 | vb0               | bool   | If true, start with an active vbucket 0       |
 | waitforwarmup     | bool   | Whether to block server start during warmup.  |
 | warmup            | bool   | Whether to load existing data at startup.     |
+| expiry_window     | int    | expiry window to not persist an object        |
+|                   |        | that is expired (or will be soon)             |

@@ -675,7 +675,8 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server
     memLowWat(std::numeric_limits<size_t>::max()),
     memHighWat(std::numeric_limits<size_t>::max()),
     minDataAge(DEFAULT_MIN_DATA_AGE),
-    queueAgeCap(DEFAULT_QUEUE_AGE_CAP)
+    queueAgeCap(DEFAULT_QUEUE_AGE_CAP),
+    itemExpiryWindow(3)
 {
     interface.interface = 1;
     ENGINE_HANDLE_V1::get_info = EvpGetInfo;
@@ -718,7 +719,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         size_t htLocks = 0;
         size_t maxSize = 0;
 
-        const int max_items = 20;
+        const int max_items = 21;
         struct config_item items[max_items];
         int ii = 0;
         memset(items, 0, sizeof(items));
@@ -815,6 +816,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         items[ii].key = "tap_backlog_limit";
         items[ii].datatype = DT_SIZE;
         items[ii].value.dt_size = &tapBacklogLimit;
+
+        ++ii;
+        items[ii].key = "expiry_window";
+        items[ii].datatype = DT_SIZE;
+        items[ii].value.dt_size = &itemExpiryWindow;
 
         ++ii;
         items[ii].key = NULL;
@@ -1612,6 +1618,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                     epstats.flushFailed, add_stat, cookie);
     add_casted_stat("ep_item_commit_failed",
                     epstats.commitFailed, add_stat, cookie);
+    add_casted_stat("ep_item_flush_expired",
+                    epstats.flushExpired, add_stat, cookie);
     add_casted_stat("ep_queue_size",
                     epstats.queue_size, add_stat, cookie);
     add_casted_stat("ep_flusher_todo",

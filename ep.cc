@@ -261,6 +261,13 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::set(const Item &item,
     } else if (mtype == IS_LOCKED) {
         return ENGINE_KEY_EEXISTS;
     } else if (mtype == WAS_CLEAN || mtype == NOT_FOUND) {
+        // As the memcached server does not provide an API that returns
+        // the absolute current time, we use time function here as a
+        // temporary solution to get the absolute current time
+        if (item.isExpired(time(NULL) + engine.getItemExpiryWindow())) {
+            ++stats.flushExpired;
+            return ENGINE_SUCCESS;
+        }
         queueDirty(item.getKey(), item.getVBucketId(), queue_op_set);
     }
 

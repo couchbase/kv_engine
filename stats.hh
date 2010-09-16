@@ -48,6 +48,8 @@ public:
     Atomic<size_t> totalEnqueued;
     //! Number of times an item flush failed.
     Atomic<size_t> flushFailed;
+    //! Number of times an item is not flushed due to the item's expiry
+    Atomic<size_t> flushExpired;
     //! Number of times a commit failed.
     Atomic<size_t> commitFailed;
     //! How long an object is dirty before written.
