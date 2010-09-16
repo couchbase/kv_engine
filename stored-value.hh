@@ -119,6 +119,20 @@ public:
     }
 
     /**
+     * Check if this item is expired or not.
+     *
+     * @param asOf the time to be compared with this item's expiry time
+     * @return true if this item's expiry time < asOf
+     */
+    bool isExpired(time_t asOf) const {
+        rel_time_t as_of = (rel_time_t) asOf;
+        if (getExptime() != 0 && getExptime() < as_of) {
+            return true;
+        }
+        return false;
+    }
+
+    /**
      * Get the pointer to the beginning of the key.
      */
     const char* getKeyBytes() const {
@@ -849,7 +863,7 @@ public:
                 // As the memcached server does not provide an API that returns
                 // the absolute current time, we use time function here as a
                 // temporary solution to get the absolute current time
-                if (v->getExptime() != 0 && v->getExptime() < time(NULL)) {
+                if (v->isExpired(time(NULL))) {
                     (void)unlocked_del(key, bucket_num);
                     return NULL;
                 }
