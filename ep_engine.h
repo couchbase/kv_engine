@@ -488,6 +488,7 @@ public:
     ~EventuallyPersistentEngine() {
         delete epstore;
         delete sqliteDb;
+        delete sqliteStrategy;
         delete getlExtension;
     }
 
@@ -768,6 +769,7 @@ private:
     bool wait_for_warmup;
     bool startVb0;
     SERVER_HANDLE_V1 *serverApi;
+    MultiDBSqliteStrategy *sqliteStrategy;
     StrategicSqlite3 *sqliteDb;
     EventuallyPersistentStore *epstore;
     std::map<const void*, TapConnection*> tapConnectionMap;

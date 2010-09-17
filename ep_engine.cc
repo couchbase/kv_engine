@@ -667,8 +667,8 @@ EXTENSION_LOGGER_DESCRIPTOR *getLogger(void) {
 
 EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server_api) :
     dbname("/tmp/test.db"), initFile(NULL), warmup(true), wait_for_warmup(true),
-    startVb0(true), sqliteDb(NULL), epstore(NULL), databaseInitTime(0),
-    tapIdleTimeout(DEFAULT_TAP_IDLE_TIMEOUT), nextTapNoop(0),
+    startVb0(true), sqliteStrategy(NULL), sqliteDb(NULL), epstore(NULL),
+    databaseInitTime(0), tapIdleTimeout(DEFAULT_TAP_IDLE_TIMEOUT), nextTapNoop(0),
     startedEngineThreads(false), shutdown(false),
     getServerApiFunc(get_server_api), getlExtension(NULL),
     tapEnabled(false), maxItemSize(20*1024*1024), tapBacklogLimit(250000),
@@ -855,11 +855,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     if (ret == ENGINE_SUCCESS) {
         time_t start = time(NULL);
         try {
-            MultiDBSqliteStrategy *strategy =
-                new MultiDBSqliteStrategy(*this, dbname,
-                                          initFile,
-                                          NUMBER_OF_SHARDS);
-            sqliteDb = new StrategicSqlite3(*this, strategy);
+            sqliteStrategy = new MultiDBSqliteStrategy(*this, dbname,
+                                                       initFile,
+                                                       NUMBER_OF_SHARDS);
+            sqliteDb = new StrategicSqlite3(*this, sqliteStrategy);
         } catch (std::exception& e) {
             std::stringstream ss;
             ss << "Failed to create database: " << e.what() << std::endl;
