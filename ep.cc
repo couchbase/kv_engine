@@ -354,6 +354,7 @@ void EventuallyPersistentStore::completeVBucketDeletion(uint16_t vbid) {
 
     RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
     if(!vb || vb->getState() == dead) {
+        lh.unlock();
         if (underlying->delVBucket(vbid)) {
             ++stats.vbucketDeletions;
         } else {
