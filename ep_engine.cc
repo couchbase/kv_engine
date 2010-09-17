@@ -1915,7 +1915,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doKeyStats(const void *cookie,
                 valid.assign("dirty");
             } else {
                 // TODO:  Need a proper vbucket ID here -- and server API
-                GetValue gv(epstore->get(key, 0, cookie, NULL));
+                GetValue gv(epstore->get(key, 0, cookie));
                 if (gv.getStatus() == ENGINE_SUCCESS) {
                     shared_ptr<Item> item(gv.getValue());
                     if (diskItem.get()) {
