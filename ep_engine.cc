@@ -1002,12 +1002,20 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
             *itm = item;
         }
         *vbucket = static_cast<Item*>(*itm)->getVBucketId();
+
+        if (!connection->vbucketFilter(*vbucket)) {
+            delete item;
+            return TAP_NOOP;
+        }
     } else if (connection->hasQueuedItem()) {
         QueuedItem qi = connection->next();
         lh.unlock();
 
         *vbucket = qi.getVBucketId();
         std::string key = qi.getKey();
+        if (key.length() == 0) {
+            return TAP_NOOP;
+        }
         GetValue gv(epstore->get(key, qi.getVBucketId(), cookie,
                                  false));
         ENGINE_ERROR_CODE r = gv.getStatus();
@@ -1080,7 +1088,7 @@ tap_event_t EventuallyPersistentEngine::walkTapQueue(const void *cookie,
                                      seqno, vbucket, &connection);
 
     if (ret == TAP_PAUSE) {
-            connection->paused = true;
+        connection->paused = true;
     } else if (ret != TAP_DISCONNECT) {
         if (ret != TAP_NOOP) {
             ++stats.numTapFetched;
@@ -1163,7 +1171,19 @@ void EventuallyPersistentEngine::createTapQueue(const void *cookie,
         }
     }
 
-    // Start decoding the userdata section of the packet...
+    bool reconnect = false;
+    if (tap == NULL) {
+        tap = new TapConnection(*this, name, flags);
+        serverApi->cookie->set_tap_nack_mode(cookie, tap->ackSupported);
+        allTaps.push_back(tap);
+    } else {
+        tap->rollback();
+        tap->connected = true;
+        tap->evaluateFlags();
+        reconnect = true;
+    }
+
+    // Decoding the userdata section of the packet and update the filters
     const char *ptr = static_cast<const char*>(userdata);
     uint64_t backfillAge = 0;
     std::vector<uint16_t> vbuckets;
@@ -1195,45 +1215,12 @@ void EventuallyPersistentEngine::createTapQueue(const void *cookie,
         }
     }
 
-    // @todo ensure that we don't have this client alredy
-    // if so this should be a reconnect...
-    if (tap == NULL) {
-        TapConnection *tc = new TapConnection(*this, name, flags);
-        serverApi->cookie->set_tap_nack_mode(cookie, tc->ackSupported);
-
-        allTaps.push_back(tc);
-        tapConnectionMap[cookie] = tc;
-
-        if (flags & TAP_CONNECT_FLAG_BACKFILL) {
-            tc->backfillAge = backfillAge;
-        }
-
-        if (tc->backfillAge < (uint64_t)time(NULL)) {
-            setTapValidity(tc->client, cookie);
-            tc->doRunBackfill = true;
-            tc->pendingBackfill = true;
-        }
-
-        if (flags & TAP_CONNECT_FLAG_LIST_VBUCKETS) {
-            tc->vbucketFilter = VBucketFilter(vbuckets);
-        }
-
-        tc->dumpQueue = flags & TAP_CONNECT_FLAG_DUMP;
-        if (flags & TAP_CONNECT_FLAG_TAKEOVER_VBUCKETS) {
-            for (std::vector<uint16_t>::iterator it = vbuckets.begin();
-                 it != vbuckets.end(); ++it) {
-                TapVBucketEvent hi(TAP_VBUCKET_SET, *it, pending);
-                TapVBucketEvent lo(TAP_VBUCKET_SET, *it, active);
-                tc->addVBucketHighPriority(hi);
-                tc->addVBucketLowPriority(lo);
-            }
-            tc->dumpQueue = true;
-        }
-    } else {
-        tap->rollback();
-        tapConnectionMap[cookie] = tap;
-        tap->connected = true;
+    tapConnectionMap[cookie] = tap;
+    tap->setBackfillAge(backfillAge, reconnect);
+    if (tap->doRunBackfill && tap->pendingBackfill) {
+        setTapValidity(tap->client, cookie);
     }
+    tap->setVBucketFilter(vbuckets);
     tapNotifySync.notify();
 }
 
@@ -1387,7 +1374,7 @@ public:
                     const void *token):
         VBucketVisitor(), engine(e), name(tc->client),
         queue(new std::list<QueuedItem>),
-        filter(tc->vbucketFilter), validityToken(token),
+        filter(tc->backFillVBucketFilter), validityToken(token),
         maxBackfillSize(e->tapBacklogLimit), valid(true) { }
 
     ~BackFillVisitor() {

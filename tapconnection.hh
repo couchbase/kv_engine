@@ -157,13 +157,19 @@ private:
 
     QueuedItem next() {
         assert(!empty());
-        QueuedItem qi = queue->front();
-        queue->pop_front();
-        queue_set->erase(qi);
-        ++recordsFetched;
-        addTapLogElement(qi);
+        do {
+            QueuedItem qi = queue->front();
+            queue->pop_front();
+            queue_set->erase(qi);
 
-        return qi;
+            if (vbucketFilter(qi.getVBucketId())) {
+                ++recordsFetched;
+                addTapLogElement(qi);
+                return qi;
+            }
+        } while (!empty());
+
+        return QueuedItem("", 0xffff, queue_op_set);
     }
 
     /**
@@ -184,6 +190,13 @@ private:
         if (!vBucketHighPriority.empty()) {
             ret = vBucketHighPriority.front();
             vBucketHighPriority.pop();
+
+            // We might have objects in our queue that aren't in our filter
+            // If so, just skip them..
+            if (ret.event != TAP_NOOP && !vbucketFilter(ret.vbucket)) {
+                return nextVBucketHighPriority();
+            }
+
             ++recordsFetched;
             addTapLogElement(ret);
         }
@@ -207,6 +220,11 @@ private:
         if (!vBucketLowPriority.empty()) {
             ret = vBucketLowPriority.front();
             vBucketLowPriority.pop();
+            // We might have objects in our queue that aren't in our filter
+            // If so, just skip them..
+            if (ret.event != TAP_NOOP && !vbucketFilter(ret.vbucket)) {
+                return nextVBucketHighPriority();
+            }
             ++recordsFetched;
             addTapLogElement(ret);
         }
@@ -337,6 +355,8 @@ private:
         return s.str();
     }
 
+    void evaluateFlags();
+
     /**
      * The engine that owns the connection
      */
@@ -397,6 +417,8 @@ private:
      */
     bool paused;
 
+    void setBackfillAge(uint64_t age, bool reconnect);
+
     /**
      * Backfill age for the connection
      */
@@ -420,10 +442,12 @@ private:
     // True until a backfill has dumped all the content.
     bool pendingBackfill;
 
+    void setVBucketFilter(const std::vector<uint16_t> &vbuckets);
     /**
      * Filter for the buckets we want.
      */
     VBucketFilter vbucketFilter;
+    VBucketFilter backFillVBucketFilter;
 
     /**
      * VBucket status messages immediately (before userdata)

@@ -26,7 +26,9 @@ const uint32_t TapConnection::ackLowChunkThreshold = 10;
 const rel_time_t TapConnection::ackGracePeriod = 5 * 60;
 
 
-TapConnection::TapConnection(EventuallyPersistentEngine &theEngine, const std::string &n, uint32_t f):
+TapConnection::TapConnection(EventuallyPersistentEngine &theEngine,
+                             const std::string &n,
+                             uint32_t f):
     engine(theEngine),
     client(n),
     queue(NULL),
@@ -40,6 +42,7 @@ TapConnection::TapConnection(EventuallyPersistentEngine &theEngine, const std::s
     connected(true),
     paused(false),
     backfillAge(0),
+    dumpQueue(false),
     doRunBackfill(false),
     pendingBackfill(true),
     vbucketFilter(),
@@ -48,13 +51,86 @@ TapConnection::TapConnection(EventuallyPersistentEngine &theEngine, const std::s
     doDisconnect(false),
     seqno(0),
     seqnoReceived(static_cast<uint32_t>(-1)),
-    ackSupported((f & TAP_CONNECT_SUPPORT_ACK) == TAP_CONNECT_SUPPORT_ACK)
+    ackSupported(false)
 {
+    evaluateFlags();
     queue = new std::list<QueuedItem>;
     queue_set = new std::set<QueuedItem>;
 
     if (ackSupported) {
         expiry_time = ep_current_time() + ackGracePeriod;
+    }
+}
+
+void TapConnection::evaluateFlags()
+{
+    dumpQueue = (flags & TAP_CONNECT_FLAG_DUMP) == TAP_CONNECT_FLAG_DUMP;
+    ackSupported = (flags & TAP_CONNECT_SUPPORT_ACK) == TAP_CONNECT_SUPPORT_ACK;
+}
+
+void TapConnection::setBackfillAge(uint64_t age, bool reconnect) {
+    if (reconnect) {
+        if (!(flags & TAP_CONNECT_FLAG_BACKFILL)) {
+            age = backfillAge;
+        }
+
+        if (age == backfillAge) {
+            // we didn't change the critera...
+            return;
+        }
+    }
+
+    if (flags & TAP_CONNECT_FLAG_BACKFILL) {
+        backfillAge = age;
+    }
+
+    if (backfillAge < (uint64_t)time(NULL)) {
+        doRunBackfill = true;
+        pendingBackfill = true;
+    }
+}
+
+void TapConnection::setVBucketFilter(const std::vector<uint16_t> &vbuckets)
+{
+    VBucketFilter diff;
+
+    // time to join the filters..
+    if (flags & TAP_CONNECT_FLAG_LIST_VBUCKETS) {
+        VBucketFilter filter(vbuckets);
+        diff = vbucketFilter.filter_diff(filter);
+        backFillVBucketFilter = filter.filter_intersection(diff);
+
+        std::stringstream ss;
+        ss << client.c_str() << ": Changing the vbucket filter from "
+           << vbucketFilter << " to "
+           << filter << " (diff: " << diff << ")" << std::endl
+           << "Using: " << backFillVBucketFilter << " for backfill."
+           << std::endl;
+        getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                         ss.str().c_str());
+        vbucketFilter = filter;
+        if (!diff.empty()) {
+            if (backfillAge < (uint64_t)time(NULL)) {
+                doRunBackfill = true;
+                pendingBackfill = true;
+            }
+        }
+    }
+
+    // Note that we do re-evaluete all entries when we suck them out of the
+    // queue to send them..
+    if (flags & TAP_CONNECT_FLAG_TAKEOVER_VBUCKETS) {
+        const std::vector<uint16_t> &vec = diff.getVector();
+        for (std::vector<uint16_t>::const_iterator it = vec.begin();
+             it != vec.end(); ++it) {
+            if (vbucketFilter(*it)) {
+                TapVBucketEvent hi(TAP_VBUCKET_SET, *it, pending);
+                TapVBucketEvent lo(TAP_VBUCKET_SET, *it, active);
+                addVBucketHighPriority(hi);
+                addVBucketLowPriority(lo);
+            }
+        }
+        dumpQueue = true;
     }
 }
 

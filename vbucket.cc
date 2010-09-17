@@ -4,6 +4,51 @@
 
 #include "vbucket.hh"
 
+VBucketFilter VBucketFilter::filter_diff(const VBucketFilter &other) const {
+    std::vector<uint16_t> tmp(acceptable.size() + other.size());
+    std::vector<uint16_t>::iterator end;
+    end = std::set_symmetric_difference(acceptable.begin(),
+                                        acceptable.end(),
+                                        other.acceptable.begin(),
+                                        other.acceptable.end(),
+                                        tmp.begin());
+    return VBucketFilter(std::vector<uint16_t>(tmp.begin(), end));
+}
+
+VBucketFilter VBucketFilter::filter_intersection(const VBucketFilter &other) const {
+    std::vector<uint16_t> tmp(acceptable.size() + other.size());
+    std::vector<uint16_t>::iterator end;
+
+    end = std::set_intersection(acceptable.begin(), acceptable.end(),
+                                other.acceptable.begin(), other.acceptable.end(),
+                                tmp.begin());
+    return VBucketFilter(std::vector<uint16_t>(tmp.begin(), end));
+}
+
+std::ostream& operator <<(std::ostream &out, const VBucketFilter &filter)
+{
+    bool needcomma = false;
+    std::vector<uint16_t>::const_iterator it;
+
+    if (filter.acceptable.empty()) {
+        out << "{ empty }";
+    } else {
+        out << "{ ";
+        for (it = filter.acceptable.begin();
+             it != filter.acceptable.end();
+             ++it) {
+            if (needcomma) {
+                out << ", ";
+            }
+            out << *it;
+            needcomma = true;
+        }
+        out << " }";
+    }
+
+     return out;
+ }
+
 const vbucket_state_t VBucket::ACTIVE = static_cast<vbucket_state_t>(htonl(active));
 const vbucket_state_t VBucket::REPLICA = static_cast<vbucket_state_t>(htonl(replica));
 const vbucket_state_t VBucket::PENDING = static_cast<vbucket_state_t>(htonl(pending));

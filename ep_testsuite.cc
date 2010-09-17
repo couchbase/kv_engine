@@ -173,6 +173,22 @@ static bool get_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     return true;
 }
 
+static bool get_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, item *i,
+                    std::string &key) {
+
+    item_info info;
+    info.nvalue = 1;
+    if (!h1->get_item_info(h, NULL, i, &info)) {
+        fprintf(stderr, "get_item_info failed\n");
+        return false;
+    }
+
+    key.assign((const char*)info.key, info.nkey);
+    return true;
+}
+
+
+
 static enum test_result check_key_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                         const char* key,
                                         const char* val, size_t vlen,
@@ -1422,6 +1438,124 @@ static enum test_result test_tap_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
     return SUCCESS;
 }
 
+static enum test_result test_tap_filter_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    std::vector<std::string> keys;
+    for (int i = 0; i < 40; ++i) {
+        std::stringstream ss;
+        ss << i;
+        keys.push_back(ss.str());
+    }
+
+    for (uint16_t vbid = 0; vbid < 4; ++vbid) {
+        check(set_vbucket_state(h, h1, vbid, "active"),
+              "Failed to set vbucket state.");
+    }
+
+    std::vector<std::string>::iterator keyit;
+    uint16_t vbid = 0;
+    for (keyit = keys.begin(); keyit != keys.end(); ++keyit, ++vbid) {
+        item *i = NULL;
+        check(store(h, h1, NULL, OPERATION_SET, keyit->c_str(),
+                    "value", &i, 0, vbid % 4) == ENGINE_SUCCESS,
+              "Failed to store an item.");
+
+    }
+
+    const void *cookie = testHarness.create_cookie();
+    testHarness.lock_cookie(cookie);
+    uint16_t vbucketfilter[4];
+    vbucketfilter[0] = ntohs(2);
+    vbucketfilter[1] = ntohs(0);
+    vbucketfilter[2] = ntohs(2);
+
+    std::string name = "tap_client_thread";
+    TAP_ITERATOR iter = h1->get_tap_iterator(h, cookie, name.c_str(),
+                                             name.length(),
+                                             TAP_CONNECT_FLAG_LIST_VBUCKETS,
+                                             static_cast<void*>(vbucketfilter),
+                                             6);
+    check(iter != NULL, "Failed to create a tap iterator");
+
+    item *it;
+    void *engine_specific;
+    uint16_t nengine_specific;
+    uint8_t ttl;
+    uint16_t flags;
+    uint32_t seqno;
+    uint16_t vbucket;
+
+    tap_event_t event;
+    int found = 0;
+
+    uint16_t unlikely_vbucket_identifier = 17293;
+    std::string key;
+    bool done = false;
+
+    do {
+        vbucket = unlikely_vbucket_identifier;
+        event = iter(h, cookie, &it, &engine_specific,
+                     &nengine_specific, &ttl, &flags,
+                     &seqno, &vbucket);
+
+        switch (event) {
+        case TAP_PAUSE:
+            if (found == 30) {
+                done = true;
+            }
+            break;
+        case TAP_NOOP:
+            break;
+        case TAP_MUTATION:
+            if (get_key(h, h1, it, key)) {
+                vbid = atoi(key.c_str()) % 4;
+                check(vbid == vbucket, "Incorrect vbucket id");
+                check(vbid != 1,
+                      "Received an item for a vbucket we don't subscribe to");
+            }
+            ++found;
+            assert(vbucket != unlikely_vbucket_identifier);
+            check(verify_item(h, h1, it, NULL, 0, "value", 5) == SUCCESS,
+                  "Unexpected item arrived on tap stream");
+
+            // We've got some of the elements.. Let's change the filter
+            // and get the rest
+            if (found == 10) {
+                vbucketfilter[0] = ntohs(3);
+                vbucketfilter[3] = ntohs(3);
+                iter = h1->get_tap_iterator(h, cookie, name.c_str(),
+                                            name.length(),
+                                            TAP_CONNECT_FLAG_LIST_VBUCKETS,
+                                            static_cast<void*>(vbucketfilter),
+                                            8);
+                check(iter != NULL, "Failed to create a tap iterator");
+            }
+
+            break;
+        case TAP_DISCONNECT:
+            done = true;
+            break;
+        default:
+            std::cerr << "Unexpected event:  " << event << std::endl;
+            return FAIL;
+        }
+    } while (!done);
+
+    if (found != 30) {
+        std::cerr << "Expected " << 30
+                  << " items in stream, got " << found << std::endl;
+        return FAIL;
+    }
+
+    testHarness.unlock_cookie(cookie);
+    h1->release(h, cookie, it);
+
+
+    check(get_int_stat(h, h1, "eq_tapq:tap_client_thread:qlen", "tap") == 0,
+          "queue should be empty");
+
+    return SUCCESS;
+}
+
 static enum test_result test_novb0(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(verify_vbucket_missing(h, h1, 0), "vb0 existed and shouldn't have.");
     return SUCCESS;
@@ -2003,6 +2137,7 @@ engine_test_t* get_tests(void) {
         {"tap receiver mutation (replica)", test_tap_rcvr_mutate_replica,
          NULL, teardown, NULL},
         {"tap stream", test_tap_stream, NULL, teardown, NULL},
+        {"tap filter stream", test_tap_filter_stream, NULL, teardown, "tap_keepalive=100"},
         // restart tests
         {"test restart", test_restart, NULL, teardown, NULL},
         {"set+get+restart+hit (bin)", test_restart_bin_val, NULL, teardown, NULL},

@@ -44,6 +44,35 @@ public:
 
     bool empty() const { return acceptable.empty(); }
 
+    /**
+     * Calculate the difference between this and another filter.
+     * If "this" contains elements, [1,2,3,4] and other contains [3,4,5,6]
+     * the returned filter contains: [1,2,5,6]
+     * @param other the other filter to compare with
+     * @return a new filter with the elements present in only one of the two
+     *         filters.
+     */
+    VBucketFilter filter_diff(const VBucketFilter &other) const;
+
+    /**
+     * Calculate the intersection between this and another filter.
+     * If "this" contains elements, [1,2,3,4] and other contains [3,4,5,6]
+     * the returned filter contains: [3,4]
+     * @param other the other filter to compare with
+     * @return a new filter with the elements present in both of the two
+     *         filters.
+     */
+    VBucketFilter filter_intersection(const VBucketFilter &other) const;
+
+    const std::vector<uint16_t> &getVector() const { return acceptable; }
+
+    /**
+     * Dump the filter in a human readable form ( "{ bucket, bucket, bucket }"
+     * to the specified output stream.
+     */
+    friend std::ostream& operator<< (std::ostream& out,
+                                     const VBucketFilter &filter);
+
 private:
 
     std::vector<uint16_t> acceptable;
