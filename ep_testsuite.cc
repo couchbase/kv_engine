@@ -924,8 +924,12 @@ static enum test_result test_expiry(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     sleep(2);
 
+    assert(0 == get_int_stat(h, h1, "ep_expired"));
+
     check(h1->get(h, NULL, &it, key, strlen(key), 0) == ENGINE_KEY_ENOENT,
           "Item didn't expire");
+
+    assert(1 == get_int_stat(h, h1, "ep_expired"));
 
     return SUCCESS;
 }

@@ -202,6 +202,7 @@ StoredValue *EventuallyPersistentStore::fetchValidValue(RCPtr<VBucket> vb,
                                                         int bucket_num) {
     StoredValue *v = vb->ht.unlocked_find(key, bucket_num);
     if (v && v->isExpired(time(NULL))) {
+        ++stats.expired;
         if (vb->ht.unlocked_del(key, bucket_num)) {
             queueDirty(key, vb->getId(), queue_op_del);
         }
