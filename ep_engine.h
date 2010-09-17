@@ -103,11 +103,7 @@ public:
             return ENGINE_E2BIG;
         }
 
-        // As the memcached server does not provide an API that returns
-        // the absolute current time, we use time function here as a
-        // temporary solution to get the absolute current time
-        // 0 means a permanent item
-        rel_time_t expiretime = (exptime == 0) ? 0 : time(NULL) + exptime;
+        time_t expiretime = (exptime == 0) ? 0 : ep_abs_time(exptime);
 
         *item = new Item(key, nkey, nbytes, flags, expiretime);
         if (*item == NULL) {
@@ -292,11 +288,7 @@ public:
     {
         item *it = NULL;
 
-        // As the memcached server does not provide an API that returns
-        // the absolute current time, we use time function here as a
-        // temporary solution to get the absolute current time.
-        // 0 means a permanent item
-        rel_time_t expiretime = (exptime == 0) ? 0 : time(NULL) + exptime;
+        rel_time_t expiretime = (exptime == 0) ? 0 : ep_abs_time(exptime);
 
         ENGINE_ERROR_CODE ret = get(cookie, &it, key, nkey, vbucket);
         if (ret == ENGINE_SUCCESS) {
