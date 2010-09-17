@@ -36,7 +36,7 @@ struct small_data {
  */
 struct feature_data {
     uint64_t   cas;             //!< CAS identifier.
-    rel_time_t exptime;         //!< Expiration time of this item.
+    time_t     exptime;         //!< Expiration time of this item.
     rel_time_t lock_expiry;     //!< getl lock expiration
     bool       locked : 1;      //!< True if this item is locked
     bool       resident : 1;    //!< True if this object's value is in memory.
@@ -125,8 +125,7 @@ public:
      * @return true if this item's expiry time < asOf
      */
     bool isExpired(time_t asOf) const {
-        rel_time_t as_of = (rel_time_t) asOf;
-        if (getExptime() != 0 && getExptime() < as_of) {
+        if (getExptime() != 0 && getExptime() < asOf) {
             return true;
         }
         return false;
@@ -184,7 +183,7 @@ public:
      *
      * @return the expiration time for feature items, 0 for small items
      */
-    rel_time_t getExptime() const {
+    time_t getExptime() const {
         if (_isSmall) {
             return 0;
         } else {
@@ -210,7 +209,7 @@ public:
      * @param theCas thenew CAS identifier
      */
     void setValue(value_t v,
-                  uint32_t newFlags, rel_time_t newExp, uint64_t theCas,
+                  uint32_t newFlags, time_t newExp, uint64_t theCas,
                   EPStats &stats) {
         reduceCurrentSize(stats, size());
         value = v;

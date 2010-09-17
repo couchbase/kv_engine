@@ -115,7 +115,7 @@ typedef shared_ptr<const Blob> value_t;
 class Item {
 public:
     Item(const void* k, const size_t nk, const size_t nb,
-         const int fl, const rel_time_t exp, uint64_t theCas = 0,
+         const int fl, const time_t exp, uint64_t theCas = 0,
          int64_t i = -1, uint16_t vbid = 0) :
         flags(fl), exptime(exp), cas(theCas), id(i), vbucketId(vbid)
     {
@@ -124,7 +124,7 @@ public:
         setData(NULL, nb);
     }
 
-    Item(const std::string &k, const int fl, const rel_time_t exp,
+    Item(const std::string &k, const int fl, const time_t exp,
          const void *dta, const size_t nb, uint64_t theCas = 0,
          int64_t i = -1, uint16_t vbid = 0) :
         flags(fl), exptime(exp), cas(theCas), id(i), vbucketId(vbid)
@@ -134,7 +134,7 @@ public:
         setData(static_cast<const char*>(dta), nb);
     }
 
-    Item(const std::string &k, const int fl, const rel_time_t exp,
+    Item(const std::string &k, const int fl, const time_t exp,
          value_t val, uint64_t theCas = 0,  int64_t i = -1, uint16_t vbid = 0) :
         flags(fl), exptime(exp), value(val), cas(theCas), id(i), vbucketId(vbid)
     {
@@ -142,7 +142,7 @@ public:
         key.assign(k);
     }
 
-    Item(const void *k, uint16_t nk, const int fl, const rel_time_t exp,
+    Item(const void *k, uint16_t nk, const int fl, const time_t exp,
          const void *dta, const size_t nb, uint64_t theCas = 0,
          int64_t i = -1, uint16_t vbid = 0) :
         flags(fl), exptime(exp), cas(theCas), id(i), vbucketId(vbid)
@@ -178,7 +178,7 @@ public:
         return static_cast<uint32_t>(value->length());
     }
 
-    rel_time_t getExptime() const {
+    time_t getExptime() const {
         return exptime;
     }
 
@@ -239,8 +239,7 @@ public:
      * @return true if this item's expiry time < asOf
      */
     bool isExpired(time_t asOf) const {
-        rel_time_t as_of = (rel_time_t) asOf;
-        if (getExptime() != 0 && getExptime() < as_of) {
+        if (getExptime() != 0 && getExptime() < asOf) {
             return true;
         }
         return false;
@@ -264,7 +263,7 @@ private:
     }
 
     int flags;
-    rel_time_t exptime;
+    time_t exptime;
     std::string key;
     value_t value;
     uint64_t cas;
