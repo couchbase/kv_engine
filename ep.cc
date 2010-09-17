@@ -197,6 +197,33 @@ RCPtr<VBucket> EventuallyPersistentStore::getVBucket(uint16_t vbid,
     }
 }
 
+class Deleter {
+public:
+    Deleter(EventuallyPersistentStore *ep) : e(ep) {}
+    void operator() (std::pair<uint16_t, std::string> vk) {
+        RCPtr<VBucket> vb = e->getVBucket(vk.first);
+        if (vb) {
+            int bucket_num = vb->ht.bucket(vk.second);
+            LockHolder lh(vb->ht.getMutex(bucket_num));
+
+            StoredValue *v = vb->ht.unlocked_find(vk.second, bucket_num);
+            if (v) {
+                if (vb->ht.unlocked_del(vk.second, bucket_num)) {
+                    e->queueDirty(vk.second, vb->getId(), queue_op_del);
+                }
+            }
+        }
+    }
+private:
+    EventuallyPersistentStore *e;
+};
+
+void EventuallyPersistentStore::deleteMany(std::list<std::pair<uint16_t, std::string> > &keys) {
+    // This can be made a lot more efficient, but I'd rather see it
+    // show up in a profiling report first.
+    std::for_each(keys.begin(), keys.end(), Deleter(this));
+}
+
 StoredValue *EventuallyPersistentStore::fetchValidValue(RCPtr<VBucket> vb,
                                                         const std::string &key,
                                                         int bucket_num) {

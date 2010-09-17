@@ -29,7 +29,9 @@
 #include <unistd.h>
 
 #include <set>
+#include <list>
 #include <queue>
+#include <algorithm>
 
 #include <memcached/engine.h>
 
@@ -332,6 +334,8 @@ public:
         return underlying;
     }
 
+    void deleteMany(std::list<std::pair<uint16_t, std::string> > &);
+
 private:
 
     RCPtr<VBucket> getVBucket(uint16_t vbid, vbucket_state_t wanted_state);
@@ -385,10 +389,10 @@ private:
                                  int bucket_num);
 
     friend class Flusher;
-
     friend class BGFetchCallback;
     friend class TapConnection;
     friend class Requeuer;
+    friend class Deleter;
 
     EventuallyPersistentEngine &engine;
     EPStats                    &stats;

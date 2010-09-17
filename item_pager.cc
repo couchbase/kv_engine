@@ -3,6 +3,8 @@
 #include "config.h"
 #include <iostream>
 #include <cstdlib>
+#include <utility>
+#include <list>
 
 #include "common.hh"
 #include "item_pager.hh"
@@ -24,9 +26,16 @@ public:
      * @param pcnt percentage of objects to attempt to evict (0-1)
      */
     PagingVisitor(EPStats &st, double pcnt) : stats(st), percent(pcnt),
-                                              ejected(0), failedEjects(0) {}
+                                              ejected(0), failedEjects(0),
+                                              startTime(time(NULL)) {}
 
     void visit(StoredValue *v) {
+
+        // Remember expired objects -- we're going to delete them.
+        if (v->isExpired(startTime)) {
+            expired.push_back(std::make_pair(currentBucket->getId(), v->getKey()));
+            return;
+        }
 
         double r = static_cast<double>(std::rand()) / static_cast<double>(RAND_MAX);
         if (percent >= r) {
@@ -52,11 +61,14 @@ public:
      */
     size_t numFailedEjects() { return failedEjects; }
 
+    std::list<std::pair<uint16_t, std::string> > expired;
+
 private:
     EPStats &stats;
     double   percent;
     size_t   ejected;
     size_t   failedEjects;
+    time_t   startTime;
 };
 
 bool ItemPager::callback(Dispatcher &d, TaskId t) {
@@ -80,6 +92,9 @@ bool ItemPager::callback(Dispatcher &d, TaskId t) {
         stats.numValueEjects.incr(pv.numEjected());
         stats.numNonResident.incr(pv.numEjected());
         stats.numFailedEjects.incr(pv.numFailedEjects());
+        stats.expired.incr(pv.expired.size());
+
+        store->deleteMany(pv.expired);
 
         getLogger()->log(EXTENSION_LOG_INFO, NULL,
                          "Paged out %d values\n", pv.numEjected());
