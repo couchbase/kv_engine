@@ -36,7 +36,12 @@ extern "C" {
         return 0;
     }
 
+    static time_t default_abs_time(rel_time_t offset) {
+        return time(NULL) - ep_current_time() + offset;
+    }
+
     rel_time_t (*ep_current_time)() = uninitialized_current_time;
+    time_t (*ep_abs_time)(rel_time_t) = default_abs_time;
 }
 
 class BGFetchCallback : public DispatcherCallback {
