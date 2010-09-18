@@ -167,14 +167,20 @@ public:
     GetValue get(const std::string &key, uint16_t vbucket,
                  const void *cookie, bool queueBG=true);
 
-    void getFromUnderlying(const std::string &key, uint16_t vbucket,
-                           shared_ptr<Callback<GetValue> > cb) {
-        // TODO:  Get this implemented and try it some time.
-        (void)key;
-        (void)vbucket;
-        (void)cb;
-        assert(false);
-    }
+    /**
+     * Retrieve an item from the disk for vkey stats
+     *
+     * @param key the key to fetch
+     * @param vbucket the vbucket from which to retrieve the key
+     * @param cookie the connection cookie
+     * @param cb callback to return an item fetched from the disk
+     *
+     * @return a status resulting form executing the method
+     */
+    ENGINE_ERROR_CODE getFromUnderlying(const std::string &key,
+                                        uint16_t vbucket,
+                                        const void *cookie,
+                                        shared_ptr<Callback<GetValue> > cb);
 
     protocol_binary_response_status evictKey(const std::string &key,
                                              uint16_t vbucket,
@@ -386,6 +392,7 @@ private:
 
     friend class Flusher;
     friend class BGFetchCallback;
+    friend class VKeyStatBGFetchCallback;
     friend class TapConnection;
     friend class Requeuer;
     friend class Deleter;

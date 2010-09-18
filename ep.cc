@@ -73,6 +73,40 @@ private:
     hrtime_t start;
 };
 
+class VKeyStatBGFetchCallback : public DispatcherCallback {
+public:
+    VKeyStatBGFetchCallback(EventuallyPersistentStore *e,
+                            const std::string &k, uint16_t vbid, uint64_t r,
+                            const void *c, shared_ptr<Callback<GetValue> > cb) :
+        ep(e), key(k), vbucket(vbid), rowid(r), cookie(c),
+        lookup_cb(cb) {
+        assert(ep);
+        assert(cookie);
+        assert(lookup_cb);
+    }
+
+    bool callback(Dispatcher &d, TaskId t) {
+        (void)d; (void)t;
+        RememberingCallback<GetValue> gcb;
+
+        --ep->bgFetchQueue;
+        ep->getUnderlying()->get(key, rowid, gcb);
+        gcb.waitForValue();
+        assert(gcb.fired);
+        lookup_cb->callback(gcb.val);
+
+        return false;
+    }
+
+private:
+    EventuallyPersistentStore       *ep;
+    std::string                      key;
+    uint16_t                         vbucket;
+    uint64_t                         rowid;
+    const void                      *cookie;
+    shared_ptr<Callback<GetValue> >  lookup_cb;
+};
+
 class SetVBStateCallback : public DispatcherCallback {
 public:
     SetVBStateCallback(EventuallyPersistentStore *e, RCPtr<VBucket> vb,
@@ -497,6 +531,42 @@ GetValue EventuallyPersistentStore::get(const std::string &key,
     } else {
         GetValue rv;
         return rv;
+    }
+}
+
+ENGINE_ERROR_CODE
+EventuallyPersistentStore::getFromUnderlying(const std::string &key,
+                                             uint16_t vbucket,
+                                             const void *cookie,
+                                             shared_ptr<Callback<GetValue> > cb) {
+    RCPtr<VBucket> vb = getVBucket(vbucket);
+    if (!vb || vb->getState() == dead) {
+        return ENGINE_NOT_MY_VBUCKET;
+    } else if (vb->getState() == active) {
+        // OK
+    } else if (vb->getState() == replica) {
+        return ENGINE_NOT_MY_VBUCKET;
+    } else if (vb->getState() == pending) {
+        if (vb->addPendingOp(cookie)) {
+            return ENGINE_EWOULDBLOCK;
+        }
+    }
+
+    int bucket_num = vb->ht.bucket(key);
+    LockHolder lh(vb->ht.getMutex(bucket_num));
+    StoredValue *v = fetchValidValue(vb, key, bucket_num);
+
+    if (v) {
+        shared_ptr<VKeyStatBGFetchCallback> dcb(new VKeyStatBGFetchCallback(this, key,
+                                                                            vbucket,
+                                                                            v->getId(),
+                                                                            cookie, cb));
+        ++bgFetchQueue;
+        assert(bgFetchQueue > 0);
+        dispatcher->schedule(dcb, NULL, Priority::VKeyStatBgFetcherPriority, bgFetchDelay);
+        return ENGINE_EWOULDBLOCK;
+    } else {
+        return ENGINE_KEY_ENOENT;
     }
 }
 

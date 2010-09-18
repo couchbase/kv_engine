@@ -1661,6 +1661,84 @@ static enum test_result test_bg_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return SUCCESS;
 }
 
+static enum test_result test_key_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    item *i = NULL;
+
+    check(set_vbucket_state(h, h1, 1, "active"), "Failed set vbucket 1 state.");
+    waitfor_vbucket_state(h, h1, 1, "active");
+
+    // set (k1,v1) in vbucket 0
+    check(store(h, h1, NULL, OPERATION_SET,"k1", "v1", &i, 0, 0) == ENGINE_SUCCESS,
+          "Failed to store an item.");
+    // set (k2,v2) in vbucket 1
+    check(store(h, h1, NULL, OPERATION_SET,"k2", "v2", &i, 0, 1) == ENGINE_SUCCESS,
+          "Failed to store an item.");
+
+    const void *cookie = testHarness.create_cookie();
+
+    // stat for key "k1" and vbucket "0"
+    const char *statkey1 = "key k1 0";
+    check(h1->get_stats(h, cookie, statkey1, strlen(statkey1), add_stats) == ENGINE_SUCCESS,
+          "Failed to get stats.");
+    check(vals.find("key_is_dirty") != vals.end(), "Found no key_is_dirty");
+    check(vals.find("key_exptime") != vals.end(), "Found no key_exptime");
+    check(vals.find("key_flags") != vals.end(), "Found no key_flags");
+    check(vals.find("key_cas") != vals.end(), "Found no key_cas");
+    check(vals.find("key_dirtied") != vals.end(), "Found no key_dirtied");
+    check(vals.find("key_data_age") != vals.end(), "Found no key_data_age");
+
+    // stat for key "k2" and vbucket "1"
+    const char *statkey2 = "key k2 1";
+    check(h1->get_stats(h, cookie, statkey2, strlen(statkey2), add_stats) == ENGINE_SUCCESS,
+          "Failed to get stats.");
+    check(vals.find("key_is_dirty") != vals.end(), "Found no key_is_dirty");
+    check(vals.find("key_exptime") != vals.end(), "Found no key_exptime");
+    check(vals.find("key_flags") != vals.end(), "Found no key_flags");
+    check(vals.find("key_cas") != vals.end(), "Found no key_cas");
+    check(vals.find("key_dirtied") != vals.end(), "Found no key_dirtied");
+    check(vals.find("key_data_age") != vals.end(), "Found no key_data_age");
+
+    testHarness.destroy_cookie(cookie);
+    return SUCCESS;
+}
+
+static enum test_result test_vkey_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    check(set_vbucket_state(h, h1, 1, "active"), "Failed set vbucket 1 state.");
+    waitfor_vbucket_state(h, h1, 1, "active");
+
+    wait_for_persisted_value(h, h1, "k1", "v1");
+    wait_for_persisted_value(h, h1, "k2", "v2", 1);
+
+    const void *cookie = testHarness.create_cookie();
+
+    // stat for key "k1" and vbucket "0"
+    const char *statkey1 = "vkey k1 0";
+    check(h1->get_stats(h, cookie, statkey1, strlen(statkey1), add_stats) == ENGINE_SUCCESS,
+          "Failed to get stats.");
+    check(vals.find("key_is_dirty") != vals.end(), "Found no key_is_dirty");
+    check(vals.find("key_exptime") != vals.end(), "Found no key_exptime");
+    check(vals.find("key_flags") != vals.end(), "Found no key_flags");
+    check(vals.find("key_cas") != vals.end(), "Found no key_cas");
+    check(vals.find("key_dirtied") != vals.end(), "Found no key_dirtied");
+    check(vals.find("key_data_age") != vals.end(), "Found no key_data_age");
+    check(vals.find("key_valid") != vals.end(), "Found no key_valid");
+
+    // stat for key "k2" and vbucket "1"
+    const char *statkey2 = "vkey k2 1";
+    check(h1->get_stats(h, cookie, statkey2, strlen(statkey2), add_stats) == ENGINE_SUCCESS,
+          "Failed to get stats.");
+    check(vals.find("key_is_dirty") != vals.end(), "Found no key_is_dirty");
+    check(vals.find("key_exptime") != vals.end(), "Found no key_exptime");
+    check(vals.find("key_flags") != vals.end(), "Found no key_flags");
+    check(vals.find("key_cas") != vals.end(), "Found no key_cas");
+    check(vals.find("key_dirtied") != vals.end(), "Found no key_dirtied");
+    check(vals.find("key_data_age") != vals.end(), "Found no key_data_age");
+    check(vals.find("key_valid") != vals.end(), "Found no key_valid");
+
+    testHarness.destroy_cookie(cookie);
+    return SUCCESS;
+}
+
 static enum test_result test_curr_items(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
 
@@ -2123,8 +2201,8 @@ engine_test_t* get_tests(void) {
         {"io stats", test_io_stats, NULL, teardown, NULL},
         {"bg stats", test_bg_stats, NULL, teardown, NULL},
         {"mem stats", test_mem_stats, NULL, teardown, NULL},
-        {"stats key", NULL, NULL, teardown, NULL},
-        {"stats vkey", NULL, NULL, teardown, NULL},
+        {"stats key", test_key_stats, NULL, teardown, NULL},
+        {"stats vkey", test_vkey_stats, NULL, teardown, NULL},
         {"stats curr_items", test_curr_items, NULL, teardown, NULL},
         // eviction
         {"value eviction", test_value_eviction, NULL, teardown, NULL},

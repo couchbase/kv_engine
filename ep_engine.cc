@@ -48,7 +48,7 @@ void LookupCallback::callback(GetValue &value) {
     } else {
         engine->addLookupResult(cookie, NULL);
     }
-    engine->getServerApi()->cookie->notify_io_complete(cookie, ENGINE_SUCCESS);
+    engine->getServerApi()->cookie->notify_io_complete(cookie, value.getStatus());
 }
 
 template <typename T>
@@ -1869,10 +1869,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTapStats(const void *cookie,
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doKeyStats(const void *cookie,
                                                          ADD_STAT add_stat,
+                                                         uint16_t vbid,
                                                          const char *k,
-                                                         int nkey,
                                                          bool validate) {
-    std::string key(k, nkey);
+    std::string key(k);
     ENGINE_ERROR_CODE rv = ENGINE_FAILED;
 
     Item *it = NULL;
@@ -1888,20 +1888,17 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doKeyStats(const void *cookie,
         }
     } else if (validate) {
         shared_ptr<LookupCallback> cb(new LookupCallback(this, cookie));
-        // TODO:  Need a proper vbucket ID here.
-        epstore->getFromUnderlying(key, 0, cb);
+        epstore->getFromUnderlying(key, vbid, cookie, cb);
         return ENGINE_EWOULDBLOCK;
     }
 
-    // TODO:  Need a proper vbucket ID here.
-    if (epstore->getKeyStats(k, 0, kstats)) {
+    if (epstore->getKeyStats(key, vbid, kstats)) {
         std::string valid("this_is_a_bug");
         if (validate) {
             if (kstats.dirty) {
                 valid.assign("dirty");
             } else {
-                // TODO:  Need a proper vbucket ID here -- and server API
-                GetValue gv(epstore->get(key, 0, cookie));
+                GetValue gv(epstore->get(key, vbid, cookie, serverApi->core));
                 if (gv.getStatus() == ENGINE_SUCCESS) {
                     shared_ptr<Item> item(gv.getValue());
                     if (diskItem.get()) {
@@ -1961,11 +1958,35 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
     } else if (nkey == 7 && strncmp(stat_key, "vbucket", 7) == 0) {
         rv = doVBucketStats(cookie, add_stat);
     } else if (nkey > 4 && strncmp(stat_key, "key ", 4) == 0) {
+        const char *key;
+        const char *vbid;
+        char *save_ptr;
+        char *s_key = new char[nkey - 3];
+        strcpy(s_key, &stat_key[4]);
+        key = strtok_r(s_key, " ", &save_ptr);
+        vbid = strtok_r(NULL, " ", &save_ptr);
+        if (!key) {
+            return rv;
+        }
+        delete s_key;
+        uint16_t vbucket_id = vbid ? (uint16_t) atoi(vbid) : 0;
         // Non-validating, non-blocking version
-        rv = doKeyStats(cookie, add_stat, &stat_key[4], nkey-4, false);
+        rv = doKeyStats(cookie, add_stat, vbucket_id, key, false);
     } else if (nkey > 5 && strncmp(stat_key, "vkey ", 5) == 0) {
+        const char *key;
+        const char *vbid;
+        char *save_ptr;
+        char *s_key = new char[nkey - 4];
+        strcpy(s_key, &stat_key[5]);
+        key = strtok_r(s_key, " ", &save_ptr);
+        vbid = strtok_r(NULL, " ", &save_ptr);
+        if (!key) {
+            return rv;
+        }
+        delete s_key;
+        uint16_t vbucket_id = vbid ? (uint16_t) atoi(vbid) : 0;
         // Validating version; blocks
-        rv = doKeyStats(cookie, add_stat, &stat_key[5], nkey-5, true);
+        rv = doKeyStats(cookie, add_stat, vbucket_id, key, true);
     }
 
     return rv;

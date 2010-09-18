@@ -7,9 +7,10 @@
 int main(int argc, char **argv) {
    (void)argc; (void)argv;
 
-   assert(Priority::BgFetcherPriority > Priority::SetVBucketPriority);
    assert(Priority::BgFetcherPriority > Priority::TapBgFetcherPriority);
-   assert(Priority::SetVBucketPriority > Priority::FlusherPriority);
+   assert(Priority::TapBgFetcherPriority > Priority::SetVBucketPriority);
+   assert(Priority::SetVBucketPriority > Priority::VKeyStatBgFetcherPriority);
+   assert(Priority::VKeyStatBgFetcherPriority > Priority::FlusherPriority);
    assert(Priority::FlusherPriority > Priority::ItemPagerPriority);
    assert(Priority::ItemPagerPriority > Priority::VBucketDeletionPriority);
 
