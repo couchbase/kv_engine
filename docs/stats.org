@@ -113,7 +113,8 @@
 | ep_bg_load_avg                | The average time for an item to be loaded |
 |                               | from the persistence layer                |
 | ep_num_non_resident           | The number of non-resident items          |
-
+| curr_items_tot                | Num current items including those not     |
+|                               | active (replica, dead and pending states) |
 
 * Details
 

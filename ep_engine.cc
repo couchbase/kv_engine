@@ -1549,28 +1549,14 @@ static void addTapStat(const char *name, const TapConnection *tc, bool val,
     addTapStat(name, tc, val ? "true" : "false", add_stat, cookie);
 }
 
-class VBucketCountVisitor : public VBucketVisitor {
-public:
-    VBucketCountVisitor() : total(0), desired_state(active) { }
-
-    bool visitBucket(RCPtr<VBucket> vb) {
-        if (vb->getState() == desired_state) {
-            total += vb->ht.getNumItems();
-        }
-        return false;
+bool VBucketCountVisitor::visitBucket(RCPtr<VBucket> vb) {
+    size_t n = vb->ht.getNumItems();
+    total += n;
+    if (vb->getState() == desired_state) {
+        requestedState += n;
     }
-
-    void visit(StoredValue* v) {
-        (void)v;
-        assert(false); // this does not happen
-    }
-
-    size_t getTotal() { return total; }
-
-private:
-    size_t total;
-    vbucket_state_t desired_state;
-};
+    return false;
+}
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                                                             ADD_STAT add_stat) {
@@ -1633,7 +1619,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                     epstats.cumulativeFlushTime, add_stat, cookie);
     add_casted_stat("ep_flush_duration_highwat",
                     epstats.flushDurationHighWat, add_stat, cookie);
-    add_casted_stat("curr_items", countVisitor.getTotal(), add_stat, cookie);
+    add_casted_stat("curr_items", countVisitor.getRequested(), add_stat, cookie);
+    add_casted_stat("curr_items_tot", countVisitor.getTotal(), add_stat, cookie);
     add_casted_stat("mem_used", stats.currentSize + stats.memOverhead, add_stat,
                     cookie);
     add_casted_stat("ep_kv_size", stats.currentSize, add_stat, cookie);

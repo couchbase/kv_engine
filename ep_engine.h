@@ -81,6 +81,27 @@ public:
     void perform(TapConnection *tc, EventuallyPersistentEngine* arg);
 };
 
+class VBucketCountVisitor : public VBucketVisitor {
+public:
+    VBucketCountVisitor() : requestedState(0), total(0), desired_state(active) { }
+
+    bool visitBucket(RCPtr<VBucket> vb);
+
+    void visit(StoredValue* v) {
+        (void)v;
+        assert(false); // this does not happen
+    }
+
+    size_t getTotal() { return total; }
+
+    size_t getRequested() { return requestedState; }
+
+private:
+    size_t requestedState;
+    size_t total;
+    vbucket_state_t desired_state;
+};
+
 /**
  *
  */
