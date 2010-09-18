@@ -1050,7 +1050,8 @@ static enum test_result test_memory_limit(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     check_key_value(h, h1, "key", data, vlen);
 
     // There should be no room for another.
-    check(store(h, h1, NULL, OPERATION_SET, "key2", data, &i) == ENGINE_ENOMEM,
+    ENGINE_ERROR_CODE second = store(h, h1, NULL, OPERATION_SET, "key2", data, &i);
+    check(second == ENGINE_ENOMEM || second == ENGINE_TMPFAIL,
           "should have failed second set");
     check(get_int_stat(h, h1, "ep_oom_errors") == 1,
           "Expected an OOM error.");

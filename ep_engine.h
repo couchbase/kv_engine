@@ -128,7 +128,7 @@ public:
 
         *item = new Item(key, nkey, nbytes, flags, expiretime);
         if (*item == NULL) {
-            return ENGINE_ENOMEM;
+            return memoryCondition();
         } else {
             return ENGINE_SUCCESS;
         }
@@ -290,6 +290,10 @@ public:
 
         default:
             ret = ENGINE_ENOTSUP;
+        }
+
+        if (ret == ENGINE_ENOMEM) {
+            ret = memoryCondition();
         }
 
         return ret;
@@ -577,6 +581,25 @@ private:
                                     uint32_t seqno,
                                     uint16_t status,
                                     const std::string &msg);
+
+    /**
+     * Report the state of a memory condition when out of memory.
+     *
+     * @return ETMPFAIL if we think we can recover without interaction,
+     *         else ENOMEM
+     */
+    ENGINE_ERROR_CODE memoryCondition() {
+        // Do we think it's possible we could free something?
+        bool haveEvidenceWeCanFreeMemory(stats.maxDataSize > stats.memOverhead);
+        if (haveEvidenceWeCanFreeMemory) {
+            // Look for more evidence by seeing if we have resident items.
+            VBucketCountVisitor countVisitor;
+            epstore->visit(countVisitor);
+
+            haveEvidenceWeCanFreeMemory = stats.numNonResident < countVisitor.getTotal();
+        }
+        return haveEvidenceWeCanFreeMemory ? ENGINE_TMPFAIL : ENGINE_ENOMEM;
+    }
 
     void notifyTapIoThreadMain(void);
     friend void *EvpNotifyTapIo(void*arg);
