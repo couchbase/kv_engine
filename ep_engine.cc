@@ -1870,9 +1870,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTapStats(const void *cookie,
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doKeyStats(const void *cookie,
                                                          ADD_STAT add_stat,
                                                          uint16_t vbid,
-                                                         const char *k,
+                                                         std::string &key,
                                                          bool validate) {
-    std::string key(k);
     ENGINE_ERROR_CODE rv = ENGINE_FAILED;
 
     Item *it = NULL;
@@ -1958,33 +1957,31 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
     } else if (nkey == 7 && strncmp(stat_key, "vbucket", 7) == 0) {
         rv = doVBucketStats(cookie, add_stat);
     } else if (nkey > 4 && strncmp(stat_key, "key ", 4) == 0) {
-        const char *key;
-        const char *vbid;
-        char *save_ptr;
-        char *s_key = new char[nkey - 3];
-        strcpy(s_key, &stat_key[4]);
-        key = strtok_r(s_key, " ", &save_ptr);
-        vbid = strtok_r(NULL, " ", &save_ptr);
-        if (!key) {
+        std::string key;
+        std::string vbid;
+        std::string s_key(&stat_key[4], nkey - 4);
+        std::stringstream ss(s_key);
+
+        ss >> key;
+        ss >> vbid;
+        if (key.length() == 0) {
             return rv;
         }
-        delete s_key;
-        uint16_t vbucket_id = vbid ? (uint16_t) atoi(vbid) : 0;
+        uint16_t vbucket_id = vbid.length() != 0 ? static_cast<uint16_t>(atoi(vbid.c_str())) : 0;
         // Non-validating, non-blocking version
         rv = doKeyStats(cookie, add_stat, vbucket_id, key, false);
     } else if (nkey > 5 && strncmp(stat_key, "vkey ", 5) == 0) {
-        const char *key;
-        const char *vbid;
-        char *save_ptr;
-        char *s_key = new char[nkey - 4];
-        strcpy(s_key, &stat_key[5]);
-        key = strtok_r(s_key, " ", &save_ptr);
-        vbid = strtok_r(NULL, " ", &save_ptr);
-        if (!key) {
+        std::string key;
+        std::string vbid;
+        std::string s_key(&stat_key[5], nkey - 5);
+        std::stringstream ss(s_key);
+
+        ss >> key;
+        ss >> vbid;
+        if (key.length() == 0) {
             return rv;
         }
-        delete s_key;
-        uint16_t vbucket_id = vbid ? (uint16_t) atoi(vbid) : 0;
+        uint16_t vbucket_id = vbid.length() != 0 ? static_cast<uint16_t>(atoi(vbid.c_str())) : 0;
         // Validating version; blocks
         rv = doKeyStats(cookie, add_stat, vbucket_id, key, true);
     }
