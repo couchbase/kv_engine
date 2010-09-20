@@ -198,6 +198,10 @@ class MemcachedClient(object):
         return self._doCmd(memcacheConstants.CMD_SET_VBUCKET_STATE,
                            str(vbucket), state)
 
+    def get_vbucket_state(self, vbucket):
+        return self._doCmd(memcacheConstants.CMD_GET_VBUCKET_STATE,
+                           str(vbucket), '')
+
     def delete_vbucket(self, vbucket):
         return self._doCmd(memcacheConstants.CMD_DELETE_VBUCKET, str(vbucket), '')
 
