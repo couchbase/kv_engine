@@ -244,7 +244,7 @@ public:
 
             StoredValue *v = vb->ht.unlocked_find(vk.second, bucket_num);
             if (v) {
-                if (vb->ht.unlocked_del(vk.second, bucket_num)) {
+                if (vb->ht.unlocked_softDelete(vk.second, bucket_num)) {
                     e->queueDirty(vk.second, vb->getId(), queue_op_del);
                 }
             }
@@ -262,11 +262,15 @@ void EventuallyPersistentStore::deleteMany(std::list<std::pair<uint16_t, std::st
 
 StoredValue *EventuallyPersistentStore::fetchValidValue(RCPtr<VBucket> vb,
                                                         const std::string &key,
-                                                        int bucket_num) {
-    StoredValue *v = vb->ht.unlocked_find(key, bucket_num);
-    if (v && v->isExpired(time(NULL))) {
+                                                        int bucket_num,
+                                                        bool wantDeleted) {
+    StoredValue *v = vb->ht.unlocked_find(key, bucket_num, wantDeleted);
+    if (v && v->isDeleted()) {
+        // In the deleted case, we ignore expiration time.
+        return v;
+    } else if (v && v->isExpired(time(NULL))) {
         ++stats.expired;
-        if (vb->ht.unlocked_del(key, bucket_num)) {
+        if (vb->ht.unlocked_softDelete(key, bucket_num)) {
             queueDirty(key, vb->getId(), queue_op_del);
         }
         return NULL;
@@ -664,7 +668,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::del(const std::string &key,
         }
     }
 
-    bool existed = vb->ht.del(key);
+    bool existed = vb->ht.softDelete(key);
     ENGINE_ERROR_CODE rv = existed ? ENGINE_SUCCESS : ENGINE_KEY_ENOENT;
 
     if (existed) {
@@ -841,9 +845,9 @@ int EventuallyPersistentStore::flushOneDelOrSet(QueuedItem &qi,
 
     int bucket_num = vb->ht.bucket(qi.getKey());
     LockHolder lh(vb->ht.getMutex(bucket_num));
-    StoredValue *v = fetchValidValue(vb, qi.getKey(), bucket_num);
+    StoredValue *v = fetchValidValue(vb, qi.getKey(), bucket_num, true);
 
-    bool found = v != NULL;
+    bool found = v != NULL && !v->isDeleted();
     bool isDirty = (found && v->isDirty());
     Item *val = NULL;
     rel_time_t queued(qi.getDirtied()), dirtied(0);
@@ -887,6 +891,13 @@ int EventuallyPersistentStore::flushOneDelOrSet(QueuedItem &qi,
 
         }
     }
+
+    if (v && v->isDeleted()) {
+        // Completing the deletion.
+        bool deleted = vb->ht.unlocked_del(qi.getKey(), bucket_num);
+        assert(deleted);
+    }
+
     lh.unlock();
 
     if (found && isDirty) {

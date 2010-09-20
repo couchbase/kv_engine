@@ -388,7 +388,7 @@ private:
     int flushOneDelOrSet(QueuedItem &qi, std::queue<QueuedItem> *rejectQueue);
 
     StoredValue *fetchValidValue(RCPtr<VBucket> vb, const std::string &key,
-                                 int bucket_num);
+                                 int bucket_num, bool wantsDeleted=false);
 
     friend class Flusher;
     friend class BGFetchCallback;

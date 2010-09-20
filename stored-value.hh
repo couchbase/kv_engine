@@ -224,7 +224,9 @@ public:
     }
 
     size_t valLength() {
-        if (isResident()) {
+        if (isDeleted()) {
+            return 0;
+        } else if (isResident()) {
             return value->length();
         } else {
             blobval uval;
@@ -235,7 +237,7 @@ public:
     }
 
     bool ejectValue(EPStats &stats) {
-        if (isResident() && isClean() && !_isSmall) {
+        if (isResident() && isClean() && !isDeleted() && !_isSmall) {
             size_t oldsize = size();
             blobval uval;
             uval.len = valLength();
@@ -366,7 +368,8 @@ public:
      * @return the amount of memory used by this item.
      */
     size_t size() {
-        return sizeOf(_isSmall) + getKeyLen() + value->length();
+        return sizeOf(_isSmall) + getKeyLen() +
+            (isDeleted() ? 0 : value->length());
     }
 
     /**
@@ -395,6 +398,29 @@ public:
             return true;
         } else {
             return extra.feature.resident;
+        }
+    }
+
+    /**
+     * True if this object is logically deleted.
+     */
+    bool isDeleted() const {
+        return value.get() == NULL;
+    }
+
+    /**
+     * Logically delete this object.
+     */
+    void del(EPStats &stats) {
+        size_t oldsize = size();
+
+        value.reset();
+
+        size_t newsize = size();
+        if (oldsize < newsize) {
+            increaseCurrentSize(stats, newsize - oldsize, true);
+        } else if (newsize < oldsize) {
+            reduceCurrentSize(stats, oldsize - newsize, true);
         }
     }
 
@@ -772,7 +798,7 @@ public:
         mutation_type_t rv = NOT_FOUND;
         int bucket_num = bucket(val.getKey());
         LockHolder lh(getMutex(bucket_num));
-        StoredValue *v = unlocked_find(val.getKey(), bucket_num);
+        StoredValue *v = unlocked_find(val.getKey(), bucket_num, true);
         Item &itm = const_cast<Item&>(val);
         if (v) {
 
@@ -824,8 +850,8 @@ public:
         assert(active());
         int bucket_num = bucket(val.getKey());
         LockHolder lh(getMutex(bucket_num));
-        StoredValue *v = unlocked_find(val.getKey(), bucket_num);
-        if (v) {
+        StoredValue *v = unlocked_find(val.getKey(), bucket_num, true);
+        if (v && !v->isDeleted()) {
             return false;
         } else {
             Item &itm = const_cast<Item&>(val);
@@ -834,15 +860,45 @@ public:
                 ++stats.oom_errors;
                 return false;
             }
-            v = valFact(itm, values[bucket_num], isDirty);
+            if (v) {
+                v->setValue(itm.getValue(),
+                            itm.getFlags(), itm.getExptime(),
+                            itm.getCas(), stats);
+            } else {
+                v = valFact(itm, values[bucket_num], isDirty);
+                values[bucket_num] = v;
+                ++numItems;
+            }
             if (!storeVal) {
                 v->ejectValue(stats);
             }
-            values[bucket_num] = v;
-            ++numItems;
         }
 
         return true;
+    }
+
+    /**
+     * Mark the given record logically deleted.
+     *
+     * @param key the key of the item to delete
+     * @return true if an active object was found and marked deleted
+     */
+    bool softDelete(const std::string &key) {
+        assert(active());
+        int bucket_num = bucket(key);
+        LockHolder lh(getMutex(bucket_num));
+        return unlocked_softDelete(key, bucket_num);
+    }
+
+    /**
+     * Unlocked implementation of softDelete.
+     */
+    bool unlocked_softDelete(const std::string &key, int bucket_num) {
+        StoredValue *v = unlocked_find(key, bucket_num);
+        if (v) {
+            v->del(stats);
+        }
+        return v != NULL;
     }
 
     /**
@@ -854,11 +910,16 @@ public:
      *
      * @return a pointer to a StoredValue -- NULL if not found
      */
-    StoredValue *unlocked_find(const std::string &key, int bucket_num) {
+    StoredValue *unlocked_find(const std::string &key, int bucket_num,
+                               bool wantsDeleted=false) {
         StoredValue *v = values[bucket_num];
         while (v) {
             if (v->hasKey(key)) {
-                return v;
+                if (wantsDeleted || !v->isDeleted()) {
+                    return v;
+                } else {
+                    return NULL;
+                }
             }
             v = v->next;
         }

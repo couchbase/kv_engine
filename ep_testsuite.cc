@@ -791,6 +791,33 @@ static enum test_result test_delete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return SUCCESS;
 }
 
+static enum test_result test_delete_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    wait_for_persisted_value(h, h1, "key", "value1");
+
+    check(h1->remove(h, NULL, "key", 3, 0, 0) == ENGINE_SUCCESS,
+          "Failed remove with value.");
+
+    wait_for_persisted_value(h, h1, "key", "value2");
+
+    testHarness.reload_engine(&h, &h1,
+                              testHarness.engine_path,
+                              testHarness.default_engine_cfg,
+                              true);
+
+    check_key_value(h, h1, "key", "value2", 6);
+    check(h1->remove(h, NULL, "key", 3, 0, 0) == ENGINE_SUCCESS,
+          "Failed remove with value.");
+
+    testHarness.reload_engine(&h, &h1,
+                              testHarness.engine_path,
+                              testHarness.default_engine_cfg,
+                              true);
+
+    check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key"), "Expected missing key");
+
+    return SUCCESS;
+}
+
 static enum test_result test_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
     static const char val[] = "somevalue";
@@ -1758,7 +1785,10 @@ static enum test_result test_curr_items(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
     // Verify delete case.
     check(h1->remove(h, NULL, "k1", 2, 0, 0) == ENGINE_SUCCESS,
           "Failed remove with value.");
-    verify_curr_items(h, h1, 2, "one item deleted");
+    verify_curr_items(h, h1, 3, "one item deleted - not persisted");
+
+    wait_for_stat_change(h, h1, "curr_items", 3);
+    verify_curr_items(h, h1, 2, "one item deleted - persisted");
 
     // Verify flush case (remove the two remaining from above)
     check(h1->flush(h, NULL, 0) == ENGINE_SUCCESS,
@@ -2196,6 +2226,7 @@ engine_test_t* get_tests(void) {
         {"incr", test_incr, NULL, teardown, NULL},
         {"incr with default", test_incr_default, NULL, teardown, NULL},
         {"delete", test_delete, NULL, teardown, NULL},
+        {"delete/set/delete", test_delete_set, NULL, teardown, NULL},
         {"flush", test_flush, NULL, teardown, NULL},
         {"flush with stats", test_flush_stats, NULL, teardown, NULL},
         {"flush multi vbuckets", test_flush_multiv, NULL, teardown, NULL},

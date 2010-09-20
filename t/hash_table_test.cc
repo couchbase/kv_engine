@@ -23,21 +23,30 @@ class Counter : public HashTableVisitor {
 public:
 
     int count;
+    int deleted;
 
-    Counter() : count() {}
+    Counter(bool v) : count(), deleted(), verify(v) {}
 
     void visit(StoredValue *v) {
-        count += 1;
-        std::string key = v->getKey();
-        value_t val = v->getValue();
-        assert(key.compare(val->to_s()) == 0);
+        if (v->isDeleted()) {
+            ++deleted;
+        } else {
+            ++count;
+            if (verify) {
+                std::string key = v->getKey();
+                value_t val = v->getValue();
+                assert(key.compare(val->to_s()) == 0);
+            }
+        }
     }
+private:
+    bool verify;
 };
 
-static int count(HashTable &h) {
-    Counter c;
+static int count(HashTable &h, bool verify=true) {
+    Counter c(verify);
     h.visit(c);
-    assert(c.count == h.getNumItems());
+    assert(c.count + c.deleted == h.getNumItems());
     return c.count;
 }
 
@@ -192,6 +201,16 @@ static void testAdd() {
         std::string key = *it;
         assert(h.find(key));
     }
+
+    // Verify we can readd after a soft deletion.
+    assert(h.softDelete(keys[0]));
+    assert(!h.softDelete(keys[0]));
+    assert(!h.find(keys[0]));
+    assert(count(h) == nkeys - 1);
+
+    Item i(keys[0], 0, 0, "newtest", 7);
+    assert(h.add(i));
+    assert(count(h, false) == nkeys);
 }
 
 static void testDepthCounting() {
