@@ -85,7 +85,7 @@ public:
     /**
      * Overrides del().
      */
-    void del(const std::string &key, uint16_t vbucket,
+    void del(const std::string &key, uint64_t rowid,
              Callback<bool> &cb);
 
     bool delVBucket(uint16_t vbucket);

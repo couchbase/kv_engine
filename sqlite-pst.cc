@@ -136,7 +136,7 @@ void Statements::initStatements() {
     all_stmt = new PreparedStatement(db, buf);
 
     snprintf(buf, sizeof(buf),
-             "delete from %s where k = ? and vbucket = ?",
+             "delete from %s where rowid = ?",
              tableName.c_str());
     del_stmt = new PreparedStatement(db, buf);
 

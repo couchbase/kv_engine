@@ -848,6 +848,7 @@ int EventuallyPersistentStore::flushOneDelOrSet(QueuedItem &qi,
     LockHolder lh(vb->ht.getMutex(bucket_num));
     StoredValue *v = fetchValidValue(vb, qi.getKey(), bucket_num, true);
 
+    int64_t rowid = v != NULL ? v->getId() : -1;
     bool found = v != NULL && !v->isDeleted();
     bool isDirty = (found && v->isDirty());
     Item *val = NULL;
@@ -887,7 +888,7 @@ int EventuallyPersistentStore::flushOneDelOrSet(QueuedItem &qi,
                                               stats.dataAgeHighWat.get()));
             // Copy it for the duration.
             val = new Item(qi.getKey(), v->getFlags(), v->getExptime(),
-                           v->getValue(), v->getCas(), v->getId(),
+                           v->getValue(), v->getCas(), rowid,
                            qi.getVBucketId());
 
         }
@@ -906,7 +907,7 @@ int EventuallyPersistentStore::flushOneDelOrSet(QueuedItem &qi,
         underlying->set(*val, cb);
     } else if (!found) {
         Requeuer cb(qi, rejectQueue, this, queued, dirtied, &stats);
-        underlying->del(qi.getKey(), qi.getVBucketId(), cb);
+        underlying->del(qi.getKey(), rowid, cb);
     }
 
     if (val != NULL) {

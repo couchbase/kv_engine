@@ -130,11 +130,10 @@ void StrategicSqlite3::reset() {
     }
 }
 
-void StrategicSqlite3::del(const std::string &key, uint16_t vbucket,
+void StrategicSqlite3::del(const std::string &key, uint64_t rowid,
                            Callback<bool> &cb) {
     PreparedStatement *del_stmt = strategy->forKey(key)->del();
-    del_stmt->bind(1, key.c_str());
-    del_stmt->bind(2, vbucket);
+    del_stmt->bind64(1, rowid);
     bool rv = del_stmt->execute() >= 0;
     if (rv) {
         stats.totalPersisted++;
