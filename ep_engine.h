@@ -288,7 +288,9 @@ public:
     {
         item *it = NULL;
 
-        rel_time_t expiretime = (exptime == 0) ? 0 : ep_abs_time(exptime);
+        rel_time_t expiretime = (exptime == 0 ||
+                                 exptime == 0xffffffff) ?
+            0 : ep_abs_time(exptime);
 
         ENGINE_ERROR_CODE ret = get(cookie, &it, key, nkey, vbucket);
         if (ret == ENGINE_SUCCESS) {
