@@ -657,7 +657,7 @@ static enum test_result test_flush_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
     int nonResident2 = get_int_stat(h, h1, "ep_num_non_resident");
 
     assert(mem_used2 > mem_used);
-    assert(overhead2 > overhead);
+    assert(mem_used2 == (overhead2 + cacheSize2));
 
     check(h1->flush(h, NULL, 0) == ENGINE_SUCCESS, "Failed to flush");
     int queue_size = get_int_stat(h, h1, "ep_queue_size");
