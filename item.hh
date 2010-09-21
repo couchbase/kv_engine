@@ -205,7 +205,7 @@ public:
      * @return true if success
      */
     bool append(const Item &item) {
-        std::string newValue(value->getData(), 0, value->length() - 2);
+        std::string newValue(value->getData(), value->length());
         newValue.append(item.getValue()->to_s());
         value.reset(Blob::New(newValue));
         return true;
@@ -218,7 +218,7 @@ public:
      * @return true if success
      */
     bool prepend(const Item &item) {
-        std::string newValue(item.getValue()->to_s(), 0, item.getNBytes() - 2);
+        std::string newValue(item.getValue()->to_s());
         newValue.append(value->to_s());
         value.reset(Blob::New(newValue));
         return true;

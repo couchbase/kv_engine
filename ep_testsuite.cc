@@ -600,6 +600,52 @@ static enum test_result test_incr_default(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     return check_key_value(h, h1, "key", "3\r\n", 3);
 }
 
+static enum test_result test_append(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    item *i = NULL;
+
+    char binaryData1[] = "abcdefg\0gfedcba";
+    char binaryData2[] = "abzdefg\0gfedcba";
+
+    check(storeCasVb11(h, h1, NULL, OPERATION_SET, "key",
+                       binaryData1, sizeof(binaryData1), 82758, &i, 0, 0)
+          == ENGINE_SUCCESS,
+          "Failed set.");
+
+    check(storeCasVb11(h, h1, NULL, OPERATION_APPEND, "key",
+                       binaryData2, sizeof(binaryData2), 82758, &i, 0, 0)
+          == ENGINE_SUCCESS,
+          "Failed append.");
+
+    std::string expected;
+    expected.append(binaryData1, sizeof(binaryData1));
+    expected.append(binaryData2, sizeof(binaryData2));
+
+    return check_key_value(h, h1, "key", expected.data(), expected.length());
+}
+
+static enum test_result test_prepend(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    item *i = NULL;
+
+    char binaryData1[] = "abcdefg\0gfedcba";
+    char binaryData2[] = "abzdefg\0gfedcba";
+
+    check(storeCasVb11(h, h1, NULL, OPERATION_SET, "key",
+                       binaryData1, sizeof(binaryData1), 82758, &i, 0, 0)
+          == ENGINE_SUCCESS,
+          "Failed set.");
+
+    check(storeCasVb11(h, h1, NULL, OPERATION_PREPEND, "key",
+                       binaryData2, sizeof(binaryData2), 82758, &i, 0, 0)
+          == ENGINE_SUCCESS,
+          "Failed append.");
+
+    std::string expected;
+    expected.append(binaryData2, sizeof(binaryData2));
+    expected.append(binaryData1, sizeof(binaryData1));
+
+    return check_key_value(h, h1, "key", expected.data(), expected.length());
+}
+
 static enum test_result test_incr(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     uint64_t cas = 0, result = 0;
     item *i = NULL;
@@ -2221,6 +2267,8 @@ engine_test_t* get_tests(void) {
         {"set+change flags", test_set_change_flags, NULL, teardown, NULL},
         {"add", test_add, NULL, teardown, NULL},
         {"cas", test_cas, NULL, teardown, NULL},
+        {"append", test_append, NULL, teardown, NULL},
+        {"prepend", test_prepend, NULL, teardown, NULL},
         {"replace", test_replace, NULL, teardown, NULL},
         {"incr miss", test_incr_miss, NULL, teardown, NULL},
         {"incr", test_incr, NULL, teardown, NULL},
