@@ -47,3 +47,6 @@ memcached like this:
 | warmup            | bool   | Whether to load existing data at startup.     |
 | expiry_window     | int    | expiry window to not persist an object        |
 |                   |        | that is expired (or will be soon)             |
+| failpartialwarmup | bool   | If false, continue running after failing to   |
+|                   |        | load some records.                            |
+

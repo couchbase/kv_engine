@@ -813,6 +813,7 @@ private:
     const char *initFile;
     bool warmup;
     bool wait_for_warmup;
+    bool fail_on_partial_warmup;
     bool startVb0;
     SERVER_HANDLE_V1 *serverApi;
     MultiDBSqliteStrategy *sqliteStrategy;

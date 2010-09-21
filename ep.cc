@@ -991,7 +991,7 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
             if (hasPurged) {
                 getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                                  "Warmup dataload failure: max_size too low.\n");
-                exit(1); // I'd like EX_CONFIG here, but lacking sysexits here.
+                ++stats.warmOOM;
             } else {
                 getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                                  "Emergency startup purge to free space for load.\n");
@@ -1001,7 +1001,6 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
                     getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                                      "Cannot store an item after emergency purge.\n");
                     ++stats.warmOOM;
-                    exit(1);
                 }
             }
             break;

@@ -667,6 +667,7 @@ EXTENSION_LOGGER_DESCRIPTOR *getLogger(void) {
 
 EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server_api) :
     dbname("/tmp/test.db"), initFile(NULL), warmup(true), wait_for_warmup(true),
+    fail_on_partial_warmup(true),
     startVb0(true), sqliteStrategy(NULL), sqliteDb(NULL), epstore(NULL),
     databaseInitTime(0), tapIdleTimeout(DEFAULT_TAP_IDLE_TIMEOUT), nextTapNoop(0),
     startedEngineThreads(false), shutdown(false),
@@ -719,7 +720,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         size_t htLocks = 0;
         size_t maxSize = 0;
 
-        const int max_items = 21;
+        const int max_items = 22;
         struct config_item items[max_items];
         int ii = 0;
         memset(items, 0, sizeof(items));
@@ -742,6 +743,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         items[ii].key = "waitforwarmup";
         items[ii].datatype = DT_BOOL;
         items[ii].value.dt_bool = &wait_for_warmup;
+
+        ++ii;
+        items[ii].key = "failpartialwarmup";
+        items[ii].datatype = DT_BOOL;
+        items[ii].value.dt_bool = &fail_on_partial_warmup;
 
         ++ii;
         items[ii].key = "vb0";
@@ -909,6 +915,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         if (wait_for_warmup && flusher) {
             while (flusher->state() == initializing) {
                 sleep(1);
+            }
+            if (fail_on_partial_warmup && stats.warmOOM > 0) {
+                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                 "Warmup failed to load %d records due to OOM, exiting.\n",
+                                 static_cast<unsigned int>(stats.warmOOM));
+                exit(1);
             }
         }
 
