@@ -1879,8 +1879,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doKeyStats(const void *cookie,
         }
     } else if (validate) {
         shared_ptr<LookupCallback> cb(new LookupCallback(this, cookie));
-        epstore->getFromUnderlying(key, vbid, cookie, cb);
-        return ENGINE_EWOULDBLOCK;
+        return epstore->getFromUnderlying(key, vbid, cookie, cb);
     }
 
     if (epstore->getKeyStats(key, vbid, kstats)) {
