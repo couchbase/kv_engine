@@ -368,8 +368,17 @@ public:
      * @return the amount of memory used by this item.
      */
     size_t size() {
-        return sizeOf(_isSmall) + getKeyLen() +
-            (isDeleted() ? 0 : value->length());
+        // This differs from valLength in that it reports the
+        // *resident* length instead of the length of the actual value
+        // as it existed.
+        size_t vallen = isDeleted() ? 0 : value->length();
+        size_t valign = std::min(sizeof(void*),
+                                 sizeof(void*) - vallen % sizeof(void*));
+        size_t kalign = std::min(sizeof(void*),
+                                 sizeof(void*) - getKeyLen() % sizeof(void*));
+
+        return sizeOf(_isSmall) + getKeyLen() + vallen +
+            sizeof(value_t) + valign + kalign;
     }
 
     /**
