@@ -220,15 +220,6 @@ static enum test_result check_key_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     return SUCCESS;
 }
 
-static enum test_result test_wrong_vb_mutation(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                                               ENGINE_STORE_OPERATION op) {
-    item *i = NULL;
-    check(store(h, h1, NULL, op,
-                "key", "somevalue", &i, 11, 1) == ENGINE_NOT_MY_VBUCKET,
-        "Expected not_my_vbucket");
-    return SUCCESS;
-}
-
 static void add_stats(const char *key, const uint16_t klen,
                       const char *val, const uint32_t vlen,
                       const void *cookie) {
@@ -397,31 +388,6 @@ static bool verify_vbucket_missing(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     return false;
 }
 
-static enum test_result test_pending_vb_mutation(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                                                 ENGINE_STORE_OPERATION op) {
-    const void *cookie = testHarness.create_cookie();
-    testHarness.set_ewouldblock_handling(cookie, false);
-    item *i = NULL;
-    check(set_vbucket_state(h, h1, 1, "pending"), "Failed to set vbucket state.");
-    check(verify_vbucket_state(h, h1, 1, "pending"), "Bucket state was not set to pending.");
-    check(store(h, h1, cookie, op,
-                "key", "somevalue", &i, 11, 1) == ENGINE_EWOULDBLOCK,
-        "Expected woodblock");
-    testHarness.destroy_cookie(cookie);
-    return SUCCESS;
-}
-
-static enum test_result test_replica_vb_mutation(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                                                 ENGINE_STORE_OPERATION op) {
-    item *i = NULL;
-    check(set_vbucket_state(h, h1, 1, "replica"), "Failed to set vbucket state.");
-    check(verify_vbucket_state(h, h1, 1, "replica"), "Bucket state was not set to replica.");
-    check(store(h, h1, NULL, op,
-                "key", "somevalue", &i, 11, 1) == ENGINE_NOT_MY_VBUCKET,
-        "Expected not my vbucket");
-    return SUCCESS;
-}
-
 static int get_int_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                         const char *statname, const char *statkey = NULL) {
     vals.clear();
@@ -461,6 +427,44 @@ static void wait_for_persisted_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 
     // Wait for persistence...
     wait_for_stat_change(h, h1, "ep_total_persisted", numStored);
+}
+
+static enum test_result test_wrong_vb_mutation(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                                               ENGINE_STORE_OPERATION op) {
+    item *i = NULL;
+    int numNotMyVBucket = get_int_stat(h, h1, "ep_num_not_my_vbuckets");
+    check(store(h, h1, NULL, op,
+                "key", "somevalue", &i, 11, 1) == ENGINE_NOT_MY_VBUCKET,
+        "Expected not_my_vbucket");
+    wait_for_stat_change(h, h1, "ep_num_not_my_vbuckets", numNotMyVBucket);
+    return SUCCESS;
+}
+
+static enum test_result test_pending_vb_mutation(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                                                 ENGINE_STORE_OPERATION op) {
+    const void *cookie = testHarness.create_cookie();
+    testHarness.set_ewouldblock_handling(cookie, false);
+    item *i = NULL;
+    check(set_vbucket_state(h, h1, 1, "pending"), "Failed to set vbucket state.");
+    check(verify_vbucket_state(h, h1, 1, "pending"), "Bucket state was not set to pending.");
+    check(store(h, h1, cookie, op,
+                "key", "somevalue", &i, 11, 1) == ENGINE_EWOULDBLOCK,
+        "Expected woodblock");
+    testHarness.destroy_cookie(cookie);
+    return SUCCESS;
+}
+
+static enum test_result test_replica_vb_mutation(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                                                 ENGINE_STORE_OPERATION op) {
+    item *i = NULL;
+    check(set_vbucket_state(h, h1, 1, "replica"), "Failed to set vbucket state.");
+    check(verify_vbucket_state(h, h1, 1, "replica"), "Bucket state was not set to replica.");
+    int numNotMyVBucket = get_int_stat(h, h1, "ep_num_not_my_vbuckets");
+    check(store(h, h1, NULL, op,
+                "key", "somevalue", &i, 11, 1) == ENGINE_NOT_MY_VBUCKET,
+        "Expected not my vbucket");
+    wait_for_stat_change(h, h1, "ep_num_not_my_vbuckets", numNotMyVBucket);
+    return SUCCESS;
 }
 
 //
@@ -938,8 +942,10 @@ static enum test_result test_restart_bin_val(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 
 }
 
 static enum test_result test_wrong_vb_get(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    int numNotMyVBucket = get_int_stat(h, h1, "ep_num_not_my_vbuckets");
     check(ENGINE_NOT_MY_VBUCKET == verify_vb_key(h, h1, "key", 1),
           "Expected wrong bucket.");
+    wait_for_stat_change(h, h1, "ep_num_not_my_vbuckets", numNotMyVBucket);
     return SUCCESS;
 }
 
@@ -958,17 +964,21 @@ static enum test_result test_vb_get_pending(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
 
 static enum test_result test_vb_get_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(set_vbucket_state(h, h1, 1, "replica"), "Failed to set vbucket state.");
+    int numNotMyVBucket = get_int_stat(h, h1, "ep_num_not_my_vbuckets");
     check(ENGINE_NOT_MY_VBUCKET == verify_vb_key(h, h1, "key", 1),
           "Expected not my bucket.");
+    wait_for_stat_change(h, h1, "ep_num_not_my_vbuckets", numNotMyVBucket);
     return SUCCESS;
 }
 
 static enum test_result test_wrong_vb_incr(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     uint64_t cas, result;
+    int numNotMyVBucket = get_int_stat(h, h1, "ep_num_not_my_vbuckets");
     check(h1->arithmetic(h, NULL, "key", 3, true, false, 1, 1, 0,
                          &cas, &result,
                          1) == ENGINE_NOT_MY_VBUCKET,
           "Expected not my vbucket.");
+    wait_for_stat_change(h, h1, "ep_num_not_my_vbuckets", numNotMyVBucket);
     return SUCCESS;
 }
 
@@ -988,10 +998,12 @@ static enum test_result test_vb_incr_pending(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 
 static enum test_result test_vb_incr_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     uint64_t cas, result;
     check(set_vbucket_state(h, h1, 1, "replica"), "Failed to set vbucket state.");
+    int numNotMyVBucket = get_int_stat(h, h1, "ep_num_not_my_vbuckets");
     check(h1->arithmetic(h, NULL, "key", 3, true, false, 1, 1, 0,
                          &cas, &result,
                          1) == ENGINE_NOT_MY_VBUCKET,
           "Expected not my bucket.");
+    wait_for_stat_change(h, h1, "ep_num_not_my_vbuckets", numNotMyVBucket);
     return SUCCESS;
 }
 
@@ -1020,8 +1032,10 @@ static enum test_result test_wrong_vb_prepend(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
 }
 
 static enum test_result test_wrong_vb_del(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    int numNotMyVBucket = get_int_stat(h, h1, "ep_num_not_my_vbuckets");
     check(ENGINE_NOT_MY_VBUCKET == h1->remove(h, NULL, "key", 3, 0, 1),
           "Expected wrong bucket.");
+    wait_for_stat_change(h, h1, "ep_num_not_my_vbuckets", numNotMyVBucket);
     return SUCCESS;
 }
 
@@ -1098,8 +1112,10 @@ static enum test_result test_vb_del_pending(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
 
 static enum test_result test_vb_del_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(set_vbucket_state(h, h1, 1, "replica"), "Failed to set vbucket state.");
+    int numNotMyVBucket = get_int_stat(h, h1, "ep_num_not_my_vbuckets");
     check(ENGINE_NOT_MY_VBUCKET == h1->remove(h, NULL, "key", 3, 0, 1),
           "Expected not my vbucket.");
+    wait_for_stat_change(h, h1, "ep_num_not_my_vbuckets", numNotMyVBucket);
     return SUCCESS;
 }
 

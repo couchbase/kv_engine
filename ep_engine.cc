@@ -1766,6 +1766,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                     cookie);
     add_casted_stat("ep_num_eject_failures", epstats.numFailedEjects, add_stat,
                     cookie);
+    add_casted_stat("ep_num_not_my_vbuckets", epstats.numNotMyVBuckets, add_stat,
+                    cookie);
 
     if (warmup) {
         add_casted_stat("ep_warmup_thread",

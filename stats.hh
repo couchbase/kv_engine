@@ -90,6 +90,8 @@ public:
     Atomic<size_t> numValueEjects;
     //! Number of times a value could not be ejected
     Atomic<size_t> numFailedEjects;
+    //! Number of times "Not my bucket" happened
+    Atomic<size_t> numNotMyVBuckets;
 
     //! Max allowable memory size.
     Atomic<size_t> maxDataSize;
