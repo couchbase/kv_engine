@@ -63,12 +63,13 @@ static void storeMany(HashTable &h, std::vector<std::string> &keys) {
     }
 }
 
-static void addMany(HashTable &h, std::vector<std::string> &keys, bool expect) {
+static void addMany(HashTable &h, std::vector<std::string> &keys,
+                    add_type_t expect) {
     std::vector<std::string>::iterator it;
     for (it = keys.begin(); it != keys.end(); it++) {
         std::string k = *it;
         Item i(k, 0, 0, k.c_str(), k.length());
-        bool v = h.add(i);
+        add_type_t v = h.add(i);
         assert(expect == v);
     }
 }
@@ -185,7 +186,7 @@ static void testAdd() {
     const int nkeys = 5000;
 
     std::vector<std::string> keys = generateKeys(nkeys);
-    addMany(h, keys, true);
+    addMany(h, keys, ADD_SUCCESS);
 
     std::string missingKey = "aMissingKey";
     assert(h.find(missingKey) == NULL);
@@ -196,7 +197,7 @@ static void testAdd() {
         assert(h.find(key));
     }
 
-    addMany(h, keys, false);
+    addMany(h, keys, ADD_EXISTS);
     for (it = keys.begin(); it != keys.end(); it++) {
         std::string key = *it;
         assert(h.find(key));
@@ -209,7 +210,7 @@ static void testAdd() {
     assert(count(h) == nkeys - 1);
 
     Item i(keys[0], 0, 0, "newtest", 7);
-    assert(h.add(i));
+    assert(h.add(i) == ADD_SUCCESS);
     assert(count(h, false) == nkeys);
 }
 

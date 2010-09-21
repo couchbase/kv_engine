@@ -537,6 +537,15 @@ typedef enum {
 } mutation_type_t;
 
 /**
+ * Result from add operation.
+ */
+typedef enum {
+    ADD_SUCCESS,                //!< Add was successful.
+    ADD_NOMEM,                  //!< No memory for operation
+    ADD_EXISTS                  //!< Did not update -- item exists with this key
+} add_type_t;
+
+/**
  * Base class for visiting a hash table.
  */
 class HashTableVisitor {
@@ -844,21 +853,21 @@ public:
      * @param val the item to store
      * @param isDirty true if the item should be marked dirty on store
      * @param storeVal true if the value should be stored (paged-in)
-     * @return true if the item is newly stored
+     * @return an indication of what happened
      */
-    bool add(const Item &val, bool isDirty = true, bool storeVal = true) {
+    add_type_t add(const Item &val, bool isDirty = true, bool storeVal = true) {
         assert(active());
         int bucket_num = bucket(val.getKey());
         LockHolder lh(getMutex(bucket_num));
         StoredValue *v = unlocked_find(val.getKey(), bucket_num, true);
         if (v && !v->isDeleted()) {
-            return false;
+            return ADD_EXISTS;
         } else {
             Item &itm = const_cast<Item&>(val);
             itm.setCas();
             if (!StoredValue::hasAvailableSpace(stats, itm)) {
                 ++stats.oom_errors;
-                return false;
+                return ADD_NOMEM;
             }
             if (v) {
                 v->setValue(itm.getValue(),
@@ -874,7 +883,7 @@ public:
             }
         }
 
-        return true;
+        return ADD_SUCCESS;
     }
 
     /**

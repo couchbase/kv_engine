@@ -971,8 +971,23 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
             vb.reset(new VBucket(i->getVBucketId(), pending, stats));
             vbuckets.addBucket(vb);
         }
-        bool retain = shouldBeResident();
-        if (!vb->ht.add(*i, false, retain)) {
+        bool retain(shouldBeResident());
+        bool succeeded(false);
+
+        switch (vb->ht.add(*i, false, retain)) {
+        case ADD_SUCCESS:
+            // Yay
+            succeeded = true;
+            break;
+        case ADD_EXISTS:
+            // Boo
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                             "Warmup dataload error: Duplicate key: %s.\n",
+                             i->getKey().c_str());
+            ++stats.warmDups;
+            succeeded = true;
+            break;
+        case ADD_NOMEM:
             if (hasPurged) {
                 getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                                  "Warmup dataload failure: max_size too low.\n");
@@ -985,11 +1000,16 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
                 if (!vb->ht.add(*i, false, retain)) {
                     getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                                      "Cannot store an item after emergency purge.\n");
+                    ++stats.warmOOM;
                     exit(1);
                 }
             }
+            break;
+        default:
+            abort();
         }
-        if (!retain) {
+
+        if (succeeded && !retain) {
             ++stats.numValueEjects;
             ++stats.numNonResident;
         }

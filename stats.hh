@@ -26,6 +26,11 @@ public:
     Atomic<bool> warmupComplete;
     //! Number of records warmed up.
     Atomic<size_t> warmedUp;
+    //! Number of warmup failures due to duplicates
+    Atomic<size_t> warmDups;
+    //! Number of OOM failures at warmup time.
+    Atomic<size_t> warmOOM;
+
     //! size of the input queue
     Atomic<size_t> queue_size;
     //! Size of the in-process (output) queue.

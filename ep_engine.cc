@@ -1653,6 +1653,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                         epstats.warmupComplete.get() ? "complete" : "running",
                         add_stat, cookie);
         add_casted_stat("ep_warmed_up", epstats.warmedUp, add_stat, cookie);
+        add_casted_stat("ep_warmup_dups", epstats.warmDups, add_stat, cookie);
+        add_casted_stat("ep_warmup_oom", epstats.warmOOM, add_stat, cookie);
         if (epstats.warmupComplete.get()) {
             add_casted_stat("ep_warmup_time", epstats.warmupTime,
                             add_stat, cookie);
