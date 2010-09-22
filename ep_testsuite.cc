@@ -474,6 +474,21 @@ static enum test_result test_get_miss(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return SUCCESS;
 }
 
+static enum test_result test_init_fail(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    // Restart once to ensure written to disk.
+    testHarness.reload_engine(&h, &h1,
+                              testHarness.engine_path,
+                              "dbname=/non/existent/path/dbname",
+                              false);
+
+    check(h1->initialize(h, "dbname=/non/existent/path/dbname")
+          == ENGINE_FAILED, "Failed to fail to initialize");
+
+    // This test will crash *after* this if it can't successfully
+    // destroy the engine.
+    return SUCCESS;
+}
+
 static enum test_result test_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
     check(ENGINE_SUCCESS ==
@@ -2253,6 +2268,7 @@ engine_test_t* get_tests(void) {
         {"validate engine handle", test_validate_engine_handle, NULL, teardown, NULL},
         // basic tests
         {"test alloc limit", test_alloc_limit, NULL, teardown, NULL},
+        {"test init failure", test_init_fail, NULL, teardown, NULL},
         {"test total memory limit", test_memory_limit, NULL, teardown,
          "max_size=4096;ht_locks=1;ht_size=3"},
         {"test max_size changes", test_max_size_settings, NULL, teardown,

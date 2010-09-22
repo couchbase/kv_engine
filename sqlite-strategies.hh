@@ -13,12 +13,15 @@ class EventuallyPersistentEngine;
 class SqliteStrategy {
 public:
 
-    SqliteStrategy(EventuallyPersistentEngine &theEngine, const char * const fn, const char * const finit = NULL) :
+    SqliteStrategy(EventuallyPersistentEngine &theEngine,
+                   const char * const fn,
+                   const char * const finit = NULL) :
         engine(theEngine),
         filename(fn),
         initFile(finit),
         db(NULL),
-        statements()
+        statements(),
+        set_vb_stmt(NULL), del_vb_stmt(NULL), sel_vb_stmt(NULL)
     { }
 
     virtual ~SqliteStrategy() {
