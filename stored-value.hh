@@ -811,7 +811,7 @@ public:
      * @param the Item to store
      * @return a result indicating the status of the store
      */
-    mutation_type_t set(const Item &val) {
+    mutation_type_t set(const Item &val, bool honorMemLimit=true) {
         assert(active());
         mutation_type_t rv = NOT_FOUND;
         int bucket_num = bucket(val.getKey());
@@ -843,7 +843,7 @@ public:
                 return NOT_FOUND;
             }
 
-            if (!StoredValue::hasAvailableSpace(stats, itm)) {
+            if (honorMemLimit && !StoredValue::hasAvailableSpace(stats, itm)) {
                 ++stats.oom_errors;
                 return NOMEM;
             }

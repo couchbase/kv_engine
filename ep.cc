@@ -331,11 +331,12 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::set(const Item &item,
 
     bool cas_op = (item.getCas() != 0);
 
-    mutation_type_t mtype = vb->ht.set(item);
+    mutation_type_t mtype = vb->ht.set(item, !force);
 
     if (cas_op && mtype == NOT_FOUND) {
         return ENGINE_KEY_ENOENT;
     } else if (mtype == NOMEM) {
+        assert(!force);
         return ENGINE_ENOMEM;
     } else if (mtype == INVALID_CAS) {
         return ENGINE_KEY_EEXISTS;
