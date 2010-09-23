@@ -22,8 +22,8 @@ EPStats global_stats;
 class Counter : public HashTableVisitor {
 public:
 
-    int count;
-    int deleted;
+    size_t count;
+    size_t deleted;
 
     Counter(bool v) : count(), deleted(), verify(v) {}
 
