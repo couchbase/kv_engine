@@ -9,28 +9,36 @@ def stats_formatter(stats, prefix=" "):
         s = stat + ":"
         print "%s%s%s" % (prefix, s.ljust(longest), val)
 
-def stats_vkey(mc, key):
+def stats_vkey(mc, key, auth="none", username="", password=""):
+    if auth == "sasl":
+        mc.sasl_auth_plain(username, password)
     cmd = 'vkey ' + key
     vbs = mc.stats(cmd)
     print "verification for key", key
     stats_formatter(vbs)
 
-def stats_all(mc):
+def stats_all(mc, auth="none", username="", password=""):
+    if auth == "sasl":
+        mc.sasl_auth_plain(username, password)
     stats_formatter(mc.stats())
 
-def stats_tap(mc):
+def stats_tap(mc, auth="none", username="", password=""):
+    if auth == "sasl":
+        mc.sasl_auth_plain(username, password)
     stats_formatter(mc.stats('tap'))
 
-def stats_hash(mc):
+def stats_hash(mc, auth="none", username="", password=""):
+    if auth == "sasl":
+        mc.sasl_auth_plain(username, password)
     stats_formatter(mc.stats('hash'))
 
 if __name__ == '__main__':
 
     c = clitool.CliTool()
 
-    c.addCommand('vkey', stats_vkey, 'vkey keyname')
-    c.addCommand('all', stats_all)
-    c.addCommand('hash', stats_hash)
-    c.addCommand('tap', stats_tap)
+    c.addCommand('vkey', stats_vkey, 'vkey keyname sasl [username] [password]')
+    c.addCommand('all', stats_all, 'all sasl [username] [password]')
+    c.addCommand('hash', stats_hash, 'hash sasl [username] [password]')
+    c.addCommand('tap', stats_tap, 'tap sasl [username] [password]')
 
     c.execute()
