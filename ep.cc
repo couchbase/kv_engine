@@ -392,9 +392,10 @@ void EventuallyPersistentStore::completeVBucketDeletion(uint16_t vbid) {
     LockHolder lh(vbsetMutex);
 
     RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
-    if(!vb || vb->getState() == dead) {
+    if (!vb || vb->getState() == dead || vbuckets.isBucketDeletion(vbid)) {
         lh.unlock();
         if (underlying->delVBucket(vbid)) {
+            vbuckets.setBucketDeletion(vbid, false);
             ++stats.vbucketDeletions;
         } else {
             ++stats.vbucketDeletionFail;
@@ -413,6 +414,7 @@ bool EventuallyPersistentStore::deleteVBucket(uint16_t vbid) {
 
     RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
     if (vb && vb->getState() == dead) {
+        vbuckets.setBucketDeletion(vbid, true);
         HashTableStatVisitor statvis(vbuckets.removeBucket(vbid));
         stats.numNonResident.decr(statvis.numNonResident);
         stats.currentSize.decr(statvis.memSize);
@@ -904,8 +906,18 @@ int EventuallyPersistentStore::flushOneDelOrSet(QueuedItem &qi,
     lh.unlock();
 
     if (found && isDirty) {
-        Requeuer cb(qi, rejectQueue, this, queued, dirtied, &stats);
-        underlying->set(*val, cb);
+        // If vbucket deletion is currently being flushed, don't flush a set operation,
+        // but requeue a set operation to a flusher to avoid duplicate items on disk
+        if (vbuckets.isBucketDeletion(qi.getVBucketId())) {
+            towrite.push(qi);
+            stats.memOverhead.incr(qi.size());
+            assert(stats.memOverhead.get() < GIGANTOR);
+            stats.totalEnqueued++;
+            stats.queue_size = towrite.size();
+        } else {
+            Requeuer cb(qi, rejectQueue, this, queued, dirtied, &stats);
+            underlying->set(*val, cb);
+        }
     } else if (!found) {
         Requeuer cb(qi, rejectQueue, this, queued, dirtied, &stats);
         underlying->del(qi.getKey(), rowid, cb);

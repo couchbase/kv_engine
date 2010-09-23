@@ -173,20 +173,34 @@ class VBucketHolder : public RCValue {
 public:
     VBucketHolder(size_t sz) :
         buckets(new RCPtr<VBucket>[sz]),
-        size(sz) {}
+        bucketDeletion(new Atomic<bool>[sz]),
+        size(sz) {
+        for (size_t i = 0; i < size; ++i) {
+            bucketDeletion[i].set(false);
+        }
+    }
 
     VBucketHolder(const RCPtr<VBucketHolder> &vbh, size_t sz) :
         buckets(new RCPtr<VBucket>[sz]),
+        bucketDeletion(new Atomic<bool>[sz]),
         size(sz) {
 
         // No shrinkage allowed currently.
         assert(sz >= vbh->getSize());
 
         std::copy(buckets, buckets+vbh->getSize(), buckets);
+        size_t vbh_size = vbh->getSize();
+        for (size_t i = 0; i < vbh_size; ++i) {
+            bucketDeletion[i].set(vbh->isBucketDeletion(i));
+        }
+        for (size_t i = vbh_size; i < size; ++i) {
+            bucketDeletion[i].set(false);
+        }
     }
 
     ~VBucketHolder() {
         delete[] buckets;
+        delete[] bucketDeletion;
     }
 
     RCPtr<VBucket> getBucket(int id) const {
@@ -244,8 +258,19 @@ public:
         return size;
     }
 
+    bool isBucketDeletion(int id) {
+        assert(id >= 0 && static_cast<size_t>(id) < size);
+        return bucketDeletion[id].get();
+    }
+
+    void setBucketDeletion(int id, bool delBucket) {
+        assert(id >= 0 && static_cast<size_t>(id) < size);
+        bucketDeletion[id].set(delBucket);
+    }
+
 private:
     RCPtr<VBucket> *buckets;
+    Atomic<bool> *bucketDeletion;
     size_t size;
 };
 
@@ -285,9 +310,18 @@ public:
     }
 
     std::vector<int> getBuckets(void) {
-
         RCPtr<VBucketHolder> o(buckets);
         return o->getBuckets();
+    }
+
+    bool isBucketDeletion(int id) {
+        RCPtr<VBucketHolder> o(buckets);
+        return o->isBucketDeletion(id);
+    }
+
+    void setBucketDeletion(int id, bool delBucket) {
+        RCPtr<VBucketHolder> o(buckets);
+        o->setBucketDeletion(id, delBucket);
     }
 
 private:

@@ -1934,6 +1934,44 @@ static enum test_result test_value_eviction(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
     return SUCCESS;
 }
 
+static enum test_result test_duplicate_items_disk(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    check(set_vbucket_state(h, h1, 1, "active"), "Failed to set vbucket state.");
+    waitfor_vbucket_state(h, h1, 1, "active");
+
+    wait_for_persisted_value(h, h1, "key1", "value", 1);
+
+    check(set_vbucket_state(h, h1, 1, "dead"), "Failed set set vbucket 1 state.");
+    waitfor_vbucket_state(h, h1, 1, "dead");
+
+    int vbucket_del = get_int_stat(h, h1, "ep_vbucket_del");
+    protocol_binary_request_header *pkt = create_packet(CMD_DEL_VBUCKET, "1", "");
+    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
+          "Failed to delete dead bucket.");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+          "Failure deleting dead bucket.");
+    check(verify_vbucket_missing(h, h1, 1),
+          "vbucket 1 was not missing after deleting it.");
+
+    check(set_vbucket_state(h, h1, 1, "active"), "Failed to set vbucket state.");
+    waitfor_vbucket_state(h, h1, 1, "active");
+
+    item *i = NULL;
+    int total_persisted = get_int_stat(h, h1, "ep_total_persisted");
+    check(store(h, h1, NULL, OPERATION_SET, "key1", "new-value", &i, 0, 1) == ENGINE_SUCCESS,
+          "Failed to set an item.");
+
+    // Make sure that vbucket deletion is flushed to avoid duplicate items on disk
+    wait_for_stat_change(h, h1, "ep_vbucket_del", vbucket_del);
+    assert((vbucket_del + 1) == get_int_stat(h, h1, "ep_vbucket_del"));
+
+    // Make sure that a key/value item is persisted correctly
+    wait_for_stat_change(h, h1, "ep_total_persisted", total_persisted);
+    evict_key(h, h1, "key1", 1, "Ejected.");
+    check_key_value(h, h1, "key1", "new-value", 9, false, 1);
+
+    return SUCCESS;
+}
+
 static enum test_result test_disk_gt_ram_golden(ENGINE_HANDLE *h,
                                                 ENGINE_HANDLE_V1 *h1) {
     // Check/grab initial state.
@@ -2306,6 +2344,8 @@ engine_test_t* get_tests(void) {
         {"stats curr_items", test_curr_items, NULL, teardown, NULL},
         // eviction
         {"value eviction", test_value_eviction, NULL, teardown, NULL},
+        // duplicate items on disk
+        {"duplicate items on disk", test_duplicate_items_disk, NULL, teardown, NULL},
         // tap tests
         {"tap receiver mutation", test_tap_rcvr_mutate, NULL, teardown, NULL},
         {"tap receiver mutation (dead)", test_tap_rcvr_mutate_dead,
