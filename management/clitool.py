@@ -37,9 +37,10 @@ class CliTool(object):
                 getattr(mc, f[0])(*sys.argv[3:])
         except socket.error, e:
             # "Broken pipe" is confusing, so print "Connection refused" instead.
-            if e.errno == 32:
-                print >> sys.stderr, "Could not connect to {0}:{1}: " \
-                    "Connection refused".format(host, port)
+            if type(e) is tuple and e[0] == 32 or \
+                    isinstance(e, socket.error) and e.errno == 32:
+                print >> sys.stderr, "Could not connect to %s:%d: " \
+                    "Connection refused" % (host, port)
             else:
                 raise
 
