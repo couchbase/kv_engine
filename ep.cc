@@ -110,14 +110,11 @@ private:
 class SetVBStateCallback : public DispatcherCallback {
 public:
     SetVBStateCallback(EventuallyPersistentStore *e, RCPtr<VBucket> vb,
-                       const std::string &k, SERVER_HANDLE_V1 *a)
-        : ep(e), vbucket(vb), key(k), api(a) {
-        assert(api);
-    }
+                       const std::string &k)
+        : ep(e), vbucket(vb), key(k) { }
 
     bool callback(Dispatcher &d, TaskId t) {
         (void)d; (void)t;
-        vbucket->fireAllOps(api);
         ep->completeSetVBState(vbucket->getId(), key);
         return false;
     }
@@ -126,6 +123,23 @@ private:
     EventuallyPersistentStore *ep;
     RCPtr<VBucket>   vbucket;
     std::string key;
+};
+
+class NotifyVBStateChangeCallback : public DispatcherCallback {
+public:
+    NotifyVBStateChangeCallback(RCPtr<VBucket> vb, SERVER_HANDLE_V1 *a)
+        : vbucket(vb), api(a) {
+        assert(api);
+    }
+
+    bool callback(Dispatcher &d, TaskId t) {
+        (void)d; (void)t;
+        vbucket->fireAllOps(api);
+        return false;
+    }
+
+private:
+    RCPtr<VBucket>   vbucket;
     SERVER_HANDLE_V1 *api;
 };
 
@@ -155,6 +169,7 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
 {
     doPersistence = getenv("EP_NO_PERSISTENCE") == NULL;
     dispatcher = new Dispatcher();
+    nonIODispatcher = new Dispatcher();
     flusher = new Flusher(this, dispatcher);
 
     stats.memOverhead = sizeof(EventuallyPersistentStore);
@@ -170,6 +185,7 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
 
     startDispatcher();
     startFlusher();
+    startNonIODispatcher();
     assert(underlying);
 }
 
@@ -186,15 +202,20 @@ public:
 EventuallyPersistentStore::~EventuallyPersistentStore() {
     stopFlusher();
     dispatcher->stop();
+    nonIODispatcher->stop();
 
     delete flusher;
     delete dispatcher;
+    delete nonIODispatcher;
 }
 
 void EventuallyPersistentStore::startDispatcher() {
     dispatcher->start();
 }
 
+void EventuallyPersistentStore::startNonIODispatcher() {
+    nonIODispatcher->start();
+}
 
 const Flusher* EventuallyPersistentStore::getFlusher() {
     return flusher;
@@ -396,7 +417,7 @@ void EventuallyPersistentStore::completeSetVBState(uint16_t vbid, const std::str
         RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
         getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
                              "Rescheduling a task to set the state of vbucket %d in disc\n", vbid);
-        dispatcher->schedule(shared_ptr<DispatcherCallback>(new SetVBStateCallback(this, vb, key, engine.getServerApi())),
+        dispatcher->schedule(shared_ptr<DispatcherCallback>(new SetVBStateCallback(this, vb, key)),
                              NULL, Priority::SetVBucketPriority, 5, false);
     }
 }
@@ -408,8 +429,12 @@ void EventuallyPersistentStore::setVBucketState(uint16_t vbid,
     RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
     if (vb) {
         vb->setState(to, engine.getServerApi());
+        nonIODispatcher->schedule(shared_ptr<DispatcherCallback>
+                                             (new NotifyVBStateChangeCallback(vb,
+                                                                        engine.getServerApi())),
+                                  NULL, Priority::NotifyVBStateChangePriority, 0, false);
         dispatcher->schedule(shared_ptr<DispatcherCallback>(new SetVBStateCallback(this, vb,
-                                                                                   VBucket::toString(to), engine.getServerApi())),
+                                                                                   VBucket::toString(to))),
                              NULL, Priority::SetVBucketPriority, 0, false);
     } else {
         RCPtr<VBucket> newvb(new VBucket(vbid, to, stats));

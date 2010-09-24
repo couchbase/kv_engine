@@ -215,15 +215,27 @@ public:
 
     void startDispatcher(void);
 
+    void startNonIODispatcher(void);
+
     /**
      * Get the current dispatcher.
      *
-     * You can use this to queue jobs.  Don't do stupid things with
+     * You can use this to queue io related jobs.  Don't do stupid things with
      * it.
      */
     Dispatcher* getDispatcher(void) {
         assert(dispatcher);
         return dispatcher;
+    }
+
+    /**
+     * Get the current non-io dispatcher.
+     *
+     * Use this dispatcher to queue non-io jobs.
+     */
+    Dispatcher* getNonIODispatcher(void) {
+        assert(nonIODispatcher);
+        return nonIODispatcher;
     }
 
     void stopFlusher(void);
@@ -406,6 +418,7 @@ private:
     bool                       doPersistence;
     StrategicSqlite3          *underlying;
     Dispatcher                *dispatcher;
+    Dispatcher                *nonIODispatcher;
     Flusher                   *flusher;
     VBucketMap                 vbuckets;
     SyncObject                 mutex;

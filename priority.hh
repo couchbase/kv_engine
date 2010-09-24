@@ -15,6 +15,7 @@ public:
     static const Priority TapBgFetcherPriority;
     static const Priority SetVBucketPriority;
     static const Priority VKeyStatBgFetcherPriority;
+    static const Priority NotifyVBStateChangePriority;
     static const Priority FlusherPriority;
     static const Priority ItemPagerPriority;
     static const Priority VBucketDeletionPriority;
