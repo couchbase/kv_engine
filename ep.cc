@@ -356,6 +356,35 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::set(const Item &item,
     return ENGINE_SUCCESS;
 }
 
+ENGINE_ERROR_CODE EventuallyPersistentStore::add(const Item &item,
+                                                 const void *cookie)
+{
+    RCPtr<VBucket> vb = getVBucket(item.getVBucketId());
+    if (!vb || vb->getState() == dead || vb->getState() == replica) {
+        return ENGINE_NOT_MY_VBUCKET;
+    } else if (vb->getState() == active) {
+        // OK
+    } else if(vb->getState() == pending) {
+        if (vb->addPendingOp(cookie)) {
+            return ENGINE_EWOULDBLOCK;
+        }
+    }
+
+    if (item.getCas() != 0) {
+        // Adding with a cas value doesn't make sense..
+        return ENGINE_NOT_STORED;
+    }
+
+    switch (vb->ht.add(item)) {
+    case ADD_NOMEM:
+        return ENGINE_ENOMEM;
+    case ADD_EXISTS:
+        return ENGINE_NOT_STORED;
+    default:
+        return ENGINE_SUCCESS;
+    }
+}
+
 RCPtr<VBucket> EventuallyPersistentStore::getVBucket(uint16_t vbucket) {
     return vbuckets.getBucket(vbucket);
 }

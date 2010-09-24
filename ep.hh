@@ -153,6 +153,8 @@ public:
                           const void *cookie,
                           bool force=false);
 
+    ENGINE_ERROR_CODE add(const Item &item, const void *cookie);
+
     /**
      * Retrieve a value.
      *
