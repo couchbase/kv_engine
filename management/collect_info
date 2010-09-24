@@ -221,7 +221,7 @@ case "${os}" in
     execute "Disk activity" iostat -E 1 10
     ;;
   Linux)
-    execute "Process list snapshot" top -H
+    execute "Process list snapshot" top -H -n 1
     execute "Process list " ps -AwwL -o user,pid,lwp,ppid,nlwp,pcpu,pri,nice,vsize,rss,tty,stat,wchan:12,start,bsdtime,command
     execute "Swap configuration" free -gt
     execute "Swap configuration" swapon -s
@@ -229,7 +229,7 @@ case "${os}" in
     execute "Installed software" rpm -qa
     ;;
   Darwin)
-    execute "Process list snapshot" top
+    execute "Process list snapshot" top -l 1
     execute "Disk activity" iostat 1 10
     execute "Process list " ps -Aww -o user,pid,lwp,ppid,nlwp,pcpu,pri,nice,vsize,rss,tty,stat,wchan:12,start,bsdtime,command
     ;;
