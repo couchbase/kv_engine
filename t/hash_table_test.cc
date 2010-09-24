@@ -115,6 +115,7 @@ static void testHashSizeTwo() {
 
 static void testReverseDeletions() {
     alarm(10);
+    size_t initialSize = global_stats.currentSize.get();
     HashTable h(global_stats, 5, 1);
     assert(count(h) == 0);
     const int nkeys = 10000;
@@ -132,10 +133,12 @@ static void testReverseDeletions() {
     }
 
     assert(count(h) == 0);
+    assert(global_stats.currentSize.get() == initialSize);
 }
 
 static void testForwardDeletions() {
     alarm(10);
+    size_t initialSize = global_stats.currentSize.get();
     HashTable h(global_stats, 5, 1);
     assert(h.getSize() == 5);
     assert(h.getNumLocks() == 1);
@@ -153,6 +156,7 @@ static void testForwardDeletions() {
     }
 
     assert(count(h) == 0);
+    assert(global_stats.currentSize.get() == initialSize);
 }
 
 static void testFind(HashTable &h) {

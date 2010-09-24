@@ -1032,6 +1032,7 @@ public:
                     return false;
                 }
                 v->next = v->next->next;
+                tmp->reduceCurrentSize(stats, tmp->size());
                 delete tmp;
                 --numItems;
                 return true;
