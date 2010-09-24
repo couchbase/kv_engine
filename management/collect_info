@@ -255,7 +255,7 @@ add_files "System log" /var/adm/messages
 execute "Kernel log buffer" dmesg
 execute "membase logs" /opt/NorthScale/bin/browse_logs
 
-cores=`find /opt/NorthScale /var/opt/NorthScale -name "*core*" | egrep -v analyze_core\|.log$`
+cores=`find /opt/NorthScale /var/opt/NorthScale -name "*core*" 2>/dev/null | egrep -v analyze_core\|.log$ `
 if [ "x$cores" != "x" ]
 then
    for file in $cores
