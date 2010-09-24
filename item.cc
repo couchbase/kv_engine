@@ -24,3 +24,35 @@ static void devnull(uint64_t current)
 Atomic<uint64_t> Item::casCounter(1);
 uint64_t Item::casNotificationFrequency = 10000;
 void (*Item::casNotifier)(uint64_t) = devnull;
+
+bool Item::append(const Item &item) {
+    std::string newValue(value->getData(), value->length());
+
+    std::string::size_type pos = newValue.rfind("\r\n");
+    if (pos != std::string::npos && (pos + 2) == newValue.length()) {
+        newValue.resize(pos);
+    }
+
+    newValue.append(item.getValue()->to_s());
+    value.reset(Blob::New(newValue));
+    return true;
+}
+
+/**
+ * Prepend another item to this item
+ *
+ * @param item the item to prepend to this one
+ * @return true if success
+ */
+bool Item::prepend(const Item &item) {
+    std::string newValue(item.getValue()->to_s());
+
+    std::string::size_type pos = newValue.rfind("\r\n");
+    if (pos != std::string::npos && (pos + 2) == newValue.length()) {
+        newValue.resize(pos);
+    }
+
+    newValue.append(value->to_s());
+    value.reset(Blob::New(newValue));
+    return true;
+}

@@ -204,12 +204,7 @@ public:
      * @param item the item to append to this one
      * @return true if success
      */
-    bool append(const Item &item) {
-        std::string newValue(value->getData(), value->length());
-        newValue.append(item.getValue()->to_s());
-        value.reset(Blob::New(newValue));
-        return true;
-    }
+    bool append(const Item &item);
 
     /**
      * Prepend another item to this item
@@ -217,12 +212,7 @@ public:
      * @param item the item to prepend to this one
      * @return true if success
      */
-    bool prepend(const Item &item) {
-        std::string newValue(item.getValue()->to_s());
-        newValue.append(value->to_s());
-        value.reset(Blob::New(newValue));
-        return true;
-    }
+    bool prepend(const Item &item);
 
     uint16_t getVBucketId(void) const {
         return vbucketId;

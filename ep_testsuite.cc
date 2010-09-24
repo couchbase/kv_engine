@@ -618,22 +618,34 @@ static enum test_result test_incr_default(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
 static enum test_result test_append(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
 
-    char binaryData1[] = "abcdefg\0gfedcba";
-    char binaryData2[] = "abzdefg\0gfedcba";
-
     check(storeCasVb11(h, h1, NULL, OPERATION_SET, "key",
-                       binaryData1, sizeof(binaryData1), 82758, &i, 0, 0)
+                       "\r\n", 2, 82758, &i, 0, 0)
           == ENGINE_SUCCESS,
           "Failed set.");
 
     check(storeCasVb11(h, h1, NULL, OPERATION_APPEND, "key",
-                       binaryData2, sizeof(binaryData2), 82758, &i, 0, 0)
+                       "foo\r\n", 5, 82758, &i, 0, 0)
+          == ENGINE_SUCCESS,
+          "Failed append.");
+
+    check_key_value(h, h1, "key", "foo\r\n", 5);
+
+    char binaryData1[] = "abcdefg\0gfedcba\r\n";
+    char binaryData2[] = "abzdefg\0gfedcba\r\n";
+
+    check(storeCasVb11(h, h1, NULL, OPERATION_SET, "key",
+                       binaryData1, sizeof(binaryData1) - 1, 82758, &i, 0, 0)
+          == ENGINE_SUCCESS,
+          "Failed set.");
+
+    check(storeCasVb11(h, h1, NULL, OPERATION_APPEND, "key",
+                       binaryData2, sizeof(binaryData2) - 1, 82758, &i, 0, 0)
           == ENGINE_SUCCESS,
           "Failed append.");
 
     std::string expected;
-    expected.append(binaryData1, sizeof(binaryData1));
-    expected.append(binaryData2, sizeof(binaryData2));
+    expected.append(binaryData1, sizeof(binaryData1) - 3);
+    expected.append(binaryData2, sizeof(binaryData2) - 1);
 
     return check_key_value(h, h1, "key", expected.data(), expected.length());
 }
@@ -641,22 +653,34 @@ static enum test_result test_append(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 static enum test_result test_prepend(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
 
-    char binaryData1[] = "abcdefg\0gfedcba";
-    char binaryData2[] = "abzdefg\0gfedcba";
-
     check(storeCasVb11(h, h1, NULL, OPERATION_SET, "key",
-                       binaryData1, sizeof(binaryData1), 82758, &i, 0, 0)
+                       "\r\n", 2, 82758, &i, 0, 0)
           == ENGINE_SUCCESS,
           "Failed set.");
 
     check(storeCasVb11(h, h1, NULL, OPERATION_PREPEND, "key",
-                       binaryData2, sizeof(binaryData2), 82758, &i, 0, 0)
+                       "foo\r\n", 5, 82758, &i, 0, 0)
+          == ENGINE_SUCCESS,
+          "Failed append.");
+
+    check_key_value(h, h1, "key", "foo\r\n", 5);
+
+    char binaryData1[] = "abcdefg\0gfedcba\r\n";
+    char binaryData2[] = "abzdefg\0gfedcba\r\n";
+
+    check(storeCasVb11(h, h1, NULL, OPERATION_SET, "key",
+                       binaryData1, sizeof(binaryData1) - 1, 82758, &i, 0, 0)
+          == ENGINE_SUCCESS,
+          "Failed set.");
+
+    check(storeCasVb11(h, h1, NULL, OPERATION_PREPEND, "key",
+                       binaryData2, sizeof(binaryData2) - 1, 82758, &i, 0, 0)
           == ENGINE_SUCCESS,
           "Failed append.");
 
     std::string expected;
-    expected.append(binaryData2, sizeof(binaryData2));
-    expected.append(binaryData1, sizeof(binaryData1));
+    expected.append(binaryData2, sizeof(binaryData2) - 3);
+    expected.append(binaryData1, sizeof(binaryData1) - 1);
 
     return check_key_value(h, h1, "key", expected.data(), expected.length());
 }
