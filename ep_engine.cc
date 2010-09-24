@@ -1137,7 +1137,7 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
             return TAP_NOOP;
         }
         GetValue gv(epstore->get(key, qi.getVBucketId(), cookie,
-                                 false));
+                                 false, false));
         ENGINE_ERROR_CODE r = gv.getStatus();
         if (r == ENGINE_SUCCESS) {
             *itm = gv.getValue();
@@ -1166,13 +1166,17 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
         } else {
             if (r == ENGINE_NOT_MY_VBUCKET) {
                 getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                 "Trying to fetch an item for a bucket that don't exist on this server <%s>. Diconnecting\n", connection->client.c_str());
+                                 "Trying to fetch an item for a bucket that "
+                                 "doesn't exist on this server <%s>\n",
+                                 connection->client.c_str());
 
             } else {
                 getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                 "Tap internal error Internal error! <%s>:%d. Disconnecting\n", connection->client.c_str(), r);
+                                 "Tap internal error Internal error! <%s>:%d.  "
+                                 "Disconnecting\n", connection->client.c_str(), r);
+                return TAP_DISCONNECT;
             }
-            return TAP_DISCONNECT;
+            ret = TAP_NOOP;
         }
     } else if (connection->shouldFlush()) {
         ret = TAP_FLUSH;

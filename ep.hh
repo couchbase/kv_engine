@@ -163,11 +163,13 @@ public:
      * @param cookie the connection cookie
      * @param core the server API
      * @param queueBG if true, automatically queue a background fetch if necessary
+     * @param honorStates if false, fetch a result regardless of state
      *
      * @return a GetValue representing the result of the request
      */
     GetValue get(const std::string &key, uint16_t vbucket,
-                 const void *cookie, bool queueBG=true);
+                 const void *cookie, bool queueBG=true,
+                 bool honorStates=true);
 
     /**
      * Retrieve an item from the disk for vkey stats

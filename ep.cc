@@ -531,15 +531,17 @@ void EventuallyPersistentStore::bgFetch(const std::string &key,
 GetValue EventuallyPersistentStore::get(const std::string &key,
                                         uint16_t vbucket,
                                         const void *cookie,
-                                        bool queueBG) {
+                                        bool queueBG, bool honorStates) {
     RCPtr<VBucket> vb = getVBucket(vbucket);
-    if (!vb || vb->getState() == dead) {
+    if (!vb) {
+        return GetValue(NULL, ENGINE_NOT_MY_VBUCKET);
+    } else if (honorStates && vb->getState() == dead) {
         return GetValue(NULL, ENGINE_NOT_MY_VBUCKET);
     } else if (vb->getState() == active) {
         // OK
-    } else if(vb->getState() == replica) {
+    } else if(honorStates && vb->getState() == replica) {
         return GetValue(NULL, ENGINE_NOT_MY_VBUCKET);
-    } else if(vb->getState() == pending) {
+    } else if(honorStates && vb->getState() == pending) {
         if (vb->addPendingOp(cookie)) {
             return GetValue(NULL, ENGINE_EWOULDBLOCK);
         }
