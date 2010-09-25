@@ -1038,7 +1038,7 @@ static enum test_result test_expiry(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *it = NULL;
 
     ENGINE_ERROR_CODE rv;
-    rv = h1->allocate(h, NULL, &it, key, strlen(key), strlen(data), 0, 1);
+    rv = h1->allocate(h, NULL, &it, key, strlen(key), strlen(data), 0, 2);
     check(rv == ENGINE_SUCCESS, "Allocation failed.");
 
     item_info info;
@@ -1051,12 +1051,10 @@ static enum test_result test_expiry(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     uint64_t cas = 0;
     rv = h1->store(h, NULL, it, &cas, OPERATION_SET, 0);
     check(rv == ENGINE_SUCCESS, "Set failed.");
-
+    check_key_value(h, h1, key, data, strlen(data));
     h1->release(h, NULL, it);
 
-    check_key_value(h, h1, key, data, strlen(data));
-
-    testHarness.time_travel(2);
+    testHarness.time_travel(3);
 
     assert(0 == get_int_stat(h, h1, "ep_expired"));
 
