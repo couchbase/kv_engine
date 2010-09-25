@@ -109,8 +109,10 @@ public:
     //! Pager high water mark
     Atomic<size_t> mem_high_wat;
 
-    //! Number of ENOMEM errors produced.
+    //! Number of times unrecoverable oom errors happened while processing operations.
     Atomic<size_t> oom_errors;
+    //! Number of times temporary oom errors encountered while processing operations.
+    Atomic<size_t> tmp_oom_errors;
 
     //! Number of read related io operations
     Atomic<size_t> io_num_read;

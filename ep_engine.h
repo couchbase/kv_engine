@@ -495,7 +495,13 @@ private:
 
             haveEvidenceWeCanFreeMemory = stats.numNonResident < countVisitor.getTotal();
         }
-        return haveEvidenceWeCanFreeMemory ? ENGINE_TMPFAIL : ENGINE_ENOMEM;
+        if (haveEvidenceWeCanFreeMemory) {
+            ++stats.tmp_oom_errors;
+            return ENGINE_TMPFAIL;
+        } else {
+            ++stats.oom_errors;
+            return ENGINE_ENOMEM;
+        }
     }
 
     void notifyTapIoThreadMain(void);

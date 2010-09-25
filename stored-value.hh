@@ -844,7 +844,6 @@ public:
             }
 
             if (honorMemLimit && !StoredValue::hasAvailableSpace(stats, itm)) {
-                ++stats.oom_errors;
                 return NOMEM;
             }
 
@@ -875,7 +874,6 @@ public:
             Item &itm = const_cast<Item&>(val);
             itm.setCas();
             if (!StoredValue::hasAvailableSpace(stats, itm)) {
-                ++stats.oom_errors;
                 return ADD_NOMEM;
             }
             if (v) {

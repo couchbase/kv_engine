@@ -1013,12 +1013,12 @@ ENGINE_ERROR_CODE  EventuallyPersistentEngine::store(const void *cookie,
                 if (operation == OPERATION_APPEND) {
                     if (!old->append(*it)) {
                         itemRelease(cookie, i);
-                        return ENGINE_ENOMEM;
+                        return memoryCondition();
                     }
                 } else {
                     if (!old->prepend(*it)) {
                         itemRelease(cookie, i);
-                        return ENGINE_ENOMEM;
+                        return memoryCondition();
                     }
                 }
 
@@ -1755,6 +1755,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     add_casted_stat("ep_total_cache_size", StoredValue::getTotalCacheSize(stats),
                     add_stat, cookie);
     add_casted_stat("ep_oom_errors", stats.oom_errors, add_stat, cookie);
+    add_casted_stat("ep_tmp_oom_errors", stats.tmp_oom_errors, add_stat, cookie);
     add_casted_stat("ep_storage_type",
                     HashTable::getDefaultStorageValueTypeStr(),
                     add_stat, cookie);

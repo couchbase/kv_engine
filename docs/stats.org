@@ -58,6 +58,10 @@
 | ep_max_data_size              | Max amount of data allowed in memory.     |
 | ep_mem_low_wat                | Low water mark for auto-evictions.        |
 | ep_mem_high_wat               | High water mark for auto-evictions.       |
+| ep_oom_errors                 | Number of times unrecoverable OOMs        |
+|                               | happened while processing operations      |
+| ep_tmp_oom_errors             | Number of times temporary OOMs            |
+|                               | happened while processing operations      |
 | ep_total_cache_size           | The total size of all items in the cache  |
 | ep_dbname                     | DB path.                                  |
 | ep_dbinit                     | Number of seconds to initialize DB.       |
