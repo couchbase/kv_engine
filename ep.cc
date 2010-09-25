@@ -109,19 +109,19 @@ private:
 
 class SetVBStateCallback : public DispatcherCallback {
 public:
-    SetVBStateCallback(EventuallyPersistentStore *e, RCPtr<VBucket> vb,
+    SetVBStateCallback(EventuallyPersistentStore *e, uint16_t vb,
                        const std::string &k)
-        : ep(e), vbucket(vb), key(k) { }
+        : ep(e), vbid(vb), key(k) { }
 
     bool callback(Dispatcher &d, TaskId t) {
         (void)d; (void)t;
-        ep->completeSetVBState(vbucket->getId(), key);
+        ep->completeSetVBState(vbid, key);
         return false;
     }
 
 private:
     EventuallyPersistentStore *ep;
-    RCPtr<VBucket>   vbucket;
+    uint16_t vbid;
     std::string key;
 };
 
@@ -414,13 +414,10 @@ RCPtr<VBucket> EventuallyPersistentStore::getVBucket(uint16_t vbucket) {
 }
 
 void EventuallyPersistentStore::completeSetVBState(uint16_t vbid, const std::string &key) {
-    LockHolder lh(vbsetMutex);
-
     if (!underlying->setVBState(vbid, key)) {
-        RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
         getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
                              "Rescheduling a task to set the state of vbucket %d in disc\n", vbid);
-        dispatcher->schedule(shared_ptr<DispatcherCallback>(new SetVBStateCallback(this, vb, key)),
+        dispatcher->schedule(shared_ptr<DispatcherCallback>(new SetVBStateCallback(this, vbid, key)),
                              NULL, Priority::SetVBucketPriority, 5, false);
     }
 }
