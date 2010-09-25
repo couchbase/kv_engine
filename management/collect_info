@@ -209,7 +209,7 @@ EOF
 
 execute "System configuration" uname -a
 add_files "System release" cat /etc/issue /etc/*release*
-execute "Directory structure" ls -lR /opt/NorthScale /var/opt/NorthScale /etc/opt/NorthScale
+execute "Directory structure" ls -lR /opt/membase /var/opt/membase /etc/opt/membase
 
 case "${os}" in
   SunOS)
@@ -253,14 +253,14 @@ execute "Interrupt status" intrstat 1 10
 execute "Processor status" mpstat 1 10
 add_files "System log" /var/adm/messages
 execute "Kernel log buffer" dmesg
-execute "membase logs" /opt/NorthScale/bin/browse_logs
+execute "membase logs" /opt/membase/bin/browse_logs
 
-cores=`find /opt/NorthScale /var/opt/NorthScale -name "*core*" 2>/dev/null | egrep -v analyze_core\|.log$ `
+cores=`find /opt/membase /var/opt/membase -name "*core*" 2>/dev/null | egrep -v analyze_core\|.log$ `
 if [ "x$cores" != "x" ]
 then
    for file in $cores
    do
-      execute "Corefile ${file}" /opt/NorthScale/bin/ep-engine/management/analyze_core -f /tmp/core-report.$$ ${file}
+      execute "Corefile ${file}" /opt/membase/bin/analyze_core -f /tmp/core-report.$$ ${file}
       if [ -f /tmp/core-report.$$ ]
       then
          cat /tmp/core-report.$$ >> ${report}

@@ -3,7 +3,7 @@
 # Copyright (c) 2010, NorthScale, Inc.
 # All rights reserved
 #
-root=/opt/NorthScale/bin
+root=/opt/membase/bin
 
 usage()
 {
