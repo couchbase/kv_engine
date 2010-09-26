@@ -485,6 +485,14 @@ private:
     std::queue<TapBGFetchQueueItem> backfillQueue;
     std::queue<Item*> backfilledItems;
 
+    /**
+     * We don't want the tap notify thread to send multiple tap notifications
+     * for the same connection. We set the notifySent member right before
+     * sending notify_io_complete (we're holding the tap lock), and clear
+     * it in doWalkTapQueue...
+     */
+    bool notifySent;
+
     // Constants used to enforce the tap ack protocol
     static const uint32_t ackWindowSize;
     static const uint32_t ackHighChunkThreshold;

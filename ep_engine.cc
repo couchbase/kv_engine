@@ -1074,6 +1074,7 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
         return TAP_DISCONNECT;
     }
 
+    connection->notifySent = false;
     *c = connection;
 
     if (connection->doRunBackfill) {
@@ -2188,8 +2189,11 @@ void EventuallyPersistentEngine::notifyTapIoThreadMain(void) {
     // Collect the list of connections that need to be signaled.
     std::list<const void *> toNotify;
     for (iter = tapConnectionMap.begin(); iter != tapConnectionMap.end(); iter++) {
-        if (iter->second->paused && !iter->second->doDisconnect) {
-            toNotify.push_back(iter->first);
+        if (iter->second->paused || iter->second->doDisconnect) {
+            if (!iter->second->notifySent) {
+                iter->second->notifySent = true;
+                toNotify.push_back(iter->first);
+            }
         }
     }
 
