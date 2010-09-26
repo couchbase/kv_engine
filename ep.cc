@@ -706,6 +706,7 @@ bool EventuallyPersistentStore::getKeyStats(const std::string &key,
         // TODO:  Know this somehow.
         kstats.dirtied = 0; // v->getDirtied();
         kstats.data_age = v->getDataAge();
+        kstats.last_modification_time = ep_abs_time(0) + v->getDataAge();
     }
     return found;
 }

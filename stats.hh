@@ -198,6 +198,8 @@ struct key_stats {
     rel_time_t dirtied;
     //! How long the item has been dirty (if applicable).
     rel_time_t data_age;
+    //! Last modification time
+    rel_time_t last_modification_time;
     //! The item's current flags.
     uint32_t flags;
     //! True if this item is dirty.

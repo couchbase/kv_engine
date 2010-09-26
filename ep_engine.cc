@@ -2047,6 +2047,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doKeyStats(const void *cookie,
                         kstats.dirtied : 0, add_stat, cookie);
         add_casted_stat("key_data_age", kstats.dirty ? now -
                         kstats.data_age : 0, add_stat, cookie);
+        add_casted_stat("key_last_modification_time", kstats.last_modification_time,
+                        add_stat, cookie);
         if (validate) {
             add_casted_stat("key_valid", valid.c_str(), add_stat, cookie);
         }

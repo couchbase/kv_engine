@@ -1815,6 +1815,8 @@ static enum test_result test_key_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(vals.find("key_cas") != vals.end(), "Found no key_cas");
     check(vals.find("key_dirtied") != vals.end(), "Found no key_dirtied");
     check(vals.find("key_data_age") != vals.end(), "Found no key_data_age");
+    check(vals.find("key_last_modification_time") != vals.end(),
+                    "Found no key_last_modification_time");
 
     // stat for key "k2" and vbucket "1"
     const char *statkey2 = "key k2 1";
@@ -1826,6 +1828,8 @@ static enum test_result test_key_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(vals.find("key_cas") != vals.end(), "Found no key_cas");
     check(vals.find("key_dirtied") != vals.end(), "Found no key_dirtied");
     check(vals.find("key_data_age") != vals.end(), "Found no key_data_age");
+    check(vals.find("key_last_modification_time") != vals.end(),
+                    "Found no key_last_modification_time");
 
     testHarness.destroy_cookie(cookie);
     return SUCCESS;
@@ -1850,6 +1854,8 @@ static enum test_result test_vkey_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
     check(vals.find("key_cas") != vals.end(), "Found no key_cas");
     check(vals.find("key_dirtied") != vals.end(), "Found no key_dirtied");
     check(vals.find("key_data_age") != vals.end(), "Found no key_data_age");
+    check(vals.find("key_last_modification_time") != vals.end(),
+                    "Found no key_last_modification_time");
     check(vals.find("key_valid") != vals.end(), "Found no key_valid");
 
     // stat for key "k2" and vbucket "1"
@@ -1862,6 +1868,8 @@ static enum test_result test_vkey_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
     check(vals.find("key_cas") != vals.end(), "Found no key_cas");
     check(vals.find("key_dirtied") != vals.end(), "Found no key_dirtied");
     check(vals.find("key_data_age") != vals.end(), "Found no key_data_age");
+    check(vals.find("key_last_modification_time") != vals.end(),
+                    "Found no key_last_modification_time");
     check(vals.find("key_valid") != vals.end(), "Found no key_valid");
 
     testHarness.destroy_cookie(cookie);
