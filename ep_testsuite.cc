@@ -1076,6 +1076,44 @@ static enum test_result test_expiry(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return SUCCESS;
 }
 
+static enum test_result test_expiry_loader(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    const char *key = "test_expiry_loader";
+    const char *data = "some test data here.";
+
+    item *it = NULL;
+
+    ENGINE_ERROR_CODE rv;
+    rv = h1->allocate(h, NULL, &it, key, strlen(key), strlen(data), 0, 2);
+    check(rv == ENGINE_SUCCESS, "Allocation failed.");
+
+    item_info info;
+    info.nvalue = 1;
+    if (!h1->get_item_info(h, NULL, it, &info)) {
+        abort();
+    }
+    memcpy(info.value[0].iov_base, data, strlen(data));
+
+    uint64_t cas = 0;
+    rv = h1->store(h, NULL, it, &cas, OPERATION_SET, 0);
+    check(rv == ENGINE_SUCCESS, "Set failed.");
+    check_key_value(h, h1, key, data, strlen(data));
+    h1->release(h, NULL, it);
+
+    sleep(3);
+
+    check(h1->get(h, NULL, &it, key, strlen(key), 0) == ENGINE_KEY_ENOENT,
+          "Item didn't expire");
+
+    // Restart the engine to ensure the above expired item is not loaded
+    testHarness.reload_engine(&h, &h1,
+                              testHarness.engine_path,
+                              testHarness.default_engine_cfg,
+                              true);
+    assert(0 == get_int_stat(h, h1, "ep_warmed_up"));
+
+    return SUCCESS;
+}
+
 static enum test_result test_expiry_flush(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const char *key = "test_expiry_flush";
 
@@ -2381,6 +2419,7 @@ engine_test_t* get_tests(void) {
         {"flush with stats", test_flush_stats, NULL, teardown, NULL},
         {"flush multi vbuckets", test_flush_multiv, NULL, teardown, NULL},
         {"expiry", test_expiry, NULL, teardown, NULL},
+        {"expiry_loader", test_expiry_loader, NULL, teardown, NULL},
         {"expiry_flush", test_expiry_flush, NULL, teardown, NULL},
         // Stats tests
         {"stats", test_stats, NULL, teardown, NULL},

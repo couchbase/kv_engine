@@ -132,7 +132,7 @@ void Statements::initStatements() {
     // k=0, v=1, flags=2, exptime=3, cas=4, vbucket=5, rowid=6
     snprintf(buf, sizeof(buf),
              "select k, v, flags, exptime, cas, vbucket, rowid "
-             "from %s", tableName.c_str());
+             "from %s where exptime = 0 or exptime > ?", tableName.c_str());
     all_stmt = new PreparedStatement(db, buf);
 
     snprintf(buf, sizeof(buf),

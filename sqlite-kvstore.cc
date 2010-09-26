@@ -178,6 +178,7 @@ void StrategicSqlite3::dump(Callback<GetValue> &cb) {
     for (it = statements.begin(); it != statements.end(); ++it) {
         PreparedStatement *st = (*it)->all();
         st->reset();
+        st->bind(1, time(NULL));
         while (st->fetch()) {
             ++stats.io_num_read;
             GetValue rv(new Item(st->column_blob(0),
