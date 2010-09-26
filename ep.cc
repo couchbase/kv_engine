@@ -862,7 +862,23 @@ public:
     // The boolean indicates whether the underlying storage
     // successfully deleted the item.
     void callback(bool &value) {
-        if (!value) {
+        if (value) {
+            // We have succesfully removed an item from the disk, we
+            // may now remove it from the hash table.
+            RCPtr<VBucket> vb = store->getVBucket(queuedItem.getVBucketId());
+            if (vb) {
+                int bucket_num = vb->ht.bucket(queuedItem.getKey());
+                LockHolder lh(vb->ht.getMutex(bucket_num));
+                StoredValue *v = store->fetchValidValue(vb, queuedItem.getKey(),
+                                                        bucket_num, true);
+
+                if (v && v->isDeleted()) {
+                    bool deleted = vb->ht.unlocked_del(queuedItem.getKey(),
+                                                       bucket_num);
+                    assert(deleted);
+                }
+            }
+        } else {
             redirty();
         }
     }
@@ -960,12 +976,6 @@ int EventuallyPersistentStore::flushOneDelOrSet(QueuedItem &qi,
                            qi.getVBucketId());
 
         }
-    }
-
-    if (v && v->isDeleted()) {
-        // Completing the deletion.
-        bool deleted = vb->ht.unlocked_del(qi.getKey(), bucket_num);
-        assert(deleted);
     }
 
     lh.unlock();
