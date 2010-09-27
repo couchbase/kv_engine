@@ -309,6 +309,11 @@ public:
         return o->getBucket(id);
     }
 
+    size_t getSize() const {
+        RCPtr<VBucketHolder> o(buckets);
+        return o->getSize();
+    }
+
     std::vector<int> getBuckets(void) {
         RCPtr<VBucketHolder> o(buckets);
         return o->getBuckets();

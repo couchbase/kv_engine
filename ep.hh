@@ -26,6 +26,7 @@
 #include <stdexcept>
 #include <iostream>
 #include <queue>
+#include <limits>
 #include <unistd.h>
 
 #include <set>
@@ -281,10 +282,10 @@ public:
     bool deleteVBucket(uint16_t vbid);
 
     void visit(VBucketVisitor &visitor) {
-        std::vector<int> vbucketIds(vbuckets.getBuckets());
-        std::vector<int>::iterator it;
-        for (it = vbucketIds.begin(); it != vbucketIds.end(); ++it) {
-            int vbid = *it;
+        size_t maxSize = vbuckets.getSize();
+        for (size_t i = 0; i <= maxSize; ++i) {
+            assert(i <= std::numeric_limits<uint16_t>::max());
+            uint16_t vbid = static_cast<uint16_t>(i);
             RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
             if (vb) {
                 bool wantData = visitor.visitBucket(vb);
