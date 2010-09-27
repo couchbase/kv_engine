@@ -622,6 +622,7 @@ extern "C" {
         }
 
         ep_current_time = api->core->get_current_time;
+        ep_abs_time = api->core->abstime;
 
         *handle = reinterpret_cast<ENGINE_HANDLE*> (engine);
         return ENGINE_SUCCESS;
@@ -859,7 +860,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     }
 
     if (ret == ENGINE_SUCCESS) {
-        time_t start = time(NULL);
+        time_t start = ep_real_time();
         try {
             sqliteStrategy = new MultiDBSqliteStrategy(*this, dbname,
                                                        initFile,
@@ -878,7 +879,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
             return ENGINE_FAILED;
         }
 
-        databaseInitTime = time(NULL) - start;
+        databaseInitTime = ep_real_time() - start;
         epstore = new EventuallyPersistentStore(*this, sqliteDb, startVb0);
         setMinDataAge(minDataAge);
         setQueueAgeCap(queueAgeCap);

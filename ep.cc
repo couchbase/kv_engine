@@ -37,11 +37,16 @@ extern "C" {
     }
 
     static time_t default_abs_time(rel_time_t offset) {
+        /* This is overridden at init time */
         return time(NULL) - ep_current_time() + offset;
     }
 
     rel_time_t (*ep_current_time)() = uninitialized_current_time;
     time_t (*ep_abs_time)(rel_time_t) = default_abs_time;
+
+    time_t ep_real_time() {
+        return ep_abs_time(ep_current_time());
+    }
 }
 
 class BGFetchCallback : public DispatcherCallback {
@@ -289,7 +294,7 @@ StoredValue *EventuallyPersistentStore::fetchValidValue(RCPtr<VBucket> vb,
     if (v && v->isDeleted()) {
         // In the deleted case, we ignore expiration time.
         return v;
-    } else if (v && v->isExpired(time(NULL))) {
+    } else if (v && v->isExpired(ep_real_time())) {
         ++stats.expired;
         if (vb->ht.unlocked_softDelete(key, bucket_num)) {
             queueDirty(key, vb->getId(), queue_op_del);
@@ -366,10 +371,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::set(const Item &item,
     } else if (mtype == IS_LOCKED) {
         return ENGINE_KEY_EEXISTS;
     } else if (mtype == WAS_CLEAN || mtype == NOT_FOUND) {
-        // As the memcached server does not provide an API that returns
-        // the absolute current time, we use time function here as a
-        // temporary solution to get the absolute current time
-        if (item.isExpired(time(NULL) + engine.getItemExpiryWindow())) {
+        if (item.isExpired(ep_real_time() + engine.getItemExpiryWindow())) {
             ++stats.flushExpired;
             return ENGINE_SUCCESS;
         }
@@ -706,7 +708,7 @@ bool EventuallyPersistentStore::getKeyStats(const std::string &key,
         // TODO:  Know this somehow.
         kstats.dirtied = 0; // v->getDirtied();
         kstats.data_age = v->getDataAge();
-        kstats.last_modification_time = ep_abs_time(0) + v->getDataAge();
+        kstats.last_modification_time = ep_abs_time(v->getDataAge());
     }
     return found;
 }
