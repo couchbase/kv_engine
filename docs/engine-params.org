@@ -31,6 +31,8 @@ memcached like this:
 | ht_locks          | int    | Number of locks per hash table.               |
 | ht_size           | int    | Number of buckets per hash table.             |
 | initfile          | string | Optional SQL script to run after opening DB   |
+| postInitfile      | string | Optional SQL script to run after all DB       |
+|                   |        | shards and statements have been initialized   |
 | max_item_size     | int    | Maximum number of bytes allowed for an item.  |
 | tap_backlog_limit | int    | Max number of items allowed in a tap backfill |
 | max_size          | int    | Max cumulative item size in bytes.            |

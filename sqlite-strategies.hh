@@ -15,10 +15,12 @@ public:
 
     SqliteStrategy(EventuallyPersistentEngine &theEngine,
                    const char * const fn,
-                   const char * const finit = NULL) :
+                   const char * const finit = NULL,
+                   const char * const pfinit = NULL) :
         engine(theEngine),
         filename(fn),
         initFile(finit),
+        postInitFile(pfinit),
         db(NULL),
         statements(),
         set_vb_stmt(NULL), del_vb_stmt(NULL), sel_vb_stmt(NULL)
@@ -60,7 +62,6 @@ public:
     virtual void initTables(void);
     virtual void initStatements(void);
     virtual void destroyTables(void);
-    virtual void initPragmas(void);
     void destroyStatements(void);
 
     virtual void initMetaStatements(void);
@@ -75,12 +76,15 @@ protected:
     EventuallyPersistentEngine &engine;
     const char * const filename;
     const char * const initFile;
+    const char * const postInitFile;
     sqlite3 *db;
     std::vector<Statements *> statements;
 
     PreparedStatement *set_vb_stmt;
     PreparedStatement *del_vb_stmt;
     PreparedStatement *sel_vb_stmt;
+
+    void doFile(const char * const filename);
 
 private:
     DISALLOW_COPY_AND_ASSIGN(SqliteStrategy);
@@ -97,8 +101,9 @@ public:
     MultiDBSqliteStrategy(EventuallyPersistentEngine &theEngine,
                           const char * const fn,
                           const char * const finit = NULL,
+                          const char * const pfinit = NULL,
                           int n=4):
-        SqliteStrategy(theEngine, fn, finit),
+        SqliteStrategy(theEngine, fn, finit, pfinit),
         numTables(n)
     {}
 

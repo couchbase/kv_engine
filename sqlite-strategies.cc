@@ -18,9 +18,10 @@ sqlite3 *SqliteStrategy::open(void) {
             throw std::runtime_error("Error enabling extended RCs");
         }
 
-        initPragmas();
+        doFile(initFile);
         initTables();
         initStatements();
+        doFile(postInitFile);
     }
     return db;
 }
@@ -82,12 +83,12 @@ void SqliteStrategy::destroyTables(void) {
     execute("drop table if exists kv");
 }
 
-void SqliteStrategy::initPragmas(void) {
-    if (initFile) {
+void SqliteStrategy::doFile(const char * const fn) {
+    if (fn) {
         SqliteEvaluator eval(db);
         getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                         "Initializing DB session from %s\n", initFile);
-        eval.eval(initFile);
+                         "Running db script: %s\n", fn);
+        eval.eval(fn);
     }
 }
 

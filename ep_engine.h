@@ -706,6 +706,7 @@ private:
 
     const char *dbname;
     const char *initFile;
+    const char *postInitFile;
     bool warmup;
     bool wait_for_warmup;
     bool fail_on_partial_warmup;

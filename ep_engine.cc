@@ -667,8 +667,8 @@ EXTENSION_LOGGER_DESCRIPTOR *getLogger(void) {
 }
 
 EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server_api) :
-    dbname("/tmp/test.db"), initFile(NULL), warmup(true), wait_for_warmup(true),
-    fail_on_partial_warmup(true),
+    dbname("/tmp/test.db"), initFile(NULL), postInitFile(NULL),
+    warmup(true), wait_for_warmup(true), fail_on_partial_warmup(true),
     startVb0(true), sqliteStrategy(NULL), sqliteDb(NULL), epstore(NULL),
     databaseInitTime(0), tapIdleTimeout(DEFAULT_TAP_IDLE_TIMEOUT), nextTapNoop(0),
     startedEngineThreads(false), shutdown(false),
@@ -716,12 +716,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
 
     resetStats();
     if (config != NULL) {
-        char *dbn = NULL, *initf = NULL, *svaltype = NULL;
+        char *dbn = NULL, *initf = NULL, *pinitf = NULL, *svaltype = NULL;
         size_t htBuckets = 0;
         size_t htLocks = 0;
         size_t maxSize = 0;
 
-        const int max_items = 22;
+        const int max_items = 25;
         struct config_item items[max_items];
         int ii = 0;
         memset(items, 0, sizeof(items));
@@ -734,6 +734,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         items[ii].key = "initfile";
         items[ii].datatype = DT_STRING;
         items[ii].value.dt_string = &initf;
+
+        ++ii;
+        items[ii].key = "postInitfile";
+        items[ii].datatype = DT_STRING;
+        items[ii].value.dt_string = &pinitf;
 
         ++ii;
         items[ii].key = "warmup";
@@ -843,6 +848,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
             if (initf != NULL) {
                 initFile = initf;
             }
+            if (pinitf != NULL) {
+                postInitFile = pinitf;
+            }
             HashTable::setDefaultNumBuckets(htBuckets);
             HashTable::setDefaultNumLocks(htLocks);
             StoredValue::setMaxDataSize(stats, maxSize);
@@ -863,7 +871,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         time_t start = ep_real_time();
         try {
             sqliteStrategy = new MultiDBSqliteStrategy(*this, dbname,
-                                                       initFile,
+                                                       initFile, postInitFile,
                                                        NUMBER_OF_SHARDS);
             sqliteDb = new StrategicSqlite3(*this, sqliteStrategy);
         } catch (std::exception& e) {
