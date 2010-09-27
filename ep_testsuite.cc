@@ -358,17 +358,6 @@ static bool verify_vbucket_state(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     return strncmp(expected, last_key, strlen(expected)) == 0;
 }
 
-static void waitfor_vbucket_state(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                                  uint16_t vb, const char *state) {
-    bool dead = strcmp(state, "dead") == 0;
-    while (!verify_vbucket_state(h, h1, vb, state, true)) {
-        if (dead && strcmp(last_key, "That's not my bucket.") == 0) {
-            break;
-        }
-        usleep(100);
-    }
-}
-
 static bool verify_vbucket_missing(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                    uint16_t vb) {
     char vbid[8];
@@ -1263,7 +1252,6 @@ static enum test_result test_vbucket_create(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
 
 static enum test_result test_vbucket_destroy(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(set_vbucket_state(h, h1, 1, "active"), "Failed to set vbucket state.");
-    waitfor_vbucket_state(h, h1, 1, "active");
 
     protocol_binary_request_header *pkt = create_packet(CMD_DEL_VBUCKET, "1", "");
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
@@ -1278,7 +1266,6 @@ static enum test_result test_vbucket_destroy(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 
           "Expected failure deleting non-existent bucket.");
 
     check(set_vbucket_state(h, h1, 1, "dead"), "Failed set set vbucket 1 state.");
-    waitfor_vbucket_state(h, h1, 1, "dead");
 
     pkt = create_packet(CMD_DEL_VBUCKET, "1", "");
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
@@ -1301,7 +1288,6 @@ static enum test_result test_vbucket_destroy_stats(ENGINE_HANDLE *h,
     int nonResident = get_int_stat(h, h1, "ep_num_non_resident");
 
     check(set_vbucket_state(h, h1, 1, "active"), "Failed to set vbucket state.");
-    waitfor_vbucket_state(h, h1, 1, "active");
 
     item *i = NULL;
     check(ENGINE_SUCCESS ==
@@ -1311,7 +1297,6 @@ static enum test_result test_vbucket_destroy_stats(ENGINE_HANDLE *h,
     evict_key(h, h1, "key2", 1, "Ejected.");
 
     check(set_vbucket_state(h, h1, 1, "dead"), "Failed set set vbucket 1 state.");
-    waitfor_vbucket_state(h, h1, 1, "dead");
 
     int vbucketDel = get_int_stat(h, h1, "ep_vbucket_del");
 
@@ -1342,7 +1327,6 @@ static enum test_result test_vbucket_destroy_stats(ENGINE_HANDLE *h,
 
 static enum test_result test_vbucket_destroy_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(set_vbucket_state(h, h1, 1, "active"), "Failed to set vbucket state.");
-    waitfor_vbucket_state(h, h1, 1, "active");
 
     protocol_binary_request_header *pkt = create_packet(CMD_DEL_VBUCKET, "1", "");
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
@@ -1365,11 +1349,9 @@ static enum test_result test_vbucket_destroy_restart(ENGINE_HANDLE *h, ENGINE_HA
     check(verify_vbucket_state(h, h1, 1, "pending"),
           "Bucket state was not pending after restart.");
     check(set_vbucket_state(h, h1, 1, "active"), "Failed to set vbucket state.");
-    waitfor_vbucket_state(h, h1, 1, "active");
     check_key_value(h, h1, "key", "somevalue", 9, false, 1);
 
     check(set_vbucket_state(h, h1, 1, "dead"), "Failed set set vbucket 1 state.");
-    waitfor_vbucket_state(h, h1, 1, "dead");
 
     pkt = create_packet(CMD_DEL_VBUCKET, "1", "");
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
@@ -1837,7 +1819,6 @@ static enum test_result test_key_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
 
     check(set_vbucket_state(h, h1, 1, "active"), "Failed set vbucket 1 state.");
-    waitfor_vbucket_state(h, h1, 1, "active");
 
     // set (k1,v1) in vbucket 0
     check(store(h, h1, NULL, OPERATION_SET,"k1", "v1", &i, 0, 0) == ENGINE_SUCCESS,
@@ -1880,7 +1861,6 @@ static enum test_result test_key_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
 static enum test_result test_vkey_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(set_vbucket_state(h, h1, 1, "active"), "Failed set vbucket 1 state.");
-    waitfor_vbucket_state(h, h1, 1, "active");
 
     wait_for_persisted_value(h, h1, "k1", "v1");
     wait_for_persisted_value(h, h1, "k2", "v2", 1);
@@ -1955,7 +1935,6 @@ static enum test_result test_curr_items(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
     check(store(h, h1, NULL, OPERATION_SET,"k3", "v3", &i) == ENGINE_SUCCESS,
           "Failed to fail to store an item.");
     check(set_vbucket_state(h, h1, 0, "dead"), "Failed set vbucket 0 state.");
-    waitfor_vbucket_state(h, h1, 0, "dead");
 
     verify_curr_items(h, h1, 0, "dead vbucket");
     check(get_int_stat(h, h1, "curr_items_tot") == 3,
@@ -1963,13 +1942,11 @@ static enum test_result test_curr_items(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
 
     // Then resurrect.
     check(set_vbucket_state(h, h1, 0, "active"), "Failed set vbucket 0 state.");
-    waitfor_vbucket_state(h, h1, 0, "active");
 
     verify_curr_items(h, h1, 3, "resurrected vbucket");
 
     // Now completely delete it.
     check(set_vbucket_state(h, h1, 0, "dead"), "Failed set vbucket 0 state.");
-    waitfor_vbucket_state(h, h1, 0, "dead");
     protocol_binary_request_header *pkt = create_packet(CMD_DEL_VBUCKET, "0", "");
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Failed to delete dead bucket.");
@@ -2027,12 +2004,10 @@ static enum test_result test_value_eviction(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
 
 static enum test_result test_duplicate_items_disk(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(set_vbucket_state(h, h1, 1, "active"), "Failed to set vbucket state.");
-    waitfor_vbucket_state(h, h1, 1, "active");
 
     wait_for_persisted_value(h, h1, "key1", "value", 1);
 
     check(set_vbucket_state(h, h1, 1, "dead"), "Failed set set vbucket 1 state.");
-    waitfor_vbucket_state(h, h1, 1, "dead");
 
     int vbucket_del = get_int_stat(h, h1, "ep_vbucket_del");
     protocol_binary_request_header *pkt = create_packet(CMD_DEL_VBUCKET, "1", "");
@@ -2044,7 +2019,6 @@ static enum test_result test_duplicate_items_disk(ENGINE_HANDLE *h, ENGINE_HANDL
           "vbucket 1 was not missing after deleting it.");
 
     check(set_vbucket_state(h, h1, 1, "active"), "Failed to set vbucket state.");
-    waitfor_vbucket_state(h, h1, 1, "active");
 
     item *i = NULL;
     int total_persisted = get_int_stat(h, h1, "ep_total_persisted");
