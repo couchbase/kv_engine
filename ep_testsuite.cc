@@ -421,6 +421,14 @@ static void wait_for_persisted_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     wait_for_stat_change(h, h1, "ep_total_persisted", numStored);
 }
 
+static void wait_for_flusher_to_settle(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    useconds_t sleepTime = 128;
+    while (get_int_stat(h, h1, "ep_flusher_todo")
+           + get_int_stat(h, h1, "ep_queue_size") > 0) {
+        decayingSleep(&sleepTime);
+    }
+}
+
 static enum test_result test_wrong_vb_mutation(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                                ENGINE_STORE_OPERATION op) {
     item *i = NULL;
@@ -490,6 +498,72 @@ static enum test_result test_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(ENGINE_SUCCESS ==
           store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i),
           "Error setting.");
+    return SUCCESS;
+}
+
+struct handle_pair {
+    ENGINE_HANDLE *h;
+    ENGINE_HANDLE_V1 *h1;
+};
+
+extern "C" {
+    static void* conc_del_set_thread(void *arg) {
+        struct handle_pair *hp = static_cast<handle_pair *>(arg);
+        item *it = NULL;
+
+        for (int i = 0; i < 10000; ++i) {
+            check(ENGINE_SUCCESS ==
+                  store(hp->h, hp->h1, NULL, OPERATION_SET,
+                        "key", "somevalue", &it),
+                  "Error setting.");
+            usleep(10);
+            // Ignoring the result here -- we're racing.
+            hp->h1->remove(hp->h, NULL, "key", 3, 0, 0);
+            usleep(10);
+        }
+        return NULL;
+    }
+}
+
+static enum test_result test_conc_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+
+    const int n_threads = 8;
+    pthread_t threads[n_threads];
+    struct handle_pair hp = {h, h1};
+
+    wait_for_persisted_value(h, h1, "key", "value1");
+
+    int oldCommitNum = get_int_stat(h, h1, "ep_commit_num");
+
+    for (int i = 0; i < n_threads; i++) {
+        int r = pthread_create(&threads[i], NULL, conc_del_set_thread, &hp);
+        assert(r == 0);
+    }
+
+    for (int i = 0; i < n_threads; i++) {
+        void *trv = NULL;
+        int r = pthread_join(threads[i], &trv);
+        assert(r == 0);
+    }
+
+    wait_for_stat_change(h, h1, "ep_commit_num", oldCommitNum);
+
+    assert(1 == get_int_stat(h, h1, "ep_total_new_items"));
+
+    /*
+    std::cout << "new:       " << get_int_stat(h, h1, "ep_total_new_items") << std::endl
+              << "rm:        " << get_int_stat(h, h1, "ep_total_del_items") << std::endl
+              << "persisted: " << get_int_stat(h, h1, "ep_total_persisted") << std::endl
+              << "commits:   " << get_int_stat(h, h1, "ep_commit_num") << std::endl;
+    */
+
+    testHarness.reload_engine(&h, &h1,
+                              testHarness.engine_path,
+                              testHarness.default_engine_cfg,
+                              true);
+
+    assert(0 == get_int_stat(h, h1, "ep_warmed_dups"));
+
     return SUCCESS;
 }
 
@@ -1911,6 +1985,9 @@ static enum test_result test_curr_items(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
     check(store(h, h1, NULL, OPERATION_SET,"k3", "v3", &i) == ENGINE_SUCCESS,
           "Failed to fail to store an item.");
     verify_curr_items(h, h1, 3, "three items stored");
+    assert(3 == get_int_stat(h, h1, "ep_total_enqueued"));
+
+    wait_for_flusher_to_settle(h, h1);
 
     // Verify delete case.
     check(h1->remove(h, NULL, "k1", 2, 0, 0) == ENGINE_SUCCESS,
@@ -2378,6 +2455,7 @@ engine_test_t* get_tests(void) {
          "dbname=" WHITESPACE_DB ";ht_locks=1;ht_size=3"},
         {"get miss", test_get_miss, NULL, teardown, NULL},
         {"set", test_set, NULL, teardown, NULL},
+        {"concurrent set", test_conc_set, NULL, teardown, NULL},
         {"set+get hit", test_set_get_hit, NULL, teardown, NULL},
         {"getl", NULL, NULL, teardown, NULL},
         {"set+get hit (bin)", test_set_get_hit_bin, NULL, teardown, NULL},

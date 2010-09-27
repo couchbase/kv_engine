@@ -424,6 +424,7 @@ public:
         size_t oldsize = size();
 
         value.reset();
+        markDirty();
 
         size_t newsize = size();
         if (oldsize < newsize) {
@@ -905,9 +906,9 @@ public:
      * Mark the given record logically deleted.
      *
      * @param key the key of the item to delete
-     * @return true if an active object was found and marked deleted
+     * @return an indicator of what the deletion did
      */
-    bool softDelete(const std::string &key) {
+    mutation_type_t softDelete(const std::string &key) {
         assert(active());
         int bucket_num = bucket(key);
         LockHolder lh(getMutex(bucket_num));
@@ -917,12 +918,14 @@ public:
     /**
      * Unlocked implementation of softDelete.
      */
-    bool unlocked_softDelete(const std::string &key, int bucket_num) {
+    mutation_type_t unlocked_softDelete(const std::string &key, int bucket_num) {
+        mutation_type_t rv = NOT_FOUND;
         StoredValue *v = unlocked_find(key, bucket_num);
         if (v) {
+            rv = v->isClean() ? WAS_CLEAN : WAS_DIRTY;
             v->del(stats);
         }
-        return v != NULL;
+        return rv;
     }
 
     /**

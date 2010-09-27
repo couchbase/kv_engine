@@ -35,6 +35,8 @@
 | ep_total_enqueued             | Total number of items queued for          |
 |                               | persistence.                              |
 | ep_total_persisted            | Total number of items persisted.          |
+| ep_total_new_items            | Total number of persisted new items.      |
+| ep_total_del_items            | Total number of persisted deletions.      |
 | ep_item_flush_failed          | Number of times an item failed to flush   |
 |                               | due to storage errors.                    |
 | ep_item_commit_failed         | Number of times a transaction failed to   |

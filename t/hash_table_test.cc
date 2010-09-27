@@ -208,8 +208,8 @@ static void testAdd() {
     }
 
     // Verify we can readd after a soft deletion.
-    assert(h.softDelete(keys[0]));
-    assert(!h.softDelete(keys[0]));
+    assert(h.softDelete(keys[0]) == WAS_DIRTY);
+    assert(h.softDelete(keys[0]) == NOT_FOUND);
     assert(!h.find(keys[0]));
     assert(count(h) == nkeys - 1);
 

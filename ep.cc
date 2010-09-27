@@ -742,10 +742,10 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::del(const std::string &key,
         }
     }
 
-    bool existed = vb->ht.softDelete(key);
-    ENGINE_ERROR_CODE rv = existed ? ENGINE_SUCCESS : ENGINE_KEY_ENOENT;
+    mutation_type_t delrv = vb->ht.softDelete(key);
+    ENGINE_ERROR_CODE rv = delrv == NOT_FOUND ? ENGINE_KEY_ENOENT : ENGINE_SUCCESS;
 
-    if (existed) {
+    if (delrv == WAS_CLEAN) {
         queueDirty(key, vbucket, queue_op_del);
     }
     return rv;
@@ -856,6 +856,7 @@ public:
     // distinguish an insert from an update if we cared).
     void callback(std::pair<bool, int64_t> &value) {
         if (value.first && value.second > 0) {
+            ++stats->newItems;
             setId(value.second);
         } else if (!value.first) {
             redirty();
@@ -868,6 +869,7 @@ public:
     // successfully deleted the item.
     void callback(bool &value) {
         if (value) {
+            ++stats->delItems;
             // We have succesfully removed an item from the disk, we
             // may now remove it from the hash table.
             RCPtr<VBucket> vb = store->getVBucket(queuedItem.getVBucketId());
@@ -938,8 +940,9 @@ int EventuallyPersistentStore::flushOneDelOrSet(QueuedItem &qi,
     StoredValue *v = fetchValidValue(vb, qi.getKey(), bucket_num, true);
 
     int64_t rowid = v != NULL ? v->getId() : -1;
-    bool found = v != NULL && !v->isDeleted();
-    bool isDirty = (found && v->isDirty());
+    bool found = v != NULL;
+    bool deleted = found && v->isDeleted();
+    bool isDirty = found && v->isDirty();
     Item *val = NULL;
     rel_time_t queued(qi.getDirtied()), dirtied(0);
 
@@ -976,16 +979,19 @@ int EventuallyPersistentStore::flushOneDelOrSet(QueuedItem &qi,
             stats.dataAgeHighWat.set(std::max(stats.dataAge.get(),
                                               stats.dataAgeHighWat.get()));
             // Copy it for the duration.
-            val = new Item(qi.getKey(), v->getFlags(), v->getExptime(),
-                           v->getValue(), v->getCas(), rowid,
-                           qi.getVBucketId());
+            if (!deleted) {
+                assert(rowid == v->getId());
+                val = new Item(qi.getKey(), v->getFlags(), v->getExptime(),
+                               v->getValue(), v->getCas(), rowid,
+                               qi.getVBucketId());
+            }
 
         }
     }
 
     lh.unlock();
 
-    if (found && isDirty) {
+    if (isDirty && !deleted) {
         // If vbucket deletion is currently being flushed, don't flush a set operation,
         // but requeue a set operation to a flusher to avoid duplicate items on disk
         if (vbuckets.isBucketDeletion(qi.getVBucketId())) {
@@ -998,7 +1004,7 @@ int EventuallyPersistentStore::flushOneDelOrSet(QueuedItem &qi,
             Requeuer cb(qi, rejectQueue, this, queued, dirtied, &stats);
             underlying->set(*val, cb);
         }
-    } else if (!found) {
+    } else if (deleted) {
         Requeuer cb(qi, rejectQueue, this, queued, dirtied, &stats);
         underlying->del(qi.getKey(), rowid, cb);
     }

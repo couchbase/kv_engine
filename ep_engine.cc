@@ -1714,6 +1714,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                     epstats.tooOld, add_stat, cookie);
     add_casted_stat("ep_total_enqueued",
                     epstats.totalEnqueued, add_stat, cookie);
+    add_casted_stat("ep_total_new_items", stats.newItems, add_stat, cookie);
+    add_casted_stat("ep_total_del_items", stats.delItems, add_stat, cookie);
     add_casted_stat("ep_total_persisted",
                     epstats.totalPersisted, add_stat, cookie);
     add_casted_stat("ep_item_flush_failed",
