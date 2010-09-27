@@ -101,6 +101,12 @@ static bool teardown(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return true;
 }
 
+static inline void decayingSleep(useconds_t *sleepTime) {
+    static const useconds_t maxSleepTime = 500000;
+    usleep(*sleepTime);
+    *sleepTime = std::min(*sleepTime << 1, maxSleepTime);
+}
+
 static ENGINE_ERROR_CODE storeCasVb11(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                       const void *cookie,
                                       ENGINE_STORE_OPERATION op,
@@ -406,8 +412,9 @@ static void verify_curr_items(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 
 static void wait_for_stat_change(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                  const char *stat, int initial) {
+    useconds_t sleepTime = 128;
     while (get_int_stat(h, h1, stat) == initial) {
-        usleep(100);
+        decayingSleep(&sleepTime);
     }
 }
 
@@ -1525,9 +1532,11 @@ static enum test_result test_tap_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
               "Failed to store an item.");
     }
 
+
+    useconds_t sleepTime = 128;
     while (get_int_stat(h, h1, "ep_total_persisted")
            < initialPersisted + static_cast<int>(keys.size())) {
-        usleep(100);
+        decayingSleep(&sleepTime);
     }
 
     for (keyit = keys.begin(); keyit != keys.end(); ++keyit) {
