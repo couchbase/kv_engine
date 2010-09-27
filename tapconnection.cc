@@ -154,7 +154,7 @@ bool TapConnection::windowIsFull() {
     return true;
 }
 
-bool TapConnection::requestAck() {
+bool TapConnection::requestAck(tap_event_t event) {
     if (!ackSupported) {
         return false;
     }
@@ -171,7 +171,7 @@ bool TapConnection::requestAck() {
         mod = ackLowChunkThreshold;
     }
 
-    if ((recordsFetched % mod) == 0) {
+    if ((recordsFetched % mod) == 0 || event == TAP_VBUCKET_SET) {
         ++seqno;
         return true;
     } else {
@@ -208,28 +208,71 @@ void TapConnection::rollback() {
 
 ENGINE_ERROR_CODE TapConnection::processAck(uint32_t s,
                                             uint16_t status,
-                                            const std::string &msg) {
+                                            const std::string &msg)
+{
+    std::list<TapLogElement>::iterator iter = tapLog.begin();
+    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
 
     seqnoReceived = s;
     expiry_time = ep_current_time() + ackGracePeriod;
 
-    if (status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+    switch (status) {
+    case PROTOCOL_BINARY_RESPONSE_SUCCESS:
+        // @todo optimize this by using algorithm
+        while (iter != tapLog.end() && (*iter).seqno == seqnoReceived) {
+            tapLog.erase(iter);
+            iter = tapLog.begin();
+        }
+
+        if (complete() && idle()) {
+            // We've got all of the ack's need, now we can shut down the
+            // stream
+            doDisconnect = true;
+            expiry_time = 0;
+            ret = ENGINE_DISCONNECT;
+        }
+        break;
+
+    case PROTOCOL_BINARY_RESPONSE_EBUSY:
+    case PROTOCOL_BINARY_RESPONSE_ETMPFAIL:
+        getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                         "Received temporary TAP nack from <%s> (#%u): Code: %u (%s)\n",
+                         client.c_str(), seqnoReceived, status, msg.c_str());
+        // reschedule all of the events for that seqno...
+        while (iter != tapLog.end() && (*iter).seqno == seqnoReceived) {
+            switch (iter->event) {
+            case TAP_VBUCKET_SET:
+                {
+                    TapVBucketEvent e(iter->event, iter->vbucket, iter->state);
+                    if (iter->state == pending) {
+                        addVBucketHighPriority(e);
+                    } else {
+                        addVBucketLowPriority(e);
+                    }
+                }
+                break;
+            case TAP_MUTATION:
+                addEvent(iter->key, iter->vbucket, queue_op_set);
+                break;
+            default:
+                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                 "Internal error. Not implemented");
+                abort();
+            }
+            tapLog.erase(iter);
+            iter = tapLog.begin();
+        }
+        break;
+    default:
         getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                          "Received negative TAP ack from <%s> (#%u): Code: %u (%s)\n",
                          client.c_str(), seqnoReceived, status, msg.c_str());
         doDisconnect = true;
         expiry_time = 0;
-        return ENGINE_DISCONNECT;
-    } else {
-        // @todo optimize this by using algorithm
-        std::list<TapLogElement>::iterator iter = tapLog.begin();
-        while (iter != tapLog.end() && (*iter).seqno == seqnoReceived) {
-            tapLog.erase(iter);
-            iter = tapLog.begin();
-        }
+        ret = ENGINE_DISCONNECT;
     }
 
-    return ENGINE_SUCCESS;
+    return ret;
 }
 
 void TapConnection::encodeVBucketStateTransition(const TapVBucketEvent &ev, void **es,

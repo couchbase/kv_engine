@@ -232,7 +232,7 @@ private:
     }
 
     bool idle() {
-        return empty() && vBucketLowPriority.empty() && vBucketHighPriority.empty();
+        return empty() && vBucketLowPriority.empty() && vBucketHighPriority.empty() && tapLog.empty();
     }
 
     bool hasItem() {
@@ -323,9 +323,10 @@ private:
 
     /**
      * Should we request a TAP ack for this message?
+     * @param event the event type for this message
      * @return true if we should request a tap ack (and start a new sequence)
      */
-    bool requestAck();
+    bool requestAck(tap_event_t event);
 
     /**
      * Get the current tap sequence number.
@@ -478,6 +479,10 @@ private:
 
     // does the client support tap acking?
     bool ackSupported;
+
+    bool hasPendingAcks() {
+        return !tapLog.empty();
+    }
 
     std::list<TapLogElement> tapLog;
 

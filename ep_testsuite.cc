@@ -1782,6 +1782,120 @@ static enum test_result test_tap_filter_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     return SUCCESS;
 }
 
+static enum test_result test_tap_ack_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
+{
+    const int nkeys = 10;
+    std::vector<std::string> keys;
+    bool receivedKeys[nkeys];
+    bool nackKeys[nkeys];
+
+    for (int i = 0; i < nkeys; ++i) {
+        std::stringstream ss;
+        ss << i;
+        keys.push_back(ss.str());
+        nackKeys[i] = true;
+        receivedKeys[i] = false;
+    }
+
+    std::vector<std::string>::iterator keyit;
+    for (keyit = keys.begin(); keyit != keys.end(); ++keyit) {
+        item *i = NULL;
+        check(store(h, h1, NULL, OPERATION_SET, keyit->c_str(),
+                    "value", &i, 0, 0) == ENGINE_SUCCESS,
+              "Failed to store an item.");
+    }
+
+    // verify that they are all there...
+    for (keyit = keys.begin(); keyit != keys.end(); ++keyit) {
+        item_info info;
+        check(get_value(h, h1, keyit->c_str(), &info), "Verify items");
+    }
+
+    const void *cookie = testHarness.create_cookie();
+    testHarness.lock_cookie(cookie);
+    uint16_t vbucketfilter[2];
+    vbucketfilter[0] = ntohs(1);
+    vbucketfilter[1] = ntohs(0);
+
+    std::string name = "tap_ack";
+    TAP_ITERATOR iter = h1->get_tap_iterator(h, cookie, name.c_str(),
+                                             name.length(),
+                                             TAP_CONNECT_FLAG_LIST_VBUCKETS |
+                                             TAP_CONNECT_SUPPORT_ACK |
+                                             TAP_CONNECT_FLAG_DUMP,
+                                             static_cast<void*>(vbucketfilter),
+                                             4);
+    check(iter != NULL, "Failed to create a tap iterator");
+
+    item *it;
+    void *engine_specific;
+    uint16_t nengine_specific;
+    uint8_t ttl;
+    uint16_t flags;
+    uint32_t seqno;
+    uint16_t vbucket;
+
+    tap_event_t event;
+    int found = 0;
+
+    std::string key;
+    bool done = false;
+    int index;
+
+    do {
+        event = iter(h, cookie, &it, &engine_specific,
+                     &nengine_specific, &ttl, &flags,
+                     &seqno, &vbucket);
+
+        switch (event) {
+        case TAP_PAUSE:
+            if (found == 30) {
+                done = true;
+            }
+            break;
+        case TAP_NOOP:
+            break;
+        case TAP_MUTATION:
+            check(get_key(h, h1, it, key), "Failed to read out key");
+            index = atoi(key.c_str());
+            check(index >= 0 && index <= nkeys, "Illegal key returned");
+
+            testHarness.unlock_cookie(cookie);
+            if (nackKeys[index]) {
+                nackKeys[index] = false;
+                h1->tap_notify(h, cookie, NULL, 0, 0,
+                               PROTOCOL_BINARY_RESPONSE_ETMPFAIL,
+                               TAP_ACK, seqno, key.c_str(), key.length(),
+                               0, 0, 0, NULL, 0, 0);
+            } else {
+                receivedKeys[index] = true;
+                h1->tap_notify(h, cookie, NULL, 0, 0,
+                               PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                               TAP_ACK, seqno, key.c_str(), key.length(),
+                               0, 0, 0, NULL, 0, 0);
+            }
+            testHarness.lock_cookie(cookie);
+            h1->release(h, cookie, it);
+
+            break;
+        case TAP_DISCONNECT:
+            done = true;
+            break;
+        default:
+            std::cerr << "Unexpected event:  " << event << std::endl;
+            return FAIL;
+        }
+    } while (!done);
+
+    for (int ii = 0; ii < nkeys; ++ii) {
+        check(receivedKeys[ii], "Did not receive all of the keys");
+    }
+
+    testHarness.unlock_cookie(cookie);
+
+    return SUCCESS;
+}
+
 static enum test_result test_novb0(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(verify_vbucket_missing(h, h1, 0), "vb0 existed and shouldn't have.");
     return SUCCESS;
@@ -2498,6 +2612,8 @@ engine_test_t* get_tests(void) {
          NULL, teardown, NULL},
         {"tap stream", test_tap_stream, NULL, teardown, NULL},
         {"tap filter stream", test_tap_filter_stream, NULL, teardown,
+         "tap_keepalive=100;ht_size=129;ht_locks=3"},
+        {"tap acks stream", test_tap_ack_stream, NULL, teardown,
          "tap_keepalive=100;ht_size=129;ht_locks=3"},
         // restart tests
         {"test restart", test_restart, NULL, teardown, NULL},

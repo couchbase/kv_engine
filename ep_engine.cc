@@ -1196,6 +1196,8 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
                 epstore->setVBucketState(ev.vbucket, dead);
             }
             ret = ev.event;
+        } else if (connection->hasPendingAcks()) {
+            ret = TAP_PAUSE;
         } else {
             ret = TAP_DISCONNECT;
         }
@@ -1224,7 +1226,7 @@ tap_event_t EventuallyPersistentEngine::walkTapQueue(const void *cookie,
         }
         connection->paused = false;
         *seqno = connection->getSeqno();
-        if (connection->requestAck()) {
+        if (connection->requestAck(ret)) {
             *flags = TAP_FLAG_ACK;
         }
     }
