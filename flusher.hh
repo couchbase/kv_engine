@@ -17,6 +17,8 @@ enum flusher_state {
 
 class Flusher;
 
+const double DEFAULT_MIN_SLEEP_TIME = 0.1;
+
 /**
  * A DispatcherCallback adaptor over Flusher.
  */
@@ -36,7 +38,7 @@ public:
 
     Flusher(EventuallyPersistentStore *st, Dispatcher *d) :
         store(st), _state(initializing), dispatcher(d),
-        flushQueue(NULL) {
+        flushRv(0), prevFlushRv(0), minSleepTime(0.1), flushQueue(NULL) {
     }
 
     ~Flusher() {
@@ -66,6 +68,7 @@ private:
     int doFlush();
     void completeFlush();
     void schedule_UNLOCKED();
+    double computeMinSleepTime();
 
     EventuallyPersistentStore *store;
     volatile enum flusher_state _state;
@@ -76,6 +79,8 @@ private:
 
     // Current flush cycle state.
     int                     flushRv;
+    int                     prevFlushRv;
+    double                  minSleepTime;
     std::queue<QueuedItem> *flushQueue;
     std::queue<QueuedItem> *rejectQueue;
     rel_time_t              flushStart;

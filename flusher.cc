@@ -143,9 +143,9 @@ bool Flusher::step(Dispatcher &d, TaskId tid) {
             return false;
         case running:
             {
-                int n = doFlush();
+                doFlush();
                 if (_state == running) {
-                    d.snooze(tid, std::max(n, 1));
+                    d.snooze(tid, computeMinSleepTime());
                     return true;
                 } else {
                     return false;
@@ -190,6 +190,16 @@ void Flusher::completeFlush() {
     while (flushQueue) {
         doFlush();
     }
+}
+
+double Flusher::computeMinSleepTime() {
+    if (flushRv + prevFlushRv == 0) {
+        minSleepTime = std::min(minSleepTime * 2, 1.0);
+    } else {
+        minSleepTime = DEFAULT_MIN_SLEEP_TIME;
+    }
+    prevFlushRv = flushRv;
+    return std::max(static_cast<double>(flushRv), minSleepTime);
 }
 
 int Flusher::doFlush() {
