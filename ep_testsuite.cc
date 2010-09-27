@@ -371,16 +371,12 @@ static bool verify_vbucket_missing(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 
     // Try up to three times to verify the bucket is missing.  Bucket
     // state changes are async.
-    for (int i = 0; i < 3; i++) {
-        vals.clear();
-        check(h1->get_stats(h, NULL, NULL, 0, add_stats) == ENGINE_SUCCESS,
-              "Failed to get stats.");
+    vals.clear();
+    check(h1->get_stats(h, NULL, NULL, 0, add_stats) == ENGINE_SUCCESS,
+          "Failed to get stats.");
 
-        if (vals.find(vbstr) == vals.end()) {
-            return true;
-        }
-
-        usleep(500000);
+    if (vals.find(vbstr) == vals.end()) {
+        return true;
     }
 
     std::cerr << "Expected bucket missing, got " << vals[vbstr] << std::endl;
