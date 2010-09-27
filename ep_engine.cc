@@ -2152,6 +2152,30 @@ void EventuallyPersistentEngine::resetStats()
     stats.numTapFetched.set(0);
 }
 
+bool EventuallyPersistentEngine::populateEvents() {
+    LockHolder lnlist(tapNotificationList.mutex);
+    if (tapNotificationList.events.empty()) {
+        return true;
+    }
+
+    std::list<TapConnection*>::iterator i;
+    for (i = allTaps.begin(); i != allTaps.end(); i++) {
+        TapConnection *tc = *i;
+        if (!tc->dumpQueue) {
+            std::list<QueuedItem>::iterator e;
+            for (e = tapNotificationList.events.begin();
+                 e != tapNotificationList.events.end();
+                 ++e) {
+                tc->addEvent(*e);
+            }
+        }
+    }
+
+    tapNotificationList.events.clear();
+
+    return false;
+}
+
 void EventuallyPersistentEngine::notifyTapIoThreadMain(void) {
     bool addNoop = false;
 
@@ -2164,6 +2188,11 @@ void EventuallyPersistentEngine::notifyTapIoThreadMain(void) {
     // We should pause unless we purged some connections or
     // all queues have items.
     bool shouldPause = purgeExpiredTapConnections_UNLOCKED() == 0;
+    bool noEvents = populateEvents();
+
+    if (shouldPause) {
+        shouldPause = noEvents;
+    }
     // see if I have some channels that I have to signal..
     std::map<const void*, TapConnection*>::iterator iter;
     for (iter = tapConnectionMap.begin(); iter != tapConnectionMap.end(); iter++) {
