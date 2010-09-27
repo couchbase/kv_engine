@@ -913,8 +913,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         // warmup is finished).
         const Flusher *flusher = epstore->getFlusher();
         if (wait_for_warmup && flusher) {
+            useconds_t sleepTime = 1;
+            useconds_t maxSleepTime = 500000;
             while (flusher->state() == initializing) {
-                sleep(1);
+                usleep(sleepTime);
+                sleepTime = std::min(sleepTime << 1, maxSleepTime);
             }
             if (fail_on_partial_warmup && stats.warmOOM > 0) {
                 getLogger()->log(EXTENSION_LOG_WARNING, NULL,
