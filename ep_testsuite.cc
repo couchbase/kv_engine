@@ -2421,7 +2421,8 @@ engine_test_t* get_tests(void) {
         {"tap receiver mutation (replica)", test_tap_rcvr_mutate_replica,
          NULL, teardown, NULL},
         {"tap stream", test_tap_stream, NULL, teardown, NULL},
-        {"tap filter stream", test_tap_filter_stream, NULL, teardown, "tap_keepalive=100"},
+        {"tap filter stream", test_tap_filter_stream, NULL, teardown,
+         "tap_keepalive=100;ht_size=129;ht_locks=3"},
         // restart tests
         {"test restart", test_restart, NULL, teardown, NULL},
         {"set+get+restart+hit (bin)", test_restart_bin_val, NULL, teardown, NULL},
