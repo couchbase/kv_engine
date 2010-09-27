@@ -207,11 +207,11 @@ public:
 
     RCPtr<VBucket> getBucket(int id) const {
         assert(id >= 0);
+        static RCPtr<VBucket> emptyVBucket;
         if (static_cast<size_t>(id) < size) {
             return buckets[id];
         } else {
-            RCPtr<VBucket> r;
-            return r;
+            return emptyVBucket;
         }
     }
 
