@@ -81,7 +81,7 @@ size_t HashTable::clear(bool deactivate) {
 }
 
 void HashTable::visit(HashTableVisitor &visitor) {
-    if (!active()) {
+    if (numItems.get() == 0 || !active()) {
         return;
     }
     VisitorTracker vt(&visitors);
@@ -105,7 +105,7 @@ void HashTable::visit(HashTableVisitor &visitor) {
 }
 
 void HashTable::visitDepth(HashTableDepthVisitor &visitor) {
-    if (!active()) {
+    if (numItems.get() == 0 || !active()) {
         return;
     }
     size_t visited = 0;
