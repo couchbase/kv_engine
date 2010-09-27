@@ -16,6 +16,8 @@
 #include "atomic.hh"
 #include "stored-value.hh"
 
+const size_t BASE_VBUCKET_SIZE=1024;
+
 /**
  * Function object that returns true if the given vbucket is acceptable.
  */
@@ -279,7 +281,7 @@ private:
  */
 class VBucketMap {
 public:
-    VBucketMap() : buckets(new VBucketHolder(4096)) { }
+    VBucketMap() : buckets(new VBucketHolder(BASE_VBUCKET_SIZE)) { }
 
     void addBucket(RCPtr<VBucket> &b) {
         assert(b);
@@ -335,7 +337,7 @@ private:
         if (buckets->getSize() <= id) {
             // still not big enough
             size_t n(0);
-            for (n = 4096; n <= id; n *= 2) {} // find next power of 2
+            for (n = BASE_VBUCKET_SIZE; n <= id; n *= 2) {} // find next power of 2
             RCPtr<VBucketHolder> nbh(new VBucketHolder(buckets, n));
             buckets = nbh;
         }
