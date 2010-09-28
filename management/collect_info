@@ -42,13 +42,14 @@ locate_binary() {
 }
 
 execute() {
-    progress $1
+    title="$1"
+    shift
+    progress $title
     cat >> ${report} <<EOF
 ******************************************************************************
-$1
+$title ($*)
 
 EOF
-    shift
     binary=`locate_binary $1`
     if [ $? -eq 0 ]
     then
