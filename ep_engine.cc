@@ -678,7 +678,7 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server
     memHighWat(std::numeric_limits<size_t>::max()),
     minDataAge(DEFAULT_MIN_DATA_AGE),
     queueAgeCap(DEFAULT_QUEUE_AGE_CAP),
-    itemExpiryWindow(3)
+    itemExpiryWindow(3), expiryPagerSleeptime(3600)
 {
     interface.interface = 1;
     ENGINE_HANDLE_V1::get_info = EvpGetInfo;
@@ -835,6 +835,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         items[ii].value.dt_size = &itemExpiryWindow;
 
         ++ii;
+        items[ii].key = "exp_pager_stime";
+        items[ii].datatype = DT_SIZE;
+        items[ii].value.dt_size = &expiryPagerSleeptime;
+
+        ++ii;
         items[ii].key = NULL;
 
         assert(ii < max_items);
@@ -939,6 +944,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         if (HashTable::getDefaultStorageValueType() != small) {
             shared_ptr<DispatcherCallback> cb(new ItemPager(epstore, stats));
             epstore->getDispatcher()->schedule(cb, NULL, Priority::ItemPagerPriority, 10);
+            shared_ptr<DispatcherCallback> exp_cb(new ExpiredItemPager(epstore, stats));
+            epstore->getDispatcher()->schedule(exp_cb, NULL, Priority::ItemPagerPriority,
+                                               expiryPagerSleeptime);
         }
     }
 
@@ -1779,6 +1787,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     add_casted_stat("ep_bg_fetched", epstats.bg_fetched, add_stat,
                     cookie);
     add_casted_stat("ep_num_pager_runs", epstats.pagerRuns, add_stat,
+                    cookie);
+    add_casted_stat("ep_num_expiry_pager_runs", epstats.expiryPagerRuns, add_stat,
                     cookie);
     add_casted_stat("ep_num_value_ejects", epstats.numValueEjects, add_stat,
                     cookie);

@@ -748,6 +748,7 @@ private:
     size_t minDataAge;
     size_t queueAgeCap;
     size_t itemExpiryWindow;
+    size_t expiryPagerSleeptime;
     EPStats stats;
 };
 

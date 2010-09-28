@@ -32,4 +32,27 @@ private:
     EPStats                   &stats;
 };
 
+/**
+ * Dispatcher job responsible for purging expired items from
+ * memory and disk.
+ */
+class ExpiredItemPager : public DispatcherCallback {
+public:
+
+    /**
+     * Construct an ExpiredItemPager.
+     *
+     * @param s the store (where we'll visit)
+     * @param st the stats
+     */
+    ExpiredItemPager(EventuallyPersistentStore *s, EPStats &st) :
+        store(s), stats(st) {}
+
+    bool callback(Dispatcher &d, TaskId t);
+
+private:
+    EventuallyPersistentStore *store;
+    EPStats                   &stats;
+};
+
 #endif /* ITEM_PAGER_HH */

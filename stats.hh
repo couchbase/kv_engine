@@ -90,6 +90,8 @@ public:
     Atomic<size_t> bg_fetched;
     //! Number of times we needed to kick in the pager
     Atomic<size_t> pagerRuns;
+    //! Number of times the expiry pager runs for purging expired items
+    Atomic<size_t> expiryPagerRuns;
     //! Number of times a value is ejected
     Atomic<size_t> numValueEjects;
     //! Number of times a value could not be ejected
