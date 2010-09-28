@@ -20,6 +20,7 @@
 #include <map>
 #include <string>
 #include <vector>
+#include <cstdlib>
 
 #include <assert.h>
 #include <stdio.h>
@@ -511,7 +512,10 @@ extern "C" {
         struct handle_pair *hp = static_cast<handle_pair *>(arg);
         item *it = NULL;
 
-        for (int i = 0; i < 10000; ++i) {
+        for (int i = 0; i < 5000; ++i) {
+            store(hp->h, hp->h1, NULL, OPERATION_ADD,
+                  "key", "somevalue", &it);
+            usleep(10);
             check(ENGINE_SUCCESS ==
                   store(hp->h, hp->h1, NULL, OPERATION_SET,
                         "key", "somevalue", &it),
@@ -533,8 +537,6 @@ static enum test_result test_conc_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     wait_for_persisted_value(h, h1, "key", "value1");
 
-    int oldCommitNum = get_int_stat(h, h1, "ep_commit_num");
-
     for (int i = 0; i < n_threads; i++) {
         int r = pthread_create(&threads[i], NULL, conc_del_set_thread, &hp);
         assert(r == 0);
@@ -546,16 +548,17 @@ static enum test_result test_conc_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
         assert(r == 0);
     }
 
-    wait_for_stat_change(h, h1, "ep_commit_num", oldCommitNum);
+    wait_for_flusher_to_settle(h, h1);
 
-    assert(1 == get_int_stat(h, h1, "ep_total_new_items"));
-
-    /*
-    std::cout << "new:       " << get_int_stat(h, h1, "ep_total_new_items") << std::endl
-              << "rm:        " << get_int_stat(h, h1, "ep_total_del_items") << std::endl
-              << "persisted: " << get_int_stat(h, h1, "ep_total_persisted") << std::endl
-              << "commits:   " << get_int_stat(h, h1, "ep_commit_num") << std::endl;
-    */
+    // There should be no more newer items than deleted items.
+    if (std::abs(get_int_stat(h, h1, "ep_total_new_items") -
+                 get_int_stat(h, h1, "ep_total_del_items")) > 1) {
+        std::cout << "new:       " << get_int_stat(h, h1, "ep_total_new_items") << std::endl
+                  << "rm:        " << get_int_stat(h, h1, "ep_total_del_items") << std::endl
+                  << "persisted: " << get_int_stat(h, h1, "ep_total_persisted") << std::endl
+                  << "commits:   " << get_int_stat(h, h1, "ep_commit_num") << std::endl;
+        abort();
+    }
 
     testHarness.reload_engine(&h, &h1,
                               testHarness.engine_path,
