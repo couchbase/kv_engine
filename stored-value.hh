@@ -363,6 +363,27 @@ public:
     }
 
     /**
+     * Is this item currently waiting to receive a new ID?
+     *
+     * This is the case when it's been submitted to the storage layer
+     * and has been marked clean, but has not yet received its ID.
+     *
+     * @return true if the item is waiting for an ID.
+     */
+    bool isPendingId() {
+        return id == -2;
+    }
+
+    /**
+     * Set this item to be pending an ID.
+     */
+    void setPendingId() {
+        assert(!hasId());
+        assert(!isPendingId());
+        id = -2;
+    }
+
+    /**
      * Get the total size of this item.
      *
      * @return the amount of memory used by this item.

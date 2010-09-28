@@ -965,12 +965,9 @@ int EventuallyPersistentStore::flushOneDelOrSet(QueuedItem &qi,
             eligible = false;
             // Skip this one.  It's too young.
             ret = stats.min_data_age.get() - dataAge;
-            isDirty = false;
             stats.tooYoung++;
-            v->reDirty(dirtied);
-            rejectQueue->push(qi);
-            stats.memOverhead.incr(qi.size());
-            assert(stats.memOverhead.get() < GIGANTOR);
+        } else if (v->isPendingId()) {
+            eligible = false;
         }
 
         if (eligible) {
@@ -989,6 +986,15 @@ int EventuallyPersistentStore::flushOneDelOrSet(QueuedItem &qi,
                                qi.getVBucketId());
             }
 
+            if (rowid == -1) {
+                v->setPendingId();
+            }
+        } else {
+            isDirty = false;
+            v->reDirty(dirtied);
+            rejectQueue->push(qi);
+            stats.memOverhead.incr(qi.size());
+            assert(stats.memOverhead.get() < GIGANTOR);
         }
     }
 
