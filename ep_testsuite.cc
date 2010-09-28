@@ -408,26 +408,24 @@ static void wait_for_stat_change(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     }
 }
 
-static void wait_for_persisted_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                                     const char *key, const char *val,
-                                     uint16_t vbucketId=0) {
-
-    item *i = NULL;
-    assert(0 == get_int_stat(h, h1, "ep_bg_fetched"));
-    int numStored = get_int_stat(h, h1, "ep_total_persisted");
-    check(store(h, h1, NULL, OPERATION_SET, key, val, &i, 0, vbucketId) == ENGINE_SUCCESS,
-          "Failed to store an item.");
-
-    // Wait for persistence...
-    wait_for_stat_change(h, h1, "ep_total_persisted", numStored);
-}
-
 static void wait_for_flusher_to_settle(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     useconds_t sleepTime = 128;
     while (get_int_stat(h, h1, "ep_flusher_todo")
            + get_int_stat(h, h1, "ep_queue_size") > 0) {
         decayingSleep(&sleepTime);
     }
+}
+
+static void wait_for_persisted_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                                     const char *key, const char *val,
+                                     uint16_t vbucketId=0) {
+
+    item *i = NULL;
+    check(store(h, h1, NULL, OPERATION_SET, key, val, &i, 0, vbucketId) == ENGINE_SUCCESS,
+          "Failed to store an item.");
+
+    // Wait for persistence...
+    wait_for_flusher_to_settle(h, h1);
 }
 
 static enum test_result test_wrong_vb_mutation(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
