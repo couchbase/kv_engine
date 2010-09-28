@@ -14,6 +14,9 @@ Usage $0 [-o reportfile] [-v] [server 1 .. server n]
    -o reportfile Use the specified file for output (default: membase.log)
    -v verbose
 
+For each server supplied the script will add traceroute information and
+connect attempts to the ports membase use on that server.
+
 EOF
   exit 1
 }
