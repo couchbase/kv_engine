@@ -836,7 +836,7 @@ int EventuallyPersistentStore::flushSome(std::queue<QueuedItem> *q,
 // requeued in case of failure to store in the underlying layer.
 
 class Requeuer : public Callback<std::pair<bool, int64_t> >,
-                 public Callback<bool> {
+                 public Callback<int> {
 public:
 
     Requeuer(const QueuedItem &qi, std::queue<QueuedItem> *q,
@@ -867,8 +867,8 @@ public:
     //
     // The boolean indicates whether the underlying storage
     // successfully deleted the item.
-    void callback(bool &value) {
-        if (value) {
+    void callback(int &value) {
+        if (value > 0) {
             ++stats->delItems;
             // We have succesfully removed an item from the disk, we
             // may now remove it from the hash table.
@@ -885,6 +885,9 @@ public:
                     assert(deleted);
                 }
             }
+        } else if (value == 0) {
+            // This occurs when a deletion was sent for a record that
+            // has already been deleted.
         } else {
             redirty();
         }

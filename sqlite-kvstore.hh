@@ -86,7 +86,7 @@ public:
      * Overrides del().
      */
     void del(const std::string &key, uint64_t rowid,
-             Callback<bool> &cb);
+             Callback<int> &cb);
 
     bool delVBucket(uint16_t vbucket);
     bool setVBState(uint16_t vbucket, const std::string &to);
