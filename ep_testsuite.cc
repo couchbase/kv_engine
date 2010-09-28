@@ -1356,7 +1356,7 @@ static enum test_result test_vbucket_destroy_stats(ENGINE_HANDLE *h,
                                                    ENGINE_HANDLE_V1 *h1) {
 
     int mem_used = get_int_stat(h, h1, "mem_used");
-    // int cacheSize = get_int_stat(h, h1, "ep_total_cache_size");
+    int cacheSize = get_int_stat(h, h1, "ep_total_cache_size");
     int overhead = get_int_stat(h, h1, "ep_overhead");
     int nonResident = get_int_stat(h, h1, "ep_num_non_resident");
 
@@ -1385,15 +1385,14 @@ static enum test_result test_vbucket_destroy_stats(ENGINE_HANDLE *h,
     wait_for_stat_change(h, h1, "ep_vbucket_del", vbucketDel);
 
     int mem_used2 = get_int_stat(h, h1, "mem_used");
-    // int cacheSize2 = get_int_stat(h, h1, "ep_total_cache_size");
+    int cacheSize2 = get_int_stat(h, h1, "ep_total_cache_size");
     int overhead2 = get_int_stat(h, h1, "ep_overhead");
     int nonResident2 = get_int_stat(h, h1, "ep_num_non_resident");
 
-    assert(mem_used2 == mem_used);
-    // XXX:  This does not work correctly.
-    // assert(cacheSize2 == cacheSize);
-    assert(overhead2 == overhead);
-    assert(nonResident2 == nonResident);
+    check(mem_used2 == mem_used, "memory should be the same");
+    check(cacheSize2 == cacheSize, "cache size should be the same");
+    check(overhead2 == overhead, "overhead should be the same");
+    check(nonResident2 == nonResident, "non resident count should be the same");
 
     return SUCCESS;
 }
