@@ -599,14 +599,22 @@ private:
     void clearTapValidity(const std::string &name);
     bool checkTapValidity(const std::string &name, const void* token);
 
-    bool populateEvents();
-
     void addEvent(const std::string &str, uint16_t vbid, enum queue_operation op)
     {
+        bool notify = false;
+        LockHolder lh(tapNotifySync);
 
-        LockHolder lh(tapNotificationList.mutex);
-        tapNotificationList.events.push_back(QueuedItem(str, vbid, op));
-        tapNotifySync.notify();
+        std::list<TapConnection*>::iterator iter;
+        for (iter = allTaps.begin(); iter != allTaps.end(); iter++) {
+            TapConnection *tc = *iter;
+            if (!tc->dumpQueue && tc->addEvent(str, vbid, op) && tc->paused) {
+                notify = true;
+            }
+        }
+
+        if (notify) {
+            tapNotifySync.notify();
+        }
     }
 
     void addMutationEvent(Item *it, uint16_t vbid) {
@@ -726,10 +734,6 @@ private:
     size_t nextTapNoop;
     pthread_t notifyThreadId;
     bool startedEngineThreads;
-    struct {
-        Mutex mutex;
-        std::list<QueuedItem> events;
-    } tapNotificationList;
     SyncObject tapNotifySync;
     volatile bool shutdown;
     GET_SERVER_API getServerApiFunc;
