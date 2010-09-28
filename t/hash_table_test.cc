@@ -214,7 +214,7 @@ static void testAdd() {
     assert(count(h) == nkeys - 1);
 
     Item i(keys[0], 0, 0, "newtest", 7);
-    assert(h.add(i) == ADD_SUCCESS);
+    assert(h.add(i) == ADD_UNDEL);
     assert(count(h, false) == nkeys);
 }
 

@@ -551,7 +551,8 @@ typedef enum {
 typedef enum {
     ADD_SUCCESS,                //!< Add was successful.
     ADD_NOMEM,                  //!< No memory for operation
-    ADD_EXISTS                  //!< Did not update -- item exists with this key
+    ADD_EXISTS,                 //!< Did not update -- item exists with this key
+    ADD_UNDEL                   //!< Undeletes an existing dirty item
 } add_type_t;
 
 /**
@@ -868,8 +869,9 @@ public:
         int bucket_num = bucket(val.getKey());
         LockHolder lh(getMutex(bucket_num));
         StoredValue *v = unlocked_find(val.getKey(), bucket_num, true);
+        add_type_t rv = ADD_SUCCESS;
         if (v && !v->isDeleted()) {
-            return ADD_EXISTS;
+            rv = ADD_EXISTS;
         } else {
             Item &itm = const_cast<Item&>(val);
             itm.setCas();
@@ -880,6 +882,10 @@ public:
                 v->setValue(itm.getValue(),
                             itm.getFlags(), itm.getExptime(),
                             itm.getCas(), stats);
+                rv = v->isDirty() ? ADD_UNDEL : ADD_SUCCESS;
+                if (isDirty) {
+                    v->markDirty();
+                }
             } else {
                 v = valFact(itm, values[bucket_num], isDirty);
                 values[bucket_num] = v;
@@ -888,9 +894,11 @@ public:
             if (!storeVal) {
                 v->ejectValue(stats);
             }
+
+            assert(v->isDirty() == isDirty);
         }
 
-        return ADD_SUCCESS;
+        return rv;
     }
 
     /**

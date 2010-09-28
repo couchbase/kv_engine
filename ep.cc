@@ -406,8 +406,10 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::add(const Item &item,
         return ENGINE_ENOMEM;
     case ADD_EXISTS:
         return ENGINE_NOT_STORED;
-    default:
+    case ADD_SUCCESS:
         queueDirty(item.getKey(), item.getVBucketId(), queue_op_set);
+        /* FALLTHROUGH */
+    default:
         return ENGINE_SUCCESS;
     }
 }
@@ -1068,6 +1070,7 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
 
         switch (vb->ht.add(*i, false, retain)) {
         case ADD_SUCCESS:
+        case ADD_UNDEL:
             // Yay
             succeeded = true;
             break;
