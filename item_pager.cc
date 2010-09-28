@@ -27,7 +27,7 @@ public:
      */
     PagingVisitor(EPStats &st, double pcnt) : stats(st), percent(pcnt),
                                               ejected(0), failedEjects(0),
-                                              startTime(time(NULL)) {}
+                                              startTime(ep_real_time()) {}
 
     void visit(StoredValue *v) {
 

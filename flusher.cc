@@ -105,7 +105,7 @@ void Flusher::initialize(TaskId tid) {
 
     time_t startTime = ep_real_time();
     store->warmup();
-    store->stats.warmupTime.set(time(NULL) - startTime);
+    store->stats.warmupTime.set(ep_real_time() - startTime);
     store->stats.warmupComplete.set(true);
 
     getLogger()->log(EXTENSION_LOG_DEBUG, NULL,

@@ -85,7 +85,7 @@ void TapConnection::setBackfillAge(uint64_t age, bool reconnect) {
         backfillAge = age;
     }
 
-    if (backfillAge < (uint64_t)time(NULL)) {
+    if (backfillAge < (uint64_t)ep_real_time()) {
         doRunBackfill = true;
         pendingBackfill = true;
     }
@@ -111,7 +111,7 @@ void TapConnection::setVBucketFilter(const std::vector<uint16_t> &vbuckets)
                          ss.str().c_str());
         vbucketFilter = filter;
         if (!diff.empty()) {
-            if (backfillAge < (uint64_t)time(NULL)) {
+            if (backfillAge < (uint64_t)ep_real_time()) {
                 doRunBackfill = true;
                 pendingBackfill = true;
             }
