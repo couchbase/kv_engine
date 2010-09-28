@@ -36,12 +36,19 @@ void SqliteEvaluator::eval(const std::string &filename) {
     while (in.good() && !in.eof()) {
         char c;
         in.get(c);
-
-        if (c == ';') {
+        query.append(1, c);
+        switch (sqlite3_complete(query.c_str())) {
+        case 1:
+            // READY!
             execute(query);
             query.clear();
-        } else {
-            query.append(1, c);
+            break;
+        case 0:
+            // Not ready
+            break;
+        default:
+            // Something's very wrong.
+            abort();
         }
     }
 
