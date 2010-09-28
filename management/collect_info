@@ -227,7 +227,7 @@ case "${os}" in
   Linux)
     execute "Process list snapshot" top -H -n 1
     execute "Process list " ps -AwwL -o user,pid,lwp,ppid,nlwp,pcpu,pri,nice,vsize,rss,tty,stat,wchan:12,start,bsdtime,command
-    execute "Swap configuration" free -gt
+    execute "Swap configuration" free -t
     execute "Swap configuration" swapon -s
     execute "Kernel modules" lsmod
     execute "Installed software" rpm -qa
