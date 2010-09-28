@@ -110,7 +110,7 @@ ep_la_SOURCES += gethrtime.c
 hrtime_test_SOURCES += gethrtime.c
 endif
 
-TEST_TIMEOUT=300
+TEST_TIMEOUT=30
 
 engine_tests: all
 	@MEMCACHED_DIR@/engine_testapp -E .libs/ep.so -t $(TEST_TIMEOUT) \
