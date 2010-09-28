@@ -407,6 +407,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::add(const Item &item,
     case ADD_EXISTS:
         return ENGINE_NOT_STORED;
     default:
+        queueDirty(item.getKey(), item.getVBucketId(), queue_op_set);
         return ENGINE_SUCCESS;
     }
 }
