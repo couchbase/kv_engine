@@ -132,7 +132,7 @@ EOF
     netcat=`locate_binary nc`
     if [ $? -eq 0 ]
     then
-        ports="11210 11211 8080 22"
+        ports="11210 11211 8091 22"
         if [ "x${port}" != "x" ]
         then
             ports="${port}"
