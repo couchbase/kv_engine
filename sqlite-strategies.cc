@@ -19,6 +19,7 @@ sqlite3 *SqliteStrategy::open(void) {
         }
 
         doFile(initFile);
+        initMetaTables();
         initTables();
         initStatements();
         doFile(postInitFile);
@@ -47,6 +48,14 @@ void SqliteStrategy::destroyMetaStatements(void) {
     delete set_vb_stmt;
     delete del_vb_stmt;
     delete sel_vb_stmt;
+}
+
+void SqliteStrategy::initMetaTables() {
+    assert(db);
+    execute("create table if not exists vbucket_states"
+            " (vbid integer primary key on conflict replace,"
+            "  state varchar(16),"
+            "  last_change datetime)");
 }
 
 void SqliteStrategy::initTables(void) {
@@ -105,11 +114,6 @@ void SqliteStrategy::execute(const char * const query) {
 
 void MultiDBSqliteStrategy::initTables() {
     char buf[1024];
-    execute("create table if not exists vbucket_states"
-            " (vbid integer primary key on conflict replace,"
-            "  state varchar(16),"
-            "  last_change datetime)");
-
     for (int i = 0; i < numTables; i++) {
         snprintf(buf, sizeof(buf), "attach database \"%s-%d.sqlite\" as kv_%d",
                  filename, i, i);

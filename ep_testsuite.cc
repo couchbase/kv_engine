@@ -1250,14 +1250,10 @@ static enum test_result test_whitespace_db(ENGINE_HANDLE *h,
 
     check(remove(WHITESPACE_DB) == 0,
           "Error removing whitespace remanant.");
-    check(remove(WHITESPACE_DB "-0.sqlite") == 0,
-          "Error removing whitespace remnant.");
-    check(remove(WHITESPACE_DB "-1.sqlite") == 0,
-          "Error removing whitespace remnant.");
-    check(remove(WHITESPACE_DB "-2.sqlite") == 0,
-          "Error removing whitespace remnant.");
-    check(remove(WHITESPACE_DB "-3.sqlite") == 0,
-          "Error removing whitespace remnant.");
+    remove(WHITESPACE_DB "-0.sqlite");
+    remove(WHITESPACE_DB "-1.sqlite");
+    remove(WHITESPACE_DB "-2.sqlite");
+    remove(WHITESPACE_DB "-3.sqlite");
 
     return SUCCESS;
 }

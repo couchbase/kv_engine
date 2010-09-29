@@ -59,6 +59,7 @@ public:
         return sel_vb_stmt;
     }
 
+    virtual void initMetaTables();
     virtual void initTables(void);
     virtual void initStatements(void);
     virtual void destroyTables(void);

@@ -712,7 +712,7 @@ private:
     bool fail_on_partial_warmup;
     bool startVb0;
     SERVER_HANDLE_V1 *serverApi;
-    MultiDBSqliteStrategy *sqliteStrategy;
+    SqliteStrategy *sqliteStrategy;
     StrategicSqlite3 *sqliteDb;
     EventuallyPersistentStore *epstore;
     std::map<const void*, TapConnection*> tapConnectionMap;
