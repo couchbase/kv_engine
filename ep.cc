@@ -1107,10 +1107,25 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
                                  "Emergency startup purge to free space for load.\n");
                 purge();
                 // Try that item again.
-                if (!vb->ht.add(*i, false, retain)) {
+                switch(vb->ht.add(*i, false, retain)) {
+                case ADD_SUCCESS:
+                case ADD_UNDEL:
+                    succeeded = true;
+                    break;
+                case ADD_EXISTS:
+                    getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                     "Warmup dataload error: Duplicate key: %s.\n",
+                                     i->getKey().c_str());
+                    ++stats.warmDups;
+                    succeeded = true;
+                    break;
+                case ADD_NOMEM:
                     getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                                      "Cannot store an item after emergency purge.\n");
                     ++stats.warmOOM;
+                    break;
+                default:
+                    abort();
                 }
             }
             break;
