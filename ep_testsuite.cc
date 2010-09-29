@@ -1569,32 +1569,29 @@ static enum test_result verify_item(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 }
 
 static enum test_result test_tap_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    std::vector<std::string> keys;
-    for (int i = 0; i < 29; ++i) {
-        std::stringstream ss;
-        ss << "key" << i;
-        keys.push_back(ss.str());
-    }
+    const int num_keys = 30;
+    bool keys[num_keys];
     int initialPersisted = get_int_stat(h, h1, "ep_total_persisted");
-    // set_flush_param(h, h1, "bg_fetch_delay", "1");
 
-    std::vector<std::string>::iterator keyit;
-    for (keyit = keys.begin(); keyit != keys.end(); ++keyit) {
-        item *i = NULL;
-        check(store(h, h1, NULL, OPERATION_SET, keyit->c_str(),
-                    "value", &i, 0, 0) == ENGINE_SUCCESS,
+    for (int ii = 0; ii < num_keys; ++ii) {
+        keys[ii] = false;
+        std::stringstream ss;
+        ss << ii;
+        check(store(h, h1, NULL, OPERATION_SET, ss.str().c_str(),
+                    "value", NULL, 0, 0) == ENGINE_SUCCESS,
               "Failed to store an item.");
     }
 
-
     useconds_t sleepTime = 128;
     while (get_int_stat(h, h1, "ep_total_persisted")
-           < initialPersisted + static_cast<int>(keys.size())) {
+           < initialPersisted + num_keys) {
         decayingSleep(&sleepTime);
     }
 
-    for (keyit = keys.begin(); keyit != keys.end(); ++keyit) {
-        evict_key(h, h1, keyit->c_str(), 0, "Ejected.");
+    for (int ii = 0; ii < num_keys; ++ii) {
+        std::stringstream ss;
+        ss << ii;
+        evict_key(h, h1, ss.str().c_str(), 0, "Ejected.");
     }
 
     const void *cookie = testHarness.create_cookie();
@@ -1613,9 +1610,8 @@ static enum test_result test_tap_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
     uint16_t flags;
     uint32_t seqno;
     uint16_t vbucket;
-
     tap_event_t event;
-    int found = 0;
+    std::string key;
 
     uint16_t unlikely_vbucket_identifier = 17293;
 
@@ -1632,10 +1628,12 @@ static enum test_result test_tap_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
         case TAP_NOOP:
             break;
         case TAP_MUTATION:
-            ++found;
+            check(get_key(h, h1, it, key), "Failed to read out the key");
+            keys[atoi(key.c_str())] = true;
             assert(vbucket != unlikely_vbucket_identifier);
             check(verify_item(h, h1, it, NULL, 0, "value", 5) == SUCCESS,
                   "Unexpected item arrived on tap stream");
+            h1->release(h, cookie, it);
             break;
         case TAP_DISCONNECT:
             break;
@@ -1646,15 +1644,11 @@ static enum test_result test_tap_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
 
     } while (event != TAP_DISCONNECT);
 
-    if (found != static_cast<int>(keys.size())) {
-        std::cerr << "Expected " << keys.size()
-                  << " items in stream, got " << found << std::endl;
-        return FAIL;
+    for (int ii = 0; ii < num_keys; ++ii) {
+        check(keys[ii], "Failed to receive key");
     }
 
     testHarness.unlock_cookie(cookie);
-    h1->release(h, cookie, it);
-
     check(get_int_stat(h, h1, "ep_tap_total_fetched", "tap") != 0,
           "http://bugs.northscale.com/show_bug.cgi?id=1695");
     h1->reset_stats(h, NULL);
