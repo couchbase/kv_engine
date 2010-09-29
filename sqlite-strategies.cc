@@ -52,12 +52,12 @@ void SqliteStrategy::destroyMetaStatements(void) {
 void SqliteStrategy::initTables(void) {
     assert(db);
     execute("create table if not exists kv"
-            " (k varchar(250), "
-            "  v text,"
+            " (vbucket integer,"
+            "  k varchar(250), "
             "  flags integer,"
             "  exptime integer,"
             "  cas integer,"
-            "  vbucket integer)");
+            "  v text)");
 }
 
 void SqliteStrategy::initMetaStatements(void) {
@@ -116,12 +116,12 @@ void MultiDBSqliteStrategy::initTables() {
         execute(buf);
         snprintf(buf, sizeof(buf),
                  "create table if not exists kv_%d.kv"
-                 " (k varchar(250),"
-                 "  v text,"
+                 " (vbucket integer,"
+                 "  k varchar(250),"
                  "  flags integer,"
                  "  exptime integer,"
                  "  cas integer,"
-                 "  vbucket integer)", i);
+                 "  v text)", i);
         execute(buf);
     }
 }
