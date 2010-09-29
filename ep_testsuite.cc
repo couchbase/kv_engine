@@ -1775,30 +1775,24 @@ static enum test_result test_tap_filter_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V
 static enum test_result test_tap_ack_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
 {
     const int nkeys = 10;
-    std::vector<std::string> keys;
     bool receivedKeys[nkeys];
     bool nackKeys[nkeys];
 
     for (int i = 0; i < nkeys; ++i) {
-        std::stringstream ss;
-        ss << i;
-        keys.push_back(ss.str());
         nackKeys[i] = true;
         receivedKeys[i] = false;
-    }
-
-    std::vector<std::string>::iterator keyit;
-    for (keyit = keys.begin(); keyit != keys.end(); ++keyit) {
-        item *i = NULL;
-        check(store(h, h1, NULL, OPERATION_SET, keyit->c_str(),
-                    "value", &i, 0, 0) == ENGINE_SUCCESS,
+        std::stringstream ss;
+        ss << i;
+        check(store(h, h1, NULL, OPERATION_SET, ss.str().c_str(),
+                    "value", NULL, 0, 0) == ENGINE_SUCCESS,
               "Failed to store an item.");
     }
 
-    // verify that they are all there...
-    for (keyit = keys.begin(); keyit != keys.end(); ++keyit) {
+    for (int i = 0; i < nkeys; ++i) {
+        std::stringstream ss;
+        ss << i;
         item_info info;
-        check(get_value(h, h1, keyit->c_str(), &info), "Verify items");
+        check(get_value(h, h1, ss.str().c_str(), &info), "Verify items");
     }
 
     const void *cookie = testHarness.create_cookie();
@@ -1824,10 +1818,7 @@ static enum test_result test_tap_ack_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
     uint16_t flags;
     uint32_t seqno;
     uint16_t vbucket;
-
     tap_event_t event;
-    int found = 0;
-
     std::string key;
     bool done = false;
     int index;
@@ -1839,9 +1830,7 @@ static enum test_result test_tap_ack_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
 
         switch (event) {
         case TAP_PAUSE:
-            if (found == 30) {
-                done = true;
-            }
+            testHarness.waitfor_cookie(cookie);
             break;
         case TAP_NOOP:
             break;
