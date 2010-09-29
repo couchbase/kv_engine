@@ -855,9 +855,23 @@ public:
     // can succeed *without* receiving a new ID (which is how we'd
     // distinguish an insert from an update if we cared).
     void callback(std::pair<bool, int64_t> &value) {
-        if (value.first && value.second > 0) {
-            ++stats->newItems;
-            setId(value.second);
+        if (value.first) {
+            if (value.second > 0) {
+                ++stats->newItems;
+                setId(value.second);
+            }
+            RCPtr<VBucket> vb = store->getVBucket(queuedItem.getVBucketId());
+            if (vb && vb->getState() != active) {
+                int bucket_num = vb->ht.bucket(queuedItem.getKey());
+                LockHolder lh(vb->ht.getMutex(bucket_num));
+                StoredValue *v = store->fetchValidValue(vb, queuedItem.getKey(),
+                                                        bucket_num, true);
+                double current = static_cast<double>(StoredValue::getCurrentSize(*stats));
+                double lower = static_cast<double>(stats->mem_low_wat);
+                if (v && current > lower) {
+                    v->ejectValue(*stats);
+                }
+            }
         } else if (!value.first) {
             redirty();
         }
