@@ -18,8 +18,8 @@ def stop(mc):
             success = True
         except:
             if success:
-                # XXX: Need some way to force a reconnect.
-                # mc = mc_bin_client.MemcachedClient(host, port)
+                import mc_bin_client
+                mc = mc_bin_client.MemcachedClient(mc.host, mc.port)
                 raise
             else:
                 raise
