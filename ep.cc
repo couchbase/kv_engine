@@ -1099,9 +1099,10 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
             break;
         case ADD_NOMEM:
             if (hasPurged) {
-                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                 "Warmup dataload failure: max_size too low.\n");
-                ++stats.warmOOM;
+                if (++stats.warmOOM == 1) {
+                    getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                     "Warmup dataload failure: max_size too low.\n");
+                }
             } else {
                 getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                                  "Emergency startup purge to free space for load.\n");
