@@ -959,15 +959,15 @@ int EventuallyPersistentStore::flushOneDelOrSet(QueuedItem &qi,
         int dirtyAge = now - queued;
         bool eligible = true;
 
-        if (dirtyAge > stats.queue_age_cap.get()) {
+        if (v->isPendingId()) {
+            eligible = false;
+        } else if (dirtyAge > stats.queue_age_cap.get()) {
             stats.tooOld++;
         } else if (dataAge < stats.min_data_age.get()) {
             eligible = false;
             // Skip this one.  It's too young.
             ret = stats.min_data_age.get() - dataAge;
             stats.tooYoung++;
-        } else if (v->isPendingId()) {
-            eligible = false;
         }
 
         if (eligible) {
