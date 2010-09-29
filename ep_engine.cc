@@ -1828,28 +1828,28 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                     add_stat, cookie);
     add_casted_stat("ep_pending_ops_max", epstats.pendingOpsMax, add_stat, cookie);
     add_casted_stat("ep_pending_ops_max_duration",
-                    hrtime2text(epstats.pendingOpsMaxDuration).c_str(),
+                    epstats.pendingOpsMaxDuration,
                     add_stat, cookie);
 
     if (epstats.bgNumOperations > 0) {
         add_casted_stat("ep_bg_num_samples", epstats.bgNumOperations, add_stat, cookie);
         add_casted_stat("ep_bg_min_wait",
-                        hrtime2text(epstats.bgMinWait).c_str(),
+                        epstats.bgMinWait,
                         add_stat, cookie);
         add_casted_stat("ep_bg_max_wait",
-                        hrtime2text(epstats.bgMaxWait).c_str(),
+                        epstats.bgMaxWait,
                         add_stat, cookie);
         add_casted_stat("ep_bg_wait_avg",
-                        hrtime2text(epstats.bgWait / epstats.bgNumOperations).c_str(),
+                        epstats.bgWait / epstats.bgNumOperations,
                         add_stat, cookie);
         add_casted_stat("ep_bg_min_load",
-                        hrtime2text(epstats.bgMinLoad).c_str(),
+                        epstats.bgMinLoad,
                         add_stat, cookie);
         add_casted_stat("ep_bg_max_load",
-                        hrtime2text(epstats.bgMaxLoad).c_str(),
+                        epstats.bgMaxLoad,
                         add_stat, cookie);
         add_casted_stat("ep_bg_load_avg",
-                        hrtime2text(epstats.bgLoad / epstats.bgNumOperations).c_str(),
+                        epstats.bgLoad / epstats.bgNumOperations,
                         add_stat, cookie);
     }
 
@@ -1985,27 +1985,27 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTapStats(const void *cookie,
                     TapConnection::ackGracePeriod,
                     add_stat, cookie);
 
-    add_casted_stat("ep_tap_bg_num_samples", stats.tapBgNumOperations, add_stat, cookie);
-    add_casted_stat("ep_tap_bg_min_wait",
-                    hrtime2text(stats.tapBgMinWait).c_str(),
-                    add_stat, cookie);
-    add_casted_stat("ep_tap_bg_max_wait",
-                    hrtime2text(stats.tapBgMaxWait).c_str(),
-                    add_stat, cookie);
-    add_casted_stat("ep_tap_bg_wait_avg",
-                    stats.tapBgNumOperations > 0 ?
-                    hrtime2text(stats.tapBgWait / stats.tapBgNumOperations).c_str() : "n/a",
-                    add_stat, cookie);
-    add_casted_stat("ep_tap_bg_min_load",
-                    hrtime2text(stats.tapBgMinLoad).c_str(),
-                    add_stat, cookie);
-    add_casted_stat("ep_tap_bg_max_load",
-                    hrtime2text(stats.tapBgMaxLoad).c_str(),
-                    add_stat, cookie);
-    add_casted_stat("ep_tap_bg_load_avg",
-                    stats.tapBgNumOperations > 0 ?
-                    hrtime2text(stats.tapBgLoad / stats.tapBgNumOperations).c_str() : "n/a",
-                    add_stat, cookie);
+    if (stats.tapBgNumOperations > 0) {
+        add_casted_stat("ep_tap_bg_num_samples", stats.tapBgNumOperations, add_stat, cookie);
+        add_casted_stat("ep_tap_bg_min_wait",
+                        stats.tapBgMinWait,
+                        add_stat, cookie);
+        add_casted_stat("ep_tap_bg_max_wait",
+                        stats.tapBgMaxWait,
+                        add_stat, cookie);
+        add_casted_stat("ep_tap_bg_wait_avg",
+                        stats.tapBgWait / stats.tapBgNumOperations,
+                        add_stat, cookie);
+        add_casted_stat("ep_tap_bg_min_load",
+                        stats.tapBgMinLoad,
+                        add_stat, cookie);
+        add_casted_stat("ep_tap_bg_max_load",
+                        stats.tapBgMaxLoad,
+                        add_stat, cookie);
+        add_casted_stat("ep_tap_bg_load_avg",
+                        stats.tapBgLoad / stats.tapBgNumOperations,
+                        add_stat, cookie);
+    }
 
     return ENGINE_SUCCESS;
 }
