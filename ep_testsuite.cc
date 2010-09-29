@@ -1659,26 +1659,20 @@ static enum test_result test_tap_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
 }
 
 static enum test_result test_tap_filter_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    std::vector<std::string> keys;
-    for (int i = 0; i < 40; ++i) {
-        std::stringstream ss;
-        ss << i;
-        keys.push_back(ss.str());
-    }
-
     for (uint16_t vbid = 0; vbid < 4; ++vbid) {
         check(set_vbucket_state(h, h1, vbid, "active"),
               "Failed to set vbucket state.");
     }
 
-    std::vector<std::string>::iterator keyit;
-    uint16_t vbid = 0;
-    for (keyit = keys.begin(); keyit != keys.end(); ++keyit, ++vbid) {
-        item *i = NULL;
-        check(store(h, h1, NULL, OPERATION_SET, keyit->c_str(),
-                    "value", &i, 0, vbid % 4) == ENGINE_SUCCESS,
+    const int num_keys = 40;
+    bool keys[num_keys];
+    for (int ii = 0; ii < num_keys; ++ii) {
+        keys[ii] = false;
+        std::stringstream ss;
+        ss << ii;
+        check(store(h, h1, NULL, OPERATION_SET, ss.str().c_str(),
+                    "value", NULL, 0, ii % 4) == ENGINE_SUCCESS,
               "Failed to store an item.");
-
     }
 
     const void *cookie = testHarness.create_cookie();
@@ -1711,6 +1705,8 @@ static enum test_result test_tap_filter_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     std::string key;
     bool done = false;
 
+    uint16_t vbid;
+
     do {
         vbucket = unlikely_vbucket_identifier;
         event = iter(h, cookie, &it, &engine_specific,
@@ -1719,19 +1715,26 @@ static enum test_result test_tap_filter_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V
 
         switch (event) {
         case TAP_PAUSE:
-            if (found == 30) {
-                done = true;
+            done = true;
+            for (int ii = 0; ii < num_keys; ++ii) {
+                if ((ii % 4) != 1 && !keys[ii]) {
+                    done = false;
+                    break;
+                }
+            }
+            if (!done) {
+                testHarness.waitfor_cookie(cookie);
             }
             break;
         case TAP_NOOP:
             break;
         case TAP_MUTATION:
-            if (get_key(h, h1, it, key)) {
-                vbid = atoi(key.c_str()) % 4;
-                check(vbid == vbucket, "Incorrect vbucket id");
-                check(vbid != 1,
-                      "Received an item for a vbucket we don't subscribe to");
-            }
+            check(get_key(h, h1, it, key), "Failed to read out the key");
+            vbid = atoi(key.c_str()) % 4;
+            check(vbid == vbucket, "Incorrect vbucket id");
+            check(vbid != 1,
+                  "Received an item for a vbucket we don't subscribe to");
+            keys[atoi(key.c_str())] = true;
             ++found;
             assert(vbucket != unlikely_vbucket_identifier);
             check(verify_item(h, h1, it, NULL, 0, "value", 5) == SUCCESS,
@@ -1760,15 +1763,8 @@ static enum test_result test_tap_filter_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V
         }
     } while (!done);
 
-    if (found != 30) {
-        std::cerr << "Expected " << 30
-                  << " items in stream, got " << found << std::endl;
-        return FAIL;
-    }
-
     testHarness.unlock_cookie(cookie);
     h1->release(h, cookie, it);
-
 
     check(get_int_stat(h, h1, "eq_tapq:tap_client_thread:qlen", "tap") == 0,
           "queue should be empty");
