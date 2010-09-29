@@ -270,7 +270,7 @@ public:
 
             StoredValue *v = vb->ht.unlocked_find(vk.second, bucket_num);
             if (v) {
-                if (vb->ht.unlocked_softDelete(vk.second, bucket_num)) {
+                if (vb->ht.unlocked_softDelete(vk.second, bucket_num) == WAS_CLEAN) {
                     e->queueDirty(vk.second, vb->getId(), queue_op_del);
                 }
             }
@@ -296,7 +296,7 @@ StoredValue *EventuallyPersistentStore::fetchValidValue(RCPtr<VBucket> vb,
         return v;
     } else if (v && v->isExpired(ep_real_time())) {
         ++stats.expired;
-        if (vb->ht.unlocked_softDelete(key, bucket_num)) {
+        if (vb->ht.unlocked_softDelete(key, bucket_num) == WAS_CLEAN) {
             queueDirty(key, vb->getId(), queue_op_del);
         }
         return NULL;
