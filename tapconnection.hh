@@ -86,7 +86,6 @@ public:
         pendingBackfill = false;
 
         if (complete() && idle()) {
-            std::cout << "Complete and idle.  Disconnecting." << std::endl;
             // There is no data for this connection..
             // Just go ahead and disconnect it.
             doDisconnect = true;
