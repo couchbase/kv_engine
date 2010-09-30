@@ -1,6 +1,7 @@
 # Keep the entries sorted to reduce the risk for a merge conflict
 *.[ao]
 *.dirstamp
+*.exe
 *.gcda
 *.gcno
 *.gcov
