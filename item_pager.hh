@@ -44,15 +44,18 @@ public:
      *
      * @param s the store (where we'll visit)
      * @param st the stats
+     * @param stime number of seconds to wait between runs
      */
-    ExpiredItemPager(EventuallyPersistentStore *s, EPStats &st) :
-        store(s), stats(st) {}
+    ExpiredItemPager(EventuallyPersistentStore *s, EPStats &st,
+                     size_t stime) :
+        store(s), stats(st), sleepTime(static_cast<double>(stime)) {}
 
     bool callback(Dispatcher &d, TaskId t);
 
 private:
     EventuallyPersistentStore *store;
     EPStats                   &stats;
+    double                     sleepTime;
 };
 
 #endif /* ITEM_PAGER_HH */

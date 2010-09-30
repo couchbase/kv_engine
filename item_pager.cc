@@ -143,7 +143,7 @@ bool ExpiredItemPager::callback(Dispatcher &d, TaskId t) {
 
     getLogger()->log(EXTENSION_LOG_INFO, NULL,
                      "Purged %d expired items\n", pv.expired.size());
-    d.snooze(t, 30);
+    d.snooze(t, sleepTime);
     return true;
 }
 
