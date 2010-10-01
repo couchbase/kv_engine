@@ -25,6 +25,7 @@ ep_la_SOURCES = \
                  ep_engine.cc ep_engine.h \
                  ep_extension.cc ep_extension.h \
                  flusher.cc flusher.hh \
+                 histo.hh \
                  item.cc item.hh \
                  item_pager.cc item_pager.hh \
                  locks.hh \
@@ -57,7 +58,7 @@ endif
 libsqlite3_la_SOURCES = embedded/sqlite3.h embedded/sqlite3.c
 libsqlite3_la_CFLAGS = $(AM_CFLAGS) ${NO_WERROR}
 
-check_PROGRAMS=atomic_test atomic_ptr_test atomic_queue_test hash_table_test priority_test vbucket_test dispatcher_test misc_test hrtime_test
+check_PROGRAMS=atomic_test atomic_ptr_test atomic_queue_test hash_table_test priority_test vbucket_test dispatcher_test misc_test hrtime_test histo_test
 TESTS=${check_PROGRAMS}
 
 ep_testsuite_la_CFLAGS = $(AM_CFLAGS) ${NO_WERROR}
@@ -106,6 +107,10 @@ vbucket_test_DEPENDENCIES = vbucket.hh stored-value.cc stored-value.hh
 
 hrtime_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
 hrtime_test_SOURCES = t/hrtime_test.cc common.hh
+
+histo_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
+histo_test_SOURCES = t/histo_test.cc common.hh histo.hh
+histo_test_DEPENDENCIES = common.hh histo.hh
 
 if BUILD_GETHRTIME
 ep_la_SOURCES += gethrtime.c

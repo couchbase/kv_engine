@@ -48,5 +48,9 @@ int main(int argc, char **argv) {
     display("VBucketHolder", sizeof(VBucketHolder));
     display("VBucketMap", sizeof(VBucketMap));
     display("Stats", sizeof(EPStats));
+    display("Histogram<whatever>", sizeof(Histogram<size_t>));
+    display("HistogramBin<size_t>", sizeof(HistogramBin<size_t>));
+    display("HistogramBin<hrtime_t>", sizeof(HistogramBin<hrtime_t>));
+    display("HistogramBin<int>", sizeof(HistogramBin<int>));
     return 0;
 }
