@@ -13,6 +13,8 @@ noinst_PROGRAMS = sizes
 ep_la_CPPFLAGS = -I@MEMCACHED_DIR@/include -I$(top_srcdir) $(AM_CPPFLAGS)
 ep_la_LDFLAGS = -module -dynamic
 ep_la_SOURCES = \
+                 atomic/gcc_atomics.h \
+                 atomic/libatomic.h \
                  atomic.hh \
                  callbacks.hh \
                  command_ids.h \
@@ -59,7 +61,7 @@ check_PROGRAMS=atomic_test atomic_ptr_test atomic_queue_test hash_table_test pri
 TESTS=${check_PROGRAMS}
 
 ep_testsuite_la_CFLAGS = $(AM_CFLAGS) ${NO_WERROR}
-ep_testsuite_la_SOURCES= ep_testsuite.cc
+ep_testsuite_la_SOURCES= ep_testsuite.cc ep_testsuite.h
 ep_testsuite_la_LDFLAGS= -module -dynamic
 
 atomic_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}

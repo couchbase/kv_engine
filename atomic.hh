@@ -10,13 +10,24 @@
 
 #define MAX_THREADS 100
 
+#ifdef HAVE_ATOMIC_H
+#include "atomic/libatomic.h"
+#else
+#include "atomic/gcc_atomics.h"
+#endif
+
+extern "C" {
+   typedef void (*ThreadLocalDestructor)(void *);
+}
+
+
 /**
  * Container of thread-local data.
  */
 template<typename T>
 class ThreadLocal {
 public:
-    ThreadLocal(void (*destructor)(void *) = NULL) {
+    ThreadLocal(ThreadLocalDestructor destructor = NULL) {
         int rc = pthread_key_create(&key, destructor);
         if (rc != 0) {
             throw std::runtime_error("Failed to create a thread-specific key");
@@ -53,7 +64,7 @@ private:
 template <typename T>
 class ThreadLocalPtr : public ThreadLocal<T*> {
 public:
-    ThreadLocalPtr(void (*destructor)(void *) = NULL) : ThreadLocal<T*>(destructor) {}
+    ThreadLocalPtr(ThreadLocalDestructor destructor = NULL) : ThreadLocal<T*>(destructor) {}
 
     ~ThreadLocalPtr() {}
 
@@ -89,7 +100,7 @@ public:
 
     void set(const T &newValue) {
         value = newValue;
-        __sync_synchronize();
+        ep_sync_synchronize();
     }
 
     operator T() const {
@@ -101,43 +112,43 @@ public:
     }
 
     bool cas(const T &oldValue, const T &newValue) {
-        return __sync_bool_compare_and_swap(&value, oldValue, newValue);
+        return ep_sync_bool_compare_and_swap(&value, oldValue, newValue);
     }
 
     T operator ++() { // prefix
-        return __sync_add_and_fetch(&value, 1);
+        return ep_sync_add_and_fetch(&value, 1);
     }
 
     T operator ++(int ignored) { // postfix
         (void)ignored;
-        return __sync_fetch_and_add(&value, 1);
+        return ep_sync_fetch_and_add(&value, 1);
     }
 
     T operator --() { // prefix
-        return __sync_add_and_fetch(&value, -1);
+        return ep_sync_add_and_fetch(&value, -1);
     }
 
     T operator --(int ignored) { // postfix
         (void)ignored;
-        return __sync_fetch_and_add(&value, -1);
+        return ep_sync_fetch_and_add(&value, -1);
     }
 
     T operator +=(T increment) {
         // Returns the new value
-        return __sync_add_and_fetch(&value, increment);
+        return ep_sync_add_and_fetch(&value, increment);
     }
 
     T operator -=(T decrement) {
-        return __sync_add_and_fetch(&value, -decrement);
+        return ep_sync_add_and_fetch(&value, -decrement);
     }
 
     T incr(const T &increment) {
         // Returns the old value
-        return __sync_fetch_and_add(&value, increment);
+        return ep_sync_fetch_and_add(&value, increment);
     }
 
     T decr(const T &decrement) {
-        return __sync_add_and_fetch(&value, -decrement);
+        return ep_sync_add_and_fetch(&value, -decrement);
     }
 
     T swap(const T &newValue) {
@@ -231,7 +242,7 @@ public:
     SpinLock() : lock(0) {}
 
     bool tryAcquire() {
-        return __sync_lock_test_and_set(&lock, 1) == 0;
+       return ep_sync_lock_test_and_set(&lock, 1) == 0;
     }
 
     void acquire() {
@@ -241,7 +252,7 @@ public:
     }
 
     void release() {
-        __sync_lock_release(&lock);
+        ep_sync_lock_release(&lock);
     }
 
 private:

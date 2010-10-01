@@ -15,9 +15,9 @@
  *   limitations under the License.
  */
 
-#include <limits>
-
 #include "config.h"
+
+#include <limits>
 #include <assert.h>
 #include <fcntl.h>
 
@@ -1694,7 +1694,9 @@ static void addTapStat(const char *name, const TapConnection *tc, T val,
     char tap[80];
     assert(strlen(name) + tc->getName().size() + 2 < sizeof(tap));
     sprintf(tap, "%s:%s", tc->getName().c_str(), name);
+#ifndef __SUNPRO_CC
     add_casted_stat(tap, val, add_stat, cookie);
+#endif
 }
 
 static void addTapStat(const char *name, const TapConnection *tc, bool val,
@@ -2263,8 +2265,8 @@ void EventuallyPersistentEngine::notifyTapIoThreadMain(void) {
 
     // Signal all outstanding, paused connections.
     std::for_each(toNotify.begin(), toNotify.end(),
-                  std::bind2nd(std::ptr_fun(serverApi->cookie->notify_io_complete),
-                               ENGINE_SUCCESS));
+                  std::bind2nd(std::ptr_fun((NOTIFY_IO_COMPLETE_T)serverApi->cookie->notify_io_complete),
+                                            ENGINE_SUCCESS));
 }
 
 void EventuallyPersistentEngine::notifyTapIoThread(void) {

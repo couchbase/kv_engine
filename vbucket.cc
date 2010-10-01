@@ -3,6 +3,7 @@
 #include <functional>
 
 #include "vbucket.hh"
+#include "ep_engine.h"
 
 VBucketFilter VBucketFilter::filter_diff(const VBucketFilter &other) const {
     std::vector<uint16_t> tmp(acceptable.size() + other.size());
@@ -67,7 +68,7 @@ void VBucket::fireAllOps(SERVER_HANDLE_V1 *sapi, ENGINE_ERROR_CODE code) {
     stats.pendingOpsMax.setIfBigger(pendingOps.size());
 
     std::for_each(pendingOps.begin(), pendingOps.end(),
-                  std::bind2nd(std::ptr_fun(sapi->cookie->notify_io_complete), code));
+                  std::bind2nd(std::ptr_fun((NOTIFY_IO_COMPLETE_T)sapi->cookie->notify_io_complete), code));
     pendingOps.clear();
 
     getLogger()->log(EXTENSION_LOG_INFO, NULL,

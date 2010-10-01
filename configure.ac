@@ -56,6 +56,7 @@ AC_CHECK_HEADERS([arpa/inet.h])
 AC_CHECK_HEADERS([netdb.h])
 AC_CHECK_HEADERS([mach/mach_time.h])
 AC_CHECK_HEADERS([poll.h])
+AC_CHECK_HEADERS([atomic.h])
 
 AC_DEFUN([AC_CXX_GCC_ATOMICS],
 [

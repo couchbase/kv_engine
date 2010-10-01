@@ -27,6 +27,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <pthread.h>
 #include <netinet/in.h>
 
 #ifdef HAS_ARPA_INET_H
@@ -36,6 +37,7 @@
 #include <memcached/engine.h>
 #include <memcached/engine_testapp.h>
 
+#include "ep_testsuite.h"
 #include "command_ids.h"
 
 #ifdef linux
@@ -50,6 +52,8 @@
 #undef htonl
 #endif
 
+extern "C" {
+
 bool abort_msg(const char *expr, const char *msg, int line);
 
 #define check(expr, msg) \
@@ -57,13 +61,6 @@ bool abort_msg(const char *expr, const char *msg, int line);
 
 #define WHITESPACE_DB "whitespace sucks.db"
 
-extern "C" {
-    MEMCACHED_PUBLIC_API
-    engine_test_t* get_tests(void);
-
-    MEMCACHED_PUBLIC_API
-    bool setup_suite(struct test_harness *);
-}
 
 protocol_binary_response_status last_status(static_cast<protocol_binary_response_status>(0));
 char *last_key = NULL;
@@ -2553,6 +2550,7 @@ static enum test_result test_validate_engine_handle(ENGINE_HANDLE *h, ENGINE_HAN
     return SUCCESS;
 }
 
+MEMCACHED_PUBLIC_API
 engine_test_t* get_tests(void) {
 
     static engine_test_t tests[]  = {
@@ -2681,7 +2679,10 @@ engine_test_t* get_tests(void) {
     return tests;
 }
 
+MEMCACHED_PUBLIC_API
 bool setup_suite(struct test_harness *th) {
     testHarness = *th;
     return true;
+}
+
 }

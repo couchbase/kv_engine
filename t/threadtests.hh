@@ -48,6 +48,10 @@ static void *launch_sync_test_thread(void *arg) {
     return stt;
 }
 
+extern "C" {
+   typedef void *(*PTHREAD_MAIN)(void *);
+}
+
 template <typename T>
 class SyncTestThread {
 public:
@@ -61,7 +65,7 @@ public:
         gen(other.gen) {}
 
     void start(void) {
-        if(pthread_create(&thread, NULL, launch_sync_test_thread<T>, this) != 0) {
+        if(pthread_create(&thread, NULL, (PTHREAD_MAIN)( launch_sync_test_thread<T> ), this) != 0) {
             throw std::runtime_error("Error initializing dispatcher thread");
         }
     }

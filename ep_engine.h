@@ -42,6 +42,13 @@ extern "C" {
     void *EvpNotifyTapIo(void*arg);
 }
 
+/* We're using notify_io_complete from ptr_fun, but that func
+ * got a "C" linkage that ptr_fun doesn't like... just
+ * cast it away with this typedef ;)
+ */
+typedef void (*NOTIFY_IO_COMPLETE_T)(const void *cookie,
+                                     ENGINE_ERROR_CODE status);
+
 
 // Forward decl
 class BinaryMessage;

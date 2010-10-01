@@ -45,6 +45,8 @@ bool TestCallback::callback(Dispatcher &d, TaskId t) {
     return thing->doSomething(d, t);
 }
 
+extern "C" {
+
 static const char* test_get_logger_name(void) {
     return "dispatcher_test";
 }
@@ -56,6 +58,7 @@ static void test_get_logger_log(EXTENSION_LOG_LEVEL severity,
     (void)client_cookie;
     (void)fmt;
     // ignore
+}
 }
 
 EXTENSION_LOGGER_DESCRIPTOR* getLogger() {
