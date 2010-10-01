@@ -678,7 +678,7 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server
     memHighWat(std::numeric_limits<size_t>::max()),
     minDataAge(DEFAULT_MIN_DATA_AGE),
     queueAgeCap(DEFAULT_QUEUE_AGE_CAP),
-    itemExpiryWindow(3), expiryPagerSleeptime(3600)
+    itemExpiryWindow(3), expiryPagerSleeptime(3600), dbShards(4)
 {
     interface.interface = 1;
     ENGINE_HANDLE_V1::get_info = EvpGetInfo;
@@ -721,7 +721,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         size_t htLocks = 0;
         size_t maxSize = 0;
 
-        const int max_items = 25;
+        const int max_items = 26;
         struct config_item items[max_items];
         int ii = 0;
         memset(items, 0, sizeof(items));
@@ -840,6 +840,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         items[ii].value.dt_size = &expiryPagerSleeptime;
 
         ++ii;
+        items[ii].key = "db_shards";
+        items[ii].datatype = DT_SIZE;
+        items[ii].value.dt_size = &dbShards;
+
+        ++ii;
         items[ii].key = NULL;
 
         assert(ii < max_items);
@@ -877,7 +882,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         try {
             sqliteStrategy = new MultiDBSqliteStrategy(*this, dbname,
                                                        initFile, postInitFile,
-                                                       NUMBER_OF_SHARDS);
+                                                       dbShards);
             sqliteDb = new StrategicSqlite3(*this, sqliteStrategy);
         } catch (std::exception& e) {
             std::stringstream ss;
@@ -1816,6 +1821,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
 
     add_casted_stat("ep_dbname", dbname, add_stat, cookie);
     add_casted_stat("ep_dbinit", databaseInitTime, add_stat, cookie);
+    add_casted_stat("ep_dbshards", dbShards, add_stat, cookie);
     add_casted_stat("ep_warmup", warmup ? "true" : "false",
                     add_stat, cookie);
 

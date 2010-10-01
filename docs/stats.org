@@ -67,6 +67,7 @@
 | ep_total_cache_size           | The total size of all items in the cache  |
 | ep_dbname                     | DB path.                                  |
 | ep_dbinit                     | Number of seconds to initialize DB.       |
+| ep_dbshards                   | Number of shards for db store             |
 | ep_warmup                     | true if warmup is enabled.                |
 | ep_warmup_thread              | Warmup thread status.                     |
 | ep_warmed_up                  | Number of items warmed up.                |

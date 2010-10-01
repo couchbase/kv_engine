@@ -24,7 +24,6 @@
 #include "tapconnection.hh"
 
 
-#define NUMBER_OF_SHARDS 4
 #define DEFAULT_TAP_IDLE_TIMEOUT 600
 
 #ifndef DEFAULT_MIN_DATA_AGE
@@ -749,6 +748,7 @@ private:
     size_t queueAgeCap;
     size_t itemExpiryWindow;
     size_t expiryPagerSleeptime;
+    size_t dbShards;
     EPStats stats;
 };
 

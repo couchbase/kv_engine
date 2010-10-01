@@ -53,4 +53,5 @@ memcached like this:
 |                   |        | objects from memory and disk                  |
 | failpartialwarmup | bool   | If false, continue running after failing to   |
 |                   |        | load some records.                            |
+| db_shards         | int    | Number of shards for db store                 |
 
