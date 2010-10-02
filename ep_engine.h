@@ -675,6 +675,7 @@ private:
     ENGINE_ERROR_CODE doVBucketStats(const void *cookie, ADD_STAT add_stat);
     ENGINE_ERROR_CODE doHashStats(const void *cookie, ADD_STAT add_stat);
     ENGINE_ERROR_CODE doTapStats(const void *cookie, ADD_STAT add_stat);
+    ENGINE_ERROR_CODE doTimingStats(const void *cookie, ADD_STAT add_stat);
     ENGINE_ERROR_CODE doKeyStats(const void *cookie, ADD_STAT add_stat,
                                  uint16_t vbid, std::string &key, bool validate=false);
 

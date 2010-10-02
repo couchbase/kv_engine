@@ -1689,6 +1689,27 @@ static void add_casted_stat(const char *k, const Atomic<T> &v,
 }
 
 template <typename T>
+struct histo_stat_adder {
+    histo_stat_adder(const char *k, ADD_STAT a, const void *c)
+        : prefix(k), add_stat(a), cookie(c) {}
+    void operator() (const HistogramBin<T>* b) {
+        std::stringstream ss;
+        ss << prefix << "_" << b->start() << "," << b->end();
+        add_casted_stat(ss.str().c_str(), b->count(), add_stat, cookie);
+    }
+    const char *prefix;
+    ADD_STAT add_stat;
+    const void *cookie;
+};
+
+template <typename T>
+static void add_casted_stat(const char *k, const Histogram<T> &v,
+                            ADD_STAT add_stat, const void *cookie) {
+    histo_stat_adder<T> a(k, add_stat, cookie);
+    std::for_each(v.begin(), v.end(), a);
+}
+
+template <typename T>
 static void addTapStat(const char *name, const TapConnection *tc, T val,
                        ADD_STAT add_stat, const void *cookie) {
     char tap[80];
@@ -2096,6 +2117,17 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doKeyStats(const void *cookie,
     return rv;
 }
 
+
+ENGINE_ERROR_CODE EventuallyPersistentEngine::doTimingStats(const void *cookie,
+                                                            ADD_STAT add_stat) {
+    add_casted_stat("bg_wait", stats.bgWaitHisto, add_stat, cookie);
+    add_casted_stat("bg_load", stats.bgLoadHisto, add_stat, cookie);
+    add_casted_stat("bg_tap_wait", stats.tapBgWaitHisto, add_stat, cookie);
+    add_casted_stat("bg_tap_load", stats.tapBgLoadHisto, add_stat, cookie);
+    add_casted_stat("pending_ops", stats.pendingOpsHisto, add_stat, cookie);
+    return ENGINE_SUCCESS;
+}
+
 ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
                                                        const char* stat_key,
                                                        int nkey,
@@ -2109,6 +2141,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
         rv = doHashStats(cookie, add_stat);
     } else if (nkey == 7 && strncmp(stat_key, "vbucket", 7) == 0) {
         rv = doVBucketStats(cookie, add_stat);
+    } else if (nkey == 7 && strncmp(stat_key, "timings", 7) == 0) {
+        rv = doTimingStats(cookie, add_stat);
     } else if (nkey > 4 && strncmp(stat_key, "key ", 4) == 0) {
         std::string key;
         std::string vbid;

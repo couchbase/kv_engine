@@ -529,11 +529,13 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
         // skip the measurement if the counter wrapped...
         ++stats.bgNumOperations;
         hrtime_t w = (start - init) / 1000;
+        stats.bgWaitHisto.add(w);
         stats.bgWait += w;
         stats.bgMinWait.setIfLess(w);
         stats.bgMaxWait.setIfBigger(w);
 
         hrtime_t l = (stop - start) / 1000;
+        stats.bgLoadHisto.add(l);
         stats.bgLoad += l;
         stats.bgMinLoad.setIfLess(l);
         stats.bgMaxLoad.setIfBigger(l);

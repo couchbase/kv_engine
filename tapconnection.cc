@@ -343,11 +343,13 @@ public:
             ++stats.tapBgNumOperations;
             hrtime_t w = (start - init) / 1000;
             stats.tapBgWait += w;
+            stats.tapBgWaitHisto.add(w);
             stats.tapBgMinWait.setIfLess(w);
             stats.tapBgMaxWait.setIfBigger(w);
 
             hrtime_t l = (stop - start) / 1000;
             stats.tapBgLoad += l;
+            stats.tapBgLoadHisto.add(l);
             stats.tapBgMinLoad.setIfLess(l);
             stats.tapBgMaxLoad.setIfBigger(l);
         }

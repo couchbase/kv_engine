@@ -60,6 +60,7 @@ void VBucket::fireAllOps(SERVER_HANDLE_V1 *sapi, ENGINE_ERROR_CODE code) {
         hrtime_t now = gethrtime();
         if (now > pendingOpsStart) {
             hrtime_t d = (now - pendingOpsStart) / 1000;
+            stats.pendingOpsHisto.add(d);
             stats.pendingOpsMaxDuration.setIfBigger(d);
         }
     }

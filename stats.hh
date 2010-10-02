@@ -6,6 +6,7 @@
 
 #include "common.hh"
 #include "atomic.hh"
+#include "histo.hh"
 
 #ifndef DEFAULT_MAX_DATA_SIZE
 /* Something something something ought to be enough for anybody */
@@ -138,6 +139,9 @@ public:
     //! High water value for time an op is blocked on a pending vbucket
     Atomic<hrtime_t> pendingOpsMaxDuration;
 
+    //! Histogram of pending operation wait times.
+    Histogram<hrtime_t> pendingOpsHisto;
+
     //! The number of samples the bgWaitDelta and bgLoadDelta contains of
     Atomic<uint64_t> bgNumOperations;
     /** The sum of the deltas (in usec) from an item was put in queue until
@@ -149,6 +153,9 @@ public:
     //! The longest wait time
     Atomic<hrtime_t> bgMaxWait;
 
+    //! Histogram of background wait times.
+    Histogram<hrtime_t> bgWaitHisto;
+
     /** The sum of the deltas (in usec) from the dispatcher started to load
      *  item until was done
      */
@@ -157,6 +164,9 @@ public:
     Atomic<hrtime_t> bgMinLoad;
     //! The longest load time
     Atomic<hrtime_t> bgMaxLoad;
+
+    //! Histogram of background wait loads.
+    Histogram<hrtime_t> bgLoadHisto;
 
     /* TAP related stats */
     //! The total number of tap events sent (not including noops)
@@ -178,6 +188,9 @@ public:
     //! The longest tap bg wait time
     Atomic<hrtime_t> tapBgMaxWait;
 
+    //! Histogram of tap background wait loads.
+    Histogram<hrtime_t> tapBgWaitHisto;
+
     /** The sum of the deltas (in usec) from the dispatcher started to load
      *  a tap item until was done
      */
@@ -186,6 +199,9 @@ public:
     Atomic<hrtime_t> tapBgMinLoad;
     //! The longest tap load time
     Atomic<hrtime_t> tapBgMaxLoad;
+
+    //! Histogram of tap background wait loads.
+    Histogram<hrtime_t> tapBgLoadHisto;
 
 private:
 
