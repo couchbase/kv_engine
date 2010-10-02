@@ -158,16 +158,17 @@ public:
     /**
      * Get a FixedInputGenerator with the given sequence of bin starts.
      */
-    ExponentialGenerator(T start, int power)
+    ExponentialGenerator(uint64_t start, double power)
         : _start(start), _power(power) {}
 
     HistogramBin<T>* operator () () {
-        return new HistogramBin<T>(std::pow(static_cast<double>(_power), _start),
-                                   std::pow(static_cast<double>(_power), ++_start));
+        T start = static_cast<T>(std::pow(_power, static_cast<double>(_start)));
+        T end = static_cast<T>(std::pow(_power, static_cast<double>(++_start)));
+        return new HistogramBin<T>(start, end);
     }
 private:
-    T   _start;
-    int _power;
+    uint64_t _start;
+    double   _power;
 };
 
 /**
@@ -194,7 +195,7 @@ public:
      * @param n how many bins this histogram should contain.
      */
     Histogram(size_t n=25) : bins(n) {
-        GrowingWidthGenerator<T> generator(0, 10);
+        ExponentialGenerator<T> generator(0, 2.0);
         fill(generator);
     }
 
@@ -276,7 +277,7 @@ private:
 
     template <typename G>
     void fill(G &generator) {
-            std::generate(bins.begin(), bins.end(), generator);
+        std::generate(bins.begin(), bins.end(), generator);
 
         // If there will not naturally be one, create a bin for the
         // smallest possible value

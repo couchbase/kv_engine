@@ -69,7 +69,7 @@ static void test_fixed_input() {
 }
 
 static void test_exponential() {
-    ExponentialGenerator<int> gen(0, 10);
+    ExponentialGenerator<int> gen(0, 10.0);
     Histogram<int> histo(gen, 5);
     std::string expected("{Histogram: [-2147483648, 1) = 0, [1, 10) = 0, "
                          "[10, 100) = 0, [100, 1000) = 0, [1000, 10000) = 0, "
