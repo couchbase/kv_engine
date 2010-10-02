@@ -261,15 +261,15 @@ public:
     /**
      * Get an iterator from the beginning of a histogram bin.
      */
-    iterator begin() {
-        return iterator(bins.begin());
+    iterator begin() const {
+        return iterator(const_cast<Histogram<T>*>(this)->bins.begin());
     }
 
     /**
      * Get the iterator at the end of the histogram bin.
      */
-    iterator end() {
-        return iterator(bins.end());
+    iterator end() const {
+        return iterator(const_cast<Histogram<T>*>(this)->bins.end());
     }
 
 private:
