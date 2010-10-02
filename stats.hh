@@ -231,6 +231,22 @@ public:
     //! Histogram of tap vbucket set timings.
     Histogram<hrtime_t> tapVbucketSetHisto;
 
+    //
+    // DB timers.
+    //
+
+    //! Histogram of set/update disk writes
+    Histogram<hrtime_t> diskSetHisto;
+
+    //! Histogram of delete disk writes
+    Histogram<hrtime_t> diskDelHisto;
+
+    //! Histogram of disk vbucket deletions
+    Histogram<hrtime_t> diskVBDelHisto;
+
+    //! Histogram of disk commits
+    Histogram<hrtime_t> diskCommitHisto;
+
 private:
 
     DISALLOW_COPY_AND_ASSIGN(EPStats);

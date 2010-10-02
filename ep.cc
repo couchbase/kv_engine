@@ -453,6 +453,7 @@ void EventuallyPersistentStore::completeVBucketDeletion(uint16_t vbid) {
     RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
     if (!vb || vb->getState() == dead || vbuckets.isBucketDeletion(vbid)) {
         lh.unlock();
+        BlockTimer timer(&stats.diskVBDelHisto);
         if (underlying->delVBucket(vbid)) {
             vbuckets.setBucketDeletion(vbid, false);
             ++stats.vbucketDeletions;
@@ -821,6 +822,7 @@ int EventuallyPersistentStore::flushSome(std::queue<QueuedItem> *q,
         ++stats.flusherPreempts;
     }
     rel_time_t cstart = ep_current_time();
+    BlockTimer timer(&stats.diskCommitHisto);
     while (!underlying->commit()) {
         sleep(1);
         stats.commitFailed++;
@@ -1026,10 +1028,12 @@ int EventuallyPersistentStore::flushOneDelOrSet(QueuedItem &qi,
             stats.totalEnqueued++;
             stats.queue_size = towrite.size();
         } else {
+            BlockTimer timer(&stats.diskSetHisto);
             Requeuer cb(qi, rejectQueue, this, queued, dirtied, &stats);
             underlying->set(*val, cb);
         }
     } else if (deleted) {
+        BlockTimer timer(&stats.diskDelHisto);
         Requeuer cb(qi, rejectQueue, this, queued, dirtied, &stats);
         underlying->del(qi.getKey(), rowid, cb);
     }
