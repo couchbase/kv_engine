@@ -20,6 +20,7 @@
 #include "stored-value.hh"
 #include "ep.hh"
 #include "vbucket.hh"
+#include "histo.hh"
 
 static void display(const char *name, size_t size) {
     std::cout << name << "\t" << size << std::endl;
