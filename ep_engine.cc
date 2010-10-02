@@ -1707,9 +1707,11 @@ struct histo_stat_adder {
     histo_stat_adder(const char *k, ADD_STAT a, const void *c)
         : prefix(k), add_stat(a), cookie(c) {}
     void operator() (const HistogramBin<T>* b) {
-        std::stringstream ss;
-        ss << prefix << "_" << b->start() << "," << b->end();
-        add_casted_stat(ss.str().c_str(), b->count(), add_stat, cookie);
+        if (b->count()) {
+            std::stringstream ss;
+            ss << prefix << "_" << b->start() << "," << b->end();
+            add_casted_stat(ss.str().c_str(), b->count(), add_stat, cookie);
+        }
     }
     const char *prefix;
     ADD_STAT add_stat;
