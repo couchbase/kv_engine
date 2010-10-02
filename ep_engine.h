@@ -609,12 +609,9 @@ private:
 
     bool populateEvents();
 
-    void addEvent(const std::string &str, uint16_t vbid, enum queue_operation op)
-    {
-
-        LockHolder lh(tapNotificationList.mutex);
-        tapNotificationList.events.push_back(QueuedItem(str, vbid, op));
-        tapNotifySync.notify();
+    void addEvent(const std::string &str, uint16_t vbid,
+                  enum queue_operation op) {
+        pendingTapNotifications.push(QueuedItem(str, vbid, op));
     }
 
     void addMutationEvent(Item *it, uint16_t vbid) {
@@ -735,10 +732,7 @@ private:
     size_t nextTapNoop;
     pthread_t notifyThreadId;
     bool startedEngineThreads;
-    struct {
-        Mutex mutex;
-        std::list<QueuedItem> events;
-    } tapNotificationList;
+    AtomicQueue<QueuedItem> pendingTapNotifications;
     SyncObject tapNotifySync;
     volatile bool shutdown;
     GET_SERVER_API getServerApiFunc;

@@ -2249,25 +2249,20 @@ void EventuallyPersistentEngine::resetStats()
 }
 
 bool EventuallyPersistentEngine::populateEvents() {
-    LockHolder lnlist(tapNotificationList.mutex);
-    if (tapNotificationList.events.empty()) {
-        return true;
-    }
+    std::queue<QueuedItem> q;
+    pendingTapNotifications.getAll(q);
 
-    std::list<TapConnection*>::iterator i;
-    for (i = allTaps.begin(); i != allTaps.end(); i++) {
-        TapConnection *tc = *i;
-        if (!tc->dumpQueue) {
-            std::list<QueuedItem>::iterator e;
-            for (e = tapNotificationList.events.begin();
-                 e != tapNotificationList.events.end();
-                 ++e) {
-                tc->addEvent(*e);
+    while (!q.empty()) {
+        QueuedItem qi = q.front();
+        q.pop();
+        std::list<TapConnection*>::iterator i;
+        for (i = allTaps.begin(); i != allTaps.end(); i++) {
+            TapConnection *tc = *i;
+            if (!tc->dumpQueue) {
+                tc->addEvent(qi);
             }
         }
     }
-
-    tapNotificationList.events.clear();
 
     return false;
 }
