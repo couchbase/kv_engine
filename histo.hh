@@ -325,6 +325,29 @@ private:
     DISALLOW_COPY_AND_ASSIGN(Histogram);
 };
 
+/**
+ * Times blocks automatically and records the values in a histogram.
+ */
+class BlockTimer {
+public:
+
+    /**
+     * Get a BlockTimer that will store its values in the given
+     * histogram.
+     *
+     * @param d the histogram that will hold the result
+     */
+    BlockTimer(Histogram<hrtime_t> *d) : dest(d), start(gethrtime()) {}
+
+    ~BlockTimer() {
+        dest->add((gethrtime() - start) / 1000);
+    }
+
+private:
+    Histogram<hrtime_t> *dest;
+    hrtime_t             start;
+};
+
 // How to print a bin.
 template <typename T>
 std::ostream& operator <<(std::ostream &out, const HistogramBin<T> &b) {
