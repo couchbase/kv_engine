@@ -177,6 +177,7 @@ public:
                           const int nkey,
                           uint16_t vbucket)
     {
+        BlockTimer timer(&stats.getCmdHisto);
         std::string k(static_cast<const char*>(key), nkey);
 
         GetValue gv(epstore->get(k, vbucket, cookie, serverApi->core));
@@ -214,6 +215,7 @@ public:
                                  uint64_t *result,
                                  uint16_t vbucket)
     {
+        BlockTimer timer(&stats.arithCmdHisto);
         item *it = NULL;
 
         rel_time_t expiretime = (exptime == 0 ||

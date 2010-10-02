@@ -203,6 +203,34 @@ public:
     //! Histogram of tap background wait loads.
     Histogram<hrtime_t> tapBgLoadHisto;
 
+    //
+    // Command timers
+    //
+
+    //! Histogram of getvbucket timings
+    Histogram<hrtime_t> getVbucketCmdHisto;
+
+    //! Histogram of setvbucket timings
+    Histogram<hrtime_t> setVbucketCmdHisto;
+
+    //! Histogram of delvbucket timings
+    Histogram<hrtime_t> delVbucketCmdHisto;
+
+    //! Histogram of get commands.
+    Histogram<hrtime_t> getCmdHisto;
+
+    //! Histogram of store commands.
+    Histogram<hrtime_t> storeCmdHisto;
+
+    //! Histogram of arithmetic commands.
+    Histogram<hrtime_t> arithCmdHisto;
+
+    //! Histogram of tap mutation timings.
+    Histogram<hrtime_t> tapMutationHisto;
+
+    //! Histogram of tap vbucket set timings.
+    Histogram<hrtime_t> tapVbucketSetHisto;
+
 private:
 
     DISALLOW_COPY_AND_ASSIGN(EPStats);

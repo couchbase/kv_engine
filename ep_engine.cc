@@ -483,6 +483,7 @@ extern "C" {
         const char *msg = NULL;
 
         EventuallyPersistentEngine *h = getHandle(handle);
+        EPStats &stats = h->getEpStats();
 
         switch (request->request.opcode) {
         case CMD_STOP_PERSISTENCE:
@@ -492,17 +493,26 @@ extern "C" {
             res = startFlusher(h, &msg);
             break;
         case CMD_DEL_VBUCKET:
-            res = deleteVBucket(h, request, &msg);
+            {
+                BlockTimer timer(&stats.delVbucketCmdHisto);
+                res = deleteVBucket(h, request, &msg);
+            }
             break;
         case CMD_SET_FLUSH_PARAM:
         case CMD_SET_TAP_PARAM:
             res = setParam(h, request, &msg);
             break;
         case CMD_GET_VBUCKET:
-            res = getVbucket(h, request, &msg);
+            {
+                BlockTimer timer(&stats.getVbucketCmdHisto);
+                res = getVbucket(h, request, &msg);
+            }
             break;
         case CMD_SET_VBUCKET:
-            res = setVbucket(h, request, &msg);
+            {
+                BlockTimer timer(&stats.setVbucketCmdHisto);
+                res = setVbucket(h, request, &msg);
+            }
             break;
         case CMD_EVICT_KEY:
             res = evictKey(h, request, &msg);
@@ -977,6 +987,7 @@ ENGINE_ERROR_CODE  EventuallyPersistentEngine::store(const void *cookie,
                                                      ENGINE_STORE_OPERATION operation,
                                                      uint16_t vbucket)
 {
+    BlockTimer timer(&stats.storeCmdHisto);
     ENGINE_ERROR_CODE ret;
     Item *it = static_cast<Item*>(itm);
     item *i = NULL;
@@ -1412,6 +1423,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
 
     case TAP_MUTATION:
         {
+            BlockTimer timer(&stats.tapMutationHisto);
             // We don't get the trailing CRLF in tap mutation but should store it
             // to satisfy memcached expectations.
             //
@@ -1443,6 +1455,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
 
     case TAP_VBUCKET_SET:
         {
+            BlockTimer timer(&stats.tapVbucketSetHisto);
+
             if (nengine != sizeof(vbucket_state_t)) {
                 // illegal datasize
                 return ENGINE_DISCONNECT;
@@ -2125,6 +2139,19 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTimingStats(const void *cookie,
     add_casted_stat("bg_tap_wait", stats.tapBgWaitHisto, add_stat, cookie);
     add_casted_stat("bg_tap_load", stats.tapBgLoadHisto, add_stat, cookie);
     add_casted_stat("pending_ops", stats.pendingOpsHisto, add_stat, cookie);
+
+    // Regular commands
+    add_casted_stat("get_cmd", stats.getCmdHisto, add_stat, cookie);
+    add_casted_stat("store_cmd", stats.storeCmdHisto, add_stat, cookie);
+    add_casted_stat("arith_cmd", stats.arithCmdHisto, add_stat, cookie);
+    // Admin commands
+    add_casted_stat("get_vb_cmd", stats.getVbucketCmdHisto, add_stat, cookie);
+    add_casted_stat("set_vb_cmd", stats.setVbucketCmdHisto, add_stat, cookie);
+    add_casted_stat("del_vb_cmd", stats.delVbucketCmdHisto, add_stat, cookie);
+    // Tap commands
+    add_casted_stat("tap_vb_set", stats.tapVbucketSetHisto, add_stat, cookie);
+    add_casted_stat("tap_mutation", stats.tapMutationHisto, add_stat, cookie);
+
     return ENGINE_SUCCESS;
 }
 
