@@ -247,6 +247,10 @@ bool EventuallyPersistentStore::resumeFlusher() {
     return true;
 }
 
+RCPtr<VBucket> EventuallyPersistentStore::getVBucket(uint16_t vbucket) {
+    return vbuckets.getBucket(vbucket);
+}
+
 RCPtr<VBucket> EventuallyPersistentStore::getVBucket(uint16_t vbid,
                                                      vbucket_state_t wanted_state) {
     RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
@@ -412,10 +416,6 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::add(const Item &item,
     default:
         return ENGINE_SUCCESS;
     }
-}
-
-RCPtr<VBucket> EventuallyPersistentStore::getVBucket(uint16_t vbucket) {
-    return vbuckets.getBucket(vbucket);
 }
 
 void EventuallyPersistentStore::completeSetVBState(uint16_t vbid, const std::string &key) {
