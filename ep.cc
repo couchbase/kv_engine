@@ -839,13 +839,13 @@ int EventuallyPersistentStore::flushSome(std::queue<QueuedItem> *q,
 // EventuallyPersistentStore::flushOne so that an object can be
 // requeued in case of failure to store in the underlying layer.
 
-class Requeuer : public Callback<std::pair<bool, int64_t> >,
-                 public Callback<int> {
+class PersistenceCallback : public Callback<std::pair<bool, int64_t> >,
+                            public Callback<int> {
 public:
 
-    Requeuer(const QueuedItem &qi, std::queue<QueuedItem> *q,
-             EventuallyPersistentStore *st,
-             rel_time_t qd, rel_time_t d, struct EPStats *s) :
+    PersistenceCallback(const QueuedItem &qi, std::queue<QueuedItem> *q,
+                        EventuallyPersistentStore *st,
+                        rel_time_t qd, rel_time_t d, struct EPStats *s) :
         queuedItem(qi), rq(q), store(st), queued(qd), dirtied(d), stats(s) {
         assert(rq);
         assert(s);
@@ -937,7 +937,7 @@ private:
     rel_time_t queued;
     rel_time_t dirtied;
     struct EPStats *stats;
-    DISALLOW_COPY_AND_ASSIGN(Requeuer);
+    DISALLOW_COPY_AND_ASSIGN(PersistenceCallback);
 };
 
 int EventuallyPersistentStore::flushOneDeleteAll() {
@@ -1029,12 +1029,12 @@ int EventuallyPersistentStore::flushOneDelOrSet(QueuedItem &qi,
             stats.queue_size = towrite.size();
         } else {
             BlockTimer timer(&stats.diskSetHisto);
-            Requeuer cb(qi, rejectQueue, this, queued, dirtied, &stats);
+            PersistenceCallback cb(qi, rejectQueue, this, queued, dirtied, &stats);
             underlying->set(*val, cb);
         }
     } else if (deleted) {
         BlockTimer timer(&stats.diskDelHisto);
-        Requeuer cb(qi, rejectQueue, this, queued, dirtied, &stats);
+        PersistenceCallback cb(qi, rejectQueue, this, queued, dirtied, &stats);
         underlying->del(qi.getKey(), rowid, cb);
     }
 

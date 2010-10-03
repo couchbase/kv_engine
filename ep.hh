@@ -412,7 +412,7 @@ private:
     friend class BGFetchCallback;
     friend class VKeyStatBGFetchCallback;
     friend class TapConnection;
-    friend class Requeuer;
+    friend class PersistenceCallback;
     friend class Deleter;
 
     EventuallyPersistentEngine &engine;
