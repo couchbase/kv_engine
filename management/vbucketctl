@@ -2,20 +2,20 @@
 
 import clitool
 
-def listvb(mc, auth="none", username="", password=""):
-    if auth == "sasl":
+def listvb(mc, username=None, password=""):
+    if username:
         mc.sasl_auth_plain(username, password)
     vbs = mc.stats('vbucket')
     for (vb, state) in sorted(list(vbs.items())):
         print "vbucket", vb[3:], state
 
-def setvb(mc, vbid, vbstate, auth="none", username="", password=""):
-    if auth == "sasl":
+def setvb(mc, vbid, vbstate, username=None, password=""):
+    if username:
         mc.sasl_auth_plain(username, password)
     mc.set_vbucket_state(vbid, vbstate)
 
-def rmvb(mc, vbid, auth="none", username="", password=""):
-    if auth == "sasl":
+def rmvb(mc, vbid, username=None, password=""):
+    if username:
         mc.sasl_auth_plain(username, password)
     mc.delete_vbucket(vbid)
 
@@ -23,8 +23,8 @@ if __name__ == '__main__':
 
     c = clitool.CliTool()
 
-    c.addCommand('list', listvb, 'list sasl [username] [password]')
-    c.addCommand('set', setvb, 'set [vbid] [vbstate] sasl [username] [password]')
-    c.addCommand('rm', rmvb, 'rm [vbid] sasl [username] [password]')
+    c.addCommand('list', listvb, 'list [username password]')
+    c.addCommand('set', setvb, 'set vbid vbstate [username password]')
+    c.addCommand('rm', rmvb, 'rm vbid [username password]')
 
     c.execute()
