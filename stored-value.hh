@@ -74,7 +74,8 @@ public:
      * Mark this item as needing to be persisted.
      */
     void markDirty() {
-        reDirty(ep_current_time());
+        dirtiness = ep_current_time() >> 2;
+        _isDirty = 1;
     }
 
     /**
@@ -88,6 +89,7 @@ public:
     void reDirty(rel_time_t dataAge) {
         dirtiness = dataAge >> 2;
         _isDirty = 1;
+        clearPendingId();
     }
 
     // returns time this object was dirtied.
@@ -381,6 +383,15 @@ public:
         assert(!hasId());
         assert(!isPendingId());
         id = -2;
+    }
+
+    /**
+     * If we're still in a pending ID state, clear the state.
+     */
+    void clearPendingId() {
+        if (isPendingId()) {
+            id = -1;
+        }
     }
 
     /**
