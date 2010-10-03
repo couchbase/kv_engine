@@ -9,21 +9,21 @@ def stats_formatter(stats, prefix=" ", cmp=None):
         s = stat + ":"
         print "%s%s%s" % (prefix, s.ljust(longest), val)
 
-def stats_vkey(mc, key, vb, auth="none", username="", password=""):
-    if auth == "sasl":
+def stats_vkey(mc, key, vb, username=None, password=''):
+    if username:
         mc.sasl_auth_plain(username, password)
     cmd = "vkey %s %s" % (key, str(vb))
     vbs = mc.stats(cmd)
     print "verification for key", key
     stats_formatter(vbs)
 
-def stats_all(mc, auth="none", username="", password=""):
-    if auth == "sasl":
+def stats_all(mc, username=None, password=''):
+    if username:
         mc.sasl_auth_plain(username, password)
     stats_formatter(mc.stats())
 
-def stats_timings(mc, auth="none", username="", password=""):
-    if auth == "sasl":
+def stats_timings(mc, username=None, password=''):
+    if username:
         mc.sasl_auth_plain(username, password)
     def timing_stat_cmp(a, b):
         def parts(x):
@@ -38,13 +38,13 @@ def stats_timings(mc, auth="none", username="", password=""):
             return cmp(aname, bname)
     stats_formatter(mc.stats('timings'), ' ', timing_stat_cmp)
 
-def stats_tap(mc, auth="none", username="", password=""):
-    if auth == "sasl":
+def stats_tap(mc, username=None, password=''):
+    if username:
         mc.sasl_auth_plain(username, password)
     stats_formatter(mc.stats('tap'))
 
-def stats_hash(mc, auth="none", username="", password=""):
-    if auth == "sasl":
+def stats_hash(mc, username=None, password=''):
+    if username:
         mc.sasl_auth_plain(username, password)
     stats_formatter(mc.stats('hash'))
 
@@ -52,10 +52,10 @@ if __name__ == '__main__':
 
     c = clitool.CliTool()
 
-    c.addCommand('vkey', stats_vkey, 'vkey keyname vbid sasl [username] [password]')
-    c.addCommand('all', stats_all, 'all sasl [username] [password]')
-    c.addCommand('hash', stats_hash, 'hash sasl [username] [password]')
-    c.addCommand('tap', stats_tap, 'tap sasl [username] [password]')
-    c.addCommand('timings', stats_timings, 'tap sasl [username] [password]')
+    c.addCommand('vkey', stats_vkey, 'vkey keyname vbid [username password]')
+    c.addCommand('all', stats_all, 'all [username password]')
+    c.addCommand('hash', stats_hash, 'hash [username password]')
+    c.addCommand('tap', stats_tap, 'tap [username password]')
+    c.addCommand('timings', stats_timings, 'tap [username password]')
 
     c.execute()
