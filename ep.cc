@@ -474,6 +474,7 @@ bool EventuallyPersistentStore::deleteVBucket(uint16_t vbid) {
 
     RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
     if (vb && vb->getState() == dead) {
+        lh.unlock();
         vbuckets.setBucketDeletion(vbid, true);
         HashTableStatVisitor statvis(vbuckets.removeBucket(vbid));
         stats.numNonResident.decr(statvis.numNonResident);
