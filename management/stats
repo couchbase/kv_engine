@@ -3,9 +3,9 @@
 import clitool
 import sys
 
-def stats_formatter(stats, prefix=" "):
+def stats_formatter(stats, prefix=" ", cmp=None):
     longest = max((len(x) + 2) for x in stats.keys())
-    for stat, val in sorted(stats.items()):
+    for stat, val in sorted(stats.items(), cmp=cmp):
         s = stat + ":"
         print "%s%s%s" % (prefix, s.ljust(longest), val)
 
@@ -21,6 +21,22 @@ def stats_all(mc, auth="none", username="", password=""):
     if auth == "sasl":
         mc.sasl_auth_plain(username, password)
     stats_formatter(mc.stats())
+
+def stats_timings(mc, auth="none", username="", password=""):
+    if auth == "sasl":
+        mc.sasl_auth_plain(username, password)
+    def timing_stat_cmp(a, b):
+        def parts(x):
+            xa = x.split('_')
+            st = '_'.join(xa[0:-1])
+            return st, int(xa[-1].split(',')[0])
+        aname, asz = parts(a[0])
+        bname, bsz = parts(b[0])
+        if aname == bname:
+            return cmp(asz, bsz)
+        else:
+            return cmp(aname, bname)
+    stats_formatter(mc.stats('timings'), ' ', timing_stat_cmp)
 
 def stats_tap(mc, auth="none", username="", password=""):
     if auth == "sasl":
@@ -40,5 +56,6 @@ if __name__ == '__main__':
     c.addCommand('all', stats_all, 'all sasl [username] [password]')
     c.addCommand('hash', stats_hash, 'hash sasl [username] [password]')
     c.addCommand('tap', stats_tap, 'tap sasl [username] [password]')
+    c.addCommand('timings', stats_timings, 'tap sasl [username] [password]')
 
     c.execute()
