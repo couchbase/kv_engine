@@ -112,6 +112,6 @@ if __name__ == '__main__':
     c.addCommand('all', stats_all, 'all [username password]')
     c.addCommand('hash', stats_hash, 'hash [username password]')
     c.addCommand('tap', stats_tap, 'tap [username password]')
-    c.addCommand('timings', stats_timings, 'tap [username password]')
+    c.addCommand('timings', stats_timings, 'timings [username password]')
 
     c.execute()
