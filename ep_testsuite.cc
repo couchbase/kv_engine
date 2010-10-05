@@ -299,7 +299,7 @@ static void evict_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
           "Expected success evicting key.");
 
-    if (msg != NULL && strcmp(last_key, msg) != 0) {
+    if (msg != NULL && strcmp(last_body, msg) != 0) {
         fprintf(stderr, "Expected evict to return ``%s'', but it returned ``%s''\n",
                 msg, last_key);
         abort();
@@ -348,12 +348,12 @@ static bool verify_vbucket_state(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     if (last_status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
         if (!mute) {
             fprintf(stderr, "Last protocol status was %d (%s)\n",
-                    last_status, last_key ? last_key : "unknown");
+                    last_status, last_body ? last_body : "unknown");
         }
         return false;
     }
 
-    return strncmp(expected, last_key, strlen(expected)) == 0;
+    return strncmp(expected, last_body, strlen(expected)) == 0;
 }
 
 static bool verify_vbucket_missing(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,

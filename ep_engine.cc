@@ -477,7 +477,6 @@ extern "C" {
         (void)cookie;
         (void)request;
 
-        bool handled = true;
         protocol_binary_response_status res =
             PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND;
         const char *msg = NULL;
@@ -517,23 +516,13 @@ extern "C" {
         case CMD_EVICT_KEY:
             res = evictKey(h, request, &msg);
             break;
-        default:
-            /* unknown command */
-            handled = false;
-            break;
         }
 
-        if (handled) {
-            size_t msg_size = msg ? strlen(msg) : 0;
-            response(msg, static_cast<uint16_t>(msg_size),
-                     NULL, 0, NULL, 0,
-                     PROTOCOL_BINARY_RAW_BYTES,
-                     static_cast<uint16_t>(res), 0, cookie);
-        } else {
-            response(NULL, 0, NULL, 0, NULL, 0,
-                     PROTOCOL_BINARY_RAW_BYTES,
-                     PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND, 0, cookie);
-        }
+        size_t msg_size = msg ? strlen(msg) : 0;
+        response(NULL, 0, NULL, 0,
+                 msg, static_cast<uint16_t>(msg_size),
+                 PROTOCOL_BINARY_RAW_BYTES,
+                 static_cast<uint16_t>(res), 0, cookie);
 
         return ENGINE_SUCCESS;
     }
