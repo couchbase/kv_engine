@@ -944,6 +944,19 @@ static enum test_result test_delete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return SUCCESS;
 }
 
+static enum test_result test_set_delete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    item *i = NULL;
+    check(store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i) == ENGINE_SUCCESS,
+          "Failed set.");
+    check_key_value(h, h1, "key", "somevalue", 9);
+    check(h1->remove(h, NULL, "key", 3, 0, 0) == ENGINE_SUCCESS,
+          "Failed remove with value.");
+    check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key"), "Expected missing key");
+    wait_for_flusher_to_settle(h, h1);
+    check(get_int_stat(h, h1, "curr_items") == 0, "Deleting left tombstone.");
+    return SUCCESS;
+}
+
 static enum test_result test_delete_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     wait_for_persisted_value(h, h1, "key", "value1");
 
@@ -2581,6 +2594,7 @@ engine_test_t* get_tests(void) {
         {"incr", test_incr, NULL, teardown, NULL},
         {"incr with default", test_incr_default, NULL, teardown, NULL},
         {"delete", test_delete, NULL, teardown, NULL},
+        {"set/delete", test_set_delete, NULL, teardown, NULL},
         {"delete/set/delete", test_delete_set, NULL, teardown, NULL},
         {"flush", test_flush, NULL, teardown, NULL},
         {"flush with stats", test_flush_stats, NULL, teardown, NULL},

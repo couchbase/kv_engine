@@ -887,8 +887,15 @@ public:
     // The boolean indicates whether the underlying storage
     // successfully deleted the item.
     void callback(int &value) {
-        if (value > 0) {
-            ++stats->delItems;
+        // > 1 would be bad.  We were only trying to delete one row.
+        assert(value < 2);
+        // -1 means fail
+        // 1 means we deleted one row
+        // 0 means we did not delete a row, but did not fail (did not exist)
+        if (value >= 0) {
+            if (value > 0) {
+                ++stats->delItems;
+            }
             // We have succesfully removed an item from the disk, we
             // may now remove it from the hash table.
             RCPtr<VBucket> vb = store->getVBucket(queuedItem.getVBucketId());
@@ -904,9 +911,6 @@ public:
                     assert(deleted);
                 }
             }
-        } else if (value == 0) {
-            // This occurs when a deletion was sent for a record that
-            // has already been deleted.
         } else {
             redirty();
         }
@@ -1036,7 +1040,14 @@ int EventuallyPersistentStore::flushOneDelOrSet(QueuedItem &qi,
     } else if (deleted) {
         BlockTimer timer(&stats.diskDelHisto);
         PersistenceCallback cb(qi, rejectQueue, this, queued, dirtied, &stats);
-        underlying->del(qi.getKey(), rowid, cb);
+        if (rowid > 0) {
+            underlying->del(qi.getKey(), rowid, cb);
+        } else {
+            // bypass deletion if missing items, but still call the
+            // deletion callback for clean cleanup.
+            int affected(0);
+            cb.callback(affected);
+        }
     }
 
     if (val != NULL) {
