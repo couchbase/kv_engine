@@ -365,21 +365,33 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::set(const Item &item,
 
     mutation_type_t mtype = vb->ht.set(item, !force);
 
-    if (cas_op && mtype == NOT_FOUND) {
-        return ENGINE_KEY_ENOENT;
-    } else if (mtype == NOMEM) {
+    switch(mtype) {
+    case NOMEM:
         assert(!force);
         return ENGINE_ENOMEM;
-    } else if (mtype == INVALID_CAS) {
+        break;
+    case INVALID_CAS:
+    case IS_LOCKED:
         return ENGINE_KEY_EEXISTS;
-    } else if (mtype == IS_LOCKED) {
-        return ENGINE_KEY_EEXISTS;
-    } else if (mtype == WAS_CLEAN || mtype == NOT_FOUND) {
+        break;
+    case WAS_DIRTY:
+        // Do normal stuff, but don't enqueue dirty flags.
+        break;
+    case NOT_FOUND:
+        if (cas_op) {
+            return ENGINE_KEY_ENOENT;
+        }
+        // FALLTHROUGH
+    case WAS_CLEAN:
         if (item.isExpired(ep_real_time() + engine.getItemExpiryWindow())) {
             ++stats.flushExpired;
             return ENGINE_SUCCESS;
         }
         queueDirty(item.getKey(), item.getVBucketId(), queue_op_set);
+        break;
+    case INVALID_VBUCKET:
+        return ENGINE_NOT_MY_VBUCKET;
+        break;
     }
 
     return ENGINE_SUCCESS;

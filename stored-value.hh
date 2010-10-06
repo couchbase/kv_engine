@@ -575,8 +575,7 @@ typedef enum {
     WAS_CLEAN,                  //!< The item was clean before this mutation
     WAS_DIRTY,                  //!< This item was already dirty before this mutation
     IS_LOCKED,                  //!< The item is locked and can't be updated.
-    NOMEM,                      //!< Insufficient memory to store this item.
-    SUCCESS                     //!< Stoarage was successful (see also WAS_CLEAN/WAS_DIRTY)
+    NOMEM                       //!< Insufficient memory to store this item.
 } mutation_type_t;
 
 /**
