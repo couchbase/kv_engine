@@ -362,6 +362,7 @@ public:
     void setId(int64_t to) {
         assert(!hasId());
         id = to;
+        assert(hasId());
     }
 
     /**

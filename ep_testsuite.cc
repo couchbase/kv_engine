@@ -957,6 +957,26 @@ static enum test_result test_set_delete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
     return SUCCESS;
 }
 
+static enum test_result test_bug2509(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    for (int j = 0; j < 10000; ++j) {
+        item *itm = NULL;
+        check(store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &itm)
+              == ENGINE_SUCCESS, "Failed set.");
+        usleep(10);
+        check(h1->remove(h, NULL, "key", 3, 0, 0) == ENGINE_SUCCESS,
+              "Failed remove with value.");
+        usleep(10);
+    }
+
+    // Restart again, to verify we don't have any duplicates.
+    testHarness.reload_engine(&h, &h1,
+                              testHarness.engine_path,
+                              testHarness.default_engine_cfg,
+                              true);
+
+    return get_int_stat(h, h1, "ep_warmup_dups") == 0 ? SUCCESS : FAIL;
+}
+
 static enum test_result test_delete_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     wait_for_persisted_value(h, h1, "key", "value1");
 
@@ -2596,6 +2616,7 @@ engine_test_t* get_tests(void) {
         {"delete", test_delete, NULL, teardown, NULL},
         {"set/delete", test_set_delete, NULL, teardown, NULL},
         {"delete/set/delete", test_delete_set, NULL, teardown, NULL},
+        {"bug2509", test_bug2509, NULL, teardown, NULL},
         {"flush", test_flush, NULL, teardown, NULL},
         {"flush with stats", test_flush_stats, NULL, teardown, NULL},
         {"flush multi vbuckets", test_flush_multiv, NULL, teardown, NULL},

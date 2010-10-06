@@ -375,23 +375,26 @@ private:
      * @param vbid the vbucket containing the item
      * @param f the method to invoke on the item (see std::mem_fun)
      * @param arg the argument to supply to the method f
+     *
+     * @return true if the object was found and method was invoked
      */
     template<typename A>
-    void invokeOnLockedStoredValue(const std::string &key, uint16_t vbid,
+    bool invokeOnLockedStoredValue(const std::string &key, uint16_t vbid,
                                    std::mem_fun1_t<void, StoredValue, A> f,
                                    A arg) {
         RCPtr<VBucket> vb = getVBucket(vbid);
         if (!vb) {
-            return;
+            return false;
         }
 
         int bucket_num = vb->ht.bucket(key);
         LockHolder lh(vb->ht.getMutex(bucket_num));
-        StoredValue *v = fetchValidValue(vb, key, bucket_num);
+        StoredValue *v = vb->ht.unlocked_find(key, bucket_num, true);
 
         if (v) {
             f(v, arg);
         }
+        return v != NULL;
     }
 
     std::queue<QueuedItem> *beginFlush();

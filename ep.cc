@@ -919,10 +919,11 @@ public:
 private:
 
     void setId(int64_t id) {
-        store->invokeOnLockedStoredValue(queuedItem.getKey(),
-                                         queuedItem.getVBucketId(),
-                                         std::mem_fun(&StoredValue::setId),
-                                         id);
+        bool did = store->invokeOnLockedStoredValue(queuedItem.getKey(),
+                                                    queuedItem.getVBucketId(),
+                                                    std::mem_fun(&StoredValue::setId),
+                                                    id);
+        assert(did);
     }
 
     void redirty() {
