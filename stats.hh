@@ -126,16 +126,16 @@ public:
     //! Number of write related io operations
     Atomic<size_t> io_num_write;
     //! Number of bytes read
-    Atomic<uint64_t> io_read_bytes;
+    Atomic<size_t> io_read_bytes;
     //! Number of bytes written
-    Atomic<uint64_t> io_write_bytes;
+    Atomic<size_t> io_write_bytes;
 
     //! Number of ops blocked on all vbuckets in pending state
-    Atomic<uint64_t> pendingOps;
+    Atomic<size_t> pendingOps;
     //! Total number of ops ever blocked on all vbuckets in pending state
-    Atomic<uint64_t> pendingOpsTotal;
+    Atomic<size_t> pendingOpsTotal;
     //! High water value for ops blocked for any individual pending vbucket
-    Atomic<uint64_t> pendingOpsMax;
+    Atomic<size_t> pendingOpsMax;
     //! High water value for time an op is blocked on a pending vbucket
     Atomic<hrtime_t> pendingOpsMaxDuration;
 
@@ -143,7 +143,7 @@ public:
     Histogram<hrtime_t> pendingOpsHisto;
 
     //! The number of samples the bgWaitDelta and bgLoadDelta contains of
-    Atomic<uint64_t> bgNumOperations;
+    Atomic<size_t> bgNumOperations;
     /** The sum of the deltas (in usec) from an item was put in queue until
      *  the dispatcher started the work for this item
      */
@@ -170,15 +170,15 @@ public:
 
     /* TAP related stats */
     //! The total number of tap events sent (not including noops)
-    Atomic<uint64_t> numTapFetched;
+    Atomic<size_t> numTapFetched;
     //! Number of background fetched tap items
-    Atomic<uint64_t> numTapBGFetched;
+    Atomic<size_t> numTapBGFetched;
     //! Number of foreground fetched tap items
-    Atomic<uint64_t> numTapFGFetched;
+    Atomic<size_t> numTapFGFetched;
     //! Number of tap deletes.
-    Atomic<uint64_t> numTapDeletes;
+    Atomic<size_t> numTapDeletes;
     //! The number of samples the tapBgWaitDelta and tapBgLoadDelta contains of
-    Atomic<uint64_t> tapBgNumOperations;
+    Atomic<size_t> tapBgNumOperations;
     /** The sum of the deltas (in usec) from a tap item was put in queue until
      *  the dispatcher started the work for this item
      */

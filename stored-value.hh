@@ -684,10 +684,10 @@ public:
      * decremented).
      */
     explicit VisitorTracker(Atomic<size_t> *c) : counter(c) {
-        ++(*counter);
+        counter->incr(1);
     }
     ~VisitorTracker() {
-        --(*counter);
+        counter->decr(1);
     }
 private:
     Atomic<size_t> *counter;

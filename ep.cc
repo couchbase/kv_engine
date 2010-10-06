@@ -794,7 +794,7 @@ std::queue<QueuedItem>* EventuallyPersistentStore::beginFlush() {
 void EventuallyPersistentStore::completeFlush(std::queue<QueuedItem> *rej,
                                               rel_time_t flush_start) {
     // Requeue the rejects.
-    stats.queue_size += rej->size();
+    stats.queue_size.incr(rej->size());
     while (!rej->empty()) {
         writing.push(rej->front());
         rej->pop();
@@ -826,7 +826,7 @@ int EventuallyPersistentStore::flushSome(std::queue<QueuedItem> *q,
     BlockTimer timer(&stats.diskCommitHisto);
     while (!underlying->commit()) {
         sleep(1);
-        stats.commitFailed++;
+        ++stats.commitFailed;
     }
     ++stats.flusherCommits;
     rel_time_t complete_time = ep_current_time();
@@ -928,7 +928,7 @@ private:
     void redirty() {
         stats->memOverhead.incr(queuedItem.size());
         assert(stats->memOverhead.get() < GIGANTOR);
-        stats->flushFailed++;
+        ++stats->flushFailed;
         store->invokeOnLockedStoredValue(queuedItem.getKey(),
                                          queuedItem.getVBucketId(),
                                          std::mem_fun(&StoredValue::reDirty),
@@ -985,12 +985,12 @@ int EventuallyPersistentStore::flushOneDelOrSet(QueuedItem &qi,
         if (v->isPendingId()) {
             eligible = false;
         } else if (dirtyAge > stats.queue_age_cap.get()) {
-            stats.tooOld++;
+            ++stats.tooOld;
         } else if (dataAge < stats.min_data_age.get()) {
             eligible = false;
             // Skip this one.  It's too young.
             ret = stats.min_data_age.get() - dataAge;
-            stats.tooYoung++;
+            ++stats.tooYoung;
         }
 
         if (eligible) {
@@ -1030,7 +1030,7 @@ int EventuallyPersistentStore::flushOneDelOrSet(QueuedItem &qi,
             towrite.push(qi);
             stats.memOverhead.incr(qi.size());
             assert(stats.memOverhead.get() < GIGANTOR);
-            stats.totalEnqueued++;
+            ++stats.totalEnqueued;
             stats.queue_size = towrite.size();
         } else {
             BlockTimer timer(&stats.diskSetHisto);
@@ -1090,7 +1090,7 @@ void EventuallyPersistentStore::queueDirty(const std::string &key, uint16_t vbid
         towrite.push(qi);
         stats.memOverhead.incr(qi.size());
         assert(stats.memOverhead.get() < GIGANTOR);
-        stats.totalEnqueued++;
+        ++stats.totalEnqueued;
         stats.queue_size = towrite.size();
     }
 }
@@ -1173,7 +1173,7 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
 
         delete i;
     }
-    stats.warmedUp++;
+    ++stats.warmedUp;
 }
 
 void LoadStorageKVPairCallback::purge() {
