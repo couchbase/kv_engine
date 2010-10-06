@@ -37,7 +37,7 @@ public:
     /**
      * The ending value of this histogram bin (exclusive).
      */
-    T end() const { return _end; };
+    T end() const { return _end; }
 
     /**
      * The count in this bin.

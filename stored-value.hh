@@ -660,7 +660,7 @@ public:
         if (!v->isResident()) {
             ++numNonResident;
         }
-    };
+    }
 
     size_t numNonResident;
     size_t numTotal;

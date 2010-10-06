@@ -54,7 +54,7 @@ public:
     // available to anyone.. let's make it protected instead to shut
     // gcc up :(
 protected:
-    Priority(const char *nm, int p) : name(nm), priority(p) { };
+    Priority(const char *nm, int p) : name(nm), priority(p) { }
     std::string name;
     int priority;
     DISALLOW_COPY_AND_ASSIGN(Priority);

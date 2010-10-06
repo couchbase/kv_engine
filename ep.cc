@@ -846,7 +846,7 @@ public:
 
     PersistenceCallback(const QueuedItem &qi, std::queue<QueuedItem> *q,
                         EventuallyPersistentStore *st,
-                        rel_time_t qd, rel_time_t d, struct EPStats *s) :
+                        rel_time_t qd, rel_time_t d, EPStats *s) :
         queuedItem(qi), rq(q), store(st), queued(qd), dirtied(d), stats(s) {
         assert(rq);
         assert(s);
@@ -934,14 +934,14 @@ private:
                                          std::mem_fun(&StoredValue::reDirty),
                                          dirtied);
         rq->push(queuedItem);
-    };
+    }
 
     const QueuedItem queuedItem;
     std::queue<QueuedItem> *rq;
     EventuallyPersistentStore *store;
     rel_time_t queued;
     rel_time_t dirtied;
-    struct EPStats *stats;
+    EPStats *stats;
     DISALLOW_COPY_AND_ASSIGN(PersistenceCallback);
 };
 
