@@ -2235,6 +2235,24 @@ void EventuallyPersistentEngine::resetStats()
     stats.pendingOpsMax.set(0);
     stats.pendingOpsMaxDuration.set(0);
     stats.numTapFetched.set(0);
+
+    stats.pendingOpsHisto.reset();
+    stats.bgWaitHisto.reset();
+    stats.bgLoadHisto.reset();
+    stats.tapBgWaitHisto.reset();
+    stats.tapBgLoadHisto.reset();
+    stats.getVbucketCmdHisto.reset();
+    stats.setVbucketCmdHisto.reset();
+    stats.delVbucketCmdHisto.reset();
+    stats.getCmdHisto.reset();
+    stats.storeCmdHisto.reset();
+    stats.arithCmdHisto.reset();
+    stats.tapMutationHisto.reset();
+    stats.tapVbucketSetHisto.reset();
+    stats.diskSetHisto.reset();
+    stats.diskDelHisto.reset();
+    stats.diskVBDelHisto.reset();
+    stats.diskCommitHisto.reset();
 }
 
 bool EventuallyPersistentEngine::populateEvents() {
