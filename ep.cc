@@ -411,11 +411,10 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::add(const Item &item,
     case ADD_EXISTS:
         return ENGINE_NOT_STORED;
     case ADD_SUCCESS:
+    case ADD_UNDEL:
         queueDirty(item.getKey(), item.getVBucketId(), queue_op_set);
-        /* FALLTHROUGH */
-    default:
-        return ENGINE_SUCCESS;
     }
+    return ENGINE_SUCCESS;
 }
 
 void EventuallyPersistentStore::completeSetVBState(uint16_t vbid, const std::string &key) {
