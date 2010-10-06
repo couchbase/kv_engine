@@ -383,10 +383,6 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::set(const Item &item,
         }
         // FALLTHROUGH
     case WAS_CLEAN:
-        if (item.isExpired(ep_real_time() + engine.getItemExpiryWindow())) {
-            ++stats.flushExpired;
-            return ENGINE_SUCCESS;
-        }
         queueDirty(item.getKey(), item.getVBucketId(), queue_op_set);
         break;
     case INVALID_VBUCKET:
@@ -985,6 +981,12 @@ int EventuallyPersistentStore::flushOneDelOrSet(QueuedItem &qi,
     rel_time_t queued(qi.getDirtied()), dirtied(0);
 
     int ret = 0;
+
+    if (isDirty && v->isExpired(ep_real_time() + engine.getItemExpiryWindow())) {
+        ++stats.flushExpired;
+        v->markClean(&dirtied);
+        isDirty = false;
+    }
 
     if (isDirty) {
         v->markClean(&dirtied);
