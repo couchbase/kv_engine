@@ -280,6 +280,79 @@ extern "C" {
         return e->evictKey(key, vbucket, msg);
     }
 
+    ENGINE_ERROR_CODE getLocked(EventuallyPersistentEngine *e,
+            protocol_binary_request_header *request,
+            const void *cookie,
+            Item **item,
+            const char **msg,
+            protocol_binary_response_status *res) {
+
+        protocol_binary_request_no_extras *req =
+            (protocol_binary_request_no_extras*)request;
+        *res = PROTOCOL_BINARY_RESPONSE_SUCCESS;
+
+        char keyz[256];
+
+        // Read the key.
+        int keylen = ntohs(req->message.header.request.keylen);
+        if (keylen >= (int)sizeof(keyz)) {
+            *msg = "Key is too large.";
+            *res = PROTOCOL_BINARY_RESPONSE_EINVAL;
+            return ENGINE_EINVAL;
+        }
+        memcpy(keyz, ((char*)request) + sizeof(req->message.header), keylen);
+        keyz[keylen] = 0x00;
+
+        uint16_t vbucket = ntohs(request->request.vbucket);
+
+        std::string key(keyz, keylen);
+
+        getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                         "Executing getl for key %s\n",
+                         keyz);
+
+        RememberingCallback<GetValue> getCb;
+        uint32_t lockTimeout = ntohl(request->request.opaque);
+
+        if (lockTimeout > 30 || lockTimeout < 1) {
+            lockTimeout = 15;
+        }
+
+        bool gotLock = e->getLocked(key, vbucket, getCb,
+                                    ep_current_time(),
+                                    lockTimeout, cookie);
+
+        getCb.waitForValue();
+        ENGINE_ERROR_CODE rv = getCb.val.getStatus();
+
+        if (rv == ENGINE_SUCCESS) {
+            *item = getCb.val.getValue();
+
+        } else if (rv == ENGINE_EWOULDBLOCK) {
+
+            // need to wait for value
+            return rv;
+        } else if (!gotLock){
+
+            *msg =  "LOCK_ERROR";
+            *res = PROTOCOL_BINARY_RESPONSE_ETMPFAIL;
+            return ENGINE_TMPFAIL;
+        } else {
+            RCPtr<VBucket> vb = e->getVBucket(vbucket);
+            if (!vb) {
+                *msg = "That's not my bucket.";
+                *res = PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET;
+                return ENGINE_NOT_MY_VBUCKET;
+            }
+            *msg = "NOT_FOUND";
+            *res = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
+            return ENGINE_KEY_ENOENT;
+        }
+
+        return rv;
+    }
+
+
     static protocol_binary_response_status setParam(EventuallyPersistentEngine *e,
                                                     protocol_binary_request_header *request,
                                                     const char **msg) {
@@ -481,9 +554,11 @@ extern "C" {
         protocol_binary_response_status res =
             PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND;
         const char *msg = NULL;
+        Item *item = NULL;
 
         EventuallyPersistentEngine *h = getHandle(handle);
         EPStats &stats = h->getEpStats();
+        ENGINE_ERROR_CODE rv = ENGINE_SUCCESS;
 
         switch (request->request.opcode) {
         case CMD_STOP_PERSISTENCE:
@@ -517,14 +592,37 @@ extern "C" {
         case CMD_EVICT_KEY:
             res = evictKey(h, request, &msg);
             break;
+        case CMD_GET_LOCKED:
+            rv = getLocked(h, request, cookie, &item, &msg, &res);
+            if (rv == ENGINE_EWOULDBLOCK) {
+                // we dont have the value for the item yet
+                return rv;
+            }
+            break;
         }
 
-        size_t msg_size = msg ? strlen(msg) : 0;
-        response(NULL, 0, NULL, 0,
-                 msg, static_cast<uint16_t>(msg_size),
-                 PROTOCOL_BINARY_RAW_BYTES,
-                 static_cast<uint16_t>(res), 0, cookie);
+        if (item) {
+            std::string key  = item->getKey();
+            uint32_t flags = item->getFlags();
 
+            response(static_cast<const void *>(key.data()),
+                    item->getNKey(),
+                    (const void *)&flags, sizeof(uint32_t),
+                    static_cast<const void *>(item->getData()),
+                    item->getNBytes() - 2,
+                    PROTOCOL_BINARY_RAW_BYTES,
+                    static_cast<uint16_t>(res), item->getCas(),
+                    cookie);
+            delete item;
+        } else {
+
+            size_t msg_size = msg ? strlen(msg) : 0;
+            response(NULL, 0, NULL, 0,
+                    msg, static_cast<uint16_t>(msg_size),
+                    PROTOCOL_BINARY_RAW_BYTES,
+                    static_cast<uint16_t>(res), 0, cookie);
+
+        }
         return ENGINE_SUCCESS;
     }
 

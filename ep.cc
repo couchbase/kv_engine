@@ -863,7 +863,8 @@ bool EventuallyPersistentStore::getLocked(const std::string &key,
                                           uint16_t vbucket,
                                           Callback<GetValue> &cb,
                                           rel_time_t currentTime,
-                                          uint32_t lockTimeout) {
+                                          uint32_t lockTimeout,
+                                          const void *cookie) {
     RCPtr<VBucket> vb = getVBucket(vbucket, active);
     if (!vb) {
         ++stats.numNotMyVBuckets;
@@ -877,6 +878,18 @@ bool EventuallyPersistentStore::getLocked(const std::string &key,
     StoredValue *v = fetchValidValue(vb, key, bucket_num);
 
     if (v) {
+
+        // If the value is not resident, wait for it...
+        if (!v->isResident()) {
+
+            if (cookie) {
+                bgFetch(key, vbucket, v->getId(), cookie);
+            }
+            GetValue rv(NULL, ENGINE_EWOULDBLOCK, v->getId());
+            cb.callback(rv);
+            return false;
+        }
+
         if (v->isLocked(currentTime)) {
             GetValue rv;
             cb.callback(rv);
@@ -884,7 +897,6 @@ bool EventuallyPersistentStore::getLocked(const std::string &key,
         }
 
         // acquire lock and increment cas value
-
         v->lock(currentTime + lockTimeout);
 
         Item *it = new Item(v->getKey(), v->getFlags(), v->getExptime(),

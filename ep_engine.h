@@ -40,6 +40,14 @@ extern "C" {
                                       GET_SERVER_API get_server_api,
                                       ENGINE_HANDLE **handle);
     void *EvpNotifyTapIo(void*arg);
+
+    EXPORT_FUNCTION
+    ENGINE_ERROR_CODE getLocked(EventuallyPersistentEngine *e,
+            protocol_binary_request_header *request,
+            const void *cookie,
+            Item **item,
+            const char **msg,
+            protocol_binary_response_status *res);
 }
 
 /* We're using notify_io_complete from ptr_fun, but that func
@@ -374,6 +382,15 @@ public:
                                              uint16_t vbucket,
                                              const char **msg) {
         return epstore->evictKey(key, vbucket, msg);
+    }
+
+    bool getLocked(const std::string &key,
+                   uint16_t vbucket,
+                   Callback<GetValue> &cb,
+                   rel_time_t currentTime,
+                   uint32_t lockTimeout,
+                   const void *cookie) {
+        return epstore->getLocked(key, vbucket, cb, currentTime, lockTimeout, cookie);
     }
 
     RCPtr<VBucket> getVBucket(uint16_t vbucket) {

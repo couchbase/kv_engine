@@ -143,13 +143,15 @@ bool GetlExtension::executeGetl(int argc, token_t *argv, void *response_cookie,
     // TODO:  Get vbucket ID here.
     bool gotLock = backend->getLocked(k, 0, getCb,
             serverApi->core->get_current_time(),
-            lockTimeout);
+            lockTimeout, NULL);
 
     Item *item = NULL;
     bool ret = true;
 
     getCb.waitForValue();
-    if (getCb.val.getStatus() == ENGINE_SUCCESS) {
+
+    ENGINE_ERROR_CODE rv = getCb.val.getStatus();
+    if (rv == ENGINE_SUCCESS) {
         item = getCb.val.getValue();
         std::stringstream strm;
 
@@ -165,7 +167,7 @@ bool GetlExtension::executeGetl(int argc, token_t *argv, void *response_cookie,
                                 item->getData())
             && response_handler(response_cookie, 5, "END\r\n");
 
-    } else if (!gotLock){
+    } else if (!gotLock || rv == ENGINE_EWOULDBLOCK) {
         ret = response_handler(response_cookie,
                                sizeof("LOCK_ERROR\r\n") - 1, "LOCK_ERROR\r\n");
     } else {

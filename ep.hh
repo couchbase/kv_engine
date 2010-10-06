@@ -381,7 +381,8 @@ public:
 
     bool getLocked(const std::string &key, uint16_t vbucket,
                    Callback<GetValue> &cb,
-                   rel_time_t currentTime, uint32_t lockTimeout);
+                   rel_time_t currentTime, uint32_t lockTimeout,
+                   const void *cookie);
 
     StrategicSqlite3* getUnderlying() {
         // This method might also be called leakAbstraction()

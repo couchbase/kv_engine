@@ -345,6 +345,59 @@ static void evict_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     }
 }
 
+static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+
+    const char *key = "k1";
+    uint16_t vbucketId = 0;
+
+    protocol_binary_request_header *pkt = create_packet(CMD_GET_LOCKED,
+                                                        key, "");
+    pkt->request.vbucket = htons(vbucketId);
+
+    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
+          "Getl Failed");
+
+    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT,
+          "expected the key to be missing...");
+    if (last_body != NULL && (strcmp(last_body, "NOT_FOUND") != 0)) {
+        fprintf(stderr, "Should have returned NOT_FOUND. Getl Failed");
+        abort();
+    }
+
+    item *i = NULL;
+    check(store(h, h1, NULL, OPERATION_SET, key, "lockdata", &i, 0, vbucketId)
+          == ENGINE_SUCCESS, "Failed to store an item.");
+
+    /* retry getl, should succeed */
+    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
+          "Lock failed");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+          "Expected to be able to getl on first try");
+
+    /* lock's taken so this should fail */
+    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
+          "Lock failed");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_ETMPFAIL,
+          "Expected to fail getl on second try");
+
+    if (last_body != NULL && (strcmp(last_body, "LOCK_ERROR") != 0)) {
+        fprintf(stderr, "Should have returned LOCK_ERROR. Getl Failed");
+        abort();
+    }
+
+    check(store(h, h1, NULL, OPERATION_SET, key, "lockdata2", &i, 0, vbucketId)
+          != ENGINE_SUCCESS, "Should have failed to store an item.");
+
+    /* wait 16 seconds */
+    testHarness.time_travel(16);
+
+    /* retry set, should succeed */
+    check(store(h, h1, NULL, OPERATION_SET, key, "lockdata3", &i, 0, vbucketId)
+          == ENGINE_SUCCESS, "Failed to store an item.");
+
+    return SUCCESS;
+}
+
 static bool set_vbucket_state(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                               uint16_t vb, const char *state) {
     char vbid[8];
@@ -2896,7 +2949,7 @@ engine_test_t* get_tests(void) {
         {"set", test_set, NULL, teardown, NULL},
         {"concurrent set", test_conc_set, NULL, teardown, NULL},
         {"set+get hit", test_set_get_hit, NULL, teardown, NULL},
-        {"getl", NULL, NULL, teardown, NULL},
+        {"getl", test_getl, NULL, teardown, NULL},
         {"set+get hit (bin)", test_set_get_hit_bin, NULL, teardown, NULL},
         {"set+change flags", test_set_change_flags, NULL, teardown, NULL},
         {"add", test_add, NULL, teardown, NULL},
