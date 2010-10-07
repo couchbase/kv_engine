@@ -107,6 +107,11 @@ def stats_hash(mc, username=None, password=''):
         mc.sasl_auth_plain(username, password)
     stats_formatter(mc.stats('hash'))
 
+def reset(mc, username=None, password=''):
+    if username:
+        mc.sasl_auth_plain(username, password)
+    mc.stats('reset')
+
 if __name__ == '__main__':
 
     c = clitool.CliTool()
@@ -116,5 +121,6 @@ if __name__ == '__main__':
     c.addCommand('hash', stats_hash, 'hash [username password]')
     c.addCommand('tap', stats_tap, 'tap [username password]')
     c.addCommand('timings', stats_timings, 'timings [username password]')
+    c.addCommand('reset', reset, 'reset [username password]')
 
     c.execute()
