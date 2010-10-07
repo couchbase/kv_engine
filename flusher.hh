@@ -26,6 +26,11 @@ class FlusherStepper : public DispatcherCallback {
 public:
     FlusherStepper(Flusher* f) : flusher(f) { }
     bool callback(Dispatcher &d, TaskId t);
+
+    std::string description() {
+        return std::string("Running a flusher loop.");
+    }
+
 private:
     Flusher *flusher;
 };

@@ -67,6 +67,12 @@ public:
         return false;
     }
 
+    std::string description() {
+        std::stringstream ss;
+        ss << "Fetching item from disk:  " << key;
+        return ss.str();
+    }
+
 private:
     EventuallyPersistentStore *ep;
     std::string                key;
@@ -103,6 +109,12 @@ public:
         return false;
     }
 
+    std::string description() {
+        std::stringstream ss;
+        ss << "Fetching item from disk for vkey stat:  " << key;
+        return ss.str();
+    }
+
 private:
     EventuallyPersistentStore       *ep;
     std::string                      key;
@@ -124,6 +136,11 @@ public:
         return false;
     }
 
+    std::string description() {
+        std::stringstream ss;
+        ss << "Setting vbucket " << vbid << " state to " << key;
+        return ss.str();
+    }
 private:
     EventuallyPersistentStore *ep;
     uint16_t vbid;
@@ -141,6 +158,12 @@ public:
         (void)d; (void)t;
         vbucket->fireAllOps(api);
         return false;
+    }
+
+    std::string description() {
+        std::stringstream ss;
+        ss << "Notifying state change of vbucket " << vbucket->getId();
+        return ss.str();
     }
 
 private:
@@ -161,6 +184,11 @@ public:
         return false;
     }
 
+    std::string description() {
+        std::stringstream ss;
+        ss << "Removing vbucket " << vbucket << " from disk.";
+        return ss.str();
+    }
 private:
     EventuallyPersistentStore *ep;
     uint16_t                   vbucket;

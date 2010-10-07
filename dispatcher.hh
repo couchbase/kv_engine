@@ -48,6 +48,9 @@ public:
      * @return true if the task should run again
      */
     virtual bool callback(Dispatcher &d, TaskId t) = 0;
+
+    //! Print a human-readable description of this callback.
+    virtual std::string description() = 0;
 };
 
 class CompareTasks;
@@ -61,7 +64,7 @@ public:
     ~Task() { }
 private:
     Task(shared_ptr<DispatcherCallback> cb,  int p, double sleeptime=0, bool isDaemon=true) :
-        callback(cb), priority(p), isDaemonTask(isDaemon) {
+        name(cb->description()), callback(cb), priority(p), isDaemonTask(isDaemon) {
         if (sleeptime > 0) {
             snooze(sleeptime);
         } else {
@@ -122,11 +125,74 @@ public:
 };
 
 /**
+ * Snapshot of the state of a dispatcher.
+ */
+class DispatcherState {
+public:
+    DispatcherState(const std::string &name,
+                    enum dispatcher_state st,
+                    enum task_state ts,
+                    hrtime_t start)
+        : taskName(name), state(st), taskState(ts), taskStart(start) {}
+
+    /**
+     * Get the name of the current dispatcher state.
+     */
+    const char* getStateName() const {
+        const char *rv = NULL;
+        switch(state) {
+        case dispatcher_stopped: rv = "dispatcher_stopped"; break;
+        case dispatcher_running: rv = "dispatcher_running"; break;
+        case dispatcher_stopping: rv = "dispatcher_stopping"; break;
+        }
+        return rv;
+    }
+
+    /**
+     * Get the current dispatcher state.
+     */
+    enum task_state getTaskState() const {
+        return taskState;
+    }
+
+    /**
+     * Get the name of the state of the currently running task.
+     */
+    const char* getTaskStateName() const {
+        const char *rv = NULL;
+        switch(taskState) {
+        case task_dead: rv = "task_dead"; break;
+        case task_running: rv = "task_running"; break;
+        case task_sleeping: rv = "task_sleeping"; break;
+        }
+        return rv;
+    }
+
+    /**
+     * Get the time the current task started.
+     */
+    hrtime_t getTaskStart() const { return taskStart; }
+
+    /**
+     * Get the name of the currently running task.
+     */
+    const std::string getTaskName() const { return taskName; }
+
+private:
+    const std::string taskName;
+    const enum dispatcher_state state;
+    const enum task_state taskState;
+    const hrtime_t taskStart;
+};
+
+/**
  * Schedule and run tasks in another thread.
  */
 class Dispatcher {
 public:
-    Dispatcher() : state(dispatcher_running) { }
+    Dispatcher() : state(dispatcher_running) {
+        noTask();
+    }
 
     ~Dispatcher() {
         stop();
@@ -184,7 +250,25 @@ public:
         t->cancel();
     }
 
+    /**
+     * Get the name of the currently executing task.
+     */
+    std::string getCurrentTaskName() { return taskDesc; }
+
+    /**
+     * Get the state of the dispatcher.
+     */
+    enum dispatcher_state getState() { return state; }
+
+    DispatcherState getDispatcherState() {
+        return DispatcherState(taskDesc, state, taskState, taskStart);
+    }
+
 private:
+
+    void noTask() {
+        taskDesc = "none";
+    }
 
     void reschedule(TaskId task) {
         // If the task is already in the queue it'll get run twice
@@ -197,11 +281,14 @@ private:
      */
     void completeNonDaemonTasks();
 
+    std::string taskDesc;
     pthread_t thread;
     SyncObject mutex;
     std::priority_queue<TaskId, std::deque<TaskId >,
                         CompareTasks> queue;
     enum dispatcher_state state;
+    enum task_state taskState;
+    hrtime_t taskStart;
 };
 
 #endif

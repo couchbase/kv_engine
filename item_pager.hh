@@ -27,6 +27,8 @@ public:
 
     bool callback(Dispatcher &d, TaskId t);
 
+    std::string description() { return std::string("Paging out items."); }
+
 private:
     EventuallyPersistentStore *store;
     EPStats                   &stats;
@@ -51,6 +53,8 @@ public:
         store(s), stats(st), sleepTime(static_cast<double>(stime)) {}
 
     bool callback(Dispatcher &d, TaskId t);
+
+    std::string description() { return std::string("Paging expired items."); }
 
 private:
     EventuallyPersistentStore *store;

@@ -357,6 +357,12 @@ public:
         return false;
     }
 
+    std::string description() {
+        std::stringstream ss;
+        ss << "Fetching item from disk for tap:  " << key;
+        return ss.str();
+    }
+
 private:
     EventuallyPersistentEngine *epe;
     const std::string           name;

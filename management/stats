@@ -26,6 +26,28 @@ def stats_all(mc, username=None, password=''):
         mc.sasl_auth_plain(username, password)
     stats_formatter(mc.stats())
 
+def time_label(s):
+    # -(2**64) -> '-inf'
+    # 2**64 -> 'inf'
+    # 0 -> '0'
+    # 4 -> '4us'
+    # 838384 -> '838ms'
+    # 8283852 -> '8s'
+    if s > BIG_VALUE:
+        return 'inf'
+    elif s < SMALL_VALUE:
+        return '-inf'
+    elif s == 0:
+        return '0'
+    product = 1
+    sizes = (('us', 1), ('ms', 1000), ('s', 1000), ('m', 60))
+    sizeMap = []
+    for l,sz in sizes:
+        product = sz * product
+        sizeMap.insert(0, (l, product))
+    lbl, factor = itertools.dropwhile(lambda x: x[1] > s, sizeMap).next()
+    return "%d%s" % (s / factor, lbl)
+
 def stats_timings(mc, username=None, password=''):
     if username:
         mc.sasl_auth_plain(username, password)
@@ -36,24 +58,6 @@ def stats_timings(mc, username=None, password=''):
         k = '_'.join(ka[0:-1])
         kstart, kend = [int(x) for x in ka[-1].split(',')]
         return ((k, kstart, kend), int(v))
-
-    def label(s):
-        # -(2**64) -> '-inf'
-        # 2**64 -> 'inf'
-        # 0 -> '0'
-        # 4 -> '4us'
-        # 838384 -> '838ms'
-        # 8283852 -> '8s'
-        if s > BIG_VALUE:
-            return 'inf'
-        elif s < SMALL_VALUE:
-            return '-inf'
-        elif s == 0:
-            return '0'
-        sizes = ('s', 'ms', 'us')
-        sizeMap=zip(sizes, [1000 ** x for x in range(len(sizes)-1, -1, -1)])
-        lbl, factor = itertools.dropwhile(lambda x: x[1] > s, sizeMap).next()
-        return "%d%s" % (s / factor, lbl)
 
     # Try to figure out the terminal width.  If we can't, 79 is good
     def termWidth():
@@ -72,7 +76,7 @@ def stats_timings(mc, username=None, password=''):
     totals = {}
     longest = 0
     for s in stats:
-        lbl = "%s - %s" % (label(s[0][1]), label(s[0][2]))
+        lbl = "%s - %s" % (time_label(s[0][1]), time_label(s[0][2]))
         longest = max(longest, len(lbl) + 1)
         k = s[0][0]
         totals[k] = totals.get(k, 0) + 1
@@ -107,6 +111,15 @@ def stats_hash(mc, username=None, password=''):
         mc.sasl_auth_plain(username, password)
     stats_formatter(mc.stats('hash'))
 
+def stats_dispatcher(mc, username=None, password=''):
+    if username:
+        mc.sasl_auth_plain(username, password)
+    s = mc.stats('dispatcher')
+    for k,v in s.items():
+        if k.endswith(':runtime'):
+            s[k] = time_label(int(v))
+    stats_formatter(s)
+
 def reset(mc, username=None, password=''):
     if username:
         mc.sasl_auth_plain(username, password)
@@ -122,5 +135,6 @@ if __name__ == '__main__':
     c.addCommand('tap', stats_tap, 'tap [username password]')
     c.addCommand('timings', stats_timings, 'timings [username password]')
     c.addCommand('reset', reset, 'reset [username password]')
+    c.addCommand('dispatcher', stats_dispatcher, 'dispatcher [username password]')
 
     c.execute()

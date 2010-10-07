@@ -19,6 +19,8 @@ public:
 
     bool callback(Dispatcher &d, TaskId t);
 
+    std::string description() { return std::string("Test"); }
+
 private:
     Thing *thing;
 };

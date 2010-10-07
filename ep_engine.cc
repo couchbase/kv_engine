@@ -2152,6 +2152,36 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTimingStats(const void *cookie,
     return ENGINE_SUCCESS;
 }
 
+static void doDispatcherStat(const char *prefix, const DispatcherState &ds,
+                      const void *cookie, ADD_STAT add_stat) {
+    char statname[80] = {0};
+    snprintf(statname, sizeof(statname), "%s:state", prefix);
+    add_casted_stat(statname, ds.getStateName(), add_stat, cookie);
+
+    snprintf(statname, sizeof(statname), "%s:task", prefix);
+    add_casted_stat(statname, ds.getTaskName().c_str(),
+                    add_stat, cookie);
+    snprintf(statname, sizeof(statname), "%s:task_state", prefix);
+    add_casted_stat(statname, ds.getTaskStateName(), add_stat, cookie);
+
+    if (ds.getTaskState() == task_running) {
+        snprintf(statname, sizeof(statname), "%s:runtime", prefix);
+        add_casted_stat(statname, (gethrtime() - ds.getTaskStart()) / 1000,
+                        add_stat, cookie);
+    }
+}
+
+ENGINE_ERROR_CODE EventuallyPersistentEngine::doDispatcherStats(const void *cookie,
+                                                                ADD_STAT add_stat) {
+    DispatcherState ds(epstore->getDispatcher()->getDispatcherState());
+    doDispatcherStat("dispatcher", ds, cookie, add_stat);
+
+    DispatcherState nds(epstore->getNonIODispatcher()->getDispatcherState());
+    doDispatcherStat("nio_dispatcher", nds, cookie, add_stat);
+
+    return ENGINE_SUCCESS;
+}
+
 ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
                                                        const char* stat_key,
                                                        int nkey,
@@ -2167,6 +2197,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
         rv = doVBucketStats(cookie, add_stat);
     } else if (nkey == 7 && strncmp(stat_key, "timings", 7) == 0) {
         rv = doTimingStats(cookie, add_stat);
+    } else if (nkey == 10 && strncmp(stat_key, "dispatcher", 10) == 0) {
+        rv = doDispatcherStats(cookie, add_stat);
     } else if (nkey > 4 && strncmp(stat_key, "key ", 4) == 0) {
         std::string key;
         std::string vbid;

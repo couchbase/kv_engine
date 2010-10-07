@@ -54,12 +54,14 @@ void Dispatcher::run() {
             // Wait forever as long as the state didn't change while
             // we grabbed the lock.
             if (state == dispatcher_running) {
+                noTask();
                 mutex.wait();
             }
         } else {
             TaskId task = queue.top();
             assert(task);
             LockHolder tlh(task->mutex);
+            taskState = task->state;
             switch (task->state) {
             case task_sleeping:
                 {
@@ -75,6 +77,8 @@ void Dispatcher::run() {
                 break;
             case task_running:
                 queue.pop();
+                taskDesc = task->name;
+                taskStart = gethrtime();
                 lh.unlock();
                 tlh.unlock();
                 try {

@@ -79,7 +79,7 @@ atomic_queue_test_DEPENDENCIES = atomic.hh
 
 dispatcher_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
 dispatcher_test_SOURCES = t/dispatcher_test.cc dispatcher.cc dispatcher.hh priority.cc priority.hh
-dispatcher_test_DEPENDENCIES = dispatcher.hh dispatcher.cc priority.cc priority.hh
+dispatcher_test_DEPENDENCIES = common.hh dispatcher.hh dispatcher.cc priority.cc priority.hh
 
 hash_table_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
 hash_table_test_SOURCES = t/hash_table_test.cc item.cc stored-value.cc stored-value.hh
@@ -115,6 +115,7 @@ histo_test_DEPENDENCIES = common.hh histo.hh
 if BUILD_GETHRTIME
 ep_la_SOURCES += gethrtime.c
 hrtime_test_SOURCES += gethrtime.c
+dispatcher_test_SOURCES += gethrtime.c
 endif
 
 TEST_TIMEOUT=30
