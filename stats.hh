@@ -247,6 +247,61 @@ public:
     //! Histogram of disk commits
     Histogram<hrtime_t> diskCommitHisto;
 
+    //! Reset all stats to reasonable values.
+    void reset() {
+        tooYoung.set(0);
+        tooOld.set(0);
+        dirtyAge.set(0);
+        dirtyAgeHighWat.set(0);
+        flushDuration.set(0);
+        flushDurationHighWat.set(0);
+        commit_time.set(0);
+        pagerRuns.set(0);
+        numValueEjects.set(0);
+        numFailedEjects.set(0);
+        io_num_read.set(0);
+        io_num_write.set(0);
+        io_read_bytes.set(0);
+        io_write_bytes.set(0);
+        bgNumOperations.set(0);
+        bgWait.set(0);
+        bgLoad.set(0);
+        bgMinWait.set(999999999);
+        bgMaxWait.set(0);
+        bgMinLoad.set(999999999);
+        bgMaxLoad.set(0);
+        tapBgNumOperations.set(0);
+        tapBgWait.set(0);
+        tapBgLoad.set(0);
+        tapBgMinWait.set(999999999);
+        tapBgMaxWait.set(0);
+        tapBgMinLoad.set(999999999);
+        tapBgMaxLoad.set(0);
+        pendingOps.set(0);
+        pendingOpsTotal.set(0);
+        pendingOpsMax.set(0);
+        pendingOpsMaxDuration.set(0);
+        numTapFetched.set(0);
+
+        pendingOpsHisto.reset();
+        bgWaitHisto.reset();
+        bgLoadHisto.reset();
+        tapBgWaitHisto.reset();
+        tapBgLoadHisto.reset();
+        getVbucketCmdHisto.reset();
+        setVbucketCmdHisto.reset();
+        delVbucketCmdHisto.reset();
+        getCmdHisto.reset();
+        storeCmdHisto.reset();
+        arithCmdHisto.reset();
+        tapMutationHisto.reset();
+        tapVbucketSetHisto.reset();
+        diskSetHisto.reset();
+        diskDelHisto.reset();
+        diskVBDelHisto.reset();
+        diskCommitHisto.reset();
+    }
+
 private:
 
     DISALLOW_COPY_AND_ASSIGN(EPStats);

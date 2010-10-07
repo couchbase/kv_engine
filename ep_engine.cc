@@ -2200,61 +2200,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
     return rv;
 }
 
-void EventuallyPersistentEngine::resetStats()
-{
-    stats.tooYoung.set(0);
-    stats.tooOld.set(0);
-    stats.dirtyAge.set(0);
-    stats.dirtyAgeHighWat.set(0);
-    stats.flushDuration.set(0);
-    stats.flushDurationHighWat.set(0);
-    stats.commit_time.set(0);
-    stats.pagerRuns.set(0);
-    stats.numValueEjects.set(0);
-    stats.numFailedEjects.set(0);
-    stats.io_num_read.set(0);
-    stats.io_num_write.set(0);
-    stats.io_read_bytes.set(0);
-    stats.io_write_bytes.set(0);
-    stats.bgNumOperations.set(0);
-    stats.bgWait.set(0);
-    stats.bgLoad.set(0);
-    stats.bgMinWait.set(999999999);
-    stats.bgMaxWait.set(0);
-    stats.bgMinLoad.set(999999999);
-    stats.bgMaxLoad.set(0);
-    stats.tapBgNumOperations.set(0);
-    stats.tapBgWait.set(0);
-    stats.tapBgLoad.set(0);
-    stats.tapBgMinWait.set(999999999);
-    stats.tapBgMaxWait.set(0);
-    stats.tapBgMinLoad.set(999999999);
-    stats.tapBgMaxLoad.set(0);
-    stats.pendingOps.set(0);
-    stats.pendingOpsTotal.set(0);
-    stats.pendingOpsMax.set(0);
-    stats.pendingOpsMaxDuration.set(0);
-    stats.numTapFetched.set(0);
-
-    stats.pendingOpsHisto.reset();
-    stats.bgWaitHisto.reset();
-    stats.bgLoadHisto.reset();
-    stats.tapBgWaitHisto.reset();
-    stats.tapBgLoadHisto.reset();
-    stats.getVbucketCmdHisto.reset();
-    stats.setVbucketCmdHisto.reset();
-    stats.delVbucketCmdHisto.reset();
-    stats.getCmdHisto.reset();
-    stats.storeCmdHisto.reset();
-    stats.arithCmdHisto.reset();
-    stats.tapMutationHisto.reset();
-    stats.tapVbucketSetHisto.reset();
-    stats.diskSetHisto.reset();
-    stats.diskDelHisto.reset();
-    stats.diskVBDelHisto.reset();
-    stats.diskCommitHisto.reset();
-}
-
 bool EventuallyPersistentEngine::populateEvents() {
     std::queue<QueuedItem> q;
     pendingTapNotifications.getAll(q);

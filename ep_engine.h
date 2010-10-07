@@ -194,8 +194,8 @@ public:
                                const char* stat_key,
                                int nkey,
                                ADD_STAT add_stat);
-    void resetStats();
 
+    void resetStats() { stats.reset(); }
 
     ENGINE_ERROR_CODE store(const void *cookie,
                             item* itm,
