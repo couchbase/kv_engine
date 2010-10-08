@@ -16,8 +16,7 @@ class Dispatcher;
  */
 enum task_state {
     task_dead,                  //!< The task is dead and should not be executed
-    task_running,               //!< The task is running
-    task_sleeping               //!< The task will run later
+    task_running                //!< The task is running
 };
 
 /**
@@ -53,23 +52,22 @@ public:
     virtual std::string description() = 0;
 };
 
-class CompareTasks;
+class CompareTasksByDueDate;
+class CompareTasksByPriority;
 
 /**
  * Tasks managed by the dispatcher.
  */
 class Task {
-friend class CompareTasks;
+friend class CompareTasksByDueDate;
+friend class CompareTasksByPriority;
 public:
     ~Task() { }
 private:
     Task(shared_ptr<DispatcherCallback> cb,  int p, double sleeptime=0, bool isDaemon=true) :
-        name(cb->description()), callback(cb), priority(p), isDaemonTask(isDaemon) {
-        if (sleeptime > 0) {
-            snooze(sleeptime);
-        } else {
-            state = task_running;
-        }
+        name(cb->description()), callback(cb), priority(p),
+        state(task_running), isDaemonTask(isDaemon) {
+        snooze(sleeptime);
     }
 
     Task(const Task &task) {
@@ -83,7 +81,6 @@ private:
         LockHolder lh(mutex);
         gettimeofday(&waketime, NULL);
         advance_tv(waketime, secs);
-        state = task_sleeping;
     }
 
     bool run(Dispatcher &d, TaskId t) {
@@ -106,21 +103,23 @@ private:
 };
 
 /**
- * Order tasks into their natural execution order.
+ * Order tasks by their ready date.
  */
-class CompareTasks {
+class CompareTasksByDueDate {
+public:
+    // true if t1 is before t2
+    bool operator()(TaskId t1, TaskId t2) {
+        return less_tv(t2->waketime, t1->waketime);
+    }
+};
+
+/**
+ * Order tasks by their priority.
+ */
+class CompareTasksByPriority {
 public:
     bool operator()(TaskId t1, TaskId t2) {
-        if (t1->state == task_running) {
-            if (t2->state == task_running) {
-                return t1->priority > t2->priority;
-            } else if (t2->state == task_sleeping) {
-                return false;
-            }
-        } else if (t1->state == task_sleeping && t2->state == task_sleeping) {
-            return less_tv(t2->waketime, t1->waketime);
-        }
-        return true;
+        return t1->priority > t2->priority;
     }
 };
 
@@ -163,7 +162,6 @@ public:
         switch(taskState) {
         case task_dead: rv = "task_dead"; break;
         case task_running: rv = "task_running"; break;
-        case task_sleeping: rv = "task_sleeping"; break;
         }
         return rv;
     }
@@ -273,7 +271,7 @@ private:
     void reschedule(TaskId task) {
         // If the task is already in the queue it'll get run twice
         LockHolder lh(mutex);
-        queue.push(task);
+        futureQueue.push(task);
     }
 
     /**
@@ -281,11 +279,28 @@ private:
      */
     void completeNonDaemonTasks();
 
+    /**
+     * Move all tasks that are ready for execution into the "ready"
+     * priority queue.
+     */
+    void moveReadyTasks();
+
+    //! True if there are no tasks scheduled.
+    bool empty() { return readyQueue.empty() && futureQueue.empty(); }
+
+    //! Get the next task.
+    TaskId nextTask();
+
+    //! Remove the next task.
+    void popNext();
+
     std::string taskDesc;
     pthread_t thread;
     SyncObject mutex;
     std::priority_queue<TaskId, std::deque<TaskId >,
-                        CompareTasks> queue;
+                        CompareTasksByPriority> readyQueue;
+    std::priority_queue<TaskId, std::deque<TaskId >,
+                        CompareTasksByDueDate> futureQueue;
     enum dispatcher_state state;
     enum task_state taskState;
     hrtime_t taskStart;

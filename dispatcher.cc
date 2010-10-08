@@ -41,6 +41,31 @@ void Dispatcher::start() {
     }
 }
 
+TaskId Dispatcher::nextTask() {
+    assert (!empty());
+    return readyQueue.empty() ? futureQueue.top() : readyQueue.top();
+}
+
+void Dispatcher::popNext() {
+    assert (!empty());
+    readyQueue.empty() ? futureQueue.pop() : readyQueue.pop();
+}
+
+void Dispatcher::moveReadyTasks() {
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    while (!futureQueue.empty()) {
+        TaskId tid = futureQueue.top();
+        if (less_tv(tid->waketime, tv)) {
+            readyQueue.push(tid);
+            futureQueue.pop();
+        } else {
+            // We found all the ready stuff.
+            return;
+        }
+    }
+}
+
 void Dispatcher::run() {
     getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "Dispatcher starting\n");
     for (;;) {
@@ -50,7 +75,8 @@ void Dispatcher::run() {
         if (state != dispatcher_running) {
             break;
         }
-        if (queue.empty()) {
+
+        if (empty()) {
             // Wait forever as long as the state didn't change while
             // we grabbed the lock.
             if (state == dispatcher_running) {
@@ -58,49 +84,44 @@ void Dispatcher::run() {
                 mutex.wait();
             }
         } else {
-            TaskId task = queue.top();
+            // Get any ready tasks out of the due queue.
+            moveReadyTasks();
+
+            TaskId task = nextTask();
             assert(task);
             LockHolder tlh(task->mutex);
             taskState = task->state;
-            switch (task->state) {
-            case task_sleeping:
-                {
-                    struct timeval tv;
-                    gettimeofday(&tv, NULL);
-                    if (less_tv(tv, task->waketime)) {
-                        tlh.unlock();
-                        mutex.wait(task->waketime);
-                    } else {
-                        task->state = task_running;
-                    }
-                }
-                break;
-            case task_running:
-                queue.pop();
-                taskDesc = task->name;
-                taskStart = gethrtime();
-                lh.unlock();
-                tlh.unlock();
-                try {
-                    if(task->run(*this, TaskId(task))) {
-                        reschedule(task);
-                    }
-                } catch (std::exception& e) {
-                    getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                     "exception caught in task %s: %s\n",
-                                     task->name.c_str(), e.what());
-                } catch(...) {
-                    getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                     "fatal exception caught in task %s\n",
-                                     task->name.c_str());
-                }
-                break;
-            case task_dead:
-                queue.pop();
-                break;
-            default:
-                throw std::runtime_error("Unexpected state for task");
+            if (task->state == task_dead) {
+                popNext();
+                continue;
             }
+            struct timeval tv;
+            gettimeofday(&tv, NULL);
+            if (less_tv(tv, task->waketime)) {
+                tlh.unlock();
+                mutex.wait(task->waketime);
+                continue;
+            }
+
+            popNext();
+
+            taskDesc = task->name;
+            taskStart = gethrtime();
+            lh.unlock();
+            tlh.unlock();
+            try {
+                if(task->run(*this, TaskId(task))) {
+                    reschedule(task);
+                }
+            } catch (std::exception& e) {
+                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                 "exception caught in task %s: %s\n",
+                                 task->name.c_str(), e.what());
+            } catch(...) {
+                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                     "fatal exception caught in task %s\n",
+                                 task->name.c_str());
+                }
         }
     }
 
@@ -131,7 +152,7 @@ void Dispatcher::schedule(shared_ptr<DispatcherCallback> callback,
     if (outtid) {
         *outtid = TaskId(task);
     }
-    queue.push(task);
+    futureQueue.push(task);
     mutex.notify();
 }
 
@@ -143,28 +164,25 @@ void Dispatcher::wake(TaskId task, TaskId *outtid) {
     if (outtid) {
         *outtid = TaskId(task);
     }
-    queue.push(newTask);
+    futureQueue.push(newTask);
     mutex.notify();
 }
 
 void Dispatcher::completeNonDaemonTasks() {
     LockHolder lh(mutex);
-    while (!queue.empty()) {
-        TaskId task = queue.top();
+    while (!empty()) {
+        TaskId task = nextTask();
+        popNext();
         assert(task);
         // Skip a daemon task
         if (task->isDaemonTask) {
-            queue.pop();
             continue;
         }
 
         LockHolder tlh(task->mutex);
-        switch (task->state) {
-        case task_sleeping:
-            task->state = task_running;
-        case task_running:
-            queue.pop();
+        if (task->state == task_running) {
             tlh.unlock();
+            std::cout << "Complete running task " << task->name << std::endl;
             try {
                 task->run(*this, TaskId(task));
             } catch (std::exception& e) {
@@ -176,12 +194,6 @@ void Dispatcher::completeNonDaemonTasks() {
                                  "fatal exception caught in task %s\n",
                                   task->name.c_str());
             }
-            break;
-        case task_dead:
-            queue.pop();
-            break;
-        default:
-            throw std::runtime_error("Unexpected state for task");
         }
     }
 
