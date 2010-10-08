@@ -90,7 +90,6 @@ void Dispatcher::run() {
             TaskId task = nextTask();
             assert(task);
             LockHolder tlh(task->mutex);
-            taskState = task->state;
             if (task->state == task_dead) {
                 popNext();
                 continue;
@@ -110,9 +109,11 @@ void Dispatcher::run() {
             lh.unlock();
             tlh.unlock();
             try {
+                running_task = true;
                 if(task->run(*this, TaskId(task))) {
                     reschedule(task);
                 }
+                running_task = false;
             } catch (std::exception& e) {
                 getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                                  "exception caught in task %s: %s\n",

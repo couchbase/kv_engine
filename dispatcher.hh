@@ -130,9 +130,9 @@ class DispatcherState {
 public:
     DispatcherState(const std::string &name,
                     enum dispatcher_state st,
-                    enum task_state ts,
-                    hrtime_t start)
-        : taskName(name), state(st), taskState(ts), taskStart(start) {}
+                    hrtime_t start, bool running)
+        : taskName(name), state(st), taskStart(start),
+          running_task(running) {}
 
     /**
      * Get the name of the current dispatcher state.
@@ -148,25 +148,6 @@ public:
     }
 
     /**
-     * Get the current dispatcher state.
-     */
-    enum task_state getTaskState() const {
-        return taskState;
-    }
-
-    /**
-     * Get the name of the state of the currently running task.
-     */
-    const char* getTaskStateName() const {
-        const char *rv = NULL;
-        switch(taskState) {
-        case task_dead: rv = "task_dead"; break;
-        case task_running: rv = "task_running"; break;
-        }
-        return rv;
-    }
-
-    /**
      * Get the time the current task started.
      */
     hrtime_t getTaskStart() const { return taskStart; }
@@ -176,11 +157,16 @@ public:
      */
     const std::string getTaskName() const { return taskName; }
 
+    /**
+     * True if the dispatcher is currently running a task.
+     */
+    bool isRunningTask() const { return running_task; }
+
 private:
     const std::string taskName;
     const enum dispatcher_state state;
-    const enum task_state taskState;
     const hrtime_t taskStart;
+    const bool running_task;
 };
 
 /**
@@ -259,7 +245,7 @@ public:
     enum dispatcher_state getState() { return state; }
 
     DispatcherState getDispatcherState() {
-        return DispatcherState(taskDesc, state, taskState, taskStart);
+        return DispatcherState(taskDesc, state, taskStart, running_task);
     }
 
 private:
@@ -302,8 +288,8 @@ private:
     std::priority_queue<TaskId, std::deque<TaskId >,
                         CompareTasksByDueDate> futureQueue;
     enum dispatcher_state state;
-    enum task_state taskState;
     hrtime_t taskStart;
+    bool running_task;
 };
 
 #endif

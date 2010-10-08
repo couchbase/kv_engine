@@ -2159,13 +2159,15 @@ static void doDispatcherStat(const char *prefix, const DispatcherState &ds,
     snprintf(statname, sizeof(statname), "%s:state", prefix);
     add_casted_stat(statname, ds.getStateName(), add_stat, cookie);
 
-    snprintf(statname, sizeof(statname), "%s:task", prefix);
-    add_casted_stat(statname, ds.getTaskName().c_str(),
+    snprintf(statname, sizeof(statname), "%s:status", prefix);
+    add_casted_stat(statname, ds.isRunningTask() ? "running" : "idle",
                     add_stat, cookie);
-    snprintf(statname, sizeof(statname), "%s:task_state", prefix);
-    add_casted_stat(statname, ds.getTaskStateName(), add_stat, cookie);
 
-    if (ds.getTaskState() == task_running) {
+    if (ds.isRunningTask()) {
+        snprintf(statname, sizeof(statname), "%s:task", prefix);
+        add_casted_stat(statname, ds.getTaskName().c_str(),
+                        add_stat, cookie);
+
         snprintf(statname, sizeof(statname), "%s:runtime", prefix);
         add_casted_stat(statname, (gethrtime() - ds.getTaskStart()) / 1000,
                         add_stat, cookie);
