@@ -52,11 +52,9 @@ extern EXTENSION_LOGGER_DESCRIPTOR *getLogger(void);
 #define MAX_DATA_AGE_PARAM 86400
 #define MAX_BG_FETCH_DELAY 900
 
-extern "C" {
-    extern rel_time_t (*ep_current_time)();
-    extern time_t (*ep_abs_time)(rel_time_t);
-    extern time_t ep_real_time();
-}
+extern rel_time_t (*ep_current_time)();
+extern time_t (*ep_abs_time)(rel_time_t);
+extern time_t ep_real_time();
 
 enum queue_operation {
     queue_op_set,

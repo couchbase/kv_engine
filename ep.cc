@@ -30,23 +30,21 @@
 #include "ep_engine.h"
 #include "item_pager.hh"
 
-extern "C" {
-    static rel_time_t uninitialized_current_time(void) {
-        abort();
-        return 0;
-    }
+static rel_time_t uninitialized_current_time(void) {
+    abort();
+    return 0;
+}
 
-    static time_t default_abs_time(rel_time_t offset) {
-        /* This is overridden at init time */
-        return time(NULL) - ep_current_time() + offset;
-    }
+static time_t default_abs_time(rel_time_t offset) {
+    /* This is overridden at init time */
+    return time(NULL) - ep_current_time() + offset;
+}
 
-    rel_time_t (*ep_current_time)() = uninitialized_current_time;
-    time_t (*ep_abs_time)(rel_time_t) = default_abs_time;
+rel_time_t (*ep_current_time)() = uninitialized_current_time;
+time_t (*ep_abs_time)(rel_time_t) = default_abs_time;
 
-    time_t ep_real_time() {
-        return ep_abs_time(ep_current_time());
-    }
+time_t ep_real_time() {
+    return ep_abs_time(ep_current_time());
 }
 
 class BGFetchCallback : public DispatcherCallback {
