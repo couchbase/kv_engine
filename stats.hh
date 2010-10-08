@@ -235,8 +235,11 @@ public:
     // DB timers.
     //
 
-    //! Histogram of set/update disk writes
-    Histogram<hrtime_t> diskSetHisto;
+    //! Histogram of insert disk writes
+    Histogram<hrtime_t> diskInsertHisto;
+
+    //! Histogram of update disk writes
+    Histogram<hrtime_t> diskUpdateHisto;
 
     //! Histogram of delete disk writes
     Histogram<hrtime_t> diskDelHisto;
@@ -296,7 +299,8 @@ public:
         arithCmdHisto.reset();
         tapMutationHisto.reset();
         tapVbucketSetHisto.reset();
-        diskSetHisto.reset();
+        diskInsertHisto.reset();
+        diskUpdateHisto.reset();
         diskDelHisto.reset();
         diskVBDelHisto.reset();
         diskCommitHisto.reset();

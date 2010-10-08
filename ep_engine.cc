@@ -2144,7 +2144,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTimingStats(const void *cookie,
     add_casted_stat("tap_mutation", stats.tapMutationHisto, add_stat, cookie);
 
     // Disk stats
-    add_casted_stat("disk_set", stats.diskSetHisto, add_stat, cookie);
+    add_casted_stat("disk_insert", stats.diskInsertHisto, add_stat, cookie);
+    add_casted_stat("disk_update", stats.diskUpdateHisto, add_stat, cookie);
     add_casted_stat("disk_del", stats.diskDelHisto, add_stat, cookie);
     add_casted_stat("disk_vb_del", stats.diskVBDelHisto, add_stat, cookie);
     add_casted_stat("disk_commit", stats.diskCommitHisto, add_stat, cookie);

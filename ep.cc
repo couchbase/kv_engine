@@ -1075,7 +1075,7 @@ int EventuallyPersistentStore::flushOneDelOrSet(QueuedItem &qi,
             ++stats.totalEnqueued;
             stats.queue_size = towrite.size();
         } else {
-            BlockTimer timer(&stats.diskSetHisto);
+            BlockTimer timer(rowid == -1 ? &stats.diskInsertHisto : &stats.diskUpdateHisto);
             PersistenceCallback cb(qi, rejectQueue, this, queued, dirtied, &stats);
             underlying->set(*val, cb);
         }
