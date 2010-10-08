@@ -1082,21 +1082,9 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
                                                               uint32_t *seqno,
                                                               uint16_t *vbucket,
                                                               TapConnection **c) {
-    LockHolder lh(tapNotifySync);
-    std::map<const void*, TapConnection*>::iterator iter;
-    TapConnection *connection = NULL;
-    iter = tapConnectionMap.find(cookie);
-    if (iter == tapConnectionMap.end()) {
-        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                         "Walking a non-existent tap queue, disconnecting\n");
-        return TAP_DISCONNECT;
-    } else {
-        connection = iter->second;
-    }
 
-    if (connection->doDisconnect) {
-        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                         "Disconnecting pending connection\n");
+    TapConnection *connection = getTapConnection(cookie);
+    if (!connection) {
         return TAP_DISCONNECT;
     }
 
@@ -1129,7 +1117,6 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
     if (connection->hasItem()) {
         ret = TAP_MUTATION;
         Item *item = connection->nextFetchedItem();
-        lh.unlock();
 
         ++stats.numTapBGFetched;
 
@@ -1156,7 +1143,6 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
         }
     } else if (connection->hasQueuedItem()) {
         QueuedItem qi = connection->next();
-        lh.unlock();
 
         *vbucket = qi.getVBucketId();
         std::string key = qi.getKey();
@@ -1374,6 +1360,7 @@ void EventuallyPersistentEngine::createTapQueue(const void *cookie,
         setTapValidity(tap->client, cookie);
     }
     tap->setVBucketFilter(vbuckets);
+    serverApi->cookie->store_engine_specific(cookie, tap);
     tapNotifySync.notify();
 }
 
@@ -1470,23 +1457,30 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
     return ENGINE_SUCCESS;
 }
 
+TapConnection* EventuallyPersistentEngine::getTapConnection(const void *cookie) {
+    TapConnection *rv =
+        reinterpret_cast<TapConnection*>(serverApi->cookie->get_engine_specific(cookie));
+    if (!(rv && rv->connected)) {
+        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                         "Walking a non-existent tap queue, disconnecting\n");
+        return NULL;
+    }
+
+    if (rv->doDisconnect) {
+        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                         "Disconnecting pending connection\n");
+        return NULL;
+    }
+    return rv;
+}
+
 ENGINE_ERROR_CODE EventuallyPersistentEngine::processTapAck(const void *cookie,
                                                             uint32_t seqno,
                                                             uint16_t status,
                                                             const std::string &msg)
 {
-    LockHolder lh(tapNotifySync);
-    std::map<const void*, TapConnection*>::iterator iter;
-    iter = tapConnectionMap.find(cookie);
-    if (iter == tapConnectionMap.end()) {
-        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                         "Can't find client connection\n");
-        return ENGINE_DISCONNECT;
-    }
-    TapConnection *connection = iter->second;
-    if (connection->doDisconnect) {
-        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                         "Disconnecting pending connection\n");
+    TapConnection *connection = getTapConnection(cookie);
+    if (!connection) {
         return ENGINE_DISCONNECT;
     }
 

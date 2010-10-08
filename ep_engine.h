@@ -711,6 +711,10 @@ private:
         }
     }
 
+    // Get the current tap connection for this cookie.
+    // If this method returns NULL, you should return TAP_DISCONNECT
+    TapConnection* getTapConnection(const void *cookie);
+
     const char *dbname;
     const char *initFile;
     const char *postInitFile;

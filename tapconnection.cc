@@ -159,6 +159,7 @@ bool TapConnection::requestAck(tap_event_t event) {
         return false;
     }
 
+    SpinLockHolder lh(&queueLock);
     uint32_t qsize = queue->size() + vBucketLowPriority.size() +
         vBucketHighPriority.size();
     uint32_t mod = 1;

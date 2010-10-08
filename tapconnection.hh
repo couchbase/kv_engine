@@ -118,6 +118,7 @@ private:
      * @return true if the the queue was empty
      */
     bool addEvent(const QueuedItem &it) {
+        SpinLockHolder lh(&queueLock);
         if (vbucketFilter(it.getVBucketId())) {
             bool wasEmpty = queue->empty();
             std::pair<std::set<QueuedItem>::iterator, bool> ret;
@@ -157,6 +158,7 @@ private:
     QueuedItem next() {
         assert(!empty());
         do {
+            SpinLockHolder lh(&queueLock);
             QueuedItem qi = queue->front();
             queue->pop_front();
             queue_set->erase(qi);
@@ -239,17 +241,19 @@ private:
     }
 
     bool hasQueuedItem() {
+        SpinLockHolder lh(&queueLock);
         return !queue->empty();
     }
 
     bool empty() {
-        return bgQueueSize == 0 && bgResultSize == 0 && queue->empty();
+        return bgQueueSize == 0 && bgResultSize == 0 && !hasQueuedItem();
     }
 
     /**
      * Find out how much stuff this thing has to do.
      */
     size_t getBacklogSize() {
+        SpinLockHolder lh(&queueLock);
         return bgResultSize + bgQueueSize
             + (bgJobIssued - bgJobCompleted) + queue->size();
     }
@@ -257,6 +261,7 @@ private:
     Item* nextFetchedItem();
 
     void flush() {
+        SpinLockHolder lh(&queueLock);
         pendingFlush = true;
         /* No point of keeping the rep queue when someone wants to flush it */
         queue->clear();
@@ -271,6 +276,7 @@ private:
 
     // This method is called while holding the tapNotifySync lock.
     void appendQueue(std::list<QueuedItem> *q) {
+        SpinLockHolder lh(&queueLock);
         queue->splice(queue->end(), *q);
     }
 
@@ -367,6 +373,9 @@ private:
      * @todo design the connect packet and fill inn som info here
      */
     std::string client;
+
+    //! Lock held during queue operations.
+    SpinLock queueLock;
     /**
      * The queue of keys that needs to be sent (this is the "live stream")
      */
