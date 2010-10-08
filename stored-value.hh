@@ -366,6 +366,14 @@ public:
     }
 
     /**
+     * Clear the ID (after disk deletion when an object was reused).
+     */
+    void clearId() {
+        id = -1;
+        assert(!hasId());
+    }
+
+    /**
      * Is this item currently waiting to receive a new ID?
      *
      * This is the case when it's been submitted to the storage layer

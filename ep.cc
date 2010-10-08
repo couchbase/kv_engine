@@ -875,7 +875,7 @@ int EventuallyPersistentStore::flushSome(std::queue<QueuedItem> *q,
 // EventuallyPersistentStore::flushOne so that an object can be
 // requeued in case of failure to store in the underlying layer.
 
-class PersistenceCallback : public Callback<std::pair<bool, int64_t> >,
+class PersistenceCallback : public Callback<mutation_result>,
                             public Callback<int> {
 public:
 
@@ -888,14 +888,8 @@ public:
     }
 
     // This callback is invoked for set only.
-    //
-    // The pair is <success?, objId>.  If successful, we may receive a
-    // new object ID for this object and need to tell the object what
-    // its ID is (this is how we'll find it on disk later).  We also
-    // can succeed *without* receiving a new ID (which is how we'd
-    // distinguish an insert from an update if we cared).
-    void callback(std::pair<bool, int64_t> &value) {
-        if (value.first) {
+    void callback(mutation_result &value) {
+        if (value.first == 1) {
             if (value.second > 0) {
                 ++stats->newItems;
                 setId(value.second);
@@ -912,7 +906,10 @@ public:
                     v->ejectValue(*stats);
                 }
             }
-        } else if (!value.first) {
+        } else {
+            // If the return was 0 here, we're in a bad state because
+            // we do not know the rowid of this object.
+            assert(value.first != 0);
             redirty();
         }
     }
@@ -944,6 +941,8 @@ public:
                     bool deleted = vb->ht.unlocked_del(queuedItem.getKey(),
                                                        bucket_num);
                     assert(deleted);
+                } else if (v) {
+                    v->clearId();
                 }
             }
         } else {

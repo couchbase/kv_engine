@@ -19,7 +19,7 @@ int64_t StrategicSqlite3::lastRowId() {
     return static_cast<int64_t>(sqlite3_last_insert_rowid(db));
 }
 
-void StrategicSqlite3::insert(const Item &itm, Callback<std::pair<bool, int64_t> > &cb) {
+void StrategicSqlite3::insert(const Item &itm, Callback<mutation_result> &cb) {
     assert(itm.getId() <= 0);
 
     PreparedStatement *ins_stmt = strategy->forKey(itm.getKey())->ins();
@@ -33,19 +33,19 @@ void StrategicSqlite3::insert(const Item &itm, Callback<std::pair<bool, int64_t>
     ++stats.io_num_write;
     stats.io_write_bytes += itm.getKey().length() + itm.getNBytes();
 
-    bool rv = ins_stmt->execute() == 1;
-    if (rv) {
+    int rv = ins_stmt->execute();
+    if (rv == 1) {
         stats.totalPersisted++;
     }
 
     int64_t newId = lastRowId();
 
-    std::pair<bool, int64_t> p(rv, newId);
+    std::pair<int, int64_t> p(rv, newId);
     cb.callback(p);
     ins_stmt->reset();
 }
 
-void StrategicSqlite3::update(const Item &itm, Callback<std::pair<bool, int64_t> > &cb) {
+void StrategicSqlite3::update(const Item &itm, Callback<mutation_result> &cb) {
     assert(itm.getId() > 0);
 
     PreparedStatement *upd_stmt = strategy->forKey(itm.getKey())->upd();
@@ -57,14 +57,14 @@ void StrategicSqlite3::update(const Item &itm, Callback<std::pair<bool, int64_t>
     upd_stmt->bind64(5, itm.getCas());
     upd_stmt->bind64(6, itm.getId());
 
-    bool rv = upd_stmt->execute() == 1;
-    if (rv) {
+    int rv = upd_stmt->execute();
+    if (rv == 1) {
         stats.totalPersisted++;
     }
     ++stats.io_num_write;
     stats.io_write_bytes += itm.getKey().length() + itm.getNBytes();
 
-    std::pair<bool, int64_t> p(rv, 0);
+    std::pair<int, int64_t> p(rv, 0);
     cb.callback(p);
     upd_stmt->reset();
 }
@@ -84,7 +84,7 @@ std::map<uint16_t, std::string> StrategicSqlite3::listPersistedVbuckets() {
     return rv;
 }
 
-void StrategicSqlite3::set(const Item &itm, Callback<std::pair<bool, int64_t> > &cb) {
+void StrategicSqlite3::set(const Item &itm, Callback<mutation_result> &cb) {
     if (itm.getId() <= 0) {
         insert(itm, cb);
     } else {
@@ -135,7 +135,7 @@ void StrategicSqlite3::del(const std::string &key, uint64_t rowid,
     PreparedStatement *del_stmt = strategy->forKey(key)->del();
     del_stmt->bind64(1, rowid);
     int rv = del_stmt->execute();
-    if (rv >= 0) {
+    if (rv > 0) {
         stats.totalPersisted++;
     }
     cb.callback(rv);
