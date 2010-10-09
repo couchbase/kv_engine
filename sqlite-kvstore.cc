@@ -23,7 +23,7 @@ void StrategicSqlite3::insert(const Item &itm, Callback<mutation_result> &cb) {
     assert(itm.getId() <= 0);
 
     PreparedStatement *ins_stmt = strategy->forKey(itm.getKey())->ins();
-    ins_stmt->bind(1, itm.getKey().c_str());
+    ins_stmt->bind(1, itm.getKey().data());
     ins_stmt->bind(2, const_cast<Item&>(itm).getData(), itm.getNBytes());
     ins_stmt->bind(3, itm.getFlags());
     ins_stmt->bind(4, itm.getExptime());
@@ -50,7 +50,7 @@ void StrategicSqlite3::update(const Item &itm, Callback<mutation_result> &cb) {
 
     PreparedStatement *upd_stmt = strategy->forKey(itm.getKey())->upd();
 
-    upd_stmt->bind(1, itm.getKey().c_str());
+    upd_stmt->bind(1, itm.getKey().data());
     upd_stmt->bind(2, const_cast<Item&>(itm).getData(), itm.getNBytes());
     upd_stmt->bind(3, itm.getFlags());
     upd_stmt->bind(4, itm.getExptime());
@@ -100,7 +100,7 @@ void StrategicSqlite3::get(const std::string &key,
     ++stats.io_num_read;
 
     if(sel_stmt->fetch()) {
-        GetValue rv(new Item(key.c_str(),
+        GetValue rv(new Item(key.data(),
                              static_cast<uint16_t>(key.length()),
                              sel_stmt->column_int(1),
                              sel_stmt->column_int(2),
