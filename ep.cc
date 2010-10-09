@@ -631,10 +631,11 @@ GetValue EventuallyPersistentStore::get(const std::string &key,
         }
 
         // return an invalid cas value if the item is locked
+        uint64_t icas = v->isLocked(ep_current_time())
+            ? static_cast<uint64_t>(-1)
+            : v->getCas();
         GetValue rv(new Item(v->getKey(), v->getFlags(), v->getExptime(),
-                             v->getValue(),
-                             v->isLocked(ep_current_time()) ? -1 : v->getCas(),
-                             v->getId(), vbucket),
+                             v->getValue(), icas, v->getId(), vbucket),
                     ENGINE_SUCCESS, v->getId());
         return rv;
     } else {
