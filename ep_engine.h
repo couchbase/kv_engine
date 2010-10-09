@@ -349,6 +349,7 @@ public:
                                  "Found half-linked tap connection at: %p\n",
                                  cookie);
             }
+            serverApi->cookie->store_engine_specific(cookie, NULL);
             tapConnectionMap.erase(iter);
         }
         purgeExpiredTapConnections_UNLOCKED();
