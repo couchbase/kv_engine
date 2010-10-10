@@ -1,7 +1,7 @@
 ACLOCAL_AMFLAGS = -I m4 --force
 bin_SCRIPTS = management/analyze_core management/collect_info
 
-lib_LTLIBRARIES = ep.la ep_testsuite.la
+lib_LTLIBRARIES = ep.la ep_testsuite.la timing_tests.la
 noinst_LTLIBRARIES =
 
 bin_PROGRAMS =
@@ -64,6 +64,10 @@ TESTS=${check_PROGRAMS}
 ep_testsuite_la_CFLAGS = $(AM_CFLAGS) ${NO_WERROR}
 ep_testsuite_la_SOURCES= ep_testsuite.cc ep_testsuite.h
 ep_testsuite_la_LDFLAGS= -module -dynamic
+
+timing_tests_la_CFLAGS = $(AM_CFLAGS) ${NO_WERROR}
+timing_tests_la_SOURCES= timing_tests.cc
+timing_tests_la_LDFLAGS= -module -dynamic
 
 atomic_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
 atomic_test_SOURCES = t/atomic_test.cc atomic.hh
