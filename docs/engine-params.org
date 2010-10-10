@@ -36,6 +36,7 @@ memcached like this:
 | max_item_size     | int    | Maximum number of bytes allowed for an item.  |
 | tap_backlog_limit | int    | Max number of items allowed in a tap backfill |
 | max_size          | int    | Max cumulative item size in bytes.            |
+| max_txn_size      | int    | Max number of disk mutations per transaction. |
 | mem_high_wat      | int    | Automatically evict when exceeding this size. |
 | mem_low_wat       | int    | Low water mark to aim for when evicting.      |
 | min_data_age      | int    | Minimum data stability time before persist.   |

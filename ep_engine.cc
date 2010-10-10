@@ -713,6 +713,8 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server
 ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
 
+    size_t txnSize = 0;
+
     resetStats();
     if (config != NULL) {
         char *dbn = NULL, *initf = NULL, *pinitf = NULL, *svaltype = NULL;
@@ -783,6 +785,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         items[ii].key = "max_size";
         items[ii].datatype = DT_SIZE;
         items[ii].value.dt_size = &maxSize;
+
+        ++ii;
+        items[ii].key = "max_txn_size";
+        items[ii].datatype = DT_SIZE;
+        items[ii].value.dt_size = &txnSize;
 
         ++ii;
         items[ii].key = "cache_size";
@@ -919,6 +926,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         }
         if (memHighWat == std::numeric_limits<size_t>::max()) {
             memHighWat = percentOf(StoredValue::getMaxDataSize(stats), 0.75);
+        }
+
+        if (txnSize > 0) {
+            setTxnSize(txnSize);
         }
 
         stats.mem_low_wat = memLowWat;
