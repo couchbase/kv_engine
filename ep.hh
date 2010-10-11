@@ -139,6 +139,78 @@ private:
     bool        hasPurged;
 };
 
+/**
+ * Maintains scope of a underlying storage transaction, being useful
+ * and what not.
+ */
+class TransactionContext {
+public:
+
+    TransactionContext(EPStats &st, StrategicSqlite3 *ss)
+        : stats(st), underlying(ss), _remaining(0), intxn(false) {}
+
+    /**
+     * Call this whenever entering a transaction.
+     *
+     * This will (when necessary) begin the tranasaction and reset the
+     * counter of remaining items for a transaction.
+     */
+    void enter();
+
+    /**
+     * Called whenever leaving, having completed the given number of
+     * updates.
+     *
+     * When the number of updates completed exceeds the number
+     * permitted per transaction, a transaction will be closed and
+     * reopened.
+     */
+    void leave(int completed);
+
+    /**
+     * Explicitly commit a transaction.
+     *
+     * This will reset the remaining counter and begin a new
+     * transaction for the next batch.
+     */
+    void commit();
+
+    /**
+     * Get the number of updates permitted by this transaction.
+     */
+    size_t remaining() {
+        return _remaining;
+    }
+
+    /**
+     * Request a commit occur at the next opportunity.
+     */
+    void commitSoon() {
+        _remaining = 0;
+    }
+
+    /**
+     * Get the current number of updates permitted per transaction.
+     */
+    int getTxnSize() {
+        return txnSize.get();
+    }
+
+    /**
+     * Set the current number of updates permitted per transaction.
+     */
+    void setTxnSize(int to) {
+        txnSize.set(to);
+    }
+
+private:
+    EPStats          &stats;
+    StrategicSqlite3 *underlying;
+    int               _remaining;
+    Atomic<int>       txnSize;
+    bool              intxn;
+};
+
 class EventuallyPersistentEngine;
 
 class EventuallyPersistentStore {
@@ -331,11 +403,11 @@ public:
     }
 
     int getTxnSize() {
-        return txnSize.get();
+        return tctx.getTxnSize();
     }
 
     void setTxnSize(int to) {
-        txnSize.set(to);
+        tctx.setTxnSize(to);
     }
 
     const Flusher* getFlusher();
@@ -428,8 +500,8 @@ private:
     AtomicQueue<QueuedItem>    towrite;
     std::queue<QueuedItem>     writing;
     pthread_t                  thread;
-    Atomic<int>                txnSize;
     Atomic<size_t>             bgFetchQueue;
+    TransactionContext         tctx;
     Mutex                      vbsetMutex;
     uint32_t                   bgFetchDelay;
 

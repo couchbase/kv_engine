@@ -196,7 +196,7 @@ private:
 EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine &theEngine,
                                                      StrategicSqlite3 *t,
                                                      bool startVb0) :
-    engine(theEngine), stats(engine.getEpStats()), bgFetchDelay(0)
+    engine(theEngine), stats(engine.getEpStats()), tctx(stats, t), bgFetchDelay(0)
 {
     doPersistence = getenv("EP_NO_PERSISTENCE") == NULL;
     dispatcher = new Dispatcher();
@@ -264,6 +264,7 @@ void EventuallyPersistentStore::stopFlusher() {
 }
 
 bool EventuallyPersistentStore::pauseFlusher() {
+    tctx.commitSoon();
     flusher->pause();
     return true;
 }
@@ -844,10 +845,11 @@ void EventuallyPersistentStore::completeFlush(std::queue<QueuedItem> *rej,
 
 int EventuallyPersistentStore::flushSome(std::queue<QueuedItem> *q,
                                          std::queue<QueuedItem> *rejectQueue) {
-    int tsz = getTxnSize();
-    underlying->begin();
+    tctx.enter();
+    int tsz = tctx.remaining();
     int oldest = stats.min_data_age;
-    for (int i = 0; i < tsz && !q->empty() && bgFetchQueue == 0; i++) {
+    int completed(0);
+    for (completed = 0; completed < tsz && !q->empty() && bgFetchQueue == 0; ++completed) {
         int n = flushOne(q, rejectQueue);
         if (n != 0 && n < oldest) {
             oldest = n;
@@ -855,18 +857,10 @@ int EventuallyPersistentStore::flushSome(std::queue<QueuedItem> *q,
     }
     if (bgFetchQueue > 0) {
         ++stats.flusherPreempts;
+    } else {
+        tctx.commit();
     }
-    rel_time_t cstart = ep_current_time();
-    BlockTimer timer(&stats.diskCommitHisto);
-    while (!underlying->commit()) {
-        sleep(1);
-        ++stats.commitFailed;
-    }
-    ++stats.flusherCommits;
-    rel_time_t complete_time = ep_current_time();
-
-    stats.commit_time.set(complete_time - cstart);
-    stats.cumulativeCommitTime.incr(complete_time - cstart);
+    tctx.leave(completed);
     return oldest;
 }
 
@@ -1243,4 +1237,34 @@ void LoadStorageKVPairCallback::purge() {
         }
     }
     hasPurged = true;
+}
+
+void TransactionContext::enter() {
+    if (!intxn) {
+        underlying->begin();
+        _remaining = txnSize.get();
+        intxn = true;
+    }
+}
+
+void TransactionContext::leave(int completed) {
+    _remaining -= completed;
+    if (remaining() <= 0 && intxn) {
+        commit();
+    }
+}
+
+void TransactionContext::commit() {
+    BlockTimer timer(&stats.diskCommitHisto);
+    rel_time_t cstart = ep_current_time();
+    while (!underlying->commit()) {
+        sleep(1);
+        ++stats.commitFailed;
+    }
+    ++stats.flusherCommits;
+    rel_time_t complete_time = ep_current_time();
+
+    stats.commit_time.set(complete_time - cstart);
+    stats.cumulativeCommitTime.incr(complete_time - cstart);
+    intxn = false;
 }
