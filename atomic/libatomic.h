@@ -85,6 +85,19 @@ inline size_t ep_sync_fetch_and_add(volatile size_t *dest, size_t value) {
     return original;
 }
 
+#ifndef _LP64
+inline size_t ep_sync_fetch_and_add(volatile uint64_t *dest, size_t value) {
+    size_t original = *dest;
+    if (value == 1) {
+        atomic_inc_64((volatile uint64_t*)dest);
+    } else {
+        atomic_add_64((volatile uint64_t*)dest, value);
+    }
+
+    return original;
+}
+#endif
+
 inline bool ep_sync_bool_compare_and_swap(volatile int *dest, int prev, int next) {
     hrtime_t original = *dest;
     if (original == atomic_cas_uint((volatile uint_t*)dest, (uint_t)prev, (uint_t)next)) {
