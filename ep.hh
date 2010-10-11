@@ -46,7 +46,7 @@ extern EXTENSION_LOGGER_DESCRIPTOR *getLogger(void);
 #include "dispatcher.hh"
 #include "vbucket.hh"
 
-#define DEFAULT_TXN_SIZE 50000
+#define DEFAULT_TXN_SIZE 250000
 #define MAX_TXN_SIZE 10000000
 
 #define MAX_DATA_AGE_PARAM 86400
