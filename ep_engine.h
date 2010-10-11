@@ -9,7 +9,6 @@
 #include "ep_extension.h"
 #include "dispatcher.hh"
 #include "item_pager.hh"
-#include <memcached/util.h>
 
 #include <cstdio>
 #include <map>

@@ -138,6 +138,32 @@ AC_SEARCH_LIBS(pthread_create, pthread)
 
 AC_SEARCH_LIBS(dlopen, dl)
 
+AC_ARG_WITH([memcached],
+    [AS_HELP_STRING([--with-memcached],
+      [Memcached source location])],
+    [ac_cv_with_memcached="$withval"],
+    [ac_cv_with_memcached=""])
+
+AS_IF(test "x${ac_cv_with_memcached}" != "x",
+      [CPPFLAGS="-I${ac_cv_with_memcached}/include $CPPFLAGS"
+       PATH="${ac_cv_with_memcached}:$PATH"])
+
+AC_CHECK_HEADERS_ONCE(memcached/engine.h)
+AS_IF(test "x${ac_cv_header_memcached_engine_h}" != "xyes",
+      AC_MSG_ERROR([Can't build ep-engine without memcached/engine.h]))
+
+AS_IF(test "x${bindir}" = 'x${exec_prefix}/bin',
+      AS_IF(test "x${exec_prefix}" = "xNONE",
+            PATH=${prefix}/bin:$PATH,
+            PATH=${exec_prefix}/bin:$PATH),
+      PATH=${bindir}:$PATH)
+
+AC_PATH_PROG(ENGINE_TESTAPP, engine_testapp, no)
+AS_IF(test "x${ENGINE_TESTAPP}" = "xno",
+      AC_MSG_ERROR([Can't build ep-engine without engine_testapp]))
+
+AM_CONDITIONAL(BUILD_BYTEORDER, test "x$ac_cv_have_htonll" != "xyes")
+
 AS_IF([test "x$SUNCC" = "xyes"],
       [
         CFLAGS="-D_XOPEN_SOURCE=600 $CFLAGS"
@@ -165,81 +191,6 @@ AH_BOTTOM([
 #endif
 ])
 
-trymemcacheddir=""
-AC_ARG_WITH(memcached,
-       [  --with-memcached=PATH     Specify path to memcached installation ],
-       [
-                if test "x$withval" != "xno" ; then
-                        trymemcacheddir=$withval
-                fi
-       ]
-)
-
-dnl ----------------------------------------------------------------------------
-
-AC_CACHE_CHECK([for memcached directory], ac_cv_memcached_dir, [
-  saved_CPPFLAGS="$CPPFLAGS"
-  mc_found=no
-  for mcdir in $trymemcacheddir "" $prefix /usr/local ; do
-    # Skip the directory if it isn't there.
-    if test ! -z "$mcdir" -a ! -d "$mcdir" ; then
-       continue;
-    fi
-    if test ! -z "$mcdir" ; then
-      if test -d "$mcdir/include" ; then
-        CPPFLAGS="-I$mcdir/include $CPPFLAGS"
-      else
-        CPPFLAGS="-I$mcdir $CPPFLAGS"
-      fi
-    fi
-    # Can I compile and link it?
-    AC_TRY_LINK([#include <memcached/engine.h>], [ ],
-       [ memcached_linked=yes ], [ memcached_linked=no ])
-    if test $memcached_linked = yes; then
-       if test ! -z "$mcdir" ; then
-         ac_cv_memcached_dir=$mcdir
-       else
-         ac_cv_memcached_dir="(system)"
-       fi
-       mc_found=yes
-       break
-    fi
-  done
-  CPPFLAGS="$saved_CPPFLAGS"
-  if test $mc_found = no ; then
-    AC_MSG_ERROR([memcached is required.
-
-      If it's already installed, specify its path using --with-memcached=/dir/
-])
-  fi
-])
-if test $ac_cv_memcached_dir != "(system)"; then
-  if test -d "$ac_cv_memcached_dir/lib" ; then
-    LDFLAGS="-L$ac_cv_memcached_dir/lib $LDFLAGS"
-    mc_libdir="$ac_cv_memcached_dir/lib"
-  else
-    LDFLAGS="-L$ac_cv_memcached_dir $LDFLAGS"
-    mc_libdir="$ac_cv_memcached_dir"
-  fi
-  if test -d "$ac_cv_memcached_dir/include" ; then
-    CPPFLAGS="-I$ac_cv_memcached_dir/include $CPPFLAGS"
-  else
-    CPPFLAGS="-I$ac_cv_memcached_dir $CPPFLAGS"
-  fi
-fi
-
-MEMCACHED_DIR=$ac_cv_memcached_dir
-AS_IF([test "${MEMCACHED_DIR}" = "(system)"],
-      [
-      AS_IF([test "x$ac_cv_have_htonll" = "xyes"],[ MEMCACHED_DIR=. ], [
-        AC_MSG_ERROR([
-ep-engine needs to link with memcached containing engine support.
-Specify its path using --with-memcached. ex: --with-memcached=../memcached
-])
-        ])
-      ])
-AC_SUBST(MEMCACHED_DIR)
-
 dnl ----------------------------------------------------------------------------
 
 AC_CONFIG_FILES(Makefile)
@@ -255,6 +206,5 @@ echo "   * C++ Compiler:              $CXX_VERSION"
 echo "   * Assertions enabled:        $ac_cv_assert"
 echo "   * Debug enabled:             $with_debug"
 echo "   * Warnings as failure:       $ac_cv_warnings_as_errors"
-echo "   * Memcached location:        $ac_cv_memcached_dir"
 echo ""
 echo "---"

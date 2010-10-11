@@ -13,7 +13,6 @@ OBJDIR = .libs .libs/embedded .libs/poll
 BINARIES= .libs/ep.so
 LIB=$(LOCALLIB) -L${MEMCACHED}/lib
 INCLUDE= -Iwin32 -I.libs -I${MEMCACHED}/include -I. $(LOCALINC)
-MC_UTIL= ${MEMCACHED}/.libs/util.o
 GENFILES=.libs/config_version.h
 CPPFLAGS= $(MARCH) -O2 -DHAVE_CONFIG_H ${INCLUDE} -Wall
 
@@ -47,12 +46,13 @@ EP_ENGINE_CC_SRC = \
                  tapconnection.cc \
                  vbucket.cc
 EP_ENGINE_C_SRC = \
+                byteorder.c
 		embedded/sqlite3.c \
 		gethrtime.c
 EP_ENGINE_OBJS = ${EP_ENGINE_C_SRC:%.c=.libs/%.o} ${EP_ENGINE_CC_SRC:%.cc=.libs/%.o}
 
 .libs/ep.so: ${OBJDIR} ${GENFILES} $(EP_ENGINE_OBJS)
-	${LINK.cc} -o $@ -shared ${EP_ENGINE_OBJS} ${MC_UTIL} \
+	${LINK.cc} -o $@ -shared ${EP_ENGINE_OBJS} \
                   ${LIB} -lpthread \
                   -lws2_32
 

@@ -21,11 +21,40 @@
 
 #include "ep_extension.h"
 #include <memcached/extension.h>
-#include <memcached/util.h>
 
 #define ITEM_LOCK_TIMEOUT       15    /* 15 seconds */
 #define MAX_KEY_LEN             250   /* maximum permissible key length */
 
+
+/* safe_strtoul is copied from memcached.. */
+static bool safe_strtoul(const char *str, uint32_t *out) {
+    char *endptr = NULL;
+    unsigned long l = 0;
+    assert(out);
+    assert(str);
+    *out = 0;
+    errno = 0;
+
+    l = strtoul(str, &endptr, 10);
+    if (errno == ERANGE) {
+        return false;
+    }
+
+    if (isspace(*endptr) || (*endptr == '\0' && endptr != str)) {
+        if ((long) l < 0) {
+            /* only check for negative signs in the uncommon case when
+             * the unsigned number is so big that it's negative as a
+             * signed number. */
+            if (strchr(str, '-') != NULL) {
+                return false;
+            }
+        }
+        *out = l;
+        return true;
+    }
+
+    return false;
+}
 
 static GetlExtension* getExtension(const void* cookie)
 {

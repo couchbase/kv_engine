@@ -10,7 +10,7 @@ EXTRA_DIST = docs management README.markdown win32 Doxyfile LICENSE
 
 noinst_PROGRAMS = sizes
 
-ep_la_CPPFLAGS = -I@MEMCACHED_DIR@/include -I$(top_srcdir) $(AM_CPPFLAGS)
+ep_la_CPPFLAGS = -I$(top_srcdir) $(AM_CPPFLAGS)
 ep_la_LDFLAGS = -module -dynamic
 ep_la_SOURCES = \
                  atomic/gcc_atomics.h \
@@ -42,8 +42,11 @@ ep_la_SOURCES = \
                  tapconnection.hh tapconnection.cc \
                  vbucket.hh vbucket.cc
 
+if BUILD_BYTEORDER
+ep_la_SOURCES += byteorder.c
+endif
 
-ep_la_LIBADD = @MEMCACHED_DIR@/libmcd_util.la
+ep_la_LIBADD =
 ep_la_DEPENDENCIES =
 
 if BUILD_EMBEDDED_LIBSQLITE3
@@ -96,7 +99,7 @@ misc_test_DEPENDENCIES = common.hh
 priority_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
 priority_test_SOURCES = t/priority_test.cc priority.hh priority.cc
 
-sizes_CPPFLAGS = -I@MEMCACHED_DIR@/include -I$(top_srcdir) $(AM_CPPFLAGS)
+sizes_CPPFLAGS = -I$(top_srcdir) $(AM_CPPFLAGS)
 sizes_SOURCES = sizes.cc
 sizes_DEPENDENCIES = vbucket.hh stored-value.hh item.hh
 
@@ -125,7 +128,7 @@ endif
 TEST_TIMEOUT=30
 
 engine_tests: all
-	@MEMCACHED_DIR@/engine_testapp -E .libs/ep.so -t $(TEST_TIMEOUT) \
+	$(ENGINE_TESTAPP) -E .libs/ep.so -t $(TEST_TIMEOUT) \
 		-T .libs/ep_testsuite.so \
 		-e 'ht_size=13;ht_locks=7;initfile=t/test_pragma.sql;min_data_age=0'
 
