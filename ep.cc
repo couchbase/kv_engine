@@ -458,7 +458,7 @@ void EventuallyPersistentStore::completeSetVBState(uint16_t vbid, const std::str
         getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
                              "Rescheduling a task to set the state of vbucket %d in disc\n", vbid);
         dispatcher->schedule(shared_ptr<DispatcherCallback>(new SetVBStateCallback(this, vbid, key)),
-                             NULL, Priority::SetVBucketPriority, 5, false);
+                             NULL, Priority::VBucketPersistPriority, 5, false);
     }
 }
 
@@ -475,7 +475,7 @@ void EventuallyPersistentStore::setVBucketState(uint16_t vbid,
                                   NULL, Priority::NotifyVBStateChangePriority, 0, false);
         dispatcher->schedule(shared_ptr<DispatcherCallback>(new SetVBStateCallback(this, vb,
                                                                                    VBucket::toString(to))),
-                             NULL, Priority::SetVBucketPriority, 0, false);
+                             NULL, Priority::VBucketPersistPriority, 0, false);
     } else {
         RCPtr<VBucket> newvb(new VBucket(vbid, to, stats));
         vbuckets.addBucket(newvb);
