@@ -19,6 +19,7 @@ public:
     static const Priority FlusherPriority;
     static const Priority ItemPagerPriority;
     static const Priority VBucketDeletionPriority;
+    static const Priority VBucketPersistPriority;
 
     bool operator==(const Priority &other) const {
         return other.getPriorityValue() == this->priority;
