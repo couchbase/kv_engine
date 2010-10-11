@@ -786,6 +786,25 @@ static enum test_result test_flush(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return SUCCESS;
 }
 
+static enum test_result test_flush_while_persisting(ENGINE_HANDLE *h,
+                                                    ENGINE_HANDLE_V1 *h1) {
+    for (int f = 0; f < 5; ++f) {
+        for (int i = 0; i < 5000; ++i) {
+            item *it = NULL;
+            char key[64];
+            snprintf(key, sizeof(key), "k%d", i);
+            check(store(h, h1, NULL, OPERATION_SET, key, "somevalue", &it) == ENGINE_SUCCESS,
+                  "Failed set.");
+        }
+        check(h1->flush(h, NULL, 0) == ENGINE_SUCCESS,
+              "Failed to flush");
+        usleep(100);
+    }
+    check(ENGINE_KEY_ENOENT == verify_key(h, h1, "k3"), "Expected missing key");
+
+    return SUCCESS;
+}
+
 static enum test_result test_flush_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
     int mem_used = get_int_stat(h, h1, "mem_used");
@@ -2620,6 +2639,8 @@ engine_test_t* get_tests(void) {
         {"flush", test_flush, NULL, teardown, NULL},
         {"flush with stats", test_flush_stats, NULL, teardown, NULL},
         {"flush multi vbuckets", test_flush_multiv, NULL, teardown, NULL},
+        {"flush while persisting", test_flush_while_persisting,
+         NULL, teardown, NULL},
         {"expiry", test_expiry, NULL, teardown, NULL},
         {"expiry_loader", test_expiry_loader, NULL, teardown, NULL},
         {"expiry_flush", test_expiry_flush, NULL, teardown, NULL},

@@ -874,8 +874,9 @@ public:
 
     PersistenceCallback(const QueuedItem &qi, std::queue<QueuedItem> *q,
                         EventuallyPersistentStore *st,
-                        rel_time_t qd, rel_time_t d, EPStats *s) :
-        queuedItem(qi), rq(q), store(st), queued(qd), dirtied(d), stats(s) {
+                        rel_time_t qd, rel_time_t d, EPStats *s, uint64_t fv) :
+        queuedItem(qi), rq(q), store(st), queued(qd), dirtied(d), stats(s),
+        flushValidity(fv) {
         assert(rq);
         assert(s);
     }
@@ -902,7 +903,8 @@ public:
         } else {
             // If the return was 0 here, we're in a bad state because
             // we do not know the rowid of this object.
-            assert(value.first != 0);
+            // If a flush occurred, then it's OK to not know about this object
+            assert(!(value.first == 0 && flushValid()));
             redirty();
         }
     }
@@ -945,12 +947,17 @@ public:
 
 private:
 
+    bool flushValid() {
+        RCPtr<VBucket> vb = store->getVBucket(queuedItem.getVBucketId());
+        return !vb || vb->ht.getFlushValidity() == flushValidity;
+    }
+
     void setId(int64_t id) {
         bool did = store->invokeOnLockedStoredValue(queuedItem.getKey(),
                                                     queuedItem.getVBucketId(),
                                                     std::mem_fun(&StoredValue::setId),
                                                     id);
-        assert(did);
+        assert(did || !flushValid());
     }
 
     void redirty() {
@@ -970,6 +977,7 @@ private:
     rel_time_t queued;
     rel_time_t dirtied;
     EPStats *stats;
+    uint64_t flushValidity;
     DISALLOW_COPY_AND_ASSIGN(PersistenceCallback);
 };
 
@@ -991,6 +999,7 @@ int EventuallyPersistentStore::flushOneDelOrSet(QueuedItem &qi,
 
     int bucket_num = vb->ht.bucket(qi.getKey());
     LockHolder lh(vb->ht.getMutex(bucket_num));
+    uint64_t flushValidity = vb->ht.getFlushValidity();
     StoredValue *v = fetchValidValue(vb, qi.getKey(), bucket_num, true);
 
     int64_t rowid = v != NULL ? v->getId() : -1;
@@ -1068,12 +1077,14 @@ int EventuallyPersistentStore::flushOneDelOrSet(QueuedItem &qi,
             stats.queue_size = towrite.size();
         } else {
             BlockTimer timer(rowid == -1 ? &stats.diskInsertHisto : &stats.diskUpdateHisto);
-            PersistenceCallback cb(qi, rejectQueue, this, queued, dirtied, &stats);
+            PersistenceCallback cb(qi, rejectQueue, this, queued,
+                                   dirtied, &stats, flushValidity);
             underlying->set(*val, cb);
         }
     } else if (deleted) {
         BlockTimer timer(&stats.diskDelHisto);
-        PersistenceCallback cb(qi, rejectQueue, this, queued, dirtied, &stats);
+        PersistenceCallback cb(qi, rejectQueue, this, queued,
+                               dirtied, &stats, flushValidity);
         if (rowid > 0) {
             underlying->del(qi.getKey(), rowid, cb);
         } else {

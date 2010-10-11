@@ -781,7 +781,9 @@ public:
      * @param t the type of StoredValues this hash table will contain
      */
     HashTable(EPStats &st, size_t s = 0, size_t l = 0,
-              enum stored_value_type t = featured) : stats(st), valFact(st, t) {
+              enum stored_value_type t = featured)
+        : stats(st), valFact(st, t), flushValidity(rand()) {
+
         size = HashTable::getNumBuckets(s);
         n_locks = HashTable::getNumLocks(l);
         valFact = StoredValueFactory(st, getDefaultStorageValueType());
@@ -1022,6 +1024,13 @@ public:
     }
 
     /**
+     * Get an identifier that will change when a flush occurs.
+     */
+    uint64_t getFlushValidity() {
+        return flushValidity;
+    }
+
+    /**
      * Get the Mutex for the given lock.
      *
      * @param lock_num the lock number to get
@@ -1167,6 +1176,7 @@ public:
 private:
     inline bool active() { return activeState = true; }
     inline void active(bool newv) { activeState = newv; }
+    void setFlushValidity();
 
     size_t               size;
     size_t               n_locks;
@@ -1176,6 +1186,7 @@ private:
     StoredValueFactory   valFact;
     Atomic<size_t>       visitors;
     Atomic<size_t>       numItems;
+    uint64_t             flushValidity;
     bool                 activeState;
 
     static size_t                 defaultNumBuckets;

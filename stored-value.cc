@@ -55,6 +55,10 @@ void HashTable::setDefaultNumLocks(size_t to) {
     }
 }
 
+void HashTable::setFlushValidity() {
+    flushValidity += rand() & 0xf;
+}
+
 size_t HashTable::clear(bool deactivate) {
     size_t rv = 0;
 
@@ -77,6 +81,7 @@ size_t HashTable::clear(bool deactivate) {
 
     numItems.set(0);
 
+    setFlushValidity();
     return rv;
 }
 
