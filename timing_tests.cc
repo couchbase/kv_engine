@@ -72,19 +72,21 @@ bool abort_msg(const char *expr, const char *msg, int line) {
     return false;
 }
 
-static void rmdb(void) {
-    unlink("/tmp/test.db");
-    unlink("/tmp/test.db-0.sqlite");
-    unlink("/tmp/test.db-1.sqlite");
-    unlink("/tmp/test.db-2.sqlite");
-    unlink("/tmp/test.db-3.sqlite");
-}
+extern "C" {
+    static void rmdb(void) {
+        unlink("/tmp/test.db");
+        unlink("/tmp/test.db-0.sqlite");
+        unlink("/tmp/test.db-1.sqlite");
+        unlink("/tmp/test.db-2.sqlite");
+        unlink("/tmp/test.db-3.sqlite");
+    }
 
-static bool teardown(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    (void)h; (void)h1;
-    atexit(rmdb);
-    vals.clear();
-    return true;
+    static bool teardown(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+        (void)h; (void)h1;
+        atexit(rmdb);
+        vals.clear();
+        return true;
+    }
 }
 
 static inline void decayingSleep(useconds_t *sleepTime) {
@@ -129,13 +131,15 @@ static ENGINE_ERROR_CODE storeCasVb11(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     return rv;
 }
 
-static void add_stats(const char *key, const uint16_t klen,
-                      const char *val, const uint32_t vlen,
-                      const void *cookie) {
-    (void)cookie;
-    std::string k(key, klen);
-    std::string v(val, vlen);
-    vals[k] = v;
+extern "C" {
+    static void add_stats(const char *key, const uint16_t klen,
+                          const char *val, const uint32_t vlen,
+                          const void *cookie) {
+        (void)cookie;
+        std::string k(key, klen);
+        std::string v(val, vlen);
+        vals[k] = v;
+    }
 }
 
 static int get_int_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
@@ -174,6 +178,7 @@ static size_t env_int(const char *k, size_t rv) {
     return rv;
 }
 
+extern "C" {
 static test_result test_persistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     size_t total = env_int("TEST_TOTAL_KEYS", 100000);
     size_t size = env_int("TEST_VAL_SIZE", 20);
@@ -204,6 +209,7 @@ static test_result test_persistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
         verify_curr_items(h, h1, total, "storing something");
 
     return SUCCESS;
+}
 }
 
 extern "C" MEMCACHED_PUBLIC_API
