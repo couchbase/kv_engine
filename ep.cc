@@ -798,11 +798,11 @@ void EventuallyPersistentStore::reset() {
         if (vb) {
             HashTableStatVisitor statvis;
             vb->ht.visit(statvis);
+            vb->ht.clear();
             stats.numNonResident.decr(statvis.numNonResident);
             stats.currentSize.decr(statvis.memSize);
             assert(stats.currentSize.get() < GIGANTOR);
             stats.totalCacheSize.decr(statvis.memSize);
-            vb->ht.clear();
         }
     }
 
