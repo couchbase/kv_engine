@@ -909,8 +909,13 @@ public:
         } else {
             // If the return was 0 here, we're in a bad state because
             // we do not know the rowid of this object.
-            assert(value.first != 0);
-            redirty();
+            if (value.first == 0) {
+                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                 "Persisting vb%d, returned 0 updates for ``%s''\n",
+                                 queuedItem.getVBucketId(), queuedItem.getKey().c_str());
+            } else {
+                redirty();
+            }
         }
     }
 
@@ -957,7 +962,11 @@ private:
                                                     queuedItem.getVBucketId(),
                                                     std::mem_fun(&StoredValue::setId),
                                                     id);
-        assert(did);
+        if (!did) {
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                             "Failed to set id on vb%d ``%s''\n",
+                             queuedItem.getVBucketId(), queuedItem.getKey().c_str());
+        }
     }
 
     void redirty() {
