@@ -1938,14 +1938,44 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doVBucketStats(const void *cookie,
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doHashStats(const void *cookie,
                                                           ADD_STAT add_stat) {
-    HashTableDepthStatVisitor depthVisitor;
-    epstore->visitDepth(depthVisitor);
-    add_casted_stat("ep_hash_bucket_size", epstore->getHashSize(),
-                    add_stat, cookie);
-    add_casted_stat("ep_hash_num_locks", epstore->getHashLocks(),
-                    add_stat, cookie);
-    add_casted_stat("ep_hash_min_depth", depthVisitor.min, add_stat, cookie);
-    add_casted_stat("ep_hash_max_depth", depthVisitor.max, add_stat, cookie);
+
+    class StatVBucketVisitor : public VBucketVisitor {
+    public:
+        StatVBucketVisitor(const void *c, ADD_STAT a) : cookie(c), add_stat(a) {}
+
+        bool visitBucket(RCPtr<VBucket> vb) {
+            uint16_t vbid = vb->getId();
+            char buf[16];
+            snprintf(buf, sizeof(buf), "vb_%d:state", vbid);
+            add_casted_stat(buf, VBucket::toString(vb->getState()), add_stat, cookie);
+
+            HashTableDepthStatVisitor depthVisitor;
+            vb->ht.visitDepth(depthVisitor);
+
+            snprintf(buf, sizeof(buf), "vb_%d:size", vbid);
+            add_casted_stat(buf, vb->ht.getSize(), add_stat, cookie);
+            snprintf(buf, sizeof(buf), "vb_%d:locks", vbid);
+            add_casted_stat(buf, vb->ht.getNumLocks(), add_stat, cookie);
+            snprintf(buf, sizeof(buf), "vb_%d:min_depth", vbid);
+            add_casted_stat(buf, depthVisitor.min, add_stat, cookie);
+            snprintf(buf, sizeof(buf), "vb_%d:max_depth", vbid);
+            add_casted_stat(buf, depthVisitor.max, add_stat, cookie);
+            snprintf(buf, sizeof(buf), "vb_%d:reported", vbid);
+            add_casted_stat(buf, vb->ht.getNumItems(), add_stat, cookie);
+            snprintf(buf, sizeof(buf), "vb_%d:counted", vbid);
+            add_casted_stat(buf, depthVisitor.size, add_stat, cookie);
+
+            return false;
+        }
+
+    private:
+        const void *cookie;
+        ADD_STAT add_stat;
+    };
+
+    StatVBucketVisitor svbv(cookie, add_stat);
+    epstore->visit(svbv);
+
     return ENGINE_SUCCESS;
 }
 

@@ -375,27 +375,6 @@ public:
         }
     }
 
-    void visitDepth(HashTableDepthVisitor &visitor) {
-        // TODO: Something smarter for multiple vbuckets.
-        RCPtr<VBucket> vb = vbuckets.getBucket(0);
-        assert(vb);
-        vb->ht.visitDepth(visitor);
-    }
-
-    size_t getHashSize() {
-        // TODO: Something smarter for multiple vbuckets.
-        RCPtr<VBucket> vb = vbuckets.getBucket(0);
-        assert(vb);
-        return vb->ht.getSize();
-    }
-
-    size_t getHashLocks() {
-        // TODO: Something smarter for multiple vbuckets.
-        RCPtr<VBucket> vb = vbuckets.getBucket(0);
-        assert(vb);
-        return vb->ht.getNumLocks();
-    }
-
     void warmup() {
         LoadStorageKVPairCallback cb(vbuckets, stats);
         std::map<uint16_t, std::string> state = underlying->listPersistedVbuckets();
