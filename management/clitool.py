@@ -14,10 +14,12 @@ class CliTool(object):
             help = name
         self.cmds[name] = (f, help)
 
-    def execute(self):
+    def execute(self, args=None):
+        if args is None:
+            args = sys.argv[1:3]
 
         try:
-            hp, self.cmd = sys.argv[1:3]
+            hp, self.cmd = args
             host, port = hp.split(':')
             port = int(port)
         except ValueError:
