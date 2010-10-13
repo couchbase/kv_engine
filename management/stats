@@ -125,8 +125,7 @@ def reset(mc, username=None, password=''):
         mc.sasl_auth_plain(username, password)
     mc.stats('reset')
 
-if __name__ == '__main__':
-
+def main():
     c = clitool.CliTool()
 
     c.addCommand('vkey', stats_vkey, 'vkey keyname vbid [username password]')
@@ -138,3 +137,6 @@ if __name__ == '__main__':
     c.addCommand('dispatcher', stats_dispatcher, 'dispatcher [username password]')
 
     c.execute()
+
+if __name__ == '__main__':
+    main()
