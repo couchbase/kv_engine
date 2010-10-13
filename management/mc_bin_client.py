@@ -260,3 +260,6 @@ class MemcachedClient(object):
         """Flush all storage in a memcached instance."""
         return self._doCmd(memcacheConstants.CMD_FLUSH, '', '',
             struct.pack(memcacheConstants.FLUSH_PKT_FMT, timebomb))
+
+    def bucket_select(self, name):
+        return self._doCmd(memcacheConstants.CMD_SELECT_BUCKET, name, '')
