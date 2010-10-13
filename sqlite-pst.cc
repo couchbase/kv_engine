@@ -34,6 +34,10 @@ void PreparedStatement::bind(int pos, const char *s, size_t nbytes) {
     sqlite3_bind_blob(st, pos, s, (int)nbytes, SQLITE_STATIC);
 }
 
+void PreparedStatement::bind(int pos, const std::string &s) {
+    sqlite3_bind_blob(st, pos, s.data(), s.size(), SQLITE_STATIC);
+}
+
 void PreparedStatement::bind(int pos, int v) {
     sqlite3_bind_int(st, pos, v);
 }

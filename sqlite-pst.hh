@@ -51,6 +51,14 @@ public:
     void bind(int pos, const char *s, size_t nbytes);
 
     /**
+     * Bind a string parameter to a binding in this statement.
+     *
+     * @param pos the binding position (starting at 1)
+     * @param s the string to bind
+     */
+    void bind(int pos, const std::string &s);
+
+    /**
      * Bind a uint32 value.
      *
      * @param pos the binding position (starting at 1)

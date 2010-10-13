@@ -23,7 +23,7 @@ void StrategicSqlite3::insert(const Item &itm, Callback<mutation_result> &cb) {
     assert(itm.getId() <= 0);
 
     PreparedStatement *ins_stmt = strategy->forKey(itm.getKey())->ins();
-    ins_stmt->bind(1, itm.getKey().data());
+    ins_stmt->bind(1, itm.getKey());
     ins_stmt->bind(2, const_cast<Item&>(itm).getData(), itm.getNBytes());
     ins_stmt->bind(3, itm.getFlags());
     ins_stmt->bind(4, itm.getExptime());
@@ -50,7 +50,7 @@ void StrategicSqlite3::update(const Item &itm, Callback<mutation_result> &cb) {
 
     PreparedStatement *upd_stmt = strategy->forKey(itm.getKey())->upd();
 
-    upd_stmt->bind(1, itm.getKey().data());
+    upd_stmt->bind(1, itm.getKey());
     upd_stmt->bind(2, const_cast<Item&>(itm).getData(), itm.getNBytes());
     upd_stmt->bind(3, itm.getFlags());
     upd_stmt->bind(4, itm.getExptime());
@@ -164,7 +164,7 @@ bool StrategicSqlite3::delVBucket(uint16_t vbucket) {
 bool StrategicSqlite3::setVBState(uint16_t vbucket, const std::string& state_str) {
     PreparedStatement *st = strategy->getSetVBucketStateST();
     st->bind(1, vbucket);
-    st->bind(2, state_str.data(), state_str.length());
+    st->bind(2, state_str);
     ++stats.io_num_write;
     bool rv = st->execute() >= 0;
     st->reset();
