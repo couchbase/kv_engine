@@ -2216,7 +2216,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
         if (key.length() == 0) {
             return rv;
         }
-        uint16_t vbucket_id = vbid.length() != 0 ? static_cast<uint16_t>(atoi(vbid.c_str())) : 0;
+        uint16_t vbucket_id(0);
+        parseUint16(vbid.c_str(), &vbucket_id);
         // Non-validating, non-blocking version
         rv = doKeyStats(cookie, add_stat, vbucket_id, key, false);
     } else if (nkey > 5 && strncmp(stat_key, "vkey ", 5) == 0) {
@@ -2230,7 +2231,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
         if (key.length() == 0) {
             return rv;
         }
-        uint16_t vbucket_id = vbid.length() != 0 ? static_cast<uint16_t>(atoi(vbid.c_str())) : 0;
+        uint16_t vbucket_id(0);
+        parseUint16(vbid.c_str(), &vbucket_id);
         // Validating version; blocks
         rv = doKeyStats(cookie, add_stat, vbucket_id, key, true);
     }
