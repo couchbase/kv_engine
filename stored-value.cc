@@ -66,7 +66,7 @@ size_t HashTable::clear(bool deactivate) {
         // If not deactivating, assert we're already active.
         assert(active());
     }
-    MultiLockHolder(mutexes, n_locks);
+    MultiLockHolder mlh(mutexes, n_locks);
     if (deactivate) {
         active(false);
     }

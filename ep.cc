@@ -798,11 +798,11 @@ void EventuallyPersistentStore::reset() {
         if (vb) {
             HashTableStatVisitor statvis;
             vb->ht.visit(statvis);
+            vb->ht.clear();
             stats.numNonResident.decr(statvis.numNonResident);
             stats.currentSize.decr(statvis.memSize);
             assert(stats.currentSize.get() < GIGANTOR);
             stats.totalCacheSize.decr(statvis.memSize);
-            vb->ht.clear();
         }
     }
 
@@ -903,9 +903,13 @@ public:
         } else {
             // If the return was 0 here, we're in a bad state because
             // we do not know the rowid of this object.
-            // If a flush occurred, then it's OK to not know about this object
-            assert(!(value.first == 0 && flushValid()));
-            redirty();
+            if (value.first == 0) {
+                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                 "Persisting vb%d, returned 0 updates for ``%s''\n",
+                                 queuedItem.getVBucketId(), queuedItem.getKey().c_str());
+            } else {
+                redirty();
+            }
         }
     }
 
@@ -957,7 +961,11 @@ private:
                                                     queuedItem.getVBucketId(),
                                                     std::mem_fun(&StoredValue::setId),
                                                     id);
-        assert(did || !flushValid());
+        if (!did) {
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                             "Failed to set id on vb%d ``%s''\n",
+                             queuedItem.getVBucketId(), queuedItem.getKey().c_str());
+        }
     }
 
     void redirty() {
