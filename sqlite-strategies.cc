@@ -45,8 +45,8 @@ void SqliteStrategy::destroyStatements() {
 }
 
 void SqliteStrategy::destroyMetaStatements(void) {
-    delete set_vb_stmt;
-    delete del_vb_stmt;
+    delete ins_vb_stmt;
+    delete clear_vb_stmt;
     delete sel_vb_stmt;
     delete clear_stats_stmt;
     delete ins_stat_stmt;
@@ -74,10 +74,10 @@ void SqliteStrategy::initTables(void) {
 void SqliteStrategy::initMetaStatements(void) {
     const char *ins_query = "insert into vbucket_states"
         " (vbid, state, last_change) values (?, ?, current_timestamp)";
-    set_vb_stmt = new PreparedStatement(db, ins_query);
+    ins_vb_stmt = new PreparedStatement(db, ins_query);
 
-    const char *del_query = "delete from vbucket_states where vbid = ?";
-    del_vb_stmt = new PreparedStatement(db, del_query);
+    const char *del_query = "delete from vbucket_states";
+    clear_vb_stmt = new PreparedStatement(db, del_query);
 
     const char *sel_query = "select vbid, state from vbucket_states";
     sel_vb_stmt = new PreparedStatement(db, sel_query);

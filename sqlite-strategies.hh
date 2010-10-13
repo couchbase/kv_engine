@@ -23,7 +23,7 @@ public:
         postInitFile(pfinit),
         db(NULL),
         statements(),
-        set_vb_stmt(NULL), del_vb_stmt(NULL), sel_vb_stmt(NULL),
+        ins_vb_stmt(NULL), clear_vb_stmt(NULL), sel_vb_stmt(NULL),
         clear_stats_stmt(NULL), ins_stat_stmt(NULL)
     { }
 
@@ -48,12 +48,12 @@ public:
         return statements.at(std::abs(h) % (int)statements.size());
     }
 
-    PreparedStatement *getSetVBucketStateST() {
-        return set_vb_stmt;
+    PreparedStatement *getInsVBucketStateST() {
+        return ins_vb_stmt;
     }
 
-    PreparedStatement *getDelVBucketStateST() {
-        return del_vb_stmt;
+    PreparedStatement *getClearVBucketStateST() {
+        return clear_vb_stmt;
     }
 
     PreparedStatement *getGetVBucketStateST() {
@@ -92,8 +92,8 @@ protected:
     sqlite3 *db;
     std::vector<Statements *> statements;
 
-    PreparedStatement *set_vb_stmt;
-    PreparedStatement *del_vb_stmt;
+    PreparedStatement *ins_vb_stmt;
+    PreparedStatement *clear_vb_stmt;
     PreparedStatement *sel_vb_stmt;
 
     void doFile(const char * const filename);

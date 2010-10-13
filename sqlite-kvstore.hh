@@ -104,13 +104,16 @@ public:
              Callback<int> &cb);
 
     bool delVBucket(uint16_t vbucket);
-    bool setVBState(uint16_t vbucket, const std::string &to);
     std::map<uint16_t, std::string> listPersistedVbuckets(void);
 
     /**
      * Take a snapshot of the stats in the main DB.
      */
     bool snapshotStats(const std::map<std::string, std::string> &m);
+    /**
+     * Take a snapshot of the vbucket states in the main DB.
+     */
+    bool snapshotVBuckets(const std::map<uint16_t, std::string> &m);
 
     /**
      * Overrides dump

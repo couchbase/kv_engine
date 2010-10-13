@@ -346,8 +346,7 @@ public:
 
     RCPtr<VBucket> getVBucket(uint16_t vbid);
 
-    void completeSetVBState(uint16_t vbid,
-                            const std::string &key);
+    void snapshotVBuckets();
     void setVBucketState(uint16_t vbid,
                          vbucket_state_t state);
 
@@ -430,6 +429,8 @@ public:
 
 private:
 
+    void scheduleVBSnapshot();
+
     RCPtr<VBucket> getVBucket(uint16_t vbid, vbucket_state_t wanted_state);
 
     /* Queue an item to be written to persistent layer. */
@@ -506,6 +507,7 @@ private:
     TransactionContext         tctx;
     Mutex                      vbsetMutex;
     uint32_t                   bgFetchDelay;
+    Atomic<bool>               vbstateChanged;
 
     DISALLOW_COPY_AND_ASSIGN(EventuallyPersistentStore);
 };

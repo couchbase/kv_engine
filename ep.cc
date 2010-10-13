@@ -124,27 +124,21 @@ private:
     shared_ptr<Callback<GetValue> >  lookup_cb;
 };
 
-class SetVBStateCallback : public DispatcherCallback {
+class SnapshotVBucketsCallback : public DispatcherCallback {
 public:
-    SetVBStateCallback(EventuallyPersistentStore *e, uint16_t vb,
-                       const std::string &k)
-        : ep(e), vbid(vb), key(k) { }
+    SnapshotVBucketsCallback(EventuallyPersistentStore *e) : ep(e) { }
 
     bool callback(Dispatcher &d, TaskId t) {
         (void)d; (void)t;
-        ep->completeSetVBState(vbid, key);
+        ep->snapshotVBuckets();
         return false;
     }
 
     std::string description() {
-        std::stringstream ss;
-        ss << "Setting vbucket " << vbid << " state to " << key;
-        return ss.str();
+        return "Snapshotting vbuckets";
     }
 private:
     EventuallyPersistentStore *ep;
-    uint16_t vbid;
-    std::string key;
 };
 
 class NotifyVBStateChangeCallback : public DispatcherCallback {
@@ -454,12 +448,35 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::add(const Item &item,
     return ENGINE_SUCCESS;
 }
 
-void EventuallyPersistentStore::completeSetVBState(uint16_t vbid, const std::string &key) {
-    if (!underlying->setVBState(vbid, key)) {
+
+void EventuallyPersistentStore::snapshotVBuckets() {
+    // Don't do it if we don't need it.
+    if (!vbstateChanged.cas(true, false)) {
+        return; // unnecessary
+    }
+    class VBucketStateVisitor : public VBucketVisitor {
+    public:
+
+        bool visitBucket(RCPtr<VBucket> vb) {
+            states[vb->getId()] = VBucket::toString(vb->getState());
+            return false;
+        }
+
+        void visit(StoredValue* v) {
+            (void)v;
+            assert(false); // this does not happen
+        }
+
+        std::map<uint16_t, std::string> states;
+    };
+
+    VBucketStateVisitor v;
+    visit(v);
+
+    if (!underlying->snapshotVBuckets(v.states)) {
         getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                             "Rescheduling a task to set the state of vbucket %d in disc\n", vbid);
-        dispatcher->schedule(shared_ptr<DispatcherCallback>(new SetVBStateCallback(this, vbid, key)),
-                             NULL, Priority::VBucketPersistPriority, 5, false);
+                             "Rescheduling a task to snapshot vbuckets\n");
+        scheduleVBSnapshot();
     }
 }
 
@@ -474,13 +491,16 @@ void EventuallyPersistentStore::setVBucketState(uint16_t vbid,
                                              (new NotifyVBStateChangeCallback(vb,
                                                                         engine.getServerApi())),
                                   NULL, Priority::NotifyVBStateChangePriority, 0, false);
-        dispatcher->schedule(shared_ptr<DispatcherCallback>(new SetVBStateCallback(this, vb,
-                                                                                   VBucket::toString(to))),
-                             NULL, Priority::VBucketPersistPriority, 0, false);
     } else {
         RCPtr<VBucket> newvb(new VBucket(vbid, to, stats));
         vbuckets.addBucket(newvb);
     }
+}
+
+void EventuallyPersistentStore::scheduleVBSnapshot() {
+    vbstateChanged.set(true);
+    dispatcher->schedule(shared_ptr<DispatcherCallback>(new SnapshotVBucketsCallback(this)),
+                         NULL, Priority::VBucketPersistPriority, 0, false);
 }
 
 void EventuallyPersistentStore::completeVBucketDeletion(uint16_t vbid) {
@@ -493,6 +513,7 @@ void EventuallyPersistentStore::completeVBucketDeletion(uint16_t vbid) {
         if (underlying->delVBucket(vbid)) {
             vbuckets.setBucketDeletion(vbid, false);
             ++stats.vbucketDeletions;
+            scheduleVBSnapshot();
         } else {
             ++stats.vbucketDeletionFail;
             getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
