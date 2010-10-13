@@ -1,3 +1,4 @@
+import optparse
 import socket
 import sys
 
@@ -8,18 +9,22 @@ class CliTool(object):
     def __init__(self, extraUsage=None):
         self.cmds = {}
         self.extraUsage = extraUsage
+        self.parser = optparse.OptionParser()
 
     def addCommand(self, name, f, help=None):
         if not help:
             help = name
         self.cmds[name] = (f, help)
 
-    def execute(self, args=None):
-        if args is None:
-            args = sys.argv[1:3]
+    def addFlag(self, flag, key, description):
+        self.parser.add_option(flag, dest=key, action='store_true',
+                               help=description)
+
+    def execute(self):
+        opts, args = self.parser.parse_args()
 
         try:
-            hp, self.cmd = args
+            hp, self.cmd = args[:2]
             host, port = hp.split(':')
             port = int(port)
         except ValueError:
@@ -34,9 +39,9 @@ class CliTool(object):
 
         try:
             if callable(f[0]):
-                f[0](mc, *sys.argv[3:])
+                f[0](mc, *args[2:], **opts.__dict__)
             else:
-                getattr(mc, f[0])(*sys.argv[3:])
+                getattr(mc, f[0])(args[2:])
         except socket.error, e:
             # "Broken pipe" is confusing, so print "Connection refused" instead.
             if type(e) is tuple and e[0] == 32 or \
