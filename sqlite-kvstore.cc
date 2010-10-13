@@ -172,23 +172,37 @@ bool StrategicSqlite3::setVBState(uint16_t vbucket, const std::string& state_str
 }
 
 bool StrategicSqlite3::snapshotStats(const std::map<std::string, std::string> &m) {
+    return storeMap(strategy->getClearStatsST(), strategy->getInsStatST(), m);
+}
+
+template <typename T>
+struct map_setter {
+    map_setter(PreparedStatement *i, bool &o) : insSt(i), output(o) {}
+    PreparedStatement *insSt;
+    bool &output;
+
+    void operator() (const std::pair<T, std::string> &p) {
+        insSt->bind(1, p.first);
+        insSt->bind(2, p.second);
+        bool inserted = insSt->execute() == 1;
+        insSt->reset();
+        output &= inserted;
+    }
+};
+
+template <typename T>
+bool StrategicSqlite3::storeMap(PreparedStatement *clearSt,
+                                PreparedStatement *insSt,
+                                const std::map<T, std::string> &m) {
     bool rv(false);
     execute("begin transaction");
     try {
-        PreparedStatement *delst = strategy->getClearStatsST();
-        bool deleted = delst->execute() >= 0;
+        bool deleted = clearSt->execute() >= 0;
         rv &= deleted;
-        delst->reset();
+        clearSt->reset();
 
-        PreparedStatement *ins = strategy->getInsStatST();
-        std::map<std::string, std::string>::const_iterator it;
-        for (it = m.begin(); it != m.end(); ++it) {
-            ins->bind(1, it->first.data(), it->first.size());
-            ins->bind(2, it->second.data(), it->second.size());
-            bool inserted = ins->execute() == 1;
-            ins->reset();
-            rv &= inserted;
-        }
+        map_setter<T> ms(insSt, rv);
+        std::for_each(m.begin(), m.end(), ms);
 
         execute("commit");
         rv = true;

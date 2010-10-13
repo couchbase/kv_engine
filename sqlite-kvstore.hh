@@ -128,6 +128,11 @@ private:
         return st.execute();
     }
 
+    template <typename T>
+    bool storeMap(PreparedStatement *clearSt,
+                  PreparedStatement *insSt,
+                  const std::map<T, std::string> &m);
+
     void insert(const Item &itm, Callback<mutation_result> &cb);
     void update(const Item &itm, Callback<mutation_result> &cb);
     int64_t lastRowId();
