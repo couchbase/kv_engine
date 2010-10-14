@@ -358,6 +358,8 @@ public:
 
 private:
 
+    void scheduleVBDeletion(RCPtr<VBucket> vb, double delay);
+
     RCPtr<VBucket> getVBucket(uint16_t vbid, vbucket_state_t wanted_state);
 
     /* Queue an item to be written to persistent layer. */

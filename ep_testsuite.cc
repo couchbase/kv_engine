@@ -996,6 +996,45 @@ static enum test_result test_bug2509(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return get_int_stat(h, h1, "ep_warmup_dups") == 0 ? SUCCESS : FAIL;
 }
 
+static enum test_result test_bug2761(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    std::vector<std::string> keys;
+    // Make a vbucket mess.
+    for (int j = 0; j < 100; ++j) {
+        std::stringstream ss;
+        ss << "key" << j;
+        std::string key(ss.str());
+        keys.push_back(key);
+    }
+
+    std::vector<std::string>::iterator it;
+    for (int j = 0; j < 1000; ++j) {
+        check(set_vbucket_state(h, h1, 0, "dead"), "Failed set set vbucket 0 dead.");
+        protocol_binary_request_header *pkt = create_packet(CMD_DEL_VBUCKET, "0", "");
+        check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
+              "Failed to request delete bucket");
+        check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+              "Expected vbucket deletion to work.");
+        check(set_vbucket_state(h, h1, 0, "active"), "Failed set set vbucket 0 active.");
+        for (it = keys.begin(); it != keys.end(); ++it) {
+            item *i;
+            check(store(h, h1, NULL, OPERATION_SET, it->c_str(), it->c_str(), &i)
+                  == ENGINE_SUCCESS, "Failed to store a value");
+        }
+    }
+    wait_for_flusher_to_settle(h, h1);
+
+    for (it = keys.begin(); it != keys.end(); ++it) {
+        evict_key(h, h1, it->c_str(), 0, "Ejected.");
+    }
+    check(set_vbucket_state(h, h1, 0, "dead"), "Failed set set vbucket 0 dead.");
+    sleep(1);
+    check(set_vbucket_state(h, h1, 0, "active"), "Failed set set vbucket 0 active.");
+    for (it = keys.begin(); it != keys.end(); ++it) {
+        check_key_value(h, h1, it->c_str(), it->data(), it->size(), false, 0);
+    }
+    return SUCCESS;
+}
+
 static enum test_result test_delete_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     wait_for_persisted_value(h, h1, "key", "value1");
 
@@ -2636,6 +2675,7 @@ engine_test_t* get_tests(void) {
         {"set/delete", test_set_delete, NULL, teardown, NULL},
         {"delete/set/delete", test_delete_set, NULL, teardown, NULL},
         {"bug2509", test_bug2509, NULL, teardown, NULL},
+        {"bug2761", test_bug2761, NULL, teardown, NULL},
         {"flush", test_flush, NULL, teardown, NULL},
         {"flush with stats", test_flush_stats, NULL, teardown, NULL},
         {"flush multi vbuckets", test_flush_multiv, NULL, teardown, NULL},

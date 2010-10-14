@@ -484,21 +484,30 @@ void EventuallyPersistentStore::setVBucketState(uint16_t vbid,
 
 void EventuallyPersistentStore::completeVBucketDeletion(uint16_t vbid) {
     LockHolder lh(vbsetMutex);
+    vbuckets.setBucketDeletion(vbid, false);
 
     RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
     if (!vb || vb->getState() == dead || vbuckets.isBucketDeletion(vbid)) {
         lh.unlock();
         BlockTimer timer(&stats.diskVBDelHisto);
         if (underlying->delVBucket(vbid)) {
-            vbuckets.setBucketDeletion(vbid, false);
             ++stats.vbucketDeletions;
         } else {
             ++stats.vbucketDeletionFail;
             getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
                              "Rescheduling a task to delete vbucket %d from disk\n", vbid);
-            dispatcher->schedule(shared_ptr<DispatcherCallback>(new VBucketDeletionCallback(this, vbid)),
-                                 NULL, Priority::VBucketDeletionPriority, 10, false);
+            scheduleVBDeletion(vb, 10);
         }
+    }
+}
+
+void EventuallyPersistentStore::scheduleVBDeletion(RCPtr<VBucket> vb, double delay=0) {
+    if (vbuckets.setBucketDeletion(vb->getId(), true)) {
+        shared_ptr<DispatcherCallback> cb(new VBucketDeletionCallback(this,
+                                                                      vb->getId()));
+        dispatcher->schedule(cb,
+                             NULL, Priority::VBucketDeletionPriority,
+                             delay, false);
     }
 }
 
@@ -510,15 +519,13 @@ bool EventuallyPersistentStore::deleteVBucket(uint16_t vbid) {
     RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
     if (vb && vb->getState() == dead) {
         lh.unlock();
-        vbuckets.setBucketDeletion(vbid, true);
+        rv = true;
         HashTableStatVisitor statvis(vbuckets.removeBucket(vbid));
         stats.numNonResident.decr(statvis.numNonResident);
         stats.currentSize.decr(statvis.memSize);
         assert(stats.currentSize.get() < GIGANTOR);
         stats.totalCacheSize.decr(statvis.memSize);
-        dispatcher->schedule(shared_ptr<DispatcherCallback>(new VBucketDeletionCallback(this, vbid)),
-                             NULL, Priority::VBucketDeletionPriority, 0, false);
-        rv = true;
+        scheduleVBDeletion(vb);
     }
     return rv;
 }
@@ -551,10 +558,12 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
         LockHolder vblh(vb->ht.getMutex(bucket_num));
         StoredValue *v = fetchValidValue(vb, key, bucket_num);
 
-        if (v) {
+        if (v && !v->isResident()) {
+            assert(gcb.val.getStatus() == ENGINE_SUCCESS);
             if (v->restoreValue(gcb.val.getValue()->getValue(), stats)) {
                 --stats.numNonResident;
             }
+            assert(v->isResident());
         }
     }
 
