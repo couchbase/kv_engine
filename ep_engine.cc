@@ -1725,12 +1725,14 @@ static void add_casted_stat(const char *k, const Histogram<T> &v,
 template <typename T>
 static void addTapStat(const char *name, const TapConnection *tc, T val,
                        ADD_STAT add_stat, const void *cookie) {
-    char tap[80];
-    assert(strlen(name) + tc->getName().size() + 2 < sizeof(tap));
-    sprintf(tap, "%s:%s", tc->getName().c_str(), name);
-#ifndef __SUNPRO_CC
-    add_casted_stat(tap, val, add_stat, cookie);
-#endif
+    std::stringstream tap;
+    tap << tc->getName() << ":" << name;
+    std::stringstream value;
+    value << val;
+
+    add_stat(tap.str().data(), static_cast<uint16_t>(tap.str().length()),
+             value.str().data(), static_cast<uint32_t>(value.str().length()),
+             cookie);
 }
 
 static void addTapStat(const char *name, const TapConnection *tc, bool val,
