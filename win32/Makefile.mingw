@@ -45,10 +45,12 @@ EP_ENGINE_CC_SRC = \
                  stored-value.cc \
                  tapconnection.cc \
                  vbucket.cc
+
 EP_ENGINE_C_SRC = \
-                byteorder.c
-		embedded/sqlite3.c \
-		gethrtime.c
+                 byteorder.c \
+                 embedded/sqlite3.c \
+                 gethrtime.c
+
 EP_ENGINE_OBJS = ${EP_ENGINE_C_SRC:%.c=.libs/%.o} ${EP_ENGINE_CC_SRC:%.cc=.libs/%.o}
 
 .libs/ep.so: ${OBJDIR} ${GENFILES} $(EP_ENGINE_OBJS)
