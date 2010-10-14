@@ -28,20 +28,20 @@ ep_la_SOURCES = \
                  histo.hh \
                  item.cc item.hh \
                  item_pager.cc item_pager.hh \
-                 statsnap.cc statsnap.hh \
                  locks.hh \
                  mutex.hh \
-                 priority.hh priority.cc \
+                 priority.cc priority.hh \
                  sizes.cc \
-                 sqlite-eval.hh sqlite-eval.cc \
+                 sqlite-eval.cc sqlite-eval.hh \
                  sqlite-kvstore.cc sqlite-kvstore.hh \
-                 sqlite-pst.hh sqlite-pst.cc \
-                 sqlite-strategies.hh sqlite-strategies.cc \
+                 sqlite-pst.cc sqlite-pst.hh \
+                 sqlite-strategies.cc sqlite-strategies.hh \
                  stats.hh \
-                 stored-value.hh stored-value.cc \
+                 statsnap.cc statsnap.hh \
+                 stored-value.cc stored-value.hh \
                  syncobject.hh \
-                 tapconnection.hh tapconnection.cc \
-                 vbucket.hh vbucket.cc
+                 tapconnection.cc tapconnection.hh \
+                 vbucket.cc vbucket.hh
 
 if BUILD_BYTEORDER
 ep_la_SOURCES += byteorder.c

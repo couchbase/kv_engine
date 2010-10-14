@@ -42,6 +42,7 @@ EP_ENGINE_CC_SRC = \
                  sqlite-kvstore.cc \
                  sqlite-pst.cc \
                  sqlite-strategies.cc \
+                 statsnap.cc \
                  stored-value.cc \
                  tapconnection.cc \
                  vbucket.cc
