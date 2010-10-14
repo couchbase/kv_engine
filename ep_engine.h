@@ -479,7 +479,7 @@ private:
     tap_event_t doWalkTapQueue(const void *cookie, item **itm, void **es,
                                uint16_t *nes, uint8_t *ttl, uint16_t *flags,
                                uint32_t *seqno, uint16_t *vbucket,
-                               TapConnection **c);
+                               TapConnection *c, bool &retry);
 
 
     ENGINE_ERROR_CODE processTapAck(const void *cookie,

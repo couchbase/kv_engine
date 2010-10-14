@@ -1097,15 +1097,10 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
                                                               uint16_t *flags,
                                                               uint32_t *seqno,
                                                               uint16_t *vbucket,
-                                                              TapConnection **c) {
-
-    TapConnection *connection = getTapConnection(cookie);
-    if (!connection) {
-        return TAP_DISCONNECT;
-    }
-
+                                                              TapConnection *connection,
+                                                              bool &retry) {
+    retry = false;
     connection->notifySent = false;
-    *c = connection;
 
     if (connection->doRunBackfill) {
         queueBackfill(connection, cookie);
@@ -1155,6 +1150,7 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
             if (gv.getStatus() != ENGINE_SUCCESS) {
                 delete item;
             }
+            retry = true;
             return TAP_NOOP;
         }
     } else if (connection->hasQueuedItem()) {
@@ -1163,6 +1159,7 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
         *vbucket = qi.getVBucketId();
         std::string key = qi.getKey();
         if (key.length() == 0) {
+            retry = true;
             return TAP_NOOP;
         }
         GetValue gv(epstore->get(key, qi.getVBucketId(), cookie,
@@ -1190,8 +1187,11 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
             // If there's an item ready, return NOOP so we'll come
             // back immediately, otherwise pause the connection
             // while we wait.
-            return (connection->hasQueuedItem() || connection->hasItem())
-                ? TAP_NOOP : TAP_PAUSE;
+            if (connection->hasQueuedItem() || connection->hasItem()) {
+                retry = true;
+                return TAP_NOOP;
+            }
+            return TAP_PAUSE;
         } else {
             if (r == ENGINE_NOT_MY_VBUCKET) {
                 getLogger()->log(EXTENSION_LOG_WARNING, NULL,
@@ -1205,6 +1205,7 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
                                  "Disconnecting\n", connection->client.c_str(), r);
                 return TAP_DISCONNECT;
             }
+            retry = true;
             ret = TAP_NOOP;
         }
     } else if (connection->shouldFlush()) {
@@ -1238,9 +1239,18 @@ tap_event_t EventuallyPersistentEngine::walkTapQueue(const void *cookie,
                                                      uint16_t *flags,
                                                      uint32_t *seqno,
                                                      uint16_t *vbucket) {
-    TapConnection *connection;
-    tap_event_t ret = doWalkTapQueue(cookie, itm, es, nes, ttl, flags,
-                                     seqno, vbucket, &connection);
+    TapConnection *connection = getTapConnection(cookie);
+    if (!connection) {
+        return TAP_DISCONNECT;
+    }
+
+    bool retry = false;
+    tap_event_t ret;
+
+    do {
+        ret = doWalkTapQueue(cookie, itm, es, nes, ttl, flags,
+                             seqno, vbucket, connection, retry);
+    } while (retry);
 
     if (ret == TAP_PAUSE) {
         connection->paused = true;
