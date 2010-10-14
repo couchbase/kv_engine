@@ -109,6 +109,12 @@ public:
         return true;
     }
 
+    // This is unused in all implementations so far.
+    void visit(StoredValue* v) {
+        (void)v;
+        abort();
+    }
+
 protected:
     RCPtr<VBucket> currentBucket;
 };

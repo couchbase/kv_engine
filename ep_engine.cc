@@ -1913,29 +1913,24 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     return ENGINE_SUCCESS;
 }
 
-class StatVBucketVisitor : public VBucketVisitor {
-public:
-    StatVBucketVisitor(const void *c, ADD_STAT a) : cookie(c), add_stat(a) {}
-
-    bool visitBucket(RCPtr<VBucket> vb) {
-        char buf[16];
-        snprintf(buf, sizeof(buf), "vb_%d", vb->getId());
-        add_casted_stat(buf, VBucket::toString(vb->getState()), add_stat, cookie);
-        return false;
-    }
-
-    void visit(StoredValue* v) {
-        (void)v;
-        assert(false); // this does not happen
-    }
-
-private:
-    const void *cookie;
-    ADD_STAT add_stat;
-};
-
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doVBucketStats(const void *cookie,
                                                              ADD_STAT add_stat) {
+    class StatVBucketVisitor : public VBucketVisitor {
+    public:
+        StatVBucketVisitor(const void *c, ADD_STAT a) : cookie(c), add_stat(a) {}
+
+        bool visitBucket(RCPtr<VBucket> vb) {
+            char buf[16];
+            snprintf(buf, sizeof(buf), "vb_%d", vb->getId());
+            add_casted_stat(buf, VBucket::toString(vb->getState()), add_stat, cookie);
+            return false;
+        }
+
+    private:
+        const void *cookie;
+        ADD_STAT add_stat;
+    };
+
     StatVBucketVisitor svbv(cookie, add_stat);
     epstore->visit(svbv);
     return ENGINE_SUCCESS;
