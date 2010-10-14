@@ -415,6 +415,7 @@ public:
 private:
 
     void scheduleVBSnapshot();
+    void scheduleVBDeletion(RCPtr<VBucket> vb, double delay);
 
     RCPtr<VBucket> getVBucket(uint16_t vbid, vbucket_state_t wanted_state);
 

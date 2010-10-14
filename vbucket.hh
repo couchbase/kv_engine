@@ -265,9 +265,9 @@ public:
         return bucketDeletion[id].get();
     }
 
-    void setBucketDeletion(int id, bool delBucket) {
+    bool setBucketDeletion(int id, bool delBucket) {
         assert(id >= 0 && static_cast<size_t>(id) < size);
-        bucketDeletion[id].set(delBucket);
+        return bucketDeletion[id].cas(!delBucket, delBucket);
     }
 
 private:
@@ -326,9 +326,9 @@ public:
         return o->isBucketDeletion(id);
     }
 
-    void setBucketDeletion(int id, bool delBucket) {
+    bool setBucketDeletion(int id, bool delBucket) {
         RCPtr<VBucketHolder> o(buckets);
-        o->setBucketDeletion(id, delBucket);
+        return o->setBucketDeletion(id, delBucket);
     }
 
 private:
