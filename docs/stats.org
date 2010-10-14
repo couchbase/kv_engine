@@ -86,17 +86,17 @@
 | ep_tap_keepalive              | Tap keepalive time.                       |
 | ep_tap_bg_num_samples         | The number of tap bg fetch samples        |
 |                               | included in the avg                       |
-| ep_tap_bg_min_wait            | The shortest time (ns) for a tap item     |
+| ep_tap_bg_min_wait            | The shortest time (µs) for a tap item     |
 |                               | before it is serviced by the dispatcher   |
-| ep_tap_bg_max_wait            | The longest time (ns) for a tap item      |
+| ep_tap_bg_max_wait            | The longest time (µs) for a tap item      |
 |                               | before it is serviced by the dispatcher   |
-| ep_tap_bg_wait_avg            | The average wait time (ns) for a tap item |
+| ep_tap_bg_wait_avg            | The average wait time (µs) for a tap item |
 |                               | before it is serviced by the dispatcher   |
-| ep_tap_bg_min_load            | The shortest time (ns) for a tap item to  |
+| ep_tap_bg_min_load            | The shortest time (µs) for a tap item to  |
 |                               | be loaded from the persistence layer      |
-| ep_tap_bg_max_load            | The longest time (ns) for a tap item to   |
+| ep_tap_bg_max_load            | The longest time (µs) for a tap item to   |
 |                               | be loaded from the persistence layer      |
-| ep_tap_bg_load_avg            | The average time (ns) for a tap item to   |
+| ep_tap_bg_load_avg            | The average time (µs) for a tap item to   |
 |                               | be loaded from the persistence layer      |
 | ep_bg_fetched                 | Number of items fetched from disk.        |
 | ep_num_pager_runs             | Number of times we ran pager loops        |
@@ -115,16 +115,16 @@
 | ep_pending_ops                | Number of ops awaiting pending vbuckets   |
 | ep_pending_ops_total          | Total blocked pending ops since reset     |
 | ep_pending_ops_max            | Max ops seen awaiting 1 pending vbucket   |
-| ep_pending_ops_max_duration   | Max time (ns) used waiting on pending     |
+| ep_pending_ops_max_duration   | Max time (µs) used waiting on pending     |
 |                               | vbuckets                                  |
 | ep_bg_num_samples             | The number of samples included in the avg |
-| ep_bg_min_wait                | The shortest time (ns) in the wait queue  |
-| ep_bg_max_wait                | The longest time (ns) in the wait queue   |
-| ep_bg_wait_avg                | The average wait time (ns) for an item    |
+| ep_bg_min_wait                | The shortest time (µs) in the wait queue  |
+| ep_bg_max_wait                | The longest time (µs) in the wait queue   |
+| ep_bg_wait_avg                | The average wait time (µs) for an item    |
 |                               | before it is serviced by the dispatcher   |
-| ep_bg_min_load                | The shortest load time (ns)               |
-| ep_bg_max_load                | The longest load time (ns)                |
-| ep_bg_load_avg                | The average time (ns) for an item to be   |
+| ep_bg_min_load                | The shortest load time (µs)               |
+| ep_bg_max_load                | The longest load time (µs)                |
+| ep_bg_load_avg                | The average time (µs) for an item to be   |
 |                               | loaded from the persistence layer         |
 | ep_num_non_resident           | The number of non-resident items          |
 | curr_items_tot                | Num current items including those not     |
