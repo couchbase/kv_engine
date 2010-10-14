@@ -2114,6 +2114,44 @@ static enum test_result test_vkey_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
     return SUCCESS;
 }
 
+static enum test_result test_warmup_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    item *it = NULL;
+
+    for (int i = 0; i < 5000; ++i) {
+        std::stringstream key;
+        key << "key-" << i;
+        check(ENGINE_SUCCESS ==
+              store(h, h1, NULL, OPERATION_SET, key.str().c_str(), "somevalue", &it),
+              "Error setting.");
+    }
+
+    // Restart the server.
+    testHarness.reload_engine(&h, &h1,
+                              testHarness.engine_path,
+                              testHarness.default_engine_cfg,
+                              true);
+
+    useconds_t sleepTime = 128;
+    while (h1->get_stats(h, NULL, NULL, 0, add_stats) == ENGINE_SUCCESS) {
+        std::string s = vals["ep_warmup_thread"];
+        if (strcmp(s.c_str(), "complete") == 0) {
+            break;
+        }
+        decayingSleep(&sleepTime);
+        vals.clear();
+    }
+
+    check(vals.find("ep_warmup_thread") != vals.end(), "Found no ep_warmup_thread");
+    check(vals.find("ep_warmed_up") != vals.end(), "Found no ep_warmed_up");
+    check(vals.find("ep_warmup_dups") != vals.end(), "Found no ep_warmup_dups");
+    check(vals.find("ep_warmup_oom") != vals.end(), "Found no ep_warmup_oom");
+    check(vals.find("ep_warmup_time") != vals.end(), "Found no ep_warmup_time");
+    std::string warmup_time = vals["ep_warmup_time"];
+    assert(atoi(warmup_time.c_str()) > 0);
+
+    return SUCCESS;
+}
+
 static enum test_result test_curr_items(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
 
@@ -2630,6 +2668,7 @@ engine_test_t* get_tests(void) {
         {"mem stats", test_mem_stats, NULL, teardown, NULL},
         {"stats key", test_key_stats, NULL, teardown, NULL},
         {"stats vkey", test_vkey_stats, NULL, teardown, NULL},
+        {"warmup stats", test_warmup_stats, NULL, teardown, NULL},
         {"stats curr_items", test_curr_items, NULL, teardown, NULL},
         // eviction
         {"value eviction", test_value_eviction, NULL, teardown, NULL},

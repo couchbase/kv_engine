@@ -71,7 +71,7 @@
 | ep_warmup                     | true if warmup is enabled.                |
 | ep_warmup_thread              | Warmup thread status.                     |
 | ep_warmed_up                  | Number of items warmed up.                |
-| ep_warmup_time                | Number of seconds spent warming data.     |
+| ep_warmup_time                | Time (µs) spent by warming data.          |
 | ep_warmup_dups                | Duplicates encountered during warmup.     |
 | ep_warmup_oom                 | OOMs encountered during warmup.           |
 | eq_tapq:client_id:qlen        | Queue size for the given client_id.       |

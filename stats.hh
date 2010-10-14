@@ -22,7 +22,7 @@ public:
     EPStats() : maxDataSize(DEFAULT_MAX_DATA_SIZE) {}
 
     //! How long it took us to load the data from disk.
-    Atomic<time_t> warmupTime;
+    Atomic<hrtime_t> warmupTime;
     //! Whether we're warming up.
     Atomic<bool> warmupComplete;
     //! Number of records warmed up.
