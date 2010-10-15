@@ -98,6 +98,15 @@ inline size_t ep_sync_fetch_and_add(volatile uint64_t *dest, size_t value) {
 }
 #endif
 
+inline bool ep_sync_bool_compare_and_swap(volatile bool *dest, bool prev, bool next) {
+    hrtime_t original = *dest;
+    if (original == atomic_cas_8((volatile uint8_t*)dest, (uint8_t)prev, (uint8_t)next)) {
+        return true;
+    } else {
+        return false;
+    }
+}
+
 inline bool ep_sync_bool_compare_and_swap(volatile int *dest, int prev, int next) {
     hrtime_t original = *dest;
     if (original == atomic_cas_uint((volatile uint_t*)dest, (uint_t)prev, (uint_t)next)) {
