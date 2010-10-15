@@ -108,6 +108,14 @@ private:
 };
 
 /**
+ * Database strategy
+ */
+enum db_strategy {
+    single_db,           //!< single database strategy
+    multi_db             //!< multi-database strategy
+};
+
+/**
  *
  */
 class EventuallyPersistentEngine : public ENGINE_HANDLE_V1 {
@@ -718,6 +726,7 @@ private:
     const char *dbname;
     const char *initFile;
     const char *postInitFile;
+    enum db_strategy dbStrategy;
     bool warmup;
     bool wait_for_warmup;
     bool fail_on_partial_warmup;

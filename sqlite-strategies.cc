@@ -58,6 +58,11 @@ void SqliteStrategy::initMetaTables() {
             " (vbid integer primary key on conflict replace,"
             "  state varchar(16),"
             "  last_change datetime)");
+    execute("create table if not exists stats_snap"
+            " (name varchar(16),"
+            "  value varchar(24),"
+            "  last_change datetime)");
+
 }
 
 void SqliteStrategy::initTables(void) {
@@ -123,15 +128,6 @@ void SqliteStrategy::execute(const char * const query) {
 
 void MultiDBSqliteStrategy::initTables() {
     char buf[1024];
-    execute("create table if not exists vbucket_states"
-            " (vbid integer primary key on conflict replace,"
-            "  state varchar(16),"
-            "  last_change datetime)");
-
-    execute("create table if not exists stats_snap"
-            " (name varchar(16),"
-            "  value varchar(24),"
-            "  last_change datetime)");
 
     for (int i = 0; i < numTables; i++) {
         snprintf(buf, sizeof(buf), "attach database \"%s-%d.sqlite\" as kv_%d",

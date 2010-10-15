@@ -1351,6 +1351,23 @@ static enum test_result test_db_shards(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+static enum test_result test_single_db_strategy(ENGINE_HANDLE *h,
+                                                ENGINE_HANDLE_V1 *h1) {
+    vals.clear();
+    check(h1->get_stats(h, NULL, NULL, 0, add_stats) == ENGINE_SUCCESS,
+          "Failed to get stats.");
+    check(vals.find("ep_dbname") != vals.end(), "Found no db name");
+    check(vals.find("ep_db_strategy") != vals.end(), "Found no db strategy");
+    std::string db_strategy = vals["ep_db_strategy"];
+    assert(strcmp(db_strategy.c_str(), "singleDB") == 0);
+
+    wait_for_persisted_value(h, h1, "key", "somevalue");
+    evict_key(h, h1, "key", 0, "Ejected.");
+    check_key_value(h, h1, "key", "somevalue", 9);
+
+    return SUCCESS;
+}
+
 static enum test_result test_memory_limit(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     int used = get_int_stat(h, h1, "mem_used");
     int max = get_int_stat(h, h1, "ep_max_data_size");
@@ -2675,6 +2692,10 @@ engine_test_t* get_tests(void) {
         {"test whitespace dbname", test_whitespace_db, NULL, teardown,
          "dbname=" WHITESPACE_DB ";ht_locks=1;ht_size=3"},
         {"test db shards", test_db_shards, NULL, teardown, "db_shards=5"},
+        {"test single db strategy", test_single_db_strategy,
+         NULL, teardown, "db_strategy=singleDB"},
+        {"test single in-memory db strategy", test_single_db_strategy,
+         NULL, teardown, "db_strategy=singleDB;dbname=:memory:"},
         {"get miss", test_get_miss, NULL, teardown, NULL},
         {"set", test_set, NULL, teardown, NULL},
         {"concurrent set", test_conc_set, NULL, teardown, NULL},

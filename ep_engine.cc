@@ -667,7 +667,7 @@ EXTENSION_LOGGER_DESCRIPTOR *getLogger(void) {
 }
 
 EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server_api) :
-    dbname("/tmp/test.db"), initFile(NULL), postInitFile(NULL),
+    dbname("/tmp/test.db"), initFile(NULL), postInitFile(NULL), dbStrategy(multi_db),
     warmup(true), wait_for_warmup(true), fail_on_partial_warmup(true),
     startVb0(true), sqliteStrategy(NULL), sqliteDb(NULL), epstore(NULL),
     databaseInitTime(0), tapIdleTimeout(DEFAULT_TAP_IDLE_TIMEOUT), nextTapNoop(0),
@@ -718,12 +718,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
 
     resetStats();
     if (config != NULL) {
-        char *dbn = NULL, *initf = NULL, *pinitf = NULL, *svaltype = NULL;
+        char *dbn = NULL, *initf = NULL, *pinitf = NULL, *svaltype = NULL, *dbs=NULL;
         size_t htBuckets = 0;
         size_t htLocks = 0;
         size_t maxSize = 0;
 
-        const int max_items = 26;
+        const int max_items = 27;
         struct config_item items[max_items];
         int ii = 0;
         memset(items, 0, sizeof(items));
@@ -741,6 +741,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         items[ii].key = "postInitfile";
         items[ii].datatype = DT_STRING;
         items[ii].value.dt_string = &pinitf;
+
+        ++ii;
+        items[ii].key = "db_strategy";
+        items[ii].datatype = DT_STRING;
+        items[ii].value.dt_string = &dbs;
 
         ++ii;
         items[ii].key = "warmup";
@@ -868,6 +873,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
             if (pinitf != NULL) {
                 postInitFile = pinitf;
             }
+            if (dbs != NULL) {
+                dbStrategy = strcmp(dbs, "multiDB") == 0 ? multi_db : single_db;
+            }
             HashTable::setDefaultNumBuckets(htBuckets);
             HashTable::setDefaultNumLocks(htLocks);
             StoredValue::setMaxDataSize(stats, maxSize);
@@ -887,9 +895,14 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     if (ret == ENGINE_SUCCESS) {
         time_t start = ep_real_time();
         try {
-            sqliteStrategy = new MultiDBSqliteStrategy(*this, dbname,
-                                                       initFile, postInitFile,
-                                                       dbShards);
+            if (dbStrategy == multi_db) {
+                sqliteStrategy = new MultiDBSqliteStrategy(*this, dbname,
+                                                           initFile, postInitFile,
+                                                           dbShards);
+            } else {
+                sqliteStrategy = new SqliteStrategy(*this, dbname, initFile,
+                                                    postInitFile);
+            }
             sqliteDb = new StrategicSqlite3(*this, sqliteStrategy);
         } catch (std::exception& e) {
             std::stringstream ss;
@@ -1870,6 +1883,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     add_casted_stat("ep_dbname", dbname, add_stat, cookie);
     add_casted_stat("ep_dbinit", databaseInitTime, add_stat, cookie);
     add_casted_stat("ep_dbshards", dbShards, add_stat, cookie);
+    if (dbStrategy == multi_db) {
+        add_casted_stat("ep_db_strategy", "multiDB", add_stat, cookie);
+    } else {
+        add_casted_stat("ep_db_strategy", "singleDB", add_stat, cookie);
+    }
     add_casted_stat("ep_warmup", warmup ? "true" : "false",
                     add_stat, cookie);
 

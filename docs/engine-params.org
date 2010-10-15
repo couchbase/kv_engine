@@ -55,4 +55,5 @@ memcached like this:
 | failpartialwarmup | bool   | If false, continue running after failing to   |
 |                   |        | load some records.                            |
 | db_shards         | int    | Number of shards for db store                 |
+| db_strategy       | string | DB store strategy ("multiDB" or "singleDB")   |
 
