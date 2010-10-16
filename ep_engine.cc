@@ -1883,11 +1883,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     add_casted_stat("ep_dbname", dbname, add_stat, cookie);
     add_casted_stat("ep_dbinit", databaseInitTime, add_stat, cookie);
     add_casted_stat("ep_dbshards", dbShards, add_stat, cookie);
-    if (dbStrategy == multi_db) {
-        add_casted_stat("ep_db_strategy", "multiDB", add_stat, cookie);
-    } else {
-        add_casted_stat("ep_db_strategy", "singleDB", add_stat, cookie);
-    }
+    add_casted_stat("ep_db_strategy",
+                    dbStrategy == multi_db ? "multiDB" : "singleDB",
+                    add_stat, cookie);
     add_casted_stat("ep_warmup", warmup ? "true" : "false",
                     add_stat, cookie);
 
