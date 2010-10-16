@@ -184,6 +184,72 @@ another colon.  For example, if your client is named, =slave1=, the
 | ack_window_full    | true if our tap ACK window is full.     |
 | expires            | When this ACK backlog expires.          |
 
+** Timing Stats
+
+Timing stats provide histogram data from high resolution timers over
+various operations within the system.
+
+*** General Form
+
+As this data is multi-dimensional, some parsing may be required for
+machine processing.  It's somewhat human readable, but the =stats=
+script mentioned in the Getting Started section above will do fancier
+formatting for you.
+
+Consider the following sample stats:
+
+: STAT disk_insert_8,16 9488
+: STAT disk_insert_16,32 290
+: STAT disk_insert_32,64 73
+: STAT disk_insert_64,128 86
+: STAT disk_insert_128,256 48
+: STAT disk_insert_256,512 2
+: STAT disk_insert_512,1024 12
+: STAT disk_insert_1024,2048 1
+
+This tells you that =disk_insert= took 8-16µs 9,488 times, 16-32µs
+290 times, and so on.
+
+The same stats displayed through the =stats= CLI tool would look like
+this:
+
+: disk_insert (10008 total)
+:    8us - 16us    : ( 94.80%) 9488 ###########################################
+:    16us - 32us   : ( 97.70%)  290 #
+:    32us - 64us   : ( 98.43%)   73 
+:    64us - 128us  : ( 99.29%)   86 
+:    128us - 256us : ( 99.77%)   48 
+:    256us - 512us : ( 99.79%)    2 
+:    512us - 1ms   : ( 99.91%)   12 
+:    1ms - 2ms     : ( 99.92%)    1 
+
+
+*** Available Stats
+
+The following histograms are available from "timings" in the above
+form to describe when time was spent doing various things:
+
+| bg_wait      | bg fetches waiting in the dispatcher queue     |
+| bg_load      | bg fetches waiting for disk                    |
+| bg_tap_wait  | tap bg fetches waiting in the dispatcher queue |
+| bg_tap_laod  | tap bg fetches waiting for disk                |
+| pending_ops  | client connections blocked for operations      |
+|              | in pending vbuckets.                           |
+| get_cmd      | servicing get requests                         |
+| store_cmd    | servicing store requests                       |
+| arith_cmd    | servicing incr/decr requests                   |
+| get_vb_cmd   | servicing vbucket status requests              |
+| set_vb_cmd   | servicing vbucket set state commands           |
+| del_vb_cmd   | servicing vbucket deletion commands            |
+| tap_vb_set   | servicing tap vbucket set state commands       |
+| tap_mutation | servicing tap mutations                        |
+| disk_insert  | waiting for disk to store a new item           |
+| disk_update  | waiting for disk to modify an existing item    |
+| disk_del     | waiting for disk to delete an item             |
+| disk_vb_del  | waiting for disk to delete a vbucket           |
+| disk_commit  | waiting for a commit after a batch of updates  |
+
+
 * Details
 
 ** Ages
