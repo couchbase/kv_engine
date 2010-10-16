@@ -14,6 +14,10 @@
 #+LINK_HOME:
 #+STYLE:  <link rel="stylesheet" type="text/css" href="myorg.css" />
 
+* Getting Started
+
+For introductory information on stats within membase, start with the
+[[http://wiki.membase.org/display/membase/Membase%2BStatistics][membase wiki stats page]].
 
 * Stats Definitions
 
