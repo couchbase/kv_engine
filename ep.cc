@@ -1050,7 +1050,7 @@ int EventuallyPersistentStore::flushOneDelOrSet(QueuedItem &qi,
     }
 
     if (isDirty) {
-        v->markClean(&dirtied);
+        dirtied = v->getDataAge();
         // Calculate stats if this had a positive time.
         rel_time_t now = ep_current_time();
         int dataAge = now - dirtied;
@@ -1096,23 +1096,25 @@ int EventuallyPersistentStore::flushOneDelOrSet(QueuedItem &qi,
         }
     }
 
-    lh.unlock();
-
     if (isDirty && !deleted) {
         // If vbucket deletion is currently being flushed, don't flush a set operation,
         // but requeue a set operation to a flusher to avoid duplicate items on disk
         if (vbuckets.isBucketDeletion(qi.getVBucketId())) {
+            lh.unlock();
             towrite.push(qi);
             stats.memOverhead.incr(qi.size());
             assert(stats.memOverhead.get() < GIGANTOR);
             ++stats.totalEnqueued;
             stats.queue_size = towrite.size();
         } else {
+            v->markClean(NULL);
+            lh.unlock();
             BlockTimer timer(rowid == -1 ? &stats.diskInsertHisto : &stats.diskUpdateHisto);
             PersistenceCallback cb(qi, rejectQueue, this, queued, dirtied, &stats);
             underlying->set(*val, cb);
         }
     } else if (deleted) {
+        lh.unlock();
         BlockTimer timer(&stats.diskDelHisto);
         PersistenceCallback cb(qi, rejectQueue, this, queued, dirtied, &stats);
         if (rowid > 0) {
