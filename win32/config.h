@@ -59,6 +59,8 @@
 
 #define EAI_SYSTEM -11
 
+#define HAVE_GCC_ATOMICS 1
+
 #include "config_static.h"
 
 #if defined(__cplusplus) && defined(__WIN64__)
