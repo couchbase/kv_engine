@@ -10,10 +10,12 @@
 
 #define MAX_THREADS 100
 
-#ifdef HAVE_ATOMIC_H
+#if defined(HAVE_GCC_ATOMICS)
+#include "atomic/gcc_atomics.h"
+#elif defined(HAVE_ATOMIC_H)
 #include "atomic/libatomic.h"
 #else
-#include "atomic/gcc_atomics.h"
+#error "Don't know how to use atomics on your target system!"
 #endif
 
 extern "C" {
