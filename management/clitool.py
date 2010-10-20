@@ -41,7 +41,7 @@ class CliTool(object):
             if callable(f[0]):
                 f[0](mc, *args[2:], **opts.__dict__)
             else:
-                getattr(mc, f[0])(args[2:])
+                getattr(mc, f[0])(*args[2:])
         except socket.error, e:
             # "Broken pipe" is confusing, so print "Connection refused" instead.
             if type(e) is tuple and e[0] == 32 or \
