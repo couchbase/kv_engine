@@ -505,13 +505,13 @@ void EventuallyPersistentStore::scheduleVBSnapshot() {
 
 void EventuallyPersistentStore::completeVBucketDeletion(uint16_t vbid) {
     LockHolder lh(vbsetMutex);
-    vbuckets.setBucketDeletion(vbid, false);
 
     RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
     if (!vb || vb->getState() == dead || vbuckets.isBucketDeletion(vbid)) {
         lh.unlock();
         BlockTimer timer(&stats.diskVBDelHisto);
         if (underlying->delVBucket(vbid)) {
+            vbuckets.setBucketDeletion(vbid, false);
             ++stats.vbucketDeletions;
             scheduleVBSnapshot();
         } else {
