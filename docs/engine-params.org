@@ -56,4 +56,4 @@ memcached like this:
 |                   |        | load some records.                            |
 | db_shards         | int    | Number of shards for db store                 |
 | db_strategy       | string | DB store strategy ("multiDB" or "singleDB")   |
-
+| vb_del_chunk_size | int    | Chunk size of vbucket deletion                |

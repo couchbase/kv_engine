@@ -1468,12 +1468,20 @@ static enum test_result test_vbucket_destroy_stats(ENGINE_HANDLE *h,
 
     check(set_vbucket_state(h, h1, 1, "active"), "Failed to set vbucket state.");
 
-    item *i = NULL;
-    check(ENGINE_SUCCESS ==
-          store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i, 0, 1),
-          "Error setting.");
-    wait_for_persisted_value(h, h1, "key2", "value2", 1);
-    evict_key(h, h1, "key2", 1, "Ejected.");
+    std::vector<std::string> keys;
+    for (int j = 0; j < 2000; ++j) {
+        std::stringstream ss;
+        ss << "key" << j;
+        std::string key(ss.str());
+        keys.push_back(key);
+    }
+    std::vector<std::string>::iterator it;
+    for (it = keys.begin(); it != keys.end(); ++it) {
+        item *i;
+        check(store(h, h1, NULL, OPERATION_SET, it->c_str(), it->c_str(), &i, 0, 1)
+              == ENGINE_SUCCESS, "Failed to store a value");
+    }
+    wait_for_flusher_to_settle(h, h1);
 
     check(set_vbucket_state(h, h1, 1, "dead"), "Failed set set vbucket 1 state.");
 
@@ -1486,7 +1494,7 @@ static enum test_result test_vbucket_destroy_stats(ENGINE_HANDLE *h,
           "Expected failure deleting non-existent bucket.");
 
     check(verify_vbucket_missing(h, h1, 1),
-          "vbucket 0 was not missing after deleting it.");
+          "vbucket 1 was not missing after deleting it.");
 
     wait_for_stat_change(h, h1, "ep_vbucket_del", vbucketDel);
 

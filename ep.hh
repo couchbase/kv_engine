@@ -64,6 +64,12 @@ enum queue_operation {
     queue_op_flush
 };
 
+typedef enum {
+    vbucket_del_success,
+    vbucket_del_fail,
+    vbucket_del_invalid
+} vbucket_del_result;
+
 class QueuedItem {
 public:
     QueuedItem(const std::string &k, const uint16_t vb, enum queue_operation o)
@@ -121,6 +127,7 @@ protected:
 
 // Forward declaration
 class Flusher;
+class TapBGFetchCallback;
 
 /**
  * Helper class used to insert items into the storage by using
@@ -356,7 +363,9 @@ public:
     void setVBucketState(uint16_t vbid,
                          vbucket_state_t state);
 
-    void completeVBucketDeletion(uint16_t vbid);
+    vbucket_del_result completeVBucketDeletion(uint16_t vbid,
+                                               std::pair<int64_t, int64_t> row_range,
+                                               bool isLastChunk);
     bool deleteVBucket(uint16_t vbid);
 
     void visit(VBucketVisitor &visitor) {
@@ -473,6 +482,7 @@ private:
     friend class Flusher;
     friend class BGFetchCallback;
     friend class VKeyStatBGFetchCallback;
+    friend class TapBGFetchCallback;
     friend class TapConnection;
     friend class PersistenceCallback;
     friend class Deleter;
@@ -498,5 +508,26 @@ private:
     DISALLOW_COPY_AND_ASSIGN(EventuallyPersistentStore);
 };
 
+/**
+ * Object whose existence maintains a counter incremented.
+ *
+ * When the object is constructed, it increments the given counter,
+ * when destructed, it decrements the counter.
+ */
+class BGFetchCounter {
+public:
+
+    BGFetchCounter(Atomic<size_t> &c) : counter(c) {
+        ++counter;
+    }
+
+    ~BGFetchCounter() {
+        --counter;
+        assert(counter.get() < GIGANTOR);
+    }
+
+private:
+    Atomic<size_t> &counter;
+};
 
 #endif /* EP_HH */

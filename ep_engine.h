@@ -477,6 +477,10 @@ public:
         return itemExpiryWindow;
     }
 
+    size_t getVbDelChunkSize() const {
+        return vb_del_chunk_size;
+    }
+
     SERVER_HANDLE_V1* getServerApi() { return serverApi; }
 
 private:
@@ -767,6 +771,7 @@ private:
     size_t itemExpiryWindow;
     size_t expiryPagerSleeptime;
     size_t dbShards;
+    size_t vb_del_chunk_size;
     EPStats stats;
 };
 
