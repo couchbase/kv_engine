@@ -64,6 +64,12 @@ enum queue_operation {
     queue_op_flush
 };
 
+typedef enum {
+    vbucket_del_success,
+    vbucket_del_fail,
+    vbucket_del_invalid
+} vbucket_del_result;
+
 class QueuedItem {
 public:
     QueuedItem(const std::string &k, const uint16_t vb, enum queue_operation o)
@@ -279,7 +285,9 @@ public:
     void setVBucketState(uint16_t vbid,
                          vbucket_state_t state);
 
-    void completeVBucketDeletion(uint16_t vbid);
+    vbucket_del_result completeVBucketDeletion(uint16_t vbid,
+                                               std::pair<int64_t, int64_t> row_range,
+                                               bool isLastChunk);
     bool deleteVBucket(uint16_t vbid);
 
     void visit(VBucketVisitor &visitor) {

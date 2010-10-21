@@ -141,6 +141,6 @@ void Statements::initStatements() {
     del_stmt = new PreparedStatement(db, buf);
 
     snprintf(buf, sizeof(buf),
-             "delete from %s where vbucket = ?", tableName.c_str());
+             "delete from %s where vbucket = ? and rowid between ? and ?", tableName.c_str());
     del_vb_stmt = new PreparedStatement(db, buf);
 }

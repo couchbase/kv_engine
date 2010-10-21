@@ -171,28 +171,120 @@ private:
     SERVER_HANDLE_V1 *api;
 };
 
+class VBucketDeletionVisitor : public HashTableVisitor {
+public:
+    /**
+     * Construct a VBucketDeletionVisitor that will attempt to get all the
+     * row_ids for a given vbucket from memory.
+     *
+     */
+    VBucketDeletionVisitor(size_t deletion_size)
+        : row_ids(new std::set<int64_t>), chunk_size(deletion_size) {}
+
+    ~VBucketDeletionVisitor() {
+        if (row_ids) {
+            delete row_ids;
+        }
+    }
+
+    void visit(StoredValue *v) {
+        if(v->hasId()) {
+            row_ids->insert(v->getId());
+        }
+    }
+
+    void createRangeList() {
+        size_t counter = 0;
+        int64_t start_row_id = -1, end_row_id = -1;
+
+        std::set<int64_t>::iterator iter;
+        for (iter = row_ids->begin(); iter != row_ids->end(); ++iter) {
+            ++counter;
+            if (counter == 1) {
+                start_row_id = *iter;
+            }
+            if (counter == chunk_size || iter == --(row_ids->end())) {
+                end_row_id = *iter;
+                range_list.push_back(std::make_pair(start_row_id, end_row_id));
+                counter = 0;
+            }
+        }
+
+        delete row_ids;
+        row_ids = NULL;
+    }
+
+    std::set<int64_t>                       *row_ids;
+    std::list<std::pair<int64_t, int64_t> >  range_list;
+    size_t                                   chunk_size;
+};
+
 class VBucketDeletionCallback : public DispatcherCallback {
 public:
-    VBucketDeletionCallback(EventuallyPersistentStore *e, uint16_t vbid)
-        : ep(e), vbucket(vbid) {
+    VBucketDeletionCallback(EventuallyPersistentStore *e, RCPtr<VBucket> vb,
+                            size_t deletion_size = 1000)
+        : ep(e), chunk_size(deletion_size), chunk_num(1), vbdv(deletion_size) {
         assert(ep);
+        assert(vb);
+        vbucket = vb->getId();
+        vb->ht.visit(vbdv);
+        vbdv.createRangeList();
+        current_range = vbdv.range_list.begin();
     }
 
     bool callback(Dispatcher &d, TaskId t) {
         (void)d; (void)t;
-        ep->completeVBucketDeletion(vbucket);
-        return false;
+        bool rv = false, isLastChunk = false;
+
+        std::pair<int64_t, int64_t> range;
+        if (current_range == vbdv.range_list.end()) {
+            range.first = -1;
+            range.second = -1;
+            isLastChunk = true;
+        } else {
+            range.first = (*current_range).first;
+            range.second = (*current_range).second;
+        }
+
+        vbucket_del_result result = ep->completeVBucketDeletion(vbucket,
+                                                                range,
+                                                                isLastChunk);
+        switch(result) {
+        case vbucket_del_success:
+            if (!isLastChunk) {
+                ++current_range;
+                ++chunk_num;
+                d.snooze(t, 1);
+                rv = true;
+            }
+            break;
+        case vbucket_del_fail:
+            d.snooze(t, 10);
+            rv = true;
+            getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                             "Reschedule to delete the chunk %d of vbucket %d from disk\n",
+                             chunk_num, vbucket);
+            break;
+        case vbucket_del_invalid:
+            break;
+        }
+
+        return rv;
     }
 
     std::string description() {
         std::stringstream ss;
-        ss << "Removing vbucket " << vbucket << " from disk.";
+        ss << "Removing the chunk " << chunk_num << " of vbucket "
+           << vbucket << " from disk.";
         return ss.str();
     }
 private:
-    EventuallyPersistentStore *ep;
-    uint16_t                   vbucket;
-
+    EventuallyPersistentStore    *ep;
+    uint16_t                      vbucket;
+    size_t                        chunk_size;
+    size_t                        chunk_num;
+    VBucketDeletionVisitor        vbdv;
+    std::list<std::pair<int64_t, int64_t> >::iterator  current_range;
 };
 
 EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine &theEngine,
@@ -482,24 +574,28 @@ void EventuallyPersistentStore::setVBucketState(uint16_t vbid,
     }
 }
 
-void EventuallyPersistentStore::completeVBucketDeletion(uint16_t vbid) {
+vbucket_del_result
+EventuallyPersistentStore::completeVBucketDeletion(uint16_t vbid,
+                                                   std::pair<int64_t, int64_t> row_range,
+                                                   bool isLastChunk) {
     LockHolder lh(vbsetMutex);
 
     RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
     if (!vb || vb->getState() == dead || vbuckets.isBucketDeletion(vbid)) {
         lh.unlock();
         BlockTimer timer(&stats.diskVBDelHisto);
-        if (underlying->delVBucket(vbid)) {
-            vbuckets.setBucketDeletion(vbid, false);
-            ++stats.vbucketDeletions;
+        if (underlying->delVBucket(vbid, row_range, isLastChunk)) {
+            if (isLastChunk) {
+                vbuckets.setBucketDeletion(vbid, false);
+                ++stats.vbucketDeletions;
+            }
+            return vbucket_del_success;
         } else {
             ++stats.vbucketDeletionFail;
-            getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                             "Rescheduling a task to delete vbucket %d from disk\n", vbid);
-            dispatcher->schedule(shared_ptr<DispatcherCallback>(new VBucketDeletionCallback(this, vbid)),
-                                 NULL, Priority::VBucketDeletionPriority, 10, false);
+            return vbucket_del_fail;
         }
     }
+    return vbucket_del_invalid;
 }
 
 bool EventuallyPersistentStore::deleteVBucket(uint16_t vbid) {
@@ -516,8 +612,13 @@ bool EventuallyPersistentStore::deleteVBucket(uint16_t vbid) {
         stats.currentSize.decr(statvis.memSize);
         assert(stats.currentSize.get() < GIGANTOR);
         stats.totalCacheSize.decr(statvis.memSize);
-        dispatcher->schedule(shared_ptr<DispatcherCallback>(new VBucketDeletionCallback(this, vbid)),
-                             NULL, Priority::VBucketDeletionPriority, 0, false);
+
+        int chunk_size = engine.getVbDelChunkSize();
+        shared_ptr<DispatcherCallback> cb(new VBucketDeletionCallback(this, vb,
+                                                                      chunk_size));
+        dispatcher->schedule(cb,
+                             NULL, Priority::VBucketDeletionPriority,
+                             0, false);
         rv = true;
     }
     return rv;
@@ -1025,7 +1126,7 @@ int EventuallyPersistentStore::flushOneDelOrSet(QueuedItem &qi,
     }
 
     if (isDirty) {
-        v->markClean(&dirtied);
+        dirtied = v->getDataAge();
         // Calculate stats if this had a positive time.
         rel_time_t now = ep_current_time();
         int dataAge = now - dirtied;
@@ -1071,23 +1172,25 @@ int EventuallyPersistentStore::flushOneDelOrSet(QueuedItem &qi,
         }
     }
 
-    lh.unlock();
-
     if (isDirty && !deleted) {
         // If vbucket deletion is currently being flushed, don't flush a set operation,
         // but requeue a set operation to a flusher to avoid duplicate items on disk
         if (vbuckets.isBucketDeletion(qi.getVBucketId())) {
+            lh.unlock();
             towrite.push(qi);
             stats.memOverhead.incr(qi.size());
             assert(stats.memOverhead.get() < GIGANTOR);
             ++stats.totalEnqueued;
             stats.queue_size = towrite.size();
         } else {
+            v->markClean(NULL);
+            lh.unlock();
             BlockTimer timer(rowid == -1 ? &stats.diskInsertHisto : &stats.diskUpdateHisto);
             PersistenceCallback cb(qi, rejectQueue, this, queued, dirtied, &stats);
             underlying->set(*val, cb);
         }
     } else if (deleted) {
+        lh.unlock();
         BlockTimer timer(&stats.diskDelHisto);
         PersistenceCallback cb(qi, rejectQueue, this, queued, dirtied, &stats);
         if (rowid > 0) {

@@ -677,7 +677,7 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server
     memHighWat(std::numeric_limits<size_t>::max()),
     minDataAge(DEFAULT_MIN_DATA_AGE),
     queueAgeCap(DEFAULT_QUEUE_AGE_CAP),
-    itemExpiryWindow(3), expiryPagerSleeptime(3600), dbShards(4)
+    itemExpiryWindow(3), expiryPagerSleeptime(3600), dbShards(4), vb_del_chunk_size(1000)
 {
     interface.interface = 1;
     ENGINE_HANDLE_V1::get_info = EvpGetInfo;
@@ -720,7 +720,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         size_t htLocks = 0;
         size_t maxSize = 0;
 
-        const int max_items = 26;
+        const int max_items = 27;
         struct config_item items[max_items];
         int ii = 0;
         memset(items, 0, sizeof(items));
@@ -842,6 +842,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         items[ii].key = "db_shards";
         items[ii].datatype = DT_SIZE;
         items[ii].value.dt_size = &dbShards;
+
+        ++ii;
+        items[ii].key = "vb_del_chunk_size";
+        items[ii].datatype = DT_SIZE;
+        items[ii].value.dt_size = &vb_del_chunk_size;
 
         ++ii;
         items[ii].key = NULL;

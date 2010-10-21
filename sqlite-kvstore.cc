@@ -142,21 +142,27 @@ void StrategicSqlite3::del(const std::string &key, uint64_t rowid,
     del_stmt->reset();
 }
 
-bool StrategicSqlite3::delVBucket(uint16_t vbucket) {
+bool StrategicSqlite3::delVBucket(uint16_t vbucket,
+                                  std::pair<int64_t, int64_t> row_range,
+                                  bool isLastChunk) {
     bool rv = true;
     const std::vector<Statements*> statements = strategy->allStatements();
     std::vector<Statements*>::const_iterator it;
     for (it = statements.begin(); it != statements.end(); ++it) {
         PreparedStatement *del_stmt = (*it)->del_vb();
         del_stmt->bind(1, vbucket);
+        del_stmt->bind64(2, row_range.first);
+        del_stmt->bind64(3, row_range.second);
         rv &= del_stmt->execute() >= 0;
         del_stmt->reset();
     }
-    PreparedStatement *dst = strategy->getDelVBucketStateST();
-    dst->bind(1, vbucket);
+    if(isLastChunk) {
+        PreparedStatement *dst = strategy->getDelVBucketStateST();
+        dst->bind(1, vbucket);
+        rv &= dst->execute() >= 0;
+        dst->reset();
+    }
     ++stats.io_num_write;
-    rv &= dst->execute() >= 0;
-    dst->reset();
 
     return rv;
 }

@@ -103,7 +103,8 @@ public:
     void del(const std::string &key, uint64_t rowid,
              Callback<int> &cb);
 
-    bool delVBucket(uint16_t vbucket);
+    bool delVBucket(uint16_t vbucket, std::pair<int64_t, int64_t> row_range,
+                    bool isLastChunk);
     bool setVBState(uint16_t vbucket, const std::string &to);
     std::map<uint16_t, std::string> listPersistedVbuckets(void);
 
