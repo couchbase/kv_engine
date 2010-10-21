@@ -55,7 +55,7 @@ public:
                     const std::string &k, uint16_t vbid, uint64_t r,
                     const void *c) :
         ep(e), key(k), vbucket(vbid), rowid(r), cookie(c),
-        init(gethrtime()), start(0) {
+        counter(ep->bgFetchQueue), init(gethrtime()), start(0) {
         assert(ep);
         assert(cookie);
     }
@@ -79,6 +79,7 @@ private:
     uint16_t                   vbucket;
     uint64_t                   rowid;
     const void                *cookie;
+    BGFetchCounter             counter;
 
     hrtime_t init;
     hrtime_t start;
@@ -90,7 +91,7 @@ public:
                             const std::string &k, uint16_t vbid, uint64_t r,
                             const void *c, shared_ptr<Callback<GetValue> > cb) :
         ep(e), key(k), vbucket(vbid), rowid(r), cookie(c),
-        lookup_cb(cb) {
+        lookup_cb(cb), counter(e->bgFetchQueue) {
         assert(ep);
         assert(cookie);
         assert(lookup_cb);
@@ -100,7 +101,6 @@ public:
         (void)d; (void)t;
         RememberingCallback<GetValue> gcb;
 
-        --ep->bgFetchQueue;
         ep->getUnderlying()->get(key, rowid, gcb);
         gcb.waitForValue();
         assert(gcb.fired);
@@ -122,6 +122,7 @@ private:
     uint64_t                         rowid;
     const void                      *cookie;
     shared_ptr<Callback<GetValue> >  lookup_cb;
+    BGFetchCounter                   counter;
 };
 
 class SetVBStateCallback : public DispatcherCallback {
@@ -629,7 +630,6 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
                                                 uint64_t rowid,
                                                 const void *cookie,
                                                 hrtime_t init, hrtime_t start) {
-    --bgFetchQueue;
     ++stats.bg_fetched;
     std::stringstream ss;
     ss << "Completed a background fetch, now at " << bgFetchQueue.get()
@@ -689,7 +689,6 @@ void EventuallyPersistentStore::bgFetch(const std::string &key,
                                         const void *cookie) {
     shared_ptr<BGFetchCallback> dcb(new BGFetchCallback(this, key,
                                                         vbucket, rowid, cookie));
-    ++bgFetchQueue;
     assert(bgFetchQueue > 0);
     std::stringstream ss;
     ss << "Queued a background fetch, now at " << bgFetchQueue.get()
@@ -775,7 +774,6 @@ EventuallyPersistentStore::getFromUnderlying(const std::string &key,
                                                                             vbucket,
                                                                             v->getId(),
                                                                             cookie, cb));
-        ++bgFetchQueue;
         assert(bgFetchQueue > 0);
         dispatcher->schedule(dcb, NULL, Priority::VKeyStatBgFetcherPriority, bgFetchDelay);
         return ENGINE_EWOULDBLOCK;

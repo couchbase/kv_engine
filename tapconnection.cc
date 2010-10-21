@@ -306,7 +306,7 @@ public:
                        const std::string &k,
                        uint64_t r, const void *c) :
         epe(e), name(n), key(k), rowid(r), cookie(c),
-        init(gethrtime()), start(0) {
+        init(gethrtime()), start(0), counter(e->getEpStore()->bgFetchQueue) {
         assert(epe);
         assert(cookie);
     }
@@ -373,6 +373,8 @@ private:
 
     hrtime_t init;
     hrtime_t start;
+
+    BGFetchCounter counter;
 };
 
 void TapConnection::queueBGFetch(const std::string &key, uint64_t id) {
@@ -396,7 +398,6 @@ void TapConnection::runBGFetch(Dispatcher *dispatcher, const void *cookie) {
                                                               qi.key, qi.id,
                                                               cookie));
     ++bgJobIssued;
-    ++engine.getEpStore()->bgFetchQueue;
     dispatcher->schedule(dcb, NULL, Priority::TapBgFetcherPriority);
 }
 
@@ -409,7 +410,6 @@ void TapConnection::gotBGItem(Item *i) {
 
 void TapConnection::completedBGFetchJob() {
     ++bgJobCompleted;
-    --engine.getEpStore()->bgFetchQueue;
 }
 
 Item* TapConnection::nextFetchedItem() {
