@@ -1,5 +1,5 @@
 ACLOCAL_AMFLAGS = -I m4 --force
-bin_SCRIPTS = management/analyze_core management/collect_info
+bin_SCRIPTS = management/analyze_core
 
 lib_LTLIBRARIES = ep.la ep_testsuite.la timing_tests.la
 noinst_LTLIBRARIES =
