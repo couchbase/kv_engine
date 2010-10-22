@@ -189,7 +189,7 @@ bool StrategicSqlite3::storeMap(PreparedStatement *clearSt,
                                 PreparedStatement *insSt,
                                 const std::map<T, std::string> &m) {
     bool rv(false);
-    execute("begin transaction");
+    begin();
     try {
         bool deleted = clearSt->execute() >= 0;
         rv &= deleted;
@@ -198,10 +198,10 @@ bool StrategicSqlite3::storeMap(PreparedStatement *clearSt,
         map_setter<T> ms(insSt, rv);
         std::for_each(m.begin(), m.end(), ms);
 
-        execute("commit");
+        commit();
         rv = true;
     } catch(...) {
-        execute("rollback");
+        rollback();
     }
     return rv;
 }
