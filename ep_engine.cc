@@ -1909,6 +1909,18 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                     epstats.pendingOpsMaxDuration,
                     add_stat, cookie);
 
+    if (epstats.vbucketDeletions > 0) {
+        add_casted_stat("ep_vbucket_del_max_walltime",
+                        epstats.vbucketDelMaxWalltime,
+                        add_stat, cookie);
+        add_casted_stat("ep_vbucket_del_total_walltime",
+                        epstats.vbucketDelTotWalltime,
+                        add_stat, cookie);
+        add_casted_stat("ep_vbucket_del_avg_walltime",
+                        epstats.vbucketDelTotWalltime / epstats.vbucketDeletions,
+                        add_stat, cookie);
+    }
+
     if (epstats.bgNumOperations > 0) {
         add_casted_stat("ep_bg_num_samples", epstats.bgNumOperations, add_stat, cookie);
         add_casted_stat("ep_bg_min_wait",
@@ -2216,6 +2228,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTimingStats(const void *cookie,
     add_casted_stat("disk_insert", stats.diskInsertHisto, add_stat, cookie);
     add_casted_stat("disk_update", stats.diskUpdateHisto, add_stat, cookie);
     add_casted_stat("disk_del", stats.diskDelHisto, add_stat, cookie);
+    add_casted_stat("disk_vb_chunk_del", stats.diskVBChunkDelHisto, add_stat, cookie);
     add_casted_stat("disk_vb_del", stats.diskVBDelHisto, add_stat, cookie);
     add_casted_stat("disk_commit", stats.diskCommitHisto, add_stat, cookie);
 

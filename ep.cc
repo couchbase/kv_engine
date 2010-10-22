@@ -217,10 +217,13 @@ public:
 class VBucketDeletionCallback : public DispatcherCallback {
 public:
     VBucketDeletionCallback(EventuallyPersistentStore *e, RCPtr<VBucket> vb,
-                            size_t deletion_size = 1000)
-        : ep(e), chunk_size(deletion_size), chunk_num(1), vbdv(deletion_size) {
+                            EPStats &st, size_t deletion_size = 1000)
+        : ep(e), stats(st), chunk_size(deletion_size), vbdv(deletion_size) {
         assert(ep);
         assert(vb);
+        chunk_num = 1;
+        execution_time = 0;
+        start_wall_time = gethrtime();
         vbucket = vb->getId();
         vb->ht.visit(vbdv);
         vbdv.createRangeList();
@@ -242,9 +245,14 @@ public:
             range.second = (*current_range).second;
         }
 
+        hrtime_t start_time = gethrtime();
         vbucket_del_result result = ep->completeVBucketDeletion(vbucket,
                                                                 range,
                                                                 isLastChunk);
+        hrtime_t chunk_time = (gethrtime() - start_time) / 1000;
+        stats.diskVBChunkDelHisto.add(chunk_time);
+        execution_time += chunk_time;
+
         switch(result) {
         case vbucket_del_success:
             if (!isLastChunk) {
@@ -252,6 +260,11 @@ public:
                 ++chunk_num;
                 d.snooze(t, 1);
                 rv = true;
+            } else {
+                stats.diskVBDelHisto.add(execution_time);
+                hrtime_t wall_time = (gethrtime() - start_wall_time) / 1000;
+                stats.vbucketDelMaxWalltime.setIfBigger(wall_time);
+                stats.vbucketDelTotWalltime.incr(wall_time);
             }
             break;
         case vbucket_del_fail:
@@ -276,10 +289,13 @@ public:
     }
 private:
     EventuallyPersistentStore    *ep;
+    EPStats                      &stats;
     uint16_t                      vbucket;
     size_t                        chunk_size;
     size_t                        chunk_num;
     VBucketDeletionVisitor        vbdv;
+    hrtime_t                      execution_time;
+    hrtime_t                      start_wall_time;
     std::list<std::pair<int64_t, int64_t> >::iterator  current_range;
 };
 
@@ -606,7 +622,6 @@ EventuallyPersistentStore::completeVBucketDeletion(uint16_t vbid,
     RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
     if (!vb || vb->getState() == dead || vbuckets.isBucketDeletion(vbid)) {
         lh.unlock();
-        BlockTimer timer(&stats.diskVBDelHisto);
         if (row_range.first < 0 || row_range.second < 0 ||
             underlying->delVBucket(vbid, row_range)) {
             if (isLastChunk) {
@@ -627,7 +642,7 @@ void EventuallyPersistentStore::scheduleVBDeletion(RCPtr<VBucket> vb, double del
     if (vbuckets.setBucketDeletion(vb->getId(), true)) {
         int chunk_size = engine.getVbDelChunkSize();
         shared_ptr<DispatcherCallback> cb(new VBucketDeletionCallback(this, vb,
-                                                                      chunk_size));
+                                                                      stats, chunk_size));
         dispatcher->schedule(cb,
                              NULL, Priority::VBucketDeletionPriority,
                              delay, false);

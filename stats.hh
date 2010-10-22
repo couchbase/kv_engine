@@ -167,6 +167,11 @@ public:
     //! The longest load time
     Atomic<hrtime_t> bgMaxLoad;
 
+    //! Max wall time of deleting a vbucket
+    Atomic<hrtime_t> vbucketDelMaxWalltime;
+    //! Total wall time of deleting vbuckets
+    Atomic<hrtime_t> vbucketDelTotWalltime;
+
     //! Histogram of background wait loads.
     Histogram<hrtime_t> bgLoadHisto;
 
@@ -246,7 +251,10 @@ public:
     //! Histogram of delete disk writes
     Histogram<hrtime_t> diskDelHisto;
 
-    //! Histogram of disk vbucket deletions
+    //! Histogram of execution time of disk vbucket chunk deletions
+    Histogram<hrtime_t> diskVBChunkDelHisto;
+
+    //! Histogram of execution time of disk vbucket deletions
     Histogram<hrtime_t> diskVBDelHisto;
 
     //! Histogram of disk commits
@@ -287,6 +295,8 @@ public:
         pendingOpsMax.set(0);
         pendingOpsMaxDuration.set(0);
         numTapFetched.set(0);
+        vbucketDelMaxWalltime.set(0);
+        vbucketDelTotWalltime.set(0);
 
         pendingOpsHisto.reset();
         bgWaitHisto.reset();
@@ -304,6 +314,7 @@ public:
         diskInsertHisto.reset();
         diskUpdateHisto.reset();
         diskDelHisto.reset();
+        diskVBChunkDelHisto.reset();
         diskVBDelHisto.reset();
         diskCommitHisto.reset();
     }

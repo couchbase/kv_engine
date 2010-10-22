@@ -61,6 +61,12 @@ For introductory information on stats within membase, start with the
 | ep_commit_time_total          | Cumulative seconds spent committing.      |
 | ep_vbucket_del                | Number of vbucket deletion events.        |
 | ep_vbucket_del_fail           | Number of failed vbucket deletion events. |
+| ep_vbucket_del_max_walltime   | Max wall time (µs) spent by deleting      |
+|                               | a vbucket                                 |
+| ep_vbucket_del_total_walltime | Total wall time (µs) spent by deleting    |
+|                               | vbuckets                                  |
+| ep_vbucket_del_avg_walltime   | Avg wall time (µs) spent by deleting      |
+|                               | a vbucket                                 |
 | ep_flush_preempts             | Num of flush early exits for read reqs.   |
 | ep_flush_duration             | Number of seconds of most recent flush.   |
 | ep_flush_duration_total       | Cumulative seconds spent flushing.        |
@@ -231,25 +237,26 @@ this:
 The following histograms are available from "timings" in the above
 form to describe when time was spent doing various things:
 
-| bg_wait      | bg fetches waiting in the dispatcher queue     |
-| bg_load      | bg fetches waiting for disk                    |
-| bg_tap_wait  | tap bg fetches waiting in the dispatcher queue |
-| bg_tap_laod  | tap bg fetches waiting for disk                |
-| pending_ops  | client connections blocked for operations      |
-|              | in pending vbuckets.                           |
-| get_cmd      | servicing get requests                         |
-| store_cmd    | servicing store requests                       |
-| arith_cmd    | servicing incr/decr requests                   |
-| get_vb_cmd   | servicing vbucket status requests              |
-| set_vb_cmd   | servicing vbucket set state commands           |
-| del_vb_cmd   | servicing vbucket deletion commands            |
-| tap_vb_set   | servicing tap vbucket set state commands       |
-| tap_mutation | servicing tap mutations                        |
-| disk_insert  | waiting for disk to store a new item           |
-| disk_update  | waiting for disk to modify an existing item    |
-| disk_del     | waiting for disk to delete an item             |
-| disk_vb_del  | waiting for disk to delete a vbucket           |
-| disk_commit  | waiting for a commit after a batch of updates  |
+| bg_wait           | bg fetches waiting in the dispatcher queue     |
+| bg_load           | bg fetches waiting for disk                    |
+| bg_tap_wait       | tap bg fetches waiting in the dispatcher queue |
+| bg_tap_laod       | tap bg fetches waiting for disk                |
+| pending_ops       | client connections blocked for operations      |
+|                   | in pending vbuckets.                           |
+| get_cmd           | servicing get requests                         |
+| store_cmd         | servicing store requests                       |
+| arith_cmd         | servicing incr/decr requests                   |
+| get_vb_cmd        | servicing vbucket status requests              |
+| set_vb_cmd        | servicing vbucket set state commands           |
+| del_vb_cmd        | servicing vbucket deletion commands            |
+| tap_vb_set        | servicing tap vbucket set state commands       |
+| tap_mutation      | servicing tap mutations                        |
+| disk_insert       | waiting for disk to store a new item           |
+| disk_update       | waiting for disk to modify an existing item    |
+| disk_del          | waiting for disk to delete an item             |
+| disk_vb_del       | waiting for disk to delete a vbucket           |
+| disk_vb_chunk_del | waiting for disk to delete a vbucket chunk     |
+| disk_commit       | waiting for a commit after a batch of updates  |
 
 ** Hash Stats
 
