@@ -27,6 +27,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/wait.h>
 #include <pthread.h>
 #include <netinet/in.h>
 
@@ -36,6 +37,17 @@
 
 #include <memcached/engine.h>
 #include <memcached/engine_testapp.h>
+
+#ifdef USE_SYSTEM_LIBSQLITE3
+#include <sqlite3.h>
+#else
+#include "embedded/sqlite3.h"
+#endif
+
+#include "atomic.hh"
+#include "sqlite-pst.hh"
+#include "mutex.hh"
+#include "locks.hh"
 
 #include "ep_testsuite.h"
 #include "command_ids.h"
@@ -51,6 +63,30 @@
 #undef htons
 #undef htonl
 #endif
+
+extern "C" {
+
+static const char* test_get_logger_name(void) {
+    return "dispatcher_test";
+}
+
+static void test_get_logger_log(EXTENSION_LOG_LEVEL severity,
+                                const void* client_cookie,
+                                const char *fmt, ...) {
+    (void)severity;
+    (void)client_cookie;
+    (void)fmt;
+    // ignore
+}
+
+}
+
+EXTENSION_LOGGER_DESCRIPTOR* getLogger() {
+    static EXTENSION_LOGGER_DESCRIPTOR logger;
+    logger.get_name = test_get_logger_name;
+    logger.log = test_get_logger_log;
+    return &logger;
+}
 
 extern "C" {
 
@@ -71,9 +107,11 @@ struct test_harness testHarness;
 
 class ThreadData {
 public:
-    ThreadData(ENGINE_HANDLE *eh, ENGINE_HANDLE_V1 *ehv1) : h(eh), h1(ehv1) {}
+    ThreadData(ENGINE_HANDLE *eh, ENGINE_HANDLE_V1 *ehv1,
+               int e=0) : h(eh), h1(ehv1), extra(e) {}
     ENGINE_HANDLE    *h;
     ENGINE_HANDLE_V1 *h1;
+    int               extra;
 };
 
 bool abort_msg(const char *expr, const char *msg, int line) {
@@ -1015,6 +1053,115 @@ static enum test_result test_bug2761(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     }
     return SUCCESS;
 }
+
+// bug 2830 related items
+
+static void bug_2830_child(int reader, int writer) {
+    sqlite3 *db;
+
+    const char * fn = "/tmp/test.db-0.sqlite";
+    if(sqlite3_open(fn, &db) !=  SQLITE_OK) {
+        throw std::runtime_error("Error initializing sqlite3");
+    }
+
+    // This will immediately lock the database
+    PreparedStatement pst(db, "begin immediate");
+    assert(pst.execute() >= 0);
+
+    // Signal we've got the txn so the parent can start trying to fail.
+    char buf[1];
+    buf[0] = 'x';
+    assert(write(writer, buf, 1) == 1);
+
+    // Wait for the signal that we've broken something
+    assert(read(reader, buf, 1) == 1);
+
+    // Let's go ahead and rollback before we close the DB.  Just to be nice.
+    PreparedStatement pstrollback(db, "rollback");
+    assert(pstrollback.execute() >= 0);
+    sqlite3_close(db);
+}
+
+extern "C" {
+    // This thread will watch for failures to begin a transaction, and
+    // then signal the child that it's done enough damage so it can
+    // exit.
+    static void* bug2830_thread(void *arg) {
+        ThreadData *td(static_cast<ThreadData*>(arg));
+
+        const char *key = "key";
+        const char *val = "value";
+        int initial = get_int_stat(td->h, td->h1, "ep_item_begin_failed");
+
+        item *i = NULL;
+        check(store(td->h, td->h1, NULL, OPERATION_SET, key, val, &i, 0, 0) == ENGINE_SUCCESS,
+              "Failed to store an item.");
+        wait_for_stat_change(td->h, td->h1, "ep_item_begin_failed", initial);
+        char buf[1];
+        assert(write(td->extra, buf, 1) == 1);
+        return NULL;
+    }
+}
+
+static enum test_result test_bug2830(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+
+    pid_t child;
+    int p2c[2]; // parent to child
+    int c2p[2]; // child to parent
+
+    assert(pipe(p2c) == 0);
+    assert(pipe(c2p) == 0);
+
+    int childreader = p2c[0];
+    int childwriter = c2p[1];
+
+    int parentreader = c2p[0];
+    int parentwriter = p2c[1];
+
+    switch (child = fork()) {
+    case 0:
+        bug_2830_child(childreader, childwriter);
+        exit(0);
+        abort(); // not reached
+    case -1:
+        perror("fork");
+        abort();
+        break;
+    }
+
+    // Wait for the child to let us know we can start or work.
+    char buf[1];
+    assert(read(parentreader, buf, 1) == 1);
+
+    // Start a thread to monitor stats and let us know when we've had
+    // enough.
+    ThreadData *td = new ThreadData(h, h1, parentwriter);
+    pthread_t tid;
+    if (pthread_create(&tid, NULL, bug2830_thread, td) != 0) {
+        abort();
+    }
+
+    // Wait for the thread to indicate stuff's done.
+    assert(pthread_join(tid, NULL) == 0);
+
+    // And let us write out our data.
+    wait_for_flusher_to_settle(h, h1);
+    evict_key(h, h1, "key");
+    check_key_value(h, h1, "key", "value", 5);
+
+    // The child will die and we'll verify it does so safely.
+    int status;
+    assert(child == waitpid(child, &status, 0));
+    assert(WIFEXITED(status));
+    assert(WEXITSTATUS(status) == 0);
+
+    // Verify we had a failure.
+    assert(get_int_stat(h, h1, "ep_item_begin_failed") > 0);
+
+    return SUCCESS;
+}
+
+// end of bug 2830 related items
 
 static enum test_result test_delete_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     wait_for_persisted_value(h, h1, "key", "value1");
@@ -2724,6 +2871,8 @@ engine_test_t* get_tests(void) {
         {"delete/set/delete", test_delete_set, NULL, teardown, NULL},
         {"bug2509", test_bug2509, NULL, teardown, NULL},
         {"bug2761", test_bug2761, NULL, teardown, NULL},
+        {"bug2830", test_bug2830, NULL, teardown,
+         "db_shards=1;ht_size=13;ht_locks=7"},
         {"flush", test_flush, NULL, teardown, NULL},
         {"flush with stats", test_flush_stats, NULL, teardown, NULL},
         {"flush multi vbuckets", test_flush_multiv, NULL, teardown, NULL},

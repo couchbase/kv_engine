@@ -48,6 +48,8 @@ For introductory information on stats within membase, start with the
 |                               | due to storage errors.                    |
 | ep_item_commit_failed         | Number of times a transaction failed to   |
 |                               | commit due to storage errors.             |
+| ep_item_begin_failed          | Number of times a transaction failed to   |
+|                               | start due to storage errors.              |
 | ep_expired                    | Number of times an item was expired.      |
 | ep_item_flush_expired         | Number of times an item is not flushed    |
 |                               | due to the expiry of the item             |
@@ -63,7 +65,7 @@ For introductory information on stats within membase, start with the
 | ep_flush_duration             | Number of seconds of most recent flush.   |
 | ep_flush_duration_total       | Cumulative seconds spent flushing.        |
 | ep_flush_duration_highwat     | ep_flush_duration high water mark.        |
-| curr_items                    | Num items in active vbuckets.
+| curr_items                    | Num items in active vbuckets.             |
 | curr_items_tot                | Num current items including those not     |
 |                               | active (replica, dead and pending states) |
 | ep_kv_size                    | Memory used to store keys and values.     |

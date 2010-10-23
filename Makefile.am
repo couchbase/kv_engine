@@ -49,14 +49,19 @@ endif
 
 ep_la_LIBADD =
 ep_la_DEPENDENCIES =
+ep_testsuite_la_LIBADD =
+ep_testsuite_la_DEPENDENCIES =
 
 if BUILD_EMBEDDED_LIBSQLITE3
 ep_la_LIBADD += libsqlite3.la
 ep_la_DEPENDENCIES += libsqlite3.la
+ep_testsuite_la_LIBADD += libsqlite3.la
+ep_testsuite_la_DEPENDENCIES += libsqlite3.la
 noinst_LTLIBRARIES += libsqlite3.la
 bin_PROGRAMS += management/sqlite3
 else
 ep_la_LIBADD += $(LIBSQLITE3)
+ep_testsuite_la_LIBADD += $(LIBSQLITE3)
 endif
 
 libsqlite3_la_SOURCES = embedded/sqlite3.h embedded/sqlite3.c
@@ -66,7 +71,8 @@ check_PROGRAMS=atomic_test atomic_ptr_test atomic_queue_test hash_table_test pri
 TESTS=${check_PROGRAMS}
 
 ep_testsuite_la_CFLAGS = $(AM_CFLAGS) ${NO_WERROR}
-ep_testsuite_la_SOURCES= ep_testsuite.cc ep_testsuite.h
+ep_testsuite_la_SOURCES= ep_testsuite.cc ep_testsuite.h \
+                         sqlite-pst.hh sqlite-pst.cc locks.hh mutex.hh
 ep_testsuite_la_LDFLAGS= -module -dynamic
 
 timing_tests_la_CFLAGS = $(AM_CFLAGS) ${NO_WERROR}

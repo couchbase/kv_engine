@@ -189,7 +189,9 @@ bool StrategicSqlite3::storeMap(PreparedStatement *clearSt,
                                 PreparedStatement *insSt,
                                 const std::map<T, std::string> &m) {
     bool rv(false);
-    begin();
+    if (!begin()) {
+        return false;
+    }
     try {
         bool deleted = clearSt->execute() >= 0;
         rv &= deleted;

@@ -169,8 +169,10 @@ public:
      *
      * This will (when necessary) begin the tranasaction and reset the
      * counter of remaining items for a transaction.
+     *
+     * @return true if we're in a transaction
      */
-    void enter();
+    bool enter();
 
     /**
      * Called whenever leaving, having completed the given number of

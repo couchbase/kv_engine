@@ -975,7 +975,17 @@ void EventuallyPersistentStore::completeFlush(std::queue<QueuedItem> *rej,
 
 int EventuallyPersistentStore::flushSome(std::queue<QueuedItem> *q,
                                          std::queue<QueuedItem> *rejectQueue) {
-    tctx.enter();
+    if (!tctx.enter()) {
+        ++stats.beginFailed;
+        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                         "Failed to start a transaction.\n");
+        // Copy the input queue into the reject queue.
+        while (!q->empty()) {
+            rejectQueue->push(q->front());
+            q->pop();
+        }
+        return 1; // This will cause us to jump out and delay a second
+    }
     int tsz = tctx.remaining();
     int oldest = stats.min_data_age;
     int completed(0);
@@ -1380,12 +1390,12 @@ void LoadStorageKVPairCallback::purge() {
     hasPurged = true;
 }
 
-void TransactionContext::enter() {
+bool TransactionContext::enter() {
     if (!intxn) {
-        underlying->begin();
         _remaining = txnSize.get();
-        intxn = true;
+        intxn = underlying->begin();
     }
+    return intxn;
 }
 
 void TransactionContext::leave(int completed) {

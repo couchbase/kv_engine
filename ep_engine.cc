@@ -1812,6 +1812,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                     epstats.flushFailed, add_stat, cookie);
     add_casted_stat("ep_item_commit_failed",
                     epstats.commitFailed, add_stat, cookie);
+    add_casted_stat("ep_item_begin_failed",
+                    epstats.beginFailed, add_stat, cookie);
     add_casted_stat("ep_expired", epstats.expired, add_stat, cookie);
     add_casted_stat("ep_item_flush_expired",
                     epstats.flushExpired, add_stat, cookie);

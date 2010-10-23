@@ -56,11 +56,13 @@ public:
     /**
      * Begin a transaction (if not already in one).
      */
-    void begin() {
+    bool begin() {
         if(!intransaction) {
-            execute("begin");
-            intransaction = true;
+            if (execute("begin immediate") != -1) {
+                intransaction = true;
+            }
         }
+        return intransaction;
     }
 
     /**
