@@ -745,7 +745,17 @@ static enum test_result test_add(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
           "Failed to add value.");
     check(store(h, h1, NULL, OPERATION_ADD,"key", "somevalue", &i) == ENGINE_NOT_STORED,
           "Failed to fail to re-add value.");
-    return check_key_value(h, h1, "key", "somevalue", 9);
+
+    // This aborts on failure.
+    check_key_value(h, h1, "key", "somevalue", 9);
+
+    // Expiration above was an hour, so let's go to The Future
+    testHarness.time_travel(3800);
+
+    check(store(h, h1, NULL, OPERATION_ADD,"key", "newvalue", &i) == ENGINE_SUCCESS,
+          "Failed to add value again.");
+
+    return check_key_value(h, h1, "key", "newvalue", 8);
 }
 
 static enum test_result test_replace(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {

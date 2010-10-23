@@ -13,6 +13,7 @@
 
 extern "C" {
     extern rel_time_t (*ep_current_time)();
+    extern time_t ep_real_time();
 }
 
 // Forward declaration for StoredValue
@@ -911,7 +912,7 @@ public:
         LockHolder lh(getMutex(bucket_num));
         StoredValue *v = unlocked_find(val.getKey(), bucket_num, true);
         add_type_t rv = ADD_SUCCESS;
-        if (v && !v->isDeleted()) {
+        if (v && !v->isDeleted() && !v->isExpired(ep_real_time())) {
             rv = ADD_EXISTS;
         } else {
             Item &itm = const_cast<Item&>(val);

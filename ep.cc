@@ -37,6 +37,7 @@ extern "C" {
     }
 
     static time_t default_abs_time(rel_time_t offset) {
+        (void)offset;
         abort();
         return 0;
     }
@@ -45,7 +46,7 @@ extern "C" {
     time_t (*ep_abs_time)(rel_time_t) = default_abs_time;
 
     time_t ep_real_time() {
-        return ep_abs_time(ep_current_time());
+        return ep_abs_time(0);
     }
 }
 

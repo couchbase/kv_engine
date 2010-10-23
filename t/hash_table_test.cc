@@ -9,12 +9,19 @@
 #include <item.hh>
 #include <stats.hh>
 
+
+time_t time_offset;
+
 extern "C" {
     static rel_time_t basic_current_time(void) {
         return 0;
     }
 
     rel_time_t (*ep_current_time)() = basic_current_time;
+
+    time_t ep_real_time() {
+        return time(NULL) + time_offset;
+    }
 }
 
 EPStats global_stats;
@@ -72,6 +79,33 @@ static void addMany(HashTable &h, std::vector<std::string> &keys,
         add_type_t v = h.add(i);
         assert(expect == v);
     }
+}
+
+static const char *toString(add_type_t a) {
+    switch(a) {
+    case ADD_SUCCESS: return "add_success";
+    case ADD_NOMEM: return "add_nomem";
+    case ADD_EXISTS: return "add_exists";
+    case ADD_UNDEL: return "add_undel";
+    }
+    abort();
+    return NULL;
+}
+
+template <typename T>
+void assertEquals(T a, T b) {
+    if (a != b) {
+        std::cerr << "Expected " << toString(a)
+                  << " got " << toString(b) << std::endl;
+        abort();
+    }
+}
+
+static void add(HashTable &h, const std::string &k, add_type_t expect,
+                int expiry=0) {
+    Item i(k, 0, expiry, k.c_str(), k.length());
+    add_type_t v = h.add(i);
+    assertEquals(expect, v);
 }
 
 static std::vector<std::string> generateKeys(int num, int start=0) {
@@ -185,6 +219,28 @@ static void testFindSmall() {
     testFind(h);
 }
 
+static void testAddExpiry() {
+    HashTable h(global_stats, 5, 1);
+    std::string k("aKey");
+
+    add(h, k, ADD_SUCCESS, ep_real_time() + 5);
+    add(h, k, ADD_EXISTS, ep_real_time() + 5);
+
+    StoredValue *v = h.find(k);
+    assert(v);
+    assert(!v->isExpired(ep_real_time()));
+    assert(v->isExpired(ep_real_time() + 6));
+
+    time_offset += 6;
+    assert(v->isExpired(ep_real_time()));
+
+    add(h, k, ADD_UNDEL, ep_real_time() + 5);
+    assert(v);
+    assert(!v->isExpired(ep_real_time()));
+    assert(v->isExpired(ep_real_time() + 6));
+
+}
+
 static void testAdd() {
     HashTable h(global_stats, 5, 1);
     const int nkeys = 5000;
@@ -250,6 +306,7 @@ int main() {
     testFind();
     testFindSmall();
     testAdd();
+    testAddExpiry();
     testDepthCounting();
     testPoisonKey();
     exit(0);
