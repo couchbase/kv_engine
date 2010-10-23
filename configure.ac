@@ -29,6 +29,14 @@ AS_IF([test "$ac_enable_system_libsqlite3" = "yes"],
       ])
 AM_CONDITIONAL(BUILD_EMBEDDED_LIBSQLITE3, test "$ac_enable_system_libsqlite3" = "no")
 
+AC_ARG_ENABLE([generated-tests],
+    [AS_HELP_STRING([--enable-generated-tests],
+            [Run generated test suite. @<:@default=off@:>@])],
+    [ac_enable_generated_tests="$enableval"],
+    [ac_enable_generated_tests="no"])
+
+AM_CONDITIONAL(BUILD_GENERATED_TESTS, test "$ac_enable_generated_tests" = "yes")
+
 AC_DEFUN([AC_C_HTONLL],
 [
     AC_CACHE_CHECK([for htonll],[ac_cv_have_htonll],[

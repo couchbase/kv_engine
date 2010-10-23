@@ -42,3 +42,4 @@
 /stamp-h1
 Makefile
 Makefile.in
+/generated_suite.c

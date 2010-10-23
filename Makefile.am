@@ -69,11 +69,31 @@ libsqlite3_la_CFLAGS = $(AM_CFLAGS) ${NO_WERROR} -DSQLITE_THREADSAFE=2
 
 check_PROGRAMS=atomic_test atomic_ptr_test atomic_queue_test hash_table_test priority_test vbucket_test dispatcher_test misc_test hrtime_test histo_test
 TESTS=${check_PROGRAMS}
+EXTRA_TESTS =
 
 ep_testsuite_la_CFLAGS = $(AM_CFLAGS) ${NO_WERROR}
 ep_testsuite_la_SOURCES= ep_testsuite.cc ep_testsuite.h \
                          sqlite-pst.hh sqlite-pst.cc locks.hh mutex.hh
 ep_testsuite_la_LDFLAGS= -module -dynamic
+
+if BUILD_GENERATED_TESTS
+lib_LTLIBRARIES += generated_suite.la
+
+generated_suite.c: t/gen_engine_test.py t/testgen.py
+	./t/gen_engine_test.py > generated_suite.c
+
+generated_suite_la_DEPENDENCIES = ep.la
+generated_suite_la_CFLAGS = $(AM_CFLAGS) ${NO_WERROR}
+generated_suite_la_SOURCES= generated_suite.c testsuite.h suite_stubs.c ep_testsuite.h
+generated_suite_la_LDFLAGS= -module -dynamic
+
+EXTRA_TESTS += generated_engine_tests
+
+generated_engine_tests: generated_suite.la
+	$(ENGINE_TESTAPP) -E .libs/ep.so -t $(TEST_TIMEOUT) \
+		-T .libs/generated_suite.so \
+		-e 'ht_size=13;ht_locks=7;db_strategy=singleDB;dbname=:memory:'
+endif
 
 timing_tests_la_CFLAGS = $(AM_CFLAGS) ${NO_WERROR}
 timing_tests_la_SOURCES= timing_tests.cc
@@ -134,7 +154,7 @@ endif
 
 TEST_TIMEOUT=30
 
-engine_tests: all
+engine_tests: all $(EXTRA_TESTS)
 	$(ENGINE_TESTAPP) -E .libs/ep.so -t $(TEST_TIMEOUT) \
 		-T .libs/ep_testsuite.so \
 		-e 'ht_size=13;ht_locks=7;initfile=t/test_pragma.sql;min_data_age=0'
