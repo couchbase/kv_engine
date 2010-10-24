@@ -47,18 +47,21 @@ void PreparedStatement::bind64(int pos, uint64_t v) {
 }
 
 int PreparedStatement::execute() {
-    int steps_run = 0, rc = 0;
+    int steps_run = 0, rc = 0, busy = 0;
     while ((rc = sqlite3_step(st)) != SQLITE_DONE) {
         if (++steps_run > MAX_STEPS) {
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                             "Too many db steps, erroring (busy=%d)\n", busy);
             return -1;
         }
         if (rc == SQLITE_ROW) {
             // This is rather normal
         } else if (rc == SQLITE_BUSY) {
-            std::cerr << "SQLITE_BUSY (retrying)" << std::endl;
+            ++busy;
         } else {
             const char *msg = sqlite3_errmsg(db);
-            std::cerr << "sqlite error:  " << msg << std::endl;
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                             "sqlite error:  %s\n", msg);
             return -1;
         }
     }
