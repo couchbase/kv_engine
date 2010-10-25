@@ -17,10 +17,7 @@
  */
 class Mutex {
 public:
-    Mutex()
-#ifndef WIN32
-        : holder(0)
-#endif
+    Mutex() : held(false)
     {
         pthread_mutexattr_t *attr = NULL;
         int e=0;
@@ -53,6 +50,15 @@ public:
         }
     }
 
+    /**
+     * True if I own this lock.
+     *
+     * Use this only for assertions.
+     */
+    bool ownsLock() {
+        return held && pthread_equal(holder, pthread_self());
+    }
+
 protected:
 
     // The holders of locks twiddle these flags.
@@ -66,14 +72,12 @@ protected:
             message.append(std::strerror(e));
             throw std::runtime_error(message);
         }
-        setHolder();
+        setHolder(true);
     }
 
     void release() {
-#ifndef WIN32
-        assert(holder == pthread_self());
-        holder = 0;
-#endif
+        assert(held && pthread_equal(holder, pthread_self()));
+        setHolder(false);
         int e;
         if ((e = pthread_mutex_unlock(&mutex)) != 0) {
             std::string message = "MUTEX_ERROR: Failed to release lock: ";
@@ -82,16 +86,14 @@ protected:
         }
     }
 
-    void setHolder() {
-#ifndef WIN32
+    void setHolder(bool isHeld) {
+        held = isHeld;
         holder = pthread_self();
-#endif
     }
 
     pthread_mutex_t mutex;
-#ifndef WIN32
     pthread_t holder;
-#endif
+    bool held;
 
     DISALLOW_COPY_AND_ASSIGN(Mutex);
 };

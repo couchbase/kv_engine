@@ -133,6 +133,7 @@ check_PROGRAMS=atomic_ptr_test \
                histo_test \
                hrtime_test \
                misc_test \
+               mutex_test \
                pathexpand_test \
                priority_test \
                ringbuffer_test \
@@ -202,6 +203,10 @@ atomic_test_DEPENDENCIES = atomic.hh
 atomic_ptr_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
 atomic_ptr_test_SOURCES = t/atomic_ptr_test.cc atomic.hh
 atomic_ptr_test_DEPENDENCIES = atomic.hh
+
+mutex_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
+mutex_test_SOURCES = t/mutex_test.cc locks.hh
+mutex_test_DEPENDENCIES = locks.hh
 
 atomic_queue_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
 atomic_queue_test_SOURCES = t/atomic_queue_test.cc atomic.hh
