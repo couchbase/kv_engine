@@ -335,14 +335,14 @@ public:
         if (gcb.val.getStatus() == ENGINE_SUCCESS) {
             ReceivedItemTapOperation tapop;
             // if the tap connection is closed, then free an Item instance
-            if (!epe->performTapOp(name, tapop, gcb.val.getValue())) {
+            if (!epe->tapConnMap.performTapOp(name, tapop, gcb.val.getValue())) {
                 delete gcb.val.getValue();
             }
             epe->getServerApi()->cookie->notify_io_complete(cookie, ENGINE_SUCCESS);
         }
 
         CompletedBGFetchTapOperation tapop;
-        epe->performTapOp(name, tapop, epe);
+        epe->tapConnMap.performTapOp(name, tapop, epe);
 
         hrtime_t stop = gethrtime();
         EPStats &stats = epe->getEpStats();

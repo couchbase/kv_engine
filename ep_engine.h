@@ -20,6 +20,7 @@
 
 #include "command_ids.h"
 
+#include "tapconnmap.hh"
 #include "tapconnection.hh"
 
 
@@ -52,6 +53,7 @@ typedef void (*NOTIFY_IO_COMPLETE_T)(const void *cookie,
 // Forward decl
 class BinaryMessage;
 class EventuallyPersistentEngine;
+class TapConnMap;
 
 class LookupCallback : public Callback<GetValue> {
 public:
@@ -62,28 +64,6 @@ public:
 private:
     EventuallyPersistentEngine *engine;
     const void *cookie;
-};
-
-template <typename V>
-class TapOperation {
-public:
-    virtual ~TapOperation() {}
-    virtual void perform(TapConnection *tc, V arg) = 0;
-};
-
-class CompleteBackfillTapOperation : public TapOperation<void*> {
-public:
-    void perform(TapConnection *tc, void* arg);
-};
-
-class ReceivedItemTapOperation : public TapOperation<Item*> {
-public:
-    void perform(TapConnection *tc, Item* arg);
-};
-
-class CompletedBGFetchTapOperation : public TapOperation<EventuallyPersistentEngine*> {
-public:
-    void perform(TapConnection *tc, EventuallyPersistentEngine* arg);
 };
 
 class VBucketCountVisitor : public VBucketVisitor {
@@ -298,7 +278,7 @@ public:
 
         if (when == 0) {
             epstore->reset();
-            addFlushEvent();
+            tapConnMap.addFlushEvent();
             ret = ENGINE_SUCCESS;
         }
 
@@ -338,29 +318,8 @@ public:
     void queueBackfill(TapConnection *tc, const void *tok);
 
     void handleDisconnect(const void *cookie) {
-        LockHolder lh(tapNotifySync);
-        std::map<const void*, TapConnection*>::iterator iter;
-        iter = tapConnectionMap.find(cookie);
-        if (iter != tapConnectionMap.end()) {
-            if (iter->second) {
-                iter->second->expiry_time = serverApi->core->get_current_time();
-                if (iter->second->doDisconnect) {
-                    iter->second->expiry_time--;
-                } else {
-                    iter->second->expiry_time += (int)tapKeepAlive;
-                }
-                iter->second->connected = false;
-                iter->second->disconnects++;
-            } else {
-                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                 "Found half-linked tap connection at: %p\n",
-                                 cookie);
-            }
-            serverApi->cookie->store_engine_specific(cookie, NULL);
-            tapConnectionMap.erase(iter);
-        }
-        purgeExpiredTapConnections_UNLOCKED();
-        lh.unlock();
+        tapConnMap.disconnect(cookie, static_cast<int>(tapKeepAlive));
+        serverApi->cookie->store_engine_specific(cookie, NULL);
         serverApi->cookie->notify_io_complete(cookie,
                                               ENGINE_DISCONNECT);
     }
@@ -444,33 +403,6 @@ public:
         return stats;
     }
 
-    template <typename V>
-    bool performTapOp(const std::string &name, TapOperation<V> &tapop, V arg) {
-        bool notify(true);
-        bool clear(true);
-        bool ret(true);
-        LockHolder lh(tapNotifySync);
-
-        TapConnection *tc = findTapConnByName_UNLOCKED(name);
-        if (tc) {
-            tapop.perform(tc, arg);
-            notify = tc->paused; // notify if paused
-            clear = tc->doDisconnect;
-        } else {
-            ret = false;
-        }
-
-        if (clear) {
-            clearTapValidity(name);
-        }
-
-        if (notify) {
-            tapNotifySync.notify();
-        }
-
-        return ret;
-    }
-
     EventuallyPersistentStore* getEpStore() { return epstore; }
 
     size_t getItemExpiryWindow() const {
@@ -528,98 +460,11 @@ private:
     friend void *EvpNotifyTapIo(void*arg);
     void notifyTapIoThread(void);
 
-    void purgeSingleExpiredTapConnection(TapConnection *tc) {
-        allTaps.remove(tc);
-        /* Assert that the connection doesn't live in the map.. */
-        /* TROND: Remove this when we're sure we don't have a bug here */
-        assert(!mapped(tc));
-        delete tc;
-    }
-
-    bool mapped(TapConnection *tc) {
-        bool rv = false;
-        std::map<const void*, TapConnection*>::iterator it;
-        for (it = tapConnectionMap.begin();
-             it != tapConnectionMap.end();
-             ++it) {
-            if (it->second == tc) {
-                rv = true;
-            }
-        }
-        return rv;
-    }
-
-    int purgeExpiredTapConnections_UNLOCKED() {
-        rel_time_t now = serverApi->core->get_current_time();
-        std::list<TapConnection*> deadClients;
-
-        std::list<TapConnection*>::iterator iter;
-        for (iter = allTaps.begin(); iter != allTaps.end(); iter++) {
-            TapConnection *tc = *iter;
-            if (tc->expiry_time <= now && !mapped(tc) && !tc->connected) {
-                deadClients.push_back(tc);
-            }
-        }
-
-        for (iter = deadClients.begin(); iter != deadClients.end(); iter++) {
-            TapConnection *tc = *iter;
-            purgeSingleExpiredTapConnection(tc);
-        }
-
-        return static_cast<int>(deadClients.size());
-    }
-
-    TapConnection* findTapConnByName_UNLOCKED(const std::string&name) {
-        TapConnection *rv(NULL);
-        std::list<TapConnection*>::iterator iter;
-        for (iter = allTaps.begin(); iter != allTaps.end(); iter++) {
-            TapConnection *tc = *iter;
-            if (tc->client == name) {
-                rv = tc;
-            }
-        }
-        return rv;
-    }
+    bool populateEvents();
 
     friend class BackFillVisitor;
-    bool setEvents(const std::string &name,
-                   std::list<QueuedItem> *q)
-    {
-        bool notify = true;
-        bool found = false;
-        LockHolder lh(tapNotifySync);
-
-        TapConnection *tc = findTapConnByName_UNLOCKED(name);
-        if (tc) {
-            found = true;
-            tc->appendQueue(q);
-            notify = tc->paused; // notify if paused
-        }
-
-        if (notify) {
-            tapNotifySync.notify();
-        }
-
-        return found;
-    }
-
-    ssize_t queueDepth(const std::string &name) {
-        ssize_t rv = -1;
-        LockHolder lh(tapNotifySync);
-
-        TapConnection *tc = findTapConnByName_UNLOCKED(name);
-        if (tc) {
-            rv = tc->getBacklogSize();
-        }
-
-        return rv;
-    }
-
-    void setTapValidity(const std::string &name, const void* token);
-    void clearTapValidity(const std::string &name);
-    bool checkTapValidity(const std::string &name, const void* token);
-
-    bool populateEvents();
+    friend class TapBGFetchCallback;
+    friend class TapConnMap;
 
     void addEvent(const std::string &str, uint16_t vbid,
                   enum queue_operation op) {
@@ -636,29 +481,11 @@ private:
         addEvent(key, vbid, queue_op_del);
     }
 
-    void addFlushEvent() {
-        LockHolder lh(tapNotifySync);
-        bool notify = false;
-        std::list<TapConnection*>::iterator iter;
-        for (iter = allTaps.begin(); iter != allTaps.end(); iter++) {
-            TapConnection *tc = *iter;
-            if (!tc->dumpQueue) {
-                tc->flush();
-                notify = true;
-            }
-        }
-        if (notify) {
-            tapNotifySync.notify();
-        }
-    }
-
     void startEngineThreads(void);
     void stopEngineThreads(void) {
         if (startedEngineThreads) {
-            LockHolder lh(tapNotifySync);
             shutdown = true;
-            tapNotifySync.notify();
-            lh.unlock();
+            tapConnMap.notify();
             pthread_join(notifyThreadId, NULL);
         }
     }
@@ -739,9 +566,6 @@ private:
     SqliteStrategy *sqliteStrategy;
     StrategicSqlite3 *sqliteDb;
     EventuallyPersistentStore *epstore;
-    std::map<const void*, TapConnection*> tapConnectionMap;
-    std::map<const std::string, const void*> backfillValidityMap;
-    std::list<TapConnection*> allTaps;
     std::map<const void*, Item*> lookups;
     Mutex lookupMutex;
     time_t databaseInitTime;
@@ -751,7 +575,6 @@ private:
     pthread_t notifyThreadId;
     bool startedEngineThreads;
     AtomicQueue<QueuedItem> pendingTapNotifications;
-    SyncObject tapNotifySync;
     volatile bool shutdown;
     GET_SERVER_API getServerApiFunc;
     union {
@@ -760,6 +583,7 @@ private:
     } info;
     GetlExtension *getlExtension;
 
+    TapConnMap tapConnMap;
     Mutex tapMutex;
     bool tapEnabled;
     size_t maxItemSize;

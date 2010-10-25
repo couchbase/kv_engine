@@ -1301,76 +1301,11 @@ void EventuallyPersistentEngine::createTapQueue(const void *cookie,
                                                 const void *userdata,
                                                 size_t nuserdata) {
 
-    // map is set-assocative, so this will create an instance here..
-    LockHolder lh(tapNotifySync);
-    purgeExpiredTapConnections_UNLOCKED();
-
     std::string name = "eq_tapq:";
     if (client.length() == 0) {
         name.assign(TapConnection::getAnonTapName());
     } else {
         name.append(client);
-    }
-
-    TapConnection *tap = NULL;
-
-    std::list<TapConnection*>::iterator iter;
-    for (iter = allTaps.begin(); iter != allTaps.end(); ++iter) {
-        tap = *iter;
-        if (tap->client == name) {
-            tap->expiry_time = (rel_time_t)-1;
-            ++tap->reconnects;
-            break;
-        } else {
-            tap = NULL;
-        }
-    }
-
-    // Disconnects aren't quite immediate yet, so if we see a
-    // connection request for a client *and* expiry_time is 0, we
-    // should kill this guy off.
-    if (tap != NULL) {
-        std::map<const void*, TapConnection*>::iterator miter;
-        for (miter = tapConnectionMap.begin();
-             miter != tapConnectionMap.end();
-             ++miter) {
-            if (miter->second == tap) {
-                break;
-            }
-        }
-
-        if (tapKeepAlive == 0) {
-            getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                             "The TAP channel (\"%s\") exists, but should be nuked\n",
-                             name.c_str());
-            tap->client.assign(TapConnection::getAnonTapName());
-            tap->doDisconnect = true;
-            tap->paused = true;
-            tap = NULL;
-        } else {
-            getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                             "The TAP channel (\"%s\") exists... grabbing the channel\n",
-                             name.c_str());
-            if (miter->first != NULL) {
-                TapConnection *n = new TapConnection(*this, TapConnection::getAnonTapName(), 0);
-                n->doDisconnect = true;
-                n->paused = true;
-                allTaps.push_back(n);
-                tapConnectionMap[miter->first] = n;
-            }
-        }
-    }
-
-    bool reconnect = false;
-    if (tap == NULL) {
-        tap = new TapConnection(*this, name, flags);
-        serverApi->cookie->set_tap_nack_mode(cookie, tap->ackSupported);
-        allTaps.push_back(tap);
-    } else {
-        tap->rollback();
-        tap->connected = true;
-        tap->evaluateFlags();
-        reconnect = true;
     }
 
     // Decoding the userdata section of the packet and update the filters
@@ -1405,14 +1340,14 @@ void EventuallyPersistentEngine::createTapQueue(const void *cookie,
         }
     }
 
-    tapConnectionMap[cookie] = tap;
-    tap->setBackfillAge(backfillAge, reconnect);
-    if (tap->doRunBackfill && tap->pendingBackfill) {
-        setTapValidity(tap->client, cookie);
-    }
+    TapConnection *tap = tapConnMap.newConn(this, cookie, name, flags,
+                                            backfillAge,
+                                            static_cast<int>(tapKeepAlive));
+
     tap->setVBucketFilter(vbuckets);
     serverApi->cookie->store_engine_specific(cookie, tap);
-    tapNotifySync.notify();
+    serverApi->cookie->set_tap_nack_mode(cookie, tap->ackSupported);
+    tapConnMap.notify();
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
@@ -1547,25 +1482,6 @@ void EventuallyPersistentEngine::startEngineThreads(void)
     startedEngineThreads = true;
 }
 
-// These two methods are always called with a lock.
-void EventuallyPersistentEngine::setTapValidity(const std::string &name,
-                                                const void* token) {
-    backfillValidityMap[name] = token;
-}
-void EventuallyPersistentEngine::clearTapValidity(const std::string &name) {
-    backfillValidityMap.erase(name);
-}
-
-// This is always called without a lock.
-bool EventuallyPersistentEngine::checkTapValidity(const std::string &name,
-                                                  const void* token) {
-    LockHolder lh(tapNotifySync);
-    std::map<const std::string, const void*>::iterator viter =
-        backfillValidityMap.find(name);
-    return viter != backfillValidityMap.end() && viter->second == token;
-}
-
-
 /**
  * VBucketVisitor to backfill a TapConnection.
  */
@@ -1605,7 +1521,7 @@ public:
         setEvents();
         if (valid) {
             CompleteBackfillTapOperation tapop;
-            engine->performTapOp(name, tapop, static_cast<void*>(NULL));
+            engine->tapConnMap.performTapOp(name, tapop, static_cast<void*>(NULL));
         }
     }
 
@@ -1615,7 +1531,7 @@ private:
         if (checkValidity()) {
             if (!queue->empty()) {
                 // Don't notify unless we've got some data..
-                engine->setEvents(name, queue);
+                engine->tapConnMap.setEvents(name, queue);
             }
             waitForQueue();
         }
@@ -1626,7 +1542,7 @@ private:
         bool tooBig(true);
 
         while (checkValidity() && tooBig) {
-            ssize_t theSize(engine->queueDepth(name));
+            ssize_t theSize(engine->tapConnMap.queueDepth(name));
             if (theSize < 0) {
                 getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
                                  "TapConnection %s went away.  Stopping backfill.\n",
@@ -1655,7 +1571,7 @@ private:
     }
 
     bool checkValidity() {
-        valid = valid && engine->checkTapValidity(name, validityToken);
+        valid = valid && engine->tapConnMap.checkValidity(name, validityToken);
         if (!valid) {
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                              "Backfilling token for %s went invalid.  Stopping backfill.\n",
@@ -2023,15 +1939,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doHashStats(const void *cookie,
     return ENGINE_SUCCESS;
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentEngine::doTapStats(const void *cookie,
-                                                         ADD_STAT add_stat) {
-    std::list<TapConnection*>::iterator iter;
-    int totalTaps = 0;
-    size_t tap_queue = 0;
-    LockHolder lh(tapNotifySync);
-    for (iter = allTaps.begin(); iter != allTaps.end(); iter++) {
-        totalTaps++;
-        TapConnection *tc = *iter;
+struct TapStatBuilder {
+    TapStatBuilder(const void *c, ADD_STAT as)
+        : cookie(c), add_stat(as), tap_queue(0), totalTaps(0) {}
+
+    void operator() (TapConnection *tc) {
+        ++totalTaps;
         size_t qlen = tc->getQueueSize();
         tap_queue += qlen;
 
@@ -2085,7 +1998,19 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTapStats(const void *cookie,
         }
     }
 
-    add_casted_stat("ep_tap_total_queue", tap_queue, add_stat, cookie);
+    const void *cookie;
+    ADD_STAT    add_stat;
+    size_t      tap_queue;
+    int         totalTaps;
+};
+
+ENGINE_ERROR_CODE EventuallyPersistentEngine::doTapStats(const void *cookie,
+                                                         ADD_STAT add_stat) {
+    std::list<TapConnection*>::iterator iter;
+    TapStatBuilder aggregator(cookie, add_stat);
+    tapConnMap.each(aggregator);
+
+    add_casted_stat("ep_tap_total_queue", aggregator.tap_queue, add_stat, cookie);
     add_casted_stat("ep_tap_total_fetched", stats.numTapFetched, add_stat, cookie);
     add_casted_stat("ep_tap_bg_max_pending", TapConnection::bgMaxPending, add_stat, cookie);
     add_casted_stat("ep_tap_bg_fetched", stats.numTapBGFetched, add_stat, cookie);
@@ -2093,7 +2018,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTapStats(const void *cookie,
     add_casted_stat("ep_tap_deletes", stats.numTapDeletes, add_stat, cookie);
     add_casted_stat("ep_tap_keepalive", tapKeepAlive, add_stat, cookie);
 
-    add_casted_stat("ep_tap_count", totalTaps, add_stat, cookie);
+    add_casted_stat("ep_tap_count", aggregator.totalTaps, add_stat, cookie);
 
     add_casted_stat("ep_replication_state",
                     tapEnabled? "enabled": "disabled", add_stat, cookie);
@@ -2331,6 +2256,16 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
     return rv;
 }
 
+struct PopulateEventsBody {
+    PopulateEventsBody(QueuedItem qeye) : qi(qeye) {}
+    void operator() (TapConnection *tc) {
+        if (!tc->dumpQueue) {
+            tc->addEvent(qi);
+        }
+    }
+    QueuedItem qi;
+};
+
 bool EventuallyPersistentEngine::populateEvents() {
     std::queue<QueuedItem> q;
     pendingTapNotifications.getAll(q);
@@ -2338,102 +2273,27 @@ bool EventuallyPersistentEngine::populateEvents() {
     while (!q.empty()) {
         QueuedItem qi = q.front();
         q.pop();
-        std::list<TapConnection*>::iterator i;
-        for (i = allTaps.begin(); i != allTaps.end(); i++) {
-            TapConnection *tc = *i;
-            if (!tc->dumpQueue) {
-                tc->addEvent(qi);
-            }
-        }
+
+        PopulateEventsBody forloop(qi);
+        tapConnMap.each_UNLOCKED(forloop);
     }
 
     return false;
-}
-
-void EventuallyPersistentEngine::notifyTapIoThreadMain(void) {
-    bool addNoop = false;
-
-    rel_time_t now = ep_current_time();
-    if (now > nextTapNoop && tapIdleTimeout != (size_t)-1) {
-        addNoop = true;
-        nextTapNoop = now + (tapIdleTimeout / 3);
-    }
-    LockHolder lh(tapNotifySync);
-    // We should pause unless we purged some connections or
-    // all queues have items.
-    bool shouldPause = purgeExpiredTapConnections_UNLOCKED() == 0;
-    bool noEvents = populateEvents();
-
-    if (shouldPause) {
-        shouldPause = noEvents;
-    }
-    // see if I have some channels that I have to signal..
-    std::map<const void*, TapConnection*>::iterator iter;
-    for (iter = tapConnectionMap.begin(); iter != tapConnectionMap.end(); iter++) {
-        if (iter->second->ackSupported &&
-            (iter->second->expiry_time < now) &&
-            iter->second->windowIsFull())
-            {
-                shouldPause = false;
-                iter->second->doDisconnect = true;
-            } else if (iter->second->doDisconnect || !iter->second->idle()) {
-            shouldPause = false;
-        } else if (addNoop) {
-            TapVBucketEvent hi(TAP_NOOP, 0, pending);
-            iter->second->addVBucketHighPriority(hi);
-            shouldPause = false;
-        }
-    }
-
-    if (shouldPause) {
-        double diff = nextTapNoop - now;
-        if (diff > 0) {
-            tapNotifySync.wait(diff);
-        }
-
-        if (shutdown) {
-            return;
-        }
-        purgeExpiredTapConnections_UNLOCKED();
-    }
-
-    // Collect the list of connections that need to be signaled.
-    std::list<const void *> toNotify;
-    for (iter = tapConnectionMap.begin(); iter != tapConnectionMap.end(); iter++) {
-        if (iter->second->paused || iter->second->doDisconnect) {
-            if (!iter->second->notifySent) {
-                iter->second->notifySent = true;
-                toNotify.push_back(iter->first);
-            }
-        }
-    }
-
-    lh.unlock();
-
-    // Signal all outstanding, paused connections.
-    std::for_each(toNotify.begin(), toNotify.end(),
-                  std::bind2nd(std::ptr_fun((NOTIFY_IO_COMPLETE_T)serverApi->cookie->notify_io_complete),
-                                            ENGINE_SUCCESS));
 }
 
 void EventuallyPersistentEngine::notifyTapIoThread(void) {
     // Fix clean shutdown!!!
     while (!shutdown) {
 
-        notifyTapIoThreadMain();
+        tapConnMap.notifyIOThreadMain(this, serverApi);
 
         if (shutdown) {
             return;
         }
 
-        // Prevent the notify thread from busy-looping while
-        // holding locks when there's work to do.
-        LockHolder lh(tapNotifySync);
-        tapNotifySync.wait(1.0);
+        tapConnMap.wait(1.0);
     }
 }
-
-
 
 void CompleteBackfillTapOperation::perform(TapConnection *tc, void *arg) {
     (void)arg;

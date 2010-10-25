@@ -2,16 +2,26 @@
 #ifndef TAPCONNECTION_HH
 #define TAPCONNECTION_HH 1
 
+#include <set>
+
+#include "common.hh"
+#include "atomic.hh"
 #include "mutex.hh"
+#include "locks.hh"
+#include "vbucket.hh"
 
 // forward decl
 class EventuallyPersistentEngine;
+class TapConnMap;
 class BackFillVisitor;
 class StrategicSqlite3;
 class TapBGFetchCallback;
 class CompleteBackfillOperation;
 class Dispatcher;
 class Item;
+
+struct TapStatBuilder;
+struct PopulateEventsBody;
 
 /**
  * The tap stream may include other events than data mutation events,
@@ -108,8 +118,11 @@ public:
 
 private:
     friend class EventuallyPersistentEngine;
+    friend class TapConnMap;
     friend class BackFillVisitor;
     friend class TapBGFetchCallback;
+    friend struct TapStatBuilder;
+    friend struct PopulateEventsBody;
     /**
      * Add a new item to the tap queue.
      * The item may be ignored if the TapConnection got a vbucket filter

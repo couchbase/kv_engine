@@ -33,6 +33,7 @@ ep_la_SOURCES = \
                  locks.hh \
                  mutex.hh \
                  priority.cc priority.hh \
+                 queueditem.hh \
                  sizes.cc \
                  sqlite-eval.cc sqlite-eval.hh \
                  sqlite-kvstore.cc sqlite-kvstore.hh \
@@ -43,6 +44,7 @@ ep_la_SOURCES = \
                  stored-value.cc stored-value.hh \
                  syncobject.hh \
                  tapconnection.cc tapconnection.hh \
+                 tapconnmap.cc tapconnmap.hh \
                  vbucket.cc vbucket.hh
 
 if BUILD_BYTEORDER
