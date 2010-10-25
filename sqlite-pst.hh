@@ -67,6 +67,14 @@ public:
     void bind(int pos, int d);
 
     /**
+     * Bind a pair of uint32 values.
+     *
+     * @param pos the binding start position (starting at 1)
+     * @param pv the pair values to bind
+     */
+    void bind(int pos, std::pair<int, int> pv);
+
+    /**
      * Bind a uint64 value.
      *
      * @param pos the binding position (starting at 1)

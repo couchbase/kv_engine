@@ -92,7 +92,7 @@ public:
     /**
      * Overrides set().
      */
-    void set(const Item &item, Callback<mutation_result> &cb);
+    void set(const Item &item, uint16_t vb_version, Callback<mutation_result> &cb);
 
     /**
      * Overrides get().
@@ -105,10 +105,13 @@ public:
     void del(const std::string &key, uint64_t rowid,
              Callback<int> &cb);
 
-    bool delVBucket(uint16_t vbucket, std::pair<int64_t, int64_t> row_range);
-    bool setVBState(uint16_t vbucket, const std::string &to);
+    void delInvalidItem(const std::string &key, uint64_t rowid);
 
-    std::map<uint16_t, std::string> listPersistedVbuckets(void);
+    bool delVBucket(uint16_t vbucket, uint16_t vb_version,
+                    std::pair<int64_t, int64_t> row_range);
+    bool setVBState(uint16_t vbucket, uint16_t vb_version, const std::string &to);
+
+    std::map<std::pair<uint16_t, uint16_t>, std::string> listPersistedVbuckets(void);
 
     /**
      * Take a snapshot of the stats in the main DB.
@@ -117,7 +120,7 @@ public:
     /**
      * Take a snapshot of the vbucket states in the main DB.
      */
-    bool snapshotVBuckets(const std::map<uint16_t, std::string> &m);
+    bool snapshotVBuckets(const std::map<std::pair<uint16_t, uint16_t>, std::string> &m);
 
     /**
      * Overrides dump
@@ -138,10 +141,10 @@ private:
     template <typename T>
     bool storeMap(PreparedStatement *clearSt,
                   PreparedStatement *insSt,
-                  const std::map<T, std::string> &m);
+                  const std::map<T, std::string> &m, bool pairKey = false);
 
-    void insert(const Item &itm, Callback<mutation_result> &cb);
-    void update(const Item &itm, Callback<mutation_result> &cb);
+    void insert(const Item &itm, uint16_t vb_version, Callback<mutation_result> &cb);
+    void update(const Item &itm, uint16_t vb_version, Callback<mutation_result> &cb);
     int64_t lastRowId();
 
     EventuallyPersistentEngine &engine;

@@ -42,6 +42,11 @@ void PreparedStatement::bind(int pos, int v) {
     sqlite3_bind_int(st, pos, v);
 }
 
+void PreparedStatement::bind(int pos, std::pair<int, int> pv) {
+    bind(pos, pv.first);
+    bind(++pos, pv.second);
+}
+
 void PreparedStatement::bind64(int pos, uint64_t v) {
     sqlite3_bind_int64(st, pos, v);
 }
@@ -120,13 +125,13 @@ void PreparedStatement::reset() {
 void Statements::initStatements() {
     char buf[1024];
     snprintf(buf, sizeof(buf),
-             "insert into %s (k, v, flags, exptime, cas, vbucket) "
-             "values(?, ?, ?, ?, ?, ?)", tableName.c_str());
+             "insert into %s (k, v, flags, exptime, cas, vbucket, vb_version) "
+             "values(?, ?, ?, ?, ?, ?, ?)", tableName.c_str());
     ins_stmt = new PreparedStatement(db, buf);
 
     // Note that vbucket IDs don't change here.
     snprintf(buf, sizeof(buf),
-             "update %s set k=?, v=?, flags=?, exptime=?, cas=? "
+             "update %s set k=?, v=?, flags=?, exptime=?, cas=?, vb_version=? "
              " where rowid = ?", tableName.c_str());
     upd_stmt = new PreparedStatement(db, buf);
 
@@ -138,7 +143,7 @@ void Statements::initStatements() {
 
     // k=0, v=1, flags=2, exptime=3, cas=4, vbucket=5, rowid=6
     snprintf(buf, sizeof(buf),
-             "select k, v, flags, exptime, cas, vbucket, rowid "
+             "select k, v, flags, exptime, cas, vbucket, vb_version, rowid "
              "from %s where exptime = 0 or exptime > ?", tableName.c_str());
     all_stmt = new PreparedStatement(db, buf);
 
@@ -148,6 +153,7 @@ void Statements::initStatements() {
     del_stmt = new PreparedStatement(db, buf);
 
     snprintf(buf, sizeof(buf),
-             "delete from %s where vbucket = ? and rowid between ? and ?", tableName.c_str());
+             "delete from %s where vbucket = ? and vb_version = ? and "
+             "rowid between ? and ?", tableName.c_str());
     del_vb_stmt = new PreparedStatement(db, buf);
 }

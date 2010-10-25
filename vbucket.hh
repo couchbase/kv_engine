@@ -176,15 +176,18 @@ public:
     VBucketHolder(size_t sz) :
         buckets(new RCPtr<VBucket>[sz]),
         bucketDeletion(new Atomic<bool>[sz]),
+        bucketVersions(new Atomic<uint16_t>[sz]),
         size(sz) {
         for (size_t i = 0; i < size; ++i) {
             bucketDeletion[i].set(false);
+            bucketVersions[i].set(static_cast<uint16_t>(-1));
         }
     }
 
     VBucketHolder(const RCPtr<VBucketHolder> &vbh, size_t sz) :
         buckets(new RCPtr<VBucket>[sz]),
         bucketDeletion(new Atomic<bool>[sz]),
+        bucketVersions(new Atomic<uint16_t>[sz]),
         size(sz) {
 
         // No shrinkage allowed currently.
@@ -194,15 +197,18 @@ public:
         size_t vbh_size = vbh->getSize();
         for (size_t i = 0; i < vbh_size; ++i) {
             bucketDeletion[i].set(vbh->isBucketDeletion(i));
+            bucketVersions[i].set(vbh->getBucketVersion(i));
         }
         for (size_t i = vbh_size; i < size; ++i) {
             bucketDeletion[i].set(false);
+            bucketVersions[i].set(static_cast<uint16_t>(-1));
         }
     }
 
     ~VBucketHolder() {
         delete[] buckets;
         delete[] bucketDeletion;
+        delete[] bucketVersions;
     }
 
     RCPtr<VBucket> getBucket(int id) const {
@@ -270,9 +276,20 @@ public:
         return bucketDeletion[id].cas(!delBucket, delBucket);
     }
 
+    uint16_t getBucketVersion(int id) {
+        assert(id >= 0 && static_cast<size_t>(id) < size);
+        return bucketVersions[id].get();
+    }
+
+    void setBucketVersion(int id, uint16_t vb_version) {
+        assert(id >= 0 && static_cast<size_t>(id) < size);
+        bucketVersions[id].set(vb_version);
+    }
+
 private:
     RCPtr<VBucket> *buckets;
     Atomic<bool> *bucketDeletion;
+    Atomic<uint16_t> *bucketVersions;
     size_t size;
 };
 
@@ -329,6 +346,16 @@ public:
     bool setBucketDeletion(int id, bool delBucket) {
         RCPtr<VBucketHolder> o(buckets);
         return o->setBucketDeletion(id, delBucket);
+    }
+
+    uint16_t getBucketVersion(uint16_t id) {
+        RCPtr<VBucketHolder> o(buckets);
+        return o->getBucketVersion(id);
+    }
+
+    void setBucketVersion(uint16_t id, uint16_t vb_version) {
+        RCPtr<VBucketHolder> o(buckets);
+        o->setBucketVersion(id, vb_version);
     }
 
 private:

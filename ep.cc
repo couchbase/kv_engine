@@ -217,8 +217,10 @@ public:
 class VBucketDeletionCallback : public DispatcherCallback {
 public:
     VBucketDeletionCallback(EventuallyPersistentStore *e, RCPtr<VBucket> vb,
-                            EPStats &st, size_t deletion_size = 1000)
-        : ep(e), stats(st), chunk_size(deletion_size), vbdv(deletion_size) {
+                            uint16_t vbucket_version, EPStats &st,
+                            size_t deletion_size = 1000)
+        : ep(e), stats(st), vb_version(vbucket_version),
+          chunk_size(deletion_size), vbdv(deletion_size) {
         assert(ep);
         assert(vb);
         chunk_num = 1;
@@ -247,6 +249,7 @@ public:
 
         hrtime_t start_time = gethrtime();
         vbucket_del_result result = ep->completeVBucketDeletion(vbucket,
+                                                                vb_version,
                                                                 range,
                                                                 isLastChunk);
         hrtime_t chunk_time = (gethrtime() - start_time) / 1000;
@@ -291,6 +294,7 @@ private:
     EventuallyPersistentStore    *ep;
     EPStats                      &stats;
     uint16_t                      vbucket;
+    uint16_t                      vb_version;
     size_t                        chunk_size;
     size_t                        chunk_num;
     VBucketDeletionVisitor        vbdv;
@@ -318,6 +322,7 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
     if (startVb0) {
         RCPtr<VBucket> vb(new VBucket(0, active, stats));
         vbuckets.addBucket(vb);
+        vbuckets.setBucketVersion(0, 0);
     }
 
     startDispatcher();
@@ -564,11 +569,14 @@ void EventuallyPersistentStore::snapshotVBuckets() {
     if (!vbstateChanged.cas(true, false)) {
         return; // unnecessary
     }
+
     class VBucketStateVisitor : public VBucketVisitor {
     public:
-
+        VBucketStateVisitor(VBucketMap &vb_map) : vbuckets(vb_map) { }
         bool visitBucket(RCPtr<VBucket> vb) {
-            states[vb->getId()] = VBucket::toString(vb->getState());
+            std::pair<uint16_t, uint16_t> p(vb->getId(),
+                                            vbuckets.getBucketVersion(vb->getId()));
+            states[p] = VBucket::toString(vb->getState());
             return false;
         }
 
@@ -577,15 +585,18 @@ void EventuallyPersistentStore::snapshotVBuckets() {
             assert(false); // this does not happen
         }
 
-        std::map<uint16_t, std::string> states;
+        std::map<std::pair<uint16_t, uint16_t>, std::string> states;
+
+    private:
+        VBucketMap &vbuckets;
     };
 
-    VBucketStateVisitor v;
+    VBucketStateVisitor v(vbuckets);
     visit(v);
 
     if (!underlying->snapshotVBuckets(v.states)) {
         getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                             "Rescheduling a task to snapshot vbuckets\n");
+                         "Rescheduling a task to snapshot vbuckets\n");
         scheduleVBSnapshot();
     }
 }
@@ -603,7 +614,11 @@ void EventuallyPersistentStore::setVBucketState(uint16_t vbid,
                                   NULL, Priority::NotifyVBStateChangePriority, 0, false);
     } else {
         RCPtr<VBucket> newvb(new VBucket(vbid, to, stats));
+        uint16_t vb_version = vbuckets.getBucketVersion(vbid);
+        uint16_t vb_new_version = vb_version == (std::numeric_limits<uint16_t>::max() - 1) ?
+                                  0 : vb_version + 1;
         vbuckets.addBucket(newvb);
+        vbuckets.setBucketVersion(vbid, vb_new_version);
     }
 }
 
@@ -614,7 +629,7 @@ void EventuallyPersistentStore::scheduleVBSnapshot() {
 }
 
 vbucket_del_result
-EventuallyPersistentStore::completeVBucketDeletion(uint16_t vbid,
+EventuallyPersistentStore::completeVBucketDeletion(uint16_t vbid, uint16_t vb_version,
                                                    std::pair<int64_t, int64_t> row_range,
                                                    bool isLastChunk) {
     LockHolder lh(vbsetMutex);
@@ -623,7 +638,7 @@ EventuallyPersistentStore::completeVBucketDeletion(uint16_t vbid,
     if (!vb || vb->getState() == dead || vbuckets.isBucketDeletion(vbid)) {
         lh.unlock();
         if (row_range.first < 0 || row_range.second < 0 ||
-            underlying->delVBucket(vbid, row_range)) {
+            underlying->delVBucket(vbid, vb_version, row_range)) {
             if (isLastChunk) {
                 vbuckets.setBucketDeletion(vbid, false);
                 ++stats.vbucketDeletions;
@@ -638,10 +653,11 @@ EventuallyPersistentStore::completeVBucketDeletion(uint16_t vbid,
     return vbucket_del_invalid;
 }
 
-void EventuallyPersistentStore::scheduleVBDeletion(RCPtr<VBucket> vb, double delay=0) {
+void EventuallyPersistentStore::scheduleVBDeletion(RCPtr<VBucket> vb, uint16_t vb_version,
+                                                   double delay=0) {
     if (vbuckets.setBucketDeletion(vb->getId(), true)) {
         int chunk_size = engine.getVbDelChunkSize();
-        shared_ptr<DispatcherCallback> cb(new VBucketDeletionCallback(this, vb,
+        shared_ptr<DispatcherCallback> cb(new VBucketDeletionCallback(this, vb, vb_version,
                                                                       stats, chunk_size));
         dispatcher->schedule(cb,
                              NULL, Priority::VBucketDeletionPriority,
@@ -656,6 +672,7 @@ bool EventuallyPersistentStore::deleteVBucket(uint16_t vbid) {
 
     RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
     if (vb && vb->getState() == dead) {
+        uint16_t vb_version = vbuckets.getBucketVersion(vbid);
         lh.unlock();
         rv = true;
         HashTableStatVisitor statvis(vbuckets.removeBucket(vbid));
@@ -663,7 +680,7 @@ bool EventuallyPersistentStore::deleteVBucket(uint16_t vbid) {
         stats.currentSize.decr(statvis.memSize);
         assert(stats.currentSize.get() < GIGANTOR);
         stats.totalCacheSize.decr(statvis.memSize);
-        scheduleVBDeletion(vb);
+        scheduleVBDeletion(vb, vb_version);
     }
     return rv;
 }
@@ -1220,21 +1237,14 @@ int EventuallyPersistentStore::flushOneDelOrSet(QueuedItem &qi,
     }
 
     if (isDirty && !deleted) {
-        // If vbucket deletion is currently being flushed, don't flush a set operation,
-        // but requeue a set operation to a flusher to avoid duplicate items on disk
-        if (vbuckets.isBucketDeletion(qi.getVBucketId())) {
+        if (qi.getVBucketVersion() != vbuckets.getBucketVersion(qi.getVBucketId())) {
             lh.unlock();
-            towrite.push(qi);
-            stats.memOverhead.incr(qi.size());
-            assert(stats.memOverhead.get() < GIGANTOR);
-            ++stats.totalEnqueued;
-            stats.queue_size = towrite.size();
         } else {
             v->markClean(NULL);
             lh.unlock();
             BlockTimer timer(rowid == -1 ? &stats.diskInsertHisto : &stats.diskUpdateHisto);
             PersistenceCallback cb(qi, rejectQueue, this, queued, dirtied, &stats);
-            underlying->set(*val, cb);
+            underlying->set(*val, qi.getVBucketVersion(), cb);
         }
     } else if (deleted) {
         lh.unlock();
@@ -1272,7 +1282,10 @@ int EventuallyPersistentStore::flushOne(std::queue<QueuedItem> *q,
         rv = flushOneDeleteAll();
         break;
     case queue_op_set:
-        // FALLTHROUGH
+        if (qi.getVBucketVersion() == vbuckets.getBucketVersion(qi.getVBucketId())) {
+            rv = flushOneDelOrSet(qi, rejectQueue);
+        }
+        break;
     case queue_op_del:
         rv = flushOneDelOrSet(qi, rejectQueue);
         break;
@@ -1286,7 +1299,8 @@ void EventuallyPersistentStore::queueDirty(const std::string &key, uint16_t vbid
                                            enum queue_operation op) {
     if (doPersistence) {
         // Assume locked.
-        QueuedItem qi(key, vbid, op);
+        uint16_t vb_version = vbuckets.getBucketVersion(vbid);
+        QueuedItem qi(key, vbid, op, vb_version);
         towrite.push(qi);
         stats.memOverhead.incr(qi.size());
         assert(stats.memOverhead.get() < GIGANTOR);
@@ -1295,22 +1309,35 @@ void EventuallyPersistentStore::queueDirty(const std::string &key, uint16_t vbid
     }
 }
 
-void LoadStorageKVPairCallback::initVBucket(uint16_t vbid,
+void LoadStorageKVPairCallback::initVBucket(uint16_t vbid, uint16_t vb_version,
                                             vbucket_state_t state) {
     RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
     if (!vb) {
         vb.reset(new VBucket(vbid, state, stats));
         vbuckets.addBucket(vb);
+        vbuckets.setBucketVersion(vbid, vb_version);
+    }
+    if (vbid == 0 && vbuckets.getBucketVersion(0) != vb_version) {
+        vbuckets.setBucketVersion(0, vb_version);
     }
 }
 
 void LoadStorageKVPairCallback::callback(GetValue &val) {
     Item *i = val.getValue();
     if (i != NULL) {
+        uint16_t vb_version = vbuckets.getBucketVersion(i->getVBucketId());
+        if (vb_version != static_cast<uint16_t>(-1) && val.getVBucketVersion() != vb_version) {
+            epstore->getUnderlying()->delInvalidItem(i->getKey(), i->getId());
+            delete i;
+            ++stats.warmedUp;
+            return;
+        }
+
         RCPtr<VBucket> vb = vbuckets.getBucket(i->getVBucketId());
         if (!vb) {
             vb.reset(new VBucket(i->getVBucketId(), pending, stats));
             vbuckets.addBucket(vb);
+            vbuckets.setBucketVersion(i->getVBucketId(), val.getVBucketVersion());
         }
         bool retain(shouldBeResident());
         bool succeeded(false);

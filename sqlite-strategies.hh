@@ -21,6 +21,7 @@ public:
         filename(fn),
         initFile(finit),
         postInitFile(pfinit),
+        schema_version(0),
         db(NULL),
         statements(),
         ins_vb_stmt(NULL), clear_vb_stmt(NULL), sel_vb_stmt(NULL),
@@ -89,6 +90,7 @@ protected:
     const char * const filename;
     const char * const initFile;
     const char * const postInitFile;
+    uint16_t schema_version;
     sqlite3 *db;
     std::vector<Statements *> statements;
 

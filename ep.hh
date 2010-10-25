@@ -72,11 +72,14 @@ typedef enum {
 
 class QueuedItem {
 public:
-    QueuedItem(const std::string &k, const uint16_t vb, enum queue_operation o)
-        : key(k), op(o), vbucket(vb), dirtied(ep_current_time()) {}
+    QueuedItem(const std::string &k, const uint16_t vb,
+               enum queue_operation o, const uint16_t vb_version = -1)
+        : key(k), op(o), vbucket(vb), vbucket_version(vb_version),
+          dirtied(ep_current_time()) {}
 
     std::string getKey(void) const { return key; }
     uint16_t getVBucketId(void) const { return vbucket; }
+    uint16_t getVBucketVersion(void) const { return vbucket_version; }
     rel_time_t getDirtied(void) const { return dirtied; }
     enum queue_operation getOperation(void) const { return op; }
 
@@ -92,6 +95,7 @@ private:
     std::string key;
     enum queue_operation op;
     uint16_t vbucket;
+    uint16_t vbucket_version;
     rel_time_t dirtied;
 };
 
@@ -128,6 +132,7 @@ protected:
 // Forward declaration
 class Flusher;
 class TapBGFetchCallback;
+class EventuallyPersistentStore;
 
 /**
  * Helper class used to insert items into the storage by using
@@ -135,10 +140,13 @@ class TapBGFetchCallback;
  */
 class LoadStorageKVPairCallback : public Callback<GetValue> {
 public:
-    LoadStorageKVPairCallback(VBucketMap &vb, EPStats &st)
-        : vbuckets(vb), stats(st), hasPurged(false) { }
+    LoadStorageKVPairCallback(VBucketMap &vb, EPStats &st,
+                              EventuallyPersistentStore *ep)
+        : vbuckets(vb), stats(st), epstore(ep), hasPurged(false) {
+        assert(epstore);
+    }
 
-    void initVBucket(uint16_t vbid, vbucket_state_t state = pending);
+    void initVBucket(uint16_t vbid, uint16_t vb_version, vbucket_state_t state = pending);
     void callback(GetValue &val);
 
 private:
@@ -151,6 +159,7 @@ private:
 
     VBucketMap &vbuckets;
     EPStats    &stats;
+    EventuallyPersistentStore *epstore;
     bool        hasPurged;
 };
 
@@ -365,7 +374,7 @@ public:
     void setVBucketState(uint16_t vbid,
                          vbucket_state_t state);
 
-    vbucket_del_result completeVBucketDeletion(uint16_t vbid,
+    vbucket_del_result completeVBucketDeletion(uint16_t vbid, uint16_t vb_version,
                                                std::pair<int64_t, int64_t> row_range,
                                                bool isLastChunk);
     bool deleteVBucket(uint16_t vbid);
@@ -387,14 +396,16 @@ public:
     }
 
     void warmup() {
-        LoadStorageKVPairCallback cb(vbuckets, stats);
-        std::map<uint16_t, std::string> state = underlying->listPersistedVbuckets();
-        std::map<uint16_t, std::string>::iterator it;
+        LoadStorageKVPairCallback cb(vbuckets, stats, this);
+        std::map<std::pair<uint16_t, uint16_t>, std::string> state =
+            underlying->listPersistedVbuckets();
+        std::map<std::pair<uint16_t, uint16_t>, std::string>::iterator it;
         for (it = state.begin(); it != state.end(); ++it) {
+            std::pair<uint16_t, uint16_t> vbp = it->first;
             getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
                              "Reloading vbucket %d - was in %s state\n",
-                             it->first, it->second.c_str());
-            cb.initVBucket(it->first);
+                             vbp.first, it->second.c_str());
+            cb.initVBucket(vbp.first, vbp.second);
         }
         underlying->dump(cb);
     }
@@ -426,7 +437,7 @@ public:
 private:
 
     void scheduleVBSnapshot();
-    void scheduleVBDeletion(RCPtr<VBucket> vb, double delay);
+    void scheduleVBDeletion(RCPtr<VBucket> vb, uint16_t vb_version, double delay);
 
     RCPtr<VBucket> getVBucket(uint16_t vbid, vbucket_state_t wanted_state);
 

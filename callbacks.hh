@@ -13,11 +13,11 @@ class Item;
  */
 class GetValue {
 public:
-    GetValue() : value(NULL), id(-1), status(ENGINE_KEY_ENOENT) { }
+    GetValue() : value(NULL), id(-1), vb_version(-1), status(ENGINE_KEY_ENOENT) { }
 
     explicit GetValue(Item *v, ENGINE_ERROR_CODE s=ENGINE_SUCCESS,
-                      uint64_t i=-1) :
-        value(v), id(i), status(s) { }
+                      uint64_t i = -1, uint16_t vbucket_version = -1) :
+        value(v), id(i), vb_version(vbucket_version), status(s) { }
 
     /**
      * The value retrieved for the key.
@@ -34,10 +34,16 @@ public:
      */
     uint64_t getId() { return id; }
 
+    /**
+     * Get the item's vbucket version (if applicable).
+     */
+    uint16_t getVBucketVersion() { return vb_version; }
+
 private:
 
     Item* value;
     uint64_t id;
+    uint16_t vb_version;
     ENGINE_ERROR_CODE status;
 };
 

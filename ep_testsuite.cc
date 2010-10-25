@@ -2472,11 +2472,23 @@ static enum test_result test_value_eviction(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
 static enum test_result test_duplicate_items_disk(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(set_vbucket_state(h, h1, 1, "active"), "Failed to set vbucket state.");
 
-    wait_for_persisted_value(h, h1, "key1", "value", 1);
+    std::vector<std::string> keys;
+    for (int j = 0; j < 2000; ++j) {
+        std::stringstream ss;
+        ss << "key" << j;
+        std::string key(ss.str());
+        keys.push_back(key);
+    }
+    std::vector<std::string>::iterator it;
+    for (it = keys.begin(); it != keys.end(); ++it) {
+            item *i;
+            check(store(h, h1, NULL, OPERATION_SET, it->c_str(), "value", &i, 0, 1)
+                  == ENGINE_SUCCESS, "Failed to store a value");
+    }
+    wait_for_flusher_to_settle(h, h1);
 
     check(set_vbucket_state(h, h1, 1, "dead"), "Failed set set vbucket 1 state.");
-
-    int vbucket_del = get_int_stat(h, h1, "ep_vbucket_del");
+    int vb_del_num = get_int_stat(h, h1, "ep_vbucket_del");
     protocol_binary_request_header *pkt = create_packet(CMD_DEL_VBUCKET, "1", "");
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Failed to delete dead bucket.");
@@ -2487,19 +2499,28 @@ static enum test_result test_duplicate_items_disk(ENGINE_HANDLE *h, ENGINE_HANDL
 
     check(set_vbucket_state(h, h1, 1, "active"), "Failed to set vbucket state.");
 
-    item *i = NULL;
-    int total_persisted = get_int_stat(h, h1, "ep_total_persisted");
-    check(store(h, h1, NULL, OPERATION_SET, "key1", "new-value", &i, 0, 1) == ENGINE_SUCCESS,
-          "Failed to set an item.");
+    for (it = keys.begin(); it != keys.end(); ++it) {
+        item *i;
+        check(store(h, h1, NULL, OPERATION_SET, it->c_str(), it->c_str(), &i, 0, 1)
+              == ENGINE_SUCCESS, "Failed to store a value");
+    }
+    wait_for_flusher_to_settle(h, h1);
+    wait_for_stat_change(h, h1, "ep_vbucket_del", vb_del_num);
 
-    // Make sure that vbucket deletion is flushed to avoid duplicate items on disk
-    wait_for_stat_change(h, h1, "ep_vbucket_del", vbucket_del);
-    assert((vbucket_del + 1) == get_int_stat(h, h1, "ep_vbucket_del"));
-
+    testHarness.reload_engine(&h, &h1,
+                              testHarness.engine_path,
+                              testHarness.default_engine_cfg,
+                              true);
+    check(set_vbucket_state(h, h1, 1, "active"), "Failed to set vbucket state.");
     // Make sure that a key/value item is persisted correctly
-    wait_for_stat_change(h, h1, "ep_total_persisted", total_persisted);
-    evict_key(h, h1, "key1", 1, "Ejected.");
-    check_key_value(h, h1, "key1", "new-value", 9, false, 1);
+    for (it = keys.begin(); it != keys.end(); ++it) {
+        evict_key(h, h1, it->c_str(), 1, "Ejected.");
+    }
+    for (it = keys.begin(); it != keys.end(); ++it) {
+        check_key_value(h, h1, it->c_str(), it->data(), it->size(), false, 1);
+    }
+    check(get_int_stat(h, h1, "ep_warmup_dups") == 0,
+          "Expected no duplicate items from disk");
 
     return SUCCESS;
 }
