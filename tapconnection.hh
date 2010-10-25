@@ -258,6 +258,11 @@ private:
             + (bgJobIssued - bgJobCompleted) + queue->size();
     }
 
+    size_t getQueueSize() {
+        SpinLockHolder lh(&queueLock);
+        return queue->size();
+    }
+
     Item* nextFetchedItem();
 
     void flush() {

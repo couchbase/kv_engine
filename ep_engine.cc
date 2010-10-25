@@ -2011,7 +2011,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTapStats(const void *cookie,
     for (iter = allTaps.begin(); iter != allTaps.end(); iter++) {
         totalTaps++;
         TapConnection *tc = *iter;
-        addTapStat("qlen", tc, tc->queue->size(), add_stat, cookie);
+        size_t qlen = tc->getQueueSize();
+        tap_queue += qlen;
+
+        addTapStat("qlen", tc, qlen, add_stat, cookie);
         addTapStat("qlen_high_pri", tc, tc->vBucketHighPriority.size(), add_stat, cookie);
         addTapStat("qlen_low_pri", tc, tc->vBucketLowPriority.size(), add_stat, cookie);
         addTapStat("vb_filters", tc, tc->vbucketFilter.size(), add_stat, cookie);
@@ -2042,8 +2045,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTapStats(const void *cookie,
         if (tc->backfillAge != 0) {
             addTapStat("backfill_age", tc, (size_t)tc->backfillAge, add_stat, cookie);
         }
-
-        tap_queue += tc->queue->size();
 
         if (tc->ackSupported) {
             addTapStat("ack_seqno", tc, tc->seqno, add_stat, cookie);
