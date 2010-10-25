@@ -131,7 +131,7 @@ private:
      * @return true if the the queue was empty
      */
     bool addEvent(const QueuedItem &it) {
-        SpinLockHolder lh(&queueLock);
+        LockHolder lh(queueLock);
         if (vbucketFilter(it.getVBucketId())) {
             bool wasEmpty = queue->empty();
             std::pair<std::set<QueuedItem>::iterator, bool> ret;
@@ -171,7 +171,7 @@ private:
     QueuedItem next() {
         assert(!empty());
         do {
-            SpinLockHolder lh(&queueLock);
+            LockHolder lh(queueLock);
             QueuedItem qi = queue->front();
             queue->pop_front();
             queue_set->erase(qi);
@@ -254,7 +254,7 @@ private:
     }
 
     bool hasQueuedItem() {
-        SpinLockHolder lh(&queueLock);
+        LockHolder lh(queueLock);
         return !queue->empty();
     }
 
@@ -266,20 +266,20 @@ private:
      * Find out how much stuff this thing has to do.
      */
     size_t getBacklogSize() {
-        SpinLockHolder lh(&queueLock);
+        LockHolder lh(queueLock);
         return bgResultSize + bgQueueSize
             + (bgJobIssued - bgJobCompleted) + queue->size();
     }
 
     size_t getQueueSize() {
-        SpinLockHolder lh(&queueLock);
+        LockHolder lh(queueLock);
         return queue->size();
     }
 
     Item* nextFetchedItem();
 
     void flush() {
-        SpinLockHolder lh(&queueLock);
+        LockHolder lh(queueLock);
         pendingFlush = true;
         /* No point of keeping the rep queue when someone wants to flush it */
         queue->clear();
@@ -294,7 +294,7 @@ private:
 
     // This method is called while holding the tapNotifySync lock.
     void appendQueue(std::list<QueuedItem> *q) {
-        SpinLockHolder lh(&queueLock);
+        LockHolder lh(queueLock);
         queue->splice(queue->end(), *q);
     }
 
@@ -395,7 +395,7 @@ private:
     std::string client;
 
     //! Lock held during queue operations.
-    SpinLock queueLock;
+    Mutex queueLock;
     /**
      * The queue of keys that needs to be sent (this is the "live stream")
      */
