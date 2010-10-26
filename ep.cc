@@ -1333,7 +1333,7 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
 
         RCPtr<VBucket> vb = vbuckets.getBucket(i->getVBucketId());
         if (!vb) {
-            vb.reset(new VBucket(i->getVBucketId(), pending, stats));
+            vb.reset(new VBucket(i->getVBucketId(), dead, stats));
             vbuckets.addBucket(vb);
             vbuckets.setBucketVersion(i->getVBucketId(), val.getVBucketVersion());
         }

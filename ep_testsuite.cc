@@ -1680,8 +1680,8 @@ static enum test_result test_vbucket_destroy_restart(ENGINE_HANDLE *h, ENGINE_HA
                               testHarness.default_engine_cfg,
                               true);
 
-    check(verify_vbucket_state(h, h1, 1, "pending"),
-          "Bucket state was not pending after restart.");
+    check(verify_vbucket_state(h, h1, 1, "dead"),
+          "Bucket state was not dead after restart.");
     check(set_vbucket_state(h, h1, 1, "active"), "Failed to set vbucket state.");
     check_key_value(h, h1, "key", "somevalue", 9, false, 1);
 

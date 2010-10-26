@@ -146,7 +146,7 @@ public:
         assert(epstore);
     }
 
-    void initVBucket(uint16_t vbid, uint16_t vb_version, vbucket_state_t state = pending);
+    void initVBucket(uint16_t vbid, uint16_t vb_version, vbucket_state_t state = dead);
     void callback(GetValue &val);
 
 private:
