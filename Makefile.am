@@ -5,6 +5,8 @@ lib_LTLIBRARIES = ep.la ep_testsuite.la timing_tests.la
 noinst_LTLIBRARIES =
 
 bin_PROGRAMS =
+BUILT_SOURCES =
+CLEANFILES =
 
 EXTRA_DIST = docs management README.markdown win32 Doxyfile LICENSE
 
@@ -80,7 +82,9 @@ if BUILD_GENERATED_TESTS
 lib_LTLIBRARIES += generated_suite.la
 
 generated_suite.c: t/gen_engine_test.py t/testgen.py
-	./t/gen_engine_test.py > generated_suite.c
+	${top_srcdir}/t/gen_engine_test.py > generated_suite.c || ( rm generated_suite.c && /bin/false)
+BUILT_SOURCES+= generated_suite.c
+CLEANFILES+= generated_suite.c
 
 generated_suite_la_DEPENDENCIES = ep.la
 generated_suite_la_CFLAGS = $(AM_CFLAGS) ${NO_WERROR}
