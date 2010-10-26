@@ -183,7 +183,9 @@ void Dispatcher::completeNonDaemonTasks() {
         LockHolder tlh(task->mutex);
         if (task->state == task_running) {
             tlh.unlock();
-            std::cout << "Complete running task " << task->name << std::endl;
+            getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                             "Complete running task %s\n",
+                             task->name.c_str());
             try {
                 task->run(*this, TaskId(task));
             } catch (std::exception& e) {
