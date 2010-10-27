@@ -127,11 +127,12 @@ private:
 
 class SnapshotVBucketsCallback : public DispatcherCallback {
 public:
-    SnapshotVBucketsCallback(EventuallyPersistentStore *e) : ep(e) { }
+    SnapshotVBucketsCallback(EventuallyPersistentStore *e, const Priority &p)
+        : ep(e), priority(p) { }
 
     bool callback(Dispatcher &d, TaskId t) {
         (void)d; (void)t;
-        ep->snapshotVBuckets();
+        ep->snapshotVBuckets(priority);
         return false;
     }
 
@@ -140,6 +141,7 @@ public:
     }
 private:
     EventuallyPersistentStore *ep;
+    const Priority &priority;
 };
 
 class NotifyVBStateChangeCallback : public DispatcherCallback {
@@ -564,11 +566,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::add(const Item &item,
 }
 
 
-void EventuallyPersistentStore::snapshotVBuckets() {
-    // Don't do it if we don't need it.
-    if (!vbstateChanged.cas(true, false)) {
-        return; // unnecessary
-    }
+void EventuallyPersistentStore::snapshotVBuckets(const Priority &priority) {
 
     class VBucketStateVisitor : public VBucketVisitor {
     public:
@@ -591,13 +589,16 @@ void EventuallyPersistentStore::snapshotVBuckets() {
         VBucketMap &vbuckets;
     };
 
+    if (priority == Priority::VBucketPersistHighPriority) {
+        vbuckets.setHighPriorityVbSnapshotFlag(false);
+    }
+
     VBucketStateVisitor v(vbuckets);
     visit(v);
-
     if (!underlying->snapshotVBuckets(v.states)) {
         getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
                          "Rescheduling a task to snapshot vbuckets\n");
-        scheduleVBSnapshot();
+        scheduleVBSnapshot(priority);
     }
 }
 
@@ -612,6 +613,7 @@ void EventuallyPersistentStore::setVBucketState(uint16_t vbid,
                                              (new NotifyVBStateChangeCallback(vb,
                                                                         engine.getServerApi())),
                                   NULL, Priority::NotifyVBStateChangePriority, 0, false);
+        scheduleVBSnapshot(Priority::VBucketPersistLowPriority);
     } else {
         RCPtr<VBucket> newvb(new VBucket(vbid, to, stats));
         uint16_t vb_version = vbuckets.getBucketVersion(vbid);
@@ -619,13 +621,18 @@ void EventuallyPersistentStore::setVBucketState(uint16_t vbid,
                                   0 : vb_version + 1;
         vbuckets.addBucket(newvb);
         vbuckets.setBucketVersion(vbid, vb_new_version);
+        scheduleVBSnapshot(Priority::VBucketPersistHighPriority);
     }
 }
 
-void EventuallyPersistentStore::scheduleVBSnapshot() {
-    vbstateChanged.set(true);
-    dispatcher->schedule(shared_ptr<DispatcherCallback>(new SnapshotVBucketsCallback(this)),
-                         NULL, Priority::VBucketPersistPriority, 0, false);
+void EventuallyPersistentStore::scheduleVBSnapshot(const Priority &p) {
+    if (p == Priority::VBucketPersistHighPriority) {
+        if (!vbuckets.setHighPriorityVbSnapshotFlag(true)) {
+            return;
+        }
+    }
+    dispatcher->schedule(shared_ptr<DispatcherCallback>(new SnapshotVBucketsCallback(this, p)),
+                         NULL, p, 0, false);
 }
 
 vbucket_del_result
@@ -642,7 +649,6 @@ EventuallyPersistentStore::completeVBucketDeletion(uint16_t vbid, uint16_t vb_ve
             if (isLastChunk) {
                 vbuckets.setBucketDeletion(vbid, false);
                 ++stats.vbucketDeletions;
-                scheduleVBSnapshot();
             }
             return vbucket_del_success;
         } else {
@@ -680,6 +686,7 @@ bool EventuallyPersistentStore::deleteVBucket(uint16_t vbid) {
         stats.currentSize.decr(statvis.memSize);
         assert(stats.currentSize.get() < GIGANTOR);
         stats.totalCacheSize.decr(statvis.memSize);
+        scheduleVBSnapshot(Priority::VBucketPersistHighPriority);
         scheduleVBDeletion(vb, vb_version);
     }
     return rv;
@@ -1240,11 +1247,23 @@ int EventuallyPersistentStore::flushOneDelOrSet(QueuedItem &qi,
         if (qi.getVBucketVersion() != vbuckets.getBucketVersion(qi.getVBucketId())) {
             lh.unlock();
         } else {
-            v->markClean(NULL);
-            lh.unlock();
-            BlockTimer timer(rowid == -1 ? &stats.diskInsertHisto : &stats.diskUpdateHisto);
-            PersistenceCallback cb(qi, rejectQueue, this, queued, dirtied, &stats);
-            underlying->set(*val, qi.getVBucketVersion(), cb);
+            // If a vbucket snapshot task with the high priority is currently scheduled,
+            // requeue the persistence task and wait until the snapshot task is completed.
+            if (vbuckets.isHighPriorityVbSnapshotScheduled()) {
+                lh.unlock();
+                towrite.push(qi);
+                stats.memOverhead.incr(qi.size());
+                assert(stats.memOverhead.get() < GIGANTOR);
+                ++stats.totalEnqueued;
+                stats.queue_size = towrite.size();
+            } else {
+                v->markClean(NULL);
+                lh.unlock();
+                BlockTimer timer(rowid == -1 ?
+                                 &stats.diskInsertHisto : &stats.diskUpdateHisto);
+                PersistenceCallback cb(qi, rejectQueue, this, queued, dirtied, &stats);
+                underlying->set(*val, qi.getVBucketVersion(), cb);
+            }
         }
     } else if (deleted) {
         lh.unlock();

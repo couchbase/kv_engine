@@ -13,13 +13,13 @@ class Priority {
 public:
     static const Priority BgFetcherPriority;
     static const Priority TapBgFetcherPriority;
-    static const Priority SetVBucketPriority;
+    static const Priority VBucketPersistHighPriority;
     static const Priority VKeyStatBgFetcherPriority;
     static const Priority NotifyVBStateChangePriority;
     static const Priority FlusherPriority;
     static const Priority ItemPagerPriority;
     static const Priority VBucketDeletionPriority;
-    static const Priority VBucketPersistPriority;
+    static const Priority VBucketPersistLowPriority;
     static const Priority StatSnapPriority;
 
     bool operator==(const Priority &other) const {

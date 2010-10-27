@@ -8,8 +8,8 @@ int main(int argc, char **argv) {
    (void)argc; (void)argv;
 
    assert(Priority::BgFetcherPriority > Priority::TapBgFetcherPriority);
-   assert(Priority::TapBgFetcherPriority > Priority::SetVBucketPriority);
-   assert(Priority::SetVBucketPriority > Priority::VKeyStatBgFetcherPriority);
+   assert(Priority::TapBgFetcherPriority == Priority::VBucketPersistHighPriority);
+   assert(Priority::VBucketPersistHighPriority > Priority::VKeyStatBgFetcherPriority);
    assert(Priority::VKeyStatBgFetcherPriority > Priority::NotifyVBStateChangePriority);
    assert(Priority::NotifyVBStateChangePriority > Priority::FlusherPriority);
    assert(Priority::FlusherPriority > Priority::ItemPagerPriority);

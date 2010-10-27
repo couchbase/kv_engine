@@ -324,7 +324,7 @@ public:
 
     RCPtr<VBucket> getVBucket(uint16_t vbid);
 
-    void snapshotVBuckets();
+    void snapshotVBuckets(const Priority &priority);
     void setVBucketState(uint16_t vbid,
                          vbucket_state_t state);
 
@@ -390,7 +390,7 @@ public:
 
 private:
 
-    void scheduleVBSnapshot();
+    void scheduleVBSnapshot(const Priority &priority);
     void scheduleVBDeletion(RCPtr<VBucket> vb, uint16_t vb_version, double delay);
 
     RCPtr<VBucket> getVBucket(uint16_t vbid, vbucket_state_t wanted_state);
@@ -470,7 +470,6 @@ private:
     TransactionContext         tctx;
     Mutex                      vbsetMutex;
     uint32_t                   bgFetchDelay;
-    Atomic<bool>               vbstateChanged;
 
     DISALLOW_COPY_AND_ASSIGN(EventuallyPersistentStore);
 };

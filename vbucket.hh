@@ -178,6 +178,7 @@ public:
         bucketDeletion(new Atomic<bool>[sz]),
         bucketVersions(new Atomic<uint16_t>[sz]),
         size(sz) {
+        highPriorityVbSnapshot.set(false);
         for (size_t i = 0; i < size; ++i) {
             bucketDeletion[i].set(false);
             bucketVersions[i].set(static_cast<uint16_t>(-1));
@@ -192,6 +193,8 @@ public:
 
         // No shrinkage allowed currently.
         assert(sz >= vbh->getSize());
+
+        highPriorityVbSnapshot.set(vbh->isHighPriorityVbSnapshotScheduled());
 
         std::copy(buckets, buckets+vbh->getSize(), buckets);
         size_t vbh_size = vbh->getSize();
@@ -286,10 +289,37 @@ public:
         bucketVersions[id].set(vb_version);
     }
 
+    /**
+     * Check if a vbucket snapshot task is currently scheduled with the high priority.
+     * @return "true" if a snapshot task with the high priority is currently scheduled.
+     */
+    bool isHighPriorityVbSnapshotScheduled(void) {
+        return highPriorityVbSnapshot.get();
+    }
+
+    /**
+     * Set the flag to coordinate the scheduled high priority vbucket snapshot and new
+     * snapshot requests with the high priority. The flag is "true" if a snapshot
+     * task with the high priority is currently scheduled, otherwise "false".
+     * If (1) the flag is currently "false" and (2) a new snapshot request invokes
+     * this method by passing "true" parameter, this will set the flag to "true" and
+     * return "true" to indicate that the new request can be scheduled now. Otherwise,
+     * return "false" to prevent duplciate snapshot tasks from being scheduled.
+     * When the snapshot task is running and about to writing to disk, it will invoke
+     * this method to reset the flag by passing "false" parameter.
+     * @param highPrioritySnapshot bool flag for coordination between the scheduled
+     *        snapshot task and new snapshot requests.
+     * @return "true" if a flag's value was changed. Otherwise "false".
+     */
+    bool setHighPriorityVbSnapshotFlag(bool highPrioritySnapshot) {
+        return highPriorityVbSnapshot.cas(!highPrioritySnapshot, highPrioritySnapshot);
+    }
+
 private:
     RCPtr<VBucket> *buckets;
     Atomic<bool> *bucketDeletion;
     Atomic<uint16_t> *bucketVersions;
+    Atomic<bool> highPriorityVbSnapshot;
     size_t size;
 };
 
@@ -356,6 +386,16 @@ public:
     void setBucketVersion(uint16_t id, uint16_t vb_version) {
         RCPtr<VBucketHolder> o(buckets);
         o->setBucketVersion(id, vb_version);
+    }
+
+    bool isHighPriorityVbSnapshotScheduled(void) {
+        RCPtr<VBucketHolder> o(buckets);
+        return o->isHighPriorityVbSnapshotScheduled();
+    }
+
+    bool setHighPriorityVbSnapshotFlag(bool highPrioritySnapshot) {
+        RCPtr<VBucketHolder> o(buckets);
+        return o->setHighPriorityVbSnapshotFlag(highPrioritySnapshot);
     }
 
 private:
