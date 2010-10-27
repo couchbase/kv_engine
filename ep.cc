@@ -1327,9 +1327,7 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
     if (i != NULL) {
         uint16_t vb_version = vbuckets.getBucketVersion(i->getVBucketId());
         if (vb_version != static_cast<uint16_t>(-1) && val.getVBucketVersion() != vb_version) {
-            epstore->getUnderlying()->delInvalidItem(i->getKey(), i->getId());
             delete i;
-            ++stats.warmedUp;
             return;
         }
 
