@@ -24,36 +24,40 @@ memcached like this:
 
 * Parameters for the EP Engine
 
-| key               | type   | descr                                         |
-|-------------------+--------+-----------------------------------------------|
-| config_file       | string | Path to additional parameters.                |
-| dbname            | string | Path to on-disk storage.                      |
-| ht_locks          | int    | Number of locks per hash table.               |
-| ht_size           | int    | Number of buckets per hash table.             |
-| initfile          | string | Optional SQL script to run after opening DB   |
-| postInitfile      | string | Optional SQL script to run after all DB       |
-|                   |        | shards and statements have been initialized   |
-| max_item_size     | int    | Maximum number of bytes allowed for an item.  |
-| tap_backlog_limit | int    | Max number of items allowed in a tap backfill |
-| max_size          | int    | Max cumulative item size in bytes.            |
-| max_txn_size      | int    | Max number of disk mutations per transaction. |
-| mem_high_wat      | int    | Automatically evict when exceeding this size. |
-| mem_low_wat       | int    | Low water mark to aim for when evicting.      |
-| min_data_age      | int    | Minimum data stability time before persist.   |
-| queue_age_cap     | int    | Maximum queue time before forcing persist.    |
-| tap_id            | string | Local tap identifier for remote peer.         |
-| tap_idle_timeout  | int    | Tap client idle timeout.                      |
-| tap_keepalive     | int    | Seconds to hold open named tap connections.   |
-| tap_peer          | string | Upstream server to contact.                   |
-| vb0               | bool   | If true, start with an active vbucket 0       |
-| waitforwarmup     | bool   | Whether to block server start during warmup.  |
-| warmup            | bool   | Whether to load existing data at startup.     |
-| expiry_window     | int    | expiry window to not persist an object        |
-|                   |        | that is expired (or will be soon)             |
-| exp_pager_stime   | int    | Sleep time for the pager that purges expired  |
-|                   |        | objects from memory and disk                  |
-| failpartialwarmup | bool   | If false, continue running after failing to   |
-|                   |        | load some records.                            |
-| db_shards         | int    | Number of shards for db store                 |
-| db_strategy       | string | DB store strategy ("multiDB" or "singleDB")   |
-| vb_del_chunk_size | int    | Chunk size of vbucket deletion                |
+| key                | type   | descr                                          |
+|--------------------+--------+------------------------------------------------|
+| config_file        | string | Path to additional parameters.                 |
+| dbname             | string | Path to on-disk storage.                       |
+| ht_locks           | int    | Number of locks per hash table.                |
+| ht_size            | int    | Number of buckets per hash table.              |
+| initfile           | string | Optional SQL script to run after opening DB    |
+| postInitfile       | string | Optional SQL script to run after all DB        |
+|                    |        | shards and statements have been initialized    |
+| max_item_size      | int    | Maximum number of bytes allowed for an item.   |
+| tap_backlog_limit  | int    | Max number of items allowed in a tap backfill  |
+| max_size           | int    | Max cumulative item size in bytes.             |
+| max_txn_size       | int    | Max number of disk mutations per transaction.  |
+| mem_high_wat       | int    | Automatically evict when exceeding this size.  |
+| mem_low_wat        | int    | Low water mark to aim for when evicting.       |
+| min_data_age       | int    | Minimum data stability time before persist.    |
+| queue_age_cap      | int    | Maximum queue time before forcing persist.     |
+| tap_id             | string | Local tap identifier for remote peer.          |
+| tap_idle_timeout   | int    | Tap client idle timeout.                       |
+| tap_keepalive      | int    | Seconds to hold open named tap connections.    |
+| tap_peer           | string | Upstream server to contact.                    |
+| vb0                | bool   | If true, start with an active vbucket 0        |
+| waitforwarmup      | bool   | Whether to block server start during warmup.   |
+| warmup             | bool   | Whether to load existing data at startup.      |
+| expiry_window      | int    | expiry window to not persist an object         |
+|                    |        | that is expired (or will be soon)              |
+| exp_pager_stime    | int    | Sleep time for the pager that purges expired   |
+|                    |        | objects from memory and disk                   |
+| failpartialwarmup  | bool   | If false, continue running after failing to    |
+|                    |        | load some records.                             |
+| db_shards          | int    | Number of shards for db store                  |
+| db_strategy        | string | DB store strategy ("multiDB" or "singleDB")    |
+| vb_del_chunk_size  | int    | Chunk size of vbucket deletion                 |
+| tap_bg_max_pending | int    | Maximum number of pending bg fetch operations  |
+|                    |        | a tap queue may issue (before it must wait for |
+|                    |        | responses to appear.                           |
+|                    |        |                                                |
