@@ -8,7 +8,12 @@ import time
 
 import clitool
 
-def stop(mc):
+def auth(mc, username, password):
+    if username:
+        mc.sasl_auth_plain(username, password)
+
+def stop(mc, username=None, password=""):
+    auth(mc, username, password)
     mc.stop_persistence()
     stopped = False
     while not stopped:
@@ -27,9 +32,25 @@ def stop(mc):
         if stats['ep_flusher_state'] == 'paused':
             stopped = True
 
+def start(mc, username=None, password=""):
+    auth(mc, username, password)
+    mc.start_persistence()
+
+def set_param(mc, key, val, username=None, password=""):
+    auth(mc, username, password)
+    mc.set_flush_param(key, val)
+
+def evict(mc, key, username=None, password=""):
+    auth(mc, username, password)
+    mc.evict_key(key, val)
+
 if __name__ == '__main__':
 
-    c = clitool.CliTool("""Available params:
+    c = clitool.CliTool("""
+All commands allow an optional username and password as the last
+two parameters.
+
+Available params:
     min_data_age   - minimum data age before flushing data"
     queue_age_cap  - maximum queue age before flushing data"
     max_txn_size   - maximum number of items in a flusher transaction
@@ -38,9 +59,9 @@ if __name__ == '__main__':
     mem_high_wat   - high water mark
     mem_low_wat    - low water mark""")
 
-    c.addCommand('stop', stop)
-    c.addCommand('start', 'start_persistence')
-    c.addCommand('set', 'set_flush_param', 'set param value')
-    c.addCommand('evict', 'evict_key', "evict key")
+    c.addCommand('stop', stop, 'stop persistence')
+    c.addCommand('start', start, 'start persistence')
+    c.addCommand('set', set_param, 'set param value')
+    c.addCommand('evict', evict, "evict key")
 
     c.execute()

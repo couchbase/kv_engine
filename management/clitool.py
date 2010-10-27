@@ -6,9 +6,9 @@ import mc_bin_client
 
 class CliTool(object):
 
-    def __init__(self, extraUsage=None):
+    def __init__(self, extraUsage=""):
         self.cmds = {}
-        self.extraUsage = extraUsage
+        self.extraUsage = extraUsage.strip()
         self.parser = optparse.OptionParser()
 
     def addCommand(self, name, f, help=None):
