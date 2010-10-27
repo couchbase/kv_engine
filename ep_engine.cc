@@ -723,7 +723,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         size_t htLocks = 0;
         size_t maxSize = 0;
 
-        const int max_items = 30;
+        const int max_items = 31;
         struct config_item items[max_items];
         int ii = 0;
         memset(items, 0, sizeof(items));
@@ -860,6 +860,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         items[ii].key = "vb_del_chunk_size";
         items[ii].datatype = DT_SIZE;
         items[ii].value.dt_size = &vb_del_chunk_size;
+
+        ++ii;
+        items[ii].key = "tap_bg_max_pending";
+        items[ii].datatype = DT_SIZE;
+        items[ii].value.dt_size = &TapConnection::bgMaxPending;
 
         ++ii;
         items[ii].key = NULL;
@@ -1172,6 +1177,10 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
             return TAP_NOOP;
         }
     } else if (connection->hasQueuedItem()) {
+        if (connection->waitForBackfill()) {
+            return TAP_PAUSE;
+        }
+
         QueuedItem qi = connection->next();
 
         *vbucket = qi.getVBucketId();
@@ -2036,6 +2045,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTapStats(const void *cookie,
         addTapStat("complete", tc, tc->complete(), add_stat, cookie);
         addTapStat("has_item", tc, tc->hasItem(), add_stat, cookie);
         addTapStat("has_queued_item", tc, tc->hasQueuedItem(), add_stat, cookie);
+        addTapStat("bg_wait_for_results", tc, tc->waitForBackfill(),
+                   add_stat, cookie);
         addTapStat("bg_queue_size", tc, tc->bgQueueSize, add_stat, cookie);
         addTapStat("bg_queued", tc, tc->bgQueued, add_stat, cookie);
         addTapStat("bg_result_size", tc, tc->bgResultSize, add_stat, cookie);
@@ -2076,6 +2087,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTapStats(const void *cookie,
 
     add_casted_stat("ep_tap_total_queue", tap_queue, add_stat, cookie);
     add_casted_stat("ep_tap_total_fetched", stats.numTapFetched, add_stat, cookie);
+    add_casted_stat("ep_tap_bg_max_pending", TapConnection::bgMaxPending, add_stat, cookie);
     add_casted_stat("ep_tap_bg_fetched", stats.numTapBGFetched, add_stat, cookie);
     add_casted_stat("ep_tap_fg_fetched", stats.numTapFGFetched, add_stat, cookie);
     add_casted_stat("ep_tap_deletes", stats.numTapDeletes, add_stat, cookie);
