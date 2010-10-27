@@ -19,6 +19,7 @@
 #include "ep_engine.h"
 #include "dispatcher.hh"
 
+size_t TapConnection::bgMaxPending = 500;
 const uint32_t TapConnection::ackWindowSize = 10;
 const uint32_t TapConnection::ackHighChunkThreshold = 1000;
 const uint32_t TapConnection::ackMediumChunkThreshold = 100;
@@ -298,6 +299,13 @@ void TapConnection::encodeVBucketStateTransition(const TapVBucketEvent &ev, void
         abort();
     }
     *nes = sizeof(vbucket_state_t);
+}
+
+bool TapConnection::waitForBackfill() {
+    if ((bgJobIssued - bgJobCompleted) > bgMaxPending) {
+        return true;
+    }
+    return false;
 }
 
 class TapBGFetchCallback : public DispatcherCallback {

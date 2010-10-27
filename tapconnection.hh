@@ -368,6 +368,8 @@ private:
 
     void evaluateFlags();
 
+    bool waitForBackfill();
+
     /**
      * The engine that owns the connection
      */
@@ -510,6 +512,8 @@ private:
      * it in doWalkTapQueue...
      */
     bool notifySent;
+
+    static size_t bgMaxPending;
 
     // Constants used to enforce the tap ack protocol
     static const uint32_t ackWindowSize;
