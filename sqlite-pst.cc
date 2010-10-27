@@ -153,7 +153,7 @@ void Statements::initStatements() {
     del_stmt = new PreparedStatement(db, buf);
 
     snprintf(buf, sizeof(buf),
-             "delete from %s where vbucket = ? and vb_version = ? and "
+             "delete from %s where vbucket = ? and vb_version <= ? and "
              "rowid between ? and ?", tableName.c_str());
     del_vb_stmt = new PreparedStatement(db, buf);
 }
