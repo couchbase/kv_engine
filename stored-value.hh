@@ -830,9 +830,9 @@ public:
      *
      * @param deactivate true when this hash table is being destroyed completely
      *
-     * @return the number of items removed
+     * @return a stat visitor reporting how much stuff was removed
      */
-    size_t clear(bool deactivate = false);
+    HashTableStatVisitor clear(bool deactivate = false);
 
     /**
      * Find the item with the given key.
