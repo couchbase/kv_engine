@@ -55,8 +55,8 @@ void HashTable::setDefaultNumLocks(size_t to) {
     }
 }
 
-size_t HashTable::clear(bool deactivate) {
-    size_t rv = 0;
+HashTableStatVisitor HashTable::clear(bool deactivate) {
+    HashTableStatVisitor rv;
 
     if (!deactivate) {
         // If not deactivating, assert we're already active.
@@ -68,8 +68,8 @@ size_t HashTable::clear(bool deactivate) {
     }
     for (int i = 0; i < (int)size; i++) {
         while (values[i]) {
-            ++rv;
             StoredValue *v = values[i];
+            rv.visit(v);
             values[i] = v->next;
             delete v;
         }
