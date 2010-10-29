@@ -13,6 +13,9 @@
 #include <sys/time.h>
 #include <memcached/engine.h>
 
+#include <vector>
+#include <list>
+
 #include "config.h"
 
 #if defined(HAVE_MEMORY)
@@ -113,6 +116,38 @@ inline std::string hrtime2text(hrtime_t time) {
    std::stringstream ss;
    ss << time << extensions[id];
    return ss.str();
+}
+
+/**
+ * Given a vector instance with the sorted elements and a chunk size, this will creates
+ * the list of chunks where each chunk represents a specific range and contains the chunk
+ * size of elements within that range.
+ * @param elm_list the vector instance that has the list of sorted elements to get chunked
+ * @param chunk_size the size of each chunk
+ * @param chunk_list the list of chunks to be returned to the caller
+ */
+template <typename T>
+void createChunkListFromArray(std::vector<T> *elm_list, size_t chunk_size,
+                     std::list<std::pair<T, T> > &chunk_list) {
+    size_t counter = 0;
+    std::pair<T, T> chunk_range;
+
+    if (elm_list->empty() || chunk_size == 0) {
+        return;
+    }
+
+    typename std::vector<T>::iterator iter;
+    for (iter = elm_list->begin(); iter != elm_list->end(); ++iter) {
+        ++counter;
+        if (counter == 1) {
+            chunk_range.first = *iter;
+        }
+        if (counter == chunk_size || iter == --(elm_list->end())) {
+            chunk_range.second = *iter;
+            chunk_list.push_back(chunk_range);
+            counter = 0;
+        }
+    }
 }
 
 

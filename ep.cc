@@ -314,6 +314,7 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
     dispatcher = new Dispatcher();
     nonIODispatcher = new Dispatcher();
     flusher = new Flusher(this, dispatcher);
+    invalidItemDbPager = new InvalidItemDbPager(this, stats, engine.getVbDelChunkSize());
 
     stats.memOverhead = sizeof(EventuallyPersistentStore);
 
@@ -1352,6 +1353,7 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
     if (i != NULL) {
         uint16_t vb_version = vbuckets.getBucketVersion(i->getVBucketId());
         if (vb_version != static_cast<uint16_t>(-1) && val.getVBucketVersion() != vb_version) {
+            epstore->getInvalidItemDbPager()->addInvalidItem(i, val.getVBucketVersion());
             delete i;
             return;
         }

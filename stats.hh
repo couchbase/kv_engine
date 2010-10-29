@@ -260,6 +260,9 @@ public:
     //! Histogram of disk commits
     Histogram<hrtime_t> diskCommitHisto;
 
+    //! Histogram of purging a chunk of items with the old vbucket version from disk
+    Histogram<hrtime_t> diskInvaidItemDelHisto;
+
     //! Reset all stats to reasonable values.
     void reset() {
         tooYoung.set(0);
@@ -317,6 +320,7 @@ public:
         diskVBChunkDelHisto.reset();
         diskVBDelHisto.reset();
         diskCommitHisto.reset();
+        diskInvaidItemDelHisto.reset();
     }
 
 private:

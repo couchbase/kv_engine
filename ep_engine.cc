@@ -678,7 +678,8 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server
     memHighWat(std::numeric_limits<size_t>::max()),
     minDataAge(DEFAULT_MIN_DATA_AGE),
     queueAgeCap(DEFAULT_QUEUE_AGE_CAP),
-    itemExpiryWindow(3), expiryPagerSleeptime(3600), dbShards(4), vb_del_chunk_size(1000)
+    itemExpiryWindow(3), expiryPagerSleeptime(3600),
+    dbShards(4), vb_del_chunk_size(1000)
 {
     interface.interface = 1;
     ENGINE_HANDLE_V1::get_info = EvpGetInfo;
@@ -988,6 +989,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
             epstore->getDispatcher()->schedule(exp_cb, NULL, Priority::ItemPagerPriority,
                                                expiryPagerSleeptime);
         }
+
+        shared_ptr<DispatcherCallback> item_db_cb(epstore->getInvalidItemDbPager());
+        epstore->getDispatcher()->schedule(item_db_cb, NULL,
+                                           Priority::InvalidItemDbPagerPriority, 0);
 
         shared_ptr<StatSnap> sscb(new StatSnap(this));
         epstore->getDispatcher()->schedule(sscb, NULL, Priority::StatSnapPriority,
@@ -2168,6 +2173,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTimingStats(const void *cookie,
     add_casted_stat("disk_vb_chunk_del", stats.diskVBChunkDelHisto, add_stat, cookie);
     add_casted_stat("disk_vb_del", stats.diskVBDelHisto, add_stat, cookie);
     add_casted_stat("disk_commit", stats.diskCommitHisto, add_stat, cookie);
+    add_casted_stat("disk_invalid_item_del", stats.diskInvaidItemDelHisto,
+                    add_stat, cookie);
 
     return ENGINE_SUCCESS;
 }

@@ -46,6 +46,7 @@ extern EXTENSION_LOGGER_DESCRIPTOR *getLogger(void);
 #include "atomic.hh"
 #include "dispatcher.hh"
 #include "vbucket.hh"
+#include "item_pager.hh"
 
 #define DEFAULT_TXN_SIZE 250000
 #define MAX_TXN_SIZE 10000000
@@ -362,6 +363,7 @@ public:
             cb.initVBucket(vbp.first, vbp.second);
         }
         underlying->dump(cb);
+        invalidItemDbPager->createRangeList();
     }
 
     int getTxnSize() {
@@ -384,6 +386,10 @@ public:
     StrategicSqlite3* getUnderlying() {
         // This method might also be called leakAbstraction()
         return underlying;
+    }
+
+    InvalidItemDbPager* getInvalidItemDbPager() {
+        return invalidItemDbPager;
     }
 
     void deleteMany(std::list<std::pair<uint16_t, std::string> > &);
@@ -461,6 +467,7 @@ private:
     Dispatcher                *dispatcher;
     Dispatcher                *nonIODispatcher;
     Flusher                   *flusher;
+    InvalidItemDbPager        *invalidItemDbPager;
     VBucketMap                 vbuckets;
     SyncObject                 mutex;
     AtomicQueue<QueuedItem>    towrite;
