@@ -179,6 +179,7 @@ public:
         bucketVersions(new Atomic<uint16_t>[sz]),
         size(sz) {
         highPriorityVbSnapshot.set(false);
+        lowPriorityVbSnapshot.set(false);
         for (size_t i = 0; i < size; ++i) {
             bucketDeletion[i].set(false);
             bucketVersions[i].set(static_cast<uint16_t>(-1));
@@ -195,6 +196,7 @@ public:
         assert(sz >= vbh->getSize());
 
         highPriorityVbSnapshot.set(vbh->isHighPriorityVbSnapshotScheduled());
+        lowPriorityVbSnapshot.set(vbh->isLowPriorityVbSnapshotScheduled());
 
         std::copy(buckets, buckets+vbh->getSize(), buckets);
         size_t vbh_size = vbh->getSize();
@@ -315,11 +317,38 @@ public:
         return highPriorityVbSnapshot.cas(!highPrioritySnapshot, highPrioritySnapshot);
     }
 
+    /**
+     * Check if a vbucket snapshot task is currently scheduled with the low priority.
+     * @return "true" if a snapshot task with the low priority is currently scheduled.
+     */
+    bool isLowPriorityVbSnapshotScheduled(void) {
+        return lowPriorityVbSnapshot.get();
+    }
+
+    /**
+     * Set the flag to coordinate the scheduled low priority vbucket snapshot and new
+     * snapshot requests with the low priority. The flag is "true" if a snapshot
+     * task with the low priority is currently scheduled, otherwise "false".
+     * If (1) the flag is currently "false" and (2) a new snapshot request invokes
+     * this method by passing "true" parameter, this will set the flag to "true" and
+     * return "true" to indicate that the new request can be scheduled now. Otherwise,
+     * return "false" to prevent duplciate snapshot tasks from being scheduled.
+     * When the snapshot task is running and about to writing to disk, it will invoke
+     * this method to reset the flag by passing "false" parameter.
+     * @param lowPrioritySnapshot bool flag for coordination between the scheduled
+     *        low priority snapshot task and new snapshot requests with low priority.
+     * @return "true" if a flag's value was changed. Otherwise "false".
+     */
+    bool setLowPriorityVbSnapshotFlag(bool lowPrioritySnapshot) {
+        return lowPriorityVbSnapshot.cas(!lowPrioritySnapshot, lowPrioritySnapshot);
+    }
+
 private:
     RCPtr<VBucket> *buckets;
     Atomic<bool> *bucketDeletion;
     Atomic<uint16_t> *bucketVersions;
     Atomic<bool> highPriorityVbSnapshot;
+    Atomic<bool> lowPriorityVbSnapshot;
     size_t size;
 };
 
@@ -396,6 +425,16 @@ public:
     bool setHighPriorityVbSnapshotFlag(bool highPrioritySnapshot) {
         RCPtr<VBucketHolder> o(buckets);
         return o->setHighPriorityVbSnapshotFlag(highPrioritySnapshot);
+    }
+
+    bool isLowPriorityVbSnapshotScheduled(void) {
+        RCPtr<VBucketHolder> o(buckets);
+        return o->isLowPriorityVbSnapshotScheduled();
+    }
+
+    bool setLowPriorityVbSnapshotFlag(bool lowPrioritySnapshot) {
+        RCPtr<VBucketHolder> o(buckets);
+        return o->setLowPriorityVbSnapshotFlag(lowPrioritySnapshot);
     }
 
 private:

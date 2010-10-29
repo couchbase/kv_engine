@@ -591,6 +591,8 @@ void EventuallyPersistentStore::snapshotVBuckets(const Priority &priority) {
 
     if (priority == Priority::VBucketPersistHighPriority) {
         vbuckets.setHighPriorityVbSnapshotFlag(false);
+    } else {
+        vbuckets.setLowPriorityVbSnapshotFlag(false);
     }
 
     VBucketStateVisitor v(vbuckets);
@@ -628,6 +630,10 @@ void EventuallyPersistentStore::setVBucketState(uint16_t vbid,
 void EventuallyPersistentStore::scheduleVBSnapshot(const Priority &p) {
     if (p == Priority::VBucketPersistHighPriority) {
         if (!vbuckets.setHighPriorityVbSnapshotFlag(true)) {
+            return;
+        }
+    } else {
+        if (!vbuckets.setLowPriorityVbSnapshotFlag(true)) {
             return;
         }
     }
