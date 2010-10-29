@@ -1,5 +1,9 @@
 ACLOCAL_AMFLAGS = -I m4 --force
-bin_SCRIPTS = management/analyze_core
+bin_SCRIPTS = management/analyze_core \
+              wrapper/dbmaint \
+              wrapper/flushctl \
+              wrapper/stats \
+              wrapper/vbucketctl
 
 lib_LTLIBRARIES = ep.la ep_testsuite.la timing_tests.la
 noinst_LTLIBRARIES =
@@ -166,6 +170,32 @@ ep_la_SOURCES += gethrtime.c
 hrtime_test_SOURCES += gethrtime.c
 dispatcher_test_SOURCES += gethrtime.c
 endif
+
+pythonlibdir=$(libdir)/python
+pythonlib_DATA= \
+                management/capture.py \
+                management/clitool.py \
+                management/mc_bin_client.py \
+                management/mc_bin_server.py \
+                management/memcacheConstants.py \
+                management/tap.py
+
+pythonlib_SCRIPTS= \
+                management/dbmaint \
+                management/flushctl \
+                management/stats \
+                management/vbucketctl
+
+PYTHON_TOOLS= wrapper/dbmaint \
+              wrapper/flushctl \
+              wrapper/stats \
+              wrapper/vbucketctl
+
+${PYTHON_TOOLS}: wrapper/wrapper
+	cp $< $@
+
+BUILT_SOURCES += ${PYTHON_TOOLS}
+CLEANFILES+= ${PYTHON_TOOLS}
 
 TEST_TIMEOUT=30
 

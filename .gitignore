@@ -44,3 +44,8 @@
 Makefile
 Makefile.in
 /generated_suite.c
+/wrapper/dbmaint
+/wrapper/flushctl
+/wrapper/stats
+/wrapper/vbucketctl
+/wrapper/wrapper
