@@ -1138,7 +1138,7 @@ private:
     void setId(int64_t id) {
         bool did = store->invokeOnLockedStoredValue(queuedItem.getKey(),
                                                     queuedItem.getVBucketId(),
-                                                    std::mem_fun(&StoredValue::setId),
+                                                    &StoredValue::setId,
                                                     id);
         if (!did) {
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
@@ -1153,7 +1153,7 @@ private:
         ++stats->flushFailed;
         store->invokeOnLockedStoredValue(queuedItem.getKey(),
                                          queuedItem.getVBucketId(),
-                                         std::mem_fun(&StoredValue::reDirty),
+                                         &StoredValue::reDirty,
                                          dirtied);
         rq->push(queuedItem);
     }
