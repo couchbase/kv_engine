@@ -103,11 +103,10 @@ def stats_timings(mc):
         lbl = "%s - %s" % (time_label(s[0][1]), time_label(s[0][2]))
         longest = max(longest, len(lbl) + 1)
         k = s[0][0]
-        totals[k] = totals.get(k, 0) + 1
         l = dd.get(k, [])
         l.append((lbl, s[1]))
         dd[k] = l
-        totals[s[0][0]] += s[1]
+        totals[k] = totals.get(k, 0) + s[1]
 
     # Now do the actual output
     for k in sorted(dd):
