@@ -120,7 +120,7 @@ def stats_timings(mc):
             toprint = "    %s: (%6.02f%%) %s" % (lbl.ljust(longest), pcnt,
                                                  str(v).rjust(widestnum))
             # Throw in a bar graph since they're popular and eye catchy
-            remaining = termWidth() - len(toprint)
+            remaining = termWidth() - len(toprint) - 2
             lpcnt = float(v) / totals[k]
             print "%s %s" % (toprint, '#' * int(lpcnt * remaining))
 
