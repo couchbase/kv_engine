@@ -113,7 +113,6 @@ void Dispatcher::run() {
                 if(task->run(*this, TaskId(task))) {
                     reschedule(task);
                 }
-                running_task = false;
             } catch (std::exception& e) {
                 getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                                  "exception caught in task %s: %s\n",
@@ -123,6 +122,7 @@ void Dispatcher::run() {
                                  "fatal exception caught in task %s\n",
                                  task->name.c_str());
             }
+            running_task = false;
             joblog.add(JobLogEntry(taskDesc,
                                    (gethrtime() - taskStart) / 1000,
                                    ep_current_time()));
