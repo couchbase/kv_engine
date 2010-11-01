@@ -133,12 +133,41 @@ def stats_hash(mc):
     stats_formatter(mc.stats('hash'))
 
 @cmd
-def stats_dispatcher(mc):
-    s = mc.stats('dispatcher')
-    for k,v in s.items():
-        if k.endswith(':runtime'):
-            s[k] = time_label(int(v))
-    stats_formatter(s)
+def stats_dispatcher(mc, with_logs='no'):
+    with_logs = with_logs == 'logs'
+    sorig = mc.stats('dispatcher')
+    s = {}
+    logs = {}
+    for k,v in sorig.items():
+        ak = tuple(k.split(':'))
+        if ak[-1] == 'runtime':
+            v = time_label(int(v))
+
+        dispatcher = ak[0]
+
+        if dispatcher not in logs:
+            logs[dispatcher] = {}
+        if ak[0] not in s:
+            s[dispatcher] = {}
+
+        if ak[1] == 'log':
+            offset = int(ak[2])
+            field = ak[3]
+            if offset not in logs[dispatcher]:
+                logs[dispatcher][offset] = {}
+            logs[dispatcher][offset][field] = v
+        else:
+            field = ak[1]
+            s[dispatcher][field] = v
+
+    for dispatcher in sorted(s):
+        print " %s" % dispatcher
+        stats_formatter(s[dispatcher], "     ")
+        if with_logs and logs[dispatcher]:
+            print "     Log:"
+            for offset, fields in sorted(logs[dispatcher].items()):
+                stats_formatter(fields, "        ")
+                print "        ---------"
 
 @cmd
 def reset(mc):
@@ -153,7 +182,7 @@ def main():
     c.addCommand('tap', stats_tap, 'tap [username password]')
     c.addCommand('timings', stats_timings, 'timings [username password]')
     c.addCommand('reset', reset, 'reset [username password]')
-    c.addCommand('dispatcher', stats_dispatcher, 'dispatcher [username password]')
+    c.addCommand('dispatcher', stats_dispatcher, 'dispatcher [logs] [username password]')
     c.addFlag('-a', 'allBuckets', 'iterate over all buckets (requires admin u/p)')
 
     c.execute()

@@ -8,6 +8,9 @@
 #include "common.hh"
 #include "locks.hh"
 #include "priority.hh"
+#include "ringbuffer.hh"
+
+#define JOB_LOG_SIZE 20
 
 class Dispatcher;
 
@@ -26,6 +29,38 @@ enum dispatcher_state {
     dispatcher_running,         //!< The dispatcher is running
     dispatcher_stopping,        //!< The dispatcher is shutting down
     dispatcher_stopped          //!< The dispatcher has shut down
+};
+
+/**
+ * Log entry for previous job runs.
+ */
+class JobLogEntry {
+public:
+
+    // This is useful for the ringbuffer to initialize
+    JobLogEntry() : name("invalid"), duration(0) {}
+    JobLogEntry(const std::string &n, const hrtime_t d, rel_time_t t = 0)
+        : name(n), ts(t), duration(d) {}
+
+    /**
+     * Get the name of the job.
+     */
+    std::string getName() const { return name; }
+
+    /**
+     * Get the amount of time (in microseconds) this job ran.
+     */
+    hrtime_t getDuration() const { return duration; }
+
+    /**
+     * Get a timestamp indicating when this thing started.
+     */
+    rel_time_t getTimestamp() const { return ts; }
+
+private:
+    std::string name;
+    rel_time_t ts;
+    hrtime_t duration;
 };
 
 class Task;
@@ -130,8 +165,9 @@ class DispatcherState {
 public:
     DispatcherState(const std::string &name,
                     enum dispatcher_state st,
-                    hrtime_t start, bool running)
-        : taskName(name), state(st), taskStart(start),
+                    hrtime_t start, bool running,
+                    std::vector<JobLogEntry> jl)
+        : joblog(jl), taskName(name), state(st), taskStart(start),
           running_task(running) {}
 
     /**
@@ -162,7 +198,13 @@ public:
      */
     bool isRunningTask() const { return running_task; }
 
+    /**
+     * Retrieve the log of recently completed jobs.
+     */
+    const std::vector<JobLogEntry> getLog() const { return joblog; }
+
 private:
+    const std::vector<JobLogEntry> joblog;
     const std::string taskName;
     const enum dispatcher_state state;
     const hrtime_t taskStart;
@@ -174,7 +216,7 @@ private:
  */
 class Dispatcher {
 public:
-    Dispatcher() : state(dispatcher_running) {
+    Dispatcher() : joblog(JOB_LOG_SIZE), state(dispatcher_running) {
         noTask();
     }
 
@@ -245,7 +287,9 @@ public:
     enum dispatcher_state getState() { return state; }
 
     DispatcherState getDispatcherState() {
-        return DispatcherState(taskDesc, state, taskStart, running_task);
+        LockHolder lh(mutex);
+        return DispatcherState(taskDesc, state, taskStart, running_task,
+                               joblog.contents());
     }
 
 private:
@@ -287,6 +331,7 @@ private:
                         CompareTasksByPriority> readyQueue;
     std::priority_queue<TaskId, std::deque<TaskId >,
                         CompareTasksByDueDate> futureQueue;
+    RingBuffer<JobLogEntry> joblog;
     enum dispatcher_state state;
     hrtime_t taskStart;
     bool running_task;

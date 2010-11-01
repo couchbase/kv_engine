@@ -2198,6 +2198,22 @@ static void doDispatcherStat(const char *prefix, const DispatcherState &ds,
         add_casted_stat(statname, (gethrtime() - ds.getTaskStart()) / 1000,
                         add_stat, cookie);
     }
+
+    std::vector<JobLogEntry> log(ds.getLog());
+    for (size_t i = 0; i < log.size(); ++i) {
+        snprintf(statname, sizeof(statname), "%s:log:%d:task",
+                 prefix, static_cast<int>(i));
+        add_casted_stat(statname, log[i].getName().c_str(),
+                        add_stat, cookie);
+        snprintf(statname, sizeof(statname), "%s:log:%d:starttime",
+                 prefix, static_cast<int>(i));
+        add_casted_stat(statname, log[i].getTimestamp(),
+                        add_stat, cookie);
+        snprintf(statname, sizeof(statname), "%s:log:%d:runtime",
+                 prefix, static_cast<int>(i));
+        add_casted_stat(statname, log[i].getDuration(),
+                        add_stat, cookie);
+    }
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doDispatcherStats(const void *cookie,

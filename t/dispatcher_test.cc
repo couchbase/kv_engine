@@ -10,6 +10,14 @@
 Dispatcher dispatcher;
 static Atomic<int> callbacks;
 
+extern "C" {
+    static rel_time_t basic_current_time(void) {
+        return 0;
+    }
+
+    rel_time_t (*ep_current_time)() = basic_current_time;
+}
+
 class Thing;
 
 class TestCallback : public DispatcherCallback {

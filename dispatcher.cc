@@ -120,9 +120,12 @@ void Dispatcher::run() {
                                  task->name.c_str(), e.what());
             } catch(...) {
                 getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                     "fatal exception caught in task %s\n",
+                                 "fatal exception caught in task %s\n",
                                  task->name.c_str());
-                }
+            }
+            joblog.add(JobLogEntry(taskDesc,
+                                   (gethrtime() - taskStart) / 1000,
+                                   ep_current_time()));
         }
     }
 
