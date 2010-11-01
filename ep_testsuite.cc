@@ -806,6 +806,25 @@ static enum test_result test_incr(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return check_key_value(h, h1, "key", "2\r\n", 3);
 }
 
+static enum test_result test_bug2799(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    uint64_t cas = 0, result = 0;
+    item *i = NULL;
+    check(store(h, h1, NULL, OPERATION_ADD, "key", "1", &i) == ENGINE_SUCCESS,
+          "Failed to add value.");
+
+    check(h1->arithmetic(h, NULL, "key", 3, true, false, 1, 1, 0,
+                         &cas, &result,
+                         0) == ENGINE_SUCCESS,
+          "Failed to incr value.");
+
+    check_key_value(h, h1, "key", "2\r\n", 3);
+
+    testHarness.time_travel(3617);
+
+    check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key"), "Expected missing key");
+    return SUCCESS;
+}
+
 static enum test_result test_flush(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
     // First try to delete something we know to not be there.
@@ -2888,6 +2907,7 @@ engine_test_t* get_tests(void) {
         {"incr miss", test_incr_miss, NULL, teardown, NULL},
         {"incr", test_incr, NULL, teardown, NULL},
         {"incr with default", test_incr_default, NULL, teardown, NULL},
+        {"incr expiry", test_bug2799, NULL, teardown, NULL},
         {"delete", test_delete, NULL, teardown, NULL},
         {"set/delete", test_set_delete, NULL, teardown, NULL},
         {"delete/set/delete", test_delete_set, NULL, teardown, NULL},

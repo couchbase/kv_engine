@@ -236,7 +236,7 @@ public:
                 size_t nb = vals.str().length();
                 *result = val;
                 Item *nit = new Item(key, (uint16_t)nkey, item->getFlags(),
-                                     expiretime, vals.str().c_str(), nb);
+                                     item->getExptime(), vals.str().c_str(), nb);
                 nit->setCas(item->getCas());
                 ret = store(cookie, nit, cas, OPERATION_CAS, vbucket);
                 delete nit;
