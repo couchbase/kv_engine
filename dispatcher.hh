@@ -100,7 +100,7 @@ public:
     ~Task() { }
 private:
     Task(shared_ptr<DispatcherCallback> cb,  int p, double sleeptime=0, bool isDaemon=true) :
-        name(cb->description()), callback(cb), priority(p),
+        callback(cb), priority(p),
         state(task_running), isDaemonTask(isDaemon) {
         snooze(sleeptime);
     }
@@ -127,8 +127,11 @@ private:
         state = task_dead;
     }
 
+    std::string getName() {
+        return callback->description();
+    }
+
     friend class Dispatcher;
-    std::string name;
     struct timeval waketime;
     shared_ptr<DispatcherCallback> callback;
     int priority;

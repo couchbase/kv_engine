@@ -104,7 +104,7 @@ void Dispatcher::run() {
 
             popNext();
 
-            taskDesc = task->name;
+            taskDesc = task->getName();
             taskStart = gethrtime();
             lh.unlock();
             tlh.unlock();
@@ -116,11 +116,11 @@ void Dispatcher::run() {
             } catch (std::exception& e) {
                 getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                                  "exception caught in task %s: %s\n",
-                                 task->name.c_str(), e.what());
+                                 task->getName().c_str(), e.what());
             } catch(...) {
                 getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                                  "fatal exception caught in task %s\n",
-                                 task->name.c_str());
+                                 task->getName().c_str());
             }
             running_task = false;
             joblog.add(JobLogEntry(taskDesc,
@@ -188,17 +188,17 @@ void Dispatcher::completeNonDaemonTasks() {
             tlh.unlock();
             getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
                              "Complete running task %s\n",
-                             task->name.c_str());
+                             task->getName().c_str());
             try {
                 task->run(*this, TaskId(task));
             } catch (std::exception& e) {
                 getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                                  "exception caught in task %s: %s\n",
-                                 task->name.c_str(), e.what());
+                                 task->getName().c_str(), e.what());
             } catch(...) {
                 getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                                  "fatal exception caught in task %s\n",
-                                  task->name.c_str());
+                                  task->getName().c_str());
             }
         }
     }
