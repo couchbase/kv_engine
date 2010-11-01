@@ -288,8 +288,8 @@ public:
 
     std::string description() {
         std::stringstream ss;
-        ss << "Removing the chunk " << chunk_num << " of vbucket "
-           << vbucket << " from disk.";
+        ss << "Removing the chunk " << chunk_num << "/" << vbdv.range_list.size()
+           << " of vbucket " << vbucket << " from disk.";
         return ss.str();
     }
 private:
