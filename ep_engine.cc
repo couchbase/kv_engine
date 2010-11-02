@@ -1385,14 +1385,16 @@ tap_event_t EventuallyPersistentEngine::walkTapQueue(const void *cookie,
     if (ret == TAP_PAUSE) {
         connection->paused = true;
     } else if (ret != TAP_DISCONNECT) {
-        if (ret != TAP_NOOP) {
+        if (ret == TAP_NOOP) {
+            *seqno = 0;
+        } else {
             ++stats.numTapFetched;
+            *seqno = connection->getSeqno();
+            if (connection->requestAck(ret)) {
+                *flags = TAP_FLAG_ACK;
+            }
         }
         connection->paused = false;
-        *seqno = connection->getSeqno();
-        if (connection->requestAck(ret)) {
-            *flags = TAP_FLAG_ACK;
-        }
     }
 
     return ret;
