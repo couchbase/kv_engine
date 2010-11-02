@@ -138,6 +138,7 @@ private:
             ret = queue_set->insert(it);
             if (ret.second) {
                 queue->push_back(it);
+                ++queueSize;
             }
             return wasEmpty;
         } else {
@@ -175,6 +176,7 @@ private:
             QueuedItem qi = queue->front();
             queue->pop_front();
             queue_set->erase(qi);
+            --queueSize;
 
             if (vbucketFilter(qi.getVBucketId())) {
                 ++recordsFetched;
@@ -268,12 +270,12 @@ private:
     size_t getBacklogSize() {
         LockHolder lh(queueLock);
         return bgResultSize + bgQueueSize
-            + (bgJobIssued - bgJobCompleted) + queue->size();
+            + (bgJobIssued - bgJobCompleted) + queueSize;
     }
 
     size_t getQueueSize() {
         LockHolder lh(queueLock);
-        return queue->size();
+        return queueSize;
     }
 
     Item* nextFetchedItem();
@@ -283,6 +285,7 @@ private:
         pendingFlush = true;
         /* No point of keeping the rep queue when someone wants to flush it */
         queue->clear();
+        queueSize = 0;
         queue_set->clear();
     }
 
@@ -296,6 +299,7 @@ private:
     void appendQueue(std::list<QueuedItem> *q) {
         LockHolder lh(queueLock);
         queue->splice(queue->end(), *q);
+        queueSize = queue->size();
     }
 
     /**
@@ -400,6 +404,15 @@ private:
      * The queue of keys that needs to be sent (this is the "live stream")
      */
     std::list<QueuedItem> *queue;
+    /**
+     * Calling size() on a list is a heavy operation (it will traverse
+     * the list to determine the size).. During tap backfill we're calling
+     * this for every message we want to send to determine if we should
+     * require a tap ack or not. Let's cache the value to stop eating up
+     * the CPU :-)
+     */
+    size_t queueSize;
+
     /**
      * Set to prevent duplicate queue entries.
      *

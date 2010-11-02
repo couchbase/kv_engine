@@ -33,6 +33,7 @@ TapConnection::TapConnection(EventuallyPersistentEngine &theEngine,
     engine(theEngine),
     client(n),
     queue(NULL),
+    queueSize(0),
     queue_set(NULL),
     flags(f),
     recordsFetched(0),
@@ -161,7 +162,7 @@ bool TapConnection::requestAck(tap_event_t event) {
     }
 
     LockHolder lh(queueLock);
-    uint32_t qsize = queue->size() + vBucketLowPriority.size() +
+    uint32_t qsize = queueSize + vBucketLowPriority.size() +
         vBucketHighPriority.size();
     uint32_t mod = 1;
 
