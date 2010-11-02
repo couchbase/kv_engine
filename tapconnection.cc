@@ -69,6 +69,11 @@ void TapConnection::evaluateFlags()
 {
     dumpQueue = (flags & TAP_CONNECT_FLAG_DUMP) == TAP_CONNECT_FLAG_DUMP;
     ackSupported = (flags & TAP_CONNECT_SUPPORT_ACK) == TAP_CONNECT_SUPPORT_ACK;
+
+    if (ackSupported) {
+        TapVBucketEvent hi(TAP_OPAQUE, 0, active);
+        addVBucketHighPriority(hi);
+    }
 }
 
 void TapConnection::setBackfillAge(uint64_t age, bool reconnect) {
@@ -161,6 +166,11 @@ bool TapConnection::requestAck(tap_event_t event) {
         return false;
     }
 
+    if (event == TAP_VBUCKET_SET || event == TAP_OPAQUE) {
+        ++seqno;
+        return true;
+    }
+
     LockHolder lh(queueLock);
     uint32_t qsize = queueSize + vBucketLowPriority.size() +
         vBucketHighPriority.size();
@@ -174,7 +184,7 @@ bool TapConnection::requestAck(tap_event_t event) {
         mod = ackLowChunkThreshold;
     }
 
-    if ((recordsFetched % mod) == 0 || event == TAP_VBUCKET_SET) {
+    if ((recordsFetched % mod) == 0) {
         ++seqno;
         return true;
     } else {

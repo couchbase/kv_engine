@@ -1246,8 +1246,11 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
 
     TapVBucketEvent ev = connection->nextVBucketHighPriority();
     if (ev.event != TAP_PAUSE) {
-        assert(ev.event == TAP_VBUCKET_SET || ev.event == TAP_NOOP);
-        connection->encodeVBucketStateTransition(ev, es, nes, vbucket);
+        if (ev.event == TAP_VBUCKET_SET) {
+            connection->encodeVBucketStateTransition(ev, es, nes, vbucket);
+        } else {
+            assert(ev.event == TAP_NOOP || ev.event == TAP_OPAQUE);
+        }
         return ev.event;
     }
 
@@ -1518,6 +1521,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
         }
 
     case TAP_OPAQUE:
+        if (tap_flags & TAP_FLAG_ACK) {
+            serverApi->cookie->set_tap_nack_mode(cookie, true);
+        }
         break;
 
     case TAP_VBUCKET_SET:

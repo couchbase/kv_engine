@@ -2166,6 +2166,14 @@ static enum test_result test_tap_ack_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
         case TAP_PAUSE:
             testHarness.waitfor_cookie(cookie);
             break;
+        case TAP_OPAQUE:
+            testHarness.unlock_cookie(cookie);
+            h1->tap_notify(h, cookie, NULL, 0, 0,
+                           PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                           TAP_ACK, seqno, NULL, 0,
+                           0, 0, 0, NULL, 0, 0);
+            testHarness.lock_cookie(cookie);
+            break;
         case TAP_NOOP:
             break;
         case TAP_MUTATION:
