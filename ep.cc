@@ -191,6 +191,12 @@ public:
         }
     }
 
+    /**
+     * Construct the list of chunks from the row id list for a given vbucket.
+     * Note that each chunk might have a different range size as each chunk is
+     * simply created by taking "chunk_size" elements from the row id list.
+     *
+     */
     void createRangeList() {
         size_t counter = 0;
         int64_t start_row_id = -1, end_row_id = -1;
@@ -221,9 +227,10 @@ class VBucketDeletionCallback : public DispatcherCallback {
 public:
     VBucketDeletionCallback(EventuallyPersistentStore *e, RCPtr<VBucket> vb,
                             uint16_t vbucket_version, EPStats &st,
-                            size_t deletion_size = 1000)
+                            size_t csize = 1000, uint32_t chunk_del_time = 500)
         : ep(e), stats(st), vb_version(vbucket_version),
-          chunk_size(deletion_size), vbdv(deletion_size) {
+          chunk_size(csize), chunk_del_threshold_time(chunk_del_time),
+          vbdv(csize) {
         assert(ep);
         assert(vb);
         chunk_num = 1;
@@ -233,6 +240,7 @@ public:
         vb->ht.visit(vbdv);
         vbdv.createRangeList();
         current_range = vbdv.range_list.begin();
+        chunk_del_range_size = current_range->second - current_range->first;
     }
 
     bool callback(Dispatcher &d, TaskId t) {
@@ -245,9 +253,11 @@ public:
             range.second = -1;
             isLastChunk = true;
         } else {
-            isLastChunk = (current_range == --vbdv.range_list.end()) ? true : false;
-            range.first = (*current_range).first;
-            range.second = (*current_range).second;
+            if (current_range->second == vbdv.range_list.back().second) {
+                isLastChunk = true;
+            }
+            range.first = current_range->first;
+            range.second = current_range->second;
         }
 
         hrtime_t start_time = gethrtime();
@@ -262,9 +272,47 @@ public:
         switch(result) {
         case vbucket_del_success:
             if (!isLastChunk) {
-                ++current_range;
+                // chunk deletion execution time in msec
+                hrtime_t chunk_del_time = chunk_time / 1000;
+                // Adjust the chunk's range size based on the chunk deletion execution time.
+                // If the new range size is below 100, set it to 100
+                chunk_del_range_size *= (chunk_del_threshold_time / chunk_del_time);
+                chunk_del_range_size = std::max(static_cast<int64_t>(100), chunk_del_range_size);
+
+                // Find the chunk that includes the end point of the new range size
+                std::list<std::pair<int64_t, int64_t> >::iterator new_pos = ++current_range;
+                while ((new_pos->second - current_range->first) < chunk_del_range_size
+                       && new_pos != vbdv.range_list.end()) {
+                    ++new_pos;
+                }
+
+                if (new_pos != vbdv.range_list.end()) {
+                    int64_t range_end = current_range->second;
+                    // Set the current range's end point to the end point of the new range size
+                    current_range->second = current_range->first + chunk_del_range_size;
+                    // If the current range's new end point < the current range's old end point,
+                    if (current_range->second < range_end) {
+                        // Insert the new range chunk with current range's new end point + 1 as
+                        // a start point and current range's old end point as an end point
+                        std::pair<int64_t, int64_t> r(current_range->second + 1, range_end);
+                        vbdv.range_list.insert(++new_pos, r);
+                    } else {
+                        // If the current range's new end point is greater than the start point
+                        // of the next range chunk, advance the next chunk's start point to the
+                        // current range's new end point.
+                        if (new_pos->first < current_range->second + 1) {
+                            new_pos->first = current_range->second + 1;
+                        }
+                        std::list<std::pair<int64_t, int64_t> >::iterator pos = current_range;
+                        // Remove range chunks between the current range and the next range,
+                        // excluding the current and next range.
+                        vbdv.range_list.erase(++pos, new_pos);
+                    }
+                } else { // Reached to the end of the range list
+                    current_range->second = vbdv.range_list.back().second;
+                }
+
                 ++chunk_num;
-                d.snooze(t, 1);
                 rv = true;
             } else {
                 stats.diskVBDelHisto.add(execution_time);
@@ -302,6 +350,8 @@ private:
     uint16_t                      vb_version;
     size_t                        chunk_size;
     size_t                        chunk_num;
+    int64_t                       chunk_del_range_size;
+    uint32_t                      chunk_del_threshold_time;
     VBucketDeletionVisitor        vbdv;
     hrtime_t                      execution_time;
     hrtime_t                      start_wall_time;
@@ -672,9 +722,11 @@ EventuallyPersistentStore::completeVBucketDeletion(uint16_t vbid, uint16_t vb_ve
 void EventuallyPersistentStore::scheduleVBDeletion(RCPtr<VBucket> vb, uint16_t vb_version,
                                                    double delay=0) {
     if (vbuckets.setBucketDeletion(vb->getId(), true)) {
-        int chunk_size = engine.getVbDelChunkSize();
+        size_t chunk_size = engine.getVbDelChunkSize();
+        uint32_t vb_chunk_del_time = engine.getVbChunkDelThresholdTime();
         shared_ptr<DispatcherCallback> cb(new VBucketDeletionCallback(this, vb, vb_version,
-                                                                      stats, chunk_size));
+                                                                      stats, chunk_size,
+                                                                      vb_chunk_del_time));
         dispatcher->schedule(cb,
                              NULL, Priority::VBucketDeletionPriority,
                              delay, false);

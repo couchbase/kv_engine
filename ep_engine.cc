@@ -778,7 +778,7 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server
     minDataAge(DEFAULT_MIN_DATA_AGE),
     queueAgeCap(DEFAULT_QUEUE_AGE_CAP),
     itemExpiryWindow(3), expiryPagerSleeptime(3600),
-    dbShards(4), vb_del_chunk_size(1000)
+    dbShards(4), vb_del_chunk_size(1000), vb_chunk_del_threshold_time(500)
 {
     interface.interface = 1;
     ENGINE_HANDLE_V1::get_info = EvpGetInfo;
@@ -824,7 +824,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         size_t htLocks = 0;
         size_t maxSize = 0;
 
-        const int max_items = 30;
+        const int max_items = 32;
         struct config_item items[max_items];
         int ii = 0;
         memset(items, 0, sizeof(items));
@@ -971,6 +971,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         items[ii].key = "tap_bg_max_pending";
         items[ii].datatype = DT_SIZE;
         items[ii].value.dt_size = &TapConnection::bgMaxPending;
+
+        ++ii;
+        items[ii].key = "vb_chunk_del_time";
+        items[ii].datatype = DT_SIZE;
+        items[ii].value.dt_size = &vb_chunk_del_threshold_time;
 
         ++ii;
         items[ii].key = NULL;

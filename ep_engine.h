@@ -431,6 +431,10 @@ public:
         return vb_del_chunk_size;
     }
 
+    size_t getVbChunkDelThresholdTime() const {
+        return vb_chunk_del_threshold_time;
+    }
+
     SERVER_HANDLE_V1* getServerApi() { return serverApi; }
 
 private:
@@ -614,6 +618,7 @@ private:
     size_t expiryPagerSleeptime;
     size_t dbShards;
     size_t vb_del_chunk_size;
+    size_t vb_chunk_del_threshold_time;
     EPStats stats;
 };
 
