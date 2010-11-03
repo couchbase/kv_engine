@@ -962,6 +962,12 @@ public:
         mutation_type_t rv = NOT_FOUND;
         StoredValue *v = unlocked_find(key, bucket_num);
         if (v) {
+            if (v->isLocked(ep_current_time())) {
+                return IS_LOCKED;
+            }
+            /* allow operation*/
+            v->unlock();
+
             rv = v->isClean() ? WAS_CLEAN : WAS_DIRTY;
             v->del(stats);
         }

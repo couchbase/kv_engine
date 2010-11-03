@@ -392,8 +392,24 @@ static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     testHarness.time_travel(16);
 
     /* retry set, should succeed */
-    check(store(h, h1, NULL, OPERATION_SET, key, "lockdata3", &i, 0, vbucketId)
+    check(store(h, h1, NULL, OPERATION_SET, key, "lockdata", &i, 0, vbucketId)
           == ENGINE_SUCCESS, "Failed to store an item.");
+
+    /* acquire lock, should succeed */
+    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
+          "Lock failed");
+
+    /* try an incr operation followed by a delete, both of which should fail */
+    uint64_t cas = 0;
+    uint64_t result = 0;
+
+    check(h1->arithmetic(h, NULL, key, 2, true, false, 1, 1, 0,
+                         &cas, &result,
+                         0)  == ENGINE_TMPFAIL, "Incr failed");
+
+
+    check(h1->remove(h, NULL, key, 2, 0, 0) == ENGINE_TMPFAIL,
+          "Delete failed");
 
     return SUCCESS;
 }

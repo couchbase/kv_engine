@@ -155,7 +155,7 @@ bool GetlExtension::executeGetl(int argc, token_t *argv, void *response_cookie,
         item = getCb.val.getValue();
         std::stringstream strm;
 
-        strm << "VALUE " << item->getKey() << " " << item->getFlags()
+        strm << "VALUE " << item->getKey() << " " << ntohl(item->getFlags())
              << " " << item->getNBytes() -2 << " " << item->getCas() << "\r\n";
 
         std::string strVal = strm.str();

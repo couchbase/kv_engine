@@ -227,6 +227,11 @@ public:
             data[len] = 0;
             memcpy(data, item->getData(), len);
             uint64_t val = strtoull(data, &endptr, 10);
+            if (item->getCas() == (uint64_t) -1) {
+                // item is locked, can't perform arithmetic operation
+                delete item;
+                return ENGINE_TMPFAIL;
+            }
             if ((errno != ERANGE) && (isspace(*endptr)
                                       || (*endptr == '\0' && endptr != data))) {
                 if (increment) {

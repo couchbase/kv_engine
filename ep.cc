@@ -881,6 +881,13 @@ bool EventuallyPersistentStore::getLocked(const std::string &key,
 
     if (v) {
 
+        // if v is locked return error
+        if (v->isLocked(currentTime)) {
+            GetValue rv;
+            cb.callback(rv);
+            return false;
+        }
+
         // If the value is not resident, wait for it...
         if (!v->isResident()) {
 
@@ -888,12 +895,6 @@ bool EventuallyPersistentStore::getLocked(const std::string &key,
                 bgFetch(key, vbucket, v->getId(), cookie);
             }
             GetValue rv(NULL, ENGINE_EWOULDBLOCK, v->getId());
-            cb.callback(rv);
-            return false;
-        }
-
-        if (v->isLocked(currentTime)) {
-            GetValue rv;
             cb.callback(rv);
             return false;
         }
@@ -972,7 +973,15 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::del(const std::string &key,
     }
 
     mutation_type_t delrv = vb->ht.softDelete(key);
-    ENGINE_ERROR_CODE rv = delrv == NOT_FOUND ? ENGINE_KEY_ENOENT : ENGINE_SUCCESS;
+    ENGINE_ERROR_CODE rv;
+
+    if (delrv == NOT_FOUND) {
+        rv = ENGINE_KEY_ENOENT;
+    } else if (delrv == IS_LOCKED) {
+        rv = ENGINE_TMPFAIL;
+    } else {
+        rv = ENGINE_SUCCESS;
+    }
 
     if (delrv == WAS_CLEAN) {
         queueDirty(key, vbucket, queue_op_del);
