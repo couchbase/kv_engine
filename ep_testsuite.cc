@@ -340,7 +340,7 @@ static void evict_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 
     if (msg != NULL && strcmp(last_body, msg) != 0) {
         fprintf(stderr, "Expected evict to return ``%s'', but it returned ``%s''\n",
-                msg, last_key);
+                msg, last_body);
         abort();
     }
 }
