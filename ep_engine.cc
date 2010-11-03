@@ -1026,6 +1026,20 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
             return ENGINE_FAILED;
         }
 
+        if (memLowWat == std::numeric_limits<size_t>::max()) {
+            memLowWat = percentOf(StoredValue::getMaxDataSize(stats), 0.6);
+        }
+        if (memHighWat == std::numeric_limits<size_t>::max()) {
+            memHighWat = percentOf(StoredValue::getMaxDataSize(stats), 0.75);
+        }
+
+        if (txnSize > 0) {
+            setTxnSize(txnSize);
+        }
+
+        stats.mem_low_wat = memLowWat;
+        stats.mem_high_wat = memHighWat;
+
         databaseInitTime = ep_real_time() - start;
         epstore = new EventuallyPersistentStore(*this, sqliteDb, startVb0);
         setMinDataAge(minDataAge);
@@ -1043,20 +1057,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
             sapi->register_callback(reinterpret_cast<ENGINE_HANDLE*>(this),
                                     ON_DISCONNECT, EvpHandleDisconnect, this);
         }
-
-        if (memLowWat == std::numeric_limits<size_t>::max()) {
-            memLowWat = percentOf(StoredValue::getMaxDataSize(stats), 0.6);
-        }
-        if (memHighWat == std::numeric_limits<size_t>::max()) {
-            memHighWat = percentOf(StoredValue::getMaxDataSize(stats), 0.75);
-        }
-
-        if (txnSize > 0) {
-            setTxnSize(txnSize);
-        }
-
-        stats.mem_low_wat = memLowWat;
-        stats.mem_high_wat = memHighWat;
 
         startEngineThreads();
 
