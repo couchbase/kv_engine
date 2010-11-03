@@ -2217,6 +2217,30 @@ static enum test_result test_tap_ack_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
     return SUCCESS;
 }
 
+static enum test_result test_tap_noop_config_default(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
+{
+    h1->reset_stats(h, NULL);
+    check(get_int_stat(h, h1, "ep_tap_noop_interval", "tap") == 200,
+          "Expected tap_noop_interval == 10");
+    return SUCCESS;
+}
+
+static enum test_result test_tap_noop_config(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
+{
+    h1->reset_stats(h, NULL);
+    check(get_int_stat(h, h1, "ep_tap_noop_interval", "tap") == 10,
+          "Expected tap_noop_interval == 10");
+    return SUCCESS;
+}
+
+static enum test_result test_tap_noop_config_deprecated(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
+{
+    h1->reset_stats(h, NULL);
+    check(get_int_stat(h, h1, "ep_tap_noop_interval", "tap") == 10,
+          "Expected tap_noop_interval == 10");
+    return SUCCESS;
+}
+
 static enum test_result test_novb0(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(verify_vbucket_missing(h, h1, 0), "vb0 existed and shouldn't have.");
     return SUCCESS;
@@ -2998,6 +3022,13 @@ engine_test_t* get_tests(void) {
         // duplicate items on disk
         {"duplicate items on disk", test_duplicate_items_disk, NULL, teardown, NULL},
         // tap tests
+        {"tap_noop_interval default config", test_tap_noop_config_default,
+         NULL, teardown, NULL },
+        {"tap_noop_interval config", test_tap_noop_config, NULL, teardown,
+         "tap_noop_interval=10"},
+        {"tap_noop_interval config compat", test_tap_noop_config_deprecated,
+         NULL, teardown,
+         "tap_idle_timeout=30"},
         {"tap receiver mutation", test_tap_rcvr_mutate, NULL, teardown, NULL},
         {"tap receiver mutation (dead)", test_tap_rcvr_mutate_dead,
          NULL, teardown, NULL},

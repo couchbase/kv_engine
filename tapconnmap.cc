@@ -238,9 +238,9 @@ void TapConnMap::notifyIOThreadMain(EventuallyPersistentEngine *engine,
     bool addNoop = false;
 
     rel_time_t now = ep_current_time();
-    if (now > engine->nextTapNoop && engine->tapIdleTimeout != (size_t)-1) {
+    if (now > engine->nextTapNoop && engine->tapNoopInterval != (size_t)-1) {
         addNoop = true;
-        engine->nextTapNoop = now + (engine->tapIdleTimeout / 3);
+        engine->nextTapNoop = now + engine->tapNoopInterval;
     }
     LockHolder lh(notifySync);
     // We should pause unless we purged some connections or

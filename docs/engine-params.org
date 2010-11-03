@@ -41,7 +41,8 @@ memcached like this:
 | min_data_age       | int    | Minimum data stability time before persist.    |
 | queue_age_cap      | int    | Maximum queue time before forcing persist.     |
 | tap_backlog_limit  | int    | Max number of items allowed in a tap backfill  |
-| tap_idle_timeout   | int    | Tap client idle timeout.                       |
+| tap_noop_interval  | int    | Number of seconds between a noop is sent on    |
+|                    |        | an idle connection                             |
 | tap_keepalive      | int    | Seconds to hold open named tap connections.    |
 | tap_bg_max_pending | int    | Maximum number of pending bg fetch operations  |
 |                    |        | a tap queue may issue (before it must wait for |

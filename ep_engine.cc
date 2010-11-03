@@ -769,7 +769,7 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server
     warmup(true), wait_for_warmup(true), fail_on_partial_warmup(true),
     startVb0(true), sqliteStrategy(NULL), sqliteDb(NULL), epstore(NULL),
     databaseInitTime(0), tapKeepAlive(0),
-    tapIdleTimeout(DEFAULT_TAP_IDLE_TIMEOUT), nextTapNoop(0),
+    tapNoopInterval(DEFAULT_TAP_NOOP_INTERVAL), nextTapNoop(0),
     startedEngineThreads(false), shutdown(false),
     getServerApiFunc(get_server_api), getlExtension(NULL),
     tapEnabled(false), maxItemSize(20*1024*1024), tapBacklogLimit(5000),
@@ -815,6 +815,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
 
     size_t txnSize = 0;
+    size_t tapIdleTimeout = (size_t)-1;
 
     resetStats();
     if (config != NULL) {
@@ -823,7 +824,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         size_t htLocks = 0;
         size_t maxSize = 0;
 
-        const int max_items = 31;
+        const int max_items = 30;
         struct config_item items[max_items];
         int ii = 0;
         memset(items, 0, sizeof(items));
@@ -906,6 +907,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         items[ii].key = "tap_idle_timeout";
         items[ii].datatype = DT_SIZE;
         items[ii].value.dt_size = &tapIdleTimeout;
+
+        ++ii;
+        items[ii].key = "tap_noop_interval";
+        items[ii].datatype = DT_SIZE;
+        items[ii].value.dt_size = &tapNoopInterval;
 
         ++ii;
         items[ii].key = "config_file";
@@ -998,8 +1004,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         }
     }
 
-    if (tapIdleTimeout == 0) {
-        tapIdleTimeout = (size_t)-1;
+    if (tapNoopInterval == 0 || tapIdleTimeout == 0) {
+        tapNoopInterval = (size_t)-1;
+    } else if (tapIdleTimeout != (size_t)-1) {
+        tapNoopInterval = tapIdleTimeout / 3;
     }
 
     if (ret == ENGINE_SUCCESS) {
@@ -2129,6 +2137,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTapStats(const void *cookie,
     add_casted_stat("ep_tap_fg_fetched", stats.numTapFGFetched, add_stat, cookie);
     add_casted_stat("ep_tap_deletes", stats.numTapDeletes, add_stat, cookie);
     add_casted_stat("ep_tap_keepalive", tapKeepAlive, add_stat, cookie);
+    add_casted_stat("ep_tap_noop_interval", tapNoopInterval, add_stat, cookie);
 
     add_casted_stat("ep_tap_count", aggregator.totalTaps, add_stat, cookie);
 

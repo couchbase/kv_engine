@@ -24,7 +24,7 @@
 #include "tapconnection.hh"
 
 
-#define DEFAULT_TAP_IDLE_TIMEOUT 600
+#define DEFAULT_TAP_NOOP_INTERVAL 200
 
 #ifndef DEFAULT_MIN_DATA_AGE
 #define DEFAULT_MIN_DATA_AGE 0
@@ -412,10 +412,6 @@ public:
         return &info.info;
     }
 
-    size_t getTapIdleTimeout() const {
-        return tapIdleTimeout;
-    }
-
     EPStats &getEpStats() {
         return stats;
     }
@@ -587,7 +583,7 @@ private:
     Mutex lookupMutex;
     time_t databaseInitTime;
     size_t tapKeepAlive;
-    size_t tapIdleTimeout;
+    size_t tapNoopInterval;
     size_t nextTapNoop;
     pthread_t notifyThreadId;
     bool startedEngineThreads;
