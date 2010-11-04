@@ -288,8 +288,10 @@ public:
 
     std::string description() {
         std::stringstream ss;
+        int64_t range_size = current_range->second - current_range->first;
         ss << "Removing the chunk " << chunk_num << "/" << vbdv.range_list.size()
-           << " of vbucket " << vbucket << " from disk.";
+           << " of vbucket " << vbucket << " with the range size " << range_size
+           << " from disk.";
         return ss.str();
     }
 private:
