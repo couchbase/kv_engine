@@ -2195,7 +2195,9 @@ static enum test_result test_tap_filter_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V
             }
             break;
         case TAP_NOOP:
+        case TAP_OPAQUE:
             break;
+
         case TAP_MUTATION:
             check(get_key(h, h1, it, key), "Failed to read out the key");
             vbid = atoi(key.c_str()) % 4;

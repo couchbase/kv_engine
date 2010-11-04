@@ -71,7 +71,7 @@ void TapConnection::evaluateFlags()
     ackSupported = (flags & TAP_CONNECT_SUPPORT_ACK) == TAP_CONNECT_SUPPORT_ACK;
 
     if (ackSupported) {
-        TapVBucketEvent hi(TAP_OPAQUE, 0, active);
+        TapVBucketEvent hi(TAP_OPAQUE, 0, (vbucket_state_t)htonl(TAP_OPAQUE_ENABLE_AUTO_NACK));
         addVBucketHighPriority(hi);
     }
 }
@@ -139,6 +139,15 @@ void TapConnection::setVBucketFilter(const std::vector<uint16_t> &vbuckets)
             }
         }
         dumpQueue = true;
+    } else {
+        const std::vector<uint16_t> &vec = diff.getVector();
+        for (std::vector<uint16_t>::const_iterator it = vec.begin();
+             it != vec.end(); ++it) {
+            if (vbucketFilter(*it)) {
+                TapVBucketEvent hi(TAP_OPAQUE, *it, (vbucket_state_t)htonl(TAP_OPAQUE_INITIAL_VBUCKET_STREAM));
+                addVBucketHighPriority(hi);
+            }
+        }
     }
 }
 
