@@ -984,9 +984,7 @@ void EventuallyPersistentStore::reset() {
     for (it = buckets.begin(); it != buckets.end(); ++it) {
         RCPtr<VBucket> vb = getVBucket(*it, active);
         if (vb) {
-            HashTableStatVisitor statvis;
-            vb->ht.visit(statvis);
-            vb->ht.clear();
+            HashTableStatVisitor statvis = vb->ht.clear();
             stats.numNonResident.decr(statvis.numNonResident);
             stats.currentSize.decr(statvis.memSize);
             assert(stats.currentSize.get() < GIGANTOR);
