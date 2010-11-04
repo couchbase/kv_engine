@@ -398,6 +398,13 @@ public:
         return epstore->getLocked(key, vbucket, cb, currentTime, lockTimeout, cookie);
     }
 
+    ENGINE_ERROR_CODE unlockKey(const std::string &key,
+                                uint16_t vbucket,
+                                uint64_t cas,
+                                rel_time_t currentTime) {
+        return epstore->unlockKey(key, vbucket, cas, currentTime);
+    }
+
     RCPtr<VBucket> getVBucket(uint16_t vbucket) {
         return epstore->getVBucket(vbucket);
     }

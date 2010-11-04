@@ -352,6 +352,55 @@ extern "C" {
         return rv;
     }
 
+    static protocol_binary_response_status unlockKey(EventuallyPersistentEngine *e,
+                                                     protocol_binary_request_header *request,
+                                                     const char **msg)
+    {
+        protocol_binary_request_no_extras *req =
+            (protocol_binary_request_no_extras*)request;
+
+        protocol_binary_response_status res = PROTOCOL_BINARY_RESPONSE_SUCCESS;
+        char keyz[256];
+
+        // Read the key.
+        int keylen = ntohs(req->message.header.request.keylen);
+        if (keylen >= (int)sizeof(keyz)) {
+            *msg = "Key is too large.";
+            return PROTOCOL_BINARY_RESPONSE_EINVAL;
+        }
+
+        memcpy(keyz, ((char*)request) + sizeof(req->message.header), keylen);
+        keyz[keylen] = 0x00;
+
+        uint16_t vbucket = ntohs(request->request.vbucket);
+        std::string key(keyz, keylen);
+
+        getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                         "Executing unl for key %s\n",
+                         keyz);
+
+        RememberingCallback<GetValue> getCb;
+        uint64_t cas = request->request.cas;
+
+        ENGINE_ERROR_CODE rv = e->unlockKey(key, vbucket, cas, ep_current_time());
+
+        if (rv == ENGINE_SUCCESS) {
+            *msg = "UNLOCKED";
+        } else if (rv == ENGINE_TMPFAIL){
+            *msg =  "UNLOCK_ERROR";
+            res = PROTOCOL_BINARY_RESPONSE_ETMPFAIL;
+        } else {
+            RCPtr<VBucket> vb = e->getVBucket(vbucket);
+            if (!vb) {
+                *msg = "That's not my bucket.";
+                res =  PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET;
+            }
+            *msg = "NOT_FOUND";
+            res =  PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
+        }
+
+        return res;
+    }
 
     static protocol_binary_response_status setParam(EventuallyPersistentEngine *e,
                                                     protocol_binary_request_header *request,
@@ -598,6 +647,9 @@ extern "C" {
                 // we dont have the value for the item yet
                 return rv;
             }
+            break;
+        case CMD_UNLOCK_KEY:
+            res = unlockKey(h, request, &msg);
             break;
         }
 

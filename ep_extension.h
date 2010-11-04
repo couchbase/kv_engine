@@ -19,6 +19,10 @@ public:
     bool executeGetl(int argc, token_t *argv, void *cookie,
                      RESPONSE_HANDLER_T response_handler);
 
+    bool executeUnl(int argc, token_t *argv, void *cookie,
+                     RESPONSE_HANDLER_T response_handler);
+
+
 private:
     SERVER_HANDLE_V1 *serverApi;
     EventuallyPersistentStore *backend;

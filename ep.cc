@@ -971,6 +971,36 @@ bool EventuallyPersistentStore::getLocked(const std::string &key,
     return true;
 }
 
+ENGINE_ERROR_CODE
+EventuallyPersistentStore::unlockKey(const std::string &key,
+                                     uint16_t vbucket,
+                                     uint64_t cas,
+                                     rel_time_t currentTime)
+{
+
+    RCPtr<VBucket> vb = getVBucket(vbucket, active);
+    if (!vb) {
+        ++stats.numNotMyVBuckets;
+        return ENGINE_NOT_MY_VBUCKET;
+    }
+
+    int bucket_num = vb->ht.bucket(key);
+    LockHolder lh(vb->ht.getMutex(bucket_num));
+    StoredValue *v = fetchValidValue(vb, key, bucket_num);
+
+    if (v) {
+        if (v->isLocked(currentTime)) {
+            if (v->getCas() == cas) {
+                v->unlock();
+                return ENGINE_SUCCESS;
+            }
+        }
+        return ENGINE_TMPFAIL;
+    }
+    return ENGINE_KEY_ENOENT;
+}
+
+
 bool EventuallyPersistentStore::getKeyStats(const std::string &key,
                                             uint16_t vbucket,
                                             struct key_stats &kstats)

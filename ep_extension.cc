@@ -26,7 +26,7 @@
 #define MAX_KEY_LEN             250   /* maximum permissible key length */
 
 
-/* safe_strtoul is copied from memcached.. */
+/* safe_strtoul & safe_stroull are copied from memcached.. */
 static bool safe_strtoul(const char *str, uint32_t *out) {
     char *endptr = NULL;
     unsigned long l = 0;
@@ -56,6 +56,30 @@ static bool safe_strtoul(const char *str, uint32_t *out) {
     return false;
 }
 
+#define xisspace(c) isspace((unsigned char)c)
+static bool safe_strtoull(const char *str, uint64_t *out) {
+    assert(out != NULL);
+    errno = 0;
+    *out = 0;
+    char *endptr;
+    unsigned long long ull = strtoull(str, &endptr, 10);
+    if (errno == ERANGE)
+        return false;
+    if (xisspace(*endptr) || (*endptr == '\0' && endptr != str)) {
+        if ((long long) ull < 0) {
+            /* only check for negative signs in the uncommon case when
+             * the unsigned number is so big that it's negative as a
+             * signed number. */
+            if (strchr(str, '-') != NULL) {
+                return false;
+            }
+        }
+        *out = ull;
+        return true;
+    }
+    return false;
+}
+
 static GetlExtension* getExtension(const void* cookie)
 {
     return reinterpret_cast<GetlExtension*>(const_cast<void *>(cookie));
@@ -73,10 +97,17 @@ extern "C" {
             int argc, token_t *argv,
             RESPONSE_HANDLER_T response_handler) {
         (void) cmd_cookie;
+        bool ret = true;
 
-        bool ret = getExtension(cmd_cookie)->executeGetl(argc, argv,
-                                                         (void *)cookie,
-                                                         response_handler);
+        if (strncmp(argv[0].value, "getl", argv[0].length) == 0) {
+            ret = getExtension(cmd_cookie)->executeGetl(argc, argv,
+                                                        (void *)cookie,
+                                                        response_handler);
+        } else {
+            ret = getExtension(cmd_cookie)->executeUnl(argc, argv,
+                                                       (void *)cookie,
+                                                       response_handler);
+        }
 
         return ret;
     }
@@ -89,7 +120,9 @@ extern "C" {
         (void) argc;
         (void) ndata;
         (void) ptr;
-        return argc >= 1 && strncmp(argv[0].value, "getl", argv[0].length) == 0;
+        // accept both getl (get locked) and unl (unlock)commands
+        return argc >= 1 && (strncmp(argv[0].value, "getl", argv[0].length) == 0 ||
+                             strncmp(argv[0].value, "unl", argv[0].length) == 0);
     }
 
     static void ext_abort(const void *cmd_cookie, const void *cookie) {
@@ -176,6 +209,39 @@ bool GetlExtension::executeGetl(int argc, token_t *argv, void *response_cookie,
     }
 
     if (item != NULL) delete item;
+
+    return ret;
+}
+
+bool GetlExtension::executeUnl(int argc, token_t *argv, void *response_cookie,
+                                RESPONSE_HANDLER_T response_handler)
+{
+    uint64_t cas = 0;
+    bool ret = true;
+
+    // we need a valid cas value
+    if (argc != 3 || !safe_strtoull(argv[2].value, &cas)) {
+        return (response_handler(response_cookie,
+                                 sizeof("CLIENT_ERROR\r\n") - 1,
+                                 "CLIENT_ERROR\r\n"));
+    }
+
+    std::string k(argv[1].value, argv[1].length);
+    RememberingCallback<GetValue> getCb;
+
+    ENGINE_ERROR_CODE rv = backend->unlockKey(k, 0, cas, serverApi->core->get_current_time());
+
+    if (rv == ENGINE_SUCCESS) {
+        ret = response_handler(response_cookie,
+                               sizeof("UNLOCKED\r\n") -1, "UNLOCKED\r\n");
+
+    } else if (rv == ENGINE_TMPFAIL) {
+        ret = response_handler(response_cookie,
+                               sizeof("UNLOCK_ERROR\r\n") - 1, "UNLOCK_ERROR\r\n");
+    } else {
+        ret = response_handler(response_cookie,
+                               sizeof("NOT_FOUND\r\n") - 1, "NOT_FOUND\r\n");
+    }
 
     return ret;
 }

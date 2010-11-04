@@ -384,6 +384,12 @@ public:
                    rel_time_t currentTime, uint32_t lockTimeout,
                    const void *cookie);
 
+    ENGINE_ERROR_CODE unlockKey(const std::string &key,
+                                uint16_t vbucket,
+                                uint64_t cas,
+                                rel_time_t currentTime);
+
+
     StrategicSqlite3* getUnderlying() {
         // This method might also be called leakAbstraction()
         return underlying;

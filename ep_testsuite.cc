@@ -103,6 +103,7 @@ protocol_binary_response_status last_status(static_cast<protocol_binary_response
 char *last_key = NULL;
 char *last_body = NULL;
 std::map<std::string, std::string> vals;
+uint64_t last_cas = 0;
 
 struct test_harness testHarness;
 
@@ -280,7 +281,6 @@ static bool add_response(const void *key, uint16_t keylen,
     (void)ext;
     (void)extlen;
     (void)datatype;
-    (void)cas;
     (void)cookie;
     last_status = static_cast<protocol_binary_response_status>(status);
     if (last_body) {
@@ -303,6 +303,7 @@ static bool add_response(const void *key, uint16_t keylen,
         memcpy(last_key, key, keylen);
         last_key[keylen] = '\0';
     }
+    last_cas = cas;
     return true;
 }
 
@@ -413,6 +414,80 @@ static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     return SUCCESS;
 }
+
+static enum test_result test_unl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+
+    const char *key = "k2";
+    uint16_t vbucketId = 0;
+
+    protocol_binary_request_header *pkt = create_packet(CMD_GET_LOCKED,
+                                                        key, "");
+    pkt->request.vbucket = htons(vbucketId);
+
+    protocol_binary_request_header *pkt_ul = create_packet(CMD_UNLOCK_KEY,
+                                                        key, "");
+    pkt_ul->request.vbucket = htons(vbucketId);
+
+    check(h1->unknown_command(h, NULL, pkt_ul, add_response) == ENGINE_SUCCESS,
+          "Getl Failed");
+
+    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT,
+          "expected the key to be missing...");
+    if (last_body != NULL && (strcmp(last_body, "NOT_FOUND") != 0)) {
+        fprintf(stderr, "Should have returned NOT_FOUND. Unl Failed");
+        abort();
+    }
+
+    item *i = NULL;
+    check(store(h, h1, NULL, OPERATION_SET, key, "lockdata", &i, 0, vbucketId)
+          == ENGINE_SUCCESS, "Failed to store an item.");
+
+    /* getl, should succeed */
+    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
+          "Lock failed");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+          "Expected to be able to getl on first try");
+
+    /* save the returned cas value for later */
+    uint64_t cas = last_cas;
+
+    /* lock's taken unlocking with a random cas value should fail */
+    check(h1->unknown_command(h, NULL, pkt_ul, add_response) == ENGINE_SUCCESS,
+          "Unlock failed");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_ETMPFAIL,
+          "Expected to fail getl on second try");
+
+    if (last_body != NULL && (strcmp(last_body, "UNLOCK_ERROR") != 0)) {
+        fprintf(stderr, "Should have returned UNLOCK_ERROR. Unl Failed");
+        abort();
+    }
+
+    /* set the correct cas value in the outgoing request */
+    pkt_ul->request.cas = cas;
+
+    check(h1->unknown_command(h, NULL, pkt_ul, add_response) == ENGINE_SUCCESS,
+          "Unlock failed");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+          "Expected to succed unl with correct cas");
+
+    /* acquire lock, should succeed */
+    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
+          "Lock failed");
+
+    pkt_ul->request.cas = last_cas;
+
+    /* wait 16 seconds */
+    testHarness.time_travel(16);
+
+    /* lock has expired, unl should fail */
+    check(h1->unknown_command(h, NULL, pkt_ul, add_response) == ENGINE_SUCCESS,
+          "Unlock failed");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_ETMPFAIL,
+          "Expected to fail unl on lock timeout");
+
+    return SUCCESS;
+}
+
 
 static bool set_vbucket_state(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                               uint16_t vb, const char *state) {
@@ -3019,6 +3094,7 @@ engine_test_t* get_tests(void) {
         {"set+get hit with max_txn_size", test_set_get_hit, NULL, teardown,
          "ht_locks=1;ht_size=3;max_txn_size=10"},
         {"getl", test_getl, NULL, teardown, NULL},
+        {"unl",  test_unl, NULL, teardown, NULL},
         {"set+get hit (bin)", test_set_get_hit_bin, NULL, teardown, NULL},
         {"set+change flags", test_set_change_flags, NULL, teardown, NULL},
         {"add", test_add, NULL, teardown, NULL},
