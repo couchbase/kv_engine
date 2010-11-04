@@ -1318,10 +1318,20 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
 
     TapVBucketEvent ev = connection->nextVBucketHighPriority();
     if (ev.event != TAP_PAUSE) {
-        if (ev.event == TAP_VBUCKET_SET) {
+        switch (ev.event) {
+        case TAP_VBUCKET_SET:
             connection->encodeVBucketStateTransition(ev, es, nes, vbucket);
-        } else {
-            assert(ev.event == TAP_NOOP || ev.event == TAP_OPAQUE);
+            break;
+        case TAP_OPAQUE:
+            connection->opaqueCommandCode = ev.state;
+            *vbucket = ev.vbucket;
+            *es = &connection->opaqueCommandCode;
+            *nes = sizeof(connection->opaqueCommandCode);
+            break;
+        case TAP_NOOP:
+            break;
+        default:
+            abort();
         }
         return ev.event;
     }
@@ -1593,8 +1603,30 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
         }
 
     case TAP_OPAQUE:
-        if (tap_flags & TAP_FLAG_ACK) {
-            serverApi->cookie->set_tap_nack_mode(cookie, true);
+        {
+            if (nengine == sizeof(uint32_t)) {
+                uint32_t cc;
+                memcpy(&cc, engine_specific, sizeof(cc));
+                cc = ntohl(cc);
+
+                switch (cc) {
+                case TAP_OPAQUE_ENABLE_AUTO_NACK:
+                    getLogger()->log(EXTENSION_LOG_INFO, NULL,
+                                     "Enable auto nack mode\n");
+                    serverApi->cookie->set_tap_nack_mode(cookie, true);
+                    break;
+                case TAP_OPAQUE_INITIAL_VBUCKET_STREAM:
+                    /* Ignore.. this is just an informative message */
+                    break;
+                default:
+                    getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                     "Received an unknown opaque command\n");
+                }
+            } else {
+                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                 "Received tap opaque with unknown size %d\n",
+                                 nengine);
+            }
         }
         break;
 

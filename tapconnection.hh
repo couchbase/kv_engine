@@ -23,6 +23,9 @@ class Item;
 struct TapStatBuilder;
 struct PopulateEventsBody;
 
+#define TAP_OPAQUE_ENABLE_AUTO_NACK 0
+#define TAP_OPAQUE_INITIAL_VBUCKET_STREAM 1
+
 /**
  * The tap stream may include other events than data mutation events,
  * but the data structures in the TapConnection does only store a key
@@ -209,8 +212,19 @@ private:
 
             // We might have objects in our queue that aren't in our filter
             // If so, just skip them..
-            if (ret.event != TAP_NOOP && !vbucketFilter(ret.vbucket)) {
-                return nextVBucketHighPriority();
+            switch (ret.event) {
+            case TAP_NOOP:
+                break;
+            case TAP_OPAQUE:
+                opaqueCommandCode = (uint32_t)ret.state;
+                if (ntohl(TAP_OPAQUE_ENABLE_AUTO_NACK)) {
+                    break;
+                }
+                // FALLTHROUGH
+            default:
+                if (!vbucketFilter(ret.vbucket)) {
+                    return nextVBucketHighPriority();
+                }
             }
 
             ++recordsFetched;
@@ -538,6 +552,16 @@ private:
      * it in doWalkTapQueue...
      */
     bool notifySent;
+
+    /**
+     * We might send userdata with tap opaque messages, but we need
+     * to provide the memory for it (that need to persist until the next
+     * invokation of doWalkTapStream(). I don't want to do memory allocation
+     * for the command code, so let's just keep a variable here and use it
+     * whenever we may need it.
+     */
+    uint32_t opaqueCommandCode;
+
 
     static size_t bgMaxPending;
 
