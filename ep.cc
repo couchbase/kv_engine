@@ -1312,7 +1312,6 @@ int EventuallyPersistentStore::flushOne(std::queue<QueuedItem> *q,
     q->pop();
     stats.memOverhead.decr(qi.size());
     assert(stats.memOverhead.get() < GIGANTOR);
-    stats.flusher_todo--;
 
     int rv = 0;
     switch (qi.getOperation()) {
@@ -1328,6 +1327,7 @@ int EventuallyPersistentStore::flushOne(std::queue<QueuedItem> *q,
         rv = flushOneDelOrSet(qi, rejectQueue);
         break;
     }
+    stats.flusher_todo--;
 
     return rv;
 
