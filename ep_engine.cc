@@ -1042,30 +1042,30 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
             memHighWat = percentOf(StoredValue::getMaxDataSize(stats), 0.75);
         }
 
-        if (txnSize > 0) {
-            setTxnSize(txnSize);
-        }
-
         stats.mem_low_wat = memLowWat;
         stats.mem_high_wat = memHighWat;
 
         databaseInitTime = ep_real_time() - start;
         epstore = new EventuallyPersistentStore(*this, sqliteDb, startVb0);
-        setMinDataAge(minDataAge);
-        setQueueAgeCap(queueAgeCap);
-
         if (epstore == NULL) {
             ret = ENGINE_ENOMEM;
-        } else {
-            if (!warmup) {
-                epstore->reset();
-            }
-
-            SERVER_CALLBACK_API *sapi;
-            sapi = getServerApi()->callback;
-            sapi->register_callback(reinterpret_cast<ENGINE_HANDLE*>(this),
-                                    ON_DISCONNECT, EvpHandleDisconnect, this);
+            return ret;
         }
+
+        setMinDataAge(minDataAge);
+        setQueueAgeCap(queueAgeCap);
+        if (txnSize > 0) {
+            setTxnSize(txnSize);
+        }
+
+        if (!warmup) {
+            epstore->reset();
+        }
+
+        SERVER_CALLBACK_API *sapi;
+        sapi = getServerApi()->callback;
+        sapi->register_callback(reinterpret_cast<ENGINE_HANDLE*>(this),
+                ON_DISCONNECT, EvpHandleDisconnect, this);
 
         startEngineThreads();
 

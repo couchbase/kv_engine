@@ -2981,6 +2981,8 @@ engine_test_t* get_tests(void) {
         {"set", test_set, NULL, teardown, NULL},
         {"concurrent set", test_conc_set, NULL, teardown, NULL},
         {"set+get hit", test_set_get_hit, NULL, teardown, NULL},
+        {"set+get hit with max_txn_size", test_set_get_hit, NULL, teardown,
+         "ht_locks=1;ht_size=3;max_txn_size=10"},
         {"getl", test_getl, NULL, teardown, NULL},
         {"set+get hit (bin)", test_set_get_hit_bin, NULL, teardown, NULL},
         {"set+change flags", test_set_change_flags, NULL, teardown, NULL},
