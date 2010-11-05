@@ -18,11 +18,12 @@ sqlite3 *SqliteStrategy::open(void) {
             throw std::runtime_error("Error enabling extended RCs");
         }
 
+        doFile(initFile);
+
         PreparedStatement uv_get(db, "PRAGMA user_version");
         uv_get.fetch();
         schema_version = uv_get.column_int(0);
 
-        doFile(initFile);
         initMetaTables();
         initTables();
         initStatements();
