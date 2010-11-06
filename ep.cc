@@ -37,8 +37,8 @@ extern "C" {
     }
 
     static time_t default_abs_time(rel_time_t offset) {
-        /* This is overridden at init time */
-        return time(NULL) - ep_current_time() + offset;
+        abort();
+        return 0;
     }
 
     rel_time_t (*ep_current_time)() = uninitialized_current_time;
