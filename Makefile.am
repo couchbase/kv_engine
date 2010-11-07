@@ -103,7 +103,7 @@ EXTRA_TESTS += generated_engine_tests
 
 generated_engine_tests: generated_suite.la
 	$(ENGINE_TESTAPP) -E .libs/ep.so -t $(TEST_TIMEOUT) \
-		-T .libs/generated_suite.so \
+		-. -q -T .libs/generated_suite.so \
 		-e 'ht_size=13;ht_locks=7;db_strategy=singleDB;dbname=:memory:'
 endif
 
