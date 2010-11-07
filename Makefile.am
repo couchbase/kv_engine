@@ -199,7 +199,7 @@ CLEANFILES+= ${PYTHON_TOOLS}
 
 TEST_TIMEOUT=30
 
-engine_tests: all $(EXTRA_TESTS)
+engine_tests: all
 	$(ENGINE_TESTAPP) -E .libs/ep.so -t $(TEST_TIMEOUT) \
 		-T .libs/ep_testsuite.so \
 		-e 'ht_size=13;ht_locks=7;initfile=t/test_pragma.sql;min_data_age=0'
