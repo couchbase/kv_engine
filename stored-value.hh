@@ -963,6 +963,11 @@ public:
         mutation_type_t rv = NOT_FOUND;
         StoredValue *v = unlocked_find(key, bucket_num);
         if (v) {
+            if (v->isExpired(ep_real_time())) {
+                v->del(stats);
+                return rv;
+            }
+
             if (v->isLocked(ep_current_time())) {
                 return IS_LOCKED;
             }

@@ -1078,6 +1078,15 @@ static enum test_result test_delete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(h1->remove(h, NULL, "key", 3, 0, 0) == ENGINE_SUCCESS,
           "Failed remove with value.");
     check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key"), "Expected missing key");
+
+    // Can I time travel to an expired object and delete it?
+    check(store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i) == ENGINE_SUCCESS,
+          "Failed set.");
+    testHarness.time_travel(3617);
+    check(h1->remove(h, NULL, "key", 3, 0, 0) == ENGINE_KEY_ENOENT,
+          "Did not get ENOENT removing an expired object.");
+    check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key"), "Expected missing key");
+
     return SUCCESS;
 }
 
