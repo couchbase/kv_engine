@@ -31,6 +31,7 @@
 /config/plugin.ac
 /configure
 /docs/doxy
+/generated_suite.c
 /libtool
 /m4/libtool.m4
 /m4/ltoptions.m4
@@ -41,11 +42,15 @@
 /management/sqlite3
 /sizes
 /stamp-h1
-Makefile
-Makefile.in
-/generated_suite.c
 /wrapper/dbmaint
 /wrapper/flushctl
 /wrapper/stats
 /wrapper/vbucketctl
 /wrapper/wrapper
+Makefile
+Makefile.in
+TAGS
+ep-engine.vcxproj
+ep-engine.vcxproj.filters
+ep-engine.vcxproj.user
+tags
