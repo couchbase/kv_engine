@@ -42,6 +42,7 @@ class Action(object):
     preconditions = []
     effect = None
     postconditions = []
+    enabled = True
 
     @property
     def name(self):
@@ -66,7 +67,7 @@ class Driver(object):
     def startAction(self, action):
         """Invoked when before starting an action."""
 
-    def endAction(self, action, k, state, errored):
+    def endAction(self, action, state, errored):
         """Invoked after the action is performed."""
 
     def endSequence(self, seq, state):
@@ -89,21 +90,20 @@ def runTest(actions, driver, duplicates=3, length=4):
                                                   duplicates))
     tests = set(itertools.permutations(instances, length))
     driver.preSuite(tests)
-    k = 'testkey'
     for seq in sorted(tests):
         state = driver.newState()
         driver.startSequence(seq)
         for a in seq:
             driver.startAction(a)
-            haserror = not all(p(k, state) for p in a.preconditions)
+            haserror = not all(p(state) for p in a.preconditions)
             if not haserror:
                 try:
-                    a.effect(k, state)
-                    haserror = not all(p(k, state) for p in a.postconditions)
+                    a.effect(state)
+                    haserror = not all(p(state) for p in a.postconditions)
                 except:
                     haserror = True
-            driver.endAction(a, k, state, haserror)
-        driver.endSequence(seq, k, state)
+            driver.endAction(a, state, haserror)
+        driver.endSequence(seq, state)
     driver.postSuite(tests)
 
 def findActions(classes):
@@ -112,6 +112,6 @@ def findActions(classes):
 
     actions = []
     for __t in (t for t in classes if isinstance(type, type(t))):
-        if Action in __t.__mro__ and __t != Action:
+        if Action in __t.__mro__ and __t != Action and __t.enabled:
             actions.append(__t)
     return actions

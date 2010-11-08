@@ -89,7 +89,7 @@ ep_testsuite_la_LDFLAGS= -module -dynamic
 if BUILD_GENERATED_TESTS
 lib_LTLIBRARIES += generated_suite.la
 
-generated_suite.c: t/gen_engine_test.py t/testgen.py
+generated_suite.c: t/gen_engine_test.py t/breakdancer.py
 	${top_srcdir}/t/gen_engine_test.py > generated_suite.c || ( rm generated_suite.c && /bin/false)
 BUILT_SOURCES+= generated_suite.c
 CLEANFILES+= generated_suite.c
