@@ -4,9 +4,9 @@
 
 #include "suite_stubs.h"
 
-int expiry = 5;
+int expiry = 3600;
+bool hasError = false;
 struct test_harness testHarness;
-static bool hasError;
 
 static const char *key = "key";
 
@@ -150,14 +150,6 @@ void assertNotExists(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i;
     ENGINE_ERROR_CODE rv = h1->get(h, NULL, &i, key, strlen(key), 0);
     assert(rv == ENGINE_KEY_ENOENT);
-}
-
-void assertHasError(void) {
-    assert(hasError);
-}
-
-void assertHasNoError(void) {
-    assert(!hasError);
 }
 
 MEMCACHED_PUBLIC_API

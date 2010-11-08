@@ -1,6 +1,8 @@
 #ifndef TESTSUITE_H
 #define TESTSUITE_H 1
 
+#include <assert.h>
+
 #include "ep_testsuite.h"
 
 bool teardown(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
@@ -19,10 +21,12 @@ void incrWithDefault(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
 
 void checkValue(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* exp);
 void assertNotExists(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
-void assertHasError(void);
-void assertHasNoError(void);
+
+#define assertHasError() assert(hasError)
+#define assertHasNoError() assert(!hasError)
 
 extern int expiry;
+extern bool hasError;
 extern struct test_harness testHarness;
 
 #endif /* TESTSUITE_H */
