@@ -95,7 +95,7 @@ BUILT_SOURCES+= generated_suite.c
 CLEANFILES+= generated_suite.c
 
 generated_suite_la_DEPENDENCIES = ep.la
-generated_suite_la_CFLAGS = $(AM_CFLAGS) ${NO_WERROR}
+generated_suite_la_CFLAGS = $(AM_CFLAGS) ${NO_WERROR} -O0
 generated_suite_la_SOURCES= generated_suite.c testsuite.h suite_stubs.c ep_testsuite.h
 generated_suite_la_LDFLAGS= -module -dynamic
 
