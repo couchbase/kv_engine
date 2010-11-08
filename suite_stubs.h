@@ -18,6 +18,7 @@ void del(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
 void set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
 void incr(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
 void incrWithDefault(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
+void getLock(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
 
 void checkValue(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* exp);
 void assertNotExists(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
@@ -26,6 +27,7 @@ void assertNotExists(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
 #define assertHasNoError() assert(!hasError)
 
 extern int expiry;
+extern int locktime;
 extern bool hasError;
 extern struct test_harness testHarness;
 

@@ -40,6 +40,16 @@ class NothingExistsCondition(Condition):
     def __call__(self, state):
         return not bool(state)
 
+class IsLockedCondition(Condition):
+
+    def __call__(self, state):
+        return (TESTKEY + '.lock') in state
+
+class IsUnlockedCondition(Condition):
+
+    def __call__(self, state):
+        return (TESTKEY + '.lock') not in state
+
 ######################################################################
 # Effects
 ######################################################################
@@ -52,10 +62,25 @@ class StoreEffect(Effect):
     def __call__(self, state):
         state[TESTKEY] = self.v
 
+class LockEffect(Effect):
+
+    def __call__(self, state):
+        state[TESTKEY + '.lock'] = True
+
+class UnlockEffect(Effect):
+
+    def __call__(self, state):
+        klock = TESTKEY + '.lock'
+        if klock in state:
+            del state[klock]
+
 class DeleteEffect(Effect):
 
     def __call__(self, state):
         del state[TESTKEY]
+        klock = TESTKEY + '.lock'
+        if klock in state:
+            del state[klock]
 
 class FlushEffect(Effect):
 
@@ -95,18 +120,19 @@ class ArithmeticEffect(Effect):
 
 class Set(Action):
 
+    preconditions = [IsUnlockedCondition()]
     effect = StoreEffect()
     postconditions = [ExistsCondition()]
 
 class Add(Action):
 
-    preconditions = [DoesNotExistCondition()]
+    preconditions = [DoesNotExistCondition(), IsUnlockedCondition()]
     effect = StoreEffect()
     postconditions = [ExistsCondition()]
 
 class Delete(Action):
 
-    preconditions = [ExistsCondition()]
+    preconditions = [ExistsCondition(), IsUnlockedCondition()]
     effect = DeleteEffect()
     postconditions = [DoesNotExistCondition()]
 
@@ -115,42 +141,52 @@ class Flush(Action):
     effect = FlushEffect()
     postconditions = [NothingExistsCondition()]
 
+class WaitForLock(Action):
+
+    effect = UnlockEffect()
+
+class GetLock(Action):
+
+    preconditions = [ExistsCondition(), IsUnlockedCondition()]
+    effect = LockEffect()
+    postconditions = [IsLockedCondition()]
+
 class Delay(Flush):
     pass
 
 class Append(Action):
 
-    preconditions = [ExistsCondition()]
+    preconditions = [ExistsCondition(), IsUnlockedCondition()]
     effect = AppendEffect()
     postconditions = [ExistsCondition()]
 
 class Prepend(Action):
 
-    preconditions = [ExistsCondition()]
+    preconditions = [ExistsCondition(), IsUnlockedCondition()]
     effect = PrependEffect()
     postconditions = [ExistsCondition()]
 
 class Incr(Action):
 
-    preconditions = [ExistsAsNumber()]
+    preconditions = [ExistsAsNumber(), IsUnlockedCondition()]
     effect = ArithmeticEffect(1)
     postconditions = [ExistsAsNumber()]
 
 class Decr(Action):
 
-    preconditions = [ExistsAsNumber()]
+    preconditions = [ExistsAsNumber(), IsUnlockedCondition()]
     effect = ArithmeticEffect(-1)
     postconditions = [ExistsAsNumber()]
 
 class IncrWithDefault(Action):
 
-    preconditions = [MaybeExistsAsNumber()]
+    preconditions = [MaybeExistsAsNumber(), IsUnlockedCondition()]
     effect = ArithmeticEffect(1)
     postconditions = [ExistsAsNumber()]
 
 class DecrWithDefault(Action):
 
-    preconditions = [MaybeExistsAsNumber()]
+    preconditions = [MaybeExistsAsNumber(), IsUnlockedCondition()]
     effect = ArithmeticEffect(-1)
     postconditions = [ExistsAsNumber()]
 
@@ -178,7 +214,7 @@ class EngineTestAppDriver(Driver):
         sclasses = [type(a) for a in seq]
         # A list of lists of classes such that any test that includes
         # the inner list in order should be skipped.
-        bads = []
+        bads = [[GetLock, Append], [GetLock, Prepend]]
         for b in bads:
             try:
                 nextIdx = 0
@@ -209,6 +245,8 @@ class EngineTestAppDriver(Driver):
 
         if isinstance(action, Delay):
             s = "    delay(expiry+1);"
+        elif isinstance(action, WaitForLock):
+            s = "    delay(locktime+1);"
         elif isinstance(action, Flush):
             s = "    flush(h, h1);"
         elif isinstance(action, Delete):

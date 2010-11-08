@@ -2,11 +2,16 @@
 #include <string.h>
 #include <assert.h>
 
-#include "suite_stubs.h"
+#include <memcached/engine.h>
 
+#include "suite_stubs.h"
+#include "command_ids.h"
+
+int locktime = 30;
 int expiry = 3600;
 bool hasError = false;
 struct test_harness testHarness;
+protocol_binary_response_status last_status = 0;
 
 static const char *key = "key";
 
@@ -145,6 +150,60 @@ void checkValue(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* exp) {
         abort();
     }
 }
+
+static protocol_binary_request_header* create_packet(uint8_t opcode,
+                                                     const char *val) {
+    char *pkt_raw = calloc(1,
+                           sizeof(protocol_binary_request_header)
+                           + strlen(key)
+                           + strlen(val));
+    assert(pkt_raw);
+    protocol_binary_request_header *req =
+        (protocol_binary_request_header*)pkt_raw;
+    req->request.opcode = opcode;
+    req->request.bodylen = htonl(strlen(key) + strlen(val));
+    req->request.keylen = htons(strlen(key));
+    memcpy(pkt_raw + sizeof(protocol_binary_request_header),
+           key, strlen(key));
+    memcpy(pkt_raw + sizeof(protocol_binary_request_header) + strlen(key),
+           val, strlen(val));
+    return req;
+}
+
+static bool add_response(const void *k, uint16_t keylen,
+                         const void *ext, uint8_t extlen,
+                         const void *body, uint32_t bodylen,
+                         uint8_t datatype, uint16_t status,
+                         uint64_t cas, const void *cookie) {
+    (void)k;
+    (void)keylen;
+    (void)ext;
+    (void)extlen;
+    (void)body;
+    (void)bodylen;
+    (void)datatype;
+    (void)cas;
+    (void)cookie;
+
+    last_status = status;
+
+    return true;
+}
+
+void getLock(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    uint16_t vbucketId = 0;
+
+    protocol_binary_request_header *pkt = create_packet(CMD_GET_LOCKED, "");
+    pkt->request.vbucket = htons(vbucketId);
+
+    if (h1->unknown_command(h, NULL, pkt, add_response) != ENGINE_SUCCESS) {
+        fprintf(stderr, "Failed to issue getl request.\n");
+        abort();
+    }
+
+    hasError = last_status != 0;
+}
+
 
 void assertNotExists(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i;
