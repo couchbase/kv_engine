@@ -172,12 +172,41 @@ class EngineTestAppDriver(Driver):
     def testName(self, seq):
         return 'test_' + '_'.join(a.name for a in seq)
 
+    def shouldRunSequence(self, seq):
+        # Skip any sequence that leads to known failures
+        ok = True
+        sclasses = [type(a) for a in seq]
+        # A list of lists of classes such that any test that includes
+        # the inner list in order should be skipped.
+        bads = []
+        for b in bads:
+            try:
+                nextIdx = 0
+                for c in b:
+                    nextIdx = sclasses.index(c, nextIdx) + 1
+                ok = False
+            except ValueError:
+                pass # Didn't find it, move in
+
+        return ok
+
     def startSequence(self, seq):
         f = "static enum test_result %s" % self.testName(seq)
         self.output(("%s(ENGINE_HANDLE *h,\n%sENGINE_HANDLE_V1 *h1) {\n"
                      % (f, " " * (len(f) + 1))))
 
+        self.handled = self.shouldRunSequence(seq)
+
+        if not self.handled:
+            self.output("    (void)h;\n")
+            self.output("    (void)h1;\n")
+            self.output("    return PENDING;\n")
+            self.output("}\n\n")
+
     def startAction(self, action):
+        if not self.handled:
+            return
+
         if isinstance(action, Delay):
             s = "    delay(expiry+1);"
         elif isinstance(action, Flush):
@@ -207,6 +236,9 @@ engine_test_t* get_tests(void) {
 """)
 
     def endSequence(self, seq, state):
+        if not self.handled:
+            return
+
         val = state.get(TESTKEY)
         if val:
             self.output('    checkValue(h, h1, "%s");\n' % val)
@@ -216,6 +248,9 @@ engine_test_t* get_tests(void) {
         self.output("}\n\n")
 
     def endAction(self, action, state, errored):
+        if not self.handled:
+            return
+
         value = state.get(TESTKEY)
         if value:
             vs = ' // value is "%s"\n' % value
