@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+import sys
+
 import breakdancer
 from breakdancer import Condition, Effect, Action, Driver
 
@@ -158,17 +160,22 @@ class DecrWithDefault(Action):
 
 class EngineTestAppDriver(Driver):
 
+    def __init__(self, writer=sys.stdout):
+        self.writer = writer
+
+    def output(self, s):
+        self.writer.write(s)
+
     def preSuite(self, seq):
-        print '#include "suite_stubs.h"'
-        print ""
+        self.output('#include "suite_stubs.h"\n\n')
 
     def testName(self, seq):
         return 'test_' + '_'.join(a.name for a in seq)
 
     def startSequence(self, seq):
         f = "static enum test_result %s" % self.testName(seq)
-        print ("%s(ENGINE_HANDLE *h,\n%sENGINE_HANDLE_V1 *h1) {"
-               % (f, " " * (len(f) + 1)))
+        self.output(("%s(ENGINE_HANDLE *h,\n%sENGINE_HANDLE_V1 *h1) {\n"
+                     % (f, " " * (len(f) + 1))))
 
     def startAction(self, action):
         if isinstance(action, Delay):
@@ -179,46 +186,47 @@ class EngineTestAppDriver(Driver):
             s = '    del(h, h1);'
         else:
             s = '    %s(h, h1);' % (action.name)
-        print s
+        self.output(s + "\n")
 
     def postSuite(self, seq):
-        print """MEMCACHED_PUBLIC_API
+        self.output("""MEMCACHED_PUBLIC_API
 engine_test_t* get_tests(void) {
 
     static engine_test_t tests[]  = {
-"""
-        for seq in sorted(seq):
-            print '        {"%s",\n         %s,\n         NULL, teardown, NULL},' % (
-                ', '.join(a.name for a in seq),
-                self.testName(seq))
 
-        print """        {NULL, NULL, NULL, NULL, NULL}
+""")
+        for seq in sorted(seq):
+            self.output('        {"%s",\n         %s,\n         NULL, teardown, NULL},\n' % (
+                    ', '.join(a.name for a in seq),
+                    self.testName(seq)))
+
+        self.output("""        {NULL, NULL, NULL, NULL, NULL}
     };
     return tests;
-}"""
+}
+""")
 
     def endSequence(self, seq, state):
         val = state.get(TESTKEY)
         if val:
-            print '    checkValue(h, h1, "%s");' % val
+            self.output('    checkValue(h, h1, "%s");\n' % val)
         else:
-            print '    assertNotExists(h, h1);'
-        print "    return SUCCESS;"
-        print "}"
-        print ""
+            self.output('    assertNotExists(h, h1);\n')
+        self.output("    return SUCCESS;\n")
+        self.output("}\n\n")
 
     def endAction(self, action, state, errored):
         value = state.get(TESTKEY)
         if value:
-            vs = ' // value is "%s"' % value
+            vs = ' // value is "%s"\n' % value
         else:
-            vs = ' // value is not defined'
+            vs = ' // value is not defined\n'
 
         if errored:
-            print "    assertHasError();" + vs
+            self.output("    assertHasError();" + vs)
         else:
-            print "    assertHasNoError();" + vs
+            self.output("    assertHasNoError();" + vs)
 
 if __name__ == '__main__':
     breakdancer.runTest(breakdancer.findActions(globals().values()),
-                        EngineTestAppDriver())
+                        EngineTestAppDriver(sys.stdout))
