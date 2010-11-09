@@ -1382,7 +1382,7 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
         } else if (r == ENGINE_EWOULDBLOCK) {
             connection->queueBGFetch(key, gv.getId());
             // This can optionally collect a few and batch them.
-            connection->runBGFetch(epstore->getDispatcher(), cookie);
+            connection->runBGFetch(epstore->getRODispatcher(), cookie);
             // If there's an item ready, return NOOP so we'll come
             // back immediately, otherwise pause the connection
             // while we wait.
@@ -2401,6 +2401,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doDispatcherStats(const void *cook
                                                                 ADD_STAT add_stat) {
     DispatcherState ds(epstore->getDispatcher()->getDispatcherState());
     doDispatcherStat("dispatcher", ds, cookie, add_stat);
+
+    if (epstore->hasSeparateRODispatcher()) {
+        DispatcherState rods(epstore->getRODispatcher()->getDispatcherState());
+        doDispatcherStat("ro_dispatcher", rods, cookie, add_stat);
+    }
 
     DispatcherState nds(epstore->getNonIODispatcher()->getDispatcherState());
     doDispatcherStat("nio_dispatcher", nds, cookie, add_stat);

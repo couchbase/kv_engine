@@ -97,7 +97,7 @@ bool abort_msg(const char *expr, const char *msg, int line);
     static_cast<void>((expr) ? 0 : abort_msg(#expr, msg, __LINE__))
 
 #define WHITESPACE_DB "whitespace sucks.db"
-
+#define MULTI_DISPATCHER_CONFIG "initfile=t/wal.sql;ht_size=129;ht_locks=3"
 
 protocol_binary_response_status last_status(static_cast<protocol_binary_response_status>(0));
 char *last_key = NULL;
@@ -3006,6 +3006,32 @@ static enum test_result test_disk_gt_ram_rm_race(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+static enum test_result test_multi_dispatcher_conf(ENGINE_HANDLE *h,
+                                                   ENGINE_HANDLE_V1 *h1) {
+    vals.clear();
+    check(h1->get_stats(h, NULL, "dispatcher", strlen("dispatcher"),
+                        add_stats) == ENGINE_SUCCESS,
+          "Failed to get stats.");
+    if (vals.find("ro_dispatcher:status") == vals.end()) {
+        std::cerr << "Expected ro_dispatcher to be running." << std::endl;
+        return FAIL;
+    }
+    return SUCCESS;
+}
+
+static enum test_result test_not_multi_dispatcher_conf(ENGINE_HANDLE *h,
+                                                       ENGINE_HANDLE_V1 *h1) {
+    vals.clear();
+    check(h1->get_stats(h, NULL, "dispatcher", strlen("dispatcher"),
+                        add_stats) == ENGINE_SUCCESS,
+          "Failed to get stats.");
+    if (vals.find("ro_dispatcher:status") != vals.end()) {
+        std::cerr << "Expected ro_dispatcher to not be running." << std::endl;
+        return FAIL;
+    }
+    return SUCCESS;
+}
+
 static bool epsilon(int val, int target, int ep=5) {
     return abs(val - target) < ep;
 }
@@ -3160,6 +3186,8 @@ engine_test_t* get_tests(void) {
         {"flush+restart", test_flush_restart, NULL, teardown, NULL},
         {"flush multiv+restart", test_flush_multiv_restart, NULL, teardown, NULL},
         // disk>RAM tests
+        {"verify not multi dispatcher", test_not_multi_dispatcher_conf, NULL, teardown,
+         NULL},
         {"disk>RAM golden path", test_disk_gt_ram_golden, NULL, teardown, NULL},
         {"disk>RAM paged-out rm", test_disk_gt_ram_paged_rm, NULL, teardown, NULL},
         {"disk>RAM update paged-out", test_disk_gt_ram_update_paged_out, NULL,
@@ -3174,6 +3202,25 @@ engine_test_t* get_tests(void) {
          teardown, NULL},
         {"disk>RAM delete bgfetch race", test_disk_gt_ram_rm_race, NULL,
          teardown, NULL},
+        // disk>RAM tests with WAL
+        {"verify multi dispatcher", test_multi_dispatcher_conf, NULL, teardown,
+         MULTI_DISPATCHER_CONFIG},
+        {"disk>RAM golden path (wal)", test_disk_gt_ram_golden, NULL, teardown,
+         MULTI_DISPATCHER_CONFIG},
+        {"disk>RAM paged-out rm (wal)", test_disk_gt_ram_paged_rm, NULL, teardown,
+         MULTI_DISPATCHER_CONFIG},
+        {"disk>RAM update paged-out (wal)", test_disk_gt_ram_update_paged_out, NULL,
+         teardown, MULTI_DISPATCHER_CONFIG},
+        {"disk>RAM delete paged-out (wal)", test_disk_gt_ram_delete_paged_out, NULL,
+         teardown, MULTI_DISPATCHER_CONFIG},
+        {"disk>RAM paged-out incr (wal)", test_disk_gt_ram_incr, NULL,
+         teardown, MULTI_DISPATCHER_CONFIG},
+        {"disk>RAM set bgfetch race (wal)", test_disk_gt_ram_set_race, NULL,
+         teardown, MULTI_DISPATCHER_CONFIG},
+        {"disk>RAM incr bgfetch race (wal)", test_disk_gt_ram_incr_race, NULL,
+         teardown, MULTI_DISPATCHER_CONFIG},
+        {"disk>RAM delete bgfetch race (wal)", test_disk_gt_ram_rm_race, NULL,
+         teardown, MULTI_DISPATCHER_CONFIG},
         // vbucket negative tests
         {"vbucket incr (dead)", test_wrong_vb_incr, NULL, teardown, NULL},
         {"vbucket incr (pending)", test_vb_incr_pending, NULL, teardown, NULL},

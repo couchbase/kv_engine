@@ -282,6 +282,21 @@ public:
     }
 
     /**
+     * Get the current read-only IO dispatcher.
+     */
+    Dispatcher* getRODispatcher(void) {
+        assert(roDispatcher);
+        return roDispatcher;
+    }
+
+    /**
+     * True if the RW dispatcher and RO dispatcher are distinct.
+     */
+    bool hasSeparateRODispatcher() {
+        return dispatcher != roDispatcher;
+    }
+
+    /**
      * Get the current non-io dispatcher.
      *
      * Use this dispatcher to queue non-io jobs.
@@ -480,6 +495,7 @@ private:
     StrategicSqlite3          *underlying;
     StorageProperties          storageProperties;
     Dispatcher                *dispatcher;
+    Dispatcher                *roDispatcher;
     Dispatcher                *nonIODispatcher;
     Flusher                   *flusher;
     InvalidItemDbPager        *invalidItemDbPager;

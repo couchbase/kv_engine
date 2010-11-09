@@ -373,6 +373,13 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
 
     doPersistence = getenv("EP_NO_PERSISTENCE") == NULL;
     dispatcher = new Dispatcher();
+    if (storageProperties.maxConcurrency() > 1
+        && storageProperties.maxReaders() > 1) {
+        roDispatcher = new Dispatcher();
+        roDispatcher->start();
+    } else {
+        roDispatcher = dispatcher;
+    }
     nonIODispatcher = new Dispatcher();
     flusher = new Flusher(this, dispatcher);
     invalidItemDbPager = new InvalidItemDbPager(this, stats, engine.getVbDelChunkSize());
@@ -406,6 +413,9 @@ public:
 EventuallyPersistentStore::~EventuallyPersistentStore() {
     stopFlusher();
     dispatcher->stop();
+    if (hasSeparateRODispatcher()) {
+        roDispatcher->stop();
+    }
     nonIODispatcher->stop();
 
     delete flusher;
@@ -831,7 +841,7 @@ void EventuallyPersistentStore::bgFetch(const std::string &key,
     ss << "Queued a background fetch, now at " << bgFetchQueue.get()
        << std::endl;
     getLogger()->log(EXTENSION_LOG_DEBUG, NULL, ss.str().c_str());
-    dispatcher->schedule(dcb, NULL, Priority::BgFetcherPriority, bgFetchDelay);
+    roDispatcher->schedule(dcb, NULL, Priority::BgFetcherPriority, bgFetchDelay);
 }
 
 GetValue EventuallyPersistentStore::get(const std::string &key,
@@ -913,7 +923,7 @@ EventuallyPersistentStore::getFromUnderlying(const std::string &key,
                                                                             v->getId(),
                                                                             cookie, cb));
         assert(bgFetchQueue > 0);
-        dispatcher->schedule(dcb, NULL, Priority::VKeyStatBgFetcherPriority, bgFetchDelay);
+        roDispatcher->schedule(dcb, NULL, Priority::VKeyStatBgFetcherPriority, bgFetchDelay);
         return ENGINE_EWOULDBLOCK;
     } else {
         return ENGINE_KEY_ENOENT;
