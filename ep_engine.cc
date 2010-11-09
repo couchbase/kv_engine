@@ -1076,14 +1076,14 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         time_t start = ep_real_time();
         try {
             if (dbStrategy == multi_db) {
-                sqliteStrategy = new MultiDBSqliteStrategy(*this, dbname,
+                sqliteStrategy = new MultiDBSqliteStrategy(dbname,
                                                            initFile, postInitFile,
                                                            dbShards);
             } else {
-                sqliteStrategy = new SqliteStrategy(*this, dbname, initFile,
+                sqliteStrategy = new SqliteStrategy(dbname, initFile,
                                                     postInitFile);
             }
-            sqliteDb = new StrategicSqlite3(*this, sqliteStrategy);
+            sqliteDb = new StrategicSqlite3(stats, sqliteStrategy);
         } catch (std::exception& e) {
             std::stringstream ss;
             ss << "Failed to create database: " << e.what() << std::endl;

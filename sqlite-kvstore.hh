@@ -14,6 +14,7 @@
 #include "sqlite-pst.hh"
 #include "sqlite-strategies.hh"
 #include "item.hh"
+#include "stats.hh"
 
 class EventuallyPersistentEngine;
 class EPStats;
@@ -66,7 +67,7 @@ public:
     /**
      * Construct an instance of sqlite with the given database name.
      */
-    StrategicSqlite3(EventuallyPersistentEngine &theEngine, SqliteStrategy *s);
+    StrategicSqlite3(EPStats &st, SqliteStrategy *s);
 
     /**
      * Cleanup.
@@ -179,7 +180,6 @@ private:
     void update(const Item &itm, uint16_t vb_version, Callback<mutation_result> &cb);
     int64_t lastRowId();
 
-    EventuallyPersistentEngine &engine;
     EPStats &stats;
 
     /**

@@ -7,10 +7,9 @@
 
 #include "sqlite-kvstore.hh"
 #include "sqlite-pst.hh"
-#include "ep_engine.h"
 
-StrategicSqlite3::StrategicSqlite3(EventuallyPersistentEngine &theEngine, SqliteStrategy *s) :
-    engine(theEngine), stats(engine.getEpStats()), strategy(s),
+StrategicSqlite3::StrategicSqlite3(EPStats &st, SqliteStrategy *s) :
+    stats(st), strategy(s),
     intransaction(false) {
     open();
 }

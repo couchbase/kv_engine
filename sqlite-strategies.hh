@@ -13,11 +13,9 @@ class EventuallyPersistentEngine;
 class SqliteStrategy {
 public:
 
-    SqliteStrategy(EventuallyPersistentEngine &theEngine,
-                   const char * const fn,
+    SqliteStrategy(const char * const fn,
                    const char * const finit = NULL,
                    const char * const pfinit = NULL) :
-        engine(theEngine),
         filename(fn),
         initFile(finit),
         postInitFile(pfinit),
@@ -86,7 +84,6 @@ public:
     void close(void);
 
 protected:
-    EventuallyPersistentEngine &engine;
     const char * const filename;
     const char * const initFile;
     const char * const postInitFile;
@@ -115,12 +112,11 @@ private:
 
 class MultiDBSqliteStrategy : public SqliteStrategy {
 public:
-    MultiDBSqliteStrategy(EventuallyPersistentEngine &theEngine,
-                          const char * const fn,
+    MultiDBSqliteStrategy(const char * const fn,
                           const char * const finit = NULL,
                           const char * const pfinit = NULL,
                           int n=4):
-        SqliteStrategy(theEngine, fn, finit, pfinit),
+        SqliteStrategy(fn, finit, pfinit),
         numTables(n)
     {}
 
