@@ -2045,6 +2045,14 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                         add_stat, cookie);
     }
 
+    StorageProperties sprop(epstore->getStorageProperties());
+    add_casted_stat("ep_store_max_concurrency", sprop.maxConcurrency(),
+                    add_stat, cookie);
+    add_casted_stat("ep_store_max_readers", sprop.maxReaders(),
+                    add_stat, cookie);
+    add_casted_stat("ep_store_max_readwrite", sprop.maxWriters(),
+                    add_stat, cookie);
+
     add_casted_stat("ep_num_non_resident", stats.numNonResident, add_stat, cookie);
 
     return ENGINE_SUCCESS;

@@ -361,8 +361,16 @@ private:
 EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine &theEngine,
                                                      StrategicSqlite3 *t,
                                                      bool startVb0) :
-    engine(theEngine), stats(engine.getEpStats()), tctx(stats, t), bgFetchDelay(0)
+    engine(theEngine), stats(engine.getEpStats()), underlying(t),
+    storageProperties(t->getStorageProperties()), tctx(stats, t),
+    bgFetchDelay(0)
 {
+    getLogger()->log(EXTENSION_LOG_INFO, NULL,
+                     "Storage props:  c=%d/r=%d/rw=%d\n",
+                     storageProperties.maxConcurrency(),
+                     storageProperties.maxReaders(),
+                     storageProperties.maxWriters());
+
     doPersistence = getenv("EP_NO_PERSISTENCE") == NULL;
     dispatcher = new Dispatcher();
     nonIODispatcher = new Dispatcher();
@@ -372,8 +380,6 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
     stats.memOverhead = sizeof(EventuallyPersistentStore);
 
     setTxnSize(DEFAULT_TXN_SIZE);
-
-    underlying = t;
 
     if (startVb0) {
         RCPtr<VBucket> vb(new VBucket(0, active, stats));

@@ -2,6 +2,8 @@
 #include "config.h"
 #include <string.h>
 #include <cstdlib>
+#include <cctype>
+#include <algorithm>
 
 #include "sqlite-kvstore.hh"
 #include "sqlite-pst.hh"
@@ -263,4 +265,26 @@ void StrategicSqlite3::dump(Callback<GetValue> &cb) {
 
         st->reset();
     }
+}
+
+static char lc(const char i) {
+    return std::tolower(i);
+}
+
+StorageProperties StrategicSqlite3::getStorageProperties() {
+    // Verify we at least compiled in mutexes.
+    assert(sqlite3_threadsafe());
+    PreparedStatement st(db, "pragma journal_mode");
+    static const std::string wal_str("wal");
+    bool is_wal(false);
+    if (st.fetch()) {
+        std::string s(st.column(0));
+        std::transform(s.begin(), s.end(), s.begin(), lc);
+        getLogger()->log(EXTENSION_LOG_INFO, NULL,
+                         "journal-mode:  %s\n", s.c_str());
+        is_wal = s == wal_str;
+    }
+    size_t concurrency(is_wal ? 10 : 1);
+    StorageProperties rv(concurrency, concurrency - 1, 1);
+    return rv;
 }

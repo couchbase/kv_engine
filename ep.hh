@@ -401,6 +401,13 @@ public:
 
     void deleteMany(std::list<std::pair<uint16_t, std::string> > &);
 
+    /**
+     * Get the memoized storage properties from the DB.kv
+     */
+    const StorageProperties getStorageProperties() const {
+        return storageProperties;
+    }
+
 private:
 
     void scheduleVBSnapshot(const Priority &priority);
@@ -471,6 +478,7 @@ private:
     EPStats                    &stats;
     bool                       doPersistence;
     StrategicSqlite3          *underlying;
+    StorageProperties          storageProperties;
     Dispatcher                *dispatcher;
     Dispatcher                *nonIODispatcher;
     Flusher                   *flusher;
