@@ -3205,6 +3205,9 @@ engine_test_t* get_tests(void) {
         // disk>RAM tests with WAL
         {"verify multi dispatcher", test_multi_dispatcher_conf, NULL, teardown,
          MULTI_DISPATCHER_CONFIG},
+        {"verify multi dispatcher override",
+         test_not_multi_dispatcher_conf, NULL, teardown,
+         MULTI_DISPATCHER_CONFIG ";concurrentDB=false"},
         {"disk>RAM golden path (wal)", test_disk_gt_ram_golden, NULL, teardown,
          MULTI_DISPATCHER_CONFIG},
         {"disk>RAM paged-out rm (wal)", test_disk_gt_ram_paged_rm, NULL, teardown,

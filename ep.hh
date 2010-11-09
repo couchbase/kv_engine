@@ -198,7 +198,8 @@ class EventuallyPersistentStore {
 public:
 
     EventuallyPersistentStore(EventuallyPersistentEngine &theEngine,
-                              StrategicSqlite3 *t, bool startVb0);
+                              StrategicSqlite3 *t, bool startVb0,
+                              bool concurrentDB);
 
     ~EventuallyPersistentStore();
 

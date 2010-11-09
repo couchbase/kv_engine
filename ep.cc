@@ -360,7 +360,8 @@ private:
 
 EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine &theEngine,
                                                      StrategicSqlite3 *t,
-                                                     bool startVb0) :
+                                                     bool startVb0,
+                                                     bool concurrentDB) :
     engine(theEngine), stats(engine.getEpStats()), underlying(t),
     storageProperties(t->getStorageProperties()), tctx(stats, t),
     bgFetchDelay(0)
@@ -374,7 +375,8 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
     doPersistence = getenv("EP_NO_PERSISTENCE") == NULL;
     dispatcher = new Dispatcher();
     if (storageProperties.maxConcurrency() > 1
-        && storageProperties.maxReaders() > 1) {
+        && storageProperties.maxReaders() > 1
+        && concurrentDB) {
         roDispatcher = new Dispatcher();
         roDispatcher->start();
     } else {

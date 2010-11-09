@@ -61,3 +61,5 @@ memcached like this:
 | vb_del_chunk_size  | int    | Chunk size of vbucket deletion                 |
 | vb_chunk_del_time  | int    | vb chunk deletion threshold time (ms) used for |
 |                    |        | adjusting the chunk size dynamically           |
+| concurrentDB       | bool   | True (default) if concurrent DB reads are      |
+|                    |        | permitted where possible.                      |

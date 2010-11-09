@@ -819,8 +819,8 @@ EXTENSION_LOGGER_DESCRIPTOR *getLogger(void) {
 EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server_api) :
     dbname("/tmp/test.db"), initFile(NULL), postInitFile(NULL), dbStrategy(multi_db),
     warmup(true), wait_for_warmup(true), fail_on_partial_warmup(true),
-    startVb0(true), sqliteStrategy(NULL), sqliteDb(NULL), epstore(NULL),
-    databaseInitTime(0), tapKeepAlive(0),
+    startVb0(true), concurrentDB(true), sqliteStrategy(NULL), sqliteDb(NULL),
+    epstore(NULL), databaseInitTime(0), tapKeepAlive(0),
     tapNoopInterval(DEFAULT_TAP_NOOP_INTERVAL), nextTapNoop(0),
     startedEngineThreads(false), shutdown(false),
     getServerApiFunc(get_server_api), getlExtension(NULL),
@@ -919,6 +919,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         items[ii].key = "vb0";
         items[ii].datatype = DT_BOOL;
         items[ii].value.dt_bool = &startVb0;
+
+        ++ii;
+        items[ii].key = "concurrentDB";
+        items[ii].datatype = DT_BOOL;
+        items[ii].value.dt_bool = &concurrentDB;
 
         ++ii;
         items[ii].key = "tap_keepalive";
@@ -1103,7 +1108,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         stats.mem_high_wat = memHighWat;
 
         databaseInitTime = ep_real_time() - start;
-        epstore = new EventuallyPersistentStore(*this, sqliteDb, startVb0);
+        epstore = new EventuallyPersistentStore(*this, sqliteDb, startVb0,
+                                                concurrentDB);
         if (epstore == NULL) {
             ret = ENGINE_ENOMEM;
             return ret;

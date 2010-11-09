@@ -591,6 +591,7 @@ private:
     bool wait_for_warmup;
     bool fail_on_partial_warmup;
     bool startVb0;
+    bool concurrentDB;
     SERVER_HANDLE_V1 *serverApi;
     SqliteStrategy *sqliteStrategy;
     StrategicSqlite3 *sqliteDb;
