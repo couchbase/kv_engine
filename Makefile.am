@@ -74,7 +74,7 @@ ep_testsuite_la_LIBADD += $(LIBSQLITE3)
 endif
 
 libsqlite3_la_SOURCES = embedded/sqlite3.h embedded/sqlite3.c
-libsqlite3_la_CFLAGS = $(AM_CFLAGS) ${NO_WERROR} -DSQLITE_THREADSAFE=2
+libsqlite3_la_CFLAGS = $(AM_CFLAGS) ${NO_WERROR} -DSQLITE_THREADSAFE=1
 
 check_PROGRAMS=atomic_test atomic_ptr_test atomic_queue_test hash_table_test priority_test vbucket_test dispatcher_test misc_test hrtime_test histo_test chunk_creation_test ringbuffer_test
 
