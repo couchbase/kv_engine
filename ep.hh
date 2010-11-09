@@ -481,6 +481,10 @@ private:
     StoredValue *fetchValidValue(RCPtr<VBucket> vb, const std::string &key,
                                  int bucket_num, bool wantsDeleted=false);
 
+    bool shouldPreemptFlush() {
+        return (bgFetchQueue > 0 && !hasSeparateRODispatcher());
+    }
+
     friend class Flusher;
     friend class BGFetchCallback;
     friend class VKeyStatBGFetchCallback;
