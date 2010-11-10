@@ -10,7 +10,15 @@
 
 sqlite3 *SqliteStrategy::open(void) {
     if(!db) {
-        if(sqlite3_open(filename, &db) !=  SQLITE_OK) {
+        if (sqlite3_enable_shared_cache(1) != SQLITE_OK) {
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                             "Unable to enable shared cache.\n");
+        }
+
+        int flags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE
+            | SQLITE_OPEN_FULLMUTEX | SQLITE_OPEN_SHAREDCACHE;
+
+        if(sqlite3_open_v2(filename, &db, flags, NULL) !=  SQLITE_OK) {
             throw std::runtime_error("Error initializing sqlite3");
         }
 
