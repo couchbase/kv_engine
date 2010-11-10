@@ -70,6 +70,11 @@ public:
     StrategicSqlite3(EPStats &st, SqliteStrategy *s);
 
     /**
+     * Copying opens a new underlying DB.
+     */
+    StrategicSqlite3(const StrategicSqlite3 &from);
+
+    /**
      * Cleanup.
      */
     ~StrategicSqlite3() {
@@ -202,6 +207,10 @@ private:
     SqliteStrategy *strategy;
 
     bool intransaction;
+
+
+    // Disallow assignment.
+    void operator=(const StrategicSqlite3 &from);
 };
 
 #endif /* SQLITE_BASE_H */

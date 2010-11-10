@@ -14,6 +14,11 @@ StrategicSqlite3::StrategicSqlite3(EPStats &st, SqliteStrategy *s) :
     open();
 }
 
+StrategicSqlite3::StrategicSqlite3(const StrategicSqlite3 &from) :
+    stats(from.stats), strategy(from.strategy),
+    intransaction(false) {
+    open();
+}
 
 int64_t StrategicSqlite3::lastRowId() {
     assert(db);
