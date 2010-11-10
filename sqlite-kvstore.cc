@@ -278,17 +278,28 @@ static char lc(const char i) {
 StorageProperties StrategicSqlite3::getStorageProperties() {
     // Verify we at least compiled in mutexes.
     assert(sqlite3_threadsafe());
-    PreparedStatement st(db, "pragma journal_mode");
-    static const std::string wal_str("wal");
-    bool is_wal(false);
-    if (st.fetch()) {
-        std::string s(st.column(0));
-        std::transform(s.begin(), s.end(), s.begin(), lc);
-        getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                         "journal-mode:  %s\n", s.c_str());
-        is_wal = s == wal_str;
+    bool allows_concurrency(false);
+    {
+        PreparedStatement st(db, "pragma journal_mode");
+        static const std::string wal_str("wal");
+        if (st.fetch()) {
+            std::string s(st.column(0));
+            std::transform(s.begin(), s.end(), s.begin(), lc);
+            getLogger()->log(EXTENSION_LOG_INFO, NULL,
+                             "journal-mode:  %s\n", s.c_str());
+            allows_concurrency = s == wal_str;
+        }
     }
-    size_t concurrency(is_wal ? 10 : 1);
+    if (allows_concurrency) {
+        PreparedStatement st(db, "pragma read_uncommitted");
+        if (st.fetch()) {
+            allows_concurrency = st.column_int(0) == 1;
+            getLogger()->log(EXTENSION_LOG_INFO, NULL,
+                             "read_uncommitted:  %s\n",
+                             allows_concurrency ? "yes" : "no");
+        }
+    }
+    size_t concurrency(allows_concurrency ? 10 : 1);
     StorageProperties rv(concurrency, concurrency - 1, 1);
     return rv;
 }
