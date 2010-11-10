@@ -33,7 +33,7 @@ bool StatSnap::getStats(const char *s) {
 
 bool StatSnap::callback(Dispatcher &d, TaskId t) {
     if (getStats()) {
-        engine->getEpStore()->getUnderlying()->snapshotStats(map);
+        engine->getEpStore()->getRWUnderlying()->snapshotStats(map);
     }
     d.snooze(t, STATSNAP_FREQ);
     return true;

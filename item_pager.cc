@@ -186,7 +186,7 @@ bool InvalidItemDbPager::callback(Dispatcher &d, TaskId t) {
     std::list<row_range>::iterator rit = it->second.begin();
     uint16_t vbid = it->first;
     uint16_t vb_version = vb_versions[vbid];
-    if (store->getUnderlying()->delVBucket(vbid, vb_version, *rit)) {
+    if (store->getRWUnderlying()->delVBucket(vbid, vb_version, *rit)) {
         it->second.erase(rit);
         if (it->second.begin() == it->second.end()) {
             vb_row_ranges.erase(it);

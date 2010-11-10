@@ -369,7 +369,7 @@ public:
     void warmup() {
         LoadStorageKVPairCallback cb(vbuckets, stats, this);
         std::map<std::pair<uint16_t, uint16_t>, std::string> state =
-            underlying->listPersistedVbuckets();
+            roUnderlying->listPersistedVbuckets();
         std::map<std::pair<uint16_t, uint16_t>, std::string>::iterator it;
         for (it = state.begin(); it != state.end(); ++it) {
             std::pair<uint16_t, uint16_t> vbp = it->first;
@@ -378,7 +378,7 @@ public:
                              vbp.first, it->second.c_str());
             cb.initVBucket(vbp.first, vbp.second);
         }
-        underlying->dump(cb);
+        roUnderlying->dump(cb);
         invalidItemDbPager->createRangeList();
     }
 
@@ -406,9 +406,14 @@ public:
                                 rel_time_t currentTime);
 
 
-    StrategicSqlite3* getUnderlying() {
+    StrategicSqlite3* getRWUnderlying() {
         // This method might also be called leakAbstraction()
-        return underlying;
+        return rwUnderlying;
+    }
+
+    StrategicSqlite3* getROUnderlying() {
+        // This method might also be called leakAbstraction()
+        return roUnderlying;
     }
 
     InvalidItemDbPager* getInvalidItemDbPager() {
@@ -497,7 +502,8 @@ private:
     EventuallyPersistentEngine &engine;
     EPStats                    &stats;
     bool                       doPersistence;
-    StrategicSqlite3          *underlying;
+    StrategicSqlite3          *rwUnderlying;
+    StrategicSqlite3          *roUnderlying;
     StorageProperties          storageProperties;
     Dispatcher                *dispatcher;
     Dispatcher                *roDispatcher;

@@ -339,7 +339,7 @@ public:
         EventuallyPersistentStore *epstore = epe->getEpStore();
         assert(epstore);
 
-        epstore->getUnderlying()->get(key, rowid, gcb);
+        epstore->getROUnderlying()->get(key, rowid, gcb);
         gcb.waitForValue();
         assert(gcb.fired);
 

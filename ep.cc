@@ -102,7 +102,7 @@ public:
         (void)d; (void)t;
         RememberingCallback<GetValue> gcb;
 
-        ep->getUnderlying()->get(key, rowid, gcb);
+        ep->getROUnderlying()->get(key, rowid, gcb);
         gcb.waitForValue();
         assert(gcb.fired);
         lookup_cb->callback(gcb.val);
@@ -362,7 +362,7 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
                                                      StrategicSqlite3 *t,
                                                      bool startVb0,
                                                      bool concurrentDB) :
-    engine(theEngine), stats(engine.getEpStats()), underlying(t),
+    engine(theEngine), stats(engine.getEpStats()), rwUnderlying(t),
     storageProperties(t->getStorageProperties()), tctx(stats, t),
     bgFetchDelay(0)
 {
@@ -377,9 +377,11 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
     if (storageProperties.maxConcurrency() > 1
         && storageProperties.maxReaders() > 1
         && concurrentDB) {
+        roUnderlying = new StrategicSqlite3(*rwUnderlying);
         roDispatcher = new Dispatcher();
         roDispatcher->start();
     } else {
+        roUnderlying = rwUnderlying;
         roDispatcher = dispatcher;
     }
     nonIODispatcher = new Dispatcher();
@@ -399,7 +401,8 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
     startDispatcher();
     startFlusher();
     startNonIODispatcher();
-    assert(underlying);
+    assert(rwUnderlying);
+    assert(roUnderlying);
 }
 
 class VerifyStoredVisitor : public HashTableVisitor {
@@ -417,6 +420,7 @@ EventuallyPersistentStore::~EventuallyPersistentStore() {
     dispatcher->stop();
     if (hasSeparateRODispatcher()) {
         roDispatcher->stop();
+        delete roUnderlying;
     }
     nonIODispatcher->stop();
 
@@ -669,7 +673,7 @@ void EventuallyPersistentStore::snapshotVBuckets(const Priority &priority) {
 
     VBucketStateVisitor v(vbuckets);
     visit(v);
-    if (!underlying->snapshotVBuckets(v.states)) {
+    if (!rwUnderlying->snapshotVBuckets(v.states)) {
         getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
                          "Rescheduling a task to snapshot vbuckets\n");
         scheduleVBSnapshot(priority);
@@ -723,7 +727,7 @@ EventuallyPersistentStore::completeVBucketDeletion(uint16_t vbid, uint16_t vb_ve
     if (!vb || vb->getState() == dead || vbuckets.isBucketDeletion(vbid)) {
         lh.unlock();
         if (row_range.first < 0 || row_range.second < 0 ||
-            underlying->delVBucket(vbid, vb_version, row_range)) {
+            rwUnderlying->delVBucket(vbid, vb_version, row_range)) {
             if (isLastChunk) {
                 vbuckets.setBucketDeletion(vbid, false);
                 ++stats.vbucketDeletions;
@@ -786,7 +790,7 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
     // Go find the data
     RememberingCallback<GetValue> gcb;
 
-    underlying->get(key, rowid, gcb);
+    roUnderlying->get(key, rowid, gcb);
     gcb.waitForValue();
     assert(gcb.fired);
 
@@ -1112,7 +1116,7 @@ std::queue<QueuedItem>* EventuallyPersistentStore::beginFlush() {
     if (towrite.empty() && writing.empty()) {
         stats.dirtyAge = 0;
     } else {
-        assert(underlying);
+        assert(rwUnderlying);
         towrite.getAll(writing);
         stats.flusher_todo.set(writing.size());
         stats.queue_size.set(towrite.size());
@@ -1294,7 +1298,7 @@ private:
 };
 
 int EventuallyPersistentStore::flushOneDeleteAll() {
-    underlying->reset();
+    rwUnderlying->reset();
     return 1;
 }
 
@@ -1394,7 +1398,7 @@ int EventuallyPersistentStore::flushOneDelOrSet(QueuedItem &qi,
                 BlockTimer timer(rowid == -1 ?
                                  &stats.diskInsertHisto : &stats.diskUpdateHisto);
                 PersistenceCallback cb(qi, rejectQueue, this, queued, dirtied, &stats);
-                underlying->set(*val, qi.getVBucketVersion(), cb);
+                rwUnderlying->set(*val, qi.getVBucketVersion(), cb);
             }
         }
     } else if (deleted) {
@@ -1402,7 +1406,7 @@ int EventuallyPersistentStore::flushOneDelOrSet(QueuedItem &qi,
         BlockTimer timer(&stats.diskDelHisto);
         PersistenceCallback cb(qi, rejectQueue, this, queued, dirtied, &stats);
         if (rowid > 0) {
-            underlying->del(qi.getKey(), rowid, cb);
+            rwUnderlying->del(qi.getKey(), rowid, cb);
         } else {
             // bypass deletion if missing items, but still call the
             // deletion callback for clean cleanup.
