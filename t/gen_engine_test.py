@@ -214,7 +214,7 @@ class EngineTestAppDriver(Driver):
         sclasses = [type(a) for a in seq]
         # A list of lists of classes such that any test that includes
         # the inner list in order should be skipped.
-        bads = [[GetLock, Append], [GetLock, Prepend]]
+        bads = []
         for b in bads:
             try:
                 nextIdx = 0
