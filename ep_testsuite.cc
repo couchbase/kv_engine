@@ -412,6 +412,30 @@ static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(h1->remove(h, NULL, key, 2, 0, 0) == ENGINE_TMPFAIL,
           "Delete failed");
 
+
+    /* bug MB 2699 append after getl should fail with ENGINE_TMPFAIL */
+
+    testHarness.time_travel(16);
+
+    char binaryData1[] = "abcdefg\0gfedcba\r\n";
+    char binaryData2[] = "abzdefg\0gfedcba\r\n";
+
+    check(storeCasVb11(h, h1, NULL, OPERATION_SET, key,
+                       binaryData1, sizeof(binaryData1) - 1, 82758, &i, 0, 0)
+          == ENGINE_SUCCESS,
+          "Failed set.");
+
+    /* acquire lock, should succeed */
+    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
+          "Lock failed");
+
+
+    /* append should fail */
+    check(storeCasVb11(h, h1, NULL, OPERATION_APPEND, key,
+                       binaryData2, sizeof(binaryData2) - 1, 82758, &i, 0, 0)
+          == ENGINE_TMPFAIL,
+          "Append should fail.");
+
     return SUCCESS;
 }
 

@@ -1244,6 +1244,11 @@ ENGINE_ERROR_CODE  EventuallyPersistentEngine::store(const void *cookie,
                            it->getNKey(), vbucket)) == ENGINE_SUCCESS) {
                 Item *old = reinterpret_cast<Item*>(i);
 
+                if (old->getCas() == (uint64_t) -1) {
+                    // item is locked against updates
+                    return ENGINE_TMPFAIL;
+                }
+
                 if (operation == OPERATION_APPEND) {
                     if (!old->append(*it)) {
                         itemRelease(cookie, i);
