@@ -42,7 +42,7 @@ def set_param(mc, key, val, username=None, password=""):
 
 def evict(mc, key, username=None, password=""):
     auth(mc, username, password)
-    mc.evict_key(key, val)
+    mc.evict_key(key)
 
 if __name__ == '__main__':
 
