@@ -42,11 +42,18 @@ extern "C" {
         return 0;
     }
 
+    static rel_time_t default_reltime(time_t t) {
+        (void)t;
+        abort();
+        return 0;
+    }
+
     rel_time_t (*ep_current_time)() = uninitialized_current_time;
     time_t (*ep_abs_time)(rel_time_t) = default_abs_time;
+    rel_time_t (*ep_reltime)(time_t) = default_reltime;
 
     time_t ep_real_time() {
-        return ep_abs_time(0);
+        return ep_abs_time(ep_current_time());
     }
 }
 

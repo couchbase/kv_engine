@@ -125,7 +125,7 @@ public:
             return ENGINE_E2BIG;
         }
 
-        time_t expiretime = (exptime == 0) ? 0 : ep_abs_time(exptime);
+        time_t expiretime = (exptime == 0) ? 0 : ep_abs_time(ep_reltime(exptime));
 
         *item = new Item(key, nkey, nbytes, flags, expiretime);
         if (*item == NULL) {
@@ -215,7 +215,7 @@ public:
 
         rel_time_t expiretime = (exptime == 0 ||
                                  exptime == 0xffffffff) ?
-            0 : ep_abs_time(exptime);
+            0 : ep_abs_time(ep_reltime(exptime));
 
         ENGINE_ERROR_CODE ret = get(cookie, &it, key, nkey, vbucket);
         if (ret == ENGINE_SUCCESS) {
