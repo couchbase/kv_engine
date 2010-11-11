@@ -773,6 +773,7 @@ extern "C" {
 
         ep_current_time = api->core->get_current_time;
         ep_abs_time = api->core->abstime;
+        ep_reltime = api->core->realtime;
 
         *handle = reinterpret_cast<ENGINE_HANDLE*> (engine);
         return ENGINE_SUCCESS;

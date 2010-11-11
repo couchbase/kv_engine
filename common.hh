@@ -56,6 +56,7 @@ extern EXTENSION_LOGGER_DESCRIPTOR *getLogger(void);
 extern "C" {
     extern rel_time_t (*ep_current_time)();
     extern time_t (*ep_abs_time)(rel_time_t);
+    extern rel_time_t (*ep_reltime)(time_t);
     extern time_t ep_real_time();
 }
 
