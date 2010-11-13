@@ -1546,6 +1546,9 @@ void EventuallyPersistentEngine::createTapQueue(const void *cookie,
     tapConnMap.notify();
 }
 
+//! Global token indicating an incoming stream supports tap ACK.
+static const void* supportsACK = NULL;
+
 ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
                                                         void *engine_specific,
                                                         uint16_t nengine,
@@ -1593,9 +1596,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
 
             /* @TODO we don't have CAS now.. we might in the future.. */
             (void)cas;
-            ENGINE_ERROR_CODE ret = epstore->set(*item, cookie, true);
+            bool acked = serverApi->cookie->get_engine_specific(cookie) == &supportsACK;
+            ENGINE_ERROR_CODE ret = epstore->set(*item, cookie, !acked);
             if (ret == ENGINE_SUCCESS) {
                 addMutationEvent(item, vbucket);
+            } else if(ret == ENGINE_EWOULDBLOCK) {
+                ret = ENGINE_TMPFAIL;
             }
 
             delete item;
@@ -1611,6 +1617,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
 
                 switch (cc) {
                 case TAP_OPAQUE_ENABLE_AUTO_NACK:
+                    serverApi->cookie->store_engine_specific(cookie, &supportsACK);
+
                     getLogger()->log(EXTENSION_LOG_INFO, NULL,
                                      "Enable auto nack mode\n");
                     serverApi->cookie->set_tap_nack_mode(cookie, true);
