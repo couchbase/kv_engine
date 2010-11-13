@@ -123,9 +123,13 @@ void Dispatcher::run() {
                                  task->getName().c_str());
             }
             running_task = false;
-            joblog.add(JobLogEntry(taskDesc,
-                                   (gethrtime() - taskStart) / 1000,
-                                   ep_current_time()));
+
+            hrtime_t runtime((gethrtime() - taskStart) / 1000);
+            JobLogEntry jle(taskDesc, runtime, ep_current_time());
+            joblog.add(jle);
+            if (runtime > task->maxExpectedDuration()) {
+                slowjobs.add(jle);
+            }
         }
     }
 

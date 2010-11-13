@@ -2403,8 +2403,28 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTimingStats(const void *cookie,
     return ENGINE_SUCCESS;
 }
 
+static void showJobLog(const char *prefix, const char *logname,
+                       const std::vector<JobLogEntry> log,
+                       const void *cookie, ADD_STAT add_stat) {
+    char statname[80] = {0};
+    for (size_t i = 0; i < log.size(); ++i) {
+        snprintf(statname, sizeof(statname), "%s:%s:%d:task",
+                 prefix, logname, static_cast<int>(i));
+        add_casted_stat(statname, log[i].getName().c_str(),
+                        add_stat, cookie);
+        snprintf(statname, sizeof(statname), "%s:%s:%d:starttime",
+                 prefix, logname, static_cast<int>(i));
+        add_casted_stat(statname, log[i].getTimestamp(),
+                        add_stat, cookie);
+        snprintf(statname, sizeof(statname), "%s:%s:%d:runtime",
+                 prefix, logname, static_cast<int>(i));
+        add_casted_stat(statname, log[i].getDuration(),
+                        add_stat, cookie);
+    }
+}
+
 static void doDispatcherStat(const char *prefix, const DispatcherState &ds,
-                      const void *cookie, ADD_STAT add_stat) {
+                             const void *cookie, ADD_STAT add_stat) {
     char statname[80] = {0};
     snprintf(statname, sizeof(statname), "%s:state", prefix);
     add_casted_stat(statname, ds.getStateName(), add_stat, cookie);
@@ -2423,21 +2443,8 @@ static void doDispatcherStat(const char *prefix, const DispatcherState &ds,
                         add_stat, cookie);
     }
 
-    std::vector<JobLogEntry> log(ds.getLog());
-    for (size_t i = 0; i < log.size(); ++i) {
-        snprintf(statname, sizeof(statname), "%s:log:%d:task",
-                 prefix, static_cast<int>(i));
-        add_casted_stat(statname, log[i].getName().c_str(),
-                        add_stat, cookie);
-        snprintf(statname, sizeof(statname), "%s:log:%d:starttime",
-                 prefix, static_cast<int>(i));
-        add_casted_stat(statname, log[i].getTimestamp(),
-                        add_stat, cookie);
-        snprintf(statname, sizeof(statname), "%s:log:%d:runtime",
-                 prefix, static_cast<int>(i));
-        add_casted_stat(statname, log[i].getDuration(),
-                        add_stat, cookie);
-    }
+    showJobLog(prefix, "log", ds.getLog(), cookie, add_stat);
+    showJobLog(prefix, "slow", ds.getSlowLog(), cookie, add_stat);
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doDispatcherStats(const void *cookie,

@@ -138,6 +138,7 @@ def stats_dispatcher(mc, with_logs='no'):
     sorig = mc.stats('dispatcher')
     s = {}
     logs = {}
+    slowlogs = {}
     for k,v in sorig.items():
         ak = tuple(k.split(':'))
         if ak[-1] == 'runtime':
@@ -145,17 +146,20 @@ def stats_dispatcher(mc, with_logs='no'):
 
         dispatcher = ak[0]
 
-        if dispatcher not in logs:
-            logs[dispatcher] = {}
+        for h in [logs, slowlogs]:
+            if dispatcher not in h:
+                h[dispatcher] = {}
+
         if ak[0] not in s:
             s[dispatcher] = {}
 
-        if ak[1] == 'log':
+        if ak[1] in ['log', 'slow']:
             offset = int(ak[2])
             field = ak[3]
-            if offset not in logs[dispatcher]:
-                logs[dispatcher][offset] = {}
-            logs[dispatcher][offset][field] = v
+            h = {'log': logs, 'slow': slowlogs}[ak[1]]
+            if offset not in h[dispatcher]:
+                h[dispatcher][offset] = {}
+            h[dispatcher][offset][field] = v
         else:
             field = ak[1]
             s[dispatcher][field] = v
@@ -163,11 +167,12 @@ def stats_dispatcher(mc, with_logs='no'):
     for dispatcher in sorted(s):
         print " %s" % dispatcher
         stats_formatter(s[dispatcher], "     ")
-        if with_logs and logs[dispatcher]:
-            print "     Log:"
-            for offset, fields in sorted(logs[dispatcher].items()):
-                stats_formatter(fields, "        ")
-                print "        ---------"
+        for l,h in [('Slow jobs', slowlogs), ('Recent jobs', logs)]:
+            if with_logs and h[dispatcher]:
+                print "     %s:" % l
+                for offset, fields in sorted(h[dispatcher].items()):
+                    stats_formatter(fields, "        ")
+                    print "        ---------"
 
 @cmd
 def reset(mc):

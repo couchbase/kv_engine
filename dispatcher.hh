@@ -85,6 +85,15 @@ public:
 
     //! Print a human-readable description of this callback.
     virtual std::string description() = 0;
+
+    /**
+     * Maximum amount of time (in microseconds) this job should run
+     * before considered slow.
+     */
+    virtual hrtime_t maxExpectedDuration() {
+        // Default == 1 second
+        return 1 * 1000 * 1000;
+    }
 };
 
 class CompareTasksByDueDate;
@@ -131,6 +140,10 @@ private:
         return callback->description();
     }
 
+    hrtime_t maxExpectedDuration() {
+        return callback->maxExpectedDuration();
+    }
+
     friend class Dispatcher;
     struct timeval waketime;
     shared_ptr<DispatcherCallback> callback;
@@ -169,9 +182,10 @@ public:
     DispatcherState(const std::string &name,
                     enum dispatcher_state st,
                     hrtime_t start, bool running,
-                    std::vector<JobLogEntry> jl)
-        : joblog(jl), taskName(name), state(st), taskStart(start),
-          running_task(running) {}
+                    std::vector<JobLogEntry> jl,
+                    std::vector<JobLogEntry> sj)
+        : joblog(jl), slowjobs(sj), taskName(name),
+          state(st), taskStart(start), running_task(running) {}
 
     /**
      * Get the name of the current dispatcher state.
@@ -206,8 +220,14 @@ public:
      */
     const std::vector<JobLogEntry> getLog() const { return joblog; }
 
+    /**
+     * Retrieve the log of recently completed slow jobs.
+     */
+    const std::vector<JobLogEntry> getSlowLog() const { return slowjobs; }
+
 private:
     const std::vector<JobLogEntry> joblog;
+    const std::vector<JobLogEntry> slowjobs;
     const std::string taskName;
     const enum dispatcher_state state;
     const hrtime_t taskStart;
@@ -219,7 +239,8 @@ private:
  */
 class Dispatcher {
 public:
-    Dispatcher() : joblog(JOB_LOG_SIZE), state(dispatcher_running) {
+    Dispatcher() : joblog(JOB_LOG_SIZE), slowjobs(JOB_LOG_SIZE),
+                   state(dispatcher_running) {
         noTask();
     }
 
@@ -292,7 +313,7 @@ public:
     DispatcherState getDispatcherState() {
         LockHolder lh(mutex);
         return DispatcherState(taskDesc, state, taskStart, running_task,
-                               joblog.contents());
+                               joblog.contents(), slowjobs.contents());
     }
 
 private:
@@ -335,6 +356,7 @@ private:
     std::priority_queue<TaskId, std::deque<TaskId >,
                         CompareTasksByDueDate> futureQueue;
     RingBuffer<JobLogEntry> joblog;
+    RingBuffer<JobLogEntry> slowjobs;
     enum dispatcher_state state;
     hrtime_t taskStart;
     bool running_task;

@@ -31,6 +31,12 @@ public:
         return std::string("Running a flusher loop.");
     }
 
+    hrtime_t maxExpectedDuration() {
+        // Flusher can take a while, but let's report if it runs for
+        // more than ten minutes.
+        return 10 * 60 * 1000 * 1000;
+    }
+
 private:
     Flusher *flusher;
 };
