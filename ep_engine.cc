@@ -825,7 +825,7 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server
     tapNoopInterval(DEFAULT_TAP_NOOP_INTERVAL), nextTapNoop(0),
     startedEngineThreads(false), shutdown(false),
     getServerApiFunc(get_server_api), getlExtension(NULL),
-    tapEnabled(false), maxItemSize(20*1024*1024), tapBacklogLimit(5000),
+    maxItemSize(20*1024*1024), tapBacklogLimit(5000),
     memLowWat(std::numeric_limits<size_t>::max()),
     memHighWat(std::numeric_limits<size_t>::max()),
     minDataAge(DEFAULT_MIN_DATA_AGE),
@@ -1563,12 +1563,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
                                                         uint16_t vbucket) {
     (void)ttl;
 
-    // If cookie is null, this is the internal tap client, so we
-    // should disconnect it if tap isn't enabled.
-    if (!cookie && !tapEnabled) {
-        return ENGINE_DISCONNECT;
-    }
-
     std::string k(static_cast<const char*>(key), nkey);
 
     switch (tap_event) {
@@ -2249,9 +2243,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTapStats(const void *cookie,
     add_casted_stat("ep_tap_noop_interval", tapNoopInterval, add_stat, cookie);
 
     add_casted_stat("ep_tap_count", aggregator.totalTaps, add_stat, cookie);
-
-    add_casted_stat("ep_replication_state",
-                    tapEnabled? "enabled": "disabled", add_stat, cookie);
 
     add_casted_stat("ep_tap_ack_window_size", TapConnection::ackWindowSize,
                     add_stat, cookie);

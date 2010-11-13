@@ -615,7 +615,6 @@ private:
 
     TapConnMap tapConnMap;
     Mutex tapMutex;
-    bool tapEnabled;
     size_t maxItemSize;
     size_t tapBacklogLimit;
     size_t memLowWat;
