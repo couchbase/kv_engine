@@ -473,9 +473,10 @@ public:
         return storageProperties;
     }
 
+    void scheduleVBSnapshot(const Priority &priority);
+
 private:
 
-    void scheduleVBSnapshot(const Priority &priority);
     void scheduleVBDeletion(RCPtr<VBucket> vb, uint16_t vb_version, double delay);
 
     RCPtr<VBucket> getVBucket(uint16_t vbid, vbucket_state_t wanted_state);
