@@ -80,6 +80,11 @@ public:
         abort();
     }
 
+    /**
+     * Called after all vbuckets have been visited.
+     */
+    virtual void complete() { }
+
 protected:
     RCPtr<VBucket> currentBucket;
 };
@@ -364,6 +369,7 @@ public:
                 }
             }
         }
+        visitor.complete();
     }
 
     void warmup() {
