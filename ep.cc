@@ -1622,3 +1622,22 @@ void TransactionContext::commit() {
     stats.cumulativeCommitTime.incr(complete_time - cstart);
     intxn = false;
 }
+
+bool VBCBAdaptor::callback(Dispatcher &d, TaskId t) {
+    (void)d;
+    (void)t;
+    RCPtr<VBucket> vb = store->vbuckets.getBucket(currentvb);
+    if (vb) {
+        if (visitor->visitBucket(vb)) {
+            vb->ht.visit(*visitor);
+        }
+    }
+    size_t maxSize = store->vbuckets.getSize();
+    assert(currentvb <= std::numeric_limits<uint16_t>::max());
+    bool isdone = currentvb >= static_cast<uint16_t>(maxSize);
+    ++currentvb;
+    if (isdone) {
+        visitor->complete();
+    }
+    return !isdone;
+}

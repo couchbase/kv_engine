@@ -197,6 +197,33 @@ private:
     bool              intxn;
 };
 
+/**
+ * VBucket visitor callback adaptor.
+ */
+class VBCBAdaptor : public DispatcherCallback {
+public:
+
+    VBCBAdaptor(EventuallyPersistentStore *s,
+                shared_ptr<VBucketVisitor> v, const char *l)
+        : store(s), visitor(v), label(l), currentvb(0) {}
+
+    std::string description() {
+        std::stringstream rv;
+        rv << label << " on vb " << currentvb;
+        return rv.str();
+    }
+
+    bool callback(Dispatcher &d, TaskId t);
+
+private:
+    EventuallyPersistentStore  *store;
+    shared_ptr<VBucketVisitor>  visitor;
+    const char                 *label;
+    uint16_t                    currentvb;
+
+    DISALLOW_COPY_AND_ASSIGN(VBCBAdaptor);
+};
+
 class EventuallyPersistentEngine;
 
 class EventuallyPersistentStore {
@@ -372,6 +399,17 @@ public:
         visitor.complete();
     }
 
+    /**
+     * Run a vbucket visitor with separate jobs per vbucket.
+     *
+     * Note that this is asynchronous.
+     */
+    void visit(shared_ptr<VBucketVisitor> visitor, const char *lbl,
+               Dispatcher *d, const Priority &prio, bool isDaemon=true) {
+        d->schedule(shared_ptr<DispatcherCallback>(new VBCBAdaptor(this, visitor, lbl)),
+                    NULL, prio, isDaemon);
+    }
+
     void warmup() {
         LoadStorageKVPairCallback cb(vbuckets, stats, this);
         std::map<std::pair<uint16_t, uint16_t>, std::string> state =
@@ -504,6 +542,7 @@ private:
     friend class TapConnection;
     friend class PersistenceCallback;
     friend class Deleter;
+    friend class VBCBAdaptor;
 
     EventuallyPersistentEngine &engine;
     EPStats                    &stats;
