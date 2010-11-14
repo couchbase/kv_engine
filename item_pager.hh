@@ -29,7 +29,7 @@ public:
      * @param st the stats
      */
     ItemPager(EventuallyPersistentStore *s, EPStats &st) :
-        store(s), stats(st) {}
+        store(s), stats(st), available(true) {}
 
     bool callback(Dispatcher &d, TaskId t);
 
@@ -38,6 +38,7 @@ public:
 private:
     EventuallyPersistentStore *store;
     EPStats                   &stats;
+    bool                       available;
 };
 
 /**
@@ -56,7 +57,8 @@ public:
      */
     ExpiredItemPager(EventuallyPersistentStore *s, EPStats &st,
                      size_t stime) :
-        store(s), stats(st), sleepTime(static_cast<double>(stime)) {}
+        store(s), stats(st), sleepTime(static_cast<double>(stime)),
+        available(true) {}
 
     bool callback(Dispatcher &d, TaskId t);
 
@@ -66,6 +68,7 @@ private:
     EventuallyPersistentStore *store;
     EPStats                   &stats;
     double                     sleepTime;
+    bool                       available;
 };
 
 /**
