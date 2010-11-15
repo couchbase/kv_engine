@@ -15,6 +15,10 @@
 
 /**
  * A sqlite prepared statement.
+ *
+ * Note that each bind method returns the number of columns it
+ * consumed (allowing you to, for example, bind a std::pair over two
+ * columns).
  */
 class PreparedStatement {
 public:
@@ -38,8 +42,10 @@ public:
      *
      * @param pos the binding position (starting at 1)
      * @param s the value to bind
+     *
+     * @return 1
      */
-    void bind(int pos, const char *s);
+    int bind(int pos, const char *s);
 
     /**
      * Bind a string parameter to a binding in this statement.
@@ -47,16 +53,20 @@ public:
      * @param pos the binding position (starting at 1)
      * @param s the value to bind
      * @param nbytes number of bytes in the string.
+     *
+     * @return 1
      */
-    void bind(int pos, const char *s, size_t nbytes);
+    int bind(int pos, const char *s, size_t nbytes);
 
     /**
      * Bind a string parameter to a binding in this statement.
      *
      * @param pos the binding position (starting at 1)
      * @param s the string to bind
+     *
+     * @return 1
      */
-    void bind(int pos, const std::string &s);
+    int bind(int pos, const std::string &s);
 
     /**
      * Bind a uint32 value.
@@ -64,23 +74,27 @@ public:
      * @param pos the binding position (starting at 1)
      * @param d the value to bind
      */
-    void bind(int pos, int d);
+    int bind(int pos, int d);
 
     /**
      * Bind a pair of uint32 values.
      *
      * @param pos the binding start position (starting at 1)
      * @param pv the pair values to bind
+     *
+     * @return 2
      */
-    void bind(int pos, std::pair<int, int> pv);
+    int bind(int pos, std::pair<int, int> pv);
 
     /**
      * Bind a uint64 value.
      *
      * @param pos the binding position (starting at 1)
      * @param d the value to bind
+     *
+     * @return 1
      */
-    void bind64(int pos, uint64_t d);
+    int bind64(int pos, uint64_t d);
 
     /**
      * Execute a prepared statement that does not return results.

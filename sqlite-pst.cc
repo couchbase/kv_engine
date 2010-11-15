@@ -26,29 +26,34 @@ PreparedStatement::~PreparedStatement() {
     sqlite3_finalize(st);
 }
 
-void PreparedStatement::bind(int pos, const char *s) {
-    bind(pos, s, strlen(s));
+int PreparedStatement::bind(int pos, const char *s) {
+    return bind(pos, s, strlen(s));
 }
 
-void PreparedStatement::bind(int pos, const char *s, size_t nbytes) {
+int PreparedStatement::bind(int pos, const char *s, size_t nbytes) {
     sqlite3_bind_blob(st, pos, s, (int)nbytes, SQLITE_STATIC);
+    return 1;
 }
 
-void PreparedStatement::bind(int pos, const std::string &s) {
+int PreparedStatement::bind(int pos, const std::string &s) {
     sqlite3_bind_blob(st, pos, s.data(), s.size(), SQLITE_STATIC);
+    return 1;
 }
 
-void PreparedStatement::bind(int pos, int v) {
+int PreparedStatement::bind(int pos, int v) {
     sqlite3_bind_int(st, pos, v);
+    return 1;
 }
 
-void PreparedStatement::bind(int pos, std::pair<int, int> pv) {
+int PreparedStatement::bind(int pos, std::pair<int, int> pv) {
     bind(pos, pv.first);
     bind(++pos, pv.second);
+    return 2;
 }
 
-void PreparedStatement::bind64(int pos, uint64_t v) {
+int PreparedStatement::bind64(int pos, uint64_t v) {
     sqlite3_bind_int64(st, pos, v);
+    return 1;
 }
 
 int PreparedStatement::execute() {
