@@ -183,7 +183,7 @@ private:
     template <typename T>
     bool storeMap(PreparedStatement *clearSt,
                   PreparedStatement *insSt,
-                  const std::map<T, std::string> &m, bool pairKey = false);
+                  const std::map<T, std::string> &m);
 
     void insert(const Item &itm, uint16_t vb_version, Callback<mutation_result> &cb);
     void update(const Item &itm, uint16_t vb_version, Callback<mutation_result> &cb);

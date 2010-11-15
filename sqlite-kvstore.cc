@@ -187,7 +187,7 @@ bool StrategicSqlite3::delVBucket(uint16_t vbucket, uint16_t vb_version,
 bool StrategicSqlite3::snapshotVBuckets
 (const std::map<std::pair<uint16_t, uint16_t>, std::string> &m) {
     return storeMap(strategy->getClearVBucketStateST(),
-                    strategy->getInsVBucketStateST(), m, true);
+                    strategy->getInsVBucketStateST(), m);
 }
 
 bool StrategicSqlite3::snapshotStats(const std::map<std::string, std::string> &m) {
@@ -205,22 +205,16 @@ struct map_setter {
      *
      * @param i the prepared statement to operate on
      * @param o the location of the return value - will set to false upon failure
-     * @param pairKey true if the key is a pair as opposed to a string or int
      */
-    map_setter(PreparedStatement *i, bool &o, bool pairKey)
-        : insSt(i), output(o), isPairKey(pairKey) {}
+    map_setter(PreparedStatement *i, bool &o) : insSt(i), output(o) {}
 
     PreparedStatement *insSt;
     bool &output;
-    bool isPairKey;
 
     void operator() (const std::pair<T, std::string> &p) {
-        insSt->bind(1, p.first);
-        if (!isPairKey) {
-            insSt->bind(2, p.second);
-        } else {
-            insSt->bind(3, p.second);
-        }
+        int pos = 1;
+        pos += insSt->bind(pos, p.first);
+        insSt->bind(pos, p.second);
 
         bool inserted = insSt->execute() == 1;
         insSt->reset();
@@ -231,8 +225,7 @@ struct map_setter {
 template <typename T>
 bool StrategicSqlite3::storeMap(PreparedStatement *clearSt,
                                 PreparedStatement *insSt,
-                                const std::map<T, std::string> &m,
-                                bool pairKey) {
+                                const std::map<T, std::string> &m) {
     bool rv(false);
     if (!begin()) {
         return false;
@@ -242,7 +235,7 @@ bool StrategicSqlite3::storeMap(PreparedStatement *clearSt,
         rv &= deleted;
         clearSt->reset();
 
-        map_setter<T> ms(insSt, rv, pairKey);
+        map_setter<T> ms(insSt, rv);
         std::for_each(m.begin(), m.end(), ms);
 
         commit();
