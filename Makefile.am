@@ -89,14 +89,29 @@ ep_testsuite_la_LDFLAGS= -module -dynamic
 if BUILD_GENERATED_TESTS
 lib_LTLIBRARIES += generated_suite.la
 
-generated_suite.c: t/gen_engine_test.py t/breakdancer.py
-	${top_srcdir}/t/gen_engine_test.py > generated_suite.c || ( rm generated_suite.c && /bin/false)
-BUILT_SOURCES+= generated_suite.c
-CLEANFILES+= generated_suite.c
+.genstamp: t/gen_engine_test.py t/breakdancer.py
+	${top_srcdir}/t/gen_engine_test.py
+	touch .genstamp
+
+GEN_FILES=generated_suite_0.c \
+          generated_suite_1.c \
+          generated_suite_2.c \
+          generated_suite_3.c \
+          generated_suite_4.c \
+          generated_suite_5.c \
+          generated_suite_6.c \
+          generated_suite_7.c \
+          generated_suite_8.c \
+          generated_suite_9.c
+
+
+$(GEN_FILES): .genstamp suite_stubs.h
+BUILT_SOURCES+= $(GEN_FILES)
+CLEANFILES+= $(GEN_FILES) .genstamp
 
 generated_suite_la_DEPENDENCIES = ep.la
-generated_suite_la_CFLAGS = $(AM_CFLAGS) ${NO_WERROR} -O0
-generated_suite_la_SOURCES= generated_suite.c testsuite.h suite_stubs.c ep_testsuite.h
+generated_suite_la_CFLAGS = $(AM_CFLAGS) -O0
+generated_suite_la_SOURCES= $(GEN_FILES) testsuite.h suite_stubs.c ep_testsuite.h
 generated_suite_la_LDFLAGS= -module -dynamic
 
 EXTRA_TESTS += generated_engine_tests

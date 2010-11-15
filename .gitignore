@@ -10,6 +10,7 @@
 *.tcov
 *~
 .deps/
+.genstamp
 .libs/
 /*_test
 /INSTALL
@@ -31,7 +32,7 @@
 /config/plugin.ac
 /configure
 /docs/doxy
-/generated_suite.c
+/generated_suite_*.c
 /libtool
 /m4/libtool.m4
 /m4/ltoptions.m4

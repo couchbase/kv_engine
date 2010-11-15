@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import os
 import sys
 
 import breakdancer
@@ -194,6 +195,34 @@ class DecrWithDefault(Action):
 # Driver
 ######################################################################
 
+class TestFile(object):
+
+    def __init__(self, path, n=10):
+        self.tmpfilenames = ["%s_%d.c.tmp" % (path, i) for i in range(n)]
+        self.files = [open(tfn, "w") for tfn in self.tmpfilenames]
+        self.seq = [list() for f in self.files]
+        self.index = 0
+
+    def finish(self):
+        for f in self.files:
+            f.close()
+
+        for tfn in self.tmpfilenames:
+            nfn = tfn[:-4]
+            assert (nfn + '.tmp') == tfn
+            os.rename(tfn, nfn)
+
+    def nextfile(self):
+        self.index = self.index + 1
+        if self.index >= len(self.files):
+            self.index = 0
+
+    def write(self, s):
+        self.files[self.index].write(s)
+
+    def addseq(self, seq):
+        self.seq[self.index].append(seq)
+
 class EngineTestAppDriver(Driver):
 
     def __init__(self, writer=sys.stdout):
@@ -203,7 +232,11 @@ class EngineTestAppDriver(Driver):
         self.writer.write(s)
 
     def preSuite(self, seq):
-        self.output('#include "suite_stubs.h"\n\n')
+        files = [self.writer]
+        if isinstance(self.writer, TestFile):
+            files = self.writer.files
+        for f in files:
+            f.write('#include "suite_stubs.h"\n\n')
 
     def testName(self, seq):
         return 'test_' + '_'.join(a.name for a in seq)
@@ -227,6 +260,10 @@ class EngineTestAppDriver(Driver):
         return ok
 
     def startSequence(self, seq):
+        if isinstance(self.writer, TestFile):
+            self.writer.nextfile()
+            self.writer.addseq(seq)
+
         f = "static enum test_result %s" % self.testName(seq)
         self.output(("%s(ENGINE_HANDLE *h,\n%sENGINE_HANDLE_V1 *h1) {\n"
                      % (f, " " * (len(f) + 1))))
@@ -255,23 +292,32 @@ class EngineTestAppDriver(Driver):
             s = '    %s(h, h1);' % (action.name)
         self.output(s + "\n")
 
-    def postSuite(self, seq):
-        self.output("""MEMCACHED_PUBLIC_API
-engine_test_t* get_tests(void) {
+    def _writeList(self, writer, fname, seq):
+        writer.write("""MEMCACHED_PUBLIC_API
+engine_test_t* %s(void) {
 
     static engine_test_t tests[]  = {
 
-""")
+""" % fname)
         for seq in sorted(seq):
-            self.output('        {"%s",\n         %s,\n         NULL, teardown, NULL},\n' % (
+            writer.write('        {"%s",\n         %s,\n         NULL, teardown, NULL},\n' % (
                     ', '.join(a.name for a in seq),
                     self.testName(seq)))
 
-        self.output("""        {NULL, NULL, NULL, NULL, NULL}
+        writer.write("""        {NULL, NULL, NULL, NULL, NULL}
     };
     return tests;
 }
 """)
+
+    def postSuite(self, seq):
+        if isinstance(self.writer, TestFile):
+            for i in range(len(self.writer.files)):
+                self._writeList(self.writer.files[i],
+                                'get_tests_%d' % i,
+                                self.writer.seq[i])
+        else:
+            self._writeList(self.writer, 'get_tests', seq)
 
     def endSequence(self, seq, state):
         if not self.handled:
@@ -301,5 +347,7 @@ engine_test_t* get_tests(void) {
             self.output("    assertHasNoError();" + vs)
 
 if __name__ == '__main__':
+    w = TestFile('generated_suite')
     breakdancer.runTest(breakdancer.findActions(globals().values()),
-                        EngineTestAppDriver(sys.stdout))
+                        EngineTestAppDriver(w))
+    w.finish()
