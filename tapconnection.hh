@@ -27,6 +27,8 @@ struct PopulateEventsBody;
 #define TAP_OPAQUE_INITIAL_VBUCKET_STREAM 1
 
 /**
+ * A tap event that represents a change to the state of a vbucket.
+ *
  * The tap stream may include other events than data mutation events,
  * but the data structures in the TapConnection does only store a key
  * for the item to store. We don't want to add more data to those elements,
@@ -49,6 +51,10 @@ public:
     vbucket_state_t state;
 };
 
+/**
+ * Represents an item that has been sent over tap, but may need to be
+ * rolled back if acks fail.
+ */
 class TapLogElement {
 public:
     TapLogElement(uint32_t s, const TapVBucketEvent &e) :
@@ -80,6 +86,9 @@ public:
     std::string key;
 };
 
+/**
+ * An item queued for background fetch from tap.
+ */
 class TapBGFetchQueueItem {
 public:
     TapBGFetchQueueItem(const std::string &k, uint64_t i) :

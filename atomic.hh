@@ -22,7 +22,6 @@ extern "C" {
    typedef void (*ThreadLocalDestructor)(void *);
 }
 
-
 /**
  * Container of thread-local data.
  */
@@ -293,6 +292,9 @@ private:
 
 template <class T> class RCPtr;
 
+/**
+ * A reference counted value (used by RCPtr).
+ */
 class RCValue {
 public:
     RCValue() : _rc_refcount(0) {}

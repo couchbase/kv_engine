@@ -226,6 +226,9 @@ private:
 
 class EventuallyPersistentEngine;
 
+/**
+ * Manager of all interaction with the persistence.
+ */
 class EventuallyPersistentStore {
 public:
 

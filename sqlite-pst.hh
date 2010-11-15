@@ -162,8 +162,10 @@ private:
     sqlite3_stmt *st;
 };
 
-// Container of multiple statements.
-
+/**
+ * Contains the persistence statements used by various SqliteStrategy
+ * implementations.
+ */
 class Statements {
 public:
     Statements(sqlite3 *dbh, std::string tab) {

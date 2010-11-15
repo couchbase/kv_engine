@@ -10,6 +10,9 @@ extern "C" {
     typedef bool (*RESPONSE_HANDLER_T)(const void *, int , const char *);
 }
 
+/**
+ * Protocol extensions to support item locking.
+ */
 class GetlExtension: public EXTENSION_ASCII_PROTOCOL_DESCRIPTOR {
 public:
     GetlExtension(EventuallyPersistentStore *kvstore, GET_SERVER_API get_server_api);

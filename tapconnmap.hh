@@ -16,6 +16,11 @@ class TapConnection;
 class Item;
 class EventuallyPersistentEngine;
 
+/**
+ * Base class for operations performed on tap connections.
+ *
+ * @see TapConnMap::performTapOp
+ */
 template <typename V>
 class TapOperation {
 public:
@@ -23,16 +28,25 @@ public:
     virtual void perform(TapConnection *tc, V arg) = 0;
 };
 
+/**
+ * Indicate the tap operation is complete.
+ */
 class CompleteBackfillTapOperation : public TapOperation<void*> {
 public:
     void perform(TapConnection *tc, void* arg);
 };
 
+/**
+ * Give the tap connection a new item.
+ */
 class ReceivedItemTapOperation : public TapOperation<Item*> {
 public:
     void perform(TapConnection *tc, Item* arg);
 };
 
+/**
+ * Indicate a background fetch completed on a tap connection.
+ */
 class CompletedBGFetchTapOperation : public TapOperation<EventuallyPersistentEngine*> {
 public:
     void perform(TapConnection *tc, EventuallyPersistentEngine* arg);
@@ -49,6 +63,17 @@ public:
      */
     void disconnect(const void *cookie, int tapKeepAlive);
 
+    /**
+     * Perform a TapOperation for a named tap connection while holding
+     * appropriate locks.
+     *
+     * @param name the name of the tap connection to run the op
+     * @param tapop the operation to perform
+     * @param arg argument for the tap operation
+     *
+     * @return true if the tap connection was valid and the operation
+     *         was performed
+     */
     template <typename V>
     bool performTapOp(const std::string &name, TapOperation<V> &tapop, V arg) {
         bool shouldNotify(true);

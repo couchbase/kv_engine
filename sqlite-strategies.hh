@@ -10,9 +10,19 @@
 
 class EventuallyPersistentEngine;
 
+/**
+ * Base strategy for persisting data in SQLite.
+ */
 class SqliteStrategy {
 public:
 
+    /**
+     * Constructor.
+     *
+     * @param fn the filename of the DB
+     * @param finit an init script to run as soon as the DB opens
+     * @param pfinit an init script to run after initializing all schema
+     */
     SqliteStrategy(const char * const fn,
                    const char * const finit = NULL,
                    const char * const pfinit = NULL) :
@@ -110,8 +120,21 @@ private:
 // ----------------------------------------------------------------------
 //
 
+/**
+ * A specialization of SqliteStrategy that allows multiple data
+ * shards.
+ */
 class MultiDBSqliteStrategy : public SqliteStrategy {
 public:
+
+    /**
+     * Constructor.
+     *
+     * @param fn same as SqliteStrategy
+     * @param finit same as SqliteStrategy
+     * @param pfinit same as SqliteStrategy
+     * @param n number of DB shards to create
+     */
     MultiDBSqliteStrategy(const char * const fn,
                           const char * const finit = NULL,
                           const char * const pfinit = NULL,

@@ -1878,6 +1878,10 @@ static void add_casted_stat(const char *k, const Atomic<T> &v,
     add_casted_stat(k, v.get(), add_stat, cookie);
 }
 
+/// @cond DETAILS
+/**
+ * Convert a histogram into a bunch of calls to add stats.
+ */
 template <typename T>
 struct histo_stat_adder {
     histo_stat_adder(const char *k, ADD_STAT a, const void *c)
@@ -1893,6 +1897,7 @@ struct histo_stat_adder {
     ADD_STAT add_stat;
     const void *cookie;
 };
+/// @endcond
 
 template <typename T>
 static void add_casted_stat(const char *k, const Histogram<T> &v,
@@ -2173,6 +2178,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doHashStats(const void *cookie,
     return ENGINE_SUCCESS;
 }
 
+/// @cond DETAILS
+
+/**
+ * Function object to send stats for a single tap connection.
+ */
 struct TapStatBuilder {
     TapStatBuilder(const void *c, ADD_STAT as)
         : cookie(c), add_stat(as), tap_queue(0), totalTaps(0) {}
@@ -2237,6 +2247,8 @@ struct TapStatBuilder {
     size_t      tap_queue;
     int         totalTaps;
 };
+
+/// @endcond
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doTapStats(const void *cookie,
                                                          ADD_STAT add_stat) {
@@ -2518,6 +2530,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
     return rv;
 }
 
+/**
+ * Function object invoked to move tap events onto a specific
+ * connection.
+ */
 struct PopulateEventsBody {
     PopulateEventsBody(QueuedItem qeye) : qi(qeye) {}
     void operator() (TapConnection *tc) {

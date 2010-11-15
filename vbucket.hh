@@ -169,8 +169,14 @@ private:
     DISALLOW_COPY_AND_ASSIGN(VBucket);
 };
 
+/**
+ * Exception thrown when need more vbuckets than originally specified.
+ */
 class NeedMoreBuckets : std::exception {};
 
+/**
+ * Container of vbuckets.
+ */
 class VBucketHolder : public RCValue {
 public:
     VBucketHolder(size_t sz) :

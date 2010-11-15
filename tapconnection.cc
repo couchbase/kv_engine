@@ -328,6 +328,9 @@ bool TapConnection::waitForBackfill() {
     return false;
 }
 
+/**
+ * A Dispatcher job that performs a background fetch on behalf of tap.
+ */
 class TapBGFetchCallback : public DispatcherCallback {
 public:
     TapBGFetchCallback(EventuallyPersistentEngine *e, const std::string &n,

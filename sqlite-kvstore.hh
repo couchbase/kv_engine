@@ -61,6 +61,10 @@ private:
  */
 typedef std::pair<int, int64_t> mutation_result;
 
+/**
+ * A persistence store based on sqlite that uses a SqliteStrategy to
+ * configure itself.
+ */
 class StrategicSqlite3 {
 public:
 

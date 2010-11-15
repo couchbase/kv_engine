@@ -16,6 +16,9 @@ typedef enum {
     vbucket_del_invalid
 } vbucket_del_result;
 
+/**
+ * Representation of an item queued for persistence or tap.
+ */
 class QueuedItem {
 public:
     QueuedItem(const std::string &k, const uint16_t vb,

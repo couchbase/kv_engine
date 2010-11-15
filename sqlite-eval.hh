@@ -10,6 +10,9 @@
 #include "embedded/sqlite3.h"
 #endif
 
+/**
+ * Evaluates SQLite files within a given DB.
+ */
 class SqliteEvaluator {
 public:
 

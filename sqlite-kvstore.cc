@@ -194,10 +194,22 @@ bool StrategicSqlite3::snapshotStats(const std::map<std::string, std::string> &m
     return storeMap(strategy->getClearStatsST(), strategy->getInsStatST(), m);
 }
 
+/**
+ * Function object to set a series of k,v pairs into a PreparedStatement.
+ */
 template <typename T>
 struct map_setter {
+
+    /**
+     * Constructor.
+     *
+     * @param i the prepared statement to operate on
+     * @param o the location of the return value - will set to false upon failure
+     * @param pairKey true if the key is a pair as opposed to a string or int
+     */
     map_setter(PreparedStatement *i, bool &o, bool pairKey)
         : insSt(i), output(o), isPairKey(pairKey) {}
+
     PreparedStatement *insSt;
     bool &output;
     bool isPairKey;

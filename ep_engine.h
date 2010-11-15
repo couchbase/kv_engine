@@ -63,6 +63,9 @@ class BinaryMessage;
 class EventuallyPersistentEngine;
 class TapConnMap;
 
+/**
+ * Base storage callback for things that look up data.
+ */
 class LookupCallback : public Callback<GetValue> {
 public:
     LookupCallback(EventuallyPersistentEngine *e, const void* c) :
@@ -74,6 +77,9 @@ private:
     const void *cookie;
 };
 
+/**
+ * Vbucket visitor that counts active vbuckets.
+ */
 class VBucketCountVisitor : public VBucketVisitor {
 public:
     VBucketCountVisitor() : requestedState(0), total(0), desired_state(active) { }
@@ -104,7 +110,7 @@ enum db_strategy {
 };
 
 /**
- *
+ * memcached engine interface to the EventuallyPersistentStore.
  */
 class EventuallyPersistentEngine : public ENGINE_HANDLE_V1 {
     friend class LookupCallback;

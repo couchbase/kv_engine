@@ -57,6 +57,10 @@ extern "C" {
     }
 }
 
+/**
+ * Dispatcher job that performs disk fetches for non-resident get
+ * requests.
+ */
 class BGFetchCallback : public DispatcherCallback {
 public:
     BGFetchCallback(EventuallyPersistentStore *e,
@@ -93,6 +97,9 @@ private:
     hrtime_t start;
 };
 
+/**
+ * Dispatcher job for performing disk fetches for "stats vkey".
+ */
 class VKeyStatBGFetchCallback : public DispatcherCallback {
 public:
     VKeyStatBGFetchCallback(EventuallyPersistentStore *e,
@@ -133,6 +140,10 @@ private:
     BGFetchCounter                   counter;
 };
 
+/**
+ * Dispatcher job responsible for keeping the current state of
+ * vbuckets recorded in the main db.
+ */
 class SnapshotVBucketsCallback : public DispatcherCallback {
 public:
     SnapshotVBucketsCallback(EventuallyPersistentStore *e, const Priority &p)
@@ -152,6 +163,10 @@ private:
     const Priority &priority;
 };
 
+/**
+ * Wake up connections blocked on pending vbuckets when their state
+ * changes.
+ */
 class NotifyVBStateChangeCallback : public DispatcherCallback {
 public:
     NotifyVBStateChangeCallback(RCPtr<VBucket> vb, SERVER_HANDLE_V1 *a)
@@ -176,12 +191,14 @@ private:
     SERVER_HANDLE_V1 *api;
 };
 
+/**
+ * Hash table visitor that builds ranges of IDs for deleting vbuckets.
+ */
 class VBucketDeletionVisitor : public HashTableVisitor {
 public:
     /**
      * Construct a VBucketDeletionVisitor that will attempt to get all the
      * row_ids for a given vbucket from memory.
-     *
      */
     VBucketDeletionVisitor(size_t deletion_size)
         : row_ids(new std::set<int64_t>), chunk_size(deletion_size) {}
@@ -230,6 +247,9 @@ public:
     size_t                                   chunk_size;
 };
 
+/**
+ * Dispatcher job to delete vbuckets from disk.
+ */
 class VBucketDeletionCallback : public DispatcherCallback {
 public:
     VBucketDeletionCallback(EventuallyPersistentStore *e, RCPtr<VBucket> vb,
@@ -412,6 +432,9 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
     assert(roUnderlying);
 }
 
+/**
+ * Hash table visitor used to collect dirty objects to verify storage.
+ */
 class VerifyStoredVisitor : public HashTableVisitor {
 public:
     std::vector<std::string> dirty;
@@ -486,6 +509,10 @@ RCPtr<VBucket> EventuallyPersistentStore::getVBucket(uint16_t vbid,
     }
 }
 
+/// @cond DETAILS
+/**
+ * Inner loop of deleteMany.
+ */
 class Deleter {
 public:
     Deleter(EventuallyPersistentStore *ep) : e(ep) {}
@@ -506,6 +533,7 @@ public:
 private:
     EventuallyPersistentStore *e;
 };
+/// @endcond
 
 void EventuallyPersistentStore::deleteMany(std::list<std::pair<uint16_t, std::string> > &keys) {
     // This can be made a lot more efficient, but I'd rather see it
@@ -1186,10 +1214,13 @@ int EventuallyPersistentStore::flushSome(std::queue<QueuedItem> *q,
     return oldest;
 }
 
-// This class exists to create a closure around a few variables within
-// EventuallyPersistentStore::flushOne so that an object can be
-// requeued in case of failure to store in the underlying layer.
-
+/**
+ * Callback invoked after persisting an item from memory to disk.
+ *
+ * This class exists to create a closure around a few variables within
+ * EventuallyPersistentStore::flushOne so that an object can be
+ * requeued in case of failure to store in the underlying layer.
+ */
 class PersistenceCallback : public Callback<mutation_result>,
                             public Callback<int> {
 public:
