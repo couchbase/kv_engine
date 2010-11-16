@@ -1264,6 +1264,8 @@ static enum test_result test_bug2761(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 // bug 2830 related items
 
 static void bug_2830_child(int reader, int writer) {
+    alarm(60);
+
     sqlite3 *db;
 
     const char * fn = "/tmp/test.db-0.sqlite";
@@ -1311,6 +1313,9 @@ extern "C" {
 }
 
 static enum test_result test_bug2830(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    // XXX:  Need to be able to detect the vb snapshot has run.  We can
+    // do that once MB-2663 is done.  Until then, 100ms should do.
+    usleep(100 * 1000);
 
     pid_t child;
     int p2c[2]; // parent to child
