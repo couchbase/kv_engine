@@ -1599,12 +1599,15 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
 
             /* @TODO we don't have CAS now.. we might in the future.. */
             (void)cas;
-            bool acked = serverApi->cookie->get_engine_specific(cookie) == &supportsACK;
-            ENGINE_ERROR_CODE ret = epstore->set(*item, cookie, !acked);
+            ENGINE_ERROR_CODE ret = epstore->set(*item, cookie, true);
             if (ret == ENGINE_SUCCESS) {
                 addMutationEvent(item, vbucket);
-            } else if(ret == ENGINE_EWOULDBLOCK) {
-                ret = ENGINE_TMPFAIL;
+            } else if (ret == ENGINE_ENOMEM) {
+                if (serverApi->cookie->get_engine_specific(cookie) == &supportsACK) {
+                    ret = ENGINE_TMPFAIL;
+                } else {
+                    ret = ENGINE_DISCONNECT;
+                }
             }
 
             delete item;
@@ -2230,7 +2233,7 @@ struct TapStatBuilder {
             addTapStat("ack_seqno", tc, tc->seqno, add_stat, cookie);
             addTapStat("recv_ack_seqno", tc, tc->seqnoReceived,
                        add_stat, cookie);
-            addTapStat("ack_log_size", tc, tc->tapLog.size(), add_stat,
+            addTapStat("ack_log_size", tc, tc->getTapAckLogSize(), add_stat,
                        cookie);
             addTapStat("ack_window_full", tc, tc->windowIsFull(), add_stat,
                        cookie);

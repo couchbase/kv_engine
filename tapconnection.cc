@@ -202,6 +202,7 @@ bool TapConnection::requestAck(tap_event_t event) {
 }
 
 void TapConnection::rollback() {
+    LockHolder lh(queueLock);
     std::list<TapLogElement>::iterator i = tapLog.begin();
     while (i != tapLog.end()) {
         switch (i->event) {
@@ -209,14 +210,14 @@ void TapConnection::rollback() {
             {
                 TapVBucketEvent e(i->event, i->vbucket, i->state);
                 if (i->state == pending) {
-                    addVBucketHighPriority(e);
+                    addVBucketHighPriority_UNLOCKED(e);
                 } else {
-                    addVBucketLowPriority(e);
+                    addVBucketLowPriority_UNLOCKED(e);
                 }
             }
             break;
         case TAP_MUTATION:
-            addEvent(i->key, i->vbucket, queue_op_set);
+            addEvent_UNLOCKED(i->key, i->vbucket, queue_op_set);
             break;
         default:
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
@@ -232,6 +233,7 @@ ENGINE_ERROR_CODE TapConnection::processAck(uint32_t s,
                                             uint16_t status,
                                             const std::string &msg)
 {
+    LockHolder lh(queueLock);
     std::list<TapLogElement>::iterator iter = tapLog.begin();
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
 
@@ -246,6 +248,7 @@ ENGINE_ERROR_CODE TapConnection::processAck(uint32_t s,
             iter = tapLog.begin();
         }
 
+        lh.unlock();
         if (complete() && idle()) {
             // We've got all of the ack's need, now we can shut down the
             // stream
@@ -267,14 +270,14 @@ ENGINE_ERROR_CODE TapConnection::processAck(uint32_t s,
                 {
                     TapVBucketEvent e(iter->event, iter->vbucket, iter->state);
                     if (iter->state == pending) {
-                        addVBucketHighPriority(e);
+                        addVBucketHighPriority_UNLOCKED(e);
                     } else {
-                        addVBucketLowPriority(e);
+                        addVBucketLowPriority_UNLOCKED(e);
                     }
                 }
                 break;
             case TAP_MUTATION:
-                addEvent(iter->key, iter->vbucket, queue_op_set);
+                addEvent_UNLOCKED(iter->key, iter->vbucket, queue_op_set);
                 break;
             default:
                 getLogger()->log(EXTENSION_LOG_WARNING, NULL,
