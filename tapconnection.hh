@@ -126,15 +126,16 @@ private:
     friend class TapBGFetchCallback;
     friend struct TapStatBuilder;
     friend struct PopulateEventsBody;
+
     /**
-     * Add a new item to the tap queue.
+     * Add a new item to the tap queue. You need to hold the queue lock
+     * before calling this function
      * The item may be ignored if the TapConnection got a vbucket filter
      * associated and the item's vbucket isn't part of the filter.
      *
      * @return true if the the queue was empty
      */
-    bool addEvent(const QueuedItem &it) {
-        LockHolder lh(queueLock);
+    bool addEvent_UNLOCKED(const QueuedItem &it) {
         if (vbucketFilter(it.getVBucketId())) {
             bool wasEmpty = queue->empty();
             std::pair<std::set<QueuedItem>::iterator, bool> ret;
@@ -150,11 +151,28 @@ private:
     }
 
     /**
-     * Add a key to the tap queue.
+     * Add a new item to the tap queue.
+     * The item may be ignored if the TapConnection got a vbucket filter
+     * associated and the item's vbucket isn't part of the filter.
+     *
      * @return true if the the queue was empty
      */
+    bool addEvent(const QueuedItem &it) {
+        LockHolder lh(queueLock);
+        return addEvent_UNLOCKED(it);
+    }
+
+    /**
+     * Add a key to the tap queue. You need the queue lock to call this
+     * @return true if the the queue was empty
+     */
+    bool addEvent_UNLOCKED(const std::string &key, uint16_t vbid, enum queue_operation op) {
+        return addEvent_UNLOCKED(QueuedItem(key, vbid, op));
+    }
+
     bool addEvent(const std::string &key, uint16_t vbid, enum queue_operation op) {
-        return addEvent(QueuedItem(key, vbid, op));
+        LockHolder lh(queueLock);
+        return addEvent(key, vbid, op);
     }
 
     void addTapLogElement(const QueuedItem &qi) {
@@ -191,6 +209,11 @@ private:
         return QueuedItem("", 0xffff, queue_op_set);
     }
 
+    void addVBucketHighPriority_UNLOCKED(TapVBucketEvent &ev) {
+        vBucketHighPriority.push(ev);
+    }
+
+
     /**
      * Add a new high priority TapVBucketEvent to this TapConnection. A high
      * priority TapVBucketEvent will bypass the the normal queue of events to
@@ -198,13 +221,15 @@ private:
      * send data over the tap connection.
      */
     void addVBucketHighPriority(TapVBucketEvent &ev) {
-        vBucketHighPriority.push(ev);
+        LockHolder lh(queueLock);
+        addVBucketHighPriority_UNLOCKED(ev);
     }
 
     /**
      * Get the next high priority TapVBucketEvent for this TapConnection.
      */
     TapVBucketEvent nextVBucketHighPriority() {
+        LockHolder lh(queueLock);
         TapVBucketEvent ret(TAP_PAUSE, 0, active);
         if (!vBucketHighPriority.empty()) {
             ret = vBucketHighPriority.front();
@@ -233,19 +258,25 @@ private:
         return ret;
     }
 
+    void addVBucketLowPriority_UNLOCKED(TapVBucketEvent &ev) {
+        vBucketLowPriority.push(ev);
+    }
+
     /**
      * Add a new low priority TapVBucketEvent to this TapConnection. A low
      * priority TapVBucketEvent will only be sent when the tap connection
      * doesn't have any other events to send.
      */
     void addVBucketLowPriority(TapVBucketEvent &ev) {
-        vBucketLowPriority.push(ev);
+        LockHolder lh(queueLock);
+        addVBucketLowPriority_UNLOCKED(ev);
     }
 
     /**
      * Get the next low priority TapVBucketEvent for this TapConnection.
      */
     TapVBucketEvent nextVBucketLowPriority() {
+        LockHolder lh(queueLock);
         TapVBucketEvent ret(TAP_PAUSE, 0, active);
         if (!vBucketLowPriority.empty()) {
             ret = vBucketLowPriority.front();
@@ -540,6 +571,11 @@ private:
     }
 
     std::list<TapLogElement> tapLog;
+
+    size_t getTapAckLogSize(void) {
+        LockHolder lh(queueLock);
+        return tapLog.size();
+    }
 
     Mutex backfillLock;
     std::queue<TapBGFetchQueueItem> backfillQueue;

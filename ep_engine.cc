@@ -2212,7 +2212,7 @@ struct TapStatBuilder {
             addTapStat("ack_seqno", tc, tc->seqno, add_stat, cookie);
             addTapStat("recv_ack_seqno", tc, tc->seqnoReceived,
                        add_stat, cookie);
-            addTapStat("ack_log_size", tc, tc->tapLog.size(), add_stat,
+            addTapStat("ack_log_size", tc, tc->getTapAckLogSize(), add_stat,
                        cookie);
             addTapStat("ack_window_full", tc, tc->windowIsFull(), add_stat,
                        cookie);
