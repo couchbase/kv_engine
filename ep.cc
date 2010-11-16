@@ -553,10 +553,10 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::set(const Item &item,
         return ENGINE_NOT_MY_VBUCKET;
     } else if (vb->getState() == active) {
         // OK
-    } else if(vb->getState() == replica && !force) {
+    } else if (vb->getState() == replica && !force) {
         ++stats.numNotMyVBuckets;
         return ENGINE_NOT_MY_VBUCKET;
-    } else if(vb->getState() == pending && !force) {
+    } else if (vb->getState() == pending && !force) {
         if (vb->addPendingOp(cookie)) {
             return ENGINE_EWOULDBLOCK;
         }
@@ -564,34 +564,35 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::set(const Item &item,
 
     bool cas_op = (item.getCas() != 0);
 
-    mutation_type_t mtype = vb->ht.set(item, !force);
+    mutation_type_t mtype = vb->ht.set(item);
+    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
 
-    switch(mtype) {
+    switch (mtype) {
     case NOMEM:
-        assert(!force);
-        return ENGINE_ENOMEM;
+        ret = ENGINE_ENOMEM;
         break;
     case INVALID_CAS:
     case IS_LOCKED:
-        return ENGINE_KEY_EEXISTS;
+        ret = ENGINE_KEY_EEXISTS;
         break;
     case WAS_DIRTY:
         // Do normal stuff, but don't enqueue dirty flags.
         break;
     case NOT_FOUND:
         if (cas_op) {
-            return ENGINE_KEY_ENOENT;
+            ret = ENGINE_KEY_ENOENT;
+            break;
         }
         // FALLTHROUGH
     case WAS_CLEAN:
         queueDirty(item.getKey(), item.getVBucketId(), queue_op_set);
         break;
     case INVALID_VBUCKET:
-        return ENGINE_NOT_MY_VBUCKET;
+        ret = ENGINE_NOT_MY_VBUCKET;
         break;
     }
 
-    return ENGINE_SUCCESS;
+    return ret;
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentStore::add(const Item &item,

@@ -1596,12 +1596,15 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
 
             /* @TODO we don't have CAS now.. we might in the future.. */
             (void)cas;
-            bool acked = serverApi->cookie->get_engine_specific(cookie) == &supportsACK;
-            ENGINE_ERROR_CODE ret = epstore->set(*item, cookie, !acked);
+            ENGINE_ERROR_CODE ret = epstore->set(*item, cookie, true);
             if (ret == ENGINE_SUCCESS) {
                 addMutationEvent(item, vbucket);
-            } else if(ret == ENGINE_EWOULDBLOCK) {
-                ret = ENGINE_TMPFAIL;
+            } else if (ret == ENGINE_ENOMEM) {
+                if (serverApi->cookie->get_engine_specific(cookie) == &supportsACK) {
+                    ret = ENGINE_TMPFAIL;
+                } else {
+                    ret = ENGINE_DISCONNECT;
+                }
             }
 
             delete item;
