@@ -84,6 +84,7 @@ private:
 template <typename T>
 class HistogramBinSampleAdder {
 public:
+    HistogramBinSampleAdder() {}
     size_t operator() (size_t n, const HistogramBin<T> *b) { return n + b->count(); }
 };
 

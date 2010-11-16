@@ -81,6 +81,7 @@ static void addMany(HashTable &h, std::vector<std::string> &keys,
     }
 }
 
+template <typename T>
 static const char *toString(add_type_t a) {
     switch(a) {
     case ADD_SUCCESS: return "add_success";
@@ -95,8 +96,8 @@ static const char *toString(add_type_t a) {
 template <typename T>
 void assertEquals(T a, T b) {
     if (a != b) {
-        std::cerr << "Expected " << toString(a)
-                  << " got " << toString(b) << std::endl;
+        std::cerr << "Expected " << toString<T>(a)
+                  << " got " << toString<T>(b) << std::endl;
         abort();
     }
 }

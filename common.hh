@@ -138,12 +138,15 @@ void createChunkListFromArray(std::vector<T> *elm_list, size_t chunk_size,
     }
 
     typename std::vector<T>::iterator iter;
+    typename std::vector<T>::iterator iterend(elm_list->end());
+    --iterend;
     for (iter = elm_list->begin(); iter != elm_list->end(); ++iter) {
         ++counter;
         if (counter == 1) {
             chunk_range.first = *iter;
         }
-        if (counter == chunk_size || iter == --(elm_list->end())) {
+
+        if (counter == chunk_size || iter == iterend) {
             chunk_range.second = *iter;
             chunk_list.push_back(chunk_range);
             counter = 0;

@@ -183,7 +183,7 @@ void InvalidItemDbPager::createRangeList() {
     for (vbit = vb_items.begin(); vbit != vb_items.end(); vbit++) {
         std::sort(vbit->second->begin(), vbit->second->end());
         std::list<row_range> row_range_list;
-        createChunkListFromArray(vbit->second, chunk_size, row_range_list);
+        createChunkListFromArray<int64_t>(vbit->second, chunk_size, row_range_list);
         vb_row_ranges[vbit->first] = row_range_list;
         delete vbit->second;
     }
