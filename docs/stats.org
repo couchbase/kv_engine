@@ -168,42 +168,45 @@ Each stat begins with =ep_tapq:= followed by a unique /client_id/ and
 another colon.  For example, if your client is named, =slave1=, the
 =qlen= stat would be =ep_tapq:slave1:qlen=.
 
-| qlen               | Queue size for the given client_id.     |
-| qlen_high_pri      | High priority tap queue items.          |
-| qlen_low_pri       | Low priority tap queue items.           |
-| vb_filters         | Size of connection vbucket filter set.  |
-| rec_fetched        | Tap messages sent to the client.        |
-| idle               | True if this connection is idle.        |
-| empty              | True if this connection has no items.   |
-| complete           | True if backfill is complete.           |
-| has_item           | True when there is a bg fetched item    |
-|                    | ready.                                  |
-| has_queued_item    | True when there is a key ready to be    |
-|                    | looked up (may become fg or bg item)    |
-| bg_wait_for_result | True if the max number of background    |
-|                    | operations is started                   |
-| bg_queue_size      | Number of bg fetches enqueued for this  |
-|                    | connection.                             |
-| bg_queued          | Number of background fetches enqueued.  |
-| bg_result_size     | Number of ready background results.     |
-| bg_results         | Number of background results ready.     |
-| bg_jobs_issued     | Number of background jobs started.      |
-| bg_jobs_completed  | Number of background jobs completed.    |
-| bg_backlog_size    | Number of items pending bg fetch.       |
-| flags              | Connection flags set by the client.     |
-| connected          | true if this client is connected        |
-| pending_disconnect | true if we're hanging up on this client |
-| paused             | true if this client is blocked          |
-| pending_backfill   | true if we're still backfilling keys    |
-|                    | for this connection                     |
-| reconnects         | Number of reconnects from this client.  |
-| disconnects        | Number of disconnects from this client. |
-| backfill_age       | The age of the start of the backfill.   |
-| ack_seqno          | The current tap ACK sequence number.    |
-| recv_ack_seqno     | Last receive tap ACK sequence number.   |
-| ack_log_size       | Tap ACK backlog size.                   |
-| ack_window_full    | true if our tap ACK window is full.     |
-| expires            | When this ACK backlog expires.          |
+| qlen                      | Queue size for the given client_id.      |
+| qlen_high_pri             | High priority tap queue items.           |
+| qlen_low_pri              | Low priority tap queue items.            |
+| vb_filters                | Size of connection vbucket filter set.   |
+| rec_fetched               | Tap messages sent to the client.         |
+| idle                      | True if this connection is idle.         |
+| empty                     | True if this connection has no items.    |
+| complete                  | True if backfill is complete.            |
+| has_item                  | True when there is a bg fetched item     |
+|                           | ready.                                   |
+| has_queued_item           | True when there is a key ready to be     |
+|                           | looked up (may become fg or bg item)     |
+| bg_wait_for_result        | True if the max number of background     |
+|                           | operations is started                    |
+| bg_queue_size             | Number of bg fetches enqueued for this   |
+|                           | connection.                              |
+| bg_queued                 | Number of background fetches enqueued.   |
+| bg_result_size            | Number of ready background results.      |
+| bg_results                | Number of background results ready.      |
+| bg_jobs_issued            | Number of background jobs started.       |
+| bg_jobs_completed         | Number of background jobs completed.     |
+| bg_backlog_size           | Number of items pending bg fetch.        |
+| flags                     | Connection flags set by the client.      |
+| connected                 | true if this client is connected         |
+| pending_disconnect        | true if we're hanging up on this client  |
+| paused                    | true if this client is blocked           |
+| pending_backfill          | true if we're still backfilling keys     |
+|                           | for this connection                      |
+| reconnects                | Number of reconnects from this client.   |
+| disconnects               | Number of disconnects from this client.  |
+| backfill_age              | The age of the start of the backfill.    |
+| ack_seqno                 | The current tap ACK sequence number.     |
+| recv_ack_seqno            | Last receive tap ACK sequence number.    |
+| ack_log_size              | Tap ACK backlog size.                    |
+| ack_window_full           | true if our tap ACK window is full.      |
+| expires                   | When this ACK backlog expires.           |
+| num_tap_nack              | The number of negative tap acks received |
+| num_tap_tmpfail_survivors | The number of items rescheduled due to   |
+|                           | a temporary nack.                        |
 
 ** Timing Stats
 

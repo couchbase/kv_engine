@@ -2354,6 +2354,10 @@ static enum test_result test_tap_ack_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
     }
 
     testHarness.unlock_cookie(cookie);
+    check(get_int_stat(h, h1, "eq_tapq:tap_ack:num_tap_nack", "tap") == nkeys,
+          "num_tap_nack stat nut updated");
+    check(get_int_stat(h, h1, "eq_tapq:tap_ack:num_tap_tmpfail_survivors", "tap") == nkeys,
+          "num_tap_nack stat nut updated");
 
     return SUCCESS;
 }

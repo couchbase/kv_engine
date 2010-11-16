@@ -260,11 +260,13 @@ ENGINE_ERROR_CODE TapConnection::processAck(uint32_t s,
 
     case PROTOCOL_BINARY_RESPONSE_EBUSY:
     case PROTOCOL_BINARY_RESPONSE_ETMPFAIL:
+        ++numTapNack;
         getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
                          "Received temporary TAP nack from <%s> (#%u): Code: %u (%s)\n",
                          client.c_str(), seqnoReceived, status, msg.c_str());
         // reschedule all of the events for that seqno...
         while (iter != tapLog.end() && (*iter).seqno == seqnoReceived) {
+            ++numTmpfailSurvivors;
             switch (iter->event) {
             case TAP_VBUCKET_SET:
                 {
@@ -289,6 +291,7 @@ ENGINE_ERROR_CODE TapConnection::processAck(uint32_t s,
         }
         break;
     default:
+        ++numTapNack;
         getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                          "Received negative TAP ack from <%s> (#%u): Code: %u (%s)\n",
                          client.c_str(), seqnoReceived, status, msg.c_str());

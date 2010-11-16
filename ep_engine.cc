@@ -2242,6 +2242,9 @@ struct TapStatBuilder {
                            tc->expiry_time - ep_current_time(),
                            add_stat, cookie);
             }
+            addTapStat("num_tap_nack", tc, tc->numTapNack, add_stat, cookie);
+            addTapStat("num_tap_tmpfail_survivors", tc, tc->numTmpfailSurvivors,
+                       add_stat, cookie);
         }
     }
 

@@ -562,6 +562,8 @@ private:
     Atomic<size_t> bgResults;
     Atomic<size_t> bgJobIssued;
     Atomic<size_t> bgJobCompleted;
+    Atomic<size_t> numTapNack;
+    Atomic<size_t> numTmpfailSurvivors;
 
     // True if this should be disconnected as soon as possible
     bool doDisconnect;
