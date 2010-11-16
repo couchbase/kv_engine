@@ -2377,6 +2377,36 @@ static enum test_result test_tap_noop_config_deprecated(ENGINE_HANDLE *h, ENGINE
     return SUCCESS;
 }
 
+static enum test_result test_tap_notify(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
+{
+    int ii = 0;
+    char buffer[1024];
+    ENGINE_ERROR_CODE r;
+
+    const void *cookie = testHarness.create_cookie();
+    do {
+        std::stringstream ss;
+        ss << "Key-"<< ++ii;
+        std::string key = ss.str();
+
+        r = h1->tap_notify(h, cookie, NULL, 0, 1, 0, TAP_MUTATION, 0,
+                           key.c_str(), key.length(), 0, 0, 0, buffer, 1024, 0);
+    } while (r == ENGINE_SUCCESS);
+    check(r == ENGINE_DISCONNECT, "should disconnect non-acking streams");
+
+    uint32_t auto_nack = 0; // TAP_OPAQUE_ENABLE_AUTO_NACK
+    r = h1->tap_notify(h, cookie, &auto_nack, sizeof(auto_nack), 1, 0,
+                       TAP_OPAQUE, 0, NULL, 0, 0, 0, 0, NULL, 0, 0);
+    check(r == ENGINE_SUCCESS, "Enable auto nack'ing");
+
+    r = h1->tap_notify(h, cookie, NULL, 0, 1, 0, TAP_MUTATION, 0,
+                       "foo", 3, 0, 0, 0, buffer, 1024, 0);
+    check(r == ENGINE_TMPFAIL, "non-acking streams should etmpfail");
+
+    testHarness.destroy_cookie(cookie);
+    return SUCCESS;
+}
+
 static enum test_result test_novb0(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(verify_vbucket_missing(h, h1, 0), "vb0 existed and shouldn't have.");
     return SUCCESS;
@@ -3180,6 +3210,8 @@ engine_test_t* get_tests(void) {
          "tap_keepalive=100;ht_size=129;ht_locks=3"},
         {"tap acks stream", test_tap_ack_stream, NULL, teardown,
          "tap_keepalive=100;ht_size=129;ht_locks=3"},
+        {"tap notify", test_tap_notify, NULL, teardown,
+         "max_size=1048576"},
         // restart tests
         {"test restart", test_restart, NULL, teardown, NULL},
         {"set+get+restart+hit (bin)", test_restart_bin_val, NULL, teardown, NULL},
