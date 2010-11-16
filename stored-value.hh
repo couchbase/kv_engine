@@ -255,8 +255,11 @@ public:
             } else if (newsize < oldsize) {
                 reduceCurrentSize(stats, oldsize - newsize, true);
             }
+            ++stats.numValueEjects;
+            ++stats.numNonResident;
             return true;
         }
+        ++stats.numFailedEjects;
         return false;
     }
 
@@ -274,6 +277,7 @@ public:
             } else if (newsize < oldsize) {
                 reduceCurrentSize(stats, oldsize - newsize, true);
             }
+            --stats.numNonResident;
             return true;
         }
         return false;

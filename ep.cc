@@ -576,8 +576,6 @@ protocol_binary_response_status EventuallyPersistentStore::evictKey(const std::s
     if (v) {
         if (v->isResident()) {
             if (v->ejectValue(stats)) {
-                ++stats.numValueEjects;
-                ++stats.numNonResident;
                 *msg = "Ejected.";
             } else {
                 *msg = "Can't eject: Dirty or a small object.";
@@ -840,9 +838,7 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
 
         if (v && !v->isResident()) {
             assert(gcb.val.getStatus() == ENGINE_SUCCESS);
-            if (v->restoreValue(gcb.val.getValue()->getValue(), stats)) {
-                --stats.numNonResident;
-            }
+            v->restoreValue(gcb.val.getValue()->getValue(), stats);
             assert(v->isResident());
         }
     }
@@ -1585,11 +1581,6 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
             abort();
         }
 
-        if (succeeded && !retain) {
-            ++stats.numValueEjects;
-            ++stats.numNonResident;
-        }
-
         delete i;
     }
     ++stats.warmedUp;
@@ -1602,10 +1593,7 @@ void LoadStorageKVPairCallback::purge() {
         EmergencyPurgeVisitor(EPStats &s) : stats(s) {}
 
         void visit(StoredValue *v) {
-            if (v->ejectValue(stats)) {
-                ++stats.numValueEjects;
-                ++stats.numNonResident;
-            }
+            v->ejectValue(stats);
         }
     private:
         EPStats &stats;

@@ -30,7 +30,7 @@ public:
      */
     PagingVisitor(EventuallyPersistentStore *s, EPStats &st, double pcnt,
                   bool *sfin)
-        : store(s), stats(st), percent(pcnt), ejected(0), failedEjects(0),
+        : store(s), stats(st), percent(pcnt), ejected(0),
           startTime(ep_real_time()), stateFinalizer(sfin) {}
 
     void visit(StoredValue *v) {
@@ -44,8 +44,6 @@ public:
         if (percent >= r) {
             if (v->ejectValue(stats)) {
                 ++ejected;
-            } else {
-                ++failedEjects;
             }
         }
     }
@@ -56,9 +54,6 @@ public:
     }
 
     void update() {
-        stats.numValueEjects.incr(numEjected());
-        stats.numNonResident.incr(numEjected());
-        stats.numFailedEjects.incr(numFailedEjects());
         stats.expired.incr(expired.size());
 
         store->deleteMany(expired);
@@ -73,7 +68,6 @@ public:
                              "Purged %d expired items\n", expired.size());
         }
         ejected = 0;
-        failedEjects = 0;
         expired.clear();
     }
 
@@ -89,15 +83,6 @@ public:
      */
     size_t numEjected() { return ejected; }
 
-    /**
-     * Get the number of ejection failures.
-     *
-     * An ejection failure is the state when an ejection was
-     * requested, but did not work for some reason (either object was
-     * dirty, or too small, or something).
-     */
-    size_t numFailedEjects() { return failedEjects; }
-
 private:
     std::list<std::pair<uint16_t, std::string> > expired;
 
@@ -105,7 +90,6 @@ private:
     EPStats                   &stats;
     double                     percent;
     size_t                     ejected;
-    size_t                     failedEjects;
     time_t                     startTime;
     bool                      *stateFinalizer;
 };
