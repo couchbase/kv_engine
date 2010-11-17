@@ -1,6 +1,6 @@
 dnl -*- mode: m4; c-basic-offset: 2; indent-tabs-mode: nil; -*-
 dnl vim:expandtab:shiftwidth=2:tabstop=2:smarttab:
-dnl   
+dnl
 dnl pandora-build: A pedantic build system
 dnl Copyright (C) 2009 Sun Microsystems, Inc.
 dnl This file is free software; Sun Microsystems
@@ -51,6 +51,22 @@ AC_DEFUN([PANDORA_PTHREAD_YIELD],[
   AS_IF([test "$pandora_cv_pthread_yield_one_arg" = "yes"],[
     AC_DEFINE([HAVE_PTHREAD_YIELD_ONE_ARG], [1],
               [pthread_yield function with one argument])
+  ])
+
+  AC_CACHE_CHECK([for PTHREAD_MUTEX_ERRORCHECK],
+    [pandora_cv_pthread_mutex_errorcheck],
+    [AC_LINK_IFELSE([
+      AC_LANG_PROGRAM([[
+#include <pthread.h>
+        ]],[[
+pthread_mutexattr_t attr;
+pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_ERRORCHECK);
+        ]])],
+      [pandora_cv_pthread_mutex_errorcheck=yes],
+      [pandora_cv_pthread_mutex_errorcheck=no])])
+  AS_IF([test "$pandora_cv_pthread_mutex_errorcheck" = "yes"],[
+    AC_DEFINE([HAVE_PTHREAD_MUTEX_ERRORCHECK], [1],
+              [say no more...])
   ])
 
   CFLAGS="${save_CFLAGS}"

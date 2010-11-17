@@ -16,6 +16,7 @@ AC_DISABLE_STATIC
 PANDORA_CANONICAL_TARGET(less-warnings, warnings-always-on, require-cxx,
                          force-gcc42)
 PANDORA_SHARED_PTR
+PANDORA_REQUIRE_PTHREAD
 
 AC_ARG_ENABLE([system-libsqlite3],
     [AS_HELP_STRING([--enable-system-libsqlite3],
@@ -119,8 +120,6 @@ AS_IF([test "x$av_cv_sync_intrinsics_work" != "xno"], [
     AC_MSG_WARN([Don't have Intel atomic intrinsics and Solaris atomic.h. Build will likely fail.])
   ])
 ])
-
-AC_SEARCH_LIBS(pthread_create, pthread)
 
 AC_SEARCH_LIBS(dlopen, dl)
 

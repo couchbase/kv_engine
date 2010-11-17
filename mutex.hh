@@ -22,8 +22,22 @@ public:
         : holder(0)
 #endif
     {
-        int e;
-        if ((e = pthread_mutex_init(&mutex, NULL)) != 0) {
+        pthread_mutexattr_t *attr = NULL;
+        int e=0;
+
+#ifdef HAVE_PTHREAD_MUTEX_ERRORCHECK
+        pthread_mutexattr_t the_attr;
+        attr = &the_attr;
+
+        if (pthread_mutexattr_init(attr) != 0 ||
+            (e = pthread_mutexattr_settype(attr, PTHREAD_MUTEX_ERRORCHECK)) != 0) {
+            std::string message = "MUTEX ERROR: Failed to initialize mutex: ";
+            message.append(std::strerror(e));
+            throw std::runtime_error(message);
+        }
+#endif
+
+        if ((e = pthread_mutex_init(&mutex, attr)) != 0) {
             std::string message = "MUTEX ERROR: Failed to initialize mutex: ";
             message.append(std::strerror(e));
             throw std::runtime_error(message);
