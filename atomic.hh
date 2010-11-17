@@ -1,3 +1,4 @@
+/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 #ifndef ATOMIC_HH
 #define ATOMIC_HH
 
@@ -40,7 +41,12 @@ public:
     }
 
     void set(const T &newValue) {
-        pthread_setspecific(key, newValue);
+        int rc = pthread_setspecific(key, newValue);
+        if (rc != 0) {
+            std::stringstream ss;
+            ss << "Failed to store thread specific value: " << strerror(rc);
+            throw std::runtime_error(ss.str().c_str());
+        }
     }
 
     T get() const {
@@ -412,7 +418,7 @@ private:
 template <typename T>
 class AtomicQueue {
 public:
-    AtomicQueue() : counter((size_t)0), numItems((size_t)0) {}
+    AtomicQueue() : counter(0), numItems(0) {}
 
     ~AtomicQueue() {
         size_t i;
