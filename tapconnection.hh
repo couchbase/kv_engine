@@ -172,7 +172,7 @@ private:
 
     bool addEvent(const std::string &key, uint16_t vbid, enum queue_operation op) {
         LockHolder lh(queueLock);
-        return addEvent(key, vbid, op);
+        return addEvent_UNLOCKED(key, vbid, op);
     }
 
     void addTapLogElement(const QueuedItem &qi) {
@@ -228,8 +228,7 @@ private:
     /**
      * Get the next high priority TapVBucketEvent for this TapConnection.
      */
-    TapVBucketEvent nextVBucketHighPriority() {
-        LockHolder lh(queueLock);
+    TapVBucketEvent nextVBucketHighPriority_UNLOCKED() {
         TapVBucketEvent ret(TAP_PAUSE, 0, active);
         if (!vBucketHighPriority.empty()) {
             ret = vBucketHighPriority.front();
@@ -248,7 +247,7 @@ private:
                 // FALLTHROUGH
             default:
                 if (!vbucketFilter(ret.vbucket)) {
-                    return nextVBucketHighPriority();
+                    return nextVBucketHighPriority_UNLOCKED();
                 }
             }
 
@@ -256,6 +255,11 @@ private:
             addTapLogElement(ret);
         }
         return ret;
+    }
+
+    TapVBucketEvent nextVBucketHighPriority() {
+        LockHolder lh(queueLock);
+        return nextVBucketHighPriority_UNLOCKED();
     }
 
     void addVBucketLowPriority_UNLOCKED(TapVBucketEvent &ev) {
@@ -275,8 +279,7 @@ private:
     /**
      * Get the next low priority TapVBucketEvent for this TapConnection.
      */
-    TapVBucketEvent nextVBucketLowPriority() {
-        LockHolder lh(queueLock);
+    TapVBucketEvent nextVBucketLowPriority_UNLOCKED() {
         TapVBucketEvent ret(TAP_PAUSE, 0, active);
         if (!vBucketLowPriority.empty()) {
             ret = vBucketLowPriority.front();
@@ -284,12 +287,17 @@ private:
             // We might have objects in our queue that aren't in our filter
             // If so, just skip them..
             if (ret.event != TAP_NOOP && !vbucketFilter(ret.vbucket)) {
-                return nextVBucketHighPriority();
+                return nextVBucketHighPriority_UNLOCKED();
             }
             ++recordsFetched;
             addTapLogElement(ret);
         }
         return ret;
+    }
+
+    TapVBucketEvent nextVBucketLowPriority() {
+        LockHolder lh(queueLock);
+        return nextVBucketLowPriority_UNLOCKED();
     }
 
     bool idle() {
