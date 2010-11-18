@@ -28,3 +28,4 @@ const Priority Priority::VBucketDeletionPriority("vbucket_deletion_priority", 9)
 const Priority Priority::VBucketPersistLowPriority("vbucket_persist_low_priority", 9);
 const Priority Priority::StatSnapPriority("statsnap_priority", 9);
 const Priority Priority::InvalidItemDbPagerPriority("invalid_item_db_pager_priority", 9);
+const Priority Priority::TapResumePriority("tap_resume_priority", 316);

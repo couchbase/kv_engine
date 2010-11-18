@@ -104,6 +104,10 @@ public:
  */
 class TapConnection {
 public:
+    bool isSuspended() const;
+    void setSuspended(bool value);
+    const void *getCookie() const;
+
     void completeBackfill() {
         pendingBackfill = false;
 
@@ -394,6 +398,7 @@ private:
     void runBGFetch(Dispatcher *dispatcher, const void *cookie);
 
     TapConnection(EventuallyPersistentEngine &theEngine,
+                  const void *cookie,
                   const std::string &n,
                   uint32_t f);
 
@@ -459,6 +464,13 @@ private:
      * @todo design the connect packet and fill inn som info here
      */
     std::string client;
+
+    //! cookie used by this connection
+    const void *cookie;
+    void setCookie(const void *c) {
+        cookie = c;
+    }
+
 
     //! Lock held during queue operations.
     Mutex queueLock;
@@ -618,6 +630,12 @@ private:
     uint32_t opaqueCommandCode;
 
 
+    /**
+     * Is this tap connection in a suspended state (the receiver may
+     * be too slow
+     */
+    Atomic<bool> suspended;
+
     static size_t bgMaxPending;
 
     // Constants used to enforce the tap ack protocol
@@ -626,6 +644,8 @@ private:
     static const uint32_t ackMediumChunkThreshold;
     static const uint32_t ackLowChunkThreshold;
     static const rel_time_t ackGracePeriod;
+
+    static double backoffSleepTime;
 
     DISALLOW_COPY_AND_ASSIGN(TapConnection);
 };

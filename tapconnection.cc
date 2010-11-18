@@ -25,13 +25,15 @@ const uint32_t TapConnection::ackHighChunkThreshold = 1000;
 const uint32_t TapConnection::ackMediumChunkThreshold = 100;
 const uint32_t TapConnection::ackLowChunkThreshold = 10;
 const rel_time_t TapConnection::ackGracePeriod = 5 * 60;
-
+double TapConnection::backoffSleepTime = 1.0;
 
 TapConnection::TapConnection(EventuallyPersistentEngine &theEngine,
+                             const void *c,
                              const std::string &n,
                              uint32_t f):
     engine(theEngine),
     client(n),
+    cookie(c),
     queue(NULL),
     queueSize(0),
     queue_set(NULL),
@@ -229,6 +231,58 @@ void TapConnection::rollback() {
     }
 }
 
+class TapResumeCallback : public DispatcherCallback {
+public:
+    TapResumeCallback(SERVER_HANDLE_V1 &a, TapConnection &c) : api(a), connection(c) {
+
+    }
+
+    bool callback(Dispatcher &d, TaskId t) {
+        (void)d;
+        (void)t;
+        connection.setSuspended(false);
+        api.cookie->notify_io_complete(connection.getCookie(), ENGINE_SUCCESS);
+        return false;
+    }
+
+    std::string description() {
+        std::stringstream ss;
+        ss << "Notifying suspended tap connection: " << connection.getName();
+        return ss.str();
+    }
+
+private:
+    SERVER_HANDLE_V1 &api;
+    TapConnection &connection;
+};
+
+const void *TapConnection::getCookie() const {
+    return cookie;
+}
+
+
+bool TapConnection::isSuspended() const {
+    return suspended.get();
+}
+
+void TapConnection::setSuspended(bool value)
+{
+    if (value) {
+        if (backoffSleepTime > 0 && !suspended.get()) {
+            Dispatcher *d = engine.getEpStore()->getNonIODispatcher();
+            d->schedule(shared_ptr<DispatcherCallback>
+                        (new TapResumeCallback(*engine.getServerApi(),
+                                               *this)),
+                        NULL, Priority::TapResumePriority, backoffSleepTime,
+                        false);
+        } else {
+            // backoff disabled, or already in a suspended state
+            return;
+        }
+    }
+    suspended.set(value);
+}
+
 ENGINE_ERROR_CODE TapConnection::processAck(uint32_t s,
                                             uint16_t status,
                                             const std::string &msg)
@@ -242,6 +296,7 @@ ENGINE_ERROR_CODE TapConnection::processAck(uint32_t s,
 
     switch (status) {
     case PROTOCOL_BINARY_RESPONSE_SUCCESS:
+        setSuspended(false);
         // @todo optimize this by using algorithm
         while (iter != tapLog.end() && (*iter).seqno == seqnoReceived) {
             tapLog.erase(iter);
@@ -260,6 +315,7 @@ ENGINE_ERROR_CODE TapConnection::processAck(uint32_t s,
 
     case PROTOCOL_BINARY_RESPONSE_EBUSY:
     case PROTOCOL_BINARY_RESPONSE_ETMPFAIL:
+        setSuspended(true);
         ++numTapNack;
         getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
                          "Received temporary TAP nack from <%s> (#%u): Code: %u (%s)\n",
@@ -424,7 +480,7 @@ void TapConnection::queueBGFetch(const std::string &key, uint64_t id) {
     assert(!complete());
 }
 
-void TapConnection::runBGFetch(Dispatcher *dispatcher, const void *cookie) {
+void TapConnection::runBGFetch(Dispatcher *dispatcher, const void *c) {
     LockHolder lh(backfillLock);
     TapBGFetchQueueItem qi(backfillQueue.front());
     backfillQueue.pop();
@@ -433,7 +489,7 @@ void TapConnection::runBGFetch(Dispatcher *dispatcher, const void *cookie) {
 
     shared_ptr<TapBGFetchCallback> dcb(new TapBGFetchCallback(&engine, client,
                                                               qi.key, qi.id,
-                                                              cookie));
+                                                              c));
     ++bgJobIssued;
     dispatcher->schedule(dcb, NULL, Priority::TapBgFetcherPriority);
 }

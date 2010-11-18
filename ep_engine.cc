@@ -877,7 +877,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         size_t htLocks = 0;
         size_t maxSize = 0;
 
-        const int max_items = 32;
+        const int max_items = 33;
         struct config_item items[max_items];
         int ii = 0;
         memset(items, 0, sizeof(items));
@@ -1036,6 +1036,13 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         items[ii].value.dt_size = &vb_chunk_del_threshold_time;
 
         ++ii;
+        float tap_backoff_period;
+        int tap_backoff_period_idx = ii;
+        items[ii].key = "tap_backoff_period";
+        items[ii].datatype = DT_FLOAT;
+        items[ii].value.dt_float = &tap_backoff_period;
+
+        ++ii;
         items[ii].key = NULL;
 
         assert(ii < max_items);
@@ -1052,6 +1059,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
             if (pinitf != NULL) {
                 postInitFile = pinitf;
             }
+
+            if (items[tap_backoff_period_idx].found) {
+                TapConnection::backoffSleepTime = (double)tap_backoff_period;
+            }
+
             if (dbs != NULL) {
                 dbStrategy = strcmp(dbs, "multiDB") == 0 ? multi_db : single_db;
             }
@@ -1311,6 +1323,10 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
 
     if (connection->doRunBackfill) {
         queueBackfill(connection, cookie);
+    }
+
+    if (connection->isSuspended()) {
+        return TAP_PAUSE;
     }
 
     tap_event_t ret = TAP_PAUSE;
@@ -1868,7 +1884,8 @@ static void add_casted_stat(const char *k, const char *v,
              v, static_cast<uint32_t>(strlen(v)), cookie);
 }
 
-static void add_casted_stat(const char *k, uint64_t v,
+template <typename T>
+static void add_casted_stat(const char *k, T v,
                             ADD_STAT add_stat, const void *cookie) {
     std::stringstream vals;
     vals << v;
@@ -2217,6 +2234,7 @@ struct TapStatBuilder {
         addTapStat("flags", tc, tc->flags, add_stat, cookie);
         addTapStat("connected", tc, tc->connected, add_stat, cookie);
         addTapStat("pending_disconnect", tc, tc->doDisconnect, add_stat, cookie);
+        addTapStat("suspended", tc, tc->isSuspended(), add_stat, cookie);
         addTapStat("paused", tc, tc->paused, add_stat, cookie);
         addTapStat("pending_backfill", tc, tc->pendingBackfill, add_stat, cookie);
         if (tc->reconnects > 0) {
@@ -2287,6 +2305,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTapStats(const void *cookie,
     add_casted_stat("ep_tap_ack_grace_period",
                     TapConnection::ackGracePeriod,
                     add_stat, cookie);
+    add_casted_stat("ep_tap_backoff_period",
+                    TapConnection::backoffSleepTime,
+                    add_stat, cookie);
+
 
     if (stats.tapBgNumOperations > 0) {
         add_casted_stat("ep_tap_bg_num_samples", stats.tapBgNumOperations, add_stat, cookie);

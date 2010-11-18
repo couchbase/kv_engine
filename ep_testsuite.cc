@@ -2247,6 +2247,24 @@ static enum test_result test_tap_filter_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     return SUCCESS;
 }
 
+static enum test_result test_tap_backoff_config(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    check(h1->get_stats(h, NULL, "tap", 3, add_stats) == ENGINE_SUCCESS,
+          "Failed to get stats.");
+    check(vals.find("ep_tap_backoff_period") != vals.end(), "Missing stat");
+    std::string s = vals["ep_tap_backoff_period"];
+    check(strcmp(s.c_str(), "0.05") == 0, "Incorrect backoff value");
+    return SUCCESS;
+}
+
+static enum test_result test_tap_backoff_default_config(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    check(h1->get_stats(h, NULL, "tap", 3, add_stats) == ENGINE_SUCCESS,
+          "Failed to get stats.");
+    check(vals.find("ep_tap_backoff_period") != vals.end(), "Missing stat");
+    std::string s = vals["ep_tap_backoff_period"];
+    check(strcmp(s.c_str(), "1") == 0, "Incorrect backoff value");
+    return SUCCESS;
+}
+
 static enum test_result test_tap_ack_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
 {
     const int nkeys = 10;
@@ -3243,8 +3261,12 @@ engine_test_t* get_tests(void) {
         {"tap stream", test_tap_stream, NULL, teardown, NULL},
         {"tap filter stream", test_tap_filter_stream, NULL, teardown,
          "tap_keepalive=100;ht_size=129;ht_locks=3"},
+        {"tap backoff default config", test_tap_backoff_default_config, NULL,
+         teardown, NULL },
+        {"tap backoff config", test_tap_backoff_config, NULL, teardown,
+         "tap_backoff_period=0.05"},
         {"tap acks stream", test_tap_ack_stream, NULL, teardown,
-         "tap_keepalive=100;ht_size=129;ht_locks=3"},
+         "tap_keepalive=100;ht_size=129;ht_locks=3;tap_backoff_period=0.05"},
         {"tap notify", test_tap_notify, NULL, teardown,
          "max_size=1048576"},
         // restart tests

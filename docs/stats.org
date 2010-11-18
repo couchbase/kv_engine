@@ -147,20 +147,22 @@ For introductory information on stats within membase, start with the
 | ep_tap_count          | Number of tap connections.                 |
 | ep_tap_bg_num_samples | The number of tap bg fetch samples         |
 |                       | included in the avg                        |
-| ep_tap_bg_min_wait    | The shortest time (µs) for a tap item     |
+| ep_tap_bg_min_wait    | The shortest time (µs) for a tap item      |
 |                       | before it is serviced by the dispatcher    |
-| ep_tap_bg_max_wait    | The longest time (µs) for a tap item      |
+| ep_tap_bg_max_wait    | The longest time (µs) for a tap item       |
 |                       | before it is serviced by the dispatcher    |
-| ep_tap_bg_wait_avg    | The average wait time (µs) for a tap item |
+| ep_tap_bg_wait_avg    | The average wait time (µs) for a tap item  |
 |                       | before it is serviced by the dispatcher    |
-| ep_tap_bg_min_load    | The shortest time (µs) for a tap item to  |
+| ep_tap_bg_min_load    | The shortest time (µs) for a tap item to   |
 |                       | be loaded from the persistence layer       |
-| ep_tap_bg_max_load    | The longest time (µs) for a tap item to   |
+| ep_tap_bg_max_load    | The longest time (µs) for a tap item to    |
 |                       | be loaded from the persistence layer       |
-| ep_tap_bg_load_avg    | The average time (µs) for a tap item to   |
+| ep_tap_bg_load_avg    | The average time (µs) for a tap item to    |
 |                       | be loaded from the persistence layer       |
 | ep_tap_noop_interval  | The number of secs between a noop is added |
 |                       | to an idle connection                      |
+| ep_tap_backoff_period | The number of seconds the tap connection   |
+|                       | should back off after receiving ETMPFAIL   |
 
 *** Per Tap Client Stats
 

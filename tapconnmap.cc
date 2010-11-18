@@ -158,6 +158,7 @@ TapConnection *TapConnMap::newConn(EventuallyPersistentEngine *engine,
                              name.c_str());
             if (miter->first != NULL) {
                 TapConnection *n = new TapConnection(*engine,
+                                                     NULL,
                                                      TapConnection::getAnonTapName(),
                                                      0);
                 n->doDisconnect = true;
@@ -170,9 +171,10 @@ TapConnection *TapConnMap::newConn(EventuallyPersistentEngine *engine,
 
     bool reconnect = false;
     if (tap == NULL) {
-        tap = new TapConnection(*engine, name, flags);
+        tap = new TapConnection(*engine, cookie, name, flags);
         all.push_back(tap);
     } else {
+        tap->setCookie(cookie);
         tap->rollback();
         tap->connected = true;
         tap->evaluateFlags();

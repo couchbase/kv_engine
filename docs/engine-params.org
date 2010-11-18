@@ -47,6 +47,8 @@ memcached like this:
 | tap_bg_max_pending | int    | Maximum number of pending bg fetch operations  |
 |                    |        | a tap queue may issue (before it must wait for |
 |                    |        | responses to appear.                           |
+| tap_backoff_period | float  | Number of seconds the tap connection should    |
+|                    |        | back off after receiving ETMPFAIL              |
 | vb0                | bool   | If true, start with an active vbucket 0        |
 | waitforwarmup      | bool   | Whether to block server start during warmup.   |
 | warmup             | bool   | Whether to load existing data at startup.      |
