@@ -1627,6 +1627,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
             }
 
             delete item;
+
+            if (ret == ENGINE_DISCONNECT) {
+                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                 "Failed to apply tap mutation. Force disconnect\n");
+            }
+
             return ret;
         }
 
@@ -1666,6 +1672,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
 
             if (nengine != sizeof(vbucket_state_t)) {
                 // illegal datasize
+                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                 "Received TAP_VBUCKET_SET with illegal size. force disconnect\n");
                 return ENGINE_DISCONNECT;
             }
 
@@ -1674,6 +1682,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
             state = (vbucket_state_t)ntohl(state);
 
             if (!is_valid_vbucket_state_t(state)) {
+                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                 "Received an invalid vbucket state, diconnecting\n");
                 return ENGINE_DISCONNECT;
             }
 
