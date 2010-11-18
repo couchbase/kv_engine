@@ -1746,6 +1746,11 @@ static enum test_result test_memory_limit(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
           "should have failed second set");
     check(get_int_stat(h, h1, "ep_oom_errors") == 1 ||
           get_int_stat(h, h1, "ep_tmp_oom_errors") == 1, "Expected an OOM error.");
+    ENGINE_ERROR_CODE overwrite = store(h, h1, NULL, OPERATION_SET, "key", data, &i);
+    check(overwrite == ENGINE_ENOMEM || overwrite == ENGINE_TMPFAIL,
+          "should have failed second override");
+    check(get_int_stat(h, h1, "ep_oom_errors") == 2 ||
+          get_int_stat(h, h1, "ep_tmp_oom_errors") == 2, "Expected another OOM error.");
     check_key_value(h, h1, "key", data, vlen);
     check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key2"), "Expected missing key");
 

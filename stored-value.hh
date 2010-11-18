@@ -856,13 +856,16 @@ public:
      */
     mutation_type_t set(const Item &val) {
         assert(active());
+        Item &itm = const_cast<Item&>(val);
+        if (!StoredValue::hasAvailableSpace(stats, itm)) {
+            return NOMEM;
+        }
+
         mutation_type_t rv = NOT_FOUND;
         int bucket_num = bucket(val.getKey());
         LockHolder lh(getMutex(bucket_num));
         StoredValue *v = unlocked_find(val.getKey(), bucket_num, true);
-        Item &itm = const_cast<Item&>(val);
         if (v) {
-
             if (v->isLocked(ep_current_time())) {
                 /*
                  * item is locked, deny if there is cas value mismatch
@@ -884,10 +887,6 @@ public:
         } else {
             if (itm.getCas() != 0) {
                 return NOT_FOUND;
-            }
-
-            if (!StoredValue::hasAvailableSpace(stats, itm)) {
-                return NOMEM;
             }
 
             itm.setCas();
