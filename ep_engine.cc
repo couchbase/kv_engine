@@ -1586,6 +1586,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
     (void)ttl;
 
     std::string k(static_cast<const char*>(key), nkey);
+    ENGINE_ERROR_CODE ret;
 
     switch (tap_event) {
     case TAP_ACK:
@@ -1593,7 +1594,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
     case TAP_FLUSH:
         return flush(cookie, 0);
     case TAP_DELETION:
-        return itemDelete(cookie, k, vbucket);
+        ret = itemDelete(cookie, k, vbucket);
+        if (ret == ENGINE_KEY_ENOENT) {
+            ret = ENGINE_SUCCESS;
+        }
+        return ret;
 
     case TAP_MUTATION:
         {
@@ -1615,7 +1620,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
 
             /* @TODO we don't have CAS now.. we might in the future.. */
             (void)cas;
-            ENGINE_ERROR_CODE ret = epstore->set(*item, cookie, true);
+            ret = epstore->set(*item, cookie, true);
             if (ret == ENGINE_SUCCESS) {
                 addMutationEvent(item, vbucket);
             } else if (ret == ENGINE_ENOMEM) {
