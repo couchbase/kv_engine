@@ -878,7 +878,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         size_t htLocks = 0;
         size_t maxSize = 0;
 
-        const int max_items = 33;
+        const int max_items = 37;
         struct config_item items[max_items];
         int ii = 0;
         memset(items, 0, sizeof(items));
@@ -1044,6 +1044,34 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         items[ii].value.dt_float = &tap_backoff_period;
 
         ++ii;
+        size_t tap_ack_window_size;
+        int tap_ack_window_size_idx = ii;
+        items[ii].key = "tap_ack_window_size";
+        items[ii].datatype = DT_SIZE;
+        items[ii].value.dt_size = &tap_ack_window_size;
+
+        ++ii;
+        size_t tap_ack_interval;
+        int tap_ack_interval_idx = ii;
+        items[ii].key = "tap_ack_interval";
+        items[ii].datatype = DT_SIZE;
+        items[ii].value.dt_size = &tap_ack_interval;
+
+        ++ii;
+        size_t tap_ack_grace_period;
+        int tap_ack_grace_period_idx = ii;
+        items[ii].key = "tap_ack_grace_period";
+        items[ii].datatype = DT_SIZE;
+        items[ii].value.dt_size = &tap_ack_grace_period;
+
+        ++ii;
+        size_t tap_ack_initial_sequence_number;
+        int tap_ack_initial_sequence_number_idx = ii;
+        items[ii].key = "tap_ack_initial_sequence_number";
+        items[ii].datatype = DT_SIZE;
+        items[ii].value.dt_size = &tap_ack_initial_sequence_number;
+
+        ++ii;
         items[ii].key = NULL;
 
         assert(ii < max_items);
@@ -1063,6 +1091,22 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
 
             if (items[tap_backoff_period_idx].found) {
                 TapConnection::backoffSleepTime = (double)tap_backoff_period;
+            }
+
+            if (items[tap_ack_window_size_idx].found) {
+                TapConnection::ackWindowSize = (uint32_t)tap_ack_window_size;
+            }
+
+            if (items[tap_ack_interval_idx].found) {
+                TapConnection::ackInterval = (uint32_t)tap_ack_interval;
+            }
+
+            if (items[tap_ack_grace_period_idx].found) {
+                TapConnection::ackGracePeriod = (rel_time_t)tap_ack_grace_period;
+            }
+
+            if (items[tap_ack_initial_sequence_number_idx].found) {
+                TapConnection::initialAckSequenceNumber = (uint32_t)tap_ack_initial_sequence_number;
             }
 
             if (dbs != NULL) {
@@ -2290,6 +2334,8 @@ struct TapStatBuilder {
             addTapStat("num_tap_nack", tc, tc->numTapNack, add_stat, cookie);
             addTapStat("num_tap_tmpfail_survivors", tc, tc->numTmpfailSurvivors,
                        add_stat, cookie);
+            addTapStat("ack_playback_size", tc, tc->tapLog.size(), add_stat,
+                       cookie);
         }
     }
 
@@ -2321,14 +2367,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTapStats(const void *cookie,
 
     add_casted_stat("ep_tap_ack_window_size", TapConnection::ackWindowSize,
                     add_stat, cookie);
-    add_casted_stat("ep_tap_ack_high_chunk_threshold",
-                    TapConnection::ackHighChunkThreshold,
-                    add_stat, cookie);
-    add_casted_stat("ep_tap_ack_medium_chunk_threshold",
-                    TapConnection::ackMediumChunkThreshold,
-                    add_stat, cookie);
-    add_casted_stat("ep_tap_ack_low_chunk_threshold",
-                    TapConnection::ackLowChunkThreshold,
+    add_casted_stat("ep_tap_ack_interval", TapConnection::ackInterval,
                     add_stat, cookie);
     add_casted_stat("ep_tap_ack_grace_period",
                     TapConnection::ackGracePeriod,

@@ -2289,21 +2289,41 @@ static enum test_result test_tap_filter_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     return SUCCESS;
 }
 
-static enum test_result test_tap_backoff_config(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_tap_config(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(h1->get_stats(h, NULL, "tap", 3, add_stats) == ENGINE_SUCCESS,
           "Failed to get stats.");
     check(vals.find("ep_tap_backoff_period") != vals.end(), "Missing stat");
+    check(vals.find("ep_tap_ack_interval") != vals.end(), "Missing stat");
+    check(vals.find("ep_tap_ack_window_size") != vals.end(), "Missing stat");
+    check(vals.find("ep_tap_ack_grace_period") != vals.end(), "Missing stat");
     std::string s = vals["ep_tap_backoff_period"];
     check(strcmp(s.c_str(), "0.05") == 0, "Incorrect backoff value");
+    s = vals["ep_tap_ack_interval"];
+    check(strcmp(s.c_str(), "10") == 0, "Incorrect interval value");
+    s = vals["ep_tap_ack_window_size"];
+    check(strcmp(s.c_str(), "2") == 0, "Incorrect window size value");
+    s = vals["ep_tap_ack_grace_period"];
+    check(strcmp(s.c_str(), "10") == 0, "Incorrect grace period value");
     return SUCCESS;
 }
 
-static enum test_result test_tap_backoff_default_config(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_tap_default_config(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(h1->get_stats(h, NULL, "tap", 3, add_stats) == ENGINE_SUCCESS,
           "Failed to get stats.");
     check(vals.find("ep_tap_backoff_period") != vals.end(), "Missing stat");
+    check(vals.find("ep_tap_ack_interval") != vals.end(), "Missing stat");
+    check(vals.find("ep_tap_ack_window_size") != vals.end(), "Missing stat");
+    check(vals.find("ep_tap_ack_grace_period") != vals.end(), "Missing stat");
+
     std::string s = vals["ep_tap_backoff_period"];
     check(strcmp(s.c_str(), "1") == 0, "Incorrect backoff value");
+    s = vals["ep_tap_ack_interval"];
+    check(strcmp(s.c_str(), "1000") == 0, "Incorrect interval value");
+    s = vals["ep_tap_ack_window_size"];
+    check(strcmp(s.c_str(), "10") == 0, "Incorrect window size value");
+    s = vals["ep_tap_ack_grace_period"];
+    check(strcmp(s.c_str(), "300") == 0, "Incorrect grace period value");
+
     return SUCCESS;
 }
 
@@ -2419,6 +2439,139 @@ static enum test_result test_tap_ack_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
     check(get_int_stat(h, h1, "eq_tapq:tap_ack:num_tap_tmpfail_survivors", "tap") == nkeys,
           "num_tap_nack stat nut updated");
 
+    return SUCCESS;
+}
+
+static enum test_result test_tap_implicit_ack_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
+{
+    const int nkeys = 10;
+    for (int i = 0; i < nkeys; ++i) {
+        std::stringstream ss;
+        ss << i;
+        check(store(h, h1, NULL, OPERATION_SET, ss.str().c_str(),
+                    "value", NULL, 0, 0) == ENGINE_SUCCESS,
+              "Failed to store an item.");
+    }
+
+    for (int i = 0; i < nkeys; ++i) {
+        std::stringstream ss;
+        ss << i;
+        item_info info;
+        check(get_value(h, h1, ss.str().c_str(), &info), "Verify items");
+    }
+
+    const void *cookie = testHarness.create_cookie();
+    testHarness.lock_cookie(cookie);
+    uint16_t vbucketfilter[2];
+    vbucketfilter[0] = ntohs(1);
+    vbucketfilter[1] = ntohs(0);
+
+    std::string name = "tap_ack";
+    TAP_ITERATOR iter = h1->get_tap_iterator(h, cookie, name.c_str(),
+                                             name.length(),
+                                             TAP_CONNECT_FLAG_LIST_VBUCKETS |
+                                             TAP_CONNECT_SUPPORT_ACK |
+                                             TAP_CONNECT_FLAG_DUMP,
+                                             static_cast<void*>(vbucketfilter),
+                                             4);
+    check(iter != NULL, "Failed to create a tap iterator");
+
+    item *it;
+    void *engine_specific;
+    uint16_t nengine_specific;
+    uint8_t ttl;
+    uint16_t flags;
+    uint32_t seqno;
+    uint16_t vbucket;
+    tap_event_t event;
+    std::string key;
+    bool done = false;
+    int mutations = 0;
+    do {
+        event = iter(h, cookie, &it, &engine_specific,
+                     &nengine_specific, &ttl, &flags,
+                     &seqno, &vbucket);
+
+        if (event == TAP_PAUSE) {
+            testHarness.waitfor_cookie(cookie);
+        } else {
+            if (event == TAP_MUTATION) {
+                ++mutations;
+            }
+            if (seqno == static_cast<uint32_t>(4294967294UL)) {
+                testHarness.unlock_cookie(cookie);
+                h1->tap_notify(h, cookie, NULL, 0, 0,
+                               PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                               TAP_ACK, seqno, NULL, 0,
+                               0, 0, 0, NULL, 0, 0);
+                testHarness.lock_cookie(cookie);
+            } else if (flags == TAP_FLAG_ACK) {
+                testHarness.unlock_cookie(cookie);
+                h1->tap_notify(h, cookie, NULL, 0, 0,
+                               PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                               TAP_ACK, seqno, NULL, 0,
+                               0, 0, 0, NULL, 0, 0);
+                testHarness.lock_cookie(cookie);
+            }
+        }
+    } while (seqno < static_cast<uint32_t>(4294967295UL));
+
+    do {
+        event = iter(h, cookie, &it, &engine_specific,
+                     &nengine_specific, &ttl, &flags,
+                     &seqno, &vbucket);
+
+        if (event == TAP_PAUSE) {
+            testHarness.waitfor_cookie(cookie);
+        } else {
+            if (event == TAP_MUTATION) {
+                ++mutations;
+            }
+            if (seqno == 1) {
+                testHarness.unlock_cookie(cookie);
+                h1->tap_notify(h, cookie, NULL, 0, 0,
+                               PROTOCOL_BINARY_RESPONSE_ETMPFAIL,
+                               TAP_ACK, seqno, key.c_str(), key.length(),
+                               0, 0, 0, NULL, 0, 0);
+                testHarness.lock_cookie(cookie);
+            } else if (flags == TAP_FLAG_ACK) {
+                testHarness.unlock_cookie(cookie);
+                h1->tap_notify(h, cookie, NULL, 0, 0,
+                               PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                               TAP_ACK, seqno, NULL, 0,
+                               0, 0, 0, NULL, 0, 0);
+                testHarness.lock_cookie(cookie);
+            }
+        }
+    } while (seqno < 1);
+
+    /* Now just get the rest */
+    do {
+
+        event = iter(h, cookie, &it, &engine_specific,
+                     &nengine_specific, &ttl, &flags,
+                     &seqno, &vbucket);
+        if (event == TAP_PAUSE) {
+            testHarness.waitfor_cookie(cookie);
+        } else {
+            if (event == TAP_MUTATION) {
+                ++mutations;
+            } else if (event == TAP_DISCONNECT) {
+                done = true;
+            }
+
+            if (flags == TAP_FLAG_ACK) {
+                testHarness.unlock_cookie(cookie);
+                h1->tap_notify(h, cookie, NULL, 0, 0,
+                               PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                               TAP_ACK, seqno, NULL, 0,
+                               0, 0, 0, NULL, 0, 0);
+                testHarness.lock_cookie(cookie);
+            }
+        }
+    } while (!done);
+    testHarness.unlock_cookie(cookie);
+    check(mutations == 11, "Expected 11 mutations to be returned");
     return SUCCESS;
 }
 
@@ -3310,12 +3463,14 @@ engine_test_t* get_tests(void) {
         {"tap stream", test_tap_stream, NULL, teardown, NULL},
         {"tap filter stream", test_tap_filter_stream, NULL, teardown,
          "tap_keepalive=100;ht_size=129;ht_locks=3"},
-        {"tap backoff default config", test_tap_backoff_default_config, NULL,
+        {"tap default config", test_tap_default_config, NULL,
          teardown, NULL },
-        {"tap backoff config", test_tap_backoff_config, NULL, teardown,
-         "tap_backoff_period=0.05"},
+        {"tap config", test_tap_config, NULL, teardown,
+         "tap_backoff_period=0.05;tap_ack_interval=10;tap_ack_window_size=2;tap_ack_grace_period=10"},
         {"tap acks stream", test_tap_ack_stream, NULL, teardown,
          "tap_keepalive=100;ht_size=129;ht_locks=3;tap_backoff_period=0.05"},
+        {"tap implicit acks stream", test_tap_implicit_ack_stream, NULL, teardown,
+         "tap_keepalive=100;ht_size=129;ht_locks=3;tap_backoff_period=0.05;tap_ack_initial_sequence_number=4294967290"},
         {"tap notify", test_tap_notify, NULL, teardown,
          "max_size=1048576"},
         // restart tests

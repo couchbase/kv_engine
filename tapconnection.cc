@@ -20,12 +20,11 @@
 #include "dispatcher.hh"
 
 size_t TapConnection::bgMaxPending = 500;
-const uint32_t TapConnection::ackWindowSize = 10;
-const uint32_t TapConnection::ackHighChunkThreshold = 1000;
-const uint32_t TapConnection::ackMediumChunkThreshold = 100;
-const uint32_t TapConnection::ackLowChunkThreshold = 10;
-const rel_time_t TapConnection::ackGracePeriod = 5 * 60;
+uint32_t TapConnection::ackWindowSize = 10;
+uint32_t TapConnection::ackInterval = 1000;
+rel_time_t TapConnection::ackGracePeriod = 5 * 60;
 double TapConnection::backoffSleepTime = 1.0;
+uint32_t TapConnection::initialAckSequenceNumber = 0;
 
 TapConnection::TapConnection(EventuallyPersistentEngine &theEngine,
                              const void *c,
@@ -53,8 +52,8 @@ TapConnection::TapConnection(EventuallyPersistentEngine &theEngine,
     vBucketHighPriority(),
     vBucketLowPriority(),
     doDisconnect(false),
-    seqno(0),
-    seqnoReceived(static_cast<uint32_t>(-1)),
+    seqno(initialAckSequenceNumber),
+    seqnoReceived(initialAckSequenceNumber - 1),
     ackSupported(false),
     notifySent(false)
 {
@@ -159,12 +158,12 @@ bool TapConnection::windowIsFull() {
     }
 
     if (seqno >= seqnoReceived) {
-        if ((seqno - seqnoReceived) <= ackWindowSize) {
+        if ((seqno - seqnoReceived) <= (ackWindowSize * ackInterval)) {
             return false;
         }
     } else {
         uint32_t n = static_cast<uint32_t>(-1) - seqnoReceived + seqno;
-        if (n <= ackWindowSize) {
+        if (n <= (ackWindowSize * ackInterval)) {
             return false;
         }
     }
@@ -177,30 +176,11 @@ bool TapConnection::requestAck(tap_event_t event) {
         return false;
     }
 
-    if (event == TAP_VBUCKET_SET || event == TAP_OPAQUE) {
-        ++seqno;
-        return true;
-    }
-
-    LockHolder lh(queueLock);
-    uint32_t qsize = queueSize + vBucketLowPriority.size() +
-        vBucketHighPriority.size();
-    uint32_t mod = 1;
-
-    if (qsize >= ackHighChunkThreshold) {
-        mod = ackHighChunkThreshold;
-    } else if (qsize >= ackMediumChunkThreshold) {
-        mod = ackMediumChunkThreshold;
-    } else if (qsize >= ackLowChunkThreshold) {
-        mod = ackLowChunkThreshold;
-    }
-
-    if ((recordsFetched % mod) == 0) {
-        ++seqno;
-        return true;
-    } else {
-        return false;
-    }
+    ++seqno;
+    return (event == TAP_VBUCKET_SET ||
+            event == TAP_OPAQUE ||
+            (recordsFetched % ackInterval) == 0 ||
+            empty());
 }
 
 void TapConnection::rollback() {
@@ -286,6 +266,30 @@ void TapConnection::setSuspended(bool value)
     suspended.set(value);
 }
 
+void TapConnection::reschedule_UNLOCKED(const std::list<TapLogElement>::iterator &iter)
+{
+    ++numTmpfailSurvivors;
+    switch (iter->event) {
+    case TAP_VBUCKET_SET:
+        {
+            TapVBucketEvent e(iter->event, iter->vbucket, iter->state);
+            if (iter->state == pending) {
+                addVBucketHighPriority_UNLOCKED(e);
+            } else {
+                addVBucketLowPriority_UNLOCKED(e);
+            }
+        }
+        break;
+    case TAP_MUTATION:
+        addEvent_UNLOCKED(iter->key, iter->vbucket, queue_op_set);
+        break;
+    default:
+        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                         "Internal error. Not implemented");
+        abort();
+    }
+}
+
 ENGINE_ERROR_CODE TapConnection::processAck(uint32_t s,
                                             uint16_t status,
                                             const std::string &msg)
@@ -294,18 +298,26 @@ ENGINE_ERROR_CODE TapConnection::processAck(uint32_t s,
     std::list<TapLogElement>::iterator iter = tapLog.begin();
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
 
-    seqnoReceived = s;
     expiry_time = ep_current_time() + ackGracePeriod;
+    seqnoReceived = s;
+
+    /* Implicit ack _every_ message up until this message */
+    while (iter != tapLog.end() && iter->seqno != s) {
+        getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                         "Implicit ack <%s> (#%u)\n", client.c_str(), iter->seqno);
+        ++iter;
+    }
 
     switch (status) {
     case PROTOCOL_BINARY_RESPONSE_SUCCESS:
-        setSuspended(false);
-        // @todo optimize this by using algorithm
-        while (iter != tapLog.end() && (*iter).seqno == seqnoReceived) {
-            tapLog.erase(iter);
-            iter = tapLog.begin();
+        /* And explicit ack this message! */
+        if (iter != tapLog.end() && iter->seqno == s) {
+            ++iter;
         }
-
+        getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                         "Explicit ack <%s> (#%u)\n", client.c_str(), iter->seqno);
+        tapLog.erase(tapLog.begin(), iter);
+        setSuspended(false);
         lh.unlock();
         if (complete() && idle()) {
             // We've got all of the ack's need, now we can shut down the
@@ -323,33 +335,16 @@ ENGINE_ERROR_CODE TapConnection::processAck(uint32_t s,
         getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
                          "Received temporary TAP nack from <%s> (#%u): Code: %u (%s)\n",
                          client.c_str(), seqnoReceived, status, msg.c_str());
-        // reschedule all of the events for that seqno...
-        while (iter != tapLog.end() && (*iter).seqno == seqnoReceived) {
-            ++numTmpfailSurvivors;
-            switch (iter->event) {
-            case TAP_VBUCKET_SET:
-                {
-                    TapVBucketEvent e(iter->event, iter->vbucket, iter->state);
-                    if (iter->state == pending) {
-                        addVBucketHighPriority_UNLOCKED(e);
-                    } else {
-                        addVBucketLowPriority_UNLOCKED(e);
-                    }
-                }
-                break;
-            case TAP_MUTATION:
-                addEvent_UNLOCKED(iter->key, iter->vbucket, queue_op_set);
-                break;
-            default:
-                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                 "Internal error. Not implemented");
-                abort();
-            }
-            tapLog.erase(iter);
-            iter = tapLog.begin();
+
+        // Reschedule _this_ sequence number..
+        if (iter != tapLog.end() && iter->seqno == s) {
+            reschedule_UNLOCKED(iter);
+            ++iter;
         }
+        tapLog.erase(tapLog.begin(), iter);
         break;
     default:
+        tapLog.erase(tapLog.begin(), iter);
         ++numTapNack;
         getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                          "Received negative TAP ack from <%s> (#%u): Code: %u (%s)\n",

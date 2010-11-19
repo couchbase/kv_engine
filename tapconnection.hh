@@ -616,6 +616,8 @@ private:
         return tapLog.size();
     }
 
+    void reschedule_UNLOCKED(const std::list<TapLogElement>::iterator &iter);
+
     Mutex backfillLock;
     std::queue<TapBGFetchQueueItem> backfillQueue;
     std::queue<Item*> backfilledItems;
@@ -647,13 +649,17 @@ private:
     static size_t bgMaxPending;
 
     // Constants used to enforce the tap ack protocol
-    static const uint32_t ackWindowSize;
-    static const uint32_t ackHighChunkThreshold;
-    static const uint32_t ackMediumChunkThreshold;
-    static const uint32_t ackLowChunkThreshold;
-    static const rel_time_t ackGracePeriod;
+    static uint32_t ackWindowSize;
+    static uint32_t ackInterval;
+    static rel_time_t ackGracePeriod;
 
     static double backoffSleepTime;
+
+    /**
+     * To ease testing of corner cases we need to be able to seed the
+     * initial tap sequence numbers (if not we would have to wrap an uin32_t)
+     */
+    static uint32_t initialAckSequenceNumber;
 
     DISALLOW_COPY_AND_ASSIGN(TapConnection);
 };
