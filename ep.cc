@@ -1093,17 +1093,18 @@ void EventuallyPersistentStore::setQueueAgeCap(int to) {
 
 ENGINE_ERROR_CODE EventuallyPersistentStore::del(const std::string &key,
                                                  uint16_t vbucket,
-                                                 const void *cookie) {
+                                                 const void *cookie,
+                                                 bool force) {
     RCPtr<VBucket> vb = getVBucket(vbucket);
     if (!vb || vb->getState() == dead) {
         ++stats.numNotMyVBuckets;
         return ENGINE_NOT_MY_VBUCKET;
     } else if (vb->getState() == active) {
         // OK
-    } else if(vb->getState() == replica) {
+    } else if(vb->getState() == replica && !force) {
         ++stats.numNotMyVBuckets;
         return ENGINE_NOT_MY_VBUCKET;
-    } else if(vb->getState() == pending) {
+    } else if(vb->getState() == pending && !force) {
         if (vb->addPendingOp(cookie)) {
             return ENGINE_EWOULDBLOCK;
         }

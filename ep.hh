@@ -287,8 +287,18 @@ public:
                                              uint16_t vbucket,
                                              const char **msg);
 
+
+    /**
+     * Delete an item from the store
+     * @param key key to delete
+     * @param vbucket the bucket for the key
+     * @param cookie the cookie representing the client
+     * @param force override access to the vbucket even if the state of the
+     *              vbucket would deny mutations.
+     * @return the result of the delete operation
+     */
     ENGINE_ERROR_CODE del(const std::string &key, uint16_t vbucket,
-                          const void *cookie);
+                          const void *cookie, bool force = false);
 
     void reset();
 
