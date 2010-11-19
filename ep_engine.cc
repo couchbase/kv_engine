@@ -1627,6 +1627,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
                 if (serverApi->cookie->get_engine_specific(cookie) == &supportsACK) {
                     ret = ENGINE_TMPFAIL;
                 } else {
+                    getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                     "Connection does not support tap ack'ing.. disconnect it\n");
                     ret = ENGINE_DISCONNECT;
                 }
             }
