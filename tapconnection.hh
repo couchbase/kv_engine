@@ -191,9 +191,9 @@ private:
     }
 
     QueuedItem next() {
-        assert(!empty());
-        do {
-            LockHolder lh(queueLock);
+        LockHolder lh(queueLock);
+
+        while (!queue->empty()) {
             QueuedItem qi = queue->front();
             queue->pop_front();
             queue_set->erase(qi);
@@ -203,10 +203,12 @@ private:
                 ++recordsFetched;
                 addTapLogElement(qi);
                 return qi;
+            } else {
+                ++recordsSkipped;
             }
-        } while (!empty());
+        }
 
-        return QueuedItem("", 0xffff, queue_op_set);
+        return QueuedItem("", 0xffff, queue_op_empty);
     }
 
     void addVBucketHighPriority_UNLOCKED(TapVBucketEvent &ev) {
@@ -482,6 +484,12 @@ private:
      * beginning
      */
     size_t recordsFetched;
+    /**
+     * Counter of the number of records skipped due to changing the filter on the connection
+     *
+     */
+    Atomic<size_t> recordsSkipped;
+
     /**
      * Do we have a pending flush command?
      */
