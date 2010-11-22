@@ -175,6 +175,8 @@ another colon.  For example, if your client is named, =slave1=, the
 | qlen_low_pri              | Low priority tap queue items.            |
 | vb_filters                | Size of connection vbucket filter set.   |
 | rec_fetched               | Tap messages sent to the client.         |
+| rec_skipped               | Number of messages skipped due to        |
+|                           | tap reconnect with a different filter    |
 | idle                      | True if this connection is idle.         |
 | empty                     | True if this connection has no items.    |
 | complete                  | True if backfill is complete.            |

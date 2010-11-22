@@ -1483,6 +1483,9 @@ int EventuallyPersistentStore::flushOne(std::queue<QueuedItem> *q,
     case queue_op_del:
         rv = flushOneDelOrSet(qi, rejectQueue);
         break;
+    case queue_op_empty:
+        assert(false);
+        break;
     }
     stats.flusher_todo--;
 

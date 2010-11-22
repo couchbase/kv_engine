@@ -7,7 +7,8 @@
 enum queue_operation {
     queue_op_set,
     queue_op_del,
-    queue_op_flush
+    queue_op_flush,
+    queue_op_empty
 };
 
 typedef enum {

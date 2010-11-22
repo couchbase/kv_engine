@@ -1395,13 +1395,13 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
         }
 
         QueuedItem qi = connection->next();
-
-        *vbucket = qi.getVBucketId();
-        std::string key = qi.getKey();
-        if (key.length() == 0) {
+        if (qi.getOperation() == queue_op_empty) {
             retry = true;
             return TAP_NOOP;
         }
+
+        *vbucket = qi.getVBucketId();
+        std::string key = qi.getKey();
         GetValue gv(epstore->get(key, qi.getVBucketId(), cookie,
                                  false, false));
         ENGINE_ERROR_CODE r = gv.getStatus();
@@ -2234,6 +2234,9 @@ struct TapStatBuilder {
         addTapStat("qlen_low_pri", tc, tc->vBucketLowPriority.size(), add_stat, cookie);
         addTapStat("vb_filters", tc, tc->vbucketFilter.size(), add_stat, cookie);
         addTapStat("rec_fetched", tc, tc->recordsFetched, add_stat, cookie);
+        if (tc->recordsSkipped > 0) {
+            addTapStat("rec_skipped", tc, tc->recordsSkipped, add_stat, cookie);
+        }
         addTapStat("idle", tc, tc->idle(), add_stat, cookie);
         addTapStat("empty", tc, tc->empty(), add_stat, cookie);
         addTapStat("complete", tc, tc->complete(), add_stat, cookie);
