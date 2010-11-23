@@ -2,6 +2,7 @@
 #ifndef DISPATCHER_HH
 #define DISPATCHER_HH
 
+#include <limits>
 #include <stdexcept>
 #include <queue>
 
@@ -106,8 +107,9 @@ class Task {
 friend class CompareTasksByDueDate;
 friend class CompareTasksByPriority;
 public:
-    ~Task() { }
-private:
+    virtual ~Task() { }
+
+protected:
     Task(shared_ptr<DispatcherCallback> cb,  int p, double sleeptime=0, bool isDaemon=true) :
         callback(cb), priority(p),
         state(task_running), isDaemonTask(isDaemon) {
@@ -127,7 +129,7 @@ private:
         advance_tv(waketime, secs);
     }
 
-    bool run(Dispatcher &d, TaskId t) {
+    virtual bool run(Dispatcher &d, TaskId t) {
         return callback->callback(d, t);
     }
 
@@ -136,11 +138,11 @@ private:
         state = task_dead;
     }
 
-    std::string getName() {
+    virtual std::string getName() {
         return callback->description();
     }
 
-    hrtime_t maxExpectedDuration() {
+    virtual hrtime_t maxExpectedDuration() {
         return callback->maxExpectedDuration();
     }
 
@@ -151,6 +153,38 @@ private:
     enum task_state state;
     Mutex mutex;
     bool isDaemonTask;
+};
+
+/**
+ * Internal task run by the dispatcher when it wants to sleep.
+ */
+class IdleTask : public Task {
+public:
+
+    IdleTask() : Task(shared_ptr<DispatcherCallback>(), 0) {}
+
+    bool run(Dispatcher &d, TaskId t);
+
+    std::string getName() {
+        return std::string("IdleTask (sleeping)");
+    }
+
+    /**
+     * Set the next waketime.
+     */
+    void setWaketime(struct timeval to) {
+        waketime = to;
+    }
+
+    hrtime_t maxExpectedDuration() {
+        // Approximately don't report these as slow.  Turns out, you
+        // can't stuff too many nanoseconds into a 64-bit number, but
+        // it should cover most cases.
+        return std::numeric_limits<hrtime_t>::max();
+    }
+
+private:
+    DISALLOW_COPY_AND_ASSIGN(IdleTask);
 };
 
 /**
@@ -240,7 +274,7 @@ private:
 class Dispatcher {
 public:
     Dispatcher() : joblog(JOB_LOG_SIZE), slowjobs(JOB_LOG_SIZE),
-                   state(dispatcher_running) {
+                   idleTask(new IdleTask), state(dispatcher_running) {
         noTask();
     }
 
@@ -318,6 +352,8 @@ public:
 
 private:
 
+    friend class IdleTask;
+
     void noTask() {
         taskDesc = "none";
     }
@@ -357,6 +393,7 @@ private:
                         CompareTasksByDueDate> futureQueue;
     RingBuffer<JobLogEntry> joblog;
     RingBuffer<JobLogEntry> slowjobs;
+    shared_ptr<IdleTask> idleTask;
     enum dispatcher_state state;
     hrtime_t taskStart;
     bool running_task;

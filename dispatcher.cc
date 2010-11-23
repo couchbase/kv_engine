@@ -94,20 +94,22 @@ void Dispatcher::run() {
                 popNext();
                 continue;
             }
+
             struct timeval tv;
             gettimeofday(&tv, NULL);
             if (less_tv(tv, task->waketime)) {
-                tlh.unlock();
-                mutex.wait(task->waketime);
-                continue;
+                idleTask->setWaketime(task->waketime);
+                task = idleTask;
+                taskDesc = task->getName();
+            } else {
+                // Otherwise, do the normal thing.
+                popNext();
+                taskDesc = task->getName();
             }
+            tlh.unlock();
 
-            popNext();
-
-            taskDesc = task->getName();
             taskStart = gethrtime();
             lh.unlock();
-            tlh.unlock();
             rel_time_t startReltime = ep_current_time();
             try {
                 running_task = true;
@@ -209,4 +211,11 @@ void Dispatcher::completeNonDaemonTasks() {
     }
 
     getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "Completed all the non-daemon tasks\n");
+}
+
+bool IdleTask::run(Dispatcher &d, TaskId t) {
+    (void)t;
+    LockHolder lh(d.mutex);
+    d.mutex.wait(waketime);
+    return false;
 }
