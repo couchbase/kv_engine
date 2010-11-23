@@ -46,6 +46,7 @@ EP_ENGINE_CC_SRC = \
                  stored-value.cc \
                  tapconnmap.cc \
                  tapconnection.cc \
+                 tapthrottle.cc \
                  vbucket.cc
 
 EP_ENGINE_C_SRC = \

@@ -186,6 +186,8 @@ public:
     Atomic<size_t> numTapDeletes;
     //! The number of samples the tapBgWaitDelta and tapBgLoadDelta contains of
     Atomic<size_t> tapBgNumOperations;
+    //! The number of tap notify messages throttled by TapThrottle.
+    Atomic<size_t> tapThrottled;
     /** The sum of the deltas (in usec) from a tap item was put in queue until
      *  the dispatcher started the work for this item
      */
@@ -293,6 +295,7 @@ public:
         tapBgMaxWait.set(0);
         tapBgMinLoad.set(999999999);
         tapBgMaxLoad.set(0);
+        tapThrottled.set(0);
         pendingOps.set(0);
         pendingOpsTotal.set(0);
         pendingOpsMax.set(0);

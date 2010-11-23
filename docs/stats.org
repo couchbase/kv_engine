@@ -142,6 +142,8 @@ For introductory information on stats within membase, start with the
 | ep_tap_bg_fetched     | Number of tap disk fetches                 |
 | ep_tap_fg_fetched     | Number of tap memory fetches               |
 | ep_tap_deletes        | Number of tap deletion messages sent       |
+| ep_tap_throttled      | Number of tap messages refused due to      |
+|                       | throttling.                                |
 | ep_tap_keepalive      | How long to keep tap connection state      |
 |                       | after client disconnect.                   |
 | ep_tap_count          | Number of tap connections.                 |

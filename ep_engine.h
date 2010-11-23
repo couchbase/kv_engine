@@ -62,6 +62,7 @@ typedef void (*NOTIFY_IO_COMPLETE_T)(const void *cookie,
 class BinaryMessage;
 class EventuallyPersistentEngine;
 class TapConnMap;
+class TapThrottle;
 
 /**
  * Base storage callback for things that look up data.
@@ -602,6 +603,7 @@ private:
     SqliteStrategy *sqliteStrategy;
     StrategicSqlite3 *sqliteDb;
     EventuallyPersistentStore *epstore;
+    TapThrottle *tapThrottle;
     std::map<const void*, Item*> lookups;
     Mutex lookupMutex;
     time_t databaseInitTime;

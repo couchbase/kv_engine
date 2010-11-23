@@ -26,6 +26,7 @@
 
 #include "ep_engine.h"
 #include "statsnap.hh"
+#include "tapthrottle.hh"
 
 static size_t percentOf(size_t val, double percent) {
     return static_cast<size_t>(static_cast<double>(val) * percent);
@@ -821,7 +822,7 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server
     dbname("/tmp/test.db"), initFile(NULL), postInitFile(NULL), dbStrategy(multi_db),
     warmup(true), wait_for_warmup(true), fail_on_partial_warmup(true),
     startVb0(true), concurrentDB(true), sqliteStrategy(NULL), sqliteDb(NULL),
-    epstore(NULL), databaseInitTime(0), tapKeepAlive(0),
+    epstore(NULL), tapThrottle(new TapThrottle(stats)), databaseInitTime(0), tapKeepAlive(0),
     tapNoopInterval(DEFAULT_TAP_NOOP_INTERVAL), nextTapNoop(0),
     startedEngineThreads(false), shutdown(false),
     getServerApiFunc(get_server_api), getlExtension(NULL),
@@ -1602,6 +1603,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
 
     case TAP_MUTATION:
         {
+            bool acks(serverApi->cookie->get_engine_specific(cookie) == &supportsACK);
+            if (!tapThrottle->shouldProcess()) {
+                ++stats.tapThrottled;
+                return acks ? ENGINE_TMPFAIL : ENGINE_DISCONNECT;
+            }
+
             BlockTimer timer(&stats.tapMutationHisto);
             // We don't get the trailing CRLF in tap mutation but should store it
             // to satisfy memcached expectations.
@@ -1624,7 +1631,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
             if (ret == ENGINE_SUCCESS) {
                 addMutationEvent(item, vbucket);
             } else if (ret == ENGINE_ENOMEM) {
-                if (serverApi->cookie->get_engine_specific(cookie) == &supportsACK) {
+                if (acks) {
                     ret = ENGINE_TMPFAIL;
                 } else {
                     getLogger()->log(EXTENSION_LOG_WARNING, NULL,
@@ -2306,6 +2313,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTapStats(const void *cookie,
     add_casted_stat("ep_tap_bg_fetched", stats.numTapBGFetched, add_stat, cookie);
     add_casted_stat("ep_tap_fg_fetched", stats.numTapFGFetched, add_stat, cookie);
     add_casted_stat("ep_tap_deletes", stats.numTapDeletes, add_stat, cookie);
+    add_casted_stat("ep_tap_throttled", stats.tapThrottled, add_stat, cookie);
     add_casted_stat("ep_tap_keepalive", tapKeepAlive, add_stat, cookie);
     add_casted_stat("ep_tap_noop_interval", tapNoopInterval, add_stat, cookie);
 

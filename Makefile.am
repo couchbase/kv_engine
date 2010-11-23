@@ -50,6 +50,7 @@ ep_la_SOURCES = \
                  syncobject.hh \
                  tapconnection.cc tapconnection.hh \
                  tapconnmap.cc tapconnmap.hh \
+                 tapthrottle.cc tapthrottle.hh \
                  vbucket.cc vbucket.hh
 
 if BUILD_BYTEORDER
