@@ -239,8 +239,12 @@ static enum test_result check_key_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                         bool checkcrlf = false, uint16_t vbucket = 0) {
     int crlfOffset = checkcrlf ? 2 : 0;
     item *i = NULL;
-    check(h1->get(h, NULL, &i, key, strlen(key), vbucket) == ENGINE_SUCCESS,
-          "Failed to get in check_key_value");
+    ENGINE_ERROR_CODE rv;
+    if ((rv = h1->get(h, NULL, &i, key, strlen(key), vbucket)) != ENGINE_SUCCESS) {
+        fprintf(stderr, "Expected ENGINE_SUCCESS on get of %s (vb=%d), got %d\n",
+                key, vbucket, rv);
+        abort();
+    }
 
     item_info info;
     info.nvalue = 1;
