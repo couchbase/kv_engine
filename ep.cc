@@ -312,8 +312,8 @@ public:
 
                 // Find the chunk that includes the end point of the new range size
                 std::list<std::pair<int64_t, int64_t> >::iterator new_pos = ++current_range;
-                while ((new_pos->second - current_range->first) < chunk_del_range_size
-                       && new_pos != vbdv.range_list.end()) {
+                while (new_pos != vbdv.range_list.end() &&
+                       (new_pos->second - current_range->first) < chunk_del_range_size) {
                     ++new_pos;
                 }
 
@@ -334,10 +334,12 @@ public:
                         if (new_pos->first < current_range->second + 1) {
                             new_pos->first = current_range->second + 1;
                         }
-                        std::list<std::pair<int64_t, int64_t> >::iterator pos = current_range;
-                        // Remove range chunks between the current range and the next range,
-                        // excluding the current and next range.
-                        vbdv.range_list.erase(++pos, new_pos);
+                        std::list<std::pair<int64_t, int64_t> >::iterator curr_pos = current_range;
+                        if (curr_pos != new_pos) {
+                            // Remove range chunks between the current range and the next range,
+                            // excluding the current and next range.
+                            vbdv.range_list.erase(++curr_pos, new_pos);
+                        }
                     }
                 } else { // Reached to the end of the range list
                     current_range->second = vbdv.range_list.back().second;
