@@ -108,6 +108,7 @@ void Dispatcher::run() {
             taskStart = gethrtime();
             lh.unlock();
             tlh.unlock();
+            rel_time_t startReltime = ep_current_time();
             try {
                 running_task = true;
                 if(task->run(*this, TaskId(task))) {
@@ -125,7 +126,7 @@ void Dispatcher::run() {
             running_task = false;
 
             hrtime_t runtime((gethrtime() - taskStart) / 1000);
-            JobLogEntry jle(taskDesc, runtime, ep_current_time());
+            JobLogEntry jle(taskDesc, runtime, startReltime);
             joblog.add(jle);
             if (runtime > task->maxExpectedDuration()) {
                 slowjobs.add(jle);
