@@ -2028,6 +2028,39 @@ static enum test_result test_tap_rcvr_mutate_replica(ENGINE_HANDLE *h, ENGINE_HA
     return SUCCESS;
 }
 
+static enum test_result test_tap_rcvr_delete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    check(h1->tap_notify(h, NULL, NULL, 0,
+                         1, 0, TAP_DELETION, 0, "key", 3, 0, 0, 0,
+                         0, 0, 0) == ENGINE_SUCCESS,
+          "Failed tap notify.");
+    return SUCCESS;
+}
+
+static enum test_result test_tap_rcvr_delete_dead(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    check(h1->tap_notify(h, NULL, NULL, 0,
+                         1, 0, TAP_DELETION, 1, "key", 3, 0, 0, 0,
+                         NULL, 0, 1) == ENGINE_NOT_MY_VBUCKET,
+          "Expected not my vbucket.");
+    return SUCCESS;
+}
+
+static enum test_result test_tap_rcvr_delete_pending(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    check(set_vbucket_state(h, h1, 1, "pending"), "Failed to set vbucket state.");
+    check(h1->tap_notify(h, NULL, NULL, 0,
+                         1, 0, TAP_DELETION, 1, "key", 3, 0, 0, 0,
+                         NULL, 0, 1) == ENGINE_SUCCESS,
+          "Expected expected success.");
+    return SUCCESS;
+}
+
+static enum test_result test_tap_rcvr_delete_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    check(set_vbucket_state(h, h1, 1, "replica"), "Failed to set vbucket state.");
+    check(h1->tap_notify(h, NULL, NULL, 0,
+                         1, 0, TAP_DELETION, 1, "key", 3, 0, 0, 0,
+                         NULL, 0, 1) == ENGINE_SUCCESS,
+          "Expected expected success.");
+    return SUCCESS;
+}
 
 static enum test_result verify_item(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                     item *i,
@@ -3266,6 +3299,13 @@ engine_test_t* get_tests(void) {
         {"tap receiver mutation (pending)", test_tap_rcvr_mutate_pending,
          NULL, teardown, NULL},
         {"tap receiver mutation (replica)", test_tap_rcvr_mutate_replica,
+         NULL, teardown, NULL},
+        {"tap receiver delete", test_tap_rcvr_delete, NULL, teardown, NULL},
+        {"tap receiver delete (dead)", test_tap_rcvr_delete_dead,
+         NULL, teardown, NULL},
+        {"tap receiver delete (pending)", test_tap_rcvr_delete_pending,
+         NULL, teardown, NULL},
+        {"tap receiver delete (replica)", test_tap_rcvr_delete_replica,
          NULL, teardown, NULL},
         {"tap stream", test_tap_stream, NULL, teardown, NULL},
         {"tap filter stream", test_tap_filter_stream, NULL, teardown,
