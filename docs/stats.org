@@ -32,7 +32,7 @@ For introductory information on stats within membase, start with the
 | ep_min_data_age               | Minimum data age setting.                  |
 | ep_queue_age_cap              | Queue age cap setting.                     |
 | ep_max_txn_size               | Max number of updates per transaction.     |
-| ep_data_age                   | Second since most recently                 |
+| ep_data_age                   | Seconds since most recently                |
 |                               | stored object was modified.                |
 | ep_data_age_highwat           | ep_data_age high water mark                |
 | ep_too_young                  | Number of times an object was              |
