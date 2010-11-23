@@ -256,7 +256,7 @@ private:
                 break;
             case TAP_OPAQUE:
                 opaqueCommandCode = (uint32_t)ret.state;
-                if (ntohl(TAP_OPAQUE_ENABLE_AUTO_NACK)) {
+                if (opaqueCommandCode == htonl(TAP_OPAQUE_ENABLE_AUTO_NACK)) {
                     break;
                 }
                 // FALLTHROUGH
