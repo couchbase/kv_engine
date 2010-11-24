@@ -1201,7 +1201,7 @@ int EventuallyPersistentStore::flushSome(std::queue<QueuedItem> *q,
     int oldest = stats.min_data_age;
     int completed(0);
     for (completed = 0;
-         completed < tsz && !q->empty() && !shouldPreemptFlush();
+         completed < tsz && !q->empty() && !shouldPreemptFlush(completed);
          ++completed) {
 
         int n = flushOne(q, rejectQueue);
@@ -1209,7 +1209,7 @@ int EventuallyPersistentStore::flushSome(std::queue<QueuedItem> *q,
             oldest = n;
         }
     }
-    if (shouldPreemptFlush()) {
+    if (shouldPreemptFlush(completed)) {
         ++stats.flusherPreempts;
     } else {
         tctx.commit();
