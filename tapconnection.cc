@@ -317,7 +317,6 @@ ENGINE_ERROR_CODE TapConnection::processAck(uint32_t s,
         getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
                          "Explicit ack <%s> (#%u)\n", client.c_str(), iter->seqno);
         tapLog.erase(tapLog.begin(), iter);
-        setSuspended(false);
         lh.unlock();
         if (complete() && idle()) {
             // We've got all of the ack's need, now we can shut down the
