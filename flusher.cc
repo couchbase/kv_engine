@@ -145,7 +145,10 @@ bool Flusher::step(Dispatcher &d, TaskId tid) {
             {
                 doFlush();
                 if (_state == running) {
-                    d.snooze(tid, computeMinSleepTime());
+                    double tosleep = computeMinSleepTime();
+                    if (tosleep > 0) {
+                        d.snooze(tid, tosleep);
+                    }
                     return true;
                 } else {
                     return false;
@@ -193,6 +196,13 @@ void Flusher::completeFlush() {
 }
 
 double Flusher::computeMinSleepTime() {
+    // If we were preempted, keep going!
+    if (flushQueue && !flushQueue->empty()) {
+        flushRv = 0;
+        prevFlushRv = 0;
+        return 0.0;
+    }
+
     if (flushRv + prevFlushRv == 0) {
         minSleepTime = std::min(minSleepTime * 2, 1.0);
     } else {
