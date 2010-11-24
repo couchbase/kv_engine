@@ -81,7 +81,7 @@ int TapConnMap::purgeExpiredConnections_UNLOCKED() {
     std::list<TapConnection*>::iterator iter;
     for (iter = all.begin(); iter != all.end(); ++iter) {
         TapConnection *tc = *iter;
-        if (tc->expiry_time <= now && !mapped(tc) && !tc->connected) {
+        if (tc->expiry_time <= now && !mapped(tc) && !tc->connected && !tc->suspended) {
             deadClients.push_back(tc);
         }
     }

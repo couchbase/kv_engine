@@ -240,8 +240,11 @@ public:
     bool callback(Dispatcher &d, TaskId t) {
         (void)d;
         (void)t;
+        const void *cookie = connection.getCookie();
         connection.setSuspended(false);
-        api.cookie->notify_io_complete(connection.getCookie(), ENGINE_SUCCESS);
+        if (cookie) {
+            api.cookie->notify_io_complete(cookie, ENGINE_SUCCESS);
+        }
         return false;
     }
 
