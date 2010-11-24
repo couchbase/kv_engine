@@ -2,7 +2,6 @@
 #ifndef DISPATCHER_HH
 #define DISPATCHER_HH
 
-#include <limits>
 #include <stdexcept>
 #include <queue>
 
@@ -177,10 +176,9 @@ public:
     }
 
     hrtime_t maxExpectedDuration() {
-        // Approximately don't report these as slow.  Turns out, you
-        // can't stuff too many nanoseconds into a 64-bit number, but
-        // it should cover most cases.
-        return std::numeric_limits<hrtime_t>::max();
+        hrtime_t rv(3600);
+        rv *= (1000 * 1000);
+        return rv;
     }
 
 private:

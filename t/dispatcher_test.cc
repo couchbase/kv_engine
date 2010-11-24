@@ -105,5 +105,9 @@ int main(int argc, char **argv) {
                   << callbacks << std::endl;
         return 1;
     }
+
+    IdleTask it;
+    assert(hrtime2text(it.maxExpectedDuration()) == std::string("3600 s"));
+
     return 0;
 }
