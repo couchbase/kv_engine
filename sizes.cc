@@ -15,6 +15,8 @@
  */
 #include "config.h"
 #include <stdio.h>
+#include <algorithm>
+#include <limits>
 
 #include "item.hh"
 #include "stored-value.hh"
@@ -24,6 +26,21 @@
 
 static void display(const char *name, size_t size) {
     std::cout << name << "\t" << size << std::endl;
+}
+
+struct histo_for_inner {
+    void operator()(const HistogramBin<hrtime_t> *bin) {
+        const std::string endtext(bin->end() == std::numeric_limits<hrtime_t>::max()
+                                  ? "inf"
+                                  : hrtime2text(bin->end()));
+        std::cout << "   " << hrtime2text(bin->start())
+                  << " - " << endtext << std::endl;
+    }
+};
+
+static void display(const char *name, const Histogram<hrtime_t> &histo) {
+    std::cout << name << std::endl;
+    std::for_each(histo.begin(), histo.end(), histo_for_inner());
 }
 
 int main(int argc, char **argv) {
@@ -53,5 +70,10 @@ int main(int argc, char **argv) {
     display("HistogramBin<size_t>", sizeof(HistogramBin<size_t>));
     display("HistogramBin<hrtime_t>", sizeof(HistogramBin<hrtime_t>));
     display("HistogramBin<int>", sizeof(HistogramBin<int>));
+
+    std::cout << std::endl << "Histogram Ranges" << std::endl << std::endl;
+
+    EPStats stats;
+    display("Default Histo", stats.diskInsertHisto);
     return 0;
 }
