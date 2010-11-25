@@ -28,8 +28,15 @@ bool Flusher::stop(void) {
 }
 
 void Flusher::wait(void) {
+    hrtime_t startt(gethrtime());
     while (_state != stopped) {
         usleep(1000);
+    }
+    hrtime_t endt(gethrtime());
+    int millidiff((endt - startt) / 1000);
+    if (millidiff > 10000) {
+        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                         "Had to wait %dms for shutdown\n", millidiff);
     }
 }
 
