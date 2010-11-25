@@ -6,6 +6,7 @@
 #include <queue>
 
 #include "common.hh"
+#include "atomic.hh"
 #include "locks.hh"
 #include "priority.hh"
 #include "ringbuffer.hh"
@@ -160,7 +161,8 @@ protected:
 class IdleTask : public Task {
 public:
 
-    IdleTask() : Task(shared_ptr<DispatcherCallback>(), 0) {}
+    IdleTask() : Task(shared_ptr<DispatcherCallback>(), 0),
+                 dnotifications(0) {}
 
     bool run(Dispatcher &d, TaskId t);
 
@@ -175,6 +177,14 @@ public:
         waketime = to;
     }
 
+    /**
+     * Set the number of items enqueued for this dispatcher at the
+     * time of execution prep.
+     */
+    void setDispatcherNotifications(size_t to) {
+        dnotifications = to;
+    }
+
     hrtime_t maxExpectedDuration() {
         hrtime_t rv(3600);
         rv *= (1000 * 1000);
@@ -182,6 +192,7 @@ public:
     }
 
 private:
+    size_t dnotifications;
     DISALLOW_COPY_AND_ASSIGN(IdleTask);
 };
 
@@ -271,7 +282,7 @@ private:
  */
 class Dispatcher {
 public:
-    Dispatcher() : joblog(JOB_LOG_SIZE), slowjobs(JOB_LOG_SIZE),
+    Dispatcher() : notifications(0), joblog(JOB_LOG_SIZE), slowjobs(JOB_LOG_SIZE),
                    idleTask(new IdleTask), state(dispatcher_running) {
         noTask();
     }
@@ -360,6 +371,12 @@ private:
         // If the task is already in the queue it'll get run twice
         LockHolder lh(mutex);
         futureQueue.push(task);
+        notify();
+    }
+
+    void notify() {
+        ++notifications;
+        mutex.notify();
     }
 
     /**
@@ -385,6 +402,7 @@ private:
     std::string taskDesc;
     pthread_t thread;
     SyncObject mutex;
+    Atomic<size_t> notifications;
     std::priority_queue<TaskId, std::deque<TaskId >,
                         CompareTasksByPriority> readyQueue;
     std::priority_queue<TaskId, std::deque<TaskId >,

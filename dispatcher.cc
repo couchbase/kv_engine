@@ -99,6 +99,7 @@ void Dispatcher::run() {
             gettimeofday(&tv, NULL);
             if (less_tv(tv, task->waketime)) {
                 idleTask->setWaketime(task->waketime);
+                idleTask->setDispatcherNotifications(notifications.get());
                 task = idleTask;
                 taskDesc = task->getName();
             } else {
@@ -138,7 +139,7 @@ void Dispatcher::run() {
 
     completeNonDaemonTasks();
     state = dispatcher_stopped;
-    mutex.notify();
+    notify();
     getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "Dispatcher exited\n");
 }
 
@@ -149,7 +150,7 @@ void Dispatcher::stop() {
     }
     getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "Stopping dispatcher\n");
     state = dispatcher_stopping;
-    mutex.notify();
+    notify();
     lh.unlock();
     pthread_join(thread, NULL);
     getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "Dispatcher stopped\n");
@@ -164,7 +165,7 @@ void Dispatcher::schedule(shared_ptr<DispatcherCallback> callback,
         *outtid = TaskId(task);
     }
     futureQueue.push(task);
-    mutex.notify();
+    notify();
 }
 
 void Dispatcher::wake(TaskId task, TaskId *outtid) {
@@ -176,7 +177,7 @@ void Dispatcher::wake(TaskId task, TaskId *outtid) {
         *outtid = TaskId(task);
     }
     futureQueue.push(newTask);
-    mutex.notify();
+    notify();
 }
 
 void Dispatcher::completeNonDaemonTasks() {
@@ -216,6 +217,8 @@ void Dispatcher::completeNonDaemonTasks() {
 bool IdleTask::run(Dispatcher &d, TaskId t) {
     (void)t;
     LockHolder lh(d.mutex);
-    d.mutex.wait(waketime);
+    if (d.notifications.get() == dnotifications) {
+        d.mutex.wait(waketime);
+    }
     return false;
 }

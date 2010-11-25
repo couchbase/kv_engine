@@ -117,8 +117,10 @@ generated_suite_la_LDFLAGS= -module -dynamic
 
 EXTRA_TESTS += generated_engine_tests
 
+GENERATED_TEST_TIMEOUT=5
+
 generated_engine_tests: generated_suite.la
-	$(ENGINE_TESTAPP) -E .libs/ep.so -t 15 \
+	$(ENGINE_TESTAPP) -E .libs/ep.so -t $(GENERATED_TEST_TIMEOUT) \
 		-. -q -T .libs/generated_suite.so \
 		-e 'ht_size=13;ht_locks=7;db_strategy=singleDB;dbname=:memory:'
 endif
