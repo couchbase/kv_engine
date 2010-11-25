@@ -192,62 +192,6 @@ private:
 };
 
 /**
- * Hash table visitor that builds ranges of IDs for deleting vbuckets.
- */
-class VBucketDeletionVisitor : public HashTableVisitor {
-public:
-    /**
-     * Construct a VBucketDeletionVisitor that will attempt to get all the
-     * row_ids for a given vbucket from memory.
-     */
-    VBucketDeletionVisitor(size_t deletion_size)
-        : row_ids(new std::set<int64_t>), chunk_size(deletion_size) {}
-
-    ~VBucketDeletionVisitor() {
-        if (row_ids) {
-            delete row_ids;
-        }
-    }
-
-    void visit(StoredValue *v) {
-        if(v->hasId()) {
-            row_ids->insert(v->getId());
-        }
-    }
-
-    /**
-     * Construct the list of chunks from the row id list for a given vbucket.
-     * Note that each chunk might have a different range size as each chunk is
-     * simply created by taking "chunk_size" elements from the row id list.
-     *
-     */
-    void createRangeList() {
-        size_t counter = 0;
-        int64_t start_row_id = -1, end_row_id = -1;
-
-        std::set<int64_t>::iterator iter;
-        for (iter = row_ids->begin(); iter != row_ids->end(); ++iter) {
-            ++counter;
-            if (counter == 1) {
-                start_row_id = *iter;
-            }
-            if (counter == chunk_size || iter == --(row_ids->end())) {
-                end_row_id = *iter;
-                range_list.push_back(std::make_pair(start_row_id, end_row_id));
-                counter = 0;
-            }
-        }
-
-        delete row_ids;
-        row_ids = NULL;
-    }
-
-    std::set<int64_t>                       *row_ids;
-    std::list<std::pair<int64_t, int64_t> >  range_list;
-    size_t                                   chunk_size;
-};
-
-/**
  * Dispatcher job to delete vbuckets from disk.
  */
 class VBucketDeletionCallback : public DispatcherCallback {
@@ -265,8 +209,8 @@ public:
         start_wall_time = gethrtime();
         vbucket = vb->getId();
         vb->ht.visit(vbdv);
-        vbdv.createRangeList();
-        current_range = vbdv.range_list.begin();
+        vbdv.createRangeList(range_list);
+        current_range = range_list.begin();
         chunk_del_range_size = current_range->second - current_range->first;
     }
 
@@ -274,13 +218,13 @@ public:
         (void)d; (void)t;
         bool rv = false, isLastChunk = false;
 
-        std::pair<int64_t, int64_t> range;
-        if (current_range == vbdv.range_list.end()) {
+        chunk_range range;
+        if (current_range == range_list.end()) {
             range.first = -1;
             range.second = -1;
             isLastChunk = true;
         } else {
-            if (current_range->second == vbdv.range_list.back().second) {
+            if (current_range->second == range_list.back().second) {
                 isLastChunk = true;
             }
             range.first = current_range->first;
@@ -299,55 +243,26 @@ public:
         switch(result) {
         case vbucket_del_success:
             if (!isLastChunk) {
-                // chunk deletion execution time in msec
-                hrtime_t chunk_del_time = chunk_time / 1000;
-
+                hrtime_t chunk_del_time = chunk_time / 1000; // chunk deletion exec time in msec
                 if (range.first != -1 && range.second != -1 && chunk_del_time != 0) {
-                    // Adjust the chunk's range size based on the chunk deletion execution time.
-                    // If the new range size is below 100, set it to 100
+                    // Adjust the chunk's range size based on the chunk deletion execution time
                     chunk_del_range_size *= (chunk_del_threshold_time / chunk_del_time);
                     chunk_del_range_size = std::max(static_cast<int64_t>(100),
                                                     chunk_del_range_size);
                 }
 
-                // Find the chunk that includes the end point of the new range size
-                std::list<std::pair<int64_t, int64_t> >::iterator new_pos = ++current_range;
-                while (new_pos != vbdv.range_list.end() &&
-                       (new_pos->second - current_range->first) < chunk_del_range_size) {
-                    ++new_pos;
+                ++current_range;
+                // Split the current chunk into two chunks if its range size > the new range size
+                if ((current_range->second - current_range->first) > chunk_del_range_size) {
+                    range_list.splitChunkRange(current_range, chunk_del_range_size);
+                } else {
+                    // Merge the current chunk with its subsequent chunks before we reach the chunk
+                    // that includes the end point of the new range size
+                    range_list.mergeChunkRanges(current_range, chunk_del_range_size);
                 }
-
-                if (new_pos != vbdv.range_list.end()) {
-                    int64_t range_end = current_range->second;
-                    // Set the current range's end point to the end point of the new range size
-                    current_range->second = current_range->first + chunk_del_range_size;
-                    // If the current range's new end point < the current range's old end point,
-                    if (current_range->second < range_end) {
-                        // Insert the new range chunk with current range's new end point + 1 as
-                        // a start point and current range's old end point as an end point
-                        std::pair<int64_t, int64_t> r(current_range->second + 1, range_end);
-                        vbdv.range_list.insert(++new_pos, r);
-                    } else {
-                        // If the current range's new end point is greater than the start point
-                        // of the next range chunk, advance the next chunk's start point to the
-                        // current range's new end point.
-                        if (new_pos->first < current_range->second + 1) {
-                            new_pos->first = current_range->second + 1;
-                        }
-                        std::list<std::pair<int64_t, int64_t> >::iterator curr_pos = current_range;
-                        if (curr_pos != new_pos) {
-                            // Remove range chunks between the current range and the next range,
-                            // excluding the current and next range.
-                            vbdv.range_list.erase(++curr_pos, new_pos);
-                        }
-                    }
-                } else { // Reached to the end of the range list
-                    current_range->second = vbdv.range_list.back().second;
-                }
-
                 ++chunk_num;
                 rv = true;
-            } else {
+            } else { // Completion of a vbucket deletion
                 stats.diskVBDelHisto.add(execution_time);
                 hrtime_t wall_time = (gethrtime() - start_wall_time) / 1000;
                 stats.vbucketDelMaxWalltime.setIfBigger(wall_time);
@@ -371,7 +286,7 @@ public:
     std::string description() {
         std::stringstream ss;
         int64_t range_size = current_range->second - current_range->first;
-        ss << "Removing the chunk " << chunk_num << "/" << vbdv.range_list.size()
+        ss << "Removing the chunk " << chunk_num << "/" << range_list.size()
            << " of vbucket " << vbucket << " with the range size " << range_size
            << " from disk.";
         return ss.str();
@@ -388,7 +303,8 @@ private:
     VBucketDeletionVisitor        vbdv;
     hrtime_t                      execution_time;
     hrtime_t                      start_wall_time;
-    std::list<std::pair<int64_t, int64_t> >::iterator  current_range;
+    VBDeletionChunkRangeList      range_list;
+    chunk_range_iterator          current_range;
 };
 
 EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine &theEngine,

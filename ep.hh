@@ -89,6 +89,187 @@ protected:
     RCPtr<VBucket> currentBucket;
 };
 
+typedef std::pair<int64_t, int64_t> chunk_range;
+typedef std::list<chunk_range>::iterator chunk_range_iterator;
+
+/**
+ * Collection class that maintains the sorted list of row ID chunk ranges
+ * for a vbucket deletion.
+ */
+class VBDeletionChunkRangeList {
+public:
+
+    VBDeletionChunkRangeList() { }
+
+    chunk_range_iterator begin() {
+        return range_list.begin();
+    }
+
+    chunk_range_iterator end() {
+        return range_list.end();
+    }
+
+    void add(int64_t start_id, int64_t end_id) {
+        chunk_range r(start_id, end_id);
+        add(r);
+    }
+
+    void add(chunk_range range) {
+        if (range.first > range.second || (size() > 0 && back().second > range.first)) {
+            return;
+        }
+        range_list.push_back(range);
+    }
+
+    const chunk_range& front() {
+        return range_list.front();
+    }
+
+    const chunk_range& back() {
+        return range_list.back();
+    }
+
+    size_t size() {
+        return range_list.size();
+    }
+
+    /**
+     * Split the given chunk range into two ranges by using the new range size
+     * @param it pointer to a chunk range to be split
+     * @param range_size range size used for chunk split
+     */
+    void splitChunkRange(chunk_range_iterator it, int64_t range_size) {
+        if (it == end() || (it->second - it->first) <= range_size) {
+            return;
+        }
+
+        int64_t range_end = it->second;
+        it->second = it->first + range_size;
+        chunk_range r(it->second + 1, range_end);
+        range_list.insert(++it, r);
+    }
+
+    /**
+     * Merge multiple chunk ranges into one range
+     * @param start the pointer to the start chunk range for the merge operation
+     * @param range_size the new range size used for merging chunk ranges
+     */
+    void mergeChunkRanges(chunk_range_iterator start, int64_t range_size) {
+        if (start == end() || (start->second - start->first) >= range_size) {
+            return;
+        }
+        // Find the closest chunk C1 whose end point is greater than the point advanced by
+        // the new range size from the start chunk range's start point.
+        chunk_range_iterator p = findClosestChunkByRangeSize(start, range_size);
+        if (p != end()) {
+            int64_t endpoint = start->first + range_size;
+            if (p->first <= endpoint && endpoint <= p->second) {
+                // Set the start chunk range's end point by using the new range size
+                start->second = endpoint;
+                p->first = endpoint + 1;
+            } else {
+                chunk_range_iterator iter = p;
+                start->second = (--iter)->second;
+            }
+        } else { // Reached to the end of the range list
+            start->second = back().second;
+        }
+        // Remove the list of chunks between the start chunk and the chunk C1, excluding
+        // these two chunks
+        removeChunkRanges(start, p);
+    }
+
+private:
+
+    /**
+     * Remove the sub list of chunk ranges between two iterator arguments, excluding the ranges
+     * pointed by these two iterators.
+     * @param first iterator that points to the first chunk range in the sub list
+     * @param last iterator that points to the last chunk range in the sub list
+     */
+    void removeChunkRanges(chunk_range_iterator first, chunk_range_iterator last) {
+        if (first == last || first == end() ||
+            (first != end() && last != end() && first->second > last->first)) {
+            return;
+        }
+        range_list.erase(++first, last);
+    }
+
+    /**
+     * Find the closest chunk range whose end point is greater than the point advanced by
+     * a specified range size from the start point of a given chunk range.
+     * @param it pointer to a given chunk range
+     * @param range_size range size to be advanced
+     * @return the iterator that points to the chunk range found
+     */
+    chunk_range_iterator findClosestChunkByRangeSize(chunk_range_iterator it,
+                                                     int64_t range_size) {
+        chunk_range_iterator p = it;
+        while (p != end() && p->second <= (it->first + range_size)) {
+            ++p;
+        }
+        return p;
+    }
+
+    std::list<chunk_range> range_list;
+};
+
+/**
+ * Hash table visitor that builds ranges of row IDs for deleting vbuckets.
+ */
+class VBucketDeletionVisitor : public HashTableVisitor {
+public:
+    /**
+     * Construct a VBucketDeletionVisitor that will attempt to get all the
+     * row_ids for a given vbucket from memory.
+     */
+    VBucketDeletionVisitor(size_t deletion_size)
+        : row_ids(new std::set<int64_t>), chunk_size(deletion_size) {}
+
+    ~VBucketDeletionVisitor() {
+        if (row_ids) {
+            delete row_ids;
+        }
+    }
+
+    void visit(StoredValue *v) {
+        if(v->hasId()) {
+            row_ids->insert(v->getId());
+        }
+    }
+
+    /**
+     * Construct the list of chunks from the row id list for a given vbucket.
+     * Note that each chunk might have a different range size as each chunk is
+     * simply created by taking "chunk_size" elements from the row id list.
+     *
+     */
+    void createRangeList(VBDeletionChunkRangeList& range_list) {
+        size_t counter = 0;
+        int64_t start_row_id = -1, end_row_id = -1;
+
+        std::set<int64_t>::iterator iter;
+        for (iter = row_ids->begin(); iter != row_ids->end(); ++iter) {
+            ++counter;
+            if (counter == 1) {
+                start_row_id = *iter;
+            }
+            if (counter == chunk_size || iter == --(row_ids->end())) {
+                end_row_id = *iter;
+                chunk_range r(start_row_id, end_row_id);
+                range_list.add(r);
+                counter = 0;
+            }
+        }
+
+        delete row_ids;
+        row_ids = NULL;
+    }
+
+    std::set<int64_t>                       *row_ids;
+    size_t                                   chunk_size;
+};
+
 // Forward declaration
 class Flusher;
 class TapBGFetchCallback;
