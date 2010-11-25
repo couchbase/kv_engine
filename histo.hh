@@ -186,7 +186,7 @@ public:
      * @param n how many bins this histogram should contain
      */
     template <typename G>
-    Histogram(G &generator, size_t n=25) : bins(n) {
+    Histogram(const G &generator, size_t n=25) : bins(n) {
         fill(generator);
     }
 

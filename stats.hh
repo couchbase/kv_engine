@@ -13,13 +13,16 @@
 #define DEFAULT_MAX_DATA_SIZE (static_cast<size_t>(-1))
 #endif
 
+static const hrtime_t ONE_SECOND(1000000);
+
 /**
  * Global engine stats container.
  */
 class EPStats {
 public:
 
-    EPStats() : maxDataSize(DEFAULT_MAX_DATA_SIZE) {}
+    EPStats() : maxDataSize(DEFAULT_MAX_DATA_SIZE),
+                diskCommitHisto(GrowingWidthGenerator<hrtime_t>(0, ONE_SECOND, 1.4), 25) {}
 
     //! How long it took us to load the data from disk.
     Atomic<hrtime_t> warmupTime;

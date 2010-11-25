@@ -75,5 +75,6 @@ int main(int argc, char **argv) {
 
     EPStats stats;
     display("Default Histo", stats.diskInsertHisto);
+    display("Commit Histo", stats.diskCommitHisto);
     return 0;
 }
