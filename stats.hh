@@ -22,6 +22,8 @@ class EPStats {
 public:
 
     EPStats() : maxDataSize(DEFAULT_MAX_DATA_SIZE),
+                dirtyAgeHisto(GrowingWidthGenerator<hrtime_t>(0, ONE_SECOND, 1.4), 25),
+                dataAgeHisto(GrowingWidthGenerator<hrtime_t>(0, ONE_SECOND, 1.4), 25),
                 diskCommitHisto(GrowingWidthGenerator<hrtime_t>(0, ONE_SECOND, 1.4), 25) {}
 
     //! How long it took us to load the data from disk.
@@ -215,6 +217,11 @@ public:
     //! Histogram of tap background wait loads.
     Histogram<hrtime_t> tapBgLoadHisto;
 
+    //! Histogram of queue processing dirty age.
+    Histogram<hrtime_t> dirtyAgeHisto;
+    //! Histogram of queue processing data age.
+    Histogram<hrtime_t> dataAgeHisto;
+
     //
     // Command timers
     //
@@ -327,6 +334,9 @@ public:
         diskVBDelHisto.reset();
         diskCommitHisto.reset();
         diskInvaidItemDelHisto.reset();
+
+        dataAgeHisto.reset();
+        dirtyAgeHisto.reset();
     }
 
 private:
