@@ -503,7 +503,8 @@ private:
     RCPtr<VBucket> getVBucket(uint16_t vbid, vbucket_state_t wanted_state);
 
     /* Queue an item to be written to persistent layer. */
-    void queueDirty(const std::string &key, uint16_t vbid, enum queue_operation op);
+    void queueDirty(const std::string &key, uint16_t vbid,
+                    enum queue_operation op, int64_t obid=-1);
 
     /**
      * Retrieve a StoredValue and invoke a method on it.
@@ -559,6 +560,14 @@ private:
                 && !hasSeparateRODispatcher());
     }
 
+    size_t getWriteQueueSize(void) {
+        size_t size = 0;
+        for (size_t i = 0; i < numbOfWriteQueues; ++i) {
+            size += towrite[i].size();
+        }
+        return size;
+    }
+
     friend class Flusher;
     friend class BGFetchCallback;
     friend class VKeyStatBGFetchCallback;
@@ -581,13 +590,14 @@ private:
     InvalidItemDbPager        *invalidItemDbPager;
     VBucketMap                 vbuckets;
     SyncObject                 mutex;
-    AtomicQueue<QueuedItem>    towrite;
+    AtomicQueue<QueuedItem>   *towrite;
     std::queue<QueuedItem>     writing;
     pthread_t                  thread;
     Atomic<size_t>             bgFetchQueue;
     TransactionContext         tctx;
     Mutex                      vbsetMutex;
     uint32_t                   bgFetchDelay;
+    size_t                     numbOfWriteQueues;
 
     DISALLOW_COPY_AND_ASSIGN(EventuallyPersistentStore);
 };

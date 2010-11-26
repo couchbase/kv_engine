@@ -59,7 +59,8 @@ static int count(HashTable &h, bool verify=true) {
 
 static void store(HashTable &h, std::string &k) {
     Item i(k, 0, 0, k.c_str(), k.length());
-    assert(h.set(i) == NOT_FOUND);
+    int64_t row_id = -1;
+    assert(h.set(i, row_id) == NOT_FOUND);
 }
 
 static void storeMany(HashTable &h, std::vector<std::string> &keys) {
@@ -264,9 +265,10 @@ static void testAdd() {
         assert(h.find(key));
     }
 
+    int64_t row_id = -1;
     // Verify we can readd after a soft deletion.
-    assert(h.softDelete(keys[0]) == WAS_DIRTY);
-    assert(h.softDelete(keys[0]) == NOT_FOUND);
+    assert(h.softDelete(keys[0], row_id) == WAS_DIRTY);
+    assert(h.softDelete(keys[0], row_id) == NOT_FOUND);
     assert(!h.find(keys[0]));
     assert(count(h) == nkeys - 1);
 

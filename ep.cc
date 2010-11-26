@@ -431,6 +431,9 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
         vbuckets.setBucketVersion(0, 0);
     }
 
+    numbOfWriteQueues = rwUnderlying->getDBStrategy()->getNumOfDbShards();
+    towrite = new AtomicQueue<QueuedItem>[numbOfWriteQueues];
+
     startDispatcher();
     startFlusher();
     startNonIODispatcher();
@@ -463,6 +466,7 @@ EventuallyPersistentStore::~EventuallyPersistentStore() {
     delete flusher;
     delete dispatcher;
     delete nonIODispatcher;
+    delete[] towrite;
 }
 
 void EventuallyPersistentStore::startDispatcher() {
@@ -531,7 +535,7 @@ public:
             StoredValue *v = vb->ht.unlocked_find(vk.second, bucket_num);
             if (v) {
                 if (vb->ht.unlocked_softDelete(vk.second, bucket_num) == WAS_CLEAN) {
-                    e->queueDirty(vk.second, vb->getId(), queue_op_del);
+                    e->queueDirty(vk.second, vb->getId(), queue_op_del, v->getId());
                 }
             }
         }
@@ -558,7 +562,7 @@ StoredValue *EventuallyPersistentStore::fetchValidValue(RCPtr<VBucket> vb,
     } else if (v && v->isExpired(ep_real_time())) {
         ++stats.expired;
         if (vb->ht.unlocked_softDelete(key, bucket_num) == WAS_CLEAN) {
-            queueDirty(key, vb->getId(), queue_op_del);
+            queueDirty(key, vb->getId(), queue_op_del, v->getId());
         }
         return NULL;
     }
@@ -618,7 +622,8 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::set(const Item &item,
 
     bool cas_op = (item.getCas() != 0);
 
-    mutation_type_t mtype = vb->ht.set(item);
+    int64_t row_id = -1;
+    mutation_type_t mtype = vb->ht.set(item, row_id);
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
 
     switch (mtype) {
@@ -639,7 +644,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::set(const Item &item,
         }
         // FALLTHROUGH
     case WAS_CLEAN:
-        queueDirty(item.getKey(), item.getVBucketId(), queue_op_set);
+        queueDirty(item.getKey(), item.getVBucketId(), queue_op_set, row_id);
         break;
     case INVALID_VBUCKET:
         ret = ENGINE_NOT_MY_VBUCKET;
@@ -1116,7 +1121,8 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::del(const std::string &key,
         }
     }
 
-    mutation_type_t delrv = vb->ht.softDelete(key);
+    int64_t row_id = -1;
+    mutation_type_t delrv = vb->ht.softDelete(key, row_id);
     ENGINE_ERROR_CODE rv;
 
     if (delrv == NOT_FOUND) {
@@ -1128,7 +1134,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::del(const std::string &key,
     }
 
     if (delrv == WAS_CLEAN) {
-        queueDirty(key, vbucket, queue_op_del);
+        queueDirty(key, vbucket, queue_op_del, row_id);
     }
     return rv;
 }
@@ -1152,16 +1158,30 @@ void EventuallyPersistentStore::reset() {
 
 std::queue<QueuedItem>* EventuallyPersistentStore::beginFlush() {
     std::queue<QueuedItem> *rv(NULL);
-    if (towrite.empty() && writing.empty()) {
+    if (getWriteQueueSize() == 0 && writing.empty()) {
         stats.dirtyAge = 0;
     } else {
         assert(rwUnderlying);
-        towrite.getAll(writing);
+        std::vector<QueuedItem> item_list;
+        item_list.reserve(DEFAULT_TXN_SIZE);
+        for (size_t i = 0; i < numbOfWriteQueues; ++i) {
+            towrite[i].toArray(item_list);
+            // Sort all the queued items for each db shard by their row ids
+            CompareQueuedItemsByRowId cq;
+            std::sort(item_list.begin(), item_list.end(), cq);
+            std::vector<QueuedItem>::iterator it = item_list.begin();
+            while (it != item_list.end()) {
+                writing.push(*it);
+                ++it;
+            }
+            item_list.clear();
+        }
+
         stats.flusher_todo.set(writing.size());
-        stats.queue_size.set(towrite.size());
+        stats.queue_size.set(getWriteQueueSize());
         getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
                          "Flushing %d items with %d still in queue\n",
-                         writing.size(), towrite.size());
+                         writing.size(), getWriteQueueSize());
         rv = &writing;
     }
     return rv;
@@ -1176,7 +1196,7 @@ void EventuallyPersistentStore::completeFlush(std::queue<QueuedItem> *rej,
         rej->pop();
     }
 
-    stats.queue_size.set(towrite.size() + writing.size());
+    stats.queue_size.set(getWriteQueueSize() + writing.size());
     rel_time_t complete_time = ep_current_time();
     stats.flushDuration.set(complete_time - flush_start);
     stats.flushDurationHighWat.set(std::max(stats.flushDuration.get(),
@@ -1431,11 +1451,12 @@ int EventuallyPersistentStore::flushOneDelOrSet(QueuedItem &qi,
             // requeue the persistence task and wait until the snapshot task is completed.
             if (vbuckets.isHighPriorityVbSnapshotScheduled()) {
                 lh.unlock();
-                towrite.push(qi);
+                uint16_t shard_id = rwUnderlying->getDBStrategy()->getDbShardIdForKey(qi.getKey());
+                towrite[shard_id].push(qi);
                 stats.memOverhead.incr(qi.size());
                 assert(stats.memOverhead.get() < GIGANTOR);
                 ++stats.totalEnqueued;
-                stats.queue_size = towrite.size();
+                stats.queue_size = getWriteQueueSize();
             } else {
                 v->markClean(NULL);
                 lh.unlock();
@@ -1497,17 +1518,19 @@ int EventuallyPersistentStore::flushOne(std::queue<QueuedItem> *q,
 
 }
 
-void EventuallyPersistentStore::queueDirty(const std::string &key, uint16_t vbid,
-                                           enum queue_operation op) {
+void EventuallyPersistentStore::queueDirty(const std::string &key,
+                                           uint16_t vbid,
+                                           enum queue_operation op,
+                                           int64_t obid) {
     if (doPersistence) {
-        // Assume locked.
-        uint16_t vb_version = vbuckets.getBucketVersion(vbid);
-        QueuedItem qi(key, vbid, op, vb_version);
-        towrite.push(qi);
-        stats.memOverhead.incr(qi.size());
+        QueuedItem item(key, vbid, op, vbuckets.getBucketVersion(vbid), obid);
+
+        uint16_t shard_id = rwUnderlying->getDBStrategy()->getDbShardIdForKey(item.getKey());
+        towrite[shard_id].push(item);
+        stats.memOverhead.incr(item.size());
         assert(stats.memOverhead.get() < GIGANTOR);
         ++stats.totalEnqueued;
-        stats.queue_size = towrite.size();
+        stats.queue_size = getWriteQueueSize();
     }
 }
 

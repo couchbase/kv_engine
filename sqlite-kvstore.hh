@@ -169,6 +169,10 @@ public:
      */
     void dump(Callback<GetValue> &cb);
 
+    SqliteStrategy* getDBStrategy() {
+        return strategy;
+    }
+
 private:
     /**
      * Shortcut to execute a simple query.

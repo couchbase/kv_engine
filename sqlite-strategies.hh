@@ -40,11 +40,7 @@ public:
         close();
     }
 
-    const std::vector<Statements *> &allStatements() {
-        return statements;
-    }
-
-    Statements *forKey(const std::string &key) {
+    uint16_t getDbShardIdForKey(const std::string &key) {
         assert(statements.size() > 0);
         int h=5381;
         int i=0;
@@ -53,8 +49,20 @@ public:
         for(i=0; str[i] != 0x00; i++) {
             h = ((h << 5) + h) ^ str[i];
         }
+        return std::abs(h) % (int)statements.size();
+    }
 
-        return statements.at(std::abs(h) % (int)statements.size());
+    size_t getNumOfDbShards(void) {
+        assert(statements.size() > 0);
+        return statements.size();
+    }
+
+    const std::vector<Statements *> &allStatements() {
+        return statements;
+    }
+
+    Statements *forKey(const std::string &key) {
+        return statements.at(getDbShardIdForKey(key));
     }
 
     PreparedStatement *getInsVBucketStateST() {

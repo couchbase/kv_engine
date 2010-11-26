@@ -856,9 +856,10 @@ public:
      * Set a new Item into this hashtable.
      *
      * @param the Item to store
+     * @param row_id the row id that is assigned to the item to store
      * @return a result indicating the status of the store
      */
-    mutation_type_t set(const Item &val) {
+    mutation_type_t set(const Item &val, int64_t &row_id) {
         assert(active());
         Item &itm = const_cast<Item&>(val);
         if (!StoredValue::hasAvailableSpace(stats, itm)) {
@@ -888,6 +889,7 @@ public:
             v->setValue(itm.getValue(),
                         itm.getFlags(), itm.getExptime(),
                         itm.getCas(), stats);
+            row_id = v->getId();
         } else {
             if (itm.getCas() != 0) {
                 return NOT_FOUND;
@@ -950,12 +952,17 @@ public:
      * Mark the given record logically deleted.
      *
      * @param key the key of the item to delete
+     * @param row_id the row id that is assigned to the item to be deleted
      * @return an indicator of what the deletion did
      */
-    mutation_type_t softDelete(const std::string &key) {
+    mutation_type_t softDelete(const std::string &key, int64_t &row_id) {
         assert(active());
         int bucket_num = bucket(key);
         LockHolder lh(getMutex(bucket_num));
+        StoredValue *v = unlocked_find(key, bucket_num);
+        if (v) {
+            row_id = v->getId();
+        }
         return unlocked_softDelete(key, bucket_num);
     }
 

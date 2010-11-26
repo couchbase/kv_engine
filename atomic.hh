@@ -485,6 +485,20 @@ public:
     }
 
     /**
+     * Pop all the items from this queue and put them into the output vector instance.
+     *
+     * @param outVector a destination vector to fill
+     */
+    void toArray(std::vector<T> &outVector) {
+        std::queue<T> q;
+        getAll(q);
+        while (!q.empty()) {
+            outVector.push_back(q.front());
+            q.pop();
+        }
+    }
+
+    /**
      * Get the number of queues internally maintained.
      */
     size_t getNumQueues() const {

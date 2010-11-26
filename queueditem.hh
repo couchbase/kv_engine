@@ -17,17 +17,21 @@ typedef enum {
     vbucket_del_invalid
 } vbucket_del_result;
 
+class CompareQueuedItemsByRowId;
+
 /**
  * Representation of an item queued for persistence or tap.
  */
 class QueuedItem {
+friend class CompareQueuedItemsByRowId;
 public:
     QueuedItem(const std::string &k, const uint16_t vb,
-               enum queue_operation o, const uint16_t vb_version = -1)
+               enum queue_operation o, const uint16_t vb_version = -1,
+               const int64_t rid = -1)
         : key(k), op(o), vbucket(vb), vbucket_version(vb_version),
-          dirtied(ep_current_time()) {}
+          row_id(rid), dirtied(ep_current_time()) {}
 
-    std::string getKey(void) const { return key; }
+    const std::string &getKey(void) const { return key; }
     uint16_t getVBucketId(void) const { return vbucket; }
     uint16_t getVBucketVersion(void) const { return vbucket_version; }
     rel_time_t getDirtied(void) const { return dirtied; }
@@ -46,7 +50,18 @@ private:
     enum queue_operation op;
     uint16_t vbucket;
     uint16_t vbucket_version;
+    int64_t row_id;
     rel_time_t dirtied;
+};
+
+/**
+ * Order QueuedItem objects by their row ids.
+ */
+class CompareQueuedItemsByRowId {
+public:
+    bool operator()(QueuedItem i1, QueuedItem i2) {
+        return i1.row_id < i2.row_id;
+    }
 };
 
 #endif /* QUEUEDITEM_HH */
