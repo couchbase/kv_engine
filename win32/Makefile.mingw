@@ -10,7 +10,7 @@ MARCH=-march=i686
 MEMCACHED=../memcached
 
 OBJDIR = .libs .libs/embedded .libs/poll
-BINARIES= .libs/ep.so
+BINARIES= .libs/ep.so sqlite3.exe
 LIB=$(LOCALLIB) -L${MEMCACHED}/lib
 INCLUDE= -Iwin32 -I.libs -I${MEMCACHED}/include -I. $(LOCALINC)
 GENFILES=.libs/config_version.h
@@ -56,6 +56,12 @@ EP_ENGINE_C_SRC = \
 
 EP_ENGINE_OBJS = ${EP_ENGINE_C_SRC:%.c=.libs/%.o} ${EP_ENGINE_CC_SRC:%.cc=.libs/%.o}
 
+SQLITE3_SRC = embedded/sqlite3.c embedded/sqlite3-shell.c
+SQLITE3_OBJS = ${SQLITE3_SRC:%.c=.libs/%.o}
+
+sqlite3.exe: ${OBJDIR} ${GENFILES} ${SQLITE3_OBJS}
+	${LINK.cc} -o $@ ${SQLITE3_OBJS}
+
 .libs/ep.so: ${OBJDIR} ${GENFILES} $(EP_ENGINE_OBJS)
 	${LINK.cc} -o $@ -shared ${EP_ENGINE_OBJS} \
                   ${LIB} -lpthread \
@@ -74,6 +80,7 @@ EP_ENGINE_OBJS = ${EP_ENGINE_C_SRC:%.c=.libs/%.o} ${EP_ENGINE_CC_SRC:%.cc=.libs/
 
 clean:
 	$(RM) ${EP_ENGINE_OBJS} ${BINARIES} ${EP_ENGINE_OBJS:.o=.d} \
-              ${GENFILES}
+              ${GENFILES} ${SQLITE3_OBJS} ${SQLITE3_OBJS:.o=.d}
 
 -include ${EP_ENGINE_OBJS:.o=.d}
+-include ${SQLITE3_OBJS:.o=.d}
