@@ -1156,6 +1156,14 @@ void EventuallyPersistentStore::reset() {
     queueDirty("", 0, queue_op_flush);
 }
 
+void EventuallyPersistentStore::enqueueCommit() {
+    QueuedItem causeCommit("", 0, queue_op_commit);
+    writing.push(causeCommit);
+    stats.memOverhead.incr(causeCommit.size());
+    assert(stats.memOverhead.get() < GIGANTOR);
+    ++stats.totalEnqueued;
+}
+
 std::queue<QueuedItem>* EventuallyPersistentStore::beginFlush() {
     std::queue<QueuedItem> *rv(NULL);
     if (getWriteQueueSize() == 0 && writing.empty()) {
@@ -1164,17 +1172,27 @@ std::queue<QueuedItem>* EventuallyPersistentStore::beginFlush() {
         assert(rwUnderlying);
         std::vector<QueuedItem> item_list;
         item_list.reserve(DEFAULT_TXN_SIZE);
+        bool shouldCommit(false);
         for (size_t i = 0; i < numbOfWriteQueues; ++i) {
             towrite[i].toArray(item_list);
             // Sort all the queued items for each db shard by their row ids
             CompareQueuedItemsByRowId cq;
             std::sort(item_list.begin(), item_list.end(), cq);
             std::vector<QueuedItem>::iterator it = item_list.begin();
-            while (it != item_list.end()) {
+            size_t moved(0);
+            for (; it != item_list.end(); ++it) {
                 writing.push(*it);
-                ++it;
+                if (shouldCommit) {
+                    enqueueCommit();
+                    shouldCommit = false;
+                }
+                ++moved;
             }
             item_list.clear();
+
+            if (moved > 0) {
+                shouldCommit = true;
+            }
         }
 
         stats.flusher_todo.set(writing.size());
@@ -1507,6 +1525,9 @@ int EventuallyPersistentStore::flushOne(std::queue<QueuedItem> *q,
         break;
     case queue_op_del:
         rv = flushOneDelOrSet(qi, rejectQueue);
+        break;
+    case queue_op_commit:
+        tctx.commit();
         break;
     case queue_op_empty:
         assert(false);

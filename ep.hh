@@ -544,6 +544,7 @@ private:
     void completeFlush(std::queue<QueuedItem> *rejects,
                        rel_time_t flush_start);
 
+    void enqueueCommit();
     int flushSome(std::queue<QueuedItem> *q,
                   std::queue<QueuedItem> *rejectQueue);
     int flushOne(std::queue<QueuedItem> *q,
