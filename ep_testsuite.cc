@@ -1053,11 +1053,10 @@ static enum test_result test_flush_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
     assert(mem_used2 == (overhead2 + cacheSize2));
 
     check(h1->flush(h, NULL, 0) == ENGINE_SUCCESS, "Failed to flush");
-    int queue_size = get_int_stat(h, h1, "ep_queue_size");
     check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key"), "Expected missing key");
     check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key2"), "Expected missing key");
 
-    wait_for_stat_change(h, h1, "ep_queue_size", queue_size);
+    wait_for_flusher_to_settle(h, h1);
 
     mem_used2 = get_int_stat(h, h1, "mem_used");
     overhead2 = get_int_stat(h, h1, "ep_overhead");
