@@ -1528,6 +1528,7 @@ int EventuallyPersistentStore::flushOne(std::queue<QueuedItem> *q,
         break;
     case queue_op_commit:
         tctx.commit();
+        tctx.enter();
         break;
     case queue_op_empty:
         assert(false);
