@@ -1363,6 +1363,12 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
                                                               uint16_t *vbucket,
                                                               TapConnection *connection,
                                                               bool &retry) {
+    *es = NULL;
+    *nes = 0;
+    *ttl = (uint8_t)-1;
+    *seqno = 0;
+    *flags = 0;
+
     retry = false;
     connection->notifySent = false;
 
@@ -1370,22 +1376,11 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
         queueBackfill(connection, cookie);
     }
 
-    if (connection->isSuspended()) {
+    if (connection->isSuspended() || connection->windowIsFull()) {
         return TAP_PAUSE;
     }
 
     tap_event_t ret = TAP_PAUSE;
-
-    *es = NULL;
-    *nes = 0;
-    *ttl = (uint8_t)-1;
-    *seqno = 0;
-    *flags = 0;
-
-    if (connection->windowIsFull()) {
-        return TAP_PAUSE;
-    }
-
     TapVBucketEvent ev = connection->nextVBucketHighPriority();
     if (ev.event != TAP_PAUSE) {
         switch (ev.event) {
@@ -1509,6 +1504,9 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
         } else if (connection->hasPendingAcks()) {
             ret = TAP_PAUSE;
         } else {
+            getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                             "Disconnecting tap stream %s\n",
+                             connection->client.c_str());
             ret = TAP_DISCONNECT;
         }
     }
@@ -1526,6 +1524,8 @@ tap_event_t EventuallyPersistentEngine::walkTapQueue(const void *cookie,
                                                      uint16_t *vbucket) {
     TapConnection *connection = getTapConnection(cookie);
     if (!connection) {
+        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                         "Failed to lookup TAP connection.. Disconnecting\n");
         return TAP_DISCONNECT;
     }
 
@@ -1545,10 +1545,18 @@ tap_event_t EventuallyPersistentEngine::walkTapQueue(const void *cookie,
         } else {
             ++stats.numTapFetched;
             *seqno = connection->getSeqno();
+
+            if (ret == TAP_MUTATION || ret == TAP_DELETION) {
+                QueuedItem qi(static_cast<Item*>(*itm)->getKey(), *vbucket,
+                              queue_op_set);
+                connection->addTapLogElement(qi);
+            }
+
             if (connection->requestAck(ret)) {
                 *flags = TAP_FLAG_ACK;
             }
         }
+
         connection->paused = false;
     }
 
@@ -1631,26 +1639,35 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
     (void)ttl;
 
     std::string k(static_cast<const char*>(key), nkey);
-    ENGINE_ERROR_CODE ret;
+    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
 
     switch (tap_event) {
     case TAP_ACK:
-        return processTapAck(cookie, tap_seqno, tap_flags, k);
+        ret = processTapAck(cookie, tap_seqno, tap_flags, k);
+        break;
     case TAP_FLUSH:
-        return flush(cookie, 0);
+        ret = flush(cookie, 0);
+        break;
     case TAP_DELETION:
         ret = epstore->del(k, vbucket, cookie, true);
         if (ret == ENGINE_KEY_ENOENT) {
             ret = ENGINE_SUCCESS;
         }
-        return ret;
+        break;
 
     case TAP_MUTATION:
         {
             bool acks(serverApi->cookie->get_engine_specific(cookie) == &supportsACK);
             if (!tapThrottle->shouldProcess()) {
                 ++stats.tapThrottled;
-                return acks ? ENGINE_TMPFAIL : ENGINE_DISCONNECT;
+                if (acks) {
+                    ret = ENGINE_TMPFAIL;
+                } else {
+                    ret = ENGINE_DISCONNECT;
+                    getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                     "Don't know how to trottle streams without ack support. Disconnecting\n");
+                }
+                break;
             }
 
             BlockTimer timer(&stats.tapMutationHisto);
@@ -1690,37 +1707,34 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
                 getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                                  "Failed to apply tap mutation. Force disconnect\n");
             }
-
-            return ret;
         }
+        break;
 
     case TAP_OPAQUE:
-        {
-            if (nengine == sizeof(uint32_t)) {
-                uint32_t cc;
-                memcpy(&cc, engine_specific, sizeof(cc));
-                cc = ntohl(cc);
+        if (nengine == sizeof(uint32_t)) {
+            uint32_t cc;
+            memcpy(&cc, engine_specific, sizeof(cc));
+            cc = ntohl(cc);
 
-                switch (cc) {
-                case TAP_OPAQUE_ENABLE_AUTO_NACK:
-                    serverApi->cookie->store_engine_specific(cookie, &supportsACK);
+            switch (cc) {
+            case TAP_OPAQUE_ENABLE_AUTO_NACK:
+                serverApi->cookie->store_engine_specific(cookie, &supportsACK);
 
-                    getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                                     "Enable auto nack mode\n");
-                    serverApi->cookie->set_tap_nack_mode(cookie, true);
-                    break;
-                case TAP_OPAQUE_INITIAL_VBUCKET_STREAM:
-                    /* Ignore.. this is just an informative message */
-                    break;
-                default:
-                    getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                     "Received an unknown opaque command\n");
-                }
-            } else {
+                getLogger()->log(EXTENSION_LOG_INFO, NULL,
+                                 "Enable auto nack mode\n");
+                serverApi->cookie->set_tap_nack_mode(cookie, true);
+                break;
+            case TAP_OPAQUE_INITIAL_VBUCKET_STREAM:
+                /* Ignore.. this is just an informative message */
+                break;
+            default:
                 getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                 "Received tap opaque with unknown size %d\n",
-                                 nengine);
+                                 "Received an unknown opaque command\n");
             }
+        } else {
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                             "Received tap opaque with unknown size %d\n",
+                             nengine);
         }
         break;
 
@@ -1732,7 +1746,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
                 // illegal datasize
                 getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                                  "Received TAP_VBUCKET_SET with illegal size. force disconnect\n");
-                return ENGINE_DISCONNECT;
+                ret = ENGINE_DISCONNECT;
+                break;
             }
 
             vbucket_state_t state;
@@ -1742,7 +1757,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
             if (!is_valid_vbucket_state_t(state)) {
                 getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                                  "Received an invalid vbucket state, diconnecting\n");
-                return ENGINE_DISCONNECT;
+                ret = ENGINE_DISCONNECT;
+                break;
             }
 
             epstore->setVBucketState(vbucket, state);
@@ -1753,7 +1769,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
         abort();
     }
 
-    return ENGINE_SUCCESS;
+    return ret;
 }
 
 TapConnection* EventuallyPersistentEngine::getTapConnection(const void *cookie) {

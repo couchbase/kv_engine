@@ -258,6 +258,11 @@ void TapConnection::setSuspended(bool value)
                                                *this)),
                         NULL, Priority::TapResumePriority, backoffSleepTime,
                         false);
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                             "Suspend %s for %.2f secs\n", client.c_str(),
+                             backoffSleepTime);
+
+
         } else {
             // backoff disabled, or already in a suspended state
             return;
@@ -304,19 +309,26 @@ ENGINE_ERROR_CODE TapConnection::processAck(uint32_t s,
     /* Implicit ack _every_ message up until this message */
     while (iter != tapLog.end() && iter->seqno != s) {
         getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                         "Implicit ack <%s> (#%u)\n", client.c_str(), iter->seqno);
+                         "Implicit ack <%s> (#%u)\n",
+                         client.c_str(), iter->seqno);
         ++iter;
     }
 
     switch (status) {
     case PROTOCOL_BINARY_RESPONSE_SUCCESS:
         /* And explicit ack this message! */
-        if (iter != tapLog.end() && iter->seqno == s) {
+        if (iter != tapLog.end()) {
+            getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                             "Explicit ack <%s> (#%u)\n",
+                             client.c_str(), iter->seqno);
             ++iter;
+            tapLog.erase(tapLog.begin(), iter);
+        } else {
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                             "Explicit ack <%s> of nonexisting entry (#%u)\n",
+                             client.c_str(), s);
         }
-        getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                         "Explicit ack <%s> (#%u)\n", client.c_str(), iter->seqno);
-        tapLog.erase(tapLog.begin(), iter);
+
         lh.unlock();
         if (complete() && idle()) {
             // We've got all of the ack's need, now we can shut down the
@@ -336,7 +348,7 @@ ENGINE_ERROR_CODE TapConnection::processAck(uint32_t s,
                          client.c_str(), seqnoReceived, status, msg.c_str());
 
         // Reschedule _this_ sequence number..
-        if (iter != tapLog.end() && iter->seqno == s) {
+        if (iter != tapLog.end()) {
             reschedule_UNLOCKED(iter);
             ++iter;
         }

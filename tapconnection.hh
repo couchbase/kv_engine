@@ -189,13 +189,14 @@ private:
     }
 
     void addTapLogElement(const QueuedItem &qi) {
+        LockHolder lh(queueLock);
         if (ackSupported) {
             TapLogElement log(seqno, qi);
             tapLog.push_back(log);
         }
     }
 
-    void addTapLogElement(const TapVBucketEvent &e) {
+    void addTapLogElement_UNLOCKED(const TapVBucketEvent &e) {
         if (ackSupported && e.event != TAP_NOOP) {
             // add to the log!
             TapLogElement log(seqno, e);
@@ -214,7 +215,6 @@ private:
 
             if (vbucketFilter(qi.getVBucketId())) {
                 ++recordsFetched;
-                addTapLogElement(qi);
                 return qi;
             } else {
                 ++recordsSkipped;
@@ -267,7 +267,7 @@ private:
             }
 
             ++recordsFetched;
-            addTapLogElement(ret);
+            addTapLogElement_UNLOCKED(ret);
         }
         return ret;
     }
@@ -305,7 +305,7 @@ private:
                 return nextVBucketHighPriority_UNLOCKED();
             }
             ++recordsFetched;
-            addTapLogElement(ret);
+            addTapLogElement_UNLOCKED(ret);
         }
         return ret;
     }
@@ -606,6 +606,7 @@ private:
     bool ackSupported;
 
     bool hasPendingAcks() {
+        LockHolder lh(queueLock);
         return !tapLog.empty();
     }
 
