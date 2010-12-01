@@ -301,9 +301,16 @@ private:
     void verify() {
         T prev = std::numeric_limits<T>::min();
         typename std::vector<HistogramBin<T>*>::iterator it;
+        int pos(0);
         for (it = bins.begin(); it != bins.end(); ++it) {
+            if ((*it)->start() != prev) {
+                std::cerr << "Expected " << (*it)->start() << " == " << prev
+                          << " at pos " << pos << std::endl;
+                abort();
+            }
             assert((*it)->start() == prev);
             prev = (*it)->end();
+            ++pos;
         }
         assert(prev == std::numeric_limits<T>::max());
     }
