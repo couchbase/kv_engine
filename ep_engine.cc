@@ -1649,7 +1649,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
         ret = flush(cookie, 0);
         break;
     case TAP_DELETION:
-        ret = epstore->del(k, vbucket, cookie, true);
+        ret = epstore->del(k, 0, vbucket, cookie, true);
         if (ret == ENGINE_KEY_ENOENT) {
             ret = ENGINE_SUCCESS;
         }

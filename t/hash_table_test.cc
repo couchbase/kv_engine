@@ -267,8 +267,8 @@ static void testAdd() {
 
     int64_t row_id = -1;
     // Verify we can readd after a soft deletion.
-    assert(h.softDelete(keys[0], row_id) == WAS_DIRTY);
-    assert(h.softDelete(keys[0], row_id) == NOT_FOUND);
+    assert(h.softDelete(keys[0], 0, row_id) == WAS_DIRTY);
+    assert(h.softDelete(keys[0], 0, row_id) == NOT_FOUND);
     assert(!h.find(keys[0]));
     assert(count(h) == nkeys - 1);
 

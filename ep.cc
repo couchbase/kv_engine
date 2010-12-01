@@ -450,7 +450,7 @@ public:
 
             StoredValue *v = vb->ht.unlocked_find(vk.second, bucket_num);
             if (v) {
-                if (vb->ht.unlocked_softDelete(vk.second, bucket_num) == WAS_CLEAN) {
+                if (vb->ht.unlocked_softDelete(vk.second, 0, bucket_num) == WAS_CLEAN) {
                     e->queueDirty(vk.second, vb->getId(), queue_op_del, v->getId());
                 }
             }
@@ -477,7 +477,7 @@ StoredValue *EventuallyPersistentStore::fetchValidValue(RCPtr<VBucket> vb,
         return v;
     } else if (v && v->isExpired(ep_real_time())) {
         ++stats.expired;
-        if (vb->ht.unlocked_softDelete(key, bucket_num) == WAS_CLEAN) {
+        if (vb->ht.unlocked_softDelete(key, 0, bucket_num) == WAS_CLEAN) {
             queueDirty(key, vb->getId(), queue_op_del, v->getId());
         }
         return NULL;
@@ -1019,6 +1019,7 @@ void EventuallyPersistentStore::setQueueAgeCap(int to) {
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentStore::del(const std::string &key,
+                                                 uint64_t cas,
                                                  uint16_t vbucket,
                                                  const void *cookie,
                                                  bool force) {
@@ -1038,7 +1039,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::del(const std::string &key,
     }
 
     int64_t row_id = -1;
-    mutation_type_t delrv = vb->ht.softDelete(key, row_id);
+    mutation_type_t delrv = vb->ht.softDelete(key, cas, row_id);
     ENGINE_ERROR_CODE rv;
 
     if (delrv == NOT_FOUND) {

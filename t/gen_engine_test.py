@@ -170,6 +170,12 @@ class Delete(Action):
     effect = DeleteEffect()
     postconditions = [DoesNotExistCondition()]
 
+class DeleteUsingCAS(Action):
+
+    preconditions = [KnowsCAS(), ExistsCondition(), IsUnlockedCondition()]
+    effect = DeleteEffect()
+    postconditions = [DoesNotExistCondition()]
+
 class Flush(Action):
 
     effect = FlushEffect()

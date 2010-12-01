@@ -21,6 +21,7 @@ void incr(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
 void incrWithDefault(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
 void getLock(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
 void setUsingCAS(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
+void deleteUsingCAS(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
 
 void checkValue(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* exp);
 void assertNotExists(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);

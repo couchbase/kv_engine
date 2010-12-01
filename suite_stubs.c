@@ -17,9 +17,13 @@ protocol_binary_response_status last_status = 0;
 
 static const char *key = "key";
 
+static void clearCAS(void) {
+    cas = (1 << 31);
+}
+
 bool teardown(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     (void)h; (void)h1;
-    cas = (1 << 31);
+    clearCAS();
     return true;
 }
 
@@ -67,7 +71,7 @@ static void storeItem(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 
     // If we changed the CAS, make sure we don't know it.
     if (!hasError && !rememberCAS) {
-        cas = (1 << 31);
+        clearCAS();
     }
     assert(cas != 0);
 }
@@ -83,6 +87,7 @@ void append(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 void decr(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     uint64_t mycas;
     uint64_t result;
+    clearCAS();
     hasError = h1->arithmetic(h, NULL, key, strlen(key), false, false, 1, 0, expiry,
                               &mycas, &result,
                               0) != ENGINE_SUCCESS;
@@ -91,6 +96,7 @@ void decr(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 void decrWithDefault(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     uint64_t mycas;
     uint64_t result;
+    clearCAS();
     hasError = h1->arithmetic(h, NULL, key, strlen(key), false, true, 1, 0, expiry,
                               &mycas, &result,
                               0) != ENGINE_SUCCESS;
@@ -106,6 +112,10 @@ void flush(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
 void del(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     hasError = h1->remove(h, NULL, key, strlen(key), 0, 0) != ENGINE_SUCCESS;
+}
+
+void deleteUsingCAS(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    hasError = h1->remove(h, NULL, key, strlen(key), cas, 0) != ENGINE_SUCCESS;
 }
 
 void set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {

@@ -148,17 +148,16 @@ public:
                                  uint64_t cas,
                                  uint16_t vbucket)
     {
-        (void)cas;
-        (void)vbucket;
         std::string k(static_cast<const char*>(key), nkey);
-        return itemDelete(cookie, k, vbucket);
+        return itemDelete(cookie, k, cas, vbucket);
     }
 
     ENGINE_ERROR_CODE itemDelete(const void* cookie,
                                  const std::string &key,
+                                 uint64_t cas,
                                  uint16_t vbucket)
     {
-        ENGINE_ERROR_CODE ret = epstore->del(key, vbucket, cookie);
+        ENGINE_ERROR_CODE ret = epstore->del(key, cas, vbucket, cookie);
 
         if (ret == ENGINE_SUCCESS) {
             addDeleteEvent(key, vbucket);

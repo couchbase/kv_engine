@@ -955,10 +955,12 @@ public:
      * Mark the given record logically deleted.
      *
      * @param key the key of the item to delete
+     * @param cas the expected CAS of the item (or 0 to override)
      * @param row_id the row id that is assigned to the item to be deleted
      * @return an indicator of what the deletion did
      */
-    mutation_type_t softDelete(const std::string &key, int64_t &row_id) {
+    mutation_type_t softDelete(const std::string &key, uint64_t cas,
+                               int64_t &row_id) {
         assert(active());
         int bucket_num = bucket(key);
         LockHolder lh(getMutex(bucket_num));
@@ -966,13 +968,14 @@ public:
         if (v) {
             row_id = v->getId();
         }
-        return unlocked_softDelete(key, bucket_num);
+        return unlocked_softDelete(key, cas, bucket_num);
     }
 
     /**
      * Unlocked implementation of softDelete.
      */
-    mutation_type_t unlocked_softDelete(const std::string &key, int bucket_num) {
+    mutation_type_t unlocked_softDelete(const std::string &key, uint64_t cas,
+                                        int bucket_num) {
         mutation_type_t rv = NOT_FOUND;
         StoredValue *v = unlocked_find(key, bucket_num);
         if (v) {
@@ -984,6 +987,11 @@ public:
             if (v->isLocked(ep_current_time())) {
                 return IS_LOCKED;
             }
+
+            if (cas != 0 && cas != v->getCas()) {
+                return NOT_FOUND;
+            }
+
             /* allow operation*/
             v->unlock();
 

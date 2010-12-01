@@ -472,14 +472,16 @@ public:
     /**
      * Delete an item from the store
      * @param key key to delete
+     * @param cas the CAS ID for a CASed delete (0 to override)
      * @param vbucket the bucket for the key
      * @param cookie the cookie representing the client
      * @param force override access to the vbucket even if the state of the
      *              vbucket would deny mutations.
      * @return the result of the delete operation
      */
-    ENGINE_ERROR_CODE del(const std::string &key, uint16_t vbucket,
-                          const void *cookie, bool force = false);
+    ENGINE_ERROR_CODE del(const std::string &key, uint64_t cas,
+                          uint16_t vbucket, const void *cookie,
+                          bool force = false);
 
     void reset();
 
