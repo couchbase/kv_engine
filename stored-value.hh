@@ -471,6 +471,7 @@ public:
 
         value.reset();
         markDirty();
+        setCas(getCas() + 1);
 
         size_t newsize = size();
         if (oldsize < newsize) {
@@ -883,6 +884,8 @@ public:
                 v->unlock();
             } else if (val.getCas() != 0 && val.getCas() != v->getCas()) {
                 return INVALID_CAS;
+            } else if (val.getCas() != 0 && v->isExpired(ep_real_time())) {
+                return NOT_FOUND;
             }
             itm.setCas();
             rv = v->isClean() ? WAS_CLEAN : WAS_DIRTY;

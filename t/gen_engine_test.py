@@ -51,22 +51,39 @@ class IsUnlockedCondition(Condition):
     def __call__(self, state):
         return (TESTKEY + '.lock') not in state
 
+class KnowsCAS(Condition):
+
+    def __call__(self, state):
+        return (TESTKEY + '.cas') in state
+
 ######################################################################
 # Effects
 ######################################################################
 
-class StoreEffect(Effect):
+class MutationEffect(Effect):
 
-    def __init__(self, v='0'):
-        self.v = v
+    def forgetCAS(self, state):
+        k = TESTKEY + '.cas'
+        if k in state:
+            del state[k]
+
+class StoreEffect(MutationEffect):
+
+    def __init__(self, rememberCAS=False):
+        self.rememberCAS = rememberCAS
 
     def __call__(self, state):
-        state[TESTKEY] = self.v
+        state[TESTKEY] = '0'
+        if self.rememberCAS:
+            state[TESTKEY + '.cas'] = 1
+        else:
+            self.forgetCAS(state)
 
-class LockEffect(Effect):
+class LockEffect(MutationEffect):
 
     def __call__(self, state):
         state[TESTKEY + '.lock'] = True
+        self.forgetCAS(state)
 
 class UnlockEffect(Effect):
 
@@ -75,34 +92,37 @@ class UnlockEffect(Effect):
         if klock in state:
             del state[klock]
 
-class DeleteEffect(Effect):
+class DeleteEffect(MutationEffect):
 
     def __call__(self, state):
         del state[TESTKEY]
         klock = TESTKEY + '.lock'
         if klock in state:
             del state[klock]
+        self.forgetCAS(state)
 
 class FlushEffect(Effect):
 
     def __call__(self, state):
         state.clear()
 
-class AppendEffect(Effect):
+class AppendEffect(MutationEffect):
 
     suffix = '-suffix'
 
     def __call__(self, state):
         state[TESTKEY] = state[TESTKEY] + self.suffix
+        self.forgetCAS(state)
 
-class PrependEffect(Effect):
+class PrependEffect(MutationEffect):
 
     prefix = 'prefix-'
 
     def __call__(self, state):
         state[TESTKEY] = self.prefix + state[TESTKEY]
+        self.forgetCAS(state)
 
-class ArithmeticEffect(Effect):
+class ArithmeticEffect(MutationEffect):
 
     default = '0'
 
@@ -114,6 +134,7 @@ class ArithmeticEffect(Effect):
             state[TESTKEY] = str(max(0, int(state[TESTKEY]) + self.by))
         else:
             state[TESTKEY] = self.default
+        self.forgetCAS(state)
 
 ######################################################################
 # Actions
@@ -124,6 +145,18 @@ class Set(Action):
     preconditions = [IsUnlockedCondition()]
     effect = StoreEffect()
     postconditions = [ExistsCondition()]
+
+class setUsingCAS(Action):
+
+    preconditions = [KnowsCAS(), IsUnlockedCondition()]
+    effect = StoreEffect()
+    postconditions = [ExistsCondition()]
+
+class SetRetainCAS(Action):
+
+    preconditions = [IsUnlockedCondition()]
+    effect = StoreEffect(True)
+    postconditions = [ExistsCondition(), KnowsCAS()]
 
 class Add(Action):
 

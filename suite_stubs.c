@@ -11,6 +11,7 @@
 int locktime = 30;
 int expiry = 3600;
 bool hasError = false;
+uint64_t cas = (1 << 31);
 struct test_harness testHarness;
 protocol_binary_response_status last_status = 0;
 
@@ -18,6 +19,7 @@ static const char *key = "key";
 
 bool teardown(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     (void)h; (void)h1;
+    cas = (1 << 31);
     return true;
 }
 
@@ -27,9 +29,10 @@ void delay(int amt) {
 }
 
 static void storeItem(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                      ENGINE_STORE_OPERATION op) {
+                      ENGINE_STORE_OPERATION op, bool rememberCAS,
+                      uint64_t usingCASID) {
     item *it = NULL;
-    uint64_t cas = 0;
+    uint64_t mycas = 0;
     char *value = "0";
     const int flags = 0;
     const void *cookie = NULL;
@@ -56,39 +59,45 @@ static void storeItem(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     }
 
     memcpy(info.value[0].iov_base, value, vlen);
-    h1->item_set_cas(h, cookie, it, 0);
+    h1->item_set_cas(h, cookie, it, usingCASID);
 
-    rv = h1->store(h, cookie, it, &cas, op, 0);
+    rv = h1->store(h, cookie, it, (rememberCAS ? &cas : &mycas), op, 0);
 
     hasError = rv != ENGINE_SUCCESS;
+
+    // If we changed the CAS, make sure we don't know it.
+    if (!hasError && !rememberCAS) {
+        cas = (1 << 31);
+    }
+    assert(cas != 0);
 }
 
 void add(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    storeItem(h, h1, OPERATION_ADD);
+    storeItem(h, h1, OPERATION_ADD, false, 0);
 }
 
 void append(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    storeItem(h, h1, OPERATION_APPEND);
+    storeItem(h, h1, OPERATION_APPEND, false, 0);
 }
 
 void decr(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    uint64_t cas;
+    uint64_t mycas;
     uint64_t result;
     hasError = h1->arithmetic(h, NULL, key, strlen(key), false, false, 1, 0, expiry,
-                              &cas, &result,
+                              &mycas, &result,
                               0) != ENGINE_SUCCESS;
 }
 
 void decrWithDefault(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    uint64_t cas;
+    uint64_t mycas;
     uint64_t result;
     hasError = h1->arithmetic(h, NULL, key, strlen(key), false, true, 1, 0, expiry,
-                              &cas, &result,
+                              &mycas, &result,
                               0) != ENGINE_SUCCESS;
 }
 
 void prepend(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    storeItem(h, h1, OPERATION_PREPEND);
+    storeItem(h, h1, OPERATION_PREPEND, false, 0);
 }
 
 void flush(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
@@ -100,22 +109,30 @@ void del(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 }
 
 void set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    storeItem(h, h1, OPERATION_SET);
+    storeItem(h, h1, OPERATION_SET, false, 0);
+}
+
+void setUsingCAS(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    storeItem(h, h1, OPERATION_SET, false, cas);
+}
+
+void setRetainCAS(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    storeItem(h, h1, OPERATION_SET, true, 0);
 }
 
 void incr(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    uint64_t cas;
+    uint64_t mycas;
     uint64_t result;
     hasError = h1->arithmetic(h, NULL, key, strlen(key), true, false, 1, 0, expiry,
-                              &cas, &result,
+                              &mycas, &result,
                               0) != ENGINE_SUCCESS;
 }
 
 void incrWithDefault(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    uint64_t cas;
+    uint64_t mycas;
     uint64_t result;
     hasError = h1->arithmetic(h, NULL, key, strlen(key), true, true, 1, 0, expiry,
-                              &cas, &result,
+                              &mycas, &result,
                               0) != ENGINE_SUCCESS;
 }
 
@@ -175,7 +192,7 @@ static bool add_response(const void *k, uint16_t keylen,
                          const void *ext, uint8_t extlen,
                          const void *body, uint32_t bodylen,
                          uint8_t datatype, uint16_t status,
-                         uint64_t cas, const void *cookie) {
+                         uint64_t pcas, const void *cookie) {
     (void)k;
     (void)keylen;
     (void)ext;
@@ -183,7 +200,7 @@ static bool add_response(const void *k, uint16_t keylen,
     (void)body;
     (void)bodylen;
     (void)datatype;
-    (void)cas;
+    (void)pcas;
     (void)cookie;
 
     last_status = status;
