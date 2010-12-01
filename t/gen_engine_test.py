@@ -206,6 +206,18 @@ class Prepend(Action):
     effect = PrependEffect()
     postconditions = [ExistsCondition()]
 
+class AppendUsingCAS(Action):
+
+    preconditions = [KnowsCAS(), ExistsCondition(), IsUnlockedCondition()]
+    effect = AppendEffect()
+    postconditions = [ExistsCondition()]
+
+class PrependUsingCAS(Action):
+
+    preconditions = [KnowsCAS(), ExistsCondition(), IsUnlockedCondition()]
+    effect = PrependEffect()
+    postconditions = [ExistsCondition()]
+
 class Incr(Action):
 
     preconditions = [ExistsAsNumber(), IsUnlockedCondition()]

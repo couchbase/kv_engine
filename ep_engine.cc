@@ -1316,6 +1316,10 @@ ENGINE_ERROR_CODE  EventuallyPersistentEngine::store(const void *cookie,
                     return ENGINE_TMPFAIL;
                 }
 
+                if (it->getCas() != 0 && old->getCas() != it->getCas()) {
+                    return ENGINE_KEY_EEXISTS;
+                }
+
                 if (operation == OPERATION_APPEND) {
                     if (!old->append(*it)) {
                         itemRelease(cookie, i);

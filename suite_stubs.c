@@ -84,6 +84,10 @@ void append(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     storeItem(h, h1, OPERATION_APPEND, false, 0);
 }
 
+void appendUsingCAS(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    storeItem(h, h1, OPERATION_APPEND, false, cas);
+}
+
 void decr(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     uint64_t mycas;
     uint64_t result;
@@ -104,6 +108,10 @@ void decrWithDefault(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
 void prepend(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     storeItem(h, h1, OPERATION_PREPEND, false, 0);
+}
+
+void prependUsingCAS(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    storeItem(h, h1, OPERATION_PREPEND, false, cas);
 }
 
 void flush(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
