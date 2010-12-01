@@ -1214,11 +1214,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
 
         if (HashTable::getDefaultStorageValueType() != small) {
             shared_ptr<DispatcherCallback> cb(new ItemPager(epstore, stats));
-            epstore->getDispatcher()->schedule(cb, NULL, Priority::ItemPagerPriority, 10);
+            epstore->getNonIODispatcher()->schedule(cb, NULL, Priority::ItemPagerPriority, 10);
             shared_ptr<DispatcherCallback> exp_cb(new ExpiredItemPager(epstore, stats,
                                                                        expiryPagerSleeptime));
-            epstore->getDispatcher()->schedule(exp_cb, NULL, Priority::ItemPagerPriority,
-                                               expiryPagerSleeptime);
+            epstore->getNonIODispatcher()->schedule(exp_cb, NULL, Priority::ItemPagerPriority,
+                                                    expiryPagerSleeptime);
         }
 
         shared_ptr<DispatcherCallback> item_db_cb(epstore->getInvalidItemDbPager());
