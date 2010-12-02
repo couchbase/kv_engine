@@ -712,7 +712,6 @@ extern "C" {
                                             vbucket);
     }
 
-
     static tap_event_t EvpTapIterator(ENGINE_HANDLE* handle,
                                       const void *cookie, item **itm,
                                       void **es, uint16_t *nes, uint8_t *ttl,
@@ -1256,6 +1255,18 @@ void EventuallyPersistentEngine::destroy() {
     stopEngineThreads();
 }
 
+ENGINE_ERROR_CODE EventuallyPersistentEngine::flush(const void *cookie, time_t when) {
+    (void)cookie;
+    ENGINE_ERROR_CODE ret= ENGINE_ENOTSUP;
+
+    if (when == 0) {
+        epstore->reset();
+        tapConnMap.addFlushEvent();
+        ret = ENGINE_SUCCESS;
+    }
+
+    return ret;
+}
 
 ENGINE_ERROR_CODE  EventuallyPersistentEngine::store(const void *cookie,
                                                      item* itm,

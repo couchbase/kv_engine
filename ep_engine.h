@@ -290,19 +290,7 @@ public:
 
 
 
-    ENGINE_ERROR_CODE flush(const void *cookie, time_t when)
-    {
-        (void)cookie;
-        ENGINE_ERROR_CODE ret= ENGINE_ENOTSUP;
-
-        if (when == 0) {
-            epstore->reset();
-            tapConnMap.addFlushEvent();
-            ret = ENGINE_SUCCESS;
-        }
-
-        return ret;
-    }
+    ENGINE_ERROR_CODE flush(const void *cookie, time_t when);
 
     tap_event_t walkTapQueue(const void *cookie, item **itm, void **es,
                              uint16_t *nes, uint8_t *ttl, uint16_t *flags,
