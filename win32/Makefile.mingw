@@ -36,6 +36,7 @@ EP_ENGINE_CC_SRC = \
                  flusher.cc \
                  item.cc \
                  item_pager.cc \
+                 pathexpand.cc \
                  priority.cc \
                  sizes.cc \
                  sqlite-eval.cc \

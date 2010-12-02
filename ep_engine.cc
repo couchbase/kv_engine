@@ -32,6 +32,8 @@ static size_t percentOf(size_t val, double percent) {
     return static_cast<size_t>(static_cast<double>(val) * percent);
 }
 
+static const char* DEFAULT_SHARD_PATTERN("%d/%b-%i.sqlite");
+
 Atomic<uint64_t> TapConnection::tapCounter(1);
 
 /**
@@ -819,7 +821,8 @@ EXTENSION_LOGGER_DESCRIPTOR *getLogger(void) {
 }
 
 EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server_api) :
-    dbname("/tmp/test.db"), initFile(NULL), postInitFile(NULL), dbStrategy(multi_db),
+    dbname("/tmp/test.db"), shardPattern(DEFAULT_SHARD_PATTERN),
+    initFile(NULL), postInitFile(NULL), dbStrategy(multi_db),
     warmup(true), wait_for_warmup(true), fail_on_partial_warmup(true),
     startVb0(true), concurrentDB(true), sqliteStrategy(NULL), sqliteDb(NULL),
     epstore(NULL), tapThrottle(new TapThrottle(stats)), databaseInitTime(0), tapKeepAlive(0),
@@ -873,12 +876,13 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
 
     resetStats();
     if (config != NULL) {
-        char *dbn = NULL, *initf = NULL, *pinitf = NULL, *svaltype = NULL, *dbs=NULL;
+        char *dbn = NULL, *shardPat = NULL, *initf = NULL, *pinitf = NULL,
+            *svaltype = NULL, *dbs=NULL;
         size_t htBuckets = 0;
         size_t htLocks = 0;
         size_t maxSize = 0;
 
-        const int max_items = 37;
+        const int max_items = 38;
         struct config_item items[max_items];
         int ii = 0;
         memset(items, 0, sizeof(items));
@@ -886,6 +890,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         items[ii].key = "dbname";
         items[ii].datatype = DT_STRING;
         items[ii].value.dt_string = &dbn;
+
+        ++ii;
+        items[ii].key = "shardpattern";
+        items[ii].datatype = DT_STRING;
+        items[ii].value.dt_string = &shardPat;
 
         ++ii;
         items[ii].key = "initfile";
@@ -1082,6 +1091,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
             if (dbn != NULL) {
                 dbname = dbn;
             }
+            if (shardPat != NULL) {
+                shardPattern = shardPat;
+            }
             if (initf != NULL) {
                 initFile = initf;
             }
@@ -1134,7 +1146,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         time_t start = ep_real_time();
         try {
             if (dbStrategy == multi_db) {
-                sqliteStrategy = new MultiDBSqliteStrategy(dbname,
+                sqliteStrategy = new MultiDBSqliteStrategy(dbname, shardPattern,
                                                            initFile, postInitFile,
                                                            dbShards);
             } else {

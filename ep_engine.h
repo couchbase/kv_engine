@@ -590,6 +590,7 @@ private:
     TapConnection* getTapConnection(const void *cookie);
 
     const char *dbname;
+    const char *shardPattern;
     const char *initFile;
     const char *postInitFile;
     enum db_strategy dbStrategy;

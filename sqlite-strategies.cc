@@ -7,6 +7,7 @@
 #include "sqlite-strategies.hh"
 #include "sqlite-eval.hh"
 #include "ep.hh"
+#include "pathexpand.hh"
 
 sqlite3 *SqliteStrategy::open(void) {
     if(!db) {
@@ -156,10 +157,12 @@ void SqliteStrategy::execute(const char * const query) {
 
 void MultiDBSqliteStrategy::initTables() {
     char buf[1024];
+    PathExpander p(filename);
 
     for (int i = 0; i < numTables; i++) {
-        snprintf(buf, sizeof(buf), "attach database \"%s-%d.sqlite\" as kv_%d",
-                 filename, i, i);
+        std::string shardname(p.expand(shardpattern, i));
+        snprintf(buf, sizeof(buf), "attach database \"%s\" as kv_%d",
+                 shardname.c_str(), i);
         execute(buf);
         snprintf(buf, sizeof(buf), "select name from kv_%d.sqlite_master where name='kv'", i);
         PreparedStatement st(db, buf);

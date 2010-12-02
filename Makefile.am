@@ -36,6 +36,7 @@ ep_la_SOURCES = \
                  item_pager.cc item_pager.hh \
                  locks.hh \
                  mutex.hh \
+                 pathexpand.hh pathexpand.cc \
                  priority.cc priority.hh \
                  queueditem.hh \
                  ringbuffer.hh \
@@ -77,7 +78,7 @@ endif
 libsqlite3_la_SOURCES = embedded/sqlite3.h embedded/sqlite3.c
 libsqlite3_la_CFLAGS = $(AM_CFLAGS) ${NO_WERROR} -DSQLITE_THREADSAFE=2
 
-check_PROGRAMS=atomic_test atomic_ptr_test atomic_queue_test hash_table_test priority_test vbucket_test dispatcher_test misc_test hrtime_test histo_test chunk_creation_test ringbuffer_test vb_del_chunk_list_test
+check_PROGRAMS=atomic_test atomic_ptr_test atomic_queue_test hash_table_test priority_test vbucket_test dispatcher_test misc_test hrtime_test histo_test chunk_creation_test ringbuffer_test vb_del_chunk_list_test pathexpand_test
 
 TESTS=${check_PROGRAMS}
 EXTRA_TESTS =
@@ -178,6 +179,9 @@ histo_test_DEPENDENCIES = common.hh histo.hh
 
 chunk_creation_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
 chunk_creation_test_SOURCES = t/chunk_creation_test.cc common.hh
+
+pathexpand_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
+pathexpand_test_SOURCES = t/pathexpand_test.cc pathexpand.hh pathexpand.cc
 
 ringbuffer_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
 ringbuffer_test_SOURCES = t/ringbuffer_test.cc ringbuffer.hh

@@ -33,8 +33,9 @@ public:
         db(NULL),
         statements(),
         ins_vb_stmt(NULL), clear_vb_stmt(NULL), sel_vb_stmt(NULL),
-        clear_stats_stmt(NULL), ins_stat_stmt(NULL)
-    { }
+        clear_stats_stmt(NULL), ins_stat_stmt(NULL) {
+        assert(filename);
+    }
 
     virtual ~SqliteStrategy() {
         close();
@@ -140,23 +141,27 @@ public:
      * Constructor.
      *
      * @param fn same as SqliteStrategy
+     * @param sp the shard pattern
      * @param finit same as SqliteStrategy
      * @param pfinit same as SqliteStrategy
      * @param n number of DB shards to create
      */
     MultiDBSqliteStrategy(const char * const fn,
+                          const char * const sp,
                           const char * const finit = NULL,
                           const char * const pfinit = NULL,
                           int n=4):
         SqliteStrategy(fn, finit, pfinit),
-        numTables(n)
-    {}
+        shardpattern(sp), numTables(n) {
+        assert(shardpattern);
+    }
 
     void initTables(void);
     void initStatements(void);
     void destroyTables(void);
 
 private:
+    const char * const shardpattern;
     int numTables;
 };
 
