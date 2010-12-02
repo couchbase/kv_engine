@@ -128,9 +128,48 @@ def stats_timings(mc):
 def stats_tap(mc):
     stats_formatter(mc.stats('tap'))
 
+def avg(s):
+    return sum(s) / len(s)
+
 @cmd
 def stats_hash(mc):
-    stats_formatter(mc.stats('hash'))
+    h = mc.stats('hash')
+    def mycmp(a, b):
+        aparts = a[0].split(':')
+        bparts = b[0].split(':')
+        if aparts[0].startswith('vb_') and bparts[0].startswith('vb_'):
+            avb = int(aparts[0].split('_')[1])
+            bvb = int(bparts[0].split('_')[1])
+
+            if cmp(avb, bvb) == 0:
+                return cmp(a, b)
+            else:
+                return cmp(avb, bvb)
+        else:
+            # One or more summaries here.
+            return cmp(a, b)
+
+    mins = []
+    maxes = []
+    counts = []
+    for k,v in h.iteritems():
+        if 'max_dep' in k:
+            maxes.append(int(v))
+        if 'min_dep' in k:
+            mins.append(int(v))
+        if 'counted' in k:
+            counts.append(int(v))
+
+    h['avg_min'] = avg(mins)
+    h['avg_max'] = avg(maxes)
+    h['avg_count'] = avg(counts)
+    h['min_count'] = min(counts)
+    h['max_count'] = max(counts)
+    h['total_counts'] = sum(counts)
+    h['largest_min'] = max(mins)
+    h['largest_max'] = max(maxes)
+
+    stats_formatter(h, cmp=mycmp)
 
 @cmd
 def stats_dispatcher(mc, with_logs='no'):

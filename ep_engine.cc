@@ -2264,7 +2264,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doHashStats(const void *cookie,
 
         bool visitBucket(RCPtr<VBucket> vb) {
             uint16_t vbid = vb->getId();
-            char buf[16];
+            char buf[32];
             snprintf(buf, sizeof(buf), "vb_%d:state", vbid);
             add_casted_stat(buf, VBucket::toString(vb->getState()), add_stat, cookie);
 
@@ -2276,7 +2276,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doHashStats(const void *cookie,
             snprintf(buf, sizeof(buf), "vb_%d:locks", vbid);
             add_casted_stat(buf, vb->ht.getNumLocks(), add_stat, cookie);
             snprintf(buf, sizeof(buf), "vb_%d:min_depth", vbid);
-            add_casted_stat(buf, depthVisitor.min, add_stat, cookie);
+            add_casted_stat(buf, depthVisitor.min == -1 ? 0 : depthVisitor.min,
+                            add_stat, cookie);
             snprintf(buf, sizeof(buf), "vb_%d:max_depth", vbid);
             add_casted_stat(buf, depthVisitor.max, add_stat, cookie);
             snprintf(buf, sizeof(buf), "vb_%d:reported", vbid);

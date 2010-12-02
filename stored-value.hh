@@ -646,11 +646,13 @@ public:
 class HashTableDepthStatVisitor : public HashTableDepthVisitor {
 public:
 
-    HashTableDepthStatVisitor() : min(INT_MAX), max(0), size(0) {}
+    HashTableDepthStatVisitor() : min(-1), max(0), size(0) {}
 
     void visit(int bucket, int depth) {
         (void)bucket;
-        min = std::min(min, depth);
+        // -1 is a special case for min.  If there's a value other than
+        // -1, we prefer that.
+        min = std::min(min == -1 ? depth : min, depth);
         max = std::max(max, depth);
         size += depth;
     }
