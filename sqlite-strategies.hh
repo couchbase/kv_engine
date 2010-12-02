@@ -41,7 +41,7 @@ public:
     }
 
     uint16_t getDbShardIdForKey(const std::string &key) {
-        assert(statements.size() > 0);
+        assert(shardCount > 0);
         int h=5381;
         int i=0;
         const char *str = key.c_str();
@@ -49,12 +49,12 @@ public:
         for(i=0; str[i] != 0x00; i++) {
             h = ((h << 5) + h) ^ str[i];
         }
-        return std::abs(h) % (int)statements.size();
+        return std::abs(h) % (int)shardCount;
     }
 
     size_t getNumOfDbShards(void) {
-        assert(statements.size() > 0);
-        return statements.size();
+        assert(shardCount > 0);
+        return shardCount;
     }
 
     const std::vector<Statements *> &allStatements() {
@@ -106,6 +106,7 @@ protected:
     const char * const initFile;
     const char * const postInitFile;
     uint16_t schema_version;
+    size_t shardCount;
     sqlite3 *db;
     std::vector<Statements *> statements;
 

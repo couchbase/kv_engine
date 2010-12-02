@@ -31,6 +31,8 @@ sqlite3 *SqliteStrategy::open(void) {
         initTables();
         initStatements();
         doFile(postInitFile);
+        shardCount = statements.size();
+        assert(shardCount > 0);
         if (schema_version == 0) {
             execute("PRAGMA user_version=1");
             schema_version = 1;
