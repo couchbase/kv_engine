@@ -1255,17 +1255,45 @@ void EventuallyPersistentEngine::destroy() {
     stopEngineThreads();
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentEngine::flush(const void *cookie, time_t when) {
-    (void)cookie;
-    ENGINE_ERROR_CODE ret= ENGINE_ENOTSUP;
-
-    if (when == 0) {
-        epstore->reset();
-        tapConnMap.addFlushEvent();
-        ret = ENGINE_SUCCESS;
+/// @cond DETAILS
+class AllFlusher : public DispatcherCallback {
+public:
+    AllFlusher(EventuallyPersistentStore *st, TapConnMap &tcm)
+        : epstore(st), tapConnMap(tcm) { }
+    bool callback(Dispatcher &d, TaskId t) {
+        (void)d; (void)t;
+        doFlush();
+        return false;
     }
 
-    return ret;
+    void doFlush() {
+        epstore->reset();
+        tapConnMap.addFlushEvent();
+    }
+
+    std::string description() {
+        return std::string("Performing flush.");
+    }
+
+private:
+    EventuallyPersistentStore *epstore;
+    TapConnMap                &tapConnMap;
+};
+/// @endcond
+
+ENGINE_ERROR_CODE EventuallyPersistentEngine::flush(const void *cookie, time_t when) {
+    (void)cookie;
+
+    shared_ptr<AllFlusher> cb(new AllFlusher(epstore, tapConnMap));
+    if (when == 0) {
+        cb->doFlush();
+    } else {
+        epstore->getNonIODispatcher()->schedule(cb, NULL, Priority::FlushAllPriority,
+                                                static_cast<double>(when),
+                                                false);
+    }
+
+    return ENGINE_SUCCESS;
 }
 
 ENGINE_ERROR_CODE  EventuallyPersistentEngine::store(const void *cookie,
