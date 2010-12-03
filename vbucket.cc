@@ -50,10 +50,10 @@ std::ostream& operator <<(std::ostream &out, const VBucketFilter &filter)
      return out;
  }
 
-const vbucket_state_t VBucket::ACTIVE = static_cast<vbucket_state_t>(htonl(active));
-const vbucket_state_t VBucket::REPLICA = static_cast<vbucket_state_t>(htonl(replica));
-const vbucket_state_t VBucket::PENDING = static_cast<vbucket_state_t>(htonl(pending));
-const vbucket_state_t VBucket::DEAD = static_cast<vbucket_state_t>(htonl(dead));
+const vbucket_state_t VBucket::ACTIVE = static_cast<vbucket_state_t>(htonl(vbucket_state_active));
+const vbucket_state_t VBucket::REPLICA = static_cast<vbucket_state_t>(htonl(vbucket_state_replica));
+const vbucket_state_t VBucket::PENDING = static_cast<vbucket_state_t>(htonl(vbucket_state_pending));
+const vbucket_state_t VBucket::DEAD = static_cast<vbucket_state_t>(htonl(vbucket_state_dead));
 
 void VBucket::fireAllOps(SERVER_HANDLE_V1 *sapi, ENGINE_ERROR_CODE code) {
     if (pendingOpsStart > 0) {
@@ -80,9 +80,9 @@ void VBucket::fireAllOps(SERVER_HANDLE_V1 *sapi, ENGINE_ERROR_CODE code) {
 void VBucket::fireAllOps(SERVER_HANDLE_V1 *sapi) {
     LockHolder lh(pendingOpLock);
 
-    if (state == active) {
+    if (state == vbucket_state_active) {
         fireAllOps(sapi, ENGINE_SUCCESS);
-    } else if (state == pending) {
+    } else if (state == vbucket_state_pending) {
         // Nothing
     } else {
         fireAllOps(sapi, ENGINE_NOT_MY_VBUCKET);

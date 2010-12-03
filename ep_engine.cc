@@ -451,148 +451,95 @@ extern "C" {
         return rv;
     }
 
-    static protocol_binary_response_status getVbucket(EventuallyPersistentEngine *e,
-                                                      protocol_binary_request_header *request,
-                                                      const char **msg) {
-        protocol_binary_request_no_extras *req =
-            reinterpret_cast<protocol_binary_request_no_extras*>(request);
+    static ENGINE_ERROR_CODE getVBucket(EventuallyPersistentEngine *e,
+                                        const void *cookie,
+                                        protocol_binary_request_header *request,
+                                        ADD_RESPONSE response) {
+        protocol_binary_request_get_vbucket *req =
+            reinterpret_cast<protocol_binary_request_get_vbucket*>(request);
         assert(req);
 
-        char keyz[8]; // stringy 2^16 int
-
-        // Read the key.
-        int keylen = ntohs(req->message.header.request.keylen);
-        if (keylen >= (int)sizeof(keyz)) {
-            *msg = "Key is too large.";
-            return PROTOCOL_BINARY_RESPONSE_EINVAL;
-        }
-        memcpy(keyz, ((char*)request) + sizeof(req->message.header), keylen);
-        keyz[keylen] = 0x00;
-
-        protocol_binary_response_status rv(PROTOCOL_BINARY_RESPONSE_SUCCESS);
-
-        uint16_t vbucket = 0;
-        if (!parseUint16(keyz, &vbucket)) {
-            *msg = "Value out of range.";
-            rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
+        uint16_t vbucket = ntohs(req->message.header.request.vbucket);
+        RCPtr<VBucket> vb = e->getVBucket(vbucket);
+        if (!vb) {
+            const std::string msg("That's not my bucket.");
+            response(NULL, 0, NULL, 0, msg.c_str(), msg.length(),
+                     PROTOCOL_BINARY_RAW_BYTES,
+                     PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, 0, cookie);
         } else {
-            RCPtr<VBucket> vb = e->getVBucket(vbucket);
-            if (!vb) {
-                *msg = "That's not my bucket.";
-                rv = PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET;
-            } else {
-                *msg = vb->getStateString();
-                assert(msg);
-                rv = PROTOCOL_BINARY_RESPONSE_SUCCESS;
-            }
+            vbucket_state_t state = (vbucket_state_t)ntohl(vb->getState());
+            response(NULL, 0, NULL, 0, &state, sizeof(state),
+                     PROTOCOL_BINARY_RAW_BYTES,
+                     PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
         }
-
-        return rv;
+        return ENGINE_SUCCESS;
     }
 
-    static protocol_binary_response_status setVbucket(EventuallyPersistentEngine *e,
-                                                      protocol_binary_request_header *request,
-                                                      const char **msg) {
-        protocol_binary_request_no_extras *req =
-            reinterpret_cast<protocol_binary_request_no_extras*>(request);
-        assert(req);
+    static ENGINE_ERROR_CODE setVBucket(EventuallyPersistentEngine *e,
+                                        const void *cookie,
+                                        protocol_binary_request_header *request,
+                                        ADD_RESPONSE response)
+    {
+        protocol_binary_request_set_vbucket *req =
+            reinterpret_cast<protocol_binary_request_set_vbucket*>(request);
 
-        char keyz[32];
-        char valz[32];
-
-        // Read the key.
-        int keylen = ntohs(req->message.header.request.keylen);
-        if (keylen >= (int)sizeof(keyz)) {
-            *msg = "Key is too large.";
-            return PROTOCOL_BINARY_RESPONSE_EINVAL;
-        }
-        memcpy(keyz, ((char*)request) + sizeof(req->message.header), keylen);
-        keyz[keylen] = 0x00;
-
-        // Read the value.
         size_t bodylen = ntohl(req->message.header.request.bodylen)
             - ntohs(req->message.header.request.keylen);
-        if (bodylen >= sizeof(valz)) {
-            *msg = "Value is too large.";
-            return PROTOCOL_BINARY_RESPONSE_EINVAL;
+        if (bodylen != sizeof(vbucket_state_t)) {
+            const std::string msg("Incorrect packet format");
+            response(NULL, 0, NULL, 0, msg.c_str(), msg.length(),
+                     PROTOCOL_BINARY_RAW_BYTES,
+                     PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
         }
-        memcpy(valz, (char*)request + sizeof(req->message.header)
-               + keylen, bodylen);
-        valz[bodylen] = 0x00;
-
-        protocol_binary_response_status rv(PROTOCOL_BINARY_RESPONSE_SUCCESS);
-        *msg = "Configured";
 
         vbucket_state_t state;
-        if (strcmp(valz, "active") == 0) {
-            state = active;
-        } else if(strcmp(valz, "replica") == 0) {
-            state = replica;
-        } else if(strcmp(valz, "pending") == 0) {
-            state = pending;
-        } else if(strcmp(valz, "dead") == 0) {
-            state = dead;
-        } else {
-            *msg = "Invalid state.";
-            return PROTOCOL_BINARY_RESPONSE_EINVAL;
+        memcpy(&state, &req->message.body.state, sizeof(state));
+        state = static_cast<vbucket_state_t>(ntohl(state));
+
+        if (!is_valid_vbucket_state_t(state)) {
+            const std::string msg("Invalid vbucket state");
+            response(NULL, 0, NULL, 0, msg.c_str(), msg.length(),
+                     PROTOCOL_BINARY_RAW_BYTES,
+                     PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
         }
 
-        uint16_t vbucket = 0;
-        if (!parseUint16(keyz, &vbucket)) {
-            *msg = "Value out of range.";
-            rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
-        } else {
-            e->setVBucketState(vbucket, state);
-        }
+        e->setVBucketState(ntohs(req->message.header.request.vbucket), state);
+        response(NULL, 0, NULL, 0, NULL, 0, PROTOCOL_BINARY_RAW_BYTES,
+                 PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
 
-        return rv;
+        return ENGINE_SUCCESS;
     }
 
-    static protocol_binary_response_status deleteVBucket(EventuallyPersistentEngine *e,
-                                                         protocol_binary_request_header *request,
-                                                         const char **msg) {
-        protocol_binary_request_no_extras *req =
-            reinterpret_cast<protocol_binary_request_no_extras*>(request);
-        assert(req);
-
-        char keyz[8]; // stringy 2^16 int
-
-        // Read the key.
-        int keylen = ntohs(req->message.header.request.keylen);
-        if (keylen >= (int)sizeof(keyz)) {
-            *msg = "Key is too large.";
-            return PROTOCOL_BINARY_RESPONSE_EINVAL;
-        }
-        memcpy(keyz, ((char*)request) + sizeof(req->message.header), keylen);
-        keyz[keylen] = 0x00;
-
-        protocol_binary_response_status rv(PROTOCOL_BINARY_RESPONSE_SUCCESS);
-
-        uint16_t vbucket = 0;
-        if (!parseUint16(keyz, &vbucket)) {
-            *msg = "Value out of range.";
-            rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
+    static ENGINE_ERROR_CODE delVBucket(EventuallyPersistentEngine *e,
+                                        const void *cookie,
+                                        protocol_binary_request_header *req,
+                                        ADD_RESPONSE response) {
+        uint16_t vbucket = ntohs(req->request.vbucket);
+        if (e->deleteVBucket(vbucket)) {
+            response(NULL, 0, NULL, 0, NULL, 0, PROTOCOL_BINARY_RAW_BYTES,
+                     PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
         } else {
-            if (e->deleteVBucket(vbucket)) {
-                *msg = "Deleted.";
+            // If we fail to delete, try to figure out why.
+            RCPtr<VBucket> vb = e->getVBucket(vbucket);
+            if (!vb) {
+                const std::string msg("Failed to delete vbucket.  Bucket not found.");
+                response(NULL, 0, NULL, 0, msg.c_str(), msg.length(),
+                         PROTOCOL_BINARY_RAW_BYTES,
+                         PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, 0, cookie);
+            } else if(vb->getState() != vbucket_state_dead) {
+                const std::string msg("Failed to delete vbucket.  Must be in the dead state.");
+                response(NULL, 0, NULL, 0, msg.c_str(), msg.length(),
+                         PROTOCOL_BINARY_RAW_BYTES,
+                         PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
             } else {
-                // If we fail to delete, try to figure out why.
-                RCPtr<VBucket> vb = e->getVBucket(vbucket);
-                if (!vb) {
-                    *msg = "Failed to delete vbucket.  Bucket not found.";
-                    rv = PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET;
-                } else if(vb->getState() != dead) {
-                    *msg = "Failed to delete vbucket.  Must be in the dead state.";
-                    rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
-                } else {
-                    *msg = "Failed to delete vbucket.  Unknown reason.";
-                    rv = PROTOCOL_BINARY_RESPONSE_EINTERNAL;
-                }
+                const std::string msg("Failed to delete vbucket.  Unknown reason.");
+                response(NULL, 0, NULL, 0, msg.c_str(), msg.length(),
+                         PROTOCOL_BINARY_RAW_BYTES,
+                         PROTOCOL_BINARY_RESPONSE_EINTERNAL, 0, cookie);
             }
         }
 
-        assert(msg);
-        return rv;
+        return ENGINE_SUCCESS;
     }
 
     static ENGINE_ERROR_CODE EvpUnknownCommand(ENGINE_HANDLE* handle,
@@ -600,10 +547,6 @@ extern "C" {
                                                protocol_binary_request_header *request,
                                                ADD_RESPONSE response)
     {
-        (void)handle;
-        (void)cookie;
-        (void)request;
-
         protocol_binary_response_status res =
             PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND;
         const char *msg = NULL;
@@ -614,33 +557,35 @@ extern "C" {
         ENGINE_ERROR_CODE rv = ENGINE_SUCCESS;
 
         switch (request->request.opcode) {
+        case PROTOCOL_BINARY_CMD_GET_VBUCKET:
+            {
+                BlockTimer timer(&stats.getVbucketCmdHisto);
+                return getVBucket(h, cookie, request, response);
+            }
+
+        case PROTOCOL_BINARY_CMD_DEL_VBUCKET:
+            {
+                BlockTimer timer(&stats.delVbucketCmdHisto);
+                return delVBucket(h, cookie, request, response);
+            }
+            break;
+
+        case PROTOCOL_BINARY_CMD_SET_VBUCKET:
+            {
+                BlockTimer timer(&stats.setVbucketCmdHisto);
+                return setVBucket(h, cookie, request, response);
+            }
+            break;
+
         case CMD_STOP_PERSISTENCE:
             res = stopFlusher(h, &msg);
             break;
         case CMD_START_PERSISTENCE:
             res = startFlusher(h, &msg);
             break;
-        case CMD_DEL_VBUCKET:
-            {
-                BlockTimer timer(&stats.delVbucketCmdHisto);
-                res = deleteVBucket(h, request, &msg);
-            }
-            break;
         case CMD_SET_FLUSH_PARAM:
         case CMD_SET_TAP_PARAM:
             res = setParam(h, request, &msg);
-            break;
-        case CMD_GET_VBUCKET:
-            {
-                BlockTimer timer(&stats.getVbucketCmdHisto);
-                res = getVbucket(h, request, &msg);
-            }
-            break;
-        case CMD_SET_VBUCKET:
-            {
-                BlockTimer timer(&stats.setVbucketCmdHisto);
-                res = setVbucket(h, request, &msg);
-            }
             break;
         case CMD_EVICT_KEY:
             res = evictKey(h, request, &msg);
@@ -1557,8 +1502,8 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
         if (ev.event != TAP_PAUSE) {
             assert(ev.event == TAP_VBUCKET_SET);
             connection->encodeVBucketStateTransition(ev, es, nes, vbucket);
-            if (ev.state == active) {
-                epstore->setVBucketState(ev.vbucket, dead);
+            if (ev.state == vbucket_state_active) {
+                epstore->setVBucketState(ev.vbucket, vbucket_state_dead);
             }
             ret = ev.event;
         } else if (connection->hasPendingAcks()) {

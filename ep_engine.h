@@ -83,7 +83,7 @@ private:
  */
 class VBucketCountVisitor : public VBucketVisitor {
 public:
-    VBucketCountVisitor() : requestedState(0), total(0), desired_state(active) { }
+    VBucketCountVisitor() : requestedState(0), total(0), desired_state(vbucket_state_active) { }
 
     bool visitBucket(RCPtr<VBucket> vb);
 

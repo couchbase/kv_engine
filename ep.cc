@@ -342,7 +342,7 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
     setTxnSize(DEFAULT_TXN_SIZE);
 
     if (startVb0) {
-        RCPtr<VBucket> vb(new VBucket(0, active, stats));
+        RCPtr<VBucket> vb(new VBucket(0, vbucket_state_active, stats));
         vbuckets.addBucket(vb);
         vbuckets.setBucketVersion(0, 0);
     }
@@ -426,7 +426,7 @@ RCPtr<VBucket> EventuallyPersistentStore::getVBucket(uint16_t vbucket) {
 RCPtr<VBucket> EventuallyPersistentStore::getVBucket(uint16_t vbid,
                                                      vbucket_state_t wanted_state) {
     RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
-    vbucket_state_t found_state(vb ? vb->getState() : dead);
+    vbucket_state_t found_state(vb ? vb->getState() : vbucket_state_dead);
     if (found_state == wanted_state) {
         return vb;
     } else {
@@ -488,7 +488,7 @@ protocol_binary_response_status EventuallyPersistentStore::evictKey(const std::s
                                                                     uint16_t vbucket,
                                                                     const char **msg) {
     RCPtr<VBucket> vb = getVBucket(vbucket);
-    if (!(vb && vb->getState() == active)) {
+    if (!(vb && vb->getState() == vbucket_state_active)) {
         return PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET;
     }
 
@@ -521,15 +521,15 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::set(const Item &item,
                                                  bool force) {
 
     RCPtr<VBucket> vb = getVBucket(item.getVBucketId());
-    if (!vb || vb->getState() == dead) {
+    if (!vb || vb->getState() == vbucket_state_dead) {
         ++stats.numNotMyVBuckets;
         return ENGINE_NOT_MY_VBUCKET;
-    } else if (vb->getState() == active) {
+    } else if (vb->getState() == vbucket_state_active) {
         // OK
-    } else if (vb->getState() == replica && !force) {
+    } else if (vb->getState() == vbucket_state_replica && !force) {
         ++stats.numNotMyVBuckets;
         return ENGINE_NOT_MY_VBUCKET;
-    } else if (vb->getState() == pending && !force) {
+    } else if (vb->getState() == vbucket_state_pending && !force) {
         if (vb->addPendingOp(cookie)) {
             return ENGINE_EWOULDBLOCK;
         }
@@ -573,12 +573,12 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::add(const Item &item,
                                                  const void *cookie)
 {
     RCPtr<VBucket> vb = getVBucket(item.getVBucketId());
-    if (!vb || vb->getState() == dead || vb->getState() == replica) {
+    if (!vb || vb->getState() == vbucket_state_dead || vb->getState() == vbucket_state_replica) {
         ++stats.numNotMyVBuckets;
         return ENGINE_NOT_MY_VBUCKET;
-    } else if (vb->getState() == active) {
+    } else if (vb->getState() == vbucket_state_active) {
         // OK
-    } else if(vb->getState() == pending) {
+    } else if(vb->getState() == vbucket_state_pending) {
         if (vb->addPendingOp(cookie)) {
             return ENGINE_EWOULDBLOCK;
         }
@@ -684,7 +684,7 @@ EventuallyPersistentStore::completeVBucketDeletion(uint16_t vbid, uint16_t vb_ve
     LockHolder lh(vbsetMutex);
 
     RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
-    if (!vb || vb->getState() == dead || vbuckets.isBucketDeletion(vbid)) {
+    if (!vb || vb->getState() == vbucket_state_dead || vbuckets.isBucketDeletion(vbid)) {
         lh.unlock();
         if (row_range.first < 0 || row_range.second < 0 ||
             rwUnderlying->delVBucket(vbid, vb_version, row_range)) {
@@ -721,7 +721,7 @@ bool EventuallyPersistentStore::deleteVBucket(uint16_t vbid) {
     bool rv(false);
 
     RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
-    if (vb && vb->getState() == dead) {
+    if (vb && vb->getState() == vbucket_state_dead) {
         uint16_t vb_version = vbuckets.getBucketVersion(vbid);
         lh.unlock();
         rv = true;
@@ -758,7 +758,7 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
     LockHolder lh(vbsetMutex);
 
     RCPtr<VBucket> vb = getVBucket(vbucket);
-    if (vb && vb->getState() == active && gcb.val.getStatus() == ENGINE_SUCCESS) {
+    if (vb && vb->getState() == vbucket_state_active && gcb.val.getStatus() == ENGINE_SUCCESS) {
         int bucket_num(0);
         LockHolder hlh = vb->ht.getLockedBucket(key, &bucket_num);
         StoredValue *v = fetchValidValue(vb, key, bucket_num);
@@ -816,15 +816,15 @@ GetValue EventuallyPersistentStore::get(const std::string &key,
     if (!vb) {
         ++stats.numNotMyVBuckets;
         return GetValue(NULL, ENGINE_NOT_MY_VBUCKET);
-    } else if (honorStates && vb->getState() == dead) {
+    } else if (honorStates && vb->getState() == vbucket_state_dead) {
         ++stats.numNotMyVBuckets;
         return GetValue(NULL, ENGINE_NOT_MY_VBUCKET);
-    } else if (vb->getState() == active) {
+    } else if (vb->getState() == vbucket_state_active) {
         // OK
-    } else if(honorStates && vb->getState() == replica) {
+    } else if(honorStates && vb->getState() == vbucket_state_replica) {
         ++stats.numNotMyVBuckets;
         return GetValue(NULL, ENGINE_NOT_MY_VBUCKET);
-    } else if(honorStates && vb->getState() == pending) {
+    } else if(honorStates && vb->getState() == vbucket_state_pending) {
         if (vb->addPendingOp(cookie)) {
             return GetValue(NULL, ENGINE_EWOULDBLOCK);
         }
@@ -863,15 +863,15 @@ EventuallyPersistentStore::getFromUnderlying(const std::string &key,
                                              const void *cookie,
                                              shared_ptr<Callback<GetValue> > cb) {
     RCPtr<VBucket> vb = getVBucket(vbucket);
-    if (!vb || vb->getState() == dead) {
+    if (!vb || vb->getState() == vbucket_state_dead) {
         ++stats.numNotMyVBuckets;
         return ENGINE_NOT_MY_VBUCKET;
-    } else if (vb->getState() == active) {
+    } else if (vb->getState() == vbucket_state_active) {
         // OK
-    } else if (vb->getState() == replica) {
+    } else if (vb->getState() == vbucket_state_replica) {
         ++stats.numNotMyVBuckets;
         return ENGINE_NOT_MY_VBUCKET;
-    } else if (vb->getState() == pending) {
+    } else if (vb->getState() == vbucket_state_pending) {
         if (vb->addPendingOp(cookie)) {
             return ENGINE_EWOULDBLOCK;
         }
@@ -900,7 +900,7 @@ bool EventuallyPersistentStore::getLocked(const std::string &key,
                                           rel_time_t currentTime,
                                           uint32_t lockTimeout,
                                           const void *cookie) {
-    RCPtr<VBucket> vb = getVBucket(vbucket, active);
+    RCPtr<VBucket> vb = getVBucket(vbucket, vbucket_state_active);
     if (!vb) {
         ++stats.numNotMyVBuckets;
         GetValue rv(NULL, ENGINE_NOT_MY_VBUCKET);
@@ -958,7 +958,7 @@ EventuallyPersistentStore::unlockKey(const std::string &key,
                                      rel_time_t currentTime)
 {
 
-    RCPtr<VBucket> vb = getVBucket(vbucket, active);
+    RCPtr<VBucket> vb = getVBucket(vbucket, vbucket_state_active);
     if (!vb) {
         ++stats.numNotMyVBuckets;
         return ENGINE_NOT_MY_VBUCKET;
@@ -985,7 +985,7 @@ bool EventuallyPersistentStore::getKeyStats(const std::string &key,
                                             uint16_t vbucket,
                                             struct key_stats &kstats)
 {
-    RCPtr<VBucket> vb = getVBucket(vbucket, active);
+    RCPtr<VBucket> vb = getVBucket(vbucket, vbucket_state_active);
     if (!vb) {
         return false;
     }
@@ -1023,15 +1023,15 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::del(const std::string &key,
                                                  const void *cookie,
                                                  bool force) {
     RCPtr<VBucket> vb = getVBucket(vbucket);
-    if (!vb || vb->getState() == dead) {
+    if (!vb || vb->getState() == vbucket_state_dead) {
         ++stats.numNotMyVBuckets;
         return ENGINE_NOT_MY_VBUCKET;
-    } else if (vb->getState() == active) {
+    } else if (vb->getState() == vbucket_state_active) {
         // OK
-    } else if(vb->getState() == replica && !force) {
+    } else if(vb->getState() == vbucket_state_replica && !force) {
         ++stats.numNotMyVBuckets;
         return ENGINE_NOT_MY_VBUCKET;
-    } else if(vb->getState() == pending && !force) {
+    } else if(vb->getState() == vbucket_state_pending && !force) {
         if (vb->addPendingOp(cookie)) {
             return ENGINE_EWOULDBLOCK;
         }
@@ -1059,7 +1059,7 @@ void EventuallyPersistentStore::reset() {
     std::vector<int> buckets = vbuckets.getBuckets();
     std::vector<int>::iterator it;
     for (it = buckets.begin(); it != buckets.end(); ++it) {
-        RCPtr<VBucket> vb = getVBucket(*it, active);
+        RCPtr<VBucket> vb = getVBucket(*it, vbucket_state_active);
         if (vb) {
             HashTableStatVisitor statvis = vb->ht.clear();
             stats.numNonResident.decr(statvis.numNonResident);
@@ -1199,7 +1199,7 @@ public:
                 setId(value.second);
             }
             RCPtr<VBucket> vb = store->getVBucket(queuedItem.getVBucketId());
-            if (vb && vb->getState() != active) {
+            if (vb && vb->getState() != vbucket_state_active) {
                 int bucket_num(0);
                 LockHolder lh = vb->ht.getLockedBucket(queuedItem.getKey(), &bucket_num);
                 StoredValue *v = store->fetchValidValue(vb, queuedItem.getKey(),
@@ -1497,7 +1497,7 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
 
         RCPtr<VBucket> vb = vbuckets.getBucket(i->getVBucketId());
         if (!vb) {
-            vb.reset(new VBucket(i->getVBucketId(), dead, stats));
+            vb.reset(new VBucket(i->getVBucketId(), vbucket_state_dead, stats));
             vbuckets.addBucket(vb);
             vbuckets.setBucketVersion(i->getVBucketId(), val.getVBucketVersion());
         }

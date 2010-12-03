@@ -110,13 +110,9 @@ public:
     vbucket_state_t getState(void) const { return state; }
     void setState(vbucket_state_t to, SERVER_HANDLE_V1 *sapi);
 
-    const char * getStateString(void) const {
-        return VBucket::toString(state);
-    }
-
     bool addPendingOp(const void *cookie) {
         LockHolder lh(pendingOpLock);
-        if (state != pending) {
+        if (state != vbucket_state_pending) {
             // State transitioned while we were waiting.
             return false;
         }
@@ -142,10 +138,10 @@ public:
 
     static const char* toString(vbucket_state_t s) {
         switch(s) {
-        case active: return "active"; break;
-        case replica: return "replica"; break;
-        case pending: return "pending"; break;
-        case dead: return "dead"; break;
+        case vbucket_state_active: return "active"; break;
+        case vbucket_state_replica: return "replica"; break;
+        case vbucket_state_pending: return "pending"; break;
+        case vbucket_state_dead: return "dead"; break;
         }
         return "unknown";
     }

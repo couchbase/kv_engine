@@ -21,7 +21,7 @@ class VBucketGenerator {
 public:
     VBucketGenerator(EPStats &s, int start = 1) : st(s), i(start) {}
     VBucket *operator()() {
-        return new VBucket(i++, active, st);
+        return new VBucket(i++, vbucket_state_active, st);
     }
 private:
     EPStats &st;
@@ -79,7 +79,7 @@ public:
         for (size_t j = 0; j < vbucketsEach; j++) {
             int newId = ++i;
 
-            RCPtr<VBucket> v(new VBucket(newId, active, global_stats));
+            RCPtr<VBucket> v(new VBucket(newId, vbucket_state_active, global_stats));
             vbm->addBucket(v);
             assert(vbm->getBucket(newId) == v);
 

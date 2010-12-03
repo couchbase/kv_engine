@@ -72,7 +72,7 @@ public:
         seqno(s),
         event(TAP_MUTATION), // just set it to TAP_MUTATION.. I'll fix it if I have to replay the log
         vbucket(i.getVBucketId()),
-        state(active),  // Not used, but I need to initialize...
+        state(vbucket_state_active),  // Not used, but I need to initialize...
         key(i.getKey())
     {
         // EMPTY
@@ -244,7 +244,7 @@ private:
      * Get the next high priority TapVBucketEvent for this TapConnection.
      */
     TapVBucketEvent nextVBucketHighPriority_UNLOCKED() {
-        TapVBucketEvent ret(TAP_PAUSE, 0, active);
+        TapVBucketEvent ret(TAP_PAUSE, 0, vbucket_state_active);
         if (!vBucketHighPriority.empty()) {
             ret = vBucketHighPriority.front();
             vBucketHighPriority.pop();
@@ -295,7 +295,7 @@ private:
      * Get the next low priority TapVBucketEvent for this TapConnection.
      */
     TapVBucketEvent nextVBucketLowPriority_UNLOCKED() {
-        TapVBucketEvent ret(TAP_PAUSE, 0, active);
+        TapVBucketEvent ret(TAP_PAUSE, 0, vbucket_state_active);
         if (!vBucketLowPriority.empty()) {
             ret = vBucketLowPriority.front();
             vBucketLowPriority.pop();

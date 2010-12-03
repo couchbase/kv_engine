@@ -133,8 +133,8 @@ void TapConnection::setVBucketFilter(const std::vector<uint16_t> &vbuckets)
         for (std::vector<uint16_t>::const_iterator it = vec.begin();
              it != vec.end(); ++it) {
             if (vbucketFilter(*it)) {
-                TapVBucketEvent hi(TAP_VBUCKET_SET, *it, pending);
-                TapVBucketEvent lo(TAP_VBUCKET_SET, *it, active);
+                TapVBucketEvent hi(TAP_VBUCKET_SET, *it, vbucket_state_pending);
+                TapVBucketEvent lo(TAP_VBUCKET_SET, *it, vbucket_state_active);
                 addVBucketHighPriority(hi);
                 addVBucketLowPriority(lo);
             }
@@ -191,7 +191,7 @@ void TapConnection::rollback() {
         case TAP_VBUCKET_SET:
             {
                 TapVBucketEvent e(i->event, i->vbucket, i->state);
-                if (i->state == pending) {
+                if (i->state == vbucket_state_pending) {
                     addVBucketHighPriority_UNLOCKED(e);
                 } else {
                     addVBucketLowPriority_UNLOCKED(e);
@@ -278,7 +278,7 @@ void TapConnection::reschedule_UNLOCKED(const std::list<TapLogElement>::iterator
     case TAP_VBUCKET_SET:
         {
             TapVBucketEvent e(iter->event, iter->vbucket, iter->state);
-            if (iter->state == pending) {
+            if (iter->state == vbucket_state_pending) {
                 addVBucketHighPriority_UNLOCKED(e);
             } else {
                 addVBucketLowPriority_UNLOCKED(e);
@@ -373,16 +373,16 @@ void TapConnection::encodeVBucketStateTransition(const TapVBucketEvent &ev, void
 {
     *vbucket = ev.vbucket;
     switch (ev.state) {
-    case active:
+    case vbucket_state_active:
         *es = const_cast<void*>(static_cast<const void*>(&VBucket::ACTIVE));
         break;
-    case replica:
+    case vbucket_state_replica:
         *es = const_cast<void*>(static_cast<const void*>(&VBucket::REPLICA));
         break;
-    case pending:
+    case vbucket_state_pending:
         *es = const_cast<void*>(static_cast<const void*>(&VBucket::PENDING));
         break;
-    case dead:
+    case vbucket_state_dead:
         *es = const_cast<void*>(static_cast<const void*>(&VBucket::DEAD));
         break;
     default:
