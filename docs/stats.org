@@ -307,6 +307,7 @@ vbucket 0 is =vb_0:size=.
 | max_depth | Maximum number of items found in a bucket      |
 | reported  | Number of items this hash table reports having |
 | counted   | Number of items found while walking the table  |
+| resized   | Number of times the hash table resized.        |
 
 
 * Details

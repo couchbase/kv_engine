@@ -2330,6 +2330,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doHashStats(const void *cookie,
             add_casted_stat(buf, vb->ht.getNumItems(), add_stat, cookie);
             snprintf(buf, sizeof(buf), "vb_%d:counted", vbid);
             add_casted_stat(buf, depthVisitor.size, add_stat, cookie);
+            snprintf(buf, sizeof(buf), "vb_%d:resized", vbid);
+            add_casted_stat(buf, vb->ht.getNumResizes(), add_stat, cookie);
 
             return false;
         }

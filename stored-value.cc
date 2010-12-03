@@ -121,6 +121,7 @@ void HashTable::resize(size_t newSize) {
     }
 
     stats.memOverhead.decr(memorySize());
+    ++numResizes;
 
     // Set the new size so all the hashy stuff works.
     size_t oldSize = size;

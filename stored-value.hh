@@ -848,6 +848,11 @@ public:
     HashTableStatVisitor clear(bool deactivate = false);
 
     /**
+     * Get the number of times this hash table has been resized.
+     */
+    size_t getNumResizes() { return numResizes; }
+
+    /**
      * Automatically resize to fit the current data.
      */
     void resize();
@@ -1248,6 +1253,7 @@ private:
     StoredValueFactory   valFact;
     Atomic<size_t>       visitors;
     Atomic<size_t>       numItems;
+    Atomic<size_t>       numResizes;
     bool                 activeState;
 
     static size_t                 defaultNumBuckets;
