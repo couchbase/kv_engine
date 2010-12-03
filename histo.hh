@@ -104,22 +104,23 @@ public:
      * @param growth how far the width should increase each time
      */
     GrowingWidthGenerator(T start, T width, double growth=1.0)
-        : _growth(growth), _start(start), _width(width) {}
+        : _growth(growth), _start(start), _width(static_cast<double>(width)) {}
 
     /**
      * Generate the next bin.
      */
     HistogramBin<T>* operator () () {
-        HistogramBin<T>* rv = new HistogramBin<T>(_start, _start + _width);
-        _start += _width;
-        _width = static_cast<int64_t>(static_cast<double>(_width) * _growth);
+        HistogramBin<T>* rv = new HistogramBin<T>(_start,
+                                                  _start + static_cast<T>(_width));
+        _start += static_cast<T>(_width);
+        _width = _width * _growth;
         return rv;
     }
 
 private:
     double _growth;
     T      _start;
-    T      _width;
+    double _width;
 };
 
 /**
