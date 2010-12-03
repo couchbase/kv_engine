@@ -27,6 +27,7 @@
 #include "ep_engine.h"
 #include "statsnap.hh"
 #include "tapthrottle.hh"
+#include "htresizer.hh"
 
 static size_t percentOf(size_t val, double percent) {
     return static_cast<size_t>(static_cast<double>(val) * percent);
@@ -1226,10 +1227,14 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         if (HashTable::getDefaultStorageValueType() != small) {
             shared_ptr<DispatcherCallback> cb(new ItemPager(epstore, stats));
             epstore->getNonIODispatcher()->schedule(cb, NULL, Priority::ItemPagerPriority, 10);
+
             shared_ptr<DispatcherCallback> exp_cb(new ExpiredItemPager(epstore, stats,
                                                                        expiryPagerSleeptime));
             epstore->getNonIODispatcher()->schedule(exp_cb, NULL, Priority::ItemPagerPriority,
                                                     expiryPagerSleeptime);
+            shared_ptr<DispatcherCallback> htr(new HashtableResizer(epstore));
+            epstore->getNonIODispatcher()->schedule(htr, NULL, Priority::HTResizePriority,
+                                                    10);
         }
 
         shared_ptr<DispatcherCallback> item_db_cb(epstore->getInvalidItemDbPager());

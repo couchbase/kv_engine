@@ -32,6 +32,7 @@ ep_la_SOURCES = \
                  ep_extension.cc ep_extension.h \
                  flusher.cc flusher.hh \
                  histo.hh \
+                 htresizer.cc htresizer.hh \
                  item.cc item.hh \
                  item_pager.cc item_pager.hh \
                  locks.hh \

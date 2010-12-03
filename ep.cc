@@ -28,7 +28,7 @@
 #include "dispatcher.hh"
 #include "sqlite-kvstore.hh"
 #include "ep_engine.h"
-#include "item_pager.hh"
+#include "htresizer.hh"
 
 extern "C" {
     static rel_time_t uninitialized_current_time(void) {

@@ -24,6 +24,7 @@ public:
     static const Priority StatSnapPriority;
     static const Priority InvalidItemDbPagerPriority;
     static const Priority TapResumePriority;
+    static const Priority HTResizePriority;
 
     bool operator==(const Priority &other) const {
         return other.getPriorityValue() == this->priority;
