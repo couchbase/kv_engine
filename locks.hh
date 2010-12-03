@@ -26,6 +26,14 @@ public:
     }
 
     /**
+     * Copy constructor hands this lock to the new copy and then
+     * consider it released locally (i.e. renders unlock() a noop).
+     */
+    LockHolder(const LockHolder& from) : mutex(from.mutex), locked(true) {
+        const_cast<LockHolder*>(&from)->locked = false;
+    }
+
+    /**
      * Release the lock.
      */
     ~LockHolder() {
@@ -54,7 +62,7 @@ private:
     Mutex &mutex;
     bool locked;
 
-    DISALLOW_COPY_AND_ASSIGN(LockHolder);
+    void operator=(const LockHolder&);
 };
 
 /**
