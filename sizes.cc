@@ -28,7 +28,21 @@ static void display(const char *name, size_t size) {
     std::cout << name << "\t" << size << std::endl;
 }
 
+template <typename T>
 struct histo_for_inner {
+    void operator()(const HistogramBin<T> *bin) {
+        std::cout << "   " << bin->start() << " - ";
+        if (bin->end() == std::numeric_limits<T>::max()) {
+            std::cout << "inf";
+        } else {
+            std::cout << bin->end();
+        }
+        std::cout << std::endl;
+    }
+};
+
+template <>
+struct histo_for_inner<hrtime_t> {
     void operator()(const HistogramBin<hrtime_t> *bin) {
         const std::string endtext(bin->end() == std::numeric_limits<hrtime_t>::max()
                                   ? "inf"
@@ -38,9 +52,10 @@ struct histo_for_inner {
     }
 };
 
-static void display(const char *name, const Histogram<hrtime_t> &histo) {
+template <typename T>
+static void display(const char *name, const Histogram<T> &histo) {
     std::cout << name << std::endl;
-    std::for_each(histo.begin(), histo.end(), histo_for_inner());
+    std::for_each(histo.begin(), histo.end(), histo_for_inner<T>());
 }
 
 int main(int argc, char **argv) {
@@ -74,7 +89,9 @@ int main(int argc, char **argv) {
     std::cout << std::endl << "Histogram Ranges" << std::endl << std::endl;
 
     EPStats stats;
+    HashTableDepthStatVisitor dv;
     display("Default Histo", stats.diskInsertHisto);
     display("Commit Histo", stats.diskCommitHisto);
+    display("Hash table depth histo", dv.depthHisto);
     return 0;
 }

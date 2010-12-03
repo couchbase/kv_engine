@@ -10,6 +10,7 @@
 #include "item.hh"
 #include "locks.hh"
 #include "stats.hh"
+#include "histo.hh"
 
 extern "C" {
     extern rel_time_t (*ep_current_time)();
@@ -646,7 +647,9 @@ public:
 class HashTableDepthStatVisitor : public HashTableDepthVisitor {
 public:
 
-    HashTableDepthStatVisitor() : min(-1), max(0), size(0) {}
+    HashTableDepthStatVisitor() : depthHisto(GrowingWidthGenerator<unsigned int>(1, 1, 1.3),
+                                             10),
+                                  size(0), min(-1), max(0) {}
 
     void visit(int bucket, int depth) {
         (void)bucket;
@@ -654,12 +657,14 @@ public:
         // -1, we prefer that.
         min = std::min(min == -1 ? depth : min, depth);
         max = std::max(max, depth);
+        depthHisto.add(depth);
         size += depth;
     }
 
-    int    min;
-    int    max;
-    size_t size;
+    Histogram<unsigned int> depthHisto;
+    size_t                  size;
+    int                     min;
+    int                     max;
 };
 
 /**
