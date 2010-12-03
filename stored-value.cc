@@ -162,17 +162,17 @@ void HashTable::resize() {
     size_t new_size(0);
 
     // Figure out where in the prime table we are.
-    for (i = 0; prime_size_table[i] > 0
-             && prime_size_table[i] < static_cast<ssize_t>(ni); ++i) {
+    ssize_t target(static_cast<ssize_t>(ni));
+    for (i = 0; prime_size_table[i] > 0 && prime_size_table[i] < target; ++i) {
         // Just looking...
     }
 
     if (prime_size_table[i] == -1) {
         // We're at the end, take the biggest
         new_size = prime_size_table[i-1];
-    } else if (i == 0) {
-        // We're at the beginning, don't try for a good fit.
-        new_size = prime_size_table[0];
+    } else if (prime_size_table[i] < static_cast<ssize_t>(defaultNumBuckets)) {
+        // Was going to be smaller than the configured ht_size.
+        new_size = defaultNumBuckets;
     } else {
         // Somewhere in the middle, use the one we're closer to.
         new_size = nearest(ni, prime_size_table[i-1], prime_size_table[i]);

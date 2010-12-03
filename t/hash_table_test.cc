@@ -389,6 +389,7 @@ static void testPoisonKey() {
 
 int main() {
     global_stats.maxDataSize = 64*1024*1024;
+    HashTable::setDefaultNumBuckets(3);
     alarm(60);
     testHashSize();
     testHashSizeTwo();
