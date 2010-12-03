@@ -3,6 +3,9 @@
 import clitool
 import sys
 import itertools
+import re
+
+MAGIC_CONVERT_RE=re.compile("(\d+)")
 
 BIG_VALUE = 2 ** 60
 SMALL_VALUE = - (2 ** 60)
@@ -131,23 +134,23 @@ def stats_tap(mc):
 def avg(s):
     return sum(s) / len(s)
 
+def _maybeInt(x):
+    try:
+        return int(x)
+    except:
+        return x
+
+def _magicConvert(s):
+    return [_maybeInt(x) for x in MAGIC_CONVERT_RE.split(s)]
+
+def magic_cmp(a, b):
+    am = _magicConvert(a[0])
+    bm = _magicConvert(b[0])
+    return cmp(am, bm)
+
 @cmd
 def stats_hash(mc):
     h = mc.stats('hash')
-    def mycmp(a, b):
-        aparts = a[0].split(':')
-        bparts = b[0].split(':')
-        if aparts[0].startswith('vb_') and bparts[0].startswith('vb_'):
-            avb = int(aparts[0].split('_')[1])
-            bvb = int(bparts[0].split('_')[1])
-
-            if cmp(avb, bvb) == 0:
-                return cmp(a, b)
-            else:
-                return cmp(avb, bvb)
-        else:
-            # One or more summaries here.
-            return cmp(a, b)
 
     mins = []
     maxes = []
@@ -169,7 +172,7 @@ def stats_hash(mc):
     h['largest_min'] = max(mins)
     h['largest_max'] = max(maxes)
 
-    stats_formatter(h, cmp=mycmp)
+    stats_formatter(h, cmp=magic_cmp)
 
 @cmd
 def stats_dispatcher(mc, with_logs='no'):
