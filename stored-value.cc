@@ -6,7 +6,7 @@
 #include "stored-value.hh"
 
 #ifndef DEFAULT_HT_SIZE
-#define DEFAULT_HT_SIZE 12582917
+#define DEFAULT_HT_SIZE 1531
 #endif
 
 size_t HashTable::defaultNumBuckets = DEFAULT_HT_SIZE;
