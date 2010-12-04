@@ -156,6 +156,11 @@ static size_t nearest(size_t n, size_t a, size_t b) {
     return (distance(n, a) < distance(b, n)) ? a : b;
 }
 
+static bool isCurrently(size_t size, ssize_t a, ssize_t b) {
+    ssize_t current(static_cast<ssize_t>(size));
+    return (current == a || current == b);
+}
+
 void HashTable::resize() {
     size_t ni = getNumItems();
     int i(0);
@@ -173,6 +178,10 @@ void HashTable::resize() {
     } else if (prime_size_table[i] < static_cast<ssize_t>(defaultNumBuckets)) {
         // Was going to be smaller than the configured ht_size.
         new_size = defaultNumBuckets;
+    } else if (isCurrently(size, prime_size_table[i-1], prime_size_table[i])) {
+        // If one of the candidate sizes is the current size, maintain
+        // the current size in order to remain stable.
+        new_size = size;
     } else {
         // Somewhere in the middle, use the one we're closer to.
         new_size = nearest(ni, prime_size_table[i-1], prime_size_table[i]);
