@@ -834,7 +834,7 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server
     minDataAge(DEFAULT_MIN_DATA_AGE),
     queueAgeCap(DEFAULT_QUEUE_AGE_CAP),
     itemExpiryWindow(3), expiryPagerSleeptime(3600),
-    dbShards(4), vb_del_chunk_size(1000), vb_chunk_del_threshold_time(500)
+    dbShards(4), vb_del_chunk_size(100), vb_chunk_del_threshold_time(500)
 {
     interface.interface = 1;
     ENGINE_HANDLE_V1::get_info = EvpGetInfo;

@@ -198,7 +198,7 @@ class VBucketDeletionCallback : public DispatcherCallback {
 public:
     VBucketDeletionCallback(EventuallyPersistentStore *e, RCPtr<VBucket> vb,
                             uint16_t vbucket_version, EPStats &st,
-                            size_t csize = 1000, uint32_t chunk_del_time = 500)
+                            size_t csize = 100, uint32_t chunk_del_time = 500)
         : ep(e), stats(st), vb_version(vbucket_version),
           chunk_size(csize), chunk_del_threshold_time(chunk_del_time),
           vbdv(csize) {
