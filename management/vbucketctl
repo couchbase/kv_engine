@@ -12,12 +12,12 @@ def listvb(mc, username=None, password=""):
 def setvb(mc, vbid, vbstate, username=None, password=""):
     if username:
         mc.sasl_auth_plain(username, password)
-    mc.set_vbucket_state(vbid, vbstate)
+    mc.set_vbucket_state(int(vbid), vbstate)
 
 def rmvb(mc, vbid, username=None, password=""):
     if username:
         mc.sasl_auth_plain(username, password)
-    mc.delete_vbucket(vbid)
+    mc.delete_vbucket(int(vbid))
 
 if __name__ == '__main__':
 
