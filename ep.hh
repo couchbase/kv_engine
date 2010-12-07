@@ -65,7 +65,7 @@ public:
     /**
      * Begin visiting a bucket.
      *
-     * @param vbid the vbucket we are beginning to visit
+     * @param vb the vbucket we are beginning to visit
      *
      * @return true iff we want to walk the hashtable in this vbucket
      */
@@ -439,7 +439,6 @@ public:
      * @param key the key to fetch
      * @param vbucket the vbucket from which to retrieve the key
      * @param cookie the connection cookie
-     * @param core the server API
      * @param queueBG if true, automatically queue a background fetch if necessary
      * @param honorStates if false, fetch a result regardless of state
      *
@@ -553,8 +552,9 @@ public:
     /**
      * Enqueue a background fetch for a key.
      *
-     * @param the key to be bg fetched
+     * @param key the key to be bg fetched
      * @param vbucket the vbucket in which the key lives
+     * @param rowid the rowid of the record within its shard
      * @param cookie the cookie of the requestor
      */
     void bgFetch(const std::string &key,
@@ -567,7 +567,10 @@ public:
      *
      * @param key the key that was fetched
      * @param vbucket the vbucket in which the key lived
-     * @param gv the result
+     * @param rowid the rowid of the record within its shard
+     * @param cookie the cookie of the requestor
+     * @param init the timestamp of when the request came in
+     * @param start the time the invocation actually began
      */
     void completeBGFetch(const std::string &key,
                          uint16_t vbucket,

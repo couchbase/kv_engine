@@ -24,25 +24,11 @@ static inline size_t getDefault(size_t x, size_t d) {
     return x == 0 ? d : x;
 }
 
-/**
- * Get the number of buckets for a hash table.
- *
- * @param n the desired number of buckets, if 0, use the default
- *
- * @return the number of buckets to create
- */
-size_t HashTable::getNumBuckets(size_t n = 0) {
+size_t HashTable::getNumBuckets(size_t n) {
     return getDefault(n, defaultNumBuckets);
 }
 
-/**
- * Get the number of locks for a hash table.
- *
- * @param n the desired number of locks, if 0, use the default
- *
- * @return the number of locks to create
- */
-size_t HashTable::getNumLocks(size_t n = 0) {
+size_t HashTable::getNumLocks(size_t n) {
     return getDefault(n, defaultNumLocks);
 }
 

@@ -160,7 +160,7 @@ public:
     /**
      * True of this item is for the given key.
      *
-     * @param the key we're checking
+     * @param k the key we're checking
      * @return true if this item's key is equal to k
      */
     bool hasKey(const std::string &k) const {
@@ -211,6 +211,7 @@ public:
      * @param newFlags the new client-defined flags
      * @param newExp the new expiration
      * @param theCas thenew CAS identifier
+     * @param stats the global stats
      */
     void setValue(value_t v,
                   uint32_t newFlags, time_t newExp, uint64_t theCas,
@@ -789,6 +790,7 @@ public:
     /**
      * Create a HashTable.
      *
+     * @param st the global stats reference
      * @param s the number of hash table buckets
      * @param l the number of locks in the hash table
      * @param t the type of StoredValues this hash table will contain
@@ -878,7 +880,7 @@ public:
     /**
      * Set a new Item into this hashtable.
      *
-     * @param the Item to store
+     * @param val the Item to store
      * @param row_id the row id that is assigned to the item to store
      * @return a result indicating the status of the store
      */
@@ -1028,7 +1030,8 @@ public:
      * locked the bucket.
      *
      * @param key the key of the item to find
-     * @param bucket_Num the bucket number
+     * @param bucket_num the bucket number
+     * @param wantsDeleted true if soft deleted items should be returned
      *
      * @return a pointer to a StoredValue -- NULL if not found
      */
@@ -1081,7 +1084,7 @@ public:
      * Get a lock holder holding a lock for the bucket for the given
      * hash.
      *
-     * @param hash the input hash
+     * @param h the input hash
      * @param bucket output parameter to receive a bucket
      * @return a locked LockHolder
      */
@@ -1198,7 +1201,7 @@ public:
      *
      * @param s if 0, return the default number of buckets, else return s
      */
-    static size_t getNumBuckets(size_t s);
+    static size_t getNumBuckets(size_t s = 0);
 
     /**
      * Get the number of locks that should be used for initialization.
@@ -1222,7 +1225,7 @@ public:
      *
      * @param t either "small" or "featured"
      *
-     * @rteurn true if this type is not handled.
+     * @return true if this type is not handled.
      */
     static bool setDefaultStorageValueType(const char *t);
 

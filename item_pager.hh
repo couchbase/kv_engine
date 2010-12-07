@@ -83,6 +83,7 @@ public:
      *
      * @param s the store
      * @param st the stats
+     * @param deletion_size removal chunk size
      */
     InvalidItemDbPager(EventuallyPersistentStore *s, EPStats &st,
                        size_t deletion_size) :

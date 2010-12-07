@@ -98,9 +98,7 @@ inline bool parseUint16(const char *in, uint16_t *out) {
 /**
  * Convert a time (in ns) to a human readable form...
  * @param time the time in nanoseconds
- * @param buffer where to store the result
- * @param size the size of the buffer
- * @return buffer
+ * @return a string representation of the timestamp
  */
 inline std::string hrtime2text(hrtime_t time) {
    const char * const extensions[] = { " usec", " ms", " s", NULL };
