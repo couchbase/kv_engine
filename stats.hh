@@ -106,6 +106,8 @@ public:
     Atomic<size_t> numFailedEjects;
     //! Number of times "Not my bucket" happened
     Atomic<size_t> numNotMyVBuckets;
+    //! Whether the DB cleaner completes cleaning up invalid items with old vb versions
+    Atomic<bool> dbCleanerComplete;
 
     //! Max allowable memory size.
     Atomic<size_t> maxDataSize;

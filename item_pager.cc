@@ -194,6 +194,7 @@ bool InvalidItemDbPager::callback(Dispatcher &d, TaskId t) {
     BlockTimer timer(&stats.diskInvaidItemDelHisto);
     std::map<uint16_t, std::list<row_range> >::iterator it = vb_row_ranges.begin();
     if (it == vb_row_ranges.end()) {
+        stats.dbCleanerComplete.set(true);
         return false;
     }
 

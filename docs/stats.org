@@ -130,6 +130,8 @@ For introductory information on stats within membase, start with the
 |                               | storage threads.                           |
 | ep_store_max_readwrite        | Maximum number of concurrent read/write    |
 |                               | storage threads.                           |
+| ep_db_cleaner_status          | Status of database cleaner that cleans up  |
+|                               | invalid items with old vbucket versions    |
 
 
 ** Tap stats
