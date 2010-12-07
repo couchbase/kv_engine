@@ -11,14 +11,14 @@
 int locktime = 30;
 int expiry = 3600;
 bool hasError = false;
-uint64_t cas = (1 << 31);
+uint64_t cas = (((uint64_t)1) << 31);
 struct test_harness testHarness;
 protocol_binary_response_status last_status = 0;
 
 static const char *key = "key";
 
 static void clearCAS(void) {
-    cas = (1 << 31);
+   cas = (((uint64_t)1) << 31);
 }
 
 bool teardown(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
