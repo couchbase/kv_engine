@@ -18,9 +18,9 @@ if len(sys.argv) < 3:
 def backup(sqlite_path, srcdir, destdir, fn):
     if os.path.exists(fn):
         subprocess.Popen([sqlite_path, os.path.join(srcdir, fn),
-                          '.backup \"%s\" ' % os.path.join(destdir, fn)])
+                          '.backup \"%s\" ' % os.path.join(destdir, fn)]).communicate()
         print "Backup of %s done" % fn
-        subprocess.Popen([sqlite_path, os.path.join(destdir, fn),'vacuum'])
+        subprocess.Popen([sqlite_path, os.path.join(destdir, fn),'vacuum']).communiate()
         print "Vacuum of %s done" % fn
 
 def find_sqlite():
