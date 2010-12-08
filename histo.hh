@@ -68,7 +68,8 @@ private:
      * @return true if this value is counted within this bin
      */
     bool accepts(T value) {
-        return value >= _start && value < _end;
+        return value >= _start &&
+            (value < _end || value == std::numeric_limits<T>::max());
     }
 
     Atomic<size_t> _count;

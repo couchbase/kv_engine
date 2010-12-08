@@ -79,9 +79,20 @@ static void test_exponential() {
     assert(s.str() == expected);
 }
 
+static void test_complete_range() {
+    GrowingWidthGenerator<uint16_t> gen(0, 10, M_E);
+    Histogram<uint16_t> histo(gen, 10);
+    uint16_t i(0);
+    do {
+        histo.add(i);
+        ++i;
+    } while (i != 0);
+}
+
 int main() {
     test_basic();
     test_fixed_input();
     test_exponential();
+    test_complete_range();
     return 0;
 }
