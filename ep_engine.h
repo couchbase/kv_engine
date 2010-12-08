@@ -488,6 +488,7 @@ private:
     friend class BackFillVisitor;
     friend class TapBGFetchCallback;
     friend class TapConnMap;
+    friend class EventuallyPersistentStore;
 
     void addEvent(const std::string &str, uint16_t vbid,
                   enum queue_operation op) {
@@ -571,6 +572,19 @@ private:
         } else {
             return false;
         }
+    }
+
+    SqliteStrategy* createSqliteStrategy() {
+        SqliteStrategy *sqliteInstance = NULL;
+        if (dbStrategy == multi_db) {
+            sqliteInstance = new MultiDBSqliteStrategy(dbname, shardPattern,
+                                                       initFile, postInitFile,
+                                                       dbShards);
+        } else {
+            sqliteInstance = new SqliteStrategy(dbname, initFile,
+                                                postInitFile);
+        }
+        return sqliteInstance;
     }
 
     // Get the current tap connection for this cookie.

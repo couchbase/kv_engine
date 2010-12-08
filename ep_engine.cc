@@ -1090,14 +1090,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     if (ret == ENGINE_SUCCESS) {
         time_t start = ep_real_time();
         try {
-            if (dbStrategy == multi_db) {
-                sqliteStrategy = new MultiDBSqliteStrategy(dbname, shardPattern,
-                                                           initFile, postInitFile,
-                                                           dbShards);
-            } else {
-                sqliteStrategy = new SqliteStrategy(dbname, initFile,
-                                                    postInitFile);
-            }
+            sqliteStrategy = createSqliteStrategy();
             sqliteDb = new StrategicSqlite3(stats, sqliteStrategy);
         } catch (std::exception& e) {
             std::stringstream ss;

@@ -769,6 +769,7 @@ private:
     bool                       doPersistence;
     StrategicSqlite3          *rwUnderlying;
     StrategicSqlite3          *roUnderlying;
+    SqliteStrategy            *roSqliteStrategy;
     StorageProperties          storageProperties;
     Dispatcher                *dispatcher;
     Dispatcher                *roDispatcher;

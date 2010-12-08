@@ -326,7 +326,8 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
     if (storageProperties.maxConcurrency() > 1
         && storageProperties.maxReaders() > 1
         && concurrentDB) {
-        roUnderlying = new StrategicSqlite3(*rwUnderlying);
+        roSqliteStrategy = engine.createSqliteStrategy();
+        roUnderlying = new StrategicSqlite3(stats, roSqliteStrategy);
         roDispatcher = new Dispatcher();
         roDispatcher->start();
     } else {
@@ -375,6 +376,7 @@ EventuallyPersistentStore::~EventuallyPersistentStore() {
     dispatcher->stop();
     if (hasSeparateRODispatcher()) {
         roDispatcher->stop();
+        delete roSqliteStrategy;
         delete roUnderlying;
     }
     nonIODispatcher->stop();
