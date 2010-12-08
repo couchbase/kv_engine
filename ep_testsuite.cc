@@ -2037,7 +2037,7 @@ static enum test_result test_tap_rcvr_mutate(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 
               "Failed tap notify.");
         std::stringstream ss;
         ss << "failed key at " << i;
-        check(check_key_value(h, h1, "key", data, i, true) == SUCCESS,
+        check(check_key_value(h, h1, "key", data, i, false) == SUCCESS,
               ss.str().c_str());
         free(data);
     }

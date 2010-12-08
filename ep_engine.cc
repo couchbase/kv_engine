@@ -1676,17 +1676,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
             }
 
             BlockTimer timer(&stats.tapMutationHisto);
-            // We don't get the trailing CRLF in tap mutation but should store it
-            // to satisfy memcached expectations.
-            //
-            // We do this by manually constructing the item using its
-            // value_t constructor to reduce memory copies as much as
-            // possible.
-            std::string v;
-            v.reserve(ndata+2);
-            v.append(static_cast<const char*>(data), ndata);
-            v.append("\r\n");
-            shared_ptr<const Blob> vblob(Blob::New(v));
+            shared_ptr<const Blob> vblob(Blob::New(static_cast<const char*>(data), ndata));
 
             Item *item = new Item(k, flags, exptime, vblob);
             item->setVBucketId(vbucket);
