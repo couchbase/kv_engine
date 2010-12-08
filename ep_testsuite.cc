@@ -947,7 +947,7 @@ static enum test_result test_incr_default(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
           "Failed third arith.");
     check(result == 3, "Failed third result verification.");
 
-    return check_key_value(h, h1, "key", "3\r\n", 3);
+    return check_key_value(h, h1, "key", "3", 1);
 }
 
 static enum test_result test_append(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
@@ -1031,7 +1031,7 @@ static enum test_result test_incr(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                          0) == ENGINE_SUCCESS,
           "Failed to incr value.");
 
-    return check_key_value(h, h1, "key", "2\r\n", 3);
+    return check_key_value(h, h1, "key", "2", 1);
 }
 
 static enum test_result test_bug2799(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
@@ -1045,7 +1045,7 @@ static enum test_result test_bug2799(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                          0) == ENGINE_SUCCESS,
           "Failed to incr value.");
 
-    check_key_value(h, h1, "key", "2\r\n", 3);
+    check_key_value(h, h1, "key", "2", 1);
 
     testHarness.time_travel(3617);
 
@@ -3166,7 +3166,7 @@ static enum test_result test_disk_gt_ram_incr(ENGINE_HANDLE *h,
                          0) == ENGINE_SUCCESS,
           "Failed to incr value.");
 
-    check_key_value(h, h1, "k1", "14\r\n", 4);
+    check_key_value(h, h1, "k1", "14", 2);
 
     assert(1 == get_int_stat(h, h1, "ep_bg_fetched"));
 
@@ -3299,7 +3299,7 @@ static enum test_result test_disk_gt_ram_incr_race(ENGINE_HANDLE *h,
     wait_for_stat_change(h, h1, "ep_total_enqueued", 1);
 
     // The incr mutated the value.
-    check_key_value(h, h1, "k1", "14\r\n", 4);
+    check_key_value(h, h1, "k1", "14", 2);
 
     assert(pthread_join(tid, NULL) == 0);
 
