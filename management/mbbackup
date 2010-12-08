@@ -16,11 +16,12 @@ if len(sys.argv) < 3:
              '  %prog /var/opt/membase/default /backups/2010-10-31/\n')
 
 def backup(sqlite_path, srcdir, destdir, fn):
-    subprocess.Popen([sqlite_path, os.path.join(srcdir, fn),
-                     '.backup \"%s\" ' % os.path.join(destdir, fn)])
-    print "Backup of %s done" % fn
-    subprocess.Popen([sqlite_path, os.path.join(destdir, fn),'vacuum'])
-    print "Vacuum of %s done" % fn
+    if os.path.exists(fn):
+        subprocess.Popen([sqlite_path, os.path.join(srcdir, fn),
+                          '.backup \"%s\" ' % os.path.join(destdir, fn)])
+        print "Backup of %s done" % fn
+        subprocess.Popen([sqlite_path, os.path.join(destdir, fn),'vacuum'])
+        print "Vacuum of %s done" % fn
 
 def find_sqlite():
     candidates = ['./sqlite3',
@@ -40,6 +41,7 @@ for n,p in [('src', src_path), ('dest', dest_path)]:
 dirname, bucket_name = os.path.split(src_path)
 
 backup(sqlite_path, dirname, dest_path, bucket_name)
-for i in range(4):
-    backup(sqlite_path, dirname, dest_path, '%s-%d.sqlite' % (bucket_name, i))
+for ext in ['.sqlite', '.mb']:
+    for i in range(4):
+        backup(sqlite_path, dirname, dest_path, '%s-%d.%s' % (bucket_name, i, ext))
 

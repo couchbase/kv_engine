@@ -17,6 +17,9 @@ Usage: %s [--vacuum] [--backupto=<dest_dir>] [--port=%s]
         print >> sys.stderr, err
     sys.exit(1)
 
+def isADBFile(f):
+    return f.endswith('.sqlite') or f.endswith('.mb')
+
 def main():
 
     try:
@@ -48,7 +51,7 @@ def main():
     try:
         for fn in db_files:
 
-            if shouldVacuum and (fn == db_path or fn.endswith('.sqlite')):
+            if shouldVacuum and (fn == db_path or isADBFile(fn)):
                 print "Vacuuming", fn
                 os.system('"%s" "%s" vacuum' % (sqlitebin, fn))
 
