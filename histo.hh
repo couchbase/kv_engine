@@ -174,6 +174,17 @@ private:
     double   _power;
 };
 
+template <typename T>
+class BinCompare {
+public:
+
+    BinCompare() {}
+
+    bool operator() (T t, HistogramBin<T> *b) {
+        return t < b->end();
+    }
+};
+
 /**
  * A Histogram.
  */
@@ -318,12 +329,18 @@ private:
     }
 
     HistogramBin<T> *findBin(T amount) {
-        typename std::vector<HistogramBin<T>*>::iterator it;
-        it = std::find_if(bins.begin(), bins.end(),
-                          std::bind2nd(std::mem_fun(&HistogramBin<T>::accepts),
-                                       amount));
-        assert(it != bins.end());
-        return *it;
+        HistogramBin<T> *rv(NULL);
+        if (amount == std::numeric_limits<T>::max()) {
+            rv = bins.back();
+        } else {
+            typename std::vector<HistogramBin<T>*>::iterator it;
+            BinCompare<T> binCompare;
+            it = std::upper_bound(bins.begin(), bins.end(), amount, binCompare);
+            assert(it != bins.end());
+            assert((*it)->accepts(amount));
+            rv = *it;
+        }
+        return rv;
     }
 
     template <typename Ttype>
