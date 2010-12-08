@@ -236,8 +236,7 @@ static bool get_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, item *i,
 static enum test_result check_key_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                         const char* key,
                                         const char* val, size_t vlen,
-                                        bool checkcrlf = false, uint16_t vbucket = 0) {
-    int crlfOffset = checkcrlf ? 2 : 0;
+                                        uint16_t vbucket = 0) {
     item *i = NULL;
     ENGINE_ERROR_CODE rv;
     if ((rv = h1->get(h, NULL, &i, key, strlen(key), vbucket)) != ENGINE_SUCCESS) {
@@ -251,19 +250,14 @@ static enum test_result check_key_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     check(h1->get_item_info(h, NULL, i, &info), "check_key_value");
 
     assert(info.nvalue == 1);
-    if (vlen + crlfOffset != info.value[0].iov_len) {
-        std::cerr << "Expected length " << vlen + crlfOffset
+    if (vlen != info.value[0].iov_len) {
+        std::cerr << "Expected length " << vlen
                   << " got " << info.value[0].iov_len << std::endl;
-        check(vlen + crlfOffset == info.value[0].iov_len, "Length mismatch.");
+        check(vlen == info.value[0].iov_len, "Length mismatch.");
     }
 
     check(memcmp(info.value[0].iov_base, val, vlen) == 0,
           "Data mismatch");
-
-    if (checkcrlf) {
-        const char *s = static_cast<const char*>(info.value[0].iov_base);
-        check(memcmp(s + vlen, "\r\n", 2) == 0, "missing crlf");
-    }
 
     return SUCCESS;
 }
@@ -452,8 +446,8 @@ static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     testHarness.time_travel(16);
 
-    char binaryData1[] = "abcdefg\0gfedcba\r\n";
-    char binaryData2[] = "abzdefg\0gfedcba\r\n";
+    char binaryData1[] = "abcdefg\0gfedcba";
+    char binaryData2[] = "abzdefg\0gfedcba";
 
     check(storeCasVb11(h, h1, NULL, OPERATION_SET, key,
                        binaryData1, sizeof(binaryData1) - 1, 82758, &i, 0, 0)
@@ -963,7 +957,7 @@ static enum test_result test_append(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
           == ENGINE_SUCCESS,
           "Failed append.");
 
-    check_key_value(h, h1, "key", "foo\r\n", 5);
+    check_key_value(h, h1, "key", "\r\nfoo\r\n", 7);
 
     char binaryData1[] = "abcdefg\0gfedcba\r\n";
     char binaryData2[] = "abzdefg\0gfedcba\r\n";
@@ -979,7 +973,7 @@ static enum test_result test_append(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
           "Failed append.");
 
     std::string expected;
-    expected.append(binaryData1, sizeof(binaryData1) - 3);
+    expected.append(binaryData1, sizeof(binaryData1) - 1);
     expected.append(binaryData2, sizeof(binaryData2) - 1);
 
     return check_key_value(h, h1, "key", expected.data(), expected.length());
@@ -998,7 +992,7 @@ static enum test_result test_prepend(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
           == ENGINE_SUCCESS,
           "Failed append.");
 
-    check_key_value(h, h1, "key", "foo\r\n", 5);
+    check_key_value(h, h1, "key", "foo\r\n\r\n", 7);
 
     char binaryData1[] = "abcdefg\0gfedcba\r\n";
     char binaryData2[] = "abzdefg\0gfedcba\r\n";
@@ -1014,7 +1008,7 @@ static enum test_result test_prepend(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
           "Failed append.");
 
     std::string expected;
-    expected.append(binaryData2, sizeof(binaryData2) - 3);
+    expected.append(binaryData2, sizeof(binaryData2) - 1);
     expected.append(binaryData1, sizeof(binaryData1) - 1);
 
     return check_key_value(h, h1, "key", expected.data(), expected.length());
@@ -1130,7 +1124,7 @@ static enum test_result test_flush_multiv(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     check(ENGINE_SUCCESS == verify_vb_key(h, h1, "key2", 2), "Expected key2");
 
     check_key_value(h, h1, "key", "somevalue", 9);
-    check_key_value(h, h1, "key2", "somevalue", 9, false, 2);
+    check_key_value(h, h1, "key2", "somevalue", 9, 2);
 
     check(h1->flush(h, NULL, 0) == ENGINE_SUCCESS, "Failed to flush");
 
@@ -1305,7 +1299,7 @@ static enum test_result test_bug2761(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     sleep(1);
     check(set_vbucket_state(h, h1, 0, vbucket_state_active), "Failed set set vbucket 0 active.");
     for (it = keys.begin(); it != keys.end(); ++it) {
-        check_key_value(h, h1, it->c_str(), it->data(), it->size(), false, 0);
+        check_key_value(h, h1, it->c_str(), it->data(), it->size(), 0);
     }
     return SUCCESS;
 }
@@ -1937,7 +1931,7 @@ static enum test_result test_vbucket_destroy_restart(ENGINE_HANDLE *h, ENGINE_HA
     item *i = NULL;
     check(store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i, 0, 1)
           == ENGINE_SUCCESS, "Failed to set a value");
-    check_key_value(h, h1, "key", "somevalue", 9, false, 1);
+    check_key_value(h, h1, "key", "somevalue", 9, 1);
 
     // Reload to get a flush forced.
     testHarness.reload_engine(&h, &h1,
@@ -1948,7 +1942,7 @@ static enum test_result test_vbucket_destroy_restart(ENGINE_HANDLE *h, ENGINE_HA
     check(verify_vbucket_state(h, h1, 1, vbucket_state_dead),
           "Bucket state was not dead after restart.");
     check(set_vbucket_state(h, h1, 1, vbucket_state_active), "Failed to set vbucket state.");
-    check_key_value(h, h1, "key", "somevalue", 9, false, 1);
+    check_key_value(h, h1, "key", "somevalue", 9, 1);
 
     check(set_vbucket_state(h, h1, 1, vbucket_state_dead), "Failed set set vbucket 1 state.");
 
@@ -2037,7 +2031,7 @@ static enum test_result test_tap_rcvr_mutate(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 
               "Failed tap notify.");
         std::stringstream ss;
         ss << "failed key at " << i;
-        check(check_key_value(h, h1, "key", data, i, false) == SUCCESS,
+        check(check_key_value(h, h1, "key", data, i) == SUCCESS,
               ss.str().c_str());
         free(data);
     }
@@ -2705,7 +2699,7 @@ static enum test_result test_mem_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
           "Evict a value shouldn't increase the total cache size");
     check(get_int_stat(h, h1, "mem_used") < mem_used,
           "Expected mem_used to decrease when an item is evicted");
-    check_key_value(h, h1, "key", value, strlen(value), false, 0);
+    check_key_value(h, h1, "key", value, strlen(value), 0);
     check(get_int_stat(h, h1, "mem_used") == mem_used,
           "Expected mem_used to decrease when an item is evicted");
 
@@ -2732,7 +2726,7 @@ static enum test_result test_io_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
           "Expected storing the key to update the write counter");
     evict_key(h, h1, "a", 0, "Ejected.");
 
-    check_key_value(h, h1, "a", "b\r\n", 3, false, 0);
+    check_key_value(h, h1, "a", "b\r\n", 3, 0);
 
     check(get_int_stat(h, h1, "ep_io_num_read") == 1 &&
           get_int_stat(h, h1, "ep_io_read_bytes") == 4,
@@ -2759,7 +2753,7 @@ static enum test_result test_bg_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     h1->reset_stats(h, NULL);
     wait_for_persisted_value(h, h1, "a", "b\r\n");
     evict_key(h, h1, "a", 0, "Ejected.");
-    check_key_value(h, h1, "a", "b\r\n", 3, false, 0);
+    check_key_value(h, h1, "a", "b\r\n", 3, 0);
 
     check(get_int_stat(h, h1, "ep_bg_num_samples") == 1,
           "Expected one sample");
@@ -2772,7 +2766,7 @@ static enum test_result test_bg_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(vals.find("ep_bg_load_avg") != vals.end(), "Found no ep_bg_load_avg.");
 
     evict_key(h, h1, "a", 0, "Ejected.");
-    check_key_value(h, h1, "a", "b\r\n", 3, false, 0);
+    check_key_value(h, h1, "a", "b\r\n", 3, 0);
     check(get_int_stat(h, h1, "ep_bg_num_samples") == 2,
           "Expected one sample");
 
@@ -3055,7 +3049,7 @@ static enum test_result test_duplicate_items_disk(ENGINE_HANDLE *h, ENGINE_HANDL
         evict_key(h, h1, it->c_str(), 1, "Ejected.");
     }
     for (it = keys.begin(); it != keys.end(); ++it) {
-        check_key_value(h, h1, it->c_str(), it->data(), it->size(), false, 1);
+        check_key_value(h, h1, it->c_str(), it->data(), it->size(), 1);
     }
     check(get_int_stat(h, h1, "ep_warmup_dups") == 0,
           "Expected no duplicate items from disk");

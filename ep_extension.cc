@@ -189,7 +189,7 @@ bool GetlExtension::executeGetl(int argc, token_t *argv, void *response_cookie,
         std::stringstream strm;
 
         strm << "VALUE " << item->getKey() << " " << ntohl(item->getFlags())
-             << " " << item->getNBytes() -2 << " " << item->getCas() << "\r\n";
+             << " " << item->getNBytes() << " " << item->getCas() << "\r\n";
 
         std::string strVal = strm.str();
         size_t len = strVal.length();
