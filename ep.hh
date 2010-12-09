@@ -570,13 +570,12 @@ public:
      * @param rowid the rowid of the record within its shard
      * @param cookie the cookie of the requestor
      * @param init the timestamp of when the request came in
-     * @param start the time the invocation actually began
      */
     void completeBGFetch(const std::string &key,
                          uint16_t vbucket,
                          uint64_t rowid,
                          const void *cookie,
-                         hrtime_t init, hrtime_t start);
+                         hrtime_t init);
 
     RCPtr<VBucket> getVBucket(uint16_t vbid);
 

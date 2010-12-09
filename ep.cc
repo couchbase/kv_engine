@@ -67,15 +67,14 @@ public:
                     const std::string &k, uint16_t vbid, uint64_t r,
                     const void *c) :
         ep(e), key(k), vbucket(vbid), rowid(r), cookie(c),
-        counter(ep->bgFetchQueue), init(gethrtime()), start(0) {
+        counter(ep->bgFetchQueue), init(gethrtime()) {
         assert(ep);
         assert(cookie);
     }
 
     bool callback(Dispatcher &d, TaskId t) {
         (void)d; (void)t;
-        start = gethrtime();
-        ep->completeBGFetch(key, vbucket, rowid, cookie, init, start);
+        ep->completeBGFetch(key, vbucket, rowid, cookie, init);
         return false;
     }
 
@@ -94,7 +93,6 @@ private:
     BGFetchCounter             counter;
 
     hrtime_t init;
-    hrtime_t start;
 };
 
 /**
@@ -742,7 +740,8 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
                                                 uint16_t vbucket,
                                                 uint64_t rowid,
                                                 const void *cookie,
-                                                hrtime_t init, hrtime_t start) {
+                                                hrtime_t init) {
+    hrtime_t start(gethrtime());
     ++stats.bg_fetched;
     std::stringstream ss;
     ss << "Completed a background fetch, now at " << bgFetchQueue.get()
