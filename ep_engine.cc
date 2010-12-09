@@ -2675,7 +2675,7 @@ void EventuallyPersistentEngine::notifyTapIoThread(void) {
     // Fix clean shutdown!!!
     while (!shutdown) {
 
-        tapConnMap.notifyIOThreadMain(this, serverApi);
+        tapConnMap.notifyIOThreadMain(this);
 
         if (shutdown) {
             return;

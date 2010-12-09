@@ -167,14 +167,12 @@ private:
  */
 class NotifyVBStateChangeCallback : public DispatcherCallback {
 public:
-    NotifyVBStateChangeCallback(RCPtr<VBucket> vb, SERVER_HANDLE_V1 *a)
-        : vbucket(vb), api(a) {
-        assert(api);
-    }
+    NotifyVBStateChangeCallback(RCPtr<VBucket> vb, EventuallyPersistentEngine &e)
+        : vbucket(vb), engine(e) { }
 
     bool callback(Dispatcher &d, TaskId t) {
         (void)d; (void)t;
-        vbucket->fireAllOps(api);
+        vbucket->fireAllOps(engine);
         return false;
     }
 
@@ -185,8 +183,8 @@ public:
     }
 
 private:
-    RCPtr<VBucket>   vbucket;
-    SERVER_HANDLE_V1 *api;
+    RCPtr<VBucket>              vbucket;
+    EventuallyPersistentEngine &engine;
 };
 
 /**
@@ -649,7 +647,7 @@ void EventuallyPersistentStore::setVBucketState(uint16_t vbid,
         vb->setState(to, engine.getServerApi());
         nonIODispatcher->schedule(shared_ptr<DispatcherCallback>
                                              (new NotifyVBStateChangeCallback(vb,
-                                                                        engine.getServerApi())),
+                                                                        engine)),
                                   NULL, Priority::NotifyVBStateChangePriority, 0, false);
         scheduleVBSnapshot(Priority::VBucketPersistLowPriority);
     } else {

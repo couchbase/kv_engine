@@ -329,6 +329,13 @@ public:
         serverApi->cookie->notify_io_complete(cookie, status);
     }
 
+    template <typename T>
+    void notifyIOComplete(T cookies, ENGINE_ERROR_CODE status) {
+        std::for_each(cookies.begin(), cookies.end(),
+                      std::bind2nd(std::ptr_fun((NOTIFY_IO_COMPLETE_T)serverApi->cookie->notify_io_complete),
+                                   status));
+    }
+
     void handleDisconnect(const void *cookie) {
         tapConnMap.disconnect(cookie, static_cast<int>(tapKeepAlive));
         serverApi->cookie->store_engine_specific(cookie, NULL);

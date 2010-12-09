@@ -80,6 +80,8 @@ private:
     std::vector<uint16_t> acceptable;
 };
 
+class EventuallyPersistentEngine;
+
 /**
  * An individual vbucket.
  */
@@ -126,7 +128,7 @@ public:
         return true;
     }
 
-    void fireAllOps(SERVER_HANDLE_V1 *sapi);
+    void fireAllOps(EventuallyPersistentEngine &engine);
 
     size_t size(void) {
         HashTableDepthStatVisitor v;
@@ -153,7 +155,7 @@ public:
 
 private:
 
-    void fireAllOps(SERVER_HANDLE_V1 *sapi, ENGINE_ERROR_CODE code);
+    void fireAllOps(EventuallyPersistentEngine &engine, ENGINE_ERROR_CODE code);
 
     int                      id;
     Atomic<vbucket_state_t>  state;

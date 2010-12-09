@@ -180,8 +180,7 @@ public:
         std::for_each(all.begin(), all.end(), f);
     }
 
-    void notifyIOThreadMain(EventuallyPersistentEngine *engine,
-                            SERVER_HANDLE_V1 *serverApi);
+    void notifyIOThreadMain(EventuallyPersistentEngine *engine);
 
 private:
 

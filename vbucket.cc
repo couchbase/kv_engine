@@ -55,7 +55,7 @@ const vbucket_state_t VBucket::REPLICA = static_cast<vbucket_state_t>(htonl(vbuc
 const vbucket_state_t VBucket::PENDING = static_cast<vbucket_state_t>(htonl(vbucket_state_pending));
 const vbucket_state_t VBucket::DEAD = static_cast<vbucket_state_t>(htonl(vbucket_state_dead));
 
-void VBucket::fireAllOps(SERVER_HANDLE_V1 *sapi, ENGINE_ERROR_CODE code) {
+void VBucket::fireAllOps(EventuallyPersistentEngine &engine, ENGINE_ERROR_CODE code) {
     if (pendingOpsStart > 0) {
         hrtime_t now = gethrtime();
         if (now > pendingOpsStart) {
@@ -68,8 +68,7 @@ void VBucket::fireAllOps(SERVER_HANDLE_V1 *sapi, ENGINE_ERROR_CODE code) {
     stats.pendingOps.decr(pendingOps.size());
     stats.pendingOpsMax.setIfBigger(pendingOps.size());
 
-    std::for_each(pendingOps.begin(), pendingOps.end(),
-                  std::bind2nd(std::ptr_fun((NOTIFY_IO_COMPLETE_T)sapi->cookie->notify_io_complete), code));
+    engine.notifyIOComplete(pendingOps, code);
     pendingOps.clear();
 
     getLogger()->log(EXTENSION_LOG_INFO, NULL,
@@ -77,15 +76,15 @@ void VBucket::fireAllOps(SERVER_HANDLE_V1 *sapi, ENGINE_ERROR_CODE code) {
                      id, VBucket::toString(state));
 }
 
-void VBucket::fireAllOps(SERVER_HANDLE_V1 *sapi) {
+void VBucket::fireAllOps(EventuallyPersistentEngine &engine) {
     LockHolder lh(pendingOpLock);
 
     if (state == vbucket_state_active) {
-        fireAllOps(sapi, ENGINE_SUCCESS);
+        fireAllOps(engine, ENGINE_SUCCESS);
     } else if (state == vbucket_state_pending) {
         // Nothing
     } else {
-        fireAllOps(sapi, ENGINE_NOT_MY_VBUCKET);
+        fireAllOps(engine, ENGINE_NOT_MY_VBUCKET);
     }
 }
 

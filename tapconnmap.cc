@@ -235,8 +235,7 @@ bool TapConnMap::shouldDisconnect(TapConnection *tc) {
     return tc && tc->doDisconnect;
 }
 
-void TapConnMap::notifyIOThreadMain(EventuallyPersistentEngine *engine,
-                                    SERVER_HANDLE_V1 *serverApi) {
+void TapConnMap::notifyIOThreadMain(EventuallyPersistentEngine *engine) {
     bool addNoop = false;
 
     rel_time_t now = ep_current_time();
@@ -296,9 +295,5 @@ void TapConnMap::notifyIOThreadMain(EventuallyPersistentEngine *engine,
 
     lh.unlock();
 
-    // Signal all outstanding, paused connections.
-    std::for_each(toNotify.begin(), toNotify.end(),
-                  std::bind2nd(std::ptr_fun((NOTIFY_IO_COMPLETE_T)serverApi->cookie->notify_io_complete),
-                               ENGINE_SUCCESS));
-
+    engine->notifyIOComplete(toNotify, ENGINE_SUCCESS);
 }
