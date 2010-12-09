@@ -53,7 +53,7 @@ void LookupCallback::callback(GetValue &value) {
     } else {
         engine->addLookupResult(cookie, NULL);
     }
-    engine->getServerApi()->cookie->notify_io_complete(cookie, value.getStatus());
+    engine->notifyIOComplete(cookie, value.getStatus());
 }
 
 template <typename T>

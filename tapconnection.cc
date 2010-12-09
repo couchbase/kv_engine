@@ -432,7 +432,7 @@ public:
             if (!epe->tapConnMap.performTapOp(name, tapop, gcb.val.getValue())) {
                 delete gcb.val.getValue();
             }
-            epe->getServerApi()->cookie->notify_io_complete(cookie, ENGINE_SUCCESS);
+            epe->notifyIOComplete(cookie, ENGINE_SUCCESS);
         }
 
         CompletedBGFetchTapOperation tapop;

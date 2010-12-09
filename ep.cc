@@ -791,7 +791,7 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
         stats.bgMaxLoad.setIfBigger(l);
     }
 
-    engine.getServerApi()->cookie->notify_io_complete(cookie, gcb.val.getStatus());
+    engine.notifyIOComplete(cookie, gcb.val.getStatus());
     delete gcb.val.getValue();
 }
 

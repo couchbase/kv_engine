@@ -324,11 +324,14 @@ public:
      */
     void queueBackfill(TapConnection *tc, const void *tok);
 
+    void notifyIOComplete(const void *cookie, ENGINE_ERROR_CODE status) {
+        serverApi->cookie->notify_io_complete(cookie, status);
+    }
+
     void handleDisconnect(const void *cookie) {
         tapConnMap.disconnect(cookie, static_cast<int>(tapKeepAlive));
         serverApi->cookie->store_engine_specific(cookie, NULL);
-        serverApi->cookie->notify_io_complete(cookie,
-                                              ENGINE_DISCONNECT);
+        notifyIOComplete(cookie, ENGINE_DISCONNECT);
     }
 
     protocol_binary_response_status stopFlusher(const char **msg) {
