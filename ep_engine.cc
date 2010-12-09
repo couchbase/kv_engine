@@ -2514,6 +2514,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTimingStats(const void *cookie,
     // Tap commands
     add_casted_stat("tap_vb_set", stats.tapVbucketSetHisto, add_stat, cookie);
     add_casted_stat("tap_mutation", stats.tapMutationHisto, add_stat, cookie);
+    // Misc
+    add_casted_stat("notify_io", stats.notifyIOHisto, add_stat, cookie);
 
     // Disk stats
     add_casted_stat("disk_insert", stats.diskInsertHisto, add_stat, cookie);

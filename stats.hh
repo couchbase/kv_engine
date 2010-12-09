@@ -252,6 +252,9 @@ public:
     //! Histogram of tap vbucket set timings.
     Histogram<hrtime_t> tapVbucketSetHisto;
 
+    //! Time spent notifying completion of IO.
+    Histogram<hrtime_t> notifyIOHisto;
+
     //
     // DB timers.
     //
@@ -329,6 +332,7 @@ public:
         arithCmdHisto.reset();
         tapMutationHisto.reset();
         tapVbucketSetHisto.reset();
+        notifyIOHisto.reset();
         diskInsertHisto.reset();
         diskUpdateHisto.reset();
         diskDelHisto.reset();

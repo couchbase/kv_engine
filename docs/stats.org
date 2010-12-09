@@ -277,6 +277,7 @@ form to describe when time was spent doing various things:
 | del_vb_cmd            | servicing vbucket deletion commands            |
 | tap_vb_set            | servicing tap vbucket set state commands       |
 | tap_mutation          | servicing tap mutations                        |
+| notify_io             | waking blocked connections                     |
 | disk_insert           | waiting for disk to store a new item           |
 | disk_update           | waiting for disk to modify an existing item    |
 | disk_del              | waiting for disk to delete an item             |
