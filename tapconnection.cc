@@ -213,7 +213,8 @@ void TapConnection::rollback() {
 
 class TapResumeCallback : public DispatcherCallback {
 public:
-    TapResumeCallback(SERVER_HANDLE_V1 &a, TapConnection &c) : api(a), connection(c) {
+    TapResumeCallback(EventuallyPersistentEngine &e, TapConnection &c)
+        : engine(e), connection(c) {
 
     }
 
@@ -223,7 +224,7 @@ public:
         const void *cookie = connection.getCookie();
         connection.setSuspended(false);
         if (cookie) {
-            api.cookie->notify_io_complete(cookie, ENGINE_SUCCESS);
+            engine.notifyIOComplete(cookie, ENGINE_SUCCESS);
         }
         return false;
     }
@@ -235,8 +236,8 @@ public:
     }
 
 private:
-    SERVER_HANDLE_V1 &api;
-    TapConnection &connection;
+    EventuallyPersistentEngine &engine;
+    TapConnection              &connection;
 };
 
 const void *TapConnection::getCookie() const {
@@ -254,8 +255,7 @@ void TapConnection::setSuspended(bool value)
         if (backoffSleepTime > 0 && !suspended.get()) {
             Dispatcher *d = engine.getEpStore()->getNonIODispatcher();
             d->schedule(shared_ptr<DispatcherCallback>
-                        (new TapResumeCallback(*engine.getServerApi(),
-                                               *this)),
+                        (new TapResumeCallback(engine, *this)),
                         NULL, Priority::TapResumePriority, backoffSleepTime,
                         false);
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
