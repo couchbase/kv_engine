@@ -116,6 +116,9 @@ protected:
     PreparedStatement *sel_vb_stmt;
 
     void doFile(const char * const filename);
+    virtual void initDB(void) {
+        doFile(initFile);
+    }
 
     PreparedStatement *clear_stats_stmt;
     PreparedStatement *ins_stat_stmt;
@@ -156,6 +159,7 @@ public:
         assert(shardpattern);
     }
 
+    void initDB(void);
     void initTables(void);
     void initStatements(void);
     void destroyTables(void);

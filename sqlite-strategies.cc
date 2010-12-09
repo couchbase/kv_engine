@@ -22,7 +22,7 @@ sqlite3 *SqliteStrategy::open(void) {
             throw std::runtime_error("Error enabling extended RCs");
         }
 
-        doFile(initFile);
+        initDB();
 
         PreparedStatement uv_get(db, "PRAGMA user_version");
         uv_get.fetch();
@@ -155,7 +155,7 @@ void SqliteStrategy::execute(const char * const query) {
 // ----------------------------------------------------------------------
 //
 
-void MultiDBSqliteStrategy::initTables() {
+void MultiDBSqliteStrategy::initDB() {
     char buf[1024];
     PathExpander p(filename);
 
@@ -164,6 +164,15 @@ void MultiDBSqliteStrategy::initTables() {
         snprintf(buf, sizeof(buf), "attach database \"%s\" as kv_%d",
                  shardname.c_str(), i);
         execute(buf);
+    }
+    doFile(initFile);
+}
+
+void MultiDBSqliteStrategy::initTables() {
+    char buf[1024];
+    PathExpander p(filename);
+
+    for (int i = 0; i < numTables; i++) {
         snprintf(buf, sizeof(buf), "select name from kv_%d.sqlite_master where name='kv'", i);
         PreparedStatement st(db, buf);
         if (schema_version == 0 && st.fetch()) {
