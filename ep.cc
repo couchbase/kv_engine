@@ -19,6 +19,7 @@
 #include <vector>
 #include <time.h>
 #include <string.h>
+#include <sstream>
 #include <iostream>
 #include <functional>
 
@@ -1213,9 +1214,22 @@ public:
             // If the return was 0 here, we're in a bad state because
             // we do not know the rowid of this object.
             if (value.first == 0) {
-                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                 "Persisting vb%d, returned 0 updates for ``%s''\n",
-                                 queuedItem.getVBucketId(), queuedItem.getKey().c_str());
+                RCPtr<VBucket> vb = store->getVBucket(queuedItem.getVBucketId());
+                int bucket_num(0);
+                LockHolder lh = vb->ht.getLockedBucket(queuedItem.getKey(), &bucket_num);
+                StoredValue *v = store->fetchValidValue(vb, queuedItem.getKey(),
+                                                        bucket_num, true);
+                if (v) {
+                    std::stringstream ss;
+                    ss << "Persisting ``" << queuedItem.getKey() << "'' on vb"
+                       << queuedItem.getVBucketId() << " (rowid=" << v->getId()
+                       << ") returned 0 updates\n";
+                    getLogger()->log(EXTENSION_LOG_WARNING, NULL, "%s", ss.str().c_str());
+                } else {
+                    getLogger()->log(EXTENSION_LOG_INFO, NULL,
+                                     "Error persisting now missing ``%s'' from vb%d\n",
+                                     queuedItem.getKey().c_str(), queuedItem.getVBucketId());
+                }
             } else {
                 redirty();
             }
