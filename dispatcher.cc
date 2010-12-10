@@ -51,9 +51,7 @@ void Dispatcher::popNext() {
     readyQueue.empty() ? futureQueue.pop() : readyQueue.pop();
 }
 
-void Dispatcher::moveReadyTasks() {
-    struct timeval tv;
-    gettimeofday(&tv, NULL);
+void Dispatcher::moveReadyTasks(const struct timeval &tv) {
     while (!futureQueue.empty()) {
         TaskId tid = futureQueue.top();
         if (less_tv(tid->waketime, tv)) {
@@ -84,8 +82,11 @@ void Dispatcher::run() {
                 mutex.wait();
             }
         } else {
+            struct timeval tv;
+            gettimeofday(&tv, NULL);
+
             // Get any ready tasks out of the due queue.
-            moveReadyTasks();
+            moveReadyTasks(tv);
 
             TaskId task = nextTask();
             assert(task);
@@ -95,8 +96,6 @@ void Dispatcher::run() {
                 continue;
             }
 
-            struct timeval tv;
-            gettimeofday(&tv, NULL);
             if (less_tv(tv, task->waketime)) {
                 idleTask->setWaketime(task->waketime);
                 idleTask->setDispatcherNotifications(notifications.get());

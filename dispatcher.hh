@@ -388,7 +388,7 @@ private:
      * Move all tasks that are ready for execution into the "ready"
      * priority queue.
      */
-    void moveReadyTasks();
+    void moveReadyTasks(const struct timeval &tv);
 
     //! True if there are no tasks scheduled.
     bool empty() { return readyQueue.empty() && futureQueue.empty(); }
