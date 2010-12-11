@@ -1366,6 +1366,7 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
     *ttl = (uint8_t)-1;
     *seqno = 0;
     *flags = 0;
+    *vbucket = 0;
 
     retry = false;
     connection->notifySent = false;
