@@ -1809,8 +1809,10 @@ public:
                     const void *token):
         VBucketVisitor(), engine(e), name(tc->client),
         queue(new std::list<QueuedItem>),
-        filter(tc->backFillVBucketFilter), validityToken(token),
-        maxBackfillSize(e->tapBacklogLimit), valid(true) { }
+        found(), filter(tc->backFillVBucketFilter), validityToken(token),
+        maxBackfillSize(e->tapBacklogLimit), valid(true) {
+        found.reserve(e->tapBacklogLimit);
+    }
 
     ~BackFillVisitor() {
         delete queue;
@@ -1826,8 +1828,9 @@ public:
 
     void visit(StoredValue *v) {
         std::string k = v->getKey();
-        QueuedItem qi(k, currentBucket->getId(), queue_op_set);
-        queue->push_back(qi);
+        uint16_t shardId = engine->sqliteStrategy->getDbShardIdForKey(k);
+        QueuedItem qi(k, currentBucket->getId(), queue_op_set, -1, v->getId());
+        found.push_back(std::make_pair(shardId, qi));
     }
 
     bool shouldContinue() {
@@ -1847,8 +1850,16 @@ private:
 
     void setEvents() {
         if (checkValidity()) {
-            if (!queue->empty()) {
+            if (!found.empty()) {
                 // Don't notify unless we've got some data..
+                TaggedQueuedItemComparator<uint16_t> comparator;
+                std::sort(found.begin(), found.end(), comparator);
+
+                std::vector<std::pair<uint16_t, QueuedItem> >::iterator it(found.begin());
+                for (; it != found.end(); ++it) {
+                    queue->push_back(it->second);
+                }
+                found.clear();
                 engine->tapConnMap.setEvents(name, queue);
             }
             waitForQueue();
@@ -1901,6 +1912,7 @@ private:
     EventuallyPersistentEngine *engine;
     const std::string name;
     std::list<QueuedItem> *queue;
+    std::vector<std::pair<uint16_t, QueuedItem> > found;
     VBucketFilter filter;
     const void *validityToken;
     ssize_t maxBackfillSize;

@@ -46,6 +46,8 @@ public:
         return sizeof(QueuedItem) + key.size();
     }
 
+    int64_t getRowId() { return row_id; }
+
 private:
     std::string key;
     enum queue_operation op;
@@ -62,6 +64,20 @@ class CompareQueuedItemsByRowId {
 public:
     bool operator()(QueuedItem i1, QueuedItem i2) {
         return i1.row_id < i2.row_id;
+    }
+};
+
+/**
+ * Compare two Schwartzian-transformed QueuedItems.
+ */
+template <typename T>
+class TaggedQueuedItemComparator {
+public:
+
+    bool operator()(std::pair<T, QueuedItem> i1, std::pair<T, QueuedItem> i2) {
+        return (i1.first == i2.first)
+            ? (i1.second.getRowId() < i2.second.getRowId())
+            : (i1 < i2);
     }
 };
 
