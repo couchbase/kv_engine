@@ -102,6 +102,8 @@ public:
     Atomic<size_t> expiryPagerRuns;
     //! Number of times a value is ejected
     Atomic<size_t> numValueEjects;
+    //! Number of times a replica value is ejected
+    Atomic<size_t> numReplicaEjects;
     //! Number of times a value could not be ejected
     Atomic<size_t> numFailedEjects;
     //! Number of times "Not my bucket" happened

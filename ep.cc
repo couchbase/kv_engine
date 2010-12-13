@@ -1207,7 +1207,9 @@ public:
                 double current = static_cast<double>(StoredValue::getCurrentSize(*stats));
                 double lower = static_cast<double>(stats->mem_low_wat);
                 if (v && current > lower) {
-                    v->ejectValue(*stats);
+                    if (v->ejectValue(*stats) && vb->getState() == vbucket_state_replica) {
+                        ++stats->numReplicaEjects;
+                    }
                 }
             }
         } else {

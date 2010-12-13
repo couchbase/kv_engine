@@ -43,6 +43,9 @@ public:
         double r = static_cast<double>(std::rand()) / static_cast<double>(RAND_MAX);
         if (percent >= r) {
             if (v->ejectValue(stats)) {
+                if (currentBucket && currentBucket->getState() == vbucket_state_replica) {
+                    ++stats.numReplicaEjects;
+                }
                 ++ejected;
             }
         }

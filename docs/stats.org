@@ -92,6 +92,8 @@ For introductory information on stats within membase, start with the
 |                               | to purge expired items from memory/disk    |
 | ep_num_value_ejects           | Number of times item values got ejected    |
 |                               | from memory to disk                        |
+| ep_num_eject_replicas         | Number of times replica item values got    |
+|                               | ejected from memory to disk                |
 | ep_num_eject_failures         | Number of items that could not be ejected  |
 | ep_num_not_my_vbuckets        | Number of times Not My VBucket exception   |
 |                               | happened during runtime                    |
