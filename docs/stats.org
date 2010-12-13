@@ -85,6 +85,7 @@ For introductory information on stats within membase, start with the
 | ep_tmp_oom_errors             | Number of times temporary OOMs             |
 |                               | happened while processing operations       |
 | ep_bg_fetched                 | Number of items fetched from disk.         |
+| ep_tap_bg_fetched             | Number of tap disk fetches                 |
 | ep_num_pager_runs             | Number of times we ran pager loops         |
 |                               | to seek additional memory.                 |
 | ep_num_expiry_pager_runs      | Number of times we ran expiry pager loops  |
