@@ -11,9 +11,10 @@ import os
 import subprocess
 
 if len(sys.argv) < 3:
-    sys.exit('usage: %prog [bucket_path_name] [dest_dir_path]\n' +
-             'example:\n' +
-             '  %prog /var/opt/membase/default /backups/2010-10-31/\n')
+    sys.exit('\n'.join([r'usage: %(prog)s [bucket_path_name] [dest_dir_path]',
+                        r'examples:',
+                        r'   %(prog)s /var/opt/membase/default /backups/2010-10-31/'])
+             % {'prog': sys.argv[0]})
 
 def backup(sqlite_path, srcdir, destdir, fn):
     if os.path.exists(fn):
