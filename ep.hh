@@ -41,6 +41,7 @@ extern EXTENSION_LOGGER_DESCRIPTOR *getLogger(void);
 #include "queueditem.hh"
 #include "stats.hh"
 #include "locks.hh"
+#include "kvstore.hh"
 #include "sqlite-kvstore.hh"
 #include "stored-value.hh"
 #include "atomic.hh"
@@ -311,8 +312,8 @@ private:
 class TransactionContext {
 public:
 
-    TransactionContext(EPStats &st, StrategicSqlite3 *ss)
-        : stats(st), underlying(ss), _remaining(0), intxn(false) {}
+    TransactionContext(EPStats &st, KVStore *ks)
+        : stats(st), underlying(ks), _remaining(0), intxn(false) {}
 
     /**
      * Call this whenever entering a transaction.
@@ -371,11 +372,11 @@ public:
     }
 
 private:
-    EPStats          &stats;
-    StrategicSqlite3 *underlying;
-    int               _remaining;
-    Atomic<int>       txnSize;
-    bool              intxn;
+    EPStats     &stats;
+    KVStore     *underlying;
+    int          _remaining;
+    Atomic<int>  txnSize;
+    bool         intxn;
 };
 
 /**
