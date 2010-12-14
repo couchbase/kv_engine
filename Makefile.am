@@ -35,6 +35,7 @@ ep_la_SOURCES = \
                  htresizer.cc htresizer.hh \
                  item.cc item.hh \
                  item_pager.cc item_pager.hh \
+                 kvstore.hh \
                  locks.hh \
                  mutex.hh \
                  pathexpand.hh pathexpand.cc \
