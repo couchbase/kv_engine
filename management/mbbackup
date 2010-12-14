@@ -58,5 +58,5 @@ dirname, bucket_name = os.path.split(src_path)
 backup(sqlite_path, dirname, dest_path, bucket_name)
 for ext in ['.sqlite', '.mb']:
     for i in range(4):
-        backup(sqlite_path, dirname, dest_path, '%s-%d.%s' % (bucket_name, i, ext))
+        backup(sqlite_path, dirname, dest_path, '%s-%d%s' % (bucket_name, i, ext))
 
