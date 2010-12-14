@@ -24,8 +24,8 @@ def backup(sqlite_path, srcdir, destdir, fn):
         print "Vacuum of %s done" % fn
 
 def find_sqlite():
-    candidates = ['./sqlite3',
-                  './sqlite3.exe']
+    candidates = [r'./sqlite3',
+                  r'.\sqlite3.exe']
     for c in candidates:
         if os.path.exists(c):
             return c
