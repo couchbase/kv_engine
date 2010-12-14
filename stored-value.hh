@@ -913,6 +913,9 @@ public:
             }
             itm.setCas();
             rv = v->isClean() ? WAS_CLEAN : WAS_DIRTY;
+            if (!v->isResident()) {
+                --stats.numNonResident;
+            }
             v->setValue(itm.getValue(),
                         itm.getFlags(), itm.getExptime(),
                         itm.getCas(), stats);
@@ -1014,6 +1017,10 @@ public:
 
             if (cas != 0 && cas != v->getCas()) {
                 return NOT_FOUND;
+            }
+
+            if (!v->isResident()) {
+                --stats.numNonResident;
             }
 
             /* allow operation*/

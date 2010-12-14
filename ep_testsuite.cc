@@ -3001,6 +3001,55 @@ static enum test_result test_value_eviction(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
     return SUCCESS;
 }
 
+static enum test_result test_mb3169(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    item *i = NULL;
+    uint64_t cas(0);
+    uint64_t result(0);
+    check(store(h, h1, NULL, OPERATION_SET, "set", "value", &i, 0, 0)
+          == ENGINE_SUCCESS, "Failed to store a value");
+    check(store(h, h1, NULL, OPERATION_SET, "incr", "0", &i, 0, 0)
+          == ENGINE_SUCCESS, "Failed to store a value");
+    check(store(h, h1, NULL, OPERATION_SET, "delete", "0", &i, 0, 0)
+          == ENGINE_SUCCESS, "Failed to store a value");
+    check(store(h, h1, NULL, OPERATION_SET, "get", "getvalue", &i, 0, 0)
+          == ENGINE_SUCCESS, "Failed to store a value");
+
+    wait_for_flusher_to_settle(h, h1);
+
+    evict_key(h, h1, "set", 0, "Ejected.");
+    evict_key(h, h1, "incr", 0, "Ejected.");
+    evict_key(h, h1, "delete", 0, "Ejected.");
+    evict_key(h, h1, "get", 0, "Ejected.");
+
+    check(get_int_stat(h, h1, "ep_num_non_resident") == 4,
+          "Expected four items to be resident");
+
+    check(store(h, h1, NULL, OPERATION_SET, "set", "value2", &i, 0, 0)
+          == ENGINE_SUCCESS, "Failed to store a value");
+
+    check(get_int_stat(h, h1, "ep_num_non_resident") == 3,
+          "Expected mutation to mark item resident");
+
+    check(h1->arithmetic(h, NULL, "incr", 4, true, false, 1, 1, 0,
+                         &cas, &result,
+                         0)  == ENGINE_SUCCESS, "Incr failed");
+
+    check(get_int_stat(h, h1, "ep_num_non_resident") == 2,
+          "Expected incr to mark item resident");
+
+    check(h1->remove(h, NULL, "delete", 6, 0, 0) == ENGINE_SUCCESS,
+          "Delete failed");
+
+    check(get_int_stat(h, h1, "ep_num_non_resident") == 1,
+          "Expected delete to remove non-resident item");
+
+    check_key_value(h, h1, "get", "getvalue", 8);
+
+    check(get_int_stat(h, h1, "ep_num_non_resident") == 0,
+          "Expected all items to be resident");
+    return SUCCESS;
+}
+
 static enum test_result test_duplicate_items_disk(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(set_vbucket_state(h, h1, 1, vbucket_state_active), "Failed to set vbucket state.");
 
@@ -3458,6 +3507,7 @@ engine_test_t* get_tests(void) {
          NULL, teardown, NULL},
         {"start transaction failure handling", test_bug2830, NULL, teardown,
          "db_shards=1;ht_size=13;ht_locks=7"},
+        {"non-resident decrementers", test_mb3169, NULL, teardown, NULL},
         {"flush", test_flush, NULL, teardown, NULL},
         {"flush with stats", test_flush_stats, NULL, teardown, NULL},
         {"flush multi vbuckets", test_flush_multiv, NULL, teardown, NULL},
