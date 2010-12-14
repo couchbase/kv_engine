@@ -8,6 +8,7 @@ Backup tool for Membase.
 
 import sys
 import os
+import time
 import subprocess
 
 if len(sys.argv) < 3:
@@ -17,12 +18,25 @@ if len(sys.argv) < 3:
              % {'prog': sys.argv[0]})
 
 def backup(sqlite_path, srcdir, destdir, fn):
-    if os.path.exists(fn):
-        subprocess.Popen([sqlite_path, os.path.join(srcdir, fn),
-                          '.backup \"%s\" ' % os.path.join(destdir, fn)]).communicate()
-        print "Backup of %s done" % fn
-        subprocess.Popen([sqlite_path, os.path.join(destdir, fn),'vacuum']).communiate()
-        print "Vacuum of %s done" % fn
+    done = False
+    sleep_time = 12
+    src_path_name = os.path.join(srcdir, fn)
+    if os.path.exists(src_path_name):
+        while not done:
+            pb = subprocess.Popen([sqlite_path, src_path_name,
+                                  '.backup "%s" ' % os.path.join(destdir, fn)])
+            pb.communicate()
+            if pb.returncode != 0:
+                print "Try backup %s again" % fn
+                time.sleep(sleep_time)
+                done = False
+            else:
+                print "Backup of %s done" % fn
+                pv = subprocess.Popen([sqlite_path, os.path.join(destdir, fn),
+                                      'vacuum'])
+                pv.communicate()
+                print "Vacuum of %s done" % fn
+                done = True
 
 def find_sqlite():
     candidates = [r'./sqlite3',
