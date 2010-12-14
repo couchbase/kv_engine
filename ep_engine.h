@@ -6,7 +6,6 @@
 #include "ep.hh"
 #include "flusher.hh"
 #include "kvstore.hh"
-#include "sqlite-kvstore.hh"
 #include "ep_extension.h"
 #include "dispatcher.hh"
 #include "item_pager.hh"
@@ -593,18 +592,7 @@ private:
         }
     }
 
-    shared_ptr<SqliteStrategy> createSqliteStrategy() {
-        SqliteStrategy *sqliteInstance = NULL;
-        if (dbStrategy == multi_db) {
-            sqliteInstance = new MultiDBSqliteStrategy(dbname, shardPattern,
-                                                       initFile, postInitFile,
-                                                       dbShards);
-        } else {
-            sqliteInstance = new SqliteStrategy(dbname, initFile,
-                                                postInitFile);
-        }
-        return shared_ptr<SqliteStrategy>(sqliteInstance);
-    }
+    KVStore *newKVStore();
 
     // Get the current tap connection for this cookie.
     // If this method returns NULL, you should return TAP_DISCONNECT
@@ -621,7 +609,6 @@ private:
     bool startVb0;
     bool concurrentDB;
     SERVER_HANDLE_V1 *serverApi;
-    shared_ptr<SqliteStrategy> sqliteStrategy;
     KVStore *kvstore;
     EventuallyPersistentStore *epstore;
     TapThrottle *tapThrottle;

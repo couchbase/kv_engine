@@ -42,7 +42,6 @@ extern EXTENSION_LOGGER_DESCRIPTOR *getLogger(void);
 #include "stats.hh"
 #include "locks.hh"
 #include "kvstore.hh"
-#include "sqlite-kvstore.hh"
 #include "stored-value.hh"
 #include "atomic.hh"
 #include "dispatcher.hh"
@@ -769,7 +768,6 @@ private:
     bool                        doPersistence;
     KVStore                    *rwUnderlying;
     KVStore                    *roUnderlying;
-    shared_ptr<SqliteStrategy>  roSqliteStrategy;
     StorageProperties          storageProperties;
     Dispatcher                *dispatcher;
     Dispatcher                *roDispatcher;

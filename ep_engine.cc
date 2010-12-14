@@ -27,6 +27,7 @@
 #include "ep_engine.h"
 #include "statsnap.hh"
 #include "tapthrottle.hh"
+#include "sqlite-kvstore.hh"
 #include "htresizer.hh"
 
 static size_t percentOf(size_t val, double percent) {
@@ -769,7 +770,7 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server
     dbname("/tmp/test.db"), shardPattern(DEFAULT_SHARD_PATTERN),
     initFile(NULL), postInitFile(NULL), dbStrategy(multi_db),
     warmup(true), wait_for_warmup(true), fail_on_partial_warmup(true),
-    startVb0(true), concurrentDB(true), sqliteStrategy(), kvstore(NULL),
+    startVb0(true), concurrentDB(true), kvstore(NULL),
     epstore(NULL), tapThrottle(new TapThrottle(stats)), databaseInitTime(0), tapKeepAlive(0),
     tapNoopInterval(DEFAULT_TAP_NOOP_INTERVAL), nextTapNoop(0),
     startedEngineThreads(false), shutdown(false),
@@ -1090,8 +1091,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     if (ret == ENGINE_SUCCESS) {
         time_t start = ep_real_time();
         try {
-            sqliteStrategy = createSqliteStrategy();
-            kvstore = new StrategicSqlite3(stats, sqliteStrategy);
+            kvstore = newKVStore();
         } catch (std::exception& e) {
             std::stringstream ss;
             ss << "Failed to create database: " << e.what() << std::endl;
@@ -1192,6 +1192,20 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "Engine init complete.\n");
 
     return ret;
+}
+
+KVStore* EventuallyPersistentEngine::newKVStore() {
+    SqliteStrategy *sqliteInstance = NULL;
+    if (dbStrategy == multi_db) {
+        sqliteInstance = new MultiDBSqliteStrategy(dbname, shardPattern,
+                                                   initFile, postInitFile,
+                                                   dbShards);
+    } else {
+        sqliteInstance = new SqliteStrategy(dbname, initFile,
+                                            postInitFile);
+    }
+    return new StrategicSqlite3(stats,
+                                shared_ptr<SqliteStrategy>(sqliteInstance));
 }
 
 void EventuallyPersistentEngine::destroy() {
@@ -1828,7 +1842,7 @@ public:
 
     void visit(StoredValue *v) {
         std::string k = v->getKey();
-        uint16_t shardId = engine->sqliteStrategy->getDbShardIdForKey(k);
+        uint16_t shardId = engine->kvstore->getShardIdForKey(k);
         QueuedItem qi(k, currentBucket->getId(), queue_op_set, -1, v->getId());
         found.push_back(std::make_pair(shardId, qi));
     }

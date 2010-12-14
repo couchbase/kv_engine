@@ -27,7 +27,7 @@
 #include "flusher.hh"
 #include "locks.hh"
 #include "dispatcher.hh"
-#include "sqlite-kvstore.hh"
+#include "kvstore.hh"
 #include "ep_engine.h"
 #include "htresizer.hh"
 
@@ -324,8 +324,7 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
     if (storageProperties.maxConcurrency() > 1
         && storageProperties.maxReaders() > 1
         && concurrentDB) {
-        roSqliteStrategy = engine.createSqliteStrategy();
-        roUnderlying = new StrategicSqlite3(stats, roSqliteStrategy);
+        roUnderlying = engine.newKVStore();
         roDispatcher = new Dispatcher();
         roDispatcher->start();
     } else {
