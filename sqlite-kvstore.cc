@@ -79,8 +79,7 @@ void StrategicSqlite3::update(const Item &itm, uint16_t vb_version,
     upd_stmt->reset();
 }
 
-std::map<std::pair<uint16_t, uint16_t>, std::string>
-StrategicSqlite3::listPersistedVbuckets() {
+vbucket_map_t StrategicSqlite3::listPersistedVbuckets() {
     std::map<std::pair<uint16_t, uint16_t>, std::string> rv;
 
     PreparedStatement *st = strategy->getGetVBucketStateST();
@@ -174,8 +173,7 @@ bool StrategicSqlite3::delVBucket(uint16_t vbucket, uint16_t vb_version,
     return rv;
 }
 
-bool StrategicSqlite3::snapshotVBuckets
-(const std::map<std::pair<uint16_t, uint16_t>, std::string> &m) {
+bool StrategicSqlite3::snapshotVBuckets(const vbucket_map_t &m) {
     return storeMap(strategy->getClearVBucketStateST(),
                     strategy->getInsVBucketStateST(), m);
 }

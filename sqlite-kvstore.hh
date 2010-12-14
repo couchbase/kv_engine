@@ -109,7 +109,7 @@ public:
     bool delVBucket(uint16_t vbucket, uint16_t vb_version,
                     std::pair<int64_t, int64_t> row_range);
 
-    std::map<std::pair<uint16_t, uint16_t>, std::string> listPersistedVbuckets(void);
+    vbucket_map_t listPersistedVbuckets(void);
 
     /**
      * Take a snapshot of the stats in the main DB.
@@ -118,7 +118,7 @@ public:
     /**
      * Take a snapshot of the vbucket states in the main DB.
      */
-    bool snapshotVBuckets(const std::map<std::pair<uint16_t, uint16_t>, std::string> &m);
+    bool snapshotVBuckets(const vbucket_map_t &m);
 
     /**
      * Overrides dump
