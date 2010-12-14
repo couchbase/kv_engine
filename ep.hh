@@ -769,7 +769,7 @@ private:
     bool                        doPersistence;
     KVStore                    *rwUnderlying;
     KVStore                    *roUnderlying;
-    SqliteStrategy             *roSqliteStrategy;
+    shared_ptr<SqliteStrategy>  roSqliteStrategy;
     StorageProperties          storageProperties;
     Dispatcher                *dispatcher;
     Dispatcher                *roDispatcher;

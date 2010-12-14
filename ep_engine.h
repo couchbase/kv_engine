@@ -429,7 +429,6 @@ public:
     ~EventuallyPersistentEngine() {
         delete epstore;
         delete kvstore;
-        delete sqliteStrategy;
         delete getlExtension;
     }
 
@@ -594,7 +593,7 @@ private:
         }
     }
 
-    SqliteStrategy* createSqliteStrategy() {
+    shared_ptr<SqliteStrategy> createSqliteStrategy() {
         SqliteStrategy *sqliteInstance = NULL;
         if (dbStrategy == multi_db) {
             sqliteInstance = new MultiDBSqliteStrategy(dbname, shardPattern,
@@ -604,7 +603,7 @@ private:
             sqliteInstance = new SqliteStrategy(dbname, initFile,
                                                 postInitFile);
         }
-        return sqliteInstance;
+        return shared_ptr<SqliteStrategy>(sqliteInstance);
     }
 
     // Get the current tap connection for this cookie.
@@ -622,7 +621,7 @@ private:
     bool startVb0;
     bool concurrentDB;
     SERVER_HANDLE_V1 *serverApi;
-    SqliteStrategy *sqliteStrategy;
+    shared_ptr<SqliteStrategy> sqliteStrategy;
     KVStore *kvstore;
     EventuallyPersistentStore *epstore;
     TapThrottle *tapThrottle;

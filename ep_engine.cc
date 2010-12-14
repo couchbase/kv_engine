@@ -769,7 +769,7 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server
     dbname("/tmp/test.db"), shardPattern(DEFAULT_SHARD_PATTERN),
     initFile(NULL), postInitFile(NULL), dbStrategy(multi_db),
     warmup(true), wait_for_warmup(true), fail_on_partial_warmup(true),
-    startVb0(true), concurrentDB(true), sqliteStrategy(NULL), kvstore(NULL),
+    startVb0(true), concurrentDB(true), sqliteStrategy(), kvstore(NULL),
     epstore(NULL), tapThrottle(new TapThrottle(stats)), databaseInitTime(0), tapKeepAlive(0),
     tapNoopInterval(DEFAULT_TAP_NOOP_INTERVAL), nextTapNoop(0),
     startedEngineThreads(false), shutdown(false),

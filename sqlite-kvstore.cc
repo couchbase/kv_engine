@@ -8,7 +8,7 @@
 #include "sqlite-kvstore.hh"
 #include "sqlite-pst.hh"
 
-StrategicSqlite3::StrategicSqlite3(EPStats &st, SqliteStrategy *s) : KVStore(),
+StrategicSqlite3::StrategicSqlite3(EPStats &st, shared_ptr<SqliteStrategy> s) : KVStore(),
     stats(st), strategy(s),
     intransaction(false) {
     open();

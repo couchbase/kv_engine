@@ -375,7 +375,6 @@ EventuallyPersistentStore::~EventuallyPersistentStore() {
     if (hasSeparateRODispatcher()) {
         roDispatcher->stop();
         delete roUnderlying;
-        delete roSqliteStrategy;
     }
     nonIODispatcher->stop();
 

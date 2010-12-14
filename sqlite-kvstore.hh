@@ -30,7 +30,7 @@ public:
     /**
      * Construct an instance of sqlite with the given database name.
      */
-    StrategicSqlite3(EPStats &st, SqliteStrategy *s);
+    StrategicSqlite3(EPStats &st, shared_ptr<SqliteStrategy> s);
 
     /**
      * Copying opens a new underlying DB.
@@ -172,7 +172,7 @@ private:
         db = NULL;
     }
 
-    SqliteStrategy *strategy;
+    shared_ptr<SqliteStrategy> strategy;
 
     bool intransaction;
 
