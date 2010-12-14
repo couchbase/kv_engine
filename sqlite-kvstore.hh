@@ -21,25 +21,10 @@ class EventuallyPersistentEngine;
 class EPStats;
 
 /**
- * Result of database mutation operations.
- *
- * This is a pair where .first is the number of rows affected, and
- * .second is the ID that was generated (if any).  .second will be 0
- * on updates (not generating an ID).
- *
- * .first will be -1 if there was an error performing the update.
- *
- * .first will be 0 if the update did not error, but did not occur.
- * This would generally be considered a fatal condition (in practice,
- * it requires you to be firing an update at a missing rowid).
- */
-typedef std::pair<int, int64_t> mutation_result;
-
-/**
  * A persistence store based on sqlite that uses a SqliteStrategy to
  * configure itself.
  */
-class StrategicSqlite3 {
+class StrategicSqlite3 : public KVStore {
 public:
 
     /**
