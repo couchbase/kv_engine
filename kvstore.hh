@@ -106,12 +106,14 @@ public:
      * Get an item from the kv store.
      */
     virtual void get(const std::string &key, uint64_t rowid,
+                     uint16_t vb, uint16_t vbver,
                      Callback<GetValue> &cb) = 0;
 
     /**
      * Delete an item from the kv store.
      */
     virtual void del(const std::string &key, uint64_t rowid,
+                     uint16_t vb, uint16_t vbver,
                      Callback<int> &cb) = 0;
 
     /**

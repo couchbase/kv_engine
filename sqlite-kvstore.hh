@@ -98,12 +98,14 @@ public:
     /**
      * Overrides get().
      */
-    void get(const std::string &key, uint64_t rowid, Callback<GetValue> &cb);
+    void get(const std::string &key, uint64_t rowid,
+             uint16_t vb, uint16_t vbver, Callback<GetValue> &cb);
 
     /**
      * Overrides del().
      */
     void del(const std::string &key, uint64_t rowid,
+             uint16_t vb, uint16_t vbver,
              Callback<int> &cb);
 
     bool delVBucket(uint16_t vbucket, uint16_t vb_version,

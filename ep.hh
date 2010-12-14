@@ -554,11 +554,13 @@ public:
      *
      * @param key the key to be bg fetched
      * @param vbucket the vbucket in which the key lives
+     * @param vbver the version of the vbucket
      * @param rowid the rowid of the record within its shard
      * @param cookie the cookie of the requestor
      */
     void bgFetch(const std::string &key,
                  uint16_t vbucket,
+                 uint16_t vbver,
                  uint64_t rowid,
                  const void *cookie);
 
@@ -567,17 +569,23 @@ public:
      *
      * @param key the key that was fetched
      * @param vbucket the vbucket in which the key lived
+     * @param vbver the vbucket version
      * @param rowid the rowid of the record within its shard
      * @param cookie the cookie of the requestor
      * @param init the timestamp of when the request came in
      */
     void completeBGFetch(const std::string &key,
                          uint16_t vbucket,
+                         uint16_t vbver,
                          uint64_t rowid,
                          const void *cookie,
                          hrtime_t init);
 
     RCPtr<VBucket> getVBucket(uint16_t vbid);
+
+    uint16_t getVBucketVersion(uint16_t vbv) {
+        return vbuckets.getBucketVersion(vbv);
+    }
 
     void snapshotVBuckets(const Priority &priority);
     void setVBucketState(uint16_t vbid,

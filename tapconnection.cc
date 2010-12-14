@@ -406,9 +406,9 @@ bool TapConnection::waitForBackfill() {
 class TapBGFetchCallback : public DispatcherCallback {
 public:
     TapBGFetchCallback(EventuallyPersistentEngine *e, const std::string &n,
-                       const std::string &k,
-                       uint64_t r, uint16_t vbid, const void *c) :
-        epe(e), name(n), key(k), rowid(r), vbucket(vbid), cookie(c),
+                       const std::string &k, uint16_t vbid, uint16_t vbv,
+                       uint64_t r, const void *c) :
+        epe(e), name(n), key(k), vbucket(vbid), vbver(vbv), rowid(r), cookie(c),
         init(gethrtime()), start(0), counter(e->getEpStore()->bgFetchQueue) {
         assert(epe);
         assert(cookie);
@@ -424,7 +424,7 @@ public:
         EventuallyPersistentStore *epstore = epe->getEpStore();
         assert(epstore);
 
-        epstore->getROUnderlying()->get(key, rowid, gcb);
+        epstore->getROUnderlying()->get(key, rowid, vbucket, vbver, gcb);
         gcb.waitForValue();
         assert(gcb.fired);
 
@@ -483,8 +483,9 @@ private:
     EventuallyPersistentEngine *epe;
     const std::string           name;
     std::string                 key;
-    uint64_t                    rowid;
     uint16_t                    vbucket;
+    uint16_t                    vbver;
+    uint64_t                    rowid;
     const void                 *cookie;
 
     hrtime_t init;
@@ -493,9 +494,10 @@ private:
     BGFetchCounter counter;
 };
 
-void TapConnection::queueBGFetch(const std::string &key, uint64_t id, uint16_t vbucket) {
+void TapConnection::queueBGFetch(const std::string &key, uint64_t id,
+                                 uint16_t vb, uint16_t vbv) {
     LockHolder lh(backfillLock);
-    backfillQueue.push(TapBGFetchQueueItem(key, id, vbucket));
+    backfillQueue.push(TapBGFetchQueueItem(key, id, vb, vbv));
     ++bgQueued;
     ++bgQueueSize;
     assert(!empty());
@@ -510,9 +512,10 @@ void TapConnection::runBGFetch(Dispatcher *dispatcher, const void *c) {
     --bgQueueSize;
     lh.unlock();
 
-    shared_ptr<TapBGFetchCallback> dcb(new TapBGFetchCallback(&engine, client,
-                                                              qi.key, qi.id,
-                                                              qi.vbucket, c));
+    shared_ptr<TapBGFetchCallback> dcb(new TapBGFetchCallback(&engine,
+                                                              client, qi.key,
+                                                              qi.vbucket, qi.vbversion,
+                                                              qi.id, c));
     ++bgJobIssued;
     dispatcher->schedule(dcb, NULL, Priority::TapBgFetcherPriority);
 }

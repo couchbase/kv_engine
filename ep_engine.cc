@@ -1474,7 +1474,8 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
             }
             ++stats.numTapDeletes;
         } else if (r == ENGINE_EWOULDBLOCK) {
-            connection->queueBGFetch(key, gv.getId(), qi.getVBucketId());
+            connection->queueBGFetch(key, gv.getId(), *vbucket,
+                                     epstore->getVBucketVersion(*vbucket));
             // This can optionally collect a few and batch them.
             connection->runBGFetch(epstore->getRODispatcher(), cookie);
             // If there's an item ready, return NOOP so we'll come

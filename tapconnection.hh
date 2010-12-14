@@ -90,12 +90,14 @@ public:
  */
 class TapBGFetchQueueItem {
 public:
-    TapBGFetchQueueItem(const std::string &k, uint64_t i, uint16_t vbid) :
-        key(k), id(i), vbucket(vbid) {}
+    TapBGFetchQueueItem(const std::string &k, uint64_t i,
+                        uint16_t vb, uint16_t vbv) :
+        key(k), id(i), vbucket(vb), vbversion(vbv) {}
 
     const std::string key;
     const uint64_t id;
     const uint16_t vbucket;
+    const uint16_t vbversion;
 };
 
 /**
@@ -391,9 +393,10 @@ private:
      *
      * @param key the item's key
      * @param id the disk id of the item to fetch
-     * @param vbucket the vbucket id
+     * @param vb the vbucket ID
+     * @param vbv the vbucket version
      */
-    void queueBGFetch(const std::string &key, uint64_t id, uint16_t vbucket);
+    void queueBGFetch(const std::string &key, uint64_t id, uint16_t vb, uint16_t vbv);
 
     /**
      * Run some background fetch jobs.

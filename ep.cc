@@ -65,9 +65,9 @@ extern "C" {
 class BGFetchCallback : public DispatcherCallback {
 public:
     BGFetchCallback(EventuallyPersistentStore *e,
-                    const std::string &k, uint16_t vbid, uint64_t r,
-                    const void *c) :
-        ep(e), key(k), vbucket(vbid), rowid(r), cookie(c),
+                    const std::string &k, uint16_t vbid, uint16_t vbv,
+                    uint64_t r, const void *c) :
+        ep(e), key(k), vbucket(vbid), vbver(vbv), rowid(r), cookie(c),
         counter(ep->bgFetchQueue), init(gethrtime()) {
         assert(ep);
         assert(cookie);
@@ -75,7 +75,7 @@ public:
 
     bool callback(Dispatcher &d, TaskId t) {
         (void)d; (void)t;
-        ep->completeBGFetch(key, vbucket, rowid, cookie, init);
+        ep->completeBGFetch(key, vbucket, vbver, rowid, cookie, init);
         return false;
     }
 
@@ -89,6 +89,7 @@ private:
     EventuallyPersistentStore *ep;
     std::string                key;
     uint16_t                   vbucket;
+    uint16_t                   vbver;
     uint64_t                   rowid;
     const void                *cookie;
     BGFetchCounter             counter;
@@ -102,9 +103,10 @@ private:
 class VKeyStatBGFetchCallback : public DispatcherCallback {
 public:
     VKeyStatBGFetchCallback(EventuallyPersistentStore *e,
-                            const std::string &k, uint16_t vbid, uint64_t r,
+                            const std::string &k, uint16_t vbid, uint16_t vbv,
+                            uint64_t r,
                             const void *c, shared_ptr<Callback<GetValue> > cb) :
-        ep(e), key(k), vbucket(vbid), rowid(r), cookie(c),
+        ep(e), key(k), vbucket(vbid), vbver(vbv), rowid(r), cookie(c),
         lookup_cb(cb), counter(e->bgFetchQueue) {
         assert(ep);
         assert(cookie);
@@ -115,7 +117,7 @@ public:
         (void)d; (void)t;
         RememberingCallback<GetValue> gcb;
 
-        ep->getROUnderlying()->get(key, rowid, gcb);
+        ep->getROUnderlying()->get(key, rowid, vbucket, vbver, gcb);
         gcb.waitForValue();
         assert(gcb.fired);
         lookup_cb->callback(gcb.val);
@@ -133,6 +135,7 @@ private:
     EventuallyPersistentStore       *ep;
     std::string                      key;
     uint16_t                         vbucket;
+    uint16_t                         vbver;
     uint64_t                         rowid;
     const void                      *cookie;
     shared_ptr<Callback<GetValue> >  lookup_cb;
@@ -735,6 +738,7 @@ bool EventuallyPersistentStore::deleteVBucket(uint16_t vbid) {
 
 void EventuallyPersistentStore::completeBGFetch(const std::string &key,
                                                 uint16_t vbucket,
+                                                uint16_t vbver,
                                                 uint64_t rowid,
                                                 const void *cookie,
                                                 hrtime_t init) {
@@ -748,7 +752,7 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
     // Go find the data
     RememberingCallback<GetValue> gcb;
 
-    roUnderlying->get(key, rowid, gcb);
+    roUnderlying->get(key, rowid, vbucket, vbver, gcb);
     gcb.waitForValue();
     assert(gcb.fired);
 
@@ -794,10 +798,12 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
 
 void EventuallyPersistentStore::bgFetch(const std::string &key,
                                         uint16_t vbucket,
+                                        uint16_t vbver,
                                         uint64_t rowid,
                                         const void *cookie) {
     shared_ptr<BGFetchCallback> dcb(new BGFetchCallback(this, key,
-                                                        vbucket, rowid, cookie));
+                                                        vbucket, vbver,
+                                                        rowid, cookie));
     assert(bgFetchQueue > 0);
     std::stringstream ss;
     ss << "Queued a background fetch, now at " << bgFetchQueue.get()
@@ -836,7 +842,8 @@ GetValue EventuallyPersistentStore::get(const std::string &key,
         // If the value is not resident, wait for it...
         if (!v->isResident()) {
             if (queueBG) {
-                bgFetch(key, vbucket, v->getId(), cookie);
+                bgFetch(key, vbucket, vbuckets.getBucketVersion(vbucket),
+                        v->getId(), cookie);
             }
             return GetValue(NULL, ENGINE_EWOULDBLOCK, v->getId());
         }
@@ -880,8 +887,10 @@ EventuallyPersistentStore::getFromUnderlying(const std::string &key,
     StoredValue *v = fetchValidValue(vb, key, bucket_num);
 
     if (v) {
+        uint16_t vbver = vbuckets.getBucketVersion(vbucket);
         shared_ptr<VKeyStatBGFetchCallback> dcb(new VKeyStatBGFetchCallback(this, key,
                                                                             vbucket,
+                                                                            vbver,
                                                                             v->getId(),
                                                                             cookie, cb));
         assert(bgFetchQueue > 0);
@@ -923,7 +932,8 @@ bool EventuallyPersistentStore::getLocked(const std::string &key,
         if (!v->isResident()) {
 
             if (cookie) {
-                bgFetch(key, vbucket, v->getId(), cookie);
+                bgFetch(key, vbucket, vbuckets.getBucketVersion(vbucket),
+                        v->getId(), cookie);
             }
             GetValue rv(NULL, ENGINE_EWOULDBLOCK, v->getId());
             cb.callback(rv);
@@ -1417,7 +1427,9 @@ int EventuallyPersistentStore::flushOneDelOrSet(QueuedItem &qi,
         BlockTimer timer(&stats.diskDelHisto);
         PersistenceCallback cb(qi, rejectQueue, this, queued, dirtied, &stats);
         if (rowid > 0) {
-            rwUnderlying->del(qi.getKey(), rowid, cb);
+            uint16_t vbid(qi.getVBucketId());
+            uint16_t vbver(vbuckets.getBucketVersion(vbid));
+            rwUnderlying->del(qi.getKey(), rowid, vbid, vbver, cb);
         } else {
             // bypass deletion if missing items, but still call the
             // deletion callback for clean cleanup.

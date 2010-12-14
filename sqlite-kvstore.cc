@@ -29,7 +29,9 @@ void StrategicSqlite3::insert(const Item &itm, uint16_t vb_version,
                               Callback<mutation_result> &cb) {
     assert(itm.getId() <= 0);
 
-    PreparedStatement *ins_stmt = strategy->forKey(itm.getKey())->ins();
+    PreparedStatement *ins_stmt = strategy->getStatements(itm.getVBucketId(),
+                                                          vb_version,
+                                                          itm.getKey())->ins();
     ins_stmt->bind(1, itm.getKey());
     ins_stmt->bind(2, const_cast<Item&>(itm).getData(), itm.getNBytes());
     ins_stmt->bind(3, itm.getFlags());
@@ -57,7 +59,9 @@ void StrategicSqlite3::update(const Item &itm, uint16_t vb_version,
                               Callback<mutation_result> &cb) {
     assert(itm.getId() > 0);
 
-    PreparedStatement *upd_stmt = strategy->forKey(itm.getKey())->upd();
+    PreparedStatement *upd_stmt = strategy->getStatements(itm.getVBucketId(),
+                                                          vb_version,
+                                                          itm.getKey())->upd();
 
     upd_stmt->bind(1, itm.getKey());
     upd_stmt->bind(2, const_cast<Item&>(itm).getData(), itm.getNBytes());
@@ -104,9 +108,9 @@ void StrategicSqlite3::set(const Item &itm, uint16_t vb_version,
     }
 }
 
-void StrategicSqlite3::get(const std::string &key,
-                           uint64_t rowid, Callback<GetValue> &cb) {
-    PreparedStatement *sel_stmt = strategy->forKey(key)->sel();
+void StrategicSqlite3::get(const std::string &key, uint64_t rowid,
+                           uint16_t vb, uint16_t vbver, Callback<GetValue> &cb) {
+    PreparedStatement *sel_stmt = strategy->getStatements(vb, vbver, key)->sel();
     sel_stmt->bind64(1, rowid);
 
     ++stats.io_num_read;
@@ -143,8 +147,9 @@ void StrategicSqlite3::reset() {
 }
 
 void StrategicSqlite3::del(const std::string &key, uint64_t rowid,
+                           uint16_t vb, uint16_t vbver,
                            Callback<int> &cb) {
-    PreparedStatement *del_stmt = strategy->forKey(key)->del();
+    PreparedStatement *del_stmt = strategy->getStatements(vb, vbver, key)->del();
     del_stmt->bind64(1, rowid);
     int rv = del_stmt->execute();
     if (rv > 0) {

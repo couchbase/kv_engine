@@ -62,7 +62,10 @@ public:
         return statements;
     }
 
-    Statements *forKey(const std::string &key) {
+    Statements *getStatements(uint16_t vbid, uint16_t vbver,
+                              const std::string &key) {
+        (void)vbid;
+        (void)vbver;
         return statements.at(getDbShardIdForKey(key));
     }
 
