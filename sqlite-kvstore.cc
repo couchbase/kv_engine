@@ -155,16 +155,6 @@ void StrategicSqlite3::del(const std::string &key, uint64_t rowid,
     del_stmt->reset();
 }
 
-void StrategicSqlite3::delInvalidItem(const std::string &key, uint64_t rowid) {
-    PreparedStatement *del_stmt = strategy->forKey(key)->del();
-    del_stmt->bind64(1, rowid);
-    int rv = del_stmt->execute();
-    if (rv > 0) {
-        stats.totalPersisted++;
-    }
-    del_stmt->reset();
-}
-
 bool StrategicSqlite3::delVBucket(uint16_t vbucket, uint16_t vb_version,
                                   std::pair<int64_t, int64_t> row_range) {
     bool rv = true;

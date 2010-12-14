@@ -106,11 +106,8 @@ public:
     void del(const std::string &key, uint64_t rowid,
              Callback<int> &cb);
 
-    void delInvalidItem(const std::string &key, uint64_t rowid);
-
     bool delVBucket(uint16_t vbucket, uint16_t vb_version,
                     std::pair<int64_t, int64_t> row_range);
-    bool setVBState(uint16_t vbucket, uint16_t vb_version, const std::string &to);
 
     std::map<std::pair<uint16_t, uint16_t>, std::string> listPersistedVbuckets(void);
 
