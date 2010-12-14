@@ -149,8 +149,9 @@ def magic_cmp(a, b):
     return cmp(am, bm)
 
 @cmd
-def stats_hash(mc):
+def stats_hash(mc, with_detail=None):
     h = mc.stats('hash')
+    with_detail = with_detail == 'detail'
 
     mins = []
     maxes = []
@@ -176,7 +177,14 @@ def stats_hash(mc):
     h['largest_min'] = max(mins)
     h['largest_max'] = max(maxes)
 
-    stats_formatter(h, cmp=magic_cmp)
+    toDisplay = h
+    if not with_detail:
+        toDisplay = {}
+        for k in h:
+            if 'vb_' not in k:
+                toDisplay[k] = h[k]
+
+    stats_formatter(toDisplay, cmp=magic_cmp)
 
 @cmd
 def stats_dispatcher(mc, with_logs='no'):
@@ -229,7 +237,7 @@ def main():
 
     c.addCommand('vkey', stats_vkey, 'vkey keyname vbid [username password]')
     c.addCommand('all', stats_all, 'all [username password]')
-    c.addCommand('hash', stats_hash, 'hash [username password]')
+    c.addCommand('hash', stats_hash, 'hash [detail] [username password]')
     c.addCommand('tap', stats_tap, 'tap [username password]')
     c.addCommand('timings', stats_timings, 'timings [username password]')
     c.addCommand('reset', reset, 'reset [username password]')
