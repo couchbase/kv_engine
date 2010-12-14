@@ -14,7 +14,6 @@
 class EventuallyPersistentEngine;
 class TapConnMap;
 class BackFillVisitor;
-class StrategicSqlite3;
 class TapBGFetchCallback;
 class CompleteBackfillOperation;
 class Dispatcher;

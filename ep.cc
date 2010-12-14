@@ -306,7 +306,7 @@ private:
 };
 
 EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine &theEngine,
-                                                     StrategicSqlite3 *t,
+                                                     KVStore *t,
                                                      bool startVb0,
                                                      bool concurrentDB) :
     engine(theEngine), stats(engine.getEpStats()), rwUnderlying(t),
@@ -346,7 +346,7 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
         vbuckets.setBucketVersion(0, 0);
     }
 
-    numbOfWriteQueues = rwUnderlying->getDBStrategy()->getNumOfDbShards();
+    numbOfWriteQueues = rwUnderlying->getNumShards();
     towrite = new AtomicQueue<QueuedItem>[numbOfWriteQueues];
 
     startDispatcher();
@@ -1399,7 +1399,7 @@ int EventuallyPersistentStore::flushOneDelOrSet(QueuedItem &qi,
             // requeue the persistence task and wait until the snapshot task is completed.
             if (vbuckets.isHighPriorityVbSnapshotScheduled()) {
                 lh.unlock();
-                uint16_t shard_id = rwUnderlying->getDBStrategy()->getDbShardIdForKey(qi.getKey());
+                uint16_t shard_id = rwUnderlying->getShardIdForKey(qi.getKey());
                 towrite[shard_id].push(qi);
                 stats.memOverhead.incr(qi.size());
                 assert(stats.memOverhead.get() < GIGANTOR);
@@ -1477,7 +1477,7 @@ void EventuallyPersistentStore::queueDirty(const std::string &key,
     if (doPersistence) {
         QueuedItem item(key, vbid, op, vbuckets.getBucketVersion(vbid), obid);
 
-        uint16_t shard_id = rwUnderlying->getDBStrategy()->getDbShardIdForKey(item.getKey());
+        uint16_t shard_id = rwUnderlying->getShardIdForKey(item.getKey());
         towrite[shard_id].push(item);
         stats.memOverhead.incr(item.size());
         assert(stats.memOverhead.get() < GIGANTOR);

@@ -5,6 +5,7 @@
 #include "locks.hh"
 #include "ep.hh"
 #include "flusher.hh"
+#include "kvstore.hh"
 #include "sqlite-kvstore.hh"
 #include "ep_extension.h"
 #include "dispatcher.hh"
@@ -427,7 +428,7 @@ public:
 
     ~EventuallyPersistentEngine() {
         delete epstore;
-        delete sqliteDb;
+        delete kvstore;
         delete sqliteStrategy;
         delete getlExtension;
     }
@@ -622,7 +623,7 @@ private:
     bool concurrentDB;
     SERVER_HANDLE_V1 *serverApi;
     SqliteStrategy *sqliteStrategy;
-    StrategicSqlite3 *sqliteDb;
+    KVStore *kvstore;
     EventuallyPersistentStore *epstore;
     TapThrottle *tapThrottle;
     std::map<const void*, Item*> lookups;

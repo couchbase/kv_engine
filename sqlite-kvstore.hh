@@ -125,8 +125,12 @@ public:
      */
     void dump(Callback<GetValue> &cb);
 
-    SqliteStrategy* getDBStrategy() {
-        return strategy;
+    size_t getNumShards() {
+        return strategy->getNumOfDbShards();
+    }
+
+    size_t getShardIdForKey(const std::string &k) {
+        return strategy->getDbShardIdForKey(k);
     }
 
 private:

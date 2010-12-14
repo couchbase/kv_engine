@@ -769,7 +769,7 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server
     dbname("/tmp/test.db"), shardPattern(DEFAULT_SHARD_PATTERN),
     initFile(NULL), postInitFile(NULL), dbStrategy(multi_db),
     warmup(true), wait_for_warmup(true), fail_on_partial_warmup(true),
-    startVb0(true), concurrentDB(true), sqliteStrategy(NULL), sqliteDb(NULL),
+    startVb0(true), concurrentDB(true), sqliteStrategy(NULL), kvstore(NULL),
     epstore(NULL), tapThrottle(new TapThrottle(stats)), databaseInitTime(0), tapKeepAlive(0),
     tapNoopInterval(DEFAULT_TAP_NOOP_INTERVAL), nextTapNoop(0),
     startedEngineThreads(false), shutdown(false),
@@ -1091,7 +1091,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         time_t start = ep_real_time();
         try {
             sqliteStrategy = createSqliteStrategy();
-            sqliteDb = new StrategicSqlite3(stats, sqliteStrategy);
+            kvstore = new StrategicSqlite3(stats, sqliteStrategy);
         } catch (std::exception& e) {
             std::stringstream ss;
             ss << "Failed to create database: " << e.what() << std::endl;
@@ -1116,7 +1116,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         stats.mem_high_wat = memHighWat;
 
         databaseInitTime = ep_real_time() - start;
-        epstore = new EventuallyPersistentStore(*this, sqliteDb, startVb0,
+        epstore = new EventuallyPersistentStore(*this, kvstore, startVb0,
                                                 concurrentDB);
         if (epstore == NULL) {
             ret = ENGINE_ENOMEM;

@@ -140,6 +140,16 @@ public:
      */
     virtual void dump(Callback<GetValue> &cb) = 0;
 
+    /**
+     * Get the number of data shards in this kvstore.
+     */
+    virtual size_t getNumShards() = 0;
+
+    /**
+     * get the shard ID for the given key.
+     */
+    virtual size_t getShardIdForKey(const std::string &k) = 0;
+
 };
 
 #endif // KVSTORE_HH

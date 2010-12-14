@@ -415,7 +415,7 @@ class EventuallyPersistentStore {
 public:
 
     EventuallyPersistentStore(EventuallyPersistentEngine &theEngine,
-                              StrategicSqlite3 *t, bool startVb0,
+                              KVStore *t, bool startVb0,
                               bool concurrentDB);
 
     ~EventuallyPersistentStore();
@@ -657,12 +657,12 @@ public:
                                 rel_time_t currentTime);
 
 
-    StrategicSqlite3* getRWUnderlying() {
+    KVStore* getRWUnderlying() {
         // This method might also be called leakAbstraction()
         return rwUnderlying;
     }
 
-    StrategicSqlite3* getROUnderlying() {
+    KVStore* getROUnderlying() {
         // This method might also be called leakAbstraction()
         return roUnderlying;
     }
@@ -766,10 +766,10 @@ private:
 
     EventuallyPersistentEngine &engine;
     EPStats                    &stats;
-    bool                       doPersistence;
-    StrategicSqlite3          *rwUnderlying;
-    StrategicSqlite3          *roUnderlying;
-    SqliteStrategy            *roSqliteStrategy;
+    bool                        doPersistence;
+    KVStore                    *rwUnderlying;
+    KVStore                    *roUnderlying;
+    SqliteStrategy             *roSqliteStrategy;
     StorageProperties          storageProperties;
     Dispatcher                *dispatcher;
     Dispatcher                *roDispatcher;
