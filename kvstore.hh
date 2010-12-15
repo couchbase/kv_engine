@@ -47,13 +47,13 @@ public:
         : maxc(c), maxr(r), maxw(w), efficientVBDump(evb) {}
 
     //! The maximum number of active queries.
-    size_t maxConcurrency() { return maxc; }
+    size_t maxConcurrency()   const { return maxc; }
     //! Maximum number of active read-only connections.
-    size_t maxReaders()     { return maxr; }
+    size_t maxReaders()       const { return maxr; }
     //! Maximum number of active connections for read and write.
-    size_t maxWriters()     { return maxw; }
+    size_t maxWriters()       const { return maxw; }
     //! True if we can efficiently dump a single vbucket.
-    bool hasEfficientVBDump() { return efficientVBDump; }
+    bool hasEfficientVBDump() const { return efficientVBDump; }
 
 private:
     size_t maxc;
