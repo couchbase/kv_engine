@@ -243,7 +243,8 @@ public:
                 hrtime_t chunk_del_time = chunk_time / 1000; // chunk deletion exec time in msec
                 if (range.first != -1 && range.second != -1 && chunk_del_time != 0) {
                     // Adjust the chunk's range size based on the chunk deletion execution time
-                    chunk_del_range_size *= (chunk_del_threshold_time / chunk_del_time);
+                    chunk_del_range_size = (chunk_del_range_size * chunk_del_threshold_time)
+                                           / chunk_del_time;
                     chunk_del_range_size = std::max(static_cast<int64_t>(100),
                                                     chunk_del_range_size);
                 }
