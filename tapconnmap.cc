@@ -297,3 +297,23 @@ void TapConnMap::notifyIOThreadMain(EventuallyPersistentEngine *engine) {
 
     engine->notifyIOComplete(toNotify, ENGINE_SUCCESS);
 }
+
+void CompleteBackfillTapOperation::perform(TapConnection *tc, void *arg) {
+    (void)arg;
+    tc->completeBackfill();
+}
+
+void ReceivedItemTapOperation::perform(TapConnection *tc, Item *arg) {
+    tc->gotBGItem(arg, implicitEnqueue);
+}
+
+void CompletedBGFetchTapOperation::perform(TapConnection *tc,
+                                           EventuallyPersistentEngine *epe) {
+    (void)epe;
+    tc->completedBGFetchJob();
+}
+
+void NotifyIOTapOperation::perform(TapConnection *tc,
+                                   EventuallyPersistentEngine *epe) {
+    epe->notifyIOComplete(tc->getCookie(), ENGINE_SUCCESS);
+}
