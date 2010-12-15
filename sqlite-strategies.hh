@@ -47,14 +47,25 @@ public:
     virtual Statements *getStatements(uint16_t vbid, uint16_t vbver,
                                       const std::string &key) = 0;
 
-    virtual PreparedStatement *getInsVBucketStateST() = 0;
+    PreparedStatement *getInsVBucketStateST() {
+        return ins_vb_stmt;
+    }
 
-    virtual PreparedStatement *getClearVBucketStateST() = 0;
+    PreparedStatement *getClearVBucketStateST() {
+        return clear_vb_stmt;
+    }
 
-    virtual PreparedStatement *getGetVBucketStateST() = 0;
+    PreparedStatement *getGetVBucketStateST() {
+        return sel_vb_stmt;
+    }
 
-    virtual PreparedStatement *getClearStatsST() = 0;
-    virtual PreparedStatement *getInsStatST() = 0;
+    PreparedStatement *getClearStatsST() {
+        return clear_stats_stmt;
+    }
+
+    PreparedStatement *getInsStatST() {
+        return ins_stat_stmt;
+    }
 
     virtual void destroyTables() = 0;
 
@@ -68,16 +79,28 @@ protected:
         doFile(initFile);
     }
 
-    virtual void initMetaTables() = 0;
+    void initMetaTables();
+
     virtual void initTables() = 0;
     virtual void initStatements() = 0;
+    virtual void initMetaStatements();
     virtual void destroyStatements() {};
+
+    void destroyMetaStatements();
 
     sqlite3            *db;
     const char * const  filename;
     const char * const  initFile;
     const char * const  postInitFile;
     size_t              shardCount;
+
+    PreparedStatement *ins_vb_stmt;
+    PreparedStatement *clear_vb_stmt;
+    PreparedStatement *sel_vb_stmt;
+
+    PreparedStatement *clear_stats_stmt;
+    PreparedStatement *ins_stat_stmt;
+
     uint16_t            schema_version;
 
 private:
@@ -107,10 +130,7 @@ public:
                               const char * const finit = NULL,
                               const char * const pfinit = NULL,
                               size_t shards = 1) :
-        SqliteStrategy(fn, finit, pfinit, shards),
-        statements(),
-        ins_vb_stmt(NULL), clear_vb_stmt(NULL), sel_vb_stmt(NULL),
-        clear_stats_stmt(NULL), ins_stat_stmt(NULL) {
+        SqliteStrategy(fn, finit, pfinit, shards), statements() {
         assert(filename);
     }
 
@@ -127,46 +147,14 @@ public:
         return statements.at(getDbShardIdForKey(key));
     }
 
-    PreparedStatement *getInsVBucketStateST() {
-        return ins_vb_stmt;
-    }
-
-    PreparedStatement *getClearVBucketStateST() {
-        return clear_vb_stmt;
-    }
-
-    PreparedStatement *getGetVBucketStateST() {
-        return sel_vb_stmt;
-    }
-
-
-    PreparedStatement *getClearStatsST() {
-        return clear_stats_stmt;
-    }
-
-    PreparedStatement *getInsStatST() {
-        return ins_stat_stmt;
-    }
-
     void destroyStatements();
     virtual void destroyTables();
-
-    virtual void initMetaStatements();
-    virtual void destroyMetaStatements();
 
 protected:
     std::vector<Statements *> statements;
 
-    virtual void initMetaTables();
     virtual void initTables();
     virtual void initStatements();
-
-    PreparedStatement *ins_vb_stmt;
-    PreparedStatement *clear_vb_stmt;
-    PreparedStatement *sel_vb_stmt;
-
-    PreparedStatement *clear_stats_stmt;
-    PreparedStatement *ins_stat_stmt;
 
 private:
     DISALLOW_COPY_AND_ASSIGN(SingleTableSqliteStrategy);

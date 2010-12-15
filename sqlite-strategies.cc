@@ -19,6 +19,8 @@ SqliteStrategy::SqliteStrategy(const char * const fn,
     initFile(finit),
     postInitFile(pfinit),
     shardCount(shards),
+    ins_vb_stmt(NULL), clear_vb_stmt(NULL), sel_vb_stmt(NULL),
+    clear_stats_stmt(NULL), ins_stat_stmt(NULL),
     schema_version(0) {
 
     assert(filename);
@@ -26,7 +28,57 @@ SqliteStrategy::SqliteStrategy(const char * const fn,
 }
 
 SqliteStrategy::~SqliteStrategy() {
+    destroyMetaStatements();
     close();
+}
+
+void SqliteStrategy::destroyMetaStatements() {
+    delete ins_vb_stmt;
+    delete clear_vb_stmt;
+    delete sel_vb_stmt;
+    delete clear_stats_stmt;
+    delete ins_stat_stmt;
+}
+
+void SqliteStrategy::initMetaTables() {
+    assert(db);
+    PreparedStatement st(db, "select name from sqlite_master where name='vbucket_states'");
+    if (schema_version == 0 && !st.fetch()) {
+        std::stringstream ss;
+        ss << "PRAGMA user_version=" << CURRENT_SCHEMA_VERSION;
+        execute(ss.str().c_str());
+        schema_version = CURRENT_SCHEMA_VERSION;
+    }
+
+    execute("create table if not exists vbucket_states"
+            " (vbid integer primary key on conflict replace,"
+            "  vb_version interger,"
+            "  state varchar(16),"
+            "  last_change datetime)");
+
+    execute("create table if not exists stats_snap"
+            " (name varchar(16),"
+            "  value varchar(24),"
+            "  last_change datetime)");
+}
+
+void SqliteStrategy::initMetaStatements(void) {
+    const char *ins_query = "insert into vbucket_states"
+        " (vbid, vb_version, state, last_change) values (?, ?, ?, current_timestamp)";
+    ins_vb_stmt = new PreparedStatement(db, ins_query);
+
+    const char *del_query = "delete from vbucket_states";
+    clear_vb_stmt = new PreparedStatement(db, del_query);
+
+    const char *sel_query = "select vbid, vb_version, state from vbucket_states";
+    sel_vb_stmt = new PreparedStatement(db, sel_query);
+
+    const char *clear_stats_query = "delete from stats_snap";
+    clear_stats_stmt = new PreparedStatement(db, clear_stats_query);
+
+    const char *ins_stat_query = "insert into stats_snap "
+        "(name, value, last_change) values (?, ?, current_timestamp)";
+    ins_stat_stmt = new PreparedStatement(db, ins_stat_query);
 }
 
 sqlite3 *SqliteStrategy::open(void) {
@@ -50,6 +102,7 @@ sqlite3 *SqliteStrategy::open(void) {
 
         initMetaTables();
         initTables();
+        initMetaStatements();
         initStatements();
         doFile(postInitFile);
         if (schema_version < CURRENT_SCHEMA_VERSION) {
@@ -95,37 +148,6 @@ void SingleTableSqliteStrategy::destroyStatements() {
         delete st;
         statements.pop_back();
     }
-    destroyMetaStatements();
-}
-
-void SingleTableSqliteStrategy::destroyMetaStatements(void) {
-    delete ins_vb_stmt;
-    delete clear_vb_stmt;
-    delete sel_vb_stmt;
-    delete clear_stats_stmt;
-    delete ins_stat_stmt;
-}
-
-void SingleTableSqliteStrategy::initMetaTables() {
-    assert(db);
-    PreparedStatement st(db, "select name from sqlite_master where name='vbucket_states'");
-    if (schema_version == 0 && !st.fetch()) {
-        std::stringstream ss;
-        ss << "PRAGMA user_version=" << CURRENT_SCHEMA_VERSION;
-        execute(ss.str().c_str());
-        schema_version = CURRENT_SCHEMA_VERSION;
-    }
-
-    execute("create table if not exists vbucket_states"
-            " (vbid integer primary key on conflict replace,"
-            "  vb_version interger,"
-            "  state varchar(16),"
-            "  last_change datetime)");
-
-    execute("create table if not exists stats_snap"
-            " (name varchar(16),"
-            "  value varchar(24),"
-            "  last_change datetime)");
 }
 
 void SingleTableSqliteStrategy::initTables(void) {
@@ -140,28 +162,8 @@ void SingleTableSqliteStrategy::initTables(void) {
             "  v text)");
 }
 
-void SingleTableSqliteStrategy::initMetaStatements(void) {
-    const char *ins_query = "insert into vbucket_states"
-        " (vbid, vb_version, state, last_change) values (?, ?, ?, current_timestamp)";
-    ins_vb_stmt = new PreparedStatement(db, ins_query);
-
-    const char *del_query = "delete from vbucket_states";
-    clear_vb_stmt = new PreparedStatement(db, del_query);
-
-    const char *sel_query = "select vbid, vb_version, state from vbucket_states";
-    sel_vb_stmt = new PreparedStatement(db, sel_query);
-
-    const char *clear_stats_query = "delete from stats_snap";
-    clear_stats_stmt = new PreparedStatement(db, clear_stats_query);
-
-    const char *ins_stat_query = "insert into stats_snap "
-        "(name, value, last_change) values (?, ?, current_timestamp)";
-    ins_stat_stmt = new PreparedStatement(db, ins_stat_query);
-}
-
 void SingleTableSqliteStrategy::initStatements(void) {
     assert(db);
-    initMetaStatements();
     Statements *st = new Statements(db, "kv");
     statements.push_back(st);
 }
@@ -208,7 +210,6 @@ void MultiDBSingleTableSqliteStrategy::initTables() {
 }
 
 void MultiDBSingleTableSqliteStrategy::initStatements() {
-    initMetaStatements();
     char buf[64];
     for (int i = 0; i < numTables; i++) {
         snprintf(buf, sizeof(buf), "kv_%d.kv", i);
