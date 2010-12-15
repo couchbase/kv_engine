@@ -224,3 +224,51 @@ void MultiDBSingleTableSqliteStrategy::destroyTables() {
         execute(buf);
     }
 }
+
+//
+// ----------------------------------------------------------------------
+// Table per vbucket
+// ----------------------------------------------------------------------
+//
+
+void MultiTableSqliteStrategy::initTables() {
+    char buf[1024];
+
+    for (size_t i = 0; i < nvbuckets; ++i) {
+        snprintf(buf, sizeof(buf),
+                 "create table if not exists kv_%d"
+                 " (vbucket integer,"
+                 "  vb_version integer,"
+                 "  k varchar(250),"
+                 "  flags integer,"
+                 "  exptime integer,"
+                 "  cas integer,"
+                 "  v text)", static_cast<int>(i));
+        execute(buf);
+    }
+}
+
+void MultiTableSqliteStrategy::initStatements() {
+    char buf[64];
+    for (size_t i = 0; i < nvbuckets; ++i) {
+        snprintf(buf, sizeof(buf), "kv_%d", static_cast<int>(i));
+        statements.push_back(new Statements(db, std::string(buf)));
+    }
+}
+
+void MultiTableSqliteStrategy::destroyTables() {
+    char buf[1024];
+    for (size_t i = 0; i < nvbuckets; ++i) {
+        snprintf(buf, sizeof(buf), "drop table if exists kv_%d",
+                 static_cast<int>(i));
+        execute(buf);
+    }
+}
+
+void MultiTableSqliteStrategy::destroyStatements() {
+    while (!statements.empty()) {
+        Statements *st = statements.back();
+        delete st;
+        statements.pop_back();
+    }
+}

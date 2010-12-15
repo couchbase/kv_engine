@@ -1068,7 +1068,17 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
             }
 
             if (dbs != NULL) {
-                dbStrategy = strcmp(dbs, "multiDB") == 0 ? multi_db : single_db;
+                if (strcmp(dbs, "multiDB") == 0) {
+                    dbStrategy = multi_db;
+                } else if (strcmp(dbs, "singleDB") == 0) {
+                    dbStrategy = single_db;
+                } else if (strcmp(dbs, "singleMTDB") == 0) {
+                    dbStrategy = single_mt_db;
+                } else {
+                    getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                     "Unhandled db type: %s", dbs);
+                    return ENGINE_FAILED;
+                }
             }
             HashTable::setDefaultNumBuckets(htBuckets);
             HashTable::setDefaultNumLocks(htLocks);
@@ -1200,9 +1210,14 @@ KVStore* EventuallyPersistentEngine::newKVStore() {
         sqliteInstance = new MultiDBSingleTableSqliteStrategy(dbname, shardPattern,
                                                               initFile, postInitFile,
                                                               dbShards);
-    } else {
+    } else if (dbStrategy == single_db) {
         sqliteInstance = new SingleTableSqliteStrategy(dbname, initFile,
                                                        postInitFile);
+    } else if (dbStrategy == single_mt_db) {
+        sqliteInstance = new MultiTableSqliteStrategy(dbname, initFile,
+                                                      postInitFile);
+    } else {
+        abort();
     }
     return new StrategicSqlite3(stats,
                                 shared_ptr<SqliteStrategy>(sqliteInstance));
@@ -2177,9 +2192,14 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     add_casted_stat("ep_dbname", dbname, add_stat, cookie);
     add_casted_stat("ep_dbinit", databaseInitTime, add_stat, cookie);
     add_casted_stat("ep_dbshards", dbShards, add_stat, cookie);
-    add_casted_stat("ep_db_strategy",
-                    dbStrategy == multi_db ? "multiDB" : "singleDB",
-                    add_stat, cookie);
+    const char *dbStrategyStr(NULL);
+    switch (dbStrategy) {
+    case multi_db: dbStrategyStr = "multiDB"; break;
+    case single_db: dbStrategyStr = "singleDB"; break;
+    case single_mt_db: dbStrategyStr = "singleMTDB"; break;
+    }
+    assert(dbStrategyStr);
+    add_casted_stat("ep_db_strategy", dbStrategyStr, add_stat, cookie);
     add_casted_stat("ep_warmup", warmup ? "true" : "false",
                     add_stat, cookie);
 

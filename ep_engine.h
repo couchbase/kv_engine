@@ -114,7 +114,8 @@ private:
  */
 enum db_strategy {
     single_db,           //!< single database strategy
-    multi_db             //!< multi-database strategy
+    multi_db,            //!< multi-database strategy
+    single_mt_db         //!< single database, multi-table strategy
 };
 
 /**

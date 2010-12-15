@@ -60,7 +60,8 @@ memcached like this:
 | failpartialwarmup  | bool   | If false, continue running after failing to    |
 |                    |        | load some records.                             |
 | db_shards          | int    | Number of shards for db store                  |
-| db_strategy        | string | DB store strategy ("multiDB" or "singleDB")    |
+| db_strategy        | string | DB store strategy ("multiDB", "singleDB"       |
+|                    |        | or "singleMTDB")                               |
 | vb_del_chunk_size  | int    | Chunk size of vbucket deletion                 |
 | vb_chunk_del_time  | int    | vb chunk deletion threshold time (ms) used for |
 |                    |        | adjusting the chunk size dynamically           |

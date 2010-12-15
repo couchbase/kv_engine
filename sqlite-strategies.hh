@@ -202,4 +202,62 @@ private:
     int numTables;
 };
 
+//
+// ----------------------------------------------------------------------
+// Table Per Vbucket
+// ----------------------------------------------------------------------
+//
+
+/**
+ * Strategy for a table per vbucket store in a single DB.
+ */
+class MultiTableSqliteStrategy : public SqliteStrategy {
+public:
+
+    /**
+     * Constructor.
+     *
+     * @param fn the filename of the DB
+     * @param finit an init script to run as soon as the DB opens
+     * @param pfinit an init script to run after initializing all schema
+     */
+    MultiTableSqliteStrategy(const char * const fn,
+                             const char * const finit = NULL,
+                             const char * const pfinit = NULL)
+        : SqliteStrategy(fn, finit, pfinit, 1),
+          nvbuckets(1024),
+          statements() {
+
+        assert(filename);
+    }
+
+    virtual ~MultiTableSqliteStrategy() { }
+
+    const std::vector<Statements *> &allStatements() {
+        return statements;
+    }
+
+    Statements *getStatements(uint16_t vbid, uint16_t vbver,
+                              const std::string &key) {
+        (void)vbver;
+        (void)key;
+        assert(static_cast<size_t>(vbid) < statements.size());
+        return statements.at(vbid);
+    }
+
+    void destroyStatements();
+    virtual void destroyTables();
+
+protected:
+    size_t nvbuckets;
+    std::vector<Statements *> statements;
+
+    virtual void initTables();
+    virtual void initStatements();
+
+private:
+    DISALLOW_COPY_AND_ASSIGN(MultiTableSqliteStrategy);
+};
+
+
 #endif /* SQLITE_STRATEGIES_H */

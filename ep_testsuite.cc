@@ -3544,6 +3544,8 @@ engine_test_t* get_tests(void) {
         {"flush", test_flush, NULL, teardown, NULL},
         {"flush with stats", test_flush_stats, NULL, teardown, NULL},
         {"flush multi vbuckets", test_flush_multiv, NULL, teardown, NULL},
+        {"flush multi vbuckets multimt", test_flush_multiv, NULL, teardown,
+         "db_strategy=singleMTDB;ht_size=7;ht_locks=3"},
         {"expiry", test_expiry, NULL, teardown, NULL},
         {"expiry_loader", test_expiry_loader, NULL, teardown, NULL},
         {"expiry_flush", test_expiry_flush, NULL, teardown, NULL},
