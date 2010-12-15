@@ -12,22 +12,24 @@
 KVStore *KVStore::create(db_type type, EPStats &stats,
                          const KVStoreConfig &conf) {
     SqliteStrategy *sqliteInstance = NULL;
-    if (type == multi_db) {
+    switch (type) {
+    case multi_db:
         sqliteInstance = new MultiDBSingleTableSqliteStrategy(conf.location,
                                                               conf.shardPattern,
                                                               conf.initFile,
                                                               conf.postInitFile,
                                                               conf.shards);
-    } else if (type == single_db) {
+        break;
+    case single_db:
         sqliteInstance = new SingleTableSqliteStrategy(conf.location,
                                                        conf.initFile,
                                                        conf.postInitFile);
-    } else if (type == single_mt_db) {
+        break;
+    case single_mt_db:
         sqliteInstance = new MultiTableSqliteStrategy(conf.location,
                                                       conf.initFile,
                                                       conf.postInitFile);
-    } else {
-        abort();
+        break;
     }
     return new StrategicSqlite3(stats,
                                 shared_ptr<SqliteStrategy>(sqliteInstance));
