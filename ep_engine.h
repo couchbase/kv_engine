@@ -594,7 +594,7 @@ private:
     const char *shardPattern;
     const char *initFile;
     const char *postInitFile;
-    enum db_strategy dbStrategy;
+    enum db_type dbStrategy;
     bool warmup;
     bool wait_for_warmup;
     bool fail_on_partial_warmup;

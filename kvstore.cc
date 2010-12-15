@@ -9,7 +9,7 @@
 #include "kvstore.hh"
 #include "sqlite-kvstore.hh"
 
-KVStore *KVStore::create(db_strategy type, EPStats &stats,
+KVStore *KVStore::create(db_type type, EPStats &stats,
                          const KVStoreConfig &conf) {
     SqliteStrategy *sqliteInstance = NULL;
     if (type == multi_db) {

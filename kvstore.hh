@@ -68,7 +68,7 @@ private:
 /**
  * Database strategy
  */
-enum db_strategy {
+enum db_type {
     single_db,           //!< single database strategy
     multi_db,            //!< multi-database strategy
     single_mt_db         //!< single database, multi-table strategy
@@ -107,7 +107,7 @@ public:
      * @param stats the server stats
      * @param params type-specific parameters
      */
-    static KVStore *create(db_strategy type,
+    static KVStore *create(db_type type,
                            EPStats &stats,
                            const KVStoreConfig &conf);
 
