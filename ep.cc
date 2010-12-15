@@ -499,7 +499,7 @@ protocol_binary_response_status EventuallyPersistentStore::evictKey(const std::s
 
     if (v) {
         if (v->isResident()) {
-            if (v->ejectValue(stats)) {
+            if (v->ejectValue(stats, vb->ht)) {
                 *msg = "Ejected.";
             } else {
                 *msg = "Can't eject: Dirty or a small object.";
@@ -725,7 +725,6 @@ bool EventuallyPersistentStore::deleteVBucket(uint16_t vbid) {
         lh.unlock();
         rv = true;
         HashTableStatVisitor statvis(vbuckets.removeBucket(vbid));
-        stats.numNonResident.decr(statvis.numNonResident);
         stats.currentSize.decr(statvis.memSize);
         assert(stats.currentSize.get() < GIGANTOR);
         stats.totalCacheSize.decr(statvis.memSize);
@@ -765,7 +764,7 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
 
         if (v && !v->isResident()) {
             assert(gcb.val.getStatus() == ENGINE_SUCCESS);
-            v->restoreValue(gcb.val.getValue()->getValue(), stats);
+            v->restoreValue(gcb.val.getValue()->getValue(), stats, vb->ht);
             assert(v->isResident());
         }
     }
@@ -1062,7 +1061,6 @@ void EventuallyPersistentStore::reset() {
         RCPtr<VBucket> vb = getVBucket(*it, vbucket_state_active);
         if (vb) {
             HashTableStatVisitor statvis = vb->ht.clear();
-            stats.numNonResident.decr(statvis.numNonResident);
             stats.currentSize.decr(statvis.memSize);
             assert(stats.currentSize.get() < GIGANTOR);
             stats.totalCacheSize.decr(statvis.memSize);
@@ -1207,7 +1205,7 @@ public:
                 double current = static_cast<double>(StoredValue::getCurrentSize(*stats));
                 double lower = static_cast<double>(stats->mem_low_wat);
                 if (v && current > lower) {
-                    if (v->ejectValue(*stats) && vb->getState() == vbucket_state_replica) {
+                    if (v->ejectValue(*stats, vb->ht) && vb->getState() == vbucket_state_replica) {
                         ++stats->numReplicaEjects;
                     }
                 }
@@ -1577,12 +1575,12 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
 
 void LoadStorageKVPairCallback::purge() {
 
-    class EmergencyPurgeVisitor : public HashTableVisitor {
+    class EmergencyPurgeVisitor : public VBucketVisitor {
     public:
         EmergencyPurgeVisitor(EPStats &s) : stats(s) {}
 
         void visit(StoredValue *v) {
-            v->ejectValue(stats);
+            v->ejectValue(stats, currentBucket->ht);
         }
     private:
         EPStats &stats;
@@ -1594,7 +1592,7 @@ void LoadStorageKVPairCallback::purge() {
     for (it = vbucketIds.begin(); it != vbucketIds.end(); ++it) {
         int vbid = *it;
         RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
-        if (vb) {
+        if (vb && epv.visitBucket(vb)) {
             vb->ht.visit(epv);
         }
     }

@@ -20,6 +20,50 @@ static ssize_t prime_size_table[] = {
     1610612741, -1
 };
 
+bool StoredValue::ejectValue(EPStats &stats, HashTable &ht) {
+    if (isResident() && isClean() && !isDeleted() && !_isSmall) {
+        size_t oldsize = size();
+        blobval uval;
+        uval.len = valLength();
+        shared_ptr<Blob> sp(Blob::New(uval.chlen, sizeof(uval)));
+        extra.feature.resident = false;
+        value = sp;
+        size_t newsize = size();
+
+        // ejecting the value may increase the object size....
+        if (oldsize < newsize) {
+            increaseCurrentSize(stats, newsize - oldsize, true);
+        } else if (newsize < oldsize) {
+            reduceCurrentSize(stats, oldsize - newsize, true);
+        }
+        ++stats.numValueEjects;
+        ++ht.numNonResidentItems;
+        return true;
+    }
+    ++stats.numFailedEjects;
+    return false;
+}
+
+bool StoredValue::restoreValue(value_t v, EPStats &stats, HashTable &ht) {
+    if (!isResident()) {
+        size_t oldsize = size();
+        assert(v);
+        assert(v->length() == valLength());
+        extra.feature.resident = true;
+        value = v;
+
+        size_t newsize = size();
+        if (oldsize < newsize) {
+            increaseCurrentSize(stats, newsize - oldsize, true);
+        } else if (newsize < oldsize) {
+            reduceCurrentSize(stats, oldsize - newsize, true);
+        }
+        --ht.numNonResidentItems;
+        return true;
+    }
+    return false;
+}
+
 static inline size_t getDefault(size_t x, size_t d) {
     return x == 0 ? d : x;
 }
@@ -71,6 +115,7 @@ HashTableStatVisitor HashTable::clear(bool deactivate) {
     }
 
     numItems.set(0);
+    numNonResidentItems.set(0);
 
     return rv;
 }

@@ -2970,23 +2970,35 @@ static enum test_result test_curr_items(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
 
 
 static enum test_result test_value_eviction(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    check(set_vbucket_state(h, h1, 1, vbucket_state_active), "Failed to set vbucket state.");
+
     item *i = NULL;
     h1->reset_stats(h, NULL);
     check(get_int_stat(h, h1, "ep_num_value_ejects") == 0,
           "Expected reset stats to set ep_num_value_ejects to zero");
     check(get_int_stat(h, h1, "ep_num_non_resident") == 0,
           "Expected all items to be resident");
-    check(store(h, h1, NULL, OPERATION_SET,"k1", "v1", &i) == ENGINE_SUCCESS,
-          "Failed to fail to store an item.");
-    h1->release(h, NULL, i);
-    evict_key(h, h1, "k1", 0, "Can't eject: Dirty or a small object.");
-    wait_for_persisted_value(h, h1, "k1", "some value");
-    evict_key(h, h1, "k1", 0, "Ejected.");
+    check(get_int_stat(h, h1, "ep_num_active_non_resident") == 0,
+          "Expected all active vbucket items to be resident");
 
-    check(get_int_stat(h, h1, "ep_num_non_resident") == 1,
-          "Expected one non-resident item");
+    check(store(h, h1, NULL, OPERATION_SET,"k1", "v1", &i, 0, 0) == ENGINE_SUCCESS,
+          "Failed to fail to store an item.");
+    evict_key(h, h1, "k1", 0, "Can't eject: Dirty or a small object.");
+    check(store(h, h1, NULL, OPERATION_SET,"k2", "v2", &i, 0, 1) == ENGINE_SUCCESS,
+          "Failed to fail to store an item.");
+    evict_key(h, h1, "k2", 1, "Can't eject: Dirty or a small object.");
+
+    wait_for_flusher_to_settle(h, h1);
+    evict_key(h, h1, "k1", 0, "Ejected.");
+    evict_key(h, h1, "k2", 1, "Ejected.");
+
+    check(get_int_stat(h, h1, "ep_num_non_resident") == 2,
+          "Expected two non-resident items");
+    check(get_int_stat(h, h1, "ep_num_active_non_resident") == 2,
+          "Expected two non-resident items for active vbuckets");
 
     evict_key(h, h1, "k1", 0, "Already ejected.");
+    evict_key(h, h1, "k2", 1, "Already ejected.");
 
     protocol_binary_request_header *pkt = create_packet(CMD_EVICT_KEY,
                                                         "missing-key", "");
@@ -2997,16 +3009,25 @@ static enum test_result test_value_eviction(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT,
           "expected the key to be missing...");
 
-    check(get_int_stat(h, h1, "ep_num_value_ejects") == 1,
-          "Expected only one value to be ejected");
+    check(get_int_stat(h, h1, "ep_num_value_ejects") == 2,
+          "Expected only two items to be ejected");
 
     h1->reset_stats(h, NULL);
     check(get_int_stat(h, h1, "ep_num_value_ejects") == 0,
           "Expected reset stats to set ep_num_value_ejects to zero");
 
-    check_key_value(h, h1, "k1", "some value", 10);
-    check(get_int_stat(h, h1, "ep_num_non_resident") == 0,
-          "Expected all items to be resident");
+    check_key_value(h, h1, "k1", "v1", 2);
+    check(get_int_stat(h, h1, "ep_num_non_resident") == 1,
+          "Expected only one item to be non-resident");
+    check(get_int_stat(h, h1, "ep_num_active_non_resident") == 1,
+          "Expected only one active vbucket item to be non-resident");
+
+    check(set_vbucket_state(h, h1, 0, vbucket_state_replica), "Failed to set vbucket state.");
+    check(set_vbucket_state(h, h1, 1, vbucket_state_replica), "Failed to set vbucket state.");
+    check(get_int_stat(h, h1, "ep_num_non_resident") == 1,
+          "Expected only one item to be non-resident");
+    check(get_int_stat(h, h1, "ep_num_active_non_resident") == 0,
+          "Expected no non-resident items");
 
     return SUCCESS;
 }

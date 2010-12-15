@@ -2031,9 +2031,12 @@ static void addTapStat(const char *name, const TapConnection *tc, bool val,
 
 bool VBucketCountVisitor::visitBucket(RCPtr<VBucket> vb) {
     size_t n = vb->ht.getNumItems();
+    size_t m = vb->ht.getNumNonResidentItems();
     total += n;
+    totalNonResident += m;
     if (vb->getState() == desired_state) {
         requestedState += n;
+        nonResident += m;
     }
     return false;
 }
@@ -2218,7 +2221,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     add_casted_stat("ep_store_max_readwrite", sprop.maxWriters(),
                     add_stat, cookie);
 
-    add_casted_stat("ep_num_non_resident", stats.numNonResident, add_stat, cookie);
+    add_casted_stat("ep_num_non_resident", countVisitor.getTotalNonResident(),
+                    add_stat, cookie);
+    add_casted_stat("ep_num_active_non_resident", countVisitor.getNonResident(),
+                    add_stat, cookie);
 
     return ENGINE_SUCCESS;
 }

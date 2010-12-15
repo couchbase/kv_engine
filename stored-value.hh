@@ -241,49 +241,20 @@ public:
         }
     }
 
-    bool ejectValue(EPStats &stats) {
-        if (isResident() && isClean() && !isDeleted() && !_isSmall) {
-            size_t oldsize = size();
-            blobval uval;
-            uval.len = valLength();
-            shared_ptr<Blob> sp(Blob::New(uval.chlen, sizeof(uval)));
-            extra.feature.resident = false;
-            value = sp;
-            size_t newsize = size();
+    /**
+     * Eject an item value from memory.
+     * @param stats the global stat instance
+     * @param ht the hashtable that contains this StoredValue instance
+     */
+    bool ejectValue(EPStats &stats, HashTable &ht);
 
-            // ejecting the value may increase the object size....
-            if (oldsize < newsize) {
-                increaseCurrentSize(stats, newsize - oldsize, true);
-            } else if (newsize < oldsize) {
-                reduceCurrentSize(stats, oldsize - newsize, true);
-            }
-            ++stats.numValueEjects;
-            ++stats.numNonResident;
-            return true;
-        }
-        ++stats.numFailedEjects;
-        return false;
-    }
-
-    bool restoreValue(value_t v, EPStats &stats) {
-        if (!isResident()) {
-            size_t oldsize = size();
-            assert(v);
-            assert(v->length() == valLength());
-            extra.feature.resident = true;
-            value = v;
-
-            size_t newsize = size();
-            if (oldsize < newsize) {
-                increaseCurrentSize(stats, newsize - oldsize, true);
-            } else if (newsize < oldsize) {
-                reduceCurrentSize(stats, oldsize - newsize, true);
-            }
-            --stats.numNonResident;
-            return true;
-        }
-        return false;
-    }
+    /**
+     * Restore the value for this item.
+     * @param v the new value to be restored
+     * @param stats the global stat instance
+     * @param ht the hashtable that contains this StoredValue instance
+     */
+    bool restoreValue(value_t v, EPStats &stats, HashTable &ht);
 
     /**
      * Get this item's CAS identifier.
@@ -841,6 +812,11 @@ public:
     size_t getNumItems(void) { return numItems; }
 
     /**
+     * Get the number of non-resident items within this hash table.
+     */
+    size_t getNumNonResidentItems(void) { return numNonResidentItems; }
+
+    /**
      * Clear the hash table.
      *
      * @param deactivate true when this hash table is being destroyed completely
@@ -914,7 +890,7 @@ public:
             itm.setCas();
             rv = v->isClean() ? WAS_CLEAN : WAS_DIRTY;
             if (!v->isResident()) {
-                --stats.numNonResident;
+                --numNonResidentItems;
             }
             v->setValue(itm.getValue(),
                         itm.getFlags(), itm.getExptime(),
@@ -969,7 +945,7 @@ public:
                 ++numItems;
             }
             if (!storeVal) {
-                v->ejectValue(stats);
+                v->ejectValue(stats, *this);
             }
 
             assert(v->isDirty() == isDirty);
@@ -1020,7 +996,7 @@ public:
             }
 
             if (!v->isResident()) {
-                --stats.numNonResident;
+                --numNonResidentItems;
             }
 
             /* allow operation*/
@@ -1250,6 +1226,8 @@ public:
      * Get the default StoredValue type as a string.
      */
     static const char* getDefaultStorageValueTypeStr();
+
+    Atomic<size_t>       numNonResidentItems;
 
 private:
     inline bool active() { return activeState = true; }
