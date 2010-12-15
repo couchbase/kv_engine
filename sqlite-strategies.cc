@@ -11,6 +11,24 @@
 
 static const int CURRENT_SCHEMA_VERSION(2);
 
+SqliteStrategy::SqliteStrategy(const char * const fn,
+                               const char * const finit,
+                               const char * const pfinit,
+                               size_t shards) : db(NULL),
+    filename(fn),
+    initFile(finit),
+    postInitFile(pfinit),
+    shardCount(shards),
+    schema_version(0) {
+
+    assert(filename);
+    assert(shardCount > 0);
+}
+
+SqliteStrategy::~SqliteStrategy() {
+    close();
+}
+
 sqlite3 *SqliteStrategy::open(void) {
     if(!db) {
         int flags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE
@@ -34,8 +52,6 @@ sqlite3 *SqliteStrategy::open(void) {
         initTables();
         initStatements();
         doFile(postInitFile);
-        shardCount = statements.size();
-        assert(shardCount > 0);
         if (schema_version < CURRENT_SCHEMA_VERSION) {
             std::stringstream ss;
             ss << "Schema version " << schema_version << " is not supported anymore.\n"
@@ -56,7 +72,24 @@ void SqliteStrategy::close(void) {
     }
 }
 
-void SqliteStrategy::destroyStatements() {
+
+void SqliteStrategy::doFile(const char * const fn) {
+    if (fn) {
+        SqliteEvaluator eval(db);
+        getLogger()->log(EXTENSION_LOG_INFO, NULL,
+                         "Running db script: %s\n", fn);
+        eval.eval(fn);
+    }
+}
+
+void SqliteStrategy::execute(const char * const query) {
+    PreparedStatement st(db, query);
+    st.execute();
+}
+
+// ----------------------------------------------------------------------
+
+void SingleTableSqliteStrategy::destroyStatements() {
     while (!statements.empty()) {
         Statements *st = statements.back();
         delete st;
@@ -65,7 +98,7 @@ void SqliteStrategy::destroyStatements() {
     destroyMetaStatements();
 }
 
-void SqliteStrategy::destroyMetaStatements(void) {
+void SingleTableSqliteStrategy::destroyMetaStatements(void) {
     delete ins_vb_stmt;
     delete clear_vb_stmt;
     delete sel_vb_stmt;
@@ -73,7 +106,7 @@ void SqliteStrategy::destroyMetaStatements(void) {
     delete ins_stat_stmt;
 }
 
-void SqliteStrategy::initMetaTables() {
+void SingleTableSqliteStrategy::initMetaTables() {
     assert(db);
     PreparedStatement st(db, "select name from sqlite_master where name='vbucket_states'");
     if (schema_version == 0 && !st.fetch()) {
@@ -95,7 +128,7 @@ void SqliteStrategy::initMetaTables() {
             "  last_change datetime)");
 }
 
-void SqliteStrategy::initTables(void) {
+void SingleTableSqliteStrategy::initTables(void) {
     assert(db);
     execute("create table if not exists kv"
             " (vbucket integer,"
@@ -107,7 +140,7 @@ void SqliteStrategy::initTables(void) {
             "  v text)");
 }
 
-void SqliteStrategy::initMetaStatements(void) {
+void SingleTableSqliteStrategy::initMetaStatements(void) {
     const char *ins_query = "insert into vbucket_states"
         " (vbid, vb_version, state, last_change) values (?, ?, ?, current_timestamp)";
     ins_vb_stmt = new PreparedStatement(db, ins_query);
@@ -126,29 +159,15 @@ void SqliteStrategy::initMetaStatements(void) {
     ins_stat_stmt = new PreparedStatement(db, ins_stat_query);
 }
 
-void SqliteStrategy::initStatements(void) {
+void SingleTableSqliteStrategy::initStatements(void) {
     assert(db);
     initMetaStatements();
     Statements *st = new Statements(db, "kv");
     statements.push_back(st);
 }
 
-void SqliteStrategy::destroyTables(void) {
+void SingleTableSqliteStrategy::destroyTables(void) {
     execute("drop table if exists kv");
-}
-
-void SqliteStrategy::doFile(const char * const fn) {
-    if (fn) {
-        SqliteEvaluator eval(db);
-        getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                         "Running db script: %s\n", fn);
-        eval.eval(fn);
-    }
-}
-
-void SqliteStrategy::execute(const char * const query) {
-    PreparedStatement st(db, query);
-    st.execute();
 }
 
 //
@@ -157,7 +176,7 @@ void SqliteStrategy::execute(const char * const query) {
 // ----------------------------------------------------------------------
 //
 
-void MultiDBSqliteStrategy::initDB() {
+void MultiDBSingleTableSqliteStrategy::initDB() {
     char buf[1024];
     PathExpander p(filename);
 
@@ -170,7 +189,7 @@ void MultiDBSqliteStrategy::initDB() {
     doFile(initFile);
 }
 
-void MultiDBSqliteStrategy::initTables() {
+void MultiDBSingleTableSqliteStrategy::initTables() {
     char buf[1024];
     PathExpander p(filename);
 
@@ -188,7 +207,7 @@ void MultiDBSqliteStrategy::initTables() {
     }
 }
 
-void MultiDBSqliteStrategy::initStatements() {
+void MultiDBSingleTableSqliteStrategy::initStatements() {
     initMetaStatements();
     char buf[64];
     for (int i = 0; i < numTables; i++) {
@@ -197,7 +216,7 @@ void MultiDBSqliteStrategy::initStatements() {
     }
 }
 
-void MultiDBSqliteStrategy::destroyTables() {
+void MultiDBSingleTableSqliteStrategy::destroyTables() {
     char buf[1024];
     for (int i = 0; i < numTables; i++) {
         snprintf(buf, sizeof(buf), "drop table if exists kv_%d.kv", i);

@@ -1197,12 +1197,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
 KVStore* EventuallyPersistentEngine::newKVStore() {
     SqliteStrategy *sqliteInstance = NULL;
     if (dbStrategy == multi_db) {
-        sqliteInstance = new MultiDBSqliteStrategy(dbname, shardPattern,
-                                                   initFile, postInitFile,
-                                                   dbShards);
+        sqliteInstance = new MultiDBSingleTableSqliteStrategy(dbname, shardPattern,
+                                                              initFile, postInitFile,
+                                                              dbShards);
     } else {
-        sqliteInstance = new SqliteStrategy(dbname, initFile,
-                                            postInitFile);
+        sqliteInstance = new SingleTableSqliteStrategy(dbname, initFile,
+                                                       postInitFile);
     }
     return new StrategicSqlite3(stats,
                                 shared_ptr<SqliteStrategy>(sqliteInstance));

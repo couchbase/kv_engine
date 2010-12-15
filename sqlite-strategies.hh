@@ -11,34 +11,23 @@
 class EventuallyPersistentEngine;
 
 /**
- * Base strategy for persisting data in SQLite.
+ * Base class for all Sqlite strategies.
  */
 class SqliteStrategy {
 public:
 
-    /**
-     * Constructor.
-     *
-     * @param fn the filename of the DB
-     * @param finit an init script to run as soon as the DB opens
-     * @param pfinit an init script to run after initializing all schema
-     */
     SqliteStrategy(const char * const fn,
-                   const char * const finit = NULL,
-                   const char * const pfinit = NULL) :
-        filename(fn),
-        initFile(finit),
-        postInitFile(pfinit),
-        schema_version(0),
-        db(NULL),
-        statements(),
-        ins_vb_stmt(NULL), clear_vb_stmt(NULL), sel_vb_stmt(NULL),
-        clear_stats_stmt(NULL), ins_stat_stmt(NULL) {
-        assert(filename);
-    }
+                   const char * const finit,
+                   const char * const pfinit,
+                   size_t shards);
 
-    virtual ~SqliteStrategy() {
-        close();
+    virtual ~SqliteStrategy();
+
+    sqlite3 *open();
+    void close();
+
+    size_t getNumOfDbShards() {
+        return shardCount;
     }
 
     uint16_t getDbShardIdForKey(const std::string &key) {
@@ -53,10 +42,79 @@ public:
         return std::abs(h) % (int)shardCount;
     }
 
-    size_t getNumOfDbShards(void) {
-        assert(shardCount > 0);
-        return shardCount;
+    virtual const std::vector<Statements *> &allStatements() = 0;
+
+    virtual Statements *getStatements(uint16_t vbid, uint16_t vbver,
+                                      const std::string &key) = 0;
+
+    virtual PreparedStatement *getInsVBucketStateST() = 0;
+
+    virtual PreparedStatement *getClearVBucketStateST() = 0;
+
+    virtual PreparedStatement *getGetVBucketStateST() = 0;
+
+    virtual PreparedStatement *getClearStatsST() = 0;
+    virtual PreparedStatement *getInsStatST() = 0;
+
+    virtual void destroyTables() = 0;
+
+    void execute(const char * const query);
+
+protected:
+
+    void doFile(const char * const filename);
+
+    virtual void initDB() {
+        doFile(initFile);
     }
+
+    virtual void initMetaTables() = 0;
+    virtual void initTables() = 0;
+    virtual void initStatements() = 0;
+    virtual void destroyStatements() {};
+
+    sqlite3            *db;
+    const char * const  filename;
+    const char * const  initFile;
+    const char * const  postInitFile;
+    size_t              shardCount;
+    uint16_t            schema_version;
+
+private:
+    DISALLOW_COPY_AND_ASSIGN(SqliteStrategy);
+};
+
+//
+// ----------------------------------------------------------------------
+// Concrete Strategies
+// ----------------------------------------------------------------------
+//
+
+/**
+ * Strategy for a single table kv store in a single DB.
+ */
+class SingleTableSqliteStrategy : public SqliteStrategy {
+public:
+
+    /**
+     * Constructor.
+     *
+     * @param fn the filename of the DB
+     * @param finit an init script to run as soon as the DB opens
+     * @param pfinit an init script to run after initializing all schema
+     */
+    SingleTableSqliteStrategy(const char * const fn,
+                              const char * const finit = NULL,
+                              const char * const pfinit = NULL,
+                              size_t shards = 1) :
+        SqliteStrategy(fn, finit, pfinit, shards),
+        statements(),
+        ins_vb_stmt(NULL), clear_vb_stmt(NULL), sel_vb_stmt(NULL),
+        clear_stats_stmt(NULL), ins_stat_stmt(NULL) {
+        assert(filename);
+    }
+
+    virtual ~SingleTableSqliteStrategy() { }
 
     const std::vector<Statements *> &allStatements() {
         return statements;
@@ -82,8 +140,6 @@ public:
     }
 
 
-    virtual void initMetaTables();
-
     PreparedStatement *getClearStatsST() {
         return clear_stats_stmt;
     }
@@ -92,42 +148,28 @@ public:
         return ins_stat_stmt;
     }
 
-    virtual void initTables(void);
-    virtual void initStatements(void);
-    virtual void destroyTables(void);
-    void destroyStatements(void);
+    void destroyStatements();
+    virtual void destroyTables();
 
-    virtual void initMetaStatements(void);
-    virtual void destroyMetaStatements(void);
-
-    void execute(const char * const query);
-
-    sqlite3 *open(void);
-    void close(void);
+    virtual void initMetaStatements();
+    virtual void destroyMetaStatements();
 
 protected:
-    const char * const filename;
-    const char * const initFile;
-    const char * const postInitFile;
-    uint16_t schema_version;
-    size_t shardCount;
-    sqlite3 *db;
     std::vector<Statements *> statements;
+
+    virtual void initMetaTables();
+    virtual void initTables();
+    virtual void initStatements();
 
     PreparedStatement *ins_vb_stmt;
     PreparedStatement *clear_vb_stmt;
     PreparedStatement *sel_vb_stmt;
 
-    void doFile(const char * const filename);
-    virtual void initDB(void) {
-        doFile(initFile);
-    }
-
     PreparedStatement *clear_stats_stmt;
     PreparedStatement *ins_stat_stmt;
 
 private:
-    DISALLOW_COPY_AND_ASSIGN(SqliteStrategy);
+    DISALLOW_COPY_AND_ASSIGN(SingleTableSqliteStrategy);
 };
 
 //
@@ -138,9 +180,9 @@ private:
 
 /**
  * A specialization of SqliteStrategy that allows multiple data
- * shards.
+ * shards with a single kv table each.
  */
-class MultiDBSqliteStrategy : public SqliteStrategy {
+class MultiDBSingleTableSqliteStrategy : public SingleTableSqliteStrategy {
 public:
 
     /**
@@ -152,12 +194,12 @@ public:
      * @param pfinit same as SqliteStrategy
      * @param n number of DB shards to create
      */
-    MultiDBSqliteStrategy(const char * const fn,
-                          const char * const sp,
-                          const char * const finit = NULL,
-                          const char * const pfinit = NULL,
-                          int n=4):
-        SqliteStrategy(fn, finit, pfinit),
+    MultiDBSingleTableSqliteStrategy(const char * const fn,
+                                     const char * const sp,
+                                     const char * const finit = NULL,
+                                     const char * const pfinit = NULL,
+                                     int n=4):
+        SingleTableSqliteStrategy(fn, finit, pfinit, n),
         shardpattern(sp), numTables(n) {
         assert(shardpattern);
     }
