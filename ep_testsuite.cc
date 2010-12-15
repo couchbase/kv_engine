@@ -3474,7 +3474,8 @@ MEMCACHED_PUBLIC_API
 engine_test_t* get_tests(void) {
 
     static engine_test_t tests[]  = {
-        {"validate engine handle", test_validate_engine_handle, NULL, teardown, NULL},
+        {"validate engine handle", test_validate_engine_handle, NULL, teardown,
+         "db_strategy=singleDB;dbname=:memory:"},
         // basic tests
         {"test alloc limit", test_alloc_limit, NULL, teardown, NULL},
         {"test init failure", test_init_fail, NULL, teardown, NULL},
