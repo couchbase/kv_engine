@@ -405,6 +405,14 @@ private:
                   uint32_t f);
 
     ~TapConnection() {
+        LockHolder lh(backfillLock);
+        while (!backfilledItems.empty()) {
+            Item *i(backfilledItems.front());
+            assert(i);
+            delete i;
+            backfilledItems.pop();
+            --bgResultSize;
+        }
         delete queue;
         delete queue_set;
     }
