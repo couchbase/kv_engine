@@ -613,7 +613,7 @@ public:
     void visit(shared_ptr<VBucketVisitor> visitor, const char *lbl,
                Dispatcher *d, const Priority &prio, bool isDaemon=true) {
         d->schedule(shared_ptr<DispatcherCallback>(new VBCBAdaptor(this, visitor, lbl)),
-                    NULL, prio, isDaemon);
+                    NULL, prio, 0, isDaemon);
     }
 
     void warmup() {
