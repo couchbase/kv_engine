@@ -6,6 +6,9 @@
 #include <string>
 #include <utility>
 
+#include <cstring>
+
+#include "stats.hh"
 #include "item.hh"
 
 /**
@@ -63,10 +66,50 @@ private:
 };
 
 /**
+ * Database strategy
+ */
+enum db_strategy {
+    single_db,           //!< single database strategy
+    multi_db,            //!< multi-database strategy
+    single_mt_db         //!< single database, multi-table strategy
+};
+
+/**
+ * Configuration parameters to be passed to KVStore::create
+ */
+class KVStoreConfig {
+public:
+    KVStoreConfig(const char *l,
+                  const char *sp,
+                  const char *i,
+                  const char *p,
+                  size_t sh) : location(l), shardPattern(sp),
+                               initFile(i), postInitFile(p),
+                               shards(sh) {}
+
+    const char   *location;
+    const char   *shardPattern;
+    const char   *initFile;
+    const char   *postInitFile;
+    const size_t  shards;
+};
+
+/**
  * Base class representing kvstore operations.
  */
 class KVStore {
 public:
+
+    /**
+     * Create a KVStore with the given properties.
+     *
+     * @param type the type of DB to set up
+     * @param stats the server stats
+     * @param params type-specific parameters
+     */
+    static KVStore *create(db_strategy type,
+                           EPStats &stats,
+                           const KVStoreConfig &conf);
 
     virtual ~KVStore() {}
 

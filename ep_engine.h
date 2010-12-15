@@ -110,15 +110,6 @@ private:
 };
 
 /**
- * Database strategy
- */
-enum db_strategy {
-    single_db,           //!< single database strategy
-    multi_db,            //!< multi-database strategy
-    single_mt_db         //!< single database, multi-table strategy
-};
-
-/**
  * memcached engine interface to the EventuallyPersistentStore.
  */
 class EventuallyPersistentEngine : public ENGINE_HANDLE_V1 {

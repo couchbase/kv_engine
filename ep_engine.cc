@@ -27,7 +27,6 @@
 #include "ep_engine.h"
 #include "statsnap.hh"
 #include "tapthrottle.hh"
-#include "sqlite-kvstore.hh"
 #include "htresizer.hh"
 
 static size_t percentOf(size_t val, double percent) {
@@ -1205,22 +1204,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
 }
 
 KVStore* EventuallyPersistentEngine::newKVStore() {
-    SqliteStrategy *sqliteInstance = NULL;
-    if (dbStrategy == multi_db) {
-        sqliteInstance = new MultiDBSingleTableSqliteStrategy(dbname, shardPattern,
-                                                              initFile, postInitFile,
-                                                              dbShards);
-    } else if (dbStrategy == single_db) {
-        sqliteInstance = new SingleTableSqliteStrategy(dbname, initFile,
-                                                       postInitFile);
-    } else if (dbStrategy == single_mt_db) {
-        sqliteInstance = new MultiTableSqliteStrategy(dbname, initFile,
-                                                      postInitFile);
-    } else {
-        abort();
-    }
-    return new StrategicSqlite3(stats,
-                                shared_ptr<SqliteStrategy>(sqliteInstance));
+    KVStoreConfig conf(dbname, shardPattern, initFile,
+                       postInitFile, dbShards);
+    return KVStore::create(dbStrategy, stats, conf);
 }
 
 void EventuallyPersistentEngine::destroy() {

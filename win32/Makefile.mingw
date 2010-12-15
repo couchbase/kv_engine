@@ -37,6 +37,7 @@ EP_ENGINE_CC_SRC = \
                  htresizer.cc \
                  item.cc \
                  item_pager.cc \
+                 kvstore.cc \
                  pathexpand.cc \
                  priority.cc \
                  sizes.cc \
