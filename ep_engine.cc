@@ -1834,7 +1834,14 @@ public:
         (void)d;
         (void)t;
 
-        store->dump(vbucket, *this);
+        BeginDiskBackfillTapOperation beginOp;
+        if (connMap.performTapOp(name, beginOp, static_cast<void*>(NULL))) {
+
+            store->dump(vbucket, *this);
+
+            CompleteDiskBackfillTapOperation op;
+            connMap.performTapOp(name, op, static_cast<void*>(NULL));
+        }
 
         return false;
     }
@@ -2409,6 +2416,8 @@ struct TapStatBuilder {
         addTapStat("suspended", tc, tc->isSuspended(), add_stat, cookie);
         addTapStat("paused", tc, tc->paused, add_stat, cookie);
         addTapStat("pending_backfill", tc, tc->pendingBackfill, add_stat, cookie);
+        addTapStat("pending_disk_backfill", tc, tc->pendingDiskBackfill,
+                   add_stat, cookie);
         if (tc->reconnects > 0) {
             addTapStat("reconnects", tc, tc->reconnects, add_stat, cookie);
         }

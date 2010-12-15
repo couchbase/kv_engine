@@ -303,6 +303,16 @@ void CompleteBackfillTapOperation::perform(TapConnection *tc, void *arg) {
     tc->completeBackfill();
 }
 
+void CompleteDiskBackfillTapOperation::perform(TapConnection *tc, void *arg) {
+    (void)arg;
+    tc->completeDiskBackfill();
+}
+
+void BeginDiskBackfillTapOperation::perform(TapConnection *tc, void *arg) {
+    (void)arg;
+    tc->beginDiskBackfill();
+}
+
 void ReceivedItemTapOperation::perform(TapConnection *tc, Item *arg) {
     tc->gotBGItem(arg, implicitEnqueue);
 }

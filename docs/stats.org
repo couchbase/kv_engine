@@ -213,6 +213,8 @@ another colon.  For example, if your client is named, =slave1=, the
 | paused                    | true if this client is blocked           |
 | pending_backfill          | true if we're still backfilling keys     |
 |                           | for this connection                      |
+| pending_disk_backfill     | true if we're still backfilling keys     |
+|                           | from disk for this connection            |
 | reconnects                | Number of reconnects from this client.   |
 | disconnects               | Number of disconnects from this client.  |
 | backfill_age              | The age of the start of the backfill.    |

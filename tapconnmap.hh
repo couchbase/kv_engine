@@ -37,6 +37,22 @@ public:
 };
 
 /**
+ * Indicate that we wish to begin a tap disk backfill.
+ */
+class BeginDiskBackfillTapOperation : public TapOperation<void*> {
+public:
+    void perform(TapConnection *tc, void* arg);
+};
+
+/**
+ * Indicate the tap backfill disk stream thing is complete.
+ */
+class CompleteDiskBackfillTapOperation : public TapOperation<void*> {
+public:
+    void perform(TapConnection *tc, void* arg);
+};
+
+/**
  * Give the tap connection a new item.
  */
 class ReceivedItemTapOperation : public TapOperation<Item*> {

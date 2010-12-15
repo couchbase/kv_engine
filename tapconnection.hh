@@ -112,12 +112,16 @@ public:
 
     void completeBackfill() {
         pendingBackfill = false;
+        completeBackfillCommon();
+    }
 
-        if (complete() && idle()) {
-            // There is no data for this connection..
-            // Just go ahead and disconnect it.
-            doDisconnect = true;
-        }
+    void beginDiskBackfill() {
+        pendingDiskBackfill = true;
+    }
+
+    void completeDiskBackfill() {
+        pendingDiskBackfill = false;
+        completeBackfillCommon();
     }
 
     /**
@@ -141,6 +145,14 @@ private:
     friend class TapBGFetchCallback;
     friend struct TapStatBuilder;
     friend struct PopulateEventsBody;
+
+    void completeBackfillCommon() {
+        if (complete() && idle()) {
+            // There is no data for this connection..
+            // Just go ahead and disconnect it.
+            doDisconnect = true;
+        }
+    }
 
     /**
      * Add a new item to the tap queue. You need to hold the queue lock
@@ -377,7 +389,8 @@ private:
      * background fetch jobs running.
      */
     bool isPendingBackfill() {
-        return pendingBackfill || (bgJobIssued - bgJobCompleted) != 0;
+        return pendingBackfill || pendingDiskBackfill
+            || (bgJobIssued - bgJobCompleted) != 0;
     }
 
     /**
@@ -577,6 +590,8 @@ private:
 
     // True until a backfill has dumped all the content.
     bool pendingBackfill;
+    // True when a disk backfill is running
+    bool pendingDiskBackfill;
 
     void setVBucketFilter(const std::vector<uint16_t> &vbuckets);
     /**
