@@ -41,13 +41,25 @@ public:
  */
 class ReceivedItemTapOperation : public TapOperation<Item*> {
 public:
+    ReceivedItemTapOperation(bool ie=false) : implicitEnqueue(ie) {}
+
     void perform(TapConnection *tc, Item* arg);
+private:
+    bool implicitEnqueue;
 };
 
 /**
  * Indicate a background fetch completed on a tap connection.
  */
 class CompletedBGFetchTapOperation : public TapOperation<EventuallyPersistentEngine*> {
+public:
+    void perform(TapConnection *tc, EventuallyPersistentEngine* arg);
+};
+
+/**
+ * Send a tap notify.
+ */
+class NotifyIOTapOperation : public TapOperation<EventuallyPersistentEngine*> {
 public:
     void perform(TapConnection *tc, EventuallyPersistentEngine* arg);
 };

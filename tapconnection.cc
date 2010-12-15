@@ -520,8 +520,16 @@ void TapConnection::runBGFetch(Dispatcher *dispatcher, const void *c) {
     dispatcher->schedule(dcb, NULL, Priority::TapBgFetcherPriority);
 }
 
-void TapConnection::gotBGItem(Item *i) {
+void TapConnection::gotBGItem(Item *i, bool implicitEnqueue) {
     LockHolder lh(backfillLock);
+    // implicitEnqueue is used for the optimized disk fetch wherein we
+    // receive the item and want the stats to reflect an
+    // enqueue/execute cycle.
+    if (implicitEnqueue) {
+        ++bgQueued;
+        ++bgJobIssued;
+        ++bgJobCompleted;
+    }
     backfilledItems.push(i);
     ++bgResultSize;
     assert(hasItem());

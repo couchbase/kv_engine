@@ -123,7 +123,7 @@ public:
     /**
      * Invoked each time a background item fetch completes.
      */
-    void gotBGItem(Item *item);
+    void gotBGItem(Item *item, bool implicitEnqueue);
 
     /**
      * Invoked once per batch bg fetch job.

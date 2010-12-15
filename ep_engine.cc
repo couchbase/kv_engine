@@ -1489,10 +1489,13 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
             }
             ++stats.numTapDeletes;
         } else if (r == ENGINE_EWOULDBLOCK) {
-            connection->queueBGFetch(key, gv.getId(), *vbucket,
-                                     epstore->getVBucketVersion(*vbucket));
-            // This can optionally collect a few and batch them.
-            connection->runBGFetch(epstore->getRODispatcher(), cookie);
+            // If we don't have efficient VBdumps, go do a real fetch.
+            if (!epstore->getStorageProperties().hasEfficientVBDump()) {
+                connection->queueBGFetch(key, gv.getId(), *vbucket,
+                                         epstore->getVBucketVersion(*vbucket));
+                // This can optionally collect a few and batch them.
+                connection->runBGFetch(epstore->getRODispatcher(), cookie);
+            }
             // If there's an item ready, return NOOP so we'll come
             // back immediately, otherwise pause the connection
             // while we wait.
@@ -1830,6 +1833,46 @@ void EventuallyPersistentEngine::startEngineThreads(void)
     startedEngineThreads = true;
 }
 
+class BackfillDiskLoad : public DispatcherCallback, public Callback<GetValue> {
+public:
+
+    BackfillDiskLoad(const std::string &n, EventuallyPersistentEngine* e,
+                     TapConnMap &tcm, KVStore *s, uint16_t vbid)
+        : name(n), engine(e), connMap(tcm), store(s), vbucket(vbid) { }
+
+    void callback(GetValue &gv) {
+        ReceivedItemTapOperation tapop(true);
+        // if the tap connection is closed, then free an Item instance
+        if (!connMap.performTapOp(name, tapop, gv.getValue())) {
+            delete gv.getValue();
+        }
+        NotifyIOTapOperation notifyOp;
+        connMap.performTapOp(name, notifyOp, engine);
+    }
+
+    bool callback(Dispatcher &d, TaskId t) {
+        (void)d;
+        (void)t;
+
+        store->dump(vbucket, *this);
+
+        return false;
+    }
+
+    std::string description() {
+        std::stringstream rv;
+        rv << "Loading tap backfill for vb " << vbucket;
+        return rv.str();
+    }
+
+private:
+    const std::string           name;
+    EventuallyPersistentEngine *engine;
+    TapConnMap                 &connMap;
+    KVStore                    *store;
+    uint16_t                    vbucket;
+};
+
 /**
  * VBucketVisitor to backfill a TapConnection.
  */
@@ -1840,7 +1883,8 @@ public:
         VBucketVisitor(), engine(e), name(tc->client),
         queue(new std::list<QueuedItem>),
         found(), filter(tc->backFillVBucketFilter), validityToken(token),
-        maxBackfillSize(e->tapBacklogLimit), valid(true) {
+        maxBackfillSize(e->tapBacklogLimit), valid(true),
+        efficientVBDump(e->epstore->getStorageProperties().hasEfficientVBDump()) {
         found.reserve(e->tapBacklogLimit);
     }
 
@@ -1851,6 +1895,17 @@ public:
     bool visitBucket(RCPtr<VBucket> vb) {
         if (filter(vb->getId())) {
             VBucketVisitor::visitBucket(vb);
+            if (efficientVBDump) {
+                Dispatcher *d(engine->epstore->getRODispatcher());
+                KVStore *underlying(engine->epstore->getROUnderlying());
+                assert(d);
+                shared_ptr<DispatcherCallback> cb(new BackfillDiskLoad(name,
+                                                                       engine,
+                                                                       engine->tapConnMap,
+                                                                       underlying,
+                                                                       vb->getId()));
+                d->schedule(cb, NULL, Priority::TapBgFetcherPriority);
+            }
             return true;
         }
         return false;
@@ -1947,6 +2002,7 @@ private:
     const void *validityToken;
     ssize_t maxBackfillSize;
     bool valid;
+    bool efficientVBDump;
 };
 
 /// @cond DETAILS
@@ -2752,11 +2808,16 @@ void CompleteBackfillTapOperation::perform(TapConnection *tc, void *arg) {
 }
 
 void ReceivedItemTapOperation::perform(TapConnection *tc, Item *arg) {
-    tc->gotBGItem(arg);
+    tc->gotBGItem(arg, implicitEnqueue);
 }
 
 void CompletedBGFetchTapOperation::perform(TapConnection *tc,
                                            EventuallyPersistentEngine *epe) {
     (void)epe;
     tc->completedBGFetchJob();
+}
+
+void NotifyIOTapOperation::perform(TapConnection *tc,
+                                   EventuallyPersistentEngine *epe) {
+    epe->notifyIOComplete(tc->getCookie(), ENGINE_SUCCESS);
 }
