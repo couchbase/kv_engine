@@ -43,8 +43,8 @@ typedef std::map<std::pair<uint16_t, uint16_t>, std::string> vbucket_map_t;
 class StorageProperties {
 public:
 
-    StorageProperties(size_t c, size_t r, size_t w)
-        : maxc(c), maxr(r), maxw(w) {}
+    StorageProperties(size_t c, size_t r, size_t w, bool evb)
+        : maxc(c), maxr(r), maxw(w), efficientVBDump(evb) {}
 
     //! The maximum number of active queries.
     size_t maxConcurrency() { return maxc; }
@@ -52,11 +52,14 @@ public:
     size_t maxReaders()     { return maxr; }
     //! Maximum number of active connections for read and write.
     size_t maxWriters()     { return maxw; }
+    //! True if we can efficiently dump a single vbucket.
+    bool hasEfficientVBDump() { return efficientVBDump; }
 
 private:
     size_t maxc;
     size_t maxr;
     size_t maxw;
+    bool efficientVBDump;
 };
 
 /**
@@ -141,6 +144,12 @@ public:
      * Pass all stored data through the given callback.
      */
     virtual void dump(Callback<GetValue> &cb) = 0;
+
+    /**
+     * Pass all stored data for the given vbucket through the given
+     * callback.
+     */
+    virtual void dump(uint16_t vbid, Callback<GetValue> &cb) = 0;
 
     /**
      * Get the number of data shards in this kvstore.

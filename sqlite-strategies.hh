@@ -67,6 +67,18 @@ public:
         return ins_stat_stmt;
     }
 
+    virtual bool hasEfficientVBLoad() { return false; }
+
+    virtual std::vector<PreparedStatement*> getVBLoader(uint16_t vb) {
+        (void)vb;
+        std::vector<PreparedStatement*> rv;
+        return rv;
+    }
+
+    virtual void closeVBLoader(std::vector<PreparedStatement*> &psts) {
+        (void)psts;
+    }
+
     virtual void destroyTables() = 0;
 
     void execute(const char * const query);
@@ -247,6 +259,20 @@ public:
 
     void destroyStatements();
     virtual void destroyTables();
+
+    bool hasEfficientVBLoad() { return true; }
+
+    std::vector<PreparedStatement*> getVBLoader(uint16_t vb) {
+        std::vector<PreparedStatement*> rv;
+        assert(static_cast<size_t>(vb) < statements.size());
+        rv.push_back(statements.at(vb)->all());
+        return rv;
+    }
+
+    void closeVBLoader(std::vector<PreparedStatement*> &psts) {
+        assert(psts.size() == 1);
+        psts[0]->reset();
+    }
 
 protected:
     size_t nvbuckets;

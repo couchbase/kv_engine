@@ -239,8 +239,26 @@ bool StrategicSqlite3::storeMap(PreparedStatement *clearSt,
     return rv;
 }
 
-void StrategicSqlite3::dump(Callback<GetValue> &cb) {
+static void processDumpRow(EPStats &stats,
+                           PreparedStatement *st, Callback<GetValue> &cb) {
+    ++stats.io_num_read;
+    GetValue rv(new Item(st->column_blob(0),
+                         static_cast<uint16_t>(st->column_bytes(0)),
+                         st->column_int(2),
+                         st->column_int(3),
+                         st->column_blob(1),
+                         st->column_bytes(1),
+                         0,
+                         st->column_int64(7),
+                         static_cast<uint16_t>(st->column_int(5))),
+                ENGINE_SUCCESS,
+                -1,
+                static_cast<uint16_t>(st->column_int(6)));
+    stats.io_read_bytes += rv.getValue()->getKey().length() + rv.getValue()->getNBytes();
+    cb.callback(rv);
+}
 
+void StrategicSqlite3::dump(Callback<GetValue> &cb) {
     const std::vector<Statements*> statements = strategy->allStatements();
     std::vector<Statements*>::const_iterator it;
     for (it = statements.begin(); it != statements.end(); ++it) {
@@ -248,26 +266,29 @@ void StrategicSqlite3::dump(Callback<GetValue> &cb) {
         st->reset();
         st->bind(1, ep_real_time());
         while (st->fetch()) {
-            ++stats.io_num_read;
-            GetValue rv(new Item(st->column_blob(0),
-                                 static_cast<uint16_t>(st->column_bytes(0)),
-                                 st->column_int(2),
-                                 st->column_int(3),
-                                 st->column_blob(1),
-                                 st->column_bytes(1),
-                                 0,
-                                 st->column_int64(7),
-                                 static_cast<uint16_t>(st->column_int(5))),
-                        ENGINE_SUCCESS,
-                        -1,
-                        static_cast<uint16_t>(st->column_int(6)));
-            stats.io_read_bytes += rv.getValue()->getKey().length() + rv.getValue()->getNBytes();
-            cb.callback(rv);
+            processDumpRow(stats, st, cb);
         }
 
         st->reset();
     }
 }
+
+void StrategicSqlite3::dump(uint16_t vb, Callback<GetValue> &cb) {
+    assert(strategy->hasEfficientVBLoad());
+    std::vector<PreparedStatement*> loaders(strategy->getVBLoader(vb));
+
+    std::vector<PreparedStatement*>::iterator it;
+    for (it = loaders.begin(); it != loaders.end(); ++it) {
+        PreparedStatement *st = *it;
+        st->bind(1, ep_real_time());
+        while (st->fetch()) {
+            processDumpRow(stats, st, cb);
+        }
+    }
+
+    strategy->closeVBLoader(loaders);
+}
+
 
 static char lc(const char i) {
     return std::tolower(i);
@@ -298,6 +319,7 @@ StorageProperties StrategicSqlite3::getStorageProperties() {
         }
     }
     size_t concurrency(allows_concurrency ? 10 : 1);
-    StorageProperties rv(concurrency, concurrency - 1, 1);
+    StorageProperties rv(concurrency, concurrency - 1, 1,
+                         strategy->hasEfficientVBLoad());
     return rv;
 }
