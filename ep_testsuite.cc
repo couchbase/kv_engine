@@ -130,6 +130,16 @@ static void rmdb(void) {
     unlink("/tmp/test.db-1.sqlite");
     unlink("/tmp/test.db-2.sqlite");
     unlink("/tmp/test.db-3.sqlite");
+    unlink("/tmp/test.db-wal");
+    unlink("/tmp/test.db-0.sqlite-wal");
+    unlink("/tmp/test.db-1.sqlite-wal");
+    unlink("/tmp/test.db-2.sqlite-wal");
+    unlink("/tmp/test.db-3.sqlite-wal");
+    unlink("/tmp/test.db-shm");
+    unlink("/tmp/test.db-0.sqlite-shm");
+    unlink("/tmp/test.db-1.sqlite-shm");
+    unlink("/tmp/test.db-2.sqlite-shm");
+    unlink("/tmp/test.db-3.sqlite-shm");
 }
 
 static bool teardown(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
