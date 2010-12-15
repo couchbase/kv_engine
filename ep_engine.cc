@@ -1067,13 +1067,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
             }
 
             if (dbs != NULL) {
-                if (strcmp(dbs, "multiDB") == 0) {
-                    dbStrategy = multi_db;
-                } else if (strcmp(dbs, "singleDB") == 0) {
-                    dbStrategy = single_db;
-                } else if (strcmp(dbs, "singleMTDB") == 0) {
-                    dbStrategy = single_mt_db;
-                } else {
+                if (!KVStore::stringToType(dbs, dbStrategy)) {
                     getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                                      "Unhandled db type: %s", dbs);
                     return ENGINE_FAILED;
@@ -2234,14 +2228,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     add_casted_stat("ep_dbname", dbname, add_stat, cookie);
     add_casted_stat("ep_dbinit", databaseInitTime, add_stat, cookie);
     add_casted_stat("ep_dbshards", dbShards, add_stat, cookie);
-    const char *dbStrategyStr(NULL);
-    switch (dbStrategy) {
-    case multi_db: dbStrategyStr = "multiDB"; break;
-    case single_db: dbStrategyStr = "singleDB"; break;
-    case single_mt_db: dbStrategyStr = "singleMTDB"; break;
-    }
-    assert(dbStrategyStr);
-    add_casted_stat("ep_db_strategy", dbStrategyStr, add_stat, cookie);
+    add_casted_stat("ep_db_strategy", KVStore::typeToString(dbStrategy),
+                    add_stat, cookie);
     add_casted_stat("ep_warmup", warmup ? "true" : "false",
                     add_stat, cookie);
 

@@ -111,6 +111,22 @@ public:
                            EPStats &stats,
                            const KVStoreConfig &conf);
 
+    /**
+     * Get the name of a db type.
+     */
+    static const char* typeToString(enum db_type type);
+
+    /**
+     * Get the type for a given name.
+     *
+     * @param name the name to parse
+     * @param typeOut a reference to a type to fill
+     *
+     * @return true if we were able to parse the type
+     */
+    static bool stringToType(const char *name,
+                             enum db_type &typeOut);
+
     virtual ~KVStore() {}
 
     /**
