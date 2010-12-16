@@ -145,8 +145,8 @@ public:
      * @param pfinit an init script to run after initializing all schema
      */
     SingleTableSqliteStrategy(const char * const fn,
-                              const char * const finit = NULL,
-                              const char * const pfinit = NULL,
+                              const char * const finit,
+                              const char * const pfinit,
                               size_t shards = 1) :
         SqliteStrategy(fn, finit, pfinit, shards), statements() {
         assert(filename);
@@ -208,9 +208,9 @@ public:
      */
     MultiDBSingleTableSqliteStrategy(const char * const fn,
                                      const char * const sp,
-                                     const char * const finit = NULL,
-                                     const char * const pfinit = NULL,
-                                     int n=4):
+                                     const char * const finit,
+                                     const char * const pfinit,
+                                     int n):
         SingleTableSqliteStrategy(fn, finit, pfinit, n),
         shardpattern(sp), numTables(n) {
         assert(shardpattern);
@@ -246,10 +246,10 @@ public:
      * @param pfinit an init script to run after initializing all schema
      */
     MultiTableSqliteStrategy(const char * const fn,
-                             const char * const finit = NULL,
-                             const char * const pfinit = NULL,
-                             int nv = 1024,
-                             int shards = 1)
+                             const char * const finit,
+                             const char * const pfinit,
+                             int nv,
+                             int shards=1)
         : SqliteStrategy(fn, finit, pfinit, shards),
           nvbuckets(nv), statements() {
 
@@ -326,10 +326,10 @@ public:
      */
     ShardedMultiTableSqliteStrategy(const char * const fn,
                                     const char * const sp,
-                                    const char * const finit = NULL,
-                                    const char * const pfinit = NULL,
-                                    int nv = 1024,
-                                    int n=4)
+                                    const char * const finit,
+                                    const char * const pfinit,
+                                    int nv,
+                                    int n)
         : MultiTableSqliteStrategy(fn, finit, pfinit, nv, n),
           shardpattern(sp),
           statementsPerShard() {

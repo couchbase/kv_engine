@@ -28,13 +28,15 @@ KVStore *KVStore::create(db_type type, EPStats &stats,
     case single_mt_db:
         sqliteInstance = new MultiTableSqliteStrategy(conf.location,
                                                       conf.initFile,
-                                                      conf.postInitFile);
+                                                      conf.postInitFile,
+                                                      conf.numVBuckets);
         break;
     case multi_mt_db:
         sqliteInstance = new ShardedMultiTableSqliteStrategy(conf.location,
                                                              conf.shardPattern,
                                                              conf.initFile,
                                                              conf.postInitFile,
+                                                             conf.numVBuckets,
                                                              conf.shards);
         break;
     }
