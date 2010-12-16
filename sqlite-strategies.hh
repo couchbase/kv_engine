@@ -143,6 +143,7 @@ public:
      * @param fn the filename of the DB
      * @param finit an init script to run as soon as the DB opens
      * @param pfinit an init script to run after initializing all schema
+     * @param shards the number of shards
      */
     SingleTableSqliteStrategy(const char * const fn,
                               const char * const finit,
@@ -244,6 +245,8 @@ public:
      * @param fn the filename of the DB
      * @param finit an init script to run as soon as the DB opens
      * @param pfinit an init script to run after initializing all schema
+     * @param nv the maxinum number of vbuckets
+     * @param shards the number of data shards
      */
     MultiTableSqliteStrategy(const char * const fn,
                              const char * const finit,
@@ -321,8 +324,11 @@ public:
      * Constructor.
      *
      * @param fn the filename of the DB
+     * @param sp the shard pattern
      * @param finit an init script to run as soon as the DB opens
      * @param pfinit an init script to run after initializing all schema
+     * @param nv the maxinum number of vbuckets
+     * @param n the number of data shards
      */
     ShardedMultiTableSqliteStrategy(const char * const fn,
                                     const char * const sp,
@@ -377,8 +383,11 @@ public:
      * Constructor.
      *
      * @param fn the filename of the DB
+     * @param sp the shard pattern for generating shard files
      * @param finit an init script to run as soon as the DB opens
      * @param pfinit an init script to run after initializing all schema
+     * @param nv the maxinum number of vbuckets
+     * @param n the number of data shards
      */
     ShardedByVBucketSqliteStrategy(const char * const fn,
                                    const char * const sp,

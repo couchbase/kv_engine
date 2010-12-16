@@ -213,6 +213,9 @@ void TapConnection::rollback() {
     }
 }
 
+/**
+ * Dispatcher task to wake a tap connection.
+ */
 class TapResumeCallback : public DispatcherCallback {
 public:
     TapResumeCallback(EventuallyPersistentEngine &e, TapConnection &c)

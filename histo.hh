@@ -174,6 +174,9 @@ private:
     double   _power;
 };
 
+/**
+ * Comparator for finding a histogram bin to hold a value.
+ */
 template <typename T>
 class BinCompare {
 public:

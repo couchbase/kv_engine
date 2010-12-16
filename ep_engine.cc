@@ -1818,6 +1818,13 @@ void EventuallyPersistentEngine::startEngineThreads(void)
     startedEngineThreads = true;
 }
 
+/**
+ * Dispatcher callback responsible for bulk backfilling tap queues
+ * from a KVStore.
+ *
+ * Note that this is only used if the KVStore reports that it has
+ * efficient vbucket ops.
+ */
 class BackfillDiskLoad : public DispatcherCallback, public Callback<GetValue> {
 public:
 

@@ -111,7 +111,7 @@ public:
      *
      * @param type the type of DB to set up
      * @param stats the server stats
-     * @param params type-specific parameters
+     * @param conf type-specific parameters
      */
     static KVStore *create(db_type type,
                            EPStats &stats,
