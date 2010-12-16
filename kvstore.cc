@@ -39,6 +39,14 @@ KVStore *KVStore::create(db_type type, EPStats &stats,
                                                              conf.numVBuckets,
                                                              conf.shards);
         break;
+    case multi_mt_vb_db:
+        sqliteInstance = new ShardedByVBucketSqliteStrategy(conf.location,
+                                                            conf.shardPattern,
+                                                            conf.initFile,
+                                                            conf.postInitFile,
+                                                            conf.numVBuckets,
+                                                            conf.shards);
+        break;
     }
     return new StrategicSqlite3(stats,
                                 shared_ptr<SqliteStrategy>(sqliteInstance));
@@ -48,6 +56,7 @@ static const char* MULTI_DB_NAME("multiDB");
 static const char* SINGLE_DB_NAME("singleDB");
 static const char* SINGLE_MT_DB_NAME("singleMTDB");
 static const char* MULTI_MT_DB_NAME("multiMTDB");
+static const char* MULTI_MT_VB_DB_NAME("multiMTVBDB");
 
 const char* KVStore::typeToString(db_type type) {
     char *rv(NULL);
@@ -63,6 +72,9 @@ const char* KVStore::typeToString(db_type type) {
         break;
     case multi_mt_db:
         return MULTI_MT_DB_NAME;
+        break;
+    case multi_mt_vb_db:
+        return MULTI_MT_VB_DB_NAME;
         break;
     }
     assert(rv);
@@ -80,6 +92,8 @@ bool KVStore::stringToType(const char *name,
         typeOut = single_mt_db;
     } else if(strcmp(name, MULTI_MT_DB_NAME) == 0) {
         typeOut = multi_mt_db;
+    } else if(strcmp(name, MULTI_MT_VB_DB_NAME) == 0) {
+        typeOut = multi_mt_vb_db;
     } else {
         rv = false;
     }

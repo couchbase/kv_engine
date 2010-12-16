@@ -360,4 +360,57 @@ private:
     DISALLOW_COPY_AND_ASSIGN(ShardedMultiTableSqliteStrategy);
 };
 
+//
+// ----------------------------------------------------------------------
+// Sharded by VBucket
+// ----------------------------------------------------------------------
+//
+
+/**
+ * Strategy for a table per vbucket where each vbucket exists in only
+ * one shard.
+ */
+class ShardedByVBucketSqliteStrategy : public MultiTableSqliteStrategy {
+public:
+
+    /**
+     * Constructor.
+     *
+     * @param fn the filename of the DB
+     * @param finit an init script to run as soon as the DB opens
+     * @param pfinit an init script to run after initializing all schema
+     */
+    ShardedByVBucketSqliteStrategy(const char * const fn,
+                                   const char * const sp,
+                                   const char * const finit,
+                                   const char * const pfinit,
+                                   int nv,
+                                   int n)
+        : MultiTableSqliteStrategy(fn, finit, pfinit, nv, n),
+          shardpattern(sp) {
+
+        assert(filename);
+    }
+
+    virtual ~ShardedByVBucketSqliteStrategy() { }
+
+    void destroyTables();
+
+protected:
+    const char * const shardpattern;
+
+    size_t getShardForVBucket(uint16_t vb) {
+        size_t rv = (static_cast<size_t>(vb) % shardCount);
+        assert(rv < shardCount);
+        return rv;
+    }
+
+    void initDB();
+    void initTables();
+    void initStatements();
+
+private:
+    DISALLOW_COPY_AND_ASSIGN(ShardedByVBucketSqliteStrategy);
+};
+
 #endif /* SQLITE_STRATEGIES_H */

@@ -363,3 +363,62 @@ void ShardedMultiTableSqliteStrategy::initStatements() {
         }
     }
 }
+
+//
+// ----------------------------------------------------------------------
+// Sharded by VBucket
+// ----------------------------------------------------------------------
+//
+
+void ShardedByVBucketSqliteStrategy::destroyTables() {
+    char buf[1024];
+    for (size_t j = 0; j < nvbuckets; ++j) {
+        snprintf(buf, sizeof(buf), "drop table if exists kv_%d.kv_%d",
+                 static_cast<int>(getShardForVBucket(static_cast<uint16_t>(j))),
+                 static_cast<int>(j));
+        execute(buf);
+    }
+}
+
+void ShardedByVBucketSqliteStrategy::initDB() {
+    char buf[1024];
+    PathExpander p(filename);
+
+    for (size_t i = 0; i < shardCount; ++i) {
+        std::string shardname(p.expand(shardpattern, static_cast<int>(i)));
+        snprintf(buf, sizeof(buf), "attach database \"%s\" as kv_%d",
+                 shardname.c_str(), static_cast<int>(i));
+        execute(buf);
+    }
+    doFile(initFile);
+}
+
+void ShardedByVBucketSqliteStrategy::initTables() {
+    char buf[1024];
+
+    for (size_t j = 0; j < nvbuckets; ++j) {
+        snprintf(buf, sizeof(buf),
+                 "create table if not exists kv_%d.kv_%d"
+                 " (vbucket integer,"
+                 "  vb_version integer,"
+                 "  k varchar(250),"
+                 "  flags integer,"
+                 "  exptime integer,"
+                 "  cas integer,"
+                 "  v text)",
+                 static_cast<int>(getShardForVBucket(static_cast<uint16_t>(j))),
+                 static_cast<int>(j));
+        execute(buf);
+    }
+}
+
+void ShardedByVBucketSqliteStrategy::initStatements() {
+    char buf[64];
+    statements.resize(nvbuckets);
+    for (size_t j = 0; j < nvbuckets; ++j) {
+        snprintf(buf, sizeof(buf), "kv_%d.kv_%d",
+                 static_cast<int>(getShardForVBucket(static_cast<uint16_t>(j))),
+                 static_cast<int>(j));
+        statements[j] = new Statements(db, std::string(buf));
+    }
+}
