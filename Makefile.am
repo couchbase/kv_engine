@@ -225,7 +225,7 @@ ${PYTHON_TOOLS}: wrapper/wrapper
 BUILT_SOURCES += ${PYTHON_TOOLS}
 CLEANFILES+= ${PYTHON_TOOLS}
 
-TEST_TIMEOUT=30
+TEST_TIMEOUT=60
 
 engine_tests: all
 	$(ENGINE_TESTAPP) -E .libs/ep.so -t $(TEST_TIMEOUT) \

@@ -247,10 +247,11 @@ public:
      */
     MultiTableSqliteStrategy(const char * const fn,
                              const char * const finit = NULL,
-                             const char * const pfinit = NULL)
-        : SqliteStrategy(fn, finit, pfinit, 1),
-          nvbuckets(1024),
-          statements() {
+                             const char * const pfinit = NULL,
+                             int nv = 1024,
+                             int shards = 1)
+        : SqliteStrategy(fn, finit, pfinit, shards),
+          nvbuckets(nv), statements() {
 
         assert(filename);
     }
@@ -261,20 +262,20 @@ public:
         return statements;
     }
 
-    Statements *getStatements(uint16_t vbid, uint16_t vbver,
-                              const std::string &key) {
+    virtual Statements *getStatements(uint16_t vbid, uint16_t vbver,
+                                      const std::string &key) {
         (void)vbver;
         (void)key;
         assert(static_cast<size_t>(vbid) < statements.size());
         return statements.at(vbid);
     }
 
-    void destroyStatements();
+    virtual void destroyStatements();
     virtual void destroyTables();
 
     bool hasEfficientVBLoad() { return true; }
 
-    std::vector<PreparedStatement*> getVBLoader(uint16_t vb) {
+    virtual std::vector<PreparedStatement*> getVBLoader(uint16_t vb) {
         std::vector<PreparedStatement*> rv;
         assert(static_cast<size_t>(vb) < statements.size());
         rv.push_back(statements.at(vb)->all());
@@ -282,8 +283,8 @@ public:
     }
 
     void closeVBLoader(std::vector<PreparedStatement*> &psts) {
-        assert(psts.size() == 1);
-        psts[0]->reset();
+        std::for_each(psts.begin(), psts.end(),
+                      std::mem_fun(&PreparedStatement::reset));
     }
 
     void optimizeWrites(std::vector<QueuedItem> &items) {
@@ -304,5 +305,59 @@ private:
     DISALLOW_COPY_AND_ASSIGN(MultiTableSqliteStrategy);
 };
 
+//
+// ----------------------------------------------------------------------
+// Multiple Shards, Table Per Vbucket
+// ----------------------------------------------------------------------
+//
+
+/**
+ * Strategy for a table per vbucket store in multiple shards.
+ */
+class ShardedMultiTableSqliteStrategy : public MultiTableSqliteStrategy {
+public:
+
+    /**
+     * Constructor.
+     *
+     * @param fn the filename of the DB
+     * @param finit an init script to run as soon as the DB opens
+     * @param pfinit an init script to run after initializing all schema
+     */
+    ShardedMultiTableSqliteStrategy(const char * const fn,
+                                    const char * const sp,
+                                    const char * const finit = NULL,
+                                    const char * const pfinit = NULL,
+                                    int nv = 1024,
+                                    int n=4)
+        : MultiTableSqliteStrategy(fn, finit, pfinit, nv, n),
+          shardpattern(sp),
+          statementsPerShard() {
+
+        assert(filename);
+    }
+
+    virtual ~ShardedMultiTableSqliteStrategy() { }
+
+    Statements *getStatements(uint16_t vbid, uint16_t vbver,
+                              const std::string &key);
+
+    void destroyStatements();
+    void destroyTables();
+
+    std::vector<PreparedStatement*> getVBLoader(uint16_t vb);
+
+protected:
+    const char * const        shardpattern;
+    // statementsPerShard[vbucket][shard]
+    std::vector<std::vector<Statements*> > statementsPerShard;
+
+    void initDB();
+    void initTables();
+    void initStatements();
+
+private:
+    DISALLOW_COPY_AND_ASSIGN(ShardedMultiTableSqliteStrategy);
+};
 
 #endif /* SQLITE_STRATEGIES_H */

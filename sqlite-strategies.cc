@@ -272,3 +272,94 @@ void MultiTableSqliteStrategy::destroyStatements() {
         statements.pop_back();
     }
 }
+
+//
+// ----------------------------------------------------------------------
+// Multiple Shards, Table Per Vbucket
+// ----------------------------------------------------------------------
+//
+
+Statements *ShardedMultiTableSqliteStrategy::getStatements(uint16_t vbid, uint16_t vbver,
+                                                           const std::string &key) {
+    (void)vbver;
+    size_t shard(getDbShardIdForKey(key));
+    assert(static_cast<size_t>(shard) < statementsPerShard.size());
+    assert(static_cast<size_t>(vbid) < statementsPerShard[shard].size());
+    return statementsPerShard[shard][vbid];
+}
+
+
+void ShardedMultiTableSqliteStrategy::destroyStatements() {
+    MultiTableSqliteStrategy::destroyStatements();
+    statementsPerShard.clear();
+}
+
+void ShardedMultiTableSqliteStrategy::destroyTables() {
+    char buf[1024];
+    for (size_t i = 0; i < shardCount; ++i) {
+        for (size_t j = 0; j < nvbuckets; ++j) {
+            snprintf(buf, sizeof(buf), "drop table if exists kv_%d.kv_%d",
+                     static_cast<int>(i), static_cast<int>(j));
+            execute(buf);
+        }
+    }
+}
+
+std::vector<PreparedStatement*> ShardedMultiTableSqliteStrategy::getVBLoader(uint16_t vb) {
+    std::vector<PreparedStatement*> rv;
+    assert(static_cast<size_t>(vb) < statementsPerShard.size());
+    for (size_t i = 0; i < shardCount; ++i) {
+        std::vector<Statements*> st = statementsPerShard[i];
+        assert(static_cast<size_t>(vb) < st.size());
+        rv.push_back(st.at(vb)->all());
+    }
+    return rv;
+}
+
+void ShardedMultiTableSqliteStrategy::initDB() {
+    char buf[1024];
+    PathExpander p(filename);
+
+    for (size_t i = 0; i < shardCount; ++i) {
+        std::string shardname(p.expand(shardpattern, static_cast<int>(i)));
+        snprintf(buf, sizeof(buf), "attach database \"%s\" as kv_%d",
+                 shardname.c_str(), static_cast<int>(i));
+        execute(buf);
+    }
+    doFile(initFile);
+}
+
+void ShardedMultiTableSqliteStrategy::initTables() {
+    char buf[1024];
+
+    for (size_t i = 0; i < shardCount; ++i) {
+        for (size_t j = 0; j < nvbuckets; ++j) {
+            snprintf(buf, sizeof(buf),
+                     "create table if not exists kv_%d.kv_%d"
+                     " (vbucket integer,"
+                     "  vb_version integer,"
+                     "  k varchar(250),"
+                     "  flags integer,"
+                     "  exptime integer,"
+                     "  cas integer,"
+                     "  v text)",
+                     static_cast<int>(i), static_cast<int>(j));
+            execute(buf);
+        }
+    }
+}
+
+void ShardedMultiTableSqliteStrategy::initStatements() {
+    char buf[64];
+    statementsPerShard.resize(shardCount);
+    for (size_t i = 0; i < shardCount; ++i) {
+        statementsPerShard[i].resize(nvbuckets);
+        for (size_t j = 0; j < nvbuckets; ++j) {
+            snprintf(buf, sizeof(buf), "kv_%d.kv_%d",
+                     static_cast<int>(i), static_cast<int>(j));
+            Statements *s = new Statements(db, std::string(buf));
+            statements.push_back(s);
+            statementsPerShard[i][j] = s;
+        }
+    }
+}
