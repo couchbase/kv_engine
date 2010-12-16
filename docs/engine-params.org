@@ -59,6 +59,7 @@ memcached like this:
 |                    |        | objects from memory and disk                   |
 | failpartialwarmup  | bool   | If false, continue running after failing to    |
 |                    |        | load some records.                             |
+| max_vbuckets       | int    | Maximum number of vbuckets expected (1024).    |
 | db_shards          | int    | Number of shards for db store                  |
 | db_strategy        | string | DB store strategy ("multiDB", "singleDB"       |
 |                    |        | or "singleMTDB")                               |

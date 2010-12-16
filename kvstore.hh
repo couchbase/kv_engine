@@ -85,9 +85,10 @@ public:
                   const char *sp,
                   const char *i,
                   const char *p,
+                  size_t nv,
                   size_t sh) : location(l), shardPattern(sp),
                                initFile(i), postInitFile(p),
-                               numVBuckets(1024),
+                               numVBuckets(nv),
                                shards(sh) {}
 
     const char   *location;
