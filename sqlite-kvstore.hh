@@ -137,6 +137,10 @@ public:
         return strategy->getDbShardIdForKey(k);
     }
 
+    void optimizeWrites(std::vector<QueuedItem> &items) {
+        strategy->optimizeWrites(items);
+    }
+
 private:
     /**
      * Shortcut to execute a simple query.

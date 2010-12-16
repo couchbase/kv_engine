@@ -4,8 +4,10 @@
 
 #include <cstdlib>
 #include <vector>
+#include <algorithm>
 
 #include "common.hh"
+#include "queueditem.hh"
 #include "sqlite-pst.hh"
 
 class EventuallyPersistentEngine;
@@ -80,6 +82,10 @@ public:
     }
 
     virtual void destroyTables() = 0;
+
+    virtual void optimizeWrites(std::vector<QueuedItem> &items) {
+        (void)items;
+    }
 
     void execute(const char * const query);
 
@@ -161,6 +167,12 @@ public:
 
     void destroyStatements();
     virtual void destroyTables();
+
+    void optimizeWrites(std::vector<QueuedItem> &items) {
+        // Sort all the queued items for each db shard by their row ids
+        CompareQueuedItemsByRowId cq;
+        std::sort(items.begin(), items.end(), cq);
+    }
 
 protected:
     std::vector<Statements *> statements;
@@ -272,6 +284,13 @@ public:
     void closeVBLoader(std::vector<PreparedStatement*> &psts) {
         assert(psts.size() == 1);
         psts[0]->reset();
+    }
+
+    void optimizeWrites(std::vector<QueuedItem> &items) {
+        // Sort all the queued items for each db shard by its vbucket
+        // ID and then its row ids
+        CompareQueuedItemsByVBAndRowId cq;
+        std::sort(items.begin(), items.end(), cq);
     }
 
 protected:

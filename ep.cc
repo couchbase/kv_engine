@@ -1098,9 +1098,7 @@ std::queue<QueuedItem>* EventuallyPersistentStore::beginFlush() {
         bool shouldCommit(false);
         for (size_t i = 0; i < numbOfWriteQueues; ++i) {
             towrite[i].toArray(item_list);
-            // Sort all the queued items for each db shard by their row ids
-            CompareQueuedItemsByRowId cq;
-            std::sort(item_list.begin(), item_list.end(), cq);
+            rwUnderlying->optimizeWrites(item_list);
             std::vector<QueuedItem>::iterator it = item_list.begin();
             size_t moved(0);
             for (; it != item_list.end(); ++it) {

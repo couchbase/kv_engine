@@ -10,6 +10,7 @@
 
 #include "stats.hh"
 #include "item.hh"
+#include "queueditem.hh"
 
 /**
  * Result of database mutation operations.
@@ -219,6 +220,12 @@ public:
      * get the shard ID for the given key.
      */
     virtual size_t getShardIdForKey(const std::string &k) = 0;
+
+    /**
+     * Before persisting a batch of data, do stuf to them that might
+     * improve performance at the IO layer.
+     */
+    virtual void optimizeWrites(std::vector<QueuedItem> &items) = 0;
 
 };
 
