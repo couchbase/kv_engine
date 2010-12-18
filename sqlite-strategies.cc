@@ -41,9 +41,9 @@ sqlite3 *SqliteStrategy::open(void) {
             schema_version = CURRENT_SCHEMA_VERSION;
         } else if (schema_version == 1) {
             std::stringstream ss;
-            ss << "Schema version 1 is not supported anymore!!!\n"
-               << "Run the script to upgrade the schema to version 2.\n";
-            getLogger()->log(EXTENSION_LOG_WARNING, NULL, ss.str().c_str());
+            ss << "Schema version 1 is not supported anymore.\n"
+               << "Run the script to upgrade the schema to version "
+               << CURRENT_SCHEMA_VERSION;
             close();
             throw std::runtime_error(ss.str().c_str());
         }
