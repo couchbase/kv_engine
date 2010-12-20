@@ -91,11 +91,12 @@ public:
  */
 class TapBGFetchQueueItem {
 public:
-    TapBGFetchQueueItem(const std::string &k, uint64_t i) :
-        key(k), id(i) {}
+    TapBGFetchQueueItem(const std::string &k, uint64_t i, uint16_t vbid) :
+        key(k), id(i), vbucket(vbid) {}
 
     const std::string key;
     const uint64_t id;
+    const uint16_t vbucket;
 };
 
 /**
@@ -391,8 +392,9 @@ private:
      *
      * @param key the item's key
      * @param id the disk id of the item to fetch
+     * @param vbucket the vbucket id
      */
-    void queueBGFetch(const std::string &key, uint64_t id);
+    void queueBGFetch(const std::string &key, uint64_t id, uint16_t vbucket);
 
     /**
      * Run some background fetch jobs.
@@ -663,6 +665,7 @@ private:
     static rel_time_t ackGracePeriod;
 
     static double backoffSleepTime;
+    static double requeueSleepTime;
 
     /**
      * To ease testing of corner cases we need to be able to seed the

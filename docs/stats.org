@@ -86,6 +86,8 @@ For introductory information on stats within membase, start with the
 |                               | happened while processing operations       |
 | ep_bg_fetched                 | Number of items fetched from disk.         |
 | ep_tap_bg_fetched             | Number of tap disk fetches                 |
+| ep_tap_bg_fetch_requeued      | Number of times a tap bg fetch task is     |
+|                               | requeued.                                  |
 | ep_num_pager_runs             | Number of times we ran pager loops         |
 |                               | to seek additional memory.                 |
 | ep_num_expiry_pager_runs      | Number of times we ran expiry pager loops  |
@@ -141,37 +143,39 @@ For introductory information on stats within membase, start with the
 
 ** Tap stats
 
-| ep_tap_total_queue    | Sum of tap queue sizes on the current      |
-|                       | tap queues                                 |
-| ep_tap_total_fetched  | Sum of all tap messages sent               |
-| ep_tap_bg_max_pending | The maximum number of bg jobs a tap        |
-|                       | connection may have                        |
-| ep_tap_bg_fetched     | Number of tap disk fetches                 |
-| ep_tap_fg_fetched     | Number of tap memory fetches               |
-| ep_tap_deletes        | Number of tap deletion messages sent       |
-| ep_tap_throttled      | Number of tap messages refused due to      |
-|                       | throttling.                                |
-| ep_tap_keepalive      | How long to keep tap connection state      |
-|                       | after client disconnect.                   |
-| ep_tap_count          | Number of tap connections.                 |
-| ep_tap_bg_num_samples | The number of tap bg fetch samples         |
-|                       | included in the avg                        |
-| ep_tap_bg_min_wait    | The shortest time (µs) for a tap item      |
-|                       | before it is serviced by the dispatcher    |
-| ep_tap_bg_max_wait    | The longest time (µs) for a tap item       |
-|                       | before it is serviced by the dispatcher    |
-| ep_tap_bg_wait_avg    | The average wait time (µs) for a tap item  |
-|                       | before it is serviced by the dispatcher    |
-| ep_tap_bg_min_load    | The shortest time (µs) for a tap item to   |
-|                       | be loaded from the persistence layer       |
-| ep_tap_bg_max_load    | The longest time (µs) for a tap item to    |
-|                       | be loaded from the persistence layer       |
-| ep_tap_bg_load_avg    | The average time (µs) for a tap item to    |
-|                       | be loaded from the persistence layer       |
-| ep_tap_noop_interval  | The number of secs between a noop is added |
-|                       | to an idle connection                      |
-| ep_tap_backoff_period | The number of seconds the tap connection   |
-|                       | should back off after receiving ETMPFAIL   |
+| ep_tap_total_queue        | Sum of tap queue sizes on the current      |
+|                           | tap queues                                 |
+| ep_tap_total_fetched      | Sum of all tap messages sent               |
+| ep_tap_bg_max_pending     | The maximum number of bg jobs a tap        |
+|                           | connection may have                        |
+| ep_tap_bg_fetched         | Number of tap disk fetches                 |
+| ep_tap_bg_fetch_requeued  | Number of times a tap bg fetch task is     |
+|                           | requeued.                                  |
+| ep_tap_fg_fetched         | Number of tap memory fetches               |
+| ep_tap_deletes            | Number of tap deletion messages sent       |
+| ep_tap_throttled          | Number of tap messages refused due to      |
+|                           | throttling.                                |
+| ep_tap_keepalive          | How long to keep tap connection state      |
+|                           | after client disconnect.                   |
+| ep_tap_count              | Number of tap connections.                 |
+| ep_tap_bg_num_samples     | The number of tap bg fetch samples         |
+|                           | included in the avg                        |
+| ep_tap_bg_min_wait        | The shortest time (µs) for a tap item      |
+|                           | before it is serviced by the dispatcher    |
+| ep_tap_bg_max_wait        | The longest time (µs) for a tap item       |
+|                           | before it is serviced by the dispatcher    |
+| ep_tap_bg_wait_avg        | The average wait time (µs) for a tap item  |
+|                           | before it is serviced by the dispatcher    |
+| ep_tap_bg_min_load        | The shortest time (µs) for a tap item to   |
+|                           | be loaded from the persistence layer       |
+| ep_tap_bg_max_load        | The longest time (µs) for a tap item to    |
+|                           | be loaded from the persistence layer       |
+| ep_tap_bg_load_avg        | The average time (µs) for a tap item to    |
+|                           | be loaded from the persistence layer       |
+| ep_tap_noop_interval      | The number of secs between a noop is added |
+|                           | to an idle connection                      |
+| ep_tap_backoff_period     | The number of seconds the tap connection   |
+|                           | should back off after receiving ETMPFAIL   |
 
 *** Per Tap Client Stats
 

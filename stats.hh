@@ -187,6 +187,8 @@ public:
     Atomic<size_t> numTapFetched;
     //! Number of background fetched tap items
     Atomic<size_t> numTapBGFetched;
+    //! Number of times a tap background fetch task is requeued
+    Atomic<size_t> numTapBGFetchRequeued;
     //! Number of foreground fetched tap items
     Atomic<size_t> numTapFGFetched;
     //! Number of tap deletes.

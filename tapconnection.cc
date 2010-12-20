@@ -25,6 +25,7 @@ uint32_t TapConnection::ackInterval = 1000;
 rel_time_t TapConnection::ackGracePeriod = 5 * 60;
 double TapConnection::backoffSleepTime = 1.0;
 uint32_t TapConnection::initialAckSequenceNumber = 0;
+double TapConnection::requeueSleepTime = 0.1;
 
 TapConnection::TapConnection(EventuallyPersistentEngine &theEngine,
                              const void *c,
@@ -406,8 +407,8 @@ class TapBGFetchCallback : public DispatcherCallback {
 public:
     TapBGFetchCallback(EventuallyPersistentEngine *e, const std::string &n,
                        const std::string &k,
-                       uint64_t r, const void *c) :
-        epe(e), name(n), key(k), rowid(r), cookie(c),
+                       uint64_t r, uint16_t vbid, const void *c) :
+        epe(e), name(n), key(k), rowid(r), vbucket(vbid), cookie(c),
         init(gethrtime()), start(0), counter(e->getEpStore()->bgFetchQueue) {
         assert(epe);
         assert(cookie);
@@ -419,6 +420,7 @@ public:
         start = gethrtime();
         RememberingCallback<GetValue> gcb;
 
+        EPStats &stats = epe->getEpStats();
         EventuallyPersistentStore *epstore = epe->getEpStore();
         assert(epstore);
 
@@ -433,13 +435,24 @@ public:
                 delete gcb.val.getValue();
             }
             epe->notifyIOComplete(cookie, ENGINE_SUCCESS);
+        } else { // If a tap bg fetch job is failed, schedule it again.
+            RCPtr<VBucket> vb = epstore->getVBucket(vbucket);
+            if (vb) {
+                int bucket_num(0);
+                LockHolder lh = vb->ht.getLockedBucket(key, &bucket_num);
+                StoredValue *v = epstore->fetchValidValue(vb, key, bucket_num);
+                if (v) {
+                    d.snooze(t, TapConnection::requeueSleepTime);
+                    ++stats.numTapBGFetchRequeued;
+                    return true;
+                }
+            }
         }
 
         CompletedBGFetchTapOperation tapop;
         epe->tapConnMap.performTapOp(name, tapop, epe);
 
         hrtime_t stop = gethrtime();
-        EPStats &stats = epe->getEpStats();
 
         if (stop > start && start > init) {
             // skip the measurement if the counter wrapped...
@@ -471,6 +484,7 @@ private:
     const std::string           name;
     std::string                 key;
     uint64_t                    rowid;
+    uint16_t                    vbucket;
     const void                 *cookie;
 
     hrtime_t init;
@@ -479,9 +493,9 @@ private:
     BGFetchCounter counter;
 };
 
-void TapConnection::queueBGFetch(const std::string &key, uint64_t id) {
+void TapConnection::queueBGFetch(const std::string &key, uint64_t id, uint16_t vbucket) {
     LockHolder lh(backfillLock);
-    backfillQueue.push(TapBGFetchQueueItem(key, id));
+    backfillQueue.push(TapBGFetchQueueItem(key, id, vbucket));
     ++bgQueued;
     ++bgQueueSize;
     assert(!empty());
@@ -498,7 +512,7 @@ void TapConnection::runBGFetch(Dispatcher *dispatcher, const void *c) {
 
     shared_ptr<TapBGFetchCallback> dcb(new TapBGFetchCallback(&engine, client,
                                                               qi.key, qi.id,
-                                                              c));
+                                                              qi.vbucket, c));
     ++bgJobIssued;
     dispatcher->schedule(dcb, NULL, Priority::TapBgFetcherPriority);
 }

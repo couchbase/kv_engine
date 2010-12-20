@@ -1460,7 +1460,7 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
             }
             ++stats.numTapDeletes;
         } else if (r == ENGINE_EWOULDBLOCK) {
-            connection->queueBGFetch(key, gv.getId());
+            connection->queueBGFetch(key, gv.getId(), qi.getVBucketId());
             // This can optionally collect a few and batch them.
             connection->runBGFetch(epstore->getRODispatcher(), cookie);
             // If there's an item ready, return NOOP so we'll come
@@ -2125,6 +2125,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     add_casted_stat("ep_bg_fetched", epstats.bg_fetched, add_stat,
                     cookie);
     add_casted_stat("ep_tap_bg_fetched", stats.numTapBGFetched, add_stat, cookie);
+    add_casted_stat("ep_tap_bg_fetch_requeued", stats.numTapBGFetchRequeued,
+                    add_stat, cookie);
     add_casted_stat("ep_num_pager_runs", epstats.pagerRuns, add_stat,
                     cookie);
     add_casted_stat("ep_num_expiry_pager_runs", epstats.expiryPagerRuns, add_stat,
@@ -2391,6 +2393,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTapStats(const void *cookie,
     add_casted_stat("ep_tap_total_fetched", stats.numTapFetched, add_stat, cookie);
     add_casted_stat("ep_tap_bg_max_pending", TapConnection::bgMaxPending, add_stat, cookie);
     add_casted_stat("ep_tap_bg_fetched", stats.numTapBGFetched, add_stat, cookie);
+    add_casted_stat("ep_tap_bg_fetch_requeued", stats.numTapBGFetchRequeued,
+                    add_stat, cookie);
     add_casted_stat("ep_tap_fg_fetched", stats.numTapFGFetched, add_stat, cookie);
     add_casted_stat("ep_tap_deletes", stats.numTapDeletes, add_stat, cookie);
     add_casted_stat("ep_tap_throttled", stats.tapThrottled, add_stat, cookie);
