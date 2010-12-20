@@ -61,6 +61,17 @@ def worker(queue, opts):
         thread.interrupt_main()
 
 
+def db_file_versions(db_filenames):
+    rv = {}
+    for fn in db_filenames:
+        db = sqlite3.connect(fn)
+        cur = db.cursor()
+        cur.execute("pragma user_version")
+        rv[fn] = int(cur.fetchall()[0][0])
+        db.close()
+    return rv
+
+
 def main():
     usage = "%prog [opts] db_files (use -h for detailed help)"
     epilog = "Restore keys from the sqlite backing store files from a single node."
@@ -81,6 +92,11 @@ def main():
     if len(db_filenames) == 0:
         parser.print_usage()
         sys.exit("No filenames provided")
+
+    versions = db_file_versions(db_filenames)
+    if max(versions.values()) < 2:
+        sys.exit("The backup files need to be upgraded to version 2.\n"
+                 "Either use dbupgrade or contact support.")
 
     attached_dbs = ["db{0}".format(i) for i in xrange(len(db_filenames))]
     # Open the first given filename as the main database
