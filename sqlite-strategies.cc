@@ -14,7 +14,7 @@ static const int CURRENT_SCHEMA_VERSION(2);
 sqlite3 *SqliteStrategy::open(void) {
     if(!db) {
         int flags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE
-            | SQLITE_OPEN_PRIVATECACHE;
+            | SQLITE_OPEN_SHAREDCACHE;
 
         if(sqlite3_open_v2(filename, &db, flags, NULL) !=  SQLITE_OK) {
             throw std::runtime_error("Error initializing sqlite3");
