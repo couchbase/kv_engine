@@ -82,9 +82,9 @@ def main():
                       help="Hostname of moxi server to connect to")
     parser.add_option("-p", "--port", type="int", default=DEFAULT_PORT,
                       help="Port of moxi server to connect to")
-    parser.add_option("-u", "--username", help="Username to authenticate with")
+    parser.add_option("-u", "--username", help="Bucket username (usually the bucket name) to authenticate to moxi with")
     parser.add_option("-P", "--password", default="",
-                      help="Password to authenticate with")
+                      help="Bucket password to authenticate to moxi with")
     parser.add_option("-t", "--threads", type="int", default=DEFAULT_THREADS,
                       help="Number of worker threads")
     opts, db_filenames = parser.parse_args()
