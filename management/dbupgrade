@@ -7,6 +7,16 @@ import subprocess
 
 TARGET_VERSION=2
 
+# Backported any to older versions of python
+try:
+    any
+except NameError:
+    def any(a):
+        for i in a:
+            if i:
+                return True
+        return False
+
 def run_sql(sqlite, fn, sql, more_args=[]):
     args = ['-batch', '-bail']
     cmd = [sqlite] + args + more_args + [fn]
