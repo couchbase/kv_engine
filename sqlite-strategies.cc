@@ -36,12 +36,9 @@ sqlite3 *SqliteStrategy::open(void) {
         doFile(postInitFile);
         shardCount = statements.size();
         assert(shardCount > 0);
-        if (schema_version == 0) {
-            execute("PRAGMA user_version=2");
-            schema_version = CURRENT_SCHEMA_VERSION;
-        } else if (schema_version == 1) {
+        if (schema_version < CURRENT_SCHEMA_VERSION) {
             std::stringstream ss;
-            ss << "Schema version 1 is not supported anymore.\n"
+            ss << "Schema version " << schema_version << " is not supported anymore.\n"
                << "Run the script to upgrade the schema to version "
                << CURRENT_SCHEMA_VERSION;
             close();
@@ -79,7 +76,9 @@ void SqliteStrategy::destroyMetaStatements(void) {
 void SqliteStrategy::initMetaTables() {
     assert(db);
     PreparedStatement st(db, "select name from sqlite_master where name='vbucket_states'");
-    if (schema_version == 0 && st.fetch()) {
+    st.fetch();
+    const char *name = static_cast<const char *>(st.column_blob(0));
+    if (schema_version == 0 && name != NULL) {
         execute("alter table vbucket_states add column"
                 " vb_version integer default 0");
     } else {
@@ -88,6 +87,12 @@ void SqliteStrategy::initMetaTables() {
                 "  vb_version interger,"
                 "  state varchar(16),"
                 "  last_change datetime)");
+        if (schema_version == 0 && name == NULL) {
+            std::stringstream ss;
+            ss << "PRAGMA user_version=" << CURRENT_SCHEMA_VERSION;
+            execute(ss.str().c_str());
+            schema_version = CURRENT_SCHEMA_VERSION;
+        }
     }
 
     execute("create table if not exists stats_snap"
