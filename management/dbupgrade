@@ -50,27 +50,23 @@ def copy_master(sqlite, src, dest):
 class FieldMap(object):
     """Map fieldnames across versions."""
 
-    def __init__(self, version):
+    def __init__(self, dbpath, version):
+        self.dbpath = dbpath
         self._version = version
 
-    @property
-    def vb_version(self):
-        return {0: '0'}.get(self._version, 'vb_version')
-
-    @property
-    def v(self):
-        if self._version < 2:
+    def __getitem__(self, x):
+        if x == 'vb_version' and self._version == 0:
+            return '0'
+        elif x == 'v' and self._version < 2:
             return "substr(v, 1, length(v) - 2)"
-        else:
-            return 'v'
-
-    def __getattr__(self, x):
+        elif x == 'dbpath':
+            return self.dbpath
         return x
 
 def convert(sqlite, version, src, dest):
     print 'Converting "%s" (v%d) -> "%s" (v%d)' % (src, version,
                                                    dest, TARGET_VERSION)
-    q = """attach database "{dbpath}" as newdb;
+    q = """attach database "%(dbpath)s" as newdb;
 create table if not exists newdb.kv
   (vbucket integer,
    vb_version integer,
@@ -80,9 +76,9 @@ create table if not exists newdb.kv
    cas integer,
    v text);
 insert into newdb.kv (vbucket, vb_version, k, flags, exptime, cas, v)
-   select {f.vbucket}, {f.vb_version}, {f.k}, {f.flags},
-          {f.exptime}, {f.cas}, {f.v} from kv;"""
-    run_sql(sqlite, src, q.format(dbpath=dest, f=FieldMap(version)))
+   select %(vbucket)s, %(vb_version)s, %(k)s, %(flags)s,
+          %(exptime)s, %(cas)s, %(v)s from kv;"""
+    run_sql(sqlite, src, q % FieldMap(dest, version))
 
 def usage(command, msg):
     e = """Error:  %s
