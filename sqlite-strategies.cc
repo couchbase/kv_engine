@@ -76,24 +76,18 @@ void SqliteStrategy::destroyMetaStatements(void) {
 void SqliteStrategy::initMetaTables() {
     assert(db);
     PreparedStatement st(db, "select name from sqlite_master where name='vbucket_states'");
-    st.fetch();
-    const char *name = static_cast<const char *>(st.column_blob(0));
-    if (schema_version == 0 && name != NULL) {
-        execute("alter table vbucket_states add column"
-                " vb_version integer default 0");
-    } else {
-        execute("create table if not exists vbucket_states"
-                " (vbid integer primary key on conflict replace,"
-                "  vb_version interger,"
-                "  state varchar(16),"
-                "  last_change datetime)");
-        if (schema_version == 0 && name == NULL) {
-            std::stringstream ss;
-            ss << "PRAGMA user_version=" << CURRENT_SCHEMA_VERSION;
-            execute(ss.str().c_str());
-            schema_version = CURRENT_SCHEMA_VERSION;
-        }
+    if (schema_version == 0 && !st.fetch()) {
+        std::stringstream ss;
+        ss << "PRAGMA user_version=" << CURRENT_SCHEMA_VERSION;
+        execute(ss.str().c_str());
+        schema_version = CURRENT_SCHEMA_VERSION;
     }
+
+    execute("create table if not exists vbucket_states"
+            " (vbid integer primary key on conflict replace,"
+            "  vb_version interger,"
+            "  state varchar(16),"
+            "  last_change datetime)");
 
     execute("create table if not exists stats_snap"
             " (name varchar(16),"
@@ -103,20 +97,14 @@ void SqliteStrategy::initMetaTables() {
 
 void SqliteStrategy::initTables(void) {
     assert(db);
-    PreparedStatement st(db, "select name from sqlite_master where name='kv'");
-    if (schema_version == 0 && st.fetch()) {
-        execute("alter table kv add column"
-                " vb_version integer default 0");
-    } else {
-        execute("create table if not exists kv"
-                " (vbucket integer,"
-                "  vb_version integer,"
-                "  k varchar(250), "
-                "  flags integer,"
-                "  exptime integer,"
-                "  cas integer,"
-                "  v text)");
-    }
+    execute("create table if not exists kv"
+            " (vbucket integer,"
+            "  vb_version integer,"
+            "  k varchar(250), "
+            "  flags integer,"
+            "  exptime integer,"
+            "  cas integer,"
+            "  v text)");
 }
 
 void SqliteStrategy::initMetaStatements(void) {
@@ -187,25 +175,16 @@ void MultiDBSqliteStrategy::initTables() {
     PathExpander p(filename);
 
     for (int i = 0; i < numTables; i++) {
-        snprintf(buf, sizeof(buf), "select name from kv_%d.sqlite_master where name='kv'", i);
-        PreparedStatement st(db, buf);
-        if (schema_version == 0 && st.fetch()) {
-            snprintf(buf, sizeof(buf),
-                     "alter table kv_%d.kv add column"
-                     " vb_version integer default 0", i);
-            execute(buf);
-        } else {
-            snprintf(buf, sizeof(buf),
-                     "create table if not exists kv_%d.kv"
-                     " (vbucket integer,"
-                     "  vb_version integer,"
-                     "  k varchar(250),"
-                     "  flags integer,"
-                     "  exptime integer,"
-                     "  cas integer,"
-                     "  v text)", i);
-            execute(buf);
-        }
+        snprintf(buf, sizeof(buf),
+                 "create table if not exists kv_%d.kv"
+                 " (vbucket integer,"
+                 "  vb_version integer,"
+                 "  k varchar(250),"
+                 "  flags integer,"
+                 "  exptime integer,"
+                 "  cas integer,"
+                 "  v text)", i);
+        execute(buf);
     }
 }
 
