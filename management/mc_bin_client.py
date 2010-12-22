@@ -132,9 +132,9 @@ class MemcachedClient(object):
         return self._mutate(memcacheConstants.CMD_REPLACE, key, exp, flags, 0,
             val)
 
-    def __parseGet(self, data):
+    def __parseGet(self, data, klen=0):
         flags=struct.unpack(memcacheConstants.GET_RES_FMT, data[-1][:4])[0]
-        return flags, data[1], data[-1][4:]
+        return flags, data[1], data[-1][4 + klen:]
 
     def get(self, key):
         """Get the value for a given key within the memcached server."""
@@ -144,7 +144,7 @@ class MemcachedClient(object):
     def getl(self, key):
         """Get the value for a given key within the memcached server."""
         parts=self._doCmd(memcacheConstants.CMD_GET_LOCKED, key, '')
-        return self.__parseGet(parts)
+        return self.__parseGet(parts, len(key))
 
     def cas(self, key, exp, flags, oldVal, val):
         """CAS in a new value for the given key and comparison value."""
