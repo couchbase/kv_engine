@@ -413,6 +413,7 @@ static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
           "Lock failed");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
           "Expected to be able to getl on first try");
+    check(strcmp("lockdata", last_body) == 0, "Body was malformed.");
 
     /* lock's taken so this should fail */
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,

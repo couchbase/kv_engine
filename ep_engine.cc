@@ -610,7 +610,7 @@ extern "C" {
                     item->getNKey(),
                     (const void *)&flags, sizeof(uint32_t),
                     static_cast<const void *>(item->getData()),
-                    item->getNBytes() - 2,
+                    item->getNBytes(),
                     PROTOCOL_BINARY_RAW_BYTES,
                     static_cast<uint16_t>(res), item->getCas(),
                     cookie);
