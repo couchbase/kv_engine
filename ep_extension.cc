@@ -198,7 +198,7 @@ bool GetlExtension::executeGetl(int argc, token_t *argv, void *response_cookie,
                                strVal.c_str())
             && response_handler(response_cookie, item->getNBytes(),
                                 item->getData())
-            && response_handler(response_cookie, 5, "END\r\n");
+            && response_handler(response_cookie, 7, "\r\nEND\r\n");
 
     } else if (!gotLock || rv == ENGINE_EWOULDBLOCK) {
         ret = response_handler(response_cookie,
