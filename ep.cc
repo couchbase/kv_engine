@@ -1067,7 +1067,7 @@ void EventuallyPersistentStore::reset() {
     std::vector<int> buckets = vbuckets.getBuckets();
     std::vector<int>::iterator it;
     for (it = buckets.begin(); it != buckets.end(); ++it) {
-        RCPtr<VBucket> vb = getVBucket(*it, vbucket_state_active);
+        RCPtr<VBucket> vb = getVBucket(*it);
         if (vb) {
             HashTableStatVisitor statvis = vb->ht.clear();
             stats.currentSize.decr(statvis.memSize);
