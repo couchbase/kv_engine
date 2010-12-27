@@ -97,6 +97,7 @@ protected:
         doFile(initFile);
     }
 
+    void checkSchemaVersion();
     void initMetaTables();
 
     virtual void initTables() = 0;

@@ -42,14 +42,6 @@ void SqliteStrategy::destroyMetaStatements() {
 
 void SqliteStrategy::initMetaTables() {
     assert(db);
-    PreparedStatement st(db, "select name from sqlite_master where name='vbucket_states'");
-    if (schema_version == 0 && !st.fetch()) {
-        std::stringstream ss;
-        ss << "PRAGMA user_version=" << CURRENT_SCHEMA_VERSION;
-        execute(ss.str().c_str());
-        schema_version = CURRENT_SCHEMA_VERSION;
-    }
-
     execute("create table if not exists vbucket_states"
             " (vbid integer primary key on conflict replace,"
             "  vb_version interger,"
@@ -81,6 +73,30 @@ void SqliteStrategy::initMetaStatements(void) {
     ins_stat_stmt = new PreparedStatement(db, ins_stat_query);
 }
 
+void SqliteStrategy::checkSchemaVersion(void) {
+    assert(db);
+    PreparedStatement uv_get(db, "PRAGMA user_version");
+    uv_get.fetch();
+    schema_version = uv_get.column_int(0);
+
+    PreparedStatement st(db, "select name from sqlite_master where name='vbucket_states'");
+    if (schema_version == 0 && !st.fetch()) {
+        std::stringstream ss;
+        ss << "PRAGMA user_version=" << CURRENT_SCHEMA_VERSION;
+        execute(ss.str().c_str());
+        schema_version = CURRENT_SCHEMA_VERSION;
+    }
+
+    if (schema_version < CURRENT_SCHEMA_VERSION) {
+        std::stringstream ss;
+        ss << "Schema version " << schema_version << " is not supported anymore.\n"
+           << "Run the script to upgrade the schema to version "
+           << CURRENT_SCHEMA_VERSION;
+        close();
+        throw std::runtime_error(ss.str().c_str());
+    }
+}
+
 sqlite3 *SqliteStrategy::open(void) {
     if(!db) {
         int flags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE
@@ -95,24 +111,13 @@ sqlite3 *SqliteStrategy::open(void) {
         }
 
         initDB();
-
-        PreparedStatement uv_get(db, "PRAGMA user_version");
-        uv_get.fetch();
-        schema_version = uv_get.column_int(0);
+        checkSchemaVersion();
 
         initMetaTables();
         initTables();
         initMetaStatements();
         initStatements();
         doFile(postInitFile);
-        if (schema_version < CURRENT_SCHEMA_VERSION) {
-            std::stringstream ss;
-            ss << "Schema version " << schema_version << " is not supported anymore.\n"
-               << "Run the script to upgrade the schema to version "
-               << CURRENT_SCHEMA_VERSION;
-            close();
-            throw std::runtime_error(ss.str().c_str());
-        }
     }
     return db;
 }
