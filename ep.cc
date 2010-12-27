@@ -1076,7 +1076,19 @@ void EventuallyPersistentStore::reset() {
         }
     }
 
-    queueDirty("", 0, queue_op_flush);
+    std::queue<QueuedItem> items;
+    // Clear all the write queues.
+    for (size_t i = 0; i < numbOfWriteQueues; ++i) {
+        towrite[i].getAll(items);
+        while (!items.empty()) {
+            QueuedItem qi = items.front();
+            stats.memOverhead.decr(qi.size());
+            assert(stats.memOverhead.get() < GIGANTOR);
+            items.pop();
+        }
+    }
+    // row_id -2 will push the reset operation into the front in the persistence queue.
+    queueDirty("", 0, queue_op_flush, -2);
 }
 
 void EventuallyPersistentStore::enqueueCommit() {
@@ -1485,7 +1497,8 @@ void EventuallyPersistentStore::queueDirty(const std::string &key,
     if (doPersistence) {
         QueuedItem item(key, vbid, op, vbuckets.getBucketVersion(vbid), obid);
 
-        uint16_t shard_id = rwUnderlying->getShardIdForKey(item.getKey());
+        uint16_t shard_id = (op == queue_op_flush) ?
+                            0 : rwUnderlying->getShardIdForKey(item.getKey());
         towrite[shard_id].push(item);
         stats.memOverhead.incr(item.size());
         assert(stats.memOverhead.get() < GIGANTOR);
