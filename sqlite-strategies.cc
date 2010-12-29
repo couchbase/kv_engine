@@ -113,8 +113,10 @@ sqlite3 *SqliteStrategy::open(void) {
         initDB();
         checkSchemaVersion();
 
+        execute("begin immediate");
         initMetaTables();
         initTables();
+        execute("commit");
         initMetaStatements();
         initStatements();
         doFile(postInitFile);
