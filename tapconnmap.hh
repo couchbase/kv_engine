@@ -41,7 +41,11 @@ public:
  */
 class BeginDiskBackfillTapOperation : public TapOperation<void*> {
 public:
+    BeginDiskBackfillTapOperation(uint16_t vb) : vbucket(vb) {}
+
     void perform(TapConnection *tc, void* arg);
+private:
+    uint16_t vbucket;
 };
 
 /**

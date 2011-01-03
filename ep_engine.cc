@@ -1474,8 +1474,9 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
             }
             ++stats.numTapDeletes;
         } else if (r == ENGINE_EWOULDBLOCK) {
-            // If we don't have efficient VBdumps, go do a real fetch.
-            if (!epstore->getStorageProperties().hasEfficientVBDump()) {
+            // If efficient VBdump is not supported or not running now, go do a real fetch.
+            if (!(epstore->getStorageProperties().hasEfficientVBDump() &&
+                connection->pendingDiskBackfill && connection->diskBackfillVBucket == *vbucket)) {
                 connection->queueBGFetch(key, gv.getId(), *vbucket,
                                          epstore->getVBucketVersion(*vbucket));
                 // This can optionally collect a few and batch them.
@@ -1846,7 +1847,7 @@ public:
         (void)d;
         (void)t;
 
-        BeginDiskBackfillTapOperation beginOp;
+        BeginDiskBackfillTapOperation beginOp(vbucket);
         if (connMap.performTapOp(name, beginOp, static_cast<void*>(NULL))) {
 
             store->dump(vbucket, *this);

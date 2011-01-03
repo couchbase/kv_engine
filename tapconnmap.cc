@@ -310,7 +310,7 @@ void CompleteDiskBackfillTapOperation::perform(TapConnection *tc, void *arg) {
 
 void BeginDiskBackfillTapOperation::perform(TapConnection *tc, void *arg) {
     (void)arg;
-    tc->beginDiskBackfill();
+    tc->beginDiskBackfill(vbucket);
 }
 
 void ReceivedItemTapOperation::perform(TapConnection *tc, Item *arg) {

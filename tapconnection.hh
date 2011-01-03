@@ -115,7 +115,8 @@ public:
         completeBackfillCommon();
     }
 
-    void beginDiskBackfill() {
+    void beginDiskBackfill(uint16_t vb) {
+        diskBackfillVBucket = vb;
         pendingDiskBackfill = true;
     }
 
@@ -592,6 +593,11 @@ private:
     bool pendingBackfill;
     // True when a disk backfill is running
     bool pendingDiskBackfill;
+
+    /**
+     * VBucket that is currently being backfilled from disk.
+     */
+    uint16_t diskBackfillVBucket;
 
     void setVBucketFilter(const std::vector<uint16_t> &vbuckets);
     /**
