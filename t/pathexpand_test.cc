@@ -27,6 +27,10 @@ static void testFullPath() {
     assertEquals("13", p.expand("%i", 13));
     assertEquals("/some/path/to/maindb-3.sqlite",
                  p.expand("%d/%b-%i.sqlite", 3));
+    assertEquals("/some/path/to/maindb-3.mb",
+                 p.expand("%d/%b-%i.mb", 3));
+    assertEquals("/some/path/to/maindb-data/maindb-3.mb",
+                 p.expand("%d/%b-data/%b-%i.mb", 3));
 }
 
 static void testRelativePath() {
