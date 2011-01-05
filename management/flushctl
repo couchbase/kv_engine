@@ -50,17 +50,21 @@ if __name__ == '__main__':
 All commands allow an optional username and password as the last
 two parameters.
 
-Available params:
-    min_data_age   - minimum data age before flushing data"
-    queue_age_cap  - maximum queue age before flushing data"
+Persistence:
+    stop           - stop persistence
+    start          - start persistence
+
+Available params for "set":
+    min_data_age   - minimum data age before flushing data
+    queue_age_cap  - maximum queue age before flushing data
     max_txn_size   - maximum number of items in a flusher transaction
     bg_fetch_delay - delay before executing a bg fetch (test feature)
     max_size       - max memory used by the server
     mem_high_wat   - high water mark
     mem_low_wat    - low water mark""")
 
-    c.addCommand('stop', stop, 'stop persistence')
-    c.addCommand('start', start, 'start persistence')
+    c.addCommand('stop', stop, 'stop')
+    c.addCommand('start', start, 'start')
     c.addCommand('set', set_param, 'set param value')
     c.addCommand('evict', evict, "evict key")
 
