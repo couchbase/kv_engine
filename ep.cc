@@ -372,13 +372,14 @@ public:
 };
 
 EventuallyPersistentStore::~EventuallyPersistentStore() {
+    bool forceShutdown = engine.isForceShutdown();
     stopFlusher();
-    dispatcher->stop();
+    dispatcher->stop(forceShutdown);
     if (hasSeparateRODispatcher()) {
-        roDispatcher->stop();
+        roDispatcher->stop(forceShutdown);
         delete roUnderlying;
     }
-    nonIODispatcher->stop();
+    nonIODispatcher->stop(forceShutdown);
 
     delete flusher;
     delete dispatcher;
@@ -404,7 +405,7 @@ void EventuallyPersistentStore::startFlusher() {
 
 void EventuallyPersistentStore::stopFlusher() {
     bool rv = flusher->stop();
-    if (rv) {
+    if (rv && !engine.isForceShutdown()) {
         flusher->wait();
     }
 }

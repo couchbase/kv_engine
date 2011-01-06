@@ -283,7 +283,8 @@ private:
 class Dispatcher {
 public:
     Dispatcher() : notifications(0), joblog(JOB_LOG_SIZE), slowjobs(JOB_LOG_SIZE),
-                   idleTask(new IdleTask), state(dispatcher_running) {
+                   idleTask(new IdleTask), state(dispatcher_running),
+                   forceTermination(false) {
         noTask();
     }
 
@@ -318,8 +319,9 @@ public:
     void start();
     /**
      * Stop this dispatcher.
+     * @param force the flag indicating the force termination or not.
      */
-    void stop();
+    void stop(bool force = false);
 
     /**
      * Dispatcher's main loop.  Don't run this.
@@ -413,6 +415,7 @@ private:
     enum dispatcher_state state;
     hrtime_t taskStart;
     bool running_task;
+    bool forceTermination;
 };
 
 #endif

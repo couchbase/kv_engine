@@ -136,17 +136,20 @@ void Dispatcher::run() {
         }
     }
 
-    completeNonDaemonTasks();
+    if (!forceTermination) {
+        completeNonDaemonTasks();
+    }
     state = dispatcher_stopped;
     notify();
     getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "Dispatcher exited\n");
 }
 
-void Dispatcher::stop() {
+void Dispatcher::stop(bool force) {
     LockHolder lh(mutex);
     if (state == dispatcher_stopped || state == dispatcher_stopping) {
         return;
     }
+    forceTermination = force;
     getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "Stopping dispatcher\n");
     state = dispatcher_stopping;
     notify();

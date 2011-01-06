@@ -49,7 +49,8 @@ public:
 
     Flusher(EventuallyPersistentStore *st, Dispatcher *d) :
         store(st), _state(initializing), dispatcher(d),
-        flushRv(0), prevFlushRv(0), minSleepTime(0.1), flushQueue(NULL) {
+        flushRv(0), prevFlushRv(0), minSleepTime(0.1),
+        flushQueue(NULL), rejectQueue(NULL) {
     }
 
     ~Flusher() {
@@ -58,6 +59,12 @@ public:
                              "Flusher being destroyed in state %s\n",
                              stateName(_state));
 
+        }
+        if (rejectQueue != NULL) {
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                             "Flusher being destroyed with %d tasks in the reject queue\n",
+                             rejectQueue->size());
+            delete rejectQueue;
         }
     }
 

@@ -75,9 +75,9 @@ extern "C" {
         return getHandle(handle)->initialize(config_str);
     }
 
-    static void EvpDestroy(ENGINE_HANDLE* handle)
+    static void EvpDestroy(ENGINE_HANDLE* handle, const bool force)
     {
-        getHandle(handle)->destroy();
+        getHandle(handle)->destroy(force);
         delete getHandle(handle);
     }
 
@@ -767,7 +767,7 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server
     dbname("/tmp/test.db"), shardPattern(DEFAULT_SHARD_PATTERN),
     initFile(NULL), postInitFile(NULL), dbStrategy(multi_db),
     warmup(true), wait_for_warmup(true), fail_on_partial_warmup(true),
-    startVb0(true), concurrentDB(true), kvstore(NULL),
+    startVb0(true), concurrentDB(true), forceShutdown(false), kvstore(NULL),
     epstore(NULL), tapThrottle(new TapThrottle(stats)), databaseInitTime(0), tapKeepAlive(0),
     tapNoopInterval(DEFAULT_TAP_NOOP_INTERVAL), nextTapNoop(0),
     startedEngineThreads(false), shutdown(false),
@@ -1206,7 +1206,8 @@ KVStore* EventuallyPersistentEngine::newKVStore() {
     return KVStore::create(dbStrategy, stats, conf);
 }
 
-void EventuallyPersistentEngine::destroy() {
+void EventuallyPersistentEngine::destroy(bool force) {
+    forceShutdown = force;
     stopEngineThreads();
 }
 

@@ -761,7 +761,7 @@ static enum test_result test_init_fail(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     testHarness.reload_engine(&h, &h1,
                               testHarness.engine_path,
                               "dbname=/non/existent/path/dbname",
-                              false);
+                              false, false);
 
     check(h1->initialize(h, "dbname=/non/existent/path/dbname")
           == ENGINE_FAILED, "Failed to fail to initialize");
@@ -840,7 +840,7 @@ static enum test_result test_conc_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     testHarness.reload_engine(&h, &h1,
                               testHarness.engine_path,
                               testHarness.default_engine_cfg,
-                              true);
+                              true, false);
 
     assert(0 == get_int_stat(h, h1, "ep_warmed_dups"));
 
@@ -1178,7 +1178,7 @@ static enum test_result test_flush_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     testHarness.reload_engine(&h, &h1,
                               testHarness.engine_path,
                               testHarness.default_engine_cfg,
-                              true);
+                              true, false);
 
     // Read value from disk.
     check_key_value(h, h1, "key", "somevalue", 9);
@@ -1195,7 +1195,7 @@ static enum test_result test_flush_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     testHarness.reload_engine(&h, &h1,
                               testHarness.engine_path,
                               testHarness.default_engine_cfg,
-                              true);
+                              true, false);
 
     check(store(h, h1, NULL, OPERATION_SET, "key3", "somevalue", &i) == ENGINE_SUCCESS,
           "Failed post-flush, post-restart set.");
@@ -1219,7 +1219,7 @@ static enum test_result test_flush_multiv_restart(ENGINE_HANDLE *h, ENGINE_HANDL
     testHarness.reload_engine(&h, &h1,
                               testHarness.engine_path,
                               testHarness.default_engine_cfg,
-                              true);
+                              true, false);
 
     // Read value from disk.
     check_key_value(h, h1, "key", "somevalue", 9);
@@ -1232,7 +1232,7 @@ static enum test_result test_flush_multiv_restart(ENGINE_HANDLE *h, ENGINE_HANDL
     testHarness.reload_engine(&h, &h1,
                               testHarness.engine_path,
                               testHarness.default_engine_cfg,
-                              true);
+                              true, false);
 
     // Read value again, should not be there.
     check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key"), "Expected missing key");
@@ -1291,7 +1291,7 @@ static enum test_result test_bug2509(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     testHarness.reload_engine(&h, &h1,
                               testHarness.engine_path,
                               testHarness.default_engine_cfg,
-                              true);
+                              true, false);
 
     return get_int_stat(h, h1, "ep_warmup_dups") == 0 ? SUCCESS : FAIL;
 }
@@ -1460,7 +1460,7 @@ static enum test_result test_delete_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
     testHarness.reload_engine(&h, &h1,
                               testHarness.engine_path,
                               testHarness.default_engine_cfg,
-                              true);
+                              true, false);
 
     check_key_value(h, h1, "key", "value2", 6);
     check(h1->remove(h, NULL, "key", 3, 0, 0) == ENGINE_SUCCESS,
@@ -1469,7 +1469,7 @@ static enum test_result test_delete_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
     testHarness.reload_engine(&h, &h1,
                               testHarness.engine_path,
                               testHarness.default_engine_cfg,
-                              true);
+                              true, false);
 
     check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key"), "Expected missing key");
 
@@ -1485,7 +1485,7 @@ static enum test_result test_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     testHarness.reload_engine(&h, &h1,
                               testHarness.engine_path,
                               testHarness.default_engine_cfg,
-                              true);
+                              true, false);
     return check_key_value(h, h1, "key", val, strlen(val));
 }
 
@@ -1505,7 +1505,7 @@ static enum test_result test_restart_bin_val(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 
     testHarness.reload_engine(&h, &h1,
                               testHarness.engine_path,
                               testHarness.default_engine_cfg,
-                              true);
+                              true, false);
 
     return check_key_value(h, h1, "key", binaryData, sizeof(binaryData));
 }
@@ -1675,7 +1675,7 @@ static enum test_result test_expiry_loader(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     testHarness.reload_engine(&h, &h1,
                               testHarness.engine_path,
                               testHarness.default_engine_cfg,
-                              true);
+                              true, false);
     assert(0 == get_int_stat(h, h1, "ep_warmed_up"));
 
     return SUCCESS;
@@ -1968,7 +1968,7 @@ static enum test_result test_vbucket_destroy_restart(ENGINE_HANDLE *h, ENGINE_HA
     testHarness.reload_engine(&h, &h1,
                               testHarness.engine_path,
                               testHarness.default_engine_cfg,
-                              true);
+                              true, false);
 
     check(verify_vbucket_state(h, h1, 1, vbucket_state_dead),
           "Bucket state was not dead after restart.");
@@ -1989,7 +1989,7 @@ static enum test_result test_vbucket_destroy_restart(ENGINE_HANDLE *h, ENGINE_HA
     testHarness.reload_engine(&h, &h1,
                               testHarness.engine_path,
                               testHarness.default_engine_cfg,
-                              true);
+                              true, false);
 
     if (verify_vbucket_state(h, h1, 1, vbucket_state_pending, true)) {
         std::cerr << "Bucket came up in pending state after delete." << std::endl;
@@ -2903,7 +2903,7 @@ static enum test_result test_warmup_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     testHarness.reload_engine(&h, &h1,
                               testHarness.engine_path,
                               testHarness.default_engine_cfg,
-                              true);
+                              true, false);
 
     useconds_t sleepTime = 128;
     while (h1->get_stats(h, NULL, NULL, 0, add_stats) == ENGINE_SUCCESS) {
@@ -3143,7 +3143,7 @@ static enum test_result test_duplicate_items_disk(ENGINE_HANDLE *h, ENGINE_HANDL
     testHarness.reload_engine(&h, &h1,
                               testHarness.engine_path,
                               testHarness.default_engine_cfg,
-                              true);
+                              true, false);
     check(set_vbucket_state(h, h1, 1, vbucket_state_active), "Failed to set vbucket state.");
     // Make sure that a key/value item is persisted correctly
     for (it = keys.begin(); it != keys.end(); ++it) {
@@ -3512,6 +3512,46 @@ static enum test_result test_validate_engine_handle(ENGINE_HANDLE *h, ENGINE_HAN
     return SUCCESS;
 }
 
+static enum test_result test_kill9_bucket(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    std::vector<std::string> keys;
+    for (int j = 0; j < 2000; ++j) {
+        std::stringstream ss;
+        ss << "key-0-" << j;
+        std::string key(ss.str());
+        keys.push_back(key);
+    }
+    std::vector<std::string>::iterator it;
+    for (it = keys.begin(); it != keys.end(); ++it) {
+        item *i;
+        check(store(h, h1, NULL, OPERATION_SET, it->c_str(), it->c_str(), &i, 0, 0)
+              == ENGINE_SUCCESS, "Failed to store a value");
+    }
+
+    // Last parameter indicates the force shutdown for the engine.
+    testHarness.reload_engine(&h, &h1,
+                              testHarness.engine_path,
+                              testHarness.default_engine_cfg,
+                              true, true);
+
+    keys.clear();
+    for (int j = 0; j < 2000; ++j) {
+        std::stringstream ss;
+        ss << "key-1-" << j;
+        std::string key(ss.str());
+        keys.push_back(key);
+    }
+    for (it = keys.begin(); it != keys.end(); ++it) {
+        item *i;
+        check(store(h, h1, NULL, OPERATION_SET, it->c_str(), it->c_str(), &i, 0, 0)
+              == ENGINE_SUCCESS, "Failed to store a value");
+    }
+    for (it = keys.begin(); it != keys.end(); ++it) {
+        check_key_value(h, h1, it->c_str(), it->data(), it->size(), 0);
+    }
+
+    return SUCCESS;
+}
+
 MEMCACHED_PUBLIC_API
 engine_test_t* get_tests(void) {
 
@@ -3627,6 +3667,7 @@ engine_test_t* get_tests(void) {
         {"set+get+restart+hit (bin)", test_restart_bin_val, NULL, teardown, NULL},
         {"flush+restart", test_flush_restart, NULL, teardown, NULL},
         {"flush multiv+restart", test_flush_multiv_restart, NULL, teardown, NULL},
+        {"test kill -9 bucket", test_kill9_bucket, NULL, teardown, NULL},
         // disk>RAM tests
         {"verify not multi dispatcher", test_not_multi_dispatcher_conf, NULL, teardown,
          NULL},

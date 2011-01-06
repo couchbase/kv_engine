@@ -164,7 +164,7 @@ class EventuallyPersistentEngine : public ENGINE_HANDLE_V1 {
     friend class LookupCallback;
 public:
     ENGINE_ERROR_CODE initialize(const char* config);
-    void destroy();
+    void destroy(bool force);
 
     ENGINE_ERROR_CODE itemAllocate(const void* cookie,
                                    item** item,
@@ -493,6 +493,10 @@ public:
         return vb_chunk_del_threshold_time;
     }
 
+    bool isForceShutdown(void) const {
+        return forceShutdown;
+    }
+
     SERVER_HANDLE_V1* getServerApi() { return serverApi; }
 
 private:
@@ -648,6 +652,7 @@ private:
     bool fail_on_partial_warmup;
     bool startVb0;
     bool concurrentDB;
+    bool forceShutdown;
     SERVER_HANDLE_V1 *serverApi;
     KVStore *kvstore;
     EventuallyPersistentStore *epstore;
