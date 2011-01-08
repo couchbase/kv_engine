@@ -1127,7 +1127,7 @@ public:
 
         // Special case the first one
         if (v->hasKey(key)) {
-            if (v->isLocked(ep_current_time())) {
+            if (!v->isDeleted() && v->isLocked(ep_current_time())) {
                 return false;
             }
             values[bucket_num] = v->next;
@@ -1140,7 +1140,7 @@ public:
         while (v->next) {
             if (v->next->hasKey(key)) {
                 StoredValue *tmp = v->next;
-                if (tmp->isLocked(ep_current_time())) {
+                if (!v->isDeleted() && tmp->isLocked(ep_current_time())) {
                     return false;
                 }
                 v->next = v->next->next;

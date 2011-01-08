@@ -450,9 +450,8 @@ public:
             LockHolder lh = vb->ht.getLockedBucket(vk.second, &bucket_num);
             StoredValue *v = vb->ht.unlocked_find(vk.second, bucket_num);
             if (v) {
-                if (vb->ht.unlocked_softDelete(vk.second, 0, bucket_num) == WAS_CLEAN) {
-                    e->queueDirty(vk.second, vb->getId(), queue_op_del, v->getId());
-                }
+                vb->ht.unlocked_softDelete(vk.second, 0, bucket_num);
+                e->queueDirty(vk.second, vb->getId(), queue_op_del, v->getId());
             }
         }
     }
@@ -477,9 +476,8 @@ StoredValue *EventuallyPersistentStore::fetchValidValue(RCPtr<VBucket> vb,
         return v;
     } else if (v && v->isExpired(ep_real_time())) {
         ++stats.expired;
-        if (vb->ht.unlocked_softDelete(key, 0, bucket_num) == WAS_CLEAN) {
-            queueDirty(key, vb->getId(), queue_op_del, v->getId());
-        }
+        vb->ht.unlocked_softDelete(key, 0, bucket_num);
+        queueDirty(key, vb->getId(), queue_op_del, v->getId());
         return NULL;
     }
     return v;
