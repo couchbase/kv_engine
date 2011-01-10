@@ -1985,11 +1985,13 @@ private:
     }
 
     bool checkValidity() {
-        valid = valid && engine->tapConnMap.checkValidity(name, validityToken);
-        if (!valid) {
-            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "Backfilling token for %s went invalid.  Stopping backfill.\n",
-                             name.c_str());
+        if (valid) {
+            valid = engine->tapConnMap.checkValidity(name, validityToken);
+            if (!valid) {
+                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                 "Backfilling token for %s went invalid.  Stopping backfill.\n",
+                                 name.c_str());
+            }
         }
         return valid;
     }
