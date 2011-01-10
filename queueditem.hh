@@ -59,6 +59,7 @@ private:
  */
 class CompareQueuedItemsByRowId {
 public:
+    CompareQueuedItemsByRowId() {}
     bool operator()(QueuedItem i1, QueuedItem i2) {
         return i1.getRowId() < i2.getRowId();
     }
@@ -69,6 +70,7 @@ public:
  */
 class CompareQueuedItemsByVBAndRowId {
 public:
+    CompareQueuedItemsByVBAndRowId() {}
     bool operator()(QueuedItem i1, QueuedItem i2) {
         return i1.getVBucketId() == i2.getVBucketId()
             ? i1.getRowId() < i2.getRowId()
@@ -82,6 +84,7 @@ public:
 template <typename T>
 class TaggedQueuedItemComparator {
 public:
+    TaggedQueuedItemComparator() {}
 
     bool operator()(std::pair<T, QueuedItem> i1, std::pair<T, QueuedItem> i2) {
         return (i1.first == i2.first)
