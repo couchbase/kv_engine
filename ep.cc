@@ -1055,7 +1055,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::del(const std::string &key,
         rv = ENGINE_SUCCESS;
     }
 
-    if (delrv == WAS_CLEAN) {
+    if (delrv == WAS_CLEAN || (delrv == NOT_FOUND && row_id != -1)) {
         queueDirty(key, vbucket, queue_op_del, row_id);
     }
     return rv;
