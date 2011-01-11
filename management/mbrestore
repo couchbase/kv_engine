@@ -23,7 +23,6 @@ DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 11211
 QUEUE_SIZE = 1000
 
-
 def connect(opts):
     mc = mc_bin_client.MemcachedClient(opts.host, opts.port)
     if opts.username is not None:
@@ -107,7 +106,7 @@ def main():
     table_dbs = {}
     cur = db.cursor()
     for db_name in attached_dbs:
-        cur.execute("select name from %s.sqlite_master" % db_name)
+        cur.execute("select name from %s.sqlite_master where type = 'table'" % db_name)
         for (table_name,) in cur:
             table_dbs.setdefault(table_name, []).append(db_name)
 
@@ -118,7 +117,7 @@ def main():
     except ValueError:
         sys.exit("Unable to locate unique vbucket_states table in database files")
 
-    sql = """select k, flags, exptime, v from `{{0}}`.kv as kv,
+    sql = """select k, flags, exptime, v from `{{0}}`.`{{1}}` as kv,
              `{0}`.vbucket_states as vb
              where kv.vbucket = vb.vbid and kv.vb_version = kv.vb_version and
              vb.state like 'active'""".format(state_db)
@@ -132,16 +131,16 @@ def main():
         thread.start()
 
     count = 0
-    for db_name in table_dbs[u'kv']:
-        cur.execute(sql.format(db_name))
-        for row in cur:
-            queue.put(row)
-            count += 1
-            if count & 1023 == 0:
-                print count
-
+    for kv, dbs in table_dbs.iteritems():
+        if 'kv_' in kv:
+            for db_name in dbs:
+                cur.execute(sql.format(db_name, kv))
+                for row in cur:
+                    queue.put(row)
+                    count += 1
+                    if count & 1023 == 0:
+                        print count
     queue.join()
-
 
 if __name__ == '__main__':
     main()
