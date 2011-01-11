@@ -208,10 +208,10 @@ bool TapConnection::requestAck(tap_event_t event) {
     }
 
     ++seqno;
-    return (event == TAP_VBUCKET_SET ||
-            event == TAP_OPAQUE ||
-            (recordsFetched % ackInterval) == 0 ||
-            empty());
+    return (event == TAP_VBUCKET_SET || // always ack vbucket state change
+            event == TAP_OPAQUE || // always ack opaque messages
+            ((seqno - 1) % ackInterval) == 0 || // ack at a regular interval
+            empty()); // but if we're almost up to date, ack more often
 }
 
 void TapConnection::rollback() {
