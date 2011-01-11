@@ -264,7 +264,6 @@ void StrategicSqlite3::dump(Callback<GetValue> &cb) {
     for (it = statements.begin(); it != statements.end(); ++it) {
         PreparedStatement *st = (*it)->all();
         st->reset();
-        st->bind(1, ep_real_time());
         while (st->fetch()) {
             processDumpRow(stats, st, cb);
         }
