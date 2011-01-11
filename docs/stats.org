@@ -187,6 +187,7 @@ another colon.  For example, if your client is named, =slave1=, the
 | qlen_high_pri             | High priority tap queue items.           |
 | qlen_low_pri              | Low priority tap queue items.            |
 | vb_filters                | Size of connection vbucket filter set.   |
+| vb_filter                 | The content of the vbucket filter        |
 | rec_fetched               | Tap messages sent to the client.         |
 | rec_skipped               | Number of messages skipped due to        |
 |                           | tap reconnect with a different filter    |

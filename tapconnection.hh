@@ -680,6 +680,17 @@ private:
      */
     Atomic<bool> suspended;
 
+
+    /**
+     * Textual representation of the vbucket filter..
+     */
+    std::string filterText;
+
+    /**
+     * Textual representation of the flags..
+     */
+    std::string flagsText;
+
     static size_t bgMaxPending;
 
     // Constants used to enforce the tap ack protocol

@@ -70,12 +70,37 @@ TapConnection::TapConnection(EventuallyPersistentEngine &theEngine,
 
 void TapConnection::evaluateFlags()
 {
-    dumpQueue = (flags & TAP_CONNECT_FLAG_DUMP) == TAP_CONNECT_FLAG_DUMP;
-    ackSupported = (flags & TAP_CONNECT_SUPPORT_ACK) == TAP_CONNECT_SUPPORT_ACK;
+    std::stringstream ss;
 
-    if (ackSupported) {
+    if (flags & TAP_CONNECT_FLAG_DUMP) {
+        dumpQueue = true;
+        ss << ",dump";
+    }
+
+    if (flags & TAP_CONNECT_SUPPORT_ACK) {
         TapVBucketEvent hi(TAP_OPAQUE, 0, (vbucket_state_t)htonl(TAP_OPAQUE_ENABLE_AUTO_NACK));
         addVBucketHighPriority(hi);
+        ackSupported = true;
+        ss << ",ack";
+    }
+
+    if (flags & TAP_CONNECT_FLAG_BACKFILL) {
+        ss << ",backfill";
+    }
+
+    if (flags & TAP_CONNECT_FLAG_LIST_VBUCKETS) {
+        ss << ",vblist";
+    }
+
+    if (flags & TAP_CONNECT_FLAG_TAKEOVER_VBUCKETS) {
+        ss << ",takeover";
+    }
+
+    if (ss.str().length() > 0) {
+        std::stringstream m;
+        m.setf(std::ios::hex);
+        m << flags << " (" << ss.str().substr(1) << ")";
+        flagsText.assign(m.str());
     }
 }
 
@@ -126,6 +151,10 @@ void TapConnection::setVBucketFilter(const std::vector<uint16_t> &vbuckets)
                 pendingBackfill = true;
             }
         }
+
+        std::stringstream f;
+        f << vbucketFilter;
+        filterText.assign(f.str());
     }
 
     // Note that we do re-evaluete all entries when we suck them out of the

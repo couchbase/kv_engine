@@ -2407,6 +2407,7 @@ struct TapStatBuilder {
         addTapStat("qlen_high_pri", tc, tc->vBucketHighPriority.size(), add_stat, cookie);
         addTapStat("qlen_low_pri", tc, tc->vBucketLowPriority.size(), add_stat, cookie);
         addTapStat("vb_filters", tc, tc->vbucketFilter.size(), add_stat, cookie);
+        addTapStat("vb_filter", tc, tc->filterText.c_str(), add_stat, cookie);
         addTapStat("rec_fetched", tc, tc->recordsFetched, add_stat, cookie);
         if (tc->recordsSkipped > 0) {
             addTapStat("rec_skipped", tc, tc->recordsSkipped, add_stat, cookie);
@@ -2425,7 +2426,7 @@ struct TapStatBuilder {
         addTapStat("bg_jobs_issued", tc, tc->bgJobIssued, add_stat, cookie);
         addTapStat("bg_jobs_completed", tc, tc->bgJobCompleted, add_stat, cookie);
         addTapStat("bg_backlog_size", tc, tc->getBacklogSize(), add_stat, cookie);
-        addTapStat("flags", tc, tc->flags, add_stat, cookie);
+        addTapStat("flags", tc, tc->flagsText.c_str(), add_stat, cookie);
         addTapStat("connected", tc, tc->connected, add_stat, cookie);
         addTapStat("pending_disconnect", tc, tc->doDisconnect, add_stat, cookie);
         addTapStat("suspended", tc, tc->isSuspended(), add_stat, cookie);
