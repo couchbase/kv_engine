@@ -1588,6 +1588,13 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
             abort();
         }
 
+        if (succeeded && i->isExpired(startTime)) {
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                             "Item was expired at load:  %s\n",
+                             i->getKey().c_str());
+            epstore->del(i->getKey(), 0, i->getVBucketId(), NULL, true);
+        }
+
         delete i;
     }
     ++stats.warmedUp;

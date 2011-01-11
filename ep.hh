@@ -283,7 +283,8 @@ class LoadStorageKVPairCallback : public Callback<GetValue> {
 public:
     LoadStorageKVPairCallback(VBucketMap &vb, EPStats &st,
                               EventuallyPersistentStore *ep)
-        : vbuckets(vb), stats(st), epstore(ep), hasPurged(false) {
+        : vbuckets(vb), stats(st), epstore(ep), startTime(ep_real_time()),
+          hasPurged(false) {
         assert(epstore);
     }
 
@@ -301,6 +302,7 @@ private:
     VBucketMap &vbuckets;
     EPStats    &stats;
     EventuallyPersistentStore *epstore;
+    time_t      startTime;
     bool        hasPurged;
 };
 
