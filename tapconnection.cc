@@ -19,31 +19,27 @@
 #include "ep_engine.h"
 #include "dispatcher.hh"
 
-size_t TapConnection::bgMaxPending = 500;
-uint32_t TapConnection::ackWindowSize = 10;
-uint32_t TapConnection::ackInterval = 1000;
-rel_time_t TapConnection::ackGracePeriod = 5 * 60;
-double TapConnection::backoffSleepTime = 1.0;
-uint32_t TapConnection::initialAckSequenceNumber = 0;
-double TapConnection::requeueSleepTime = 0.1;
+Atomic<uint64_t> TapConnection::tapCounter(1);
+size_t TapProducer::bgMaxPending = 500;
+uint32_t TapProducer::ackWindowSize = 10;
+uint32_t TapProducer::ackInterval = 1000;
+rel_time_t TapProducer::ackGracePeriod = 5 * 60;
+double TapProducer::backoffSleepTime = 1.0;
+uint32_t TapProducer::initialAckSequenceNumber = 0;
+double TapProducer::requeueSleepTime = 0.1;
 
-TapConnection::TapConnection(EventuallyPersistentEngine &theEngine,
-                             const void *c,
-                             const std::string &n,
-                             uint32_t f):
-    engine(theEngine),
-    client(n),
-    cookie(c),
+TapProducer::TapProducer(EventuallyPersistentEngine &theEngine,
+                         const void *c,
+                         const std::string &n,
+                         uint32_t f):
+    TapConnection(theEngine, c, n),
     queue(NULL),
     queueSize(0),
     queue_set(NULL),
     flags(f),
     recordsFetched(0),
     pendingFlush(false),
-    expiry_time((rel_time_t)-1),
     reconnects(0),
-    disconnects(0),
-    connected(true),
     paused(false),
     backfillAge(0),
     dumpQueue(false),
@@ -52,22 +48,20 @@ TapConnection::TapConnection(EventuallyPersistentEngine &theEngine,
     vbucketFilter(),
     vBucketHighPriority(),
     vBucketLowPriority(),
-    doDisconnect(false),
     seqno(initialAckSequenceNumber),
     seqnoReceived(initialAckSequenceNumber - 1),
-    ackSupported(false),
     notifySent(false)
 {
     evaluateFlags();
     queue = new std::list<QueuedItem>;
     queue_set = new std::set<QueuedItem>;
 
-    if (ackSupported) {
-        expiry_time = ep_current_time() + ackGracePeriod;
+    if (supportAck) {
+        expiryTime = ep_current_time() + ackGracePeriod;
     }
 }
 
-void TapConnection::evaluateFlags()
+void TapProducer::evaluateFlags()
 {
     std::stringstream ss;
 
@@ -79,7 +73,7 @@ void TapConnection::evaluateFlags()
     if (flags & TAP_CONNECT_SUPPORT_ACK) {
         TapVBucketEvent hi(TAP_OPAQUE, 0, (vbucket_state_t)htonl(TAP_OPAQUE_ENABLE_AUTO_NACK));
         addVBucketHighPriority(hi);
-        ackSupported = true;
+        supportAck = true;
         ss << ",ack";
     }
 
@@ -103,7 +97,7 @@ void TapConnection::evaluateFlags()
     }
 }
 
-void TapConnection::setBackfillAge(uint64_t age, bool reconnect) {
+void TapProducer::setBackfillAge(uint64_t age, bool reconnect) {
     if (reconnect) {
         if (!(flags & TAP_CONNECT_FLAG_BACKFILL)) {
             age = backfillAge;
@@ -125,7 +119,7 @@ void TapConnection::setBackfillAge(uint64_t age, bool reconnect) {
     }
 }
 
-void TapConnection::setVBucketFilter(const std::vector<uint16_t> &vbuckets)
+void TapProducer::setVBucketFilter(const std::vector<uint16_t> &vbuckets)
 {
     VBucketFilter diff;
 
@@ -136,7 +130,7 @@ void TapConnection::setVBucketFilter(const std::vector<uint16_t> &vbuckets)
         backFillVBucketFilter = filter.filter_intersection(diff);
 
         std::stringstream ss;
-        ss << client.c_str() << ": Changing the vbucket filter from "
+        ss << getName().c_str() << ": Changing the vbucket filter from "
            << vbucketFilter << " to "
            << filter << " (diff: " << diff << ")" << std::endl
            << "Using: " << backFillVBucketFilter << " for backfill."
@@ -182,8 +176,8 @@ void TapConnection::setVBucketFilter(const std::vector<uint16_t> &vbuckets)
     }
 }
 
-bool TapConnection::windowIsFull() {
-    if (!ackSupported) {
+bool TapProducer::windowIsFull() {
+    if (!supportAck) {
         return false;
     }
 
@@ -201,8 +195,8 @@ bool TapConnection::windowIsFull() {
     return true;
 }
 
-bool TapConnection::requestAck(tap_event_t event) {
-    if (!ackSupported) {
+bool TapProducer::requestAck(tap_event_t event) {
+    if (!supportAck) {
         return false;
     }
 
@@ -213,7 +207,7 @@ bool TapConnection::requestAck(tap_event_t event) {
             empty()); // but if we're almost up to date, ack more often
 }
 
-void TapConnection::rollback() {
+void TapProducer::rollback() {
     LockHolder lh(queueLock);
     std::list<TapLogElement>::iterator i = tapLog.begin();
     while (i != tapLog.end()) {
@@ -246,7 +240,7 @@ void TapConnection::rollback() {
  */
 class TapResumeCallback : public DispatcherCallback {
 public:
-    TapResumeCallback(EventuallyPersistentEngine &e, TapConnection &c)
+    TapResumeCallback(EventuallyPersistentEngine &e, TapProducer &c)
         : engine(e), connection(c) {
 
     }
@@ -270,19 +264,19 @@ public:
 
 private:
     EventuallyPersistentEngine &engine;
-    TapConnection              &connection;
+    TapProducer              &connection;
 };
 
-const void *TapConnection::getCookie() const {
+const void *TapProducer::getCookie() const {
     return cookie;
 }
 
 
-bool TapConnection::isSuspended() const {
+bool TapProducer::isSuspended() const {
     return suspended.get();
 }
 
-void TapConnection::setSuspended(bool value)
+void TapProducer::setSuspended(bool value)
 {
     if (value) {
         if (backoffSleepTime > 0 && !suspended.get()) {
@@ -292,7 +286,7 @@ void TapConnection::setSuspended(bool value)
                         NULL, Priority::TapResumePriority, backoffSleepTime,
                         false);
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "Suspend %s for %.2f secs\n", client.c_str(),
+                             "Suspend %s for %.2f secs\n", getName().c_str(),
                              backoffSleepTime);
 
 
@@ -304,7 +298,7 @@ void TapConnection::setSuspended(bool value)
     suspended.set(value);
 }
 
-void TapConnection::reschedule_UNLOCKED(const std::list<TapLogElement>::iterator &iter)
+void TapProducer::reschedule_UNLOCKED(const std::list<TapLogElement>::iterator &iter)
 {
     ++numTmpfailSurvivors;
     switch (iter->event) {
@@ -328,7 +322,7 @@ void TapConnection::reschedule_UNLOCKED(const std::list<TapLogElement>::iterator
     }
 }
 
-ENGINE_ERROR_CODE TapConnection::processAck(uint32_t s,
+ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
                                             uint16_t status,
                                             const std::string &msg)
 {
@@ -336,14 +330,14 @@ ENGINE_ERROR_CODE TapConnection::processAck(uint32_t s,
     std::list<TapLogElement>::iterator iter = tapLog.begin();
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
 
-    expiry_time = ep_current_time() + ackGracePeriod;
+    expiryTime = ep_current_time() + ackGracePeriod;
     seqnoReceived = s;
 
     /* Implicit ack _every_ message up until this message */
     while (iter != tapLog.end() && iter->seqno != s) {
         getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
                          "Implicit ack <%s> (#%u)\n",
-                         client.c_str(), iter->seqno);
+                         getName().c_str(), iter->seqno);
         ++iter;
     }
 
@@ -353,21 +347,21 @@ ENGINE_ERROR_CODE TapConnection::processAck(uint32_t s,
         if (iter != tapLog.end()) {
             getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
                              "Explicit ack <%s> (#%u)\n",
-                             client.c_str(), iter->seqno);
+                             getName().c_str(), iter->seqno);
             ++iter;
             tapLog.erase(tapLog.begin(), iter);
         } else {
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                              "Explicit ack <%s> of nonexisting entry (#%u)\n",
-                             client.c_str(), s);
+                             getName().c_str(), s);
         }
 
         lh.unlock();
         if (complete() && idle()) {
             // We've got all of the ack's need, now we can shut down the
             // stream
-            doDisconnect = true;
-            expiry_time = 0;
+            setDisconnect(true);
+            expiryTime = 0;
             ret = ENGINE_DISCONNECT;
         }
         break;
@@ -378,7 +372,7 @@ ENGINE_ERROR_CODE TapConnection::processAck(uint32_t s,
         ++numTapNack;
         getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
                          "Received temporary TAP nack from <%s> (#%u): Code: %u (%s)\n",
-                         client.c_str(), seqnoReceived, status, msg.c_str());
+                         getName().c_str(), seqnoReceived, status, msg.c_str());
 
         // Reschedule _this_ sequence number..
         if (iter != tapLog.end()) {
@@ -392,16 +386,16 @@ ENGINE_ERROR_CODE TapConnection::processAck(uint32_t s,
         ++numTapNack;
         getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                          "Received negative TAP ack from <%s> (#%u): Code: %u (%s)\n",
-                         client.c_str(), seqnoReceived, status, msg.c_str());
-        doDisconnect = true;
-        expiry_time = 0;
+                         getName().c_str(), seqnoReceived, status, msg.c_str());
+        setDisconnect(true);
+        expiryTime = 0;
         ret = ENGINE_DISCONNECT;
     }
 
     return ret;
 }
 
-void TapConnection::encodeVBucketStateTransition(const TapVBucketEvent &ev, void **es,
+void TapProducer::encodeVBucketStateTransition(const TapVBucketEvent &ev, void **es,
                                                  uint16_t *nes, uint16_t *vbucket) const
 {
     *vbucket = ev.vbucket;
@@ -425,7 +419,7 @@ void TapConnection::encodeVBucketStateTransition(const TapVBucketEvent &ev, void
     *nes = sizeof(vbucket_state_t);
 }
 
-bool TapConnection::waitForBackfill() {
+bool TapProducer::waitForBackfill() {
     if ((bgJobIssued - bgJobCompleted) > bgMaxPending) {
         return true;
     }
@@ -474,7 +468,7 @@ public:
                 LockHolder lh = vb->ht.getLockedBucket(key, &bucket_num);
                 StoredValue *v = epstore->fetchValidValue(vb, key, bucket_num);
                 if (v) {
-                    d.snooze(t, TapConnection::requeueSleepTime);
+                    d.snooze(t, TapProducer::requeueSleepTime);
                     ++stats.numTapBGFetchRequeued;
                     return true;
                 }
@@ -526,7 +520,7 @@ private:
     BGFetchCounter counter;
 };
 
-void TapConnection::queueBGFetch(const std::string &key, uint64_t id,
+void TapProducer::queueBGFetch(const std::string &key, uint64_t id,
                                  uint16_t vb, uint16_t vbv) {
     LockHolder lh(backfillLock);
     backfillQueue.push(TapBGFetchQueueItem(key, id, vb, vbv));
@@ -537,7 +531,7 @@ void TapConnection::queueBGFetch(const std::string &key, uint64_t id,
     assert(!complete());
 }
 
-void TapConnection::runBGFetch(Dispatcher *dispatcher, const void *c) {
+void TapProducer::runBGFetch(Dispatcher *dispatcher, const void *c) {
     LockHolder lh(backfillLock);
     TapBGFetchQueueItem qi(backfillQueue.front());
     backfillQueue.pop();
@@ -545,14 +539,14 @@ void TapConnection::runBGFetch(Dispatcher *dispatcher, const void *c) {
     lh.unlock();
 
     shared_ptr<TapBGFetchCallback> dcb(new TapBGFetchCallback(&engine,
-                                                              client, qi.key,
+                                                              getName(), qi.key,
                                                               qi.vbucket, qi.vbversion,
                                                               qi.id, c));
     ++bgJobIssued;
     dispatcher->schedule(dcb, NULL, Priority::TapBgFetcherPriority);
 }
 
-void TapConnection::gotBGItem(Item *i, bool implicitEnqueue) {
+void TapProducer::gotBGItem(Item *i, bool implicitEnqueue) {
     LockHolder lh(backfillLock);
     // implicitEnqueue is used for the optimized disk fetch wherein we
     // receive the item and want the stats to reflect an
@@ -567,11 +561,11 @@ void TapConnection::gotBGItem(Item *i, bool implicitEnqueue) {
     assert(hasItem());
 }
 
-void TapConnection::completedBGFetchJob() {
+void TapProducer::completedBGFetchJob() {
     ++bgJobCompleted;
 }
 
-Item* TapConnection::nextFetchedItem() {
+Item* TapProducer::nextFetchedItem() {
     assert(hasItem());
     LockHolder lh(backfillLock);
     Item *rv = backfilledItems.front();
@@ -579,4 +573,136 @@ Item* TapConnection::nextFetchedItem() {
     backfilledItems.pop();
     --bgResultSize;
     return rv;
+}
+
+void TapProducer::addStats(ADD_STAT add_stat, const void *c) {
+    TapConnection::addStats(add_stat, c);
+    addStat("qlen", getQueueSize(), add_stat, c);
+    addStat("qlen_high_pri", vBucketHighPriority.size(), add_stat, c);
+    addStat("qlen_low_pri", vBucketLowPriority.size(), add_stat, c);
+    addStat("vb_filters", vbucketFilter.size(), add_stat, c);
+    addStat("vb_filter", filterText.c_str(), add_stat, c);
+    addStat("rec_fetched", recordsFetched, add_stat, c);
+    if (recordsSkipped > 0) {
+        addStat("rec_skipped", recordsSkipped, add_stat, c);
+    }
+    addStat("idle", idle(), add_stat, c);
+    addStat("empty", empty(), add_stat, c);
+    addStat("complete", complete(), add_stat, c);
+    addStat("has_item", hasItem(), add_stat, c);
+    addStat("has_queued_item", hasQueuedItem(), add_stat, c);
+    addStat("bg_wait_for_results", waitForBackfill(), add_stat, c);
+    addStat("bg_queue_size", bgQueueSize, add_stat, c);
+    addStat("bg_queued", bgQueued, add_stat, c);
+    addStat("bg_result_size", bgResultSize, add_stat, c);
+    addStat("bg_results", bgResults, add_stat, c);
+    addStat("bg_jobs_issued", bgJobIssued, add_stat, c);
+    addStat("bg_jobs_completed", bgJobCompleted, add_stat, c);
+    addStat("bg_backlog_size", getBacklogSize(), add_stat, c);
+    addStat("flags", flagsText, add_stat, c);
+    addStat("suspended", isSuspended(), add_stat, c);
+    addStat("paused", paused, add_stat, c);
+    addStat("pending_backfill", pendingBackfill, add_stat, c);
+    addStat("pending_disk_backfill", !isPendingDiskBackfill(), add_stat, c);
+
+    if (reconnects > 0) {
+        addStat("reconnects", reconnects, add_stat, c);
+    }
+    if (backfillAge != 0) {
+        addStat("backfill_age", (size_t)backfillAge, add_stat, c);
+    }
+
+    if (supportAck) {
+        addStat("ack_seqno", seqno, add_stat, c);
+        addStat("recv_ack_seqno", seqnoReceived, add_stat, c);
+        addStat("ack_log_size", getTapAckLogSize(), add_stat, c);
+        addStat("ack_window_full", windowIsFull(), add_stat, c);
+        if (windowIsFull()) {
+            addStat("expires", expiryTime - ep_current_time(), add_stat, c);
+        }
+        addStat("num_tap_nack", numTapNack, add_stat, c);
+        addStat("num_tap_tmpfail_survivors", numTmpfailSurvivors, add_stat, c);
+        addStat("ack_playback_size", getTapLogSize(), add_stat, c);
+     }
+}
+
+void TapProducer::processedEvent(tap_event_t event, ENGINE_ERROR_CODE ret)
+{
+    (void)ret;
+    assert(event == TAP_ACK);
+}
+
+/**************** TAP Consumer **********************************************/
+TapConsumer::TapConsumer(EventuallyPersistentEngine &theEngine,
+                         const void *c,
+                         const std::string &n) :
+    TapConnection(theEngine, c, n)
+{ /* EMPTY */ }
+
+void TapConsumer::addStats(ADD_STAT add_stat, const void *c) {
+    TapConnection::addStats(add_stat, c);
+    addStat("num_delete", numDelete, add_stat, c);
+    addStat("num_delete_failed", numDeleteFailed, add_stat, c);
+    addStat("num_flush", numFlush, add_stat, c);
+    addStat("num_flush_failed", numFlushFailed, add_stat, c);
+    addStat("num_mutation", numMutation, add_stat, c);
+    addStat("num_mutation_failed", numMutationFailed, add_stat, c);
+    addStat("num_opaque", numOpaque, add_stat, c);
+    addStat("num_opaque_failed", numOpaqueFailed, add_stat, c);
+    addStat("num_vnucket_set", numVbucketSet, add_stat, c);
+    addStat("num_vbucket_set_failed", numVbucketSetFailed, add_stat, c);
+    addStat("num_unknown", numUnknown, add_stat, c);
+}
+
+void TapConsumer::processedEvent(tap_event_t event, ENGINE_ERROR_CODE ret)
+{
+    switch (event) {
+    case TAP_ACK:
+        /* A tap consumer should _NEVER_ receive a tap ack */
+        abort();
+        break;
+
+    case TAP_FLUSH:
+        if (ret == ENGINE_SUCCESS) {
+            ++numFlush;
+        } else {
+            ++numFlushFailed;
+        }
+        break;
+
+    case TAP_DELETION:
+        if (ret == ENGINE_SUCCESS) {
+            ++numDelete;
+        } else {
+            ++numDeleteFailed;
+        }
+        break;
+
+    case TAP_MUTATION:
+        if (ret == ENGINE_SUCCESS) {
+            ++numMutation;
+        } else {
+            ++numMutationFailed;
+        }
+        break;
+
+    case TAP_OPAQUE:
+        if (ret == ENGINE_SUCCESS) {
+            ++numOpaque;
+        } else {
+            ++numOpaqueFailed;
+        }
+        break;
+
+    case TAP_VBUCKET_SET:
+        if (ret == ENGINE_SUCCESS) {
+            ++numVbucketSet;
+        } else {
+            ++numVbucketSetFailed;
+        }
+        break;
+
+    default:
+        ++numUnknown;
+    }
 }

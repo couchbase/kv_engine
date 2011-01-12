@@ -343,7 +343,7 @@ public:
      * Visit the objects and add them to the tap connecitons queue.
      * @todo this code should honor the backfill time!
      */
-    void queueBackfill(TapConnection *tc, const void *tok);
+    void queueBackfill(TapProducer *tc, const void *tok);
 
     void notifyIOComplete(const void *cookie, ENGINE_ERROR_CODE status) {
         BlockTimer bt(&stats.notifyIOHisto);
@@ -477,7 +477,7 @@ private:
     tap_event_t doWalkTapQueue(const void *cookie, item **itm, void **es,
                                uint16_t *nes, uint8_t *ttl, uint16_t *flags,
                                uint32_t *seqno, uint16_t *vbucket,
-                               TapConnection *c, bool &retry);
+                               TapProducer *c, bool &retry);
 
 
     ENGINE_ERROR_CODE processTapAck(const void *cookie,
@@ -610,7 +610,7 @@ private:
 
     // Get the current tap connection for this cookie.
     // If this method returns NULL, you should return TAP_DISCONNECT
-    TapConnection* getTapConnection(const void *cookie);
+    TapProducer* getTapProducer(const void *cookie);
 
     const char *dbname;
     const char *shardPattern;

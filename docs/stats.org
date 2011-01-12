@@ -191,39 +191,39 @@ For introductory information on stats within membase, start with the
 
 ** Tap stats
 
-| ep_tap_total_queue        | Sum of tap queue sizes on the current      |
-|                           | tap queues                                 |
-| ep_tap_total_fetched      | Sum of all tap messages sent               |
-| ep_tap_bg_max_pending     | The maximum number of bg jobs a tap        |
-|                           | connection may have                        |
-| ep_tap_bg_fetched         | Number of tap disk fetches                 |
-| ep_tap_bg_fetch_requeued  | Number of times a tap bg fetch task is     |
-|                           | requeued.                                  |
-| ep_tap_fg_fetched         | Number of tap memory fetches               |
-| ep_tap_deletes            | Number of tap deletion messages sent       |
-| ep_tap_throttled          | Number of tap messages refused due to      |
-|                           | throttling.                                |
-| ep_tap_keepalive          | How long to keep tap connection state      |
-|                           | after client disconnect.                   |
-| ep_tap_count              | Number of tap connections.                 |
-| ep_tap_bg_num_samples     | The number of tap bg fetch samples         |
-|                           | included in the avg                        |
-| ep_tap_bg_min_wait        | The shortest time (µs) for a tap item      |
-|                           | before it is serviced by the dispatcher    |
-| ep_tap_bg_max_wait        | The longest time (µs) for a tap item       |
-|                           | before it is serviced by the dispatcher    |
-| ep_tap_bg_wait_avg        | The average wait time (µs) for a tap item  |
-|                           | before it is serviced by the dispatcher    |
-| ep_tap_bg_min_load        | The shortest time (µs) for a tap item to   |
-|                           | be loaded from the persistence layer       |
-| ep_tap_bg_max_load        | The longest time (µs) for a tap item to    |
-|                           | be loaded from the persistence layer       |
-| ep_tap_bg_load_avg        | The average time (µs) for a tap item to    |
-|                           | be loaded from the persistence layer       |
-| ep_tap_noop_interval      | The number of secs between a noop is added |
-|                           | to an idle connection                      |
-| ep_tap_backoff_period     | The number of seconds the tap connection   |
-|                           | should back off after receiving ETMPFAIL   |
+| ep_tap_total_queue       | Sum of tap queue sizes on the current      |
+|                          | tap queues                                 |
+| ep_tap_total_fetched     | Sum of all tap messages sent               |
+| ep_tap_bg_max_pending    | The maximum number of bg jobs a tap        |
+|                          | connection may have                        |
+| ep_tap_bg_fetched        | Number of tap disk fetches                 |
+| ep_tap_bg_fetch_requeued | Number of times a tap bg fetch task is     |
+|                          | requeued.                                  |
+| ep_tap_fg_fetched        | Number of tap memory fetches               |
+| ep_tap_deletes           | Number of tap deletion messages sent       |
+| ep_tap_throttled         | Number of tap messages refused due to      |
+|                          | throttling.                                |
+| ep_tap_keepalive         | How long to keep tap connection state      |
+|                          | after client disconnect.                   |
+| ep_tap_count             | Number of tap connections.                 |
+| ep_tap_bg_num_samples    | The number of tap bg fetch samples         |
+|                          | included in the avg                        |
+| ep_tap_bg_min_wait       | The shortest time (µs) for a tap item     |
+|                          | before it is serviced by the dispatcher    |
+| ep_tap_bg_max_wait       | The longest time (µs) for a tap item      |
+|                          | before it is serviced by the dispatcher    |
+| ep_tap_bg_wait_avg       | The average wait time (µs) for a tap item |
+|                          | before it is serviced by the dispatcher    |
+| ep_tap_bg_min_load       | The shortest time (µs) for a tap item to  |
+|                          | be loaded from the persistence layer       |
+| ep_tap_bg_max_load       | The longest time (µs) for a tap item to   |
+|                          | be loaded from the persistence layer       |
+| ep_tap_bg_load_avg       | The average time (µs) for a tap item to   |
+|                          | be loaded from the persistence layer       |
+| ep_tap_noop_interval     | The number of secs between a noop is added |
+|                          | to an idle connection                      |
+| ep_tap_backoff_period    | The number of seconds the tap connection   |
+|                          | should back off after receiving ETMPFAIL   |
 
 *** Per Tap Client Stats
 
@@ -231,50 +231,65 @@ Each stat begins with =ep_tapq:= followed by a unique /client_id/ and
 another colon.  For example, if your client is named, =slave1=, the
 =qlen= stat would be =ep_tapq:slave1:qlen=.
 
-| qlen                      | Queue size for the given client_id.      |
-| qlen_high_pri             | High priority tap queue items.           |
-| qlen_low_pri              | Low priority tap queue items.            |
-| vb_filters                | Size of connection vbucket filter set.   |
-| vb_filter                 | The content of the vbucket filter        |
-| rec_fetched               | Tap messages sent to the client.         |
-| rec_skipped               | Number of messages skipped due to        |
-|                           | tap reconnect with a different filter    |
-| idle                      | True if this connection is idle.         |
-| empty                     | True if this connection has no items.    |
-| complete                  | True if backfill is complete.            |
-| has_item                  | True when there is a bg fetched item     |
-|                           | ready.                                   |
-| has_queued_item           | True when there is a key ready to be     |
-|                           | looked up (may become fg or bg item)     |
-| bg_wait_for_result        | True if the max number of background     |
-|                           | operations is started                    |
-| bg_queue_size             | Number of bg fetches enqueued for this   |
-|                           | connection.                              |
-| bg_queued                 | Number of background fetches enqueued.   |
-| bg_result_size            | Number of ready background results.      |
-| bg_results                | Number of background results ready.      |
-| bg_jobs_issued            | Number of background jobs started.       |
-| bg_jobs_completed         | Number of background jobs completed.     |
-| bg_backlog_size           | Number of items pending bg fetch.        |
-| flags                     | Connection flags set by the client.      |
-| connected                 | true if this client is connected         |
-| pending_disconnect        | true if we're hanging up on this client  |
-| paused                    | true if this client is blocked           |
-| pending_backfill          | true if we're still backfilling keys     |
-|                           | for this connection                      |
-| pending_disk_backfill     | true if we're still backfilling keys     |
-|                           | from disk for this connection            |
-| reconnects                | Number of reconnects from this client.   |
-| disconnects               | Number of disconnects from this client.  |
-| backfill_age              | The age of the start of the backfill.    |
-| ack_seqno                 | The current tap ACK sequence number.     |
-| recv_ack_seqno            | Last receive tap ACK sequence number.    |
-| ack_log_size              | Tap ACK backlog size.                    |
-| ack_window_full           | true if our tap ACK window is full.      |
-| expires                   | When this ACK backlog expires.           |
-| num_tap_nack              | The number of negative tap acks received |
-| num_tap_tmpfail_survivors | The number of items rescheduled due to   |
-|                           | a temporary nack.                        |
+| type                      | The kind of tap connection (producer or  | PC |
+|                           | consumer)                                |    |
+| created                   | Creation time for the tap connection     | PC |
+| supports_ack              | true if the connection use acks          | PC |
+| connected                 | true if this client is connected         | PC |
+| disconnects               | Number of disconnects from this client.  | PC |
+| qlen                      | Queue size for the given client_id.      | P  |
+| qlen_high_pri             | High priority tap queue items.           | P  |
+| qlen_low_pri              | Low priority tap queue items.            | P  |
+| vb_filters                | Size of connection vbucket filter set.   | P  |
+| vb_filter                 | The content of the vbucket filter        | P  |
+| rec_fetched               | Tap messages sent to the client.         | P  |
+| rec_skipped               | Number of messages skipped due to        | P  |
+|                           | tap reconnect with a different filter    | P  |
+| idle                      | True if this connection is idle.         | P  |
+| empty                     | True if this connection has no items.    | P  |
+| complete                  | True if backfill is complete.            | P  |
+| has_item                  | True when there is a bg fetched item     | P  |
+|                           | ready.                                   | P  |
+| has_queued_item           | True when there is a key ready to be     | P  |
+|                           | looked up (may become fg or bg item)     | P  |
+| bg_wait_for_result        | True if the max number of background     | P  |
+|                           | operations is started                    | P  |
+| bg_queue_size             | Number of bg fetches enqueued for this   | P  |
+|                           | connection.                              | P  |
+| bg_queued                 | Number of background fetches enqueued.   | P  |
+| bg_result_size            | Number of ready background results.      | P  |
+| bg_results                | Number of background results ready.      | P  |
+| bg_jobs_issued            | Number of background jobs started.       | P  |
+| bg_jobs_completed         | Number of background jobs completed.     | P  |
+| bg_backlog_size           | Number of items pending bg fetch.        | P  |
+| flags                     | Connection flags set by the client.      | P  |
+| pending_disconnect        | true if we're hanging up on this client  | P  |
+| paused                    | true if this client is blocked           | P  |
+| pending_backfill          | true if we're still backfilling keys     | P  |
+|                           | for this connection                      | P  |
+| pending_disk_backfill     | true if we're still backfilling keys     | P  |
+|                           | from disk for this connection            | P  |
+| reconnects                | Number of reconnects from this client.   | P  |
+| backfill_age              | The age of the start of the backfill.    | P  |
+| ack_seqno                 | The current tap ACK sequence number.     | P  |
+| recv_ack_seqno            | Last receive tap ACK sequence number.    | P  |
+| ack_log_size              | Tap ACK backlog size.                    | P  |
+| ack_window_full           | true if our tap ACK window is full.      | P  |
+| expires                   | When this ACK backlog expires.           | P  |
+| num_tap_nack              | The number of negative tap acks received | P  |
+| num_tap_tmpfail_survivors | The number of items rescheduled due to   | P  |
+|                           | a temporary nack.                        | P  |
+| num_delete                | Number of delete operations consumed     |  C |
+| num_delete_failed         | Number of failed delete operations       |  C |
+| num_flush                 | Number of flush operations               |  C |
+| num_flush_failed          | Number of failed flush operations        |  C |
+| num_mutation              | Number of mutation operations            |  C |
+| num_mutation_failed       | Number of failed mutation operations     |  C |
+| num_opaque                | Number of opaque operation consumed      |  C |
+| num_opaque_failed         | Number of failed opaque operations       |  C |
+| num_vbucket_set           | Number of vbucket set operations         |  C |
+| num_vbucket_set_failed    | Number of failed vbucket set operations  |  C |
+| num_unknown               | Number of unknown operations             |  C |
 
 ** Timing Stats
 

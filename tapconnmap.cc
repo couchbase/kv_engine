@@ -12,14 +12,14 @@ void TapConnMap::disconnect(const void *cookie, int tapKeepAlive) {
     std::map<const void*, TapConnection*>::iterator iter(map.find(cookie));
     if (iter != map.end()) {
         if (iter->second) {
-            iter->second->expiry_time = ep_current_time();
-            if (iter->second->doDisconnect) {
-                iter->second->expiry_time--;
+            rel_time_t now = ep_current_time();
+            TapConsumer *tc = dynamic_cast<TapConsumer*>(iter->second);
+            if (!tc || iter->second->doDisconnect()) {
+                iter->second->setExpiryTime(now - 1);
             } else {
-                iter->second->expiry_time += tapKeepAlive;
+                iter->second->setExpiryTime(now + tapKeepAlive);
             }
-            iter->second->connected = false;
-            iter->second->disconnects++;
+            iter->second->setConnected(false);
         } else {
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                              "Found half-linked tap connection at: %p\n",
@@ -38,9 +38,11 @@ bool TapConnMap::setEvents(const std::string &name,
 
     TapConnection *tc = findByName_UNLOCKED(name);
     if (tc) {
+        TapProducer *tp = dynamic_cast<TapProducer*>(tc);
+        assert(tp);
         found = true;
-        tc->appendQueue(q);
-        shouldNotify = tc->paused; // notify if paused
+        tp->appendQueue(q);
+        shouldNotify = tp->paused; // notify if paused
     }
 
     if (shouldNotify) {
@@ -56,7 +58,9 @@ ssize_t TapConnMap::queueDepth(const std::string &name) {
 
     TapConnection *tc = findByName_UNLOCKED(name);
     if (tc) {
-        rv = tc->getBacklogSize();
+        TapProducer *tp = dynamic_cast<TapProducer*>(tc);
+        assert(tp);
+        rv = tp->getBacklogSize();
     }
 
     return rv;
@@ -67,7 +71,7 @@ TapConnection* TapConnMap::findByName_UNLOCKED(const std::string&name) {
     std::list<TapConnection*>::iterator iter;
     for (iter = all.begin(); iter != all.end(); ++iter) {
         TapConnection *tc = *iter;
-        if (tc->client == name) {
+        if (tc->getName() == name) {
             rv = tc;
         }
     }
@@ -81,14 +85,21 @@ int TapConnMap::purgeExpiredConnections_UNLOCKED() {
     std::list<TapConnection*>::iterator iter;
     for (iter = all.begin(); iter != all.end(); ++iter) {
         TapConnection *tc = *iter;
-        if (tc->expiry_time <= now && !mapped(tc) && !tc->connected && !tc->suspended) {
-            deadClients.push_back(tc);
+        if (tc->getExpiryTime() <= now && !mapped(tc) && !tc->isConnected()) {
+            TapProducer *tp = dynamic_cast<TapProducer*>(*iter);
+            if (tp) {
+                if (!tp->suspended) {
+                    deadClients.push_back(tc);
+                }
+            } else {
+                deadClients.push_back(tc);
+            }
         }
     }
 
-    for (iter = deadClients.begin(); iter != deadClients.end(); ++iter) {
-        TapConnection *tc = *iter;
-        purgeSingleExpiredTapConnection(tc);
+    std::list<TapConnection*>::iterator ii;
+    for (ii = deadClients.begin(); ii != deadClients.end(); ++ii) {
+        purgeSingleExpiredTapConnection(*ii);
     }
 
     return static_cast<int>(deadClients.size());
@@ -99,8 +110,8 @@ void TapConnMap::addFlushEvent() {
     bool shouldNotify(false);
     std::list<TapConnection*>::iterator iter;
     for (iter = all.begin(); iter != all.end(); iter++) {
-        TapConnection *tc = *iter;
-        if (!tc->dumpQueue) {
+        TapProducer *tc = dynamic_cast<TapProducer*>(*iter);
+        if (tc && !tc->dumpQueue) {
             tc->flush();
             shouldNotify = true;
         }
@@ -110,22 +121,33 @@ void TapConnMap::addFlushEvent() {
     }
 }
 
-TapConnection *TapConnMap::newConn(EventuallyPersistentEngine *engine,
-                                   const void* cookie,
-                                   const std::string &name,
-                                   uint32_t flags,
-                                   uint64_t backfillAge,
-                                   int tapKeepAlive) {
+TapConsumer *TapConnMap::newConsumer(EventuallyPersistentEngine *engine,
+                                     const void* cookie)
+{
+    LockHolder lh(notifySync);
+    purgeExpiredConnections_UNLOCKED();
+    TapConsumer *tap = new TapConsumer(*engine, cookie, TapConnection::getAnonName());
+    all.push_back(tap);
+    map[cookie] = tap;
+    return tap;
+}
+
+TapProducer *TapConnMap::newProducer(EventuallyPersistentEngine *engine,
+                                     const void* cookie,
+                                     const std::string &name,
+                                     uint32_t flags,
+                                     uint64_t backfillAge,
+                                     int tapKeepAlive) {
     LockHolder lh(notifySync);
     purgeExpiredConnections_UNLOCKED();
 
-    TapConnection *tap(NULL);
+    TapProducer *tap(NULL);
 
     std::list<TapConnection*>::iterator iter;
     for (iter = all.begin(); iter != all.end(); ++iter) {
-        tap = *iter;
-        if (tap->client == name) {
-            tap->expiry_time = (rel_time_t)-1;
+        tap = dynamic_cast<TapProducer*>(*iter);
+        if (tap && tap->getName() == name) {
+            tap->setExpiryTime((rel_time_t)-1);
             ++tap->reconnects;
             break;
         } else {
@@ -134,7 +156,7 @@ TapConnection *TapConnMap::newConn(EventuallyPersistentEngine *engine,
     }
 
     // Disconnects aren't quite immediate yet, so if we see a
-    // connection request for a client *and* expiry_time is 0, we
+    // connection request for a client *and* expiryTime is 0, we
     // should kill this guy off.
     if (tap != NULL) {
         std::map<const void*, TapConnection*>::iterator miter;
@@ -148,8 +170,8 @@ TapConnection *TapConnMap::newConn(EventuallyPersistentEngine *engine,
             getLogger()->log(EXTENSION_LOG_INFO, NULL,
                              "The TAP channel (\"%s\") exists, but should be nuked\n",
                              name.c_str());
-            tap->client.assign(TapConnection::getAnonTapName());
-            tap->doDisconnect = true;
+            tap->setName(TapConnection::getAnonName());
+            tap->setDisconnect(true);
             tap->paused = true;
             tap = NULL;
         } else {
@@ -157,11 +179,11 @@ TapConnection *TapConnMap::newConn(EventuallyPersistentEngine *engine,
                              "The TAP channel (\"%s\") exists... grabbing the channel\n",
                              name.c_str());
             if (miter->first != NULL) {
-                TapConnection *n = new TapConnection(*engine,
-                                                     NULL,
-                                                     TapConnection::getAnonTapName(),
-                                                     0);
-                n->doDisconnect = true;
+                TapProducer *n = new TapProducer(*engine,
+                                                 NULL,
+                                                 TapConnection::getAnonName(),
+                                                 0);
+                n->setDisconnect(true);
                 n->paused = true;
                 all.push_back(n);
                 map[miter->first] = n;
@@ -171,19 +193,19 @@ TapConnection *TapConnMap::newConn(EventuallyPersistentEngine *engine,
 
     bool reconnect = false;
     if (tap == NULL) {
-        tap = new TapConnection(*engine, cookie, name, flags);
+        tap = new TapProducer(*engine, cookie, name, flags);
         all.push_back(tap);
     } else {
         tap->setCookie(cookie);
         tap->rollback();
-        tap->connected = true;
+        tap->setConnected(true);
         tap->evaluateFlags();
         reconnect = true;
     }
 
     tap->setBackfillAge(backfillAge, reconnect);
     if (tap->doRunBackfill && tap->pendingBackfill) {
-        setValidity(tap->client, cookie);
+        setValidity(tap->getName(), cookie);
     }
 
     map[cookie] = tap;
@@ -211,7 +233,6 @@ bool TapConnMap::checkValidity(const std::string &name,
 void TapConnMap::purgeSingleExpiredTapConnection(TapConnection *tc) {
     all.remove(tc);
     /* Assert that the connection doesn't live in the map.. */
-    /* TROND: Remove this when we're sure we don't have a bug here */
     assert(!mapped(tc));
     delete tc;
 }
@@ -227,12 +248,12 @@ bool TapConnMap::mapped(TapConnection *tc) {
     return rv;
 }
 
-bool TapConnMap::isPaused(TapConnection *tc) {
+bool TapConnMap::isPaused(TapProducer *tc) {
     return tc && tc->paused;
 }
 
 bool TapConnMap::shouldDisconnect(TapConnection *tc) {
-    return tc && tc->doDisconnect;
+    return tc && tc->doDisconnect();
 }
 
 void TapConnMap::notifyIOThreadMain(EventuallyPersistentEngine *engine) {
@@ -255,18 +276,18 @@ void TapConnMap::notifyIOThreadMain(EventuallyPersistentEngine *engine) {
     // see if I have some channels that I have to signal..
     std::map<const void*, TapConnection*>::iterator iter;
     for (iter = map.begin(); iter != map.end(); ++iter) {
-        if (iter->second->ackSupported &&
-            (iter->second->expiry_time < now) &&
-            iter->second->windowIsFull())
-            {
+        TapProducer *tp = dynamic_cast<TapProducer*>(iter->second);
+        if (tp != NULL) {
+            if (tp->supportsAck() && (tp->getExpiryTime() < now) && tp->windowIsFull()) {
                 shouldPause = false;
-                iter->second->doDisconnect = true;
-            } else if (iter->second->doDisconnect || !iter->second->idle()) {
-            shouldPause = false;
-        } else if (addNoop) {
-            TapVBucketEvent hi(TAP_NOOP, 0, vbucket_state_pending);
-            iter->second->addVBucketHighPriority(hi);
-            shouldPause = false;
+                tp->setDisconnect(true);
+            } else if (tp->doDisconnect() || !tp->idle()) {
+                shouldPause = false;
+            } else if (addNoop) {
+                TapVBucketEvent hi(TAP_NOOP, 0, vbucket_state_pending);
+                tp->addVBucketHighPriority(hi);
+                shouldPause = false;
+            }
         }
     }
 
@@ -285,9 +306,10 @@ void TapConnMap::notifyIOThreadMain(EventuallyPersistentEngine *engine) {
     // Collect the list of connections that need to be signaled.
     std::list<const void *> toNotify;
     for (iter = map.begin(); iter != map.end(); ++iter) {
-        if (iter->second->paused || iter->second->doDisconnect) {
-            if (!iter->second->notifySent) {
-                iter->second->notifySent = true;
+        TapProducer *tp = dynamic_cast<TapProducer*>(iter->second);
+        if (tp && (tp->paused || tp->doDisconnect())) {
+            if (!tp->notifySent) {
+                tp->notifySent = true;
                 toNotify.push_back(iter->first);
             }
         }
@@ -298,32 +320,32 @@ void TapConnMap::notifyIOThreadMain(EventuallyPersistentEngine *engine) {
     engine->notifyIOComplete(toNotify, ENGINE_SUCCESS);
 }
 
-void CompleteBackfillTapOperation::perform(TapConnection *tc, void *arg) {
+void CompleteBackfillTapOperation::perform(TapProducer *tc, void *arg) {
     (void)arg;
     tc->completeBackfill();
 }
 
-void CompleteDiskBackfillTapOperation::perform(TapConnection *tc, void *arg) {
+void CompleteDiskBackfillTapOperation::perform(TapProducer *tc, void *arg) {
     (void)arg;
     tc->completeDiskBackfill();
 }
 
-void ScheduleDiskBackfillTapOperation::perform(TapConnection *tc, void *arg) {
+void ScheduleDiskBackfillTapOperation::perform(TapProducer *tc, void *arg) {
     (void)arg;
     tc->scheduleDiskBackfill();
 }
 
-void ReceivedItemTapOperation::perform(TapConnection *tc, Item *arg) {
+void ReceivedItemTapOperation::perform(TapProducer *tc, Item *arg) {
     tc->gotBGItem(arg, implicitEnqueue);
 }
 
-void CompletedBGFetchTapOperation::perform(TapConnection *tc,
+void CompletedBGFetchTapOperation::perform(TapProducer *tc,
                                            EventuallyPersistentEngine *epe) {
     (void)epe;
     tc->completedBGFetchJob();
 }
 
-void NotifyIOTapOperation::perform(TapConnection *tc,
+void NotifyIOTapOperation::perform(TapProducer *tc,
                                    EventuallyPersistentEngine *epe) {
     epe->notifyIOComplete(tc->getCookie(), ENGINE_SUCCESS);
 }

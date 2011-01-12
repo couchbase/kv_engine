@@ -35,8 +35,6 @@ static size_t percentOf(size_t val, double percent) {
 
 static const char* DEFAULT_SHARD_PATTERN("%d/%b-%i.sqlite");
 
-Atomic<uint64_t> TapConnection::tapCounter(1);
-
 /**
  * Helper function to avoid typing in the long cast all over the place
  * @param handle pointer to the engine
@@ -988,7 +986,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         ++ii;
         items[ii].key = "tap_bg_max_pending";
         items[ii].datatype = DT_SIZE;
-        items[ii].value.dt_size = &TapConnection::bgMaxPending;
+        items[ii].value.dt_size = &TapProducer::bgMaxPending;
 
         ++ii;
         items[ii].key = "vb_chunk_del_time";
@@ -1052,23 +1050,23 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
             }
 
             if (items[tap_backoff_period_idx].found) {
-                TapConnection::backoffSleepTime = (double)tap_backoff_period;
+                TapProducer::backoffSleepTime = (double)tap_backoff_period;
             }
 
             if (items[tap_ack_window_size_idx].found) {
-                TapConnection::ackWindowSize = (uint32_t)tap_ack_window_size;
+                TapProducer::ackWindowSize = (uint32_t)tap_ack_window_size;
             }
 
             if (items[tap_ack_interval_idx].found) {
-                TapConnection::ackInterval = (uint32_t)tap_ack_interval;
+                TapProducer::ackInterval = (uint32_t)tap_ack_interval;
             }
 
             if (items[tap_ack_grace_period_idx].found) {
-                TapConnection::ackGracePeriod = (rel_time_t)tap_ack_grace_period;
+                TapProducer::ackGracePeriod = (rel_time_t)tap_ack_grace_period;
             }
 
             if (items[tap_ack_initial_sequence_number_idx].found) {
-                TapConnection::initialAckSequenceNumber = (uint32_t)tap_ack_initial_sequence_number;
+                TapProducer::initialAckSequenceNumber = (uint32_t)tap_ack_initial_sequence_number;
             }
 
             if (dbs != NULL) {
@@ -1373,7 +1371,7 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
                                                               uint16_t *flags,
                                                               uint32_t *seqno,
                                                               uint16_t *vbucket,
-                                                              TapConnection *connection,
+                                                              TapProducer *connection,
                                                               bool &retry) {
     *es = NULL;
     *nes = 0;
@@ -1492,12 +1490,12 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
                 getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                                  "Trying to fetch an item for a bucket that "
                                  "doesn't exist on this server <%s>\n",
-                                 connection->client.c_str());
+                                 connection->getName().c_str());
 
             } else {
                 getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                                  "Tap internal error Internal error! <%s>:%d.  "
-                                 "Disconnecting\n", connection->client.c_str(), r);
+                                 "Disconnecting\n", connection->getName().c_str(), r);
                 return TAP_DISCONNECT;
             }
             retry = true;
@@ -1521,7 +1519,7 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
         } else {
             getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
                              "Disconnecting tap stream %s\n",
-                             connection->client.c_str());
+                             connection->getName().c_str());
             ret = TAP_DISCONNECT;
         }
     }
@@ -1537,7 +1535,7 @@ tap_event_t EventuallyPersistentEngine::walkTapQueue(const void *cookie,
                                                      uint16_t *flags,
                                                      uint32_t *seqno,
                                                      uint16_t *vbucket) {
-    TapConnection *connection = getTapConnection(cookie);
+    TapProducer *connection = getTapProducer(cookie);
     if (!connection) {
         getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                          "Failed to lookup TAP connection.. Disconnecting\n");
@@ -1586,7 +1584,7 @@ void EventuallyPersistentEngine::createTapQueue(const void *cookie,
 
     std::string name = "eq_tapq:";
     if (client.length() == 0) {
-        name.assign(TapConnection::getAnonTapName());
+        name.assign(TapConnection::getAnonName());
     } else {
         name.append(client);
     }
@@ -1623,18 +1621,15 @@ void EventuallyPersistentEngine::createTapQueue(const void *cookie,
         }
     }
 
-    TapConnection *tap = tapConnMap.newConn(this, cookie, name, flags,
-                                            backfillAge,
-                                            static_cast<int>(tapKeepAlive));
+    TapProducer *tap = tapConnMap.newProducer(this, cookie, name, flags,
+                                              backfillAge,
+                                              static_cast<int>(tapKeepAlive));
 
     tap->setVBucketFilter(vbuckets);
     serverApi->cookie->store_engine_specific(cookie, tap);
-    serverApi->cookie->set_tap_nack_mode(cookie, tap->ackSupported);
+    serverApi->cookie->set_tap_nack_mode(cookie, tap->supportsAck());
     tapConnMap.notify();
 }
-
-//! Global token indicating an incoming stream supports tap ACK.
-static const void* supportsACK = NULL;
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
                                                         void *engine_specific,
@@ -1650,7 +1645,27 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
                                                         uint64_t cas,
                                                         const void *data,
                                                         size_t ndata,
-                                                        uint16_t vbucket) {
+                                                        uint16_t vbucket)
+{
+    void *specific = serverApi->cookie->get_engine_specific(cookie);
+    TapConnection *connection = NULL;
+    if (specific == NULL) {
+        if (tap_event == TAP_ACK) {
+            // tap producer is no longer connected..
+            return ENGINE_DISCONNECT;
+        } else {
+            // Create a new tap consumer...
+            connection = tapConnMap.newConsumer(this, cookie);
+            if (connection == NULL) {
+                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                 "Failed to create new tap consumer.. disconnecting\n");
+                return ENGINE_DISCONNECT;
+            }
+            serverApi->cookie->store_engine_specific(cookie, connection);
+        }
+    } else {
+        connection = reinterpret_cast<TapConnection *>(specific);
+    }
     (void)ttl;
 
     std::string k(static_cast<const char*>(key), nkey);
@@ -1672,10 +1687,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
 
     case TAP_MUTATION:
         {
-            bool acks(serverApi->cookie->get_engine_specific(cookie) == &supportsACK);
             if (!tapThrottle->shouldProcess()) {
                 ++stats.tapThrottled;
-                if (acks) {
+                if (connection->supportsAck()) {
                     ret = ENGINE_TMPFAIL;
                 } else {
                     ret = ENGINE_DISCONNECT;
@@ -1697,7 +1711,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
             if (ret == ENGINE_SUCCESS) {
                 addMutationEvent(item, vbucket);
             } else if (ret == ENGINE_ENOMEM) {
-                if (acks) {
+                if (connection->supportsAck()) {
                     ret = ENGINE_TMPFAIL;
                 } else {
                     getLogger()->log(EXTENSION_LOG_WARNING, NULL,
@@ -1723,7 +1737,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
 
             switch (cc) {
             case TAP_OPAQUE_ENABLE_AUTO_NACK:
-                serverApi->cookie->store_engine_specific(cookie, &supportsACK);
+                connection->setSupportAck(true);
 
                 getLogger()->log(EXTENSION_LOG_INFO, NULL,
                                  "Enable auto nack mode\n");
@@ -1771,22 +1785,26 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
         break;
 
     default:
-        abort();
+        // Unknown command
+        ;
     }
 
+    if (dynamic_cast<TapConsumer*>(connection)) {
+        connection->processedEvent(tap_event, ret);
+    }
     return ret;
 }
 
-TapConnection* EventuallyPersistentEngine::getTapConnection(const void *cookie) {
-    TapConnection *rv =
-        reinterpret_cast<TapConnection*>(serverApi->cookie->get_engine_specific(cookie));
+TapProducer* EventuallyPersistentEngine::getTapProducer(const void *cookie) {
+    TapProducer *rv =
+        reinterpret_cast<TapProducer*>(serverApi->cookie->get_engine_specific(cookie));
     if (!(rv && rv->connected)) {
         getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                          "Walking a non-existent tap queue, disconnecting\n");
         return NULL;
     }
 
-    if (rv->doDisconnect) {
+    if (rv->doDisconnect()) {
         getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                          "Disconnecting pending connection\n");
         return NULL;
@@ -1799,7 +1817,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::processTapAck(const void *cookie,
                                                             uint16_t status,
                                                             const std::string &msg)
 {
-    TapConnection *connection = getTapConnection(cookie);
+    TapProducer *connection = getTapProducer(cookie);
     if (!connection) {
         return ENGINE_DISCONNECT;
     }
@@ -1866,13 +1884,13 @@ private:
 };
 
 /**
- * VBucketVisitor to backfill a TapConnection.
+ * VBucketVisitor to backfill a TapProducer.
  */
 class BackFillVisitor : public VBucketVisitor {
 public:
-    BackFillVisitor(EventuallyPersistentEngine *e, TapConnection *tc,
+    BackFillVisitor(EventuallyPersistentEngine *e, TapProducer *tc,
                     const void *token):
-        VBucketVisitor(), engine(e), name(tc->client),
+        VBucketVisitor(), engine(e), name(tc->getName()),
         queue(new std::list<QueuedItem>),
         found(), filter(tc->backFillVBucketFilter), validityToken(token),
         maxBackfillSize(e->tapBacklogLimit), valid(true),
@@ -1967,7 +1985,7 @@ private:
             ssize_t theSize(engine->tapConnMap.queueDepth(name));
             if (theSize < 0) {
                 getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                                 "TapConnection %s went away.  Stopping backfill.\n",
+                                 "TapProducer %s went away.  Stopping backfill.\n",
                                  name.c_str());
                 valid = false;
                 return;
@@ -2020,7 +2038,7 @@ private:
 class BackFillThreadData {
 public:
 
-    BackFillThreadData(EventuallyPersistentEngine *e, TapConnection *tc,
+    BackFillThreadData(EventuallyPersistentEngine *e, TapProducer *tc,
                        EventuallyPersistentStore *s, const void *tok):
         bfv(e, tc, tok), epstore(s) {
     }
@@ -2042,7 +2060,7 @@ extern "C" {
     }
 }
 
-void EventuallyPersistentEngine::queueBackfill(TapConnection *tc, const void *tok) {
+void EventuallyPersistentEngine::queueBackfill(TapProducer *tc, const void *tok) {
     tc->doRunBackfill = false;
     BackFillThreadData *bftd = new BackFillThreadData(this, tc, epstore, tok);
     pthread_attr_t attr;
@@ -2106,24 +2124,6 @@ static void add_casted_stat(const char *k, const Histogram<T> &v,
                             ADD_STAT add_stat, const void *cookie) {
     histo_stat_adder<T> a(k, add_stat, cookie);
     std::for_each(v.begin(), v.end(), a);
-}
-
-template <typename T>
-static void addTapStat(const char *name, const TapConnection *tc, T val,
-                       ADD_STAT add_stat, const void *cookie) {
-    std::stringstream tap;
-    tap << tc->getName() << ":" << name;
-    std::stringstream value;
-    value << val;
-
-    add_stat(tap.str().data(), static_cast<uint16_t>(tap.str().length()),
-             value.str().data(), static_cast<uint32_t>(value.str().length()),
-             cookie);
-}
-
-static void addTapStat(const char *name, const TapConnection *tc, bool val,
-                       ADD_STAT add_stat, const void *cookie) {
-    addTapStat(name, tc, val ? "true" : "false", add_stat, cookie);
 }
 
 bool VBucketCountVisitor::visitBucket(RCPtr<VBucket> vb) {
@@ -2501,68 +2501,11 @@ struct TapStatBuilder {
 
     void operator() (TapConnection *tc) {
         ++totalTaps;
-        size_t qlen = tc->getQueueSize();
-        tap_queue += qlen;
+        tc->addStats(add_stat, cookie);
 
-        addTapStat("qlen", tc, qlen, add_stat, cookie);
-        addTapStat("qlen_high_pri", tc, tc->vBucketHighPriority.size(), add_stat, cookie);
-        addTapStat("qlen_low_pri", tc, tc->vBucketLowPriority.size(), add_stat, cookie);
-        addTapStat("vb_filters", tc, tc->vbucketFilter.size(), add_stat, cookie);
-        addTapStat("vb_filter", tc, tc->filterText.c_str(), add_stat, cookie);
-        addTapStat("rec_fetched", tc, tc->recordsFetched, add_stat, cookie);
-        if (tc->recordsSkipped > 0) {
-            addTapStat("rec_skipped", tc, tc->recordsSkipped, add_stat, cookie);
-        }
-        addTapStat("idle", tc, tc->idle(), add_stat, cookie);
-        addTapStat("empty", tc, tc->empty(), add_stat, cookie);
-        addTapStat("complete", tc, tc->complete(), add_stat, cookie);
-        addTapStat("has_item", tc, tc->hasItem(), add_stat, cookie);
-        addTapStat("has_queued_item", tc, tc->hasQueuedItem(), add_stat, cookie);
-        addTapStat("bg_wait_for_results", tc, tc->waitForBackfill(),
-                   add_stat, cookie);
-        addTapStat("bg_queue_size", tc, tc->bgQueueSize, add_stat, cookie);
-        addTapStat("bg_queued", tc, tc->bgQueued, add_stat, cookie);
-        addTapStat("bg_result_size", tc, tc->bgResultSize, add_stat, cookie);
-        addTapStat("bg_results", tc, tc->bgResults, add_stat, cookie);
-        addTapStat("bg_jobs_issued", tc, tc->bgJobIssued, add_stat, cookie);
-        addTapStat("bg_jobs_completed", tc, tc->bgJobCompleted, add_stat, cookie);
-        addTapStat("bg_backlog_size", tc, tc->getBacklogSize(), add_stat, cookie);
-        addTapStat("flags", tc, tc->flagsText.c_str(), add_stat, cookie);
-        addTapStat("connected", tc, tc->connected, add_stat, cookie);
-        addTapStat("pending_disconnect", tc, tc->doDisconnect, add_stat, cookie);
-        addTapStat("suspended", tc, tc->isSuspended(), add_stat, cookie);
-        addTapStat("paused", tc, tc->paused, add_stat, cookie);
-        addTapStat("pending_backfill", tc, tc->pendingBackfill, add_stat, cookie);
-        addTapStat("pending_disk_backfill", tc, !tc->isPendingDiskBackfill(),
-                   add_stat, cookie);
-        if (tc->reconnects > 0) {
-            addTapStat("reconnects", tc, tc->reconnects, add_stat, cookie);
-        }
-        if (tc->disconnects > 0) {
-            addTapStat("disconnects", tc, tc->disconnects, add_stat, cookie);
-        }
-        if (tc->backfillAge != 0) {
-            addTapStat("backfill_age", tc, (size_t)tc->backfillAge, add_stat, cookie);
-        }
-
-        if (tc->ackSupported) {
-            addTapStat("ack_seqno", tc, tc->seqno, add_stat, cookie);
-            addTapStat("recv_ack_seqno", tc, tc->seqnoReceived,
-                       add_stat, cookie);
-            addTapStat("ack_log_size", tc, tc->getTapAckLogSize(), add_stat,
-                       cookie);
-            addTapStat("ack_window_full", tc, tc->windowIsFull(), add_stat,
-                       cookie);
-            if (tc->windowIsFull()) {
-                addTapStat("expires", tc,
-                           tc->expiry_time - ep_current_time(),
-                           add_stat, cookie);
-            }
-            addTapStat("num_tap_nack", tc, tc->numTapNack, add_stat, cookie);
-            addTapStat("num_tap_tmpfail_survivors", tc, tc->numTmpfailSurvivors,
-                       add_stat, cookie);
-            addTapStat("ack_playback_size", tc, tc->tapLog.size(), add_stat,
-                       cookie);
+        TapProducer *tp = dynamic_cast<TapProducer*>(tc);
+        if (tp) {
+            tap_queue = tp->getQueueSize();
         }
     }
 
@@ -2576,13 +2519,13 @@ struct TapStatBuilder {
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doTapStats(const void *cookie,
                                                          ADD_STAT add_stat) {
-    std::list<TapConnection*>::iterator iter;
+    std::list<TapProducer*>::iterator iter;
     TapStatBuilder aggregator(cookie, add_stat);
     tapConnMap.each(aggregator);
 
     add_casted_stat("ep_tap_total_queue", aggregator.tap_queue, add_stat, cookie);
     add_casted_stat("ep_tap_total_fetched", stats.numTapFetched, add_stat, cookie);
-    add_casted_stat("ep_tap_bg_max_pending", TapConnection::bgMaxPending, add_stat, cookie);
+    add_casted_stat("ep_tap_bg_max_pending", TapProducer::bgMaxPending, add_stat, cookie);
     add_casted_stat("ep_tap_bg_fetched", stats.numTapBGFetched, add_stat, cookie);
     add_casted_stat("ep_tap_bg_fetch_requeued", stats.numTapBGFetchRequeued,
                     add_stat, cookie);
@@ -2594,15 +2537,15 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTapStats(const void *cookie,
 
     add_casted_stat("ep_tap_count", aggregator.totalTaps, add_stat, cookie);
 
-    add_casted_stat("ep_tap_ack_window_size", TapConnection::ackWindowSize,
+    add_casted_stat("ep_tap_ack_window_size", TapProducer::ackWindowSize,
                     add_stat, cookie);
-    add_casted_stat("ep_tap_ack_interval", TapConnection::ackInterval,
+    add_casted_stat("ep_tap_ack_interval", TapProducer::ackInterval,
                     add_stat, cookie);
     add_casted_stat("ep_tap_ack_grace_period",
-                    TapConnection::ackGracePeriod,
+                    TapProducer::ackGracePeriod,
                     add_stat, cookie);
     add_casted_stat("ep_tap_backoff_period",
-                    TapConnection::backoffSleepTime,
+                    TapProducer::backoffSleepTime,
                     add_stat, cookie);
 
 
@@ -2866,8 +2809,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
 struct PopulateEventsBody {
     PopulateEventsBody(QueuedItem qeye) : qi(qeye) {}
     void operator() (TapConnection *tc) {
-        if (!tc->dumpQueue) {
-            tc->addEvent(qi);
+        TapProducer *tp = dynamic_cast<TapProducer*>(tc);
+        if (tp && !tp->dumpQueue) {
+            tp->addEvent(qi);
         }
     }
     QueuedItem qi;

@@ -13,6 +13,9 @@
 
 // Forward declaration
 class TapConnection;
+class TapConsumer;
+class TapProducer;
+class TapConnection;
 class Item;
 class EventuallyPersistentEngine;
 
@@ -25,7 +28,7 @@ template <typename V>
 class TapOperation {
 public:
     virtual ~TapOperation() {}
-    virtual void perform(TapConnection *tc, V arg) = 0;
+    virtual void perform(TapProducer *tc, V arg) = 0;
 };
 
 /**
@@ -33,7 +36,7 @@ public:
  */
 class CompleteBackfillTapOperation : public TapOperation<void*> {
 public:
-    void perform(TapConnection *tc, void* arg);
+    void perform(TapProducer *tc, void* arg);
 };
 
 /**
@@ -41,7 +44,7 @@ public:
  */
 class ScheduleDiskBackfillTapOperation : public TapOperation<void*> {
 public:
-    void perform(TapConnection *tc, void* arg);
+    void perform(TapProducer *tc, void* arg);
 };
 
 /**
@@ -49,7 +52,7 @@ public:
  */
 class CompleteDiskBackfillTapOperation : public TapOperation<void*> {
 public:
-    void perform(TapConnection *tc, void* arg);
+    void perform(TapProducer *tc, void* arg);
 };
 
 /**
@@ -59,7 +62,7 @@ class ReceivedItemTapOperation : public TapOperation<Item*> {
 public:
     ReceivedItemTapOperation(bool ie=false) : implicitEnqueue(ie) {}
 
-    void perform(TapConnection *tc, Item* arg);
+    void perform(TapProducer *tc, Item* arg);
 private:
     bool implicitEnqueue;
 };
@@ -69,7 +72,7 @@ private:
  */
 class CompletedBGFetchTapOperation : public TapOperation<EventuallyPersistentEngine*> {
 public:
-    void perform(TapConnection *tc, EventuallyPersistentEngine* arg);
+    void perform(TapProducer *tc, EventuallyPersistentEngine* arg);
 };
 
 /**
@@ -77,7 +80,7 @@ public:
  */
 class NotifyIOTapOperation : public TapOperation<EventuallyPersistentEngine*> {
 public:
-    void perform(TapConnection *tc, EventuallyPersistentEngine* arg);
+    void perform(TapProducer *tc, EventuallyPersistentEngine* arg);
 };
 
 /**
@@ -111,8 +114,10 @@ public:
 
         TapConnection *tc = findByName_UNLOCKED(name);
         if (tc) {
-            tapop.perform(tc, arg);
-            shouldNotify = isPaused(tc);
+            TapProducer *tp = dynamic_cast<TapProducer*>(tc);
+            assert(tp != NULL);
+            tapop.perform(tp, arg);
+            shouldNotify = isPaused(tp);
             clear = shouldDisconnect(tc);
         } else {
             ret = false;
@@ -184,12 +189,20 @@ public:
      * Find or build a tap connection for the given cookie and with
      * the given name.
      */
-    TapConnection *newConn(EventuallyPersistentEngine* e,
-                           const void* cookie,
-                           const std::string &name,
-                           uint32_t flags,
-                           uint64_t backfillAge,
-                           int tapKeepAlive);
+    TapProducer *newProducer(EventuallyPersistentEngine* e,
+                             const void* cookie,
+                             const std::string &name,
+                             uint32_t flags,
+                             uint64_t backfillAge,
+                             int tapKeepAlive);
+
+    /**
+     * Create a new consumer and add it in the list of TapConnections
+     * @param e the engine
+     * @param c the cookie representing the client
+     * @return Pointer to the nw tap connection
+     */
+    TapConsumer *newConsumer(EventuallyPersistentEngine* e, const void* c);
 
     /**
      * Call a function on each tap connection.
@@ -217,7 +230,7 @@ private:
 
     bool mapped(TapConnection *tc);
 
-    bool isPaused(TapConnection *tc);
+    bool isPaused(TapProducer *tc);
     bool shouldDisconnect(TapConnection *tc);
 
     SyncObject                               notifySync;

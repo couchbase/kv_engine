@@ -29,7 +29,7 @@ struct PopulateEventsBody;
  * A tap event that represents a change to the state of a vbucket.
  *
  * The tap stream may include other events than data mutation events,
- * but the data structures in the TapConnection does only store a key
+ * but the data structures in the TapProducer does only store a key
  * for the item to store. We don't want to add more data to those elements,
  * because that could potentially consume a lot of memory (the tap queue
  * may have a lot of elements).
@@ -101,11 +101,197 @@ public:
 };
 
 /**
+ * An abstract class representing a TAP connection. There are two different
+ * types of a TAP connection, a producer and a consumer. The producers needs
+ * to be able of being kept across connections, but the consumers don't contain
+ * anything that can't be recreated.
+ */
+class TapConnection {
+protected:
+    /**
+     * We need to be able to generate unique names, so let's just use a 64 bit counter
+     */
+    static Atomic<uint64_t> tapCounter;
+
+    /**
+     * The engine that owns the connection
+     */
+    EventuallyPersistentEngine &engine;
+    /**
+     * The cookie representing this connection (provided by the memcached code)
+     */
+    const void *cookie;
+    /**
+     * The name for this connection
+     */
+    std::string name;
+
+    /**
+     * Tap connection creation time
+     */
+    rel_time_t created;
+
+    /**
+     * when this tap conneciton expires.
+     */
+    rel_time_t expiryTime;
+
+    /**
+     * Is this tap conenction connected?
+     */
+    bool connected;
+
+    /**
+     * Should we disconnect as soon as possible?
+     */
+    bool disconnect;
+
+    /**
+     * Number of times this connection was disconnected
+     */
+    Atomic<size_t> numDisconnects;
+
+    bool supportAck;
+
+    TapConnection(EventuallyPersistentEngine &theEngine,
+                  const void *c, const std::string &n) :
+        engine(theEngine),
+        cookie(c),
+        name(n),
+        created(ep_current_time()),
+        expiryTime((rel_time_t)-1),
+        connected(true),
+        disconnect(false),
+        supportAck(false)
+    { /* EMPTY */ }
+
+
+    template <typename T>
+    void addStat(const char *nm, T val, ADD_STAT add_stat, const void *c) {
+        std::stringstream tap;
+        tap << name << ":" << nm;
+        std::stringstream value;
+        value << val;
+        std::string n = tap.str();
+        add_stat(n.data(), static_cast<uint16_t>(n.length()),
+                 value.str().data(), static_cast<uint32_t>(value.str().length()),
+                 c);
+    }
+
+    void addStat(const char *nm, bool val, ADD_STAT add_stat, const void *c) {
+        addStat(nm, val ? "true" : "false", add_stat, c);
+    }
+
+public:
+    static uint64_t nextTapId() {
+        return tapCounter++;
+    }
+
+    static std::string getAnonName() {
+        std::stringstream s;
+        s << "eq_tapq:anon_";
+        s << nextTapId();
+        return s.str();
+    }
+
+    virtual ~TapConnection() { /* EMPTY */ }
+    virtual const std::string &getName() const { return name; }
+    void setName(const std::string &n) { name.assign(n); }
+
+    virtual const char *getType() const = 0;
+
+    virtual void addStats(ADD_STAT add_stat, const void *c) {
+        addStat("type", getType(), add_stat, c);
+        addStat("created", created, add_stat, c);
+        addStat("connected", connected, add_stat, c);
+        addStat("pending_disconnect", doDisconnect(), add_stat, c);
+        addStat("supports_ack", supportAck, add_stat, c);
+
+        if (numDisconnects > 0) {
+            addStat("disconnects", numDisconnects, add_stat, c);
+        }
+    }
+
+    virtual void processedEvent(tap_event_t event, ENGINE_ERROR_CODE ret) {
+        (void)event;
+        (void)ret;
+    }
+
+    void setSupportAck(bool ack) {
+        supportAck = ack;
+    }
+
+    bool supportsAck() const {
+        return supportAck;
+    }
+
+    void setExpiryTime(rel_time_t t) {
+        expiryTime = t;
+    }
+
+    rel_time_t getExpiryTime() {
+        return expiryTime;
+    }
+
+    void setConnected(bool s) {
+        if (!s) {
+            ++numDisconnects;
+        }
+        connected = s;
+    }
+
+    bool isConnected() {
+        return connected;
+    }
+
+    bool doDisconnect() {
+        return disconnect;
+    }
+
+    void setDisconnect(bool val) {
+        disconnect = val;
+    }
+};
+
+/**
+ * Holder class for the
+ */
+class TapConsumer : public TapConnection {
+private:
+    Atomic<size_t> numDelete;
+    Atomic<size_t> numDeleteFailed;
+    Atomic<size_t> numFlush;
+    Atomic<size_t> numFlushFailed;
+    Atomic<size_t> numMutation;
+    Atomic<size_t> numMutationFailed;
+    Atomic<size_t> numOpaque;
+    Atomic<size_t> numOpaqueFailed;
+    Atomic<size_t> numVbucketSet;
+    Atomic<size_t> numVbucketSetFailed;
+    Atomic<size_t> numUnknown;
+
+public:
+    TapConsumer(EventuallyPersistentEngine &theEngine,
+                const void *c,
+                const std::string &n);
+    virtual void processedEvent(tap_event_t event, ENGINE_ERROR_CODE ret);
+    virtual void addStats(ADD_STAT add_stat, const void *c);
+    virtual const char *getType() const { return "consumer"; };
+};
+
+
+
+/**
  * Class used by the EventuallyPersistentEngine to keep track of all
  * information needed per Tap connection.
  */
-class TapConnection {
+class TapProducer : public TapConnection {
 public:
+    virtual void addStats(ADD_STAT add_stat, const void *c);
+    virtual void processedEvent(tap_event_t event, ENGINE_ERROR_CODE ret);
+    virtual const char *getType() const { return "producer"; };
+
+
     bool isSuspended() const;
     void setSuspended(bool value);
     const void *getCookie() const;
@@ -134,10 +320,6 @@ public:
      */
     void completedBGFetchJob();
 
-    const std::string& getName() const {
-        return client;
-    }
-
 private:
     friend class EventuallyPersistentEngine;
     friend class TapConnMap;
@@ -150,14 +332,14 @@ private:
         if (complete() && idle()) {
             // There is no data for this connection..
             // Just go ahead and disconnect it.
-            doDisconnect = true;
+            setDisconnect(true);
         }
     }
 
     /**
      * Add a new item to the tap queue. You need to hold the queue lock
      * before calling this function
-     * The item may be ignored if the TapConnection got a vbucket filter
+     * The item may be ignored if the TapProducer got a vbucket filter
      * associated and the item's vbucket isn't part of the filter.
      *
      * @return true if the the queue was empty
@@ -179,7 +361,7 @@ private:
 
     /**
      * Add a new item to the tap queue.
-     * The item may be ignored if the TapConnection got a vbucket filter
+     * The item may be ignored if the TapProducer got a vbucket filter
      * associated and the item's vbucket isn't part of the filter.
      *
      * @return true if the the queue was empty
@@ -204,14 +386,14 @@ private:
 
     void addTapLogElement(const QueuedItem &qi) {
         LockHolder lh(queueLock);
-        if (ackSupported) {
+        if (supportAck) {
             TapLogElement log(seqno, qi);
             tapLog.push_back(log);
         }
     }
 
     void addTapLogElement_UNLOCKED(const TapVBucketEvent &e) {
-        if (ackSupported && e.event != TAP_NOOP) {
+        if (supportAck && e.event != TAP_NOOP) {
             // add to the log!
             TapLogElement log(seqno, e);
             tapLog.push_back(log);
@@ -244,7 +426,7 @@ private:
 
 
     /**
-     * Add a new high priority TapVBucketEvent to this TapConnection. A high
+     * Add a new high priority TapVBucketEvent to this TapProducer. A high
      * priority TapVBucketEvent will bypass the the normal queue of events to
      * be sent to the client, and be sent the next time it is possible to
      * send data over the tap connection.
@@ -255,7 +437,7 @@ private:
     }
 
     /**
-     * Get the next high priority TapVBucketEvent for this TapConnection.
+     * Get the next high priority TapVBucketEvent for this TapProducer
      */
     TapVBucketEvent nextVBucketHighPriority_UNLOCKED() {
         TapVBucketEvent ret(TAP_PAUSE, 0, vbucket_state_active);
@@ -296,7 +478,7 @@ private:
     }
 
     /**
-     * Add a new low priority TapVBucketEvent to this TapConnection. A low
+     * Add a new low priority TapVBucketEvent to this TapProducer. A low
      * priority TapVBucketEvent will only be sent when the tap connection
      * doesn't have any other events to send.
      */
@@ -306,7 +488,7 @@ private:
     }
 
     /**
-     * Get the next low priority TapVBucketEvent for this TapConnection.
+     * Get the next low priority TapVBucketEvent for this TapProducer.
      */
     TapVBucketEvent nextVBucketLowPriority_UNLOCKED() {
         TapVBucketEvent ret(TAP_PAUSE, 0, vbucket_state_active);
@@ -360,6 +542,11 @@ private:
         return queueSize;
     }
 
+    size_t getTapLogSize() {
+        LockHolder lh(queueLock);
+        return tapLog.size();
+    }
+
     Item* nextFetchedItem();
 
     void flush() {
@@ -398,7 +585,7 @@ private:
     }
 
     /**
-     * A TapConnection is complete when it has nothing to transmit and
+     * A TapProducer is complete when it has nothing to transmit and
      * a disconnect was requested at the end.
      */
     bool complete(void) {
@@ -420,12 +607,12 @@ private:
      */
     void runBGFetch(Dispatcher *dispatcher, const void *cookie);
 
-    TapConnection(EventuallyPersistentEngine &theEngine,
-                  const void *cookie,
-                  const std::string &n,
-                  uint32_t f);
+    TapProducer(EventuallyPersistentEngine &theEngine,
+                const void *cookie,
+                const std::string &n,
+                uint32_t f);
 
-    ~TapConnection() {
+    ~TapProducer() {
         LockHolder lh(backfillLock);
         while (!backfilledItems.empty()) {
             Item *i(backfilledItems.front());
@@ -470,34 +657,11 @@ private:
                                       uint16_t *nes, uint16_t *vbucket) const;
 
 
-    static uint64_t nextTapId() {
-        return tapCounter++;
-    }
-
-    static std::string getAnonTapName() {
-        std::stringstream s;
-        s << "eq_tapq:anon_";
-        s << TapConnection::nextTapId();
-        return s.str();
-    }
-
     void evaluateFlags();
 
     bool waitForBackfill();
 
-    /**
-     * The engine that owns the connection
-     */
-    EventuallyPersistentEngine &engine;
-
-    /**
-     * String used to identify the client.
-     * @todo design the connect packet and fill inn som info here
-     */
-    std::string client;
-
     //! cookie used by this connection
-    const void *cookie;
     void setCookie(const void *c) {
         cookie = c;
     }
@@ -546,24 +710,9 @@ private:
     bool pendingFlush;
 
     /**
-     * when this tap conneciton expires.
-     */
-    rel_time_t expiry_time;
-
-    /**
      * Number of times this client reconnected
      */
     uint32_t reconnects;
-
-    /**
-     * Number of disconnects from this client
-     */
-    uint32_t disconnects;
-
-    /**
-     * Is connected?
-     */
-    bool connected;
 
     /**
      * is his paused
@@ -576,7 +725,6 @@ private:
      * Backfill age for the connection
      */
     uint64_t backfillAge;
-
 
     /**
      * Dump and disconnect?
@@ -627,17 +775,11 @@ private:
     Atomic<size_t> numTapNack;
     Atomic<size_t> numTmpfailSurvivors;
 
-    // True if this should be disconnected as soon as possible
-    bool doDisconnect;
-
     // Current tap sequence number (for ack's)
     uint32_t seqno;
 
     // The last tap sequence number received
     uint32_t seqnoReceived;
-
-    // does the client support tap acking?
-    bool ackSupported;
 
     bool hasPendingAcks() {
         LockHolder lh(queueLock);
@@ -708,7 +850,7 @@ private:
      */
     static uint32_t initialAckSequenceNumber;
 
-    DISALLOW_COPY_AND_ASSIGN(TapConnection);
+    DISALLOW_COPY_AND_ASSIGN(TapProducer);
 };
 
 #endif
