@@ -141,6 +141,47 @@ static void testVBucketFilter() {
     assert(!hasThree(3));
 }
 
+static void assertFilterTxt(const VBucketFilter &filter, const std::string &res)
+{
+    std::stringstream ss;
+    ss << filter;
+    if (ss.str() != res) {
+        std::cerr << "Filter mismatch: "
+                  << ss.str() << " != " << res << std::endl;
+        std::cerr.flush();
+        abort();
+    }
+}
+
+static void testVBucketFilterFormatter(void) {
+    std::vector<uint16_t> v;
+
+    VBucketFilter filter(v);
+    assertFilterTxt(filter, "{ empty }");
+    v.push_back(1);
+    filter.assign(v);
+    assertFilterTxt(filter, "{ 1 }");
+
+    for (uint16_t ii = 2; ii < 100; ++ii) {
+        v.push_back(ii);
+    }
+    filter.assign(v);
+    assertFilterTxt(filter, "{ [1,99] }");
+
+    v.push_back(101);
+    v.push_back(102);
+    filter.assign(v);
+    assertFilterTxt(filter, "{ [1,99], 101, 102 }");
+
+    v.push_back(103);
+    filter.assign(v);
+    assertFilterTxt(filter, "{ [1,99], [101,103] }");
+
+    v.push_back(100);
+    filter.assign(v);
+    assertFilterTxt(filter, "{ [1,103] }");
+}
+
 int main(int argc, char **argv) {
     (void)argc; (void)argv;
 
@@ -152,4 +193,5 @@ int main(int argc, char **argv) {
     testVBucketLookup();
     testConcurrentUpdate();
     testVBucketFilter();
+    testVBucketFilterFormatter();
 }

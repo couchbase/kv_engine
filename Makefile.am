@@ -169,7 +169,7 @@ management_sqlite3_DEPENDENCIES = libsqlite3.la
 management_sqlite3_LDADD = libsqlite3.la
 
 vbucket_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
-vbucket_test_SOURCES = t/vbucket_test.cc vbucket.hh stored-value.cc stored-value.hh
+vbucket_test_SOURCES = t/vbucket_test.cc vbucket.hh vbucket.cc stored-value.cc stored-value.hh
 vbucket_test_DEPENDENCIES = vbucket.hh stored-value.cc stored-value.hh
 
 hrtime_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
@@ -197,6 +197,7 @@ if BUILD_GETHRTIME
 ep_la_SOURCES += gethrtime.c
 hrtime_test_SOURCES += gethrtime.c
 dispatcher_test_SOURCES += gethrtime.c
+vbucket_test_SOURCES += gethrtime.c
 endif
 
 pythonlibdir=$(libdir)/python

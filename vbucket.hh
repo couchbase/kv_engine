@@ -33,7 +33,12 @@ public:
      * Instantiate a VBucketFilter that returns true for any of the
      * given vbucket IDs.
      */
-    explicit VBucketFilter(std::vector<uint16_t> a) : acceptable(a) {
+    explicit VBucketFilter(const std::vector<uint16_t> &a) : acceptable(a) {
+        std::sort(acceptable.begin(), acceptable.end());
+    }
+
+    void assign(const std::vector<uint16_t> &a) {
+        acceptable = a;
         std::sort(acceptable.begin(), acceptable.end());
     }
 

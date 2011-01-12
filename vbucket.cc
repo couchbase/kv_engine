@@ -26,6 +26,22 @@ VBucketFilter VBucketFilter::filter_intersection(const VBucketFilter &other) con
     return VBucketFilter(std::vector<uint16_t>(tmp.begin(), end));
 }
 
+static bool isRange(std::vector<uint16_t>::const_iterator it,
+                    const std::vector<uint16_t>::const_iterator &end,
+                    size_t &length)
+{
+    length = 0;
+    for (uint16_t val = *it;
+         it != end && (val + length) == *it;
+         ++it, ++length) {
+        // empty
+    }
+
+    --length;
+
+    return length > 1;
+}
+
 std::ostream& operator <<(std::ostream &out, const VBucketFilter &filter)
 {
     bool needcomma = false;
@@ -41,14 +57,21 @@ std::ostream& operator <<(std::ostream &out, const VBucketFilter &filter)
             if (needcomma) {
                 out << ", ";
             }
-            out << *it;
+
+            size_t length;
+            if (isRange(it, filter.acceptable.end(), length)) {
+                out << "[" << *it << "," << *(it + length) << "]";
+                it += length;
+            } else {
+                out << *it;
+            }
             needcomma = true;
         }
         out << " }";
     }
 
-     return out;
- }
+    return out;
+}
 
 const vbucket_state_t VBucket::ACTIVE = static_cast<vbucket_state_t>(htonl(vbucket_state_active));
 const vbucket_state_t VBucket::REPLICA = static_cast<vbucket_state_t>(htonl(vbucket_state_replica));
