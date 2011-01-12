@@ -315,15 +315,16 @@ the individual stat name.
 For example, the stat representing the size of the hash table for
 vbucket 0 is =vb_0:size=.
 
-| state     | The current state of this vbucket              |
-| size      | Number of hash buckets                         |
-| locks     | Number of locks covering hash table operations |
-| min_depth | Minimum number of items found in a bucket      |
-| max_depth | Maximum number of items found in a bucket      |
-| reported  | Number of items this hash table reports having |
-| counted   | Number of items found while walking the table  |
-| resized   | Number of times the hash table resized.        |
-
+| state            | The current state of this vbucket                |
+| size             | Number of hash buckets                           |
+| locks            | Number of locks covering hash table operations   |
+| min_depth        | Minimum number of items found in a bucket        |
+| max_depth        | Maximum number of items found in a bucket        |
+| reported         | Number of items this hash table reports having   |
+| counted          | Number of items found while walking the table    |
+| resized          | Number of times the hash table resized.          |
+| mem_size         | Running sum of memory used by each item.         |
+| mem_size_counted | Counted sum of current memory used by each item. |
 
 * Details
 

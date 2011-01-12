@@ -724,10 +724,11 @@ bool EventuallyPersistentStore::deleteVBucket(uint16_t vbid) {
         uint16_t vb_version = vbuckets.getBucketVersion(vbid);
         lh.unlock();
         rv = true;
-        HashTableStatVisitor statvis(vbuckets.removeBucket(vbid));
-        stats.currentSize.decr(statvis.memSize);
+        stats.currentSize.decr(vb->ht.memSize);
         assert(stats.currentSize.get() < GIGANTOR);
-        stats.totalCacheSize.decr(statvis.memSize);
+        stats.totalCacheSize.decr(vb->ht.memSize);
+        assert(stats.totalCacheSize.get() < GIGANTOR);
+        vbuckets.removeBucket(vbid);
         scheduleVBSnapshot(Priority::VBucketPersistHighPriority);
         scheduleVBDeletion(vb, vb_version);
     }

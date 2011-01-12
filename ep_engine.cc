@@ -2346,7 +2346,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doHashStats(const void *cookie,
 
     class StatVBucketVisitor : public VBucketVisitor {
     public:
-        StatVBucketVisitor(const void *c, ADD_STAT a) : cookie(c), add_stat(a) {}
+        StatVBucketVisitor(const void *c, ADD_STAT a)
+            : cookie(c), add_stat(a) {}
 
         bool visitBucket(RCPtr<VBucket> vb) {
             uint16_t vbid = vb->getId();
@@ -2374,11 +2375,14 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doHashStats(const void *cookie,
             add_casted_stat(buf, depthVisitor.size, add_stat, cookie);
             snprintf(buf, sizeof(buf), "vb_%d:resized", vbid);
             add_casted_stat(buf, vb->ht.getNumResizes(), add_stat, cookie);
+            snprintf(buf, sizeof(buf), "vb_%d:mem_size", vbid);
+            add_casted_stat(buf, vb->ht.memSize, add_stat, cookie);
+            snprintf(buf, sizeof(buf), "vb_%d:mem_size_counted", vbid);
+            add_casted_stat(buf, depthVisitor.memUsed, add_stat, cookie);
 
             return false;
         }
 
-    private:
         const void *cookie;
         ADD_STAT add_stat;
     };

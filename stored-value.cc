@@ -32,9 +32,9 @@ bool StoredValue::ejectValue(EPStats &stats, HashTable &ht) {
 
         // ejecting the value may increase the object size....
         if (oldsize < newsize) {
-            increaseCurrentSize(stats, newsize - oldsize, true);
+            increaseCurrentSize(stats, ht, newsize - oldsize, true);
         } else if (newsize < oldsize) {
-            reduceCurrentSize(stats, oldsize - newsize, true);
+            reduceCurrentSize(stats, ht, oldsize - newsize, true);
         }
         ++stats.numValueEjects;
         ++ht.numNonResidentItems;
@@ -54,9 +54,9 @@ bool StoredValue::restoreValue(value_t v, EPStats &stats, HashTable &ht) {
 
         size_t newsize = size();
         if (oldsize < newsize) {
-            increaseCurrentSize(stats, newsize - oldsize, true);
+            increaseCurrentSize(stats, ht, newsize - oldsize, true);
         } else if (newsize < oldsize) {
-            reduceCurrentSize(stats, oldsize - newsize, true);
+            reduceCurrentSize(stats, ht, oldsize - newsize, true);
         }
         --ht.numNonResidentItems;
         return true;
@@ -116,6 +116,7 @@ HashTableStatVisitor HashTable::clear(bool deactivate) {
 
     numItems.set(0);
     numNonResidentItems.set(0);
+    memSize.set(0);
 
     return rv;
 }
@@ -261,11 +262,13 @@ void HashTable::visitDepth(HashTableDepthVisitor &visitor) {
             StoredValue *p = values[i];
             assert(p == NULL || i == getBucketForHash(hash(p->getKeyBytes(),
                                                            p->getKeyLen())));
+            size_t mem(0);
             while (p) {
                 depth++;
+                mem += p->size();
                 p = p->next;
             }
-            visitor.visit(i, depth);
+            visitor.visit(i, depth, mem);
             ++visited;
         }
     }
@@ -332,15 +335,19 @@ size_t StoredValue::getTotalCacheSize(EPStats &st) {
     return st.totalCacheSize.get();
 }
 
-void StoredValue::increaseCurrentSize(EPStats &st, size_t by, bool residentOnly) {
+void StoredValue::increaseCurrentSize(EPStats &st, HashTable &ht,
+                                      size_t by, bool residentOnly) {
     if (!residentOnly) {
         st.totalCacheSize.incr(by);
     }
     st.currentSize.incr(by);
     assert(st.currentSize.get() < GIGANTOR);
+    ht.memSize.incr(by);
+    assert(ht.memSize.get() < GIGANTOR);
 }
 
-void StoredValue::reduceCurrentSize(EPStats &st, size_t by, bool residentOnly) {
+void StoredValue::reduceCurrentSize(EPStats &st, HashTable &ht,
+                                    size_t by, bool residentOnly) {
     size_t val;
 
     do {
@@ -351,6 +358,8 @@ void StoredValue::reduceCurrentSize(EPStats &st, size_t by, bool residentOnly) {
     if (!residentOnly) {
         st.totalCacheSize.decr(by);
     }
+    ht.memSize.decr(by);
+    assert(ht.memSize.get() < GIGANTOR);
 }
 
 /**

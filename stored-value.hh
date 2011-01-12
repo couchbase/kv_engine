@@ -212,11 +212,11 @@ public:
      * @param newExp the new expiration
      * @param theCas thenew CAS identifier
      * @param stats the global stats
+     * @param ht the hashtable that contains this StoredValue instance
      */
-    void setValue(value_t v,
-                  uint32_t newFlags, time_t newExp, uint64_t theCas,
-                  EPStats &stats) {
-        reduceCurrentSize(stats, size());
+    void setValue(value_t v, uint32_t newFlags, time_t newExp,
+                  uint64_t theCas, EPStats &stats, HashTable &ht) {
+        reduceCurrentSize(stats, ht, size());
         value = v;
         setResident();
         flags = newFlags;
@@ -225,7 +225,7 @@ public:
             extra.feature.exptime = newExp;
         }
         markDirty();
-        increaseCurrentSize(stats, size());
+        increaseCurrentSize(stats, ht, size());
     }
 
     size_t valLength() {
@@ -439,7 +439,7 @@ public:
     /**
      * Logically delete this object.
      */
-    void del(EPStats &stats) {
+    void del(EPStats &stats, HashTable &ht) {
         size_t oldsize = size();
 
         value.reset();
@@ -448,9 +448,9 @@ public:
 
         size_t newsize = size();
         if (oldsize < newsize) {
-            increaseCurrentSize(stats, newsize - oldsize, true);
+            increaseCurrentSize(stats, ht, newsize - oldsize, true);
         } else if (newsize < oldsize) {
-            reduceCurrentSize(stats, oldsize - newsize, true);
+            reduceCurrentSize(stats, ht, oldsize - newsize, true);
         }
     }
 
@@ -496,7 +496,7 @@ public:
 
 private:
 
-    StoredValue(const Item &itm, StoredValue *n, EPStats &stats,
+    StoredValue(const Item &itm, StoredValue *n, EPStats &stats, HashTable &ht,
                 bool setDirty = true, bool small = false) :
         value(itm.getValue()), next(n), id(itm.getId()),
         dirtiness(0), _isSmall(small), flags(itm.getFlags())
@@ -519,7 +519,7 @@ private:
             markClean(NULL);
         }
 
-        increaseCurrentSize(stats, size());
+        increaseCurrentSize(stats, ht, size());
     }
 
     void setResident() {
@@ -542,8 +542,10 @@ private:
 
     union stored_value_bodies extra;
 
-    static void increaseCurrentSize(EPStats&, size_t by, bool residentOnly = false);
-    static void reduceCurrentSize(EPStats&, size_t by, bool residentOnly = false);
+    static void increaseCurrentSize(EPStats&, HashTable &ht,
+                                    size_t by, bool residentOnly = false);
+    static void reduceCurrentSize(EPStats&, HashTable &ht,
+                                  size_t by, bool residentOnly = false);
     static bool hasAvailableSpace(EPStats&, const Item &item);
 
     DISALLOW_COPY_AND_ASSIGN(StoredValue);
@@ -609,8 +611,9 @@ public:
      *
      * @param bucket the index of the hashtable bucket
      * @param depth the number of entries in this hashtable bucket
+     * @param mem counted memory used by this hash table
      */
-    virtual void visit(int bucket, int depth) = 0;
+    virtual void visit(int bucket, int depth, size_t mem) = 0;
 };
 
 /**
@@ -621,9 +624,9 @@ public:
 
     HashTableDepthStatVisitor() : depthHisto(GrowingWidthGenerator<unsigned int>(1, 1, 1.3),
                                              10),
-                                  size(0), min(-1), max(0) {}
+                                  size(0), memUsed(0), min(-1), max(0) {}
 
-    void visit(int bucket, int depth) {
+    void visit(int bucket, int depth, size_t mem) {
         (void)bucket;
         // -1 is a special case for min.  If there's a value other than
         // -1, we prefer that.
@@ -631,10 +634,12 @@ public:
         max = std::max(max, depth);
         depthHisto.add(depth);
         size += depth;
+        memUsed += mem;
     }
 
     Histogram<unsigned int> depthHisto;
     size_t                  size;
+    size_t                  memUsed;
     int                     min;
     int                     max;
 };
@@ -703,23 +708,24 @@ public:
     /**
      * Create a new StoredValueFactory of the given type.
      */
-    StoredValueFactory(EPStats &s, enum stored_value_type t = featured) : stats(&s), type(t) {}
+    StoredValueFactory(EPStats &s, enum stored_value_type t = featured) : stats(&s),type(t) { }
 
     /**
      * Create a new StoredValue with the given item.
      *
      * @param itm the item the StoredValue should contain
      * @param n the the top of the hash bucket into which this will be inserted
+     * @param ht the hashtable that will contain the StoredValue instance created
      * @param setDirty if true, mark this item as dirty after creating it
      */
-    StoredValue *operator ()(const Item &itm, StoredValue *n,
+    StoredValue *operator ()(const Item &itm, StoredValue *n, HashTable &ht,
                              bool setDirty = true) {
         switch(type) {
         case small:
-            return newStoredValue(itm, n, setDirty, true);
+            return newStoredValue(itm, n, ht, setDirty, true);
             break;
         case featured:
-            return newStoredValue(itm, n, setDirty, false);
+            return newStoredValue(itm, n, ht, setDirty, false);
             break;
         default:
             abort();
@@ -728,8 +734,8 @@ public:
 
 private:
 
-    StoredValue* newStoredValue(const Item &itm, StoredValue *n, bool setDirty,
-                                bool small) {
+    StoredValue* newStoredValue(const Item &itm, StoredValue *n, HashTable &ht,
+                                bool setDirty, bool small) {
         size_t base = StoredValue::sizeOf(small);
 
         std::string key = itm.getKey();
@@ -737,7 +743,7 @@ private:
         size_t len = key.length() + base;
 
         StoredValue *t = new (::operator new(len))
-            StoredValue(itm, n, *stats, setDirty, small);
+            StoredValue(itm, n, *stats, ht, setDirty, small);
         if (small) {
             std::memcpy(t->extra.small.keybytes, key.data(), key.length());
         } else {
@@ -894,7 +900,7 @@ public:
             }
             v->setValue(itm.getValue(),
                         itm.getFlags(), itm.getExptime(),
-                        itm.getCas(), stats);
+                        itm.getCas(), stats, *this);
             row_id = v->getId();
         } else {
             if (itm.getCas() != 0) {
@@ -902,7 +908,7 @@ public:
             }
 
             itm.setCas();
-            v = valFact(itm, values[bucket_num]);
+            v = valFact(itm, values[bucket_num], *this);
             values[bucket_num] = v;
             ++numItems;
         }
@@ -934,13 +940,13 @@ public:
             if (v) {
                 v->setValue(itm.getValue(),
                             itm.getFlags(), itm.getExptime(),
-                            itm.getCas(), stats);
+                            itm.getCas(), stats, *this);
                 rv = v->isDirty() ? ADD_UNDEL : ADD_SUCCESS;
                 if (isDirty) {
                     v->markDirty();
                 }
             } else {
-                v = valFact(itm, values[bucket_num], isDirty);
+                v = valFact(itm, values[bucket_num], *this, isDirty);
                 values[bucket_num] = v;
                 ++numItems;
             }
@@ -983,7 +989,7 @@ public:
         StoredValue *v = unlocked_find(key, bucket_num);
         if (v) {
             if (v->isExpired(ep_real_time())) {
-                v->del(stats);
+                v->del(stats, *this);
                 return rv;
             }
 
@@ -1003,7 +1009,7 @@ public:
             v->unlock();
 
             rv = v->isClean() ? WAS_CLEAN : WAS_DIRTY;
-            v->del(stats);
+            v->del(stats, *this);
         }
         return rv;
     }
@@ -1131,7 +1137,7 @@ public:
                 return false;
             }
             values[bucket_num] = v->next;
-            v->reduceCurrentSize(stats, v->size());
+            v->reduceCurrentSize(stats, *this, v->size());
             delete v;
             --numItems;
             return true;
@@ -1144,7 +1150,7 @@ public:
                     return false;
                 }
                 v->next = v->next->next;
-                tmp->reduceCurrentSize(stats, tmp->size());
+                tmp->reduceCurrentSize(stats, *this, tmp->size());
                 delete tmp;
                 --numItems;
                 return true;
@@ -1228,6 +1234,8 @@ public:
     static const char* getDefaultStorageValueTypeStr();
 
     Atomic<size_t>       numNonResidentItems;
+    //! Memory consumed by items in this hashtable.
+    Atomic<size_t>       memSize;
 
 private:
     inline bool active() { return activeState = true; }

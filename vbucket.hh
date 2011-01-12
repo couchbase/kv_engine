@@ -249,20 +249,15 @@ public:
     /**
      * Remove a vbucket by ID.
      *
-     * @return the number of items removed
      */
-    HashTableStatVisitor removeBucket(int id) {
+    void removeBucket(int id) {
         assert(id >= 0);
-        HashTableStatVisitor rv;
 
         if (static_cast<size_t>(id) < size) {
             // Theoretically, this could be off slightly.  In
             // practice, this happens only on dead vbuckets.
-            buckets[id]->ht.visit(rv);
             buckets[id].reset();
         }
-
-        return rv;
     }
 
     std::vector<int> getBuckets(void) const {
@@ -378,9 +373,9 @@ public:
         }
     }
 
-    HashTableStatVisitor removeBucket(int id) {
+    void removeBucket(int id) {
         RCPtr<VBucketHolder> o(buckets);
-        return o->removeBucket(id);
+        o->removeBucket(id);
     }
 
     void addBuckets(const std::vector<VBucket*> &newBuckets) {
