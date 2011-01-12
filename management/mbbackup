@@ -38,13 +38,15 @@ def backup(sqlite_path, srcdir, destdir, fn):
                 print "Vacuum of %s done" % fn
                 done = True
 
+def findCmd(cmdName):
+    cmd_dir = os.path.dirname(sys.argv[0])
+    bin_dir = cmd_dir
+    possible = [os.path.join(bin_dir, p) for p in [cmdName, cmdName + '.exe']]
+    cmdbin = [p for p in possible if os.path.exists(p)][0]
+    return cmdbin
+
 def find_sqlite():
-    candidates = [r'./sqlite3',
-                  r'.\sqlite3.exe']
-    for c in candidates:
-        if os.path.exists(c):
-            return c
-    sys.exit("ERROR: Cannot find sqlite3 command.")
+    return findCmd('sqlite3')
 
 src_path, dest_path = sys.argv[1:]
 sqlite_path = find_sqlite()
