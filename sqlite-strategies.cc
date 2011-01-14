@@ -28,7 +28,6 @@ SqliteStrategy::SqliteStrategy(const char * const fn,
 }
 
 SqliteStrategy::~SqliteStrategy() {
-    destroyMetaStatements();
     close();
 }
 
@@ -126,6 +125,7 @@ sqlite3 *SqliteStrategy::open(void) {
 
 void SqliteStrategy::close(void) {
     if(db) {
+        destroyMetaStatements();
         destroyStatements();
         sqlite3_close(db);
         db = NULL;
