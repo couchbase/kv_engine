@@ -133,8 +133,8 @@ public:
         return strategy->getNumOfDbShards();
     }
 
-    size_t getShardIdForKey(const std::string &k) {
-        return strategy->getDbShardIdForKey(k);
+    size_t getShardId(const QueuedItem &i) {
+        return strategy->getDbShardId(i);
     }
 
     void optimizeWrites(std::vector<QueuedItem> &items) {

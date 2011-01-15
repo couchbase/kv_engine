@@ -222,9 +222,9 @@ public:
     virtual size_t getNumShards() = 0;
 
     /**
-     * get the shard ID for the given key.
+     * get the shard ID for the given queued item.
      */
-    virtual size_t getShardIdForKey(const std::string &k) = 0;
+    virtual size_t getShardId(const QueuedItem &i) = 0;
 
     /**
      * Before persisting a batch of data, do stuf to them that might

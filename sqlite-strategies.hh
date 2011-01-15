@@ -32,16 +32,8 @@ public:
         return shardCount;
     }
 
-    uint16_t getDbShardIdForKey(const std::string &key) {
-        assert(shardCount > 0);
-        int h=5381;
-        int i=0;
-        const char *str = key.c_str();
-
-        for(i=0; str[i] != 0x00; i++) {
-            h = ((h << 5) + h) ^ str[i];
-        }
-        return std::abs(h) % (int)shardCount;
+    virtual uint16_t getDbShardId(const QueuedItem &qi) {
+        return getDbShardIdForKey(qi.getKey());
     }
 
     virtual const std::vector<Statements *> &allStatements() = 0;
@@ -92,6 +84,18 @@ public:
 protected:
 
     void doFile(const char * const filename);
+
+    uint16_t getDbShardIdForKey(const std::string &key) {
+        assert(shardCount > 0);
+        int h=5381;
+        int i=0;
+        const char *str = key.c_str();
+
+        for(i=0; str[i] != 0x00; i++) {
+            h = ((h << 5) + h) ^ str[i];
+        }
+        return std::abs(h) % (int)shardCount;
+    }
 
     virtual void initDB() {
         doFile(initFile);
@@ -400,6 +404,10 @@ public:
           shardpattern(sp) {
 
         assert(filename);
+    }
+
+    uint16_t getDbShardId(const QueuedItem &qi) {
+        return getShardForVBucket(qi.getVBucketId());
     }
 
     virtual ~ShardedByVBucketSqliteStrategy() { }

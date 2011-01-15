@@ -1913,8 +1913,8 @@ public:
 
     void visit(StoredValue *v) {
         std::string k = v->getKey();
-        uint16_t shardId = engine->kvstore->getShardIdForKey(k);
         QueuedItem qi(k, currentBucket->getId(), queue_op_set, -1, v->getId());
+        uint16_t shardId = engine->kvstore->getShardId(qi);
         found.push_back(std::make_pair(shardId, qi));
     }
 

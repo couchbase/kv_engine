@@ -1416,7 +1416,7 @@ int EventuallyPersistentStore::flushOneDelOrSet(QueuedItem &qi,
             // requeue the persistence task and wait until the snapshot task is completed.
             if (vbuckets.isHighPriorityVbSnapshotScheduled()) {
                 lh.unlock();
-                uint16_t shard_id = rwUnderlying->getShardIdForKey(qi.getKey());
+                uint16_t shard_id = rwUnderlying->getShardId(qi);
                 towrite[shard_id].push(qi);
                 stats.memOverhead.incr(qi.size());
                 assert(stats.memOverhead.get() < GIGANTOR);
@@ -1497,7 +1497,7 @@ void EventuallyPersistentStore::queueDirty(const std::string &key,
         QueuedItem item(key, vbid, op, vbuckets.getBucketVersion(vbid), obid);
 
         uint16_t shard_id = (op == queue_op_flush) ?
-                            0 : rwUnderlying->getShardIdForKey(item.getKey());
+                            0 : rwUnderlying->getShardId(item);
         towrite[shard_id].push(item);
         stats.memOverhead.incr(item.size());
         assert(stats.memOverhead.get() < GIGANTOR);
