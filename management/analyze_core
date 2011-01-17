@@ -1,9 +1,9 @@
-#! /bin/ksh
+#!/bin/sh
 #
-# Copyright (c) 2010, NorthScale, Inc.
+# Copyright (c) 2011, Membase, Inc.
 # All rights reserved
 #
-root=/opt/membase/bin
+root="/opt/membase"
 
 usage()
 {
@@ -46,6 +46,11 @@ then
    usage
 fi
 
+if [ -z "${root}" ]
+then
+   root=`dirname "${corefile}"`
+fi
+
 if [ -z "${report}" ]
 then
    report=${corefile}.log
@@ -64,24 +69,48 @@ then
    exit 1
 fi
 
-binary=`file ${corefile} | cut -f 2 -d \'`
-if [ "x${binary}" = "x" ]
+ls "${root}" >/dev/null 2>&1
+if [ $? -ne 0 ]
 then
-   echo "Failed to determine the binary name from the corefile"
+   echo "Membase root directory (${root}) doesn't exist"
    exit 1
 fi
 
-executable=`find $root -name $binary`
+cmdfile=/tmp/gdb-commands.$$
+cat > $cmdfile <<EOF
+info auxv
+EOF
+binary=`gdb --core "${corefile}" --batch -x $cmdfile | grep AT_EXECFN | cut -f2 -d\"`
+rm $cmdfile
+if [ "x${binary}" = "x" ]
+then
+   binary_name=`file ${corefile} | cut -f 2 -d \'`
+   binary=`(cd ${root} && find . -type f -name "${binary_name}" | head -n1)`
+   if [ "x${binary}" = "x" ]
+   then
+       echo "Failed to determine the binary name from the corefile"
+       exit 1
+   fi
+fi
+
+if [ `echo "${binary}" | cut -c1` = "/" ]
+then
+  executable="${binary}"
+else
+  executable=`ls "${root}/${binary}" 2>/dev/null`
+fi
+
 if [ "x${executable}" = "x" ]
 then
-   echo "Failed to locate the binary for the corefile"
+   echo "Failed to locate the binary for the corefile."
+   echo "Your tools might be broken. Consider sending core dump to support@membase.com."
    exit 1
 fi
 
 cat > ${report}  <<EOF
 Basic crash dump analysis of ${corefile}.
 
-Please send the file to support@northscale.com
+Please send the file to support@membase.com
 
 --------------------------------------------------------------------------------
 File information:
@@ -102,7 +131,7 @@ cat > $cmdfile <<EOF
 thread apply all bt
 quit
 EOF
-gdb --command=$cmdfile ${executable} ${corefile} >> ${report}
+(cd "${root}" && gdb --command=$cmdfile ${executable} ${corefile} >> ${report} 2>&1)
 rm $cmdfile
 
 cat >> ${report} <<EOF
@@ -115,9 +144,9 @@ do
    if [ "$module" != "Loaded" -a "$module" != "symbols" -a "$module" != "for" ]
    then
       echo ${module}:
-      ls -l ${module}
-      strings ${module} | egrep '[0-9]+\.[0-9]+\.[0-9]+_[0-9]+_........'
-      md5sum ${module}
+      (cd "${root}" && ls -l ${module})
+      (cd "${root}" && strings ${module}) | egrep '[0-9]+\.[0-9]+\.[0-9]+_[0-9]+_........'
+      (cd "${root}" && md5sum ${module})
    fi
 done >> ${report}
 
@@ -129,6 +158,6 @@ so it is recommended that you preserve the corefile and the binary
 for a more deep analysis. If the program use any shared libraries
 (such as memcached engines) you should also preserve them.
 
-Please send ${report} to support@northscale.com
+Please send ${report} to support@membase.com
 
 EOF
