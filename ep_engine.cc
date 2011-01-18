@@ -1474,14 +1474,11 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
             }
             ++stats.numTapDeletes;
         } else if (r == ENGINE_EWOULDBLOCK) {
-            // If efficient VBdump is not supported or not running now, go do a real fetch.
-            if (!(epstore->getStorageProperties().hasEfficientVBDump() &&
-                connection->pendingDiskBackfill && connection->diskBackfillVBucket == *vbucket)) {
-                connection->queueBGFetch(key, gv.getId(), *vbucket,
-                                         epstore->getVBucketVersion(*vbucket));
-                // This can optionally collect a few and batch them.
-                connection->runBGFetch(epstore->getRODispatcher(), cookie);
-            }
+            connection->queueBGFetch(key, gv.getId(), *vbucket,
+                                     epstore->getVBucketVersion(*vbucket));
+            // This can optionally collect a few and batch them.
+            connection->runBGFetch(epstore->getRODispatcher(), cookie);
+
             // If there's an item ready, return NOOP so we'll come
             // back immediately, otherwise pause the connection
             // while we wait.
@@ -1896,15 +1893,7 @@ public:
         if (filter(vb->getId())) {
             VBucketVisitor::visitBucket(vb);
             if (efficientVBDump) {
-                Dispatcher *d(engine->epstore->getRODispatcher());
-                KVStore *underlying(engine->epstore->getROUnderlying());
-                assert(d);
-                shared_ptr<DispatcherCallback> cb(new BackfillDiskLoad(name,
-                                                                       engine,
-                                                                       engine->tapConnMap,
-                                                                       underlying,
-                                                                       vb->getId()));
-                d->schedule(cb, NULL, Priority::TapBgFetcherPriority);
+                vbuckets.push_back(vb->getId());
             }
             return true;
         }
@@ -1912,6 +1901,11 @@ public:
     }
 
     void visit(StoredValue *v) {
+        // If efficient VBdump is supported and an item is not resident,
+        // skip the item as it will be fetched by the disk backfill.
+        if (efficientVBDump && !v->isResident()) {
+            return;
+        }
         std::string k = v->getKey();
         QueuedItem qi(k, currentBucket->getId(), queue_op_set, -1, v->getId());
         uint16_t shardId = engine->kvstore->getShardId(qi);
@@ -1924,6 +1918,23 @@ public:
     }
 
     void apply(void) {
+        // If efficient VBdump is supported, schedule all the disk backfill tasks.
+        if (efficientVBDump) {
+            std::vector<uint16_t>::iterator it = vbuckets.begin();
+            for (; it != vbuckets.end(); it++) {
+                Dispatcher *d(engine->epstore->getRODispatcher());
+                KVStore *underlying(engine->epstore->getROUnderlying());
+                assert(d);
+                shared_ptr<DispatcherCallback> cb(new BackfillDiskLoad(name,
+                                                                       engine,
+                                                                       engine->tapConnMap,
+                                                                       underlying,
+                                                                       *it));
+                d->schedule(cb, NULL, Priority::TapBgFetcherPriority);
+            }
+            vbuckets.clear();
+        }
+
         setEvents();
         if (valid) {
             CompleteBackfillTapOperation tapop;
@@ -2000,6 +2011,7 @@ private:
     const std::string name;
     std::list<QueuedItem> *queue;
     std::vector<std::pair<uint16_t, QueuedItem> > found;
+    std::vector<uint16_t> vbuckets;
     VBucketFilter filter;
     const void *validityToken;
     ssize_t maxBackfillSize;
