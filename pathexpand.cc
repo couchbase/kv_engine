@@ -12,6 +12,34 @@ const char* path_separator("\\/");
 const char* path_separator("/");
 #endif
 
+extern const char* path_separator;
+
+static std::string pe_basename(const char *b) {
+    assert(b);
+    std::string s(b);
+    size_t lastthing(s.find_last_of(path_separator));
+    if (lastthing == s.npos) {
+        return s;
+    }
+
+    return s.substr(lastthing + 1);
+}
+
+static std::string pe_dirname(const char *b) {
+    assert(b);
+    std::string s(b);
+    size_t lastthing(s.find_last_of(path_separator));
+    if (lastthing == s.npos) {
+        return std::string(".");
+    }
+
+    return s.substr(0, lastthing);
+}
+
+PathExpander::PathExpander(const char *p) : dir(pe_dirname(p)),
+    base(pe_basename(p)) {
+}
+
 std::string PathExpander::expand(const char *pattern, int shardId) {
     std::stringstream ss;
 
