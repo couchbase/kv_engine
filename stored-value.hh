@@ -14,7 +14,6 @@
 
 extern "C" {
     extern rel_time_t (*ep_current_time)();
-    extern time_t ep_real_time();
 }
 
 // Forward declaration for StoredValue
