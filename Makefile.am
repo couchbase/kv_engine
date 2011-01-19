@@ -6,7 +6,7 @@ bin_SCRIPTS = management/analyze_core \
               wrapper/vbucketctl
 
 lib_LTLIBRARIES = ep.la ep_testsuite.la timing_tests.la
-noinst_LTLIBRARIES =
+noinst_LTLIBRARIES = libkvstore.la
 
 bin_PROGRAMS =
 BUILT_SOURCES =
@@ -35,18 +35,13 @@ ep_la_SOURCES = \
                  htresizer.cc htresizer.hh \
                  item.cc item.hh \
                  item_pager.cc item_pager.hh \
-                 kvstore.cc kvstore.hh \
+                 kvstore.hh \
                  locks.hh \
                  mutex.hh \
-                 pathexpand.hh pathexpand.cc \
                  priority.cc priority.hh \
                  queueditem.hh \
                  ringbuffer.hh \
                  sizes.cc \
-                 sqlite-eval.cc sqlite-eval.hh \
-                 sqlite-kvstore.cc sqlite-kvstore.hh \
-                 sqlite-pst.cc sqlite-pst.hh \
-                 sqlite-strategies.cc sqlite-strategies.hh \
                  stats.hh \
                  statsnap.cc statsnap.hh \
                  stored-value.cc stored-value.hh \
@@ -60,10 +55,19 @@ if BUILD_BYTEORDER
 ep_la_SOURCES += byteorder.c
 endif
 
-ep_la_LIBADD =
-ep_la_DEPENDENCIES =
-ep_testsuite_la_LIBADD =
-ep_testsuite_la_DEPENDENCIES =
+libkvstore_la_SOURCES = kvstore.cc kvstore.hh \
+                        pathexpand.hh pathexpand.cc \
+                        sqlite-eval.cc sqlite-eval.hh \
+                        sqlite-kvstore.cc sqlite-kvstore.hh \
+                        sqlite-pst.cc sqlite-pst.hh \
+                        sqlite-strategies.cc sqlite-strategies.hh
+libkvstore_la_LIBADD =
+libkvstore_la_DEPENDENCIES =
+
+ep_la_LIBADD = libkvstore.la
+ep_la_DEPENDENCIES = libkvstore.la
+ep_testsuite_la_LIBADD = libkvstore.la
+ep_testsuite_la_DEPENDENCIES = libkvstore.la
 
 if BUILD_EMBEDDED_LIBSQLITE3
 ep_la_LIBADD += libsqlite3.la
@@ -87,7 +91,7 @@ EXTRA_TESTS =
 
 ep_testsuite_la_CFLAGS = $(AM_CFLAGS) ${NO_WERROR}
 ep_testsuite_la_SOURCES= ep_testsuite.cc ep_testsuite.h \
-                         sqlite-pst.hh sqlite-pst.cc locks.hh mutex.hh
+                         locks.hh mutex.hh
 ep_testsuite_la_LDFLAGS= -module -dynamic
 
 if BUILD_GENERATED_TESTS
