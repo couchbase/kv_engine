@@ -89,7 +89,47 @@ hrtime_t gethrtime(void) {
     ret = (hrtime_t)tv.tv_sec * 1000000000;
     ret += tv.tv_usec * 1000;
     return ret;
+#elif HAVE_QUERYPERFORMANCECOUNTER
+    double ret;
+    // To fix the potential race condition for the local static variable,
+    // gethrtime should be called in a global static variable first.
+    // It will guarantee the local static variable will be initialized
+    // before any thread calls the function.
+    static LARGE_INTEGER pf = {.QuadPart = 0, .u.LowPart = 0, .u.HighPart=0};
+    static double freq;
+    LARGE_INTEGER currtime;
+
+    if ( pf.QuadPart == 0 ) {
+        if ( !QueryPerformanceFrequency(&pf) ) {
+            // Fall back to use gettimeofday() just in case
+            hrtime_t hret;
+            struct timeval tv;
+            if (gettimeofday(&tv, NULL) == -1) {
+                return (-1ULL);
+            }
+
+            hret = (hrtime_t)tv.tv_sec * 1000000000;
+            hret += tv.tv_usec * 1000;
+            return hret;
+        }
+        else {
+            assert(pf.QuadPart != 0);
+            freq = 1.0e9 / (double)pf.QuadPart;
+        }
+    }
+
+    QueryPerformanceCounter(&currtime);
+
+    ret = (double)currtime.QuadPart * freq ;
+    return (hrtime_t)ret;
 #else
 #error "I don't know how to build a highres clock..."
 #endif
 }
+
+#ifdef HAVE_QUERYPERFORMANCECOUNTER
+__attribute__((constructor))
+static void init_clock_win32(void) {
+    gethrtime();
+}
+#endif
