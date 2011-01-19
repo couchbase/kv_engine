@@ -34,51 +34,15 @@ def run_sql(sqlite, fn, sql, more_args=[]):
 def version(sqlite, fn):
     return int(run_sql(sqlite, fn, "pragma user_version;").strip())
 
-def findSqlite():
+def findCmd(cmdName):
     cmd_dir = os.path.dirname(sys.argv[0])
     bin_dir = cmd_dir
-    possible = [os.path.join(bin_dir, p) for p in ['sqlite3', 'sqlite3.exe']]
-    sqlitebin = [p for p in possible if os.path.exists(p)][0]
-    return sqlitebin
+    possible = [os.path.join(bin_dir, p) for p in [cmdName, cmdName + '.exe']]
+    cmdbin = [p for p in possible if os.path.exists(p)][0]
+    return cmdbin
 
-def copy_master(sqlite, src, dest):
-    # Don't care too much about the data here, so we'll just let the
-    # engine recreate it.  We do care about the user version, so we'll
-    # fix that.
-    run_sql(sqlite, dest, 'pragma user_version = %d;' % TARGET_VERSION)
-
-class FieldMap(object):
-    """Map fieldnames across versions."""
-
-    def __init__(self, dbpath, version):
-        self.dbpath = dbpath
-        self._version = version
-
-    def __getitem__(self, x):
-        if x == 'vb_version' and self._version == 0:
-            return '0'
-        elif x == 'v' and self._version < 2:
-            return "substr(v, 1, length(v) - 2)"
-        elif x == 'dbpath':
-            return self.dbpath
-        return x
-
-def convert(sqlite, version, src, dest):
-    print 'Converting "%s" (v%d) -> "%s" (v%d)' % (src, version,
-                                                   dest, TARGET_VERSION)
-    q = """attach database "%(dbpath)s" as newdb;
-create table if not exists newdb.kv
-  (vbucket integer,
-   vb_version integer,
-   k varchar(250),
-   flags integer,
-   exptime integer,
-   cas integer,
-   v text);
-insert into newdb.kv (vbucket, vb_version, k, flags, exptime, cas, v)
-   select %(vbucket)s, %(vb_version)s, %(k)s, %(flags)s,
-          %(exptime)s, %(cas)s, %(v)s from kv;"""
-    run_sql(sqlite, src, q % FieldMap(dest, version))
+def findSqlite():
+    return findCmd('sqlite3')
 
 def usage(command, msg):
     e = """Error:  %s
@@ -101,15 +65,21 @@ def doset(sqlite, src, dest):
     if os.path.isdir(dest):
         dest = os.path.join(dest, oldbase)
 
-    copy_master(sqlite, src, dest)
-    destdir = os.path.dirname(dest)
-    destbase = os.path.basename(dest)
-    for d in glob.glob(src + '*.mb') + glob.glob(src + '*.sqlite'):
-        bn = os.path.basename(d)
-        if bn.endswith('.sqlite'):
-            bn = bn.replace('.sqlite', '.mb')
-        destfile = bn.replace(oldbase, destbase)
-        convert(sqlite, v, d, os.path.join(destdir, destfile))
+    args = [findCmd('dbconvert')]
+    if v < 2:
+        args.append("--remove-crlf")
+    args.append(src)
+    args.append(dest)
+
+    p = subprocess.Popen(args,
+                         stdin=subprocess.PIPE,
+                         stdout=subprocess.PIPE,
+                         stderr=subprocess.PIPE)
+    (o,e) = p.communicate()
+    if p.returncode != 0:
+        sys.stderr.write("Error running convert (%s)\n" % ' '.join(args))
+        sys.stderr.write(e)
+        sys.exit(1)
 
 def main():
     command = sys.argv[0]
