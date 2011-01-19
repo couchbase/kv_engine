@@ -279,7 +279,6 @@ void StrategicSqlite3::dump(uint16_t vb, Callback<GetValue> &cb) {
     std::vector<PreparedStatement*>::iterator it;
     for (it = loaders.begin(); it != loaders.end(); ++it) {
         PreparedStatement *st = *it;
-        st->bind(1, ep_real_time());
         while (st->fetch()) {
             processDumpRow(stats, st, cb);
         }
