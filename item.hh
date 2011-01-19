@@ -170,6 +170,10 @@ public:
         return id;
     }
 
+    void setId(int64_t to) {
+        id = to;
+    }
+
     int getNKey() const {
         return static_cast<int>(key.length());
     }

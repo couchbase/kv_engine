@@ -72,6 +72,7 @@ AC_SEARCH_LIBS(clock_gettime, rt)
 AC_CHECK_FUNCS(clock_gettime)
 AC_CHECK_FUNCS(mach_absolute_time)
 AC_CHECK_FUNCS(gettimeofday)
+AC_CHECK_FUNCS(getopt_long)
 AM_CONDITIONAL(BUILD_GETHRTIME, test "$ac_cv_func_gethrtime" = "no")
 
 AC_LANG_PUSH(C++)
