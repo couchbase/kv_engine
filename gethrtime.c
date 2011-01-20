@@ -89,7 +89,7 @@ hrtime_t gethrtime(void) {
     ret = (hrtime_t)tv.tv_sec * 1000000000;
     ret += tv.tv_usec * 1000;
     return ret;
-#elif HAVE_QUERYPERFORMANCECOUNTER
+#elif defined(HAVE_QUERYPERFORMANCECOUNTER)
     double ret;
     // To fix the potential race condition for the local static variable,
     // gethrtime should be called in a global static variable first.
