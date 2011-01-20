@@ -1,22 +1,28 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 
+#include "config.h"
+
 #include <cassert>
 #include <iostream>
 #include <utility>
 #include <cstdlib>
+
+#ifdef HAVE_SYSEXITS_H
+#include <sysexits.h>
+#endif
+
+#include <memcached/engine.h>
 
 #include <getopt.h>
 #include <stats.hh>
 #include <kvstore.hh>
 #include <item.hh>
 #include <callbacks.hh>
-#ifdef WIN32
-#include <memcached/engine.h>
-#define EX_USAGE        64
-#else
-#include <sysexits.h>
-#endif
 #include <sqlite-strategies.hh>
+
+#ifndef EX_USAGE
+#define EX_USAGE 64
+#endif
 
 using namespace std;
 
@@ -199,28 +205,3 @@ int main(int argc, char **argv) {
 
     return 0;
 }
-
-#ifdef WIN32
-extern "C" {
-
-static const char* dbconvert_get_logger_name(void) {
-    return "dbconvert";
-}
-
-static void dbconvert_get_logger_log(EXTENSION_LOG_LEVEL severity,
-                                const void* client_cookie,
-                                const char *fmt, ...) {
-    (void)severity;
-    (void)client_cookie;
-    (void)fmt;
-}
-
-}
-
-EXTENSION_LOGGER_DESCRIPTOR* getLogger() {
-    static EXTENSION_LOGGER_DESCRIPTOR logger;
-    logger.get_name = dbconvert_get_logger_name;
-    logger.log = dbconvert_get_logger_log;
-    return &logger;
-}
-#endif

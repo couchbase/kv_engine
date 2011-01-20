@@ -66,6 +66,7 @@ AC_CHECK_HEADERS([netdb.h])
 AC_CHECK_HEADERS([mach/mach_time.h])
 AC_CHECK_HEADERS([poll.h])
 AC_CHECK_HEADERS([atomic.h])
+AC_CHECK_HEADERS([sysexits.h])
 
 AC_CHECK_FUNCS(gethrtime)
 AC_SEARCH_LIBS(clock_gettime, rt)
