@@ -11,6 +11,8 @@
 
 static const int CURRENT_SCHEMA_VERSION(2);
 
+bool SqliteStrategy::shouldCheckSchemaVersion = true;
+
 SqliteStrategy::SqliteStrategy(const char * const fn,
                                const char * const finit,
                                const char * const pfinit,
@@ -110,7 +112,9 @@ sqlite3 *SqliteStrategy::open(void) {
         }
 
         initDB();
-        checkSchemaVersion();
+        if (shouldCheckSchemaVersion) {
+            checkSchemaVersion();
+        }
 
         execute("begin immediate");
         initMetaTables();

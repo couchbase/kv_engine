@@ -3,6 +3,9 @@
 #include <cassert>
 #include <iostream>
 #include <utility>
+#include <cstdlib>
+
+#include <sysexits.h>
 #include <getopt.h>
 #include <stats.hh>
 #include <kvstore.hh>
@@ -14,6 +17,8 @@
 #else
 #include <sysexits.h>
 #endif
+#include <sqlite-strategies.hh>
+
 using namespace std;
 
 static KVStore *getStore(EPStats &st,
@@ -82,11 +87,12 @@ private:
     void adjust(Item **i) {
         Item *input(*i);
         if (killCrlf) {
-            assert(input->getData()[input->getNBytes() - 2] == '\r');
-            assert(input->getData()[input->getNBytes() - 1] == '\n');
+            const char *data = input->getData();
+            assert(data[input->getNBytes() - 2] == '\r');
+            assert(data[input->getNBytes() - 1] == '\n');
             *i = new Item(input->getKey(), input->getFlags(),
                           input->getExptime(),
-                          input->getData(), input->getNBytes() - 2,
+                          data, input->getNBytes() - 2,
                           0, -1, input->getVBucketId());
             delete input;
         } else {
@@ -178,6 +184,8 @@ int main(int argc, char **argv) {
 
     EPStats srcStats, destStats;
 
+    SqliteStrategy::disableSchemaCheck();
+
     KVStore *src(getStore(srcStats, srcPath,
                           srcStrategy, srcShardPattern));
     KVStore *dest(getStore(destStats, destPath,
@@ -187,6 +195,8 @@ int main(int argc, char **argv) {
     cout << "Each . represents " << reportEvery << " items moved." << endl;
     src->dump(mover);
     cout << endl << "Moved " << mover.getTransferred() << " items." << endl;
+
+    return 0;
 }
 
 #ifdef WIN32

@@ -81,6 +81,10 @@ public:
 
     void execute(const char * const query);
 
+    static void disableSchemaCheck() {
+        shouldCheckSchemaVersion = false;
+    }
+
 protected:
 
     void doFile(const char * const filename);
@@ -110,6 +114,8 @@ protected:
     virtual void destroyStatements() {};
 
     void destroyMetaStatements();
+
+    static bool shouldCheckSchemaVersion;
 
     sqlite3            *db;
     const char * const  filename;
