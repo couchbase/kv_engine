@@ -79,7 +79,7 @@ ep_la_DEPENDENCIES += libsqlite3.la
 ep_testsuite_la_LIBADD += libsqlite3.la
 ep_testsuite_la_DEPENDENCIES += libsqlite3.la
 management_dbconvert_LDADD += libsqlite3.la
-management_dbconvert_DEPENDENCIES += libkvstore.la
+management_dbconvert_DEPENDENCIES += libsqlite3.la
 noinst_LTLIBRARIES += libsqlite3.la
 bin_PROGRAMS += management/sqlite3
 else
