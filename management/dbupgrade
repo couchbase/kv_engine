@@ -17,7 +17,7 @@ except NameError:
                 return True
         return False
 
-def run_sql(sqlite, fn, sql, more_args=[]):
+def run_sql(sqlite, fn, sql, more_args=[], logger=sys.stderr):
     args = ['-batch', '-bail']
     cmd = [sqlite] + args + more_args + [fn]
     p = subprocess.Popen(cmd,
@@ -26,8 +26,8 @@ def run_sql(sqlite, fn, sql, more_args=[]):
                          stderr=subprocess.PIPE)
     (o,e) = p.communicate(sql)
     if p.returncode != 0:
-        sys.stderr.write("Error running query:  %s\n" % sql)
-        sys.stderr.write(e)
+        logger.write("Error running query:  %s\n" % sql)
+        logger.write(e)
         sys.exit(1)
     return o
 
@@ -57,6 +57,25 @@ If more than one src db is specified, the destination *must* be a
 directory.""" % (msg, command)
     sys.exit(e)
 
+class NullLogger(object):
+
+    def write(self, x):
+        pass
+
+def ensureNewColumns(sqlite, src):
+    try:
+        run_sql(sqlite, src, 'alter table vbucket_states add column vb_version;',
+                logger=NullLogger())
+    except SystemExit:
+        pass # Already had the column
+    for d in glob.glob(src + '*.mb') + glob.glob(src + '*.sqlite'):
+        if os.path.exists(d):
+            try:
+                run_sql(sqlite, d, 'alter table kv add column vb_version;',
+                        logger=NullLogger())
+            except SystemExit:
+                pass # Already had the column
+
 def doset(sqlite, src, dest):
     v = version(sqlite, src)
     print 'Source version from "%s" is %d' % (src, v)
@@ -70,6 +89,8 @@ def doset(sqlite, src, dest):
         args.append("--remove-crlf")
     args.append(src)
     args.append(dest)
+
+    ensureNewColumns(sqlite, src)
 
     returncode = subprocess.call(args)
     if returncode != 0:
