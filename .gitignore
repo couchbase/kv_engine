@@ -44,6 +44,7 @@
 /management/sqlite3
 /sizes
 /stamp-h1
+/testlogger_libify.cc
 /wrapper/dbmaint
 /wrapper/flushctl
 /wrapper/stats

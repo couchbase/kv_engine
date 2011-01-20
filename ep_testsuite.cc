@@ -67,30 +67,6 @@
 
 extern "C" {
 
-static const char* test_get_logger_name(void) {
-    return "dispatcher_test";
-}
-
-static void test_get_logger_log(EXTENSION_LOG_LEVEL severity,
-                                const void* client_cookie,
-                                const char *fmt, ...) {
-    (void)severity;
-    (void)client_cookie;
-    (void)fmt;
-    // ignore
-}
-
-}
-
-EXTENSION_LOGGER_DESCRIPTOR* getLogger() {
-    static EXTENSION_LOGGER_DESCRIPTOR logger;
-    logger.get_name = test_get_logger_name;
-    logger.log = test_get_logger_log;
-    return &logger;
-}
-
-extern "C" {
-
 bool abort_msg(const char *expr, const char *msg, int line);
 
 #define check(expr, msg) \

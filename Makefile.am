@@ -98,8 +98,13 @@ EXTRA_TESTS =
 
 ep_testsuite_la_CFLAGS = $(AM_CFLAGS) ${NO_WERROR}
 ep_testsuite_la_SOURCES= ep_testsuite.cc ep_testsuite.h \
-                         locks.hh mutex.hh
+                         locks.hh mutex.hh testlogger_libify.cc
 ep_testsuite_la_LDFLAGS= -module -dynamic
+
+# This is because automake can't figure out how to build the same code
+# for two different targets.
+testlogger_libify.cc: testlogger.cc
+	cp testlogger.cc testlogger_libify.cc
 
 if BUILD_GENERATED_TESTS
 lib_LTLIBRARIES += generated_suite.la
