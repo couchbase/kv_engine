@@ -52,12 +52,14 @@ public:
 class Mover : public Callback<GetValue> {
 public:
 
-    Mover(KVStore *d, bool kc, size_t re, size_t ts) : dest(d),
+    Mover(KVStore *d, size_t re, bool kc, size_t ts) : dest(d),
                                                        transferred(0),
                                                        txnSize(ts),
                                                        reportEvery(re),
                                                        killCrlf(kc) {
         assert(dest);
+        assert(txnSize != 0);
+        assert(reportEvery != 0);
         dest->begin();
     }
 
@@ -70,10 +72,10 @@ public:
         adjust(&i);
         dest->set(*i, 0, mv);
         delete i;
-        if (++transferred % txnSize == 0) {
+        if ((++transferred % txnSize) == 0) {
             dest->commit();
         }
-        if (transferred % reportEvery == 0) {
+        if ((transferred % reportEvery) == 0) {
             cout << "." << flush;
         }
     }
@@ -191,7 +193,7 @@ int main(int argc, char **argv) {
     KVStore *dest(getStore(destStats, destPath,
                            destStrategy, destShardPattern));
 
-    Mover mover(dest, txnSize, killCrlf, reportEvery);
+    Mover mover(dest, txnSize, static_cast<bool>(killCrlf), reportEvery);
     cout << "Each . represents " << reportEvery << " items moved." << endl;
     src->dump(mover);
     cout << endl << "Moved " << mover.getTransferred() << " items." << endl;
