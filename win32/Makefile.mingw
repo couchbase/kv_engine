@@ -9,8 +9,8 @@ MARCH=-march=i686
 
 MEMCACHED=../memcached
 
-OBJDIR = .libs .libs/embedded .libs/poll management
-BINARIES= .libs/ep.so management/sqlite3.exe
+OBJDIR = .libs .libs/embedded .libs/poll .libs/management
+BINARIES= .libs/ep.so management/sqlite3.exe management/dbconvert.exe
 LIB=$(LOCALLIB) -L${MEMCACHED}/lib
 INCLUDE= -Iwin32 -I.libs -I${MEMCACHED}/include -I. $(LOCALINC)
 GENFILES=.libs/config_version.h
@@ -70,10 +70,29 @@ management/sqlite3.exe: ${OBJDIR} ${GENFILES} ${SQLITE3_OBJS}
                   ${LIB} -lpthread \
                   -lws2_32
 
+LIBKVSTORE_CC_SRC = \
+         kvstore.cc \
+         pathexpand.cc \
+         sqlite-eval.cc \
+         sqlite-kvstore.cc \
+         sqlite-pst.cc \
+         sqlite-strategies.cc
+
+LIBKVSTORE_C_SRC = embedded/sqlite3.c
+
+LIBKVSTORE_OBJS = ${LIBKVSTORE_CC_SRC:%.cc=.libs/%.o} ${LIBKVSTORE_C_SRC:%.c=.libs/%.o}
+
+DBCONVERT_SRC = management/dbconvert.cc testlogger.cc
+
+DBCONVERT_OBJS = ${DBCONVERT_SRC:%.cc=.libs/%.o}
+
+management/dbconvert.exe: ${OBJDIR} ${GENFILES} ${DBCONVERT_OBJS} ${LIBKVSTORE_OBJS}
+	${LINK.cc} -o $@ ${DBCONVERT_OBJS} ${LIBKVSTORE_OBJS}
+
 .libs/config_version.h:
 	./win32/config.sh
 
-.libs .libs/embedded .libs/poll:; -@mkdir $@
+.libs .libs/embedded .libs/management .libs/poll:; -@mkdir $@
 
 .libs/%.o: %.cc
 	${COMPILE.cc} -MMD $< -o $@
