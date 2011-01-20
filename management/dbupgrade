@@ -75,7 +75,6 @@ def doset(sqlite, src, dest):
     if returncode != 0:
         sys.stderr.write("Error running convert, exit code %d (%s)\n" %
                          (returncode, ' '.join(args)))
-        sys.stderr.write(e)
         sys.exit(1)
 
 def main():
