@@ -5,7 +5,6 @@
 #include <utility>
 #include <cstdlib>
 
-#include <sysexits.h>
 #include <getopt.h>
 #include <stats.hh>
 #include <kvstore.hh>
