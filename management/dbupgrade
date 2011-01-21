@@ -87,6 +87,8 @@ def doset(sqlite, src, dest):
     args = [findCmd('dbconvert')]
     if v < 2:
         args.append("--remove-crlf")
+    if os.path.exists(src + '-0.mb'):
+        args.append('--src-pattern=%d/%b-%i.mb')
     args.append(src)
     args.append(dest)
 
