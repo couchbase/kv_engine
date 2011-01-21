@@ -452,6 +452,50 @@ static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
           == ENGINE_TMPFAIL,
           "Append should fail.");
 
+    /* bug MB 3252 & MB 3354.
+     * 1. Set a key with an expiry value.
+     * 2. Take a lock on the item before it expires
+     * 3. Wait for the item to expire
+     * 4. Perform a CAS operation, should fail
+     * 5. Perform a set operation, should succeed
+     */
+    const char *ekey = "test_expiry";
+    const char *edata = "some test data here.";
+
+    item *it = NULL;
+
+    check(h1->allocate(h, NULL, &it, ekey, strlen(ekey), strlen(edata), 0, 2)
+        == ENGINE_SUCCESS, "Allocation Failed");
+
+    item_info info;
+    info.nvalue = 1;
+    if (!h1->get_item_info(h, NULL, it, &info)) {
+        abort();
+    }
+    memcpy(info.value[0].iov_base, edata, strlen(edata));
+
+    check(h1->store(h, NULL, it, &cas, OPERATION_SET, 0) ==
+        ENGINE_SUCCESS, "Failed to Store item");
+    check_key_value(h, h1, ekey, edata, strlen(edata));
+    h1->release(h, NULL, it);
+
+    /* item created. lock it and wait for the object to expire */
+    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
+          "Lock failed");
+
+    testHarness.time_travel(3);
+    cas = last_cas;
+
+    /* cas should fail */
+    check(storeCasVb11(h, h1, NULL, OPERATION_CAS, ekey,
+                       binaryData1, sizeof(binaryData1) - 1, 82758, &i, cas, 0)
+          != ENGINE_SUCCESS,
+          "CAS succeeded.");
+
+    /* but a simple store should succeed */
+    check(store(h, h1, NULL, OPERATION_SET, ekey, edata, &i, 0, vbucketId)
+          == ENGINE_SUCCESS, "Failed to store an item.");
+
     return SUCCESS;
 }
 

@@ -876,7 +876,26 @@ public:
         int bucket_num(0);
         LockHolder lh = getLockedBucket(val.getKey(), &bucket_num);
         StoredValue *v = unlocked_find(val.getKey(), bucket_num, true);
-        if (v) {
+        /*
+         * prior to checking for the lock, we should check if this object
+         * has expired. If so, then check if CAS value has been provided
+         * for this set op. In this case the operation should be denied since
+         * a cas operation for a key that doesn't exist is not a very cool
+         * thing to do. See MB 3252
+         */
+        bool skip_lock = false;
+        if (v && v->isExpired(ep_real_time())) {
+            if (val.getCas()) {
+                /* item has expired and cas value provided. Deny ! */
+                return NOT_FOUND;
+            }
+            /*
+             * proceed to treat this case as if the key never existed
+             * therefore skip lock checks
+             */
+            skip_lock = true;
+        }
+        if (v && !skip_lock) {
             if (v->isLocked(ep_current_time())) {
                 /*
                  * item is locked, deny if there is cas value mismatch
@@ -889,9 +908,8 @@ public:
                 v->unlock();
             } else if (val.getCas() != 0 && val.getCas() != v->getCas()) {
                 return INVALID_CAS;
-            } else if (val.getCas() != 0 && v->isExpired(ep_real_time())) {
-                return NOT_FOUND;
             }
+
             itm.setCas();
             rv = v->isClean() ? WAS_CLEAN : WAS_DIRTY;
             if (!v->isResident()) {
