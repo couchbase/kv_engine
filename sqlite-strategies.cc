@@ -88,7 +88,7 @@ void SqliteStrategy::checkSchemaVersion(void) {
         schema_version = CURRENT_SCHEMA_VERSION;
     }
 
-    if (schema_version < CURRENT_SCHEMA_VERSION) {
+    if (shouldCheckSchemaVersion && (schema_version < CURRENT_SCHEMA_VERSION)) {
         std::stringstream ss;
         ss << "Schema version " << schema_version << " is not supported anymore.\n"
            << "Run the script to upgrade the schema to version "
@@ -112,9 +112,7 @@ sqlite3 *SqliteStrategy::open(void) {
         }
 
         initDB();
-        if (shouldCheckSchemaVersion) {
-            checkSchemaVersion();
-        }
+        checkSchemaVersion();
 
         execute("begin immediate");
         initMetaTables();
