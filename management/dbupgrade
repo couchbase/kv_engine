@@ -76,13 +76,24 @@ def ensureNewColumns(sqlite, src):
             except SystemExit:
                 pass # Already had the column
 
+def findTarget(src, dest):
+    if os.path.isdir(dest):
+        dest = os.path.join(dest, os.path.basename(src))
+    return dest
+
+def findTargetCollisions(srcs, dest):
+    rv = []
+    for fn in (findTarget(s, dest) for s in srcs):
+        if os.path.exists(fn):
+            rv.append(fn)
+        for shard in glob.glob(fn + '*.mb'):
+            if os.path.exists(shard):
+                rv.append(shard)
+    return rv
+
 def doset(sqlite, src, dest):
     v = version(sqlite, src)
     print 'Source version from "%s" is %d' % (src, v)
-
-    oldbase = os.path.basename(src)
-    if os.path.isdir(dest):
-        dest = os.path.join(dest, oldbase)
 
     args = [findCmd('dbconvert')]
     if v < 2:
@@ -90,7 +101,7 @@ def doset(sqlite, src, dest):
     if os.path.exists(src + '-0.mb'):
         args.append('--src-pattern=%d/%b-%i.mb')
     args.append(src)
-    args.append(dest)
+    args.append(findTarget(src, dest))
 
     ensureNewColumns(sqlite, src)
 
@@ -117,6 +128,12 @@ def main():
         usage(command, "Too few arguments")
 
     sqlite = findSqlite()
+
+    collisions = findTargetCollisions(srcs, dest)
+    if collisions:
+        sys.stderr.write("Would overwrite the following files:\n\t")
+        sys.stderr.write('\n\t'.join(collisions) + '\n')
+        sys.exit(1)
 
     for src in srcs:
         doset(sqlite, src, dest)
