@@ -37,19 +37,15 @@ public:
 };
 
 /**
- * Indicate that we wish to begin a tap disk backfill.
+ * Indicate that we are going to schedule a tap disk backfill for a given vbucket.
  */
-class BeginDiskBackfillTapOperation : public TapOperation<void*> {
+class ScheduleDiskBackfillTapOperation : public TapOperation<void*> {
 public:
-    BeginDiskBackfillTapOperation(uint16_t vb) : vbucket(vb) {}
-
     void perform(TapConnection *tc, void* arg);
-private:
-    uint16_t vbucket;
 };
 
 /**
- * Indicate the tap backfill disk stream thing is complete.
+ * Indicate the tap backfill disk stream thing is complete for a given vbucket.
  */
 class CompleteDiskBackfillTapOperation : public TapOperation<void*> {
 public:

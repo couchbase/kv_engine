@@ -115,13 +115,12 @@ public:
         completeBackfillCommon();
     }
 
-    void beginDiskBackfill(uint16_t vb) {
-        diskBackfillVBucket = vb;
-        pendingDiskBackfill = true;
+    void scheduleDiskBackfill() {
+        ++diskBackfillCounter;
     }
 
     void completeDiskBackfill() {
-        pendingDiskBackfill = false;
+        --diskBackfillCounter;
         completeBackfillCommon();
     }
 
@@ -385,12 +384,16 @@ private:
         queueSize = queue->size();
     }
 
+    bool isPendingDiskBackfill() {
+        return diskBackfillCounter > 0;
+    }
+
     /**
      * A backfill is pending if the iterator is active or there are
      * background fetch jobs running.
      */
     bool isPendingBackfill() {
-        return pendingBackfill || pendingDiskBackfill
+        return pendingBackfill || isPendingDiskBackfill()
             || (bgJobIssued - bgJobCompleted) != 0;
     }
 
@@ -591,13 +594,11 @@ private:
 
     // True until a backfill has dumped all the content.
     bool pendingBackfill;
-    // True when a disk backfill is running
-    bool pendingDiskBackfill;
 
     /**
-     * VBucket that is currently being backfilled from disk.
+     * Number of vbuckets that are currently scheduled for disk backfill.
      */
-    uint16_t diskBackfillVBucket;
+    Atomic<size_t> diskBackfillCounter;
 
     void setVBucketFilter(const std::vector<uint16_t> &vbuckets);
     /**
