@@ -119,8 +119,8 @@ def main():
         srcs = args
         if not srcs:
             usage(command, "No destination specified")
-        if any(os.path.isdir(p) for p in srcs):
-            usage(command, "Source must point to main DBs, not directories")
+        if not all(os.path.isfile(p) for p in srcs):
+            usage(command, "Source must point to existing main DB files")
         if len(srcs) > 1 and not os.path.isdir(dest):
             usage(command,
                   "Multiple sources, but destination is not a directory.")
