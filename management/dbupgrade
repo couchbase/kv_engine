@@ -127,6 +127,12 @@ def main():
     except IndexError:
         usage(command, "Too few arguments")
 
+    if os.name == 'nt':
+        mydir = os.path.dirname(sys.argv[0])
+        memcache_dir = os.path.join(mydir, '..', '..', 'memcached')
+        path = [mydir, memcache_dir, os.environ['PATH']]
+        os.environ['PATH'] = ';'.join(path)
+
     sqlite = findSqlite()
 
     collisions = findTargetCollisions(srcs, dest)
