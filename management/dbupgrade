@@ -17,6 +17,15 @@ except NameError:
                 return True
         return False
 
+try:
+    all
+except NameError:
+    def all(iterable):
+        for element in iterable:
+            if not element:
+                return False
+        return True
+
 def run_sql(sqlite, fn, sql, more_args=[], logger=sys.stderr):
     args = ['-batch', '-bail']
     cmd = [sqlite] + args + more_args + [fn]
