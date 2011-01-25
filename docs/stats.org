@@ -141,6 +141,54 @@ For introductory information on stats within membase, start with the
 |                               | invalid items with old vbucket versions    |
 
 
+** vBucket total stats
+
+| Stat                          | Description                                |
+|-------------------------------+--------------------------------------------|
+| ep_vb_total                   | Total vBuckets (count)                     |
+| curr_items_tot                | Total number of items                      |
+| curr_items                    | Number of active items in memory           |
+| vb_dead_num                   | Number of dead vBuckets                    |
+
+
+*** Active vBucket class stats
+
+| Stat                          | Description                                |
+|-------------------------------+--------------------------------------------|
+| vb_active_num                 | Number of active vBuckets                  |
+| vb_active_curr_items          | Number of in memory items                  |
+| vb_active_num_non_resident    | Number of non-resident items               |
+| vb_active_perc_mem_resident   | % memory resident                          |
+| vb_active_eject               | Number of times item values got ejected    |
+| vb_active_ht_memory           | Memory used to store keys and values       |
+| vb_active_itm_memory          | Total item memory                          |
+
+*** Replica vBucket stats
+
+| Stat                          | Description                                |
+|-------------------------------+--------------------------------------------|
+| vb_replica_num                | Number of replica vBuckets                 |
+| vb_replica_curr_items         | Number of in memory items                  |
+| vb_replica_num_non_resident   | Number of non-resident items               |
+| vb_replica_perc_mem_resident  | % memory resident                          |
+| vb_replica_eject              | Number of times item values got ejected    |
+| vb_replica_ht_memory          | Memory used to store keys and values       |
+| vb_replica_itm_memory         | Total item memory                          |
+
+*** Pending vBucket stats
+
+| Stat                          | Description                                |
+|-------------------------------+--------------------------------------------|
+| vb_pending_num                | Number of pending vBuckets                 |
+| vb_pending_curr_items         | Number of in memory items                  |
+| vb_pending_num_non_resident   | Number of non-resident items               |
+| vb_pending_perc_mem_resident  | % memory resident                          |
+| vb_pending_eject              | Number of times item values got ejected    |
+| vb_pending_ht_memory          | Memory used to store keys and values       |
+| vb_pending_itm_memory         | Total item memory                          |
+
+
+
 ** Tap stats
 
 | ep_tap_total_queue        | Sum of tap queue sizes on the current      |

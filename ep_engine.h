@@ -83,8 +83,10 @@ private:
  */
 class VBucketCountVisitor : public VBucketVisitor {
 public:
-    VBucketCountVisitor() : requestedState(0), total(0), nonResident(0),
-                            totalNonResident(0), desired_state(vbucket_state_active) { }
+    VBucketCountVisitor(vbucket_state_t state) : desired_state(state),
+                            requestedState(0), total(0), nonResident(0), totalNonResident(0),
+                            numVbucket(0), htMemory(0), htItemMemory(0), numEjects(0)
+    { }
 
     bool visitBucket(RCPtr<VBucket> vb);
 
@@ -92,6 +94,8 @@ public:
         (void)v;
         assert(false); // this does not happen
     }
+
+    vbucket_state_t getVBucketState() { return desired_state; }
 
     size_t getTotal() { return total; }
 
@@ -101,12 +105,30 @@ public:
 
     size_t getTotalNonResident() { return totalNonResident; }
 
+    size_t getVBucketNumber() { return numVbucket; }
+
+    size_t getMemResidentPer() { // Do we really need to provide?
+        size_t tol = requestedState + nonResident;
+        return (tol != 0) ? (size_t) (requestedState *100.0) / (tol) : 0;
+        //return 0;
+    }
+
+    size_t getEjects() { return numEjects; }
+
+    size_t getHashtableMemory() { return htMemory; }
+
+    size_t getItemMemory() { return htItemMemory; }
 private:
+    vbucket_state_t desired_state;
+
     size_t requestedState;
     size_t total;
     size_t nonResident;
     size_t totalNonResident;
-    vbucket_state_t desired_state;
+    size_t numVbucket;
+    size_t htMemory;
+    size_t htItemMemory;
+    size_t numEjects;
 };
 
 /**
@@ -474,7 +496,7 @@ private:
         bool haveEvidenceWeCanFreeMemory(stats.maxDataSize > stats.memOverhead);
         if (haveEvidenceWeCanFreeMemory) {
             // Look for more evidence by seeing if we have resident items.
-            VBucketCountVisitor countVisitor;
+            VBucketCountVisitor countVisitor(vbucket_state_active);
             epstore->visit(countVisitor);
 
             haveEvidenceWeCanFreeMemory = countVisitor.getTotalNonResident() <

@@ -822,6 +822,16 @@ public:
     size_t getNumNonResidentItems(void) { return numNonResidentItems; }
 
     /**
+     * Get the number of items whose values are ejected from this hash table.
+     */
+    size_t getNumEjects(void) { return numEjects; }
+
+    /**
+     * Get the total item memory size in this hash table.
+     */
+    size_t getItemMemory(void) { return memSize; }
+
+    /**
      * Clear the hash table.
      *
      * @param deactivate true when this hash table is being destroyed completely
@@ -1251,9 +1261,9 @@ public:
     static const char* getDefaultStorageValueTypeStr();
 
     Atomic<size_t>       numNonResidentItems;
+    Atomic<size_t>       numEjects;
     //! Memory consumed by items in this hashtable.
     Atomic<size_t>       memSize;
-
 private:
     inline bool active() { return activeState = true; }
     inline void active(bool newv) { activeState = newv; }

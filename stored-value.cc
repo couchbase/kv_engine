@@ -38,6 +38,7 @@ bool StoredValue::ejectValue(EPStats &stats, HashTable &ht) {
         }
         ++stats.numValueEjects;
         ++ht.numNonResidentItems;
+        ++ht.numEjects;
         return true;
     }
     ++stats.numFailedEjects;

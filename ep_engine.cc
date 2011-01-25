@@ -2127,21 +2127,59 @@ static void addTapStat(const char *name, const TapConnection *tc, bool val,
 }
 
 bool VBucketCountVisitor::visitBucket(RCPtr<VBucket> vb) {
-    size_t n = vb->ht.getNumItems();
-    size_t m = vb->ht.getNumNonResidentItems();
-    total += n;
-    totalNonResident += m;
-    if (vb->getState() == desired_state) {
-        requestedState += n;
-        nonResident += m;
+    ++numVbucket;
+    requestedState += vb->ht.getNumItems();
+
+    if (desired_state != vbucket_state_dead) {
+        nonResident += vb->ht.getNumNonResidentItems();
+        htMemory += vb->ht.memorySize();
+        htItemMemory += vb->ht.getItemMemory();
+        numEjects += vb->ht.getNumEjects();
     }
+
     return false;
 }
 
+/**
+ * A container class holding VBucketCountVisitors to aggregate stats for different
+ * vbucket states.
+ */
+class VBucketCountAggregator : public VBucketVisitor  {
+public:
+    bool visitBucket(RCPtr<VBucket> vb)  {
+        std::map<vbucket_state_t, VBucketCountVisitor*>::iterator it;
+        it = visitorMap.find(vb->getState());
+        if ( it != visitorMap.end() ) {
+            it->second->visitBucket(vb);
+        }
+
+        return false;
+    }
+
+    void addVisitor(VBucketCountVisitor* visitor)  {
+        visitorMap[visitor->getVBucketState()] = visitor;
+    }
+private:
+    std::map<vbucket_state_t, VBucketCountVisitor*> visitorMap;
+};
+
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                                                             ADD_STAT add_stat) {
-    VBucketCountVisitor countVisitor;
-    epstore->visit(countVisitor);
+    VBucketCountAggregator aggregator;
+
+    VBucketCountVisitor activeCountVisitor(vbucket_state_active);
+    aggregator.addVisitor(&activeCountVisitor);
+
+    VBucketCountVisitor replicaCountVisitor(vbucket_state_replica);
+    aggregator.addVisitor(&replicaCountVisitor);
+
+    VBucketCountVisitor pendingCountVisitor(vbucket_state_pending);
+    aggregator.addVisitor(&pendingCountVisitor);
+
+    VBucketCountVisitor deadCountVisitor(vbucket_state_dead);
+    aggregator.addVisitor(&deadCountVisitor);
+
+    epstore->visit(aggregator);
 
     EPStats &epstats = getEpStats();
     add_casted_stat("ep_version", VERSION, add_stat, cookie);
@@ -2203,8 +2241,57 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                     epstats.cumulativeFlushTime, add_stat, cookie);
     add_casted_stat("ep_flush_duration_highwat",
                     epstats.flushDurationHighWat, add_stat, cookie);
-    add_casted_stat("curr_items", countVisitor.getRequested(), add_stat, cookie);
-    add_casted_stat("curr_items_tot", countVisitor.getTotal(), add_stat, cookie);
+    add_casted_stat("curr_items", activeCountVisitor.getRequested(), add_stat, cookie);
+    add_casted_stat("curr_items_tot",
+                   activeCountVisitor.getRequested() +
+                   replicaCountVisitor.getRequested() +
+                   pendingCountVisitor.getRequested() +
+                   deadCountVisitor.getRequested(),
+                   add_stat, cookie);
+    add_casted_stat("vb_active_num", activeCountVisitor.getVBucketNumber(), add_stat, cookie);
+    add_casted_stat("vb_active_curr_items", activeCountVisitor.getRequested(),
+                   add_stat, cookie);
+    add_casted_stat("vb_active_num_non_resident", activeCountVisitor.getNonResident(),
+                    add_stat, cookie);
+    add_casted_stat("vb_active_perc_mem_resident", activeCountVisitor.getMemResidentPer(),
+                    add_stat, cookie);
+    add_casted_stat("vb_active_eject", activeCountVisitor.getEjects(), add_stat, cookie);
+    add_casted_stat("vb_active_ht_memory", activeCountVisitor.getHashtableMemory(),
+                   add_stat, cookie);
+    add_casted_stat("vb_active_itm_memory", activeCountVisitor.getItemMemory(),
+                   add_stat, cookie);
+
+    add_casted_stat("vb_replica_num", replicaCountVisitor.getVBucketNumber(), add_stat, cookie);
+    add_casted_stat("vb_replica_curr_items", replicaCountVisitor.getRequested(), add_stat, cookie);
+    add_casted_stat("vb_replica_num_non_resident", replicaCountVisitor.getNonResident(),
+                   add_stat, cookie);
+    add_casted_stat("vb_replica_perc_mem_resident", replicaCountVisitor.getMemResidentPer(),
+                   add_stat, cookie);
+    add_casted_stat("vb_replica_eject", replicaCountVisitor.getEjects(), add_stat, cookie);
+    add_casted_stat("vb_replica_ht_memory", replicaCountVisitor.getHashtableMemory(),
+                   add_stat, cookie);
+    add_casted_stat("vb_replica_itm_memory", replicaCountVisitor.getItemMemory(), add_stat, cookie);
+
+    add_casted_stat("vb_pending_num", pendingCountVisitor.getVBucketNumber(), add_stat, cookie);
+    add_casted_stat("vb_pending_curr_items", pendingCountVisitor.getRequested(), add_stat, cookie);
+    add_casted_stat("vb_pending_num_non_resident", pendingCountVisitor.getNonResident(),
+                   add_stat, cookie);
+    add_casted_stat("vb_pending_perc_mem_resident", pendingCountVisitor.getMemResidentPer(),
+                   add_stat, cookie);
+    add_casted_stat("vb_pending_eject", pendingCountVisitor.getEjects(), add_stat, cookie);
+    add_casted_stat("vb_pending_ht_memory", pendingCountVisitor.getHashtableMemory(),
+                   add_stat, cookie);
+    add_casted_stat("vb_pending_itm_memory", pendingCountVisitor.getItemMemory(), add_stat, cookie);
+
+    add_casted_stat("vb_dead_num", deadCountVisitor.getVBucketNumber(), add_stat, cookie);
+
+    add_casted_stat("ep_vb_total",
+                   activeCountVisitor.getVBucketNumber() +
+                   replicaCountVisitor.getVBucketNumber() +
+                   pendingCountVisitor.getVBucketNumber() +
+                   deadCountVisitor.getVBucketNumber(),
+                   add_stat, cookie);
+
     add_casted_stat("mem_used", stats.currentSize + stats.memOverhead, add_stat,
                     cookie);
     add_casted_stat("ep_kv_size", stats.currentSize, add_stat, cookie);
@@ -2318,10 +2405,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                     add_stat, cookie);
     add_casted_stat("ep_store_max_readwrite", sprop.maxWriters(),
                     add_stat, cookie);
-
-    add_casted_stat("ep_num_non_resident", countVisitor.getTotalNonResident(),
+    add_casted_stat("ep_num_non_resident",
+                    activeCountVisitor.getNonResident() +
+                    pendingCountVisitor.getNonResident() +
+                    replicaCountVisitor.getNonResident(),
                     add_stat, cookie);
-    add_casted_stat("ep_num_active_non_resident", countVisitor.getNonResident(),
+    add_casted_stat("ep_num_active_non_resident", activeCountVisitor.getNonResident(),
                     add_stat, cookie);
 
     return ENGINE_SUCCESS;
@@ -2355,8 +2444,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doHashStats(const void *cookie,
 
     class StatVBucketVisitor : public VBucketVisitor {
     public:
-        StatVBucketVisitor(const void *c, ADD_STAT a)
-            : cookie(c), add_stat(a) {}
+        StatVBucketVisitor(const void *c, ADD_STAT a) : cookie(c), add_stat(a) {}
 
         bool visitBucket(RCPtr<VBucket> vb) {
             uint16_t vbid = vb->getId();
