@@ -9,8 +9,12 @@ Restore tool for Membase.
 import itertools
 import optparse
 import Queue
-import sqlite3
 import sys
+try:
+    import sqlite3
+except:
+    print "mbrestore requires python version 2.6 or greater"
+    sys.exit(1)
 import thread
 import threading
 import time
@@ -33,29 +37,30 @@ def connect(opts):
 
 def worker(queue, opts):
     try:
-        mc = connect(opts)
-        update = mc.add if opts.add else mc.set
-        k, flags, exptime, v = queue.get()
-        while True:
-            try:
-                update(str(k), flags, exptime, str(v))
-            except mc_bin_client.MemcachedError, error:
-                if error.status == 2:
-                    # Already exists
+        try:
+            mc = connect(opts)
+            update = {True: mc.add, False: mc.set}[bool(opts.add)]
+            k, flags, exptime, v = queue.get()
+            while True:
+                try:
+                    update(str(k), flags, exptime, str(v))
+                except mc_bin_client.MemcachedError, error:
+                    if error.status == 2:
+                        # Already exists
+                        queue.task_done()
+                        k, flags, exptime, v = queue.get()
+                    else:
+                        print >> sys.stderr, "Error on key {0!r}: {1}".format(str(k), error)
+                        time.sleep(1)
+                except:
+                    # For other errors, reconnect
+                    traceback.print_exc()
+                    mc = connect(opts)
+                else:
                     queue.task_done()
                     k, flags, exptime, v = queue.get()
-                else:
-                    print >> sys.stderr, "Error on key {0!r}: {1}".format(str(k), error)
-                    time.sleep(1)
-            except:
-                # For other errors, reconnect
-                traceback.print_exc()
-                mc = connect(opts)
-            else:
-                queue.task_done()
-                k, flags, exptime, v = queue.get()
-    except:
-        traceback.print_exc()
+        except:
+            traceback.print_exc()
     finally:
         thread.interrupt_main()
 
