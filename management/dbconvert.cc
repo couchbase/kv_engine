@@ -24,6 +24,17 @@
 #define EX_USAGE 64
 #endif
 
+/* getopt.h on Solaris defines the name member as "char*" and not
+ * "const char*". This cause a compile error when you try to assign
+ * it to a constant string. To aviod compile errors let's create
+ * a macro to cast it to a char pointer.
+ */
+#ifdef __sun
+#define OPTNAME(a) (char*)(a)
+#else
+#define OPTNAME(a) (const char*)(a)
+#endif
+
 using namespace std;
 
 static KVStore *getStore(EPStats &st,
@@ -140,13 +151,13 @@ int main(int argc, char **argv) {
 
     /* options descriptor */
     static struct option longopts[] = {
-        { "src-strategy",  required_argument, NULL,      's' },
-        { "src-pattern",   required_argument, NULL,      'p' },
-        { "dest-strategy", required_argument, NULL,      'S' },
-        { "dest-pattern",  required_argument, NULL,      'P' },
-        { "remove-crlf",   no_argument,       &killCrlf, 'x' },
-        { "txn-size",      required_argument, NULL,      't' },
-        { "report-every",  required_argument, NULL,      'r' },
+        { OPTNAME("src-strategy"),  required_argument, NULL,      's' },
+        { OPTNAME("src-pattern"),   required_argument, NULL,      'p' },
+        { OPTNAME("dest-strategy"), required_argument, NULL,      'S' },
+        { OPTNAME("dest-pattern"),  required_argument, NULL,      'P' },
+        { OPTNAME("remove-crlf"),   no_argument,       &killCrlf, 'x' },
+        { OPTNAME("txn-size"),      required_argument, NULL,      't' },
+        { OPTNAME("report-every"),  required_argument, NULL,      'r' },
         { NULL,            0,                 NULL,      0 }
     };
 
