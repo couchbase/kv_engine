@@ -649,7 +649,7 @@ void TapConsumer::addStats(ADD_STAT add_stat, const void *c) {
     addStat("num_mutation_failed", numMutationFailed, add_stat, c);
     addStat("num_opaque", numOpaque, add_stat, c);
     addStat("num_opaque_failed", numOpaqueFailed, add_stat, c);
-    addStat("num_vnucket_set", numVbucketSet, add_stat, c);
+    addStat("num_vbucket_set", numVbucketSet, add_stat, c);
     addStat("num_vbucket_set_failed", numVbucketSetFailed, add_stat, c);
     addStat("num_unknown", numUnknown, add_stat, c);
 }
