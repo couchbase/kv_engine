@@ -45,7 +45,7 @@ void SqliteStrategy::initMetaTables() {
     assert(db);
     execute("create table if not exists vbucket_states"
             " (vbid integer primary key on conflict replace,"
-            "  vb_version interger,"
+            "  vb_version integer,"
             "  state varchar(16),"
             "  last_change datetime)");
 
