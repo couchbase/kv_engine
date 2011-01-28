@@ -59,7 +59,6 @@ typedef void (*NOTIFY_IO_COMPLETE_T)(const void *cookie,
 
 
 // Forward decl
-class BinaryMessage;
 class EventuallyPersistentEngine;
 class TapConnMap;
 class TapThrottle;
