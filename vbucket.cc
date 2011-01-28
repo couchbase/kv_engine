@@ -121,3 +121,38 @@ void VBucket::setState(vbucket_state_t to, SERVER_HANDLE_V1 *sapi) {
 
     state = to;
 }
+
+void VBucket::doStatsForQueueing(QueuedItem& item, size_t itemBytes)
+{
+    ++dirtyQueueSize;
+    dirtyQueueMem.incr(sizeof(QueuedItem));
+    ++dirtyQueueFill;
+    dirtyQueueAge.incr(item.getDirtied());
+    dirtyQueuePendingWrites.incr(itemBytes);
+}
+
+
+void VBucket::doStatsForFlushing(QueuedItem& item, size_t itemBytes)
+{
+    if (dirtyQueueSize > 0) {
+        --dirtyQueueSize;
+    }
+    if (dirtyQueueMem > sizeof(QueuedItem)) {
+        dirtyQueueMem.decr(sizeof(QueuedItem));
+    } else {
+        dirtyQueueMem.set(0);
+    }
+    ++dirtyQueueDrain;
+
+    if (dirtyQueueAge > item.getDirtied()) {
+        dirtyQueueAge.decr(item.getDirtied());
+    } else {
+        dirtyQueueAge.set(0);
+    }
+
+    if (dirtyQueuePendingWrites > itemBytes) {
+        dirtyQueuePendingWrites.decr(itemBytes);
+    } else {
+        dirtyQueuePendingWrites.set(0);
+    }
+}

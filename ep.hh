@@ -699,7 +699,7 @@ private:
 
     /* Queue an item to be written to persistent layer. */
     void queueDirty(const std::string &key, uint16_t vbid,
-                    enum queue_operation op, int64_t obid=-1);
+                    enum queue_operation op, int64_t obid=-1, size_t itemBytes = 0);
 
     /**
      * Retrieve a StoredValue and invoke a method on it.

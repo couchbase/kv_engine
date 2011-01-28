@@ -240,6 +240,10 @@ public:
         }
     }
 
+    size_t getKeyValLength() {
+        return valLength() + getKeyLen();
+    }
+
     /**
      * Eject an item value from memory.
      * @param stats the global stat instance

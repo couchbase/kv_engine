@@ -2135,6 +2135,17 @@ bool VBucketCountVisitor::visitBucket(RCPtr<VBucket> vb) {
         htMemory += vb->ht.memorySize();
         htItemMemory += vb->ht.getItemMemory();
         numEjects += vb->ht.getNumEjects();
+        opsCreate += vb->opsCreate;
+        opsUpdate += vb->opsUpdate;
+        opsDelete += vb->opsDelete;
+        opsReject += vb->opsReject;
+
+        queueSize += vb->dirtyQueueSize;
+        queueMemory += vb->dirtyQueueMem;
+        queueFill += vb->dirtyQueueFill;
+        queueDrain += vb->dirtyQueueDrain;
+        queueAge += vb->getQueueAge();
+        pendingWrites += vb->dirtyQueuePendingWrites;
     }
 
     return false;
@@ -2260,6 +2271,19 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                    add_stat, cookie);
     add_casted_stat("vb_active_itm_memory", activeCountVisitor.getItemMemory(),
                    add_stat, cookie);
+    add_casted_stat("vb_active_ops_create", activeCountVisitor.getOpsCreate(), add_stat, cookie);
+    add_casted_stat("vb_active_ops_update", activeCountVisitor.getOpsUpdate(), add_stat, cookie);
+    add_casted_stat("vb_active_ops_delete", activeCountVisitor.getOpsDelete(), add_stat, cookie);
+    add_casted_stat("vb_active_ops_reject", activeCountVisitor.getOpsReject(), add_stat, cookie);
+    add_casted_stat("vb_active_queue_size", activeCountVisitor.getQueueSize(), add_stat, cookie);
+    add_casted_stat("vb_active_queue_memory", activeCountVisitor.getQueueMemory(),
+                   add_stat, cookie);
+    add_casted_stat("vb_active_queue_age", activeCountVisitor.getAge(), add_stat, cookie);
+    add_casted_stat("vb_active_queue_pending", activeCountVisitor.getPendingWrites(),
+                   add_stat, cookie);
+    add_casted_stat("vb_active_queue_fill", activeCountVisitor.getQueueFill(), add_stat, cookie);
+    add_casted_stat("vb_active_queue_drain", activeCountVisitor.getQueueDrain(),
+                   add_stat, cookie);
 
     add_casted_stat("vb_replica_num", replicaCountVisitor.getVBucketNumber(), add_stat, cookie);
     add_casted_stat("vb_replica_curr_items", replicaCountVisitor.getRequested(), add_stat, cookie);
@@ -2271,6 +2295,18 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     add_casted_stat("vb_replica_ht_memory", replicaCountVisitor.getHashtableMemory(),
                    add_stat, cookie);
     add_casted_stat("vb_replica_itm_memory", replicaCountVisitor.getItemMemory(), add_stat, cookie);
+    add_casted_stat("vb_replica_ops_create", replicaCountVisitor.getOpsCreate(), add_stat, cookie);
+    add_casted_stat("vb_replica_ops_update", replicaCountVisitor.getOpsUpdate(), add_stat, cookie);
+    add_casted_stat("vb_replica_ops_delete", replicaCountVisitor.getOpsDelete(), add_stat, cookie);
+    add_casted_stat("vb_replica_ops_reject", replicaCountVisitor.getOpsReject(), add_stat, cookie);
+    add_casted_stat("vb_replica_queue_size", replicaCountVisitor.getQueueSize(), add_stat, cookie);
+    add_casted_stat("vb_replica_queue_memory", replicaCountVisitor.getQueueMemory(),
+                   add_stat, cookie);
+    add_casted_stat("vb_replica_queue_age", replicaCountVisitor.getAge(), add_stat, cookie);
+    add_casted_stat("vb_replica_queue_pending", replicaCountVisitor.getPendingWrites(),
+                   add_stat, cookie);
+    add_casted_stat("vb_replica_queue_fill", replicaCountVisitor.getQueueFill(), add_stat, cookie);
+    add_casted_stat("vb_replica_queue_drain", replicaCountVisitor.getQueueDrain(), add_stat, cookie);
 
     add_casted_stat("vb_pending_num", pendingCountVisitor.getVBucketNumber(), add_stat, cookie);
     add_casted_stat("vb_pending_curr_items", pendingCountVisitor.getRequested(), add_stat, cookie);
@@ -2282,6 +2318,18 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     add_casted_stat("vb_pending_ht_memory", pendingCountVisitor.getHashtableMemory(),
                    add_stat, cookie);
     add_casted_stat("vb_pending_itm_memory", pendingCountVisitor.getItemMemory(), add_stat, cookie);
+    add_casted_stat("vb_pending_ops_create", pendingCountVisitor.getOpsCreate(), add_stat, cookie);
+    add_casted_stat("vb_pending_ops_update", pendingCountVisitor.getOpsUpdate(), add_stat, cookie);
+    add_casted_stat("vb_pending_ops_delete", pendingCountVisitor.getOpsDelete(), add_stat, cookie);
+    add_casted_stat("vb_pending_ops_reject", pendingCountVisitor.getOpsReject(), add_stat, cookie);
+    add_casted_stat("vb_pending_queue_size", pendingCountVisitor.getQueueSize(), add_stat, cookie);
+    add_casted_stat("vb_pending_queue_memory", pendingCountVisitor.getQueueMemory(),
+                   add_stat, cookie);
+    add_casted_stat("vb_pending_queue_age", pendingCountVisitor.getAge(), add_stat, cookie);
+    add_casted_stat("vb_pending_queue_pending", pendingCountVisitor.getPendingWrites(),
+                   add_stat, cookie);
+    add_casted_stat("vb_pending_queue_fill", pendingCountVisitor.getQueueFill(), add_stat, cookie);
+    add_casted_stat("vb_pending_queue_drain", pendingCountVisitor.getQueueDrain(), add_stat, cookie);
 
     add_casted_stat("vb_dead_num", deadCountVisitor.getVBucketNumber(), add_stat, cookie);
 
@@ -2291,6 +2339,32 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                    pendingCountVisitor.getVBucketNumber() +
                    deadCountVisitor.getVBucketNumber(),
                    add_stat, cookie);
+
+    add_casted_stat("ep_diskqueue_items",
+                    activeCountVisitor.getQueueSize() +
+                    replicaCountVisitor.getQueueSize() +
+                    pendingCountVisitor.getQueueSize(),
+                    add_stat, cookie);
+    add_casted_stat("ep_diskqueue_memory",
+                    activeCountVisitor.getQueueMemory() +
+                    replicaCountVisitor.getQueueMemory() +
+                    pendingCountVisitor.getQueueMemory(),
+                    add_stat, cookie);
+    add_casted_stat("ep_diskqueue_fill",
+                    activeCountVisitor.getQueueFill() +
+                    replicaCountVisitor.getQueueFill() +
+                    pendingCountVisitor.getQueueFill(),
+                    add_stat, cookie);
+    add_casted_stat("ep_diskqueue_drain",
+                    activeCountVisitor.getQueueDrain() +
+                    replicaCountVisitor.getQueueDrain() +
+                    pendingCountVisitor.getQueueDrain(),
+                    add_stat, cookie);
+    add_casted_stat("ep_diskqueue_pending",
+                    activeCountVisitor.getPendingWrites() +
+                    replicaCountVisitor.getPendingWrites() +
+                    pendingCountVisitor.getPendingWrites(),
+                    add_stat, cookie);
 
     add_casted_stat("mem_used", stats.currentSize + stats.memOverhead, add_stat,
                     cookie);

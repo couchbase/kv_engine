@@ -149,6 +149,11 @@ For introductory information on stats within membase, start with the
 | curr_items_tot                | Total number of items                      |
 | curr_items                    | Number of active items in memory           |
 | vb_dead_num                   | Number of dead vBuckets                    |
+| ep_diskqueue_items            | Total items in disk queue                  |
+| ep_diskqueue_memory           | Total memory used in disk queue            |
+| ep_diskqueue_fill             | Total enqueued items on disk queue         |
+| ep_diskqueue_drain            | Total drained items on disk queue          |
+| ep_diskqueue_pendingWrites    | Total bytes of pending writes              |
 
 
 *** Active vBucket class stats
@@ -162,6 +167,16 @@ For introductory information on stats within membase, start with the
 | vb_active_eject               | Number of times item values got ejected    |
 | vb_active_ht_memory           | Memory used to store keys and values       |
 | vb_active_itm_memory          | Total item memory                          |
+| vb_active_ops_create          | Number of create operations                |
+| vb_active_ops_update          | Number of update operations                |
+| vb_active_ops_delete          | Number of delete operations                |
+| vb_active_ops_reject          | Number of rejected operations              |
+| vb_active_queue_size          | Active items in disk queue                 |
+| vb_active_queue_memory        | Memory used for disk queue                 |
+| vb_active_queue_age           | Sum of disk queue item age in milliseconds |
+| vb_active_queue_pending       | Total bytes of pending writes              |
+| vb_active_queue_fill          | Total enqueued items                       |
+| vb_active_queue_drain         | Total drained items                        |
 
 *** Replica vBucket stats
 
@@ -174,6 +189,16 @@ For introductory information on stats within membase, start with the
 | vb_replica_eject              | Number of times item values got ejected    |
 | vb_replica_ht_memory          | Memory used to store keys and values       |
 | vb_replica_itm_memory         | Total item memory                          |
+| vb_replica_ops_create         | Number of create operations                |
+| vb_replica_ops_update         | Number of update operations                |
+| vb_replica_ops_delete         | Number of delete operations                |
+| vb_replica_ops_reject         | Number of rejected operations              |
+| vb_replica_queue_size         | Replica items in disk queue                |
+| vb_replica_queue_memory       | Memory used for disk queue                 |
+| vb_replica_queue_age          | Sum of disk queue item age in milliseconds |
+| vb_replica_queue_pending      | Total bytes of pending writes              |
+| vb_replica_queue_fill         | Total enqueued items                       |
+| vb_replica_queue_drain        | Total drained items                        |
 
 *** Pending vBucket stats
 
@@ -186,6 +211,16 @@ For introductory information on stats within membase, start with the
 | vb_pending_eject              | Number of times item values got ejected    |
 | vb_pending_ht_memory          | Memory used to store keys and values       |
 | vb_pending_itm_memory         | Total item memory                          |
+| vb_pending_ops_create         | Number of create operations                |
+| vb_pending_ops_update         | Number of update operations                |
+| vb_pending_ops_delete         | Number of delete operations                |
+| vb_pending_ops_reject         | Number of rejected operations              |
+| vb_pending_queue_size         | Pending items in disk queue                |
+| vb_pending_queue_memory       | Memory used for disk queue                 |
+| vb_pending_queue_age          | Sum of disk queue item age in milliseconds |
+| vb_pending_queue_pending      | Total bytes of pending writes              |
+| vb_pending_queue_fill         | Total enqueued items                       |
+| vb_pending_queue_drain        | Total drained items                        |
 
 
 

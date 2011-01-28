@@ -11,7 +11,7 @@
 #include <algorithm>
 
 #include <memcached/engine.h>
-
+#include "queueditem.hh"
 #include "common.hh"
 #include "atomic.hh"
 #include "stored-value.hh"
@@ -133,6 +133,14 @@ public:
         return true;
     }
 
+    void doStatsForQueueing(QueuedItem& item, size_t itemBytes);
+    void doStatsForFlushing(QueuedItem& item, size_t itemBytes);
+
+    // Get age sum in millisecond
+    uint64_t getQueueAge() {
+        return (ep_current_time() * dirtyQueueSize - dirtyQueueAge) * 1000;
+    }
+
     void fireAllOps(EventuallyPersistentEngine &engine);
 
     size_t size(void) {
@@ -157,6 +165,18 @@ public:
     static const vbucket_state_t REPLICA;
     static const vbucket_state_t PENDING;
     static const vbucket_state_t DEAD;
+
+    Atomic<size_t>  opsCreate;
+    Atomic<size_t>  opsUpdate;
+    Atomic<size_t>  opsDelete;
+    Atomic<size_t>  opsReject;
+
+    Atomic<size_t>  dirtyQueueSize;
+    Atomic<size_t>  dirtyQueueMem;
+    Atomic<size_t>  dirtyQueueFill;
+    Atomic<size_t>  dirtyQueueDrain;
+    Atomic<uint64_t>    dirtyQueueAge;
+    Atomic<size_t>  dirtyQueuePendingWrites;
 
 private:
 
