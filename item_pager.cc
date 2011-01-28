@@ -97,34 +97,6 @@ private:
     bool                      *stateFinalizer;
 };
 
-/**
- * As part of the ExpiredItemPager, visit all of the objects in memory and
- * purge all the expired items from memory and disk
- */
-class ExpiryPagingVisitor : public VBucketVisitor {
-public:
-
-    /**
-     * Construct a ExpiryPagingVisitor that will attempt to purge all the
-     * expired items from memory and disk.
-     *
-     * @param st stats for engine
-     */
-    ExpiryPagingVisitor(EPStats &st) : stats(st), startTime(ep_real_time()) {}
-
-    void visit(StoredValue *v) {
-        if (v->isExpired(startTime)) {
-            expired.push_back(std::make_pair(currentBucket->getId(), v->getKey()));
-        }
-    }
-
-    std::list<std::pair<uint16_t, std::string> > expired;
-
-private:
-    EPStats &stats;
-    time_t   startTime;
-};
-
 bool ItemPager::callback(Dispatcher &d, TaskId t) {
     double current = static_cast<double>(StoredValue::getCurrentSize(stats));
     double upper = static_cast<double>(stats.mem_high_wat);
