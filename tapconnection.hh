@@ -408,6 +408,11 @@ private:
             queue->pop_front();
             queue_set->erase(qi);
             --queueSize;
+            if (queueMemSize > qi.size()) {
+                queueMemSize.decr(qi.size());
+            } else {
+                queueMemSize.set(0);
+            }
 
             if (vbucketFilter(qi.getVBucketId())) {
                 ++recordsFetched;
@@ -547,6 +552,27 @@ private:
         return tapLog.size();
     }
 
+    size_t getQueueMemory() {
+        return queueMemSize;
+    }
+
+    size_t getRemaingOnDisk() {
+         LockHolder lh(queueLock);
+         return bgQueueSize + (bgJobIssued - bgJobCompleted);
+    }
+
+    size_t getQueueFillTotal() {
+         return queueFill;
+    }
+
+    size_t getQueueDrainTotal() {
+         return queueDrain;
+    }
+
+    size_t getQueueBackoff() {
+         return numTapNack;
+    }
+
     Item* nextFetchedItem();
 
     void flush() {
@@ -556,6 +582,7 @@ private:
         queue->clear();
         queueSize = 0;
         queue_set->clear();
+        queueMemSize = 0;
     }
 
     bool shouldFlush() {
@@ -569,6 +596,10 @@ private:
         LockHolder lh(queueLock);
         queue->splice(queue->end(), *q);
         queueSize = queue->size();
+
+        for(std::list<QueuedItem>::iterator i = q->begin(); i != q->end(); ++i)  {
+            queueMemSize.incr(i->size());
+        }
     }
 
     bool isPendingDiskBackfill() {
@@ -774,6 +805,9 @@ private:
     Atomic<size_t> bgJobCompleted;
     Atomic<size_t> numTapNack;
     Atomic<size_t> numTmpfailSurvivors;
+    Atomic<size_t> queueMemSize;
+    Atomic<size_t> queueFill;
+    Atomic<size_t> queueDrain;
 
     // Current tap sequence number (for ack's)
     uint32_t seqno;

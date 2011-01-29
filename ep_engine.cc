@@ -1417,6 +1417,7 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
         Item *item = connection->nextFetchedItem();
 
         ++stats.numTapBGFetched;
+        ++connection->queueDrain;
 
         // If there's a better version in memory, grab it, else go
         // with what we pulled from disk.
@@ -1461,6 +1462,7 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
             ret = TAP_MUTATION;
 
             ++stats.numTapFGFetched;
+            ++connection->queueDrain;
         } else if (r == ENGINE_KEY_ENOENT) {
             ret = TAP_DELETION;
             r = itemAllocate(cookie, itm,
@@ -2571,11 +2573,18 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doHashStats(const void *cookie,
  */
 struct TapCounter {
     TapCounter()
-        : tap_queue(0), totalTaps(0)
+        : tap_queue(0), totalTaps(0),
+          tap_queueFill(0), tap_queueDrain(0), tap_queueBackoff(0),
+          tap_queueBackfillRemaining(0), tap_queueItemOnDisk(0)
     {}
 
     size_t      tap_queue;
     size_t      totalTaps;
+    size_t      tap_queueFill;
+    size_t      tap_queueDrain;
+    size_t      tap_queueBackoff;
+    size_t      tap_queueBackfillRemaining;
+    size_t      tap_queueItemOnDisk;
 };
 
 /**
@@ -2592,6 +2601,11 @@ struct TapStatBuilder {
         TapProducer *tp = dynamic_cast<TapProducer*>(tc);
         if (tp) {
             aggregator->tap_queue += tp->getQueueSize();
+            aggregator->tap_queueFill += tp->getQueueFillTotal();
+            aggregator->tap_queueDrain += tp->getQueueDrainTotal();
+            aggregator->tap_queueBackoff += tp->getQueueBackoff();
+            aggregator->tap_queueBackfillRemaining += tp->getBacklogSize();
+            aggregator->tap_queueItemOnDisk += tp->getRemaingOnDisk();
         }
     }
 
@@ -2621,6 +2635,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTapStats(const void *cookie,
 
     add_casted_stat("ep_tap_count", aggregator.totalTaps, add_stat, cookie);
     add_casted_stat("ep_tap_total_queue", aggregator.tap_queue, add_stat, cookie);
+    add_casted_stat("ep_tap_queue_fill", aggregator.tap_queueFill, add_stat, cookie);
+    add_casted_stat("ep_tap_queue_drain", aggregator.tap_queueDrain, add_stat, cookie);
+    add_casted_stat("ep_tap_queue_backoff", aggregator.tap_queueBackoff, add_stat, cookie);
+    add_casted_stat("ep_tap_queue_backfillremaining", aggregator.tap_queueBackfillRemaining, add_stat, cookie);
+    add_casted_stat("ep_tap_queue_itemondisk", aggregator.tap_queueItemOnDisk, add_stat, cookie);
 
     add_casted_stat("ep_tap_ack_window_size", TapProducer::ackWindowSize,
                     add_stat, cookie);

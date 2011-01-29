@@ -48,6 +48,9 @@ TapProducer::TapProducer(EventuallyPersistentEngine &theEngine,
     vbucketFilter(),
     vBucketHighPriority(),
     vBucketLowPriority(),
+    queueMemSize(0),
+    queueFill(0),
+    queueDrain(0),
     seqno(initialAckSequenceNumber),
     seqnoReceived(initialAckSequenceNumber - 1),
     notifySent(false)
@@ -604,6 +607,13 @@ void TapProducer::addStats(ADD_STAT add_stat, const void *c) {
     addStat("paused", paused, add_stat, c);
     addStat("pending_backfill", pendingBackfill, add_stat, c);
     addStat("pending_disk_backfill", !isPendingDiskBackfill(), add_stat, c);
+
+    addStat("queue_memory", getQueueMemory(), add_stat, c);
+    addStat("queue_fill", getQueueFillTotal(), add_stat, c);
+    addStat("queue_drain", getQueueDrainTotal(), add_stat, c);
+    addStat("queue_backoff", getQueueBackoff(), add_stat, c);
+    addStat("queue_backfillremaining", getBacklogSize(), add_stat, c);
+    addStat("queue_itemondisk", getRemaingOnDisk(), add_stat, c);
 
     if (reconnects > 0) {
         addStat("reconnects", reconnects, add_stat, c);

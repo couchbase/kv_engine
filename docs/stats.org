@@ -243,22 +243,28 @@ For introductory information on stats within membase, start with the
 | ep_tap_count             | Number of tap connections.                 |
 | ep_tap_bg_num_samples    | The number of tap bg fetch samples         |
 |                          | included in the avg                        |
-| ep_tap_bg_min_wait       | The shortest time (µs) for a tap item     |
+| ep_tap_bg_min_wait       | The shortest time (µs) for a tap item      |
 |                          | before it is serviced by the dispatcher    |
-| ep_tap_bg_max_wait       | The longest time (µs) for a tap item      |
+| ep_tap_bg_max_wait       | The longest time (µs) for a tap item       |
 |                          | before it is serviced by the dispatcher    |
-| ep_tap_bg_wait_avg       | The average wait time (µs) for a tap item |
+| ep_tap_bg_wait_avg       | The average wait time (µs) for a tap item  |
 |                          | before it is serviced by the dispatcher    |
-| ep_tap_bg_min_load       | The shortest time (µs) for a tap item to  |
+| ep_tap_bg_min_load       | The shortest time (µs) for a tap item to   |
 |                          | be loaded from the persistence layer       |
-| ep_tap_bg_max_load       | The longest time (µs) for a tap item to   |
+| ep_tap_bg_max_load       | The longest time (µs) for a tap item to    |
 |                          | be loaded from the persistence layer       |
-| ep_tap_bg_load_avg       | The average time (µs) for a tap item to   |
+| ep_tap_bg_load_avg       | The average time (µs) for a tap item to    |
 |                          | be loaded from the persistence layer       |
 | ep_tap_noop_interval     | The number of secs between a noop is added |
 |                          | to an idle connection                      |
 | ep_tap_backoff_period    | The number of seconds the tap connection   |
 |                          | should back off after receiving ETMPFAIL   |
+| ep_tap_queue_fill        | Total enqueued items                       |
+| ep_tap_queue_drain       | Total drained items                        |
+| ep_tap_queue_backoff     | Total back-off items                       |
+| ep_tap_queue_backfill    | Number of backfill remaining               |
+| ep_tap_queue_itemondisk  | Number of items remaining on disk          |
+
 
 *** Per Tap Client Stats
 
@@ -314,6 +320,12 @@ another colon.  For example, if your client is named, =slave1=, the
 | num_tap_nack              | The number of negative tap acks received | P  |
 | num_tap_tmpfail_survivors | The number of items rescheduled due to   | P  |
 |                           | a temporary nack.                        | P  |
+| queue_memory              | Memory used for tap queue                | P  |
+| queue_fill                | Total queued items                       | P  |
+| queue_drain               | Total drained items                      | P  |
+| queue_backoff             | Total back-off items                     | P  |
+| queue_backfillremaining   | Number of backfill remaining             | P  |
+| queue_itemondisk          | Number of items remaining on disk        | P  |
 | num_delete                | Number of delete operations consumed     |  C |
 | num_delete_failed         | Number of failed delete operations       |  C |
 | num_flush                 | Number of flush operations               |  C |
