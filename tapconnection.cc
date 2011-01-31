@@ -716,3 +716,12 @@ void TapConsumer::processedEvent(tap_event_t event, ENGINE_ERROR_CODE ret)
         ++numUnknown;
     }
 }
+
+bool TapProducer::isTimeForNoop() {
+    return noop.swap(false);
+}
+
+void TapProducer::setTimeForNoop()
+{
+    noop.set(true);
+}

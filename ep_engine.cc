@@ -1387,6 +1387,10 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
         queueBackfill(connection, cookie);
     }
 
+    if (connection->isTimeForNoop()) {
+        return TAP_NOOP;
+    }
+
     if (connection->isSuspended() || connection->windowIsFull()) {
         return TAP_PAUSE;
     }
@@ -1403,8 +1407,6 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
             *vbucket = ev.vbucket;
             *es = &connection->opaqueCommandCode;
             *nes = sizeof(connection->opaqueCommandCode);
-            break;
-        case TAP_NOOP:
             break;
         default:
             abort();
