@@ -1,14 +1,14 @@
 ACLOCAL_AMFLAGS = -I m4 --force
 bin_SCRIPTS = management/analyze_core \
-              wrapper/dbmaint \
-              wrapper/flushctl \
-              wrapper/stats \
-              wrapper/vbucketctl
+              wrapper/mbdbmaint \
+              wrapper/mbflushctl \
+              wrapper/mbstats \
+              wrapper/mbvbucketctl
 
 lib_LTLIBRARIES = ep.la ep_testsuite.la timing_tests.la
 noinst_LTLIBRARIES = libkvstore.la
 
-bin_PROGRAMS = management/dbconvert
+bin_PROGRAMS = management/mbdbconvert
 BUILT_SOURCES =
 CLEANFILES =
 
@@ -69,23 +69,23 @@ ep_la_DEPENDENCIES = libkvstore.la
 ep_testsuite_la_LIBADD = libkvstore.la
 ep_testsuite_la_DEPENDENCIES = libkvstore.la
 
-management_dbconvert_SOURCES = management/dbconvert.cc testlogger.cc
-management_dbconvert_LDADD = libkvstore.la
-management_dbconvert_DEPENDENCIES = libkvstore.la
+management_mbdbconvert_SOURCES = management/dbconvert.cc testlogger.cc
+management_mbdbconvert_LDADD = libkvstore.la
+management_mbdbconvert_DEPENDENCIES = libkvstore.la
 
 if BUILD_EMBEDDED_LIBSQLITE3
 ep_la_LIBADD += libsqlite3.la
 ep_la_DEPENDENCIES += libsqlite3.la
 ep_testsuite_la_LIBADD += libsqlite3.la
 ep_testsuite_la_DEPENDENCIES += libsqlite3.la
-management_dbconvert_LDADD += libsqlite3.la
-management_dbconvert_DEPENDENCIES += libsqlite3.la
+management_mbdbconvert_LDADD += libsqlite3.la
+management_mbdbconvert_DEPENDENCIES += libsqlite3.la
 noinst_LTLIBRARIES += libsqlite3.la
 bin_PROGRAMS += management/sqlite3
 else
 ep_la_LIBADD += $(LIBSQLITE3)
 ep_testsuite_la_LIBADD += $(LIBSQLITE3)
-management_dbconvert_LDADD += $(LIBSQLITE3)
+management_mbdbconvert_LDADD += $(LIBSQLITE3)
 endif
 
 libsqlite3_la_SOURCES = embedded/sqlite3.h embedded/sqlite3.c
@@ -226,15 +226,15 @@ pythonlib_DATA= \
                 management/tap.py
 
 pythonlib_SCRIPTS= \
-                management/dbmaint \
-                management/flushctl \
-                management/stats \
-                management/vbucketctl
+                management/mbdbmaint \
+                management/mbflushctl \
+                management/mbstats \
+                management/mbvbucketctl
 
-PYTHON_TOOLS= wrapper/dbmaint \
-              wrapper/flushctl \
-              wrapper/stats \
-              wrapper/vbucketctl
+PYTHON_TOOLS= wrapper/mbdbmaint \
+              wrapper/mbflushctl \
+              wrapper/mbstats \
+              wrapper/mbvbucketctl
 
 ${PYTHON_TOOLS}: wrapper/wrapper
 	cp $< $@

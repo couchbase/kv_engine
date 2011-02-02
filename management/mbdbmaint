@@ -32,7 +32,7 @@ def main():
 
     cmd_dir = os.path.dirname(sys.argv[0])
     bin_dir = cmd_dir
-    flushctl = os.path.join(cmd_dir, 'flushctl')
+    flushctl = os.path.join(cmd_dir, 'mbflushctl')
     sqlitebin = os.path.join(bin_dir, 'sqlite3')
 
     optdict = dict(opts)

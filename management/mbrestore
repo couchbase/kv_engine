@@ -100,7 +100,7 @@ def main():
     versions = db_file_versions(db_filenames)
     if max(versions.values()) < 2:
         sys.exit("The backup files need to be upgraded to version 2.\n"
-                 "Either use dbupgrade or contact support.")
+                 "Either use mbdbupgrade or contact support.")
 
     attached_dbs = ["db{0}".format(i) for i in xrange(len(db_filenames))]
     # Open the first given filename as the main database
