@@ -24,20 +24,20 @@ inline void ep_sync_synchronize(void) {
 
 }
 
-inline size_t ep_sync_add_and_fetch(volatile size_t *dest, size_t value) {
-    if (value == 1) {
-#ifdef _LP64
-        return atomic_inc_64_nv((volatile uint64_t*)dest);
-#else
-        return atomic_inc_32_nv((volatile uint32_t*)dest);
-#endif
-    } else {
-#ifdef _LP64
-        return atomic_add_64_nv((volatile uint64_t*)dest, value);
-#else
-        return atomic_add_32_nv((volatile uint32_t*)dest, value);
-#endif
-    }
+inline rel_time_t ep_sync_add_and_fetch(volatile uint64_t *dest, uint64_t value) {
+     if (value == 1) {
+         return atomic_inc_64_nv(dest);
+     } else {
+         return atomic_add_64_nv(dest, value);
+     }
+}
+
+inline rel_time_t ep_sync_add_and_fetch(volatile uint32_t *dest, uint32_t value) {
+     if (value == 1) {
+         return atomic_inc_32_nv(dest);
+     } else {
+         return atomic_add_32_nv(dest, value);
+     }
 }
 
 inline int ep_sync_add_and_fetch(volatile int *dest, int value) {
@@ -66,37 +66,27 @@ inline int ep_sync_fetch_and_add(volatile int *dest, int value) {
     return original;
 }
 
-inline size_t ep_sync_fetch_and_add(volatile size_t *dest, size_t value) {
-    size_t original = *dest;
+inline uint64_t ep_sync_fetch_and_add(volatile uint64_t *dest, uint64_t value) {
+    uint64_t original = *dest;
     if (value == 1) {
-#ifdef _LP64
-        atomic_inc_64((volatile uint64_t*)dest);
-#else
-        atomic_inc_32((volatile uint32_t*)dest);
-#endif
+        atomic_inc_64(dest);
     } else {
-#ifdef _LP64
-        atomic_add_64((volatile uint64_t*)dest, value);
-#else
-        atomic_add_32((volatile uint32_t*)dest, value);
-#endif
+        atomic_add_64(dest, value);
     }
 
     return original;
 }
 
-#ifndef _LP64
-inline size_t ep_sync_fetch_and_add(volatile uint64_t *dest, size_t value) {
-    size_t original = *dest;
+inline uint32_t ep_sync_fetch_and_add(volatile uint32_t *dest, uint32_t value) {
+    uint32_t original = *dest;
     if (value == 1) {
-        atomic_inc_64((volatile uint64_t*)dest);
+        atomic_inc_32(dest);
     } else {
-        atomic_add_64((volatile uint64_t*)dest, value);
+        atomic_add_32(dest, value);
     }
 
     return original;
 }
-#endif
 
 inline hrtime_t ep_sync_fetch_and_add(volatile hrtime_t *dest, hrtime_t value) {
     size_t original = *dest;
