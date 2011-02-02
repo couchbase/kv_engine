@@ -33,10 +33,10 @@ void Flusher::wait(void) {
         usleep(1000);
     }
     hrtime_t endt(gethrtime());
-    int millidiff((endt - startt) / 1000);
-    if (millidiff > 10000) {
+    int udiff((endt - startt) / 1000);
+    if (udiff > 10000) {
         getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                         "Had to wait %dms for shutdown\n", millidiff);
+                         "Had to wait %dus for shutdown\n", udiff);
     }
 }
 
