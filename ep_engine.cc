@@ -2405,16 +2405,28 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doHashStats(const void *cookie,
 /// @cond DETAILS
 
 /**
+ * Aggregator object to count all tap stats.
+ */
+struct TapCounter {
+    TapCounter()
+        : tap_queue(0), totalTaps(0)
+    {}
+
+    size_t      tap_queue;
+    size_t      totalTaps;
+};
+
+/**
  * Function object to send stats for a single tap connection.
  */
 struct TapStatBuilder {
-    TapStatBuilder(const void *c, ADD_STAT as)
-        : cookie(c), add_stat(as), tap_queue(0), totalTaps(0) {}
+    TapStatBuilder(const void *c, ADD_STAT as, TapCounter* tc)
+        : cookie(c), add_stat(as), aggregator(tc) {}
 
     void operator() (TapConnection *tc) {
-        ++totalTaps;
+        ++aggregator->totalTaps;
         size_t qlen = tc->getQueueSize();
-        tap_queue += qlen;
+        aggregator->tap_queue += qlen;
 
         addTapStat("qlen", tc, qlen, add_stat, cookie);
         addTapStat("qlen_high_pri", tc, tc->vBucketHighPriority.size(), add_stat, cookie);
@@ -2480,17 +2492,16 @@ struct TapStatBuilder {
 
     const void *cookie;
     ADD_STAT    add_stat;
-    size_t      tap_queue;
-    int         totalTaps;
+    TapCounter* aggregator;
 };
 
 /// @endcond
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doTapStats(const void *cookie,
                                                          ADD_STAT add_stat) {
-    std::list<TapConnection*>::iterator iter;
-    TapStatBuilder aggregator(cookie, add_stat);
-    tapConnMap.each(aggregator);
+    TapCounter aggregator;
+    TapStatBuilder tapVisitor(cookie, add_stat, &aggregator);
+    tapConnMap.each(tapVisitor);
 
     add_casted_stat("ep_tap_total_queue", aggregator.tap_queue, add_stat, cookie);
     add_casted_stat("ep_tap_total_fetched", stats.numTapFetched, add_stat, cookie);
