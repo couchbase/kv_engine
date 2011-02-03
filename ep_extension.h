@@ -10,7 +10,7 @@
 #include <memcached/extension.h>
 
 extern "C" {
-    typedef bool (*RESPONSE_HANDLER_T)(const void *, int , const char *);
+    typedef ENGINE_ERROR_CODE (*RESPONSE_HANDLER_T)(const void *, int , const char *);
 }
 
 /**
@@ -22,11 +22,11 @@ public:
 
     void initialize();
 
-    bool executeGetl(int argc, token_t *argv, void *cookie,
-                     RESPONSE_HANDLER_T response_handler);
+    ENGINE_ERROR_CODE executeGetl(int argc, token_t *argv, void *cookie,
+                                  RESPONSE_HANDLER_T response_handler);
 
-    bool executeUnl(int argc, token_t *argv, void *cookie,
-                     RESPONSE_HANDLER_T response_handler);
+    ENGINE_ERROR_CODE executeUnl(int argc, token_t *argv, void *cookie,
+                                 RESPONSE_HANDLER_T response_handler);
 
 
 private:
