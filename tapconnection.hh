@@ -110,6 +110,9 @@ public:
     void setSuspended(bool value);
     const void *getCookie() const;
 
+    bool isTimeForNoop();
+    void setTimeForNoop();
+
     void completeBackfill() {
         pendingBackfill = false;
         completeBackfillCommon();
@@ -211,7 +214,7 @@ private:
     }
 
     void addTapLogElement_UNLOCKED(const TapVBucketEvent &e) {
-        if (ackSupported && e.event != TAP_NOOP) {
+        if (ackSupported) {
             // add to the log!
             TapLogElement log(seqno, e);
             tapLog.push_back(log);
@@ -266,8 +269,6 @@ private:
             // We might have objects in our queue that aren't in our filter
             // If so, just skip them..
             switch (ret.event) {
-            case TAP_NOOP:
-                break;
             case TAP_OPAQUE:
                 opaqueCommandCode = (uint32_t)ret.state;
                 if (opaqueCommandCode == htonl(TAP_OPAQUE_ENABLE_AUTO_NACK)) {
@@ -315,7 +316,7 @@ private:
             vBucketLowPriority.pop();
             // We might have objects in our queue that aren't in our filter
             // If so, just skip them..
-            if (ret.event != TAP_NOOP && !vbucketFilter(ret.vbucket)) {
+            if (!vbucketFilter(ret.vbucket)) {
                 return nextVBucketHighPriority_UNLOCKED();
             }
             ++recordsFetched;
@@ -691,6 +692,11 @@ private:
      * Textual representation of the flags..
      */
     std::string flagsText;
+
+    /**
+     * Should we send a NOOP
+     */
+    Atomic<bool> noop;
 
     static size_t bgMaxPending;
 

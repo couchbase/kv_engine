@@ -264,8 +264,7 @@ void TapConnMap::notifyIOThreadMain(EventuallyPersistentEngine *engine) {
             } else if (iter->second->doDisconnect || !iter->second->idle()) {
             shouldPause = false;
         } else if (addNoop) {
-            TapVBucketEvent hi(TAP_NOOP, 0, vbucket_state_pending);
-            iter->second->addVBucketHighPriority(hi);
+            iter->second->setTimeForNoop();
             shouldPause = false;
         }
     }

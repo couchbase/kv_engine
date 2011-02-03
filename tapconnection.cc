@@ -580,3 +580,11 @@ Item* TapConnection::nextFetchedItem() {
     --bgResultSize;
     return rv;
 }
+
+bool TapConnection::isTimeForNoop() {
+    return noop.swap(false);
+}
+
+void TapConnection::setTimeForNoop() {
+    noop.set(true);
+}
