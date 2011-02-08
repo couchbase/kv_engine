@@ -2475,6 +2475,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
         add_casted_stat("ep_bg_load_avg",
                         epstats.bgLoad / epstats.bgNumOperations,
                         add_stat, cookie);
+        add_casted_stat("ep_bg_wait",
+                        epstats.bgWait,
+                        add_stat, cookie);
+        add_casted_stat("ep_bg_load",
+                        epstats.bgLoad,
+                        add_stat, cookie);
     }
 
     StorageProperties sprop(epstore->getStorageProperties());
