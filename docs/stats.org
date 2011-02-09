@@ -142,7 +142,9 @@ For introductory information on stats within membase, start with the
 | ep_bg_wait                    | The total elapse time for the wait queue   |
 | ep_bg_load                    | The total elapse time for items to be      |
 |                               | loaded from the persistence layer          |
-
+| ep_latency_get_cmd            | The total elapse time for get command      |
+| ep_latency_store_cmd          | The total elapse time for store command    |
+| ep_latency_arith_cmd          | The total eplase time for arith command    |
 
 ** vBucket total stats
 

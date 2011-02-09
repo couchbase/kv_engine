@@ -2498,6 +2498,13 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     add_casted_stat("ep_num_active_non_resident", activeCountVisitor.getNonResident(),
                     add_stat, cookie);
 
+    add_casted_stat("ep_latency_get_cmd", epstats.getCmdHisto.total(),
+                    add_stat, cookie);
+    add_casted_stat("ep_latency_store_cmd", epstats.storeCmdHisto.total(),
+                    add_stat, cookie);
+    add_casted_stat("ep_latency_arith_cmd", epstats.arithCmdHisto.total(),
+                    add_stat, cookie);
+
     return ENGINE_SUCCESS;
 }
 
