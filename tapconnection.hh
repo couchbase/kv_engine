@@ -870,8 +870,8 @@ private:
     std::string flagsText;
 
     /**
-     * Should we send a NOOP?
-    */
+     * Should we send a NOOP
+     */
     Atomic<bool> noop;
 
     static size_t bgMaxPending;

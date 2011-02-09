@@ -280,6 +280,7 @@ void TapConnMap::notifyIOThreadMain(EventuallyPersistentEngine *engine) {
         if (tp != NULL) {
             if (tp->supportsAck() && (tp->getExpiryTime() < now) && tp->windowIsFull()) {
                 shouldPause = false;
+
                 tp->setDisconnect(true);
             } else if (tp->doDisconnect() || !tp->idle()) {
                 shouldPause = false;
@@ -287,6 +288,7 @@ void TapConnMap::notifyIOThreadMain(EventuallyPersistentEngine *engine) {
                 tp->setTimeForNoop();
                 shouldPause = false;
             }
+
         }
     }
 

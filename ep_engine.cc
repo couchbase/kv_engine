@@ -2583,6 +2583,7 @@ struct TapCounter {
 
     size_t      tap_queue;
     size_t      totalTaps;
+
     size_t      tap_queueFill;
     size_t      tap_queueDrain;
     size_t      tap_queueBackoff;

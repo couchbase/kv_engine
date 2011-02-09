@@ -87,29 +87,25 @@ static GetlExtension* getExtension(const void* cookie)
 
 extern "C" {
 
-    typedef bool (*RESPONSE_HANDLER_T)(const void *, int , const char *);
     static const char *ext_get_name(const void *cmd_cookie) {
         (void) cmd_cookie;
         return "getl";
     }
 
-    static bool ext_execute(const void *cmd_cookie, const void *cookie,
+    static ENGINE_ERROR_CODE ext_execute(const void *cmd_cookie, const void *cookie,
             int argc, token_t *argv,
             RESPONSE_HANDLER_T response_handler) {
         (void) cmd_cookie;
-        bool ret = true;
 
         if (strncmp(argv[0].value, "getl", argv[0].length) == 0) {
-            ret = getExtension(cmd_cookie)->executeGetl(argc, argv,
+            return getExtension(cmd_cookie)->executeGetl(argc, argv,
+                                                         (void *)cookie,
+                                                         response_handler);
+        } else {
+            return getExtension(cmd_cookie)->executeUnl(argc, argv,
                                                         (void *)cookie,
                                                         response_handler);
-        } else {
-            ret = getExtension(cmd_cookie)->executeUnl(argc, argv,
-                                                       (void *)cookie,
-                                                       response_handler);
         }
-
-        return ret;
     }
 
     static bool ext_accept(const void *cmd_cookie, void *cookie,
@@ -154,8 +150,9 @@ void GetlExtension::initialize()
     }
 }
 
-bool GetlExtension::executeGetl(int argc, token_t *argv, void *response_cookie,
-                                RESPONSE_HANDLER_T response_handler)
+ENGINE_ERROR_CODE GetlExtension::executeGetl(int argc, token_t *argv,
+                                             void *response_cookie,
+                                             RESPONSE_HANDLER_T response_handler)
 {
     uint32_t lockTimeout = ITEM_LOCK_TIMEOUT;
 
@@ -165,9 +162,9 @@ bool GetlExtension::executeGetl(int argc, token_t *argv, void *response_cookie,
             lockTimeout = ITEM_LOCK_TIMEOUT;
         }
     } else if (argc != 2) {
-        return (response_handler(response_cookie,
-                                 sizeof("CLIENT_ERROR\r\n") - 1,
-                                 "CLIENT_ERROR\r\n"));
+        return response_handler(response_cookie,
+                                sizeof("CLIENT_ERROR\r\n") - 1,
+                                "CLIENT_ERROR\r\n");
     }
 
     std::string k(argv[1].value, argv[1].length);
@@ -176,10 +173,10 @@ bool GetlExtension::executeGetl(int argc, token_t *argv, void *response_cookie,
     // TODO:  Get vbucket ID here.
     bool gotLock = backend->getLocked(k, 0, getCb,
             serverApi->core->get_current_time(),
-            lockTimeout, NULL);
+            lockTimeout, response_cookie);
 
     Item *item = NULL;
-    bool ret = true;
+    ENGINE_ERROR_CODE ret;
 
     getCb.waitForValue();
 
@@ -194,13 +191,19 @@ bool GetlExtension::executeGetl(int argc, token_t *argv, void *response_cookie,
         std::string strVal = strm.str();
         size_t len = strVal.length();
 
-        ret = response_handler(response_cookie, static_cast<int>(len),
-                               strVal.c_str())
-            && response_handler(response_cookie, item->getNBytes(),
-                                item->getData())
-            && response_handler(response_cookie, 7, "\r\nEND\r\n");
-
-    } else if (!gotLock || rv == ENGINE_EWOULDBLOCK) {
+        if ((response_handler(response_cookie, static_cast<int>(len),
+                              strVal.c_str()) == ENGINE_SUCCESS) &&
+            (response_handler(response_cookie, item->getNBytes(),
+                              item->getData()) == ENGINE_SUCCESS) &&
+            (response_handler(response_cookie, 7,
+                              "\r\nEND\r\n") == ENGINE_SUCCESS)) {
+            ret = ENGINE_SUCCESS;
+        } else {
+            ret = ENGINE_DISCONNECT;
+        }
+    } else if (rv == ENGINE_EWOULDBLOCK) {
+        ret = rv;
+    } else if (!gotLock) {
         ret = response_handler(response_cookie,
                                sizeof("LOCK_ERROR\r\n") - 1, "LOCK_ERROR\r\n");
     } else {
@@ -208,22 +211,23 @@ bool GetlExtension::executeGetl(int argc, token_t *argv, void *response_cookie,
                                sizeof("NOT_FOUND\r\n") - 1, "NOT_FOUND\r\n");
     }
 
-    if (item != NULL) delete item;
+    if (item != NULL) {
+        delete item;
+    }
 
     return ret;
 }
 
-bool GetlExtension::executeUnl(int argc, token_t *argv, void *response_cookie,
-                                RESPONSE_HANDLER_T response_handler)
+ENGINE_ERROR_CODE GetlExtension::executeUnl(int argc, token_t *argv, void *response_cookie,
+                                            RESPONSE_HANDLER_T response_handler)
 {
     uint64_t cas = 0;
-    bool ret = true;
 
     // we need a valid cas value
     if (argc != 3 || !safe_strtoull(argv[2].value, &cas)) {
-        return (response_handler(response_cookie,
-                                 sizeof("CLIENT_ERROR\r\n") - 1,
-                                 "CLIENT_ERROR\r\n"));
+        return response_handler(response_cookie,
+                                sizeof("CLIENT_ERROR\r\n") - 1,
+                                "CLIENT_ERROR\r\n");
     }
 
     std::string k(argv[1].value, argv[1].length);
@@ -232,16 +236,14 @@ bool GetlExtension::executeUnl(int argc, token_t *argv, void *response_cookie,
     ENGINE_ERROR_CODE rv = backend->unlockKey(k, 0, cas, serverApi->core->get_current_time());
 
     if (rv == ENGINE_SUCCESS) {
-        ret = response_handler(response_cookie,
-                               sizeof("UNLOCKED\r\n") -1, "UNLOCKED\r\n");
+        return response_handler(response_cookie,
+                                sizeof("UNLOCKED\r\n") -1, "UNLOCKED\r\n");
 
     } else if (rv == ENGINE_TMPFAIL) {
-        ret = response_handler(response_cookie,
-                               sizeof("UNLOCK_ERROR\r\n") - 1, "UNLOCK_ERROR\r\n");
+        return response_handler(response_cookie,
+                                sizeof("UNLOCK_ERROR\r\n") - 1, "UNLOCK_ERROR\r\n");
     } else {
-        ret = response_handler(response_cookie,
-                               sizeof("NOT_FOUND\r\n") - 1, "NOT_FOUND\r\n");
+        return response_handler(response_cookie,
+                                sizeof("NOT_FOUND\r\n") - 1, "NOT_FOUND\r\n");
     }
-
-    return ret;
 }
