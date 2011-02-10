@@ -63,6 +63,8 @@ public:
 
     virtual bool hasEfficientVBLoad() { return false; }
 
+    virtual bool hasEfficientVBDeletion() { return false; }
+
     virtual std::vector<PreparedStatement*> getVBLoader(uint16_t vb) {
         (void)vb;
         std::vector<PreparedStatement*> rv;

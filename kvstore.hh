@@ -47,8 +47,9 @@ typedef std::map<std::pair<uint16_t, uint16_t>, std::string> vbucket_map_t;
 class StorageProperties {
 public:
 
-    StorageProperties(size_t c, size_t r, size_t w, bool evb)
-        : maxc(c), maxr(r), maxw(w), efficientVBDump(evb) {}
+    StorageProperties(size_t c, size_t r, size_t w, bool evb, bool evd)
+        : maxc(c), maxr(r), maxw(w), efficientVBDump(evb),
+          efficientVBDeletion(evd) {}
 
     //! The maximum number of active queries.
     size_t maxConcurrency()   const { return maxc; }
@@ -58,12 +59,15 @@ public:
     size_t maxWriters()       const { return maxw; }
     //! True if we can efficiently dump a single vbucket.
     bool hasEfficientVBDump() const { return efficientVBDump; }
+    //! True if we can efficiently delete a vbucket all at once.
+    bool hasEfficientVBDeletion() const { return efficientVBDeletion; }
 
 private:
     size_t maxc;
     size_t maxr;
     size_t maxw;
     bool efficientVBDump;
+    bool efficientVBDeletion;
 };
 
 /**
