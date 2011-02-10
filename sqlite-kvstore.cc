@@ -166,9 +166,9 @@ bool StrategicSqlite3::delVBucket(uint16_t vbucket, uint16_t vb_version,
     std::vector<Statements*>::const_iterator it;
     for (it = statements.begin(); it != statements.end(); ++it) {
         PreparedStatement *del_stmt = (*it)->del_vb();
-        del_stmt->bind(1, vbucket);
-        del_stmt->bind(2, vb_version);
-        if (!strategy->hasEfficientVBDeletion()) {
+        if (del_stmt->paramCount() > 0) {
+            del_stmt->bind(1, vbucket);
+            del_stmt->bind(2, vb_version);
             del_stmt->bind64(3, row_range.first);
             del_stmt->bind64(4, row_range.second);
         }

@@ -182,15 +182,37 @@ private:
 };
 
 /**
+ * Builds PreparedStatement instances for Statements.
+ */
+class StatementFactory {
+public:
+
+    virtual ~StatementFactory() { }
+
+    virtual PreparedStatement *mkInsert(sqlite3 *dbh,
+                                        const std::string &table) const;
+    virtual PreparedStatement *mkUpdate(sqlite3 *dbh,
+                                        const std::string &table) const;
+    virtual PreparedStatement *mkSelect(sqlite3 *dbh,
+                                        const std::string &table) const;
+    virtual PreparedStatement *mkSelectAll(sqlite3 *dbh,
+                                           const std::string &table) const;
+    virtual PreparedStatement *mkDelete(sqlite3 *dbh,
+                                        const std::string &table) const;
+    virtual PreparedStatement *mkDeleteVBucket(sqlite3 *dbh,
+                                               const std::string &table) const;
+};
+
+/**
  * Contains the persistence statements used by various SqliteStrategy
  * implementations.
  */
 class Statements {
 public:
-    Statements(sqlite3 *dbh, std::string tab) {
+    Statements(sqlite3 *dbh, std::string tab, StatementFactory *sFact) {
         db = dbh;
         tableName = tab;
-        initStatements();
+        initStatements(sFact);
     }
 
     ~Statements() {
@@ -228,7 +250,7 @@ public:
     }
 private:
 
-    void initStatements();
+    void initStatements(const StatementFactory *sfact);
 
     sqlite3           *db;
     std::string        tableName;

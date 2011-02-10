@@ -173,7 +173,8 @@ void SingleTableSqliteStrategy::initTables(void) {
 
 void SingleTableSqliteStrategy::initStatements(void) {
     assert(db);
-    Statements *st = new Statements(db, "kv");
+    StatementFactory sfact;
+    Statements *st = new Statements(db, "kv", &sfact);
     statements.push_back(st);
 }
 
@@ -220,9 +221,10 @@ void MultiDBSingleTableSqliteStrategy::initTables() {
 
 void MultiDBSingleTableSqliteStrategy::initStatements() {
     char buf[64];
+    StatementFactory sfact;
     for (int i = 0; i < numTables; i++) {
         snprintf(buf, sizeof(buf), "kv_%d.kv", i);
-        statements.push_back(new Statements(db, std::string(buf)));
+        statements.push_back(new Statements(db, std::string(buf), &sfact));
     }
 }
 
@@ -259,9 +261,10 @@ void MultiTableSqliteStrategy::initTables() {
 
 void MultiTableSqliteStrategy::initStatements() {
     char buf[64];
+    StatementFactory sfact;
     for (size_t i = 0; i < nvbuckets; ++i) {
         snprintf(buf, sizeof(buf), "kv_%d", static_cast<int>(i));
-        statements.push_back(new Statements(db, std::string(buf)));
+        statements.push_back(new Statements(db, std::string(buf), &sfact));
     }
 }
 
@@ -360,12 +363,13 @@ void ShardedMultiTableSqliteStrategy::initTables() {
 void ShardedMultiTableSqliteStrategy::initStatements() {
     char buf[64];
     statementsPerShard.resize(shardCount);
+    StatementFactory sfact;
     for (size_t i = 0; i < shardCount; ++i) {
         statementsPerShard[i].resize(nvbuckets);
         for (size_t j = 0; j < nvbuckets; ++j) {
             snprintf(buf, sizeof(buf), "kv_%d.kv_%d",
                      static_cast<int>(i), static_cast<int>(j));
-            Statements *s = new Statements(db, std::string(buf));
+            Statements *s = new Statements(db, std::string(buf), &sfact);
             statements.push_back(s);
             statementsPerShard[i][j] = s;
         }
@@ -423,10 +427,11 @@ void ShardedByVBucketSqliteStrategy::initTables() {
 void ShardedByVBucketSqliteStrategy::initStatements() {
     char buf[64];
     statements.resize(nvbuckets);
+    StatementFactory sfact;
     for (size_t j = 0; j < nvbuckets; ++j) {
         snprintf(buf, sizeof(buf), "kv_%d.kv_%d",
                  static_cast<int>(getShardForVBucket(static_cast<uint16_t>(j))),
                  static_cast<int>(j));
-        statements[j] = new Statements(db, std::string(buf));
+        statements[j] = new Statements(db, std::string(buf), &sfact);
     }
 }
