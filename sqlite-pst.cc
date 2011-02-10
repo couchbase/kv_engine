@@ -18,7 +18,9 @@ PreparedStatement::PreparedStatement(sqlite3 *d, const char *query) {
     db = d;
     if(sqlite3_prepare_v2(db, query, (int)strlen(query), &st, NULL)
        != SQLITE_OK) {
-        throw std::runtime_error(sqlite3_errmsg(db));
+        std::stringstream ss;
+        ss << sqlite3_errmsg(db) << " while building query: ``" << query << "''";
+        throw std::runtime_error(ss.str());
     }
 }
 
