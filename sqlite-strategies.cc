@@ -242,6 +242,21 @@ void MultiDBSingleTableSqliteStrategy::destroyTables() {
 // ----------------------------------------------------------------------
 //
 
+
+/**
+ * StatementFactory for table-per-vbucket strategies.
+ */
+class FastVBDelStatementFactory : public StatementFactory {
+public:
+
+    PreparedStatement *mkDeleteVBucket(sqlite3 *db,
+                                       const std::string &table) const {
+        char buf[1024];
+        snprintf(buf, sizeof(buf), "delete from %s", table.c_str());
+        return new PreparedStatement(db, buf);
+    }
+};
+
 void MultiTableSqliteStrategy::initTables() {
     char buf[1024];
 
@@ -261,7 +276,7 @@ void MultiTableSqliteStrategy::initTables() {
 
 void MultiTableSqliteStrategy::initStatements() {
     char buf[64];
-    StatementFactory sfact;
+    FastVBDelStatementFactory sfact;
     for (size_t i = 0; i < nvbuckets; ++i) {
         snprintf(buf, sizeof(buf), "kv_%d", static_cast<int>(i));
         statements.push_back(new Statements(db, std::string(buf), &sfact));
@@ -363,7 +378,7 @@ void ShardedMultiTableSqliteStrategy::initTables() {
 void ShardedMultiTableSqliteStrategy::initStatements() {
     char buf[64];
     statementsPerShard.resize(shardCount);
-    StatementFactory sfact;
+    FastVBDelStatementFactory sfact;
     for (size_t i = 0; i < shardCount; ++i) {
         statementsPerShard[i].resize(nvbuckets);
         for (size_t j = 0; j < nvbuckets; ++j) {
@@ -427,7 +442,7 @@ void ShardedByVBucketSqliteStrategy::initTables() {
 void ShardedByVBucketSqliteStrategy::initStatements() {
     char buf[64];
     statements.resize(nvbuckets);
-    StatementFactory sfact;
+    FastVBDelStatementFactory sfact;
     for (size_t j = 0; j < nvbuckets; ++j) {
         snprintf(buf, sizeof(buf), "kv_%d.kv_%d",
                  static_cast<int>(getShardForVBucket(static_cast<uint16_t>(j))),

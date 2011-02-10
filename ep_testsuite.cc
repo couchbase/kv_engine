@@ -3918,6 +3918,8 @@ engine_test_t* get_tests(void) {
         {"test vbucket get missing", test_vbucket_get_miss, NULL, teardown, NULL},
         {"test vbucket create", test_vbucket_create, NULL, teardown, NULL},
         {"test vbucket destroy", test_vbucket_destroy, NULL, teardown, NULL},
+        {"test vbucket destroy (multitable)", test_vbucket_destroy, NULL, teardown,
+         "db_strategy=multiMTVBDB;max_vbuckets=16;ht_size=7;ht_locks=3"},
         {"test vbucket destroy stats", test_vbucket_destroy_stats,
          NULL, teardown, NULL},
         {"test vbucket destroy restart", test_vbucket_destroy_restart,
