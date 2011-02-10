@@ -54,6 +54,19 @@ private:
     rel_time_t dirtied;
 };
 
+typedef shared_ptr<QueuedItem> queued_item;
+
+/**
+ * Order QueuedItem objects pointed by shared_ptr by their keys.
+ */
+class CompareQueuedItemsByKey {
+public:
+    CompareQueuedItemsByKey() {}
+    bool operator()(const queued_item &i1, const queued_item &i2) {
+        return i1->getKey() < i2->getKey();
+    }
+};
+
 /**
  * Order QueuedItem objects by their row ids.
  */

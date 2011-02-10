@@ -23,6 +23,8 @@ ep_la_SOURCES = \
                  atomic/libatomic.h \
                  atomic.hh \
                  callbacks.hh \
+                 checkpoint.hh \
+                 checkpoint.cc \
                  command_ids.h \
                  common.hh \
                  config_static.h \
@@ -92,7 +94,7 @@ endif
 libsqlite3_la_SOURCES = embedded/sqlite3.h embedded/sqlite3.c
 libsqlite3_la_CFLAGS = $(AM_CFLAGS) ${NO_WERROR} -DSQLITE_THREADSAFE=2
 
-check_PROGRAMS=atomic_test atomic_ptr_test atomic_queue_test hash_table_test priority_test vbucket_test dispatcher_test misc_test hrtime_test histo_test chunk_creation_test ringbuffer_test vb_del_chunk_list_test pathexpand_test
+check_PROGRAMS=atomic_test atomic_ptr_test atomic_queue_test hash_table_test priority_test vbucket_test checkpoint_test dispatcher_test misc_test hrtime_test histo_test chunk_creation_test ringbuffer_test vb_del_chunk_list_test pathexpand_test
 
 TESTS=${check_PROGRAMS}
 EXTRA_TESTS =
@@ -190,6 +192,11 @@ vbucket_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
 vbucket_test_SOURCES = t/vbucket_test.cc vbucket.hh vbucket.cc stored-value.cc stored-value.hh testlogger.cc
 vbucket_test_DEPENDENCIES = vbucket.hh stored-value.cc stored-value.hh
 
+checkpoint_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
+checkpoint_test_SOURCES = t/checkpoint_test.cc checkpoint.hh checkpoint.cc vbucket.hh vbucket.cc \
+			  testlogger.cc stored-value.cc stored-value.hh queueditem.hh
+checkpoint_test_DEPENDENCIES = checkpoint.hh vbucket.hh stored-value.cc stored-value.hh queueditem.hh
+
 hrtime_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
 hrtime_test_SOURCES = t/hrtime_test.cc common.hh
 
@@ -216,6 +223,7 @@ ep_la_SOURCES += gethrtime.c
 hrtime_test_SOURCES += gethrtime.c
 dispatcher_test_SOURCES += gethrtime.c
 vbucket_test_SOURCES += gethrtime.c
+checkpoint_test_SOURCES += gethrtime.c
 endif
 
 pythonlibdir=$(libdir)/python
