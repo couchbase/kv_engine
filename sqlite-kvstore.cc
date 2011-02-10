@@ -168,14 +168,22 @@ bool StrategicSqlite3::delVBucket(uint16_t vbucket, uint16_t vb_version,
         PreparedStatement *del_stmt = (*it)->del_vb();
         del_stmt->bind(1, vbucket);
         del_stmt->bind(2, vb_version);
-        del_stmt->bind64(3, row_range.first);
-        del_stmt->bind64(4, row_range.second);
+        if (!strategy->hasEfficientVBDeletion()) {
+            del_stmt->bind64(3, row_range.first);
+            del_stmt->bind64(4, row_range.second);
+        }
         rv &= del_stmt->execute() >= 0;
         del_stmt->reset();
     }
     ++stats.io_num_write;
 
     return rv;
+}
+
+bool StrategicSqlite3::delVBucket(uint16_t vbucket, uint16_t vb_version) {
+    assert(strategy->hasEfficientVBDeletion());
+    return delVBucket(vbucket, vb_version,
+                      std::make_pair<int64_t, int64_t>(-1, -1));
 }
 
 bool StrategicSqlite3::snapshotVBuckets(const vbucket_map_t &m) {

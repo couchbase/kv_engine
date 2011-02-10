@@ -191,6 +191,11 @@ public:
     /**
      * Bulk delete some versioned records from a vbucket.
      */
+    virtual bool delVBucket(uint16_t vbucket, uint16_t vb_version) = 0;
+
+    /**
+     * Bulk delete some versioned records from a vbucket.
+     */
     virtual bool delVBucket(uint16_t vbucket, uint16_t vb_version,
                             std::pair<int64_t, int64_t> row_range) = 0;
 

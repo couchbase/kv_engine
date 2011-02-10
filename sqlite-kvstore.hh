@@ -108,6 +108,8 @@ public:
              uint16_t vb, uint16_t vbver,
              Callback<int> &cb);
 
+    bool delVBucket(uint16_t vbucket, uint16_t vb_version);
+
     bool delVBucket(uint16_t vbucket, uint16_t vb_version,
                     std::pair<int64_t, int64_t> row_range);
 
