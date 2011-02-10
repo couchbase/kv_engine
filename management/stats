@@ -38,11 +38,18 @@ def cmd(f):
 
     return g
 
+def stats_perform(mc, cmd=''):
+    try:
+        return mc.stats(cmd)
+    except:
+        print "Stats '%s' are not available from the requested engine." % cmd
+
 def stats_formatter(stats, prefix=" ", cmp=None):
-    longest = max((len(x) + 2) for x in stats.keys())
-    for stat, val in sorted(stats.items(), cmp=cmp):
-        s = stat + ":"
-        print "%s%s%s" % (prefix, s.ljust(longest), val)
+    if stats:
+        longest = max((len(x) + 2) for x in stats.keys())
+        for stat, val in sorted(stats.items(), cmp=cmp):
+            s = stat + ":"
+            print "%s%s%s" % (prefix, s.ljust(longest), val)
 
 @cmd
 def stats_vkey(mc, key, vb):
@@ -53,7 +60,7 @@ def stats_vkey(mc, key, vb):
 
 @cmd
 def stats_all(mc):
-    stats_formatter(mc.stats())
+    stats_formatter(stats_perform(mc))
 
 def time_label(s):
     # -(2**64) -> '-inf'
@@ -129,7 +136,15 @@ def stats_timings(mc):
 
 @cmd
 def stats_tap(mc):
-    stats_formatter(mc.stats('tap'))
+    stats_formatter(stats_perform(mc, 'tap'))
+
+@cmd
+def stats_slabs(mc):
+    stats_formatter(stats_perform(mc, 'slabs'))
+
+@cmd
+def stats_items(mc):
+    stats_formatter(stats_perform(mc, 'items'))
 
 def avg(s):
     return sum(s) / len(s)
@@ -242,6 +257,8 @@ def main():
     c.addCommand('timings', stats_timings, 'timings [username password]')
     c.addCommand('reset', reset, 'reset [username password]')
     c.addCommand('dispatcher', stats_dispatcher, 'dispatcher [logs] [username password]')
+    c.addCommand('slabs', stats_slabs, 'slabs [username password]')
+    c.addCommand('items', stats_items, 'items [username password]')
     c.addFlag('-a', 'allBuckets', 'iterate over all buckets (requires admin u/p)')
 
     c.execute()
