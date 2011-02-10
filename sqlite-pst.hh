@@ -97,6 +97,11 @@ public:
     int bind64(int pos, uint64_t d);
 
     /**
+     * Return the number of parameters required by this statement.
+     */
+    size_t paramCount();
+
+    /**
      * Execute a prepared statement that does not return results.
      *
      * @return how many rows were affected

@@ -58,6 +58,10 @@ int PreparedStatement::bind64(int pos, uint64_t v) {
     return 1;
 }
 
+size_t PreparedStatement::paramCount() {
+    return static_cast<size_t>(sqlite3_bind_parameter_count(st));
+}
+
 int PreparedStatement::execute() {
     int steps_run = 0, rc = 0, busy = 0;
     while ((rc = sqlite3_step(st)) != SQLITE_DONE) {
