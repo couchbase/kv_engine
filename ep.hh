@@ -611,9 +611,16 @@ public:
     void setVBucketState(uint16_t vbid,
                          vbucket_state_t state);
 
+    /**
+     * Perform a ranged vbucket deletion.
+     */
     vbucket_del_result completeVBucketDeletion(uint16_t vbid, uint16_t vb_version,
                                                std::pair<int64_t, int64_t> row_range,
                                                bool isLastChunk);
+    /**
+     * Perform a fast vbucket deletion.
+     */
+    vbucket_del_result completeVBucketDeletion(uint16_t vbid, uint16_t vbver);
     bool deleteVBucket(uint16_t vbid);
 
     void visit(VBucketVisitor &visitor) {

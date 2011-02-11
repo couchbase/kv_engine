@@ -20,6 +20,7 @@
 const Priority Priority::BgFetcherPriority("bg_fetcher_priority", 0);
 const Priority Priority::TapBgFetcherPriority("tap_bg_fetcher_priority", 1);
 const Priority Priority::VBucketPersistHighPriority("vbucket_persist_high_priority", 1);
+const Priority Priority::FastVBucketDeletionPriority("vbucket_deletion_hi_priority", 2);
 const Priority Priority::VKeyStatBgFetcherPriority("vkey_stat_bg_fetcher_priority", 3);
 const Priority Priority::FlushAllPriority("flush_all_priority", 3);
 const Priority Priority::NotifyVBStateChangePriority("notify_vb_state_change_priority", 4);

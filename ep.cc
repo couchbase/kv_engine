@@ -192,7 +192,45 @@ private:
 };
 
 /**
- * Dispatcher job to delete vbuckets from disk.
+ * Dispatcher job to perform fast vbucket deletion.
+ */
+class FastVBucketDeletionCallback : public DispatcherCallback {
+public:
+    FastVBucketDeletionCallback(EventuallyPersistentStore *e, RCPtr<VBucket> vb,
+                                uint16_t vbv, EPStats &st) : ep(e),
+                                                             vbucket(vb->getId()),
+                                                             vbver(vbv),
+                                               stats(st) {}
+
+    bool callback(Dispatcher &d, TaskId t) {
+        (void)d; (void)t;
+        bool rv(true); // try again by default
+        hrtime_t start_time(gethrtime());
+        if (ep->completeVBucketDeletion(vbucket, vbver) == vbucket_del_success) {
+            hrtime_t wall_time = (gethrtime() - start_time) / 1000;
+            stats.diskVBDelHisto.add(wall_time);
+            stats.vbucketDelMaxWalltime.setIfBigger(wall_time);
+            stats.vbucketDelTotWalltime.incr(wall_time);
+            rv = false;
+        }
+        return rv;
+    }
+
+    std::string description() {
+        std::stringstream ss;
+        ss << "Removing vbucket " << vbucket << " from disk";
+        return ss.str();
+    }
+
+private:
+    EventuallyPersistentStore *ep;
+    uint16_t vbucket;
+    uint16_t vbver;
+    EPStats &stats;
+};
+
+/**
+ * Dispatcher job to perform ranged vbucket deletion.
  */
 class VBucketDeletionCallback : public DispatcherCallback {
 public:
@@ -703,17 +741,45 @@ EventuallyPersistentStore::completeVBucketDeletion(uint16_t vbid, uint16_t vb_ve
     return vbucket_del_invalid;
 }
 
+vbucket_del_result
+EventuallyPersistentStore::completeVBucketDeletion(uint16_t vbid, uint16_t vbver) {
+    LockHolder lh(vbsetMutex);
+
+    RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
+    if (!vb || vb->getState() == vbucket_state_dead || vbuckets.isBucketDeletion(vbid)) {
+        lh.unlock();
+        if (rwUnderlying->delVBucket(vbid, vbver)) {
+            vbuckets.setBucketDeletion(vbid, false);
+            ++stats.vbucketDeletions;
+            return vbucket_del_success;
+        } else {
+            ++stats.vbucketDeletionFail;
+            return vbucket_del_fail;
+        }
+    }
+    return vbucket_del_invalid;
+}
+
 void EventuallyPersistentStore::scheduleVBDeletion(RCPtr<VBucket> vb, uint16_t vb_version,
                                                    double delay=0) {
     if (vbuckets.setBucketDeletion(vb->getId(), true)) {
-        size_t chunk_size = engine.getVbDelChunkSize();
-        uint32_t vb_chunk_del_time = engine.getVbChunkDelThresholdTime();
-        shared_ptr<DispatcherCallback> cb(new VBucketDeletionCallback(this, vb, vb_version,
-                                                                      stats, chunk_size,
-                                                                      vb_chunk_del_time));
-        dispatcher->schedule(cb,
-                             NULL, Priority::VBucketDeletionPriority,
-                             delay, false);
+        if (storageProperties.hasEfficientVBDeletion() > 1) {
+            shared_ptr<DispatcherCallback> cb(new FastVBucketDeletionCallback(this, vb,
+                                                                              vb_version,
+                                                                              stats));
+            dispatcher->schedule(cb,
+                                 NULL, Priority::VBucketDeletionPriority,
+                                 delay, false);
+        } else {
+            size_t chunk_size = engine.getVbDelChunkSize();
+            uint32_t vb_chunk_del_time = engine.getVbChunkDelThresholdTime();
+            shared_ptr<DispatcherCallback> cb(new VBucketDeletionCallback(this, vb, vb_version,
+                                                                          stats, chunk_size,
+                                                                          vb_chunk_del_time));
+            dispatcher->schedule(cb,
+                                 NULL, Priority::VBucketDeletionPriority,
+                                 delay, false);
+        }
     }
 }
 
