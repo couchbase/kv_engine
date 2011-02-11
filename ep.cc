@@ -1482,7 +1482,13 @@ int EventuallyPersistentStore::flushOne(std::queue<QueuedItem> *q,
         break;
     case queue_op_set:
         if (qi.getVBucketVersion() == vbuckets.getBucketVersion(qi.getVBucketId())) {
+            size_t prevRejectCount = rejectQueue->size();
+
             rv = flushOneDelOrSet(qi, rejectQueue);
+            if (rejectQueue->size() == prevRejectCount) {
+                // flush operation was not rejected
+                tctx.addUncommittedItem(qi);
+            }
         }
         break;
     case queue_op_del:
@@ -1674,6 +1680,11 @@ void TransactionContext::commit() {
     stats.commit_time.set(complete_time - cstart);
     stats.cumulativeCommitTime.incr(complete_time - cstart);
     intxn = false;
+    uncommittedItems.clear();
+}
+
+void TransactionContext::addUncommittedItem(const QueuedItem &item) {
+    uncommittedItems.push_back(item);
 }
 
 bool VBCBAdaptor::callback(Dispatcher &d, TaskId t) {

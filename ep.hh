@@ -372,12 +372,15 @@ public:
         txnSize.set(to);
     }
 
+    void addUncommittedItem(const QueuedItem &item);
+
 private:
     EPStats     &stats;
     KVStore     *underlying;
     int          _remaining;
     Atomic<int>  txnSize;
     bool         intxn;
+    std::list<QueuedItem> uncommittedItems;
 };
 
 /**
