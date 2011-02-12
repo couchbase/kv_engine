@@ -343,7 +343,7 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
                                                      bool startVb0,
                                                      bool concurrentDB) :
     engine(theEngine), stats(engine.getEpStats()), rwUnderlying(t),
-    storageProperties(t->getStorageProperties()), tctx(stats, t),
+    storageProperties(t->getStorageProperties()), tctx(stats, t, theEngine.syncRegistry),
     bgFetchDelay(0)
 {
     getLogger()->log(EXTENSION_LOG_INFO, NULL,
@@ -1794,6 +1794,7 @@ void TransactionContext::commit() {
     stats.commit_time.set(complete_time - cstart);
     stats.cumulativeCommitTime.incr(complete_time - cstart);
     intxn = false;
+    syncRegistry->itemsPersisted(uncommittedItems);
     uncommittedItems.clear();
 }
 

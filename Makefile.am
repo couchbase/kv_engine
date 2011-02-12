@@ -46,6 +46,7 @@ ep_la_SOURCES = \
                  statsnap.cc statsnap.hh \
                  stored-value.cc stored-value.hh \
                  syncobject.hh \
+                 sync_registry.cc sync_registry.hh \
                  tapconnection.cc tapconnection.hh \
                  tapconnmap.cc tapconnmap.hh \
                  tapthrottle.cc tapthrottle.hh \

@@ -784,6 +784,14 @@ struct handle_pair {
     ENGINE_HANDLE_V1 *h1;
 };
 
+typedef struct {
+    ENGINE_HANDLE *h;
+    ENGINE_HANDLE_V1 *h1;
+    const KeySpec *keyspec;
+    const char *value;
+    int iterations;
+} set_key_thread_params;
+
 extern "C" {
     static void* conc_del_set_thread(void *arg) {
         struct handle_pair *hp = static_cast<handle_pair *>(arg);
@@ -802,6 +810,21 @@ extern "C" {
             hp->h1->remove(hp->h, NULL, "key", 3, 0, 0);
             usleep(10);
         }
+        return NULL;
+    }
+
+    static void* conc_set_key_thread(void *arg) {
+        set_key_thread_params *params = static_cast<set_key_thread_params *>(arg);
+        const char *key = params->keyspec->first.c_str();
+        item *it = NULL;
+
+        for (int i = 0; i < params->iterations; i++) {
+            check(
+                  store(params->h, params->h1, NULL, OPERATION_SET,
+                        key, params->value, &it) == ENGINE_SUCCESS,
+                  "Thread failed to store an item");
+        }
+
         return NULL;
     }
 }
@@ -3723,6 +3746,81 @@ static enum test_result test_kill9_bucket(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     return SUCCESS;
 }
 
+
+static protocol_binary_request_header *create_sync_packet(const KeySpec keyspecs[], uint16_t nkeys) {
+    std::stringstream body;
+    uint16_t keyCount = htons(nkeys);
+
+    body.write((char *) &keyCount, sizeof(uint16_t));
+
+    for (uint16_t i = 0; i < nkeys; i++) {
+        std::string key = keyspecs[i].first;
+        uint16_t vbucketid = keyspecs[i].second;
+        uint16_t keylen = htons(key.length());
+
+        body.write((char *) &keylen, sizeof(uint16_t));
+        body.write(key.c_str(), key.length());
+        body.write((char *) &vbucketid, sizeof(uint16_t));
+    }
+
+    return create_packet(CMD_SYNC, "", body.str().c_str());
+}
+
+static enum test_result test_sync_writes(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    const KeySpec keyspecs[] = {
+        KeySpec("key1", 0), KeySpec("key2", 0), KeySpec("key3", 0),
+        KeySpec("key4", 0), KeySpec("key5", 0), KeySpec("key6", 0),
+        KeySpec("key7", 0), KeySpec("key8", 0), KeySpec("key9", 0)
+    };
+    const uint16_t nkeys = 9;
+    pthread_t threads[nkeys];
+    protocol_binary_request_header *pkt = create_sync_packet(keyspecs, nkeys);
+    std::vector<set_key_thread_params*> params;
+
+    for (int i = 0; i < nkeys; i++) {
+        set_key_thread_params *p = (set_key_thread_params *) malloc(sizeof(set_key_thread_params));
+        p->h = h;
+        p->h1 = h1;
+        p->keyspec = &keyspecs[i];
+        p->value = "qwerty";
+        p->iterations = 50;
+        params.push_back(p);
+    }
+
+    for (int i = 0; i < nkeys; i++) {
+        int r = pthread_create(&threads[i], NULL, conc_set_key_thread, params[i]);
+        assert(r == 0);
+    }
+
+    ENGINE_ERROR_CODE engine_code;
+    int count = 0;
+    do {
+        engine_code = h1->unknown_command(h, NULL, pkt, add_response);
+        if (engine_code == ENGINE_SUCCESS) {
+            // noop
+        } else if (engine_code == ENGINE_EWOULDBLOCK) {
+            count++;
+            usleep(10);
+        } else {
+            check(false, "unexpected engine error code");
+        }
+    } while((count < 12) && (engine_code != ENGINE_SUCCESS));
+
+    for (int i = 0; i < nkeys; i++) {
+        void *trv = NULL;
+        int r = pthread_join(threads[i], &trv);
+        assert(r == 0);
+    }
+
+    for (int i = 0; i < nkeys; i++) {
+        free(params[i]);
+    }
+
+    free(pkt);
+
+    return SUCCESS;
+}
+
 MEMCACHED_PUBLIC_API
 engine_test_t* get_tests(void) {
 
@@ -3924,6 +4022,7 @@ engine_test_t* get_tests(void) {
          NULL, teardown, NULL},
         {"test vbucket destroy restart", test_vbucket_destroy_restart,
          NULL, teardown, NULL},
+        {"sync writes", test_sync_writes, NULL, teardown, NULL},
         {NULL, NULL, NULL, NULL, NULL}
     };
     return tests;

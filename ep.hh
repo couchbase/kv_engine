@@ -43,6 +43,7 @@ extern EXTENSION_LOGGER_DESCRIPTOR *getLogger(void);
 #include "locks.hh"
 #include "kvstore.hh"
 #include "stored-value.hh"
+#include "sync_registry.hh"
 #include "atomic.hh"
 #include "dispatcher.hh"
 #include "vbucket.hh"
@@ -313,8 +314,8 @@ private:
 class TransactionContext {
 public:
 
-    TransactionContext(EPStats &st, KVStore *ks)
-        : stats(st), underlying(ks), _remaining(0), intxn(false) {}
+    TransactionContext(EPStats &st, KVStore *ks, SyncRegistry &syncReg)
+        : stats(st), underlying(ks), _remaining(0), intxn(false), syncRegistry(&syncReg) {}
 
     /**
      * Call this whenever entering a transaction.
@@ -380,7 +381,8 @@ private:
     int          _remaining;
     Atomic<int>  txnSize;
     bool         intxn;
-    std::list<QueuedItem> uncommittedItems;
+    std::list<QueuedItem>     uncommittedItems;
+    SyncRegistry              *syncRegistry;
 };
 
 /**

@@ -28,4 +28,6 @@
 #define CMD_GET_LOCKED        0x94
 #define CMD_UNLOCK_KEY        0x95
 
+#define CMD_SYNC              0x96
+
 #endif /* COMMAND_IDS_H */

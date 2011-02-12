@@ -50,6 +50,11 @@ using SHARED_PTR_NAMESPACE::shared_ptr;
     TypeName(const TypeName&);                  \
     void operator=(const TypeName&)
 
+/*
+ * key spec, formed by a key and a vbucket id
+ */
+typedef std::pair<std::string, uint16_t> KeySpec;
+
 // Utility functions implemented in various modules.
 extern EXTENSION_LOGGER_DESCRIPTOR *getLogger(void);
 

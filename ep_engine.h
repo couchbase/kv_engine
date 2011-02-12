@@ -9,6 +9,7 @@
 #include "ep_extension.h"
 #include "dispatcher.hh"
 #include "item_pager.hh"
+#include "sync_registry.hh"
 
 #include <cstdio>
 #include <map>
@@ -458,6 +459,8 @@ public:
         return epstore->getLocked(key, vbucket, cb, currentTime, lockTimeout, cookie);
     }
 
+    size_t sync(std::set<KeySpec> keySpecs, const void *cookie);
+
     ENGINE_ERROR_CODE unlockKey(const std::string &key,
                                 uint16_t vbucket,
                                 uint64_t cas,
@@ -697,6 +700,7 @@ private:
     size_t vb_del_chunk_size;
     size_t vb_chunk_del_threshold_time;
     EPStats stats;
+    SyncRegistry syncRegistry;
 };
 
 #endif

@@ -454,6 +454,58 @@ extern "C" {
         return rv;
     }
 
+    static ENGINE_ERROR_CODE syncCmd(EventuallyPersistentEngine *e,
+                                     protocol_binary_request_header *request,
+                                     const void *cookie,
+                                     const char **msg,
+                                     protocol_binary_response_status *res) {
+        protocol_binary_request_no_extras *req = (protocol_binary_request_no_extras*) request;
+        uint16_t nkeys;
+
+        *res = PROTOCOL_BINARY_RESPONSE_SUCCESS;
+
+        memcpy(&nkeys, ((char *) request) + sizeof(req->message.header), sizeof(uint16_t));
+        nkeys = ntohs(nkeys);
+
+        if (nkeys == 0) {
+            return ENGINE_EINVAL;
+        }
+
+        off_t offset = sizeof(req->message.header) + sizeof(uint16_t);
+        uint16_t keylen;
+        std::set<KeySpec> keyset;
+
+        for (int i = 0; i < nkeys; i++) {
+            // key length
+            memcpy(&keylen, ((char *) request) + offset, sizeof(uint16_t));
+            keylen = ntohs(keylen);
+            offset += sizeof(uint16_t);
+
+            // key string
+            std::string key(((char *) request) + offset, keylen);
+            offset += keylen;
+
+            // vbucket id
+            uint16_t vbucketid;
+            memcpy(&vbucketid, ((char *) request) + offset, sizeof(uint16_t));
+            offset += sizeof(uint16_t);
+
+            KeySpec keyspec(key, vbucketid);
+            keyset.insert(keyspec);
+        }
+
+        size_t nSyncedKeys = e->sync(keyset, cookie);
+
+        if (nSyncedKeys > 0) {
+            std::stringstream resp;
+            resp << nSyncedKeys << " keys synced";
+            *msg = resp.str().c_str();
+            return ENGINE_SUCCESS;
+        }
+
+        return ENGINE_EWOULDBLOCK;
+    }
+
     static ENGINE_ERROR_CODE getVBucket(EventuallyPersistentEngine *e,
                                         const void *cookie,
                                         protocol_binary_request_header *request,
@@ -608,6 +660,12 @@ extern "C" {
             break;
         case CMD_UNLOCK_KEY:
             res = unlockKey(h, request, &msg, &msg_size);
+            break;
+        case CMD_SYNC:
+            rv = syncCmd(h, request, cookie, &msg, &res);
+            if (rv == ENGINE_EWOULDBLOCK) {
+                return rv;
+            }
             break;
         }
 
@@ -3026,4 +3084,19 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::touch(const void *cookie,
     }
 
     return rv;
+}
+
+size_t EventuallyPersistentEngine::sync(std::set<KeySpec> keys,
+                                        const void *cookie) {
+    void *data = serverApi->cookie->get_engine_specific(cookie);
+
+    if (data == NULL) {
+        SyncListener syncListener(*this, cookie, keys);
+
+        syncRegistry.addPersistenceListener(syncListener);
+        return 0;
+    }
+
+    serverApi->cookie->store_engine_specific(cookie, NULL);
+    return *((size_t *) data);
 }
