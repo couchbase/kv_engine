@@ -2487,7 +2487,7 @@ struct TapStatBuilder {
             addTapStat("num_tap_nack", tc, tc->numTapNack, add_stat, cookie);
             addTapStat("num_tap_tmpfail_survivors", tc, tc->numTmpfailSurvivors,
                        add_stat, cookie);
-            addTapStat("ack_playback_size", tc, tc->tapLog.size(), add_stat,
+            addTapStat("ack_playback_size", tc, tc->getTapAckLogSize(), add_stat,
                        cookie);
         }
     }
