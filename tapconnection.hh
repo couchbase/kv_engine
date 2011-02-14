@@ -330,8 +330,17 @@ private:
         return nextVBucketLowPriority_UNLOCKED();
     }
 
+    bool hasQueuedItem_UNLOCKED() {
+        return !queue->empty();
+    }
+
+    bool empty_UNLOCKED() {
+        return bgQueueSize == 0 && bgResultSize == 0 && !hasQueuedItem_UNLOCKED();
+    }
+
     bool idle() {
-        return empty() && vBucketLowPriority.empty() && vBucketHighPriority.empty() && tapLog.empty();
+        LockHolder lh(queueLock);
+        return empty_UNLOCKED() && vBucketLowPriority.empty() && vBucketHighPriority.empty() && tapLog.empty();
     }
 
     bool hasItem() {
@@ -340,11 +349,12 @@ private:
 
     bool hasQueuedItem() {
         LockHolder lh(queueLock);
-        return !queue->empty();
+        return hasQueuedItem_UNLOCKED();
     }
 
     bool empty() {
-        return bgQueueSize == 0 && bgResultSize == 0 && !hasQueuedItem();
+        LockHolder lh(queueLock);
+        return empty_UNLOCKED();
     }
 
     /**
