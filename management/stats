@@ -62,6 +62,10 @@ def stats_vkey(mc, key, vb):
 def stats_all(mc):
     stats_formatter(stats_perform(mc))
 
+@cmd
+def stats_raw(mc, arg):
+    stats_formatter(mc.stats(arg))
+
 def time_label(s):
     # -(2**64) -> '-inf'
     # 2**64 -> 'inf'
@@ -255,6 +259,7 @@ def main():
     c.addCommand('hash', stats_hash, 'hash [detail] [username password]')
     c.addCommand('tap', stats_tap, 'tap [username password]')
     c.addCommand('timings', stats_timings, 'timings [username password]')
+    c.addCommand('raw', stats_raw, 'raw argument [username password]')
     c.addCommand('reset', reset, 'reset [username password]')
     c.addCommand('dispatcher', stats_dispatcher, 'dispatcher [logs] [username password]')
     c.addCommand('slabs', stats_slabs, 'slabs [username password]')
