@@ -460,23 +460,46 @@ extern "C" {
                                      const char **msg,
                                      protocol_binary_response_status *res) {
         protocol_binary_request_no_extras *req = (protocol_binary_request_no_extras*) request;
-        uint16_t nkeys;
-
+        off_t offset = sizeof(req->message.header);
         *res = PROTOCOL_BINARY_RESPONSE_SUCCESS;
 
-        memcpy(&nkeys, ((char *) request) + sizeof(req->message.header), sizeof(uint16_t));
+        // flags, 32 bits
+        uint32_t flags;
+
+        memcpy(&flags, ((char *) request) + offset, sizeof(uint32_t));
+        flags = ntohl(flags);
+        offset += sizeof(uint32_t);
+
+        // number of keys in the request, 16 bits
+        uint16_t nkeys;
+
+        memcpy(&nkeys, ((char *) request) + offset, sizeof(uint16_t));
         nkeys = ntohs(nkeys);
+        offset += sizeof(uint16_t);
 
         if (nkeys == 0) {
+            *msg = "empty key list";
             return ENGINE_EINVAL;
         }
 
-        off_t offset = sizeof(req->message.header) + sizeof(uint16_t);
+        // key specifications
         uint16_t keylen;
         std::set<KeySpec> keyset;
 
         for (int i = 0; i < nkeys; i++) {
-            // key length
+            // CAS, 64 bits
+            uint64_t cas;
+            memcpy(&cas, ((char *) request) + offset, sizeof(uint64_t));
+            cas = ntohll(cas);
+            offset += sizeof(uint64_t);
+
+            // vbucket id, 16 bits
+            uint16_t vbucketid;
+            memcpy(&vbucketid, ((char *) request) + offset, sizeof(uint16_t));
+            vbucketid = ntohs(vbucketid);
+            offset += sizeof(uint16_t);
+
+            // key length, 16 bits
             memcpy(&keylen, ((char *) request) + offset, sizeof(uint16_t));
             keylen = ntohs(keylen);
             offset += sizeof(uint16_t);
@@ -485,10 +508,7 @@ extern "C" {
             std::string key(((char *) request) + offset, keylen);
             offset += keylen;
 
-            // vbucket id
-            uint16_t vbucketid;
-            memcpy(&vbucketid, ((char *) request) + offset, sizeof(uint16_t));
-            offset += sizeof(uint16_t);
+            // TODO: deal with non-zero CAS
 
             KeySpec keyspec(key, vbucketid);
             keyset.insert(keyspec);

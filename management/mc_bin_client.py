@@ -275,21 +275,15 @@ class MemcachedClient(object):
     def bucket_select(self, name):
         return self._doCmd(memcacheConstants.CMD_SELECT_BUCKET, name, '')
 
-    def persistence_sync(self, keys):
-        keyspec_list = []
-        payload = struct.pack(">H", len(keys))
+    def sync(self, flags, keyspecs):
+        payload = struct.pack(">I", flags)
+        payload += struct.pack(">H", len(keyspecs))
 
-        for keyspec in keys:
-            key = ""
-            vbucketid = 0
-            if isinstance(keyspec, tuple):
-                (key, vbucketid) = keyspec
-            else:
-                key = keyspec
+        for (cas, vbucketid, key) in keyspecs:
+            payload += struct.pack(">Q", cas)
+            payload += struct.pack(">H", vbucketid)
             payload += struct.pack(">H", len(key))
             payload += key
-            payload += struct.pack(">H", vbucketid)
-            keyspec_list.append( (key, vbucketid) )
 
-        print "sending sync command for keys:", keyspec_list
+        print "sending sync command for the following keyspecs:", keyspecs
         return self._doCmd(memcacheConstants.CMD_SYNC, "", payload)

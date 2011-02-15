@@ -157,6 +157,15 @@ void createChunkListFromArray(std::vector<T> *elm_list, size_t chunk_size,
     }
 }
 
+inline uint64_t ntohll(uint64_t lw) {
+    return
+        ((uint64_t) (ntohl( (uint32_t) ((lw << 32) >> 32) )) ) |
+        ((uint64_t) (ntohl( ((uint32_t) (lw >> 32)) )) );
+}
+
+inline uint64_t htonll(uint64_t lw) {
+    return ntohll(lw);
+}
 
 #define GIGANTOR ((size_t)1<<(sizeof(size_t)*8-1))
 #endif /* COMMON_H */

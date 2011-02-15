@@ -785,9 +785,15 @@ struct handle_pair {
 };
 
 typedef struct {
+    uint64_t cas;
+    uint16_t vbucketid;
+    std::string key;
+} sync_keyspec_t;
+
+typedef struct {
     ENGINE_HANDLE *h;
     ENGINE_HANDLE_V1 *h1;
-    const KeySpec *keyspec;
+    const sync_keyspec_t *keyspec;
     const char *value;
     int iterations;
 } set_key_thread_params;
@@ -815,13 +821,14 @@ extern "C" {
 
     static void* conc_set_key_thread(void *arg) {
         set_key_thread_params *params = static_cast<set_key_thread_params *>(arg);
-        const char *key = params->keyspec->first.c_str();
+        const char *key = params->keyspec->key.c_str();
+        uint16_t vbucketid = params->keyspec->vbucketid;
         item *it = NULL;
 
         for (int i = 0; i < params->iterations; i++) {
             check(
                   store(params->h, params->h1, NULL, OPERATION_SET,
-                        key, params->value, &it) == ENGINE_SUCCESS,
+                        key, params->value, &it, 0, vbucketid) == ENGINE_SUCCESS,
                   "Thread failed to store an item");
         }
 
@@ -3747,34 +3754,48 @@ static enum test_result test_kill9_bucket(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
 }
 
 
-static protocol_binary_request_header *create_sync_packet(const KeySpec keyspecs[], uint16_t nkeys) {
+static protocol_binary_request_header*
+create_sync_packet(uint32_t flags, uint16_t nkeys, const sync_keyspec_t keyspecs[]) {
     std::stringstream body;
-    uint16_t keyCount = htons(nkeys);
 
+    uint32_t options = htonl(flags);
+    body.write((char *) &options, sizeof(uint32_t));
+
+    uint16_t keyCount = htons(nkeys);
     body.write((char *) &keyCount, sizeof(uint16_t));
 
     for (uint16_t i = 0; i < nkeys; i++) {
-        std::string key = keyspecs[i].first;
-        uint16_t vbucketid = keyspecs[i].second;
+        std::string key = keyspecs[i].key;
+        uint64_t cas = htonll(keyspecs[i].cas);
+        uint16_t vbucketid = htons(keyspecs[i].vbucketid);
         uint16_t keylen = htons(key.length());
 
+        body.write((char *) &cas, sizeof(uint64_t));
+        body.write((char *) &vbucketid, sizeof(uint16_t));
         body.write((char *) &keylen, sizeof(uint16_t));
         body.write(key.c_str(), key.length());
-        body.write((char *) &vbucketid, sizeof(uint16_t));
     }
 
-    return create_packet(CMD_SYNC, "", body.str().c_str());
+    char *pkt = (char *)
+        calloc(1, sizeof(protocol_binary_request_header) + body.str().length());
+    protocol_binary_request_header *req = (protocol_binary_request_header *) pkt;
+    req->request.opcode = CMD_SYNC;
+    req->request.bodylen = htonl(body.str().length());
+    memcpy(pkt + sizeof(protocol_binary_request_header),
+           body.str().c_str(), body.str().length());
+
+    return req;
 }
 
 static enum test_result test_sync_writes(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    const KeySpec keyspecs[] = {
-        KeySpec("key1", 0), KeySpec("key2", 0), KeySpec("key3", 0),
-        KeySpec("key4", 0), KeySpec("key5", 0), KeySpec("key6", 0),
-        KeySpec("key7", 0), KeySpec("key8", 0), KeySpec("key9", 0)
+    const sync_keyspec_t keyspecs[] = {
+        {0, 0, "key1"}, {0, 0, "key2"}, {0, 0, "key3"},
+        {0, 0, "key4"}, {0, 0, "key5"}, {0, 0, "key6"},
+        {0, 0, "key7"}, {0, 0, "key8"}, {0, 0, "key9"}
     };
     const uint16_t nkeys = 9;
     pthread_t threads[nkeys];
-    protocol_binary_request_header *pkt = create_sync_packet(keyspecs, nkeys);
+    protocol_binary_request_header *pkt = create_sync_packet(0x00000008, nkeys, keyspecs);
     std::vector<set_key_thread_params*> params;
 
     for (int i = 0; i < nkeys; i++) {
