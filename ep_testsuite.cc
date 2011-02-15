@@ -1724,6 +1724,177 @@ static enum test_result test_vb_del_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
     return SUCCESS;
 }
 
+static enum test_result test_touch(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    char buffer[512];
+    memset(buffer, 0, sizeof(buffer));
+    protocol_binary_request_touch *req = reinterpret_cast<protocol_binary_request_touch *>(buffer);
+    protocol_binary_request_header *request = reinterpret_cast<protocol_binary_request_header*>(req);
+
+    req->message.header.request.magic = PROTOCOL_BINARY_REQ;
+    req->message.header.request.opcode = PROTOCOL_BINARY_CMD_TOUCH;
+    req->message.header.request.extlen = 4;
+    req->message.header.request.bodylen = htonl(4);
+    req->message.body.expiration = ntohl(10);
+
+    // key is a mandatory field!
+    check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
+          "Failed to call touch");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL, "Testing invalid arguments");
+
+    // extlen is a mandatory field!
+    req->message.header.request.extlen = 0;
+    req->message.header.request.keylen = 4;
+    check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
+          "Failed to call touch");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL, "Testing invalid arguments");
+
+    // Try to touch an unknown item...
+    req->message.header.request.extlen = 4;
+    req->message.header.request.keylen = htons(5);
+    req->message.header.request.bodylen = htonl(4 + 5);
+    memcpy(buffer + sizeof(req->bytes), "mykey", 5);
+
+    check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
+          "Failed to call touch");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, "Testing unknown key");
+
+    // Store the item!
+    item *itm = NULL;
+    check(store(h, h1, NULL, OPERATION_SET, "mykey", "somevalue", &itm) == ENGINE_SUCCESS,
+          "Failed set.");
+    h1->release(h, NULL, itm);
+
+    check(check_key_value(h, h1, "mykey", "somevalue", strlen("somevalue")) == SUCCESS,
+          "Failed to retrieve data");
+
+    check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
+          "Failed to call touch");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "touch mykey");
+
+    // time-travel 11 secs..
+    testHarness.time_travel(11);
+
+    // The item should have expired now...
+    check(h1->get(h, NULL, &itm, "mykey", 5, 0) == ENGINE_KEY_ENOENT, "Item should be gone");
+
+    return SUCCESS;
+}
+
+static enum test_result test_gat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    char buffer[512];
+    memset(buffer, 0, sizeof(buffer));
+    protocol_binary_request_gat *req = reinterpret_cast<protocol_binary_request_gat *>(buffer);
+    protocol_binary_request_header *request = reinterpret_cast<protocol_binary_request_header*>(req);
+
+    req->message.header.request.magic = PROTOCOL_BINARY_REQ;
+    req->message.header.request.opcode = PROTOCOL_BINARY_CMD_GAT;
+    req->message.header.request.extlen = 4;
+    req->message.header.request.bodylen = htonl(4);
+    req->message.body.expiration = ntohl(10);
+
+    // key is a mandatory field!
+    check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
+          "Failed to call gat");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL, "Testing invalid arguments");
+
+    // extlen is a mandatory field!
+    req->message.header.request.extlen = 0;
+    req->message.header.request.keylen = 4;
+    check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
+          "Failed to call gat");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL, "Testing invalid arguments");
+
+    // Try to touch an unknown item...
+    req->message.header.request.extlen = 4;
+    req->message.header.request.keylen = htons(5);
+    req->message.header.request.bodylen = htonl(4 + 5);
+    memcpy(buffer + sizeof(req->bytes), "mykey", 5);
+
+    check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
+          "Failed to call gat");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, "Testing unknown key");
+
+    // Store the item!
+    item *itm = NULL;
+    check(store(h, h1, NULL, OPERATION_SET, "mykey", "somevalue", &itm) == ENGINE_SUCCESS,
+          "Failed set.");
+    h1->release(h, NULL, itm);
+
+    check(check_key_value(h, h1, "mykey", "somevalue", strlen("somevalue")) == SUCCESS,
+          "Failed to retrieve data");
+
+    check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
+          "Failed to call gat");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "gat mykey");
+    check(memcmp(last_body, "somevalue", sizeof("somevalue")) == 0,
+          "Invalid data returned");
+    // time-travel 11 secs..
+    testHarness.time_travel(11);
+
+    // The item should have expired now...
+    check(h1->get(h, NULL, &itm, "mykey", 5, 0) == ENGINE_KEY_ENOENT, "Item should be gone");
+    return SUCCESS;
+}
+
+static enum test_result test_gatq(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    char buffer[512];
+    memset(buffer, 0, sizeof(buffer));
+    protocol_binary_request_gat *req = reinterpret_cast<protocol_binary_request_gat *>(buffer);
+    protocol_binary_request_header *request = reinterpret_cast<protocol_binary_request_header*>(req);
+
+    req->message.header.request.magic = PROTOCOL_BINARY_REQ;
+    req->message.header.request.opcode = PROTOCOL_BINARY_CMD_GATQ;
+    req->message.header.request.extlen = 4;
+    req->message.header.request.bodylen = htonl(4);
+    req->message.body.expiration = ntohl(10);
+
+    // key is a mandatory field!
+    check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
+          "Failed to call gat");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL, "Testing invalid arguments");
+
+    // extlen is a mandatory field!
+    req->message.header.request.extlen = 0;
+    req->message.header.request.keylen = 4;
+    check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
+          "Failed to call gat");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL, "Testing invalid arguments");
+
+    // Try to gat an unknown item...
+    req->message.header.request.extlen = 4;
+    req->message.header.request.keylen = htons(5);
+    req->message.header.request.bodylen = htonl(4 + 5);
+    memcpy(buffer + sizeof(req->bytes), "mykey", 5);
+
+    last_status = static_cast<protocol_binary_response_status>(0xffff);
+    check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
+          "Failed to call gat");
+
+    // We should not have sent any response!
+    check(last_status == 0xffff, "Testing unknown key");
+
+    // Store the item!
+    item *itm = NULL;
+    check(store(h, h1, NULL, OPERATION_SET, "mykey", "somevalue", &itm) == ENGINE_SUCCESS,
+          "Failed set.");
+    h1->release(h, NULL, itm);
+
+    check(check_key_value(h, h1, "mykey", "somevalue", strlen("somevalue")) == SUCCESS,
+          "Failed to retrieve data");
+
+    check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
+          "Failed to call gat");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "gat mykey");
+    check(memcmp(last_body, "somevalue", sizeof("somevalue")) == 0,
+          "Invalid data returned");
+    // time-travel 11 secs..
+    testHarness.time_travel(11);
+
+    // The item should have expired now...
+    check(h1->get(h, NULL, &itm, "mykey", 5, 0) == ENGINE_KEY_ENOENT, "Item should be gone");
+    return SUCCESS;
+}
+
 static enum test_result test_alloc_limit(ENGINE_HANDLE *h,
                                          ENGINE_HANDLE_V1 *h1) {
     item *it = NULL;
@@ -3592,6 +3763,9 @@ engine_test_t* get_tests(void) {
         {"incr", test_incr, NULL, teardown, NULL},
         {"incr with default", test_incr_default, NULL, teardown, NULL},
         {"incr expiry", test_bug2799, NULL, teardown, NULL},
+        {"test touch", test_touch, NULL, teardown, NULL},
+        {"test gat", test_gat, NULL, teardown, NULL},
+        {"test gatq", test_gatq, NULL, teardown, NULL},
         {"delete", test_delete, NULL, teardown, NULL},
         {"set/delete", test_set_delete, NULL, teardown, NULL},
         {"delete/set/delete", test_delete_set, NULL, teardown, NULL},

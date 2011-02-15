@@ -454,6 +454,20 @@ public:
                  bool honorStates=true);
 
     /**
+     * Retrieve a value, but update its TTL first
+     *
+     * @param key the key to fetch
+     * @param vbucket the vbucket from which to retrieve the key
+     * @param cookie the connection cookie
+     * @param queueBG if true, automatically queue a background fetch if necessary
+     * @param exptime the new expiry time for the object
+     *
+     * @return a GetValue representing the result of the request
+     */
+    GetValue getAndUpdateTtl(const std::string &key, uint16_t vbucket,
+                             const void *cookie, bool queueBG, uint32_t exptime);
+
+    /**
      * Retrieve an item from the disk for vkey stats
      *
      * @param key the key to fetch

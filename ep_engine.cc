@@ -575,6 +575,11 @@ extern "C" {
             }
             break;
 
+        case PROTOCOL_BINARY_CMD_TOUCH:
+        case PROTOCOL_BINARY_CMD_GAT:
+        case PROTOCOL_BINARY_CMD_GATQ:
+            return h->touch(cookie, request, response);
+
         case CMD_STOP_PERSISTENCE:
             res = stopFlusher(h, &msg);
             break;
@@ -2965,4 +2970,67 @@ void EventuallyPersistentEngine::notifyTapIoThread(void) {
 
         tapConnMap.wait(1.0);
     }
+}
+
+ENGINE_ERROR_CODE EventuallyPersistentEngine::touch(const void *cookie,
+                                                    protocol_binary_request_header *request,
+                                                    ADD_RESPONSE response)
+{
+    if (request->request.extlen != 4 || request->request.keylen == 0) {
+        if (response(NULL, 0, NULL, 0, NULL, 0, PROTOCOL_BINARY_RAW_BYTES,
+                     PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie)) {
+            return ENGINE_SUCCESS;
+        } else {
+            return ENGINE_FAILED;
+        }
+    }
+
+    protocol_binary_request_touch *t = reinterpret_cast<protocol_binary_request_touch*>(request);
+    void *key = t->bytes + sizeof(t->bytes);
+    uint32_t exptime = ntohl(t->message.body.expiration);
+    uint16_t nkey = ntohs(request->request.keylen);
+    uint16_t vbucket = ntohs(request->request.vbucket);
+
+    // try to get the object
+    std::string k(static_cast<const char*>(key), nkey);
+    GetValue gv(epstore->getAndUpdateTtl(k, vbucket, cookie,
+                                         request->request.opcode != PROTOCOL_BINARY_CMD_TOUCH,
+                                         exptime));
+    ENGINE_ERROR_CODE rv = gv.getStatus();
+    if (rv == ENGINE_SUCCESS) {
+        bool ret;
+        Item *it = gv.getValue();
+        if (request->request.opcode == PROTOCOL_BINARY_CMD_TOUCH) {
+            ret = response(NULL, 0, NULL, 0, NULL, 0,
+                           PROTOCOL_BINARY_RAW_BYTES,
+                           PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
+        } else {
+            uint32_t flags = it->getFlags();
+            ret = response(NULL, 0, &flags, sizeof(flags),
+                           it->getData(), it->getNBytes(),
+                           PROTOCOL_BINARY_RAW_BYTES,
+                           PROTOCOL_BINARY_RESPONSE_SUCCESS, it->getCas(),
+                           cookie);
+        }
+        delete it;
+        if (ret) {
+            rv = ENGINE_SUCCESS;
+        } else {
+            rv = ENGINE_FAILED;
+        }
+    } else if (rv == ENGINE_KEY_ENOENT) {
+        if (request->request.opcode == PROTOCOL_BINARY_CMD_GATQ) {
+            // GATQ should not return response upon cache miss
+            rv = ENGINE_SUCCESS;
+        } else {
+            if (response(NULL, 0, NULL, 0, NULL, 0, PROTOCOL_BINARY_RAW_BYTES,
+                         PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, 0, cookie)) {
+                rv = ENGINE_SUCCESS;
+            } else {
+                rv = ENGINE_FAILED;
+            }
+        }
+    }
+
+    return rv;
 }

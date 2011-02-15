@@ -194,6 +194,13 @@ public:
         }
     }
 
+    void setExptime(time_t tim) {
+        if (!_isSmall) {
+            extra.feature.exptime = tim;
+            markDirty();
+        }
+    }
+
     /**
      * Get the client-defined flags of this item.
      *
