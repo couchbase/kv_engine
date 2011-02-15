@@ -861,6 +861,62 @@ GetValue EventuallyPersistentStore::get(const std::string &key,
     }
 }
 
+GetValue EventuallyPersistentStore::getAndUpdateTtl(const std::string &key,
+                                                    uint16_t vbucket,
+                                                    const void *cookie,
+                                                    bool queueBG,
+                                                    uint32_t exptime)
+{
+    RCPtr<VBucket> vb = getVBucket(vbucket);
+    if (!vb) {
+        ++stats.numNotMyVBuckets;
+        return GetValue(NULL, ENGINE_NOT_MY_VBUCKET);
+    } else if (vb->getState() == vbucket_state_dead) {
+        ++stats.numNotMyVBuckets;
+        return GetValue(NULL, ENGINE_NOT_MY_VBUCKET);
+    } else if (vb->getState() == vbucket_state_active) {
+        // OK
+    } else if (vb->getState() == vbucket_state_replica) {
+        ++stats.numNotMyVBuckets;
+        return GetValue(NULL, ENGINE_NOT_MY_VBUCKET);
+    } else if (vb->getState() == vbucket_state_pending) {
+        if (vb->addPendingOp(cookie)) {
+            return GetValue(NULL, ENGINE_EWOULDBLOCK);
+        }
+    }
+
+    int bucket_num(0);
+    LockHolder lh = vb->ht.getLockedBucket(key, &bucket_num);
+    StoredValue *v = fetchValidValue(vb, key, bucket_num);
+
+    if (v) {
+        v->setExptime(engine.getServerApi()->core->realtime(exptime));
+        // If the value is not resident, wait for it...
+        if (!v->isResident()) {
+            if (queueBG) {
+                bgFetch(key, vbucket, vbuckets.getBucketVersion(vbucket),
+                        v->getId(), cookie);
+                return GetValue(NULL, ENGINE_EWOULDBLOCK, v->getId());
+            } else {
+                // You didn't want the item anyway...
+                return GetValue(NULL, ENGINE_SUCCESS, v->getId());
+            }
+        }
+
+        // return an invalid cas value if the item is locked
+        uint64_t icas = v->isLocked(ep_current_time())
+            ? static_cast<uint64_t>(-1)
+            : v->getCas();
+        GetValue rv(new Item(v->getKey(), v->getFlags(), v->getExptime(),
+                             v->getValue(), icas, v->getId(), vbucket),
+                    ENGINE_SUCCESS, v->getId());
+        return rv;
+    } else {
+        GetValue rv;
+        return rv;
+    }
+}
+
 ENGINE_ERROR_CODE
 EventuallyPersistentStore::getFromUnderlying(const std::string &key,
                                              uint16_t vbucket,

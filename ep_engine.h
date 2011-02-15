@@ -321,6 +321,10 @@ public:
                                 size_t ndata,
                                 uint16_t vbucket);
 
+    ENGINE_ERROR_CODE touch(const void* cookie,
+                            protocol_binary_request_header *request,
+                            ADD_RESPONSE response);
+
     /**
      * Visit the objects and add them to the tap connecitons queue.
      * @todo this code should honor the backfill time!
