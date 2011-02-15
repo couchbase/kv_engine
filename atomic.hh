@@ -5,6 +5,9 @@
 #include <pthread.h>
 #include <queue>
 #include <sched.h>
+#include <errno.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 #include "callbacks.hh"
 #include "locks.hh"
@@ -32,7 +35,8 @@ public:
     ThreadLocal(ThreadLocalDestructor destructor = NULL) {
         int rc = pthread_key_create(&key, destructor);
         if (rc != 0) {
-            throw std::runtime_error("Failed to create a thread-specific key");
+            fprintf(stderr, "Failed to create a thread-specific key: %s\n", strerror(rc));
+            abort();
         }
     }
 
