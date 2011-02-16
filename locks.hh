@@ -5,6 +5,7 @@
 #include <stdexcept>
 #include <iostream>
 #include <sstream>
+#include <functional>
 
 #include "common.hh"
 #include "mutex.hh"
@@ -80,6 +81,7 @@ public:
     MultiLockHolder(Mutex *m, size_t n) : mutexes(m),
                                           locked(new bool[n]),
                                           n_locks(n) {
+        std::fill_n(locked, n_locks, false);
         lock();
     }
 
@@ -93,6 +95,7 @@ public:
      */
     void lock() {
         for (size_t i = 0; i < n_locks; i++) {
+            assert(!locked[i]);
             mutexes[i].acquire();
             locked[i] = true;
         }
