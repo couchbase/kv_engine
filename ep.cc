@@ -1811,9 +1811,7 @@ void TransactionContext::addUncommittedItem(const QueuedItem &item) {
     uncommittedItems.push_back(item);
 }
 
-bool VBCBAdaptor::callback(Dispatcher &d, TaskId t) {
-    (void)d;
-    (void)t;
+bool VBCBAdaptor::callback(Dispatcher &, TaskId ) {
     RCPtr<VBucket> vb = store->vbuckets.getBucket(currentvb);
     if (vb) {
         if (visitor->visitBucket(vb)) {
