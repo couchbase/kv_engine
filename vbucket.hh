@@ -15,6 +15,7 @@
 #include "common.hh"
 #include "atomic.hh"
 #include "stored-value.hh"
+#include "checkpoint.hh"
 
 const size_t BASE_VBUCKET_SIZE=1024;
 
@@ -93,11 +94,11 @@ class EventuallyPersistentEngine;
 class VBucket : public RCValue {
 public:
 
-    VBucket(int i, vbucket_state_t initialState, EPStats &st) :
-        ht(st), id(i), state(initialState), stats(st) {
+    VBucket(int i, vbucket_state_t initialState, EPStats &st, uint64_t checkpointId = 1) :
+        ht(st), checkpointManager(st, checkpointId), id(i), state(initialState), stats(st) {
         pendingOpsStart = 0;
         stats.memOverhead.incr(sizeof(VBucket)
-                               + ht.memorySize());
+                               + ht.memorySize() + sizeof(CheckpointManager));
         assert(stats.memOverhead.get() < GIGANTOR);
     }
 
@@ -107,7 +108,7 @@ public:
                              "Have %d pending ops while destroying vbucket\n",
                              pendingOps.size());
         }
-        stats.memOverhead.decr(sizeof(VBucket) + ht.memorySize());
+        stats.memOverhead.decr(sizeof(VBucket) + ht.memorySize() + sizeof(CheckpointManager));
         assert(stats.memOverhead.get() < GIGANTOR);
         getLogger()->log(EXTENSION_LOG_INFO, NULL,
                          "Destroying vbucket %d\n", id);
@@ -149,7 +150,8 @@ public:
         return v.size;
     }
 
-    HashTable ht;
+    HashTable         ht;
+    CheckpointManager checkpointManager;
 
     static const char* toString(vbucket_state_t s) {
         switch(s) {

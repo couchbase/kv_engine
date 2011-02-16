@@ -17,6 +17,14 @@ static const size_t vbucketsEach = 100;
 
 EPStats global_stats;
 
+extern "C" {
+    static rel_time_t basic_current_time(void) {
+        return 0;
+    }
+
+    rel_time_t (*ep_current_time)() = basic_current_time;
+}
+
 class VBucketGenerator {
 public:
     VBucketGenerator(EPStats &s, int start = 1) : st(s), i(start) {}

@@ -189,8 +189,9 @@ management_sqlite3_DEPENDENCIES = libsqlite3.la
 management_sqlite3_LDADD = libsqlite3.la
 
 vbucket_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
-vbucket_test_SOURCES = t/vbucket_test.cc vbucket.hh vbucket.cc stored-value.cc stored-value.hh testlogger.cc
-vbucket_test_DEPENDENCIES = vbucket.hh stored-value.cc stored-value.hh
+vbucket_test_SOURCES = t/vbucket_test.cc vbucket.hh vbucket.cc stored-value.cc stored-value.hh testlogger.cc \
+		       checkpoint.hh checkpoint.cc
+vbucket_test_DEPENDENCIES = vbucket.hh stored-value.cc stored-value.hh checkpoint.hh checkpoint.cc
 
 checkpoint_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
 checkpoint_test_SOURCES = t/checkpoint_test.cc checkpoint.hh checkpoint.cc vbucket.hh vbucket.cc \
