@@ -78,9 +78,8 @@ public:
      * @param n the number of locks to lock
      */
     MultiLockHolder(Mutex *m, size_t n) : mutexes(m),
-                                          locked(NULL),
+                                          locked(new bool[n]),
                                           n_locks(n) {
-        locked = new bool[n];
         lock();
     }
 
