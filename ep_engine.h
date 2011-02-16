@@ -47,6 +47,7 @@ extern "C" {
             const void *cookie,
             Item **item,
             const char **msg,
+            size_t *msg_size,
             protocol_binary_response_status *res);
 }
 
@@ -393,7 +394,8 @@ public:
         notifyIOComplete(cookie, ENGINE_DISCONNECT);
     }
 
-    protocol_binary_response_status stopFlusher(const char **msg) {
+    protocol_binary_response_status stopFlusher(const char **msg, size_t *msg_size) {
+        (void) msg_size;
         protocol_binary_response_status rv = PROTOCOL_BINARY_RESPONSE_SUCCESS;
         *msg = NULL;
         if (!epstore->pauseFlusher()) {
@@ -406,7 +408,8 @@ public:
         return rv;
     }
 
-    protocol_binary_response_status startFlusher(const char **msg) {
+    protocol_binary_response_status startFlusher(const char **msg, size_t *msg_size) {
+        (void) msg_size;
         protocol_binary_response_status rv = PROTOCOL_BINARY_RESPONSE_SUCCESS;
         *msg = NULL;
         if (!epstore->resumeFlusher()) {
@@ -441,8 +444,9 @@ public:
 
     protocol_binary_response_status evictKey(const std::string &key,
                                              uint16_t vbucket,
-                                             const char **msg) {
-        return epstore->evictKey(key, vbucket, msg);
+                                             const char **msg,
+                                             size_t *msg_size) {
+        return epstore->evictKey(key, vbucket, msg, msg_size);
     }
 
     bool getLocked(const std::string &key,

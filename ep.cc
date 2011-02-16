@@ -486,7 +486,9 @@ StoredValue *EventuallyPersistentStore::fetchValidValue(RCPtr<VBucket> vb,
 
 protocol_binary_response_status EventuallyPersistentStore::evictKey(const std::string &key,
                                                                     uint16_t vbucket,
-                                                                    const char **msg) {
+                                                                    const char **msg,
+                                                                    size_t *msg_size) {
+    (void) msg_size;
     RCPtr<VBucket> vb = getVBucket(vbucket);
     if (!(vb && vb->getState() == vbucket_state_active)) {
         return PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET;

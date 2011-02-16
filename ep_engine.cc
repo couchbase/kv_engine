@@ -171,19 +171,21 @@ extern "C" {
     }
 
     static protocol_binary_response_status stopFlusher(EventuallyPersistentEngine *e,
-                                                       const char **msg) {
-        return e->stopFlusher(msg);
+                                                       const char **msg,
+                                                       size_t *msg_size) {
+        return e->stopFlusher(msg, msg_size);
     }
 
     static protocol_binary_response_status startFlusher(EventuallyPersistentEngine *e,
-                                                        const char **msg) {
-        return e->startFlusher(msg);
+                                                        const char **msg,
+                                                        size_t *msg_size) {
+        return e->startFlusher(msg, msg_size);
     }
 
     static protocol_binary_response_status setTapParam(EventuallyPersistentEngine *e,
                                                        const char *keyz, const char *valz,
-                                                       const char **msg) {
-        (void)e; (void)keyz; (void)valz;
+                                                       const char **msg, size_t *msg_size) {
+        (void)e; (void)keyz; (void)valz; (void)msg_size;
         protocol_binary_response_status rv = PROTOCOL_BINARY_RESPONSE_SUCCESS;
 
         *msg = "Unknown config param";
@@ -193,7 +195,9 @@ extern "C" {
 
     static protocol_binary_response_status setFlushParam(EventuallyPersistentEngine *e,
                                                          const char *keyz, const char *valz,
-                                                         const char **msg) {
+                                                         const char **msg,
+                                                         size_t *msg_size) {
+        (void) msg_size;
         *msg = "Updated";
         protocol_binary_response_status rv = PROTOCOL_BINARY_RESPONSE_SUCCESS;
 
@@ -256,7 +260,8 @@ extern "C" {
 
     static protocol_binary_response_status evictKey(EventuallyPersistentEngine *e,
                                                     protocol_binary_request_header *request,
-                                                    const char **msg) {
+                                                    const char **msg,
+                                                    size_t *msg_size) {
         protocol_binary_request_no_extras *req =
             (protocol_binary_request_no_extras*)request;
 
@@ -279,7 +284,7 @@ extern "C" {
                          "Manually evicting object with key %s\n",
                          keyz);
 
-        return e->evictKey(key, vbucket, msg);
+        return e->evictKey(key, vbucket, msg, msg_size);
     }
 
     ENGINE_ERROR_CODE getLocked(EventuallyPersistentEngine *e,
@@ -287,8 +292,10 @@ extern "C" {
             const void *cookie,
             Item **item,
             const char **msg,
+            size_t *msg_size,
             protocol_binary_response_status *res) {
 
+        (void) msg_size;
         protocol_binary_request_no_extras *req =
             (protocol_binary_request_no_extras*)request;
         *res = PROTOCOL_BINARY_RESPONSE_SUCCESS;
@@ -356,8 +363,10 @@ extern "C" {
 
     static protocol_binary_response_status unlockKey(EventuallyPersistentEngine *e,
                                                      protocol_binary_request_header *request,
-                                                     const char **msg)
+                                                     const char **msg,
+                                                     size_t *msg_size)
     {
+        (void) msg_size;
         protocol_binary_request_no_extras *req =
             (protocol_binary_request_no_extras*)request;
 
@@ -406,7 +415,8 @@ extern "C" {
 
     static protocol_binary_response_status setParam(EventuallyPersistentEngine *e,
                                                     protocol_binary_request_header *request,
-                                                    const char **msg) {
+                                                    const char **msg,
+                                                    size_t *msg_size) {
         protocol_binary_request_no_extras *req =
             (protocol_binary_request_no_extras*)request;
 
@@ -437,10 +447,10 @@ extern "C" {
 
         switch (request->request.opcode) {
         case CMD_SET_FLUSH_PARAM:
-            rv = setFlushParam(e, keyz, valz, msg);
+            rv = setFlushParam(e, keyz, valz, msg, msg_size);
             break;
         case CMD_SET_TAP_PARAM:
-            rv = setTapParam(e, keyz, valz, msg);
+            rv = setTapParam(e, keyz, valz, msg, msg_size);
             break;
         default:
             rv = PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND;
@@ -548,6 +558,7 @@ extern "C" {
         protocol_binary_response_status res =
             PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND;
         const char *msg = NULL;
+        size_t msg_size = 0;
         Item *item = NULL;
 
         EventuallyPersistentEngine *h = getHandle(handle);
@@ -581,27 +592,27 @@ extern "C" {
             return h->touch(cookie, request, response);
 
         case CMD_STOP_PERSISTENCE:
-            res = stopFlusher(h, &msg);
+            res = stopFlusher(h, &msg, &msg_size);
             break;
         case CMD_START_PERSISTENCE:
-            res = startFlusher(h, &msg);
+            res = startFlusher(h, &msg, &msg_size);
             break;
         case CMD_SET_FLUSH_PARAM:
         case CMD_SET_TAP_PARAM:
-            res = setParam(h, request, &msg);
+            res = setParam(h, request, &msg, &msg_size);
             break;
         case CMD_EVICT_KEY:
-            res = evictKey(h, request, &msg);
+            res = evictKey(h, request, &msg, &msg_size);
             break;
         case CMD_GET_LOCKED:
-            rv = getLocked(h, request, cookie, &item, &msg, &res);
+            rv = getLocked(h, request, cookie, &item, &msg, &msg_size, &res);
             if (rv == ENGINE_EWOULDBLOCK) {
                 // we dont have the value for the item yet
                 return rv;
             }
             break;
         case CMD_UNLOCK_KEY:
-            res = unlockKey(h, request, &msg);
+            res = unlockKey(h, request, &msg, &msg_size);
             break;
         }
 
@@ -620,7 +631,7 @@ extern "C" {
             delete item;
         } else {
 
-            size_t msg_size = msg ? strlen(msg) : 0;
+            msg_size = (msg_size > 0) ? msg_size : strlen(msg);
             response(NULL, 0, NULL, 0,
                     msg, static_cast<uint16_t>(msg_size),
                     PROTOCOL_BINARY_RAW_BYTES,
