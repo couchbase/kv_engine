@@ -24,7 +24,7 @@
 #include "locks.hh"
 
 
-void SyncRegistry::addPersistenceListener(const SyncListener &syncListener) {
+void SyncRegistry::addPersistenceListener(SyncListener *syncListener) {
     LockHolder lh(mutex);
     persistenceListeners.push_back(syncListener);
 }
@@ -47,11 +47,12 @@ void SyncRegistry::itemsPersisted(std::list<QueuedItem> &itemlist) {
 
 
 void SyncRegistry::notifyListeners(const QueuedItem &item) {
-    std::list<SyncListener>::iterator it = persistenceListeners.begin();
-    const KeySpec keyspec(item.getKey(), item.getVBucketId());
+    std::list<SyncListener*>::iterator it = persistenceListeners.begin();
+    key_spec_t keyspec = { 0, item.getVBucketId(), item.getKey() };
 
     while (it != persistenceListeners.end()) {
-        if (it->keySynced(keyspec)) {
+        SyncListener *listener = *it;
+        if (listener->keySynced(keyspec)) {
             it = persistenceListeners.erase(it);
         } else {
             it++;
@@ -60,14 +61,30 @@ void SyncRegistry::notifyListeners(const QueuedItem &item) {
 }
 
 
-bool SyncListener::keySynced(const KeySpec &key) {
-    bool finished = false;
+SyncListener::SyncListener(EventuallyPersistentEngine &epEngine,
+                           const void *c,
+                           const std::set<key_spec_t> &keys,
+                           sync_type_t sync_type,
+                           uint8_t replicaCount) :
+    engine(epEngine), cookie(c), keySpecs(keys),
+    syncType(sync_type), replicas(replicaCount) {
 
-    if (keySpecs.find(key) != keySpecs.end()) {
-        finished = (++syncedKeys == keySpecs.size());
+    // TODO: support mutation and replication sync
+    assert(syncType == PERSIST);
+}
+
+
+bool SyncListener::keySynced(key_spec_t &key) {
+    bool finished = false;
+    std::set<key_spec_t>::iterator it = keySpecs.find(key);
+
+    if (it != keySpecs.end()) {
+        key.cas = it->cas;
+        persistedKeys.insert(key);
+        finished = (persistedKeys.size() == keySpecs.size());
 
         if (finished) {
-            engine.getServerApi()->cookie->store_engine_specific(cookie, &syncedKeys);
+            engine.getServerApi()->cookie->store_engine_specific(cookie, this);
             engine.notifyIOComplete(cookie, ENGINE_SUCCESS);
         }
     }

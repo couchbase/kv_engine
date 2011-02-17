@@ -52,6 +52,7 @@
 
 #include "ep_testsuite.h"
 #include "command_ids.h"
+#include "sync_registry.hh"
 
 #ifdef linux
 /* /usr/include/netinet/in.h defines macros from ntohs() to _bswap_nn to
@@ -785,15 +786,9 @@ struct handle_pair {
 };
 
 typedef struct {
-    uint64_t cas;
-    uint16_t vbucketid;
-    std::string key;
-} sync_keyspec_t;
-
-typedef struct {
     ENGINE_HANDLE *h;
     ENGINE_HANDLE_V1 *h1;
-    const sync_keyspec_t *keyspec;
+    const key_spec_t *keyspec;
     const char *value;
     int iterations;
 } set_key_thread_params;
@@ -3755,7 +3750,7 @@ static enum test_result test_kill9_bucket(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
 
 
 static protocol_binary_request_header*
-create_sync_packet(uint32_t flags, uint16_t nkeys, const sync_keyspec_t keyspecs[]) {
+create_sync_packet(uint32_t flags, uint16_t nkeys, const key_spec_t keyspecs[]) {
     std::stringstream body;
 
     uint32_t options = htonl(flags);
@@ -3787,8 +3782,40 @@ create_sync_packet(uint32_t flags, uint16_t nkeys, const sync_keyspec_t keyspecs
     return req;
 }
 
-static enum test_result test_sync_writes(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    const sync_keyspec_t keyspecs[] = {
+static enum test_result test_sync_bad_flags(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    const key_spec_t keyspecs[] = { {0, 0, "key1"}, {0, 0, "key2"} };
+    const uint16_t nkeys = 2;
+    protocol_binary_request_header *pkt;
+
+    // persistence and mutation bits both set
+    pkt = create_sync_packet(0x0000000c, nkeys, keyspecs);
+
+    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_EINVAL, "sync fail");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL, "sync fail");
+
+    free(pkt);
+
+    // no flags set
+    pkt = create_sync_packet(0x00000000, nkeys, keyspecs);
+
+    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_EINVAL, "sync fail");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL, "sync fail");
+
+    free(pkt);
+
+    // 3 replicas plus mutation flag set
+    pkt = create_sync_packet(0x00000034, nkeys, keyspecs);
+
+    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_EINVAL, "sync fail");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL, "sync fail");
+
+    free(pkt);
+
+    return SUCCESS;
+}
+
+static enum test_result test_sync_persistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    const key_spec_t keyspecs[] = {
         {0, 0, "key1"}, {0, 0, "key2"}, {0, 0, "key3"},
         {0, 0, "key4"}, {0, 0, "key5"}, {0, 0, "key6"},
         {0, 0, "key7"}, {0, 0, "key8"}, {0, 0, "key9"}
@@ -3831,6 +3858,50 @@ static enum test_result test_sync_writes(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
         void *trv = NULL;
         int r = pthread_join(threads[i], &trv);
         assert(r == 0);
+    }
+
+    // verify the response sent to the client is correct
+    char *response = last_body;
+    uint16_t respNkeys;
+    size_t offset = 0;
+
+    memcpy(&respNkeys, response + offset, sizeof(uint16_t));
+    respNkeys = ntohs(respNkeys);
+    offset += sizeof(uint16_t);
+
+    check(respNkeys == nkeys, "response has the same # of keys");
+
+    std::set<key_spec_t> keyset;
+    for (int i = 0; i < nkeys; i++) {
+        keyset.insert(keyspecs[i]);
+    }
+
+    for (int i = 0; i < nkeys; i++) {
+        uint64_t cas;
+        uint16_t vbid;
+        uint16_t keylen;
+        uint8_t eventid;
+
+        memcpy(&cas, response + offset, sizeof(uint64_t));
+        cas = ntohll(cas);
+        offset += sizeof(uint64_t);
+        memcpy(&vbid, response + offset, sizeof(uint16_t));
+        vbid = ntohs(vbid);
+        offset += sizeof(uint16_t);
+        memcpy(&keylen, response + offset, sizeof(uint16_t));
+        keylen = ntohs(keylen);
+        offset += sizeof(uint16_t);
+        memcpy(&eventid, response + offset, sizeof(uint8_t));
+        offset += sizeof(uint8_t);
+
+        std::string key(response + offset, keylen);
+        key_spec_t keyspec = { cas, vbid, key.c_str() };
+        offset += keylen;
+
+        check(cas == 0, "right cas");
+        check(vbid == 0, "right vbucket id");
+        check(eventid == SYNC_PERSISTED_EVENT, "right event id");
+        check(keyset.find(keyspec) != keyset.end(), "key sent in the request");
     }
 
     for (int i = 0; i < nkeys; i++) {
@@ -4043,7 +4114,8 @@ engine_test_t* get_tests(void) {
          NULL, teardown, NULL},
         {"test vbucket destroy restart", test_vbucket_destroy_restart,
          NULL, teardown, NULL},
-        {"sync writes", test_sync_writes, NULL, teardown, NULL},
+        {"sync bad flags", test_sync_bad_flags, NULL, teardown, NULL},
+        {"sync persistence", test_sync_persistence, NULL, teardown, NULL},
         {NULL, NULL, NULL, NULL, NULL}
     };
     return tests;

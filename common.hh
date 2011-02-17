@@ -50,11 +50,6 @@ using SHARED_PTR_NAMESPACE::shared_ptr;
     TypeName(const TypeName&);                  \
     void operator=(const TypeName&)
 
-/*
- * key spec, formed by a key and a vbucket id
- */
-typedef std::pair<std::string, uint16_t> KeySpec;
-
 // Utility functions implemented in various modules.
 extern EXTENSION_LOGGER_DESCRIPTOR *getLogger(void);
 
@@ -155,16 +150,6 @@ void createChunkListFromArray(std::vector<T> *elm_list, size_t chunk_size,
             counter = 0;
         }
     }
-}
-
-inline uint64_t ntohll(uint64_t lw) {
-    return
-        ((uint64_t) (ntohl( (uint32_t) ((lw << 32) >> 32) )) ) |
-        ((uint64_t) (ntohl( ((uint32_t) (lw >> 32)) )) );
-}
-
-inline uint64_t htonll(uint64_t lw) {
-    return ntohll(lw);
 }
 
 #define GIGANTOR ((size_t)1<<(sizeof(size_t)*8-1))

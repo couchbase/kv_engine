@@ -459,7 +459,8 @@ public:
         return epstore->getLocked(key, vbucket, cb, currentTime, lockTimeout, cookie);
     }
 
-    size_t sync(std::set<KeySpec> keySpecs, const void *cookie);
+    void sync(std::set<key_spec_t> keys, const void *cookie,
+              sync_type_t syncType, uint8_t replicas);
 
     ENGINE_ERROR_CODE unlockKey(const std::string &key,
                                 uint16_t vbucket,
@@ -509,6 +510,10 @@ public:
     }
 
     SERVER_HANDLE_V1* getServerApi() { return serverApi; }
+
+    static bool parseSyncOptions(uint32_t flags,
+                          sync_type_t *syncType,
+                          uint8_t *replicas);
 
 private:
     EventuallyPersistentEngine(GET_SERVER_API get_server_api);
