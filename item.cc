@@ -16,9 +16,8 @@
  */
 #include "item.hh"
 
-static void devnull(uint64_t current)
+static void devnull(uint64_t)
 {
-    (void)current;
 }
 
 Atomic<uint64_t> Item::casCounter(1);

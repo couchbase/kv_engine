@@ -321,18 +321,15 @@ void TapConnMap::notifyIOThreadMain(EventuallyPersistentEngine *engine) {
     engine->notifyIOComplete(toNotify, ENGINE_SUCCESS);
 }
 
-void CompleteBackfillTapOperation::perform(TapProducer *tc, void *arg) {
-    (void)arg;
+void CompleteBackfillTapOperation::perform(TapProducer *tc, void *) {
     tc->completeBackfill();
 }
 
-void CompleteDiskBackfillTapOperation::perform(TapProducer *tc, void *arg) {
-    (void)arg;
+void CompleteDiskBackfillTapOperation::perform(TapProducer *tc, void *) {
     tc->completeDiskBackfill();
 }
 
-void ScheduleDiskBackfillTapOperation::perform(TapProducer *tc, void *arg) {
-    (void)arg;
+void ScheduleDiskBackfillTapOperation::perform(TapProducer *tc, void *) {
     tc->scheduleDiskBackfill();
 }
 
@@ -341,8 +338,7 @@ void ReceivedItemTapOperation::perform(TapProducer *tc, Item *arg) {
 }
 
 void CompletedBGFetchTapOperation::perform(TapProducer *tc,
-                                           EventuallyPersistentEngine *epe) {
-    (void)epe;
+                                           EventuallyPersistentEngine *) {
     tc->completedBGFetchJob();
 }
 

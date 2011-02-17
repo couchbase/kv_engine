@@ -216,8 +216,7 @@ void Dispatcher::completeNonDaemonTasks() {
     getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "Completed all the non-daemon tasks\n");
 }
 
-bool IdleTask::run(Dispatcher &d, TaskId t) {
-    (void)t;
+bool IdleTask::run(Dispatcher &d, TaskId) {
     LockHolder lh(d.mutex);
     if (d.notifications.get() == dnotifications) {
         d.mutex.wait(waketime);

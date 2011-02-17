@@ -37,14 +37,12 @@ extern "C" {
         return 0;
     }
 
-    static time_t default_abs_time(rel_time_t offset) {
-        (void)offset;
+    static time_t default_abs_time(rel_time_t) {
         abort();
         return 0;
     }
 
-    static rel_time_t default_reltime(time_t t) {
-        (void)t;
+    static rel_time_t default_reltime(time_t) {
         abort();
         return 0;
     }
@@ -73,8 +71,7 @@ public:
         assert(cookie);
     }
 
-    bool callback(Dispatcher &d, TaskId t) {
-        (void)d; (void)t;
+    bool callback(Dispatcher &, TaskId) {
         ep->completeBGFetch(key, vbucket, vbver, rowid, cookie, init);
         return false;
     }
@@ -113,8 +110,7 @@ public:
         assert(lookup_cb);
     }
 
-    bool callback(Dispatcher &d, TaskId t) {
-        (void)d; (void)t;
+    bool callback(Dispatcher &, TaskId) {
         RememberingCallback<GetValue> gcb;
 
         ep->getROUnderlying()->get(key, rowid, vbucket, vbver, gcb);
@@ -151,8 +147,7 @@ public:
     SnapshotVBucketsCallback(EventuallyPersistentStore *e, const Priority &p)
         : ep(e), priority(p) { }
 
-    bool callback(Dispatcher &d, TaskId t) {
-        (void)d; (void)t;
+    bool callback(Dispatcher &, TaskId) {
         ep->snapshotVBuckets(priority);
         return false;
     }
@@ -174,8 +169,7 @@ public:
     NotifyVBStateChangeCallback(RCPtr<VBucket> vb, EventuallyPersistentEngine &e)
         : vbucket(vb), engine(e) { }
 
-    bool callback(Dispatcher &d, TaskId t) {
-        (void)d; (void)t;
+    bool callback(Dispatcher &, TaskId) {
         vbucket->fireAllOps(engine);
         return false;
     }
@@ -202,8 +196,7 @@ public:
                                                              vbver(vbv),
                                                stats(st) {}
 
-    bool callback(Dispatcher &d, TaskId t) {
-        (void)d; (void)t;
+    bool callback(Dispatcher &, TaskId) {
         bool rv(true); // try again by default
         hrtime_t start_time(gethrtime());
         if (ep->completeVBucketDeletion(vbucket, vbver) == vbucket_del_success) {
@@ -253,7 +246,6 @@ public:
     }
 
     bool callback(Dispatcher &d, TaskId t) {
-        (void)d; (void)t;
         bool rv = false, isLastChunk = false;
 
         chunk_range range;
@@ -525,8 +517,7 @@ StoredValue *EventuallyPersistentStore::fetchValidValue(RCPtr<VBucket> vb,
 protocol_binary_response_status EventuallyPersistentStore::evictKey(const std::string &key,
                                                                     uint16_t vbucket,
                                                                     const char **msg,
-                                                                    size_t *msg_size) {
-    (void) msg_size;
+                                                                    size_t *) {
     RCPtr<VBucket> vb = getVBucket(vbucket);
     if (!(vb && vb->getState() == vbucket_state_active)) {
         return PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET;
@@ -654,8 +645,7 @@ void EventuallyPersistentStore::snapshotVBuckets(const Priority &priority) {
             return false;
         }
 
-        void visit(StoredValue* v) {
-            (void)v;
+        void visit(StoredValue*) {
             assert(false); // this does not happen
         }
 
@@ -1811,7 +1801,7 @@ void TransactionContext::addUncommittedItem(const QueuedItem &item) {
     uncommittedItems.push_back(item);
 }
 
-bool VBCBAdaptor::callback(Dispatcher &, TaskId ) {
+bool VBCBAdaptor::callback(Dispatcher &, TaskId) {
     RCPtr<VBucket> vb = store->vbuckets.getBucket(currentvb);
     if (vb) {
         if (visitor->visitBucket(vb)) {

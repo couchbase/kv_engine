@@ -164,9 +164,8 @@ extern "C" {
         return getHandle(handle)->flush(cookie, when);
     }
 
-    static void EvpResetStats(ENGINE_HANDLE* handle, const void *cookie)
+    static void EvpResetStats(ENGINE_HANDLE* handle, const void *)
     {
-        (void)cookie;
         return getHandle(handle)->resetStats();
     }
 
@@ -182,10 +181,9 @@ extern "C" {
         return e->startFlusher(msg, msg_size);
     }
 
-    static protocol_binary_response_status setTapParam(EventuallyPersistentEngine *e,
-                                                       const char *keyz, const char *valz,
-                                                       const char **msg, size_t *msg_size) {
-        (void)e; (void)keyz; (void)valz; (void)msg_size;
+    static protocol_binary_response_status setTapParam(EventuallyPersistentEngine *,
+                                                       const char *, const char *,
+                                                       const char **msg, size_t *) {
         protocol_binary_response_status rv = PROTOCOL_BINARY_RESPONSE_SUCCESS;
 
         *msg = "Unknown config param";
@@ -196,8 +194,7 @@ extern "C" {
     static protocol_binary_response_status setFlushParam(EventuallyPersistentEngine *e,
                                                          const char *keyz, const char *valz,
                                                          const char **msg,
-                                                         size_t *msg_size) {
-        (void) msg_size;
+                                                         size_t *) {
         *msg = "Updated";
         protocol_binary_response_status rv = PROTOCOL_BINARY_RESPONSE_SUCCESS;
 
@@ -292,10 +289,9 @@ extern "C" {
             const void *cookie,
             Item **item,
             const char **msg,
-            size_t *msg_size,
+            size_t *,
             protocol_binary_response_status *res) {
 
-        (void) msg_size;
         protocol_binary_request_no_extras *req =
             (protocol_binary_request_no_extras*)request;
         *res = PROTOCOL_BINARY_RESPONSE_SUCCESS;
@@ -364,9 +360,8 @@ extern "C" {
     static protocol_binary_response_status unlockKey(EventuallyPersistentEngine *e,
                                                      protocol_binary_request_header *request,
                                                      const char **msg,
-                                                     size_t *msg_size)
+                                                     size_t *)
     {
-        (void) msg_size;
         protocol_binary_request_no_extras *req =
             (protocol_binary_request_no_extras*)request;
 
@@ -641,10 +636,8 @@ extern "C" {
         return ENGINE_SUCCESS;
     }
 
-    static void EvpItemSetCas(ENGINE_HANDLE* handle, const void *cookie,
+    static void EvpItemSetCas(ENGINE_HANDLE* , const void *,
                               item *item, uint64_t cas) {
-        (void)handle;
-        (void)cookie;
         static_cast<Item*>(item)->setCas(cas);
     }
 
@@ -746,11 +739,9 @@ extern "C" {
         return NULL;
     }
 
-    static bool EvpGetItemInfo(ENGINE_HANDLE *handle, const void *cookie,
+    static bool EvpGetItemInfo(ENGINE_HANDLE *, const void *,
                                const item* item, item_info *item_info)
     {
-        (void)handle;
-        (void)cookie;
         const Item *it = reinterpret_cast<const Item*>(item);
         if (item_info->nvalue < 1) {
             return false;
@@ -1232,8 +1223,7 @@ class AllFlusher : public DispatcherCallback {
 public:
     AllFlusher(EventuallyPersistentStore *st, TapConnMap &tcm)
         : epstore(st), tapConnMap(tcm) { }
-    bool callback(Dispatcher &d, TaskId t) {
-        (void)d; (void)t;
+    bool callback(Dispatcher &, TaskId) {
         doFlush();
         return false;
     }
@@ -1253,9 +1243,7 @@ private:
 };
 /// @endcond
 
-ENGINE_ERROR_CODE EventuallyPersistentEngine::flush(const void *cookie, time_t when) {
-    (void)cookie;
-
+ENGINE_ERROR_CODE EventuallyPersistentEngine::flush(const void *, time_t when) {
     shared_ptr<AllFlusher> cb(new AllFlusher(epstore, tapConnMap));
     if (when == 0) {
         cb->doFlush();
@@ -1655,7 +1643,7 @@ void EventuallyPersistentEngine::createTapQueue(const void *cookie,
 ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
                                                         void *engine_specific,
                                                         uint16_t nengine,
-                                                        uint8_t ttl,
+                                                        uint8_t, // ttl
                                                         uint16_t tap_flags,
                                                         tap_event_t tap_event,
                                                         uint32_t tap_seqno,
@@ -1663,7 +1651,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
                                                         size_t nkey,
                                                         uint32_t flags,
                                                         uint32_t exptime,
-                                                        uint64_t cas,
+                                                        uint64_t, // cas
                                                         const void *data,
                                                         size_t ndata,
                                                         uint16_t vbucket)
@@ -1687,7 +1675,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
     } else {
         connection = reinterpret_cast<TapConnection *>(specific);
     }
-    (void)ttl;
 
     std::string k(static_cast<const char*>(key), nkey);
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
@@ -1726,8 +1713,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
             Item *item = new Item(k, flags, exptime, vblob);
             item->setVBucketId(vbucket);
 
-            /* @TODO we don't have CAS now.. we might in the future.. */
-            (void)cas;
             ret = epstore->set(*item, cookie, true);
             if (ret == ENGINE_SUCCESS) {
                 addMutationEvent(item, vbucket);
@@ -1879,10 +1864,7 @@ public:
         connMap.performTapOp(name, notifyOp, engine);
     }
 
-    bool callback(Dispatcher &d, TaskId t) {
-        (void)d;
-        (void)t;
-
+    bool callback(Dispatcher &, TaskId) {
         store->dump(vbucket, *this);
         CompleteDiskBackfillTapOperation op;
         connMap.performTapOp(name, op, static_cast<void*>(NULL));

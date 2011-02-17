@@ -306,9 +306,8 @@ void MultiTableSqliteStrategy::destroyStatements() {
 // ----------------------------------------------------------------------
 //
 
-Statements *ShardedMultiTableSqliteStrategy::getStatements(uint16_t vbid, uint16_t vbver,
+Statements *ShardedMultiTableSqliteStrategy::getStatements(uint16_t vbid, uint16_t,
                                                            const std::string &key) {
-    (void)vbver;
     size_t shard(getDbShardIdForKey(key));
     assert(static_cast<size_t>(shard) < statementsPerShard.size());
     assert(static_cast<size_t>(vbid) < statementsPerShard[shard].size());

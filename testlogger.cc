@@ -9,12 +9,9 @@ static const char* test_get_logger_name(void) {
     return "testlogger";
 }
 
-static void test_get_logger_log(EXTENSION_LOG_LEVEL severity,
-                                const void* client_cookie,
-                                const char *fmt, ...) {
-    (void)severity;
-    (void)client_cookie;
-    (void)fmt;
+static void test_get_logger_log(EXTENSION_LOG_LEVEL,
+                                const void* , // cookie
+                                const char *, ...) {
     // ignore
 }
 }

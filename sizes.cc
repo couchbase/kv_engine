@@ -58,9 +58,7 @@ static void display(const char *name, const Histogram<T> &histo) {
     std::for_each(histo.begin(), histo.end(), histo_for_inner<T>());
 }
 
-int main(int argc, char **argv) {
-    (void)argc; (void)argv;
-
+int main(int, char **) {
     std::string s();
 
     display("GIGANTOR", GIGANTOR);

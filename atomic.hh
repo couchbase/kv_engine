@@ -130,8 +130,7 @@ public:
         return ep_sync_add_and_fetch(&value, 1);
     }
 
-    T operator ++(int ignored) { // postfix
-        (void)ignored;
+    T operator ++(int) { // postfix
         return ep_sync_fetch_and_add(&value, 1);
     }
 
@@ -139,8 +138,7 @@ public:
         return ep_sync_add_and_fetch(&value, -1);
     }
 
-    T operator --(int ignored) { // postfix
-        (void)ignored;
+    T operator --(int) { // postfix
         return ep_sync_fetch_and_add(&value, -1);
     }
 
@@ -308,7 +306,7 @@ template <class T> class RCPtr;
 class RCValue {
 public:
     RCValue() : _rc_refcount(0) {}
-    RCValue(const RCValue &other) : _rc_refcount(0) {(void)other;}
+    RCValue(const RCValue &) : _rc_refcount(0) {}
     ~RCValue() {}
 private:
     template <class TT> friend class RCPtr;

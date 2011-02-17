@@ -248,9 +248,7 @@ public:
 
     }
 
-    bool callback(Dispatcher &d, TaskId t) {
-        (void)d;
-        (void)t;
+    bool callback(Dispatcher &, TaskId) {
         const void *cookie = connection.getCookie();
         connection.setSuspended(false);
         if (cookie) {
@@ -443,9 +441,7 @@ public:
         assert(cookie);
     }
 
-    bool callback(Dispatcher &d, TaskId t) {
-        (void)d; (void)t;
-
+    bool callback(Dispatcher & d, TaskId t) {
         start = gethrtime();
         RememberingCallback<GetValue> gcb;
 
@@ -636,9 +632,8 @@ void TapProducer::addStats(ADD_STAT add_stat, const void *c) {
      }
 }
 
-void TapProducer::processedEvent(tap_event_t event, ENGINE_ERROR_CODE ret)
+void TapProducer::processedEvent(tap_event_t event, ENGINE_ERROR_CODE)
 {
-    (void)ret;
     assert(event == TAP_ACK);
 }
 
