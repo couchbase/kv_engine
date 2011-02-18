@@ -48,7 +48,13 @@ bool StoredValue::restoreValue(value_t v, EPStats &stats, HashTable &ht) {
     if (!isResident()) {
         size_t oldsize = size();
         assert(v);
-        assert(v->length() == valLength());
+        if (v->length() != valLength()) {
+            int diff(static_cast<int>(valLength()) - // expected
+                     static_cast<int>(v->length())); // got
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                             "Object unexpectedly changed size by %d bytes\n",
+                             diff);
+        }
         extra.feature.resident = true;
         value = v;
 
