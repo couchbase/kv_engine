@@ -3817,26 +3817,32 @@ static enum test_result test_sync_bad_flags(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
 static enum test_result test_sync_persistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const key_spec_t keyspecs[] = {
         {0, 0, "key1"}, {0, 0, "key2"}, {0, 0, "key3"},
-        {0, 0, "key4"}, {0, 0, "key5"}, {0, 0, "key6"},
-        {0, 0, "key7"}, {0, 0, "key8"}, {0, 0, "key9"}
+        {0, 0, "key4"}, {0, 0, "key5"}, {666, 0, "key6"},
+        {0, 0, "key7"}, {0, 0, "key8"}, {0, 0, "NonExistentKey"}
     };
     const uint16_t nkeys = 9;
     pthread_t threads[nkeys];
     protocol_binary_request_header *pkt = create_sync_packet(0x00000008, nkeys, keyspecs);
     std::vector<set_key_thread_params*> params;
 
-    for (int i = 0; i < nkeys; i++) {
+    for (int i = 0; i < (nkeys - 1); i++) {
         set_key_thread_params *p = (set_key_thread_params *) malloc(sizeof(set_key_thread_params));
         p->h = h;
         p->h1 = h1;
         p->keyspec = &keyspecs[i];
         p->value = "qwerty";
-        p->iterations = 50;
+        p->iterations = 10;
         params.push_back(p);
     }
 
-    for (int i = 0; i < nkeys; i++) {
+    for (int i = 0; i < (nkeys - 1); i++) {
         int r = pthread_create(&threads[i], NULL, conc_set_key_thread, params[i]);
+        assert(r == 0);
+    }
+
+    for (int i = 0; i < (nkeys - 1); i++) {
+        void *trv = NULL;
+        int r = pthread_join(threads[i], &trv);
         assert(r == 0);
     }
 
@@ -3853,12 +3859,6 @@ static enum test_result test_sync_persistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
             check(false, "unexpected engine error code");
         }
     } while((count < 12) && (engine_code != ENGINE_SUCCESS));
-
-    for (int i = 0; i < nkeys; i++) {
-        void *trv = NULL;
-        int r = pthread_join(threads[i], &trv);
-        assert(r == 0);
-    }
 
     // verify the response sent to the client is correct
     char *response = last_body;
@@ -3898,14 +3898,27 @@ static enum test_result test_sync_persistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
         key_spec_t keyspec = { cas, vbid, key.c_str() };
         offset += keylen;
 
-        check(cas == 0, "right cas");
         check(vbid == 0, "right vbucket id");
-        check(eventid == SYNC_PERSISTED_EVENT, "right event id");
         check(keyset.find(keyspec) != keyset.end(), "key sent in the request");
+
+        if (key == "key6") {
+            check(cas == 666, "right cas");
+            check(eventid == SYNC_INVALID_CAS,
+                  "right event id (SYNC_INVALID_CAS)");
+        } else if (key == "NonExistentKey") {
+            check(cas == 0, "right cas");
+            check(eventid == SYNC_INVALID_KEY,
+                  "right event id (SYNC_INVALID_KEY)");
+        } else {
+            check(cas == 0, "right cas");
+            check(eventid == SYNC_PERSISTED_EVENT,
+                  "right event id (SYNC_PERSISTED_EVENT)");
+        }
     }
 
-    for (int i = 0; i < nkeys; i++) {
-        free(params[i]);
+    std::vector<set_key_thread_params*>::iterator it = params.begin();
+    for ( ; it != params.end(); it++) {
+        free(*it);
     }
 
     free(pkt);

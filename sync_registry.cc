@@ -63,7 +63,7 @@ void SyncRegistry::notifyListeners(const QueuedItem &item) {
 
 SyncListener::SyncListener(EventuallyPersistentEngine &epEngine,
                            const void *c,
-                           const std::set<key_spec_t> &keys,
+                           std::set<key_spec_t> *keys,
                            sync_type_t sync_type,
                            uint8_t replicaCount) :
     engine(epEngine), cookie(c), keySpecs(keys),
@@ -74,14 +74,19 @@ SyncListener::SyncListener(EventuallyPersistentEngine &epEngine,
 }
 
 
+SyncListener::~SyncListener() {
+    delete keySpecs;
+}
+
+
 bool SyncListener::keySynced(key_spec_t &key) {
     bool finished = false;
-    std::set<key_spec_t>::iterator it = keySpecs.find(key);
+    std::set<key_spec_t>::iterator it = keySpecs->find(key);
 
-    if (it != keySpecs.end()) {
+    if (it != keySpecs->end()) {
         key.cas = it->cas;
         persistedKeys.insert(key);
-        finished = (persistedKeys.size() == keySpecs.size());
+        finished = (persistedKeys.size() == keySpecs->size());
 
         if (finished) {
             engine.getServerApi()->cookie->store_engine_specific(cookie, this);

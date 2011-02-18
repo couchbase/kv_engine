@@ -1073,6 +1073,28 @@ bool EventuallyPersistentStore::getLocked(const std::string &key,
     return true;
 }
 
+StoredValue* EventuallyPersistentStore::getStoredValue(const std::string &key,
+                                                       uint16_t vbucket,
+                                                       bool honorStates) {
+    RCPtr<VBucket> vb = getVBucket(vbucket);
+    if (!vb) {
+        ++stats.numNotMyVBuckets;
+        return NULL;
+    } else if (honorStates && vb->getState() == vbucket_state_dead) {
+        ++stats.numNotMyVBuckets;
+        return NULL;
+    } else if (vb->getState() == vbucket_state_active) {
+        // OK
+    } else if(honorStates && vb->getState() == vbucket_state_replica) {
+        ++stats.numNotMyVBuckets;
+        return NULL;
+    }
+
+    int bucket_num(0);
+    LockHolder lh = vb->ht.getLockedBucket(key, &bucket_num);
+    return fetchValidValue(vb, key, bucket_num);
+}
+
 ENGINE_ERROR_CODE
 EventuallyPersistentStore::unlockKey(const std::string &key,
                                      uint16_t vbucket,
@@ -1794,7 +1816,7 @@ void TransactionContext::commit() {
     stats.commit_time.set(complete_time - cstart);
     stats.cumulativeCommitTime.incr(complete_time - cstart);
     intxn = false;
-    syncRegistry->itemsPersisted(uncommittedItems);
+    syncRegistry.itemsPersisted(uncommittedItems);
     uncommittedItems.clear();
 }
 

@@ -74,9 +74,11 @@ public:
 
     SyncListener(EventuallyPersistentEngine &epEngine,
                  const void *c,
-                 const std::set<key_spec_t> &keys,
+                 std::set<key_spec_t> *keys,
                  sync_type_t sync_type,
                  uint8_t replicaCount = 0);
+
+    ~SyncListener();
 
     bool keySynced(key_spec_t &keyspec);
 
@@ -88,14 +90,24 @@ public:
         return persistedKeys;
     }
 
+    std::set<key_spec_t>& getNonExistentKeys() {
+        return nonExistentKeys;
+    }
+
+    std::set<key_spec_t>& getInvalidCasKeys() {
+        return invalidCasKeys;
+    }
+
 private:
 
     EventuallyPersistentEngine   &engine;
     const void                   *cookie;
-    std::set<key_spec_t>         keySpecs;
+    std::set<key_spec_t>         *keySpecs;
     sync_type_t                  syncType;
     uint8_t                      replicas;
     std::set<key_spec_t>         persistedKeys;
+    std::set<key_spec_t>         nonExistentKeys;
+    std::set<key_spec_t>         invalidCasKeys;
 };
 
 
