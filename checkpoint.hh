@@ -209,8 +209,9 @@ public:
      * Queue an item to be written to persistent layer.
      * @param item the item to be persisted.
      * @param vbucket the vbucket that a new item is pushed into.
+     * @return true if an item queued increases the size of persistence queue by 1.
      */
-    void queueDirty(queued_item item, const RCPtr<VBucket> &vbucket);
+    bool queueDirty(queued_item item, const RCPtr<VBucket> &vbucket);
 
     /**
      * Return the next item to be sent to a given TAP connection
@@ -249,6 +250,11 @@ public:
     size_t getNumItemsForPersistence() {
         return numItems - persistenceCursorOffset;
     }
+
+    /**
+     * Clear all the checkpoints managed by this checkpoint manager.
+     */
+    void clear();
 
     static void initializeCheckpointConfig(rel_time_t checkpoint_period,
                                            size_t checkpoint_max_items) {

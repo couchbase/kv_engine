@@ -3,6 +3,8 @@
 #define QUEUEDITEM_HH 1
 
 #include "common.hh"
+#include "item.hh"
+#include "stats.hh"
 
 enum queue_operation {
     queue_op_set,
@@ -23,35 +25,61 @@ typedef enum {
  */
 class QueuedItem {
 public:
-    QueuedItem(const std::string &k, const uint16_t vb,
-               enum queue_operation o, const uint16_t vb_version = -1,
-               const int64_t rid = -1)
-        : key(k), op(o), vbucket(vb), vbucket_version(vb_version),
-          row_id(rid), dirtied(ep_current_time()) {}
+    QueuedItem(const std::string &k, const uint16_t vb, enum queue_operation o,
+               const uint16_t vb_version = -1, const int64_t rid = -1, const uint32_t f = 0,
+               const time_t expiry_time = 0, const uint64_t cv = 0)
+        : op(o),vbucket_version(vb_version), queued(ep_current_time()),
+          dirtied(ep_current_time()), item(new Item(k, f, expiry_time, NULL, 0, cv, rid, vb)) { }
 
-    const std::string &getKey(void) const { return key; }
-    uint16_t getVBucketId(void) const { return vbucket; }
+    QueuedItem(const std::string &k, value_t v, const uint16_t vb, enum queue_operation o,
+               const uint16_t vb_version = -1, const int64_t rid = -1, const uint32_t f = 0,
+               const time_t expiry_time = 0, const uint64_t cv = 0)
+        : op(o), vbucket_version(vb_version), queued(ep_current_time()),
+          dirtied(ep_current_time()), item(new Item(k, f, expiry_time, v, cv, rid, vb)) { }
+
+    ~QueuedItem() { }
+
+    const std::string &getKey(void) const { return item->getKey(); }
+    uint16_t getVBucketId(void) const { return item->getVBucketId(); }
     uint16_t getVBucketVersion(void) const { return vbucket_version; }
-    rel_time_t getDirtied(void) const { return dirtied; }
+    uint32_t getQueuedTime(void) const { return queued; }
     enum queue_operation getOperation(void) const { return op; }
+    int64_t getRowId() const { return item->getId(); }
+    uint32_t getDirtiedTime() const { return dirtied; }
+    uint32_t getFlags() const { return item->getFlags(); }
+    time_t getExpiryTime() const { return item->getExptime(); }
+    uint64_t getCas() const { return item->getCas(); }
+    value_t getValue() const { return item->getValue(); }
+    Item &getItem() { return *item; }
+
+    void setQueuedTime(uint32_t queued_time) {
+        queued = queued_time;
+    }
 
     bool operator <(const QueuedItem &other) const {
-        return vbucket == other.vbucket ? key < other.key : vbucket < other.vbucket;
+        return getVBucketId() == other.getVBucketId() ?
+            getKey() < other.getKey() : getVBucketId() < other.getVBucketId();
     }
 
     size_t size() const {
-        return sizeof(QueuedItem) + key.size();
+        return sizeof(QueuedItem) + item->size();
     }
 
-    int64_t getRowId() { return row_id; }
+    static void init(EPStats * st) {
+        stats = st;
+    }
 
 private:
-    std::string key;
     enum queue_operation op;
-    uint16_t vbucket;
     uint16_t vbucket_version;
-    int64_t row_id;
-    rel_time_t dirtied;
+    uint32_t queued;
+
+    // Additional variables below are required to support the checkpoint and cursors
+    // as memory hashtable always contains the latest value and latest meta data for each key.
+    uint32_t dirtied;
+    shared_ptr<Item> item;
+
+    static EPStats *stats;
 };
 
 typedef shared_ptr<QueuedItem> queued_item;
@@ -73,8 +101,8 @@ public:
 class CompareQueuedItemsByRowId {
 public:
     CompareQueuedItemsByRowId() {}
-    bool operator()(QueuedItem i1, QueuedItem i2) {
-        return i1.getRowId() < i2.getRowId();
+    bool operator()(const queued_item &i1, const queued_item &i2) {
+        return i1->getRowId() < i2->getRowId();
     }
 };
 
@@ -84,10 +112,10 @@ public:
 class CompareQueuedItemsByVBAndRowId {
 public:
     CompareQueuedItemsByVBAndRowId() {}
-    bool operator()(QueuedItem i1, QueuedItem i2) {
-        return i1.getVBucketId() == i2.getVBucketId()
-            ? i1.getRowId() < i2.getRowId()
-            : i1.getVBucketId() < i2.getVBucketId();
+    bool operator()(const queued_item &i1, const queued_item &i2) {
+        return i1->getVBucketId() == i2->getVBucketId()
+            ? i1->getRowId() < i2->getRowId()
+            : i1->getVBucketId() < i2->getVBucketId();
     }
 };
 

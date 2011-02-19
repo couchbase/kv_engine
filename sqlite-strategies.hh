@@ -77,7 +77,7 @@ public:
 
     virtual void destroyTables() = 0;
 
-    virtual void optimizeWrites(std::vector<QueuedItem> &items) {
+    virtual void optimizeWrites(std::vector<queued_item> &items) {
         (void)items;
     }
 
@@ -182,7 +182,7 @@ public:
     void destroyStatements();
     virtual void destroyTables();
 
-    void optimizeWrites(std::vector<QueuedItem> &items) {
+    void optimizeWrites(std::vector<queued_item> &items) {
         // Sort all the queued items for each db shard by their row ids
         CompareQueuedItemsByRowId cq;
         std::sort(items.begin(), items.end(), cq);
@@ -305,7 +305,7 @@ public:
                       std::mem_fun(&PreparedStatement::reset));
     }
 
-    void optimizeWrites(std::vector<QueuedItem> &items) {
+    void optimizeWrites(std::vector<queued_item> &items) {
         // Sort all the queued items for each db shard by its vbucket
         // ID and then its row ids
         CompareQueuedItemsByVBAndRowId cq;

@@ -47,6 +47,8 @@ queue_dirty_t Checkpoint::queueDirty(queued_item item, CheckpointManager *checkp
                 --(map_it->second.currentPos);
             }
         }
+        // Copy the queued time of the existing item to the new one.
+        item->setQueuedTime((*currPos)->getQueuedTime());
         // Remove the existing item for the same key from the list.
         toWrite.erase(currPos);
         rv = EXISTING_ITEM;
@@ -187,13 +189,15 @@ uint64_t CheckpointManager::removeClosedUnrefCheckpoints(std::set<queued_item,
     return checkpoint_id;
 }
 
-void CheckpointManager::queueDirty(queued_item item, const RCPtr<VBucket> &vbucket) {
+bool CheckpointManager::queueDirty(queued_item item, const RCPtr<VBucket> &vbucket) {
     LockHolder lh(queueLock);
     // The current open checkpoint should be always the last one in the checkpoint list.
     assert(checkpointList.back()->getState() == opened);
+    size_t numItemsBefore = getNumItemsForPersistence();
     if (checkpointList.back()->queueDirty(item, this) == NEW_ITEM) {
         ++numItems;
     }
+    size_t numItemsAfter = getNumItemsForPersistence();
 
     assert(vbucket);
     if (vbucket->getState() == vbucket_state_active) {
@@ -201,6 +205,8 @@ void CheckpointManager::queueDirty(queued_item item, const RCPtr<VBucket> &vbuck
     }
     // Note that the creation of a new checkpoint on the replica vbucket will be controlled by TAP
     // mutation messages from the active vbucket, which contain the checkpoint Ids.
+
+    return (numItemsAfter - numItemsBefore) > 0 ? true : false;
 }
 
 uint64_t CheckpointManager::getAllItemsFromCurrentPosition(CheckpointCursor &cursor,
@@ -321,4 +327,34 @@ uint64_t CheckpointManager::checkOpenCheckpoint() {
         addNewCheckpoint_UNLOCKED(nextCheckpointId++);
     }
     return checkpointId;
+}
+
+void CheckpointManager::clear() {
+    LockHolder lh(queueLock);
+    std::list<Checkpoint*>::iterator it = checkpointList.begin();
+    // Remove all the checkpoints.
+    while(it != checkpointList.end()) {
+        delete *it;
+        ++it;
+    }
+    checkpointList.clear();
+    // Add a new open checkpoint.
+    addNewCheckpoint_UNLOCKED(nextCheckpointId++);
+
+    // Reset the persistence cursor.
+    persistenceCursor.currentCheckpoint = checkpointList.begin();
+    persistenceCursor.currentPos = checkpointList.front()->begin();
+    checkpointList.front()->incrReferenceCounter();
+
+    // Reset all the persistence cursors.
+    std::map<const std::string, CheckpointCursor>::iterator cit = tapCursors.begin();
+    for (; cit != tapCursors.end(); ++cit) {
+        cit->second.currentCheckpoint = checkpointList.begin();
+        cit->second.currentPos = checkpointList.front()->begin();
+        checkpointList.front()->incrReferenceCounter();
+    }
+
+    numItems = 0;
+    persistenceCursorOffset = 0;
+    mutationCounter = 0;
 }

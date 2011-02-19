@@ -127,7 +127,7 @@ void VBucket::doStatsForQueueing(QueuedItem& item, size_t itemBytes)
     ++dirtyQueueSize;
     dirtyQueueMem.incr(sizeof(QueuedItem));
     ++dirtyQueueFill;
-    dirtyQueueAge.incr(item.getDirtied());
+    dirtyQueueAge.incr(item.getQueuedTime());
     dirtyQueuePendingWrites.incr(itemBytes);
 }
 
@@ -144,8 +144,8 @@ void VBucket::doStatsForFlushing(QueuedItem& item, size_t itemBytes)
     }
     ++dirtyQueueDrain;
 
-    if (dirtyQueueAge > item.getDirtied()) {
-        dirtyQueueAge.decr(item.getDirtied());
+    if (dirtyQueueAge > item.getQueuedTime()) {
+        dirtyQueueAge.decr(item.getQueuedTime());
     } else {
         dirtyQueueAge.set(0);
     }

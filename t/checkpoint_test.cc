@@ -19,6 +19,7 @@
 #define NUM_ITEMS 50000
 
 EPStats global_stats;
+EPStats *QueuedItem::stats = &global_stats;
 
 struct thread_args {
     SyncObject *mutex;

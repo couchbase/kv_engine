@@ -96,12 +96,12 @@ private:
     const char * stateName(enum flusher_state st) const;
 
     // Current flush cycle state.
-    int                     flushRv;
-    int                     prevFlushRv;
-    double                  minSleepTime;
-    std::queue<QueuedItem> *flushQueue;
-    std::queue<QueuedItem> *rejectQueue;
-    rel_time_t              flushStart;
+    int                      flushRv;
+    int                      prevFlushRv;
+    double                   minSleepTime;
+    std::queue<queued_item> *flushQueue;
+    std::queue<queued_item> *rejectQueue;
+    rel_time_t               flushStart;
 
     DISALLOW_COPY_AND_ASSIGN(Flusher);
 };

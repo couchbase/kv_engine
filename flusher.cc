@@ -228,7 +228,7 @@ int Flusher::doFlush() {
         if (flushQueue) {
             getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
                              "Beginning a write queue flush.\n");
-            rejectQueue = new std::queue<QueuedItem>();
+            rejectQueue = new std::queue<queued_item>();
             flushStart = ep_current_time();
         }
     }

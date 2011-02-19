@@ -239,7 +239,7 @@ public:
      * Before persisting a batch of data, do stuf to them that might
      * improve performance at the IO layer.
      */
-    virtual void optimizeWrites(std::vector<QueuedItem> &items) = 0;
+    virtual void optimizeWrites(std::vector<queued_item> &items) = 0;
 
 };
 

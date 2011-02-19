@@ -740,7 +740,9 @@ private:
 
     /* Queue an item to be written to persistent layer. */
     void queueDirty(const std::string &key, uint16_t vbid,
-                    enum queue_operation op, int64_t obid=-1, size_t itemBytes = 0);
+                    enum queue_operation op, value_t value,
+                    uint32_t flags = 0, time_t exptime = 0, uint64_t cas = 0,
+                    int64_t rowid = -1, size_t itemBytes = 0);
 
     /**
      * Retrieve a StoredValue and invoke a method on it.
@@ -776,17 +778,17 @@ private:
         return v != NULL;
     }
 
-    std::queue<QueuedItem> *beginFlush();
-    void completeFlush(std::queue<QueuedItem> *rejects,
+    std::queue<queued_item> *beginFlush();
+    void completeFlush(std::queue<queued_item> *rejects,
                        rel_time_t flush_start);
 
     void enqueueCommit();
-    int flushSome(std::queue<QueuedItem> *q,
-                  std::queue<QueuedItem> *rejectQueue);
-    int flushOne(std::queue<QueuedItem> *q,
-                 std::queue<QueuedItem> *rejectQueue);
+    int flushSome(std::queue<queued_item> *q,
+                  std::queue<queued_item> *rejectQueue);
+    int flushOne(std::queue<queued_item> *q,
+                 std::queue<queued_item> *rejectQueue);
     int flushOneDeleteAll(void);
-    int flushOneDelOrSet(QueuedItem &qi, std::queue<QueuedItem> *rejectQueue);
+    int flushOneDelOrSet(queued_item qi, std::queue<queued_item> *rejectQueue);
 
     StoredValue *fetchValidValue(RCPtr<VBucket> vb, const std::string &key,
                                  int bucket_num, bool wantsDeleted=false);
@@ -797,13 +799,7 @@ private:
                 && !hasSeparateRODispatcher());
     }
 
-    size_t getWriteQueueSize(void) {
-        size_t size = 0;
-        for (size_t i = 0; i < numbOfWriteQueues; ++i) {
-            size += towrite[i].size();
-        }
-        return size;
-    }
+    size_t getWriteQueueSize(void);
 
     friend class Flusher;
     friend class BGFetchCallback;
@@ -827,14 +823,13 @@ private:
     InvalidItemDbPager        *invalidItemDbPager;
     VBucketMap                 vbuckets;
     SyncObject                 mutex;
-    AtomicQueue<QueuedItem>   *towrite;
-    std::queue<QueuedItem>     writing;
+    std::queue<queued_item>    writing;
     pthread_t                  thread;
     Atomic<size_t>             bgFetchQueue;
+    Atomic<size_t>             flushAllCount;
     TransactionContext         tctx;
     Mutex                      vbsetMutex;
     uint32_t                   bgFetchDelay;
-    size_t                     numbOfWriteQueues;
 
     DISALLOW_COPY_AND_ASSIGN(EventuallyPersistentStore);
 };

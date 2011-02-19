@@ -239,6 +239,10 @@ public:
         return false;
     }
 
+    size_t size() {
+        return sizeof(Item) + key.size() + value->length();
+    }
+
 private:
     /**
      * Set the item's data. This is only used by constructors, so we

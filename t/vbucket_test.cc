@@ -16,6 +16,7 @@ static const size_t numThreads = 10;
 static const size_t vbucketsEach = 100;
 
 EPStats global_stats;
+EPStats *QueuedItem::stats = &global_stats;
 
 extern "C" {
     static rel_time_t basic_current_time(void) {

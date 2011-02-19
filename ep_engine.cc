@@ -1224,6 +1224,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         stats.mem_low_wat = memLowWat;
         stats.mem_high_wat = memHighWat;
 
+        QueuedItem::init(&stats);
+
         databaseInitTime = ep_real_time() - start;
         epstore = new EventuallyPersistentStore(*this, kvstore, startVb0,
                                                 concurrentDB);
