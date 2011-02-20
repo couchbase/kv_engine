@@ -371,6 +371,20 @@ private:
         return queueSize;
     }
 
+    bool shouldNotify() {
+        bool ret = false;
+        // Don't notify if we've got a pending notification
+        if (!notifySent) {
+            // Always notify for disconnects, but only disconnect if
+            // we're paused and got data to send
+            if (doDisconnect || (paused && !empty())) {
+                ret = true;
+            }
+        }
+
+        return ret;
+    }
+
     Item* nextFetchedItem();
 
     void flush() {

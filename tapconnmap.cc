@@ -284,11 +284,9 @@ void TapConnMap::notifyIOThreadMain(EventuallyPersistentEngine *engine) {
     // Collect the list of connections that need to be signaled.
     std::list<const void *> toNotify;
     for (iter = map.begin(); iter != map.end(); ++iter) {
-        if (iter->second->paused || iter->second->doDisconnect) {
-            if (!iter->second->notifySent) {
-                iter->second->notifySent = true;
-                toNotify.push_back(iter->first);
-            }
+        if (iter->second->shouldNotify()) {
+            iter->second->notifySent = true;
+            toNotify.push_back(iter->first);
         }
     }
 
