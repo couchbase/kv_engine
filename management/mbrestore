@@ -43,7 +43,7 @@ def worker(queue, opts):
             k, flags, exptime, v = queue.get()
             while True:
                 try:
-                    update(str(k), flags, exptime, str(v))
+                    update(str(k), exptime, flags, str(v))
                 except mc_bin_client.MemcachedError, error:
                     if error.status == 2:
                         # Already exists
