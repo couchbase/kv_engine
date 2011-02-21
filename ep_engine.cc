@@ -3133,15 +3133,16 @@ void EventuallyPersistentEngine::sync(std::set<key_spec_t> *keys,
             syncListener->getNonExistentKeys().insert(*it);
             keys->erase(it);
         } else {
-            if ((syncType == PERSIST) && sv->isClean()) {
-                syncListener->getPersistedKeys().insert(*it);
+            if ((it->cas != 0) && (sv->getCas() != it->cas)) {
+                syncListener->getInvalidCasKeys().insert(*it);
                 keys->erase(it);
                 continue;
             }
 
-            if ((it->cas != 0) && (sv->getCas() != it->cas)) {
-                syncListener->getInvalidCasKeys().insert(*it);
+            if ((syncType == PERSIST) && sv->isClean()) {
+                syncListener->getPersistedKeys().insert(*it);
                 keys->erase(it);
+                continue;
             }
         }
     }
