@@ -3782,6 +3782,44 @@ create_sync_packet(uint32_t flags, uint16_t nkeys, const key_spec_t keyspecs[]) 
     return req;
 }
 
+static std::list< std::pair<key_spec_t, uint8_t> > parse_sync_response(char *response) {
+    std::list< std::pair<key_spec_t, uint8_t> > resp;
+    uint16_t nkeys;
+    size_t offset = 0;
+
+    memcpy(&nkeys, response + offset, sizeof(uint16_t));
+    nkeys = ntohs(nkeys);
+    offset += sizeof(uint16_t);
+
+    for (int i = 0; i < nkeys; i++) {
+        uint64_t cas;
+        uint16_t vbid;
+        uint16_t keylen;
+        uint8_t eventid;
+
+        memcpy(&cas, response + offset, sizeof(uint64_t));
+        cas = ntohll(cas);
+        offset += sizeof(uint64_t);
+        memcpy(&vbid, response + offset, sizeof(uint16_t));
+        vbid = ntohs(vbid);
+        offset += sizeof(uint16_t);
+        memcpy(&keylen, response + offset, sizeof(uint16_t));
+        keylen = ntohs(keylen);
+        offset += sizeof(uint16_t);
+        memcpy(&eventid, response + offset, sizeof(uint8_t));
+        offset += sizeof(uint8_t);
+
+        std::string key(response + offset, keylen);
+        key_spec_t keyspec = { cas, vbid, key };
+        offset += keylen;
+
+        std::pair<key_spec_t, uint8_t> p(keyspec, eventid);
+        resp.push_back(p);
+    }
+
+    return resp;
+}
+
 static enum test_result test_sync_bad_flags(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const key_spec_t keyspecs[] = { {0, 0, "key1"}, {0, 0, "key2"} };
     const uint16_t nkeys = 2;
@@ -3846,71 +3884,38 @@ static enum test_result test_sync_persistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
         assert(r == 0);
     }
 
-    ENGINE_ERROR_CODE engine_code;
-    int count = 0;
-    do {
-        engine_code = h1->unknown_command(h, NULL, pkt, add_response);
-        if (engine_code == ENGINE_SUCCESS) {
-            // noop
-        } else if (engine_code == ENGINE_EWOULDBLOCK) {
-            count++;
-            usleep(10);
-        } else {
-            check(false, "unexpected engine error code");
-        }
-    } while((count < 12) && (engine_code != ENGINE_SUCCESS));
+    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
+          "SYNC on persistence command success");
 
     // verify the response sent to the client is correct
-    char *response = last_body;
-    uint16_t respNkeys;
-    size_t offset = 0;
+    std::list< std::pair<key_spec_t, uint8_t> > resp = parse_sync_response(last_body);
 
-    memcpy(&respNkeys, response + offset, sizeof(uint16_t));
-    respNkeys = ntohs(respNkeys);
-    offset += sizeof(uint16_t);
-
-    check(respNkeys == nkeys, "response has the same # of keys");
+    check(resp.size() == nkeys, "response has the same # of keys");
 
     std::set<key_spec_t> keyset;
     for (int i = 0; i < nkeys; i++) {
         keyset.insert(keyspecs[i]);
     }
 
-    for (int i = 0; i < nkeys; i++) {
-        uint64_t cas;
-        uint16_t vbid;
-        uint16_t keylen;
-        uint8_t eventid;
+    std::list< std::pair<key_spec_t, uint8_t> >::iterator itresp = resp.begin();
 
-        memcpy(&cas, response + offset, sizeof(uint64_t));
-        cas = ntohll(cas);
-        offset += sizeof(uint64_t);
-        memcpy(&vbid, response + offset, sizeof(uint16_t));
-        vbid = ntohs(vbid);
-        offset += sizeof(uint16_t);
-        memcpy(&keylen, response + offset, sizeof(uint16_t));
-        keylen = ntohs(keylen);
-        offset += sizeof(uint16_t);
-        memcpy(&eventid, response + offset, sizeof(uint8_t));
-        offset += sizeof(uint8_t);
+    for ( ; itresp != resp.end(); itresp++) {
+        key_spec_t keyspec = itresp->first;
+        uint8_t eventid = itresp->second;
 
-        std::string key(response + offset, keylen);
-        key_spec_t keyspec = { cas, vbid, key.c_str() };
-        offset += keylen;
-
-        check(vbid == 0, "right vbucket id");
+        check(keyspec.vbucketid == 0, "right vbucket id");
         check(keyset.find(keyspec) != keyset.end(), "key sent in the request");
 
-        if (key == "key6") {
-            check(cas == 666, "right cas");
+        if (keyspec.key == "key6") {
+            check(keyspec.cas == 666, "right cas");
             check(eventid == SYNC_INVALID_CAS,
                   "right event id (SYNC_INVALID_CAS)");
-        } else if (key == "NonExistentKey") {
-            check(cas == 0, "right cas");
+        } else if (keyspec.key == "NonExistentKey") {
+            check(keyspec.cas == 0, "right cas");
             check(eventid == SYNC_INVALID_KEY,
                   "right event id (SYNC_INVALID_KEY)");
         } else {
-            check(cas == 0, "right cas");
+            check(keyspec.cas == 0, "right cas");
             check(eventid == SYNC_PERSISTED_EVENT,
                   "right event id (SYNC_PERSISTED_EVENT)");
         }
@@ -3919,6 +3924,48 @@ static enum test_result test_sync_persistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
     std::vector<set_key_thread_params*>::iterator it = params.begin();
     for ( ; it != params.end(); it++) {
         free(*it);
+    }
+
+    free(pkt);
+
+    // test that sending a request with only invalid keys and/or mismatching key CAS'es
+    // doesn't block the client forever
+    const key_spec_t keyspecs2[] = { {0, 0, "fookey"}, {999, 0, "key1"} };
+    const uint16_t nkeys2 = 2;
+
+    pkt = create_sync_packet(0x00000008, nkeys2, keyspecs2);
+    check(
+          h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
+          "expected engine success");
+
+    // verify the response sent to the client is correct
+    resp = parse_sync_response(last_body);
+
+    check(resp.size() == nkeys2, "response has the same # of keys");
+
+    keyset.clear();
+    for (int i = 0; i < nkeys2; i++) {
+        keyset.insert(keyspecs2[i]);
+    }
+
+    for (itresp = resp.begin(); itresp != resp.end(); itresp++) {
+        key_spec_t keyspec = itresp->first;
+        uint8_t eventid = itresp->second;
+
+        check(keyspec.vbucketid == 0, "right vbucket id");
+        check(keyset.find(keyspec) != keyset.end(), "key sent in the request");
+
+        if (keyspec.key == "key1") {
+            check(keyspec.cas == 999, "right cas");
+            check(eventid == SYNC_INVALID_CAS,
+                  "right event id (SYNC_INVALID_CAS)");
+        } else if (keyspec.key == "fookey") {
+            check(keyspec.cas == 0, "right cas");
+            check(eventid == SYNC_INVALID_KEY,
+                  "right event id (SYNC_INVALID_KEY)");
+        } else {
+            check(false, "received unpextec key in the response");
+        }
     }
 
     free(pkt);

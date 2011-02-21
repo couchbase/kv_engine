@@ -459,8 +459,11 @@ public:
         return epstore->getLocked(key, vbucket, cb, currentTime, lockTimeout, cookie);
     }
 
-    void sync(std::set<key_spec_t> *keys, const void *cookie,
-              sync_type_t syncType, uint8_t replicas);
+    ENGINE_ERROR_CODE sync(std::set<key_spec_t> *keys,
+                           const void *cookie,
+                           sync_type_t syncType,
+                           uint8_t replicas,
+                           ADD_RESPONSE response);
 
     ENGINE_ERROR_CODE unlockKey(const std::string &key,
                                 uint16_t vbucket,

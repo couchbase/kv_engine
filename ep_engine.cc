@@ -536,9 +536,7 @@ extern "C" {
             keyset->insert(keyspec);
         }
 
-        e->sync(keyset, cookie, syncType, replicas);
-
-        return ENGINE_EWOULDBLOCK;
+        return e->sync(keyset, cookie, syncType, replicas, response);
     }
 
     static ENGINE_ERROR_CODE getVBucket(EventuallyPersistentEngine *e,
@@ -3117,10 +3115,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::touch(const void *cookie,
     return rv;
 }
 
-void EventuallyPersistentEngine::sync(std::set<key_spec_t> *keys,
-                                      const void *cookie,
-                                      sync_type_t syncType,
-                                      uint8_t replicas) {
+ENGINE_ERROR_CODE EventuallyPersistentEngine::sync(std::set<key_spec_t> *keys,
+                                                   const void *cookie,
+                                                   sync_type_t syncType,
+                                                   uint8_t replicas,
+                                                   ADD_RESPONSE response) {
 
     SyncListener *syncListener = new SyncListener(*this, cookie,
                                                   keys, syncType, replicas);
@@ -3147,7 +3146,25 @@ void EventuallyPersistentEngine::sync(std::set<key_spec_t> *keys,
         }
     }
 
+    if (keys->size() == 0) {
+        std::stringstream resp;
+
+        assembleSyncResponse(resp, syncListener);
+        getServerApi()->cookie->store_engine_specific(cookie, NULL);
+        delete syncListener;
+
+        std::string body = resp.str();
+        response(NULL, 0, NULL, 0,
+                 body.c_str(), static_cast<uint16_t>(body.length()),
+                 PROTOCOL_BINARY_RAW_BYTES,
+                 PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
+
+        return ENGINE_SUCCESS;
+    }
+
     syncRegistry.addPersistenceListener(syncListener);
+
+    return ENGINE_EWOULDBLOCK;
 }
 
 static bool parseSyncOptions(uint32_t flags, sync_type_t *syncType, uint8_t *replicas) {
