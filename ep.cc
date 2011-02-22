@@ -646,6 +646,7 @@ void EventuallyPersistentStore::setVBucketState(uint16_t vbid,
     RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
     if (vb) {
         vb->setState(to, engine.getServerApi());
+        lh.unlock();
         nonIODispatcher->schedule(shared_ptr<DispatcherCallback>
                                              (new NotifyVBStateChangeCallback(vb,
                                                                         engine)),
@@ -658,6 +659,7 @@ void EventuallyPersistentStore::setVBucketState(uint16_t vbid,
                                   0 : vb_version + 1;
         vbuckets.addBucket(newvb);
         vbuckets.setBucketVersion(vbid, vb_new_version);
+        lh.unlock();
         scheduleVBSnapshot(Priority::VBucketPersistHighPriority);
     }
 }
