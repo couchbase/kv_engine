@@ -1359,7 +1359,7 @@ ENGINE_ERROR_CODE  EventuallyPersistentEngine::store(const void *cookie,
         ret = epstore->set(*it, cookie);
         if (ret == ENGINE_SUCCESS) {
             *cas = it->getCas();
-            addMutationEvent(it, vbucket);
+            addMutationEvent(it);
         }
 
         break;
@@ -1368,7 +1368,7 @@ ENGINE_ERROR_CODE  EventuallyPersistentEngine::store(const void *cookie,
         ret = epstore->add(*it, cookie);
         if (ret == ENGINE_SUCCESS) {
             *cas = it->getCas();
-            addMutationEvent(it, vbucket);
+            addMutationEvent(it);
         }
         break;
 
@@ -1382,7 +1382,7 @@ ENGINE_ERROR_CODE  EventuallyPersistentEngine::store(const void *cookie,
             ret = epstore->set(*it, cookie);
             if (ret == ENGINE_SUCCESS) {
                 *cas = it->getCas();
-                addMutationEvent(it, vbucket);
+                addMutationEvent(it);
             }
             break;
         case ENGINE_KEY_ENOENT:
@@ -1423,7 +1423,7 @@ ENGINE_ERROR_CODE  EventuallyPersistentEngine::store(const void *cookie,
 
                 ret = store(cookie, old, cas, OPERATION_CAS, vbucket);
                 if (ret == ENGINE_SUCCESS) {
-                    addMutationEvent(static_cast<Item*>(i), vbucket);
+                    addMutationEvent(static_cast<Item*>(i));
                 }
                 itemRelease(cookie, i);
             }
@@ -1793,7 +1793,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
 
             ret = epstore->set(*item, cookie, true);
             if (ret == ENGINE_SUCCESS) {
-                addMutationEvent(item, vbucket);
+                addMutationEvent(item);
             } else if (ret == ENGINE_ENOMEM) {
                 if (connection->supportsAck()) {
                     ret = ENGINE_TMPFAIL;

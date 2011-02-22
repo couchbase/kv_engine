@@ -568,9 +568,9 @@ private:
         pendingTapNotifications.push(QueuedItem(str, vbid, op));
     }
 
-    void addMutationEvent(Item *it, uint16_t vbid) {
+    void addMutationEvent(Item *it) {
         // Currently we use the same queue for all kinds of events..
-        addEvent(it->getKey(), vbid, queue_op_set);
+        addEvent(it->getKey(), it->getVBucketId(), queue_op_set);
     }
 
     void addDeleteEvent(const std::string &key, uint16_t vbid) {
