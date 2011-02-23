@@ -712,6 +712,7 @@ private:
     size_t queueAgeCap;
     size_t itemExpiryWindow;
     size_t expiryPagerSleeptime;
+    size_t checkpointRemoverInterval;
     size_t nVBuckets;
     size_t dbShards;
     size_t vb_del_chunk_size;

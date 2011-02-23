@@ -25,6 +25,7 @@ const Priority Priority::VKeyStatBgFetcherPriority("vkey_stat_bg_fetcher_priorit
 const Priority Priority::FlushAllPriority("flush_all_priority", 3);
 const Priority Priority::NotifyVBStateChangePriority("notify_vb_state_change_priority", 4);
 const Priority Priority::FlusherPriority("flusher_priority", 5);
+const Priority Priority::CheckpointRemoverPriority("checkpoint_remover_priority", 6);
 const Priority Priority::ItemPagerPriority("item_pager_priority", 7);
 const Priority Priority::VBucketDeletionPriority("vbucket_deletion_priority", 9);
 const Priority Priority::VBucketPersistLowPriority("vbucket_persist_low_priority", 9);

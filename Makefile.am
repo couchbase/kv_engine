@@ -25,6 +25,8 @@ ep_la_SOURCES = \
                  callbacks.hh \
                  checkpoint.hh \
                  checkpoint.cc \
+                 checkpoint_remover.hh \
+                 checkpoint_remover.cc \
                  command_ids.h \
                  common.hh \
                  config_static.h \

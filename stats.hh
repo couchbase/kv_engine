@@ -100,6 +100,10 @@ public:
     Atomic<size_t> pagerRuns;
     //! Number of times the expiry pager runs for purging expired items
     Atomic<size_t> expiryPagerRuns;
+    //! Number of times the checkpoint remover runs for removing closed unreferenced checkpoints.
+    Atomic<size_t> checkpointRemoverRuns;
+    //! Number of items removed from closed unreferenced checkpoints.
+    Atomic<size_t> itemsRemovedFromCheckpoints;
     //! Number of times a value is ejected
     Atomic<size_t> numValueEjects;
     //! Number of times a replica value is ejected
@@ -290,6 +294,8 @@ public:
         flushDurationHighWat.set(0);
         commit_time.set(0);
         pagerRuns.set(0);
+        checkpointRemoverRuns.set(0);
+        itemsRemovedFromCheckpoints.set(0);
         numValueEjects.set(0);
         numFailedEjects.set(0);
         io_num_read.set(0);

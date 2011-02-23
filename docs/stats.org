@@ -92,6 +92,10 @@ For introductory information on stats within membase, start with the
 |                               | to seek additional memory.                 |
 | ep_num_expiry_pager_runs      | Number of times we ran expiry pager loops  |
 |                               | to purge expired items from memory/disk    |
+| ep_num_checkpoint_remover_runs| Number of times we ran checkpoint remover  |
+|                               | to remove closed unreferenced checkpoints. |
+| ep_items_rm_from_checkpoints  | Number of items removed from closed        |
+|                               | unreferenced checkpoints.                  |
 | ep_num_value_ejects           | Number of times item values got ejected    |
 |                               | from memory to disk                        |
 | ep_num_eject_replicas         | Number of times replica item values got    |

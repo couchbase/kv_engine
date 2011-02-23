@@ -28,6 +28,7 @@
 #include "statsnap.hh"
 #include "tapthrottle.hh"
 #include "htresizer.hh"
+#include "checkpoint_remover.hh"
 
 static void assembleSyncResponse(std::stringstream &resp,
                                  SyncListener *syncListener,
@@ -880,7 +881,7 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server
     memHighWat(std::numeric_limits<size_t>::max()),
     minDataAge(DEFAULT_MIN_DATA_AGE),
     queueAgeCap(DEFAULT_QUEUE_AGE_CAP),
-    itemExpiryWindow(3), expiryPagerSleeptime(3600),
+    itemExpiryWindow(3), expiryPagerSleeptime(3600), checkpointRemoverInterval(5),
     nVBuckets(1024), dbShards(4), vb_del_chunk_size(100), vb_chunk_del_threshold_time(500)
 {
     interface.interface = 1;
@@ -928,7 +929,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         size_t htLocks = 0;
         size_t maxSize = 0;
 
-        const int max_items = 40;
+        const int max_items = 41;
         struct config_item items[max_items];
         int ii = 0;
         memset(items, 0, sizeof(items));
@@ -1132,6 +1133,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         items[ii].value.dt_size = &tap_ack_initial_sequence_number;
 
         ++ii;
+        items[ii].key = "chk_remover_stime";
+        items[ii].datatype = DT_SIZE;
+        items[ii].value.dt_size = &checkpointRemoverInterval;
+
+        ++ii;
         items[ii].key = NULL;
 
         assert(ii < max_items);
@@ -1289,6 +1295,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         shared_ptr<DispatcherCallback> item_db_cb(epstore->getInvalidItemDbPager());
         epstore->getDispatcher()->schedule(item_db_cb, NULL,
                                            Priority::InvalidItemDbPagerPriority, 0);
+
+        shared_ptr<DispatcherCallback> chk_cb(new ClosedUnrefCheckpointRemover(epstore, stats,
+                                                                       checkpointRemoverInterval));
+        epstore->getNonIODispatcher()->schedule(chk_cb, NULL,
+                                                Priority::CheckpointRemoverPriority,
+                                                checkpointRemoverInterval);
 
         shared_ptr<StatSnap> sscb(new StatSnap(this));
         epstore->getDispatcher()->schedule(sscb, NULL, Priority::StatSnapPriority,
@@ -2512,6 +2524,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                     cookie);
     add_casted_stat("ep_num_expiry_pager_runs", epstats.expiryPagerRuns, add_stat,
                     cookie);
+    add_casted_stat("ep_num_checkpoint_remover_runs", epstats.checkpointRemoverRuns,
+                    add_stat, cookie);
+    add_casted_stat("ep_items_rm_from_checkpoints", epstats.itemsRemovedFromCheckpoints,
+                    add_stat, cookie);
     add_casted_stat("ep_num_value_ejects", epstats.numValueEjects, add_stat,
                     cookie);
     add_casted_stat("ep_num_eject_replicas", epstats.numReplicaEjects, add_stat,

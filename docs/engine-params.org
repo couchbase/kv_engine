@@ -68,6 +68,8 @@ memcached like this:
 |                    |        | adjusting the chunk size dynamically           |
 | concurrentDB       | bool   | True (default) if concurrent DB reads are      |
 |                    |        | permitted where possible.                      |
+| chk_remover_stime  | int    | Interval for the checkpoint remover that       |
+|                    |        | purges closed unreferenced checkpoints.        |
 
 ** Shard Patterns
 
