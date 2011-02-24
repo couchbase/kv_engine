@@ -291,6 +291,8 @@ public:
 
     bool hasEfficientVBLoad() { return true; }
 
+    bool hasEfficientVBDeletion() { return true; }
+
     virtual std::vector<PreparedStatement*> getVBLoader(uint16_t vb) {
         std::vector<PreparedStatement*> rv;
         assert(static_cast<size_t>(vb) < statements.size());

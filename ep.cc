@@ -753,7 +753,7 @@ EventuallyPersistentStore::completeVBucketDeletion(uint16_t vbid, uint16_t vbver
 void EventuallyPersistentStore::scheduleVBDeletion(RCPtr<VBucket> vb, uint16_t vb_version,
                                                    double delay=0) {
     if (vbuckets.setBucketDeletion(vb->getId(), true)) {
-        if (storageProperties.hasEfficientVBDeletion() > 1) {
+        if (storageProperties.hasEfficientVBDeletion()) {
             shared_ptr<DispatcherCallback> cb(new FastVBucketDeletionCallback(this, vb,
                                                                               vb_version,
                                                                               stats));
