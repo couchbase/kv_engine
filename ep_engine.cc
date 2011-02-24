@@ -226,6 +226,12 @@ extern "C" {
             } else if (strcmp(keyz, "bg_fetch_delay") == 0) {
                 validate(v, 0, MAX_BG_FETCH_DELAY);
                 e->setBGFetchDelay(static_cast<uint32_t>(v));
+            } else if (strcmp(keyz, "chk_max_items") == 0) {
+                validate(v, 1, MAX_CHECKPOINT_ITEMS);
+                CheckpointManager::setCheckpointMaxItems(v);
+            } else if (strcmp(keyz, "chk_period") == 0) {
+                validate(v, 1, MAX_CHECKPOINT_PERIOD);
+                CheckpointManager::setCheckpointPeriod(v);
             } else if (strcmp(keyz, "max_size") == 0) {
                 // Want more bits than int.
                 char *ptr = NULL;
@@ -929,7 +935,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         size_t htLocks = 0;
         size_t maxSize = 0;
 
-        const int max_items = 41;
+        const int max_items = 43;
         struct config_item items[max_items];
         int ii = 0;
         memset(items, 0, sizeof(items));
@@ -1138,6 +1144,20 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         items[ii].value.dt_size = &checkpointRemoverInterval;
 
         ++ii;
+        size_t checkpoint_max_items;
+        int checkpoint_max_items_idx = ii;
+        items[ii].key = "chk_max_items";
+        items[ii].datatype = DT_SIZE;
+        items[ii].value.dt_size = &checkpoint_max_items;
+
+        ++ii;
+        size_t checkpoint_period;
+        int checkpoint_period_idx = ii;
+        items[ii].key = "chk_period";
+        items[ii].datatype = DT_SIZE;
+        items[ii].value.dt_size = &checkpoint_period;
+
+        ++ii;
         items[ii].key = NULL;
 
         assert(ii < max_items);
@@ -1176,6 +1196,13 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
 
             if (items[tap_ack_initial_sequence_number_idx].found) {
                 TapProducer::initialAckSequenceNumber = (uint32_t)tap_ack_initial_sequence_number;
+            }
+
+            if (items[checkpoint_max_items_idx].found) {
+                CheckpointManager::setCheckpointMaxItems(checkpoint_max_items);
+            }
+            if (items[checkpoint_period_idx].found) {
+                CheckpointManager::setCheckpointPeriod(checkpoint_period);
             }
 
             if (dbs != NULL) {

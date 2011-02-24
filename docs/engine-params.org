@@ -70,6 +70,8 @@ memcached like this:
 |                    |        | permitted where possible.                      |
 | chk_remover_stime  | int    | Interval for the checkpoint remover that       |
 |                    |        | purges closed unreferenced checkpoints.        |
+| chk_max_items      | int    | Number of max items allowed in a checkpoint    |
+| chk_period         | int    | Time bound (in sec.) on a checkpoint           |
 
 ** Shard Patterns
 

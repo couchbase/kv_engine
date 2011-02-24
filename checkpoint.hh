@@ -13,6 +13,9 @@
 #include "queueditem.hh"
 #include "stats.hh"
 
+#define MAX_CHECKPOINT_ITEMS 500000
+#define MAX_CHECKPOINT_PERIOD 3600
+
 typedef enum {
     opened,
     closed
@@ -164,6 +167,7 @@ private:
  */
 class CheckpointManager {
     friend class Checkpoint;
+    friend class EventuallyPersistentEngine;
 public:
 
     CheckpointManager(EPStats &st, uint64_t checkpointId = 1) :
@@ -256,9 +260,17 @@ public:
      */
     void clear();
 
-    static void initializeCheckpointConfig(rel_time_t checkpoint_period,
+    static void initializeCheckpointConfig(size_t checkpoint_period,
                                            size_t checkpoint_max_items) {
         checkpointPeriod = checkpoint_period;
+        checkpointMaxItems = checkpoint_max_items;
+    }
+
+    static void setCheckpointPeriod(size_t checkpoint_period) {
+        checkpointPeriod = checkpoint_period;
+    }
+
+    static void setCheckpointMaxItems(size_t checkpoint_max_items) {
         checkpointMaxItems = checkpoint_max_items;
     }
 
