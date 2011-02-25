@@ -42,7 +42,12 @@ public:
 
         double r = static_cast<double>(std::rand()) / static_cast<double>(RAND_MAX);
         if (percent >= r) {
-            if (v->ejectValue(stats, currentBucket->ht)) {
+            // Check if the key with its CAS value exists in the open or closed referenced
+            // checkpoints.
+            bool foundInCheckpoints =
+                currentBucket->checkpointManager.isKeyResidentInCheckpoints(v->getKey(),
+                                                                            v->getCas());
+            if (!foundInCheckpoints && v->ejectValue(stats, currentBucket->ht)) {
                 if (currentBucket->getState() == vbucket_state_replica) {
                     ++stats.numReplicaEjects;
                 }

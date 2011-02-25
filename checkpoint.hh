@@ -150,6 +150,8 @@ public:
         return toWrite.end();
     }
 
+    uint64_t getCasForKey(const std::string &key);
+
 private:
     uint64_t                       checkpointId;
     rel_time_t                     creationTime;
@@ -256,6 +258,13 @@ public:
     size_t getNumItemsForPersistence() {
         return numItems - persistenceCursorOffset;
     }
+
+    /**
+     * Return true if a given key with its CAS value exists in the open or
+     * closed referenced checkpoints. This function is invoked by the item pager to determine
+     * if a given key's value can be evicted from memory hashtable.
+     */
+    bool isKeyResidentInCheckpoints(const std::string &key, uint64_t cas);
 
     /**
      * Clear all the checkpoints managed by this checkpoint manager.

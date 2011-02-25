@@ -11,6 +11,16 @@ void Checkpoint::setState(checkpoint_state state) {
     }
 }
 
+uint64_t Checkpoint::getCasForKey(const std::string &key) {
+    uint64_t cas = 0;
+    checkpoint_index::iterator it = keyIndex.find(key);
+    if (it != keyIndex.end()) {
+        std::list<queued_item>::iterator currPos = it->second.position;
+        cas = (*(currPos))->getCas();
+    }
+    return cas;
+}
+
 queue_dirty_t Checkpoint::queueDirty(queued_item item, CheckpointManager *checkpointManager) {
     assert (checkpointState == opened);
 
@@ -391,4 +401,33 @@ void CheckpointManager::clear() {
     numItems = 0;
     persistenceCursorOffset = 0;
     mutationCounter = 0;
+}
+
+bool CheckpointManager::isKeyResidentInCheckpoints(const std::string &key, uint64_t cas) {
+    LockHolder lh(queueLock);
+
+    std::list<Checkpoint*>::iterator it = checkpointList.begin();
+    // Find the first checkpoint that is referenced by any cursor.
+    for (; it != checkpointList.end(); ++it) {
+        if ((*it)->getReferenceCounter() > 0) {
+            break;
+        }
+    }
+
+    uint64_t cas_from_checkpoint;
+    bool found = false;
+    // Check if a given key with its CAS value exists in any subsequent checkpoints.
+    for (; it != checkpointList.end(); ++it) {
+        cas_from_checkpoint = (*it)->getCasForKey(key);
+        if (cas == cas_from_checkpoint) {
+            found = true;
+            break;
+        } else if (cas < cas_from_checkpoint) {
+            break; // if a key's CAS value is less than the one from the checkpoint, we do not
+                   // have to look at any following checkpoints.
+        }
+    }
+
+    lh.unlock();
+    return found;
 }
