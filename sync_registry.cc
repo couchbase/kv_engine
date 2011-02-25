@@ -25,35 +25,56 @@
 
 
 void SyncRegistry::addPersistenceListener(SyncListener *syncListener) {
-    LockHolder lh(mutex);
+    LockHolder lh(persistenceMutex);
     persistenceListeners.push_back(syncListener);
 }
 
 
 void SyncRegistry::itemPersisted(const QueuedItem &item) {
-    LockHolder lh(mutex);
-    notifyListeners(item);
+    key_spec_t keyspec(item);
+    LockHolder lh(persistenceMutex);
+    notifyListeners(persistenceListeners, keyspec, false);
 }
 
 
 void SyncRegistry::itemsPersisted(std::list<QueuedItem> &itemlist) {
+    LockHolder lh(persistenceMutex);
     std::list<QueuedItem>::iterator it = itemlist.begin();
-    LockHolder lh(mutex);
 
     for ( ; it != itemlist.end(); it++) {
-        notifyListeners(*it);
+        key_spec_t keyspec(0, it->getVBucketId(), it->getKey());
+        notifyListeners(persistenceListeners, keyspec, false);
     }
 }
 
 
-void SyncRegistry::notifyListeners(const QueuedItem &item) {
-    std::list<SyncListener*>::iterator it = persistenceListeners.begin();
-    key_spec_t keyspec = { 0, item.getVBucketId(), item.getKey() };
+void SyncRegistry::addMutationListener(SyncListener *syncListener) {
+    LockHolder lh(mutationMutex);
+    mutationListeners.push_back(syncListener);
+}
 
-    while (it != persistenceListeners.end()) {
+
+void SyncRegistry::itemModified(const key_spec_t &keyspec) {
+    LockHolder lh(mutationMutex);
+    notifyListeners(mutationListeners, keyspec, false);
+}
+
+
+void SyncRegistry::itemDeleted(const key_spec_t &keyspec) {
+    LockHolder lh(mutationMutex);
+    notifyListeners(mutationListeners, keyspec, true);
+}
+
+
+void SyncRegistry::notifyListeners(std::list<SyncListener*> &listeners,
+                                   const key_spec_t &keyspec,
+                                   bool deleted) {
+    std::list<SyncListener*>::iterator it = listeners.begin();
+
+    while (it != listeners.end()) {
         SyncListener *listener = *it;
-        if (listener->keySynced(keyspec)) {
-            it = persistenceListeners.erase(it);
+        if (listener->keySynced(keyspec, deleted)) {
+            it = listeners.erase(it);
         } else {
             it++;
         }
@@ -69,8 +90,9 @@ SyncListener::SyncListener(EventuallyPersistentEngine &epEngine,
     engine(epEngine), cookie(c), keySpecs(keys),
     syncType(sync_type), replicas(replicaCount) {
 
-    // TODO: support mutation and replication sync
-    assert(syncType == PERSIST);
+    // TODO: support replication sync, replication and persistence sync, and
+    //       replicator or persistence sync
+    assert(syncType == PERSIST || syncType == MUTATION);
 }
 
 
@@ -79,14 +101,38 @@ SyncListener::~SyncListener() {
 }
 
 
-bool SyncListener::keySynced(key_spec_t &key) {
+bool SyncListener::keySynced(const key_spec_t &keyspec, bool deleted) {
     bool finished = false;
-    std::set<key_spec_t>::iterator it = keySpecs->find(key);
+    std::set<key_spec_t>::iterator it = keySpecs->find(keyspec);
 
     if (it != keySpecs->end()) {
-        key.cas = it->cas;
-        persistedKeys.insert(key);
-        finished = (persistedKeys.size() == keySpecs->size());
+        switch (syncType) {
+        case PERSIST:
+            {
+                key_spec_t key = keyspec;
+                key.cas = it->cas;
+                persistedKeys.insert(key);
+                finished = (persistedKeys.size() == keySpecs->size());
+            }
+            break;
+        case MUTATION:
+            if (deleted) {
+                deletedKeys.insert(keyspec);
+            } else {
+                modifiedKeys.insert(keyspec);
+            }
+            finished = ((modifiedKeys.size() + deletedKeys.size()) == keySpecs->size());
+            break;
+        case REP:
+            // TODO
+            break;
+        case REP_OR_PERSIST:
+            // TODO
+            break;
+        case REP_AND_PERSIST:
+            // TODO
+            break;
+        }
 
         if (finished) {
             engine.getServerApi()->cookie->store_engine_specific(cookie, this);

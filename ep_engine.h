@@ -209,7 +209,7 @@ public:
         ENGINE_ERROR_CODE ret = epstore->del(key, cas, vbucket, cookie);
 
         if (ret == ENGINE_SUCCESS) {
-            addDeleteEvent(key, vbucket);
+            addDeleteEvent(key, vbucket, cas);
         }
         return ret;
     }
@@ -575,11 +575,13 @@ private:
     void addMutationEvent(Item *it) {
         // Currently we use the same queue for all kinds of events..
         addEvent(it->getKey(), it->getVBucketId(), queue_op_set);
+        syncRegistry.itemModified(*it);
     }
 
-    void addDeleteEvent(const std::string &key, uint16_t vbid) {
+    void addDeleteEvent(const std::string &key, uint16_t vbid, uint64_t cas) {
         // Currently we use the same queue for all kinds of events..
         addEvent(key, vbid, queue_op_del);
+        syncRegistry.itemDeleted(key_spec_t(cas, vbid, key));
     }
 
     void startEngineThreads(void);

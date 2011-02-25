@@ -30,6 +30,9 @@
 #include "htresizer.hh"
 
 static void assembleSyncResponse(std::stringstream &resp, SyncListener *syncListener);
+static void addSyncKeySpecs(std::stringstream &resp,
+                            std::set<key_spec_t> &keyspecs,
+                            uint8_t eventid);
 static bool parseSyncOptions(uint32_t flags, sync_type_t *syncType, uint8_t *replicas);
 
 static size_t percentOf(size_t val, double percent) {
@@ -532,7 +535,7 @@ extern "C" {
             std::string key(body + offset, keylen);
             offset += keylen;
 
-            key_spec_t keyspec = { cas, vbucketid, key };
+            key_spec_t keyspec(cas, vbucketid, key);
             keyset->insert(keyspec);
         }
 
@@ -3150,7 +3153,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::sync(std::set<key_spec_t> *keys,
         std::stringstream resp;
 
         assembleSyncResponse(resp, syncListener);
-        getServerApi()->cookie->store_engine_specific(cookie, NULL);
         delete syncListener;
 
         std::string body = resp.str();
@@ -3162,7 +3164,23 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::sync(std::set<key_spec_t> *keys,
         return ENGINE_SUCCESS;
     }
 
-    syncRegistry.addPersistenceListener(syncListener);
+    switch (syncType) {
+    case PERSIST:
+        syncRegistry.addPersistenceListener(syncListener);
+        break;
+    case MUTATION:
+        syncRegistry.addMutationListener(syncListener);
+        break;
+    case REP:
+        // TODO
+        break;
+    case REP_OR_PERSIST:
+        // TODO
+        break;
+    case REP_AND_PERSIST:
+        // TODO
+        break;
+    }
 
     return ENGINE_EWOULDBLOCK;
 }
@@ -3200,8 +3218,6 @@ static bool parseSyncOptions(uint32_t flags, sync_type_t *syncType, uint8_t *rep
 }
 
 static void assembleSyncResponse(std::stringstream &resp, SyncListener *syncListener) {
-    uint8_t eventid;
-    std::set<key_spec_t>::iterator it;
     uint16_t nkeys = syncListener->getInvalidCasKeys().size() +
                      syncListener->getNonExistentKeys().size();
 
@@ -3210,7 +3226,8 @@ static void assembleSyncResponse(std::stringstream &resp, SyncListener *syncList
         nkeys += syncListener->getPersistedKeys().size();
         break;
     case MUTATION:
-        // TODO
+        nkeys += syncListener->getModifiedKeys().size();
+        nkeys += syncListener->getDeletedKeys().size();
         break;
     case REP:
         // TODO
@@ -3226,52 +3243,16 @@ static void assembleSyncResponse(std::stringstream &resp, SyncListener *syncList
     nkeys = htons(nkeys);
     resp.write((char *) &nkeys, sizeof(uint16_t));
 
-    eventid = SYNC_INVALID_KEY;
-    it = syncListener->getNonExistentKeys().begin();
-    for ( ; it != syncListener->getNonExistentKeys().end(); it++) {
-        uint64_t cas = htonll(it->cas);
-        uint16_t vbid = htons(it->vbucketid);
-        uint16_t keylen = htons(it->key.length());
-
-        resp.write((char *) &cas, sizeof(uint64_t));
-        resp.write((char *) &vbid, sizeof(uint16_t));
-        resp.write((char *) &keylen, sizeof(uint16_t));
-        resp.write((char *) &eventid, sizeof(uint8_t));
-        resp.write(it->key.c_str(), it->key.length());
-    }
-
-    eventid = SYNC_INVALID_CAS;
-    it = syncListener->getInvalidCasKeys().begin();
-    for ( ; it != syncListener->getInvalidCasKeys().end(); it++) {
-        uint64_t cas = htonll(it->cas);
-        uint16_t vbid = htons(it->vbucketid);
-        uint16_t keylen = htons(it->key.length());
-
-        resp.write((char *) &cas, sizeof(uint64_t));
-        resp.write((char *) &vbid, sizeof(uint16_t));
-        resp.write((char *) &keylen, sizeof(uint16_t));
-        resp.write((char *) &eventid, sizeof(uint8_t));
-        resp.write(it->key.c_str(), it->key.length());
-    }
+    addSyncKeySpecs(resp, syncListener->getNonExistentKeys(), SYNC_INVALID_KEY);
+    addSyncKeySpecs(resp, syncListener->getInvalidCasKeys(), SYNC_INVALID_CAS);
 
     switch (syncListener->getSyncType()) {
     case PERSIST:
-        eventid = SYNC_PERSISTED_EVENT;
-        it = syncListener->getPersistedKeys().begin();
-        for ( ; it != syncListener->getPersistedKeys().end(); it++) {
-            uint64_t cas = htonll(it->cas);
-            uint16_t vbid = htons(it->vbucketid);
-            uint16_t keylen = htons(it->key.length());
-
-            resp.write((char *) &cas, sizeof(uint64_t));
-            resp.write((char *) &vbid, sizeof(uint16_t));
-            resp.write((char *) &keylen, sizeof(uint16_t));
-            resp.write((char *) &eventid, sizeof(uint8_t));
-            resp.write(it->key.c_str(), it->key.length());
-        }
+        addSyncKeySpecs(resp, syncListener->getPersistedKeys(), SYNC_PERSISTED_EVENT);
         break;
     case MUTATION:
-        // TODO
+        addSyncKeySpecs(resp, syncListener->getModifiedKeys(), SYNC_MODIFIED_EVENT);
+        addSyncKeySpecs(resp, syncListener->getDeletedKeys(), SYNC_DELETED_EVENT);
         break;
     case REP:
         // TODO
@@ -3282,5 +3263,24 @@ static void assembleSyncResponse(std::stringstream &resp, SyncListener *syncList
     case REP_AND_PERSIST:
         // TODO
         break;
+    }
+}
+
+
+static void addSyncKeySpecs(std::stringstream &resp,
+                            std::set<key_spec_t> &keyspecs,
+                            uint8_t eventid) {
+    std::set<key_spec_t>::iterator it = keyspecs.begin();
+
+    for ( ; it != keyspecs.end(); it++) {
+        uint64_t cas = htonll(it->cas);
+        uint16_t vbid = htons(it->vbucketid);
+        uint16_t keylen = htons(it->key.length());
+
+        resp.write((char *) &cas, sizeof(uint64_t));
+        resp.write((char *) &vbid, sizeof(uint16_t));
+        resp.write((char *) &keylen, sizeof(uint16_t));
+        resp.write((char *) &eventid, sizeof(uint8_t));
+        resp.write(it->key.c_str(), it->key.length());
     }
 }
