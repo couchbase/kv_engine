@@ -21,7 +21,7 @@ uint64_t Checkpoint::getCasForKey(const std::string &key) {
     return cas;
 }
 
-queue_dirty_t Checkpoint::queueDirty(queued_item item, CheckpointManager *checkpointManager) {
+queue_dirty_t Checkpoint::queueDirty(const queued_item &item, CheckpointManager *checkpointManager) {
     assert (checkpointState == opened);
 
     uint64_t newMutationId = ++(checkpointManager->mutationCounter);
@@ -232,7 +232,7 @@ uint64_t CheckpointManager::removeClosedUnrefCheckpoints(const RCPtr<VBucket> &v
     return checkpoint_id;
 }
 
-bool CheckpointManager::queueDirty(queued_item item, const RCPtr<VBucket> &vbucket) {
+bool CheckpointManager::queueDirty(const queued_item &item, const RCPtr<VBucket> &vbucket) {
     LockHolder lh(queueLock);
     // The current open checkpoint should be always the last one in the checkpoint list.
     assert(checkpointList.back()->getState() == opened);

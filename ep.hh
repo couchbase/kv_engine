@@ -788,7 +788,7 @@ private:
     int flushOne(std::queue<queued_item> *q,
                  std::queue<queued_item> *rejectQueue);
     int flushOneDeleteAll(void);
-    int flushOneDelOrSet(queued_item qi, std::queue<queued_item> *rejectQueue);
+    int flushOneDelOrSet(const queued_item &qi, std::queue<queued_item> *rejectQueue);
 
     StoredValue *fetchValidValue(RCPtr<VBucket> vb, const std::string &key,
                                  int bucket_num, bool wantsDeleted=false);

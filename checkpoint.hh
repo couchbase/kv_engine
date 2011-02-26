@@ -139,7 +139,7 @@ public:
      * @param checkpointManager the checkpoint manager to which this checkpoint belongs
      * @return a result indicating the status of the operation.
      */
-    queue_dirty_t queueDirty(queued_item item, CheckpointManager *checkpointManager);
+    queue_dirty_t queueDirty(const queued_item &item, CheckpointManager *checkpointManager);
 
 
     std::list<queued_item>::iterator begin() {
@@ -219,7 +219,7 @@ public:
      * @param vbucket the vbucket that a new item is pushed into.
      * @return true if an item queued increases the size of persistence queue by 1.
      */
-    bool queueDirty(queued_item item, const RCPtr<VBucket> &vbucket);
+    bool queueDirty(const queued_item &item, const RCPtr<VBucket> &vbucket);
 
     /**
      * Return the next item to be sent to a given TAP connection

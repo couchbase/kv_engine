@@ -1373,7 +1373,7 @@ class PersistenceCallback : public Callback<mutation_result>,
                             public Callback<int> {
 public:
 
-    PersistenceCallback(const queued_item qi, std::queue<queued_item> *q,
+    PersistenceCallback(const queued_item &qi, std::queue<queued_item> *q,
                         EventuallyPersistentStore *st,
                         rel_time_t qd, rel_time_t d, EPStats *s) :
         queuedItem(qi), rq(q), store(st), queued(qd), dirtied(d), stats(s) {
@@ -1504,7 +1504,7 @@ int EventuallyPersistentStore::flushOneDeleteAll() {
 // While I actually know whether a delete or set was intended, I'm
 // still a bit better off running the older code that figures it out
 // based on what's in memory.
-int EventuallyPersistentStore::flushOneDelOrSet(queued_item qi,
+int EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
                                            std::queue<queued_item> *rejectQueue) {
 
     RCPtr<VBucket> vb = getVBucket(qi->getVBucketId());
