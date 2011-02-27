@@ -156,11 +156,44 @@ size_t CheckpointManager::getNumOfTAPCursors() {
     return tapCursors.size();
 }
 
-uint64_t CheckpointManager::removeClosedUnrefCheckpoints(std::set<queued_item,
+uint64_t CheckpointManager::removeClosedUnrefCheckpoints(const RCPtr<VBucket> &vbucket,
+                                                         std::set<queued_item,
                                                                   CompareQueuedItemsByKey> &items) {
 
     // This function is executed periodically by the non-IO dispatcher.
     LockHolder lh(queueLock);
+    assert(vbucket);
+    uint64_t oldCheckpointId = 0;
+    if (vbucket->getState() == vbucket_state_active) {
+        // Check if we need to create a new open checkpoint.
+        oldCheckpointId = checkOpenCheckpoint();
+    }
+    if (oldCheckpointId > 0) {
+        // If the persistence cursor reached to the end of the old open checkpoint, move it to
+        // the new open checkpoint.
+        if ((*(persistenceCursor.currentCheckpoint))->getId() == oldCheckpointId) {
+            if (++(persistenceCursor.currentPos) ==
+                (*(persistenceCursor.currentCheckpoint))->end()) {
+                moveCursorToNextCheckpoint(persistenceCursor);
+            } else {
+                --(persistenceCursor.currentPos);
+            }
+        }
+        // If any of TAP cursors reached to the end of the old open checkpoint, move them to
+        // the new open checkpoint.
+        std::map<const std::string, CheckpointCursor>::iterator tap_it = tapCursors.begin();
+        for (; tap_it != tapCursors.end(); ++tap_it) {
+            CheckpointCursor &cursor = tap_it->second;
+            if ((*(cursor.currentCheckpoint))->getId() == oldCheckpointId) {
+                if (++(cursor.currentPos) == (*(cursor.currentCheckpoint))->end()) {
+                    moveCursorToNextCheckpoint(cursor);
+                } else {
+                    --(cursor.currentPos);
+                }
+            }
+        }
+    }
+
     std::list<Checkpoint*> unrefCheckpointList;
     std::list<Checkpoint*>::iterator it = checkpointList.begin();
     for (; it != checkpointList.end(); it++) {
@@ -237,6 +270,7 @@ uint64_t CheckpointManager::getAllItemsFromCurrentPosition(CheckpointCursor &cur
 
 uint64_t CheckpointManager::getAllItemsForPersistence(std::vector<queued_item> &items) {
     LockHolder lh(queueLock);
+    // Get all the items up to the end of the current open checkpoint.
     uint64_t checkpointId = getAllItemsFromCurrentPosition(persistenceCursor, items);
     persistenceCursorOffset += items.size();
     return checkpointId;

@@ -103,7 +103,7 @@ static void *launch_checkpoint_cleanup_thread(void *arg) {
 
     uint64_t checkpoint_id = 0;
     while (args->checkpoint_manager->getNumOfTAPCursors() > 0) {
-        uint64_t id = args->checkpoint_manager->removeClosedUnrefCheckpoints(items);
+        uint64_t id = args->checkpoint_manager->removeClosedUnrefCheckpoints(args->vbucket, items);
         if (id > 0) {
             checkpoint_id = id;
         }

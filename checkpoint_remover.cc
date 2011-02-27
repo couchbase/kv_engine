@@ -21,7 +21,7 @@ public:
         uint64_t checkpointId;
         currentBucket = vb;
         std::set<queued_item, CompareQueuedItemsByKey> items;
-        checkpointId = vb->checkpointManager.removeClosedUnrefCheckpoints(items);
+        checkpointId = vb->checkpointManager.removeClosedUnrefCheckpoints(vb, items);
 
         removed = items.size();
         // Here, we will schedule an IO dispatcher job to persist closed unreferenced checkpoints.
