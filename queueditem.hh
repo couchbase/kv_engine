@@ -29,15 +29,38 @@ public:
                const uint16_t vb_version = -1, const int64_t rid = -1, const uint32_t f = 0,
                const time_t expiry_time = 0, const uint64_t cv = 0)
         : op(o),vbucket_version(vb_version), queued(ep_current_time()),
-          dirtied(ep_current_time()), item(new Item(k, f, expiry_time, NULL, 0, cv, rid, vb)) { }
+          dirtied(ep_current_time()), item(new Item(k, f, expiry_time, NULL, 0, cv, rid, vb)) {
+
+        stats->memOverhead.incr(size());
+        assert(stats->memOverhead.get() < GIGANTOR);
+    }
 
     QueuedItem(const std::string &k, value_t v, const uint16_t vb, enum queue_operation o,
                const uint16_t vb_version = -1, const int64_t rid = -1, const uint32_t f = 0,
                const time_t expiry_time = 0, const uint64_t cv = 0)
         : op(o), vbucket_version(vb_version), queued(ep_current_time()),
-          dirtied(ep_current_time()), item(new Item(k, f, expiry_time, v, cv, rid, vb)) { }
+          dirtied(ep_current_time()), item(new Item(k, f, expiry_time, v, cv, rid, vb)) {
 
-    ~QueuedItem() { }
+        stats->memOverhead.incr(size());
+        assert(stats->memOverhead.get() < GIGANTOR);
+    }
+
+    // This copy constructor will be removed when TAP implementation is adapted for using the
+    // unified queue.
+    QueuedItem(const QueuedItem &other) {
+        op = other.op;
+        vbucket_version = other.vbucket_version;
+        queued = other.queued;
+        dirtied = other.dirtied;
+        item = other.item;
+        stats->memOverhead.incr(size());
+        assert(stats->memOverhead.get() < GIGANTOR);
+    }
+
+    ~QueuedItem() {
+        stats->memOverhead.decr(size());
+        assert(stats->memOverhead.get() < GIGANTOR);
+    }
 
     const std::string &getKey(void) const { return item->getKey(); }
     uint16_t getVBucketId(void) const { return item->getVBucketId(); }

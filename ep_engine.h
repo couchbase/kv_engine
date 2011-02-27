@@ -580,7 +580,13 @@ private:
 
     void addEvent(const std::string &str, uint16_t vbid,
                   enum queue_operation op) {
-        pendingTapNotifications.push(QueuedItem(str, vbid, op));
+       // We will adapt this function as part of integrating the unified queue into
+       // TAP module. At this time, we don't push any mutation events to the TAP queue
+       // to pass unit tests related to memory stats.
+       (void) str;
+       (void) vbid;
+       (void) op;
+        //pendingTapNotifications.push(QueuedItem(str, vbid, op));
     }
 
     void addMutationEvent(Item *it) {

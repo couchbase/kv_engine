@@ -74,7 +74,8 @@ bool abort_msg(const char *expr, const char *msg, int line);
     static_cast<void>((expr) ? 0 : abort_msg(#expr, msg, __LINE__))
 
 #define WHITESPACE_DB "whitespace sucks.db"
-#define MULTI_DISPATCHER_CONFIG "initfile=t/wal.sql;ht_size=129;ht_locks=3"
+#define MULTI_DISPATCHER_CONFIG \
+    "initfile=t/wal.sql;ht_size=129;ht_locks=3;chk_remover_stime=1;chk_period=1"
 
 protocol_binary_response_status last_status(static_cast<protocol_binary_response_status>(0));
 char *last_key = NULL;
@@ -2203,10 +2204,13 @@ static enum test_result test_memory_limit(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     check_key_value(h, h1, "key", data, vlen);
     check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key2"), "Expected missing key");
 
+    int itemsRemoved = get_int_stat(h, h1, "ep_items_rm_from_checkpoints");
     // Until we remove that item
     check(h1->remove(h, NULL, "key", 3, 0, 0) == ENGINE_SUCCESS,
           "Failed remove with value.");
     check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key"), "Expected missing key");
+    testHarness.time_travel(5);
+    wait_for_stat_change(h, h1, "ep_items_rm_from_checkpoints", itemsRemoved);
 
     check(store(h, h1, NULL, OPERATION_SET, "key2", "somevalue2", &i) == ENGINE_SUCCESS,
           "should have succeded on the last set");
@@ -3594,11 +3598,14 @@ static enum test_result test_disk_gt_ram_golden(ENGINE_HANDLE *h,
     assert(kv_size == kv_size3);
     assert(mem_used == mem_used3);
 
+    int itemsRemoved = get_int_stat(h, h1, "ep_items_rm_from_checkpoints");
     // Delete the value and make sure things return correctly.
     int numStored = get_int_stat(h, h1, "ep_total_persisted");
     check(h1->remove(h, NULL, "k1", 2, 0, 0) == ENGINE_SUCCESS,
           "Failed remove with value.");
     wait_for_stat_change(h, h1, "ep_total_persisted", numStored);
+    testHarness.time_travel(5);
+    wait_for_stat_change(h, h1, "ep_items_rm_from_checkpoints", itemsRemoved);
 
     check(get_int_stat(h, h1, "ep_kv_size") == 0,
           "Initial kv_size was not zero.");
@@ -3628,10 +3635,13 @@ static enum test_result test_disk_gt_ram_paged_rm(ENGINE_HANDLE *h,
     evict_key(h, h1, "k1");
 
     // Delete the value and make sure things return correctly.
+    int itemsRemoved = get_int_stat(h, h1, "ep_items_rm_from_checkpoints");
     int numStored = get_int_stat(h, h1, "ep_total_persisted");
     check(h1->remove(h, NULL, "k1", 2, 0, 0) == ENGINE_SUCCESS,
           "Failed remove with value.");
     wait_for_stat_change(h, h1, "ep_total_persisted", numStored);
+    testHarness.time_travel(5);
+    wait_for_stat_change(h, h1, "ep_items_rm_from_checkpoints", itemsRemoved);
 
     check(get_int_stat(h, h1, "ep_kv_size") == 0,
           "Initial kv_size was not zero.");
@@ -4671,7 +4681,7 @@ engine_test_t* get_tests(void) {
         {"test alloc limit", test_alloc_limit, NULL, teardown, NULL},
         {"test init failure", test_init_fail, NULL, teardown, NULL},
         {"test total memory limit", test_memory_limit, NULL, teardown,
-         "max_size=4096;ht_locks=1;ht_size=3"},
+         "max_size=4096;ht_locks=1;ht_size=3;chk_remover_stime=1;chk_period=1"},
         {"test max_size changes", test_max_size_settings, NULL, teardown,
          "max_size=1000;ht_locks=1;ht_size=3"},
         {"test whitespace dbname", test_whitespace_db, NULL, teardown,
@@ -4784,8 +4794,10 @@ engine_test_t* get_tests(void) {
         // disk>RAM tests
         {"verify not multi dispatcher", test_not_multi_dispatcher_conf, NULL, teardown,
          NULL},
-        {"disk>RAM golden path", test_disk_gt_ram_golden, NULL, teardown, NULL},
-        {"disk>RAM paged-out rm", test_disk_gt_ram_paged_rm, NULL, teardown, NULL},
+        {"disk>RAM golden path", test_disk_gt_ram_golden, NULL, teardown,
+         "chk_remover_stime=1;chk_period=1"},
+        {"disk>RAM paged-out rm", test_disk_gt_ram_paged_rm, NULL, teardown,
+         "chk_remover_stime=1;chk_period=1"},
         {"disk>RAM update paged-out", test_disk_gt_ram_update_paged_out, NULL,
          teardown, NULL},
         {"disk>RAM delete paged-out", test_disk_gt_ram_delete_paged_out, NULL,
