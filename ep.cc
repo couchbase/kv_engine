@@ -1671,7 +1671,7 @@ int EventuallyPersistentStore::flushOne(std::queue<queued_item> *q,
             rv = flushOneDelOrSet(qi, rejectQueue);
             if (rejectQueue->size() == prevRejectCount) {
                 // flush operation was not rejected
-                tctx.addUncommittedItem(*qi);
+                tctx.addUncommittedItem(qi);
             }
         }
         break;
@@ -1877,7 +1877,7 @@ void TransactionContext::commit() {
     uncommittedItems.clear();
 }
 
-void TransactionContext::addUncommittedItem(const QueuedItem &item) {
+void TransactionContext::addUncommittedItem(const queued_item &item) {
     uncommittedItems.push_back(item);
 }
 

@@ -374,7 +374,7 @@ public:
         txnSize.set(to);
     }
 
-    void addUncommittedItem(const QueuedItem &item);
+    void addUncommittedItem(const queued_item &item);
 
 private:
     EPStats     &stats;
@@ -382,7 +382,7 @@ private:
     int          _remaining;
     Atomic<int>  txnSize;
     bool         intxn;
-    std::list<QueuedItem>     uncommittedItems;
+    std::list<queued_item>     uncommittedItems;
     SyncRegistry              &syncRegistry;
 };
 

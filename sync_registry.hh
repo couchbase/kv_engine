@@ -28,8 +28,8 @@
 #include "queueditem.hh"
 
 typedef struct key_spec_t {
-    key_spec_t(const QueuedItem &qi)
-        : cas(0), vbucketid(qi.getVBucketId()), key(qi.getKey()) {
+    key_spec_t(const queued_item &qi)
+        : cas(0), vbucketid(qi->getVBucketId()), key(qi->getKey()) {
     }
 
     key_spec_t(const Item &it)
@@ -73,8 +73,8 @@ public:
 
     void addPersistenceListener(SyncListener *syncListener);
     void removePersistenceListener(SyncListener *syncListener);
-    void itemPersisted(const QueuedItem &item);
-    void itemsPersisted(std::list<QueuedItem> &itemlist);
+    void itemPersisted(const queued_item &item);
+    void itemsPersisted(std::list<queued_item> &itemlist);
 
     void addMutationListener(SyncListener *syncListener);
     void removeMutationListener(SyncListener *syncListener);

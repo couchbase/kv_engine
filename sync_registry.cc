@@ -49,19 +49,19 @@ void SyncRegistry::removePersistenceListener(SyncListener *syncListener) {
 }
 
 
-void SyncRegistry::itemPersisted(const QueuedItem &item) {
+void SyncRegistry::itemPersisted(const queued_item &item) {
     key_spec_t keyspec(item);
     LockHolder lh(persistenceMutex);
     notifyListeners(persistenceListeners, keyspec, false);
 }
 
 
-void SyncRegistry::itemsPersisted(std::list<QueuedItem> &itemlist) {
+void SyncRegistry::itemsPersisted(std::list<queued_item> &itemlist) {
     LockHolder lh(persistenceMutex);
-    std::list<QueuedItem>::iterator it = itemlist.begin();
+    std::list<queued_item>::iterator it = itemlist.begin();
 
     for ( ; it != itemlist.end(); it++) {
-        key_spec_t keyspec(0, it->getVBucketId(), it->getKey());
+        key_spec_t keyspec(0, (*it)->getVBucketId(), (*it)->getKey());
         notifyListeners(persistenceListeners, keyspec, false);
     }
 }
