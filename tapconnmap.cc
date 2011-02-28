@@ -156,7 +156,7 @@ TapConnection *TapConnMap::newConn(EventuallyPersistentEngine *engine,
             getLogger()->log(EXTENSION_LOG_INFO, NULL,
                              "The TAP channel (\"%s\") exists... grabbing the channel\n",
                              name.c_str());
-            if (miter->first != NULL) {
+            if (miter != map.end()) {
                 TapConnection *n = new TapConnection(*engine,
                                                      NULL,
                                                      TapConnection::getAnonTapName(),
