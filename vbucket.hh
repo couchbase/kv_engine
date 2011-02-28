@@ -208,12 +208,14 @@ public:
         buckets(new RCPtr<VBucket>[sz]),
         bucketDeletion(new Atomic<bool>[sz]),
         bucketVersions(new Atomic<uint16_t>[sz]),
+        persistenceCheckpointIds(new Atomic<uint64_t>[sz]),
         size(sz) {
         highPriorityVbSnapshot.set(false);
         lowPriorityVbSnapshot.set(false);
         for (size_t i = 0; i < size; ++i) {
             bucketDeletion[i].set(false);
             bucketVersions[i].set(static_cast<uint16_t>(-1));
+            persistenceCheckpointIds[i].set(0);
         }
     }
 
@@ -221,6 +223,7 @@ public:
         buckets(new RCPtr<VBucket>[sz]),
         bucketDeletion(new Atomic<bool>[sz]),
         bucketVersions(new Atomic<uint16_t>[sz]),
+        persistenceCheckpointIds(new Atomic<uint64_t>[sz]),
         size(sz) {
 
         // No shrinkage allowed currently.
@@ -234,10 +237,12 @@ public:
         for (size_t i = 0; i < vbh_size; ++i) {
             bucketDeletion[i].set(vbh->isBucketDeletion(i));
             bucketVersions[i].set(vbh->getBucketVersion(i));
+            persistenceCheckpointIds[i].set(vbh->getPersistenceCheckpointId(i));
         }
         for (size_t i = vbh_size; i < size; ++i) {
             bucketDeletion[i].set(false);
             bucketVersions[i].set(static_cast<uint16_t>(-1));
+            persistenceCheckpointIds[i].set(0);
         }
     }
 
@@ -245,6 +250,7 @@ public:
         delete[] buckets;
         delete[] bucketDeletion;
         delete[] bucketVersions;
+        delete[] persistenceCheckpointIds;
     }
 
     RCPtr<VBucket> getBucket(int id) const {
@@ -317,6 +323,16 @@ public:
         bucketVersions[id].set(vb_version);
     }
 
+    uint64_t getPersistenceCheckpointId(int id) {
+        assert(id >= 0 && static_cast<size_t>(id) < size);
+        return persistenceCheckpointIds[id].get();
+    }
+
+    void setPersistenceCheckpointId(int id, uint64_t checkpointId) {
+        assert(id >= 0 && static_cast<size_t>(id) < size);
+        persistenceCheckpointIds[id].set(checkpointId);
+    }
+
     /**
      * Check if a vbucket snapshot task is currently scheduled with the high priority.
      * @return "true" if a snapshot task with the high priority is currently scheduled.
@@ -373,6 +389,7 @@ private:
     RCPtr<VBucket> *buckets;
     Atomic<bool> *bucketDeletion;
     Atomic<uint16_t> *bucketVersions;
+    Atomic<uint64_t> *persistenceCheckpointIds;
     Atomic<bool> highPriorityVbSnapshot;
     Atomic<bool> lowPriorityVbSnapshot;
     size_t size;
@@ -441,6 +458,16 @@ public:
     void setBucketVersion(uint16_t id, uint16_t vb_version) {
         RCPtr<VBucketHolder> o(buckets);
         o->setBucketVersion(id, vb_version);
+    }
+
+    uint64_t getPersistenceCheckpointId(uint16_t id) {
+        RCPtr<VBucketHolder> o(buckets);
+        return o->getPersistenceCheckpointId(id);
+    }
+
+    void setPersistenceCheckpointId(uint16_t id, uint64_t checkpointId) {
+        RCPtr<VBucketHolder> o(buckets);
+        o->setPersistenceCheckpointId(id, checkpointId);
     }
 
     bool isHighPriorityVbSnapshotScheduled(void) {

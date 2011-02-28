@@ -244,14 +244,19 @@ int Flusher::doFlush() {
         }
 
         if (flushQueue->empty()) {
-            store->completeFlush(rejectQueue, flushStart);
-            getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                             "Completed a flush, age of oldest item was %ds\n",
-                             flushRv);
+            if (!rejectQueue->empty()) {
+                // Requeue the rejects.
+                store->requeueRejectedItems(rejectQueue);
+            } else {
+                store->completeFlush(flushStart);
+                getLogger()->log(EXTENSION_LOG_INFO, NULL,
+                                 "Completed a flush, age of oldest item was %ds\n",
+                                 flushRv);
 
-            delete rejectQueue;
-            rejectQueue = NULL;
-            flushQueue = NULL;
+                delete rejectQueue;
+                rejectQueue = NULL;
+                flushQueue = NULL;
+            }
         }
     }
 

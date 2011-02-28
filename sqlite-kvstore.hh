@@ -154,10 +154,10 @@ private:
         return st.execute();
     }
 
-    template <typename T>
+    template <typename T1, typename T2>
     bool storeMap(PreparedStatement *clearSt,
                   PreparedStatement *insSt,
-                  const std::map<T, std::string> &m);
+                  const std::map<T1, T2> &m);
 
     void insert(const Item &itm, uint16_t vb_version, Callback<mutation_result> &cb);
     void update(const Item &itm, uint16_t vb_version, Callback<mutation_result> &cb);

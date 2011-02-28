@@ -12,6 +12,7 @@
 #endif
 
 #include "common.hh"
+#include "kvstore.hh"
 
 /**
  * A sqlite prepared statement.
@@ -85,6 +86,16 @@ public:
      * @return 2
      */
     int bind(int pos, std::pair<int, int> pv);
+
+    /**
+     * Bind a vbucket_state consisting of state and checkpointId.
+     *
+     * @param pos the binding start position (starting at 1)
+     * @param vb_state the vbucket_state instance to bind
+     *
+     * @return 2
+     */
+    int bind(int pos, vbucket_state vb_state);
 
     /**
      * Bind a uint64 value.

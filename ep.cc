@@ -379,6 +379,11 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
         vbuckets.setBucketVersion(0, 0);
     }
 
+    persistenceCheckpointIds = new uint64_t[BASE_VBUCKET_SIZE];
+    for (size_t i = 0; i < BASE_VBUCKET_SIZE; ++i) {
+        persistenceCheckpointIds[i] = 0;
+    }
+
     startDispatcher();
     startFlusher();
     startNonIODispatcher();
@@ -412,6 +417,7 @@ EventuallyPersistentStore::~EventuallyPersistentStore() {
     delete flusher;
     delete dispatcher;
     delete nonIODispatcher;
+    delete persistenceCheckpointIds;
 }
 
 void EventuallyPersistentStore::startDispatcher() {
@@ -649,7 +655,10 @@ void EventuallyPersistentStore::snapshotVBuckets(const Priority &priority) {
         bool visitBucket(RCPtr<VBucket> vb) {
             std::pair<uint16_t, uint16_t> p(vb->getId(),
                                             vbuckets.getBucketVersion(vb->getId()));
-            states[p] = VBucket::toString(vb->getState());
+            vbucket_state vb_state;
+            vb_state.state = VBucket::toString(vb->getState());
+            vb_state.checkpointId = vbuckets.getPersistenceCheckpointId(vb->getId());
+            states[p] = vb_state;
             return false;
         }
 
@@ -657,7 +666,7 @@ void EventuallyPersistentStore::snapshotVBuckets(const Priority &priority) {
             assert(false); // this does not happen
         }
 
-        std::map<std::pair<uint16_t, uint16_t>, std::string> states;
+        std::map<std::pair<uint16_t, uint16_t>, vbucket_state> states;
 
     private:
         VBucketMap &vbuckets;
@@ -1266,7 +1275,12 @@ std::queue<queued_item>* EventuallyPersistentStore::beginFlush() {
 
             // Get all the mutations from the current position of the persistence cursor to
             // the tail of the current open checkpoint.
-            vb->checkpointManager.getAllItemsForPersistence(item_list);
+            uint64_t checkpointId = vb->checkpointManager.getAllItemsForPersistence(item_list);
+            if (item_list.size() == 0) {
+                continue;
+            }
+            persistenceCheckpointIds[vbid] = checkpointId;
+
             std::set<queued_item, CompareQueuedItemsByKey> item_set;
             std::vector<queued_item>::reverse_iterator reverse_it = item_list.rbegin();
             // Perform further deduplication here by removing duplicate mutations for each key.
@@ -1295,14 +1309,32 @@ std::queue<queued_item>* EventuallyPersistentStore::beginFlush() {
     return rv;
 }
 
-void EventuallyPersistentStore::completeFlush(std::queue<queued_item> *rej,
-                                              rel_time_t flush_start) {
+void EventuallyPersistentStore::requeueRejectedItems(std::queue<queued_item> *rej) {
     // Requeue the rejects.
     stats.queue_size.incr(rej->size());
     while (!rej->empty()) {
         writing.push(rej->front());
         rej->pop();
     }
+    stats.queue_size.set(getWriteQueueSize() + writing.size());
+}
+
+void EventuallyPersistentStore::completeFlush(rel_time_t flush_start) {
+    size_t numOfVBuckets = vbuckets.getSize();
+    for (size_t i = 0; i <= numOfVBuckets; ++i) {
+        assert(i <= std::numeric_limits<uint16_t>::max());
+        uint16_t vbid = static_cast<uint16_t>(i);
+        RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
+        if (!vb || vb->getState() == vbucket_state_dead) {
+            continue;
+        }
+        if (persistenceCheckpointIds[vbid] > 0) {
+            vbuckets.setPersistenceCheckpointId(vbid, persistenceCheckpointIds[vbid]);
+        }
+    }
+    // Schedule the vbucket state snapshot task to record the latest checkpoint Id
+    // that was successfully persisted for each vbucket.
+    scheduleVBSnapshot(Priority::VBucketPersistHighPriority);
 
     stats.flusher_todo.set(writing.size());
     stats.queue_size.set(getWriteQueueSize());
@@ -1581,6 +1613,7 @@ int EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
             // If a vbucket snapshot task with the high priority is currently scheduled,
             // requeue the persistence task and wait until the snapshot task is completed.
             if (vbuckets.isHighPriorityVbSnapshotScheduled()) {
+                v->clearPendingId();
                 lh.unlock();
                 rejectQueue->push(qi);
                 ++vb->opsReject;
@@ -1690,16 +1723,18 @@ void EventuallyPersistentStore::queueDirty(const std::string &key,
 }
 
 void LoadStorageKVPairCallback::initVBucket(uint16_t vbid, uint16_t vb_version,
-                                            vbucket_state_t state) {
+                                            uint64_t checkpointId, vbucket_state_t state) {
     RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
     if (!vb) {
         vb.reset(new VBucket(vbid, state, stats));
         vbuckets.addBucket(vb);
-        vbuckets.setBucketVersion(vbid, vb_version);
     }
-    if (vbid == 0 && vbuckets.getBucketVersion(0) != vb_version) {
-        vbuckets.setBucketVersion(0, vb_version);
-    }
+    // Pass the open checkpoint Id for each vbucket.
+    vb->checkpointManager.setOpenCheckpointId(checkpointId);
+    // For each vbucket, set its vbucket version.
+    vbuckets.setBucketVersion(vbid, vb_version);
+    // For each vbucket, set its latest checkpoint Id that was successfully persisted.
+    vbuckets.setPersistenceCheckpointId(vbid, checkpointId);
 }
 
 void LoadStorageKVPairCallback::callback(GetValue &val) {

@@ -84,14 +84,17 @@ void StrategicSqlite3::update(const Item &itm, uint16_t vb_version,
 }
 
 vbucket_map_t StrategicSqlite3::listPersistedVbuckets() {
-    std::map<std::pair<uint16_t, uint16_t>, std::string> rv;
+    std::map<std::pair<uint16_t, uint16_t>, vbucket_state> rv;
 
     PreparedStatement *st = strategy->getGetVBucketStateST();
 
     while (st->fetch()) {
         ++stats.io_num_read;
         std::pair<uint16_t, uint16_t> vb(st->column_int(0), st->column_int(1));
-        rv[vb] = st->column(1);
+        vbucket_state vb_state;
+        vb_state.state = st->column(2);
+        vb_state.checkpointId = st->column_int64(3);
+        rv[vb] = vb_state;
     }
 
     st->reset();
@@ -198,7 +201,7 @@ bool StrategicSqlite3::snapshotStats(const std::map<std::string, std::string> &m
 /**
  * Function object to set a series of k,v pairs into a PreparedStatement.
  */
-template <typename T>
+template <typename T1, typename T2>
 struct map_setter {
 
     /**
@@ -212,7 +215,7 @@ struct map_setter {
     PreparedStatement *insSt;
     bool &output;
 
-    void operator() (const std::pair<T, std::string> &p) {
+    void operator() (const std::pair<T1, T2> &p) {
         int pos = 1;
         pos += insSt->bind(pos, p.first);
         insSt->bind(pos, p.second);
@@ -223,10 +226,10 @@ struct map_setter {
     }
 };
 
-template <typename T>
+template <typename T1, typename T2>
 bool StrategicSqlite3::storeMap(PreparedStatement *clearSt,
                                 PreparedStatement *insSt,
-                                const std::map<T, std::string> &m) {
+                                const std::map<T1, T2> &m) {
     bool rv(false);
     if (!begin()) {
         return false;
@@ -236,7 +239,7 @@ bool StrategicSqlite3::storeMap(PreparedStatement *clearSt,
         rv &= deleted;
         clearSt->reset();
 
-        map_setter<T> ms(insSt, rv);
+        map_setter<T1, T2> ms(insSt, rv);
         std::for_each(m.begin(), m.end(), ms);
 
         commit();

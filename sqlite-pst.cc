@@ -53,6 +53,12 @@ int PreparedStatement::bind(int pos, std::pair<int, int> pv) {
     return 2;
 }
 
+int PreparedStatement::bind(int pos, vbucket_state vb_state) {
+    bind(pos, vb_state.state);
+    bind64(++pos, vb_state.checkpointId);
+    return 2;
+}
+
 int PreparedStatement::bind64(int pos, uint64_t v) {
     sqlite3_bind_int64(st, pos, v);
     return 1;

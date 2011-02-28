@@ -289,7 +289,8 @@ public:
         assert(epstore);
     }
 
-    void initVBucket(uint16_t vbid, uint16_t vb_version, vbucket_state_t state = vbucket_state_dead);
+    void initVBucket(uint16_t vbid, uint16_t vb_version,
+                     uint64_t checkpointId, vbucket_state_t state = vbucket_state_dead);
     void callback(GetValue &val);
 
 private:
@@ -655,15 +656,16 @@ public:
 
     void warmup() {
         LoadStorageKVPairCallback cb(vbuckets, stats, this);
-        std::map<std::pair<uint16_t, uint16_t>, std::string> state =
+        std::map<std::pair<uint16_t, uint16_t>, vbucket_state> state =
             roUnderlying->listPersistedVbuckets();
-        std::map<std::pair<uint16_t, uint16_t>, std::string>::iterator it;
+        std::map<std::pair<uint16_t, uint16_t>, vbucket_state>::iterator it;
         for (it = state.begin(); it != state.end(); ++it) {
             std::pair<uint16_t, uint16_t> vbp = it->first;
+            vbucket_state vbs = it->second;
             getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
                              "Reloading vbucket %d - was in %s state\n",
-                             vbp.first, it->second.c_str());
-            cb.initVBucket(vbp.first, vbp.second);
+                             vbp.first, vbs.state.c_str());
+            cb.initVBucket(vbp.first, vbp.second, vbs.checkpointId + 1);
         }
         roUnderlying->dump(cb);
         invalidItemDbPager->createRangeList();
@@ -779,8 +781,8 @@ private:
     }
 
     std::queue<queued_item> *beginFlush();
-    void completeFlush(std::queue<queued_item> *rejects,
-                       rel_time_t flush_start);
+    void requeueRejectedItems(std::queue<queued_item> *rejects);
+    void completeFlush(rel_time_t flush_start);
 
     void enqueueCommit();
     int flushSome(std::queue<queued_item> *q,
@@ -830,6 +832,7 @@ private:
     TransactionContext         tctx;
     Mutex                      vbsetMutex;
     uint32_t                   bgFetchDelay;
+    uint64_t                  *persistenceCheckpointIds;
 
     DISALLOW_COPY_AND_ASSIGN(EventuallyPersistentStore);
 };

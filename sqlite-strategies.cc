@@ -47,6 +47,7 @@ void SqliteStrategy::initMetaTables() {
             " (vbid integer primary key on conflict replace,"
             "  vb_version integer,"
             "  state varchar(16),"
+            "  checkpoint_id integer,"
             "  last_change datetime)");
 
     execute("create table if not exists stats_snap"
@@ -57,13 +58,14 @@ void SqliteStrategy::initMetaTables() {
 
 void SqliteStrategy::initMetaStatements(void) {
     const char *ins_query = "insert into vbucket_states"
-        " (vbid, vb_version, state, last_change) values (?, ?, ?, current_timestamp)";
+        " (vbid, vb_version, state, checkpoint_id, last_change)"
+        " values (?, ?, ?, ?, current_timestamp)";
     ins_vb_stmt = new PreparedStatement(db, ins_query);
 
     const char *del_query = "delete from vbucket_states";
     clear_vb_stmt = new PreparedStatement(db, del_query);
 
-    const char *sel_query = "select vbid, vb_version, state from vbucket_states";
+    const char *sel_query = "select vbid, vb_version, state, checkpoint_id from vbucket_states";
     sel_vb_stmt = new PreparedStatement(db, sel_query);
 
     const char *clear_stats_query = "delete from stats_snap";

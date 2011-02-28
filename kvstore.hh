@@ -27,14 +27,20 @@
  */
 typedef std::pair<int, int64_t> mutation_result;
 
+struct vbucket_state {
+    std::string state;
+    uint64_t checkpointId;
+};
+
 /**
  * Type of vbucket map.
  *
  * key.first is the vbucket identifier.
  * key.second is the vbucket version
- * value is the string representation of the vbucket state
+ * value is a pair of string representation of the vbucket state and
+ * its latest checkpoint Id persisted.
  */
-typedef std::map<std::pair<uint16_t, uint16_t>, std::string> vbucket_map_t;
+typedef std::map<std::pair<uint16_t, uint16_t>, vbucket_state> vbucket_map_t;
 
 /**
  * Properites of the storage layer.

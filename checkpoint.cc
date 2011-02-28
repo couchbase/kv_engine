@@ -101,6 +101,7 @@ void CheckpointManager::setOpenCheckpointId(uint64_t id) {
     LockHolder lh(queueLock);
     if (checkpointList.size() > 0) {
         checkpointList.back()->setId(id);
+        nextCheckpointId = ++id;
     }
 }
 
