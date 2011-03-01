@@ -200,7 +200,7 @@ public:
      * Register the new cursor for a given TAP connection
      * @param name the name of a given TAP connection
      * @param checkpointId the checkpoint Id to start with.
-     * @return true if the TAP cursor is registered successfully.
+     * @return true if the checkpoint to start with exists in the queue.
      */
     bool registerTAPCursor(const std::string &name, uint64_t checkpointId = 1);
 
@@ -210,6 +210,14 @@ public:
      * @return true if the TAP cursor is removed successfully.
      */
     bool removeTAPCursor(const std::string &name);
+
+    /**
+     * Get the Id of the checkpoint where the given TAP connection's cursor is currently located.
+     * If the cursor is not found, return 0 as a checkpoint Id.
+     * @param name the name of a given TAP connection
+     * @return the checkpoint Id for a given TAP connection's cursor.
+     */
+    uint64_t getCheckpointIdForTAPCursor(const std::string &name);
 
     size_t getNumOfTAPCursors();
 

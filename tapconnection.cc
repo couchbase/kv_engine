@@ -96,6 +96,10 @@ void TapProducer::evaluateFlags()
         ss << ",takeover";
     }
 
+    if (flags & TAP_CONNECT_CHECKPOINT) {
+        ss << ",checkpoints";
+    }
+
     if (ss.str().length() > 0) {
         std::stringstream m;
         m.setf(std::ios::hex);
@@ -179,6 +183,55 @@ void TapProducer::setVBucketFilter(const std::vector<uint16_t> &vbuckets)
                 TapVBucketEvent hi(TAP_OPAQUE, *it, (vbucket_state_t)htonl(TAP_OPAQUE_INITIAL_VBUCKET_STREAM));
                 addVBucketHighPriority(hi);
             }
+        }
+    }
+}
+
+void TapProducer::registerTAPCursor(std::map<uint16_t, uint64_t> &lastCheckpointIds) {
+    currentVBCheckpointIds.clear();
+    std::vector<uint16_t> backfill_vbuckets;
+    const VBucketMap &vbuckets = engine.getEpStore()->getVBuckets();
+    size_t numOfVBuckets = vbuckets.getSize();
+    for (size_t i = 0; i <= numOfVBuckets; ++i) {
+        assert(i <= std::numeric_limits<uint16_t>::max());
+        uint16_t vbid = static_cast<uint16_t>(i);
+        RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
+        if (!vb || vb->getState() == vbucket_state_dead) {
+            continue;
+        }
+        if (vbucketFilter(vbid)) {
+            std::map<uint16_t, uint64_t>::iterator it = lastCheckpointIds.find(vbid);
+            if (it != lastCheckpointIds.end()) {
+                // Now, we assume that the checkpoint Id for a given vbucket is monotonically
+                // increased. TODO: If the server supports collapsing multiple closed referenced
+                // checkpoints due to very slow TAP clients, the server should maintain the list
+                // of checkpoint Ids for each collapsed checkpoint.
+                currentVBCheckpointIds[vbid] = it->second + 1;
+            } else {
+                // If a TAP client doesn't pass the last closed checkpoint Id for a given vbucket,
+                // check if the checkpoint manager currently has the cursor for that TAP client.
+                uint64_t cid = vb->checkpointManager.getCheckpointIdForTAPCursor(name);
+                if (cid > 0) {
+                    currentVBCheckpointIds[vbid] = cid;
+                } else {
+                    // Start with the checkpoint 1
+                    currentVBCheckpointIds[vbid] = 1;
+                }
+            }
+            // Check if the unified queue contains the checkpoint to start with.
+            if(!vb->checkpointManager.registerTAPCursor(name, currentVBCheckpointIds[vbid])) {
+                // 0 means that it requires a backfill operation.
+                currentVBCheckpointIds[vbid] = 0;
+                backfill_vbuckets.push_back(vbid);
+            }
+        }
+    }
+
+    if (backfill_vbuckets.size() > 0) {
+        backFillVBucketFilter.assign(backfill_vbuckets);
+        if (backfillAge < (uint64_t)ep_real_time()) {
+            doRunBackfill = true;
+            pendingBackfill = true;
         }
     }
 }

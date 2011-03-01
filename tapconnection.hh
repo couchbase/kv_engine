@@ -813,11 +813,23 @@ private:
     Atomic<size_t> diskBackfillCounter;
 
     void setVBucketFilter(const std::vector<uint16_t> &vbuckets);
+
+    /**
+     * Register the unified queue cursor for this TAP producer.
+     */
+    void registerTAPCursor(std::map<uint16_t, uint64_t> &lastCheckpointIds);
+
     /**
      * Filter for the buckets we want.
      */
     VBucketFilter vbucketFilter;
     VBucketFilter backFillVBucketFilter;
+
+    /**
+     * For each vbucket, maintain the current checkpoint Id that this TAP producer should
+     * transmit to its TAP client.
+     */
+    std::map<uint16_t, uint64_t> currentVBCheckpointIds;
 
     /**
      * VBucket status messages immediately (before userdata)

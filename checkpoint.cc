@@ -130,24 +130,26 @@ void CheckpointManager::registerPersistenceCursor() {
 
 bool CheckpointManager::registerTAPCursor(const std::string &name, uint64_t checkpointId) {
     LockHolder lh(queueLock);
-    if (checkpointList.size() == 0) {
-        return false;
-    }
+    assert(checkpointList.size() > 0);
 
+    bool found = false;
     std::list<Checkpoint*>::iterator it = checkpointList.begin();
     for (; it != checkpointList.end(); it++) {
-        if (checkpointId <= (*it)->getId()) {
+        if (checkpointId == (*it)->getId()) {
+            found = true;
             break;
         }
     }
-    if (it == checkpointList.end()) {
-        return false;
+    if (!found) {
+        // If the checkpoint to start with is not found, set the TAP cursor to the beginning
+        // of the checkpoint list. This case requires the full materialization through backfill.
+        it = checkpointList.begin();
     }
 
     CheckpointCursor cursor(it, (*it)->begin());
     tapCursors[name] = cursor;
     (*it)->incrReferenceCounter();
-    return true;
+    return found;
 }
 
 bool CheckpointManager::removeTAPCursor(const std::string &name) {
@@ -160,6 +162,16 @@ bool CheckpointManager::removeTAPCursor(const std::string &name) {
 
     tapCursors.erase(it);
     return true;
+}
+
+uint64_t CheckpointManager::getCheckpointIdForTAPCursor(const std::string &name) {
+    LockHolder lh(queueLock);
+    std::map<const std::string, CheckpointCursor>::iterator it = tapCursors.find(name);
+    if (it == tapCursors.end()) {
+        return 0;
+    }
+
+    return (*(it->second.currentCheckpoint))->getId();
 }
 
 size_t CheckpointManager::getNumOfTAPCursors() {

@@ -734,6 +734,10 @@ public:
 
     void scheduleVBSnapshot(const Priority &priority);
 
+    const VBucketMap &getVBuckets() {
+        return vbuckets;
+    }
+
 private:
 
     void scheduleVBDeletion(RCPtr<VBucket> vb, uint16_t vb_version, double delay);

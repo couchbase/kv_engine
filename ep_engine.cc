@@ -1756,6 +1756,7 @@ void EventuallyPersistentEngine::createTapQueue(const void *cookie,
     const char *ptr = static_cast<const char*>(userdata);
     uint64_t backfillAge = 0;
     std::vector<uint16_t> vbuckets;
+    std::map<uint16_t, uint64_t> lastCheckpointIds;
 
     if (flags & TAP_CONNECT_FLAG_BACKFILL) { /* */
         assert(nuserdata >= sizeof(backfillAge));
@@ -1781,6 +1782,29 @@ void EventuallyPersistentEngine::createTapQueue(const void *cookie,
                 ptr += sizeof(uint16_t);
                 vbuckets.push_back(ntohs(val));
             }
+            nuserdata -= (sizeof(uint16_t) * nvbuckets);
+        }
+    }
+
+    if (flags & TAP_CONNECT_CHECKPOINT) {
+        uint16_t nCheckpoints;
+        assert(nuserdata >= sizeof(nCheckpoints));
+        memcpy(&nCheckpoints, ptr, sizeof(nCheckpoints));
+        nuserdata -= sizeof(nCheckpoints);
+        ptr += sizeof(nCheckpoints);
+        nCheckpoints = ntohs(nCheckpoints);
+        if (nCheckpoints > 0) {
+            assert(nuserdata >= ((sizeof(uint16_t) + sizeof(uint64_t)) * nCheckpoints));
+            for (uint16_t j = 0; j < nCheckpoints; ++j) {
+                uint16_t vbid;
+                uint64_t checkpointId;
+                memcpy(&vbid, ptr, sizeof(vbid));
+                ptr += sizeof(uint16_t);
+                memcpy(&checkpointId, ptr, sizeof(checkpointId));
+                ptr += sizeof(uint64_t);
+                lastCheckpointIds[ntohs(vbid)] = ntohll(checkpointId);
+            }
+            nuserdata -= ((sizeof(uint16_t) + sizeof(uint64_t)) * nCheckpoints);
         }
     }
 
@@ -1789,6 +1813,7 @@ void EventuallyPersistentEngine::createTapQueue(const void *cookie,
                                               static_cast<int>(tapKeepAlive));
 
     tap->setVBucketFilter(vbuckets);
+    tap->registerTAPCursor(lastCheckpointIds);
     serverApi->cookie->store_engine_specific(cookie, tap);
     serverApi->cookie->set_tap_nack_mode(cookie, tap->supportsAck());
     tapConnMap.notify();
