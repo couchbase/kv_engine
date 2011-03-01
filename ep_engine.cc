@@ -3126,6 +3126,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::sync(std::set<key_spec_t> *keys,
 
     SyncListener *syncListener = new SyncListener(*this, cookie,
                                                   keys, syncType, replicas);
+    std::vector< std::pair<StoredValue*, uint16_t> > storedValues;
     std::set<key_spec_t>::iterator it = keys->begin();
 
     for ( ; it != keys->end(); it++) {
@@ -3141,11 +3142,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::sync(std::set<key_spec_t> *keys,
                 continue;
             }
 
-            if ((syncType == PERSIST) && sv->isClean()) {
-                syncListener->getPersistedKeys().insert(*it);
-                keys->erase(it);
-                continue;
-            }
+            std::pair<StoredValue*, uint16_t> pair(sv, it->vbucketid);
+            storedValues.push_back(pair);
         }
     }
 
@@ -3166,7 +3164,19 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::sync(std::set<key_spec_t> *keys,
 
     switch (syncType) {
     case PERSIST:
-        syncRegistry.addPersistenceListener(syncListener);
+        {
+            syncRegistry.addPersistenceListener(syncListener);
+
+            std::vector< std::pair<StoredValue*, uint16_t> >::iterator itv;
+            for (itv = storedValues.begin(); itv != storedValues.end(); itv++) {
+                StoredValue *sv = itv->first;
+
+                if (sv->isClean()) {
+                    key_spec_t keyspec(sv->getCas(), itv->second, sv->getKey());
+                    syncListener->keySynced(keyspec);
+                }
+            }
+        }
         break;
     case MUTATION:
         syncRegistry.addMutationListener(syncListener);

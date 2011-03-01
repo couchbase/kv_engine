@@ -103,6 +103,7 @@ SyncListener::~SyncListener() {
 
 bool SyncListener::keySynced(const key_spec_t &keyspec, bool deleted) {
     bool finished = false;
+    LockHolder lh(mutex);
     std::set<key_spec_t>::iterator it = keySpecs->find(keyspec);
 
     if (it != keySpecs->end()) {

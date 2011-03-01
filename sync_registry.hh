@@ -140,6 +140,7 @@ private:
     std::set<key_spec_t>         deletedKeys;
     std::set<key_spec_t>         nonExistentKeys;
     std::set<key_spec_t>         invalidCasKeys;
+    Mutex                        mutex;
 };
 
 
