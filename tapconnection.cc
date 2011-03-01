@@ -228,6 +228,20 @@ void TapProducer::rollback() {
         case TAP_MUTATION:
             addEvent_UNLOCKED(i->key, i->vbucket, queue_op_set);
             break;
+        case TAP_OPAQUE:
+            {
+                uint32_t val = ntohl((uint32_t)i->state);
+                switch (val) {
+                case TAP_OPAQUE_ENABLE_AUTO_NACK:
+                case TAP_OPAQUE_INITIAL_VBUCKET_STREAM:
+                    break;
+                default:
+                    getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                     "Internal error. Not implemented");
+                    abort();
+                }
+            }
+            break;
         default:
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                              "Internal error. Not implemented");
