@@ -2447,7 +2447,6 @@ static enum test_result test_tap_ack_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
     std::string key;
     bool done = false;
     int index;
-    bool nackTapOpaque = false;
     int numRollbacks = 1000;
 
     do {
