@@ -2447,8 +2447,27 @@ static enum test_result test_tap_ack_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
     std::string key;
     bool done = false;
     int index;
+    bool nackTapOpaque = false;
+    int numRollbacks = 1000;
 
     do {
+        if (numRollbacks > 0) {
+            if (random() % 4 == 0) {
+                iter = NULL;
+            }
+        }
+
+        if (iter == NULL) {
+            iter = h1->get_tap_iterator(h, cookie, name.c_str(),
+                                        name.length(),
+                                        TAP_CONNECT_FLAG_LIST_VBUCKETS |
+                                        TAP_CONNECT_SUPPORT_ACK |
+                                        TAP_CONNECT_FLAG_DUMP,
+                                        static_cast<void*>(vbucketfilter),
+                                        4);
+            check(iter != NULL, "Failed to create a tap iterator");
+        }
+
         event = iter(h, cookie, &it, &engine_specific,
                      &nengine_specific, &ttl, &flags,
                      &seqno, &vbucket);
@@ -2458,6 +2477,12 @@ static enum test_result test_tap_ack_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
             testHarness.waitfor_cookie(cookie);
             break;
         case TAP_OPAQUE:
+            if (numRollbacks > 0) {
+                if (random() % 2 == 0) {
+                    iter = NULL;
+                    continue;
+                }
+            }
             testHarness.unlock_cookie(cookie);
             h1->tap_notify(h, cookie, NULL, 0, 0,
                            PROTOCOL_BINARY_RESPONSE_SUCCESS,
