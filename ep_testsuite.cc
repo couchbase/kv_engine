@@ -2477,9 +2477,9 @@ static enum test_result test_tap_filter_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     const void *cookie = testHarness.create_cookie();
     testHarness.lock_cookie(cookie);
     uint16_t vbucketfilter[4];
-    vbucketfilter[0] = ntohs(2);
-    vbucketfilter[1] = ntohs(0);
-    vbucketfilter[2] = ntohs(2);
+    vbucketfilter[0] = htons(2);
+    vbucketfilter[1] = htons(0);
+    vbucketfilter[2] = htons(2);
 
     std::string name = "tap_client_thread";
     TAP_ITERATOR iter = h1->get_tap_iterator(h, cookie, name.c_str(),
@@ -2544,8 +2544,8 @@ static enum test_result test_tap_filter_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V
             // We've got some of the elements.. Let's change the filter
             // and get the rest
             if (found == 10) {
-                vbucketfilter[0] = ntohs(3);
-                vbucketfilter[3] = ntohs(3);
+                vbucketfilter[0] = htons(3);
+                vbucketfilter[3] = htons(3);
                 iter = h1->get_tap_iterator(h, cookie, name.c_str(),
                                             name.length(),
                                             TAP_CONNECT_FLAG_LIST_VBUCKETS,
@@ -2637,8 +2637,8 @@ static enum test_result test_tap_ack_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
     const void *cookie = testHarness.create_cookie();
     testHarness.lock_cookie(cookie);
     uint16_t vbucketfilter[2];
-    vbucketfilter[0] = ntohs(1);
-    vbucketfilter[1] = ntohs(0);
+    vbucketfilter[0] = htons(1);
+    vbucketfilter[1] = htons(0);
 
     std::string name = "tap_ack";
     TAP_ITERATOR iter = h1->get_tap_iterator(h, cookie, name.c_str(),
@@ -2772,8 +2772,8 @@ static enum test_result test_tap_implicit_ack_stream(ENGINE_HANDLE *h, ENGINE_HA
     const void *cookie = testHarness.create_cookie();
     testHarness.lock_cookie(cookie);
     uint16_t vbucketfilter[2];
-    vbucketfilter[0] = ntohs(1);
-    vbucketfilter[1] = ntohs(0);
+    vbucketfilter[0] = htons(1);
+    vbucketfilter[1] = htons(0);
 
     std::string name = "tap_ack";
     TAP_ITERATOR iter = h1->get_tap_iterator(h, cookie, name.c_str(),
