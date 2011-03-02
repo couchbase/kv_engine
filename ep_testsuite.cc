@@ -1756,7 +1756,7 @@ static enum test_result test_bug3454(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     testHarness.reload_engine(&h, &h1,
                               testHarness.engine_path,
                               testHarness.default_engine_cfg,
-                              true, false);
+                              true);
     assert(1 == get_int_stat(h, h1, "ep_warmed_up"));
     assert(0 == get_int_stat(h, h1, "ep_warmup_dups"));
 
