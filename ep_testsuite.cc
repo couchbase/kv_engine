@@ -1748,6 +1748,64 @@ static enum test_result test_expiry_flush(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     return SUCCESS;
 }
 
+static enum test_result test_bug3454(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    const char *key = "test_expiry_duplicate_warmup";
+    const char *data = "some test data here.";
+
+    item *it = NULL;
+
+    ENGINE_ERROR_CODE rv;
+    rv = h1->allocate(h, NULL, &it, key, strlen(key), strlen(data), 0, 5);
+    check(rv == ENGINE_SUCCESS, "Allocation failed.");
+
+    item_info info;
+    info.nvalue = 1;
+    if (!h1->get_item_info(h, NULL, it, &info)) {
+        abort();
+    }
+    memcpy(info.value[0].iov_base, data, strlen(data));
+
+    uint64_t cas = 0;
+    rv = h1->store(h, NULL, it, &cas, OPERATION_SET, 0);
+    check(rv == ENGINE_SUCCESS, "Set failed.");
+    check_key_value(h, h1, key, data, strlen(data));
+    h1->release(h, NULL, it);
+    wait_for_flusher_to_settle(h, h1);
+
+    // Advance the ep_engine time by 10 sec for the above item to be expired.
+    testHarness.time_travel(10);
+    check(h1->get(h, NULL, &it, key, strlen(key), 0) == ENGINE_KEY_ENOENT,
+          "Item didn't expire");
+
+    rv = h1->allocate(h, NULL, &it, key, strlen(key), strlen(data), 0, 0);
+    check(rv == ENGINE_SUCCESS, "Allocation failed.");
+
+    info.nvalue = 1;
+    if (!h1->get_item_info(h, NULL, it, &info)) {
+        abort();
+    }
+    memcpy(info.value[0].iov_base, data, strlen(data));
+
+    cas = 0;
+    // Add a new item with the same key.
+    rv = h1->store(h, NULL, it, &cas, OPERATION_ADD, 0);
+    check(rv == ENGINE_SUCCESS, "Add failed.");
+    check_key_value(h, h1, key, data, strlen(data));
+
+    check(h1->get(h, NULL, &it, key, strlen(key), 0) == ENGINE_SUCCESS,
+          "Item shouldn't expire");
+
+    // Restart the engine to ensure the above unexpired new item is loaded
+    testHarness.reload_engine(&h, &h1,
+                              testHarness.engine_path,
+                              testHarness.default_engine_cfg,
+                              true, false);
+    assert(1 == get_int_stat(h, h1, "ep_warmed_up"));
+    assert(0 == get_int_stat(h, h1, "ep_warmup_dups"));
+
+    return SUCCESS;
+}
+
 static enum test_result test_vb_del_pending(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const void *cookie = testHarness.create_cookie();
     testHarness.set_ewouldblock_handling(cookie, false);
@@ -4179,6 +4237,7 @@ engine_test_t* get_tests(void) {
         {"expiry", test_expiry, NULL, teardown, NULL},
         {"expiry_loader", test_expiry_loader, NULL, teardown, NULL},
         {"expiry_flush", test_expiry_flush, NULL, teardown, NULL},
+        {"expiry_duplicate_warmup", test_bug3454, NULL, teardown, NULL},
         // Stats tests
         {"stats", test_stats, NULL, teardown, NULL},
         {"io stats", test_io_stats, NULL, teardown, NULL},

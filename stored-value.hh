@@ -976,12 +976,14 @@ public:
                 return ADD_NOMEM;
             }
             if (v) {
+                rv = (v->isDeleted() || v->isExpired(ep_real_time())) ? ADD_UNDEL : ADD_SUCCESS;
                 v->setValue(itm.getValue(),
                             itm.getFlags(), itm.getExptime(),
                             itm.getCas(), stats, *this);
-                rv = v->isDirty() ? ADD_UNDEL : ADD_SUCCESS;
                 if (isDirty) {
                     v->markDirty();
+                } else {
+                    v->markClean(NULL);
                 }
             } else {
                 v = valFact(itm, values[bucket_num], *this, isDirty);
@@ -991,8 +993,6 @@ public:
             if (!storeVal) {
                 v->ejectValue(stats, *this);
             }
-
-            assert(v->isDirty() == isDirty);
         }
 
         return rv;
