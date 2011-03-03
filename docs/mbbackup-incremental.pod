@@ -1,0 +1,129 @@
+=head1 NAME
+
+mbbackup incremental - incrementally backup membase
+
+=head1 SYNOPSIS
+
+=over 2
+
+B<mbbackup incremental> [-h host:port] [-o output_filename] [-T timeout_secs] [-r] [-t transaction_size] [-v] tap_name
+
+B<mbbackup incremental> db_file
+
+=back
+
+=head1 DESCRIPTION
+
+B<mbbackup-incremental> gives one the ability to create an incremental backup
+from a checkpoint created and managed by the Membase server.  In
+conjunction with the output from B<mbbackup-incremental>, a Membase
+server may be restored to a given consistent checkpoint.
+
+B<mbbackup-incremental> can also verify a given backup file.
+
+It should be noted that a complete set of incremental backups will be
+required to get to a particular restore point.
+
+B<Warning:> creating a new backup and not updating it on a regular basis
+will cause additional memory utilization on the server.  The server
+will retain all previous values across checkpoints (defined by the server)
+until the backup re-visits the server.  It is imperative that the backups
+be updated or the backup client be deleted.
+
+=head1 OPTIONS
+
+The following options are supported:
+
+=over 4
+
+=item -h hostname:port
+
+Connect to the given host:port as the source to back up.
+
+=item -o outputfile
+
+Write the incremental backup to the specified output file.
+
+Note that the client will substitute an incrementing integer on each
+execution for a "%" character included in the backup file name.
+For purposes of simple sorting, it will automatically pad 5 digits
+in place of the "%", starting with 00000.  This allows one to run
+B<mbbackup incremental> via cron or some other
+job controller on a regular basis to create a set of incremental
+backups.  The pattern may take at most one "%" character.
+
+B<Warning:> it is recommended, when moving old incremental
+backups, to leave the most recent one.  This way, B<mbbackup>
+B<incremental> will always increment the number in the filename
+monotonically rather than have multiple backups with the same
+name.
+
+=item -T n
+
+Terminate if no progress happens for n seconds.
+
+=item -r tap_name
+
+Only register the name and exit, do not backup any data.
+
+One may use this argument to register a tap_name before one
+is ready to actually do a backup.  Subsequent invocations
+without this argument will use the same registration (as identified
+by the tap_name).
+
+=item -t transaction_size
+
+Include B<transaction_size> records in each disk write.
+
+Tuning the transaction_size will affect the size and rate
+of disk IO.  Generally this option should not need to be
+adjusted.
+
+The default B<transaction_size> is 5000.
+
+=item -v
+
+Increase the verbosity output.  Note that up to three individual
+-v arguments may be supplied, each one increasing verbosity.
+
+=back
+
+=head1 OPERANDS
+
+tap_name    The registered client name on the server
+
+db_file     The name of the database file to verify
+
+=head1 EXAMPLES
+
+=over 4
+
+B<Example 1> creating the first backup from a given server.
+
+=over 2
+
+# mbbackup incremental -o my_backup_%.mbb hourly_backup
+
+=back
+
+This example creates a backup, using the registered name
+"hourly_backup" on the server.  The file created will be
+my_backup_00000.mbb if it is the first file.  Otherwise
+it will increment over the digit found in the directory.
+
+B<Example 2> Backing up a remote server
+
+=over 2
+
+# mbbackup incremental -h myserver.bigco.com:11210 -o got_my_back%.mbb hourly_backup
+
+=back
+
+This example is exactly like the first example, except in
+the name of the backup file and that this backup is run over the network.
+
+=back
+
+=cut
+
+
