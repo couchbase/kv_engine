@@ -70,7 +70,7 @@ void TapConnMap::disconnect(const void *cookie, int tapKeepAlive) {
 }
 
 bool TapConnMap::setEvents(const std::string &name,
-                           std::list<QueuedItem> *q) {
+                           std::list<queued_item> *q) {
     bool shouldNotify(true);
     bool found(false);
     LockHolder lh(notifySync);
@@ -297,7 +297,8 @@ void TapConnMap::notifyIOThreadMain() {
     // all queues have items.
     getExpiredConnections_UNLOCKED(deadClients);
     bool shouldPause = deadClients.empty();
-    bool noEvents = engine.populateEvents();
+    bool noEvents = engine.mutation_count == 0;
+    engine.mutation_count = 0;
 
     if (shouldPause) {
         shouldPause = noEvents;

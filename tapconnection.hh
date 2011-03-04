@@ -60,21 +60,30 @@ public:
         seqno(s),
         event(e.event),
         vbucket(e.vbucket),
-        state(e.state),
-        key() // Not used, but need to initialize
+        state(e.state)
     {
         // EMPTY
     }
 
 
-    TapLogElement(uint32_t s, const QueuedItem &i) :
+    TapLogElement(uint32_t s, const queued_item &qi) :
         seqno(s),
-        event(TAP_MUTATION), // just set it to TAP_MUTATION.. I'll fix it if I have to replay the log
-        vbucket(i.getVBucketId()),
-        state(vbucket_state_active),  // Not used, but I need to initialize...
-        key(i.getKey())
+        vbucket(qi->getVBucketId()),
+        item(qi)
     {
-        // EMPTY
+        switch(item->getOperation()) {
+        case queue_op_set:
+            event = TAP_MUTATION;
+            break;
+        case queue_op_del:
+            event = TAP_DELETION;
+            break;
+        case queue_op_flush:
+            event = TAP_FLUSH;
+            break;
+        default:
+            break;
+        }
     }
 
     uint32_t seqno;
@@ -82,7 +91,7 @@ public:
     uint16_t vbucket;
 
     vbucket_state_t state;
-    std::string key;
+    queued_item item;
 };
 
 /**
@@ -359,15 +368,11 @@ private:
      *
      * @return true if the the queue was empty
      */
-    bool addEvent_UNLOCKED(const QueuedItem &it) {
-        if (vbucketFilter(it.getVBucketId())) {
+    bool addEvent_UNLOCKED(const queued_item &it) {
+        if (vbucketFilter(it->getVBucketId())) {
             bool wasEmpty = queue->empty();
-            std::pair<std::set<QueuedItem>::iterator, bool> ret;
-            ret = queue_set->insert(it);
-            if (ret.second) {
-                queue->push_back(it);
-                ++queueSize;
-            }
+            queue->push_back(it);
+            ++queueSize;
             return wasEmpty;
         } else {
             return queue->empty();
@@ -381,7 +386,7 @@ private:
      *
      * @return true if the the queue was empty
      */
-    bool addEvent(const QueuedItem &it) {
+    bool addEvent(const queued_item &it) {
         LockHolder lh(queueLock);
         return addEvent_UNLOCKED(it);
     }
@@ -391,7 +396,8 @@ private:
      * @return true if the the queue was empty
      */
     bool addEvent_UNLOCKED(const std::string &key, uint16_t vbid, enum queue_operation op) {
-        return addEvent_UNLOCKED(QueuedItem(key, vbid, op));
+        queued_item qi(new QueuedItem(key, vbid, op));
+        return addEvent_UNLOCKED(qi);
     }
 
     bool addEvent(const std::string &key, uint16_t vbid, enum queue_operation op) {
@@ -399,7 +405,7 @@ private:
         return addEvent_UNLOCKED(key, vbid, op);
     }
 
-    void addTapLogElement(const QueuedItem &qi) {
+    void addTapLogElement(const queued_item &qi) {
         LockHolder lh(queueLock);
         if (supportAck) {
             TapLogElement log(seqno, qi);
@@ -415,30 +421,10 @@ private:
         }
     }
 
-    QueuedItem next() {
-        LockHolder lh(queueLock);
-
-        while (!queue->empty()) {
-            QueuedItem qi = queue->front();
-            queue->pop_front();
-            queue_set->erase(qi);
-            --queueSize;
-            if (queueMemSize > qi.size()) {
-                queueMemSize.decr(qi.size());
-            } else {
-                queueMemSize.set(0);
-            }
-
-            if (vbucketFilter(qi.getVBucketId())) {
-                ++recordsFetched;
-                return qi;
-            } else {
-                ++recordsSkipped;
-            }
-        }
-
-        return QueuedItem("", 0xffff, queue_op_empty);
-    }
+    /**
+     * Get the next item from the queue
+     */
+    queued_item next();
 
     void addVBucketHighPriority_UNLOCKED(TapVBucketEvent &ev) {
         vBucketHighPriority.push(ev);
@@ -530,7 +516,7 @@ private:
     }
 
     bool hasQueuedItem_UNLOCKED() {
-        return !queue->empty();
+        return !queue->empty() || getRemainingOnCheckpoints() > 0;
     }
 
     bool empty_UNLOCKED() {
@@ -613,6 +599,11 @@ private:
         return ret;
     }
 
+    /**
+     * Get the total number of remaining items from all checkpoints.
+     */
+    size_t getRemainingOnCheckpoints();
+
     Item* nextFetchedItem();
 
     void flush() {
@@ -621,7 +612,6 @@ private:
         /* No point of keeping the rep queue when someone wants to flush it */
         queue->clear();
         queueSize = 0;
-        queue_set->clear();
         queueMemSize = 0;
     }
 
@@ -632,13 +622,13 @@ private:
     }
 
     // This method is called while holding the tapNotifySync lock.
-    void appendQueue(std::list<QueuedItem> *q) {
+    void appendQueue(std::list<queued_item> *q) {
         LockHolder lh(queueLock);
         queue->splice(queue->end(), *q);
         queueSize = queue->size();
 
-        for(std::list<QueuedItem>::iterator i = q->begin(); i != q->end(); ++i)  {
-            queueMemSize.incr(i->size());
+        for(std::list<queued_item>::iterator i = q->begin(); i != q->end(); ++i)  {
+            queueMemSize.incr((*i)->size());
         }
     }
 
@@ -686,7 +676,6 @@ private:
     ~TapProducer() {
         assert(cleanSome());
         delete queue;
-        delete queue_set;
     }
 
     ENGINE_ERROR_CODE processAck(uint32_t seqno, uint16_t status, const std::string &msg);
@@ -736,7 +725,7 @@ private:
     /**
      * The queue of keys that needs to be sent (this is the "live stream")
      */
-    std::list<QueuedItem> *queue;
+    std::list<queued_item> *queue;
     /**
      * Calling size() on a list is a heavy operation (it will traverse
      * the list to determine the size).. During tap backfill we're calling
@@ -746,13 +735,6 @@ private:
      */
     size_t queueSize;
 
-    /**
-     * Set to prevent duplicate queue entries.
-     *
-     * Note that stl::set is O(log n) for ops we care about, so we'll
-     * want to look out for this.
-     */
-    std::set<QueuedItem> *queue_set;
     /**
      * Flags passed by the client
      */

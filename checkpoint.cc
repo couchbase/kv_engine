@@ -39,7 +39,7 @@ queue_dirty_t Checkpoint::queueDirty(const queued_item &item, CheckpointManager 
             checkpoint_index::iterator ita = keyIndex.find(key);
             uint64_t mutationId = ita->second.mutation_id;
             if (currMutationId <= mutationId) {
-                --(checkpointManager->persistenceCursorOffset);
+                --(checkpointManager->persistenceCursor.offset);
             }
             // If the persistence cursor points to the existing item for the same key,
             // shift the cursor left by 1.
@@ -51,10 +51,18 @@ queue_dirty_t Checkpoint::queueDirty(const queued_item &item, CheckpointManager 
         std::map<const std::string, CheckpointCursor>::iterator map_it;
         for (map_it = checkpointManager->tapCursors.begin();
              map_it != checkpointManager->tapCursors.end(); map_it++) {
-            // If an TAP cursor points to the existing item for the same key, shift it left by 1
-            if (*(map_it->second.currentCheckpoint) == this &&
-                map_it->second.currentPos == currPos) {
-                --(map_it->second.currentPos);
+
+            if (*(map_it->second.currentCheckpoint) == this) {
+                std::string key = (*(map_it->second.currentPos))->getKey();
+                checkpoint_index::iterator ita = keyIndex.find(key);
+                uint64_t mutationId = ita->second.mutation_id;
+                if (currMutationId <= mutationId) {
+                    --(map_it->second.offset);
+                }
+                // If an TAP cursor points to the existing item for the same key, shift it left by 1
+                if (map_it->second.currentPos == currPos) {
+                    --(map_it->second.currentPos);
+                }
             }
         }
         // Copy the queued time of the existing item to the new one.
@@ -295,7 +303,7 @@ uint64_t CheckpointManager::getAllItemsForPersistence(std::vector<queued_item> &
     LockHolder lh(queueLock);
     // Get all the items up to the end of the current open checkpoint.
     uint64_t checkpointId = getAllItemsFromCurrentPosition(persistenceCursor, items);
-    persistenceCursorOffset += items.size();
+    persistenceCursor.offset += items.size();
     return checkpointId;
 }
 
@@ -309,8 +317,9 @@ uint64_t CheckpointManager::getAllItemsForTAPConnection(const std::string &name,
                          name.c_str());
         return 0;
     }
-
-    return getAllItemsFromCurrentPosition(it->second, items);
+    uint64_t checkpointId = getAllItemsFromCurrentPosition(it->second, items);
+    it->second.offset += items.size();
+    return checkpointId;
 }
 
 queued_item CheckpointManager::nextItem(const std::string &name) {
@@ -335,11 +344,13 @@ queued_item CheckpointManager::nextItem(const std::string &name) {
 queued_item CheckpointManager::nextItemFromClosedCheckpoint(CheckpointCursor &cursor) {
     ++(cursor.currentPos);
     if (cursor.currentPos != (*(cursor.currentCheckpoint))->end()) {
+        ++(cursor.offset);
         return *(cursor.currentPos);
     } else {
         moveCursorToNextCheckpoint(cursor);
         if ((*(cursor.currentCheckpoint))->getState() == closed) { // the close checkpoint.
             ++(cursor.currentPos); // Move the cursor to point to the actual first item.
+            ++(cursor.offset);
             return *(cursor.currentPos);
         } else { // the open checkpoint.
             return nextItemFromOpenedCheckpoint(cursor);
@@ -350,6 +361,7 @@ queued_item CheckpointManager::nextItemFromClosedCheckpoint(CheckpointCursor &cu
 queued_item CheckpointManager::nextItemFromOpenedCheckpoint(CheckpointCursor &cursor) {
     ++(cursor.currentPos);
     if (cursor.currentPos != (*(cursor.currentCheckpoint))->end()) {
+        ++(cursor.offset);
         return *(cursor.currentPos);
     } else {
         --(cursor.currentPos);
@@ -401,6 +413,7 @@ void CheckpointManager::clear() {
     // Reset the persistence cursor.
     persistenceCursor.currentCheckpoint = checkpointList.begin();
     persistenceCursor.currentPos = checkpointList.front()->begin();
+    persistenceCursor.offset = 0;
     checkpointList.front()->incrReferenceCounter();
 
     // Reset all the persistence cursors.
@@ -408,11 +421,11 @@ void CheckpointManager::clear() {
     for (; cit != tapCursors.end(); ++cit) {
         cit->second.currentCheckpoint = checkpointList.begin();
         cit->second.currentPos = checkpointList.front()->begin();
+        cit->second.offset = 0;
         checkpointList.front()->incrReferenceCounter();
     }
 
     numItems = 0;
-    persistenceCursorOffset = 0;
     mutationCounter = 0;
 }
 
@@ -443,4 +456,14 @@ bool CheckpointManager::isKeyResidentInCheckpoints(const std::string &key, uint6
 
     lh.unlock();
     return found;
+}
+
+size_t CheckpointManager::getNumItemsForTAPConnection(const std::string &name) {
+    LockHolder lh(queueLock);
+    size_t remains = 0;
+    std::map<const std::string, CheckpointCursor>::iterator it = tapCursors.find(name);
+    if (it != tapCursors.end()) {
+        remains = numItems - it->second.offset;
+    }
+    return remains;
 }

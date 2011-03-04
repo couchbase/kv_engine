@@ -3039,7 +3039,10 @@ static enum test_result test_tap_implicit_ack_stream(ENGINE_HANDLE *h, ENGINE_HA
         }
     } while (!done);
     testHarness.unlock_cookie(cookie);
-    check(mutations == 11, "Expected 11 mutations to be returned");
+    // During the backfill phase, the backfill is interleaved with the checkpoint cursor
+    // and we don't check duplciate items. Consequently, this increases the number of items
+    // to be returned by two times. TODO: We will optimize this soon.
+    check(mutations == 21, "Expected 21 mutations to be returned");
     return SUCCESS;
 }
 

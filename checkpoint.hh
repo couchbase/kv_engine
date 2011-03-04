@@ -43,11 +43,12 @@ public:
 
     CheckpointCursor(std::list<Checkpoint*>::iterator checkpoint,
                      std::list<queued_item>::iterator pos) :
-        currentCheckpoint(checkpoint), currentPos(pos) { }
+        currentCheckpoint(checkpoint), currentPos(pos), offset(0) { }
 
 private:
     std::list<Checkpoint*>::iterator currentCheckpoint;
     std::list<queued_item>::iterator currentPos;
+    Atomic<size_t>                   offset;
 };
 
 /**
@@ -174,7 +175,7 @@ public:
 
     CheckpointManager(EPStats &st, uint64_t checkpointId = 1) :
         stats(st), nextCheckpointId(checkpointId), numItems(0),
-        persistenceCursorOffset(0), mutationCounter(0) {
+        mutationCounter(0) {
 
         addNewCheckpoint(nextCheckpointId++);
         registerPersistenceCursor();
@@ -264,8 +265,10 @@ public:
      * Return the total number of remaining items that should be visited by the persistence cursor.
      */
     size_t getNumItemsForPersistence() {
-        return numItems - persistenceCursorOffset;
+        return numItems - persistenceCursor.offset;
     }
+
+    size_t getNumItemsForTAPConnection(const std::string &name);
 
     /**
      * Return true if a given key with its CAS value exists in the open or
@@ -331,7 +334,6 @@ private:
     Mutex                    queueLock;
     Atomic<uint64_t>         nextCheckpointId;
     Atomic<size_t>           numItems;
-    Atomic<size_t>           persistenceCursorOffset;
     uint64_t                 mutationCounter;
     std::list<Checkpoint*>   checkpointList;
     CheckpointCursor         persistenceCursor;

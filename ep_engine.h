@@ -571,33 +571,21 @@ private:
     friend void *EvpNotifyTapIo(void*arg);
     void notifyTapIoThread(void);
 
-    bool populateEvents();
+    //bool populateEvents();
+
 
     friend class BackFillVisitor;
     friend class TapBGFetchCallback;
     friend class TapConnMap;
     friend class EventuallyPersistentStore;
 
-    void addEvent(const std::string &str, uint16_t vbid,
-                  enum queue_operation op) {
-       // We will adapt this function as part of integrating the unified queue into
-       // TAP module. At this time, we don't push any mutation events to the TAP queue
-       // to pass unit tests related to memory stats.
-       (void) str;
-       (void) vbid;
-       (void) op;
-        //pendingTapNotifications.push(QueuedItem(str, vbid, op));
-    }
-
     void addMutationEvent(Item *it) {
-        // Currently we use the same queue for all kinds of events..
-        addEvent(it->getKey(), it->getVBucketId(), queue_op_set);
+        ++mutation_count;
         syncRegistry.itemModified(*it);
     }
 
     void addDeleteEvent(const std::string &key, uint16_t vbid, uint64_t cas) {
-        // Currently we use the same queue for all kinds of events..
-        addEvent(key, vbid, queue_op_del);
+        ++mutation_count;
         syncRegistry.itemDeleted(key_spec_t(cas, vbid, key));
     }
 
@@ -723,6 +711,7 @@ private:
     size_t dbShards;
     size_t vb_del_chunk_size;
     size_t vb_chunk_del_threshold_time;
+    Atomic<uint64_t> mutation_count;
     EPStats stats;
     SyncRegistry syncRegistry;
 };

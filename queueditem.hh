@@ -150,9 +150,9 @@ class TaggedQueuedItemComparator {
 public:
     TaggedQueuedItemComparator() {}
 
-    bool operator()(std::pair<T, QueuedItem> i1, std::pair<T, QueuedItem> i2) {
+    bool operator()(std::pair<T, queued_item> i1, std::pair<T, queued_item> i2) {
         return (i1.first == i2.first)
-            ? (i1.second.getRowId() < i2.second.getRowId())
+            ? (i1.second->getRowId() < i2.second->getRowId())
             : (i1 < i2);
     }
 };

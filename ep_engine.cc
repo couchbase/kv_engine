@@ -888,7 +888,8 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server
     minDataAge(DEFAULT_MIN_DATA_AGE),
     queueAgeCap(DEFAULT_QUEUE_AGE_CAP),
     itemExpiryWindow(3), expiryPagerSleeptime(3600), checkpointRemoverInterval(5),
-    nVBuckets(1024), dbShards(4), vb_del_chunk_size(100), vb_chunk_del_threshold_time(500)
+    nVBuckets(1024), dbShards(4), vb_del_chunk_size(100), vb_chunk_del_threshold_time(500),
+    mutation_count(0)
 {
     interface.interface = 1;
     ENGINE_HANDLE_V1::get_info = EvpGetInfo;
@@ -1555,6 +1556,7 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
         return ev.event;
     }
 
+    // Check if there are any items fetched from disk for backfill operations.
     if (connection->hasItem()) {
         ret = TAP_MUTATION;
         Item *item = connection->nextFetchedItem();
@@ -1593,71 +1595,104 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
             retry = true;
             return TAP_NOOP;
         }
+
+        queued_item qi(new QueuedItem(item->getKey(), item->getValue(), item->getVBucketId(),
+                                      queue_op_set, -1, item->getId(), item->getFlags(),
+                                      item->getExptime(), item->getCas()));
+        connection->addTapLogElement(qi);
     } else if (connection->hasQueuedItem()) {
         if (connection->waitForBackfill()) {
             return TAP_PAUSE;
         }
 
-        QueuedItem qi = connection->next();
-        if (qi.getOperation() == queue_op_empty) {
+        queued_item qi = connection->next();
+        if (qi->getOperation() == queue_op_empty) {
             retry = true;
             return TAP_NOOP;
         }
 
-        *vbucket = qi.getVBucketId();
-        std::string key = qi.getKey();
-        GetValue gv(epstore->get(key, qi.getVBucketId(), cookie,
-                                 false, false));
-        ENGINE_ERROR_CODE r = gv.getStatus();
-        if (r == ENGINE_SUCCESS) {
-            assert(gv.getStoredValue() != NULL);
-            *itm = gv.getValue();
-            ret = TAP_MUTATION;
+        *vbucket = qi->getVBucketId();
+        // The item is from the backfill operation and needs to be fetched from the hashtable.
+        if (qi->getOperation() == queue_op_set && qi->getValue()->length() == 0) {
+            GetValue gv(epstore->get(qi->getKey(), qi->getVBucketId(), cookie,
+                                     false, false));
+            ENGINE_ERROR_CODE r = gv.getStatus();
+            if (r == ENGINE_SUCCESS) {
+                assert(gv.getStoredValue() != NULL);
+                *itm = gv.getValue();
+                ret = TAP_MUTATION;
 
-            gv.getStoredValue()->incrementNumReplicas();
-            syncRegistry.itemReplicated(*gv.getValue());
+                gv.getStoredValue()->incrementNumReplicas();
+                syncRegistry.itemReplicated(*gv.getValue());
 
-            ++stats.numTapFGFetched;
-            ++connection->queueDrain;
-        } else if (r == ENGINE_KEY_ENOENT) {
-            ret = TAP_DELETION;
-            r = itemAllocate(cookie, itm,
-                             key.c_str(), key.length(), 0, 0, 0);
-            if (r != ENGINE_SUCCESS) {
-                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                 "Failed to allocate memory for deletion of: %s\n", key.c_str());
-                ret = TAP_PAUSE;
-            }
-            ++stats.numTapDeletes;
-        } else if (r == ENGINE_EWOULDBLOCK) {
-            connection->queueBGFetch(key, gv.getId(), *vbucket,
-                                     epstore->getVBucketVersion(*vbucket));
-            // This can optionally collect a few and batch them.
-            connection->runBGFetch(epstore->getRODispatcher(), cookie);
-
-            // If there's an item ready, return NOOP so we'll come
-            // back immediately, otherwise pause the connection
-            // while we wait.
-            if (connection->hasQueuedItem() || connection->hasItem()) {
+                ++stats.numTapFGFetched;
+                ++connection->queueDrain;
+            } else if (r == ENGINE_KEY_ENOENT) {
+                // Any deletions after the backfill gets the list of keys will be transmitted
+                // through checkpoints below. Therefore, don't need to transmit it here.
+                retry = true;
+                return TAP_NOOP;
+            } else if (r == ENGINE_EWOULDBLOCK) {
+                connection->queueBGFetch(qi->getKey(), gv.getId(), *vbucket,
+                                         epstore->getVBucketVersion(*vbucket));
+                // This can optionally collect a few and batch them.
+                connection->runBGFetch(epstore->getRODispatcher(), cookie);
+                // If there's an item ready, return NOOP so we'll come
+                // back immediately, otherwise pause the connection
+                // while we wait.
+                if (connection->hasQueuedItem() || connection->hasItem()) {
+                    retry = true;
+                    return TAP_NOOP;
+                }
+                return TAP_PAUSE;
+            } else {
+                if (r == ENGINE_NOT_MY_VBUCKET) {
+                    getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                     "Trying to fetch an item for a bucket that "
+                                     "doesn't exist on this server <%s>\n",
+                                     connection->getName().c_str());
+                } else {
+                    getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                     "Tap internal error Internal error! <%s>:%d.  "
+                                     "Disconnecting\n", connection->getName().c_str(), r);
+                    return TAP_DISCONNECT;
+                }
                 retry = true;
                 return TAP_NOOP;
             }
-            return TAP_PAUSE;
-        } else {
-            if (r == ENGINE_NOT_MY_VBUCKET) {
-                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                 "Trying to fetch an item for a bucket that "
-                                 "doesn't exist on this server <%s>\n",
-                                 connection->getName().c_str());
+        } else { // The item is from the checkpoint in the unified queue.
+            if (qi->getOperation() == queue_op_set) {
+                Item *item = new Item(qi->getKey(), qi->getFlags(), qi->getExpiryTime(),
+                                  qi->getValue(), qi->getCas(), qi->getRowId(), qi->getVBucketId());
+                *itm = item;
+                ret = TAP_MUTATION;
 
-            } else {
-                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                 "Tap internal error Internal error! <%s>:%d.  "
-                                 "Disconnecting\n", connection->getName().c_str(), r);
-                return TAP_DISCONNECT;
+                GetValue gv(epstore->get(qi->getKey(), qi->getVBucketId(), cookie,
+                                         false, false));
+                if (gv.getStatus() == ENGINE_SUCCESS) {
+                    gv.getStoredValue()->incrementNumReplicas();
+                    syncRegistry.itemReplicated(*gv.getValue());
+                }
+
+                ++stats.numTapFGFetched;
+                ++connection->queueDrain;
+            } else if (qi->getOperation() == queue_op_del) {
+                ret = TAP_DELETION;
+                ENGINE_ERROR_CODE r = itemAllocate(cookie, itm, qi->getKey().c_str(),
+                                                   qi->getKey().length(), 0, 0, 0);
+                if (r != ENGINE_SUCCESS) {
+                    getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                     "Failed to allocate memory for deletion of: %s\n",
+                                     qi->getKey().c_str());
+                    ret = TAP_PAUSE;
+                }
+                ++stats.numTapDeletes;
+                ++connection->queueDrain;
             }
-            retry = true;
-            ret = TAP_NOOP;
+        }
+
+        if (ret == TAP_MUTATION || ret == TAP_DELETION) {
+            connection->addTapLogElement(qi);
         }
     } else if (connection->shouldFlush()) {
         ret = TAP_FLUSH;
@@ -1723,13 +1758,6 @@ tap_event_t EventuallyPersistentEngine::walkTapQueue(const void *cookie,
         } else {
             ++stats.numTapFetched;
             *seqno = connection->getSeqno();
-
-            if (ret == TAP_MUTATION || ret == TAP_DELETION) {
-                QueuedItem qi(static_cast<Item*>(*itm)->getKey(), *vbucket,
-                              queue_op_set);
-                connection->addTapLogElement(qi);
-            }
-
             if (connection->requestAck(ret)) {
                 *flags = TAP_FLAG_ACK;
             }
@@ -2074,7 +2102,7 @@ public:
     BackFillVisitor(EventuallyPersistentEngine *e, TapProducer *tc,
                     const void *token):
         VBucketVisitor(), engine(e), name(tc->getName()),
-        queue(new std::list<QueuedItem>),
+        queue(new std::list<queued_item>),
         found(), filter(tc->backFillVBucketFilter), validityToken(token),
         maxBackfillSize(e->tapBacklogLimit), valid(true),
         efficientVBDump(e->epstore->getStorageProperties().hasEfficientVBDump()) {
@@ -2105,8 +2133,8 @@ public:
             return;
         }
         std::string k = v->getKey();
-        QueuedItem qi(k, currentBucket->getId(), queue_op_set, -1, v->getId());
-        uint16_t shardId = engine->kvstore->getShardId(qi);
+        queued_item qi(new QueuedItem(k, currentBucket->getId(), queue_op_set, -1, v->getId()));
+        uint16_t shardId = engine->kvstore->getShardId(*qi);
         found.push_back(std::make_pair(shardId, qi));
     }
 
@@ -2149,7 +2177,7 @@ private:
                 TaggedQueuedItemComparator<uint16_t> comparator;
                 std::sort(found.begin(), found.end(), comparator);
 
-                std::vector<std::pair<uint16_t, QueuedItem> >::iterator it(found.begin());
+                std::vector<std::pair<uint16_t, queued_item> >::iterator it(found.begin());
                 for (; it != found.end(); ++it) {
                     queue->push_back(it->second);
                 }
@@ -2207,8 +2235,8 @@ private:
 
     EventuallyPersistentEngine *engine;
     const std::string name;
-    std::list<QueuedItem> *queue;
-    std::vector<std::pair<uint16_t, QueuedItem> > found;
+    std::list<queued_item> *queue;
+    std::vector<std::pair<uint16_t, queued_item> > found;
     std::vector<uint16_t> vbuckets;
     VBucketFilter filter;
     const void *validityToken;
@@ -3107,36 +3135,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
     }
 
     return rv;
-}
-
-/**
- * Function object invoked to move tap events onto a specific
- * connection.
- */
-struct PopulateEventsBody {
-    PopulateEventsBody(QueuedItem qeye) : qi(qeye) {}
-    void operator() (TapConnection *tc) {
-        TapProducer *tp = dynamic_cast<TapProducer*>(tc);
-        if (tp && !tp->dumpQueue) {
-            tp->addEvent(qi);
-        }
-    }
-    QueuedItem qi;
-};
-
-bool EventuallyPersistentEngine::populateEvents() {
-    std::queue<QueuedItem> q;
-    pendingTapNotifications.getAll(q);
-
-    while (!q.empty()) {
-        QueuedItem qi = q.front();
-        q.pop();
-
-        PopulateEventsBody forloop(qi);
-        tapConnMap.each_UNLOCKED(forloop);
-    }
-
-    return false;
 }
 
 void EventuallyPersistentEngine::notifyTapIoThread(void) {
