@@ -903,7 +903,7 @@ GetValue EventuallyPersistentStore::get(const std::string &key,
                 bgFetch(key, vbucket, vbuckets.getBucketVersion(vbucket),
                         v->getId(), cookie);
             }
-            return GetValue(NULL, ENGINE_EWOULDBLOCK, v->getId());
+            return GetValue(NULL, ENGINE_EWOULDBLOCK, v->getId(), -1, v);
         }
 
         // return an invalid cas value if the item is locked
@@ -912,7 +912,7 @@ GetValue EventuallyPersistentStore::get(const std::string &key,
             : v->getCas();
         GetValue rv(new Item(v->getKey(), v->getFlags(), v->getExptime(),
                              v->getValue(), icas, v->getId(), vbucket),
-                    ENGINE_SUCCESS, v->getId());
+                    ENGINE_SUCCESS, v->getId(), -1, v);
         return rv;
     } else {
         GetValue rv;

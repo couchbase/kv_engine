@@ -1521,12 +1521,21 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
         GetValue gv(epstore->get(item->getKey(), item->getVBucketId(),
                                  cookie, false));
         if (gv.getStatus() == ENGINE_SUCCESS) {
-            *itm = gv.getValue();
             delete item;
+            *itm = item = gv.getValue();
         } else {
             *itm = item;
         }
         *vbucket = static_cast<Item*>(*itm)->getVBucketId();
+
+        if (gv.getStoredValue() != NULL) {
+            gv.getStoredValue()->incrementNumReplicas();
+            syncRegistry.itemReplicated(*item);
+        } else {
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                             "NULL StoredValue* for key %s, vbucket %d",
+                             item->getKey().c_str(), item->getVBucketId());
+        }
 
         if (!connection->vbucketFilter(*vbucket)) {
             // We were going to use the item that we received from
@@ -1555,8 +1564,12 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
                                  false, false));
         ENGINE_ERROR_CODE r = gv.getStatus();
         if (r == ENGINE_SUCCESS) {
+            assert(gv.getStoredValue() != NULL);
             *itm = gv.getValue();
             ret = TAP_MUTATION;
+
+            gv.getStoredValue()->incrementNumReplicas();
+            syncRegistry.itemReplicated(*gv.getValue());
 
             ++stats.numTapFGFetched;
             ++connection->queueDrain;
@@ -3182,7 +3195,17 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::sync(std::set<key_spec_t> *keys,
         syncRegistry.addMutationListener(syncListener);
         break;
     case REP:
-        // TODO
+        {
+            syncRegistry.addReplicationListener(syncListener);
+
+            std::vector< std::pair<StoredValue*, uint16_t> >::iterator itv;
+            for (itv = storedValues.begin(); itv != storedValues.end(); itv++) {
+                StoredValue *sv = itv->first;
+                key_spec_t keyspec(sv->getCas(), itv->second, sv->getKey());
+
+                syncListener->keySynced(keyspec, sv->getNumReplicas());
+            }
+        }
         break;
     case REP_OR_PERSIST:
         // TODO
@@ -3240,7 +3263,7 @@ static void assembleSyncResponse(std::stringstream &resp, SyncListener *syncList
         nkeys += syncListener->getDeletedKeys().size();
         break;
     case REP:
-        // TODO
+        nkeys += syncListener->getReplicatedKeys().size();
         break;
     case REP_OR_PERSIST:
         // TODO
@@ -3265,7 +3288,7 @@ static void assembleSyncResponse(std::stringstream &resp, SyncListener *syncList
         addSyncKeySpecs(resp, syncListener->getDeletedKeys(), SYNC_DELETED_EVENT);
         break;
     case REP:
-        // TODO
+        addSyncKeySpecs(resp, syncListener->getReplicatedKeys(), SYNC_REPLICATED_EVENT);
         break;
     case REP_OR_PERSIST:
         // TODO

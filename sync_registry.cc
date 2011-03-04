@@ -66,6 +66,18 @@ void SyncRegistry::itemDeleted(const key_spec_t &keyspec) {
 }
 
 
+void SyncRegistry::addReplicationListener(SyncListener *syncListener) {
+    LockHolder lh(replicationMutex);
+    replicationListeners.push_back(syncListener);
+}
+
+
+void SyncRegistry::itemReplicated(const key_spec_t &keyspec, uint8_t replicaCount) {
+    LockHolder lh(replicationMutex);
+    notifyListeners(replicationListeners, keyspec, replicaCount);
+}
+
+
 void SyncRegistry::notifyListeners(std::list<SyncListener*> &listeners,
                                    const key_spec_t &keyspec,
                                    bool deleted) {
@@ -82,17 +94,33 @@ void SyncRegistry::notifyListeners(std::list<SyncListener*> &listeners,
 }
 
 
+void SyncRegistry::notifyListeners(std::list<SyncListener*> &listeners,
+                                   const key_spec_t &keyspec,
+                                   uint8_t replicaCount) {
+    std::list<SyncListener*>::iterator it = listeners.begin();
+
+    while (it != listeners.end()) {
+        SyncListener *listener = *it;
+        if (listener->keySynced(keyspec, replicaCount)) {
+            it = listeners.erase(it);
+        } else {
+            it++;
+        }
+    }
+}
+
+
 SyncListener::SyncListener(EventuallyPersistentEngine &epEngine,
                            const void *c,
                            std::set<key_spec_t> *keys,
                            sync_type_t sync_type,
                            uint8_t replicaCount) :
     engine(epEngine), cookie(c), keySpecs(keys),
-    syncType(sync_type), replicas(replicaCount) {
+    syncType(sync_type), replicasPerKey(replicaCount) {
 
-    // TODO: support replication sync, replication and persistence sync, and
-    //       replicator or persistence sync
-    assert(syncType == PERSIST || syncType == MUTATION);
+    // TODO: support "replication AND persistence sync", and
+    //       "replicator OR persistence sync"
+    assert(syncType == PERSIST || syncType == MUTATION || syncType == REP);
 }
 
 
@@ -125,13 +153,51 @@ bool SyncListener::keySynced(const key_spec_t &keyspec, bool deleted) {
             finished = ((modifiedKeys.size() + deletedKeys.size()) == keySpecs->size());
             break;
         case REP:
-            // TODO
+        case REP_OR_PERSIST:
+        case REP_AND_PERSIST:
+            break;
+        }
+
+        if (finished) {
+            engine.getServerApi()->cookie->store_engine_specific(cookie, this);
+            engine.notifyIOComplete(cookie, ENGINE_SUCCESS);
+        }
+    }
+
+    return finished;
+}
+
+
+bool SyncListener::keySynced(const key_spec_t &keyspec, uint8_t numReplicas) {
+    bool finished = false;
+    LockHolder lh(mutex);
+    std::set<key_spec_t>::iterator it = keySpecs->find(keyspec);
+
+    if (it != keySpecs->end()) {
+        uint8_t replicasDone = numReplicas;
+
+        if (replicaCounts.find(keyspec) != replicaCounts.end()) {
+            replicasDone += replicaCounts[keyspec];
+        }
+
+        replicaCounts[keyspec] = replicasDone;
+
+        if (replicasDone >= replicasPerKey) {
+            replicatedKeys.insert(keyspec);
+        }
+
+        switch (syncType) {
+        case REP:
+            finished = (replicatedKeys.size() == keySpecs->size());
             break;
         case REP_OR_PERSIST:
             // TODO
             break;
         case REP_AND_PERSIST:
             // TODO
+            break;
+        case PERSIST:
+        case MUTATION:
             break;
         }
 

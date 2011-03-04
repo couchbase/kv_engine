@@ -794,6 +794,14 @@ typedef struct {
     uint32_t wait;
 } set_key_thread_params;
 
+typedef struct {
+    ENGINE_HANDLE *h;
+    ENGINE_HANDLE_V1 *h1;
+    std::set<key_spec_t> *expectedKeys;
+    std::string streamName;
+    uint32_t wait;
+} tap_stream_thread_params;
+
 extern "C" {
     static void* conc_del_set_thread(void *arg) {
         struct handle_pair *hp = static_cast<handle_pair *>(arg);
@@ -844,6 +852,96 @@ extern "C" {
               params->h1->remove(params->h, NULL, key, strlen(key), 0, vbucketid)
               == ENGINE_SUCCESS,
               "Failed remove with value.");
+
+        return NULL;
+    }
+
+    static void* tap_stream_thread(void *arg) {
+        tap_stream_thread_params *params = static_cast<tap_stream_thread_params *>(arg);
+        std::set<key_spec_t> *expectedKeys = params->expectedKeys;
+
+        usleep(params->wait);
+
+        std::set<uint16_t> vbuckets;
+        for (std::set<key_spec_t>::iterator it = expectedKeys->begin();
+             it != expectedKeys->end(); it++) {
+
+            vbuckets.insert(it->vbucketid);
+        }
+
+        uint16_t *vbucketfilter = new uint16_t[1 + vbuckets.size()];
+        vbucketfilter[0] = htons((uint16_t) vbuckets.size());
+        off_t off = 1;
+
+        for (std::set<uint16_t>::iterator it = vbuckets.begin();
+             it != vbuckets.end(); it++) {
+
+            vbucketfilter[off++] = htons(*it);
+        }
+
+        const void *cookie = testHarness.create_cookie();
+        testHarness.lock_cookie(cookie);
+
+        TAP_ITERATOR iter = params->h1->get_tap_iterator(params->h, cookie,
+                                                         params->streamName.c_str(),
+                                                         params->streamName.length(),
+                                                         TAP_CONNECT_FLAG_LIST_VBUCKETS,
+                                                         static_cast<void *>(vbucketfilter),
+                                                         sizeof(uint16_t) + (sizeof(uint16_t) * vbuckets.size()));
+        check(iter != NULL, "Failed to create a tap iterator");
+
+        item *it;
+        Item *item;
+        void *engine_specific;
+        uint16_t nengine_specific;
+        uint8_t ttl;
+        uint16_t flags;
+        uint32_t seqno;
+        tap_event_t event;
+        std::set<key_spec_t> keysReceived;
+        bool done = false;
+        uint16_t vbid;
+
+        do {
+            event = iter(params->h, cookie, &it, &engine_specific,
+                         &nengine_specific, &ttl, &flags,
+                         &seqno, &vbid);
+
+            switch (event) {
+            case TAP_PAUSE:
+                done = (keysReceived.size() == expectedKeys->size());
+                if (!done) {
+                    testHarness.waitfor_cookie(cookie);
+                }
+                break;
+            case TAP_NOOP:
+            case TAP_OPAQUE:
+                break;
+            case TAP_MUTATION:
+                item = reinterpret_cast<Item *>(it);
+
+                check(vbuckets.find(item->getVBucketId()) != vbuckets.end(),
+                      "Received an item for a vbucket we don't subscribe to");
+
+                if (expectedKeys->find(*item) != expectedKeys->end()) {
+                    keysReceived.insert(*item);
+                }
+                break;
+            case TAP_DISCONNECT:
+                done = true;
+                break;
+            default:
+                std::cerr << "Unexpected event:  " << event << std::endl;
+                done = true;
+            }
+        } while (!done);
+
+        testHarness.unlock_cookie(cookie);
+        params->h1->release(params->h, cookie, it);
+        delete [] vbucketfilter;
+
+        check(keysReceived.size() == expectedKeys->size(),
+              "Didn't received all the expected items from the tap stream.");
 
         return NULL;
     }
@@ -4172,6 +4270,97 @@ static enum test_result test_sync_mutation(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     return SUCCESS;
 }
 
+static enum test_result test_sync_replication(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    const uint16_t test_vbid = 307;
+    check(set_vbucket_state(h, h1, test_vbid, vbucket_state_active),
+          "Failed to set test vbucket state.");
+
+    const uint8_t nReplicas = 4;
+    const key_spec_t keyspecs[] = {
+        key_spec_t(0, test_vbid, "key1"), key_spec_t(0, test_vbid, "key2"),
+        key_spec_t(0, test_vbid, "key3"), key_spec_t(0, test_vbid, "key4"),
+        key_spec_t(0, test_vbid, "bad_key")
+    };
+    const uint16_t nkeys = 5;
+
+    for (int i = 0; i < (nkeys - 1); i++) {
+        check(store(h, h1, NULL, OPERATION_SET, keyspecs[i].key.c_str(),
+                    "foobar", NULL, 0, test_vbid) == ENGINE_SUCCESS,
+              "Failed to store an item.");
+    }
+
+    std::set<key_spec_t> *expectedKeyset = new std::set<key_spec_t>();
+    for (int i = 0; i < (nkeys - 1); i++) {
+        expectedKeyset->insert(keyspecs[i]);
+    }
+
+    pthread_t threads[nReplicas];
+    std::vector<tap_stream_thread_params*> params;
+
+    for (int i = 0; i < nReplicas; i++) {
+        tap_stream_thread_params *p = new tap_stream_thread_params();
+        std::stringstream ss;
+        ss << "tap_stream_" << (char) ('0' + (i + 1));
+
+        p->h = h;
+        p->h1 = h1;
+        p->expectedKeys = expectedKeyset;
+        p->wait = 2000000;
+        p->streamName = ss.str();
+        params.push_back(p);
+    }
+
+    for (int i = 0; i < nReplicas; i++) {
+        int r = pthread_create(&threads[i], NULL, tap_stream_thread, params[i]);
+        assert(r == 0);
+    }
+
+    protocol_binary_request_header *pkt;
+    pkt = create_sync_packet((uint32_t) ((nReplicas & 0x0f) << 4), nkeys, keyspecs);
+
+    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
+          "SYNC on replication operation failed");
+
+    for (int i = 0; i < nReplicas; i++) {
+        void *trv = NULL;
+        int r = pthread_join(threads[i], &trv);
+        assert(r == 0);
+    }
+
+    // verify the response sent to the client is correct
+    std::list< std::pair<key_spec_t, uint8_t> > resp = parse_sync_response(last_body);
+
+    check(resp.size() == nkeys, "response has the same # of keys");
+
+    std::list< std::pair<key_spec_t, uint8_t> >::iterator itresp = resp.begin();
+
+    for ( ; itresp != resp.end(); itresp++) {
+        key_spec_t keyspec = itresp->first;
+        uint8_t eventid = itresp->second;
+
+        check(keyspec.vbucketid == test_vbid, "right vbucket id");
+
+        if (keyspec.key == "bad_key") {
+            check(keyspec.cas == 0, "right cas");
+            check(eventid == SYNC_INVALID_KEY,
+                  "right event id (SYNC_INVALID_KEY)");
+        } else {
+            check(eventid == SYNC_REPLICATED_EVENT,
+                  "right event id (SYNC_REPLICATED_EVENT)");
+        }
+    }
+
+    std::vector<tap_stream_thread_params*>::iterator it = params.begin();
+    for ( ; it != params.end(); it++) {
+        delete *it;
+    }
+
+    delete expectedKeyset;
+    free(pkt);
+
+    return SUCCESS;
+}
+
 MEMCACHED_PUBLIC_API
 engine_test_t* get_tests(void) {
 
@@ -4377,6 +4566,7 @@ engine_test_t* get_tests(void) {
         {"sync bad flags", test_sync_bad_flags, NULL, teardown, NULL},
         {"sync persistence", test_sync_persistence, NULL, teardown, NULL},
         {"sync mutation", test_sync_mutation, NULL, teardown, NULL},
+        {"sync replication", test_sync_replication, NULL, teardown, NULL},
         {NULL, NULL, NULL, NULL, NULL}
     };
     return tests;

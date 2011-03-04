@@ -19,6 +19,7 @@
 
 #include <set>
 #include <list>
+#include <map>
 
 #include "common.hh"
 #include "item.hh"
@@ -75,17 +76,27 @@ public:
     void itemModified(const key_spec_t &keyspec);
     void itemDeleted(const key_spec_t &keyspec);
 
+    void addReplicationListener(SyncListener *syncListener);
+    void itemReplicated(const key_spec_t &keyspec, uint8_t replicaCount = 1);
+
 private:
 
     void notifyListeners(std::list<SyncListener*> &listeners,
                          const key_spec_t &keyspec,
                          bool deleted);
 
+    void notifyListeners(std::list<SyncListener*> &listeners,
+                         const key_spec_t &keyspec,
+                         uint8_t replicaCount);
+
     std::list<SyncListener*> persistenceListeners;
     Mutex persistenceMutex;
 
     std::list<SyncListener*> mutationListeners;
     Mutex mutationMutex;
+
+    std::list<SyncListener*> replicationListeners;
+    Mutex replicationMutex;
 
     DISALLOW_COPY_AND_ASSIGN(SyncRegistry);
 };
@@ -103,6 +114,7 @@ public:
     ~SyncListener();
 
     bool keySynced(const key_spec_t &keyspec, bool deleted = false);
+    bool keySynced(const key_spec_t &keyspec, uint8_t numReplicas);
 
     sync_type_t getSyncType() const {
         return syncType;
@@ -120,6 +132,10 @@ public:
         return deletedKeys;
     }
 
+    std::set<key_spec_t>& getReplicatedKeys() {
+        return replicatedKeys;
+    }
+
     std::set<key_spec_t>& getNonExistentKeys() {
         return nonExistentKeys;
     }
@@ -134,10 +150,12 @@ private:
     const void                   *cookie;
     std::set<key_spec_t>         *keySpecs;
     sync_type_t                  syncType;
-    uint8_t                      replicas;
+    const uint8_t                replicasPerKey;
     std::set<key_spec_t>         persistedKeys;
     std::set<key_spec_t>         modifiedKeys;
     std::set<key_spec_t>         deletedKeys;
+    std::set<key_spec_t>         replicatedKeys;
+    std::map<key_spec_t,uint8_t> replicaCounts;
     std::set<key_spec_t>         nonExistentKeys;
     std::set<key_spec_t>         invalidCasKeys;
     Mutex                        mutex;

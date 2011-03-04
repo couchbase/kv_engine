@@ -33,10 +33,11 @@
 /*
  * IDs for the events of the SYNC command.
  */
-#define SYNC_PERSISTED_EVENT 1
-#define SYNC_MODIFIED_EVENT  2
-#define SYNC_DELETED_EVENT   3
-#define SYNC_INVALID_KEY     4
-#define SYNC_INVALID_CAS     5
+#define SYNC_PERSISTED_EVENT    1
+#define SYNC_MODIFIED_EVENT     2
+#define SYNC_DELETED_EVENT      3
+#define SYNC_REPLICATED_EVENT   4
+#define SYNC_INVALID_KEY        5
+#define SYNC_INVALID_CAS        6
 
 #endif /* COMMAND_IDS_H */
