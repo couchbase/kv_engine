@@ -1383,7 +1383,6 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
     *vbucket = 0;
 
     retry = false;
-    connection->notifySent = false;
 
     if (connection->doRunBackfill) {
         queueBackfill(connection, cookie);
@@ -1546,6 +1545,12 @@ tap_event_t EventuallyPersistentEngine::walkTapQueue(const void *cookie,
         return TAP_DISCONNECT;
     }
 
+    // Clear the notifySent flag and the paused flag to cause
+    // the backend to schedule notification while we're figuring if
+    // we've got data to send or not (to avoid race conditions)
+    connection->paused.set(true);
+    connection->notifySent.set(false);
+
     bool retry = false;
     tap_event_t ret;
 
@@ -1554,9 +1559,10 @@ tap_event_t EventuallyPersistentEngine::walkTapQueue(const void *cookie,
                              seqno, vbucket, connection, retry);
     } while (retry);
 
-    if (ret == TAP_PAUSE) {
-        connection->paused = true;
-    } else if (ret != TAP_DISCONNECT) {
+    if (ret != TAP_PAUSE && ret != TAP_DISCONNECT) {
+        // we're no longer paused (the front-end will call us again)
+        // so we don't need the engine to notify us about new changes..
+        connection->paused.set(false);
         if (ret == TAP_NOOP) {
             *seqno = 0;
         } else {
@@ -1573,8 +1579,6 @@ tap_event_t EventuallyPersistentEngine::walkTapQueue(const void *cookie,
                 *flags = TAP_FLAG_ACK;
             }
         }
-
-        connection->paused = false;
     }
 
     return ret;

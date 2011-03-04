@@ -285,7 +285,7 @@ void TapConnMap::notifyIOThreadMain(EventuallyPersistentEngine *engine) {
     std::list<const void *> toNotify;
     for (iter = map.begin(); iter != map.end(); ++iter) {
         if (iter->second->shouldNotify()) {
-            iter->second->notifySent = true;
+            iter->second->notifySent.set(true);
             toNotify.push_back(iter->first);
         }
     }

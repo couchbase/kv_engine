@@ -593,7 +593,7 @@ private:
     /**
      * is his paused
      */
-    bool paused;
+    Atomic<bool> paused;
 
     void setBackfillAge(uint64_t age, bool reconnect);
 
@@ -688,7 +688,7 @@ private:
      * sending notify_io_complete (we're holding the tap lock), and clear
      * it in doWalkTapQueue...
      */
-    bool notifySent;
+    Atomic<bool> notifySent;
 
     /**
      * We might send userdata with tap opaque messages, but we need
