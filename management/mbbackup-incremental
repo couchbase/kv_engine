@@ -1,0 +1,305 @@
+#!/usr/bin/env python
+
+import os
+import sys
+import glob
+import getopt
+import exceptions
+import datetime
+import select
+import string
+import struct
+import time
+import traceback
+
+import mc_bin_client
+import memcacheConstants
+import util
+
+try:
+    import sqlite3
+except:
+    sys.exit("ERROR: %s requires python version 2.6 or greater" %
+              (os.path.basename(sys.argv[0])))
+
+MBB_VERSION = "1" # sqlite pragma user version.
+
+DEFAULT_PORT      = "11210"
+DEFAULT_HOST_PORT = ["127.0.0.1", DEFAULT_PORT]
+DEFAULT_FILE      = "./backup-%.mbb"
+
+def usage(err=0):
+    print >> sys.stderr, """
+Usage: %s [-h %s[:%s]] [-o %s] [-T num_secs] [-v] name
+""" % (os.path.basename(sys.argv[0]),
+       DEFAULT_HOST_PORT[0], DEFAULT_HOST_PORT[1], DEFAULT_FILE)
+    sys.exit(err)
+
+def parse_args(args):
+    host_port = DEFAULT_HOST_PORT
+    file      = DEFAULT_FILE
+    timeout   = 0
+    verbosity = 0
+
+    try:
+        opts, args = getopt.getopt(args, 'h:o:T:v', ['help'])
+    except getopt.GetoptError, e:
+        usage(e.msg)
+
+    for (o, a) in opts:
+        if o == '--help':
+            usage()
+        elif o == '-h':
+            host_port = a.split(':')
+            if len(host_port) < 2:
+                host_port = [a, DEFAULT_PORT]
+        elif o == '-o':
+            file = a
+        elif o == '-T':
+            timeout = float(a)
+        elif o == '-v':
+            verbosity = verbosity + 1
+        else:
+            usage("unknown option - " + o)
+
+    if not args:
+        usage("missing name argument, which is the registered client name")
+    if len(args) != 1:
+        usage("incorrect number of arguments - only one name needed")
+
+    return host_port, file, args[0], timeout, verbosity
+
+def log(level, *args):
+    global verbosity
+    if level < verbosity:
+       s = ", ".join(list(args))
+       print string.rjust(s, (level * 2) + len(s))
+
+def main():
+    global verbosity
+
+    host_port, file, name, timeout, verbosity = parse_args(sys.argv[1:])
+    log(1, "host_port = " + ':'.join(host_port))
+    log(1, "verbosity = " + str(verbosity))
+    log(1, "timeout = " + str(timeout))
+    log(1, "name = " + name)
+    log(1, "file = " + file)
+
+    try:
+        mc = None
+        db = None
+
+        file = util.expand_file_pattern(file)
+        log(1, "file actual = " + file)
+        if os.path.exists(file):
+           sys.exit("ERROR: file exists already: " + file)
+
+        mc = mc_bin_client.MemcachedClient(host_port[0], int(host_port[1]))
+        db = sqlite3.connect(file) # TODO: Revisit isolation level
+        db.text_factory = str
+        createSchema(db)
+
+        ext, val = encodeTAPConnectOpts({
+          memcacheConstants.TAP_FLAG_CHECKPOINT: '',
+          memcacheConstants.TAP_FLAG_SUPPORT_ACK: '',
+          memcacheConstants.TAP_FLAG_REGISTERED_CLIENT: '',
+        })
+
+        mc._sendCmd(memcacheConstants.CMD_TAP_CONNECT, name, val, 0, ext)
+
+        loop(mc, db, timeout, ':'.join(host_port) + '-' + name)
+
+    except NameError as ne:
+        sys.exit("ERROR: " + str(ne))
+    except Exception as e:
+        if verbosity > 1:
+            traceback.print_exc(file=sys.stdout)
+            print e
+        sys.exit("ERROR: " + str(e))
+    finally:
+        if mc:
+           mc.close()
+        if db:
+           db.close()
+
+def loop(mc, db, timeout, source):
+    vbmap = {} # Key is vbucketId, value is [checkpointId, seq].
+
+    cmdInfo = {
+        memcacheConstants.CMD_TAP_MUTATION: ('mutation', 'm'),
+        memcacheConstants.CMD_TAP_DELETE: ('delete', 'd'),
+        memcacheConstants.CMD_TAP_FLUSH: ('flush', 'f'),
+    }
+
+    try:
+        sinput = [mc.s]
+
+        while True:
+            if timeout > 0:
+                iready, oready, eready = select.select(sinput, [], [], timeout)
+                if (not iready) and (not oready) and (not eready):
+                    log(1, "EXIT: timeout after " + str(timeout) + " seconds of inactivity")
+                    sys.exit(0)
+
+            cmd, opaque, cas, vbucketId, key, ext, val = readTap(mc)
+            log(2, "got " + str(cmd) + " k:" + key + " vlen:" + str(len(val))
+                    + " elen:" + str(len(ext))
+                    + " vbid:" + str(vbucketId))
+            if len(val) > 0 and len(val) < 64:
+                log(2, "  val: <<" + str(val) + ">>")
+
+            needAck = False
+
+            if (cmd == memcacheConstants.CMD_TAP_MUTATION or
+                cmd == memcacheConstants.CMD_TAP_DELETE or
+                cmd == memcacheConstants.CMD_TAP_FLUSH):
+                cmdName, cmdOp = cmdInfo[cmd]
+                if not vbucketId in vbmap:
+                    log(2, "%s with unknown vbucketId: %s" % (cmdName, vbucketId))
+                    sys.exit("ERROR: received %s without checkpoint in vbucket: %s\n" \
+                             "Perhaps the server is an older version?"
+                             % (cmdName, vbucketId))
+
+                c_s = vbmap[vbucketId]
+                checkpointId = c_s[0]
+                seq          = c_s[1] = c_s[1] + 1
+
+                eng_length, flags, ttl, flg, exp, needAck = parseTapExt(ext)
+
+                if (cmd == memcacheConstants.CMD_TAP_MUTATION):
+                    s = "INSERT into cpoint_op" \
+                        "(vbucket_id, cpoint_id, seq, op, key, flg, exp, cas, val)" \
+                        " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                    db.execute(s, (vbucketId, checkpointId, seq, cmdOp,
+                                   key, flg, exp, cas, val))
+                else:
+                    s = "INSERT into cpoint_op" \
+                        "(vbucket_id, cpoint_id, seq, op, key, cas, val)" \
+                        " VALUES (?, ?, ?, ?, ?, ?, ?)"
+                    db.execute(s, (vbucketId, checkpointId, seq, cmdOp,
+                                   key, cas, val))
+
+                db.commit()
+
+                needAck = flags & memcacheConstants.TAP_FLAG_ACK
+
+            elif cmd == memcacheConstants.CMD_TAP_CHECKPOINT_START:
+                if vbucketId in vbmap:
+                    sys.exit("ERROR: repeated checkpoint start: %s vb: %s"
+                             % (val, vbucketId))
+
+                if len(ext) > 0:
+                    eng_length, flags, ttl, flg, exp, needAck = parseTapExt(ext)
+
+                checkpointIdPrev = None
+                if vbucketId in vbmap:
+                    checkpointIdPrev = vbmap[vbucketId][0]
+
+                vbmap[vbucketId] = [val, 0]
+
+                t = datetime.datetime.now().strftime('%Y%m%d%H%M%S')
+                s = "INSERT into cpoint_state" \
+                    "(vbucket_id, cpoint_id, prev_cpoint_id, state, source, updated_at)" \
+                    " VALUES (?, ?, ?, \"open\", ?, ?)"
+                db.execute(s, (vbucketId, val, checkpointIdPrev, source, t))
+                db.commit()
+
+            elif cmd == memcacheConstants.CMD_TAP_CHECKPOINT_END:
+                if not vbucketId in vbmap:
+                    sys.exit("ERROR: unmatched checkpoint end: %s vb: %s"
+                             % (val, vbucketId))
+
+                checkpointId, seq = vbmap[vbucketId]
+                if checkpointId != val:
+                    sys.exit("ERROR: unmatched checkpoint end id: %s vb: %s cp: %s"
+                             % (val, vbucketId, checkpointId))
+
+                if len(ext) > 0:
+                    eng_length, flags, ttl, flg, exp, needAck = parseTapExt(ext)
+
+                del vbmap[vbucketId]
+
+                t = datetime.datetime.now().strftime('%Y%m%d%H%M%S')
+                s = "UPDATE cpoint_state" \
+                    " SET state=\"closed\", updated_at=?" \
+                    " WHERE vbucket_id=? AND cpoint_id=? AND state=\"open\" AND source=?"
+                r = db.execute(s, (t, vbucketId, checkpointId, source))
+                if r.rowcount != 1:
+                   sys.exit("ERROR: unexpected rowcount during update: "
+                            + ",".join([t, vbucketId, checkpointId, source]))
+                db.commit()
+
+            elif cmd == memcacheConstants.CMD_TAP_OPAQUE:
+                if len(ext) > 0:
+                    eng_length, flags, ttl, flg, exp, needAck = parseTapExt(ext)
+
+            elif cmd == memcacheConstants.CMD_TAP_CONNECT:
+                sys.exit("ERROR: TAP_CONNECT error: " + str(key))
+
+            else:
+                sys.exit("ERROR: unhandled cmd " + str(cmd))
+
+            if needAck:
+                mc._sendMsg(cmd, key, val, opaque,
+                            vbucketId=vbucketId,
+                            fmt=memcacheConstants.RES_PKT_FMT,
+                            magic=memcacheConstants.RES_MAGIC_BYTE)
+
+    except exceptions.EOFError:
+        pass
+
+def readTap(mc):
+    ext = ''
+    key = ''
+    val = ''
+    cmd, vbucketId, opaque, cas, keylen, extlen, data = mc._recvMsg()
+    if data:
+        ext = data[0:extlen]
+        key = data[extlen:extlen+keylen]
+        val = data[extlen+keylen:]
+    return cmd, opaque, cas, vbucketId, key, ext, val
+
+def encodeTAPConnectOpts(opts):
+    header = 0
+    val = []
+    for op in sorted(opts.keys()):
+        header |= op
+        if op in memcacheConstants.TAP_FLAG_TYPES:
+            val.append(struct.pack(memcacheConstants.TAP_FLAG_TYPES[op],
+                                   opts[op]))
+        else:
+            val.append(opts[op])
+    return struct.pack(">I", header), ''.join(val)
+
+def parseTapExt(ext):
+    if len(ext) == 8:
+        flg = exp = 0
+        eng_length, flags, ttl = \
+            struct.unpack(memcacheConstants.TAP_GENERAL_PKT_FMT, ext)
+    else:
+        eng_length, flags, ttl, flg, exp = \
+            struct.unpack(memcacheConstants.TAP_MUTATION_PKT_FMT, ext)
+
+    needAck = flags & memcacheConstants.TAP_FLAG_ACK
+
+    return eng_length, flags, ttl, flg, exp, needAck
+
+def createSchema(db):
+    cur = db.execute("pragma user_version").fetchall()[0][0] # File's version.
+    if (cur != 0):
+        sys.exit("ERROR: unexpected db user version: " + str(cur))
+
+    db.executescript("""
+BEGIN;
+CREATE TABLE cpoint_op
+  (vbucket_id integer, cpoint_id text, seq integer, op text,
+   key varchar(250), flg integer, exp integer, cas integer, val text);
+CREATE TABLE cpoint_state
+  (vbucket_id integer, cpoint_id text, prev_cpoint_id text, state varchar(1),
+   source varchar(250), updated_at text);
+pragma user_version=%s;
+COMMIT;
+""" % (MBB_VERSION))
+
+if __name__ == '__main__':
+    main()

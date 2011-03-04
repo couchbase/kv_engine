@@ -51,6 +51,8 @@ CMD_TAP_DELETE = 0x42
 CMD_TAP_FLUSH = 0x43
 CMD_TAP_OPAQUE = 0x44
 CMD_TAP_VBUCKET_SET = 0x45
+CMD_TAP_CHECKPOINT_START = 0x46
+CMD_TAP_CHECKPOINT_END = 0x47
 
 # vbucket stuff
 CMD_SET_VBUCKET_STATE = 0x3d
@@ -80,13 +82,21 @@ VB_STATE_NAMES={'active': VB_STATE_ACTIVE,
 
 COMMAND_NAMES = dict(((globals()[k], k) for k in globals() if k.startswith("CMD_")))
 
-# TAP flags
+# TAP connect flags
 TAP_FLAG_BACKFILL          = 0x01
 TAP_FLAG_DUMP              = 0x02
 TAP_FLAG_LIST_VBUCKETS     = 0x04
 TAP_FLAG_TAKEOVER_VBUCKETS = 0x08
+TAP_FLAG_SUPPORT_ACK       = 0x10
+TAP_FLAG_REQUEST_KEYS_ONLY = 0x20
+TAP_FLAG_CHECKPOINT        = 0x40
+TAP_FLAG_REGISTERED_CLIENT = 0x80
 
 TAP_FLAG_TYPES = {TAP_FLAG_BACKFILL: ">Q"}
+
+# TAP per-message flags
+TAP_FLAG_ACK      = 0x01
+TAP_FLAG_NO_VALUE = 0x02 # The value for the key is not included in the packet
 
 # Flags, expiration
 SET_PKT_FMT=">II"

@@ -51,13 +51,18 @@ class MemcachedClient(object):
         self.close()
 
     def _sendCmd(self, cmd, key, val, opaque, extraHeader='', cas=0):
-        dtype=0
-        msg=struct.pack(REQ_PKT_FMT, REQ_MAGIC_BYTE,
-            cmd, len(key), len(extraHeader), dtype, self.vbucketId,
+        self._sendMsg(cmd, key, val, opaque, extraHeader=extraHeader, cas=cas,
+                      vbucketId=self.vbucketId)
+
+    def _sendMsg(self, cmd, key, val, opaque, extraHeader='', cas=0,
+                 dtype=0, vbucketId=0,
+                 fmt=REQ_PKT_FMT, magic=REQ_MAGIC_BYTE):
+        msg=struct.pack(fmt, magic,
+            cmd, len(key), len(extraHeader), dtype, vbucketId,
                 len(key) + len(extraHeader) + len(val), opaque, cas)
         self.s.send(msg + extraHeader + key + val)
 
-    def _handleKeyedResponse(self, myopaque):
+    def _recvMsg(self):
         response = ""
         while len(response) < MIN_RECV_PACKET:
             data = self.s.recv(MIN_RECV_PACKET - len(response))
@@ -77,6 +82,10 @@ class MemcachedClient(object):
             remaining -= len(data)
 
         assert (magic in (RES_MAGIC_BYTE, REQ_MAGIC_BYTE)), "Got magic: %d" % magic
+        return cmd, errcode, opaque, cas, keylen, extralen, rv
+
+    def _handleKeyedResponse(self, myopaque):
+        cmd, errcode, opaque, cas, keylen, extralen, rv = self._recvMsg()
         assert myopaque is None or opaque == myopaque, \
             "expected opaque %x, got %x" % (myopaque, opaque)
         if errcode != 0:
