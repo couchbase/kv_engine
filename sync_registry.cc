@@ -24,6 +24,15 @@
 #include "locks.hh"
 
 
+std::ostream& operator << (std::ostream& os, const key_spec_t &keyspec) {
+    os << "key_spec_t(cas: " << keyspec.cas <<
+        ", vbucket: " << keyspec.vbucketid <<
+        ", key: " << keyspec.key << ")";
+
+    return os;
+}
+
+
 void SyncRegistry::addPersistenceListener(SyncListener *syncListener) {
     LockHolder lh(persistenceMutex);
     persistenceListeners.push_back(syncListener);

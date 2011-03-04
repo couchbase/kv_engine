@@ -20,6 +20,7 @@
 #include <set>
 #include <list>
 #include <map>
+#include <iostream>
 
 #include "common.hh"
 #include "item.hh"
@@ -46,6 +47,8 @@ typedef struct key_spec_t {
         return (key < other.key) || ((key == other.key) && (vbucketid < other.vbucketid));
     }
 } key_spec_t;
+
+std::ostream& operator << (std::ostream& os, const key_spec_t &keyspec);
 
 typedef enum {
     PERSIST,
