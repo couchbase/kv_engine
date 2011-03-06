@@ -32,7 +32,9 @@ public:
     ThreadLocal(ThreadLocalDestructor destructor = NULL) {
         int rc = pthread_key_create(&key, destructor);
         if (rc != 0) {
-            throw std::runtime_error("Failed to create a thread-specific key");
+            std::stringstream ss;
+            ss << "Failed to create a thread-specific key: " << strerror(rc);
+            throw std::runtime_error(ss.str().c_str());
         }
     }
 
