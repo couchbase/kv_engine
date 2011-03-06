@@ -3215,7 +3215,33 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::sync(std::set<key_spec_t> *keys,
         break;
     }
 
-    return ENGINE_EWOULDBLOCK;
+    if (syncListener->maybeEnableNotifyIOComplete()) {
+        // Not all keys are SYNCed. Allow the SyncRegistry to notifyIOComplete
+        // this request and block for now.
+        return ENGINE_EWOULDBLOCK;
+    }
+
+    // All keys SYNCed, explicitily unregister replication and persistence listeners
+    // from the the registry to avoid having them there forever.
+    if (syncType == PERSIST || syncType == REP_OR_PERSIST || syncType == REP_AND_PERSIST) {
+        syncRegistry.removePersistenceListener(syncListener);
+    }
+    if (syncType == REP || syncType == REP_OR_PERSIST || syncType == REP_AND_PERSIST) {
+        syncRegistry.removeReplicationListener(syncListener);
+    }
+
+    std::stringstream resp;
+
+    assembleSyncResponse(resp, syncListener);
+    delete syncListener;
+
+    std::string body = resp.str();
+    response(NULL, 0, NULL, 0,
+             body.c_str(), static_cast<uint16_t>(body.length()),
+             PROTOCOL_BINARY_RAW_BYTES,
+             PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
+
+    return ENGINE_SUCCESS;
 }
 
 static bool parseSyncOptions(uint32_t flags, sync_type_t *syncType, uint8_t *replicas) {

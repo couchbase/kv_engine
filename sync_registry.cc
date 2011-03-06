@@ -35,7 +35,17 @@ std::ostream& operator << (std::ostream& os, const key_spec_t &keyspec) {
 
 void SyncRegistry::addPersistenceListener(SyncListener *syncListener) {
     LockHolder lh(persistenceMutex);
-    persistenceListeners.push_back(syncListener);
+    persistenceListeners.insert(syncListener);
+}
+
+
+void SyncRegistry::removePersistenceListener(SyncListener *syncListener) {
+    LockHolder lh(persistenceMutex);
+    std::set<SyncListener*>::iterator it = persistenceListeners.find(syncListener);
+
+    if (it != persistenceListeners.end()) {
+        persistenceListeners.erase(it);
+    }
 }
 
 
@@ -59,7 +69,7 @@ void SyncRegistry::itemsPersisted(std::list<QueuedItem> &itemlist) {
 
 void SyncRegistry::addMutationListener(SyncListener *syncListener) {
     LockHolder lh(mutationMutex);
-    mutationListeners.push_back(syncListener);
+    mutationListeners.insert(syncListener);
 }
 
 
@@ -77,7 +87,17 @@ void SyncRegistry::itemDeleted(const key_spec_t &keyspec) {
 
 void SyncRegistry::addReplicationListener(SyncListener *syncListener) {
     LockHolder lh(replicationMutex);
-    replicationListeners.push_back(syncListener);
+    replicationListeners.insert(syncListener);
+}
+
+
+void SyncRegistry::removeReplicationListener(SyncListener *syncListener) {
+    LockHolder lh(replicationMutex);
+    std::set<SyncListener*>::iterator it = replicationListeners.find(syncListener);
+
+    if (it != replicationListeners.end()) {
+        replicationListeners.erase(it);
+    }
 }
 
 
@@ -87,33 +107,41 @@ void SyncRegistry::itemReplicated(const key_spec_t &keyspec, uint8_t replicaCoun
 }
 
 
-void SyncRegistry::notifyListeners(std::list<SyncListener*> &listeners,
+void SyncRegistry::notifyListeners(std::set<SyncListener*> &listeners,
                                    const key_spec_t &keyspec,
                                    bool deleted) {
-    std::list<SyncListener*>::iterator it = listeners.begin();
+    std::set<SyncListener*>::iterator it = listeners.begin();
 
     while (it != listeners.end()) {
         SyncListener *listener = *it;
-        if (listener->keySynced(keyspec, deleted)) {
-            it = listeners.erase(it);
+
+        listener->keySynced(keyspec, deleted);
+
+        if (listener->isFinished()) {
+            listener->maybeNotifyIOComplete();
+            listeners.erase(it++);
         } else {
-            it++;
+            ++it;
         }
     }
 }
 
 
-void SyncRegistry::notifyListeners(std::list<SyncListener*> &listeners,
+void SyncRegistry::notifyListeners(std::set<SyncListener*> &listeners,
                                    const key_spec_t &keyspec,
                                    uint8_t replicaCount) {
-    std::list<SyncListener*>::iterator it = listeners.begin();
+    std::set<SyncListener*>::iterator it = listeners.begin();
 
     while (it != listeners.end()) {
         SyncListener *listener = *it;
-        if (listener->keySynced(keyspec, replicaCount)) {
-            it = listeners.erase(it);
+
+        listener->keySynced(keyspec, replicaCount);
+
+        if (listener->isFinished()) {
+            listener->maybeNotifyIOComplete();
+            listeners.erase(it++);
         } else {
-            it++;
+            ++it;
         }
     }
 }
@@ -124,8 +152,8 @@ SyncListener::SyncListener(EventuallyPersistentEngine &epEngine,
                            std::set<key_spec_t> *keys,
                            sync_type_t sync_type,
                            uint8_t replicaCount) :
-    engine(epEngine), cookie(c), keySpecs(keys),
-    syncType(sync_type), replicasPerKey(replicaCount) {
+    engine(epEngine), cookie(c), keySpecs(keys), syncType(sync_type),
+    replicasPerKey(replicaCount), finished(false), allowNotify(false) {
 
     // TODO: support "replication AND persistence sync", and
     //       "replicator OR persistence sync"
@@ -138,8 +166,7 @@ SyncListener::~SyncListener() {
 }
 
 
-bool SyncListener::keySynced(const key_spec_t &keyspec, bool deleted) {
-    bool finished = false;
+void SyncListener::keySynced(const key_spec_t &keyspec, bool deleted) {
     LockHolder lh(mutex);
     std::set<key_spec_t>::iterator it = keySpecs->find(keyspec);
 
@@ -166,19 +193,11 @@ bool SyncListener::keySynced(const key_spec_t &keyspec, bool deleted) {
         case REP_AND_PERSIST:
             break;
         }
-
-        if (finished) {
-            engine.getServerApi()->cookie->store_engine_specific(cookie, this);
-            engine.notifyIOComplete(cookie, ENGINE_SUCCESS);
-        }
     }
-
-    return finished;
 }
 
 
-bool SyncListener::keySynced(const key_spec_t &keyspec, uint8_t numReplicas) {
-    bool finished = false;
+void SyncListener::keySynced(const key_spec_t &keyspec, uint8_t numReplicas) {
     LockHolder lh(mutex);
     std::set<key_spec_t>::iterator it = keySpecs->find(keyspec);
 
@@ -209,12 +228,24 @@ bool SyncListener::keySynced(const key_spec_t &keyspec, uint8_t numReplicas) {
         case MUTATION:
             break;
         }
-
-        if (finished) {
-            engine.getServerApi()->cookie->store_engine_specific(cookie, this);
-            engine.notifyIOComplete(cookie, ENGINE_SUCCESS);
-        }
     }
+}
 
-    return finished;
+
+bool SyncListener::maybeEnableNotifyIOComplete() {
+    LockHolder lh(mutex);
+
+    return (allowNotify = !finished);
+}
+
+
+void SyncListener::maybeNotifyIOComplete() {
+    LockHolder lh(mutex);
+
+    assert(finished);
+
+    if (allowNotify) {
+        engine.getServerApi()->cookie->store_engine_specific(cookie, this);
+        engine.notifyIOComplete(cookie, ENGINE_SUCCESS);
+    }
 }

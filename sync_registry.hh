@@ -72,6 +72,7 @@ public:
     }
 
     void addPersistenceListener(SyncListener *syncListener);
+    void removePersistenceListener(SyncListener *syncListener);
     void itemPersisted(const QueuedItem &item);
     void itemsPersisted(std::list<QueuedItem> &itemlist);
 
@@ -80,25 +81,26 @@ public:
     void itemDeleted(const key_spec_t &keyspec);
 
     void addReplicationListener(SyncListener *syncListener);
+    void removeReplicationListener(SyncListener *syncListener);
     void itemReplicated(const key_spec_t &keyspec, uint8_t replicaCount = 1);
 
 private:
 
-    void notifyListeners(std::list<SyncListener*> &listeners,
+    void notifyListeners(std::set<SyncListener*> &listeners,
                          const key_spec_t &keyspec,
                          bool deleted);
 
-    void notifyListeners(std::list<SyncListener*> &listeners,
+    void notifyListeners(std::set<SyncListener*> &listeners,
                          const key_spec_t &keyspec,
                          uint8_t replicaCount);
 
-    std::list<SyncListener*> persistenceListeners;
+    std::set<SyncListener*> persistenceListeners;
     Mutex persistenceMutex;
 
-    std::list<SyncListener*> mutationListeners;
+    std::set<SyncListener*> mutationListeners;
     Mutex mutationMutex;
 
-    std::list<SyncListener*> replicationListeners;
+    std::set<SyncListener*> replicationListeners;
     Mutex replicationMutex;
 
     DISALLOW_COPY_AND_ASSIGN(SyncRegistry);
@@ -116,11 +118,18 @@ public:
 
     ~SyncListener();
 
-    bool keySynced(const key_spec_t &keyspec, bool deleted = false);
-    bool keySynced(const key_spec_t &keyspec, uint8_t numReplicas);
+    void keySynced(const key_spec_t &keyspec, bool deleted = false);
+    void keySynced(const key_spec_t &keyspec, uint8_t numReplicas);
+
+    void maybeNotifyIOComplete();
+    bool maybeEnableNotifyIOComplete();
 
     sync_type_t getSyncType() const {
         return syncType;
+    }
+
+    bool isFinished() const {
+        return finished;
     }
 
     std::set<key_spec_t>& getPersistedKeys() {
@@ -162,6 +171,8 @@ private:
     std::set<key_spec_t>         nonExistentKeys;
     std::set<key_spec_t>         invalidCasKeys;
     Mutex                        mutex;
+    bool                         finished;
+    bool                         allowNotify;
 };
 
 
