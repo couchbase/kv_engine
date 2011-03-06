@@ -117,6 +117,7 @@ HashTableStatVisitor HashTable::clear(bool deactivate) {
     numItems.set(0);
     numNonResidentItems.set(0);
     memSize.set(0);
+    cacheSize.set(0);
 
     return rv;
 }
@@ -331,14 +332,11 @@ size_t StoredValue::getCurrentSize(EPStats &st) {
     return st.currentSize.get() + st.memOverhead.get();
 }
 
-size_t StoredValue::getTotalCacheSize(EPStats &st) {
-    return st.totalCacheSize.get();
-}
-
 void StoredValue::increaseCurrentSize(EPStats &st, HashTable &ht,
                                       size_t by, bool residentOnly) {
     if (!residentOnly) {
-        st.totalCacheSize.incr(by);
+        ht.cacheSize.incr(by);
+        assert(ht.cacheSize.get() < GIGANTOR);
     }
     st.currentSize.incr(by);
     assert(st.currentSize.get() < GIGANTOR);
@@ -356,7 +354,8 @@ void StoredValue::reduceCurrentSize(EPStats &st, HashTable &ht,
     } while (!st.currentSize.cas(val, val - by));;
 
     if (!residentOnly) {
-        st.totalCacheSize.decr(by);
+        ht.cacheSize.decr(by);
+        assert(ht.cacheSize.get() < GIGANTOR);
     }
     ht.memSize.decr(by);
     assert(ht.memSize.get() < GIGANTOR);

@@ -84,7 +84,8 @@ private:
 class VBucketCountVisitor : public VBucketVisitor {
 public:
     VBucketCountVisitor() : requestedState(0), total(0), nonResident(0),
-                            totalNonResident(0), desired_state(vbucket_state_active) { }
+                            totalNonResident(0), totalCacheSize(0),
+                            desired_state(vbucket_state_active) { }
 
     bool visitBucket(RCPtr<VBucket> vb);
 
@@ -101,11 +102,14 @@ public:
 
     size_t getTotalNonResident() { return totalNonResident; }
 
+    size_t getTotalCacheSize() { return totalCacheSize; }
+
 private:
     size_t requestedState;
     size_t total;
     size_t nonResident;
     size_t totalNonResident;
+    size_t totalCacheSize;
     vbucket_state_t desired_state;
 };
 

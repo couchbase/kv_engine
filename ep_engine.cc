@@ -2137,6 +2137,7 @@ bool VBucketCountVisitor::visitBucket(RCPtr<VBucket> vb) {
     size_t m = vb->ht.getNumNonResidentItems();
     total += n;
     totalNonResident += m;
+    totalCacheSize += vb->ht.cacheSize;
     if (vb->getState() == desired_state) {
         requestedState += n;
         nonResident += m;
@@ -2218,7 +2219,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     add_casted_stat("ep_max_data_size", epstats.maxDataSize, add_stat, cookie);
     add_casted_stat("ep_mem_low_wat", epstats.mem_low_wat, add_stat, cookie);
     add_casted_stat("ep_mem_high_wat", epstats.mem_high_wat, add_stat, cookie);
-    add_casted_stat("ep_total_cache_size", StoredValue::getTotalCacheSize(stats),
+    add_casted_stat("ep_total_cache_size", countVisitor.getTotalCacheSize(),
                     add_stat, cookie);
     add_casted_stat("ep_oom_errors", stats.oom_errors, add_stat, cookie);
     add_casted_stat("ep_tmp_oom_errors", stats.tmp_oom_errors, add_stat, cookie);

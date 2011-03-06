@@ -115,8 +115,6 @@ public:
     Atomic<size_t> maxDataSize;
     //! Total size of stored objects.
     Atomic<size_t> currentSize;
-    //! Total size used by resident objects.
-    Atomic<size_t> totalCacheSize;
     //! Amount of memory used to track items and what-not.
     Atomic<size_t> memOverhead;
 
