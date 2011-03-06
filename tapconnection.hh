@@ -81,6 +81,12 @@ public:
         case queue_op_flush:
             event = TAP_FLUSH;
             break;
+        case queue_op_checkpoint_start:
+            event = TAP_CHECKPOINT_START;
+            break;
+        case queue_op_checkpoint_end:
+            event = TAP_CHECKPOINT_END;
+            break;
         default:
             break;
         }
@@ -107,6 +113,34 @@ public:
     const uint64_t id;
     const uint16_t vbucket;
     const uint16_t vbversion;
+};
+
+typedef enum {
+    backfill,
+    checkpoint_start,
+    checkpoint_end,
+    checkpoint_end_synced
+} tap_checkpoint_state;
+
+/**
+ * Checkpoint state of each vbucket in TAP stream.
+ */
+class TapCheckpointState {
+public:
+    TapCheckpointState() {}
+
+    TapCheckpointState(uint16_t vb, uint64_t checkpointId, tap_checkpoint_state s) :
+        vbucket(vb), currentCheckpointId(checkpointId), state(s) {}
+
+    TapCheckpointState(const TapCheckpointState &other) {
+        vbucket = other.vbucket;
+        currentCheckpointId = other.currentCheckpointId;
+        state = other.state;
+    }
+
+    uint16_t vbucket;
+    uint64_t currentCheckpointId;
+    tap_checkpoint_state state;
 };
 
 /**
@@ -162,6 +196,8 @@ protected:
 
     bool supportAck;
 
+    bool supportCheckpointSync;
+
     TapConnection(EventuallyPersistentEngine &theEngine,
                   const void *c, const std::string &n) :
         engine(theEngine),
@@ -171,7 +207,8 @@ protected:
         expiryTime((rel_time_t)-1),
         connected(true),
         disconnect(false),
-        supportAck(false)
+        supportAck(false),
+        supportCheckpointSync(false)
     { /* EMPTY */ }
 
 
@@ -289,6 +326,10 @@ private:
     Atomic<size_t> numOpaqueFailed;
     Atomic<size_t> numVbucketSet;
     Atomic<size_t> numVbucketSetFailed;
+    Atomic<size_t> numCheckpointStart;
+    Atomic<size_t> numCheckpointStartFailed;
+    Atomic<size_t> numCheckpointEnd;
+    Atomic<size_t> numCheckpointEndFailed;
     Atomic<size_t> numUnknown;
 
 public:
@@ -298,6 +339,8 @@ public:
     virtual void processedEvent(tap_event_t event, ENGINE_ERROR_CODE ret);
     virtual void addStats(ADD_STAT add_stat, const void *c);
     virtual const char *getType() const { return "consumer"; };
+    virtual bool processCheckpointCommand(tap_event_t event, uint16_t vbucket,
+                                          uint64_t checkpointId);
 };
 
 
@@ -373,6 +416,7 @@ private:
             bool wasEmpty = queue->empty();
             queue->push_back(it);
             ++queueSize;
+            queueMemSize.incr(sizeof(queued_item));
             return wasEmpty;
         } else {
             return queue->empty();
@@ -405,12 +449,15 @@ private:
         return addEvent_UNLOCKED(key, vbid, op);
     }
 
-    void addTapLogElement(const queued_item &qi) {
-        LockHolder lh(queueLock);
+    void addTapLogElement_UNLOCKED(const queued_item &qi) {
         if (supportAck) {
             TapLogElement log(seqno, qi);
             tapLog.push_back(log);
         }
+    }
+    void addTapLogElement(const queued_item &qi) {
+        LockHolder lh(queueLock);
+        addTapLogElement_UNLOCKED(qi);
     }
 
     void addTapLogElement_UNLOCKED(const TapVBucketEvent &e) {
@@ -515,6 +562,35 @@ private:
         return nextVBucketLowPriority_UNLOCKED();
     }
 
+    void addCheckpointMessage_UNLOCKED(const queued_item &item) {
+        checkpointMsgs.push(item);
+    }
+
+    /**
+     * Add a checkpoint start / end message to the checkpoint message queue. These messages
+     * are used for synchronizing checkpoints between tap producer and consumer.
+     */
+    void addCheckpointMessage(const queued_item &item) {
+        LockHolder lh(queueLock);
+        addCheckpointMessage_UNLOCKED(item);
+    }
+
+    queued_item nextCheckpointMessage_UNLOCKED() {
+        queued_item item(new QueuedItem("", 0xffff, queue_op_empty));
+        if (!checkpointMsgs.empty()) {
+            item = checkpointMsgs.front();
+            checkpointMsgs.pop();
+            ++recordsFetched;
+            addTapLogElement_UNLOCKED(item);
+        }
+        return item;
+    }
+
+    queued_item nextCheckpointMessage() {
+        LockHolder lh(queueLock);
+        return nextCheckpointMessage_UNLOCKED();
+    }
+
     bool hasQueuedItem_UNLOCKED() {
         return !queue->empty() || getRemainingOnCheckpoints() > 0;
     }
@@ -525,10 +601,8 @@ private:
 
     bool idle() {
         LockHolder lh(queueLock);
-        return empty_UNLOCKED()
-            && vBucketLowPriority.empty()
-            && vBucketHighPriority.empty()
-            && tapLog.empty();
+        return empty_UNLOCKED() && vBucketLowPriority.empty() && vBucketHighPriority.empty() &&
+               checkpointMsgs.empty() && tapLog.empty();
     }
 
     bool hasItem() {
@@ -709,7 +783,6 @@ private:
     void encodeVBucketStateTransition(const TapVBucketEvent &ev, void **es,
                                       uint16_t *nes, uint16_t *vbucket) const;
 
-
     void evaluateFlags();
 
     bool waitForBackfill();
@@ -811,7 +884,12 @@ private:
      * For each vbucket, maintain the current checkpoint Id that this TAP producer should
      * transmit to its TAP client.
      */
-    std::map<uint16_t, uint64_t> currentVBCheckpointIds;
+    std::map<uint16_t, TapCheckpointState> tapCheckpointState;
+
+    /**
+     * Checkpoint start and end messages
+     */
+    std::queue<queued_item> checkpointMsgs;
 
     /**
      * VBucket status messages immediately (before userdata)

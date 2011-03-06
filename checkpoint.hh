@@ -42,8 +42,9 @@ public:
     CheckpointCursor() { }
 
     CheckpointCursor(std::list<Checkpoint*>::iterator checkpoint,
-                     std::list<queued_item>::iterator pos) :
-        currentCheckpoint(checkpoint), currentPos(pos), offset(0) { }
+                     std::list<queued_item>::iterator pos,
+                     size_t os = 0) :
+        currentCheckpoint(checkpoint), currentPos(pos), offset(os) { }
 
 private:
     std::list<Checkpoint*>::iterator currentCheckpoint;
@@ -94,7 +95,7 @@ public:
      * Return the number of items belonging to this checkpoint.
      */
     size_t getNumItems() const {
-        return numItems == 0 ? 0 : numItems - 1; // Exclude the dummy item.
+        return numItems;
     }
 
     /**
@@ -171,10 +172,11 @@ private:
 class CheckpointManager {
     friend class Checkpoint;
     friend class EventuallyPersistentEngine;
+    friend class TapConsumer;
 public:
 
-    CheckpointManager(EPStats &st, uint64_t checkpointId = 1) :
-        stats(st), nextCheckpointId(checkpointId), numItems(0),
+    CheckpointManager(EPStats &st, uint16_t vbucket, uint64_t checkpointId = 1) :
+        stats(st), vbucketId(vbucket), nextCheckpointId(checkpointId), numItems(0),
         mutationCounter(0) {
 
         addNewCheckpoint(nextCheckpointId++);
@@ -305,13 +307,13 @@ private:
      * The lock should be acquired before calling this function.
      * @param id the id of a checkpoint to be created.
      */
-    void addNewCheckpoint_UNLOCKED(uint64_t id);
+    bool addNewCheckpoint_UNLOCKED(uint64_t id);
 
     /**
      * Create a new open checkpoint and add it to the checkpoint list.
      * @param id the id of a checkpoint to be created.
      */
-    void addNewCheckpoint(uint64_t id);
+    bool addNewCheckpoint(uint64_t id);
 
     queued_item nextItemFromClosedCheckpoint(CheckpointCursor &cursor);
 
@@ -320,7 +322,7 @@ private:
     uint64_t getAllItemsFromCurrentPosition(CheckpointCursor &cursor,
                                             std::vector<queued_item> &items);
 
-    void moveCursorToNextCheckpoint(CheckpointCursor &cursor);
+    bool moveCursorToNextCheckpoint(CheckpointCursor &cursor);
 
     /**
      * Check the current open checkpoint to see if we need to create the new open checkpoint.
@@ -329,9 +331,23 @@ private:
      */
     uint64_t checkOpenCheckpoint();
 
+    bool closeOpenCheckpoint_UNLOCKED(uint64_t id);
+    bool closeOpenCheckpoint(uint64_t id);
+
+    /**
+     * This method performs the following steps for creating a new checkpoint with a given Id:
+     * 1) Check if the checkpoint manager already contains the checkpoint with the same id.
+     * 2) If exists, remove the existing checkpoint and all of its following checkpoints, and
+     *    then create a new checkpoint with a given Id and reposition all the cursors appropriately.
+     * 3) Otherwise, simply create a new open checkpoint with a given Id.
+     * This method is mainly for dealing with rollback events from a TAP producer.
+     * @param id the id of a checkpoint to be created.
+     */
+    bool checkAndAddNewCheckpoint(uint64_t id);
 
     EPStats                 &stats;
     Mutex                    queueLock;
+    uint16_t                 vbucketId;
     Atomic<uint64_t>         nextCheckpointId;
     Atomic<size_t>           numItems;
     uint64_t                 mutationCounter;

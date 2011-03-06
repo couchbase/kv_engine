@@ -145,7 +145,7 @@ int main(int argc, char **argv) {
     HashTable::setDefaultNumLocks(1);
     RCPtr<VBucket> vbucket(new VBucket(0, vbucket_state_active, global_stats));
 
-    CheckpointManager *checkpoint_manager = new CheckpointManager(global_stats, 1);
+    CheckpointManager *checkpoint_manager = new CheckpointManager(global_stats, 0, 1);
     SyncObject *mutex = new SyncObject();
     SyncObject *gate = new SyncObject();
     int *counter = new int;

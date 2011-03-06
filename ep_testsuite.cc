@@ -2443,6 +2443,25 @@ static enum test_result test_tap_rcvr_mutate(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 
     return SUCCESS;
 }
 
+static enum test_result test_tap_rcvr_checkpoint(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    char eng_specific[64];
+    memset(eng_specific, 0, sizeof(eng_specific));
+    check(set_vbucket_state(h, h1, 1, vbucket_state_replica), "Failed to set vbucket state.");
+    for (size_t i = 1; i < 10; ++i) {
+        std::stringstream ss;
+        ss << i;
+        check(h1->tap_notify(h, NULL, eng_specific, sizeof(eng_specific),
+                             1, 0, TAP_CHECKPOINT_START, 1, "", 0, 828, 0, 0,
+                             ss.str().c_str(), ss.str().length(), 1) == ENGINE_SUCCESS,
+              "Failed tap notify.");
+        check(h1->tap_notify(h, NULL, eng_specific, sizeof(eng_specific),
+                             1, 0, TAP_CHECKPOINT_END, 1, "", 0, 828, 0, 0,
+                             ss.str().c_str(), ss.str().length(), 1) == ENGINE_SUCCESS,
+              "Failed tap notify.");
+    }
+    return SUCCESS;
+}
+
 static enum test_result test_tap_rcvr_mutate_dead(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     char eng_specific[1];
     check(h1->tap_notify(h, NULL, eng_specific, 1,
@@ -2804,6 +2823,7 @@ static enum test_result test_tap_ack_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
     TAP_ITERATOR iter = h1->get_tap_iterator(h, cookie, name.c_str(),
                                              name.length(),
                                              TAP_CONNECT_FLAG_LIST_VBUCKETS |
+                                             TAP_CONNECT_CHECKPOINT |
                                              TAP_CONNECT_SUPPORT_ACK |
                                              TAP_CONNECT_FLAG_DUMP,
                                              static_cast<void*>(vbucketfilter),
@@ -2834,6 +2854,7 @@ static enum test_result test_tap_ack_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
             iter = h1->get_tap_iterator(h, cookie, name.c_str(),
                                         name.length(),
                                         TAP_CONNECT_FLAG_LIST_VBUCKETS |
+                                        TAP_CONNECT_CHECKPOINT |
                                         TAP_CONNECT_SUPPORT_ACK |
                                         TAP_CONNECT_FLAG_DUMP,
                                         static_cast<void*>(vbucketfilter),
@@ -2888,6 +2909,24 @@ static enum test_result test_tap_ack_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
             h1->release(h, cookie, it);
 
             break;
+        case TAP_CHECKPOINT_START:
+            testHarness.unlock_cookie(cookie);
+            h1->tap_notify(h, cookie, NULL, 0, 0,
+                           PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                           TAP_ACK, seqno, key.c_str(), key.length(),
+                           0, 0, 0, NULL, 0, 0);
+            testHarness.lock_cookie(cookie);
+            h1->release(h, cookie, it);
+            break;
+        case TAP_CHECKPOINT_END:
+            testHarness.unlock_cookie(cookie);
+            h1->tap_notify(h, cookie, NULL, 0, 0,
+                           PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                           TAP_ACK, seqno, key.c_str(), key.length(),
+                           0, 0, 0, NULL, 0, 0);
+            testHarness.lock_cookie(cookie);
+            h1->release(h, cookie, it);
+            break;
         case TAP_DISCONNECT:
             done = true;
             break;
@@ -2938,6 +2977,7 @@ static enum test_result test_tap_implicit_ack_stream(ENGINE_HANDLE *h, ENGINE_HA
     TAP_ITERATOR iter = h1->get_tap_iterator(h, cookie, name.c_str(),
                                              name.length(),
                                              TAP_CONNECT_FLAG_LIST_VBUCKETS |
+                                             TAP_CONNECT_CHECKPOINT |
                                              TAP_CONNECT_SUPPORT_ACK |
                                              TAP_CONNECT_FLAG_DUMP,
                                              static_cast<void*>(vbucketfilter),
@@ -3027,7 +3067,6 @@ static enum test_result test_tap_implicit_ack_stream(ENGINE_HANDLE *h, ENGINE_HA
             } else if (event == TAP_DISCONNECT) {
                 done = true;
             }
-
             if (flags == TAP_FLAG_ACK) {
                 testHarness.unlock_cookie(cookie);
                 h1->tap_notify(h, cookie, NULL, 0, 0,
@@ -4762,6 +4801,7 @@ engine_test_t* get_tests(void) {
          NULL, teardown,
          "tap_idle_timeout=30"},
         {"tap receiver mutation", test_tap_rcvr_mutate, NULL, teardown, NULL},
+        {"tap receiver checkpoint start/end", test_tap_rcvr_checkpoint, NULL, teardown, NULL},
         {"tap receiver mutation (dead)", test_tap_rcvr_mutate_dead,
          NULL, teardown, NULL},
         {"tap receiver mutation (pending)", test_tap_rcvr_mutate_pending,
@@ -4783,9 +4823,9 @@ engine_test_t* get_tests(void) {
         {"tap config", test_tap_config, NULL, teardown,
          "tap_backoff_period=0.05;tap_ack_interval=10;tap_ack_window_size=2;tap_ack_grace_period=10"},
         {"tap acks stream", test_tap_ack_stream, NULL, teardown,
-         "tap_keepalive=100;ht_size=129;ht_locks=3;tap_backoff_period=0.05"},
+         "tap_keepalive=100;ht_size=129;ht_locks=3;tap_backoff_period=0.05;chk_max_items=5"},
         {"tap implicit acks stream", test_tap_implicit_ack_stream, NULL, teardown,
-         "tap_keepalive=100;ht_size=129;ht_locks=3;tap_backoff_period=0.05;tap_ack_initial_sequence_number=4294967290"},
+         "tap_keepalive=100;ht_size=129;ht_locks=3;tap_backoff_period=0.05;tap_ack_initial_sequence_number=4294967290;chk_max_items=5"},
         {"tap notify", test_tap_notify, NULL, teardown,
          "max_size=1048576"},
         // restart tests

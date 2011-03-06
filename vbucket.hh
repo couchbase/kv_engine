@@ -95,7 +95,7 @@ class VBucket : public RCValue {
 public:
 
     VBucket(int i, vbucket_state_t initialState, EPStats &st, uint64_t checkpointId = 1) :
-        ht(st), checkpointManager(st, checkpointId), id(i), state(initialState), stats(st) {
+        ht(st), checkpointManager(st, i, checkpointId), id(i), state(initialState), stats(st) {
         pendingOpsStart = 0;
         stats.memOverhead.incr(sizeof(VBucket)
                                + ht.memorySize() + sizeof(CheckpointManager));

@@ -1685,6 +1685,8 @@ int EventuallyPersistentStore::flushOne(std::queue<queued_item> *q,
     case queue_op_empty:
         assert(false);
         break;
+    default:
+        break;
     }
     stats.flusher_todo--;
 

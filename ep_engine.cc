@@ -1556,6 +1556,26 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
         return ev.event;
     }
 
+    // Check if there are any checkpoint start / end messages to be sent to the TAP client.
+    queued_item checkpoint_msg = connection->nextCheckpointMessage();
+    if (checkpoint_msg->getOperation() != queue_op_empty) {
+        switch (checkpoint_msg->getOperation()) {
+        case queue_op_checkpoint_start:
+            ret = TAP_CHECKPOINT_START;
+            break;
+        case queue_op_checkpoint_end:
+            ret = TAP_CHECKPOINT_END;
+            break;
+        default:
+            abort();
+        }
+        *vbucket = checkpoint_msg->getVBucketId();
+        Item *item = new Item(checkpoint_msg->getKey(), 0, 0, checkpoint_msg->getValue(),
+                              0, -1, checkpoint_msg->getVBucketId());
+        *itm = item;
+        return ret;
+    }
+
     // Check if there are any items fetched from disk for backfill operations.
     if (connection->hasItem()) {
         ret = TAP_MUTATION;
@@ -1815,12 +1835,13 @@ void EventuallyPersistentEngine::createTapQueue(const void *cookie,
     }
 
     if (flags & TAP_CONNECT_CHECKPOINT) {
-        uint16_t nCheckpoints;
-        assert(nuserdata >= sizeof(nCheckpoints));
-        memcpy(&nCheckpoints, ptr, sizeof(nCheckpoints));
-        nuserdata -= sizeof(nCheckpoints);
-        ptr += sizeof(nCheckpoints);
-        nCheckpoints = ntohs(nCheckpoints);
+        uint16_t nCheckpoints = 0;
+        if (nuserdata >= sizeof(nCheckpoints)) {
+            memcpy(&nCheckpoints, ptr, sizeof(nCheckpoints));
+            nuserdata -= sizeof(nCheckpoints);
+            ptr += sizeof(nCheckpoints);
+            nCheckpoints = ntohs(nCheckpoints);
+        }
         if (nCheckpoints > 0) {
             assert(nuserdata >= ((sizeof(uint16_t) + sizeof(uint64_t)) * nCheckpoints));
             for (uint16_t j = 0; j < nCheckpoints; ++j) {
@@ -1899,7 +1920,23 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
             ret = ENGINE_SUCCESS;
         }
         break;
-
+    case TAP_CHECKPOINT_START:
+    case TAP_CHECKPOINT_END:
+        {
+            TapConsumer *tc = dynamic_cast<TapConsumer*>(connection);
+            if (tc) {
+                char *ptr = NULL;
+                shared_ptr<const Blob> vblob(Blob::New(static_cast<const char*>(data), ndata));
+                uint64_t checkpointId = strtoull(vblob->getData(), &ptr, 10);
+                ret = tc->processCheckpointCommand(tap_event, vbucket, checkpointId) ?
+                      ENGINE_SUCCESS : ENGINE_DISCONNECT;
+            } else {
+                ret = ENGINE_DISCONNECT;
+                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                 "TAP consumer doesn't exists. Force disconnect\n");
+            }
+        }
+        break;
     case TAP_MUTATION:
         {
             if (!tapThrottle->shouldProcess()) {
