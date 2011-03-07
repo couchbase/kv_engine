@@ -773,7 +773,7 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server
     epstore(NULL), tapThrottle(new TapThrottle(stats)), databaseInitTime(0), tapKeepAlive(0),
     tapNoopInterval(DEFAULT_TAP_NOOP_INTERVAL), nextTapNoop(0),
     startedEngineThreads(false), shutdown(false),
-    getServerApiFunc(get_server_api), getlExtension(NULL),
+    getServerApiFunc(get_server_api), getlExtension(NULL), tapConnMap(*this),
     maxItemSize(20*1024*1024), tapBacklogLimit(5000),
     memLowWat(std::numeric_limits<size_t>::max()),
     memHighWat(std::numeric_limits<size_t>::max()),
@@ -1629,7 +1629,7 @@ void EventuallyPersistentEngine::createTapQueue(const void *cookie,
         }
     }
 
-    TapConnection *tap = tapConnMap.newConn(this, cookie, name, flags,
+    TapConnection *tap = tapConnMap.newConn(cookie, name, flags,
                                             backfillAge,
                                             static_cast<int>(tapKeepAlive));
 
@@ -2822,7 +2822,7 @@ void EventuallyPersistentEngine::notifyTapIoThread(void) {
     // Fix clean shutdown!!!
     while (!shutdown) {
 
-        tapConnMap.notifyIOThreadMain(this);
+        tapConnMap.notifyIOThreadMain();
 
         if (shutdown) {
             return;

@@ -65,6 +65,7 @@ TapConnection::TapConnection(EventuallyPersistentEngine &theEngine,
     if (ackSupported) {
         expiry_time = ep_current_time() + ackGracePeriod;
     }
+    engine.getServerApi()->cookie->reserve(cookie);
 }
 
 void TapConnection::evaluateFlags()

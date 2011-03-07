@@ -110,8 +110,7 @@ void TapConnMap::addFlushEvent() {
     }
 }
 
-TapConnection *TapConnMap::newConn(EventuallyPersistentEngine *engine,
-                                   const void* cookie,
+TapConnection *TapConnMap::newConn(const void* cookie,
                                    const std::string &name,
                                    uint32_t flags,
                                    uint64_t backfillAge,
@@ -157,7 +156,7 @@ TapConnection *TapConnMap::newConn(EventuallyPersistentEngine *engine,
                              "The TAP channel (\"%s\") exists... grabbing the channel\n",
                              name.c_str());
             if (miter != map.end()) {
-                TapConnection *n = new TapConnection(*engine,
+                TapConnection *n = new TapConnection(engine,
                                                      NULL,
                                                      TapConnection::getAnonTapName(),
                                                      0);
@@ -171,7 +170,7 @@ TapConnection *TapConnMap::newConn(EventuallyPersistentEngine *engine,
 
     bool reconnect = false;
     if (tap == NULL) {
-        tap = new TapConnection(*engine, cookie, name, flags);
+        tap = new TapConnection(engine, cookie, name, flags);
         all.push_back(tap);
     } else {
         tap->setCookie(cookie);
@@ -211,9 +210,10 @@ bool TapConnMap::checkValidity(const std::string &name,
 void TapConnMap::purgeSingleExpiredTapConnection(TapConnection *tc) {
     all.remove(tc);
     /* Assert that the connection doesn't live in the map.. */
-    /* TROND: Remove this when we're sure we don't have a bug here */
     assert(!mapped(tc));
+    const void *cookie = tc->cookie;
     delete tc;
+    engine.getServerApi()->cookie->release(cookie);
 }
 
 bool TapConnMap::mapped(TapConnection *tc) {
@@ -235,19 +235,19 @@ bool TapConnMap::shouldDisconnect(TapConnection *tc) {
     return tc && tc->doDisconnect;
 }
 
-void TapConnMap::notifyIOThreadMain(EventuallyPersistentEngine *engine) {
+void TapConnMap::notifyIOThreadMain() {
     bool addNoop = false;
 
     rel_time_t now = ep_current_time();
-    if (now > engine->nextTapNoop && engine->tapNoopInterval != (size_t)-1) {
+    if (now > engine.nextTapNoop && engine.tapNoopInterval != (size_t)-1) {
         addNoop = true;
-        engine->nextTapNoop = now + engine->tapNoopInterval;
+        engine.nextTapNoop = now + engine.tapNoopInterval;
     }
     LockHolder lh(notifySync);
     // We should pause unless we purged some connections or
     // all queues have items.
     bool shouldPause = purgeExpiredConnections_UNLOCKED() == 0;
-    bool noEvents = engine->populateEvents();
+    bool noEvents = engine.populateEvents();
 
     if (shouldPause) {
         shouldPause = noEvents;
@@ -270,12 +270,12 @@ void TapConnMap::notifyIOThreadMain(EventuallyPersistentEngine *engine) {
     }
 
     if (shouldPause) {
-        double diff = engine->nextTapNoop - now;
+        double diff = engine.nextTapNoop - now;
         if (diff > 0) {
             notifySync.wait(diff);
         }
 
-        if (engine->shutdown) {
+        if (engine.shutdown) {
             return;
         }
         purgeExpiredConnections_UNLOCKED();
@@ -292,7 +292,7 @@ void TapConnMap::notifyIOThreadMain(EventuallyPersistentEngine *engine) {
 
     lh.unlock();
 
-    engine->notifyIOComplete(toNotify, ENGINE_SUCCESS);
+    engine.notifyIOComplete(toNotify, ENGINE_SUCCESS);
 }
 
 void CompleteBackfillTapOperation::perform(TapConnection *tc, void *arg) {

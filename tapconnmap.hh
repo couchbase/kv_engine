@@ -85,6 +85,8 @@ public:
  */
 class TapConnMap {
 public:
+    TapConnMap(EventuallyPersistentEngine &theEngine) : engine(theEngine) {}
+
 
     /**
      * Disconnect a tap connection by its cookie.
@@ -184,8 +186,7 @@ public:
      * Find or build a tap connection for the given cookie and with
      * the given name.
      */
-    TapConnection *newConn(EventuallyPersistentEngine* e,
-                           const void* cookie,
+    TapConnection *newConn(const void* cookie,
                            const std::string &name,
                            uint32_t flags,
                            uint64_t backfillAge,
@@ -208,7 +209,7 @@ public:
         std::for_each(all.begin(), all.end(), f);
     }
 
-    void notifyIOThreadMain(EventuallyPersistentEngine *engine);
+    void notifyIOThreadMain();
 
 private:
 
@@ -224,6 +225,9 @@ private:
     std::map<const void*, TapConnection*>    map;
     std::map<const std::string, const void*> validity;
     std::list<TapConnection*>                all;
+
+    /* Handle to the engine who owns us */
+    EventuallyPersistentEngine &engine;
 };
 
 #endif /* TAPCONNMAP_HH */
