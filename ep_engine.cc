@@ -3150,21 +3150,22 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::sync(std::set<key_spec_t> *keys,
     std::vector< std::pair<StoredValue*, uint16_t> > storedValues;
     std::set<key_spec_t>::iterator it = keys->begin();
 
-    for ( ; it != keys->end(); it++) {
+    while (it != keys->end()) {
         StoredValue *sv = epstore->getStoredValue(it->key, it->vbucketid);
 
         if (sv == NULL) {
             syncListener->getNonExistentKeys().insert(*it);
-            keys->erase(it);
+            keys->erase(it++);
         } else {
             if ((it->cas != 0) && (sv->getCas() != it->cas)) {
                 syncListener->getInvalidCasKeys().insert(*it);
-                keys->erase(it);
+                keys->erase(it++);
                 continue;
             }
 
             std::pair<StoredValue*, uint16_t> pair(sv, it->vbucketid);
             storedValues.push_back(pair);
+            ++it;
         }
     }
 
