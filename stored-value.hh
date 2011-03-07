@@ -513,11 +513,6 @@ public:
      */
     static size_t getCurrentSize(EPStats&);
 
-    /**
-     * Get the total size of all items in the cache
-     */
-    static size_t getTotalCacheSize(EPStats&);
-
 private:
 
     StoredValue(const Item &itm, StoredValue *n, EPStats &stats, HashTable &ht,
@@ -675,12 +670,16 @@ public:
 class HashTableStatVisitor : public HashTableVisitor {
 public:
 
-    HashTableStatVisitor() : numNonResident(0), numTotal(0), memSize(0) {}
+    HashTableStatVisitor() : numNonResident(0), numTotal(0),
+                             memSize(0), cacheSize(0) {}
 
     void visit(StoredValue *v) {
         ++numTotal;
         memSize += v->size();
-        if (!v->isResident()) {
+
+        if (v->isResident()) {
+            cacheSize += v->size();
+        } else {
             ++numNonResident;
         }
     }
@@ -688,6 +687,7 @@ public:
     size_t numNonResident;
     size_t numTotal;
     size_t memSize;
+    size_t cacheSize;
 };
 
 /**
@@ -1290,6 +1290,9 @@ public:
     Atomic<size_t>       numEjects;
     //! Memory consumed by items in this hashtable.
     Atomic<size_t>       memSize;
+    //! Cache size.
+    Atomic<size_t>       cacheSize;
+
 private:
     inline bool active() { return activeState = true; }
     inline void active(bool newv) { activeState = newv; }

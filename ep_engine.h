@@ -85,11 +85,16 @@ private:
 class VBucketCountVisitor : public VBucketVisitor {
 public:
     VBucketCountVisitor(vbucket_state_t state) : desired_state(state),
-                            requestedState(0), total(0), nonResident(0), totalNonResident(0),
-                            numVbucket(0), htMemory(0), htItemMemory(0), numEjects(0),
-                            opsCreate(0), opsUpdate(0), opsDelete(0), opsReject(0),
-                            queueSize(0), queueMemory(0), queueAge(0),
-                            queueFill(0), queueDrain(0), pendingWrites(0)
+                                                 requestedState(0), total(0),
+                                                 nonResident(0), totalNonResident(0),
+                                                 numVbucket(0), htMemory(0),
+                                                 htItemMemory(0), htCacheSize(0),
+                                                 numEjects(0), opsCreate(0),
+                                                 opsUpdate(0), opsDelete(0),
+                                                 opsReject(0), queueSize(0),
+                                                 queueMemory(0), queueAge(0),
+                                                 queueFill(0), queueDrain(0),
+                                                 pendingWrites(0)
     { }
 
     bool visitBucket(RCPtr<VBucket> vb);
@@ -122,6 +127,7 @@ public:
     size_t getHashtableMemory() { return htMemory; }
 
     size_t getItemMemory() { return htItemMemory; }
+    size_t getCacheSize() { return htCacheSize; }
 
     size_t getOpsCreate() { return opsCreate; }
     size_t getOpsUpdate() { return opsUpdate; }
@@ -132,7 +138,7 @@ public:
     size_t getQueueMemory() { return queueMemory; }
     size_t getQueueFill() { return queueFill; }
     size_t getQueueDrain() { return queueDrain; }
-    uint64_t   getAge() { return queueAge; }
+    uint64_t getAge() { return queueAge; }
     size_t getPendingWrites() { return pendingWrites; }
 private:
     vbucket_state_t desired_state;
@@ -144,6 +150,7 @@ private:
     size_t numVbucket;
     size_t htMemory;
     size_t htItemMemory;
+    size_t htCacheSize;
     size_t numEjects;
 
     size_t opsCreate;

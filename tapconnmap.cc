@@ -178,7 +178,7 @@ TapProducer *TapConnMap::newProducer(EventuallyPersistentEngine *engine,
             getLogger()->log(EXTENSION_LOG_INFO, NULL,
                              "The TAP channel (\"%s\") exists... grabbing the channel\n",
                              name.c_str());
-            if (miter->first != NULL) {
+            if (miter != map.end()) {
                 TapProducer *n = new TapProducer(*engine,
                                                  NULL,
                                                  TapConnection::getAnonName(),
@@ -310,7 +310,7 @@ void TapConnMap::notifyIOThreadMain(EventuallyPersistentEngine *engine) {
         TapProducer *tp = dynamic_cast<TapProducer*>(iter->second);
         if (tp && (tp->paused || tp->doDisconnect())) {
             if (!tp->notifySent) {
-                tp->notifySent = true;
+                tp->notifySent.set(true);
                 toNotify.push_back(iter->first);
             }
         }

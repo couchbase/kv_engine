@@ -527,7 +527,10 @@ private:
 
     bool idle() {
         LockHolder lh(queueLock);
-        return empty_UNLOCKED() && vBucketLowPriority.empty() && vBucketHighPriority.empty() && tapLog.empty();
+        return empty_UNLOCKED()
+            && vBucketLowPriority.empty()
+            && vBucketHighPriority.empty()
+            && tapLog.empty();
     }
 
     bool hasItem() {
@@ -582,6 +585,20 @@ private:
 
     size_t getQueueBackoff() {
          return numTapNack;
+    }
+
+    bool shouldNotify() {
+        bool ret = false;
+        // Don't notify if we've got a pending notification
+        if (!notifySent) {
+            // Always notify for disconnects, but only disconnect if
+            // we're paused and got data to send
+            if (doDisconnect() || (paused && !empty())) {
+                ret = true;
+            }
+        }
+
+        return ret;
     }
 
     Item* nextFetchedItem();
@@ -759,7 +776,7 @@ private:
     /**
      * is his paused
      */
-    bool paused;
+    Atomic<bool> paused;
 
     void setBackfillAge(uint64_t age, bool reconnect);
 
@@ -850,7 +867,7 @@ private:
      * sending notify_io_complete (we're holding the tap lock), and clear
      * it in doWalkTapQueue...
      */
-    bool notifySent;
+    Atomic<bool> notifySent;
 
     /**
      * We might send userdata with tap opaque messages, but we need
