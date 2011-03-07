@@ -3230,15 +3230,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::sync(std::set<key_spec_t> *keys,
         return ENGINE_EWOULDBLOCK;
     }
 
-    // All keys SYNCed, explicitily unregister replication and persistence listeners
-    // from the the registry to avoid having them there forever.
-    if (syncType == PERSIST || syncType == REP_OR_PERSIST || syncType == REP_AND_PERSIST) {
-        syncRegistry.removePersistenceListener(syncListener);
-    }
-    if (syncType == REP || syncType == REP_OR_PERSIST || syncType == REP_AND_PERSIST) {
-        syncRegistry.removeReplicationListener(syncListener);
-    }
-
     std::stringstream resp;
 
     assembleSyncResponse(resp, syncListener);

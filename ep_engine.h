@@ -521,6 +521,10 @@ public:
 
     SERVER_HANDLE_V1* getServerApi() { return serverApi; }
 
+    SyncRegistry &getSyncRegistry() {
+        return syncRegistry;
+    }
+
 private:
     EventuallyPersistentEngine(GET_SERVER_API get_server_api);
     friend ENGINE_ERROR_CODE create_instance(uint64_t interface,

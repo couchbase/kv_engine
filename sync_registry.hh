@@ -77,6 +77,7 @@ public:
     void itemsPersisted(std::list<QueuedItem> &itemlist);
 
     void addMutationListener(SyncListener *syncListener);
+    void removeMutationListener(SyncListener *syncListener);
     void itemModified(const key_spec_t &keyspec);
     void itemDeleted(const key_spec_t &keyspec);
 

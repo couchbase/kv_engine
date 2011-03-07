@@ -73,6 +73,16 @@ void SyncRegistry::addMutationListener(SyncListener *syncListener) {
 }
 
 
+void SyncRegistry::removeMutationListener(SyncListener *syncListener) {
+    LockHolder lh(mutationMutex);
+    std::set<SyncListener*>::iterator it = mutationListeners.find(syncListener);
+
+    if (it != mutationListeners.end()) {
+        mutationListeners.erase(it);
+    }
+}
+
+
 void SyncRegistry::itemModified(const key_spec_t &keyspec) {
     LockHolder lh(mutationMutex);
     notifyListeners(mutationListeners, keyspec, false);
@@ -115,11 +125,15 @@ void SyncRegistry::notifyListeners(std::set<SyncListener*> &listeners,
     while (it != listeners.end()) {
         SyncListener *listener = *it;
 
-        listener->keySynced(keyspec, deleted);
+        if (!listener->isFinished()) {
+            listener->keySynced(keyspec, deleted);
 
-        if (listener->isFinished()) {
-            listener->maybeNotifyIOComplete();
-            listeners.erase(it++);
+            if (listener->isFinished()) {
+                listener->maybeNotifyIOComplete();
+                listeners.erase(it++);
+            } else {
+                ++it;
+            }
         } else {
             ++it;
         }
@@ -135,11 +149,15 @@ void SyncRegistry::notifyListeners(std::set<SyncListener*> &listeners,
     while (it != listeners.end()) {
         SyncListener *listener = *it;
 
-        listener->keySynced(keyspec, replicaCount);
+        if (!listener->isFinished()) {
+            listener->keySynced(keyspec, replicaCount);
 
-        if (listener->isFinished()) {
-            listener->maybeNotifyIOComplete();
-            listeners.erase(it++);
+            if (listener->isFinished()) {
+                listener->maybeNotifyIOComplete();
+                listeners.erase(it++);
+            } else {
+                ++it;
+            }
         } else {
             ++it;
         }
@@ -162,6 +180,22 @@ SyncListener::SyncListener(EventuallyPersistentEngine &epEngine,
 
 
 SyncListener::~SyncListener() {
+    switch (syncType) {
+    case PERSIST:
+        engine.getSyncRegistry().removePersistenceListener(this);
+        break;
+    case MUTATION:
+        engine.getSyncRegistry().removeMutationListener(this);
+        break;
+    case REP:
+        engine.getSyncRegistry().removeReplicationListener(this);
+        break;
+    case REP_OR_PERSIST:
+    case REP_AND_PERSIST:
+        engine.getSyncRegistry().removeReplicationListener(this);
+        engine.getSyncRegistry().removePersistenceListener(this);
+    }
+
     delete keySpecs;
 }
 
