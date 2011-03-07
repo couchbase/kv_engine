@@ -34,6 +34,8 @@ static void addSyncKeySpecs(std::stringstream &resp,
                             std::set<key_spec_t> &keyspecs,
                             uint8_t eventid);
 static bool parseSyncOptions(uint32_t flags, sync_type_t *syncType, uint8_t *replicas);
+static void notifyListener(std::vector< std::pair<StoredValue*, uint16_t> > &svList,
+                           SyncListener *listener);
 
 static size_t percentOf(size_t val, double percent) {
     return static_cast<size_t>(static_cast<double>(val) * percent);
@@ -3186,38 +3188,20 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::sync(std::set<key_spec_t> *keys,
 
     switch (syncType) {
     case PERSIST:
-        {
-            syncRegistry.addPersistenceListener(syncListener);
-
-            std::vector< std::pair<StoredValue*, uint16_t> >::iterator itv;
-            for (itv = storedValues.begin(); itv != storedValues.end(); itv++) {
-                StoredValue *sv = itv->first;
-
-                if (sv->isClean()) {
-                    key_spec_t keyspec(sv->getCas(), itv->second, sv->getKey());
-                    syncListener->keySynced(keyspec);
-                }
-            }
-        }
+        syncRegistry.addPersistenceListener(syncListener);
+        notifyListener(storedValues, syncListener);
         break;
     case MUTATION:
         syncRegistry.addMutationListener(syncListener);
         break;
     case REP:
-        {
-            syncRegistry.addReplicationListener(syncListener);
-
-            std::vector< std::pair<StoredValue*, uint16_t> >::iterator itv;
-            for (itv = storedValues.begin(); itv != storedValues.end(); itv++) {
-                StoredValue *sv = itv->first;
-                key_spec_t keyspec(sv->getCas(), itv->second, sv->getKey());
-
-                syncListener->keySynced(keyspec, sv->getNumReplicas());
-            }
-        }
+        syncRegistry.addReplicationListener(syncListener);
+        notifyListener(storedValues, syncListener);
         break;
     case REP_OR_PERSIST:
-        // TODO
+        syncRegistry.addReplicationListener(syncListener);
+        syncRegistry.addPersistenceListener(syncListener);
+        notifyListener(storedValues, syncListener);
         break;
     case REP_AND_PERSIST:
         // TODO
@@ -3242,6 +3226,33 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::sync(std::set<key_spec_t> *keys,
              PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
 
     return ENGINE_SUCCESS;
+}
+
+static void notifyListener(std::vector< std::pair<StoredValue*, uint16_t> > &svList,
+                           SyncListener *listener) {
+
+    sync_type_t syncType = listener->getSyncType();
+    std::vector< std::pair<StoredValue*, uint16_t> >::iterator it;
+
+    for (it = svList.begin(); it != svList.end(); it++) {
+        StoredValue *sv = it->first;
+        key_spec_t keyspec(sv->getCas(), it->second, sv->getKey());
+        uint8_t replicas = sv->getNumReplicas();
+
+        if ((replicas > 0) &&
+            (syncType == REP || syncType == REP_OR_PERSIST ||
+             syncType == REP_AND_PERSIST)) {
+
+            listener->keySynced(keyspec, replicas);
+        }
+
+        if (sv->isClean() &&
+            (syncType == PERSIST || syncType == REP_OR_PERSIST ||
+             syncType == REP_AND_PERSIST)) {
+
+            listener->keySynced(keyspec);
+        }
+    }
 }
 
 static bool parseSyncOptions(uint32_t flags, sync_type_t *syncType, uint8_t *replicas) {
@@ -3292,7 +3303,8 @@ static void assembleSyncResponse(std::stringstream &resp, SyncListener *syncList
         nkeys += syncListener->getReplicatedKeys().size();
         break;
     case REP_OR_PERSIST:
-        // TODO
+        nkeys += syncListener->getReplicatedKeys().size();
+        nkeys += syncListener->getPersistedKeys().size();
         break;
     case REP_AND_PERSIST:
         // TODO
@@ -3317,7 +3329,8 @@ static void assembleSyncResponse(std::stringstream &resp, SyncListener *syncList
         addSyncKeySpecs(resp, syncListener->getReplicatedKeys(), SYNC_REPLICATED_EVENT);
         break;
     case REP_OR_PERSIST:
-        // TODO
+        addSyncKeySpecs(resp, syncListener->getReplicatedKeys(), SYNC_REPLICATED_EVENT);
+        addSyncKeySpecs(resp, syncListener->getPersistedKeys(), SYNC_PERSISTED_EVENT);
         break;
     case REP_AND_PERSIST:
         // TODO

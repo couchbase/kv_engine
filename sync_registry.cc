@@ -171,11 +171,12 @@ SyncListener::SyncListener(EventuallyPersistentEngine &epEngine,
                            sync_type_t sync_type,
                            uint8_t replicaCount) :
     engine(epEngine), cookie(c), keySpecs(keys), syncType(sync_type),
-    replicasPerKey(replicaCount), finished(false), allowNotify(false) {
+    replicasPerKey(replicaCount), finished(false), allowNotify(false),
+    persistedOrReplicated(0) {
 
-    // TODO: support "replication AND persistence sync", and
-    //       "replicator OR persistence sync"
-    assert(syncType == PERSIST || syncType == MUTATION || syncType == REP);
+    // TODO: support "replication AND persistence sync"
+    assert(syncType == PERSIST || syncType == MUTATION || syncType == REP ||
+           syncType == REP_OR_PERSIST);
 }
 
 
@@ -222,9 +223,29 @@ void SyncListener::keySynced(const key_spec_t &keyspec, bool deleted) {
             }
             finished = ((modifiedKeys.size() + deletedKeys.size()) == keySpecs->size());
             break;
-        case REP:
         case REP_OR_PERSIST:
+            {
+                key_spec_t key = keyspec;
+                key.cas = it->cas;
+                it = persistedKeys.find(key);
+
+                if (it == persistedKeys.end()) {
+                    if (replicatedKeys.find(key) == replicatedKeys.end()) {
+                        ++persistedOrReplicated;
+                    }
+                } else {
+                    persistedKeys.erase(it);
+                }
+
+                // always insert to get latest CAS associated with the key
+                persistedKeys.insert(key);
+                finished = (persistedOrReplicated == keySpecs->size());
+            }
+            break;
         case REP_AND_PERSIST:
+            // TODO
+            break;
+        case REP:
             break;
         }
     }
@@ -245,6 +266,19 @@ void SyncListener::keySynced(const key_spec_t &keyspec, uint8_t numReplicas) {
         replicaCounts[keyspec] = replicasDone;
 
         if (replicasDone >= replicasPerKey) {
+            it = replicatedKeys.find(keyspec);
+
+            if (it == replicatedKeys.end()) {
+                if ((syncType == REP_OR_PERSIST) &&
+                    (persistedKeys.find(keyspec) == persistedKeys.end())) {
+
+                    ++persistedOrReplicated;
+                }
+            } else {
+                replicatedKeys.erase(it);
+            }
+
+            // always insert to get latest CAS associated with the key
             replicatedKeys.insert(keyspec);
         }
 
@@ -253,7 +287,7 @@ void SyncListener::keySynced(const key_spec_t &keyspec, uint8_t numReplicas) {
             finished = (replicatedKeys.size() == keySpecs->size());
             break;
         case REP_OR_PERSIST:
-            // TODO
+            finished = (persistedOrReplicated == keySpecs->size());
             break;
         case REP_AND_PERSIST:
             // TODO

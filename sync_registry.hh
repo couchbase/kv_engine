@@ -174,6 +174,7 @@ private:
     Mutex                        mutex;
     bool                         finished;
     bool                         allowNotify;
+    size_t                       persistedOrReplicated;
 };
 
 
