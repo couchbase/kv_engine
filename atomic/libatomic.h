@@ -48,6 +48,14 @@ inline int ep_sync_add_and_fetch(volatile int *dest, int value) {
     }
 }
 
+inline uint8_t ep_sync_add_and_fetch(volatile uint8_t *dest, uint8_t value) {
+    if (value == 1) {
+        return atomic_inc_8_nv(dest);
+    } else {
+        return atomic_add_8_nv(dest, value);
+    }
+}
+
 inline hrtime_t ep_sync_add_and_fetch(volatile hrtime_t *dest, hrtime_t value) {
     if (value == 1) {
         return atomic_inc_64_nv((volatile uint64_t*)dest);
