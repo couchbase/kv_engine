@@ -213,7 +213,9 @@ void TapConnMap::purgeSingleExpiredTapConnection(TapConnection *tc) {
     assert(!mapped(tc));
     const void *cookie = tc->cookie;
     delete tc;
-    engine.getServerApi()->cookie->release(cookie);
+    if (cookie != NULL) {
+        engine.getServerApi()->cookie->release(cookie);
+    }
 }
 
 bool TapConnMap::mapped(TapConnection *tc) {
