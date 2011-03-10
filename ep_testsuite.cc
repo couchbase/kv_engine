@@ -4513,6 +4513,155 @@ static enum test_result test_sync_persistence_or_replication(ENGINE_HANDLE *h, E
     return SUCCESS;
 }
 
+static enum test_result test_sync_persistence_and_replication(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    const key_spec_t keyspecs[] = {
+        key_spec_t(0, 0, "key1"), key_spec_t(0, 0, "key2"),
+        key_spec_t(0, 0, "key3"), key_spec_t(0, 0, "key4"),
+        key_spec_t(0, 0, "key5"), key_spec_t(0, 0, "key6"),
+        key_spec_t(0, 0, "key7"), key_spec_t(0, 0, "key8"),
+        key_spec_t(0, 0, "key9"), key_spec_t(0, 0, "key10"),
+        key_spec_t(0, 0, "key11"), key_spec_t(0, 0, "key12"),
+        key_spec_t(0, 0, "key13"), key_spec_t(0, 0, "key14"),
+        key_spec_t(666, 0, "bad_cas"), key_spec_t(0, 0, "NonExistentKey")
+    };
+    const uint16_t nkeys = sizeof(keyspecs) / sizeof(key_spec_t);
+    const uint8_t nReplicas = 3;
+    // 3 tap stream threads plus 1 set key thread for each existent key
+    pthread_t threads[nReplicas + nkeys - 1];
+    std::vector<set_key_thread_params*> setKeyParams;
+    std::vector<tap_stream_thread_params*> tapStreamParams;
+    std::set<key_spec_t> *expectedKeyset = new std::set<key_spec_t>();
+
+    for (int i = 0; i < (nkeys - 1); i++) {
+        check(store(h, h1, NULL, OPERATION_SET, keyspecs[i].key.c_str(),
+                    "qwerty", NULL, 0, keyspecs[i].vbucketid) == ENGINE_SUCCESS,
+              "Failed to store an item.");
+        expectedKeyset->insert(keyspecs[i]);
+    }
+
+    for (int i = 0; i < nReplicas; i++) {
+        tap_stream_thread_params *p = new tap_stream_thread_params();
+        std::stringstream ss;
+        ss << "tap_stream_" << (char) ('0' + (i + 1));
+
+        p->h = h;
+        p->h1 = h1;
+        p->expectedKeys = expectedKeyset;
+        p->wait = (i + 1) * 100000;
+        p->streamName = ss.str();
+        tapStreamParams.push_back(p);
+    }
+
+    for (int i = 0; i < (nkeys - 1); i++) {
+        set_key_thread_params *p = new set_key_thread_params();
+
+        p->h = h;
+        p->h1 = h1;
+        p->keyspec = &keyspecs[i];
+        p->value = "foobar";
+        p->iterations = 1;
+        p->wait = 200;
+        setKeyParams.push_back(p);
+    }
+
+    for (int i = 0; i < nReplicas; i++) {
+        assert(pthread_create(&threads[i], NULL, tap_stream_thread, tapStreamParams[i]) == 0);
+    }
+
+    for (int i = 0; i < (nkeys - 1); i++) {
+        int r = pthread_create(&threads[nReplicas + i], NULL, conc_set_key_thread, setKeyParams[i]);
+        assert(r == 0);
+    }
+
+    protocol_binary_request_header *pkt;
+
+    pkt = create_sync_packet((uint32_t) (((nReplicas & 0x0f) << 4) | 0x8 | 0x2), nkeys, keyspecs);
+
+    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
+          "SYNC on replication and persistence command success");
+
+    for (int i = 0; i < (nReplicas + nkeys - 1); i++) {
+        void *trv = NULL;
+        assert(pthread_join(threads[i], &trv) == 0);
+    }
+
+    // verify the response sent to the client is correct
+    std::list< std::pair<key_spec_t, uint8_t> > resp = parse_sync_response(last_body);
+
+    check(resp.size() == ((2 * nkeys) - 2), "response has right # of keys");
+
+    std::set<key_spec_t> keyset;
+    for (int i = 0; i < nkeys; i++) {
+        keyset.insert(keyspecs[i]);
+    }
+
+    std::set< std::pair<std::string, uint8_t> > keyEvents;
+
+    for (std::list< std::pair<key_spec_t, uint8_t> >::iterator itresp = resp.begin();
+         itresp != resp.end(); itresp++) {
+
+        key_spec_t keyspec = itresp->first;
+        uint8_t eventid = itresp->second;
+
+        check(keyspec.vbucketid == 0, "right vbucket id");
+        check(keyset.find(keyspec) != keyset.end(), "key sent in the request");
+
+        if (keyspec.key == "bad_cas") {
+            check(keyspec.cas == 666, "right cas");
+            check(eventid == SYNC_INVALID_CAS,
+                  "right event id (SYNC_INVALID_CAS)");
+        } else if (keyspec.key == "NonExistentKey") {
+            check(keyspec.cas == 0, "right cas");
+            check(eventid == SYNC_INVALID_KEY,
+                  "right event id (SYNC_INVALID_KEY)");
+        } else {
+            check((eventid == SYNC_REPLICATED_EVENT) || (eventid == SYNC_PERSISTED_EVENT),
+                  "right event id (SYNC_REPLICATED_EVENT || SYNC_PERSISTED_EVENT)");
+        }
+
+        std::pair<std::string, uint8_t> keyEv(keyspec.key, eventid);
+
+        if (keyEvents.find(keyEv) != keyEvents.end()) {
+            check(false, "duplicated keyspec in the response");
+        } else {
+            keyEvents.insert(keyEv);
+        }
+    }
+
+    check(keyEvents.size() == ((2 * nkeys) - 2), "response has right # of keys");
+
+    for (int i = 0; i < nkeys; i++) {
+        std::string k = keyspecs[i].key;
+
+        if ((k == "bad_cas") || (k == "NonExistentKey")) {
+            continue;
+        }
+
+        std::pair<std::string, uint8_t> persistedEv(k, SYNC_PERSISTED_EVENT);
+        check(keyEvents.find(persistedEv) != keyEvents.end(),
+              "response has persisted event for the keyspec");
+
+        std::pair<std::string, uint8_t> replicatedEv(k, SYNC_REPLICATED_EVENT);
+        check(keyEvents.find(replicatedEv) != keyEvents.end(),
+              "response has replicated event for the keyspec");
+    }
+
+    for (std::vector<tap_stream_thread_params*>::iterator it = tapStreamParams.begin();
+         it != tapStreamParams.end(); it++) {
+        delete *it;
+    }
+
+    for (std::vector<set_key_thread_params*>::iterator it = setKeyParams.begin();
+         it != setKeyParams.end(); it++) {
+        delete *it;
+    }
+
+    free(pkt);
+    delete expectedKeyset;
+
+    return SUCCESS;
+}
+
 MEMCACHED_PUBLIC_API
 engine_test_t* get_tests(void) {
 
@@ -4720,6 +4869,7 @@ engine_test_t* get_tests(void) {
         {"sync mutation", test_sync_mutation, NULL, teardown, NULL},
         {"sync replication", test_sync_replication, NULL, teardown, NULL},
         {"sync persistence or replication", test_sync_persistence_or_replication, NULL, teardown, NULL},
+        {"sync persistence and replication", test_sync_persistence_and_replication, NULL, teardown, NULL},
         {NULL, NULL, NULL, NULL, NULL}
     };
     return tests;

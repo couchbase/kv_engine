@@ -173,10 +173,6 @@ SyncListener::SyncListener(EventuallyPersistentEngine &epEngine,
     engine(epEngine), cookie(c), keySpecs(keys), syncType(sync_type),
     replicasPerKey(replicaCount), finished(false), allowNotify(false),
     persistedOrReplicated(0) {
-
-    // TODO: support "replication AND persistence sync"
-    assert(syncType == PERSIST || syncType == MUTATION || syncType == REP ||
-           syncType == REP_OR_PERSIST);
 }
 
 
@@ -243,7 +239,13 @@ void SyncListener::keySynced(const key_spec_t &keyspec, bool deleted) {
             }
             break;
         case REP_AND_PERSIST:
-            // TODO
+            {
+                key_spec_t key = keyspec;
+                key.cas = it->cas;
+                persistedKeys.insert(key);
+                finished = ((persistedKeys.size() == keySpecs->size()) &&
+                            (replicatedKeys.size() == keySpecs->size()));
+            }
             break;
         case REP:
             break;
@@ -290,7 +292,8 @@ void SyncListener::keySynced(const key_spec_t &keyspec, uint8_t numReplicas) {
             finished = (persistedOrReplicated == keySpecs->size());
             break;
         case REP_AND_PERSIST:
-            // TODO
+            finished = ((persistedKeys.size() == keySpecs->size()) &&
+                        (replicatedKeys.size() == keySpecs->size()));
             break;
         case PERSIST:
         case MUTATION:

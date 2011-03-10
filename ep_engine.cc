@@ -3199,13 +3199,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::sync(std::set<key_spec_t> *keys,
         notifyListener(storedValues, syncListener);
         break;
     case REP_OR_PERSIST:
+    case REP_AND_PERSIST:
         syncRegistry.addReplicationListener(syncListener);
         syncRegistry.addPersistenceListener(syncListener);
         notifyListener(storedValues, syncListener);
-        break;
-    case REP_AND_PERSIST:
-        // TODO
-        break;
     }
 
     if (syncListener->maybeEnableNotifyIOComplete()) {
@@ -3302,13 +3299,10 @@ static void assembleSyncResponse(std::stringstream &resp, SyncListener *syncList
     case REP:
         nkeys += syncListener->getReplicatedKeys().size();
         break;
+    case REP_AND_PERSIST:
     case REP_OR_PERSIST:
         nkeys += syncListener->getReplicatedKeys().size();
         nkeys += syncListener->getPersistedKeys().size();
-        break;
-    case REP_AND_PERSIST:
-        // TODO
-        break;
     }
 
     nkeys = htons(nkeys);
@@ -3329,12 +3323,9 @@ static void assembleSyncResponse(std::stringstream &resp, SyncListener *syncList
         addSyncKeySpecs(resp, syncListener->getReplicatedKeys(), SYNC_REPLICATED_EVENT);
         break;
     case REP_OR_PERSIST:
+    case REP_AND_PERSIST:
         addSyncKeySpecs(resp, syncListener->getReplicatedKeys(), SYNC_REPLICATED_EVENT);
         addSyncKeySpecs(resp, syncListener->getPersistedKeys(), SYNC_PERSISTED_EVENT);
-        break;
-    case REP_AND_PERSIST:
-        // TODO
-        break;
     }
 }
 
