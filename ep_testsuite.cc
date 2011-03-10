@@ -4114,7 +4114,6 @@ static enum test_result test_sync_persistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
             check(eventid == SYNC_INVALID_KEY,
                   "right event id (SYNC_INVALID_KEY)");
         } else {
-            check(keyspec.cas == 0, "right cas");
             check(eventid == SYNC_PERSISTED_EVENT,
                   "right event id (SYNC_PERSISTED_EVENT)");
         }

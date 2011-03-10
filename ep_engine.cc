@@ -29,10 +29,14 @@
 #include "tapthrottle.hh"
 #include "htresizer.hh"
 
-static void assembleSyncResponse(std::stringstream &resp, SyncListener *syncListener);
+static void assembleSyncResponse(std::stringstream &resp,
+                                 SyncListener *syncListener,
+                                 EventuallyPersistentStore &epstore);
 static void addSyncKeySpecs(std::stringstream &resp,
                             std::set<key_spec_t> &keyspecs,
-                            uint8_t eventid);
+                            uint8_t eventid,
+                            EventuallyPersistentStore &epstore,
+                            bool addCurrentCas = true);
 static bool parseSyncOptions(uint32_t flags, sync_type_t *syncType, uint8_t *replicas);
 static void notifyListener(std::vector< std::pair<StoredValue*, uint16_t> > &svList,
                            SyncListener *listener);
@@ -472,7 +476,7 @@ extern "C" {
             SyncListener *syncListener = static_cast<SyncListener *>(data);
             std::stringstream resp;
 
-            assembleSyncResponse(resp, syncListener);
+            assembleSyncResponse(resp, syncListener, *e->getEpStore());
             e->getServerApi()->cookie->store_engine_specific(cookie, NULL);
             delete syncListener;
 
@@ -3174,7 +3178,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::sync(std::set<key_spec_t> *keys,
     if (keys->size() == 0) {
         std::stringstream resp;
 
-        assembleSyncResponse(resp, syncListener);
+        assembleSyncResponse(resp, syncListener, *epstore);
         delete syncListener;
 
         std::string body = resp.str();
@@ -3213,7 +3217,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::sync(std::set<key_spec_t> *keys,
 
     std::stringstream resp;
 
-    assembleSyncResponse(resp, syncListener);
+    assembleSyncResponse(resp, syncListener, *epstore);
     delete syncListener;
 
     std::string body = resp.str();
@@ -3284,7 +3288,9 @@ static bool parseSyncOptions(uint32_t flags, sync_type_t *syncType, uint8_t *rep
     return true;
 }
 
-static void assembleSyncResponse(std::stringstream &resp, SyncListener *syncListener) {
+static void assembleSyncResponse(std::stringstream &resp,
+                                 SyncListener *syncListener,
+                                 EventuallyPersistentStore &epstore) {
     uint16_t nkeys = syncListener->getInvalidCasKeys().size() +
                      syncListener->getNonExistentKeys().size();
 
@@ -3308,38 +3314,57 @@ static void assembleSyncResponse(std::stringstream &resp, SyncListener *syncList
     nkeys = htons(nkeys);
     resp.write((char *) &nkeys, sizeof(uint16_t));
 
-    addSyncKeySpecs(resp, syncListener->getNonExistentKeys(), SYNC_INVALID_KEY);
-    addSyncKeySpecs(resp, syncListener->getInvalidCasKeys(), SYNC_INVALID_CAS);
+    addSyncKeySpecs(resp, syncListener->getNonExistentKeys(),
+                    SYNC_INVALID_KEY, epstore, false);
+    addSyncKeySpecs(resp, syncListener->getInvalidCasKeys(),
+                    SYNC_INVALID_CAS, epstore, false);
 
     switch (syncListener->getSyncType()) {
     case PERSIST:
-        addSyncKeySpecs(resp, syncListener->getPersistedKeys(), SYNC_PERSISTED_EVENT);
+        addSyncKeySpecs(resp, syncListener->getPersistedKeys(),
+                        SYNC_PERSISTED_EVENT, epstore);
         break;
     case MUTATION:
-        addSyncKeySpecs(resp, syncListener->getModifiedKeys(), SYNC_MODIFIED_EVENT);
-        addSyncKeySpecs(resp, syncListener->getDeletedKeys(), SYNC_DELETED_EVENT);
+        addSyncKeySpecs(resp, syncListener->getModifiedKeys(),
+                        SYNC_MODIFIED_EVENT, epstore);
+        addSyncKeySpecs(resp, syncListener->getDeletedKeys(),
+                        SYNC_DELETED_EVENT, epstore);
         break;
     case REP:
-        addSyncKeySpecs(resp, syncListener->getReplicatedKeys(), SYNC_REPLICATED_EVENT);
+        addSyncKeySpecs(resp, syncListener->getReplicatedKeys(),
+                        SYNC_REPLICATED_EVENT, epstore);
         break;
     case REP_OR_PERSIST:
     case REP_AND_PERSIST:
-        addSyncKeySpecs(resp, syncListener->getReplicatedKeys(), SYNC_REPLICATED_EVENT);
-        addSyncKeySpecs(resp, syncListener->getPersistedKeys(), SYNC_PERSISTED_EVENT);
+        addSyncKeySpecs(resp, syncListener->getReplicatedKeys(),
+                        SYNC_REPLICATED_EVENT, epstore);
+        addSyncKeySpecs(resp, syncListener->getPersistedKeys(),
+                        SYNC_PERSISTED_EVENT, epstore);
     }
 }
 
 
 static void addSyncKeySpecs(std::stringstream &resp,
                             std::set<key_spec_t> &keyspecs,
-                            uint8_t eventid) {
+                            uint8_t eventid,
+                            EventuallyPersistentStore &epstore,
+                            bool addCurrentCas) {
     std::set<key_spec_t>::iterator it = keyspecs.begin();
 
     for ( ; it != keyspecs.end(); it++) {
-        uint64_t cas = htonll(it->cas);
+        uint64_t cas = it->cas;
         uint16_t vbid = htons(it->vbucketid);
         uint16_t keylen = htons(it->key.length());
 
+        if (addCurrentCas) {
+            StoredValue *sv = epstore.getStoredValue(it->key, it->vbucketid);
+
+            if (sv != NULL) {
+                cas = sv->getCas();
+            }
+        }
+
+        cas = htonll(cas);
         resp.write((char *) &cas, sizeof(uint64_t));
         resp.write((char *) &vbid, sizeof(uint16_t));
         resp.write((char *) &keylen, sizeof(uint16_t));
