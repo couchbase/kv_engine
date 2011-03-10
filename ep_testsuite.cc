@@ -702,11 +702,13 @@ static void wait_for_persisted_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                      uint16_t vbucketId=0) {
 
     item *i = NULL;
+    int commitNum = get_int_stat(h, h1, "ep_commit_num");
     check(store(h, h1, NULL, OPERATION_SET, key, val, &i, 0, vbucketId) == ENGINE_SUCCESS,
           "Failed to store an item.");
 
     // Wait for persistence...
     wait_for_flusher_to_settle(h, h1);
+    wait_for_stat_change(h, h1, "ep_commit_num", commitNum);
 }
 
 static enum test_result test_wrong_vb_mutation(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
