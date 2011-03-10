@@ -257,6 +257,7 @@ void TapConnection::rollback() {
         tapLog.erase(i);
         i = tapLog.begin();
     }
+    seqnoReceived = seqno - 1;
 }
 
 /**
