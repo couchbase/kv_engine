@@ -275,15 +275,91 @@ class MemcachedClient(object):
     def bucket_select(self, name):
         return self._doCmd(memcacheConstants.CMD_SELECT_BUCKET, name, '')
 
-    def sync(self, flags, keyspecs):
+    def sync_persistence(self, keyspecs):
+        payload = self._build_sync_payload(0x8, keyspecs)
+
+        print "sending sync for persistence command for the following keyspecs:", keyspecs
+        (opaque, cas, data) = self._doCmd(memcacheConstants.CMD_SYNC, "", payload)
+        return (opaque, cas, self._parse_sync_response(data))
+
+    def sync_mutation(self, keyspecs):
+        payload = self._build_sync_payload(0x4, keyspecs)
+
+        print "sending sync for mutation command for the following keyspecs:", keyspecs
+        (opaque, cas, data) = self._doCmd(memcacheConstants.CMD_SYNC, "", payload)
+        return (opaque, cas, self._parse_sync_response(data))
+
+    def sync_replication(self, numReplicas, keyspecs):
+        payload = self._build_sync_payload((numReplicas & 0x0f) << 4, keyspecs)
+
+        print "sending sync for replication command for the following keyspecs:", keyspecs
+        (opaque, cas, data) = self._doCmd(memcacheConstants.CMD_SYNC, "", payload)
+        return (opaque, cas, self._parse_sync_response(data))
+
+    def sync_replication_or_persistence(self, numReplicas, keyspecs):
+        payload = self._build_sync_payload(((numReplicas & 0x0f) << 4) | 0x8, keyspecs)
+
+        print "sending sync for replication or persistence command for the " \
+            "following keyspecs:", keyspecs
+        (opaque, cas, data) = self._doCmd(memcacheConstants.CMD_SYNC, "", payload)
+        return (opaque, cas, self._parse_sync_response(data))
+
+    def sync_replication_and_persistence(self, numReplicas, keyspecs):
+        payload = self._build_sync_payload(((numReplicas & 0x0f) << 4) | 0xA, keyspecs)
+
+        print "sending sync for replication and persistence command for the " \
+            "following keyspecs:", keyspecs
+        (opaque, cas, data) = self._doCmd(memcacheConstants.CMD_SYNC, "", payload)
+        return (opaque, cas, self._parse_sync_response(data))
+
+    def _build_sync_payload(self, flags, keyspecs):
         payload = struct.pack(">I", flags)
         payload += struct.pack(">H", len(keyspecs))
 
-        for (cas, vbucketid, key) in keyspecs:
-            payload += struct.pack(">Q", cas)
-            payload += struct.pack(">H", vbucketid)
-            payload += struct.pack(">H", len(key))
-            payload += key
+        for spec in keyspecs:
+            if not isinstance(spec, dict):
+                raise TypeError("each keyspec must be a dict")
+            if not spec.has_key('vbucket'):
+                raise TypeError("missing vbucket property in keyspec")
+            if not spec.has_key('key'):
+                raise TypeError("missing key property in keyspec")
 
-        print "sending sync command for the following keyspecs:", keyspecs
-        return self._doCmd(memcacheConstants.CMD_SYNC, "", payload)
+            payload += struct.pack(">Q", spec.get('cas', 0))
+            payload += struct.pack(">H", spec['vbucket'])
+            payload += struct.pack(">H", len(spec['key']))
+            payload += spec['key']
+
+        return payload
+
+    def _parse_sync_response(self, data):
+        keyspecs = []
+        nkeys = struct.unpack(">H", data[0 : struct.calcsize("H")])[0]
+        offset = struct.calcsize("H")
+
+        for i in xrange(nkeys):
+            spec = {}
+            width = struct.calcsize("QHHB")
+            (spec['cas'], spec['vbucket'], keylen, eventid) = \
+                struct.unpack(">QHHB", data[offset : offset + width])
+            offset += width
+            spec['key'] = data[offset : offset + keylen]
+            offset += keylen
+
+            if eventid == memcacheConstants.CMD_SYNC_EVENT_PERSISTED:
+                spec['event'] = 'persisted'
+            elif eventid == memcacheConstants.CMD_SYNC_EVENT_MODIFED:
+                spec['event'] = 'modified'
+            elif eventid == memcacheConstants.CMD_SYNC_EVENT_DELETED:
+                spec['event'] = 'deleted'
+            elif eventid == memcacheConstants.CMD_SYNC_EVENT_REPLICATED:
+                spec['event'] = 'replicated'
+            elif eventid == memcacheConstants.CMD_SYNC_INVALID_KEY:
+                spec['event'] = 'invalid key'
+            elif spec['event'] == memcacheConstants.CMD_SYNC_INVALID_CAS:
+                spec['event'] = 'invalid cas'
+            else:
+                spec['event'] = eventid
+
+            keyspecs.append(spec)
+
+        return keyspecs
