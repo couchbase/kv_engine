@@ -561,6 +561,9 @@ bool CheckpointManager::checkAndAddNewCheckpoint(uint64_t id) {
     }
 
     if (it == checkpointList.end()) {
+        if (checkpointList.back()->getState() == opened) {
+            closeOpenCheckpoint_UNLOCKED(checkpointList.back()->getId());
+        }
         return addNewCheckpoint_UNLOCKED(id);
     } else {
         bool ret = true;

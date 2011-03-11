@@ -236,6 +236,9 @@ void TapProducer::registerTAPCursor(std::map<uint16_t, uint64_t> &lastCheckpoint
             doRunBackfill = true;
             pendingBackfill = true;
         }
+    } else {
+        doRunBackfill = false;
+        pendingBackfill = false;
     }
 }
 
@@ -880,20 +883,24 @@ bool TapProducer::cleanSome()
 queued_item TapProducer::next() {
     LockHolder lh(queueLock);
 
-    if (queue->empty()) {
+    if (!isPendingBackfill() && queue->empty()) {
         const VBucketMap &vbuckets = engine.getEpStore()->getVBuckets();
         std::map<uint16_t, TapCheckpointState>::iterator it = tapCheckpointState.begin();
         for (; it != tapCheckpointState.end(); ++it) {
-            tap_checkpoint_state state = it->second.state;
-            // If the tap producer has already sent the current checkpoint end message to the tap
-            // client and waiting for the ack, do not fetch an item from the next checkpoint.
-            if (supportCheckpointSync && state == checkpoint_end) {
-                continue;
-            }
             uint16_t vbid = it->first;
             RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
             if (!vb || vb->getState() == vbucket_state_dead) {
                 continue;
+            }
+            if (supportCheckpointSync && it->second.state == checkpoint_end) {
+                // If the tap producer has already sent the current checkpoint end message to the
+                // tap client and waiting for ack, do not fetch an item from the next checkpoint.
+                continue;
+            } else if (supportCheckpointSync && it->second.state == backfill) {
+                // Remember the Id of the current open checkpoint at the time of
+                // backfill completion.
+                it->second.openCheckpointIdAtBackfillEnd =
+                    vb->checkpointManager.getOpenCheckpointId();
             }
 
             char *ptr = NULL;
@@ -906,13 +913,15 @@ queued_item TapProducer::next() {
             case queue_op_checkpoint_start:
                 it->second.currentCheckpointId = strtoull(item->getValue()->getData(), &ptr, 10);
                 it->second.state = checkpoint_start;
-                if (supportCheckpointSync) {
+                if (supportCheckpointSync &&
+                    it->second.currentCheckpointId >= it->second.openCheckpointIdAtBackfillEnd) {
                     addCheckpointMessage_UNLOCKED(item);
                 }
                 break;
             case queue_op_checkpoint_end:
                 it->second.state = checkpoint_end;
-                if (supportCheckpointSync) {
+                if (supportCheckpointSync &&
+                    it->second.currentCheckpointId >= it->second.openCheckpointIdAtBackfillEnd) {
                     addCheckpointMessage_UNLOCKED(item);
                 }
                 break;
@@ -952,4 +961,22 @@ size_t TapProducer::getRemainingOnCheckpoints() {
         numItems += vb->checkpointManager.getNumItemsForTAPConnection(name);
     }
     return numItems;
+}
+
+bool TapProducer::recordCurrentOpenCheckpointId(uint16_t vbid) {
+    LockHolder lh(queueLock);
+    const VBucketMap &vbuckets = engine.getEpStore()->getVBuckets();
+    RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
+    if (!vb || vb->getState() == vbucket_state_dead) {
+        return false;
+    }
+
+    uint64_t checkpointId = vb->checkpointManager.getOpenCheckpointId();
+    std::map<uint16_t, TapCheckpointState>::iterator it = tapCheckpointState.find(vbid);
+    if (it == tapCheckpointState.end()) {
+        return false;
+    }
+    vb->checkpointManager.registerTAPCursor(name, checkpointId);
+    it->second.currentCheckpointId = checkpointId;
+    return true;
 }

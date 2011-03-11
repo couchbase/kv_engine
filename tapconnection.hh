@@ -130,7 +130,8 @@ public:
     TapCheckpointState() {}
 
     TapCheckpointState(uint16_t vb, uint64_t checkpointId, tap_checkpoint_state s) :
-        vbucket(vb), currentCheckpointId(checkpointId), state(s) {}
+        vbucket(vb), currentCheckpointId(checkpointId),
+        openCheckpointIdAtBackfillEnd(0), state(s) {}
 
     TapCheckpointState(const TapCheckpointState &other) {
         vbucket = other.vbucket;
@@ -139,7 +140,10 @@ public:
     }
 
     uint16_t vbucket;
+    // Id of the checkpoint that is currently referenced by the given TAP client's cursor.
     uint64_t currentCheckpointId;
+    // Id of the current open checkpoint at the time of backfill completion.
+    uint64_t openCheckpointIdAtBackfillEnd;
     tap_checkpoint_state state;
 };
 
@@ -792,6 +796,7 @@ private:
         cookie = c;
     }
 
+    bool recordCurrentOpenCheckpointId(uint16_t vbucket);
 
     //! Lock held during queue operations.
     Mutex queueLock;

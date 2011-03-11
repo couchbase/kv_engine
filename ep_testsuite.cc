@@ -2608,12 +2608,14 @@ static enum test_result test_tap_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
         case TAP_NOOP:
             break;
         case TAP_MUTATION:
+            testHarness.unlock_cookie(cookie);
             check(get_key(h, h1, it, key), "Failed to read out the key");
             keys[atoi(key.c_str())] = true;
             assert(vbucket != unlikely_vbucket_identifier);
             check(verify_item(h, h1, it, NULL, 0, "value", 5) == SUCCESS,
                   "Unexpected item arrived on tap stream");
             h1->release(h, cookie, it);
+            testHarness.lock_cookie(cookie);
             break;
         case TAP_DISCONNECT:
             break;
@@ -3080,10 +3082,7 @@ static enum test_result test_tap_implicit_ack_stream(ENGINE_HANDLE *h, ENGINE_HA
         }
     } while (!done);
     testHarness.unlock_cookie(cookie);
-    // During the backfill phase, the backfill is interleaved with the checkpoint cursor
-    // and we don't check duplciate items. Consequently, this increases the number of items
-    // to be returned by two times. TODO: We will optimize this soon.
-    check(mutations == 21, "Expected 21 mutations to be returned");
+    check(mutations == 11, "Expected 11 mutations to be returned");
     return SUCCESS;
 }
 

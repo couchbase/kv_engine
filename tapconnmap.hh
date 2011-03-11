@@ -222,6 +222,8 @@ public:
 
     void notifyIOThreadMain();
 
+    bool recordCurrentOpenCheckpointId(const std::string &name, uint16_t vbucket);
+
 private:
 
     TapConnection *findByName_UNLOCKED(const std::string &name);
