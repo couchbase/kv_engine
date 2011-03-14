@@ -293,6 +293,7 @@ uint64_t CheckpointManager::removeClosedUnrefCheckpoints(const RCPtr<VBucket> &v
         }
     }
     numItems -= numUnrefItems;
+    persistenceCursor.offset -= numUnrefItems;
     std::map<const std::string, CheckpointCursor>::iterator map_it = tapCursors.begin();
     for (; map_it != tapCursors.end(); ++map_it) {
         map_it->second.offset -= numUnrefItems;
@@ -452,6 +453,8 @@ void CheckpointManager::clear() {
         ++it;
     }
     checkpointList.clear();
+    numItems = 0;
+    mutationCounter = 0;
     // Add a new open checkpoint.
     addNewCheckpoint_UNLOCKED(nextCheckpointId++);
 
@@ -469,9 +472,6 @@ void CheckpointManager::clear() {
         cit->second.offset = 0;
         checkpointList.front()->incrReferenceCounter();
     }
-
-    numItems = 0;
-    mutationCounter = 0;
 }
 
 bool CheckpointManager::moveCursorToNextCheckpoint(CheckpointCursor &cursor) {
