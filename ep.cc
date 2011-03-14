@@ -488,8 +488,7 @@ public:
                 uint64_t cas = v->getCas();
                 vb->ht.unlocked_softDelete(vk.second, 0, bucket_num);
                 e->queueDirty(vk.second, vb->getId(), queue_op_del, value,
-                              v->getFlags(), v->getExptime(), cas,
-                              v->getId(), v->getKeyValLength());
+                              v->getFlags(), v->getExptime(), cas, v->getId());
             }
         }
     }
@@ -518,8 +517,7 @@ StoredValue *EventuallyPersistentStore::fetchValidValue(RCPtr<VBucket> vb,
         uint64_t cas = v->getCas();
         vb->ht.unlocked_softDelete(key, 0, bucket_num);
         queueDirty(key, vb->getId(), queue_op_del, value,
-                   v->getFlags(), v->getExptime(), cas,
-                   v->getId(), v->getKeyValLength());
+                   v->getFlags(), v->getExptime(), cas, v->getId());
         return NULL;
     }
     return v;
@@ -601,8 +599,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::set(const Item &item,
         // Even if the item was dirty, push it into the vbucket's open checkpoint.
     case WAS_CLEAN:
         queueDirty(item.getKey(), item.getVBucketId(), queue_op_set, item.getValue(),
-                   item.getFlags(), item.getExptime(), item.getCas(),
-                   row_id, item.getKey().length() + item.getValue()->length());
+                   item.getFlags(), item.getExptime(), item.getCas(), row_id);
         break;
     case INVALID_VBUCKET:
         ret = ENGINE_NOT_MY_VBUCKET;
@@ -640,8 +637,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::add(const Item &item,
     case ADD_SUCCESS:
     case ADD_UNDEL:
         queueDirty(item.getKey(), item.getVBucketId(), queue_op_set, item.getValue(),
-                   item.getFlags(), item.getExptime(), item.getCas(),
-                   -1, item.getKey().length() + item.getValue()->length());
+                   item.getFlags(), item.getExptime(), item.getCas(), -1);
     }
     return ENGINE_SUCCESS;
 }
@@ -1219,8 +1215,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::del(const std::string &key,
 
     if (delrv == WAS_CLEAN || delrv == WAS_DIRTY || (delrv == NOT_FOUND && v->getId() != -1)) {
         queueDirty(key, vbucket, queue_op_del, value,
-                   v->getFlags(), v->getExptime(), cas,
-                   v->getId(), v->getKeyValLength());
+                   v->getFlags(), v->getExptime(), cas, v->getId());
     }
     return rv;
 }
@@ -1282,11 +1277,16 @@ std::queue<queued_item>* EventuallyPersistentStore::beginFlush() {
             persistenceCheckpointIds[vbid] = checkpointId;
 
             std::set<queued_item, CompareQueuedItemsByKey> item_set;
+            std::pair<std::set<queued_item, CompareQueuedItemsByKey>::iterator, bool> ret;
             std::vector<queued_item>::reverse_iterator reverse_it = item_list.rbegin();
             // Perform further deduplication here by removing duplicate mutations for each key.
             // For this, traverse the array from the last element.
             for(; reverse_it != item_list.rend(); ++reverse_it) {
-                item_set.insert(*reverse_it);
+                queued_item item = *reverse_it;
+                ret = item_set.insert(item);
+                if (!(ret.second)) {
+                    vb->doStatsForFlushing(*item, item->size());
+                }
             }
             item_list.assign(item_set.begin(), item_set.end());
 
@@ -1701,8 +1701,7 @@ void EventuallyPersistentStore::queueDirty(const std::string &key,
                                            uint32_t flags,
                                            time_t exptime,
                                            uint64_t cas,
-                                           int64_t rowid,
-                                           size_t itemBytes) {
+                                           int64_t rowid) {
     if (doPersistence) {
         RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
         if (vb) {
@@ -1717,9 +1716,9 @@ void EventuallyPersistentStore::queueDirty(const std::string &key,
             queued_item item(qi);
             if (vb->checkpointManager.queueDirty(item, vb)) {
                 ++stats.queue_size;
+                ++stats.totalEnqueued;
+                vb->doStatsForQueueing(*item, item->size());
             }
-            ++stats.totalEnqueued;
-            vb->doStatsForQueueing(*item, itemBytes);
         }
     }
 }
