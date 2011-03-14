@@ -321,8 +321,3 @@ void CompletedBGFetchTapOperation::perform(TapConnection *tc,
     (void)epe;
     tc->completedBGFetchJob();
 }
-
-void NotifyIOTapOperation::perform(TapConnection *tc,
-                                   EventuallyPersistentEngine *epe) {
-    epe->notifyIOComplete(tc->getCookie(), ENGINE_SUCCESS);
-}

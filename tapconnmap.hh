@@ -73,11 +73,11 @@ public:
 };
 
 /**
- * Send a tap notify.
+ * The noop tap operation will notify paused tap connections..
  */
-class NotifyIOTapOperation : public TapOperation<EventuallyPersistentEngine*> {
+class NotifyPausedTapOperation : public TapOperation<EventuallyPersistentEngine*> {
 public:
-    void perform(TapConnection *tc, EventuallyPersistentEngine* arg);
+    void perform(TapConnection *, EventuallyPersistentEngine*) {}
 };
 
 /**

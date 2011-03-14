@@ -1842,7 +1842,8 @@ public:
         if (!connMap.performTapOp(name, tapop, gv.getValue())) {
             delete gv.getValue();
         }
-        NotifyIOTapOperation notifyOp;
+
+        NotifyPausedTapOperation notifyOp;
         connMap.performTapOp(name, notifyOp, engine);
     }
 
