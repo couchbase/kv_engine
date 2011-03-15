@@ -76,11 +76,11 @@ public:
 };
 
 /**
- * Send a tap notify.
+ * The noop tap operation will notify paused tap connections..
  */
-class NotifyIOTapOperation : public TapOperation<EventuallyPersistentEngine*> {
+class NotifyPausedTapOperation : public TapOperation<EventuallyPersistentEngine*> {
 public:
-    void perform(TapProducer *tc, EventuallyPersistentEngine* arg);
+    void perform(TapProducer *, EventuallyPersistentEngine*) {}
 };
 
 /**
@@ -88,6 +88,8 @@ public:
  */
 class TapConnMap {
 public:
+    TapConnMap(EventuallyPersistentEngine &theEngine) : engine(theEngine) {}
+
 
     /**
      * Disconnect a tap connection by its cookie.
@@ -189,8 +191,7 @@ public:
      * Find or build a tap connection for the given cookie and with
      * the given name.
      */
-    TapProducer *newProducer(EventuallyPersistentEngine* e,
-                             const void* cookie,
+    TapProducer *newProducer(const void* cookie,
                              const std::string &name,
                              uint32_t flags,
                              uint64_t backfillAge,
@@ -202,7 +203,7 @@ public:
      * @param c the cookie representing the client
      * @return Pointer to the nw tap connection
      */
-    TapConsumer *newConsumer(EventuallyPersistentEngine* e, const void* c);
+    TapConsumer *newConsumer(const void* c);
 
     /**
      * Call a function on each tap connection.
@@ -221,7 +222,7 @@ public:
         std::for_each(all.begin(), all.end(), f);
     }
 
-    void notifyIOThreadMain(EventuallyPersistentEngine *engine);
+    void notifyIOThreadMain();
 
 private:
 
@@ -237,6 +238,9 @@ private:
     std::map<const void*, TapConnection*>    map;
     std::map<const std::string, const void*> validity;
     std::list<TapConnection*>                all;
+
+    /* Handle to the engine who owns us */
+    EventuallyPersistentEngine &engine;
 };
 
 #endif /* TAPCONNMAP_HH */

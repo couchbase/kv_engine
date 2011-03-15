@@ -874,7 +874,7 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server
     epstore(NULL), tapThrottle(new TapThrottle(stats)), databaseInitTime(0), tapKeepAlive(0),
     tapNoopInterval(DEFAULT_TAP_NOOP_INTERVAL), nextTapNoop(0),
     startedEngineThreads(false), shutdown(false),
-    getServerApiFunc(get_server_api), getlExtension(NULL),
+    getServerApiFunc(get_server_api), getlExtension(NULL), tapConnMap(*this),
     maxItemSize(20*1024*1024), tapBacklogLimit(5000),
     memLowWat(std::numeric_limits<size_t>::max()),
     memHighWat(std::numeric_limits<size_t>::max()),
@@ -1743,7 +1743,7 @@ void EventuallyPersistentEngine::createTapQueue(const void *cookie,
         }
     }
 
-    TapProducer *tap = tapConnMap.newProducer(this, cookie, name, flags,
+    TapProducer *tap = tapConnMap.newProducer(cookie, name, flags,
                                               backfillAge,
                                               static_cast<int>(tapKeepAlive));
 
@@ -1777,7 +1777,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
             return ENGINE_DISCONNECT;
         } else {
             // Create a new tap consumer...
-            connection = tapConnMap.newConsumer(this, cookie);
+            connection = tapConnMap.newConsumer(cookie);
             if (connection == NULL) {
                 getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                                  "Failed to create new tap consumer.. disconnecting\n");
@@ -1973,7 +1973,8 @@ public:
         if (!connMap.performTapOp(name, tapop, gv.getValue())) {
             delete gv.getValue();
         }
-        NotifyIOTapOperation notifyOp;
+
+        NotifyPausedTapOperation notifyOp;
         connMap.performTapOp(name, notifyOp, engine);
     }
 
@@ -3072,7 +3073,7 @@ void EventuallyPersistentEngine::notifyTapIoThread(void) {
     // Fix clean shutdown!!!
     while (!shutdown) {
 
-        tapConnMap.notifyIOThreadMain(this);
+        tapConnMap.notifyIOThreadMain();
 
         if (shutdown) {
             return;

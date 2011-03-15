@@ -62,6 +62,10 @@ TapProducer::TapProducer(EventuallyPersistentEngine &theEngine,
     if (supportAck) {
         expiryTime = ep_current_time() + ackGracePeriod;
     }
+
+    if (cookie != NULL) {
+        engine.getServerApi()->cookie->reserve(cookie);
+    }
 }
 
 void TapProducer::evaluateFlags()
@@ -250,6 +254,7 @@ void TapProducer::rollback() {
         tapLog.erase(i);
         i = tapLog.begin();
     }
+    seqnoReceived = seqno - 1;
 }
 
 /**
