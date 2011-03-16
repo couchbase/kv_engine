@@ -66,7 +66,7 @@ typedef enum {
 class Checkpoint {
 public:
     Checkpoint(uint64_t id, checkpoint_state state = opened) :
-        checkpointId(id), creationTime(ep_current_time()),
+        checkpointId(id), creationTime(ep_real_time()),
         checkpointState(state), referenceCounter(0), numItems(0) { }
 
     /**
@@ -87,7 +87,7 @@ public:
     /**
      * Return the creation timestamp of this checkpoint in sec.
      */
-    rel_time_t getCreationTime() {
+    time_t getCreationTime() {
         return creationTime;
     }
 
@@ -156,7 +156,7 @@ public:
 
 private:
     uint64_t                       checkpointId;
-    rel_time_t                     creationTime;
+    time_t                     creationTime;
     Atomic<checkpoint_state>       checkpointState;
     Atomic<size_t>                 referenceCounter;
     Atomic<size_t>                 numItems;

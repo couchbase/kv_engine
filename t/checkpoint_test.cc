@@ -37,6 +37,10 @@ static rel_time_t basic_current_time(void) {
 
 rel_time_t (*ep_current_time)() = basic_current_time;
 
+time_t ep_real_time() {
+    return time(NULL);
+}
+
 static void *launch_persistence_thread(void *arg) {
     struct thread_args *args = static_cast<struct thread_args *>(arg);
     std::vector<queued_item> items;

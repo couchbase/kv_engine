@@ -24,6 +24,10 @@ extern "C" {
     }
 
     rel_time_t (*ep_current_time)() = basic_current_time;
+
+    time_t ep_real_time() {
+        return time(NULL);
+    }
 }
 
 class VBucketGenerator {

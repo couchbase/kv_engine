@@ -500,7 +500,7 @@ uint64_t CheckpointManager::checkOpenCheckpoint() {
     // checkpoint is greater than the threshold or it is reached to the max number of mutations.
     if (checkpointList.back()->getNumItems() >= checkpointMaxItems ||
         (checkpointList.back()->getNumItems() > 0 &&
-         (ep_current_time() - checkpointList.back()->getCreationTime()) >= checkpointPeriod)) {
+         (ep_real_time() - checkpointList.back()->getCreationTime()) >= checkpointPeriod)) {
 
         checkpointId = checkpointList.back()->getId();
         closeOpenCheckpoint_UNLOCKED(checkpointId);
