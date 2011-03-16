@@ -1674,6 +1674,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
         if (ret == ENGINE_KEY_ENOENT) {
             ret = ENGINE_SUCCESS;
         }
+        if (ret == ENGINE_SUCCESS) {
+            addDeleteEvent(k, vbucket);
+        }
+
         break;
 
     case TAP_MUTATION:
