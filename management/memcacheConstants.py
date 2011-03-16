@@ -109,8 +109,8 @@ DEL_PKT_FMT=""
 
 ## TAP stuff
 # eng-specific length, flags, ttl, [res, res, res]; item flags, exp
-TAP_MUTATION_PKT_FMT = "HHbxxxII"
-TAP_GENERAL_PKT_FMT = "HHbxxx"
+TAP_MUTATION_PKT_FMT = ">HHbxxxII"
+TAP_GENERAL_PKT_FMT = ">HHbxxx"
 
 # amount, initial value, expiration
 INCRDECR_PKT_FMT=">QQI"
