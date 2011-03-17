@@ -1857,12 +1857,18 @@ void EventuallyPersistentEngine::createTapQueue(const void *cookie,
         }
     }
 
+    bool isRegisteredClient = false;
+    if (flags & TAP_CONNECT_REGISTERED_CLIENT) {
+        isRegisteredClient = true;
+    }
+
     TapProducer *tap = tapConnMap.newProducer(cookie, name, flags,
                                               backfillAge,
                                               static_cast<int>(tapKeepAlive));
 
     tap->setVBucketFilter(vbuckets);
     tap->registerTAPCursor(lastCheckpointIds);
+    tap->setRegisteredClient(isRegisteredClient);
     serverApi->cookie->store_engine_specific(cookie, tap);
     serverApi->cookie->set_tap_nack_mode(cookie, tap->supportsAck());
     tapConnMap.notify();

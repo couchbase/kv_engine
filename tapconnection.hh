@@ -796,6 +796,8 @@ private:
 
     bool waitForCheckpointEndAck();
 
+    void setRegisteredClient(bool isRegisteredClient);
+
     //! cookie used by this connection
     void setCookie(const void *c) {
         cookie = c;
@@ -988,6 +990,11 @@ private:
      * Should we send a NOOP
      */
     Atomic<bool> noop;
+
+    /**
+     * Is this TAP producer for the registered TAP client?
+     */
+    Atomic<bool> registeredTAPClient;
 
     static size_t bgMaxPending;
 

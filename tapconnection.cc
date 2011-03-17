@@ -52,7 +52,8 @@ TapProducer::TapProducer(EventuallyPersistentEngine &theEngine,
     queueDrain(0),
     seqno(initialAckSequenceNumber),
     seqnoReceived(initialAckSequenceNumber - 1),
-    notifySent(false)
+    notifySent(false),
+    registeredTAPClient(false)
 {
     evaluateFlags();
     queue = new std::list<queued_item>;
@@ -990,4 +991,8 @@ bool TapProducer::recordCurrentOpenCheckpointId(uint16_t vbid) {
     vb->checkpointManager.registerTAPCursor(name, checkpointId);
     it->second.currentCheckpointId = checkpointId;
     return true;
+}
+
+void TapProducer::setRegisteredClient(bool isRegisteredClient) {
+    registeredTAPClient = isRegisteredClient;
 }
