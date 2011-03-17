@@ -526,6 +526,7 @@ public:
     }
 
     void notifyTapNotificationThread(void);
+    void setTapValidity(const std::string &name, const void* token);
 
 private:
     EventuallyPersistentEngine(GET_SERVER_API get_server_api);

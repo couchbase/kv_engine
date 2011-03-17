@@ -3201,6 +3201,10 @@ void EventuallyPersistentEngine::notifyTapNotificationThread(void) {
     tapConnMap.notify();
 }
 
+void EventuallyPersistentEngine::setTapValidity(const std::string &name, const void* token) {
+    tapConnMap.setValidity(name, token);
+}
+
 ENGINE_ERROR_CODE EventuallyPersistentEngine::touch(const void *cookie,
                                                     protocol_binary_request_header *request,
                                                     ADD_RESPONSE response)

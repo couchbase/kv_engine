@@ -236,6 +236,7 @@ void TapProducer::registerTAPCursor(std::map<uint16_t, uint64_t> &lastCheckpoint
         if (backfillAge < (uint64_t)ep_real_time()) {
             doRunBackfill = true;
             pendingBackfill = true;
+            engine.setTapValidity(name, cookie);
         }
     } else {
         doRunBackfill = false;
