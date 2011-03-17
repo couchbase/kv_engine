@@ -1,6 +1,7 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 #include "config.h"
 #include "vbucket.hh"
+#include "ep_engine.h"
 #include "ep.hh"
 #include "checkpoint_remover.hh"
 
@@ -21,10 +22,17 @@ public:
         uint64_t checkpointId;
         currentBucket = vb;
         std::set<queued_item, CompareQueuedItemsByKey> items;
-        checkpointId = vb->checkpointManager.removeClosedUnrefCheckpoints(vb, items);
-
+        bool newCheckpointCreated = false;
+        checkpointId = vb->checkpointManager.removeClosedUnrefCheckpoints(vb, items,
+                                                                          newCheckpointCreated);
+        // If the new checkpoint is created, notify this event to the tap notify IO thread
+        // so that it can then signal all paused TAP connections.
+        if (newCheckpointCreated) {
+            store->getEPEngine().notifyTapNotificationThread();
+        }
         removed = items.size();
-        // Here, we will schedule an IO dispatcher job to persist closed unreferenced checkpoints.
+        // TODO: If necessary, schedule an IO dispatcher job to persist closed
+        // unreferenced checkpoints into a separate database file.
         update();
         return false;
     }

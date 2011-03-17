@@ -738,6 +738,10 @@ public:
         return vbuckets;
     }
 
+    EventuallyPersistentEngine& getEPEngine() {
+        return engine;
+    }
+
 private:
 
     void scheduleVBDeletion(RCPtr<VBucket> vb, uint16_t vb_version, double delay);

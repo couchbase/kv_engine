@@ -246,7 +246,8 @@ size_t CheckpointManager::getNumOfTAPCursors() {
 
 uint64_t CheckpointManager::removeClosedUnrefCheckpoints(const RCPtr<VBucket> &vbucket,
                                                          std::set<queued_item,
-                                                                  CompareQueuedItemsByKey> &items) {
+                                                                  CompareQueuedItemsByKey> &items,
+                                                         bool &newOpenCheckpointCreated) {
 
     // This function is executed periodically by the non-IO dispatcher.
     LockHolder lh(queueLock);
@@ -256,6 +257,7 @@ uint64_t CheckpointManager::removeClosedUnrefCheckpoints(const RCPtr<VBucket> &v
         // Check if we need to create a new open checkpoint.
         oldCheckpointId = checkOpenCheckpoint();
     }
+    newOpenCheckpointCreated = oldCheckpointId > 0 ? true : false;
     if (oldCheckpointId > 0) {
         // If the persistence cursor reached to the end of the old open checkpoint, move it to
         // the new open checkpoint.
