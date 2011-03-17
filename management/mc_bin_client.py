@@ -372,3 +372,12 @@ class MemcachedClient(object):
             keyspecs.append(spec)
 
         return keyspecs
+
+    def restore_file(self, filename):
+        """Initiate restore of a given file."""
+        return self._doCmd(memcacheConstants.CMD_RESTORE_FILE, filename, '', '', 0)
+
+    def restore_complete(self):
+        """Notify the server that we're done restoring."""
+        return self._doCmd(memcacheConstants.CMD_RESTORE_COMPLETE, '', '', '', 0)
+

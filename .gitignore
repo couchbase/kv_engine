@@ -46,6 +46,7 @@
 /sizes
 /stamp-h1
 /testlogger_libify.cc
+/wrapper/mbadm-online-restore
 /wrapper/mbbackup-incremental
 /wrapper/mbdbmaint
 /wrapper/mbflushctl
