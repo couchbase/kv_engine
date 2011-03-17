@@ -1621,7 +1621,7 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
                                       item->getExptime(), item->getCas()));
         connection->addTapLogElement(qi);
     } else if (connection->hasQueuedItem()) {
-        if (connection->waitForBackfill()) {
+        if (connection->waitForBackfill() || connection->waitForCheckpointEndAck()) {
             return TAP_PAUSE;
         }
 
@@ -3189,6 +3189,10 @@ void EventuallyPersistentEngine::notifyTapIoThread(void) {
 
         tapConnMap.wait(1.0);
     }
+}
+
+void EventuallyPersistentEngine::notifyTapNotificationThread(void) {
+    tapConnMap.notify();
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::touch(const void *cookie,

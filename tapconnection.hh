@@ -584,6 +584,9 @@ private:
         if (!checkpointMsgs.empty()) {
             item = checkpointMsgs.front();
             checkpointMsgs.pop();
+            if (item->getOperation() == queue_op_checkpoint_end) {
+                ++checkpointEndCounter;
+            }
             ++recordsFetched;
             addTapLogElement_UNLOCKED(item);
         }
@@ -791,6 +794,8 @@ private:
 
     bool waitForBackfill();
 
+    bool waitForCheckpointEndAck();
+
     //! cookie used by this connection
     void setCookie(const void *c) {
         cookie = c;
@@ -918,6 +923,7 @@ private:
     Atomic<size_t> queueMemSize;
     Atomic<size_t> queueFill;
     Atomic<size_t> queueDrain;
+    Atomic<size_t> checkpointEndCounter;
 
     // Current tap sequence number (for ack's)
     uint32_t seqno;

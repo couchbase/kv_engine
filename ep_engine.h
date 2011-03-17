@@ -525,6 +525,8 @@ public:
         return syncRegistry;
     }
 
+    void notifyTapNotificationThread(void);
+
 private:
     EventuallyPersistentEngine(GET_SERVER_API get_server_api);
     friend ENGINE_ERROR_CODE create_instance(uint64_t interface,
@@ -567,7 +569,6 @@ private:
         }
     }
 
-    void notifyTapIoThreadMain(void);
     friend void *EvpNotifyTapIo(void*arg);
     void notifyTapIoThread(void);
 

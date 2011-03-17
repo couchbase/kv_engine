@@ -277,6 +277,7 @@ bool TapProducer::requestAck(tap_event_t event) {
 
 void TapProducer::rollback() {
     LockHolder lh(queueLock);
+    size_t checkpoint_end_sent = 0;
     std::list<TapLogElement>::iterator i = tapLog.begin();
     while (i != tapLog.end()) {
         switch (i->event) {
@@ -292,6 +293,9 @@ void TapProducer::rollback() {
             break;
         case TAP_CHECKPOINT_START:
         case TAP_CHECKPOINT_END:
+            if (i->event == TAP_CHECKPOINT_END) {
+                ++checkpoint_end_sent;
+            }
             addCheckpointMessage_UNLOCKED(i->item);
             break;
         case TAP_DELETION:
@@ -322,6 +326,7 @@ void TapProducer::rollback() {
         i = tapLog.begin();
     }
     seqnoReceived = seqno - 1;
+    checkpointEndCounter -= checkpoint_end_sent;
 }
 
 /**
@@ -446,6 +451,8 @@ ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
                 if (map_it != tapCheckpointState.end()) {
                     map_it->second.state = checkpoint_end_synced;
                 }
+                --checkpointEndCounter;
+                engine.notifyTapNotificationThread();
             }
             getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
                              "Explicit ack <%s> (#%u)\n",
@@ -526,6 +533,10 @@ bool TapProducer::waitForBackfill() {
         return true;
     }
     return false;
+}
+
+bool TapProducer::waitForCheckpointEndAck() {
+    return checkpointEndCounter > 0;
 }
 
 /**
