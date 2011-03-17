@@ -739,3 +739,19 @@ void TapProducer::setTimeForNoop()
 {
     noop.set(true);
 }
+
+bool TapProducer::cleanSome()
+{
+    int ii = 0;
+    LockHolder lh(backfillLock);
+    while (!backfilledItems.empty() && ii < 1000) {
+        Item *i(backfilledItems.front());
+        assert(i);
+        delete i;
+        backfilledItems.pop();
+        --bgResultSize;
+        ++ii;
+    }
+
+    return backfilledItems.empty();
+}

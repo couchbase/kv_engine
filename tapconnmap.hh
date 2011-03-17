@@ -136,8 +136,6 @@ public:
         return ret;
     }
 
-    void purgeSingleExpiredTapConnection(TapConnection *tc);
-
     /**
      * Clear the tap validity for the given named connection.
      */
@@ -227,7 +225,7 @@ public:
 private:
 
     TapConnection *findByName_UNLOCKED(const std::string &name);
-    int purgeExpiredConnections_UNLOCKED();
+    void getExpiredConnections_UNLOCKED(std::list<TapConnection*> &deadClients);
 
     bool mapped(TapConnection *tc);
 
