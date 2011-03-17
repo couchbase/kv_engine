@@ -2191,7 +2191,7 @@ public:
 
     void apply(void) {
         // If efficient VBdump is supported, schedule all the disk backfill tasks.
-        if (efficientVBDump) {
+        if (efficientVBDump && checkValidity()) {
             std::vector<uint16_t>::iterator it = vbuckets.begin();
             for (; it != vbuckets.end(); it++) {
                 Dispatcher *d(engine->epstore->getRODispatcher());
