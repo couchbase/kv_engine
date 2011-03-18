@@ -603,7 +603,6 @@ conn *conn_new(const SOCKET sfd, STATE_FUNC init_state,
     }
 
     STATS_LOCK();
-    stats.curr_conns++;
     stats.total_conns++;
     STATS_UNLOCK();
 
@@ -4940,7 +4939,7 @@ bool conn_listening(conn *c)
     }
 
     STATS_LOCK();
-    int curr_conns = stats.curr_conns;
+    int curr_conns = ++stats.curr_conns;
     STATS_UNLOCK();
 
     if (curr_conns >= settings.maxconns) {
@@ -4952,8 +4951,8 @@ bool conn_listening(conn *c)
             settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
                                             "Too many open connections\n");
         }
-        safe_close(sfd);
 
+        safe_close(sfd);
         return false;
     }
 
@@ -5675,6 +5674,7 @@ static int server_socket(const char *interface,
                 dispatch_conn_new(sfd, conn_read, EV_READ | EV_PERSIST,
                                   UDP_READ_BUFFER_SIZE, transport);
                 STATS_LOCK();
+                ++stats.curr_conns;
                 ++stats.daemon_conns;
                 STATS_UNLOCK();
             }
@@ -5689,6 +5689,7 @@ static int server_socket(const char *interface,
             listen_conn_add->next = listen_conn;
             listen_conn = listen_conn_add;
             STATS_LOCK();
+            ++stats.curr_conns;
             ++stats.daemon_conns;
             STATS_UNLOCK();
         }
