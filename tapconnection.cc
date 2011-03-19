@@ -189,6 +189,7 @@ void TapProducer::setVBucketFilter(const std::vector<uint16_t> &vbuckets)
 
 void TapProducer::registerTAPCursor(std::map<uint16_t, uint64_t> &lastCheckpointIds) {
     tapCheckpointState.clear();
+    uint64_t current_time = (uint64_t)ep_real_time();
     std::vector<uint16_t> backfill_vbuckets;
     const VBucketMap &vbuckets = engine.getEpStore()->getVBuckets();
     size_t numOfVBuckets = vbuckets.getSize();
@@ -224,16 +225,22 @@ void TapProducer::registerTAPCursor(std::map<uint16_t, uint64_t> &lastCheckpoint
             // Check if the unified queue contains the checkpoint to start with.
             if(!vb->checkpointManager.registerTAPCursor(name,
                                                     tapCheckpointState[vbid].currentCheckpointId)) {
-                TapCheckpointState st(vbid, 0, backfill);
-                tapCheckpointState[vbid] = st;
-                backfill_vbuckets.push_back(vbid);
+                if (backfillAge < current_time) { // Backfill is required.
+                    TapCheckpointState st(vbid, 0, backfill);
+                    tapCheckpointState[vbid] = st;
+                    backfill_vbuckets.push_back(vbid);
+                } else { // If backfill is not required, simply start from the first checkpoint.
+                    uint64_t cid = vb->checkpointManager.getCheckpointIdForTAPCursor(name);
+                    TapCheckpointState st(vbid, cid, checkpoint_start);
+                    tapCheckpointState[vbid] = st;
+                }
             }
         }
     }
 
     if (backfill_vbuckets.size() > 0) {
         backFillVBucketFilter.assign(backfill_vbuckets);
-        if (backfillAge < (uint64_t)ep_real_time()) {
+        if (backfillAge < current_time) {
             doRunBackfill = true;
             pendingBackfill = true;
             engine.setTapValidity(name, cookie);
