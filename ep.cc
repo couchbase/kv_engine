@@ -1412,6 +1412,11 @@ int EventuallyPersistentStore::flushOneDelOrSet(QueuedItem &qi,
         ++stats.flushExpired;
         v->markClean(&dirtied);
         isDirty = false;
+        // If the new item is expired within current_time + expiry_window, clear the row id
+        // from hashtable and remove the old item from database.
+        v->clearId();
+        deleted = true;
+        qi.setOperation(queue_op_del);
     }
 
     if (isDirty) {

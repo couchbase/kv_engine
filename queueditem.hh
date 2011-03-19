@@ -34,6 +34,9 @@ public:
     uint16_t getVBucketVersion(void) const { return vbucket_version; }
     rel_time_t getDirtied(void) const { return dirtied; }
     enum queue_operation getOperation(void) const { return op; }
+    void setOperation(enum queue_operation o) {
+        op = o;
+    }
 
     bool operator <(const QueuedItem &other) const {
         return vbucket == other.vbucket ? key < other.key : vbucket < other.vbucket;
