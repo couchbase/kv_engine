@@ -348,6 +348,22 @@ private:
      */
     bool checkAndAddNewCheckpoint(uint64_t id);
 
+    uint64_t nextMutationId() {
+        return ++mutationCounter;
+    }
+
+    void decrPersistenceCursorOffset() {
+        if (persistenceCursor.offset > 0) {
+            --(persistenceCursor.offset);
+        }
+    }
+
+    void decrPersistenceCursorPos_UNLOCKED() {
+        if (persistenceCursor.currentPos != (*(persistenceCursor.currentCheckpoint))->begin()) {
+            --(persistenceCursor.currentPos);
+        }
+    }
+
     EPStats                 &stats;
     Mutex                    queueLock;
     uint16_t                 vbucketId;

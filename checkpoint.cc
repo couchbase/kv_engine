@@ -24,7 +24,7 @@ uint64_t Checkpoint::getCasForKey(const std::string &key) {
 queue_dirty_t Checkpoint::queueDirty(const queued_item &item, CheckpointManager *checkpointManager) {
     assert (checkpointState == opened);
 
-    uint64_t newMutationId = ++(checkpointManager->mutationCounter);
+    uint64_t newMutationId = checkpointManager->nextMutationId();
     queue_dirty_t rv;
 
     checkpoint_index::iterator it = keyIndex.find(item->getKey());
@@ -41,13 +41,13 @@ queue_dirty_t Checkpoint::queueDirty(const queued_item &item, CheckpointManager 
             if (ita != keyIndex.end()) {
                 uint64_t mutationId = ita->second.mutation_id;
                 if (currMutationId <= mutationId) {
-                    --(checkpointManager->persistenceCursor.offset);
+                    checkpointManager->decrPersistenceCursorOffset();
                 }
             }
             // If the persistence cursor points to the existing item for the same key,
             // shift the cursor left by 1.
             if (checkpointManager->persistenceCursor.currentPos == currPos) {
-                --(checkpointManager->persistenceCursor.currentPos);
+                checkpointManager->decrPersistenceCursorPos_UNLOCKED();
             }
         }
 
