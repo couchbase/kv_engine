@@ -49,6 +49,7 @@
 #include "sqlite-pst.hh"
 #include "mutex.hh"
 #include "locks.hh"
+#include "item.hh"
 
 #include "ep_testsuite.h"
 #include "command_ids.h"
@@ -65,6 +66,8 @@
 #undef htons
 #undef htonl
 #endif
+
+EPStats *Blob::stats = NULL;
 
 extern "C" {
 
@@ -164,6 +167,8 @@ static ENGINE_ERROR_CODE storeCasVb11(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 
     if (outitem) {
         *outitem = it;
+    } else {
+        h1->release(h, NULL, it);
     }
 
     return rv;
@@ -183,7 +188,9 @@ static ENGINE_ERROR_CODE store(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 static ENGINE_ERROR_CODE verify_vb_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                        const char* key, uint16_t vbucket) {
     item *i = NULL;
-    return h1->get(h, NULL, &i, key, strlen(key), vbucket);
+    ENGINE_ERROR_CODE rv = h1->get(h, NULL, &i, key, strlen(key), vbucket);
+    h1->release(h, NULL, i);
+    return rv;
 }
 
 static ENGINE_ERROR_CODE verify_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
@@ -199,9 +206,11 @@ static bool get_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     }
     info->nvalue = 1;
     if (!h1->get_item_info(h, NULL, i, info)) {
+        h1->release(h, NULL, i);
         fprintf(stderr, "get_item_info failed\n");
         return false;
     }
+    h1->release(h, NULL, i);
     return true;
 }
 
@@ -246,6 +255,7 @@ static enum test_result check_key_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 
     check(memcmp(info.value[0].iov_base, val, vlen) == 0,
           "Data mismatch");
+    h1->release(h, NULL, i);
 
     return SUCCESS;
 }
@@ -709,6 +719,7 @@ static void wait_for_persisted_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     // Wait for persistence...
     wait_for_flusher_to_settle(h, h1);
     wait_for_stat_change(h, h1, "ep_commit_num", commitNum);
+    h1->release(h, NULL, i);
 }
 
 static enum test_result test_wrong_vb_mutation(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
@@ -1248,10 +1259,15 @@ static enum test_result test_flush_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
     int cacheSize = get_int_stat(h, h1, "ep_total_cache_size");
     int nonResident = get_int_stat(h, h1, "ep_num_non_resident");
 
+    int itemsRemoved = get_int_stat(h, h1, "ep_items_rm_from_checkpoints");
     check(store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i) == ENGINE_SUCCESS,
           "Failed set.");
+    h1->release(h, NULL, i);
     check(store(h, h1, NULL, OPERATION_SET, "key2", "somevalue", &i) == ENGINE_SUCCESS,
           "Failed set.");
+    h1->release(h, NULL, i);
+    testHarness.time_travel(5);
+    wait_for_stat_change(h, h1, "ep_items_rm_from_checkpoints", itemsRemoved);
 
     check(ENGINE_SUCCESS == verify_key(h, h1, "key"), "Expected key");
     check(ENGINE_SUCCESS == verify_key(h, h1, "key2"), "Expected key2");
@@ -1265,7 +1281,9 @@ static enum test_result test_flush_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
     int nonResident2 = get_int_stat(h, h1, "ep_num_non_resident");
 
     assert(mem_used2 > mem_used);
-    assert(mem_used2 == (overhead2 + cacheSize2));
+    // "mem_used2 - overhead2" (i.e., ep_kv_size) should be greater than the hashtable cache size
+    // due to the checkpoint overhead
+    assert(mem_used2 - overhead2 > cacheSize2);
 
     check(h1->flush(h, NULL, 0) == ENGINE_SUCCESS, "Failed to flush");
     check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key"), "Expected missing key");
@@ -1355,9 +1373,11 @@ static enum test_result test_flush_multiv_restart(ENGINE_HANDLE *h, ENGINE_HANDL
     check(set_vbucket_state(h, h1, 2, vbucket_state_active), "Failed to set vbucket state.");
     check(store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i) == ENGINE_SUCCESS,
           "Failed set.");
+    h1->release(h, NULL, i);
     check(store(h, h1, NULL, OPERATION_SET, "key2", "somevalue", &i,
                 0, 2) == ENGINE_SUCCESS,
           "Failed set in vb2.");
+    h1->release(h, NULL, i);
 
     // Restart once to ensure written to disk.
     testHarness.reload_engine(&h, &h1,
@@ -2191,16 +2211,20 @@ static enum test_result test_memory_limit(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     check(store(h, h1, NULL, OPERATION_SET, "key", data, &i) == ENGINE_SUCCESS,
           "store failure");
     check_key_value(h, h1, "key", data, vlen);
+    h1->release(h, NULL, i);
 
     // There should be no room for another.
     ENGINE_ERROR_CODE second = store(h, h1, NULL, OPERATION_SET, "key2", data, &i);
     check(second == ENGINE_ENOMEM || second == ENGINE_TMPFAIL,
           "should have failed second set");
+    h1->release(h, NULL, i);
     check(get_int_stat(h, h1, "ep_oom_errors") == 1 ||
           get_int_stat(h, h1, "ep_tmp_oom_errors") == 1, "Expected an OOM error.");
+
     ENGINE_ERROR_CODE overwrite = store(h, h1, NULL, OPERATION_SET, "key", data, &i);
     check(overwrite == ENGINE_ENOMEM || overwrite == ENGINE_TMPFAIL,
           "should have failed second override");
+    h1->release(h, NULL, i);
     check(get_int_stat(h, h1, "ep_oom_errors") == 2 ||
           get_int_stat(h, h1, "ep_tmp_oom_errors") == 2, "Expected another OOM error.");
     check_key_value(h, h1, "key", data, vlen);
@@ -2289,13 +2313,18 @@ static enum test_result test_vbucket_destroy_stats(ENGINE_HANDLE *h,
         std::string key(ss.str());
         keys.push_back(key);
     }
+
+    int itemsRemoved = get_int_stat(h, h1, "ep_items_rm_from_checkpoints");
     std::vector<std::string>::iterator it;
     for (it = keys.begin(); it != keys.end(); ++it) {
         item *i;
         check(store(h, h1, NULL, OPERATION_SET, it->c_str(), it->c_str(), &i, 0, 1)
               == ENGINE_SUCCESS, "Failed to store a value");
+        h1->release(h, NULL, i);
     }
     wait_for_flusher_to_settle(h, h1);
+    testHarness.time_travel(5);
+    wait_for_stat_change(h, h1, "ep_items_rm_from_checkpoints", itemsRemoved);
 
     check(set_vbucket_state(h, h1, 1, vbucket_state_dead), "Failed set set vbucket 1 state.");
 
@@ -3159,15 +3188,18 @@ static enum test_result test_mem_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     char value[2048];
     memset(value, 'b', sizeof(value));
     strcpy(value + sizeof(value) - 4, "\r\n");
+    int itemsRemoved = get_int_stat(h, h1, "ep_items_rm_from_checkpoints");
     wait_for_persisted_value(h, h1, "key", value);
+    testHarness.time_travel(5);
+    wait_for_stat_change(h, h1, "ep_items_rm_from_checkpoints", itemsRemoved);
     int mem_used = get_int_stat(h, h1, "mem_used");
-    int tot_used = get_int_stat(h, h1, "ep_total_cache_size");
+    int cache_size = get_int_stat(h, h1, "ep_total_cache_size");
     int overhead = get_int_stat(h, h1, "ep_overhead");
-    check(mem_used == tot_used + overhead,
-          "mem_used seems wrong");
+    check((mem_used - overhead) > cache_size,
+          "ep_kv_size should be greater than the hashtable cache size due to the checkpoint overhead");
     evict_key(h, h1, "key", 0, "Ejected.");
 
-    check(get_int_stat(h, h1, "ep_total_cache_size") == tot_used,
+    check(get_int_stat(h, h1, "ep_total_cache_size") == cache_size,
           "Evict a value shouldn't increase the total cache size");
     check(get_int_stat(h, h1, "mem_used") < mem_used,
           "Expected mem_used to decrease when an item is evicted");
@@ -3603,11 +3635,15 @@ static enum test_result test_disk_gt_ram_golden(ENGINE_HANDLE *h,
                                                 ENGINE_HANDLE_V1 *h1) {
     // Check/grab initial state.
     int overhead = get_int_stat(h, h1, "ep_overhead");
-    check(get_int_stat(h, h1, "ep_kv_size") == 0,
-          "Initial kv_size was not zero.");
+    check(get_int_stat(h, h1, "ep_kv_size") > 0,
+          "Initial kv_size should be greater than 0 due to the CHECKPOINT_START meta item.");
 
+    int itemsRemoved = get_int_stat(h, h1, "ep_items_rm_from_checkpoints");
     // Store some data and check post-set state.
     wait_for_persisted_value(h, h1, "k1", "some value");
+    testHarness.time_travel(5);
+    wait_for_stat_change(h, h1, "ep_items_rm_from_checkpoints", itemsRemoved);
+
     assert(0 == get_int_stat(h, h1, "ep_bg_fetched"));
     assert(1 == get_int_stat(h, h1, "ep_total_enqueued"));
     int kv_size = get_int_stat(h, h1, "ep_kv_size");
@@ -3641,7 +3677,7 @@ static enum test_result test_disk_gt_ram_golden(ENGINE_HANDLE *h,
     assert(kv_size == kv_size3);
     assert(mem_used == mem_used3);
 
-    int itemsRemoved = get_int_stat(h, h1, "ep_items_rm_from_checkpoints");
+    itemsRemoved = get_int_stat(h, h1, "ep_items_rm_from_checkpoints");
     // Delete the value and make sure things return correctly.
     int numStored = get_int_stat(h, h1, "ep_total_persisted");
     check(h1->remove(h, NULL, "k1", 2, 0, 0) == ENGINE_SUCCESS,
@@ -3650,12 +3686,12 @@ static enum test_result test_disk_gt_ram_golden(ENGINE_HANDLE *h,
     testHarness.time_travel(5);
     wait_for_stat_change(h, h1, "ep_items_rm_from_checkpoints", itemsRemoved);
 
-    check(get_int_stat(h, h1, "ep_kv_size") == 0,
-          "Initial kv_size was not zero.");
+    check(get_int_stat(h, h1, "ep_kv_size") > 0,
+          "kv_size should be still greater than 0 due to the CHECKPOINT_START meta item.");
     check(get_int_stat(h, h1, "ep_overhead") == overhead,
           "Fell below initial overhead.");
-    check(get_int_stat(h, h1, "mem_used") == overhead,
-          "Fell below initial overhead.");
+    check(get_int_stat(h, h1, "mem_used") > overhead,
+          "mem_used (ep_kv_size + ep_overhead) should be greater than ep_overhead");
 
     return SUCCESS;
 }
@@ -3664,8 +3700,8 @@ static enum test_result test_disk_gt_ram_paged_rm(ENGINE_HANDLE *h,
                                                   ENGINE_HANDLE_V1 *h1) {
     // Check/grab initial state.
     int overhead = get_int_stat(h, h1, "ep_overhead");
-    check(get_int_stat(h, h1, "ep_kv_size") == 0,
-          "Initial kv_size was not zero.");
+    check(get_int_stat(h, h1, "ep_kv_size") > 0,
+          "Initial kv_size should be greater than 0 due to the CHECKPOINT_START meta item.");
 
     // Store some data and check post-set state.
     wait_for_persisted_value(h, h1, "k1", "some value");
@@ -3686,12 +3722,12 @@ static enum test_result test_disk_gt_ram_paged_rm(ENGINE_HANDLE *h,
     testHarness.time_travel(5);
     wait_for_stat_change(h, h1, "ep_items_rm_from_checkpoints", itemsRemoved);
 
-    check(get_int_stat(h, h1, "ep_kv_size") == 0,
-          "Initial kv_size was not zero.");
+    check(get_int_stat(h, h1, "ep_kv_size") > 0,
+          "kv_size should be still greater than 0 due to the CHECKPOINT_START meta item.");
     check(get_int_stat(h, h1, "ep_overhead") == overhead,
           "Fell below initial overhead.");
-    check(get_int_stat(h, h1, "mem_used") == overhead,
-          "Fell below initial overhead.");
+    check(get_int_stat(h, h1, "mem_used") > overhead,
+          "mem_used (ep_kv_size + ep_overhead) should be greater than ep_overhead");
 
     return SUCCESS;
 }
@@ -4768,7 +4804,7 @@ engine_test_t* get_tests(void) {
          "db_shards=1;ht_size=13;ht_locks=7;db_strategy=multiDB"},
         {"non-resident decrementers", test_mb3169, NULL, teardown, NULL},
         {"flush", test_flush, NULL, teardown, NULL},
-        {"flush with stats", test_flush_stats, NULL, teardown, NULL},
+        {"flush with stats", test_flush_stats, NULL, teardown, "chk_remover_stime=1;chk_period=1"},
         {"flush multi vbuckets", test_flush_multiv, NULL, teardown, NULL},
         {"flush multi vbuckets single mt", test_flush_multiv, NULL, teardown,
          "db_strategy=singleMTDB;max_vbuckets=16;ht_size=7;ht_locks=3"},
@@ -4784,7 +4820,7 @@ engine_test_t* get_tests(void) {
         {"stats", test_stats, NULL, teardown, NULL},
         {"io stats", test_io_stats, NULL, teardown, NULL},
         {"bg stats", test_bg_stats, NULL, teardown, NULL},
-        {"mem stats", test_mem_stats, NULL, teardown, NULL},
+        {"mem stats", test_mem_stats, NULL, teardown, "chk_remover_stime=1;chk_period=1"},
         {"stats key", test_key_stats, NULL, teardown, NULL},
         {"stats vkey", test_vkey_stats, NULL, teardown, NULL},
         {"warmup stats", test_warmup_stats, NULL, teardown, NULL},
@@ -4916,7 +4952,7 @@ engine_test_t* get_tests(void) {
         {"test vbucket destroy (multitable)", test_vbucket_destroy, NULL, teardown,
          "db_strategy=multiMTVBDB;max_vbuckets=16;ht_size=7;ht_locks=3"},
         {"test vbucket destroy stats", test_vbucket_destroy_stats,
-         NULL, teardown, NULL},
+         NULL, teardown, "chk_remover_stime=1;chk_period=1"},
         {"test vbucket destroy restart", test_vbucket_destroy_restart,
          NULL, teardown, NULL},
         {"sync bad flags", test_sync_bad_flags, NULL, teardown, NULL},

@@ -20,6 +20,7 @@ static void devnull(uint64_t)
 {
 }
 
+EPStats *Blob::stats = NULL;
 Atomic<uint64_t> Item::casCounter(1);
 uint64_t Item::casNotificationFrequency = 10000;
 void (*Item::casNotifier)(uint64_t) = devnull;

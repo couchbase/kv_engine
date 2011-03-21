@@ -23,18 +23,25 @@ static ssize_t prime_size_table[] = {
 bool StoredValue::ejectValue(EPStats &stats, HashTable &ht) {
     if (isResident() && isClean() && !isDeleted() && !_isSmall) {
         size_t oldsize = size();
+        size_t oldValueSize = value->length();
         blobval uval;
         uval.len = valLength();
         shared_ptr<Blob> sp(Blob::New(uval.chlen, sizeof(uval)));
         extra.feature.resident = false;
         value = sp;
         size_t newsize = size();
+        size_t newValueSize = value->length();
 
         // ejecting the value may increase the object size....
         if (oldsize < newsize) {
-            increaseCurrentSize(stats, ht, newsize - oldsize, true);
+            increaseCacheSize(ht, newsize - oldsize, true);
         } else if (newsize < oldsize) {
-            reduceCurrentSize(stats, ht, oldsize - newsize, true);
+            reduceCacheSize(ht, oldsize - newsize, true);
+        }
+        if ((oldsize - oldValueSize) < (newsize - newValueSize)) {
+            increaseCurrentSize(stats, (newsize - newValueSize) - (oldsize - oldValueSize));
+        } else if ((newsize - newValueSize) < (oldsize - oldValueSize)) {
+            reduceCurrentSize(stats, (oldsize - oldValueSize) - (newsize - newValueSize));
         }
         ++stats.numValueEjects;
         ++ht.numNonResidentItems;
@@ -48,6 +55,7 @@ bool StoredValue::ejectValue(EPStats &stats, HashTable &ht) {
 bool StoredValue::restoreValue(value_t v, EPStats &stats, HashTable &ht) {
     if (!isResident()) {
         size_t oldsize = size();
+        size_t oldValueSize = isDeleted() ? 0 : value->length();
         assert(v);
         if (v->length() != valLength()) {
             int diff(static_cast<int>(valLength()) - // expected
@@ -60,10 +68,16 @@ bool StoredValue::restoreValue(value_t v, EPStats &stats, HashTable &ht) {
         value = v;
 
         size_t newsize = size();
+        size_t newValueSize = value->length();
         if (oldsize < newsize) {
-            increaseCurrentSize(stats, ht, newsize - oldsize, true);
+            increaseCacheSize(ht, newsize - oldsize, true);
         } else if (newsize < oldsize) {
-            reduceCurrentSize(stats, ht, oldsize - newsize, true);
+            reduceCacheSize(ht, oldsize - newsize, true);
+        }
+        if ((oldsize - oldValueSize) < (newsize - newValueSize)) {
+            increaseCurrentSize(stats, (newsize - newValueSize) - (oldsize - oldValueSize));
+        } else if ((newsize - newValueSize) < (oldsize - oldValueSize)) {
+            reduceCurrentSize(stats, (oldsize - oldValueSize) - (newsize - newValueSize));
         }
         --ht.numNonResidentItems;
         return true;
@@ -339,27 +353,18 @@ size_t StoredValue::getCurrentSize(EPStats &st) {
     return st.currentSize.get() + st.memOverhead.get();
 }
 
-void StoredValue::increaseCurrentSize(EPStats &st, HashTable &ht,
-                                      size_t by, bool residentOnly) {
+void StoredValue::increaseCacheSize(HashTable &ht,
+                                    size_t by, bool residentOnly) {
     if (!residentOnly) {
         ht.cacheSize.incr(by);
         assert(ht.cacheSize.get() < GIGANTOR);
     }
-    st.currentSize.incr(by);
-    assert(st.currentSize.get() < GIGANTOR);
     ht.memSize.incr(by);
     assert(ht.memSize.get() < GIGANTOR);
 }
 
-void StoredValue::reduceCurrentSize(EPStats &st, HashTable &ht,
-                                    size_t by, bool residentOnly) {
-    size_t val;
-
-    do {
-        val = st.currentSize.get();
-        assert(val >= by);
-    } while (!st.currentSize.cas(val, val - by));;
-
+void StoredValue::reduceCacheSize(HashTable &ht,
+                                  size_t by, bool residentOnly) {
     if (!residentOnly) {
         ht.cacheSize.decr(by);
         assert(ht.cacheSize.get() < GIGANTOR);
@@ -368,10 +373,23 @@ void StoredValue::reduceCurrentSize(EPStats &st, HashTable &ht,
     assert(ht.memSize.get() < GIGANTOR);
 }
 
+void StoredValue::increaseCurrentSize(EPStats &st, size_t by) {
+    st.currentSize.incr(by);
+    assert(st.currentSize.get() < GIGANTOR);
+}
+
+void StoredValue::reduceCurrentSize(EPStats &st, size_t by) {
+    size_t val;
+    do {
+        val = st.currentSize.get();
+        assert(val >= by);
+    } while (!st.currentSize.cas(val, val - by));;
+}
+
 /**
  * Is there enough space for this thing?
  */
 bool StoredValue::hasAvailableSpace(EPStats &st, const Item &item) {
-    return getCurrentSize(st) + sizeof(StoredValue) + item.getNKey() + item.getNBytes()
+    return getCurrentSize(st) + sizeof(StoredValue) + item.getNKey() // + item.getNBytes()
         <= getMaxDataSize(st);
 }

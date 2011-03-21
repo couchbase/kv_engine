@@ -11,6 +11,7 @@
 #include "mutex.hh"
 #include "locks.hh"
 #include "atomic.hh"
+#include "stats.hh"
 
 /**
  * A blob is a minimal sized storage for data up to 2^32 bytes long.
@@ -89,18 +90,39 @@ public:
     // with variable-sized objects.
     void operator delete(void* p) { ::operator delete(p); }
 
+    ~Blob() {
+        if (stats) {
+            stats->currentSize.decr(size);
+            assert(stats->currentSize.get() < GIGANTOR);
+        }
+    }
+
+    static void init(EPStats *st) {
+        stats = st;
+    }
+
 private:
 
     explicit Blob(const char *start, const size_t len) : size(static_cast<uint32_t>(len)) {
         std::memcpy(data, start, len);
+        if (stats) {
+            stats->currentSize.incr(size);
+            assert(stats->currentSize.get() < GIGANTOR);
+        }
     }
 
     explicit Blob(const char c, const size_t len) : size(static_cast<uint32_t>(len)) {
         std::memset(data, c, len);
+        if (stats) {
+            stats->currentSize.incr(size);
+            assert(stats->currentSize.get() < GIGANTOR);
+        }
     }
 
     const uint32_t size;
     char data[1];
+
+    static EPStats *stats;
 
     DISALLOW_COPY_AND_ASSIGN(Blob);
 };

@@ -235,7 +235,9 @@ public:
      */
     void setValue(value_t v, uint32_t newFlags, time_t newExp,
                   uint64_t theCas, EPStats &stats, HashTable &ht) {
-        reduceCurrentSize(stats, ht, size());
+        size_t currSize = size();
+        reduceCacheSize(ht, currSize);
+        reduceCurrentSize(stats, isDeleted() ? currSize : currSize - value->length());
         value = v;
         setResident();
         flags = newFlags;
@@ -244,7 +246,9 @@ public:
             extra.feature.exptime = newExp;
         }
         markDirty();
-        increaseCurrentSize(stats, ht, size());
+        size_t newSize = size();
+        increaseCacheSize(ht, newSize);
+        increaseCurrentSize(stats, newSize - value->length());
         replicas = 0;
     }
 
@@ -465,16 +469,23 @@ public:
      */
     void del(EPStats &stats, HashTable &ht) {
         size_t oldsize = size();
+        size_t oldValueSize = isDeleted() ? 0 : value->length();
 
         value.reset();
         markDirty();
         setCas(getCas() + 1);
 
         size_t newsize = size();
+        size_t newValueSize = isDeleted() ? 0 : value->length();
         if (oldsize < newsize) {
-            increaseCurrentSize(stats, ht, newsize - oldsize, true);
+            increaseCacheSize(ht, newsize - oldsize, true);
         } else if (newsize < oldsize) {
-            reduceCurrentSize(stats, ht, oldsize - newsize, true);
+            reduceCacheSize(ht, oldsize - newsize, true);
+        }
+        if ((oldsize - oldValueSize) < (newsize - newValueSize)) {
+            increaseCurrentSize(stats, (newsize - newValueSize) - (oldsize - oldValueSize));
+        } else if ((newsize - newValueSize) < (oldsize - oldValueSize)) {
+            reduceCurrentSize(stats, (oldsize - oldValueSize) - (newsize - newValueSize));
         }
     }
 
@@ -538,7 +549,8 @@ private:
             markClean(NULL);
         }
 
-        increaseCurrentSize(stats, ht, size());
+        increaseCacheSize(ht, size());
+        increaseCurrentSize(stats, size() - value->length());
     }
 
     void setResident() {
@@ -562,10 +574,12 @@ private:
 
     union stored_value_bodies extra;
 
-    static void increaseCurrentSize(EPStats&, HashTable &ht,
-                                    size_t by, bool residentOnly = false);
-    static void reduceCurrentSize(EPStats&, HashTable &ht,
+    static void increaseCacheSize(HashTable &ht,
                                   size_t by, bool residentOnly = false);
+    static void reduceCacheSize(HashTable &ht,
+                                size_t by, bool residentOnly = false);
+    static void increaseCurrentSize(EPStats&, size_t by);
+    static void reduceCurrentSize(EPStats&, size_t by);
     static bool hasAvailableSpace(EPStats&, const Item &item);
 
     DISALLOW_COPY_AND_ASSIGN(StoredValue);
@@ -671,11 +685,12 @@ class HashTableStatVisitor : public HashTableVisitor {
 public:
 
     HashTableStatVisitor() : numNonResident(0), numTotal(0),
-                             memSize(0), cacheSize(0) {}
+                             memSize(0), valSize(0), cacheSize(0) {}
 
     void visit(StoredValue *v) {
         ++numTotal;
         memSize += v->size();
+        valSize += v->isDeleted() ? 0 : v->getValue()->length();
 
         if (v->isResident()) {
             cacheSize += v->size();
@@ -687,6 +702,7 @@ public:
     size_t numNonResident;
     size_t numTotal;
     size_t memSize;
+    size_t valSize;
     size_t cacheSize;
 };
 
@@ -1190,7 +1206,10 @@ public:
                 return false;
             }
             values[bucket_num] = v->next;
-            v->reduceCurrentSize(stats, *this, v->size());
+            size_t currSize = v->size();
+            v->reduceCacheSize(*this, currSize);
+            v->reduceCurrentSize(stats,
+                                 v->isDeleted() ? currSize : currSize - v->getValue()->length());
             delete v;
             --numItems;
             return true;
@@ -1203,7 +1222,10 @@ public:
                     return false;
                 }
                 v->next = v->next->next;
-                tmp->reduceCurrentSize(stats, *this, tmp->size());
+                size_t currSize = tmp->size();
+                tmp->reduceCacheSize(*this, currSize);
+                tmp->reduceCurrentSize(stats,
+                               tmp->isDeleted() ? currSize : currSize - tmp->getValue()->length());
                 delete tmp;
                 --numItems;
                 return true;

@@ -20,6 +20,7 @@
 
 EPStats global_stats;
 EPStats *QueuedItem::stats = &global_stats;
+EPStats *Blob::stats = &global_stats;
 
 struct thread_args {
     SyncObject *mutex;

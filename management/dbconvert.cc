@@ -37,6 +37,9 @@
 
 using namespace std;
 
+EPStats global_stats;
+EPStats *Blob::stats = &global_stats;
+
 static KVStore *getStore(EPStats &st,
                          const char *path,
                          const char *strategyName,

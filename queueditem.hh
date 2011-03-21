@@ -33,7 +33,8 @@ public:
         : op(o),vbucket_version(vb_version), queued(ep_current_time()),
           dirtied(ep_current_time()), item(new Item(k, f, expiry_time, NULL, 0, cv, rid, vb)) {
 
-        stats->memOverhead.incr(size());
+        // Exclude the value size as it is included in the kv memory overhead.
+        stats->memOverhead.incr(size() - getValue()->length());
         assert(stats->memOverhead.get() < GIGANTOR);
     }
 
@@ -43,12 +44,14 @@ public:
         : op(o), vbucket_version(vb_version), queued(ep_current_time()),
           dirtied(ep_current_time()), item(new Item(k, f, expiry_time, v, cv, rid, vb)) {
 
-        stats->memOverhead.incr(size());
+        // Exclude the value size as it is included in the kv memory overhead.
+        stats->memOverhead.incr(size() - getValue()->length());
         assert(stats->memOverhead.get() < GIGANTOR);
     }
 
     ~QueuedItem() {
-        stats->memOverhead.decr(size());
+        // Exclude the value size as it is included in the kv memory overhead.
+        stats->memOverhead.decr(size() - getValue()->length());
         assert(stats->memOverhead.get() < GIGANTOR);
     }
 
