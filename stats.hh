@@ -10,7 +10,7 @@
 
 #ifndef DEFAULT_MAX_DATA_SIZE
 /* Something something something ought to be enough for anybody */
-#define DEFAULT_MAX_DATA_SIZE (static_cast<size_t>(-1))
+#define DEFAULT_MAX_DATA_SIZE (std::numeric_limits<size_t>::max())
 #endif
 
 static const hrtime_t ONE_SECOND(1000000);
