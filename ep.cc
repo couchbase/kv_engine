@@ -211,7 +211,11 @@ public:
         vb->ht.visit(vbdv);
         vbdv.createRangeList(range_list);
         current_range = range_list.begin();
-        chunk_del_range_size = current_range->second - current_range->first;
+        if (current_range != range_list.end()) {
+            chunk_del_range_size = current_range->second - current_range->first;
+        } else {
+            chunk_del_range_size = 100;
+        }
     }
 
     bool callback(Dispatcher &d, TaskId t) {
