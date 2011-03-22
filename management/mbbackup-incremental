@@ -30,7 +30,7 @@ DEFAULT_FILE      = "./backup-%.mbb"
 
 def usage(err=0):
     print >> sys.stderr, """
-Usage: %s [-h %s[:%s]] [-o %s] [-T num_secs] [-v] name
+Usage: %s [-h %s[:%s]] [-o %s] [-T num_secs] [-r] [-v] name
 """ % (os.path.basename(sys.argv[0]),
        DEFAULT_HOST_PORT[0], DEFAULT_HOST_PORT[1], DEFAULT_FILE)
     sys.exit(err)
@@ -40,9 +40,10 @@ def parse_args(args):
     file      = DEFAULT_FILE
     timeout   = 0
     verbosity = 0
+    only_name = False
 
     try:
-        opts, args = getopt.getopt(args, 'h:o:T:v', ['help'])
+        opts, args = getopt.getopt(args, 'h:o:T:rv', ['help'])
     except getopt.GetoptError, e:
         usage(e.msg)
 
@@ -57,6 +58,8 @@ def parse_args(args):
             file = a
         elif o == '-T':
             timeout = float(a)
+        elif o == '-r':
+            only_name = True # Only register the name and exit.
         elif o == '-v':
             verbosity = verbosity + 1
         else:
@@ -67,7 +70,7 @@ def parse_args(args):
     if len(args) != 1:
         usage("incorrect number of arguments - only one name needed")
 
-    return host_port, file, args[0], timeout, verbosity
+    return host_port, file, args[0], timeout, only_name, verbosity
 
 def log(level, *args):
     global verbosity
@@ -78,26 +81,19 @@ def log(level, *args):
 def main():
     global verbosity
 
-    host_port, file, name, timeout, verbosity = parse_args(sys.argv[1:])
+    host_port, file, name, timeout, only_name, verbosity = parse_args(sys.argv[1:])
     log(1, "host_port = " + ':'.join(host_port))
     log(1, "verbosity = " + str(verbosity))
+    log(1, "only_name = " + str(only_name))
     log(1, "timeout = " + str(timeout))
     log(1, "name = " + name)
     log(1, "file = " + file)
 
+    mc = None
+    db = None
+
     try:
-        mc = None
-        db = None
-
-        file = util.expand_file_pattern(file)
-        log(1, "file actual = " + file)
-        if os.path.exists(file):
-           sys.exit("ERROR: file exists already: " + file)
-
         mc = mc_bin_client.MemcachedClient(host_port[0], int(host_port[1]))
-        db = sqlite3.connect(file) # TODO: Revisit isolation level
-        db.text_factory = str
-        createSchema(db)
 
         ext, val = encodeTAPConnectOpts({
           memcacheConstants.TAP_FLAG_CHECKPOINT: '',
@@ -106,6 +102,21 @@ def main():
         })
 
         mc._sendCmd(memcacheConstants.CMD_TAP_CONNECT, name, val, 0, ext)
+
+        if only_name:
+            cmd, opaque, cas, vbucketId, key, ext, val = readTap(mc)
+            if cmd == memcacheConstants.CMD_TAP_OPAQUE:
+                sys.exit(0);
+            sys.exit("ERROR: could not register name: " + name)
+
+        file = util.expand_file_pattern(file)
+        log(1, "file actual = " + file)
+        if os.path.exists(file):
+           sys.exit("ERROR: file exists already: " + file)
+
+        db = sqlite3.connect(file) # TODO: Revisit isolation level
+        db.text_factory = str
+        createSchema(db)
 
         loop(mc, db, timeout, ':'.join(host_port) + '-' + name)
 
