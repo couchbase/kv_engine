@@ -229,6 +229,8 @@ private:
     TapConnection *findByName_UNLOCKED(const std::string &name);
     void getExpiredConnections_UNLOCKED(std::list<TapConnection*> &deadClients);
 
+    void removeTapCursors(TapProducer *tp);
+
     bool mapped(TapConnection *tc);
 
     bool isPaused(TapProducer *tc);

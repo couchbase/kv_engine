@@ -128,6 +128,7 @@ void TapConnMap::getExpiredConnections_UNLOCKED(std::list<TapConnection*> &deadC
             if (tp) {
                 if (!tp->suspended) {
                     deadClients.push_back(tc);
+                    removeTapCursors(tp);
                 }
             } else {
                 deadClients.push_back(tc);
@@ -139,6 +140,27 @@ void TapConnMap::getExpiredConnections_UNLOCKED(std::list<TapConnection*> &deadC
     std::list<TapConnection*>::iterator ii;
     for (ii = deadClients.begin(); ii != deadClients.end(); ++ii) {
         all.remove(*ii);
+    }
+}
+
+void TapConnMap::removeTapCursors(TapProducer *tp) {
+    // If this TAP connection is not for the registered TAP client,
+    // remove all the checkpoint cursors belonging to the TAP connection.
+    if (tp && !tp->registeredTAPClient) {
+        const VBucketMap &vbuckets = tp->engine.getEpStore()->getVBuckets();
+        size_t numOfVBuckets = vbuckets.getSize();
+        // Remove all the cursors belonging to the TAP connection to be purged.
+        for (size_t i = 0; i <= numOfVBuckets; ++i) {
+            assert(i <= std::numeric_limits<uint16_t>::max());
+            uint16_t vbid = static_cast<uint16_t>(i);
+            RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
+            if (!vb) {
+                continue;
+            }
+            if (tp->vbucketFilter(vbid)) {
+                vb->checkpointManager.removeTAPCursor(tp->name);
+            }
+        }
     }
 }
 
