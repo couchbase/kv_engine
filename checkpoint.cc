@@ -118,6 +118,13 @@ void CheckpointManager::setOpenCheckpointId(uint64_t id) {
     LockHolder lh(queueLock);
     if (checkpointList.size() > 0) {
         checkpointList.back()->setId(id);
+        // Update the checkpoint_start item with the new Id.
+        std::stringstream ss;
+        ss << id;
+        shared_ptr<const Blob> vblob(Blob::New(ss.str().c_str(), ss.str().size()));
+        queued_item item(new QueuedItem("", vblob, vbucketId, queue_op_checkpoint_start));
+        std::list<queued_item>::iterator it = ++(checkpointList.back()->begin());
+        *it = item;
         nextCheckpointId = ++id;
     }
 }
