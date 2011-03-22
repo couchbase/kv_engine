@@ -42,6 +42,7 @@
 /m4/version.m4
 /management/mbdbconvert
 /management/sqlite3
+/mbbackup-????.mbb
 /sizes
 /stamp-h1
 /testlogger_libify.cc

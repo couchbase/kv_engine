@@ -930,6 +930,9 @@ GetValue EventuallyPersistentStore::get(const std::string &key,
         return rv;
     } else {
         GetValue rv;
+        if (engine.restore.enabled.get()) {
+            rv.setStatus(ENGINE_TMPFAIL);
+        }
         return rv;
     }
 }
@@ -986,6 +989,9 @@ GetValue EventuallyPersistentStore::getAndUpdateTtl(const std::string &key,
         return rv;
     } else {
         GetValue rv;
+        if (engine.restore.enabled.get()) {
+            rv.setStatus(ENGINE_TMPFAIL);
+        }
         return rv;
     }
 }
@@ -1024,6 +1030,8 @@ EventuallyPersistentStore::getFromUnderlying(const std::string &key,
         assert(bgFetchQueue > 0);
         roDispatcher->schedule(dcb, NULL, Priority::VKeyStatBgFetcherPriority, bgFetchDelay);
         return ENGINE_EWOULDBLOCK;
+    } else if (engine.restore.enabled.get()) {
+        return ENGINE_TMPFAIL;
     } else {
         return ENGINE_KEY_ENOENT;
     }
@@ -1082,6 +1090,9 @@ bool EventuallyPersistentStore::getLocked(const std::string &key,
 
     } else {
         GetValue rv;
+        if (engine.restore.enabled.get()) {
+            rv.setStatus(ENGINE_TMPFAIL);
+        }
         cb.callback(rv);
     }
     return true;
@@ -1135,6 +1146,11 @@ EventuallyPersistentStore::unlockKey(const std::string &key,
         }
         return ENGINE_TMPFAIL;
     }
+
+    if (engine.restore.enabled.get()) {
+        return ENGINE_TMPFAIL;
+    }
+
     return ENGINE_KEY_ENOENT;
 }
 
@@ -1199,6 +1215,10 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::del(const std::string &key,
     LockHolder lh = vb->ht.getLockedBucket(key, &bucket_num);
     StoredValue *v = vb->ht.unlocked_find(key, bucket_num);
     if (!v) {
+        if (engine.restore.enabled.get()) {
+            return ENGINE_TMPFAIL;
+        }
+
         return ENGINE_KEY_ENOENT;
     }
     value_t value = v->getValue();
@@ -1258,45 +1278,60 @@ std::queue<queued_item>* EventuallyPersistentStore::beginFlush() {
             writing.push(qi);
         }
 
-        std::vector<queued_item> item_list;
-        item_list.reserve(DEFAULT_TXN_SIZE);
-        size_t numOfVBuckets = vbuckets.getSize();
-        for (size_t i = 0; i <= numOfVBuckets; ++i) {
-            assert(i <= std::numeric_limits<uint16_t>::max());
-            uint16_t vbid = static_cast<uint16_t>(i);
-            RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
-            if (!vb || vb->getState() == vbucket_state_dead) {
-                continue;
-            }
-
-            // Get all the mutations from the current position of the persistence cursor to
-            // the tail of the current open checkpoint.
-            uint64_t checkpointId = vb->checkpointManager.getAllItemsForPersistence(item_list);
-            if (item_list.size() == 0) {
-                continue;
-            }
-            persistenceCheckpointIds[vbid] = checkpointId;
-
-            std::set<queued_item, CompareQueuedItemsByKey> item_set;
-            std::pair<std::set<queued_item, CompareQueuedItemsByKey>::iterator, bool> ret;
-            std::vector<queued_item>::reverse_iterator reverse_it = item_list.rbegin();
-            // Perform further deduplication here by removing duplicate mutations for each key.
-            // For this, traverse the array from the last element.
-            for(; reverse_it != item_list.rend(); ++reverse_it) {
-                queued_item item = *reverse_it;
-                ret = item_set.insert(item);
-                if (!(ret.second)) {
-                    vb->doStatsForFlushing(*item, item->size());
+        if (engine.restore.enabled.get()) {
+            // Add all of the objects in the restore list to the write list..
+            LockHolder lh(restore.mutex);
+            if (!restore.items.empty()) {
+                rwUnderlying->optimizeWrites(restore.items);
+                std::vector<queued_item>::iterator iter = restore.items.begin();
+                for ( /* empty */ ; iter != restore.items.end(); ++iter) {
+                    writing.push(*iter);
                 }
+                restore.items.clear();
             }
-            item_list.assign(item_set.begin(), item_set.end());
+        } else {
+            std::vector<queued_item> item_list;
+            item_list.reserve(DEFAULT_TXN_SIZE);
+            size_t numOfVBuckets = vbuckets.getSize();
+            for (size_t i = 0; i <= numOfVBuckets; ++i) {
+                assert(i <= std::numeric_limits<uint16_t>::max());
+                uint16_t vbid = static_cast<uint16_t>(i);
+                RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
+                if (!vb || vb->getState() == vbucket_state_dead) {
+                    continue;
+                }
 
-            rwUnderlying->optimizeWrites(item_list);
-            std::vector<queued_item>::iterator it = item_list.begin();
-            for(; it != item_list.end(); ++it) {
-                writing.push(*it);
+                // Get all the mutations from the current position of the
+                // persistence cursor to the tail of the current open
+                // checkpoint.
+                uint64_t checkpointId = vb->checkpointManager.getAllItemsForPersistence(item_list);
+                if (item_list.size() == 0) {
+                    continue;
+                }
+                persistenceCheckpointIds[vbid] = checkpointId;
+
+                std::set<queued_item, CompareQueuedItemsByKey> item_set;
+                std::pair<std::set<queued_item, CompareQueuedItemsByKey>::iterator, bool> ret;
+                std::vector<queued_item>::reverse_iterator reverse_it = item_list.rbegin();
+                // Perform further deduplication here by removing duplicate
+                // mutations for each key. For this, traverse the array from
+                // the last element.
+                for(; reverse_it != item_list.rend(); ++reverse_it) {
+                    queued_item item = *reverse_it;
+                    ret = item_set.insert(item);
+                    if (!(ret.second)) {
+                        vb->doStatsForFlushing(*item, item->size());
+                    }
+                }
+                item_list.assign(item_set.begin(), item_set.end());
+
+                rwUnderlying->optimizeWrites(item_list);
+                std::vector<queued_item>::iterator it = item_list.begin();
+                for(; it != item_list.end(); ++it) {
+                    writing.push(*it);
+                }
+                item_list.clear();
             }
-            item_list.clear();
         }
 
         size_t queue_size = getWriteQueueSize();
@@ -1722,6 +1757,33 @@ void EventuallyPersistentStore::queueDirty(const std::string &key,
             }
         }
     }
+}
+
+int EventuallyPersistentStore::addUnlessThere(const std::string &key,
+                                              uint16_t vbid,
+                                              enum queue_operation op,
+                                              value_t value,
+                                              uint32_t flags,
+                                              time_t exptime,
+                                              uint64_t cas)
+{
+    RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
+    if (!vb) {
+        return -1;
+    }
+
+    if (vb->ht.addUnlessThere(key, vbid, op, value, flags, exptime, cas)) {
+        // tell the flusher to write it!
+
+        LockHolder lh(restore.mutex);
+        queued_item qi(new QueuedItem(key, value, vbid, op, vbuckets.getBucketVersion(vbid),
+                                      -1, flags, exptime, cas));
+        qi->setEjectValue(true);
+        restore.items.push_back(qi);
+        return 0;
+    }
+
+    return 1;
 }
 
 void LoadStorageKVPairCallback::initVBucket(uint16_t vbid, uint16_t vb_version,

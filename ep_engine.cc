@@ -687,6 +687,11 @@ extern "C" {
         case PROTOCOL_BINARY_CMD_GATQ:
             return h->touch(cookie, request, response);
 
+        case CMD_RESTORE_FILE:
+        case CMD_RESTORE_ABORT:
+        case CMD_RESTORE_COMPLETE:
+            return h->handleRestoreCmd(cookie, request, response);
+
         case CMD_STOP_PERSISTENCE:
             res = stopFlusher(h, &msg, &msg_size);
             break;
@@ -920,6 +925,7 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server
     info.info.features[info.info.num_features++].feature = ENGINE_FEATURE_CAS;
     info.info.features[info.info.num_features++].feature = ENGINE_FEATURE_PERSISTENT_STORAGE;
     info.info.features[info.info.num_features++].feature = ENGINE_FEATURE_LRU;
+    restore.manager = NULL;
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
@@ -936,7 +942,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         size_t htLocks = 0;
         size_t maxSize = 0;
 
-        const int max_items = 43;
+        const int max_items = 44;
         struct config_item items[max_items];
         int ii = 0;
         memset(items, 0, sizeof(items));
@@ -1159,6 +1165,13 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         items[ii].value.dt_size = &checkpoint_period;
 
         ++ii;
+        bool restore_mode;
+        int restore_idx = ii;
+        items[ii].key = "restore_mode";
+        items[ii].datatype = DT_BOOL;
+        items[ii].value.dt_bool = &restore_mode;
+
+        ++ii;
         items[ii].key = NULL;
 
         assert(ii < max_items);
@@ -1204,6 +1217,15 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
             }
             if (items[checkpoint_period_idx].found) {
                 CheckpointManager::setCheckpointPeriod(checkpoint_period);
+            }
+
+            if (items[restore_idx].found && restore_mode) {
+                if ((restore.manager = create_restore_manager(*this)) == NULL) {
+                    getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                     "Failed to create restore manager");
+                    return ENGINE_FAILED;
+                }
+                restore.enabled.set(true);
             }
 
             if (dbs != NULL) {
@@ -1426,6 +1448,11 @@ ENGINE_ERROR_CODE  EventuallyPersistentEngine::store(const void *cookie,
         break;
 
     case OPERATION_ADD:
+        // you can't call add while the server is running in restore mode..
+        if (restore.enabled.get()) {
+            return ENGINE_TMPFAIL;
+        }
+
         ret = epstore->add(*it, cookie);
         if (ret == ENGINE_SUCCESS) {
             *cas = it->getCas();
@@ -3206,6 +3233,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
         rv = doTimingStats(cookie, add_stat);
     } else if (nkey == 10 && strncmp(stat_key, "dispatcher", 10) == 0) {
         rv = doDispatcherStats(cookie, add_stat);
+    } else if (nkey == 7 && strncmp(stat_key, "restore", 7) == 0) {
+        rv = ENGINE_SUCCESS;
+        LockHolder lh(restore.mutex);
+        if (restore.manager) {
+            restore.manager->stats(cookie, add_stat);
+        }
     } else if (nkey > 4 && strncmp(stat_key, "key ", 4) == 0) {
         std::string key;
         std::string vbid;
@@ -3552,4 +3585,74 @@ static void addSyncKeySpecs(std::stringstream &resp,
         resp.write((char *) &eventid, sizeof(uint8_t));
         resp.write(it->key.c_str(), it->key.length());
     }
+}
+
+ENGINE_ERROR_CODE EventuallyPersistentEngine::handleRestoreCmd(const void *cookie,
+                                                               protocol_binary_request_header *request,
+                                                               ADD_RESPONSE response)
+{
+    LockHolder lh(restore.mutex);
+    if (restore.manager == NULL) { // we need another "mode" variable
+        if (response(NULL, 0, NULL, 0, NULL, 0, PROTOCOL_BINARY_RAW_BYTES,
+                     PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0, cookie)) {
+            return ENGINE_SUCCESS;
+        }
+        return ENGINE_FAILED;
+    }
+
+    if (request->request.opcode == CMD_RESTORE_FILE) {
+        std::string filename((const char*)request->bytes + sizeof(request->bytes) + request->request.extlen, ntohs(request->request.keylen));
+        try {
+            restore.manager->initialize(filename);
+        } catch (std::string e) {
+            if (response(NULL, 0, NULL, 0, e.c_str(), e.length(),
+                         PROTOCOL_BINARY_RAW_BYTES,
+                         PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, 0, cookie)) {
+                return ENGINE_SUCCESS;
+            }
+            return ENGINE_FAILED;
+        }
+
+        try {
+            restore.manager->start();
+        } catch (std::string e) {
+            if (response(NULL, 0, NULL, 0, e.c_str(), e.length(),
+                         PROTOCOL_BINARY_RAW_BYTES,
+                         PROTOCOL_BINARY_RESPONSE_EINTERNAL, 0, cookie)) {
+                return ENGINE_SUCCESS;
+            }
+            return ENGINE_FAILED;
+        }
+    } else if (request->request.opcode == CMD_RESTORE_ABORT) {
+        try {
+            restore.manager->abort();
+        } catch (std::string e) {
+            if (response(NULL, 0, NULL, 0, e.c_str(), e.length(),
+                         PROTOCOL_BINARY_RAW_BYTES,
+                         PROTOCOL_BINARY_RESPONSE_EINTERNAL, 0, cookie)) {
+                return ENGINE_SUCCESS;
+            }
+            return ENGINE_FAILED;
+        }
+    } else {
+        if (restore.manager->isRunning()) {
+            if (response(NULL, 0, NULL, 0, NULL, 0,
+                         PROTOCOL_BINARY_RAW_BYTES,
+                         PROTOCOL_BINARY_RESPONSE_EBUSY, 0, cookie)) {
+                return ENGINE_SUCCESS;
+            }
+            return ENGINE_FAILED;
+        }
+
+        destroy_restore_manager(restore.manager);
+        restore.enabled.set(false);
+        restore.manager = NULL;
+    }
+
+    if (response(NULL, 0, NULL, 0, NULL, 0,
+                 PROTOCOL_BINARY_RAW_BYTES,
+                 PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie)) {
+        return ENGINE_SUCCESS;
+    }
+    return ENGINE_FAILED;
 }

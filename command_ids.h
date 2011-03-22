@@ -30,6 +30,37 @@
 
 #define CMD_SYNC              0x96
 
+/**
+ * Start restoring a <b>single</b> incremental backup file specified in the
+ * key field of the packet.
+ * The server will return the following error codes:
+ * <ul>
+ *  <li>PROTOCOL_BINARY_RESPONSE_SUCCESS if the restore process is started</li>
+ *  <li>PROTOCOL_BINARY_RESPONSE_KEY_ENOENT if the backup file couldn't be found</li>
+ *  <li>PROTOCOL_BINARY_RESPONSE_AUTH_ERROR if the user isn't admin (not implemented)</li>
+ *  <li>PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED if the server isn't in restore mode</li>
+ *  <li>PROTOCOL_BINARY_RESPONSE_EINTERNAL with a description what went wrong</li>
+ * </ul>
+ *
+ */
+#define CMD_RESTORE_FILE 0x83
+
+/**
+ * Try to abort the current restore as soon as possible. The server
+ * <em>may</em> want to continue to process an unknown number of elements
+ * before aborting (or even complete the full restore). The server will
+ * <b>always</b> return with PROTOCOL_BINARY_RESPONSE_SUCCESS even if the
+ * server isn't running in restore mode without any restore jobs running.
+ */
+#define CMD_RESTORE_ABORT 0x84
+
+/**
+ * Notify the server that we're done restoring data, so it may transition
+ * from restore mode to fully operating mode.
+ * The server always returns PROTOCOL_BINARY_RESPONSE_SUCCESS
+ */
+#define CMD_RESTORE_COMPLETE 0x85
+
 /*
  * IDs for the events of the SYNC command.
  */

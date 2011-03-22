@@ -33,6 +33,11 @@ public:
     ENGINE_ERROR_CODE getStatus() const { return status; }
 
     /**
+     * Set the status code
+     */
+    void setStatus(ENGINE_ERROR_CODE s) { status = s; }
+
+    /**
      * Get the item's underlying ID (if applicable).
      */
     uint64_t getId() { return id; }

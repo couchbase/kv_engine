@@ -23,7 +23,7 @@
 
 #include "tapconnmap.hh"
 #include "tapconnection.hh"
-
+#include "restore.hh"
 
 #define DEFAULT_TAP_NOOP_INTERVAL 200
 
@@ -241,10 +241,11 @@ public:
 
         if (gv.getStatus() == ENGINE_SUCCESS) {
             *item = gv.getValue();
+        } else if (gv.getStatus() == ENGINE_KEY_ENOENT && restore.enabled.get()) {
+            return ENGINE_TMPFAIL;
         }
 
         return gv.getStatus();
-
     }
 
     ENGINE_ERROR_CODE getStats(const void* cookie,
@@ -528,6 +529,10 @@ public:
     void notifyTapNotificationThread(void);
     void setTapValidity(const std::string &name, const void* token);
 
+    ENGINE_ERROR_CODE handleRestoreCmd(const void* cookie,
+                                       protocol_binary_request_header *request,
+                                       ADD_RESPONSE response);
+
 private:
     EventuallyPersistentEngine(GET_SERVER_API get_server_api);
     friend ENGINE_ERROR_CODE create_instance(uint64_t interface,
@@ -721,6 +726,11 @@ private:
     Atomic<uint64_t> mutation_count;
     EPStats stats;
     SyncRegistry syncRegistry;
+    struct {
+        Mutex mutex;
+        RestoreManager *manager;
+        Atomic<bool> enabled;
+    } restore;
 };
 
 #endif

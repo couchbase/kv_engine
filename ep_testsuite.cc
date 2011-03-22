@@ -83,6 +83,8 @@ bool abort_msg(const char *expr, const char *msg, int line);
 protocol_binary_response_status last_status(static_cast<protocol_binary_response_status>(0));
 char *last_key = NULL;
 char *last_body = NULL;
+// set dump_stats to true if you like to dump the stats as we go along...
+static bool dump_stats = false;
 std::map<std::string, std::string> vals;
 uint64_t last_cas = 0;
 
@@ -266,6 +268,11 @@ static void add_stats(const char *key, const uint16_t klen,
     (void)cookie;
     std::string k(key, klen);
     std::string v(val, vlen);
+
+    if (dump_stats) {
+        std::cout << "stat[" << k << "] = " << v << std::endl;
+    }
+
     vals[k] = v;
 }
 
@@ -4750,6 +4757,306 @@ static enum test_result test_sync_persistence_and_replication(ENGINE_HANDLE *h, 
     return SUCCESS;
 }
 
+static protocol_binary_request_header* create_restore_file_packet(const char *fnm)
+{
+    protocol_binary_request_header *header;
+    uint32_t len = strlen(fnm);
+    header = (protocol_binary_request_header *)calloc(sizeof(*header), + len);
+    header->request.opcode = CMD_RESTORE_FILE;
+    header->request.keylen = htons((uint16_t)len);
+    header->request.bodylen = htonl(len);
+    memcpy(header + 1, fnm, len);
+    return header;
+}
+
+static enum test_result test_restore_not_enabled(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
+{
+    protocol_binary_request_header *req = create_restore_file_packet("foo");
+    ENGINE_ERROR_CODE r = h1->unknown_command(h, NULL, req, add_response);
+    check(r == ENGINE_SUCCESS, "The server should know the command");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED,
+          "The server should not allow restore to be initiated");
+    free(req);
+    return SUCCESS;
+}
+
+static void complete_restore(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
+{
+    protocol_binary_request_header header;
+    memset(&header, 0, sizeof(header));
+    header.request.opcode = CMD_RESTORE_COMPLETE;
+
+    ENGINE_ERROR_CODE r = h1->unknown_command(h, NULL, &header, add_response);
+    check(r == ENGINE_SUCCESS, "The server should know the command");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+          "The server should disable restore");
+    vals.clear();
+    check(h1->get_stats(h, NULL, "restore", 7, add_stats) == ENGINE_SUCCESS,
+          "Failed to get stats.");
+    check(vals.empty(), "restore should be disabled");
+}
+
+static enum test_result test_restore_no_such_file(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
+{
+    protocol_binary_request_header *req = create_restore_file_packet("@@@no-such-file@@@");
+    ENGINE_ERROR_CODE r = h1->unknown_command(h, NULL, req, add_response);
+    check(r == ENGINE_SUCCESS, "The server should know the command");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT,
+          "The server should check if the file exists");
+    free(req);
+    complete_restore(h, h1);
+    return SUCCESS;
+}
+
+static void waitfor_restore_state(ENGINE_HANDLE *h,
+                                  ENGINE_HANDLE_V1 *h1,
+                                  const char *state,
+                                  uint32_t sampletime = 250)
+{
+    do {
+        usleep(sampletime);
+        vals.clear();
+        check(h1->get_stats(h, NULL, "restore", 7, add_stats) == ENGINE_SUCCESS,
+              "Failed to get stats.");
+    } while (vals["ep_restore:state"] != state);
+    vals.clear();
+}
+
+static enum test_result test_restore_invalid_file(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
+{
+    char cwd[1024];
+    getcwd(cwd, sizeof(cwd));
+    strcat(cwd, "/sizes");
+    check(access(cwd, F_OK) == 0, "Could not find sizes");
+    protocol_binary_request_header *req = create_restore_file_packet(cwd);
+    ENGINE_ERROR_CODE r = h1->unknown_command(h, NULL, req, add_response);
+    check(r == ENGINE_SUCCESS, "The server should know the command");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+          "The server should start the backup");
+    free(req);
+    waitfor_restore_state(h, h1, "zombie");
+    vals.clear();
+    check(h1->get_stats(h, NULL, "restore", 7, add_stats) == ENGINE_SUCCESS,
+          "Failed to get stats.");
+    check(vals.find("ep_restore:last_error") != vals.end(),
+          "Expected the restore manager to set an error message");
+    check(vals["ep_restore:number_busy"] == "0", "Expected no data change");
+    check(vals["ep_restore:number_skipped"] == "0", "Expected no data change");
+    check(vals["ep_restore:number_restored"] == "0", "Expected no data change");
+    check(vals["ep_restore:number_wrong_vbucket"] == "0", "Expected no data change");
+
+    complete_restore(h, h1);
+    return SUCCESS;
+}
+
+static enum test_result test_restore_data_miss(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
+{
+    item *it = NULL;
+    ENGINE_ERROR_CODE r;
+
+    r = h1->get(h, NULL, &it, "foo", 3, 0);
+    check(r == ENGINE_TMPFAIL, "Data miss should be tmpfail");
+
+    r = h1->allocate(h, NULL, &it, "foo", 3, 100, 0, 0);
+    check(r == ENGINE_SUCCESS, "Allocation failed.");
+
+    uint64_t cas;
+    r = h1->store(h, NULL, it, &cas, OPERATION_ADD, 0);
+    check(r == ENGINE_TMPFAIL, "Add shouldn't work during restore.");
+    r = h1->store(h, NULL, it, &cas, OPERATION_REPLACE, 0);
+    check(r == ENGINE_TMPFAIL, "Replace shouldn't work for a missing item during restore.");
+    r = h1->remove(h, NULL, "foobar", 6, 0, 0);
+    check(r == ENGINE_TMPFAIL, "Delete of non-existing object shouldn't work");
+    r = h1->store(h, NULL, it, &cas, OPERATION_SET, 0);
+    check(r == ENGINE_SUCCESS, "Set should work.");
+    r = h1->store(h, NULL, it, &cas, OPERATION_REPLACE, 0);
+    check(r == ENGINE_SUCCESS, "Replace should work for existing objects.");
+    r = h1->remove(h, NULL, "foo", 3, 0, 0);
+    check(r == ENGINE_SUCCESS, "Delete of existing object should work");
+    h1->release(h, NULL, it);
+
+    uint64_t value;
+    r = h1->arithmetic(h, NULL, "bar", 3, true, false, 1, 0, 0,
+                       &cas, &value, 0);
+    check(r == ENGINE_TMPFAIL, "incr of nonexistsing key (without create) should be tmpfail");
+    r = h1->arithmetic(h, NULL, "bar", 3, true, true, 1, 0, 0,
+                       &cas, &value, 0);
+    check(r == ENGINE_TMPFAIL, "incr of nonexistsing key (with create) should tmpfail");
+
+    complete_restore(h, h1);
+    // Now we should be in operational mode...
+    r = h1->get(h, NULL, &it, "foo", 3, 0);
+    check(r == ENGINE_KEY_ENOENT, "Key shouldn't be there");
+
+    r = h1->allocate(h, NULL, &it, "foo", 3, 100, 0, 0);
+    check(r == ENGINE_SUCCESS, "Allocation failed.");
+
+    r = h1->store(h, NULL, it, &cas, OPERATION_ADD, 0);
+    check(r == ENGINE_SUCCESS, "Add should work for missing items.");
+    r = h1->remove(h, NULL, "foo", 3, 0, 0);
+    check(r == ENGINE_SUCCESS, "Delete of existing object should work");
+    r = h1->store(h, NULL, it, &cas, OPERATION_REPLACE, 0);
+    check(r == ENGINE_NOT_STORED, "Replace shouldn't work for a missing item.");
+    r = h1->arithmetic(h, NULL, "bar", 3, true, false, 1, 0, 0,
+                       &cas, &value, 0);
+    check(r == ENGINE_KEY_ENOENT, "incr of nonexistsing key (without create) shouldn't work");
+    r = h1->arithmetic(h, NULL, "bar", 3, true, true, 1, 0, 0,
+                       &cas, &value, 0);
+    check(r == ENGINE_SUCCESS, "incr of nonexistsing key (with create) should work");
+    return SUCCESS;
+}
+
+static void ensure_file(const char *fname)
+{
+    if (access(fname, F_OK) != 0) {
+        std::stringstream ss;
+        ss << "No such file: " << fname;
+        check(access(fname, F_OK) == 0, ss.str().c_str());
+    }
+}
+
+static enum test_result test_restore_clean(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
+{
+    char cwd[1024];
+    getcwd(cwd, sizeof(cwd));
+    strcat(cwd, "/mbbackup-0001.mbb");
+    ensure_file(cwd);
+
+    for (uint16_t ii = 0; ii < 1000; ++ ii) {
+        check(set_vbucket_state(h, h1, ii, vbucket_state_active), "Failed to activate vbucket");
+    }
+
+    protocol_binary_request_header *req = create_restore_file_packet(cwd);
+    ENGINE_ERROR_CODE r = h1->unknown_command(h, NULL, req, add_response);
+    check(r == ENGINE_SUCCESS, "The server should know the command");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+          "The server should start the backup");
+    free(req);
+    waitfor_restore_state(h, h1, "zombie", 2000);
+    vals.clear();
+    check(h1->get_stats(h, NULL, "restore", 7, add_stats) == ENGINE_SUCCESS,
+          "Failed to get stats.");
+    check(vals.find("ep_restore:last_error") == vals.end(),
+          "I shouldn't get an error message");
+    check(vals["ep_restore:number_skipped"] == "0", "Expected no data change");
+    check(vals["ep_restore:number_restored"] == "9060", "We have one vbucket");
+    check(vals["ep_restore:number_wrong_vbucket"] == "0", "We don't have all vbuckets");
+    check(vals["ep_restore:number_expired"] == "1", "We don't have all vbuckets");
+    complete_restore(h, h1);
+    return SUCCESS;
+}
+
+static enum test_result test_restore_clean_vbucket_subset(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    char cwd[1024];
+    getcwd(cwd, sizeof(cwd));
+    strcat(cwd, "/mbbackup-0001.mbb");
+    ensure_file(cwd);
+    protocol_binary_request_header *req = create_restore_file_packet(cwd);
+    ENGINE_ERROR_CODE r = h1->unknown_command(h, NULL, req, add_response);
+    check(r == ENGINE_SUCCESS, "The server should know the command");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+          "The server should start the backup");
+    free(req);
+    waitfor_restore_state(h, h1, "zombie", 2000);
+    vals.clear();
+    check(h1->get_stats(h, NULL, "restore", 7, add_stats) == ENGINE_SUCCESS,
+          "Failed to get stats.");
+    check(vals.find("ep_restore:last_error") == vals.end(),
+          "I shouldn't get an error message");
+    check(vals["ep_restore:number_skipped"] == "0", "Expected no data change");
+    check(vals["ep_restore:number_restored"] == "912", "We have one vbucket");
+    check(vals["ep_restore:number_wrong_vbucket"] == "8148", "We don't have all vbuckets");
+    check(vals["ep_restore:number_expired"] == "1", "We don't have all vbuckets");
+    complete_restore(h, h1);
+    return SUCCESS;
+}
+
+#ifdef future
+static enum test_result test_restore_multi(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    for (uint16_t ii = 0; ii < 1000; ++ ii) {
+        check(set_vbucket_state(h, h1, ii, vbucket_state_active), "Failed to activate vbucket");
+    }
+
+    for (int ii = 2; ii > 0; ii--) {
+        char cwd[1024];
+        getcwd(cwd, sizeof(cwd));
+        sprintf(cwd + strlen(cwd), "/mbbackup-%04d.mbb", ii);
+        ensure_file(cwd);
+        protocol_binary_request_header *req = create_restore_file_packet(cwd);
+        ENGINE_ERROR_CODE r = h1->unknown_command(h, NULL, req, add_response);
+        check(r == ENGINE_SUCCESS, "The server should know the command");
+        check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+              "The server should start the backup");
+        free(req);
+        waitfor_restore_state(h, h1, "zombie", 2000);
+    }
+
+    vals.clear();
+    dump_stats = true;
+    check(h1->get_stats(h, NULL, "restore", 7, add_stats) == ENGINE_SUCCESS,
+          "Failed to get stats.");
+    check(vals.find("ep_restore:last_error") == vals.end(),
+          "I shouldn't get an error message");
+    check(vals["ep_restore:number_skipped"] == "5", "Expected no data change");
+    check(vals["ep_restore:number_restored"] == "18118", "We have one vbucket");
+    check(vals["ep_restore:number_wrong_vbucket"] == "0", "We don't have all vbuckets");
+    check(vals["ep_restore:number_expired"] == "2", "We don't have all vbuckets");
+    complete_restore(h, h1);
+    return SUCCESS;
+}
+#endif
+
+static enum test_result test_restore_with_data(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    char cwd[1024];
+    getcwd(cwd, sizeof(cwd));
+    strcat(cwd, "/mbbackup-0001.mbb");
+    ensure_file(cwd);
+    protocol_binary_request_header *req = create_restore_file_packet(cwd);
+
+    for (uint16_t ii = 0; ii < 1000; ++ ii) {
+        check(set_vbucket_state(h, h1, ii, vbucket_state_active), "Failed to activate vbucket");
+    }
+
+    item *it = NULL;
+    uint64_t cas;
+    ENGINE_ERROR_CODE r;
+
+    r = h1->allocate(h, NULL, &it, "mykey1", 6, 100, 0, 0);
+    check(r == ENGINE_SUCCESS, "Allocation failed.");
+    r = h1->store(h, NULL, it, &cas, OPERATION_SET, 0);
+    check(r == ENGINE_SUCCESS, "Set should work.");
+    h1->release(h, NULL, it);
+    r = h1->allocate(h, NULL, &it, "mykey2", 6, 100, 0, 0);
+    check(r == ENGINE_SUCCESS, "Allocation failed.");
+    r = h1->store(h, NULL, it, &cas, OPERATION_SET, 0);
+    check(r == ENGINE_SUCCESS, "Set should work.");
+    r = h1->remove(h, NULL, "mykey2", 6, 0, 0);
+    check(r == ENGINE_SUCCESS, "Delete of existing object should work");
+    h1->release(h, NULL, it);
+    r = h1->allocate(h, NULL, &it, "mykey3", 6, 100, 0, 0);
+    check(r == ENGINE_SUCCESS, "Allocation failed.");
+    r = h1->store(h, NULL, it, &cas, OPERATION_SET, 0);
+    check(r == ENGINE_SUCCESS, "Set should work.");
+    h1->release(h, NULL, it);
+
+    r = h1->unknown_command(h, NULL, req, add_response);
+    check(r == ENGINE_SUCCESS, "The server should know the command");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+          "The server should start the backup");
+    free(req);
+    waitfor_restore_state(h, h1, "zombie", 2000);
+    vals.clear();
+    check(h1->get_stats(h, NULL, "restore", 7, add_stats) == ENGINE_SUCCESS,
+          "Failed to get stats.");
+    check(vals.find("ep_restore:last_error") == vals.end(),
+          "I shouldn't get an error message");
+    check(vals["ep_restore:number_skipped"] == "3", "Expected no data change");
+    check(vals["ep_restore:number_restored"] == "9057", "We have one vbucket");
+    check(vals["ep_restore:number_wrong_vbucket"] == "0", "We don't have all vbuckets");
+    complete_restore(h, h1);
+    return SUCCESS;
+}
+
 MEMCACHED_PUBLIC_API
 engine_test_t* get_tests(void) {
 
@@ -4961,6 +5268,27 @@ engine_test_t* get_tests(void) {
         {"sync replication", test_sync_replication, NULL, teardown, NULL},
         {"sync persistence or replication", test_sync_persistence_or_replication, NULL, teardown, NULL},
         {"sync persistence and replication", test_sync_persistence_and_replication, NULL, teardown, NULL},
+
+        // Restore tests
+        {"restore: not enabled", test_restore_not_enabled, NULL, teardown,
+         "db_strategy=singleDB;dbname=:memory:"},
+        {"restore: no such file", test_restore_no_such_file, NULL, teardown,
+         "db_strategy=singleDB;dbname=:memory:;restore_mode=true"},
+        {"restore: invalid file", test_restore_invalid_file, NULL, teardown,
+         "db_strategy=singleDB;dbname=:memory:;restore_mode=true"},
+        {"restore: data miss during restore", test_restore_data_miss, NULL, teardown,
+         "db_strategy=singleDB;dbname=:memory:;restore_mode=true"},
+        {"restore: no data in there", test_restore_clean, NULL, teardown,
+         "restore_mode=true"},
+        {"restore: no data in there (with partial vbucket list)",
+         test_restore_clean_vbucket_subset, NULL, teardown,
+         "restore_mode=true"},
+        {"restore: with keys", test_restore_with_data, NULL, teardown,
+         "db_strategy=singleDB;dbname=:memory:;restore_mode=true"},
+#ifdef future
+        {"restore: multiple incrementalfiles", test_restore_multi, NULL, teardown,
+         "db_strategy=singleDB;dbname=:memory:;restore_mode=true"},
+#endif
         {NULL, NULL, NULL, NULL, NULL}
     };
     return tests;

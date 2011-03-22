@@ -11,7 +11,7 @@ noinst_LTLIBRARIES = libkvstore.la
 
 bin_PROGRAMS = management/mbdbconvert
 BUILT_SOURCES =
-CLEANFILES =
+CLEANFILES = mbbackup-0001.mbb mbbackup-0002.mbb
 
 EXTRA_DIST = docs management README.markdown win32 Doxyfile LICENSE
 
@@ -45,6 +45,8 @@ ep_la_SOURCES = \
                  mutex.hh \
                  priority.cc priority.hh \
                  queueditem.cc queueditem.hh \
+                 restore.hh \
+                 restore_impl.cc \
                  ringbuffer.hh \
                  sizes.cc \
                  stats.hh \
@@ -261,7 +263,11 @@ CLEANFILES+= ${PYTHON_TOOLS}
 
 TEST_TIMEOUT=30
 
-engine_tests: all
+mbbackup-0002.mbb: $(top_srcdir)/t/generate-mbbackup
+	echo "Generate incremental restore files used by the test suite"
+	@$(top_srcdir)/t/generate-mbbackup
+
+engine_tests: all mbbackup-0002.mbb
 	$(ENGINE_TESTAPP) -E .libs/ep.so -t $(TEST_TIMEOUT) \
 		-T .libs/ep_testsuite.so \
 		-e 'ht_size=13;ht_locks=7;initfile=t/test_pragma.sql;min_data_age=0;db_strategy=multiDB'

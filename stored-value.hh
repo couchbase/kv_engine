@@ -11,6 +11,7 @@
 #include "locks.hh"
 #include "stats.hh"
 #include "histo.hh"
+#include "queueditem.hh"
 
 extern "C" {
     extern rel_time_t (*ep_current_time)();
@@ -908,6 +909,39 @@ public:
         int bucket_num(0);
         LockHolder lh = getLockedBucket(key, &bucket_num);
         return unlocked_find(key, bucket_num);
+    }
+
+    /**
+     * During restore from backup we read the most recent values first
+     * and works our way back until epoch.. We should therefore only
+     * add values to the backup if they're not there;
+     *
+     * @return true if added, false if skipped
+     */
+    bool addUnlessThere(const std::string &key,
+                        uint16_t vbid,
+                        enum queue_operation op,
+                        value_t value,
+                        uint32_t flags,
+                        time_t exptime,
+                        uint64_t cas)
+    {
+        int bucket_num(0);
+        LockHolder lh = getLockedBucket(key, &bucket_num);
+        if (unlocked_find(key, bucket_num, true)) {
+            // it's already there...
+            return false;
+        }
+
+        Item itm(key, flags, exptime, value, cas, -1, vbid);
+        StoredValue *v = valFact(itm, values[bucket_num], *this);
+        assert(v);
+        values[bucket_num] = v;
+        ++numItems;
+        if (op == queue_op_del) {
+            unlocked_softDelete(key, cas, bucket_num);
+        }
+        return true;
     }
 
     /**

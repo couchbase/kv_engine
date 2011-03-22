@@ -742,6 +742,21 @@ public:
         return engine;
     }
 
+    /**
+     * During restore from backup we read the most recent values first
+     * and works our way back until epoch.. We should therefore only
+     * add values to the backup if they're not there;
+     *
+     * @return 0 success, 1 skipped, -1 invalid vbucket
+     */
+    int addUnlessThere(const std::string &key,
+                       uint16_t vbid,
+                       enum queue_operation op,
+                       value_t value,
+                       uint32_t flags,
+                       time_t exptime,
+                       uint64_t cas);
+
 private:
 
     void scheduleVBDeletion(RCPtr<VBucket> vb, uint16_t vb_version, double delay);
@@ -841,6 +856,13 @@ private:
     Mutex                      vbsetMutex;
     uint32_t                   bgFetchDelay;
     uint64_t                  *persistenceCheckpointIds;
+    // During restore we're bypassing the checkpoint lists with the
+    // objects we're restoring, but we need them to be persisted.
+    // This is solved by using a separate list for those objects.
+    struct {
+        Mutex mutex;
+        std::vector<queued_item> items;
+    } restore;
 
     DISALLOW_COPY_AND_ASSIGN(EventuallyPersistentStore);
 };
