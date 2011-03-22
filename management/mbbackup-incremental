@@ -247,6 +247,9 @@ def loop(mc, db, timeout, source):
             elif cmd == memcacheConstants.CMD_TAP_CONNECT:
                 sys.exit("ERROR: TAP_CONNECT error: " + str(key))
 
+            elif cmd == memcacheConstants.CMD_NOOP:
+                pass
+
             else:
                 sys.exit("ERROR: unhandled cmd " + str(cmd))
 

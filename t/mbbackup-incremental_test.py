@@ -370,6 +370,39 @@ class TestIncrementalBackup(unittest.TestCase):
         finally:
             s.close()
 
+    def test_TAP_NOOP(self):
+        try:
+            mt, d, o, s = self.prep()
+            mt.sendStartCheckpoint(0, "c0")
+            mt.sendMsg(memcacheConstants.CMD_TAP_OPAQUE,
+                         'foo', "bar", 0, vbucketId=0)
+            mt.sendStartCheckpoint(1, "c0")
+            mt.sendMsg(memcacheConstants.CMD_NOOP,
+                         'foo', "bar", 0, vbucketId=1)
+            mt.sendEndCheckpoint(0, "c0")
+            mt.sendMsg(memcacheConstants.CMD_NOOP,
+                         'foo', "bar", 0, vbucketId=0)
+            mt.sendMsg(memcacheConstants.CMD_TAP_OPAQUE,
+                         'foo', "bar", 0, vbucketId=0)
+            mt.sendEndCheckpoint(1, "c0")
+            mt.sendMsg(memcacheConstants.CMD_NOOP,
+                         'foo', "bar", 0, vbucketId=1)
+            mt.sendMsg(memcacheConstants.CMD_NOOP,
+                         'foo', "bar", 0, vbucketId=1)
+            self.expectAckCheckpoint(mt, 0, "c0")
+            mt.sendMsg(memcacheConstants.CMD_NOOP,
+                         'foo', "bar", 0, vbucketId=0)
+            mt.sendMsg(memcacheConstants.CMD_TAP_OPAQUE,
+                         'foo', "bar", 0, vbucketId=1)
+            self.expectAckCheckpoint(mt, 1, "c0")
+            self.cleanup(mt, d, o, s, False)
+        except Exception as e:
+            print d
+            print "\n".join(open(o).readlines())
+            raise e
+        finally:
+            s.close()
+
     def test_unknown_TAP_message_received(self):
         try:
             mt, d, o, s = self.prep()
