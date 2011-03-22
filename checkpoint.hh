@@ -87,7 +87,7 @@ public:
     /**
      * Return the creation timestamp of this checkpoint in sec.
      */
-    time_t getCreationTime() {
+    rel_time_t getCreationTime() {
         return creationTime;
     }
 
@@ -156,7 +156,7 @@ public:
 
 private:
     uint64_t                       checkpointId;
-    time_t                     creationTime;
+    rel_time_t                     creationTime;
     Atomic<checkpoint_state>       checkpointState;
     Atomic<size_t>                 referenceCounter;
     Atomic<size_t>                 numItems;
