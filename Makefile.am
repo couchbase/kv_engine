@@ -15,7 +15,7 @@ bin_SCRIPTS = management/analyze_core \
 
 memcachedlibdir = $(libdir)/memcached
 memcachedlib_LTLIBRARIES = ep.la ep_testsuite.la timing_tests.la
-noinst_LTLIBRARIES = libkvstore.la libobjectregistry.la
+noinst_LTLIBRARIES = libsqlite-kvstore.la libobjectregistry.la
 
 bin_PROGRAMS = management/mbdbconvert
 BUILT_SOURCES =
@@ -85,25 +85,31 @@ endif
 
 libobjectregistry_la_SOURCES = objectregistry.cc objectregistry.hh
 
+libsqlite_kvstore_la_SOURCES = kvstore.cc kvstore.hh \
+                               sqlite-kvstore/pathexpand.hh \
+                               sqlite-kvstore/pathexpand.cc \
+                               sqlite-kvstore/sqlite-eval.cc \
+                               sqlite-kvstore/sqlite-eval.hh \
+                               sqlite-kvstore/sqlite-kvstore.cc \
+                               sqlite-kvstore/sqlite-kvstore.hh \
+                               sqlite-kvstore/sqlite-pst.cc \
+                               sqlite-kvstore/sqlite-pst.hh \
+                               sqlite-kvstore/sqlite-strategies.cc \
+                               sqlite-kvstore/sqlite-strategies.hh
+libsqlite_kvstore_la_CPPFLAGS = -I$(top_srcdir) -I$(top_srcdir)/sqlite-kvstore \
+                                $(AM_CPPFLAGS)
+libsqlite_kvstore_la_LIBADD =
+libsqlite_kvstore_la_DEPENDENCIES =
 
-libkvstore_la_SOURCES = kvstore.cc kvstore.hh \
-                        pathexpand.hh pathexpand.cc \
-                        sqlite-eval.cc sqlite-eval.hh \
-                        sqlite-kvstore.cc sqlite-kvstore.hh \
-                        sqlite-pst.cc sqlite-pst.hh \
-                        sqlite-strategies.cc sqlite-strategies.hh
-libkvstore_la_LIBADD =
-libkvstore_la_DEPENDENCIES =
-
-ep_la_LIBADD = libkvstore.la libobjectregistry.la
-ep_la_DEPENDENCIES = libkvstore.la libobjectregistry.la
-ep_testsuite_la_LIBADD = libkvstore.la libobjectregistry.la
-ep_testsuite_la_DEPENDENCIES = libkvstore.la libobjectregistry.la
+ep_la_LIBADD = libsqlite-kvstore.la libobjectregistry.la
+ep_la_DEPENDENCIES = libsqlite-kvstore.la libobjectregistry.la
+ep_testsuite_la_LIBADD = libsqlite-kvstore.la libobjectregistry.la
+ep_testsuite_la_DEPENDENCIES = libsqlite-kvstore.la libobjectregistry.la
 
 management_mbdbconvert_SOURCES = management/dbconvert.cc \
                                  testlogger.cc
-management_mbdbconvert_LDADD = libkvstore.la libobjectregistry.la
-management_mbdbconvert_DEPENDENCIES = libkvstore.la libobjectregistry.la
+management_mbdbconvert_LDADD = libsqlite-kvstore.la libobjectregistry.la
+management_mbdbconvert_DEPENDENCIES = libsqlite-kvstore.la libobjectregistry.la
 
 if BUILD_EMBEDDED_LIBSQLITE3
 ep_la_LIBADD += libsqlite3.la
@@ -143,7 +149,8 @@ check_PROGRAMS=atomic_ptr_test \
 TESTS=${check_PROGRAMS}
 EXTRA_TESTS =
 
-ep_testsuite_la_CFLAGS = $(AM_CFLAGS) ${NO_WERROR}
+ep_testsuite_la_CPPFLAGS = -I$(top_srcdir) -I$(top_srcdir)/sqlite-kvstore \
+                         $(AM_CPPFLAGS) ${NO_WERROR}
 ep_testsuite_la_SOURCES= ep_testsuite.cc ep_testsuite.h \
                          locks.hh mutex.hh testlogger_libify.cc
 ep_testsuite_la_LDFLAGS= -module -dynamic
@@ -265,8 +272,9 @@ histo_test_DEPENDENCIES = common.hh histo.hh
 chunk_creation_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
 chunk_creation_test_SOURCES = t/chunk_creation_test.cc common.hh
 
-pathexpand_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
-pathexpand_test_SOURCES = t/pathexpand_test.cc pathexpand.hh pathexpand.cc
+pathexpand_test_CPPFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) \
+                           -I$(top_srcdir)/sqlite-kvstore ${NO_WERROR}
+pathexpand_test_SOURCES = t/pathexpand_test.cc sqlite-kvstore/pathexpand.hh sqlite-kvstore/pathexpand.cc
 
 ringbuffer_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
 ringbuffer_test_SOURCES = t/ringbuffer_test.cc ringbuffer.hh

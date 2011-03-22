@@ -115,34 +115,6 @@ public:
  */
 class KVStore {
 public:
-
-    /**
-     * Create a KVStore with the given properties.
-     *
-     * @param type the type of DB to set up
-     * @param stats the server stats
-     * @param conf type-specific parameters
-     */
-    static KVStore *create(db_type type,
-                           EPStats &stats,
-                           const KVStoreConfig &conf);
-
-    /**
-     * Get the name of a db type.
-     */
-    static const char* typeToString(enum db_type type);
-
-    /**
-     * Get the type for a given name.
-     *
-     * @param name the name to parse
-     * @param typeOut a reference to a type to fill
-     *
-     * @return true if we were able to parse the type
-     */
-    static bool stringToType(const char *name,
-                             enum db_type &typeOut);
-
     virtual ~KVStore() {}
 
     /**
@@ -247,6 +219,37 @@ public:
      */
     virtual void optimizeWrites(std::vector<queued_item> &items) = 0;
 
+};
+
+class KVStoreFactory {
+public:
+
+    /**
+     * Create a KVStore with the given properties.
+     *
+     * @param type the type of DB to set up
+     * @param stats the server stats
+     * @param conf type-specific parameters
+     */
+    static KVStore *create(db_type type,
+                           EPStats &stats,
+                           const KVStoreConfig &conf);
+
+    /**
+     * Get the name of a db type.
+     */
+    static const char* typeToString(enum db_type type);
+
+    /**
+     * Get the type for a given name.
+     *
+     * @param name the name to parse
+     * @param typeOut a reference to a type to fill
+     *
+     * @return true if we were able to parse the type
+     */
+    static bool stringToType(const char *name,
+                             enum db_type &typeOut);
 };
 
 #endif // KVSTORE_HH

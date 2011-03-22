@@ -18,7 +18,7 @@
 #include <kvstore.hh>
 #include <item.hh>
 #include <callbacks.hh>
-#include <sqlite-strategies.hh>
+#include "../sqlite-kvstore/sqlite-strategies.hh"
 
 #ifndef EX_USAGE
 #define EX_USAGE 64
@@ -44,7 +44,7 @@ static KVStore *getStore(EPStats &st,
                          const char *initFile = NULL) {
     db_type dbStrategy;
 
-    if (!KVStore::stringToType(strategyName, dbStrategy)) {
+    if (!KVStoreFactory::stringToType(strategyName, dbStrategy)) {
         cerr << "Unable to parse strategy type:  " << strategyName << endl;
         exit(EX_USAGE);
     }
@@ -55,7 +55,7 @@ static KVStore *getStore(EPStats &st,
 
     KVStoreConfig conf(path, shardPattern, initFile,
                        postInitFile, nVBuckets, dbShards);
-    return KVStore::create(dbStrategy, st, conf);
+    return KVStoreFactory::create(dbStrategy, st, conf);
 }
 
 class MutationVerifier : public Callback<mutation_result> {

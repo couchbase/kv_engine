@@ -9,7 +9,7 @@
 #include "kvstore.hh"
 #include "sqlite-kvstore.hh"
 
-KVStore *KVStore::create(db_type type, EPStats &stats,
+KVStore *KVStoreFactory::create(db_type type, EPStats &stats,
                          const KVStoreConfig &conf) {
     SqliteStrategy *sqliteInstance = NULL;
     switch (type) {
@@ -58,7 +58,7 @@ static const char* SINGLE_MT_DB_NAME("singleMTDB");
 static const char* MULTI_MT_DB_NAME("multiMTDB");
 static const char* MULTI_MT_VB_DB_NAME("multiMTVBDB");
 
-const char* KVStore::typeToString(db_type type) {
+const char* KVStoreFactory::typeToString(db_type type) {
     char *rv(NULL);
     switch (type) {
     case multi_db:
@@ -81,8 +81,8 @@ const char* KVStore::typeToString(db_type type) {
     return rv;
 }
 
-bool KVStore::stringToType(const char *name,
-                           enum db_type &typeOut) {
+bool KVStoreFactory::stringToType(const char *name,
+                                  enum db_type &typeOut) {
     bool rv(true);
     if (strcmp(name, MULTI_DB_NAME) == 0) {
         typeOut = multi_db;

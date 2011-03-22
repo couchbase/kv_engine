@@ -1642,7 +1642,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
             }
 
             if (dbs != NULL) {
-                if (!KVStore::stringToType(dbs, dbStrategy)) {
+                if (!KVStoreFactory::stringToType(dbs, dbStrategy)) {
                     getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                                      "Unhandled db type: %s", dbs);
                     return ENGINE_FAILED;
@@ -1790,7 +1790,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
 KVStore* EventuallyPersistentEngine::newKVStore() {
     KVStoreConfig conf(dbname, shardPattern, initFile,
                        postInitFile, nVBuckets, dbShards);
-    return KVStore::create(dbStrategy, stats, conf);
+    return KVStoreFactory::create(dbStrategy, stats, conf);
 }
 
 void EventuallyPersistentEngine::destroy(bool force) {
@@ -3082,7 +3082,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     add_casted_stat("ep_dbname", dbname, add_stat, cookie);
     add_casted_stat("ep_dbinit", databaseInitTime, add_stat, cookie);
     add_casted_stat("ep_dbshards", dbShards, add_stat, cookie);
-    add_casted_stat("ep_db_strategy", KVStore::typeToString(dbStrategy),
+    add_casted_stat("ep_db_strategy", KVStoreFactory::typeToString(dbStrategy),
                     add_stat, cookie);
     add_casted_stat("ep_warmup", warmup ? "true" : "false",
                     add_stat, cookie);
