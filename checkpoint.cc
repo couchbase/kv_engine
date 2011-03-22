@@ -255,7 +255,7 @@ uint64_t CheckpointManager::removeClosedUnrefCheckpoints(const RCPtr<VBucket> &v
     uint64_t oldCheckpointId = 0;
     if (vbucket->getState() == vbucket_state_active) {
         // Check if we need to create a new open checkpoint.
-        oldCheckpointId = checkOpenCheckpoint();
+        oldCheckpointId = checkOpenCheckpoint_UNLOCKED();
     }
     newOpenCheckpointCreated = oldCheckpointId > 0 ? true : false;
     if (oldCheckpointId > 0) {
@@ -334,7 +334,7 @@ bool CheckpointManager::queueDirty(const queued_item &item, const RCPtr<VBucket>
 
     assert(vbucket);
     if (vbucket->getState() == vbucket_state_active) {
-        checkOpenCheckpoint();
+        checkOpenCheckpoint_UNLOCKED();
     }
     // Note that the creation of a new checkpoint on the replica vbucket will be controlled by TAP
     // mutation messages from the active vbucket, which contain the checkpoint Ids.
@@ -496,7 +496,7 @@ bool CheckpointManager::moveCursorToNextCheckpoint(CheckpointCursor &cursor) {
     return true;
 }
 
-uint64_t CheckpointManager::checkOpenCheckpoint() {
+uint64_t CheckpointManager::checkOpenCheckpoint_UNLOCKED() {
     int checkpointId = 0;
     // Create the new open checkpoint if the time elapsed since the creation of the current
     // checkpoint is greater than the threshold or it is reached to the max number of mutations.

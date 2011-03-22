@@ -24,6 +24,7 @@ struct PopulateEventsBody;
 
 #define TAP_OPAQUE_ENABLE_AUTO_NACK 0
 #define TAP_OPAQUE_INITIAL_VBUCKET_STREAM 1
+#define TAP_OPAQUE_ENABLE_CHECKPOINT_SYNC 2
 
 /**
  * A tap event that represents a change to the state of a vbucket.
@@ -287,6 +288,14 @@ public:
         return supportAck;
     }
 
+    void setSupportCheckpointSync(bool checkpointSync) {
+        supportCheckpointSync = checkpointSync;
+    }
+
+    bool supportsCheckpointSync() const {
+        return supportCheckpointSync;
+    }
+
     void setExpiryTime(rel_time_t t) {
         expiryTime = t;
     }
@@ -345,6 +354,7 @@ public:
     virtual const char *getType() const { return "consumer"; };
     virtual bool processCheckpointCommand(tap_event_t event, uint16_t vbucket,
                                           uint64_t checkpointId);
+    virtual void checkVBOpenCheckpoint(uint16_t);
 };
 
 
@@ -507,7 +517,8 @@ private:
             switch (ret.event) {
             case TAP_OPAQUE:
                 opaqueCommandCode = (uint32_t)ret.state;
-                if (opaqueCommandCode == htonl(TAP_OPAQUE_ENABLE_AUTO_NACK)) {
+                if (opaqueCommandCode == htonl(TAP_OPAQUE_ENABLE_AUTO_NACK) ||
+                    opaqueCommandCode == htonl(TAP_OPAQUE_ENABLE_CHECKPOINT_SYNC)) {
                     break;
                 }
                 // FALLTHROUGH

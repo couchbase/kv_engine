@@ -2876,7 +2876,7 @@ static enum test_result test_tap_ack_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
             break;
         case TAP_OPAQUE:
             if (numRollbacks > 0) {
-                if (random() % 2 == 0) {
+                if (random() % 4 == 0) {
                     iter = NULL;
                     continue;
                 }

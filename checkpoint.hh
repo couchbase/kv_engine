@@ -332,7 +332,12 @@ private:
      * @return the previous open checkpoint Id if we create the new open checkpoint. Otherwise
      * return 0.
      */
-    uint64_t checkOpenCheckpoint();
+    uint64_t checkOpenCheckpoint_UNLOCKED();
+
+    uint64_t checkOpenCheckpoint() {
+        LockHolder lh(queueLock);
+        return checkOpenCheckpoint_UNLOCKED();
+    }
 
     bool closeOpenCheckpoint_UNLOCKED(uint64_t id);
     bool closeOpenCheckpoint(uint64_t id);

@@ -96,6 +96,9 @@ void TapProducer::evaluateFlags()
     }
 
     if (flags & TAP_CONNECT_CHECKPOINT) {
+        TapVBucketEvent event(TAP_OPAQUE, 0,
+                              (vbucket_state_t)htonl(TAP_OPAQUE_ENABLE_CHECKPOINT_SYNC));
+        addVBucketHighPriority(event);
         supportCheckpointSync = true;
         ss << ",checkpoints";
     }
@@ -318,6 +321,7 @@ void TapProducer::rollback() {
                 switch (val) {
                 case TAP_OPAQUE_ENABLE_AUTO_NACK:
                 case TAP_OPAQUE_INITIAL_VBUCKET_STREAM:
+                case TAP_OPAQUE_ENABLE_CHECKPOINT_SYNC:
                     break;
                 default:
                     getLogger()->log(EXTENSION_LOG_WARNING, NULL,
@@ -873,6 +877,15 @@ bool TapConsumer::processCheckpointCommand(tap_event_t event, uint16_t vbucket,
         break;
     }
     return ret;
+}
+
+void TapConsumer::checkVBOpenCheckpoint(uint16_t vbucket) {
+    const VBucketMap &vbuckets = engine.getEpStore()->getVBuckets();
+    RCPtr<VBucket> vb = vbuckets.getBucket(vbucket);
+    if (!vb) {
+        return;
+    }
+    vb->checkpointManager.checkOpenCheckpoint();
 }
 
 bool TapProducer::isTimeForNoop() {

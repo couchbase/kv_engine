@@ -1921,9 +1921,17 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
         ret = flush(cookie, 0);
         break;
     case TAP_DELETION:
-        ret = epstore->del(k, 0, vbucket, cookie, true);
-        if (ret == ENGINE_KEY_ENOENT) {
-            ret = ENGINE_SUCCESS;
+        {
+            ret = epstore->del(k, 0, vbucket, cookie, true);
+            if (ret == ENGINE_KEY_ENOENT) {
+                ret = ENGINE_SUCCESS;
+            }
+            TapConsumer *tc = dynamic_cast<TapConsumer*>(connection);
+            if (tc && !tc->supportsCheckpointSync()) {
+                // If the checkpoint synchronization is not supported,
+                // check if a new checkpoint should be created or not.
+                tc->checkVBOpenCheckpoint(vbucket);
+            }
         }
         break;
     case TAP_CHECKPOINT_START:
@@ -1977,6 +1985,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
             }
 
             delete item;
+            TapConsumer *tc = dynamic_cast<TapConsumer*>(connection);
+            if (tc && !tc->supportsCheckpointSync()) {
+                tc->checkVBOpenCheckpoint(vbucket);
+            }
 
             if (ret == ENGINE_DISCONNECT) {
                 getLogger()->log(EXTENSION_LOG_WARNING, NULL,
@@ -1998,6 +2010,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
                 getLogger()->log(EXTENSION_LOG_INFO, NULL,
                                  "Enable auto nack mode\n");
                 serverApi->cookie->set_tap_nack_mode(cookie, true);
+                break;
+            case TAP_OPAQUE_ENABLE_CHECKPOINT_SYNC:
+                connection->setSupportCheckpointSync(true);
+                getLogger()->log(EXTENSION_LOG_INFO, NULL,
+                                 "Enable checkpoint synchronization\n");
                 break;
             case TAP_OPAQUE_INITIAL_VBUCKET_STREAM:
                 /* Ignore.. this is just an informative message */
