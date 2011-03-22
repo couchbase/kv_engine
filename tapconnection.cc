@@ -127,7 +127,7 @@ void TapProducer::setBackfillAge(uint64_t age, bool reconnect) {
         backfillAge = age;
     }
 
-    if (backfillAge < (uint64_t)ep_real_time()) {
+    if (backfillAge < (uint64_t)ep_real_time() && !registeredTAPClient) {
         doRunBackfill = true;
         pendingBackfill = true;
     }
@@ -153,7 +153,7 @@ void TapProducer::setVBucketFilter(const std::vector<uint16_t> &vbuckets)
                          ss.str().c_str());
         vbucketFilter = filter;
         if (!diff.empty()) {
-            if (backfillAge < (uint64_t)ep_real_time()) {
+            if (backfillAge < (uint64_t)ep_real_time() && !registeredTAPClient) {
                 doRunBackfill = true;
                 pendingBackfill = true;
             }
@@ -228,7 +228,7 @@ void TapProducer::registerTAPCursor(std::map<uint16_t, uint64_t> &lastCheckpoint
             // Check if the unified queue contains the checkpoint to start with.
             if(!vb->checkpointManager.registerTAPCursor(name,
                                                     tapCheckpointState[vbid].currentCheckpointId)) {
-                if (backfillAge < current_time) { // Backfill is required.
+                if (backfillAge < current_time && !registeredTAPClient) { // Backfill is required.
                     TapCheckpointState st(vbid, 0, backfill);
                     tapCheckpointState[vbid] = st;
                     backfill_vbuckets.push_back(vbid);
@@ -241,7 +241,7 @@ void TapProducer::registerTAPCursor(std::map<uint16_t, uint64_t> &lastCheckpoint
         }
     }
 
-    if (backfill_vbuckets.size() > 0) {
+    if (backfill_vbuckets.size() > 0 && !registeredTAPClient) {
         backFillVBucketFilter.assign(backfill_vbuckets);
         if (backfillAge < current_time) {
             doRunBackfill = true;

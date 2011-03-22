@@ -1525,7 +1525,8 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
 
     retry = false;
 
-    if (connection->doRunBackfill) {
+    // Do not schedule the backfill for the registered TAP client (e.g., incremental backup client)
+    if (connection->doRunBackfill && !(connection->registeredTAPClient)) {
         queueBackfill(connection, cookie);
     }
 
@@ -1866,9 +1867,9 @@ void EventuallyPersistentEngine::createTapQueue(const void *cookie,
                                               backfillAge,
                                               static_cast<int>(tapKeepAlive));
 
+    tap->setRegisteredClient(isRegisteredClient);
     tap->setVBucketFilter(vbuckets);
     tap->registerTAPCursor(lastCheckpointIds);
-    tap->setRegisteredClient(isRegisteredClient);
     serverApi->cookie->store_engine_specific(cookie, tap);
     serverApi->cookie->set_tap_nack_mode(cookie, tap->supportsAck());
     tapConnMap.notify();
