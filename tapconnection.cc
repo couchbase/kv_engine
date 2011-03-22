@@ -727,7 +727,7 @@ void TapProducer::addStats(ADD_STAT add_stat, const void *c) {
     addStat("suspended", isSuspended(), add_stat, c);
     addStat("paused", paused, add_stat, c);
     addStat("pending_backfill", pendingBackfill, add_stat, c);
-    addStat("pending_disk_backfill", !isPendingDiskBackfill(), add_stat, c);
+    addStat("pending_disk_backfill", isPendingDiskBackfill(), add_stat, c);
 
     addStat("queue_memory", getQueueMemory(), add_stat, c);
     addStat("queue_fill", getQueueFillTotal(), add_stat, c);
