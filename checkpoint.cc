@@ -94,8 +94,8 @@ queue_dirty_t Checkpoint::queueDirty(const queued_item &item, CheckpointManager 
     return rv;
 }
 
-Atomic<rel_time_t> CheckpointManager::checkpointPeriod = 5;
-Atomic<size_t> CheckpointManager::checkpointMaxItems = 100000;
+Atomic<rel_time_t> CheckpointManager::checkpointPeriod = 600;
+Atomic<size_t> CheckpointManager::checkpointMaxItems = 5000;
 
 CheckpointManager::~CheckpointManager() {
     LockHolder lh(queueLock);
