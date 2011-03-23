@@ -45,6 +45,7 @@
 /sizes
 /stamp-h1
 /testlogger_libify.cc
+/wrapper/mbbackup-incremental
 /wrapper/mbdbmaint
 /wrapper/mbflushctl
 /wrapper/mbstats
