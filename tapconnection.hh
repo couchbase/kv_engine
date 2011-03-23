@@ -722,6 +722,8 @@ private:
      */
     Atomic<bool> noop;
 
+    Atomic<rel_time_t> lastWalkTime;
+
     static size_t bgMaxPending;
 
     // Constants used to enforce the tap ack protocol

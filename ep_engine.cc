@@ -1559,6 +1559,7 @@ tap_event_t EventuallyPersistentEngine::walkTapQueue(const void *cookie,
     bool retry = false;
     tap_event_t ret;
 
+    connection->lastWalkTime = ep_current_time();
     do {
         ret = doWalkTapQueue(cookie, itm, es, nes, ttl, flags,
                              seqno, vbucket, connection, retry);
@@ -2505,6 +2506,7 @@ struct TapStatBuilder {
             addTapStat("ack_playback_size", tc, tc->getTapAckLogSize(), add_stat,
                        cookie);
         }
+        addTapStat("last_walk", tc, tc->lastWalkTime.get(), add_stat, cookie);
     }
 
     const void *cookie;

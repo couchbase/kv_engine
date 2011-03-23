@@ -238,6 +238,11 @@ bool TapConnMap::shouldDisconnect(TapConnection *tc) {
 }
 
 void TapConnMap::notifyIOThreadMain() {
+    // To avoid connections to be stucked in a bogus state forever, we're going
+    // to ping all connections that hasn't tried to walk the tap queue
+    // for this amount of time..
+    const int maxIdleTime = 5;
+
     bool addNoop = false;
 
     rel_time_t now = ep_current_time();
@@ -260,13 +265,15 @@ void TapConnMap::notifyIOThreadMain() {
         if (iter->second->ackSupported &&
             (iter->second->expiry_time < now) &&
             iter->second->windowIsFull())
-            {
-                shouldPause = false;
-                iter->second->doDisconnect = true;
-            } else if (iter->second->doDisconnect || !iter->second->idle()) {
+        {
+            shouldPause = false;
+            iter->second->doDisconnect = true;
+        } else if (iter->second->doDisconnect || !iter->second->idle()) {
             shouldPause = false;
         } else if (addNoop) {
             iter->second->setTimeForNoop();
+            shouldPause = false;
+        } else if ((iter->second->lastWalkTime + maxIdleTime) < now) {
             shouldPause = false;
         }
     }
@@ -281,12 +288,13 @@ void TapConnMap::notifyIOThreadMain() {
             return;
         }
         purgeExpiredConnections_UNLOCKED();
+        now = ep_current_time();
     }
 
     // Collect the list of connections that need to be signaled.
     std::list<const void *> toNotify;
     for (iter = map.begin(); iter != map.end(); ++iter) {
-        if (iter->second->shouldNotify()) {
+        if (iter->second->shouldNotify() || (iter->second->lastWalkTime + maxIdleTime < now){
             iter->second->notifySent.set(true);
             toNotify.push_back(iter->first);
         }
