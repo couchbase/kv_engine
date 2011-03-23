@@ -294,7 +294,7 @@ void TapConnMap::notifyIOThreadMain() {
     // Collect the list of connections that need to be signaled.
     std::list<const void *> toNotify;
     for (iter = map.begin(); iter != map.end(); ++iter) {
-        if (iter->second->shouldNotify() || (iter->second->lastWalkTime + maxIdleTime < now){
+        if (iter->second->shouldNotify() || (iter->second->lastWalkTime + maxIdleTime < now)) {
             iter->second->notifySent.set(true);
             toNotify.push_back(iter->first);
         }
