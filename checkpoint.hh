@@ -266,6 +266,8 @@ public:
         return numItems;
     }
 
+    size_t getNumCheckpoints();
+
     /**
      * Return the total number of remaining items that should be visited by the persistence cursor.
      */

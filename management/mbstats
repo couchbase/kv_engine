@@ -143,6 +143,10 @@ def stats_tap(mc):
     stats_formatter(stats_perform(mc, 'tap'))
 
 @cmd
+def stats_checkpoint(mc):
+    stats_formatter(stats_perform(mc, 'checkpoint'))
+
+@cmd
 def stats_slabs(mc):
     stats_formatter(stats_perform(mc, 'slabs'))
 
@@ -257,6 +261,7 @@ def main():
     c.addCommand('vkey', stats_vkey, 'vkey keyname vbid [username password]')
     c.addCommand('all', stats_all, 'all [username password]')
     c.addCommand('hash', stats_hash, 'hash [detail] [username password]')
+    c.addCommand('checkpoint', stats_checkpoint, 'checkpoint [username password]')
     c.addCommand('tap', stats_tap, 'tap [username password]')
     c.addCommand('timings', stats_timings, 'timings [username password]')
     c.addCommand('raw', stats_raw, 'raw argument [username password]')

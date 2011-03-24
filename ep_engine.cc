@@ -2861,6 +2861,43 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doHashStats(const void *cookie,
     return ENGINE_SUCCESS;
 }
 
+ENGINE_ERROR_CODE EventuallyPersistentEngine::doCheckpointStats(const void *cookie,
+                                                                ADD_STAT add_stat) {
+
+    class StatCheckpointVisitor : public VBucketVisitor {
+    public:
+        StatCheckpointVisitor(const void *c, ADD_STAT a) : cookie(c), add_stat(a) {}
+
+        bool visitBucket(RCPtr<VBucket> vb) {
+            uint16_t vbid = vb->getId();
+            char buf[32];
+            snprintf(buf, sizeof(buf), "vb_%d:state", vbid);
+            add_casted_stat(buf, VBucket::toString(vb->getState()), add_stat, cookie);
+
+            HashTableDepthStatVisitor depthVisitor;
+            vb->ht.visitDepth(depthVisitor);
+
+            snprintf(buf, sizeof(buf), "vb_%d:open_checkpoint_id", vbid);
+            add_casted_stat(buf, vb->checkpointManager.getOpenCheckpointId(), add_stat, cookie);
+            snprintf(buf, sizeof(buf), "vb_%d:num_tap_cursors", vbid);
+            add_casted_stat(buf, vb->checkpointManager.getNumOfTAPCursors(), add_stat, cookie);
+            snprintf(buf, sizeof(buf), "vb_%d:num_checkpoint_items", vbid);
+            add_casted_stat(buf, vb->checkpointManager.getNumItems(), add_stat, cookie);
+            snprintf(buf, sizeof(buf), "vb_%d:num_checkpoints", vbid);
+            add_casted_stat(buf, vb->checkpointManager.getNumCheckpoints(), add_stat, cookie);
+            return false;
+        }
+
+        const void *cookie;
+        ADD_STAT add_stat;
+    };
+
+    StatCheckpointVisitor cv(cookie, add_stat);
+    epstore->visit(cv);
+
+    return ENGINE_SUCCESS;
+}
+
 /// @cond DETAILS
 
 /**
@@ -3163,6 +3200,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
         rv = doHashStats(cookie, add_stat);
     } else if (nkey == 7 && strncmp(stat_key, "vbucket", 7) == 0) {
         rv = doVBucketStats(cookie, add_stat);
+    } else if (nkey == 10 && strncmp(stat_key, "checkpoint", 10) == 0) {
+        rv = doCheckpointStats(cookie, add_stat);
     } else if (nkey == 7 && strncmp(stat_key, "timings", 7) == 0) {
         rv = doTimingStats(cookie, add_stat);
     } else if (nkey == 10 && strncmp(stat_key, "dispatcher", 10) == 0) {

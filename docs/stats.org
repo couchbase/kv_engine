@@ -445,6 +445,21 @@ vbucket 0 is =vb_0:size=.
 | mem_size         | Running sum of memory used by each item.         |
 | mem_size_counted | Counted sum of current memory used by each item. |
 
+** Checkpoint Stats
+
+Checkpoint stats provide detailed information on per-vbucket checkpoint
+datastructure.
+
+Like Hash stats, requesting these stats has some impact on performance.
+Therefore, please do not poll them from the server frequently.
+Each stat is prefixed with =vb_= followed by a number, a colon, and then
+each stat name.
+
+| open_checkpoint_id   | ID of the current open checkpoint                   |
+| num_tap_cursors      | Number of referencing TAP cursors                   |
+| num_checkpoint_items | Number of total items in a checkpoint datastructure |
+| num_checkpoints      | Number of checkpoints in a checkpoint datastructure |
+
 * Details
 
 ** Ages

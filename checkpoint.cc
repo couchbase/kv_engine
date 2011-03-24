@@ -251,6 +251,11 @@ size_t CheckpointManager::getNumOfTAPCursors() {
     return tapCursors.size();
 }
 
+size_t CheckpointManager::getNumCheckpoints() {
+    LockHolder lh(queueLock);
+    return checkpointList.size();
+}
+
 uint64_t CheckpointManager::removeClosedUnrefCheckpoints(const RCPtr<VBucket> &vbucket,
                                                          std::set<queued_item,
                                                                   CompareQueuedItemsByKey> &items,
