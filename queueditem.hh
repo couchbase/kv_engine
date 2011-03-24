@@ -31,7 +31,7 @@ public:
                const uint16_t vb_version = -1, const int64_t rid = -1, const uint32_t f = 0,
                const time_t expiry_time = 0, const uint64_t cv = 0)
         : op(o),vbucket_version(vb_version), queued(ep_current_time()),
-          dirtied(ep_current_time()), item(new Item(k, f, expiry_time, NULL, 0, cv, rid, vb)) {
+          dirtied(ep_current_time()), item(k, f, expiry_time, NULL, 0, cv, rid, vb) {
 
         // Exclude the value size as it is included in the kv memory overhead.
         stats->memOverhead.incr(size() - getValue()->length());
@@ -42,7 +42,7 @@ public:
                const uint16_t vb_version = -1, const int64_t rid = -1, const uint32_t f = 0,
                const time_t expiry_time = 0, const uint64_t cv = 0)
         : op(o), vbucket_version(vb_version), queued(ep_current_time()),
-          dirtied(ep_current_time()), item(new Item(k, f, expiry_time, v, cv, rid, vb)) {
+          dirtied(ep_current_time()), item(k, f, expiry_time, v, cv, rid, vb) {
 
         // Exclude the value size as it is included in the kv memory overhead.
         stats->memOverhead.incr(size() - getValue()->length());
@@ -55,18 +55,18 @@ public:
         assert(stats->memOverhead.get() < GIGANTOR);
     }
 
-    const std::string &getKey(void) const { return item->getKey(); }
-    uint16_t getVBucketId(void) const { return item->getVBucketId(); }
+    const std::string &getKey(void) const { return item.getKey(); }
+    uint16_t getVBucketId(void) const { return item.getVBucketId(); }
     uint16_t getVBucketVersion(void) const { return vbucket_version; }
     uint32_t getQueuedTime(void) const { return queued; }
     enum queue_operation getOperation(void) const { return op; }
-    int64_t getRowId() const { return item->getId(); }
+    int64_t getRowId() const { return item.getId(); }
     uint32_t getDirtiedTime() const { return dirtied; }
-    uint32_t getFlags() const { return item->getFlags(); }
-    time_t getExpiryTime() const { return item->getExptime(); }
-    uint64_t getCas() const { return item->getCas(); }
-    value_t getValue() const { return item->getValue(); }
-    Item &getItem() { return *item; }
+    uint32_t getFlags() const { return item.getFlags(); }
+    time_t getExpiryTime() const { return item.getExptime(); }
+    uint64_t getCas() const { return item.getCas(); }
+    value_t getValue() const { return item.getValue(); }
+    Item &getItem() { return item; }
 
     void setQueuedTime(uint32_t queued_time) {
         queued = queued_time;
@@ -77,8 +77,8 @@ public:
             getKey() < other.getKey() : getVBucketId() < other.getVBucketId();
     }
 
-    size_t size() const {
-        return sizeof(QueuedItem) + item->size();
+    size_t size() {
+        return sizeof(QueuedItem) + getKey().size() + getValue()->length();
     }
 
     static void init(EPStats * st) {
@@ -93,7 +93,7 @@ private:
     // Additional variables below are required to support the checkpoint and cursors
     // as memory hashtable always contains the latest value and latest meta data for each key.
     uint32_t dirtied;
-    shared_ptr<Item> item;
+    Item item;
 
     static EPStats *stats;
     DISALLOW_COPY_AND_ASSIGN(QueuedItem);
