@@ -1716,11 +1716,10 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
                 *itm = item;
                 ret = TAP_MUTATION;
 
-                GetValue gv(epstore->get(qi->getKey(), qi->getVBucketId(), cookie,
-                                         false, false));
-                if (gv.getStatus() == ENGINE_SUCCESS) {
-                    gv.getStoredValue()->incrementNumReplicas();
-                    syncRegistry.itemReplicated(*gv.getValue());
+                StoredValue *sv = epstore->getStoredValue(qi->getKey(), qi->getVBucketId(), false);
+                if (sv && sv->getCas() == item->getCas()) {
+                    sv->incrementNumReplicas();
+                    syncRegistry.itemReplicated(*item);
                 }
 
                 ++stats.numTapFGFetched;
