@@ -140,7 +140,8 @@ CLEANFILES+= $(GEN_FILES) .genstamp
 
 generated_suite_la_DEPENDENCIES = ep.la
 generated_suite_la_CFLAGS = $(AM_CFLAGS) -O0
-generated_suite_la_SOURCES= $(GEN_FILES) testsuite.h suite_stubs.c ep_testsuite.h
+nodist_generated_suite_la_SOURCES = $(GEN_FILES)
+generated_suite_la_SOURCES= suite_stubs.c ep_testsuite.h
 generated_suite_la_LDFLAGS= -module -dynamic
 
 EXTRA_TESTS += generated_engine_tests
@@ -195,7 +196,7 @@ management_sqlite3_DEPENDENCIES = libsqlite3.la
 management_sqlite3_LDADD = libsqlite3.la
 
 vbucket_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
-vbucket_test_SOURCES = t/vbucket_test.cc vbucket.hh vbucket.cc stored-value.cc stored-value.hh testlogger.cc \
+vbucket_test_SOURCES = t/vbucket_test.cc t/threadtests.hh vbucket.hh vbucket.cc stored-value.cc stored-value.hh testlogger.cc \
 		       checkpoint.hh checkpoint.cc
 vbucket_test_DEPENDENCIES = vbucket.hh stored-value.cc stored-value.hh checkpoint.hh checkpoint.cc
 
