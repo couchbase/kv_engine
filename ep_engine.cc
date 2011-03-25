@@ -2902,6 +2902,13 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::touch(const void *cookie,
                 rv = ENGINE_FAILED;
             }
         }
+    } else if (rv == ENGINE_NOT_MY_VBUCKET) {
+        if (response(NULL, 0, NULL, 0, NULL, 0, PROTOCOL_BINARY_RAW_BYTES,
+                     PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, 0, cookie)) {
+            rv = ENGINE_SUCCESS;
+        } else {
+            rv = ENGINE_FAILED;
+        }
     }
 
     return rv;
