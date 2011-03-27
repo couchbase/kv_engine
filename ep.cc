@@ -773,7 +773,7 @@ void EventuallyPersistentStore::scheduleVBDeletion(RCPtr<VBucket> vb, uint16_t v
                                                                               vb_version,
                                                                               stats));
             dispatcher->schedule(cb,
-                                 NULL, Priority::VBucketDeletionPriority,
+                                 NULL, Priority::FastVBucketDeletionPriority,
                                  delay, false);
         } else {
             size_t chunk_size = engine.getVbDelChunkSize();
