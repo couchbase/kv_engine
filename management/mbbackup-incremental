@@ -255,7 +255,7 @@ def loop(mc, db, timeout, source):
 
             if needAck:
                 mc._sendMsg(cmd, key, val, opaque,
-                            vbucketId=vbucketId,
+                            vbucketId=0,
                             fmt=memcacheConstants.RES_PKT_FMT,
                             magic=memcacheConstants.RES_MAGIC_BYTE)
 
