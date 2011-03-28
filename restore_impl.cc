@@ -172,7 +172,7 @@ private:
      */
     void processEntry() throw(std::string) {
         uint32_t exptime = sqlite3_column_int(statement, exp_idx);
-        if (exptime != 0 && exptime <  ep_real_time()) {
+        if (exptime != 0 && exptime <  static_cast<int64_t>(ep_real_time())) {
             ++expired;
             return ;
         }
