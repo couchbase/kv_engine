@@ -184,9 +184,19 @@ bool StrategicSqlite3::delVBucket(uint16_t vbucket, uint16_t vb_version,
 }
 
 bool StrategicSqlite3::delVBucket(uint16_t vbucket, uint16_t vb_version) {
+    (void) vb_version;
     assert(strategy->hasEfficientVBDeletion());
-    return delVBucket(vbucket, vb_version,
-                      std::make_pair<int64_t, int64_t>(-1, -1));
+    bool rv = true;
+    std::vector<PreparedStatement*> vb_del(strategy->getVBStatements(vbucket, delete_vbucket));
+
+    std::vector<PreparedStatement*>::iterator it;
+    for (it = vb_del.begin(); it != vb_del.end(); ++it) {
+        PreparedStatement *st = *it;
+        rv &= st->execute() >= 0;
+    }
+
+    strategy->closeVBStatements(vb_del);
+    return rv;
 }
 
 bool StrategicSqlite3::snapshotVBuckets(const vbucket_map_t &m) {
@@ -285,7 +295,7 @@ void StrategicSqlite3::dump(Callback<GetValue> &cb) {
 
 void StrategicSqlite3::dump(uint16_t vb, Callback<GetValue> &cb) {
     assert(strategy->hasEfficientVBLoad());
-    std::vector<PreparedStatement*> loaders(strategy->getVBLoader(vb));
+    std::vector<PreparedStatement*> loaders(strategy->getVBStatements(vb, select_all));
 
     std::vector<PreparedStatement*>::iterator it;
     for (it = loaders.begin(); it != loaders.end(); ++it) {
@@ -295,7 +305,7 @@ void StrategicSqlite3::dump(uint16_t vb, Callback<GetValue> &cb) {
         }
     }
 
-    strategy->closeVBLoader(loaders);
+    strategy->closeVBStatements(loaders);
 }
 
 
