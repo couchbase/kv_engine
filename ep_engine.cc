@@ -734,7 +734,7 @@ extern "C" {
             delete item;
         } else {
 
-            msg_size = (msg_size > 0) ? msg_size : strlen(msg);
+            msg_size = (msg_size > 0 || msg == NULL) ? msg_size : strlen(msg);
             response(NULL, 0, NULL, 0,
                     msg, static_cast<uint16_t>(msg_size),
                     PROTOCOL_BINARY_RAW_BYTES,
