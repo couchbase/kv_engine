@@ -242,7 +242,11 @@ public:
         vb->ht.visit(vbdv);
         vbdv.createRangeList(range_list);
         current_range = range_list.begin();
-        chunk_del_range_size = current_range->second - current_range->first;
+        if (current_range != range_list.end()) {
+            chunk_del_range_size = current_range->second - current_range->first;
+        } else {
+            chunk_del_range_size = 100;
+        }
     }
 
     bool callback(Dispatcher &d, TaskId t) {
@@ -1599,6 +1603,11 @@ int EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
         ++stats.flushExpired;
         v->markClean(NULL);
         isDirty = false;
+        // If the new item is expired within current_time + expiry_window, clear the row id
+        // from hashtable and remove the old item from database.
+        v->clearId();
+        deleted = true;
+        qi->setOperation(queue_op_del);
     }
 
     if (isDirty) {

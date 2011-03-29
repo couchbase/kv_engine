@@ -1006,6 +1006,8 @@ private:
      * Is this TAP producer for the registered TAP client?
      */
     Atomic<bool> registeredTAPClient;
+ 
+    Atomic<rel_time_t> lastWalkTime;
 
     static size_t bgMaxPending;
 

@@ -80,6 +80,10 @@ public:
         queued = queued_time;
     }
 
+    void setOperation(enum queue_operation o) {
+        op = o;
+    }
+
     bool operator <(const QueuedItem &other) const {
         return getVBucketId() == other.getVBucketId() ?
             getKey() < other.getKey() : getVBucketId() < other.getVBucketId();

@@ -1792,6 +1792,7 @@ tap_event_t EventuallyPersistentEngine::walkTapQueue(const void *cookie,
     bool retry = false;
     tap_event_t ret;
 
+    connection->lastWalkTime = ep_current_time();
     do {
         ret = doWalkTapQueue(cookie, itm, es, nes, ttl, flags,
                              seqno, vbucket, connection, retry);
@@ -1953,6 +1954,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
             ret = epstore->del(k, 0, vbucket, cookie, true);
             if (ret == ENGINE_KEY_ENOENT) {
                 ret = ENGINE_SUCCESS;
+            }
+            if (ret == ENGINE_SUCCESS) {
+                addDeleteEvent(k, vbucket, 0);
             }
             TapConsumer *tc = dynamic_cast<TapConsumer*>(connection);
             if (tc && !tc->supportsCheckpointSync()) {
