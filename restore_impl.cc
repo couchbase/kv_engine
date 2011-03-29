@@ -18,7 +18,11 @@
 #include "ep_engine.h"
 #include "restore.hh"
 
+#ifdef USE_SYSTEM_LIBSQLITE3
 #include <sqlite3.h>
+#else
+#include "embedded/sqlite3.h"
+#endif
 
 static const char *query =
     "select cpoint_op.vbucket_id,op,key,flg,exp,cas,val "
