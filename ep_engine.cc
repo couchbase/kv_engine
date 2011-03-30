@@ -2896,7 +2896,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doCheckpointStats(const void *cook
 
     class StatCheckpointVisitor : public VBucketVisitor {
     public:
-        StatCheckpointVisitor(const void *c, ADD_STAT a) : cookie(c), add_stat(a) {}
+        StatCheckpointVisitor(EventuallyPersistentStore * eps, const void *c,
+                              ADD_STAT a) : epstore(eps), cookie(c), add_stat(a) {}
 
         bool visitBucket(RCPtr<VBucket> vb) {
             uint16_t vbid = vb->getId();
@@ -2909,6 +2910,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doCheckpointStats(const void *cook
 
             snprintf(buf, sizeof(buf), "vb_%d:open_checkpoint_id", vbid);
             add_casted_stat(buf, vb->checkpointManager.getOpenCheckpointId(), add_stat, cookie);
+            snprintf(buf, sizeof(buf), "vb_%d:last_closed_checkpoint_id", vbid);
+            add_casted_stat(buf, vb->checkpointManager.getLastClosedCheckpointId(),
+                            add_stat, cookie);
+            snprintf(buf, sizeof(buf), "vb_%d:persisted_checkpoint_id", vbid);
+            add_casted_stat(buf, epstore->getLastPersistedCheckpointId(vbid), add_stat, cookie);
             snprintf(buf, sizeof(buf), "vb_%d:num_tap_cursors", vbid);
             add_casted_stat(buf, vb->checkpointManager.getNumOfTAPCursors(), add_stat, cookie);
             snprintf(buf, sizeof(buf), "vb_%d:num_checkpoint_items", vbid);
@@ -2918,11 +2924,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doCheckpointStats(const void *cook
             return false;
         }
 
+        EventuallyPersistentStore *epstore;
         const void *cookie;
         ADD_STAT add_stat;
     };
 
-    StatCheckpointVisitor cv(cookie, add_stat);
+    StatCheckpointVisitor cv(epstore, cookie, add_stat);
     epstore->visit(cv);
 
     return ENGINE_SUCCESS;

@@ -610,6 +610,10 @@ public:
         return vbuckets.getBucketVersion(vbv);
     }
 
+    uint64_t getLastPersistedCheckpointId(uint16_t vb) {
+        return vbuckets.getPersistenceCheckpointId(vb);
+    }
+
     void snapshotVBuckets(const Priority &priority);
     void setVBucketState(uint16_t vbid,
                          vbucket_state_t state);

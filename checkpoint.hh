@@ -187,6 +187,11 @@ public:
 
     uint64_t getOpenCheckpointId();
 
+    uint64_t getLastClosedCheckpointId() {
+        uint64_t id = getOpenCheckpointId();
+        return id > 0 ? (id - 1) : 0;
+    }
+
     void setOpenCheckpointId(uint64_t id);
 
     /**
