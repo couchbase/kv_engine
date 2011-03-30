@@ -4879,7 +4879,7 @@ static void waitfor_restore_state(ENGINE_HANDLE *h,
 static enum test_result test_restore_invalid_file(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
 {
     char cwd[1024];
-    getcwd(cwd, sizeof(cwd));
+    (void)getcwd(cwd, sizeof(cwd));
     strcat(cwd, "/sizes");
     check(access(cwd, F_OK) == 0, "Could not find sizes");
     protocol_binary_request_header *req = create_restore_file_packet(cwd);
@@ -4972,7 +4972,7 @@ static void ensure_file(const char *fname)
 static enum test_result test_restore_clean(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
 {
     char cwd[1024];
-    getcwd(cwd, sizeof(cwd));
+    (void)getcwd(cwd, sizeof(cwd));
     strcat(cwd, "/mbbackup-0001.mbb");
     ensure_file(cwd);
 
@@ -5002,7 +5002,7 @@ static enum test_result test_restore_clean(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
 
 static enum test_result test_restore_clean_vbucket_subset(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     char cwd[1024];
-    getcwd(cwd, sizeof(cwd));
+    (void)getcwd(cwd, sizeof(cwd));
     strcat(cwd, "/mbbackup-0001.mbb");
     ensure_file(cwd);
     protocol_binary_request_header *req = create_restore_file_packet(cwd);
@@ -5033,7 +5033,7 @@ static enum test_result test_restore_multi(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
 
     for (int ii = 2; ii > 0; ii--) {
         char cwd[1024];
-        getcwd(cwd, sizeof(cwd));
+        (void)getcwd(cwd, sizeof(cwd));
         sprintf(cwd + strlen(cwd), "/mbbackup-%04d.mbb", ii);
         ensure_file(cwd);
         protocol_binary_request_header *req = create_restore_file_packet(cwd);
@@ -5062,7 +5062,7 @@ static enum test_result test_restore_multi(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
 
 static enum test_result test_restore_with_data(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     char cwd[1024];
-    getcwd(cwd, sizeof(cwd));
+    (void)getcwd(cwd, sizeof(cwd));
     strcat(cwd, "/mbbackup-0001.mbb");
     ensure_file(cwd);
     protocol_binary_request_header *req = create_restore_file_packet(cwd);
