@@ -7,7 +7,8 @@ bin_SCRIPTS = management/analyze_core \
               wrapper/mbstats \
               wrapper/mbvbucketctl
 
-lib_LTLIBRARIES = ep.la ep_testsuite.la timing_tests.la
+memcachedlibdir = $(libdir)/memcached
+memcachedlib_LTLIBRARIES = ep.la ep_testsuite.la timing_tests.la
 noinst_LTLIBRARIES = libkvstore.la
 
 bin_PROGRAMS = management/mbdbconvert
