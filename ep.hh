@@ -488,7 +488,8 @@ public:
     protocol_binary_response_status evictKey(const std::string &key,
                                              uint16_t vbucket,
                                              const char **msg,
-                                             size_t *msg_size);
+                                             size_t *msg_size,
+                                             bool force=false);
 
 
     /**
@@ -504,6 +505,16 @@ public:
     ENGINE_ERROR_CODE del(const std::string &key, uint64_t cas,
                           uint16_t vbucket, const void *cookie,
                           bool force = false);
+
+
+    /**
+     * Revert online update, all mutations during online update period will be reverted
+     * Deleted and reset items will be marked as evicted. Newly added items will be removed
+     * from hashtable. During revert period, all other clients request will be temporarily
+     * blocked.
+     * @return the result of the stop onlineupdate operation
+     */
+    protocol_binary_response_status revertOnlineUpdate(RCPtr<VBucket> vb);
 
     void reset();
 

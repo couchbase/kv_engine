@@ -681,7 +681,10 @@ extern "C" {
                 return setVBucket(h, cookie, request, response);
             }
             break;
-
+        case CMD_ONLINE_UPDATE_START:
+        case CMD_ONLINE_UPDATE_COMPLETE:
+        case CMD_ONLINE_UPDATE_REVERT:
+            return h->onlineUpdate(cookie, request, response);
         case PROTOCOL_BINARY_CMD_TOUCH:
         case PROTOCOL_BINARY_CMD_GAT:
         case PROTOCOL_BINARY_CMD_GATQ:
@@ -2051,6 +2054,24 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
             case TAP_OPAQUE_INITIAL_VBUCKET_STREAM:
                 /* Ignore.. this is just an informative message */
                 break;
+            case TAP_OPAQUE_START_ONLINEUPDATE:
+            case TAP_OPAQUE_STOP_ONLINEUPDATE:
+            case TAP_OPAQUE_REVERT_ONLINEUPDATE:
+                {
+                    TapConsumer *tc = dynamic_cast<TapConsumer*>(connection);
+                    if (tc) {
+                        if (tc->processOnlineUpdateCommand(cc, vbucket)) {
+                            ret = ENGINE_SUCCESS;
+                        } else {
+                            ret = ENGINE_DISCONNECT;
+                        }
+                    } else {
+                        ret = ENGINE_DISCONNECT;
+                        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                         "TAP consumer doesn't exists. Force disconnect\n");
+                    }
+                }
+                break;
             default:
                 getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                                  "Received an unknown opaque command\n");
@@ -2453,6 +2474,7 @@ bool VBucketCountVisitor::visitBucket(RCPtr<VBucket> vb) {
         queueDrain += vb->dirtyQueueDrain;
         queueAge += vb->getQueueAge();
         pendingWrites += vb->dirtyQueuePendingWrites;
+        onlineUpdate |= vb->checkpointManager.isOnlineUpdate();
     }
 
     return false;
@@ -2714,7 +2736,18 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     add_casted_stat("ep_db_cleaner_status",
                     epstats.dbCleanerComplete.get() ? "complete" : "running",
                     add_stat, cookie);
-
+    add_casted_stat("ep_onlineupdate",
+                    (activeCountVisitor.isOnlineUpdate() ||
+                     pendingCountVisitor.isOnlineUpdate() ||
+                     replicaCountVisitor.isOnlineUpdate() )
+                    ? "true" : "false",
+                    add_stat, cookie);
+    add_casted_stat("ep_onlineupdate_revert_delete", epstats.numRevertDeletes, add_stat,
+                    cookie);
+    add_casted_stat("ep_onlineupdate_revert_add", epstats.numRevertAdds, add_stat,
+                    cookie);
+    add_casted_stat("ep_onlineupdate_revert_update", epstats.numRevertUpdates, add_stat,
+                    cookie);
     if (warmup) {
         add_casted_stat("ep_warmup_thread",
                         epstats.warmupComplete.get() ? "complete" : "running",
@@ -3161,6 +3194,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTimingStats(const void *cookie,
     add_casted_stat("disk_invalid_item_del", stats.diskInvaidItemDelHisto,
                     add_stat, cookie);
 
+    add_casted_stat("online_update_revert", stats.checkpointRevertHisto, add_stat, cookie);
+
     return ENGINE_SUCCESS;
 }
 
@@ -3367,6 +3402,101 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::touch(const void *cookie,
     }
 
     return rv;
+}
+
+ENGINE_ERROR_CODE EventuallyPersistentEngine::onlineUpdate(const void *cookie,
+                                                           protocol_binary_request_header *request,
+                                                           ADD_RESPONSE response) {
+
+    protocol_binary_response_status rv(PROTOCOL_BINARY_RESPONSE_SUCCESS);
+
+    switch(request->request.opcode) {
+    case CMD_ONLINE_UPDATE_START:
+        {
+            class StartOnlineUpdateVBucketVisitor : public VBucketVisitor {
+                public:
+                    StartOnlineUpdateVBucketVisitor(protocol_binary_response_status& r)
+                        : rv(r) {}
+
+                    bool visitBucket(RCPtr<VBucket> vb) {
+                        if (!vb || vb->getState() == vbucket_state_dead) {
+                            return false;
+                        }
+                        protocol_binary_response_status r =
+                            vb->checkpointManager.startOnlineUpdate();
+                        if (r != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+                            rv = r;
+                        }
+                        return false;
+                    }
+                private:
+                    protocol_binary_response_status& rv;
+             };
+
+            StartOnlineUpdateVBucketVisitor visitor(rv);
+            epstore->visit(visitor);
+        }
+        break;
+    case CMD_ONLINE_UPDATE_COMPLETE:
+        {
+            class CompleteOnlineUpdateVBucketVisitor : public VBucketVisitor {
+                public:
+                    CompleteOnlineUpdateVBucketVisitor(protocol_binary_response_status& r)
+                        : rv(r) {}
+
+                    bool visitBucket(RCPtr<VBucket> vb) {
+                        if (!vb || vb->getState() == vbucket_state_dead) {
+                            return false;
+                        }
+                        protocol_binary_response_status r =
+                            vb->checkpointManager.stopOnlineUpdate();
+                        if (r != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+                            rv = r;
+                        }
+                        return false;
+                    }
+                private:
+                    protocol_binary_response_status& rv;
+             };
+
+             CompleteOnlineUpdateVBucketVisitor visitor(rv);
+             epstore->visit(visitor);
+        }
+        break;
+    case CMD_ONLINE_UPDATE_REVERT:
+        {
+            class RevertOnlineUpdateVBucketVisitor : public VBucketVisitor {
+                public:
+                    RevertOnlineUpdateVBucketVisitor(EventuallyPersistentStore* e,
+                                                     protocol_binary_response_status& r)
+                        : epstore(e), rv(r) {}
+
+                    bool visitBucket(RCPtr<VBucket> vb) {
+                        protocol_binary_response_status r = epstore->revertOnlineUpdate(vb);
+                        if (r != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+                            rv = r;
+                        }
+                        return false;
+                    }
+                private:
+                    EventuallyPersistentStore* epstore;
+                    protocol_binary_response_status& rv;
+             };
+
+             RevertOnlineUpdateVBucketVisitor visitor(epstore, rv);
+             epstore->visit(visitor);
+        }
+        break;
+    default:
+        break;
+    }
+
+    if (response(NULL, 0, NULL, 0, NULL, 0, PROTOCOL_BINARY_RAW_BYTES,
+                 rv, 0, cookie)) {
+        return ENGINE_SUCCESS;
+    } else {
+        return ENGINE_FAILED;
+    }
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::sync(std::set<key_spec_t> *keys,

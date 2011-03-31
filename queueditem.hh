@@ -13,7 +13,10 @@ enum queue_operation {
     queue_op_empty,
     queue_op_commit,
     queue_op_checkpoint_start,
-    queue_op_checkpoint_end
+    queue_op_checkpoint_end,
+    queue_op_online_update_start,
+    queue_op_online_update_end,
+    queue_op_online_update_revert
 };
 
 typedef enum {

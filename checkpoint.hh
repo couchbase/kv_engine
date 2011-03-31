@@ -177,7 +177,7 @@ public:
 
     CheckpointManager(EPStats &st, uint16_t vbucket, uint64_t checkpointId = 1) :
         stats(st), vbucketId(vbucket), nextCheckpointId(checkpointId), numItems(0),
-        mutationCounter(0) {
+        mutationCounter(0), doOnlineUpdate(false), doHotReload(false) {
 
         addNewCheckpoint(nextCheckpointId++);
         registerPersistenceCursor();
@@ -233,6 +233,39 @@ public:
     size_t getNumOfTAPCursors();
 
     /**
+     * Start onlineupdate - stop persisting mutation to disk
+     * @return :
+     *    PROTOCOL_BINARY_RESPONSE_SUCCESS if the online update mode is enabled
+     *    PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED if server is in online update mode.
+     */
+    protocol_binary_response_status startOnlineUpdate();
+
+    /**
+     * Stop onlineupdate and continue persisting mutations
+     * @return :
+     *    PROTOCOL_BINARY_RESPONSE_SUCCESS if the online update process finishes.
+     *    PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED if server is noT in online update mode
+     */
+    protocol_binary_response_status stopOnlineUpdate();
+
+    /**
+    *  Start hot reload process to create a hotreload event for taps and
+    *  move persistenceCursor to skip all mutations during onlineupgrade period.
+    *  @return :
+    *     PROTOCOL_BINARY_RESPONSE_SUCCESS if successfully to start hot reload process
+    *     PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED if the server is NOT in online update mode
+    */
+    protocol_binary_response_status beginHotReload();
+
+    /**
+    *  Finish hot reload process
+    * @total total items that are reverted
+    * @return
+    *    PROTOCOL_BINARY_RESPONSE_SUCCESS - finish hot reload process
+    */
+    protocol_binary_response_status endHotReload(uint64_t total);
+
+    /**
      * Queue an item to be written to persistent layer.
      * @param item the item to be persisted.
      * @param vbucket the vbucket that a new item is pushed into.
@@ -254,6 +287,13 @@ public:
      * @return the last closed checkpoint Id.
      */
     uint64_t getAllItemsForPersistence(std::vector<queued_item> &items);
+    /**
+     * Return the list of items, which needs to be updated from backgrond fetcher.
+     * @param items the array that will contain the list of items to be fetched and
+     * be updated to the hashtable.
+     * @return the last closed checkpoint Id.
+     */
+    uint64_t getAllItemsForOnlineUpdate(std::vector<queued_item> &items);
 
     /**
      * Return the list of all the items to a given TAP cursor since its current position.
@@ -294,6 +334,11 @@ public:
      */
     void clear();
 
+    bool isOnlineUpdate() { return doOnlineUpdate; }
+    void setOnlineUpdate(bool olupdate) { doOnlineUpdate = olupdate; }
+
+    bool isHotReload() { return doHotReload; }
+
     static void initializeCheckpointConfig(size_t checkpoint_period,
                                            size_t checkpoint_max_items) {
         checkpointPeriod = checkpoint_period;
@@ -330,20 +375,22 @@ private:
     queued_item nextItemFromOpenedCheckpoint(CheckpointCursor &cursor);
 
     uint64_t getAllItemsFromCurrentPosition(CheckpointCursor &cursor,
+                                            uint64_t barrier,
                                             std::vector<queued_item> &items);
 
     bool moveCursorToNextCheckpoint(CheckpointCursor &cursor);
 
     /**
      * Check the current open checkpoint to see if we need to create the new open checkpoint.
+     * @param onlineUpdate is to indicate if checkpoint is updated due to online update action
      * @return the previous open checkpoint Id if we create the new open checkpoint. Otherwise
      * return 0.
      */
-    uint64_t checkOpenCheckpoint_UNLOCKED();
+    uint64_t checkOpenCheckpoint_UNLOCKED(bool onlineUpdate);
 
-    uint64_t checkOpenCheckpoint() {
+    uint64_t checkOpenCheckpoint(bool onlineUpdate=false) {
         LockHolder lh(queueLock);
-        return checkOpenCheckpoint_UNLOCKED();
+        return checkOpenCheckpoint_UNLOCKED(onlineUpdate);
     }
 
     bool closeOpenCheckpoint_UNLOCKED(uint64_t id);
@@ -384,12 +431,16 @@ private:
     uint64_t                 mutationCounter;
     std::list<Checkpoint*>   checkpointList;
     CheckpointCursor         persistenceCursor;
+    CheckpointCursor         onlineUpdateCursor;
     std::map<const std::string, CheckpointCursor> tapCursors;
 
     // Period of a checkpoint in terms of time in sec
     static Atomic<rel_time_t> checkpointPeriod;
     // Number of max items allowed in each checkpoint
     static Atomic<size_t>     checkpointMaxItems;
+
+    Atomic<bool>              doOnlineUpdate;
+    Atomic<bool>              doHotReload;
 };
 
 #endif /* CHECKPOINT_HH */

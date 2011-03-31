@@ -530,19 +530,24 @@ StoredValue *EventuallyPersistentStore::fetchValidValue(RCPtr<VBucket> vb,
 protocol_binary_response_status EventuallyPersistentStore::evictKey(const std::string &key,
                                                                     uint16_t vbucket,
                                                                     const char **msg,
-                                                                    size_t *) {
+                                                                    size_t *msg_size,
+                                                                    bool force) {
     RCPtr<VBucket> vb = getVBucket(vbucket);
-    if (!(vb && vb->getState() == vbucket_state_active)) {
+    if (!(vb && vb->getState() == vbucket_state_active || force)) {
         return PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET;
     }
 
     int bucket_num(0);
     LockHolder lh = vb->ht.getLockedBucket(key, &bucket_num);
-    StoredValue *v = fetchValidValue(vb, key, bucket_num);
+    StoredValue *v = fetchValidValue(vb, key, bucket_num, force);
 
     protocol_binary_response_status rv(PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
+    *msg_size = 0;
     if (v) {
+        if (force)  {
+            v->markClean(NULL);
+        }
         if (v->isResident()) {
             if (v->ejectValue(stats, vb->ht)) {
                 *msg = "Ejected.";
@@ -574,6 +579,10 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::set(const Item &item,
         ++stats.numNotMyVBuckets;
         return ENGINE_NOT_MY_VBUCKET;
     } else if (vb->getState() == vbucket_state_pending && !force) {
+        if (vb->addPendingOp(cookie)) {
+            return ENGINE_EWOULDBLOCK;
+        }
+    } else if (vb->checkpointManager.isHotReload()) {
         if (vb->addPendingOp(cookie)) {
             return ENGINE_EWOULDBLOCK;
         }
@@ -623,6 +632,10 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::add(const Item &item,
     } else if (vb->getState() == vbucket_state_active) {
         // OK
     } else if(vb->getState() == vbucket_state_pending) {
+        if (vb->addPendingOp(cookie)) {
+            return ENGINE_EWOULDBLOCK;
+        }
+    } else if (vb->checkpointManager.isHotReload()) {
         if (vb->addPendingOp(cookie)) {
             return ENGINE_EWOULDBLOCK;
         }
@@ -908,6 +921,10 @@ GetValue EventuallyPersistentStore::get(const std::string &key,
         if (vb->addPendingOp(cookie)) {
             return GetValue(NULL, ENGINE_EWOULDBLOCK);
         }
+    } else if (vb->checkpointManager.isHotReload()) {
+        if (vb->addPendingOp(cookie)) {
+            return GetValue(NULL, ENGINE_EWOULDBLOCK);
+        }
     }
 
     int bucket_num(0);
@@ -963,6 +980,10 @@ GetValue EventuallyPersistentStore::getAndUpdateTtl(const std::string &key,
         if (vb->addPendingOp(cookie)) {
             return GetValue(NULL, ENGINE_EWOULDBLOCK);
         }
+    } else if (vb->checkpointManager.isHotReload()) {
+        if (vb->addPendingOp(cookie)) {
+             return GetValue(NULL, ENGINE_EWOULDBLOCK);
+        }
     }
 
     int bucket_num(0);
@@ -1015,6 +1036,10 @@ EventuallyPersistentStore::getFromUnderlying(const std::string &key,
         ++stats.numNotMyVBuckets;
         return ENGINE_NOT_MY_VBUCKET;
     } else if (vb->getState() == vbucket_state_pending) {
+        if (vb->addPendingOp(cookie)) {
+            return ENGINE_EWOULDBLOCK;
+        }
+    } else if (vb->checkpointManager.isHotReload()) {
         if (vb->addPendingOp(cookie)) {
             return ENGINE_EWOULDBLOCK;
         }
@@ -1135,7 +1160,7 @@ EventuallyPersistentStore::unlockKey(const std::string &key,
     if (!vb) {
         ++stats.numNotMyVBuckets;
         return ENGINE_NOT_MY_VBUCKET;
-    }
+    } 
 
     int bucket_num(0);
     LockHolder lh = vb->ht.getLockedBucket(key, &bucket_num);
@@ -1210,6 +1235,10 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::del(const std::string &key,
         ++stats.numNotMyVBuckets;
         return ENGINE_NOT_MY_VBUCKET;
     } else if(vb->getState() == vbucket_state_pending && !force) {
+        if (vb->addPendingOp(cookie)) {
+            return ENGINE_EWOULDBLOCK;
+        }
+    } else if (vb->checkpointManager.isHotReload()) {
         if (vb->addPendingOp(cookie)) {
             return ENGINE_EWOULDBLOCK;
         }
@@ -1432,6 +1461,86 @@ size_t EventuallyPersistentStore::getWriteQueueSize(void) {
         }
     }
     return size;
+}
+
+protocol_binary_response_status EventuallyPersistentStore::revertOnlineUpdate(RCPtr<VBucket> vb) {
+    protocol_binary_response_status rv(PROTOCOL_BINARY_RESPONSE_SUCCESS);
+
+    const char *msg = NULL;
+    size_t msg_size = 0;
+    std::vector<queued_item> item_list;
+
+    if (!vb || vb->getState() == vbucket_state_dead) {
+        return rv;
+    }
+
+    uint16_t vbid = vb->getId();
+    BlockTimer timer(&stats.checkpointRevertHisto);
+
+    //Acquire a lock before starting the hot reload process
+    LockHolder lh(vbsetMutex);
+    rv = vb->checkpointManager.beginHotReload();
+    if ( rv != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+        return rv;
+    }
+    lh.unlock();
+
+    // Get all the mutations from the current position of the online update cursor to
+    // the tail of the current open checkpoint.
+    vb->checkpointManager.getAllItemsForOnlineUpdate(item_list);
+    if (item_list.size() == 0) {
+        // Need to count items for checkpoint_start, checkpoint_end, onlineupdate_start,
+        // onlineupdate_revert
+        vb->checkpointManager.endHotReload(4);
+        return rv;
+    }
+
+    std::set<queued_item, CompareQueuedItemsByKey> item_set;
+    std::pair<std::set<queued_item, CompareQueuedItemsByKey>::iterator, bool> ret;
+    std::vector<queued_item>::reverse_iterator reverse_it = item_list.rbegin();
+    // Perform further deduplication here by removing duplicate mutations for each key.
+    // For this, traverse the array from the last element.
+    uint64_t total = 0;
+    for(; reverse_it != item_list.rend(); ++reverse_it, ++total) {
+        queued_item item = *reverse_it;
+
+        ret = item_set.insert(item);
+
+        vb->doStatsForFlushing(*item, item->size());
+    }
+    item_list.assign(item_set.begin(), item_set.end());
+
+    std::vector<queued_item>::iterator it = item_list.begin();
+    for(; it != item_list.end(); ++it) {
+        if ((*it)->getOperation() == queue_op_del)  {
+            ++stats.numRevertDeletes;
+            //Reset the deleted value first before evict it.
+            vb->ht.add((*it)->getItem(), false, false);
+            this->evictKey((*it)->getKey(), vbid, &msg, &msg_size, true);
+        } else if ((*it)->getOperation() == queue_op_set) {
+            //check if it is add or set
+            if ((*it)->getRowId() < 0)  {
+                ++stats.numRevertAdds;
+                //since no value exists on disk, simply delete it from hashtable
+                vb->ht.del((*it)->getKey());
+            } else {
+                ++stats.numRevertUpdates;
+                this->evictKey((*it)->getKey(), vbid, &msg, &msg_size, true);
+            }
+        }
+
+    }
+    item_list.clear();
+
+    //Stop the hot reload process
+    vb->checkpointManager.endHotReload(total);
+
+    //Notify all the blocked client requests
+    nonIODispatcher->schedule(shared_ptr<DispatcherCallback>
+                                             (new NotifyVBStateChangeCallback(vb,
+                                                                        engine)),
+                                  NULL, Priority::NotifyVBStateChangePriority, 0, false);
+    return rv;
 }
 
 /**

@@ -149,6 +149,10 @@ For introductory information on stats within membase, start with the
 | ep_latency_get_cmd            | The total elapse time for get command      |
 | ep_latency_store_cmd          | The total elapse time for store command    |
 | ep_latency_arith_cmd          | The total eplase time for arith command    |
+| ep_onlineupdate               | True if engine is in online updated mode   |
+| ep_onlineupdate_revert_add    | Number of reverted newly added items       |
+| ep_onlineupdate_revert_delete | Number of reverted deleted items           |
+| ep_onlineupdate_revert_update | Number of reverted updated items           |
 
 ** vBucket total stats
 

@@ -25,6 +25,9 @@ struct PopulateEventsBody;
 #define TAP_OPAQUE_ENABLE_AUTO_NACK 0
 #define TAP_OPAQUE_INITIAL_VBUCKET_STREAM 1
 #define TAP_OPAQUE_ENABLE_CHECKPOINT_SYNC 2
+#define TAP_OPAQUE_START_ONLINEUPDATE 4
+#define TAP_OPAQUE_STOP_ONLINEUPDATE 8
+#define TAP_OPAQUE_REVERT_ONLINEUPDATE 0x10
 
 /**
  * A tap event that represents a change to the state of a vbucket.
@@ -87,6 +90,18 @@ public:
             break;
         case queue_op_checkpoint_end:
             event = TAP_CHECKPOINT_END;
+            break;
+        case queue_op_online_update_start:
+            event = TAP_OPAQUE;
+            state = (vbucket_state_t)htonl(TAP_OPAQUE_START_ONLINEUPDATE);
+            break;
+        case queue_op_online_update_end:
+            event = TAP_OPAQUE;
+            state = (vbucket_state_t)htonl(TAP_OPAQUE_STOP_ONLINEUPDATE);
+            break;
+        case queue_op_online_update_revert:
+            event = TAP_OPAQUE;
+            state = (vbucket_state_t)htonl(TAP_OPAQUE_REVERT_ONLINEUPDATE);
             break;
         default:
             break;
@@ -355,6 +370,8 @@ public:
     virtual bool processCheckpointCommand(tap_event_t event, uint16_t vbucket,
                                           uint64_t checkpointId);
     virtual void checkVBOpenCheckpoint(uint16_t);
+    virtual bool processOnlineUpdateCommand(uint32_t event, uint16_t vbucket);
+
 };
 
 

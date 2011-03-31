@@ -323,6 +323,14 @@ void TapProducer::rollback() {
                 case TAP_OPAQUE_INITIAL_VBUCKET_STREAM:
                 case TAP_OPAQUE_ENABLE_CHECKPOINT_SYNC:
                     break;
+                case TAP_OPAQUE_START_ONLINEUPDATE:
+                case TAP_OPAQUE_STOP_ONLINEUPDATE:
+                case TAP_OPAQUE_REVERT_ONLINEUPDATE:
+                    {
+                        TapVBucketEvent e(i->event, i->vbucket, i->state);
+                        addVBucketHighPriority_UNLOCKED(e);
+                    }
+                    break;
                 default:
                     getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                                      "Internal error. Not implemented");
@@ -425,6 +433,13 @@ void TapProducer::reschedule_UNLOCKED(const std::list<TapLogElement>::iterator &
     case TAP_FLUSH:
     case TAP_MUTATION:
         addEvent_UNLOCKED(iter->item);
+        break;
+    case TAP_OPAQUE:
+        {
+            TapVBucketEvent ev(iter->event, iter->vbucket,
+                                         (vbucket_state_t)iter->state);
+            addVBucketHighPriority_UNLOCKED(ev);
+        }
         break;
     default:
         getLogger()->log(EXTENSION_LOG_WARNING, NULL,
@@ -888,6 +903,37 @@ void TapConsumer::checkVBOpenCheckpoint(uint16_t vbucket) {
     vb->checkpointManager.checkOpenCheckpoint();
 }
 
+bool TapConsumer::processOnlineUpdateCommand(uint32_t opcode, uint16_t vbucket) {
+    const VBucketMap &vbuckets = engine.getEpStore()->getVBuckets();
+    RCPtr<VBucket> vb = vbuckets.getBucket(vbucket);
+    if (!vb) {
+        return false;
+    }
+
+    protocol_binary_response_status ret;
+    switch (opcode) {
+    case TAP_OPAQUE_START_ONLINEUPDATE:
+        ret = vb->checkpointManager.startOnlineUpdate();
+        getLogger()->log(EXTENSION_LOG_INFO, NULL,
+                         "Start online update\n");
+        break;
+    case TAP_OPAQUE_STOP_ONLINEUPDATE:
+        ret = vb->checkpointManager.stopOnlineUpdate();
+        getLogger()->log(EXTENSION_LOG_INFO, NULL,
+                         "Complete online update\n");
+        break;
+    case TAP_OPAQUE_REVERT_ONLINEUPDATE:
+        ret = engine.getEpStore()->revertOnlineUpdate(vb);
+        getLogger()->log(EXTENSION_LOG_INFO, NULL,
+                         "Revert online update\n");
+        break;
+    default:
+        ret = PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
+        break;
+    }
+    return (ret == PROTOCOL_BINARY_RESPONSE_SUCCESS);
+}
+
 bool TapProducer::isTimeForNoop() {
     return noop.swap(false);
 }
@@ -956,6 +1002,27 @@ queued_item TapProducer::next() {
                 if (supportCheckpointSync &&
                     it->second.currentCheckpointId >= it->second.openCheckpointIdAtBackfillEnd) {
                     addCheckpointMessage_UNLOCKED(item);
+                }
+                break;
+            case queue_op_online_update_start:
+                {
+                    TapVBucketEvent ev(TAP_OPAQUE, item->getVBucketId(),
+                                         (vbucket_state_t)htonl(TAP_OPAQUE_START_ONLINEUPDATE));
+                    addVBucketHighPriority_UNLOCKED(ev);
+                }
+                break;
+            case queue_op_online_update_end:
+                {
+                    TapVBucketEvent ev(TAP_OPAQUE, item->getVBucketId(),
+                                         (vbucket_state_t)htonl(TAP_OPAQUE_STOP_ONLINEUPDATE));
+                    addVBucketHighPriority_UNLOCKED(ev);
+                }
+                break;
+            case queue_op_online_update_revert:
+                {
+                    TapVBucketEvent ev(TAP_OPAQUE, item->getVBucketId(),
+                                         (vbucket_state_t)htonl(TAP_OPAQUE_REVERT_ONLINEUPDATE));
+                    addVBucketHighPriority_UNLOCKED(ev);
                 }
                 break;
             default:

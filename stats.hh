@@ -114,7 +114,12 @@ public:
     Atomic<size_t> numNotMyVBuckets;
     //! Whether the DB cleaner completes cleaning up invalid items with old vb versions
     Atomic<bool> dbCleanerComplete;
-
+    //! Number of deleted items reverted from hot reload
+    Atomic<size_t> numRevertDeletes;
+    //! Number of new items reverted from hot reload
+    Atomic<size_t> numRevertAdds;
+    //! Number of updated items reverted from hot reload
+    Atomic<size_t> numRevertUpdates;
     //! Max allowable memory size.
     Atomic<size_t> maxDataSize;
     //! Total size of stored objects.
@@ -283,6 +288,8 @@ public:
 
     //! Histogram of purging a chunk of items with the old vbucket version from disk
     Histogram<hrtime_t> diskInvaidItemDelHisto;
+
+    Histogram<hrtime_t> checkpointRevertHisto;
 
     //! Reset all stats to reasonable values.
     void reset() {
