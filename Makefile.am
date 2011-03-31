@@ -117,7 +117,7 @@ testlogger_libify.cc: testlogger.cc
 	cp $(top_srcdir)/testlogger.cc testlogger_libify.cc
 
 if BUILD_GENERATED_TESTS
-lib_LTLIBRARIES += generated_suite.la
+memcachedlib_LTLIBRARIES += generated_suite.la
 
 .genstamp: t/gen_engine_test.py t/breakdancer.py
 	${top_srcdir}/t/gen_engine_test.py
