@@ -1,0 +1,100 @@
+#!/usr/bin/env python
+import os
+import sys
+import getopt
+import exceptions
+import struct
+import mc_bin_client
+import memcacheConstants
+
+DEFAULT_PORT = "11210"
+DEFAULT_HOST_PORT = ["127.0.0.1", DEFAULT_PORT]
+
+def usage(err=0):
+    print >> sys.stderr, """
+
+Usage: %s [-h %s[:%s]] [-r|d tap_name]
+
+""" % (os.path.basename(sys.argv[0]),
+       DEFAULT_HOST_PORT[0], DEFAULT_HOST_PORT[1])
+    sys.exit(err)
+
+def parse_args(args):
+    host_port = DEFAULT_HOST_PORT
+    tap_name = ''
+    is_registration = True
+
+    try:
+        opts, args = getopt.getopt(args, 'h:r:d:', ['help'])
+    except getopt.GetoptError, e:
+        usage(e.msg)
+
+    for (o, a) in opts:
+        if o == '--help':
+            usage()
+        elif o == '-h':
+            host_port = a.split(':')
+            if len(host_port) < 2:
+                host_port = [a, DEFAULT_PORT]
+        elif o == '-r':
+            tap_name = a
+        elif o == '-d':
+            tap_name = a
+            is_registration = False
+        else:
+            usage("unknown option - " + o)
+
+    if len(tap_name) == 0:
+        usage("missing name argument, which is the registered client name")
+    return host_port, tap_name, is_registration
+
+def readTap(mc):
+    ext = ''
+    key = ''
+    val = ''
+    cmd, vbucketId, opaque, cas, keylen, extlen, data = mc._recvMsg()
+    if data:
+        ext = data[0:extlen]
+        key = data[extlen:extlen+keylen]
+        val = data[extlen+keylen:]
+    return cmd, opaque, cas, vbucketId, key, ext, val
+
+def encodeTAPConnectOpts(opts):
+    header = 0
+    val = []
+    for op in sorted(opts.keys()):
+        header |= op
+        if op in memcacheConstants.TAP_FLAG_TYPES:
+            val.append(struct.pack(memcacheConstants.TAP_FLAG_TYPES[op],
+                                   opts[op]))
+        else:
+            val.append(opts[op])
+    return struct.pack(">I", header), ''.join(val)
+
+if __name__ == '__main__':
+    global mc
+    host_port, tap_name, is_registration = parse_args(sys.argv[1:])
+
+    try:
+        mc = mc_bin_client.MemcachedClient(host_port[0], int(host_port[1]))
+
+        if is_registration:
+            ext, val = encodeTAPConnectOpts({
+            memcacheConstants.TAP_FLAG_CHECKPOINT: '',
+            memcacheConstants.TAP_FLAG_SUPPORT_ACK: '',
+            memcacheConstants.TAP_FLAG_REGISTERED_CLIENT: '',
+            })
+            mc._sendCmd(memcacheConstants.CMD_TAP_CONNECT, tap_name, val, 0, ext)
+            cmd, opaque, cas, vbucketId, key, ext, val = readTap(mc)
+            if cmd == memcacheConstants.CMD_TAP_OPAQUE:
+                sys.exit(0);
+            sys.exit("ERROR: could not register name: " + tap_name)
+        else:
+            mc.deregister_tap_client(tap_name)
+    except mc_bin_client.MemcachedError as ne:
+        sys.exit("ERROR: " + str(ne))
+
+
+    finally:
+        if mc:
+           mc.close()

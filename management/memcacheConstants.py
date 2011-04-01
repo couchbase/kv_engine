@@ -70,6 +70,9 @@ CMD_GET_LOCKED = 0x94
 
 CMD_SYNC = 0x96
 
+# TAP client registration
+CMD_DEREGISTER_TAP_CLIENT = 0x89
+
 # event IDs for the SYNC command responses
 CMD_SYNC_EVENT_PERSISTED  = 1
 CMD_SYNC_EVENT_MODIFED    = 2

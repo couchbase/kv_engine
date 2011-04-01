@@ -2,6 +2,7 @@ ACLOCAL_AMFLAGS = -I m4 --force
 bin_SCRIPTS = management/analyze_core \
               wrapper/mbadm-online-restore \
               wrapper/mbadm-online-update \
+              wrapper/mbadm-tap-registration \
               wrapper/mbbackup-incremental \
               wrapper/mbdbmaint \
               wrapper/mbflushctl \
@@ -248,6 +249,7 @@ pythonlib_DATA= \
 pythonlib_SCRIPTS= \
                 management/mbadm-online-restore \
                 management/mbadm-online-update \
+                management/mbadm-tap-registration \
                 management/mbbackup-incremental \
                 management/mbdbmaint \
                 management/mbflushctl \
@@ -257,6 +259,7 @@ pythonlib_SCRIPTS= \
 PYTHON_TOOLS= \
               wrapper/mbadm-online-restore \
               wrapper/mbadm-online-update \
+              wrapper/mbadm-tap-registration \
               wrapper/mbbackup-incremental \
               wrapper/mbdbmaint \
               wrapper/mbflushctl \

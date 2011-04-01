@@ -540,6 +540,10 @@ public:
                                        protocol_binary_request_header *request,
                                        ADD_RESPONSE response);
 
+   ENGINE_ERROR_CODE deregisterTapClient(const void* cookie,
+                                         protocol_binary_request_header *request,
+                                         ADD_RESPONSE response);
+
 private:
     EventuallyPersistentEngine(GET_SERVER_API get_server_api);
     friend ENGINE_ERROR_CODE create_instance(uint64_t interface,

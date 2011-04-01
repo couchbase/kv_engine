@@ -224,12 +224,14 @@ public:
 
     bool recordCurrentOpenCheckpointId(const std::string &name, uint16_t vbucket);
 
+    bool closeTapConnectionByName(const std::string &name);
+
 private:
 
     TapConnection *findByName_UNLOCKED(const std::string &name);
     void getExpiredConnections_UNLOCKED(std::list<TapConnection*> &deadClients);
 
-    void removeTapCursors(TapProducer *tp);
+    void removeTapCursors_UNLOCKED(TapProducer *tp);
 
     bool mapped(TapConnection *tc);
 

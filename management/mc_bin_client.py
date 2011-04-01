@@ -390,3 +390,6 @@ class MemcachedClient(object):
         """Notify the server that we're done restoring."""
         return self._doCmd(memcacheConstants.CMD_RESTORE_COMPLETE, '', '', '', 0)
 
+    def deregister_tap_client(self, tap_name):
+        """Deregister the TAP client with a given name."""
+        return self._doCmd(memcacheConstants.CMD_DEREGISTER_TAP_CLIENT, tap_name, '', '', 0)

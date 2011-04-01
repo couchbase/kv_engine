@@ -128,7 +128,7 @@ void TapConnMap::getExpiredConnections_UNLOCKED(std::list<TapConnection*> &deadC
             if (tp) {
                 if (!tp->suspended) {
                     deadClients.push_back(tc);
-                    removeTapCursors(tp);
+                    removeTapCursors_UNLOCKED(tp);
                 }
             } else {
                 deadClients.push_back(tc);
@@ -143,7 +143,7 @@ void TapConnMap::getExpiredConnections_UNLOCKED(std::list<TapConnection*> &deadC
     }
 }
 
-void TapConnMap::removeTapCursors(TapProducer *tp) {
+void TapConnMap::removeTapCursors_UNLOCKED(TapProducer *tp) {
     // If this TAP connection is not for the registered TAP client,
     // remove all the checkpoint cursors belonging to the TAP connection.
     if (tp && !tp->registeredTAPClient) {
@@ -403,6 +403,27 @@ bool TapConnMap::recordCurrentOpenCheckpointId(const std::string &name, uint16_t
         tp->recordCurrentOpenCheckpointId(vbucket);
     }
 
+    return rv;
+}
+
+bool TapConnMap::closeTapConnectionByName(const std::string &name) {
+    bool rv = false;
+    LockHolder lh(notifySync);
+    TapConnection *tc = findByName_UNLOCKED(name);
+    if (tc) {
+        TapProducer *tp = dynamic_cast<TapProducer*>(tc);
+        if (tp) {
+            tp->setRegisteredClient(false);
+            removeTapCursors_UNLOCKED(tp);
+
+            tp->setExpiryTime((rel_time_t)-1);
+            tp->setName(TapConnection::getAnonName());
+            tp->setDisconnect(true);
+            tp->paused = true;
+            rv = true;
+            notifySync.notify();
+        }
+    }
     return rv;
 }
 

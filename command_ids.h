@@ -94,6 +94,12 @@
  */
 #define CMD_ONLINE_UPDATE_REVERT 0x88
 
+/**
+ * Close the TAP connection for the registered TAP client and remove the
+ * checkpoint cursors from its registered vbuckets.
+ */
+#define CMD_DEREGISTER_TAP_CLIENT 0x89
+
 /*
  * IDs for the events of the SYNC command.
  */
