@@ -723,6 +723,9 @@ extern "C" {
             break;
         case CMD_DEREGISTER_TAP_CLIENT:
             return h->deregisterTapClient(cookie, request, response);
+            break;
+        case CMD_LAST_CLOSED_CHECKPOINT:
+            return h->handleGetLastClosedCheckpointId(cookie, request, response);
         }
 
         if (item) {
@@ -3829,6 +3832,30 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deregisterTapClient(const void *co
     if (response(NULL, 0, NULL, 0, NULL, 0,
                  PROTOCOL_BINARY_RAW_BYTES,
                  PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie)) {
+        return ENGINE_SUCCESS;
+    }
+    return ENGINE_FAILED;
+}
+
+ENGINE_ERROR_CODE
+EventuallyPersistentEngine::handleGetLastClosedCheckpointId(const void *cookie,
+                                                            protocol_binary_request_header *req,
+                                                            ADD_RESPONSE response) {
+    uint16_t vbucket = ntohs(req->request.vbucket);
+    RCPtr<VBucket> vb = getVBucket(vbucket);
+    if (!vb) {
+        if (response(NULL, 0, NULL, 0, NULL, 0,
+                     PROTOCOL_BINARY_RAW_BYTES,
+                     PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, 0, cookie)) {
+            return ENGINE_SUCCESS;
+        }
+        return ENGINE_FAILED;
+    }
+
+    uint64_t checkpointId = vb->checkpointManager.getLastClosedCheckpointId();
+    checkpointId = htonll(checkpointId);
+    if (response(NULL, 0, NULL, 0, &checkpointId, sizeof(checkpointId),
+                 PROTOCOL_BINARY_RAW_BYTES, PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie)) {
         return ENGINE_SUCCESS;
     }
     return ENGINE_FAILED;

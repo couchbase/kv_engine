@@ -31,6 +31,11 @@
 #define CMD_SYNC              0x96
 
 /**
+ * Return the last closed checkpoint Id for a given VBucket.
+ */
+#define CMD_LAST_CLOSED_CHECKPOINT 0x97
+
+/**
  * Start restoring a <b>single</b> incremental backup file specified in the
  * key field of the packet.
  * The server will return the following error codes:
