@@ -1,0 +1,42 @@
+#!/usr/bin/env python
+"""
+Online update control for ep-engine.
+
+"""
+import time
+
+import clitool
+
+def auth(mc, username, password):
+    if username:
+        mc.sasl_auth_plain(username, password)
+
+def revert(mc, username=None, password=""):
+    auth(mc, username, password)
+    mc.revert_onlineupdate()
+
+def start(mc, username=None, password=""):
+    auth(mc, username, password)
+    mc.start_onlineupdate()
+
+def complete(mc, username=None, password=""):
+    auth(mc, username, password)
+    mc.complete_onlineupdate()
+
+if __name__ == '__main__':
+
+    c = clitool.CliTool("""
+All commands allow an optional username and password as the last
+two parameters.
+
+Online update:
+    start          - start online update and stop persistence
+    complete       - stop online update and continue persistence
+    revert         - stop online update and revert any mutations during online update
+""")
+
+    c.addCommand('start', start, 'start')
+    c.addCommand('complete', complete, 'complete')
+    c.addCommand('revert', revert, "revert")
+
+    c.execute()
