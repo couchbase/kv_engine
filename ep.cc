@@ -533,7 +533,7 @@ protocol_binary_response_status EventuallyPersistentStore::evictKey(const std::s
                                                                     size_t *msg_size,
                                                                     bool force) {
     RCPtr<VBucket> vb = getVBucket(vbucket);
-    if (!(vb && vb->getState() == vbucket_state_active || force)) {
+    if (!vb || (vb->getState() != vbucket_state_active && !force)) {
         return PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET;
     }
 
