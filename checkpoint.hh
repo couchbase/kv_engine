@@ -43,13 +43,15 @@ public:
 
     CheckpointCursor(std::list<Checkpoint*>::iterator checkpoint,
                      std::list<queued_item>::iterator pos,
-                     size_t os = 0) :
-        currentCheckpoint(checkpoint), currentPos(pos), offset(os) { }
+                     size_t os = 0, bool isClosedCheckpointOnly = false) :
+        currentCheckpoint(checkpoint), currentPos(pos),
+        offset(os), closedCheckpointOnly(isClosedCheckpointOnly) { }
 
 private:
     std::list<Checkpoint*>::iterator currentCheckpoint;
     std::list<queued_item>::iterator currentPos;
     Atomic<size_t>                   offset;
+    bool                             closedCheckpointOnly;
 };
 
 /**
@@ -211,9 +213,11 @@ public:
      * Register the new cursor for a given TAP connection
      * @param name the name of a given TAP connection
      * @param checkpointId the checkpoint Id to start with.
+     * @param closedCheckpointOnly the flag indicating if a cursor is only for closed checkpoints.
      * @return true if the checkpoint to start with exists in the queue.
      */
-    bool registerTAPCursor(const std::string &name, uint64_t checkpointId = 1);
+    bool registerTAPCursor(const std::string &name, uint64_t checkpointId = 1,
+                           bool closedCheckpointOnly = false);
 
     /**
      * Remove the cursor for a given TAP connection.

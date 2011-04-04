@@ -98,7 +98,7 @@ def main():
         ext, val = encodeTAPConnectOpts({
           memcacheConstants.TAP_FLAG_CHECKPOINT: '',
           memcacheConstants.TAP_FLAG_SUPPORT_ACK: '',
-          memcacheConstants.TAP_FLAG_REGISTERED_CLIENT: '',
+          memcacheConstants.TAP_FLAG_REGISTERED_CLIENT: 0x01, # "value > 0" means "closed checkpoints only"
         })
 
         mc._sendCmd(memcacheConstants.CMD_TAP_CONNECT, name, val, 0, ext)
@@ -243,6 +243,10 @@ def loop(mc, db, timeout, source):
             elif cmd == memcacheConstants.CMD_TAP_OPAQUE:
                 if len(ext) > 0:
                     eng_length, flags, ttl, flg, exp, needAck = parseTapExt(ext)
+                    opaque_opcode = struct.unpack(">I" , val[0:eng_length])
+                    if opaque_opcode[0] == memcacheConstants.TAP_OPAQUE_OPEN_CHECKPOINT:
+                        log(1, "Incremental backup is currently at the open checkpoint. Exit...")
+                        exit(0)
 
             elif cmd == memcacheConstants.CMD_TAP_CONNECT:
                 sys.exit("ERROR: TAP_CONNECT error: " + str(key))

@@ -1896,8 +1896,16 @@ void EventuallyPersistentEngine::createTapQueue(const void *cookie,
     }
 
     bool isRegisteredClient = false;
+    bool isClosedCheckpointOnly = false;
     if (flags & TAP_CONNECT_REGISTERED_CLIENT) {
         isRegisteredClient = true;
+        uint8_t closedCheckpointOnly = 0;
+        if (nuserdata >= sizeof(closedCheckpointOnly)) {
+            memcpy(&closedCheckpointOnly, ptr, sizeof(closedCheckpointOnly));
+            nuserdata -= sizeof(closedCheckpointOnly);
+            ptr += sizeof(closedCheckpointOnly);
+        }
+        isClosedCheckpointOnly = closedCheckpointOnly > 0 ? true : false;
     }
 
     TapProducer *tap = tapConnMap.newProducer(cookie, name, flags,
@@ -1905,6 +1913,7 @@ void EventuallyPersistentEngine::createTapQueue(const void *cookie,
                                               static_cast<int>(tapKeepAlive));
 
     tap->setRegisteredClient(isRegisteredClient);
+    tap->setClosedCheckpointOnlyFlag(isClosedCheckpointOnly);
     tap->setVBucketFilter(vbuckets);
     tap->registerTAPCursor(lastCheckpointIds);
     serverApi->cookie->store_engine_specific(cookie, tap);
@@ -2056,6 +2065,13 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
                 connection->setSupportCheckpointSync(true);
                 getLogger()->log(EXTENSION_LOG_INFO, NULL,
                                  "Enable checkpoint synchronization\n");
+                break;
+            case TAP_OPAQUE_OPEN_CHECKPOINT:
+                /**
+                 * This event is only received by the TAP client that wants to get mutations
+                 * from closed checkpoints only. At this time, only incremental backup client
+                 * receives this event so that it can close the connection and reconnect later.
+                 */
                 break;
             case TAP_OPAQUE_INITIAL_VBUCKET_STREAM:
                 /* Ignore.. this is just an informative message */

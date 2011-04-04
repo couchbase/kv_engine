@@ -227,7 +227,8 @@ void TapProducer::registerTAPCursor(std::map<uint16_t, uint64_t> &lastCheckpoint
             }
             // Check if the unified queue contains the checkpoint to start with.
             if(!vb->checkpointManager.registerTAPCursor(name,
-                                                    tapCheckpointState[vbid].currentCheckpointId)) {
+                                                       tapCheckpointState[vbid].currentCheckpointId,
+                                                       closedCheckpointOnly)) {
                 if (backfillAge < current_time && !registeredTAPClient) { // Backfill is required.
                     TapCheckpointState st(vbid, 0, backfill);
                     tapCheckpointState[vbid] = st;
@@ -323,6 +324,7 @@ void TapProducer::rollback() {
                 case TAP_OPAQUE_INITIAL_VBUCKET_STREAM:
                 case TAP_OPAQUE_ENABLE_CHECKPOINT_SYNC:
                     break;
+                case TAP_OPAQUE_OPEN_CHECKPOINT:
                 case TAP_OPAQUE_START_ONLINEUPDATE:
                 case TAP_OPAQUE_STOP_ONLINEUPDATE:
                 case TAP_OPAQUE_REVERT_ONLINEUPDATE:
@@ -964,6 +966,7 @@ queued_item TapProducer::next() {
 
     if (!isPendingBackfill() && queue->empty()) {
         const VBucketMap &vbuckets = engine.getEpStore()->getVBuckets();
+        uint16_t open_checkpoint_count = 0;
         std::map<uint16_t, TapCheckpointState>::iterator it = tapCheckpointState.begin();
         for (; it != tapCheckpointState.end(); ++it) {
             uint16_t vbid = it->first;
@@ -1025,6 +1028,20 @@ queued_item TapProducer::next() {
                     addVBucketHighPriority_UNLOCKED(ev);
                 }
                 break;
+            case queue_op_empty:
+                {
+                    if (closedCheckpointOnly) {
+                        ++open_checkpoint_count;
+                        // If all the cursors are at the open checkpoints, send the OPAQUE message
+                        // to the TAP client so that it can close the connection if necessary.
+                        if (open_checkpoint_count == tapCheckpointState.size()) {
+                            TapVBucketEvent ev(TAP_OPAQUE, item->getVBucketId(),
+                                               (vbucket_state_t)htonl(TAP_OPAQUE_OPEN_CHECKPOINT));
+                            addVBucketHighPriority_UNLOCKED(ev);
+                        }
+                    }
+                }
+                break;
             default:
                 break;
             }
@@ -1076,11 +1093,15 @@ bool TapProducer::recordCurrentOpenCheckpointId(uint16_t vbid) {
     if (it == tapCheckpointState.end()) {
         return false;
     }
-    vb->checkpointManager.registerTAPCursor(name, checkpointId);
+    vb->checkpointManager.registerTAPCursor(name, checkpointId, closedCheckpointOnly);
     it->second.currentCheckpointId = checkpointId;
     return true;
 }
 
 void TapProducer::setRegisteredClient(bool isRegisteredClient) {
     registeredTAPClient = isRegisteredClient;
+}
+
+void TapProducer::setClosedCheckpointOnlyFlag(bool isClosedCheckpointOnly) {
+    closedCheckpointOnly = isClosedCheckpointOnly;
 }

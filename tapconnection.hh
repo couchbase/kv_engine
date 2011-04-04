@@ -25,6 +25,7 @@ struct PopulateEventsBody;
 #define TAP_OPAQUE_ENABLE_AUTO_NACK 0
 #define TAP_OPAQUE_INITIAL_VBUCKET_STREAM 1
 #define TAP_OPAQUE_ENABLE_CHECKPOINT_SYNC 2
+#define TAP_OPAQUE_OPEN_CHECKPOINT 3
 #define TAP_OPAQUE_START_ONLINEUPDATE 4
 #define TAP_OPAQUE_STOP_ONLINEUPDATE 8
 #define TAP_OPAQUE_REVERT_ONLINEUPDATE 0x10
@@ -826,6 +827,8 @@ private:
 
     void setRegisteredClient(bool isRegisteredClient);
 
+    void setClosedCheckpointOnlyFlag(bool isClosedCheckpointOnly);
+
     //! cookie used by this connection
     void setCookie(const void *c) {
         cookie = c;
@@ -1023,6 +1026,11 @@ private:
      * Is this TAP producer for the registered TAP client?
      */
     Atomic<bool> registeredTAPClient;
+
+    /**
+     * Is this TAP producer for replicating items from the closed checkpoints only?
+     */
+    Atomic<bool> closedCheckpointOnly;
  
     Atomic<rel_time_t> lastWalkTime;
 

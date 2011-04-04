@@ -296,7 +296,8 @@ protocol_binary_response_status CheckpointManager::endHotReload(uint64_t total) 
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-bool CheckpointManager::registerTAPCursor(const std::string &name, uint64_t checkpointId) {
+bool CheckpointManager::registerTAPCursor(const std::string &name, uint64_t checkpointId,
+                                          bool closedCheckpointOnly) {
     LockHolder lh(queueLock);
     assert(checkpointList.size() > 0);
 
@@ -312,7 +313,7 @@ bool CheckpointManager::registerTAPCursor(const std::string &name, uint64_t chec
         // If the checkpoint to start with is not found, set the TAP cursor to the beginning
         // of the checkpoint list. This case requires the full materialization through backfill.
         it = checkpointList.begin();
-        CheckpointCursor cursor(it, (*it)->begin());
+        CheckpointCursor cursor(it, (*it)->begin(), 0, closedCheckpointOnly);
         tapCursors[name] = cursor;
         (*it)->incrReferenceCounter();
     } else {
@@ -329,7 +330,7 @@ bool CheckpointManager::registerTAPCursor(const std::string &name, uint64_t chec
             (*(map_it->second.currentCheckpoint))->decrReferenceCounter();
         }
 
-        CheckpointCursor cursor(it, (*it)->begin(), offset);
+        CheckpointCursor cursor(it, (*it)->begin(), offset, closedCheckpointOnly);
         tapCursors[name] = cursor;
         // Increase the reference counter of the checkpoint that is newly referenced
         // by the tap cursor.
@@ -587,6 +588,11 @@ queued_item CheckpointManager::nextItemFromClosedCheckpoint(CheckpointCursor &cu
 }
 
 queued_item CheckpointManager::nextItemFromOpenedCheckpoint(CheckpointCursor &cursor) {
+    if (cursor.closedCheckpointOnly) {
+        queued_item qi(new QueuedItem("", vbucketId, queue_op_empty));
+        return qi;
+    }
+
     ++(cursor.currentPos);
     if (cursor.currentPos != (*(cursor.currentCheckpoint))->end()) {
         ++(cursor.offset);
