@@ -482,7 +482,6 @@ ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
                     map_it->second.state = checkpoint_end_synced;
                 }
                 --checkpointEndCounter;
-                engine.notifyTapNotificationThread();
             }
             getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
                              "Explicit ack <%s> (#%u)\n",
@@ -496,6 +495,7 @@ ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
         }
 
         lh.unlock();
+        engine.notifyTapNotificationThread();
         if (complete() && idle()) {
             // We've got all of the ack's need, now we can shut down the
             // stream
