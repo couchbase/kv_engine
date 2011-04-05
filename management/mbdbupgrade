@@ -4,6 +4,7 @@ import sys
 import os
 import glob
 import subprocess
+import shutil
 
 TARGET_VERSION=2
 
@@ -71,12 +72,19 @@ class NullLogger(object):
     def write(self, x):
         pass
 
-def ensureNewColumns(sqlite, src):
+def updateVBStatesTableSchema(sqlite, src):
     try:
         run_sql(sqlite, src, 'alter table vbucket_states add column vb_version;',
                 logger=NullLogger())
     except SystemExit:
         pass # Already had the column
+    try:
+        run_sql(sqlite, src, 'alter table vbucket_states add column checkpoint_id;',
+                logger=NullLogger())
+    except SystemExit:
+        pass # Already had the colum
+
+def updateKVTableSchema(sqlite, src):
     for d in glob.glob(src + '*.mb') + glob.glob(src + '*.sqlite'):
         if os.path.exists(d):
             try:
@@ -84,6 +92,10 @@ def ensureNewColumns(sqlite, src):
                         logger=NullLogger())
             except SystemExit:
                 pass # Already had the column
+
+def ensureNewColumns(sqlite, src):
+    updateVBStatesTableSchema(sqlite, src)
+    updateKVTableSchema(sqlite, src)
 
 def findTarget(src, dest):
     if os.path.isdir(dest):
@@ -104,7 +116,7 @@ def doset(sqlite, src, dest):
     v = version(sqlite, src)
     print 'Source version from "%s" is %d' % (src, v)
 
-    args = [findCmd('dbconvert')]
+    args = [findCmd('mbdbconvert')]
     if v < 2:
         args.append("--remove-crlf")
     if os.path.exists(src + '-0.mb'):
@@ -114,11 +126,21 @@ def doset(sqlite, src, dest):
 
     ensureNewColumns(sqlite, src)
 
-    returncode = subprocess.call(args)
-    if returncode != 0:
-        sys.stderr.write("Error running convert, exit code %d (%s)\n" %
-                         (returncode, ' '.join(args)))
-        sys.exit(1)
+    if v < 2:
+        returncode = subprocess.call(args)
+        if returncode != 0:
+            sys.stderr.write("Error running convert, exit code %d (%s)\n" %
+                             (returncode, ' '.join(args)))
+            sys.exit(1)
+    elif v >= 2:
+        msg = "No schema changes in KV tables. Simply copying the source DB files into the destination...\n"
+        sys.stdout.write(msg)
+        if os.path.isdir(dest) == False:
+            sys.stderr.write("Error: Destination should be a directory for the simple copy.\n")
+            sys.exit(1)
+        for filename in glob.glob(src + '*.mb'):
+            shutil.copy(filename, dest)
+        sys.stdout.write("Completed copying the source DB files into the destination directory.\n")
 
 def main():
     command = sys.argv[0]
