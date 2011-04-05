@@ -13,7 +13,7 @@ DEFAULT_HOST_PORT = ["127.0.0.1", DEFAULT_PORT]
 def usage(err=0):
     print >> sys.stderr, """
 
-Usage: %s [-h %s[:%s]] [-r|d tap_name]
+Usage: %s [-h %s[:%s]] [-r|d tap_name] [-c]
 
 """ % (os.path.basename(sys.argv[0]),
        DEFAULT_HOST_PORT[0], DEFAULT_HOST_PORT[1])
@@ -23,9 +23,11 @@ def parse_args(args):
     host_port = DEFAULT_HOST_PORT
     tap_name = ''
     is_registration = True
+    # By default, the TAP client receives mutations from the open checkpoint as well.
+    closed_checkpoint_only = 0x00
 
     try:
-        opts, args = getopt.getopt(args, 'h:r:d:', ['help'])
+        opts, args = getopt.getopt(args, 'h:r:d:c', ['help'])
     except getopt.GetoptError, e:
         usage(e.msg)
 
@@ -41,12 +43,14 @@ def parse_args(args):
         elif o == '-d':
             tap_name = a
             is_registration = False
+        elif o == '-c':
+            closed_checkpoint_only = 0x01
         else:
             usage("unknown option - " + o)
 
     if len(tap_name) == 0:
         usage("missing name argument, which is the registered client name")
-    return host_port, tap_name, is_registration
+    return host_port, tap_name, is_registration, closed_checkpoint_only
 
 def readTap(mc):
     ext = ''
@@ -73,7 +77,7 @@ def encodeTAPConnectOpts(opts):
 
 if __name__ == '__main__':
     global mc
-    host_port, tap_name, is_registration = parse_args(sys.argv[1:])
+    host_port, tap_name, is_registration, closed_checkpoint_only = parse_args(sys.argv[1:])
 
     try:
         mc = mc_bin_client.MemcachedClient(host_port[0], int(host_port[1]))
@@ -82,7 +86,7 @@ if __name__ == '__main__':
             ext, val = encodeTAPConnectOpts({
             memcacheConstants.TAP_FLAG_CHECKPOINT: '',
             memcacheConstants.TAP_FLAG_SUPPORT_ACK: '',
-            memcacheConstants.TAP_FLAG_REGISTERED_CLIENT: '',
+            memcacheConstants.TAP_FLAG_REGISTERED_CLIENT: closed_checkpoint_only,
             })
             mc._sendCmd(memcacheConstants.CMD_TAP_CONNECT, tap_name, val, 0, ext)
             cmd, opaque, cas, vbucketId, key, ext, val = readTap(mc)
