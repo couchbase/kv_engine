@@ -293,22 +293,10 @@ private:
     static uint64_t nextCas(void) {
         uint64_t ret;
         ret = casCounter++;
-        if ((ret % casNotificationFrequency) == 0) {
-            casNotifier(ret);
-        }
 
         return ret;
     }
 
-    static void initializeCas(uint64_t initial, void (*notifier)(uint64_t current),
-                              uint64_t frequency) {
-        casCounter = initial;
-        casNotifier = notifier;
-        casNotificationFrequency = frequency;
-    }
-
-    static uint64_t casNotificationFrequency;
-    static void (*casNotifier)(uint64_t);
     static Atomic<uint64_t> casCounter;
     DISALLOW_COPY_AND_ASSIGN(Item);
 };
