@@ -91,10 +91,9 @@ public:
     void operator delete(void* p) { ::operator delete(p); }
 
     ~Blob() {
-        if (stats) {
-            stats->currentSize.decr(size);
-            assert(stats->currentSize.get() < GIGANTOR);
-        }
+        assert(stats);
+        stats->currentSize.decr(size);
+        assert(stats->currentSize.get() < GIGANTOR);
     }
 
     static void init(EPStats *st) {
@@ -105,18 +104,16 @@ private:
 
     explicit Blob(const char *start, const size_t len) : size(static_cast<uint32_t>(len)) {
         std::memcpy(data, start, len);
-        if (stats) {
-            stats->currentSize.incr(size);
-            assert(stats->currentSize.get() < GIGANTOR);
-        }
+        assert(stats);
+        stats->currentSize.incr(size);
+        assert(stats->currentSize.get() < GIGANTOR);
     }
 
     explicit Blob(const char c, const size_t len) : size(static_cast<uint32_t>(len)) {
         std::memset(data, c, len);
-        if (stats) {
-            stats->currentSize.incr(size);
-            assert(stats->currentSize.get() < GIGANTOR);
-        }
+        assert(stats);
+        stats->currentSize.incr(size);
+        assert(stats->currentSize.get() < GIGANTOR);
     }
 
     const uint32_t size;
