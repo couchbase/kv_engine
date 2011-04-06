@@ -935,6 +935,8 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server
     info.info.features[info.info.num_features++].feature = ENGINE_FEATURE_PERSISTENT_STORAGE;
     info.info.features[info.info.num_features++].feature = ENGINE_FEATURE_LRU;
     restore.manager = NULL;
+    QueuedItem::init(&stats);
+    Blob::init(&stats);
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
@@ -1288,9 +1290,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
 
         stats.mem_low_wat = memLowWat;
         stats.mem_high_wat = memHighWat;
-
-        QueuedItem::init(&stats);
-        Blob::init(&stats);
 
         databaseInitTime = ep_real_time() - start;
         epstore = new EventuallyPersistentStore(*this, kvstore, startVb0,
