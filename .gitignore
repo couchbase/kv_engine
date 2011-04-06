@@ -48,6 +48,7 @@
 /testlogger_libify.cc
 /wrapper/mbadm-online-restore
 /wrapper/mbadm-online-update
+/wrapper/mbadm-tap-registration
 /wrapper/mbbackup-incremental
 /wrapper/mbdbmaint
 /wrapper/mbflushctl
