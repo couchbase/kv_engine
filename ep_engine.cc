@@ -1665,8 +1665,12 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
             return TAP_PAUSE;
         }
 
-        queued_item qi = connection->next();
+        bool waitForAck = false;
+        queued_item qi = connection->next(waitForAck);
         if (qi->getOperation() == queue_op_empty) {
+            if (waitForAck) {
+                return TAP_PAUSE;
+            }
             retry = true;
             return TAP_NOOP;
         }
@@ -1818,7 +1822,7 @@ tap_event_t EventuallyPersistentEngine::walkTapQueue(const void *cookie,
         } else {
             ++stats.numTapFetched;
             *seqno = connection->getSeqno();
-            if (connection->requestAck(ret)) {
+            if (connection->requestAck(ret, *vbucket)) {
                 *flags = TAP_FLAG_ACK;
             }
         }

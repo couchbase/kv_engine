@@ -547,8 +547,9 @@ uint64_t CheckpointManager::getAllItemsForOnlineUpdate(std::vector<queued_item> 
     return checkpointId;
 }
 
-queued_item CheckpointManager::nextItem(const std::string &name) {
+queued_item CheckpointManager::nextItem(const std::string &name, bool &isLastItem) {
     LockHolder lh(queueLock);
+    isLastItem = false;
     std::map<const std::string, CheckpointCursor>::iterator it = tapCursors.find(name);
     if (it == tapCursors.end()) {
         getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
@@ -560,16 +561,18 @@ queued_item CheckpointManager::nextItem(const std::string &name) {
 
     CheckpointCursor &cursor = it->second;
     if ((*(it->second.currentCheckpoint))->getState() == closed) {
-        return nextItemFromClosedCheckpoint(cursor);
+        return nextItemFromClosedCheckpoint(cursor, isLastItem);
     } else {
-        return nextItemFromOpenedCheckpoint(cursor);
+        return nextItemFromOpenedCheckpoint(cursor, isLastItem);
     }
 }
 
-queued_item CheckpointManager::nextItemFromClosedCheckpoint(CheckpointCursor &cursor) {
+queued_item CheckpointManager::nextItemFromClosedCheckpoint(CheckpointCursor &cursor,
+                                                            bool &isLastItem) {
     ++(cursor.currentPos);
     if (cursor.currentPos != (*(cursor.currentCheckpoint))->end()) {
         ++(cursor.offset);
+        isLastItem = isLastItemInCheckpoint(cursor);
         return *(cursor.currentPos);
     } else {
         if (!moveCursorToNextCheckpoint(cursor)) {
@@ -580,14 +583,16 @@ queued_item CheckpointManager::nextItemFromClosedCheckpoint(CheckpointCursor &cu
         if ((*(cursor.currentCheckpoint))->getState() == closed) { // the close checkpoint.
             ++(cursor.currentPos); // Move the cursor to point to the actual first item.
             ++(cursor.offset);
+            isLastItem = isLastItemInCheckpoint(cursor);
             return *(cursor.currentPos);
         } else { // the open checkpoint.
-            return nextItemFromOpenedCheckpoint(cursor);
+            return nextItemFromOpenedCheckpoint(cursor, isLastItem);
         }
     }
 }
 
-queued_item CheckpointManager::nextItemFromOpenedCheckpoint(CheckpointCursor &cursor) {
+queued_item CheckpointManager::nextItemFromOpenedCheckpoint(CheckpointCursor &cursor,
+                                                            bool &isLastItem) {
     if (cursor.closedCheckpointOnly) {
         queued_item qi(new QueuedItem("", vbucketId, queue_op_empty));
         return qi;
@@ -596,6 +601,7 @@ queued_item CheckpointManager::nextItemFromOpenedCheckpoint(CheckpointCursor &cu
     ++(cursor.currentPos);
     if (cursor.currentPos != (*(cursor.currentCheckpoint))->end()) {
         ++(cursor.offset);
+        isLastItem = isLastItemInCheckpoint(cursor);
         return *(cursor.currentPos);
     } else {
         --(cursor.currentPos);
@@ -706,6 +712,26 @@ size_t CheckpointManager::getNumItemsForTAPConnection(const std::string &name) {
         remains = numItems - it->second.offset;
     }
     return remains;
+}
+
+void CheckpointManager::decrTapCursorFromCheckpointEnd(const std::string &name) {
+    LockHolder lh(queueLock);
+    std::map<const std::string, CheckpointCursor>::iterator it = tapCursors.find(name);
+    if (it != tapCursors.end() &&
+        (*(it->second.currentPos))->getOperation() == queue_op_checkpoint_end) {
+        --(it->second.offset);
+        --(it->second.currentPos);
+    }
+}
+
+bool CheckpointManager::isLastItemInCheckpoint(CheckpointCursor &cursor) {
+    std::list<queued_item>::iterator it = cursor.currentPos;
+    ++it;
+    if (it == (*(cursor.currentCheckpoint))->end() ||
+        (*it)->getOperation() == queue_op_checkpoint_end) {
+        return true;
+    }
+    return false;
 }
 
 bool CheckpointManager::checkAndAddNewCheckpoint(uint64_t id) {

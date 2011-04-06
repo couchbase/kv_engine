@@ -149,7 +149,7 @@ public:
 
     TapCheckpointState(uint16_t vb, uint64_t checkpointId, tap_checkpoint_state s) :
         vbucket(vb), currentCheckpointId(checkpointId),
-        openCheckpointIdAtBackfillEnd(0), state(s) {}
+        openCheckpointIdAtBackfillEnd(0), lastSeqNum(0), lastItem(false), state(s) {}
 
     TapCheckpointState(const TapCheckpointState &other) {
         vbucket = other.vbucket;
@@ -162,6 +162,10 @@ public:
     uint64_t currentCheckpointId;
     // Id of the current open checkpoint at the time of backfill completion.
     uint64_t openCheckpointIdAtBackfillEnd;
+    // Last sequence number sent to the slave.
+    uint32_t lastSeqNum;
+    // True if the TAP cursor reaches to the last item at its current checkpoint.
+    bool lastItem;
     tap_checkpoint_state state;
 };
 
@@ -505,7 +509,7 @@ private:
     /**
      * Get the next item from the queue
      */
-    queued_item next();
+    queued_item next(bool &waitForAck);
 
     void addVBucketHighPriority_UNLOCKED(TapVBucketEvent &ev) {
         vBucketHighPriority.push(ev);
@@ -801,9 +805,10 @@ private:
     /**
      * Should we request a TAP ack for this message?
      * @param event the event type for this message
+     * @param vbucket the vbucket Id for this message
      * @return true if we should request a tap ack (and start a new sequence)
      */
-    bool requestAck(tap_event_t event);
+    bool requestAck(tap_event_t event, uint16_t vbucket);
 
     /**
      * Get the current tap sequence number.
@@ -837,6 +842,7 @@ private:
     }
 
     bool recordCurrentOpenCheckpointId(uint16_t vbucket);
+
 
     //! Lock held during queue operations.
     Mutex queueLock;
@@ -1035,6 +1041,8 @@ private:
     Atomic<bool> closedCheckpointOnly;
  
     Atomic<rel_time_t> lastWalkTime;
+
+    bool isLastAckSucceed;
 
     static size_t bgMaxPending;
 

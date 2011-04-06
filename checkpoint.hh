@@ -280,9 +280,11 @@ public:
     /**
      * Return the next item to be sent to a given TAP connection
      * @param name the name of a given TAP connection
+     * @param isLastItem flag indicating if the item to be returned is the last one
+     * in the closed checkpoint.
      * @return the next item to be sent to a given TAP connection.
      */
-    queued_item nextItem(const std::string &name);
+    queued_item nextItem(const std::string &name, bool &isLastItem);
 
     /**
      * Return the list of items, which needs to be persisted, to the flusher.
@@ -343,6 +345,14 @@ public:
 
     bool isHotReload() { return doHotReload; }
 
+    /**
+     * If a given TAP cursor currently points to the checkpoint_end dummy item,
+     * decrease its current position by 1. This function is mainly used for checkpoint
+     * synchronization between the master and slave nodes.
+     * @param name the name of a given TAP connection
+     */
+    void decrTapCursorFromCheckpointEnd(const std::string &name);
+
     static void initializeCheckpointConfig(size_t checkpoint_period,
                                            size_t checkpoint_max_items) {
         checkpointPeriod = checkpoint_period;
@@ -374,9 +384,9 @@ private:
      */
     bool addNewCheckpoint(uint64_t id);
 
-    queued_item nextItemFromClosedCheckpoint(CheckpointCursor &cursor);
+    queued_item nextItemFromClosedCheckpoint(CheckpointCursor &cursor, bool &isLastItem);
 
-    queued_item nextItemFromOpenedCheckpoint(CheckpointCursor &cursor);
+    queued_item nextItemFromOpenedCheckpoint(CheckpointCursor &cursor, bool &isLastItem);
 
     uint64_t getAllItemsFromCurrentPosition(CheckpointCursor &cursor,
                                             uint64_t barrier,
@@ -426,6 +436,8 @@ private:
             --(persistenceCursor.currentPos);
         }
     }
+
+    bool isLastItemInCheckpoint(CheckpointCursor &cursor);
 
     EPStats                 &stats;
     Mutex                    queueLock;
