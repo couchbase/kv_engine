@@ -21,6 +21,17 @@
 #define CMD_START_PERSISTENCE 0x81
 #define CMD_SET_FLUSH_PARAM   0x82
 
+/* The following commands are used by bucket engine:
+
+#define CREATE_BUCKET 0x85
+#define DELETE_BUCKET 0x86
+#define LIST_BUCKETS  0x87
+#define EXPAND_BUCKET 0x88
+#define SELECT_BUCKET 0x89
+
+ */
+
+
 #define CMD_START_REPLICATION 0x90
 #define CMD_STOP_REPLICATION  0x91
 #define CMD_SET_TAP_PARAM     0x92
