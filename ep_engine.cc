@@ -3047,7 +3047,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTapStats(const void *cookie,
     tapConnMap.each(tapVisitor);
 
     add_casted_stat("ep_tap_total_fetched", stats.numTapFetched, add_stat, cookie);
-    add_casted_stat("ep_tap_bg_max_pending", TapProducer::bgMaxPending, add_stat, cookie);
+    add_casted_stat("ep_tap_bg_max_pending", TapProducer::bgMaxPending,
+                    add_stat, cookie);
     add_casted_stat("ep_tap_bg_fetched", stats.numTapBGFetched, add_stat, cookie);
     add_casted_stat("ep_tap_bg_fetch_requeued", stats.numTapBGFetchRequeued,
                     add_stat, cookie);
@@ -3061,9 +3062,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTapStats(const void *cookie,
     add_casted_stat("ep_tap_total_queue", aggregator.tap_queue, add_stat, cookie);
     add_casted_stat("ep_tap_queue_fill", aggregator.tap_queueFill, add_stat, cookie);
     add_casted_stat("ep_tap_queue_drain", aggregator.tap_queueDrain, add_stat, cookie);
-    add_casted_stat("ep_tap_queue_backoff", aggregator.tap_queueBackoff, add_stat, cookie);
-    add_casted_stat("ep_tap_queue_backfillremaining", aggregator.tap_queueBackfillRemaining, add_stat, cookie);
-    add_casted_stat("ep_tap_queue_itemondisk", aggregator.tap_queueItemOnDisk, add_stat, cookie);
+    add_casted_stat("ep_tap_queue_backoff", aggregator.tap_queueBackoff,
+                    add_stat, cookie);
+    add_casted_stat("ep_tap_queue_backfillremaining",
+                    aggregator.tap_queueBackfillRemaining, add_stat, cookie);
+    add_casted_stat("ep_tap_queue_itemondisk", aggregator.tap_queueItemOnDisk,
+                    add_stat, cookie);
 
     add_casted_stat("ep_tap_ack_window_size", TapProducer::ackWindowSize,
                     add_stat, cookie);
@@ -3078,7 +3082,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTapStats(const void *cookie,
 
 
     if (stats.tapBgNumOperations > 0) {
-        add_casted_stat("ep_tap_bg_num_samples", stats.tapBgNumOperations, add_stat, cookie);
+        add_casted_stat("ep_tap_bg_num_samples", stats.tapBgNumOperations,
+                        add_stat, cookie);
         add_casted_stat("ep_tap_bg_min_wait",
                         stats.tapBgMinWait,
                         add_stat, cookie);
@@ -3117,7 +3122,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doKeyStats(const void *cookie,
         diskItem.reset(it); // Will be null if the key was not found
         if (!validate) {
             getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                             "Found lookup results for non-validating key stat call. Would have leaked\n");
+                             "Found lookup results for non-validating key "
+                             "stat call. Would have leaked\n");
             diskItem.reset();
         }
     } else if (validate) {
