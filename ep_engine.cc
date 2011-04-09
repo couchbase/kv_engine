@@ -3038,7 +3038,112 @@ struct TapStatBuilder {
     TapCounter* aggregator;
 };
 
+struct TapAggStatBuilder {
+    TapAggStatBuilder(std::map<std::string, TapCounter*> *m,
+                      const char *s, size_t sl)
+        : counters(m), sep(s), sep_len(sl) {}
+
+    TapCounter *getTarget(TapProducer *tc) {
+        TapCounter *rv = NULL;
+
+        if (tc) {
+            const std::string name(tc->getName());
+            size_t pos1 = name.find(':');
+            assert(pos1 != name.npos);
+            size_t pos2 = name.find(sep, pos1+1, sep_len);
+            if (pos2 != name.npos) {
+                std::string prefix(name.substr(pos1+1, pos2 - pos1 - 1));
+                rv = (*counters)[prefix];
+                if (rv == NULL) {
+                    rv = new TapCounter;
+                    (*counters)[prefix] = rv;
+                }
+            }
+        }
+        return rv;
+    }
+
+    void operator() (TapConnection *tc) {
+
+        TapProducer *tp = dynamic_cast<TapProducer*>(tc);
+        TapCounter *aggregator = getTarget(tp);
+        if (aggregator && tp) {
+            ++aggregator->totalTaps;
+            aggregator->tap_queue += tp->getQueueSize();
+            aggregator->tap_queueFill += tp->getQueueFillTotal();
+            aggregator->tap_queueDrain += tp->getQueueDrainTotal();
+            aggregator->tap_queueBackoff += tp->getQueueBackoff();
+            aggregator->tap_queueBackfillRemaining += tp->getBacklogSize();
+            aggregator->tap_queueItemOnDisk += tp->getRemaingOnDisk();
+        }
+    }
+
+    std::map<std::string, TapCounter*> *counters;
+    const char *sep;
+    size_t sep_len;
+};
+
 /// @endcond
+
+static void showTapAggStat(const std::string prefix,
+                           TapCounter *counter,
+                           const void *cookie,
+                           ADD_STAT add_stat) {
+
+    char statname[80] = {0};
+    const size_t sl(sizeof(statname));
+    snprintf(statname, sl, "%s:count", prefix.c_str());
+    add_casted_stat(statname, counter->totalTaps, add_stat, cookie);
+
+    snprintf(statname, sl, "%s:qlen", prefix.c_str());
+    add_casted_stat(statname, counter->tap_queue, add_stat, cookie);
+
+    snprintf(statname, sl, "%s:fill", prefix.c_str());
+    add_casted_stat(statname, counter->tap_queueFill,
+                    add_stat, cookie);
+
+    snprintf(statname, sl, "%s:drain", prefix.c_str());
+    add_casted_stat(statname, counter->tap_queueDrain,
+                    add_stat, cookie);
+
+    snprintf(statname, sl, "%s:backoff", prefix.c_str());
+    add_casted_stat(statname, counter->tap_queueBackoff,
+                    add_stat, cookie);
+
+    snprintf(statname, sl, "%s:backfill_remaining", prefix.c_str());
+    add_casted_stat(statname, counter->tap_queueBackfillRemaining,
+                    add_stat, cookie);
+
+    snprintf(statname, sl, "%s:itemondisk", prefix.c_str());
+    add_casted_stat(statname, counter->tap_queueItemOnDisk,
+                    add_stat, cookie);
+}
+
+ENGINE_ERROR_CODE EventuallyPersistentEngine::doTapAggStats(const void *cookie,
+                                                            ADD_STAT add_stat,
+                                                            const char *sepPtr,
+                                                            size_t sep_len) {
+    // In practice, this will be 1, but C++ doesn't let me use dynamic
+    // array sizes.
+    const size_t max_sep_len(8);
+    sep_len = std::min(sep_len, max_sep_len);
+
+    char sep[max_sep_len + 1];
+    memcpy(sep, sepPtr, sep_len);
+    sep[sep_len] = 0x00;
+
+    std::map<std::string, TapCounter*> counters;
+    TapAggStatBuilder tapVisitor(&counters, sep, sep_len);
+    tapConnMap.each(tapVisitor);
+
+    std::map<std::string, TapCounter*>::iterator it;
+    for (it = counters.begin(); it != counters.end(); ++it) {
+        showTapAggStat(it->first, it->second, cookie, add_stat);
+        delete it->second;
+    }
+
+    return ENGINE_SUCCESS;
+}
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doTapStats(const void *cookie,
                                                          ADD_STAT add_stat) {
@@ -3293,6 +3398,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
     ENGINE_ERROR_CODE rv = ENGINE_KEY_ENOENT;
     if (stat_key == NULL) {
         rv = doEngineStats(cookie, add_stat);
+    } else if (nkey > 7 && strncmp(stat_key, "tapagg ", 7) == 0) {
+        rv = doTapAggStats(cookie, add_stat, stat_key + 7, nkey - 7);
     } else if (nkey == 3 && strncmp(stat_key, "tap", 3) == 0) {
         rv = doTapStats(cookie, add_stat);
     } else if (nkey == 4 && strncmp(stat_key, "hash", 3) == 0) {

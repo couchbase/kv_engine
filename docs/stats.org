@@ -351,6 +351,26 @@ another colon.  For example, if your client is named, =slave1=, the
 | num_vbucket_set_failed    | Number of failed vbucket set operations  |  C |
 | num_unknown               | Number of unknown operations             |  C |
 
+** Tap Aggregated Stats
+
+Aggregated tap stats allow named tap connections to be logically
+grouped and aggregated together by prefixes.
+
+For example, if all of your tap connections started with =rebalance_=
+or =replication_=, you could call =stats tapagg _= to request stats
+grouped by everything before the first =_= character, giving you a set
+for =rebalance= and a set for =replication=.
+
+*** Results
+
+| [prefix]:count              | Number of connections matching this prefix |
+| [prefix]:qlen               | Total length of queues with this prefix    |
+| [prefix]:backfill_remaining | Number of items needing to be backfilled   |
+| [prefix]:backoff            | Total number of backoff events             |
+| [prefix]:drain              | Total number of items drained              |
+| [prefix]:fill               | Total number of items filled               |
+| [prefix]:itemondisk         | Number of items remaining on disk          |
+
 ** Timing Stats
 
 Timing stats provide histogram data from high resolution timers over

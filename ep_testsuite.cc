@@ -2638,6 +2638,38 @@ static enum test_result verify_item(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     return SUCCESS;
 }
 
+static const void* createTapConn(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                                 const char *name) {
+    const void *cookie = testHarness.create_cookie();
+    testHarness.lock_cookie(cookie);
+    TAP_ITERATOR iter = h1->get_tap_iterator(h, cookie, name,
+                                             strlen(name),
+                                             TAP_CONNECT_FLAG_DUMP, NULL,
+                                             0);
+    check(iter != NULL, "Failed to create a tap iterator");
+    return cookie;
+}
+
+static enum test_result test_tap_agg_stats(ENGINE_HANDLE *h,
+                                           ENGINE_HANDLE_V1 *h1) {
+    std::vector<const void*> cookies;
+
+    cookies.push_back(createTapConn(h, h1, "replica_a"));
+    cookies.push_back(createTapConn(h, h1, "replica_b"));
+    cookies.push_back(createTapConn(h, h1, "replica_c"));
+    cookies.push_back(createTapConn(h, h1, "rebalance_a"));
+
+    check(get_int_stat(h, h1, "replica:count", "tapagg _") == 3,
+          "Incorrect replica count on tap agg");
+    check(get_int_stat(h, h1, "rebalance:count", "tapagg _") == 1,
+          "Incorrect rebalance count on tap agg");
+
+    std::for_each(cookies.begin(), cookies.end(),
+                  std::ptr_fun(testHarness.unlock_cookie));
+
+    return SUCCESS;
+}
+
 static enum test_result test_tap_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const int num_keys = 30;
     bool keys[num_keys];
@@ -5270,6 +5302,7 @@ engine_test_t* get_tests(void) {
         {"tap receiver delete (replica)", test_tap_rcvr_delete_replica,
          NULL, teardown, NULL},
         {"tap stream", test_tap_stream, NULL, teardown, NULL},
+        {"tap agg stats", test_tap_agg_stats, NULL, teardown, NULL},
         {"tap filter stream", test_tap_filter_stream, NULL, teardown,
          "tap_keepalive=100;ht_size=129;ht_locks=3"},
         {"tap default config", test_tap_default_config, NULL,

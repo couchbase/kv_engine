@@ -20,6 +20,7 @@ class Dispatcher;
 class Item;
 
 struct TapStatBuilder;
+struct TapAggStatBuilder;
 struct PopulateEventsBody;
 
 #define TAP_OPAQUE_ENABLE_AUTO_NACK 0
@@ -425,6 +426,7 @@ private:
     friend class BackFillVisitor;
     friend class TapBGFetchCallback;
     friend struct TapStatBuilder;
+    friend struct TapAggStatBuilder;
     friend struct PopulateEventsBody;
 
     void completeBackfillCommon() {
