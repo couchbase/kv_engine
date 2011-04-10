@@ -35,27 +35,20 @@ public:
                const time_t expiry_time = 0, const uint64_t cv = 0)
         : op(o),vbucket_version(vb_version), ejectValue(false), queued(ep_current_time()),
           dirtied(ep_current_time()), item(k, f, expiry_time, NULL, 0, cv, rid, vb) {
-
-        // Exclude the value size as it is included in the kv memory overhead.
-        stats->memOverhead.incr(size() - getValue()->length());
-        assert(stats->memOverhead.get() < GIGANTOR);
+        ObjectRegistry::onCreateQueuedItem(this);
     }
 
     QueuedItem(const std::string &k, value_t v, const uint16_t vb, enum queue_operation o,
                const uint16_t vb_version = -1, const int64_t rid = -1, const uint32_t f = 0,
                const time_t expiry_time = 0, const uint64_t cv = 0)
         : op(o), vbucket_version(vb_version), ejectValue(false), queued(ep_current_time()),
-          dirtied(ep_current_time()), item(k, f, expiry_time, v, cv, rid, vb) {
-
-        // Exclude the value size as it is included in the kv memory overhead.
-        stats->memOverhead.incr(size() - getValue()->length());
-        assert(stats->memOverhead.get() < GIGANTOR);
+          dirtied(ep_current_time()), item(k, f, expiry_time, v, cv, rid, vb)
+    {
+        ObjectRegistry::onCreateQueuedItem(this);
     }
 
     ~QueuedItem() {
-        // Exclude the value size as it is included in the kv memory overhead.
-        stats->memOverhead.decr(size() - getValue()->length());
-        assert(stats->memOverhead.get() < GIGANTOR);
+        ObjectRegistry::onDeleteQueuedItem(this);
     }
 
     const std::string &getKey(void) const { return item.getKey(); }
@@ -96,10 +89,6 @@ public:
         return sizeof(QueuedItem) + getKey().size() + getValue()->length();
     }
 
-    static void init(EPStats * st) {
-        stats = st;
-    }
-
 private:
     enum queue_operation op;
     uint16_t vbucket_version;
@@ -110,7 +99,6 @@ private:
     uint32_t dirtied;
     Item item;
 
-    static EPStats *stats;
     DISALLOW_COPY_AND_ASSIGN(QueuedItem);
 };
 

@@ -6,8 +6,10 @@
 #include "atomic.hh"
 #include "locks.hh"
 #include "priority.hh"
+#include "ep_engine.h"
 
-Dispatcher dispatcher;
+EventuallyPersistentEngine *engine = NULL;
+Dispatcher dispatcher(*engine);
 static Atomic<int> callbacks;
 
 extern "C" {

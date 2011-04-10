@@ -11,7 +11,7 @@ bin_SCRIPTS = management/analyze_core \
 
 memcachedlibdir = $(libdir)/memcached
 memcachedlib_LTLIBRARIES = ep.la ep_testsuite.la timing_tests.la
-noinst_LTLIBRARIES = libkvstore.la
+noinst_LTLIBRARIES = libkvstore.la libobjectregistry.la
 
 bin_PROGRAMS = management/mbdbconvert
 BUILT_SOURCES =
@@ -67,6 +67,9 @@ if BUILD_BYTEORDER
 ep_la_SOURCES += byteorder.c
 endif
 
+libobjectregistry_la_SOURCES = objectregistry.cc objectregistry.hh
+
+
 libkvstore_la_SOURCES = kvstore.cc kvstore.hh \
                         pathexpand.hh pathexpand.cc \
                         sqlite-eval.cc sqlite-eval.hh \
@@ -76,14 +79,15 @@ libkvstore_la_SOURCES = kvstore.cc kvstore.hh \
 libkvstore_la_LIBADD =
 libkvstore_la_DEPENDENCIES =
 
-ep_la_LIBADD = libkvstore.la
-ep_la_DEPENDENCIES = libkvstore.la
-ep_testsuite_la_LIBADD = libkvstore.la
-ep_testsuite_la_DEPENDENCIES = libkvstore.la
+ep_la_LIBADD = libkvstore.la libobjectregistry.la
+ep_la_DEPENDENCIES = libkvstore.la libobjectregistry.la
+ep_testsuite_la_LIBADD = libkvstore.la libobjectregistry.la
+ep_testsuite_la_DEPENDENCIES = libkvstore.la libobjectregistry.la
 
-management_mbdbconvert_SOURCES = management/dbconvert.cc testlogger.cc
-management_mbdbconvert_LDADD = libkvstore.la
-management_mbdbconvert_DEPENDENCIES = libkvstore.la
+management_mbdbconvert_SOURCES = management/dbconvert.cc \
+                                 testlogger.cc
+management_mbdbconvert_LDADD = libkvstore.la libobjectregistry.la
+management_mbdbconvert_DEPENDENCIES = libkvstore.la libobjectregistry.la
 
 if BUILD_EMBEDDED_LIBSQLITE3
 ep_la_LIBADD += libsqlite3.la
@@ -175,12 +179,15 @@ atomic_queue_test_DEPENDENCIES = atomic.hh
 
 dispatcher_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
 dispatcher_test_SOURCES = t/dispatcher_test.cc dispatcher.cc dispatcher.hh priority.cc priority.hh testlogger.cc
-dispatcher_test_DEPENDENCIES = common.hh dispatcher.hh dispatcher.cc priority.cc priority.hh
+dispatcher_test_DEPENDENCIES = common.hh dispatcher.hh dispatcher.cc priority.cc priority.hh libobjectregistry.la
+dispatcher_test_LDADD = libobjectregistry.la
 
 hash_table_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
 hash_table_test_SOURCES = t/hash_table_test.cc item.cc stored-value.cc stored-value.hh \
                           testlogger.cc
-hash_table_test_DEPENDENCIES = stored-value.cc stored-value.hh ep.hh item.hh
+hash_table_test_DEPENDENCIES = stored-value.cc stored-value.hh ep.hh item.hh \
+                               libobjectregistry.la
+hash_table_test_LDADD = libobjectregistry.la
 
 misc_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
 misc_test_SOURCES = t/misc_test.cc common.hh
@@ -201,12 +208,14 @@ management_sqlite3_LDADD = libsqlite3.la
 vbucket_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
 vbucket_test_SOURCES = t/vbucket_test.cc t/threadtests.hh vbucket.hh vbucket.cc stored-value.cc stored-value.hh testlogger.cc \
 		       checkpoint.hh checkpoint.cc
-vbucket_test_DEPENDENCIES = vbucket.hh stored-value.cc stored-value.hh checkpoint.hh checkpoint.cc
+vbucket_test_DEPENDENCIES = vbucket.hh stored-value.cc stored-value.hh checkpoint.hh checkpoint.cc libobjectregistry.la
+vbucket_test_LDADD = libobjectregistry.la
 
 checkpoint_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
 checkpoint_test_SOURCES = t/checkpoint_test.cc checkpoint.hh checkpoint.cc vbucket.hh vbucket.cc \
 			  testlogger.cc stored-value.cc stored-value.hh queueditem.hh
-checkpoint_test_DEPENDENCIES = checkpoint.hh vbucket.hh stored-value.cc stored-value.hh queueditem.hh
+checkpoint_test_DEPENDENCIES = checkpoint.hh vbucket.hh stored-value.cc stored-value.hh queueditem.hh libobjectregistry.la
+checkpoint_test_LDADD = libobjectregistry.la
 
 hrtime_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
 hrtime_test_SOURCES = t/hrtime_test.cc common.hh
@@ -278,7 +287,7 @@ mbbackup-0002.mbb: $(top_srcdir)/t/generate-mbbackup
 	echo "Generate incremental restore files used by the test suite"
 	@$(top_srcdir)/t/generate-mbbackup
 
-engine_tests: all mbbackup-0002.mbb
+engine_tests: ep.la ep_testsuite.la mbbackup-0002.mbb
 	$(ENGINE_TESTAPP) -E .libs/ep.so -t $(TEST_TIMEOUT) \
 		-T .libs/ep_testsuite.so \
 		-e 'ht_size=13;ht_locks=7;initfile=t/test_pragma.sql;min_data_age=0;db_strategy=multiDB'

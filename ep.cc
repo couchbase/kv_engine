@@ -358,18 +358,18 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
                      storageProperties.maxWriters());
 
     doPersistence = getenv("EP_NO_PERSISTENCE") == NULL;
-    dispatcher = new Dispatcher();
+    dispatcher = new Dispatcher(theEngine);
     if (storageProperties.maxConcurrency() > 1
         && storageProperties.maxReaders() > 1
         && concurrentDB) {
         roUnderlying = engine.newKVStore();
-        roDispatcher = new Dispatcher();
+        roDispatcher = new Dispatcher(theEngine);
         roDispatcher->start();
     } else {
         roUnderlying = rwUnderlying;
         roDispatcher = dispatcher;
     }
-    nonIODispatcher = new Dispatcher();
+    nonIODispatcher = new Dispatcher(theEngine);
     flusher = new Flusher(this, dispatcher);
     invalidItemDbPager = new InvalidItemDbPager(this, stats, engine.getVbDelChunkSize());
 
@@ -1160,7 +1160,7 @@ EventuallyPersistentStore::unlockKey(const std::string &key,
     if (!vb) {
         ++stats.numNotMyVBuckets;
         return ENGINE_NOT_MY_VBUCKET;
-    } 
+    }
 
     int bucket_num(0);
     LockHolder lh = vb->ht.getLockedBucket(key, &bucket_num);

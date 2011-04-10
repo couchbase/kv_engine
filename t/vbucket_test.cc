@@ -16,8 +16,6 @@ static const size_t numThreads = 10;
 static const size_t vbucketsEach = 100;
 
 EPStats global_stats;
-EPStats *QueuedItem::stats = &global_stats;
-EPStats *Blob::stats = &global_stats;
 
 extern "C" {
     static rel_time_t basic_current_time(void) {
@@ -174,6 +172,7 @@ static void testVBucketFilterFormatter(void) {
 
 int main(int argc, char **argv) {
     (void)argc; (void)argv;
+    putenv(strdup("ALLOW_NO_STATS_UPDATE=yeah"));
 
     HashTable::setDefaultNumBuckets(5);
     HashTable::setDefaultNumLocks(1);

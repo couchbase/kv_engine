@@ -49,7 +49,6 @@
 #include "sqlite-pst.hh"
 #include "mutex.hh"
 #include "locks.hh"
-#include "item.hh"
 
 #include "ep_testsuite.h"
 #include "command_ids.h"
@@ -67,7 +66,6 @@
 #undef htonl
 #endif
 
-EPStats *Blob::stats = NULL;
 
 extern "C" {
 

@@ -11,6 +11,7 @@
 #include "mutex.hh"
 #include "locks.hh"
 #include "atomic.hh"
+#include "objectregistry.hh"
 #include "stats.hh"
 
 /**
@@ -91,35 +92,27 @@ public:
     void operator delete(void* p) { ::operator delete(p); }
 
     ~Blob() {
-        assert(stats);
-        stats->currentSize.decr(size);
-        assert(stats->currentSize.get() < GIGANTOR);
-    }
-
-    static void init(EPStats *st) {
-        stats = st;
+        ObjectRegistry::onDeleteBlob(this);
     }
 
 private:
 
-    explicit Blob(const char *start, const size_t len) : size(static_cast<uint32_t>(len)) {
+    explicit Blob(const char *start, const size_t len) :
+        size(static_cast<uint32_t>(len))
+    {
         std::memcpy(data, start, len);
-        assert(stats);
-        stats->currentSize.incr(size);
-        assert(stats->currentSize.get() < GIGANTOR);
+        ObjectRegistry::onCreateBlob(this);
     }
 
-    explicit Blob(const char c, const size_t len) : size(static_cast<uint32_t>(len)) {
+    explicit Blob(const char c, const size_t len) :
+        size(static_cast<uint32_t>(len))
+    {
         std::memset(data, c, len);
-        assert(stats);
-        stats->currentSize.incr(size);
-        assert(stats->currentSize.get() < GIGANTOR);
+        ObjectRegistry::onCreateBlob(this);
     }
 
     const uint32_t size;
     char data[1];
-
-    static EPStats *stats;
 
     DISALLOW_COPY_AND_ASSIGN(Blob);
 };

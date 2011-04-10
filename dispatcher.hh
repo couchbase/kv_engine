@@ -32,6 +32,8 @@ enum dispatcher_state {
     dispatcher_stopped          //!< The dispatcher has shut down
 };
 
+class EventuallyPersistentEngine;
+
 /**
  * Log entry for previous job runs.
  */
@@ -282,9 +284,11 @@ private:
  */
 class Dispatcher {
 public:
-    Dispatcher() : notifications(0), joblog(JOB_LOG_SIZE), slowjobs(JOB_LOG_SIZE),
-                   idleTask(new IdleTask), state(dispatcher_running),
-                   forceTermination(false) {
+    Dispatcher(EventuallyPersistentEngine &e) :
+        notifications(0), joblog(JOB_LOG_SIZE), slowjobs(JOB_LOG_SIZE),
+        idleTask(new IdleTask), state(dispatcher_running),
+        forceTermination(false), engine(e)
+    {
         noTask();
     }
 
@@ -416,6 +420,8 @@ private:
     hrtime_t taskStart;
     bool running_task;
     bool forceTermination;
+
+    EventuallyPersistentEngine &engine;
 };
 
 #endif

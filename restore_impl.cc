@@ -338,6 +338,7 @@ public:
     }
 
     void *run(void) {
+        ObjectRegistry::onSwitchThread(&engine);
         setState(State::Running);
         try {
             instance->process();

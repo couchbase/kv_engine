@@ -15,6 +15,7 @@
  */
 #include "config.h"
 #include "dispatcher.hh"
+#include "objectregistry.hh"
 
 extern "C" {
     static void* launch_dispatcher_thread(void* arg);
@@ -65,6 +66,7 @@ void Dispatcher::moveReadyTasks(const struct timeval &tv) {
 }
 
 void Dispatcher::run() {
+    ObjectRegistry::onSwitchThread(&engine);
     getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "Dispatcher starting\n");
     for (;;) {
         LockHolder lh(mutex);

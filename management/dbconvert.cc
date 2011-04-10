@@ -37,9 +37,6 @@
 
 using namespace std;
 
-EPStats global_stats;
-EPStats *Blob::stats = &global_stats;
-
 static KVStore *getStore(EPStats &st,
                          const char *path,
                          const char *strategyName,
@@ -144,6 +141,7 @@ static void usage(const char *cmd) {
 }
 
 int main(int argc, char **argv) {
+    putenv(strdup("ALLOW_NO_STATS_UPDATE=yeah"));
     const char *cmd(argv[0]);
     const char *srcPath(NULL), *srcStrategy("multiDB");
     const char *destPath(NULL), *destStrategy("multiMTVBDB");

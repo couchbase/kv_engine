@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2010 NorthScale, Inc.
+ *     Copyright 2011 Couchbase, Inc.
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -14,26 +14,22 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-#include "item.hh"
+#ifndef OBJECTREGISTRY_HH
+#define OBJECTREGISTRY_HH 1
 
-Atomic<uint64_t> Item::casCounter(1);
+class EventuallyPersistentEngine;
+class Blob;
+class QueuedItem;
 
-bool Item::append(const Item &item) {
-    std::string newValue(value->getData(), value->length());
-    newValue.append(item.getValue()->to_s());
-    value.reset(Blob::New(newValue));
-    return true;
-}
+class ObjectRegistry {
+public:
+    static void onCreateBlob(Blob *blob);
+    static void onDeleteBlob(Blob *blob);
 
-/**
- * Prepend another item to this item
- *
- * @param item the item to prepend to this one
- * @return true if success
- */
-bool Item::prepend(const Item &item) {
-    std::string newValue(item.getValue()->to_s());
-    newValue.append(value->to_s());
-    value.reset(Blob::New(newValue));
-    return true;
-}
+    static void onCreateQueuedItem(QueuedItem *qi);
+    static void onDeleteQueuedItem(QueuedItem *qi);
+
+    static void onSwitchThread(EventuallyPersistentEngine *engine);
+};
+
+#endif

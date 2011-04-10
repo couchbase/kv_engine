@@ -55,7 +55,10 @@ static const char* DEFAULT_SHARD_PATTERN("%d/%b-%i.sqlite");
  */
 static inline EventuallyPersistentEngine* getHandle(ENGINE_HANDLE* handle)
 {
-    return reinterpret_cast<EventuallyPersistentEngine*>(handle);
+    EventuallyPersistentEngine* ret;
+    ret = reinterpret_cast<EventuallyPersistentEngine*>(handle);
+    ObjectRegistry::onSwitchThread(ret);
+    return ret;
 }
 
 void LookupCallback::callback(GetValue &value) {
@@ -852,6 +855,7 @@ extern "C" {
     }
 
     void *EvpNotifyTapIo(void*arg) {
+        ObjectRegistry::onSwitchThread(static_cast<EventuallyPersistentEngine*>(arg));
         static_cast<EventuallyPersistentEngine*>(arg)->notifyTapIoThread();
         return NULL;
     }
@@ -935,8 +939,6 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server
     info.info.features[info.info.num_features++].feature = ENGINE_FEATURE_PERSISTENT_STORAGE;
     info.info.features[info.info.num_features++].feature = ENGINE_FEATURE_LRU;
     restore.manager = NULL;
-    QueuedItem::init(&stats);
-    Blob::init(&stats);
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
