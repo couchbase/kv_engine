@@ -1348,10 +1348,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
                                                                        expiryPagerSleeptime));
             epstore->getNonIODispatcher()->schedule(exp_cb, NULL, Priority::ItemPagerPriority,
                                                     expiryPagerSleeptime);
-            shared_ptr<DispatcherCallback> htr(new HashtableResizer(epstore));
-            epstore->getNonIODispatcher()->schedule(htr, NULL, Priority::HTResizePriority,
-                                                    10);
         }
+
+        shared_ptr<DispatcherCallback> htr(new HashtableResizer(epstore));
+        epstore->getNonIODispatcher()->schedule(htr, NULL, Priority::HTResizePriority,
+                                                10);
 
         shared_ptr<DispatcherCallback> item_db_cb(epstore->getInvalidItemDbPager());
         epstore->getDispatcher()->schedule(item_db_cb, NULL,
