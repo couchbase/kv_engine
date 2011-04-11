@@ -88,12 +88,12 @@ LIBKVSTORE_C_SRC = embedded/sqlite3.c
 
 LIBKVSTORE_OBJS = ${LIBKVSTORE_CC_SRC:%.cc=.libs/%.o} ${LIBKVSTORE_C_SRC:%.c=.libs/%.o}
 
-MBDBCONVERT_SRC = management/dbconvert.cc testlogger.cc
+MBDBCONVERT_SRC = management/dbconvert.cc testlogger.cc objectregistry.cc
 
 MBDBCONVERT_OBJS = ${MBDBCONVERT_SRC:%.cc=.libs/%.o}
 
 management/mbdbconvert.exe: ${OBJDIR} ${GENFILES} ${MBDBCONVERT_OBJS} ${LIBKVSTORE_OBJS}
-	${LINK.cc} -o $@ ${MBDBCONVERT_OBJS} ${LIBKVSTORE_OBJS}
+	${LINK.cc} -o $@ ${MBDBCONVERT_OBJS} ${LIBKVSTORE_OBJS} -lpthread
 
 .libs/config_version.h:
 	./win32/config.sh
