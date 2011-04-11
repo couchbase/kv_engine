@@ -40,6 +40,7 @@ EP_ENGINE_CC_SRC = \
                  item.cc \
                  item_pager.cc \
                  kvstore.cc \
+                 objectregistry.cc \
                  pathexpand.cc \
                  priority.cc \
                  queueditem.cc \
