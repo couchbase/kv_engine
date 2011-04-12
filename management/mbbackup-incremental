@@ -27,10 +27,11 @@ MBB_VERSION = "1" # sqlite pragma user version.
 DEFAULT_PORT      = "11210"
 DEFAULT_HOST_PORT = ["127.0.0.1", DEFAULT_PORT]
 DEFAULT_FILE      = "./backup-%.mbb"
+DEFAULT_TXN_SIZE  = 5000
 
 def usage(err=0):
     print >> sys.stderr, """
-Usage: %s [-h %s[:%s]] [-o %s] [-T num_secs] [-r] [-v] name
+Usage: %s [-h %s[:%s]] [-o %s] [-T num_secs] [-r] [-t transaction_size] [-v] name
 """ % (os.path.basename(sys.argv[0]),
        DEFAULT_HOST_PORT[0], DEFAULT_HOST_PORT[1], DEFAULT_FILE)
     sys.exit(err)
@@ -41,9 +42,10 @@ def parse_args(args):
     timeout   = 0
     verbosity = 0
     only_name = False
+    txn_size  = DEFAULT_TXN_SIZE
 
     try:
-        opts, args = getopt.getopt(args, 'h:o:T:rv', ['help'])
+        opts, args = getopt.getopt(args, 'h:o:T:t:rv', ['help'])
     except getopt.GetoptError, e:
         usage(e.msg)
 
@@ -60,6 +62,8 @@ def parse_args(args):
             timeout = float(a)
         elif o == '-r':
             only_name = True # Only register the name and exit.
+        elif o == '-t':
+            txn_size = int(a)
         elif o == '-v':
             verbosity = verbosity + 1
         else:
@@ -70,7 +74,7 @@ def parse_args(args):
     if len(args) != 1:
         usage("incorrect number of arguments - only one name needed")
 
-    return host_port, file, args[0], timeout, only_name, verbosity
+    return host_port, file, args[0], timeout, only_name, txn_size, verbosity
 
 def log(level, *args):
     global verbosity
@@ -81,11 +85,12 @@ def log(level, *args):
 def main():
     global verbosity
 
-    host_port, file, name, timeout, only_name, verbosity = parse_args(sys.argv[1:])
+    host_port, file, name, timeout, only_name, txn_size, verbosity = parse_args(sys.argv[1:])
     log(1, "host_port = " + ':'.join(host_port))
     log(1, "verbosity = " + str(verbosity))
     log(1, "only_name = " + str(only_name))
     log(1, "timeout = " + str(timeout))
+    log(1, "transaction_size = " + str(txn_size))
     log(1, "name = " + name)
     log(1, "file = " + file)
 
@@ -118,7 +123,7 @@ def main():
         db.text_factory = str
         createSchema(db)
 
-        loop(mc, db, timeout, ':'.join(host_port) + '-' + name)
+        loop(mc, db, timeout, txn_size, ':'.join(host_port) + '-' + name)
 
     except NameError as ne:
         sys.exit("ERROR: " + str(ne))
@@ -133,7 +138,7 @@ def main():
         if db:
            db.close()
 
-def loop(mc, db, timeout, source):
+def loop(mc, db, timeout, txn_size, source):
     vbmap = {} # Key is vbucketId, value is [checkpointId, seq].
 
     cmdInfo = {
@@ -144,6 +149,8 @@ def loop(mc, db, timeout, source):
 
     try:
         sinput = [mc.s]
+        c = db.cursor()
+        update_count = 0
 
         while True:
             if timeout > 0:
@@ -181,17 +188,16 @@ def loop(mc, db, timeout, source):
                     s = "INSERT into cpoint_op" \
                         "(vbucket_id, cpoint_id, seq, op, key, flg, exp, cas, val)" \
                         " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
-                    db.execute(s, (vbucketId, checkpointId, seq, cmdOp,
+                    c.execute(s, (vbucketId, checkpointId, seq, cmdOp,
                                    key, flg, exp, cas, val))
                 else:
                     s = "INSERT into cpoint_op" \
                         "(vbucket_id, cpoint_id, seq, op, key, cas, val)" \
                         " VALUES (?, ?, ?, ?, ?, ?, ?)"
-                    db.execute(s, (vbucketId, checkpointId, seq, cmdOp,
+                    c.execute(s, (vbucketId, checkpointId, seq, cmdOp,
                                    key, cas, val))
 
-                db.commit()
-
+                update_count = update_count + 1
                 needAck = flags & memcacheConstants.TAP_FLAG_ACK
 
             elif cmd == memcacheConstants.CMD_TAP_CHECKPOINT_START:
@@ -212,10 +218,12 @@ def loop(mc, db, timeout, source):
                 s = "INSERT into cpoint_state" \
                     "(vbucket_id, cpoint_id, prev_cpoint_id, state, source, updated_at)" \
                     " VALUES (?, ?, ?, \"open\", ?, ?)"
-                db.execute(s, (vbucketId, val, checkpointIdPrev, source, t))
+                c.execute(s, (vbucketId, val, checkpointIdPrev, source, t))
                 db.commit()
 
             elif cmd == memcacheConstants.CMD_TAP_CHECKPOINT_END:
+                db.commit()
+                update_count = 0
                 if not vbucketId in vbmap:
                     sys.exit("ERROR: unmatched checkpoint end: %s vb: %s"
                              % (val, vbucketId))
@@ -234,21 +242,25 @@ def loop(mc, db, timeout, source):
                 s = "UPDATE cpoint_state" \
                     " SET state=\"closed\", updated_at=?" \
                     " WHERE vbucket_id=? AND cpoint_id=? AND state=\"open\" AND source=?"
-                r = db.execute(s, (t, vbucketId, checkpointId, source))
+                r = c.execute(s, (t, vbucketId, checkpointId, source))
+                db.commit()
                 if r.rowcount != 1:
                    sys.exit("ERROR: unexpected rowcount during update: "
                             + ",".join([t, vbucketId, checkpointId, source]))
-                db.commit()
 
             elif cmd == memcacheConstants.CMD_TAP_OPAQUE:
                 if len(ext) > 0:
                     eng_length, flags, ttl, flg, exp, needAck = parseTapExt(ext)
                     opaque_opcode = struct.unpack(">I" , val[0:eng_length])
                     if opaque_opcode[0] == memcacheConstants.TAP_OPAQUE_OPEN_CHECKPOINT:
+                        if update_count > 0:
+                            db.commit()
                         log(1, "Incremental backup is currently at the open checkpoint. Exit...")
                         exit(0)
 
             elif cmd == memcacheConstants.CMD_TAP_CONNECT:
+                if update_count > 0:
+                    db.commit()
                 sys.exit("ERROR: TAP_CONNECT error: " + str(key))
 
             elif cmd == memcacheConstants.CMD_NOOP:
@@ -256,6 +268,10 @@ def loop(mc, db, timeout, source):
 
             else:
                 sys.exit("ERROR: unhandled cmd " + str(cmd))
+
+            if update_count == txn_size:
+                db.commit()
+                update_count = 0
 
             if needAck:
                 mc._sendMsg(cmd, key, val, opaque,
