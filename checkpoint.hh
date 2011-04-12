@@ -280,11 +280,11 @@ public:
     /**
      * Return the next item to be sent to a given TAP connection
      * @param name the name of a given TAP connection
-     * @param isLastItem flag indicating if the item to be returned is the last one
+     * @param isLastMutationItem flag indicating if the item to be returned is the last mutation one
      * in the closed checkpoint.
      * @return the next item to be sent to a given TAP connection.
      */
-    queued_item nextItem(const std::string &name, bool &isLastItem);
+    queued_item nextItem(const std::string &name, bool &isLastMutationItem);
 
     /**
      * Return the list of items, which needs to be persisted, to the flusher.
@@ -384,9 +384,9 @@ private:
      */
     bool addNewCheckpoint(uint64_t id);
 
-    queued_item nextItemFromClosedCheckpoint(CheckpointCursor &cursor, bool &isLastItem);
+    queued_item nextItemFromClosedCheckpoint(CheckpointCursor &cursor, bool &isLastMutationItem);
 
-    queued_item nextItemFromOpenedCheckpoint(CheckpointCursor &cursor, bool &isLastItem);
+    queued_item nextItemFromOpenedCheckpoint(CheckpointCursor &cursor, bool &isLastMutationItem);
 
     uint64_t getAllItemsFromCurrentPosition(CheckpointCursor &cursor,
                                             uint64_t barrier,
@@ -437,7 +437,7 @@ private:
         }
     }
 
-    bool isLastItemInCheckpoint(CheckpointCursor &cursor);
+    bool isLastMutationItemInCheckpoint(CheckpointCursor &cursor);
 
     EPStats                 &stats;
     Mutex                    queueLock;

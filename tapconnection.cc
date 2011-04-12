@@ -280,7 +280,7 @@ bool TapProducer::requestAck(tap_event_t event, uint16_t vbucket) {
         return false;
     }
 
-    bool isExplcitAck = false;
+    bool isExplicitAck = false;
     if (supportCheckpointSync && (event == TAP_MUTATION || event == TAP_DELETION)) {
         std::map<uint16_t, TapCheckpointState>::iterator map_it =
             tapCheckpointState.find(vbucket);
@@ -289,7 +289,7 @@ bool TapProducer::requestAck(tap_event_t event, uint16_t vbucket) {
             if (map_it->second.lastItem || map_it->second.state == checkpoint_end) {
                 // Always ack for the last item or any items that were NAcked after the cursor
                 // reaches to the checkpoint end.
-                isExplcitAck = true;
+                isExplicitAck = true;
             }
         }
     }
@@ -300,7 +300,7 @@ bool TapProducer::requestAck(tap_event_t event, uint16_t vbucket) {
             event == TAP_CHECKPOINT_START || // always ack checkpoint start messages
             event == TAP_CHECKPOINT_END || // always ack checkpoint end messages
             ((seqno - 1) % ackInterval) == 0 || // ack at a regular interval
-            isExplcitAck ||
+            isExplicitAck ||
             empty()); // but if we're almost up to date, ack more often
 }
 
@@ -338,6 +338,9 @@ void TapProducer::rollback() {
                         tapCheckpointState.find(i->vbucket);
                     if (map_it != tapCheckpointState.end()) {
                         map_it->second.lastSeqNum = std::numeric_limits<uint32_t>::max();
+                    } else {
+                        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                            "TAP Checkpoint State for VBucket %d Not Found", i->vbucket);
                     }
                 }
                 addEvent_UNLOCKED(i->item);
@@ -455,10 +458,10 @@ void TapProducer::reschedule_UNLOCKED(const std::list<TapLogElement>::iterator &
         }
         break;
     case TAP_CHECKPOINT_START:
+        addCheckpointMessage_UNLOCKED(iter->item);
+        break;
     case TAP_CHECKPOINT_END:
-        if (iter->event == TAP_CHECKPOINT_END) {
-            --checkpointEndCounter;
-        }
+        --checkpointEndCounter;
         addCheckpointMessage_UNLOCKED(iter->item);
         break;
     case TAP_FLUSH:
