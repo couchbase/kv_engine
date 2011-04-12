@@ -66,6 +66,9 @@
 #undef htonl
 #endif
 
+// ptr_fun don't like the extern "C" thing for unlock cookie.. cast it
+// away ;)
+typedef void (*UNLOCK_COOKIE_T)(const void *cookie);
 
 extern "C" {
 
@@ -2663,7 +2666,7 @@ static enum test_result test_tap_agg_stats(ENGINE_HANDLE *h,
           "Incorrect rebalance count on tap agg");
 
     std::for_each(cookies.begin(), cookies.end(),
-                  std::ptr_fun(testHarness.unlock_cookie));
+                  std::ptr_fun((UNLOCK_COOKIE_T)testHarness.unlock_cookie));
 
     return SUCCESS;
 }
