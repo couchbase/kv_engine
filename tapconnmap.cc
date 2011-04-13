@@ -27,8 +27,8 @@ public:
             delete connection;
             if (cookie != NULL) {
                 engine.getServerApi()->cookie->store_engine_specific(cookie, NULL);
-                engine.getServerApi()->cookie->release(cookie);
                 engine.notifyIOComplete(cookie, ENGINE_DISCONNECT);
+                engine.getServerApi()->cookie->release(cookie);
             }
             return false;
         }
