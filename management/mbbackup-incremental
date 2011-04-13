@@ -31,7 +31,7 @@ DEFAULT_TXN_SIZE  = 5000
 
 def usage(err=0):
     print >> sys.stderr, """
-Usage: %s [-h %s[:%s]] [-o %s] [-T num_secs] [-r] [-t transaction_size] [-v] name
+Usage: %s [-h %s[:%s]] [-o %s] [-T num_secs] [-r] [-c] [-t transaction_size] [-v] tap_name|db_file
 """ % (os.path.basename(sys.argv[0]),
        DEFAULT_HOST_PORT[0], DEFAULT_HOST_PORT[1], DEFAULT_FILE)
     sys.exit(err)
@@ -42,10 +42,11 @@ def parse_args(args):
     timeout   = 0
     verbosity = 0
     only_name = False
+    only_check = False
     txn_size  = DEFAULT_TXN_SIZE
 
     try:
-        opts, args = getopt.getopt(args, 'h:o:T:t:rv', ['help'])
+        opts, args = getopt.getopt(args, 'h:o:T:t:rcv', ['help'])
     except getopt.GetoptError, e:
         usage(e.msg)
 
@@ -62,6 +63,8 @@ def parse_args(args):
             timeout = float(a)
         elif o == '-r':
             only_name = True # Only register the name and exit.
+        elif o == '-c':
+            only_check = True # Only check the incremental backup file by showing the list of checkpoints.
         elif o == '-t':
             txn_size = int(a)
         elif o == '-v':
@@ -70,11 +73,11 @@ def parse_args(args):
             usage("unknown option - " + o)
 
     if not args:
-        usage("missing name argument, which is the registered client name")
+        usage("missing the registered client name or the incremental backup file name")
     if len(args) != 1:
-        usage("incorrect number of arguments - only one name needed")
+        usage("incorrect number of arguments - only one registered name or backup file name needed")
 
-    return host_port, file, args[0], timeout, only_name, txn_size, verbosity
+    return host_port, file, args[0], timeout, only_name, only_check, txn_size, verbosity
 
 def log(level, *args):
     global verbosity
@@ -85,19 +88,27 @@ def log(level, *args):
 def main():
     global verbosity
 
-    host_port, file, name, timeout, only_name, txn_size, verbosity = parse_args(sys.argv[1:])
+    host_port, file, name, timeout, only_name, only_check, txn_size, verbosity = parse_args(sys.argv[1:])
     log(1, "host_port = " + ':'.join(host_port))
     log(1, "verbosity = " + str(verbosity))
     log(1, "only_name = " + str(only_name))
+    log(1, "only_check = " + str(only_check))
     log(1, "timeout = " + str(timeout))
     log(1, "transaction_size = " + str(txn_size))
-    log(1, "name = " + name)
     log(1, "file = " + file)
+    if only_check:
+        log(1, "incremental_backup_file = " + name)
+    else:
+        log(1, "registered_client_name = " + name)
 
     mc = None
     db = None
 
     try:
+        if only_check:
+            check_incremental_backup_file(name)
+            sys.exit(0)
+
         mc = mc_bin_client.MemcachedClient(host_port[0], int(host_port[1]))
 
         ext, val = encodeTAPConnectOpts({
@@ -137,6 +148,33 @@ def main():
            mc.close()
         if db:
            db.close()
+
+def check_incremental_backup_file(file_name):
+    db = None
+    try:
+        if os.path.exists(file_name) == False:
+            sys.exit("ERROR: file does not exist: " + file_name)
+
+        db = sqlite3.connect(file_name)
+        db.text_factory = str
+        c = db.cursor()
+        c.execute("select vbucket_id, cpoint_id, state, updated_at from cpoint_state " +
+                  "order by vbucket_id asc, updated_at asc")
+        print "\n vbucket_id   checkpoint_id   state    updated_at"
+        print "------------------------------------------------------"
+        for row in c:
+            updated = time.strptime(str(row[3]), "%Y%m%d%H%M%S")
+            updated_at = datetime.datetime.fromtimestamp(time.mktime(updated)).strftime("%Y/%m/%d %H:%M:%S")
+            print " %s   %s   %s   %s" % (str(row[0]).center(10), str(row[1]).center(13), str(row[2]).center(6), updated_at.center(19))
+
+    except Exception as e:
+        if verbosity > 1:
+            traceback.print_exc(file=sys.stdout)
+            print e
+        sys.exit("ERROR: " + str(e))
+    finally:
+        if db:
+            db.close()
 
 def loop(mc, db, timeout, txn_size, source):
     vbmap = {} # Key is vbucketId, value is [checkpointId, seq].
