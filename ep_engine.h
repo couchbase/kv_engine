@@ -406,6 +406,9 @@ public:
 
     void handleDisconnect(const void *cookie) {
         tapConnMap.disconnect(cookie, static_cast<int>(tapKeepAlive));
+        serverApi->cookie->store_engine_specific(cookie, NULL);
+        notifyIOComplete(cookie, ENGINE_DISCONNECT);
+        serverApi->cookie->release(cookie);
     }
 
     protocol_binary_response_status stopFlusher(const char **msg, size_t *msg_size) {
