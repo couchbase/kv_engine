@@ -2395,10 +2395,11 @@ public:
 
     BackFillThreadData(EventuallyPersistentEngine *e, TapProducer *tc,
                        EventuallyPersistentStore *s, const void *tok):
-        bfv(e, tc, tok), epstore(s) {
+        bfv(e, tc, tok), engine(e), epstore(s) {
     }
 
     BackFillVisitor bfv;
+    EventuallyPersistentEngine *engine;
     EventuallyPersistentStore *epstore;
 };
 /// @endcond
@@ -2406,6 +2407,7 @@ public:
 extern "C" {
     static void* launch_backfill_thread(void *arg) {
         BackFillThreadData *bftd = static_cast<BackFillThreadData *>(arg);
+        ObjectRegistry::onSwitchThread(bftd->engine);
 
         bftd->epstore->visit(bftd->bfv);
         bftd->bfv.apply();
