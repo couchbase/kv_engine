@@ -2200,9 +2200,18 @@ public:
 
     BackfillDiskLoad(const std::string &n, EventuallyPersistentEngine* e,
                      TapConnMap &tcm, KVStore *s, uint16_t vbid)
-        : name(n), engine(e), connMap(tcm), store(s), vbucket(vbid) { }
+        : name(n), engine(e), connMap(tcm), store(s), vbucket(vbid) {
+
+        vbucket_version = engine->getEpStore()->getVBucketVersion(vbucket);
+    }
 
     void callback(GetValue &gv) {
+        // If a vbucket version of a bg fetched item is different from the current version,
+        // skip this item.
+        if (vbucket_version != gv.getVBucketVersion()) {
+            delete gv.getValue();
+            return;
+        }
         ReceivedItemTapOperation tapop(true);
         // if the tap connection is closed, then free an Item instance
         if (!connMap.performTapOp(name, tapop, gv.getValue())) {
@@ -2233,6 +2242,7 @@ private:
     TapConnMap                 &connMap;
     KVStore                    *store;
     uint16_t                    vbucket;
+    uint16_t                    vbucket_version;
 };
 
 /**
