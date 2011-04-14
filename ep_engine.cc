@@ -2143,9 +2143,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
         ;
     }
 
-    if (dynamic_cast<TapConsumer*>(connection)) {
-        connection->processedEvent(tap_event, ret);
-    }
+    connection->processedEvent(tap_event, ret);
     return ret;
 }
 
