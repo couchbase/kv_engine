@@ -771,6 +771,7 @@ bool CheckpointManager::checkAndAddNewCheckpoint(uint64_t id) {
             } else if ((*curr)->getState() == opened) {
                 numItems -= ((*curr)->getNumItems() + 1); // 1 is for checkpoint start.
             }
+            delete *curr;
         }
         checkpointList.erase(it, checkpointList.end());
 
