@@ -1222,7 +1222,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
             }
 
             if (items[tap_ack_initial_sequence_number_idx].found) {
-                TapProducer::initialAckSequenceNumber = (uint32_t)tap_ack_initial_sequence_number;
+                uint32_t init_seq_num = (uint32_t)tap_ack_initial_sequence_number;
+                TapProducer::initialAckSequenceNumber = init_seq_num == 0 ? 1 : init_seq_num;
             }
 
             if (items[checkpoint_max_items_idx].found) {

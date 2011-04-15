@@ -25,7 +25,7 @@ uint32_t TapProducer::ackWindowSize = 10;
 uint32_t TapProducer::ackInterval = 1000;
 rel_time_t TapProducer::ackGracePeriod = 5 * 60;
 double TapProducer::backoffSleepTime = 1.0;
-uint32_t TapProducer::initialAckSequenceNumber = 0;
+uint32_t TapProducer::initialAckSequenceNumber = 1;
 double TapProducer::requeueSleepTime = 0.1;
 
 TapProducer::TapProducer(EventuallyPersistentEngine &theEngine,
@@ -54,7 +54,8 @@ TapProducer::TapProducer(EventuallyPersistentEngine &theEngine,
     seqnoReceived(initialAckSequenceNumber - 1),
     notifySent(false),
     registeredTAPClient(false),
-    isLastAckSucceed(false)
+    isLastAckSucceed(false),
+    isSeqNumRotated(false)
 {
     evaluateFlags();
     queue = new std::list<queued_item>;
@@ -295,6 +296,10 @@ bool TapProducer::requestAck(tap_event_t event, uint16_t vbucket) {
     }
 
     ++seqno;
+    if (seqno == 0) {
+        isSeqNumRotated = true;
+        seqno = 1;
+    }
     return (event == TAP_VBUCKET_SET || // always ack vbucket state change
             event == TAP_OPAQUE || // always ack opaque messages
             event == TAP_CHECKPOINT_START || // always ack checkpoint start messages
@@ -503,6 +508,14 @@ ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
 
     expiryTime = ep_current_time() + ackGracePeriod;
+    if (isSeqNumRotated && s < seqnoReceived) {
+        // if the ack seq number is rotated, reset the last seq number of each vbucket to 0.
+        std::map<uint16_t, TapCheckpointState>::iterator it = tapCheckpointState.begin();
+        for (; it != tapCheckpointState.end(); ++it) {
+            it->second.lastSeqNum = 0;
+        }
+        isSeqNumRotated = false;
+    }
     seqnoReceived = s;
     isLastAckSucceed = false;
 
@@ -1059,7 +1072,12 @@ queued_item TapProducer::next(bool &waitForAck) {
                     it->second.currentCheckpointId >= it->second.openCheckpointIdAtBackfillEnd) {
 
                     it->second.state = checkpoint_end;
-                    uint32_t seqnoAcked = isLastAckSucceed ? seqnoReceived : seqnoReceived - 1;
+                    uint32_t seqnoAcked;
+                    if (seqnoReceived == 0) {
+                        seqnoAcked = 0;
+                    } else {
+                        seqnoAcked = isLastAckSucceed ? seqnoReceived : seqnoReceived - 1;
+                    }
                     if (it->second.lastSeqNum <= seqnoAcked) {
                         addCheckpointMessage_UNLOCKED(item);
                     } else {

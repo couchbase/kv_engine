@@ -1044,6 +1044,8 @@ private:
 
     bool isLastAckSucceed;
 
+    bool isSeqNumRotated;
+
     static size_t bgMaxPending;
 
     // Constants used to enforce the tap ack protocol
