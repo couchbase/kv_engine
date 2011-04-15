@@ -634,7 +634,7 @@ private:
     }
 
     bool hasQueuedItem_UNLOCKED() {
-        return !queue->empty() || getRemainingOnCheckpoints() > 0;
+        return !queue->empty() || hasNextFromCheckpoints();
     }
 
     bool empty_UNLOCKED() {
@@ -719,6 +719,8 @@ private:
      * Get the total number of remaining items from all checkpoints.
      */
     size_t getRemainingOnCheckpoints();
+
+    bool hasNextFromCheckpoints();
 
     Item* nextFetchedItem();
 

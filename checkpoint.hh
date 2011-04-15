@@ -353,6 +353,8 @@ public:
      */
     void decrTapCursorFromCheckpointEnd(const std::string &name);
 
+    bool hasNext(const std::string &name);
+
     static void initializeCheckpointConfig(size_t checkpoint_period,
                                            size_t checkpoint_max_items) {
         checkpointPeriod = checkpoint_period;

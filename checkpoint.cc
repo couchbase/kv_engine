@@ -796,3 +796,20 @@ bool CheckpointManager::checkAndAddNewCheckpoint(uint64_t id) {
         return ret;
     }
 }
+
+bool CheckpointManager::hasNext(const std::string &name) {
+    LockHolder lh(queueLock);
+    std::map<const std::string, CheckpointCursor>::iterator it = tapCursors.find(name);
+    if (it == tapCursors.end()) {
+        return false;
+    }
+
+    bool hasMore = true;
+    std::list<queued_item>::iterator curr = it->second.currentPos;
+    ++curr;
+    if (curr == (*(it->second.currentCheckpoint))->end() &&
+        (*(it->second.currentCheckpoint))->getState() == opened) {
+        hasMore = false;
+    }
+    return hasMore;
+}

@@ -1165,6 +1165,24 @@ size_t TapProducer::getRemainingOnCheckpoints() {
     return numItems;
 }
 
+bool TapProducer::hasNextFromCheckpoints() {
+    bool hasNext = false;
+    const VBucketMap &vbuckets = engine.getEpStore()->getVBuckets();
+    std::map<uint16_t, TapCheckpointState>::iterator it = tapCheckpointState.begin();
+    for (; it != tapCheckpointState.end(); ++it) {
+        uint16_t vbid = it->first;
+        RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
+        if (!vb || vb->getState() == vbucket_state_dead) {
+            continue;
+        }
+        hasNext = vb->checkpointManager.hasNext(name);
+        if (hasNext) {
+            break;
+        }
+    }
+    return hasNext;
+}
+
 bool TapProducer::recordCurrentOpenCheckpointId(uint16_t vbid) {
     LockHolder lh(queueLock);
     const VBucketMap &vbuckets = engine.getEpStore()->getVBuckets();
