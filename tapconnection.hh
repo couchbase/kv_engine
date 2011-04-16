@@ -410,7 +410,9 @@ public:
     }
 
     void completeDiskBackfill() {
-        --diskBackfillCounter;
+        if (diskBackfillCounter > 0) {
+            --diskBackfillCounter;
+        }
         completeBackfillCommon();
     }
 
@@ -761,6 +763,11 @@ private:
     bool isPendingBackfill() {
         return pendingBackfill || isPendingDiskBackfill()
             || (bgJobIssued - bgJobCompleted) != 0;
+    }
+
+    void resetPendingBackfill() {
+        pendingBackfill = false;
+        diskBackfillCounter = 0;
     }
 
     /**
