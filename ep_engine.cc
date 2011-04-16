@@ -1666,10 +1666,10 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
             return TAP_PAUSE;
         }
 
-        bool waitForAck = false;
-        queued_item qi = connection->next(waitForAck);
+        bool shouldPause = false;
+        queued_item qi = connection->next(shouldPause);
         if (qi->getOperation() == queue_op_empty) {
-            if (waitForAck) {
+            if (shouldPause) {
                 return TAP_PAUSE;
             }
             retry = true;

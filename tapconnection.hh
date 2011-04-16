@@ -509,7 +509,7 @@ private:
     /**
      * Get the next item from the queue
      */
-    queued_item next(bool &waitForAck);
+    queued_item next(bool &shouldPause);
 
     void addVBucketHighPriority_UNLOCKED(TapVBucketEvent &ev) {
         vBucketHighPriority.push(ev);

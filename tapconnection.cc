@@ -1020,9 +1020,9 @@ bool TapProducer::cleanSome()
     return backfilledItems.empty();
 }
 
-queued_item TapProducer::next(bool &waitForAck) {
+queued_item TapProducer::next(bool &shouldPause) {
     LockHolder lh(queueLock);
-    waitForAck = false;
+    shouldPause = false;
 
     if (!isPendingBackfill() && queue->empty()) {
         const VBucketMap &vbuckets = engine.getEpStore()->getVBuckets();
@@ -1109,8 +1109,8 @@ queued_item TapProducer::next(bool &waitForAck) {
                 break;
             case queue_op_empty:
                 {
+                    ++open_checkpoint_count;
                     if (closedCheckpointOnly) {
-                        ++open_checkpoint_count;
                         // If all the cursors are at the open checkpoints, send the OPAQUE message
                         // to the TAP client so that it can close the connection if necessary.
                         if (open_checkpoint_count == (tapCheckpointState.size() - invalid_count)) {
@@ -1126,10 +1126,15 @@ queued_item TapProducer::next(bool &waitForAck) {
             }
         }
 
-        // All the TAP cursors are now at their checkpoint end position and should wait until
-        // they are implicitly acked for all items belonging to their corresponding checkpoint.
         if (wait_for_ack_count == (tapCheckpointState.size() - invalid_count)) {
-            waitForAck = true;
+            // All the TAP cursors are now at their checkpoint end position and should wait until
+            // they are implicitly acked for all items belonging to their corresponding checkpoint.
+            shouldPause = true;
+        } else if ((wait_for_ack_count + open_checkpoint_count) ==
+                   (tapCheckpointState.size() - invalid_count)) {
+            // All the TAP cursors are either at their checkpoint end position to wait for acks or
+            // reaches to the end of the current open checkpoint.
+            shouldPause = true;
         }
     }
 
