@@ -1024,7 +1024,7 @@ queued_item TapProducer::next(bool &shouldPause) {
     LockHolder lh(queueLock);
     shouldPause = false;
 
-    if (!isPendingBackfill() && queue->empty()) {
+    if (queue->empty() && !isPendingBackfill()) {
         const VBucketMap &vbuckets = engine.getEpStore()->getVBuckets();
         uint16_t invalid_count = 0;
         uint16_t open_checkpoint_count = 0;
@@ -1151,6 +1151,9 @@ queued_item TapProducer::next(bool &shouldPause) {
         return qi;
     }
 
+    if (isPendingBackfill()) {
+        shouldPause = true;
+    }
     queued_item empty_item(new QueuedItem("", 0xffff, queue_op_empty));
     return empty_item;
 }
