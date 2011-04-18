@@ -49,9 +49,13 @@
 /wrapper/mbadm-online-restore
 /wrapper/mbadm-online-update
 /wrapper/mbadm-tap-registration
+/wrapper/mbbackup
 /wrapper/mbbackup-incremental
+/wrapper/mbdbconvert
 /wrapper/mbdbmaint
+/wrapper/mbdbupgrade
 /wrapper/mbflushctl
+/wrapper/mbrestore
 /wrapper/mbstats
 /wrapper/mbvbucketctl
 /wrapper/wrapper

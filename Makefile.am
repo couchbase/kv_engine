@@ -3,9 +3,13 @@ bin_SCRIPTS = management/analyze_core \
               wrapper/mbadm-online-restore \
               wrapper/mbadm-online-update \
               wrapper/mbadm-tap-registration \
+              wrapper/mbbackup \
               wrapper/mbbackup-incremental \
+              wrapper/mbdbconvert \
               wrapper/mbdbmaint \
+              wrapper/mbdbupgrade \
               wrapper/mbflushctl \
+              wrapper/mbrestore \
               wrapper/mbstats \
               wrapper/mbvbucketctl
 
@@ -259,9 +263,13 @@ pythonlib_SCRIPTS= \
                 management/mbadm-online-restore \
                 management/mbadm-online-update \
                 management/mbadm-tap-registration \
+                management/mbbackup \
                 management/mbbackup-incremental \
+                management/mbdbconvert \
                 management/mbdbmaint \
+                management/mbdbupgrade \
                 management/mbflushctl \
+                management/mbrestore \
                 management/mbstats \
                 management/mbvbucketctl
 
@@ -269,9 +277,13 @@ PYTHON_TOOLS= \
               wrapper/mbadm-online-restore \
               wrapper/mbadm-online-update \
               wrapper/mbadm-tap-registration \
+              wrapper/mbbackup \
               wrapper/mbbackup-incremental \
+              wrapper/mbdbconvert \
               wrapper/mbdbmaint \
+              wrapper/mbdbupgrade \
               wrapper/mbflushctl \
+              wrapper/mbrestore \
               wrapper/mbstats \
               wrapper/mbvbucketctl
 
