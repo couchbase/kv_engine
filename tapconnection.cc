@@ -143,6 +143,20 @@ void TapProducer::setVBucketFilter(const std::vector<uint16_t> &vbuckets)
     if (flags & TAP_CONNECT_FLAG_LIST_VBUCKETS) {
         VBucketFilter filter(vbuckets);
         diff = vbucketFilter.filter_diff(filter);
+
+        const std::vector<uint16_t> &vec = diff.getVector();
+        const VBucketMap &vbMap = engine.getEpStore()->getVBuckets();
+        // Remove TAP cursors from the vbuckets that don't belong to the new vbucket filter.
+        for (std::vector<uint16_t>::const_iterator it = vec.begin(); it != vec.end(); ++it) {
+            if (vbucketFilter(*it)) {
+                RCPtr<VBucket> vb = vbMap.getBucket(*it);
+                if (!vb) {
+                    continue;
+                }
+                vb->checkpointManager.removeTAPCursor(name);
+            }
+        }
+
         backFillVBucketFilter = filter.filter_intersection(diff);
 
         std::stringstream ss;
