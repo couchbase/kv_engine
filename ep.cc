@@ -1380,12 +1380,12 @@ std::queue<queued_item>* EventuallyPersistentStore::beginFlush() {
 
 void EventuallyPersistentStore::requeueRejectedItems(std::queue<queued_item> *rej) {
     // Requeue the rejects.
-    stats.queue_size.incr(rej->size());
     while (!rej->empty()) {
         writing.push(rej->front());
         rej->pop();
     }
-    stats.queue_size.set(getWriteQueueSize() + writing.size());
+    stats.queue_size.set(getWriteQueueSize());
+    stats.flusher_todo.set(writing.size());
 }
 
 void EventuallyPersistentStore::completeFlush(rel_time_t flush_start) {
