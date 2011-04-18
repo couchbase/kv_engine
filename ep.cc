@@ -512,17 +512,17 @@ StoredValue *EventuallyPersistentStore::fetchValidValue(RCPtr<VBucket> vb,
                                                         int bucket_num,
                                                         bool wantDeleted) {
     StoredValue *v = vb->ht.unlocked_find(key, bucket_num, wantDeleted);
-    if (v && v->isDeleted()) {
-        // In the deleted case, we ignore expiration time.
-        return v;
-    } else if (v && v->isExpired(ep_real_time())) {
-        ++stats.expired;
-        value_t value = v->getValue();
-        uint64_t cas = v->getCas();
-        vb->ht.unlocked_softDelete(key, 0, bucket_num);
-        queueDirty(key, vb->getId(), queue_op_del, value,
-                   v->getFlags(), v->getExptime(), cas, v->getId());
-        return NULL;
+    if (v && !v->isDeleted()) { // In the deleted case, we ignore expiration time.
+        if (v->isExpired(ep_real_time())) {
+            ++stats.expired;
+            value_t value = v->getValue();
+            uint64_t cas = v->getCas();
+            vb->ht.unlocked_softDelete(key, 0, bucket_num);
+            queueDirty(key, vb->getId(), queue_op_del, value,
+                       v->getFlags(), v->getExptime(), cas, v->getId());
+            return NULL;
+        }
+        v->touch();
     }
     return v;
 }

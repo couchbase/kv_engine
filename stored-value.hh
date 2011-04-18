@@ -73,6 +73,15 @@ public:
      }
 
     /**
+     * Update the "last used" time for the object.
+     */
+    void touch() {
+        if (!isDirty()) {
+            dirtiness = ep_current_time() >> 2;
+        }
+    }
+
+    /**
      * Mark this item as needing to be persisted.
      */
     void markDirty() {
@@ -106,6 +115,7 @@ public:
             *dataAge = dirtiness << 2;
         }
         _isDirty = 0;
+        touch();
     }
 
     /**
