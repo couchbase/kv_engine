@@ -255,6 +255,15 @@ protected:
     }
 
 public:
+    //! cookie used by this connection
+    const void *getCookie() const;
+
+    //! cookie used by this connection
+    void setCookie(const void *c) {
+        cookie = c;
+    }
+
+
     static uint64_t nextTapId() {
         return tapCounter++;
     }
@@ -395,7 +404,6 @@ public:
 
     bool isSuspended() const;
     void setSuspended(bool value);
-    const void *getCookie() const;
 
     bool isTimeForNoop();
     void setTimeForNoop();
@@ -845,11 +853,6 @@ private:
 
     void setClosedCheckpointOnlyFlag(bool isClosedCheckpointOnly);
 
-    //! cookie used by this connection
-    void setCookie(const void *c) {
-        cookie = c;
-    }
-
     bool recordCurrentOpenCheckpointId(uint16_t vbucket);
 
 
@@ -1048,7 +1051,7 @@ private:
      * Is this TAP producer for replicating items from the closed checkpoints only?
      */
     Atomic<bool> closedCheckpointOnly;
- 
+
     Atomic<rel_time_t> lastWalkTime;
 
     bool isLastAckSucceed;

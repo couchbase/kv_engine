@@ -20,6 +20,11 @@
 #include "dispatcher.hh"
 
 Atomic<uint64_t> TapConnection::tapCounter(1);
+
+const void *TapConnection::getCookie() const {
+    return cookie;
+}
+
 size_t TapProducer::bgMaxPending = 500;
 uint32_t TapProducer::ackWindowSize = 10;
 uint32_t TapProducer::ackInterval = 1000;
@@ -430,11 +435,6 @@ private:
     EventuallyPersistentEngine &engine;
     TapProducer              &connection;
 };
-
-const void *TapProducer::getCookie() const {
-    return cookie;
-}
-
 
 bool TapProducer::isSuspended() const {
     return suspended.get();
