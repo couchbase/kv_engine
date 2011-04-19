@@ -112,9 +112,12 @@ public:
     virtual ~Task() { }
 
 protected:
-    Task(shared_ptr<DispatcherCallback> cb,  int p, double sleeptime=0, bool isDaemon=true) :
+    Task(shared_ptr<DispatcherCallback> cb,  int p, double sleeptime = 0,
+         bool isDaemon = true, bool completeBeforeShutdown = false) :
         callback(cb), priority(p),
-        state(task_running), isDaemonTask(isDaemon) {
+        state(task_running), isDaemonTask(isDaemon),
+        blockShutdown(completeBeforeShutdown)
+    {
         snooze(sleeptime);
     }
 
@@ -123,6 +126,7 @@ protected:
         state = task_running;
         callback = task.callback;
         isDaemonTask = task.isDaemonTask;
+        blockShutdown = task.blockShutdown;
     }
 
     void snooze(const double secs) {
@@ -155,6 +159,9 @@ protected:
     enum task_state state;
     Mutex mutex;
     bool isDaemonTask;
+
+    // Some of the tasks must complete during shutdown
+    bool blockShutdown;
 };
 
 /**
@@ -304,10 +311,15 @@ public:
      * @param priority job priority instance that defines a job's priority
      * @param sleeptime how long (in seconds) to wait before starting the job
      * @param isDaemon a flag indicating if a task is daemon or not
+     * @param mustComplete set to true if this task must complete before the
+     *        dispatcher can shut down
      */
     void schedule(shared_ptr<DispatcherCallback> callback,
                   TaskId *outtid,
-                  const Priority &priority, double sleeptime=0, bool isDaemon=true);
+                  const Priority &priority,
+                  double sleeptime = 0,
+                  bool isDaemon = true,
+                  bool mustComplete = false);
 
     /**
      * Wake up the given task.

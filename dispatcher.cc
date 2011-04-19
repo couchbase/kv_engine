@@ -1,3 +1,4 @@
+/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2010 NorthScale, Inc.
  *
@@ -138,9 +139,7 @@ void Dispatcher::run() {
         }
     }
 
-    if (!forceTermination) {
-        completeNonDaemonTasks();
-    }
+    completeNonDaemonTasks();
     state = dispatcher_stopped;
     notify();
     getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "Dispatcher exited\n");
@@ -162,9 +161,13 @@ void Dispatcher::stop(bool force) {
 
 void Dispatcher::schedule(shared_ptr<DispatcherCallback> callback,
                           TaskId *outtid,
-                          const Priority &priority, double sleeptime, bool isDaemon) {
+                          const Priority &priority,
+                          double sleeptime,
+                          bool isDaemon,
+                          bool mustComplete) {
     LockHolder lh(mutex);
-    TaskId task(new Task(callback, priority.getPriorityValue(), sleeptime, isDaemon));
+    TaskId task(new Task(callback, priority.getPriorityValue(), sleeptime,
+                         isDaemon, mustComplete));
     if (outtid) {
         *outtid = TaskId(task);
     }
@@ -192,26 +195,43 @@ void Dispatcher::completeNonDaemonTasks() {
         assert(task);
         // Skip a daemon task
         if (task->isDaemonTask) {
+            getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                             "Shutdown: Skipping daemon task \"%s\"",
+                             task->getName().c_str());
+
             continue;
         }
 
-        LockHolder tlh(task->mutex);
-        if (task->state == task_running) {
-            tlh.unlock();
-            getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                             "Complete running task %s\n",
-                             task->getName().c_str());
-            try {
-                task->run(*this, TaskId(task));
-            } catch (std::exception& e) {
-                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                 "exception caught in task %s: %s\n",
-                                 task->getName().c_str(), e.what());
-            } catch(...) {
-                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                 "fatal exception caught in task %s\n",
-                                  task->getName().c_str());
+        if (task->blockShutdown || !forceTermination) {
+            LockHolder tlh(task->mutex);
+            if (task->state == task_running) {
+                tlh.unlock();
+                getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                                 "Shutdown: Running task \"%s\"",
+                                 task->getName().c_str());
+                try {
+                    while (task->run(*this, TaskId(task))) {
+                        getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                                         "Shutdown: Keep on running task \"%s\"",
+                                         task->getName().c_str());
+                    }
+                } catch (std::exception& e) {
+                    getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                     "Exception caught in task \"%s\": \"%s\"",
+                                     task->getName().c_str(), e.what());
+                } catch (...) {
+                    getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                     "Fatal exception caught in task \"%s\"",
+                                     task->getName().c_str());
+                }
+                getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                                 "Shutdown: Task \"%s\" completed",
+                                 task->getName().c_str());
             }
+        } else {
+            getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                             "Shutdown: Skipping task \"%s\"",
+                             task->getName().c_str());
         }
     }
 
