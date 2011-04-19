@@ -309,6 +309,14 @@ bool CheckpointManager::registerTAPCursor(const std::string &name, uint64_t chec
             break;
         }
     }
+
+    // If the tap cursor exists, decrease the reference counter of the checkpoint that is
+    // currently referenced by the tap cursor.
+    std::map<const std::string, CheckpointCursor>::iterator map_it = tapCursors.find(name);
+    if (map_it != tapCursors.end()) {
+        (*(map_it->second.currentCheckpoint))->decrReferenceCounter();
+    }
+
     if (!found) {
         // If the checkpoint to start with is not found, set the TAP cursor to the beginning
         // of the checkpoint list. This case requires the full materialization through backfill.
@@ -323,13 +331,6 @@ bool CheckpointManager::registerTAPCursor(const std::string &name, uint64_t chec
         for (; pos != it; ++pos) {
             offset += (*pos)->getNumItems() + 2; // 2 is for checkpoint start and end items.
         }
-        // If the tap cursor exists, decrease the reference counter of the checkpoint that is
-        // currently referenced by the tap cursor.
-        std::map<const std::string, CheckpointCursor>::iterator map_it = tapCursors.find(name);
-        if (map_it != tapCursors.end()) {
-            (*(map_it->second.currentCheckpoint))->decrReferenceCounter();
-        }
-
         CheckpointCursor cursor(it, (*it)->begin(), offset, closedCheckpointOnly);
         tapCursors[name] = cursor;
         // Increase the reference counter of the checkpoint that is newly referenced
