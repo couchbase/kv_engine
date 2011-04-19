@@ -48,7 +48,7 @@ void TapConnMap::disconnect(const void *cookie, int tapKeepAlive) {
         if (iter->second) {
             rel_time_t now = ep_current_time();
             TapConsumer *tc = dynamic_cast<TapConsumer*>(iter->second);
-            if (!tc || iter->second->doDisconnect()) {
+            if (tc || iter->second->doDisconnect()) {
                 iter->second->setExpiryTime(now - 1);
             } else {
                 iter->second->setExpiryTime(now + tapKeepAlive);
