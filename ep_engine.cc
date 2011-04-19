@@ -804,9 +804,12 @@ extern "C" {
         std::string c(static_cast<const char*>(client), nclient);
         // Figure out what we want from the userdata before adding it to the API
         // to the handle
-        getHandle(handle)->createTapQueue(cookie, c, flags,
-                                          userdata, nuserdata);
-        return EvpTapIterator;
+        if (getHandle(handle)->createTapQueue(cookie, c, flags,
+                                              userdata, nuserdata)) {
+            return EvpTapIterator;
+        } else {
+            return NULL;
+        }
     }
 
     static void EvpHandleDisconnect(const void *cookie,
@@ -1396,6 +1399,7 @@ KVStore* EventuallyPersistentEngine::newKVStore() {
 void EventuallyPersistentEngine::destroy(bool force) {
     forceShutdown = force;
     stopEngineThreads();
+    tapConnMap.shutdownAllTapConnections();
 }
 
 /// @cond DETAILS
@@ -1839,11 +1843,15 @@ tap_event_t EventuallyPersistentEngine::walkTapQueue(const void *cookie,
     return ret;
 }
 
-void EventuallyPersistentEngine::createTapQueue(const void *cookie,
+bool EventuallyPersistentEngine::createTapQueue(const void *cookie,
                                                 std::string &client,
                                                 uint32_t flags,
                                                 const void *userdata,
-                                                size_t nuserdata) {
+                                                size_t nuserdata)
+{
+    if (serverApi->cookie->reserve(cookie) != ENGINE_SUCCESS) {
+        return false;
+    }
 
     std::string name = "eq_tapq:";
     if (client.length() == 0) {
@@ -1933,6 +1941,7 @@ void EventuallyPersistentEngine::createTapQueue(const void *cookie,
     serverApi->cookie->store_engine_specific(cookie, tap);
     serverApi->cookie->set_tap_nack_mode(cookie, tap->supportsAck());
     tapConnMap.notify();
+    return true;
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
@@ -3486,7 +3495,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
 void EventuallyPersistentEngine::notifyTapIoThread(void) {
     // Fix clean shutdown!!!
     while (!shutdown) {
-
         tapConnMap.notifyIOThreadMain();
 
         if (shutdown) {

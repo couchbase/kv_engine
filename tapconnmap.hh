@@ -226,10 +226,13 @@ public:
 
     bool closeTapConnectionByName(const std::string &name);
 
+    void shutdownAllTapConnections();
+
 private:
 
     TapConnection *findByName_UNLOCKED(const std::string &name);
-    void getExpiredConnections_UNLOCKED(std::list<TapConnection*> &deadClients);
+    void getExpiredConnections_UNLOCKED(std::list<TapConnection*> &deadClients,
+                                        std::list<TapConnection*> &regClients);
 
     void removeTapCursors_UNLOCKED(TapProducer *tp);
 

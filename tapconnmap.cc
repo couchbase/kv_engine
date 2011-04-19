@@ -13,8 +13,20 @@
 class TapConnectionReaperCallback : public DispatcherCallback {
 public:
     TapConnectionReaperCallback(EventuallyPersistentEngine &e, TapConnection *c)
-        : engine(e), connection(c) {
-
+        : engine(e), connection(c)
+    {
+        // Release resources reserved "upstream"
+        const void *cookie = c->getCookie();
+        if (cookie != NULL) {
+            if (c->isReserved()) {
+                e.getServerApi()->cookie->release(cookie);
+                // trigger the other thread if it waiting for it...
+                e.notifyIOComplete(cookie, ENGINE_DISCONNECT);
+            }
+        }
+        std::stringstream ss;
+        ss << "Reaping tap connection: " << connection->getName();
+        descr = ss.str();
     }
 
     bool callback(Dispatcher &, TaskId) {
@@ -26,14 +38,13 @@ public:
     }
 
     std::string description() {
-        std::stringstream ss;
-        ss << "Reaping tap connection: " << connection->getName();
-        return ss.str();
+        return descr;
     }
 
 private:
     EventuallyPersistentEngine &engine;
     TapConnection *connection;
+    std::string descr;
 };
 
 void TapConnMap::disconnect(const void *cookie, int tapKeepAlive) {
@@ -109,13 +120,18 @@ TapConnection* TapConnMap::findByName_UNLOCKED(const std::string&name) {
     return rv;
 }
 
-void TapConnMap::getExpiredConnections_UNLOCKED(std::list<TapConnection*> &deadClients) {
+void TapConnMap::getExpiredConnections_UNLOCKED(std::list<TapConnection*> &deadClients,
+                                                std::list<TapConnection*> &regClients) {
     rel_time_t now = ep_current_time();
 
     std::list<TapConnection*>::iterator iter;
     for (iter = all.begin(); iter != all.end(); ++iter) {
         TapConnection *tc = *iter;
-        if (tc->getExpiryTime() <= now && !mapped(tc) && !tc->isConnected()) {
+        if (tc->isConnected()) {
+            continue;
+        }
+
+        if (tc->getExpiryTime() <= now && !mapped(tc)) {
             TapProducer *tp = dynamic_cast<TapProducer*>(*iter);
             if (tp) {
                 if (!tp->suspended) {
@@ -125,6 +141,10 @@ void TapConnMap::getExpiredConnections_UNLOCKED(std::list<TapConnection*> &deadC
             } else {
                 deadClients.push_back(tc);
             }
+        } else if (tc->isReserved()) {
+            // to avoid others to release it as well ;)
+            tc->setReserved(false);
+            regClients.push_back(tc);
         }
     }
 
@@ -242,7 +262,13 @@ TapProducer *TapConnMap::newProducer(const void* cookie,
         tap = new TapProducer(engine, cookie, name, flags);
         all.push_back(tap);
     } else {
+        if (tap->isReserved()) {
+            assert(tap->getCookie() != NULL);
+            engine.getServerApi()->cookie->release(tap->getCookie());
+            engine.notifyIOComplete(tap->getCookie(), ENGINE_DISCONNECT);
+        }
         tap->setCookie(cookie);
+        tap->setReserved(true);
         tap->rollback();
         tap->setConnected(true);
         tap->resetPendingBackfill();
@@ -296,6 +322,31 @@ bool TapConnMap::shouldDisconnect(TapConnection *tc) {
     return tc && tc->doDisconnect();
 }
 
+void TapConnMap::shutdownAllTapConnections() {
+    getLogger()->log(EXTENSION_LOG_INFO, NULL,
+                     "Shutting down tap connections!");
+    LockHolder lh(notifySync);
+    // We should pause unless we purged some connections or
+    // all queues have items.
+    if (all.empty()) {
+        return;
+    }
+    Dispatcher *d = engine.getEpStore()->getNonIODispatcher();
+    std::list<TapConnection*>::iterator ii;
+    for (ii = all.begin(); ii != all.end(); ++ii) {
+        getLogger()->log(EXTENSION_LOG_INFO, NULL,
+                         "Schedule cleanup of \"%s\"",
+                         (*ii)->getName().c_str());
+        d->schedule(shared_ptr<DispatcherCallback>
+                    (new TapConnectionReaperCallback(engine, *ii)),
+                    NULL, Priority::TapConnectionReaperPriority,
+                    0, false, true);
+    }
+    all.clear();
+    map.clear();
+    validity.clear();
+}
+
 void TapConnMap::notifyIOThreadMain() {
     // To avoid connections to be stucked in a bogus state forever, we're going
     // to ping all connections that hasn't tried to walk the tap queue
@@ -311,12 +362,13 @@ void TapConnMap::notifyIOThreadMain() {
     }
 
     std::list<TapConnection*> deadClients;
+    std::list<TapConnection*> registeredClients;
 
     LockHolder lh(notifySync);
     // We should pause unless we purged some connections or
     // all queues have items.
-    getExpiredConnections_UNLOCKED(deadClients);
-    bool shouldPause = deadClients.empty();
+    getExpiredConnections_UNLOCKED(deadClients, registeredClients);
+    bool shouldPause = deadClients.empty() && registeredClients.empty();
     bool noEvents = engine.mutation_count == 0;
     engine.mutation_count = 0;
 
@@ -352,7 +404,7 @@ void TapConnMap::notifyIOThreadMain() {
             return;
         }
 
-        getExpiredConnections_UNLOCKED(deadClients);
+        getExpiredConnections_UNLOCKED(deadClients, registeredClients);
         now = ep_current_time();
     }
 
@@ -378,7 +430,15 @@ void TapConnMap::notifyIOThreadMain() {
             d->schedule(shared_ptr<DispatcherCallback>
                         (new TapConnectionReaperCallback(engine, *ii)),
                         NULL, Priority::TapConnectionReaperPriority,
-                        0, false);
+                        0, false, true);
+        }
+    }
+
+    if (!registeredClients.empty()) {
+        std::list<TapConnection*>::iterator ii;
+        for (ii = registeredClients.begin(); ii != registeredClients.end(); ++ii) {
+            engine.getServerApi()->cookie->release((*ii)->getCookie());
+            engine.notifyIOComplete((*ii)->getCookie(), ENGINE_DISCONNECT);
         }
     }
     engine.notifyIOComplete(toNotify, ENGINE_SUCCESS);

@@ -225,6 +225,8 @@ protected:
 
     bool supportCheckpointSync;
 
+    Atomic<bool> reserved;
+
     TapConnection(EventuallyPersistentEngine &theEngine,
                   const void *c, const std::string &n) :
         engine(theEngine),
@@ -235,7 +237,8 @@ protected:
         connected(true),
         disconnect(false),
         supportAck(false),
-        supportCheckpointSync(false)
+        supportCheckpointSync(false),
+        reserved(false)
     { /* EMPTY */ }
 
 
@@ -264,7 +267,6 @@ public:
         cookie = c;
     }
 
-
     static uint64_t nextTapId() {
         return tapCounter++;
     }
@@ -279,6 +281,8 @@ public:
     virtual ~TapConnection() { /* EMPTY */ }
     virtual const std::string &getName() const { return name; }
     void setName(const std::string &n) { name.assign(n); }
+    void setReserved(bool r) { reserved = r; }
+    bool isReserved() const { return reserved; }
 
     virtual const char *getType() const = 0;
 
@@ -288,6 +292,7 @@ public:
         addStat("connected", connected, add_stat, c);
         addStat("pending_disconnect", doDisconnect(), add_stat, c);
         addStat("supports_ack", supportAck, add_stat, c);
+        addStat("reserved", reserved, add_stat, c);
 
         if (numDisconnects > 0) {
             addStat("disconnects", numDisconnects, add_stat, c);

@@ -2852,12 +2852,15 @@ static enum test_result test_tap_filter_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V
             if (found == 10) {
                 vbucketfilter[0] = htons(3);
                 vbucketfilter[3] = htons(3);
+                testHarness.unlock_cookie(cookie);
                 iter = h1->get_tap_iterator(h, cookie, name.c_str(),
                                             name.length(),
                                             TAP_CONNECT_FLAG_LIST_VBUCKETS,
                                             static_cast<void*>(vbucketfilter),
                                             8);
                 check(iter != NULL, "Failed to create a tap iterator");
+                testHarness.lock_cookie(cookie);
+
             }
 
             break;
@@ -2978,6 +2981,7 @@ static enum test_result test_tap_ack_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
         }
 
         if (iter == NULL) {
+            testHarness.unlock_cookie(cookie);
             iter = h1->get_tap_iterator(h, cookie, name.c_str(),
                                         name.length(),
                                         TAP_CONNECT_FLAG_LIST_VBUCKETS |
@@ -2987,6 +2991,7 @@ static enum test_result test_tap_ack_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
                                         static_cast<void*>(vbucketfilter),
                                         4);
             check(iter != NULL, "Failed to create a tap iterator");
+            testHarness.lock_cookie(cookie);
         }
 
         event = iter(h, cookie, &it, &engine_specific,

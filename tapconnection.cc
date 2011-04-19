@@ -70,7 +70,7 @@ TapProducer::TapProducer(EventuallyPersistentEngine &theEngine,
     }
 
     if (cookie != NULL) {
-        engine.getServerApi()->cookie->reserve(cookie);
+        setReserved(true);
     }
 }
 
