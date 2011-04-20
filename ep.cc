@@ -1916,7 +1916,7 @@ void LoadStorageKVPairCallback::initVBucket(uint16_t vbid, uint16_t vb_version,
     // For each vbucket, set its vbucket version.
     vbuckets.setBucketVersion(vbid, vb_version);
     // For each vbucket, set its latest checkpoint Id that was successfully persisted.
-    vbuckets.setPersistenceCheckpointId(vbid, checkpointId);
+    vbuckets.setPersistenceCheckpointId(vbid, checkpointId - 1);
 }
 
 void LoadStorageKVPairCallback::callback(GetValue &val) {
