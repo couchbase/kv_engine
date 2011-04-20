@@ -214,10 +214,12 @@ public:
      * @param name the name of a given TAP connection
      * @param checkpointId the checkpoint Id to start with.
      * @param closedCheckpointOnly the flag indicating if a cursor is only for closed checkpoints.
+     * @param alwaysFromBeginning the flag indicating if a cursor should be set to the beginning of
+     * checkpoint to start with, even if the cursor is currently in that checkpoint.
      * @return true if the checkpoint to start with exists in the queue.
      */
     bool registerTAPCursor(const std::string &name, uint64_t checkpointId = 1,
-                           bool closedCheckpointOnly = false);
+                           bool closedCheckpointOnly = false, bool alwaysFromBeginning = false);
 
     /**
      * Remove the cursor for a given TAP connection.

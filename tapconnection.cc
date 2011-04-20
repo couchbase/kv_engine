@@ -246,10 +246,14 @@ void TapProducer::registerTAPCursor(std::map<uint16_t, uint64_t> &lastCheckpoint
                     tapCheckpointState[vbid] = st;
                 }
             }
+            // If the connection is for a registered TAP client that is only interested in closed
+            // checkpoints, we always start from the beginning of the checkpoint to which the
+            // registered TAP client's cursor currently belongs.
+            bool fromBeginning = registeredTAPClient && closedCheckpointOnly;
             // Check if the unified queue contains the checkpoint to start with.
             if(!vb->checkpointManager.registerTAPCursor(name,
                                                        tapCheckpointState[vbid].currentCheckpointId,
-                                                       closedCheckpointOnly)) {
+                                                       closedCheckpointOnly, fromBeginning)) {
                 if (backfillAge < current_time && !registeredTAPClient) { // Backfill is required.
                     TapCheckpointState st(vbid, 0, backfill);
                     tapCheckpointState[vbid] = st;
@@ -1218,7 +1222,9 @@ bool TapProducer::recordCurrentOpenCheckpointId(uint16_t vbid) {
     if (it == tapCheckpointState.end()) {
         return false;
     }
-    vb->checkpointManager.registerTAPCursor(name, checkpointId, closedCheckpointOnly);
+
+    bool fromBeginning = registeredTAPClient && closedCheckpointOnly;
+    vb->checkpointManager.registerTAPCursor(name, checkpointId, closedCheckpointOnly, fromBeginning);
     it->second.currentCheckpointId = checkpointId;
     return true;
 }

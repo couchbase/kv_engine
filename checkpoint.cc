@@ -302,7 +302,7 @@ protocol_binary_response_status CheckpointManager::endHotReload(uint64_t total) 
 }
 
 bool CheckpointManager::registerTAPCursor(const std::string &name, uint64_t checkpointId,
-                                          bool closedCheckpointOnly) {
+                                          bool closedCheckpointOnly, bool alwaysFromBeginning) {
     LockHolder lh(queueLock);
     assert(checkpointList.size() > 0);
 
@@ -330,13 +330,25 @@ bool CheckpointManager::registerTAPCursor(const std::string &name, uint64_t chec
         tapCursors[name] = cursor;
         (*it)->incrReferenceCounter();
     } else {
-        // Calculate the offset of the tap cursor
         size_t offset = 0;
-        std::list<Checkpoint*>::iterator pos = checkpointList.begin();
-        for (; pos != it; ++pos) {
-            offset += (*pos)->getNumItems() + 2; // 2 is for checkpoint start and end items.
+        std::list<queued_item>::iterator curr;
+        if (!alwaysFromBeginning &&
+            map_it != tapCursors.end() &&
+            (*(map_it->second.currentCheckpoint))->getId() == (*it)->getId()) {
+            // If the cursor is currently in the checkpoint to start with, simply start from
+            // its current position.
+            curr = map_it->second.currentPos;
+            offset = map_it->second.offset;
+        } else {
+            // Set the cursor's position to the begining of the checkpoint to start with
+            curr = (*it)->begin();
+            std::list<Checkpoint*>::iterator pos = checkpointList.begin();
+            for (; pos != it; ++pos) {
+                offset += (*pos)->getNumItems() + 2; // 2 is for checkpoint start and end items.
+            }
         }
-        CheckpointCursor cursor(it, (*it)->begin(), offset, closedCheckpointOnly);
+
+        CheckpointCursor cursor(it, curr, offset, closedCheckpointOnly);
         tapCursors[name] = cursor;
         // Increase the reference counter of the checkpoint that is newly referenced
         // by the tap cursor.
