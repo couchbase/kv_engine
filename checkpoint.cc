@@ -157,6 +157,11 @@ bool CheckpointManager::closeOpenCheckpoint_UNLOCKED(uint64_t id) {
     if (id != checkpointList.back()->getId()) {
         return false;
     }
+    // Simply return if the current open checkpoint has been already closed.
+    if (checkpointList.back()->getState() == closed) {
+        return true;
+    }
+
     std::stringstream ss;
     ss << id;
     shared_ptr<const Blob> vblob(Blob::New(ss.str().c_str(), ss.str().size()));
