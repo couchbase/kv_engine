@@ -10,6 +10,8 @@ import itertools
 import optparse
 import Queue
 import sys
+import os
+import subprocess
 try:
     import sqlite3
 except:
@@ -34,6 +36,29 @@ def connect(opts):
 
     return mc
 
+def findCmd(cmdName):
+    cmd_dir = os.path.dirname(sys.argv[0])
+    bin_dir = cmd_dir
+    possible = [os.path.join(bin_dir, p) for p in [cmdName, cmdName + '.exe']]
+    cmdbin = [p for p in possible if os.path.exists(p)][0]
+    return cmdbin
+
+def findSqlite():
+    return findCmd('sqlite3')
+
+def run_sql(sqlite, fn, sql, more_args=[], logger=sys.stderr):
+    args = ['-batch', '-bail']
+    cmd = [sqlite] + args + more_args + [fn]
+    p = subprocess.Popen(cmd,
+                         stdin=subprocess.PIPE,
+                         stdout=subprocess.PIPE,
+                         stderr=subprocess.PIPE)
+    (o,e) = p.communicate(sql)
+    if p.returncode != 0:
+        logger.write("Error running query:  %s\n" % sql)
+        logger.write(e)
+        sys.exit(1)
+    return o
 
 def worker(queue, opts):
     try:
@@ -65,16 +90,14 @@ def worker(queue, opts):
         thread.interrupt_main()
 
 
-def db_file_versions(db_filenames):
+def db_file_versions(sqlite, db_filenames):
     rv = {}
     for fn in db_filenames:
-        db = sqlite3.connect(fn)
-        cur = db.cursor()
-        cur.execute("pragma user_version")
-        rv[fn] = int(cur.fetchall()[0][0])
-        db.close()
+        rv[fn] = version(sqlite, fn)
     return rv
 
+def version(sqlite, fn):
+    return int(run_sql(sqlite, fn, "PRAGMA user_version;").strip())
 
 def main():
     usage = "%prog [opts] db_files (use -h for detailed help)"
@@ -97,12 +120,20 @@ def main():
         parser.print_usage()
         sys.exit("No filenames provided")
 
-    versions = db_file_versions(db_filenames)
+    sqlite = findSqlite()
+
+    versions = db_file_versions(sqlite, db_filenames)
     if max(versions.values()) < 2:
         sys.exit("The backup files need to be upgraded to version 2.\n"
                  "Either use mbdbupgrade or contact support.")
 
     attached_dbs = ["db{0}".format(i) for i in xrange(len(db_filenames))]
+
+    # Backwards compatibility: Deliberately changing out of WAL mode
+    # so that older versions of SQLite can access the database files
+    for db_name in db_filenames:
+        run_sql(sqlite, db_name, "PRAGMA journal_mode=DELETE;")
+
     # Open the first given filename as the main database
     db = sqlite3.connect(':memory:')
     # Attach the remaining files
