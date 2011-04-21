@@ -144,6 +144,7 @@ bool CheckpointManager::addNewCheckpoint_UNLOCKED(uint64_t id) {
     queued_item item(new QueuedItem("", vblob, vbucketId, queue_op_checkpoint_start));
     checkpoint->queueDirty(item, this);
     ++numItems;
+    nextCheckpointId = ++id;
     checkpointList.push_back(checkpoint);
     return true;
 }
@@ -640,7 +641,7 @@ void CheckpointManager::clear() {
     numItems = 0;
     mutationCounter = 0;
     // Add a new open checkpoint.
-    addNewCheckpoint_UNLOCKED(nextCheckpointId++);
+    addNewCheckpoint_UNLOCKED(nextCheckpointId);
 
     // Reset the persistence cursor.
     persistenceCursor.currentCheckpoint = checkpointList.begin();
@@ -688,7 +689,7 @@ uint64_t CheckpointManager::checkOpenCheckpoint_UNLOCKED(bool onlineUpdate) {
 
         checkpointId = checkpointList.back()->getId();
         closeOpenCheckpoint_UNLOCKED(checkpointId);
-        addNewCheckpoint_UNLOCKED(nextCheckpointId++);
+        addNewCheckpoint_UNLOCKED(nextCheckpointId);
     }
     return checkpointId;
 }
