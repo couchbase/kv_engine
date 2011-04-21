@@ -212,6 +212,8 @@ void TapProducer::setVBucketFilter(const std::vector<uint16_t> &vbuckets)
 }
 
 void TapProducer::registerTAPCursor(std::map<uint16_t, uint64_t> &lastCheckpointIds) {
+    LockHolder lh(queueLock);
+
     tapCheckpointState.clear();
     uint64_t current_time = (uint64_t)ep_real_time();
     std::vector<uint16_t> backfill_vbuckets;
@@ -1182,6 +1184,8 @@ queued_item TapProducer::next(bool &shouldPause) {
 }
 
 size_t TapProducer::getRemainingOnCheckpoints() {
+    LockHolder lh(queueLock);
+
     size_t numItems = 0;
     const VBucketMap &vbuckets = engine.getEpStore()->getVBuckets();
     std::map<uint16_t, TapCheckpointState>::iterator it = tapCheckpointState.begin();
@@ -1196,7 +1200,7 @@ size_t TapProducer::getRemainingOnCheckpoints() {
     return numItems;
 }
 
-bool TapProducer::hasNextFromCheckpoints() {
+bool TapProducer::hasNextFromCheckpoints_UNLOCKED() {
     bool hasNext = false;
     const VBucketMap &vbuckets = engine.getEpStore()->getVBuckets();
     std::map<uint16_t, TapCheckpointState>::iterator it = tapCheckpointState.begin();

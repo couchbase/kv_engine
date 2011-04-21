@@ -644,7 +644,7 @@ private:
     }
 
     bool hasQueuedItem_UNLOCKED() {
-        return !queue->empty() || hasNextFromCheckpoints();
+        return !queue->empty() || hasNextFromCheckpoints_UNLOCKED();
     }
 
     bool empty_UNLOCKED() {
@@ -730,7 +730,11 @@ private:
      */
     size_t getRemainingOnCheckpoints();
 
-    bool hasNextFromCheckpoints();
+    bool hasNextFromCheckpoints_UNLOCKED();
+    bool hasNextFromCheckpoints() {
+        LockHolder lh(queueLock);
+        return hasNextFromCheckpoints_UNLOCKED();
+    }
 
     Item* nextFetchedItem();
 
