@@ -545,6 +545,8 @@ ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
         ++iter;
     }
 
+    bool checkpointEndReceived = false;
+
     switch (status) {
     case PROTOCOL_BINARY_RESPONSE_SUCCESS:
         /* And explicit ack this message! */
@@ -558,6 +560,7 @@ ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
                     map_it->second.state = checkpoint_end_synced;
                 }
                 --checkpointEndCounter;
+                checkpointEndReceived = true;
             }
             getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
                              "Explicit ack <%s> (#%u)\n",
@@ -572,7 +575,9 @@ ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
         }
 
         lh.unlock();
-        engine.notifyTapNotificationThread();
+        if (checkpointEndReceived) {
+            engine.notifyTapNotificationThread();
+        }
         if (complete() && idle()) {
             // We've got all of the ack's need, now we can shut down the
             // stream
