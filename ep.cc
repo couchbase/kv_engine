@@ -1904,6 +1904,25 @@ int EventuallyPersistentStore::addUnlessThere(const std::string &key,
     return 1;
 }
 
+void EventuallyPersistentStore::warmup(Atomic<bool> &vbStateLoaded) {
+    LoadStorageKVPairCallback cb(vbuckets, stats, this);
+    std::map<std::pair<uint16_t, uint16_t>, vbucket_state> state =
+        roUnderlying->listPersistedVbuckets();
+    std::map<std::pair<uint16_t, uint16_t>, vbucket_state>::iterator it;
+    for (it = state.begin(); it != state.end(); ++it) {
+        std::pair<uint16_t, uint16_t> vbp = it->first;
+        vbucket_state vbs = it->second;
+        getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                         "Reloading vbucket %d - was in %s state\n",
+                         vbp.first, vbs.state.c_str());
+        cb.initVBucket(vbp.first, vbp.second, vbs.checkpointId + 1);
+    }
+    vbStateLoaded.set(true);
+
+    roUnderlying->dump(cb);
+    invalidItemDbPager->createRangeList();
+}
+
 void LoadStorageKVPairCallback::initVBucket(uint16_t vbid, uint16_t vb_version,
                                             uint64_t checkpointId, vbucket_state_t state) {
     RCPtr<VBucket> vb = vbuckets.getBucket(vbid);

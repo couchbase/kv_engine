@@ -1323,9 +1323,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         // flusher transitions out of the initializing state (i.e
         // warmup is finished).
         const Flusher *flusher = epstore->getFlusher();
+        useconds_t sleepTime = 1;
+        useconds_t maxSleepTime = 500000;
         if (wait_for_warmup && flusher) {
-            useconds_t sleepTime = 1;
-            useconds_t maxSleepTime = 500000;
             while (flusher->state() == initializing) {
                 usleep(sleepTime);
                 sleepTime = std::min(sleepTime << 1, maxSleepTime);
@@ -1335,6 +1335,13 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
                                  "Warmup failed to load %d records due to OOM, exiting.\n",
                                  static_cast<unsigned int>(stats.warmOOM));
                 exit(1);
+            }
+        } else {
+            // Although we don't wait for the full data load, wait until the states of all vbuckets
+            // are loaded from vbucket_states table. This won't take much time.
+            while (flusher && !flusher->isVBStateLoaded()) {
+                usleep(sleepTime);
+                sleepTime = std::min(sleepTime << 1, maxSleepTime);
             }
         }
 
