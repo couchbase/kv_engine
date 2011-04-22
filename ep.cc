@@ -421,7 +421,7 @@ EventuallyPersistentStore::~EventuallyPersistentStore() {
     delete flusher;
     delete dispatcher;
     delete nonIODispatcher;
-    delete persistenceCheckpointIds;
+    delete []persistenceCheckpointIds;
 }
 
 void EventuallyPersistentStore::startDispatcher() {

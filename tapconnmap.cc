@@ -19,11 +19,6 @@ public:
 
     bool callback(Dispatcher &, TaskId) {
         if (connection->cleanSome()) {
-            TapProducer *tp = dynamic_cast<TapProducer*>(connection);
-            const void *cookie = NULL;
-            if (tp != NULL) {
-                cookie = tp->getCookie();
-            }
             delete connection;
             return false;
         }

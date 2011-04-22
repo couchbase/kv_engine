@@ -1998,7 +1998,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
             if (tc) {
                 char *ptr = NULL;
                 shared_ptr<const Blob> vblob(Blob::New(static_cast<const char*>(data), ndata));
-                uint64_t checkpointId = strtoull(vblob->getData(), &ptr, 10);
+                uint64_t checkpointId = 0;
+                checkpointId = strtoull(vblob->getData(), &ptr, 10);
                 ret = tc->processCheckpointCommand(tap_event, vbucket, checkpointId) ?
                       ENGINE_SUCCESS : ENGINE_DISCONNECT;
             } else {

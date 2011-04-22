@@ -145,7 +145,8 @@ typedef enum {
  */
 class TapCheckpointState {
 public:
-    TapCheckpointState() {}
+    TapCheckpointState() : currentCheckpointId(0), openCheckpointIdAtBackfillEnd(0),
+                           lastSeqNum(0), lastItem(false) {}
 
     TapCheckpointState(uint16_t vb, uint64_t checkpointId, tap_checkpoint_state s) :
         vbucket(vb), currentCheckpointId(checkpointId),
