@@ -130,6 +130,11 @@ void CheckpointManager::setOpenCheckpointId(uint64_t id) {
 }
 
 bool CheckpointManager::addNewCheckpoint_UNLOCKED(uint64_t id) {
+    // This is just for making sure that the current checkpoint should be closed.
+    if (checkpointList.size() > 0 && checkpointList.back()->getState() == opened) {
+        closeOpenCheckpoint_UNLOCKED(checkpointList.back()->getId());
+    }
+
     Checkpoint *checkpoint = new Checkpoint(id, opened);
     // Add a dummy item into the new checkpoint, so that any cursor referring to the actual first
     // item in this new checkpoint can be safely shifted left by 1 if the first item is removed
@@ -155,11 +160,10 @@ bool CheckpointManager::addNewCheckpoint(uint64_t id) {
 }
 
 bool CheckpointManager::closeOpenCheckpoint_UNLOCKED(uint64_t id) {
-    if (id != checkpointList.back()->getId()) {
+    if (checkpointList.size() == 0) {
         return false;
     }
-    // Simply return if the current open checkpoint has been already closed.
-    if (checkpointList.back()->getState() == closed) {
+    if (id != checkpointList.back()->getId() || checkpointList.back()->getState() == closed) {
         return true;
     }
 
