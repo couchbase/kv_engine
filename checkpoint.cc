@@ -477,6 +477,14 @@ uint64_t CheckpointManager::removeClosedUnrefCheckpoints(const RCPtr<VBucket> &v
 
 bool CheckpointManager::queueDirty(const queued_item &item, const RCPtr<VBucket> &vbucket) {
     LockHolder lh(queueLock);
+    if (vbucket->getState() != vbucket_state_active &&
+        checkpointList.back()->getState() == closed) {
+        // Replica vbucket might receive items from the master even if the current open checkpoint
+        // has been already closed, because some items from the backfill with an invalid token
+        // are on the wire even after that backfill thread is closed. Simply ignore those items.
+        return false;
+    }
+
     // The current open checkpoint should be always the last one in the checkpoint list.
     assert(checkpointList.back()->getState() == opened);
     size_t numItemsBefore = getNumItemsForPersistence();
