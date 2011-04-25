@@ -630,6 +630,9 @@ private:
         if (!checkpointMsgs.empty()) {
             item = checkpointMsgs.front();
             checkpointMsgs.pop();
+            if (!vbucketFilter(item->getVBucketId())) {
+                return nextCheckpointMessage_UNLOCKED();
+            }
             if (item->getOperation() == queue_op_checkpoint_end) {
                 ++checkpointEndCounter;
             }
