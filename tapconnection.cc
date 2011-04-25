@@ -1084,10 +1084,10 @@ queued_item TapProducer::next(bool &shouldPause) {
                 addEvent_UNLOCKED(item);
                 break;
             case queue_op_checkpoint_start:
+                it->second.currentCheckpointId = strtoull(item->getValue()->getData(), &ptr, 10);
                 if (supportCheckpointSync &&
                     it->second.currentCheckpointId >= it->second.openCheckpointIdAtBackfillEnd) {
 
-                    it->second.currentCheckpointId = strtoull(item->getValue()->getData(), &ptr, 10);
                     it->second.state = checkpoint_start;
                     addCheckpointMessage_UNLOCKED(item);
                 }
