@@ -28,6 +28,7 @@ pkglib_LTLIBRARIES = libmemcached_utilities.la \
                      basic_engine_testsuite.la \
                      default_engine.la \
                      example_protocol.la \
+                     blackhole_logger.la \
                      stdin_term_handler.la
 
 if BUILD_SYSLOG_LOGGER
@@ -185,6 +186,12 @@ example_protocol_la_SOURCES= extensions/protocol/example_protocol.c \
                              extensions/protocol_extension.h
 example_protocol_la_LDFLAGS= -avoid-version -shared -module -no-undefined
 
+# A logger just ignoring the output
+blackhole_logger_la_CPPFLAGS = $(CPPFLAGS) -I$(top_srcdir)/extensions
+blackhole_logger_la_SOURCES = extensions/loggers/blackhole_logger.c \
+                              extensions/protocol_extension.h
+blackhole_logger_la_LDFLAGS = -avoid-version -shared -module -no-undefined
+
 # A logger using syslog
 syslog_logger_la_CPPFLAGS = $(CPPFLAGS) -I$(top_srcdir)/extensions
 syslog_logger_la_SOURCES = extensions/loggers/syslog_logger.c \
@@ -243,7 +250,7 @@ default_engine_dtrace.lo: $(default_engine_la_OBJECTS)
 DIST_DIRS = scripts
 EXTRA_DIST = doc scripts t memcached.spec memcached_dtrace.d m4/version.m4 \
              testsuite/breakdancer/engine_test.py testsuite/breakdancer/breakdancer.py \
-             LICENSE BUILD CONTRIBUTING HACKING win32
+             LICENSE CONTRIBUTING HACKING win32
 
 MOSTLYCLEANFILES = *.gcov *.gcno *.gcda *.tcov
 
@@ -298,5 +305,5 @@ $(srcdir)/$(LE_FN):
 dist-hook: $(srcdir)/$(LE_FN)
 	rm -rf $(distdir)/libevent*
 	gzip -dc $(srcdir)/$(LE_FN) | (cd $(distdir) && tar xf -)
-	ln -s libevent-$(LE_VERSION) $(distdir)/libevent
+	mv $(distdir)/libevent-$(LE_VERSION) $(distdir)/libevent
 	rm -f $(distdir)/*/*~ $(distdir)/t/lib/*~ $(distdir)/*~

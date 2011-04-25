@@ -256,7 +256,7 @@ static void settings_init(void) {
     /* By default this string should be NULL for getaddrinfo() */
     settings.inter = NULL;
     settings.maxbytes = 64 * 1024 * 1024; /* default is 64MB */
-    settings.maxconns = 1024;         /* to limit connections-related memory to about 5MB */
+    settings.maxconns = 1000;         /* to limit connections-related memory to about 5MB */
     settings.verbose = 0;
     settings.oldest_live = 0;
     settings.evict_to_free = 1;       /* push old items out of cache when memory runs out */
@@ -336,6 +336,47 @@ static const char *prot_text(enum protocol prot) {
     return rv;
 }
 
+struct {
+    pthread_mutex_t mutex;
+    bool disabled;
+    ssize_t count;
+    uint64_t num_disable;
+} listen_state;
+
+static bool is_listen_disabled(void) {
+    bool ret;
+    pthread_mutex_lock(&listen_state.mutex);
+    ret = listen_state.disabled;
+    pthread_mutex_unlock(&listen_state.mutex);
+    return ret;
+}
+
+static uint64_t get_listen_disabled_num(void) {
+    uint64_t ret;
+    pthread_mutex_lock(&listen_state.mutex);
+    ret = listen_state.num_disable;
+    pthread_mutex_unlock(&listen_state.mutex);
+    return ret;
+}
+
+static void disable_listen(void) {
+    pthread_mutex_lock(&listen_state.mutex);
+    listen_state.disabled = true;
+    listen_state.count = 10;
+    ++listen_state.num_disable;
+    pthread_mutex_unlock(&listen_state.mutex);
+
+    conn *next;
+    for (next = listen_conn; next; next = next->next) {
+        update_event(next, 0);
+        if (listen(next->sfd, 1) != 0) {
+            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                            "listen() failed",
+                                            strerror(errno));
+        }
+    }
+}
+
 void safe_close(SOCKET sfd) {
     if (sfd != INVALID_SOCKET) {
         int rval;
@@ -352,6 +393,10 @@ void safe_close(SOCKET sfd) {
             STATS_LOCK();
             stats.curr_conns--;
             STATS_UNLOCK();
+
+            if (is_listen_disabled()) {
+                notify_dispatcher();
+            }
         }
     }
 }
@@ -529,10 +574,7 @@ conn *conn_new(const SOCKET sfd, STATE_FUNC init_state,
     c->transport = transport;
     c->protocol = settings.binding_protocol;
 
-    /* unix socket mode doesn't need this, so zeroed out.  but why
-     * is this done for every command?  presumably for UDP
-     * mode.  */
-    if (!settings.socketpath) {
+    if (IS_UDP(transport)) {
         c->request_addr_size = sizeof(c->request_addr);
     } else {
         c->request_addr_size = 0;
@@ -2553,8 +2595,12 @@ static void process_bin_unknown_packet(conn *c) {
     }
 
     if (ret == ENGINE_SUCCESS) {
-        write_and_free(c, c->dynamic_buffer.buffer, c->dynamic_buffer.offset);
-        c->dynamic_buffer.buffer = NULL;
+        if (c->dynamic_buffer.buffer != NULL) {
+            write_and_free(c, c->dynamic_buffer.buffer, c->dynamic_buffer.offset);
+            c->dynamic_buffer.buffer = NULL;
+        } else {
+            conn_set_state(c, conn_new_cmd);
+        }
     } else if (ret == ENGINE_ENOTSUP) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND, 0);
     } else if (ret == ENGINE_EWOULDBLOCK) {
@@ -3661,6 +3707,8 @@ static void server_stats(ADD_STAT add_stats, conn *c, bool aggregate) {
     APPEND_STAT("bytes_read", "%"PRIu64, thread_stats.bytes_read);
     APPEND_STAT("bytes_written", "%"PRIu64, thread_stats.bytes_written);
     APPEND_STAT("limit_maxbytes", "%"PRIu64, settings.maxbytes);
+    APPEND_STAT("accepting_conns", "%u",  is_listen_disabled() ? 0 : 1);
+    APPEND_STAT("listen_disabled_num", "%"PRIu64, get_listen_disabled_num());
     APPEND_STAT("rejected_conns", "%" PRIu64, (unsigned long long)stats.rejected_conns);
     APPEND_STAT("threads", "%d", settings.num_threads);
     APPEND_STAT("conn_yields", "%" PRIu64, (unsigned long long)thread_stats.conn_yields);
@@ -4966,8 +5014,11 @@ static enum transmit_result transmit(conn *c) {
         }
         /* if res == 0 or res == -1 and error is not EAGAIN or EWOULDBLOCK,
            we have a real error, on which we close the connection */
-        if (settings.verbose > 0)
-            perror("Failed to write, and not due to blocking");
+        if (settings.verbose > 0) {
+            settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                            "Failed to write, and not due to blocking: %s",
+                                            strerror(errno));
+        }
 
         if (IS_UDP(c->transport))
             conn_set_state(c, conn_read);
@@ -4991,11 +5042,11 @@ bool conn_listening(conn *c)
                 settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
                                                 "Too many open connections\n");
             }
+            disable_listen();
         } else if (errno != EAGAIN && errno != EWOULDBLOCK) {
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                             "Failed to accept new client: %s\n",
                                             strerror(errno));
-
         }
 
         return false;
@@ -5556,6 +5607,35 @@ void event_handler(const int fd, const short which, void *arg) {
     }
 }
 
+static void dispatch_event_handler(int fd, short which, void *arg) {
+    char buffer[80];
+    ssize_t nr = recv(fd, buffer, sizeof(buffer), 0);
+
+    if (nr != -1 && is_listen_disabled()) {
+        bool enable = false;
+        pthread_mutex_lock(&listen_state.mutex);
+        listen_state.count -= nr;
+        if (listen_state.count <= 0) {
+            enable = true;
+            listen_state.disabled = false;
+        }
+        pthread_mutex_unlock(&listen_state.mutex);
+        if (enable) {
+            conn *next;
+            for (next = listen_conn; next; next = next->next) {
+                update_event(next, EV_READ | EV_PERSIST);
+                if (listen(next->sfd, settings.backlog) != 0) {
+                    settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                                    "listen() failed",
+                                                    strerror(errno));
+                }
+            }
+        }
+    }
+}
+
+
+
 static SOCKET new_socket(struct addrinfo *ai) {
     SOCKET sfd;
 
@@ -5584,8 +5664,12 @@ static void maximize_sndbuf(const int sfd) {
 
     /* Start with the default size. */
     if (getsockopt(sfd, SOL_SOCKET, SO_SNDBUF, (void *)&old_size, &intsize) != 0) {
-        if (settings.verbose > 0)
-            perror("getsockopt(SO_SNDBUF)");
+        if (settings.verbose > 0) {
+            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                            "getsockopt(SO_SNDBUF): %s",
+                                            strerror(errno));
+        }
+
         return;
     }
 
@@ -5666,7 +5750,9 @@ static int server_socket(const char *interface,
         if (next->ai_family == AF_INET6) {
             error = setsockopt(sfd, IPPROTO_IPV6, IPV6_V6ONLY, (char *) &flags, sizeof(flags));
             if (error != 0) {
-                perror("setsockopt");
+                settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                                "setsockopt(IPV6_V6ONLY): %s",
+                                                strerror(errno));
                 safe_close(sfd);
                 continue;
             }
@@ -5678,21 +5764,32 @@ static int server_socket(const char *interface,
             maximize_sndbuf(sfd);
         } else {
             error = setsockopt(sfd, SOL_SOCKET, SO_KEEPALIVE, (void *)&flags, sizeof(flags));
-            if (error != 0)
-                perror("setsockopt");
+            if (error != 0) {
+                settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                                "setsockopt(SO_KEEPALIVE): %s",
+                                                strerror(errno));
+            }
 
             error = setsockopt(sfd, SOL_SOCKET, SO_LINGER, (void *)&ling, sizeof(ling));
-            if (error != 0)
-                perror("setsockopt");
+            if (error != 0) {
+                settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                                "setsockopt(SO_LINGER): %s",
+                                                strerror(errno));
+            }
 
             error = setsockopt(sfd, IPPROTO_TCP, TCP_NODELAY, (void *)&flags, sizeof(flags));
-            if (error != 0)
-                perror("setsockopt");
+            if (error != 0) {
+                settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                                "setsockopt(TCP_NODELAY): %s",
+                                                strerror(errno));
+            }
         }
 
         if (bind(sfd, next->ai_addr, next->ai_addrlen) == SOCKET_ERROR) {
             if (errno != EADDRINUSE) {
-                perror("bind()");
+                settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                                "bind(): %s",
+                                                strerror(errno));
                 safe_close(sfd);
                 freeaddrinfo(ai);
                 return 1;
@@ -5702,7 +5799,9 @@ static int server_socket(const char *interface,
         } else {
             success++;
             if (!IS_UDP(transport) && listen(sfd, settings.backlog) == SOCKET_ERROR) {
-                perror("listen()");
+                settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                                "listen(): %s",
+                                                strerror(errno));
                 safe_close(sfd);
                 freeaddrinfo(ai);
                 return 1;
@@ -5808,7 +5907,9 @@ static int new_socket_unix(void) {
     int sfd;
 
     if ((sfd = socket(AF_UNIX, SOCK_STREAM, 0)) == INVALID_SOCKET) {
-        perror("socket()");
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                        "socket(AF_UNIX, SOCK_STREAM, 0): %s",
+                                        strerror(errno));
         return INVALID_SOCKET;
     }
 
@@ -5859,14 +5960,18 @@ static int server_socket_unix(const char *path, int access_mask) {
     assert(strcmp(addr.sun_path, path) == 0);
     old_umask = umask( ~(access_mask&0777));
     if (bind(sfd, (struct sockaddr *)&addr, sizeof(addr)) == -1) {
-        perror("bind()");
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                        "bind(): %s",
+                                        strerror(errno));
         safe_close(sfd);
         umask(old_umask);
         return 1;
     }
     umask(old_umask);
     if (listen(sfd, settings.backlog) == -1) {
-        perror("listen()");
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                        "listen(): %s",
+                                        strerror(errno));
         safe_close(sfd);
         return 1;
     }
@@ -5934,7 +6039,7 @@ static void usage(void) {
            "-u <username> assume identity of <username> (only when run as root)\n"
            "-m <num>      max memory to use for items in megabytes (default: 64 MB)\n"
            "-M            return error on memory exhausted (rather than removing items)\n"
-           "-c <num>      max simultaneous connections (default: 1024)\n"
+           "-c <num>      max simultaneous connections (default: 1000)\n"
            "-k            lock down all paged memory.  Note that there is a\n"
            "              limit on how much memory you may lock.  Trying to\n"
            "              allocate more than that would fail, so be sure you\n"
@@ -6061,7 +6166,8 @@ static void save_pid(const char *pid_file) {
             if (fgets(buffer, sizeof(buffer), fp) != NULL) {
                 unsigned int pid;
                 if (safe_strtoul(buffer, &pid) && kill((pid_t)pid, 0) == 0) {
-                    fprintf(stderr, "WARNING: The pid file contained the following (running) pid: %u\n", pid);
+                    settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                               "WARNING: The pid file contained the following (running) pid: %u\n", pid);
                 }
             }
             fclose(fp);
@@ -6188,14 +6294,16 @@ static void set_tap_nack_mode(const void *cookie, bool enable) {
     c->tap_nack_mode = enable;
 }
 
-static void reserve_cookie(const void *cookie) {
+static ENGINE_ERROR_CODE reserve_cookie(const void *cookie) {
     conn *c = (conn *)cookie;
     ++c->refcount;
+    return ENGINE_SUCCESS;
 }
 
-static void release_cookie(const void *cookie) {
+static ENGINE_ERROR_CODE release_cookie(const void *cookie) {
     conn *c = (conn *)cookie;
     --c->refcount;
+    return ENGINE_SUCCESS;
 }
 
 static int num_independent_stats(void) {
@@ -6713,7 +6821,8 @@ static bool sanitycheck(void) {
         if (strncmp(ever, "1.", 2) == 0) {
             /* Require at least 1.3 (that's still a couple of years old) */
             if ((ever[2] == '1' || ever[2] == '2') && !isdigit(ever[3])) {
-                fprintf(stderr, "You are using libevent %s.\nPlease upgrade to"
+                settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                        "You are using libevent %s.\nPlease upgrade to"
                         " a more recent version (1.3 or newer)\n",
                         event_get_version());
                 return false;
@@ -6746,10 +6855,6 @@ int main (int argc, char **argv) {
     char old_options[1024] = { [0] = '\0' };
     char *old_opts = old_options;
 
-    if (!sanitycheck()) {
-        return EX_OSERR;
-    }
-
     /* make the time we started always be 2 seconds before we really
        did, so time(0) - time.started is never zero.  if so, things
        like 'settings.oldest_live' which act as booleans as well as
@@ -6765,6 +6870,10 @@ int main (int argc, char **argv) {
 
     if (memcached_initialize_stderr_logger(get_server_api) != EXTENSION_SUCCESS) {
         fprintf(stderr, "Failed to initialize log system\n");
+        return EX_OSERR;
+    }
+
+    if (!sanitycheck()) {
         return EX_OSERR;
     }
 
@@ -7139,16 +7248,16 @@ int main (int argc, char **argv) {
         }
         if (setrlimit(RLIMIT_NOFILE, &rlim) != 0) {
             const char *fmt;
-            fmt = "WARNING: memcached cannot use (%d) connections due to "
+            fmt = "WARNING: maxconns cannot be set to (%d) connections due to "
                 "system\nresouce restrictions. Increase the number of file "
-                "descriptors allowed\nto the memcached user process or run "
+                "descriptors allowed\nto the memcached user process or start "
                 "memcached as root (remember\nto use the -u parameter).\n"
                 "The maximum number of connections is set to %d.\n";
             int req = settings.maxconns;
             settings.maxconns = syslimit - (3 * (settings.num_threads + 2));
             if (settings.maxconns < 0) {
                 settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                         "failed to set rlimit for open files. Try running as"
+                         "failed to set rlimit for open files. Try starting as"
                          " root or requesting smaller maxconns value.\n");
                 exit(EX_OSERR);
             }
@@ -7276,7 +7385,7 @@ int main (int argc, char **argv) {
 #endif
 
     /* start up worker threads if MT mode */
-    thread_init(settings.num_threads, main_base);
+    thread_init(settings.num_threads, main_base, dispatch_event_handler);
 
     /* initialise clock event */
     clock_handler(0, 0, 0);
@@ -7284,7 +7393,9 @@ int main (int argc, char **argv) {
     /* create unix mode sockets after dropping privileges */
     if (settings.socketpath != NULL) {
         if (server_socket_unix(settings.socketpath,settings.access)) {
-            vperror("failed to listen on UNIX socket: %s", settings.socketpath);
+            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                            "failed to listen on UNIX socket \"%s\": %s",
+                                            settings.socketpath, strerror(errno));
             exit(EX_OSERR);
         }
     }
@@ -7312,7 +7423,9 @@ int main (int argc, char **argv) {
 
         if (settings.port && server_sockets(settings.port, tcp_transport,
                                             portnumber_file)) {
-            vperror("failed to listen on TCP port %d", settings.port);
+            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                            "failed to listen on TCP port %d: %s",
+                                            settings.port, strerror(errno));
             exit(EX_OSERR);
         }
 
@@ -7327,7 +7440,9 @@ int main (int argc, char **argv) {
         /* create the UDP listening socket and bind it */
         if (settings.udpport && server_sockets(settings.udpport, udp_transport,
                                                portnumber_file)) {
-            vperror("failed to listen on UDP port %d", settings.udpport);
+            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                            "failed to listen on UDP port %d: %s",
+                                            settings.port, strerror(errno));
             exit(EX_OSERR);
         }
 
