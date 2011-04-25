@@ -111,7 +111,9 @@ uint64_t CheckpointManager::getOpenCheckpointId() {
     if (checkpointList.size() == 0) {
         return 0;
     }
-    return checkpointList.back()->getId();
+
+    uint64_t id = checkpointList.back()->getId();
+    return checkpointList.back()->getState() == opened ? id : id + 1;
 }
 
 void CheckpointManager::setOpenCheckpointId(uint64_t id) {
