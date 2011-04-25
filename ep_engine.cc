@@ -2206,8 +2206,8 @@ class BackfillDiskLoad : public DispatcherCallback, public Callback<GetValue> {
 public:
 
     BackfillDiskLoad(const std::string &n, EventuallyPersistentEngine* e,
-                     TapConnMap &tcm, KVStore *s, uint16_t vbid)
-        : name(n), engine(e), connMap(tcm), store(s), vbucket(vbid) {
+                     TapConnMap &tcm, KVStore *s, uint16_t vbid, const void *token)
+        : name(n), engine(e), connMap(tcm), store(s), vbucket(vbid), validityToken(token) {
 
         vbucket_version = engine->getEpStore()->getVBucketVersion(vbucket);
     }
@@ -2230,9 +2230,11 @@ public:
     }
 
     bool callback(Dispatcher &, TaskId) {
-        store->dump(vbucket, *this);
-        CompleteDiskBackfillTapOperation op;
-        connMap.performTapOp(name, op, static_cast<void*>(NULL));
+        if (connMap.checkValidity(name, validityToken)) {
+            store->dump(vbucket, *this);
+            CompleteDiskBackfillTapOperation op;
+            connMap.performTapOp(name, op, static_cast<void*>(NULL));
+        }
 
         return false;
     }
@@ -2250,6 +2252,7 @@ private:
     KVStore                    *store;
     uint16_t                    vbucket;
     uint16_t                    vbucket_version;
+    const void                 *validityToken;
 };
 
 /**
@@ -2316,7 +2319,8 @@ public:
                                                                        engine,
                                                                        engine->tapConnMap,
                                                                        underlying,
-                                                                       *it));
+                                                                       *it,
+                                                                       validityToken));
                 d->schedule(cb, NULL, Priority::TapBgFetcherPriority);
             }
             vbuckets.clear();
