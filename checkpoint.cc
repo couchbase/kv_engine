@@ -515,10 +515,8 @@ uint64_t CheckpointManager::getAllItemsFromCurrentPosition(CheckpointCursor &cur
 
     uint64_t checkpointId = 0;
     // Get the last closed checkpoint Id.
-    if(checkpointList.size() > 1) {
-        std::list<Checkpoint*>::iterator it = cursor.currentCheckpoint;
-        --it;
-        checkpointId = (*it)->getId();
+    if(checkpointList.size() > 0) {
+        checkpointId = (*(cursor.currentCheckpoint))->getId() - 1;
     }
 
     return checkpointId;
