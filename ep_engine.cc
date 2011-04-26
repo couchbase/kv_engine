@@ -1586,6 +1586,10 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
 
     retry = false;
 
+    if (connection->shouldFlush()) {
+        return TAP_FLUSH;
+    }
+
     // Do not schedule the backfill for the registered TAP client (e.g., incremental backup client)
     if (connection->doRunBackfill && !(connection->registeredTAPClient)) {
         queueBackfill(connection, cookie);
@@ -1779,8 +1783,6 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
         if (ret == TAP_MUTATION || ret == TAP_DELETION) {
             connection->addTapLogElement(qi);
         }
-    } else if (connection->shouldFlush()) {
-        ret = TAP_FLUSH;
     }
 
     if (ret == TAP_PAUSE && connection->complete()) {

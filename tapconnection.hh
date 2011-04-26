@@ -754,6 +754,20 @@ private:
         queue->clear();
         queueSize = 0;
         queueMemSize = 0;
+
+        // Clear bg-fetched items.
+        while (!backfilledItems.empty()) {
+            Item *i(backfilledItems.front());
+            assert(i);
+            delete i;
+            backfilledItems.pop();
+        }
+        bgResultSize = 0;
+
+        // Clear the checkpoint message queue as well
+        while (!checkpointMsgs.empty()) {
+            checkpointMsgs.pop();
+        }
     }
 
     bool shouldFlush() {
