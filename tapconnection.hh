@@ -822,6 +822,7 @@ private:
     ~TapProducer() {
         assert(cleanSome());
         delete queue;
+        assert(!isReserved());
     }
 
     ENGINE_ERROR_CODE processAck(uint32_t seqno, uint16_t status, const std::string &msg);

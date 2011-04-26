@@ -20,6 +20,7 @@ public:
         if (cookie != NULL) {
             if (c->isReserved()) {
                 e.getServerApi()->cookie->release(cookie);
+                c->setReserved(false);
                 // trigger the other thread if it waiting for it...
                 e.notifyIOComplete(cookie, ENGINE_DISCONNECT);
             }
