@@ -958,7 +958,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         size_t htLocks = 0;
         size_t maxSize = 0;
 
-        const int max_items = 44;
+        const int max_items = 45;
         struct config_item items[max_items];
         int ii = 0;
         memset(items, 0, sizeof(items));
@@ -1181,6 +1181,13 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         items[ii].value.dt_size = &checkpoint_period;
 
         ++ii;
+        bool inconsistentSlaveCheckpoint;
+        int inconsistent_chk_idx = ii;
+        items[ii].key = "inconsistent_slave_chk";
+        items[ii].datatype = DT_BOOL;
+        items[ii].value.dt_bool = &inconsistentSlaveCheckpoint;
+
+        ++ii;
         bool restore_mode;
         int restore_idx = ii;
         items[ii].key = "restore_mode";
@@ -1234,6 +1241,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
             }
             if (items[checkpoint_period_idx].found) {
                 CheckpointManager::setCheckpointPeriod(checkpoint_period);
+            }
+            if (items[inconsistent_chk_idx].found) {
+                CheckpointManager::allowInconsistentSlaveCheckpoint(inconsistentSlaveCheckpoint);
             }
 
             if (items[restore_idx].found && restore_mode) {

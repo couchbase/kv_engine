@@ -965,6 +965,14 @@ bool TapConsumer::processCheckpointCommand(tap_event_t event, uint16_t vbucket,
     if (!vb) {
         return false;
     }
+
+    // If the vbucket is in active, but not allowed to accept checkpoint messaages, simply ignore
+    // those messages.
+    if (vb->getState() == vbucket_state_active &&
+        !CheckpointManager::inconsistentSlaveCheckpoint) {
+        return true;
+    }
+
     bool ret = true;
     switch (event) {
     case TAP_CHECKPOINT_START:

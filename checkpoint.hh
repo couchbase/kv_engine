@@ -358,9 +358,11 @@ public:
     bool hasNext(const std::string &name);
 
     static void initializeCheckpointConfig(size_t checkpoint_period,
-                                           size_t checkpoint_max_items) {
+                                           size_t checkpoint_max_items,
+                                           bool allow_inconsistency = false) {
         checkpointPeriod = checkpoint_period;
         checkpointMaxItems = checkpoint_max_items;
+        inconsistentSlaveCheckpoint = allow_inconsistency;
     }
 
     static void setCheckpointPeriod(size_t checkpoint_period) {
@@ -369,6 +371,10 @@ public:
 
     static void setCheckpointMaxItems(size_t checkpoint_max_items) {
         checkpointMaxItems = checkpoint_max_items;
+    }
+
+    static void allowInconsistentSlaveCheckpoint(bool allow_inconsistency) {
+        inconsistentSlaveCheckpoint = allow_inconsistency;
     }
 
 private:
@@ -458,6 +464,9 @@ private:
     static Atomic<rel_time_t> checkpointPeriod;
     // Number of max items allowed in each checkpoint
     static Atomic<size_t>     checkpointMaxItems;
+    // Flag indicating if a downstream active vbucket is allowed to receive checkpoint start/end
+    // messages from the master active vbucket.
+    static bool               inconsistentSlaveCheckpoint;
 
     Atomic<bool>              doOnlineUpdate;
     Atomic<bool>              doHotReload;

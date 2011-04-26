@@ -92,6 +92,7 @@ queue_dirty_t Checkpoint::queueDirty(const queued_item &item, CheckpointManager 
 
 Atomic<rel_time_t> CheckpointManager::checkpointPeriod = 600;
 Atomic<size_t> CheckpointManager::checkpointMaxItems = 5000;
+bool CheckpointManager::inconsistentSlaveCheckpoint = false;
 
 CheckpointManager::~CheckpointManager() {
     LockHolder lh(queueLock);
@@ -402,8 +403,8 @@ uint64_t CheckpointManager::removeClosedUnrefCheckpoints(const RCPtr<VBucket> &v
     LockHolder lh(queueLock);
     assert(vbucket);
     uint64_t oldCheckpointId = 0;
-    if (vbucket->getState() == vbucket_state_active) {
-        // Check if we need to create a new open checkpoint.
+    if (vbucket->getState() == vbucket_state_active && !inconsistentSlaveCheckpoint) {
+        // Check if this master active vbucket needs to create a new open checkpoint.
         oldCheckpointId = checkOpenCheckpoint_UNLOCKED(false);
     }
     newOpenCheckpointCreated = oldCheckpointId > 0 ? true : false;
@@ -490,7 +491,8 @@ bool CheckpointManager::queueDirty(const queued_item &item, const RCPtr<VBucket>
     size_t numItemsAfter = getNumItemsForPersistence();
 
     assert(vbucket);
-    if (vbucket->getState() == vbucket_state_active) {
+    if (vbucket->getState() == vbucket_state_active && !inconsistentSlaveCheckpoint) {
+        // Only the master active vbucket can create a next open checkpoint.
         checkOpenCheckpoint_UNLOCKED(false);
     }
     // Note that the creation of a new checkpoint on the replica vbucket will be controlled by TAP
