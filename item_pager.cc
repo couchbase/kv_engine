@@ -42,6 +42,9 @@ public:
 
         double r = static_cast<double>(std::rand()) / static_cast<double>(RAND_MAX);
         if (percent >= r) {
+            if (!v->eligibleForEviction()) {
+                return;
+            }
             // Check if the key with its CAS value exists in the open or closed referenced
             // checkpoints.
             bool foundInCheckpoints =

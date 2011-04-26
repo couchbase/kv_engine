@@ -132,6 +132,10 @@ public:
         return !isDirty();
     }
 
+    bool eligibleForEviction() {
+        return isResident() && isClean() && !isDeleted() && !_isSmall;
+    }
+
     /**
      * Check if this item is expired or not.
      *

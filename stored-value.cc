@@ -21,7 +21,7 @@ static ssize_t prime_size_table[] = {
 };
 
 bool StoredValue::ejectValue(EPStats &stats, HashTable &ht) {
-    if (isResident() && isClean() && !isDeleted() && !_isSmall) {
+    if (eligibleForEviction()) {
         size_t oldsize = size();
         size_t oldValueSize = value->length();
         blobval uval;
