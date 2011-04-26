@@ -5,10 +5,6 @@
 
 void Checkpoint::setState(checkpoint_state state) {
     checkpointState = state;
-    // If this checkpoint is closed, clear the key index.
-    if (checkpointState != opened) {
-        keyIndex.clear();
-    }
 }
 
 uint64_t Checkpoint::getCasForKey(const std::string &key) {
