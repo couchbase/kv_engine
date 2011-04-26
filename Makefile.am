@@ -25,6 +25,18 @@ EXTRA_DIST = docs management README.markdown win32 Doxyfile LICENSE
 
 noinst_PROGRAMS = sizes
 
+man_MANS =
+if BUILD_DOCS
+man_MANS += mbadm-online-update.1m \
+            mbbackup-incremental.1m
+endif
+
+mbadm-online-update.1m: docs/mbadm-online-update.pod
+	${POD2MAN} -c "$*" -r "" -s 1m $< $@
+
+mbbackup-incremental.1m: docs/mbbackup-incremental.pod
+	${POD2MAN} -c "$*" -r "" -s 1m $< $@
+
 ep_la_CPPFLAGS = -I$(top_srcdir) $(AM_CPPFLAGS)
 ep_la_LDFLAGS = -module -dynamic
 ep_la_SOURCES = \

@@ -1,4 +1,5 @@
 # Keep the entries sorted to reduce the risk for a merge conflict
+*.1m
 *.[ao]
 *.dirstamp
 *.exe
