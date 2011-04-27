@@ -12,4 +12,6 @@
 #define CMD_GET_LOCKED        0x94
 #define CMD_UNLOCK_KEY        0x95
 
+typedef protocol_binary_request_set protocol_binary_request_getl;
+
 #endif /* COMMAND_IDS_H */
