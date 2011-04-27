@@ -362,13 +362,26 @@ static void evict_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 }
 
 static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-
     const char *key = "k1";
+    char *pkt_raw = static_cast<char*>(calloc(1,sizeof(protocol_binary_request_getl)
+                                                 + strlen(key)));
+    memcpy(pkt_raw + sizeof(protocol_binary_request_getl), key, strlen(key));
     uint16_t vbucketId = 0;
+    uint8_t extlen = 8;
+    uint32_t flags = 0;
+    uint32_t expiration = 25;
 
-    protocol_binary_request_header *pkt = create_packet(CMD_GET_LOCKED,
-                                                        key, "");
-    pkt->request.vbucket = htons(vbucketId);
+    protocol_binary_request_getl *gl = (protocol_binary_request_getl*)pkt_raw;
+
+    gl->message.header.request.opcode = CMD_GET_LOCKED;
+    gl->message.header.request.extlen = extlen;
+    gl->message.header.request.bodylen = htonl(strlen(key) + gl->message.header.request.extlen);
+    gl->message.header.request.keylen = htons(strlen(key));
+    gl->message.header.request.vbucket = htons(vbucketId);
+    gl->message.body.flags = htonl(flags);
+    gl->message.body.expiration = htonl(expiration);
+
+    protocol_binary_request_header *pkt = &gl->message.header;
 
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Getl Failed");
@@ -391,6 +404,9 @@ static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
           "Expected to be able to getl on first try");
     check(strcmp("lockdata", last_body) == 0, "Body was malformed.");
 
+    /* wait 16 seconds */
+    testHarness.time_travel(16);
+
     /* lock's taken so this should fail */
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Lock failed");
@@ -405,8 +421,8 @@ static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(store(h, h1, NULL, OPERATION_SET, key, "lockdata2", &i, 0, vbucketId)
           != ENGINE_SUCCESS, "Should have failed to store an item.");
 
-    /* wait 16 seconds */
-    testHarness.time_travel(16);
+    /* wait another 10 seconds */
+    testHarness.time_travel(10);
 
     /* retry set, should succeed */
     check(store(h, h1, NULL, OPERATION_SET, key, "lockdata", &i, 0, vbucketId)
@@ -431,7 +447,7 @@ static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     /* bug MB 2699 append after getl should fail with ENGINE_TMPFAIL */
 
-    testHarness.time_travel(16);
+    testHarness.time_travel(26);
 
     char binaryData1[] = "abcdefg\0gfedcba";
     char binaryData2[] = "abzdefg\0gfedcba";
