@@ -4,24 +4,43 @@ Online update control for ep-engine.
 
 """
 import time
-
+import sys
 import clitool
+import mc_bin_client
 
 def auth(mc, username, password):
     if username:
         mc.sasl_auth_plain(username, password)
 
 def revert(mc, username=None, password=""):
-    auth(mc, username, password)
-    mc.revert_onlineupdate()
+    try:
+        auth(mc, username, password)
+        mc.revert_onlineupdate()
+    except mc_bin_client.MemcachedError as ne:
+        sys.exit("ERROR: " + str(ne))
+    finally:
+        if mc:
+           mc.close()
 
 def start(mc, username=None, password=""):
-    auth(mc, username, password)
-    mc.start_onlineupdate()
+    try:
+        auth(mc, username, password)
+        mc.start_onlineupdate()
+    except mc_bin_client.MemcachedError as ne:
+        sys.exit("ERROR: " + str(ne))
+    finally:
+        if mc:
+           mc.close()
 
 def complete(mc, username=None, password=""):
-    auth(mc, username, password)
-    mc.complete_onlineupdate()
+    try:
+        auth(mc, username, password)
+        mc.complete_onlineupdate()
+    except mc_bin_client.MemcachedError as ne:
+        sys.exit("ERROR: " + str(ne))
+    finally:
+        if mc:
+           mc.close()
 
 if __name__ == '__main__':
 
