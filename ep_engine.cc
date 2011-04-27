@@ -307,13 +307,14 @@ extern "C" {
     }
 
     ENGINE_ERROR_CODE getLocked(EventuallyPersistentEngine *e,
-            protocol_binary_request_header *request,
+            protocol_binary_request_getl *grequest,
             const void *cookie,
             Item **item,
             const char **msg,
             size_t *,
             protocol_binary_response_status *res) {
 
+        protocol_binary_request_header *request = &(grequest->message.header);
         protocol_binary_request_no_extras *req =
             (protocol_binary_request_no_extras*)request;
         *res = PROTOCOL_BINARY_RESPONSE_SUCCESS;
@@ -327,19 +328,26 @@ extern "C" {
             *res = PROTOCOL_BINARY_RESPONSE_EINVAL;
             return ENGINE_EINVAL;
         }
-        memcpy(keyz, ((char*)request) + sizeof(req->message.header), keylen);
+        int extlen = req->message.header.request.extlen;
+        memcpy(keyz, ((char*)request) + sizeof(req->message.header) + extlen, keylen);
         keyz[keylen] = 0x00;
 
         uint16_t vbucket = ntohs(request->request.vbucket);
 
         std::string key(keyz, keylen);
 
-        getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                         "Executing getl for key %s\n",
-                         keyz);
-
         RememberingCallback<GetValue> getCb;
-        uint32_t lockTimeout = ntohl(request->request.opaque);
+        uint32_t lockTimeout;
+        if (extlen >= 8) {
+            grequest->message.body.flags = grequest->message.body.flags;
+            lockTimeout = ntohl(grequest->message.body.expiration);
+        } else {
+            lockTimeout = 15;
+        }
+
+        getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                         "Executing getl for key %s timeout %d\n",
+                         keyz, lockTimeout);
 
         if (lockTimeout > 30 || lockTimeout < 1) {
             lockTimeout = 15;
@@ -712,7 +720,7 @@ extern "C" {
             res = evictKey(h, request, &msg, &msg_size);
             break;
         case CMD_GET_LOCKED:
-            rv = getLocked(h, request, cookie, &item, &msg, &msg_size, &res);
+            rv = getLocked(h, (protocol_binary_request_getl*)request, cookie, &item, &msg, &msg_size, &res);
             if (rv == ENGINE_EWOULDBLOCK) {
                 // we dont have the value for the item yet
                 return rv;
