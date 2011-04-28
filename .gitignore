@@ -8,6 +8,7 @@
 *.gcov
 *.l[ao]
 *.pyc
+*.tar.gz
 *.tcov
 *~
 .deps/
