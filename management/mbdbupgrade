@@ -134,11 +134,17 @@ def doset(sqlite, src, dest):
                              (returncode, ' '.join(args)))
             sys.exit(1)
     elif v >= 2:
-        msg = "No schema changes in KV tables. Simply copying the source DB files into the destination...\n"
-        sys.stdout.write(msg)
         if os.path.isdir(dest) == False:
             sys.stderr.write("Error: Destination should be a directory for the simple copy.\n")
             sys.exit(1)
+
+        if os.path.isfile(src) == True:
+            msg = "Copy vbucket_states table into the destination...\n"
+            sys.stdout.write(msg)
+            shutil.copy(src, dest)
+
+        msg = "No schema changes in KV tables. Simply copying the source DB files into the destination...\n"
+        sys.stdout.write(msg)
         for filename in glob.glob(src + '*.mb'):
             shutil.copy(filename, dest)
         sys.stdout.write("Completed copying the source DB files into the destination directory.\n")
