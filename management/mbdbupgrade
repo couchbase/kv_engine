@@ -46,8 +46,9 @@ def version(sqlite, fn):
 
 def findCmd(cmdName):
     cmd_dir = os.path.dirname(sys.argv[0])
-    bin_dir = cmd_dir
-    possible = [os.path.join(bin_dir, p) for p in [cmdName, cmdName + '.exe']]
+    possible = []
+    for bin_dir in [cmd_dir, os.path.join(cmd_dir, "..", "..", "bin")]:
+        possible = possible + [os.path.join(bin_dir, p) for p in [cmdName, cmdName + '.exe']]
     cmdbin = [p for p in possible if os.path.exists(p)][0]
     return cmdbin
 
