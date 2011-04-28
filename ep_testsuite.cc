@@ -639,6 +639,17 @@ static bool set_flush_param(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     return last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
+static bool set_tap_param(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                            const char *param, const char *val) {
+    protocol_binary_request_header *pkt = create_packet(CMD_SET_TAP_PARAM,
+                                                        param, val);
+    if (h1->unknown_command(h, NULL, pkt, add_response) != ENGINE_SUCCESS) {
+        return false;
+    }
+
+    return last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS;
+}
+
 static bool verify_vbucket_state(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                  uint16_t vb, vbucket_state_t expected,
                                  bool mute = false) {
@@ -3230,6 +3241,17 @@ static enum test_result test_tap_implicit_ack_stream(ENGINE_HANDLE *h, ENGINE_HA
     return SUCCESS;
 }
 
+static enum test_result test_set_tap_param(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
+{
+    set_tap_param(h, h1, "tap_keepalive", "600");
+    check(get_int_stat(h, h1, "ep_tap_keepalive") == 600,
+          "Incorrect tap_keepalive value.");
+    set_tap_param(h, h1, "tap_keepalive", "5000");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL,
+          "Expected an invalid value error due to exceeding a max value allowed");
+    return SUCCESS;
+}
+
 static enum test_result test_tap_noop_config_default(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
 {
     h1->reset_stats(h, NULL);
@@ -5301,6 +5323,7 @@ engine_test_t* get_tests(void) {
         // duplicate items on disk
         {"duplicate items on disk", test_duplicate_items_disk, NULL, teardown, NULL},
         // tap tests
+        {"set tap param", test_set_tap_param, NULL, teardown, NULL},
         {"tap_noop_interval default config", test_tap_noop_config_default,
          NULL, teardown, NULL },
         {"tap_noop_interval config", test_tap_noop_config, NULL, teardown,

@@ -460,6 +460,10 @@ public:
         epstore->setBGFetchDelay(to);
     }
 
+    void setTapKeepAlive(uint32_t to) {
+        tapKeepAlive = to;
+    }
+
     protocol_binary_response_status evictKey(const std::string &key,
                                              uint16_t vbucket,
                                              const char **msg,

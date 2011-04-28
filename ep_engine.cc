@@ -197,13 +197,25 @@ extern "C" {
         return e->startFlusher(msg, msg_size);
     }
 
-    static protocol_binary_response_status setTapParam(EventuallyPersistentEngine *,
-                                                       const char *, const char *,
+    static protocol_binary_response_status setTapParam(EventuallyPersistentEngine *e,
+                                                       const char *keyz, const char *valz,
                                                        const char **msg, size_t *) {
         protocol_binary_response_status rv = PROTOCOL_BINARY_RESPONSE_SUCCESS;
 
-        *msg = "Unknown config param";
-        rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
+        try {
+            if (strcmp(keyz, "tap_keepalive") == 0) {
+                int v = atoi(valz);
+                validate(v, 0, MAX_TAP_KEEP_ALIVE);
+                e->setTapKeepAlive(static_cast<uint32_t>(v));
+            } else {
+                *msg = "Unknown config param";
+                rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
+            }
+        } catch(std::runtime_error ignored_exception) {
+            *msg = "Value out of range.";
+            rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
+        }
+
         return rv;
     }
 

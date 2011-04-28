@@ -23,6 +23,8 @@ struct TapStatBuilder;
 struct TapAggStatBuilder;
 struct PopulateEventsBody;
 
+#define MAX_TAP_KEEP_ALIVE 3600
+
 #define TAP_OPAQUE_ENABLE_AUTO_NACK 0
 #define TAP_OPAQUE_INITIAL_VBUCKET_STREAM 1
 #define TAP_OPAQUE_ENABLE_CHECKPOINT_SYNC 2
