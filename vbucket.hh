@@ -136,6 +136,7 @@ public:
 
     void doStatsForQueueing(QueuedItem& item, size_t itemBytes);
     void doStatsForFlushing(QueuedItem& item, size_t itemBytes);
+    void resetStats();
 
     // Get age sum in millisecond
     uint64_t getQueueAge() {

@@ -156,3 +156,12 @@ void VBucket::doStatsForFlushing(QueuedItem& item, size_t itemBytes)
         dirtyQueuePendingWrites.set(0);
     }
 }
+
+void VBucket::resetStats() {
+    dirtyQueueSize.set(0);
+    dirtyQueueMem.set(0);
+    dirtyQueueFill.set(0);
+    dirtyQueueAge.set(0);
+    dirtyQueuePendingWrites.set(0);
+    dirtyQueueDrain.set(0);
+}

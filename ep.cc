@@ -825,6 +825,33 @@ bool EventuallyPersistentStore::deleteVBucket(uint16_t vbid) {
     return rv;
 }
 
+bool EventuallyPersistentStore::resetVBucket(uint16_t vbid) {
+    LockHolder lh(vbsetMutex);
+    bool rv(false);
+
+    RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
+    if (vb) {
+        uint16_t vb_version = vbuckets.getBucketVersion(vbid);
+        uint16_t vb_new_version = vb_version == (std::numeric_limits<uint16_t>::max() - 1) ?
+                                  0 : vb_version + 1;
+        vbuckets.setBucketVersion(vbid, vb_new_version);
+        lh.unlock();
+
+        // Clear the hashtable, checkpoints, and stats for the target vbucket.
+        HashTableStatVisitor statvis = vb->ht.clear();
+        stats.currentSize.decr(statvis.memSize - statvis.valSize);
+        assert(stats.currentSize.get() < GIGANTOR);
+        vb->checkpointManager.clear();
+        vb->resetStats();
+
+        scheduleVBSnapshot(Priority::VBucketPersistHighPriority);
+        // Clear all the items from the vbucket kv table on disk.
+        scheduleVBDeletion(vb, vb_version);
+        rv = true;
+    }
+    return rv;
+}
+
 void EventuallyPersistentStore::completeBGFetch(const std::string &key,
                                                 uint16_t vbucket,
                                                 uint16_t vbver,
@@ -1284,6 +1311,7 @@ void EventuallyPersistentStore::reset() {
             stats.currentSize.decr(statvis.memSize - statvis.valSize);
             assert(stats.currentSize.get() < GIGANTOR);
             vb->checkpointManager.clear();
+            vb->resetStats();
         }
     }
     ++flushAllCount;

@@ -2118,7 +2118,14 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
                  */
                 break;
             case TAP_OPAQUE_INITIAL_VBUCKET_STREAM:
-                /* Ignore.. this is just an informative message */
+                {
+                    BlockTimer timer(&stats.tapVbucketResetHisto);
+                    ret = resetVBucket(vbucket) ? ENGINE_SUCCESS : ENGINE_DISCONNECT;
+                    if (ret == ENGINE_DISCONNECT) {
+                        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                     "Failed to reset a vbucket %d. Force disconnect\n", vbucket);
+                    }
+                }
                 break;
             case TAP_OPAQUE_START_ONLINEUPDATE:
             case TAP_OPAQUE_STOP_ONLINEUPDATE:
@@ -3371,6 +3378,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTimingStats(const void *cookie,
     add_casted_stat("del_vb_cmd", stats.delVbucketCmdHisto, add_stat, cookie);
     // Tap commands
     add_casted_stat("tap_vb_set", stats.tapVbucketSetHisto, add_stat, cookie);
+    add_casted_stat("tap_vb_reset", stats.tapVbucketResetHisto, add_stat, cookie);
     add_casted_stat("tap_mutation", stats.tapMutationHisto, add_stat, cookie);
     // Misc
     add_casted_stat("notify_io", stats.notifyIOHisto, add_stat, cookie);

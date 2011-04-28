@@ -641,6 +641,12 @@ public:
     vbucket_del_result completeVBucketDeletion(uint16_t vbid, uint16_t vbver);
     bool deleteVBucket(uint16_t vbid);
 
+    /**
+     * Reset a given vbucket from memory and disk. This differs from vbucket deletion in that
+     * it does not delete the vbucket instance from memory hash table.
+     */
+    bool resetVBucket(uint16_t vbid);
+
     void visit(VBucketVisitor &visitor) {
         size_t maxSize = vbuckets.getSize();
         for (size_t i = 0; i <= maxSize; ++i) {

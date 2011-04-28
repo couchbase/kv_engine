@@ -440,6 +440,10 @@ public:
         return epstore->deleteVBucket(vbid);
     }
 
+    bool resetVBucket(uint16_t vbid) {
+        return epstore->resetVBucket(vbid);
+    }
+
     void setMinDataAge(int to) {
         epstore->setMinDataAge(to);
     }

@@ -199,15 +199,6 @@ void TapProducer::setVBucketFilter(const std::vector<uint16_t> &vbuckets)
             }
         }
         dumpQueue = true;
-    } else {
-        const std::vector<uint16_t> &vec = diff.getVector();
-        for (std::vector<uint16_t>::const_iterator it = vec.begin();
-             it != vec.end(); ++it) {
-            if (vbucketFilter(*it)) {
-                TapVBucketEvent hi(TAP_OPAQUE, *it, (vbucket_state_t)htonl(TAP_OPAQUE_INITIAL_VBUCKET_STREAM));
-                addVBucketHighPriority(hi);
-            }
-        }
     }
 }
 
@@ -275,6 +266,14 @@ void TapProducer::registerTAPCursor(std::map<uint16_t, uint64_t> &lastCheckpoint
             doRunBackfill = true;
             pendingBackfill = true;
             engine.setTapValidity(name, cookie);
+            // Send an initial_vbucket_stream message to the destination node so that it can
+            // delete the corresponding vbucket before receiving the backfill stream.
+            std::vector<uint16_t>::iterator it = backfill_vbuckets.begin();
+            for (; it != backfill_vbuckets.end(); ++it) {
+                TapVBucketEvent hi(TAP_OPAQUE, *it,
+                                   (vbucket_state_t)htonl(TAP_OPAQUE_INITIAL_VBUCKET_STREAM));
+                addVBucketHighPriority_UNLOCKED(hi);
+            }
         }
     } else {
         doRunBackfill = false;

@@ -255,6 +255,9 @@ public:
     //! Histogram of arithmetic commands.
     Histogram<hrtime_t> arithCmdHisto;
 
+    //! Histogram of tap VBucket reset timings
+    Histogram<hrtime_t> tapVbucketResetHisto;
+
     //! Histogram of tap mutation timings.
     Histogram<hrtime_t> tapMutationHisto;
 
@@ -343,6 +346,7 @@ public:
         getCmdHisto.reset();
         storeCmdHisto.reset();
         arithCmdHisto.reset();
+        tapVbucketResetHisto.reset();
         tapMutationHisto.reset();
         tapVbucketSetHisto.reset();
         notifyIOHisto.reset();
