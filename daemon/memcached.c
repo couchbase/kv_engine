@@ -2582,7 +2582,8 @@ static void ship_tap_log(conn *c) {
 }
 
 static void process_bin_unknown_packet(conn *c) {
-    void *packet = binary_get_request(c);
+    void *packet = c->rcurr - (c->binary_header.request.bodylen +
+                               sizeof(c->binary_header));
 
     ENGINE_ERROR_CODE ret = c->aiostat;
     c->aiostat = ENGINE_SUCCESS;
