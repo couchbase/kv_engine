@@ -769,7 +769,7 @@ bool CheckpointManager::checkAndAddNewCheckpoint(uint64_t id) {
     std::list<Checkpoint*>::iterator it = checkpointList.begin();
     // Check if a checkpoint with the same Id already exists.
     while (it != checkpointList.end()) {
-        if (id <= (*it)->getId() {
+        if (id <= (*it)->getId()) {
             break;
         }
         ++it;
