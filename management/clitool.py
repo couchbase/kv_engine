@@ -1,6 +1,7 @@
 import optparse
 import socket
 import sys
+import os
 
 import mc_bin_client
 
@@ -53,9 +54,10 @@ class CliTool(object):
 
     def usage(self):
         cmds = sorted(c[1] for c in self.cmds.values())
-        print >>sys.stderr, "Usage: %s host:port %s" % (sys.argv[0], cmds[0])
+        program=os.path.basename(sys.argv[0])
+        print >>sys.stderr, "Usage: %s host:port %s" % (program, cmds[0])
         for c in cmds[1:]:
-            print >>sys.stderr, "  or   %s host:port %s" % (sys.argv[0], c)
+            print >>sys.stderr, "  or   %s host:port %s" % (program, c)
         if self.extraUsage:
             print >>sys.stderr, "\n" + self.extraUsage
         sys.exit(1)
