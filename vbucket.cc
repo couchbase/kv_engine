@@ -115,6 +115,10 @@ void VBucket::setState(vbucket_state_t to, SERVER_HANDLE_V1 *sapi) {
     assert(sapi);
     vbucket_state_t oldstate(state);
 
+    if (oldstate == vbucket_state_dead || to == vbucket_state_dead) {
+        resetStats();
+    }
+
     getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
                      "transitioning vbucket %d from %s to %s\n",
                      id, VBucket::toString(oldstate), VBucket::toString(to));
