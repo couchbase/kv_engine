@@ -439,7 +439,6 @@ void TapConnMap::notifyIOThreadMain() {
         std::list<TapConnection*>::iterator ii;
         for (ii = registeredClients.begin(); ii != registeredClients.end(); ++ii) {
             engine.getServerApi()->cookie->release((*ii)->getCookie());
-            engine.notifyIOComplete((*ii)->getCookie(), ENGINE_DISCONNECT);
         }
     }
     engine.notifyIOComplete(toNotify, ENGINE_SUCCESS);
