@@ -158,6 +158,11 @@ void VBucket::doStatsForFlushing(QueuedItem& item, size_t itemBytes)
 }
 
 void VBucket::resetStats() {
+    opsCreate.set(0);
+    opsUpdate.set(0);
+    opsDelete.set(0);
+    opsReject.set(0);
+
     dirtyQueueSize.set(0);
     dirtyQueueMem.set(0);
     dirtyQueueFill.set(0);
