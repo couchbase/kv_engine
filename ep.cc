@@ -199,7 +199,8 @@ public:
     bool callback(Dispatcher &, TaskId) {
         bool rv(true); // try again by default
         hrtime_t start_time(gethrtime());
-        if (ep->completeVBucketDeletion(vbucket, vbver) == vbucket_del_success) {
+        vbucket_del_result result = ep->completeVBucketDeletion(vbucket, vbver);
+        if (result == vbucket_del_success || result == vbucket_del_invalid) {
             hrtime_t wall_time = (gethrtime() - start_time) / 1000;
             stats.diskVBDelHisto.add(wall_time);
             stats.vbucketDelMaxWalltime.setIfBigger(wall_time);
