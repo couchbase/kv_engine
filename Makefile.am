@@ -15,7 +15,7 @@ bin_SCRIPTS = management/analyze_core \
 
 memcachedlibdir = $(libdir)/memcached
 memcachedlib_LTLIBRARIES = ep.la ep_testsuite.la timing_tests.la
-noinst_LTLIBRARIES = libsqlite-kvstore.la libobjectregistry.la
+noinst_LTLIBRARIES = libsqlite-kvstore.la libmc-kvstore.la libobjectregistry.la
 
 bin_PROGRAMS = management/mbdbconvert
 BUILT_SOURCES =
@@ -101,15 +101,29 @@ libsqlite_kvstore_la_CPPFLAGS = -I$(top_srcdir) -I$(top_srcdir)/sqlite-kvstore \
 libsqlite_kvstore_la_LIBADD =
 libsqlite_kvstore_la_DEPENDENCIES =
 
-ep_la_LIBADD = libsqlite-kvstore.la libobjectregistry.la
-ep_la_DEPENDENCIES = libsqlite-kvstore.la libobjectregistry.la
-ep_testsuite_la_LIBADD = libsqlite-kvstore.la libobjectregistry.la
-ep_testsuite_la_DEPENDENCIES = libsqlite-kvstore.la libobjectregistry.la
+libmc_kvstore_la_SOURCES = kvstore.hh \
+                           mc-kvstore/mc-kvstore.cc \
+                           mc-kvstore/mc-kvstore.hh
+libmc_kvstore_la_CPPFLAGS = -I$(top_srcdir) -I$(top_srcdir)/sqlite-kvstore \
+                            $(AM_CPPFLAGS)
+libmc_kvstore_la_LIBADD =
+libmc_kvstore_la_DEPENDENCIES =
+
+ep_la_LIBADD = libsqlite-kvstore.la libmc-kvstore.la \
+               libobjectregistry.la
+ep_la_DEPENDENCIES = libsqlite-kvstore.la libmc-kvstore.la \
+                     libobjectregistry.la
+ep_testsuite_la_LIBADD = libsqlite-kvstore.la libmc-kvstore.la \
+                         libobjectregistry.la
+ep_testsuite_la_DEPENDENCIES = libsqlite-kvstore.la libmc-kvstore.la \
+                               libobjectregistry.la
 
 management_mbdbconvert_SOURCES = management/dbconvert.cc \
                                  testlogger.cc
-management_mbdbconvert_LDADD = libsqlite-kvstore.la libobjectregistry.la
-management_mbdbconvert_DEPENDENCIES = libsqlite-kvstore.la libobjectregistry.la
+management_mbdbconvert_LDADD = libsqlite-kvstore.la libmc-kvstore.la \
+                               libobjectregistry.la
+management_mbdbconvert_DEPENDENCIES = libsqlite-kvstore.la libmc-kvstore.la \
+                                      libobjectregistry.la
 
 if BUILD_EMBEDDED_LIBSQLITE3
 ep_la_LIBADD += libsqlite3.la
