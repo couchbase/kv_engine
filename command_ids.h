@@ -59,7 +59,7 @@
  * </ul>
  *
  */
-#define CMD_RESTORE_FILE 0x83
+#define CMD_RESTORE_FILE 0x98
 
 /**
  * Try to abort the current restore as soon as possible. The server
@@ -68,14 +68,14 @@
  * <b>always</b> return with PROTOCOL_BINARY_RESPONSE_SUCCESS even if the
  * server isn't running in restore mode without any restore jobs running.
  */
-#define CMD_RESTORE_ABORT 0x84
+#define CMD_RESTORE_ABORT 0x99
 
 /**
  * Notify the server that we're done restoring data, so it may transition
  * from restore mode to fully operating mode.
  * The server always returns PROTOCOL_BINARY_RESPONSE_SUCCESS
  */
-#define CMD_RESTORE_COMPLETE 0x85
+#define CMD_RESTORE_COMPLETE 0x9a
 
 /**
  * Start online update, all mutations won't be persisted to disk
@@ -86,7 +86,7 @@
  * </ul>
  *
  */
-#define CMD_ONLINE_UPDATE_START 0x86
+#define CMD_ONLINE_UPDATE_START 0x9b
 
 /**
  * Complete online update, all queued mutations will be persisted again
@@ -97,7 +97,7 @@
  * </ul>
  *
  */
-#define CMD_ONLINE_UPDATE_COMPLETE 0x87
+#define CMD_ONLINE_UPDATE_COMPLETE 0x9c
 
 /**
  * Revert online update, all queued mutations will be discarded
@@ -108,13 +108,13 @@
  * </ul>
  *
  */
-#define CMD_ONLINE_UPDATE_REVERT 0x88
+#define CMD_ONLINE_UPDATE_REVERT 0x9d
 
 /**
  * Close the TAP connection for the registered TAP client and remove the
  * checkpoint cursors from its registered vbuckets.
  */
-#define CMD_DEREGISTER_TAP_CLIENT 0x89
+#define CMD_DEREGISTER_TAP_CLIENT 0x9e
 
 /*
  * IDs for the events of the SYNC command.
