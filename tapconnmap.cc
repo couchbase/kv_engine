@@ -21,8 +21,6 @@ public:
             if (c->isReserved()) {
                 e.getServerApi()->cookie->release(cookie);
                 c->setReserved(false);
-                // trigger the other thread if it waiting for it...
-                e.notifyIOComplete(cookie, ENGINE_DISCONNECT);
             }
         }
         std::stringstream ss;
@@ -266,7 +264,6 @@ TapProducer *TapConnMap::newProducer(const void* cookie,
         if (tap->isReserved()) {
             assert(tap->getCookie() != NULL);
             engine.getServerApi()->cookie->release(tap->getCookie());
-            engine.notifyIOComplete(tap->getCookie(), ENGINE_DISCONNECT);
         }
         tap->setCookie(cookie);
         tap->setReserved(true);
