@@ -354,15 +354,15 @@ extern "C" {
             grequest->message.body.flags = grequest->message.body.flags;
             lockTimeout = ntohl(grequest->message.body.expiration);
         } else {
-            lockTimeout = 15;
+            lockTimeout = GETL_DEFAULT_TIMEOUT;
         }
 
         getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
                          "Executing getl for key %s timeout %d\n",
                          keyz, lockTimeout);
 
-        if (lockTimeout > 30 || lockTimeout < 1) {
-            lockTimeout = 15;
+        if (lockTimeout > GETL_MAX_TIMEOUT || lockTimeout < 1) {
+            lockTimeout = GETL_DEFAULT_TIMEOUT;
         }
 
         bool gotLock = e->getLocked(key, vbucket, getCb,

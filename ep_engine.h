@@ -37,6 +37,14 @@
 #define DEFAULT_QUEUE_AGE_CAP 900
 #endif
 
+#ifndef GETL_DEFAULT_TIMEOUT
+#define GETL_DEFAULT_TIMEOUT 15
+#endif
+
+#ifndef GETL_MAX_TIMEOUT
+#define GETL_MAX_TIMEOUT 29
+#endif
+
 extern "C" {
     EXPORT_FUNCTION
     ENGINE_ERROR_CODE create_instance(uint64_t interface,
