@@ -836,6 +836,7 @@ bool EventuallyPersistentStore::resetVBucket(uint16_t vbid) {
         uint16_t vb_new_version = vb_version == (std::numeric_limits<uint16_t>::max() - 1) ?
                                   0 : vb_version + 1;
         vbuckets.setBucketVersion(vbid, vb_new_version);
+        vbuckets.setPersistenceCheckpointId(vbid, 0);
         lh.unlock();
 
         // Clear the hashtable, checkpoints, and stats for the target vbucket.
