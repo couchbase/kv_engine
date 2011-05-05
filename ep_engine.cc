@@ -4024,7 +4024,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deregisterTapClient(const void *co
         // If the tap connection is not found, we still need to remove its checkpoint cursors.
         const VBucketMap &vbuckets = getEpStore()->getVBuckets();
         size_t numOfVBuckets = vbuckets.getSize();
-        for (size_t i = 0; i <= numOfVBuckets; ++i) {
+        for (size_t i = 0; i < numOfVBuckets; ++i) {
             assert(i <= std::numeric_limits<uint16_t>::max());
             uint16_t vbid = static_cast<uint16_t>(i);
             RCPtr<VBucket> vb = vbuckets.getBucket(vbid);

@@ -161,7 +161,7 @@ void TapConnMap::removeTapCursors_UNLOCKED(TapProducer *tp) {
         const VBucketMap &vbuckets = tp->engine.getEpStore()->getVBuckets();
         size_t numOfVBuckets = vbuckets.getSize();
         // Remove all the cursors belonging to the TAP connection to be purged.
-        for (size_t i = 0; i <= numOfVBuckets; ++i) {
+        for (size_t i = 0; i < numOfVBuckets; ++i) {
             assert(i <= std::numeric_limits<uint16_t>::max());
             uint16_t vbid = static_cast<uint16_t>(i);
             RCPtr<VBucket> vb = vbuckets.getBucket(vbid);

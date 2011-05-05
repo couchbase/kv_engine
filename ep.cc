@@ -1335,7 +1335,7 @@ std::queue<queued_item>* EventuallyPersistentStore::beginFlush() {
         stats.dirtyAge = 0;
         // If the persistence queue is empty, reset queue-related stats for each vbucket.
         size_t numOfVBuckets = vbuckets.getSize();
-        for (size_t i = 0; i <= numOfVBuckets; ++i) {
+        for (size_t i = 0; i < numOfVBuckets; ++i) {
             assert(i <= std::numeric_limits<uint16_t>::max());
             uint16_t vbid = static_cast<uint16_t>(i);
             RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
@@ -1369,7 +1369,7 @@ std::queue<queued_item>* EventuallyPersistentStore::beginFlush() {
             std::vector<queued_item> item_list;
             item_list.reserve(DEFAULT_TXN_SIZE);
             size_t numOfVBuckets = vbuckets.getSize();
-            for (size_t i = 0; i <= numOfVBuckets; ++i) {
+            for (size_t i = 0; i < numOfVBuckets; ++i) {
                 assert(i <= std::numeric_limits<uint16_t>::max());
                 uint16_t vbid = static_cast<uint16_t>(i);
                 RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
@@ -1434,7 +1434,7 @@ void EventuallyPersistentStore::requeueRejectedItems(std::queue<queued_item> *re
 void EventuallyPersistentStore::completeFlush(rel_time_t flush_start) {
     LockHolder lh(vbsetMutex);
     size_t numOfVBuckets = vbuckets.getSize();
-    for (size_t i = 0; i <= numOfVBuckets; ++i) {
+    for (size_t i = 0; i < numOfVBuckets; ++i) {
         assert(i <= std::numeric_limits<uint16_t>::max());
         uint16_t vbid = static_cast<uint16_t>(i);
         RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
@@ -1497,7 +1497,7 @@ int EventuallyPersistentStore::flushSome(std::queue<queued_item> *q,
 size_t EventuallyPersistentStore::getWriteQueueSize(void) {
     size_t size = 0;
     size_t numOfVBuckets = vbuckets.getSize();
-    for (size_t i = 0; i <= numOfVBuckets; ++i) {
+    for (size_t i = 0; i < numOfVBuckets; ++i) {
         assert(i <= std::numeric_limits<uint16_t>::max());
         uint16_t vbid = static_cast<uint16_t>(i);
         RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
