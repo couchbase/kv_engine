@@ -130,8 +130,9 @@ void TapConnMap::getExpiredConnections_UNLOCKED(std::list<TapConnection*> &deadC
             continue;
         }
 
+        TapProducer *tp = dynamic_cast<TapProducer*>(*iter);
+
         if (tc->getExpiryTime() <= now && !mapped(tc)) {
-            TapProducer *tp = dynamic_cast<TapProducer*>(*iter);
             if (tp) {
                 if (!tp->suspended) {
                     deadClients.push_back(tc);
@@ -141,9 +142,11 @@ void TapConnMap::getExpiredConnections_UNLOCKED(std::list<TapConnection*> &deadC
                 deadClients.push_back(tc);
             }
         } else if (tc->isReserved()) {
-            // to avoid others to release it as well ;)
-            tc->setReserved(false);
-            regClients.push_back(tc);
+            if (tp == NULL || !tp->suspended) {
+                // to avoid others to release it as well ;)
+                tc->setReserved(false);
+                regClients.push_back(tc);
+            }
         }
     }
 
@@ -410,7 +413,7 @@ void TapConnMap::notifyIOThreadMain() {
     std::list<const void *> toNotify;
     for (iter = map.begin(); iter != map.end(); ++iter) {
         TapProducer *tp = dynamic_cast<TapProducer*>(iter->second);
-        if (tp && (tp->paused || tp->doDisconnect())) {
+        if (tp && (tp->paused || tp->doDisconnect()) && !tp->suspended) {
             if (!tp->notifySent || (tp->lastWalkTime + maxIdleTime < now)) {
                 tp->notifySent.set(true);
                 toNotify.push_back(iter->first);

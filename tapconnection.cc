@@ -423,27 +423,28 @@ class TapResumeCallback : public DispatcherCallback {
 public:
     TapResumeCallback(EventuallyPersistentEngine &e, TapProducer &c)
         : engine(e), connection(c) {
-
+        std::stringstream ss;
+        ss << "Resuming suspended tap connection: " << connection.getName();
+        descr = ss.str();
     }
 
     bool callback(Dispatcher &, TaskId) {
         const void *cookie = connection.getCookie();
         connection.setSuspended(false);
-        if (cookie) {
-            engine.notifyIOComplete(cookie, ENGINE_SUCCESS);
-        }
+        // The notify io thread will pick up this connection and resume it
+        // Since we was suspended I guess we can wait a little bit
+        // longer ;)
         return false;
     }
 
     std::string description() {
-        std::stringstream ss;
-        ss << "Notifying suspended tap connection: " << connection.getName();
-        return ss.str();
+        return descr;
     }
 
 private:
     EventuallyPersistentEngine &engine;
-    TapProducer              &connection;
+    TapProducer &connection;
+    std::string descr;
 };
 
 bool TapProducer::isSuspended() const {
