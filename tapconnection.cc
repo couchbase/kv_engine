@@ -210,14 +210,18 @@ void TapProducer::registerTAPCursor(std::map<uint16_t, uint64_t> &lastCheckpoint
     std::vector<uint16_t> backfill_vbuckets;
     const VBucketMap &vbuckets = engine.getEpStore()->getVBuckets();
     size_t numOfVBuckets = vbuckets.getSize();
-    for (size_t i = 0; i <= numOfVBuckets; ++i) {
+    for (size_t i = 0; i < numOfVBuckets; ++i) {
         assert(i <= std::numeric_limits<uint16_t>::max());
         uint16_t vbid = static_cast<uint16_t>(i);
-        RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
-        if (!vb || vb->getState() == vbucket_state_dead) {
-            continue;
-        }
         if (vbucketFilter(vbid)) {
+            if (!vbuckets.getBucket(vbid)) {
+                // If a vbucket is not created yet, instantiate it with state dead.
+                engine.getEpStore()->setVBucketState(vbid, vbucket_state_dead);
+                getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                                 "VBucket %d not found for TAP cursor. Instantiating...\n", vbid);
+            }
+            RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
+
             std::map<uint16_t, uint64_t>::iterator it = lastCheckpointIds.find(vbid);
             if (it != lastCheckpointIds.end()) {
                 // Now, we assume that the checkpoint Id for a given vbucket is monotonically
@@ -239,12 +243,13 @@ void TapProducer::registerTAPCursor(std::map<uint16_t, uint64_t> &lastCheckpoint
                     tapCheckpointState[vbid] = st;
                 }
             }
+
             // If the connection is for a registered TAP client that is only interested in closed
             // checkpoints, we always start from the beginning of the checkpoint to which the
             // registered TAP client's cursor currently belongs.
             bool fromBeginning = registeredTAPClient && closedCheckpointOnly;
             // Check if the unified queue contains the checkpoint to start with.
-            if(!vb->checkpointManager.registerTAPCursor(name,
+            if(vb && !vb->checkpointManager.registerTAPCursor(name,
                                                        tapCheckpointState[vbid].currentCheckpointId,
                                                        closedCheckpointOnly, fromBeginning)) {
                 if (backfillAge < current_time && !registeredTAPClient) { // Backfill is required.
