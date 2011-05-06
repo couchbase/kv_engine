@@ -22,6 +22,8 @@ CMD_VERSION = 11
 CMD_STAT = 0x10
 CMD_APPEND = 0x0e
 CMD_PREPEND = 0x0f
+CMD_TOUCH = 0x1c
+CMD_GAT = 0x1d
 
 # SASL stuff
 CMD_SASL_LIST_MECHS = 0x20
@@ -139,6 +141,11 @@ INCRDECR_RES_FMT=">Q"
 
 # Time bomb
 FLUSH_PKT_FMT=">I"
+
+# Touch commands
+# expiration
+TOUCH_PKT_FMT=">I"
+GAT_PKT_FMT=">I"
 
 # 2 bit integer.  :/
 VB_SET_PKT_FMT=">I"

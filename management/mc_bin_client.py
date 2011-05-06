@@ -16,6 +16,7 @@ import exceptions
 from memcacheConstants import REQ_MAGIC_BYTE, RES_MAGIC_BYTE
 from memcacheConstants import REQ_PKT_FMT, RES_PKT_FMT, MIN_RECV_PACKET
 from memcacheConstants import SET_PKT_FMT, DEL_PKT_FMT, INCRDECR_RES_FMT
+from memcacheConstants import TOUCH_PKT_FMT, GAT_PKT_FMT
 import memcacheConstants
 
 class MemcachedError(exceptions.Exception):
@@ -159,6 +160,17 @@ class MemcachedClient(object):
         """CAS in a new value for the given key and comparison value."""
         self._mutate(memcacheConstants.CMD_SET, key, exp, flags,
             oldVal, val)
+
+    def touch(self, key, exp):
+        """Touch a key in the memcached server."""
+        return self._doCmd(memcacheConstants.CMD_TOUCH, key, '',
+            struct.pack(memcacheConstants.TOUCH_PKT_FMT, exp))
+
+    def gat(self, key, exp):
+        """Get the value for a given key and touch it within the memcached server."""
+        parts=self._doCmd(memcacheConstants.CMD_GAT, key, '',
+            struct.pack(memcacheConstants.GAT_PKT_FMT, exp))
+        return self.__parseGet(parts)
 
     def version(self):
         """Get the value for a given key within the memcached server."""
