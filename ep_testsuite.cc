@@ -1862,7 +1862,7 @@ static enum test_result test_touch(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     req->message.header.request.opcode = PROTOCOL_BINARY_CMD_TOUCH;
     req->message.header.request.extlen = 4;
     req->message.header.request.bodylen = htonl(4);
-    req->message.body.expiration = ntohl(10);
+    req->message.body.expiration = ntohl(time(NULL) + 10);
 
     // key is a mandatory field!
     check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
@@ -1906,8 +1906,14 @@ static enum test_result test_touch(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
           "Failed to call touch");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "touch mykey");
 
-    // time-travel 11 secs..
-    testHarness.time_travel(11);
+    // time-travel 9 secs..
+    testHarness.time_travel(9);
+
+    // The item should still exist
+    check_key_value(h, h1, "mykey", "somevalue", 9);
+
+    // time-travel 2 secs..
+    testHarness.time_travel(2);
 
     // The item should have expired now...
     check(h1->get(h, NULL, &itm, "mykey", 5, 0) == ENGINE_KEY_ENOENT, "Item should be gone");
@@ -1970,8 +1976,15 @@ static enum test_result test_gat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "gat mykey");
     check(memcmp(last_body, "somevalue", sizeof("somevalue")) == 0,
           "Invalid data returned");
-    // time-travel 11 secs..
-    testHarness.time_travel(11);
+
+    // time-travel 9 secs..
+    testHarness.time_travel(9);
+
+    // The item should still exist
+    check_key_value(h, h1, "mykey", "somevalue", 9);
+
+    // time-travel 2 secs..
+    testHarness.time_travel(2);
 
     // The item should have expired now...
     check(h1->get(h, NULL, &itm, "mykey", 5, 0) == ENGINE_KEY_ENOENT, "Item should be gone");
@@ -2036,8 +2049,14 @@ static enum test_result test_gatq(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "gat mykey");
     check(memcmp(last_body, "somevalue", sizeof("somevalue")) == 0,
           "Invalid data returned");
-    // time-travel 11 secs..
-    testHarness.time_travel(11);
+    // time-travel 9 secs..
+    testHarness.time_travel(9);
+
+    // The item should still exist
+    check_key_value(h, h1, "mykey", "somevalue", 9);
+
+    // time-travel 2 secs..
+    testHarness.time_travel(2);
 
     // The item should have expired now...
     check(h1->get(h, NULL, &itm, "mykey", 5, 0) == ENGINE_KEY_ENOENT, "Item should be gone");

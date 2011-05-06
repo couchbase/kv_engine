@@ -894,7 +894,7 @@ GetValue EventuallyPersistentStore::getAndUpdateTtl(const std::string &key,
     StoredValue *v = fetchValidValue(vb, key, bucket_num);
 
     if (v) {
-        v->setExptime(engine.getServerApi()->core->realtime(exptime));
+        v->setExptime(exptime);
         // If the value is not resident, wait for it...
         if (!v->isResident()) {
             if (queueBG) {
