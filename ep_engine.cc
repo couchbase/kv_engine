@@ -2157,6 +2157,13 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
                     }
                 }
                 break;
+            case TAP_OPAQUE_CLOSE_TAP_STREAM:
+                /**
+                 * This event is sent by the eVBucketMigrator to notify that the source node
+                 * closes the tap replication stream and switches to TAKEOVER_VBUCKETS phase.
+                 * This is just an informative message and doesn't require any action.
+                 */
+                break;
             default:
                 getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                                  "Received an unknown opaque command\n");

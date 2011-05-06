@@ -30,8 +30,9 @@ struct PopulateEventsBody;
 #define TAP_OPAQUE_ENABLE_CHECKPOINT_SYNC 2
 #define TAP_OPAQUE_OPEN_CHECKPOINT 3
 #define TAP_OPAQUE_START_ONLINEUPDATE 4
-#define TAP_OPAQUE_STOP_ONLINEUPDATE 8
-#define TAP_OPAQUE_REVERT_ONLINEUPDATE 0x10
+#define TAP_OPAQUE_STOP_ONLINEUPDATE 5
+#define TAP_OPAQUE_REVERT_ONLINEUPDATE 6
+#define TAP_OPAQUE_CLOSE_TAP_STREAM 7
 
 /**
  * A tap event that represents a change to the state of a vbucket.
