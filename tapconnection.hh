@@ -141,6 +141,26 @@ public:
         return client;
     }
 
+    /**
+     * Return true if this connection is shutting down.
+     */
+    bool populationEvent() {
+        ++populationEvents;
+        return shuttingDown();
+    }
+
+    void preparingTransferComplete() {
+        shutdownAfter = populationEvents;
+    }
+
+    bool shuttingDown() {
+        return shutdownAfter > 0;
+    }
+
+    bool transferIsIdle() {
+        return dumpQueue || (populationEvents > shutdownAfter);
+    }
+
 private:
     friend class EventuallyPersistentEngine;
     friend class TapConnMap;
@@ -427,7 +447,7 @@ private:
      * a disconnect was requested at the end.
      */
     bool complete(void) {
-        return dumpQueue && empty() && !isPendingBackfill();
+        return (dumpQueue || doTransfer) && empty() && !isPendingBackfill();
     }
 
     /**
@@ -591,6 +611,16 @@ private:
     bool connected;
 
     /**
+     * Count of data population events.
+     */
+    size_t populationEvents;
+
+    /**
+     * Shut down after this population event number has passed.
+     */
+    size_t shutdownAfter;
+
+    /**
      * is his paused
      */
     Atomic<bool> paused;
@@ -607,6 +637,11 @@ private:
      * Dump and disconnect?
      */
     bool dumpQueue;
+
+    /**
+     * Transfer and disconnect?
+     */
+    bool doTransfer;
 
     /**
      * We don't want to do the backfill in the thread used by the client,

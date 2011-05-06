@@ -1524,17 +1524,29 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
     if (ret == TAP_PAUSE && connection->complete()) {
         ev = connection->nextVBucketLowPriority();
         if (ev.event != TAP_PAUSE) {
+            RCPtr<VBucket> vb = getVBucket(ev.vbucket);
+            vbucket_state_t myState(vb ? vb->getState() : vbucket_state_dead);
+
             assert(ev.event == TAP_VBUCKET_SET);
-            connection->encodeVBucketStateTransition(ev, es, nes, vbucket);
-            if (ev.state == vbucket_state_active) {
+            if (ev.state == vbucket_state_active && myState == vbucket_state_active) {
+                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                 "Vbucket <%s> is going dead.\n",
+                                 connection->client.c_str());
+                TapVBucketEvent lo(TAP_VBUCKET_SET, ev.vbucket,
+                                   vbucket_state_active);
+                connection->addVBucketLowPriority(lo);
                 epstore->setVBucketState(ev.vbucket, vbucket_state_dead);
+                connection->preparingTransferComplete();
+                ret = TAP_PAUSE;
+            } else {
+                connection->encodeVBucketStateTransition(ev, es, nes, vbucket);
+                ret = ev.event;
             }
-            ret = ev.event;
         } else if (connection->hasPendingAcks()) {
             ret = TAP_PAUSE;
-        } else {
-            getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                             "Disconnecting tap stream %s\n",
+        } else if (connection->transferIsIdle()) {
+            getLogger()->log(EXTENSION_LOG_INFO, NULL,
+                             "Disconnecting completed tap stream %s\n",
                              connection->client.c_str());
             ret = TAP_DISCONNECT;
         }
@@ -2835,7 +2847,9 @@ bool EventuallyPersistentEngine::populateEvents() {
         tapConnMap.each_UNLOCKED(forloop);
     }
 
-    return false;
+    size_t numWaiting = tapConnMap.count_if_UNLOCKED(std::mem_fun(&TapConnection::populationEvent));
+
+    return numWaiting > 0;
 }
 
 void EventuallyPersistentEngine::notifyTapIoThread(void) {

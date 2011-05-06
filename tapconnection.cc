@@ -44,9 +44,12 @@ TapConnection::TapConnection(EventuallyPersistentEngine &theEngine,
     reconnects(0),
     disconnects(0),
     connected(true),
+    populationEvents(0),
+    shutdownAfter(std::numeric_limits<size_t>::max()),
     paused(false),
     backfillAge(0),
     dumpQueue(false),
+    doTransfer(false),
     doRunBackfill(false),
     pendingBackfill(true),
     vbucketFilter(),
@@ -173,7 +176,7 @@ void TapConnection::setVBucketFilter(const std::vector<uint16_t> &vbuckets)
                 addVBucketLowPriority(lo);
             }
         }
-        dumpQueue = true;
+        doTransfer = true;
     } else {
         const std::vector<uint16_t> &vec = diff.getVector();
         for (std::vector<uint16_t>::const_iterator it = vec.begin();
