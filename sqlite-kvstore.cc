@@ -165,10 +165,10 @@ void StrategicSqlite3::del(const std::string &key, uint64_t rowid,
 bool StrategicSqlite3::delVBucket(uint16_t vbucket, uint16_t vb_version,
                                   std::pair<int64_t, int64_t> row_range) {
     bool rv = true;
-    const std::vector<Statements*> statements = strategy->allStatements();
-    std::vector<Statements*>::const_iterator it;
-    for (it = statements.begin(); it != statements.end(); ++it) {
-        PreparedStatement *del_stmt = (*it)->del_vb();
+    std::vector<PreparedStatement*> vb_del(strategy->getVBStatements(vbucket, delete_vbucket));
+    std::vector<PreparedStatement*>::iterator it;
+    for (it = vb_del.begin(); it != vb_del.end(); ++it) {
+        PreparedStatement *del_stmt = *it;
         if (del_stmt->paramCount() > 0) {
             del_stmt->bind(1, vbucket);
             del_stmt->bind(2, vb_version);
@@ -176,8 +176,8 @@ bool StrategicSqlite3::delVBucket(uint16_t vbucket, uint16_t vb_version,
             del_stmt->bind64(4, row_range.second);
         }
         rv &= del_stmt->execute() >= 0;
-        del_stmt->reset();
     }
+    strategy->closeVBStatements(vb_del);
     ++stats.io_num_write;
 
     return rv;
