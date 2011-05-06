@@ -314,12 +314,22 @@ void ShardedMultiTableSqliteStrategy::destroyTables() {
     }
 }
 
-std::vector<PreparedStatement*> ShardedMultiTableSqliteStrategy::getVBLoader(uint16_t vb) {
+std::vector<PreparedStatement*> ShardedMultiTableSqliteStrategy::getVBStatements(uint16_t vb,
+                                                                      vb_statement_type vbst) {
     std::vector<PreparedStatement*> rv;
     for (size_t i = 0; i < shardCount; ++i) {
         std::vector<Statements*> st = statementsPerShard[i];
         assert(static_cast<size_t>(vb) < st.size());
-        rv.push_back(st.at(vb)->all());
+        switch (vbst) {
+        case select_all:
+            rv.push_back(st.at(vb)->all());
+            break;
+        case delete_vbucket:
+            rv.push_back(st.at(vb)->del_vb());
+            break;
+        default:
+            break;
+        }
     }
     return rv;
 }

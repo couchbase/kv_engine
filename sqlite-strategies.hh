@@ -12,6 +12,11 @@
 
 class EventuallyPersistentEngine;
 
+typedef enum {
+    select_all,
+    delete_vbucket
+} vb_statement_type;
+
 /**
  * Base class for all Sqlite strategies.
  */
@@ -63,13 +68,14 @@ public:
 
     virtual bool hasEfficientVBLoad() { return false; }
 
-    virtual std::vector<PreparedStatement*> getVBLoader(uint16_t vb) {
+    virtual std::vector<PreparedStatement*> getVBStatements(uint16_t vb, vb_statement_type vbst) {
         (void)vb;
+        (void)vbst;
         std::vector<PreparedStatement*> rv;
         return rv;
     }
 
-    virtual void closeVBLoader(std::vector<PreparedStatement*> &psts) {
+    virtual void closeVBStatements(std::vector<PreparedStatement*> &psts) {
         (void)psts;
     }
 
@@ -289,14 +295,23 @@ public:
 
     bool hasEfficientVBLoad() { return true; }
 
-    virtual std::vector<PreparedStatement*> getVBLoader(uint16_t vb) {
+    virtual std::vector<PreparedStatement*> getVBStatements(uint16_t vb, vb_statement_type vbst) {
         std::vector<PreparedStatement*> rv;
         assert(static_cast<size_t>(vb) < statements.size());
-        rv.push_back(statements.at(vb)->all());
+        switch (vbst) {
+        case select_all:
+            rv.push_back(statements.at(vb)->all());
+            break;
+        case delete_vbucket:
+            rv.push_back(statements.at(vb)->del_vb());
+            break;
+        default:
+            break;
+        }
         return rv;
     }
 
-    void closeVBLoader(std::vector<PreparedStatement*> &psts) {
+    void closeVBStatements(std::vector<PreparedStatement*> &psts) {
         std::for_each(psts.begin(), psts.end(),
                       std::mem_fun(&PreparedStatement::reset));
     }
@@ -362,7 +377,7 @@ public:
     void destroyStatements();
     void destroyTables();
 
-    std::vector<PreparedStatement*> getVBLoader(uint16_t vb);
+    std::vector<PreparedStatement*> getVBStatements(uint16_t vb, vb_statement_type vbst);
 
 protected:
     const char * const        shardpattern;
