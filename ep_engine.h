@@ -554,6 +554,13 @@ public:
                                                       protocol_binary_request_header *request,
                                                       ADD_RESPONSE response);
 
+    void backfillThreadTerminating() {
+        LockHolder holder(backfillThreads.sync);
+        --backfillThreads.num;
+        backfillThreads.sync.notify();
+        holder.unlock();
+    }
+
 private:
     EventuallyPersistentEngine(GET_SERVER_API get_server_api);
     friend ENGINE_ERROR_CODE create_instance(uint64_t interface,
@@ -754,6 +761,12 @@ private:
         RestoreManager *manager;
         Atomic<bool> enabled;
     } restore;
+
+    struct {
+        SyncObject sync;
+        bool shutdown;
+        Atomic<size_t> num;
+    } backfillThreads;
 };
 
 #endif

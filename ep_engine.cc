@@ -962,6 +962,8 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server
     info.info.features[info.info.num_features++].feature = ENGINE_FEATURE_PERSISTENT_STORAGE;
     info.info.features[info.info.num_features++].feature = ENGINE_FEATURE_LRU;
     restore.manager = NULL;
+    backfillThreads.num = 0;
+    backfillThreads.shutdown = false;
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
@@ -1427,9 +1429,19 @@ KVStore* EventuallyPersistentEngine::newKVStore() {
 }
 
 void EventuallyPersistentEngine::destroy(bool force) {
+    LockHolder lh(backfillThreads.sync);
+    backfillThreads.shutdown = true;
+    lh.unlock();
+
     forceShutdown = force;
     stopEngineThreads();
     tapConnMap.shutdownAllTapConnections();
+
+    // wait for all of the backfill threads to complete
+    lh.lock();
+    while (backfillThreads.num > 0) {
+        backfillThreads.sync.wait();
+    }
 }
 
 /// @cond DETAILS
@@ -1612,6 +1624,12 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
 
     // Do not schedule the backfill for the registered TAP client (e.g., incremental backup client)
     if (connection->doRunBackfill && !(connection->registeredTAPClient)) {
+        LockHolder holder(backfillThreads.sync);
+        if (backfillThreads.shutdown) {
+            return TAP_PAUSE;
+        }
+        ++backfillThreads.num;
+        holder.unlock();
         queueBackfill(connection, cookie);
     }
 
@@ -2474,6 +2492,10 @@ public:
         bfv(e, tc, tok), engine(e), epstore(s) {
     }
 
+    ~BackFillThreadData() {
+        engine->backfillThreadTerminating();
+    }
+
     BackFillVisitor bfv;
     EventuallyPersistentEngine *engine;
     EventuallyPersistentStore *epstore;
@@ -2500,6 +2522,7 @@ void EventuallyPersistentEngine::queueBackfill(TapProducer *tc, const void *tok)
 
     if (pthread_attr_init(&attr) != 0 ||
         pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED) != 0) {
+        delete bftd;
         throw std::runtime_error("Error setting up thread attributes");
     }
 
