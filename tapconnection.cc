@@ -427,7 +427,6 @@ public:
     }
 
     bool callback(Dispatcher &, TaskId) {
-        const void *cookie = connection.getCookie();
         connection.setSuspended(false);
         // The notify io thread will pick up this connection and resume it
         // Since we was suspended I guess we can wait a little bit
