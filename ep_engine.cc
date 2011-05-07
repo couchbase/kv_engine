@@ -1984,13 +1984,15 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
         }
         *vbucket = static_cast<Item*>(*itm)->getVBucketId();
 
-        if (gv.getStoredValue() != NULL) {
-            gv.getStoredValue()->incrementNumReplicas();
-            syncRegistry.itemReplicated(*item);
-        } else {
-            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "NULL StoredValue* for key %s, vbucket %d",
-                             item->getKey().c_str(), item->getVBucketId());
+        if (!connection->supportsAck()) {
+            if (gv.getStoredValue() != NULL) {
+                gv.getStoredValue()->incrementNumReplicas();
+                syncRegistry.itemReplicated(*item);
+            } else {
+                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                 "NULL StoredValue* for key %s, vbucket %d",
+                                 item->getKey().c_str(), item->getVBucketId());
+            }
         }
 
         if (!connection->vbucketFilter(*vbucket)) {
@@ -2034,8 +2036,10 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
                 *itm = gv.getValue();
                 ret = TAP_MUTATION;
 
-                gv.getStoredValue()->incrementNumReplicas();
-                syncRegistry.itemReplicated(*gv.getValue());
+                if (!connection->supportsAck()) {
+                    gv.getStoredValue()->incrementNumReplicas();
+                    syncRegistry.itemReplicated(*gv.getValue());
+                }
 
                 ++stats.numTapFGFetched;
                 ++connection->queueDrain;
@@ -2080,9 +2084,12 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
                 ret = TAP_MUTATION;
 
                 StoredValue *sv = epstore->getStoredValue(qi->getKey(), qi->getVBucketId(), false);
-                if (sv && sv->getCas() == item->getCas()) {
-                    sv->incrementNumReplicas();
-                    syncRegistry.itemReplicated(*item);
+
+                if (!connection->supportsAck()) {
+                    if (sv && sv->getCas() == item->getCas()) {
+                        sv->incrementNumReplicas();
+                        syncRegistry.itemReplicated(*item);
+                    }
                 }
 
                 ++stats.numTapFGFetched;

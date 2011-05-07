@@ -934,7 +934,7 @@ extern "C" {
         TAP_ITERATOR iter = params->h1->get_tap_iterator(params->h, cookie,
                                                          params->streamName.c_str(),
                                                          params->streamName.length(),
-                                                         TAP_CONNECT_FLAG_LIST_VBUCKETS,
+                                                         TAP_CONNECT_FLAG_LIST_VBUCKETS | TAP_CONNECT_SUPPORT_ACK,
                                                          static_cast<void *>(vbucketfilter),
                                                          sizeof(uint16_t) + (sizeof(uint16_t) * vbuckets.size()));
         check(iter != NULL, "Failed to create a tap iterator");
@@ -974,6 +974,18 @@ extern "C" {
 
                 if (expectedKeys->find(*item) != expectedKeys->end()) {
                     keysReceived.insert(*item);
+                }
+
+                if (keysReceived.size() == expectedKeys->size()) {
+                    // for testing purposes, only ACK at the end, to see if the
+                    // implicit ACKing increments item replica count and unblocks
+                    // SYNC on replication listeners
+                    testHarness.unlock_cookie(cookie);
+                    params->h1->tap_notify(params->h, cookie, NULL, 0, 0,
+                                           PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                                           TAP_ACK, seqno, NULL, 0,
+                                           0, 0, 0, NULL, 0, 0);
+                    testHarness.lock_cookie(cookie);
                 }
                 break;
             case TAP_DISCONNECT:
