@@ -340,7 +340,7 @@ bool TapProducer::requestAck(tap_event_t event, uint16_t vbucket) {
 
 void TapProducer::rollback() {
     LockHolder lh(queueLock);
-    size_t checkpoint_end_sent = 0;
+    size_t checkpoint_msg_sent = 0;
     std::list<TapLogElement>::iterator i = tapLog.begin();
     while (i != tapLog.end()) {
         switch (i->event) {
@@ -356,9 +356,7 @@ void TapProducer::rollback() {
             break;
         case TAP_CHECKPOINT_START:
         case TAP_CHECKPOINT_END:
-            if (i->event == TAP_CHECKPOINT_END) {
-                ++checkpoint_end_sent;
-            }
+            ++checkpoint_msg_sent;
             addCheckpointMessage_UNLOCKED(i->item);
             break;
         case TAP_FLUSH:
@@ -413,7 +411,7 @@ void TapProducer::rollback() {
         i = tapLog.begin();
     }
     seqnoReceived = seqno - 1;
-    checkpointEndCounter -= checkpoint_end_sent;
+    checkpointMsgCounter -= checkpoint_msg_sent;
 }
 
 /**
@@ -488,10 +486,8 @@ void TapProducer::reschedule_UNLOCKED(const std::list<TapLogElement>::iterator &
         }
         break;
     case TAP_CHECKPOINT_START:
-        addCheckpointMessage_UNLOCKED(iter->item);
-        break;
     case TAP_CHECKPOINT_END:
-        --checkpointEndCounter;
+        --checkpointMsgCounter;
         addCheckpointMessage_UNLOCKED(iter->item);
         break;
     case TAP_FLUSH:
@@ -552,22 +548,23 @@ ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
         ++iter;
     }
 
-    bool checkpointEndReceived = false;
+    bool checkpointMsgReceived = false;
 
     switch (status) {
     case PROTOCOL_BINARY_RESPONSE_SUCCESS:
         /* And explicit ack this message! */
         if (iter != tapLog.end()) {
-            // If this ACK is for TAP_CHECKPOINT_END, indicate that the corresponding checkpoint
+            // If this ACK is for TAP_CHECKPOINT messages, indicate that the checkpoint
             // is synced between the master and slave nodes.
-            if (iter->event == TAP_CHECKPOINT_END && supportCheckpointSync) {
+            if ((iter->event == TAP_CHECKPOINT_START || iter->event == TAP_CHECKPOINT_END)
+                && supportCheckpointSync) {
                 std::map<uint16_t, TapCheckpointState>::iterator map_it =
                     tapCheckpointState.find(iter->vbucket);
-                if (map_it != tapCheckpointState.end()) {
+                if (iter->event == TAP_CHECKPOINT_END && map_it != tapCheckpointState.end()) {
                     map_it->second.state = checkpoint_end_synced;
                 }
-                --checkpointEndCounter;
-                checkpointEndReceived = true;
+                --checkpointMsgCounter;
+                checkpointMsgReceived = true;
             }
             getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
                              "Explicit ack <%s> (#%u)\n",
@@ -582,7 +579,7 @@ ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
         }
 
         lh.unlock();
-        if (checkpointEndReceived) {
+        if (checkpointMsgReceived) {
             engine.notifyTapNotificationThread();
         }
         if (complete() && idle()) {
@@ -654,8 +651,8 @@ bool TapProducer::waitForBackfill() {
     return false;
 }
 
-bool TapProducer::waitForCheckpointEndAck() {
-    return checkpointEndCounter > 0;
+bool TapProducer::waitForCheckpointMsgAck() {
+    return checkpointMsgCounter > 0;
 }
 
 /**

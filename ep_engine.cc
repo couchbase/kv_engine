@@ -1725,7 +1725,7 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
                                       item->getExptime(), item->getCas()));
         connection->addTapLogElement(qi);
     } else if (connection->hasQueuedItem()) {
-        if (connection->waitForBackfill() || connection->waitForCheckpointEndAck()) {
+        if (connection->waitForBackfill() || connection->waitForCheckpointMsgAck()) {
             return TAP_PAUSE;
         }
 

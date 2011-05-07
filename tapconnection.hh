@@ -641,9 +641,7 @@ private:
             if (!vbucketFilter(item->getVBucketId())) {
                 return nextCheckpointMessage_UNLOCKED();
             }
-            if (item->getOperation() == queue_op_checkpoint_end) {
-                ++checkpointEndCounter;
-            }
+            ++checkpointMsgCounter;
             ++recordsFetched;
             addTapLogElement_UNLOCKED(item);
         }
@@ -878,7 +876,7 @@ private:
 
     bool waitForBackfill();
 
-    bool waitForCheckpointEndAck();
+    bool waitForCheckpointMsgAck();
 
     void setRegisteredClient(bool isRegisteredClient);
 
@@ -1007,7 +1005,7 @@ private:
     Atomic<size_t> queueMemSize;
     Atomic<size_t> queueFill;
     Atomic<size_t> queueDrain;
-    Atomic<size_t> checkpointEndCounter;
+    Atomic<size_t> checkpointMsgCounter;
 
     // Current tap sequence number (for ack's)
     uint32_t seqno;
