@@ -194,6 +194,31 @@ public:
         std::sort(items.begin(), items.end(), cq);
     }
 
+    virtual std::vector<PreparedStatement*> getVBStatements(uint16_t vb, vb_statement_type vbst) {
+        (void)vb;
+        std::vector<PreparedStatement*> rv;
+        std::vector<Statements*>::iterator it;
+        for (it = statements.begin(); it != statements.end(); ++it) {
+            switch (vbst) {
+            case select_all:
+                rv.push_back((*it)->all());
+                break;
+            case delete_vbucket:
+                rv.push_back((*it)->del_vb());
+                break;
+            default:
+                break;
+            }
+        }
+
+        return rv;
+    }
+
+    virtual void closeVBStatements(std::vector<PreparedStatement*> &psts) {
+        std::for_each(psts.begin(), psts.end(),
+                      std::mem_fun(&PreparedStatement::reset));
+    }
+
 protected:
     std::vector<Statements *> statements;
 
