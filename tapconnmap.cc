@@ -237,7 +237,7 @@ bool TapConnMap::shouldDisconnect(TapConnection *tc) {
     return tc && tc->doDisconnect;
 }
 
-void TapConnMap::notifyIOThreadMain() {
+bool TapConnMap::notifyIOThreadMain() {
     // To avoid connections to be stucked in a bogus state forever, we're going
     // to ping all connections that hasn't tried to walk the tap queue
     // for this amount of time..
@@ -254,10 +254,10 @@ void TapConnMap::notifyIOThreadMain() {
     // We should pause unless we purged some connections or
     // all queues have items.
     bool shouldPause = purgeExpiredConnections_UNLOCKED() == 0;
-    bool noEvents = engine.populateEvents();
+    size_t waiting_events = engine.populateEvents();
 
     if (shouldPause) {
-        shouldPause = noEvents;
+        shouldPause = (waiting_events == 0);
     }
     // see if I have some channels that I have to signal..
     std::map<const void*, TapConnection*>::iterator iter;
@@ -285,7 +285,7 @@ void TapConnMap::notifyIOThreadMain() {
         }
 
         if (engine.shutdown) {
-            return;
+            return false;
         }
         purgeExpiredConnections_UNLOCKED();
         now = ep_current_time();
@@ -303,6 +303,8 @@ void TapConnMap::notifyIOThreadMain() {
     lh.unlock();
 
     engine.notifyIOComplete(toNotify, ENGINE_SUCCESS);
+
+    return waiting_events > 0;
 }
 
 void CompleteBackfillTapOperation::perform(TapConnection *tc, void *arg) {

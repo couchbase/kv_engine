@@ -227,7 +227,12 @@ public:
         return static_cast<size_t>(std::count_if(all.begin(), all.end(), f));
     }
 
-    void notifyIOThreadMain();
+    /**
+     * Notify the tap connections.
+     *
+     * @return true if we need need to rush another run in quickly
+     */
+    bool notifyIOThreadMain();
 
 private:
 

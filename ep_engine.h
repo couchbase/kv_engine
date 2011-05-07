@@ -501,7 +501,17 @@ private:
     friend void *EvpNotifyTapIo(void*arg);
     void notifyTapIoThread(void);
 
-    bool populateEvents();
+    /**
+     * Populate events that have accumulated in mutations into the tap
+     * queues.
+     *
+     * The return value is used to indicate that some tap connections
+     * urgently need to finish their events so we should hurry and do
+     * it again.
+     *
+     * @return the number of tap queues that are shutting down
+     */
+    size_t populateEvents();
 
     friend class BackFillVisitor;
     friend class TapBGFetchCallback;

@@ -2835,7 +2835,7 @@ struct PopulateEventsBody {
     QueuedItem qi;
 };
 
-bool EventuallyPersistentEngine::populateEvents() {
+size_t EventuallyPersistentEngine::populateEvents() {
     std::queue<QueuedItem> q;
     pendingTapNotifications.getAll(q);
 
@@ -2847,22 +2847,20 @@ bool EventuallyPersistentEngine::populateEvents() {
         tapConnMap.each_UNLOCKED(forloop);
     }
 
-    size_t numWaiting = tapConnMap.count_if_UNLOCKED(std::mem_fun(&TapConnection::populationEvent));
-
-    return numWaiting > 0;
+    return tapConnMap.count_if_UNLOCKED(std::mem_fun(&TapConnection::populationEvent));
 }
 
 void EventuallyPersistentEngine::notifyTapIoThread(void) {
     // Fix clean shutdown!!!
     while (!shutdown) {
 
-        tapConnMap.notifyIOThreadMain();
+        bool hasSenseOfUrgency = tapConnMap.notifyIOThreadMain();
 
         if (shutdown) {
             return;
         }
 
-        tapConnMap.wait(1.0);
+        tapConnMap.wait(hasSenseOfUrgency ? 0.1 : 1.0);
     }
 }
 
