@@ -650,6 +650,7 @@ void CheckpointManager::clear() {
     checkpointList.clear();
     numItems = 0;
     mutationCounter = 0;
+    nextCheckpointId = 1;
     // Add a new open checkpoint.
     addNewCheckpoint_UNLOCKED(nextCheckpointId);
 
