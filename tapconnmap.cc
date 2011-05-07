@@ -18,10 +18,7 @@ public:
         // Release resources reserved "upstream"
         const void *cookie = c->getCookie();
         if (cookie != NULL) {
-            if (c->isReserved()) {
-                e.getServerApi()->cookie->release(cookie);
-                c->setReserved(false);
-            }
+            c->releaseReference();
         }
         std::stringstream ss;
         ss << "Reaping tap connection: " << connection->getName();
@@ -266,7 +263,7 @@ TapProducer *TapConnMap::newProducer(const void* cookie,
     } else {
         if (tap->isReserved()) {
             assert(tap->getCookie() != NULL);
-            engine.getServerApi()->cookie->release(tap->getCookie());
+            tap->releaseReference();
         }
         tap->setCookie(cookie);
         tap->setReserved(true);
@@ -438,7 +435,7 @@ void TapConnMap::notifyIOThreadMain() {
     if (!registeredClients.empty()) {
         std::list<TapConnection*>::iterator ii;
         for (ii = registeredClients.begin(); ii != registeredClients.end(); ++ii) {
-            engine.getServerApi()->cookie->release((*ii)->getCookie());
+            (*ii)->releaseReference(true);
         }
     }
     engine.notifyIOComplete(toNotify, ENGINE_SUCCESS);

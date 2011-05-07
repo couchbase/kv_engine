@@ -25,6 +25,15 @@ const void *TapConnection::getCookie() const {
     return cookie;
 }
 
+void TapConnection::releaseReference(bool force)
+{
+    if (force || reserved) {
+        engine.getServerApi()->cookie->release(cookie);
+        setReserved(false);
+    }
+}
+
+
 size_t TapProducer::bgMaxPending = 500;
 uint32_t TapProducer::ackWindowSize = 10;
 uint32_t TapProducer::ackInterval = 1000;

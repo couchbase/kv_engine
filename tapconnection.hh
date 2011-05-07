@@ -262,6 +262,14 @@ protected:
     }
 
 public:
+    /**
+     * Release the reference "upstream".
+     * @param force Should we force the release upstream even if the
+     *              internal state indicates that the object isn't
+     *              reserved upstream.
+     */
+    void releaseReference(bool force = false);
+
     //! cookie used by this connection
     const void *getCookie() const;
 
