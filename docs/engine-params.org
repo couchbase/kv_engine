@@ -75,6 +75,8 @@ memcached like this:
 | inconsistent_slave_chk | bool   | True if we allow a "downstream" master to      |
 |                        |        | receive checkpoint begin/end messages along    |
 |                        |        | with normal get/set operations.                |
+| bf_resident_threshold  | float  | Resident item threshold for only memory        |
+|                        |        | backfill to be kicked off                      |
 
 ** Shard Patterns
 

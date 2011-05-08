@@ -914,6 +914,279 @@ EXTENSION_LOGGER_DESCRIPTOR *getLogger(void) {
     return NULL;
 }
 
+/**
+ * Dispatcher callback responsible for bulk backfilling tap queues
+ * from a KVStore.
+ *
+ * Note that this is only used if the KVStore reports that it has
+ * efficient vbucket ops.
+ */
+class BackfillDiskLoad : public DispatcherCallback, public Callback<GetValue> {
+public:
+
+    BackfillDiskLoad(const std::string &n, EventuallyPersistentEngine* e,
+                     TapConnMap &tcm, KVStore *s, uint16_t vbid, const void *token)
+        : name(n), engine(e), connMap(tcm), store(s), vbucket(vbid), validityToken(token) {
+
+        vbucket_version = engine->getEpStore()->getVBucketVersion(vbucket);
+    }
+
+    void callback(GetValue &gv) {
+        // If a vbucket version of a bg fetched item is different from the current version,
+        // skip this item.
+        if (vbucket_version != gv.getVBucketVersion()) {
+            delete gv.getValue();
+            return;
+        }
+        ReceivedItemTapOperation tapop(true);
+        // if the tap connection is closed, then free an Item instance
+        if (!connMap.performTapOp(name, tapop, gv.getValue())) {
+            delete gv.getValue();
+        }
+
+        NotifyPausedTapOperation notifyOp;
+        connMap.performTapOp(name, notifyOp, engine);
+    }
+
+    bool callback(Dispatcher &, TaskId) {
+        if (connMap.checkValidity(name, validityToken)) {
+            store->dump(vbucket, *this);
+            CompleteDiskBackfillTapOperation op;
+            connMap.performTapOp(name, op, static_cast<void*>(NULL));
+        }
+
+        return false;
+    }
+
+    std::string description() {
+        std::stringstream rv;
+        rv << "Loading tap backfill for vb " << vbucket;
+        return rv.str();
+    }
+
+private:
+    const std::string           name;
+    EventuallyPersistentEngine *engine;
+    TapConnMap                 &connMap;
+    KVStore                    *store;
+    uint16_t                    vbucket;
+    uint16_t                    vbucket_version;
+    const void                 *validityToken;
+};
+
+/**
+ * VBucketVisitor to backfill a TapProducer.
+ */
+class BackFillVisitor : public VBucketVisitor {
+public:
+    BackFillVisitor(EventuallyPersistentEngine *e, TapProducer *tc,
+                    const void *token):
+        VBucketVisitor(), engine(e), name(tc->getName()),
+        queue(new std::list<queued_item>),
+        found(), filter(tc->backFillVBucketFilter), validityToken(token),
+        maxBackfillSize(e->tapBacklogLimit), valid(true),
+        efficientVBDump(e->epstore->getStorageProperties().hasEfficientVBDump()),
+        residentRatioBelowThreshold(false) {
+        found.reserve(e->tapBacklogLimit);
+    }
+
+    ~BackFillVisitor() {
+        delete queue;
+    }
+
+    bool visitBucket(RCPtr<VBucket> vb) {
+        if (filter(vb->getId())) {
+            VBucketVisitor::visitBucket(vb);
+            // If the current resident ratio for a given vbucket is below the resident threshold
+            // for memory backfill only, schedule the disk backfill for more efficient bg fetches.
+            size_t numItems = vb->ht.getNumItems();
+            size_t numNonResident = vb->ht.getNumNonResidentItems();
+            if (numItems == 0) {
+                return true;
+            }
+            residentRatioBelowThreshold =
+                ((numItems - numNonResident) / numItems) < backfillResidentThreshold ? true : false;
+            if (efficientVBDump && residentRatioBelowThreshold) {
+                vbuckets.push_back(vb->getId());
+                ScheduleDiskBackfillTapOperation tapop;
+                engine->tapConnMap.performTapOp(name, tapop, static_cast<void*>(NULL));
+            }
+            // When the backfill is scheduled for a given vbucket, record the vbucket's current
+            // open checkpoint Id into the corresponding tap connection.
+            engine->tapConnMap.recordCurrentOpenCheckpointId(name, vb->getId());
+            return true;
+        }
+        return false;
+    }
+
+    void visit(StoredValue *v) {
+        // If efficient VBdump is supported and an item is not resident,
+        // skip the item as it will be fetched by the disk backfill.
+        if (efficientVBDump && residentRatioBelowThreshold && !v->isResident()) {
+            return;
+        }
+        std::string k = v->getKey();
+        queued_item qi(new QueuedItem(k, currentBucket->getId(), queue_op_set, -1, v->getId()));
+        uint16_t shardId = engine->kvstore->getShardId(*qi);
+        found.push_back(std::make_pair(shardId, qi));
+    }
+
+    bool shouldContinue() {
+        setEvents();
+        return valid;
+    }
+
+    void apply(void) {
+        // If efficient VBdump is supported, schedule all the disk backfill tasks.
+        if (efficientVBDump && checkValidity()) {
+            std::vector<uint16_t>::iterator it = vbuckets.begin();
+            for (; it != vbuckets.end(); it++) {
+                Dispatcher *d(engine->epstore->getRODispatcher());
+                KVStore *underlying(engine->epstore->getROUnderlying());
+                assert(d);
+                shared_ptr<DispatcherCallback> cb(new BackfillDiskLoad(name,
+                                                                       engine,
+                                                                       engine->tapConnMap,
+                                                                       underlying,
+                                                                       *it,
+                                                                       validityToken));
+                d->schedule(cb, NULL, Priority::TapBgFetcherPriority);
+            }
+            vbuckets.clear();
+        }
+
+        setEvents();
+        if (valid) {
+            CompleteBackfillTapOperation tapop;
+            engine->tapConnMap.performTapOp(name, tapop, static_cast<void*>(NULL));
+        }
+    }
+
+    static void setResidentItemThreshold(float residentThreshold) {
+        if (residentThreshold < MINIMUM_BACKFILL_RESIDENT_THRESHOLD) {
+            std::stringstream ss;
+            ss << "Resident item threshold " << residentThreshold
+               << " for memory backfill only is too low. Ignore this new threshold...";
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL, ss.str().c_str());
+            return;
+        }
+        backfillResidentThreshold = residentThreshold;
+    }
+
+private:
+
+    void setEvents() {
+        if (checkValidity()) {
+            if (!found.empty()) {
+                // Don't notify unless we've got some data..
+                TaggedQueuedItemComparator<uint16_t> comparator;
+                std::sort(found.begin(), found.end(), comparator);
+
+                std::vector<std::pair<uint16_t, queued_item> >::iterator it(found.begin());
+                for (; it != found.end(); ++it) {
+                    queue->push_back(it->second);
+                }
+                found.clear();
+                engine->tapConnMap.setEvents(name, queue);
+            }
+            waitForQueue();
+        }
+    }
+
+    void waitForQueue() {
+        bool reported(false);
+        bool tooBig(true);
+
+        while (checkValidity() && tooBig) {
+            ssize_t theSize(engine->tapConnMap.queueDepth(name));
+            if (theSize < 0) {
+                getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                                 "TapProducer %s went away.  Stopping backfill.\n",
+                                 name.c_str());
+                valid = false;
+                return;
+            }
+
+            tooBig = theSize > maxBackfillSize;
+
+            if (tooBig) {
+                if (!reported) {
+                    getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                                     "Tap queue depth too big for %s, sleeping\n",
+                                     name.c_str());
+                    reported = true;
+                }
+                sleep(1);
+            }
+        }
+        if (reported) {
+            getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                             "Resuming backfill of %s.\n",
+                             name.c_str());
+        }
+    }
+
+    bool checkValidity() {
+        if (valid) {
+            valid = engine->tapConnMap.checkValidity(name, validityToken);
+            if (!valid) {
+                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                 "Backfilling token for %s went invalid.  Stopping backfill.\n",
+                                 name.c_str());
+            }
+        }
+        return valid;
+    }
+
+    EventuallyPersistentEngine *engine;
+    const std::string name;
+    std::list<queued_item> *queue;
+    std::vector<std::pair<uint16_t, queued_item> > found;
+    std::vector<uint16_t> vbuckets;
+    VBucketFilter filter;
+    const void *validityToken;
+    ssize_t maxBackfillSize;
+    bool valid;
+    bool efficientVBDump;
+    bool residentRatioBelowThreshold;
+
+    static float backfillResidentThreshold;
+};
+
+float BackFillVisitor::backfillResidentThreshold = DEFAULT_BACKFILL_RESIDENT_THRESHOLD;
+
+/// @cond DETAILS
+class BackFillThreadData {
+public:
+
+    BackFillThreadData(EventuallyPersistentEngine *e, TapProducer *tc,
+                       EventuallyPersistentStore *s, const void *tok):
+        bfv(e, tc, tok), engine(e), epstore(s) {
+    }
+
+    ~BackFillThreadData() {
+        engine->backfillThreadTerminating();
+    }
+
+    BackFillVisitor bfv;
+    EventuallyPersistentEngine *engine;
+    EventuallyPersistentStore *epstore;
+};
+/// @endcond
+
+extern "C" {
+    static void* launch_backfill_thread(void *arg) {
+        BackFillThreadData *bftd = static_cast<BackFillThreadData *>(arg);
+        ObjectRegistry::onSwitchThread(bftd->engine);
+
+        bftd->epstore->visit(bftd->bfv);
+        bftd->bfv.apply();
+
+        delete bftd;
+        return NULL;
+    }
+}
+
 EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server_api) :
     dbname("/tmp/test.db"), shardPattern(DEFAULT_SHARD_PATTERN),
     initFile(NULL), postInitFile(NULL), dbStrategy(multi_db),
@@ -980,7 +1253,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         size_t htLocks = 0;
         size_t maxSize = 0;
 
-        const int max_items = 45;
+        const int max_items = 46;
         struct config_item items[max_items];
         int ii = 0;
         memset(items, 0, sizeof(items));
@@ -1217,6 +1490,13 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         items[ii].value.dt_bool = &restore_mode;
 
         ++ii;
+        float backfill_resident_threshold;
+        int backfill_resident_threshold_idx = ii;
+        items[ii].key = "bf_resident_threshold";
+        items[ii].datatype = DT_FLOAT;
+        items[ii].value.dt_float = &backfill_resident_threshold;
+
+        ++ii;
         items[ii].key = NULL;
 
         assert(ii < max_items);
@@ -1275,6 +1555,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
                     return ENGINE_FAILED;
                 }
                 restore.enabled.set(true);
+            }
+
+            if (items[backfill_resident_threshold_idx].found) {
+                BackFillVisitor::setResidentItemThreshold(backfill_resident_threshold);
             }
 
             if (dbs != NULL) {
@@ -2266,253 +2550,6 @@ void EventuallyPersistentEngine::startEngineThreads(void)
         throw std::runtime_error("Error creating thread to notify Tap connections");
     }
     startedEngineThreads = true;
-}
-
-/**
- * Dispatcher callback responsible for bulk backfilling tap queues
- * from a KVStore.
- *
- * Note that this is only used if the KVStore reports that it has
- * efficient vbucket ops.
- */
-class BackfillDiskLoad : public DispatcherCallback, public Callback<GetValue> {
-public:
-
-    BackfillDiskLoad(const std::string &n, EventuallyPersistentEngine* e,
-                     TapConnMap &tcm, KVStore *s, uint16_t vbid, const void *token)
-        : name(n), engine(e), connMap(tcm), store(s), vbucket(vbid), validityToken(token) {
-
-        vbucket_version = engine->getEpStore()->getVBucketVersion(vbucket);
-    }
-
-    void callback(GetValue &gv) {
-        // If a vbucket version of a bg fetched item is different from the current version,
-        // skip this item.
-        if (vbucket_version != gv.getVBucketVersion()) {
-            delete gv.getValue();
-            return;
-        }
-        ReceivedItemTapOperation tapop(true);
-        // if the tap connection is closed, then free an Item instance
-        if (!connMap.performTapOp(name, tapop, gv.getValue())) {
-            delete gv.getValue();
-        }
-
-        NotifyPausedTapOperation notifyOp;
-        connMap.performTapOp(name, notifyOp, engine);
-    }
-
-    bool callback(Dispatcher &, TaskId) {
-        if (connMap.checkValidity(name, validityToken)) {
-            store->dump(vbucket, *this);
-            CompleteDiskBackfillTapOperation op;
-            connMap.performTapOp(name, op, static_cast<void*>(NULL));
-        }
-
-        return false;
-    }
-
-    std::string description() {
-        std::stringstream rv;
-        rv << "Loading tap backfill for vb " << vbucket;
-        return rv.str();
-    }
-
-private:
-    const std::string           name;
-    EventuallyPersistentEngine *engine;
-    TapConnMap                 &connMap;
-    KVStore                    *store;
-    uint16_t                    vbucket;
-    uint16_t                    vbucket_version;
-    const void                 *validityToken;
-};
-
-/**
- * VBucketVisitor to backfill a TapProducer.
- */
-class BackFillVisitor : public VBucketVisitor {
-public:
-    BackFillVisitor(EventuallyPersistentEngine *e, TapProducer *tc,
-                    const void *token):
-        VBucketVisitor(), engine(e), name(tc->getName()),
-        queue(new std::list<queued_item>),
-        found(), filter(tc->backFillVBucketFilter), validityToken(token),
-        maxBackfillSize(e->tapBacklogLimit), valid(true),
-        efficientVBDump(e->epstore->getStorageProperties().hasEfficientVBDump()) {
-        found.reserve(e->tapBacklogLimit);
-    }
-
-    ~BackFillVisitor() {
-        delete queue;
-    }
-
-    bool visitBucket(RCPtr<VBucket> vb) {
-        if (filter(vb->getId())) {
-            VBucketVisitor::visitBucket(vb);
-            if (efficientVBDump) {
-                vbuckets.push_back(vb->getId());
-                ScheduleDiskBackfillTapOperation tapop;
-                engine->tapConnMap.performTapOp(name, tapop, static_cast<void*>(NULL));
-            }
-            // When the backfill is scheduled for a given vbucket, record the vbucket's current
-            // open checkpoint Id into the corresponding tap connection.
-            engine->tapConnMap.recordCurrentOpenCheckpointId(name, vb->getId());
-            return true;
-        }
-        return false;
-    }
-
-    void visit(StoredValue *v) {
-        // If efficient VBdump is supported and an item is not resident,
-        // skip the item as it will be fetched by the disk backfill.
-        if (efficientVBDump && !v->isResident()) {
-            return;
-        }
-        std::string k = v->getKey();
-        queued_item qi(new QueuedItem(k, currentBucket->getId(), queue_op_set, -1, v->getId()));
-        uint16_t shardId = engine->kvstore->getShardId(*qi);
-        found.push_back(std::make_pair(shardId, qi));
-    }
-
-    bool shouldContinue() {
-        setEvents();
-        return valid;
-    }
-
-    void apply(void) {
-        // If efficient VBdump is supported, schedule all the disk backfill tasks.
-        if (efficientVBDump && checkValidity()) {
-            std::vector<uint16_t>::iterator it = vbuckets.begin();
-            for (; it != vbuckets.end(); it++) {
-                Dispatcher *d(engine->epstore->getRODispatcher());
-                KVStore *underlying(engine->epstore->getROUnderlying());
-                assert(d);
-                shared_ptr<DispatcherCallback> cb(new BackfillDiskLoad(name,
-                                                                       engine,
-                                                                       engine->tapConnMap,
-                                                                       underlying,
-                                                                       *it,
-                                                                       validityToken));
-                d->schedule(cb, NULL, Priority::TapBgFetcherPriority);
-            }
-            vbuckets.clear();
-        }
-
-        setEvents();
-        if (valid) {
-            CompleteBackfillTapOperation tapop;
-            engine->tapConnMap.performTapOp(name, tapop, static_cast<void*>(NULL));
-        }
-    }
-
-private:
-
-    void setEvents() {
-        if (checkValidity()) {
-            if (!found.empty()) {
-                // Don't notify unless we've got some data..
-                TaggedQueuedItemComparator<uint16_t> comparator;
-                std::sort(found.begin(), found.end(), comparator);
-
-                std::vector<std::pair<uint16_t, queued_item> >::iterator it(found.begin());
-                for (; it != found.end(); ++it) {
-                    queue->push_back(it->second);
-                }
-                found.clear();
-                engine->tapConnMap.setEvents(name, queue);
-            }
-            waitForQueue();
-        }
-    }
-
-    void waitForQueue() {
-        bool reported(false);
-        bool tooBig(true);
-
-        while (checkValidity() && tooBig) {
-            ssize_t theSize(engine->tapConnMap.queueDepth(name));
-            if (theSize < 0) {
-                getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                                 "TapProducer %s went away.  Stopping backfill.\n",
-                                 name.c_str());
-                valid = false;
-                return;
-            }
-
-            tooBig = theSize > maxBackfillSize;
-
-            if (tooBig) {
-                if (!reported) {
-                    getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                                     "Tap queue depth too big for %s, sleeping\n",
-                                     name.c_str());
-                    reported = true;
-                }
-                sleep(1);
-            }
-        }
-        if (reported) {
-            getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                             "Resuming backfill of %s.\n",
-                             name.c_str());
-        }
-    }
-
-    bool checkValidity() {
-        if (valid) {
-            valid = engine->tapConnMap.checkValidity(name, validityToken);
-            if (!valid) {
-                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                 "Backfilling token for %s went invalid.  Stopping backfill.\n",
-                                 name.c_str());
-            }
-        }
-        return valid;
-    }
-
-    EventuallyPersistentEngine *engine;
-    const std::string name;
-    std::list<queued_item> *queue;
-    std::vector<std::pair<uint16_t, queued_item> > found;
-    std::vector<uint16_t> vbuckets;
-    VBucketFilter filter;
-    const void *validityToken;
-    ssize_t maxBackfillSize;
-    bool valid;
-    bool efficientVBDump;
-};
-
-/// @cond DETAILS
-class BackFillThreadData {
-public:
-
-    BackFillThreadData(EventuallyPersistentEngine *e, TapProducer *tc,
-                       EventuallyPersistentStore *s, const void *tok):
-        bfv(e, tc, tok), engine(e), epstore(s) {
-    }
-
-    ~BackFillThreadData() {
-        engine->backfillThreadTerminating();
-    }
-
-    BackFillVisitor bfv;
-    EventuallyPersistentEngine *engine;
-    EventuallyPersistentStore *epstore;
-};
-/// @endcond
-
-extern "C" {
-    static void* launch_backfill_thread(void *arg) {
-        BackFillThreadData *bftd = static_cast<BackFillThreadData *>(arg);
-        ObjectRegistry::onSwitchThread(bftd->engine);
-
-        bftd->epstore->visit(bftd->bfv);
-        bftd->bfv.apply();
-
-        delete bftd;
-        return NULL;
-    }
 }
 
 void EventuallyPersistentEngine::queueBackfill(TapProducer *tc, const void *tok) {
