@@ -610,3 +610,85 @@ bool TapConnection::isTimeForNoop() {
 void TapConnection::setTimeForNoop() {
     noop.set(true);
 }
+
+template <typename T>
+static void addTapStat(const char *name, const TapConnection *tc, T val,
+                       ADD_STAT add_stat, const void *cookie) {
+    std::stringstream tap;
+    tap << tc->getName() << ":" << name;
+    std::stringstream value;
+    value << val;
+
+    add_stat(tap.str().data(), static_cast<uint16_t>(tap.str().length()),
+             value.str().data(), static_cast<uint32_t>(value.str().length()),
+             cookie);
+}
+
+static void addTapStat(const char *name, const TapConnection *tc, bool val,
+                       ADD_STAT add_stat, const void *cookie) {
+    addTapStat(name, tc, val ? "true" : "false", add_stat, cookie);
+}
+
+void TapConnection::addStats(ADD_STAT add_stat, const void *c) {
+    addTapStat("qlen", this, getQueueSize(), add_stat, c);
+    addTapStat("qlen_high_pri", this, vBucketHighPriority.size(), add_stat, c);
+    addTapStat("qlen_low_pri", this, vBucketLowPriority.size(), add_stat, c);
+    addTapStat("vb_filters", this, vbucketFilter.size(), add_stat, c);
+    addTapStat("vb_filter", this, filterText.c_str(), add_stat, c);
+    addTapStat("rec_fetched", this, recordsFetched, add_stat, c);
+    if (recordsSkipped > 0) {
+        addTapStat("rec_skipped", this, recordsSkipped, add_stat, c);
+    }
+    addTapStat("idle", this, idle(), add_stat, c);
+    addTapStat("empty", this, empty(), add_stat, c);
+    addTapStat("complete", this, complete(), add_stat, c);
+    addTapStat("has_item", this, hasItem(), add_stat, c);
+    addTapStat("has_queued_item", this, hasQueuedItem(), add_stat, c);
+    addTapStat("bg_wait_for_results", this, waitForBackfill(),
+               add_stat, c);
+    addTapStat("bg_queue_size", this, bgQueueSize, add_stat, c);
+    addTapStat("bg_queued", this, bgQueued, add_stat, c);
+    addTapStat("bg_result_size", this, bgResultSize, add_stat, c);
+    addTapStat("bg_results", this, bgResults, add_stat, c);
+    addTapStat("bg_jobs_issued", this, bgJobIssued, add_stat, c);
+    addTapStat("bg_jobs_completed", this, bgJobCompleted, add_stat, c);
+    addTapStat("bg_backlog_size", this, getBacklogSize(), add_stat, c);
+    addTapStat("flags", this, flagsText.c_str(), add_stat, c);
+    addTapStat("connected", this, connected, add_stat, c);
+    addTapStat("pending_disconnect", this, doDisconnect, add_stat, c);
+    addTapStat("suspended", this, isSuspended(), add_stat, c);
+    addTapStat("paused", this, paused, add_stat, c);
+    addTapStat("pending_backfill", this, pendingBackfill, add_stat, c);
+    addTapStat("pending_disk_backfill", this, !isPendingDiskBackfill(),
+               add_stat, c);
+    if (reconnects > 0) {
+        addTapStat("reconnects", this, reconnects, add_stat, c);
+    }
+    if (disconnects > 0) {
+        addTapStat("disconnects", this, disconnects, add_stat, c);
+    }
+    if (backfillAge != 0) {
+        addTapStat("backfill_age", this, (size_t)backfillAge, add_stat, c);
+    }
+
+    if (ackSupported) {
+        addTapStat("ack_seqno", this, seqno, add_stat, c);
+        addTapStat("recv_ack_seqno", this, seqnoReceived,
+                   add_stat, c);
+        addTapStat("ack_log_size", this, getTapAckLogSize(), add_stat,
+                   c);
+        addTapStat("ack_window_full", this, windowIsFull(), add_stat,
+                   c);
+        if (windowIsFull()) {
+            addTapStat("expires", this,
+                       expiry_time - ep_current_time(),
+                       add_stat, c);
+        }
+        addTapStat("num_tap_nack", this, numTapNack, add_stat, c);
+        addTapStat("num_tap_tmpfail_survivors", this, numTmpfailSurvivors,
+                   add_stat, c);
+        addTapStat("ack_playback_size", this, getTapAckLogSize(), add_stat,
+                   c);
+    }
+    addTapStat("last_walk", this, lastWalkTime.get(), add_stat, c);
+}

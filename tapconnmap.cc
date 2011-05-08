@@ -295,8 +295,12 @@ bool TapConnMap::notifyIOThreadMain() {
     std::list<const void *> toNotify;
     for (iter = map.begin(); iter != map.end(); ++iter) {
         if (iter->second->shouldNotify() || (iter->second->lastWalkTime + maxIdleTime < now)) {
+            if (iter->first == NULL) {
+                engine.reportNullCookie(*iter->second);
+            } else {
+                toNotify.push_back(iter->first);
+            }
             iter->second->notifySent.set(true);
-            toNotify.push_back(iter->first);
         }
     }
 

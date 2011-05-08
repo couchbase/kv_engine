@@ -331,6 +331,8 @@ public:
      */
     void queueBackfill(TapConnection *tc, const void *tok);
 
+    void reportNullCookie(TapConnection &tc);
+
     void notifyIOComplete(const void *cookie, ENGINE_ERROR_CODE status) {
         BlockTimer bt(&stats.notifyIOHisto);
         serverApi->cookie->notify_io_complete(cookie, status);

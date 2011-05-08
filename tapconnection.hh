@@ -141,6 +141,8 @@ public:
         return client;
     }
 
+    void addStats(ADD_STAT add_stats, const void *c);
+
     /**
      * Return true if this connection is shutting down.
      */

@@ -2097,6 +2097,32 @@ void EventuallyPersistentEngine::queueBackfill(TapConnection *tc, const void *to
     pthread_attr_destroy(&attr);
 }
 
+extern "C" {
+    static void add_stat_to_stringstream(const char *key, const uint16_t klen,
+                                         const char *val, const uint32_t vlen,
+                                         const void *cookie)
+    {
+        if (klen == 0) {
+            return;
+        }
+
+        std::stringstream *ss = (std::stringstream*)(cookie);
+        ss->write(key, klen);
+        ss->write(":", 1);
+        ss->write(val, vlen);
+        *ss << std::endl;
+    }
+}
+
+void EventuallyPersistentEngine::reportNullCookie(TapConnection &tc)
+{
+    std::stringstream ss;
+    tc.addStats(add_stat_to_stringstream, (const void*)&ss);
+    getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                     "Tried to use a TapConnection with a null cookie:\n%s",
+                     ss.str().c_str());
+}
+
 static void add_casted_stat(const char *k, const char *v,
                             ADD_STAT add_stat, const void *cookie) {
     add_stat(k, static_cast<uint16_t>(strlen(k)),
@@ -2156,11 +2182,6 @@ static void addTapStat(const char *name, const TapConnection *tc, T val,
     add_stat(tap.str().data(), static_cast<uint16_t>(tap.str().length()),
              value.str().data(), static_cast<uint32_t>(value.str().length()),
              cookie);
-}
-
-static void addTapStat(const char *name, const TapConnection *tc, bool val,
-                       ADD_STAT add_stat, const void *cookie) {
-    addTapStat(name, tc, val ? "true" : "false", add_stat, cookie);
 }
 
 bool VBucketCountVisitor::visitBucket(RCPtr<VBucket> vb) {
@@ -2465,68 +2486,7 @@ struct TapStatBuilder {
         ++aggregator->totalTaps;
         size_t qlen = tc->getQueueSize();
         aggregator->tap_queue += qlen;
-
-        addTapStat("qlen", tc, qlen, add_stat, cookie);
-        addTapStat("qlen_high_pri", tc, tc->vBucketHighPriority.size(), add_stat, cookie);
-        addTapStat("qlen_low_pri", tc, tc->vBucketLowPriority.size(), add_stat, cookie);
-        addTapStat("vb_filters", tc, tc->vbucketFilter.size(), add_stat, cookie);
-        addTapStat("vb_filter", tc, tc->filterText.c_str(), add_stat, cookie);
-        addTapStat("rec_fetched", tc, tc->recordsFetched, add_stat, cookie);
-        if (tc->recordsSkipped > 0) {
-            addTapStat("rec_skipped", tc, tc->recordsSkipped, add_stat, cookie);
-        }
-        addTapStat("idle", tc, tc->idle(), add_stat, cookie);
-        addTapStat("empty", tc, tc->empty(), add_stat, cookie);
-        addTapStat("complete", tc, tc->complete(), add_stat, cookie);
-        addTapStat("has_item", tc, tc->hasItem(), add_stat, cookie);
-        addTapStat("has_queued_item", tc, tc->hasQueuedItem(), add_stat, cookie);
-        addTapStat("bg_wait_for_results", tc, tc->waitForBackfill(),
-                   add_stat, cookie);
-        addTapStat("bg_queue_size", tc, tc->bgQueueSize, add_stat, cookie);
-        addTapStat("bg_queued", tc, tc->bgQueued, add_stat, cookie);
-        addTapStat("bg_result_size", tc, tc->bgResultSize, add_stat, cookie);
-        addTapStat("bg_results", tc, tc->bgResults, add_stat, cookie);
-        addTapStat("bg_jobs_issued", tc, tc->bgJobIssued, add_stat, cookie);
-        addTapStat("bg_jobs_completed", tc, tc->bgJobCompleted, add_stat, cookie);
-        addTapStat("bg_backlog_size", tc, tc->getBacklogSize(), add_stat, cookie);
-        addTapStat("flags", tc, tc->flagsText.c_str(), add_stat, cookie);
-        addTapStat("connected", tc, tc->connected, add_stat, cookie);
-        addTapStat("pending_disconnect", tc, tc->doDisconnect, add_stat, cookie);
-        addTapStat("suspended", tc, tc->isSuspended(), add_stat, cookie);
-        addTapStat("paused", tc, tc->paused, add_stat, cookie);
-        addTapStat("pending_backfill", tc, tc->pendingBackfill, add_stat, cookie);
-        addTapStat("pending_disk_backfill", tc, !tc->isPendingDiskBackfill(),
-                   add_stat, cookie);
-        if (tc->reconnects > 0) {
-            addTapStat("reconnects", tc, tc->reconnects, add_stat, cookie);
-        }
-        if (tc->disconnects > 0) {
-            addTapStat("disconnects", tc, tc->disconnects, add_stat, cookie);
-        }
-        if (tc->backfillAge != 0) {
-            addTapStat("backfill_age", tc, (size_t)tc->backfillAge, add_stat, cookie);
-        }
-
-        if (tc->ackSupported) {
-            addTapStat("ack_seqno", tc, tc->seqno, add_stat, cookie);
-            addTapStat("recv_ack_seqno", tc, tc->seqnoReceived,
-                       add_stat, cookie);
-            addTapStat("ack_log_size", tc, tc->getTapAckLogSize(), add_stat,
-                       cookie);
-            addTapStat("ack_window_full", tc, tc->windowIsFull(), add_stat,
-                       cookie);
-            if (tc->windowIsFull()) {
-                addTapStat("expires", tc,
-                           tc->expiry_time - ep_current_time(),
-                           add_stat, cookie);
-            }
-            addTapStat("num_tap_nack", tc, tc->numTapNack, add_stat, cookie);
-            addTapStat("num_tap_tmpfail_survivors", tc, tc->numTmpfailSurvivors,
-                       add_stat, cookie);
-            addTapStat("ack_playback_size", tc, tc->getTapAckLogSize(), add_stat,
-                       cookie);
-        }
-        addTapStat("last_walk", tc, tc->lastWalkTime.get(), add_stat, cookie);
+        tc->addStats(add_stat, cookie);
     }
 
     const void *cookie;
