@@ -87,8 +87,7 @@ private:
 class VBucketCountVisitor : public VBucketVisitor {
 public:
     VBucketCountVisitor(vbucket_state_t state) : desired_state(state),
-                                                 requestedState(0), total(0),
-                                                 nonResident(0), totalNonResident(0),
+                                                 numItems(0),nonResident(0),
                                                  numVbucket(0), htMemory(0),
                                                  htItemMemory(0), htCacheSize(0),
                                                  numEjects(0), opsCreate(0),
@@ -108,20 +107,15 @@ public:
 
     vbucket_state_t getVBucketState() { return desired_state; }
 
-    size_t getTotal() { return total; }
-
-    size_t getRequested() { return requestedState; }
+    size_t getNumItems() { return numItems; }
 
     size_t getNonResident() { return nonResident; }
 
-    size_t getTotalNonResident() { return totalNonResident; }
-
     size_t getVBucketNumber() { return numVbucket; }
 
-    size_t getMemResidentPer() { // Do we really need to provide?
-        size_t tol = requestedState + nonResident;
-        return (tol != 0) ? (size_t) (requestedState *100.0) / (tol) : 0;
-        //return 0;
+    size_t getMemResidentPer() {
+        size_t numResident = numItems - nonResident;
+        return (numItems != 0) ? (size_t) (numResident *100.0) / (numItems) : 0;
     }
 
     size_t getEjects() { return numEjects; }
@@ -146,10 +140,8 @@ public:
 private:
     vbucket_state_t desired_state;
 
-    size_t requestedState;
-    size_t total;
+    size_t numItems;
     size_t nonResident;
-    size_t totalNonResident;
     size_t numVbucket;
     size_t htMemory;
     size_t htItemMemory;
@@ -593,8 +585,8 @@ private:
             VBucketCountVisitor countVisitor(vbucket_state_active);
             epstore->visit(countVisitor);
 
-            haveEvidenceWeCanFreeMemory = countVisitor.getTotalNonResident() <
-                                          countVisitor.getTotal();
+            haveEvidenceWeCanFreeMemory = countVisitor.getNonResident() <
+                                          countVisitor.getNumItems();
         }
         if (haveEvidenceWeCanFreeMemory) {
             ++stats.tmp_oom_errors;
