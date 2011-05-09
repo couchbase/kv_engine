@@ -37,14 +37,6 @@
 #define DEFAULT_QUEUE_AGE_CAP 900
 #endif
 
-#ifndef GETL_DEFAULT_TIMEOUT
-#define GETL_DEFAULT_TIMEOUT 15
-#endif
-
-#ifndef GETL_MAX_TIMEOUT
-#define GETL_MAX_TIMEOUT 29
-#endif
-
 extern "C" {
     EXPORT_FUNCTION
     ENGINE_ERROR_CODE create_instance(uint64_t interface,
@@ -563,6 +555,9 @@ public:
         holder.unlock();
     }
 
+    size_t getGetlDefaultTimeout() { return getlDefaultTimeout; }
+    size_t getGetlMaxTimeout() { return getlMaxTimeout; }
+
 private:
     EventuallyPersistentEngine(GET_SERVER_API get_server_api);
     friend ENGINE_ERROR_CODE create_instance(uint64_t interface,
@@ -756,6 +751,8 @@ private:
     size_t vb_del_chunk_size;
     size_t vb_chunk_del_threshold_time;
     Atomic<uint64_t> mutation_count;
+    size_t getlDefaultTimeout;
+    size_t getlMaxTimeout;
     EPStats stats;
     SyncRegistry syncRegistry;
     struct {

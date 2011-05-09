@@ -350,19 +350,21 @@ extern "C" {
 
         RememberingCallback<GetValue> getCb;
         uint32_t lockTimeout;
+        uint32_t max_timeout = (unsigned int)e->getGetlMaxTimeout();
+        uint32_t default_timeout = (unsigned int)e->getGetlDefaultTimeout();
         if (extlen >= 8) {
             grequest->message.body.flags = grequest->message.body.flags;
             lockTimeout = ntohl(grequest->message.body.expiration);
         } else {
-            lockTimeout = GETL_DEFAULT_TIMEOUT;
+            lockTimeout = default_timeout;
         }
 
         getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                         "Executing getl for key %s timeout %d\n",
-                         keyz, lockTimeout);
+                         "Executing getl for key %s timeout %d max: %d, default: %d\n",
+                         keyz, lockTimeout, max_timeout, default_timeout);
 
-        if (lockTimeout > GETL_MAX_TIMEOUT || lockTimeout < 1) {
-            lockTimeout = GETL_DEFAULT_TIMEOUT;
+        if (lockTimeout >  max_timeout || lockTimeout < 1) {
+            lockTimeout = default_timeout;
         }
 
         bool gotLock = e->getLocked(key, vbucket, getCb,
@@ -1203,7 +1205,7 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server
     queueAgeCap(DEFAULT_QUEUE_AGE_CAP),
     itemExpiryWindow(3), expiryPagerSleeptime(3600), checkpointRemoverInterval(5),
     nVBuckets(1024), dbShards(4), vb_del_chunk_size(100), vb_chunk_del_threshold_time(500),
-    mutation_count(0)
+    mutation_count(0), getlDefaultTimeout(15), getlMaxTimeout(30)
 {
     interface.interface = 1;
     ENGINE_HANDLE_V1::get_info = EvpGetInfo;
@@ -1253,7 +1255,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         size_t htLocks = 0;
         size_t maxSize = 0;
 
-        const int max_items = 46;
+        const int max_items = 48;
         struct config_item items[max_items];
         int ii = 0;
         memset(items, 0, sizeof(items));
@@ -1495,6 +1497,16 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         items[ii].key = "bf_resident_threshold";
         items[ii].datatype = DT_FLOAT;
         items[ii].value.dt_float = &backfill_resident_threshold;
+
+        ++ii;
+        items[ii].key = "getl_default_timeout";
+        items[ii].datatype = DT_SIZE;
+        items[ii].value.dt_size = &getlDefaultTimeout;
+
+        ++ii;
+        items[ii].key = "getl_max_timeout";
+        items[ii].datatype = DT_SIZE;
+        items[ii].value.dt_size = &getlMaxTimeout;
 
         ++ii;
         items[ii].key = NULL;
