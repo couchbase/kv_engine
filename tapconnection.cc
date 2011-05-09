@@ -386,7 +386,7 @@ ENGINE_ERROR_CODE TapConnection::processAck(uint32_t s,
         }
 
         lh.unlock();
-        if (complete() && idle()) {
+        if (dumpQueue && complete() && idle()) {
             // We've got all of the ack's need, now we can shut down the
             // stream
             doDisconnect = true;
