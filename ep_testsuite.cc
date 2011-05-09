@@ -79,7 +79,7 @@ bool abort_msg(const char *expr, const char *msg, int line);
 
 #define WHITESPACE_DB "whitespace sucks.db"
 #define MULTI_DISPATCHER_CONFIG \
-    "initfile=t/wal.sql;ht_size=129;ht_locks=3;chk_remover_stime=1;chk_period=1"
+    "initfile=t/wal.sql;ht_size=129;ht_locks=3;chk_remover_stime=1;chk_period=60"
 
 protocol_binary_response_status last_status(static_cast<protocol_binary_response_status>(0));
 char *last_key = NULL;
@@ -1301,7 +1301,7 @@ static enum test_result test_flush_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
     check(store(h, h1, NULL, OPERATION_SET, "key2", "somevalue", &i) == ENGINE_SUCCESS,
           "Failed set.");
     h1->release(h, NULL, i);
-    testHarness.time_travel(5);
+    testHarness.time_travel(65);
     wait_for_stat_change(h, h1, "ep_items_rm_from_checkpoints", itemsRemoved);
 
     check(ENGINE_SUCCESS == verify_key(h, h1, "key"), "Expected key");
@@ -2343,7 +2343,7 @@ static enum test_result test_memory_limit(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     check(h1->remove(h, NULL, "key", 3, 0, 0) == ENGINE_SUCCESS,
           "Failed remove with value.");
     check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key"), "Expected missing key");
-    testHarness.time_travel(5);
+    testHarness.time_travel(65);
     wait_for_stat_change(h, h1, "ep_items_rm_from_checkpoints", itemsRemoved);
 
     check(store(h, h1, NULL, OPERATION_SET, "key2", "somevalue2", &i) == ENGINE_SUCCESS,
@@ -2431,7 +2431,7 @@ static enum test_result test_vbucket_destroy_stats(ENGINE_HANDLE *h,
         h1->release(h, NULL, i);
     }
     wait_for_flusher_to_settle(h, h1);
-    testHarness.time_travel(5);
+    testHarness.time_travel(65);
     wait_for_stat_change(h, h1, "ep_items_rm_from_checkpoints", itemsRemoved);
 
     check(set_vbucket_state(h, h1, 1, vbucket_state_dead), "Failed set set vbucket 1 state.");
@@ -3346,7 +3346,7 @@ static enum test_result test_mem_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     strcpy(value + sizeof(value) - 4, "\r\n");
     int itemsRemoved = get_int_stat(h, h1, "ep_items_rm_from_checkpoints");
     wait_for_persisted_value(h, h1, "key", value);
-    testHarness.time_travel(5);
+    testHarness.time_travel(65);
     wait_for_stat_change(h, h1, "ep_items_rm_from_checkpoints", itemsRemoved);
     int mem_used = get_int_stat(h, h1, "mem_used");
     int cache_size = get_int_stat(h, h1, "ep_total_cache_size");
@@ -3797,7 +3797,7 @@ static enum test_result test_disk_gt_ram_golden(ENGINE_HANDLE *h,
     int itemsRemoved = get_int_stat(h, h1, "ep_items_rm_from_checkpoints");
     // Store some data and check post-set state.
     wait_for_persisted_value(h, h1, "k1", "some value");
-    testHarness.time_travel(5);
+    testHarness.time_travel(65);
     wait_for_stat_change(h, h1, "ep_items_rm_from_checkpoints", itemsRemoved);
 
     assert(0 == get_int_stat(h, h1, "ep_bg_fetched"));
@@ -3839,7 +3839,7 @@ static enum test_result test_disk_gt_ram_golden(ENGINE_HANDLE *h,
     check(h1->remove(h, NULL, "k1", 2, 0, 0) == ENGINE_SUCCESS,
           "Failed remove with value.");
     wait_for_stat_change(h, h1, "ep_total_persisted", numStored);
-    testHarness.time_travel(5);
+    testHarness.time_travel(65);
     wait_for_stat_change(h, h1, "ep_items_rm_from_checkpoints", itemsRemoved);
 
     check(get_int_stat(h, h1, "ep_kv_size") > 0,
@@ -3875,7 +3875,7 @@ static enum test_result test_disk_gt_ram_paged_rm(ENGINE_HANDLE *h,
     check(h1->remove(h, NULL, "k1", 2, 0, 0) == ENGINE_SUCCESS,
           "Failed remove with value.");
     wait_for_stat_change(h, h1, "ep_total_persisted", numStored);
-    testHarness.time_travel(5);
+    testHarness.time_travel(65);
     wait_for_stat_change(h, h1, "ep_items_rm_from_checkpoints", itemsRemoved);
 
     check(get_int_stat(h, h1, "ep_kv_size") > 0,
@@ -5222,9 +5222,9 @@ static enum test_result test_restore_with_data(ENGINE_HANDLE *h, ENGINE_HANDLE_V
 }
 
 static enum test_result test_get_last_closed_checkpoint_id(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    // Number of max items allowed per checkpoint is set to 5. Inserting more than 5 items will cause
+    // Number of max items allowed per checkpoint is set to 500. Inserting more than 500 items will cause
     // a new open checkpoint to be created.
-    for (int j = 0; j < 7; ++j) {
+    for (int j = 0; j < 600; ++j) {
         std::stringstream ss;
         ss << "key" << j;
         item *i;
@@ -5261,6 +5261,23 @@ static enum test_result test_get_last_closed_checkpoint_id(ENGINE_HANDLE *h, ENG
     return SUCCESS;
 }
 
+static enum test_result test_validate_checkpoint_params(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    set_flush_param(h, h1, "chk_max_items", "1000");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+          "Failed to set checkpoint_max_item param");
+    set_flush_param(h, h1, "chk_period", "100");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+          "Failed to set checkpoint_period param");
+
+    set_flush_param(h, h1, "chk_max_items", "100");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL,
+          "Expected to have an invalid value error for checkpoint_max_items param");
+    set_flush_param(h, h1, "chk_period", "10");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL,
+          "Expected to have an invalid value error for checkpoint_period param");
+    return SUCCESS;
+}
+
 MEMCACHED_PUBLIC_API
 engine_test_t* get_tests(void) {
 
@@ -5271,7 +5288,7 @@ engine_test_t* get_tests(void) {
         {"test alloc limit", test_alloc_limit, NULL, teardown, NULL},
         {"test init failure", test_init_fail, NULL, teardown, NULL},
         {"test total memory limit", test_memory_limit, NULL, teardown,
-         "max_size=4096;ht_locks=1;ht_size=3;chk_remover_stime=1;chk_period=1"},
+         "max_size=4096;ht_locks=1;ht_size=3;chk_remover_stime=1;chk_period=60"},
         {"test max_size changes", test_max_size_settings, NULL, teardown,
          "max_size=1000;ht_locks=1;ht_size=3"},
         {"test whitespace dbname", test_whitespace_db, NULL, teardown,
@@ -5315,7 +5332,7 @@ engine_test_t* get_tests(void) {
          "db_shards=1;ht_size=13;ht_locks=7;db_strategy=multiDB"},
         {"non-resident decrementers", test_mb3169, NULL, teardown, NULL},
         {"flush", test_flush, NULL, teardown, NULL},
-        {"flush with stats", test_flush_stats, NULL, teardown, "chk_remover_stime=1;chk_period=1"},
+        {"flush with stats", test_flush_stats, NULL, teardown, "chk_remover_stime=1;chk_period=60"},
         {"flush multi vbuckets", test_flush_multiv, NULL, teardown, NULL},
         {"flush multi vbuckets single mt", test_flush_multiv, NULL, teardown,
          "db_strategy=singleMTDB;max_vbuckets=16;ht_size=7;ht_locks=3"},
@@ -5332,7 +5349,7 @@ engine_test_t* get_tests(void) {
         {"stats", test_stats, NULL, teardown, NULL},
         {"io stats", test_io_stats, NULL, teardown, NULL},
         {"bg stats", test_bg_stats, NULL, teardown, NULL},
-        {"mem stats", test_mem_stats, NULL, teardown, "chk_remover_stime=1;chk_period=1"},
+        {"mem stats", test_mem_stats, NULL, teardown, "chk_remover_stime=1;chk_period=60"},
         {"stats key", test_key_stats, NULL, teardown, NULL},
         {"stats vkey", test_vkey_stats, NULL, teardown, NULL},
         {"warmup stats", test_warmup_stats, NULL, teardown, NULL},
@@ -5374,9 +5391,9 @@ engine_test_t* get_tests(void) {
         {"tap config", test_tap_config, NULL, teardown,
          "tap_backoff_period=0.05;tap_ack_interval=10;tap_ack_window_size=2;tap_ack_grace_period=10"},
         {"tap acks stream", test_tap_ack_stream, NULL, teardown,
-         "tap_keepalive=100;ht_size=129;ht_locks=3;tap_backoff_period=0.05;chk_max_items=5"},
+         "tap_keepalive=100;ht_size=129;ht_locks=3;tap_backoff_period=0.05;chk_max_items=500"},
         {"tap implicit acks stream", test_tap_implicit_ack_stream, NULL, teardown,
-         "tap_keepalive=100;ht_size=129;ht_locks=3;tap_backoff_period=0.05;tap_ack_initial_sequence_number=4294967290;chk_max_items=5"},
+         "tap_keepalive=100;ht_size=129;ht_locks=3;tap_backoff_period=0.05;tap_ack_initial_sequence_number=4294967290;chk_max_items=500"},
         {"tap notify", test_tap_notify, NULL, teardown,
          "max_size=1048576"},
         // restart tests
@@ -5389,9 +5406,9 @@ engine_test_t* get_tests(void) {
         {"verify not multi dispatcher", test_not_multi_dispatcher_conf, NULL, teardown,
          NULL},
         {"disk>RAM golden path", test_disk_gt_ram_golden, NULL, teardown,
-         "chk_remover_stime=1;chk_period=1"},
+         "chk_remover_stime=1;chk_period=60"},
         {"disk>RAM paged-out rm", test_disk_gt_ram_paged_rm, NULL, teardown,
-         "chk_remover_stime=1;chk_period=1"},
+         "chk_remover_stime=1;chk_period=60"},
         {"disk>RAM update paged-out", test_disk_gt_ram_update_paged_out, NULL,
          teardown, NULL},
         {"disk>RAM delete paged-out", test_disk_gt_ram_delete_paged_out, NULL,
@@ -5466,7 +5483,7 @@ engine_test_t* get_tests(void) {
         {"test vbucket destroy (multitable)", test_vbucket_destroy, NULL, teardown,
          "db_strategy=multiMTVBDB;max_vbuckets=16;ht_size=7;ht_locks=3"},
         {"test vbucket destroy stats", test_vbucket_destroy_stats,
-         NULL, teardown, "chk_remover_stime=1;chk_period=1"},
+         NULL, teardown, "chk_remover_stime=1;chk_period=60"},
         {"test vbucket destroy restart", test_vbucket_destroy_restart,
          NULL, teardown, NULL},
         {"sync bad flags", test_sync_bad_flags, NULL, teardown, NULL},
@@ -5478,7 +5495,9 @@ engine_test_t* get_tests(void) {
 
         // checkpoint tests
         {"checkpoint: get last closed checkpoint Id", test_get_last_closed_checkpoint_id,
-         NULL, teardown, "chk_max_items=5"},
+         NULL, teardown, "chk_max_items=500"},
+        {"checkpoint: validate checkpoint config params", test_validate_checkpoint_params,
+         NULL, teardown, NULL},
 
         // Restore tests
         {"restore: not enabled", test_restore_not_enabled, NULL, teardown,

@@ -843,3 +843,29 @@ bool CheckpointManager::hasNext(const std::string &name) {
     }
     return hasMore;
 }
+
+bool CheckpointManager::validateCheckpointMaxItemsParam(size_t checkpoint_max_items) {
+    if (checkpoint_max_items < MIN_CHECKPOINT_ITEMS ||
+        checkpoint_max_items > MAX_CHECKPOINT_ITEMS) {
+        std::stringstream ss;
+        ss << "New checkpoint_max_items param value " << checkpoint_max_items
+           << " is not ranged between the min allowed value " << MIN_CHECKPOINT_ITEMS
+           << " and max value " << MAX_CHECKPOINT_ITEMS;
+        getLogger()->log(EXTENSION_LOG_WARNING, NULL, ss.str().c_str());
+        return false;
+    }
+    return true;
+}
+
+bool CheckpointManager::validateCheckpointPeriodParam(size_t checkpoint_period) {
+    if (checkpoint_period < MIN_CHECKPOINT_PERIOD ||
+        checkpoint_period > MAX_CHECKPOINT_PERIOD) {
+        std::stringstream ss;
+        ss << "New checkpoint_period param value " << checkpoint_period
+           << " is not ranged between the min allowed value " << MIN_CHECKPOINT_PERIOD
+           << " and max value " << MAX_CHECKPOINT_PERIOD;
+        getLogger()->log(EXTENSION_LOG_WARNING, NULL, ss.str().c_str());
+        return false;
+    }
+    return true;
+}

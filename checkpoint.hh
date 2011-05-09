@@ -13,7 +13,9 @@
 #include "queueditem.hh"
 #include "stats.hh"
 
+#define MIN_CHECKPOINT_ITEMS 500
 #define MAX_CHECKPOINT_ITEMS 500000
+#define MIN_CHECKPOINT_PERIOD 60
 #define MAX_CHECKPOINT_PERIOD 3600
 
 typedef enum {
@@ -360,16 +362,26 @@ public:
     static void initializeCheckpointConfig(size_t checkpoint_period,
                                            size_t checkpoint_max_items,
                                            bool allow_inconsistency = false) {
+        if (!validateCheckpointMaxItemsParam(checkpoint_max_items) ||
+            !validateCheckpointPeriodParam(checkpoint_period)) {
+            return;
+        }
         checkpointPeriod = checkpoint_period;
         checkpointMaxItems = checkpoint_max_items;
         inconsistentSlaveCheckpoint = allow_inconsistency;
     }
 
     static void setCheckpointPeriod(size_t checkpoint_period) {
+        if (!validateCheckpointPeriodParam(checkpoint_period)) {
+            return;
+        }
         checkpointPeriod = checkpoint_period;
     }
 
     static void setCheckpointMaxItems(size_t checkpoint_max_items) {
+        if (!validateCheckpointMaxItemsParam(checkpoint_max_items)) {
+            return;
+        }
         checkpointMaxItems = checkpoint_max_items;
     }
 
@@ -448,6 +460,9 @@ private:
     }
 
     bool isLastMutationItemInCheckpoint(CheckpointCursor &cursor);
+
+    static bool validateCheckpointMaxItemsParam(size_t checkpoint_max_items);
+    static bool validateCheckpointPeriodParam(size_t checkpoint_period);
 
     EPStats                 &stats;
     Mutex                    queueLock;
