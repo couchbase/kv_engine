@@ -73,7 +73,7 @@ class TapConnection(mc_bin_server.MemcachedBinaryChannel):
         extra = data[0:extralen]
         key = data[extralen:(extralen+klen)]
         val = data[(extralen+klen):]
-        self.callback(self.identifier, cmd, extra, key, vb, val, cas)
+        return self.callback(self.identifier, cmd, extra, key, vb, val, cas)
 
     def handle_connect(self):
         pass
