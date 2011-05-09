@@ -304,6 +304,7 @@ private:
             }
 
             ++recordsFetched;
+            ++seqno;
             addTapLogElement_UNLOCKED(ret);
         }
         return ret;
@@ -342,6 +343,7 @@ private:
                 return nextVBucketHighPriority_UNLOCKED();
             }
             ++recordsFetched;
+            ++seqno;
             addTapLogElement_UNLOCKED(ret);
         }
         return ret;
