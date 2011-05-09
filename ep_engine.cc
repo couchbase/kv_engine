@@ -999,8 +999,8 @@ public:
             VBucketVisitor::visitBucket(vb);
             // If the current resident ratio for a given vbucket is below the resident threshold
             // for memory backfill only, schedule the disk backfill for more efficient bg fetches.
-            size_t numItems = vb->ht.getNumItems();
-            size_t numNonResident = vb->ht.getNumNonResidentItems();
+            double numItems = static_cast<double>(vb->ht.getNumItems());
+            double numNonResident = static_cast<double>(vb->ht.getNumNonResidentItems());
             if (numItems == 0) {
                 return true;
             }
@@ -1062,7 +1062,7 @@ public:
         }
     }
 
-    static void setResidentItemThreshold(float residentThreshold) {
+    static void setResidentItemThreshold(double residentThreshold) {
         if (residentThreshold < MINIMUM_BACKFILL_RESIDENT_THRESHOLD) {
             std::stringstream ss;
             ss << "Resident item threshold " << residentThreshold
@@ -1150,10 +1150,10 @@ private:
     bool efficientVBDump;
     bool residentRatioBelowThreshold;
 
-    static float backfillResidentThreshold;
+    static double backfillResidentThreshold;
 };
 
-float BackFillVisitor::backfillResidentThreshold = DEFAULT_BACKFILL_RESIDENT_THRESHOLD;
+double BackFillVisitor::backfillResidentThreshold = DEFAULT_BACKFILL_RESIDENT_THRESHOLD;
 
 /// @cond DETAILS
 class BackFillThreadData {
