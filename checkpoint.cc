@@ -404,8 +404,15 @@ uint64_t CheckpointManager::removeClosedUnrefCheckpoints(const RCPtr<VBucket> &v
     assert(vbucket);
     uint64_t oldCheckpointId = 0;
     if (vbucket->getState() == vbucket_state_active && !inconsistentSlaveCheckpoint) {
+        bool forceCreation = false;
+        double current = static_cast<double>(stats.currentSize.get() + stats.memOverhead.get());
+        double upper =
+            static_cast<double>(stats.maxDataSize) * CHECKPOINT_CREATION_MEMORY_THRESHOLD;
+        if (current > upper && (checkpointList.back()->getNumItems() >= MIN_CHECKPOINT_ITEMS)) {
+            forceCreation = true;
+        }
         // Check if this master active vbucket needs to create a new open checkpoint.
-        oldCheckpointId = checkOpenCheckpoint_UNLOCKED(false);
+        oldCheckpointId = checkOpenCheckpoint_UNLOCKED(forceCreation);
     }
     newOpenCheckpointCreated = oldCheckpointId > 0 ? true : false;
     if (oldCheckpointId > 0) {
@@ -690,11 +697,14 @@ bool CheckpointManager::moveCursorToNextCheckpoint(CheckpointCursor &cursor) {
     return true;
 }
 
-uint64_t CheckpointManager::checkOpenCheckpoint_UNLOCKED(bool onlineUpdate) {
+uint64_t CheckpointManager::checkOpenCheckpoint_UNLOCKED(bool forceCreation) {
     int checkpointId = 0;
-    // Create the new open checkpoint if the time elapsed since the creation of the current
-    // checkpoint is greater than the threshold or it is reached to the max number of mutations.
-    if (onlineUpdate || checkpointList.back()->getNumItems() >= checkpointMaxItems ||
+    // Create the new open checkpoint if any of the following conditions is satisfied:
+    // (1) force creation due to online update or high memory usage
+    // (2) current checkpoint is reached to the max number of items allowed.
+    // (3) time elapsed since the creation of the current checkpoint is greater than the threshold
+    if (forceCreation ||
+        checkpointList.back()->getNumItems() >= checkpointMaxItems ||
         (checkpointList.back()->getNumItems() > 0 &&
          (ep_real_time() - checkpointList.back()->getCreationTime()) >= checkpointPeriod)) {
 

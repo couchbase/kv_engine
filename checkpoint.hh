@@ -17,6 +17,7 @@
 #define MAX_CHECKPOINT_ITEMS 500000
 #define MIN_CHECKPOINT_PERIOD 60
 #define MAX_CHECKPOINT_PERIOD 3600
+#define CHECKPOINT_CREATION_MEMORY_THRESHOLD 0.85
 
 typedef enum {
     opened,
@@ -418,15 +419,16 @@ private:
 
     /**
      * Check the current open checkpoint to see if we need to create the new open checkpoint.
-     * @param onlineUpdate is to indicate if checkpoint is updated due to online update action
+     * @param forceCreation is to indicate if a new checkpoint is created due to online update or
+     * high memory usage
      * @return the previous open checkpoint Id if we create the new open checkpoint. Otherwise
      * return 0.
      */
-    uint64_t checkOpenCheckpoint_UNLOCKED(bool onlineUpdate);
+    uint64_t checkOpenCheckpoint_UNLOCKED(bool forceCreation);
 
-    uint64_t checkOpenCheckpoint(bool onlineUpdate=false) {
+    uint64_t checkOpenCheckpoint(bool forceCreation=false) {
         LockHolder lh(queueLock);
-        return checkOpenCheckpoint_UNLOCKED(onlineUpdate);
+        return checkOpenCheckpoint_UNLOCKED(forceCreation);
     }
 
     bool closeOpenCheckpoint_UNLOCKED(uint64_t id);
