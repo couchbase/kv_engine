@@ -3799,7 +3799,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::sync(std::set<key_spec_t> *keys,
     std::set<key_spec_t>::iterator it = keys->begin();
 
     while (it != keys->end()) {
-        StoredValue *sv = epstore->getStoredValue(it->key, it->vbucketid);
+        StoredValue *sv = epstore->getStoredValue(it->key, it->vbucketid, false);
 
         if (sv == NULL) {
             syncListener->getNonExistentKeys().insert(*it);
