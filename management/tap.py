@@ -12,6 +12,7 @@ import random
 import struct
 import asyncore
 import exceptions
+import signal
 
 import mc_bin_server
 
@@ -19,6 +20,10 @@ from memcacheConstants import REQ_MAGIC_BYTE, RES_MAGIC_BYTE
 from memcacheConstants import REQ_PKT_FMT, RES_PKT_FMT, MIN_RECV_PACKET
 from memcacheConstants import SET_PKT_FMT, DEL_PKT_FMT, INCRDECR_RES_FMT
 import memcacheConstants
+
+def signal_handler(signal, frame):
+    print 'Tap stream terminated by user'
+    sys.exit(0)
 
 class TapConnection(mc_bin_server.MemcachedBinaryChannel):
 
@@ -126,6 +131,7 @@ def mainLoop(serverList, cb, opts={}):
 
     loops until all connections drop
     """
+    signal.signal(signal.SIGINT, signal_handler)
 
     connections = (TapDescriptor(a) for a in serverList)
     TapClient(connections, cb, opts=opts)
