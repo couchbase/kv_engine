@@ -20,8 +20,15 @@ Usage: %s [--vacuum] [--backupto=<dest_dir>] [--port=%s]
 def isADBFile(f):
     return f.endswith('.sqlite') or f.endswith('.mb')
 
-def main():
+def findCmd(cmdName):
+    cmd_dir = os.path.dirname(sys.argv[0])
+    possible = []
+    for bin_dir in [cmd_dir, os.path.join(cmd_dir, "..", "..", "bin")]:
+        possible = possible + [os.path.join(bin_dir, p) for p in [cmdName, cmdName + '.exe']]
+    cmdbin = [p for p in possible if os.path.exists(p)][0]
+    return cmdbin
 
+def main():
     try:
         opts, args = getopt.getopt(sys.argv[1:], '', ['vacuum', 'backupto=', 'port='])
     except getopt.GetoptError, e:
@@ -30,10 +37,8 @@ def main():
     if not opts:
         usage()
 
-    cmd_dir = os.path.dirname(sys.argv[0])
-    bin_dir = cmd_dir
-    flushctl = os.path.join(cmd_dir, 'mbflushctl')
-    sqlitebin = os.path.join(bin_dir, 'sqlite3')
+    flushctl = findCmd('mbflushctl')
+    sqlitebin = findCmd('sqlite3')
 
     optdict = dict(opts)
     shouldVacuum = '--vacuum' in optdict
