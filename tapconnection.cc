@@ -228,8 +228,8 @@ void TapProducer::registerTAPCursor(std::map<uint16_t, uint64_t> &lastCheckpoint
         uint16_t vbid = static_cast<uint16_t>(i);
         if (vbucketFilter(vbid)) {
             if (!vbuckets.getBucket(vbid)) {
-                // If a vbucket is not created yet, instantiate it with state dead.
-                engine.getEpStore()->setVBucketState(vbid, vbucket_state_dead);
+                // If a vbucket is not created yet, instantiate it with state pending.
+                engine.getEpStore()->setVBucketState(vbid, vbucket_state_pending);
                 getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
                                  "VBucket %d not found for TAP cursor. Instantiating...\n", vbid);
             }
