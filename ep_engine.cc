@@ -1585,8 +1585,13 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
         } else if (connection->hasPendingAcks()) {
             ret = TAP_PAUSE;
         } else {
-            getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                             "Disconnecting tap stream <%s>",
+            // Transfer stream termination is logged at a higher level
+            // since it's a rather important event.
+            EXTENSION_LOG_LEVEL logLevel(connection->doTakeOver
+                                         ? EXTENSION_LOG_WARNING
+                                         : EXTENSION_LOG_INFO);
+            getLogger()->log(logLevel, NULL,
+                             "Disconnecting completed tap stream %s\n",
                              connection->getName().c_str());
             connection->setDisconnect(true);
             ret = TAP_DISCONNECT;
