@@ -60,6 +60,7 @@ TapProducer::TapProducer(EventuallyPersistentEngine &theEngine,
     paused(false),
     backfillAge(0),
     dumpQueue(false),
+    doTakeOver(false),
     doRunBackfill(false),
     pendingBackfill(true),
     vbucketFilter(),
@@ -211,7 +212,7 @@ void TapProducer::setVBucketFilter(const std::vector<uint16_t> &vbuckets)
                 addVBucketLowPriority(lo);
             }
         }
-        dumpQueue = true;
+        doTakeOver = true;
     }
 }
 
@@ -592,7 +593,7 @@ ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
         }
 
         lh.unlock();
-        if (checkpointMsgReceived) {
+        if (checkpointMsgReceived || doTakeOver) {
             engine.notifyTapNotificationThread();
         }
         if (complete() && idle()) {
@@ -1084,7 +1085,7 @@ queued_item TapProducer::next(bool &shouldPause) {
         for (; it != tapCheckpointState.end(); ++it) {
             uint16_t vbid = it->first;
             RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
-            if (!vb || vb->getState() == vbucket_state_dead) {
+            if (!vb || (vb->getState() == vbucket_state_dead && !doTakeOver)) {
                 ++invalid_count;
                 continue;
             }
@@ -1217,7 +1218,7 @@ size_t TapProducer::getRemainingOnCheckpoints() {
     for (; it != tapCheckpointState.end(); ++it) {
         uint16_t vbid = it->first;
         RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
-        if (!vb || vb->getState() == vbucket_state_dead) {
+        if (!vb || (vb->getState() == vbucket_state_dead && !doTakeOver)) {
             continue;
         }
         numItems += vb->checkpointManager.getNumItemsForTAPConnection(name);
@@ -1232,7 +1233,7 @@ bool TapProducer::hasNextFromCheckpoints_UNLOCKED() {
     for (; it != tapCheckpointState.end(); ++it) {
         uint16_t vbid = it->first;
         RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
-        if (!vb || vb->getState() == vbucket_state_dead) {
+        if (!vb || (vb->getState() == vbucket_state_dead && !doTakeOver)) {
             continue;
         }
         hasNext = vb->checkpointManager.hasNext(name);
@@ -1270,7 +1271,6 @@ void TapProducer::setRegisteredClient(bool isRegisteredClient) {
 void TapProducer::setClosedCheckpointOnlyFlag(bool isClosedCheckpointOnly) {
     closedCheckpointOnly = isClosedCheckpointOnly;
 }
-
 
 static void notifyReplicatedItems(std::list<TapLogElement>::iterator from,
                                   std::list<TapLogElement>::iterator to,

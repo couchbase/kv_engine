@@ -2129,12 +2129,29 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
     if (ret == TAP_PAUSE && connection->complete()) {
         ev = connection->nextVBucketLowPriority();
         if (ev.event != TAP_PAUSE) {
+            RCPtr<VBucket> vb = getVBucket(ev.vbucket);
+            vbucket_state_t myState(vb ? vb->getState() : vbucket_state_dead);
             assert(ev.event == TAP_VBUCKET_SET);
-            connection->encodeVBucketStateTransition(ev, es, nes, vbucket);
-            if (ev.state == vbucket_state_active) {
+            if (ev.state == vbucket_state_active && myState == vbucket_state_active &&
+                connection->getTapAckLogSize() < MAX_TAKEOVER_TAP_LOG_SIZE) {
+                // Set vbucket state to dead if the number of items waiting for acks is
+                // less than the threshold.
+                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                 "Vbucket <%d> is going dead.\n",
+                                  ev.vbucket);
                 epstore->setVBucketState(ev.vbucket, vbucket_state_dead);
             }
-            ret = ev.event;
+            if (connection->getTapAckLogSize() > 1) {
+                // We're still waiting for acks for regular items.
+                // Pop the tap log for this vbucket_state_active message and requeue it.
+                connection->popTapLog();
+                TapVBucketEvent lo(TAP_VBUCKET_SET, ev.vbucket, vbucket_state_active);
+                connection->addVBucketLowPriority(lo);
+                ret = TAP_PAUSE;
+            } else {
+                connection->encodeVBucketStateTransition(ev, es, nes, vbucket);
+                ret = ev.event;
+            }
         } else if (connection->hasPendingAcks()) {
             ret = TAP_PAUSE;
         } else {

@@ -24,6 +24,7 @@ struct TapAggStatBuilder;
 struct PopulateEventsBody;
 
 #define MAX_TAP_KEEP_ALIVE 3600
+#define MAX_TAKEOVER_TAP_LOG_SIZE 500
 
 #define TAP_OPAQUE_ENABLE_AUTO_NACK 0
 #define TAP_OPAQUE_INITIAL_VBUCKET_STREAM 1
@@ -819,7 +820,7 @@ private:
      * a disconnect was requested at the end.
      */
     bool complete(void) {
-        return dumpQueue && empty() && !isPendingBackfill();
+        return (dumpQueue || doTakeOver) && empty() && !isPendingBackfill();
     }
 
     /**
@@ -951,6 +952,11 @@ private:
     bool dumpQueue;
 
     /**
+     * Take over and disconnect?
+     */
+    bool doTakeOver;
+
+    /**
      * We don't want to do the backfill in the thread used by the client,
      * because that would block all clients bound to the same thread.
      * Instead we run the backfill the first time we try to walk the
@@ -1031,6 +1037,11 @@ private:
     size_t getTapAckLogSize(void) {
         LockHolder lh(queueLock);
         return tapLog.size();
+    }
+
+    void popTapLog(void) {
+        LockHolder lh(queueLock);
+        tapLog.pop_back();
     }
 
     void reschedule_UNLOCKED(const std::list<TapLogElement>::iterator &iter);
