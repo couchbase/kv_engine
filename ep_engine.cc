@@ -2140,6 +2140,7 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
                                  "Vbucket <%d> is going dead.\n",
                                   ev.vbucket);
                 epstore->setVBucketState(ev.vbucket, vbucket_state_dead);
+                connection->setTakeOverCompletionPhase(true);
             }
             if (connection->getTapAckLogSize() > 1) {
                 // We're still waiting for acks for regular items.

@@ -893,6 +893,10 @@ private:
 
     bool recordCurrentOpenCheckpointId(uint16_t vbucket);
 
+    void setTakeOverCompletionPhase(bool completionPhase) {
+        takeOverCompletionPhase = completionPhase;
+    }
+
 
     //! Lock held during queue operations.
     Mutex queueLock;
@@ -955,6 +959,11 @@ private:
      * Take over and disconnect?
      */
     bool doTakeOver;
+
+    /**
+     * Take over completion phase?
+     */
+    bool takeOverCompletionPhase;
 
     /**
      * We don't want to do the backfill in the thread used by the client,

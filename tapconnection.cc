@@ -42,7 +42,7 @@ size_t TapProducer::bgMaxPending = 500;
 uint32_t TapProducer::ackWindowSize = 10;
 uint32_t TapProducer::ackInterval = 1000;
 rel_time_t TapProducer::ackGracePeriod = 5 * 60;
-double TapProducer::backoffSleepTime = 1.0;
+double TapProducer::backoffSleepTime = 5.0;
 uint32_t TapProducer::initialAckSequenceNumber = 1;
 double TapProducer::requeueSleepTime = 0.1;
 
@@ -61,6 +61,7 @@ TapProducer::TapProducer(EventuallyPersistentEngine &theEngine,
     backfillAge(0),
     dumpQueue(false),
     doTakeOver(false),
+    takeOverCompletionPhase(false),
     doRunBackfill(false),
     pendingBackfill(true),
     vbucketFilter(),
@@ -466,14 +467,15 @@ void TapProducer::setSuspended(bool value)
 {
     if (value) {
         if (backoffSleepTime > 0 && !suspended.get()) {
+            double sleepTime = takeOverCompletionPhase ? 0.5 : backoffSleepTime;
             Dispatcher *d = engine.getEpStore()->getNonIODispatcher();
             d->schedule(shared_ptr<DispatcherCallback>
                         (new TapResumeCallback(engine, *this)),
-                        NULL, Priority::TapResumePriority, backoffSleepTime,
+                        NULL, Priority::TapResumePriority, sleepTime,
                         false);
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                              "Suspend %s for %.2f secs\n", getName().c_str(),
-                             backoffSleepTime);
+                             sleepTime);
 
 
         } else {

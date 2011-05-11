@@ -2967,7 +2967,7 @@ static enum test_result test_tap_default_config(ENGINE_HANDLE *h, ENGINE_HANDLE_
     check(vals.find("ep_tap_ack_grace_period") != vals.end(), "Missing stat");
 
     std::string s = vals["ep_tap_backoff_period"];
-    check(strcmp(s.c_str(), "1") == 0, "Incorrect backoff value");
+    check(strcmp(s.c_str(), "5") == 0, "Incorrect backoff value");
     s = vals["ep_tap_ack_interval"];
     check(strcmp(s.c_str(), "1000") == 0, "Incorrect interval value");
     s = vals["ep_tap_ack_window_size"];

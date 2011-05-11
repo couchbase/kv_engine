@@ -4,7 +4,7 @@
 #include "tapthrottle.hh"
 
 const size_t MINIMUM_SPACE(1024 * 1024);
-const size_t MAXIMUM_QUEUE(500000);
+const size_t MAXIMUM_QUEUE(1000000);
 
 bool TapThrottle::persistenceQueueSmallEnough() const {
     size_t queueSize = stats.queue_size.get() + stats.flusher_todo.get();
