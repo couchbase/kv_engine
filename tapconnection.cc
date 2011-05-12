@@ -660,7 +660,7 @@ void TapConnection::addStats(ADD_STAT add_stat, const void *c) {
     addTapStat("suspended", this, isSuspended(), add_stat, c);
     addTapStat("paused", this, paused, add_stat, c);
     addTapStat("pending_backfill", this, pendingBackfill, add_stat, c);
-    addTapStat("pending_disk_backfill", this, !isPendingDiskBackfill(),
+    addTapStat("pending_disk_backfill", this, isPendingDiskBackfill(),
                add_stat, c);
     if (reconnects > 0) {
         addTapStat("reconnects", this, reconnects, add_stat, c);
