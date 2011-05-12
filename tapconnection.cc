@@ -564,6 +564,8 @@ ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
     }
 
     bool checkpointMsgReceived = false;
+    bool activeVBSetAcked = false;
+    uint16_t vbid = 0;
 
     switch (status) {
     case PROTOCOL_BINARY_RESPONSE_SUCCESS:
@@ -580,6 +582,10 @@ ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
                 }
                 --checkpointMsgCounter;
                 checkpointMsgReceived = true;
+            } else if (iter->event == TAP_VBUCKET_SET &&
+                       iter->state == vbucket_state_active && doTakeOver) {
+                activeVBSetAcked = true;
+                vbid = iter->vbucket;
             }
             getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
                              "Explicit ack <%s> (#%u)\n",
@@ -601,6 +607,9 @@ ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
         if (complete() && idle()) {
             // We've got all of the ack's need, now we can shut down the
             // stream
+            if (doTakeOver && activeVBSetAcked) {
+                engine.resetVBucket(vbid);
+            }
             setDisconnect(true);
             expiryTime = 0;
             ret = ENGINE_DISCONNECT;
