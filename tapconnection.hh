@@ -396,7 +396,9 @@ private:
     }
 
     bool shouldNotify() {
-        bool ret = false;
+        // Default to true if we're shutting down a takeover.
+        bool ret(shuttingDown());
+
         // Don't notify if we've got a pending notification
         if (!notifySent) {
             // Always notify for disconnects, but only disconnect if
