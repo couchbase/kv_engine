@@ -12,9 +12,15 @@ import time
 import subprocess
 
 if len(sys.argv) < 3:
-    sys.exit('\n'.join([r'usage: %(prog)s [bucket_path_name] [dest_dir_path]',
+    if os.name == 'posix':
+        sys.exit('\n'.join([r'usage: %(prog)s [bucket_path_name] [dest_dir_path]',
                         r'examples:',
-                        r'   %(prog)s /var/opt/membase/default /backups/2010-10-31/'])
+                        r'   %(prog)s /opt/membase/var/lib/membase/data/default-data/default /backups/2010-10-31/'])
+             % {'prog': sys.argv[0]})
+    elif os.name == 'nt':
+        sys.exit('\n'.join([r'usage: %(prog)s [bucket_path_name] [dest_dir_path]',
+                        r'examples:',
+                        r'   %(prog)s "c:/program files/membase/server/var/lib/membase/data/default-data/default" c:/backups/2010-10-31/'])
              % {'prog': sys.argv[0]})
 
 def backup(sqlite_path, srcdir, destdir, fn):
