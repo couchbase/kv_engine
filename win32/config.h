@@ -34,12 +34,14 @@
 #define HAVE_SYS_STAT_H 1
 #define HAVE_SYS_TYPES_H 1
 #define HAVE_TR1_MEMORY 1
+#define HAVE_TR1_UNORDERED_MAP 1
 #define HAVE_UNISTD_H 1
 #define HOST_CPU "i686"
 #define HOST_OS "mingw32"
 #define HOST_VENDOR "pc"
 #define LT_OBJDIR ".libs/"
 #define SHARED_PTR_NAMESPACE std
+#define UNORDERED_MAP_NAMESPACE std
 #define STDCXX_98_HEADERS
 #define STDC_HEADERS 1
 #define TARGET_CPU "i686"

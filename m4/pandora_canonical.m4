@@ -22,6 +22,7 @@ AC_DEFUN([PANDORA_CANONICAL_TARGET],[
   m4_define([PCT_USE_GNULIB],[no])
   m4_define([PCT_REQUIRE_CXX],[no])
   m4_define([PCT_IGNORE_SHARED_PTR],[no])
+  m4_define([PCT_IGNORE_UNORDERED_MAP],[no])
   m4_define([PCT_FORCE_GCC42],[no])
   m4_define([PCT_SRC_IN_SRC],[no])
   m4_foreach([pct_arg],[$*],[
@@ -37,6 +38,10 @@ AC_DEFUN([PANDORA_CANONICAL_TARGET],[
       [ignore-shared-ptr], [
         m4_undefine([PCT_IGNORE_SHARED_PTR])
         m4_define([PCT_IGNORE_SHARED_PTR],[yes])
+      ],
+      [ignore-unordered-map], [
+        m4_undefine([PCT_IGNORE_UNORDERED_MAP])
+        m4_define([PCT_IGNORE_UNORDERED_MAP],[yes])
       ],
       [force-gcc42], [
         m4_undefine([PCT_FORCE_GCC42])
@@ -96,6 +101,13 @@ AC_DEFUN([PANDORA_CANONICAL_TARGET],[
   m4_if(PCT_IGNORE_SHARED_PTR, [no], [
     AS_IF([test "$ac_cv_shared_ptr_namespace" = "missing"],[
       AC_MSG_WARN([a usable shared_ptr implementation was not found. Let someone know what your platform is.])
+    ])
+  ])
+
+  PANDORA_UNORDERED_MAP
+  m4_if(PCT_IGNORE_UNORDERED_MAP, [no], [
+    AS_IF([test "$ac_cv_unordered_map_namespace" = "missing"],[
+      AC_MSG_WARN([a usable unordered_map implementation was not found. Let someone know what your platform is.])
     ])
   ])
   

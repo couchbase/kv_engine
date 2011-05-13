@@ -29,7 +29,7 @@ struct index_entry {
     uint64_t mutation_id;
 };
 
-typedef std::map<std::string, index_entry> checkpoint_index;
+typedef unordered_map<std::string, index_entry> checkpoint_index;
 
 class Checkpoint;
 class CheckpointManager;

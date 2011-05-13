@@ -28,10 +28,23 @@
 # include <boost/shared_ptr.hpp>
 #endif
 
+#if defined(HAVE_TR1_UNORDERED_MAP)
+# include <tr1/unordered_map>
+#endif
+#if defined(HAVE_BOOST_UNORDERED_MAP_HPP)
+# include <boost/unordered_map.hpp>
+#endif
+
 #if defined(SHARED_PTR_NAMESPACE)
 using SHARED_PTR_NAMESPACE::shared_ptr;
 #else
 # error No shared pointer implementation found!
+#endif
+
+#if defined(UNORDERED_MAP_NAMESPACE)
+using UNORDERED_MAP_NAMESPACE::unordered_map;
+#else
+# error No unordered_map implementation found!
 #endif
 
 #include <sstream>
