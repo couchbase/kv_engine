@@ -125,8 +125,9 @@ def main():
 
     versions = db_file_versions(sqlite, db_filenames)
     if max(versions.values()) < 2:
-        sys.exit("The backup files need to be upgraded to version 2.\n"
-                 "Either use mbdbupgrade or contact support.")
+        sys.exit("Either the metadata db file is not specified\n"
+                 "or the backup files need to be upgraded to version 2.\n"
+                 "Please use mbdbupgrade for upgrade or contact support.")
 
     attached_dbs = ["db{0}".format(i) for i in xrange(len(db_filenames))]
 
@@ -146,6 +147,14 @@ def main():
         cur.execute("select name from %s.sqlite_master where type = 'table'" % db_name)
         for (table_name,) in cur:
             table_dbs.setdefault(table_name, []).append(db_name)
+
+    nodata = True
+    for kv, dbs in table_dbs.iteritems():
+        if 'kv_' in kv:
+           nodata = False
+           break
+    if nodata:
+        sys.exit("No data to be restored. Check if db files are correct.")
 
     # Determine which db the state table is in; will error if there's more than
     # one
