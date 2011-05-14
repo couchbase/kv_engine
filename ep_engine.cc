@@ -3247,18 +3247,37 @@ struct TapAggStatBuilder {
         return rv;
     }
 
+    void aggregate(TapProducer *tp, TapCounter *tc){
+            ++tc->totalTaps;
+            tc->tap_queue += tp->getQueueSize();
+            tc->tap_queueFill += tp->getQueueFillTotal();
+            tc->tap_queueDrain += tp->getQueueDrainTotal();
+            tc->tap_queueBackoff += tp->getQueueBackoff();
+            tc->tap_queueBackfillRemaining += tp->getBacklogSize();
+            tc->tap_queueItemOnDisk += tp->getRemaingOnDisk();
+    }
+
+    TapCounter *getTotalCounter() {
+        TapCounter *rv = NULL;
+        std::string sepr(sep);
+        std::string total(sepr + "total");
+        rv = (*counters)[total];
+        if(rv == NULL) {
+            rv = new TapCounter;
+            (*counters)[total] = rv;
+        }
+        return rv;
+    }
+
     void operator() (TapConnection *tc) {
 
         TapProducer *tp = dynamic_cast<TapProducer*>(tc);
         TapCounter *aggregator = getTarget(tp);
         if (aggregator && tp) {
-            ++aggregator->totalTaps;
-            aggregator->tap_queue += tp->getQueueSize();
-            aggregator->tap_queueFill += tp->getQueueFillTotal();
-            aggregator->tap_queueDrain += tp->getQueueDrainTotal();
-            aggregator->tap_queueBackoff += tp->getQueueBackoff();
-            aggregator->tap_queueBackfillRemaining += tp->getBacklogSize();
-            aggregator->tap_queueItemOnDisk += tp->getRemaingOnDisk();
+            aggregate(tp, aggregator);
+        }
+        if (tp) {
+            aggregate(tp, getTotalCounter());
         }
     }
 

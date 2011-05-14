@@ -2719,11 +2719,14 @@ static enum test_result test_tap_agg_stats(ENGINE_HANDLE *h,
     cookies.push_back(createTapConn(h, h1, "replica_b"));
     cookies.push_back(createTapConn(h, h1, "replica_c"));
     cookies.push_back(createTapConn(h, h1, "rebalance_a"));
+    cookies.push_back(createTapConn(h, h1, "userconnn"));
 
     check(get_int_stat(h, h1, "replica:count", "tapagg _") == 3,
           "Incorrect replica count on tap agg");
     check(get_int_stat(h, h1, "rebalance:count", "tapagg _") == 1,
           "Incorrect rebalance count on tap agg");
+    check(get_int_stat(h, h1, "_total:count", "tapagg _") == 5,
+          "Incorrect total count on tap agg");
 
     std::for_each(cookies.begin(), cookies.end(),
                   std::ptr_fun((UNLOCK_COOKIE_T)testHarness.unlock_cookie));
