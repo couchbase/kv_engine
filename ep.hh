@@ -377,7 +377,7 @@ public:
     void addUncommittedItem(const queued_item &item);
 
     size_t getNumUncommittedItems() {
-        return uncommittedItems.size();
+        return numUncommittedItems;
     }
 
 private:
@@ -385,6 +385,7 @@ private:
     KVStore     *underlying;
     int          _remaining;
     Atomic<int>  txnSize;
+    Atomic<size_t> numUncommittedItems;
     bool         intxn;
     std::list<queued_item>     uncommittedItems;
     SyncRegistry              &syncRegistry;

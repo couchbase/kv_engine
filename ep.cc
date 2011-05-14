@@ -2126,10 +2126,12 @@ void TransactionContext::commit() {
     intxn = false;
     syncRegistry.itemsPersisted(uncommittedItems);
     uncommittedItems.clear();
+    numUncommittedItems = 0;
 }
 
 void TransactionContext::addUncommittedItem(const queued_item &item) {
     uncommittedItems.push_back(item);
+    ++numUncommittedItems;
 }
 
 bool VBCBAdaptor::callback(Dispatcher &, TaskId) {
