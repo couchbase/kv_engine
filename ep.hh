@@ -376,6 +376,10 @@ public:
 
     void addUncommittedItem(const queued_item &item);
 
+    size_t getNumUncommittedItems() {
+        return uncommittedItems.size();
+    }
+
 private:
     EPStats     &stats;
     KVStore     *underlying;
@@ -683,6 +687,10 @@ public:
 
     void setTxnSize(int to) {
         tctx.setTxnSize(to);
+    }
+
+    size_t getNumUncommittedItems() {
+        return tctx.getNumUncommittedItems();
     }
 
     const Flusher* getFlusher();

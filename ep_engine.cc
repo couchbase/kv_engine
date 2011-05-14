@@ -2763,6 +2763,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                     epstats.queue_size, add_stat, cookie);
     add_casted_stat("ep_flusher_todo",
                     epstats.flusher_todo, add_stat, cookie);
+    add_casted_stat("ep_uncommitted_items",
+                    epstore->getNumUncommittedItems(), add_stat, cookie);
     add_casted_stat("ep_flusher_state",
                     epstore->getFlusher()->stateName(),
                     add_stat, cookie);
