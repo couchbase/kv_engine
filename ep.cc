@@ -1393,10 +1393,14 @@ std::queue<queued_item>* EventuallyPersistentStore::beginFlush() {
                 // mutations for each key. For this, traverse the array from
                 // the last element.
                 for(; reverse_it != item_list.rend(); ++reverse_it) {
-                    queued_item item = *reverse_it;
-                    ret = item_set.insert(item);
+                    queued_item qi = *reverse_it;
+                    if (qi->getOperation() == queue_op_checkpoint_start ||
+                        qi->getOperation() == queue_op_checkpoint_end) {
+                        continue;
+                    }
+                    ret = item_set.insert(qi);
                     if (!(ret.second)) {
-                        vb->doStatsForFlushing(*item, item->size());
+                        vb->doStatsForFlushing(*qi, qi->size());
                     }
                 }
                 item_list.assign(item_set.begin(), item_set.end());
