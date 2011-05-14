@@ -41,7 +41,7 @@
 #define HOST_VENDOR "pc"
 #define LT_OBJDIR ".libs/"
 #define SHARED_PTR_NAMESPACE std
-#define UNORDERED_MAP_NAMESPACE std
+#define UNORDERED_MAP_NAMESPACE std::tr1
 #define STDCXX_98_HEADERS
 #define STDC_HEADERS 1
 #define TARGET_CPU "i686"
