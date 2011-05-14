@@ -4000,7 +4000,7 @@ static enum test_result test_disk_gt_ram_set_race(ENGINE_HANDLE *h,
                                                   ENGINE_HANDLE_V1 *h1) {
     wait_for_persisted_value(h, h1, "k1", "some value");
 
-    set_flush_param(h, h1, "bg_fetch_delay", "1");
+    set_flush_param(h, h1, "bg_fetch_delay", "3");
 
     evict_key(h, h1, "k1");
 
@@ -4024,7 +4024,7 @@ static enum test_result test_disk_gt_ram_incr_race(ENGINE_HANDLE *h,
     wait_for_persisted_value(h, h1, "k1", "13");
     assert(1 == get_int_stat(h, h1, "ep_total_enqueued"));
 
-    set_flush_param(h, h1, "bg_fetch_delay", "1");
+    set_flush_param(h, h1, "bg_fetch_delay", "3");
 
     evict_key(h, h1, "k1");
 
@@ -4056,7 +4056,7 @@ static enum test_result test_disk_gt_ram_rm_race(ENGINE_HANDLE *h,
                                                  ENGINE_HANDLE_V1 *h1) {
     wait_for_persisted_value(h, h1, "k1", "some value");
 
-    set_flush_param(h, h1, "bg_fetch_delay", "1");
+    set_flush_param(h, h1, "bg_fetch_delay", "3");
 
     evict_key(h, h1, "k1");
 
