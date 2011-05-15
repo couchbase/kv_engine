@@ -442,7 +442,7 @@ void EventuallyPersistentStore::startFlusher() {
 }
 
 void EventuallyPersistentStore::stopFlusher() {
-    bool rv = flusher->stop();
+    bool rv = flusher->stop(engine.isForceShutdown());
     if (rv && !engine.isForceShutdown()) {
         flusher->wait();
     }

@@ -23,8 +23,10 @@ bool FlusherStepper::callback(Dispatcher &d, TaskId t) {
     return flusher->step(d, t);
 }
 
-bool Flusher::stop(void) {
-    return transition_state(stopping);
+bool Flusher::stop(bool isForceShutdown) {
+    forceShutdownReceived = isForceShutdown;
+    enum flusher_state to = forceShutdownReceived ? stopped : stopping;
+    return transition_state(to);
 }
 
 void Flusher::wait(void) {
@@ -81,7 +83,7 @@ bool Flusher::transition_state(enum flusher_state to) {
                      "Attempting transition from %s to %s\n",
                      stateName(_state), stateName(to));
 
-    if (!validTransition(_state, to)) {
+    if (!forceShutdownReceived && !validTransition(_state, to)) {
         return false;
     }
 

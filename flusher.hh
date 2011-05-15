@@ -50,7 +50,7 @@ public:
     Flusher(EventuallyPersistentStore *st, Dispatcher *d) :
         store(st), _state(initializing), dispatcher(d),
         flushRv(0), prevFlushRv(0), minSleepTime(0.1),
-        flushQueue(NULL), rejectQueue(NULL), vbStateLoaded(false) {
+        flushQueue(NULL), rejectQueue(NULL), vbStateLoaded(false), forceShutdownReceived(false) {
     }
 
     ~Flusher() {
@@ -68,7 +68,7 @@ public:
         }
     }
 
-    bool stop();
+    bool stop(bool isForceShutdown = false);
     void wait();
     bool pause();
     bool resume();
@@ -107,6 +107,7 @@ private:
     std::queue<queued_item> *rejectQueue;
     rel_time_t               flushStart;
     Atomic<bool>             vbStateLoaded;
+    Atomic<bool>             forceShutdownReceived;
 
     DISALLOW_COPY_AND_ASSIGN(Flusher);
 };
