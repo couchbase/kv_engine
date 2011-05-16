@@ -90,8 +90,8 @@ queue_dirty_t Checkpoint::queueDirty(const queued_item &item, CheckpointManager 
     return rv;
 }
 
-Atomic<rel_time_t> CheckpointManager::checkpointPeriod = 600;
-Atomic<size_t> CheckpointManager::checkpointMaxItems = 5000;
+Atomic<rel_time_t> CheckpointManager::checkpointPeriod = DEFAULT_CHECKPOINT_PERIOD;
+Atomic<size_t> CheckpointManager::checkpointMaxItems = DEFAULT_CHECKPOINT_ITEMS;
 bool CheckpointManager::inconsistentSlaveCheckpoint = false;
 
 CheckpointManager::~CheckpointManager() {
@@ -394,6 +394,23 @@ size_t CheckpointManager::getNumCheckpoints() {
     return checkpointList.size();
 }
 
+bool CheckpointManager::isCheckpointCreationForHighMemUsage(const RCPtr<VBucket> &vbucket) {
+    bool forceCreation = false;
+    double current = static_cast<double>(stats.currentSize.get() + stats.memOverhead.get());
+    double mem_threshold =
+        static_cast<double>(stats.maxDataSize) * CHECKPOINT_CREATION_MEM_THRESHOLD;
+
+    if (current > stats.mem_high_wat &&
+        (checkpointList.back()->getNumItems() >= MIN_CHECKPOINT_ITEMS ||
+         checkpointList.back()->getNumItems() == vbucket->ht.getNumItems())) {
+        forceCreation = true;
+    } else if (current > mem_threshold &&
+               checkpointList.back()->getNumItems() > 0) {
+        forceCreation = true;
+    }
+    return forceCreation;
+}
+
 uint64_t CheckpointManager::removeClosedUnrefCheckpoints(const RCPtr<VBucket> &vbucket,
                                                          std::set<queued_item,
                                                                   CompareQueuedItemsByKey> &items,
@@ -404,13 +421,7 @@ uint64_t CheckpointManager::removeClosedUnrefCheckpoints(const RCPtr<VBucket> &v
     assert(vbucket);
     uint64_t oldCheckpointId = 0;
     if (vbucket->getState() == vbucket_state_active && !inconsistentSlaveCheckpoint) {
-        bool forceCreation = false;
-        double current = static_cast<double>(stats.currentSize.get() + stats.memOverhead.get());
-        double upper =
-            static_cast<double>(stats.maxDataSize) * CHECKPOINT_CREATION_MEMORY_THRESHOLD;
-        if (current > upper && (checkpointList.back()->getNumItems() >= MIN_CHECKPOINT_ITEMS)) {
-            forceCreation = true;
-        }
+        bool forceCreation = isCheckpointCreationForHighMemUsage(vbucket);
         // Check if this master active vbucket needs to create a new open checkpoint.
         oldCheckpointId = checkOpenCheckpoint_UNLOCKED(forceCreation);
     }

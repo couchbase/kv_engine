@@ -15,9 +15,13 @@
 
 #define MIN_CHECKPOINT_ITEMS 500
 #define MAX_CHECKPOINT_ITEMS 500000
+#define DEFAULT_CHECKPOINT_ITEMS 5000
+
 #define MIN_CHECKPOINT_PERIOD 60
 #define MAX_CHECKPOINT_PERIOD 3600
-#define CHECKPOINT_CREATION_MEMORY_THRESHOLD 0.85
+#define DEFAULT_CHECKPOINT_PERIOD 600
+
+#define CHECKPOINT_CREATION_MEM_THRESHOLD 0.9
 
 typedef enum {
     opened,
@@ -462,6 +466,8 @@ private:
     }
 
     bool isLastMutationItemInCheckpoint(CheckpointCursor &cursor);
+
+    bool isCheckpointCreationForHighMemUsage(const RCPtr<VBucket> &vbucket);
 
     static bool validateCheckpointMaxItemsParam(size_t checkpoint_max_items);
     static bool validateCheckpointPeriodParam(size_t checkpoint_period);
