@@ -2083,6 +2083,13 @@ static enum test_result test_touch(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
           "Failed to call touch");
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, "Testing unknown key");
 
+    // illegal vbucket
+    req->message.header.request.vbucket = htons(5);
+    check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
+          "Failed to call touch");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, "Testing illegal vbucket");
+    req->message.header.request.vbucket = 0;
+
     // Store the item!
     item *itm = NULL;
     check(store(h, h1, NULL, OPERATION_SET, "mykey", "somevalue", &itm) == ENGINE_SUCCESS,
@@ -2144,6 +2151,13 @@ static enum test_result test_gat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
           "Failed to call gat");
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, "Testing unknown key");
+
+    // illegal vbucket
+    req->message.header.request.vbucket = htons(5);
+    check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
+          "Failed to call touch");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, "Testing illegal vbucket");
+    req->message.header.request.vbucket = 0;
 
     // Store the item!
     item *itm = NULL;
@@ -2210,6 +2224,13 @@ static enum test_result test_gatq(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     // We should not have sent any response!
     check(last_status == 0xffff, "Testing unknown key");
+
+    // illegal vbucket
+    req->message.header.request.vbucket = htons(5);
+    check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
+          "Failed to call touch");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, "Testing illegal vbucket");
+    req->message.header.request.vbucket = 0;
 
     // Store the item!
     item *itm = NULL;
