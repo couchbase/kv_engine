@@ -387,8 +387,13 @@ public:
     void queueBackfill(TapProducer *tc, const void *tok);
 
     void notifyIOComplete(const void *cookie, ENGINE_ERROR_CODE status) {
-        BlockTimer bt(&stats.notifyIOHisto);
-        serverApi->cookie->notify_io_complete(cookie, status);
+        if (cookie == NULL) {
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                             "Tried to signal a NULL cookie!");
+        } else {
+            BlockTimer bt(&stats.notifyIOHisto);
+            serverApi->cookie->notify_io_complete(cookie, status);
+        }
     }
 
     template <typename T>
