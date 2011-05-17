@@ -108,6 +108,59 @@ inline bool parseUint16(const char *in, uint16_t *out) {
     return false;
 }
 
+inline bool parseUint32(const char *str, uint32_t *out) {
+    char *endptr = NULL;
+    unsigned long l = 0;
+    assert(out);
+    assert(str);
+    *out = 0;
+    errno = 0;
+
+    l = strtoul(str, &endptr, 10);
+    if (errno == ERANGE) {
+        return false;
+    }
+
+    if (isspace(*endptr) || (*endptr == '\0' && endptr != str)) {
+        if ((long) l < 0) {
+            /* only check for negative signs in the uncommon case when
+             * the unsigned number is so big that it's negative as a
+             * signed number. */
+            if (strchr(str, '-') != NULL) {
+                return false;
+            }
+        }
+        *out = l;
+        return true;
+    }
+
+    return false;
+}
+
+#define xisspace(c) isspace((unsigned char)c)
+inline bool parseUint64(const char *str, uint64_t *out) {
+    assert(out != NULL);
+    errno = 0;
+    *out = 0;
+    char *endptr;
+    unsigned long long ull = strtoull(str, &endptr, 10);
+    if (errno == ERANGE)
+        return false;
+    if (xisspace(*endptr) || (*endptr == '\0' && endptr != str)) {
+        if ((long long) ull < 0) {
+            /* only check for negative signs in the uncommon case when
+             * the unsigned number is so big that it's negative as a
+             * signed number. */
+            if (strchr(str, '-') != NULL) {
+                return false;
+            }
+        }
+        *out = ull;
+        return true;
+    }
+    return false;
+}
+
 /**
  * Convert a time (in ns) to a human readable form...
  * @param time the time in nanoseconds

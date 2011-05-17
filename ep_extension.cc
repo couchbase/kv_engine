@@ -26,60 +26,6 @@
 #define MAX_KEY_LEN             250   /* maximum permissible key length */
 
 
-/* safe_strtoul & safe_stroull are copied from memcached.. */
-static bool safe_strtoul(const char *str, uint32_t *out) {
-    char *endptr = NULL;
-    unsigned long l = 0;
-    assert(out);
-    assert(str);
-    *out = 0;
-    errno = 0;
-
-    l = strtoul(str, &endptr, 10);
-    if (errno == ERANGE) {
-        return false;
-    }
-
-    if (isspace(*endptr) || (*endptr == '\0' && endptr != str)) {
-        if ((long) l < 0) {
-            /* only check for negative signs in the uncommon case when
-             * the unsigned number is so big that it's negative as a
-             * signed number. */
-            if (strchr(str, '-') != NULL) {
-                return false;
-            }
-        }
-        *out = l;
-        return true;
-    }
-
-    return false;
-}
-
-#define xisspace(c) isspace((unsigned char)c)
-static bool safe_strtoull(const char *str, uint64_t *out) {
-    assert(out != NULL);
-    errno = 0;
-    *out = 0;
-    char *endptr;
-    unsigned long long ull = strtoull(str, &endptr, 10);
-    if (errno == ERANGE)
-        return false;
-    if (xisspace(*endptr) || (*endptr == '\0' && endptr != str)) {
-        if ((long long) ull < 0) {
-            /* only check for negative signs in the uncommon case when
-             * the unsigned number is so big that it's negative as a
-             * signed number. */
-            if (strchr(str, '-') != NULL) {
-                return false;
-            }
-        }
-        *out = ull;
-        return true;
-    }
-    return false;
-}
-
 static GetlExtension* getExtension(const void* cookie)
 {
     return reinterpret_cast<GetlExtension*>(const_cast<void *>(cookie));
@@ -157,7 +103,7 @@ ENGINE_ERROR_CODE GetlExtension::executeGetl(int argc, token_t *argv,
     uint32_t lockTimeout = ITEM_LOCK_TIMEOUT;
 
     if (argc == 3) {
-        if (!safe_strtoul(argv[2].value, &lockTimeout) ||
+        if (!parseUint32(argv[2].value, &lockTimeout) ||
                 lockTimeout > (ITEM_LOCK_TIMEOUT * 2)) {
             lockTimeout = ITEM_LOCK_TIMEOUT;
         }
@@ -224,7 +170,7 @@ ENGINE_ERROR_CODE GetlExtension::executeUnl(int argc, token_t *argv, void *respo
     uint64_t cas = 0;
 
     // we need a valid cas value
-    if (argc != 3 || !safe_strtoull(argv[2].value, &cas)) {
+    if (argc != 3 || !parseUint64(argv[2].value, &cas)) {
         return response_handler(response_cookie,
                                 sizeof("CLIENT_ERROR\r\n") - 1,
                                 "CLIENT_ERROR\r\n");
