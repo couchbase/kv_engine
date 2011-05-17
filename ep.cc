@@ -321,7 +321,10 @@ public:
 
     std::string description() {
         std::stringstream ss;
-        int64_t range_size = current_range->second - current_range->first;
+        int64_t range_size = 0;
+        if (current_range != range_list.end()) {
+            range_size = current_range->second - current_range->first;
+        }
         ss << "Removing the chunk " << chunk_num << "/" << range_list.size()
            << " of vbucket " << vbucket << " with the range size " << range_size
            << " from disk.";
