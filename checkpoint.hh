@@ -185,9 +185,9 @@ private:
     EPStats                       &stats;
     uint64_t                       checkpointId;
     rel_time_t                     creationTime;
-    Atomic<checkpoint_state>       checkpointState;
-    Atomic<size_t>                 referenceCounter;
-    Atomic<size_t>                 numItems;
+    checkpoint_state               checkpointState;
+    size_t                         referenceCounter;
+    size_t                         numItems;
     // List is used for queueing mutations as vector incurs shift operations for deduplication.
     std::list<queued_item>         toWrite;
     checkpoint_index               keyIndex;
