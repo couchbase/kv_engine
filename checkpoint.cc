@@ -86,6 +86,12 @@ queue_dirty_t Checkpoint::queueDirty(const queued_item &item, CheckpointManager 
         index_entry entry = {--last, newMutationId};
         // Set the index of the key to the new item that is pushed back into the list.
         keyIndex[item->getKey()] = entry;
+        if (rv == NEW_ITEM) {
+            size_t newEntrySize = item->getKey().size() + sizeof(index_entry);
+            indexMemOverhead += newEntrySize;
+            stats.memOverhead.incr(newEntrySize);
+            assert(stats.memOverhead.get() < GIGANTOR);
+        }
     }
     return rv;
 }
@@ -134,7 +140,7 @@ bool CheckpointManager::addNewCheckpoint_UNLOCKED(uint64_t id) {
         closeOpenCheckpoint_UNLOCKED(checkpointList.back()->getId());
     }
 
-    Checkpoint *checkpoint = new Checkpoint(id, opened);
+    Checkpoint *checkpoint = new Checkpoint(stats, id, opened);
     // Add a dummy item into the new checkpoint, so that any cursor referring to the actual first
     // item in this new checkpoint can be safely shifted left by 1 if the first item is removed
     // and pushed into the tail.

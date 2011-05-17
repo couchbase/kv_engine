@@ -74,9 +74,17 @@ typedef enum {
  */
 class Checkpoint {
 public:
-    Checkpoint(uint64_t id, checkpoint_state state = opened) :
-        checkpointId(id), creationTime(ep_real_time()),
-        checkpointState(state), referenceCounter(0), numItems(0) { }
+    Checkpoint(EPStats &st, uint64_t id, checkpoint_state state = opened) :
+        stats(st), checkpointId(id), creationTime(ep_real_time()),
+        checkpointState(state), referenceCounter(0), numItems(0), indexMemOverhead(0) {
+        stats.memOverhead.incr(memorySize());
+        assert(stats.memOverhead.get() < GIGANTOR);
+    }
+
+    ~Checkpoint() {
+        stats.memOverhead.decr(memorySize());
+        assert(stats.memOverhead.get() < GIGANTOR);
+    }
 
     /**
      * Return the checkpoint Id
@@ -163,7 +171,18 @@ public:
 
     uint64_t getCasForKey(const std::string &key);
 
+    /**
+     * Return the memory overhead of this checkpoint instance, except for the memory used by
+     * all the items belonging to this checkpoint. The memory overhead of those items is
+     * accounted separately in "ep_kv_size" stat.
+     * @return memory overhead of this checkpoint instance.
+     */
+    size_t memorySize() {
+        return sizeof(Checkpoint) + indexMemOverhead;
+    }
+
 private:
+    EPStats                       &stats;
     uint64_t                       checkpointId;
     rel_time_t                     creationTime;
     Atomic<checkpoint_state>       checkpointState;
@@ -172,6 +191,7 @@ private:
     // List is used for queueing mutations as vector incurs shift operations for deduplication.
     std::list<queued_item>         toWrite;
     checkpoint_index               keyIndex;
+    size_t                         indexMemOverhead;
 };
 
 /**
