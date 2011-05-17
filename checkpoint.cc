@@ -124,12 +124,9 @@ void CheckpointManager::setOpenCheckpointId(uint64_t id) {
     if (checkpointList.size() > 0) {
         checkpointList.back()->setId(id);
         // Update the checkpoint_start item with the new Id.
-        std::stringstream ss;
-        ss << id;
-        shared_ptr<const Blob> vblob(Blob::New(ss.str().c_str(), ss.str().size()));
-        queued_item item(new QueuedItem("", vblob, vbucketId, queue_op_checkpoint_start));
+        queued_item qi = createCheckpointItem(id, vbucketId, queue_op_checkpoint_start);
         std::list<queued_item>::iterator it = ++(checkpointList.back()->begin());
-        *it = item;
+        *it = qi;
         nextCheckpointId = ++id;
     }
 }
@@ -147,12 +144,9 @@ bool CheckpointManager::addNewCheckpoint_UNLOCKED(uint64_t id) {
     queued_item dummyItem(new QueuedItem("", 0xffff, queue_op_empty));
     checkpoint->queueDirty(dummyItem, this);
 
-    std::stringstream ss;
-    ss << id;
-    shared_ptr<const Blob> vblob(Blob::New(ss.str().c_str(), ss.str().size()));
     // This item represents the start of the new checkpoint and is also sent to the slave node.
-    queued_item item(new QueuedItem("", vblob, vbucketId, queue_op_checkpoint_start));
-    checkpoint->queueDirty(item, this);
+    queued_item qi = createCheckpointItem(id, vbucketId, queue_op_checkpoint_start);
+    checkpoint->queueDirty(qi, this);
     ++numItems;
     nextCheckpointId = ++id;
     checkpointList.push_back(checkpoint);
@@ -172,12 +166,9 @@ bool CheckpointManager::closeOpenCheckpoint_UNLOCKED(uint64_t id) {
         return true;
     }
 
-    std::stringstream ss;
-    ss << id;
-    shared_ptr<const Blob> vblob(Blob::New(ss.str().c_str(), ss.str().size()));
     // This item represents the end of the current open checkpoint and is sent to the slave node.
-    queued_item item(new QueuedItem("", vblob, vbucketId, queue_op_checkpoint_end));
-    checkpointList.back()->queueDirty(item, this);
+    queued_item qi = createCheckpointItem(id, vbucketId, queue_op_checkpoint_end);
+    checkpointList.back()->queueDirty(qi, this);
     ++numItems;
     checkpointList.back()->setState(closed);
     return true;
@@ -895,4 +886,14 @@ bool CheckpointManager::validateCheckpointPeriodParam(size_t checkpoint_period) 
         return false;
     }
     return true;
+}
+
+queued_item CheckpointManager::createCheckpointItem(uint64_t id,
+                                                    uint16_t vbid,
+                                                    enum queue_operation checkpoint_op) {
+    assert(checkpoint_op == queue_op_checkpoint_start || checkpoint_op == queue_op_checkpoint_end);
+    uint64_t cid = htonll(id);
+    shared_ptr<const Blob> vblob(Blob::New((const char*)&cid, sizeof(cid)));
+    queued_item qi(new QueuedItem("", vblob, vbid, checkpoint_op));
+    return qi;
 }

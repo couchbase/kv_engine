@@ -491,6 +491,8 @@ private:
 
     static bool validateCheckpointMaxItemsParam(size_t checkpoint_max_items);
     static bool validateCheckpointPeriodParam(size_t checkpoint_period);
+    static queued_item createCheckpointItem(uint64_t id, uint16_t vbid,
+                                            enum queue_operation checkpoint_op);
 
     EPStats                 &stats;
     Mutex                    queueLock;

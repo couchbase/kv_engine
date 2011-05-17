@@ -2383,12 +2383,17 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
         {
             TapConsumer *tc = dynamic_cast<TapConsumer*>(connection);
             if (tc) {
-                char *ptr = NULL;
-                shared_ptr<const Blob> vblob(Blob::New(static_cast<const char*>(data), ndata));
-                uint64_t checkpointId = 0;
-                checkpointId = strtoull(vblob->getData(), &ptr, 10);
-                ret = tc->processCheckpointCommand(tap_event, vbucket, checkpointId) ?
-                      ENGINE_SUCCESS : ENGINE_DISCONNECT;
+                if (data != NULL) {
+                    uint64_t checkpointId;
+                    memcpy(&checkpointId, data, sizeof(checkpointId));
+                    checkpointId = ntohll(checkpointId);
+                    ret = tc->processCheckpointCommand(tap_event, vbucket, checkpointId) ?
+                          ENGINE_SUCCESS : ENGINE_DISCONNECT;
+                } else {
+                    ret = ENGINE_DISCONNECT;
+                    getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                     "Checkpoint Id is missing in CHECKPOINT messages.\n");
+                }
             } else {
                 ret = ENGINE_DISCONNECT;
                 getLogger()->log(EXTENSION_LOG_WARNING, NULL,

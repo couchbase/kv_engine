@@ -1107,7 +1107,6 @@ queued_item TapProducer::next(bool &shouldPause) {
                     vb->checkpointManager.getOpenCheckpointId();
             }
 
-            char *ptr = NULL;
             bool isLastItem = false;
             queued_item item = vb->checkpointManager.nextItem(name, isLastItem);
             switch(item->getOperation()) {
@@ -1121,12 +1120,18 @@ queued_item TapProducer::next(bool &shouldPause) {
                 addEvent_UNLOCKED(item);
                 break;
             case queue_op_checkpoint_start:
-                it->second.currentCheckpointId = strtoull(item->getValue()->getData(), &ptr, 10);
-                if (supportCheckpointSync &&
-                    it->second.currentCheckpointId >= it->second.openCheckpointIdAtBackfillEnd) {
+                {
+                    uint64_t checkpointId;
+                    memcpy(&checkpointId, item->getValue()->getData(), sizeof(checkpointId));
+                    checkpointId = ntohll(checkpointId);
+                    it->second.currentCheckpointId = checkpointId;
 
-                    it->second.state = checkpoint_start;
-                    addCheckpointMessage_UNLOCKED(item);
+                    if (supportCheckpointSync &&
+                        it->second.currentCheckpointId >= it->second.openCheckpointIdAtBackfillEnd) {
+
+                        it->second.state = checkpoint_start;
+                        addCheckpointMessage_UNLOCKED(item);
+                    }
                 }
                 break;
             case queue_op_checkpoint_end:
