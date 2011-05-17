@@ -131,7 +131,7 @@ cat > $cmdfile <<EOF
 thread apply all bt
 quit
 EOF
-(cd "${root}" && gdb --command=$cmdfile ${executable} ${corefile} >> ${report} 2>&1)
+gdb --command=$cmdfile ${executable} ${corefile} >> ${report} 2>&1
 rm $cmdfile
 
 cat >> ${report} <<EOF
