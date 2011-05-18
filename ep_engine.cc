@@ -2790,8 +2790,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     add_casted_stat("curr_items_tot",
                    activeCountVisitor.getNumItems() +
                    replicaCountVisitor.getNumItems() +
-                   pendingCountVisitor.getNumItems() +
-                   deadCountVisitor.getNumItems(),
+                   pendingCountVisitor.getNumItems(),
                    add_stat, cookie);
     add_casted_stat("vb_active_num", activeCountVisitor.getVBucketNumber(), add_stat, cookie);
     add_casted_stat("vb_active_curr_items", activeCountVisitor.getNumItems(),
