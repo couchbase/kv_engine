@@ -578,15 +578,15 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::set(const Item &item,
         ++stats.numNotMyVBuckets;
         return ENGINE_NOT_MY_VBUCKET;
     } else if (vb->getState() == vbucket_state_active) {
-        // OK
+        if (vb->checkpointManager.isHotReload()) {
+            if (vb->addPendingOp(cookie)) {
+                return ENGINE_EWOULDBLOCK;
+            }
+        }
     } else if (vb->getState() == vbucket_state_replica && !force) {
         ++stats.numNotMyVBuckets;
         return ENGINE_NOT_MY_VBUCKET;
     } else if (vb->getState() == vbucket_state_pending && !force) {
-        if (vb->addPendingOp(cookie)) {
-            return ENGINE_EWOULDBLOCK;
-        }
-    } else if (vb->checkpointManager.isHotReload()) {
         if (vb->addPendingOp(cookie)) {
             return ENGINE_EWOULDBLOCK;
         }
@@ -634,12 +634,12 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::add(const Item &item,
         ++stats.numNotMyVBuckets;
         return ENGINE_NOT_MY_VBUCKET;
     } else if (vb->getState() == vbucket_state_active) {
-        // OK
-    } else if(vb->getState() == vbucket_state_pending) {
-        if (vb->addPendingOp(cookie)) {
-            return ENGINE_EWOULDBLOCK;
+        if (vb->checkpointManager.isHotReload()) {
+            if (vb->addPendingOp(cookie)) {
+                return ENGINE_EWOULDBLOCK;
+            }
         }
-    } else if (vb->checkpointManager.isHotReload()) {
+    } else if(vb->getState() == vbucket_state_pending) {
         if (vb->addPendingOp(cookie)) {
             return ENGINE_EWOULDBLOCK;
         }
@@ -945,15 +945,15 @@ GetValue EventuallyPersistentStore::get(const std::string &key,
         ++stats.numNotMyVBuckets;
         return GetValue(NULL, ENGINE_NOT_MY_VBUCKET);
     } else if (vb->getState() == vbucket_state_active) {
-        // OK
+        if (vb->checkpointManager.isHotReload()) {
+            if (vb->addPendingOp(cookie)) {
+                return GetValue(NULL, ENGINE_EWOULDBLOCK);
+            }
+        }
     } else if(honorStates && vb->getState() == vbucket_state_replica) {
         ++stats.numNotMyVBuckets;
         return GetValue(NULL, ENGINE_NOT_MY_VBUCKET);
     } else if(honorStates && vb->getState() == vbucket_state_pending) {
-        if (vb->addPendingOp(cookie)) {
-            return GetValue(NULL, ENGINE_EWOULDBLOCK);
-        }
-    } else if (vb->checkpointManager.isHotReload()) {
         if (vb->addPendingOp(cookie)) {
             return GetValue(NULL, ENGINE_EWOULDBLOCK);
         }
@@ -1004,17 +1004,17 @@ GetValue EventuallyPersistentStore::getAndUpdateTtl(const std::string &key,
         ++stats.numNotMyVBuckets;
         return GetValue(NULL, ENGINE_NOT_MY_VBUCKET);
     } else if (vb->getState() == vbucket_state_active) {
-        // OK
+        if (vb->checkpointManager.isHotReload()) {
+            if (vb->addPendingOp(cookie)) {
+                return GetValue(NULL, ENGINE_EWOULDBLOCK);
+            }
+        }
     } else if (vb->getState() == vbucket_state_replica) {
         ++stats.numNotMyVBuckets;
         return GetValue(NULL, ENGINE_NOT_MY_VBUCKET);
     } else if (vb->getState() == vbucket_state_pending) {
         if (vb->addPendingOp(cookie)) {
             return GetValue(NULL, ENGINE_EWOULDBLOCK);
-        }
-    } else if (vb->checkpointManager.isHotReload()) {
-        if (vb->addPendingOp(cookie)) {
-             return GetValue(NULL, ENGINE_EWOULDBLOCK);
         }
     }
 
@@ -1063,15 +1063,15 @@ EventuallyPersistentStore::getFromUnderlying(const std::string &key,
         ++stats.numNotMyVBuckets;
         return ENGINE_NOT_MY_VBUCKET;
     } else if (vb->getState() == vbucket_state_active) {
-        // OK
+        if (vb->checkpointManager.isHotReload()) {
+            if (vb->addPendingOp(cookie)) {
+                return ENGINE_EWOULDBLOCK;
+            }
+        }
     } else if (vb->getState() == vbucket_state_replica) {
         ++stats.numNotMyVBuckets;
         return ENGINE_NOT_MY_VBUCKET;
     } else if (vb->getState() == vbucket_state_pending) {
-        if (vb->addPendingOp(cookie)) {
-            return ENGINE_EWOULDBLOCK;
-        }
-    } else if (vb->checkpointManager.isHotReload()) {
         if (vb->addPendingOp(cookie)) {
             return ENGINE_EWOULDBLOCK;
         }
@@ -1262,15 +1262,15 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::del(const std::string &key,
         ++stats.numNotMyVBuckets;
         return ENGINE_NOT_MY_VBUCKET;
     } else if (vb->getState() == vbucket_state_active) {
-        // OK
+        if (vb->checkpointManager.isHotReload()) {
+            if (vb->addPendingOp(cookie)) {
+                return ENGINE_EWOULDBLOCK;
+            }
+        }
     } else if(vb->getState() == vbucket_state_replica && !force) {
         ++stats.numNotMyVBuckets;
         return ENGINE_NOT_MY_VBUCKET;
     } else if(vb->getState() == vbucket_state_pending && !force) {
-        if (vb->addPendingOp(cookie)) {
-            return ENGINE_EWOULDBLOCK;
-        }
-    } else if (vb->checkpointManager.isHotReload()) {
         if (vb->addPendingOp(cookie)) {
             return ENGINE_EWOULDBLOCK;
         }
