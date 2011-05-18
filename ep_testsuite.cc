@@ -3634,8 +3634,8 @@ static enum test_result test_curr_items(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
     check(set_vbucket_state(h, h1, 0, vbucket_state_dead), "Failed set vbucket 0 state.");
 
     verify_curr_items(h, h1, 0, "dead vbucket");
-    check(get_int_stat(h, h1, "curr_items_tot") == 3,
-          "Expected curr_items_tot to be 3 with a dead vbucket");
+    check(get_int_stat(h, h1, "curr_items_tot") == 0,
+          "Expected curr_items_tot to be 0 with a dead vbucket");
 
     // Then resurrect.
     check(set_vbucket_state(h, h1, 0, vbucket_state_active), "Failed set vbucket 0 state.");
