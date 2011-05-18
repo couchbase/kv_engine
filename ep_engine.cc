@@ -540,6 +540,16 @@ extern "C" {
             return ENGINE_EINVAL;
         }
 
+        if (replicas > 1) {
+            // replica count > 1 not supported for chain mode replication, which is
+            // the default in Membase deployments (ticket MB-3817)
+            const std::string msg("A replica count > 1 is not supported.");
+            response(NULL, 0, NULL, 0, msg.c_str(), msg.length(),
+                     PROTOCOL_BINARY_RAW_BYTES,
+                     PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0, cookie);
+            return ENGINE_ENOTSUP;
+        }
+
         // number of keys in the request, 16 bits
         uint16_t nkeys;
 

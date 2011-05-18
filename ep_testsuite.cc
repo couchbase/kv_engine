@@ -4330,6 +4330,18 @@ static enum test_result test_sync_bad_flags(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
 
     free(pkt);
 
+    // 3 replicas -> replica count > 1 not supported for chain mode replication, which is
+    //               the default in Membase deployments (ticket MB-3817)
+    pkt = create_sync_packet((uint32_t) ((3 & 0x0f) << 4), nkeys, keyspecs);
+    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_ENOTSUP,
+          "sync replica count > 1");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, "sync replica count > 1");
+
+    pkt = create_sync_packet((uint32_t) ((2 & 0x0f) << 4), nkeys, keyspecs);
+    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_ENOTSUP,
+          "sync replica count > 1");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, "sync replica count > 1");
+
     return SUCCESS;
 }
 
@@ -4557,7 +4569,7 @@ static enum test_result test_sync_replication(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
     check(set_vbucket_state(h, h1, test_vbid, vbucket_state_active),
           "Failed to set test vbucket state.");
 
-    const uint8_t nReplicas = 4;
+    const uint8_t nReplicas = 1;
     const key_spec_t keyspecs[] = {
         key_spec_t(0, test_vbid, "key1"), key_spec_t(0, test_vbid, "key2"),
         key_spec_t(0, test_vbid, "key3"), key_spec_t(0, test_vbid, "key4"),
@@ -4655,7 +4667,7 @@ static enum test_result test_sync_persistence_or_replication(ENGINE_HANDLE *h, E
         key_spec_t(666, 0, "bad_cas"), key_spec_t(0, 0, "NonExistentKey")
     };
     const uint16_t nkeys = sizeof(keyspecs) / sizeof(key_spec_t);
-    const uint8_t nReplicas = 3;
+    const uint8_t nReplicas = 1;
     pthread_t threads[nReplicas + 1]; // 3 tap stream threads plus 1 key set thread
     set_key_thread_params* setKeyParams = new set_key_thread_params();
     std::vector<tap_stream_thread_params*> tapStreamParams;
@@ -4807,7 +4819,7 @@ static enum test_result test_sync_persistence_and_replication(ENGINE_HANDLE *h, 
         key_spec_t(666, 0, "bad_cas"), key_spec_t(0, 0, "NonExistentKey")
     };
     const uint16_t nkeys = sizeof(keyspecs) / sizeof(key_spec_t);
-    const uint8_t nReplicas = 3;
+    const uint8_t nReplicas = 1;
     // 3 tap stream threads plus 1 set key thread for each existent key
     pthread_t threads[nReplicas + nkeys - 1];
     std::vector<set_key_thread_params*> setKeyParams;
