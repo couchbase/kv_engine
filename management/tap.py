@@ -1,40 +1,53 @@
 #!/usr/bin/env python
 """
-tap protocol client.
+TAP protocol client library.
 
 Copyright (c) 2010  Dustin Sallings <dustin@spy.net>
 """
 
-import sys
 import socket
 import string
 import random
 import struct
 import asyncore
-import exceptions
-import signal
 
 import mc_bin_server
+import mc_bin_client
 
 from memcacheConstants import REQ_MAGIC_BYTE, RES_MAGIC_BYTE
 from memcacheConstants import REQ_PKT_FMT, RES_PKT_FMT, MIN_RECV_PACKET
 from memcacheConstants import SET_PKT_FMT, DEL_PKT_FMT, INCRDECR_RES_FMT
-import memcacheConstants
 
-def signal_handler(signal, frame):
-    print 'Tap stream terminated by user'
-    sys.exit(0)
+import memcacheConstants
 
 class TapConnection(mc_bin_server.MemcachedBinaryChannel):
 
-    def __init__(self, server, port, callback, clientId=None, opts={}):
+    def __init__(self, server, port, callback, clientId=None, opts={}, user=None, pswd=None):
         mc_bin_server.MemcachedBinaryChannel.__init__(self, None, None,
                                                       self._createTapCall(clientId,
                                                                           opts))
+        self.server = server
+        self.port = port
         self.callback = callback
         self.identifier = (server, port)
+        self.user = user
+        self.pswd = pswd
         self.create_socket(socket.AF_INET, socket.SOCK_STREAM)
         self.connect((server, port))
+
+    def create_socket(self, family, type):
+        if not self.user:
+            mc_bin_server.MemcachedBinaryChannel.create_socket(self, family, type)
+            return
+
+        self.family_and_type = family, type
+
+        self.mc = mc_bin_client.MemcachedClient(self.server, self.port)
+        self.mc.sasl_auth_plain(self.user, self.pswd or "")
+
+        sock = self.mc.s
+        sock.setblocking(0)
+        self.set_socket(sock)
 
     def _createTapCall(self, key=None, opts={}):
         # Client identifier
@@ -88,17 +101,9 @@ class TapConnection(mc_bin_server.MemcachedBinaryChannel):
 
 class TapClient(object):
 
-    def __init__(self, servers, callback, opts={}):
+    def __init__(self, servers, callback, opts={}, user=None, pswd=None):
         for t in servers:
-            tc = TapConnection(t.host, t.port, callback, t.id, opts)
-
-def buildGoodSet(goodChars=string.printable, badChar='?'):
-    """Build a translation table that turns all characters not in goodChars
-    to badChar"""
-    allChars=string.maketrans("", "")
-    badchars=string.translate(allChars, allChars, goodChars)
-    rv=string.maketrans(badchars, badChar * len(badchars))
-    return rv
+            tc = TapConnection(t.host, t.port, callback, t.id, opts, user, pswd)
 
 class TapDescriptor(object):
     port = 11211
@@ -113,40 +118,3 @@ class TapDescriptor(object):
         if '@' in self.host:
             self.id, self.host = self.host.split('@', 1)
 
-# Build a translation table that includes only characters
-transt=buildGoodSet()
-
-def abbrev(v, maxlen=30):
-    if len(v) > maxlen:
-        return v[:maxlen] + "..."
-    else:
-        return v
-
-def keyprint(v):
-    return string.translate(abbrev(v), transt)
-
-def mainLoop(serverList, cb, opts={}):
-    """Run the given callback for each tap message from any of the
-    upstream servers.
-
-    loops until all connections drop
-    """
-    signal.signal(signal.SIGINT, signal_handler)
-
-    connections = (TapDescriptor(a) for a in serverList)
-    TapClient(connections, cb, opts=opts)
-    asyncore.loop()
-
-if __name__ == '__main__':
-    def cb(identifier, cmd, extra, key, vb, val, cas):
-        print "%s: ``%s'' (vb:%d) -> ``%s'' (%d bytes from %s)" % (
-            memcacheConstants.COMMAND_NAMES[cmd],
-            key, vb, keyprint(val), len(val), identifier)
-
-    # This is an example opts parameter to do future-only tap:
-    opts = {memcacheConstants.TAP_FLAG_BACKFILL: 0xffffffff}
-    # If you omit it, or supply a past time_t value for backfill, it
-    # will get all data.
-    opts = {}
-
-    mainLoop(sys.argv[1:], cb, opts)
