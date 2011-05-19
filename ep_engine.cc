@@ -962,7 +962,9 @@ public:
 
     bool callback(Dispatcher &, TaskId) {
         if (connMap.checkValidity(name, validityToken)) {
-            store->dump(vbucket, *this);
+            if (!engine->getEpStore()->isFlushAllScheduled()) {
+                store->dump(vbucket, *this);
+            }
             CompleteDiskBackfillTapOperation op;
             connMap.performTapOp(name, op, static_cast<void*>(NULL));
         }
