@@ -866,7 +866,7 @@ private:
     std::queue<queued_item>    writing;
     pthread_t                  thread;
     Atomic<size_t>             bgFetchQueue;
-    Atomic<size_t>             flushAllCount;
+    Atomic<bool>               diskFlushAll;
     TransactionContext         tctx;
     Mutex                      vbsetMutex;
     uint32_t                   bgFetchDelay;

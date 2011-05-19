@@ -351,7 +351,7 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
                                                      bool startVb0,
                                                      bool concurrentDB) :
     engine(theEngine), stats(engine.getEpStats()), rwUnderlying(t),
-    storageProperties(t->getStorageProperties()), flushAllCount(0),
+    storageProperties(t->getStorageProperties()), diskFlushAll(false),
     tctx(stats, t, theEngine.syncRegistry),
     bgFetchDelay(0)
 {
@@ -1319,10 +1319,10 @@ void EventuallyPersistentStore::reset() {
             vb->resetStats();
         }
     }
-    ++flushAllCount;
-    // Increase the write queue size by 1 as flusher will schedule flush_all by checking
-    // flushAllCount variable.
-    stats.queue_size.set(getWriteQueueSize() + 1);
+    if (diskFlushAll.cas(false, true)) {
+        // Increase the write queue size by 1 as flusher will execute flush_all as a single task.
+        stats.queue_size.set(getWriteQueueSize() + 1);
+    }
 }
 
 void EventuallyPersistentStore::enqueueCommit() {
@@ -1334,7 +1334,7 @@ void EventuallyPersistentStore::enqueueCommit() {
 std::queue<queued_item>* EventuallyPersistentStore::beginFlush() {
     std::queue<queued_item> *rv(NULL);
 
-    if (getWriteQueueSize() == 0 && writing.empty() && flushAllCount == 0) {
+    if (getWriteQueueSize() == 0 && writing.empty() && !diskFlushAll) {
         stats.dirtyAge = 0;
         // If the persistence queue is empty, reset queue-related stats for each vbucket.
         size_t numOfVBuckets = vbuckets.getSize();
@@ -1351,8 +1351,7 @@ std::queue<queued_item>* EventuallyPersistentStore::beginFlush() {
         }
     } else {
         assert(rwUnderlying);
-        if (flushAllCount > 0) {
-            --flushAllCount;
+        if (diskFlushAll) {
             queued_item qi(new QueuedItem("", 0xffff, queue_op_flush));
             writing.push(qi);
         }
@@ -1732,6 +1731,7 @@ private:
 
 int EventuallyPersistentStore::flushOneDeleteAll() {
     rwUnderlying->reset();
+    diskFlushAll.cas(true, false);
     return 1;
 }
 
