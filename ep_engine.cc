@@ -2801,6 +2801,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                     epstats.cumulativeFlushTime, add_stat, cookie);
     add_casted_stat("ep_flush_duration_highwat",
                     epstats.flushDurationHighWat, add_stat, cookie);
+    add_casted_stat("ep_flush_all",
+                    epstore->isFlushAllScheduled() ? "true" : "false", add_stat, cookie);
     add_casted_stat("curr_items", activeCountVisitor.getNumItems(), add_stat, cookie);
     add_casted_stat("curr_items_tot",
                    activeCountVisitor.getNumItems() +

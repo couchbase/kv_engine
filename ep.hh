@@ -772,6 +772,10 @@ public:
                        time_t exptime,
                        uint64_t cas);
 
+    bool isFlushAllScheduled() {
+        return diskFlushAll.get();
+    }
+
 private:
 
     void scheduleVBDeletion(RCPtr<VBucket> vb, uint16_t vb_version, double delay);

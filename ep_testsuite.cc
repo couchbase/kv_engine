@@ -1370,6 +1370,11 @@ static enum test_result test_flush_multiv(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
 
     check(h1->flush(h, NULL, 0) == ENGINE_SUCCESS, "Failed to flush");
 
+    vals.clear();
+    check(h1->get_stats(h, NULL, NULL, 0, add_stats) == ENGINE_SUCCESS,
+          "Failed to get stats.");
+    check(vals.find("ep_flush_all") != vals.end(), "Failed to get the status of flush_all");
+
     check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key"), "Expected missing key");
     check(ENGINE_KEY_ENOENT == verify_vb_key(h, h1, "key2", 2), "Expected missing key");
 

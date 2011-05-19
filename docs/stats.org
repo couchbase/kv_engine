@@ -71,6 +71,7 @@ For introductory information on stats within membase, start with the
 | ep_flush_duration             | Number of seconds of most recent flush.    |
 | ep_flush_duration_total       | Cumulative seconds spent flushing.         |
 | ep_flush_duration_highwat     | ep_flush_duration high water mark.         |
+| ep_flush_all                  | True if disk flush_all is scheduled        |
 | curr_items                    | Num items in active vbuckets.              |
 | curr_items_tot                | Num current items including those not      |
 |                               | active (replica, dead and pending states)  |
