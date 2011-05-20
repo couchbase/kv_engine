@@ -231,7 +231,7 @@ TapProducer *TapConnMap::newProducer(const void* cookie,
             }
         }
 
-        if (tapKeepAlive == 0) {
+        if (tapKeepAlive == 0 || (tap->complete() && tap->idle())) {
             getLogger()->log(EXTENSION_LOG_INFO, NULL,
                              "The TAP channel (\"%s\") exists, but should be nuked\n",
                              name.c_str());
@@ -249,6 +249,7 @@ TapProducer *TapConnMap::newProducer(const void* cookie,
                                                  TapConnection::getAnonName(),
                                                  0);
                 n->setDisconnect(true);
+                n->setConnected(false);
                 n->paused = true;
                 all.push_back(n);
                 map[miter->first] = n;

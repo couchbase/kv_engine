@@ -2169,8 +2169,9 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
             ret = TAP_PAUSE;
         } else {
             getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                             "Disconnecting tap stream %s\n",
+                             "Disconnecting tap stream <%s>",
                              connection->getName().c_str());
+            connection->setDisconnect(true);
             ret = TAP_DISCONNECT;
         }
     }
