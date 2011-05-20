@@ -3562,6 +3562,8 @@ static enum test_result test_vkey_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
 
 static enum test_result test_warmup_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *it = NULL;
+    check(set_vbucket_state(h, h1, 0, vbucket_state_active), "Failed to set VB0 state.");
+    check(set_vbucket_state(h, h1, 1, vbucket_state_replica), "Failed to set VB1 state.");
 
     for (int i = 0; i < 5000; ++i) {
         std::stringstream key;
@@ -3594,6 +3596,16 @@ static enum test_result test_warmup_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     check(vals.find("ep_warmup_time") != vals.end(), "Found no ep_warmup_time");
     std::string warmup_time = vals["ep_warmup_time"];
     assert(atoi(warmup_time.c_str()) > 0);
+
+    vals.clear();
+    check(h1->get_stats(h, NULL, "prev-vbucket", 12, add_stats) == ENGINE_SUCCESS,
+          "Failed to get the previous state of vbuckets");
+    check(vals.find("vb_0") != vals.end(), "Found no previous state for VB0");
+    check(vals.find("vb_1") != vals.end(), "Found no previous state for VB1");
+    std::string vb0_prev_state = vals["vb_0"];
+    std::string vb1_prev_state = vals["vb_1"];
+    assert(strcmp(vb0_prev_state.c_str(), "active") == 0);
+    assert(strcmp(vb1_prev_state.c_str(), "replica") == 0);
 
     return SUCCESS;
 }

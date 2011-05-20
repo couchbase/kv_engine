@@ -289,8 +289,11 @@ public:
         assert(epstore);
     }
 
-    void initVBucket(uint16_t vbid, uint16_t vb_version,
-                     uint64_t checkpointId, vbucket_state_t state = vbucket_state_dead);
+    void initVBucket(uint16_t vbid,
+                     uint16_t vb_version,
+                     uint64_t checkpointId,
+                     vbucket_state_t prevState = vbucket_state_dead,
+                     vbucket_state_t newState = vbucket_state_dead);
     void callback(GetValue &val);
 
 private:

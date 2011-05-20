@@ -94,8 +94,11 @@ class EventuallyPersistentEngine;
 class VBucket : public RCValue {
 public:
 
-    VBucket(int i, vbucket_state_t initialState, EPStats &st, uint64_t checkpointId = 1) :
-        ht(st), checkpointManager(st, i, checkpointId), id(i), state(initialState), stats(st) {
+    VBucket(int i, vbucket_state_t newState, EPStats &st,
+            vbucket_state_t initState = vbucket_state_dead, uint64_t checkpointId = 1) :
+        ht(st), checkpointManager(st, i, checkpointId), id(i), state(newState),
+        initialState(initState), stats(st) {
+
         pendingOpsStart = 0;
         stats.memOverhead.incr(sizeof(VBucket)
                                + ht.memorySize() + sizeof(CheckpointManager));
@@ -117,6 +120,11 @@ public:
     int getId(void) const { return id; }
     vbucket_state_t getState(void) const { return state; }
     void setState(vbucket_state_t to, SERVER_HANDLE_V1 *sapi);
+
+    vbucket_state_t getInitialState(void) { return initialState; }
+    void setInitialState(vbucket_state_t initState) {
+        initialState = initState;
+    }
 
     bool addPendingOp(const void *cookie) {
         LockHolder lh(pendingOpLock);
@@ -164,6 +172,18 @@ public:
         return "unknown";
     }
 
+    static vbucket_state_t fromString(const char* state) {
+        if (strcmp(state, "active") == 0) {
+            return vbucket_state_active;
+        } else if (strcmp(state, "replica") == 0) {
+            return vbucket_state_replica;
+        } else if (strcmp(state, "pending") == 0) {
+            return vbucket_state_pending;
+        } else {
+            return vbucket_state_dead;
+        }
+    }
+
     static const vbucket_state_t ACTIVE;
     static const vbucket_state_t REPLICA;
     static const vbucket_state_t PENDING;
@@ -187,6 +207,7 @@ private:
 
     int                      id;
     Atomic<vbucket_state_t>  state;
+    vbucket_state_t          initialState;
     Mutex                    pendingOpLock;
     std::vector<const void*> pendingOps;
     hrtime_t                 pendingOpsStart;

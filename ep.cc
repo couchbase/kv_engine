@@ -1968,7 +1968,8 @@ void EventuallyPersistentStore::warmup(Atomic<bool> &vbStateLoaded) {
         getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
                          "Reloading vbucket %d - was in %s state\n",
                          vbp.first, vbs.state.c_str());
-        cb.initVBucket(vbp.first, vbp.second, vbs.checkpointId + 1);
+        cb.initVBucket(vbp.first, vbp.second, vbs.checkpointId + 1,
+                       VBucket::fromString(vbs.state.c_str()));
     }
     vbStateLoaded.set(true);
 
@@ -1976,13 +1977,18 @@ void EventuallyPersistentStore::warmup(Atomic<bool> &vbStateLoaded) {
     invalidItemDbPager->createRangeList();
 }
 
-void LoadStorageKVPairCallback::initVBucket(uint16_t vbid, uint16_t vb_version,
-                                            uint64_t checkpointId, vbucket_state_t state) {
+void LoadStorageKVPairCallback::initVBucket(uint16_t vbid,
+                                            uint16_t vb_version,
+                                            uint64_t checkpointId,
+                                            vbucket_state_t prevState,
+                                            vbucket_state_t newState) {
     RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
     if (!vb) {
-        vb.reset(new VBucket(vbid, state, stats));
+        vb.reset(new VBucket(vbid, newState, stats));
         vbuckets.addBucket(vb);
     }
+    // Set the past initial state of each vbucket.
+    vb->setInitialState(prevState);
     // Pass the open checkpoint Id for each vbucket.
     vb->checkpointManager.setOpenCheckpointId(checkpointId);
     // For each vbucket, set its vbucket version.
