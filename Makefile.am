@@ -123,7 +123,21 @@ endif
 libsqlite3_la_SOURCES = embedded/sqlite3.h embedded/sqlite3.c
 libsqlite3_la_CFLAGS = $(AM_CFLAGS) ${NO_WERROR} -DSQLITE_THREADSAFE=2
 
-check_PROGRAMS=atomic_test atomic_ptr_test atomic_queue_test hash_table_test priority_test vbucket_test checkpoint_test dispatcher_test misc_test hrtime_test histo_test chunk_creation_test ringbuffer_test vb_del_chunk_list_test pathexpand_test
+check_PROGRAMS=atomic_ptr_test \
+               atomic_queue_test \
+               atomic_test \
+               checkpoint_test \
+               chunk_creation_test \
+               dispatcher_test \
+               hash_table_test \
+               histo_test \
+               hrtime_test \
+               misc_test \
+               pathexpand_test \
+               priority_test \
+               ringbuffer_test \
+               vb_del_chunk_list_test \
+               vbucket_test
 
 TESTS=${check_PROGRAMS}
 EXTRA_TESTS =
@@ -222,15 +236,18 @@ management_sqlite3_DEPENDENCIES = libsqlite3.la
 management_sqlite3_LDADD = libsqlite3.la
 
 vbucket_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
-vbucket_test_SOURCES = t/vbucket_test.cc t/threadtests.hh vbucket.hh vbucket.cc stored-value.cc stored-value.hh testlogger.cc \
+vbucket_test_SOURCES = t/vbucket_test.cc t/threadtests.hh vbucket.hh vbucket.cc \
+               stored-value.cc stored-value.hh testlogger.cc \
 		       checkpoint.hh checkpoint.cc byteorder.c
-vbucket_test_DEPENDENCIES = vbucket.hh stored-value.cc stored-value.hh checkpoint.hh checkpoint.cc libobjectregistry.la
+vbucket_test_DEPENDENCIES = vbucket.hh stored-value.cc stored-value.hh \
+               checkpoint.hh checkpoint.cc libobjectregistry.la
 vbucket_test_LDADD = libobjectregistry.la
 
 checkpoint_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
 checkpoint_test_SOURCES = t/checkpoint_test.cc checkpoint.hh checkpoint.cc vbucket.hh vbucket.cc \
 			  testlogger.cc stored-value.cc stored-value.hh queueditem.hh byteorder.c
-checkpoint_test_DEPENDENCIES = checkpoint.hh vbucket.hh stored-value.cc stored-value.hh queueditem.hh libobjectregistry.la
+checkpoint_test_DEPENDENCIES = checkpoint.hh vbucket.hh stored-value.cc stored-value.hh \
+              queueditem.hh libobjectregistry.la
 checkpoint_test_LDADD = libobjectregistry.la
 
 hrtime_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
