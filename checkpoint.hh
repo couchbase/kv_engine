@@ -21,8 +21,6 @@
 #define MAX_CHECKPOINT_PERIOD 3600
 #define DEFAULT_CHECKPOINT_PERIOD 600
 
-#define CHECKPOINT_CREATION_MEM_THRESHOLD 0.9
-
 typedef enum {
     opened,
     closed

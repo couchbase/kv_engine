@@ -394,15 +394,14 @@ size_t CheckpointManager::getNumCheckpoints() {
 bool CheckpointManager::isCheckpointCreationForHighMemUsage(const RCPtr<VBucket> &vbucket) {
     bool forceCreation = false;
     double current = static_cast<double>(stats.currentSize.get() + stats.memOverhead.get());
-    double mem_threshold =
-        static_cast<double>(stats.maxDataSize) * CHECKPOINT_CREATION_MEM_THRESHOLD;
+    // pesistence and tap cursors are all currently in the open checkpoint?
+    bool allCursorsInOpenCheckpoint =
+        (1 + tapCursors.size()) == checkpointList.back()->getReferenceCounter() ? true : false;
 
     if (current > stats.mem_high_wat &&
+        allCursorsInOpenCheckpoint &&
         (checkpointList.back()->getNumItems() >= MIN_CHECKPOINT_ITEMS ||
          checkpointList.back()->getNumItems() == vbucket->ht.getNumItems())) {
-        forceCreation = true;
-    } else if (current > mem_threshold &&
-               checkpointList.back()->getNumItems() > 0) {
         forceCreation = true;
     }
     return forceCreation;
