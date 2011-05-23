@@ -3170,9 +3170,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doCheckpointStats(const void *cook
             snprintf(buf, sizeof(buf), "vb_%d:state", vbid);
             add_casted_stat(buf, VBucket::toString(vb->getState()), add_stat, cookie);
 
-            HashTableDepthStatVisitor depthVisitor;
-            vb->ht.visitDepth(depthVisitor);
-
             snprintf(buf, sizeof(buf), "vb_%d:open_checkpoint_id", vbid);
             add_casted_stat(buf, vb->checkpointManager.getOpenCheckpointId(), add_stat, cookie);
             snprintf(buf, sizeof(buf), "vb_%d:last_closed_checkpoint_id", vbid);
