@@ -64,6 +64,7 @@ TapProducer::TapProducer(EventuallyPersistentEngine &theEngine,
     takeOverCompletionPhase(false),
     doRunBackfill(false),
     pendingBackfill(true),
+    backfillCompleted(true),
     vbucketFilter(),
     vBucketHighPriority(),
     vBucketLowPriority(),
@@ -152,6 +153,7 @@ void TapProducer::setBackfillAge(uint64_t age, bool reconnect) {
     if (backfillAge < (uint64_t)ep_real_time() && !registeredTAPClient) {
         doRunBackfill = true;
         pendingBackfill = true;
+        backfillCompleted = false;
     }
 }
 
@@ -192,6 +194,7 @@ void TapProducer::setVBucketFilter(const std::vector<uint16_t> &vbuckets)
             if (backfillAge < (uint64_t)ep_real_time() && !registeredTAPClient) {
                 doRunBackfill = true;
                 pendingBackfill = true;
+                backfillCompleted = false;
             }
         }
 
@@ -285,6 +288,7 @@ void TapProducer::registerTAPCursor(std::map<uint16_t, uint64_t> &lastCheckpoint
         if (backfillAge < current_time) {
             doRunBackfill = true;
             pendingBackfill = true;
+            backfillCompleted = false;
             engine.setTapValidity(name, cookie);
             // Send an initial_vbucket_stream message to the destination node so that it can
             // delete the corresponding vbucket before receiving the backfill stream.
@@ -298,6 +302,7 @@ void TapProducer::registerTAPCursor(std::map<uint16_t, uint64_t> &lastCheckpoint
     } else {
         doRunBackfill = false;
         pendingBackfill = false;
+        backfillCompleted = true;
     }
 }
 
@@ -563,7 +568,7 @@ ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
         ++iter;
     }
 
-    bool checkpointMsgReceived = false;
+    bool notifyTapNotificationThread = false;
     bool activeVBSetAcked = false;
     uint16_t vbid = 0;
 
@@ -581,7 +586,7 @@ ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
                     map_it->second.state = checkpoint_end_synced;
                 }
                 --checkpointMsgCounter;
-                checkpointMsgReceived = true;
+                notifyTapNotificationThread = true;
             } else if (iter->event == TAP_VBUCKET_SET &&
                        iter->state == vbucket_state_active && doTakeOver) {
                 activeVBSetAcked = true;
@@ -601,7 +606,12 @@ ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
         }
 
         lh.unlock();
-        if (checkpointMsgReceived || doTakeOver) {
+
+        if (!backfillCompleted && getBacklogSize() == 0 && !hasPendingAcks()) {
+            backfillCompleted = true;
+            notifyTapNotificationThread = true;
+        }
+        if (notifyTapNotificationThread || doTakeOver) {
             engine.notifyTapNotificationThread();
         }
         if (complete() && idle()) {
@@ -1086,7 +1096,7 @@ queued_item TapProducer::next(bool &shouldPause) {
     LockHolder lh(queueLock);
     shouldPause = false;
 
-    if (queue->empty() && !isPendingBackfill()) {
+    if (queue->empty() && isBackfillCompleted()) {
         const VBucketMap &vbuckets = engine.getEpStore()->getVBuckets();
         uint16_t invalid_count = 0;
         uint16_t open_checkpoint_count = 0;
@@ -1218,7 +1228,7 @@ queued_item TapProducer::next(bool &shouldPause) {
         return qi;
     }
 
-    if (isPendingBackfill()) {
+    if (!isBackfillCompleted()) {
         shouldPause = true;
     }
     queued_item empty_item(new QueuedItem("", 0xffff, queue_op_empty));

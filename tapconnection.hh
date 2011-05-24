@@ -809,9 +809,17 @@ private:
         return pendingBackfill || isPendingDiskBackfill();
     }
 
+    /**
+     * Items from backfill are all successfully transmitted to the destination?
+     */
+    bool isBackfillCompleted() {
+        return !isPendingBackfill() && backfillCompleted;
+    }
+
     void resetPendingBackfill() {
         pendingBackfill = false;
         diskBackfillCounter = 0;
+        backfillCompleted = true;
     }
 
     /**
@@ -975,6 +983,9 @@ private:
 
     // True until a backfill has dumped all the items into the queue.
     bool pendingBackfill;
+
+    // True if items from backfill are all successfully transmitted to the destination.
+    bool backfillCompleted;
 
     /**
      * Number of vbuckets that are currently scheduled for disk backfill.
