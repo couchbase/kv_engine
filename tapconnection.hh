@@ -667,7 +667,8 @@ private:
     }
 
     bool empty_UNLOCKED() {
-        return bgQueueSize == 0 && bgResultSize == 0 && !hasQueuedItem_UNLOCKED();
+        return bgQueueSize == 0 && bgResultSize == 0 && (bgJobIssued - bgJobCompleted) == 0 &&
+               !hasQueuedItem_UNLOCKED();
     }
 
     bool idle() {
@@ -802,12 +803,10 @@ private:
     }
 
     /**
-     * A backfill is pending if the iterator is active or there are
-     * background fetch jobs running.
+     * A backfill is pending if the backfill thread is still running
      */
     bool isPendingBackfill() {
-        return pendingBackfill || isPendingDiskBackfill()
-            || (bgJobIssued - bgJobCompleted) != 0;
+        return pendingBackfill || isPendingDiskBackfill();
     }
 
     void resetPendingBackfill() {
@@ -974,7 +973,7 @@ private:
      */
     bool doRunBackfill;
 
-    // True until a backfill has dumped all the content.
+    // True until a backfill has dumped all the items into the queue.
     bool pendingBackfill;
 
     /**
