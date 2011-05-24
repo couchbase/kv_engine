@@ -607,7 +607,7 @@ ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
 
         lh.unlock();
 
-        if (!backfillCompleted && getBacklogSize() == 0 && !hasPendingAcks()) {
+        if (!backfillCompleted && getBackfillRemaining() == 0 && !hasPendingAcks()) {
             backfillCompleted = true;
             notifyTapNotificationThread = true;
         }
@@ -862,7 +862,7 @@ void TapProducer::addStats(ADD_STAT add_stat, const void *c) {
     addStat("bg_results", bgResults, add_stat, c);
     addStat("bg_jobs_issued", bgJobIssued, add_stat, c);
     addStat("bg_jobs_completed", bgJobCompleted, add_stat, c);
-    addStat("bg_backlog_size", getBacklogSize(), add_stat, c);
+    addStat("bg_backlog_size", getRemaingOnDisk(), add_stat, c);
     addStat("flags", flagsText, add_stat, c);
     addStat("suspended", isSuspended(), add_stat, c);
     addStat("paused", paused, add_stat, c);
@@ -873,7 +873,7 @@ void TapProducer::addStats(ADD_STAT add_stat, const void *c) {
     addStat("queue_fill", getQueueFillTotal(), add_stat, c);
     addStat("queue_drain", getQueueDrainTotal(), add_stat, c);
     addStat("queue_backoff", getQueueBackoff(), add_stat, c);
-    addStat("queue_backfillremaining", getBacklogSize(), add_stat, c);
+    addStat("queue_backfillremaining", getBackfillRemaining(), add_stat, c);
     addStat("queue_itemondisk", getRemaingOnDisk(), add_stat, c);
 
     if (reconnects > 0) {

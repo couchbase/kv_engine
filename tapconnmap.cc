@@ -90,7 +90,7 @@ bool TapConnMap::setEvents(const std::string &name,
     return found;
 }
 
-ssize_t TapConnMap::queueDepth(const std::string &name) {
+ssize_t TapConnMap::backfillQueueDepth(const std::string &name) {
     ssize_t rv(-1);
     LockHolder lh(notifySync);
 
@@ -98,7 +98,7 @@ ssize_t TapConnMap::queueDepth(const std::string &name) {
     if (tc) {
         TapProducer *tp = dynamic_cast<TapProducer*>(tc);
         assert(tp);
-        rv = tp->getBacklogSize();
+        rv = tp->getBackfillRemaining();
     }
 
     return rv;

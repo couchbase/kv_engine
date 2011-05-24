@@ -158,11 +158,11 @@ public:
                    std::list<queued_item> *q);
 
     /**
-     * Get the size of the named queue.
+     * Get the size of the named backfill queue.
      *
      * @return the size, or -1 if we can't find the queue
      */
-    ssize_t queueDepth(const std::string &name);
+    ssize_t backfillQueueDepth(const std::string &name);
 
     /**
      * Add an event to all tap connections telling them to flush their

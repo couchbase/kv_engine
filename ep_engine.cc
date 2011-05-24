@@ -1112,7 +1112,7 @@ private:
         bool tooBig(true);
 
         while (checkValidity() && tooBig) {
-            ssize_t theSize(engine->tapConnMap.queueDepth(name));
+            ssize_t theSize(engine->tapConnMap.backfillQueueDepth(name));
             if (theSize < 0) {
                 getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
                                  "TapProducer %s went away.  Stopping backfill.\n",
@@ -3236,7 +3236,7 @@ struct TapStatBuilder {
             aggregator->tap_queueFill += tp->getQueueFillTotal();
             aggregator->tap_queueDrain += tp->getQueueDrainTotal();
             aggregator->tap_queueBackoff += tp->getQueueBackoff();
-            aggregator->tap_queueBackfillRemaining += tp->getBacklogSize();
+            aggregator->tap_queueBackfillRemaining += tp->getBackfillRemaining();
             aggregator->tap_queueItemOnDisk += tp->getRemaingOnDisk();
         }
     }
@@ -3277,7 +3277,7 @@ struct TapAggStatBuilder {
             tc->tap_queueFill += tp->getQueueFillTotal();
             tc->tap_queueDrain += tp->getQueueDrainTotal();
             tc->tap_queueBackoff += tp->getQueueBackoff();
-            tc->tap_queueBackfillRemaining += tp->getBacklogSize();
+            tc->tap_queueBackfillRemaining += tp->getBackfillRemaining();
             tc->tap_queueItemOnDisk += tp->getRemaingOnDisk();
     }
 

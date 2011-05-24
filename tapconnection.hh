@@ -692,9 +692,9 @@ private:
     }
 
     /**
-     * Find out how much stuff this thing has to do.
+     * Find out how many items are still remaining from backfill.
      */
-    size_t getBacklogSize() {
+    size_t getBackfillRemaining() {
         LockHolder lh(queueLock);
         return bgResultSize + bgQueueSize
             + (bgJobIssued - bgJobCompleted) + queueSize;
