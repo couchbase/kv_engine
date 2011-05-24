@@ -34,6 +34,7 @@ struct PopulateEventsBody;
 #define TAP_OPAQUE_STOP_ONLINEUPDATE 5
 #define TAP_OPAQUE_REVERT_ONLINEUPDATE 6
 #define TAP_OPAQUE_CLOSE_TAP_STREAM 7
+#define TAP_OPAQUE_CLOSE_BACKFILL 8
 
 /**
  * A tap event that represents a change to the state of a vbucket.
@@ -393,6 +394,8 @@ private:
     Atomic<size_t> numCheckpointEndFailed;
     Atomic<size_t> numUnknown;
 
+    bool backfillPhase;
+
 public:
     TapConsumer(EventuallyPersistentEngine &theEngine,
                 const void *c,
@@ -404,7 +407,8 @@ public:
                                           uint64_t checkpointId);
     virtual void checkVBOpenCheckpoint(uint16_t);
     virtual bool processOnlineUpdateCommand(uint32_t event, uint16_t vbucket);
-
+    void setBackfillPhase(bool isBackfill);
+    bool isBackfillPhase(void);
 };
 
 

@@ -349,12 +349,19 @@ bool TapProducer::requestAck(tap_event_t event, uint16_t vbucket) {
         isSeqNumRotated = true;
         seqno = 1;
     }
-    return (event == TAP_VBUCKET_SET || // always ack vbucket state change
-            event == TAP_OPAQUE || // always ack opaque messages
-            event == TAP_CHECKPOINT_START || // always ack checkpoint start messages
-            event == TAP_CHECKPOINT_END || // always ack checkpoint end messages
+
+    bool explicitEvent = false;
+    if (event == TAP_VBUCKET_SET ||
+        event == TAP_OPAQUE ||
+        event == TAP_CHECKPOINT_START ||
+        event == TAP_CHECKPOINT_END) {
+        explicitEvent = true;
+    }
+
+    return (explicitEvent ||
             ((seqno - 1) % ackInterval) == 0 || // ack at a regular interval
             isExplicitAck ||
+            (!backfillCompleted && getBackfillRemaining() == 0) || // Backfill is being completed
             empty()); // but if we're almost up to date, ack more often
 }
 
@@ -405,6 +412,7 @@ void TapProducer::rollback() {
                 case TAP_OPAQUE_ENABLE_AUTO_NACK:
                 case TAP_OPAQUE_INITIAL_VBUCKET_STREAM:
                 case TAP_OPAQUE_ENABLE_CHECKPOINT_SYNC:
+                case TAP_OPAQUE_CLOSE_BACKFILL:
                     break;
                 case TAP_OPAQUE_OPEN_CHECKPOINT:
                 case TAP_OPAQUE_START_ONLINEUPDATE:
@@ -541,8 +549,8 @@ void TapProducer::reschedule_UNLOCKED(const std::list<TapLogElement>::iterator &
 }
 
 ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
-                                            uint16_t status,
-                                            const std::string &msg)
+                                          uint16_t status,
+                                          const std::string &msg)
 {
     LockHolder lh(queueLock);
     std::list<TapLogElement>::iterator iter = tapLog.begin();
@@ -607,9 +615,14 @@ ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
 
         lh.unlock();
 
-        if (!backfillCompleted && getBackfillRemaining() == 0 && !hasPendingAcks()) {
+        if (!backfillCompleted && !isPendingBackfill() &&
+            getBackfillRemaining() == 0 && !hasPendingAcks()) {
+
             backfillCompleted = true;
             notifyTapNotificationThread = true;
+            TapVBucketEvent hi(TAP_OPAQUE, 0,
+                               (vbucket_state_t)htonl(TAP_OPAQUE_CLOSE_BACKFILL));
+            addVBucketHighPriority(hi);
         }
         if (notifyTapNotificationThread || doTakeOver) {
             engine.notifyTapNotificationThread();
@@ -906,7 +919,7 @@ void TapProducer::processedEvent(tap_event_t event, ENGINE_ERROR_CODE)
 TapConsumer::TapConsumer(EventuallyPersistentEngine &theEngine,
                          const void *c,
                          const std::string &n) :
-    TapConnection(theEngine, c, n)
+    TapConnection(theEngine, c, n), backfillPhase(false)
 { /* EMPTY */ }
 
 void TapConsumer::addStats(ADD_STAT add_stat, const void *c) {
@@ -926,6 +939,14 @@ void TapConsumer::addStats(ADD_STAT add_stat, const void *c) {
     addStat("num_checkpoint_end", numCheckpointEnd, add_stat, c);
     addStat("num_checkpoint_end_failed", numCheckpointEndFailed, add_stat, c);
     addStat("num_unknown", numUnknown, add_stat, c);
+}
+
+void TapConsumer::setBackfillPhase(bool isBackfill) {
+    backfillPhase = isBackfill;
+}
+
+bool TapConsumer::isBackfillPhase(void) {
+    return backfillPhase;
 }
 
 void TapConsumer::processedEvent(tap_event_t event, ENGINE_ERROR_CODE ret)
@@ -1033,7 +1054,7 @@ void TapConsumer::checkVBOpenCheckpoint(uint16_t vbucket) {
     if (!vb) {
         return;
     }
-    vb->checkpointManager.checkOpenCheckpoint();
+    vb->checkpointManager.checkOpenCheckpoint(false, false);
 }
 
 bool TapConsumer::processOnlineUpdateCommand(uint32_t opcode, uint16_t vbucket) {

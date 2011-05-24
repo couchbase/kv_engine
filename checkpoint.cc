@@ -196,7 +196,7 @@ protocol_binary_response_status CheckpointManager::startOnlineUpdate() {
     }
 
     // close the current checkpoint and create a new checkpoint
-    checkOpenCheckpoint_UNLOCKED(true);
+    checkOpenCheckpoint_UNLOCKED(true, true);
 
     // This item represents the start of online update and is also sent to the slave node..
     queued_item dummyItem(new QueuedItem("", vbucketId, queue_op_online_update_start));
@@ -226,7 +226,7 @@ protocol_binary_response_status CheckpointManager::stopOnlineUpdate() {
     ++numItems;
 
     //close the current checkpoint and create a new checkpoint
-    checkOpenCheckpoint_UNLOCKED(true);
+    checkOpenCheckpoint_UNLOCKED(true, true);
 
     (*(onlineUpdateCursor.currentCheckpoint))->decrReferenceCounter();
 
@@ -266,7 +266,7 @@ protocol_binary_response_status CheckpointManager::beginHotReload() {
     ++numItems;
 
     //close the current checkpoint and create a new checkpoint
-    checkOpenCheckpoint_UNLOCKED(true);
+    checkOpenCheckpoint_UNLOCKED(true, true);
 
     //Update persistence cursor due to hotReload
     (*(persistenceCursor.currentCheckpoint))->decrReferenceCounter();
@@ -419,7 +419,7 @@ uint64_t CheckpointManager::removeClosedUnrefCheckpoints(const RCPtr<VBucket> &v
     if (vbucket->getState() == vbucket_state_active && !inconsistentSlaveCheckpoint) {
         bool forceCreation = isCheckpointCreationForHighMemUsage(vbucket);
         // Check if this master active vbucket needs to create a new open checkpoint.
-        oldCheckpointId = checkOpenCheckpoint_UNLOCKED(forceCreation);
+        oldCheckpointId = checkOpenCheckpoint_UNLOCKED(forceCreation, true);
     }
     newOpenCheckpointCreated = oldCheckpointId > 0 ? true : false;
     if (oldCheckpointId > 0) {
@@ -507,7 +507,7 @@ bool CheckpointManager::queueDirty(const queued_item &item, const RCPtr<VBucket>
     assert(vbucket);
     if (vbucket->getState() == vbucket_state_active && !inconsistentSlaveCheckpoint) {
         // Only the master active vbucket can create a next open checkpoint.
-        checkOpenCheckpoint_UNLOCKED(false);
+        checkOpenCheckpoint_UNLOCKED(false, true);
     }
     // Note that the creation of a new checkpoint on the replica vbucket will be controlled by TAP
     // mutation messages from the active vbucket, which contain the checkpoint Ids.
@@ -704,16 +704,17 @@ bool CheckpointManager::moveCursorToNextCheckpoint(CheckpointCursor &cursor) {
     return true;
 }
 
-uint64_t CheckpointManager::checkOpenCheckpoint_UNLOCKED(bool forceCreation) {
+uint64_t CheckpointManager::checkOpenCheckpoint_UNLOCKED(bool forceCreation, bool timeBound) {
     int checkpointId = 0;
+    timeBound = timeBound &&
+                (ep_real_time() - checkpointList.back()->getCreationTime()) >= checkpointPeriod;
     // Create the new open checkpoint if any of the following conditions is satisfied:
     // (1) force creation due to online update or high memory usage
     // (2) current checkpoint is reached to the max number of items allowed.
     // (3) time elapsed since the creation of the current checkpoint is greater than the threshold
     if (forceCreation ||
         checkpointList.back()->getNumItems() >= checkpointMaxItems ||
-        (checkpointList.back()->getNumItems() > 0 &&
-         (ep_real_time() - checkpointList.back()->getCreationTime()) >= checkpointPeriod)) {
+        (checkpointList.back()->getNumItems() > 0 && timeBound)) {
 
         checkpointId = checkpointList.back()->getId();
         closeOpenCheckpoint_UNLOCKED(checkpointId);

@@ -442,15 +442,17 @@ private:
     /**
      * Check the current open checkpoint to see if we need to create the new open checkpoint.
      * @param forceCreation is to indicate if a new checkpoint is created due to online update or
-     * high memory usage
+     * high memory usage.
+     * @param timeBound is to indicate if time bound should be considered in creating a new
+     * checkpoint.
      * @return the previous open checkpoint Id if we create the new open checkpoint. Otherwise
      * return 0.
      */
-    uint64_t checkOpenCheckpoint_UNLOCKED(bool forceCreation);
+    uint64_t checkOpenCheckpoint_UNLOCKED(bool forceCreation, bool timeBound);
 
-    uint64_t checkOpenCheckpoint(bool forceCreation=false) {
+    uint64_t checkOpenCheckpoint(bool forceCreation, bool timeBound) {
         LockHolder lh(queueLock);
-        return checkOpenCheckpoint_UNLOCKED(forceCreation);
+        return checkOpenCheckpoint_UNLOCKED(forceCreation, timeBound);
     }
 
     bool closeOpenCheckpoint_UNLOCKED(uint64_t id);
