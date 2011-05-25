@@ -459,11 +459,11 @@ private:
     bool closeOpenCheckpoint(uint64_t id);
 
     /**
-     * This method performs the following steps for creating a new checkpoint with a given Id:
-     * 1) Check if the checkpoint manager already contains the checkpoint with the same id.
-     * 2) If exists, remove the existing checkpoint and all of its following checkpoints, and
-     *    then create a new checkpoint with a given Id and reposition all the cursors appropriately.
-     * 3) Otherwise, simply create a new open checkpoint with a given Id.
+     * This method performs the following steps for creating a new checkpoint with a given ID i1:
+     * 1) Check if the checkpoint manager contains any checkpoints with IDs > i1.
+     * 2) If exists, remove those checkpoints and then create a new checkpoint with a given ID
+     *    and reposition all the cursors appropriately.
+     * 3) Otherwise, simply create a new open checkpoint with a given ID.
      * This method is mainly for dealing with rollback events from a TAP producer.
      * @param id the id of a checkpoint to be created.
      */
