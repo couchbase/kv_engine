@@ -888,6 +888,8 @@ void TapProducer::addStats(ADD_STAT add_stat, const void *c) {
     addStat("queue_backoff", getQueueBackoff(), add_stat, c);
     addStat("queue_backfillremaining", getBackfillRemaining(), add_stat, c);
     addStat("queue_itemondisk", getRemaingOnDisk(), add_stat, c);
+    addStat("total_backlog_size", getBackfillRemaining() + getRemainingOnCheckpoints(),
+            add_stat, c);
 
     if (reconnects > 0) {
         addStat("reconnects", reconnects, add_stat, c);

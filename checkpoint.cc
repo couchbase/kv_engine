@@ -757,7 +757,7 @@ size_t CheckpointManager::getNumItemsForTAPConnection(const std::string &name) {
     size_t remains = 0;
     std::map<const std::string, CheckpointCursor>::iterator it = tapCursors.find(name);
     if (it != tapCursors.end()) {
-        remains = numItems - it->second.offset;
+        remains = (numItems >= it->second.offset) ? numItems - it->second.offset : 0;
     }
     return remains;
 }

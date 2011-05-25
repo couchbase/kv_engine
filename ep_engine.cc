@@ -3226,7 +3226,7 @@ struct TapCounter {
     TapCounter()
         : tap_queue(0), totalTaps(0),
           tap_queueFill(0), tap_queueDrain(0), tap_queueBackoff(0),
-          tap_queueBackfillRemaining(0), tap_queueItemOnDisk(0)
+          tap_queueBackfillRemaining(0), tap_queueItemOnDisk(0), tap_totalBacklogSize(0)
     {}
 
     size_t      tap_queue;
@@ -3237,6 +3237,7 @@ struct TapCounter {
     size_t      tap_queueBackoff;
     size_t      tap_queueBackfillRemaining;
     size_t      tap_queueItemOnDisk;
+    size_t      tap_totalBacklogSize;
 };
 
 /**
@@ -3258,6 +3259,8 @@ struct TapStatBuilder {
             aggregator->tap_queueBackoff += tp->getQueueBackoff();
             aggregator->tap_queueBackfillRemaining += tp->getBackfillRemaining();
             aggregator->tap_queueItemOnDisk += tp->getRemaingOnDisk();
+            aggregator->tap_totalBacklogSize += tp->getBackfillRemaining() +
+                                                tp->getRemainingOnCheckpoints();
         }
     }
 
@@ -3299,6 +3302,8 @@ struct TapAggStatBuilder {
             tc->tap_queueBackoff += tp->getQueueBackoff();
             tc->tap_queueBackfillRemaining += tp->getBackfillRemaining();
             tc->tap_queueItemOnDisk += tp->getRemaingOnDisk();
+            tc->tap_totalBacklogSize += tp->getBackfillRemaining() +
+                                        tp->getRemainingOnCheckpoints();
     }
 
     TapCounter *getTotalCounter() {
@@ -3364,6 +3369,10 @@ static void showTapAggStat(const std::string prefix,
     snprintf(statname, sl, "%s:itemondisk", prefix.c_str());
     add_casted_stat(statname, counter->tap_queueItemOnDisk,
                     add_stat, cookie);
+
+    snprintf(statname, sl, "%s:total_backlog_size", prefix.c_str());
+    add_casted_stat(statname, counter->tap_totalBacklogSize,
+                    add_stat, cookie);
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doTapAggStats(const void *cookie,
@@ -3419,6 +3428,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTapStats(const void *cookie,
     add_casted_stat("ep_tap_queue_backfillremaining",
                     aggregator.tap_queueBackfillRemaining, add_stat, cookie);
     add_casted_stat("ep_tap_queue_itemondisk", aggregator.tap_queueItemOnDisk,
+                    add_stat, cookie);
+    add_casted_stat("ep_tap_total_backlog_size", aggregator.tap_totalBacklogSize,
                     add_stat, cookie);
 
     add_casted_stat("ep_tap_ack_window_size", TapProducer::ackWindowSize,

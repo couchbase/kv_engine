@@ -340,6 +340,7 @@ another colon.  For example, if your client is named, =slave1=, the
 | queue_backoff             | Total back-off items                     | P  |
 | queue_backfillremaining   | Number of backfill remaining             | P  |
 | queue_itemondisk          | Number of items remaining on disk        | P  |
+| total_backlog_size        | Num of remaining items for replication   | P  |
 | num_delete                | Number of delete operations consumed     |  C |
 | num_delete_failed         | Number of failed delete operations       |  C |
 | num_flush                 | Number of flush operations               |  C |
@@ -371,6 +372,7 @@ for =rebalance= and a set for =replication=.
 | [prefix]:drain              | Total number of items drained              |
 | [prefix]:fill               | Total number of items filled               |
 | [prefix]:itemondisk         | Number of items remaining on disk          |
+| [prefix]:total_backlog_size | Num of remaining items for replication     |
 
 ** Timing Stats
 
