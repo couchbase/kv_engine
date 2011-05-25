@@ -127,7 +127,6 @@ void CheckpointManager::setOpenCheckpointId(uint64_t id) {
         queued_item qi = createCheckpointItem(id, vbucketId, queue_op_checkpoint_start);
         std::list<queued_item>::iterator it = ++(checkpointList.back()->begin());
         *it = qi;
-        nextCheckpointId = ++id;
     }
 }
 
@@ -148,7 +147,6 @@ bool CheckpointManager::addNewCheckpoint_UNLOCKED(uint64_t id) {
     queued_item qi = createCheckpointItem(id, vbucketId, queue_op_checkpoint_start);
     checkpoint->queueDirty(qi, this);
     ++numItems;
-    nextCheckpointId = ++id;
     checkpointList.push_back(checkpoint);
     return true;
 }
@@ -664,9 +662,8 @@ void CheckpointManager::clear() {
     checkpointList.clear();
     numItems = 0;
     mutationCounter = 0;
-    nextCheckpointId = 1;
     // Add a new open checkpoint.
-    addNewCheckpoint_UNLOCKED(nextCheckpointId);
+    addNewCheckpoint_UNLOCKED(1);
 
     // Reset the persistence cursor.
     persistenceCursor.currentCheckpoint = checkpointList.begin();
@@ -718,7 +715,7 @@ uint64_t CheckpointManager::checkOpenCheckpoint_UNLOCKED(bool forceCreation, boo
 
         checkpointId = checkpointList.back()->getId();
         closeOpenCheckpoint_UNLOCKED(checkpointId);
-        addNewCheckpoint_UNLOCKED(nextCheckpointId);
+        addNewCheckpoint_UNLOCKED(checkpointId + 1);
     }
     return checkpointId;
 }

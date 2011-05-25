@@ -203,10 +203,10 @@ class CheckpointManager {
 public:
 
     CheckpointManager(EPStats &st, uint16_t vbucket, uint64_t checkpointId = 1) :
-        stats(st), vbucketId(vbucket), nextCheckpointId(checkpointId), numItems(0),
+        stats(st), vbucketId(vbucket), numItems(0),
         mutationCounter(0), doOnlineUpdate(false), doHotReload(false) {
 
-        addNewCheckpoint(nextCheckpointId++);
+        addNewCheckpoint(checkpointId);
         registerPersistenceCursor();
     }
 
@@ -497,7 +497,6 @@ private:
     EPStats                 &stats;
     Mutex                    queueLock;
     uint16_t                 vbucketId;
-    Atomic<uint64_t>         nextCheckpointId;
     Atomic<size_t>           numItems;
     uint64_t                 mutationCounter;
     std::list<Checkpoint*>   checkpointList;
