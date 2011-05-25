@@ -120,6 +120,9 @@ def main():
     if len(db_filenames) == 0:
         parser.print_usage()
         sys.exit("No filenames provided")
+    for fn in db_filenames:
+       if not os.path.isfile(fn):
+          sys.exit("The file doesn't exist: " + fn)
 
     sqlite = findSqlite()
 
