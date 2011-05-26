@@ -120,10 +120,10 @@ TAP_FLAG_ACK      = 0x01
 TAP_FLAG_NO_VALUE = 0x02 # The value for the key is not included in the packet
 
 # Flags, expiration
-SET_PKT_FMT=">Ii"
+SET_PKT_FMT=">II"
 
 # flags
-GET_RES_FMT=">i"
+GET_RES_FMT=">I"
 
 # How long until the deletion takes effect.
 DEL_PKT_FMT=""
