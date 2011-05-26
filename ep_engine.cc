@@ -954,10 +954,12 @@ public:
         // if the tap connection is closed, then free an Item instance
         if (!connMap.performTapOp(name, tapop, gv.getValue())) {
             delete gv.getValue();
+            return;
         }
 
-        NotifyPausedTapOperation notifyOp;
-        connMap.performTapOp(name, notifyOp, engine);
+        if (connMap.checkValidity(name, validityToken)) {
+            engine->notifyIOComplete(validityToken, ENGINE_SUCCESS);
+        }
     }
 
     bool callback(Dispatcher &, TaskId) {
