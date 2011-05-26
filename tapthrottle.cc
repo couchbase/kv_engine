@@ -3,7 +3,7 @@
 #include "config.h"
 #include "tapthrottle.hh"
 
-const size_t MINIMUM_SPACE(1024 * 1024);
+const double TAP_THROTTLE_MEM_THRESHOLD(0.9);
 const size_t MAXIMUM_QUEUE(1000000);
 
 bool TapThrottle::persistenceQueueSmallEnough() const {
@@ -12,10 +12,10 @@ bool TapThrottle::persistenceQueueSmallEnough() const {
 }
 
 bool TapThrottle::hasSomeMemory() const {
-    size_t currentSize = stats.currentSize.get() + stats.memOverhead.get();
-    size_t maxSize = stats.maxDataSize.get();
+    double currentSize = static_cast<double>(stats.currentSize.get() + stats.memOverhead.get());
+    double maxSize = static_cast<double>(stats.maxDataSize.get());
 
-    return currentSize < maxSize && (maxSize - currentSize) > MINIMUM_SPACE;
+    return currentSize < (maxSize * TAP_THROTTLE_MEM_THRESHOLD);
 }
 
 bool TapThrottle::shouldProcess() const {
