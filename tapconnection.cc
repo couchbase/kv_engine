@@ -289,7 +289,6 @@ void TapProducer::registerTAPCursor(std::map<uint16_t, uint64_t> &lastCheckpoint
             doRunBackfill = true;
             pendingBackfill = true;
             backfillCompleted = false;
-            engine.setTapValidity(name, cookie);
             // Send an initial_vbucket_stream message to the destination node so that it can
             // delete the corresponding vbucket before receiving the backfill stream.
             std::vector<uint16_t>::iterator it = backfill_vbuckets.begin();
@@ -304,6 +303,7 @@ void TapProducer::registerTAPCursor(std::map<uint16_t, uint64_t> &lastCheckpoint
         pendingBackfill = false;
         backfillCompleted = true;
     }
+    engine.setTapValidity(name, cookie);
 }
 
 bool TapProducer::windowIsFull() {
