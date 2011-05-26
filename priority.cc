@@ -33,6 +33,7 @@ const Priority Priority::StatSnapPriority("statsnap_priority", 9);
 const Priority Priority::InvalidItemDbPagerPriority("invalid_item_db_pager_priority", 9);
 const Priority Priority::HTResizePriority("hashtable_resize_priority", 211);
 const Priority Priority::TapResumePriority("tap_resume_priority", 316);
+const Priority Priority::SyncAbortPriority("sync_abort_priority", 316);
 
 /**
  * The tap connection reaper run with short iterations to give memory back to the

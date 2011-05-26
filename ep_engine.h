@@ -37,6 +37,12 @@
 #define DEFAULT_QUEUE_AGE_CAP 900
 #endif
 
+#ifndef DEFAULT_SYNC_TIMEOUT
+#define DEFAULT_SYNC_TIMEOUT 2500
+#define MAX_SYNC_TIMEOUT 60000
+#define MIN_SYNC_TIMEOUT 10
+#endif
+
 extern "C" {
     EXPORT_FUNCTION
     ENGINE_ERROR_CODE create_instance(uint64_t interface,
@@ -563,6 +569,17 @@ public:
     size_t getGetlDefaultTimeout() { return getlDefaultTimeout; }
     size_t getGetlMaxTimeout() { return getlMaxTimeout; }
 
+    /**
+     * Set the timeout for the SYNC command. Timeout is in milliseconds.
+     */
+    void setSyncCmdTimeout(size_t timeout) {
+        syncTimeout = timeout;
+    }
+
+    size_t getSyncCmdTimeout() const {
+        return syncTimeout;
+    }
+
 private:
     EventuallyPersistentEngine(GET_SERVER_API get_server_api);
     friend ENGINE_ERROR_CODE create_instance(uint64_t interface,
@@ -759,6 +776,7 @@ private:
     Atomic<uint64_t> mutation_count;
     size_t getlDefaultTimeout;
     size_t getlMaxTimeout;
+    size_t syncTimeout;
     EPStats stats;
     SyncRegistry syncRegistry;
     struct {

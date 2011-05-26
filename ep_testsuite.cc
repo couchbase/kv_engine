@@ -4368,6 +4368,8 @@ static enum test_result test_sync_persistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
     protocol_binary_request_header *pkt = create_sync_packet(0x00000008, nkeys, keyspecs);
     std::vector<set_key_thread_params*> params;
 
+    set_flush_param(h, h1, "sync_cmd_timeout", "10000");
+
     for (int i = 0; i < (nkeys - 1); i++) {
         set_key_thread_params *p = (set_key_thread_params *) malloc(sizeof(set_key_thread_params));
         p->h = h;
@@ -4490,6 +4492,8 @@ static enum test_result test_sync_mutation(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     item *it = NULL;
     protocol_binary_request_header *pkt = create_sync_packet(0x00000004, nkeys, keyspecs);
 
+    set_flush_param(h, h1, "sync_cmd_timeout", "10000");
+
     check(store(h, h1, NULL, OPERATION_SET, "key1", "foo", &it, 0, 0) == ENGINE_SUCCESS,
           "failed to store key1");
     check(store(h, h1, NULL, OPERATION_SET, "key2", "bar", &it, 0, 0) == ENGINE_SUCCESS,
@@ -4589,6 +4593,8 @@ static enum test_result test_sync_replication(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
     };
     const uint16_t nkeys = 5;
 
+    set_flush_param(h, h1, "sync_cmd_timeout", "10000");
+
     for (int i = 0; i < (nkeys - 1); i++) {
         check(store(h, h1, NULL, OPERATION_SET, keyspecs[i].key.c_str(),
                     "foobar", NULL, 0, test_vbid) == ENGINE_SUCCESS,
@@ -4684,6 +4690,8 @@ static enum test_result test_sync_persistence_or_replication(ENGINE_HANDLE *h, E
     set_key_thread_params* setKeyParams = new set_key_thread_params();
     std::vector<tap_stream_thread_params*> tapStreamParams;
     std::set<key_spec_t> *expectedKeyset = new std::set<key_spec_t>();
+
+    set_flush_param(h, h1, "sync_cmd_timeout", "10000");
 
     for (int i = 0; i < (nkeys - 1); i++) {
         check(store(h, h1, NULL, OPERATION_SET, keyspecs[i].key.c_str(),
@@ -4838,6 +4846,8 @@ static enum test_result test_sync_persistence_and_replication(ENGINE_HANDLE *h, 
     std::vector<tap_stream_thread_params*> tapStreamParams;
     std::set<key_spec_t> *expectedKeyset = new std::set<key_spec_t>();
 
+    set_flush_param(h, h1, "sync_cmd_timeout", "10000");
+
     for (int i = 0; i < (nkeys - 1); i++) {
         check(store(h, h1, NULL, OPERATION_SET, keyspecs[i].key.c_str(),
                     "qwerty", NULL, 0, keyspecs[i].vbucketid) == ENGINE_SUCCESS,
@@ -4964,6 +4974,39 @@ static enum test_result test_sync_persistence_and_replication(ENGINE_HANDLE *h, 
 
     free(pkt);
     delete expectedKeyset;
+
+    return SUCCESS;
+}
+
+static enum test_result test_sync_timeout(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    const uint16_t test_vbid = 307;
+    check(set_vbucket_state(h, h1, test_vbid, vbucket_state_active),
+          "Failed to set test vbucket state.");
+
+    const uint8_t nReplicas = 1;
+    const key_spec_t keyspecs[] = {
+        key_spec_t(0, test_vbid, "key1"), key_spec_t(0, test_vbid, "key2"),
+        key_spec_t(0, test_vbid, "key3"), key_spec_t(0, test_vbid, "key4"),
+        key_spec_t(0, test_vbid, "bad_key")
+    };
+    const uint16_t nkeys = 5;
+
+    for (int i = 0; i < (nkeys - 1); i++) {
+        check(store(h, h1, NULL, OPERATION_SET, keyspecs[i].key.c_str(),
+                    "foobar", NULL, 0, test_vbid) == ENGINE_SUCCESS,
+              "Failed to store an item.");
+    }
+
+    protocol_binary_request_header *pkt;
+    pkt = create_sync_packet((uint32_t) ((nReplicas & 0x0f) << 4), nkeys, keyspecs);
+
+    // We didn't start a tap consumer for the vbucket, so it will timeout after
+    // about 2.5 seconds.
+    ENGINE_ERROR_CODE r = h1->unknown_command(h, NULL, pkt, add_response);
+    check( r == ENGINE_SUCCESS, "The server should know the command");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_ETMPFAIL,
+          "Abort SYNC request if it takes too long");
+    free(pkt);
 
     return SUCCESS;
 }
@@ -5554,6 +5597,7 @@ engine_test_t* get_tests(void) {
         {"sync replication", test_sync_replication, NULL, teardown, NULL},
         {"sync persistence or replication", test_sync_persistence_or_replication, NULL, teardown, NULL},
         {"sync persistence and replication", test_sync_persistence_and_replication, NULL, teardown, NULL},
+        {"sync timeout", test_sync_timeout, NULL, teardown, NULL},
 
         // checkpoint tests
         {"checkpoint: get last closed checkpoint Id", test_get_last_closed_checkpoint_id,

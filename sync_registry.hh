@@ -23,6 +23,7 @@
 #include <iostream>
 
 #include "common.hh"
+#include "dispatcher.hh"
 #include "item.hh"
 #include "mutex.hh"
 #include "queueditem.hh"
@@ -61,6 +62,28 @@ typedef enum {
 
 class EventuallyPersistentEngine;
 class SyncListener;
+
+
+/**
+ * Dispatcher task to kill a SYNC command connection if it's waiting for
+ * too long.
+ */
+class SyncAbortCallback : public DispatcherCallback {
+public:
+    SyncAbortCallback(SyncListener &list) : listener(list) {
+    }
+
+    bool callback(Dispatcher &, TaskId);
+
+    std::string description() {
+        return "SyncListener abort callback";
+    }
+
+    hrtime_t maxExpectedDuration();
+
+private:
+    SyncListener &listener;
+};
 
 /**
  * Registers listeners for the Sync commands (persistence sync and replication sync).
@@ -122,7 +145,7 @@ public:
     void keySynced(const key_spec_t &keyspec, bool deleted = false);
     void keySynced(const key_spec_t &keyspec, uint8_t numReplicas);
 
-    void maybeNotifyIOComplete();
+    void maybeNotifyIOComplete(bool timedout = false);
     bool maybeEnableNotifyIOComplete();
 
     sync_type_t getSyncType() const {
@@ -159,6 +182,8 @@ public:
 
 private:
 
+    friend class SyncAbortCallback;
+
     EventuallyPersistentEngine   &engine;
     const void                   *cookie;
     std::set<key_spec_t>         *keySpecs;
@@ -175,6 +200,8 @@ private:
     bool                         finished;
     bool                         allowNotify;
     size_t                       persistedOrReplicated;
+    const hrtime_t               startTime;
+    TaskId                       abortTaskId;
 };
 
 

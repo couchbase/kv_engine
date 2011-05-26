@@ -277,6 +277,13 @@ extern "C" {
                          std::numeric_limits<uint64_t>::max());
                 EPStats &stats = e->getEpStats();
                 stats.mem_high_wat = vsize;
+            } else if (strcmp(keyz, "sync_cmd_timeout") == 0) {
+                char *ptr = NULL;
+                size_t vsize = strtoul(valz, &ptr, 10);
+                validate(vsize,
+                         static_cast<size_t>(MIN_SYNC_TIMEOUT),
+                         static_cast<size_t>(MAX_SYNC_TIMEOUT));
+                e->setSyncCmdTimeout(vsize);
             } else {
                 *msg = "Unknown config param";
                 rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
@@ -506,19 +513,31 @@ extern "C" {
 
         if (data != NULL) {
             SyncListener *syncListener = static_cast<SyncListener *>(data);
-            std::stringstream resp;
 
-            assembleSyncResponse(resp, syncListener, *e->getEpStore());
-            e->getServerApi()->cookie->store_engine_specific(cookie, NULL);
-            delete syncListener;
+            if (!syncListener->isFinished()) {
+                delete syncListener;
+                if (response(NULL, 0, NULL, 0, NULL, 0, PROTOCOL_BINARY_RAW_BYTES,
+                             PROTOCOL_BINARY_RESPONSE_ETMPFAIL, 0, cookie)) {
+                    return ENGINE_SUCCESS;
+                } else {
+                    return ENGINE_FAILED;
+                }
+            } else {
+                std::stringstream resp;
 
-            std::string body = resp.str();
-            response(NULL, 0, NULL, 0,
-                     body.c_str(), static_cast<uint16_t>(body.length()),
-                     PROTOCOL_BINARY_RAW_BYTES,
-                     PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
+                assembleSyncResponse(resp, syncListener, *e->getEpStore());
+                e->getServerApi()->cookie->store_engine_specific(cookie, NULL);
+                delete syncListener;
 
-            return ENGINE_SUCCESS;
+                std::string body = resp.str();
+                bool respSent = response(NULL, 0, NULL, 0,
+                                         body.c_str(),
+                                         static_cast<uint16_t>(body.length()),
+                                         PROTOCOL_BINARY_RAW_BYTES,
+                                         PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
+
+                return respSent ? ENGINE_SUCCESS : ENGINE_FAILED;
+            }
         }
 
         char *body = (char *) (request + 1);
@@ -1219,7 +1238,8 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server
     queueAgeCap(DEFAULT_QUEUE_AGE_CAP),
     itemExpiryWindow(3), expiryPagerSleeptime(3600), checkpointRemoverInterval(5),
     nVBuckets(1024), dbShards(4), vb_del_chunk_size(100), vb_chunk_del_threshold_time(500),
-    mutation_count(0), getlDefaultTimeout(15), getlMaxTimeout(30)
+    mutation_count(0), getlDefaultTimeout(15), getlMaxTimeout(30),
+    syncTimeout(DEFAULT_SYNC_TIMEOUT)
 {
     interface.interface = 1;
     ENGINE_HANDLE_V1::get_info = EvpGetInfo;
@@ -1269,7 +1289,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         size_t htLocks = 0;
         size_t maxSize = 0;
 
-        const int max_items = 48;
+        const int max_items = 49;
         struct config_item items[max_items];
         int ii = 0;
         memset(items, 0, sizeof(items));
@@ -1521,6 +1541,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         items[ii].key = "getl_max_timeout";
         items[ii].datatype = DT_SIZE;
         items[ii].value.dt_size = &getlMaxTimeout;
+
+        ++ii;
+        items[ii].key = "sync_cmd_timeout";
+        items[ii].datatype = DT_SIZE;
+        items[ii].value.dt_size = &syncTimeout;
 
         ++ii;
         items[ii].key = NULL;

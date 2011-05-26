@@ -33,6 +33,29 @@ std::ostream& operator << (std::ostream& os, const key_spec_t &keyspec) {
 }
 
 
+bool SyncAbortCallback::callback(Dispatcher &, TaskId) {
+    if (listener.isFinished()) {
+        return false;
+    }
+
+    hrtime_t diff = (gethrtime() - listener.startTime) / 1000000;
+
+    if (diff >= listener.engine.getSyncCmdTimeout()) {
+        listener.maybeNotifyIOComplete(true);
+
+        return false;
+    }
+
+    return true;
+}
+
+hrtime_t SyncAbortCallback::maxExpectedDuration() {
+    hrtime_t syncTimeout = listener.engine.getSyncCmdTimeout() * 1000LL;
+    return syncTimeout + (syncTimeout / 4);
+}
+
+
+
 void SyncRegistry::addPersistenceListener(SyncListener *syncListener) {
     LockHolder lh(persistenceMutex);
     persistenceListeners.insert(syncListener);
@@ -172,7 +195,7 @@ SyncListener::SyncListener(EventuallyPersistentEngine &epEngine,
                            uint8_t replicaCount) :
     engine(epEngine), cookie(c), keySpecs(keys), syncType(sync_type),
     replicasPerKey(replicaCount), finished(false), allowNotify(false),
-    persistedOrReplicated(0) {
+    persistedOrReplicated(0), startTime(gethrtime()) {
 }
 
 
@@ -306,17 +329,31 @@ void SyncListener::keySynced(const key_spec_t &keyspec, uint8_t numReplicas) {
 bool SyncListener::maybeEnableNotifyIOComplete() {
     LockHolder lh(mutex);
 
+    if (!finished) {
+        Dispatcher *d = engine.getEpStore()->getNonIODispatcher();
+
+        d->schedule(shared_ptr<DispatcherCallback> (new SyncAbortCallback(*this)),
+                    &abortTaskId, Priority::SyncAbortPriority, 0, false, true);
+    }
+
     return (allowNotify = !finished);
 }
 
 
-void SyncListener::maybeNotifyIOComplete() {
+void SyncListener::maybeNotifyIOComplete(bool timedout) {
     LockHolder lh(mutex);
 
-    assert(finished);
+    assert(finished || timedout);
 
     if (allowNotify) {
         engine.getServerApi()->cookie->store_engine_specific(cookie, this);
         engine.notifyIOComplete(cookie, ENGINE_SUCCESS);
+        allowNotify = false;
+
+        if (finished) {
+            Dispatcher *d = engine.getEpStore()->getNonIODispatcher();
+
+            d->cancel(abortTaskId);
+        }
     }
 }
