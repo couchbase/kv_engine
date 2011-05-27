@@ -554,19 +554,19 @@ extern "C" {
         bool validFlags = parseSyncOptions(flags, &syncType, &replicas);
 
         if (!validFlags) {
-            response(NULL, 0, NULL, 0, "", 0, PROTOCOL_BINARY_RAW_BYTES,
-                     PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
-            return ENGINE_EINVAL;
+            bool respSent = response(NULL, 0, NULL, 0, "", 0, PROTOCOL_BINARY_RAW_BYTES,
+                                     PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
+            return respSent ? ENGINE_SUCCESS : ENGINE_FAILED;
         }
 
         if (replicas > 1) {
             // replica count > 1 not supported for chain mode replication, which is
             // the default in Membase deployments (ticket MB-3817)
             const std::string msg("A replica count > 1 is not supported.");
-            response(NULL, 0, NULL, 0, msg.c_str(), msg.length(),
-                     PROTOCOL_BINARY_RAW_BYTES,
-                     PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0, cookie);
-            return ENGINE_ENOTSUP;
+            bool respSent = response(NULL, 0, NULL, 0, msg.c_str(), msg.length(),
+                                     PROTOCOL_BINARY_RAW_BYTES,
+                                     PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0, cookie);
+            return respSent ? ENGINE_SUCCESS : ENGINE_FAILED;
         }
 
         // number of keys in the request, 16 bits

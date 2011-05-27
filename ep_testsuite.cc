@@ -4321,7 +4321,7 @@ static enum test_result test_sync_bad_flags(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
     // persistence and mutation bits both set
     pkt = create_sync_packet(0x0000000c, nkeys, keyspecs);
 
-    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_EINVAL, "sync fail");
+    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS, "sync fail");
     check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL, "sync fail");
 
     free(pkt);
@@ -4329,7 +4329,7 @@ static enum test_result test_sync_bad_flags(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
     // no flags set
     pkt = create_sync_packet(0x00000000, nkeys, keyspecs);
 
-    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_EINVAL, "sync fail");
+    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS, "sync fail");
     check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL, "sync fail");
 
     free(pkt);
@@ -4337,7 +4337,7 @@ static enum test_result test_sync_bad_flags(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
     // 3 replicas plus mutation flag set
     pkt = create_sync_packet(0x00000034, nkeys, keyspecs);
 
-    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_EINVAL, "sync fail");
+    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS, "sync fail");
     check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL, "sync fail");
 
     free(pkt);
@@ -4345,12 +4345,12 @@ static enum test_result test_sync_bad_flags(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
     // 3 replicas -> replica count > 1 not supported for chain mode replication, which is
     //               the default in Membase deployments (ticket MB-3817)
     pkt = create_sync_packet((uint32_t) ((3 & 0x0f) << 4), nkeys, keyspecs);
-    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_ENOTSUP,
+    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "sync replica count > 1");
     check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, "sync replica count > 1");
 
     pkt = create_sync_packet((uint32_t) ((2 & 0x0f) << 4), nkeys, keyspecs);
-    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_ENOTSUP,
+    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "sync replica count > 1");
     check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, "sync replica count > 1");
 
