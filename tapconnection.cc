@@ -919,7 +919,7 @@ void TapProducer::addStats(ADD_STAT add_stat, const void *c) {
         }
         addStat("num_tap_nack", numTapNack, add_stat, c);
         addStat("num_tap_tmpfail_survivors", numTmpfailSurvivors, add_stat, c);
-        addStat("ack_playback_size", getTapLogSize(), add_stat, c);
+        addStat("ack_playback_size", getTapAckLogSize(), add_stat, c);
      }
 }
 

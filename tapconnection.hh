@@ -713,11 +713,6 @@ private:
         return queueSize;
     }
 
-    size_t getTapLogSize() {
-        LockHolder lh(queueLock);
-        return tapLog.size();
-    }
-
     size_t getQueueMemory() {
         return queueMemSize;
     }
