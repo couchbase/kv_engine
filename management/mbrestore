@@ -22,7 +22,7 @@ import thread
 import threading
 import time
 import traceback
-
+import ctypes
 import mc_bin_client
 
 DEFAULT_THREADS = 4
@@ -70,6 +70,7 @@ def worker(queue, opts):
             k, flags, exptime, v = queue.get()
             while True:
                 try:
+                    flags = ctypes.c_uint32(flags).value
                     update(str(k), exptime, socket.ntohl(flags), bytearray(v))
                 except mc_bin_client.MemcachedError, error:
                     if error.status == 2:
