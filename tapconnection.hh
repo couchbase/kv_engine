@@ -909,6 +909,32 @@ private:
 
     bool addBackfillCompletionMessage();
 
+    void setBackfillAge(uint64_t age, bool reconnect);
+
+    void setVBucketFilter(const std::vector<uint16_t> &vbuckets);
+
+    /**
+     * Register the unified queue cursor for this TAP producer.
+     */
+    void registerTAPCursor(std::map<uint16_t, uint64_t> &lastCheckpointIds);
+
+    bool hasPendingAcks() {
+        LockHolder lh(queueLock);
+        return !tapLog.empty();
+    }
+
+    size_t getTapAckLogSize(void) {
+        LockHolder lh(queueLock);
+        return tapLog.size();
+    }
+
+    void popTapLog(void) {
+        LockHolder lh(queueLock);
+        tapLog.pop_back();
+    }
+
+    void reschedule_UNLOCKED(const std::list<TapLogElement>::iterator &iter);
+
 
     //! Lock held during queue operations.
     Mutex queueLock;
@@ -955,8 +981,6 @@ private:
      */
     Atomic<bool> paused;
 
-    void setBackfillAge(uint64_t age, bool reconnect);
-
     /**
      * Backfill age for the connection
      */
@@ -996,13 +1020,6 @@ private:
      * Number of vbuckets that are currently scheduled for disk backfill.
      */
     Atomic<size_t> diskBackfillCounter;
-
-    void setVBucketFilter(const std::vector<uint16_t> &vbuckets);
-
-    /**
-     * Register the unified queue cursor for this TAP producer.
-     */
-    void registerTAPCursor(std::map<uint16_t, uint64_t> &lastCheckpointIds);
 
     /**
      * Filter for the buckets we want.
@@ -1051,24 +1068,7 @@ private:
     // The last tap sequence number received
     uint32_t seqnoReceived;
 
-    bool hasPendingAcks() {
-        LockHolder lh(queueLock);
-        return !tapLog.empty();
-    }
-
     std::list<TapLogElement> tapLog;
-
-    size_t getTapAckLogSize(void) {
-        LockHolder lh(queueLock);
-        return tapLog.size();
-    }
-
-    void popTapLog(void) {
-        LockHolder lh(queueLock);
-        tapLog.pop_back();
-    }
-
-    void reschedule_UNLOCKED(const std::list<TapLogElement>::iterator &iter);
 
     Mutex backfillLock;
     std::queue<TapBGFetchQueueItem> backfillQueue;
