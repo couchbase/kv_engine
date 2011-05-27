@@ -820,7 +820,8 @@ bool CheckpointManager::checkAndAddNewCheckpoint(uint64_t id) {
         }
         checkpointList.erase(it, checkpointList.end());
 
-        if (checkpointList.size() > 0 && checkpointList.back()->getId() < id) {
+        if (checkpointList.size() == 0 ||
+            (checkpointList.size() > 0 && checkpointList.back()->getId() < id)) {
             ret = addNewCheckpoint_UNLOCKED(id);
         }
         if (ret) {
