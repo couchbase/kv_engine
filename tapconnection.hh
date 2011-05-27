@@ -698,10 +698,14 @@ private:
     /**
      * Find out how many items are still remaining from backfill.
      */
-    size_t getBackfillRemaining() {
-        LockHolder lh(queueLock);
+    size_t getBackfillRemaining_UNLOCKED() {
         return bgResultSize + bgQueueSize
             + (bgJobIssued - bgJobCompleted) + queueSize;
+    }
+
+    size_t getBackfillRemaining() {
+        LockHolder lh(queueLock);
+        return getBackfillRemaining_UNLOCKED();
     }
 
     size_t getQueueSize() {
@@ -908,6 +912,8 @@ private:
         takeOverCompletionPhase = completionPhase;
     }
 
+    bool addBackfillCompletionMessage();
+
 
     //! Lock held during queue operations.
     Mutex queueLock;
@@ -989,7 +995,7 @@ private:
     bool pendingBackfill;
 
     // True if items from backfill are all successfully transmitted to the destination.
-    bool backfillCompleted;
+    Atomic<bool> backfillCompleted;
 
     /**
      * Number of vbuckets that are currently scheduled for disk backfill.

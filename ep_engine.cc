@@ -999,6 +999,9 @@ public:
             }
             CompleteDiskBackfillTapOperation op;
             connMap.performTapOp(name, op, static_cast<void*>(NULL));
+            if (connMap.addBackfillCompletionMessage(name)) {
+                engine->notifyTapNotificationThread();
+            }
         }
 
         return false;
@@ -1105,6 +1108,9 @@ public:
         if (valid) {
             CompleteBackfillTapOperation tapop;
             engine->tapConnMap.performTapOp(name, tapop, static_cast<void*>(NULL));
+            if (engine->tapConnMap.addBackfillCompletionMessage(name)) {
+                engine->notifyTapNotificationThread();
+            }
         }
     }
 

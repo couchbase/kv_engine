@@ -152,6 +152,11 @@ public:
     bool checkValidity(const std::string &name, const void* token);
 
     /**
+     * Return true if the backfill is completed for a given TAP connection.
+     */
+    bool addBackfillCompletionMessage(const std::string &name);
+
+    /**
      * Set some backfilled events for a named conn.
      */
     bool setEvents(const std::string &name,

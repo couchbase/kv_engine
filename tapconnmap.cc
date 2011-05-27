@@ -303,6 +303,19 @@ bool TapConnMap::checkValidity(const std::string &name,
     return viter != validity.end() && viter->second == token;
 }
 
+bool TapConnMap::addBackfillCompletionMessage(const std::string &name) {
+    LockHolder lh(notifySync);
+    bool rv = false;
+
+    TapConnection *tc = findByName_UNLOCKED(name);
+    if (tc) {
+        TapProducer *tp = dynamic_cast<TapProducer*>(tc);
+        assert(tp);
+        rv = tp->addBackfillCompletionMessage();
+    }
+    return rv;
+}
+
 bool TapConnMap::mapped(TapConnection *tc) {
     bool rv = false;
     std::map<const void*, TapConnection*>::iterator it;

@@ -615,18 +615,13 @@ ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
 
         lh.unlock();
 
-        if (!backfillCompleted && !isPendingBackfill() &&
-            getBackfillRemaining() == 0 && !hasPendingAcks()) {
-
-            backfillCompleted = true;
+        if (addBackfillCompletionMessage()) {
             notifyTapNotificationThread = true;
-            TapVBucketEvent hi(TAP_OPAQUE, 0,
-                               (vbucket_state_t)htonl(TAP_OPAQUE_CLOSE_BACKFILL));
-            addVBucketHighPriority(hi);
         }
         if (notifyTapNotificationThread || doTakeOver) {
             engine.notifyTapNotificationThread();
         }
+
         if (complete() && idle()) {
             // We've got all of the ack's need, now we can shut down the
             // stream
@@ -668,6 +663,21 @@ ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
     }
 
     return ret;
+}
+
+bool TapProducer::addBackfillCompletionMessage() {
+    LockHolder lh(queueLock);
+    bool rv = false;
+    if (!backfillCompleted && !isPendingBackfill() &&
+        getBackfillRemaining_UNLOCKED() == 0 && tapLog.empty()) {
+
+        backfillCompleted = true;
+        TapVBucketEvent hi(TAP_OPAQUE, 0,
+                           (vbucket_state_t)htonl(TAP_OPAQUE_CLOSE_BACKFILL));
+        addVBucketHighPriority_UNLOCKED(hi);
+        rv = true;
+    }
+    return rv;
 }
 
 void TapProducer::encodeVBucketStateTransition(const TapVBucketEvent &ev, void **es,
