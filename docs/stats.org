@@ -324,6 +324,8 @@ another colon.  For example, if your client is named, =slave1=, the
 |                           | for this connection                      | P  |
 | pending_disk_backfill     | true if we're still backfilling keys     | P  |
 |                           | from disk for this connection            | P  |
+| backfill_completed        | true if all items from backfill is       | P  |
+|                           | successfully transmitted to the client   | P  |
 | reconnects                | Number of reconnects from this client.   | P  |
 | backfill_age              | The age of the start of the backfill.    | P  |
 | ack_seqno                 | The current tap ACK sequence number.     | P  |
