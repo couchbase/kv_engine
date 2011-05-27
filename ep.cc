@@ -1621,20 +1621,6 @@ public:
                 ++stats->newItems;
                 setId(value.second);
             }
-            RCPtr<VBucket> vb = store->getVBucket(queuedItem->getVBucketId());
-            if (vb && vb->getState() != vbucket_state_active) {
-                int bucket_num(0);
-                LockHolder lh = vb->ht.getLockedBucket(queuedItem->getKey(), &bucket_num);
-                StoredValue *v = store->fetchValidValue(vb, queuedItem->getKey(),
-                                                        bucket_num, true);
-                double current = static_cast<double>(StoredValue::getCurrentSize(*stats));
-                double lower = static_cast<double>(stats->mem_low_wat);
-                if (v && current > lower) {
-                    if (v->ejectValue(*stats, vb->ht) && vb->getState() == vbucket_state_replica) {
-                        ++stats->numReplicaEjects;
-                    }
-                }
-            }
         } else {
             // If the return was 0 here, we're in a bad state because
             // we do not know the rowid of this object.
