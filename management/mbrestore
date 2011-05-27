@@ -9,6 +9,7 @@ Restore tool for Membase.
 import itertools
 import optparse
 import Queue
+import socket
 import sys
 import os
 import subprocess
@@ -69,7 +70,7 @@ def worker(queue, opts):
             k, flags, exptime, v = queue.get()
             while True:
                 try:
-                    update(str(k), exptime, flags, bytearray(v))
+                    update(str(k), exptime, socket.ntohl(flags), bytearray(v))
                 except mc_bin_client.MemcachedError, error:
                     if error.status == 2:
                         # Already exists
