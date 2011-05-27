@@ -559,6 +559,17 @@ extern "C" {
             return respSent ? ENGINE_SUCCESS : ENGINE_FAILED;
         }
 
+        if (syncType == PERSIST || syncType == REP_OR_PERSIST ||
+            syncType == REP_AND_PERSIST) {
+
+            // SYNC for persistence not yet supported (MB-3817 related).
+            const std::string msg("SYNC for persistence is not supported.");
+            bool respSent = response(NULL, 0, NULL, 0, msg.c_str(), msg.length(),
+                                     PROTOCOL_BINARY_RAW_BYTES,
+                                     PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0, cookie);
+            return respSent ? ENGINE_SUCCESS : ENGINE_FAILED;
+        }
+
         if (replicas > 1) {
             // replica count > 1 not supported for chain mode replication, which is
             // the default in Membase deployments (ticket MB-3817)
