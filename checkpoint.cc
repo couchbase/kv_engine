@@ -322,9 +322,9 @@ bool CheckpointManager::registerTAPCursor(const std::string &name, uint64_t chec
     }
 
     if (!found) {
-        // If the checkpoint to start with is not found, set the TAP cursor to the beginning
-        // of the checkpoint list. This case requires the full materialization through backfill.
-        it = checkpointList.begin();
+        // If the checkpoint to start with is not found, set the TAP cursor to the current
+        // open checkpoint. This case requires the full materialization through backfill.
+        it = --(checkpointList.end());
         CheckpointCursor cursor(it, (*it)->begin(), 0, closedCheckpointOnly);
         tapCursors[name] = cursor;
         (*it)->incrReferenceCounter();
