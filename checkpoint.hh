@@ -350,7 +350,9 @@ public:
      * Return the total number of remaining items that should be visited by the persistence cursor.
      */
     size_t getNumItemsForPersistence() {
-        return numItems - persistenceCursor.offset;
+        size_t num_items = numItems;
+        size_t offset = persistenceCursor.offset;
+        return num_items > offset ? num_items - offset : 0;
     }
 
     size_t getNumItemsForTAPConnection(const std::string &name);
