@@ -80,6 +80,8 @@ memcached like this:
 | getl_default_timeout   | int    | The default timeout for a getl lock in seconds |
 | getl_max_timeout       | int    | The maximum timeout for a getl lock in seconds |
 | sync_cmd_timeout       | int    | The timeout for SYNC requests in milliseconds  |
+| mutation_mem_threshold | float  | Memory threshold on the current bucket quota   |
+|                        |        | for accepting a new mutation                   |
 
 ** Shard Patterns
 

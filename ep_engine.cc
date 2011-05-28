@@ -1303,8 +1303,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         size_t htBuckets = 0;
         size_t htLocks = 0;
         size_t maxSize = 0;
+        float mutation_mem_threshold = 0;
 
-        const int max_items = 49;
+        const int max_items = 50;
         struct config_item items[max_items];
         int ii = 0;
         memset(items, 0, sizeof(items));
@@ -1563,6 +1564,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         items[ii].value.dt_size = &syncTimeout;
 
         ++ii;
+        items[ii].key = "mutation_mem_threshold";
+        items[ii].datatype = DT_FLOAT;
+        items[ii].value.dt_float = &mutation_mem_threshold;
+
+        ++ii;
         items[ii].key = NULL;
 
         assert(ii < max_items);
@@ -1637,6 +1643,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
             HashTable::setDefaultNumBuckets(htBuckets);
             HashTable::setDefaultNumLocks(htLocks);
             StoredValue::setMaxDataSize(stats, maxSize);
+            StoredValue::setMutationMemoryThreshold(mutation_mem_threshold);
 
             if (svaltype && !HashTable::setDefaultStorageValueType(svaltype)) {
                 getLogger()->log(EXTENSION_LOG_WARNING, NULL,

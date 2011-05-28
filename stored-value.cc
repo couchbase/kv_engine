@@ -12,6 +12,7 @@
 size_t HashTable::defaultNumBuckets = DEFAULT_HT_SIZE;
 size_t HashTable::defaultNumLocks = 193;
 enum stored_value_type HashTable::defaultStoredValueType = featured;
+double StoredValue::mutation_mem_threshold = 0.9;
 
 static ssize_t prime_size_table[] = {
     3, 7, 13, 23, 47, 97, 193, 383, 769, 1531, 3067, 6143, 12289, 24571, 49157,
@@ -346,6 +347,12 @@ void StoredValue::setMaxDataSize(EPStats &st, size_t to) {
     }
 }
 
+void StoredValue::setMutationMemoryThreshold(double memThreshold) {
+    if (memThreshold > 0.0 && memThreshold <= 1.0) {
+        mutation_mem_threshold = memThreshold;
+    }
+}
+
 /**
  * What's the total size of allocations?
  */
@@ -390,6 +397,8 @@ void StoredValue::reduceCurrentSize(EPStats &st, size_t by) {
  * Is there enough space for this thing?
  */
 bool StoredValue::hasAvailableSpace(EPStats &st, const Item &item) {
-    return getCurrentSize(st) + sizeof(StoredValue) + item.getNKey() // + item.getNBytes()
-        <= getMaxDataSize(st);
+    double newSize = static_cast<double>(getCurrentSize(st) +
+                                         sizeof(StoredValue) + item.getNKey());
+    double maxSize=  static_cast<double>(getMaxDataSize(st)) * mutation_mem_threshold;
+    return newSize <= maxSize;
 }

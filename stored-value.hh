@@ -530,6 +530,11 @@ public:
     static void setMaxDataSize(EPStats&, size_t);
 
     /**
+     * Set the memory threshold on the current bucket quota for accepting a new mutation
+     */
+    static void setMutationMemoryThreshold(double memThreshold);
+
+    /**
      * Get the maximum amount of memory this instance can store.
      */
     static size_t getMaxDataSize(EPStats&);
@@ -596,6 +601,7 @@ private:
     static void increaseCurrentSize(EPStats&, size_t by);
     static void reduceCurrentSize(EPStats&, size_t by);
     static bool hasAvailableSpace(EPStats&, const Item &item);
+    static double mutation_mem_threshold;
 
     DISALLOW_COPY_AND_ASSIGN(StoredValue);
 };

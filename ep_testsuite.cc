@@ -2344,7 +2344,7 @@ static enum test_result test_single_db_strategy(ENGINE_HANDLE *h,
 
 static enum test_result test_memory_limit(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     int used = get_int_stat(h, h1, "mem_used");
-    int max = get_int_stat(h, h1, "ep_max_data_size");
+    int max = static_cast<int>(get_int_stat(h, h1, "ep_max_data_size") * 0.9);
     check(get_int_stat(h, h1, "ep_oom_errors") == 0 &&
           get_int_stat(h, h1, "ep_tmp_oom_errors") == 0, "Expected no OOM errors.");
     assert(used < max);
@@ -5408,7 +5408,7 @@ engine_test_t* get_tests(void) {
         {"test alloc limit", test_alloc_limit, NULL, teardown, NULL},
         {"test init failure", test_init_fail, NULL, teardown, NULL},
         {"test total memory limit", test_memory_limit, NULL, teardown,
-         "max_size=4096;ht_locks=1;ht_size=3;chk_remover_stime=1;chk_period=60"},
+         "max_size=4096;ht_locks=1;ht_size=3;chk_remover_stime=1;chk_period=60;mutation_mem_threshold=0.9"},
         {"test max_size changes", test_max_size_settings, NULL, teardown,
          "max_size=1000;ht_locks=1;ht_size=3"},
         {"test whitespace dbname", test_whitespace_db, NULL, teardown,
