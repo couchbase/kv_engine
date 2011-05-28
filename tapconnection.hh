@@ -431,19 +431,22 @@ public:
     void setTimeForNoop();
 
     void completeBackfill() {
+        LockHolder lh(queueLock);
         pendingBackfill = false;
-        completeBackfillCommon();
+        completeBackfillCommon_UNLOCKED();
     }
 
     void scheduleDiskBackfill() {
+        LockHolder lh(queueLock);
         ++diskBackfillCounter;
     }
 
     void completeDiskBackfill() {
+        LockHolder lh(queueLock);
         if (diskBackfillCounter > 0) {
             --diskBackfillCounter;
         }
-        completeBackfillCommon();
+        completeBackfillCommon_UNLOCKED();
     }
 
     /**
@@ -465,8 +468,8 @@ private:
     friend struct TapAggStatBuilder;
     friend struct PopulateEventsBody;
 
-    void completeBackfillCommon() {
-        if (complete() && idle()) {
+    void completeBackfillCommon_UNLOCKED() {
+        if (complete_UNLOCKED() && idle_UNLOCKED()) {
             // There is no data for this connection..
             // Just go ahead and disconnect it.
             setDisconnect(true);
@@ -675,10 +678,14 @@ private:
                !hasQueuedItem_UNLOCKED();
     }
 
-    bool idle() {
-        LockHolder lh(queueLock);
+    bool idle_UNLOCKED() {
         return empty_UNLOCKED() && vBucketLowPriority.empty() && vBucketHighPriority.empty() &&
                checkpointMsgs.empty() && tapLog.empty();
+    }
+
+    bool idle() {
+        LockHolder lh(queueLock);
+        return idle_UNLOCKED();
     }
 
     bool hasItem() {
@@ -802,24 +809,36 @@ private:
     }
 
     bool isPendingDiskBackfill() {
+        LockHolder lh(queueLock);
         return diskBackfillCounter > 0;
     }
 
     /**
      * A backfill is pending if the backfill thread is still running
      */
+    bool isPendingBackfill_UNLOCKED() {
+        return pendingBackfill || diskBackfillCounter > 0;
+    }
+
     bool isPendingBackfill() {
-        return pendingBackfill || isPendingDiskBackfill();
+        LockHolder lh(queueLock);
+        return isPendingBackfill_UNLOCKED();
     }
 
     /**
      * Items from backfill are all successfully transmitted to the destination?
      */
+    bool isBackfillCompleted_UNLOCKED() {
+        return !isPendingBackfill_UNLOCKED() && backfillCompleted;
+    }
+
     bool isBackfillCompleted() {
-        return !isPendingBackfill() && backfillCompleted;
+        LockHolder lh(queueLock);
+        return isBackfillCompleted_UNLOCKED();
     }
 
     void resetPendingBackfill() {
+        LockHolder lh(queueLock);
         pendingBackfill = false;
         diskBackfillCounter = 0;
         backfillCompleted = true;
@@ -829,8 +848,13 @@ private:
      * A TapProducer is complete when it has nothing to transmit and
      * a disconnect was requested at the end.
      */
+    bool complete_UNLOCKED(void) {
+        return (dumpQueue || doTakeOver) && empty_UNLOCKED() && !isPendingBackfill_UNLOCKED();
+    }
+
     bool complete(void) {
-        return (dumpQueue || doTakeOver) && empty() && !isPendingBackfill();
+        LockHolder lh(queueLock);
+        return complete_UNLOCKED();
     }
 
     /**
@@ -1014,12 +1038,12 @@ private:
     bool pendingBackfill;
 
     // True if items from backfill are all successfully transmitted to the destination.
-    Atomic<bool> backfillCompleted;
+    bool backfillCompleted;
 
     /**
      * Number of vbuckets that are currently scheduled for disk backfill.
      */
-    Atomic<size_t> diskBackfillCounter;
+    size_t diskBackfillCounter;
 
     /**
      * Filter for the buckets we want.

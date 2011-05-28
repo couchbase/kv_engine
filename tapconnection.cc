@@ -65,6 +65,7 @@ TapProducer::TapProducer(EventuallyPersistentEngine &theEngine,
     doRunBackfill(false),
     pendingBackfill(true),
     backfillCompleted(true),
+    diskBackfillCounter(0),
     vbucketFilter(),
     vBucketHighPriority(),
     vBucketLowPriority(),
@@ -326,6 +327,8 @@ bool TapProducer::windowIsFull() {
 }
 
 bool TapProducer::requestAck(tap_event_t event, uint16_t vbucket) {
+    LockHolder lh(queueLock);
+
     if (!supportAck) {
         return false;
     }
@@ -361,8 +364,8 @@ bool TapProducer::requestAck(tap_event_t event, uint16_t vbucket) {
     return (explicitEvent ||
             ((seqno - 1) % ackInterval) == 0 || // ack at a regular interval
             isExplicitAck ||
-            (!backfillCompleted && getBackfillRemaining() == 0) || // Backfill is being completed
-            empty()); // but if we're almost up to date, ack more often
+            (!backfillCompleted && getBackfillRemaining_UNLOCKED() == 0) || // Backfill being done
+            empty_UNLOCKED()); // but if we're almost up to date, ack more often
 }
 
 void TapProducer::rollback() {
@@ -668,7 +671,7 @@ ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
 bool TapProducer::addBackfillCompletionMessage() {
     LockHolder lh(queueLock);
     bool rv = false;
-    if (!backfillCompleted && !isPendingBackfill() &&
+    if (!backfillCompleted && !isPendingBackfill_UNLOCKED() &&
         getBackfillRemaining_UNLOCKED() == 0 && tapLog.empty()) {
 
         backfillCompleted = true;
@@ -1130,7 +1133,7 @@ queued_item TapProducer::next(bool &shouldPause) {
     LockHolder lh(queueLock);
     shouldPause = false;
 
-    if (queue->empty() && isBackfillCompleted()) {
+    if (queue->empty() && isBackfillCompleted_UNLOCKED()) {
         const VBucketMap &vbuckets = engine.getEpStore()->getVBuckets();
         uint16_t invalid_count = 0;
         uint16_t open_checkpoint_count = 0;
@@ -1262,7 +1265,7 @@ queued_item TapProducer::next(bool &shouldPause) {
         return qi;
     }
 
-    if (!isBackfillCompleted()) {
+    if (!isBackfillCompleted_UNLOCKED()) {
         shouldPause = true;
     }
     queued_item empty_item(new QueuedItem("", 0xffff, queue_op_empty));
