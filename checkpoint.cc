@@ -7,6 +7,12 @@ void Checkpoint::setState(checkpoint_state state) {
     checkpointState = state;
 }
 
+void Checkpoint::popBackCheckpointEndItem() {
+    if (toWrite.size() > 0 && toWrite.back()->getOperation() == queue_op_checkpoint_end) {
+        toWrite.pop_back();
+    }
+}
+
 uint64_t Checkpoint::getCasForKey(const std::string &key) {
     uint64_t cas = 0;
     checkpoint_index::iterator it = keyIndex.find(key);
@@ -825,6 +831,10 @@ bool CheckpointManager::checkAndAddNewCheckpoint(uint64_t id) {
             ret = addNewCheckpoint_UNLOCKED(id);
         }
         if (ret) {
+            if (checkpointList.back()->getState() == closed) {
+                checkpointList.back()->popBackCheckpointEndItem();
+                checkpointList.back()->setState(opened);
+            }
             if (persistenceCursorReposition) {
                 persistenceCursor.currentCheckpoint = --(checkpointList.end());
                 persistenceCursor.currentPos = checkpointList.back()->begin();
