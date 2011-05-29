@@ -319,14 +319,14 @@ class MemcachedClient(object):
         (opaque, cas, data) = self._doCmd(memcacheConstants.CMD_SYNC, "", payload)
         return (opaque, cas, self._parse_sync_response(data))
 
-    def sync_replication(self, numReplicas, keyspecs):
+    def sync_replication(self, keyspecs, numReplicas=1):
         payload = self._build_sync_payload((numReplicas & 0x0f) << 4, keyspecs)
 
         print "sending sync for replication command for the following keyspecs:", keyspecs
         (opaque, cas, data) = self._doCmd(memcacheConstants.CMD_SYNC, "", payload)
         return (opaque, cas, self._parse_sync_response(data))
 
-    def sync_replication_or_persistence(self, numReplicas, keyspecs):
+    def sync_replication_or_persistence(self, keyspecs, numReplicas=1):
         payload = self._build_sync_payload(((numReplicas & 0x0f) << 4) | 0x8, keyspecs)
 
         print "sending sync for replication or persistence command for the " \
@@ -334,7 +334,7 @@ class MemcachedClient(object):
         (opaque, cas, data) = self._doCmd(memcacheConstants.CMD_SYNC, "", payload)
         return (opaque, cas, self._parse_sync_response(data))
 
-    def sync_replication_and_persistence(self, numReplicas, keyspecs):
+    def sync_replication_and_persistence(self, keyspecs, numReplicas=1):
         payload = self._build_sync_payload(((numReplicas & 0x0f) << 4) | 0xA, keyspecs)
 
         print "sending sync for replication and persistence command for the " \
