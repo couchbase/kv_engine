@@ -1515,6 +1515,12 @@ size_t EventuallyPersistentStore::getWriteQueueSize(void) {
     return size;
 }
 
+void EventuallyPersistentStore::setPersistenceCheckpointId(uint16_t vbid, uint64_t checkpointId) {
+    LockHolder lh(vbsetMutex);
+    vbuckets.setPersistenceCheckpointId(vbid, checkpointId);
+}
+
+
 protocol_binary_response_status EventuallyPersistentStore::revertOnlineUpdate(RCPtr<VBucket> vb) {
     protocol_binary_response_status rv(PROTOCOL_BINARY_RESPONSE_SUCCESS);
 

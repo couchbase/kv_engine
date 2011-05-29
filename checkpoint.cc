@@ -785,7 +785,7 @@ bool CheckpointManager::isLastMutationItemInCheckpoint(CheckpointCursor &cursor)
     return false;
 }
 
-bool CheckpointManager::checkAndAddNewCheckpoint(uint64_t id) {
+bool CheckpointManager::checkAndAddNewCheckpoint(uint64_t id, bool &pCursorRepositioned) {
     LockHolder lh(queueLock);
 
     std::list<Checkpoint*>::iterator it = checkpointList.begin();
@@ -801,6 +801,7 @@ bool CheckpointManager::checkAndAddNewCheckpoint(uint64_t id) {
         if (checkpointList.back()->getState() == opened) {
             closeOpenCheckpoint_UNLOCKED(checkpointList.back()->getId());
         }
+        pCursorRepositioned = false;
         return addNewCheckpoint_UNLOCKED(id);
     } else {
         bool ret = true;
@@ -851,6 +852,8 @@ bool CheckpointManager::checkAndAddNewCheckpoint(uint64_t id) {
                 checkpointList.back()->incrReferenceCounter();
             }
         }
+
+        pCursorRepositioned = persistenceCursorReposition;
         return ret;
     }
 }

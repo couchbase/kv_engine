@@ -1052,7 +1052,16 @@ bool TapConsumer::processCheckpointCommand(tap_event_t event, uint16_t vbucket,
     bool ret = true;
     switch (event) {
     case TAP_CHECKPOINT_START:
-        ret = vb->checkpointManager.checkAndAddNewCheckpoint(checkpointId);
+        {
+            bool persistenceCursorRepositioned = false;
+            ret = vb->checkpointManager.checkAndAddNewCheckpoint(checkpointId,
+                                                                 persistenceCursorRepositioned);
+            if (ret && persistenceCursorRepositioned) {
+                // If persistence cursor is reset to the beginning of the new checkpoint, set
+                // the ID of the last persisted checkpoint to (new checkpoint ID -1) if necessary
+                engine.getEpStore()->setPersistenceCheckpointId(vbucket, checkpointId - 1);
+            }
+        }
         break;
     case TAP_CHECKPOINT_END:
         ret = vb->checkpointManager.closeOpenCheckpoint(checkpointId);

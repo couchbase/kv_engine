@@ -779,6 +779,8 @@ public:
         return diskFlushAll.get();
     }
 
+    void setPersistenceCheckpointId(uint16_t vbid, uint64_t checkpointId);
+
 private:
 
     void scheduleVBDeletion(RCPtr<VBucket> vb, uint16_t vb_version, double delay);

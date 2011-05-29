@@ -470,8 +470,10 @@ private:
      * 3) Otherwise, simply create a new open checkpoint with a given ID.
      * This method is mainly for dealing with rollback events from a TAP producer.
      * @param id the id of a checkpoint to be created.
+     * @param pCursorRepositioned the flag indicating if the persistence cursor is
+     * repositioned to the beginning of the new checkpoint created.
      */
-    bool checkAndAddNewCheckpoint(uint64_t id);
+    bool checkAndAddNewCheckpoint(uint64_t id, bool &pCursorRepositioned);
 
     uint64_t nextMutationId() {
         return ++mutationCounter;
