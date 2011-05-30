@@ -351,10 +351,15 @@ public:
     /**
      * Return the total number of remaining items that should be visited by the persistence cursor.
      */
-    size_t getNumItemsForPersistence() {
+    size_t getNumItemsForPersistence_UNLOCKED() {
         size_t num_items = numItems;
         size_t offset = persistenceCursor.offset;
         return num_items > offset ? num_items - offset : 0;
+    }
+
+    size_t getNumItemsForPersistence() {
+        LockHolder lh(queueLock);
+        return getNumItemsForPersistence_UNLOCKED();
     }
 
     size_t getNumItemsForTAPConnection(const std::string &name);

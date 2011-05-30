@@ -502,11 +502,11 @@ bool CheckpointManager::queueDirty(const queued_item &item, const RCPtr<VBucket>
 
     // The current open checkpoint should be always the last one in the checkpoint list.
     assert(checkpointList.back()->getState() == opened);
-    size_t numItemsBefore = getNumItemsForPersistence();
+    size_t numItemsBefore = getNumItemsForPersistence_UNLOCKED();
     if (checkpointList.back()->queueDirty(item, this) == NEW_ITEM) {
         ++numItems;
     }
-    size_t numItemsAfter = getNumItemsForPersistence();
+    size_t numItemsAfter = getNumItemsForPersistence_UNLOCKED();
 
     assert(vbucket);
     if (vbucket->getState() == vbucket_state_active && !inconsistentSlaveCheckpoint) {
