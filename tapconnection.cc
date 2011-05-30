@@ -1156,12 +1156,6 @@ queued_item TapProducer::next(bool &shouldPause) {
                 ++invalid_count;
                 continue;
             }
-            if (supportCheckpointSync && it->second.state == backfill) {
-                // Remember the Id of the current open checkpoint at the time of
-                // backfill completion.
-                it->second.openCheckpointIdAtBackfillEnd =
-                    vb->checkpointManager.getOpenCheckpointId();
-            }
 
             bool isLastItem = false;
             queued_item item = vb->checkpointManager.nextItem(name, isLastItem);
@@ -1181,19 +1175,14 @@ queued_item TapProducer::next(bool &shouldPause) {
                     memcpy(&checkpointId, item->getValue()->getData(), sizeof(checkpointId));
                     checkpointId = ntohll(checkpointId);
                     it->second.currentCheckpointId = checkpointId;
-
-                    if (supportCheckpointSync &&
-                        it->second.currentCheckpointId >= it->second.openCheckpointIdAtBackfillEnd) {
-
+                    if (supportCheckpointSync) {
                         it->second.state = checkpoint_start;
                         addCheckpointMessage_UNLOCKED(item);
                     }
                 }
                 break;
             case queue_op_checkpoint_end:
-                if (supportCheckpointSync &&
-                    it->second.currentCheckpointId >= it->second.openCheckpointIdAtBackfillEnd) {
-
+                if (supportCheckpointSync) {
                     it->second.state = checkpoint_end;
                     uint32_t seqnoAcked;
                     if (seqnoReceived == 0) {
