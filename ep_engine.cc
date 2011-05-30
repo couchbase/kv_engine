@@ -991,15 +991,18 @@ public:
     }
 
     bool callback(Dispatcher &, TaskId) {
-        if (connMap.checkValidity(name, validityToken)) {
-            if (!engine->getEpStore()->isFlushAllScheduled()) {
-                store->dump(vbucket, *this);
-            }
-            CompleteDiskBackfillTapOperation op;
-            connMap.performTapOp(name, op, static_cast<void*>(NULL));
-            if (connMap.addBackfillCompletionMessage(name)) {
-                engine->notifyTapNotificationThread();
-            }
+        bool valid = false;
+        if (connMap.checkValidity(name, validityToken) &&
+            !engine->getEpStore()->isFlushAllScheduled()) {
+            store->dump(vbucket, *this);
+            valid = true;
+        }
+        // Should decr the disk backfill counter regardless of the cookie validity
+        CompleteDiskBackfillTapOperation op;
+        connMap.performTapOp(name, op, static_cast<void*>(NULL));
+
+        if (valid && connMap.addBackfillCompletionMessage(name)) {
+            engine->notifyTapNotificationThread();
         }
 
         return false;
@@ -1085,7 +1088,7 @@ public:
 
     void apply(void) {
         // If efficient VBdump is supported, schedule all the disk backfill tasks.
-        if (efficientVBDump && checkValidity()) {
+        if (efficientVBDump) {
             std::vector<uint16_t>::iterator it = vbuckets.begin();
             for (; it != vbuckets.end(); it++) {
                 Dispatcher *d(engine->epstore->getRODispatcher());

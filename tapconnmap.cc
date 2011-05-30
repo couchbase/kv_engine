@@ -271,7 +271,6 @@ TapProducer *TapConnMap::newProducer(const void* cookie,
         tap->rollback();
         tap->setConnected(true);
         tap->setDisconnect(false);
-        tap->resetPendingBackfill();
         tap->evaluateFlags();
         reconnect = true;
     }
