@@ -44,9 +44,10 @@ def run_sql(sqlite, fn, sql, more_args=[], logger=sys.stderr):
 def version(sqlite, fn):
     return int(run_sql(sqlite, fn, "pragma user_version;").strip())
 
-def count_kv_tables(sqlite, fn):
+def count_kv_vb_tables(sqlite, fn):
     return int(run_sql(sqlite, fn,
-                       'select count(*) from sqlite_master where name like "kv_%";').strip())
+                       'select count(*) from sqlite_master '\
+                       'where name like "kv_%";').strip())
 
 def findCmd(cmdName):
     cmd_dir = os.path.dirname(sys.argv[0])
@@ -126,32 +127,20 @@ def doset(sqlite, src, dest):
         args.append("--remove-crlf")
     if os.path.exists(src + '-0.mb'):
         args.append('--src-pattern=%d/%b-%i.mb')
+        if count_kv_vb_tables(sqlite, src + "-0.mb") > 0:
+            args.append("--src-strategy=multiMTVBDB")
     args.append(src)
     args.append(findTarget(src, dest))
 
+    print " ".join(args)
+
     ensureNewColumns(sqlite, src)
 
-    if v < 2 or count_kv_tables(sqlite, src) <= 0:
-        returncode = subprocess.call(args)
-        if returncode != 0:
-            sys.stderr.write("Error running convert, exit code %d (%s)\n" %
-                             (returncode, ' '.join(args)))
-            sys.exit(1)
-    elif v >= 2:
-        if os.path.isdir(dest) == False:
-            sys.stderr.write("Error: Destination should be a directory for the simple copy.\n")
-            sys.exit(1)
-
-        if os.path.isfile(src) == True:
-            msg = "Copy vbucket_states table into the destination...\n"
-            sys.stdout.write(msg)
-            shutil.copy(src, dest)
-
-        msg = "No schema changes in KV tables. Simply copying the source DB files into the destination...\n"
-        sys.stdout.write(msg)
-        for filename in glob.glob(src + '*.mb'):
-            shutil.copy(filename, dest)
-        sys.stdout.write("Completed copying the source DB files into the destination directory.\n")
+    returncode = subprocess.call(args)
+    if returncode != 0:
+        sys.stderr.write("Error running convert, exit code %d (%s)\n" %
+                         (returncode, ' '.join(args)))
+        sys.exit(1)
 
 def main():
     command = sys.argv[0]
