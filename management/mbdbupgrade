@@ -44,6 +44,10 @@ def run_sql(sqlite, fn, sql, more_args=[], logger=sys.stderr):
 def version(sqlite, fn):
     return int(run_sql(sqlite, fn, "pragma user_version;").strip())
 
+def count_kv_tables(sqlite, fn):
+    return int(run_sql(sqlite, fn,
+                       'select count(*) from sqlite_master where name like "kv_%";').strip())
+
 def findCmd(cmdName):
     cmd_dir = os.path.dirname(sys.argv[0])
     possible = []
@@ -83,7 +87,7 @@ def updateVBStatesTableSchema(sqlite, src):
         run_sql(sqlite, src, 'alter table vbucket_states add column checkpoint_id;',
                 logger=NullLogger())
     except SystemExit:
-        pass # Already had the colum
+        pass # Already had the column
 
 def updateKVTableSchema(sqlite, src):
     for d in glob.glob(src + '*.mb') + glob.glob(src + '*.sqlite'):
@@ -127,7 +131,7 @@ def doset(sqlite, src, dest):
 
     ensureNewColumns(sqlite, src)
 
-    if v < 2:
+    if v < 2 or count_kv_tables(sqlite, src) <= 0:
         returncode = subprocess.call(args)
         if returncode != 0:
             sys.stderr.write("Error running convert, exit code %d (%s)\n" %
