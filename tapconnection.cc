@@ -627,9 +627,6 @@ ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
         if (complete() && idle()) {
             // We've got all of the ack's need, now we can shut down the
             // stream
-            if (doTakeOver && activeVBSetAcked) {
-                engine.resetVBucket(vbid);
-            }
             setDisconnect(true);
             expiryTime = 0;
             ret = ENGINE_DISCONNECT;
