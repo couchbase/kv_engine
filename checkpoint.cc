@@ -790,15 +790,15 @@ bool CheckpointManager::checkAndAddNewCheckpoint(uint64_t id, bool &pCursorRepos
     LockHolder lh(queueLock);
 
     std::list<Checkpoint*>::iterator it = checkpointList.begin();
-    // Check if a checkpoint exists with ID > id.
+    // Check if a checkpoint exists with ID >= id.
     while (it != checkpointList.end()) {
-        if (id < (*it)->getId()) {
+        if (id <= (*it)->getId()) {
             break;
         }
         ++it;
     }
 
-    if (it == checkpointList.end() && checkpointList.back()->getId() < id) {
+    if (it == checkpointList.end()) {
         if (checkpointList.back()->getState() == opened) {
             closeOpenCheckpoint_UNLOCKED(checkpointList.back()->getId());
         }
@@ -828,10 +828,7 @@ bool CheckpointManager::checkAndAddNewCheckpoint(uint64_t id, bool &pCursorRepos
         }
         checkpointList.erase(it, checkpointList.end());
 
-        if (checkpointList.size() == 0 ||
-            (checkpointList.size() > 0 && checkpointList.back()->getId() < id)) {
-            ret = addNewCheckpoint_UNLOCKED(id);
-        }
+        ret = addNewCheckpoint_UNLOCKED(id);
         if (ret) {
             if (checkpointList.back()->getState() == closed) {
                 checkpointList.back()->popBackCheckpointEndItem();

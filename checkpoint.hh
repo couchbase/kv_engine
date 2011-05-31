@@ -469,7 +469,7 @@ private:
 
     /**
      * This method performs the following steps for creating a new checkpoint with a given ID i1:
-     * 1) Check if the checkpoint manager contains any checkpoints with IDs > i1.
+     * 1) Check if the checkpoint manager contains any checkpoints with IDs >= i1.
      * 2) If exists, remove those checkpoints and then create a new checkpoint with a given ID
      *    and reposition all the cursors appropriately.
      * 3) Otherwise, simply create a new open checkpoint with a given ID.
