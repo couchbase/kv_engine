@@ -394,7 +394,7 @@ private:
     Atomic<size_t> numCheckpointEndFailed;
     Atomic<size_t> numUnknown;
 
-    bool backfillPhase;
+    Atomic<bool> backfillPhase;
 
 public:
     TapConsumer(EventuallyPersistentEngine &theEngine,
@@ -407,7 +407,7 @@ public:
                                           uint64_t checkpointId);
     virtual void checkVBOpenCheckpoint(uint16_t);
     virtual bool processOnlineUpdateCommand(uint32_t event, uint16_t vbucket);
-    void setBackfillPhase(bool isBackfill);
+    void setBackfillPhase(bool isBackfill, uint16_t vbucket);
     bool isBackfillPhase(void);
 };
 

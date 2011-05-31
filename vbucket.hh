@@ -159,8 +159,29 @@ public:
         return v.size;
     }
 
+    size_t getBackfillSize() {
+        LockHolder lh(backfill.mutex);
+        return backfill.items.size();
+    }
+    bool queueBackfillItem(const queued_item &qi) {
+        LockHolder lh(backfill.mutex);
+        backfill.items.push(qi);
+        return true;
+    }
+    void getBackfillItems(std::vector<queued_item> &items) {
+        LockHolder lh(backfill.mutex);
+        while (!backfill.items.empty()) {
+            items.push_back(backfill.items.front());
+            backfill.items.pop();
+        }
+    }
+
     HashTable         ht;
     CheckpointManager checkpointManager;
+    struct {
+        Mutex mutex;
+        std::queue<queued_item> items;
+    } backfill;
 
     static const char* toString(vbucket_state_t s) {
         switch(s) {

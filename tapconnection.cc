@@ -233,13 +233,12 @@ void TapProducer::registerTAPCursor(std::map<uint16_t, uint64_t> &lastCheckpoint
         assert(i <= std::numeric_limits<uint16_t>::max());
         uint16_t vbid = static_cast<uint16_t>(i);
         if (vbucketFilter(vbid)) {
-            if (!vbuckets.getBucket(vbid)) {
-                // If a vbucket is not created yet, instantiate it with state pending.
-                engine.getEpStore()->setVBucketState(vbid, vbucket_state_pending);
-                getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                                 "VBucket %d not found for TAP cursor. Instantiating...\n", vbid);
-            }
             RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
+            if (!vb) {
+                getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                                 "VBucket %d not found for TAP cursor. Skip it...\n", vbid);
+                continue;
+            }
 
             std::map<uint16_t, uint64_t>::iterator it = lastCheckpointIds.find(vbid);
             if (it != lastCheckpointIds.end()) {
@@ -957,8 +956,18 @@ void TapConsumer::addStats(ADD_STAT add_stat, const void *c) {
     addStat("num_unknown", numUnknown, add_stat, c);
 }
 
-void TapConsumer::setBackfillPhase(bool isBackfill) {
+void TapConsumer::setBackfillPhase(bool isBackfill, uint16_t vbucket) {
     backfillPhase = isBackfill;
+    if (backfillPhase) {
+        const VBucketMap &vbuckets = engine.getEpStore()->getVBuckets();
+        RCPtr<VBucket> vb = vbuckets.getBucket(vbucket);
+        if (vb) {
+            // set the open checkpoint id to 0 to indicate the backfill phase.
+            vb->checkpointManager.setOpenCheckpointId(0);
+            // Note that when backfill is started, the destination always resets the vbucket
+            // and its checkpoint datastructure.
+        }
+    }
 }
 
 bool TapConsumer::isBackfillPhase(void) {

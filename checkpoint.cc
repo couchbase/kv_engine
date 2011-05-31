@@ -546,7 +546,8 @@ uint64_t CheckpointManager::getAllItemsFromCurrentPosition(CheckpointCursor &cur
     uint64_t checkpointId = 0;
     // Get the last closed checkpoint Id.
     if(checkpointList.size() > 0) {
-        checkpointId = (*(cursor.currentCheckpoint))->getId() - 1;
+        uint64_t id = (*(cursor.currentCheckpoint))->getId();
+        checkpointId = id > 0 ? id - 1 : 0;
     }
 
     return checkpointId;

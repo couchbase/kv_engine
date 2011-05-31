@@ -450,6 +450,13 @@ public:
     ENGINE_ERROR_CODE add(const Item &item, const void *cookie);
 
     /**
+     * Add an TAP backfill item into its corresponding vbucket
+     * @param item the item to be added
+     * @return the result of the operation
+     */
+    ENGINE_ERROR_CODE addTAPBackfillItem(const Item &item);
+
+    /**
      * Retrieve a value.
      *
      * @param key the key to fetch
@@ -791,7 +798,7 @@ private:
     void queueDirty(const std::string &key, uint16_t vbid,
                     enum queue_operation op, value_t value,
                     uint32_t flags = 0, time_t exptime = 0, uint64_t cas = 0,
-                    int64_t rowid = -1);
+                    int64_t rowid = -1, bool tapBackfill = false);
 
     /**
      * Retrieve a StoredValue and invoke a method on it.
@@ -828,6 +835,7 @@ private:
     }
 
     std::queue<queued_item> *beginFlush();
+    void pushToOutgoingQueue(std::vector<queued_item> &items);
     void requeueRejectedItems(std::queue<queued_item> *rejects);
     void completeFlush(rel_time_t flush_start);
 

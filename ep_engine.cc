@@ -2481,12 +2481,18 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
             }
 
             BlockTimer timer(&stats.tapMutationHisto);
+            TapConsumer *tc = dynamic_cast<TapConsumer*>(connection);
             shared_ptr<const Blob> vblob(Blob::New(static_cast<const char*>(data), ndata));
-
             Item *item = new Item(k, flags, exptime, vblob);
             item->setVBucketId(vbucket);
 
-            ret = epstore->set(*item, cookie, true);
+            if (tc) {
+                ret = tc->isBackfillPhase() ?
+                      epstore->addTAPBackfillItem(*item) : epstore->set(*item, cookie, true);
+            } else {
+                ret = ENGINE_DISCONNECT;
+            }
+
             if (ret == ENGINE_SUCCESS) {
                 addMutationEvent(item);
             } else if (ret == ENGINE_ENOMEM) {
@@ -2500,8 +2506,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
             }
 
             delete item;
-            TapConsumer *tc = dynamic_cast<TapConsumer*>(connection);
-            if (tc && (!tc->supportsCheckpointSync() || tc->isBackfillPhase())) {
+            if (tc && !tc->supportsCheckpointSync() && !tc->isBackfillPhase()) {
                 tc->checkVBOpenCheckpoint(vbucket);
             }
 
@@ -2548,7 +2553,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
                     }
                     TapConsumer *tc = dynamic_cast<TapConsumer*>(connection);
                     if (tc) {
-                        tc->setBackfillPhase(true);
+                        tc->setBackfillPhase(true, vbucket);
                     } else {
                         ret = ENGINE_DISCONNECT;
                         getLogger()->log(EXTENSION_LOG_WARNING, NULL,
@@ -2560,7 +2565,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
                 {
                     TapConsumer *tc = dynamic_cast<TapConsumer*>(connection);
                     if (tc) {
-                        tc->setBackfillPhase(false);
+                        tc->setBackfillPhase(false, vbucket);
                     } else {
                         ret = ENGINE_DISCONNECT;
                         getLogger()->log(EXTENSION_LOG_WARNING, NULL,

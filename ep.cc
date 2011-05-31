@@ -663,6 +663,49 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::add(const Item &item,
     return ENGINE_SUCCESS;
 }
 
+ENGINE_ERROR_CODE EventuallyPersistentStore::addTAPBackfillItem(const Item &item) {
+
+    RCPtr<VBucket> vb = getVBucket(item.getVBucketId());
+    if (!vb || vb->getState() == vbucket_state_dead || vb->getState() == vbucket_state_active) {
+        ++stats.numNotMyVBuckets;
+        return ENGINE_NOT_MY_VBUCKET;
+    }
+
+    bool cas_op = (item.getCas() != 0);
+
+    int64_t row_id = -1;
+    mutation_type_t mtype = vb->ht.set(item, row_id);
+    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
+
+    switch (mtype) {
+    case NOMEM:
+        ret = ENGINE_ENOMEM;
+        break;
+    case INVALID_CAS:
+    case IS_LOCKED:
+        ret = ENGINE_KEY_EEXISTS;
+        break;
+    case WAS_DIRTY:
+        // Do normal stuff, but don't enqueue dirty flags.
+        break;
+    case NOT_FOUND:
+        if (cas_op) {
+            ret = ENGINE_KEY_ENOENT;
+            break;
+        }
+        // FALLTHROUGH
+    case WAS_CLEAN:
+        queueDirty(item.getKey(), item.getVBucketId(), queue_op_set, item.getValue(),
+                   item.getFlags(), item.getExptime(), item.getCas(), row_id, true);
+        break;
+    case INVALID_VBUCKET:
+        ret = ENGINE_NOT_MY_VBUCKET;
+        break;
+    }
+
+    return ret;
+}
+
 
 void EventuallyPersistentStore::snapshotVBuckets(const Priority &priority) {
 
@@ -1383,9 +1426,6 @@ std::queue<queued_item>* EventuallyPersistentStore::beginFlush() {
                 // persistence cursor to the tail of the current open
                 // checkpoint.
                 uint64_t checkpointId = vb->checkpointManager.getAllItemsForPersistence(item_list);
-                if (item_list.size() == 0) {
-                    continue;
-                }
                 persistenceCheckpointIds[vbid] = checkpointId;
 
                 std::set<queued_item, CompareQueuedItemsByKey> item_set;
@@ -1396,23 +1436,20 @@ std::queue<queued_item>* EventuallyPersistentStore::beginFlush() {
                 // the last element.
                 for(; reverse_it != item_list.rend(); ++reverse_it) {
                     queued_item qi = *reverse_it;
-                    if (qi->getOperation() == queue_op_checkpoint_start ||
-                        qi->getOperation() == queue_op_checkpoint_end) {
-                        continue;
-                    }
-                    ret = item_set.insert(qi);
-                    if (!(ret.second)) {
-                        vb->doStatsForFlushing(*qi, qi->size());
+                    if (qi->getOperation() == queue_op_set || qi->getOperation() == queue_op_del) {
+                        ret = item_set.insert(qi);
+                        if (!(ret.second)) {
+                            vb->doStatsForFlushing(*qi, qi->size());
+                        }
                     }
                 }
                 item_list.assign(item_set.begin(), item_set.end());
 
-                rwUnderlying->optimizeWrites(item_list);
-                std::vector<queued_item>::iterator it = item_list.begin();
-                for(; it != item_list.end(); ++it) {
-                    writing.push(*it);
+                // Grab all the backfill items if exist.
+                vb->getBackfillItems(item_list);
+                if (item_list.size() > 0) {
+                    pushToOutgoingQueue(item_list);
                 }
-                item_list.clear();
             }
         }
 
@@ -1425,6 +1462,15 @@ std::queue<queued_item>* EventuallyPersistentStore::beginFlush() {
         rv = &writing;
     }
     return rv;
+}
+
+void EventuallyPersistentStore::pushToOutgoingQueue(std::vector<queued_item> &items) {
+    rwUnderlying->optimizeWrites(items);
+    std::vector<queued_item>::iterator it = items.begin();
+    for(; it != items.end(); ++it) {
+        writing.push(*it);
+    }
+    items.clear();
 }
 
 void EventuallyPersistentStore::requeueRejectedItems(std::queue<queued_item> *rej) {
@@ -1507,9 +1553,8 @@ size_t EventuallyPersistentStore::getWriteQueueSize(void) {
         assert(i <= std::numeric_limits<uint16_t>::max());
         uint16_t vbid = static_cast<uint16_t>(i);
         RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
-        if (vb && (vb->getState() == vbucket_state_active ||
-                   vb->getState() == vbucket_state_replica)) {
-            size += vb->checkpointManager.getNumItemsForPersistence();
+        if (vb && (vb->getState() != vbucket_state_dead)) {
+            size += vb->checkpointManager.getNumItemsForPersistence() + vb->getBackfillSize();
         }
     }
     return size;
@@ -1900,7 +1945,8 @@ void EventuallyPersistentStore::queueDirty(const std::string &key,
                                            uint32_t flags,
                                            time_t exptime,
                                            uint64_t cas,
-                                           int64_t rowid) {
+                                           int64_t rowid,
+                                           bool tapBackfill) {
     if (doPersistence) {
         RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
         if (vb) {
@@ -1912,8 +1958,11 @@ void EventuallyPersistentStore::queueDirty(const std::string &key,
                 qi = new QueuedItem(key, vbid, op, vbuckets.getBucketVersion(vbid), rowid, flags,
                                     exptime, cas);
             }
+
             queued_item item(qi);
-            if (vb->checkpointManager.queueDirty(item, vb)) {
+            bool rv = tapBackfill ?
+                      vb->queueBackfillItem(item) : vb->checkpointManager.queueDirty(item, vb);
+            if (rv) {
                 ++stats.queue_size;
                 ++stats.totalEnqueued;
                 vb->doStatsForQueueing(*item, item->size());
