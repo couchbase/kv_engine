@@ -1044,6 +1044,10 @@ public:
         delete queue;
     }
 
+    void releaseEngineResources() {
+        engine->tapConnMap.releaseValidityToken(validityToken);
+    }
+
     bool visitBucket(RCPtr<VBucket> vb) {
         if (filter(vb->getId())) {
             VBucketVisitor::visitBucket(vb);
@@ -1218,6 +1222,7 @@ public:
     }
 
     ~BackFillThreadData() {
+        bfv.releaseEngineResources();
         engine->backfillThreadTerminating();
     }
 
@@ -1990,6 +1995,14 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
         }
         ++backfillThreads.num;
         holder.unlock();
+
+        ENGINE_ERROR_CODE rv = tapConnMap.reserveValidityToken(cookie);
+        if (rv != ENGINE_SUCCESS) {
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                             "Failed to reserve cookie for backfill thread\n");
+            return TAP_DISCONNECT;
+        }
+
         queueBackfill(connection, cookie);
     }
 

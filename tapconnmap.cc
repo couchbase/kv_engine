@@ -432,6 +432,13 @@ void TapConnMap::notifyIOThreadMain() {
         }
     }
 
+    if (!registeredClients.empty()) {
+        std::list<TapConnection*>::iterator ii;
+        for (ii = registeredClients.begin(); ii != registeredClients.end(); ++ii) {
+            (*ii)->releaseReference(true);
+        }
+    }
+
     lh.unlock();
 
     // Delete all of the dead clients
@@ -446,12 +453,6 @@ void TapConnMap::notifyIOThreadMain() {
         }
     }
 
-    if (!registeredClients.empty()) {
-        std::list<TapConnection*>::iterator ii;
-        for (ii = registeredClients.begin(); ii != registeredClients.end(); ++ii) {
-            (*ii)->releaseReference(true);
-        }
-    }
     engine.notifyIOComplete(toNotify, ENGINE_SUCCESS);
 }
 
@@ -489,6 +490,24 @@ bool TapConnMap::closeTapConnectionByName(const std::string &name) {
         }
     }
     return rv;
+}
+
+/**
+ * Increments reference count of validity token (cookie in
+ * fact). NOTE: takes notifySync lock.
+ */
+ENGINE_ERROR_CODE TapConnMap::reserveValidityToken(const void *token) {
+    LockHolder lh(notifySync);
+    return engine.getServerApi()->cookie->reserve(token);
+}
+
+/**
+ * Decrements and posibly frees/invalidate validity token (cookie
+ * in fact). NOTE: this acquires notifySync lock.
+ */
+void TapConnMap::releaseValidityToken(const void *token) {
+    LockHolder lh(notifySync);
+    engine.getServerApi()->cookie->release(token);
 }
 
 void CompleteBackfillTapOperation::perform(TapProducer *tc, void *) {

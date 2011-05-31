@@ -152,6 +152,18 @@ public:
     bool checkValidity(const std::string &name, const void* token);
 
     /**
+     * Increments reference count of validity token (cookie in
+     * fact). NOTE: takes notifySync lock.
+     */
+    ENGINE_ERROR_CODE reserveValidityToken(const void *token);
+
+    /**
+     * Decrements and posibly frees/invalidate validity token (cookie
+     * in fact). NOTE: this acquires notifySync lock.
+     */
+    void releaseValidityToken(const void *token);
+
+    /**
      * Return true if the backfill is completed for a given TAP connection.
      */
     bool addBackfillCompletionMessage(const std::string &name);
