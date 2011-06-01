@@ -411,10 +411,8 @@ bool CheckpointManager::isCheckpointCreationForHighMemUsage(const RCPtr<VBucket>
     return forceCreation;
 }
 
-uint64_t CheckpointManager::removeClosedUnrefCheckpoints(const RCPtr<VBucket> &vbucket,
-                                                         std::set<queued_item,
-                                                                  CompareQueuedItemsByKey> &items,
-                                                         bool &newOpenCheckpointCreated) {
+size_t CheckpointManager::removeClosedUnrefCheckpoints(const RCPtr<VBucket> &vbucket,
+                                                       bool &newOpenCheckpointCreated) {
 
     // This function is executed periodically by the non-IO dispatcher.
     LockHolder lh(queueLock);
@@ -462,32 +460,24 @@ uint64_t CheckpointManager::removeClosedUnrefCheckpoints(const RCPtr<VBucket> &v
             numUnrefItems += (*it)->getNumItems() + 2; // 2 is for checkpoint start and end items.
         }
     }
-    numItems -= numUnrefItems;
-    persistenceCursor.offset -= numUnrefItems;
-    std::map<const std::string, CheckpointCursor>::iterator map_it = tapCursors.begin();
-    for (; map_it != tapCursors.end(); ++map_it) {
-        map_it->second.offset -= numUnrefItems;
+    if (numUnrefItems > 0) {
+        numItems -= numUnrefItems;
+        persistenceCursor.offset -= numUnrefItems;
+        std::map<const std::string, CheckpointCursor>::iterator map_it = tapCursors.begin();
+        for (; map_it != tapCursors.end(); ++map_it) {
+            map_it->second.offset -= numUnrefItems;
+        }
     }
-
     unrefCheckpointList.splice(unrefCheckpointList.begin(), checkpointList,
                                checkpointList.begin(), it);
     lh.unlock();
 
-    if (unrefCheckpointList.size() == 0) {
-        return 0;
-    }
-
-    std::list<Checkpoint*>::reverse_iterator chkpoint_it = unrefCheckpointList.rbegin();
-    uint64_t checkpoint_id = (*chkpoint_it)->getId();
-    // Traverse the list of unreferenced checkpoints in the reverse order.
-    for (; chkpoint_it != unrefCheckpointList.rend(); chkpoint_it++) {
-        std::list<queued_item>::iterator list_it = (*chkpoint_it)->begin();
-        for (; list_it != (*chkpoint_it)->end(); list_it++) {
-            items.insert(*list_it);
-        }
+    std::list<Checkpoint*>::iterator chkpoint_it = unrefCheckpointList.begin();
+    for (; chkpoint_it != unrefCheckpointList.end(); chkpoint_it++) {
         delete *chkpoint_it;
     }
-    return checkpoint_id;
+
+    return numUnrefItems;
 }
 
 bool CheckpointManager::queueDirty(const queued_item &item, const RCPtr<VBucket> &vbucket) {

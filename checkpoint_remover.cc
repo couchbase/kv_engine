@@ -19,20 +19,14 @@ public:
           stateFinalizer(sfin) {}
 
     bool visitBucket(RCPtr<VBucket> vb) {
-        uint64_t checkpointId;
         currentBucket = vb;
-        std::set<queued_item, CompareQueuedItemsByKey> items;
         bool newCheckpointCreated = false;
-        checkpointId = vb->checkpointManager.removeClosedUnrefCheckpoints(vb, items,
-                                                                          newCheckpointCreated);
+        removed = vb->checkpointManager.removeClosedUnrefCheckpoints(vb, newCheckpointCreated);
         // If the new checkpoint is created, notify this event to the tap notify IO thread
         // so that it can then signal all paused TAP connections.
         if (newCheckpointCreated) {
             store->getEPEngine().notifyTapNotificationThread();
         }
-        removed = items.size();
-        // TODO: If necessary, schedule an IO dispatcher job to persist closed
-        // unreferenced checkpoints into a separate database file.
         update();
         return false;
     }

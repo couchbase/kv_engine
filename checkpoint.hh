@@ -226,15 +226,12 @@ public:
     /**
      * Remove closed unreferenced checkpoints and return them through the vector.
      * @param vbucket the vbucket that this checkpoint manager belongs to.
-     * @param items the set that will contains the list of items in the collapsed
      * @param newOpenCheckpointCreated the flag indicating if the new open checkpoint was created
      * as a result of running this function.
-     * unreferenced checkpoints.
-     * @return the last checkpoint Id in the unreferenced checkpoints.
+     * @return the number of items that are purged from checkpoint
      */
-    uint64_t removeClosedUnrefCheckpoints(const RCPtr<VBucket> &vbucket,
-                                          std::set<queued_item, CompareQueuedItemsByKey> &items,
-                                          bool &newOpenCheckpointCreated);
+    size_t removeClosedUnrefCheckpoints(const RCPtr<VBucket> &vbucket,
+                                        bool &newOpenCheckpointCreated);
 
     /**
      * Register the new cursor for a given TAP connection

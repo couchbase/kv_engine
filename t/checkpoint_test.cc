@@ -96,7 +96,6 @@ static void *launch_tap_client_thread(void *arg) {
 
 static void *launch_checkpoint_cleanup_thread(void *arg) {
     struct thread_args *args = static_cast<struct thread_args *>(arg);
-    std::set<queued_item, CompareQueuedItemsByKey> items;
     LockHolder lh(*(args->mutex));
     LockHolder lhg(*(args->gate));
     ++(*(args->counter));
@@ -105,20 +104,13 @@ static void *launch_checkpoint_cleanup_thread(void *arg) {
     args->mutex->wait();
     lh.unlock();
 
-    uint64_t checkpoint_id = 0;
+    size_t numItemsRemoved = 0;
     while (args->checkpoint_manager->getNumOfTAPCursors() > 0) {
         bool newCheckpointCreated = false;
-        uint64_t id = args->checkpoint_manager->removeClosedUnrefCheckpoints(args->vbucket, items,
+        numItemsRemoved = args->checkpoint_manager->removeClosedUnrefCheckpoints(args->vbucket,
                                                                              newCheckpointCreated);
-        if (id > 0) {
-            checkpoint_id = id;
-        }
-        items.clear();
     }
-    // Checkpoint cleanup thread should remove all the unreferenced closed checkpoints
-    // except for the current open checkpoint in this test.
-    assert(checkpoint_id == (args->checkpoint_manager->getOpenCheckpointId() - 1));
-    assert(items.empty());
+    assert(numItemsRemoved == 0);
     return static_cast<void *>(0);
 }
 
