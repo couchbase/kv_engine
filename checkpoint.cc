@@ -779,6 +779,14 @@ bool CheckpointManager::isLastMutationItemInCheckpoint(CheckpointCursor &cursor)
 bool CheckpointManager::checkAndAddNewCheckpoint(uint64_t id, bool &pCursorRepositioned) {
     LockHolder lh(queueLock);
 
+    // If the replica receives a checkpoint start message right after backfill completion,
+    // simply set the current open checkpoint id to the one received from the active vbucket.
+    if (checkpointList.back()->getId() == 0) {
+        checkpointList.back()->setId(id);
+        pCursorRepositioned = id > 0 ? true : false;
+        return true;
+    }
+
     std::list<Checkpoint*>::iterator it = checkpointList.begin();
     // Check if a checkpoint exists with ID >= id.
     while (it != checkpointList.end()) {
