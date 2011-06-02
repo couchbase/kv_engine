@@ -595,6 +595,13 @@ queued_item CheckpointManager::nextItem(const std::string &name, bool &isLastMut
         queued_item qi(new QueuedItem("", 0xffff, queue_op_empty));
         return qi;
     }
+    if (checkpointList.back()->getId() == 0) {
+        getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                         "VBucket %d CheckpointManager: Wait for backfill completion...\n",
+                         vbucketId);
+        queued_item qi(new QueuedItem("", 0xffff, queue_op_empty));
+        return qi;
+    }
 
     CheckpointCursor &cursor = it->second;
     if ((*(it->second.currentCheckpoint))->getState() == closed) {
