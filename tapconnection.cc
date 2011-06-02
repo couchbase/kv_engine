@@ -615,11 +615,12 @@ ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
                              getName().c_str(), s);
         }
 
-        lh.unlock();
-
-        if (addBackfillCompletionMessage()) {
+        if (addBackfillCompletionMessage_UNLOCKED()) {
             notifyTapNotificationThread = true;
         }
+
+        lh.unlock();
+
         if (notifyTapNotificationThread || doTakeOver) {
             engine.notifyTapNotificationThread();
         }
@@ -664,8 +665,7 @@ ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
     return ret;
 }
 
-bool TapProducer::addBackfillCompletionMessage() {
-    LockHolder lh(queueLock);
+bool TapProducer::addBackfillCompletionMessage_UNLOCKED() {
     bool rv = false;
     if (!backfillCompleted && !isPendingBackfill_UNLOCKED() &&
         getBackfillRemaining_UNLOCKED() == 0 && tapLog.empty()) {
