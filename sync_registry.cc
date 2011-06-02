@@ -193,9 +193,9 @@ SyncListener::SyncListener(EventuallyPersistentEngine &epEngine,
                            std::set<key_spec_t> *keys,
                            sync_type_t sync_type,
                            uint8_t replicaCount) :
-    engine(epEngine), cookie(c), keySpecs(keys), syncType(sync_type),
-    replicasPerKey(replicaCount), finished(false), allowNotify(false),
-    persistedOrReplicated(0), startTime(gethrtime()) {
+    engine(epEngine), cookie(c), keySpecs(keys), persistedOrReplicated(0),
+    startTime(gethrtime()), syncType(sync_type),
+    replicasPerKey(replicaCount), finished(false), allowNotify(false) {
 }
 
 

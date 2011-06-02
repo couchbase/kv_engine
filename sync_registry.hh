@@ -187,8 +187,10 @@ private:
     EventuallyPersistentEngine   &engine;
     const void                   *cookie;
     std::set<key_spec_t>         *keySpecs;
-    sync_type_t                  syncType;
-    const uint8_t                replicasPerKey;
+    size_t                       persistedOrReplicated;
+    TaskId                       abortTaskId;
+    Mutex                        mutex;
+    const hrtime_t               startTime;
     std::set<key_spec_t>         persistedKeys;
     std::set<key_spec_t>         modifiedKeys;
     std::set<key_spec_t>         deletedKeys;
@@ -196,12 +198,10 @@ private:
     std::map<key_spec_t,uint8_t> replicaCounts;
     std::set<key_spec_t>         nonExistentKeys;
     std::set<key_spec_t>         invalidCasKeys;
-    Mutex                        mutex;
+    sync_type_t                  syncType;
+    const uint8_t                replicasPerKey;
     bool                         finished;
     bool                         allowNotify;
-    size_t                       persistedOrReplicated;
-    const hrtime_t               startTime;
-    TaskId                       abortTaskId;
 };
 
 
