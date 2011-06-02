@@ -577,7 +577,8 @@ private:
             case TAP_OPAQUE:
                 opaqueCommandCode = (uint32_t)ret.state;
                 if (opaqueCommandCode == htonl(TAP_OPAQUE_ENABLE_AUTO_NACK) ||
-                    opaqueCommandCode == htonl(TAP_OPAQUE_ENABLE_CHECKPOINT_SYNC)) {
+                    opaqueCommandCode == htonl(TAP_OPAQUE_ENABLE_CHECKPOINT_SYNC) ||
+                    opaqueCommandCode == htonl(TAP_OPAQUE_CLOSE_BACKFILL)) {
                     break;
                 }
                 // FALLTHROUGH
