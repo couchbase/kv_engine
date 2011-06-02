@@ -808,21 +808,20 @@ private:
 
 void TapProducer::queueBGFetch(const std::string &key, uint64_t id,
                                  uint16_t vb, uint16_t vbv) {
-    LockHolder lh(backfillLock);
+    LockHolder lh(queueLock);
     backfillQueue.push(TapBGFetchQueueItem(key, id, vb, vbv));
     ++bgQueued;
     ++bgQueueSize;
-    assert(!empty());
-    assert(!idle());
-    assert(!complete());
+    assert(!empty_UNLOCKED());
+    assert(!idle_UNLOCKED());
+    assert(!complete_UNLOCKED());
 }
 
 void TapProducer::runBGFetch(Dispatcher *dispatcher, const void *c) {
-    LockHolder lh(backfillLock);
+    LockHolder lh(queueLock);
     TapBGFetchQueueItem qi(backfillQueue.front());
     backfillQueue.pop();
     --bgQueueSize;
-    lh.unlock();
 
     shared_ptr<TapBGFetchCallback> dcb(new TapBGFetchCallback(&engine,
                                                               getName(), qi.key,
@@ -833,7 +832,7 @@ void TapProducer::runBGFetch(Dispatcher *dispatcher, const void *c) {
 }
 
 void TapProducer::gotBGItem(Item *i, bool implicitEnqueue) {
-    LockHolder lh(backfillLock);
+    LockHolder lh(queueLock);
     // implicitEnqueue is used for the optimized disk fetch wherein we
     // receive the item and want the stats to reflect an
     // enqueue/execute cycle.
@@ -852,8 +851,8 @@ void TapProducer::completedBGFetchJob() {
 }
 
 Item* TapProducer::nextFetchedItem() {
+    LockHolder lh(queueLock);
     assert(hasItem());
-    LockHolder lh(backfillLock);
     Item *rv = backfilledItems.front();
     assert(rv);
     backfilledItems.pop();
@@ -1131,7 +1130,7 @@ void TapProducer::setTimeForNoop()
 bool TapProducer::cleanSome()
 {
     int ii = 0;
-    LockHolder lh(backfillLock);
+    LockHolder lh(queueLock);
     while (!backfilledItems.empty() && ii < 1000) {
         Item *i(backfilledItems.front());
         assert(i);
