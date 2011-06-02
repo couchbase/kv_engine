@@ -850,7 +850,7 @@ private:
      * a disconnect was requested at the end.
      */
     bool complete_UNLOCKED(void) {
-        return (dumpQueue || doTakeOver) && empty_UNLOCKED() && !isPendingBackfill_UNLOCKED();
+        return (dumpQueue || doTakeOver) && isBackfillCompleted_UNLOCKED() && empty_UNLOCKED();
     }
 
     bool complete(void) {
