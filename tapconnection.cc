@@ -293,9 +293,12 @@ void TapProducer::registerTAPCursor(std::map<uint16_t, uint64_t> &lastCheckpoint
             // delete the corresponding vbucket before receiving the backfill stream.
             std::vector<uint16_t>::iterator it = backfill_vbuckets.begin();
             for (; it != backfill_vbuckets.end(); ++it) {
-                TapVBucketEvent hi(TAP_OPAQUE, *it,
-                                   (vbucket_state_t)htonl(TAP_OPAQUE_INITIAL_VBUCKET_STREAM));
-                addVBucketHighPriority_UNLOCKED(hi);
+                std::pair<std::set<uint16_t>::iterator,bool> ret = initVBuckets.insert(*it);
+                if (ret.second) {
+                    TapVBucketEvent hi(TAP_OPAQUE, *it,
+                                       (vbucket_state_t)htonl(TAP_OPAQUE_INITIAL_VBUCKET_STREAM));
+                    addVBucketHighPriority_UNLOCKED(hi);
+                }
             }
         }
     } else {
@@ -674,6 +677,7 @@ bool TapProducer::addBackfillCompletionMessage_UNLOCKED() {
         TapVBucketEvent hi(TAP_OPAQUE, 0,
                            (vbucket_state_t)htonl(TAP_OPAQUE_CLOSE_BACKFILL));
         addVBucketHighPriority_UNLOCKED(hi);
+        initVBuckets.clear();
         rv = true;
     }
     return rv;
