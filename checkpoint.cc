@@ -125,8 +125,7 @@ uint64_t CheckpointManager::getOpenCheckpointId() {
     return checkpointList.back()->getState() == opened ? id : id + 1;
 }
 
-void CheckpointManager::setOpenCheckpointId(uint64_t id) {
-    LockHolder lh(queueLock);
+void CheckpointManager::setOpenCheckpointId_UNLOCKED(uint64_t id) {
     if (checkpointList.size() > 0) {
         checkpointList.back()->setId(id);
         // Update the checkpoint_start item with the new Id.
@@ -779,10 +778,15 @@ bool CheckpointManager::isLastMutationItemInCheckpoint(CheckpointCursor &cursor)
 bool CheckpointManager::checkAndAddNewCheckpoint(uint64_t id, bool &pCursorRepositioned) {
     LockHolder lh(queueLock);
 
+    // Ignore CHECKPOINT_START message with ID 0 as 0 is reserved for representing backfill.
+    if (id == 0) {
+        pCursorRepositioned = false;
+        return true;
+    }
     // If the replica receives a checkpoint start message right after backfill completion,
     // simply set the current open checkpoint id to the one received from the active vbucket.
     if (checkpointList.back()->getId() == 0) {
-        checkpointList.back()->setId(id);
+        setOpenCheckpointId_UNLOCKED(id);
         pCursorRepositioned = id > 0 ? true : false;
         return true;
     }

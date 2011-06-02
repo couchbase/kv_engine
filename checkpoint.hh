@@ -221,7 +221,12 @@ public:
         return id > 0 ? (id - 1) : 0;
     }
 
-    void setOpenCheckpointId(uint64_t id);
+    void setOpenCheckpointId_UNLOCKED(uint64_t id);
+
+    void setOpenCheckpointId(uint64_t id) {
+        LockHolder lh(queueLock);
+        setOpenCheckpointId_UNLOCKED(id);
+    }
 
     /**
      * Remove closed unreferenced checkpoints and return them through the vector.
