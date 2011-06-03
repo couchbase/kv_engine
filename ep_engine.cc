@@ -526,7 +526,6 @@ extern "C" {
                 std::stringstream resp;
 
                 assembleSyncResponse(resp, syncListener, *e->getEpStore());
-                e->getServerApi()->cookie->store_engine_specific(cookie, NULL);
                 syncListener->destroy();
 
                 std::string body = resp.str();

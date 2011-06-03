@@ -346,6 +346,7 @@ void SyncListener::maybeNotifyIOComplete(bool timedout) {
     assert(finished || timedout);
 
     if (allowNotify) {
+        assert(engine.getServerApi()->cookie->get_engine_specific(cookie) == NULL);
         engine.getServerApi()->cookie->store_engine_specific(cookie, this);
         engine.notifyIOComplete(cookie, ENGINE_SUCCESS);
         allowNotify = false;
@@ -371,6 +372,8 @@ bool SyncDestructionCallback::callback(Dispatcher &d, TaskId) {
     if (syncListener->abortTaskId) {
         d.cancel(syncListener->abortTaskId);
     }
+    syncListener->engine.getServerApi()->cookie->store_engine_specific(syncListener->cookie,
+                                                                       NULL);
     delete syncListener;
     return false;
 }
