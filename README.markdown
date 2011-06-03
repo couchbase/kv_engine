@@ -18,7 +18,7 @@ For example, assume you keep all of your projects in `~/prog/`, you
 can do this:
 
     cd ~/prog
-    git clone -b engine git://github.com/northscale/memcached.git
+    git clone -b engine git://github.com/membase/memcached.git
     cd memcached
     git checkout engine
     ./config/autorun.sh
@@ -28,7 +28,7 @@ can do this:
 ### Building the Eventually Persistent Engine
 
     cd ~/prog
-    git clone git@github.com:northscale/ep-engine.git
+    git clone git@github.com:membase/ep-engine.git
     cd ep-engine
     ./config/autorun.sh
     ./configure --with-memcached=$HOME/prog/memcached
