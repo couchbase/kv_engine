@@ -357,3 +357,20 @@ void SyncListener::maybeNotifyIOComplete(bool timedout) {
         }
     }
 }
+
+
+void SyncListener::destroy() {
+    Dispatcher *d = engine.getEpStore()->getNonIODispatcher();
+
+    d->schedule(shared_ptr<DispatcherCallback>(new SyncDestructionCallback(this)),
+                NULL, Priority::SyncDestroyPriority, 0, false, true);
+}
+
+
+bool SyncDestructionCallback::callback(Dispatcher &d, TaskId) {
+    if (syncListener->abortTaskId) {
+        d.cancel(syncListener->abortTaskId);
+    }
+    delete syncListener;
+    return false;
+}

@@ -86,6 +86,24 @@ private:
 };
 
 /**
+ * Dispatcher task to safely shut down synchronization tasks.
+ */
+class SyncDestructionCallback : public DispatcherCallback {
+public:
+    SyncDestructionCallback(SyncListener *sl) : syncListener(sl) {
+    }
+
+    bool callback(Dispatcher &, TaskId);
+
+    std::string description() {
+        return "SyncListener destruction callback";
+    }
+
+private:
+    SyncListener *syncListener;
+};
+
+/**
  * Registers listeners for the Sync commands (persistence sync and replication sync).
  */
 class SyncRegistry {
@@ -140,8 +158,6 @@ public:
                  sync_type_t sync_type,
                  uint8_t replicaCount = 0);
 
-    ~SyncListener();
-
     void keySynced(const key_spec_t &keyspec, bool deleted = false);
     void keySynced(const key_spec_t &keyspec, uint8_t numReplicas);
 
@@ -180,9 +196,20 @@ public:
         return invalidCasKeys;
     }
 
+    /**
+     * Request destruction of this SyncListener.
+     *
+     * This is more complicated than a normal destructor because we
+     * need to ensure it runs on the right thread.
+     */
+    void destroy();
+
 private:
 
     friend class SyncAbortCallback;
+    friend class SyncDestructionCallback;
+
+    ~SyncListener();
 
     EventuallyPersistentEngine   &engine;
     const void                   *cookie;

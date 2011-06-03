@@ -515,7 +515,7 @@ extern "C" {
             SyncListener *syncListener = static_cast<SyncListener *>(data);
 
             if (!syncListener->isFinished()) {
-                delete syncListener;
+                syncListener->destroy();
                 if (response(NULL, 0, NULL, 0, NULL, 0, PROTOCOL_BINARY_RAW_BYTES,
                              PROTOCOL_BINARY_RESPONSE_ETMPFAIL, 0, cookie)) {
                     return ENGINE_SUCCESS;
@@ -527,7 +527,7 @@ extern "C" {
 
                 assembleSyncResponse(resp, syncListener, *e->getEpStore());
                 e->getServerApi()->cookie->store_engine_specific(cookie, NULL);
-                delete syncListener;
+                syncListener->destroy();
 
                 std::string body = resp.str();
                 bool respSent = response(NULL, 0, NULL, 0,
@@ -4006,7 +4006,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::sync(std::set<key_spec_t> *keys,
         std::stringstream resp;
 
         assembleSyncResponse(resp, syncListener, *epstore);
-        delete syncListener;
+        syncListener->destroy();
 
         std::string body = resp.str();
         response(NULL, 0, NULL, 0,
@@ -4045,7 +4045,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::sync(std::set<key_spec_t> *keys,
     std::stringstream resp;
 
     assembleSyncResponse(resp, syncListener, *epstore);
-    delete syncListener;
+    syncListener->destroy();
 
     std::string body = resp.str();
     response(NULL, 0, NULL, 0,
