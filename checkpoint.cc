@@ -676,14 +676,8 @@ void CheckpointManager::clear() {
     persistenceCursor.offset = 0;
     checkpointList.front()->incrReferenceCounter();
 
-    // Reset all the persistence cursors.
-    std::map<const std::string, CheckpointCursor>::iterator cit = tapCursors.begin();
-    for (; cit != tapCursors.end(); ++cit) {
-        cit->second.currentCheckpoint = checkpointList.begin();
-        cit->second.currentPos = checkpointList.front()->begin();
-        cit->second.offset = 0;
-        checkpointList.front()->incrReferenceCounter();
-    }
+    // Remove all TAP cursors.
+    tapCursors.clear();
 }
 
 bool CheckpointManager::moveCursorToNextCheckpoint(CheckpointCursor &cursor) {
