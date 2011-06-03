@@ -131,6 +131,13 @@ def doset(sqlite, src, dest):
             args.append("--src-strategy=multiMTVBDB")
     args.append(src)
     args.append(findTarget(src, dest))
+    args.append("--report-every=2000")
+    mydir = os.path.dirname(sys.argv[0])
+    if os.name == 'nt':
+        init_file = os.path.join(mydir, '..', 'etc', 'membase', 'init.sql')
+    else:
+        init_file = os.path.join(mydir, '..', '..', 'etc', 'membase', 'init.sql')
+    args.append("--init-file=" + init_file)
 
     print " ".join(args)
 

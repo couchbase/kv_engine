@@ -40,7 +40,8 @@ using namespace std;
 static KVStore *getStore(EPStats &st,
                          const char *path,
                          const char *strategyName,
-                         const char *shardPattern) {
+                         const char *shardPattern,
+                         const char *initFile = NULL) {
     db_type dbStrategy;
 
     if (!KVStore::stringToType(strategyName, dbStrategy)) {
@@ -48,7 +49,6 @@ static KVStore *getStore(EPStats &st,
         exit(EX_USAGE);
     }
 
-    const char *initFile(NULL);
     const char *postInitFile(NULL);
     size_t nVBuckets(1024);
     size_t dbShards(4);
@@ -87,6 +87,7 @@ public:
         Item *i = gv.getValue();
         adjust(&i);
         dest->set(*i, 0, mv);
+
         delete i;
         if ((++transferred % txnSize) == 0) {
             dest->commit();
@@ -136,7 +137,8 @@ static void usage(const char *cmd) {
          << "  --dest-pattern=somePattern (default=%d/%b-%i.mb)" << endl
          << "  --remove-crlf" << endl
          << "  --txn-size=someNumber (default=10000)" << endl
-         << "  --report-every=someNumber (default=10000)" << endl;
+         << "  --report-every=someNumber (default=10000)" << endl
+         << "  --init-file=filepath (default=NULL)" << endl;
     exit(EX_USAGE);
 }
 
@@ -147,6 +149,7 @@ int main(int argc, char **argv) {
     const char *destPath(NULL), *destStrategy("multiMTVBDB");
     const char *srcShardPattern("%d/%b-%i.sqlite");
     const char *destShardPattern("%d/%b-%i.mb");
+    const char *initFile(NULL);
     size_t txnSize(10000), reportEvery(10000);
     int killCrlf(0);
 
@@ -159,6 +162,7 @@ int main(int argc, char **argv) {
         { OPTNAME("remove-crlf"),   no_argument,       &killCrlf, 'x' },
         { OPTNAME("txn-size"),      required_argument, NULL,      't' },
         { OPTNAME("report-every"),  required_argument, NULL,      'r' },
+        { OPTNAME("init-file"),     required_argument, NULL,      'i' },
         { NULL,            0,                 NULL,      0 }
     };
 
@@ -176,6 +180,9 @@ int main(int argc, char **argv) {
             break;
         case 'P':
             destShardPattern = optarg;
+            break;
+        case 'i':
+            initFile = optarg;
             break;
         case 't':
             txnSize = static_cast<size_t>(atoi(optarg));
@@ -200,7 +207,6 @@ int main(int argc, char **argv) {
 
     cout << "src = " << srcStrategy << "@" << srcPath << endl;
     cout << "dest = " << destStrategy << "@" << destPath << endl;
-
     EPStats srcStats, destStats;
 
     SqliteStrategy::disableSchemaCheck();
@@ -208,7 +214,7 @@ int main(int argc, char **argv) {
     KVStore *src(getStore(srcStats, srcPath,
                           srcStrategy, srcShardPattern));
     KVStore *dest(getStore(destStats, destPath,
-                           destStrategy, destShardPattern));
+                           destStrategy, destShardPattern, initFile));
 
     Mover mover(dest, txnSize, static_cast<bool>(killCrlf), reportEvery);
     cout << "Each . represents " << reportEvery << " items moved." << endl;
