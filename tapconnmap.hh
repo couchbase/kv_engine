@@ -245,6 +245,8 @@ public:
 
     void shutdownAllTapConnections();
 
+    void scheduleBackfillByVBucket(uint16_t vbucket);
+
 private:
 
     TapConnection *findByName_UNLOCKED(const std::string &name);

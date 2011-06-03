@@ -286,17 +286,7 @@ void TapProducer::registerTAPCursor(std::map<uint16_t, uint64_t> &lastCheckpoint
     if (backfill_vbuckets.size() > 0 && !registeredTAPClient) {
         backFillVBucketFilter.assign(backfill_vbuckets);
         if (backfillAge < current_time) {
-            doRunBackfill = true;
-            pendingBackfill = true;
-            backfillCompleted = false;
-            // Send an initial_vbucket_stream message to the destination node so that it can
-            // delete the corresponding vbucket before receiving the backfill stream.
-            std::vector<uint16_t>::iterator it = backfill_vbuckets.begin();
-            for (; it != backfill_vbuckets.end(); ++it) {
-                TapVBucketEvent hi(TAP_OPAQUE, *it,
-                                   (vbucket_state_t)htonl(TAP_OPAQUE_INITIAL_VBUCKET_STREAM));
-                addVBucketHighPriority_UNLOCKED(hi);
-            }
+            scheduleBackfill_UNLOCKED(backfill_vbuckets);
         }
     } else {
         doRunBackfill = false;
@@ -1059,12 +1049,20 @@ bool TapConsumer::processCheckpointCommand(tap_event_t event, uint16_t vbucket,
     case TAP_CHECKPOINT_START:
         {
             bool persistenceCursorRepositioned = false;
+            uint64_t oldCheckpointId = vb->checkpointManager.getOpenCheckpointId();
             ret = vb->checkpointManager.checkAndAddNewCheckpoint(checkpointId,
                                                                  persistenceCursorRepositioned);
             if (ret && persistenceCursorRepositioned) {
                 // If persistence cursor is reset to the beginning of the new checkpoint, set
                 // the ID of the last persisted checkpoint to (new checkpoint ID -1) if necessary
                 engine.getEpStore()->setPersistenceCheckpointId(vbucket, checkpointId - 1);
+            }
+            if (ret && oldCheckpointId == 0 && checkpointId > 0) {
+                // If backfill is completed for a given vbucket, schedule backfill for all TAP
+                // connections that are currently replicating that vbucket, so that replica chain
+                // can be synchronized.
+                TapConnMap &connMap = engine.getTapConnMap();
+                connMap.scheduleBackfillByVBucket(vbucket);
             }
         }
         break;

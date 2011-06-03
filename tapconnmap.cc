@@ -359,6 +359,28 @@ void TapConnMap::shutdownAllTapConnections() {
     validity.clear();
 }
 
+void TapConnMap::scheduleBackfillByVBucket(uint16_t vbucket) {
+    LockHolder lh(notifySync);
+    bool shouldNotify(false);
+    std::list<TapConnection*>::iterator it = all.begin();
+    for (; it != all.end(); ++it) {
+        TapConnection *tc = *it;
+        if (!tc->isConnected() || tc->doDisconnect()) {
+            continue;
+        }
+        TapProducer *tp = dynamic_cast<TapProducer*>(tc);
+        if (tp && tp->vbucketFilter(vbucket)) {
+            std::vector<uint16_t> vblist;
+            vblist.push_back(vbucket);
+            tp->scheduleBackfill(vblist);
+            shouldNotify = true;
+        }
+    }
+    if (shouldNotify) {
+        notifySync.notify();
+    }
+}
+
 void TapConnMap::notifyIOThreadMain() {
     // To avoid connections to be stucked in a bogus state forever, we're going
     // to ping all connections that hasn't tried to walk the tap queue

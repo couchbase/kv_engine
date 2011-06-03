@@ -838,11 +838,24 @@ private:
         return isBackfillCompleted_UNLOCKED();
     }
 
-    void resetPendingBackfill() {
+    void scheduleBackfill_UNLOCKED(const std::vector<uint16_t> &vblist) {
+        doRunBackfill = true;
+        pendingBackfill = true;
+        backfillCompleted = false;
+        backFillVBucketFilter.assign(vblist);
+        // Send an initial_vbucket_stream message to the destination node so that it can
+        // delete the corresponding vbucket before receiving the backfill stream.
+        std::vector<uint16_t>::const_iterator it = vblist.begin();
+        for (; it != vblist.end(); ++it) {
+            TapVBucketEvent hi(TAP_OPAQUE, *it,
+                               (vbucket_state_t)htonl(TAP_OPAQUE_INITIAL_VBUCKET_STREAM));
+            addVBucketHighPriority_UNLOCKED(hi);
+        }
+    }
+
+    void scheduleBackfill(const std::vector<uint16_t> &vblist) {
         LockHolder lh(queueLock);
-        pendingBackfill = false;
-        diskBackfillCounter = 0;
-        backfillCompleted = true;
+        scheduleBackfill_UNLOCKED(vblist);
     }
 
     /**

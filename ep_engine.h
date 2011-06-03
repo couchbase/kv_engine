@@ -522,6 +522,8 @@ public:
 
     EventuallyPersistentStore* getEpStore() { return epstore; }
 
+    TapConnMap &getTapConnMap() { return tapConnMap; }
+
     size_t getItemExpiryWindow() const {
         return itemExpiryWindow;
     }
