@@ -1051,12 +1051,6 @@ private:
     size_t diskBackfillCounter;
 
     /**
-     * vbucket IDs of TAP_OPAQUE_INITIAL_VBUCKET_STREAM that were already sent
-     * to the destination by this TAP producer.
-     */
-    std::set<uint16_t> initVBuckets;
-
-    /**
      * Filter for the buckets we want.
      */
     VBucketFilter vbucketFilter;
