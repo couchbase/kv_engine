@@ -152,6 +152,11 @@ public:
     bool checkValidity(const std::string &name, const void* token);
 
     /**
+     * Return true if the TAP connection with the given name is still alive
+     */
+    bool checkConnectivity(const std::string &name);
+
+    /**
      * Increments reference count of validity token (cookie in
      * fact). NOTE: takes notifySync lock.
      */

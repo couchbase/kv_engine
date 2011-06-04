@@ -991,12 +991,11 @@ public:
 
     bool callback(Dispatcher &, TaskId) {
         bool valid = false;
-        if (connMap.checkValidity(name, validityToken) &&
-            !engine->getEpStore()->isFlushAllScheduled()) {
+        if (connMap.checkConnectivity(name) && !engine->getEpStore()->isFlushAllScheduled()) {
             store->dump(vbucket, *this);
             valid = true;
         }
-        // Should decr the disk backfill counter regardless of the cookie validity
+        // Should decr the disk backfill counter regardless of the connectivity status
         CompleteDiskBackfillTapOperation op;
         connMap.performTapOp(name, op, static_cast<void*>(NULL));
 
@@ -1184,11 +1183,11 @@ private:
 
     bool checkValidity() {
         if (valid) {
-            valid = engine->tapConnMap.checkValidity(name, validityToken);
+            valid = engine->tapConnMap.checkConnectivity(name);
             if (!valid) {
                 getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                 "Backfilling token for %s went invalid.  Stopping backfill.\n",
-                                 name.c_str());
+                             "Backfilling connectivity for %s went invalid. Stopping backfill.\n",
+                             name.c_str());
             }
         }
         return valid;

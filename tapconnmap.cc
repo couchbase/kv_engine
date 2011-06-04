@@ -300,6 +300,19 @@ bool TapConnMap::checkValidity(const std::string &name,
     return viter != validity.end() && viter->second == token;
 }
 
+bool TapConnMap::checkConnectivity(const std::string &name) {
+    LockHolder lh(notifySync);
+    rel_time_t now = ep_current_time();
+    TapConnection *tc = findByName_UNLOCKED(name);
+    if (tc) {
+        TapProducer *tp = dynamic_cast<TapProducer*>(tc);
+        if (tp && (tp->isConnected() || tp->getExpiryTime() > now)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 bool TapConnMap::addBackfillCompletionMessage(const std::string &name) {
     LockHolder lh(notifySync);
     bool rv = false;
