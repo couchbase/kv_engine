@@ -72,25 +72,33 @@ public:
                                                        transferred(0),
                                                        txnSize(ts),
                                                        reportEvery(re),
-                                                       killCrlf(kc) {
+                                                       killCrlf(kc),
+                                                       inTxn(false) {
         assert(dest);
         assert(txnSize != 0);
         assert(reportEvery != 0);
-        dest->begin();
+
+        if (!enterTransaction()) {
+           cout << "Failed to start a transaction" << endl;
+           abort();
+        }
+
+        startTime = gethrtime();
     }
 
     ~Mover() {
-        dest->commit();
+        nextTransaction(false);
+        cout << "Elapsed time=" << (gethrtime() - startTime)/1000000000 << " seconds."<< std::endl;
     }
 
     void callback(GetValue &gv) {
         Item *i = gv.getValue();
         adjust(&i);
         dest->set(*i, 0, mv);
-
         delete i;
+
         if ((++transferred % txnSize) == 0) {
-            dest->commit();
+            nextTransaction(true);
         }
         if ((transferred % reportEvery) == 0) {
             cout << "." << flush;
@@ -99,6 +107,24 @@ public:
 
     size_t getTransferred() {
         return transferred;
+    }
+
+    bool enterTransaction()  {
+        if (!inTxn) {
+           inTxn = dest->begin();
+        }
+        return inTxn;
+    }
+
+    bool nextTransaction(bool next)  {
+        if (inTxn) {
+            while (!dest->commit()) {
+                cout << "Failed to commit a transaction. Sleep a while." << endl;
+                sleep(1);
+            }
+            inTxn = false;
+        }
+        return next ? enterTransaction() : true;
     }
 
 private:
@@ -125,6 +151,8 @@ private:
     size_t            txnSize;
     size_t            reportEvery;
     bool              killCrlf;
+    bool              inTxn;
+    hrtime_t          startTime;
 };
 
 static void usage(const char *cmd) {

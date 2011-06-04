@@ -105,7 +105,7 @@ MBDBCONVERT_SRC = management/dbconvert.cc testlogger.cc objectregistry.cc
 MBDBCONVERT_OBJS = ${MBDBCONVERT_SRC:%.cc=.libs/%.o}
 
 management/mbdbconvert.exe: ${OBJDIR} ${GENFILES} ${MBDBCONVERT_OBJS} ${LIBKVSTORE_OBJS}
-	${LINK.cc} -o $@ ${MBDBCONVERT_OBJS} ${LIBKVSTORE_OBJS} ${LIB} -lpthread
+	${LINK.cc} -o $@ ${MBDBCONVERT_OBJS} .libs/gethrtime.o ${LIBKVSTORE_OBJS} ${LIB} -lpthread
 
 .libs/config_version.h:
 	./win32/config.sh
