@@ -282,6 +282,7 @@ hrtime_test_SOURCES += gethrtime.c
 dispatcher_test_SOURCES += gethrtime.c
 vbucket_test_SOURCES += gethrtime.c
 checkpoint_test_SOURCES += gethrtime.c
+management_mbdbconvert_SOURCES += gethrtime.c
 endif
 
 pythonlibdir=$(libdir)/python
