@@ -376,7 +376,7 @@ public:
     /**
      * Clear all the checkpoints managed by this checkpoint manager.
      */
-    void clear();
+    void clear(vbucket_state_t vbState);
 
     bool isOnlineUpdate() { return doOnlineUpdate; }
     void setOnlineUpdate(bool olupdate) { doOnlineUpdate = olupdate; }

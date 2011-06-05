@@ -656,7 +656,7 @@ queued_item CheckpointManager::nextItemFromOpenedCheckpoint(CheckpointCursor &cu
     }
 }
 
-void CheckpointManager::clear() {
+void CheckpointManager::clear(vbucket_state_t vbState) {
     LockHolder lh(queueLock);
     std::list<Checkpoint*>::iterator it = checkpointList.begin();
     // Remove all the checkpoints.
@@ -667,8 +667,10 @@ void CheckpointManager::clear() {
     checkpointList.clear();
     numItems = 0;
     mutationCounter = 0;
+
+    uint64_t checkpointId = vbState == vbucket_state_active ? 1 : 0;
     // Add a new open checkpoint.
-    addNewCheckpoint_UNLOCKED(1);
+    addNewCheckpoint_UNLOCKED(checkpointId);
 
     // Reset the persistence cursor.
     persistenceCursor.currentCheckpoint = checkpointList.begin();

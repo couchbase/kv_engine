@@ -892,7 +892,7 @@ bool EventuallyPersistentStore::resetVBucket(uint16_t vbid) {
         HashTableStatVisitor statvis = vb->ht.clear();
         stats.currentSize.decr(statvis.memSize - statvis.valSize);
         assert(stats.currentSize.get() < GIGANTOR);
-        vb->checkpointManager.clear();
+        vb->checkpointManager.clear(vb->getState());
         vb->resetStats();
 
         scheduleVBSnapshot(Priority::VBucketPersistHighPriority);
@@ -1361,7 +1361,7 @@ void EventuallyPersistentStore::reset() {
             HashTableStatVisitor statvis = vb->ht.clear();
             stats.currentSize.decr(statvis.memSize - statvis.valSize);
             assert(stats.currentSize.get() < GIGANTOR);
-            vb->checkpointManager.clear();
+            vb->checkpointManager.clear(vb->getState());
             vb->resetStats();
         }
     }
