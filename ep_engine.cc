@@ -2448,8 +2448,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
                 addDeleteEvent(k, vbucket, 0);
             }
             TapConsumer *tc = dynamic_cast<TapConsumer*>(connection);
-            if (tc && (!tc->supportsCheckpointSync() || tc->isBackfillPhase())) {
-                // If the checkpoint synchronization is not supported or it's in backfill phase,
+            if (tc && !tc->supportsCheckpointSync()) {
+                // If the checkpoint synchronization is not supported,
                 // check if a new checkpoint should be created or not.
                 tc->checkVBOpenCheckpoint(vbucket);
             }
@@ -2518,7 +2518,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
             }
 
             delete item;
-            if (tc && !tc->supportsCheckpointSync() && !tc->isBackfillPhase()) {
+            if (tc && !tc->supportsCheckpointSync()) {
                 tc->checkVBOpenCheckpoint(vbucket);
             }
 
