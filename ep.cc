@@ -881,6 +881,9 @@ bool EventuallyPersistentStore::resetVBucket(uint16_t vbid) {
 
     RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
     if (vb) {
+        if (vb->ht.getNumItems() == 0) { // Already reset?
+            return true;
+        }
         uint16_t vb_version = vbuckets.getBucketVersion(vbid);
         uint16_t vb_new_version = vb_version == (std::numeric_limits<uint16_t>::max() - 1) ?
                                   0 : vb_version + 1;
