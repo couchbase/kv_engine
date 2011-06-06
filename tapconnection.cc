@@ -150,12 +150,6 @@ void TapProducer::setBackfillAge(uint64_t age, bool reconnect) {
     if (flags & TAP_CONNECT_FLAG_BACKFILL) {
         backfillAge = age;
     }
-
-    if (backfillAge < (uint64_t)ep_real_time() && !registeredTAPClient) {
-        doRunBackfill = true;
-        pendingBackfill = true;
-        backfillCompleted = false;
-    }
 }
 
 void TapProducer::setVBucketFilter(const std::vector<uint16_t> &vbuckets)
@@ -180,24 +174,13 @@ void TapProducer::setVBucketFilter(const std::vector<uint16_t> &vbuckets)
             }
         }
 
-        backFillVBucketFilter = filter.filter_intersection(diff);
-
         std::stringstream ss;
         ss << getName().c_str() << ": Changing the vbucket filter from "
            << vbucketFilter << " to "
-           << filter << " (diff: " << diff << ")" << std::endl
-           << "Using: " << backFillVBucketFilter << " for backfill."
-           << std::endl;
+           << filter << " (diff: " << diff << ")" << std::endl;
         getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
                          ss.str().c_str());
         vbucketFilter = filter;
-        if (!diff.empty()) {
-            if (backfillAge < (uint64_t)ep_real_time() && !registeredTAPClient) {
-                doRunBackfill = true;
-                pendingBackfill = true;
-                backfillCompleted = false;
-            }
-        }
 
         std::stringstream f;
         f << vbucketFilter;
