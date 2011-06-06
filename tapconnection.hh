@@ -839,10 +839,18 @@ private:
     }
 
     void scheduleBackfill_UNLOCKED(const std::vector<uint16_t> &vblist) {
+        if (doRunBackfill) {
+            std::vector<uint16_t>::const_iterator it = vblist.begin();
+            for(; it != vblist.end(); ++it) {
+                backFillVBucketFilter.addVBucket(*it);
+            }
+        } else {
+            backFillVBucketFilter.assign(vblist);
+        }
+
         doRunBackfill = true;
         pendingBackfill = true;
         backfillCompleted = false;
-        backFillVBucketFilter.assign(vblist);
         // Send an initial_vbucket_stream message to the destination node so that it can
         // delete the corresponding vbucket before receiving the backfill stream.
         std::vector<uint16_t>::const_iterator it = vblist.begin();
@@ -856,6 +864,16 @@ private:
     void scheduleBackfill(const std::vector<uint16_t> &vblist) {
         LockHolder lh(queueLock);
         scheduleBackfill_UNLOCKED(vblist);
+    }
+
+    bool runBackfill(VBucketFilter &vbFilter) {
+        LockHolder lh(queueLock);
+        bool rv = doRunBackfill;
+        if (doRunBackfill) {
+            doRunBackfill = false;
+            vbFilter = backFillVBucketFilter;
+        }
+        return rv;
     }
 
     /**

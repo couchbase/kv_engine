@@ -1029,10 +1029,10 @@ private:
 class BackFillVisitor : public VBucketVisitor {
 public:
     BackFillVisitor(EventuallyPersistentEngine *e, TapProducer *tc,
-                    const void *token):
+                    const void *token, const VBucketFilter &backfillVBfilter):
         VBucketVisitor(), engine(e), name(tc->getName()),
         queue(new std::list<queued_item>),
-        found(), filter(tc->backFillVBucketFilter), validityToken(token),
+        found(), filter(backfillVBfilter), validityToken(token),
         maxBackfillSize(e->tapBacklogLimit), valid(true),
         efficientVBDump(e->epstore->getStorageProperties().hasEfficientVBDump()),
         residentRatioBelowThreshold(false) {
@@ -1216,8 +1216,9 @@ class BackFillThreadData {
 public:
 
     BackFillThreadData(EventuallyPersistentEngine *e, TapProducer *tc,
-                       EventuallyPersistentStore *s, const void *tok):
-        bfv(e, tc, tok), engine(e), epstore(s) {
+                       EventuallyPersistentStore *s, const void *tok,
+                       const VBucketFilter &backfillVBFilter):
+        bfv(e, tc, tok, backfillVBFilter), engine(e), epstore(s) {
     }
 
     ~BackFillThreadData() {
@@ -1987,7 +1988,8 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
     }
 
     // Do not schedule the backfill for the registered TAP client (e.g., incremental backup client)
-    if (connection->doRunBackfill && !(connection->registeredTAPClient)) {
+    VBucketFilter backFillVBFilter;
+    if (connection->runBackfill(backFillVBFilter) && !(connection->registeredTAPClient)) {
         LockHolder holder(backfillThreads.sync);
         if (backfillThreads.shutdown) {
             return TAP_PAUSE;
@@ -2002,7 +2004,7 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
             return TAP_DISCONNECT;
         }
 
-        queueBackfill(connection, cookie);
+        queueBackfill(backFillVBFilter, connection, cookie);
     }
 
     if (connection->isTimeForNoop()) {
@@ -2696,9 +2698,9 @@ void EventuallyPersistentEngine::startEngineThreads(void)
     startedEngineThreads = true;
 }
 
-void EventuallyPersistentEngine::queueBackfill(TapProducer *tc, const void *tok) {
-    tc->doRunBackfill = false;
-    BackFillThreadData *bftd = new BackFillThreadData(this, tc, epstore, tok);
+void EventuallyPersistentEngine::queueBackfill(const VBucketFilter &backfillVBFilter,
+                                               TapProducer *tc, const void *tok) {
+    BackFillThreadData *bftd = new BackFillThreadData(this, tc, epstore, tok, backfillVBFilter);
     pthread_attr_t attr;
 
     if (pthread_attr_init(&attr) != 0 ||

@@ -74,6 +74,12 @@ public:
 
     const std::vector<uint16_t> &getVector() const { return acceptable; }
 
+    void addVBucket(uint16_t vbucket) {
+        if (!operator ()(vbucket)) {
+            acceptable.push_back(vbucket);
+        }
+    }
+
     /**
      * Dump the filter in a human readable form ( "{ bucket, bucket, bucket }"
      * to the specified output stream.
