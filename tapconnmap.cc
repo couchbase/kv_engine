@@ -276,9 +276,7 @@ TapProducer *TapConnMap::newProducer(const void* cookie,
     }
 
     tap->setBackfillAge(backfillAge, reconnect);
-    if (tap->doRunBackfill && tap->pendingBackfill) {
-        setValidity(tap->getName(), cookie);
-    }
+    setValidity(tap->getName(), cookie);
 
     map[cookie] = tap;
     return tap;

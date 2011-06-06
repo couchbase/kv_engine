@@ -293,7 +293,6 @@ void TapProducer::registerTAPCursor(std::map<uint16_t, uint64_t> &lastCheckpoint
         pendingBackfill = false;
         backfillCompleted = true;
     }
-    engine.setTapValidity(name, cookie);
 }
 
 bool TapProducer::windowIsFull() {
