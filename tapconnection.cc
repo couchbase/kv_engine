@@ -1067,7 +1067,7 @@ void TapConsumer::checkVBOpenCheckpoint(uint16_t vbucket) {
     if (!vb) {
         return;
     }
-    vb->checkpointManager.checkOpenCheckpoint(false, false);
+    vb->checkpointManager.checkOpenCheckpoint(false, true);
 }
 
 bool TapConsumer::processOnlineUpdateCommand(uint32_t opcode, uint16_t vbucket) {
