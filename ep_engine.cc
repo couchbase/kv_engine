@@ -1064,9 +1064,9 @@ public:
                 ScheduleDiskBackfillTapOperation tapop;
                 engine->tapConnMap.performTapOp(name, tapop, static_cast<void*>(NULL));
             }
-            // When the backfill is scheduled for a given vbucket, record the vbucket's current
-            // open checkpoint Id into the corresponding tap connection.
-            engine->tapConnMap.recordCurrentOpenCheckpointId(name, vb->getId());
+            // When the backfill is scheduled for a given vbucket, set the TAP cursor to
+            // the beginning of the open checkpoint.
+            engine->tapConnMap.SetCursorToOpenCheckpoint(name, vb->getId());
             return true;
         }
         return false;

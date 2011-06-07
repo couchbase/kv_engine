@@ -239,7 +239,7 @@ public:
 
     void notifyIOThreadMain();
 
-    bool recordCurrentOpenCheckpointId(const std::string &name, uint16_t vbucket);
+    bool SetCursorToOpenCheckpoint(const std::string &name, uint16_t vbucket);
 
     bool closeTapConnectionByName(const std::string &name);
 

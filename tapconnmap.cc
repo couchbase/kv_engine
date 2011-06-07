@@ -483,7 +483,7 @@ void TapConnMap::notifyIOThreadMain() {
     engine.notifyIOComplete(toNotify, ENGINE_SUCCESS);
 }
 
-bool TapConnMap::recordCurrentOpenCheckpointId(const std::string &name, uint16_t vbucket) {
+bool TapConnMap::SetCursorToOpenCheckpoint(const std::string &name, uint16_t vbucket) {
     bool rv(false);
     LockHolder lh(notifySync);
 
@@ -492,7 +492,7 @@ bool TapConnMap::recordCurrentOpenCheckpointId(const std::string &name, uint16_t
         TapProducer *tp = dynamic_cast<TapProducer*>(tc);
         assert(tp);
         rv = true;
-        tp->recordCurrentOpenCheckpointId(vbucket);
+        tp->SetCursorToOpenCheckpoint(vbucket);
     }
 
     return rv;

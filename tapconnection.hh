@@ -958,7 +958,7 @@ private:
 
     void setClosedCheckpointOnlyFlag(bool isClosedCheckpointOnly);
 
-    bool recordCurrentOpenCheckpointId(uint16_t vbucket);
+    bool SetCursorToOpenCheckpoint(uint16_t vbucket);
 
     void setTakeOverCompletionPhase(bool completionPhase) {
         takeOverCompletionPhase = completionPhase;

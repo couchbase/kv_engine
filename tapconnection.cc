@@ -1298,7 +1298,7 @@ bool TapProducer::hasNextFromCheckpoints_UNLOCKED() {
     return hasNext;
 }
 
-bool TapProducer::recordCurrentOpenCheckpointId(uint16_t vbid) {
+bool TapProducer::SetCursorToOpenCheckpoint(uint16_t vbid) {
     LockHolder lh(queueLock);
     const VBucketMap &vbuckets = engine.getEpStore()->getVBuckets();
     RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
@@ -1312,8 +1312,7 @@ bool TapProducer::recordCurrentOpenCheckpointId(uint16_t vbid) {
         return false;
     }
 
-    bool fromBeginning = registeredTAPClient && closedCheckpointOnly;
-    vb->checkpointManager.registerTAPCursor(name, checkpointId, closedCheckpointOnly, fromBeginning);
+    vb->checkpointManager.registerTAPCursor(name, checkpointId, closedCheckpointOnly, true);
     it->second.currentCheckpointId = checkpointId;
     return true;
 }
