@@ -902,7 +902,7 @@ void TapProducer::processedEvent(tap_event_t event, ENGINE_ERROR_CODE)
 TapConsumer::TapConsumer(EventuallyPersistentEngine &theEngine,
                          const void *c,
                          const std::string &n) :
-    TapConnection(theEngine, c, n), backfillPhase(false)
+    TapConnection(theEngine, c, n)
 { /* EMPTY */ }
 
 void TapConsumer::addStats(ADD_STAT add_stat, const void *c) {
@@ -925,8 +925,9 @@ void TapConsumer::addStats(ADD_STAT add_stat, const void *c) {
 }
 
 void TapConsumer::setBackfillPhase(bool isBackfill, uint16_t vbucket) {
-    backfillPhase = isBackfill;
-    if (backfillPhase) {
+    LockHolder lh(backfillLock);
+    if (isBackfill) {
+        backfillVBuckets.insert(vbucket);
         const VBucketMap &vbuckets = engine.getEpStore()->getVBuckets();
         RCPtr<VBucket> vb = vbuckets.getBucket(vbucket);
         if (vb) {
@@ -935,11 +936,19 @@ void TapConsumer::setBackfillPhase(bool isBackfill, uint16_t vbucket) {
             // Note that when backfill is started, the destination always resets the vbucket
             // and its checkpoint datastructure.
         }
+    } else {
+        // If backfill is completed for all vbuckets subscribed by this consumer, schedule
+        // backfill for all TAP connections that are currently replicating those vbuckets,
+        // so that replica chain can be synchronized.
+        TapConnMap &connMap = engine.getTapConnMap();
+        connMap.scheduleBackfill(backfillVBuckets);
+        backfillVBuckets.clear();
     }
 }
 
 bool TapConsumer::isBackfillPhase(void) {
-    return backfillPhase;
+    LockHolder lh(backfillLock);
+    return !backfillVBuckets.empty();
 }
 
 void TapConsumer::processedEvent(tap_event_t event, ENGINE_ERROR_CODE ret)
@@ -1031,20 +1040,12 @@ bool TapConsumer::processCheckpointCommand(tap_event_t event, uint16_t vbucket,
     case TAP_CHECKPOINT_START:
         {
             bool persistenceCursorRepositioned = false;
-            uint64_t oldCheckpointId = vb->checkpointManager.getOpenCheckpointId();
             ret = vb->checkpointManager.checkAndAddNewCheckpoint(checkpointId,
                                                                  persistenceCursorRepositioned);
             if (ret && persistenceCursorRepositioned) {
                 // If persistence cursor is reset to the beginning of the new checkpoint, set
                 // the ID of the last persisted checkpoint to (new checkpoint ID -1) if necessary
                 engine.getEpStore()->setPersistenceCheckpointId(vbucket, checkpointId - 1);
-            }
-            if (ret && oldCheckpointId == 0 && checkpointId > 0) {
-                // If backfill is completed for a given vbucket, schedule backfill for all TAP
-                // connections that are currently replicating that vbucket, so that replica chain
-                // can be synchronized.
-                TapConnMap &connMap = engine.getTapConnMap();
-                connMap.scheduleBackfillByVBucket(vbucket);
             }
         }
         break;

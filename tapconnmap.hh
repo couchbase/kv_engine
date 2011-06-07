@@ -245,7 +245,7 @@ public:
 
     void shutdownAllTapConnections();
 
-    void scheduleBackfillByVBucket(uint16_t vbucket);
+    void scheduleBackfill(const std::set<uint16_t> &backfillVBuckets);
 
 private:
 

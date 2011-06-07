@@ -357,19 +357,26 @@ void TapConnMap::shutdownAllTapConnections() {
     validity.clear();
 }
 
-void TapConnMap::scheduleBackfillByVBucket(uint16_t vbucket) {
+void TapConnMap::scheduleBackfill(const std::set<uint16_t> &backfillVBuckets) {
     LockHolder lh(notifySync);
     bool shouldNotify(false);
+    rel_time_t now = ep_current_time();
     std::list<TapConnection*>::iterator it = all.begin();
     for (; it != all.end(); ++it) {
         TapConnection *tc = *it;
-        if (!tc->isConnected() || tc->doDisconnect()) {
+        TapProducer *tp = dynamic_cast<TapProducer*>(tc);
+        if (!tp || tp->getExpiryTime() <= now) {
             continue;
         }
-        TapProducer *tp = dynamic_cast<TapProducer*>(tc);
-        if (tp && tp->vbucketFilter(vbucket)) {
-            std::vector<uint16_t> vblist;
-            vblist.push_back(vbucket);
+
+        std::vector<uint16_t> vblist;
+        std::set<uint16_t>::const_iterator vb_it = backfillVBuckets.begin();
+        for (; vb_it != backfillVBuckets.end(); ++vb_it) {
+            if (tp->checkVBucketFilter(*vb_it)) {
+                vblist.push_back(*vb_it);
+            }
+        }
+        if (vblist.size() > 0) {
             tp->scheduleBackfill(vblist);
             shouldNotify = true;
         }

@@ -394,7 +394,8 @@ private:
     Atomic<size_t> numCheckpointEndFailed;
     Atomic<size_t> numUnknown;
 
-    Atomic<bool> backfillPhase;
+    Mutex backfillLock;
+    std::set<uint16_t> backfillVBuckets;
 
 public:
     TapConsumer(EventuallyPersistentEngine &theEngine,
@@ -972,6 +973,11 @@ private:
     void setBackfillAge(uint64_t age, bool reconnect);
 
     void setVBucketFilter(const std::vector<uint16_t> &vbuckets);
+
+    bool checkVBucketFilter(uint16_t vbucket) {
+        LockHolder lh(queueLock);
+        return vbucketFilter(vbucket);
+    }
 
     /**
      * Register the unified queue cursor for this TAP producer.
