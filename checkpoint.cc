@@ -678,8 +678,14 @@ void CheckpointManager::clear(vbucket_state_t vbState) {
     persistenceCursor.offset = 0;
     checkpointList.front()->incrReferenceCounter();
 
-    // Remove all TAP cursors.
-    tapCursors.clear();
+    // Reset all the TAP cursors.
+    std::map<const std::string, CheckpointCursor>::iterator cit = tapCursors.begin();
+    for (; cit != tapCursors.end(); ++cit) {
+        cit->second.currentCheckpoint = checkpointList.begin();
+        cit->second.currentPos = checkpointList.front()->begin();
+        cit->second.offset = 0;
+        checkpointList.front()->incrReferenceCounter();
+    }
 }
 
 bool CheckpointManager::moveCursorToNextCheckpoint(CheckpointCursor &cursor) {
