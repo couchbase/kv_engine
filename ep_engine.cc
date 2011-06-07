@@ -1039,7 +1039,7 @@ public:
         found.reserve(e->tapBacklogLimit);
     }
 
-    ~BackFillVisitor() {
+    virtual ~BackFillVisitor() {
         delete queue;
     }
 
