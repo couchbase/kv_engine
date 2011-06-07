@@ -154,6 +154,7 @@ void TapProducer::setBackfillAge(uint64_t age, bool reconnect) {
 
 void TapProducer::setVBucketFilter(const std::vector<uint16_t> &vbuckets)
 {
+    LockHolder lh(queueLock);
     VBucketFilter diff;
 
     // time to join the filters..
@@ -196,8 +197,8 @@ void TapProducer::setVBucketFilter(const std::vector<uint16_t> &vbuckets)
             if (vbucketFilter(*it)) {
                 TapVBucketEvent hi(TAP_VBUCKET_SET, *it, vbucket_state_pending);
                 TapVBucketEvent lo(TAP_VBUCKET_SET, *it, vbucket_state_active);
-                addVBucketHighPriority(hi);
-                addVBucketLowPriority(lo);
+                addVBucketHighPriority_UNLOCKED(hi);
+                addVBucketLowPriority_UNLOCKED(lo);
             }
         }
         doTakeOver = true;
@@ -676,6 +677,7 @@ void TapProducer::encodeVBucketStateTransition(const TapVBucketEvent &ev, void *
 }
 
 bool TapProducer::waitForBackfill() {
+    LockHolder lh(queueLock);
     if ((bgJobIssued - bgJobCompleted) > bgMaxPending) {
         return true;
     }
