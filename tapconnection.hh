@@ -839,28 +839,7 @@ private:
         return isBackfillCompleted_UNLOCKED();
     }
 
-    void scheduleBackfill_UNLOCKED(const std::vector<uint16_t> &vblist) {
-        if (doRunBackfill) {
-            std::vector<uint16_t>::const_iterator it = vblist.begin();
-            for(; it != vblist.end(); ++it) {
-                backFillVBucketFilter.addVBucket(*it);
-            }
-        } else {
-            backFillVBucketFilter.assign(vblist);
-        }
-
-        doRunBackfill = true;
-        pendingBackfill = true;
-        backfillCompleted = false;
-        // Send an initial_vbucket_stream message to the destination node so that it can
-        // delete the corresponding vbucket before receiving the backfill stream.
-        std::vector<uint16_t>::const_iterator it = vblist.begin();
-        for (; it != vblist.end(); ++it) {
-            TapVBucketEvent hi(TAP_OPAQUE, *it,
-                               (vbucket_state_t)htonl(TAP_OPAQUE_INITIAL_VBUCKET_STREAM));
-            addVBucketHighPriority_UNLOCKED(hi);
-        }
-    }
+    void scheduleBackfill_UNLOCKED(const std::vector<uint16_t> &vblist);
 
     void scheduleBackfill(const std::vector<uint16_t> &vblist) {
         LockHolder lh(queueLock);
@@ -1091,7 +1070,15 @@ private:
      * Filter for the buckets we want.
      */
     VBucketFilter vbucketFilter;
-    VBucketFilter backFillVBucketFilter;
+    /**
+     * Filter for the vbuckets that require backfill by the next backfill task
+     */
+     VBucketFilter backFillVBucketFilter;
+    /**
+     * List of the vbuckets that are being backfilled by all backfill tasks in the current
+     * backfill session
+     */
+    std::set<uint16_t> backfillVBuckets;
 
     /**
      * For each vbucket, maintain the current checkpoint Id that this TAP producer should

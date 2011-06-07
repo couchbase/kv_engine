@@ -74,10 +74,13 @@ public:
 
     const std::vector<uint16_t> &getVector() const { return acceptable; }
 
-    void addVBucket(uint16_t vbucket) {
-        if (!operator ()(vbucket)) {
+    bool addVBucket(uint16_t vbucket) {
+        bool rv = false;
+        if (!std::binary_search(acceptable.begin(), acceptable.end(), vbucket)) {
             acceptable.push_back(vbucket);
+            rv = true;
         }
+        return rv;
     }
 
     /**

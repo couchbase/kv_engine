@@ -1325,6 +1325,52 @@ void TapProducer::setClosedCheckpointOnlyFlag(bool isClosedCheckpointOnly) {
     closedCheckpointOnly = isClosedCheckpointOnly;
 }
 
+void TapProducer::scheduleBackfill_UNLOCKED(const std::vector<uint16_t> &vblist) {
+    if (vblist.empty()) {
+        return;
+    }
+
+    if (!backfillCompleted) {
+        // Backfill tasks from the current backfill session are still running.
+        // Simply add the new vbuckets only to the next backfill task.
+
+        if (!doRunBackfill) {
+            std::vector<uint16_t> emptyVBs;
+            // Clear backfill vb filter for the next backfill task
+            backFillVBucketFilter.assign(emptyVBs);
+        }
+        std::vector<uint16_t>::const_iterator it = vblist.begin();
+        for(; it != vblist.end(); ++it) {
+            std::pair<std::set<uint16_t>::iterator, bool> ret = backfillVBuckets.insert(*it);
+            if (ret.second) {
+                backFillVBucketFilter.addVBucket(*it);
+            }
+        }
+    } else {
+        // All backfill tasks from the current backfill session were completed.
+        // This will create a new backfill session.
+        backfillVBuckets.clear();
+        backfillVBuckets.insert(vblist.begin(), vblist.end());
+        backFillVBucketFilter.assign(vblist);
+    }
+
+    // Send an initial_vbucket_stream message to the destination node so that it can
+    // delete the corresponding vbucket before receiving the backfill stream.
+    const std::vector<uint16_t> &newBackfillVBs = backFillVBucketFilter.getVector();
+    std::vector<uint16_t>::const_iterator it = newBackfillVBs.begin();
+    for (; it != newBackfillVBs.end(); ++it) {
+        TapVBucketEvent hi(TAP_OPAQUE, *it,
+                           (vbucket_state_t)htonl(TAP_OPAQUE_INITIAL_VBUCKET_STREAM));
+        addVBucketHighPriority_UNLOCKED(hi);
+    }
+
+    if (newBackfillVBs.size() > 0) {
+        doRunBackfill = true;
+        pendingBackfill = true;
+        backfillCompleted = false;
+    }
+}
+
 static void notifyReplicatedItems(std::list<TapLogElement>::iterator from,
                                   std::list<TapLogElement>::iterator to,
                                   EventuallyPersistentEngine &engine) {
