@@ -182,7 +182,7 @@ extern "C" {
 
     static void EvpResetStats(ENGINE_HANDLE* handle, const void *)
     {
-        return getHandle(handle)->resetStats();
+        getHandle(handle)->resetStats();
     }
 
     static protocol_binary_response_status stopFlusher(EventuallyPersistentEngine *e,
@@ -881,7 +881,7 @@ extern "C" {
         assert(type == ON_DISCONNECT);
         assert(event_data == NULL);
         void *c = const_cast<void*>(cb_data);
-        return getHandle(static_cast<ENGINE_HANDLE*>(c))->handleDisconnect(cookie);
+        getHandle(static_cast<ENGINE_HANDLE*>(c))->handleDisconnect(cookie);
     }
 
 
