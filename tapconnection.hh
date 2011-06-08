@@ -433,7 +433,9 @@ public:
 
     void completeBackfill() {
         LockHolder lh(queueLock);
-        pendingBackfill = false;
+        if (pendingBackfillCounter > 0) {
+            --pendingBackfillCounter;
+        }
         completeBackfillCommon_UNLOCKED();
     }
 
@@ -819,7 +821,7 @@ private:
      * A backfill is pending if the backfill thread is still running
      */
     bool isPendingBackfill_UNLOCKED() {
-        return pendingBackfill || diskBackfillCounter > 0;
+        return pendingBackfillCounter > 0 || diskBackfillCounter > 0;
     }
 
     bool isPendingBackfill() {
@@ -851,6 +853,7 @@ private:
         bool rv = doRunBackfill;
         if (doRunBackfill) {
             doRunBackfill = false;
+            ++pendingBackfillCounter; // Will be decremented when each backfill thread is completed
             vbFilter = backFillVBucketFilter;
         }
         return rv;
@@ -1055,11 +1058,11 @@ private:
      */
     bool doRunBackfill;
 
-    // True until a backfill has dumped all the items into the queue.
-    bool pendingBackfill;
-
     // True if items from backfill are all successfully transmitted to the destination.
     bool backfillCompleted;
+
+    // Number of pending backfill tasks
+    size_t pendingBackfillCounter;
 
     /**
      * Number of vbuckets that are currently scheduled for disk backfill.

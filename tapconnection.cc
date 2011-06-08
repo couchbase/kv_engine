@@ -63,8 +63,8 @@ TapProducer::TapProducer(EventuallyPersistentEngine &theEngine,
     doTakeOver(false),
     takeOverCompletionPhase(false),
     doRunBackfill(false),
-    pendingBackfill(true),
     backfillCompleted(true),
+    pendingBackfillCounter(0),
     diskBackfillCounter(0),
     vbucketFilter(),
     vBucketHighPriority(),
@@ -279,8 +279,6 @@ void TapProducer::registerTAPCursor(std::map<uint16_t, uint64_t> &lastCheckpoint
         }
     } else {
         doRunBackfill = false;
-        pendingBackfill = false;
-        backfillCompleted = true;
     }
 }
 
@@ -866,7 +864,7 @@ void TapProducer::addStats(ADD_STAT add_stat, const void *c) {
     addStat("flags", flagsText, add_stat, c);
     addStat("suspended", isSuspended(), add_stat, c);
     addStat("paused", paused, add_stat, c);
-    addStat("pending_backfill", pendingBackfill, add_stat, c);
+    addStat("pending_backfill", isPendingBackfill(), add_stat, c);
     addStat("pending_disk_backfill", isPendingDiskBackfill(), add_stat, c);
     addStat("backfill_completed", isBackfillCompleted(), add_stat, c);
 
@@ -1366,7 +1364,6 @@ void TapProducer::scheduleBackfill_UNLOCKED(const std::vector<uint16_t> &vblist)
 
     if (newBackfillVBs.size() > 0) {
         doRunBackfill = true;
-        pendingBackfill = true;
         backfillCompleted = false;
     }
 }
