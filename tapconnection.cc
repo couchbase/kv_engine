@@ -273,7 +273,6 @@ void TapProducer::registerTAPCursor(std::map<uint16_t, uint64_t> &lastCheckpoint
     }
 
     if (backfill_vbuckets.size() > 0 && !registeredTAPClient) {
-        backFillVBucketFilter.assign(backfill_vbuckets);
         if (backfillAge < current_time) {
             scheduleBackfill_UNLOCKED(backfill_vbuckets);
         }
