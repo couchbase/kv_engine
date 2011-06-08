@@ -821,7 +821,7 @@ private:
      * A backfill is pending if the backfill thread is still running
      */
     bool isPendingBackfill_UNLOCKED() {
-        return pendingBackfillCounter > 0 || diskBackfillCounter > 0;
+        return doRunBackfill || pendingBackfillCounter > 0 || diskBackfillCounter > 0;
     }
 
     bool isPendingBackfill() {
@@ -833,7 +833,7 @@ private:
      * Items from backfill are all successfully transmitted to the destination?
      */
     bool isBackfillCompleted_UNLOCKED() {
-        return !isPendingBackfill_UNLOCKED() && backfillCompleted;
+        return backfillCompleted;
     }
 
     bool isBackfillCompleted() {
