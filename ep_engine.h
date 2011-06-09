@@ -561,13 +561,6 @@ public:
                                                       protocol_binary_request_header *request,
                                                       ADD_RESPONSE response);
 
-    void backfillThreadTerminating() {
-        LockHolder holder(backfillThreads.sync);
-        --backfillThreads.num;
-        backfillThreads.sync.notify();
-        holder.unlock();
-    }
-
     size_t getGetlDefaultTimeout() { return getlDefaultTimeout; }
     size_t getGetlMaxTimeout() { return getlMaxTimeout; }
 
@@ -786,12 +779,6 @@ private:
         RestoreManager *manager;
         Atomic<bool> enabled;
     } restore;
-
-    struct {
-        SyncObject sync;
-        bool shutdown;
-        Atomic<size_t> num;
-    } backfillThreads;
 };
 
 #endif

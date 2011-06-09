@@ -86,6 +86,13 @@ public:
      */
     virtual void complete() { }
 
+    /**
+     * Return true if visiting vbuckets should be paused temporarily.
+     */
+    virtual bool pauseVisitor() {
+        return false;
+    }
+
 protected:
     RCPtr<VBucket> currentBucket;
 };
@@ -401,8 +408,8 @@ class VBCBAdaptor : public DispatcherCallback {
 public:
 
     VBCBAdaptor(EventuallyPersistentStore *s,
-                shared_ptr<VBucketVisitor> v, const char *l)
-        : store(s), visitor(v), label(l), currentvb(0) {}
+                shared_ptr<VBucketVisitor> v, const char *l, double sleep=0)
+        : store(s), visitor(v), label(l), sleepTime(sleep), currentvb(0) {}
 
     std::string description() {
         std::stringstream rv;
@@ -416,6 +423,7 @@ private:
     EventuallyPersistentStore  *store;
     shared_ptr<VBucketVisitor>  visitor;
     const char                 *label;
+    double                      sleepTime;
     uint16_t                    currentvb;
 
     DISALLOW_COPY_AND_ASSIGN(VBCBAdaptor);
@@ -685,8 +693,8 @@ public:
      * Note that this is asynchronous.
      */
     void visit(shared_ptr<VBucketVisitor> visitor, const char *lbl,
-               Dispatcher *d, const Priority &prio, bool isDaemon=true) {
-        d->schedule(shared_ptr<DispatcherCallback>(new VBCBAdaptor(this, visitor, lbl)),
+               Dispatcher *d, const Priority &prio, bool isDaemon=true, double sleepTime=0) {
+        d->schedule(shared_ptr<DispatcherCallback>(new VBCBAdaptor(this, visitor, lbl, sleepTime)),
                     NULL, prio, 0, isDaemon);
     }
 

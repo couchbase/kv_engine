@@ -11,20 +11,26 @@
  */
 class Priority {
 public:
+    // Priorities for Read-only dispatcher
     static const Priority BgFetcherPriority;
     static const Priority TapBgFetcherPriority;
+    static const Priority VKeyStatBgFetcherPriority;
+
+    // Priorities for Read-Write dispatcher
     static const Priority VBucketPersistHighPriority;
     static const Priority FastVBucketDeletionPriority;
-    static const Priority VKeyStatBgFetcherPriority;
-    static const Priority NotifyVBStateChangePriority;
     static const Priority FlusherPriority;
     static const Priority FlushAllPriority;
-    static const Priority CheckpointRemoverPriority;
-    static const Priority ItemPagerPriority;
     static const Priority VBucketDeletionPriority;
     static const Priority VBucketPersistLowPriority;
     static const Priority StatSnapPriority;
     static const Priority InvalidItemDbPagerPriority;
+
+    // Priorities for NON-IO dispatcher
+    static const Priority NotifyVBStateChangePriority;
+    static const Priority CheckpointRemoverPriority;
+    static const Priority ItemPagerPriority;
+    static const Priority BackfillTaskPriority;
     static const Priority TapResumePriority;
     static const Priority TapConnectionReaperPriority;
     static const Priority HTResizePriority;

@@ -41,6 +41,7 @@ CXXFLAGS = -std=gnu++0x -g \
            -Wno-long-long  -Wmissing-declarations -Wno-redundant-decls
 
 EP_ENGINE_CC_SRC = \
+                 backfill.cc \
                  checkpoint.cc \
                  checkpoint_remover.cc \
                  dispatcher.cc \
