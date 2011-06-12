@@ -792,7 +792,17 @@ extern "C" {
             return h->handleGetLastClosedCheckpointId(cookie, request, response);
         }
 
-        if (item) {
+        // Send a special response for getl since we don't want to send the key
+        if (item && request->request.opcode == CMD_GET_LOCKED) {
+            uint32_t flags = item->getFlags();
+
+            response(NULL, 0, (const void *)&flags, sizeof(uint32_t),
+                    static_cast<const void *>(item->getData()),
+                    item->getNBytes(),
+                    PROTOCOL_BINARY_RAW_BYTES,
+                    static_cast<uint16_t>(res), item->getCas(),
+                    cookie);
+        } else if (item) {
             std::string key  = item->getKey();
             uint32_t flags = item->getFlags();
 
