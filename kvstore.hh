@@ -206,18 +206,26 @@ public:
     /**
      * Get the number of data shards in this kvstore.
      */
-    virtual size_t getNumShards() = 0;
+    virtual size_t getNumShards() {
+        return 1;
+    }
 
     /**
      * get the shard ID for the given queued item.
      */
-    virtual size_t getShardId(const QueuedItem &i) = 0;
+    virtual size_t getShardId(const QueuedItem &i) {
+        (void)i;
+        return 0;
+    }
 
     /**
-     * Before persisting a batch of data, do stuf to them that might
-     * improve performance at the IO layer.
+     * This method is called before persisting a batch of data if you'd like to
+     * do stuff to them that might improve performance at the IO layer.
      */
-    virtual void optimizeWrites(std::vector<queued_item> &items) = 0;
+    virtual void optimizeWrites(std::vector<queued_item> &items) {
+        (void)items;
+        // EMPTY
+    }
 
 };
 
