@@ -236,8 +236,7 @@ class MemcachedClient(object):
         self.vbucketId = vbucket
         state = struct.pack(memcacheConstants.VB_SET_PKT_FMT,
                             memcacheConstants.VB_STATE_NAMES[stateName])
-        return self._doCmd(memcacheConstants.CMD_SET_VBUCKET_STATE, '',
-                           state)
+        return self._doCmd(memcacheConstants.CMD_SET_VBUCKET_STATE, '', '', state)
 
     def get_vbucket_state(self, vbucket):
         return self._doCmd(memcacheConstants.CMD_GET_VBUCKET_STATE,
