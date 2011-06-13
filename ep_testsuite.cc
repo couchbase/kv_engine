@@ -1856,6 +1856,14 @@ static enum test_result test_expiry(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     assert(1 == get_int_stat(h, h1, "ep_expired"));
 
+    check(store(h, h1, NULL, OPERATION_SET, key, data, &it) == ENGINE_SUCCESS,
+                "Failed set.");
+
+    std::stringstream ss;
+    ss << "curr_items stat should be still 1 after ";
+    ss << "overwriting the key that was expired, but not purged yet";
+    check(get_int_stat(h, h1, "curr_items") == 1, ss.str().c_str());
+
     return SUCCESS;
 }
 
