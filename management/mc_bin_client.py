@@ -275,6 +275,37 @@ class MemcachedClient(object):
 
         return rv
 
+    def setMulti(self, exp, flags, items):
+        """Multi-set (using setq).
+
+        Give me (key, value) pairs."""
+
+        # If this is a dict, convert it to a pair generator
+        if hasattr(items, 'iteritems'):
+            items = items.iteritems()
+
+        opaqued=dict(enumerate(items))
+        terminal=len(opaqued)+10
+        extra=struct.pack(SET_PKT_FMT, flags, exp)
+
+        # Send all of the keys in quiet
+        for opaque,kv in opaqued.iteritems():
+            self._sendCmd(memcacheConstants.CMD_SETQ, kv[0], kv[1], opaque, extra)
+
+        self._sendCmd(memcacheConstants.CMD_NOOP, '', '', terminal)
+
+        # Handle the response
+        failed = []
+        done=False
+        while not done:
+            try:
+                opaque, cas, data = self._handleSingleResponse(None)
+                done = opaque == terminal
+            except MemcachedError, e:
+                failed.append(e)
+
+        return failed
+
     def stats(self, sub=''):
         """Get stats."""
         opaque=self.r.randint(0, 2**32)
