@@ -359,8 +359,7 @@ extern "C" {
         uint32_t lockTimeout;
         uint32_t max_timeout = (unsigned int)e->getGetlMaxTimeout();
         uint32_t default_timeout = (unsigned int)e->getGetlDefaultTimeout();
-        if (extlen >= 8) {
-            grequest->message.body.flags = grequest->message.body.flags;
+        if (extlen >= 4) {
             lockTimeout = ntohl(grequest->message.body.expiration);
         } else {
             lockTimeout = default_timeout;

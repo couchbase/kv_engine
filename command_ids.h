@@ -126,6 +126,6 @@
 #define SYNC_INVALID_KEY        5
 #define SYNC_INVALID_CAS        6
 
-typedef protocol_binary_request_set protocol_binary_request_getl;
+typedef protocol_binary_request_gat protocol_binary_request_getl;
 
 #endif /* COMMAND_IDS_H */

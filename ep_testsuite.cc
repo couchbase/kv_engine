@@ -388,7 +388,6 @@ static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     memcpy(pkt_raw + sizeof(protocol_binary_request_getl), key, strlen(key));
     uint16_t vbucketId = 0;
     uint8_t extlen = 8;
-    uint32_t flags = 0;
     uint32_t expiration = 25;
 
     protocol_binary_request_getl *gl = (protocol_binary_request_getl*)pkt_raw;
@@ -398,7 +397,6 @@ static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     gl->message.header.request.bodylen = htonl(strlen(key) + gl->message.header.request.extlen);
     gl->message.header.request.keylen = htons(strlen(key));
     gl->message.header.request.vbucket = htons(vbucketId);
-    gl->message.body.flags = htonl(flags);
     gl->message.body.expiration = htonl(expiration);
 
     protocol_binary_request_header *pkt = &gl->message.header;
