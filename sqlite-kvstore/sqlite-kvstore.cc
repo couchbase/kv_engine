@@ -7,6 +7,7 @@
 
 #include "sqlite-kvstore.hh"
 #include "sqlite-pst.hh"
+#include "vbucket.hh"
 
 StrategicSqlite3::StrategicSqlite3(EPStats &st, shared_ptr<SqliteStrategy> s) : KVStore(),
     stats(st), strategy(s),
@@ -92,7 +93,7 @@ vbucket_map_t StrategicSqlite3::listPersistedVbuckets() {
         ++stats.io_num_read;
         std::pair<uint16_t, uint16_t> vb(st->column_int(0), st->column_int(1));
         vbucket_state vb_state;
-        vb_state.state = st->column(2);
+        vb_state.state = (vbucket_state_t)st->column_int(2);
         vb_state.checkpointId = st->column_int64(3);
         rv[vb] = vb_state;
     }

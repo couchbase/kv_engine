@@ -34,6 +34,8 @@
 /config/plugin.ac
 /configure
 /docs/doxy
+/gen_config
+/generated_configuration.*
 /generated_suite_*.c
 /libtool
 /m4/libtool.m4

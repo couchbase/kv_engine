@@ -28,7 +28,7 @@
 typedef std::pair<int, int64_t> mutation_result;
 
 struct vbucket_state {
-    std::string state;
+    vbucket_state_t state;
     uint64_t checkpointId;
 };
 
@@ -85,29 +85,6 @@ enum db_type {
     single_mt_db,        //!< single database, multi-table strategy
     multi_mt_db,         //!< multi-database, multi-table strategy
     multi_mt_vb_db       //!< multi-db, multi-table strategy sharded by vbucket
-};
-
-/**
- * Configuration parameters to be passed to KVStore::create
- */
-class KVStoreConfig {
-public:
-    KVStoreConfig(const char *l,
-                  const char *sp,
-                  const char *i,
-                  const char *p,
-                  size_t nv,
-                  size_t sh) : location(l), shardPattern(sp),
-                               initFile(i), postInitFile(p),
-                               numVBuckets(nv),
-                               shards(sh) {}
-
-    const char   *location;
-    const char   *shardPattern;
-    const char   *initFile;
-    const char   *postInitFile;
-    const size_t  numVBuckets;
-    const size_t  shards;
 };
 
 /**
@@ -239,9 +216,7 @@ public:
      * @param stats the server stats
      * @param conf type-specific parameters
      */
-    static KVStore *create(db_type type,
-                           EPStats &stats,
-                           const KVStoreConfig &conf);
+    static KVStore *create(EventuallyPersistentEngine &theEngine);
 
     /**
      * Get the name of a db type.
@@ -256,7 +231,7 @@ public:
      *
      * @return true if we were able to parse the type
      */
-    static bool stringToType(const char *name,
+    static bool stringToType(std::string name,
                              enum db_type &typeOut);
 };
 

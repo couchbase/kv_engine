@@ -68,6 +68,12 @@ AC_CHECK_HEADERS([poll.h])
 AC_CHECK_HEADERS([atomic.h])
 AC_CHECK_HEADERS([sysexits.h])
 
+AC_CHECK_HEADERS_ONCE([sys/socket.h
+                       netinet/in.h
+                       netinet/tcp.h
+                       ws2tcpip.h
+                       winsock2.h])
+
 AC_CHECK_FUNCS(gethrtime)
 AC_SEARCH_LIBS(clock_gettime, rt)
 AC_CHECK_FUNCS(clock_gettime)

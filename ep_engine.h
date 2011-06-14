@@ -24,6 +24,7 @@
 #include "tapconnmap.hh"
 #include "tapconnection.hh"
 #include "restore.hh"
+#include "configuration.hh"
 
 #define DEFAULT_TAP_NOOP_INTERVAL 200
 #define DEFAULT_BACKFILL_RESIDENT_THRESHOLD 0.9
@@ -410,7 +411,7 @@ public:
     }
 
     void handleDisconnect(const void *cookie) {
-        tapConnMap.disconnect(cookie, static_cast<int>(tapKeepAlive));
+        tapConnMap.disconnect(cookie, static_cast<int>(configuration.getTapKeepalive()));
     }
 
     protocol_binary_response_status stopFlusher(const char **msg, size_t *msg_size) {
@@ -458,7 +459,9 @@ public:
     }
 
     void setTxnSize(int to) {
-        epstore->setTxnSize(to);
+        if (to > 0) {
+            epstore->setTxnSize(to);
+        }
     }
 
     void setBGFetchDelay(uint32_t to) {
@@ -466,7 +469,7 @@ public:
     }
 
     void setTapKeepAlive(uint32_t to) {
-        tapKeepAlive = to;
+        configuration.setTapKeepalive((size_t)to);
     }
 
     protocol_binary_response_status evictKey(const std::string &key,
@@ -544,6 +547,10 @@ public:
 
     SyncRegistry &getSyncRegistry() {
         return syncRegistry;
+    }
+
+    Configuration &getConfiguration() {
+        return configuration;
     }
 
     void notifyTapNotificationThread(void);
@@ -661,16 +668,17 @@ private:
 
     bool dbAccess(void) {
         bool ret = true;
-        if (access(dbname, F_OK) == -1) {
+        std::string dbname = configuration.getDbname();
+        if (access(dbname.c_str(), F_OK) == -1) {
             // file does not exist.. let's try to create it..
-            FILE *fp = fopen(dbname, "w");
+            FILE *fp = fopen(dbname.c_str(), "w");
             if (fp == NULL) {
                 ret= false;
             } else {
                 fclose(fp);
-                std::remove(dbname);
+                std::remove(dbname.c_str());
             }
-        } else if (access(dbname, R_OK) == -1 || access(dbname, W_OK) == -1) {
+        } else if (access(dbname.c_str(), R_OK) == -1 || access(dbname.c_str(), W_OK) == -1) {
             ret = false;
         }
 
@@ -728,16 +736,6 @@ private:
     // If this method returns NULL, you should return TAP_DISCONNECT
     TapProducer* getTapProducer(const void *cookie);
 
-    const char *dbname;
-    const char *shardPattern;
-    const char *initFile;
-    const char *postInitFile;
-    enum db_type dbStrategy;
-    bool warmup;
-    bool wait_for_warmup;
-    bool fail_on_partial_warmup;
-    bool startVb0;
-    bool concurrentDB;
     bool forceShutdown;
     SERVER_HANDLE_V1 *serverApi;
     KVStore *kvstore;
@@ -746,7 +744,6 @@ private:
     std::map<const void*, Item*> lookups;
     Mutex lookupMutex;
     time_t databaseInitTime;
-    size_t tapKeepAlive;
     size_t tapNoopInterval;
     size_t nextTapNoop;
     pthread_t notifyThreadId;
@@ -781,6 +778,7 @@ private:
     size_t syncTimeout;
     EPStats stats;
     SyncRegistry syncRegistry;
+    Configuration configuration;
     struct {
         Mutex mutex;
         RestoreManager *manager;

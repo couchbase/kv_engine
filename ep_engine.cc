@@ -46,8 +46,6 @@ static size_t percentOf(size_t val, double percent) {
     return static_cast<size_t>(static_cast<double>(val) * percent);
 }
 
-static const char* DEFAULT_SHARD_PATTERN("%d/%b-%i.sqlite");
-
 /**
  * Helper function to avoid typing in the long cast all over the place
  * @param handle pointer to the engine
@@ -1246,11 +1244,8 @@ extern "C" {
 }
 
 EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server_api) :
-    dbname("/tmp/test.db"), shardPattern(DEFAULT_SHARD_PATTERN),
-    initFile(NULL), postInitFile(NULL), dbStrategy(multi_db),
-    warmup(true), wait_for_warmup(true), fail_on_partial_warmup(true),
-    startVb0(true), concurrentDB(true), forceShutdown(false), kvstore(NULL),
-    epstore(NULL), tapThrottle(new TapThrottle(stats)), databaseInitTime(0), tapKeepAlive(0),
+    forceShutdown(false), kvstore(NULL),
+    epstore(NULL), tapThrottle(new TapThrottle(stats)), databaseInitTime(0),
     tapNoopInterval(DEFAULT_TAP_NOOP_INTERVAL), nextTapNoop(0),
     startedEngineThreads(false), shutdown(false),
     getServerApiFunc(get_server_api), getlExtension(NULL), tapConnMap(*this),
@@ -1301,381 +1296,84 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server
 ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
 
-    size_t txnSize = 0;
-    size_t tapIdleTimeout = (size_t)-1;
-
     resetStats();
     if (config != NULL) {
-        char *dbn = NULL, *shardPat = NULL, *initf = NULL, *pinitf = NULL,
-            *svaltype = NULL, *dbs=NULL;
-        size_t htBuckets = 0;
-        size_t htLocks = 0;
-        size_t maxSize = 0;
-        float mutation_mem_threshold = 0;
-
-        const int max_items = 50;
-        struct config_item items[max_items];
-        int ii = 0;
-        memset(items, 0, sizeof(items));
-
-        items[ii].key = "dbname";
-        items[ii].datatype = DT_STRING;
-        items[ii].value.dt_string = &dbn;
-
-        ++ii;
-        items[ii].key = "shardpattern";
-        items[ii].datatype = DT_STRING;
-        items[ii].value.dt_string = &shardPat;
-
-        ++ii;
-        items[ii].key = "initfile";
-        items[ii].datatype = DT_STRING;
-        items[ii].value.dt_string = &initf;
-
-        ++ii;
-        items[ii].key = "postInitfile";
-        items[ii].datatype = DT_STRING;
-        items[ii].value.dt_string = &pinitf;
-
-        ++ii;
-        items[ii].key = "db_strategy";
-        items[ii].datatype = DT_STRING;
-        items[ii].value.dt_string = &dbs;
-
-        ++ii;
-        items[ii].key = "warmup";
-        items[ii].datatype = DT_BOOL;
-        items[ii].value.dt_bool = &warmup;
-
-        ++ii;
-        items[ii].key = "waitforwarmup";
-        items[ii].datatype = DT_BOOL;
-        items[ii].value.dt_bool = &wait_for_warmup;
-
-        ++ii;
-        items[ii].key = "failpartialwarmup";
-        items[ii].datatype = DT_BOOL;
-        items[ii].value.dt_bool = &fail_on_partial_warmup;
-
-        ++ii;
-        items[ii].key = "vb0";
-        items[ii].datatype = DT_BOOL;
-        items[ii].value.dt_bool = &startVb0;
-
-        ++ii;
-        items[ii].key = "concurrentDB";
-        items[ii].datatype = DT_BOOL;
-        items[ii].value.dt_bool = &concurrentDB;
-
-        ++ii;
-        items[ii].key = "tap_keepalive";
-        items[ii].datatype = DT_SIZE;
-        items[ii].value.dt_size = &tapKeepAlive;
-
-        ++ii;
-        items[ii].key = "ht_size";
-        items[ii].datatype = DT_SIZE;
-        items[ii].value.dt_size = &htBuckets;
-
-        ++ii;
-        items[ii].key = "stored_val_type";
-        items[ii].datatype = DT_STRING;
-        items[ii].value.dt_string = &svaltype;
-
-        ++ii;
-        items[ii].key = "ht_locks";
-        items[ii].datatype = DT_SIZE;
-        items[ii].value.dt_size = &htLocks;
-
-        ++ii;
-        items[ii].key = "max_size";
-        items[ii].datatype = DT_SIZE;
-        items[ii].value.dt_size = &maxSize;
-
-        ++ii;
-        items[ii].key = "max_txn_size";
-        items[ii].datatype = DT_SIZE;
-        items[ii].value.dt_size = &txnSize;
-
-        ++ii;
-        items[ii].key = "cache_size";
-        items[ii].datatype = DT_SIZE;
-        items[ii].value.dt_size = &maxSize;
-
-        ++ii;
-        items[ii].key = "tap_idle_timeout";
-        items[ii].datatype = DT_SIZE;
-        items[ii].value.dt_size = &tapIdleTimeout;
-
-        ++ii;
-        items[ii].key = "tap_noop_interval";
-        items[ii].datatype = DT_SIZE;
-        items[ii].value.dt_size = &tapNoopInterval;
-
-        ++ii;
-        items[ii].key = "config_file";
-        items[ii].datatype = DT_CONFIGFILE;
-
-        ++ii;
-        items[ii].key = "max_item_size";
-        items[ii].datatype = DT_SIZE;
-        items[ii].value.dt_size = &maxItemSize;
-
-        ++ii;
-        items[ii].key = "min_data_age";
-        items[ii].datatype = DT_SIZE;
-        items[ii].value.dt_size = &minDataAge;
-
-        ++ii;
-        items[ii].key = "mem_low_wat";
-        items[ii].datatype = DT_SIZE;
-        items[ii].value.dt_size = &memLowWat;
-
-        ++ii;
-        items[ii].key = "mem_high_wat";
-        items[ii].datatype = DT_SIZE;
-        items[ii].value.dt_size = &memHighWat;
-
-        ++ii;
-        items[ii].key = "queue_age_cap";
-        items[ii].datatype = DT_SIZE;
-        items[ii].value.dt_size = &queueAgeCap;
-
-        ++ii;
-        items[ii].key = "tap_backlog_limit";
-        items[ii].datatype = DT_SIZE;
-        items[ii].value.dt_size = &tapBacklogLimit;
-
-        ++ii;
-        items[ii].key = "expiry_window";
-        items[ii].datatype = DT_SIZE;
-        items[ii].value.dt_size = &itemExpiryWindow;
-
-        ++ii;
-        items[ii].key = "exp_pager_stime";
-        items[ii].datatype = DT_SIZE;
-        items[ii].value.dt_size = &expiryPagerSleeptime;
-
-        ++ii;
-        items[ii].key = "db_shards";
-        items[ii].datatype = DT_SIZE;
-        items[ii].value.dt_size = &dbShards;
-
-        ++ii;
-        items[ii].key = "max_vbuckets";
-        items[ii].datatype = DT_SIZE;
-        items[ii].value.dt_size = &nVBuckets;
-
-        ++ii;
-        items[ii].key = "vb_del_chunk_size";
-        items[ii].datatype = DT_SIZE;
-        items[ii].value.dt_size = &vb_del_chunk_size;
-
-        ++ii;
-        items[ii].key = "tap_bg_max_pending";
-        items[ii].datatype = DT_SIZE;
-        items[ii].value.dt_size = &TapProducer::bgMaxPending;
-
-        ++ii;
-        items[ii].key = "vb_chunk_del_time";
-        items[ii].datatype = DT_SIZE;
-        items[ii].value.dt_size = &vb_chunk_del_threshold_time;
-
-        ++ii;
-        float tap_backoff_period;
-        int tap_backoff_period_idx = ii;
-        items[ii].key = "tap_backoff_period";
-        items[ii].datatype = DT_FLOAT;
-        items[ii].value.dt_float = &tap_backoff_period;
-
-        ++ii;
-        size_t tap_ack_window_size;
-        int tap_ack_window_size_idx = ii;
-        items[ii].key = "tap_ack_window_size";
-        items[ii].datatype = DT_SIZE;
-        items[ii].value.dt_size = &tap_ack_window_size;
-
-        ++ii;
-        size_t tap_ack_interval;
-        int tap_ack_interval_idx = ii;
-        items[ii].key = "tap_ack_interval";
-        items[ii].datatype = DT_SIZE;
-        items[ii].value.dt_size = &tap_ack_interval;
-
-        ++ii;
-        size_t tap_ack_grace_period;
-        int tap_ack_grace_period_idx = ii;
-        items[ii].key = "tap_ack_grace_period";
-        items[ii].datatype = DT_SIZE;
-        items[ii].value.dt_size = &tap_ack_grace_period;
-
-        ++ii;
-        size_t tap_ack_initial_sequence_number;
-        int tap_ack_initial_sequence_number_idx = ii;
-        items[ii].key = "tap_ack_initial_sequence_number";
-        items[ii].datatype = DT_SIZE;
-        items[ii].value.dt_size = &tap_ack_initial_sequence_number;
-
-        ++ii;
-        items[ii].key = "chk_remover_stime";
-        items[ii].datatype = DT_SIZE;
-        items[ii].value.dt_size = &checkpointRemoverInterval;
-
-        ++ii;
-        size_t checkpoint_max_items;
-        int checkpoint_max_items_idx = ii;
-        items[ii].key = "chk_max_items";
-        items[ii].datatype = DT_SIZE;
-        items[ii].value.dt_size = &checkpoint_max_items;
-
-        ++ii;
-        size_t checkpoint_period;
-        int checkpoint_period_idx = ii;
-        items[ii].key = "chk_period";
-        items[ii].datatype = DT_SIZE;
-        items[ii].value.dt_size = &checkpoint_period;
-
-        ++ii;
-        bool inconsistentSlaveCheckpoint;
-        int inconsistent_chk_idx = ii;
-        items[ii].key = "inconsistent_slave_chk";
-        items[ii].datatype = DT_BOOL;
-        items[ii].value.dt_bool = &inconsistentSlaveCheckpoint;
-
-        ++ii;
-        bool restore_mode;
-        int restore_idx = ii;
-        items[ii].key = "restore_mode";
-        items[ii].datatype = DT_BOOL;
-        items[ii].value.dt_bool = &restore_mode;
-
-        ++ii;
-        float backfill_resident_threshold;
-        int backfill_resident_threshold_idx = ii;
-        items[ii].key = "bf_resident_threshold";
-        items[ii].datatype = DT_FLOAT;
-        items[ii].value.dt_float = &backfill_resident_threshold;
-
-        ++ii;
-        items[ii].key = "getl_default_timeout";
-        items[ii].datatype = DT_SIZE;
-        items[ii].value.dt_size = &getlDefaultTimeout;
-
-        ++ii;
-        items[ii].key = "getl_max_timeout";
-        items[ii].datatype = DT_SIZE;
-        items[ii].value.dt_size = &getlMaxTimeout;
-
-        ++ii;
-        items[ii].key = "sync_cmd_timeout";
-        items[ii].datatype = DT_SIZE;
-        items[ii].value.dt_size = &syncTimeout;
-
-        ++ii;
-        items[ii].key = "mutation_mem_threshold";
-        items[ii].datatype = DT_FLOAT;
-        items[ii].value.dt_float = &mutation_mem_threshold;
-
-        ++ii;
-        items[ii].key = NULL;
-
-        assert(ii < max_items);
-
-        if (serverApi->core->parse_config(config, items, stderr) != 0) {
-            ret = ENGINE_FAILED;
-        } else {
-            if (dbn != NULL) {
-                dbname = dbn;
-            }
-            if (shardPat != NULL) {
-                shardPattern = shardPat;
-            }
-            if (initf != NULL) {
-                initFile = initf;
-            }
-            if (pinitf != NULL) {
-                postInitFile = pinitf;
-            }
-
-            if (items[tap_backoff_period_idx].found) {
-                TapProducer::backoffSleepTime = (double)tap_backoff_period;
-            }
-
-            if (items[tap_ack_window_size_idx].found) {
-                TapProducer::ackWindowSize = (uint32_t)tap_ack_window_size;
-            }
-
-            if (items[tap_ack_interval_idx].found) {
-                TapProducer::ackInterval = (uint32_t)tap_ack_interval;
-            }
-
-            if (items[tap_ack_grace_period_idx].found) {
-                TapProducer::ackGracePeriod = (rel_time_t)tap_ack_grace_period;
-            }
-
-            if (items[tap_ack_initial_sequence_number_idx].found) {
-                uint32_t init_seq_num = (uint32_t)tap_ack_initial_sequence_number;
-                TapProducer::initialAckSequenceNumber = init_seq_num == 0 ? 1 : init_seq_num;
-            }
-
-            if (items[checkpoint_max_items_idx].found) {
-                CheckpointManager::setCheckpointMaxItems(checkpoint_max_items);
-            }
-            if (items[checkpoint_period_idx].found) {
-                CheckpointManager::setCheckpointPeriod(checkpoint_period);
-            }
-            if (items[inconsistent_chk_idx].found) {
-                CheckpointManager::allowInconsistentSlaveCheckpoint(inconsistentSlaveCheckpoint);
-            }
-
-            if (items[restore_idx].found && restore_mode) {
-                if ((restore.manager = create_restore_manager(*this)) == NULL) {
-                    getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                     "Failed to create restore manager");
-                    return ENGINE_FAILED;
-                }
-                restore.enabled.set(true);
-            }
-
-            if (items[backfill_resident_threshold_idx].found) {
-                BackFillVisitor::setResidentItemThreshold(backfill_resident_threshold);
-            }
-
-            if (dbs != NULL) {
-                if (!KVStoreFactory::stringToType(dbs, dbStrategy)) {
-                    getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                     "Unhandled db type: %s", dbs);
-                    return ENGINE_FAILED;
-                }
-            }
-            HashTable::setDefaultNumBuckets(htBuckets);
-            HashTable::setDefaultNumLocks(htLocks);
-            StoredValue::setMaxDataSize(stats, maxSize);
-            StoredValue::setMutationMemoryThreshold(mutation_mem_threshold);
-
-            if (svaltype && !HashTable::setDefaultStorageValueType(svaltype)) {
-                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                 "Unhandled storage value type: %s",
-                                 svaltype);
-            }
+        if (!configuration.parseConfiguration(config, serverApi)) {
+            return ENGINE_FAILED;
         }
     }
 
+    // Start updating the variables from the config!
+    HashTable::setDefaultNumBuckets(configuration.getHtSize());
+    HashTable::setDefaultNumLocks(configuration.getHtLocks());
+    StoredValue::setMaxDataSize(stats, configuration.getMaxSize());
+    StoredValue::setMutationMemoryThreshold(configuration.getMutationMemThreshold());
+    tapNoopInterval = configuration.getTapNoopInterval();
+    size_t tapIdleTimeout = configuration.getTapIdleTimeout();
     if (tapNoopInterval == 0 || tapIdleTimeout == 0) {
         tapNoopInterval = (size_t)-1;
     } else if (tapIdleTimeout != (size_t)-1) {
         tapNoopInterval = tapIdleTimeout / 3;
     }
 
+    std::string storedValType = configuration.getStoredValType();
+    if (storedValType.length() > 0) {
+        if (!HashTable::setDefaultStorageValueType(storedValType.c_str())) {
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                         "Unhandled storage value type: %s",
+                         configuration.getStoredValType().c_str());
+        }
+    }
+
+    maxItemSize = configuration.getMaxItemSize();
+    minDataAge = configuration.getMinDataAge();
+    memLowWat = configuration.getMemLowWat();
+    memHighWat = configuration.getMemHighWat();
+    queueAgeCap = configuration.getQueueAgeCap();
+    tapBacklogLimit = configuration.getTapBacklogLimit();
+    itemExpiryWindow = configuration.getExpiryWindow();
+    expiryPagerSleeptime = configuration.getExpPagerStime();
+    dbShards = configuration.getDbShards();
+    nVBuckets = configuration.getMaxVbuckets();
+    vb_del_chunk_size = configuration.getVbDelChunkSize();
+    vb_chunk_del_threshold_time = configuration.getVbChunkDelTime();
+    TapProducer::bgMaxPending = configuration.getTapBgMaxPending();
+    TapProducer::backoffSleepTime = configuration.getTapBackoffPeriod();
+    TapProducer::ackWindowSize = configuration.getTapAckWindowSize();
+    TapProducer::ackInterval = configuration.getTapAckInterval();
+    TapProducer::ackGracePeriod = configuration.getTapAckGracePeriod();
+    uint32_t init_seq_num = configuration.getTapAckInitialSequenceNumber();
+    TapProducer::initialAckSequenceNumber = init_seq_num == 0 ? 1 : init_seq_num;
+    checkpointRemoverInterval = configuration.getChkRemoverStime();
+    CheckpointManager::setCheckpointMaxItems(configuration.getChkMaxItems());
+    CheckpointManager::setCheckpointPeriod(configuration.getChkPeriod());
+    CheckpointManager::allowInconsistentSlaveCheckpoint(configuration.isInconsistentSlaveChk());
+
+    if (configuration.isRestoreMode()) {
+        if ((restore.manager = create_restore_manager(*this)) == NULL) {
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                    "Failed to create restore manager");
+            return ENGINE_FAILED;
+        }
+        restore.enabled.set(true);
+    }
+
+    getlDefaultTimeout = configuration.getGetlDefaultTimeout();
+    getlMaxTimeout = configuration.getGetlMaxTimeout();
+    syncTimeout = configuration.getSyncCmdTimeout();
+    BackFillVisitor::setResidentItemThreshold(configuration.getBfResidentThreshold());
+
     if (ret == ENGINE_SUCCESS) {
         time_t start = ep_real_time();
         try {
-            kvstore = newKVStore();
+            if ((kvstore = KVStoreFactory::create(*this)) == NULL) {
+                return ENGINE_FAILED;
+            }
         } catch (std::exception& e) {
             std::stringstream ss;
             ss << "Failed to create database: " << e.what() << std::endl;
             if (!dbAccess()) {
-                ss << "No access to \"" << dbname << "\"."
+                ss << "No access to \"" << configuration.getDbname() << "\"."
                    << std::endl;
             }
 
@@ -1695,20 +1393,18 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         stats.mem_high_wat = memHighWat;
 
         databaseInitTime = ep_real_time() - start;
-        epstore = new EventuallyPersistentStore(*this, kvstore, startVb0,
-                                                concurrentDB);
+        epstore = new EventuallyPersistentStore(*this, kvstore, configuration.isVb0(),
+                                                configuration.isConcurrentDB());
         if (epstore == NULL) {
             ret = ENGINE_ENOMEM;
             return ret;
         }
 
+        setTxnSize(configuration.getMaxTxnSize());
         setMinDataAge(minDataAge);
         setQueueAgeCap(queueAgeCap);
-        if (txnSize > 0) {
-            setTxnSize(txnSize);
-        }
 
-        if (!warmup) {
+        if (!configuration.isWarmup()) {
             epstore->reset();
         }
 
@@ -1725,12 +1421,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         const Flusher *flusher = epstore->getFlusher();
         useconds_t sleepTime = 1;
         useconds_t maxSleepTime = 500000;
-        if (wait_for_warmup && flusher) {
+        if (configuration.isWaitforwarmup() && flusher) {
             while (flusher->state() == initializing) {
                 usleep(sleepTime);
                 sleepTime = std::min(sleepTime << 1, maxSleepTime);
             }
-            if (fail_on_partial_warmup && stats.warmOOM > 0) {
+            if (configuration.isFailpartialwarmup() && stats.warmOOM > 0) {
                 getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                                  "Warmup failed to load %d records due to OOM, exiting.\n",
                                  static_cast<unsigned int>(stats.warmOOM));
@@ -1788,9 +1484,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
 }
 
 KVStore* EventuallyPersistentEngine::newKVStore() {
-    KVStoreConfig conf(dbname, shardPattern, initFile,
-                       postInitFile, nVBuckets, dbShards);
-    return KVStoreFactory::create(dbStrategy, stats, conf);
+    // @todo nuke me!
+    return KVStoreFactory::create(*this);
 }
 
 void EventuallyPersistentEngine::destroy(bool force) {
@@ -2382,7 +2077,7 @@ bool EventuallyPersistentEngine::createTapQueue(const void *cookie,
 
     TapProducer *tap = tapConnMap.newProducer(cookie, name, flags,
                                               backfillAge,
-                                              static_cast<int>(tapKeepAlive));
+                                              static_cast<int>(configuration.getTapKeepalive()));
 
     tap->setRegisteredClient(isRegisteredClient);
     tap->setClosedCheckpointOnlyFlag(isClosedCheckpointOnly);
@@ -2833,6 +2528,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
 
     epstore->visit(aggregator);
 
+    configuration.addStats(add_stat, cookie);
+
     EPStats &epstats = getEpStats();
     add_casted_stat("ep_version", VERSION, add_stat, cookie);
     add_casted_stat("ep_storage_age",
@@ -3063,7 +2760,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                     cookie);
     add_casted_stat("ep_onlineupdate_revert_update", epstats.numRevertUpdates, add_stat,
                     cookie);
-    if (warmup) {
+    if (configuration.isWarmup()) {
         add_casted_stat("ep_warmup_thread",
                         epstats.warmupComplete.get() ? "complete" : "running",
                         add_stat, cookie);
@@ -3076,15 +2773,13 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
         }
     }
 
-    add_casted_stat("ep_tap_keepalive", tapKeepAlive,
-                    add_stat, cookie);
+//    add_casted_stat("ep_tap_keepalive", tapKeepAlive,
+//                    add_stat, cookie);
 
-    add_casted_stat("ep_dbname", dbname, add_stat, cookie);
+    add_casted_stat("ep_dbname", configuration.getDbname(), add_stat, cookie);
     add_casted_stat("ep_dbinit", databaseInitTime, add_stat, cookie);
     add_casted_stat("ep_dbshards", dbShards, add_stat, cookie);
-    add_casted_stat("ep_db_strategy", KVStoreFactory::typeToString(dbStrategy),
-                    add_stat, cookie);
-    add_casted_stat("ep_warmup", warmup ? "true" : "false",
+    add_casted_stat("ep_db_strategy", configuration.getDbStrategy(),
                     add_stat, cookie);
 
     add_casted_stat("ep_io_num_read", epstats.io_num_read, add_stat, cookie);
@@ -3487,7 +3182,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTapStats(const void *cookie,
     add_casted_stat("ep_tap_fg_fetched", stats.numTapFGFetched, add_stat, cookie);
     add_casted_stat("ep_tap_deletes", stats.numTapDeletes, add_stat, cookie);
     add_casted_stat("ep_tap_throttled", stats.tapThrottled, add_stat, cookie);
-    add_casted_stat("ep_tap_keepalive", tapKeepAlive, add_stat, cookie);
+//    add_casted_stat("ep_tap_keepalive", tapKeepAlive, add_stat, cookie);
     add_casted_stat("ep_tap_noop_interval", tapNoopInterval, add_stat, cookie);
 
     add_casted_stat("ep_tap_count", aggregator.totalTaps, add_stat, cookie);

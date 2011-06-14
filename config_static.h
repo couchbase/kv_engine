@@ -25,6 +25,34 @@
 #include <netdb.h>
 #endif
 
+#ifdef HAVE_SYS_SOCKET_H
+#include <sys/socket.h>
+#endif
+
+#ifdef HAVE_NETINET_IN_H
+#include <netinet/in.h>
+#endif
+
+#ifdef HAVE_NETINET_TCP_H
+#include <netinet/tcp.h>
+#endif
+
+#ifdef HAVE_WINSOCK2_H
+#include <winsock2.h>
+#endif
+
+#ifdef HAVE_WS2TCPIP_H
+#include <ws2tcpip.h>
+#endif
+
+#ifdef WIN32
+#define SOCKETPAIR_AF AF_INET
+#else
+#define INVALID_SOCKET -1
+#define SOCKET_ERROR -1
+#define SOCKETPAIR_AF AF_UNIX
+#endif
+
 #ifndef HAVE_GETHRTIME
 typedef uint64_t hrtime_t;
 

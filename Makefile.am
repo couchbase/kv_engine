@@ -15,15 +15,16 @@ bin_SCRIPTS = management/analyze_core \
 
 memcachedlibdir = $(libdir)/memcached
 memcachedlib_LTLIBRARIES = ep.la ep_testsuite.la timing_tests.la
-noinst_LTLIBRARIES = libsqlite-kvstore.la libmc-kvstore.la libobjectregistry.la
+noinst_LTLIBRARIES = libsqlite-kvstore.la libmc-kvstore.la libobjectregistry.la libconfiguration.la
 
 bin_PROGRAMS = management/mbdbconvert
-BUILT_SOURCES =
+BUILT_SOURCES = generated_configuration.cc \
+                generated_configuration.hh
 CLEANFILES = mbbackup-0001.mbb mbbackup-0002.mbb
 
 EXTRA_DIST = docs management README.markdown win32 Doxyfile LICENSE
 
-noinst_PROGRAMS = sizes
+noinst_PROGRAMS = sizes gen_config
 
 man_MANS =
 if BUILD_DOCS
@@ -109,19 +110,27 @@ libmc_kvstore_la_CPPFLAGS = -I$(top_srcdir) -I$(top_srcdir)/sqlite-kvstore \
 libmc_kvstore_la_LIBADD =
 libmc_kvstore_la_DEPENDENCIES =
 
+generated_configuration.hh generated_configuration.cc: gen_config configuration.json
+	./gen_config
+
+libconfiguration_la_SOURCES = \
+                              generated_configuration.hh \
+                              configuration.hh \
+                              configuration.cc
+
 ep_la_LIBADD = libsqlite-kvstore.la libmc-kvstore.la \
-               libobjectregistry.la
+               libobjectregistry.la libconfiguration.la $(LTLIBEVENT)
 ep_la_DEPENDENCIES = libsqlite-kvstore.la libmc-kvstore.la \
-                     libobjectregistry.la
+                     libobjectregistry.la libconfiguration.la
 ep_testsuite_la_LIBADD = libsqlite-kvstore.la libmc-kvstore.la \
-                         libobjectregistry.la
+                         libobjectregistry.la libconfiguration.la $(LTLIBEVENT)
 ep_testsuite_la_DEPENDENCIES = libsqlite-kvstore.la libmc-kvstore.la \
                                libobjectregistry.la
 
 management_mbdbconvert_SOURCES = management/dbconvert.cc \
                                  testlogger.cc
 management_mbdbconvert_LDADD = libsqlite-kvstore.la libmc-kvstore.la \
-                               libobjectregistry.la
+                               libobjectregistry.la $(LTLIBEVENT)
 management_mbdbconvert_DEPENDENCIES = libsqlite-kvstore.la libmc-kvstore.la \
                                       libobjectregistry.la
 
@@ -255,6 +264,10 @@ priority_test_SOURCES = t/priority_test.cc priority.hh priority.cc
 sizes_CPPFLAGS = -I$(top_srcdir) $(AM_CPPFLAGS)
 sizes_SOURCES = sizes.cc
 sizes_DEPENDENCIES = vbucket.hh stored-value.hh item.hh
+
+gen_config_CPPFLAGS = -I$(top_srcdir) -I$(top_srcdir)/tools $(AM_CPPFLAGS)
+gen_config_SOURCES = tools/genconfig.cc tools/cJSON.c tools/cJSON.h
+gen_config_LDFLAGS = -lm
 
 management_sqlite3_SOURCES = embedded/sqlite3-shell.c
 management_sqlite3_CFLAGS = $(AM_CFLAGS) ${NO_WERROR}

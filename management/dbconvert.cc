@@ -37,6 +37,7 @@
 
 using namespace std;
 
+#if 0
 static KVStore *getStore(EPStats &st,
                          const char *path,
                          const char *strategyName,
@@ -53,10 +54,12 @@ static KVStore *getStore(EPStats &st,
     size_t nVBuckets(1024);
     size_t dbShards(4);
 
-    KVStoreConfig conf(path, shardPattern, initFile,
-                       postInitFile, nVBuckets, dbShards);
-    return KVStoreFactory::create(dbStrategy, st, conf);
+    // @trond fixme!
+    SQLiteKVStoreConfig conf(path, shardPattern, initFile,
+                             postInitFile, nVBuckets, dbShards);
+    return KVStoreFactory::create(st, conf);
 }
+#endif
 
 class MutationVerifier : public Callback<mutation_result> {
 public:
@@ -239,6 +242,7 @@ int main(int argc, char **argv) {
 
     SqliteStrategy::disableSchemaCheck();
 
+#if 0
     KVStore *src(getStore(srcStats, srcPath,
                           srcStrategy, srcShardPattern));
     KVStore *dest(getStore(destStats, destPath,
@@ -248,6 +252,6 @@ int main(int argc, char **argv) {
     cout << "Each . represents " << reportEvery << " items moved." << endl;
     src->dump(mover);
     cout << endl << "Moved " << mover.getTransferred() << " items." << endl;
-
+#endif
     return 0;
 }

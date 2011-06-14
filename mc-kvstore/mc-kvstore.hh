@@ -21,7 +21,7 @@ public:
     /**
      * Build it!
      */
-    MCKVStore(EPStats &st);
+    MCKVStore(EventuallyPersistentEngine &theEngine);
 
     /**
      * Copying opens a new underlying DB.
@@ -137,6 +137,7 @@ private:
 
     // Disallow assignment.
     void operator=(const MCKVStore &from);
+    EventuallyPersistentEngine &engine;
 };
 
 #endif /* MC_KVSTORE_H */

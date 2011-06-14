@@ -6,14 +6,18 @@
 #include <algorithm>
 
 #include "mc-kvstore.hh"
+#include "ep_engine.h"
 
-MCKVStore::MCKVStore(EPStats &st) : KVStore(),
-                                    stats(st), intransaction(false) {
+MCKVStore::MCKVStore(EventuallyPersistentEngine &theEngine) :
+    KVStore(), stats(theEngine.getEpStats()), intransaction(false), engine(theEngine)
+{
     open();
 }
 
-MCKVStore::MCKVStore(const MCKVStore &from) : KVStore(from),
-    stats(from.stats), intransaction(false) {
+MCKVStore::MCKVStore(const MCKVStore &from) :
+    KVStore(from), stats(from.stats), intransaction(false),
+    engine(from.engine)
+{
     open();
 }
 
@@ -65,6 +69,12 @@ void MCKVStore::reset() {
 void MCKVStore::del(const std::string &key, uint64_t rowid,
                     uint16_t vb, uint16_t vbver,
                     Callback<int> &cb) {
+
+
+
+
+
+
     (void)key;
     (void)rowid;
     (void)vb;

@@ -1,0 +1,224 @@
+{
+    "params": {
+        "backend": {
+            "default": "sqlite",
+            "dynamic": false,
+            "type": "std::string"
+        },
+        "bf_resident_threshold": {
+            "default": "0.9",
+            "type": "float"
+        },
+        "cache_size": {
+            "default": "0",
+            "type": "size_t"
+        },
+        "chk_max_items": {
+            "default": "5000",
+            "type": "size_t"
+        },
+        "chk_period": {
+            "default": "600",
+            "type": "size_t"
+        },
+        "chk_remover_stime": {
+            "default": "5",
+            "type": "size_t"
+        },
+        "concurrentDB": {
+            "default": "true",
+            "type": "bool"
+        },
+        "config_file": {
+            "default": "",
+            "dynamic": false,
+            "type": "std::string"
+        },
+        "couch_bucket": {
+            "default": "default",
+            "dynamic": false,
+            "type": "std::string"
+        },
+        "couch_host": {
+            "default": "",
+            "dynamic": false,
+            "type": "std::string"
+        },
+        "couch_port": {
+            "default": "11213",
+            "dynamic": false,
+            "type": "size_t"
+        },
+        "couch_reconnect_sleeptime": {
+            "default": "250",
+            "dynamic": false,
+            "type": "size_t"
+        },
+        "db_shards": {
+            "default": "4",
+            "type": "size_t"
+        },
+        "db_strategy": {
+            "default": "multiDB",
+            "type": "std::string"
+        },
+        "dbname": {
+            "default": "/tmp/test.db",
+            "descr": "Path to on-disk storage.",
+            "dynamic": false,
+            "type": "std::string"
+        },
+        "exp_pager_stime": {
+            "default": "3600",
+            "type": "size_t"
+        },
+        "expiry_window": {
+            "default": "3",
+            "type": "size_t"
+        },
+        "failpartialwarmup": {
+            "default": "true",
+            "type": "bool"
+        },
+        "getl_default_timeout": {
+            "default": "15",
+            "type": "size_t"
+        },
+        "getl_max_timeout": {
+            "default": "30",
+            "type": "size_t"
+        },
+        "ht_locks": {
+            "default": "0",
+            "type": "size_t"
+        },
+        "ht_size": {
+            "default": "0",
+            "type": "size_t"
+        },
+        "inconsistent_slave_chk": {
+            "default": "false",
+            "type": "bool"
+        },
+        "initfile": {
+            "default": "",
+            "type": "string"
+        },
+        "max_item_size": {
+            "default": "(20 * 1024 * 1024)",
+            "type": "size_t"
+        },
+        "max_size": {
+            "default": "0",
+            "type": "size_t"
+        },
+        "max_txn_size": {
+            "default": "0",
+            "type": "size_t"
+        },
+        "max_vbuckets": {
+            "default": "1024",
+            "type": "size_t"
+        },
+        "mem_high_wat": {
+            "default": "std::numeric_limits<size_t>::max()",
+            "type": "size_t"
+        },
+        "mem_low_wat": {
+            "default": "std::numeric_limits<size_t>::max()",
+            "type": "size_t"
+        },
+        "min_data_age": {
+            "default": "0",
+            "type": "size_t"
+        },
+        "mutation_mem_threshold": {
+            "default": "0.0",
+            "type": "float"
+        },
+        "postInitfile": {
+            "default": "",
+            "type": "string"
+        },
+        "queue_age_cap": {
+            "default": "900",
+            "type": "size_t"
+        },
+        "restore_mode": {
+            "default": "false",
+            "type": "bool"
+        },
+        "shardpattern": {
+            "default": "%d/%b-%i.sqlite",
+            "type": "std::string"
+        },
+        "stored_val_type": {
+            "default": "",
+            "type": "std::string"
+        },
+        "sync_cmd_timeout": {
+            "default": "2500",
+            "type": "size_t"
+        },
+        "tap_ack_grace_period": {
+            "default": "300",
+            "type": "size_t"
+        },
+        "tap_ack_initial_sequence_number": {
+            "default": "1",
+            "type": "size_t"
+        },
+        "tap_ack_interval": {
+            "default": "1000",
+            "type": "size_t"
+        },
+        "tap_ack_window_size": {
+            "default": "10",
+            "type": "size_t"
+        },
+        "tap_backlog_limit": {
+            "default": "5000",
+            "type": "size_t"
+        },
+        "tap_backoff_period": {
+            "default": "5.0",
+            "type": "float"
+        },
+        "tap_bg_max_pending": {
+            "default": "500",
+            "type": "size_t"
+        },
+        "tap_idle_timeout": {
+            "default": "std::numeric_limits<size_t>::max()",
+            "type": "size_t"
+        },
+        "tap_keepalive": {
+            "default": "0",
+            "type": "size_t"
+        },
+        "tap_noop_interval": {
+            "default": "200",
+            "type": "size_t"
+        },
+        "vb0": {
+            "default": "true",
+            "type": "bool"
+        },
+        "vb_chunk_del_time": {
+            "default": "500",
+            "type": "size_t"
+        },
+        "vb_del_chunk_size": {
+            "default": "100",
+            "type": "size_t"
+        },
+        "waitforwarmup": {
+            "default": "true",
+            "type": "bool"
+        },
+        "warmup": {
+            "default": "true",
+            "type": "bool"
+        }
+    }
+}

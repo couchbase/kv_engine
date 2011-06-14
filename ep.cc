@@ -716,7 +716,7 @@ void EventuallyPersistentStore::snapshotVBuckets(const Priority &priority) {
             std::pair<uint16_t, uint16_t> p(vb->getId(),
                                             vbuckets.getBucketVersion(vb->getId()));
             vbucket_state vb_state;
-            vb_state.state = VBucket::toString(vb->getState());
+            vb_state.state = vb->getState();
             vb_state.checkpointId = vbuckets.getPersistenceCheckpointId(vb->getId());
             states[p] = vb_state;
             return false;
@@ -2028,9 +2028,9 @@ void EventuallyPersistentStore::warmup(Atomic<bool> &vbStateLoaded) {
         vbucket_state vbs = it->second;
         getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
                          "Reloading vbucket %d - was in %s state\n",
-                         vbp.first, vbs.state.c_str());
+                         vbp.first, VBucket::toString(vbs.state));
         cb.initVBucket(vbp.first, vbp.second, vbs.checkpointId + 1,
-                       VBucket::fromString(vbs.state.c_str()));
+                       vbs.state);
     }
     vbStateLoaded.set(true);
 

@@ -5,51 +5,81 @@
 #include <map>
 
 #include "common.hh"
+#include "ep_engine.h"
 #include "stats.hh"
 #include "kvstore.hh"
 #include "sqlite-kvstore.hh"
+#include "mc-kvstore/mc-kvstore.hh"
 
-KVStore *KVStoreFactory::create(db_type type, EPStats &stats,
-                         const KVStoreConfig &conf) {
-    SqliteStrategy *sqliteInstance = NULL;
-    switch (type) {
-    case multi_db:
-        sqliteInstance = new MultiDBSingleTableSqliteStrategy(conf.location,
-                                                              conf.shardPattern,
-                                                              conf.initFile,
-                                                              conf.postInitFile,
-                                                              conf.shards);
-        break;
-    case single_db:
-        sqliteInstance = new SingleTableSqliteStrategy(conf.location,
-                                                       conf.initFile,
-                                                       conf.postInitFile);
-        break;
-    case single_mt_db:
-        sqliteInstance = new MultiTableSqliteStrategy(conf.location,
-                                                      conf.initFile,
-                                                      conf.postInitFile,
-                                                      conf.numVBuckets);
-        break;
-    case multi_mt_db:
-        sqliteInstance = new ShardedMultiTableSqliteStrategy(conf.location,
-                                                             conf.shardPattern,
-                                                             conf.initFile,
-                                                             conf.postInitFile,
-                                                             conf.numVBuckets,
-                                                             conf.shards);
-        break;
-    case multi_mt_vb_db:
-        sqliteInstance = new ShardedByVBucketSqliteStrategy(conf.location,
-                                                            conf.shardPattern,
-                                                            conf.initFile,
-                                                            conf.postInitFile,
-                                                            conf.numVBuckets,
-                                                            conf.shards);
-        break;
+static const char *stringToCharPtr(std::string str) {
+    if (!str.empty()) {
+        return strdup(str.c_str());
     }
-    return new StrategicSqlite3(stats,
-                                shared_ptr<SqliteStrategy>(sqliteInstance));
+    return NULL;
+}
+
+KVStore *KVStoreFactory::create(EventuallyPersistentEngine &theEngine) {
+    Configuration &c = theEngine.getConfiguration();
+
+    std::string backend = c.getBackend();
+    if (backend.compare("sqlite") == 0) {
+        SqliteStrategy *sqliteInstance = NULL;
+        enum db_type type = multi_db;
+
+        if (!KVStoreFactory::stringToType(c.getDbStrategy(), type)) {
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                    "Unhandled db type: %s", c.getDbStrategy().c_str());
+            return NULL;
+        }
+
+        switch (type) {
+        case multi_db:
+            sqliteInstance = new MultiDBSingleTableSqliteStrategy(
+                    stringToCharPtr(c.getDbname()),
+                    stringToCharPtr(c.getShardpattern()),
+                    stringToCharPtr(c.getInitfile()),
+                    stringToCharPtr(c.getPostInitfile()), c.getDbShards());
+            break;
+        case single_db:
+            sqliteInstance = new SingleTableSqliteStrategy(
+                    stringToCharPtr(c.getDbname()),
+                    stringToCharPtr(c.getInitfile()),
+                    stringToCharPtr(c.getPostInitfile()));
+            break;
+        case single_mt_db:
+            sqliteInstance = new MultiTableSqliteStrategy(
+                    stringToCharPtr(c.getDbname()),
+                    stringToCharPtr(c.getInitfile()),
+                    stringToCharPtr(c.getPostInitfile()), c.getMaxVbuckets());
+            break;
+        case multi_mt_db:
+            sqliteInstance = new ShardedMultiTableSqliteStrategy(
+                    stringToCharPtr(c.getDbname()),
+                    stringToCharPtr(c.getShardpattern()),
+                    stringToCharPtr(c.getInitfile()),
+                    stringToCharPtr(c.getPostInitfile()), c.getMaxVbuckets(),
+                    c.getDbShards());
+            break;
+        case multi_mt_vb_db:
+            sqliteInstance = new ShardedByVBucketSqliteStrategy(
+                    stringToCharPtr(c.getDbname()),
+                    stringToCharPtr(c.getShardpattern()),
+                    stringToCharPtr(c.getInitfile()),
+                    stringToCharPtr(c.getPostInitfile()), c.getMaxVbuckets(),
+                    c.getDbShards());
+            break;
+        }
+
+        return new StrategicSqlite3(theEngine.getEpStats(),
+                shared_ptr<SqliteStrategy> (sqliteInstance));
+    } else if (backend.compare("couchdb") == 0) {
+        return new MCKVStore(theEngine);
+    } else {
+        getLogger()->log(EXTENSION_LOG_WARNING, NULL, "Unknown backend: [%s]",
+                backend.c_str());
+    }
+
+    return NULL;
 }
 
 static const char* MULTI_DB_NAME("multiDB");
@@ -81,18 +111,17 @@ const char* KVStoreFactory::typeToString(db_type type) {
     return rv;
 }
 
-bool KVStoreFactory::stringToType(const char *name,
-                                  enum db_type &typeOut) {
+bool KVStoreFactory::stringToType(std::string name, enum db_type &typeOut) {
     bool rv(true);
-    if (strcmp(name, MULTI_DB_NAME) == 0) {
+    if (name.compare(MULTI_DB_NAME) == 0) {
         typeOut = multi_db;
-    } else if(strcmp(name, SINGLE_DB_NAME) == 0) {
+    } else if (name.compare(SINGLE_DB_NAME) == 0) {
         typeOut = single_db;
-    } else if(strcmp(name, SINGLE_MT_DB_NAME) == 0) {
+    } else if (name.compare(SINGLE_MT_DB_NAME) == 0) {
         typeOut = single_mt_db;
-    } else if(strcmp(name, MULTI_MT_DB_NAME) == 0) {
+    } else if (name.compare(MULTI_MT_DB_NAME) == 0) {
         typeOut = multi_mt_db;
-    } else if(strcmp(name, MULTI_MT_VB_DB_NAME) == 0) {
+    } else if (name.compare(MULTI_MT_VB_DB_NAME) == 0) {
         typeOut = multi_mt_vb_db;
     } else {
         rv = false;
