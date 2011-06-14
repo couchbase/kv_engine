@@ -16,7 +16,7 @@ import exceptions
 from memcacheConstants import REQ_MAGIC_BYTE, RES_MAGIC_BYTE
 from memcacheConstants import REQ_PKT_FMT, RES_PKT_FMT, MIN_RECV_PACKET
 from memcacheConstants import SET_PKT_FMT, DEL_PKT_FMT, INCRDECR_RES_FMT
-from memcacheConstants import TOUCH_PKT_FMT, GAT_PKT_FMT
+from memcacheConstants import TOUCH_PKT_FMT, GAT_PKT_FMT, GETL_PKT_FMT
 import memcacheConstants
 
 class MemcachedError(exceptions.Exception):
@@ -151,10 +151,11 @@ class MemcachedClient(object):
         parts=self._doCmd(memcacheConstants.CMD_GET, key, '')
         return self.__parseGet(parts)
 
-    def getl(self, key):
+    def getl(self, key, exp=15):
         """Get the value for a given key within the memcached server."""
-        parts=self._doCmd(memcacheConstants.CMD_GET_LOCKED, key, '')
-        return self.__parseGet(parts, len(key))
+        parts=self._doCmd(memcacheConstants.CMD_GET_LOCKED, key, '',
+            struct.pack(memcacheConstants.GETL_PKT_FMT, exp))
+        return self.__parseGet(parts)
 
     def cas(self, key, exp, flags, oldVal, val):
         """CAS in a new value for the given key and comparison value."""
@@ -405,3 +406,4 @@ class MemcachedClient(object):
     def deregister_tap_client(self, tap_name):
         """Deregister the TAP client with a given name."""
         return self._doCmd(memcacheConstants.CMD_DEREGISTER_TAP_CLIENT, tap_name, '', '', 0)
+

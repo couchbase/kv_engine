@@ -146,6 +146,7 @@ FLUSH_PKT_FMT=">I"
 # expiration
 TOUCH_PKT_FMT=">I"
 GAT_PKT_FMT=">I"
+GETL_PKT_FMT=">I"
 
 # 2 bit integer.  :/
 VB_SET_PKT_FMT=">I"
