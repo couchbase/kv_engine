@@ -59,7 +59,7 @@ public:
     void update() {
         stats.expired.incr(expired.size());
 
-        store->deleteMany(expired);
+        store->deleteExpiredItems(expired);
 
         if (numEjected() > 0) {
             getLogger()->log(EXTENSION_LOG_INFO, NULL,

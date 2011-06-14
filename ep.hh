@@ -694,7 +694,7 @@ public:
         return invalidItemDbPager;
     }
 
-    void deleteMany(std::list<std::pair<uint16_t, std::string> > &);
+    void deleteExpiredItems(std::list<std::pair<uint16_t, std::string> > &);
 
     /**
      * Get the memoized storage properties from the DB.kv
