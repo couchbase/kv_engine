@@ -304,6 +304,8 @@ bool TapProducer::requestAck(tap_event_t event, uint16_t vbucket) {
     LockHolder lh(queueLock);
 
     if (!supportAck) {
+        // If backfill was scheduled before, check if the backfill is completed or not.
+        addBackfillCompletionMessage_UNLOCKED();
         return false;
     }
 
