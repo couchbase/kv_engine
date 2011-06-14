@@ -554,8 +554,6 @@ ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
     }
 
     bool notifyTapNotificationThread = false;
-    bool activeVBSetAcked = false;
-    uint16_t vbid = 0;
 
     switch (status) {
     case PROTOCOL_BINARY_RESPONSE_SUCCESS:
@@ -572,10 +570,6 @@ ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
                 }
                 --checkpointMsgCounter;
                 notifyTapNotificationThread = true;
-            } else if (iter->event == TAP_VBUCKET_SET &&
-                       iter->state == vbucket_state_active && doTakeOver) {
-                activeVBSetAcked = true;
-                vbid = iter->vbucket;
             }
             getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
                              "Explicit ack <%s> (#%u)\n",
