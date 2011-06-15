@@ -561,6 +561,10 @@ public:
                                                       protocol_binary_request_header *request,
                                                       ADD_RESPONSE response);
 
+    ENGINE_ERROR_CODE resetReplicationChain(const void* cookie,
+                                            protocol_binary_request_header *request,
+                                            ADD_RESPONSE response);
+
     size_t getGetlDefaultTimeout() { return getlDefaultTimeout; }
     size_t getGetlMaxTimeout() { return getlMaxTimeout; }
 

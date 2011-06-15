@@ -252,6 +252,8 @@ public:
 
     void scheduleBackfill(const std::set<uint16_t> &backfillVBuckets);
 
+    void resetReplicaChain();
+
 private:
 
     TapConnection *findByName_UNLOCKED(const std::string &name);

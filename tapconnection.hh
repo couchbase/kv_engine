@@ -956,6 +956,11 @@ private:
 
     void setVBucketFilter(const std::vector<uint16_t> &vbuckets);
 
+    const VBucketFilter &getVBucketFilter() {
+        LockHolder lh(queueLock);
+        return vbucketFilter;
+    }
+
     bool checkVBucketFilter(uint16_t vbucket) {
         LockHolder lh(queueLock);
         return vbucketFilter(vbucket);

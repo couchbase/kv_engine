@@ -399,6 +399,25 @@ void TapConnMap::scheduleBackfill(const std::set<uint16_t> &backfillVBuckets) {
     }
 }
 
+void TapConnMap::resetReplicaChain() {
+    LockHolder lh(notifySync);
+    rel_time_t now = ep_current_time();
+    std::list<TapConnection*>::iterator it = all.begin();
+    for (; it != all.end(); ++it) {
+        TapConnection *tc = *it;
+        TapProducer *tp = dynamic_cast<TapProducer*>(tc);
+        if (!tp || tp->getExpiryTime() <= now) {
+            continue;
+        }
+        // Get the list of vbuckets that each TAP producer is replicating
+        const std::vector<uint16_t> &vblist = tp->getVBucketFilter().getVector();
+        // TAP producer sends INITIAL_VBUCKET_STREAM messages to the destination to reset
+        // replica vbuckets, and then backfills items to the destination.
+        tp->scheduleBackfill(vblist);
+    }
+    notifySync.notify();
+}
+
 void TapConnMap::notifyIOThreadMain() {
     // To avoid connections to be stucked in a bogus state forever, we're going
     // to ping all connections that hasn't tried to walk the tap queue

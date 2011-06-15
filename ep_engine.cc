@@ -790,6 +790,8 @@ extern "C" {
             break;
         case CMD_LAST_CLOSED_CHECKPOINT:
             return h->handleGetLastClosedCheckpointId(cookie, request, response);
+        case CMD_RESET_REPLICATION_CHAIN:
+            return h->resetReplicationChain(cookie, request, response);
         }
 
         // Send a special response for getl since we don't want to send the key
@@ -4014,6 +4016,19 @@ EventuallyPersistentEngine::handleGetLastClosedCheckpointId(const void *cookie,
     uint64_t checkpointId = vb->checkpointManager.getLastClosedCheckpointId();
     checkpointId = htonll(checkpointId);
     if (response(NULL, 0, NULL, 0, &checkpointId, sizeof(checkpointId),
+                 PROTOCOL_BINARY_RAW_BYTES, PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie)) {
+        return ENGINE_SUCCESS;
+    }
+    return ENGINE_FAILED;
+}
+
+ENGINE_ERROR_CODE
+EventuallyPersistentEngine::resetReplicationChain(const void *cookie,
+                                                  protocol_binary_request_header *req,
+                                                  ADD_RESPONSE response) {
+    (void) req;
+    tapConnMap.resetReplicaChain();
+    if (response(NULL, 0, NULL, 0, NULL, 0,
                  PROTOCOL_BINARY_RAW_BYTES, PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie)) {
         return ENGINE_SUCCESS;
     }

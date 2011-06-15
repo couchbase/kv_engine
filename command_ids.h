@@ -116,6 +116,13 @@
  */
 #define CMD_DEREGISTER_TAP_CLIENT 0x9e
 
+/**
+ * Reset the replication chain from the node that receives this command. For example, given
+ * the replication chain, A->B->C, if A receives this command, it will reset all the replica
+ * vbuckets on B and C, which are replicated from A.
+ */
+#define CMD_RESET_REPLICATION_CHAIN 0x9f
+
 /*
  * IDs for the events of the SYNC command.
  */
