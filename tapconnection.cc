@@ -389,10 +389,10 @@ void TapProducer::rollback() {
                 uint32_t val = ntohl((uint32_t)i->state);
                 switch (val) {
                 case TAP_OPAQUE_ENABLE_AUTO_NACK:
-                case TAP_OPAQUE_INITIAL_VBUCKET_STREAM:
                 case TAP_OPAQUE_ENABLE_CHECKPOINT_SYNC:
-                case TAP_OPAQUE_CLOSE_BACKFILL:
                     break;
+                case TAP_OPAQUE_INITIAL_VBUCKET_STREAM:
+                case TAP_OPAQUE_CLOSE_BACKFILL:
                 case TAP_OPAQUE_OPEN_CHECKPOINT:
                 case TAP_OPAQUE_START_ONLINEUPDATE:
                 case TAP_OPAQUE_STOP_ONLINEUPDATE:
