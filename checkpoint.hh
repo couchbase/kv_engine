@@ -13,7 +13,7 @@
 #include "queueditem.hh"
 #include "stats.hh"
 
-#define MIN_CHECKPOINT_ITEMS 500
+#define MIN_CHECKPOINT_ITEMS 100
 #define MAX_CHECKPOINT_ITEMS 500000
 #define DEFAULT_CHECKPOINT_ITEMS 5000
 

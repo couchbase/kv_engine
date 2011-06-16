@@ -5395,7 +5395,7 @@ static enum test_result test_validate_checkpoint_params(ENGINE_HANDLE *h, ENGINE
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
           "Failed to set checkpoint_period param");
 
-    set_flush_param(h, h1, "chk_max_items", "100");
+    set_flush_param(h, h1, "chk_max_items", "50");
     check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL,
           "Expected to have an invalid value error for checkpoint_max_items param");
     set_flush_param(h, h1, "chk_period", "10");
