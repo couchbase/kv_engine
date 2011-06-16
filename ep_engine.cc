@@ -244,6 +244,13 @@ extern "C" {
                          std::numeric_limits<uint64_t>::max());
                 EPStats &stats = e->getEpStats();
                 stats.mem_high_wat = vsize;
+            } else if (strcmp(keyz, "exp_pager_stime") == 0) {
+                char *ptr = NULL;
+                // TODO:  This parser isn't perfect.
+                uint64_t vsize = strtoull(valz, &ptr, 10);
+                validate(vsize, static_cast<uint64_t>(0),
+                         std::numeric_limits<uint64_t>::max());
+                e->setExpiryPagerSleeptime((size_t)vsize);
             } else {
                 *msg = "Unknown config param";
                 rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
@@ -792,7 +799,7 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server
     memHighWat(std::numeric_limits<size_t>::max()),
     minDataAge(DEFAULT_MIN_DATA_AGE),
     queueAgeCap(DEFAULT_QUEUE_AGE_CAP),
-    itemExpiryWindow(3), expiryPagerSleeptime(3600),
+    itemExpiryWindow(3),
     nVBuckets(1024), dbShards(4), vb_del_chunk_size(100), vb_chunk_del_threshold_time(500)
 {
     interface.interface = 1;
@@ -831,6 +838,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
 
     size_t txnSize = 0;
     size_t tapIdleTimeout = (size_t)-1;
+    size_t expiryPagerSleeptime = 3600;
 
     resetStats();
     if (config != NULL) {
@@ -1187,10 +1195,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
             shared_ptr<DispatcherCallback> cb(new ItemPager(epstore, stats));
             epstore->getNonIODispatcher()->schedule(cb, NULL, Priority::ItemPagerPriority, 10);
 
-            shared_ptr<DispatcherCallback> exp_cb(new ExpiredItemPager(epstore, stats,
-                                                                       expiryPagerSleeptime));
-            epstore->getNonIODispatcher()->schedule(exp_cb, NULL, Priority::ItemPagerPriority,
-                                                    expiryPagerSleeptime);
+            setExpiryPagerSleeptime(expiryPagerSleeptime);
             shared_ptr<DispatcherCallback> htr(new HashtableResizer(epstore));
             epstore->getNonIODispatcher()->schedule(htr, NULL, Priority::HTResizePriority,
                                                     10);
@@ -2382,6 +2387,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                     add_stat, cookie);
     add_casted_stat("ep_num_active_non_resident", countVisitor.getNonResident(),
                     add_stat, cookie);
+
+
+    add_casted_stat("ep_exp_pager_stime", getExpiryPagerSleeptime(),
+                    add_stat, cookie);
+
 
     return ENGINE_SUCCESS;
 }
