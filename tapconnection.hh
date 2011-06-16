@@ -943,10 +943,10 @@ private:
         takeOverCompletionPhase = completionPhase;
     }
 
-    bool addBackfillCompletionMessage_UNLOCKED();
-    bool addBackfillCompletionMessage() {
+    bool checkBackfillCompletion_UNLOCKED();
+    bool checkBackfillCompletion() {
         LockHolder lh(queueLock);
-        return addBackfillCompletionMessage_UNLOCKED();
+        return checkBackfillCompletion_UNLOCKED();
     }
 
     void setBackfillAge(uint64_t age, bool reconnect);

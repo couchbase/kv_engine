@@ -313,7 +313,7 @@ bool TapConnMap::checkConnectivity(const std::string &name) {
     return false;
 }
 
-bool TapConnMap::addBackfillCompletionMessage(const std::string &name) {
+bool TapConnMap::checkBackfillCompletion(const std::string &name) {
     LockHolder lh(notifySync);
     bool rv = false;
 
@@ -321,7 +321,7 @@ bool TapConnMap::addBackfillCompletionMessage(const std::string &name) {
     if (tc) {
         TapProducer *tp = dynamic_cast<TapProducer*>(tc);
         assert(tp);
-        rv = tp->addBackfillCompletionMessage();
+        rv = tp->checkBackfillCompletion();
     }
     return rv;
 }

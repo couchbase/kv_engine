@@ -171,7 +171,7 @@ public:
     /**
      * Return true if the backfill is completed for a given TAP connection.
      */
-    bool addBackfillCompletionMessage(const std::string &name);
+    bool checkBackfillCompletion(const std::string &name);
 
     /**
      * Set some backfilled events for a named conn.

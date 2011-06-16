@@ -35,7 +35,7 @@ bool BackfillDiskLoad::callback(Dispatcher &, TaskId) {
     CompleteDiskBackfillTapOperation op;
     connMap.performTapOp(name, op, static_cast<void*>(NULL));
 
-    if (valid && connMap.addBackfillCompletionMessage(name)) {
+    if (valid && connMap.checkBackfillCompletion(name)) {
         engine->notifyTapNotificationThread();
     }
 
@@ -163,7 +163,7 @@ void BackFillVisitor::complete() {
     apply();
     CompleteBackfillTapOperation tapop;
     engine->tapConnMap.performTapOp(name, tapop, static_cast<void*>(NULL));
-    if (engine->tapConnMap.addBackfillCompletionMessage(name)) {
+    if (engine->tapConnMap.checkBackfillCompletion(name)) {
         engine->notifyTapNotificationThread();
     }
     releaseEngineResources();

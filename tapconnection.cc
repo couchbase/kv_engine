@@ -305,7 +305,7 @@ bool TapProducer::requestAck(tap_event_t event, uint16_t vbucket) {
 
     if (!supportAck) {
         // If backfill was scheduled before, check if the backfill is completed or not.
-        addBackfillCompletionMessage_UNLOCKED();
+        checkBackfillCompletion_UNLOCKED();
         return false;
     }
 
@@ -586,7 +586,7 @@ ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
                              getName().c_str(), s);
         }
 
-        if (addBackfillCompletionMessage_UNLOCKED()) {
+        if (checkBackfillCompletion_UNLOCKED()) {
             notifyTapNotificationThread = true;
         }
 
@@ -636,7 +636,7 @@ ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
     return ret;
 }
 
-bool TapProducer::addBackfillCompletionMessage_UNLOCKED() {
+bool TapProducer::checkBackfillCompletion_UNLOCKED() {
     bool rv = false;
     if (!backfillCompleted && !isPendingBackfill_UNLOCKED() &&
         getBackfillRemaining_UNLOCKED() == 0 && tapLog.empty()) {
