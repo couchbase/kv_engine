@@ -1065,7 +1065,8 @@ void TapConsumer::checkVBOpenCheckpoint(uint16_t vbucket) {
     if (!vb) {
         return;
     }
-    vb->checkpointManager.checkOpenCheckpoint(false, true);
+    bool forceCreation = vb->checkpointManager.isCheckpointCreationForHighMemUsage(vb);
+    vb->checkpointManager.checkOpenCheckpoint(forceCreation, true);
 }
 
 bool TapConsumer::processOnlineUpdateCommand(uint32_t opcode, uint16_t vbucket) {
