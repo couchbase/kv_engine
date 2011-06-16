@@ -2204,7 +2204,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
             item->setVBucketId(vbucket);
 
             if (tc) {
-                ret = tc->isBackfillPhase() ?
+                ret = tc->isBackfillPhase(vbucket) ?
                       epstore->addTAPBackfillItem(*item) : epstore->set(*item, cookie, true);
             } else {
                 ret = ENGINE_DISCONNECT;

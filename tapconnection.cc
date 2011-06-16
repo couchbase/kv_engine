@@ -642,9 +642,13 @@ bool TapProducer::addBackfillCompletionMessage_UNLOCKED() {
         getBackfillRemaining_UNLOCKED() == 0 && tapLog.empty()) {
 
         backfillCompleted = true;
-        TapVBucketEvent hi(TAP_OPAQUE, 0,
-                           (vbucket_state_t)htonl(TAP_OPAQUE_CLOSE_BACKFILL));
-        addVBucketHighPriority_UNLOCKED(hi);
+        std::set<uint16_t>::iterator it = backfillVBuckets.begin();
+        for (; it != backfillVBuckets.end(); ++it) {
+            TapVBucketEvent backfillEnd(TAP_OPAQUE, *it,
+                                        (vbucket_state_t)htonl(TAP_OPAQUE_CLOSE_BACKFILL));
+            addVBucketHighPriority_UNLOCKED(backfillEnd);
+        }
+
         rv = true;
     }
     return rv;
@@ -925,30 +929,36 @@ void TapConsumer::addStats(ADD_STAT add_stat, const void *c) {
 }
 
 void TapConsumer::setBackfillPhase(bool isBackfill, uint16_t vbucket) {
-    LockHolder lh(backfillLock);
+    const VBucketMap &vbuckets = engine.getEpStore()->getVBuckets();
+    RCPtr<VBucket> vb = vbuckets.getBucket(vbucket);
+    if (!vb) {
+        return;
+    }
+
+    vb->setBackfillPhase(isBackfill);
     if (isBackfill) {
-        backfillVBuckets.insert(vbucket);
-        const VBucketMap &vbuckets = engine.getEpStore()->getVBuckets();
-        RCPtr<VBucket> vb = vbuckets.getBucket(vbucket);
-        if (vb) {
-            // set the open checkpoint id to 0 to indicate the backfill phase.
-            vb->checkpointManager.setOpenCheckpointId(0);
-            // Note that when backfill is started, the destination always resets the vbucket
-            // and its checkpoint datastructure.
-        }
+        // set the open checkpoint id to 0 to indicate the backfill phase.
+        vb->checkpointManager.setOpenCheckpointId(0);
+        // Note that when backfill is started, the destination always resets the vbucket
+        // and its checkpoint datastructure.
     } else {
-        // If backfill is completed for all vbuckets subscribed by this consumer, schedule
-        // backfill for all TAP connections that are currently replicating those vbuckets,
+        // If backfill is completed for a given vbucket subscribed by this consumer, schedule
+        // backfill for all TAP connections that are currently replicating that vbucket,
         // so that replica chain can be synchronized.
+        std::set<uint16_t> backfillVB;
+        backfillVB.insert(vbucket);
         TapConnMap &connMap = engine.getTapConnMap();
-        connMap.scheduleBackfill(backfillVBuckets);
-        backfillVBuckets.clear();
+        connMap.scheduleBackfill(backfillVB);
     }
 }
 
-bool TapConsumer::isBackfillPhase(void) {
-    LockHolder lh(backfillLock);
-    return !backfillVBuckets.empty();
+bool TapConsumer::isBackfillPhase(uint16_t vbucket) {
+    const VBucketMap &vbuckets = engine.getEpStore()->getVBuckets();
+    RCPtr<VBucket> vb = vbuckets.getBucket(vbucket);
+    if (vb && vb->isBackfillPhase()) {
+        return true;
+    }
+    return false;
 }
 
 void TapConsumer::processedEvent(tap_event_t event, ENGINE_ERROR_CODE ret)

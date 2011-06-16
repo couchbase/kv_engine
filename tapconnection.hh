@@ -394,9 +394,6 @@ private:
     Atomic<size_t> numCheckpointEndFailed;
     Atomic<size_t> numUnknown;
 
-    Mutex backfillLock;
-    std::set<uint16_t> backfillVBuckets;
-
 public:
     TapConsumer(EventuallyPersistentEngine &theEngine,
                 const void *c,
@@ -409,7 +406,7 @@ public:
     virtual void checkVBOpenCheckpoint(uint16_t);
     virtual bool processOnlineUpdateCommand(uint32_t event, uint16_t vbucket);
     void setBackfillPhase(bool isBackfill, uint16_t vbucket);
-    bool isBackfillPhase(void);
+    bool isBackfillPhase(uint16_t vbucket);
 };
 
 
