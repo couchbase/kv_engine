@@ -1893,8 +1893,13 @@ int EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
                 lh.unlock();
                 BlockTimer timer(rowid == -1 ?
                                  &stats.diskInsertHisto : &stats.diskUpdateHisto);
-                PersistenceCallback cb(qi, rejectQueue, this, queued, dirtied, &stats);
-                rwUnderlying->set(qi->getItem(), qi->getVBucketVersion(), cb);
+
+                PersistenceCallback *cb;
+                cb = new PersistenceCallback(qi, rejectQueue, this,
+                                             queued, dirtied, &stats);
+
+                tctx.addCallback(cb);
+                rwUnderlying->set(qi->getItem(), qi->getVBucketVersion(), *cb);
                 if (rowid == -1)  {
                     ++vb->opsCreate;
                 } else {
@@ -1905,17 +1910,22 @@ int EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
     } else if (deleted) {
         lh.unlock();
         BlockTimer timer(&stats.diskDelHisto);
-        PersistenceCallback cb(qi, rejectQueue, this, queued, dirtied, &stats);
+
+        PersistenceCallback *cb;
+        cb = new PersistenceCallback(qi, rejectQueue, this, queued,
+                                     dirtied, &stats);
         if (rowid > 0) {
             uint16_t vbid(qi->getVBucketId());
             uint16_t vbver(vbuckets.getBucketVersion(vbid));
-            rwUnderlying->del(qi->getKey(), rowid, vbid, vbver, cb);
+            tctx.addCallback(cb);
+            rwUnderlying->del(qi->getKey(), rowid, vbid, vbver, *cb);
             ++vb->opsDelete;
         } else {
             // bypass deletion if missing items, but still call the
             // deletion callback for clean cleanup.
             int affected(0);
-            cb.callback(affected);
+            cb->callback(affected);
+            delete cb;
         }
     }
 
@@ -2194,6 +2204,14 @@ void TransactionContext::commit() {
         ++stats.commitFailed;
     }
     ++stats.flusherCommits;
+
+    std::list<PersistenceCallback*>::iterator iter;
+    for (iter = transactionCallbacks.begin();
+         iter != transactionCallbacks.end();
+         ++iter) {
+        delete *iter;
+    }
+    transactionCallbacks.clear();
     rel_time_t complete_time = ep_current_time();
 
     stats.commit_time.set(complete_time - cstart);

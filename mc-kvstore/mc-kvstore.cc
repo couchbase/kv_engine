@@ -30,19 +30,22 @@ void MCKVStore::reset() {
 }
 
 void MCKVStore::set(const Item &itm, uint16_t, Callback<mutation_result> &cb) {
-    if (!intransaction) {
-        std::cout << "Set outside transaction!" << std::endl;
-    }
-
-    if (dynamic_cast<RememberingCallback<mutation_result>*> (&cb)) {
-        mc->set(itm, cb);
+    if (intransaction) {
+        mc->setq(itm, cb);
     } else {
-        RememberingCallback<mutation_result> mcb;
+        // @todo we need to figure out if anyone is running this without a
+        // transaction
+        abort();
+        if (dynamic_cast<RememberingCallback<mutation_result>*> (&cb)) {
+            mc->set(itm, cb);
+        } else {
+            RememberingCallback<mutation_result> mcb;
 
-        mc->set(itm, mcb);
+            mc->set(itm, mcb);
 
-        mcb.waitForValue();
-        cb.callback(mcb.val);
+            mcb.waitForValue();
+            cb.callback(mcb.val);
+        }
     }
 }
 

@@ -103,6 +103,7 @@ public:
 
     void flush(Callback<bool> &cb);
     void set(const Item &item, Callback<mutation_result> &cb);
+    void setq(const Item &item, Callback<mutation_result> &cb);
     void get(const std::string &key, uint16_t vb, Callback<GetValue> &cb);
     void del(const std::string &key, uint16_t vb, Callback<int> &cb);
     void stats(const std::string &key,

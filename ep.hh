@@ -311,6 +311,8 @@ private:
     bool        hasPurged;
 };
 
+class PersistenceCallback;
+
 /**
  * Maintains scope of a underlying storage transaction, being useful
  * and what not.
@@ -383,6 +385,10 @@ public:
         return numUncommittedItems;
     }
 
+    void addCallback(PersistenceCallback *cb) {
+        transactionCallbacks.push_back(cb);
+    }
+
 private:
     EPStats     &stats;
     KVStore     *underlying;
@@ -392,6 +398,7 @@ private:
     bool         intxn;
     std::list<queued_item>     uncommittedItems;
     SyncRegistry              &syncRegistry;
+    std::list<PersistenceCallback*> transactionCallbacks;
 };
 
 /**

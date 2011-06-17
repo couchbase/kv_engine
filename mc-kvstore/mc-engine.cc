@@ -151,11 +151,10 @@ public:
     SetResponseHandler(Buffer *theRequest,
                        bool cr,
                        Callback<mutation_result> &cb) :
-        BinaryPacketHandler(theRequest), create(cr), callback(cb) { }
+        BinaryPacketHandler(theRequest), newId(cr ? 1 : 0), callback(cb) { }
 
     virtual void response(protocol_binary_response_header *res) {
         uint16_t rcode = ntohs(res->response.status);
-        int64_t newId = create ? 1 : 0; //ntohll(res->response.cas);
         int rv = 1;
 
         if (rcode != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
@@ -167,8 +166,13 @@ public:
         callback.callback(p);
     }
 
+    virtual void implicitResponse() {
+        mutation_result p(1, newId);
+        callback.callback(p);
+    }
+
 private:
-    bool create;
+    int64_t newId;
     Callback<mutation_result> &callback;
 };
 
@@ -864,6 +868,38 @@ void MemcachedEngine::set(const Item &item, Callback<mutation_result> &cb) {
     memset(buffer->data, 0, buffer->size);
     req->message.header.request.magic = PROTOCOL_BINARY_REQ;
     req->message.header.request.opcode = PROTOCOL_BINARY_CMD_SET;
+    req->message.header.request.extlen = 8;
+    req->message.header.request.keylen = ntohs((uint16_t)item.getNKey());
+    req->message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
+    req->message.header.request.vbucket = ntohs(item.getVBucketId());
+    // @todo denne burde vel v¾re satt?
+    // req->message.header.request.cas = ntohll(item.getCas());
+    uint32_t bodylen = req->message.header.request.extlen + item.getNKey()
+            + item.getNBytes();
+    req->message.header.request.bodylen = ntohl(bodylen);
+
+    req->message.body.flags = item.getFlags();
+    req->message.body.expiration = htonl((uint32_t)item.getExptime());
+    memcpy(buffer->data + sizeof(req->bytes), item.getKey().c_str(),
+            item.getNKey());
+    memcpy(buffer->data + sizeof(req->bytes) + item.getNKey(), item.getData(),
+            item.getNBytes());
+
+    buffer->avail = buffer->size;
+
+    insertCommand(new SetResponseHandler(buffer, item.getId() <= 0, cb));
+}
+
+void MemcachedEngine::setq(const Item &item, Callback<mutation_result> &cb) {
+
+    protocol_binary_request_set *req;
+    Buffer *buffer = new Buffer(
+            sizeof(req->bytes) + item.getNKey() + item.getNBytes());
+    req = (protocol_binary_request_set *)buffer->data;
+
+    memset(buffer->data, 0, buffer->size);
+    req->message.header.request.magic = PROTOCOL_BINARY_REQ;
+    req->message.header.request.opcode = PROTOCOL_BINARY_CMD_SETQ;
     req->message.header.request.extlen = 8;
     req->message.header.request.keylen = ntohs((uint16_t)item.getNKey());
     req->message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
