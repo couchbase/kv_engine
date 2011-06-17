@@ -68,13 +68,42 @@ def worker(queue, opts):
             mc = connect(opts)
             update = {True: mc.add, False: mc.set}[bool(opts.add)]
             k, flags, exptime, v = queue.get()
+
             while True:
+                if opts.verbose:
+                    print "Retrieved key {0}".format(str(k))
                 try:
                     flags = ctypes.c_uint32(flags).value
-                    update(str(k), exptime, socket.ntohl(flags), bytearray(v))
+                    if opts.data is not None:
+                        blank, blank2, value=mc.get(str(k))
+                        if value == opts.data:
+                            if bool(opts.verbose):
+                               print "Found key {0} whose value matches {1}".format(str(k),str(opts.data))
+                            update=mc.set
+                            ret=update(str(k), exptime, socket.ntohl(flags), bytearray(v))
+                        else:
+                            if bool(opts.verbose):
+                               print "Skipping key {0}, value in server is not {1}".format(str(k),str(opts.data))
+                            ret="Skipped"
+                    else:
+                        if opts.verbose:
+                                print "Blindly restoring key {0}".format(str(k))
+                        ret=update(str(k), exptime, socket.ntohl(flags), bytearray(v))
+                    if opts.verbose:
+                            print "Key {0}: {1}".format(str(k),ret)
                 except mc_bin_client.MemcachedError, error:
                     if error.status == 2:
                         # Already exists
+                        queue.task_done()
+                        k, flags, exptime, v = queue.get()
+
+                    elif error.status == 1:
+                        #Key not found
+                        if bool(opts.verbose):
+                           print "Adding key {0}".format(str(k))
+                        ret=update(str(k), exptime, socket.ntohl(flags), bytearray(v))
+                        if opts.verbose:
+                                print "Key {0}:{1}".format(str(k),ret)
                         queue.task_done()
                         k, flags, exptime, v = queue.get()
                     else:
@@ -117,6 +146,14 @@ def main():
                       help="Bucket password to authenticate to moxi with")
     parser.add_option("-t", "--threads", type="int", default=DEFAULT_THREADS,
                       help="Number of worker threads")
+    parser.add_option("-k", "--key", default="",
+                      help="Key name to restore")
+    parser.add_option("-d", "--data", default=None,
+                      help="Server side value to match")
+    parser.add_option("-i", "--id", default="",
+                      help="vbucketID to restore")
+    parser.add_option("-v", "--verbose", action="store_true", default=False,
+                      help="verbose logging")
     opts, db_filenames = parser.parse_args()
 
     if len(db_filenames) == 0:
@@ -168,10 +205,15 @@ def main():
     except ValueError:
         sys.exit("Unable to locate unique vbucket_states table in database files")
 
+    vbucket = {True: "kv_"+opts.id, False: """`{{0}}`.`{{1}}`"""}[bool(opts.id)]
+    print "vbucket: {0}".format(vbucket)
+    key = {True: opts.key, False: "%"}[bool(opts.key)]
+    print "key: {0}".format(key)
+
     sql = """select k, flags, exptime, v from `{{0}}`.`{{1}}` as kv,
-             `{0}`.vbucket_states as vb
-             where kv.vbucket = vb.vbid and kv.vb_version = kv.vb_version and
-             vb.state like 'active'""".format(state_db)
+                 `{0}`.vbucket_states as vb
+                 where kv.vbucket = vb.vbid and kv.vb_version = kv.vb_version and
+                 vb.state like 'active'""".format(state_db)
 
     queue = Queue.Queue(QUEUE_SIZE)
     connect_args = (opts.host, opts.port, opts.username, opts.password)
@@ -183,12 +225,25 @@ def main():
 
     count = 0
     for kv, dbs in table_dbs.iteritems():
+       if opts.id:
+          if kv == "kv_{0}".format(opts.id):
+            for db_name in dbs:
+                cur.execute(sql.format(db_name,kv))
+                for row in cur:
+                    queue.put(row)
+                    count += 1
+                    if count & 1023 == 0:
+                        print count
+       else:
         if 'kv_' in kv:
             for db_name in dbs:
                 cur.execute(sql.format(db_name, kv))
                 for row in cur:
+                    print sql
                     queue.put(row)
                     count += 1
+                    #if bool(opts.verbose):
+                        #print row
                     if count & 1023 == 0:
                         print count
     queue.join()
