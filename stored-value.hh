@@ -891,6 +891,9 @@ public:
          * thing to do. See MB 3252
          */
         if (v && v->isExpired(ep_real_time())) {
+            if (v->isLocked(ep_current_time())) {
+                v->unlock();
+            }
             if (val.getCas()) {
                 /* item has expired and cas value provided. Deny ! */
                 return NOT_FOUND;
