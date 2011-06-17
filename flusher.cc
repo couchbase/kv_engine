@@ -29,16 +29,41 @@ bool Flusher::stop(bool isForceShutdown) {
     return transition_state(to);
 }
 
+
+static const char* hrtime2text(hrtime_t t, char *buffer, size_t size) {
+    static const char * const extensions[] = {"s", "ms", "us", "ns"}; //TODO: get a greek Mu in here correctly
+    int id = sizeof(extensions)/sizeof(extensions[0]) - 1;
+
+    while (t > 9999 && id > 0) {
+        id--;
+        t /= 1000;
+    }
+
+    if (id == 0 && t > 599) {
+        int hour = static_cast<int>(t / 3600);
+        t -= hour * 3600;
+        int min = static_cast<int>(t / 60);
+        t -= min * 60;
+
+        snprintf(buffer, size, "%dh:%dm:%ds", hour, min, (int)t);
+    } else {
+        snprintf(buffer, size, "%d %s", (int) t, extensions[id]);
+    }
+
+    return buffer;
+}
+
 void Flusher::wait(void) {
     hrtime_t startt(gethrtime());
     while (_state != stopped) {
         usleep(1000);
     }
     hrtime_t endt(gethrtime());
-    int udiff((endt - startt) / 1000);
-    if (udiff > 10000) {
+    char buffer[80];
+    if ((endt - startt) > 1000) {
         getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                         "Had to wait %dus for shutdown\n", udiff);
+                         "Had to wait %s for shutdown\n",
+                         hrtime2text(endt - startt, buffer, sizeof(buffer)));
     }
 }
 
