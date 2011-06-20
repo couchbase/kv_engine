@@ -67,7 +67,7 @@ static void *launch_persistence_thread(void *arg) {
         }
     }
     assert(flush == true);
-    assert(items.empty());
+    assert(args->checkpoint_manager->getNumItemsForPersistence() == 0);
     return static_cast<void *>(0);
 }
 
