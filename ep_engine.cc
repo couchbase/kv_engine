@@ -2020,7 +2020,12 @@ bool EventuallyPersistentEngine::createTapQueue(const void *cookie,
     std::map<uint16_t, uint64_t> lastCheckpointIds;
 
     if (flags & TAP_CONNECT_FLAG_BACKFILL) { /* */
-        assert(nuserdata >= sizeof(backfillAge));
+        if (nuserdata < sizeof(backfillAge)) {
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                             "Backfill age is missing. Reject connection request from %s\n",
+                             name.c_str());
+            return false;
+        }
         // use memcpy to avoid alignemt issues
         memcpy(&backfillAge, ptr, sizeof(backfillAge));
         backfillAge = ntohll(backfillAge);
@@ -2030,13 +2035,23 @@ bool EventuallyPersistentEngine::createTapQueue(const void *cookie,
 
     if (flags & TAP_CONNECT_FLAG_LIST_VBUCKETS) {
         uint16_t nvbuckets;
-        assert(nuserdata >= sizeof(nvbuckets));
+        if (nuserdata < sizeof(nvbuckets)) {
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                             "Number of vbuckets is missing. Reject connection request from %s\n",
+                             name.c_str());
+            return false;
+        }
         memcpy(&nvbuckets, ptr, sizeof(nvbuckets));
         nuserdata -= sizeof(nvbuckets);
         ptr += sizeof(nvbuckets);
         nvbuckets = ntohs(nvbuckets);
         if (nvbuckets > 0) {
-            assert(nuserdata >= (sizeof(uint16_t) * nvbuckets));
+            if (nuserdata < (sizeof(uint16_t) * nvbuckets)) {
+                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                 "# of vbuckets not matched. Reject connection request from %s\n",
+                                 name.c_str());
+                return false;
+            }
             for (uint16_t ii = 0; ii < nvbuckets; ++ii) {
                 uint16_t val;
                 memcpy(&val, ptr, sizeof(nvbuckets));
@@ -2056,7 +2071,12 @@ bool EventuallyPersistentEngine::createTapQueue(const void *cookie,
             nCheckpoints = ntohs(nCheckpoints);
         }
         if (nCheckpoints > 0) {
-            assert(nuserdata >= ((sizeof(uint16_t) + sizeof(uint64_t)) * nCheckpoints));
+            if (nuserdata < ((sizeof(uint16_t) + sizeof(uint64_t)) * nCheckpoints)) {
+                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                             "# of checkpoint Ids not matched. Reject connection request from %s\n",
+                             name.c_str());
+                return false;
+            }
             for (uint16_t j = 0; j < nCheckpoints; ++j) {
                 uint16_t vbid;
                 uint64_t checkpointId;
