@@ -44,6 +44,7 @@
 /m4/ltversion.m4
 /m4/lt~obsolete.m4
 /m4/version.m4
+/mc-kvstore-test
 /management/mbdbconvert
 /management/sqlite3
 /mbbackup-????.mbb

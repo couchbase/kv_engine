@@ -103,6 +103,10 @@ libsqlite_kvstore_la_LIBADD =
 libsqlite_kvstore_la_DEPENDENCIES =
 
 libmc_kvstore_la_SOURCES = kvstore.hh \
+                           mc-kvstore/mc-debug.cc \
+                           mc-kvstore/mc-debug.hh \
+                           mc-kvstore/mc-engine.cc \
+                           mc-kvstore/mc-engine.hh \
                            mc-kvstore/mc-kvstore.cc \
                            mc-kvstore/mc-kvstore.hh
 libmc_kvstore_la_CPPFLAGS = -I$(top_srcdir) -I$(top_srcdir)/sqlite-kvstore \
@@ -152,7 +156,8 @@ endif
 libsqlite3_la_SOURCES = embedded/sqlite3.h embedded/sqlite3.c
 libsqlite3_la_CFLAGS = $(AM_CFLAGS) ${NO_WERROR} -DSQLITE_THREADSAFE=2
 
-check_PROGRAMS=atomic_ptr_test \
+check_PROGRAMS=mc-kvstore-test \
+               atomic_ptr_test \
                atomic_queue_test \
                atomic_test \
                checkpoint_test \
@@ -310,6 +315,11 @@ ringbuffer_test_DEPENDENCIES = ringbuffer.hh
 vb_del_chunk_list_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
 vb_del_chunk_list_test_SOURCES = t/vb_del_chunk_list_test.cc ep.hh
 vb_del_chunk_list_test_DEPENDENCIES = ep.hh
+
+mc_kvstore_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
+mc_kvstore_test_SOURCES = t/mc-kvstore-test.cc byteorder.c
+mc_kvstore_test_DEPENDENCIES = libmc-kvstore.la libobjectregistry.la libconfiguration.la
+mc_kvstore_test_LDADD = libmc-kvstore.la libobjectregistry.la libconfiguration.la $(LTLIBEVENT)
 
 if BUILD_GETHRTIME
 ep_la_SOURCES += gethrtime.c

@@ -887,6 +887,11 @@ bool EventuallyPersistentStore::resetVBucket(uint16_t vbid) {
         uint16_t vb_version = vbuckets.getBucketVersion(vbid);
         uint16_t vb_new_version = vb_version == (std::numeric_limits<uint16_t>::max() - 1) ?
                                   0 : vb_version + 1;
+        if (engine.getConfiguration().getBackend().compare("couchdb") == 0) {
+            // TROND: We don't use vbucket versions for couch..
+            vb_new_version = vb_version;
+        }
+
         vbuckets.setBucketVersion(vbid, vb_new_version);
         vbuckets.setPersistenceCheckpointId(vbid, 0);
         lh.unlock();

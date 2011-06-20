@@ -17,6 +17,7 @@ PANDORA_CANONICAL_TARGET(less-warnings, warnings-always-on, require-cxx,
                          force-gcc42)
 PANDORA_SHARED_PTR
 PANDORA_REQUIRE_PTHREAD
+PANDORA_REQUIRE_LIBEVENT
 
 AC_ARG_ENABLE([system-libsqlite3],
     [AS_HELP_STRING([--enable-system-libsqlite3],
@@ -162,6 +163,7 @@ AS_IF([test "x$SUNCC" = "xyes"],
         CFLAGS="-D_XOPEN_SOURCE=600 $CFLAGS"
         CPPFLAGS="-xldscope=hidden -mt $CPPFLAGS"
         CXXFLAGS="-erroff=truncwarn1,signextwarn,notused,inllargeuse,wunreachable $CXXFLAGS"
+        LIBS="$LIBS -lsocket -lnsl"
       ])
 
 AH_TOP([

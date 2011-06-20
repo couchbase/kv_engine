@@ -2,21 +2,22 @@
 #ifndef MC_KVSTORE_H
 #define MC_KVSTORE_H 1
 
-#include <map>
-#include <vector>
-
 #include "kvstore.hh"
 #include "item.hh"
 #include "stats.hh"
 
+#include "mc-kvstore/mc-engine.hh"
+
 class EventuallyPersistentEngine;
 class EPStats;
-
+class MCKVStoreTestEnvironment;
 /**
  * A persistence store that stores stuff via memcached protocol.
  */
 class MCKVStore : public KVStore {
 public:
+
+    MCKVStore(MCKVStoreTestEnvironment &mock);
 
     /**
      * Build it!
@@ -53,13 +54,7 @@ public:
      *
      * Returns false if the commit fails.
      */
-    bool commit() {
-        if (intransaction) {
-            intransaction = false;
-        }
-        // !intransaction == not in a transaction == committed
-        return !intransaction;
-    }
+    bool commit(void);
 
     /**
      * Rollback a transaction (unless not currently in one).
@@ -118,18 +113,14 @@ public:
 
 private:
 
-    void insert(const Item &itm, uint16_t vb_version, Callback<mutation_result> &cb);
-    void update(const Item &itm, uint16_t vb_version, Callback<mutation_result> &cb);
-
     EPStats &stats;
 
-    void open() {
-        // Wake Up!
-        intransaction = false;
-    }
+    void open();
 
     void close() {
         intransaction = false;
+        delete mc;
+        mc = NULL;
     }
 
     bool intransaction;
@@ -137,6 +128,9 @@ private:
 
     // Disallow assignment.
     void operator=(const MCKVStore &from);
+
+    MemcachedEngine *mc;
+    Configuration &config;
     EventuallyPersistentEngine &engine;
 };
 
