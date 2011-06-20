@@ -135,7 +135,7 @@ AS_IF(test "x${ac_cv_with_memcached}" != "x",
       [CPPFLAGS="-I${ac_cv_with_memcached}/include $CPPFLAGS"
        PATH="${ac_cv_with_memcached}:$PATH"])
 
-AC_CHECK_HEADERS_ONCE(memcached/engine.h)
+AC_CHECK_HEADERS(memcached/engine.h)
 AS_IF(test "x${ac_cv_header_memcached_engine_h}" != "xyes",
       AC_MSG_ERROR([Can't build ep-engine without memcached/engine.h]))
 
