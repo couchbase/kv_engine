@@ -30,10 +30,6 @@
 #define DEFAULT_BACKFILL_RESIDENT_THRESHOLD 0.9
 #define MINIMUM_BACKFILL_RESIDENT_THRESHOLD 0.7
 
-#ifndef DEFAULT_QUEUE_AGE_CAP
-#define DEFAULT_QUEUE_AGE_CAP 900
-#endif
-
 #ifndef DEFAULT_SYNC_TIMEOUT
 #define DEFAULT_SYNC_TIMEOUT 2500
 #define MAX_SYNC_TIMEOUT 60000
@@ -446,10 +442,6 @@ public:
         return epstore->resetVBucket(vbid);
     }
 
-    void setQueueAgeCap(int to) {
-        epstore->setQueueAgeCap(to);
-    }
-
     void setBGFetchDelay(uint32_t to) {
         epstore->setBGFetchDelay(to);
     }
@@ -749,7 +741,6 @@ private:
     size_t tapBacklogLimit;
     size_t memLowWat;
     size_t memHighWat;
-    size_t queueAgeCap;
     size_t itemExpiryWindow;
     size_t expiryPagerSleeptime;
     size_t checkpointRemoverInterval;

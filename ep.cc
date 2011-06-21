@@ -129,7 +129,11 @@ public:
         if (!correctKey(key)) {
             return;
         }
-        stats.min_data_age.set(value);
+        if (key.compare("min_data_age") == 0) {
+            stats.min_data_age.set(value);
+        } else if (key.compare("queue_age_cap") == 0) {
+            stats.queue_age_cap.set(value);
+        }
     }
 
     virtual void valueChanged(const std::string &key, float) {
@@ -148,7 +152,7 @@ public:
 
 private:
     bool correctKey(const std::string &key) {
-        if (key.compare("min_data_age") != 0) {
+        if (key.compare("min_data_age") != 0 && key.compare("queue_age_cap") != 0) {
             getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
                              "Internal error.. Incorrect key (got: \"%s\") "
                              "in value change "
@@ -498,6 +502,10 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
 
     stats.min_data_age.set(engine.getConfiguration().getMinDataAge());
     engine.getConfiguration().addValueChangedListener("min_data_age",
+                                                      new StatsValueChangeListener(stats));
+
+    stats.queue_age_cap.set(engine.getConfiguration().getQueueAgeCap());
+    engine.getConfiguration().addValueChangedListener("queue_age_cap",
                                                       new StatsValueChangeListener(stats));
 
     if (startVb0) {
@@ -1415,10 +1423,6 @@ bool EventuallyPersistentStore::getKeyStats(const std::string &key,
         kstats.last_modification_time = ep_abs_time(v->getDataAge());
     }
     return found;
-}
-
-void EventuallyPersistentStore::setQueueAgeCap(int to) {
-    stats.queue_age_cap.set(to);
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentStore::del(const std::string &key,

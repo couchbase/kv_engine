@@ -49,7 +49,6 @@ extern EXTENSION_LOGGER_DESCRIPTOR *getLogger(void);
 #include "vbucket.hh"
 #include "item_pager.hh"
 
-#define MAX_DATA_AGE_PARAM 86400
 #define MAX_BG_FETCH_DELAY 900
 
 /**
@@ -550,8 +549,6 @@ public:
     void setBGFetchDelay(uint32_t to) {
         bgFetchDelay = to;
     }
-
-    void setQueueAgeCap(int to);
 
     void startDispatcher(void);
 

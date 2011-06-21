@@ -146,7 +146,9 @@
         },
         "queue_age_cap": {
             "default": "900",
-            "type": "size_t"
+            "descr": "Maximum queue time before forcing persist",
+            "type": "size_t",
+            "validator" : "new SizeRangeValidator(0, 86400)"
         },
         "restore_mode": {
             "default": "false",
