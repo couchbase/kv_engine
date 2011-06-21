@@ -228,8 +228,7 @@ extern "C" {
         try {
             int v = atoi(valz);
             if (strcmp(keyz, "min_data_age") == 0) {
-                validate(v, 0, MAX_DATA_AGE_PARAM);
-                e->setMinDataAge(v);
+                e->getConfiguration().setMinDataAge(v);
             } else if (strcmp(keyz, "queue_age_cap") == 0) {
                 validate(v, 0, MAX_DATA_AGE_PARAM);
                 e->setQueueAgeCap(v);
@@ -1251,7 +1250,6 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server
     maxItemSize(20*1024*1024), tapBacklogLimit(5000),
     memLowWat(std::numeric_limits<size_t>::max()),
     memHighWat(std::numeric_limits<size_t>::max()),
-    minDataAge(DEFAULT_MIN_DATA_AGE),
     queueAgeCap(DEFAULT_QUEUE_AGE_CAP),
     itemExpiryWindow(3), expiryPagerSleeptime(3600), checkpointRemoverInterval(5),
     nVBuckets(1024), dbShards(4), vb_del_chunk_size(100), vb_chunk_del_threshold_time(500),
@@ -1325,7 +1323,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     }
 
     maxItemSize = configuration.getMaxItemSize();
-    minDataAge = configuration.getMinDataAge();
     memLowWat = configuration.getMemLowWat();
     memHighWat = configuration.getMemHighWat();
     queueAgeCap = configuration.getQueueAgeCap();
@@ -1399,7 +1396,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
             return ret;
         }
 
-        setMinDataAge(minDataAge);
         setQueueAgeCap(queueAgeCap);
 
         if (!configuration.isWarmup()) {

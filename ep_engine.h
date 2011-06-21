@@ -30,10 +30,6 @@
 #define DEFAULT_BACKFILL_RESIDENT_THRESHOLD 0.9
 #define MINIMUM_BACKFILL_RESIDENT_THRESHOLD 0.7
 
-#ifndef DEFAULT_MIN_DATA_AGE
-#define DEFAULT_MIN_DATA_AGE 0
-#endif
-
 #ifndef DEFAULT_QUEUE_AGE_CAP
 #define DEFAULT_QUEUE_AGE_CAP 900
 #endif
@@ -450,10 +446,6 @@ public:
         return epstore->resetVBucket(vbid);
     }
 
-    void setMinDataAge(int to) {
-        epstore->setMinDataAge(to);
-    }
-
     void setQueueAgeCap(int to) {
         epstore->setQueueAgeCap(to);
     }
@@ -757,7 +749,6 @@ private:
     size_t tapBacklogLimit;
     size_t memLowWat;
     size_t memHighWat;
-    size_t minDataAge;
     size_t queueAgeCap;
     size_t itemExpiryWindow;
     size_t expiryPagerSleeptime;

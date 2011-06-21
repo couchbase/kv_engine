@@ -537,8 +537,6 @@ public:
 
     void reset();
 
-    void setMinDataAge(int to);
-
     /**
      * Set the background fetch delay.
      *

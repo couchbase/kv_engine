@@ -132,7 +132,9 @@
         },
         "min_data_age": {
             "default": "0",
-            "type": "size_t"
+            "descr" : "Minimum data stability time before persist",
+            "type": "size_t",
+            "validator" : "new SizeRangeValidator(0, 86400)"
         },
         "mutation_mem_threshold": {
             "default": "0.0",

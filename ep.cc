@@ -112,6 +112,62 @@ private:
     TransactionContext &context;
 };
 
+class StatsValueChangeListener : public ValueChangedListener {
+public:
+    StatsValueChangeListener(EPStats &st) : stats(st) {
+        // EMPTY
+    }
+
+    virtual void valueChanged(const std::string &key, bool) {
+        if (!correctKey(key)) {
+            return;
+        }
+        wrongDatatype(key, "boolean");
+    }
+
+    virtual void valueChanged(const std::string &key, size_t value) {
+        if (!correctKey(key)) {
+            return;
+        }
+        stats.min_data_age.set(value);
+    }
+
+    virtual void valueChanged(const std::string &key, float) {
+        if (!correctKey(key)) {
+            return;
+        }
+        wrongDatatype(key, "floating point");
+    }
+
+    virtual void valueChanged(const std::string &key, const char *) {
+        if (!correctKey(key)) {
+            return;
+        }
+        wrongDatatype(key, "string");
+    }
+
+private:
+    bool correctKey(const std::string &key) {
+        if (key.compare("min_data_age") != 0) {
+            getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                             "Internal error.. Incorrect key (got: \"%s\") "
+                             "in value change "
+                             "callback. Ignored", key.c_str());
+            return false;
+        }
+        return true;
+    }
+
+    void wrongDatatype(const std::string &key, const char *datatype) {
+        getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                         "Configuration error.. Incorrect datatype for "
+                         " %s. Expected size_t, got \"%s\"", key.c_str(),
+                         datatype);
+    }
+
+    EPStats &stats;
+};
+
 
 /**
  * Dispatcher job that performs disk fetches for non-resident get
@@ -439,6 +495,10 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
     setTxnSize(engine.getConfiguration().getMaxTxnSize());
     engine.getConfiguration().addValueChangedListener("max_txn_size",
                                                       new MaxTxnValueChangeListener(tctx));
+
+    stats.min_data_age.set(engine.getConfiguration().getMinDataAge());
+    engine.getConfiguration().addValueChangedListener("min_data_age",
+                                                      new StatsValueChangeListener(stats));
 
     if (startVb0) {
         RCPtr<VBucket> vb(new VBucket(0, vbucket_state_active, stats));
@@ -1355,10 +1415,6 @@ bool EventuallyPersistentStore::getKeyStats(const std::string &key,
         kstats.last_modification_time = ep_abs_time(v->getDataAge());
     }
     return found;
-}
-
-void EventuallyPersistentStore::setMinDataAge(int to) {
-    stats.min_data_age.set(to);
 }
 
 void EventuallyPersistentStore::setQueueAgeCap(int to) {
