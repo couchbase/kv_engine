@@ -62,53 +62,11 @@ public:
         // EMPTY
     }
 
-    virtual void valueChanged(const std::string &key, bool) {
-        if (!correctKey(key)) {
-            return;
-        }
-        wrongDatatype("boolean");
-    }
-
-    virtual void valueChanged(const std::string &key, size_t value) {
-        if (!correctKey(key)) {
-            return;
-        }
+    virtual void sizeValueChanged(const std::string &, size_t value) {
         context.setTxnSize(value);
     }
 
-    virtual void valueChanged(const std::string &key, float) {
-        if (!correctKey(key)) {
-            return;
-        }
-        wrongDatatype("floating point");
-    }
-
-    virtual void valueChanged(const std::string &key, const char *) {
-        if (!correctKey(key)) {
-            return;
-        }
-        wrongDatatype("string");
-    }
-
 private:
-    bool correctKey(const std::string &key) {
-        if (key.compare("max_txn_size") != 0) {
-            getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                             "Internal error.. Incorrect key (got: \"%s\","
-                             " but expected max_txn_size) in value change "
-                             "callback. Ignored", key.c_str());
-            return false;
-        }
-        return true;
-    }
-
-    void wrongDatatype(const char *datatype) {
-        getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                         "Configuration error.. Incorrect datatype for "
-                         " max_txn_size. Expected size_t, got \"%s\"",
-                         datatype);
-    }
-
     TransactionContext &context;
 };
 
@@ -118,17 +76,7 @@ public:
         // EMPTY
     }
 
-    virtual void valueChanged(const std::string &key, bool) {
-        if (!correctKey(key)) {
-            return;
-        }
-        wrongDatatype(key, "boolean");
-    }
-
-    virtual void valueChanged(const std::string &key, size_t value) {
-        if (!correctKey(key)) {
-            return;
-        }
+    virtual void sizeValueChanged(const std::string &key, size_t value) {
         if (key.compare("min_data_age") == 0) {
             stats.min_data_age.set(value);
         } else if (key.compare("queue_age_cap") == 0) {
@@ -136,39 +84,7 @@ public:
         }
     }
 
-    virtual void valueChanged(const std::string &key, float) {
-        if (!correctKey(key)) {
-            return;
-        }
-        wrongDatatype(key, "floating point");
-    }
-
-    virtual void valueChanged(const std::string &key, const char *) {
-        if (!correctKey(key)) {
-            return;
-        }
-        wrongDatatype(key, "string");
-    }
-
 private:
-    bool correctKey(const std::string &key) {
-        if (key.compare("min_data_age") != 0 && key.compare("queue_age_cap") != 0) {
-            getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                             "Internal error.. Incorrect key (got: \"%s\") "
-                             "in value change "
-                             "callback. Ignored", key.c_str());
-            return false;
-        }
-        return true;
-    }
-
-    void wrongDatatype(const std::string &key, const char *datatype) {
-        getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                         "Configuration error.. Incorrect datatype for "
-                         " %s. Expected size_t, got \"%s\"", key.c_str(),
-                         datatype);
-    }
-
     EPStats &stats;
 };
 
@@ -177,10 +93,7 @@ public:
     EPStoreValueChangeListener(EventuallyPersistentStore &st) : store(st) {
     }
 
-    virtual void valueChanged(const std::string &, bool) {
-    }
-
-    virtual void valueChanged(const std::string &key, size_t value) {
+    virtual void sizeValueChanged(const std::string &key, size_t value) {
         if (key.compare("bg_fetch_delay") == 0) {
             store.setBGFetchDelay(static_cast<uint32_t>(value));
         } else if (key.compare("expiry_window") == 0) {
@@ -190,12 +103,6 @@ public:
         } else if (key.compare("vb_chunk_del_time") == 0) {
             store.setVbChunkDelThresholdTime(value);
         }
-    }
-
-    virtual void valueChanged(const std::string &, float) {
-    }
-
-    virtual void valueChanged(const std::string &, const char *) {
     }
 
 private:

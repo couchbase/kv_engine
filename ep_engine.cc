@@ -1288,11 +1288,7 @@ public:
         // EMPTY
     }
 
-    virtual void valueChanged(const std::string &key, bool) {
-        wrongDatatype(key, "boolean");
-    }
-
-    virtual void valueChanged(const std::string &key, size_t value) {
+    virtual void sizeValueChanged(const std::string &key, size_t value) {
         if (key.compare("getl_max_timeout") == 0) {
             engine.setGetlMaxTimeout(value);
         } else if (key.compare("getl_default_timeout") == 0) {
@@ -1303,24 +1299,7 @@ public:
             engine.setMaxItemSize(value);
         }
     }
-
-    virtual void valueChanged(const std::string &key, float) {
-        wrongDatatype(key, "floating point");
-    }
-
-    virtual void valueChanged(const std::string &key, const char *) {
-        wrongDatatype(key, "string");
-    }
-
 private:
-
-    void wrongDatatype(const std::string &key, const char *datatype) {
-        getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                         "Configuration error.. Incorrect datatype for "
-                         " %s. Expected size_t, got \"%s\"", key.c_str(),
-                         datatype);
-    }
-
     EventuallyPersistentEngine &engine;
 };
 

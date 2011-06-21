@@ -40,28 +40,43 @@ public:
      * @param key the key who changed
      * @param value the new value for the key
      */
-    virtual void valueChanged(const std::string &key, bool value) = 0;
+    virtual void booleanValueChanged(const std::string &key, bool) {
+        getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                         "Configuration error.. %s does not expect"
+                         " a boolean value", key.c_str());
+    }
 
     /**
      * Callback if when a numeric configuration value changed
      * @param key the key who changed
      * @param value the new value for the key
      */
-    virtual void valueChanged(const std::string &key, size_t value) = 0;
+    virtual void sizeValueChanged(const std::string &key, size_t) {
+        getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                         "Configuration error.. %s does not expect"
+                         " a size value", key.c_str());
+    }
 
     /**
      * Callback if when a floatingpoint configuration value changed
      * @param key the key who changed
      * @param value the new value for the key
      */
-    virtual void valueChanged(const std::string &key, float value) = 0;
-
+    virtual void floatValueChanged(const std::string &key, float) {
+        getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                         "Configuration error.. %s does not expect"
+                         " a floating point value", key.c_str());
+    }
     /**
      * Callback if when a string configuration value changed
      * @param key the key who changed
      * @param value the new value for the key
      */
-    virtual void valueChanged(const std::string &key, const char *value) = 0;
+    virtual void stringValueChanged(const std::string &key, const char *) {
+        getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                         "Configuration error.. %s does not expect"
+                         " a string value", key.c_str());
+    }
 
     virtual ~ValueChangedListener() { /* EMPTY */}
 };
@@ -199,6 +214,35 @@ public:
     void addStats(ADD_STAT add_stat, const void *c) const;
 
     /**
+     * Add a listener for changes for a key. The configuration class
+     * will release the memory for the ValueChangedListner by calling
+     * delete in it's destructor (so you have to allocate it by using
+     * new). There is no way to remove a valueChangeListner.
+     *
+     * @param key the key to add the listener for
+     * @param val the listener that will receive all of the callbacks
+     *            when the value change.
+     */
+    void addValueChangedListener(const std::string &key,
+                                 ValueChangedListener *val);
+
+    /**
+     * Set a validator for a specific key. The configuration class
+     * will release the memory for the ValueChangedValidator by calling
+     * delete in its destructor (so you have to allocate it by using
+     * new). If a validator exists for the key, that will be returned
+     * (and it's up to the caller to release the memory for that
+     * validator).
+     *
+     * @param key the key to set the validator for
+     * @param validator the new validator
+     * @return the old validator (or NULL if there wasn't a validator)
+     */
+    ValueChangedValidator *setValueValidator(const std::string &key,
+                                             ValueChangedValidator *validator);
+
+protected:
+    /**
      * Set the configuration parameter for a given key to
      * a boolean value.
      * @param key the key to specify
@@ -238,34 +282,6 @@ public:
      * @throws std::string if the value is refused by the validator
      */
     void setParameter(const std::string &key, const std::string &value);
-
-    /**
-     * Add a listener for changes for a key. The configuration class
-     * will release the memory for the ValueChangedListner by calling
-     * delete in it's destructor (so you have to allocate it by using
-     * new). There is no way to remove a valueChangeListner.
-     *
-     * @param key the key to add the listener for
-     * @param val the listener that will receive all of the callbacks
-     *            when the value change.
-     */
-    void addValueChangedListener(const std::string &key,
-                                 ValueChangedListener *val);
-
-    /**
-     * Set a validator for a specific key. The configuration class
-     * will release the memory for the ValueChangedValidator by calling
-     * delete in its destructor (so you have to allocate it by using
-     * new). If a validator exists for the key, that will be returned
-     * (and it's up to the caller to release the memory for that
-     * validator).
-     *
-     * @param key the key to set the validator for
-     * @param validator the new validator
-     * @return the old validator (or NULL if there wasn't a validator)
-     */
-    ValueChangedValidator *setValueValidator(const std::string &key,
-                                             ValueChangedValidator *validator);
 
 private:
     void initialize();

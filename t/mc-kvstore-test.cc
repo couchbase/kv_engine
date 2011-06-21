@@ -23,7 +23,7 @@ EXTENSION_LOGGER_DESCRIPTOR *getLogger() {
 class MCKVStoreTestEnvironment {
 public:
    MCKVStoreTestEnvironment() {
-      config.setParameter("couch_host", getenv("COUCH_HOST"));
+       config.setCouchHost(getenv("COUCH_HOST"));
    }
    Configuration config;
 };

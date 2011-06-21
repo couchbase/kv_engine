@@ -133,7 +133,7 @@ void Configuration::setParameter(const std::string &key, bool value) {
     lh.unlock();
     std::vector<ValueChangedListener*>::iterator iter;
     for (iter = copy.begin(); iter != copy.end(); ++iter) {
-        (*iter)->valueChanged(key, value);
+        (*iter)->booleanValueChanged(key, value);
     }
 }
 
@@ -158,7 +158,7 @@ void Configuration::setParameter(const std::string &key, size_t value) {
     lh.unlock();
     std::vector<ValueChangedListener*>::iterator iter;
     for (iter = copy.begin(); iter != copy.end(); ++iter) {
-        (*iter)->valueChanged(key, value);
+        (*iter)->sizeValueChanged(key, value);
     }
 }
 
@@ -180,7 +180,7 @@ void Configuration::setParameter(const std::string &key, float value) {
     lh.unlock();
     std::vector<ValueChangedListener*>::iterator iter;
     for (iter = copy.begin(); iter != copy.end(); ++iter) {
-        (*iter)->valueChanged(key, value);
+        (*iter)->floatValueChanged(key, value);
     }
 }
 
@@ -217,7 +217,7 @@ void Configuration::setParameter(const std::string &key, const char *value) {
     lh.unlock();
     std::vector<ValueChangedListener*>::iterator iter;
     for (iter = copy.begin(); iter != copy.end(); ++iter) {
-        (*iter)->valueChanged(key, value);
+        (*iter)->stringValueChanged(key, value);
     }
 }
 
