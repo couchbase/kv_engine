@@ -442,10 +442,6 @@ public:
         return epstore->resetVBucket(vbid);
     }
 
-    void setBGFetchDelay(uint32_t to) {
-        epstore->setBGFetchDelay(to);
-    }
-
     void setTapKeepAlive(uint32_t to) {
         configuration.setTapKeepalive((size_t)to);
     }

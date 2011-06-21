@@ -234,8 +234,7 @@ extern "C" {
             } else if (strcmp(keyz, "max_txn_size") == 0) {
                 e->getConfiguration().setMaxTxnSize(v);
             } else if (strcmp(keyz, "bg_fetch_delay") == 0) {
-                validate(v, 0, MAX_BG_FETCH_DELAY);
-                e->setBGFetchDelay(static_cast<uint32_t>(v));
+                e->getConfiguration().setBgFetchDelay(v);
             } else if (strcmp(keyz, "chk_max_items") == 0) {
                 validate(v, MIN_CHECKPOINT_ITEMS, MAX_CHECKPOINT_ITEMS);
                 CheckpointManager::setCheckpointMaxItems(v);

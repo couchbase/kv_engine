@@ -172,6 +172,61 @@ private:
     EPStats &stats;
 };
 
+class BgFetchDelayValueChangeListener : public ValueChangedListener {
+public:
+    BgFetchDelayValueChangeListener(EventuallyPersistentStore &st) : store(st) {
+        // EMPTY
+    }
+
+    virtual void valueChanged(const std::string &key, bool) {
+        if (!correctKey(key)) {
+            return;
+        }
+        wrongDatatype("boolean");
+    }
+
+    virtual void valueChanged(const std::string &key, size_t value) {
+        if (!correctKey(key)) {
+            return;
+        }
+        store.setBGFetchDelay(static_cast<uint32_t>(value));
+    }
+
+    virtual void valueChanged(const std::string &key, float value) {
+        if (!correctKey(key)) {
+            return;
+        }
+        wrongDatatype("floating point");
+    }
+
+    virtual void valueChanged(const std::string &key, const char *value) {
+        if (!correctKey(key)) {
+            return;
+        }
+        wrongDatatype("string");
+    }
+
+private:
+    bool correctKey(const std::string &key) {
+        if (key.compare("max_txn_size") != 0) {
+            getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                             "Internal error.. Incorrect key (got: \"%s\","
+                             " but expected bg_fetch_delay) in value change "
+                             "callback. Ignored", key.c_str());
+            return false;
+        }
+        return true;
+    }
+
+    void wrongDatatype(const char *datatype) {
+        getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                         "Configuration error.. Incorrect datatype for "
+                         " bg_fetch_delay. Expected size_t, got \"%s\"",
+                         datatype);
+    }
+
+    EventuallyPersistentStore &store;
+};
 
 /**
  * Dispatcher job that performs disk fetches for non-resident get
@@ -507,6 +562,10 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
     stats.queue_age_cap.set(engine.getConfiguration().getQueueAgeCap());
     engine.getConfiguration().addValueChangedListener("queue_age_cap",
                                                       new StatsValueChangeListener(stats));
+
+    setBGFetchDelay(engine.getConfiguration().getBgFetchDelay());
+    engine.getConfiguration().addValueChangedListener("bg_fetch_delay",
+                                                      new BgFetchDelayValueChangeListener(*this));
 
     if (startVb0) {
         RCPtr<VBucket> vb(new VBucket(0, vbucket_state_active, stats));

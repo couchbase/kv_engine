@@ -9,6 +9,11 @@
             "default": "0.9",
             "type": "float"
         },
+	    "bg_fetch_delay": {
+	        "type" : "size_t",
+            "default" : "0",
+            "validator" : "new SizeRangeValidator(0, 900)"
+	    },
         "cache_size": {
             "default": "0",
             "type": "size_t"
