@@ -40,6 +40,9 @@ stringstream implementation;
 typedef string (*getValidatorCode)(const std::string &, cJSON*);
 
 std::map<string, getValidatorCode> validators;
+map<string, string> getters;
+map<string, string> datatypes;
+
 
 std::ostream& operator <<(std::ostream &out, const cJSON *o) {
     switch (o->type) {
@@ -102,6 +105,15 @@ static void initialize() {
                    << "// # DO NOT EDIT! THIS IS A GENERATED FILE " << endl
                    << "// ###########################################" << endl;
     validators["range"] = getRangeValidatorCode;
+    getters["std::string"] = "getString";
+    getters["bool"] = "getBool";
+    getters["size_t"] = "getInteger";
+    getters["float"] = "getFloat";
+    datatypes["bool"] = "bool";
+    datatypes["size_t"] = "size_t";
+    datatypes["float"] = "float";
+    datatypes["string"] = "std::string";
+    datatypes["std::string"] = "std::string";
 }
 
 static string getString(cJSON *i) {
@@ -122,22 +134,19 @@ static bool isReadOnly(cJSON *o) {
     return true;
 }
 
-static string getDatatype(cJSON *o) {
+static string getDatatype(const std::string &key, cJSON *o) {
     cJSON *i = cJSON_GetObjectItem(o, "type");
     assert(i != NULL && i->type == cJSON_String);
     string ret = i->valuestring;
 
-    if (ret.compare("bool") == 0 ||
-        ret.compare("size_t") == 0 ||
-        ret.compare("float") == 0) {
-        return ret;
-    } else if (ret.compare("string") == 0 ||
-               ret.compare("std::string") == 0) {
-        return "std::string";
-    } else {
-        cerr << "Invalid datatype: " << ret;
-        abort();
+    map<string, string>::iterator iter = datatypes.find(ret);
+    if (iter == datatypes.end()) {
+        cerr << "Invalid datatype specified for \"" << key << "\": "
+             << i->valuestring << endl;
+        exit(1);
     }
+
+    return iter->second;
 }
 
 static string getValidator(const std::string &key, cJSON *o) {
@@ -190,27 +199,12 @@ static string getCppName(const string &str) {
     return ss.str();
 }
 
-static string getInternalGetter(const std::string &type) {
-    if (type.compare("std::string") == 0) {
-        return "getString";
-    } else if (type.compare("bool") == 0) {
-        return "getBool";
-    } else if (type.compare("size_t") == 0) {
-        return "getInteger";
-    } else if (type.compare("float") == 0) {
-        return "getFloat";
-    } else {
-        cerr << "Unsupported datatype: " << type << endl;
-        abort();
-    }
-}
-
 static void generate(cJSON *o) {
     assert(o != NULL);
 
     string config_name = o->string;
     string cppname = getCppName(config_name);
-    string type = getDatatype(o);
+    string type = getDatatype(config_name, o);
     string defaultVal = getString(cJSON_GetObjectItem(o, "default"));
     string validator = getValidator(config_name,
                                     cJSON_GetObjectItem(o, "validator"));
@@ -240,7 +234,7 @@ static void generate(cJSON *o) {
     // Generate the getter
     implementation << type << " Configuration::" << getGetterPrefix(type)
                    << cppname << "() const {" << endl
-                   << "    return " << getInternalGetter(type) << "(\""
+                   << "    return " << getters[type] << "(\""
                    << config_name << "\");" << endl << "}" << endl;
 
     if  (!isReadOnly(o)) {
