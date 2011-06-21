@@ -134,11 +134,11 @@
             "type": "size_t"
         },
         "mem_high_wat": {
-            "default": "std::numeric_limits<size_t>::max()",
+            "default": "max",
             "type": "size_t"
         },
         "mem_low_wat": {
-            "default": "std::numeric_limits<size_t>::max()",
+            "default": "max",
             "type": "size_t"
         },
         "min_data_age": {
@@ -208,7 +208,7 @@
             "type": "size_t"
         },
         "tap_idle_timeout": {
-            "default": "std::numeric_limits<size_t>::max()",
+            "default": "max",
             "type": "size_t"
         },
         "tap_keepalive": {

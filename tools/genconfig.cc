@@ -206,6 +206,15 @@ static void generate(cJSON *o) {
     string cppname = getCppName(config_name);
     string type = getDatatype(config_name, o);
     string defaultVal = getString(cJSON_GetObjectItem(o, "default"));
+
+    if (defaultVal.compare("max") == 0 || defaultVal.compare("min") == 0) {
+        if (type.compare("std::string") != 0) {
+            stringstream ss;
+            ss << "std::numeric_limits<" << type << ">::" << defaultVal << "()";
+            defaultVal = ss.str();
+        }
+    }
+
     string validator = getValidator(config_name,
                                     cJSON_GetObjectItem(o, "validator"));
 
