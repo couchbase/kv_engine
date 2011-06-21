@@ -185,6 +185,10 @@ public:
             store.setBGFetchDelay(static_cast<uint32_t>(value));
         } else if (key.compare("expiry_window") == 0) {
             store.setItemExpiryWindow(value);
+        } else if (key.compare("vb_del_chunk_size") == 0) {
+            store.setVbDelChunkSize(value);
+        } else if (key.compare("vb_chunk_del_time") == 0) {
+            store.setVbChunkDelThresholdTime(value);
         }
     }
 
@@ -517,7 +521,6 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
     }
     nonIODispatcher = new Dispatcher(theEngine);
     flusher = new Flusher(this, dispatcher);
-    invalidItemDbPager = new InvalidItemDbPager(this, stats, engine.getVbDelChunkSize());
 
     stats.memOverhead = sizeof(EventuallyPersistentStore);
 
@@ -542,6 +545,15 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
     setBGFetchDelay(config.getBgFetchDelay());
     config.addValueChangedListener("bg_fetch_delay",
                                    new EPStoreValueChangeListener(*this));
+
+    setVbDelChunkSize(config.getVbDelChunkSize());
+    config.addValueChangedListener("vb_del_chunk_size",
+                                   new EPStoreValueChangeListener(*this));
+    setVbChunkDelThresholdTime(config.getVbChunkDelTime());
+    config.addValueChangedListener("vb_chunk_del_time",
+                                   new EPStoreValueChangeListener(*this));
+
+    invalidItemDbPager = new InvalidItemDbPager(this, stats, vbDelChunkSize);
 
     if (startVb0) {
         RCPtr<VBucket> vb(new VBucket(0, vbucket_state_active, stats));
@@ -1005,8 +1017,8 @@ void EventuallyPersistentStore::scheduleVBDeletion(RCPtr<VBucket> vb, uint16_t v
                                  NULL, Priority::FastVBucketDeletionPriority,
                                  delay, false);
         } else {
-            size_t chunk_size = engine.getVbDelChunkSize();
-            uint32_t vb_chunk_del_time = engine.getVbChunkDelThresholdTime();
+            size_t chunk_size = vbDelChunkSize;
+            uint32_t vb_chunk_del_time = vbChunkDelThresholdTime;
             shared_ptr<DispatcherCallback> cb(new VBucketDeletionCallback(this, vb, vb_version,
                                                                           stats, chunk_size,
                                                                           vb_chunk_del_time));

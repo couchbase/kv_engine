@@ -791,6 +791,14 @@ public:
         itemExpiryWindow = value;
     }
 
+    void setVbDelChunkSize(size_t value) {
+        vbDelChunkSize = value;
+    }
+
+    void setVbChunkDelThresholdTime(size_t value) {
+        vbChunkDelThresholdTime = value;
+    }
+
 private:
 
     void scheduleVBDeletion(RCPtr<VBucket> vb, uint16_t vb_version, double delay);
@@ -899,6 +907,9 @@ private:
         std::vector<queued_item> items;
     } restore;
     size_t itemExpiryWindow;
+    size_t vbDelChunkSize;
+    size_t vbChunkDelThresholdTime;
+
     DISALLOW_COPY_AND_ASSIGN(EventuallyPersistentStore);
 };
 

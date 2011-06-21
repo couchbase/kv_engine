@@ -495,14 +495,6 @@ public:
 
     TapConnMap &getTapConnMap() { return tapConnMap; }
 
-    size_t getVbDelChunkSize() const {
-        return vb_del_chunk_size;
-    }
-
-    size_t getVbChunkDelThresholdTime() const {
-        return vb_chunk_del_threshold_time;
-    }
-
     bool isForceShutdown(void) const {
         return forceShutdown;
     }
@@ -749,8 +741,6 @@ private:
     size_t memHighWat;
     size_t expiryPagerSleeptime;
     size_t checkpointRemoverInterval;
-    size_t vb_del_chunk_size;
-    size_t vb_chunk_del_threshold_time;
     Atomic<uint64_t> mutation_count;
     size_t getlDefaultTimeout;
     size_t getlMaxTimeout;
