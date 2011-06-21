@@ -79,7 +79,12 @@ public:
      * @param value the requested new value
      * @return true the value is ok, false the value is not ok
      */
-    virtual bool validate(const std::string &key, bool value) = 0;
+    virtual bool validateBool(const std::string &key, bool) {
+        getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                         "Configuration error.. %s does not take"
+                         " a boolean parameter", key.c_str());
+        return false;
+    }
 
     /**
      * Validator for a numeric value
@@ -87,7 +92,12 @@ public:
      * @param value the requested new value
      * @return true the value is ok, false the value is not ok
      */
-    virtual bool validate(const std::string &key, size_t value) = 0;
+    virtual bool validateSize(const std::string &key, size_t) {
+        getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                         "Configuration error.. %s does not take"
+                         " a size_t parameter", key.c_str());
+        return false;
+    }
 
     /**
      * Validator for a floating point
@@ -95,7 +105,12 @@ public:
      * @param value the requested new value
      * @return true the value is ok, false the value is not ok
      */
-    virtual bool validate(const std::string &key, float value) = 0;
+    virtual bool validateFloat(const std::string &key, float) {
+        getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                         "Configuration error.. %s does not take"
+                         " a floating point parameter", key.c_str());
+        return false;
+    }
 
     /**
      * Validator for a character string
@@ -103,61 +118,60 @@ public:
      * @param value the requested new value
      * @return true the value is ok, false the value is not ok
      */
-    virtual bool validate(const std::string &key, const char *value) = 0;
+    virtual bool validateString(const std::string &key, const char *) {
+        getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                         "Configuration error.. %s does not take"
+                         " a character string", key.c_str());
+        return false;
+    }
 
     virtual ~ValueChangedValidator() { }
 };
 
-
 class SizeRangeValidator : public ValueChangedValidator {
 public:
-    SizeRangeValidator(size_t low, size_t high) : min(low), max(high) {}
+    SizeRangeValidator() : lower(0), upper(0) {}
 
-    /**
-     * Validator for a numeric value
-     * @param key the key that is about to change
-     * @param value the requested new value
-     * @return true the value is ok, false the value is not ok
-     */
-    virtual bool validate(const std::string &key, size_t value) {
+    SizeRangeValidator *min(size_t v) {
+        lower = v;
+        return this;
+    }
+
+    SizeRangeValidator *max(size_t v) {
+        upper = v;
+        return this;
+    }
+
+    virtual bool validateSize(const std::string &key, size_t value) {
         (void)key;
-        return (value >= min && value <= max);
+        return (value >= lower && value <= upper);
     }
-
-    /**
-     * There is nothing I can do with this...
-     */
-    virtual bool validate(const std::string &, bool) {
-        return false;
-    }
-
-    /**
-     * Try to check if it's within the range..
-     * @param value the requested new value
-     * @return true the value is ok, false the value is not ok
-     */
-    virtual bool validate(const std::string &key, float value) {
-        size_t val = static_cast<size_t>(value);
-        return validate(key, val);
-    }
-
-    /**
-     * Try to convert to size_t and see if it's within the legal range
-     * @param key the key that is about to change
-     * @param value the requested new value
-     * @return true the value is ok, false the value is not ok
-     */
-    virtual bool validate(const std::string &key, const char *value) {
-        if (value == NULL) {
-            return false;
-        }
-        size_t val = static_cast<size_t>(atol(value));
-        return validate(key, val);
-    }
-
 private:
-    size_t min;
-    size_t max;
+    size_t lower;
+    size_t upper;
+};
+
+class FloatRangeValidator : public ValueChangedValidator {
+public:
+    FloatRangeValidator() : lower(0), upper(0) {}
+
+    FloatRangeValidator *min(float v) {
+        lower = v;
+        return this;
+    }
+
+    FloatRangeValidator *max(float v) {
+        upper = v;
+        return this;
+    }
+
+    virtual bool validateFloat(const std::string &key, float value) {
+        (void)key;
+        return (value >= lower && value <= upper);
+    }
+private:
+    float lower;
+    float upper;
 };
 
 class Configuration {

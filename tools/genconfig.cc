@@ -25,6 +25,7 @@
 #include <sstream>
 #include <iostream>
 #include <fstream>
+#include <map>
 
 #include <ctype.h>
 
@@ -35,6 +36,73 @@ using namespace std;
 stringstream prototypes;
 stringstream initialization;
 stringstream implementation;
+
+typedef string (*getValidatorCode)(const std::string &, cJSON*);
+
+std::map<string, getValidatorCode> validators;
+
+std::ostream& operator <<(std::ostream &out, const cJSON *o) {
+    switch (o->type) {
+    case cJSON_Number:
+        if (o->valueint != o->valuedouble) {
+            out << (float)o->valuedouble;
+        } else {
+            out << o->valueint;
+        }
+        break;
+    case cJSON_String:
+        out << '"' << o->valuestring << '"';
+        break;
+    default:
+        cerr << "Internal error.. unknow json code" << endl;
+        abort();
+    }
+    return out;
+}
+
+bool isFloat(const cJSON *o) {
+    return o->valueint != o->valuedouble;
+}
+
+string getRangeValidatorCode(const std::string &key, cJSON *o) {
+    // the range validator should contain a "min" and "max" element
+    cJSON *min = cJSON_GetObjectItem(o, "min");
+    cJSON *max = cJSON_GetObjectItem(o, "max");
+
+    if (min == 0 || max == 0) {
+        cerr << "Incorrect syntax for a range validator specified for"
+             << "\"" << key << "\"." << endl
+             <<"You need both a min and max clause." << endl;
+        exit(1);
+    }
+
+    if (min->type != max->type || min->type != cJSON_Number) {
+        cerr << "Incorrect datatype for the range validator specified for "
+             << "\"" << key << "\"." << endl
+             << "Only numbers are supported." << endl;
+        exit(1);
+    }
+
+    stringstream ss;
+    if (isFloat(min) || isFloat(max)) {
+        ss << "(new FloatRangeValidator())->min((float)" << min << ")->max((float)" << max << ")";
+    } else {
+        ss << "(new SizeRangeValidator())->min(" << min << ")->max(" << max << ")";
+    }
+
+    return ss.str();
+}
+
+static void initialize() {
+    prototypes << "// ###########################################" << endl
+               << "// # DO NOT EDIT! THIS IS A GENERATED FILE " << endl
+               << "// ###########################################" << endl;
+
+    implementation << "// ###########################################" << endl
+                   << "// # DO NOT EDIT! THIS IS A GENERATED FILE " << endl
+                   << "// ###########################################" << endl;
+    validators["range"] = getRangeValidatorCode;
+}
 
 static string getString(cJSON *i) {
     if (i == NULL) {
@@ -70,6 +138,28 @@ static string getDatatype(cJSON *o) {
         cerr << "Invalid datatype: " << ret;
         abort();
     }
+}
+
+static string getValidator(const std::string &key, cJSON *o) {
+    if (o == NULL) {
+        return "";
+    }
+
+    cJSON *n = cJSON_GetArrayItem(o, 0);
+    if (n == NULL) {
+        return "";
+    }
+
+    std::map<string, getValidatorCode>::iterator iter;
+    iter = validators.find(string(n->string));
+    if (iter == validators.end()) {
+        cerr << "Unknown validator specified for \"" << key
+             << "\": \"" << n->string << "\""
+             << endl;
+        exit(1);
+    }
+
+    return (iter->second)(key, n);
 }
 
 static string getGetterPrefix(const string &str) {
@@ -122,7 +212,8 @@ static void generate(cJSON *o) {
     string cppname = getCppName(config_name);
     string type = getDatatype(o);
     string defaultVal = getString(cJSON_GetObjectItem(o, "default"));
-    string validator = getString(cJSON_GetObjectItem(o, "validator"));
+    string validator = getValidator(config_name,
+                                    cJSON_GetObjectItem(o, "validator"));
 
     // Generate prototypes
     prototypes << "    " << type
@@ -169,6 +260,9 @@ static void generate(cJSON *o) {
 int main(int argc, char **argv) {
     (void)argc;
     (void)argv;
+
+    initialize();
+
     struct stat st;
     if (stat("configuration.json", &st) == -1) {
         cerr << "Failed to look up configuration.json: "
@@ -200,21 +294,14 @@ int main(int argc, char **argv) {
     }
 
     ofstream headerfile("generated_configuration.hh");
-    headerfile << "// ###########################################" << endl
-               << "// # DO NOT EDIT! THIS IS A GENERATED FILE " << endl
-               << "// ###########################################" << endl
-               << prototypes.str();
+    headerfile << prototypes.str();
     headerfile.close();
 
     ofstream implfile("generated_configuration.cc");
-    implfile << "// ###########################################" << endl
-             << "// # DO NOT EDIT! THIS IS A GENERATED FILE " << endl
-             << "// ###########################################" << endl
-             << endl
+    implfile << implementation.str() << endl
              << "void Configuration::initialize() {" << endl
              << initialization.str()
-             << "}" << endl << endl
-             << implementation.str();
+             << "}" << endl;
     implfile.close();
 
     cJSON_Delete(c);
