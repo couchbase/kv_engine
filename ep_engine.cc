@@ -1302,8 +1302,6 @@ public:
             engine.setSyncCmdTimeout(value);
         } else if (key.compare("max_item_size") == 0) {
             engine.setMaxItemSize(value);
-        } else if (key.compare("expiry_window") == 0) {
-            engine.setItemExpiryWindow(value);
         }
     }
 
@@ -1368,9 +1366,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     memLowWat = configuration.getMemLowWat();
     memHighWat = configuration.getMemHighWat();
     tapBacklogLimit = configuration.getTapBacklogLimit();
-    itemExpiryWindow = configuration.getExpiryWindow();
-    configuration.addValueChangedListener("expiry_window",
-                                          new EpEngineValueChangeListener(*this));
 
     expiryPagerSleeptime = configuration.getExpPagerStime();
     nVBuckets = configuration.getMaxVbuckets();

@@ -172,59 +172,29 @@ private:
     EPStats &stats;
 };
 
-class BgFetchDelayValueChangeListener : public ValueChangedListener {
+class EPStoreValueChangeListener : public ValueChangedListener {
 public:
-    BgFetchDelayValueChangeListener(EventuallyPersistentStore &st) : store(st) {
-        // EMPTY
+    EPStoreValueChangeListener(EventuallyPersistentStore &st) : store(st) {
     }
 
-    virtual void valueChanged(const std::string &key, bool) {
-        if (!correctKey(key)) {
-            return;
-        }
-        wrongDatatype("boolean");
+    virtual void valueChanged(const std::string &, bool) {
     }
 
     virtual void valueChanged(const std::string &key, size_t value) {
-        if (!correctKey(key)) {
-            return;
+        if (key.compare("bg_fetch_delay") == 0) {
+            store.setBGFetchDelay(static_cast<uint32_t>(value));
+        } else if (key.compare("expiry_window") == 0) {
+            store.setItemExpiryWindow(value);
         }
-        store.setBGFetchDelay(static_cast<uint32_t>(value));
     }
 
-    virtual void valueChanged(const std::string &key, float) {
-        if (!correctKey(key)) {
-            return;
-        }
-        wrongDatatype("floating point");
+    virtual void valueChanged(const std::string &, float) {
     }
 
-    virtual void valueChanged(const std::string &key, const char *) {
-        if (!correctKey(key)) {
-            return;
-        }
-        wrongDatatype("string");
+    virtual void valueChanged(const std::string &, const char *) {
     }
 
 private:
-    bool correctKey(const std::string &key) {
-        if (key.compare("max_txn_size") != 0) {
-            getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                             "Internal error.. Incorrect key (got: \"%s\","
-                             " but expected bg_fetch_delay) in value change "
-                             "callback. Ignored", key.c_str());
-            return false;
-        }
-        return true;
-    }
-
-    void wrongDatatype(const char *datatype) {
-        getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                         "Configuration error.. Incorrect datatype for "
-                         " bg_fetch_delay. Expected size_t, got \"%s\"",
-                         datatype);
-    }
-
     EventuallyPersistentStore &store;
 };
 
@@ -551,21 +521,27 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
 
     stats.memOverhead = sizeof(EventuallyPersistentStore);
 
-    setTxnSize(engine.getConfiguration().getMaxTxnSize());
-    engine.getConfiguration().addValueChangedListener("max_txn_size",
-                                                      new MaxTxnValueChangeListener(tctx));
+    Configuration &config = engine.getConfiguration();
 
-    stats.min_data_age.set(engine.getConfiguration().getMinDataAge());
-    engine.getConfiguration().addValueChangedListener("min_data_age",
-                                                      new StatsValueChangeListener(stats));
+    setItemExpiryWindow(config.getExpiryWindow());
+    config.addValueChangedListener("expiry_window",
+                                   new EPStoreValueChangeListener(*this));
 
-    stats.queue_age_cap.set(engine.getConfiguration().getQueueAgeCap());
-    engine.getConfiguration().addValueChangedListener("queue_age_cap",
-                                                      new StatsValueChangeListener(stats));
+    setTxnSize(config.getMaxTxnSize());
+    config.addValueChangedListener("max_txn_size",
+                                   new MaxTxnValueChangeListener(tctx));
 
-    setBGFetchDelay(engine.getConfiguration().getBgFetchDelay());
-    engine.getConfiguration().addValueChangedListener("bg_fetch_delay",
-                                                      new BgFetchDelayValueChangeListener(*this));
+    stats.min_data_age.set(config.getMinDataAge());
+    config.addValueChangedListener("min_data_age",
+                                   new StatsValueChangeListener(stats));
+
+    stats.queue_age_cap.set(config.getQueueAgeCap());
+    config.addValueChangedListener("queue_age_cap",
+                                   new StatsValueChangeListener(stats));
+
+    setBGFetchDelay(config.getBgFetchDelay());
+    config.addValueChangedListener("bg_fetch_delay",
+                                   new EPStoreValueChangeListener(*this));
 
     if (startVb0) {
         RCPtr<VBucket> vb(new VBucket(0, vbucket_state_active, stats));
@@ -2001,7 +1977,7 @@ int EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
 
     int ret = 0;
 
-    if (isDirty && v->isExpired(ep_real_time() + engine.getItemExpiryWindow())) {
+    if (isDirty && v->isExpired(ep_real_time() + itemExpiryWindow)) {
         ++stats.flushExpired;
         v->markClean(NULL);
         isDirty = false;

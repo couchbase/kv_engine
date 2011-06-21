@@ -495,10 +495,6 @@ public:
 
     TapConnMap &getTapConnMap() { return tapConnMap; }
 
-    size_t getItemExpiryWindow() const {
-        return itemExpiryWindow;
-    }
-
     size_t getVbDelChunkSize() const {
         return vb_del_chunk_size;
     }
@@ -557,10 +553,6 @@ public:
 
 protected:
     friend class EpEngineValueChangeListener;
-
-    void setItemExpiryWindow(size_t value) {
-        itemExpiryWindow = value;
-    }
 
     void setMaxItemSize(size_t value) {
         maxItemSize = value;
@@ -755,7 +747,6 @@ private:
     size_t tapBacklogLimit;
     size_t memLowWat;
     size_t memHighWat;
-    size_t itemExpiryWindow;
     size_t expiryPagerSleeptime;
     size_t checkpointRemoverInterval;
     size_t nVBuckets;

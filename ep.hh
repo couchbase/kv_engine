@@ -787,6 +787,10 @@ public:
 
     void setPersistenceCheckpointId(uint16_t vbid, uint64_t checkpointId);
 
+    void setItemExpiryWindow(size_t value) {
+        itemExpiryWindow = value;
+    }
+
 private:
 
     void scheduleVBDeletion(RCPtr<VBucket> vb, uint16_t vb_version, double delay);
@@ -894,7 +898,7 @@ private:
         Mutex mutex;
         std::vector<queued_item> items;
     } restore;
-
+    size_t itemExpiryWindow;
     DISALLOW_COPY_AND_ASSIGN(EventuallyPersistentStore);
 };
 
