@@ -9,11 +9,16 @@
             "default": "0.9",
             "type": "float"
         },
-	    "bg_fetch_delay": {
-	        "type" : "size_t",
-            "default" : "0",
-            "validator" : { "range": {"min": 0, "max": 900} }
-	    },
+        "bg_fetch_delay": {
+            "default": "0",
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "max": 900,
+                    "min": 0
+                }
+            }
+        },
         "cache_size": {
             "default": "0",
             "type": "size_t"
@@ -88,13 +93,13 @@
         },
         "getl_default_timeout": {
             "default": "15",
-            "type": "size_t",
-            "descr": "The default timeout for a getl lock in (s)"
+            "descr": "The default timeout for a getl lock in (s)",
+            "type": "size_t"
         },
         "getl_max_timeout": {
             "default": "30",
-            "type": "size_t",
-            "descr": "The maximum timeout for a getl lock in (s)"
+            "descr": "The maximum timeout for a getl lock in (s)",
+            "type": "size_t"
         },
         "ht_locks": {
             "default": "0",
@@ -123,9 +128,14 @@
         },
         "max_txn_size": {
             "default": "10000",
+            "descr": "Maximum number of mutations per transaction",
             "type": "size_t",
-            "validator" : { "range": {"min": 1, "max": 10000000 } },
-            "descr" : "Maximum number of mutations per transaction"
+            "validator": {
+                "range": {
+                    "max": 10000000,
+                    "min": 1
+                }
+            }
         },
         "max_vbuckets": {
             "default": "1024",
@@ -143,9 +153,14 @@
         },
         "min_data_age": {
             "default": "0",
-            "descr" : "Minimum data stability time before persist",
+            "descr": "Minimum data stability time before persist",
             "type": "size_t",
-            "validator" : { "range": {"min": 0, "max": 86400} }
+            "validator": {
+                "range": {
+                    "max": 86400,
+                    "min": 0
+                }
+            }
         },
         "mutation_mem_threshold": {
             "default": "0.0",
@@ -159,7 +174,12 @@
             "default": "900",
             "descr": "Maximum queue time before forcing persist",
             "type": "size_t",
-            "validator" : { "range": {"min": 0, "max": 86400} }
+            "validator": {
+                "range": {
+                    "max": 86400,
+                    "min": 0
+                }
+            }
         },
         "restore_mode": {
             "default": "false",
@@ -177,7 +197,12 @@
             "default": "2500",
             "descr": "The timeout for SYNC requests in (ms)",
             "type": "size_t",
-            "validator" : { "range": {"min": 10, "max": 60000} }
+            "validator": {
+                "range": {
+                    "max": 60000,
+                    "min": 10
+                }
+            }
         },
         "tap_ack_grace_period": {
             "default": "300",
