@@ -1246,7 +1246,7 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server
     memLowWat(std::numeric_limits<size_t>::max()),
     memHighWat(std::numeric_limits<size_t>::max()),
     expiryPagerSleeptime(3600), checkpointRemoverInterval(5),
-    nVBuckets(1024), dbShards(4), vb_del_chunk_size(100), vb_chunk_del_threshold_time(500),
+    nVBuckets(1024), vb_del_chunk_size(100), vb_chunk_del_threshold_time(500),
     mutation_count(0)
 {
     interface.interface = 1;
@@ -1373,7 +1373,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
                                           new EpEngineValueChangeListener(*this));
 
     expiryPagerSleeptime = configuration.getExpPagerStime();
-    dbShards = configuration.getDbShards();
     nVBuckets = configuration.getMaxVbuckets();
     vb_del_chunk_size = configuration.getVbDelChunkSize();
     vb_chunk_del_threshold_time = configuration.getVbChunkDelTime();
@@ -2810,12 +2809,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
         }
     }
 
-//    add_casted_stat("ep_tap_keepalive", tapKeepAlive,
-//                    add_stat, cookie);
-
     add_casted_stat("ep_dbinit", databaseInitTime, add_stat, cookie);
-    add_casted_stat("ep_dbshards", dbShards, add_stat, cookie);
-
     add_casted_stat("ep_io_num_read", epstats.io_num_read, add_stat, cookie);
     add_casted_stat("ep_io_num_write", epstats.io_num_write, add_stat, cookie);
     add_casted_stat("ep_io_read_bytes", epstats.io_read_bytes, add_stat, cookie);

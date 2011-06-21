@@ -2308,7 +2308,7 @@ static enum test_result test_db_shards(ENGINE_HANDLE *h,
           "Failed to get stats.");
     check(vals.find("ep_dbname") != vals.end(), "Found no db name");
     std::string db_name = vals["ep_dbname"];
-    int dbShards = get_int_stat(h, h1, "ep_dbshards");
+    int dbShards = get_int_stat(h, h1, "ep_db_shards");
     check(dbShards == 5, "Expected five shards for db store");
 
     check(remove(db_name.c_str()) == 0,
