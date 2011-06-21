@@ -56,20 +56,6 @@ extern "C" {
     }
 }
 
-class MaxTxnValueChangeListener : public ValueChangedListener {
-public:
-    MaxTxnValueChangeListener(TransactionContext &ctx) : context(ctx) {
-        // EMPTY
-    }
-
-    virtual void sizeValueChanged(const std::string &, size_t value) {
-        context.setTxnSize(value);
-    }
-
-private:
-    TransactionContext &context;
-};
-
 class StatsValueChangeListener : public ValueChangedListener {
 public:
     StatsValueChangeListener(EPStats &st) : stats(st) {
@@ -102,6 +88,8 @@ public:
             store.setVbDelChunkSize(value);
         } else if (key.compare("vb_chunk_del_time") == 0) {
             store.setVbChunkDelThresholdTime(value);
+        } else if (key.compare("max_txn_size") == 0) {
+            store.setTxnSize(value);
         }
     }
 
@@ -439,7 +427,7 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
 
     setTxnSize(config.getMaxTxnSize());
     config.addValueChangedListener("max_txn_size",
-                                   new MaxTxnValueChangeListener(tctx));
+                                   new EPStoreValueChangeListener(*this));
 
     stats.min_data_age.set(config.getMinDataAge());
     config.addValueChangedListener("min_data_age",
