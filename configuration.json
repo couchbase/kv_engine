@@ -129,6 +129,8 @@
         },
         "max_vbuckets": {
             "default": "1024",
+            "descr": "Maximum number of vbuckets expected",
+            "dynamic": false,
             "type": "size_t"
         },
         "mem_high_wat": {

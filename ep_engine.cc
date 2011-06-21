@@ -1246,7 +1246,7 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server
     memLowWat(std::numeric_limits<size_t>::max()),
     memHighWat(std::numeric_limits<size_t>::max()),
     expiryPagerSleeptime(3600), checkpointRemoverInterval(5),
-    nVBuckets(1024), vb_del_chunk_size(100), vb_chunk_del_threshold_time(500),
+    vb_del_chunk_size(100), vb_chunk_del_threshold_time(500),
     mutation_count(0)
 {
     interface.interface = 1;
@@ -1368,7 +1368,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     tapBacklogLimit = configuration.getTapBacklogLimit();
 
     expiryPagerSleeptime = configuration.getExpPagerStime();
-    nVBuckets = configuration.getMaxVbuckets();
     vb_del_chunk_size = configuration.getVbDelChunkSize();
     vb_chunk_del_threshold_time = configuration.getVbChunkDelTime();
     TapProducer::bgMaxPending = configuration.getTapBgMaxPending();

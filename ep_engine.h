@@ -749,7 +749,6 @@ private:
     size_t memHighWat;
     size_t expiryPagerSleeptime;
     size_t checkpointRemoverInterval;
-    size_t nVBuckets;
     size_t vb_del_chunk_size;
     size_t vb_chunk_del_threshold_time;
     Atomic<uint64_t> mutation_count;
