@@ -122,6 +122,7 @@ static void generate(cJSON *o) {
     string cppname = getCppName(config_name);
     string type = getDatatype(o);
     string defaultVal = getString(cJSON_GetObjectItem(o, "default"));
+    string validator = getString(cJSON_GetObjectItem(o, "validator"));
 
     // Generate prototypes
     prototypes << "    " << type
@@ -139,6 +140,11 @@ static void generate(cJSON *o) {
     } else {
         initialization << "(" << type << ")" << defaultVal << ");" << endl;
     }
+    if (!validator.empty()) {
+        initialization << "    setValueValidator(\"" << config_name
+                       << "\", " << validator << ");" << endl;
+    }
+
 
     // Generate the getter
     implementation << type << " Configuration::" << getGetterPrefix(type)

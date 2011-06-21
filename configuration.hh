@@ -40,41 +40,28 @@ public:
      * @param key the key who changed
      * @param value the new value for the key
      */
-    virtual void valueChanged(const std::string &key, bool value) {
-        (void)key; (void)value;
-        assert("Didn't expect a boolean value" == NULL);
-    }
+    virtual void valueChanged(const std::string &key, bool value) = 0;
 
     /**
      * Callback if when a numeric configuration value changed
      * @param key the key who changed
      * @param value the new value for the key
      */
-    virtual void valueChanged(const std::string &key, size_t value) {
-        (void)key; (void)value;
-        assert("Didn't expect a size_t" == NULL);
-    }
+    virtual void valueChanged(const std::string &key, size_t value) = 0;
 
     /**
      * Callback if when a floatingpoint configuration value changed
      * @param key the key who changed
      * @param value the new value for the key
      */
-    virtual void valueChanged(const std::string &key, float value) {
-        (void)key; (void)value;
-        assert("Didn't expect a float" == NULL);
-
-    }
+    virtual void valueChanged(const std::string &key, float value) = 0;
 
     /**
      * Callback if when a string configuration value changed
      * @param key the key who changed
      * @param value the new value for the key
      */
-    virtual void valueChanged(const std::string &key, const char *value) {
-        (void)key; (void)value;
-        assert("Didn't expect a string" == NULL);
-    }
+    virtual void valueChanged(const std::string &key, const char *value) = 0;
 
     virtual ~ValueChangedListener() { /* EMPTY */}
 };
@@ -92,11 +79,39 @@ public:
      * @param value the requested new value
      * @return true the value is ok, false the value is not ok
      */
-    virtual bool validate(const std::string &key, bool value) {
-        (void)key; (void)value;
-        assert("Didn't expect a boolean value" == NULL);
-        return false;
-    }
+    virtual bool validate(const std::string &key, bool value) = 0;
+
+    /**
+     * Validator for a numeric value
+     * @param key the key that is about to change
+     * @param value the requested new value
+     * @return true the value is ok, false the value is not ok
+     */
+    virtual bool validate(const std::string &key, size_t value) = 0;
+
+    /**
+     * Validator for a floating point
+     * @param key the key that is about to change
+     * @param value the requested new value
+     * @return true the value is ok, false the value is not ok
+     */
+    virtual bool validate(const std::string &key, float value) = 0;
+
+    /**
+     * Validator for a character string
+     * @param key the key that is about to change
+     * @param value the requested new value
+     * @return true the value is ok, false the value is not ok
+     */
+    virtual bool validate(const std::string &key, const char *value) = 0;
+
+    virtual ~ValueChangedValidator() { }
+};
+
+
+class SizeRangeValidator : public ValueChangedValidator {
+public:
+    SizeRangeValidator(size_t low, size_t high) : min(low), max(high) {}
 
     /**
      * Validator for a numeric value
@@ -105,36 +120,44 @@ public:
      * @return true the value is ok, false the value is not ok
      */
     virtual bool validate(const std::string &key, size_t value) {
-        (void)key; (void)value;
-        assert("Didn't expect a size_t" == NULL);
+        (void)key;
+        return (value >= min && value <= max);
+    }
+
+    /**
+     * There is nothing I can do with this...
+     */
+    virtual bool validate(const std::string &, bool) {
         return false;
     }
 
     /**
-     * Validator for a floating point
-     * @param key the key that is about to change
+     * Try to check if it's within the range..
      * @param value the requested new value
      * @return true the value is ok, false the value is not ok
      */
     virtual bool validate(const std::string &key, float value) {
-        (void)key; (void)value;
-        assert("Didn't expect a float" == NULL);
-        return false;
+        size_t val = static_cast<size_t>(value);
+        return validate(key, val);
     }
 
     /**
-     * Validator for a character string
+     * Try to convert to size_t and see if it's within the legal range
      * @param key the key that is about to change
      * @param value the requested new value
      * @return true the value is ok, false the value is not ok
      */
     virtual bool validate(const std::string &key, const char *value) {
-        (void)key; (void)value;
-        assert("Didn't expect a string" == NULL);
-        return false;
+        if (value == NULL) {
+            return false;
+        }
+        size_t val = static_cast<size_t>(atol(value));
+        return validate(key, val);
     }
 
-    virtual ~ValueChangedValidator() { }
+private:
+    size_t min;
+    size_t max;
 };
 
 class Configuration {
