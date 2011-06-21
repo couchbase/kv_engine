@@ -458,12 +458,6 @@ public:
         epstore->setQueueAgeCap(to);
     }
 
-    void setTxnSize(int to) {
-        if (to > 0) {
-            epstore->setTxnSize(to);
-        }
-    }
-
     void setBGFetchDelay(uint32_t to) {
         epstore->setBGFetchDelay(to);
     }

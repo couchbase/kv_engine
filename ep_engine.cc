@@ -234,8 +234,7 @@ extern "C" {
                 validate(v, 0, MAX_DATA_AGE_PARAM);
                 e->setQueueAgeCap(v);
             } else if (strcmp(keyz, "max_txn_size") == 0) {
-                validate(v, 1, MAX_TXN_SIZE);
-                e->setTxnSize(v);
+                e->getConfiguration().setMaxTxnSize(v);
             } else if (strcmp(keyz, "bg_fetch_delay") == 0) {
                 validate(v, 0, MAX_BG_FETCH_DELAY);
                 e->setBGFetchDelay(static_cast<uint32_t>(v));
@@ -1400,7 +1399,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
             return ret;
         }
 
-        setTxnSize(configuration.getMaxTxnSize());
         setMinDataAge(minDataAge);
         setQueueAgeCap(queueAgeCap);
 
@@ -2540,8 +2538,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                     epstats.min_data_age, add_stat, cookie);
     add_casted_stat("ep_queue_age_cap",
                     epstats.queue_age_cap, add_stat, cookie);
-    add_casted_stat("ep_max_txn_size",
-                    epstore->getTxnSize(), add_stat, cookie);
     add_casted_stat("ep_data_age",
                     epstats.dataAge, add_stat, cookie);
     add_casted_stat("ep_data_age_highwat",

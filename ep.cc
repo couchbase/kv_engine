@@ -56,6 +56,63 @@ extern "C" {
     }
 }
 
+class MaxTxnValueChangeListener : public ValueChangedListener {
+public:
+    MaxTxnValueChangeListener(TransactionContext &ctx) : context(ctx) {
+        // EMPTY
+    }
+
+    virtual void valueChanged(const std::string &key, bool) {
+        if (!correctKey(key)) {
+            return;
+        }
+        wrongDatatype("boolean");
+    }
+
+    virtual void valueChanged(const std::string &key, size_t value) {
+        if (!correctKey(key)) {
+            return;
+        }
+        context.setTxnSize(value);
+    }
+
+    virtual void valueChanged(const std::string &key, float value) {
+        if (!correctKey(key)) {
+            return;
+        }
+        wrongDatatype("floating point");
+    }
+
+    virtual void valueChanged(const std::string &key, const char *value) {
+        if (!correctKey(key)) {
+            return;
+        }
+        wrongDatatype("string");
+    }
+
+private:
+    bool correctKey(const std::string &key) {
+        if (key.compare("max_txn_size") != 0) {
+            getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                             "Internal error.. Incorrect key (got: \"%s\","
+                             " but expected max_txn_size) in value change "
+                             "callback. Ignored", key.c_str());
+            return false;
+        }
+        return true;
+    }
+
+    void wrongDatatype(const char *datatype) {
+        getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                         "Configuration error.. Incorrect datatype for "
+                         " max_txn_size. Expected size_t, got \"%s\"",
+                         datatype);
+    }
+
+    TransactionContext &context;
+};
+
+
 /**
  * Dispatcher job that performs disk fetches for non-resident get
  * requests.
@@ -379,7 +436,9 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
 
     stats.memOverhead = sizeof(EventuallyPersistentStore);
 
-    setTxnSize(DEFAULT_TXN_SIZE);
+    setTxnSize(engine.getConfiguration().getMaxTxnSize());
+    engine.getConfiguration().addValueChangedListener("max_txn_size",
+                                                      new MaxTxnValueChangeListener(tctx));
 
     if (startVb0) {
         RCPtr<VBucket> vb(new VBucket(0, vbucket_state_active, stats));
@@ -1423,7 +1482,7 @@ std::queue<queued_item>* EventuallyPersistentStore::beginFlush() {
             }
         } else {
             std::vector<queued_item> item_list;
-            item_list.reserve(DEFAULT_TXN_SIZE);
+            item_list.reserve(getTxnSize());
             size_t numOfVBuckets = vbuckets.getSize();
             for (size_t i = 0; i < numOfVBuckets; ++i) {
                 assert(i <= std::numeric_limits<uint16_t>::max());
