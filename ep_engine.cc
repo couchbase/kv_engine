@@ -2534,10 +2534,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                     epstats.dirtyAge, add_stat, cookie);
     add_casted_stat("ep_storage_age_highwat",
                     epstats.dirtyAgeHighWat, add_stat, cookie);
-    add_casted_stat("ep_min_data_age",
-                    epstats.min_data_age, add_stat, cookie);
-    add_casted_stat("ep_queue_age_cap",
-                    epstats.queue_age_cap, add_stat, cookie);
     add_casted_stat("ep_data_age",
                     epstats.dataAge, add_stat, cookie);
     add_casted_stat("ep_data_age_highwat",
@@ -2772,11 +2768,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
 //    add_casted_stat("ep_tap_keepalive", tapKeepAlive,
 //                    add_stat, cookie);
 
-    add_casted_stat("ep_dbname", configuration.getDbname(), add_stat, cookie);
     add_casted_stat("ep_dbinit", databaseInitTime, add_stat, cookie);
     add_casted_stat("ep_dbshards", dbShards, add_stat, cookie);
-    add_casted_stat("ep_db_strategy", configuration.getDbStrategy(),
-                    add_stat, cookie);
 
     add_casted_stat("ep_io_num_read", epstats.io_num_read, add_stat, cookie);
     add_casted_stat("ep_io_num_write", epstats.io_num_write, add_stat, cookie);
