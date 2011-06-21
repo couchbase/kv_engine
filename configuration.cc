@@ -123,9 +123,7 @@ void Configuration::setParameter(const std::string &key, bool value) {
     if (validator != attributes.end()) {
         if (validator->second.validator != NULL) {
             if (!validator->second.validator->validate(key, value)) {
-                std::stringstream ss;
-                ss << "Invalid value specified for " << key << " " << value;
-                throw ss.str();
+                throw std::runtime_error("value out of range.");
             }
         }
     }
@@ -145,9 +143,7 @@ void Configuration::setParameter(const std::string &key, size_t value) {
     if (validator != attributes.end()) {
         if (validator->second.validator != NULL) {
             if (!validator->second.validator->validate(key, value)) {
-                std::stringstream ss;
-                ss << "Invalid value specified for " << key << " " << value;
-                throw ss.str();
+                throw std::runtime_error("value out of range.");
             }
         }
     }
@@ -173,9 +169,7 @@ void Configuration::setParameter(const std::string &key, float value) {
     if (validator != attributes.end()) {
         if (validator->second.validator != NULL) {
             if (!validator->second.validator->validate(key, value)) {
-                std::stringstream ss;
-                ss << "Invalid value specified for " << key << " " << value;
-                throw ss.str();
+                throw std::runtime_error("value out of range.");
             }
         }
     }
@@ -204,9 +198,7 @@ void Configuration::setParameter(const std::string &key, const char *value) {
     if (validator != attributes.end()) {
         if (validator->second.validator != NULL) {
             if (!validator->second.validator->validate(key, value)) {
-                std::stringstream ss;
-                ss << "Invalid value specified for " << key << " " << value;
-                throw ss.str();
+                throw std::runtime_error("value out of range.");
             }
         }
     }

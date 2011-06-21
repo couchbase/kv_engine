@@ -76,14 +76,14 @@ public:
         context.setTxnSize(value);
     }
 
-    virtual void valueChanged(const std::string &key, float value) {
+    virtual void valueChanged(const std::string &key, float) {
         if (!correctKey(key)) {
             return;
         }
         wrongDatatype("floating point");
     }
 
-    virtual void valueChanged(const std::string &key, const char *value) {
+    virtual void valueChanged(const std::string &key, const char *) {
         if (!correctKey(key)) {
             return;
         }
