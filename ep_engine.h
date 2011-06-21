@@ -30,12 +30,6 @@
 #define DEFAULT_BACKFILL_RESIDENT_THRESHOLD 0.9
 #define MINIMUM_BACKFILL_RESIDENT_THRESHOLD 0.7
 
-#ifndef DEFAULT_SYNC_TIMEOUT
-#define DEFAULT_SYNC_TIMEOUT 2500
-#define MAX_SYNC_TIMEOUT 60000
-#define MIN_SYNC_TIMEOUT 10
-#endif
-
 extern "C" {
     EXPORT_FUNCTION
     ENGINE_ERROR_CODE create_instance(uint64_t interface,
@@ -549,18 +543,42 @@ public:
         holder.unlock();
     }
 
-    size_t getGetlDefaultTimeout() { return getlDefaultTimeout; }
-    size_t getGetlMaxTimeout() { return getlMaxTimeout; }
+    size_t getGetlDefaultTimeout() const {
+        return getlDefaultTimeout;
+    }
+
+    size_t getGetlMaxTimeout() const {
+        return getlMaxTimeout;
+    }
+
+    size_t getSyncCmdTimeout() const {
+        return syncTimeout;
+    }
+
+protected:
+    friend class EpEngineValueChangeListener;
+
+    void setItemExpiryWindow(size_t value) {
+        itemExpiryWindow = value;
+    }
+
+    void setMaxItemSize(size_t value) {
+        maxItemSize = value;
+    }
+
+    void setGetlDefaultTimeout(size_t value) {
+        getlDefaultTimeout = value;
+    }
+
+    void setGetlMaxTimeout(size_t value) {
+        getlMaxTimeout = value;
+    }
 
     /**
      * Set the timeout for the SYNC command. Timeout is in milliseconds.
      */
     void setSyncCmdTimeout(size_t timeout) {
         syncTimeout = timeout;
-    }
-
-    size_t getSyncCmdTimeout() const {
-        return syncTimeout;
     }
 
 private:

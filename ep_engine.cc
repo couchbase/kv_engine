@@ -274,10 +274,7 @@ extern "C" {
             } else if (strcmp(keyz, "sync_cmd_timeout") == 0) {
                 char *ptr = NULL;
                 size_t vsize = strtoul(valz, &ptr, 10);
-                validate(vsize,
-                         static_cast<size_t>(MIN_SYNC_TIMEOUT),
-                         static_cast<size_t>(MAX_SYNC_TIMEOUT));
-                e->setSyncCmdTimeout(vsize);
+                e->getConfiguration().setSyncCmdTimeout(vsize);
             } else {
                 *msg = "Unknown config param";
                 rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
@@ -1245,13 +1242,12 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server
     tapNoopInterval(DEFAULT_TAP_NOOP_INTERVAL), nextTapNoop(0),
     startedEngineThreads(false), shutdown(false),
     getServerApiFunc(get_server_api), getlExtension(NULL), tapConnMap(*this),
-    maxItemSize(20*1024*1024), tapBacklogLimit(5000),
+    tapBacklogLimit(5000),
     memLowWat(std::numeric_limits<size_t>::max()),
     memHighWat(std::numeric_limits<size_t>::max()),
-    itemExpiryWindow(3), expiryPagerSleeptime(3600), checkpointRemoverInterval(5),
+    expiryPagerSleeptime(3600), checkpointRemoverInterval(5),
     nVBuckets(1024), dbShards(4), vb_del_chunk_size(100), vb_chunk_del_threshold_time(500),
-    mutation_count(0), getlDefaultTimeout(15), getlMaxTimeout(30),
-    syncTimeout(DEFAULT_SYNC_TIMEOUT)
+    mutation_count(0)
 {
     interface.interface = 1;
     ENGINE_HANDLE_V1::get_info = EvpGetInfo;
@@ -1287,6 +1283,52 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server
     backfillThreads.shutdown = false;
 }
 
+class EpEngineValueChangeListener : public ValueChangedListener {
+public:
+    EpEngineValueChangeListener(EventuallyPersistentEngine &e) : engine(e) {
+        // EMPTY
+    }
+
+    virtual void valueChanged(const std::string &key, bool) {
+        wrongDatatype(key, "boolean");
+    }
+
+    virtual void valueChanged(const std::string &key, size_t value) {
+        if (key.compare("getl_max_timeout") == 0) {
+            engine.setGetlMaxTimeout(value);
+        } else if (key.compare("getl_default_timeout") == 0) {
+            engine.setGetlDefaultTimeout(value);
+        } else if (key.compare("sync_cmd_timeout") == 0) {
+            engine.setSyncCmdTimeout(value);
+        } else if (key.compare("max_item_size") == 0) {
+            engine.setMaxItemSize(value);
+        } else if (key.compare("expiry_window") == 0) {
+            engine.setItemExpiryWindow(value);
+        }
+    }
+
+    virtual void valueChanged(const std::string &key, float) {
+        wrongDatatype(key, "floating point");
+    }
+
+    virtual void valueChanged(const std::string &key, const char *) {
+        wrongDatatype(key, "string");
+    }
+
+private:
+
+    void wrongDatatype(const std::string &key, const char *datatype) {
+        getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                         "Configuration error.. Incorrect datatype for "
+                         " %s. Expected size_t, got \"%s\"", key.c_str(),
+                         datatype);
+    }
+
+    EventuallyPersistentEngine &engine;
+};
+
+
+
 ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
 
@@ -1320,10 +1362,16 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     }
 
     maxItemSize = configuration.getMaxItemSize();
+    configuration.addValueChangedListener("max_item_size",
+                                          new EpEngineValueChangeListener(*this));
+
     memLowWat = configuration.getMemLowWat();
     memHighWat = configuration.getMemHighWat();
     tapBacklogLimit = configuration.getTapBacklogLimit();
     itemExpiryWindow = configuration.getExpiryWindow();
+    configuration.addValueChangedListener("expiry_window",
+                                          new EpEngineValueChangeListener(*this));
+
     expiryPagerSleeptime = configuration.getExpPagerStime();
     dbShards = configuration.getDbShards();
     nVBuckets = configuration.getMaxVbuckets();
@@ -1351,8 +1399,15 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     }
 
     getlDefaultTimeout = configuration.getGetlDefaultTimeout();
+    configuration.addValueChangedListener("getl_default_timeout",
+                                          new EpEngineValueChangeListener(*this));
     getlMaxTimeout = configuration.getGetlMaxTimeout();
+    configuration.addValueChangedListener("getl_max_timeout",
+                                          new EpEngineValueChangeListener(*this));
     syncTimeout = configuration.getSyncCmdTimeout();
+    configuration.addValueChangedListener("sync_cmd_timeout",
+                                          new EpEngineValueChangeListener(*this));
+
     BackFillVisitor::setResidentItemThreshold(configuration.getBfResidentThreshold());
 
     if (ret == ENGINE_SUCCESS) {

@@ -79,6 +79,7 @@
         },
         "expiry_window": {
             "default": "3",
+            "descr": "Expiry window to not persist an object that is expired (or will be soon)",
             "type": "size_t"
         },
         "failpartialwarmup": {
@@ -87,11 +88,13 @@
         },
         "getl_default_timeout": {
             "default": "15",
-            "type": "size_t"
+            "type": "size_t",
+            "descr": "The default timeout for a getl lock in (s)"
         },
         "getl_max_timeout": {
             "default": "30",
-            "type": "size_t"
+            "type": "size_t",
+            "descr": "The maximum timeout for a getl lock in (s)"
         },
         "ht_locks": {
             "default": "0",
@@ -111,6 +114,7 @@
         },
         "max_item_size": {
             "default": "(20 * 1024 * 1024)",
+            "descr": "Maximum number of bytes allowed for an item",
             "type": "size_t"
         },
         "max_size": {
@@ -169,7 +173,9 @@
         },
         "sync_cmd_timeout": {
             "default": "2500",
-            "type": "size_t"
+            "descr": "The timeout for SYNC requests in (ms)",
+            "type": "size_t",
+            "validator": "new SizeRangeValidator(10, 60000)"
         },
         "tap_ack_grace_period": {
             "default": "300",
