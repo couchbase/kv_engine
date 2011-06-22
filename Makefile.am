@@ -80,9 +80,6 @@ ep_la_SOURCES = \
                  tapthrottle.cc tapthrottle.hh \
                  vbucket.cc vbucket.hh
 
-if BUILD_BYTEORDER
-ep_la_SOURCES += byteorder.c
-endif
 
 libobjectregistry_la_SOURCES = objectregistry.cc objectregistry.hh
 
@@ -136,9 +133,10 @@ ep_testsuite_la_DEPENDENCIES = libsqlite-kvstore.la libmc-kvstore.la \
 management_mbdbconvert_SOURCES = management/dbconvert.cc \
                                  testlogger.cc
 management_mbdbconvert_LDADD = libsqlite-kvstore.la libmc-kvstore.la \
-                               libobjectregistry.la $(LTLIBEVENT)
+                               libobjectregistry.la libconfiguration.la \
+                               $(LTLIBEVENT)
 management_mbdbconvert_DEPENDENCIES = libsqlite-kvstore.la libmc-kvstore.la \
-                                      libobjectregistry.la
+                                      libobjectregistry.la libconfiguration.la
 
 if BUILD_EMBEDDED_LIBSQLITE3
 ep_la_LIBADD += libsqlite3.la
@@ -330,6 +328,11 @@ dispatcher_test_SOURCES += gethrtime.c
 vbucket_test_SOURCES += gethrtime.c
 checkpoint_test_SOURCES += gethrtime.c
 management_mbdbconvert_SOURCES += gethrtime.c
+endif
+
+if BUILD_BYTEORDER
+ep_la_SOURCES += byteorder.c
+management_mbdbconvert_SOURCES += byteorder.c
 endif
 
 pythonlibdir=$(libdir)/python

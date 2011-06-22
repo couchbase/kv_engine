@@ -18,7 +18,8 @@
 #include <kvstore.hh>
 #include <item.hh>
 #include <callbacks.hh>
-#include "../sqlite-kvstore/sqlite-strategies.hh"
+#include "sqlite-kvstore/sqlite-strategies.hh"
+#include "sqlite-kvstore/sqlite-kvstore.hh"
 
 #ifndef EX_USAGE
 #define EX_USAGE 64
@@ -37,29 +38,58 @@
 
 using namespace std;
 
-#if 0
 static KVStore *getStore(EPStats &st,
                          const char *path,
                          const char *strategyName,
                          const char *shardPattern,
                          const char *initFile = NULL) {
-    db_type dbStrategy;
+    db_type dbStrategy = multi_db;
 
     if (!KVStoreFactory::stringToType(strategyName, dbStrategy)) {
         cerr << "Unable to parse strategy type:  " << strategyName << endl;
         exit(EX_USAGE);
     }
 
-    const char *postInitFile(NULL);
     size_t nVBuckets(1024);
     size_t dbShards(4);
+    SqliteStrategy *sqliteInstance = NULL;
 
-    // @trond fixme!
-    SQLiteKVStoreConfig conf(path, shardPattern, initFile,
-                             postInitFile, nVBuckets, dbShards);
-    return KVStoreFactory::create(st, conf);
+    switch (dbStrategy) {
+    case multi_db:
+        sqliteInstance = new MultiDBSingleTableSqliteStrategy(path,
+                                                              shardPattern,
+                                                              initFile,
+                                                              NULL, dbShards);
+        break;
+    case single_db:
+        sqliteInstance = new SingleTableSqliteStrategy(path,
+                                                       initFile,
+                                                       NULL);
+        break;
+    case single_mt_db:
+        sqliteInstance = new MultiTableSqliteStrategy(path,
+                                                      initFile,
+                                                      NULL, nVBuckets);
+        break;
+    case multi_mt_db:
+        sqliteInstance = new ShardedMultiTableSqliteStrategy(path,
+                                                             shardPattern,
+                                                             initFile,
+                                                             NULL, nVBuckets,
+                                                             dbShards);
+        break;
+    case multi_mt_vb_db:
+        sqliteInstance = new ShardedByVBucketSqliteStrategy(path,
+                                                            shardPattern,
+                                                            initFile,
+                                                            NULL, nVBuckets,
+                                                            dbShards);
+        break;
+    }
+
+    return new StrategicSqlite3(st,
+                                shared_ptr<SqliteStrategy>(sqliteInstance));
 }
-#endif
 
 class MutationVerifier : public Callback<mutation_result> {
 public:
@@ -242,7 +272,6 @@ int main(int argc, char **argv) {
 
     SqliteStrategy::disableSchemaCheck();
 
-#if 0
     KVStore *src(getStore(srcStats, srcPath,
                           srcStrategy, srcShardPattern));
     KVStore *dest(getStore(destStats, destPath,
@@ -252,6 +281,6 @@ int main(int argc, char **argv) {
     cout << "Each . represents " << reportEvery << " items moved." << endl;
     src->dump(mover);
     cout << endl << "Moved " << mover.getTransferred() << " items." << endl;
-#endif
+
     return 0;
 }
