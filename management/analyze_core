@@ -1,9 +1,9 @@
 #!/bin/sh
 #
-# Copyright (c) 2011, Membase, Inc.
+# Copyright (c) 2011, Couchbase, Inc.
 # All rights reserved
 #
-root="/opt/membase"
+root="/opt/couchbase"
 
 usage()
 {
@@ -72,7 +72,7 @@ fi
 ls "${root}" >/dev/null 2>&1
 if [ $? -ne 0 ]
 then
-   echo "Membase root directory (${root}) doesn't exist"
+   echo "Couchbase root directory (${root}) doesn't exist"
    exit 1
 fi
 
@@ -103,14 +103,14 @@ fi
 if [ "x${executable}" = "x" ]
 then
    echo "Failed to locate the binary for the corefile."
-   echo "Your tools might be broken. Consider sending core dump to support@membase.com."
+   echo "Your tools might be broken. Consider sending core dump to support@couchbase.com."
    exit 1
 fi
 
 cat > ${report}  <<EOF
 Basic crash dump analysis of ${corefile}.
 
-Please send the file to support@membase.com
+Please send the file to support@couchbase.com
 
 --------------------------------------------------------------------------------
 File information:
@@ -158,6 +158,6 @@ so it is recommended that you preserve the corefile and the binary
 for a more deep analysis. If the program use any shared libraries
 (such as memcached engines) you should also preserve them.
 
-Please send ${report} to support@membase.com
+Please send ${report} to support@couchbase.com
 
 EOF
