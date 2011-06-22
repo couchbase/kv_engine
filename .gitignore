@@ -12,6 +12,7 @@
 *.tcov
 *~
 .deps/
+.generated_configuration
 .genstamp
 .libs/
 /*_test

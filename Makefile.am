@@ -114,8 +114,10 @@ libmc_kvstore_la_CPPFLAGS = -I$(top_srcdir) -I$(top_srcdir)/sqlite-kvstore \
 libmc_kvstore_la_LIBADD =
 libmc_kvstore_la_DEPENDENCIES =
 
-generated_configuration.hh generated_configuration.cc: gen_config configuration.json
-	./gen_config
+.generated_configuration: gen_config configuration.json
+	./gen_config && touch .generated_configuration
+
+generated_configuration.hh generated_configuration.cc: .generated_configuration
 
 libconfiguration_la_SOURCES = \
                               generated_configuration.hh \
