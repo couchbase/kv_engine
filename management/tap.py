@@ -118,3 +118,5 @@ class TapDescriptor(object):
         if '@' in self.host:
             self.id, self.host = self.host.split('@', 1)
 
+    def __repr__(self):
+        return "<TapDescriptor %s@%s:%d>" % (self.id or "(anon)", self.host, self.port)

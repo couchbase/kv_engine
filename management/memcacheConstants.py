@@ -9,6 +9,7 @@ import struct
 # Command constants
 CMD_GET = 0
 CMD_SET = 1
+CMD_SETQ = 0x11
 CMD_ADD = 2
 CMD_REPLACE = 3
 CMD_DELETE = 4
@@ -146,6 +147,7 @@ FLUSH_PKT_FMT=">I"
 # expiration
 TOUCH_PKT_FMT=">I"
 GAT_PKT_FMT=">I"
+GETL_PKT_FMT=">I"
 
 # 2 bit integer.  :/
 VB_SET_PKT_FMT=">I"

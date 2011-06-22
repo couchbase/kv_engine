@@ -16,7 +16,7 @@ import exceptions
 from memcacheConstants import REQ_MAGIC_BYTE, RES_MAGIC_BYTE
 from memcacheConstants import REQ_PKT_FMT, RES_PKT_FMT, MIN_RECV_PACKET
 from memcacheConstants import SET_PKT_FMT, DEL_PKT_FMT, INCRDECR_RES_FMT
-from memcacheConstants import TOUCH_PKT_FMT, GAT_PKT_FMT
+from memcacheConstants import TOUCH_PKT_FMT, GAT_PKT_FMT, GETL_PKT_FMT
 import memcacheConstants
 
 class MemcachedError(exceptions.Exception):
@@ -151,10 +151,11 @@ class MemcachedClient(object):
         parts=self._doCmd(memcacheConstants.CMD_GET, key, '')
         return self.__parseGet(parts)
 
-    def getl(self, key):
+    def getl(self, key, exp=15):
         """Get the value for a given key within the memcached server."""
-        parts=self._doCmd(memcacheConstants.CMD_GET_LOCKED, key, '')
-        return self.__parseGet(parts, len(key))
+        parts=self._doCmd(memcacheConstants.CMD_GET_LOCKED, key, '',
+            struct.pack(memcacheConstants.GETL_PKT_FMT, exp))
+        return self.__parseGet(parts)
 
     def cas(self, key, exp, flags, oldVal, val):
         """CAS in a new value for the given key and comparison value."""
@@ -236,8 +237,7 @@ class MemcachedClient(object):
         self.vbucketId = vbucket
         state = struct.pack(memcacheConstants.VB_SET_PKT_FMT,
                             memcacheConstants.VB_STATE_NAMES[stateName])
-        return self._doCmd(memcacheConstants.CMD_SET_VBUCKET_STATE, '',
-                           state)
+        return self._doCmd(memcacheConstants.CMD_SET_VBUCKET_STATE, '', '', state)
 
     def get_vbucket_state(self, vbucket):
         return self._doCmd(memcacheConstants.CMD_GET_VBUCKET_STATE,
@@ -274,6 +274,37 @@ class MemcachedClient(object):
                 done=True
 
         return rv
+
+    def setMulti(self, exp, flags, items):
+        """Multi-set (using setq).
+
+        Give me (key, value) pairs."""
+
+        # If this is a dict, convert it to a pair generator
+        if hasattr(items, 'iteritems'):
+            items = items.iteritems()
+
+        opaqued=dict(enumerate(items))
+        terminal=len(opaqued)+10
+        extra=struct.pack(SET_PKT_FMT, flags, exp)
+
+        # Send all of the keys in quiet
+        for opaque,kv in opaqued.iteritems():
+            self._sendCmd(memcacheConstants.CMD_SETQ, kv[0], kv[1], opaque, extra)
+
+        self._sendCmd(memcacheConstants.CMD_NOOP, '', '', terminal)
+
+        # Handle the response
+        failed = []
+        done=False
+        while not done:
+            try:
+                opaque, cas, data = self._handleSingleResponse(None)
+                done = opaque == terminal
+            except MemcachedError, e:
+                failed.append(e)
+
+        return failed
 
     def stats(self, sub=''):
         """Get stats."""
@@ -405,3 +436,4 @@ class MemcachedClient(object):
     def deregister_tap_client(self, tap_name):
         """Deregister the TAP client with a given name."""
         return self._doCmd(memcacheConstants.CMD_DEREGISTER_TAP_CLIENT, tap_name, '', '', 0)
+
