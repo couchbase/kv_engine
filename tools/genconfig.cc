@@ -44,7 +44,7 @@ map<string, string> getters;
 map<string, string> datatypes;
 
 
-std::ostream& operator <<(std::ostream &out, const cJSON *o) {
+static std::ostream& operator <<(std::ostream &out, const cJSON *o) {
     switch (o->type) {
     case cJSON_Number:
         if (o->valueint != o->valuedouble) {
@@ -63,11 +63,11 @@ std::ostream& operator <<(std::ostream &out, const cJSON *o) {
     return out;
 }
 
-bool isFloat(const cJSON *o) {
+static bool isFloat(const cJSON *o) {
     return o->valueint != o->valuedouble;
 }
 
-string getRangeValidatorCode(const std::string &key, cJSON *o) {
+static string getRangeValidatorCode(const std::string &key, cJSON *o) {
     // the range validator should contain a "min" and "max" element
     cJSON *min = cJSON_GetObjectItem(o, "min");
     cJSON *max = cJSON_GetObjectItem(o, "max");
