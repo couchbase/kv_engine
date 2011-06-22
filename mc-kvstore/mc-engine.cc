@@ -529,6 +529,9 @@ void MemcachedEngine::reschedule(std::list<BinaryPacketHandler*> &packets) {
 }
 
 void MemcachedEngine::receiveData(evutil_socket_t s) {
+    if (sock == -1) {
+        return;
+    }
     assert(s == sock);
 
     size_t processed;
@@ -591,6 +594,9 @@ void MemcachedEngine::receiveData(evutil_socket_t s) {
 }
 
 void MemcachedEngine::sendData(evutil_socket_t s) {
+    if (sock == -1) {
+        return ;
+    }
     assert(s == sock);
     do {
         if (!output) {
