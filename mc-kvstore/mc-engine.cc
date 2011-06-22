@@ -721,7 +721,18 @@ void MemcachedEngine::handleRequest(protocol_binary_request_header *req) {
 }
 
 void MemcachedEngine::notify() {
-    if (send(notifyPipe[1], "", 1, 0) != 1) {
+    ssize_t nw = send(notifyPipe[1], "", 1, 0);
+    if (nw != 1) {
+        std::stringstream ss;
+        ss << "Failed to send notification message to the engine. "
+           << "send() returned " << nw << " but we expected 1.";
+        if (nw == -1) {
+            ss << std::endl << "Error: " << strerror(errno);
+        }
+        getLogger()->log(EXTENSION_LOG_WARNING, this, ss.str().c_str());
+        // @todo for now let's just abort... I'd like to figure out if / why
+        // this happens, and people don't pay enough attention to log messages
+        // ;)
         abort();
     }
 }
@@ -829,6 +840,7 @@ void MemcachedEngine::doInsertCommand(BinaryPacketHandler *rh) {
     req = (protocol_binary_request_no_extras *)buffer->data;
     req->message.header.request.opaque = rh->seqno = seqno++;
 
+    bool doNotify = commandQueue.empty();
     commandQueue.push(buffer);
     if (dynamic_cast<TapResponseHandler*>(rh)) {
         tapHandler.push_back(rh);
@@ -836,7 +848,9 @@ void MemcachedEngine::doInsertCommand(BinaryPacketHandler *rh) {
         responseHandler.push_back(rh);
     }
 
-    notify();
+    if (doNotify) {
+        notify();
+    }
 }
 
 void MemcachedEngine::del(const std::string &key, uint16_t vb,
