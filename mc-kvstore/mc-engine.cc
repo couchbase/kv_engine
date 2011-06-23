@@ -385,6 +385,25 @@ MemcachedEngine::~MemcachedEngine() {
                          "Failed to join thread: %d %s\n", ret, strerror(ret));
         abort();
     }
+
+    EVUTIL_CLOSESOCKET(notifyPipe[0]);
+    EVUTIL_CLOSESOCKET(notifyPipe[1]);
+    notifyPipe[0] = notifyPipe[1] = INVALID_SOCKET;
+
+    if (ev_flags != 0 && event_del(&ev_event) == -1) {
+        getLogger()->log(EXTENSION_LOG_WARNING, this,
+                         "Failed to delete event\n");
+        abort();
+    }
+    if (event_del(&ev_notify) == -1) {
+        getLogger()->log(EXTENSION_LOG_WARNING, this,
+                         "Failed to delete notify event\n");
+        abort();
+    }
+
+
+    event_base_free(ev_base);
+    ev_base = NULL;
 }
 
 void MemcachedEngine::run() {
