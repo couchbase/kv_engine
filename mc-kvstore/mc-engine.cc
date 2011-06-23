@@ -465,7 +465,7 @@ void MemcachedEngine::notifyHandler(evutil_socket_t s, short which) {
 }
 
 void MemcachedEngine::updateEvent(evutil_socket_t s) {
-    if (sock == -1) {
+    if (sock == INVALID_SOCKET) {
         return;
     }
     assert(s == sock);

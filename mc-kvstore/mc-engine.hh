@@ -152,7 +152,8 @@ private:
 
     bool createNotificationPipe();
 
-    evutil_socket_t notifyPipe[2];evutil_socket_t sock;
+    evutil_socket_t notifyPipe[2];
+    evutil_socket_t sock;
 
     pthread_t threadid;
     Configuration &configuration;
