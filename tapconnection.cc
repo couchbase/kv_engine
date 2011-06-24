@@ -1339,7 +1339,18 @@ void TapProducer::setClosedCheckpointOnlyFlag(bool isClosedCheckpointOnly) {
 }
 
 void TapProducer::scheduleBackfill_UNLOCKED(const std::vector<uint16_t> &vblist) {
-    if (vblist.empty()) {
+    const VBucketMap &vbuckets = engine.getEpStore()->getVBuckets();
+    std::vector<uint16_t> vbs;
+    std::vector<uint16_t>::const_iterator vbit = vblist.begin();
+    // Skip all the vbuckets that are receiving backfill items from the upstream servers.
+    for (; vbit != vblist.end(); ++vbit) {
+        RCPtr<VBucket> vb = vbuckets.getBucket(*vbit);
+        if (vb && !vb->isBackfillPhase()) {
+            vbs.push_back(*vbit);
+        }
+    }
+
+    if (vbs.empty()) {
         return;
     }
 
@@ -1352,8 +1363,8 @@ void TapProducer::scheduleBackfill_UNLOCKED(const std::vector<uint16_t> &vblist)
             // Clear backfill vb filter for the next backfill task
             backFillVBucketFilter.assign(emptyVBs);
         }
-        std::vector<uint16_t>::const_iterator it = vblist.begin();
-        for(; it != vblist.end(); ++it) {
+        std::vector<uint16_t>::iterator it = vbs.begin();
+        for(; it != vbs.end(); ++it) {
             std::pair<std::set<uint16_t>::iterator, bool> ret = backfillVBuckets.insert(*it);
             if (ret.second) {
                 backFillVBucketFilter.addVBucket(*it);
@@ -1363,8 +1374,8 @@ void TapProducer::scheduleBackfill_UNLOCKED(const std::vector<uint16_t> &vblist)
         // All backfill tasks from the current backfill session were completed.
         // This will create a new backfill session.
         backfillVBuckets.clear();
-        backfillVBuckets.insert(vblist.begin(), vblist.end());
-        backFillVBucketFilter.assign(vblist);
+        backfillVBuckets.insert(vbs.begin(), vbs.end());
+        backFillVBucketFilter.assign(vbs);
     }
 
     // Send an initial_vbucket_stream message to the destination node so that it can
