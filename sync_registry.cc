@@ -361,8 +361,10 @@ void SyncListener::maybeNotifyIOComplete(bool timedout) {
 
 
 void SyncListener::destroy() {
-    Dispatcher *d = engine.getEpStore()->getNonIODispatcher();
+    // Before destroying the SyncListener object, clear its cookie's engine data
+    engine.getServerApi()->cookie->store_engine_specific(cookie, NULL);
 
+    Dispatcher *d = engine.getEpStore()->getNonIODispatcher();
     d->schedule(shared_ptr<DispatcherCallback>(new SyncDestructionCallback(this)),
                 NULL, Priority::SyncDestroyPriority, 0, false, true);
 }
@@ -372,8 +374,6 @@ bool SyncDestructionCallback::callback(Dispatcher &d, TaskId) {
     if (syncListener->abortTaskId) {
         d.cancel(syncListener->abortTaskId);
     }
-    syncListener->engine.getServerApi()->cookie->store_engine_specific(syncListener->cookie,
-                                                                       NULL);
     delete syncListener;
     return false;
 }
