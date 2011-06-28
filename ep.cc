@@ -470,6 +470,36 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
     assert(roUnderlying);
 }
 
+class FlusherLeavingStateListener : public FlusherStateListener {
+public:
+    FlusherLeavingStateListener(Flusher &f, enum flusher_state st) :
+        flusher(f), state(st) {}
+
+    virtual void  stateChanged(const enum flusher_state &from,
+                               const enum flusher_state &to) {
+        (void)from;
+        if (to != state) {
+            LockHolder lh(syncobject);
+            syncobject.notify();
+        }
+    }
+
+    void wait() {
+        LockHolder lh(syncobject);
+        if (flusher.state() != state) {
+            // We're not in that state anymore
+            return;
+        }
+        syncobject.wait();
+    }
+
+private:
+    Flusher &flusher;
+    enum flusher_state state;
+    SyncObject syncobject;
+};
+
+
 void EventuallyPersistentStore::initialize() {
     // We should nuke everything unless we want warmup
     Configuration &config = engine.getConfiguration();
@@ -483,10 +513,11 @@ void EventuallyPersistentStore::initialize() {
     useconds_t sleepTime = 1;
     useconds_t maxSleepTime = 500000;
     if (config.isWaitforwarmup() && flusher) {
-        while (flusher->state() == initializing) {
-            usleep(sleepTime);
-            sleepTime = std::min(sleepTime << 1, maxSleepTime);
-        }
+        FlusherLeavingStateListener flusherListener(*flusher, initializing);
+        flusher->addFlusherStateListener(&flusherListener);
+        flusherListener.wait();
+        flusher->removeFlusherStateListener(&flusherListener);
+
         if (config.isFailpartialwarmup() && stats.warmOOM > 0) {
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                              "Warmup failed to load %d records due to OOM, exiting.\n",
@@ -494,8 +525,9 @@ void EventuallyPersistentStore::initialize() {
             exit(1);
         }
     } else {
-        // Although we don't wait for the full data load, wait until the states of all vbuckets
-        // are loaded from vbucket_states table. This won't take much time.
+        // Although we don't wait for the full data load, wait until the
+        // states of all vbuckets are loaded from vbucket_states table.
+        // This won't take much time.
         while (flusher && !flusher->isVBStateLoaded()) {
             usleep(sleepTime);
             sleepTime = std::min(sleepTime << 1, maxSleepTime);

@@ -112,6 +112,7 @@ bool Flusher::transition_state(enum flusher_state to) {
         return false;
     }
 
+    fireStateChange(static_cast<enum flusher_state>(_state), to);
     getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "Transitioning from %s to %s\n",
                      stateName(_state), stateName(to));
 
@@ -289,4 +290,26 @@ int Flusher::doFlush() {
     }
 
     return flushRv;
+}
+
+void Flusher::addFlusherStateListener(FlusherStateListener *listener) {
+    LockHolder lh(stateListeners.mutex);
+    stateListeners.listeners.push_back(listener);
+}
+
+void Flusher::removeFlusherStateListener(FlusherStateListener *listener) {
+    LockHolder lh(stateListeners.mutex);
+    stateListeners.listeners.remove(listener);
+}
+
+void Flusher::fireStateChange(const enum flusher_state &from,
+                              const enum flusher_state &to)
+{
+    LockHolder lh(stateListeners.mutex);
+    std::list<FlusherStateListener*>::iterator ii;
+    for (ii = stateListeners.listeners.begin();
+         ii != stateListeners.listeners.end();
+         ++ii) {
+        (*ii)->stateChanged(from, to);
+    }
 }

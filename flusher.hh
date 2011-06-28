@@ -41,6 +41,13 @@ private:
     Flusher *flusher;
 };
 
+class FlusherStateListener {
+public:
+    virtual ~FlusherStateListener() { }
+    virtual void stateChanged(const enum flusher_state &from,
+                              const enum flusher_state &to) = 0;
+};
+
 /**
  * Manage persistence of data for an EventuallyPersistentStore.
  */
@@ -85,8 +92,14 @@ public:
 
     enum flusher_state state() const;
     const char * stateName() const;
+
+    void addFlusherStateListener(FlusherStateListener *listener);
+    void removeFlusherStateListener(FlusherStateListener *listener);
+
 private:
     bool transition_state(enum flusher_state to);
+    void fireStateChange(const enum flusher_state &from,
+                         const enum flusher_state &to);
     int doFlush();
     void completeFlush();
     void schedule_UNLOCKED();
@@ -108,6 +121,11 @@ private:
     rel_time_t               flushStart;
     Atomic<bool>             vbStateLoaded;
     Atomic<bool>             forceShutdownReceived;
+
+    struct {
+        Mutex mutex;
+        std::list<FlusherStateListener*> listeners;
+    } stateListeners;
 
     DISALLOW_COPY_AND_ASSIGN(Flusher);
 };
