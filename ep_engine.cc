@@ -23,12 +23,10 @@
 
 #include <memcached/engine.h>
 #include <memcached/protocol_binary.h>
-
 #include "ep_engine.h"
-#include "statsnap.hh"
 #include "tapthrottle.hh"
 #include "htresizer.hh"
-#include "checkpoint_remover.hh"
+// #include "checkpoint_remover.hh"
 
 static void assembleSyncResponse(std::stringstream &resp,
                                  SyncListener *syncListener,
@@ -1245,7 +1243,6 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server
     tapBacklogLimit(5000),
     memLowWat(std::numeric_limits<size_t>::max()),
     memHighWat(std::numeric_limits<size_t>::max()),
-    expiryPagerSleeptime(3600), checkpointRemoverInterval(5),
     mutation_count(0)
 {
     interface.interface = 1;
@@ -1345,7 +1342,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     memHighWat = configuration.getMemHighWat();
     tapBacklogLimit = configuration.getTapBacklogLimit();
 
-    expiryPagerSleeptime = configuration.getExpPagerStime();
     TapProducer::bgMaxPending = configuration.getTapBgMaxPending();
     TapProducer::backoffSleepTime = configuration.getTapBackoffPeriod();
     TapProducer::ackWindowSize = configuration.getTapAckWindowSize();
@@ -1353,7 +1349,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     TapProducer::ackGracePeriod = configuration.getTapAckGracePeriod();
     uint32_t init_seq_num = configuration.getTapAckInitialSequenceNumber();
     TapProducer::initialAckSequenceNumber = init_seq_num == 0 ? 1 : init_seq_num;
-    checkpointRemoverInterval = configuration.getChkRemoverStime();
     CheckpointManager::setCheckpointMaxItems(configuration.getChkMaxItems());
     CheckpointManager::setCheckpointPeriod(configuration.getChkPeriod());
     CheckpointManager::allowInconsistentSlaveCheckpoint(configuration.isInconsistentSlaveChk());
@@ -1416,73 +1411,15 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
             return ret;
         }
 
-        if (!configuration.isWarmup()) {
-            epstore->reset();
-        }
-
+        // Register the callback
         SERVER_CALLBACK_API *sapi;
         sapi = getServerApi()->callback;
         sapi->register_callback(reinterpret_cast<ENGINE_HANDLE*>(this),
-                ON_DISCONNECT, EvpHandleDisconnect, this);
-
+                                ON_DISCONNECT, EvpHandleDisconnect, this);
         startEngineThreads();
 
-        // If requested, don't complete the initialization until the
-        // flusher transitions out of the initializing state (i.e
-        // warmup is finished).
-        const Flusher *flusher = epstore->getFlusher();
-        useconds_t sleepTime = 1;
-        useconds_t maxSleepTime = 500000;
-        if (configuration.isWaitforwarmup() && flusher) {
-            while (flusher->state() == initializing) {
-                usleep(sleepTime);
-                sleepTime = std::min(sleepTime << 1, maxSleepTime);
-            }
-            if (configuration.isFailpartialwarmup() && stats.warmOOM > 0) {
-                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                 "Warmup failed to load %d records due to OOM, exiting.\n",
-                                 static_cast<unsigned int>(stats.warmOOM));
-                exit(1);
-            }
-        } else {
-            // Although we don't wait for the full data load, wait until the states of all vbuckets
-            // are loaded from vbucket_states table. This won't take much time.
-            while (flusher && !flusher->isVBStateLoaded()) {
-                usleep(sleepTime);
-                sleepTime = std::min(sleepTime << 1, maxSleepTime);
-            }
-        }
-
-        // Run the vbucket state snapshot job once after the warmup
-        epstore->scheduleVBSnapshot(Priority::VBucketPersistHighPriority);
-
-        if (HashTable::getDefaultStorageValueType() != small) {
-            shared_ptr<DispatcherCallback> cb(new ItemPager(epstore, stats));
-            epstore->getNonIODispatcher()->schedule(cb, NULL, Priority::ItemPagerPriority, 10);
-
-            shared_ptr<DispatcherCallback> exp_cb(new ExpiredItemPager(epstore, stats,
-                                                                       expiryPagerSleeptime));
-            epstore->getNonIODispatcher()->schedule(exp_cb, NULL, Priority::ItemPagerPriority,
-                                                    expiryPagerSleeptime);
-        }
-
-        shared_ptr<DispatcherCallback> htr(new HashtableResizer(epstore));
-        epstore->getNonIODispatcher()->schedule(htr, NULL, Priority::HTResizePriority,
-                                                10);
-
-        shared_ptr<DispatcherCallback> item_db_cb(epstore->getInvalidItemDbPager());
-        epstore->getDispatcher()->schedule(item_db_cb, NULL,
-                                           Priority::InvalidItemDbPagerPriority, 0);
-
-        shared_ptr<DispatcherCallback> chk_cb(new ClosedUnrefCheckpointRemover(epstore, stats,
-                                                                       checkpointRemoverInterval));
-        epstore->getNonIODispatcher()->schedule(chk_cb, NULL,
-                                                Priority::CheckpointRemoverPriority,
-                                                checkpointRemoverInterval);
-
-        shared_ptr<StatSnap> sscb(new StatSnap(this));
-        epstore->getDispatcher()->schedule(sscb, NULL, Priority::StatSnapPriority,
-                                           STATSNAP_FREQ);
+        // Complete the initialization of the ep-store
+        epstore->initialize();
     }
 
     if (ret == ENGINE_SUCCESS) {

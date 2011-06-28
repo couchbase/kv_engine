@@ -438,6 +438,8 @@ public:
 
     ~EventuallyPersistentStore();
 
+    void initialize();
+
     /**
      * Set an item in the store.
      * @param item the item to set

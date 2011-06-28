@@ -739,8 +739,6 @@ private:
     size_t tapBacklogLimit;
     size_t memLowWat;
     size_t memHighWat;
-    size_t expiryPagerSleeptime;
-    size_t checkpointRemoverInterval;
     Atomic<uint64_t> mutation_count;
     size_t getlDefaultTimeout;
     size_t getlMaxTimeout;

@@ -25,11 +25,13 @@
 
 #include "ep.hh"
 #include "flusher.hh"
+#include "statsnap.hh"
 #include "locks.hh"
 #include "dispatcher.hh"
 #include "kvstore.hh"
 #include "ep_engine.h"
 #include "htresizer.hh"
+#include "checkpoint_remover.hh"
 
 extern "C" {
     static rel_time_t uninitialized_current_time(void) {
@@ -467,6 +469,74 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
     assert(rwUnderlying);
     assert(roUnderlying);
 }
+
+void EventuallyPersistentStore::initialize() {
+    // We should nuke everything unless we want warmup
+    Configuration &config = engine.getConfiguration();
+    if (!config.isWarmup()) {
+        reset();
+    }
+
+    // If requested, don't complete the initialization until the
+    // flusher transitions out of the initializing state (i.e
+    // warmup is finished).
+    useconds_t sleepTime = 1;
+    useconds_t maxSleepTime = 500000;
+    if (config.isWaitforwarmup() && flusher) {
+        while (flusher->state() == initializing) {
+            usleep(sleepTime);
+            sleepTime = std::min(sleepTime << 1, maxSleepTime);
+        }
+        if (config.isFailpartialwarmup() && stats.warmOOM > 0) {
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                             "Warmup failed to load %d records due to OOM, exiting.\n",
+                             static_cast<unsigned int>(stats.warmOOM));
+            exit(1);
+        }
+    } else {
+        // Although we don't wait for the full data load, wait until the states of all vbuckets
+        // are loaded from vbucket_states table. This won't take much time.
+        while (flusher && !flusher->isVBStateLoaded()) {
+            usleep(sleepTime);
+            sleepTime = std::min(sleepTime << 1, maxSleepTime);
+        }
+    }
+
+    // Run the vbucket state snapshot job once after the warmup
+    scheduleVBSnapshot(Priority::VBucketPersistHighPriority);
+
+    size_t expiryPagerSleeptime = config.getExpPagerStime();
+    if (HashTable::getDefaultStorageValueType() != small) {
+        shared_ptr<DispatcherCallback> cb(new ItemPager(this, stats));
+        nonIODispatcher->schedule(cb, NULL, Priority::ItemPagerPriority, 10);
+
+        shared_ptr<DispatcherCallback> exp_cb(new ExpiredItemPager(this, stats,
+                                                                   expiryPagerSleeptime));
+        nonIODispatcher->schedule(exp_cb, NULL, Priority::ItemPagerPriority,
+                                  expiryPagerSleeptime);
+    }
+
+    shared_ptr<DispatcherCallback> htr(new HashtableResizer(this));
+    nonIODispatcher->schedule(htr, NULL, Priority::HTResizePriority, 10);
+
+    shared_ptr<DispatcherCallback> item_db_cb(getInvalidItemDbPager());
+    dispatcher->schedule(item_db_cb, NULL,
+                         Priority::InvalidItemDbPagerPriority, 0);
+
+
+    size_t checkpointRemoverInterval = config.getChkRemoverStime();
+    shared_ptr<DispatcherCallback> chk_cb(new ClosedUnrefCheckpointRemover(this,
+                                                                           stats,
+                                                                           checkpointRemoverInterval));
+    nonIODispatcher->schedule(chk_cb, NULL,
+                              Priority::CheckpointRemoverPriority,
+                              checkpointRemoverInterval);
+
+    shared_ptr<StatSnap> sscb(new StatSnap(&engine));
+    dispatcher->schedule(sscb, NULL, Priority::StatSnapPriority,
+                         STATSNAP_FREQ);
+}
+
 
 /**
  * Hash table visitor used to collect dirty objects to verify storage.
