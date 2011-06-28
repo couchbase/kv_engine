@@ -2,6 +2,7 @@
 #ifndef MC_KVSTORE_MC_ENGINE_HH
 #define MC_KVSTORE_MC_ENGINE_HH
 
+#include <vector>
 #include <queue>
 #include <event.h>
 #include "mutex.hh"
@@ -113,10 +114,8 @@ public:
     void delVBucket(uint16_t vb, Callback<bool> &cb);
 
     void tap(TapCallback &cb);
-    void tap(uint16_t vb, TapCallback &cb);
-
+    void tap(const std::vector<uint16_t> &vbids, bool full, TapCallback &cb);
     void noop(Callback<bool> &cb);
-
 
 protected:
     friend class SelectBucketResponseHandler;

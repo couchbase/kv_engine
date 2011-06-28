@@ -309,6 +309,8 @@ public:
             protocol_binary_request_tap_mutation *mreq;
             mreq = (protocol_binary_request_tap_mutation *)req;
 
+            uint16_t tap_flags = ntohs(mreq->message.body.tap.flags);
+            bool partial = tap_flags & TAP_FLAG_NO_VALUE;
             uint8_t *keyptr = mreq->bytes + sizeof(mreq->bytes);
             uint16_t keylen = ntohs(req->request.keylen);
             uint32_t vallen = ntohl(req->request.bodylen) - keylen
@@ -322,7 +324,7 @@ public:
                     mreq->message.body.item.expiration, valptr, vallen,
                     req->request.cas, -1, ntohs(req->request.vbucket));
 
-            GetValue rv(item);
+            GetValue rv(item, ENGINE_SUCCESS, -1, -1, NULL, partial);
             callback.cb.callback(rv);
         }
     }
@@ -1109,10 +1111,12 @@ void MemcachedEngine::tap(TapCallback &cb) {
     insertCommand(new TapResponseHandler(buffer, cb));
 }
 
-void MemcachedEngine::tap(uint16_t vb, TapCallback &cb) {
+void MemcachedEngine::tap(const std::vector<uint16_t> &vbids,
+                          bool full, TapCallback &cb)
+{
     protocol_binary_request_tap_connect *req;
 
-    Buffer *buffer = new Buffer(sizeof(req->bytes) + 4);
+    Buffer *buffer = new Buffer(sizeof(req->bytes) + 2 + (2 * vbids.size()));
     req = (protocol_binary_request_tap_connect*)buffer->data;
 
     memset(buffer->data, 0, buffer->size);
@@ -1120,13 +1124,25 @@ void MemcachedEngine::tap(uint16_t vb, TapCallback &cb) {
     req->message.header.request.opcode = PROTOCOL_BINARY_CMD_TAP_CONNECT;
     req->message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
     req->message.header.request.extlen = 4;
-    req->message.header.request.bodylen = ntohl(8);
-    req->message.body.flags
-            = ntohl(TAP_CONNECT_FLAG_DUMP | TAP_CONNECT_FLAG_LIST_VBUCKETS);
-    uint16_t nv = htons(1);
-    vb = htons(vb);
+    req->message.header.request.bodylen = ntohl(6 + (2 * vbids.size()));
+
+    uint32_t flags = TAP_CONNECT_FLAG_DUMP | TAP_CONNECT_FLAG_LIST_VBUCKETS;
+    if (!full) {
+        flags |= TAP_CONNECT_REQUEST_KEYS_ONLY;
+    }
+
+    req->message.body.flags = ntohl(flags);
+    uint16_t nv = htons(vbids.size());
     memcpy(req->bytes + sizeof(req->bytes), &nv, sizeof(nv));
-    memcpy(req->bytes + sizeof(req->bytes) + sizeof(nv), &vb, sizeof(vb));
+    uint8_t *ptr = req->bytes + sizeof(req->bytes) + sizeof(nv);
+
+    std::vector<uint16_t>::const_iterator ii;
+    for (ii = vbids.begin(); ii != vbids.end(); ++ii) {
+        uint16_t vb = ntohs(*ii);
+        memcpy(ptr, &vb, sizeof(vb));
+        ptr += sizeof(vb);
+    }
+
     buffer->avail = buffer->size;
     insertCommand(new TapResponseHandler(buffer, cb));
 }

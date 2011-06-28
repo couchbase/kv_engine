@@ -181,6 +181,25 @@ public:
     virtual void dump(uint16_t vbid, Callback<GetValue> &cb) = 0;
 
     /**
+     * Check if the kv-store supports a dumping all of the keys
+     * @return true you may call dumpKeys() to do a prefetch
+     *              of the keys
+     */
+    virtual bool isKeyDumpSupported() {
+        return false;
+    }
+
+    /**
+     * Dump the keys from a given set of vbuckets
+     * @param vbids the vbuckets to dump
+     * @param cb the callback to fire for each document
+     */
+    virtual void dumpKeys(const std::vector<uint16_t> &vbids, Callback<GetValue> &cb) {
+        (void)vbids; (void)cb;
+        throw std::runtime_error("Unsupported operation");
+    }
+
+    /**
      * Get the number of data shards in this kvstore.
      */
     virtual size_t getNumShards() {

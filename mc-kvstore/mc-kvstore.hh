@@ -111,6 +111,12 @@ public:
 
     void dump(uint16_t vb, Callback<GetValue> &cb);
 
+    bool isKeyDumpSupported() {
+        return true;
+    }
+
+    void dumpKeys(const std::vector<uint16_t> &vbids,  Callback<GetValue> &cb);
+
 private:
 
     EPStats &stats;

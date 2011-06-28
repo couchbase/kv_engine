@@ -15,12 +15,16 @@ class StoredValue;
 class GetValue {
 public:
     GetValue() : value(NULL), storedValue(NULL), id(-1),
-                 vb_version(-1), status(ENGINE_KEY_ENOENT) { }
+                 vb_version(-1), status(ENGINE_KEY_ENOENT),
+                 partial(false) { }
 
     explicit GetValue(Item *v, ENGINE_ERROR_CODE s=ENGINE_SUCCESS,
                       uint64_t i = -1, uint16_t vbucket_version = -1,
-                      StoredValue *sv = NULL) :
-        value(v), storedValue(sv), id(i), vb_version(vbucket_version), status(s) { }
+                      StoredValue *sv = NULL, bool incomplete = false) :
+        value(v), storedValue(sv), id(i), vb_version(vbucket_version), status(s),
+        partial(incomplete) { }
+
+
 
     /**
      * The value retrieved for the key.
@@ -54,6 +58,10 @@ public:
         return storedValue;
     }
 
+    bool isPartial() const {
+        return partial;
+    }
+
 private:
 
     Item* value;
@@ -61,6 +69,7 @@ private:
     uint64_t id;
     uint16_t vb_version;
     ENGINE_ERROR_CODE status;
+    bool partial;
 };
 
 /**
