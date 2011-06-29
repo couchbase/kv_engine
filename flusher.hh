@@ -8,6 +8,9 @@
 
 enum flusher_state {
     initializing,
+    loading_keys,
+    loading_data,
+    warmup_complete,
     running,
     pausing,
     paused,
@@ -119,8 +122,11 @@ private:
     std::queue<queued_item> *flushQueue;
     std::queue<queued_item> *rejectQueue;
     rel_time_t               flushStart;
+    // I need the initial vbstate transferred between two states :(
+    std::map<std::pair<uint16_t, uint16_t>, vbucket_state> initialVbState;
     Atomic<bool>             vbStateLoaded;
     Atomic<bool>             forceShutdownReceived;
+    hrtime_t warmupStartTime;
 
     struct {
         Mutex mutex;

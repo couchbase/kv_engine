@@ -1036,6 +1036,62 @@ public:
     }
 
     /**
+     * Insert an item to this hashtable. This is called from the backfill
+     * so we need a bit more logic here. If we're trying to insert a partial
+     * item we don't allow the object to be stored there (and if you try to
+     * insert a full item we're only allowing an item without the value
+     * in memory...)
+     *
+     * @param val the Item to insert
+     * @param eject true if we should eject the value immediately
+     * @param partial is this a complete item, or just the key and meta-data
+     * @return a result indicating the status of the store
+     */
+    mutation_type_t insert(const Item &val, bool eject, bool partial) {
+        assert(active());
+        Item &itm = const_cast<Item&>(val);
+        if (!StoredValue::hasAvailableSpace(stats, itm)) {
+            return NOMEM;
+        }
+
+        mutation_type_t rv = NOT_FOUND;
+        int bucket_num(0);
+        LockHolder lh = getLockedBucket(val.getKey(), &bucket_num);
+        StoredValue *v = unlocked_find(val.getKey(), bucket_num, true);
+
+        if (v != NULL) {
+            if (partial) {
+                // We don't have a better error code ;)
+                return INVALID_CAS;
+            }
+
+            if (itm.getCas() == static_cast<uint64_t>(-1)) {
+                itm.setCas();
+            }
+
+            if (!v->isResident()) {
+                --numNonResidentItems;
+            }
+            v->setValue(itm.getValue(),
+                        itm.getFlags(), itm.getExptime(),
+                        itm.getCas(), stats, *this);
+        } else {
+            itm.setCas();
+            v = valFact(itm, values[bucket_num], *this);
+            values[bucket_num] = v;
+            ++numItems;
+        }
+
+        v->markClean(NULL);
+
+        if (eject || partial) {
+            v->ejectValue(stats, *this);
+        }
+
+        return rv;
+    }
+
+    /**
      * Add an item to the hash table iff it doesn't already exist.
      *
      * @param val the item to store

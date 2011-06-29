@@ -231,7 +231,7 @@ public:
 
         if (gv.getStatus() == ENGINE_SUCCESS) {
             *item = gv.getValue();
-        } else if (gv.getStatus() == ENGINE_KEY_ENOENT && restore.enabled.get()) {
+        } else if (gv.getStatus() == ENGINE_KEY_ENOENT && isDegradedMode()) {
             return ENGINE_TMPFAIL;
         }
 
@@ -540,6 +540,10 @@ public:
         return syncTimeout;
     }
 
+    bool isDegradedMode() const {
+        return warmingUp.get() || restore.enabled.get();
+    }
+
 protected:
     friend class EpEngineValueChangeListener;
 
@@ -571,7 +575,6 @@ private:
                                uint16_t *nes, uint8_t *ttl, uint16_t *flags,
                                uint32_t *seqno, uint16_t *vbucket,
                                TapProducer *c, bool &retry);
-
 
     ENGINE_ERROR_CODE processTapAck(const void *cookie,
                                     uint32_t seqno,
@@ -612,6 +615,10 @@ private:
     friend class TapBGFetchCallback;
     friend class TapConnMap;
     friend class EventuallyPersistentStore;
+
+    void warmupCompleted() {
+        warmingUp.set(false);
+    }
 
     void addMutationEvent(Item *it) {
         if (mutation_count == 0) {
@@ -743,6 +750,7 @@ private:
     EPStats stats;
     SyncRegistry syncRegistry;
     Configuration configuration;
+    Atomic<bool> warmingUp;
     struct {
         Mutex mutex;
         RestoreManager *manager;

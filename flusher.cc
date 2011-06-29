@@ -78,25 +78,39 @@ bool Flusher::resume(void) {
 static bool validTransition(enum flusher_state from,
                             enum flusher_state to)
 {
-    bool rv(true);
-    if (from == initializing && to == running) {
-    } else if (from == initializing && to == stopping) {
-    } else if (from == running && to == pausing) {
-    } else if (from == running && to == stopping) {
-    } else if (from == pausing && to == paused) {
-    } else if (from == stopping && to == stopped) {
-    } else if (from == paused && to == running) {
-    } else if (from == paused && to == stopping) {
-    } else if (from == pausing && to == stopping) {
-    } else {
-        rv = false;
+    // we may go to stopping from all of the stats except stopped
+    if (to == stopping) {
+        return from != stopped;
     }
-    return rv;
+
+    switch (from) {
+    case initializing:
+        return (to == loading_keys || to == loading_data);
+    case loading_keys:
+        return (to == loading_data);
+    case loading_data:
+        return (to == warmup_complete);
+    case warmup_complete:
+        return (to == running);
+    case running:
+        return (to == pausing);
+    case pausing:
+        return (to == paused);
+    case paused:
+        return (to == running);
+    case stopping:
+        return (to == stopped);
+    case stopped:
+        return false;
+    }
+    // THis should be impossible (unless someone added new states)
+    abort();
 }
 
 const char * Flusher::stateName(enum flusher_state st) const {
     static const char * const stateNames[] = {
-        "initializing", "running", "pausing", "paused", "stopping", "stopped"
+        "initializing", "loading keys", "loading data", "warmup complete",
+        "running", "pausing", "paused", "stopping", "stopped"
     };
     assert(st >= initializing && st <= stopped);
     return stateNames[st];
@@ -109,11 +123,15 @@ bool Flusher::transition_state(enum flusher_state to) {
                      stateName(_state), stateName(to));
 
     if (!forceShutdownReceived && !validTransition(_state, to)) {
+        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                         "Invalid transitioning from %s to %s\n",
+                         stateName(_state), stateName(to));
         return false;
     }
 
     fireStateChange(static_cast<enum flusher_state>(_state), to);
-    getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "Transitioning from %s to %s\n",
+    getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                     "Transitioning from %s to %s\n",
                      stateName(_state), stateName(to));
 
     _state = to;
@@ -136,17 +154,15 @@ enum flusher_state Flusher::state() const {
 void Flusher::initialize(TaskId tid) {
     assert(task.get() == tid.get());
     getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                     "Initializing flusher; warming up\n");
+                     "Initializing flusher; warming up");
 
-    hrtime_t startTime = gethrtime();
-    vbStateLoaded = false;
-    store->warmup(vbStateLoaded);
-    store->stats.warmupTime.set((gethrtime() - startTime) / 1000);
-    store->stats.warmupComplete.set(true);
-
-    getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                     "Warmup completed in %ds\n", store->stats.warmupTime.get());
-    transition_state(running);
+    warmupStartTime = gethrtime();
+    initialVbState = store->loadVBucketState();
+    if (store->getROUnderlying()->isKeyDumpSupported()) {
+        transition_state(loading_keys);
+    } else {
+        transition_state(loading_data);
+    }
 }
 
 void Flusher::schedule_UNLOCKED() {
@@ -172,6 +188,31 @@ bool Flusher::step(Dispatcher &d, TaskId tid) {
         case initializing:
             initialize(tid);
             return true;
+
+        case loading_keys:
+            store->warmup(initialVbState, true);
+            transition_state(loading_data);
+            return true;
+
+        case loading_data:
+            store->warmup(initialVbState, false);
+            transition_state(warmup_complete);
+            return true;
+
+        case warmup_complete:
+            store->stats.warmupTime.set((gethrtime() - warmupStartTime) / 1000);
+            store->stats.warmupComplete.set(true);
+            if (store->stats.warmupTime > 0) {
+                char buffer[80];
+                getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                                 "warmup completed in %s",
+                                 hrtime2text(store->stats.warmupTime * 1000,
+                                             buffer, sizeof(buffer)));
+            }
+            store->warmupCompleted();
+            transition_state(running);
+            return true;
+
         case paused:
             return false;
         case pausing:

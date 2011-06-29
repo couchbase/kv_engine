@@ -964,7 +964,7 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server
     tapBacklogLimit(5000),
     memLowWat(std::numeric_limits<size_t>::max()),
     memHighWat(std::numeric_limits<size_t>::max()),
-    mutation_count(0)
+    mutation_count(0), warmingUp(true)
 {
     interface.interface = 1;
     ENGINE_HANDLE_V1::get_info = EvpGetInfo;
@@ -1222,6 +1222,12 @@ ENGINE_ERROR_CODE  EventuallyPersistentEngine::store(const void *cookie,
         }
         // FALLTHROUGH
     case OPERATION_SET:
+        if (isDegradedMode()) {
+            // We're allowed to run set in restore mode..
+            if (!restore.enabled.get()) {
+                return ENGINE_TMPFAIL;
+            }
+        }
         ret = epstore->set(*it, cookie);
         if (ret == ENGINE_SUCCESS) {
             *cas = it->getCas();
@@ -1232,7 +1238,7 @@ ENGINE_ERROR_CODE  EventuallyPersistentEngine::store(const void *cookie,
 
     case OPERATION_ADD:
         // you can't call add while the server is running in restore mode..
-        if (restore.enabled.get()) {
+        if (isDegradedMode()) {
             return ENGINE_TMPFAIL;
         }
 
@@ -2503,6 +2509,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                     add_stat, cookie);
     add_casted_stat("ep_latency_arith_cmd", epstats.arithCmdHisto.total(),
                     add_stat, cookie);
+
+    add_casted_stat("ep_degraded_mode", isDegradedMode(), add_stat, cookie);
 
     return ENGINE_SUCCESS;
 }

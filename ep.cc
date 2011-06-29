@@ -499,6 +499,34 @@ private:
     SyncObject syncobject;
 };
 
+class FlusherEnterStateListener : public FlusherStateListener {
+public:
+    FlusherEnterStateListener(Flusher &f, enum flusher_state st) :
+        flusher(f), state(st) {}
+
+    virtual void  stateChanged(const enum flusher_state &from,
+                               const enum flusher_state &to) {
+        (void)from;
+        if (to == state) {
+            LockHolder lh(syncobject);
+            syncobject.notify();
+        }
+    }
+
+    void wait() {
+        LockHolder lh(syncobject);
+        if (flusher.state() == state) {
+            // We're already that state
+            return;
+        }
+        syncobject.wait();
+    }
+
+private:
+    Flusher &flusher;
+    enum flusher_state state;
+    SyncObject syncobject;
+};
 
 void EventuallyPersistentStore::initialize() {
     // We should nuke everything unless we want warmup
@@ -507,31 +535,25 @@ void EventuallyPersistentStore::initialize() {
         reset();
     }
 
-    // If requested, don't complete the initialization until the
-    // flusher transitions out of the initializing state (i.e
-    // warmup is finished).
-    useconds_t sleepTime = 1;
-    useconds_t maxSleepTime = 500000;
-    if (config.isWaitforwarmup() && flusher) {
-        FlusherLeavingStateListener flusherListener(*flusher, initializing);
-        flusher->addFlusherStateListener(&flusherListener);
-        flusherListener.wait();
-        flusher->removeFlusherStateListener(&flusherListener);
+    // We should at least wait until we've got the vbucket lists..
+    FlusherLeavingStateListener flusherListener(*flusher, initializing);
+    flusher->addFlusherStateListener(&flusherListener);
+    flusherListener.wait();
+    flusher->removeFlusherStateListener(&flusherListener);
 
-        if (config.isFailpartialwarmup() && stats.warmOOM > 0) {
-            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "Warmup failed to load %d records due to OOM, exiting.\n",
-                             static_cast<unsigned int>(stats.warmOOM));
-            exit(1);
-        }
-    } else {
-        // Although we don't wait for the full data load, wait until the
-        // states of all vbuckets are loaded from vbucket_states table.
-        // This won't take much time.
-        while (flusher && !flusher->isVBStateLoaded()) {
-            usleep(sleepTime);
-            sleepTime = std::min(sleepTime << 1, maxSleepTime);
-        }
+    // We might want to wait until we've loaded all data...
+    if (config.isWaitforwarmup()) {
+        FlusherEnterStateListener fl(*flusher, running);
+        flusher->addFlusherStateListener(&fl);
+        fl.wait();
+        flusher->removeFlusherStateListener(&fl);
+    }
+
+    if (config.isFailpartialwarmup() && stats.warmOOM > 0) {
+        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                         "Warmup failed to load %d records due to OOM, exiting.\n",
+                         static_cast<unsigned int>(stats.warmOOM));
+        exit(1);
     }
 
     // Run the vbucket state snapshot job once after the warmup
@@ -1210,7 +1232,7 @@ GetValue EventuallyPersistentStore::get(const std::string &key,
         return rv;
     } else {
         GetValue rv;
-        if (engine.restore.enabled.get()) {
+        if (engine.isDegradedMode()) {
             rv.setStatus(ENGINE_TMPFAIL);
         }
         return rv;
@@ -1273,7 +1295,7 @@ GetValue EventuallyPersistentStore::getAndUpdateTtl(const std::string &key,
         return rv;
     } else {
         GetValue rv;
-        if (engine.restore.enabled.get()) {
+        if (engine.isDegradedMode()) {
             rv.setStatus(ENGINE_TMPFAIL);
         }
         return rv;
@@ -1318,7 +1340,7 @@ EventuallyPersistentStore::getFromUnderlying(const std::string &key,
         assert(bgFetchQueue > 0);
         roDispatcher->schedule(dcb, NULL, Priority::VKeyStatBgFetcherPriority, bgFetchDelay);
         return ENGINE_EWOULDBLOCK;
-    } else if (engine.restore.enabled.get()) {
+    } else if (engine.isDegradedMode()) {
         return ENGINE_TMPFAIL;
     } else {
         return ENGINE_KEY_ENOENT;
@@ -1378,7 +1400,7 @@ bool EventuallyPersistentStore::getLocked(const std::string &key,
 
     } else {
         GetValue rv;
-        if (engine.restore.enabled.get()) {
+        if (engine.isDegradedMode()) {
             rv.setStatus(ENGINE_TMPFAIL);
         }
         cb.callback(rv);
@@ -1435,7 +1457,7 @@ EventuallyPersistentStore::unlockKey(const std::string &key,
         return ENGINE_TMPFAIL;
     }
 
-    if (engine.restore.enabled.get()) {
+    if (engine.isDegradedMode()) {
         return ENGINE_TMPFAIL;
     }
 
@@ -1499,7 +1521,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::del(const std::string &key,
     LockHolder lh = vb->ht.getLockedBucket(key, &bucket_num);
     StoredValue *v = vb->ht.unlocked_find(key, bucket_num);
     if (!v) {
-        if (engine.restore.enabled.get()) {
+        if (engine.isDegradedMode()) {
             return ENGINE_TMPFAIL;
         }
 
@@ -1575,7 +1597,7 @@ std::queue<queued_item>* EventuallyPersistentStore::beginFlush() {
             writing.push(qi);
         }
 
-        if (engine.restore.enabled.get()) {
+        if (engine.isDegradedMode()) {
             // Add all of the objects in the restore list to the write list..
             LockHolder lh(restore.mutex);
             if (!restore.items.empty()) {
@@ -2198,152 +2220,176 @@ int EventuallyPersistentStore::addUnlessThere(const std::string &key,
     return 1;
 }
 
-void EventuallyPersistentStore::warmup(Atomic<bool> &vbStateLoaded) {
-    LoadStorageKVPairCallback cb(vbuckets, stats, this);
-    std::map<std::pair<uint16_t, uint16_t>, vbucket_state> state =
-        roUnderlying->listPersistedVbuckets();
-    std::map<std::pair<uint16_t, uint16_t>, vbucket_state>::iterator it;
-    for (it = state.begin(); it != state.end(); ++it) {
-        std::pair<uint16_t, uint16_t> vbp = it->first;
-        vbucket_state vbs = it->second;
-        getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                         "Reloading vbucket %d - was in %s state\n",
-                         vbp.first, VBucket::toString(vbs.state));
-        cb.initVBucket(vbp.first, vbp.second, vbs.checkpointId + 1,
-                       vbs.state);
-    }
-    vbStateLoaded.set(true);
-
-    roUnderlying->dump(cb);
-    invalidItemDbPager->createRangeList();
+std::map<std::pair<uint16_t, uint16_t>, vbucket_state> EventuallyPersistentStore::loadVBucketState() {
+    return roUnderlying->listPersistedVbuckets();
 }
 
-void LoadStorageKVPairCallback::initVBucket(uint16_t vbid,
-                                            uint16_t vb_version,
-                                            uint64_t checkpointId,
-                                            vbucket_state_t prevState,
-                                            vbucket_state_t newState) {
-    RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
-    if (!vb) {
-        vb.reset(new VBucket(vbid, newState, stats));
-        vbuckets.addBucket(vb);
+/**
+ * Helper class used to insert items into the storage by using
+ * the KVStore::dump method to load items from the database
+ */
+class LoadStorageKVPairCallback : public Callback<GetValue> {
+public:
+    LoadStorageKVPairCallback(VBucketMap &vb, EPStats &st,
+                              EventuallyPersistentStore *ep)
+        : vbuckets(vb), stats(st), epstore(ep), startTime(ep_real_time()),
+          hasPurged(false) {
+        assert(epstore);
     }
-    // Set the past initial state of each vbucket.
-    vb->setInitialState(prevState);
-    // Pass the open checkpoint Id for each vbucket.
-    vb->checkpointManager.setOpenCheckpointId(checkpointId);
-    // For each vbucket, set its vbucket version.
-    vbuckets.setBucketVersion(vbid, vb_version);
-    // For each vbucket, set its latest checkpoint Id that was successfully persisted.
-    vbuckets.setPersistenceCheckpointId(vbid, checkpointId - 1);
-}
 
-void LoadStorageKVPairCallback::callback(GetValue &val) {
-    Item *i = val.getValue();
-    if (i != NULL) {
-        uint16_t vb_version = vbuckets.getBucketVersion(i->getVBucketId());
-        if (vb_version != static_cast<uint16_t>(-1) && val.getVBucketVersion() != vb_version) {
-            epstore->getInvalidItemDbPager()->addInvalidItem(i, val.getVBucketVersion());
-            delete i;
-            return;
-        }
-
-        RCPtr<VBucket> vb = vbuckets.getBucket(i->getVBucketId());
+    void initVBucket(uint16_t vbid, uint16_t vb_version,
+                     uint64_t checkpointId, vbucket_state_t prevState) {
+        RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
         if (!vb) {
-            vb.reset(new VBucket(i->getVBucketId(), vbucket_state_dead, stats));
+            vb.reset(new VBucket(vbid, vbucket_state_dead, stats));
             vbuckets.addBucket(vb);
-            vbuckets.setBucketVersion(i->getVBucketId(), val.getVBucketVersion());
         }
-        bool retain(shouldBeResident());
-        bool succeeded(false);
+        // Set the past initial state of each vbucket.
+        vb->setInitialState(prevState);
+        // Pass the open checkpoint Id for each vbucket.
+        vb->checkpointManager.setOpenCheckpointId(checkpointId);
+        // For each vbucket, set its vbucket version.
+        vbuckets.setBucketVersion(vbid, vb_version);
+        // For each vbucket, set its latest checkpoint Id that was
+        // successfully persisted.
+        vbuckets.setPersistenceCheckpointId(vbid, checkpointId - 1);
+    }
 
-        switch (vb->ht.add(*i, false, retain)) {
-        case ADD_SUCCESS:
-        case ADD_UNDEL:
-            // Yay
-            succeeded = true;
-            break;
-        case ADD_EXISTS:
-            // Boo
-            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "Warmup dataload error: Duplicate key: %s.\n",
-                             i->getKey().c_str());
-            ++stats.warmDups;
-            succeeded = true;
-            break;
-        case ADD_NOMEM:
-            if (hasPurged) {
-                if (++stats.warmOOM == 1) {
-                    getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                     "Warmup dataload failure: max_size too low.\n");
-                }
-            } else {
+    void callback(GetValue &val) {
+        Item *i = val.getValue();
+        if (i != NULL) {
+            uint16_t vb_version = vbuckets.getBucketVersion(i->getVBucketId());
+            if (vb_version != static_cast<uint16_t>(-1) && val.getVBucketVersion() != vb_version) {
+                epstore->getInvalidItemDbPager()->addInvalidItem(i, val.getVBucketVersion());
+
                 getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                 "Emergency startup purge to free space for load.\n");
-                purge();
-                // Try that item again.
-                switch(vb->ht.add(*i, false, retain)) {
-                case ADD_SUCCESS:
-                case ADD_UNDEL:
-                    succeeded = true;
+                                 "Received invalid item.. ignored");
+
+                delete i;
+                return;
+            }
+
+            RCPtr<VBucket> vb = vbuckets.getBucket(i->getVBucketId());
+            if (!vb) {
+                vb.reset(new VBucket(i->getVBucketId(), vbucket_state_dead, stats));
+                vbuckets.addBucket(vb);
+                vbuckets.setBucketVersion(i->getVBucketId(), val.getVBucketVersion());
+            }
+            bool succeeded(false);
+            int retry = 2;
+            do {
+                switch (vb->ht.insert(*i, shouldEject(), val.isPartial())) {
+                case NOMEM:
+                    if (retry == 2) {
+                        if (hasPurged) {
+                            if (++stats.warmOOM == 1) {
+                                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                                 "Warmup dataload failure: max_size too low.");
+                            }
+                        } else {
+                            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                             "Emergency startup purge to free space for load.");
+                            purge();
+                        }
+                    } else {
+                        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                         "Cannot store an item after emergency purge.");
+                        ++stats.warmOOM;
+                    }
                     break;
-                case ADD_EXISTS:
+                case INVALID_CAS:
                     getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                     "Warmup dataload error: Duplicate key: %s.\n",
+                                     "Warmup dataload error: Duplicate key: %s.",
                                      i->getKey().c_str());
                     ++stats.warmDups;
                     succeeded = true;
                     break;
-                case ADD_NOMEM:
-                    getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                     "Cannot store an item after emergency purge.\n");
-                    ++stats.warmOOM;
+                case NOT_FOUND:
+                    succeeded = true;
                     break;
                 default:
                     abort();
                 }
+            } while (!succeeded && retry > 0);
+
+            if (succeeded && i->isExpired(startTime)) {
+                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                 "Item was expired at load:  %s",
+                                 i->getKey().c_str());
+                epstore->del(i->getKey(), 0, i->getVBucketId(), NULL, true);
             }
-            break;
-        default:
-            abort();
+            delete i;
         }
-
-        if (succeeded && i->isExpired(startTime)) {
-            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "Item was expired at load:  %s\n",
-                             i->getKey().c_str());
-            epstore->del(i->getKey(), 0, i->getVBucketId(), NULL, true);
-        }
-
-        delete i;
+        ++stats.warmedUp;
     }
-    ++stats.warmedUp;
+
+private:
+
+    bool shouldEject() {
+        return StoredValue::getCurrentSize(stats) >= stats.mem_low_wat;
+    }
+
+    void purge() {
+        class EmergencyPurgeVisitor : public VBucketVisitor {
+        public:
+            EmergencyPurgeVisitor(EPStats &s) : stats(s) {}
+
+            void visit(StoredValue *v) {
+                v->ejectValue(stats, currentBucket->ht);
+            }
+        private:
+            EPStats &stats;
+        };
+
+        std::vector<int> vbucketIds(vbuckets.getBuckets());
+        std::vector<int>::iterator it;
+        EmergencyPurgeVisitor epv(stats);
+        for (it = vbucketIds.begin(); it != vbucketIds.end(); ++it) {
+            int vbid = *it;
+            RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
+            if (vb && epv.visitBucket(vb)) {
+                vb->ht.visit(epv);
+            }
+        }
+        hasPurged = true;
+    }
+
+    VBucketMap &vbuckets;
+    EPStats    &stats;
+    EventuallyPersistentStore *epstore;
+    time_t      startTime;
+    bool        hasPurged;
+};
+
+void EventuallyPersistentStore::warmupCompleted() {
+    engine.warmupCompleted();
 }
 
-void LoadStorageKVPairCallback::purge() {
-
-    class EmergencyPurgeVisitor : public VBucketVisitor {
-    public:
-        EmergencyPurgeVisitor(EPStats &s) : stats(s) {}
-
-        void visit(StoredValue *v) {
-            v->ejectValue(stats, currentBucket->ht);
+void EventuallyPersistentStore::warmup(const std::map<std::pair<uint16_t, uint16_t>, vbucket_state> &state, bool keysOnly) {
+    LoadStorageKVPairCallback cb(vbuckets, stats, this);
+    std::map<std::pair<uint16_t, uint16_t>, vbucket_state>::const_iterator it;
+    std::vector<uint16_t> vbids;
+    for (it = state.begin(); it != state.end(); ++it) {
+        std::pair<uint16_t, uint16_t> vbp = it->first;
+        vbucket_state vbs = it->second;
+        if (vbs.state == vbucket_state_active || vbs.state == vbucket_state_replica) {
+            vbids.push_back(vbp.first);
         }
-    private:
-        EPStats &stats;
-    };
 
-    std::vector<int> vbucketIds(vbuckets.getBuckets());
-    std::vector<int>::iterator it;
-    EmergencyPurgeVisitor epv(stats);
-    for (it = vbucketIds.begin(); it != vbucketIds.end(); ++it) {
-        int vbid = *it;
-        RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
-        if (vb && epv.visitBucket(vb)) {
-            vb->ht.visit(epv);
-        }
+        getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                         "Loading %s for vbucket %d - was in %s state\n",
+                         keysOnly ? "keys" : "data", vbp.first,
+                         VBucket::toString(vbs.state));
+        cb.initVBucket(vbp.first, vbp.second, vbs.checkpointId + 1,
+                       vbs.state);
     }
-    hasPurged = true;
+
+    if (keysOnly) {
+        roUnderlying->dumpKeys(vbids, cb);
+    } else {
+        roUnderlying->dump(cb);
+        invalidItemDbPager->createRangeList();
+    }
 }
 
 bool TransactionContext::enter() {
