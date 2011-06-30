@@ -63,13 +63,21 @@ void MCKVStore::get(const std::string &key, uint64_t, uint16_t vb, uint16_t,
 
 void MCKVStore::del(const std::string &key, uint64_t, uint16_t vb, uint16_t,
         Callback<int> &cb) {
-    if (dynamic_cast<RememberingCallback<int> *> (&cb)) {
-        mc->del(key, vb, cb);
+
+    if (intransaction) {
+        mc->delq(key, vb, cb);
     } else {
-        RememberingCallback<int> mcb;
-        mc->del(key, vb, mcb);
-        mcb.waitForValue();
-        cb.callback(mcb.val);
+        // @todo we need to figure out if anyone is running this without a
+        // transaction
+        abort();
+        if (dynamic_cast<RememberingCallback<int> *> (&cb)) {
+            mc->del(key, vb, cb);
+        } else {
+            RememberingCallback<int> mcb;
+            mc->del(key, vb, mcb);
+            mcb.waitForValue();
+            cb.callback(mcb.val);
+        }
     }
 }
 

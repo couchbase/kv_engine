@@ -106,6 +106,7 @@ public:
     void setq(const Item &item, Callback<mutation_result> &cb);
     void get(const std::string &key, uint16_t vb, Callback<GetValue> &cb);
     void del(const std::string &key, uint16_t vb, Callback<int> &cb);
+    void delq(const std::string &key, uint16_t vb, Callback<int> &cb);
     void stats(const std::string &key,
             Callback<std::map<std::string, std::string> > &cb);
     void setVBucket(uint16_t vb, vbucket_state_t state, Callback<bool> &cb);

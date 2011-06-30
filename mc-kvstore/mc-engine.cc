@@ -108,6 +108,11 @@ public:
         callback.callback(value);
     }
 
+    virtual void implicitResponse() {
+        int value = 1;
+        callback.callback(value);
+    }
+
 private:
     Callback<int> &callback;
 };
@@ -887,6 +892,25 @@ void MemcachedEngine::del(const std::string &key, uint16_t vb,
     memset(buffer->data, 0, buffer->size);
     req->message.header.request.magic = PROTOCOL_BINARY_REQ;
     req->message.header.request.opcode = PROTOCOL_BINARY_CMD_DELETE;
+    req->message.header.request.keylen = ntohs((uint16_t)key.length());
+    req->message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
+    req->message.header.request.vbucket = ntohs(vb);
+    req->message.header.request.bodylen = ntohl((uint32_t)key.length());
+    memcpy(buffer->data + sizeof(req->bytes), key.c_str(), key.length());
+    buffer->avail = buffer->size;
+
+    insertCommand(new DelResponseHandler(buffer, cb));
+}
+
+void MemcachedEngine::delq(const std::string &key, uint16_t vb,
+        Callback<int> &cb) {
+    protocol_binary_request_delete *req;
+    Buffer *buffer = new Buffer(sizeof(req->bytes) + key.length());
+    req = (protocol_binary_request_delete *)buffer->data;
+
+    memset(buffer->data, 0, buffer->size);
+    req->message.header.request.magic = PROTOCOL_BINARY_REQ;
+    req->message.header.request.opcode = PROTOCOL_BINARY_CMD_DELETEQ;
     req->message.header.request.keylen = ntohs((uint16_t)key.length());
     req->message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
     req->message.header.request.vbucket = ntohs(vb);
