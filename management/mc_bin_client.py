@@ -306,6 +306,33 @@ class MemcachedClient(object):
 
         return failed
 
+    def delMulti(self, items):
+        """Multi-delete (using delq).
+
+        Give me a collection of keys."""
+
+        opaqued = dict(enumerate(items))
+        terminal = len(opaqued)+10
+        extra = ''
+
+        # Send all of the keys in quiet
+        for opaque, k in opaqued.iteritems():
+            self._sendCmd(memcacheConstants.CMD_DELETEQ, k, '', opaque, extra)
+
+        self._sendCmd(memcacheConstants.CMD_NOOP, '', '', terminal)
+
+        # Handle the response
+        failed = []
+        done=False
+        while not done:
+            try:
+                opaque, cas, data = self._handleSingleResponse(None)
+                done = opaque == terminal
+            except MemcachedError, e:
+                failed.append(e)
+
+        return failed
+
     def stats(self, sub=''):
         """Get stats."""
         opaque=self.r.randint(0, 2**32)
