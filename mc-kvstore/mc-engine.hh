@@ -103,13 +103,11 @@ public:
     ~MemcachedEngine();
 
     void flush(Callback<bool> &cb);
-    void set(const Item &item, Callback<mutation_result> &cb);
     void setq(const Item &item, Callback<mutation_result> &cb);
     void get(const std::string &key, uint16_t vb, Callback<GetValue> &cb);
-    void del(const std::string &key, uint16_t vb, Callback<int> &cb);
     void delq(const std::string &key, uint16_t vb, Callback<int> &cb);
     void stats(const std::string &key,
-            Callback<std::map<std::string, std::string> > &cb);
+               Callback<std::map<std::string, std::string> > &cb);
     void setVBucket(uint16_t vb, vbucket_state_t state, Callback<bool> &cb);
     void delVBucket(uint16_t vb, Callback<bool> &cb);
 
@@ -121,12 +119,10 @@ protected:
     friend class SelectBucketResponseHandler;
     friend void *start_memcached_engine(void *arg);
     friend void memcached_engine_libevent_callback(evutil_socket_t sock,
-            short which, void *arg);
+                                                   short which, void *arg);
     friend void memcached_engine_notify_callback(evutil_socket_t sock,
-            short which, void *arg);
-
+                                                 short which, void *arg);
     void run();
-
     void libeventCallback(evutil_socket_t s, short which);
     void notifyHandler(evutil_socket_t s, short which);
 

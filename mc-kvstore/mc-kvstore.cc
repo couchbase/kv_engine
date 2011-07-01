@@ -30,23 +30,8 @@ void MCKVStore::reset() {
 }
 
 void MCKVStore::set(const Item &itm, uint16_t, Callback<mutation_result> &cb) {
-    if (intransaction) {
-        mc->setq(itm, cb);
-    } else {
-        // @todo we need to figure out if anyone is running this without a
-        // transaction
-        abort();
-        if (dynamic_cast<RememberingCallback<mutation_result>*> (&cb)) {
-            mc->set(itm, cb);
-        } else {
-            RememberingCallback<mutation_result> mcb;
-
-            mc->set(itm, mcb);
-
-            mcb.waitForValue();
-            cb.callback(mcb.val);
-        }
-    }
+    assert(intransaction);
+    mc->setq(itm, cb);
 }
 
 void MCKVStore::get(const std::string &key, uint64_t, uint16_t vb, uint16_t,
@@ -64,21 +49,8 @@ void MCKVStore::get(const std::string &key, uint64_t, uint16_t vb, uint16_t,
 void MCKVStore::del(const std::string &key, uint64_t, uint16_t vb, uint16_t,
         Callback<int> &cb) {
 
-    if (intransaction) {
-        mc->delq(key, vb, cb);
-    } else {
-        // @todo we need to figure out if anyone is running this without a
-        // transaction
-        abort();
-        if (dynamic_cast<RememberingCallback<int> *> (&cb)) {
-            mc->del(key, vb, cb);
-        } else {
-            RememberingCallback<int> mcb;
-            mc->del(key, vb, mcb);
-            mcb.waitForValue();
-            cb.callback(mcb.val);
-        }
-    }
+    assert(intransaction);
+    mc->delq(key, vb, cb);
 }
 
 bool MCKVStore::delVBucket(uint16_t vbucket, uint16_t vb_version,

@@ -885,25 +885,6 @@ void MemcachedEngine::doInsertCommand(BinaryPacketHandler *rh) {
     }
 }
 
-void MemcachedEngine::del(const std::string &key, uint16_t vb,
-        Callback<int> &cb) {
-    protocol_binary_request_delete *req;
-    Buffer *buffer = new Buffer(sizeof(req->bytes) + key.length());
-    req = (protocol_binary_request_delete *)buffer->data;
-
-    memset(buffer->data, 0, buffer->size);
-    req->message.header.request.magic = PROTOCOL_BINARY_REQ;
-    req->message.header.request.opcode = PROTOCOL_BINARY_CMD_DELETE;
-    req->message.header.request.keylen = ntohs((uint16_t)key.length());
-    req->message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
-    req->message.header.request.vbucket = ntohs(vb);
-    req->message.header.request.bodylen = ntohl((uint32_t)key.length());
-    memcpy(buffer->data + sizeof(req->bytes), key.c_str(), key.length());
-    buffer->avail = buffer->size;
-
-    insertCommand(new DelResponseHandler(buffer, cb));
-}
-
 void MemcachedEngine::delq(const std::string &key, uint16_t vb,
         Callback<int> &cb) {
     protocol_binary_request_delete *req;
@@ -923,38 +904,6 @@ void MemcachedEngine::delq(const std::string &key, uint16_t vb,
     insertCommand(new DelResponseHandler(buffer, cb));
 }
 
-void MemcachedEngine::set(const Item &item, Callback<mutation_result> &cb) {
-
-    protocol_binary_request_set *req;
-    Buffer *buffer = new Buffer(
-            sizeof(req->bytes) + item.getNKey() + item.getNBytes());
-    req = (protocol_binary_request_set *)buffer->data;
-
-    memset(buffer->data, 0, buffer->size);
-    req->message.header.request.magic = PROTOCOL_BINARY_REQ;
-    req->message.header.request.opcode = PROTOCOL_BINARY_CMD_SET;
-    req->message.header.request.extlen = 8;
-    req->message.header.request.keylen = ntohs((uint16_t)item.getNKey());
-    req->message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
-    req->message.header.request.vbucket = ntohs(item.getVBucketId());
-    // @todo denne burde vel v¾re satt?
-    // req->message.header.request.cas = ntohll(item.getCas());
-    uint32_t bodylen = req->message.header.request.extlen + item.getNKey()
-            + item.getNBytes();
-    req->message.header.request.bodylen = ntohl(bodylen);
-
-    req->message.body.flags = item.getFlags();
-    req->message.body.expiration = htonl((uint32_t)item.getExptime());
-    memcpy(buffer->data + sizeof(req->bytes), item.getKey().c_str(),
-            item.getNKey());
-    memcpy(buffer->data + sizeof(req->bytes) + item.getNKey(), item.getData(),
-            item.getNBytes());
-
-    buffer->avail = buffer->size;
-
-    insertCommand(new SetResponseHandler(buffer, item.getId() <= 0, cb));
-}
-
 void MemcachedEngine::setq(const Item &item, Callback<mutation_result> &cb) {
 
     protocol_binary_request_set *req;
@@ -969,7 +918,8 @@ void MemcachedEngine::setq(const Item &item, Callback<mutation_result> &cb) {
     req->message.header.request.keylen = ntohs((uint16_t)item.getNKey());
     req->message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
     req->message.header.request.vbucket = ntohs(item.getVBucketId());
-    // @todo denne burde vel v¾re satt?
+    // @todo we should probably pos the CAS in the store (not that
+    //       couch chould verify it, but be able to store it)
     // req->message.header.request.cas = ntohll(item.getCas());
     uint32_t bodylen = req->message.header.request.extlen + item.getNKey()
             + item.getNBytes();
