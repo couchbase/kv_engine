@@ -396,9 +396,9 @@ void StoredValue::reduceCurrentSize(EPStats &st, size_t by) {
 /**
  * Is there enough space for this thing?
  */
-bool StoredValue::hasAvailableSpace(EPStats &st, const Item &item) {
+bool StoredValue::hasAvailableSpace(EPStats &st, const Item &itm) {
     double newSize = static_cast<double>(getCurrentSize(st) +
-                                         sizeof(StoredValue) + item.getNKey());
+                                         sizeof(StoredValue) + itm.getNKey());
     double maxSize=  static_cast<double>(getMaxDataSize(st)) * mutation_mem_threshold;
     return newSize <= maxSize;
 }

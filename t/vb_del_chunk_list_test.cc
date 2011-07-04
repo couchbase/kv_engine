@@ -38,7 +38,7 @@ static void testSplitChunkRange() {
     chunk_range_list.add(std::make_pair(21, 30));
     assert(chunk_range_list.size() == 3);
 
-    chunk_range_iterator it = chunk_range_list.begin();
+    chunk_range_iterator_t it = chunk_range_list.begin();
     // Split the first chunk range by range size 11, which doesn't cause any splits
     // because the first chunk range size 9 is less than the split range size 11.
     chunk_range_list.splitChunkRange(it, 11);
@@ -70,7 +70,7 @@ static void testMergeChunkRanges() {
     chunk_range_list.add(std::make_pair(120, 150));
     assert(chunk_range_list.size() == 5);
 
-    chunk_range_iterator it = chunk_range_list.begin();
+    chunk_range_iterator_t it = chunk_range_list.begin();
     // Merge the current chunk range with its subsequent ranges by range size 7, which doesn't
     // result in any merges because the current range's size 10 is greater than 7.
     chunk_range_list.mergeChunkRanges(it, 7);

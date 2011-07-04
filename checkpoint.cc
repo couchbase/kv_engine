@@ -23,13 +23,13 @@ uint64_t Checkpoint::getCasForKey(const std::string &key) {
     return cas;
 }
 
-queue_dirty_t Checkpoint::queueDirty(const queued_item &item, CheckpointManager *checkpointManager) {
+queue_dirty_t Checkpoint::queueDirty(const queued_item &qi, CheckpointManager *checkpointManager) {
     assert (checkpointState == opened);
 
     uint64_t newMutationId = checkpointManager->nextMutationId();
     queue_dirty_t rv;
 
-    checkpoint_index::iterator it = keyIndex.find(item->getKey());
+    checkpoint_index::iterator it = keyIndex.find(qi->getKey());
     // Check if this checkpoint already had an item for the same key.
     if (it != keyIndex.end()) {
         std::list<queued_item>::iterator currPos = it->second.position;
@@ -73,27 +73,27 @@ queue_dirty_t Checkpoint::queueDirty(const queued_item &item, CheckpointManager 
             }
         }
         // Copy the queued time of the existing item to the new one.
-        item->setQueuedTime((*currPos)->getQueuedTime());
+        qi->setQueuedTime((*currPos)->getQueuedTime());
         // Remove the existing item for the same key from the list.
         toWrite.erase(currPos);
         rv = EXISTING_ITEM;
     } else {
-        if (item->getKey().size() > 0) {
+        if (qi->getKey().size() > 0) {
             ++numItems;
         }
         rv = NEW_ITEM;
     }
     // Push the new item into the list
-    toWrite.push_back(item);
+    toWrite.push_back(qi);
 
-    if (item->getKey().size() > 0) {
+    if (qi->getKey().size() > 0) {
         std::list<queued_item>::iterator last = toWrite.end();
         // --last is okay as the list is not empty now.
         index_entry entry = {--last, newMutationId};
         // Set the index of the key to the new item that is pushed back into the list.
-        keyIndex[item->getKey()] = entry;
+        keyIndex[qi->getKey()] = entry;
         if (rv == NEW_ITEM) {
-            size_t newEntrySize = item->getKey().size() + sizeof(index_entry);
+            size_t newEntrySize = qi->getKey().size() + sizeof(index_entry);
             indexMemOverhead += newEntrySize;
             stats.memOverhead.incr(newEntrySize);
             assert(stats.memOverhead.get() < GIGANTOR);
@@ -481,7 +481,7 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(const RCPtr<VBucket> &vbu
     return numUnrefItems;
 }
 
-bool CheckpointManager::queueDirty(const queued_item &item, const RCPtr<VBucket> &vbucket) {
+bool CheckpointManager::queueDirty(const queued_item &qi, const RCPtr<VBucket> &vbucket) {
     LockHolder lh(queueLock);
     if (vbucket->getState() != vbucket_state_active &&
         checkpointList.back()->getState() == closed) {
@@ -494,7 +494,7 @@ bool CheckpointManager::queueDirty(const queued_item &item, const RCPtr<VBucket>
     // The current open checkpoint should be always the last one in the checkpoint list.
     assert(checkpointList.back()->getState() == opened);
     size_t numItemsBefore = getNumItemsForPersistence_UNLOCKED();
-    if (checkpointList.back()->queueDirty(item, this) == NEW_ITEM) {
+    if (checkpointList.back()->queueDirty(qi, this) == NEW_ITEM) {
         ++numItems;
     }
     size_t numItemsAfter = getNumItemsForPersistence_UNLOCKED();

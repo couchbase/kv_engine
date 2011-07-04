@@ -166,7 +166,7 @@ public:
     void destroy(bool force);
 
     ENGINE_ERROR_CODE itemAllocate(const void* cookie,
-                                   item** item,
+                                   item** itm,
                                    const void* key,
                                    const size_t nkey,
                                    const size_t nbytes,
@@ -180,8 +180,8 @@ public:
 
         time_t expiretime = (exptime == 0) ? 0 : ep_abs_time(ep_reltime(exptime));
 
-        *item = new Item(key, nkey, nbytes, flags, expiretime);
-        if (*item == NULL) {
+        *itm = new Item(key, nkey, nbytes, flags, expiretime);
+        if (*itm == NULL) {
             return memoryCondition();
         } else {
             return ENGINE_SUCCESS;
@@ -212,14 +212,14 @@ public:
     }
 
 
-    void itemRelease(const void* cookie, item *item)
+    void itemRelease(const void* cookie, item *itm)
     {
         (void)cookie;
-        delete (Item*)item;
+        delete (Item*)itm;
     }
 
     ENGINE_ERROR_CODE get(const void* cookie,
-                          item** item,
+                          item** itm,
                           const void* key,
                           const int nkey,
                           uint16_t vbucket)
@@ -230,7 +230,7 @@ public:
         GetValue gv(epstore->get(k, vbucket, cookie, serverApi->core));
 
         if (gv.getStatus() == ENGINE_SUCCESS) {
-            *item = gv.getValue();
+            *itm = gv.getValue();
         } else if (gv.getStatus() == ENGINE_KEY_ENOENT && isDegradedMode()) {
             return ENGINE_TMPFAIL;
         }
@@ -272,17 +272,17 @@ public:
 
         ENGINE_ERROR_CODE ret = get(cookie, &it, key, nkey, vbucket);
         if (ret == ENGINE_SUCCESS) {
-            Item *item = static_cast<Item*>(it);
+            Item *itm = static_cast<Item*>(it);
             char *endptr = NULL;
             char data[24];
             size_t len = std::min(static_cast<uint32_t>(sizeof(data) - 1),
-                                  item->getNBytes());
+                                  itm->getNBytes());
             data[len] = 0;
-            memcpy(data, item->getData(), len);
+            memcpy(data, itm->getData(), len);
             uint64_t val = strtoull(data, &endptr, 10);
-            if (item->getCas() == (uint64_t) -1) {
+            if (itm->getCas() == (uint64_t) -1) {
                 // item is locked, can't perform arithmetic operation
-                delete item;
+                delete itm;
                 return ENGINE_TMPFAIL;
             }
             if ((errno != ERANGE) && (isspace(*endptr)
@@ -301,16 +301,16 @@ public:
                 vals << val;
                 size_t nb = vals.str().length();
                 *result = val;
-                Item *nit = new Item(key, (uint16_t)nkey, item->getFlags(),
-                                     item->getExptime(), vals.str().c_str(), nb);
-                nit->setCas(item->getCas());
+                Item *nit = new Item(key, (uint16_t)nkey, itm->getFlags(),
+                                     itm->getExptime(), vals.str().c_str(), nb);
+                nit->setCas(itm->getCas());
                 ret = store(cookie, nit, cas, OPERATION_CAS, vbucket);
                 delete nit;
             } else {
                 ret = ENGINE_EINVAL;
             }
 
-            delete item;
+            delete itm;
         } else if (ret == ENGINE_NOT_MY_VBUCKET) {
             return ret;
         } else if (ret == ENGINE_KEY_ENOENT && create) {
@@ -320,10 +320,10 @@ public:
             size_t nb = vals.str().length();
 
             *result = initial;
-            Item *item = new Item(key, (uint16_t)nkey, 0, expiretime,
-                                  vals.str().c_str(), nb);
-            ret = store(cookie, item, cas, OPERATION_ADD, vbucket);
-            delete item;
+            Item *itm = new Item(key, (uint16_t)nkey, 0, expiretime,
+                                 vals.str().c_str(), nb);
+            ret = store(cookie, itm, cas, OPERATION_ADD, vbucket);
+            delete itm;
         }
 
         /* We had a race condition.. just call ourself recursively to retry */
@@ -704,13 +704,13 @@ private:
         lookups[cookie] = result;
     }
 
-    bool fetchLookupResult(const void *cookie, Item **item) {
+    bool fetchLookupResult(const void *cookie, Item **itm) {
         // This will return *and erase* the lookup result for a connection.
         // You look it up, you own it.
         LockHolder lh(lookupMutex);
         std::map<const void*, Item*>::iterator it = lookups.find(cookie);
         if (it != lookups.end()) {
-            *item = it->second;
+            *itm = it->second;
             lookups.erase(it);
             return true;
         } else {

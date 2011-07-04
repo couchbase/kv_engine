@@ -962,7 +962,7 @@ extern "C" {
         check(iter != NULL, "Failed to create a tap iterator");
 
         item *it;
-        Item *item;
+        Item *itm;
         void *engine_specific;
         uint16_t nengine_specific;
         uint8_t ttl;
@@ -989,13 +989,13 @@ extern "C" {
             case TAP_OPAQUE:
                 break;
             case TAP_MUTATION:
-                item = reinterpret_cast<Item *>(it);
+                itm = reinterpret_cast<Item *>(it);
 
-                check(vbuckets.find(item->getVBucketId()) != vbuckets.end(),
+                check(vbuckets.find(itm->getVBucketId()) != vbuckets.end(),
                       "Received an item for a vbucket we don't subscribe to");
 
-                if (expectedKeys->find(*item) != expectedKeys->end()) {
-                    keysReceived.insert(*item);
+                if (expectedKeys->find(*itm) != expectedKeys->end()) {
+                    keysReceived.insert(*itm);
                 }
 
                 if (keysReceived.size() == expectedKeys->size()) {

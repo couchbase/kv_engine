@@ -637,32 +637,32 @@ private:
         return nextVBucketLowPriority_UNLOCKED();
     }
 
-    void addCheckpointMessage_UNLOCKED(const queued_item &item) {
-        checkpointMsgs.push(item);
+    void addCheckpointMessage_UNLOCKED(const queued_item &qi) {
+        checkpointMsgs.push(qi);
     }
 
     /**
      * Add a checkpoint start / end message to the checkpoint message queue. These messages
      * are used for synchronizing checkpoints between tap producer and consumer.
      */
-    void addCheckpointMessage(const queued_item &item) {
+    void addCheckpointMessage(const queued_item &qi) {
         LockHolder lh(queueLock);
-        addCheckpointMessage_UNLOCKED(item);
+        addCheckpointMessage_UNLOCKED(qi);
     }
 
     queued_item nextCheckpointMessage_UNLOCKED() {
-        queued_item item(new QueuedItem("", 0xffff, queue_op_empty));
+        queued_item qi(new QueuedItem("", 0xffff, queue_op_empty));
         if (!checkpointMsgs.empty()) {
-            item = checkpointMsgs.front();
+            qi = checkpointMsgs.front();
             checkpointMsgs.pop();
-            if (!vbucketFilter(item->getVBucketId())) {
+            if (!vbucketFilter(qi->getVBucketId())) {
                 return nextCheckpointMessage_UNLOCKED();
             }
             ++checkpointMsgCounter;
             ++recordsFetched;
-            addTapLogElement_UNLOCKED(item);
+            addTapLogElement_UNLOCKED(qi);
         }
-        return item;
+        return qi;
     }
 
     queued_item nextCheckpointMessage() {

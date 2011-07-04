@@ -95,14 +95,14 @@ extern "C" {
 
     static ENGINE_ERROR_CODE EvpItemAllocate(ENGINE_HANDLE* handle,
                                              const void* cookie,
-                                             item **item,
+                                             item **itm,
                                              const void* key,
                                              const size_t nkey,
                                              const size_t nbytes,
                                              const int flags,
                                              const rel_time_t exptime)
     {
-        return getHandle(handle)->itemAllocate(cookie, item, key,
+        return getHandle(handle)->itemAllocate(cookie, itm, key,
                                                nkey, nbytes, flags, exptime);
     }
 
@@ -118,19 +118,19 @@ extern "C" {
 
     static void EvpItemRelease(ENGINE_HANDLE* handle,
                                const void *cookie,
-                               item* item)
+                               item* itm)
     {
-        getHandle(handle)->itemRelease(cookie, item);
+        getHandle(handle)->itemRelease(cookie, itm);
     }
 
     static ENGINE_ERROR_CODE EvpGet(ENGINE_HANDLE* handle,
                                     const void* cookie,
-                                    item** item,
+                                    item** itm,
                                     const void* key,
                                     const int nkey,
                                     uint16_t vbucket)
     {
-        return getHandle(handle)->get(cookie, item, key, nkey, vbucket);
+        return getHandle(handle)->get(cookie, itm, key, nkey, vbucket);
     }
 
     static ENGINE_ERROR_CODE EvpGetStats(ENGINE_HANDLE* handle,
@@ -144,12 +144,12 @@ extern "C" {
 
     static ENGINE_ERROR_CODE EvpStore(ENGINE_HANDLE* handle,
                                       const void *cookie,
-                                      item* item,
+                                      item* itm,
                                       uint64_t *cas,
                                       ENGINE_STORE_OPERATION operation,
                                       uint16_t vbucket)
     {
-        return getHandle(handle)->store(cookie, item, cas, operation, vbucket);
+        return getHandle(handle)->store(cookie, itm, cas, operation, vbucket);
     }
 
     static ENGINE_ERROR_CODE EvpArithmetic(ENGINE_HANDLE* handle,
@@ -317,7 +317,7 @@ extern "C" {
     ENGINE_ERROR_CODE getLocked(EventuallyPersistentEngine *e,
                                 protocol_binary_request_header *req,
                                 const void *cookie,
-                                Item **item,
+                                Item **itm,
                                 const char **msg,
                                 size_t *,
                                 protocol_binary_response_status *res) {
@@ -362,7 +362,7 @@ extern "C" {
         ENGINE_ERROR_CODE rv = getCb.val.getStatus();
 
         if (rv == ENGINE_SUCCESS) {
-            *item = getCb.val.getValue();
+            *itm = getCb.val.getValue();
 
         } else if (rv == ENGINE_EWOULDBLOCK) {
 
@@ -699,7 +699,7 @@ extern "C" {
             PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND;
         const char *msg = NULL;
         size_t msg_size = 0;
-        Item *item = NULL;
+        Item *itm = NULL;
 
         EventuallyPersistentEngine *h = getHandle(handle);
         EPStats &stats = h->getEpStats();
@@ -753,7 +753,7 @@ extern "C" {
             res = evictKey(h, request, &msg, &msg_size);
             break;
         case CMD_GET_LOCKED:
-            rv = getLocked(h, request, cookie, &item, &msg, &msg_size, &res);
+            rv = getLocked(h, request, cookie, &itm, &msg, &msg_size, &res);
             if (rv == ENGINE_EWOULDBLOCK) {
                 // we dont have the value for the item yet
                 return rv;
@@ -775,28 +775,28 @@ extern "C" {
         }
 
         // Send a special response for getl since we don't want to send the key
-        if (item && request->request.opcode == CMD_GET_LOCKED) {
-            uint32_t flags = item->getFlags();
+        if (itm && request->request.opcode == CMD_GET_LOCKED) {
+            uint32_t flags = itm->getFlags();
 
             response(NULL, 0, (const void *)&flags, sizeof(uint32_t),
-                    static_cast<const void *>(item->getData()),
-                    item->getNBytes(),
+                    static_cast<const void *>(itm->getData()),
+                    itm->getNBytes(),
                     PROTOCOL_BINARY_RAW_BYTES,
-                    static_cast<uint16_t>(res), item->getCas(),
+                    static_cast<uint16_t>(res), itm->getCas(),
                     cookie);
-        } else if (item) {
-            std::string key  = item->getKey();
-            uint32_t flags = item->getFlags();
+        } else if (itm) {
+            std::string key  = itm->getKey();
+            uint32_t flags = itm->getFlags();
 
             response(static_cast<const void *>(key.data()),
-                    item->getNKey(),
+                    itm->getNKey(),
                     (const void *)&flags, sizeof(uint32_t),
-                    static_cast<const void *>(item->getData()),
-                    item->getNBytes(),
+                    static_cast<const void *>(itm->getData()),
+                    itm->getNBytes(),
                     PROTOCOL_BINARY_RAW_BYTES,
-                    static_cast<uint16_t>(res), item->getCas(),
+                    static_cast<uint16_t>(res), itm->getCas(),
                     cookie);
-            delete item;
+            delete itm;
         } else {
 
             msg_size = (msg_size > 0 || msg == NULL) ? msg_size : strlen(msg);
@@ -810,8 +810,8 @@ extern "C" {
     }
 
     static void EvpItemSetCas(ENGINE_HANDLE* , const void *,
-                              item *item, uint64_t cas) {
-        static_cast<Item*>(item)->setCas(cas);
+                              item *itm, uint64_t cas) {
+        static_cast<Item*>(itm)->setCas(cas);
     }
 
     static ENGINE_ERROR_CODE EvpTapNotify(ENGINE_HANDLE* handle,
@@ -917,22 +917,22 @@ extern "C" {
     }
 
     static bool EvpGetItemInfo(ENGINE_HANDLE *, const void *,
-                               const item* item, item_info *item_info)
+                               const item* itm, item_info *itm_info)
     {
-        const Item *it = reinterpret_cast<const Item*>(item);
-        if (item_info->nvalue < 1) {
+        const Item *it = reinterpret_cast<const Item*>(itm);
+        if (itm_info->nvalue < 1) {
             return false;
         }
-        item_info->cas = it->getCas();
-        item_info->exptime = it->getExptime();
-        item_info->nbytes = it->getNBytes();
-        item_info->flags = it->getFlags();
-        item_info->clsid = 0;
-        item_info->nkey = static_cast<uint16_t>(it->getNKey());
-        item_info->nvalue = 1;
-        item_info->key = it->getKey().c_str();
-        item_info->value[0].iov_base = const_cast<char*>(it->getData());
-        item_info->value[0].iov_len = it->getNBytes();
+        itm_info->cas = it->getCas();
+        itm_info->exptime = it->getExptime();
+        itm_info->nbytes = it->getNBytes();
+        itm_info->flags = it->getFlags();
+        itm_info->clsid = 0;
+        itm_info->nkey = static_cast<uint16_t>(it->getNKey());
+        itm_info->nvalue = 1;
+        itm_info->key = it->getKey().c_str();
+        itm_info->value[0].iov_base = const_cast<char*>(it->getData());
+        itm_info->value[0].iov_len = it->getNBytes();
         return true;
     }
 } // C linkage
@@ -1401,40 +1401,40 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
             abort();
         }
         *vbucket = checkpoint_msg->getVBucketId();
-        Item *item = new Item(checkpoint_msg->getKey(), 0, 0, checkpoint_msg->getValue(),
-                              0, -1, checkpoint_msg->getVBucketId());
-        *itm = item;
+        Item *it = new Item(checkpoint_msg->getKey(), 0, 0, checkpoint_msg->getValue(),
+                            0, -1, checkpoint_msg->getVBucketId());
+        *itm = it;
         return ret;
     }
 
     // Check if there are any items fetched from disk for backfill operations.
     if (connection->hasItem()) {
         ret = TAP_MUTATION;
-        Item *item = connection->nextFetchedItem();
+        Item *it = connection->nextFetchedItem();
 
         ++stats.numTapBGFetched;
         ++connection->queueDrain;
 
         // If there's a better version in memory, grab it, else go
         // with what we pulled from disk.
-        GetValue gv(epstore->get(item->getKey(), item->getVBucketId(),
+        GetValue gv(epstore->get(it->getKey(), it->getVBucketId(),
                                  cookie, false));
         if (gv.getStatus() == ENGINE_SUCCESS) {
-            delete item;
-            *itm = item = gv.getValue();
+            delete it;
+            *itm = it = gv.getValue();
         } else {
-            *itm = item;
+            *itm = it;
         }
         *vbucket = static_cast<Item*>(*itm)->getVBucketId();
 
         if (!connection->supportsAck()) {
             if (gv.getStoredValue() != NULL) {
                 gv.getStoredValue()->incrementNumReplicas();
-                syncRegistry.itemReplicated(*item);
+                syncRegistry.itemReplicated(*it);
             } else {
                 getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                                  "NULL StoredValue* for key %s, vbucket %d",
-                                 item->getKey().c_str(), item->getVBucketId());
+                                 it->getKey().c_str(), it->getVBucketId());
             }
         }
 
@@ -1443,15 +1443,15 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
             // disk, but the filter says not to, so we need to get rid
             // of it now.
             if (gv.getStatus() != ENGINE_SUCCESS) {
-                delete item;
+                delete it;
             }
             retry = true;
             return TAP_NOOP;
         }
 
-        queued_item qi(new QueuedItem(item->getKey(), item->getValue(), item->getVBucketId(),
-                                      queue_op_set, -1, item->getId(), item->getFlags(),
-                                      item->getExptime(), item->getCas()));
+        queued_item qi(new QueuedItem(it->getKey(), it->getValue(), it->getVBucketId(),
+                                      queue_op_set, -1, it->getId(), it->getFlags(),
+                                      it->getExptime(), it->getCas()));
         connection->addTapLogElement(qi);
     } else if (connection->hasQueuedItem()) {
         if (connection->waitForBackfill() || connection->waitForCheckpointMsgAck()) {
@@ -1521,17 +1521,17 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
             }
         } else { // The item is from the checkpoint in the unified queue.
             if (qi->getOperation() == queue_op_set) {
-                Item *item = new Item(qi->getKey(), qi->getFlags(), qi->getExpiryTime(),
-                                  qi->getValue(), qi->getCas(), qi->getRowId(), qi->getVBucketId());
-                *itm = item;
+                Item *it = new Item(qi->getKey(), qi->getFlags(), qi->getExpiryTime(),
+                                    qi->getValue(), qi->getCas(), qi->getRowId(), qi->getVBucketId());
+                *itm = it;
                 ret = TAP_MUTATION;
 
                 StoredValue *sv = epstore->getStoredValue(qi->getKey(), qi->getVBucketId(), false);
 
                 if (!connection->supportsAck()) {
-                    if (sv && sv->getCas() == item->getCas()) {
+                    if (sv && sv->getCas() == it->getCas()) {
                         sv->incrementNumReplicas();
-                        syncRegistry.itemReplicated(*item);
+                        syncRegistry.itemReplicated(*it);
                     }
                 }
 
@@ -1869,18 +1869,18 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
             BlockTimer timer(&stats.tapMutationHisto);
             TapConsumer *tc = dynamic_cast<TapConsumer*>(connection);
             RCPtr<Blob> vblob(Blob::New(static_cast<const char*>(data), ndata));
-            Item *item = new Item(k, flags, exptime, vblob);
-            item->setVBucketId(vbucket);
+            Item *itm = new Item(k, flags, exptime, vblob);
+            itm->setVBucketId(vbucket);
 
             if (tc) {
                 ret = tc->isBackfillPhase(vbucket) ?
-                      epstore->addTAPBackfillItem(*item) : epstore->set(*item, cookie, true);
+                      epstore->addTAPBackfillItem(*itm) : epstore->set(*itm, cookie, true);
             } else {
                 ret = ENGINE_DISCONNECT;
             }
 
             if (ret == ENGINE_SUCCESS) {
-                addMutationEvent(item);
+                addMutationEvent(itm);
             } else if (ret == ENGINE_ENOMEM) {
                 if (connection->supportsAck()) {
                     ret = ENGINE_TMPFAIL;
@@ -1891,7 +1891,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
                 }
             }
 
-            delete item;
+            delete itm;
             if (tc && !tc->supportsCheckpointSync()) {
                 tc->checkVBOpenCheckpoint(vbucket);
             }
@@ -2924,15 +2924,15 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doKeyStats(const void *cookie,
             } else {
                 GetValue gv(epstore->get(key, vbid, cookie, serverApi->core));
                 if (gv.getStatus() == ENGINE_SUCCESS) {
-                    shared_ptr<Item> item(gv.getValue());
+                    shared_ptr<Item> itm(gv.getValue());
                     if (diskItem.get()) {
                         // Both items exist
-                        if (diskItem->getNBytes() != item->getNBytes()) {
+                        if (diskItem->getNBytes() != itm->getNBytes()) {
                             valid.assign("length_mismatch");
-                        } else if (memcmp(diskItem->getData(), item->getData(),
+                        } else if (memcmp(diskItem->getData(), itm->getData(),
                                           diskItem->getNBytes()) != 0) {
                             valid.assign("data_mismatch");
-                        } else if (diskItem->getFlags() != item->getFlags()) {
+                        } else if (diskItem->getFlags() != itm->getFlags()) {
                             valid.assign("flags_mismatch");
                         } else {
                             valid.assign("valid");

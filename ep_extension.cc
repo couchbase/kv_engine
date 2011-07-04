@@ -121,26 +121,26 @@ ENGINE_ERROR_CODE GetlExtension::executeGetl(int argc, token_t *argv,
             serverApi->core->get_current_time(),
             lockTimeout, response_cookie);
 
-    Item *item = NULL;
+    Item *itm = NULL;
     ENGINE_ERROR_CODE ret;
 
     getCb.waitForValue();
 
     ENGINE_ERROR_CODE rv = getCb.val.getStatus();
     if (rv == ENGINE_SUCCESS) {
-        item = getCb.val.getValue();
+        itm = getCb.val.getValue();
         std::stringstream strm;
 
-        strm << "VALUE " << item->getKey() << " " << ntohl(item->getFlags())
-             << " " << item->getNBytes() << " " << item->getCas() << "\r\n";
+        strm << "VALUE " << itm->getKey() << " " << ntohl(itm->getFlags())
+             << " " << itm->getNBytes() << " " << itm->getCas() << "\r\n";
 
         std::string strVal = strm.str();
         size_t len = strVal.length();
 
         if ((response_handler(response_cookie, static_cast<int>(len),
                               strVal.c_str()) == ENGINE_SUCCESS) &&
-            (response_handler(response_cookie, item->getNBytes(),
-                              item->getData()) == ENGINE_SUCCESS) &&
+            (response_handler(response_cookie, itm->getNBytes(),
+                              itm->getData()) == ENGINE_SUCCESS) &&
             (response_handler(response_cookie, 7,
                               "\r\nEND\r\n") == ENGINE_SUCCESS)) {
             ret = ENGINE_SUCCESS;
@@ -157,8 +157,8 @@ ENGINE_ERROR_CODE GetlExtension::executeGetl(int argc, token_t *argv,
                                sizeof("NOT_FOUND\r\n") - 1, "NOT_FOUND\r\n");
     }
 
-    if (item != NULL) {
-        delete item;
+    if (itm != NULL) {
+        delete itm;
     }
 
     return ret;

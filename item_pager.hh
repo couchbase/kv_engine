@@ -10,7 +10,7 @@
 #include "dispatcher.hh"
 #include "stats.hh"
 
-typedef std::pair<int64_t, int64_t> row_range;
+typedef std::pair<int64_t, int64_t> row_range_t;
 
 // Forward declaration.
 class EventuallyPersistentStore;
@@ -112,7 +112,7 @@ private:
     size_t                                        chunk_size;
     std::map<uint16_t, uint16_t>                  vb_versions;
     std::map<uint16_t, std::vector<int64_t>* >    vb_items;
-    std::map<uint16_t, std::list<row_range> >     vb_row_ranges;
+    std::map<uint16_t, std::list<row_range_t> >   vb_row_ranges;
 };
 
 #endif /* ITEM_PAGER_HH */

@@ -1188,8 +1188,8 @@ queued_item TapProducer::next(bool &shouldPause) {
             }
 
             bool isLastItem = false;
-            queued_item item = vb->checkpointManager.nextItem(name, isLastItem);
-            switch(item->getOperation()) {
+            queued_item qi = vb->checkpointManager.nextItem(name, isLastItem);
+            switch(qi->getOperation()) {
             case queue_op_set:
             case queue_op_del:
                 if (supportCheckpointSync && isLastItem) {
@@ -1197,17 +1197,17 @@ queued_item TapProducer::next(bool &shouldPause) {
                 } else {
                     it->second.lastItem = false;
                 }
-                addEvent_UNLOCKED(item);
+                addEvent_UNLOCKED(qi);
                 break;
             case queue_op_checkpoint_start:
                 {
                     uint64_t checkpointId;
-                    memcpy(&checkpointId, item->getValue()->getData(), sizeof(checkpointId));
+                    memcpy(&checkpointId, qi->getValue()->getData(), sizeof(checkpointId));
                     checkpointId = ntohll(checkpointId);
                     it->second.currentCheckpointId = checkpointId;
                     if (supportCheckpointSync) {
                         it->second.state = checkpoint_start;
-                        addCheckpointMessage_UNLOCKED(item);
+                        addCheckpointMessage_UNLOCKED(qi);
                     }
                 }
                 break;
@@ -1221,7 +1221,7 @@ queued_item TapProducer::next(bool &shouldPause) {
                         seqnoAcked = isLastAckSucceed ? seqnoReceived : seqnoReceived - 1;
                     }
                     if (it->second.lastSeqNum <= seqnoAcked) {
-                        addCheckpointMessage_UNLOCKED(item);
+                        addCheckpointMessage_UNLOCKED(qi);
                     } else {
                         vb->checkpointManager.decrTapCursorFromCheckpointEnd(name);
                         ++wait_for_ack_count;
@@ -1230,21 +1230,21 @@ queued_item TapProducer::next(bool &shouldPause) {
                 break;
             case queue_op_online_update_start:
                 {
-                    TapVBucketEvent ev(TAP_OPAQUE, item->getVBucketId(),
+                    TapVBucketEvent ev(TAP_OPAQUE, qi->getVBucketId(),
                                          (vbucket_state_t)htonl(TAP_OPAQUE_START_ONLINEUPDATE));
                     addVBucketHighPriority_UNLOCKED(ev);
                 }
                 break;
             case queue_op_online_update_end:
                 {
-                    TapVBucketEvent ev(TAP_OPAQUE, item->getVBucketId(),
+                    TapVBucketEvent ev(TAP_OPAQUE, qi->getVBucketId(),
                                          (vbucket_state_t)htonl(TAP_OPAQUE_STOP_ONLINEUPDATE));
                     addVBucketHighPriority_UNLOCKED(ev);
                 }
                 break;
             case queue_op_online_update_revert:
                 {
-                    TapVBucketEvent ev(TAP_OPAQUE, item->getVBucketId(),
+                    TapVBucketEvent ev(TAP_OPAQUE, qi->getVBucketId(),
                                          (vbucket_state_t)htonl(TAP_OPAQUE_REVERT_ONLINEUPDATE));
                     addVBucketHighPriority_UNLOCKED(ev);
                 }
@@ -1256,7 +1256,7 @@ queued_item TapProducer::next(bool &shouldPause) {
                         // If all the cursors are at the open checkpoints, send the OPAQUE message
                         // to the TAP client so that it can close the connection if necessary.
                         if (open_checkpoint_count == (tapCheckpointState.size() - invalid_count)) {
-                            TapVBucketEvent ev(TAP_OPAQUE, item->getVBucketId(),
+                            TapVBucketEvent ev(TAP_OPAQUE, qi->getVBucketId(),
                                                (vbucket_state_t)htonl(TAP_OPAQUE_OPEN_CHECKPOINT));
                             addVBucketHighPriority_UNLOCKED(ev);
                         }

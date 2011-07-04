@@ -72,8 +72,8 @@ void SyncRegistry::removePersistenceListener(SyncListener *syncListener) {
 }
 
 
-void SyncRegistry::itemPersisted(const queued_item &item) {
-    key_spec_t keyspec(item);
+void SyncRegistry::itemPersisted(const queued_item &qi) {
+    key_spec_t keyspec(qi);
     LockHolder lh(persistenceMutex);
     notifyListeners(persistenceListeners, keyspec, false);
 }

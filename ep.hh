@@ -93,8 +93,8 @@ protected:
     RCPtr<VBucket> currentBucket;
 };
 
-typedef std::pair<int64_t, int64_t> chunk_range;
-typedef std::list<chunk_range>::iterator chunk_range_iterator;
+typedef std::pair<int64_t, int64_t> chunk_range_t;
+typedef std::list<chunk_range_t>::iterator chunk_range_iterator_t;
 
 /**
  * Collection class that maintains the sorted list of row ID chunk ranges
@@ -105,31 +105,31 @@ public:
 
     VBDeletionChunkRangeList() { }
 
-    chunk_range_iterator begin() {
+    chunk_range_iterator_t begin() {
         return range_list.begin();
     }
 
-    chunk_range_iterator end() {
+    chunk_range_iterator_t end() {
         return range_list.end();
     }
 
     void add(int64_t start_id, int64_t end_id) {
-        chunk_range r(start_id, end_id);
+        chunk_range_t r(start_id, end_id);
         add(r);
     }
 
-    void add(chunk_range range) {
+    void add(chunk_range_t range) {
         if (range.first > range.second || (size() > 0 && back().second > range.first)) {
             return;
         }
         range_list.push_back(range);
     }
 
-    const chunk_range& front() {
+    const chunk_range_t& front() {
         return range_list.front();
     }
 
-    const chunk_range& back() {
+    const chunk_range_t& back() {
         return range_list.back();
     }
 
@@ -142,14 +142,14 @@ public:
      * @param it pointer to a chunk range to be split
      * @param range_size range size used for chunk split
      */
-    void splitChunkRange(chunk_range_iterator it, int64_t range_size) {
+    void splitChunkRange(chunk_range_iterator_t it, int64_t range_size) {
         if (it == end() || (it->second - it->first) <= range_size) {
             return;
         }
 
         int64_t range_end = it->second;
         it->second = it->first + range_size;
-        chunk_range r(it->second + 1, range_end);
+        chunk_range_t r(it->second + 1, range_end);
         range_list.insert(++it, r);
     }
 
@@ -158,13 +158,13 @@ public:
      * @param start the pointer to the start chunk range for the merge operation
      * @param range_size the new range size used for merging chunk ranges
      */
-    void mergeChunkRanges(chunk_range_iterator start, int64_t range_size) {
+    void mergeChunkRanges(chunk_range_iterator_t start, int64_t range_size) {
         if (start == end() || (start->second - start->first) >= range_size) {
             return;
         }
         // Find the closest chunk C1 whose end point is greater than the point advanced by
         // the new range size from the start chunk range's start point.
-        chunk_range_iterator p = findClosestChunkByRangeSize(start, range_size);
+        chunk_range_iterator_t p = findClosestChunkByRangeSize(start, range_size);
         if (p != end()) {
             int64_t endpoint = start->first + range_size;
             if (p->first <= endpoint && endpoint <= p->second) {
@@ -172,7 +172,7 @@ public:
                 start->second = endpoint;
                 p->first = endpoint + 1;
             } else {
-                chunk_range_iterator iter = p;
+                chunk_range_iterator_t iter = p;
                 start->second = (--iter)->second;
             }
         } else { // Reached to the end of the range list
@@ -191,7 +191,7 @@ private:
      * @param first iterator that points to the first chunk range in the sub list
      * @param last iterator that points to the last chunk range in the sub list
      */
-    void removeChunkRanges(chunk_range_iterator first, chunk_range_iterator last) {
+    void removeChunkRanges(chunk_range_iterator_t first, chunk_range_iterator_t last) {
         if (first == last || first == end() ||
             (first != end() && last != end() && first->second > last->first)) {
             return;
@@ -206,16 +206,16 @@ private:
      * @param range_size range size to be advanced
      * @return the iterator that points to the chunk range found
      */
-    chunk_range_iterator findClosestChunkByRangeSize(chunk_range_iterator it,
-                                                     int64_t range_size) {
-        chunk_range_iterator p = it;
+    chunk_range_iterator_t findClosestChunkByRangeSize(chunk_range_iterator_t it,
+                                                       int64_t range_size) {
+        chunk_range_iterator_t p = it;
         while (p != end() && p->second <= (it->first + range_size)) {
             ++p;
         }
         return p;
     }
 
-    std::list<chunk_range> range_list;
+    std::list<chunk_range_t> range_list;
 };
 
 /**
@@ -260,7 +260,7 @@ public:
             }
             if (counter == chunk_size || iter == --(row_ids->end())) {
                 end_row_id = *iter;
-                chunk_range r(start_row_id, end_row_id);
+                chunk_range_t r(start_row_id, end_row_id);
                 range_list.add(r);
                 counter = 0;
             }

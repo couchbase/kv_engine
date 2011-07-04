@@ -18,9 +18,9 @@
 
 Atomic<uint64_t> Item::casCounter(1);
 
-bool Item::append(const Item &item) {
+bool Item::append(const Item &itm) {
     std::string newValue(value->getData(), value->length());
-    newValue.append(item.getValue()->to_s());
+    newValue.append(itm.getValue()->to_s());
     value.reset(Blob::New(newValue));
     return true;
 }
@@ -28,11 +28,11 @@ bool Item::append(const Item &item) {
 /**
  * Prepend another item to this item
  *
- * @param item the item to prepend to this one
+ * @param itm the item to prepend to this one
  * @return true if success
  */
-bool Item::prepend(const Item &item) {
-    std::string newValue(item.getValue()->to_s());
+bool Item::prepend(const Item &itm) {
+    std::string newValue(itm.getValue()->to_s());
     newValue.append(value->to_s());
     value.reset(Blob::New(newValue));
     return true;

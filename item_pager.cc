@@ -144,8 +144,8 @@ bool ExpiredItemPager::callback(Dispatcher &d, TaskId t) {
     return true;
 }
 
-void InvalidItemDbPager::addInvalidItem(Item *item, uint16_t vbucket_version) {
-    uint16_t vbucket_id = item->getVBucketId();
+void InvalidItemDbPager::addInvalidItem(Item *itm, uint16_t vbucket_version) {
+    uint16_t vbucket_id = itm->getVBucketId();
     std::map<uint16_t, uint16_t>::iterator version_it = vb_versions.find(vbucket_id);
     if (version_it == vb_versions.end() || version_it->second < vbucket_version) {
         vb_versions[vbucket_id] = vbucket_version;
@@ -153,10 +153,10 @@ void InvalidItemDbPager::addInvalidItem(Item *item, uint16_t vbucket_version) {
 
     std::map<uint16_t, std::vector<int64_t>* >::iterator item_it = vb_items.find(vbucket_id);
     if (item_it != vb_items.end()) {
-        item_it->second->push_back(item->getId());
+        item_it->second->push_back(itm->getId());
     } else {
         std::vector<int64_t> *item_list = new std::vector<int64_t>(chunk_size * 5);
-        item_list->push_back(item->getId());
+        item_list->push_back(itm->getId());
         vb_items[vbucket_id] = item_list;
     }
 }
@@ -165,7 +165,7 @@ void InvalidItemDbPager::createRangeList() {
     std::map<uint16_t, std::vector<int64_t>* >::iterator vbit;
     for (vbit = vb_items.begin(); vbit != vb_items.end(); vbit++) {
         std::sort(vbit->second->begin(), vbit->second->end());
-        std::list<row_range> row_range_list;
+        std::list<row_range_t> row_range_list;
         createChunkListFromArray<int64_t>(vbit->second, chunk_size, row_range_list);
         vb_row_ranges[vbit->first] = row_range_list;
         delete vbit->second;
@@ -175,13 +175,13 @@ void InvalidItemDbPager::createRangeList() {
 
 bool InvalidItemDbPager::callback(Dispatcher &d, TaskId t) {
     BlockTimer timer(&stats.diskInvaidItemDelHisto);
-    std::map<uint16_t, std::list<row_range> >::iterator it = vb_row_ranges.begin();
+    std::map<uint16_t, std::list<row_range_t> >::iterator it = vb_row_ranges.begin();
     if (it == vb_row_ranges.end()) {
         stats.dbCleanerComplete.set(true);
         return false;
     }
 
-    std::list<row_range>::iterator rit = it->second.begin();
+    std::list<row_range_t>::iterator rit = it->second.begin();
     uint16_t vbid = it->first;
     uint16_t vb_version = vb_versions[vbid];
     if (store->getRWUnderlying()->delVBucket(vbid, vb_version, *rit)) {
