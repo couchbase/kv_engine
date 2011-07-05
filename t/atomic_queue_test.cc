@@ -38,7 +38,7 @@ static void *launch_consumer_thread(void *arg) {
     sleep(1);
     assert(args->queue.empty());
     assert(outQueue.empty());
-    return static_cast<void *>(0);
+    return NULL;
 }
 
 static void *launch_test_thread(void *arg) {
@@ -55,14 +55,14 @@ static void *launch_test_thread(void *arg) {
         args->queue.push(i);
     }
 
-    return static_cast<void *>(0);
+    return NULL;
 }
 }
 
 int main() {
     pthread_t threads[NUM_THREADS];
     pthread_t consumer;
-    int i(0), rc(0), result(-1);
+    int i(0), rc(0);
     struct thread_args args;
 
     alarm(60);
@@ -90,13 +90,11 @@ int main() {
     args.mutex.notify();
 
     for (i = 0; i < NUM_THREADS; ++i) {
-        rc = pthread_join(threads[i], reinterpret_cast<void **>(&result));
+        rc = pthread_join(threads[i], NULL);
         assert(rc == 0);
-        assert(result == 0);
     }
 
-    rc = pthread_join(consumer, reinterpret_cast<void **>(&result));
+    rc = pthread_join(consumer, NULL);
     assert(rc == 0);
-    assert(result == 0);
     assert(args.queue.empty());
 }
