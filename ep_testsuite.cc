@@ -1851,8 +1851,6 @@ static enum test_result test_expiry(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     testHarness.time_travel(3);
 
-    assert(0 == get_int_stat(h, h1, "ep_expired"));
-
     check(h1->get(h, NULL, &it, key, strlen(key), 0) == ENGINE_KEY_ENOENT,
           "Item didn't expire");
 
