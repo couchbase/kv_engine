@@ -394,8 +394,6 @@ private:
     Atomic<size_t> numCheckpointEndFailed;
     Atomic<size_t> numUnknown;
 
-    Atomic<bool> backfillPhase;
-
 public:
     TapConsumer(EventuallyPersistentEngine &theEngine,
                 const void *c,
@@ -408,7 +406,7 @@ public:
     virtual void checkVBOpenCheckpoint(uint16_t);
     virtual bool processOnlineUpdateCommand(uint32_t event, uint16_t vbucket);
     void setBackfillPhase(bool isBackfill, uint16_t vbucket);
-    bool isBackfillPhase(void);
+    bool isBackfillPhase(uint16_t vbucket);
 };
 
 
@@ -432,7 +430,9 @@ public:
 
     void completeBackfill() {
         LockHolder lh(queueLock);
-        pendingBackfill = false;
+        if (pendingBackfillCounter > 0) {
+            --pendingBackfillCounter;
+        }
         completeBackfillCommon_UNLOCKED();
     }
 
@@ -818,7 +818,7 @@ private:
      * A backfill is pending if the backfill thread is still running
      */
     bool isPendingBackfill_UNLOCKED() {
-        return pendingBackfill || diskBackfillCounter > 0;
+        return doRunBackfill || pendingBackfillCounter > 0 || diskBackfillCounter > 0;
     }
 
     bool isPendingBackfill() {
@@ -830,7 +830,7 @@ private:
      * Items from backfill are all successfully transmitted to the destination?
      */
     bool isBackfillCompleted_UNLOCKED() {
-        return !isPendingBackfill_UNLOCKED() && backfillCompleted;
+        return backfillCompleted;
     }
 
     bool isBackfillCompleted() {
@@ -838,28 +838,7 @@ private:
         return isBackfillCompleted_UNLOCKED();
     }
 
-    void scheduleBackfill_UNLOCKED(const std::vector<uint16_t> &vblist) {
-        if (doRunBackfill) {
-            std::vector<uint16_t>::const_iterator it = vblist.begin();
-            for(; it != vblist.end(); ++it) {
-                backFillVBucketFilter.addVBucket(*it);
-            }
-        } else {
-            backFillVBucketFilter.assign(vblist);
-        }
-
-        doRunBackfill = true;
-        pendingBackfill = true;
-        backfillCompleted = false;
-        // Send an initial_vbucket_stream message to the destination node so that it can
-        // delete the corresponding vbucket before receiving the backfill stream.
-        std::vector<uint16_t>::const_iterator it = vblist.begin();
-        for (; it != vblist.end(); ++it) {
-            TapVBucketEvent hi(TAP_OPAQUE, *it,
-                               (vbucket_state_t)htonl(TAP_OPAQUE_INITIAL_VBUCKET_STREAM));
-            addVBucketHighPriority_UNLOCKED(hi);
-        }
-    }
+    void scheduleBackfill_UNLOCKED(const std::vector<uint16_t> &vblist);
 
     void scheduleBackfill(const std::vector<uint16_t> &vblist) {
         LockHolder lh(queueLock);
@@ -871,6 +850,7 @@ private:
         bool rv = doRunBackfill;
         if (doRunBackfill) {
             doRunBackfill = false;
+            ++pendingBackfillCounter; // Will be decremented when each backfill thread is completed
             vbFilter = backFillVBucketFilter;
         }
         return rv;
@@ -957,21 +937,31 @@ private:
 
     void setClosedCheckpointOnlyFlag(bool isClosedCheckpointOnly);
 
-    bool recordCurrentOpenCheckpointId(uint16_t vbucket);
+    bool SetCursorToOpenCheckpoint(uint16_t vbucket);
 
     void setTakeOverCompletionPhase(bool completionPhase) {
         takeOverCompletionPhase = completionPhase;
     }
 
-    bool addBackfillCompletionMessage_UNLOCKED();
-    bool addBackfillCompletionMessage() {
+    bool checkBackfillCompletion_UNLOCKED();
+    bool checkBackfillCompletion() {
         LockHolder lh(queueLock);
-        return addBackfillCompletionMessage_UNLOCKED();
+        return checkBackfillCompletion_UNLOCKED();
     }
 
     void setBackfillAge(uint64_t age, bool reconnect);
 
     void setVBucketFilter(const std::vector<uint16_t> &vbuckets);
+
+    const VBucketFilter &getVBucketFilter() {
+        LockHolder lh(queueLock);
+        return vbucketFilter;
+    }
+
+    bool checkVBucketFilter(uint16_t vbucket) {
+        LockHolder lh(queueLock);
+        return vbucketFilter(vbucket);
+    }
 
     /**
      * Register the unified queue cursor for this TAP producer.
@@ -1070,11 +1060,11 @@ private:
      */
     bool doRunBackfill;
 
-    // True until a backfill has dumped all the items into the queue.
-    bool pendingBackfill;
-
     // True if items from backfill are all successfully transmitted to the destination.
     bool backfillCompleted;
+
+    // Number of pending backfill tasks
+    size_t pendingBackfillCounter;
 
     /**
      * Number of vbuckets that are currently scheduled for disk backfill.
@@ -1085,7 +1075,15 @@ private:
      * Filter for the buckets we want.
      */
     VBucketFilter vbucketFilter;
-    VBucketFilter backFillVBucketFilter;
+    /**
+     * Filter for the vbuckets that require backfill by the next backfill task
+     */
+     VBucketFilter backFillVBucketFilter;
+    /**
+     * List of the vbuckets that are being backfilled by all backfill tasks in the current
+     * backfill session
+     */
+    std::set<uint16_t> backfillVBuckets;
 
     /**
      * For each vbucket, maintain the current checkpoint Id that this TAP producer should

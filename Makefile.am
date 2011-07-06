@@ -44,6 +44,8 @@ ep_la_SOURCES = \
                  atomic/gcc_atomics.h \
                  atomic/libatomic.h \
                  atomic.hh \
+                 backfill.hh \
+                 backfill.cc \
                  callbacks.hh \
                  checkpoint.hh \
                  checkpoint.cc \

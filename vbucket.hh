@@ -74,10 +74,13 @@ public:
 
     const std::vector<uint16_t> &getVector() const { return acceptable; }
 
-    void addVBucket(uint16_t vbucket) {
-        if (!operator ()(vbucket)) {
+    bool addVBucket(uint16_t vbucket) {
+        bool rv = false;
+        if (!std::binary_search(acceptable.begin(), acceptable.end(), vbucket)) {
             acceptable.push_back(vbucket);
+            rv = true;
         }
+        return rv;
     }
 
     /**
@@ -105,6 +108,7 @@ public:
         ht(st), checkpointManager(st, i, checkpointId), id(i), state(newState),
         initialState(initState), stats(st) {
 
+        backfill.isBackfillPhase = false;
         pendingOpsStart = 0;
         stats.memOverhead.incr(sizeof(VBucket)
                                + ht.memorySize() + sizeof(CheckpointManager));
@@ -181,12 +185,21 @@ public:
             backfill.items.pop();
         }
     }
+    bool isBackfillPhase() {
+        LockHolder lh(backfill.mutex);
+        return backfill.isBackfillPhase;
+    }
+    void setBackfillPhase(bool backfillPhase) {
+        LockHolder lh(backfill.mutex);
+        backfill.isBackfillPhase = backfillPhase;
+    }
 
     HashTable         ht;
     CheckpointManager checkpointManager;
     struct {
         Mutex mutex;
         std::queue<queued_item> items;
+        bool isBackfillPhase;
     } backfill;
 
     static const char* toString(vbucket_state_t s) {

@@ -300,7 +300,20 @@ bool TapConnMap::checkValidity(const std::string &name,
     return viter != validity.end() && viter->second == token;
 }
 
-bool TapConnMap::addBackfillCompletionMessage(const std::string &name) {
+bool TapConnMap::checkConnectivity(const std::string &name) {
+    LockHolder lh(notifySync);
+    rel_time_t now = ep_current_time();
+    TapConnection *tc = findByName_UNLOCKED(name);
+    if (tc) {
+        TapProducer *tp = dynamic_cast<TapProducer*>(tc);
+        if (tp && (tp->isConnected() || tp->getExpiryTime() > now)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool TapConnMap::checkBackfillCompletion(const std::string &name) {
     LockHolder lh(notifySync);
     bool rv = false;
 
@@ -308,7 +321,7 @@ bool TapConnMap::addBackfillCompletionMessage(const std::string &name) {
     if (tc) {
         TapProducer *tp = dynamic_cast<TapProducer*>(tc);
         assert(tp);
-        rv = tp->addBackfillCompletionMessage();
+        rv = tp->checkBackfillCompletion();
     }
     return rv;
 }
@@ -357,19 +370,26 @@ void TapConnMap::shutdownAllTapConnections() {
     validity.clear();
 }
 
-void TapConnMap::scheduleBackfillByVBucket(uint16_t vbucket) {
+void TapConnMap::scheduleBackfill(const std::set<uint16_t> &backfillVBuckets) {
     LockHolder lh(notifySync);
     bool shouldNotify(false);
+    rel_time_t now = ep_current_time();
     std::list<TapConnection*>::iterator it = all.begin();
     for (; it != all.end(); ++it) {
         TapConnection *tc = *it;
-        if (!tc->isConnected() || tc->doDisconnect()) {
+        TapProducer *tp = dynamic_cast<TapProducer*>(tc);
+        if (!tp || tp->getExpiryTime() <= now) {
             continue;
         }
-        TapProducer *tp = dynamic_cast<TapProducer*>(tc);
-        if (tp && tp->vbucketFilter(vbucket)) {
-            std::vector<uint16_t> vblist;
-            vblist.push_back(vbucket);
+
+        std::vector<uint16_t> vblist;
+        std::set<uint16_t>::const_iterator vb_it = backfillVBuckets.begin();
+        for (; vb_it != backfillVBuckets.end(); ++vb_it) {
+            if (tp->checkVBucketFilter(*vb_it)) {
+                vblist.push_back(*vb_it);
+            }
+        }
+        if (vblist.size() > 0) {
             tp->scheduleBackfill(vblist);
             shouldNotify = true;
         }
@@ -377,6 +397,25 @@ void TapConnMap::scheduleBackfillByVBucket(uint16_t vbucket) {
     if (shouldNotify) {
         notifySync.notify();
     }
+}
+
+void TapConnMap::resetReplicaChain() {
+    LockHolder lh(notifySync);
+    rel_time_t now = ep_current_time();
+    std::list<TapConnection*>::iterator it = all.begin();
+    for (; it != all.end(); ++it) {
+        TapConnection *tc = *it;
+        TapProducer *tp = dynamic_cast<TapProducer*>(tc);
+        if (!tp || tp->getExpiryTime() <= now) {
+            continue;
+        }
+        // Get the list of vbuckets that each TAP producer is replicating
+        const std::vector<uint16_t> &vblist = tp->getVBucketFilter().getVector();
+        // TAP producer sends INITIAL_VBUCKET_STREAM messages to the destination to reset
+        // replica vbuckets, and then backfills items to the destination.
+        tp->scheduleBackfill(vblist);
+    }
+    notifySync.notify();
 }
 
 void TapConnMap::notifyIOThreadMain() {
@@ -476,7 +515,7 @@ void TapConnMap::notifyIOThreadMain() {
     engine.notifyIOComplete(toNotify, ENGINE_SUCCESS);
 }
 
-bool TapConnMap::recordCurrentOpenCheckpointId(const std::string &name, uint16_t vbucket) {
+bool TapConnMap::SetCursorToOpenCheckpoint(const std::string &name, uint16_t vbucket) {
     bool rv(false);
     LockHolder lh(notifySync);
 
@@ -485,7 +524,7 @@ bool TapConnMap::recordCurrentOpenCheckpointId(const std::string &name, uint16_t
         TapProducer *tp = dynamic_cast<TapProducer*>(tc);
         assert(tp);
         rv = true;
-        tp->recordCurrentOpenCheckpointId(vbucket);
+        tp->SetCursorToOpenCheckpoint(vbucket);
     }
 
     return rv;

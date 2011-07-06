@@ -60,6 +60,9 @@ CMD_REVERT_ONLINEUPDATE = 0x9d
 # TAP client registration
 CMD_DEREGISTER_TAP_CLIENT = 0x9e
 
+# Reset replication chain
+CMD_RESET_REPLICATION_CHAIN = 0x9f
+
 # Replication
 CMD_TAP_CONNECT = 0x40
 CMD_TAP_MUTATION = 0x41

@@ -651,18 +651,18 @@ RCPtr<VBucket> EventuallyPersistentStore::getVBucket(uint16_t vbid,
 
 /// @cond DETAILS
 /**
- * Inner loop of deleteMany.
+ * Inner loop of deleteExpiredItems.
  */
 class Deleter {
 public:
-    Deleter(EventuallyPersistentStore *ep) : e(ep) {}
+    Deleter(EventuallyPersistentStore *ep) : e(ep), startTime(ep_real_time()) {}
     void operator() (std::pair<uint16_t, std::string> vk) {
         RCPtr<VBucket> vb = e->getVBucket(vk.first);
         if (vb) {
             int bucket_num(0);
             LockHolder lh = vb->ht.getLockedBucket(vk.second, &bucket_num);
             StoredValue *v = vb->ht.unlocked_find(vk.second, bucket_num);
-            if (v) {
+            if (v && v->isExpired(startTime)) {
                 value_t value = v->getValue();
                 uint64_t cas = v->getCas();
                 vb->ht.unlocked_softDelete(vk.second, 0, bucket_num);
@@ -673,10 +673,12 @@ public:
     }
 private:
     EventuallyPersistentStore *e;
+    time_t                     startTime;
 };
 /// @endcond
 
-void EventuallyPersistentStore::deleteMany(std::list<std::pair<uint16_t, std::string> > &keys) {
+void
+EventuallyPersistentStore::deleteExpiredItems(std::list<std::pair<uint16_t, std::string> > &keys) {
     // This can be made a lot more efficient, but I'd rather see it
     // show up in a profiling report first.
     std::for_each(keys.begin(), keys.end(), Deleter(this));
@@ -2390,9 +2392,13 @@ void TransactionContext::addUncommittedItem(const queued_item &item) {
     ++numUncommittedItems;
 }
 
-bool VBCBAdaptor::callback(Dispatcher &, TaskId) {
+bool VBCBAdaptor::callback(Dispatcher & d, TaskId t) {
     RCPtr<VBucket> vb = store->vbuckets.getBucket(currentvb);
     if (vb) {
+        if (visitor->pauseVisitor()) {
+            d.snooze(t, sleepTime);
+            return true;
+        }
         if (visitor->visitBucket(vb)) {
             vb->ht.visit(*visitor);
         }

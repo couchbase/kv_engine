@@ -152,6 +152,11 @@ public:
     bool checkValidity(const std::string &name, const void* token);
 
     /**
+     * Return true if the TAP connection with the given name is still alive
+     */
+    bool checkConnectivity(const std::string &name);
+
+    /**
      * Increments reference count of validity token (cookie in
      * fact). NOTE: takes notifySync lock.
      */
@@ -166,7 +171,7 @@ public:
     /**
      * Return true if the backfill is completed for a given TAP connection.
      */
-    bool addBackfillCompletionMessage(const std::string &name);
+    bool checkBackfillCompletion(const std::string &name);
 
     /**
      * Set some backfilled events for a named conn.
@@ -239,13 +244,15 @@ public:
 
     void notifyIOThreadMain();
 
-    bool recordCurrentOpenCheckpointId(const std::string &name, uint16_t vbucket);
+    bool SetCursorToOpenCheckpoint(const std::string &name, uint16_t vbucket);
 
     bool closeTapConnectionByName(const std::string &name);
 
     void shutdownAllTapConnections();
 
-    void scheduleBackfillByVBucket(uint16_t vbucket);
+    void scheduleBackfill(const std::set<uint16_t> &backfillVBuckets);
+
+    void resetReplicaChain();
 
 private:
 

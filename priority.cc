@@ -17,25 +17,30 @@
 #include "config.h"
 #include "priority.hh"
 
+// Priorities for Read-only dispatcher
 const Priority Priority::BgFetcherPriority("bg_fetcher_priority", 0);
 const Priority Priority::TapBgFetcherPriority("tap_bg_fetcher_priority", 1);
+const Priority Priority::VKeyStatBgFetcherPriority("vkey_stat_bg_fetcher_priority", 3);
+
+// Priorities for Read-Write dispatcher
 const Priority Priority::VBucketPersistHighPriority("vbucket_persist_high_priority", 1);
 const Priority Priority::FastVBucketDeletionPriority("vbucket_deletion_hi_priority", 2);
-const Priority Priority::VKeyStatBgFetcherPriority("vkey_stat_bg_fetcher_priority", 3);
 const Priority Priority::FlushAllPriority("flush_all_priority", 3);
-const Priority Priority::NotifyVBStateChangePriority("notify_vb_state_change_priority", 4);
 const Priority Priority::FlusherPriority("flusher_priority", 5);
-const Priority Priority::CheckpointRemoverPriority("checkpoint_remover_priority", 6);
-const Priority Priority::ItemPagerPriority("item_pager_priority", 7);
 const Priority Priority::VBucketDeletionPriority("vbucket_deletion_priority", 9);
 const Priority Priority::VBucketPersistLowPriority("vbucket_persist_low_priority", 9);
 const Priority Priority::StatSnapPriority("statsnap_priority", 9);
 const Priority Priority::InvalidItemDbPagerPriority("invalid_item_db_pager_priority", 9);
+
+// Priorities for NON-IO dispatcher
+const Priority Priority::NotifyVBStateChangePriority("notify_vb_state_change_priority", 4);
+const Priority Priority::CheckpointRemoverPriority("checkpoint_remover_priority", 6);
+const Priority Priority::ItemPagerPriority("item_pager_priority", 7);
+const Priority Priority::BackfillTaskPriority("backfill_task_priority", 8);
 const Priority Priority::HTResizePriority("hashtable_resize_priority", 211);
 const Priority Priority::SyncDestroyPriority("sync_destroy_priority", 314);
 const Priority Priority::TapResumePriority("tap_resume_priority", 316);
 const Priority Priority::SyncAbortPriority("sync_abort_priority", 316);
-
 /**
  * The tap connection reaper run with short iterations to give memory back to the
  * system. It should normally run for a short period of time for each iteration.

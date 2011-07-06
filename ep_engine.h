@@ -524,12 +524,9 @@ public:
                                                       protocol_binary_request_header *request,
                                                       ADD_RESPONSE response);
 
-    void backfillThreadTerminating() {
-        LockHolder holder(backfillThreads.sync);
-        --backfillThreads.num;
-        backfillThreads.sync.notify();
-        holder.unlock();
-    }
+    ENGINE_ERROR_CODE resetReplicationChain(const void* cookie,
+                                            protocol_binary_request_header *request,
+                                            ADD_RESPONSE response);
 
     size_t getGetlDefaultTimeout() const {
         return getlDefaultTimeout;
@@ -751,12 +748,6 @@ private:
         RestoreManager *manager;
         Atomic<bool> enabled;
     } restore;
-
-    struct {
-        SyncObject sync;
-        bool shutdown;
-        Atomic<size_t> num;
-    } backfillThreads;
 };
 
 #endif

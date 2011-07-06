@@ -388,7 +388,6 @@ static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     memcpy(pkt_raw + sizeof(protocol_binary_request_getl), key, strlen(key));
     uint16_t vbucketId = 0;
     uint8_t extlen = 8;
-    uint32_t flags = 0;
     uint32_t expiration = 25;
 
     protocol_binary_request_getl *gl = (protocol_binary_request_getl*)pkt_raw;
@@ -398,7 +397,6 @@ static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     gl->message.header.request.bodylen = htonl(strlen(key) + gl->message.header.request.extlen);
     gl->message.header.request.keylen = htons(strlen(key));
     gl->message.header.request.vbucket = htons(vbucketId);
-    gl->message.body.flags = htonl(flags);
     gl->message.body.expiration = htonl(expiration);
 
     protocol_binary_request_header *pkt = &gl->message.header;
@@ -1855,6 +1853,14 @@ static enum test_result test_expiry(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
           "Item didn't expire");
 
     assert(1 == get_int_stat(h, h1, "ep_expired"));
+
+    check(store(h, h1, NULL, OPERATION_SET, key, data, &it) == ENGINE_SUCCESS,
+                "Failed set.");
+
+    std::stringstream ss;
+    ss << "curr_items stat should be still 1 after ";
+    ss << "overwriting the key that was expired, but not purged yet";
+    check(get_int_stat(h, h1, "curr_items") == 1, ss.str().c_str());
 
     return SUCCESS;
 }
@@ -5387,7 +5393,7 @@ static enum test_result test_validate_checkpoint_params(ENGINE_HANDLE *h, ENGINE
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
           "Failed to set checkpoint_period param");
 
-    set_flush_param(h, h1, "chk_max_items", "100");
+    set_flush_param(h, h1, "chk_max_items", "50");
     check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL,
           "Expected to have an invalid value error for checkpoint_max_items param");
     set_flush_param(h, h1, "chk_period", "10");
