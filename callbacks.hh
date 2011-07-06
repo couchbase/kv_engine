@@ -157,4 +157,30 @@ private:
     DISALLOW_COPY_AND_ASSIGN(RememberingCallback);
 };
 
+template <typename T>
+class TimedRememberingCallback : public RememberingCallback<T> {
+public:
+    TimedRememberingCallback() :
+        RememberingCallback<T>(), start(gethrtime()), stop(0)
+    { }
+
+    ~TimedRememberingCallback() {
+    }
+
+    void callback(T &value) {
+        stop = gethrtime();
+        RememberingCallback<T>::callback(value);
+    }
+
+    hrtime_t getDelta() const {
+        return stop - start;
+    }
+
+private:
+    hrtime_t start;
+    hrtime_t stop;
+
+    DISALLOW_COPY_AND_ASSIGN(TimedRememberingCallback);
+};
+
 #endif /* CALLBACKS_H */

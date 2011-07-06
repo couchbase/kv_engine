@@ -7,6 +7,7 @@
 #include "locks.hh"
 
 #include "mc-kvstore/mc-engine.hh"
+#include "ep_engine.h"
 
 #ifdef HAVE_MEMCACHED_PACKET_DEBUG_H
 #include "mc-kvstore/mc-debug.hh"
@@ -55,7 +56,12 @@ void memcached_engine_notify_callback(evutil_socket_t sock, short which,
  */
 class BinaryPacketHandler {
 public:
-    BinaryPacketHandler(Buffer *theRequest) : seqno(0), message(theRequest) {
+    BinaryPacketHandler(Buffer *theRequest, EPStats *st) :
+        seqno(0), message(theRequest), stats(st), start(0)
+    {
+        if (stats) {
+            start = gethrtime();
+        }
     }
 
     virtual ~BinaryPacketHandler() {
@@ -80,6 +86,10 @@ public:
 
     uint32_t seqno;
 
+    hrtime_t getDelta() {
+        return (gethrtime() - start) / 1000;
+    }
+
 private:
     void unsupported() {
         getLogger()->log(EXTENSION_LOG_WARNING, NULL,
@@ -88,16 +98,21 @@ private:
     }
 
     Buffer *message;
+
+protected:
+    EPStats *stats;
+    hrtime_t start;
 };
 
 class DelResponseHandler: public BinaryPacketHandler {
 public:
-    DelResponseHandler(Buffer *theRequest, Callback<int> &cb) :
-        BinaryPacketHandler(theRequest), callback(cb) {
+    DelResponseHandler(Buffer *theRequest, EPStats *st, Callback<int> &cb) :
+        BinaryPacketHandler(theRequest, st), callback(cb) {
         // EMPTY
     }
 
     virtual void response(protocol_binary_response_header *res) {
+        updateHistogram();
         uint16_t rcode = ntohs(res->response.status);
         int value = 1;
 
@@ -109,24 +124,34 @@ public:
     }
 
     virtual void implicitResponse() {
+        updateHistogram();
         int value = 1;
         callback.callback(value);
     }
 
+    void updateHistogram() {
+        if (stats) {
+            stats->couchDelqHisto.add(getDelta());
+        }
+    }
+
 private:
+    hrtime_t start;
     Callback<int> &callback;
+    EPStats *epStats;
 };
 
 class GetResponseHandler: public BinaryPacketHandler {
 public:
-    GetResponseHandler(Buffer *theRequest, const std::string &k, uint16_t vb,
+    GetResponseHandler(Buffer *theRequest, EPStats *st, const std::string &k, uint16_t vb,
             Callback<GetValue> &cb) :
-        BinaryPacketHandler(theRequest), key(k), vbucket(vb), callback(cb) { /* EMPTY */
+        BinaryPacketHandler(theRequest, st), key(k), vbucket(vb), callback(cb) { /* EMPTY */
     }
 
     virtual void response(protocol_binary_response_header *res) {
         uint16_t rcode = ntohs(res->response.status);
         if (rcode == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+            updateHistogram(ntohl(res->response.bodylen) - 4, true);
             protocol_binary_response_get *gres;
             gres = (protocol_binary_response_get*)res;
 
@@ -138,10 +163,24 @@ public:
                     ntohll(res->response.cas), -1, vbucket);
             GetValue rv(item);
             callback.callback(rv);
-
         } else {
+            updateHistogram(0, false);
             GetValue rv;
             callback.callback(rv);
+        }
+    }
+
+    void updateHistogram(size_t size, bool success) {
+        if (stats) {
+            if (success) {
+                if (size == 0) {
+                    size = 1;
+                }
+
+                stats->couchGetHisto.add(getDelta() / size);
+            } else {
+                stats->couchGetFailHisto.add(getDelta());
+            }
         }
     }
 
@@ -153,10 +192,12 @@ private:
 
 class SetResponseHandler: public BinaryPacketHandler {
 public:
-    SetResponseHandler(Buffer *theRequest,
+    SetResponseHandler(Buffer *theRequest, EPStats *st,
                        bool cr,
+                       size_t nb,
                        Callback<mutation_result> &cb) :
-        BinaryPacketHandler(theRequest), newId(cr ? 1 : 0), callback(cb) { }
+        BinaryPacketHandler(theRequest, st), newId(cr ? 1 : 0), nbytes(nb),
+        callback(cb) { }
 
     virtual void response(protocol_binary_response_header *res) {
         uint16_t rcode = ntohs(res->response.status);
@@ -165,6 +206,9 @@ public:
         if (rcode != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
             newId = -1;
             rv = 0;
+            updateHistogram(false);
+        } else {
+            updateHistogram(true);
         }
 
         mutation_result p(rv, newId);
@@ -172,19 +216,35 @@ public:
     }
 
     virtual void implicitResponse() {
+        updateHistogram(true);
         mutation_result p(1, newId);
         callback.callback(p);
     }
 
+    void updateHistogram(bool success) {
+        if (stats) {
+            if (success) {
+                if (nbytes == 0) {
+                    nbytes = 1;
+                }
+
+                stats->couchSetHisto.add(getDelta() / nbytes);
+            } else {
+                stats->couchSetFailHisto.add(getDelta());
+            }
+        }
+    }
+
 private:
     int64_t newId;
+    size_t nbytes;
     Callback<mutation_result> &callback;
 };
 
 class StatsResponseHandler: public BinaryPacketHandler {
 public:
-    StatsResponseHandler(Buffer *theRequest, Callback<std::map<std::string, std::string> > &cb) :
-        BinaryPacketHandler(theRequest), callback(cb) {
+    StatsResponseHandler(Buffer *theRequest, EPStats *st, Callback<std::map<std::string, std::string> > &cb) :
+        BinaryPacketHandler(theRequest, st), callback(cb) {
     }
 
     virtual void response(protocol_binary_response_header *res) {
@@ -210,8 +270,8 @@ private:
 
 class SetVBucketResponseHandler: public BinaryPacketHandler {
 public:
-    SetVBucketResponseHandler(Buffer *theRequest, Callback<bool> &cb) :
-        BinaryPacketHandler(theRequest), callback(cb) {
+    SetVBucketResponseHandler(Buffer *theRequest, EPStats *st, Callback<bool> &cb) :
+        BinaryPacketHandler(theRequest, st), callback(cb) {
     }
 
     virtual void response(protocol_binary_response_header *res) {
@@ -232,8 +292,8 @@ private:
 
 class DelVBucketResponseHandler: public BinaryPacketHandler {
 public:
-    DelVBucketResponseHandler(Buffer *theRequest, Callback<bool> &cb) :
-        BinaryPacketHandler(theRequest), callback(cb) {
+    DelVBucketResponseHandler(Buffer *theRequest, EPStats *st, Callback<bool> &cb) :
+        BinaryPacketHandler(theRequest, st), callback(cb) {
     }
 
     virtual void response(protocol_binary_response_header *res) {
@@ -253,8 +313,8 @@ private:
 
 class FlushResponseHandler: public BinaryPacketHandler {
 public:
-    FlushResponseHandler(Buffer *theRequest, Callback<bool> &cb) :
-        BinaryPacketHandler(theRequest), callback(cb) {
+    FlushResponseHandler(Buffer *theRequest, EPStats *st, Callback<bool> &cb) :
+        BinaryPacketHandler(theRequest, st), callback(cb) {
     }
 
     virtual void response(protocol_binary_response_header *res) {
@@ -274,8 +334,8 @@ private:
 
 class SelectBucketResponseHandler: public BinaryPacketHandler {
 public:
-    SelectBucketResponseHandler(Buffer *theRequest) :
-        BinaryPacketHandler(theRequest) {
+    SelectBucketResponseHandler(Buffer *theRequest, EPStats *st) :
+        BinaryPacketHandler(theRequest, st) {
     }
 
     virtual void response(protocol_binary_response_header *res) {
@@ -290,8 +350,8 @@ public:
 
 class TapResponseHandler: public BinaryPacketHandler {
 public:
-    TapResponseHandler(Buffer *theRequest, TapCallback &cb) :
-        BinaryPacketHandler(theRequest), callback(cb) {
+    TapResponseHandler(Buffer *theRequest, EPStats *st, TapCallback &cb) :
+        BinaryPacketHandler(theRequest, st), callback(cb) {
     }
 
     virtual void response(protocol_binary_response_header *res) {
@@ -335,8 +395,8 @@ private:
 
 class NoopResponseHandler: public BinaryPacketHandler {
 public:
-    NoopResponseHandler(Buffer *theRequest, Callback<bool> &cb) :
-        BinaryPacketHandler(theRequest), callback(cb) {
+    NoopResponseHandler(Buffer *theRequest, EPStats *st, Callback<bool> &cb) :
+        BinaryPacketHandler(theRequest, st), callback(cb) {
     }
 
     virtual void response(protocol_binary_response_header *res) {
@@ -360,8 +420,12 @@ private:
 MemcachedEngine::MemcachedEngine(EventuallyPersistentEngine *e, Configuration &config) :
     sock(INVALID_SOCKET), configuration(config), configurationError(true),
     shutdown(false), ev_base(event_base_new()),
-    ev_flags(0), seqno(0), output(NULL), engine(e)
+    ev_flags(0), seqno(0), output(NULL), engine(e), epStats(NULL)
 {
+    if (engine != NULL) {
+        epStats = &engine->getEpStats();
+    }
+
     if (!createNotificationPipe()) {
         throw std::runtime_error("Failed to create notification pipe");
     }
@@ -910,7 +974,7 @@ void MemcachedEngine::delq(const std::string &key, uint16_t vb,
     memcpy(buffer->data + sizeof(req->bytes), key.c_str(), key.length());
     buffer->avail = buffer->size;
 
-    insertCommand(new DelResponseHandler(buffer, cb));
+    insertCommand(new DelResponseHandler(buffer, epStats, cb));
 }
 
 void MemcachedEngine::setq(const Item &item, Callback<mutation_result> &cb) {
@@ -943,7 +1007,8 @@ void MemcachedEngine::setq(const Item &item, Callback<mutation_result> &cb) {
 
     buffer->avail = buffer->size;
 
-    insertCommand(new SetResponseHandler(buffer, item.getId() <= 0, cb));
+    insertCommand(new SetResponseHandler(buffer, epStats, item.getId() <= 0,
+                                         item.getNBytes(), cb));
 }
 
 void MemcachedEngine::get(const std::string &key, uint16_t vb,
@@ -962,7 +1027,7 @@ void MemcachedEngine::get(const std::string &key, uint16_t vb,
     memcpy(buffer->data + sizeof(req->bytes), key.c_str(), key.length());
     buffer->avail = buffer->size;
 
-    insertCommand(new GetResponseHandler(buffer, key, vb, cb));
+    insertCommand(new GetResponseHandler(buffer, epStats, key, vb, cb));
 }
 
 void MemcachedEngine::stats(const std::string &key,
@@ -981,7 +1046,7 @@ void MemcachedEngine::stats(const std::string &key,
     memcpy(buffer->data + sizeof(req->bytes), key.c_str(), key.length());
     buffer->avail = buffer->size;
 
-    insertCommand(new StatsResponseHandler(buffer, cb));
+    insertCommand(new StatsResponseHandler(buffer, epStats, cb));
 }
 
 void MemcachedEngine::setVBucket(uint16_t vb, vbucket_state_t state,
@@ -1000,7 +1065,7 @@ void MemcachedEngine::setVBucket(uint16_t vb, vbucket_state_t state,
     req->message.body.state = (vbucket_state_t)htonl((uint32_t)state);
     buffer->avail = buffer->size;
 
-    insertCommand(new SetVBucketResponseHandler(buffer, cb));
+    insertCommand(new SetVBucketResponseHandler(buffer, epStats, cb));
 }
 
 void MemcachedEngine::delVBucket(uint16_t vb, Callback<bool> &cb) {
@@ -1015,7 +1080,7 @@ void MemcachedEngine::delVBucket(uint16_t vb, Callback<bool> &cb) {
     req->message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
     buffer->avail = buffer->size;
 
-    insertCommand(new DelVBucketResponseHandler(buffer, cb));
+    insertCommand(new DelVBucketResponseHandler(buffer, epStats, cb));
 }
 
 void MemcachedEngine::flush(Callback<bool> &cb) {
@@ -1029,7 +1094,7 @@ void MemcachedEngine::flush(Callback<bool> &cb) {
     req->message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
     buffer->avail = buffer->size;
 
-    insertCommand(new FlushResponseHandler(buffer, cb));
+    insertCommand(new FlushResponseHandler(buffer, epStats, cb));
 }
 
 void MemcachedEngine::doSelectBucket() {
@@ -1048,7 +1113,7 @@ void MemcachedEngine::doSelectBucket() {
     buffer->avail = buffer->size;
     memcpy(buffer->data + sizeof(req->bytes), name.c_str(), name.length());
 
-    doInsertCommand(new SelectBucketResponseHandler(buffer));
+    doInsertCommand(new SelectBucketResponseHandler(buffer, epStats));
 }
 
 
@@ -1067,7 +1132,7 @@ void MemcachedEngine::tap(TapCallback &cb) {
     req->message.header.request.bodylen = ntohl(4);
     req->message.body.flags = ntohl(TAP_CONNECT_FLAG_DUMP);
     buffer->avail = buffer->size;
-    insertCommand(new TapResponseHandler(buffer, cb));
+    insertCommand(new TapResponseHandler(buffer, epStats, cb));
 }
 
 void MemcachedEngine::tap(const std::vector<uint16_t> &vbids,
@@ -1103,7 +1168,7 @@ void MemcachedEngine::tap(const std::vector<uint16_t> &vbids,
     }
 
     buffer->avail = buffer->size;
-    insertCommand(new TapResponseHandler(buffer, cb));
+    insertCommand(new TapResponseHandler(buffer, epStats, cb));
 }
 
 void MemcachedEngine::noop(Callback<bool> &cb) {
@@ -1116,5 +1181,5 @@ void MemcachedEngine::noop(Callback<bool> &cb) {
     req->message.header.request.opcode = PROTOCOL_BINARY_CMD_NOOP;
     req->message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
     buffer->avail = buffer->size;
-    insertCommand(new NoopResponseHandler(buffer, cb));
+    insertCommand(new NoopResponseHandler(buffer, epStats, cb));
 }

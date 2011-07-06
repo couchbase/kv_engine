@@ -92,14 +92,15 @@ vbucket_map_t MCKVStore::listPersistedVbuckets() {
 }
 
 bool MCKVStore::snapshotVBuckets(const vbucket_map_t &m) {
+    hrtime_t start = gethrtime();
     vbucket_map_t::const_iterator iter;
-    std::list<RememberingCallback<bool>*> callbacks;
-    RememberingCallback<bool> *cb = NULL;
+    std::list<TimedRememberingCallback<bool>*> callbacks;
+    TimedRememberingCallback<bool> *cb = NULL;
 
     for (iter = m.begin(); iter != m.end(); ++iter) {
         std::pair<uint16_t, uint16_t> first = iter->first;
         const vbucket_state state = iter->second;
-        cb = new RememberingCallback<bool>;
+        cb = new TimedRememberingCallback<bool>;
         callbacks.push_back(cb);
         mc->setVBucket(first.first, state.state, *cb);
     }
@@ -107,14 +108,17 @@ bool MCKVStore::snapshotVBuckets(const vbucket_map_t &m) {
     bool ret = true;
     if (cb != NULL) {
         cb->waitForValue();
-        std::list<RememberingCallback<bool>*>::iterator ii;
+        std::list<TimedRememberingCallback<bool>*>::iterator ii;
         for (ii = callbacks.begin(); ii != callbacks.end(); ++ii) {
+            stats.setVbucketStateHisto.add((*ii)->getDelta() / 1000);
             if (!(*ii)->val) {
                 ret = false;
             }
             delete *ii;
         }
     }
+
+    stats.snapshotVbucketHisto.add((gethrtime() - start) / 1000);
     return ret;
 }
 

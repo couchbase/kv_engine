@@ -294,6 +294,17 @@ public:
 
     Histogram<hrtime_t> checkpointRevertHisto;
 
+    //! Histogram of setting vbucket state
+    Histogram<hrtime_t> setVbucketStateHisto;
+    Histogram<hrtime_t> snapshotVbucketHisto;
+    Histogram<hrtime_t> couchDelqHisto;
+
+    Histogram<hrtime_t> couchGetHisto;
+    Histogram<hrtime_t> couchGetFailHisto;
+    Histogram<hrtime_t> couchSetHisto;
+    Histogram<hrtime_t> couchSetFailHisto;
+
+
     //! Reset all stats to reasonable values.
     void reset() {
         tooYoung.set(0);

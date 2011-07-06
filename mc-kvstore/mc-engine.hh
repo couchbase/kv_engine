@@ -175,6 +175,7 @@ private:
     std::list<BinaryPacketHandler*> responseHandler;
     std::list<BinaryPacketHandler*> tapHandler;
     EventuallyPersistentEngine *engine;
+    EPStats *epStats;
 };
 
 #endif /* MC_ENGINE_HH */
