@@ -47,6 +47,7 @@
 
 #ifdef WIN32
 #define SOCKETPAIR_AF AF_INET
+#define getppid() 2
 #else
 #define INVALID_SOCKET -1
 #define SOCKET_ERROR -1

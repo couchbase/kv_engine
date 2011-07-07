@@ -431,6 +431,15 @@ void MemcachedEngine::run() {
                 if (shutdown) {
                     return ;
                 }
+
+                if (configuration.isAllowDataLossDuringShutdown() && getppid() == 1) {
+                    getLogger()->log(EXTENSION_LOG_WARNING, this,
+                                     "Parent process is gone and you allow "
+                                     "data loss during shutdown.\n"
+                                     "Terminating without without syncing "
+                                     "all data.");
+                    _exit(1);
+                }
                 if (configurationError) {
                     getLogger()->log(EXTENSION_LOG_WARNING, this,
                                      "Failed to connect to: \"%s:%zu",

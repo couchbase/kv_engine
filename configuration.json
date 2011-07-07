@@ -1,5 +1,10 @@
 {
     "params": {
+        "allow_data_loss_during_shutdown": {
+            "default": "false",
+            "dynamic": false,
+            "type": "bool"
+        },
         "backend": {
             "default": "sqlite",
             "dynamic": false,
