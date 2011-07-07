@@ -198,6 +198,11 @@
             "default": "",
             "type": "std::string"
         },
+        "sync_on_persist": {
+            "type": "bool",
+            "default": "false",
+            "descr": "Do we allow syncing on persistence events?"
+        },
         "sync_cmd_timeout": {
             "default": "2500",
             "descr": "The timeout for SYNC requests in (ms)",

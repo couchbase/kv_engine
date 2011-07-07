@@ -4374,10 +4374,6 @@ static enum test_result test_sync_bad_flags(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
     return SUCCESS;
 }
 
-/**
- * SYNC for persistence not yet supported (MB-3817 related).
- */
-/*
 static enum test_result test_sync_persistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const key_spec_t keyspecs[] = {
         key_spec_t(0, 0, "key1"), key_spec_t(0, 0, "key2"), key_spec_t(0, 0, "key3"),
@@ -4502,7 +4498,6 @@ static enum test_result test_sync_persistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
 
     return SUCCESS;
 }
-*/
 
 static enum test_result test_sync_mutation(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const key_spec_t keyspecs[] = {
@@ -4695,10 +4690,6 @@ static enum test_result test_sync_replication(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
     return SUCCESS;
 }
 
-/**
- * SYNC for persistence not yet supported (MB-3817 related).
- */
-/*
 static enum test_result test_sync_persistence_or_replication(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const key_spec_t keyspecs[] = {
         key_spec_t(0, 0, "key1"), key_spec_t(0, 0, "key2"),
@@ -4852,12 +4843,7 @@ static enum test_result test_sync_persistence_or_replication(ENGINE_HANDLE *h, E
 
     return SUCCESS;
 }
-*/
 
-/**
- * SYNC for persistence not yet supported (MB-3817 related).
- */
-/*
 static enum test_result test_sync_persistence_and_replication(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const key_spec_t keyspecs[] = {
         key_spec_t(0, 0, "key1"), key_spec_t(0, 0, "key2"),
@@ -5008,7 +4994,6 @@ static enum test_result test_sync_persistence_and_replication(ENGINE_HANDLE *h, 
 
     return SUCCESS;
 }
-*/
 
 static enum test_result test_sync_timeout(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const uint16_t test_vbid = 307;
@@ -5868,15 +5853,18 @@ engine_test_t* get_tests(void) {
                  NULL, teardown, NULL, prepare, cleanup, BACKEND_ALL),
         TestCase("sync bad flags", test_sync_bad_flags, NULL, teardown, NULL,
                  prepare, cleanup, BACKEND_ALL),
-        // Temporarily disabled (MB-3817)
-        // TestCase("sync persistence", test_sync_persistence, NULL, teardown, NULL, prepare, cleanup, BACKEND_ALL),
+        TestCase("sync persistence", test_sync_persistence, NULL, teardown, NULL,
+                 prepare, cleanup, BACKEND_ALL),
         TestCase("sync mutation", test_sync_mutation, NULL, teardown, NULL,
                  prepare, cleanup, BACKEND_ALL),
         TestCase("sync replication", test_sync_replication, NULL, teardown,
                  NULL, prepare, cleanup, BACKEND_ALL),
-        // Temporarily disabled (MB-3817)
-        // TestCase("sync persistence or replication", test_sync_persistence_or_replication, NULL, teardown, NULL, prepare, cleanup, BACKEND_ALL),
-        // TestCase("sync persistence and replication", test_sync_persistence_and_replication, NULL, teardown, NULL, prepare, cleanup, BACKEND_ALL),
+        TestCase("sync persistence or replication",
+                 test_sync_persistence_or_replication,
+                 NULL, teardown, NULL, prepare, cleanup, BACKEND_ALL),
+        TestCase("sync persistence and replication",
+                 test_sync_persistence_and_replication, NULL, teardown,
+                 NULL, prepare, cleanup, BACKEND_ALL),
         TestCase("sync timeout", test_sync_timeout, NULL, teardown, NULL,
                  prepare, cleanup, BACKEND_ALL),
 

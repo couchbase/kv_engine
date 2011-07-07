@@ -544,6 +544,14 @@ public:
         return warmingUp.get() || restore.enabled.get();
     }
 
+    size_t maySyncOnPersist() const {
+        return syncOnPersist;
+    }
+
+    void setMaySyncOnPersist(bool to) {
+        syncOnPersist = to;
+    }
+
 protected:
     friend class EpEngineValueChangeListener;
 
@@ -756,6 +764,7 @@ private:
         RestoreManager *manager;
         Atomic<bool> enabled;
     } restore;
+    bool syncOnPersist;
 };
 
 #endif
