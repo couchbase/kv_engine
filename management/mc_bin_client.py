@@ -177,6 +177,11 @@ class MemcachedClient(object):
         """Get the value for a given key within the memcached server."""
         return self._doCmd(memcacheConstants.CMD_VERSION, '', '')
 
+    def verbose(self, level):
+        """Set the verbosity level."""
+        return self._doCmd(memcacheConstants.CMD_VERBOSE, '', '',
+                           extraHeader=struct.pack(">I", level))
+
     def sasl_mechanisms(self):
         """Get the supported SASL methods."""
         return set(self._doCmd(memcacheConstants.CMD_SASL_LIST_MECHS,
