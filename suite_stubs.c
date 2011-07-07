@@ -154,6 +154,11 @@ void incrWithDefault(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                               0) != ENGINE_SUCCESS;
 }
 
+void get(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    item *i = NULL;
+    ENGINE_ERROR_CODE rv = h1->get(h, NULL, &i, key, strlen(key), 0);
+    hasError = rv != ENGINE_SUCCESS;
+}
 
 void checkValue(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* exp) {
     item *i = NULL;

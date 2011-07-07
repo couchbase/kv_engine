@@ -60,6 +60,11 @@ class KnowsCAS(Condition):
 # Effects
 ######################################################################
 
+class NoFX(Effect):
+
+    def __call__(self, state):
+        pass
+
 class MutationEffect(Effect):
 
     def forgetCAS(self, state):
@@ -139,6 +144,11 @@ class ArithmeticEffect(MutationEffect):
 ######################################################################
 # Actions
 ######################################################################
+
+class Get(Action):
+
+    preconditions = [ExistsCondition()]
+    effect = NoFX()
 
 class Set(Action):
 
