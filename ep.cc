@@ -944,6 +944,10 @@ void EventuallyPersistentStore::snapshotVBuckets(const Priority &priority) {
 
 void EventuallyPersistentStore::setVBucketState(uint16_t vbid,
                                                 vbucket_state_t to) {
+    std::string vbstr(VBucket::toString(to));
+    queued_item qi(new QueuedItem(vbstr, vbid, queue_op_vb_state_changed));
+    writing.push(qi);
+
     // Lock to prevent a race condition between a failed update and add.
     LockHolder lh(vbsetMutex);
     RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
@@ -2143,6 +2147,10 @@ int EventuallyPersistentStore::flushOne(std::queue<queued_item> *q,
         break;
     case queue_op_del:
         rv = flushOneDelOrSet(qi, rejectQueue);
+        break;
+    case queue_op_vb_state_changed:
+        rwUnderlying->vbStateChanged(qi->getVBucketId(),
+                                     VBucket::fromString(qi->getKey().c_str()));
         break;
     case queue_op_commit:
         tctx.commit();

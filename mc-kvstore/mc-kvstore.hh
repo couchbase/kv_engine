@@ -95,6 +95,8 @@ public:
 
     vbucket_map_t listPersistedVbuckets(void);
 
+    void vbStateChanged(uint16_t vbucket, vbucket_state_t newState);
+
     /**
      * Take a snapshot of the stats in the main DB.
      */

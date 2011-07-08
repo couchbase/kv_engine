@@ -91,6 +91,12 @@ vbucket_map_t MCKVStore::listPersistedVbuckets() {
     return rv;
 }
 
+void MCKVStore::vbStateChanged(uint16_t vbucket, vbucket_state_t newState) {
+    RememberingCallback<bool> cb;
+    mc->setVBucket(vbucket, newState, cb);
+    cb.waitForValue();
+}
+
 bool MCKVStore::snapshotVBuckets(const vbucket_map_t &m) {
     hrtime_t start = gethrtime();
     vbucket_map_t::const_iterator iter;

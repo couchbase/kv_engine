@@ -155,6 +155,16 @@ public:
                             std::pair<int64_t, int64_t> row_range) = 0;
 
     /**
+     * Invoked whenever vbucket states change.
+     *
+     * @param vbucket the vbucket that was updated
+     * @param newState the new state of this vbucket
+     */
+    virtual void vbStateChanged(uint16_t vbucket, vbucket_state_t newState) {
+        (void)vbucket; (void)newState;
+    }
+
+    /**
      * Get a list of all persisted vbuckets (with their versions and states).
      */
     virtual vbucket_map_t listPersistedVbuckets(void) = 0;
