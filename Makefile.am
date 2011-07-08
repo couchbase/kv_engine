@@ -330,6 +330,8 @@ dispatcher_test_SOURCES += gethrtime.c
 vbucket_test_SOURCES += gethrtime.c
 checkpoint_test_SOURCES += gethrtime.c
 management_mbdbconvert_SOURCES += gethrtime.c
+mc_kvstore_test_SOURCES += gethrtime.c
+ep_testsuite_la_SOURCES += gethrtime.c
 endif
 
 if BUILD_BYTEORDER
