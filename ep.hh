@@ -849,6 +849,8 @@ private:
 
     size_t getWriteQueueSize(void);
 
+    bool isVbCachedStateStale(uint16_t vb, vbucket_state_t state);
+
     friend class Flusher;
     friend class BGFetchCallback;
     friend class VKeyStatBGFetchCallback;
@@ -871,7 +873,13 @@ private:
     InvalidItemDbPager        *invalidItemDbPager;
     VBucketMap                 vbuckets;
     SyncObject                 mutex;
+
+    // The writing queue is used by the flusher thread to keep
+    // track of the objects it works on. It should _not_ be used
+    // by any other threads (because the flusher use it without
+    // locking...
     std::queue<queued_item>    writing;
+    std::map<uint16_t, vbucket_state_t> flusherCachedVbStates;
     pthread_t                  thread;
     Atomic<size_t>             bgFetchQueue;
     Atomic<bool>               diskFlushAll;

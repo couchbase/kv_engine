@@ -944,10 +944,6 @@ void EventuallyPersistentStore::snapshotVBuckets(const Priority &priority) {
 
 void EventuallyPersistentStore::setVBucketState(uint16_t vbid,
                                                 vbucket_state_t to) {
-    std::string vbstr(VBucket::toString(to));
-    queued_item qi(new QueuedItem(vbstr, vbid, queue_op_vb_state_changed));
-    writing.push(qi);
-
     // Lock to prevent a race condition between a failed update and add.
     LockHolder lh(vbsetMutex);
     RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
@@ -1576,6 +1572,18 @@ void EventuallyPersistentStore::enqueueCommit() {
     ++stats.totalEnqueued;
 }
 
+bool EventuallyPersistentStore::isVbCachedStateStale(uint16_t vb, vbucket_state_t st) {
+    std::map<uint16_t, vbucket_state_t>::iterator iter;
+    iter = flusherCachedVbStates.find(vb);
+
+    if (iter == flusherCachedVbStates.end() || iter->second != st) {
+        flusherCachedVbStates[vb] = st;
+        return true;
+    }
+
+    return false;
+}
+
 std::queue<queued_item>* EventuallyPersistentStore::beginFlush() {
     std::queue<queued_item> *rv(NULL);
 
@@ -1608,6 +1616,13 @@ std::queue<queued_item>* EventuallyPersistentStore::beginFlush() {
                 rwUnderlying->optimizeWrites(restore.items);
                 std::vector<queued_item>::iterator iter = restore.items.begin();
                 for ( /* empty */ ; iter != restore.items.end(); ++iter) {
+                    uint16_t vbid = (*iter)->getVBucketId();
+                    RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
+                    assert(vb);
+                    vbucket_state_t st = vb->getState();
+                    if (isVbCachedStateStale(vbid, st)) {
+                        rwUnderlying->vbStateChanged(vbid, st);
+                    }
                     writing.push(*iter);
                 }
                 restore.items.clear();
@@ -1620,7 +1635,18 @@ std::queue<queued_item>* EventuallyPersistentStore::beginFlush() {
                 assert(i <= std::numeric_limits<uint16_t>::max());
                 uint16_t vbid = static_cast<uint16_t>(i);
                 RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
-                if (!vb || vb->getState() == vbucket_state_dead) {
+                if (!vb) {
+                    // Undefined vbucket..
+                    continue;
+                }
+
+                vbucket_state_t st = vb->getState();
+                if (isVbCachedStateStale(vbid, st)) {
+                    rwUnderlying->vbStateChanged(vbid, st);
+                }
+
+                if (st == vbucket_state_dead) {
+                    // Don't persist items for dead buckets...
                     continue;
                 }
 
@@ -2147,10 +2173,6 @@ int EventuallyPersistentStore::flushOne(std::queue<queued_item> *q,
         break;
     case queue_op_del:
         rv = flushOneDelOrSet(qi, rejectQueue);
-        break;
-    case queue_op_vb_state_changed:
-        rwUnderlying->vbStateChanged(qi->getVBucketId(),
-                                     VBucket::fromString(qi->getKey().c_str()));
         break;
     case queue_op_commit:
         tctx.commit();
