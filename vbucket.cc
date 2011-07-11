@@ -115,6 +115,10 @@ void VBucket::setState(vbucket_state_t to, SERVER_HANDLE_V1 *sapi) {
     assert(sapi);
     vbucket_state_t oldstate(state);
 
+    if (to == vbucket_state_active && checkpointManager.getOpenCheckpointId() == 0) {
+        checkpointManager.setOpenCheckpointId(1);
+    }
+
     if (oldstate == vbucket_state_dead || to == vbucket_state_dead) {
         resetStats();
     }
