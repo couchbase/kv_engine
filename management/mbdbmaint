@@ -4,6 +4,7 @@ import os
 import glob
 import shutil
 import getopt
+import subprocess
 import mc_bin_client
 
 DEFAULT_PORT="11210"
@@ -19,6 +20,20 @@ Usage: %s [--vacuum] [--backupto=<dest_dir>] [--port=%s]
 
 def isADBFile(f):
     return f.endswith('.sqlite') or f.endswith('.mb')
+
+def run_sql(sqlite, fn, sql, more_args=[], logger=sys.stderr):
+    args = ['-batch', '-bail']
+    cmd = [sqlite] + args + more_args + [fn]
+    p = subprocess.Popen(cmd,
+                         stdin=subprocess.PIPE,
+                         stdout=subprocess.PIPE,
+                         stderr=subprocess.PIPE)
+    (o,e) = p.communicate(sql)
+    if p.returncode != 0:
+        logger.write("Error running query:  %s\n" % sql)
+        logger.write(e)
+        sys.exit(1)
+    return o
 
 def findCmd(cmdName):
     cmd_dir = os.path.dirname(sys.argv[0])
@@ -58,7 +73,7 @@ def main():
 
             if shouldVacuum and (fn == db_path or isADBFile(fn)):
                 print "Vacuuming", fn
-                os.system('"%s" "%s" vacuum' % (sqlitebin, fn))
+                run_sql(sqlitebin, fn, "vacuum")
 
             if dest_dir:
                 dest_fn = os.path.join(dest_dir, os.path.basename(fn))

@@ -1650,6 +1650,9 @@ std::queue<queued_item>* EventuallyPersistentStore::beginFlush() {
                     continue;
                 }
 
+                // Grab all the backfill items if exist.
+                vb->getBackfillItems(item_list);
+
                 // Get all the mutations from the current position of the
                 // persistence cursor to the tail of the current open
                 // checkpoint.
@@ -1673,8 +1676,6 @@ std::queue<queued_item>* EventuallyPersistentStore::beginFlush() {
                 }
                 item_list.assign(item_set.begin(), item_set.end());
 
-                // Grab all the backfill items if exist.
-                vb->getBackfillItems(item_list);
                 if (item_list.size() > 0) {
                     pushToOutgoingQueue(item_list);
                 }
