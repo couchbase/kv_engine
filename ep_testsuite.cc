@@ -109,21 +109,21 @@ bool abort_msg(const char *expr, const char *msg, int line) {
 }
 
 static void rmdb(void) {
-    unlink("/tmp/test.db");
-    unlink("/tmp/test.db-0.sqlite");
-    unlink("/tmp/test.db-1.sqlite");
-    unlink("/tmp/test.db-2.sqlite");
-    unlink("/tmp/test.db-3.sqlite");
-    unlink("/tmp/test.db-wal");
-    unlink("/tmp/test.db-0.sqlite-wal");
-    unlink("/tmp/test.db-1.sqlite-wal");
-    unlink("/tmp/test.db-2.sqlite-wal");
-    unlink("/tmp/test.db-3.sqlite-wal");
-    unlink("/tmp/test.db-shm");
-    unlink("/tmp/test.db-0.sqlite-shm");
-    unlink("/tmp/test.db-1.sqlite-shm");
-    unlink("/tmp/test.db-2.sqlite-shm");
-    unlink("/tmp/test.db-3.sqlite-shm");
+    remove("/tmp/test.db");
+    remove("/tmp/test.db-0.sqlite");
+    remove("/tmp/test.db-1.sqlite");
+    remove("/tmp/test.db-2.sqlite");
+    remove("/tmp/test.db-3.sqlite");
+    remove("/tmp/test.db-wal");
+    remove("/tmp/test.db-0.sqlite-wal");
+    remove("/tmp/test.db-1.sqlite-wal");
+    remove("/tmp/test.db-2.sqlite-wal");
+    remove("/tmp/test.db-3.sqlite-wal");
+    remove("/tmp/test.db-shm");
+    remove("/tmp/test.db-0.sqlite-shm");
+    remove("/tmp/test.db-1.sqlite-shm");
+    remove("/tmp/test.db-2.sqlite-shm");
+    remove("/tmp/test.db-3.sqlite-shm");
 }
 
 static enum test_result verify_no_db(void) {
