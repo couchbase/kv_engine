@@ -17,7 +17,7 @@
 /**
  * A blob is a minimal sized storage for data up to 2^32 bytes long.
  */
-class Blob {
+class Blob : public RCValue {
 public:
 
     // Constructors.
@@ -124,7 +124,7 @@ private:
     DISALLOW_COPY_AND_ASSIGN(Blob);
 };
 
-typedef shared_ptr<const Blob> value_t;
+typedef RCPtr<Blob> value_t;
 
 /**
  * The Item structure we use to pass information between the memcached

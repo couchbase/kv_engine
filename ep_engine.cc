@@ -2219,7 +2219,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
 
             BlockTimer timer(&stats.tapMutationHisto);
             TapConsumer *tc = dynamic_cast<TapConsumer*>(connection);
-            shared_ptr<const Blob> vblob(Blob::New(static_cast<const char*>(data), ndata));
+            RCPtr<Blob> vblob(Blob::New(static_cast<const char*>(data), ndata));
             Item *item = new Item(k, flags, exptime, vblob);
             item->setVBucketId(vbucket);
 
