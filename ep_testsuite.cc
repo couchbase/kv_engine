@@ -5422,7 +5422,8 @@ static enum test_result test_validate_checkpoint_params(ENGINE_HANDLE *h, ENGINE
           "Expected to have an invalid value error for checkpoint_period param");
     return SUCCESS;
 }
-enum test_result prepare(engine_test_t *test) {
+
+static enum test_result prepare(engine_test_t *test) {
     if (test->cfg == NULL || // No config
         strstr(test->cfg, "backend") == NULL || // No backend specified
         strstr(test->cfg, "sqlite") != NULL) // SQLite backend specified
@@ -5444,7 +5445,7 @@ enum test_result prepare(engine_test_t *test) {
     return FAIL;
 }
 
-void cleanup(engine_test_t *test, enum test_result result) {
+static void cleanup(engine_test_t *test, enum test_result result) {
     (void)result;
     // Nuke the database files we created
     rmdb();
