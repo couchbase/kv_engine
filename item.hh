@@ -141,6 +141,7 @@ public:
         key.assign(static_cast<const char*>(k), nk);
         assert(id != 0);
         setData(NULL, nb);
+        ObjectRegistry::onCreateItem(this);
     }
 
     Item(const std::string &k, const uint32_t fl, const time_t exp,
@@ -151,6 +152,7 @@ public:
         key.assign(k);
         assert(id != 0);
         setData(static_cast<const char*>(dta), nb);
+        ObjectRegistry::onCreateItem(this);
     }
 
     Item(const std::string &k, const uint32_t fl, const time_t exp,
@@ -159,6 +161,7 @@ public:
     {
         assert(id != 0);
         key.assign(k);
+        ObjectRegistry::onCreateItem(this);
     }
 
     Item(const void *k, uint16_t nk, const uint32_t fl, const time_t exp,
@@ -169,9 +172,12 @@ public:
         assert(id != 0);
         key.assign(static_cast<const char*>(k), nk);
         setData(static_cast<const char*>(dta), nb);
+        ObjectRegistry::onCreateItem(this);
     }
 
-    ~Item() {}
+    ~Item() {
+        ObjectRegistry::onDeleteItem(this);
+    }
 
     const char *getData() const {
         return value->getData();
@@ -259,7 +265,7 @@ public:
     }
 
     size_t size() {
-        return sizeof(Item) + key.size() + value->length();
+        return sizeof(Item) + key.size() + value->getSize();
     }
 
 private:

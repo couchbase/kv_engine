@@ -86,7 +86,7 @@ public:
     }
 
     size_t size() {
-        return sizeof(QueuedItem) + getKey().size() + getValue()->length();
+        return sizeof(QueuedItem) + getKey().size() + getValue()->getSize();
     }
 
 private:

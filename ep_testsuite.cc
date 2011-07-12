@@ -2357,7 +2357,7 @@ static enum test_result test_memory_limit(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
 
     char data[8192];
     memset(data, 'x', sizeof(data));
-    size_t vlen = max - used - 128;
+    size_t vlen = max - used - 192;
     data[vlen] = 0x00;
 
     item *i = NULL;
