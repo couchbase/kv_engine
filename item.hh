@@ -73,10 +73,17 @@ public:
     }
 
     /**
-     * Get the length of this Blob.
+     * Get the length of this Blob value.
      */
     size_t length() const {
         return size;
+    }
+
+    /**
+     * Get the size of this Blob instance.
+     */
+    size_t getSize() const {
+        return size + sizeof(Blob);
     }
 
     /**

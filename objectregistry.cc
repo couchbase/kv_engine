@@ -46,7 +46,7 @@ void ObjectRegistry::onCreateBlob(Blob *blob)
    EventuallyPersistentEngine *engine = th->get();
    if (verifyEngine(engine)) {
        EPStats &stats = engine->getEpStats();
-       stats.currentSize.incr(blob->length());
+       stats.currentSize.incr(blob->getSize());
        assert(stats.currentSize.get() < GIGANTOR);
    }
 }
@@ -56,7 +56,7 @@ void ObjectRegistry::onDeleteBlob(Blob *blob)
    EventuallyPersistentEngine *engine = th->get();
    if (verifyEngine(engine)) {
        EPStats &stats = engine->getEpStats();
-       stats.currentSize.decr(blob->length());
+       stats.currentSize.decr(blob->getSize());
        assert(stats.currentSize.get() < GIGANTOR);
    }
 }
