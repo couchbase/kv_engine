@@ -126,9 +126,30 @@ static void rmdb(void) {
     unlink("/tmp/test.db-3.sqlite-shm");
 }
 
+static enum test_result verify_no_db(void) {
+    if (access("/tmp/test.db", F_OK) != -1 ||
+        access("/tmp/test.db-0.sqlite", F_OK) != -1 ||
+        access("/tmp/test.db-1.sqlite", F_OK) != -1 ||
+        access("/tmp/test.db-2.sqlite", F_OK) != -1 ||
+        access("/tmp/test.db-3.sqlite", F_OK) != -1 ||
+        access("/tmp/test.db-wal", F_OK) != -1 ||
+        access("/tmp/test.db-0.sqlite-wal", F_OK) != -1 ||
+        access("/tmp/test.db-1.sqlite-wal", F_OK) != -1 ||
+        access("/tmp/test.db-2.sqlite-wal", F_OK) != -1 ||
+        access("/tmp/test.db-3.sqlite-wal", F_OK) != -1 ||
+        access("/tmp/test.db-shm", F_OK) != -1 ||
+        access("/tmp/test.db-0.sqlite-shm", F_OK) != -1 ||
+        access("/tmp/test.db-1.sqlite-shm", F_OK) != -1 ||
+        access("/tmp/test.db-2.sqlite-shm", F_OK) != -1 ||
+        access("/tmp/test.db-3.sqlite-shm", F_OK) != -1) {
+        return FAIL;
+    }
+
+    return SUCCESS;
+}
+
 static bool teardown(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     (void)h; (void)h1;
-    atexit(rmdb);
     vals.clear();
     return true;
 }
@@ -5401,254 +5422,536 @@ static enum test_result test_validate_checkpoint_params(ENGINE_HANDLE *h, ENGINE
           "Expected to have an invalid value error for checkpoint_period param");
     return SUCCESS;
 }
+enum test_result prepare(engine_test_t *test) {
+    if (test->cfg == NULL || // No config
+        strstr(test->cfg, "backend") == NULL || // No backend specified
+        strstr(test->cfg, "sqlite") != NULL) // SQLite backend specified
+    {
+#ifdef __sun
+        // Some of the tests doesn't work on Solaris.. Don't know why yet..
+        if (strcmp(test->name, "concurrent set (sqlite)") == 0 ||
+            strcmp(test->name, "retain rowid over a soft delete (sqlite)") == 0)
+        {
+            return SKIPPED;
+        }
+#endif
+        // Remove the database files we're going to operate on
+        rmdb();
+        return verify_no_db();
+    }
+
+    // unknow backend!
+    return FAIL;
+}
+
+void cleanup(engine_test_t *test, enum test_result result) {
+    (void)result;
+    // Nuke the database files we created
+    rmdb();
+    free(const_cast<char*>(test->name));
+    free(const_cast<char*>(test->cfg));
+}
+
+// the backends is a bitmask for which backend to run the given test
+// for.
+#define BACKEND_SQLITE 1
+#define BACKEND_ALL 0x1
+#define BACKEND_VARIANTS 1
+
+class TestCase {
+public:
+    TestCase(const char *_name,
+             enum test_result(*_tfun)(ENGINE_HANDLE *, ENGINE_HANDLE_V1 *),
+             bool(*_test_setup)(ENGINE_HANDLE *, ENGINE_HANDLE_V1 *),
+             bool(*_test_teardown)(ENGINE_HANDLE *, ENGINE_HANDLE_V1 *),
+             const char *_cfg,
+             enum test_result (*_prepare)(engine_test_t *test),
+             void (*_cleanup)(engine_test_t *test, enum test_result result),
+             int _backends) : name(_name), cfg(_cfg), backends(_backends) {
+        memset(&test, 0, sizeof(test));
+        test.tfun = _tfun;
+        test.test_setup = _test_setup;
+        test.test_teardown = _test_teardown;
+        test.prepare = _prepare;
+        test.cleanup = _cleanup;
+    }
+
+    TestCase(const TestCase &o) : name(o.name),
+                                  cfg(o.cfg),
+                                  backends(o.backends) {
+        memset(&test, 0, sizeof(test));
+        test.tfun = o.test.tfun;
+        test.test_setup = o.test.test_setup;
+        test.test_teardown = o.test.test_teardown;
+    }
+
+    const char *getName() {
+        return name;
+    }
+
+    engine_test_t *getTest(int backend) {
+        engine_test_t *ret = 0;
+
+        if (backends & backend) {
+            ret = new engine_test_t;
+            *ret = test;
+
+            std::string nm(name);
+            std::stringstream ss;
+            if (cfg != 0) {
+                ss << cfg;
+            }
+
+            switch (backend) {
+            case BACKEND_SQLITE:
+                nm.append(" (sqlite)");
+                break;
+            default:
+                abort();
+            }
+            ret->name = strdup(nm.c_str());
+            std::string config = ss.str();
+            if (config.length() == 0) {
+                ret->cfg = 0;
+            } else {
+                ret->cfg = strdup(config.c_str());
+            }
+        }
+
+        return ret;
+    }
+
+private:
+    engine_test_t test;
+    const char *name;
+    const char *cfg;
+    int backends;
+};
+
+static engine_test_t *testcases;
 
 MEMCACHED_PUBLIC_API
 engine_test_t* get_tests(void) {
-
-    static engine_test_t tests[]  = {
-        {"validate engine handle", test_validate_engine_handle, NULL, teardown,
-         "db_strategy=singleDB;dbname=:memory:"},
+    TestCase tc[] = {
+        TestCase("validate engine handle", test_validate_engine_handle,
+                 NULL, teardown, "db_strategy=singleDB;dbname=:memory:",
+                 prepare, cleanup, BACKEND_ALL),
         // basic tests
-        {"test alloc limit", test_alloc_limit, NULL, teardown, NULL},
-        {"test init failure", test_init_fail, NULL, teardown, NULL},
-        {"test total memory limit", test_memory_limit, NULL, teardown,
-         "max_size=4096;ht_locks=1;ht_size=3;chk_remover_stime=1;chk_period=60;mutation_mem_threshold=0.9"},
-        {"test max_size changes", test_max_size_settings, NULL, teardown,
-         "max_size=1000;ht_locks=1;ht_size=3"},
-        {"test whitespace dbname", test_whitespace_db, NULL, teardown,
-         "dbname=" WHITESPACE_DB ";ht_locks=1;ht_size=3"},
-        {"test db shards", test_db_shards, NULL, teardown,
-         "db_shards=5;db_strategy=multiDB"},
-        {"test single db strategy", test_single_db_strategy,
-         NULL, teardown, "db_strategy=singleDB"},
-        {"test single in-memory db strategy", test_single_db_strategy,
-         NULL, teardown, "db_strategy=singleDB;dbname=:memory:"},
-        {"get miss", test_get_miss, NULL, teardown, NULL},
-        {"set", test_set, NULL, teardown, NULL},
-        {"concurrent set", test_conc_set, NULL, teardown, NULL},
-        {"set+get hit", test_set_get_hit, NULL, teardown, NULL},
-        {"set+get hit with max_txn_size", test_set_get_hit, NULL, teardown,
-         "ht_locks=1;ht_size=3;max_txn_size=10"},
-        {"getl", test_getl, NULL, teardown, NULL},
-        {"unl",  test_unl, NULL, teardown, NULL},
-        {"set+get hit (bin)", test_set_get_hit_bin, NULL, teardown, NULL},
-        {"set+change flags", test_set_change_flags, NULL, teardown, NULL},
-        {"add", test_add, NULL, teardown, NULL},
-        {"cas", test_cas, NULL, teardown, NULL},
-        {"append", test_append, NULL, teardown, NULL},
-        {"prepend", test_prepend, NULL, teardown, NULL},
-        {"replace", test_replace, NULL, teardown, NULL},
-        {"incr miss", test_incr_miss, NULL, teardown, NULL},
-        {"incr", test_incr, NULL, teardown, NULL},
-        {"incr with default", test_incr_default, NULL, teardown, NULL},
-        {"incr expiry", test_bug2799, NULL, teardown, NULL},
-        {"test touch", test_touch, NULL, teardown, NULL},
-        {"test gat", test_gat, NULL, teardown, NULL},
-        {"test gatq", test_gatq, NULL, teardown, NULL},
-        {"delete", test_delete, NULL, teardown, NULL},
-        {"set/delete", test_set_delete, NULL, teardown, NULL},
-        {"delete/set/delete", test_delete_set, NULL, teardown, NULL},
-        {"retain rowid over a soft delete", test_bug2509,
-         NULL, teardown, NULL},
-        {"vbucket deletion doesn't affect new data", test_bug2761,
-         NULL, teardown, NULL},
-        {"start transaction failure handling", test_bug2830, NULL, teardown,
-         "db_shards=1;ht_size=13;ht_locks=7;db_strategy=multiDB"},
-        {"non-resident decrementers", test_mb3169, NULL, teardown, NULL},
-        {"flush", test_flush, NULL, teardown, NULL},
-        {"flush with stats", test_flush_stats, NULL, teardown, "chk_remover_stime=1;chk_period=60"},
-        {"flush multi vbuckets", test_flush_multiv, NULL, teardown, NULL},
-        {"flush multi vbuckets single mt", test_flush_multiv, NULL, teardown,
-         "db_strategy=singleMTDB;max_vbuckets=16;ht_size=7;ht_locks=3"},
-        {"flush multi vbuckets multi mt", test_flush_multiv, NULL, teardown,
-         "db_strategy=multiMTDB;max_vbuckets=16;ht_size=7;ht_locks=3"},
-        {"flush multi vbuckets multi mt vb", test_flush_multiv, NULL, teardown,
-         "db_strategy=multiMTVBDB;max_vbuckets=16;ht_size=7;ht_locks=3"},
-        {"expiry", test_expiry, NULL, teardown, NULL},
-        {"expiry_loader", test_expiry_loader, NULL, teardown, NULL},
-        {"expiry_flush", test_expiry_flush, NULL, teardown, NULL},
-        {"expiry_duplicate_warmup", test_bug3454, NULL, teardown, NULL},
-        {"expiry_no_items_warmup", test_bug3522, NULL, teardown, NULL},
+        TestCase("test alloc limit", test_alloc_limit, NULL, teardown,
+                 NULL, prepare, cleanup, BACKEND_ALL),
+        TestCase("test init failure", test_init_fail, NULL, teardown,
+                 NULL, prepare, cleanup, BACKEND_ALL),
+        TestCase("test total memory limit", test_memory_limit, NULL, teardown,
+                 "max_size=4096;ht_locks=1;ht_size=3;chk_remover_stime=1;chk_period=60;mutation_mem_threshold=0.9",
+                 prepare, cleanup, BACKEND_ALL),
+        TestCase("test max_size changes", test_max_size_settings, NULL,
+                 teardown, "max_size=1000;ht_locks=1;ht_size=3", prepare,
+                 cleanup, BACKEND_ALL),
+        TestCase("test whitespace dbname", test_whitespace_db, NULL, teardown,
+                 "dbname=" WHITESPACE_DB ";ht_locks=1;ht_size=3",
+                 prepare, cleanup, BACKEND_ALL),
+        TestCase("test db shards", test_db_shards, NULL, teardown,
+                 "db_shards=5;db_strategy=multiDB", prepare, cleanup,
+                 BACKEND_ALL),
+        TestCase("test single db strategy", test_single_db_strategy,
+                 NULL, teardown, "db_strategy=singleDB", prepare, cleanup,
+                 BACKEND_ALL),
+        TestCase("test single in-memory db strategy", test_single_db_strategy,
+                 NULL, teardown, "db_strategy=singleDB;dbname=:memory:",
+                 prepare, cleanup, BACKEND_ALL),
+        TestCase("get miss", test_get_miss, NULL, teardown, NULL, prepare,
+                 cleanup, BACKEND_ALL),
+        TestCase("set", test_set, NULL, teardown, NULL, prepare, cleanup,
+                 BACKEND_ALL),
+        TestCase("concurrent set", test_conc_set, NULL, teardown, NULL,
+                 prepare, cleanup, BACKEND_ALL),
+        TestCase("set+get hit", test_set_get_hit, NULL, teardown, NULL,
+                 prepare, cleanup, BACKEND_ALL),
+        TestCase("set+get hit with max_txn_size", test_set_get_hit, NULL,
+                 teardown,
+                 "ht_locks=1;ht_size=3;max_txn_size=10", prepare, cleanup,
+                 BACKEND_ALL),
+        TestCase("getl", test_getl, NULL, teardown, NULL, prepare, cleanup,
+                 BACKEND_ALL),
+        TestCase("unl",  test_unl, NULL, teardown, NULL, prepare, cleanup,
+                 BACKEND_ALL),
+        TestCase("set+get hit (bin)", test_set_get_hit_bin, NULL, teardown,
+                 NULL, prepare, cleanup, BACKEND_ALL),
+        TestCase("set+change flags", test_set_change_flags, NULL, teardown,
+                 NULL, prepare, cleanup, BACKEND_ALL),
+        TestCase("add", test_add, NULL, teardown, NULL, prepare, cleanup,
+                 BACKEND_ALL),
+        TestCase("cas", test_cas, NULL, teardown, NULL, prepare, cleanup,
+                 BACKEND_ALL),
+        TestCase("append", test_append, NULL, teardown, NULL, prepare, cleanup,
+                 BACKEND_ALL),
+        TestCase("prepend", test_prepend, NULL, teardown, NULL, prepare,
+                 cleanup,  BACKEND_ALL),
+        TestCase("replace", test_replace, NULL, teardown, NULL, prepare,
+                 cleanup, BACKEND_ALL),
+        TestCase("incr miss", test_incr_miss, NULL, teardown, NULL, prepare,
+                 cleanup,  BACKEND_ALL),
+        TestCase("incr", test_incr, NULL, teardown, NULL, prepare, cleanup,
+                 BACKEND_ALL),
+        TestCase("incr with default", test_incr_default, NULL, teardown, NULL,
+                 prepare, cleanup, BACKEND_ALL),
+        TestCase("incr expiry", test_bug2799, NULL, teardown, NULL, prepare,
+                 cleanup, BACKEND_ALL),
+        TestCase("test touch", test_touch, NULL, teardown, NULL, prepare,
+                 cleanup, BACKEND_ALL),
+        TestCase("test gat", test_gat, NULL, teardown, NULL, prepare, cleanup,
+                 BACKEND_ALL),
+        TestCase("test gatq", test_gatq, NULL, teardown, NULL, prepare,
+                 cleanup, BACKEND_ALL),
+        TestCase("delete", test_delete, NULL, teardown, NULL, prepare, cleanup,
+                 BACKEND_ALL),
+        TestCase("set/delete", test_set_delete, NULL, teardown, NULL,
+                 prepare, cleanup, BACKEND_ALL),
+        TestCase("delete/set/delete", test_delete_set, NULL, teardown, NULL,
+                 prepare, cleanup, BACKEND_ALL),
+        TestCase("retain rowid over a soft delete", test_bug2509,
+                 NULL, teardown, NULL, prepare, cleanup, BACKEND_ALL),
+        TestCase("vbucket deletion doesn't affect new data", test_bug2761,
+                 NULL, teardown, NULL, prepare, cleanup, BACKEND_ALL),
+        TestCase("start transaction failure handling", test_bug2830, NULL,
+                 teardown,
+                 "db_shards=1;ht_size=13;ht_locks=7;db_strategy=multiDB",
+                 prepare, cleanup, BACKEND_ALL),
+        TestCase("non-resident decrementers", test_mb3169, NULL, teardown,
+                 NULL, prepare, cleanup, BACKEND_ALL),
+        TestCase("flush", test_flush, NULL, teardown, NULL, prepare, cleanup,
+                 BACKEND_ALL),
+        TestCase("flush with stats", test_flush_stats, NULL, teardown,
+                 "chk_remover_stime=1;chk_period=60", prepare, cleanup,
+                 BACKEND_ALL),
+        TestCase("flush multi vbuckets", test_flush_multiv, NULL, teardown,
+                 NULL, prepare, cleanup, BACKEND_ALL),
+        TestCase("flush multi vbuckets single mt", test_flush_multiv, NULL,
+                 teardown,
+                 "db_strategy=singleMTDB;max_vbuckets=16;ht_size=7;ht_locks=3",
+                 prepare, cleanup, BACKEND_ALL),
+        TestCase("flush multi vbuckets multi mt", test_flush_multiv, NULL,
+                 teardown,
+                 "db_strategy=multiMTDB;max_vbuckets=16;ht_size=7;ht_locks=3",
+                 prepare, cleanup, BACKEND_ALL),
+        TestCase("flush multi vbuckets multi mt vb", test_flush_multiv, NULL,
+                 teardown,
+                 "db_strategy=multiMTVBDB;max_vbuckets=16;ht_size=7;ht_locks=3",
+                 prepare, cleanup, BACKEND_ALL),
+        TestCase("expiry", test_expiry, NULL, teardown, NULL, prepare, cleanup,
+                 BACKEND_ALL),
+        TestCase("expiry_loader", test_expiry_loader, NULL, teardown, NULL,
+                 prepare, cleanup, BACKEND_ALL),
+        TestCase("expiry_flush", test_expiry_flush, NULL, teardown, NULL,
+                 prepare, cleanup, BACKEND_ALL),
+        TestCase("expiry_duplicate_warmup", test_bug3454, NULL, teardown, NULL,
+                 prepare, cleanup, BACKEND_ALL),
+        TestCase("expiry_no_items_warmup", test_bug3522, NULL, teardown, NULL,
+                 prepare, cleanup, BACKEND_ALL),
         // Stats tests
-        {"stats", test_stats, NULL, teardown, NULL},
-        {"io stats", test_io_stats, NULL, teardown, NULL},
-        {"bg stats", test_bg_stats, NULL, teardown, NULL},
-        {"mem stats", test_mem_stats, NULL, teardown, "chk_remover_stime=1;chk_period=60"},
-        {"stats key", test_key_stats, NULL, teardown, NULL},
-        {"stats vkey", test_vkey_stats, NULL, teardown, NULL},
-        {"warmup stats", test_warmup_stats, NULL, teardown, NULL},
-        {"stats curr_items", test_curr_items, NULL, teardown, NULL},
+        TestCase("stats", test_stats, NULL, teardown, NULL, prepare, cleanup,
+                 BACKEND_ALL),
+        TestCase("io stats", test_io_stats, NULL, teardown, NULL, prepare,
+                 cleanup, BACKEND_ALL),
+        TestCase("bg stats", test_bg_stats, NULL, teardown, NULL, prepare,
+                 cleanup, BACKEND_ALL),
+        TestCase("mem stats", test_mem_stats, NULL, teardown,
+                 "chk_remover_stime=1;chk_period=60", prepare, cleanup,
+                 BACKEND_ALL),
+        TestCase("stats key", test_key_stats, NULL, teardown, NULL, prepare,
+                 cleanup, BACKEND_ALL),
+        TestCase("stats vkey", test_vkey_stats, NULL, teardown, NULL,
+                 prepare, cleanup, BACKEND_ALL),
+        TestCase("warmup stats", test_warmup_stats, NULL, teardown, NULL,
+                 prepare, cleanup, BACKEND_ALL),
+        TestCase("stats curr_items", test_curr_items, NULL, teardown, NULL,
+                 prepare, cleanup, BACKEND_ALL),
         // eviction
-        {"value eviction", test_value_eviction, NULL, teardown, NULL},
+        TestCase("value eviction", test_value_eviction, NULL, teardown, NULL,
+                 prepare, cleanup, BACKEND_ALL),
         // duplicate items on disk
-        {"duplicate items on disk", test_duplicate_items_disk, NULL, teardown, NULL},
+        TestCase("duplicate items on disk", test_duplicate_items_disk, NULL,
+                 teardown, NULL, prepare, cleanup, BACKEND_ALL),
         // tap tests
-        {"set tap param", test_set_tap_param, NULL, teardown, NULL},
-        {"tap_noop_interval default config", test_tap_noop_config_default,
-         NULL, teardown, NULL },
-        {"tap_noop_interval config", test_tap_noop_config, NULL, teardown,
-         "tap_noop_interval=10"},
-        {"tap_noop_interval config compat", test_tap_noop_config_deprecated,
-         NULL, teardown,
-         "tap_idle_timeout=30"},
-        {"tap receiver mutation", test_tap_rcvr_mutate, NULL, teardown, NULL},
-        {"tap receiver checkpoint start/end", test_tap_rcvr_checkpoint, NULL, teardown, NULL},
-        {"tap receiver mutation (dead)", test_tap_rcvr_mutate_dead,
-         NULL, teardown, NULL},
-        {"tap receiver mutation (pending)", test_tap_rcvr_mutate_pending,
-         NULL, teardown, NULL},
-        {"tap receiver mutation (replica)", test_tap_rcvr_mutate_replica,
-         NULL, teardown, NULL},
-        {"tap receiver delete", test_tap_rcvr_delete, NULL, teardown, NULL},
-        {"tap receiver delete (dead)", test_tap_rcvr_delete_dead,
-         NULL, teardown, NULL},
-        {"tap receiver delete (pending)", test_tap_rcvr_delete_pending,
-         NULL, teardown, NULL},
-        {"tap receiver delete (replica)", test_tap_rcvr_delete_replica,
-         NULL, teardown, NULL},
-        {"tap stream", test_tap_stream, NULL, teardown, NULL},
-        {"tap agg stats", test_tap_agg_stats, NULL, teardown, NULL},
-        {"tap filter stream", test_tap_filter_stream, NULL, teardown,
-         "tap_keepalive=100;ht_size=129;ht_locks=3"},
-        {"tap default config", test_tap_default_config, NULL,
-         teardown, NULL },
-        {"tap config", test_tap_config, NULL, teardown,
-         "tap_backoff_period=0.05;tap_ack_interval=10;tap_ack_window_size=2;tap_ack_grace_period=10"},
-        {"tap acks stream", test_tap_ack_stream, NULL, teardown,
-         "tap_keepalive=100;ht_size=129;ht_locks=3;tap_backoff_period=0.05;chk_max_items=500"},
-        {"tap implicit acks stream", test_tap_implicit_ack_stream, NULL, teardown,
-         "tap_keepalive=100;ht_size=129;ht_locks=3;tap_backoff_period=0.05;tap_ack_initial_sequence_number=4294967290;chk_max_items=500"},
-        {"tap notify", test_tap_notify, NULL, teardown,
-         "max_size=1048576"},
+        TestCase("set tap param", test_set_tap_param, NULL, teardown, NULL,
+                 prepare, cleanup, BACKEND_ALL),
+        TestCase("tap_noop_interval default config",
+                 test_tap_noop_config_default,
+                 NULL, teardown, NULL , prepare, cleanup, BACKEND_ALL),
+        TestCase("tap_noop_interval config", test_tap_noop_config, NULL,
+                 teardown,
+                 "tap_noop_interval=10", prepare, cleanup, BACKEND_ALL),
+        TestCase("tap_noop_interval config compat",
+                 test_tap_noop_config_deprecated,
+                 NULL, teardown,
+                 "tap_idle_timeout=30", prepare, cleanup, BACKEND_ALL),
+        TestCase("tap receiver mutation", test_tap_rcvr_mutate, NULL, teardown,
+                 NULL, prepare, cleanup, BACKEND_ALL),
+        TestCase("tap receiver checkpoint start/end", test_tap_rcvr_checkpoint,
+                 NULL, teardown, NULL, prepare, cleanup, BACKEND_ALL),
+        TestCase("tap receiver mutation (dead)", test_tap_rcvr_mutate_dead,
+                 NULL, teardown, NULL, prepare, cleanup, BACKEND_ALL),
+        TestCase("tap receiver mutation (pending)",
+                 test_tap_rcvr_mutate_pending,
+                 NULL, teardown, NULL, prepare, cleanup, BACKEND_ALL),
+        TestCase("tap receiver mutation (replica)",
+                 test_tap_rcvr_mutate_replica,
+                 NULL, teardown, NULL, prepare, cleanup, BACKEND_ALL),
+        TestCase("tap receiver delete", test_tap_rcvr_delete, NULL, teardown,
+                 NULL, prepare, cleanup, BACKEND_ALL),
+        TestCase("tap receiver delete (dead)", test_tap_rcvr_delete_dead,
+                 NULL, teardown, NULL, prepare, cleanup, BACKEND_ALL),
+        TestCase("tap receiver delete (pending)", test_tap_rcvr_delete_pending,
+                 NULL, teardown, NULL, prepare, cleanup, BACKEND_ALL),
+        TestCase("tap receiver delete (replica)", test_tap_rcvr_delete_replica,
+                 NULL, teardown, NULL, prepare, cleanup, BACKEND_ALL),
+        TestCase("tap stream", test_tap_stream, NULL, teardown, NULL,
+                 prepare, cleanup, BACKEND_ALL),
+        TestCase("tap agg stats", test_tap_agg_stats, NULL, teardown, NULL,
+                 prepare, cleanup, BACKEND_ALL),
+        TestCase("tap filter stream", test_tap_filter_stream, NULL, teardown,
+                 "tap_keepalive=100;ht_size=129;ht_locks=3", prepare, cleanup,
+                 BACKEND_ALL),
+        TestCase("tap default config", test_tap_default_config, NULL,
+                 teardown, NULL , prepare, cleanup, BACKEND_ALL),
+        TestCase("tap config", test_tap_config, NULL, teardown,
+                 "tap_backoff_period=0.05;tap_ack_interval=10;tap_ack_window_size=2;tap_ack_grace_period=10",
+                 prepare, cleanup, BACKEND_ALL),
+        TestCase("tap acks stream", test_tap_ack_stream, NULL, teardown,
+                 "tap_keepalive=100;ht_size=129;ht_locks=3;tap_backoff_period=0.05;chk_max_items=500",
+                 prepare, cleanup, BACKEND_ALL),
+        TestCase("tap implicit acks stream", test_tap_implicit_ack_stream,
+                 NULL, teardown,
+                 "tap_keepalive=100;ht_size=129;ht_locks=3;tap_backoff_period=0.05;tap_ack_initial_sequence_number=4294967290;chk_max_items=500",
+                 prepare, cleanup, BACKEND_ALL),
+        TestCase("tap notify", test_tap_notify, NULL, teardown,
+                 "max_size=1048576", prepare, cleanup, BACKEND_ALL),
         // restart tests
-        {"test restart", test_restart, NULL, teardown, NULL},
-        {"set+get+restart+hit (bin)", test_restart_bin_val, NULL, teardown, NULL},
-        {"flush+restart", test_flush_restart, NULL, teardown, NULL},
-        {"flush multiv+restart", test_flush_multiv_restart, NULL, teardown, NULL},
-        {"test kill -9 bucket", test_kill9_bucket, NULL, teardown, NULL},
+        TestCase("test restart", test_restart, NULL, teardown, NULL,
+                 prepare, cleanup, BACKEND_ALL),
+        TestCase("set+get+restart+hit (bin)", test_restart_bin_val, NULL,
+                 teardown, NULL, prepare, cleanup, BACKEND_ALL),
+        TestCase("flush+restart", test_flush_restart, NULL, teardown, NULL,
+                 prepare, cleanup, BACKEND_ALL),
+        TestCase("flush multiv+restart", test_flush_multiv_restart, NULL,
+                 teardown, NULL, prepare, cleanup, BACKEND_ALL),
+        TestCase("test kill -9 bucket", test_kill9_bucket, NULL, teardown,
+                 NULL, prepare, cleanup, BACKEND_ALL),
         // disk>RAM tests
-        {"verify not multi dispatcher", test_not_multi_dispatcher_conf, NULL, teardown,
-         NULL},
-        {"disk>RAM golden path", test_disk_gt_ram_golden, NULL, teardown,
-         "chk_remover_stime=1;chk_period=60"},
-        {"disk>RAM paged-out rm", test_disk_gt_ram_paged_rm, NULL, teardown,
-         "chk_remover_stime=1;chk_period=60"},
-        {"disk>RAM update paged-out", test_disk_gt_ram_update_paged_out, NULL,
-         teardown, NULL},
-        {"disk>RAM delete paged-out", test_disk_gt_ram_delete_paged_out, NULL,
-         teardown, NULL},
-        {"disk>RAM paged-out incr", test_disk_gt_ram_incr, NULL,
-         teardown, NULL},
-        {"disk>RAM set bgfetch race", test_disk_gt_ram_set_race, NULL,
-         teardown, NULL},
-        {"disk>RAM incr bgfetch race", test_disk_gt_ram_incr_race, NULL,
-         teardown, NULL},
-        {"disk>RAM delete bgfetch race", test_disk_gt_ram_rm_race, NULL,
-         teardown, NULL},
+        TestCase("verify not multi dispatcher", test_not_multi_dispatcher_conf,
+                 NULL, teardown, NULL, prepare, cleanup, BACKEND_ALL),
+        TestCase("disk>RAM golden path", test_disk_gt_ram_golden, NULL,
+                 teardown, "chk_remover_stime=1;chk_period=60", prepare,
+                 cleanup, BACKEND_ALL),
+        TestCase("disk>RAM paged-out rm", test_disk_gt_ram_paged_rm, NULL,
+                 teardown, "chk_remover_stime=1;chk_period=60", prepare,
+                 cleanup, BACKEND_ALL),
+        TestCase("disk>RAM update paged-out", test_disk_gt_ram_update_paged_out,
+                 NULL, teardown, NULL, prepare, cleanup, BACKEND_ALL),
+        TestCase("disk>RAM delete paged-out", test_disk_gt_ram_delete_paged_out,
+                 NULL, teardown, NULL, prepare, cleanup, BACKEND_ALL),
+        TestCase("disk>RAM paged-out incr", test_disk_gt_ram_incr, NULL,
+                 teardown, NULL, prepare, cleanup, BACKEND_ALL),
+        TestCase("disk>RAM set bgfetch race", test_disk_gt_ram_set_race, NULL,
+                 teardown, NULL, prepare, cleanup, BACKEND_ALL),
+        TestCase("disk>RAM incr bgfetch race", test_disk_gt_ram_incr_race, NULL,
+                 teardown, NULL, prepare, cleanup, BACKEND_ALL),
+        TestCase("disk>RAM delete bgfetch race", test_disk_gt_ram_rm_race, NULL,
+                 teardown, NULL, prepare, cleanup, BACKEND_ALL),
         // disk>RAM tests with WAL
-        {"verify multi dispatcher", test_multi_dispatcher_conf, NULL, teardown,
-         MULTI_DISPATCHER_CONFIG},
-        {"verify multi dispatcher override",
-         test_not_multi_dispatcher_conf, NULL, teardown,
-         MULTI_DISPATCHER_CONFIG ";concurrentDB=false"},
-        {"disk>RAM golden path (wal)", test_disk_gt_ram_golden, NULL, teardown,
-         MULTI_DISPATCHER_CONFIG},
-        {"disk>RAM paged-out rm (wal)", test_disk_gt_ram_paged_rm, NULL, teardown,
-         MULTI_DISPATCHER_CONFIG},
-        {"disk>RAM update paged-out (wal)", test_disk_gt_ram_update_paged_out, NULL,
-         teardown, MULTI_DISPATCHER_CONFIG},
-        {"disk>RAM delete paged-out (wal)", test_disk_gt_ram_delete_paged_out, NULL,
-         teardown, MULTI_DISPATCHER_CONFIG},
-        {"disk>RAM paged-out incr (wal)", test_disk_gt_ram_incr, NULL,
-         teardown, MULTI_DISPATCHER_CONFIG},
-        {"disk>RAM set bgfetch race (wal)", test_disk_gt_ram_set_race, NULL,
-         teardown, MULTI_DISPATCHER_CONFIG},
-        {"disk>RAM incr bgfetch race (wal)", test_disk_gt_ram_incr_race, NULL,
-         teardown, MULTI_DISPATCHER_CONFIG},
-        {"disk>RAM delete bgfetch race (wal)", test_disk_gt_ram_rm_race, NULL,
-         teardown, MULTI_DISPATCHER_CONFIG},
+        TestCase("verify multi dispatcher", test_multi_dispatcher_conf, NULL,
+                 teardown, MULTI_DISPATCHER_CONFIG, prepare, cleanup,
+                 BACKEND_ALL),
+        TestCase("verify multi dispatcher override",
+                 test_not_multi_dispatcher_conf, NULL, teardown,
+                 MULTI_DISPATCHER_CONFIG ";concurrentDB=false", prepare,
+                 cleanup, BACKEND_ALL),
+        TestCase("disk>RAM golden path (wal)", test_disk_gt_ram_golden, NULL,
+                 teardown, MULTI_DISPATCHER_CONFIG, prepare, cleanup,
+                 BACKEND_ALL),
+        TestCase("disk>RAM paged-out rm (wal)", test_disk_gt_ram_paged_rm,
+                 NULL, teardown, MULTI_DISPATCHER_CONFIG, prepare, cleanup,
+                 BACKEND_ALL),
+        TestCase("disk>RAM update paged-out (wal)",
+                 test_disk_gt_ram_update_paged_out, NULL,
+                 teardown, MULTI_DISPATCHER_CONFIG, prepare, cleanup,
+                 BACKEND_ALL),
+        TestCase("disk>RAM delete paged-out (wal)",
+                 test_disk_gt_ram_delete_paged_out, NULL,
+                 teardown, MULTI_DISPATCHER_CONFIG, prepare, cleanup,
+                 BACKEND_ALL),
+        TestCase("disk>RAM paged-out incr (wal)", test_disk_gt_ram_incr, NULL,
+                 teardown, MULTI_DISPATCHER_CONFIG, prepare, cleanup,
+                 BACKEND_ALL),
+        TestCase("disk>RAM set bgfetch race (wal)", test_disk_gt_ram_set_race,
+                 NULL, teardown, MULTI_DISPATCHER_CONFIG, prepare, cleanup,
+                 BACKEND_ALL),
+        TestCase("disk>RAM incr bgfetch race (wal)", test_disk_gt_ram_incr_race,
+                 NULL, teardown, MULTI_DISPATCHER_CONFIG, prepare, cleanup,
+                 BACKEND_ALL),
+        TestCase("disk>RAM delete bgfetch race (wal)", test_disk_gt_ram_rm_race,
+                 NULL, teardown, MULTI_DISPATCHER_CONFIG, prepare, cleanup,
+                 BACKEND_ALL),
         // vbucket negative tests
-        {"vbucket incr (dead)", test_wrong_vb_incr, NULL, teardown, NULL},
-        {"vbucket incr (pending)", test_vb_incr_pending, NULL, teardown, NULL},
-        {"vbucket incr (replica)", test_vb_incr_replica, NULL, teardown, NULL},
-        {"vbucket get (dead)", test_wrong_vb_get, NULL, teardown, NULL},
-        {"vbucket get (pending)", test_vb_get_pending, NULL, teardown, NULL},
-        {"vbucket get (replica)", test_vb_get_replica, NULL, teardown, NULL},
-        {"vbucket getl (dead)", NULL, NULL, teardown, NULL},
-        {"vbucket getl (pending)", NULL, NULL, teardown, NULL},
-        {"vbucket getl (replica)", NULL, NULL, teardown, NULL},
-        {"vbucket set (dead)", test_wrong_vb_set, NULL, teardown, NULL},
-        {"vbucket set (pending)", test_vb_set_pending, NULL, teardown, NULL},
-        {"vbucket set (replica)", test_vb_set_replica, NULL, teardown, NULL},
-        {"vbucket replace (dead)", test_wrong_vb_replace, NULL, teardown, NULL},
-        {"vbucket replace (pending)", test_vb_replace_pending, NULL, teardown, NULL},
-        {"vbucket replace (replica)", test_vb_replace_replica, NULL, teardown, NULL},
-        {"vbucket add (dead)", test_wrong_vb_add, NULL, teardown, NULL},
-        {"vbucket add (pending)", test_vb_add_pending, NULL, teardown, NULL},
-        {"vbucket add (replica)", test_vb_add_replica, NULL, teardown, NULL},
-        {"vbucket cas (dead)", test_wrong_vb_cas, NULL, teardown, NULL},
-        {"vbucket cas (pending)", test_vb_cas_pending, NULL, teardown, NULL},
-        {"vbucket cas (replica)", test_vb_cas_replica, NULL, teardown, NULL},
-        {"vbucket append (dead)", test_wrong_vb_append, NULL, teardown, NULL},
-        {"vbucket append (pending)", test_vb_append_pending, NULL, teardown, NULL},
-        {"vbucket append (replica)", test_vb_append_replica, NULL, teardown, NULL},
-        {"vbucket prepend (dead)", test_wrong_vb_prepend, NULL, teardown, NULL},
-        {"vbucket prepend (pending)", test_vb_prepend_pending, NULL, teardown, NULL},
-        {"vbucket prepend (replica)", test_vb_prepend_replica, NULL, teardown, NULL},
-        {"vbucket del (dead)", test_wrong_vb_del, NULL, teardown, NULL},
-        {"vbucket del (pending)", test_vb_del_pending, NULL, teardown, NULL},
-        {"vbucket del (replica)", test_vb_del_replica, NULL, teardown, NULL},
+        TestCase("vbucket incr (dead)", test_wrong_vb_incr, NULL, teardown,
+                 NULL, prepare, cleanup, BACKEND_ALL),
+        TestCase("vbucket incr (pending)", test_vb_incr_pending, NULL,
+                 teardown, NULL, prepare, cleanup, BACKEND_ALL),
+        TestCase("vbucket incr (replica)", test_vb_incr_replica, NULL,
+                 teardown, NULL, prepare, cleanup, BACKEND_ALL),
+        TestCase("vbucket get (dead)", test_wrong_vb_get, NULL, teardown, NULL,
+                 prepare, cleanup, BACKEND_ALL),
+        TestCase("vbucket get (pending)", test_vb_get_pending, NULL, teardown,
+                 NULL, prepare, cleanup, BACKEND_ALL),
+        TestCase("vbucket get (replica)", test_vb_get_replica, NULL, teardown,
+                 NULL, prepare, cleanup, BACKEND_ALL),
+        TestCase("vbucket getl (dead)", NULL, NULL, teardown, NULL, prepare,
+                 cleanup, BACKEND_ALL),
+        TestCase("vbucket getl (pending)", NULL, NULL, teardown, NULL,
+                 prepare, cleanup, BACKEND_ALL),
+        TestCase("vbucket getl (replica)", NULL, NULL, teardown, NULL,
+                 prepare, cleanup, BACKEND_ALL),
+        TestCase("vbucket set (dead)", test_wrong_vb_set, NULL, teardown, NULL,
+                 prepare, cleanup, BACKEND_ALL),
+        TestCase("vbucket set (pending)", test_vb_set_pending, NULL, teardown,
+                 NULL, prepare, cleanup, BACKEND_ALL),
+        TestCase("vbucket set (replica)", test_vb_set_replica, NULL, teardown,
+                 NULL, prepare, cleanup, BACKEND_ALL),
+        TestCase("vbucket replace (dead)", test_wrong_vb_replace, NULL,
+                 teardown, NULL, prepare, cleanup, BACKEND_ALL),
+        TestCase("vbucket replace (pending)", test_vb_replace_pending, NULL,
+                 teardown, NULL, prepare, cleanup, BACKEND_ALL),
+        TestCase("vbucket replace (replica)", test_vb_replace_replica, NULL,
+                 teardown, NULL, prepare, cleanup, BACKEND_ALL),
+        TestCase("vbucket add (dead)", test_wrong_vb_add, NULL, teardown, NULL,
+                 prepare, cleanup, BACKEND_ALL),
+        TestCase("vbucket add (pending)", test_vb_add_pending, NULL, teardown,
+                 NULL, prepare, cleanup, BACKEND_ALL),
+        TestCase("vbucket add (replica)", test_vb_add_replica, NULL, teardown,
+                 NULL, prepare, cleanup, BACKEND_ALL),
+        TestCase("vbucket cas (dead)", test_wrong_vb_cas, NULL, teardown, NULL,
+                 prepare, cleanup, BACKEND_ALL),
+        TestCase("vbucket cas (pending)", test_vb_cas_pending, NULL, teardown,
+                 NULL, prepare, cleanup, BACKEND_ALL),
+        TestCase("vbucket cas (replica)", test_vb_cas_replica, NULL, teardown,
+                 NULL, prepare, cleanup, BACKEND_ALL),
+        TestCase("vbucket append (dead)", test_wrong_vb_append, NULL, teardown,
+                 NULL, prepare, cleanup, BACKEND_ALL),
+        TestCase("vbucket append (pending)", test_vb_append_pending, NULL,
+                 teardown, NULL, prepare, cleanup, BACKEND_ALL),
+        TestCase("vbucket append (replica)", test_vb_append_replica, NULL,
+                 teardown, NULL, prepare, cleanup, BACKEND_ALL),
+        TestCase("vbucket prepend (dead)", test_wrong_vb_prepend, NULL,
+                 teardown, NULL, prepare, cleanup, BACKEND_ALL),
+        TestCase("vbucket prepend (pending)", test_vb_prepend_pending, NULL,
+                 teardown, NULL, prepare, cleanup, BACKEND_ALL),
+        TestCase("vbucket prepend (replica)", test_vb_prepend_replica, NULL,
+                 teardown, NULL, prepare, cleanup, BACKEND_ALL),
+        TestCase("vbucket del (dead)", test_wrong_vb_del, NULL, teardown, NULL,
+                 prepare, cleanup, BACKEND_ALL),
+        TestCase("vbucket del (pending)", test_vb_del_pending, NULL, teardown,
+                 NULL, prepare, cleanup, BACKEND_ALL),
+        TestCase("vbucket del (replica)", test_vb_del_replica, NULL, teardown,
+                 NULL, prepare, cleanup, BACKEND_ALL),
         // Vbucket management tests
-        {"no vb0 at startup", test_novb0, NULL, teardown, "vb0=false"},
-        {"test vbucket get", test_vbucket_get, NULL, teardown, NULL},
-        {"test vbucket get missing", test_vbucket_get_miss, NULL, teardown, NULL},
-        {"test vbucket create", test_vbucket_create, NULL, teardown, NULL},
-        {"test vbucket destroy", test_vbucket_destroy, NULL, teardown, NULL},
-        {"test vbucket destroy (multitable)", test_vbucket_destroy, NULL, teardown,
-         "db_strategy=multiMTVBDB;max_vbuckets=16;ht_size=7;ht_locks=3"},
-        {"test vbucket destroy stats", test_vbucket_destroy_stats,
-         NULL, teardown, "chk_remover_stime=1;chk_period=60"},
-        {"test vbucket destroy restart", test_vbucket_destroy_restart,
-         NULL, teardown, NULL},
-        {"sync bad flags", test_sync_bad_flags, NULL, teardown, NULL},
+        TestCase("no vb0 at startup", test_novb0, NULL, teardown, "vb0=false",
+                 prepare, cleanup, BACKEND_ALL),
+        TestCase("test vbucket get", test_vbucket_get, NULL, teardown, NULL,
+                 prepare, cleanup, BACKEND_ALL),
+        TestCase("test vbucket get missing", test_vbucket_get_miss, NULL,
+                 teardown, NULL, prepare, cleanup, BACKEND_ALL),
+        TestCase("test vbucket create", test_vbucket_create, NULL, teardown,
+                 NULL, prepare, cleanup, BACKEND_ALL),
+        TestCase("test vbucket destroy", test_vbucket_destroy, NULL, teardown,
+                 NULL, prepare, cleanup, BACKEND_ALL),
+        TestCase("test vbucket destroy (multitable)", test_vbucket_destroy,
+                 NULL, teardown,
+                 "db_strategy=multiMTVBDB;max_vbuckets=16;ht_size=7;ht_locks=3",
+                 prepare, cleanup, BACKEND_ALL),
+        TestCase("test vbucket destroy stats", test_vbucket_destroy_stats,
+                 NULL, teardown, "chk_remover_stime=1;chk_period=60",
+                 prepare, cleanup, BACKEND_ALL),
+        TestCase("test vbucket destroy restart", test_vbucket_destroy_restart,
+                 NULL, teardown, NULL, prepare, cleanup, BACKEND_ALL),
+        TestCase("sync bad flags", test_sync_bad_flags, NULL, teardown, NULL,
+                 prepare, cleanup, BACKEND_ALL),
         // Temporarily disabled (MB-3817)
-        // {"sync persistence", test_sync_persistence, NULL, teardown, NULL},
-        {"sync mutation", test_sync_mutation, NULL, teardown, NULL},
-        {"sync replication", test_sync_replication, NULL, teardown, NULL},
+        // TestCase("sync persistence", test_sync_persistence, NULL, teardown, NULL, prepare, cleanup, BACKEND_ALL),
+        TestCase("sync mutation", test_sync_mutation, NULL, teardown, NULL,
+                 prepare, cleanup, BACKEND_ALL),
+        TestCase("sync replication", test_sync_replication, NULL, teardown,
+                 NULL, prepare, cleanup, BACKEND_ALL),
         // Temporarily disabled (MB-3817)
-        // {"sync persistence or replication", test_sync_persistence_or_replication, NULL, teardown, NULL},
-        // {"sync persistence and replication", test_sync_persistence_and_replication, NULL, teardown, NULL},
-        {"sync timeout", test_sync_timeout, NULL, teardown, NULL},
+        // TestCase("sync persistence or replication", test_sync_persistence_or_replication, NULL, teardown, NULL, prepare, cleanup, BACKEND_ALL),
+        // TestCase("sync persistence and replication", test_sync_persistence_and_replication, NULL, teardown, NULL, prepare, cleanup, BACKEND_ALL),
+        TestCase("sync timeout", test_sync_timeout, NULL, teardown, NULL,
+                 prepare, cleanup, BACKEND_ALL),
 
         // checkpoint tests
-        {"checkpoint: get last closed checkpoint Id", test_get_last_closed_checkpoint_id,
-         NULL, teardown, "chk_max_items=500"},
-        {"checkpoint: validate checkpoint config params", test_validate_checkpoint_params,
-         NULL, teardown, NULL},
+        TestCase("checkpoint: get last closed checkpoint Id",
+                 test_get_last_closed_checkpoint_id,
+                 NULL, teardown, "chk_max_items=500", prepare, cleanup,
+                 BACKEND_ALL),
+        TestCase("checkpoint: validate checkpoint config params",
+                 test_validate_checkpoint_params,
+                 NULL, teardown, NULL, prepare, cleanup, BACKEND_ALL),
 
         // Restore tests
-        {"restore: not enabled", test_restore_not_enabled, NULL, teardown,
-         "db_strategy=singleDB;dbname=:memory:"},
-        {"restore: no such file", test_restore_no_such_file, NULL, teardown,
-         "db_strategy=singleDB;dbname=:memory:;restore_mode=true"},
-        {"restore: invalid file", test_restore_invalid_file, NULL, teardown,
-         "db_strategy=singleDB;dbname=:memory:;restore_mode=true"},
-        {"restore: data miss during restore", test_restore_data_miss, NULL, teardown,
-         "db_strategy=singleDB;dbname=:memory:;restore_mode=true"},
-        {"restore: no data in there", test_restore_clean, NULL, teardown,
-         "restore_mode=true"},
-        {"restore: no data in there (with partial vbucket list)",
-         test_restore_clean_vbucket_subset, NULL, teardown,
-         "restore_mode=true"},
-        {"restore: with keys", test_restore_with_data, NULL, teardown,
-         "db_strategy=singleDB;dbname=:memory:;restore_mode=true"},
+        TestCase("restore: not enabled", test_restore_not_enabled, NULL,
+                 teardown,
+                 "db_strategy=singleDB;dbname=:memory:", prepare, cleanup,
+                 BACKEND_ALL),
+        TestCase("restore: no such file", test_restore_no_such_file, NULL,
+                 teardown,
+                 "db_strategy=singleDB;dbname=:memory:;restore_mode=true",
+                 prepare, cleanup, BACKEND_ALL),
+        TestCase("restore: invalid file", test_restore_invalid_file, NULL,
+                 teardown,
+                 "db_strategy=singleDB;dbname=:memory:;restore_mode=true",
+                 prepare, cleanup, BACKEND_ALL),
+        TestCase("restore: data miss during restore", test_restore_data_miss,
+                 NULL, teardown,
+                 "db_strategy=singleDB;dbname=:memory:;restore_mode=true",
+                 prepare, cleanup, BACKEND_ALL),
+        TestCase("restore: no data in there", test_restore_clean, NULL,
+                 teardown,
+                 "restore_mode=true", prepare, cleanup, BACKEND_ALL),
+        TestCase("restore: no data in there (with partial vbucket list)",
+                 test_restore_clean_vbucket_subset, NULL, teardown,
+                 "restore_mode=true", prepare, cleanup, BACKEND_ALL),
+        TestCase("restore: with keys", test_restore_with_data, NULL, teardown,
+                 "db_strategy=singleDB;dbname=:memory:;restore_mode=true",
+                 prepare, cleanup, BACKEND_ALL),
 #ifdef future
-        {"restore: multiple incrementalfiles", test_restore_multi, NULL, teardown,
-         "db_strategy=singleDB;dbname=:memory:;restore_mode=true"},
+        TestCase("restore: multiple incrementalfiles", test_restore_multi,
+                 NULL, teardown,
+                 "db_strategy=singleDB;dbname=:memory:;restore_mode=true",
+                 prepare, cleanup, BACKEND_ALL),
 #endif
-        {NULL, NULL, NULL, NULL, NULL}
+        TestCase(NULL, NULL, NULL, NULL, NULL, prepare, cleanup, BACKEND_ALL)
     };
-    return tests;
+
+    // Calculate the size of the tests..
+    int num = 0;
+    while (tc[num].getName() != 0) {
+        ++num;
+    }
+
+    int total = num * BACKEND_VARIANTS;
+    testcases = static_cast<engine_test_t*>(calloc(total + 1,
+                                                   sizeof(engine_test_t)));
+
+    int ii = 0;
+    for (int variant = 1; variant <= BACKEND_VARIANTS; variant <<= 1) {
+        for (int jj = 0; jj < num; ++jj) {
+            engine_test_t *r = tc[jj].getTest(variant);
+            if (r != 0) {
+                testcases[ii++] = *r;
+            }
+        }
+    }
+
+    return testcases;
 }
 
 MEMCACHED_PUBLIC_API
@@ -5657,4 +5960,12 @@ bool setup_suite(struct test_harness *th) {
     return true;
 }
 
+
+MEMCACHED_PUBLIC_API
+bool teardown_suite() {
+    free(testcases);
+    testcases = NULL;
+    return true;
 }
+
+} // extern "C"
