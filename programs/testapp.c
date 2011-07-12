@@ -313,7 +313,7 @@ static enum test_return test_safe_strtof(void) {
 }
 
 static char *get_module(const char *module) {
-    char buffer[1024];
+    static char buffer[1024];
 
     assert(getcwd(buffer, sizeof(buffer)));
     strcat(buffer, "/.libs/");
