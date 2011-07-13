@@ -1,0 +1,69 @@
+# Hard coded Makefile for windows
+
+CC = gcc
+
+LOCAL=/usr/local
+LOCALLIB=-L${LOCAL}/lib
+LOCALINC=-I${LOCAL}/include
+
+MARCH=-march=i686
+TMP_DIR=./tmp
+INSTALLDIRS=$(LOCAL)/bin $(LOCAL)/lib $(LOCAL)/lib/memcached
+
+GEN_CONFIG = generated_configuration.hh generated_configuration.cc
+
+OBJDIR = .libs .libs/tools
+BINARIES= ${GEN_CONFIG} .libs/genconfig.exe
+LIB=$(LOCALLIB)
+INCLUDE= -Iwin32 -I.libs -I. $(LOCALINC) -Itools
+GENFILES=.libs/config_version.h
+CPPFLAGS= $(MARCH) -O2 -DHAVE_CONFIG_H ${INCLUDE} -Wall -DSQLITE_THREADSAFE=2
+
+all: ${BINARIES}
+
+install: ${BINARIES} $(INSTALLDIRS)
+	cp management/sqlite3.exe management/mbdbconvert.exe $(LOCAL)/bin
+	cp .libs/ep.so $(LOCAL)/lib/memcached
+	rm -rf $(TMP_DIR) && mkdir -p $(TMP_DIR)
+	cp ./management/* $(TMP_DIR)
+	rm -f $(TMP_DIR)/*.pyc && rm -f $(TMP_DIR)/*.cc && rm -f $(TMP_DIR)/*.o
+	cp $(TMP_DIR)/* $(LOCAL)/bin
+
+
+CFLAGS = -std=gnu99 -DNDEBUG -g \
+           -fno-strict-aliasing -Wstrict-prototypes -Wmissing-prototypes \
+           -Wmissing-declarations -Wredundant-decls \
+
+CXXFLAGS = -std=gnu++0x -g \
+           -pedantic -Wshadow -fdiagnostics-show-option \
+           -Wformat=2 -Wconversion -Wstrict-aliasing -Wextra \
+           -Woverloaded-virtual -Wnon-virtual-dtor -Wctor-dtor-privacy \
+           -Wno-long-long  -Wmissing-declarations -Wno-redundant-decls
+
+GEN_CONFIG_CC_SRC = tools/genconfig.cc
+GEN_CONFIG_C_SRC = tools/cJSON.c
+GEN_CONFIG_OBJS = ${GEN_CONFIG_C_SRC:%.c=.libs/%.o} ${GEN_CONFIG_CC_SRC:%.cc=.libs/%.o}
+
+.libs/genconfig.exe: ${OBJDIR} ${GEN_CONFIG_OBJS}
+	${LINK.cc} -o $@ ${GEN_CONFIG_OBJS}
+
+${GEN_CONFIG}: .libs/genconfig.exe configuration.json
+	$(shell .libs/genconfig.exe)
+
+.libs/config_version.h:
+	./win32/config.sh
+
+${OBJDIR} ${INSTALLDIRS}:; -@mkdir $@
+
+.libs/%.o: %.cc
+	${COMPILE.cc} -MMD $< -o $@
+
+.libs/%.o: %.c
+	${COMPILE.c} -MMD $< -o $@
+
+clean:
+	$(RM) ${EP_ENGINE_OBJS} ${BINARIES} ${EP_ENGINE_OBJS:.o=.d} \
+              ${GENFILES} ${SQLITE3_OBJS} ${SQLITE3_OBJS:.o=.d}
+
+-include ${EP_ENGINE_OBJS:.o=.d}
+-include ${SQLITE3_OBJS:.o=.d}

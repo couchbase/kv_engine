@@ -9,7 +9,7 @@
 // there seems to be a bad macro redefine for sleep in unistd.h, so let's
 // include it before any other files..
 #include <unistd.h>
-
+#include "win32.h"
 #include <winsock2.h>
 #include <ws2tcpip.h>
 

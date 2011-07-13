@@ -4,18 +4,19 @@ CC = gcc
 
 LOCAL=/usr/local
 LOCALLIB=-L${LOCAL}/lib
-LOCALINC=-I${LOCAL}/include
+LOCALINC=-I${LOCAL}/include -I${LOCAL}/include/event2
 
 MARCH=-march=i686
 TMP_DIR=./tmp
 INSTALLDIRS=$(LOCAL)/bin $(LOCAL)/lib $(LOCAL)/lib/memcached
 
 MEMCACHED=../memcached
+GEN_CONFIG = generated_configuration.hh generated_configuration.cc
 
-OBJDIR = .libs .libs/embedded .libs/poll .libs/management
-BINARIES= .libs/ep.so management/sqlite3.exe management/mbdbconvert.exe
+OBJDIR = .libs .libs/embedded .libs/poll .libs/management .libs/sqlite-kvstore .libs/mc-kvstore
+BINARIES= ${GEN_CONFIG} .libs/ep.so management/sqlite3.exe
 LIB=$(LOCALLIB) -L${MEMCACHED}/lib
-INCLUDE= -Iwin32 -I.libs -Iembedded -I${MEMCACHED}/include -I. $(LOCALINC)
+INCLUDE= -Iwin32 -Isqlite-kvstore -I.libs -Iembedded -I${MEMCACHED}/include -I${MEMCACHED}/win32 -I. $(LOCALINC)
 GENFILES=.libs/config_version.h
 CPPFLAGS= $(MARCH) -O2 -DHAVE_CONFIG_H ${INCLUDE} -Wall -DSQLITE_THREADSAFE=2
 
@@ -44,32 +45,36 @@ EP_ENGINE_CC_SRC = \
                  backfill.cc \
                  checkpoint.cc \
                  checkpoint_remover.cc \
+                 configuration.cc \
                  dispatcher.cc \
                  ep.cc \
                  ep_engine.cc \
                  ep_extension.cc \
                  flusher.cc \
+                 kvstore.cc \
                  htresizer.cc \
                  item.cc \
                  item_pager.cc \
-                 kvstore.cc \
+                 mc-kvstore/mc-debug.cc \
+                 mc-kvstore/mc-engine.cc \
+                 mc-kvstore/mc-kvstore.cc \
                  objectregistry.cc \
-                 pathexpand.cc \
                  priority.cc \
                  queueditem.cc \
                  restore_impl.cc \
                  sizes.cc \
-                 sqlite-eval.cc \
-                 sqlite-kvstore.cc \
-                 sqlite-pst.cc \
-                 sqlite-strategies.cc \
+                 sqlite-kvstore/pathexpand.cc \
+                 sqlite-kvstore/sqlite-eval.cc \
+                 sqlite-kvstore/sqlite-kvstore.cc \
+                 sqlite-kvstore/sqlite-pst.cc \
+                 sqlite-kvstore/sqlite-strategies.cc \
                  statsnap.cc \
                  stored-value.cc \
                  sync_registry.cc \
                  tapconnmap.cc \
                  tapconnection.cc \
                  tapthrottle.cc \
-                 vbucket.cc
+                 vbucket.cc \
 
 EP_ENGINE_C_SRC = \
                  byteorder.c \
@@ -86,27 +91,39 @@ management/sqlite3.exe: ${OBJDIR} ${GENFILES} ${SQLITE3_OBJS}
 
 .libs/ep.so: ${OBJDIR} ${GENFILES} $(EP_ENGINE_OBJS)
 	${LINK.cc} -o $@ -shared ${EP_ENGINE_OBJS} \
-                  ${LIB} -lpthread \
+                  ${LIB} -lpthread -levent\
                   -lws2_32
+${GEN_CONFIG}: configuration.json
+	$(shell make -f win32/Makefile.genconf) || true
 
-LIBKVSTORE_CC_SRC = \
+LIBSQLITE_KVSTORE_CC_SRC = \
          kvstore.cc \
-         pathexpand.cc \
-         sqlite-eval.cc \
-         sqlite-kvstore.cc \
-         sqlite-pst.cc \
-         sqlite-strategies.cc
+         sqlite-kvstore/pathexpand.cc \
+         sqlite-kvstore/sqlite-eval.cc \
+         sqlite-kvstore/sqlite-kvstore.cc \
+         sqlite-kvstore/sqlite-pst.cc \
+         sqlite-kvstore/sqlite-strategies.cc
 
-LIBKVSTORE_C_SRC = embedded/sqlite3.c
+LIBSQLITE_KVSTORE_C_SRC = embedded/sqlite3.c
 
-LIBKVSTORE_OBJS = ${LIBKVSTORE_CC_SRC:%.cc=.libs/%.o} ${LIBKVSTORE_C_SRC:%.c=.libs/%.o}
+LIBSQLITE_KVSTORE_OBJS = ${LIBSQLITE_KVSTORE_CC_SRC:%.cc=.libs/%.o} ${LIBSQLITE_KVSTORE_C_SRC:%.c=.libs/%.o}
 
-MBDBCONVERT_SRC = management/dbconvert.cc testlogger.cc objectregistry.cc
+LIBMC_KVSTORE_CC_SRC = \
+        mc-kvstore/mc-debug.cc \
+        mc-kvstore/mc-engine.cc \
+        mc-kvstore/mc-kvstore.cc
+
+LIBMC_KVSTORE_OBJS = ${LIBMC_KVSTORE_CC_SRC:%.cc=.libs/%.o}
+
+MBDBCONVERT_SRC = \
+        management/dbconvert.cc \
+        testlogger.cc \
+        objectregistry.cc
 
 MBDBCONVERT_OBJS = ${MBDBCONVERT_SRC:%.cc=.libs/%.o}
 
-management/mbdbconvert.exe: ${OBJDIR} ${GENFILES} ${MBDBCONVERT_OBJS} ${LIBKVSTORE_OBJS}
-	${LINK.cc} -o $@ ${MBDBCONVERT_OBJS} .libs/gethrtime.o ${LIBKVSTORE_OBJS} ${LIB} -lpthread
+management/mbdbconvert.exe: ${OBJDIR} ${GENFILES} ${MBDBCONVERT_OBJS} ${LIBSQLITE_KVSTORE_OBJS}
+	${LINK.cc} -o $@ ${MBDBCONVERT_OBJS} .libs/gethrtime.o ${LIBSQLITE_KVSTORE_OBJS} ${LIB} -lpthread
 
 .libs/config_version.h:
 	./win32/config.sh
