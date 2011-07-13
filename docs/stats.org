@@ -23,137 +23,137 @@ For introductory information on stats within membase, start with the
 
 ** Toplevel Stats
 
-| Stat                          | Description                                |
-|-------------------------------+--------------------------------------------|
-| ep_version                    | Version number of ep_engine.               |
-| ep_storage_age                | Seconds since most recently                |
-|                               | stored object was initially queued.        |
-| ep_storage_age_highwat        | ep_storage_age high water mark             |
-| ep_min_data_age               | Minimum data age setting.                  |
-| ep_queue_age_cap              | Queue age cap setting.                     |
-| ep_max_txn_size               | Max number of updates per transaction.     |
-| ep_data_age                   | Seconds since most recently                |
-|                               | stored object was modified.                |
-| ep_data_age_highwat           | ep_data_age high water mark                |
-| ep_too_young                  | Number of times an object was              |
-|                               | not stored due to being too young.         |
-| ep_too_old                    | Number of times an object was              |
-|                               | stored after being dirty too long.         |
-| ep_total_enqueued             | Total number of items queued for           |
-|                               | persistence.                               |
-| ep_total_new_items            | Total number of persisted new items.       |
-| ep_total_del_items            | Total number of persisted deletions.       |
-| ep_total_persisted            | Total number of items persisted.           |
-| ep_item_flush_failed          | Number of times an item failed to flush    |
-|                               | due to storage errors.                     |
-| ep_item_commit_failed         | Number of times a transaction failed to    |
-|                               | commit due to storage errors.              |
-| ep_item_begin_failed          | Number of times a transaction failed to    |
-|                               | start due to storage errors.               |
-| ep_expired                    | Number of times an item was expired.       |
-| ep_item_flush_expired         | Number of times an item is not flushed     |
-|                               | due to the expiry of the item              |
-| ep_queue_size                 | Number of items queued for storage.        |
-| ep_flusher_todo               | Number of items remaining to be written.   |
-| ep_flusher_state              | Current state of the flusher thread.       |
-| ep_commit_num                 | Total number of write commits.             |
-| ep_commit_time                | Number of seconds of most recent commit.   |
-| ep_commit_time_total          | Cumulative seconds spent committing.       |
-| ep_vbucket_del                | Number of vbucket deletion events.         |
-| ep_vbucket_del_fail           | Number of failed vbucket deletion events.  |
-| ep_vbucket_del_max_walltime   | Max wall time (µs) spent by deleting       |
-|                               | a vbucket                                  |
-| ep_vbucket_del_total_walltime | Total wall time (µs) spent by deleting     |
-|                               | vbuckets                                   |
-| ep_vbucket_del_avg_walltime   | Avg wall time (µs) spent by deleting       |
-|                               | a vbucket                                  |
-| ep_flush_preempts             | Num of flush early exits for read reqs.    |
-| ep_flush_duration             | Number of seconds of most recent flush.    |
-| ep_flush_duration_total       | Cumulative seconds spent flushing.         |
-| ep_flush_duration_highwat     | ep_flush_duration high water mark.         |
-| ep_flush_all                  | True if disk flush_all is scheduled        |
-| curr_items                    | Num items in active vbuckets.              |
-| curr_items_tot                | Num current items including those not      |
-|                               | active (replica, dead and pending states)  |
-| ep_kv_size                    | Memory used to store keys and values.      |
-| ep_overhead                   | Extra memory used by rep queues, etc..     |
-| ep_max_data_size              | Max amount of data allowed in memory.      |
-| ep_mem_low_wat                | Low water mark for auto-evictions.         |
-| ep_mem_high_wat               | High water mark for auto-evictions.        |
-| ep_total_cache_size           | The total size of all items in the cache   |
-| ep_oom_errors                 | Number of times unrecoverable OOMs         |
-|                               | happened while processing operations       |
-| ep_tmp_oom_errors             | Number of times temporary OOMs             |
-|                               | happened while processing operations       |
-| ep_bg_fetched                 | Number of items fetched from disk.         |
-| ep_tap_bg_fetched             | Number of tap disk fetches                 |
-| ep_tap_bg_fetch_requeued      | Number of times a tap bg fetch task is     |
-|                               | requeued.                                  |
-| ep_num_pager_runs             | Number of times we ran pager loops         |
-|                               | to seek additional memory.                 |
-| ep_num_expiry_pager_runs      | Number of times we ran expiry pager loops  |
-|                               | to purge expired items from memory/disk    |
-| ep_num_checkpoint_remover_runs| Number of times we ran checkpoint remover  |
-|                               | to remove closed unreferenced checkpoints. |
-| ep_items_rm_from_checkpoints  | Number of items removed from closed        |
-|                               | unreferenced checkpoints.                  |
-| ep_num_value_ejects           | Number of times item values got ejected    |
-|                               | from memory to disk                        |
-| ep_num_eject_replicas         | Number of times replica item values got    |
-|                               | ejected from memory to disk                |
-| ep_num_eject_failures         | Number of items that could not be ejected  |
-| ep_num_not_my_vbuckets        | Number of times Not My VBucket exception   |
-|                               | happened during runtime                    |
-| ep_warmup_thread              | Warmup thread status.                      |
-| ep_warmed_up                  | Number of items warmed up.                 |
-| ep_warmup_dups                | Duplicates encountered during warmup.      |
-| ep_warmup_oom                 | OOMs encountered during warmup.            |
-| ep_warmup_time                | Time (µs) spent by warming data.           |
-| ep_tap_keepalive              | Tap keepalive time.                        |
-| ep_dbname                     | DB path.                                   |
-| ep_dbinit                     | Number of seconds to initialize DB.        |
-| ep_dbshards                   | Number of shards for db store              |
-| ep_db_strategy                | SQLite db strategy                         |
-| ep_warmup                     | true if warmup is enabled.                 |
-| ep_io_num_read                | Number of io read operations               |
-| ep_io_num_write               | Number of io write operations              |
-| ep_io_read_bytes              | Number of bytes read (key + values)        |
-| ep_io_write_bytes             | Number of bytes written (key + values)     |
-| ep_pending_ops                | Number of ops awaiting pending vbuckets    |
-| ep_pending_ops_total          | Total blocked pending ops since reset      |
-| ep_pending_ops_max            | Max ops seen awaiting 1 pending vbucket    |
-| ep_pending_ops_max_duration   | Max time (µs) used waiting on pending      |
-|                               | vbuckets                                   |
-| ep_bg_num_samples             | The number of samples included in the avg  |
-| ep_bg_min_wait                | The shortest time (µs) in the wait queue   |
-| ep_bg_max_wait                | The longest time (µs) in the wait queue    |
-| ep_bg_wait_avg                | The average wait time (µs) for an item     |
-|                               | before it is serviced by the dispatcher    |
-| ep_bg_min_load                | The shortest load time (µs)                |
-| ep_bg_max_load                | The longest load time (µs)                 |
-| ep_bg_load_avg                | The average time (µs) for an item to be    |
-|                               | loaded from the persistence layer          |
-| ep_num_non_resident           | The number of non-resident items           |
-| ep_num_active_non_resident    | Number of non-resident items in active     |
-|                               | vbuckets.                                  |
-| ep_store_max_concurrency      | Maximum allowed concurrency at the storage |
-|                               | layer.                                     |
-| ep_store_max_readers          | Maximum number of concurrent read-only.    |
-|                               | storage threads.                           |
-| ep_store_max_readwrite        | Maximum number of concurrent read/write    |
-|                               | storage threads.                           |
-| ep_db_cleaner_status          | Status of database cleaner that cleans up  |
-|                               | invalid items with old vbucket versions    |
-| ep_bg_wait                    | The total elapse time for the wait queue   |
-| ep_bg_load                    | The total elapse time for items to be      |
-|                               | loaded from the persistence layer          |
-| ep_latency_get_cmd            | The total elapse time for get command      |
-| ep_latency_store_cmd          | The total elapse time for store command    |
-| ep_latency_arith_cmd          | The total eplase time for arith command    |
-| ep_onlineupdate               | True if engine is in online updated mode   |
-| ep_onlineupdate_revert_add    | Number of reverted newly added items       |
-| ep_onlineupdate_revert_delete | Number of reverted deleted items           |
-| ep_onlineupdate_revert_update | Number of reverted updated items           |
+| Stat                           | Description                                |
+|--------------------------------+--------------------------------------------|
+| ep_version                     | Version number of ep_engine.               |
+| ep_storage_age                 | Seconds since most recently                |
+|                                | stored object was initially queued.        |
+| ep_storage_age_highwat         | ep_storage_age high water mark             |
+| ep_min_data_age                | Minimum data age setting.                  |
+| ep_queue_age_cap               | Queue age cap setting.                     |
+| ep_max_txn_size                | Max number of updates per transaction.     |
+| ep_data_age                    | Seconds since most recently                |
+|                                | stored object was modified.                |
+| ep_data_age_highwat            | ep_data_age high water mark                |
+| ep_too_young                   | Number of times an object was              |
+|                                | not stored due to being too young.         |
+| ep_too_old                     | Number of times an object was              |
+|                                | stored after being dirty too long.         |
+| ep_total_enqueued              | Total number of items queued for           |
+|                                | persistence.                               |
+| ep_total_new_items             | Total number of persisted new items.       |
+| ep_total_del_items             | Total number of persisted deletions.       |
+| ep_total_persisted             | Total number of items persisted.           |
+| ep_item_flush_failed           | Number of times an item failed to flush    |
+|                                | due to storage errors.                     |
+| ep_item_commit_failed          | Number of times a transaction failed to    |
+|                                | commit due to storage errors.              |
+| ep_item_begin_failed           | Number of times a transaction failed to    |
+|                                | start due to storage errors.               |
+| ep_expired                     | Number of times an item was expired.       |
+| ep_item_flush_expired          | Number of times an item is not flushed     |
+|                                | due to the expiry of the item              |
+| ep_queue_size                  | Number of items queued for storage.        |
+| ep_flusher_todo                | Number of items remaining to be written.   |
+| ep_flusher_state               | Current state of the flusher thread.       |
+| ep_commit_num                  | Total number of write commits.             |
+| ep_commit_time                 | Number of seconds of most recent commit.   |
+| ep_commit_time_total           | Cumulative seconds spent committing.       |
+| ep_vbucket_del                 | Number of vbucket deletion events.         |
+| ep_vbucket_del_fail            | Number of failed vbucket deletion events.  |
+| ep_vbucket_del_max_walltime    | Max wall time (µs) spent by deleting      |
+|                                | a vbucket                                  |
+| ep_vbucket_del_total_walltime  | Total wall time (µs) spent by deleting    |
+|                                | vbuckets                                   |
+| ep_vbucket_del_avg_walltime    | Avg wall time (µs) spent by deleting      |
+|                                | a vbucket                                  |
+| ep_flush_preempts              | Num of flush early exits for read reqs.    |
+| ep_flush_duration              | Number of seconds of most recent flush.    |
+| ep_flush_duration_total        | Cumulative seconds spent flushing.         |
+| ep_flush_duration_highwat      | ep_flush_duration high water mark.         |
+| ep_flush_all                   | True if disk flush_all is scheduled        |
+| curr_items                     | Num items in active vbuckets.              |
+| curr_items_tot                 | Num current items including those not      |
+|                                | active (replica, dead and pending states)  |
+| ep_kv_size                     | Memory used to store keys and values.      |
+| ep_overhead                    | Extra memory used by rep queues, etc..     |
+| ep_max_data_size               | Max amount of data allowed in memory.      |
+| ep_mem_low_wat                 | Low water mark for auto-evictions.         |
+| ep_mem_high_wat                | High water mark for auto-evictions.        |
+| ep_total_cache_size            | The total size of all items in the cache   |
+| ep_oom_errors                  | Number of times unrecoverable OOMs         |
+|                                | happened while processing operations       |
+| ep_tmp_oom_errors              | Number of times temporary OOMs             |
+|                                | happened while processing operations       |
+| ep_bg_fetched                  | Number of items fetched from disk.         |
+| ep_tap_bg_fetched              | Number of tap disk fetches                 |
+| ep_tap_bg_fetch_requeued       | Number of times a tap bg fetch task is     |
+|                                | requeued.                                  |
+| ep_num_pager_runs              | Number of times we ran pager loops         |
+|                                | to seek additional memory.                 |
+| ep_num_expiry_pager_runs       | Number of times we ran expiry pager loops  |
+|                                | to purge expired items from memory/disk    |
+| ep_num_checkpoint_remover_runs | Number of times we ran checkpoint remover  |
+|                                | to remove closed unreferenced checkpoints. |
+| ep_items_rm_from_checkpoints   | Number of items removed from closed        |
+|                                | unreferenced checkpoints.                  |
+| ep_num_value_ejects            | Number of times item values got ejected    |
+|                                | from memory to disk                        |
+| ep_num_eject_replicas          | Number of times replica item values got    |
+|                                | ejected from memory to disk                |
+| ep_num_eject_failures          | Number of items that could not be ejected  |
+| ep_num_not_my_vbuckets         | Number of times Not My VBucket exception   |
+|                                | happened during runtime                    |
+| ep_warmup_thread               | Warmup thread status.                      |
+| ep_warmed_up                   | Number of items warmed up.                 |
+| ep_warmup_dups                 | Duplicates encountered during warmup.      |
+| ep_warmup_oom                  | OOMs encountered during warmup.            |
+| ep_warmup_time                 | Time (µs) spent by warming data.          |
+| ep_tap_keepalive               | Tap keepalive time.                        |
+| ep_dbname                      | DB path.                                   |
+| ep_dbinit                      | Number of seconds to initialize DB.        |
+| ep_dbshards                    | Number of shards for db store              |
+| ep_db_strategy                 | SQLite db strategy                         |
+| ep_warmup                      | true if warmup is enabled.                 |
+| ep_io_num_read                 | Number of io read operations               |
+| ep_io_num_write                | Number of io write operations              |
+| ep_io_read_bytes               | Number of bytes read (key + values)        |
+| ep_io_write_bytes              | Number of bytes written (key + values)     |
+| ep_pending_ops                 | Number of ops awaiting pending vbuckets    |
+| ep_pending_ops_total           | Total blocked pending ops since reset      |
+| ep_pending_ops_max             | Max ops seen awaiting 1 pending vbucket    |
+| ep_pending_ops_max_duration    | Max time (µs) used waiting on pending     |
+|                                | vbuckets                                   |
+| ep_bg_num_samples              | The number of samples included in the avg  |
+| ep_bg_min_wait                 | The shortest time (µs) in the wait queue  |
+| ep_bg_max_wait                 | The longest time (µs) in the wait queue   |
+| ep_bg_wait_avg                 | The average wait time (µs) for an item    |
+|                                | before it is serviced by the dispatcher    |
+| ep_bg_min_load                 | The shortest load time (µs)               |
+| ep_bg_max_load                 | The longest load time (µs)                |
+| ep_bg_load_avg                 | The average time (µs) for an item to be   |
+|                                | loaded from the persistence layer          |
+| ep_num_non_resident            | The number of non-resident items           |
+| ep_num_active_non_resident     | Number of non-resident items in active     |
+|                                | vbuckets.                                  |
+| ep_store_max_concurrency       | Maximum allowed concurrency at the storage |
+|                                | layer.                                     |
+| ep_store_max_readers           | Maximum number of concurrent read-only.    |
+|                                | storage threads.                           |
+| ep_store_max_readwrite         | Maximum number of concurrent read/write    |
+|                                | storage threads.                           |
+| ep_db_cleaner_status           | Status of database cleaner that cleans up  |
+|                                | invalid items with old vbucket versions    |
+| ep_bg_wait                     | The total elapse time for the wait queue   |
+| ep_bg_load                     | The total elapse time for items to be      |
+|                                | loaded from the persistence layer          |
+| ep_latency_get_cmd             | The total elapse time for get command      |
+| ep_latency_store_cmd           | The total elapse time for store command    |
+| ep_latency_arith_cmd           | The total eplase time for arith command    |
+| ep_onlineupdate                | True if engine is in online updated mode   |
+| ep_onlineupdate_revert_add     | Number of reverted newly added items       |
+| ep_onlineupdate_revert_delete  | Number of reverted deleted items           |
+| ep_onlineupdate_revert_update  | Number of reverted updated items           |
 
 ** vBucket total stats
 
