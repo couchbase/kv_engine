@@ -75,12 +75,20 @@ For introductory information on stats within membase, start with the
 | curr_items                     | Num items in active vbuckets.              |
 | curr_items_tot                 | Num current items including those not      |
 |                                | active (replica, dead and pending states)  |
-| ep_kv_size                     | Memory used to store keys and values.      |
-| ep_overhead                    | Extra memory used by rep queues, etc..     |
+| ep_kv_size                     | Memory used to store item metadata, keys   |
+|                                | and values, no matter the vbucket's state. |
+|                                | If an item's value is ejected, this stat   |
+|                                | will be decremented by the size of the     |
+|                                | item's value.                              |
+| ep_overhead                    | Extra memory used by transient data like   |
+|                                | persistence queues, replication queues,    |
+|                                | checkpoints, etc.                          |
 | ep_max_data_size               | Max amount of data allowed in memory.      |
 | ep_mem_low_wat                 | Low water mark for auto-evictions.         |
 | ep_mem_high_wat                | High water mark for auto-evictions.        |
-| ep_total_cache_size            | The total size of all items in the cache   |
+| ep_total_cache_size            | The total byte size of all items, no       |
+|                                | matter the vbucket's state, no matter      |
+|                                | if an item's value is ejected.             |
 | ep_oom_errors                  | Number of times unrecoverable OOMs         |
 |                                | happened while processing operations       |
 | ep_tmp_oom_errors              | Number of times temporary OOMs             |
