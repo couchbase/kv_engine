@@ -404,23 +404,24 @@ static void evict_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 
 static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const char *key = "k1";
+    uint16_t keylen = (uint16_t)strlen(key);
     char *pkt_raw = static_cast<char*>(calloc(1,sizeof(protocol_binary_request_getl)
-                                                 + strlen(key)));
-    memcpy(pkt_raw + sizeof(protocol_binary_request_getl), key, strlen(key));
+                                                 + keylen));
+    memcpy(pkt_raw + sizeof(protocol_binary_request_getl), key, keylen);
     uint16_t vbucketId = 0;
-    uint8_t extlen = 8;
     uint32_t expiration = 25;
 
     protocol_binary_request_getl *gl = (protocol_binary_request_getl*)pkt_raw;
+    protocol_binary_request_header *pkt = (protocol_binary_request_header *)pkt_raw;
 
+    gl->message.header.request.magic = PROTOCOL_BINARY_REQ;
     gl->message.header.request.opcode = CMD_GET_LOCKED;
-    gl->message.header.request.extlen = extlen;
-    gl->message.header.request.bodylen = htonl(strlen(key) + gl->message.header.request.extlen);
-    gl->message.header.request.keylen = htons(strlen(key));
+    gl->message.header.request.extlen = 4;
+    gl->message.header.request.bodylen = htonl(keylen + 4);
+    gl->message.header.request.keylen = htons(keylen);
     gl->message.header.request.vbucket = htons(vbucketId);
     gl->message.body.expiration = htonl(expiration);
-
-    protocol_binary_request_header *pkt = &gl->message.header;
+    memcpy(gl->bytes + sizeof(gl->bytes), key, keylen);
 
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Getl Failed");

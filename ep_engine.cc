@@ -315,50 +315,42 @@ extern "C" {
     }
 
     ENGINE_ERROR_CODE getLocked(EventuallyPersistentEngine *e,
-            protocol_binary_request_getl *grequest,
-            const void *cookie,
-            Item **item,
-            const char **msg,
-            size_t *,
-            protocol_binary_response_status *res) {
+                                protocol_binary_request_header *req,
+                                const void *cookie,
+                                Item **item,
+                                const char **msg,
+                                size_t *,
+                                protocol_binary_response_status *res) {
 
-        protocol_binary_request_header *request = &(grequest->message.header);
-        protocol_binary_request_no_extras *req =
-            (protocol_binary_request_no_extras*)request;
-        *res = PROTOCOL_BINARY_RESPONSE_SUCCESS;
-
-        char keyz[256];
-
-        // Read the key.
-        int keylen = ntohs(req->message.header.request.keylen);
-        if (keylen >= (int)sizeof(keyz)) {
-            *msg = "Key is too large.";
+        uint8_t extlen = req->request.extlen;
+        if (extlen != 0 && extlen != 4) {
+            *msg = "Invalid packet format (extlen may be 0 or 4)";
             *res = PROTOCOL_BINARY_RESPONSE_EINVAL;
             return ENGINE_EINVAL;
         }
-        int extlen = req->message.header.request.extlen;
-        memcpy(keyz, ((char*)request) + sizeof(req->message.header) + extlen, keylen);
-        keyz[keylen] = 0x00;
 
-        uint16_t vbucket = ntohs(request->request.vbucket);
+        protocol_binary_request_getl *grequest =
+            (protocol_binary_request_getl*)req;
+        *res = PROTOCOL_BINARY_RESPONSE_SUCCESS;
 
-        std::string key(keyz, keylen);
+        const char *keyp = reinterpret_cast<const char*>(req->bytes);
+        keyp += sizeof(req->bytes) + extlen;
+        std::string key(keyp, ntohs(req->request.keylen));
+        uint16_t vbucket = ntohs(req->request.vbucket);
 
         RememberingCallback<GetValue> getCb;
-        uint32_t lockTimeout;
         uint32_t max_timeout = (unsigned int)e->getGetlMaxTimeout();
         uint32_t default_timeout = (unsigned int)e->getGetlDefaultTimeout();
-        if (extlen >= 4) {
+        uint32_t lockTimeout = default_timeout;
+        if (extlen == 4) {
             lockTimeout = ntohl(grequest->message.body.expiration);
-        } else {
-            lockTimeout = default_timeout;
         }
 
-        getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                         "Executing getl for key %s timeout %d max: %d, default: %d\n",
-                         keyz, lockTimeout, max_timeout, default_timeout);
-
         if (lockTimeout >  max_timeout || lockTimeout < 1) {
+            getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                             "Illegal value for lock timeout specified %u."
+                             " Using default value: %u\n",
+                             lockTimeout, default_timeout);
             lockTimeout = default_timeout;
         }
 
@@ -761,7 +753,7 @@ extern "C" {
             res = evictKey(h, request, &msg, &msg_size);
             break;
         case CMD_GET_LOCKED:
-            rv = getLocked(h, (protocol_binary_request_getl*)request, cookie, &item, &msg, &msg_size, &res);
+            rv = getLocked(h, request, cookie, &item, &msg, &msg_size, &res);
             if (rv == ENGINE_EWOULDBLOCK) {
                 // we dont have the value for the item yet
                 return rv;

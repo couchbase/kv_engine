@@ -39,7 +39,7 @@ extern "C" {
 
     EXPORT_FUNCTION
     ENGINE_ERROR_CODE getLocked(EventuallyPersistentEngine *e,
-            protocol_binary_request_getl *request,
+            protocol_binary_request_header *request,
             const void *cookie,
             Item **item,
             const char **msg,
