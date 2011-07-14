@@ -1761,7 +1761,6 @@ bool EventuallyPersistentEngine::createTapQueue(const void *cookie,
     tap->setVBucketFilter(vbuckets);
     tap->registerTAPCursor(lastCheckpointIds);
     serverApi->cookie->store_engine_specific(cookie, tap);
-    serverApi->cookie->set_tap_nack_mode(cookie, tap->supportsAck());
     tapConnMap.notify();
     return true;
 }
@@ -1911,11 +1910,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
 
             switch (cc) {
             case TAP_OPAQUE_ENABLE_AUTO_NACK:
-                connection->setSupportAck(true);
-
-                getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                                 "Enable auto nack mode\n");
-                serverApi->cookie->set_tap_nack_mode(cookie, true);
+                // @todo: the memcached core will _ALWAYS_ send nack
+                //        if it encounter an error. This should be
+                // set as the default when we move to .next after 2.0
+                // (currently we need to allow the message for
+                // backwards compatibility)
                 break;
             case TAP_OPAQUE_ENABLE_CHECKPOINT_SYNC:
                 connection->setSupportCheckpointSync(true);

@@ -916,7 +916,9 @@ TapConsumer::TapConsumer(EventuallyPersistentEngine &theEngine,
                          const void *c,
                          const std::string &n) :
     TapConnection(theEngine, c, n)
-{ /* EMPTY */ }
+{
+    setSupportAck(true);
+}
 
 void TapConsumer::addStats(ADD_STAT add_stat, const void *c) {
     TapConnection::addStats(add_stat, c);
