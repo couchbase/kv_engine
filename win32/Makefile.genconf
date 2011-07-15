@@ -34,11 +34,11 @@ CFLAGS = -std=gnu99 -DNDEBUG -g \
            -fno-strict-aliasing -Wstrict-prototypes -Wmissing-prototypes \
            -Wmissing-declarations -Wredundant-decls \
 
-CXXFLAGS = -std=gnu++0x -g \
-           -pedantic -Wshadow -fdiagnostics-show-option \
+CXXFLAGS = -g \
+           -pedantic -Wshadow \
            -Wformat=2 -Wconversion -Wstrict-aliasing -Wextra \
            -Woverloaded-virtual -Wnon-virtual-dtor -Wctor-dtor-privacy \
-           -Wno-long-long  -Wmissing-declarations -Wno-redundant-decls
+           -Wno-long-long -Wno-redundant-decls
 
 GEN_CONFIG_CC_SRC = tools/genconfig.cc
 GEN_CONFIG_C_SRC = tools/cJSON.c
