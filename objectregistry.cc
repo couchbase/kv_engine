@@ -47,6 +47,7 @@ void ObjectRegistry::onCreateBlob(Blob *blob)
    if (verifyEngine(engine)) {
        EPStats &stats = engine->getEpStats();
        stats.currentSize.incr(blob->getSize());
+       stats.totalValueSize.incr(blob->getSize());
        assert(stats.currentSize.get() < GIGANTOR);
    }
 }
@@ -57,6 +58,7 @@ void ObjectRegistry::onDeleteBlob(Blob *blob)
    if (verifyEngine(engine)) {
        EPStats &stats = engine->getEpStats();
        stats.currentSize.decr(blob->getSize());
+       stats.totalValueSize.decr(blob->getSize());
        assert(stats.currentSize.get() < GIGANTOR);
    }
 }

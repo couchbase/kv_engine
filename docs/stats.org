@@ -76,6 +76,8 @@ For introductory information on stats within membase, start with the
 | curr_items_tot                | Num current items including those not      |
 |                               | active (replica, dead and pending states)  |
 | ep_kv_size                    | Memory used to store keys and values.      |
+| ep_value_size                 | Memory used to store values for resident   |
+|                               | keys.                                      |
 | ep_overhead                   | Extra memory used by rep queues, etc..     |
 | ep_max_data_size              | Max amount of data allowed in memory.      |
 | ep_mem_low_wat                | Low water mark for auto-evictions.         |
