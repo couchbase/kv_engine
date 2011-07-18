@@ -226,7 +226,7 @@ GENERATED_TEST_TIMEOUT=5
 generated_engine_tests: generated_suite.la
 	$(ENGINE_TESTAPP) -E .libs/ep.so -t $(GENERATED_TEST_TIMEOUT) \
 		-. -q -T .libs/generated_suite.so \
-		-e 'sync_on_persist=true;ht_size=13;ht_locks=7;db_strategy=singleDB;dbname=:memory:'
+		-e 'ht_size=13;ht_locks=7;db_strategy=singleDB;dbname=:memory:'
 endif
 
 timing_tests_la_CFLAGS = $(AM_CFLAGS) ${NO_WERROR}
@@ -392,7 +392,7 @@ mbbackup-0002.mbb: $(top_srcdir)/t/generate-mbbackup
 engine_tests: ep.la ep_testsuite.la mbbackup-0002.mbb
 	$(ENGINE_TESTAPP) -E .libs/ep.so -t $(TEST_TIMEOUT) \
 		-T .libs/ep_testsuite.so \
-		-e 'sync_on_persist=true;ht_size=13;ht_locks=7;initfile=t/test_pragma.sql;min_data_age=0;db_strategy=multiDB'
+		-e 'ht_size=13;ht_locks=7;initfile=t/test_pragma.sql;min_data_age=0;db_strategy=multiDB'
 
 test: all check-TESTS engine_tests sizes
 	./sizes

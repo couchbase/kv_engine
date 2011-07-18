@@ -200,7 +200,7 @@
         },
         "sync_on_persist": {
             "type": "bool",
-            "default": "false",
+            "default": "true",
             "descr": "Do we allow syncing on persistence events?"
         },
         "sync_cmd_timeout": {
