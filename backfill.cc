@@ -5,8 +5,13 @@
 #include "ep.hh"
 #include "backfill.hh"
 
-
 double BackFillVisitor::backfillResidentThreshold = DEFAULT_BACKFILL_RESIDENT_THRESHOLD;
+
+static bool isMemoryUsageTooHigh(EPStats &stats) {
+    double currentSize = static_cast<double>(stats.currentSize.get() + stats.memOverhead.get());
+    double maxSize = static_cast<double>(stats.maxDataSize.get());
+    return currentSize > (maxSize * BACKFILL_MEM_THRESHOLD);
+}
 
 void BackfillDiskLoad::callback(GetValue &gv) {
     // If a vbucket version of a bg fetched item is different from the current version,
@@ -25,8 +30,14 @@ void BackfillDiskLoad::callback(GetValue &gv) {
     connMap.performTapOp(name, notifyOp, engine);
 }
 
-bool BackfillDiskLoad::callback(Dispatcher &, TaskId) {
+bool BackfillDiskLoad::callback(Dispatcher &d, TaskId t) {
     bool valid = false;
+
+    if (isMemoryUsageTooHigh(engine->getEpStats())) {
+         d.snooze(t, 1);
+         return true;
+    }
+
     if (connMap.checkConnectivity(name) && !engine->getEpStore()->isFlushAllScheduled()) {
         store->dump(vbucket, *this);
         valid = true;
@@ -138,7 +149,7 @@ void BackFillVisitor::setEvents() {
 }
 
 bool BackFillVisitor::pauseVisitor() {
-    bool tooBig(true);
+    bool pause(true);
 
     ssize_t theSize(engine->tapConnMap.backfillQueueDepth(name));
     if (!checkValidity() || theSize < 0) {
@@ -149,14 +160,14 @@ bool BackFillVisitor::pauseVisitor() {
         return false;
     }
 
-    tooBig = theSize > maxBackfillSize;
+    pause = theSize > maxBackfillSize || isMemoryUsageTooHigh(engine->getEpStats());
 
-    if (tooBig) {
+    if (pause) {
         getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                         "Tap queue depth too big for %s, sleeping\n",
+                         "Tap queue depth too big for %s or memory usage too high, sleeping\n",
                          name.c_str());
     }
-    return tooBig;
+    return pause;
 }
 
 void BackFillVisitor::complete() {

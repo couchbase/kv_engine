@@ -46,7 +46,8 @@ void ObjectRegistry::onCreateBlob(Blob *blob)
    EventuallyPersistentEngine *engine = th->get();
    if (verifyEngine(engine)) {
        EPStats &stats = engine->getEpStats();
-       stats.currentSize.incr(blob->length());
+       stats.currentSize.incr(blob->getSize());
+       stats.totalValueSize.incr(blob->getSize());
        assert(stats.currentSize.get() < GIGANTOR);
    }
 }
@@ -56,7 +57,8 @@ void ObjectRegistry::onDeleteBlob(Blob *blob)
    EventuallyPersistentEngine *engine = th->get();
    if (verifyEngine(engine)) {
        EPStats &stats = engine->getEpStats();
-       stats.currentSize.decr(blob->length());
+       stats.currentSize.decr(blob->getSize());
+       stats.totalValueSize.decr(blob->getSize());
        assert(stats.currentSize.get() < GIGANTOR);
    }
 }
@@ -66,8 +68,8 @@ void ObjectRegistry::onCreateQueuedItem(QueuedItem *qi)
    EventuallyPersistentEngine *engine = th->get();
    if (verifyEngine(engine)) {
        EPStats &stats = engine->getEpStats();
-       // Exclude the value size as it is included in the kv memory overhead.
-       stats.memOverhead.incr(qi->size() - qi->getValue()->length());
+       // Exclude the memory overhead of Item instance that is considered separately.
+       stats.memOverhead.incr(qi->size() - qi->getItem().size());
        assert(stats.memOverhead.get() < GIGANTOR);
    }
 }
@@ -77,8 +79,28 @@ void ObjectRegistry::onDeleteQueuedItem(QueuedItem *qi)
    EventuallyPersistentEngine *engine = th->get();
    if (verifyEngine(engine)) {
        EPStats &stats = engine->getEpStats();
-       // Exclude the value size as it is included in the kv memory overhead.
-       stats.memOverhead.decr(qi->size() - qi->getValue()->length());
+       // Exclude the memory overhead of Item instance that is considered separately.
+       stats.memOverhead.decr(qi->size() - qi->getItem().size());
+       assert(stats.memOverhead.get() < GIGANTOR);
+   }
+}
+
+void ObjectRegistry::onCreateItem(Item *pItem)
+{
+   EventuallyPersistentEngine *engine = th->get();
+   if (verifyEngine(engine)) {
+       EPStats &stats = engine->getEpStats();
+       stats.memOverhead.incr(pItem->size() - pItem->getValue()->getSize());
+       assert(stats.memOverhead.get() < GIGANTOR);
+   }
+}
+
+void ObjectRegistry::onDeleteItem(Item *pItem)
+{
+   EventuallyPersistentEngine *engine = th->get();
+   if (verifyEngine(engine)) {
+       EPStats &stats = engine->getEpStats();
+       stats.memOverhead.decr(pItem->size() - pItem->getValue()->getSize());
        assert(stats.memOverhead.get() < GIGANTOR);
    }
 }

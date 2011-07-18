@@ -80,6 +80,8 @@ For introductory information on stats within membase, start with the
 |                                | If an item's value is ejected, this stat   |
 |                                | will be decremented by the size of the     |
 |                                | item's value.                              |
+| ep_value_size                  | Memory used to store values for resident   |
+|                                | keys.                                      |
 | ep_overhead                    | Extra memory used by transient data like   |
 |                                | persistence queues, replication queues,    |
 |                                | checkpoints, etc.                          |
@@ -116,7 +118,7 @@ For introductory information on stats within membase, start with the
 | ep_warmed_up                   | Number of items warmed up.                 |
 | ep_warmup_dups                 | Duplicates encountered during warmup.      |
 | ep_warmup_oom                  | OOMs encountered during warmup.            |
-| ep_warmup_time                 | Time (µs) spent by warming data.          |
+| ep_warmup_time                 | Time (µs) spent by warming data.           |
 | ep_tap_keepalive               | Tap keepalive time.                        |
 | ep_dbname                      | DB path.                                   |
 | ep_dbinit                      | Number of seconds to initialize DB.        |
@@ -130,16 +132,16 @@ For introductory information on stats within membase, start with the
 | ep_pending_ops                 | Number of ops awaiting pending vbuckets    |
 | ep_pending_ops_total           | Total blocked pending ops since reset      |
 | ep_pending_ops_max             | Max ops seen awaiting 1 pending vbucket    |
-| ep_pending_ops_max_duration    | Max time (µs) used waiting on pending     |
+| ep_pending_ops_max_duration    | Max time (µs) used waiting on pending      |
 |                                | vbuckets                                   |
 | ep_bg_num_samples              | The number of samples included in the avg  |
-| ep_bg_min_wait                 | The shortest time (µs) in the wait queue  |
-| ep_bg_max_wait                 | The longest time (µs) in the wait queue   |
-| ep_bg_wait_avg                 | The average wait time (µs) for an item    |
+| ep_bg_min_wait                 | The shortest time (µs) in the wait queue   |
+| ep_bg_max_wait                 | The longest time (µs) in the wait queue    |
+| ep_bg_wait_avg                 | The average wait time (µs) for an item     |
 |                                | before it is serviced by the dispatcher    |
-| ep_bg_min_load                 | The shortest load time (µs)               |
-| ep_bg_max_load                 | The longest load time (µs)                |
-| ep_bg_load_avg                 | The average time (µs) for an item to be   |
+| ep_bg_min_load                 | The shortest load time (µs)                |
+| ep_bg_max_load                 | The longest load time (µs)                 |
+| ep_bg_load_avg                 | The average time (µs) for an item to be    |
 |                                | loaded from the persistence layer          |
 | ep_num_non_resident            | The number of non-resident items           |
 | ep_num_active_non_resident     | Number of non-resident items in active     |

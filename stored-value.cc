@@ -27,7 +27,7 @@ bool StoredValue::ejectValue(EPStats &stats, HashTable &ht) {
         size_t oldValueSize = value->length();
         blobval uval;
         uval.len = valLength();
-        shared_ptr<Blob> sp(Blob::New(uval.chlen, sizeof(uval)));
+        RCPtr<Blob> sp(Blob::New(uval.chlen, sizeof(uval)));
         extra.feature.resident = false;
         value = sp;
         size_t newsize = size();

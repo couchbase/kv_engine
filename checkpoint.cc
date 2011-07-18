@@ -917,7 +917,7 @@ queued_item CheckpointManager::createCheckpointItem(uint64_t id,
                                                     enum queue_operation checkpoint_op) {
     assert(checkpoint_op == queue_op_checkpoint_start || checkpoint_op == queue_op_checkpoint_end);
     uint64_t cid = htonll(id);
-    shared_ptr<const Blob> vblob(Blob::New((const char*)&cid, sizeof(cid)));
+    RCPtr<Blob> vblob(Blob::New((const char*)&cid, sizeof(cid)));
     queued_item qi(new QueuedItem("", vblob, vbid, checkpoint_op));
     return qi;
 }

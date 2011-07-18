@@ -29,6 +29,9 @@ public:
     static void onCreateQueuedItem(QueuedItem *qi);
     static void onDeleteQueuedItem(QueuedItem *qi);
 
+    static void onCreateItem(Item *pItem);
+    static void onDeleteItem(Item *pItem);
+
     static void onSwitchThread(EventuallyPersistentEngine *engine);
 };
 

@@ -28,7 +28,7 @@ typedef enum {
 /**
  * Representation of an item queued for persistence or tap.
  */
-class QueuedItem {
+class QueuedItem : public RCValue {
 public:
     QueuedItem(const std::string &k, const uint16_t vb, enum queue_operation o,
                const uint16_t vb_version = -1, const int64_t rid = -1, const uint32_t f = 0,
@@ -86,7 +86,7 @@ public:
     }
 
     size_t size() {
-        return sizeof(QueuedItem) + getKey().size() + getValue()->length();
+        return sizeof(QueuedItem) + getKey().size() + getValue()->getSize();
     }
 
 private:
@@ -102,7 +102,7 @@ private:
     DISALLOW_COPY_AND_ASSIGN(QueuedItem);
 };
 
-typedef shared_ptr<QueuedItem> queued_item;
+typedef RCPtr<QueuedItem> queued_item;
 
 /**
  * Order QueuedItem objects pointed by shared_ptr by their keys.

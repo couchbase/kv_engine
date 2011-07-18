@@ -368,12 +368,13 @@ public:
     }
 
     // safe for the lifetime of this instance
-    C *get() {
+    C *get() const {
         return value;
     }
 
-    void operator =(RCPtr<C> &other) {
+    RCPtr<C> & operator =(const RCPtr<C> &other) {
         reset(other);
+        return *this;
     }
 
     C &operator *() const {

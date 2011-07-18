@@ -2377,7 +2377,7 @@ static enum test_result test_memory_limit(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
 
     char data[8192];
     memset(data, 'x', sizeof(data));
-    size_t vlen = max - used - 128;
+    size_t vlen = max - used - 192;
     data[vlen] = 0x00;
 
     item *i = NULL;
@@ -3406,6 +3406,7 @@ static enum test_result test_mem_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     int mem_used = get_int_stat(h, h1, "mem_used");
     int cache_size = get_int_stat(h, h1, "ep_total_cache_size");
     int overhead = get_int_stat(h, h1, "ep_overhead");
+    int value_size = get_int_stat(h, h1, "ep_value_size");
     check((mem_used - overhead) > cache_size,
           "ep_kv_size should be greater than the hashtable cache size due to the checkpoint overhead");
     evict_key(h, h1, "key", 0, "Ejected.");
@@ -3414,9 +3415,13 @@ static enum test_result test_mem_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
           "Evict a value shouldn't increase the total cache size");
     check(get_int_stat(h, h1, "mem_used") < mem_used,
           "Expected mem_used to decrease when an item is evicted");
-    check_key_value(h, h1, "key", value, strlen(value), 0);
+
+    check_key_value(h, h1, "key", value, strlen(value), 0); // Load an item from disk again.
+
     check(get_int_stat(h, h1, "mem_used") == mem_used,
-          "Expected mem_used to decrease when an item is evicted");
+          "Expected mem_used to remain the same after an item is loaded from disk");
+    check(get_int_stat(h, h1, "ep_value_size") == value_size,
+          "Expected ep_value_size to remain the same after item is loaded from disk");
 
     return SUCCESS;
 }

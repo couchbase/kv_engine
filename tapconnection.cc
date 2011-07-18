@@ -257,6 +257,9 @@ void TapProducer::registerTAPCursor(std::map<uint16_t, uint64_t> &lastCheckpoint
                 if (backfillAge < current_time && !registeredTAPClient) { // Backfill is required.
                     TapCheckpointState st(vbid, 0, backfill);
                     tapCheckpointState[vbid] = st;
+                    // As we set the cursor to the beginning of the open checkpoint when backfill
+                    // is scheduled, we can simply remove the cursor now.
+                    vb->checkpointManager.removeTAPCursor(name);
                     if (vb->checkpointManager.getOpenCheckpointId() > 0) {
                         // If the current open checkpoint is 0, it means that this vbucket is still
                         // receiving backfill items from another node. Once the backfill is done,
