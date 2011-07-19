@@ -177,7 +177,7 @@ For introductory information on stats within membase, start with the
 | ep_diskqueue_memory           | Total memory used in disk queue            |
 | ep_diskqueue_fill             | Total enqueued items on disk queue         |
 | ep_diskqueue_drain            | Total drained items on disk queue          |
-| ep_diskqueue_pendingWrites    | Total bytes of pending writes              |
+| ep_diskqueue_pending          | Total bytes of pending writes              |
 
 
 *** Active vBucket class stats
