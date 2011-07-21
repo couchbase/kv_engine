@@ -361,11 +361,11 @@ engine_test_t* %s(void) {
 
 """ % fname)
         for seq in sorted(seq):
-            writer.write('        {"%s",\n         %s,\n         NULL, teardown, NULL},\n' % (
+            writer.write('        {"%s",\n         %s,\n         NULL, teardown, NULL, NULL, NULL},\n' % (
                     ', '.join(a.name for a in seq),
                     self.testName(seq)))
 
-        writer.write("""        {NULL, NULL, NULL, NULL, NULL}
+        writer.write("""        {NULL, NULL, NULL, NULL, NULL, NULL, NULL}
     };
     return tests;
 }

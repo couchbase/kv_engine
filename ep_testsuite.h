@@ -15,7 +15,7 @@ MEMCACHED_PUBLIC_API
 bool setup_suite(struct test_harness *th);
 
 MEMCACHED_PUBLIC_API
-bool teardown_suite();
+bool teardown_suite(void);
 
 #ifdef __cplusplus
 }
