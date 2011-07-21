@@ -1061,6 +1061,11 @@ bool TapConsumer::processCheckpointCommand(tap_event_t event, uint16_t vbucket,
     switch (event) {
     case TAP_CHECKPOINT_START:
         {
+            // This is necessary for supporting backward compatibility to 1.7
+            if (vb->isBackfillPhase() && checkpointId > 0) {
+                setBackfillPhase(false, vbucket);
+            }
+
             bool persistenceCursorRepositioned = false;
             ret = vb->checkpointManager.checkAndAddNewCheckpoint(checkpointId,
                                                                  persistenceCursorRepositioned);
