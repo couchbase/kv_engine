@@ -345,6 +345,7 @@ another colon.  For example, if your client is named, =slave1=, the
 | queue_backfillremaining   | Number of backfill remaining             | P  |
 | queue_itemondisk          | Number of items remaining on disk        | P  |
 | total_backlog_size        | Num of remaining items for replication   | P  |
+| total_noops               | Number of NOOP messages sent             | P  |
 | num_delete                | Number of delete operations consumed     |  C |
 | num_delete_failed         | Number of failed delete operations       |  C |
 | num_flush                 | Number of flush operations               |  C |

@@ -77,7 +77,8 @@ TapProducer::TapProducer(EventuallyPersistentEngine &theEngine,
     notifySent(false),
     registeredTAPClient(false),
     isLastAckSucceed(false),
-    isSeqNumRotated(false)
+    isSeqNumRotated(false),
+    numNoops(0)
 {
     evaluateFlags();
     queue = new std::list<queued_item>;
@@ -895,6 +896,7 @@ void TapProducer::addStats(ADD_STAT add_stat, const void *c) {
     addStat("queue_itemondisk", getRemaingOnDisk(), add_stat, c);
     addStat("total_backlog_size", getBackfillRemaining() + getRemainingOnCheckpoints(),
             add_stat, c);
+    addStat("total_noops", numNoops, add_stat, c);
 
     if (reconnects > 0) {
         addStat("reconnects", reconnects, add_stat, c);
@@ -1136,7 +1138,11 @@ bool TapConsumer::processOnlineUpdateCommand(uint32_t opcode, uint16_t vbucket) 
 }
 
 bool TapProducer::isTimeForNoop() {
-    return noop.swap(false);
+    bool rv = noop.swap(false);
+    if (rv) {
+        ++numNoops;
+    }
+    return rv;
 }
 
 void TapProducer::setTimeForNoop()

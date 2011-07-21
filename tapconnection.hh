@@ -1188,6 +1188,8 @@ private:
 
     bool isSeqNumRotated;
 
+    size_t numNoops;
+
     static size_t bgMaxPending;
 
     // Constants used to enforce the tap ack protocol
