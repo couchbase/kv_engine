@@ -246,6 +246,13 @@ void TapProducer::registerTAPCursor(std::map<uint16_t, uint64_t> &lastCheckpoint
                 }
             }
 
+            // If backfill is currently running for this vbucket, skip the cursor registration.
+            if (backfillVBuckets.find(vbid) != backfillVBuckets.end()) {
+                TapCheckpointState st(vbid, 0, backfill);
+                tapCheckpointState[vbid] = st;
+                continue;
+            }
+
             // If the connection is for a registered TAP client that is only interested in closed
             // checkpoints, we always start from the beginning of the checkpoint to which the
             // registered TAP client's cursor currently belongs.
@@ -660,6 +667,7 @@ bool TapProducer::checkBackfillCompletion_UNLOCKED() {
                                         (vbucket_state_t)htonl(TAP_OPAQUE_CLOSE_BACKFILL));
             addVBucketHighPriority_UNLOCKED(backfillEnd);
         }
+        backfillVBuckets.clear();
 
         rv = true;
     }
