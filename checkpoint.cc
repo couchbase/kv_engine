@@ -115,7 +115,8 @@ CheckpointManager::~CheckpointManager() {
     }
 }
 
-uint64_t CheckpointManager::getOpenCheckpointId_UNLOCKED() {
+uint64_t CheckpointManager::getOpenCheckpointId() {
+    LockHolder lh(queueLock);
     if (checkpointList.size() == 0) {
         return 0;
     }
@@ -871,7 +872,7 @@ bool CheckpointManager::checkAndAddNewCheckpoint(uint64_t id, bool &pCursorRepos
 bool CheckpointManager::hasNext(const std::string &name) {
     LockHolder lh(queueLock);
     std::map<const std::string, CheckpointCursor>::iterator it = tapCursors.find(name);
-    if (it == tapCursors.end() || getOpenCheckpointId_UNLOCKED() == 0) {
+    if (it == tapCursors.end()) {
         return false;
     }
 

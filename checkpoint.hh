@@ -214,11 +214,7 @@ public:
 
     ~CheckpointManager();
 
-    uint64_t getOpenCheckpointId_UNLOCKED();
-    uint64_t getOpenCheckpointId() {
-        LockHolder lh(queueLock);
-        return getOpenCheckpointId_UNLOCKED();
-    }
+    uint64_t getOpenCheckpointId();
 
     uint64_t getLastClosedCheckpointId() {
         uint64_t id = getOpenCheckpointId();
