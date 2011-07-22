@@ -239,7 +239,6 @@ def main():
             for db_name in dbs:
                 cur.execute(sql.format(db_name, kv))
                 for row in cur:
-                    print sql
                     queue.put(row)
                     count += 1
                     #if bool(opts.verbose):
