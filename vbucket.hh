@@ -176,14 +176,17 @@ public:
     bool queueBackfillItem(const queued_item &qi) {
         LockHolder lh(backfill.mutex);
         backfill.items.push(qi);
+        stats.memOverhead.incr(sizeof(queued_item));
         return true;
     }
     void getBackfillItems(std::vector<queued_item> &items) {
         LockHolder lh(backfill.mutex);
+        size_t num_items = backfill.items.size();
         while (!backfill.items.empty()) {
             items.push_back(backfill.items.front());
             backfill.items.pop();
         }
+        stats.memOverhead.decr(num_items * sizeof(queued_item));
     }
     bool isBackfillPhase() {
         LockHolder lh(backfill.mutex);
