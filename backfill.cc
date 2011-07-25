@@ -177,7 +177,6 @@ void BackFillVisitor::complete() {
     if (engine->tapConnMap.checkBackfillCompletion(name)) {
         engine->notifyTapNotificationThread();
     }
-    releaseEngineResources();
 }
 
 bool BackFillVisitor::checkValidity() {

@@ -1350,13 +1350,6 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
     // Do not schedule the backfill for the registered TAP client (e.g., incremental backup client)
     VBucketFilter backFillVBFilter;
     if (connection->runBackfill(backFillVBFilter) && !(connection->registeredTAPClient)) {
-        ENGINE_ERROR_CODE rv = tapConnMap.reserveValidityToken(cookie);
-        if (rv != ENGINE_SUCCESS) {
-            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "Failed to reserve cookie for backfill thread\n");
-            return TAP_DISCONNECT;
-        }
-
         queueBackfill(backFillVBFilter, connection, cookie);
     }
 

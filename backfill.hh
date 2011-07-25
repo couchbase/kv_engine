@@ -69,10 +69,6 @@ public:
         delete queue;
     }
 
-    void releaseEngineResources() {
-        engine->tapConnMap.releaseValidityToken(validityToken);
-    }
-
     bool visitBucket(RCPtr<VBucket> vb);
 
     void visit(StoredValue *v);
