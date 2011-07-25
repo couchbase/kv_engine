@@ -486,10 +486,12 @@ void MemcachedEngine::run() {
 
     while (!shutdown) {
         if (sock == INVALID_SOCKET) {
-            getLogger()->log(EXTENSION_LOG_WARNING, this,
-                             "Trying to connect to mccouch: \"%s:%zu",
-                             configuration.getCouchHost().c_str(),
-                             configuration.getCouchPort());
+            std::stringstream rv;
+            rv << "Trying to connect to mccouch: \""
+               << configuration.getCouchHost().c_str() << ":"
+               << configuration.getCouchPort() << "\"";
+
+            getLogger()->log(EXTENSION_LOG_WARNING, this, rv.str().c_str());
 
             while (!connect()) {
                 if (shutdown) {
@@ -505,27 +507,29 @@ void MemcachedEngine::run() {
                     _exit(1);
                 }
                 if (configurationError) {
-                    getLogger()->log(EXTENSION_LOG_WARNING, this,
-                                     "Failed to connect to: \"%s:%zu",
-                                     configuration.getCouchHost().c_str(),
-                                     configuration.getCouchPort());
+                    rv.str(std::string());
+                    rv << "Failed to connect to: \""
+                       << configuration.getCouchHost().c_str() << ":"
+                       << configuration.getCouchPort() << "\"";
+                    getLogger()->log(EXTENSION_LOG_WARNING, this, rv.str().c_str());
 
                     usleep(5000);
                     // we might have new configuration parameters...
                     configurationError = false;
                 } else {
-                    getLogger()->log(EXTENSION_LOG_WARNING, this,
-                                     "Connection refused: \"%s:%zu",
-                                     configuration.getCouchHost().c_str(),
-                                     configuration.getCouchPort());
+                    rv.str(std::string());
+                    rv << "Connection refused: \""
+                       << configuration.getCouchHost().c_str() << ":"
+                       << configuration.getCouchPort() << "\"";
+                    getLogger()->log(EXTENSION_LOG_WARNING, this, rv.str().c_str());
                     usleep(configuration.getCouchReconnectSleeptime());
                 }
             }
-
-            getLogger()->log(EXTENSION_LOG_WARNING, this,
-                             "Connected to mccouch: \"%s:%zu",
-                             configuration.getCouchHost().c_str(),
-                             configuration.getCouchPort());
+            rv.str(std::string());
+            rv << "Connected to mccouch: \""
+               << configuration.getCouchHost().c_str() << ":"
+               << configuration.getCouchPort() << "\"";
+            getLogger()->log(EXTENSION_LOG_WARNING, this, rv.str().c_str());
         }
 
         updateEvent(sock);
