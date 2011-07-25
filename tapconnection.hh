@@ -1184,6 +1184,8 @@ private:
 
     Atomic<rel_time_t> lastWalkTime;
 
+    Atomic<rel_time_t> lastMsgTime;
+
     bool isLastAckSucceed;
 
     bool isSeqNumRotated;

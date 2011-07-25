@@ -130,6 +130,7 @@ public:
     uint64_t getAge() { return queueAge; }
     size_t getPendingWrites() { return pendingWrites; }
     bool   isOnlineUpdate() { return onlineUpdate; }
+
 private:
     vbucket_state_t desired_state;
 
@@ -550,6 +551,10 @@ public:
 
     void setMaySyncOnPersist(bool to) {
         syncOnPersist = to;
+    }
+
+    size_t getTapNoopInterval() const {
+        return tapNoopInterval;
     }
 
 protected:

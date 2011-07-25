@@ -76,6 +76,7 @@ TapProducer::TapProducer(EventuallyPersistentEngine &theEngine,
     seqnoReceived(initialAckSequenceNumber - 1),
     notifySent(false),
     registeredTAPClient(false),
+    lastMsgTime(ep_current_time()),
     isLastAckSucceed(false),
     isSeqNumRotated(false),
     numNoops(0)
@@ -1149,7 +1150,8 @@ bool TapProducer::isTimeForNoop() {
 
 void TapProducer::setTimeForNoop()
 {
-    noop.set(true);
+    rel_time_t now = ep_current_time();
+    noop = (lastMsgTime + engine.getTapNoopInterval()) < now ? true : false;
 }
 
 bool TapProducer::cleanSome()

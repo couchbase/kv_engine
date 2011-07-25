@@ -1625,6 +1625,7 @@ tap_event_t EventuallyPersistentEngine::walkTapQueue(const void *cookie,
         // we're no longer paused (the front-end will call us again)
         // so we don't need the engine to notify us about new changes..
         connection->paused.set(false);
+        connection->lastMsgTime = ep_current_time();
         if (ret == TAP_NOOP) {
             *seqno = 0;
         } else {
