@@ -1569,6 +1569,8 @@ void EventuallyPersistentStore::reset() {
 void EventuallyPersistentStore::enqueueCommit() {
     queued_item qi(new QueuedItem("", 0, queue_op_commit));
     writing.push(qi);
+    stats.memOverhead.incr(sizeof(queued_item));
+    assert(stats.memOverhead.get() < GIGANTOR);
     ++stats.totalEnqueued;
 }
 
@@ -1607,6 +1609,8 @@ std::queue<queued_item>* EventuallyPersistentStore::beginFlush() {
         if (diskFlushAll) {
             queued_item qi(new QueuedItem("", 0xffff, queue_op_flush));
             writing.push(qi);
+            stats.memOverhead.incr(sizeof(queued_item));
+            assert(stats.memOverhead.get() < GIGANTOR);
         }
 
         if (engine.isDegradedMode()) {
@@ -1625,6 +1629,8 @@ std::queue<queued_item>* EventuallyPersistentStore::beginFlush() {
                     }
                     writing.push(*iter);
                 }
+                stats.memOverhead.incr(restore.items.size() * sizeof(queued_item));
+                assert(stats.memOverhead.get() < GIGANTOR);
                 restore.items.clear();
             }
         } else {
@@ -1699,15 +1705,20 @@ void EventuallyPersistentStore::pushToOutgoingQueue(std::vector<queued_item> &it
     for(; it != items.end(); ++it) {
         writing.push(*it);
     }
+    stats.memOverhead.incr(items.size() * sizeof(queued_item));
+    assert(stats.memOverhead.get() < GIGANTOR);
     items.clear();
 }
 
 void EventuallyPersistentStore::requeueRejectedItems(std::queue<queued_item> *rej) {
+    size_t queue_size = rej->size();
     // Requeue the rejects.
     while (!rej->empty()) {
         writing.push(rej->front());
         rej->pop();
     }
+    stats.memOverhead.incr(queue_size * sizeof(queued_item));
+    assert(stats.memOverhead.get() < GIGANTOR);
     stats.queue_size.set(getWriteQueueSize());
     stats.flusher_todo.set(writing.size());
 }
@@ -2155,6 +2166,8 @@ int EventuallyPersistentStore::flushOne(std::queue<queued_item> *q,
 
     queued_item qi = q->front();
     q->pop();
+    stats.memOverhead.decr(sizeof(queued_item));
+    assert(stats.memOverhead.get() < GIGANTOR);
 
     int rv = 0;
     switch (qi->getOperation()) {
