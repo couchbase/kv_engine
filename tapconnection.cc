@@ -77,7 +77,8 @@ TapProducer::TapProducer(EventuallyPersistentEngine &theEngine,
     notifySent(false),
     registeredTAPClient(false),
     isLastAckSucceed(false),
-    isSeqNumRotated(false)
+    isSeqNumRotated(false),
+    numNoops(0)
 {
     evaluateFlags();
     queue = new std::list<queued_item>;
@@ -244,6 +245,13 @@ void TapProducer::registerTAPCursor(std::map<uint16_t, uint64_t> &lastCheckpoint
                     TapCheckpointState st(vbid, 1, checkpoint_start);
                     tapCheckpointState[vbid] = st;
                 }
+            }
+
+            // If backfill is currently running for this vbucket, skip the cursor registration.
+            if (backfillVBuckets.find(vbid) != backfillVBuckets.end()) {
+                TapCheckpointState st(vbid, 0, backfill);
+                tapCheckpointState[vbid] = st;
+                continue;
             }
 
             // If the connection is for a registered TAP client that is only interested in closed
@@ -660,6 +668,7 @@ bool TapProducer::checkBackfillCompletion_UNLOCKED() {
                                         (vbucket_state_t)htonl(TAP_OPAQUE_CLOSE_BACKFILL));
             addVBucketHighPriority_UNLOCKED(backfillEnd);
         }
+        backfillVBuckets.clear();
 
         rv = true;
     }
@@ -887,6 +896,7 @@ void TapProducer::addStats(ADD_STAT add_stat, const void *c) {
     addStat("queue_itemondisk", getRemaingOnDisk(), add_stat, c);
     addStat("total_backlog_size", getBackfillRemaining() + getRemainingOnCheckpoints(),
             add_stat, c);
+    addStat("total_noops", numNoops, add_stat, c);
 
     if (reconnects > 0) {
         addStat("reconnects", reconnects, add_stat, c);
@@ -1063,6 +1073,11 @@ bool TapConsumer::processCheckpointCommand(tap_event_t event, uint16_t vbucket,
     switch (event) {
     case TAP_CHECKPOINT_START:
         {
+            // This is necessary for supporting backward compatibility to 1.7
+            if (vb->isBackfillPhase() && checkpointId > 0) {
+                setBackfillPhase(false, vbucket);
+            }
+
             bool persistenceCursorRepositioned = false;
             ret = vb->checkpointManager.checkAndAddNewCheckpoint(checkpointId,
                                                                  persistenceCursorRepositioned);
@@ -1125,7 +1140,11 @@ bool TapConsumer::processOnlineUpdateCommand(uint32_t opcode, uint16_t vbucket) 
 }
 
 bool TapProducer::isTimeForNoop() {
-    return noop.swap(false);
+    bool rv = noop.swap(false);
+    if (rv) {
+        ++numNoops;
+    }
+    return rv;
 }
 
 void TapProducer::setTimeForNoop()

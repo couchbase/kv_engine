@@ -454,10 +454,10 @@ void TapConnMap::notifyIOThreadMain() {
             if (tp->supportsAck() && (tp->getExpiryTime() < now) && tp->windowIsFull()) {
                 shouldPause = false;
                 tp->setDisconnect(true);
-            } else if (tp->doDisconnect() || !tp->idle()) {
-                shouldPause = false;
             } else if (addNoop) {
                 tp->setTimeForNoop();
+                shouldPause = false;
+            } else if (tp->doDisconnect() || !tp->idle()) {
                 shouldPause = false;
             } else if ((tp->lastWalkTime + maxIdleTime) < now) {
                 shouldPause = false;
