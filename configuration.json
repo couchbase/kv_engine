@@ -55,7 +55,7 @@
             "type": "std::string"
         },
         "couch_host": {
-            "default": "",
+            "default": "localhost",
             "dynamic": false,
             "type": "std::string"
         },
