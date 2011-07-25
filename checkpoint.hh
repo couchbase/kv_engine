@@ -74,7 +74,7 @@ class Checkpoint {
 public:
     Checkpoint(EPStats &st, uint64_t id, checkpoint_state state = opened) :
         stats(st), checkpointId(id), creationTime(ep_real_time()),
-        checkpointState(state), referenceCounter(0), numItems(0), indexMemOverhead(0) {
+        checkpointState(state), referenceCounter(0), numItems(0), memOverhead(0) {
         stats.memOverhead.incr(memorySize());
         assert(stats.memOverhead.get() < GIGANTOR);
     }
@@ -178,7 +178,7 @@ public:
      * @return memory overhead of this checkpoint instance.
      */
     size_t memorySize() {
-        return sizeof(Checkpoint) + indexMemOverhead;
+        return sizeof(Checkpoint) + memOverhead;
     }
 
 private:
@@ -191,7 +191,7 @@ private:
     // List is used for queueing mutations as vector incurs shift operations for deduplication.
     std::list<queued_item>         toWrite;
     checkpoint_index               keyIndex;
-    size_t                         indexMemOverhead;
+    size_t                         memOverhead;
 };
 
 /**

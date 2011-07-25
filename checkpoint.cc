@@ -93,8 +93,8 @@ queue_dirty_t Checkpoint::queueDirty(const queued_item &qi, CheckpointManager *c
         // Set the index of the key to the new item that is pushed back into the list.
         keyIndex[qi->getKey()] = entry;
         if (rv == NEW_ITEM) {
-            size_t newEntrySize = qi->getKey().size() + sizeof(index_entry);
-            indexMemOverhead += newEntrySize;
+            size_t newEntrySize = qi->getKey().size() + sizeof(index_entry) + sizeof(queued_item);
+            memOverhead += newEntrySize;
             stats.memOverhead.incr(newEntrySize);
             assert(stats.memOverhead.get() < GIGANTOR);
         }
