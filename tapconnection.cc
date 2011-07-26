@@ -25,6 +25,21 @@ static void notifyReplicatedItems(std::list<TapLogElement>::iterator from,
 
 Atomic<uint64_t> TapConnection::tapCounter(1);
 
+
+TapConnection::TapConnection(EventuallyPersistentEngine &theEngine,
+              const void *c, const std::string &n) :
+    engine(theEngine),
+    cookie(c),
+    name(n),
+    created(ep_current_time()),
+    expiryTime((rel_time_t)-1),
+    connected(true),
+    disconnect(false),
+    supportAck(false),
+    supportCheckpointSync(false),
+    reserved(false),
+    stats(engine.getEpStats()) { /* EMPTY */ }
+
 const void *TapConnection::getCookie() const {
     return cookie;
 }
@@ -359,6 +374,7 @@ bool TapProducer::requestAck(tap_event_t event, uint16_t vbucket) {
 void TapProducer::rollback() {
     LockHolder lh(queueLock);
     size_t checkpoint_msg_sent = 0;
+    size_t tapLogSize = 0;
     std::vector<uint16_t> backfillVBs;
     std::list<TapLogElement>::iterator i = tapLog.begin();
     while (i != tapLog.end()) {
@@ -433,7 +449,11 @@ void TapProducer::rollback() {
         }
         tapLog.erase(i);
         i = tapLog.begin();
+        ++tapLogSize;
     }
+
+    stats.memOverhead.decr(tapLogSize * sizeof(TapLogElement));
+    assert(stats.memOverhead.get() < GIGANTOR);
 
     if (backfillVBs.size() > 0) {
         scheduleBackfill_UNLOCKED(backfillVBs);
@@ -637,6 +657,10 @@ ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
         notifyReplicatedItems(tapLog.begin(), iter, engine);
         // Reschedule _this_ sequence number..
         if (iter != tapLog.end()) {
+            // As we remove the tap log entry for this nacked sequence number and reschedule it,
+            // simply reduce memory overhead here.
+            stats.memOverhead.decr(sizeof(TapLogElement));
+            assert(stats.memOverhead.get() < GIGANTOR);
             reschedule_UNLOCKED(iter);
             ++iter;
         }
@@ -807,9 +831,13 @@ private:
 void TapProducer::queueBGFetch(const std::string &key, uint64_t id,
                                  uint16_t vb, uint16_t vbv) {
     LockHolder lh(queueLock);
-    backfillQueue.push(TapBGFetchQueueItem(key, id, vb, vbv));
+    TapBGFetchQueueItem qi(key, id, vb, vbv);
+    backfillQueue.push(qi);
     ++bgQueued;
     ++bgQueueSize;
+
+    stats.memOverhead.incr(qi.size());
+    assert(stats.memOverhead.get() < GIGANTOR);
     assert(!empty_UNLOCKED());
     assert(!idle_UNLOCKED());
     assert(!complete_UNLOCKED());
@@ -820,6 +848,8 @@ void TapProducer::runBGFetch(Dispatcher *dispatcher, const void *c) {
     TapBGFetchQueueItem qi(backfillQueue.front());
     backfillQueue.pop();
     --bgQueueSize;
+    stats.memOverhead.decr(qi.size());
+    assert(stats.memOverhead.get() < GIGANTOR);
 
     shared_ptr<TapBGFetchCallback> dcb(new TapBGFetchCallback(&engine,
                                                               getName(), qi.key,
@@ -841,6 +871,9 @@ void TapProducer::gotBGItem(Item *i, bool implicitEnqueue) {
     }
     backfilledItems.push(i);
     ++bgResultSize;
+
+    stats.memOverhead.incr(sizeof(Item *));
+    assert(stats.memOverhead.get() < GIGANTOR);
     assert(hasItem());
 }
 
@@ -855,6 +888,10 @@ Item* TapProducer::nextFetchedItem() {
     assert(rv);
     backfilledItems.pop();
     --bgResultSize;
+
+    stats.memOverhead.decr(sizeof(Item *));
+    assert(stats.memOverhead.get() < GIGANTOR);
+
     return rv;
 }
 
@@ -1166,6 +1203,8 @@ bool TapProducer::cleanSome()
         --bgResultSize;
         ++ii;
     }
+    stats.memOverhead.decr(ii * sizeof(Item *));
+    assert(stats.memOverhead.get() < GIGANTOR);
 
     return backfilledItems.empty();
 }
@@ -1291,6 +1330,8 @@ queued_item TapProducer::next(bool &shouldPause) {
         } else {
             queueMemSize.set(0);
         }
+        stats.memOverhead.decr(sizeof(queued_item));
+        assert(stats.memOverhead.get() < GIGANTOR);
         ++recordsFetched;
         return qi;
     }
@@ -1424,6 +1465,7 @@ static void notifyReplicatedItems(std::list<TapLogElement>::iterator from,
                                   std::list<TapLogElement>::iterator to,
                                   EventuallyPersistentEngine &engine) {
 
+    size_t numTapLogs = 0;
     for (std::list<TapLogElement>::iterator it = from; it != to; ++it) {
         if (it->event == TAP_MUTATION) {
             queued_item qi = it->item;
@@ -1435,5 +1477,9 @@ static void notifyReplicatedItems(std::list<TapLogElement>::iterator from,
                 engine.getSyncRegistry().itemReplicated(qi);
             }
         }
+        ++numTapLogs;
     }
+
+    engine.getEpStats().memOverhead.decr(numTapLogs * sizeof(TapLogElement));
+    assert(engine.getEpStats().memOverhead.get() < GIGANTOR);
 }

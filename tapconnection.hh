@@ -132,6 +132,10 @@ public:
                         uint16_t vb, uint16_t vbv) :
         key(k), id(i), vbucket(vb), vbversion(vbv) {}
 
+    size_t size() {
+        return sizeof(TapBGFetchQueueItem) + key.size();
+    }
+
     const std::string key;
     const uint64_t id;
     const uint16_t vbucket;
@@ -232,19 +236,10 @@ protected:
 
     Atomic<bool> reserved;
 
+    EPStats &stats;
+
     TapConnection(EventuallyPersistentEngine &theEngine,
-                  const void *c, const std::string &n) :
-        engine(theEngine),
-        cookie(c),
-        name(n),
-        created(ep_current_time()),
-        expiryTime((rel_time_t)-1),
-        connected(true),
-        disconnect(false),
-        supportAck(false),
-        supportCheckpointSync(false),
-        reserved(false)
-    { /* EMPTY */ }
+                  const void *c, const std::string &n);
 
 
     template <typename T>
@@ -490,6 +485,8 @@ private:
             queue->push_back(it);
             ++queueSize;
             queueMemSize.incr(sizeof(queued_item));
+            stats.memOverhead.incr(sizeof(queued_item));
+            assert(stats.memOverhead.get() < GIGANTOR);
             return wasEmpty;
         } else {
             return queue->empty();
@@ -526,6 +523,8 @@ private:
         if (supportAck) {
             TapLogElement log(seqno, qi);
             tapLog.push_back(log);
+            stats.memOverhead.incr(sizeof(TapLogElement));
+            assert(stats.memOverhead.get() < GIGANTOR);
         }
     }
     void addTapLogElement(const queued_item &qi) {
@@ -538,6 +537,8 @@ private:
             // add to the log!
             TapLogElement log(seqno, e);
             tapLog.push_back(log);
+            stats.memOverhead.incr(sizeof(TapLogElement));
+            assert(stats.memOverhead.get() < GIGANTOR);
         }
     }
 
@@ -772,18 +773,24 @@ private:
     void flush() {
         LockHolder lh(queueLock);
         pendingFlush = true;
+
         /* No point of keeping the rep queue when someone wants to flush it */
         queue->clear();
+        stats.memOverhead.decr(queueSize * sizeof(queued_item));
+        assert(stats.memOverhead.get() < GIGANTOR);
         queueSize = 0;
         queueMemSize = 0;
 
         // Clear bg-fetched items.
+        size_t qsize = backfilledItems.size();
         while (!backfilledItems.empty()) {
             Item *i(backfilledItems.front());
             assert(i);
             delete i;
             backfilledItems.pop();
         }
+        stats.memOverhead.decr(qsize * sizeof(Item *));
+        assert(stats.memOverhead.get() < GIGANTOR);
         bgResultSize = 0;
 
         // Clear the checkpoint message queue as well
@@ -801,12 +808,14 @@ private:
     // This method is called while holding the tapNotifySync lock.
     void appendQueue(std::list<queued_item> *q) {
         LockHolder lh(queueLock);
+        size_t append_size = q->size();
         queue->splice(queue->end(), *q);
         queueSize = queue->size();
 
-        for(std::list<queued_item>::iterator i = q->begin(); i != q->end(); ++i)  {
-            queueMemSize.incr((*i)->size());
-        }
+        size_t append_overhead = append_size * sizeof(queued_item);
+        queueMemSize.incr(append_overhead);
+        stats.memOverhead.incr(append_overhead);
+        assert(stats.memOverhead.get() < GIGANTOR);
     }
 
     bool isPendingDiskBackfill() {
@@ -981,6 +990,8 @@ private:
     void popTapLog(void) {
         LockHolder lh(queueLock);
         tapLog.pop_back();
+        stats.memOverhead.decr(sizeof(TapLogElement));
+        assert(stats.memOverhead.get() < GIGANTOR);
     }
 
     void reschedule_UNLOCKED(const std::list<TapLogElement>::iterator &iter);
