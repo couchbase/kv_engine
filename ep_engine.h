@@ -480,6 +480,7 @@ public:
     ~EventuallyPersistentEngine() {
         delete tapConnMap;
         delete tapConfig;
+        delete checkpointConfig;
         delete epstore;
         delete kvstore;
         delete getlExtension;
@@ -498,6 +499,8 @@ public:
     TapConnMap &getTapConnMap() { return *tapConnMap; }
 
     TapConfig &getTapConfig() { return *tapConfig; }
+
+    CheckpointConfig &getCheckpointConfig() { return *checkpointConfig; }
 
     bool isForceShutdown(void) const {
         return forceShutdown;
@@ -749,6 +752,7 @@ private:
 
     TapConnMap *tapConnMap;
     TapConfig *tapConfig;
+    CheckpointConfig *checkpointConfig;
     Mutex tapMutex;
     size_t maxItemSize;
     size_t memLowWat;

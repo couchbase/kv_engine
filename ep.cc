@@ -453,7 +453,8 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
     invalidItemDbPager = new InvalidItemDbPager(this, stats, vbDelChunkSize);
 
     if (startVb0) {
-        RCPtr<VBucket> vb(new VBucket(0, vbucket_state_active, stats));
+        RCPtr<VBucket> vb(new VBucket(0, vbucket_state_active, stats,
+                                      engine.getCheckpointConfig()));
         vbuckets.addBucket(vb);
         vbuckets.setBucketVersion(0, 0);
     }
@@ -956,7 +957,7 @@ void EventuallyPersistentStore::setVBucketState(uint16_t vbid,
                                   NULL, Priority::NotifyVBStateChangePriority, 0, false);
         scheduleVBSnapshot(Priority::VBucketPersistLowPriority);
     } else {
-        RCPtr<VBucket> newvb(new VBucket(vbid, to, stats));
+        RCPtr<VBucket> newvb(new VBucket(vbid, to, stats, engine.getCheckpointConfig()));
         if (to != vbucket_state_active) {
             newvb->checkpointManager.setOpenCheckpointId(0);
         }
@@ -2303,7 +2304,8 @@ void LoadStorageKVPairCallback::initVBucket(uint16_t vbid, uint16_t vb_version,
                                             uint64_t checkpointId, vbucket_state_t prevState) {
     RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
     if (!vb) {
-        vb.reset(new VBucket(vbid, vbucket_state_dead, stats));
+        vb.reset(new VBucket(vbid, vbucket_state_dead, stats,
+                             epstore->getEPEngine().getCheckpointConfig()));
         vbuckets.addBucket(vb);
     }
     // Set the past initial state of each vbucket.
@@ -2333,7 +2335,8 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
 
         RCPtr<VBucket> vb = vbuckets.getBucket(i->getVBucketId());
         if (!vb) {
-            vb.reset(new VBucket(i->getVBucketId(), vbucket_state_dead, stats));
+            vb.reset(new VBucket(i->getVBucketId(), vbucket_state_dead, stats,
+                                 epstore->getEPEngine().getCheckpointConfig()));
             vbuckets.addBucket(vb);
             vbuckets.setBucketVersion(i->getVBucketId(), val.getVBucketVersion());
         }

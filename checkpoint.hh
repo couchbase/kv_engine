@@ -35,6 +35,7 @@ typedef unordered_map<std::string, index_entry> checkpoint_index;
 
 class Checkpoint;
 class CheckpointManager;
+class CheckpointConfig;
 class VBucket;
 
 /**
@@ -204,8 +205,9 @@ class CheckpointManager {
     friend class TapConsumer;
 public:
 
-    CheckpointManager(EPStats &st, uint16_t vbucket, uint64_t checkpointId = 1) :
-        stats(st), vbucketId(vbucket), numItems(0),
+    CheckpointManager(EPStats &st, uint16_t vbucket,
+                      CheckpointConfig &config, uint64_t checkpointId = 1) :
+        stats(st), checkpointConfig(config), vbucketId(vbucket), numItems(0),
         mutationCounter(0), doOnlineUpdate(false), doHotReload(false) {
 
         addNewCheckpoint(checkpointId);
@@ -397,36 +399,6 @@ public:
 
     bool hasNext(const std::string &name);
 
-    static void initializeCheckpointConfig(size_t checkpoint_period,
-                                           size_t checkpoint_max_items,
-                                           bool allow_inconsistency = false) {
-        if (!validateCheckpointMaxItemsParam(checkpoint_max_items) ||
-            !validateCheckpointPeriodParam(checkpoint_period)) {
-            return;
-        }
-        checkpointPeriod = checkpoint_period;
-        checkpointMaxItems = checkpoint_max_items;
-        inconsistentSlaveCheckpoint = allow_inconsistency;
-    }
-
-    static void setCheckpointPeriod(size_t checkpoint_period) {
-        if (!validateCheckpointPeriodParam(checkpoint_period)) {
-            return;
-        }
-        checkpointPeriod = checkpoint_period;
-    }
-
-    static void setCheckpointMaxItems(size_t checkpoint_max_items) {
-        if (!validateCheckpointMaxItemsParam(checkpoint_max_items)) {
-            return;
-        }
-        checkpointMaxItems = checkpoint_max_items;
-    }
-
-    static void allowInconsistentSlaveCheckpoint(bool allow_inconsistency) {
-        inconsistentSlaveCheckpoint = allow_inconsistency;
-    }
-
 private:
 
     void registerPersistenceCursor();
@@ -506,12 +478,12 @@ private:
 
     bool isCheckpointCreationForHighMemUsage(const RCPtr<VBucket> &vbucket);
 
-    static bool validateCheckpointMaxItemsParam(size_t checkpoint_max_items);
-    static bool validateCheckpointPeriodParam(size_t checkpoint_period);
     static queued_item createCheckpointItem(uint64_t id, uint16_t vbid,
                                             enum queue_operation checkpoint_op);
 
+
     EPStats                 &stats;
+    CheckpointConfig        &checkpointConfig;
     Mutex                    queueLock;
     uint16_t                 vbucketId;
     Atomic<size_t>           numItems;
@@ -521,16 +493,58 @@ private:
     CheckpointCursor         onlineUpdateCursor;
     std::map<const std::string, CheckpointCursor> tapCursors;
 
-    // Period of a checkpoint in terms of time in sec
-    static Atomic<rel_time_t> checkpointPeriod;
-    // Number of max items allowed in each checkpoint
-    static Atomic<size_t>     checkpointMaxItems;
-    // Flag indicating if a downstream active vbucket is allowed to receive checkpoint start/end
-    // messages from the master active vbucket.
-    static bool               inconsistentSlaveCheckpoint;
-
     Atomic<bool>              doOnlineUpdate;
     Atomic<bool>              doHotReload;
+};
+
+/**
+ * A class containing the config parameters for checkpoint.
+ */
+class CheckpointConfig {
+public:
+    CheckpointConfig()
+        : checkpointPeriod(DEFAULT_CHECKPOINT_PERIOD),
+          checkpointMaxItems(DEFAULT_CHECKPOINT_ITEMS),
+          inconsistentSlaveCheckpoint (false) { }
+
+    CheckpointConfig(EventuallyPersistentEngine &e);
+
+    rel_time_t getCheckpointPeriod() const {
+        return checkpointPeriod;
+    }
+
+    size_t getCheckpointMaxItems() const {
+        return checkpointMaxItems;
+    }
+
+    bool isInconsistentSlaveCheckpoint() const {
+        return inconsistentSlaveCheckpoint;
+    }
+
+protected:
+    friend class CheckpointConfigChangeListener;
+    friend class EventuallyPersistentEngine;
+
+    bool validateCheckpointMaxItemsParam(size_t checkpoint_max_items);
+    bool validateCheckpointPeriodParam(size_t checkpoint_period);
+
+    void setCheckpointPeriod(size_t value);
+    void setCheckpointMaxItems(size_t value);
+
+    void allowInconsistentSlaveCheckpoint(bool value) {
+        inconsistentSlaveCheckpoint = value;
+    }
+
+   static void addConfigChangeListener(EventuallyPersistentEngine &engine);
+
+private:
+    // Period of a checkpoint in terms of time in sec
+    rel_time_t checkpointPeriod;
+    // Number of max items allowed in each checkpoint
+    size_t checkpointMaxItems;
+    // Flag indicating if a downstream active vbucket is allowed to receive checkpoint start/end
+    // messages from the master active vbucket.
+    bool inconsistentSlaveCheckpoint;
 };
 
 #endif /* CHECKPOINT_HH */

@@ -235,10 +235,10 @@ extern "C" {
                 e->getConfiguration().setBgFetchDelay(v);
             } else if (strcmp(keyz, "chk_max_items") == 0) {
                 validate(v, MIN_CHECKPOINT_ITEMS, MAX_CHECKPOINT_ITEMS);
-                CheckpointManager::setCheckpointMaxItems(v);
+                e->getConfiguration().setChkMaxItems(v);
             } else if (strcmp(keyz, "chk_period") == 0) {
                 validate(v, MIN_CHECKPOINT_PERIOD, MAX_CHECKPOINT_PERIOD);
-                CheckpointManager::setCheckpointPeriod(v);
+                e->getConfiguration().setChkPeriod(v);
             } else if (strcmp(keyz, "max_size") == 0) {
                 // Want more bits than int.
                 char *ptr = NULL;
@@ -952,7 +952,7 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server
     epstore(NULL), tapThrottle(new TapThrottle(stats)), databaseInitTime(0),
     startedEngineThreads(false), shutdown(false),
     getServerApiFunc(get_server_api), getlExtension(NULL),
-    tapConnMap(NULL), tapConfig(NULL),
+    tapConnMap(NULL), tapConfig(NULL), checkpointConfig(NULL),
     memLowWat(std::numeric_limits<size_t>::max()),
     memHighWat(std::numeric_limits<size_t>::max()),
     mutation_count(0), warmingUp(true)
@@ -1049,10 +1049,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     memLowWat = configuration.getMemLowWat();
     memHighWat = configuration.getMemHighWat();
 
-    CheckpointManager::setCheckpointMaxItems(configuration.getChkMaxItems());
-    CheckpointManager::setCheckpointPeriod(configuration.getChkPeriod());
-    CheckpointManager::allowInconsistentSlaveCheckpoint(configuration.isInconsistentSlaveChk());
-
     if (configuration.isRestoreMode()) {
         if ((restore.manager = create_restore_manager(*this)) == NULL) {
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
@@ -1078,6 +1074,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     tapConnMap = new TapConnMap(*this);
     tapConfig = new TapConfig(*this);
     TapConfig::addConfigChangeListener(*this);
+
+    checkpointConfig = new CheckpointConfig(*this);
+    CheckpointConfig::addConfigChangeListener(*this);
 
     if (ret == ENGINE_SUCCESS) {
         time_t start = ep_real_time();

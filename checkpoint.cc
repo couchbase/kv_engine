@@ -2,6 +2,33 @@
 #include "config.h"
 #include "vbucket.hh"
 #include "checkpoint.hh"
+#include "ep_engine.h"
+
+/**
+ * A listener class to update checkpoint related configs at runtime.
+ */
+class CheckpointConfigChangeListener : public ValueChangedListener {
+public:
+    CheckpointConfigChangeListener(CheckpointConfig &c) : config(c) { }
+    virtual ~CheckpointConfigChangeListener() { }
+
+    virtual void sizeValueChanged(const std::string &key, size_t value) {
+        if (key.compare("chk_period") == 0) {
+            config.setCheckpointPeriod(value);
+        } else if (key.compare("chk_max_items") == 0) {
+            config.setCheckpointMaxItems(value);
+        }
+    }
+
+    virtual void booleanValueChanged(const std::string &key, bool value) {
+        if (key.compare("inconsistent_slave_chk") == 0) {
+            config.allowInconsistentSlaveCheckpoint(value);
+        }
+    }
+
+private:
+    CheckpointConfig &config;
+};
 
 void Checkpoint::setState(checkpoint_state state) {
     checkpointState = state;
@@ -101,10 +128,6 @@ queue_dirty_t Checkpoint::queueDirty(const queued_item &qi, CheckpointManager *c
     }
     return rv;
 }
-
-Atomic<rel_time_t> CheckpointManager::checkpointPeriod = DEFAULT_CHECKPOINT_PERIOD;
-Atomic<size_t> CheckpointManager::checkpointMaxItems = DEFAULT_CHECKPOINT_ITEMS;
-bool CheckpointManager::inconsistentSlaveCheckpoint = false;
 
 CheckpointManager::~CheckpointManager() {
     LockHolder lh(queueLock);
@@ -418,7 +441,8 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(const RCPtr<VBucket> &vbu
     LockHolder lh(queueLock);
     assert(vbucket);
     uint64_t oldCheckpointId = 0;
-    if (vbucket->getState() == vbucket_state_active && !inconsistentSlaveCheckpoint) {
+    if (vbucket->getState() == vbucket_state_active &&
+        !checkpointConfig.isInconsistentSlaveCheckpoint()) {
         bool forceCreation = isCheckpointCreationForHighMemUsage(vbucket);
         // Check if this master active vbucket needs to create a new open checkpoint.
         oldCheckpointId = checkOpenCheckpoint_UNLOCKED(forceCreation, true);
@@ -499,7 +523,8 @@ bool CheckpointManager::queueDirty(const queued_item &qi, const RCPtr<VBucket> &
     size_t numItemsAfter = getNumItemsForPersistence_UNLOCKED();
 
     assert(vbucket);
-    if (vbucket->getState() == vbucket_state_active && !inconsistentSlaveCheckpoint) {
+    if (vbucket->getState() == vbucket_state_active &&
+        !checkpointConfig.isInconsistentSlaveCheckpoint()) {
         // Only the master active vbucket can create a next open checkpoint.
         checkOpenCheckpoint_UNLOCKED(false, true);
     }
@@ -710,13 +735,14 @@ bool CheckpointManager::moveCursorToNextCheckpoint(CheckpointCursor &cursor) {
 uint64_t CheckpointManager::checkOpenCheckpoint_UNLOCKED(bool forceCreation, bool timeBound) {
     int checkpointId = 0;
     timeBound = timeBound &&
-                (ep_real_time() - checkpointList.back()->getCreationTime()) >= checkpointPeriod;
+                (ep_real_time() - checkpointList.back()->getCreationTime()) >=
+                checkpointConfig.getCheckpointPeriod();
     // Create the new open checkpoint if any of the following conditions is satisfied:
     // (1) force creation due to online update or high memory usage
     // (2) current checkpoint is reached to the max number of items allowed.
     // (3) time elapsed since the creation of the current checkpoint is greater than the threshold
     if (forceCreation ||
-        checkpointList.back()->getNumItems() >= checkpointMaxItems ||
+        checkpointList.back()->getNumItems() >= checkpointConfig.getCheckpointMaxItems() ||
         (checkpointList.back()->getNumItems() > 0 && timeBound)) {
 
         checkpointId = checkpointList.back()->getId();
@@ -885,7 +911,34 @@ bool CheckpointManager::hasNext(const std::string &name) {
     return hasMore;
 }
 
-bool CheckpointManager::validateCheckpointMaxItemsParam(size_t checkpoint_max_items) {
+queued_item CheckpointManager::createCheckpointItem(uint64_t id,
+                                                    uint16_t vbid,
+                                                    enum queue_operation checkpoint_op) {
+    assert(checkpoint_op == queue_op_checkpoint_start || checkpoint_op == queue_op_checkpoint_end);
+    uint64_t cid = htonll(id);
+    RCPtr<Blob> vblob(Blob::New((const char*)&cid, sizeof(cid)));
+    queued_item qi(new QueuedItem("", vblob, vbid, checkpoint_op));
+    return qi;
+}
+
+void CheckpointConfig::addConfigChangeListener(EventuallyPersistentEngine &engine) {
+    Configuration &configuration = engine.getConfiguration();
+    configuration.addValueChangedListener("chk_period",
+                              new CheckpointConfigChangeListener(engine.getCheckpointConfig()));
+    configuration.addValueChangedListener("chk_max_items",
+                              new CheckpointConfigChangeListener(engine.getCheckpointConfig()));
+    configuration.addValueChangedListener("inconsistent_slave_chk",
+                              new CheckpointConfigChangeListener(engine.getCheckpointConfig()));
+}
+
+CheckpointConfig::CheckpointConfig(EventuallyPersistentEngine &e) {
+    Configuration &config = e.getConfiguration();
+    checkpointPeriod = config.getChkPeriod();
+    checkpointMaxItems = config.getChkMaxItems();
+    inconsistentSlaveCheckpoint = config.isInconsistentSlaveChk();
+}
+
+bool CheckpointConfig::validateCheckpointMaxItemsParam(size_t checkpoint_max_items) {
     if (checkpoint_max_items < MIN_CHECKPOINT_ITEMS ||
         checkpoint_max_items > MAX_CHECKPOINT_ITEMS) {
         std::stringstream ss;
@@ -898,7 +951,7 @@ bool CheckpointManager::validateCheckpointMaxItemsParam(size_t checkpoint_max_it
     return true;
 }
 
-bool CheckpointManager::validateCheckpointPeriodParam(size_t checkpoint_period) {
+bool CheckpointConfig::validateCheckpointPeriodParam(size_t checkpoint_period) {
     if (checkpoint_period < MIN_CHECKPOINT_PERIOD ||
         checkpoint_period > MAX_CHECKPOINT_PERIOD) {
         std::stringstream ss;
@@ -911,12 +964,16 @@ bool CheckpointManager::validateCheckpointPeriodParam(size_t checkpoint_period) 
     return true;
 }
 
-queued_item CheckpointManager::createCheckpointItem(uint64_t id,
-                                                    uint16_t vbid,
-                                                    enum queue_operation checkpoint_op) {
-    assert(checkpoint_op == queue_op_checkpoint_start || checkpoint_op == queue_op_checkpoint_end);
-    uint64_t cid = htonll(id);
-    RCPtr<Blob> vblob(Blob::New((const char*)&cid, sizeof(cid)));
-    queued_item qi(new QueuedItem("", vblob, vbid, checkpoint_op));
-    return qi;
+void CheckpointConfig::setCheckpointPeriod(size_t value) {
+    if (!validateCheckpointPeriodParam(value)) {
+        value = DEFAULT_CHECKPOINT_PERIOD;
+    }
+    checkpointPeriod = static_cast<rel_time_t>(value);
+}
+
+void CheckpointConfig::setCheckpointMaxItems(size_t value) {
+    if (!validateCheckpointMaxItemsParam(value)) {
+        value = DEFAULT_CHECKPOINT_ITEMS;
+    }
+    checkpointMaxItems = value;
 }

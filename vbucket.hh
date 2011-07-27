@@ -103,9 +103,9 @@ class EventuallyPersistentEngine;
 class VBucket : public RCValue {
 public:
 
-    VBucket(int i, vbucket_state_t newState, EPStats &st,
+    VBucket(int i, vbucket_state_t newState, EPStats &st, CheckpointConfig &checkpointConfig,
             vbucket_state_t initState = vbucket_state_dead, uint64_t checkpointId = 1) :
-        ht(st), checkpointManager(st, i, checkpointId), id(i), state(newState),
+        ht(st), checkpointManager(st, i, checkpointConfig, checkpointId), id(i), state(newState),
         initialState(initState), stats(st) {
 
         backfill.isBackfillPhase = false;
