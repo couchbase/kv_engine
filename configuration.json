@@ -10,10 +10,6 @@
             "dynamic": false,
             "type": "std::string"
         },
-        "bf_resident_threshold": {
-            "default": "0.9",
-            "type": "float"
-        },
         "bg_fetch_delay": {
             "default": "0",
             "type": "size_t",
@@ -230,6 +226,10 @@
             "default": "10",
             "type": "size_t"
         },
+        "tap_backfill_resident": {
+            "default": "0.9",
+            "type": "float"
+        },
         "tap_backlog_limit": {
             "default": "5000",
             "type": "size_t"
@@ -238,12 +238,12 @@
             "default": "5.0",
             "type": "float"
         },
+        "tap_requeue_sleep_time": {
+            "default": "0.1",
+            "type": "float"
+        },
         "tap_bg_max_pending": {
             "default": "500",
-            "type": "size_t"
-        },
-        "tap_idle_timeout": {
-            "default": "max",
             "type": "size_t"
         },
         "tap_keepalive": {
@@ -252,6 +252,7 @@
         },
         "tap_noop_interval": {
             "default": "200",
+            "descr": "Number of seconds between a noop is sent on an idle connection",
             "type": "size_t"
         },
         "vb0": {

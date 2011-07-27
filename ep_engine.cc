@@ -950,10 +950,9 @@ EXTENSION_LOGGER_DESCRIPTOR *getLogger(void) {
 EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server_api) :
     forceShutdown(false), kvstore(NULL),
     epstore(NULL), tapThrottle(new TapThrottle(stats)), databaseInitTime(0),
-    tapNoopInterval(DEFAULT_TAP_NOOP_INTERVAL), nextTapNoop(0),
     startedEngineThreads(false), shutdown(false),
-    getServerApiFunc(get_server_api), getlExtension(NULL), tapConnMap(*this),
-    tapBacklogLimit(5000),
+    getServerApiFunc(get_server_api), getlExtension(NULL),
+    tapConnMap(NULL), tapConfig(NULL),
     memLowWat(std::numeric_limits<size_t>::max()),
     memHighWat(std::numeric_limits<size_t>::max()),
     mutation_count(0), warmingUp(true)
@@ -1034,14 +1033,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     HashTable::setDefaultNumLocks(configuration.getHtLocks());
     StoredValue::setMaxDataSize(stats, configuration.getMaxSize());
     StoredValue::setMutationMemoryThreshold(configuration.getMutationMemThreshold());
-    tapNoopInterval = configuration.getTapNoopInterval();
-    size_t tapIdleTimeout = configuration.getTapIdleTimeout();
-    if (tapNoopInterval == 0 || tapIdleTimeout == 0) {
-        tapNoopInterval = (size_t)-1;
-    } else if (tapIdleTimeout != (size_t)-1) {
-        tapNoopInterval = tapIdleTimeout / 3;
-    }
-
     std::string storedValType = configuration.getStoredValType();
     if (storedValType.length() > 0) {
         if (!HashTable::setDefaultStorageValueType(storedValType.c_str())) {
@@ -1057,15 +1048,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
 
     memLowWat = configuration.getMemLowWat();
     memHighWat = configuration.getMemHighWat();
-    tapBacklogLimit = configuration.getTapBacklogLimit();
 
-    TapProducer::bgMaxPending = configuration.getTapBgMaxPending();
-    TapProducer::backoffSleepTime = configuration.getTapBackoffPeriod();
-    TapProducer::ackWindowSize = configuration.getTapAckWindowSize();
-    TapProducer::ackInterval = configuration.getTapAckInterval();
-    TapProducer::ackGracePeriod = configuration.getTapAckGracePeriod();
-    uint32_t init_seq_num = configuration.getTapAckInitialSequenceNumber();
-    TapProducer::initialAckSequenceNumber = init_seq_num == 0 ? 1 : init_seq_num;
     CheckpointManager::setCheckpointMaxItems(configuration.getChkMaxItems());
     CheckpointManager::setCheckpointPeriod(configuration.getChkPeriod());
     CheckpointManager::allowInconsistentSlaveCheckpoint(configuration.isInconsistentSlaveChk());
@@ -1092,7 +1075,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     configuration.addValueChangedListener("sync_on_persist",
                                           new EpEngineValueChangeListener(*this));
 
-    BackFillVisitor::setResidentItemThreshold(configuration.getBfResidentThreshold());
+    tapConnMap = new TapConnMap(*this);
+    tapConfig = new TapConfig(*this);
+    TapConfig::addConfigChangeListener(*this);
 
     if (ret == ENGINE_SUCCESS) {
         time_t start = ep_real_time();
@@ -1160,7 +1145,7 @@ KVStore* EventuallyPersistentEngine::newKVStore() {
 void EventuallyPersistentEngine::destroy(bool force) {
     forceShutdown = force;
     stopEngineThreads();
-    tapConnMap.shutdownAllTapConnections();
+    tapConnMap->shutdownAllTapConnections();
 }
 
 /// @cond DETAILS
@@ -1189,7 +1174,7 @@ private:
 /// @endcond
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::flush(const void *, time_t when) {
-    shared_ptr<AllFlusher> cb(new AllFlusher(epstore, tapConnMap));
+    shared_ptr<AllFlusher> cb(new AllFlusher(epstore, *tapConnMap));
     if (when == 0) {
         cb->doFlush();
     } else {
@@ -1747,7 +1732,7 @@ bool EventuallyPersistentEngine::createTapQueue(const void *cookie,
         isClosedCheckpointOnly = closedCheckpointOnly > 0 ? true : false;
     }
 
-    TapProducer *tap = tapConnMap.newProducer(cookie, name, flags,
+    TapProducer *tap = tapConnMap->newProducer(cookie, name, flags,
                                               backfillAge,
                                               static_cast<int>(configuration.getTapKeepalive()));
 
@@ -1756,7 +1741,7 @@ bool EventuallyPersistentEngine::createTapQueue(const void *cookie,
     tap->setVBucketFilter(vbuckets);
     tap->registerTAPCursor(lastCheckpointIds);
     serverApi->cookie->store_engine_specific(cookie, tap);
-    tapConnMap.notify();
+    tapConnMap->notify();
     return true;
 }
 
@@ -1784,7 +1769,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
             return ENGINE_DISCONNECT;
         } else {
             // Create a new tap consumer...
-            connection = tapConnMap.newConsumer(cookie);
+            connection = tapConnMap->newConsumer(cookie);
             if (connection == NULL) {
                 getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                                  "Failed to create new tap consumer.. disconnecting\n");
@@ -2806,7 +2791,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTapAggStats(const void *cookie,
 
     std::map<std::string, TapCounter*> counters;
     TapAggStatBuilder tapVisitor(&counters, sep, sep_len);
-    tapConnMap.each(tapVisitor);
+    tapConnMap->each(tapVisitor);
 
     std::map<std::string, TapCounter*>::iterator it;
     for (it = counters.begin(); it != counters.end(); ++it) {
@@ -2821,10 +2806,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTapStats(const void *cookie,
                                                          ADD_STAT add_stat) {
     TapCounter aggregator;
     TapStatBuilder tapVisitor(cookie, add_stat, &aggregator);
-    tapConnMap.each(tapVisitor);
+    tapConnMap->each(tapVisitor);
 
     add_casted_stat("ep_tap_total_fetched", stats.numTapFetched, add_stat, cookie);
-    add_casted_stat("ep_tap_bg_max_pending", TapProducer::bgMaxPending,
+    add_casted_stat("ep_tap_bg_max_pending", tapConfig->getBgMaxPending(),
                     add_stat, cookie);
     add_casted_stat("ep_tap_bg_fetched", stats.numTapBGFetched, add_stat, cookie);
     add_casted_stat("ep_tap_bg_fetch_requeued", stats.numTapBGFetchRequeued,
@@ -2832,9 +2817,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTapStats(const void *cookie,
     add_casted_stat("ep_tap_fg_fetched", stats.numTapFGFetched, add_stat, cookie);
     add_casted_stat("ep_tap_deletes", stats.numTapDeletes, add_stat, cookie);
     add_casted_stat("ep_tap_throttled", stats.tapThrottled, add_stat, cookie);
-//    add_casted_stat("ep_tap_keepalive", tapKeepAlive, add_stat, cookie);
-    add_casted_stat("ep_tap_noop_interval", tapNoopInterval, add_stat, cookie);
-
+    add_casted_stat("ep_tap_noop_interval", tapConnMap->getTapNoopInterval(), add_stat, cookie);
     add_casted_stat("ep_tap_count", aggregator.totalTaps, add_stat, cookie);
     add_casted_stat("ep_tap_total_queue", aggregator.tap_queue, add_stat, cookie);
     add_casted_stat("ep_tap_queue_fill", aggregator.tap_queueFill, add_stat, cookie);
@@ -2847,16 +2830,14 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTapStats(const void *cookie,
                     add_stat, cookie);
     add_casted_stat("ep_tap_total_backlog_size", aggregator.tap_totalBacklogSize,
                     add_stat, cookie);
-
-    add_casted_stat("ep_tap_ack_window_size", TapProducer::ackWindowSize,
+    add_casted_stat("ep_tap_ack_window_size", tapConfig->getAckWindowSize(),
                     add_stat, cookie);
-    add_casted_stat("ep_tap_ack_interval", TapProducer::ackInterval,
+    add_casted_stat("ep_tap_ack_interval", tapConfig->getAckInterval(),
                     add_stat, cookie);
-    add_casted_stat("ep_tap_ack_grace_period",
-                    TapProducer::ackGracePeriod,
+    add_casted_stat("ep_tap_ack_grace_period", tapConfig->getAckGracePeriod(),
                     add_stat, cookie);
     add_casted_stat("ep_tap_backoff_period",
-                    TapProducer::backoffSleepTime,
+                    tapConfig->getBackoffSleepTime(),
                     add_stat, cookie);
 
 
@@ -3150,22 +3131,22 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
 void EventuallyPersistentEngine::notifyTapIoThread(void) {
     // Fix clean shutdown!!!
     while (!shutdown) {
-        tapConnMap.notifyIOThreadMain();
+        tapConnMap->notifyIOThreadMain();
 
         if (shutdown) {
             return;
         }
 
-        tapConnMap.wait(1.0);
+        tapConnMap->wait(1.0);
     }
 }
 
 void EventuallyPersistentEngine::notifyTapNotificationThread(void) {
-    tapConnMap.notify();
+    tapConnMap->notify();
 }
 
 void EventuallyPersistentEngine::setTapValidity(const std::string &name, const void* token) {
-    tapConnMap.setValidity(name, token);
+    tapConnMap->setValidity(name, token);
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::touch(const void *cookie,
@@ -3643,7 +3624,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deregisterTapClient(const void *co
     tap_name.append(name);
 
     // Close the tap connection for the registered TAP client and remove its checkpoint cursors.
-    bool rv = tapConnMap.closeTapConnectionByName(tap_name);
+    bool rv = tapConnMap->closeTapConnectionByName(tap_name);
     if (!rv) {
         // If the tap connection is not found, we still need to remove its checkpoint cursors.
         const VBucketMap &vbuckets = getEpStore()->getVBuckets();
@@ -3696,7 +3677,7 @@ EventuallyPersistentEngine::resetReplicationChain(const void *cookie,
                                                   protocol_binary_request_header *req,
                                                   ADD_RESPONSE response) {
     (void) req;
-    tapConnMap.resetReplicaChain();
+    tapConnMap->resetReplicaChain();
     if (response(NULL, 0, NULL, 0, NULL, 0,
                  PROTOCOL_BINARY_RAW_BYTES, PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie)) {
         return ENGINE_SUCCESS;

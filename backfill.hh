@@ -10,8 +10,6 @@
 #include "dispatcher.hh"
 #include "ep_engine.h"
 
-#define DEFAULT_BACKFILL_RESIDENT_THRESHOLD 0.9
-#define MINIMUM_BACKFILL_RESIDENT_THRESHOLD 0.7
 #define BACKFILL_MEM_THRESHOLD 0.9
 
 /**
@@ -58,11 +56,12 @@ public:
                     const void *token, const VBucketFilter &backfillVBfilter):
         VBucketVisitor(), engine(e), name(tc->getName()),
         queue(new std::list<queued_item>),
-        found(), filter(backfillVBfilter), validityToken(token),
-        maxBackfillSize(e->tapBacklogLimit), valid(true),
+        found(), filter(backfillVBfilter),
+        validityToken(token), valid(true),
         efficientVBDump(e->epstore->getStorageProperties().hasEfficientVBDump()),
         residentRatioBelowThreshold(false) {
-        found.reserve(e->tapBacklogLimit);
+
+        found.reserve(e->getTapConfig().getBackfillBacklogLimit());
     }
 
     virtual ~BackFillVisitor() {
@@ -81,8 +80,6 @@ public:
 
     void complete(void);
 
-    static void setResidentItemThreshold(double residentThreshold);
-
 private:
 
     void setEvents();
@@ -98,12 +95,9 @@ private:
     std::vector<uint16_t> vbuckets;
     VBucketFilter filter;
     const void *validityToken;
-    ssize_t maxBackfillSize;
     bool valid;
     bool efficientVBDump;
     bool residentRatioBelowThreshold;
-
-    static double backfillResidentThreshold;
 };
 
 /**

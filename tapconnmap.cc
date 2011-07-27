@@ -43,6 +43,31 @@ private:
     std::string descr;
 };
 
+
+class TapConnMapValueChangeListener : public ValueChangedListener {
+public:
+    TapConnMapValueChangeListener(TapConnMap &tc) : tapconnmap(tc) {
+    }
+
+    virtual void sizeValueChanged(const std::string &key, size_t value) {
+        if (key.compare("tap_noop_interval") == 0) {
+            tapconnmap.setTapNoopInterval(value);
+        }
+    }
+
+private:
+    TapConnMap &tapconnmap;
+};
+
+TapConnMap::TapConnMap(EventuallyPersistentEngine &theEngine) :
+    engine(theEngine), nextTapNoop(0)
+{
+    Configuration &config = engine.getConfiguration();
+    tapNoopInterval = config.getTapNoopInterval();
+    config.addValueChangedListener("tap_noop_interval",
+                                   new TapConnMapValueChangeListener(*this));
+}
+
 void TapConnMap::disconnect(const void *cookie, int tapKeepAlive) {
     LockHolder lh(notifySync);
     std::map<const void*, TapConnection*>::iterator iter(map.find(cookie));
@@ -427,9 +452,9 @@ void TapConnMap::notifyIOThreadMain() {
     bool addNoop = false;
 
     rel_time_t now = ep_current_time();
-    if (now > engine.nextTapNoop && engine.tapNoopInterval != (size_t)-1) {
+    if (now > nextTapNoop && tapNoopInterval != (size_t)-1) {
         addNoop = true;
-        engine.nextTapNoop = now + engine.tapNoopInterval;
+        nextTapNoop = now + tapNoopInterval;
     }
 
     std::list<TapConnection*> deadClients;
@@ -466,7 +491,7 @@ void TapConnMap::notifyIOThreadMain() {
     }
 
     if (shouldPause) {
-        double diff = engine.nextTapNoop - now;
+        double diff = nextTapNoop - now;
         if (diff > 0) {
             notifySync.wait(diff);
         }

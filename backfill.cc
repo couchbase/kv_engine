@@ -5,7 +5,6 @@
 #include "ep.hh"
 #include "backfill.hh"
 
-double BackFillVisitor::backfillResidentThreshold = DEFAULT_BACKFILL_RESIDENT_THRESHOLD;
 
 static bool isMemoryUsageTooHigh(EPStats &stats) {
     double currentSize = static_cast<double>(stats.currentSize.get() + stats.memOverhead.get());
@@ -71,16 +70,18 @@ bool BackFillVisitor::visitBucket(RCPtr<VBucket> vb) {
         if (numItems == 0) {
             return true;
         }
+
+        double residentThreshold = engine->getTapConfig().getBackfillResidentThreshold();
         residentRatioBelowThreshold =
-            ((numItems - numNonResident) / numItems) < backfillResidentThreshold ? true : false;
+            ((numItems - numNonResident) / numItems) < residentThreshold ? true : false;
         if (efficientVBDump && residentRatioBelowThreshold) {
             vbuckets.push_back(vb->getId());
             ScheduleDiskBackfillTapOperation tapop;
-            engine->tapConnMap.performTapOp(name, tapop, static_cast<void*>(NULL));
+            engine->tapConnMap->performTapOp(name, tapop, static_cast<void*>(NULL));
         }
         // When the backfill is scheduled for a given vbucket, set the TAP cursor to
         // the beginning of the open checkpoint.
-        engine->tapConnMap.SetCursorToOpenCheckpoint(name, vb->getId());
+        engine->tapConnMap->SetCursorToOpenCheckpoint(name, vb->getId());
         return true;
     }
     return false;
@@ -108,7 +109,7 @@ void BackFillVisitor::apply(void) {
             assert(d);
             shared_ptr<DispatcherCallback> cb(new BackfillDiskLoad(name,
                                                                    engine,
-                                                                   engine->tapConnMap,
+                                                                   *engine->tapConnMap,
                                                                    underlying,
                                                                    *it,
                                                                    validityToken));
@@ -118,17 +119,6 @@ void BackFillVisitor::apply(void) {
     }
 
     setEvents();
-}
-
-void BackFillVisitor::setResidentItemThreshold(double residentThreshold) {
-    if (residentThreshold < MINIMUM_BACKFILL_RESIDENT_THRESHOLD) {
-        std::stringstream ss;
-        ss << "Resident item threshold " << residentThreshold
-           << " for memory backfill only is too low. Ignore this new threshold...";
-        getLogger()->log(EXTENSION_LOG_WARNING, NULL, ss.str().c_str());
-        return;
-    }
-    backfillResidentThreshold = residentThreshold;
 }
 
 void BackFillVisitor::setEvents() {
@@ -143,7 +133,7 @@ void BackFillVisitor::setEvents() {
                 queue->push_back(it->second);
             }
             found.clear();
-            engine->tapConnMap.setEvents(name, queue);
+            engine->tapConnMap->setEvents(name, queue);
         }
     }
 }
@@ -151,7 +141,7 @@ void BackFillVisitor::setEvents() {
 bool BackFillVisitor::pauseVisitor() {
     bool pause(true);
 
-    ssize_t theSize(engine->tapConnMap.backfillQueueDepth(name));
+    ssize_t theSize(engine->tapConnMap->backfillQueueDepth(name));
     if (!checkValidity() || theSize < 0) {
         getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
                          "TapProducer %s went away.  Stopping backfill.\n",
@@ -160,6 +150,7 @@ bool BackFillVisitor::pauseVisitor() {
         return false;
     }
 
+    ssize_t maxBackfillSize = engine->getTapConfig().getBackfillBacklogLimit();
     pause = theSize > maxBackfillSize || isMemoryUsageTooHigh(engine->getEpStats());
 
     if (pause) {
@@ -173,15 +164,15 @@ bool BackFillVisitor::pauseVisitor() {
 void BackFillVisitor::complete() {
     apply();
     CompleteBackfillTapOperation tapop;
-    engine->tapConnMap.performTapOp(name, tapop, static_cast<void*>(NULL));
-    if (engine->tapConnMap.checkBackfillCompletion(name)) {
+    engine->tapConnMap->performTapOp(name, tapop, static_cast<void*>(NULL));
+    if (engine->tapConnMap->checkBackfillCompletion(name)) {
         engine->notifyTapNotificationThread();
     }
 }
 
 bool BackFillVisitor::checkValidity() {
     if (valid) {
-        valid = engine->tapConnMap.checkConnectivity(name);
+        valid = engine->tapConnMap->checkConnectivity(name);
         if (!valid) {
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                              "Backfilling connectivity for %s went invalid. Stopping backfill.\n",

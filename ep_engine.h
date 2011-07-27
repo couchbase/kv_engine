@@ -26,7 +26,6 @@
 #include "restore.hh"
 #include "configuration.hh"
 
-#define DEFAULT_TAP_NOOP_INTERVAL 200
 #define DEFAULT_BACKFILL_RESIDENT_THRESHOLD 0.9
 #define MINIMUM_BACKFILL_RESIDENT_THRESHOLD 0.7
 
@@ -398,7 +397,7 @@ public:
     }
 
     void handleDisconnect(const void *cookie) {
-        tapConnMap.disconnect(cookie, static_cast<int>(configuration.getTapKeepalive()));
+        tapConnMap->disconnect(cookie, static_cast<int>(configuration.getTapKeepalive()));
     }
 
     protocol_binary_response_status stopFlusher(const char **msg, size_t *msg_size) {
@@ -479,6 +478,8 @@ public:
     }
 
     ~EventuallyPersistentEngine() {
+        delete tapConnMap;
+        delete tapConfig;
         delete epstore;
         delete kvstore;
         delete getlExtension;
@@ -494,7 +495,9 @@ public:
 
     EventuallyPersistentStore* getEpStore() { return epstore; }
 
-    TapConnMap &getTapConnMap() { return tapConnMap; }
+    TapConnMap &getTapConnMap() { return *tapConnMap; }
+
+    TapConfig &getTapConfig() { return *tapConfig; }
 
     bool isForceShutdown(void) const {
         return forceShutdown;
@@ -551,10 +554,6 @@ public:
 
     void setMaySyncOnPersist(bool to) {
         syncOnPersist = to;
-    }
-
-    size_t getTapNoopInterval() const {
-        return tapNoopInterval;
     }
 
 protected:
@@ -635,7 +634,7 @@ private:
 
     void addMutationEvent(Item *it) {
         if (mutation_count == 0) {
-            tapConnMap.notify();
+            tapConnMap->notify();
         }
         ++mutation_count;
         syncRegistry.itemModified(*it);
@@ -643,7 +642,7 @@ private:
 
     void addDeleteEvent(const std::string &key, uint16_t vbid, uint64_t cas) {
         if (mutation_count == 0) {
-            tapConnMap.notify();
+            tapConnMap->notify();
         }
         ++mutation_count;
         syncRegistry.itemDeleted(key_spec_t(cas, vbid, key));
@@ -653,7 +652,7 @@ private:
     void stopEngineThreads(void) {
         if (startedEngineThreads) {
             shutdown = true;
-            tapConnMap.notify();
+            tapConnMap->notify();
             pthread_join(notifyThreadId, NULL);
         }
     }
@@ -737,8 +736,6 @@ private:
     std::map<const void*, Item*> lookups;
     Mutex lookupMutex;
     time_t databaseInitTime;
-    size_t tapNoopInterval;
-    size_t nextTapNoop;
     pthread_t notifyThreadId;
     bool startedEngineThreads;
     AtomicQueue<QueuedItem> pendingTapNotifications;
@@ -750,10 +747,10 @@ private:
     } info;
     GetlExtension *getlExtension;
 
-    TapConnMap tapConnMap;
+    TapConnMap *tapConnMap;
+    TapConfig *tapConfig;
     Mutex tapMutex;
     size_t maxItemSize;
-    size_t tapBacklogLimit;
     size_t memLowWat;
     size_t memHighWat;
     Atomic<uint64_t> mutation_count;

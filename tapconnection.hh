@@ -25,6 +25,8 @@ struct PopulateEventsBody;
 
 #define MAX_TAP_KEEP_ALIVE 3600
 #define MAX_TAKEOVER_TAP_LOG_SIZE 500
+#define MINIMUM_BACKFILL_RESIDENT_THRESHOLD 0.7
+#define DEFAULT_BACKFILL_RESIDENT_THRESHOLD 0.9
 
 #define TAP_OPAQUE_ENABLE_AUTO_NACK 0
 #define TAP_OPAQUE_INITIAL_VBUCKET_STREAM 1
@@ -178,6 +180,119 @@ public:
     bool lastItem;
     tap_checkpoint_state state;
 };
+
+/**
+ * A class containing the config parameters for TAP module.
+ */
+class TapConfig {
+public:
+    TapConfig(EventuallyPersistentEngine &e);
+    uint32_t getAckWindowSize() const {
+        return ackWindowSize;
+    }
+
+    uint32_t getAckInterval() const {
+        return ackInterval;
+    }
+
+    rel_time_t getAckGracePeriod() const {
+        return ackGracePeriod;
+    }
+
+    uint32_t getAckInitialSequenceNumber() const {
+        return ackInitialSequenceNumber;
+    }
+
+    size_t getBgMaxPending() const {
+        return bgMaxPending;
+    }
+
+    double getBackoffSleepTime() const {
+        return backoffSleepTime;
+    }
+
+    double getRequeueSleepTime() const {
+        return requeueSleepTime;
+    }
+
+    size_t getBackfillBacklogLimit() const {
+        return backfillBacklogLimit;
+    }
+
+    double getBackfillResidentThreshold() const {
+        return backfillResidentThreshold;
+    }
+
+protected:
+    friend class TapConfigChangeListener;
+    friend class EventuallyPersistentEngine;
+
+    void setAckWindowSize(size_t value) {
+        ackWindowSize = static_cast<uint32_t>(value);
+    }
+
+    void setAckInterval(size_t value) {
+        ackInterval = static_cast<uint32_t>(value);
+    }
+
+    void setAckGracePeriod(size_t value) {
+        ackGracePeriod = static_cast<rel_time_t>(value);
+    }
+
+    void setAckInitialSequenceNumber(size_t value) {
+        ackInitialSequenceNumber = static_cast<uint32_t>(value);
+    }
+
+    void setBgMaxPending(size_t value) {
+        bgMaxPending = value;
+    }
+
+    void setBackoffSleepTime(double value) {
+        backoffSleepTime = value;
+    }
+
+    void setRequeueSleepTime(double value) {
+        requeueSleepTime = value;
+    }
+
+    void setBackfillBacklogLimit(size_t value) {
+        backfillBacklogLimit = value;
+    }
+
+    void setBackfillResidentThreshold(double value) {
+        if (value < MINIMUM_BACKFILL_RESIDENT_THRESHOLD) {
+            value = DEFAULT_BACKFILL_RESIDENT_THRESHOLD;
+        }
+        backfillResidentThreshold = value;
+    }
+
+    static void addConfigChangeListener(EventuallyPersistentEngine &engine);
+
+private:
+    // Constants used to enforce the tap ack protocol
+    uint32_t ackWindowSize;
+    uint32_t ackInterval;
+    rel_time_t ackGracePeriod;
+
+    /**
+     * To ease testing of corner cases we need to be able to seed the
+     * initial tap sequence numbers (if not we would have to wrap an uin32_t)
+     */
+    uint32_t ackInitialSequenceNumber;
+
+    // Parameters to control the backoff behavior of TAP producer
+    size_t bgMaxPending;
+    double backoffSleepTime;
+    double requeueSleepTime;
+
+    // Parameters to control the backfill
+    size_t backfillBacklogLimit;
+    double backfillResidentThreshold;
+
+    EventuallyPersistentEngine &engine;
+};
+
+
 
 /**
  * An abstract class representing a TAP connection. There are two different
@@ -1202,22 +1317,6 @@ private:
     bool isSeqNumRotated;
 
     size_t numNoops;
-
-    static size_t bgMaxPending;
-
-    // Constants used to enforce the tap ack protocol
-    static uint32_t ackWindowSize;
-    static uint32_t ackInterval;
-    static rel_time_t ackGracePeriod;
-
-    static double backoffSleepTime;
-    static double requeueSleepTime;
-
-    /**
-     * To ease testing of corner cases we need to be able to seed the
-     * initial tap sequence numbers (if not we would have to wrap an uin32_t)
-     */
-    static uint32_t initialAckSequenceNumber;
 
     DISALLOW_COPY_AND_ASSIGN(TapProducer);
 };

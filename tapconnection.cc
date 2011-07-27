@@ -52,14 +52,78 @@ void TapConnection::releaseReference(bool force)
     }
 }
 
+class TapConfigChangeListener : public ValueChangedListener {
+public:
+    TapConfigChangeListener(TapConfig &c) : config(c) {
+        // EMPTY
+    }
 
-size_t TapProducer::bgMaxPending = 500;
-uint32_t TapProducer::ackWindowSize = 10;
-uint32_t TapProducer::ackInterval = 1000;
-rel_time_t TapProducer::ackGracePeriod = 5 * 60;
-double TapProducer::backoffSleepTime = 5.0;
-uint32_t TapProducer::initialAckSequenceNumber = 1;
-double TapProducer::requeueSleepTime = 0.1;
+    virtual void sizeValueChanged(const std::string &key, size_t value) {
+        if (key.compare("tap_ack_grace_period") == 0) {
+            config.setAckGracePeriod(value);
+        } else if (key.compare("tap_ack_initial_sequence_number") == 0) {
+            config.setAckInitialSequenceNumber(value);
+        } else if (key.compare("tap_ack_interval") == 0) {
+            config.setAckInterval(value);
+        } else if (key.compare("tap_ack_window_size") == 0) {
+            config.setAckWindowSize(value);
+        } else if (key.compare("tap_bg_max_pending") == 0) {
+            config.setBgMaxPending(value);
+        } else if (key.compare("tap_backlog_limit") == 0) {
+            config.setBackfillBacklogLimit(value);
+        }
+    }
+
+    virtual void floatValueChanged(const std::string &key, float value) {
+        if (key.compare("tap_backoff_period") == 0) {
+            config.setBackoffSleepTime(value);
+        } else if (key.compare("tap_requeue_sleep_time") == 0) {
+            config.setRequeueSleepTime(value);
+        } else if (key.compare("tap_backfill_resident") == 0) {
+            config.setBackfillResidentThreshold(value);
+        }
+    }
+
+private:
+    TapConfig &config;
+};
+
+TapConfig::TapConfig(EventuallyPersistentEngine &e)
+    : engine(e)
+{
+    Configuration &config = engine.getConfiguration();
+    ackWindowSize = config.getTapAckWindowSize();
+    ackInterval = config.getTapAckInterval();
+    ackGracePeriod = config.getTapAckGracePeriod();
+    ackInitialSequenceNumber = config.getTapAckInitialSequenceNumber();
+    bgMaxPending = config.getTapBgMaxPending();
+    backoffSleepTime = config.getTapBackoffPeriod();
+    requeueSleepTime = config.getTapRequeueSleepTime();
+    backfillBacklogLimit = config.getTapBacklogLimit();
+    backfillResidentThreshold = config.getTapBackfillResident();
+}
+
+void TapConfig::addConfigChangeListener(EventuallyPersistentEngine &engine) {
+    Configuration &configuration = engine.getConfiguration();
+    configuration.addValueChangedListener("tap_ack_grace_period",
+                              new TapConfigChangeListener(engine.getTapConfig()));
+    configuration.addValueChangedListener("tap_ack_initial_sequence_number",
+                              new TapConfigChangeListener(engine.getTapConfig()));
+    configuration.addValueChangedListener("tap_ack_interval",
+                              new TapConfigChangeListener(engine.getTapConfig()));
+    configuration.addValueChangedListener("tap_ack_window_size",
+                              new TapConfigChangeListener(engine.getTapConfig()));
+    configuration.addValueChangedListener("tap_bg_max_pending",
+                              new TapConfigChangeListener(engine.getTapConfig()));
+    configuration.addValueChangedListener("tap_backoff_period",
+                              new TapConfigChangeListener(engine.getTapConfig()));
+    configuration.addValueChangedListener("tap_requeue_sleep_time",
+                              new TapConfigChangeListener(engine.getTapConfig()));
+    configuration.addValueChangedListener("tap_backlog_limit",
+                              new TapConfigChangeListener(engine.getTapConfig()));
+    configuration.addValueChangedListener("tap_backfill_resident",
+                              new TapConfigChangeListener(engine.getTapConfig()));
+}
 
 TapProducer::TapProducer(EventuallyPersistentEngine &theEngine,
                          const void *c,
@@ -87,8 +151,8 @@ TapProducer::TapProducer(EventuallyPersistentEngine &theEngine,
     queueMemSize(0),
     queueFill(0),
     queueDrain(0),
-    seqno(initialAckSequenceNumber),
-    seqnoReceived(initialAckSequenceNumber - 1),
+    seqno(theEngine.getTapConfig().getAckInitialSequenceNumber()),
+    seqnoReceived(theEngine.getTapConfig().getAckInitialSequenceNumber() - 1),
     notifySent(false),
     registeredTAPClient(false),
     lastMsgTime(ep_current_time()),
@@ -100,7 +164,7 @@ TapProducer::TapProducer(EventuallyPersistentEngine &theEngine,
     queue = new std::list<queued_item>;
 
     if (supportAck) {
-        expiryTime = ep_current_time() + ackGracePeriod;
+        expiryTime = ep_current_time() + engine.getTapConfig().getAckGracePeriod();
     }
 
     if (cookie != NULL) {
@@ -313,13 +377,16 @@ bool TapProducer::windowIsFull() {
         return false;
     }
 
+    const TapConfig &config = engine.getTapConfig();
+    uint32_t limit = config.getAckWindowSize() * config.getAckInterval();
     if (seqno >= seqnoReceived) {
-        if ((seqno - seqnoReceived) <= (ackWindowSize * ackInterval)) {
+
+        if ((seqno - seqnoReceived) <= limit) {
             return false;
         }
     } else {
         uint32_t n = static_cast<uint32_t>(-1) - seqnoReceived + seqno;
-        if (n <= (ackWindowSize * ackInterval)) {
+        if (n <= limit) {
             return false;
         }
     }
@@ -363,6 +430,9 @@ bool TapProducer::requestAck(tap_event_t event, uint16_t vbucket) {
         event == TAP_CHECKPOINT_END) {
         explicitEvent = true;
     }
+
+    const TapConfig &config = engine.getTapConfig();
+    uint32_t ackInterval = config.getAckInterval();
 
     return (explicitEvent ||
             ((seqno - 1) % ackInterval) == 0 || // ack at a regular interval
@@ -499,8 +569,9 @@ bool TapProducer::isSuspended() const {
 void TapProducer::setSuspended(bool value)
 {
     if (value) {
-        if (backoffSleepTime > 0 && !suspended.get()) {
-            double sleepTime = takeOverCompletionPhase ? 0.5 : backoffSleepTime;
+        const TapConfig &config = engine.getTapConfig();
+        if (config.getBackoffSleepTime() > 0 && !suspended.get()) {
+            double sleepTime = takeOverCompletionPhase ? 0.5 : config.getBackoffSleepTime();
             Dispatcher *d = engine.getEpStore()->getNonIODispatcher();
             d->schedule(shared_ptr<DispatcherCallback>
                         (new TapResumeCallback(engine, *this)),
@@ -575,6 +646,9 @@ ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
     LockHolder lh(queueLock);
     std::list<TapLogElement>::iterator iter = tapLog.begin();
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
+
+    const TapConfig &config = engine.getTapConfig();
+    rel_time_t ackGracePeriod = config.getAckGracePeriod();
 
     expiryTime = ep_current_time() + ackGracePeriod;
     if (isSeqNumRotated && s < seqnoReceived) {
@@ -726,7 +800,8 @@ void TapProducer::encodeVBucketStateTransition(const TapVBucketEvent &ev, void *
 
 bool TapProducer::waitForBackfill() {
     LockHolder lh(queueLock);
-    if ((bgJobIssued - bgJobCompleted) > bgMaxPending) {
+    const TapConfig &config = engine.getTapConfig();
+    if ((bgJobIssued - bgJobCompleted) > config.getBgMaxPending()) {
         return true;
     }
     return false;
@@ -765,7 +840,7 @@ public:
         if (gcb.val.getStatus() == ENGINE_SUCCESS) {
             ReceivedItemTapOperation tapop;
             // if the tap connection is closed, then free an Item instance
-            if (!epe->tapConnMap.performTapOp(name, tapop, gcb.val.getValue())) {
+            if (!epe->getTapConnMap().performTapOp(name, tapop, gcb.val.getValue())) {
                 delete gcb.val.getValue();
             }
             epe->notifyIOComplete(cookie, ENGINE_SUCCESS);
@@ -776,7 +851,8 @@ public:
                 LockHolder lh = vb->ht.getLockedBucket(key, &bucket_num);
                 StoredValue *v = epstore->fetchValidValue(vb, key, bucket_num);
                 if (v) {
-                    d.snooze(t, TapProducer::requeueSleepTime);
+                    const TapConfig &config = epe->getTapConfig();
+                    d.snooze(t, config.getRequeueSleepTime());
                     ++stats.numTapBGFetchRequeued;
                     return true;
                 }
@@ -784,7 +860,7 @@ public:
         }
 
         CompletedBGFetchTapOperation tapop;
-        epe->tapConnMap.performTapOp(name, tapop, epe);
+        epe->getTapConnMap().performTapOp(name, tapop, epe);
 
         hrtime_t stop = gethrtime();
 
@@ -1188,7 +1264,7 @@ bool TapProducer::isTimeForNoop() {
 void TapProducer::setTimeForNoop()
 {
     rel_time_t now = ep_current_time();
-    noop = (lastMsgTime + engine.getTapNoopInterval()) < now ? true : false;
+    noop = (lastMsgTime + engine.getTapConnMap().getTapNoopInterval()) < now ? true : false;
 }
 
 bool TapProducer::cleanSome()

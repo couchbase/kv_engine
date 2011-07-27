@@ -3339,19 +3339,11 @@ static enum test_result test_tap_noop_config_default(ENGINE_HANDLE *h, ENGINE_HA
 {
     h1->reset_stats(h, NULL);
     check(get_int_stat(h, h1, "ep_tap_noop_interval", "tap") == 200,
-          "Expected tap_noop_interval == 10");
+          "Expected tap_noop_interval == 200");
     return SUCCESS;
 }
 
 static enum test_result test_tap_noop_config(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
-{
-    h1->reset_stats(h, NULL);
-    check(get_int_stat(h, h1, "ep_tap_noop_interval", "tap") == 10,
-          "Expected tap_noop_interval == 10");
-    return SUCCESS;
-}
-
-static enum test_result test_tap_noop_config_deprecated(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
 {
     h1->reset_stats(h, NULL);
     check(get_int_stat(h, h1, "ep_tap_noop_interval", "tap") == 10,
@@ -5664,10 +5656,6 @@ engine_test_t* get_tests(void) {
         TestCase("tap_noop_interval config", test_tap_noop_config, NULL,
                  teardown,
                  "tap_noop_interval=10", prepare, cleanup, BACKEND_ALL),
-        TestCase("tap_noop_interval config compat",
-                 test_tap_noop_config_deprecated,
-                 NULL, teardown,
-                 "tap_idle_timeout=30", prepare, cleanup, BACKEND_ALL),
         TestCase("tap receiver mutation", test_tap_rcvr_mutate, NULL, teardown,
                  NULL, prepare, cleanup, BACKEND_ALL),
         TestCase("tap receiver checkpoint start/end", test_tap_rcvr_checkpoint,

@@ -88,7 +88,7 @@ public:
  */
 class TapConnMap {
 public:
-    TapConnMap(EventuallyPersistentEngine &theEngine) : engine(theEngine) {}
+    TapConnMap(EventuallyPersistentEngine &theEngine);
 
 
     /**
@@ -254,6 +254,19 @@ public:
 
     void resetReplicaChain();
 
+    size_t getTapNoopInterval() const {
+        return tapNoopInterval;
+    }
+
+protected:
+    friend class TapConnMapValueChangeListener;
+
+    void setTapNoopInterval(size_t value) {
+        tapNoopInterval = value;
+        nextTapNoop = 0;
+        notify();
+    }
+
 private:
 
     TapConnection *findByName_UNLOCKED(const std::string &name);
@@ -274,6 +287,8 @@ private:
 
     /* Handle to the engine who owns us */
     EventuallyPersistentEngine &engine;
+    size_t tapNoopInterval;
+    size_t nextTapNoop;
 };
 
 #endif /* TAPCONNMAP_HH */
