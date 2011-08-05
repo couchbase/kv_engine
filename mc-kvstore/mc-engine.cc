@@ -1096,6 +1096,8 @@ void MemcachedEngine::flush(Callback<bool> &cb) {
     req->message.header.request.magic = PROTOCOL_BINARY_REQ;
     req->message.header.request.opcode = PROTOCOL_BINARY_CMD_FLUSH;
     req->message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
+    req->message.header.request.extlen = 4;
+    req->message.header.request.bodylen = ntohl(4);
     buffer->avail = buffer->size;
 
     insertCommand(new FlushResponseHandler(buffer, epStats, cb));
