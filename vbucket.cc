@@ -178,3 +178,27 @@ void VBucket::resetStats() {
     dirtyQueuePendingWrites.set(0);
     dirtyQueueDrain.set(0);
 }
+
+void VBucket::addStats(bool details, ADD_STAT add_stat, const void *c) {
+    addStat(NULL, toString(state), add_stat, c);
+    if (details) {
+        addStat("num_items", ht.getNumItems(), add_stat, c);
+        addStat("num_resident", ht.getNumNonResidentItems(), add_stat, c);
+        addStat("ht_memory", ht.memorySize(), add_stat, c);
+        addStat("ht_item_memory", ht.getItemMemory(), add_stat, c);
+        addStat("ht_cache_size", ht.cacheSize, add_stat, c);
+        addStat("num_ejects", ht.getNumEjects(), add_stat, c);
+        addStat("ops_create", opsCreate, add_stat, c);
+        addStat("ops_update", opsUpdate, add_stat, c);
+        addStat("ops_delete", opsDelete, add_stat, c);
+        addStat("ops_reject", opsReject, add_stat, c);
+        addStat("queue_size", dirtyQueueSize, add_stat, c);
+        addStat("queue_memory", dirtyQueueMem, add_stat, c);
+        addStat("queue_fill", dirtyQueueFill, add_stat, c);
+        addStat("queue_drain", dirtyQueueDrain, add_stat, c);
+        addStat("queue_age", getQueueAge(), add_stat, c);
+        addStat("pending_writes", dirtyQueuePendingWrites, add_stat, c);
+        addStat("online_update", checkpointManager.isOnlineUpdate() ?
+                "true" : "false", add_stat, c);
+    }
+}

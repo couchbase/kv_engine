@@ -2496,20 +2496,23 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doVBucketStats(const void *cookie,
                                                              ADD_STAT add_stat,
-                                                             bool prevStateRequested) {
+                                                             bool prevStateRequested,
+                                                             bool details) {
     class StatVBucketVisitor : public VBucketVisitor {
     public:
-        StatVBucketVisitor(const void *c, ADD_STAT a, bool isPrevStateRequested) :
-            cookie(c), add_stat(a), isPrevState(isPrevStateRequested) {}
+        StatVBucketVisitor(const void *c, ADD_STAT a,
+                           bool isPrevStateRequested, bool detailsRequested) :
+            cookie(c), add_stat(a), isPrevState(isPrevStateRequested),
+            isDetailsRequested(detailsRequested) {}
 
         bool visitBucket(RCPtr<VBucket> vb) {
-            char buf[16];
-            snprintf(buf, sizeof(buf), "vb_%d", vb->getId());
             if (isPrevState) {
+                char buf[16];
+                snprintf(buf, sizeof(buf), "vb_%d", vb->getId());
                 add_casted_stat(buf, VBucket::toString(vb->getInitialState()),
                                 add_stat, cookie);
             } else {
-                add_casted_stat(buf, VBucket::toString(vb->getState()), add_stat, cookie);
+                vb->addStats(isDetailsRequested, add_stat, cookie);
             }
             return false;
         }
@@ -2518,9 +2521,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doVBucketStats(const void *cookie,
         const void *cookie;
         ADD_STAT add_stat;
         bool isPrevState;
+        bool isDetailsRequested;
     };
 
-    StatVBucketVisitor svbv(cookie, add_stat, prevStateRequested);
+    StatVBucketVisitor svbv(cookie, add_stat, prevStateRequested, details);
     epstore->visit(svbv);
     return ENGINE_SUCCESS;
 }
@@ -3060,9 +3064,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
     } else if (nkey == 4 && strncmp(stat_key, "hash", 3) == 0) {
         rv = doHashStats(cookie, add_stat);
     } else if (nkey == 7 && strncmp(stat_key, "vbucket", 7) == 0) {
-        rv = doVBucketStats(cookie, add_stat);
+        rv = doVBucketStats(cookie, add_stat, false, false);
+    } else if (nkey == 15 && strncmp(stat_key, "vbucket-details", 15) == 0) {
+        rv = doVBucketStats(cookie, add_stat, false, true);
     } else if (nkey == 12 && strncmp(stat_key, "prev-vbucket", 12) == 0) {
-        rv = doVBucketStats(cookie, add_stat, true);
+        rv = doVBucketStats(cookie, add_stat, true, false);
     } else if (nkey == 10 && strncmp(stat_key, "checkpoint", 10) == 0) {
         rv = doCheckpointStats(cookie, add_stat);
     } else if (nkey == 7 && strncmp(stat_key, "timings", 7) == 0) {

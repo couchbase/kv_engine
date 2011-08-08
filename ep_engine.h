@@ -682,7 +682,8 @@ private:
 
     ENGINE_ERROR_CODE doEngineStats(const void *cookie, ADD_STAT add_stat);
     ENGINE_ERROR_CODE doVBucketStats(const void *cookie, ADD_STAT add_stat,
-                                     bool prevStateRequested = false);
+                                     bool prevStateRequested,
+                                     bool details);
     ENGINE_ERROR_CODE doHashStats(const void *cookie, ADD_STAT add_stat);
     ENGINE_ERROR_CODE doCheckpointStats(const void *cookie, ADD_STAT add_stat);
     ENGINE_ERROR_CODE doTapStats(const void *cookie, ADD_STAT add_stat);

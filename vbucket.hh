@@ -232,6 +232,8 @@ public:
     static const vbucket_state_t PENDING;
     static const vbucket_state_t DEAD;
 
+    void addStats(bool details, ADD_STAT add_stat, const void *c);
+
     Atomic<size_t>  opsCreate;
     Atomic<size_t>  opsUpdate;
     Atomic<size_t>  opsDelete;
@@ -245,6 +247,20 @@ public:
     Atomic<size_t>  dirtyQueuePendingWrites;
 
 private:
+    template <typename T>
+    void addStat(const char *nm, T val, ADD_STAT add_stat, const void *c) {
+        std::stringstream name;
+        name << "vb_" << id;
+        if (nm != NULL) {
+            name << ":" << nm;
+        }
+        std::stringstream value;
+        value << val;
+        std::string n = name.str();
+        add_stat(n.data(), static_cast<uint16_t>(n.length()),
+                 value.str().data(), static_cast<uint32_t>(value.str().length()),
+                 c);
+    }
 
     void fireAllOps(EventuallyPersistentEngine &engine, ENGINE_ERROR_CODE code);
 
