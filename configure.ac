@@ -163,8 +163,10 @@ AS_IF([test "x$SUNCC" = "xyes"],
         CFLAGS="-D_XOPEN_SOURCE=600 $CFLAGS"
         CPPFLAGS="-xldscope=hidden -mt $CPPFLAGS"
         CXXFLAGS="-erroff=truncwarn1,signextwarn,notused,inllargeuse,wunreachable $CXXFLAGS"
-        LIBS="$LIBS -lsocket -lnsl"
       ])
+
+AC_SEARCH_LIBS(socket, socket)
+AC_SEARCH_LIBS(gethostbyname, nsl)
 
 AH_TOP([
 #ifndef CONFIG_H
