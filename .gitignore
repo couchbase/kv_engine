@@ -20,6 +20,7 @@
 /aclocal.m4
 /atomic_test
 /autom4te.cache
+/config.cache
 /config.h
 /config.h.in
 /config.log
