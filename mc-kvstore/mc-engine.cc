@@ -382,7 +382,7 @@ public:
             Item *item = new Item(keyptr, keylen,
                     mreq->message.body.item.flags,
                     mreq->message.body.item.expiration, valptr, vallen,
-                    req->request.cas, -1, ntohs(req->request.vbucket));
+                    req->request.cas, 1, ntohs(req->request.vbucket));
 
             GetValue rv(item, ENGINE_SUCCESS, -1, -1, NULL, partial);
             callback.cb.callback(rv);
