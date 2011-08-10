@@ -15,7 +15,12 @@ bin_SCRIPTS = management/analyze_core \
 
 memcachedlibdir = $(libdir)/memcached
 memcachedlib_LTLIBRARIES = ep.la ep_testsuite.la timing_tests.la
-noinst_LTLIBRARIES = libsqlite-kvstore.la libmc-kvstore.la libobjectregistry.la libconfiguration.la
+noinst_LTLIBRARIES = \
+                     libconfiguration.la \
+                     libkvstore.la \
+                     libmc-kvstore.la \
+                     libobjectregistry.la \
+                     libsqlite-kvstore.la
 
 bin_PROGRAMS = management/mbdbconvert
 BUILT_SOURCES = generated_configuration.cc \
@@ -85,7 +90,11 @@ ep_la_SOURCES = \
 
 libobjectregistry_la_SOURCES = objectregistry.cc objectregistry.hh
 
-libsqlite_kvstore_la_SOURCES = kvstore.cc kvstore.hh \
+libkvstore_la_SOURCES = kvstore.cc kvstore.hh
+libkvstore_la_CPPFLAGS = -I$(top_srcdir) -I$(top_srcdir)/sqlite-kvstore \
+                         $(AM_CPPFLAGS)
+
+libsqlite_kvstore_la_SOURCES = kvstore.hh \
                                sqlite-kvstore/pathexpand.hh \
                                sqlite-kvstore/pathexpand.cc \
                                sqlite-kvstore/sqlite-eval.cc \
@@ -123,21 +132,21 @@ libconfiguration_la_SOURCES = \
                               configuration.hh \
                               configuration.cc
 
-ep_la_LIBADD = libsqlite-kvstore.la libmc-kvstore.la \
+ep_la_LIBADD = libkvstore.la libsqlite-kvstore.la libmc-kvstore.la \
                libobjectregistry.la libconfiguration.la $(LTLIBEVENT)
-ep_la_DEPENDENCIES = libsqlite-kvstore.la libmc-kvstore.la \
+ep_la_DEPENDENCIES = libkvstore.la libsqlite-kvstore.la libmc-kvstore.la \
                      libobjectregistry.la libconfiguration.la
-ep_testsuite_la_LIBADD = libsqlite-kvstore.la libmc-kvstore.la \
+ep_testsuite_la_LIBADD = libkvstore.la libsqlite-kvstore.la libmc-kvstore.la \
                          libobjectregistry.la libconfiguration.la $(LTLIBEVENT)
-ep_testsuite_la_DEPENDENCIES = libsqlite-kvstore.la libmc-kvstore.la \
+ep_testsuite_la_DEPENDENCIES = libkvstore.la libsqlite-kvstore.la libmc-kvstore.la \
                                libobjectregistry.la
 
 management_mbdbconvert_SOURCES = management/dbconvert.cc \
                                  testlogger.cc
-management_mbdbconvert_LDADD = libsqlite-kvstore.la libmc-kvstore.la \
+management_mbdbconvert_LDADD = libkvstore.la libsqlite-kvstore.la libmc-kvstore.la \
                                libobjectregistry.la libconfiguration.la \
                                $(LTLIBEVENT)
-management_mbdbconvert_DEPENDENCIES = libsqlite-kvstore.la libmc-kvstore.la \
+management_mbdbconvert_DEPENDENCIES = libkvstore.la libsqlite-kvstore.la libmc-kvstore.la \
                                       libobjectregistry.la libconfiguration.la
 
 if BUILD_EMBEDDED_LIBSQLITE3
