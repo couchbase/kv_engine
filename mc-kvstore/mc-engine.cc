@@ -420,7 +420,9 @@ private:
 MemcachedEngine::MemcachedEngine(EventuallyPersistentEngine *e, Configuration &config) :
     sock(INVALID_SOCKET), configuration(config), configurationError(true),
     shutdown(false), ev_base(event_base_new()),
-    ev_flags(0), seqno(0), output(NULL), engine(e), epStats(NULL)
+    ev_flags(0), seqno(0), output(NULL),
+    currentCommand(0xff), lastSentCommand(0xff), lastReceivedCommand(0xff),
+    engine(e), epStats(NULL)
 {
     if (engine != NULL) {
         epStats = &engine->getEpStats();
@@ -597,6 +599,10 @@ void MemcachedEngine::updateEvent(evutil_socket_t s) {
 
 void MemcachedEngine::resetConnection(void) {
     LockHolder lh(mutex);
+    lastReceivedCommand = 0xff;
+    lastSentCommand = 0xff;
+    currentCommand = 0xff;
+
     event_del(&ev_event);
     ev_flags = 0;
     EVUTIL_CLOSESOCKET(sock);
@@ -648,11 +654,13 @@ void MemcachedEngine::receiveData(evutil_socket_t s) {
         while (input.avail >= sizeof(*res) && input.avail >= (ntohl(
                 res->response.bodylen) + sizeof(*res))) {
 
+            lastReceivedCommand = res->response.opcode;
             switch (res->response.magic) {
             case PROTOCOL_BINARY_RES:
                 handleResponse(res);
                 break;
             case PROTOCOL_BINARY_REQ:
+                commandStats[res->response.opcode].numSuccess++;
                 handleRequest((protocol_binary_request_header *)res);
                 break;
             default:
@@ -708,6 +716,7 @@ void MemcachedEngine::sendData(evutil_socket_t s) {
                 // we're out of data to send
                 return;
             }
+            currentCommand = output->data[1];
         }
 
         ssize_t nw = send(s, output->data + output->curr,
@@ -732,6 +741,9 @@ void MemcachedEngine::sendData(evutil_socket_t s) {
             if (output->curr == output->avail) {
                 // all data sent!
                 output = NULL;
+                lastSentCommand = currentCommand;
+                commandStats[currentCommand].numSent++;
+                currentCommand = static_cast<uint8_t>(0xff);
             }
         }
     } while (true);
@@ -762,6 +774,8 @@ void MemcachedEngine::handleResponse(protocol_binary_response_header *res) {
     std::list<BinaryPacketHandler*>::iterator iter;
     for (iter = responseHandler.begin(); iter != responseHandler.end()
             && (*iter)->seqno < res->response.opaque; ++iter) {
+        Buffer *b = (*iter)->getCommandBuffer();
+        commandStats[static_cast<uint8_t>(b->data[1])].numImplicit++;
         (*iter)->implicitResponse();
         delete *iter;
     }
@@ -778,6 +792,11 @@ void MemcachedEngine::handleResponse(protocol_binary_response_header *res) {
         }
 
         if (iter != tapHandler.end()) {
+            if (ntohs(res->response.status) == PROTOCOL_BINARY_RESPONSE_SUCCESS){
+                commandStats[res->response.opcode].numSuccess++;
+            } else {
+                commandStats[res->response.opcode].numError++;
+            }
             (*iter)->response(res);
             delete *iter;
             tapHandler.erase(iter);
@@ -786,6 +805,11 @@ void MemcachedEngine::handleResponse(protocol_binary_response_header *res) {
         return ;
     }
 
+    if (ntohs(res->response.status) == PROTOCOL_BINARY_RESPONSE_SUCCESS){
+        commandStats[res->response.opcode].numSuccess++;
+    } else {
+        commandStats[res->response.opcode].numError++;
+    }
     (*iter)->response(res);
     if (res->response.opcode == PROTOCOL_BINARY_CMD_STAT
             && res->response.bodylen != 0) {
@@ -1188,4 +1212,50 @@ void MemcachedEngine::noop(Callback<bool> &cb) {
     req->message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
     buffer->avail = buffer->size;
     insertCommand(new NoopResponseHandler(buffer, epStats, cb));
+}
+
+
+void MemcachedEngine::addStats(const std::string &prefix,
+                               ADD_STAT add_stat,
+                               const void *c) {
+    addStat(prefix, "type", "mccouch", add_stat, c);
+    for (uint8_t ii = 0; ii < 0xff; ++ii) {
+        commandStats[ii].addStats(prefix, cmd2str(ii), add_stat, c);
+    }
+    addStat(prefix, "current_command", cmd2str(currentCommand), add_stat, c);
+    addStat(prefix, "last_sent_command", cmd2str(lastSentCommand), add_stat, c);
+    addStat(prefix, "last_received_command", cmd2str(lastReceivedCommand),
+            add_stat, c);
+}
+
+const char *MemcachedEngine::cmd2str(uint8_t cmd) {
+    switch(cmd) {
+    case PROTOCOL_BINARY_CMD_DELETEQ:
+        return "delq";
+    case PROTOCOL_BINARY_CMD_DEL_VBUCKET:
+        return "del_vbucket";
+    case PROTOCOL_BINARY_CMD_FLUSH:
+        return "flush";
+    case PROTOCOL_BINARY_CMD_GET:
+        return "get";
+    case PROTOCOL_BINARY_CMD_NOOP:
+        return "noop";
+    case PROTOCOL_BINARY_CMD_SETQ:
+        return "setq";
+    case PROTOCOL_BINARY_CMD_SET_VBUCKET:
+        return "set_vbucket";
+    case PROTOCOL_BINARY_CMD_STAT:
+        return "stat";
+    case PROTOCOL_BINARY_CMD_TAP_CONNECT:
+        return "tap_connect";
+    case PROTOCOL_BINARY_CMD_TAP_MUTATION:
+        return "tap_mutation";
+    case PROTOCOL_BINARY_CMD_TAP_OPAQUE:
+        return "tap_opaque";
+    case 0x89 :
+        return "select_vbucket";
+
+    default:
+        return "unknown";
+    }
 }

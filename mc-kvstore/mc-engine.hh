@@ -115,6 +115,10 @@ public:
     void tap(const std::vector<uint16_t> &vbids, bool full, TapCallback &cb);
     void noop(Callback<bool> &cb);
 
+    void addStats(const std::string &prefix,
+                  ADD_STAT add_stat,
+                  const void *c);
+
 protected:
     friend class SelectBucketResponseHandler;
     friend void *start_memcached_engine(void *arg);
@@ -127,6 +131,19 @@ protected:
     void notifyHandler(evutil_socket_t s, short which);
 
 private:
+    template <typename T>
+    void addStat(const std::string &prefix, const char *nm, T val, ADD_STAT add_stat, const void *c) {
+        std::stringstream name;
+        name << prefix << ":" << nm;
+        std::stringstream value;
+        value << val;
+        std::string n = name.str();
+        add_stat(n.data(), static_cast<uint16_t>(n.length()),
+                 value.str().data(),
+                 static_cast<uint32_t>(value.str().length()),
+                 c);
+    }
+
     void doSelectBucket(void);
     void reschedule(std::list<BinaryPacketHandler*> &packets);
     void resetConnection();
@@ -169,6 +186,63 @@ private:
     uint32_t seqno;
     Buffer *output;
     Buffer input;
+
+    /**
+     * The current command in transit (set to 0xff when no command is in
+     * transit. Please note that this is read and written completely
+     * dirty, so you may not trust the value ;)
+     */
+    volatile uint8_t currentCommand;
+    volatile uint8_t lastSentCommand;
+    volatile uint8_t lastReceivedCommand;
+
+    const char *cmd2str(uint8_t cmd);
+
+    /**
+     * Structure used "per command"
+     */
+    class CommandStats {
+    public:
+        CommandStats() : numSent(0), numSuccess(0),
+                         numImplicit(), numError(0) { }
+        volatile size_t numSent;
+        volatile size_t numSuccess;
+        volatile size_t numImplicit;
+        volatile size_t numError;
+
+        void addStat(const std::string &prefix, const char *nm, size_t val, ADD_STAT add_stat, const void *c) {
+            std::stringstream name;
+            name << prefix << ":" << nm;
+            std::stringstream value;
+            value << val;
+            std::string n = name.str();
+            add_stat(n.data(), static_cast<uint16_t>(n.length()),
+                     value.str().data(),
+                     static_cast<uint32_t>(value.str().length()),
+                     c);
+        }
+
+        void addStats(const std::string &prefix,
+                      const char *cmd,
+                      ADD_STAT add_stat,
+                      const void *c) {
+            if (numSent > 0 || numSuccess > 0 ||
+                numImplicit != 0 || numError != 0)
+            {
+                if (strcmp(cmd, "unknown") == 0) {
+                    abort();
+                };
+
+                std::stringstream name;
+                name << prefix << ":" << cmd;
+                addStat(name.str(), "sent", numSent, add_stat, c);
+                addStat(name.str(), "success", numSuccess, add_stat, c);
+                addStat(name.str(), "implicit", numImplicit, add_stat, c);
+                addStat(name.str(), "error", numError, add_stat, c);
+            }
+        }
+    } commandStats[0xff]; // @todo make this map smaller.. we only use
+    // a subset of the packets...
 
     Mutex mutex;
     std::queue<Buffer*> commandQueue;

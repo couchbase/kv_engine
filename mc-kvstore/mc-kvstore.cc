@@ -186,3 +186,11 @@ bool MCKVStore::commit(void) {
     // callback status for all of the items it added..
     return wait.val;
 }
+
+void MCKVStore::addStats(const std::string &prefix,
+                         ADD_STAT add_stat,
+                         const void *c)
+{
+    KVStore::addStats(prefix, add_stat, c);
+    mc->addStats(prefix, add_stat, c);
+}

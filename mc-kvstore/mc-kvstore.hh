@@ -29,6 +29,8 @@ public:
      */
     MCKVStore(const MCKVStore &from);
 
+    virtual void addStats(const std::string &prefix, ADD_STAT add_stat, const void *c);
+
     /**
      * Cleanup.
      */
