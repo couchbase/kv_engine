@@ -3128,6 +3128,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
                         add_stat, cookie);
 
         rv = ENGINE_SUCCESS;
+    } else if (nkey == 7 && strncmp(stat_key, "kvstore", 7) == 0) {
+        getEpStore()->getROUnderlying()->addStats("ro", add_stat, cookie);
+        getEpStore()->getRWUnderlying()->addStats("rw", add_stat, cookie);
+        rv = ENGINE_SUCCESS;
     }
 
     return rv;
