@@ -168,7 +168,8 @@ def main():
     if os.name == 'nt':
         mydir = os.path.dirname(sys.argv[0])
         memcache_dir = os.path.join(mydir, '..', '..', 'memcached')
-        path = [mydir, memcache_dir, os.environ['PATH']]
+        erlang_dir = os.path.join(mydir, 'erlang', 'bin')
+        path = [mydir, memcache_dir, erlang_dir, os.environ['PATH']]
         os.environ['PATH'] = ';'.join(path)
 
     sqlite = findSqlite()
