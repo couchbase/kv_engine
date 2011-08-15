@@ -1630,10 +1630,12 @@ ENGINE_ERROR_CODE  EventuallyPersistentEngine::store(const void *cookie,
 
                 if (old->getCas() == (uint64_t) -1) {
                     // item is locked against updates
+                    itemRelease(cookie, i);
                     return ENGINE_TMPFAIL;
                 }
 
                 if (it->getCas() != 0 && old->getCas() != it->getCas()) {
+                    itemRelease(cookie, i);
                     return ENGINE_KEY_EEXISTS;
                 }
 
