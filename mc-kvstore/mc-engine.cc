@@ -157,11 +157,11 @@ public:
 
             // @todo I need to get the exptime somehow, or is that
             // overwritten with the value we've got in the cache??
-            Item *item = new Item(key, gres->message.body.flags, 0,
+            Item *it = new Item(key, gres->message.body.flags, 0,
                     gres->bytes + sizeof(gres->bytes),
                     ntohl(res->response.bodylen) - 4,
                     ntohll(res->response.cas), -1, vbucket);
-            GetValue rv(item);
+            GetValue rv(it);
             callback.callback(rv);
         } else {
             updateHistogram(0, false);
@@ -379,12 +379,12 @@ public:
 
             // @todo I need to get the exptime somehow, or is that
             // overwritten with the value we've got in the cache??
-            Item *item = new Item(keyptr, keylen,
+            Item *it = new Item(keyptr, keylen,
                     mreq->message.body.item.flags,
                     mreq->message.body.item.expiration, valptr, vallen,
                     req->request.cas, 1, ntohs(req->request.vbucket));
 
-            GetValue rv(item, ENGINE_SUCCESS, -1, -1, NULL, partial);
+            GetValue rv(it, ENGINE_SUCCESS, -1, -1, NULL, partial);
             callback.cb.callback(rv);
         }
     }
@@ -1005,38 +1005,38 @@ void MemcachedEngine::delq(const std::string &key, uint16_t vb,
     insertCommand(new DelResponseHandler(buffer, epStats, cb));
 }
 
-void MemcachedEngine::setq(const Item &item, Callback<mutation_result> &cb) {
+void MemcachedEngine::setq(const Item &it, Callback<mutation_result> &cb) {
 
     protocol_binary_request_set *req;
     Buffer *buffer = new Buffer(
-            sizeof(req->bytes) + item.getNKey() + item.getNBytes());
+            sizeof(req->bytes) + it.getNKey() + it.getNBytes());
     req = (protocol_binary_request_set *)buffer->data;
 
     memset(buffer->data, 0, buffer->size);
     req->message.header.request.magic = PROTOCOL_BINARY_REQ;
     req->message.header.request.opcode = PROTOCOL_BINARY_CMD_SETQ;
     req->message.header.request.extlen = 8;
-    req->message.header.request.keylen = ntohs((uint16_t)item.getNKey());
+    req->message.header.request.keylen = ntohs((uint16_t)it.getNKey());
     req->message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
-    req->message.header.request.vbucket = ntohs(item.getVBucketId());
+    req->message.header.request.vbucket = ntohs(it.getVBucketId());
     // @todo we should probably pos the CAS in the store (not that
     //       couch chould verify it, but be able to store it)
-    // req->message.header.request.cas = ntohll(item.getCas());
-    uint32_t bodylen = req->message.header.request.extlen + item.getNKey()
-            + item.getNBytes();
+    // req->message.header.request.cas = ntohll(it.getCas());
+    uint32_t bodylen = req->message.header.request.extlen + it.getNKey()
+            + it.getNBytes();
     req->message.header.request.bodylen = ntohl(bodylen);
 
-    req->message.body.flags = item.getFlags();
-    req->message.body.expiration = htonl((uint32_t)item.getExptime());
-    memcpy(buffer->data + sizeof(req->bytes), item.getKey().c_str(),
-            item.getNKey());
-    memcpy(buffer->data + sizeof(req->bytes) + item.getNKey(), item.getData(),
-            item.getNBytes());
+    req->message.body.flags = it.getFlags();
+    req->message.body.expiration = htonl((uint32_t)it.getExptime());
+    memcpy(buffer->data + sizeof(req->bytes), it.getKey().c_str(),
+            it.getNKey());
+    memcpy(buffer->data + sizeof(req->bytes) + it.getNKey(), it.getData(),
+            it.getNBytes());
 
     buffer->avail = buffer->size;
 
-    insertCommand(new SetResponseHandler(buffer, epStats, item.getId() <= 0,
-                                         item.getNBytes(), cb));
+    insertCommand(new SetResponseHandler(buffer, epStats, it.getId() <= 0,
+                                         it.getNBytes(), cb));
 }
 
 void MemcachedEngine::get(const std::string &key, uint16_t vb,
