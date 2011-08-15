@@ -760,8 +760,7 @@ Buffer *MemcachedEngine::nextToSend() {
     if (packet_debug) {
         std::cout << ret;
     }
-    protocol_binary_response_header *res;
-    res = (protocol_binary_response_header *)ret->data;
+
     return ret;
 }
 
