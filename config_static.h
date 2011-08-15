@@ -7,6 +7,8 @@
 #ifndef CONFIG_STATIC_H
 #define CONFIG_STATIC_H 1
 
+#include <sys/types.h>
+
 #ifdef HAVE_INTTYPES_H
 #include <inttypes.h>
 #endif
