@@ -60,6 +60,10 @@ static void *launch_test_thread(void *arg) {
 }
 
 int main() {
+#ifdef __sun
+   std::cout << "Skipping test" << std::endl;
+   exit(0);
+#endif
     pthread_t threads[NUM_THREADS];
     pthread_t consumer;
     int i(0), rc(0);
