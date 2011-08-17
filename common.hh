@@ -48,6 +48,10 @@ using UNORDERED_MAP_NAMESPACE::unordered_map;
 # error No unordered_map implementation found!
 #endif
 
+#if defined(HAVE_LIBTCMALLOC) || defined(HAVE_LIBTCMALLOC_MINIMAL)
+# include "tcmalloc/tcmalloc_stats.hh"
+#endif
+
 #include <sstream>
 
 /* Linux' limits don't bring this in in c++ mode without doing weird

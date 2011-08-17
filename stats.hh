@@ -2,6 +2,7 @@
 #ifndef STATS_HH
 #define STATS_HH 1
 
+#include <map>
 #include <memcached/engine.h>
 
 #include "common.hh"
@@ -387,6 +388,20 @@ struct key_stats {
     uint32_t flags;
     //! True if this item is dirty.
     bool dirty;
+};
+
+/**
+ * Stats returned by the underlying memory allocator.
+ */
+class MemoryAllocatorStats {
+public:
+    static void getAllocatorStats(std::map<std::string, size_t> &allocator_stats) {
+#if defined(HAVE_LIBTCMALLOC) || defined(HAVE_LIBTCMALLOC_MINIMAL)
+        TCMallocStats::getStats(allocator_stats);
+#else
+        (void) allocator_stats;
+#endif
+    }
 };
 
 #endif /* STATS_HH */

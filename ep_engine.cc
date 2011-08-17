@@ -2881,6 +2881,30 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     return ENGINE_SUCCESS;
 }
 
+ENGINE_ERROR_CODE EventuallyPersistentEngine::doMemoryStats(const void *cookie,
+                                                           ADD_STAT add_stat) {
+
+    add_casted_stat("mem_used", stats.currentSize + stats.memOverhead, add_stat,
+                    cookie);
+    add_casted_stat("ep_kv_size", stats.currentSize, add_stat, cookie);
+    add_casted_stat("ep_value_size", stats.totalValueSize, add_stat, cookie);
+    add_casted_stat("ep_overhead", stats.memOverhead, add_stat, cookie);
+    add_casted_stat("ep_max_data_size", stats.maxDataSize, add_stat, cookie);
+    add_casted_stat("ep_mem_low_wat", stats.mem_low_wat, add_stat, cookie);
+    add_casted_stat("ep_mem_high_wat", stats.mem_high_wat, add_stat, cookie);
+    add_casted_stat("ep_oom_errors", stats.oom_errors, add_stat, cookie);
+    add_casted_stat("ep_tmp_oom_errors", stats.tmp_oom_errors, add_stat, cookie);
+
+    std::map<std::string, size_t> allocator_stats;
+    MemoryAllocatorStats::getAllocatorStats(allocator_stats);
+    std::map<std::string, size_t>::iterator it = allocator_stats.begin();
+    for (; it != allocator_stats.end(); ++it) {
+        add_casted_stat(it->first.c_str(), it->second, add_stat, cookie);
+    }
+
+    return ENGINE_SUCCESS;
+}
+
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doVBucketStats(const void *cookie,
                                                              ADD_STAT add_stat,
                                                              bool prevStateRequested) {
@@ -3460,6 +3484,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
         rv = doTimingStats(cookie, add_stat);
     } else if (nkey == 10 && strncmp(stat_key, "dispatcher", 10) == 0) {
         rv = doDispatcherStats(cookie, add_stat);
+    } else if (nkey == 6 && strncmp(stat_key, "memory", 6) == 0) {
+        rv = doMemoryStats(cookie, add_stat);
     } else if (nkey == 7 && strncmp(stat_key, "restore", 7) == 0) {
         rv = ENGINE_SUCCESS;
         LockHolder lh(restore.mutex);
