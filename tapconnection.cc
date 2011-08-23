@@ -254,6 +254,13 @@ void TapProducer::registerTAPCursor(std::map<uint16_t, uint64_t> &lastCheckpoint
                 continue;
             }
 
+            // As TAP dump option simply requires the snapshot of each vbucket, simply schedule
+            // backfill and skip the checkpoint cursor registration.
+            if (dumpQueue) {
+                backfill_vbuckets.push_back(vbid);
+                continue;
+            }
+
             // If the connection is for a registered TAP client that is only interested in closed
             // checkpoints, we always start from the beginning of the checkpoint to which the
             // registered TAP client's cursor currently belongs.
@@ -1343,7 +1350,7 @@ bool TapProducer::SetCursorToOpenCheckpoint(uint16_t vbid) {
 
     uint64_t checkpointId = vb->checkpointManager.getOpenCheckpointId();
     std::map<uint16_t, TapCheckpointState>::iterator it = tapCheckpointState.find(vbid);
-    if (it == tapCheckpointState.end()) {
+    if (it == tapCheckpointState.end() || dumpQueue) {
         return false;
     }
 
