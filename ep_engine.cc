@@ -18,6 +18,10 @@
 #include "config.h"
 
 #include <limits>
+#include <iostream>
+#include <fstream>
+#include <cstdio>
+#include <cstring>
 #include <assert.h>
 #include <fcntl.h>
 
@@ -273,6 +277,27 @@ extern "C" {
                 char *ptr = NULL;
                 size_t vsize = strtoul(valz, &ptr, 10);
                 e->getConfiguration().setSyncCmdTimeout(vsize);
+            } else if (strcmp(keyz, "timing_log") == 0) {
+                EPStats &stats = e->getEpStats();
+                std::ostream *old = stats.timingLog;
+                stats.timingLog = NULL;
+                delete old;
+                if (strcmp(valz, "off") == 0) {
+                    getLogger()->log(EXTENSION_LOG_INFO, NULL,
+                                     "Disabled timing log.");
+                } else {
+                    std::ofstream *tmp(new std::ofstream(valz));
+                    if (tmp->good()) {
+                        getLogger()->log(EXTENSION_LOG_INFO, NULL,
+                                         "Logging detailed timings to ``%s''.", valz);
+                        stats.timingLog = tmp;
+                    } else {
+                        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                         "Error setting detailed timing log to ``%s'':  %s",
+                                         valz, strerror(errno));
+                        delete tmp;
+                    }
+                }
             } else {
                 *msg = "Unknown config param";
                 rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;

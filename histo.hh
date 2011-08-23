@@ -367,15 +367,26 @@ public:
      *
      * @param d the histogram that will hold the result
      */
-    BlockTimer(Histogram<hrtime_t> *d) : dest(d), start(gethrtime()) {}
+    BlockTimer(Histogram<hrtime_t> *d, const char *n=NULL, std::ostream *o=NULL)
+        : dest(d), start(gethrtime()), name(n), out(o) {}
 
     ~BlockTimer() {
-        dest->add((gethrtime() - start) / 1000);
+        hrtime_t spent(gethrtime() - start);
+        dest->add(spent / 1000);
+        log(spent, name, out);
+    }
+
+    static inline void log(hrtime_t spent, const char *name, std::ostream *o) {
+        if (o && name) {
+            *o << name << "\t" << spent << "\n";
+        }
     }
 
 private:
     Histogram<hrtime_t> *dest;
     hrtime_t             start;
+    const char          *name;
+    std::ostream        *out;
 };
 
 // How to print a bin.

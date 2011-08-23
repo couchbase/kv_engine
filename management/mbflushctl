@@ -61,7 +61,8 @@ Available params for "set":
     bg_fetch_delay - delay before executing a bg fetch (test feature)
     max_size       - max memory used by the server
     mem_high_wat   - high water mark
-    mem_low_wat    - low water mark""")
+    mem_low_wat    - low water mark
+    timing_log     - path to log detailed timing stats""")
 
     c.addCommand('stop', stop, 'stop')
     c.addCommand('start', start, 'start')

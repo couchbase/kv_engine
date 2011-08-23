@@ -24,7 +24,12 @@ public:
     EPStats() : maxDataSize(DEFAULT_MAX_DATA_SIZE),
                 dirtyAgeHisto(GrowingWidthGenerator<hrtime_t>(0, ONE_SECOND, 1.4), 25),
                 dataAgeHisto(GrowingWidthGenerator<hrtime_t>(0, ONE_SECOND, 1.4), 25),
-                diskCommitHisto(GrowingWidthGenerator<hrtime_t>(0, ONE_SECOND, 1.4), 25) {}
+                diskCommitHisto(GrowingWidthGenerator<hrtime_t>(0, ONE_SECOND, 1.4), 25),
+                timingLog(NULL) {}
+
+    ~EPStats() {
+        delete timingLog;
+    }
 
     //! How long it took us to load the data from disk.
     Atomic<hrtime_t> warmupTime;
@@ -374,6 +379,9 @@ public:
         dataAgeHisto.reset();
         dirtyAgeHisto.reset();
     }
+
+    // Used by stats logging infrastructure.
+    std::ostream *timingLog;
 
 private:
 
