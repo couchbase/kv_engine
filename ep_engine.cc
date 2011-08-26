@@ -248,6 +248,9 @@ extern "C" {
             } else if (strcmp(keyz, "chk_period") == 0) {
                 validate(v, MIN_CHECKPOINT_PERIOD, MAX_CHECKPOINT_PERIOD);
                 CheckpointManager::setCheckpointPeriod(v);
+            } else if (strcmp(keyz, "max_checkpoints") == 0) {
+                validate(v, DEFAULT_MAX_CHECKPOINTS, MAX_CHECKPOINTS_UPPER_BOUND);
+                CheckpointManager::setMaxCheckpoints(v);
             } else if (strcmp(keyz, "max_size") == 0) {
                 // Want more bits than int.
                 char *ptr = NULL;
@@ -1033,7 +1036,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         size_t maxSize = 0;
         float mutation_mem_threshold = 0;
 
-        const int max_items = 50;
+        const int max_items = 51;
         struct config_item items[max_items];
         int ii = 0;
         memset(items, 0, sizeof(items));
@@ -1256,6 +1259,13 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         items[ii].value.dt_size = &checkpoint_period;
 
         ++ii;
+        size_t max_checkpoints;
+        int max_checkpoints_idx = ii;
+        items[ii].key = "max_checkpoints";
+        items[ii].datatype = DT_SIZE;
+        items[ii].value.dt_size = &max_checkpoints;
+
+        ++ii;
         bool inconsistentSlaveCheckpoint;
         int inconsistent_chk_idx = ii;
         items[ii].key = "inconsistent_slave_chk";
@@ -1343,6 +1353,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
             }
             if (items[checkpoint_period_idx].found) {
                 CheckpointManager::setCheckpointPeriod(checkpoint_period);
+            }
+            if (items[max_checkpoints_idx].found) {
+                CheckpointManager::setMaxCheckpoints(max_checkpoints);
             }
             if (items[inconsistent_chk_idx].found) {
                 CheckpointManager::allowInconsistentSlaveCheckpoint(inconsistentSlaveCheckpoint);

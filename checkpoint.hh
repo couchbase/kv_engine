@@ -21,6 +21,9 @@
 #define MAX_CHECKPOINT_PERIOD 3600
 #define DEFAULT_CHECKPOINT_PERIOD 600
 
+#define DEFAULT_MAX_CHECKPOINTS 2
+#define MAX_CHECKPOINTS_UPPER_BOUND 5
+
 typedef enum {
     opened,
     closed
@@ -395,15 +398,8 @@ public:
 
     static void initializeCheckpointConfig(size_t checkpoint_period,
                                            size_t checkpoint_max_items,
-                                           bool allow_inconsistency = false) {
-        if (!validateCheckpointMaxItemsParam(checkpoint_max_items) ||
-            !validateCheckpointPeriodParam(checkpoint_period)) {
-            return;
-        }
-        checkpointPeriod = checkpoint_period;
-        checkpointMaxItems = checkpoint_max_items;
-        inconsistentSlaveCheckpoint = allow_inconsistency;
-    }
+                                           size_t max_checkpoints,
+                                           bool allow_inconsistency = false);
 
     static void setCheckpointPeriod(size_t checkpoint_period) {
         if (!validateCheckpointPeriodParam(checkpoint_period)) {
@@ -417,6 +413,13 @@ public:
             return;
         }
         checkpointMaxItems = checkpoint_max_items;
+    }
+
+    static void setMaxCheckpoints(size_t max_checkpoints) {
+        if (!validateMaxCheckpointsParam(max_checkpoints)) {
+            return;
+        }
+        maxCheckpoints = max_checkpoints;
     }
 
     static void allowInconsistentSlaveCheckpoint(bool allow_inconsistency) {
@@ -504,6 +507,7 @@ private:
 
     static bool validateCheckpointMaxItemsParam(size_t checkpoint_max_items);
     static bool validateCheckpointPeriodParam(size_t checkpoint_period);
+    static bool validateMaxCheckpointsParam(size_t max_checkpoints);
     static queued_item createCheckpointItem(uint64_t id, uint16_t vbid,
                                             enum queue_operation checkpoint_op);
 
@@ -521,6 +525,8 @@ private:
     static Atomic<rel_time_t> checkpointPeriod;
     // Number of max items allowed in each checkpoint
     static Atomic<size_t>     checkpointMaxItems;
+    // Number of max checkpoints allowed
+    static Atomic<size_t>     maxCheckpoints;
     // Flag indicating if a downstream active vbucket is allowed to receive checkpoint start/end
     // messages from the master active vbucket.
     static bool               inconsistentSlaveCheckpoint;

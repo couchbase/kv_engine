@@ -104,6 +104,7 @@ queue_dirty_t Checkpoint::queueDirty(const queued_item &item, CheckpointManager 
 
 Atomic<rel_time_t> CheckpointManager::checkpointPeriod = DEFAULT_CHECKPOINT_PERIOD;
 Atomic<size_t> CheckpointManager::checkpointMaxItems = DEFAULT_CHECKPOINT_ITEMS;
+Atomic<size_t> CheckpointManager::maxCheckpoints = DEFAULT_MAX_CHECKPOINTS;
 bool CheckpointManager::inconsistentSlaveCheckpoint = false;
 
 CheckpointManager::~CheckpointManager() {
@@ -419,7 +420,9 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(const RCPtr<VBucket> &vbu
     LockHolder lh(queueLock);
     assert(vbucket);
     uint64_t oldCheckpointId = 0;
-    if (vbucket->getState() == vbucket_state_active && !inconsistentSlaveCheckpoint) {
+    if (vbucket->getState() == vbucket_state_active && !inconsistentSlaveCheckpoint &&
+        checkpointList.size() < maxCheckpoints) {
+
         bool forceCreation = isCheckpointCreationForHighMemUsage(vbucket);
         // Check if this master active vbucket needs to create a new open checkpoint.
         oldCheckpointId = checkOpenCheckpoint_UNLOCKED(forceCreation, true);
@@ -500,7 +503,8 @@ bool CheckpointManager::queueDirty(const queued_item &item, const RCPtr<VBucket>
     size_t numItemsAfter = getNumItemsForPersistence_UNLOCKED();
 
     assert(vbucket);
-    if (vbucket->getState() == vbucket_state_active && !inconsistentSlaveCheckpoint) {
+    if (vbucket->getState() == vbucket_state_active && !inconsistentSlaveCheckpoint &&
+        checkpointList.size() < maxCheckpoints) {
         // Only the master active vbucket can create a next open checkpoint.
         checkOpenCheckpoint_UNLOCKED(false, true);
     }
@@ -886,6 +890,21 @@ bool CheckpointManager::hasNext(const std::string &name) {
     return hasMore;
 }
 
+void CheckpointManager::initializeCheckpointConfig(size_t checkpoint_period,
+                                                   size_t checkpoint_max_items,
+                                                   size_t max_checkpoints,
+                                                   bool allow_inconsistency) {
+    if (!validateCheckpointMaxItemsParam(checkpoint_max_items) ||
+        !validateCheckpointPeriodParam(checkpoint_period) ||
+        !validateMaxCheckpointsParam(max_checkpoints)) {
+        return;
+    }
+    checkpointPeriod = checkpoint_period;
+    checkpointMaxItems = checkpoint_max_items;
+    maxCheckpoints = max_checkpoints;
+    inconsistentSlaveCheckpoint = allow_inconsistency;
+}
+
 bool CheckpointManager::validateCheckpointMaxItemsParam(size_t checkpoint_max_items) {
     if (checkpoint_max_items < MIN_CHECKPOINT_ITEMS ||
         checkpoint_max_items > MAX_CHECKPOINT_ITEMS) {
@@ -906,6 +925,19 @@ bool CheckpointManager::validateCheckpointPeriodParam(size_t checkpoint_period) 
         ss << "New checkpoint_period param value " << checkpoint_period
            << " is not ranged between the min allowed value " << MIN_CHECKPOINT_PERIOD
            << " and max value " << MAX_CHECKPOINT_PERIOD;
+        getLogger()->log(EXTENSION_LOG_WARNING, NULL, ss.str().c_str());
+        return false;
+    }
+    return true;
+}
+
+bool CheckpointManager::validateMaxCheckpointsParam(size_t max_checkpoints) {
+    if (max_checkpoints < DEFAULT_MAX_CHECKPOINTS ||
+        max_checkpoints > MAX_CHECKPOINTS_UPPER_BOUND) {
+        std::stringstream ss;
+        ss << "New max_checkpoints param value " << max_checkpoints
+           << " is not ranged between the min allowed value " << DEFAULT_MAX_CHECKPOINTS
+           << " and max value " << MAX_CHECKPOINTS_UPPER_BOUND;
         getLogger()->log(EXTENSION_LOG_WARNING, NULL, ss.str().c_str());
         return false;
     }
