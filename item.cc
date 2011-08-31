@@ -19,9 +19,12 @@
 Atomic<uint64_t> Item::casCounter(1);
 
 bool Item::append(const Item &item) {
-    std::string newValue(value->getData(), value->length());
-    newValue.append(item.getValue()->to_s());
-    value.reset(Blob::New(newValue));
+    size_t newSize = value->length() + item.getValue()->length();
+    Blob *newData = Blob::New(newSize, '\0');
+    char *newValue = (char *) newData->getData();
+    std::memcpy(newValue, value->getData(), value->length());
+    std::memcpy(newValue + value->length(), item.getValue()->getData(), item.getValue()->length());
+    value.reset(newData);
     return true;
 }
 
@@ -32,8 +35,11 @@ bool Item::append(const Item &item) {
  * @return true if success
  */
 bool Item::prepend(const Item &item) {
-    std::string newValue(item.getValue()->to_s());
-    newValue.append(value->to_s());
-    value.reset(Blob::New(newValue));
+    size_t newSize = value->length() + item.getValue()->length();
+    Blob *newData = Blob::New(newSize, '\0');
+    char *newValue = (char *) newData->getData();
+    std::memcpy(newValue, item.getValue()->getData(), item.getValue()->length());
+    std::memcpy(newValue + item.getValue()->length(), value->getData(), value->length());
+    value.reset(newData);
     return true;
 }
