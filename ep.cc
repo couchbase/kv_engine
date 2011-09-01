@@ -2207,21 +2207,40 @@ void TransactionContext::addUncommittedItem(const queued_item &item) {
     ++numUncommittedItems;
 }
 
-bool VBCBAdaptor::callback(Dispatcher & d, TaskId t) {
-    RCPtr<VBucket> vb = store->vbuckets.getBucket(currentvb);
-    if (vb) {
-        if (visitor->pauseVisitor()) {
-            d.snooze(t, sleepTime);
-            return true;
-        }
-        if (visitor->visitBucket(vb)) {
-            vb->ht.visit(*visitor);
+VBCBAdaptor::VBCBAdaptor(EventuallyPersistentStore *s,
+                         shared_ptr<VBucketVisitor> v,
+                         const char *l, double sleep) :
+    store(s), visitor(v), label(l), sleepTime(sleep), currentvb(0)
+{
+    const VBucketFilter &vbFilter = visitor->getVBucketFilter();
+    size_t maxSize = store->vbuckets.getSize();
+    for (size_t i = 0; i <= maxSize; ++i) {
+        assert(i <= std::numeric_limits<uint16_t>::max());
+        uint16_t vbid = static_cast<uint16_t>(i);
+        RCPtr<VBucket> vb = store->vbuckets.getBucket(vbid);
+        if (vb && vbFilter(vbid)) {
+            vbList.push(vbid);
         }
     }
-    size_t maxSize = store->vbuckets.getSize();
-    assert(currentvb <= std::numeric_limits<uint16_t>::max());
-    bool isdone = currentvb >= static_cast<uint16_t>(maxSize);
-    ++currentvb;
+}
+
+bool VBCBAdaptor::callback(Dispatcher & d, TaskId t) {
+    if (!vbList.empty()) {
+        currentvb = vbList.front();
+        RCPtr<VBucket> vb = store->vbuckets.getBucket(currentvb);
+        if (vb) {
+            if (visitor->pauseVisitor()) {
+                d.snooze(t, sleepTime);
+                return true;
+            }
+            if (visitor->visitBucket(vb)) {
+                vb->ht.visit(*visitor);
+            }
+        }
+        vbList.pop();
+    }
+
+    bool isdone = vbList.empty();
     if (isdone) {
         visitor->complete();
     }

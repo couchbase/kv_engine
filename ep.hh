@@ -63,6 +63,9 @@ public:
 
     VBucketVisitor() : HashTableVisitor() { }
 
+    VBucketVisitor(const VBucketFilter &filter) :
+        HashTableVisitor(), vBucketFilter(filter) { }
+
     /**
      * Begin visiting a bucket.
      *
@@ -71,14 +74,21 @@ public:
      * @return true iff we want to walk the hashtable in this vbucket
      */
     virtual bool visitBucket(RCPtr<VBucket> vb) {
-        currentBucket = vb;
-        return true;
+        if (vBucketFilter(vb->getId())) {
+            currentBucket = vb;
+            return true;
+        }
+        return false;
     }
 
     // This is unused in all implementations so far.
     void visit(StoredValue* v) {
         (void)v;
         abort();
+    }
+
+    const VBucketFilter &getVBucketFilter() {
+        return vBucketFilter;
     }
 
     /**
@@ -94,6 +104,7 @@ public:
     }
 
 protected:
+    VBucketFilter vBucketFilter;
     RCPtr<VBucket> currentBucket;
 };
 
@@ -408,8 +419,7 @@ class VBCBAdaptor : public DispatcherCallback {
 public:
 
     VBCBAdaptor(EventuallyPersistentStore *s,
-                shared_ptr<VBucketVisitor> v, const char *l, double sleep=0)
-        : store(s), visitor(v), label(l), sleepTime(sleep), currentvb(0) {}
+                shared_ptr<VBucketVisitor> v, const char *l, double sleep=0);
 
     std::string description() {
         std::stringstream rv;
@@ -420,6 +430,7 @@ public:
     bool callback(Dispatcher &d, TaskId t);
 
 private:
+    std::queue<uint16_t>        vbList;
     EventuallyPersistentStore  *store;
     shared_ptr<VBucketVisitor>  visitor;
     const char                 *label;

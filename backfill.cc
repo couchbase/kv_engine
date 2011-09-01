@@ -62,7 +62,7 @@ std::string BackfillDiskLoad::description() {
 bool BackFillVisitor::visitBucket(RCPtr<VBucket> vb) {
     apply();
 
-    if (filter(vb->getId())) {
+    if (vBucketFilter(vb->getId())) {
         VBucketVisitor::visitBucket(vb);
         // If the current resident ratio for a given vbucket is below the resident threshold
         // for memory backfill only, schedule the disk backfill for more efficient bg fetches.
