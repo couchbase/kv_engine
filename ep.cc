@@ -1682,7 +1682,8 @@ public:
                 setId(value.second);
             }
             RCPtr<VBucket> vb = store->getVBucket(queuedItem->getVBucketId());
-            if (vb && vb->getState() != vbucket_state_active) {
+            if (vb && vb->getState() != vbucket_state_active &&
+                vb->getState() != vbucket_state_pending) {
                 int bucket_num(0);
                 LockHolder lh = vb->ht.getLockedBucket(queuedItem->getKey(), &bucket_num);
                 StoredValue *v = store->fetchValidValue(vb, queuedItem->getKey(),
