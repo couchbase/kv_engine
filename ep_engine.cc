@@ -937,6 +937,25 @@ extern "C" {
     }
 } // C linkage
 
+/**
+ * Call the response callback and return the appropriate value so that
+ * the core knows what to do..
+ */
+static ENGINE_ERROR_CODE sendResponse(ADD_RESPONSE response, const void *key,
+                                      uint16_t keylen,
+                                      const void *ext, uint8_t extlen,
+                                      const void *body, uint32_t bodylen,
+                                      uint8_t datatype, uint16_t status,
+                                      uint64_t cas, const void *cookie)
+{
+    if (response(key, keylen, ext, extlen, body, bodylen, datatype,
+                 status, cas, cookie)) {
+        return ENGINE_SUCCESS;
+    } else {
+        return ENGINE_FAILED;
+    }
+}
+
 static SERVER_EXTENSION_API *extensionApi;
 
 EXTENSION_LOGGER_DESCRIPTOR *getLogger(void) {
@@ -3163,12 +3182,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::touch(const void *cookie,
                                                     ADD_RESPONSE response)
 {
     if (request->request.extlen != 4 || request->request.keylen == 0) {
-        if (response(NULL, 0, NULL, 0, NULL, 0, PROTOCOL_BINARY_RAW_BYTES,
-                     PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie)) {
-            return ENGINE_SUCCESS;
-        } else {
-            return ENGINE_FAILED;
-        }
+        return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
+                            PROTOCOL_BINARY_RAW_BYTES,
+                            PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
     }
 
     protocol_binary_request_touch *t = reinterpret_cast<protocol_binary_request_touch*>(request);
@@ -3211,20 +3227,14 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::touch(const void *cookie,
             // GATQ should not return response upon cache miss
             rv = ENGINE_SUCCESS;
         } else {
-            if (response(NULL, 0, NULL, 0, NULL, 0, PROTOCOL_BINARY_RAW_BYTES,
-                         PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, 0, cookie)) {
-                rv = ENGINE_SUCCESS;
-            } else {
-                rv = ENGINE_FAILED;
-            }
+            rv = sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
+                              PROTOCOL_BINARY_RAW_BYTES,
+                              PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, 0, cookie);
         }
     } else if (rv == ENGINE_NOT_MY_VBUCKET) {
-        if (response(NULL, 0, NULL, 0, NULL, 0, PROTOCOL_BINARY_RAW_BYTES,
-                     PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, 0, cookie)) {
-            rv = ENGINE_SUCCESS;
-        } else {
-            rv = ENGINE_FAILED;
-        }
+        rv = sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
+                          PROTOCOL_BINARY_RAW_BYTES,
+                          PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, 0, cookie);
     }
 
     return rv;
@@ -3317,12 +3327,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::onlineUpdate(const void *cookie,
         break;
     }
 
-    if (response(NULL, 0, NULL, 0, NULL, 0, PROTOCOL_BINARY_RAW_BYTES,
-                 rv, 0, cookie)) {
-        return ENGINE_SUCCESS;
-    } else {
-        return ENGINE_FAILED;
-    }
+    return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
+                        PROTOCOL_BINARY_RAW_BYTES, rv, 0, cookie);
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::sync(std::set<key_spec_t> *keys,
@@ -3362,12 +3368,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::sync(std::set<key_spec_t> *keys,
         syncListener->destroy();
 
         std::string body = resp.str();
-        response(NULL, 0, NULL, 0,
-                 body.c_str(), static_cast<uint16_t>(body.length()),
-                 PROTOCOL_BINARY_RAW_BYTES,
-                 PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
-
-        return ENGINE_SUCCESS;
+        return sendResponse(response, NULL, 0, NULL, 0,
+                            body.c_str(), static_cast<uint16_t>(body.length()),
+                            PROTOCOL_BINARY_RAW_BYTES,
+                            PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
     }
 
     switch (syncType) {
@@ -3401,12 +3405,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::sync(std::set<key_spec_t> *keys,
     syncListener->destroy();
 
     std::string body = resp.str();
-    response(NULL, 0, NULL, 0,
-             body.c_str(), static_cast<uint16_t>(body.length()),
-             PROTOCOL_BINARY_RAW_BYTES,
-             PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
-
-    return ENGINE_SUCCESS;
+    return sendResponse(response, NULL, 0, NULL, 0,
+                        body.c_str(), static_cast<uint16_t>(body.length()),
+                        PROTOCOL_BINARY_RAW_BYTES,
+                        PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
 }
 
 static void notifyListener(std::vector< std::pair<StoredValue*, uint16_t> > &svList,
@@ -3559,11 +3561,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::handleRestoreCmd(const void *cooki
 {
     LockHolder lh(restore.mutex);
     if (restore.manager == NULL) { // we need another "mode" variable
-        if (response(NULL, 0, NULL, 0, NULL, 0, PROTOCOL_BINARY_RAW_BYTES,
-                     PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0, cookie)) {
-            return ENGINE_SUCCESS;
-        }
-        return ENGINE_FAILED;
+        return sendResponse(response,NULL, 0, NULL, 0, NULL, 0,
+                            PROTOCOL_BINARY_RAW_BYTES,
+                            PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED,
+                            0, cookie);
     }
 
     if (request->request.opcode == CMD_RESTORE_FILE) {
@@ -3571,43 +3572,32 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::handleRestoreCmd(const void *cooki
         try {
             restore.manager->initialize(filename);
         } catch (std::string e) {
-            if (response(NULL, 0, NULL, 0, e.c_str(), e.length(),
-                         PROTOCOL_BINARY_RAW_BYTES,
-                         PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, 0, cookie)) {
-                return ENGINE_SUCCESS;
-            }
-            return ENGINE_FAILED;
+            return sendResponse(response, NULL, 0, NULL, 0, e.c_str(),
+                                e.length(),
+                                PROTOCOL_BINARY_RAW_BYTES,
+                                PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, 0, cookie);
         }
 
         try {
             restore.manager->start();
         } catch (std::string e) {
-            if (response(NULL, 0, NULL, 0, e.c_str(), e.length(),
-                         PROTOCOL_BINARY_RAW_BYTES,
-                         PROTOCOL_BINARY_RESPONSE_EINTERNAL, 0, cookie)) {
-                return ENGINE_SUCCESS;
-            }
-            return ENGINE_FAILED;
+            return sendResponse(response, NULL, 0, NULL, 0, e.c_str(),
+                                e.length(), PROTOCOL_BINARY_RAW_BYTES,
+                                PROTOCOL_BINARY_RESPONSE_EINTERNAL, 0, cookie);
         }
     } else if (request->request.opcode == CMD_RESTORE_ABORT) {
         try {
             restore.manager->abort();
         } catch (std::string e) {
-            if (response(NULL, 0, NULL, 0, e.c_str(), e.length(),
-                         PROTOCOL_BINARY_RAW_BYTES,
-                         PROTOCOL_BINARY_RESPONSE_EINTERNAL, 0, cookie)) {
-                return ENGINE_SUCCESS;
-            }
-            return ENGINE_FAILED;
+            return sendResponse(response, NULL, 0, NULL, 0, e.c_str(),
+                                e.length(), PROTOCOL_BINARY_RAW_BYTES,
+                                PROTOCOL_BINARY_RESPONSE_EINTERNAL, 0, cookie);
         }
     } else {
         if (restore.manager->isRunning()) {
-            if (response(NULL, 0, NULL, 0, NULL, 0,
-                         PROTOCOL_BINARY_RAW_BYTES,
-                         PROTOCOL_BINARY_RESPONSE_EBUSY, 0, cookie)) {
-                return ENGINE_SUCCESS;
-            }
-            return ENGINE_FAILED;
+            return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
+                                PROTOCOL_BINARY_RAW_BYTES,
+                                PROTOCOL_BINARY_RESPONSE_EBUSY, 0, cookie);
         }
 
         destroy_restore_manager(restore.manager);
@@ -3615,12 +3605,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::handleRestoreCmd(const void *cooki
         restore.manager = NULL;
     }
 
-    if (response(NULL, 0, NULL, 0, NULL, 0,
-                 PROTOCOL_BINARY_RAW_BYTES,
-                 PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie)) {
-        return ENGINE_SUCCESS;
-    }
-    return ENGINE_FAILED;
+    return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
+                        PROTOCOL_BINARY_RAW_BYTES,
+                        PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::deregisterTapClient(const void *cookie,
@@ -3649,12 +3636,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deregisterTapClient(const void *co
         }
     }
 
-    if (response(NULL, 0, NULL, 0, NULL, 0,
-                 PROTOCOL_BINARY_RAW_BYTES,
-                 PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie)) {
-        return ENGINE_SUCCESS;
-    }
-    return ENGINE_FAILED;
+    return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
+                        PROTOCOL_BINARY_RAW_BYTES,
+                        PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
 }
 
 ENGINE_ERROR_CODE
@@ -3664,21 +3648,16 @@ EventuallyPersistentEngine::handleGetLastClosedCheckpointId(const void *cookie,
     uint16_t vbucket = ntohs(req->request.vbucket);
     RCPtr<VBucket> vb = getVBucket(vbucket);
     if (!vb) {
-        if (response(NULL, 0, NULL, 0, NULL, 0,
-                     PROTOCOL_BINARY_RAW_BYTES,
-                     PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, 0, cookie)) {
-            return ENGINE_SUCCESS;
-        }
-        return ENGINE_FAILED;
+        return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
+                            PROTOCOL_BINARY_RAW_BYTES,
+                            PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, 0, cookie);
     }
 
     uint64_t checkpointId = vb->checkpointManager.getLastClosedCheckpointId();
     checkpointId = htonll(checkpointId);
-    if (response(NULL, 0, NULL, 0, &checkpointId, sizeof(checkpointId),
-                 PROTOCOL_BINARY_RAW_BYTES, PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie)) {
-        return ENGINE_SUCCESS;
-    }
-    return ENGINE_FAILED;
+    return sendResponse(response, NULL, 0, NULL, 0, &checkpointId,
+                        sizeof(checkpointId), PROTOCOL_BINARY_RAW_BYTES,
+                        PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
 }
 
 ENGINE_ERROR_CODE
@@ -3687,9 +3666,7 @@ EventuallyPersistentEngine::resetReplicationChain(const void *cookie,
                                                   ADD_RESPONSE response) {
     (void) req;
     tapConnMap->resetReplicaChain();
-    if (response(NULL, 0, NULL, 0, NULL, 0,
-                 PROTOCOL_BINARY_RAW_BYTES, PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie)) {
-        return ENGINE_SUCCESS;
-    }
-    return ENGINE_FAILED;
+    return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
+                        PROTOCOL_BINARY_RAW_BYTES,
+                        PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
 }
