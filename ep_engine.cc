@@ -1652,6 +1652,11 @@ ENGINE_ERROR_CODE  EventuallyPersistentEngine::store(const void *cookie,
                     return ENGINE_KEY_EEXISTS;
                 }
 
+                if ((old->getValue()->length() + it->getValue()->length()) > maxItemSize) {
+                    itemRelease(cookie, i);
+                    return ENGINE_E2BIG;
+                }
+
                 if (operation == OPERATION_APPEND) {
                     if (!old->append(*it)) {
                         itemRelease(cookie, i);

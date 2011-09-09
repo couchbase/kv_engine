@@ -1194,11 +1194,20 @@ static enum test_result test_append(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     char binaryData1[] = "abcdefg\0gfedcba\r\n";
     char binaryData2[] = "abzdefg\0gfedcba\r\n";
+    size_t dataSize = 20*1024*1024;
+    char *bigBinaryData3 = new char[dataSize];
+    memset(bigBinaryData3, '\0', dataSize);
 
     check(storeCasVb11(h, h1, NULL, OPERATION_SET, "key",
                        binaryData1, sizeof(binaryData1) - 1, 82758, &i, 0, 0)
           == ENGINE_SUCCESS,
           "Failed set.");
+
+    check(storeCasVb11(h, h1, NULL, OPERATION_APPEND, "key",
+                       bigBinaryData3, dataSize, 82758, &i, 0, 0)
+          == ENGINE_E2BIG,
+          "Expected append failure.");
+    delete bigBinaryData3;
 
     check(storeCasVb11(h, h1, NULL, OPERATION_APPEND, "key",
                        binaryData2, sizeof(binaryData2) - 1, 82758, &i, 0, 0)
@@ -1229,11 +1238,20 @@ static enum test_result test_prepend(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     char binaryData1[] = "abcdefg\0gfedcba\r\n";
     char binaryData2[] = "abzdefg\0gfedcba\r\n";
+    size_t dataSize = 20*1024*1024;
+    char *bigBinaryData3 = new char[dataSize];
+    memset(bigBinaryData3, '\0', dataSize);
 
     check(storeCasVb11(h, h1, NULL, OPERATION_SET, "key",
                        binaryData1, sizeof(binaryData1) - 1, 82758, &i, 0, 0)
           == ENGINE_SUCCESS,
           "Failed set.");
+
+    check(storeCasVb11(h, h1, NULL, OPERATION_PREPEND, "key",
+                       bigBinaryData3, dataSize, 82758, &i, 0, 0)
+          == ENGINE_E2BIG,
+          "Expected prepend failure.");
+    delete bigBinaryData3;
 
     check(storeCasVb11(h, h1, NULL, OPERATION_PREPEND, "key",
                        binaryData2, sizeof(binaryData2) - 1, 82758, &i, 0, 0)
