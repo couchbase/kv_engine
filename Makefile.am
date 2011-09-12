@@ -13,6 +13,9 @@ bin_SCRIPTS = management/analyze_core \
               wrapper/mbstats \
               wrapper/mbvbucketctl
 
+pkginclude_HEADERS = command_ids.h
+
+
 memcachedlibdir = $(libdir)/memcached
 memcachedlib_LTLIBRARIES = ep.la ep_testsuite.la timing_tests.la
 noinst_LTLIBRARIES = \

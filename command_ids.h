@@ -14,8 +14,8 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-#ifndef COMMAND_IDS_H
-#define COMMAND_IDS_H 1
+#ifndef EP_ENGINE_COMMAND_IDS_H
+#define EP_ENGINE_COMMAND_IDS_H 1
 
 #define CMD_STOP_PERSISTENCE  0x80
 #define CMD_START_PERSISTENCE 0x81
@@ -135,4 +135,4 @@
 
 typedef protocol_binary_request_gat protocol_binary_request_getl;
 
-#endif /* COMMAND_IDS_H */
+#endif /* EP_ENGINE_COMMAND_IDS_H */
