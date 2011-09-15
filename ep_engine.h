@@ -392,6 +392,8 @@ public:
      */
     void queueBackfill(const VBucketFilter &backfillVBFilter, TapProducer *tc, const void *tok);
 
+    void reportNullCookie(TapConnection &tc);
+
     void notifyIOComplete(const void *cookie, ENGINE_ERROR_CODE status) {
         if (cookie == NULL) {
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
@@ -579,6 +581,30 @@ public:
         return syncTimeout;
     }
 
+    size_t getExpiryPagerSleeptime(void) {
+        LockHolder lh(expiryPager.mutex);
+        return expiryPager.sleeptime;
+    }
+
+    void setExpiryPagerSleeptime(size_t val) {
+        LockHolder lh(expiryPager.mutex);
+
+        if (expiryPager.sleeptime != 0) {
+            epstore->getNonIODispatcher()->cancel(expiryPager.task);
+        }
+
+        expiryPager.sleeptime = val;
+        if (val != 0) {
+            shared_ptr<DispatcherCallback> exp_cb(new ExpiredItemPager(epstore, stats,
+                                                                       expiryPager.sleeptime));
+
+
+            epstore->getNonIODispatcher()->schedule(exp_cb, &expiryPager.task,
+                                                    Priority::ItemPagerPriority,
+                                                    expiryPager.sleeptime);
+        }
+    }
+
 private:
     EventuallyPersistentEngine(GET_SERVER_API get_server_api);
     friend ENGINE_ERROR_CODE create_instance(uint64_t interface,
@@ -623,7 +649,6 @@ private:
 
     friend void *EvpNotifyTapIo(void*arg);
     void notifyTapIoThread(void);
-
 
     friend class BackFillVisitor;
     friend class TapBGFetchCallback;
@@ -767,8 +792,14 @@ private:
     size_t minDataAge;
     size_t queueAgeCap;
     size_t itemExpiryWindow;
-    size_t expiryPagerSleeptime;
     size_t checkpointRemoverInterval;
+    struct ExpiryPagerDelta {
+        ExpiryPagerDelta() : sleeptime(0) {}
+        Mutex mutex;
+        size_t sleeptime;
+        TaskId task;
+    } expiryPager;
+
     size_t nVBuckets;
     size_t dbShards;
     size_t vb_del_chunk_size;
