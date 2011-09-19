@@ -5397,6 +5397,46 @@ static enum test_result test_validate_checkpoint_params(ENGINE_HANDLE *h, ENGINE
     return SUCCESS;
 }
 
+static enum test_result test_revid(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
+{
+    union {
+        protocol_binary_request_header pkt;
+        protocol_binary_request_get_meta req;
+        char buffer[1024];
+    } msg;
+    memset(&msg.req, 0, sizeof(msg));
+
+    msg.req.message.header.request.magic = PROTOCOL_BINARY_REQ;
+    msg.req.message.header.request.opcode = CMD_GET_META;
+    msg.req.message.header.request.extlen = 0;
+    msg.req.message.header.request.keylen = ntohs(10);
+    msg.req.message.header.request.vbucket = htons(0);
+    msg.req.message.header.request.bodylen = htonl(10);
+    memcpy(msg.buffer + sizeof(msg.req.bytes), "test_revid", 10);
+
+
+    for (uint32_t ii = 1; ii < 10; ++ii) {
+        item *it;
+        check(store(h, h1, NULL, OPERATION_SET, "test_revid", "foo", &it, 0, 0)
+              == ENGINE_SUCCESS, "Failed to store a value");
+        h1->release(h, NULL, it);
+
+        ENGINE_ERROR_CODE ret = h1->unknown_command(h, NULL, &msg.pkt,
+                                                    add_response);
+
+        check(ret == ENGINE_SUCCESS, "Failed to get meta data");
+        check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+        check(last_body[0] == 0x01, "Expected REVID meta");
+        check(last_body[1] == 20, "Expected 22 bytes long revid");
+        uint32_t seqno;
+        memcpy(&seqno, last_body + 2, 4);
+        seqno = ntohl(seqno);
+        check(seqno == ii, "Unexpected sequence number");
+    }
+
+    return SUCCESS;
+}
+
 static enum test_result prepare(engine_test_t *test) {
     if (test->cfg == NULL || // No config
         strstr(test->cfg, "backend") == NULL || // No backend specified
@@ -5902,6 +5942,10 @@ engine_test_t* get_tests(void) {
                  "db_strategy=singleDB;dbname=:memory:;restore_mode=true",
                  prepare, cleanup, BACKEND_ALL),
 #endif
+        // revision id's
+        TestCase("revision sequence numbers", test_revid, NULL,
+                 teardown, NULL, prepare, cleanup, BACKEND_ALL),
+
         TestCase(NULL, NULL, NULL, NULL, NULL, prepare, cleanup, BACKEND_ALL)
     };
 

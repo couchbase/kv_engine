@@ -402,3 +402,21 @@ bool StoredValue::hasAvailableSpace(EPStats &st, const Item &itm) {
     double maxSize=  static_cast<double>(getMaxDataSize(st)) * mutation_mem_threshold;
     return newSize <= maxSize;
 }
+
+Item* StoredValue::toItem(bool locked, uint16_t vbucket) const {
+    Item *ret;
+
+    if (_isSmall) {
+        ret = new Item(getKey(), flags, 0,
+                       value,
+                       locked ? static_cast<uint64_t>(-1) : 0,
+                       id, vbucket);
+    } else {
+        ret = new Item(getKey(), flags, extra.feature.exptime,
+                       value,
+                       locked ? static_cast<uint64_t>(-1) : extra.feature.cas,
+                       id, vbucket, extra.feature.seqno);
+    }
+
+    return ret;
+}

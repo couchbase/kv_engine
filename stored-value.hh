@@ -38,7 +38,8 @@ struct small_data {
  */
 struct feature_data {
     uint64_t   cas;             //!< CAS identifier.
-    time_t     exptime;         //!< Expiration time of this item.
+    uint32_t   exptime;         //!< Expiration time of this item.
+    uint32_t   seqno;           //!< Revision id sequence number
     rel_time_t lock_expiry;     //!< getl lock expiration
     bool       locked : 1;      //!< True if this item is locked
     bool       resident : 1;    //!< True if this object's value is in memory.
@@ -247,18 +248,24 @@ public:
      * @param theCas thenew CAS identifier
      * @param stats the global stats
      * @param ht the hashtable that contains this StoredValue instance
+     * @param preserveSeqno Preserve the sequence number from the item.
      */
-    void setValue(value_t v, uint32_t newFlags, time_t newExp,
-                  uint64_t theCas, EPStats &stats, HashTable &ht) {
+    void setValue(Item &itm, EPStats &stats, HashTable &ht, bool preserveSeqno) {
         size_t currSize = size();
         reduceCacheSize(ht, currSize);
         reduceCurrentSize(stats, isDeleted() ? currSize : currSize - value->length());
-        value = v;
+        value = itm.getValue();
         setResident();
-        flags = newFlags;
+        flags = itm.getFlags();
         if (!_isSmall) {
-            extra.feature.cas = theCas;
-            extra.feature.exptime = newExp;
+            extra.feature.cas = itm.getCas();
+            extra.feature.exptime = itm.getExptime();
+            if (preserveSeqno) {
+                extra.feature.seqno = itm.getSeqno();
+            } else {
+                ++extra.feature.seqno;
+                itm.setSeqno(extra.feature.seqno);
+            }
         }
         markDirty();
         size_t newSize = size();
@@ -504,6 +511,21 @@ public:
         }
     }
 
+
+    uint32_t getSeqno() {
+        if (_isSmall) {
+            return 0;
+        } else {
+            return extra.feature.seqno;
+        }
+    }
+
+
+    /**
+     * Generate a new Item out of this object
+     */
+    Item *toItem(bool locked, uint16_t vbucket) const;
+
     /**
      * Get the size of a StoredValue object.
      *
@@ -561,6 +583,7 @@ private:
             extra.feature.resident = true;
             extra.feature.lock_expiry = 0;
             extra.feature.keylen = itm.getKey().length();
+            extra.feature.seqno = itm.getSeqno();
         }
 
         if (setDirty) {
@@ -1018,9 +1041,7 @@ public:
             if (!v->isResident()) {
                 --numNonResidentItems;
             }
-            v->setValue(itm.getValue(),
-                        itm.getFlags(), itm.getExptime(),
-                        itm.getCas(), stats, *this);
+            v->setValue(itm, stats, *this, false);
             row_id = v->getId();
         } else {
             if (itm.getCas() != 0) {
@@ -1034,6 +1055,76 @@ public:
         }
         return rv;
     }
+
+    /**
+     * Set an item into the cache and <b>preserve</b> the cas and
+     * sequence number.
+     *
+     * @param val the Item to store
+     * @param cas This is the cas value for the item <b>in</b> the cache
+     * @param row_id the row id that is assigned to the item to store
+     * @return a result indicating the status of the store
+     */
+    mutation_type_t setWithMeta(const Item &val, uint64_t cas, int64_t &row_id) {
+        assert(active());
+        Item &itm = const_cast<Item&>(val);
+        if (!StoredValue::hasAvailableSpace(stats, itm)) {
+            return NOMEM;
+        }
+
+        mutation_type_t rv = NOT_FOUND;
+        int bucket_num(0);
+        LockHolder lh = getLockedBucket(val.getKey(), &bucket_num);
+        StoredValue *v = unlocked_find(val.getKey(), bucket_num, true);
+
+        /*
+         * prior to checking for the lock, we should check if this object
+         * has expired. If so, then check if CAS value has been provided
+         * for this set op. In this case the operation should be denied since
+         * a cas operation for a key that doesn't exist is not a very cool
+         * thing to do. See MB 3252
+         */
+        if (v && v->isExpired(ep_real_time())) {
+            if (v->isLocked(ep_current_time())) {
+                v->unlock();
+            }
+            if (cas) {
+                /* item has expired and cas value provided. Deny ! */
+                return NOT_FOUND;
+            }
+        }
+
+        if (v) {
+            if (v->isLocked(ep_current_time())) {
+                /*
+                 * item is locked, deny if there is cas value mismatch
+                 * or no cas value is provided by the user
+                 */
+                if (cas != v->getCas()) {
+                    return IS_LOCKED;
+                }
+                /* allow operation*/
+                v->unlock();
+            } else if (cas != 0 && cas != v->getCas()) {
+                return INVALID_CAS;
+            }
+
+            rv = v->isClean() ? WAS_CLEAN : WAS_DIRTY;
+            if (!v->isResident()) {
+                --numNonResidentItems;
+            }
+            v->setValue(itm, stats, *this, true);
+            row_id = v->getId();
+        } else if (cas != 0) {
+            rv = NOT_FOUND;
+        } else {
+            v = valFact(itm, values[bucket_num], *this);
+            values[bucket_num] = v;
+            ++numItems;
+        }
+        return rv;
+    }
+
 
     /**
      * Insert an item to this hashtable. This is called from the backfill
@@ -1072,11 +1163,11 @@ public:
             if (!v->isResident()) {
                 --numNonResidentItems;
             }
-            v->setValue(itm.getValue(),
-                        itm.getFlags(), itm.getExptime(),
-                        itm.getCas(), stats, *this);
+            v->setValue(itm, stats, *this, false);
         } else {
-            itm.setCas();
+            if (itm.getCas() == 0) {
+                itm.setCas();
+            }
             v = valFact(itm, values[bucket_num], *this);
             values[bucket_num] = v;
             ++numItems;
@@ -1115,9 +1206,7 @@ public:
             }
             if (v) {
                 rv = (v->isDeleted() || v->isExpired(ep_real_time())) ? ADD_UNDEL : ADD_SUCCESS;
-                v->setValue(itm.getValue(),
-                            itm.getFlags(), itm.getExptime(),
-                            itm.getCas(), stats, *this);
+                v->setValue(itm, stats, *this, false);
                 if (isDirty) {
                     v->markDirty();
                 } else {

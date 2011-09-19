@@ -136,7 +136,8 @@ public:
     Item(const void* k, const size_t nk, const size_t nb,
          const uint32_t fl, const time_t exp, uint64_t theCas = 0,
          int64_t i = -1, uint16_t vbid = 0) :
-        flags(fl), exptime(exp), cas(theCas), id(i), vbucketId(vbid)
+        flags(fl), exptime(exp), cas(theCas), id(i), vbucketId(vbid),
+        seqno(1)
     {
         key.assign(static_cast<const char*>(k), nk);
         assert(id != 0);
@@ -147,7 +148,8 @@ public:
     Item(const std::string &k, const uint32_t fl, const time_t exp,
          const void *dta, const size_t nb, uint64_t theCas = 0,
          int64_t i = -1, uint16_t vbid = 0) :
-        flags(fl), exptime(exp), cas(theCas), id(i), vbucketId(vbid)
+        flags(fl), exptime(exp), cas(theCas), id(i), vbucketId(vbid),
+        seqno(1)
     {
         key.assign(k);
         assert(id != 0);
@@ -156,8 +158,10 @@ public:
     }
 
     Item(const std::string &k, const uint32_t fl, const time_t exp,
-         value_t val, uint64_t theCas = 0,  int64_t i = -1, uint16_t vbid = 0) :
-        flags(fl), exptime(exp), value(val), cas(theCas), id(i), vbucketId(vbid)
+         value_t val, uint64_t theCas = 0,  int64_t i = -1, uint16_t vbid = 0,
+         uint32_t sno = 1) :
+        flags(fl), exptime(exp), value(val), cas(theCas), id(i), vbucketId(vbid),
+        seqno(sno)
     {
         assert(id != 0);
         key.assign(k);
@@ -167,7 +171,8 @@ public:
     Item(const void *k, uint16_t nk, const uint32_t fl, const time_t exp,
          const void *dta, const size_t nb, uint64_t theCas = 0,
          int64_t i = -1, uint16_t vbid = 0) :
-        flags(fl), exptime(exp), cas(theCas), id(i), vbucketId(vbid)
+        flags(fl), exptime(exp), cas(theCas), id(i), vbucketId(vbid),
+        seqno(1)
     {
         assert(id != 0);
         key.assign(static_cast<const char*>(k), nk);
@@ -201,6 +206,16 @@ public:
 
     int getNKey() const {
         return static_cast<int>(key.length());
+    }
+
+    uint32_t getNMetaBytes() const {
+        return sizeof(meta);
+    }
+
+    const char *getMetaData() {
+        size_t nb = sizeof(meta);
+        encodeMeta(seqno, cas, getNBytes(), flags, meta, nb);
+        return (const char*)meta;
     }
 
     uint32_t getNBytes() const {
@@ -268,6 +283,78 @@ public:
         return sizeof(Item) + key.size() + value->getSize();
     }
 
+    uint32_t getSeqno() const {
+        return seqno;
+    }
+
+    void setSeqno(uint32_t to) {
+        seqno = to;
+    }
+
+    static void encodeMeta(uint32_t seqno, uint64_t cas, uint32_t length,
+                           uint32_t flags, std::string &dest)
+    {
+        uint8_t meta[22];
+        size_t len = sizeof(meta);
+        encodeMeta(seqno, cas, length, flags, meta, len);
+        dest.assign((char*)meta, len);
+    }
+
+    static bool encodeMeta(const Item &itm, uint8_t *dest, size_t &nbytes)
+    {
+        return encodeMeta(itm.seqno, itm.cas, itm.getNBytes(), itm.flags,
+                          dest, nbytes);
+    }
+
+    static bool encodeMeta(uint32_t seqno, uint64_t cas, uint32_t length,
+                           uint32_t flags, uint8_t *dest, size_t &nbytes)
+    {
+        if (nbytes < 22) {
+            return false;
+        }
+        seqno = htonl(seqno);
+        cas = htonll(cas);
+        length = htonl(length);
+        flags = htonl(flags);
+
+        dest[0] = 0x01;
+        dest[1] = 20;
+        memcpy(dest + 2, &seqno, 4);
+        memcpy(dest + 6, &cas, 8);
+        memcpy(dest + 14, &length, 4);
+        memcpy(dest + 18, &flags, 4);
+        nbytes = 22;
+        return true;
+    }
+
+    static bool decodeMeta(const uint8_t *dta, uint32_t &seqno, uint64_t &cas,
+                           uint32_t &length, uint32_t &flags) {
+        if (*dta != 0x01) {
+            // Unsupported meta tag
+            return false;
+        }
+        ++dta;
+        if (*dta != 20) {
+            // Unsupported size
+            return false;
+        }
+        ++dta;
+        memcpy(&seqno, dta, 4);
+        seqno = ntohl(seqno);
+        dta += 4;
+        memcpy(&cas, dta, 8);
+        cas = ntohll(cas);
+        dta += 8;
+        memcpy(&length, dta, 4);
+        length = ntohl(length);
+        dta += 4;
+        memcpy(&flags, dta, 4);
+        flags = ntohl(flags);
+
+        return true;
+    }
+
+
 private:
     /**
      * Set the item's data. This is only used by constructors, so we
@@ -293,9 +380,18 @@ private:
     int64_t id;
     uint16_t vbucketId;
 
+    uint32_t seqno;
+    uint8_t meta[22];
+
     static uint64_t nextCas(void) {
-        uint64_t ret;
-        ret = casCounter++;
+        uint64_t ret = gethrtime();
+        if ((ret & 1000) == 0) {
+            // we don't have a good enough resolution on the clock
+            ret |= casCounter++;
+            if (casCounter > 1000) {
+                casCounter = 1;
+            }
+        }
 
         return ret;
     }

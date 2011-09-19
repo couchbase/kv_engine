@@ -429,9 +429,10 @@ public:
     /**
      * Add an TAP backfill item into its corresponding vbucket
      * @param item the item to be added
+     * @param meta contains meta info or not
      * @return the result of the operation
      */
-    ENGINE_ERROR_CODE addTAPBackfillItem(const Item &item);
+    ENGINE_ERROR_CODE addTAPBackfillItem(const Item &item, bool meta);
 
     /**
      * Retrieve a value.
@@ -447,6 +448,35 @@ public:
     GetValue get(const std::string &key, uint16_t vbucket,
                  const void *cookie, bool queueBG=true,
                  bool honorStates=true);
+
+
+    /**
+     * Retrieve the meta data for an item
+     *
+     * @parapm key the key to get the meta data for
+     * @param vbucket the vbucket from which to retrieve the key
+     * @param cookie the connection cookie
+     * @param meta where to store the meta informaion
+     * @param cas where to store the cas information
+     */
+    ENGINE_ERROR_CODE getMetaData(const std::string &key,
+                                  uint16_t vbucket,
+                                  const void *cookie,
+                                  std::string &meta,
+                                  uint64_t &cas);
+
+    /**
+     * Set an item in the store.
+     * @param item the item to set
+     * @param cas value to match
+     * @param cookie the cookie representing the client to store the item
+     * @param force override vbucket states
+     * @return the result of the store operation
+     */
+    ENGINE_ERROR_CODE setWithMeta(const Item &item,
+                                  uint64_t cas,
+                                  const void *cookie,
+                                  bool force);
 
     /**
      * Retrieve a value, but update its TTL first
@@ -787,8 +817,10 @@ private:
     /* Queue an item to be written to persistent layer. */
     void queueDirty(const std::string &key, uint16_t vbid,
                     enum queue_operation op, value_t value,
-                    uint32_t flags = 0, time_t exptime = 0, uint64_t cas = 0,
-                    int64_t rowid = -1, bool tapBackfill = false);
+                    uint32_t flags, time_t exptime, uint64_t cas,
+                    uint32_t seqno, int64_t rowid, bool tapBackfill = false);
+
+
 
     /**
      * Retrieve a StoredValue and invoke a method on it.

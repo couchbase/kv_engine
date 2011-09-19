@@ -797,6 +797,17 @@ extern "C" {
             return h->handleGetLastClosedCheckpointId(cookie, request, response);
         case CMD_RESET_REPLICATION_CHAIN:
             return h->resetReplicationChain(cookie, request, response);
+
+        case CMD_GET_META:
+        case CMD_GETQ_META:
+            return h->getMeta(cookie,
+                              reinterpret_cast<protocol_binary_request_get_meta*>(request),
+                              response);
+        case CMD_SET_WITH_META:
+        case CMD_SETQ_WITH_META:
+            return h->setWithMeta(cookie,
+                                  reinterpret_cast<protocol_binary_request_set_with_meta*>(request),
+                                  response);
         }
 
         // Send a special response for getl since we don't want to send the key
@@ -1474,6 +1485,8 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
                                       queue_op_set, -1, it->getId(), it->getFlags(),
                                       it->getExptime(), it->getCas()));
         connection->addTapLogElement(qi);
+        *es = (void*)it->getMetaData();
+        *nes = it->getNMetaBytes();
     } else if (connection->hasQueuedItem()) {
         if (connection->waitForBackfill() || connection->waitForCheckpointMsgAck()) {
             return TAP_PAUSE;
@@ -1499,6 +1512,8 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
                 assert(gv.getStoredValue() != NULL);
                 *itm = gv.getValue();
                 ret = TAP_MUTATION;
+                *es = (void*)gv.getValue()->getMetaData();
+                *nes = gv.getValue()->getNMetaBytes();
 
                 if (!connection->supportsAck()) {
                     gv.getStoredValue()->incrementNumReplicas();
@@ -1546,6 +1561,8 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
                                     qi->getValue(), qi->getCas(), qi->getRowId(), qi->getVBucketId());
                 *itm = it;
                 ret = TAP_MUTATION;
+                *es = (void*)it->getMetaData();
+                *nes = it->getNMetaBytes();
 
                 StoredValue *sv = epstore->getStoredValue(qi->getKey(), qi->getVBucketId(), false);
 
@@ -1895,8 +1912,29 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
             itm->setVBucketId(vbucket);
 
             if (tc) {
-                ret = tc->isBackfillPhase(vbucket) ?
-                      epstore->addTAPBackfillItem(*itm) : epstore->set(*itm, cookie, true);
+                bool meta = false;
+                if (nengine > 0) {
+                    uint32_t s;
+                    uint64_t c;
+                    uint32_t l;
+                    uint32_t f;
+
+                    if (Item::decodeMeta((uint8_t*)engine_specific, s, c, l, f)) {
+                        itm->setCas(c);
+                        itm->setSeqno(s);
+                        meta = true;
+                    }
+                }
+
+                if (tc->isBackfillPhase(vbucket)) {
+                    ret = epstore->addTAPBackfillItem(*itm, meta);
+                } else {
+                    if (meta) {
+                        ret = epstore->setWithMeta(*itm, 0, cookie, true);
+                    } else {
+                        ret = epstore->set(*itm, cookie, true);
+                    }
+                }
             } else {
                 ret = ENGINE_DISCONNECT;
             }
@@ -3694,4 +3732,156 @@ EventuallyPersistentEngine::resetReplicationChain(const void *cookie,
     return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
                         PROTOCOL_BINARY_RAW_BYTES,
                         PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
+}
+
+static protocol_binary_response_status engine_error_2_protocol_error(ENGINE_ERROR_CODE e) {
+    protocol_binary_response_status ret;
+
+    switch (e) {
+    case ENGINE_SUCCESS:
+        return PROTOCOL_BINARY_RESPONSE_SUCCESS;
+    case ENGINE_KEY_ENOENT:
+        return PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
+    case ENGINE_KEY_EEXISTS:
+        return PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS;
+    case ENGINE_ENOMEM:
+        return PROTOCOL_BINARY_RESPONSE_ENOMEM;
+    case ENGINE_TMPFAIL:
+        return PROTOCOL_BINARY_RESPONSE_ETMPFAIL;
+    case ENGINE_NOT_STORED:
+        return PROTOCOL_BINARY_RESPONSE_NOT_STORED;
+    case ENGINE_EINVAL:
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
+    case ENGINE_ENOTSUP:
+        return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
+    case ENGINE_E2BIG:
+        return PROTOCOL_BINARY_RESPONSE_E2BIG;
+    case ENGINE_NOT_MY_VBUCKET:
+        return PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET;
+    case ENGINE_ERANGE:
+        return PROTOCOL_BINARY_RESPONSE_ERANGE;
+    default:
+        ret = PROTOCOL_BINARY_RESPONSE_EINTERNAL;
+    }
+
+    return ret;
+}
+
+ENGINE_ERROR_CODE EventuallyPersistentEngine::getMeta(const void* cookie,
+                                                      protocol_binary_request_get_meta *request,
+                                                      ADD_RESPONSE response)
+{
+    if (request->message.header.request.extlen != 0 || request->message.header.request.keylen == 0) {
+        return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
+                            PROTOCOL_BINARY_RAW_BYTES,
+                            PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
+    }
+
+    std::string key((char *)(request->bytes + sizeof(request->bytes)),
+                    (size_t)ntohs(request->message.header.request.keylen));
+    uint16_t vbucket = ntohs(request->message.header.request.vbucket);
+
+    std::string meta;
+    uint64_t cas;
+
+    ENGINE_ERROR_CODE rv = epstore->getMetaData(key, vbucket, cookie,
+                                                meta, cas);
+
+    if (rv == ENGINE_SUCCESS) {
+        rv = sendResponse(response, NULL, 0, NULL, 0,
+                          meta.data(), meta.length(),
+                          PROTOCOL_BINARY_RAW_BYTES,
+                          PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                          cas, cookie);
+    } else if (rv != ENGINE_EWOULDBLOCK) {
+        if (rv == ENGINE_KEY_ENOENT &&
+            request->message.header.request.opcode == CMD_GETQ_META) {
+            rv = ENGINE_SUCCESS;
+        } else {
+            rv = sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
+                              PROTOCOL_BINARY_RAW_BYTES,
+                              engine_error_2_protocol_error(rv), 0, cookie);
+        }
+    }
+
+    return rv;
+}
+
+ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
+                                                    protocol_binary_request_set_with_meta *request,
+                                                    ADD_RESPONSE response)
+{
+    // revid_nbytes, flags and exptime is mandatory fields.. and we need a key
+    if (request->message.header.request.extlen != 12 || request->message.header.request.keylen == 0) {
+        return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
+                            PROTOCOL_BINARY_RAW_BYTES,
+                            PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
+    }
+
+    if (isDegradedMode()) {
+        // We're allowed to run set in restore mode..
+        if (!restore.enabled.get()) {
+            return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
+                                PROTOCOL_BINARY_RAW_BYTES,
+                                PROTOCOL_BINARY_RESPONSE_ETMPFAIL,
+                                0, cookie);
+        }
+    }
+
+    uint8_t *key = request->bytes + sizeof(request->bytes);
+    uint16_t nkey = ntohs(request->message.header.request.keylen);
+    uint16_t vbucket = ntohs(request->message.header.request.vbucket);
+    uint32_t flags = ntohl(request->message.body.flags);
+
+    uint8_t *dta = key + nkey + request->message.header.request.extlen;
+    size_t nbytes = ntohl(request->message.header.request.bodylen);
+    nbytes -= nkey + request->message.header.request.extlen;
+    uint32_t metabytes = ntohl(request->message.body.nmeta_bytes);
+    nbytes -= metabytes;
+    uint32_t exptime = ntohl(request->message.body.expiration);
+    exptime = serverApi->core->abstime(serverApi->core->realtime(exptime));
+    uint32_t seqno;
+    uint64_t cas;
+    uint32_t length;
+    uint32_t fl;
+
+    if (!Item::decodeMeta(dta + nbytes, seqno, cas, length, fl) ||
+        length != nbytes || fl != flags) {
+        return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
+                            PROTOCOL_BINARY_RAW_BYTES,
+                            PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
+    }
+
+    Item *itm = new Item(key, nkey, nbytes, request->message.body.flags,
+                         exptime, cas, -1, vbucket);
+    if (itm == NULL) {
+        return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
+                            PROTOCOL_BINARY_RAW_BYTES,
+                            PROTOCOL_BINARY_RESPONSE_ENOMEM, 0, cookie);
+    }
+    memcpy((char*)itm->getData(), dta, nbytes);
+    itm->setSeqno(seqno);
+
+    ENGINE_ERROR_CODE ret = epstore->setWithMeta(*itm, cas, cookie, false);
+    protocol_binary_response_status rc;
+    rc = engine_error_2_protocol_error(ret);
+
+    if (ret == ENGINE_SUCCESS) {
+        addMutationEvent(itm);
+        rc = PROTOCOL_BINARY_RESPONSE_SUCCESS;
+        cas = itm->getCas();
+    } else {
+        cas = 0;
+    }
+
+    delete itm;
+
+    if (request->message.header.request.opcode == CMD_SETQ_WITH_META &&
+        rc == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+        return ENGINE_SUCCESS;
+    }
+
+    return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
+                        PROTOCOL_BINARY_RAW_BYTES,
+                        rc, cas, cookie);
 }

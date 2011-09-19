@@ -32,19 +32,22 @@ class QueuedItem : public RCValue {
 public:
     QueuedItem(const std::string &k, const uint16_t vb, enum queue_operation o,
                const uint16_t vb_version = -1, const int64_t rid = -1, const uint32_t f = 0,
-               const time_t expiry_time = 0, const uint64_t cv = 0)
+               const time_t expiry_time = 0, const uint64_t cv = 0, uint32_t seqno = 1)
         : op(o),vbucket_version(vb_version), ejectValue(false), queued(ep_current_time()),
-          dirtied(ep_current_time()), item(k, f, expiry_time, NULL, 0, cv, rid, vb) {
+          dirtied(ep_current_time()), item(k, f, expiry_time, NULL, 0, cv, rid, vb)
+    {
         ObjectRegistry::onCreateQueuedItem(this);
+        item.setSeqno(seqno);
     }
 
     QueuedItem(const std::string &k, value_t v, const uint16_t vb, enum queue_operation o,
                const uint16_t vb_version = -1, const int64_t rid = -1, const uint32_t f = 0,
-               const time_t expiry_time = 0, const uint64_t cv = 0)
+               const time_t expiry_time = 0, const uint64_t cv = 0, uint32_t seqno = 1)
         : op(o), vbucket_version(vb_version), ejectValue(false), queued(ep_current_time()),
           dirtied(ep_current_time()), item(k, f, expiry_time, v, cv, rid, vb)
     {
         ObjectRegistry::onCreateQueuedItem(this);
+        item.setSeqno(seqno);
     }
 
     ~QueuedItem() {

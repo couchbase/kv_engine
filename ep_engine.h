@@ -373,6 +373,14 @@ public:
                             protocol_binary_request_header *request,
                             ADD_RESPONSE response);
 
+
+    ENGINE_ERROR_CODE getMeta(const void* cookie,
+                              protocol_binary_request_get_meta *request,
+                              ADD_RESPONSE response);
+    ENGINE_ERROR_CODE setWithMeta(const void* cookie,
+                                  protocol_binary_request_set_with_meta *request,
+                                  ADD_RESPONSE response);
+
     /**
      * Visit the objects and add them to the tap connecitons queue.
      * @todo this code should honor the backfill time!

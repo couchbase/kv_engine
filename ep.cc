@@ -693,7 +693,7 @@ public:
                 uint64_t cas = v->getCas();
                 vb->ht.unlocked_softDelete(vk.second, 0, bucket_num);
                 e->queueDirty(vk.second, vb->getId(), queue_op_del, value,
-                              v->getFlags(), v->getExptime(), cas, v->getId());
+                              v->getFlags(), v->getExptime(), cas, v->getSeqno(), v->getId(), false);
             }
         }
     }
@@ -722,7 +722,7 @@ StoredValue *EventuallyPersistentStore::fetchValidValue(RCPtr<VBucket> vb,
             uint64_t cas = v->getCas();
             vb->ht.unlocked_softDelete(key, 0, bucket_num);
             queueDirty(key, vb->getId(), queue_op_del, value,
-                       v->getFlags(), v->getExptime(), cas, v->getId());
+                       v->getFlags(), v->getExptime(), cas, v->getSeqno(), v->getId());
             return NULL;
         }
         v->touch();
@@ -815,7 +815,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::set(const Item &itm,
         // Even if the item was dirty, push it into the vbucket's open checkpoint.
     case WAS_CLEAN:
         queueDirty(itm.getKey(), itm.getVBucketId(), queue_op_set, itm.getValue(),
-                   itm.getFlags(), itm.getExptime(), itm.getCas(), row_id);
+                   itm.getFlags(), itm.getExptime(), itm.getCas(), itm.getSeqno(), row_id);
         break;
     case INVALID_VBUCKET:
         ret = ENGINE_NOT_MY_VBUCKET;
@@ -857,12 +857,12 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::add(const Item &itm,
     case ADD_SUCCESS:
     case ADD_UNDEL:
         queueDirty(itm.getKey(), itm.getVBucketId(), queue_op_set, itm.getValue(),
-                   itm.getFlags(), itm.getExptime(), itm.getCas(), -1);
+                   itm.getFlags(), itm.getExptime(), itm.getCas(), itm.getSeqno(), -1);
     }
     return ENGINE_SUCCESS;
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentStore::addTAPBackfillItem(const Item &itm) {
+ENGINE_ERROR_CODE EventuallyPersistentStore::addTAPBackfillItem(const Item &itm, bool meta) {
 
     RCPtr<VBucket> vb = getVBucket(itm.getVBucketId());
     if (!vb || vb->getState() == vbucket_state_dead || vb->getState() == vbucket_state_active) {
@@ -873,7 +873,13 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::addTAPBackfillItem(const Item &itm)
     bool cas_op = (itm.getCas() != 0);
 
     int64_t row_id = -1;
-    mutation_type_t mtype = vb->ht.set(itm, row_id);
+    mutation_type_t mtype;
+
+    if (meta) {
+        mtype = vb->ht.setWithMeta(itm, 0, row_id);
+    } else {
+        mtype = vb->ht.set(itm, row_id);
+    }
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
 
     switch (mtype) {
@@ -895,7 +901,8 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::addTAPBackfillItem(const Item &itm)
         // FALLTHROUGH
     case WAS_CLEAN:
         queueDirty(itm.getKey(), itm.getVBucketId(), queue_op_set, itm.getValue(),
-                   itm.getFlags(), itm.getExptime(), itm.getCas(), row_id, true);
+                   itm.getFlags(), itm.getExptime(), itm.getCas(), itm.getSeqno(),
+                   row_id, true);
         break;
     case INVALID_VBUCKET:
         ret = ENGINE_NOT_MY_VBUCKET;
@@ -1228,12 +1235,7 @@ GetValue EventuallyPersistentStore::get(const std::string &key,
             return GetValue(NULL, ENGINE_EWOULDBLOCK, v->getId(), -1, v);
         }
 
-        // return an invalid cas value if the item is locked
-        uint64_t icas = v->isLocked(ep_current_time())
-            ? static_cast<uint64_t>(-1)
-            : v->getCas();
-        GetValue rv(new Item(v->getKey(), v->getFlags(), v->getExptime(),
-                             v->getValue(), icas, v->getId(), vbucket),
+        GetValue rv(v->toItem(v->isLocked(ep_current_time()), vbucket),
                     ENGINE_SUCCESS, v->getId(), -1, v);
         return rv;
     } else {
@@ -1244,6 +1246,103 @@ GetValue EventuallyPersistentStore::get(const std::string &key,
         return rv;
     }
 }
+
+ENGINE_ERROR_CODE EventuallyPersistentStore::getMetaData(const std::string &key,
+                                                         uint16_t vbucket,
+                                                         const void *cookie,
+                                                         std::string &meta,
+                                                         uint64_t &cas)
+{
+    RCPtr<VBucket> vb = getVBucket(vbucket);
+    if (!vb || vb->getState() == vbucket_state_dead ||
+        vb->getState() == vbucket_state_replica) {
+        ++stats.numNotMyVBuckets;
+        return ENGINE_NOT_MY_VBUCKET;
+    } else if (vb->getState() == vbucket_state_active ||
+               vb->getState() == vbucket_state_pending) {
+        if (vb->checkpointManager.isHotReload()) {
+            if (vb->addPendingOp(cookie)) {
+                return ENGINE_EWOULDBLOCK;
+            }
+        }
+    }
+
+    int bucket_num(0);
+    LockHolder lh = vb->ht.getLockedBucket(key, &bucket_num);
+    StoredValue *v = fetchValidValue(vb, key, bucket_num);
+
+    if (v) {
+        cas = v->getCas();
+        Item::encodeMeta(v->getSeqno(), cas, v->valLength(),
+                         v->getFlags(), meta);
+        return ENGINE_SUCCESS;
+    } else {
+        return ENGINE_KEY_ENOENT;
+    }
+}
+
+ENGINE_ERROR_CODE EventuallyPersistentStore::setWithMeta(const Item &itm,
+                                                         uint64_t cas,
+                                                         const void *cookie,
+                                                         bool force)
+{
+    RCPtr<VBucket> vb = getVBucket(itm.getVBucketId());
+    if (!vb || vb->getState() == vbucket_state_dead) {
+        ++stats.numNotMyVBuckets;
+        return ENGINE_NOT_MY_VBUCKET;
+    } else if (vb->getState() == vbucket_state_active) {
+        if (vb->checkpointManager.isHotReload()) {
+            if (vb->addPendingOp(cookie)) {
+                return ENGINE_EWOULDBLOCK;
+            }
+        }
+    } else if (vb->getState() == vbucket_state_replica && !force) {
+        ++stats.numNotMyVBuckets;
+        return ENGINE_NOT_MY_VBUCKET;
+    } else if (vb->getState() == vbucket_state_pending && !force) {
+        if (vb->addPendingOp(cookie)) {
+            return ENGINE_EWOULDBLOCK;
+        }
+    }
+
+    int64_t row_id = -1;
+    mutation_type_t mtype = vb->ht.setWithMeta(itm, cas, row_id);
+    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
+
+    switch (mtype) {
+    case NOMEM:
+        ret = ENGINE_ENOMEM;
+        break;
+    case INVALID_CAS:
+    case IS_LOCKED:
+        ret = ENGINE_KEY_EEXISTS;
+        break;
+    case NOT_FOUND:
+        ret = ENGINE_KEY_ENOENT;
+        break;
+    case INVALID_VBUCKET:
+        ret = ENGINE_NOT_MY_VBUCKET;
+        break;
+    case WAS_DIRTY:
+    case WAS_CLEAN:
+        queueDirty(itm.getKey(),
+                   itm.getVBucketId(),
+                   queue_op_set,
+                   itm.getValue(),
+                   itm.getFlags(),
+                   itm.getExptime(),
+                   itm.getCas(),
+                   itm.getSeqno(),
+                   row_id);
+        break;
+    default:
+        abort();
+    }
+
+    return ret;
+}
+
+
 
 GetValue EventuallyPersistentStore::getAndUpdateTtl(const std::string &key,
                                                     uint16_t vbucket,
@@ -1291,12 +1390,7 @@ GetValue EventuallyPersistentStore::getAndUpdateTtl(const std::string &key,
             }
         }
 
-        // return an invalid cas value if the item is locked
-        uint64_t icas = v->isLocked(ep_current_time())
-            ? static_cast<uint64_t>(-1)
-            : v->getCas();
-        GetValue rv(new Item(v->getKey(), v->getFlags(), v->getExptime(),
-                             v->getValue(), icas, v->getId(), vbucket),
+        GetValue rv(v->toItem(v->isLocked(ep_current_time()), vbucket),
                     ENGINE_SUCCESS, v->getId());
         return rv;
     } else {
@@ -1395,9 +1489,7 @@ bool EventuallyPersistentStore::getLocked(const std::string &key,
         // acquire lock and increment cas value
         v->lock(currentTime + lockTimeout);
 
-        Item *it = new Item(v->getKey(), v->getFlags(), v->getExptime(),
-                            v->getValue(), v->getCas());
-
+        Item *it = v->toItem(false, vbucket);
         it->setCas();
         v->setCas(it->getCas());
 
@@ -1548,7 +1640,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::del(const std::string &key,
 
     if (delrv == WAS_CLEAN || delrv == WAS_DIRTY || (delrv == NOT_FOUND && v->getId() != -1)) {
         queueDirty(key, vbucket, queue_op_del, value,
-                   v->getFlags(), v->getExptime(), cas, v->getId());
+                   v->getFlags(), v->getExptime(), cas, v->getSeqno(), v->getId());
     }
     return rv;
 }
@@ -2219,6 +2311,7 @@ void EventuallyPersistentStore::queueDirty(const std::string &key,
                                            uint32_t flags,
                                            time_t exptime,
                                            uint64_t cas,
+                                           uint32_t seqno,
                                            int64_t rowid,
                                            bool tapBackfill) {
     if (doPersistence) {
@@ -2227,10 +2320,10 @@ void EventuallyPersistentStore::queueDirty(const std::string &key,
             QueuedItem *qi = NULL;
             if (op == queue_op_set) {
                 qi = new QueuedItem(key, value, vbid, op, vbuckets.getBucketVersion(vbid),
-                                    rowid, flags, exptime, cas);
+                                    rowid, flags, exptime, cas, seqno);
             } else {
                 qi = new QueuedItem(key, vbid, op, vbuckets.getBucketVersion(vbid), rowid, flags,
-                                    exptime, cas);
+                                    exptime, cas, seqno);
             }
 
             queued_item itm(qi);

@@ -135,4 +135,62 @@
 
 typedef protocol_binary_request_gat protocol_binary_request_getl;
 
+// Command identifiers used by Cross Data Center Replication (cdcr)
+
+/**
+ * CMD_GET_META is used to retrieve the meta section for an item.
+ */
+#define CMD_GET_META 0xa0
+#define CMD_GETQ_META 0xa1
+/**
+ * The physical layout for a CMD_GET_META command returns the meta-data
+ * section for an item:
+ */
+typedef protocol_binary_request_no_extras protocol_binary_request_get_meta;
+
+/**
+ * The return message for a CMD_GET_META returns just the meta data
+ * section for an item. The body contains the meta information encoded
+ * in network byte order as:
+ *
+ * uint8_t element type
+ * uint8_t element length
+ * n*uint8_t element value.
+ *
+ * The following types are currently defined:
+ *   META_REVID - 0x01 With the following layout
+ *       uint32_t seqno
+ *       uint8_t  id[nnn] (where nnn == the length - size of seqno)
+ */
+typedef protocol_binary_response_no_extras protocol_binary_response_get_meta;
+
+/**
+ * CMD_SET_WITH_META is used to set a kv-pair with additional meta
+ * information.
+ */
+#define CMD_SET_WITH_META 0xa2
+#define CMD_SETQ_WITH_META 0xa3
+/**
+ * The physical layout for the CMD_SET_WITH_META looks like the the normal
+ * set request with the addition of a bulk of extra meta data stored
+ * at the <b>end</b> of the package.
+ */
+typedef union {
+    struct {
+        protocol_binary_request_header header;
+        struct {
+            uint32_t nmeta_bytes; // # of bytes in the body that is meta info
+            uint32_t flags;
+            uint32_t expiration;
+        } body;
+    } message;
+    uint8_t bytes[sizeof(protocol_binary_request_header) + 12];
+} protocol_binary_request_set_with_meta;
+
+/**
+ * The response for CMD_SET_WITH_META does not carry any user-data and the
+ * status of the operation is signalled in the status bits.
+ */
+typedef protocol_binary_response_no_extras protocol_binary_response_set_with_meta;
+
 #endif /* EP_ENGINE_COMMAND_IDS_H */
