@@ -31,7 +31,7 @@ void MCKVStore::reset() {
 
 void MCKVStore::set(const Item &itm, uint16_t, Callback<mutation_result> &cb) {
     assert(intransaction);
-    mc->setq(itm, cb);
+    mc->setmq(itm, cb);
 }
 
 void MCKVStore::get(const std::string &key, uint64_t, uint16_t vb, uint16_t,

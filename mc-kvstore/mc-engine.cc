@@ -371,18 +371,35 @@ public:
 
             uint16_t tap_flags = ntohs(mreq->message.body.tap.flags);
             bool partial = tap_flags & TAP_FLAG_NO_VALUE;
-            uint8_t *keyptr = mreq->bytes + sizeof(mreq->bytes);
+
+            uint16_t nes = ntohs(mreq->message.body.tap.enginespecific_length);
+            uint8_t *es = mreq->bytes + sizeof(mreq->bytes);
+            uint8_t *keyptr = es + nes;
             uint16_t keylen = ntohs(req->request.keylen);
             uint32_t vallen = ntohl(req->request.bodylen) - keylen
-                    - req->request.extlen;
+                    - req->request.extlen - nes;
             uint8_t *valptr = keyptr + keylen;
 
             // @todo I need to get the exptime somehow, or is that
             // overwritten with the value we've got in the cache??
             Item *it = new Item(keyptr, keylen,
-                    mreq->message.body.item.flags,
-                    mreq->message.body.item.expiration, valptr, vallen,
-                    req->request.cas, 1, ntohs(req->request.vbucket));
+                                mreq->message.body.item.flags,
+                                mreq->message.body.item.expiration, valptr,
+                                vallen,
+                                req->request.cas, 1,
+                                ntohs(req->request.vbucket));
+
+            if (nes > 0) {
+                uint32_t s;
+                uint64_t c;
+                uint32_t l;
+                uint32_t f;
+
+                if (Item::decodeMeta(es, s, c, l, f)) {
+                    it->setCas(c);
+                    it->setSeqno(s);
+                }
+            }
 
             GetValue rv(it, ENGINE_SUCCESS, -1, -1, NULL, partial);
             callback.cb.callback(rv);
@@ -1004,36 +1021,34 @@ void MemcachedEngine::delq(const std::string &key, uint16_t vb,
     insertCommand(new DelResponseHandler(buffer, epStats, cb));
 }
 
-void MemcachedEngine::setq(const Item &it, Callback<mutation_result> &cb) {
-
-    protocol_binary_request_set *req;
-    Buffer *buffer = new Buffer(
-            sizeof(req->bytes) + it.getNKey() + it.getNBytes());
-    req = (protocol_binary_request_set *)buffer->data;
+void MemcachedEngine::setmq(const Item &it, Callback<mutation_result> &cb) {
+    protocol_binary_request_set_with_meta *req;
+    Buffer *buffer = new Buffer(sizeof(req->bytes) + it.getNKey() +
+                                it.getNBytes() + it.getNMetaBytes());
+    req = (protocol_binary_request_set_with_meta *)buffer->data;
 
     memset(buffer->data, 0, buffer->size);
     req->message.header.request.magic = PROTOCOL_BINARY_REQ;
-    req->message.header.request.opcode = PROTOCOL_BINARY_CMD_SETQ;
-    req->message.header.request.extlen = 8;
+    req->message.header.request.opcode = CMD_SETQ_WITH_META;
+    req->message.header.request.extlen = 12;
     req->message.header.request.keylen = ntohs((uint16_t)it.getNKey());
     req->message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
     req->message.header.request.vbucket = ntohs(it.getVBucketId());
-    // @todo we should probably pos the CAS in the store (not that
-    //       couch chould verify it, but be able to store it)
-    // req->message.header.request.cas = ntohll(it.getCas());
     uint32_t bodylen = req->message.header.request.extlen + it.getNKey()
-            + it.getNBytes();
+        + it.getNBytes() + it.getNMetaBytes();
     req->message.header.request.bodylen = ntohl(bodylen);
 
+    req->message.body.nmeta_bytes = ntohl(it.getNMetaBytes());
     req->message.body.flags = it.getFlags();
     req->message.body.expiration = htonl((uint32_t)it.getExptime());
-    memcpy(buffer->data + sizeof(req->bytes), it.getKey().c_str(),
-            it.getNKey());
-    memcpy(buffer->data + sizeof(req->bytes) + it.getNKey(), it.getData(),
-            it.getNBytes());
-
+    char *ptr = buffer->data + sizeof(req->bytes);
+    memcpy(ptr, it.getKey().c_str(), it.getNKey());
+    ptr += it.getNKey();
+    memcpy(ptr, it.getData(), it.getNBytes());
+    ptr += it.getNBytes();
+    size_t nb = it.getNMetaBytes();
+    Item::encodeMeta(it, (uint8_t*)ptr, nb);
     buffer->avail = buffer->size;
-
     insertCommand(new SetResponseHandler(buffer, epStats, it.getId() <= 0,
                                          it.getNBytes(), cb));
 }

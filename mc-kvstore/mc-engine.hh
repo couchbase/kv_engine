@@ -103,7 +103,7 @@ public:
     ~MemcachedEngine();
 
     void flush(Callback<bool> &cb);
-    void setq(const Item &item, Callback<mutation_result> &cb);
+    void setmq(const Item &item, Callback<mutation_result> &cb);
     void get(const std::string &key, uint16_t vb, Callback<GetValue> &cb);
     void delq(const std::string &key, uint16_t vb, Callback<int> &cb);
     void stats(const std::string &key,
