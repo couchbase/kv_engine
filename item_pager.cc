@@ -11,6 +11,7 @@
 #include "ep.hh"
 
 static const double threshold = 75.0;
+static const size_t MAX_PERSISTENCE_QUEUE_SIZE = 1000000;
 
 /**
  * As part of the ItemPager, visit all of the objects in memory and
@@ -27,11 +28,12 @@ public:
      * @param st the stats where we'll track what we've done
      * @param pcnt percentage of objects to attempt to evict (0-1)
      * @param sfin pointer to a bool to be set to true after run completes
+     * @param pause flag indicating if PagingVisitor can pause between vbucket visits
      */
     PagingVisitor(EventuallyPersistentStore *s, EPStats &st, double pcnt,
-                  bool *sfin)
+                  bool *sfin, bool pause = false)
         : store(s), stats(st), percent(pcnt), ejected(0),
-          startTime(ep_real_time()), stateFinalizer(sfin) {}
+          startTime(ep_real_time()), stateFinalizer(sfin), canPause(pause) {}
 
     void visit(StoredValue *v) {
         // Remember expired objects -- we're going to delete them.
@@ -82,6 +84,11 @@ public:
         expired.clear();
     }
 
+    bool pauseVisitor() {
+        size_t queueSize = stats.queue_size.get() + stats.flusher_todo.get();
+        return canPause && queueSize >= MAX_PERSISTENCE_QUEUE_SIZE;
+    }
+
     void complete() {
         update();
         if (stateFinalizer) {
@@ -103,6 +110,7 @@ private:
     size_t                     ejected;
     time_t                     startTime;
     bool                      *stateFinalizer;
+    bool                       canPause;
 };
 
 bool ItemPager::callback(Dispatcher &d, TaskId t) {
@@ -137,8 +145,9 @@ bool ExpiredItemPager::callback(Dispatcher &d, TaskId t) {
 
         available = false;
         shared_ptr<PagingVisitor> pv(new PagingVisitor(store, stats,
-                                                       -1, &available));
-        store->visit(pv, "Expired item remover", &d, Priority::ItemPagerPriority);
+                                                       -1, &available, true));
+        store->visit(pv, "Expired item remover", &d, Priority::ItemPagerPriority,
+                     true, 10);
     }
     d.snooze(t, sleepTime);
     return true;

@@ -25,11 +25,15 @@
             "type": "size_t"
         },
         "chk_max_items": {
-            "default": "5000",
+            "default": "30000",
             "type": "size_t"
         },
         "chk_period": {
-            "default": "600",
+            "default": "3600",
+            "type": "size_t"
+        },
+        "max_checkpoints": {
+            "default": "2",
             "type": "size_t"
         },
         "chk_remover_stime": {

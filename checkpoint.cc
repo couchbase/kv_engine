@@ -442,7 +442,9 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(const RCPtr<VBucket> &vbu
     assert(vbucket);
     uint64_t oldCheckpointId = 0;
     if (vbucket->getState() == vbucket_state_active &&
-        !checkpointConfig.isInconsistentSlaveCheckpoint()) {
+        !checkpointConfig.isInconsistentSlaveCheckpoint() &&
+        checkpointList.size() < checkpointConfig.getMaxCheckpoints()) {
+
         bool forceCreation = isCheckpointCreationForHighMemUsage(vbucket);
         // Check if this master active vbucket needs to create a new open checkpoint.
         oldCheckpointId = checkOpenCheckpoint_UNLOCKED(forceCreation, true);
@@ -524,7 +526,8 @@ bool CheckpointManager::queueDirty(const queued_item &qi, const RCPtr<VBucket> &
 
     assert(vbucket);
     if (vbucket->getState() == vbucket_state_active &&
-        !checkpointConfig.isInconsistentSlaveCheckpoint()) {
+        !checkpointConfig.isInconsistentSlaveCheckpoint() &&
+        checkpointList.size() < checkpointConfig.getMaxCheckpoints()) {
         // Only the master active vbucket can create a next open checkpoint.
         checkOpenCheckpoint_UNLOCKED(false, true);
     }
@@ -927,6 +930,8 @@ void CheckpointConfig::addConfigChangeListener(EventuallyPersistentEngine &engin
                               new CheckpointConfigChangeListener(engine.getCheckpointConfig()));
     configuration.addValueChangedListener("chk_max_items",
                               new CheckpointConfigChangeListener(engine.getCheckpointConfig()));
+    configuration.addValueChangedListener("max_checkpoints",
+                              new CheckpointConfigChangeListener(engine.getCheckpointConfig()));
     configuration.addValueChangedListener("inconsistent_slave_chk",
                               new CheckpointConfigChangeListener(engine.getCheckpointConfig()));
 }
@@ -935,6 +940,7 @@ CheckpointConfig::CheckpointConfig(EventuallyPersistentEngine &e) {
     Configuration &config = e.getConfiguration();
     checkpointPeriod = config.getChkPeriod();
     checkpointMaxItems = config.getChkMaxItems();
+    maxCheckpoints = config.getMaxCheckpoints();
     inconsistentSlaveCheckpoint = config.isInconsistentSlaveChk();
 }
 
@@ -964,6 +970,19 @@ bool CheckpointConfig::validateCheckpointPeriodParam(size_t checkpoint_period) {
     return true;
 }
 
+bool CheckpointConfig::validateMaxCheckpointsParam(size_t max_checkpoints) {
+    if (max_checkpoints < DEFAULT_MAX_CHECKPOINTS ||
+        max_checkpoints > MAX_CHECKPOINTS_UPPER_BOUND) {
+        std::stringstream ss;
+        ss << "New max_checkpoints param value " << max_checkpoints
+           << " is not ranged between the min allowed value " << DEFAULT_MAX_CHECKPOINTS
+           << " and max value " << MAX_CHECKPOINTS_UPPER_BOUND;
+        getLogger()->log(EXTENSION_LOG_WARNING, NULL, ss.str().c_str());
+        return false;
+    }
+    return true;
+}
+
 void CheckpointConfig::setCheckpointPeriod(size_t value) {
     if (!validateCheckpointPeriodParam(value)) {
         value = DEFAULT_CHECKPOINT_PERIOD;
@@ -976,4 +995,11 @@ void CheckpointConfig::setCheckpointMaxItems(size_t value) {
         value = DEFAULT_CHECKPOINT_ITEMS;
     }
     checkpointMaxItems = value;
+}
+
+void CheckpointConfig::setMaxCheckpoints(size_t value) {
+    if (!validateMaxCheckpointsParam(value)) {
+        value = DEFAULT_MAX_CHECKPOINTS;
+    }
+    maxCheckpoints = value;
 }

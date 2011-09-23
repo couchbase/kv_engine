@@ -387,6 +387,8 @@ public:
      */
     void queueBackfill(const VBucketFilter &backfillVBFilter, TapProducer *tc, const void *tok);
 
+    void reportNullCookie(TapConnection &tc);
+
     void notifyIOComplete(const void *cookie, ENGINE_ERROR_CODE status) {
         if (cookie == NULL) {
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
@@ -633,7 +635,6 @@ private:
     friend void *EvpNotifyTapIo(void*arg);
     void notifyTapIoThread(void);
 
-
     friend class BackFillVisitor;
     friend class TapBGFetchCallback;
     friend class TapConnMap;
@@ -689,6 +690,7 @@ private:
     }
 
     ENGINE_ERROR_CODE doEngineStats(const void *cookie, ADD_STAT add_stat);
+    ENGINE_ERROR_CODE doMemoryStats(const void *cookie, ADD_STAT add_stat);
     ENGINE_ERROR_CODE doVBucketStats(const void *cookie, ADD_STAT add_stat,
                                      bool prevStateRequested,
                                      bool details);
@@ -774,12 +776,12 @@ private:
     SyncRegistry syncRegistry;
     Configuration configuration;
     Atomic<bool> warmingUp;
+    bool syncOnPersist;
     struct {
         Mutex mutex;
         RestoreManager *manager;
         Atomic<bool> enabled;
     } restore;
-    bool syncOnPersist;
 };
 
 #endif

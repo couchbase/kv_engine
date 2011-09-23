@@ -54,9 +54,9 @@ class BackFillVisitor : public VBucketVisitor {
 public:
     BackFillVisitor(EventuallyPersistentEngine *e, TapProducer *tc,
                     const void *token, const VBucketFilter &backfillVBfilter):
-        VBucketVisitor(), engine(e), name(tc->getName()),
+        VBucketVisitor(backfillVBfilter), engine(e), name(tc->getName()),
         queue(new std::list<queued_item>),
-        found(), filter(backfillVBfilter),
+        found(),
         validityToken(token), valid(true),
         efficientVBDump(e->epstore->getStorageProperties().hasEfficientVBDump()),
         residentRatioBelowThreshold(false) {
@@ -93,7 +93,6 @@ private:
     std::list<queued_item> *queue;
     std::vector<std::pair<uint16_t, queued_item> > found;
     std::vector<uint16_t> vbuckets;
-    VBucketFilter filter;
     const void *validityToken;
     bool valid;
     bool efficientVBDump;

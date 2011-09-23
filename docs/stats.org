@@ -501,6 +501,45 @@ each stat name.
 | num_checkpoint_items | Number of total items in a checkpoint datastructure |
 | num_checkpoints      | Number of checkpoints in a checkpoint datastructure |
 
+** Memory Stats
+
+This provides various memory-related stats including the stats from tcmalloc.
+Note that tcmalloc stats are not available on some operating systems
+(e.g., Windows) that do not support tcmalloc.
+
+| mem_used                            | Engine's total memory usage          |
+| ep_kv_size                          | Memory used to store item metadata,  |
+|                                     | keys and values, no matter the       |
+|                                     | vbucket's state. If an item's value  |
+|                                     | is ejected, this stat will be        |
+|                                     | decremented by the size of the       |
+|                                     | item's value.                        |
+| ep_value_size                       | Memory used to store values for      |
+|                                     | resident keys.                       |
+| ep_overhead                         | Extra memory used by transient data  |
+|                                     | like persistence queue, replication  |
+|                                     | queues, checkpoints, etc.            |
+| ep_max_data_size                    | Max amount of data allowed in memory |
+| ep_mem_low_wat                      | Low water mark for auto-evictions    |
+| ep_mem_high_wat                     | High water mark for auto-evictions   |
+| ep_oom_errors                       | Number of times unrecoverable OOMs   |
+|                                     | happened while processing operations |
+| ep_tmp_oom_errors                   | Number of times temporary OOMs       |
+|                                     | happened while processing operations |
+| tcmalloc_allocated_bytes            | Engine's total memory usage reported |
+|                                     | from tcmalloc                        |
+| tcmalloc_heap_size                  | Bytes of system memory reserved by   |
+|                                     | tcmalloc                             |
+| tcmalloc_free_bytes                 | Number of bytes in free, mapped      |
+|                                     | pages in page heap                   |
+| tcmalloc_unmapped_bytes             | Number of bytes in free, unmapped    |
+|                                     | pages in page heap. These are bytes  |
+|                                     | that have been released back to OS.  |
+| tcmalloc_max_thread_cache_bytes     | A limit to how much memory TCMalloc  |
+|                                     | dedicates for small objects.         |
+| tcmalloc_current_thread_cache_bytes | A measure of some of the memory      |
+|                                     | TCMalloc is using for small objects. |
+
 * Details
 
 ** Ages

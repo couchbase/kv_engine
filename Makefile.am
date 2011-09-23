@@ -352,6 +352,10 @@ ep_la_SOURCES += byteorder.c
 management_mbdbconvert_SOURCES += byteorder.c
 endif
 
+if BUILD_TCMALLOC_STATS
+ep_la_SOURCES += tcmalloc/tcmalloc_stats.hh tcmalloc/tcmalloc_stats.cc
+endif
+
 pythonlibdir=$(libdir)/python
 pythonlib_DATA= \
                 management/capture.py \

@@ -272,15 +272,50 @@ void TapProducer::setVBucketFilter(const std::vector<uint16_t> &vbuckets)
     // Note that we do re-evaluete all entries when we suck them out of the
     // queue to send them..
     if (flags & TAP_CONNECT_FLAG_TAKEOVER_VBUCKETS) {
-        const std::vector<uint16_t> &vec = diff.getVector();
+        std::list<TapVBucketEvent> nonVBucketOpaqueMessages;
+        std::list<TapVBucketEvent> vBucketOpaqueMessages;
+        // Clear vbucket state change messages with a higher priority.
+        while (!vBucketHighPriority.empty()) {
+            TapVBucketEvent msg = vBucketHighPriority.front();
+            vBucketHighPriority.pop();
+            if (msg.event == TAP_OPAQUE) {
+                uint32_t opaqueCode = (uint32_t) msg.state;
+                if (opaqueCode == htonl(TAP_OPAQUE_ENABLE_AUTO_NACK) ||
+                    opaqueCode == htonl(TAP_OPAQUE_ENABLE_CHECKPOINT_SYNC)) {
+                    nonVBucketOpaqueMessages.push_back(msg);
+                } else {
+                    vBucketOpaqueMessages.push_back(msg);
+                }
+            }
+        }
+
+        // Add non-vbucket opaque messages back to the high priority queue.
+        std::list<TapVBucketEvent>::iterator iter = nonVBucketOpaqueMessages.begin();
+        while (iter != nonVBucketOpaqueMessages.end()) {
+            addVBucketHighPriority_UNLOCKED(*iter);
+            ++iter;
+        }
+
+        // Clear vbucket state changes messages with a lower priority.
+        while (!vBucketLowPriority.empty()) {
+            vBucketLowPriority.pop();
+        }
+
+        // Add new vbucket state change messages with a higher or lower priority.
+        const std::vector<uint16_t> &vec = vbucketFilter.getVector();
         for (std::vector<uint16_t>::const_iterator it = vec.begin();
              it != vec.end(); ++it) {
-            if (vbucketFilter(*it)) {
-                TapVBucketEvent hi(TAP_VBUCKET_SET, *it, vbucket_state_pending);
-                TapVBucketEvent lo(TAP_VBUCKET_SET, *it, vbucket_state_active);
-                addVBucketHighPriority_UNLOCKED(hi);
-                addVBucketLowPriority_UNLOCKED(lo);
-            }
+            TapVBucketEvent hi(TAP_VBUCKET_SET, *it, vbucket_state_pending);
+            TapVBucketEvent lo(TAP_VBUCKET_SET, *it, vbucket_state_active);
+            addVBucketHighPriority_UNLOCKED(hi);
+            addVBucketLowPriority_UNLOCKED(lo);
+        }
+
+        // Add vbucket opaque messages back to the high priority queue.
+        iter = vBucketOpaqueMessages.begin();
+        while (iter != vBucketOpaqueMessages.end()) {
+            addVBucketHighPriority_UNLOCKED(*iter);
+            ++iter;
         }
         doTakeOver = true;
     }
@@ -331,6 +366,15 @@ void TapProducer::registerTAPCursor(std::map<uint16_t, uint64_t> &lastCheckpoint
             if (backfillVBuckets.find(vbid) != backfillVBuckets.end()) {
                 TapCheckpointState st(vbid, 0, backfill);
                 tapCheckpointState[vbid] = st;
+                continue;
+            }
+
+            // As TAP dump option simply requires the snapshot of each vbucket, simply schedule
+            // backfill and skip the checkpoint cursor registration.
+            if (dumpQueue) {
+                if (vb->getState() == vbucket_state_active) {
+                    backfill_vbuckets.push_back(vbid);
+                }
                 continue;
             }
 
@@ -1464,7 +1508,7 @@ bool TapProducer::SetCursorToOpenCheckpoint(uint16_t vbid) {
 
     uint64_t checkpointId = vb->checkpointManager.getOpenCheckpointId();
     std::map<uint16_t, TapCheckpointState>::iterator it = tapCheckpointState.find(vbid);
-    if (it == tapCheckpointState.end()) {
+    if (it == tapCheckpointState.end() || dumpQueue) {
         return false;
     }
 

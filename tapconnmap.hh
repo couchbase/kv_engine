@@ -242,6 +242,29 @@ public:
         std::for_each(all.begin(), all.end(), f);
     }
 
+    /**
+     * Return the number of connections for which this predicate is true.
+     */
+    template <typename Fun>
+    size_t count_if(Fun f) {
+        LockHolder lh(notifySync);
+        return count_if_UNLOCKED(f);
+    }
+
+    /**
+     * Return the number of connections for which this predicate is
+     * true *without* a lock.
+     */
+    template <typename Fun>
+    size_t count_if_UNLOCKED(Fun f) {
+        return static_cast<size_t>(std::count_if(all.begin(), all.end(), f));
+    }
+
+    /**
+     * Notify the tap connections.
+     *
+     * @return true if we need need to rush another run in quickly
+     */
     void notifyIOThreadMain();
 
     bool SetCursorToOpenCheckpoint(const std::string &name, uint16_t vbucket);

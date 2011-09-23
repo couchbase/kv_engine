@@ -58,6 +58,9 @@ public:
 
     VBucketVisitor() : HashTableVisitor() { }
 
+    VBucketVisitor(const VBucketFilter &filter) :
+        HashTableVisitor(), vBucketFilter(filter) { }
+
     /**
      * Begin visiting a bucket.
      *
@@ -66,14 +69,21 @@ public:
      * @return true iff we want to walk the hashtable in this vbucket
      */
     virtual bool visitBucket(RCPtr<VBucket> vb) {
-        currentBucket = vb;
-        return true;
+        if (vBucketFilter(vb->getId())) {
+            currentBucket = vb;
+            return true;
+        }
+        return false;
     }
 
     // This is unused in all implementations so far.
     void visit(StoredValue* v) {
         (void)v;
         abort();
+    }
+
+    const VBucketFilter &getVBucketFilter() {
+        return vBucketFilter;
     }
 
     /**
@@ -89,6 +99,7 @@ public:
     }
 
 protected:
+    VBucketFilter vBucketFilter;
     RCPtr<VBucket> currentBucket;
 };
 
@@ -375,8 +386,7 @@ class VBCBAdaptor : public DispatcherCallback {
 public:
 
     VBCBAdaptor(EventuallyPersistentStore *s,
-                shared_ptr<VBucketVisitor> v, const char *l, double sleep=0)
-        : store(s), visitor(v), label(l), sleepTime(sleep), currentvb(0) {}
+                shared_ptr<VBucketVisitor> v, const char *l, double sleep=0);
 
     std::string description() {
         std::stringstream rv;
@@ -387,6 +397,7 @@ public:
     bool callback(Dispatcher &d, TaskId t);
 
 private:
+    std::queue<uint16_t>        vbList;
     EventuallyPersistentStore  *store;
     shared_ptr<VBucketVisitor>  visitor;
     const char                 *label;
@@ -768,6 +779,11 @@ public:
         return engine;
     }
 
+    size_t getExpiryPagerSleeptime(void) {
+        LockHolder lh(expiryPager.mutex);
+        return expiryPager.sleeptime;
+    }
+
     /**
      * During restore from backup we read the most recent values first
      * and works our way back until epoch.. We should therefore only
@@ -800,6 +816,8 @@ public:
     void setVbChunkDelThresholdTime(size_t value) {
         vbChunkDelThresholdTime = value;
     }
+
+    void setExpiryPagerSleeptime(size_t val);
 
 protected:
     // Method called by the flusher
@@ -925,6 +943,12 @@ private:
         Mutex mutex;
         std::vector<queued_item> items;
     } restore;
+    struct ExpiryPagerDelta {
+        ExpiryPagerDelta() : sleeptime(0) {}
+        Mutex mutex;
+        size_t sleeptime;
+        TaskId task;
+    } expiryPager;
     size_t itemExpiryWindow;
     size_t vbDelChunkSize;
     size_t vbChunkDelThresholdTime;

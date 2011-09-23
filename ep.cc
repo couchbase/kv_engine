@@ -93,6 +93,8 @@ public:
             store.setVbChunkDelThresholdTime(value);
         } else if (key.compare("max_txn_size") == 0) {
             store.setTxnSize(value);
+        } else if (key.compare("exp_pager_stime") == 0) {
+            store.setExpiryPagerSleeptime(value);
         }
     }
 
@@ -568,10 +570,9 @@ void EventuallyPersistentStore::initialize() {
         shared_ptr<DispatcherCallback> cb(new ItemPager(this, stats));
         nonIODispatcher->schedule(cb, NULL, Priority::ItemPagerPriority, 10);
 
-        shared_ptr<DispatcherCallback> exp_cb(new ExpiredItemPager(this, stats,
-                                                                   expiryPagerSleeptime));
-        nonIODispatcher->schedule(exp_cb, NULL, Priority::ItemPagerPriority,
-                                  expiryPagerSleeptime);
+        setExpiryPagerSleeptime(expiryPagerSleeptime);
+        config.addValueChangedListener("exp_pager_stime",
+                                       new EPStoreValueChangeListener(*this));
     }
 
     shared_ptr<DispatcherCallback> htr(new HashtableResizer(this));
@@ -2011,7 +2012,8 @@ public:
                 setId(value.second);
             }
             RCPtr<VBucket> vb = store->getVBucket(queuedItem->getVBucketId());
-            if (vb && vb->getState() != vbucket_state_active) {
+            if (vb && vb->getState() != vbucket_state_active &&
+                vb->getState() != vbucket_state_pending) {
                 int bucket_num(0);
                 LockHolder lh = vb->ht.getLockedBucket(queuedItem->getKey(), &bucket_num);
                 StoredValue *v = store->fetchValidValue(vb, queuedItem->getKey(),
@@ -2400,6 +2402,24 @@ void EventuallyPersistentStore::warmup(const std::map<std::pair<uint16_t, uint16
     }
 }
 
+void EventuallyPersistentStore::setExpiryPagerSleeptime(size_t val) {
+    LockHolder lh(expiryPager.mutex);
+
+    if (expiryPager.sleeptime != 0) {
+        getNonIODispatcher()->cancel(expiryPager.task);
+    }
+
+    expiryPager.sleeptime = val;
+    if (val != 0) {
+        shared_ptr<DispatcherCallback> exp_cb(new ExpiredItemPager(this, stats,
+                                                                   expiryPager.sleeptime));
+
+        getNonIODispatcher()->schedule(exp_cb, &expiryPager.task,
+                                       Priority::ItemPagerPriority,
+                                       expiryPager.sleeptime);
+    }
+}
+
 void LoadStorageKVPairCallback::initVBucket(uint16_t vbid, uint16_t vb_version,
                                             uint64_t checkpointId, vbucket_state_t prevState) {
     RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
@@ -2559,21 +2579,40 @@ void TransactionContext::addUncommittedItem(const queued_item &qi) {
     ++numUncommittedItems;
 }
 
-bool VBCBAdaptor::callback(Dispatcher & d, TaskId t) {
-    RCPtr<VBucket> vb = store->vbuckets.getBucket(currentvb);
-    if (vb) {
-        if (visitor->pauseVisitor()) {
-            d.snooze(t, sleepTime);
-            return true;
-        }
-        if (visitor->visitBucket(vb)) {
-            vb->ht.visit(*visitor);
+VBCBAdaptor::VBCBAdaptor(EventuallyPersistentStore *s,
+                         shared_ptr<VBucketVisitor> v,
+                         const char *l, double sleep) :
+    store(s), visitor(v), label(l), sleepTime(sleep), currentvb(0)
+{
+    const VBucketFilter &vbFilter = visitor->getVBucketFilter();
+    size_t maxSize = store->vbuckets.getSize();
+    for (size_t i = 0; i <= maxSize; ++i) {
+        assert(i <= std::numeric_limits<uint16_t>::max());
+        uint16_t vbid = static_cast<uint16_t>(i);
+        RCPtr<VBucket> vb = store->vbuckets.getBucket(vbid);
+        if (vb && vbFilter(vbid)) {
+            vbList.push(vbid);
         }
     }
-    size_t maxSize = store->vbuckets.getSize();
-    assert(currentvb <= std::numeric_limits<uint16_t>::max());
-    bool isdone = currentvb >= static_cast<uint16_t>(maxSize);
-    ++currentvb;
+}
+
+bool VBCBAdaptor::callback(Dispatcher & d, TaskId t) {
+    if (!vbList.empty()) {
+        currentvb = vbList.front();
+        RCPtr<VBucket> vb = store->vbuckets.getBucket(currentvb);
+        if (vb) {
+            if (visitor->pauseVisitor()) {
+                d.snooze(t, sleepTime);
+                return true;
+            }
+            if (visitor->visitBucket(vb)) {
+                vb->ht.visit(*visitor);
+            }
+        }
+        vbList.pop();
+    }
+
+    bool isdone = vbList.empty();
     if (isdone) {
         visitor->complete();
     }

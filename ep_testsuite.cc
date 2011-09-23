@@ -1216,11 +1216,20 @@ static enum test_result test_append(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     char binaryData1[] = "abcdefg\0gfedcba\r\n";
     char binaryData2[] = "abzdefg\0gfedcba\r\n";
+    size_t dataSize = 20*1024*1024;
+    char *bigBinaryData3 = new char[dataSize];
+    memset(bigBinaryData3, '\0', dataSize);
 
     check(storeCasVb11(h, h1, NULL, OPERATION_SET, "key",
                        binaryData1, sizeof(binaryData1) - 1, 82758, &i, 0, 0)
           == ENGINE_SUCCESS,
           "Failed set.");
+
+    check(storeCasVb11(h, h1, NULL, OPERATION_APPEND, "key",
+                       bigBinaryData3, dataSize, 82758, &i, 0, 0)
+          == ENGINE_E2BIG,
+          "Expected append failure.");
+    delete bigBinaryData3;
 
     check(storeCasVb11(h, h1, NULL, OPERATION_APPEND, "key",
                        binaryData2, sizeof(binaryData2) - 1, 82758, &i, 0, 0)
@@ -1251,11 +1260,20 @@ static enum test_result test_prepend(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     char binaryData1[] = "abcdefg\0gfedcba\r\n";
     char binaryData2[] = "abzdefg\0gfedcba\r\n";
+    size_t dataSize = 20*1024*1024;
+    char *bigBinaryData3 = new char[dataSize];
+    memset(bigBinaryData3, '\0', dataSize);
 
     check(storeCasVb11(h, h1, NULL, OPERATION_SET, "key",
                        binaryData1, sizeof(binaryData1) - 1, 82758, &i, 0, 0)
           == ENGINE_SUCCESS,
           "Failed set.");
+
+    check(storeCasVb11(h, h1, NULL, OPERATION_PREPEND, "key",
+                       bigBinaryData3, dataSize, 82758, &i, 0, 0)
+          == ENGINE_E2BIG,
+          "Expected prepend failure.");
+    delete bigBinaryData3;
 
     check(storeCasVb11(h, h1, NULL, OPERATION_PREPEND, "key",
                        binaryData2, sizeof(binaryData2) - 1, 82758, &i, 0, 0)
@@ -2187,6 +2205,7 @@ static enum test_result test_gat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     req->message.header.request.vbucket = htons(5);
     check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
           "Failed to call touch");
+
     check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, "Testing illegal vbucket");
     req->message.header.request.vbucket = 0;
 
@@ -2843,6 +2862,7 @@ static enum test_result test_tap_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
         case TAP_PAUSE:
             testHarness.waitfor_cookie(cookie);
             break;
+        case TAP_OPAQUE:
         case TAP_NOOP:
             break;
         case TAP_MUTATION:
@@ -2856,6 +2876,130 @@ static enum test_result test_tap_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
             testHarness.lock_cookie(cookie);
             break;
         case TAP_DISCONNECT:
+            break;
+        default:
+            std::cerr << "Unexpected event:  " << event << std::endl;
+            return FAIL;
+        }
+
+    } while (event != TAP_DISCONNECT);
+
+    for (int ii = 0; ii < num_keys; ++ii) {
+        check(keys[ii], "Failed to receive key");
+    }
+
+    testHarness.unlock_cookie(cookie);
+    check(get_int_stat(h, h1, "ep_tap_total_fetched", "tap") != 0,
+          "http://bugs.northscale.com/show_bug.cgi?id=1695");
+    h1->reset_stats(h, NULL);
+    check(get_int_stat(h, h1, "ep_tap_total_fetched", "tap") == 0,
+          "Expected reset stats to clear ep_tap_total_fetched");
+
+    return SUCCESS;
+}
+
+static enum test_result test_tap_takeover(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    const int num_keys = 30;
+    bool keys[num_keys];
+    int initialPersisted = get_int_stat(h, h1, "ep_total_persisted");
+
+    int initializedKeys = 0;
+
+    memset(keys, 0, sizeof(keys));
+
+    for (; initializedKeys < num_keys / 2; ++initializedKeys) {
+        keys[initializedKeys] = false;
+        std::stringstream ss;
+        ss << initializedKeys;
+        check(store(h, h1, NULL, OPERATION_SET, ss.str().c_str(),
+                    "value", NULL, 0, 0) == ENGINE_SUCCESS,
+              "Failed to store an item.");
+    }
+
+    useconds_t sleepTime = 128;
+    while (get_int_stat(h, h1, "ep_total_persisted")
+           < initialPersisted + initializedKeys) {
+        decayingSleep(&sleepTime);
+    }
+
+    for (int ii = 0; ii < initializedKeys; ++ii) {
+        std::stringstream ss;
+        ss << ii;
+        evict_key(h, h1, ss.str().c_str(), 0, "Ejected.");
+    }
+
+    uint16_t vbucketfilter[2];
+    vbucketfilter[0] = ntohs(1);
+    vbucketfilter[1] = ntohs(0);
+
+    const void *cookie = testHarness.create_cookie();
+    testHarness.lock_cookie(cookie);
+    std::string name = "tap_client_thread";
+    TAP_ITERATOR iter = h1->get_tap_iterator(h, cookie, name.c_str(),
+                                             name.length(),
+                                             TAP_CONNECT_FLAG_TAKEOVER_VBUCKETS |
+                                             TAP_CONNECT_FLAG_LIST_VBUCKETS,
+                                             static_cast<void*>(vbucketfilter),
+                                             4);
+    check(iter != NULL, "Failed to create a tap iterator");
+
+    item *it;
+    void *engine_specific;
+    uint16_t nengine_specific;
+    uint8_t ttl;
+    uint16_t flags;
+    uint32_t seqno;
+    uint16_t vbucket;
+    tap_event_t event;
+    std::string key;
+
+    uint16_t unlikely_vbucket_identifier = 17293;
+    bool allows_more_mutations(true);
+
+    do {
+        vbucket = unlikely_vbucket_identifier;
+        event = iter(h, cookie, &it, &engine_specific,
+                     &nengine_specific, &ttl, &flags,
+                     &seqno, &vbucket);
+
+        if (initializedKeys < num_keys) {
+            keys[initializedKeys] = false;
+            std::stringstream ss;
+            ss << initializedKeys;
+            check(store(h, h1, NULL, OPERATION_SET, ss.str().c_str(),
+                        "value", NULL, 0, 0) == ENGINE_SUCCESS,
+                  "Failed to store an item.");
+            ++initializedKeys;
+        }
+
+        switch (event) {
+        case TAP_PAUSE:
+            testHarness.waitfor_cookie(cookie);
+            break;
+        case TAP_NOOP:
+            break;
+        case TAP_MUTATION:
+            // This will be false if we've seen a vbucket set state.
+            assert(allows_more_mutations);
+
+            check(get_key(h, h1, it, key), "Failed to read out the key");
+            keys[atoi(key.c_str())] = true;
+            assert(vbucket != unlikely_vbucket_identifier);
+            check(verify_item(h, h1, it, NULL, 0, "value", 5) == SUCCESS,
+                  "Unexpected item arrived on tap stream");
+            h1->release(h, cookie, it);
+
+            break;
+        case TAP_DISCONNECT:
+            break;
+        case TAP_VBUCKET_SET:
+            assert(nengine_specific == 4);
+            vbucket_state_t state;
+            memcpy(&state, engine_specific, nengine_specific);
+            state = static_cast<vbucket_state_t>(ntohl(state));
+            if (state == vbucket_state_active) {
+                allows_more_mutations = false;
+            }
             break;
         default:
             std::cerr << "Unexpected event:  " << event << std::endl;
@@ -5387,6 +5531,9 @@ static enum test_result test_validate_checkpoint_params(ENGINE_HANDLE *h, ENGINE
     set_flush_param(h, h1, "chk_period", "100");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
           "Failed to set checkpoint_period param");
+    set_flush_param(h, h1, "max_checkpoints", "2");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+          "Failed to set max_checkpoints param");
 
     set_flush_param(h, h1, "chk_max_items", "50");
     check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL,
@@ -5394,6 +5541,10 @@ static enum test_result test_validate_checkpoint_params(ENGINE_HANDLE *h, ENGINE
     set_flush_param(h, h1, "chk_period", "10");
     check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL,
           "Expected to have an invalid value error for checkpoint_period param");
+    set_flush_param(h, h1, "max_checkpoints", "6");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL,
+          "Expected to have an invalid value error for max_checkpoints param");
+
     return SUCCESS;
 }
 
@@ -5719,6 +5870,8 @@ engine_test_t* get_tests(void) {
         TestCase("tap stream", test_tap_stream, NULL, teardown, NULL,
                  prepare, cleanup, BACKEND_ALL),
         TestCase("tap agg stats", test_tap_agg_stats, NULL, teardown, NULL,
+                 prepare, cleanup, BACKEND_ALL),
+        TestCase("tap takeover (with concurrent mutations)", test_tap_takeover, NULL, teardown, NULL,
                  prepare, cleanup, BACKEND_ALL),
         TestCase("tap filter stream", test_tap_filter_stream, NULL, teardown,
                  "tap_keepalive=100;ht_size=129;ht_locks=3", prepare, cleanup,

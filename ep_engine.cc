@@ -243,6 +243,9 @@ extern "C" {
             } else if (strcmp(keyz, "chk_period") == 0) {
                 validate(v, MIN_CHECKPOINT_PERIOD, MAX_CHECKPOINT_PERIOD);
                 e->getConfiguration().setChkPeriod(v);
+            } else if (strcmp(keyz, "max_checkpoints") == 0) {
+                validate(v, DEFAULT_MAX_CHECKPOINTS, MAX_CHECKPOINTS_UPPER_BOUND);
+                e->getConfiguration().setMaxCheckpoints(v);
             } else if (strcmp(keyz, "max_size") == 0) {
                 // Want more bits than int.
                 char *ptr = NULL;
@@ -298,6 +301,13 @@ extern "C" {
                         delete tmp;
                     }
                 }
+            } else if (strcmp(keyz, "exp_pager_stime") == 0) {
+                char *ptr = NULL;
+                // TODO:  This parser isn't perfect.
+                uint64_t vsize = strtoull(valz, &ptr, 10);
+                validate(vsize, static_cast<uint64_t>(0),
+                         std::numeric_limits<uint64_t>::max());
+                e->getConfiguration().setExpPagerStime((size_t)vsize);
             } else {
                 *msg = "Unknown config param";
                 rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
@@ -1319,11 +1329,18 @@ ENGINE_ERROR_CODE  EventuallyPersistentEngine::store(const void *cookie,
 
                 if (old->getCas() == (uint64_t) -1) {
                     // item is locked against updates
+                    itemRelease(cookie, i);
                     return ENGINE_TMPFAIL;
                 }
 
                 if (it->getCas() != 0 && old->getCas() != it->getCas()) {
+                    itemRelease(cookie, i);
                     return ENGINE_KEY_EEXISTS;
+                }
+
+                if ((old->getValue()->length() + it->getValue()->length()) > maxItemSize) {
+                    itemRelease(cookie, i);
+                    return ENGINE_E2BIG;
                 }
 
                 if (operation == OPERATION_APPEND) {
@@ -2572,6 +2589,33 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                     add_stat, cookie);
 
     add_casted_stat("ep_degraded_mode", isDegradedMode(), add_stat, cookie);
+    add_casted_stat("ep_exp_pager_stime", epstore->getExpiryPagerSleeptime(),
+                    add_stat, cookie);
+
+
+    return ENGINE_SUCCESS;
+}
+
+ENGINE_ERROR_CODE EventuallyPersistentEngine::doMemoryStats(const void *cookie,
+                                                           ADD_STAT add_stat) {
+
+    add_casted_stat("mem_used", stats.currentSize + stats.memOverhead, add_stat,
+                    cookie);
+    add_casted_stat("ep_kv_size", stats.currentSize, add_stat, cookie);
+    add_casted_stat("ep_value_size", stats.totalValueSize, add_stat, cookie);
+    add_casted_stat("ep_overhead", stats.memOverhead, add_stat, cookie);
+    add_casted_stat("ep_max_data_size", stats.maxDataSize, add_stat, cookie);
+    add_casted_stat("ep_mem_low_wat", stats.mem_low_wat, add_stat, cookie);
+    add_casted_stat("ep_mem_high_wat", stats.mem_high_wat, add_stat, cookie);
+    add_casted_stat("ep_oom_errors", stats.oom_errors, add_stat, cookie);
+    add_casted_stat("ep_tmp_oom_errors", stats.tmp_oom_errors, add_stat, cookie);
+
+    std::map<std::string, size_t> allocator_stats;
+    MemoryAllocatorStats::getAllocatorStats(allocator_stats);
+    std::map<std::string, size_t>::iterator it = allocator_stats.begin();
+    for (; it != allocator_stats.end(); ++it) {
+        add_casted_stat(it->first.c_str(), it->second, add_stat, cookie);
+    }
 
     return ENGINE_SUCCESS;
 }
@@ -3157,6 +3201,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
         rv = doTimingStats(cookie, add_stat);
     } else if (nkey == 10 && strncmp(stat_key, "dispatcher", 10) == 0) {
         rv = doDispatcherStats(cookie, add_stat);
+    } else if (nkey == 6 && strncmp(stat_key, "memory", 6) == 0) {
+        rv = doMemoryStats(cookie, add_stat);
     } else if (nkey == 7 && strncmp(stat_key, "restore", 7) == 0) {
         rv = ENGINE_SUCCESS;
         LockHolder lh(restore.mutex);

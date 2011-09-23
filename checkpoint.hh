@@ -15,11 +15,14 @@
 
 #define MIN_CHECKPOINT_ITEMS 100
 #define MAX_CHECKPOINT_ITEMS 500000
-#define DEFAULT_CHECKPOINT_ITEMS 5000
+#define DEFAULT_CHECKPOINT_ITEMS 30000
 
-#define MIN_CHECKPOINT_PERIOD 60
-#define MAX_CHECKPOINT_PERIOD 3600
-#define DEFAULT_CHECKPOINT_PERIOD 600
+#define MIN_CHECKPOINT_PERIOD 60 // 1 min.
+#define MAX_CHECKPOINT_PERIOD 28800 // 8 hours.
+#define DEFAULT_CHECKPOINT_PERIOD 3600 // 60 min.
+
+#define DEFAULT_MAX_CHECKPOINTS 2
+#define MAX_CHECKPOINTS_UPPER_BOUND 5
 
 typedef enum {
     opened,
@@ -505,6 +508,7 @@ public:
     CheckpointConfig()
         : checkpointPeriod(DEFAULT_CHECKPOINT_PERIOD),
           checkpointMaxItems(DEFAULT_CHECKPOINT_ITEMS),
+          maxCheckpoints(DEFAULT_MAX_CHECKPOINTS),
           inconsistentSlaveCheckpoint (false) { }
 
     CheckpointConfig(EventuallyPersistentEngine &e);
@@ -517,6 +521,10 @@ public:
         return checkpointMaxItems;
     }
 
+    size_t getMaxCheckpoints() const {
+        return maxCheckpoints;
+    }
+
     bool isInconsistentSlaveCheckpoint() const {
         return inconsistentSlaveCheckpoint;
     }
@@ -527,9 +535,11 @@ protected:
 
     bool validateCheckpointMaxItemsParam(size_t checkpoint_max_items);
     bool validateCheckpointPeriodParam(size_t checkpoint_period);
+    bool validateMaxCheckpointsParam(size_t max_checkpoints);
 
     void setCheckpointPeriod(size_t value);
     void setCheckpointMaxItems(size_t value);
+    void setMaxCheckpoints(size_t value);
 
     void allowInconsistentSlaveCheckpoint(bool value) {
         inconsistentSlaveCheckpoint = value;
@@ -542,6 +552,8 @@ private:
     rel_time_t checkpointPeriod;
     // Number of max items allowed in each checkpoint
     size_t checkpointMaxItems;
+    // Number of max checkpoints allowed
+    size_t     maxCheckpoints;
     // Flag indicating if a downstream active vbucket is allowed to receive checkpoint start/end
     // messages from the master active vbucket.
     bool inconsistentSlaveCheckpoint;

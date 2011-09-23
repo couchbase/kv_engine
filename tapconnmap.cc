@@ -403,7 +403,7 @@ void TapConnMap::scheduleBackfill(const std::set<uint16_t> &backfillVBuckets) {
     for (; it != all.end(); ++it) {
         TapConnection *tc = *it;
         TapProducer *tp = dynamic_cast<TapProducer*>(tc);
-        if (!tp || tp->getExpiryTime() <= now) {
+        if (!(tp && (tp->isConnected() || tp->getExpiryTime() > now))) {
             continue;
         }
 
@@ -431,7 +431,7 @@ void TapConnMap::resetReplicaChain() {
     for (; it != all.end(); ++it) {
         TapConnection *tc = *it;
         TapProducer *tp = dynamic_cast<TapProducer*>(tc);
-        if (!tp || tp->getExpiryTime() <= now) {
+        if (!(tp && (tp->isConnected() || tp->getExpiryTime() > now))) {
             continue;
         }
         // Get the list of vbuckets that each TAP producer is replicating
