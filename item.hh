@@ -227,6 +227,18 @@ public:
         cas = ncas;
     }
 
+    void setValue(value_t v) {
+        value.reset(v);
+    }
+
+    void setFlags(uint32_t f) {
+        flags = f;
+    }
+
+    void setExpTime(time_t exp_time) {
+        exptime = exp_time;
+    }
+
     /**
      * Append another item to this item
      *
