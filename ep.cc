@@ -1773,6 +1773,14 @@ std::queue<queued_item>* EventuallyPersistentStore::beginFlush() {
                 for(; reverse_it != item_list.rend(); ++reverse_it) {
                     queued_item qi = *reverse_it;
                     if (qi->getOperation() == queue_op_set || qi->getOperation() == queue_op_del) {
+                        int bucket_num(0);
+                        LockHolder lh = vb->ht.getLockedBucket(qi->getKey(), &bucket_num);
+                        StoredValue *v = fetchValidValue(vb, qi->getKey(), bucket_num, true);
+                        if (!v || v->isClean()) {
+                            vb->doStatsForFlushing(*qi, qi->size());
+                            continue;
+                        }
+                        lh.unlock();
                         ret = item_set.insert(qi);
                         if (!(ret.second)) {
                             vb->doStatsForFlushing(*qi, qi->size());
@@ -2146,15 +2154,15 @@ int EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
 
     bool found = v != NULL;
     int64_t rowid = found ? v->getId() : -1;
-    bool deleted = found && qi->getOperation() == queue_op_del;
-    bool isDirty = found;
-    rel_time_t queued(qi->getQueuedTime()), dirtied(qi->getDirtiedTime());
+    bool deleted = found && v->isDeleted();
+    bool isDirty = found && v->isDirty();
+    rel_time_t queued(qi->getQueuedTime()), dirtied(0);
 
     int ret = 0;
 
     if (isDirty && v->isExpired(ep_real_time() + itemExpiryWindow)) {
         ++stats.flushExpired;
-        v->markClean(NULL);
+        v->markClean(&dirtied);
         isDirty = false;
         // If the new item is expired within current_time + expiry_window, clear the row id
         // from hashtable and remove the old item from database.
@@ -2164,6 +2172,7 @@ int EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
     }
 
     if (isDirty) {
+        dirtied = v->getDataAge();
         // Calculate stats if this had a positive time.
         rel_time_t now = ep_current_time();
         int dataAge = now - dirtied;
@@ -2192,13 +2201,26 @@ int EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
             stats.dataAgeHighWat.set(std::max(stats.dataAge.get(),
                                               stats.dataAgeHighWat.get()));
 
-            assert(rowid == v->getId());
-            qi->getItem().setId(rowid);
+            if (!deleted) {
+                assert(rowid == v->getId());
+                qi->getItem().setId(rowid);
+                if (qi->getCas() != v->getCas()) {
+                    // New mutation was received while this item was waiting in the queue.
+                    // Update the item's value and meta data with the ones in cache.
+                    qi->getItem().setValue(v->getValue());
+                    qi->getItem().setFlags(v->getFlags());
+                    qi->getItem().setCas(v->getCas());
+                    qi->getItem().setSeqno(v->getSeqno());
+                    qi->getItem().setExpTime(v->getExptime());
+                }
+            }
+
             if (rowid == -1) {
                 v->setPendingId();
             }
         } else {
             isDirty = false;
+            v->reDirty(dirtied);
             rejectQueue->push(qi);
             ++vb->opsReject;
         }
@@ -2216,9 +2238,7 @@ int EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
                 rejectQueue->push(qi);
                 ++vb->opsReject;
             } else {
-                if (qi->getCas() == v->getCas()) {
-                    v->markClean(NULL);
-                }
+                v->markClean(NULL);
                 lh.unlock();
                 BlockTimer timer(rowid == -1 ?
                                  &stats.diskInsertHisto : &stats.diskUpdateHisto,
