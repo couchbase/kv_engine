@@ -17,6 +17,8 @@ public:
             config.setCheckpointPeriod(value);
         } else if (key.compare("chk_max_items") == 0) {
             config.setCheckpointMaxItems(value);
+        } else if (key.compare("max_checkpoints") == 0) {
+            config.setMaxCheckpoints(value);
         }
     }
 
