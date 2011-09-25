@@ -23,6 +23,8 @@ public:
     virtual void booleanValueChanged(const std::string &key, bool value) {
         if (key.compare("inconsistent_slave_chk") == 0) {
             config.allowInconsistentSlaveCheckpoint(value);
+        } else if (key.compare("item_num_based_new_chk") == 0) {
+            config.allowItemNumBasedNewCheckpoint(value);
         }
     }
 
@@ -745,7 +747,8 @@ uint64_t CheckpointManager::checkOpenCheckpoint_UNLOCKED(bool forceCreation, boo
     // (2) current checkpoint is reached to the max number of items allowed.
     // (3) time elapsed since the creation of the current checkpoint is greater than the threshold
     if (forceCreation ||
-        checkpointList.back()->getNumItems() >= checkpointConfig.getCheckpointMaxItems() ||
+        (checkpointConfig.isItemNumBasedNewCheckpoint() &&
+         checkpointList.back()->getNumItems() >= checkpointConfig.getCheckpointMaxItems()) ||
         (checkpointList.back()->getNumItems() > 0 && timeBound)) {
 
         checkpointId = checkpointList.back()->getId();
@@ -934,6 +937,8 @@ void CheckpointConfig::addConfigChangeListener(EventuallyPersistentEngine &engin
                               new CheckpointConfigChangeListener(engine.getCheckpointConfig()));
     configuration.addValueChangedListener("inconsistent_slave_chk",
                               new CheckpointConfigChangeListener(engine.getCheckpointConfig()));
+    configuration.addValueChangedListener("item_num_based_new_chk",
+                              new CheckpointConfigChangeListener(engine.getCheckpointConfig()));
 }
 
 CheckpointConfig::CheckpointConfig(EventuallyPersistentEngine &e) {
@@ -942,6 +947,7 @@ CheckpointConfig::CheckpointConfig(EventuallyPersistentEngine &e) {
     checkpointMaxItems = config.getChkMaxItems();
     maxCheckpoints = config.getMaxCheckpoints();
     inconsistentSlaveCheckpoint = config.isInconsistentSlaveChk();
+    itemNumBasedNewCheckpoint = config.isItemNumBasedNewChk();
 }
 
 bool CheckpointConfig::validateCheckpointMaxItemsParam(size_t checkpoint_max_items) {

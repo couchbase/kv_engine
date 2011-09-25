@@ -509,7 +509,8 @@ public:
         : checkpointPeriod(DEFAULT_CHECKPOINT_PERIOD),
           checkpointMaxItems(DEFAULT_CHECKPOINT_ITEMS),
           maxCheckpoints(DEFAULT_MAX_CHECKPOINTS),
-          inconsistentSlaveCheckpoint (false) { }
+          inconsistentSlaveCheckpoint (false),
+          itemNumBasedNewCheckpoint(false) { }
 
     CheckpointConfig(EventuallyPersistentEngine &e);
 
@@ -529,6 +530,10 @@ public:
         return inconsistentSlaveCheckpoint;
     }
 
+    bool isItemNumBasedNewCheckpoint() const {
+        return itemNumBasedNewCheckpoint;
+    }
+
 protected:
     friend class CheckpointConfigChangeListener;
     friend class EventuallyPersistentEngine;
@@ -545,7 +550,11 @@ protected:
         inconsistentSlaveCheckpoint = value;
     }
 
-   static void addConfigChangeListener(EventuallyPersistentEngine &engine);
+    void allowItemNumBasedNewCheckpoint(bool value) {
+        itemNumBasedNewCheckpoint = value;
+    }
+
+    static void addConfigChangeListener(EventuallyPersistentEngine &engine);
 
 private:
     // Period of a checkpoint in terms of time in sec
@@ -557,6 +566,9 @@ private:
     // Flag indicating if a downstream active vbucket is allowed to receive checkpoint start/end
     // messages from the master active vbucket.
     bool inconsistentSlaveCheckpoint;
+    // Flag indicating if a new checkpoint is created once the number of items in the current
+    // checkpoint is greater than the max number allowed.
+    bool itemNumBasedNewCheckpoint;
 };
 
 #endif /* CHECKPOINT_HH */

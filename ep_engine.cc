@@ -246,6 +246,12 @@ extern "C" {
             } else if (strcmp(keyz, "max_checkpoints") == 0) {
                 validate(v, DEFAULT_MAX_CHECKPOINTS, MAX_CHECKPOINTS_UPPER_BOUND);
                 e->getConfiguration().setMaxCheckpoints(v);
+            } else if (strcmp(keyz, "item_num_based_new_chk") == 0) {
+                if (strcmp(valz, "on")) {
+                    e->getConfiguration().setItemNumBasedNewChk(true);
+                } else {
+                    e->getConfiguration().setItemNumBasedNewChk(false);
+                }
             } else if (strcmp(keyz, "max_size") == 0) {
                 // Want more bits than int.
                 char *ptr = NULL;

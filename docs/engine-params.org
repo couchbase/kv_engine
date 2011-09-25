@@ -86,6 +86,9 @@ memcached like this:
 |                        |        | vbucket                                    |
 | inconsistent_slave_chk | bool   | True if we allow a "downstream" master to  |
 |                        |        | receive checkpoint begin/end messages      |
+| item_num_based_new_chk | bool   | Enable a new checkpoint creation if the    |
+|                        |        | number of items in a checkpoint is greater |
+|                        |        | than the max number allowed                |
 |                        |        | along with normal get/set operations.      |
 | tap_backfill_resident  | float  | Resident item threshold for only memory    |
 |                        |        | backfill to be kicked off                  |

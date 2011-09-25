@@ -118,6 +118,11 @@
             "default": "false",
             "type": "bool"
         },
+        "item_num_based_new_chk": {
+            "default": "false",
+            "descr": "True if the number of items in the current checkpoint plays a role in a new checkpoint creation",
+            "type": "bool"
+        },
         "initfile": {
             "default": "",
             "type": "string"
