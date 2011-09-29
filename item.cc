@@ -20,7 +20,7 @@ Atomic<uint64_t> Item::casCounter(1);
 
 bool Item::append(const Item &i) {
     size_t newSize = value->length() + i.getValue()->length();
-    Blob *newData = Blob::New(newSize, '\0');
+    Blob *newData = Blob::New(newSize);
     char *newValue = (char *) newData->getData();
     std::memcpy(newValue, value->getData(), value->length());
     std::memcpy(newValue + value->length(), i.getValue()->getData(), i.getValue()->length());
@@ -36,7 +36,7 @@ bool Item::append(const Item &i) {
  */
 bool Item::prepend(const Item &i) {
     size_t newSize = value->length() + i.getValue()->length();
-    Blob *newData = Blob::New(newSize, '\0');
+    Blob *newData = Blob::New(newSize);
     char *newValue = (char *) newData->getData();
     std::memcpy(newValue, i.getValue()->getData(), i.getValue()->length());
     std::memcpy(newValue + i.getValue()->length(), value->getData(), value->length());

@@ -52,13 +52,12 @@ public:
      * Create a new Blob pre-filled with the given character.
      *
      * @param len the size of the blob
-     * @param c the character to fill the blob with
      *
      * @return the new Blob instance
      */
-    static Blob* New(const size_t len, const char c) {
+    static Blob* New(const size_t len) {
         size_t total_len = len + sizeof(Blob);
-        Blob *t = new (::operator new(total_len)) Blob(c, len);
+        Blob *t = new (::operator new(total_len)) Blob(len);
         assert(t->length() == len);
         return t;
     }
@@ -111,10 +110,9 @@ private:
         ObjectRegistry::onCreateBlob(this);
     }
 
-    explicit Blob(const char c, const size_t len) :
+    explicit Blob(const size_t len) :
         size(static_cast<uint32_t>(len))
     {
-        std::memset(data, c, len);
         ObjectRegistry::onCreateBlob(this);
     }
 
@@ -375,7 +373,7 @@ private:
     void setData(const char *dta, const size_t nb) {
         Blob *data;
         if (dta == NULL) {
-            data = Blob::New(nb, '\0');
+            data = Blob::New(nb);
         } else {
             data = Blob::New(dta, nb);
         }
