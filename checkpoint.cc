@@ -69,7 +69,7 @@ queue_dirty_t Checkpoint::queueDirty(const queued_item &qi, CheckpointManager *c
         if (*(checkpointManager->persistenceCursor.currentCheckpoint) == this) {
             // If the existing item is in the left-hand side of the item pointed by the
             // persistence cursor, decrease the persistence cursor's offset by 1.
-            std::string key = (*(checkpointManager->persistenceCursor.currentPos))->getKey();
+            const std::string &key = (*(checkpointManager->persistenceCursor.currentPos))->getKey();
             checkpoint_index::iterator ita = keyIndex.find(key);
             if (ita != keyIndex.end()) {
                 uint64_t mutationId = ita->second.mutation_id;
