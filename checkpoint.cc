@@ -89,7 +89,7 @@ queue_dirty_t Checkpoint::queueDirty(const queued_item &qi, CheckpointManager *c
              map_it != checkpointManager->tapCursors.end(); map_it++) {
 
             if (*(map_it->second.currentCheckpoint) == this) {
-                std::string key = (*(map_it->second.currentPos))->getKey();
+                const std::string &key = (*(map_it->second.currentPos))->getKey();
                 checkpoint_index::iterator ita = keyIndex.find(key);
                 if (ita != keyIndex.end()) {
                     uint64_t mutationId = ita->second.mutation_id;
