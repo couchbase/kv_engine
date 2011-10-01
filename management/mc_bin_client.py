@@ -136,6 +136,23 @@ class MemcachedClient(object):
         """Set a value in the memcached server."""
         return self._mutate(memcacheConstants.CMD_SET, key, exp, flags, 0, val)
 
+    def setWithMeta(self, key, exp, flags, value, meta):
+        """Set a value and its meta data in the memcached server."""
+        meta_type, meta_data = meta
+        extra = struct.pack('>III', len(meta_data) + 2, flags, exp)
+
+        meta_value = value + \
+            struct.pack('BB', meta_type, len(meta_data)) + meta_data
+        return self._doCmd(memcacheConstants.CMD_SET_WITH_META,
+                           key, meta_value, extra, 0)
+
+    def setWithRev(self, key, exp, flags, value, rev):
+        """Set a value and its revision in the memcached server."""
+        (seqno, revid) = rev
+        meta_data = struct.pack('>I', seqno) + revid
+        meta_type = memcacheConstants.META_REVID
+        return self.setWithMeta(key, exp, flags, value, (meta_type, meta_data))
+
     def add(self, key, exp, flags, val):
         """Add a value in the memcached server iff it doesn't already exist."""
         return self._mutate(memcacheConstants.CMD_ADD, key, exp, flags, 0, val)
@@ -153,6 +170,28 @@ class MemcachedClient(object):
         """Get the value for a given key within the memcached server."""
         parts=self._doCmd(memcacheConstants.CMD_GET, key, '')
         return self.__parseGet(parts)
+
+    def __parseMeta(self, data):
+        meta_type = struct.unpack('B', data[-1][0])[0]
+        length = struct.unpack('B', data[-1][1])[0]
+        meta = data[-1][2:2 + length]
+        return (meta_type, meta)
+
+    def getMeta(self, key):
+        """Get the metadata for a given key within the memcached server."""
+        parts=self._doCmd(memcacheConstants.CMD_GET_META, key, '')
+        return self.__parseMeta(parts)
+
+    def getRev(self, key):
+        """Get the revision for a given key within the memcached server."""
+        (meta_type, meta_data) = self.getMeta(key)
+        if meta_type != memcacheConstants.META_REVID:
+            raise ValueError("Invalid meta type %x" % meta_type)
+
+        seqno = struct.unpack('>I', meta_data[:4])[0]
+        revid = meta_data[4:]
+
+        return (seqno, revid)
 
     def getl(self, key, exp=15):
         """Get the value for a given key within the memcached server."""
