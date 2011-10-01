@@ -3885,7 +3885,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
     uint16_t vbucket = ntohs(request->message.header.request.vbucket);
     uint32_t flags = ntohl(request->message.body.flags);
 
-    uint8_t *dta = key + nkey + request->message.header.request.extlen;
+    uint8_t *dta = key + nkey;
     size_t nbytes = ntohl(request->message.header.request.bodylen);
     nbytes -= nkey + request->message.header.request.extlen;
     uint32_t metabytes = ntohl(request->message.body.nmeta_bytes);
