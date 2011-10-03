@@ -877,7 +877,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::addTAPBackfillItem(const Item &itm,
     mutation_type_t mtype;
 
     if (meta) {
-        mtype = vb->ht.setWithMeta(itm, 0, row_id);
+        mtype = vb->ht.setWithMeta(itm, 0, row_id, true);
     } else {
         mtype = vb->ht.set(itm, row_id);
     }
@@ -1285,7 +1285,8 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::getMetaData(const std::string &key,
 ENGINE_ERROR_CODE EventuallyPersistentStore::setWithMeta(const Item &itm,
                                                          uint64_t cas,
                                                          const void *cookie,
-                                                         bool force)
+                                                         bool force,
+                                                         bool allowExisting)
 {
     RCPtr<VBucket> vb = getVBucket(itm.getVBucketId());
     if (!vb || vb->getState() == vbucket_state_dead) {
@@ -1307,7 +1308,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setWithMeta(const Item &itm,
     }
 
     int64_t row_id = -1;
-    mutation_type_t mtype = vb->ht.setWithMeta(itm, cas, row_id);
+    mutation_type_t mtype = vb->ht.setWithMeta(itm, cas, row_id, allowExisting);
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
 
     switch (mtype) {

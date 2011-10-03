@@ -482,12 +482,15 @@ public:
      * @param cas value to match
      * @param cookie the cookie representing the client to store the item
      * @param force override vbucket states
+     * @param allowExisting set to false if you want set to fail if the
+     *                      item exists already
      * @return the result of the store operation
      */
     ENGINE_ERROR_CODE setWithMeta(const Item &item,
                                   uint64_t cas,
                                   const void *cookie,
-                                  bool force);
+                                  bool force,
+                                  bool allowReplace);
 
     /**
      * Retrieve a value, but update its TTL first

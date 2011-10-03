@@ -821,6 +821,8 @@ extern "C" {
                               response);
         case CMD_SET_WITH_META:
         case CMD_SETQ_WITH_META:
+        case CMD_ADD_WITH_META:
+        case CMD_ADDQ_WITH_META:
             return h->setWithMeta(cookie,
                                   reinterpret_cast<protocol_binary_request_set_with_meta*>(request),
                                   response);
@@ -1953,7 +1955,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
                     ret = epstore->addTAPBackfillItem(*itm, meta);
                 } else {
                     if (meta) {
-                        ret = epstore->setWithMeta(*itm, 0, cookie, true);
+                        ret = epstore->setWithMeta(*itm, 0, cookie, true, true);
                     } else {
                         ret = epstore->set(*itm, cookie, true);
                     }
@@ -3896,6 +3898,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
     uint64_t cas;
     uint32_t length;
     uint32_t fl;
+    uint8_t opcode = request->message.header.request.opcode;
 
     if (!Item::decodeMeta(dta + nbytes, seqno, cas, length, fl) ||
         length != nbytes || fl != flags) {
@@ -3914,9 +3917,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
     memcpy((char*)itm->getData(), dta, nbytes);
     itm->setSeqno(seqno);
 
+    bool allowExisting = (opcode == CMD_SET_WITH_META ||
+                          opcode == CMD_SETQ_WITH_META);
+
     ENGINE_ERROR_CODE ret = epstore->setWithMeta(*itm,
                                                  ntohll(request->message.header.request.cas),
-                                                 cookie, false);
+                                                 cookie, false, allowExisting);
     protocol_binary_response_status rc;
     rc = engine_error_2_protocol_error(ret);
 
@@ -3928,7 +3934,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
     }
 
     delete itm;
-    if (request->message.header.request.opcode == CMD_SETQ_WITH_META &&
+    if ((opcode == CMD_SETQ_WITH_META || opcode == CMD_ADDQ_WITH_META) &&
         rc == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
         return ENGINE_SUCCESS;
     }

@@ -1063,9 +1063,10 @@ public:
      * @param val the Item to store
      * @param cas This is the cas value for the item <b>in</b> the cache
      * @param row_id the row id that is assigned to the item to store
+     * @param allowExisting should we allow existing items or not
      * @return a result indicating the status of the store
      */
-    mutation_type_t setWithMeta(const Item &val, uint64_t cas, int64_t &row_id) {
+    mutation_type_t setWithMeta(const Item &val, uint64_t cas, int64_t &row_id, bool allowExisting) {
         assert(active());
         Item &itm = const_cast<Item&>(val);
         if (!StoredValue::hasAvailableSpace(stats, itm)) {
@@ -1095,6 +1096,9 @@ public:
         }
 
         if (v) {
+            if (!allowExisting) {
+                return INVALID_CAS;
+            }
             if (v->isLocked(ep_current_time())) {
                 /*
                  * item is locked, deny if there is cas value mismatch

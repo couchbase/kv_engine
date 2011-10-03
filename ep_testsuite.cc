@@ -5647,6 +5647,43 @@ static enum test_result test_regression_mb4314(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     return SUCCESS;
 }
 
+static enum test_result test_add_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
+{
+    union {
+        protocol_binary_request_header pkt;
+        protocol_binary_request_set_with_meta req;
+        char buffer[1024];
+    } msg;
+    memset(&msg.req, 0, sizeof(msg));
+
+    msg.req.message.header.request.magic = PROTOCOL_BINARY_REQ;
+    msg.req.message.header.request.opcode = CMD_ADD_WITH_META;
+    msg.req.message.header.request.extlen = 12;
+    msg.req.message.header.request.keylen = ntohs(18);
+    msg.req.message.header.request.vbucket = htons(0);
+    msg.req.message.header.request.bodylen = htonl(12 + 18 + 22);
+    memcpy(msg.buffer + sizeof(msg.req.bytes), "test_add_with_meta", 18);
+    msg.req.message.body.nmeta_bytes = ntohl(22);
+    msg.req.message.body.flags = ntohl(0xdeadbeef);
+    msg.req.message.body.expiration = 0;
+
+    size_t nb = 22;
+    // encode the revid:
+    encodeMeta(10, 0xdeadbeef, 0, 0xdeadbeef,
+               (uint8_t*)msg.buffer + sizeof(msg.req.bytes) + 18, nb);
+    ENGINE_ERROR_CODE ret = h1->unknown_command(h, NULL, &msg.pkt,
+                                                add_response);
+    check(ret == ENGINE_SUCCESS, "Expected to be able to store with meta");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+
+    ret = h1->unknown_command(h, NULL, &msg.pkt, add_response);
+    check(ret == ENGINE_SUCCESS, "Expected to be able to store with meta");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
+          "Expected add to fail when the item exists already");
+
+    return SUCCESS;
+}
+
 static enum test_result prepare(engine_test_t *test) {
     if (test->cfg == NULL || // No config
         strstr(test->cfg, "backend") == NULL || // No backend specified
@@ -6159,6 +6196,9 @@ engine_test_t* get_tests(void) {
                  teardown, NULL, prepare, cleanup, BACKEND_ALL),
 
         TestCase("mb-4314", test_regression_mb4314, NULL,
+                 teardown, NULL, prepare, cleanup, BACKEND_ALL),
+
+        TestCase("add with meta", test_add_with_meta, NULL,
                  teardown, NULL, prepare, cleanup, BACKEND_ALL),
 
         TestCase(NULL, NULL, NULL, NULL, NULL, prepare, cleanup, BACKEND_ALL)
