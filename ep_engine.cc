@@ -3914,20 +3914,20 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
     memcpy((char*)itm->getData(), dta, nbytes);
     itm->setSeqno(seqno);
 
-    ENGINE_ERROR_CODE ret = epstore->setWithMeta(*itm, cas, cookie, false);
+    ENGINE_ERROR_CODE ret = epstore->setWithMeta(*itm,
+                                                 ntohll(request->message.header.request.cas),
+                                                 cookie, false);
     protocol_binary_response_status rc;
     rc = engine_error_2_protocol_error(ret);
 
     if (ret == ENGINE_SUCCESS) {
         addMutationEvent(itm);
-        rc = PROTOCOL_BINARY_RESPONSE_SUCCESS;
         cas = itm->getCas();
     } else {
         cas = 0;
     }
 
     delete itm;
-
     if (request->message.header.request.opcode == CMD_SETQ_WITH_META &&
         rc == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
         return ENGINE_SUCCESS;

@@ -5588,6 +5588,65 @@ static enum test_result test_revid(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
     return SUCCESS;
 }
 
+static bool encodeMeta(uint32_t seqno, uint64_t cas, uint32_t length,
+                       uint32_t flags, uint8_t *dest, size_t &nbytes)
+{
+    if (nbytes < 22) {
+        return false;
+    }
+    seqno = htonl(seqno);
+    cas = htonll(cas);
+    length = htonl(length);
+    flags = htonl(flags);
+
+    dest[0] = 0x01;
+    dest[1] = 20;
+    memcpy(dest + 2, &seqno, 4);
+    memcpy(dest + 6, &cas, 8);
+    memcpy(dest + 14, &length, 4);
+    memcpy(dest + 18, &flags, 4);
+    nbytes = 22;
+    return true;
+}
+
+static enum test_result test_regression_mb4314(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
+{
+    union {
+        protocol_binary_request_header pkt;
+        protocol_binary_request_set_with_meta req;
+        char buffer[1024];
+    } msg;
+    memset(&msg.req, 0, sizeof(msg));
+
+    msg.req.message.header.request.magic = PROTOCOL_BINARY_REQ;
+    msg.req.message.header.request.opcode = CMD_SET_WITH_META;
+    msg.req.message.header.request.extlen = 12;
+    msg.req.message.header.request.keylen = ntohs(22);
+    msg.req.message.header.request.vbucket = htons(0);
+    msg.req.message.header.request.bodylen = htonl(12 + 22 + 22);
+    memcpy(msg.buffer + sizeof(msg.req.bytes), "test_regression_mb4314", 22);
+    msg.req.message.body.nmeta_bytes = ntohl(22);
+    msg.req.message.body.flags = ntohl(0xdeadbeef);
+    msg.req.message.body.expiration = 0;
+
+    size_t nb = 22;
+    // encode the revid:
+    encodeMeta(10, 0xdeadbeef, 0, 0xdeadbeef,
+               (uint8_t*)msg.buffer + sizeof(msg.req.bytes) + 22, nb);
+    ENGINE_ERROR_CODE ret = h1->unknown_command(h, NULL, &msg.pkt,
+                                                add_response);
+    check(ret == ENGINE_SUCCESS, "Expected to be able to store with meta");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+
+    // Now try to read the item back:
+    item *it = NULL;
+    ret = h1->get(h, NULL, &it, "test_regression_mb4314", 22, 0);
+    check(ret == ENGINE_SUCCESS, "Expected to get the item back!");
+    h1->release(h, NULL, it);
+
+    return SUCCESS;
+}
+
 static enum test_result prepare(engine_test_t *test) {
     if (test->cfg == NULL || // No config
         strstr(test->cfg, "backend") == NULL || // No backend specified
@@ -6097,6 +6156,9 @@ engine_test_t* get_tests(void) {
 #endif
         // revision id's
         TestCase("revision sequence numbers", test_revid, NULL,
+                 teardown, NULL, prepare, cleanup, BACKEND_ALL),
+
+        TestCase("mb-4314", test_regression_mb4314, NULL,
                  teardown, NULL, prepare, cleanup, BACKEND_ALL),
 
         TestCase(NULL, NULL, NULL, NULL, NULL, prepare, cleanup, BACKEND_ALL)

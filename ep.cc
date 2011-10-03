@@ -1318,14 +1318,12 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setWithMeta(const Item &itm,
     case IS_LOCKED:
         ret = ENGINE_KEY_EEXISTS;
         break;
-    case NOT_FOUND:
-        ret = ENGINE_KEY_ENOENT;
-        break;
     case INVALID_VBUCKET:
         ret = ENGINE_NOT_MY_VBUCKET;
         break;
     case WAS_DIRTY:
     case WAS_CLEAN:
+    case NOT_FOUND:
         queueDirty(itm.getKey(),
                    itm.getVBucketId(),
                    queue_op_set,
@@ -1342,8 +1340,6 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setWithMeta(const Item &itm,
 
     return ret;
 }
-
-
 
 GetValue EventuallyPersistentStore::getAndUpdateTtl(const std::string &key,
                                                     uint16_t vbucket,
