@@ -3893,7 +3893,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
     uint32_t metabytes = ntohl(request->message.body.nmeta_bytes);
     nbytes -= metabytes;
     uint32_t exptime = ntohl(request->message.body.expiration);
-    exptime = serverApi->core->abstime(serverApi->core->realtime(exptime));
+    if (exptime != 0) {
+        exptime = serverApi->core->abstime(serverApi->core->realtime(exptime));
+    }
     uint32_t seqno;
     uint64_t cas;
     uint32_t length;
