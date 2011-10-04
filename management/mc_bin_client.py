@@ -132,30 +132,47 @@ class MemcachedClient(object):
         """Decrement or create the named counter."""
         return self.__incrdecr(memcacheConstants.CMD_DECR, key, amt, init, exp)
 
-    def set(self, key, exp, flags, val):
-        """Set a value in the memcached server."""
-        return self._mutate(memcacheConstants.CMD_SET, key, exp, flags, 0, val)
-
-    def setWithMeta(self, key, exp, flags, value, meta):
-        """Set a value and its meta data in the memcached server."""
+    def _doMetaCmd(self, cmd, key, exp, flags, value, meta, cas=0):
         meta_type, meta_data = meta
         extra = struct.pack('>III', len(meta_data) + 2, flags, exp)
 
         meta_value = value + \
             struct.pack('BB', meta_type, len(meta_data)) + meta_data
-        return self._doCmd(memcacheConstants.CMD_SET_WITH_META,
-                           key, meta_value, extra, 0)
+
+        return self._doCmd(cmd, key, meta_value, extra, cas)
+
+    def _doRevCmd(self, cmd, key, exp, flags, value, rev, cas=0):
+        seqno, revid = rev
+        meta_data = struct.pack('>I', seqno) + revid
+        meta_type = memcacheConstants.META_REVID
+        meta = (meta_type, meta_data)
+        return self._doMetaCmd(cmd, key, exp, flags, value, meta, cas)
+
+    def set(self, key, exp, flags, val):
+        """Set a value in the memcached server."""
+        return self._mutate(memcacheConstants.CMD_SET, key, exp, flags, cas, val)
+
+    def setWithMeta(self, key, exp, flags, value, meta):
+        """Set a value and its meta data in the memcached server."""
+        return self._doMetaCmd(memcacheConstants.CMD_SET_WITH_META,
+                               key, exp, flags, value, meta, cas=0)
 
     def setWithRev(self, key, exp, flags, value, rev):
         """Set a value and its revision in the memcached server."""
-        (seqno, revid) = rev
-        meta_data = struct.pack('>I', seqno) + revid
-        meta_type = memcacheConstants.META_REVID
-        return self.setWithMeta(key, exp, flags, value, (meta_type, meta_data))
+        return self._doRevCmd(memcacheConstants.CMD_SET_WITH_META,
+                              key, exp, flags, value, rev)
 
     def add(self, key, exp, flags, val):
         """Add a value in the memcached server iff it doesn't already exist."""
         return self._mutate(memcacheConstants.CMD_ADD, key, exp, flags, 0, val)
+
+    def addWithMeta(self, key, exp, flags, value, meta):
+        return self._doMetaCmd(memcacheConstants.CMD_ADD_WITH_META,
+                               key, exp, flags, value, meta)
+
+    def addWithRev(self, key, exp, flags, value, rev):
+        return self._doRevCmd(memcacheConstants.CMD_ADD_WITH_META,
+                              key, exp, flags, value, rev)
 
     def replace(self, key, exp, flags, val):
         """Replace a value in the memcached server iff it already exists."""
