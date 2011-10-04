@@ -640,6 +640,52 @@ extern "C" {
         return e->sync(keyset, cookie, syncType, replicas, response);
     }
 
+    static ENGINE_ERROR_CODE observeCmd(EventuallyPersistentEngine *e,
+                                        protocol_binary_request_header *request,
+                                        const void *cookie,
+                                        ADD_RESPONSE response) {
+        protocol_binary_request_observe *req =
+            reinterpret_cast<protocol_binary_request_observe*>(request);
+        assert(req);
+
+        uint16_t keylen = ntohs(req->message.header.request.keylen);
+        uint8_t extlen = req->message.header.request.extlen;
+        uint16_t vbucket = ntohs(req->message.header.request.vbucket);
+        uint32_t bodylen = ntohl(req->message.header.request.bodylen);
+        uint64_t cas = ntohll(req->message.header.request.cas);
+        uint32_t exp = ntohl(req->message.body.expiration);
+
+        const char *keyp = reinterpret_cast<const char*>(req->bytes);
+        keyp += sizeof(request->bytes) + extlen;
+        std::string key(keyp, keylen);
+
+        const char *obs_set_pos = reinterpret_cast<const char*>(req->bytes);
+        obs_set_pos += sizeof(request->bytes) + extlen + keylen;
+        std::string obs_set(obs_set_pos, (bodylen - extlen - keylen));
+
+        return e->observe(cookie, key, cas, vbucket, obs_set, exp, response);
+    }
+
+    static ENGINE_ERROR_CODE unobserveCmd(EventuallyPersistentEngine *e,
+                                          protocol_binary_request_header *request,
+                                          const void *cookie,
+                                          ADD_RESPONSE response) {
+        uint16_t keylen = ntohs(request->request.keylen);
+        uint16_t vbucket = ntohs(request->request.vbucket);
+        uint32_t bodylen = ntohl(request->request.bodylen);
+        uint64_t cas = ntohll(request->request.cas);
+
+        const char *keyp = reinterpret_cast<const char*>(request->bytes);
+        keyp += sizeof(request->bytes);
+        std::string key(keyp, keylen);
+
+        const char *obs_set_pos = reinterpret_cast<const char*>(request->bytes);
+        obs_set_pos += sizeof(request->bytes) + keylen;
+        std::string obs_set(obs_set_pos, (bodylen - keylen));
+
+        return e->unobserve(cookie, key, cas, vbucket, obs_set, response);
+    }
+
     static ENGINE_ERROR_CODE getVBucket(EventuallyPersistentEngine *e,
                                         const void *cookie,
                                         protocol_binary_request_header *request,
@@ -805,6 +851,12 @@ extern "C" {
             break;
         case CMD_SYNC:
             return syncCmd(h, request, cookie, response);
+            break;
+        case CMD_OBSERVE:
+            return observeCmd(h, request, cookie, response);
+            break;
+        case CMD_UNOBSERVE:
+            return unobserveCmd(h, request, cookie, response);
             break;
         case CMD_DEREGISTER_TAP_CLIENT:
             return h->deregisterTapClient(cookie, request, response);
@@ -3526,6 +3578,30 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::sync(std::set<key_spec_t> *keys,
                         body.c_str(), static_cast<uint16_t>(body.length()),
                         PROTOCOL_BINARY_RAW_BYTES,
                         PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
+}
+
+ENGINE_ERROR_CODE EventuallyPersistentEngine::observe(const void *cookie,
+                                                      std::string key,
+                                                      uint64_t cas,
+                                                      uint16_t vbucket,
+                                                      std::string obs_set,
+                                                      uint32_t expiration,
+                                                      ADD_RESPONSE response) {
+
+    getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "observe %s %ld %d %s %d",
+                     key.c_str(), cas, vbucket, obs_set.c_str(), expiration);
+    return sendResponse(response, NULL, 0, NULL, 0, NULL, 0, 0, 0, 0, cookie);
+}
+
+ENGINE_ERROR_CODE EventuallyPersistentEngine::unobserve(const void *cookie,
+                                                        std::string key,
+                                                        uint64_t cas,
+                                                        uint16_t vbucket,
+                                                        std::string obs_set,
+                                                        ADD_RESPONSE response) {
+    getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "unobserve %s %ld %d %s",
+                     key.c_str(), cas, vbucket, obs_set.c_str());
+    return sendResponse(response, NULL, 0, NULL, 0, NULL, 0, 0, 0, 0, cookie);
 }
 
 static void notifyListener(std::vector< std::pair<StoredValue*, uint16_t> > &svList,

@@ -479,6 +479,21 @@ public:
         return epstore->unlockKey(key, vbucket, cas, currentTime);
     }
 
+    ENGINE_ERROR_CODE observe(const void *cookie,
+                              std::string key,
+                              uint64_t cas,
+                              uint16_t vbucket,
+                              std::string obs_set,
+                              uint32_t expiration,
+                              ADD_RESPONSE response);
+
+    ENGINE_ERROR_CODE unobserve(const void *cookie,
+                                std::string key,
+                                uint64_t cas,
+                                uint16_t vbucket,
+                                std::string obs_set,
+                                ADD_RESPONSE response);
+
     RCPtr<VBucket> getVBucket(uint16_t vbucket) {
         return epstore->getVBucket(vbucket);
     }

@@ -402,6 +402,60 @@ static void evict_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     }
 }
 
+static enum test_result test_basic_observe(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    const char *key = "k1";
+    const char *obsset = "watchset1";
+    uint16_t keylen = (uint16_t)strlen(key);
+    uint16_t obssetlen = (uint16_t)strlen(obsset);
+    uint16_t vbucketId = 0;
+    uint32_t expiration = 30;
+
+    // Construct observe command
+    char *obs_raw = static_cast<char*>(calloc(1,sizeof(protocol_binary_request_observe)
+                                                + keylen + obssetlen));
+
+    memcpy(obs_raw + sizeof(protocol_binary_request_getl), key, keylen);
+    memcpy(obs_raw + sizeof(protocol_binary_request_getl) + keylen , obsset, obssetlen);
+
+    protocol_binary_request_observe *obs = (protocol_binary_request_observe*)obs_raw;
+    protocol_binary_request_header *obs_pkt = (protocol_binary_request_header *)obs_raw;
+
+    obs->message.header.request.magic = PROTOCOL_BINARY_REQ;
+    obs->message.header.request.opcode = CMD_OBSERVE;
+    obs->message.header.request.extlen = 4;
+    obs->message.header.request.bodylen = htonl(keylen + obssetlen + 4);
+    obs->message.header.request.keylen = htons(keylen);
+    obs->message.header.request.vbucket = htons(vbucketId);
+    obs->message.body.expiration = htonl(expiration);
+    memcpy(obs->bytes + sizeof(obs->bytes), key, keylen);
+    memcpy(obs->bytes + sizeof(obs->bytes) + keylen, obsset, obssetlen);
+
+    check(h1->unknown_command(h, NULL, obs_pkt, add_response) == ENGINE_SUCCESS,
+          "Observe Failed");
+
+    // Construct unobserve command
+    char *unobs_raw = static_cast<char*>(calloc(1,sizeof(protocol_binary_request_header)
+                                                + keylen + obssetlen));
+
+    memcpy(unobs_raw + sizeof(protocol_binary_request_getl), key, keylen);
+    memcpy(unobs_raw + sizeof(protocol_binary_request_getl) + keylen , obsset, obssetlen);
+
+    protocol_binary_request_header *unobs_pkt = (protocol_binary_request_header *)unobs_raw;
+
+    unobs_pkt->request.magic = PROTOCOL_BINARY_REQ;
+    unobs_pkt->request.opcode = CMD_UNOBSERVE;
+    unobs_pkt->request.bodylen = htonl(keylen + obssetlen);
+    unobs_pkt->request.keylen = htons(keylen);
+    unobs_pkt->request.vbucket = htons(vbucketId);
+    memcpy(unobs_pkt->bytes + sizeof(unobs_pkt->bytes), key, keylen);
+    memcpy(unobs_pkt->bytes + sizeof(unobs_pkt->bytes) + keylen, obsset, obssetlen);
+
+    check(h1->unknown_command(h, NULL, unobs_pkt, add_response) == ENGINE_SUCCESS,
+          "Unobserve Failed");
+
+    return SUCCESS;
+}
+
 static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const char *key = "k1";
     uint16_t keylen = (uint16_t)strlen(key);
@@ -5833,6 +5887,8 @@ engine_test_t* get_tests(void) {
                  teardown,
                  "ht_locks=1;ht_size=3;max_txn_size=10", prepare, cleanup,
                  BACKEND_ALL),
+        TestCase("basic observe", test_basic_observe, NULL, teardown, NULL,
+                 prepare, cleanup, BACKEND_ALL),
         TestCase("getl", test_getl, NULL, teardown, NULL, prepare, cleanup,
                  BACKEND_ALL),
         TestCase("unl",  test_unl, NULL, teardown, NULL, prepare, cleanup,

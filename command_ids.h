@@ -41,6 +41,9 @@
 
 #define CMD_SYNC              0x96
 
+#define CMD_OBSERVE           0xb1
+#define CMD_UNOBSERVE         0xb2
+
 /**
  * Return the last closed checkpoint Id for a given VBucket.
  */
@@ -194,5 +197,7 @@ typedef union {
  * status of the operation is signalled in the status bits.
  */
 typedef protocol_binary_response_no_extras protocol_binary_response_set_with_meta;
+
+typedef protocol_binary_request_touch protocol_binary_request_observe;
 
 #endif /* EP_ENGINE_COMMAND_IDS_H */
