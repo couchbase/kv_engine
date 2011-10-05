@@ -704,6 +704,8 @@ private:
         return ret;
     }
 
+    ENGINE_ERROR_CODE doObserveStats(const void* cookie, const char* stat_key,
+                                     ADD_STAT add_s);
     ENGINE_ERROR_CODE doEngineStats(const void *cookie, ADD_STAT add_stat);
     ENGINE_ERROR_CODE doMemoryStats(const void *cookie, ADD_STAT add_stat);
     ENGINE_ERROR_CODE doVBucketStats(const void *cookie, ADD_STAT add_stat,
