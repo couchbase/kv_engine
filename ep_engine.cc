@@ -3040,6 +3040,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doCheckpointStats(const void *cook
             add_casted_stat(buf, vb->checkpointManager.getNumItems(), add_stat, cookie);
             snprintf(buf, sizeof(buf), "vb_%d:num_checkpoints", vbid);
             add_casted_stat(buf, vb->checkpointManager.getNumCheckpoints(), add_stat, cookie);
+            snprintf(buf, sizeof(buf), "vb_%d:num_items_for_persistence", vbid);
+            add_casted_stat(buf, vb->checkpointManager.getNumItemsForPersistence(),
+                            add_stat, cookie);
             return false;
         }
 

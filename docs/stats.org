@@ -488,10 +488,13 @@ Therefore, please do not poll them from the server frequently.
 Each stat is prefixed with =vb_= followed by a number, a colon, and then
 each stat name.
 
-| open_checkpoint_id   | ID of the current open checkpoint                   |
-| num_tap_cursors      | Number of referencing TAP cursors                   |
-| num_checkpoint_items | Number of total items in a checkpoint datastructure |
-| num_checkpoints      | Number of checkpoints in a checkpoint datastructure |
+| open_checkpoint_id        | ID of the current open checkpoint         |
+| num_tap_cursors           | Number of referencing TAP cursors         |
+| num_checkpoint_items      | Number of total items in a checkpoint     |
+|                           | datastructure                             |
+| num_checkpoints           | Number of checkpoints in a checkpoint     |
+|                           | datastructure                             |
+| num_items_for_persistence | Number of items remaining for persistence |
 
 ** Memory Stats
 
