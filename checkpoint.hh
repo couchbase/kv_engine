@@ -489,9 +489,13 @@ private:
         return ++mutationCounter;
     }
 
-    void decrPersistenceCursorOffset() {
-        if (persistenceCursor.offset > 0) {
-            --(persistenceCursor.offset);
+    void decrPersistenceCursorOffset(size_t decr) {
+        if (persistenceCursor.offset >= decr) {
+            persistenceCursor.offset -= decr;
+        } else {
+            persistenceCursor.offset = 0;
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                             "VBucket persistence cursor's offset is negative. Reset it to 0.");
         }
     }
 

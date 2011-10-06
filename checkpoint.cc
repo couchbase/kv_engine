@@ -43,7 +43,7 @@ queue_dirty_t Checkpoint::queueDirty(const queued_item &item, CheckpointManager 
             if (ita != keyIndex.end()) {
                 uint64_t mutationId = ita->second.mutation_id;
                 if (currMutationId <= mutationId) {
-                    checkpointManager->decrPersistenceCursorOffset();
+                    checkpointManager->decrPersistenceCursorOffset(1);
                 }
             }
             // If the persistence cursor points to the existing item for the same key,
@@ -236,7 +236,7 @@ protocol_binary_response_status CheckpointManager::stopOnlineUpdate() {
 
     // Adjust for onlineupdate start and end items
     numItems -= 2;
-    persistenceCursor.offset -= 2;
+    decrPersistenceCursorOffset(2);
     std::map<const std::string, CheckpointCursor>::iterator map_it = tapCursors.begin();
     for (; map_it != tapCursors.end(); ++map_it) {
         map_it->second.offset -= 2;
@@ -297,7 +297,7 @@ protocol_binary_response_status CheckpointManager::endHotReload(uint64_t total) 
 
     // Adjust for onlineupdate start and end items
     numItems -= 2;
-    persistenceCursor.offset -= 2;
+    decrPersistenceCursorOffset(2);
     std::map<const std::string, CheckpointCursor>::iterator map_it = tapCursors.begin();
     for (; map_it != tapCursors.end(); ++map_it) {
         map_it->second.offset -= 2;
@@ -466,7 +466,7 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(const RCPtr<VBucket> &vbu
     }
     if (numUnrefItems > 0) {
         numItems -= numUnrefItems;
-        persistenceCursor.offset -= numUnrefItems;
+        decrPersistenceCursorOffset(numUnrefItems);
         std::map<const std::string, CheckpointCursor>::iterator map_it = tapCursors.begin();
         for (; map_it != tapCursors.end(); ++map_it) {
             map_it->second.offset -= numUnrefItems;
