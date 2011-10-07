@@ -3239,7 +3239,13 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doDispatcherStats(const void *cook
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doObserveStats(const void* cookie,
                                                              const char* stat_key,
                                                              ADD_STAT add_stat) {
-    add_casted_stat("operation", stat_key, add_stat, cookie);
+    std::string obs_set(stat_key, 8, (strlen(stat_key) - 8));
+    state_map* smap = getObserveRegistry().getObserveSetState(obs_set);
+    std::map<std::string, std::string>::iterator itr;
+    for (itr = smap->begin(); itr != smap->end(); itr++) {
+        add_casted_stat(itr->first.c_str(), itr->second.c_str(), add_stat, cookie);
+    }
+    delete smap;
     return ENGINE_SUCCESS;
 }
 
@@ -3597,8 +3603,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe(const void *cookie,
                                                       uint32_t expiration,
                                                       ADD_RESPONSE response) {
 
-    getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "observe %s %ld %d %s %d",
-                     key.c_str(), cas, vbucket, obs_set.c_str(), expiration);
+    getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "observe %s %ld %s %d",
+                     key.c_str(), cas, obs_set.c_str(), expiration);
+    getObserveRegistry().observeKey(key, cas, vbucket, expiration, obs_set);
     return sendResponse(response, NULL, 0, NULL, 0, NULL, 0, 0, 0, 0, cookie);
 }
 
@@ -3608,8 +3615,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::unobserve(const void *cookie,
                                                         uint16_t vbucket,
                                                         std::string obs_set,
                                                         ADD_RESPONSE response) {
-    getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "unobserve %s %ld %d %s",
-                     key.c_str(), cas, vbucket, obs_set.c_str());
+    getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "unobserve %s %ld %s",
+                     key.c_str(), cas, obs_set.c_str());
+    getObserveRegistry().unobserveKey(key, cas, vbucket, obs_set);
     return sendResponse(response, NULL, 0, NULL, 0, NULL, 0, 0, 0, 0, cookie);
 }
 

@@ -10,6 +10,7 @@
 #include "dispatcher.hh"
 #include "item_pager.hh"
 #include "sync_registry.hh"
+#include "observe_registry.hh"
 
 #include <cstdio>
 #include <map>
@@ -537,6 +538,10 @@ public:
         return syncRegistry;
     }
 
+    ObserveRegistry &getObserveRegistry() {
+        return observeRegistry;
+    }
+
     Configuration &getConfiguration() {
         return configuration;
     }
@@ -791,6 +796,7 @@ private:
     size_t syncTimeout;
     EPStats stats;
     SyncRegistry syncRegistry;
+    ObserveRegistry observeRegistry;
     Configuration configuration;
     Atomic<bool> warmingUp;
     bool syncOnPersist;

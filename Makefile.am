@@ -85,6 +85,7 @@ ep_la_SOURCES = \
                  stored-value.cc stored-value.hh \
                  syncobject.hh \
                  sync_registry.cc sync_registry.hh \
+                 observe_registry.cc observe_registry.hh \
                  tapconnection.cc tapconnection.hh \
                  tapconnmap.cc tapconnmap.hh \
                  tapthrottle.cc tapthrottle.hh \
