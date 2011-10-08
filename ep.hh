@@ -877,6 +877,8 @@ private:
 
     size_t getWriteQueueSize(void);
 
+    bool hasItemsForPersistence(void);
+
     friend class Flusher;
     friend class BGFetchCallback;
     friend class VKeyStatBGFetchCallback;

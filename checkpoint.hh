@@ -396,6 +396,8 @@ public:
 
     bool hasNext(const std::string &name);
 
+    bool hasNextForPersistence();
+
     static void initializeCheckpointConfig(size_t checkpoint_period,
                                            size_t checkpoint_max_items,
                                            size_t max_checkpoints,

@@ -890,6 +890,18 @@ bool CheckpointManager::hasNext(const std::string &name) {
     return hasMore;
 }
 
+bool CheckpointManager::hasNextForPersistence() {
+    LockHolder lh(queueLock);
+    bool hasMore = true;
+    std::list<queued_item>::iterator curr = persistenceCursor.currentPos;
+    ++curr;
+    if (curr == (*(persistenceCursor.currentCheckpoint))->end() &&
+        (*(persistenceCursor.currentCheckpoint))->getState() == opened) {
+        hasMore = false;
+    }
+    return hasMore;
+}
+
 void CheckpointManager::initializeCheckpointConfig(size_t checkpoint_period,
                                                    size_t checkpoint_max_items,
                                                    size_t max_checkpoints,
