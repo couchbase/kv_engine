@@ -374,6 +374,18 @@ public:
         bool success = false;
         assert(rcode != PROTOCOL_BINARY_RESPONSE_SUCCESS);
         callback->complete->callback(success);
+
+        uint32_t bodylen = ntohl(res->response.bodylen);
+        if (bodylen > 0 && bodylen < 512) {
+            char buffer[512];
+            memcpy(buffer, res->bytes + sizeof(res->bytes), bodylen);
+            buffer[bodylen] = '\0';
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                             "Dump failed: \"%s\"", buffer);
+        } else {
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                             "Failed to dump data from couch");
+        }
     }
 
     virtual void request(protocol_binary_request_header *req) {
