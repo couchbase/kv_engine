@@ -195,13 +195,13 @@ public:
     /**
      * Pass all stored data through the given callback.
      */
-    virtual void dump(Callback<GetValue> &cb) = 0;
+    virtual void dump(shared_ptr<Callback<GetValue> > cb) = 0;
 
     /**
      * Pass all stored data for the given vbucket through the given
      * callback.
      */
-    virtual void dump(uint16_t vbid, Callback<GetValue> &cb) = 0;
+    virtual void dump(uint16_t vbid, shared_ptr<Callback<GetValue> > cb) = 0;
 
     /**
      * Check if the kv-store supports a dumping all of the keys
@@ -217,7 +217,7 @@ public:
      * @param vbids the vbuckets to dump
      * @param cb the callback to fire for each document
      */
-    virtual void dumpKeys(const std::vector<uint16_t> &vbids, Callback<GetValue> &cb) {
+    virtual void dumpKeys(const std::vector<uint16_t> &vbids, shared_ptr<Callback<GetValue> > cb) {
         (void)vbids; (void)cb;
         throw std::runtime_error("Unsupported operation");
     }

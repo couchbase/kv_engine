@@ -1142,39 +1142,39 @@ public:
      * @param partial is this a complete item, or just the key and meta-data
      * @return a result indicating the status of the store
      */
-    mutation_type_t insert(const Item &val, bool eject, bool partial) {
+    mutation_type_t insert(const Item &itm, bool eject, bool partial) {
         assert(active());
-        Item &itm = const_cast<Item&>(val);
         if (!StoredValue::hasAvailableSpace(stats, itm)) {
             return NOMEM;
         }
 
+        assert(itm.getCas() != static_cast<uint64_t>(-1));
+
         mutation_type_t rv = NOT_FOUND;
         int bucket_num(0);
-        LockHolder lh = getLockedBucket(val.getKey(), &bucket_num);
-        StoredValue *v = unlocked_find(val.getKey(), bucket_num, true);
+        LockHolder lh = getLockedBucket(itm.getKey(), &bucket_num);
+        StoredValue *v = unlocked_find(itm.getKey(), bucket_num, true);
 
-        if (v != NULL) {
+        if (v == NULL) {
+            v = valFact(itm, values[bucket_num], *this);
+            values[bucket_num] = v;
+            ++numItems;
+        } else {
             if (partial) {
                 // We don't have a better error code ;)
                 return INVALID_CAS;
             }
 
-            if (itm.getCas() == static_cast<uint64_t>(-1)) {
-                itm.setCas();
+            // Verify that the CAS isn't changed
+            if (v->getCas() != itm.getCas()) {
+                return INVALID_CAS;
             }
 
             if (!v->isResident()) {
                 --numNonResidentItems;
             }
-            v->setValue(itm, stats, *this, false);
-        } else {
-            if (itm.getCas() == 0) {
-                itm.setCas();
-            }
-            v = valFact(itm, values[bucket_num], *this);
-            values[bucket_num] = v;
-            ++numItems;
+
+            v->setValue(const_cast<Item&>(itm), stats, *this, true);
         }
 
         v->markClean(NULL);

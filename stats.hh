@@ -32,6 +32,9 @@ public:
         delete timingLog;
     }
 
+
+    //! How long it took us to load the keys from disk.
+    Atomic<hrtime_t> warmupKeysTime;
     //! How long it took us to load the data from disk.
     Atomic<hrtime_t> warmupTime;
     //! Whether we're warming up.

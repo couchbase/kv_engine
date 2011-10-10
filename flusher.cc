@@ -191,6 +191,18 @@ bool Flusher::step(Dispatcher &d, TaskId tid) {
 
         case loading_keys:
             store->warmup(initialVbState, true);
+            store->stats.warmupKeysTime.set((gethrtime() - warmupStartTime) / 1000);
+            if (store->stats.warmupKeysTime > 0) {
+                char buffer[80];
+                getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                                 "Keys loaded in %s",
+                                 hrtime2text(store->stats.warmupKeysTime * 1000,
+                                             buffer, sizeof(buffer)));
+            }
+            // We knows about all keays and their meta-data, so we can
+            // safely allow mutation operations as of now..
+            store->warmupCompleted();
+            store->stats.warmupComplete.set(true);
             transition_state(loading_data);
             return true;
 
@@ -200,16 +212,20 @@ bool Flusher::step(Dispatcher &d, TaskId tid) {
             return true;
 
         case warmup_complete:
-            store->stats.warmupTime.set((gethrtime() - warmupStartTime) / 1000);
-            store->stats.warmupComplete.set(true);
-            if (store->stats.warmupTime > 0) {
-                char buffer[80];
-                getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                                 "warmup completed in %s",
-                                 hrtime2text(store->stats.warmupTime * 1000,
-                                             buffer, sizeof(buffer)));
+            if (!store->getROUnderlying()->isKeyDumpSupported()) {
+                // This backend didn't support a two-phase loading..
+                // Enable data mutations!
+                store->warmupCompleted();
+                store->stats.warmupComplete.set(true);
+                store->stats.warmupTime.set((gethrtime() - warmupStartTime) / 1000);
+                if (store->stats.warmupTime > 0) {
+                    char buffer[80];
+                    getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                                     "warmup completed in %s",
+                                     hrtime2text(store->stats.warmupTime * 1000,
+                                                 buffer, sizeof(buffer)));
+                }
             }
-            store->warmupCompleted();
             transition_state(running);
             return true;
 

@@ -86,12 +86,12 @@ class SelectBucketResponseHandler;
 
 class TapCallback {
 public:
-    TapCallback(Callback<GetValue> &data, RememberingCallback<bool> &w) :
+    TapCallback(shared_ptr<Callback<GetValue> > &data, shared_ptr<RememberingCallback<bool> > &w) :
         cb(data), complete(w) {
     }
 
-    Callback<GetValue> &cb;
-    RememberingCallback<bool> &complete;
+    shared_ptr<Callback<GetValue> > cb;
+    shared_ptr<RememberingCallback<bool> > complete;
 };
 
 class MemcachedEngine {
@@ -111,8 +111,9 @@ public:
     void setVBucket(uint16_t vb, vbucket_state_t state, Callback<bool> &cb);
     void delVBucket(uint16_t vb, Callback<bool> &cb);
 
-    void tap(TapCallback &cb);
-    void tap(const std::vector<uint16_t> &vbids, bool full, TapCallback &cb);
+    void tap(shared_ptr<TapCallback> cb);
+    void tapKeys(shared_ptr<TapCallback> cb);
+    void tap(const std::vector<uint16_t> &vbids, bool full, shared_ptr<TapCallback> cb);
     void noop(Callback<bool> &cb);
 
     void addStats(const std::string &prefix,

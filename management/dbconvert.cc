@@ -277,10 +277,10 @@ int main(int argc, char **argv) {
     KVStore *dest(getStore(destStats, destPath,
                            destStrategy, destShardPattern, initFile));
 
-    Mover mover(dest, txnSize, static_cast<bool>(killCrlf), reportEvery);
+    shared_ptr<Mover> mover(new Mover(dest, txnSize, static_cast<bool>(killCrlf), reportEvery));
     cout << "Each . represents " << reportEvery << " items moved." << endl;
     src->dump(mover);
-    cout << endl << "Moved " << mover.getTransferred() << " items." << endl;
+    cout << endl << "Moved " << mover->getTransferred() << " items." << endl;
 
     return 0;
 }

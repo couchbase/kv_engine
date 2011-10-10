@@ -584,7 +584,13 @@ void EventuallyPersistentStore::initialize() {
 
     // We might want to wait until we've loaded all data...
     if (config.isWaitforwarmup()) {
-        FlusherEnterStateListener fl(*flusher, running);
+        flusher_state state = running;
+
+        if (getROUnderlying()->isKeyDumpSupported()) {
+            state = loading_data;
+        }
+
+        FlusherEnterStateListener fl(*flusher, state);
         flusher->addFlusherStateListener(&fl);
         fl.wait();
         flusher->removeFlusherStateListener(&fl);
@@ -2428,7 +2434,8 @@ void EventuallyPersistentStore::warmupCompleted() {
 }
 
 void EventuallyPersistentStore::warmup(const std::map<std::pair<uint16_t, uint16_t>, vbucket_state> &state, bool keysOnly) {
-    LoadStorageKVPairCallback cb(vbuckets, stats, this);
+    LoadStorageKVPairCallback *load_cb = new LoadStorageKVPairCallback(vbuckets, stats, this);
+    shared_ptr<Callback<GetValue> > cb(load_cb);
     std::map<std::pair<uint16_t, uint16_t>, vbucket_state>::const_iterator it;
     std::vector<uint16_t> vbids;
     for (it = state.begin(); it != state.end(); ++it) {
@@ -2442,7 +2449,7 @@ void EventuallyPersistentStore::warmup(const std::map<std::pair<uint16_t, uint16
                          "Loading %s for vbucket %d - was in %s state\n",
                          keysOnly ? "keys" : "data", vbp.first,
                          VBucket::toString(vbs.state));
-        cb.initVBucket(vbp.first, vbp.second, vbs.checkpointId + 1,
+        load_cb->initVBucket(vbp.first, vbp.second, vbs.checkpointId + 1,
                        vbs.state);
     }
 
@@ -2535,9 +2542,15 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
                 }
                 break;
             case INVALID_CAS:
-                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                 "Warmup dataload error: Duplicate key: %s.",
-                                 i->getKey().c_str());
+                if (epstore->getROUnderlying()->isKeyDumpSupported()) {
+                    getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                        "Value changed in memory before restore from disk. Ignored disk value for: %s.",
+                         i->getKey().c_str());
+                } else {
+                    getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                        "Warmup dataload error: Duplicate key: %s.",
+                        i->getKey().c_str());
+                }
                 ++stats.warmDups;
                 succeeded = true;
                 break;
@@ -2557,7 +2570,9 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
         }
         delete i;
     }
-    ++stats.warmedUp;
+    if (!val.isPartial()) {
+        ++stats.warmedUp;
+    }
 }
 
 void LoadStorageKVPairCallback::purge() {

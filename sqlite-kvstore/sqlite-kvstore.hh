@@ -127,9 +127,9 @@ public:
     /**
      * Overrides dump
      */
-    void dump(Callback<GetValue> &cb);
+    void dump(shared_ptr<Callback<GetValue> > cb);
 
-    void dump(uint16_t vb, Callback<GetValue> &cb);
+    void dump(uint16_t vb, shared_ptr<Callback<GetValue> > cb);
 
     size_t getNumShards() {
         return strategy->getNumOfDbShards();

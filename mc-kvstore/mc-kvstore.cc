@@ -134,27 +134,30 @@ bool MCKVStore::snapshotStats(const std::map<std::string, std::string> &m) {
     return true;
 }
 
-void MCKVStore::dump(Callback<GetValue> &cb) {
-    RememberingCallback<bool> wait;
-    TapCallback callback(cb, wait);
+void MCKVStore::dump(shared_ptr<Callback<GetValue> > cb) {
+    shared_ptr<RememberingCallback<bool> > wait(new RememberingCallback<bool>());
+    shared_ptr<TapCallback> callback(new TapCallback(cb, wait));
     mc->tap(callback);
-    wait.waitForValue();
+    if (!isKeyDumpSupported()) {
+        wait->waitForValue();
+    }
 }
 
-void MCKVStore::dump(uint16_t vb, Callback<GetValue> &cb) {
-    RememberingCallback<bool> wait;
-    TapCallback callback(cb, wait);
+void MCKVStore::dump(uint16_t vb, shared_ptr<Callback<GetValue> > cb) {
+    shared_ptr<RememberingCallback<bool> > wait(new RememberingCallback<bool>());
+    shared_ptr<TapCallback> callback(new TapCallback(cb, wait));
     std::vector<uint16_t> vbids;
     vbids.push_back(vb);
     mc->tap(vbids, true, callback);
-    wait.waitForValue();
+    wait->waitForValue();
 }
 
-void MCKVStore::dumpKeys(const std::vector<uint16_t> &vbids,  Callback<GetValue> &cb) {
-    RememberingCallback<bool> wait;
-    TapCallback callback(cb, wait);
-    mc->tap(vbids, false, callback);
-    wait.waitForValue();
+void MCKVStore::dumpKeys(const std::vector<uint16_t> &vbids,  shared_ptr<Callback<GetValue> > cb) {
+    shared_ptr<RememberingCallback<bool> > wait(new RememberingCallback<bool>());
+    shared_ptr<TapCallback> callback(new TapCallback(cb, wait));
+    (void)vbids;
+    mc->tapKeys(callback);
+    wait->waitForValue();
 }
 
 StorageProperties MCKVStore::getStorageProperties() {

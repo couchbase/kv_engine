@@ -72,7 +72,7 @@ static void testDelVucket(MCKVStore &kvstore) {
 }
 
 static void testDump(MCKVStore &kvstore) {
-    RememberingCallback<GetValue> cb;
+    shared_ptr<RememberingCallback<GetValue> > cb(new RememberingCallback<GetValue>()); 
     kvstore.dump(cb);
 }
 

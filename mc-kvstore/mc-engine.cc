@@ -350,21 +350,36 @@ public:
 
 class TapResponseHandler: public BinaryPacketHandler {
 public:
-    TapResponseHandler(Buffer *theRequest, EPStats *st, TapCallback &cb) :
-        BinaryPacketHandler(theRequest, st), callback(cb) {
+    TapResponseHandler(Buffer *theRequest, EPStats *st, shared_ptr<TapCallback> &cb,
+                       bool keys_only, bool is_warmup) :
+        BinaryPacketHandler(theRequest, st), callback(cb),
+        num(0), keysOnly(keys_only), isWarmup(is_warmup) { }
+
+    ~TapResponseHandler() {
+        if (keysOnly) {
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                             "Preloaded %zu keys (with metadata)",
+                             num);
+        }
+        if (!keysOnly && isWarmup) {
+            stats->warmupTime.set(getDelta());
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                             "The second phase of warmup took %ld (us).",
+                             stats->warmupTime.get());
+        }
     }
 
     virtual void response(protocol_binary_response_header *res) {
         uint16_t rcode = ntohs(res->response.status);
         bool success = false;
         assert(rcode != PROTOCOL_BINARY_RESPONSE_SUCCESS);
-        callback.complete.callback(success);
+        callback->complete->callback(success);
     }
 
     virtual void request(protocol_binary_request_header *req) {
         if (req->request.opcode == PROTOCOL_BINARY_CMD_TAP_OPAQUE) {
             bool success = true;
-            callback.complete.callback(success);
+            callback->complete->callback(success);
         } else {
             protocol_binary_request_tap_mutation *mreq;
             mreq = (protocol_binary_request_tap_mutation *)req;
@@ -388,26 +403,34 @@ public:
                                 vallen,
                                 req->request.cas, 1,
                                 ntohs(req->request.vbucket));
-
-            if (nes > 0) {
-                uint32_t s;
-                uint64_t c;
-                uint32_t l;
-                uint32_t f;
-
-                if (Item::decodeMeta(es, s, c, l, f)) {
-                    it->setCas(c);
-                    it->setSeqno(s);
-                }
+            if (nes == 0) {
+                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                 "FATAL: Object returned from mccouch without revid");
+                abort();
             }
+            uint32_t s;
+            uint64_t c;
+            uint32_t l;
+            uint32_t f;
 
+            if (!Item::decodeMeta(es, s, c, l, f)) {
+                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                 "FATAL: Object returned from mccouch with CAS == 0");
+                abort();
+            }
+            it->setCas(c);
+            it->setSeqno(s);
             GetValue rv(it, ENGINE_SUCCESS, -1, -1, NULL, partial);
-            callback.cb.callback(rv);
+            callback->cb->callback(rv);
+            ++num;
         }
     }
 
 private:
-    TapCallback &callback;
+    shared_ptr<TapCallback> callback;
+    size_t num;
+    bool keysOnly;
+    bool isWarmup;
 };
 
 class NoopResponseHandler: public BinaryPacketHandler {
@@ -1162,7 +1185,7 @@ void MemcachedEngine::doSelectBucket() {
 
 
 
-void MemcachedEngine::tap(TapCallback &cb) {
+void MemcachedEngine::tap(shared_ptr<TapCallback> cb) {
     protocol_binary_request_tap_connect *req;
 
     Buffer *buffer = new Buffer(sizeof(req->bytes));
@@ -1176,11 +1199,28 @@ void MemcachedEngine::tap(TapCallback &cb) {
     req->message.header.request.bodylen = ntohl(4);
     req->message.body.flags = ntohl(TAP_CONNECT_FLAG_DUMP);
     buffer->avail = buffer->size;
-    insertCommand(new TapResponseHandler(buffer, epStats, cb));
+    insertCommand(new TapResponseHandler(buffer, epStats, cb, false, true));
+}
+
+void MemcachedEngine::tapKeys(shared_ptr<TapCallback> cb) {
+    protocol_binary_request_tap_connect *req;
+
+    Buffer *buffer = new Buffer(sizeof(req->bytes));
+    req = (protocol_binary_request_tap_connect*)buffer->data;
+
+    memset(buffer->data, 0, buffer->size);
+    req->message.header.request.magic = PROTOCOL_BINARY_REQ;
+    req->message.header.request.opcode = PROTOCOL_BINARY_CMD_TAP_CONNECT;
+    req->message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
+    req->message.header.request.extlen = 4;
+    req->message.header.request.bodylen = ntohl(4);
+    req->message.body.flags = ntohl(TAP_CONNECT_FLAG_DUMP | TAP_CONNECT_REQUEST_KEYS_ONLY);
+    buffer->avail = buffer->size;
+    insertCommand(new TapResponseHandler(buffer, epStats, cb, true, true));
 }
 
 void MemcachedEngine::tap(const std::vector<uint16_t> &vbids,
-                          bool full, TapCallback &cb)
+                          bool full, shared_ptr<TapCallback> cb)
 {
     protocol_binary_request_tap_connect *req;
 
@@ -1212,7 +1252,7 @@ void MemcachedEngine::tap(const std::vector<uint16_t> &vbids,
     }
 
     buffer->avail = buffer->size;
-    insertCommand(new TapResponseHandler(buffer, epStats, cb));
+    insertCommand(new TapResponseHandler(buffer, epStats, cb, !full, false));
 }
 
 void MemcachedEngine::noop(Callback<bool> &cb) {

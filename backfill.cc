@@ -38,7 +38,7 @@ bool BackfillDiskLoad::callback(Dispatcher &d, TaskId t) {
     }
 
     if (connMap.checkConnectivity(name) && !engine->getEpStore()->isFlushAllScheduled()) {
-        store->dump(vbucket, *this);
+        store->dump(vbucket, shared_ptr<Callback<GetValue> >(this));
         valid = true;
     }
     // Should decr the disk backfill counter regardless of the connectivity status

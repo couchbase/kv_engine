@@ -111,15 +111,15 @@ public:
     /**
      * Overrides dump
      */
-    void dump(Callback<GetValue> &cb);
+    void dump(shared_ptr<Callback<GetValue> > cb);
 
-    void dump(uint16_t vb, Callback<GetValue> &cb);
+    void dump(uint16_t vb, shared_ptr<Callback<GetValue> > cb);
 
     bool isKeyDumpSupported() {
         return true;
     }
 
-    void dumpKeys(const std::vector<uint16_t> &vbids,  Callback<GetValue> &cb);
+    void dumpKeys(const std::vector<uint16_t> &vbids,  shared_ptr<Callback<GetValue> > cb);
 
 private:
 

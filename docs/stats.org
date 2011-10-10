@@ -119,6 +119,7 @@ For introductory information on stats within membase, start with the
 | ep_warmup_dups                 | Duplicates encountered during warmup.      |
 | ep_warmup_oom                  | OOMs encountered during warmup.            |
 | ep_warmup_time                 | Time (µs) spent by warming data.           |
+| ep_warmup_keys_time            | Time (µs) spent by warming keys.           |
 | ep_tap_keepalive               | Tap keepalive time.                        |
 | ep_dbname                      | DB path.                                   |
 | ep_dbinit                      | Number of seconds to initialize DB.        |
