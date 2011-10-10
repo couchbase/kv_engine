@@ -981,39 +981,5 @@ private:
     Atomic<size_t> &counter;
 };
 
-/**
- * Helper class used to insert items into the storage by using
- * the KVStore::dump method to load items from the database
- */
-class LoadStorageKVPairCallback : public Callback<GetValue> {
-public:
-    LoadStorageKVPairCallback(VBucketMap &vb, EPStats &st,
-                              EventuallyPersistentStore *ep)
-        : vbuckets(vb), stats(st), epstore(ep), startTime(ep_real_time()),
-          hasPurged(false) {
-        assert(epstore);
-    }
-
-    void initVBucket(uint16_t vbid, uint16_t vb_version,
-                     uint64_t checkpointId, vbucket_state_t prevState);
-
-    void callback(GetValue &val);
-
-private:
-
-    bool shouldEject() {
-        return StoredValue::getCurrentSize(stats) >= stats.mem_low_wat;
-    }
-
-    void purge();
-
-    VBucketMap &vbuckets;
-    EPStats    &stats;
-    EventuallyPersistentStore *epstore;
-    time_t      startTime;
-    bool        hasPurged;
-};
-
-
 
 #endif /* EP_HH */
