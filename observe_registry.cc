@@ -16,6 +16,7 @@
  */
 
 #include "observe_registry.hh"
+#include "command_ids.h"
 
 bool ObserveRegistry::observeKey(const std::string &key,
                                  const uint64_t cas,
@@ -61,6 +62,47 @@ state_map* ObserveRegistry::getObserveSetState(const std::string &obs_set_name) 
     return obs_set->second->getState();
 }
 
+void ObserveRegistry::itemsPersisted(std::list<queued_item> &itemlist) {
+    LockHolder lh(registry_mutex);
+    std::list<queued_item>::iterator itr;
+    for (itr = itemlist.begin(); itr != itemlist.end(); itr++) {
+        std::map<std::string,ObserveSet*>::iterator obs_itr;
+        for (obs_itr = registry.begin(); obs_itr != registry.end(); obs_itr++) {
+            obs_itr->second->keyEvent((*itr)->getKey().c_str(),
+                                      (*itr)->getCas(),
+                                      (*itr)->getVBucketId(),
+                                      OBS_PERSISTED_EVENT);
+        }
+    }
+}
+
+void ObserveRegistry::itemModified(const Item &itm) {
+    LockHolder lh(registry_mutex);
+    std::map<std::string,ObserveSet*>::iterator itr;
+    for (itr = registry.begin(); itr != registry.end(); itr++) {
+        itr->second->keyEvent(itm.getKey().c_str(), itm.getCas(),
+                              itm.getVBucketId(), OBS_MODIFIED_EVENT);
+    }
+}
+
+void ObserveRegistry::itemDeleted(const std::string &key, const uint64_t cas,
+                                  const uint16_t vbucket) {
+    LockHolder lh(registry_mutex);
+    std::map<std::string,ObserveSet*>::iterator itr;
+    for (itr = registry.begin(); itr != registry.end(); itr++) {
+        itr->second->keyEvent(key, cas, vbucket, OBS_DELETED_EVENT);
+    }
+}
+
+void ObserveRegistry::itemReplicated(const Item &itm) {
+    LockHolder lh(registry_mutex);
+    std::map<std::string,ObserveSet*>::iterator itr;
+    for (itr = registry.begin(); itr != registry.end(); itr++) {
+        itr->second->keyEvent(itm.getKey().c_str(), itm.getCas(),
+                              itm.getVBucketId(), OBS_REPLICATED_EVENT);
+    }
+}
+
 bool ObserveSet::add(const std::string &key, uint64_t cas,
                      const uint16_t vbucket) {
     std::map<int, VBObserveSet*>::iterator obs_set = observe_set.find(vbucket);
@@ -81,6 +123,14 @@ void ObserveSet::remove(const std::string &key, const uint64_t cas,
     if (observe_set.find(vbucket) != observe_set.end()) {
         VBObserveSet *vb_observe_set = observe_set.find(vbucket)->second;
         vb_observe_set->remove(key, cas);
+    }
+}
+
+void ObserveSet::keyEvent(const std::string &key, const uint64_t cas,
+                          const uint16_t vbucket, int event) {
+    std::map<int,VBObserveSet*>::iterator itr = observe_set.find(vbucket);
+    if (itr != observe_set.end()) {
+        itr->second->keyEvent(key, cas, event);
     }
 }
 
@@ -124,7 +174,44 @@ void VBObserveSet::getState(state_map *sm) {
         std::stringstream state_key;
         std::stringstream state_value;
         state_key << itr->key << " " << itr->cas;
-        state_value << (int)itr->replicas << " none";
+        state_value << (int)itr->replicas << " ";
+        if (itr->deleted) {
+            state_value << "deleted";
+        }
+        if (itr->mutated) {
+            if (itr->deleted) {
+                state_value << ",";
+            }
+            state_value << "mutated";
+        }
+        if (itr->persisted) {
+            if (itr->deleted || itr->mutated) {
+                state_value << ",";
+            }
+            state_value << "persisted";
+        }
+        if (!itr->persisted && !itr->mutated && !itr->deleted) {
+            state_value << "none";
+        }
         (*sm)[state_key.str()] = state_value.str();
+    }
+}
+
+void VBObserveSet::keyEvent(const std::string &key, const uint64_t cas,
+                            int event) {
+    std::list<observed_key_t>::iterator itr;
+    for (itr = keylist.begin(); itr != keylist.end(); itr++) {
+        if (itr->key.compare(key) == 0 && event == OBS_DELETED_EVENT) {
+            itr->deleted = true;
+        } else if (itr->key.compare(key) == 0 && itr->cas != cas &&
+                   event == OBS_MODIFIED_EVENT) {
+            itr->mutated = true;
+        } else if (itr->key.compare(key) == 0 && itr->cas == cas) {
+            if (event == OBS_PERSISTED_EVENT) {
+                itr->persisted = true;
+            } else if (event == OBS_REPLICATED_EVENT) {
+                itr->replicas++;
+            }
+        }
     }
 }

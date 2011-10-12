@@ -24,10 +24,12 @@
 #include "common.hh"
 #include "mutex.hh"
 #include "locks.hh"
+#include "queueditem.hh"
 
 typedef struct observed_key_t {
     observed_key_t(std::string aKey, uint64_t(aCas))
-        : key(aKey), cas(aCas), replicas(0), mutated(false), persisted(false) {
+        : key(aKey), cas(aCas), replicas(0), mutated(false), persisted(false),
+        deleted(false) {
     }
 
     std::string key;
@@ -64,6 +66,12 @@ public:
 
     state_map* getObserveSetState(const std::string &obs_set_name);
 
+    void itemsPersisted(std::list<queued_item> &itemlist);
+    void itemModified(const Item &item);
+    void itemReplicated(const Item &itm);
+    void itemDeleted(const std::string &key, const uint64_t cas,
+                     const uint16_t vbucket);
+
 private:
 
     std::map<std::string,ObserveSet*> registry;
@@ -80,6 +88,9 @@ public:
              const uint16_t vbucket);
     void remove(const std::string &key, const uint64_t cas,
                 const uint16_t vbucket);
+    void keyEvent(const std::string &key, const uint64_t,
+                  const uint16_t vbucket, int event);
+
     state_map* getState();
 
     uint32_t getExpiration() {
@@ -100,6 +111,8 @@ public:
     bool add(const std::string &key, const uint64_t cas);
     void remove(const std::string &key, const uint64_t cas);
     void getState(state_map* sm);
+    void keyEvent(const std::string &key, const uint64_t cas,
+                  int event);
 
 private:
 

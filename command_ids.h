@@ -136,6 +136,14 @@
 #define SYNC_INVALID_KEY        5
 #define SYNC_INVALID_CAS        6
 
+/*
+ * IDs for the events of the observe command.
+ */
+#define OBS_PERSISTED_EVENT    1
+#define OBS_MODIFIED_EVENT     2
+#define OBS_DELETED_EVENT      3
+#define OBS_REPLICATED_EVENT   4
+
 typedef protocol_binary_request_gat protocol_binary_request_getl;
 
 // Command identifiers used by Cross Data Center Replication (cdcr)

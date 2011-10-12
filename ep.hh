@@ -43,6 +43,7 @@ extern EXTENSION_LOGGER_DESCRIPTOR *getLogger(void);
 #include "kvstore.hh"
 #include "stored-value.hh"
 #include "sync_registry.hh"
+#include "observe_registry.hh"
 #include "atomic.hh"
 #include "dispatcher.hh"
 #include "vbucket.hh"
@@ -298,8 +299,10 @@ class PersistenceCallback;
 class TransactionContext {
 public:
 
-    TransactionContext(EPStats &st, KVStore *ks, SyncRegistry &syncReg)
-        : stats(st), underlying(ks), _remaining(0), intxn(false), syncRegistry(syncReg) {}
+    TransactionContext(EPStats &st, KVStore *ks, SyncRegistry &syncReg,
+                       ObserveRegistry &obsReg)
+        : stats(st), underlying(ks), _remaining(0), intxn(false),
+        syncRegistry(syncReg), observeRegistry(obsReg) {}
 
     /**
      * Call this whenever entering a transaction.
@@ -376,6 +379,7 @@ private:
     bool         intxn;
     std::list<queued_item>     uncommittedItems;
     SyncRegistry              &syncRegistry;
+    ObserveRegistry           &observeRegistry;
     std::list<PersistenceCallback*> transactionCallbacks;
 };
 

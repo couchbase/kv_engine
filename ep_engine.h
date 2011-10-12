@@ -670,6 +670,7 @@ private:
         }
         ++mutation_count;
         syncRegistry.itemModified(*it);
+        observeRegistry.itemModified(*it);
     }
 
     void addDeleteEvent(const std::string &key, uint16_t vbid, uint64_t cas) {
@@ -678,6 +679,7 @@ private:
         }
         ++mutation_count;
         syncRegistry.itemDeleted(key_spec_t(cas, vbid, key));
+        observeRegistry.itemDeleted(key, cas, vbid);
     }
 
     void startEngineThreads(void);
