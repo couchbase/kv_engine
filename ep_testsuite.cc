@@ -414,8 +414,8 @@ static enum test_result test_basic_observe(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     char *obs_raw = static_cast<char*>(calloc(1,sizeof(protocol_binary_request_observe)
                                                 + keylen + obssetlen));
 
-    memcpy(obs_raw + sizeof(protocol_binary_request_getl), key, keylen);
-    memcpy(obs_raw + sizeof(protocol_binary_request_getl) + keylen , obsset, obssetlen);
+    memcpy(obs_raw + sizeof(protocol_binary_request_observe), key, keylen);
+    memcpy(obs_raw + sizeof(protocol_binary_request_observe) + keylen , obsset, obssetlen);
 
     protocol_binary_request_observe *obs = (protocol_binary_request_observe*)obs_raw;
     protocol_binary_request_header *obs_pkt = (protocol_binary_request_header *)obs_raw;
@@ -434,11 +434,11 @@ static enum test_result test_basic_observe(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
           "Observe Failed");
 
     // Construct unobserve command
-    char *unobs_raw = static_cast<char*>(calloc(1,sizeof(protocol_binary_request_header)
+    char *unobs_raw = static_cast<char*>(calloc(1,sizeof(protocol_binary_request_unobserve)
                                                 + keylen + obssetlen));
 
-    memcpy(unobs_raw + sizeof(protocol_binary_request_getl), key, keylen);
-    memcpy(unobs_raw + sizeof(protocol_binary_request_getl) + keylen , obsset, obssetlen);
+    memcpy(unobs_raw + sizeof(protocol_binary_request_unobserve), key, keylen);
+    memcpy(unobs_raw + sizeof(protocol_binary_request_unobserve) + keylen , obsset, obssetlen);
 
     protocol_binary_request_header *unobs_pkt = (protocol_binary_request_header *)unobs_raw;
 

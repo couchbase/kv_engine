@@ -199,5 +199,6 @@ typedef union {
 typedef protocol_binary_response_no_extras protocol_binary_response_set_with_meta;
 
 typedef protocol_binary_request_touch protocol_binary_request_observe;
+typedef protocol_binary_request_header protocol_binary_request_unobserve;
 
 #endif /* EP_ENGINE_COMMAND_IDS_H */
