@@ -29,11 +29,12 @@ bool ObserveRegistry::observeKey(const std::string &key,
     if (obs_set == registry.end()) {
         std::pair<std::map<std::string,ObserveSet*>::iterator,bool> res;
         res = registry.insert(std::pair<std::string,ObserveSet*>(obs_set_name,
-                              new ObserveSet(expiration)));
+                              new ObserveSet(stats, expiration)));
         if (!res.second) {
             return false;
         }
         obs_set = res.first;
+        stats->totalObserveSets++;
         getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "Created new observe set: %s",
                          obs_set_name.c_str());
     }
@@ -110,7 +111,7 @@ bool ObserveSet::add(const std::string &key, uint64_t cas,
     if (obs_set == observe_set.end()) {
         std::pair<std::map<int,VBObserveSet*>::iterator,bool> res;
         res = observe_set.insert(std::pair<int,VBObserveSet*>(vbucket,
-                                 new VBObserveSet()));
+                                 new VBObserveSet(stats)));
         if (!res.second) {
             return false;
         }
@@ -154,6 +155,7 @@ bool VBObserveSet::add(const std::string &key, const uint64_t cas) {
             return true;
         }
     }
+    stats->obsRegSize++;
     keylist.push_back(obs_key);
     return true;
 }
@@ -163,6 +165,7 @@ void VBObserveSet::remove(const std::string &key, const uint64_t cas) {
     for (itr = keylist.begin(); itr != keylist.end(); itr++) {
         observed_key_t obs_key = *itr;
         if (obs_key.key.compare(key) == 0 && obs_key.cas == cas) {
+            stats->obsRegSize--;
             keylist.erase(itr);
             break;
         }

@@ -1080,7 +1080,7 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server
     tapConnMap(NULL), tapConfig(NULL), checkpointConfig(NULL),
     memLowWat(std::numeric_limits<size_t>::max()),
     memHighWat(std::numeric_limits<size_t>::max()),
-    mutation_count(0), warmingUp(true)
+    mutation_count(0), observeRegistry(&stats), warmingUp(true)
 {
     interface.interface = 1;
     ENGINE_HANDLE_V1::get_info = EvpGetInfo;
@@ -2660,6 +2660,17 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     add_casted_stat("ep_degraded_mode", isDegradedMode(), add_stat, cookie);
     add_casted_stat("ep_exp_pager_stime", epstore->getExpiryPagerSleeptime(),
                     add_stat, cookie);
+    add_casted_stat("ep_total_observe_sets", epstats.totalObserveSets,
+                    add_stat, cookie);
+    add_casted_stat("ep_stats_observe_polls", epstats.statsObservePolls,
+                    add_stat, cookie);
+    add_casted_stat("ep_observe_calls", epstats.observeCalls, add_stat,
+                    cookie);
+    add_casted_stat("ep_unobserve_calls", epstats.unobserveCalls, add_stat,
+                    cookie);
+    add_casted_stat("ep_observe_registry_size", epstats.obsRegSize, add_stat,
+                    cookie);
+    add_casted_stat("ep_observe_errors", epstats.obsErrors, add_stat, cookie);
 
 
     return ENGINE_SUCCESS;
@@ -3249,6 +3260,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doObserveStats(const void* cookie,
                                                              ADD_STAT add_stat,
                                                              const char* stat_key,
                                                              int nkey) {
+    stats.statsObservePolls++;
     std::string obs_set(stat_key, nkey);
     state_map* smap = getObserveRegistry().getObserveSetState(obs_set);
     std::map<std::string, std::string>::iterator itr;
@@ -3613,7 +3625,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe(const void *cookie,
                                                       std::string obs_set,
                                                       uint32_t expiration,
                                                       ADD_RESPONSE response) {
-
+    stats.observeCalls++;
     getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "observe %s %ld %s %d",
                      key.c_str(), cas, obs_set.c_str(), expiration);
     getObserveRegistry().observeKey(key, cas, vbucket, expiration, obs_set);
@@ -3626,6 +3638,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::unobserve(const void *cookie,
                                                         uint16_t vbucket,
                                                         std::string obs_set,
                                                         ADD_RESPONSE response) {
+    stats.unobserveCalls++;
     getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "unobserve %s %ld %s",
                      key.c_str(), cas, obs_set.c_str());
     getObserveRegistry().unobserveKey(key, cas, vbucket, obs_set);

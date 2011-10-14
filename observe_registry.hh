@@ -48,7 +48,8 @@ class VBObserveSet;
 class ObserveRegistry {
 public:
 
-    ObserveRegistry() {
+    ObserveRegistry(EPStats *stats_ptr)
+        : stats(stats_ptr) {
     }
 
     bool observeKey(const std::string &key,
@@ -76,12 +77,14 @@ private:
 
     std::map<std::string,ObserveSet*> registry;
     Mutex registry_mutex;
+    EPStats *stats;
 };
 
 class ObserveSet {
 public:
 
-    ObserveSet(uint32_t exp) : expiration(exp) {
+    ObserveSet(EPStats *stats_ptr, uint32_t exp)
+        : expiration(exp), stats(stats_ptr) {
     }
 
     bool add(const std::string &key, const uint64_t cas,
@@ -98,14 +101,17 @@ public:
     }
 
 private:
+
     const uint32_t expiration;
     std::map<int, VBObserveSet* > observe_set;
+    EPStats *stats;
 };
 
 class VBObserveSet {
 public:
 
-    VBObserveSet() {
+    VBObserveSet(EPStats *stats_ptr)
+        : stats(stats_ptr) {
     }
 
     bool add(const std::string &key, const uint64_t cas);
@@ -117,6 +123,7 @@ public:
 private:
 
     std::list<observed_key_t> keylist;
+    EPStats *stats;
 };
 
 #endif /* OBSERVE_REGISTRY_HH */
