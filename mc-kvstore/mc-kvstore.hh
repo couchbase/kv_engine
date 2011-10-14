@@ -121,6 +121,8 @@ public:
 
     void dumpKeys(const std::vector<uint16_t> &vbids,  shared_ptr<Callback<GetValue> > cb);
 
+    void optimizeWrites(std::vector<queued_item> &items);
+
 private:
 
     EPStats &stats;

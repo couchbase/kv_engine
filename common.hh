@@ -223,5 +223,27 @@ void createChunkListFromArray(std::vector<T> *elm_list, size_t chunk_size,
     }
 }
 
+/**
+ * Return true if the elements in a given container are sorted in the ascending order.
+ * @param first Forward iterator to the initial position of the container.
+ * @param last Forward iterator to the final position of the container. The element
+ * pointed by this iterator is not included.
+ * @param compare Comparison function that returns true if the first element is less than
+ * equal to the second element.
+ */
+template <class ForwardIterator, class Compare>
+bool sorted(ForwardIterator first, ForwardIterator last, Compare compare) {
+    bool is_sorted = true;
+    ForwardIterator next;
+    for (; first != last; ++first) {
+        next = first;
+        if (++next != last && !compare(*first, *next)) {
+            is_sorted = false;
+            break;
+        }
+    }
+    return is_sorted;
+}
+
 #define GIGANTOR ((size_t)1<<(sizeof(size_t)*8-1))
 #endif /* COMMON_H */

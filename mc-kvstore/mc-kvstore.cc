@@ -197,3 +197,9 @@ void MCKVStore::addStats(const std::string &prefix,
     KVStore::addStats(prefix, add_stat, c);
     mc->addStats(prefix, add_stat, c);
 }
+
+void MCKVStore::optimizeWrites(std::vector<queued_item> &items) {
+    CompareQueuedItemsByVBAndKey cq;
+    // Make sure that the items are sorted in the ascending order.
+    assert(sorted(items.begin(), items.end(), cq));
+}

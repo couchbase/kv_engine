@@ -143,6 +143,19 @@ public:
 };
 
 /**
+ * Order QueuedItem objects by their vbucket ids and keys.
+ */
+class CompareQueuedItemsByVBAndKey {
+public:
+    CompareQueuedItemsByVBAndKey() {}
+    bool operator()(const queued_item &i1, const queued_item &i2) {
+        return i1->getVBucketId() == i2->getVBucketId()
+            ? i1->getKey() <= i2->getKey()
+            : i1->getVBucketId() < i2->getVBucketId();
+    }
+};
+
+/**
  * Compare two Schwartzian-transformed QueuedItems.
  */
 template <typename T>
