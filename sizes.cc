@@ -23,6 +23,7 @@
 #include "ep.hh"
 #include "vbucket.hh"
 #include "histo.hh"
+#include "checkpoint.hh"
 
 static void display(const char *name, size_t size) {
     std::cout << name << "\t" << size << std::endl;
@@ -79,6 +80,9 @@ int main(int, char **) {
     display("VBucketHolder", sizeof(VBucketHolder));
     display("VBucketMap", sizeof(VBucketMap));
     display("Stats", sizeof(EPStats));
+    display("CheckpointManager", sizeof(CheckpointManager));
+    display("Checkpoint\t", sizeof(Checkpoint));
+    display("CheckpointConfig", sizeof(CheckpointConfig));
     display("Histogram<whatever>", sizeof(Histogram<size_t>));
     display("HistogramBin<size_t>", sizeof(HistogramBin<size_t>));
     display("HistogramBin<hrtime_t>", sizeof(HistogramBin<hrtime_t>));
