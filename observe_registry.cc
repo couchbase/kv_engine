@@ -15,6 +15,7 @@
  *   limitations under the License.
  */
 
+#include "config.h"
 #include "observe_registry.hh"
 #include "command_ids.h"
 
