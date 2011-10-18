@@ -59,6 +59,16 @@ void ObserveRegistry::unobserveKey(const std::string &key,
     }
 }
 
+void ObserveRegistry::removeExpired() {
+    LockHolder lh(registry_mutex);
+    std::map<std::string, ObserveSet*>::iterator itr;
+    for (itr = registry.begin(); itr != registry.end(); itr++) {
+        if (itr->second->isExpired()) {
+            removeObserveSet(itr);
+        }
+    }
+}
+
 state_map* ObserveRegistry::getObserveSetState(const std::string &obs_set_name) {
     LockHolder rl(registry_mutex);
     std::map<std::string, ObserveSet*>::iterator obs_set = registry.find(obs_set_name);
@@ -289,4 +299,11 @@ void VBObserveSet::keyEvent(const std::string &key, const uint64_t cas,
             }
         }
     }
+}
+
+bool ObserveRegistryCleaner::callback(Dispatcher &d, TaskId t) {
+    ++stats.obsCleanerRuns;
+    observeRegistry.removeExpired();
+    d.snooze(t, sleepTime);
+    return true;
 }

@@ -632,6 +632,14 @@ void EventuallyPersistentStore::initialize() {
                               Priority::CheckpointRemoverPriority,
                               checkpointRemoverInterval);
 
+    shared_ptr<DispatcherCallback> obsRegCb(new ObserveRegistryCleaner(
+                                            engine.getObserveRegistry(),
+                                            stats, 60));
+
+    nonIODispatcher->schedule(obsRegCb, NULL,
+                              Priority::ObserveRegistryCleanerPriority,
+                              10);
+
     shared_ptr<StatSnap> sscb(new StatSnap(&engine));
     dispatcher->schedule(sscb, NULL, Priority::StatSnapPriority,
                          STATSNAP_FREQ);

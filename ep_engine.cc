@@ -2671,6 +2671,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     add_casted_stat("ep_observe_registry_size", epstats.obsRegSize, add_stat,
                     cookie);
     add_casted_stat("ep_observe_errors", epstats.obsErrors, add_stat, cookie);
+    add_casted_stat("ep_obs_reg_clean_job", epstats.obsCleanerRuns, add_stat,
+                    cookie);
 
 
     return ENGINE_SUCCESS;

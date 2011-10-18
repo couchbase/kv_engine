@@ -24,6 +24,7 @@
 #include "common.hh"
 #include "mutex.hh"
 #include "locks.hh"
+#include "dispatcher.hh"
 #include "queueditem.hh"
 
 typedef struct observed_key_t {
@@ -62,6 +63,8 @@ public:
                       const uint64_t cas,
                       const uint16_t vbucket,
                       const std::string &obs_set_name);
+
+    void removeExpired();
 
     state_map* getObserveSetState(const std::string &obs_set_name);
 
@@ -130,6 +133,26 @@ private:
 
     std::list<observed_key_t> keylist;
     EPStats *stats;
+};
+
+class ObserveRegistryCleaner : public DispatcherCallback {
+public:
+
+    ObserveRegistryCleaner(ObserveRegistry &o, EPStats &st, size_t sTime)
+        : observeRegistry(o), stats(st), sleepTime(sTime), available(true) {
+    }
+    bool callback(Dispatcher &d, TaskId t);
+
+    std::string description() {
+        return std::string("Cleaning observe registry.");
+    }
+
+private:
+
+    ObserveRegistry &observeRegistry;
+    EPStats &stats;
+    double sleepTime;
+    bool available;
 };
 
 #endif /* OBSERVE_REGISTRY_HH */

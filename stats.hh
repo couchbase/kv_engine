@@ -252,6 +252,8 @@ public:
     Atomic<size_t> obsRegSize;
     //! The number of observe errors
     Atomic<size_t> obsErrors;
+    //! The number of times the observe registry cleaner has run
+    Atomic<size_t> obsCleanerRuns;
 
 
     //! Histogram of tap background wait loads.
@@ -379,6 +381,7 @@ public:
         observeCalls.set(0);
         unobserveCalls.set(0);
         obsErrors.set(0);
+        obsCleanerRuns.set(0);
 
         pendingOpsHisto.reset();
         bgWaitHisto.reset();
