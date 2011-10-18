@@ -105,6 +105,13 @@ void ObserveRegistry::itemReplicated(const Item &itm) {
     }
 }
 
+void ObserveRegistry::removeObserveSet(std::map<std::string,ObserveSet*>::iterator itr) {
+    if (itr != registry.end()) {
+        delete itr->second;
+        registry.erase(itr);
+    }
+}
+
 bool ObserveSet::add(const std::string &key, uint64_t cas,
                      const uint16_t vbucket) {
     std::map<int, VBObserveSet*>::iterator obs_set = observe_set.find(vbucket);
@@ -145,6 +152,18 @@ state_map* ObserveSet::getState() {
         vb_observe_set->getState(obs_state);
     }
     return obs_state;
+}
+
+ObserveSet::~ObserveSet() {
+    std::map<int, VBObserveSet* >::iterator itr;
+    for (itr = observe_set.begin(); itr != observe_set.end(); itr++) {
+        delete itr->second;
+        stats->totalObserveSets--;
+    }
+}
+
+VBObserveSet::~VBObserveSet() {
+    stats->obsRegSize -= keylist.size();
 }
 
 bool VBObserveSet::add(const std::string &key, const uint64_t cas) {

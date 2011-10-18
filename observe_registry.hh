@@ -63,8 +63,6 @@ public:
                       const uint16_t vbucket,
                       const std::string &obs_set_name);
 
-    void removeObserveSet(const std::string &obs_set_name);
-
     state_map* getObserveSetState(const std::string &obs_set_name);
 
     void itemsPersisted(std::list<queued_item> &itemlist);
@@ -74,6 +72,8 @@ public:
                      const uint16_t vbucket);
 
 private:
+
+    void removeObserveSet(std::map<std::string,ObserveSet*>::iterator itr);
 
     std::map<std::string,ObserveSet*> registry;
     Mutex registry_mutex;
@@ -86,6 +86,8 @@ public:
     ObserveSet(EPStats *stats_ptr, uint32_t exp)
         : expiration(exp), stats(stats_ptr) {
     }
+
+    ~ObserveSet();
 
     bool add(const std::string &key, const uint64_t cas,
              const uint16_t vbucket);
@@ -113,6 +115,8 @@ public:
     VBObserveSet(EPStats *stats_ptr)
         : stats(stats_ptr) {
     }
+
+    ~VBObserveSet();
 
     bool add(const std::string &key, const uint64_t cas);
     void remove(const std::string &key, const uint64_t cas);
