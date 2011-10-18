@@ -3246,9 +3246,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doDispatcherStats(const void *cook
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doObserveStats(const void* cookie,
+                                                             ADD_STAT add_stat,
                                                              const char* stat_key,
-                                                             ADD_STAT add_stat) {
-    std::string obs_set(stat_key, 8, (strlen(stat_key) - 8));
+                                                             int nkey) {
+    std::string obs_set(stat_key, nkey);
     state_map* smap = getObserveRegistry().getObserveSetState(obs_set);
     std::map<std::string, std::string>::iterator itr;
     for (itr = smap->begin(); itr != smap->end(); itr++) {
@@ -3262,11 +3263,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
                                                        const char* stat_key,
                                                        int nkey,
                                                        ADD_STAT add_stat) {
+    getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "%s %d", stat_key, nkey);
     ENGINE_ERROR_CODE rv = ENGINE_KEY_ENOENT;
     if (stat_key == NULL) {
         rv = doEngineStats(cookie, add_stat);
-    } else if (nkey > 7 && strncmp(stat_key, "observe", 7) == 0) {
-        rv = doObserveStats(cookie, stat_key, add_stat);
+    } else if (nkey > 8 && strncmp(stat_key, "observe ", 8) == 0) {
+        rv = doObserveStats(cookie, add_stat, stat_key + 8, nkey - 8);
     } else if (nkey > 7 && strncmp(stat_key, "tapagg ", 7) == 0) {
         rv = doTapAggStats(cookie, add_stat, stat_key + 7, nkey - 7);
     } else if (nkey == 3 && strncmp(stat_key, "tap", 3) == 0) {
