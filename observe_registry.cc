@@ -30,6 +30,12 @@ bool ObserveRegistry::observeKey(const std::string &key,
     if (itr == registry.end()) {
         obs_set = addObserveSet(obs_set_name, expiration);
         if (obs_set == NULL) {
+            return false; // TODO: Observe should have error codes
+        }
+    } else if (itr->second->isExpired()) {
+        removeObserveSet(itr);
+        obs_set = addObserveSet(obs_set_name, expiration);
+        if (obs_set == NULL) {
             return false;
         }
     } else {
@@ -43,9 +49,13 @@ void ObserveRegistry::unobserveKey(const std::string &key,
                                    const uint16_t vbucket,
                                    const std::string &obs_set_name) {
     LockHolder rl(registry_mutex);
-    std::map<std::string, ObserveSet*>::iterator obs_set = registry.find(obs_set_name);
-    if (obs_set != registry.end()) {
-        obs_set->second->remove(key, cas, vbucket);
+    std::map<std::string, ObserveSet*>::iterator itr = registry.find(obs_set_name);
+    if (itr != registry.end()) {
+        if (itr->second->isExpired()) {
+            removeObserveSet(itr);
+        } else {
+            itr->second->remove(key, cas, vbucket);
+        }
     }
 }
 
@@ -67,10 +77,14 @@ void ObserveRegistry::itemsPersisted(std::list<queued_item> &itemlist) {
     for (itr = itemlist.begin(); itr != itemlist.end(); itr++) {
         std::map<std::string,ObserveSet*>::iterator obs_itr;
         for (obs_itr = registry.begin(); obs_itr != registry.end(); obs_itr++) {
-            obs_itr->second->keyEvent((*itr)->getKey().c_str(),
-                                      (*itr)->getCas(),
-                                      (*itr)->getVBucketId(),
-                                      OBS_PERSISTED_EVENT);
+            if (!obs_itr->second->isExpired()) {
+                obs_itr->second->keyEvent((*itr)->getKey().c_str(),
+                                          (*itr)->getCas(),
+                                          (*itr)->getVBucketId(),
+                                          OBS_PERSISTED_EVENT);
+            } else {
+                removeObserveSet(obs_itr);
+            }
         }
     }
 }
@@ -79,8 +93,12 @@ void ObserveRegistry::itemModified(const Item &itm) {
     LockHolder lh(registry_mutex);
     std::map<std::string,ObserveSet*>::iterator itr;
     for (itr = registry.begin(); itr != registry.end(); itr++) {
-        itr->second->keyEvent(itm.getKey().c_str(), itm.getCas(),
-                              itm.getVBucketId(), OBS_MODIFIED_EVENT);
+        if (!itr->second->isExpired()) {
+            itr->second->keyEvent(itm.getKey().c_str(), itm.getCas(),
+                                  itm.getVBucketId(), OBS_MODIFIED_EVENT);
+        } else {
+            removeObserveSet(itr);
+        }
     }
 }
 
@@ -89,7 +107,11 @@ void ObserveRegistry::itemDeleted(const std::string &key, const uint64_t cas,
     LockHolder lh(registry_mutex);
     std::map<std::string,ObserveSet*>::iterator itr;
     for (itr = registry.begin(); itr != registry.end(); itr++) {
-        itr->second->keyEvent(key, cas, vbucket, OBS_DELETED_EVENT);
+        if (!itr->second->isExpired()) {
+            itr->second->keyEvent(key, cas, vbucket, OBS_DELETED_EVENT);
+        } else {
+            removeObserveSet(itr);
+        }
     }
 }
 
@@ -97,8 +119,12 @@ void ObserveRegistry::itemReplicated(const Item &itm) {
     LockHolder lh(registry_mutex);
     std::map<std::string,ObserveSet*>::iterator itr;
     for (itr = registry.begin(); itr != registry.end(); itr++) {
-        itr->second->keyEvent(itm.getKey().c_str(), itm.getCas(),
-                              itm.getVBucketId(), OBS_REPLICATED_EVENT);
+        if (!itr->second->isExpired()) {
+            itr->second->keyEvent(itm.getKey().c_str(), itm.getCas(),
+                                  itm.getVBucketId(), OBS_REPLICATED_EVENT);
+        } else {
+            removeObserveSet(itr);
+        }
     }
 }
 
@@ -123,6 +149,8 @@ ObserveSet* ObserveRegistry::addObserveSet(const std::string &obs_set_name,
     return res.first->second;
 }
 
+const hrtime_t ObserveSet::ONE_SECOND = 1000000000;
+
 bool ObserveSet::add(const std::string &key, uint64_t cas,
                      const uint16_t vbucket) {
     std::map<int, VBObserveSet*>::iterator obs_set = observe_set.find(vbucket);
@@ -131,10 +159,12 @@ bool ObserveSet::add(const std::string &key, uint64_t cas,
         res = observe_set.insert(std::pair<int,VBObserveSet*>(vbucket,
                                  new VBObserveSet(stats)));
         if (!res.second) {
+            lastTouched = gethrtime();
             return false;
         }
         obs_set = res.first;
     }
+    lastTouched = gethrtime();
     return obs_set->second->add(key, cas);
 }
 
@@ -143,6 +173,7 @@ void ObserveSet::remove(const std::string &key, const uint64_t cas,
     if (observe_set.find(vbucket) != observe_set.end()) {
         VBObserveSet *vb_observe_set = observe_set.find(vbucket)->second;
         vb_observe_set->remove(key, cas);
+        lastTouched = gethrtime();
     }
 }
 
@@ -151,8 +182,18 @@ void ObserveSet::keyEvent(const std::string &key, const uint64_t cas,
     std::map<int,VBObserveSet*>::iterator itr = observe_set.find(vbucket);
     if (itr != observe_set.end()) {
         itr->second->keyEvent(key, cas, event);
+        lastTouched = gethrtime();
     }
 }
+
+bool ObserveSet::isExpired() {
+    hrtime_t now = gethrtime();
+    if ((now - lastTouched) > expiration) {
+        return true;
+    }
+    return false;
+}
+
 
 state_map* ObserveSet::getState() {
     state_map *obs_state = new state_map();

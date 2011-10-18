@@ -86,7 +86,8 @@ class ObserveSet {
 public:
 
     ObserveSet(EPStats *stats_ptr, uint32_t exp)
-        : expiration(exp), stats(stats_ptr) {
+        : expiration(exp * ObserveSet::ONE_SECOND), stats(stats_ptr),
+        lastTouched(gethrtime()) {
     }
 
     ~ObserveSet();
@@ -97,18 +98,17 @@ public:
                 const uint16_t vbucket);
     void keyEvent(const std::string &key, const uint64_t,
                   const uint16_t vbucket, int event);
+    bool isExpired();
 
     state_map* getState();
 
-    uint32_t getExpiration() {
-        return expiration;
-    }
-
 private:
 
-    const uint32_t expiration;
+    static const hrtime_t ONE_SECOND;
+    const hrtime_t expiration;
     std::map<int, VBObserveSet* > observe_set;
     EPStats *stats;
+    hrtime_t lastTouched;
 };
 
 class VBObserveSet {
