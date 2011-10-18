@@ -74,6 +74,8 @@ public:
 private:
 
     void removeObserveSet(std::map<std::string,ObserveSet*>::iterator itr);
+    ObserveSet* addObserveSet(const std::string &obs_set_name,
+                              const uint16_t expiration);
 
     std::map<std::string,ObserveSet*> registry;
     Mutex registry_mutex;

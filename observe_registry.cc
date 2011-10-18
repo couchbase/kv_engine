@@ -25,20 +25,17 @@ bool ObserveRegistry::observeKey(const std::string &key,
                                  const uint64_t expiration,
                                  const std::string &obs_set_name) {
     LockHolder rl(registry_mutex);
-    std::map<std::string, ObserveSet*>::iterator obs_set = registry.find(obs_set_name);
-    if (obs_set == registry.end()) {
-        std::pair<std::map<std::string,ObserveSet*>::iterator,bool> res;
-        res = registry.insert(std::pair<std::string,ObserveSet*>(obs_set_name,
-                              new ObserveSet(stats, expiration)));
-        if (!res.second) {
+    std::map<std::string, ObserveSet*>::iterator itr = registry.find(obs_set_name);
+    ObserveSet* obs_set;
+    if (itr == registry.end()) {
+        obs_set = addObserveSet(obs_set_name, expiration);
+        if (obs_set == NULL) {
             return false;
         }
-        obs_set = res.first;
-        stats->totalObserveSets++;
-        getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "Created new observe set: %s",
-                         obs_set_name.c_str());
+    } else {
+        obs_set = itr->second;
     }
-    return obs_set->second->add(key, cas, vbucket);
+    return obs_set->add(key, cas, vbucket);
 }
 
 void ObserveRegistry::unobserveKey(const std::string &key,
@@ -110,6 +107,20 @@ void ObserveRegistry::removeObserveSet(std::map<std::string,ObserveSet*>::iterat
         delete itr->second;
         registry.erase(itr);
     }
+}
+
+ObserveSet* ObserveRegistry::addObserveSet(const std::string &obs_set_name,
+                                           const uint16_t expiration) {
+    std::pair<std::map<std::string,ObserveSet*>::iterator,bool> res;
+    res = registry.insert(std::pair<std::string,ObserveSet*>(obs_set_name,
+                              new ObserveSet(stats, expiration)));
+    if (!res.second) {
+        return NULL;
+    }
+    stats->totalObserveSets++;
+    getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "Created new observe set: %s",
+                     obs_set_name.c_str());
+    return res.first->second;
 }
 
 bool ObserveSet::add(const std::string &key, uint64_t cas,
