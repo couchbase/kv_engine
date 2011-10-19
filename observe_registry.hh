@@ -27,6 +27,10 @@
 #include "dispatcher.hh"
 #include "queueditem.hh"
 
+class ObserveRegistry;
+
+#include "ep.hh"
+
 typedef struct observed_key_t {
     observed_key_t(std::string aKey, uint64_t(aCas))
         : key(aKey), cas(aCas), replicas(0), mutated(false), persisted(false),
@@ -45,12 +49,14 @@ typedef std::map<std::string, std::string> state_map;
 
 class ObserveSet;
 class VBObserveSet;
+class EventuallyPersistentStore;
+
 
 class ObserveRegistry {
 public:
 
-    ObserveRegistry(EPStats *stats_ptr)
-        : stats(stats_ptr) {
+    ObserveRegistry(EventuallyPersistentStore **e, EPStats *stats_ptr)
+        : epstore(e), stats(stats_ptr) {
     }
 
     bool observeKey(const std::string &key,
@@ -82,14 +88,15 @@ private:
 
     std::map<std::string,ObserveSet*> registry;
     Mutex registry_mutex;
+    EventuallyPersistentStore **epstore;
     EPStats *stats;
 };
 
 class ObserveSet {
 public:
 
-    ObserveSet(EPStats *stats_ptr, uint32_t exp)
-        : expiration(exp * ObserveSet::ONE_SECOND), stats(stats_ptr),
+    ObserveSet(EventuallyPersistentStore **e, EPStats *stats_ptr, uint32_t exp)
+        : expiration(exp * ObserveSet::ONE_SECOND), epstore(e), stats(stats_ptr),
         lastTouched(gethrtime()) {
     }
 
@@ -110,6 +117,7 @@ private:
     static const hrtime_t ONE_SECOND;
     const hrtime_t expiration;
     std::map<int, VBObserveSet* > observe_set;
+    EventuallyPersistentStore **epstore;
     EPStats *stats;
     hrtime_t lastTouched;
 };

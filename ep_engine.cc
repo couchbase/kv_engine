@@ -1094,7 +1094,7 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server
     tapConnMap(NULL), tapConfig(NULL), checkpointConfig(NULL),
     memLowWat(std::numeric_limits<size_t>::max()),
     memHighWat(std::numeric_limits<size_t>::max()),
-    mutation_count(0), observeRegistry(&stats), warmingUp(true)
+    mutation_count(0), observeRegistry(&epstore, &stats), warmingUp(true)
 {
     interface.interface = 1;
     ENGINE_HANDLE_V1::get_info = EvpGetInfo;

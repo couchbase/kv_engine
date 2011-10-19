@@ -18,6 +18,7 @@
 #include "config.h"
 #include "observe_registry.hh"
 #include "command_ids.h"
+#include "vbucket.hh"
 
 bool ObserveRegistry::observeKey(const std::string &key,
                                  const uint64_t cas,
@@ -149,7 +150,7 @@ ObserveSet* ObserveRegistry::addObserveSet(const std::string &obs_set_name,
                                            const uint16_t expiration) {
     std::pair<std::map<std::string,ObserveSet*>::iterator,bool> res;
     res = registry.insert(std::pair<std::string,ObserveSet*>(obs_set_name,
-                              new ObserveSet(stats, expiration)));
+                              new ObserveSet(epstore, stats, expiration)));
     if (!res.second) {
         return NULL;
     }
@@ -163,19 +164,22 @@ const hrtime_t ObserveSet::ONE_SECOND = 1000000000;
 
 bool ObserveSet::add(const std::string &key, uint64_t cas,
                      const uint16_t vbucket) {
-    std::map<int, VBObserveSet*>::iterator obs_set = observe_set.find(vbucket);
-    if (obs_set == observe_set.end()) {
-        std::pair<std::map<int,VBObserveSet*>::iterator,bool> res;
-        res = observe_set.insert(std::pair<int,VBObserveSet*>(vbucket,
-                                 new VBObserveSet(stats)));
-        if (!res.second) {
-            lastTouched = gethrtime();
-            return false;
+    if ((*epstore)->getVBucket(vbucket)->getState() != vbucket_state_dead) {
+        std::map<int, VBObserveSet*>::iterator obs_set = observe_set.find(vbucket);
+        if (obs_set == observe_set.end()) {
+            std::pair<std::map<int,VBObserveSet*>::iterator,bool> res;
+            res = observe_set.insert(std::pair<int,VBObserveSet*>(vbucket,
+                                     new VBObserveSet(stats)));
+            if (!res.second) {
+                lastTouched = gethrtime();
+                return false;
+            }
+            obs_set = res.first;
         }
-        obs_set = res.first;
+        lastTouched = gethrtime();
+        return obs_set->second->add(key, cas);
     }
-    lastTouched = gethrtime();
-    return obs_set->second->add(key, cas);
+    return true;
 }
 
 void ObserveSet::remove(const std::string &key, const uint64_t cas,
@@ -209,9 +213,10 @@ state_map* ObserveSet::getState() {
     state_map *obs_state = new state_map();
     std::map<int, VBObserveSet* >::iterator itr;
     for (itr = observe_set.begin(); itr != observe_set.end(); itr++) {
-        // TODO: Check if vbucket is active here
-        VBObserveSet *vb_observe_set = itr->second;
-        vb_observe_set->getState(obs_state);
+        if ((*epstore)->getVBucket(itr->first)->getState() == vbucket_state_active) {
+            VBObserveSet *vb_observe_set = itr->second;
+            vb_observe_set->getState(obs_state);
+        }
     }
     return obs_state;
 }
