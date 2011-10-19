@@ -5610,6 +5610,8 @@ engine_test_t* get_tests(void) {
          NULL, teardown, NULL},
         {"vbucket deletion doesn't affect new data", test_bug2761,
          NULL, teardown, NULL},
+        {"vbucket deletion doesn't affect new data (table per vbucket)", test_bug2761,
+         NULL, teardown, "db_strategy=multiMTVBDB"},
         {"start transaction failure handling", test_bug2830, NULL, teardown,
          "db_shards=1;ht_size=13;ht_locks=7;db_strategy=multiDB"},
         {"non-resident decrementers", test_mb3169, NULL, teardown, NULL},

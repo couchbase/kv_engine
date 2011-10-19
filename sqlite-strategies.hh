@@ -82,6 +82,16 @@ public:
     }
 
     virtual void destroyTables() = 0;
+    virtual void destroyInvalidTables(bool destroyOnlyOne = false) = 0;
+
+    virtual void renameVBTable(uint16_t vbucket, const std::string &newName) {
+        (void)vbucket;
+        (void)newName;
+    }
+
+    virtual void createVBTable(uint16_t vbucket) {
+        (void)vbucket;
+    }
 
     virtual void optimizeWrites(std::vector<queued_item> &items) {
         (void)items;
@@ -187,6 +197,7 @@ public:
 
     void destroyStatements();
     virtual void destroyTables();
+    virtual void destroyInvalidTables(bool destroyOnlyOne = false);
 
     void optimizeWrites(std::vector<queued_item> &items) {
         // Sort all the queued items for each db shard by their row ids
@@ -265,6 +276,7 @@ public:
     void initTables(void);
     void initStatements(void);
     void destroyTables(void);
+    void destroyInvalidTables(bool destroyOnlyOne = false);
 
 private:
     const char * const shardpattern;
@@ -319,6 +331,10 @@ public:
 
     virtual void destroyStatements();
     virtual void destroyTables();
+    virtual void destroyInvalidTables(bool destroyOnlyOne = false);
+
+    virtual void renameVBTable(uint16_t vbucket, const std::string &newName);
+    virtual void createVBTable(uint16_t vbucket);
 
     bool hasEfficientVBLoad() { return true; }
 
@@ -405,6 +421,10 @@ public:
 
     void destroyStatements();
     void destroyTables();
+    void destroyInvalidTables(bool destroyOnlyOne = false);
+
+    void renameVBTable(uint16_t vbucket, const std::string &newName);
+    void createVBTable(uint16_t vbucket);
 
     std::vector<PreparedStatement*> getVBStatements(uint16_t vb, vb_statement_type vbst);
 
@@ -463,6 +483,10 @@ public:
     virtual ~ShardedByVBucketSqliteStrategy() { }
 
     void destroyTables();
+    void destroyInvalidTables(bool destroyOnlyOne = false);
+
+    void renameVBTable(uint16_t vbucket, const std::string &newName);
+    void createVBTable(uint16_t vbucket);
 
 protected:
     const char * const shardpattern;

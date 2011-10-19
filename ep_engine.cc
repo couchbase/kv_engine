@@ -30,6 +30,7 @@
 #include "htresizer.hh"
 #include "checkpoint_remover.hh"
 #include "backfill.hh"
+#include "invalid_vbtable_remover.hh"
 
 static void assembleSyncResponse(std::stringstream &resp,
                                  SyncListener *syncListener,
@@ -1512,6 +1513,13 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         shared_ptr<StatSnap> sscb(new StatSnap(this));
         epstore->getDispatcher()->schedule(sscb, NULL, Priority::StatSnapPriority,
                                            STATSNAP_FREQ);
+
+        if (kvstore->getStorageProperties().hasEfficientVBDeletion()) {
+            shared_ptr<DispatcherCallback> invalidVBTableRemover(new InvalidVBTableRemover(this));
+            epstore->getDispatcher()->schedule(invalidVBTableRemover, NULL,
+                                               Priority::VBucketDeletionPriority,
+                                               INVALID_VBTABLE_DEL_FREQ);
+        }
     }
 
     if (ret == ENGINE_SUCCESS) {
@@ -3421,6 +3429,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTimingStats(const void *cookie,
     add_casted_stat("disk_del", stats.diskDelHisto, add_stat, cookie);
     add_casted_stat("disk_vb_chunk_del", stats.diskVBChunkDelHisto, add_stat, cookie);
     add_casted_stat("disk_vb_del", stats.diskVBDelHisto, add_stat, cookie);
+    add_casted_stat("disk_invalid_vbtable_del", stats.diskInvalidVBTableDelHisto,
+                    add_stat, cookie);
     add_casted_stat("disk_commit", stats.diskCommitHisto, add_stat, cookie);
     add_casted_stat("disk_invalid_item_del", stats.diskInvaidItemDelHisto,
                     add_stat, cookie);

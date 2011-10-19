@@ -60,6 +60,8 @@ ep_la_SOURCES = \
                  flusher.cc flusher.hh \
                  histo.hh \
                  htresizer.cc htresizer.hh \
+                 invalid_vbtable_remover.hh \
+                 invalid_vbtable_remover.cc \
                  item.cc item.hh \
                  item_pager.cc item_pager.hh \
                  kvstore.hh \
@@ -285,6 +287,7 @@ dispatcher_test_SOURCES += gethrtime.c
 vbucket_test_SOURCES += gethrtime.c
 checkpoint_test_SOURCES += gethrtime.c
 management_mbdbconvert_SOURCES += gethrtime.c
+ep_testsuite_la_SOURCES += gethrtime.c
 endif
 
 if BUILD_TCMALLOC_STATS
