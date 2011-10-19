@@ -555,11 +555,12 @@ uint64_t CheckpointManager::getAllItemsForPersistence(std::vector<queued_item> &
         // Get all the items up to the start of the onlineUpdate cursor.
         uint64_t barrier = (*(onlineUpdateCursor.currentCheckpoint))->getId();
         checkpointId = getAllItemsFromCurrentPosition(persistenceCursor, barrier, items);
+        persistenceCursor.offset += items.size();
     } else {
         // Get all the items up to the end of the current open checkpoint.
         checkpointId = getAllItemsFromCurrentPosition(persistenceCursor, 0, items);
+        persistenceCursor.offset = numItems;
     }
-    persistenceCursor.offset += items.size();
     return checkpointId;
 }
 
@@ -574,7 +575,7 @@ uint64_t CheckpointManager::getAllItemsForTAPConnection(const std::string &name,
         return 0;
     }
     uint64_t checkpointId = getAllItemsFromCurrentPosition(it->second, 0, items);
-    it->second.offset += items.size();
+    it->second.offset = numItems;
     return checkpointId;
 }
 
