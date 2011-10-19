@@ -50,6 +50,7 @@ EP_ENGINE_CC_SRC = \
                  ep_extension.cc \
                  flusher.cc \
                  htresizer.cc \
+                 invalid_vbtable_remover.cc \
                  item.cc \
                  item_pager.cc \
                  kvstore.cc \
