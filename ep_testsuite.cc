@@ -908,6 +908,14 @@ static void unobserveKey(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, uint16_t vbid,
 static enum test_result test_observe(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const char *obsset = "watchset1";
 
+    // Check that error is returned if no key or observe set is specified
+    observeKey(h, h1, 0, 10, 30, "", obsset, ENGINE_FAILED,
+               "Observe succeeded with no key");
+    observeKey(h, h1, 0, 10, 30, "k1", "", ENGINE_FAILED,
+               "Observe succeeded with no observe set");
+    observeKey(h, h1, 0, 10, 30, "", "", ENGINE_FAILED,
+               "Observe succeeded with no key or observe set");
+
     observeKey(h, h1, 0, 10, 30, "k1", obsset, ENGINE_SUCCESS, "Observe Failed");
     observeKey(h, h1, 0, 11, 30, "k2", obsset, ENGINE_SUCCESS, "Observe Failed");
     observeKey(h, h1, 0, 12, 30, "k3", obsset, ENGINE_SUCCESS, "Observe Failed");

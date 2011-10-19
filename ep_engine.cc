@@ -655,6 +655,13 @@ extern "C" {
         uint64_t cas = ntohll(req->message.header.request.cas);
         uint32_t exp = ntohl(req->message.body.expiration);
 
+        // Return invalid if no key or observe set is specified
+        if (keylen == 0 || (bodylen - keylen - extlen) == 0) {
+            response(NULL, 0, NULL, 0, "", 0, PROTOCOL_BINARY_RAW_BYTES,
+                     PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
+            return ENGINE_FAILED;
+        }
+
         const char *keyp = reinterpret_cast<const char*>(req->bytes);
         keyp += sizeof(request->bytes) + extlen;
         std::string key(keyp, keylen);
@@ -674,6 +681,13 @@ extern "C" {
         uint16_t vbucket = ntohs(request->request.vbucket);
         uint32_t bodylen = ntohl(request->request.bodylen);
         uint64_t cas = ntohll(request->request.cas);
+
+        // Return invalid if no key or observe set is specified
+        if (keylen == 0 || (bodylen - keylen) == 0) {
+            response(NULL, 0, NULL, 0, "", 0, PROTOCOL_BINARY_RAW_BYTES,
+                     PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
+            return ENGINE_FAILED;
+        }
 
         const char *keyp = reinterpret_cast<const char*>(request->bytes);
         keyp += sizeof(request->bytes);
