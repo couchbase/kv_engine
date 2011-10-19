@@ -165,6 +165,16 @@ For introductory information on stats within membase, start with the
 | ep_onlineupdate_revert_add     | Number of reverted newly added items       |
 | ep_onlineupdate_revert_delete  | Number of reverted deleted items           |
 | ep_onlineupdate_revert_update  | Number of reverted updated items           |
+| ep_total_observe_set           | Number of observe sets                     |
+| ep_stats_observe_polls         | Number of stats observe calls              |
+| ep_observe_calls               | Number of observe calls                    |
+| ep_unobserve_calls             | Number of unobserve calls                  |
+| ep_observe_registry_size       | Number of key in the observe registry      |
+| ep_observe_errors              | Number of time an observe failed to be     |
+|                                | added to the observe registry (Not due to  |
+|                                | protocol violation)                        |
+| ep_obs_reg_clean_job           | Number of time the observe registry        |
+|                                | cleaner job has run                        |
 
 ** vBucket total stats
 
