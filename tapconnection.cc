@@ -23,7 +23,7 @@ size_t TapConnection::bgMaxPending = 500;
 uint32_t TapConnection::ackWindowSize = 10;
 uint32_t TapConnection::ackInterval = 1000;
 rel_time_t TapConnection::ackGracePeriod = 5 * 60;
-double TapConnection::backoffSleepTime = 1.0;
+double TapConnection::backoffSleepTime = 5.0;
 uint32_t TapConnection::initialAckSequenceNumber = 0;
 double TapConnection::requeueSleepTime = 0.1;
 
@@ -302,13 +302,13 @@ const void *TapConnection::getCookie() const {
 
 
 bool TapConnection::isSuspended() const {
-    return suspended.get();
+    return suspended;
 }
 
-void TapConnection::setSuspended(bool value)
+void TapConnection::setSuspended_UNLOCKED(bool value)
 {
     if (value) {
-        if (backoffSleepTime > 0 && !suspended.get()) {
+        if (backoffSleepTime > 0 && !suspended) {
             Dispatcher *d = engine.getEpStore()->getNonIODispatcher();
             d->schedule(shared_ptr<DispatcherCallback>
                         (new TapResumeCallback(engine, *this)),
@@ -323,8 +323,16 @@ void TapConnection::setSuspended(bool value)
             // backoff disabled, or already in a suspended state
             return;
         }
+    } else {
+        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                         "Unlocked %s from the suspended state\n", client.c_str());
     }
-    suspended.set(value);
+    suspended = value;
+}
+
+void TapConnection::setSuspended(bool value) {
+    LockHolder lh(queueLock);
+    setSuspended_UNLOCKED(value);
 }
 
 void TapConnection::reschedule_UNLOCKED(const std::list<TapLogElement>::iterator &iter)
@@ -397,7 +405,7 @@ ENGINE_ERROR_CODE TapConnection::processAck(uint32_t s,
 
     case PROTOCOL_BINARY_RESPONSE_EBUSY:
     case PROTOCOL_BINARY_RESPONSE_ETMPFAIL:
-        setSuspended(true);
+        setSuspended_UNLOCKED(true);
         ++numTapNack;
         getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
                          "Received temporary TAP nack from <%s> (#%u): Code: %u (%s)\n",
