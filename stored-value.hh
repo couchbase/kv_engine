@@ -948,7 +948,7 @@ public:
      * @return a pointer to a StoredValue -- NULL if not found
      */
     StoredValue *find(std::string &key) {
-        assert(active());
+        assert(isActive());
         int bucket_num(0);
         LockHolder lh = getLockedBucket(key, &bucket_num);
         return unlocked_find(key, bucket_num);
@@ -995,7 +995,7 @@ public:
      * @return a result indicating the status of the store
      */
     mutation_type_t set(const Item &val, int64_t &row_id) {
-        assert(active());
+        assert(isActive());
         Item &itm = const_cast<Item&>(val);
         if (!StoredValue::hasAvailableSpace(stats, itm)) {
             return NOMEM;
@@ -1067,7 +1067,7 @@ public:
      * @return a result indicating the status of the store
      */
     mutation_type_t setWithMeta(const Item &val, uint64_t cas, int64_t &row_id, bool allowExisting) {
-        assert(active());
+        assert(isActive());
         Item &itm = const_cast<Item&>(val);
         if (!StoredValue::hasAvailableSpace(stats, itm)) {
             return NOMEM;
@@ -1143,7 +1143,7 @@ public:
      * @return a result indicating the status of the store
      */
     mutation_type_t insert(const Item &itm, bool eject, bool partial) {
-        assert(active());
+        assert(isActive());
         if (!StoredValue::hasAvailableSpace(stats, itm)) {
             return NOMEM;
         }
@@ -1195,7 +1195,7 @@ public:
      * @return an indication of what happened
      */
     add_type_t add(const Item &val, bool isDirty = true, bool storeVal = true) {
-        assert(active());
+        assert(isActive());
         int bucket_num(0);
         LockHolder lh = getLockedBucket(val.getKey(), &bucket_num);
         StoredValue *v = unlocked_find(val.getKey(), bucket_num, true);
@@ -1239,7 +1239,7 @@ public:
      */
     mutation_type_t softDelete(const std::string &key, uint64_t cas,
                                int64_t &row_id) {
-        assert(active());
+        assert(isActive());
         int bucket_num(0);
         LockHolder lh = getLockedBucket(key, &bucket_num);
         StoredValue *v = unlocked_find(key, bucket_num);
@@ -1318,7 +1318,7 @@ public:
      * @return the hash value
      */
     inline int hash(const char *str, const size_t len) {
-        assert(active());
+        assert(isActive());
         int h=5381;
 
         for(size_t i=0; i < len; i++) {
@@ -1348,7 +1348,7 @@ public:
      */
     inline LockHolder getLockedBucket(int h, int *bucket) {
         while (true) {
-            assert(active());
+            assert(isActive());
             *bucket = getBucketForHash(h);
             LockHolder rv(mutexes[mutexForBucket(*bucket)]);
             if (*bucket == getBucketForHash(h)) {
@@ -1392,7 +1392,7 @@ public:
      * @return true if an object was deleted, false otherwise
      */
     bool unlocked_del(const std::string &key, int bucket_num) {
-        assert(active());
+        assert(isActive());
         StoredValue *v = values[bucket_num];
 
         // Special case empty bucket.
@@ -1444,7 +1444,7 @@ public:
      * @return true if the item existed before this call
      */
     bool del(const std::string &key) {
-        assert(active());
+        assert(isActive());
         int bucket_num(0);
         LockHolder lh = getLockedBucket(key, &bucket_num);
         return unlocked_del(key, bucket_num);
@@ -1516,8 +1516,8 @@ public:
     Atomic<size_t>       cacheSize;
 
 private:
-    inline bool active() { return activeState = true; }
-    inline void active(bool newv) { activeState = newv; }
+    inline bool isActive() const { return activeState == true; }
+    inline void setActiveState(bool newv) { activeState = newv; }
 
     size_t               size;
     size_t               n_locks;
@@ -1539,7 +1539,7 @@ private:
     }
 
     inline int mutexForBucket(int bucket_num) {
-        assert(active());
+        assert(isActive());
         assert(bucket_num >= 0);
         int lock_num = bucket_num % static_cast<int>(n_locks);
         assert(lock_num < static_cast<int>(n_locks));

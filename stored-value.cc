@@ -121,11 +121,11 @@ HashTableStatVisitor HashTable::clear(bool deactivate) {
 
     if (!deactivate) {
         // If not deactivating, assert we're already active.
-        assert(active());
+        assert(isActive());
     }
     MultiLockHolder mlh(mutexes, n_locks);
     if (deactivate) {
-        active(false);
+        setActiveState(false);
     }
     for (int i = 0; i < (int)size; i++) {
         while (values[i]) {
@@ -145,7 +145,7 @@ HashTableStatVisitor HashTable::clear(bool deactivate) {
 }
 
 void HashTable::resize(size_t newSize) {
-    assert(active());
+    assert(isActive());
 
     // Due to the way hashing works, we can't fit anything larger than
     // an int.
@@ -246,13 +246,13 @@ void HashTable::resize() {
 }
 
 void HashTable::visit(HashTableVisitor &visitor) {
-    if (numItems.get() == 0 || !active()) {
+    if (numItems.get() == 0 || !isActive()) {
         return;
     }
     VisitorTracker vt(&visitors);
     bool aborted = !visitor.shouldContinue();
     size_t visited = 0;
-    for (int l = 0; active() && !aborted && l < static_cast<int>(n_locks); l++) {
+    for (int l = 0; isActive() && !aborted && l < static_cast<int>(n_locks); l++) {
         LockHolder lh(mutexes[l]);
         for (int i = l; i < static_cast<int>(size); i+= n_locks) {
             assert(l == mutexForBucket(i));
@@ -272,7 +272,7 @@ void HashTable::visit(HashTableVisitor &visitor) {
 }
 
 void HashTable::visitDepth(HashTableDepthVisitor &visitor) {
-    if (numItems.get() == 0 || !active()) {
+    if (numItems.get() == 0 || !isActive()) {
         return;
     }
     size_t visited = 0;
