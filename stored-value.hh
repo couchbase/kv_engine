@@ -1516,7 +1516,7 @@ public:
     Atomic<size_t>       cacheSize;
 
 private:
-    inline bool isActive() const { return activeState == true; }
+    inline bool isActive() const { return activeState; }
     inline void setActiveState(bool newv) { activeState = newv; }
 
     size_t               size;
