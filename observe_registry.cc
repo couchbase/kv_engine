@@ -152,6 +152,7 @@ ObserveSet* ObserveRegistry::addObserveSet(const std::string &obs_set_name,
     res = registry.insert(std::pair<std::string,ObserveSet*>(obs_set_name,
                               new ObserveSet(epstore, stats, expiration)));
     if (!res.second) {
+        stats->obsErrors++;
         return NULL;
     }
     stats->totalObserveSets++;
@@ -172,17 +173,20 @@ protocol_binary_response_status ObserveSet::add(const std::string &key, uint64_t
                                      new VBObserveSet(stats)));
             if (!res.second) {
                 lastTouched = gethrtime();
+                stats->obsErrors++;
                 return PROTOCOL_BINARY_RESPONSE_ETMPFAIL;
             }
             obs_set = res.first;
         }
         lastTouched = gethrtime();
         if (size >= MAX_OBS_SET_SIZE) {
+            stats->obsErrors++;
             return PROTOCOL_BINARY_RESPONSE_EBUSY;
         } else if (obs_set->second->add(key, cas)) {
             size++;
             return PROTOCOL_BINARY_RESPONSE_SUCCESS;
         } else {
+            stats->obsErrors++;
             return PROTOCOL_BINARY_RESPONSE_ETMPFAIL;
         }
     }
