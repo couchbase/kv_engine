@@ -170,7 +170,7 @@ protocol_binary_response_status ObserveSet::add(const std::string &key, uint64_t
         if (obs_set == observe_set.end()) {
             std::pair<std::map<int,VBObserveSet*>::iterator,bool> res;
             res = observe_set.insert(std::pair<int,VBObserveSet*>(vbucket,
-                                     new VBObserveSet(stats)));
+                                     new VBObserveSet(epstore, stats)));
             if (!res.second) {
                 lastTouched = gethrtime();
                 stats->obsErrors++;
@@ -182,7 +182,7 @@ protocol_binary_response_status ObserveSet::add(const std::string &key, uint64_t
         if (size >= MAX_OBS_SET_SIZE) {
             stats->obsErrors++;
             return PROTOCOL_BINARY_RESPONSE_EBUSY;
-        } else if (obs_set->second->add(key, cas)) {
+        } else if (obs_set->second->add(key, cas, vbucket)) {
             size++;
             return PROTOCOL_BINARY_RESPONSE_SUCCESS;
         } else {
@@ -248,13 +248,17 @@ VBObserveSet::~VBObserveSet() {
 }
 
 // Returns true if an item was added to the list
-bool VBObserveSet::add(const std::string &key, const uint64_t cas) {
+bool VBObserveSet::add(const std::string &key, const uint64_t cas,
+                       const uint16_t vbucket) {
     observed_key_t obs_key(key, cas);
     std::list<observed_key_t>::iterator itr;
     for (itr = keylist.begin(); itr != keylist.end(); itr++) {
         if (itr->key.compare(key) == 0 && itr->cas == cas) {
             return true;
         }
+    }
+    if ((*epstore)->getVBucket(vbucket)->getState() == vbucket_state_replica) {
+        obs_key.replicas = -1;
     }
     stats->obsRegSize++;
     keylist.push_back(obs_key);

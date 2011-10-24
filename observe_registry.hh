@@ -128,13 +128,13 @@ private:
 class VBObserveSet {
 public:
 
-    VBObserveSet(EPStats *stats_ptr)
-        : stats(stats_ptr) {
+    VBObserveSet(EventuallyPersistentStore **e, EPStats *stats_ptr)
+        : epstore(e), stats(stats_ptr) {
     }
 
     ~VBObserveSet();
 
-    bool add(const std::string &key, const uint64_t cas);
+    bool add(const std::string &key, const uint64_t cas, const uint16_t vbucket);
     bool remove(const std::string &key, const uint64_t cas);
     int  size(void) { return keylist.size(); };
     void getState(state_map* sm);
@@ -144,6 +144,7 @@ public:
 private:
 
     std::list<observed_key_t> keylist;
+    EventuallyPersistentStore **epstore;
     EPStats *stats;
 };
 
