@@ -196,8 +196,10 @@ public:
      * Notify anyone who's waiting for tap stuff.
      */
     void notify() {
-        LockHolder lh(notifySync);
-        notifySync.notify();
+        if (doNotify) {
+            LockHolder lh(notifySync);
+            notifySync.notify();
+        }
     }
 
     void wait(double howlong) {
@@ -312,6 +314,8 @@ private:
     EventuallyPersistentEngine &engine;
     size_t tapNoopInterval;
     size_t nextTapNoop;
+
+    bool doNotify;
 };
 
 #endif /* TAPCONNMAP_HH */

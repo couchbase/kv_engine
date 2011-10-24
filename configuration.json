@@ -264,6 +264,12 @@
             "descr": "Number of seconds between a noop is sent on an idle connection",
             "type": "size_t"
         },
+        "tap_conn_map_notifications": {
+            "default": "false",
+            "descr": "Should TapConnMap use notifications or not",
+            "dynamic": false,
+            "type": "bool"
+        },
         "vb0": {
             "default": "true",
             "type": "bool"

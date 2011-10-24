@@ -60,12 +60,16 @@ private:
 };
 
 TapConnMap::TapConnMap(EventuallyPersistentEngine &theEngine) :
-    engine(theEngine), nextTapNoop(0)
+    engine(theEngine), nextTapNoop(0),
+    doNotify(getenv("EP-ENGINE-TESTSUITE") != NULL)
 {
     Configuration &config = engine.getConfiguration();
     tapNoopInterval = config.getTapNoopInterval();
     config.addValueChangedListener("tap_noop_interval",
                                    new TapConnMapValueChangeListener(*this));
+    if (config.isTapConnMapNotifications()) {
+        doNotify = true;
+    }
 }
 
 void TapConnMap::disconnect(const void *cookie, int tapKeepAlive) {
@@ -89,7 +93,9 @@ void TapConnMap::disconnect(const void *cookie, int tapKeepAlive) {
         map.erase(iter);
 
         // Notify the daemon thread so that it may reap them..
-        notifySync.notify();
+        if (doNotify) {
+            notifySync.notify();
+        }
     }
 }
 
@@ -108,7 +114,7 @@ bool TapConnMap::setEvents(const std::string &name,
         shouldNotify = tp->paused; // notify if paused
     }
 
-    if (shouldNotify) {
+    if (shouldNotify && doNotify) {
         notifySync.notify();
     }
 
@@ -211,7 +217,7 @@ void TapConnMap::addFlushEvent() {
             shouldNotify = true;
         }
     }
-    if (shouldNotify) {
+    if (shouldNotify && doNotify) {
         notifySync.notify();
     }
 }
@@ -419,7 +425,7 @@ void TapConnMap::scheduleBackfill(const std::set<uint16_t> &backfillVBuckets) {
             shouldNotify = true;
         }
     }
-    if (shouldNotify) {
+    if (shouldNotify && doNotify) {
         notifySync.notify();
     }
 }
@@ -440,7 +446,9 @@ void TapConnMap::resetReplicaChain() {
         // replica vbuckets, and then backfills items to the destination.
         tp->scheduleBackfill(vblist);
     }
-    notifySync.notify();
+    if (doNotify) {
+        notifySync.notify();
+    }
 }
 
 void TapConnMap::notifyIOThreadMain() {
@@ -491,11 +499,8 @@ void TapConnMap::notifyIOThreadMain() {
     }
 
     if (shouldPause) {
-        double diff = nextTapNoop - now;
-        if (diff > 0) {
-            notifySync.wait(diff);
-        }
-
+        // We're going to do a full second wait
+        notifySync.wait(1.0);
         if (engine.shutdown) {
             return;
         }
@@ -570,7 +575,9 @@ bool TapConnMap::closeTapConnectionByName(const std::string &name) {
             tp->setDisconnect(true);
             tp->paused = true;
             rv = true;
-            notifySync.notify();
+            if (doNotify) {
+                notifySync.notify();
+            }
         }
     }
     return rv;

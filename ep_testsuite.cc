@@ -6346,6 +6346,7 @@ engine_test_t* get_tests(void) {
 
 MEMCACHED_PUBLIC_API
 bool setup_suite(struct test_harness *th) {
+    putenv(const_cast<char*>("EP-ENGINE-TESTSUITE=true"));
     testHarness = *th;
     return true;
 }
