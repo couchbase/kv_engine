@@ -20,24 +20,24 @@
 #include "command_ids.h"
 #include "vbucket.hh"
 
-bool ObserveRegistry::observeKey(const std::string &key,
-                                 const uint64_t cas,
-                                 const uint16_t vbucket,
-                                 const uint64_t expiration,
-                                 const std::string &obs_set_name) {
+protocol_binary_response_status ObserveRegistry::observeKey(const std::string &key,
+                                                            const uint64_t cas,
+                                                            const uint16_t vbucket,
+                                                            const uint64_t expiration,
+                                                            const std::string &obs_set_name) {
     LockHolder rl(registry_mutex);
     std::map<std::string, ObserveSet*>::iterator itr = registry.find(obs_set_name);
     ObserveSet* obs_set;
     if (itr == registry.end()) {
         obs_set = addObserveSet(obs_set_name, expiration);
         if (obs_set == NULL) {
-            return false; // TODO: Observe should have error codes
+            return PROTOCOL_BINARY_RESPONSE_ETMPFAIL;
         }
     } else if (itr->second->isExpired()) {
         removeObserveSet(itr);
         obs_set = addObserveSet(obs_set_name, expiration);
         if (obs_set == NULL) {
-            return false;
+            return PROTOCOL_BINARY_RESPONSE_ETMPFAIL;
         }
     } else {
         obs_set = itr->second;
@@ -162,8 +162,8 @@ ObserveSet* ObserveRegistry::addObserveSet(const std::string &obs_set_name,
 
 const hrtime_t ObserveSet::ONE_SECOND = 1000000000;
 
-bool ObserveSet::add(const std::string &key, uint64_t cas,
-                     const uint16_t vbucket) {
+protocol_binary_response_status ObserveSet::add(const std::string &key, uint64_t cas,
+                                                const uint16_t vbucket) {
     if ((*epstore)->getVBucket(vbucket)->getState() != vbucket_state_dead) {
         std::map<int, VBObserveSet*>::iterator obs_set = observe_set.find(vbucket);
         if (obs_set == observe_set.end()) {
@@ -172,21 +172,21 @@ bool ObserveSet::add(const std::string &key, uint64_t cas,
                                      new VBObserveSet(stats)));
             if (!res.second) {
                 lastTouched = gethrtime();
-                return false;
+                return PROTOCOL_BINARY_RESPONSE_ETMPFAIL;
             }
             obs_set = res.first;
         }
         lastTouched = gethrtime();
         if (size >= MAX_OBS_SET_SIZE) {
-            return false;
+            return PROTOCOL_BINARY_RESPONSE_EBUSY;
         } else if (obs_set->second->add(key, cas)) {
             size++;
-            return true;
+            return PROTOCOL_BINARY_RESPONSE_SUCCESS;
         } else {
-            return false;
+            return PROTOCOL_BINARY_RESPONSE_ETMPFAIL;
         }
     }
-    return true;
+    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
 void ObserveSet::remove(const std::string &key, const uint64_t cas,

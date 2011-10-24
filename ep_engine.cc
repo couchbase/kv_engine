@@ -3641,11 +3641,20 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe(const void *cookie,
                                                       std::string obs_set,
                                                       uint32_t expiration,
                                                       ADD_RESPONSE response) {
+    protocol_binary_response_status rv;
+
     stats.observeCalls++;
     getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "observe %s %ld %s %d",
                      key.c_str(), cas, obs_set.c_str(), expiration);
-    getObserveRegistry().observeKey(key, cas, vbucket, expiration, obs_set);
-    return sendResponse(response, NULL, 0, NULL, 0, NULL, 0, 0, 0, 0, cookie);
+    rv = getObserveRegistry().observeKey(key, cas, vbucket, expiration, obs_set);
+    if (rv == PROTOCOL_BINARY_RESPONSE_ETMPFAIL) {
+        return sendResponse(response, NULL, 0, NULL, 0, NULL, 0, 0, memoryCondition(),
+                            0, cookie);
+    } else if (rv == PROTOCOL_BINARY_RESPONSE_EBUSY) {
+        return sendResponse(response, "Observe set full", 16, NULL, 0, NULL, 0, 0,
+                            rv, 0, cookie);
+    }
+    return sendResponse(response, NULL, 0, NULL, 0, NULL, 0, 0, rv, 0, cookie);
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::unobserve(const void *cookie,

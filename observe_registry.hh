@@ -61,11 +61,11 @@ public:
         : epstore(e), stats(stats_ptr) {
     }
 
-    bool observeKey(const std::string &key,
-                    const uint64_t cas,
-                    const uint16_t vbucket,
-                    const uint64_t expiration,
-                    const std::string &obs_set_name);
+    protocol_binary_response_status observeKey(const std::string &key,
+                                               const uint64_t cas,
+                                               const uint16_t vbucket,
+                                               const uint64_t expiration,
+                                               const std::string &obs_set_name);
 
     void unobserveKey(const std::string &key,
                       const uint64_t cas,
@@ -104,8 +104,8 @@ public:
 
     ~ObserveSet();
 
-    bool add(const std::string &key, const uint64_t cas,
-             const uint16_t vbucket);
+    protocol_binary_response_status add(const std::string &key, const uint64_t cas,
+                                        const uint16_t vbucket);
     void remove(const std::string &key, const uint64_t cas,
                 const uint16_t vbucket);
     void keyEvent(const std::string &key, const uint64_t,
