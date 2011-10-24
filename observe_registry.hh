@@ -18,6 +18,8 @@
 #ifndef OBSERVE_REGISTRY_HH
 #define OBSERVE_REGISTRY_HH 1
 
+#define MAX_OBS_SET_SIZE 1000
+
 #include <list>
 #include <map>
 
@@ -97,7 +99,7 @@ public:
 
     ObserveSet(EventuallyPersistentStore **e, EPStats *stats_ptr, uint32_t exp)
         : expiration(exp * ObserveSet::ONE_SECOND), epstore(e), stats(stats_ptr),
-        lastTouched(gethrtime()) {
+        lastTouched(gethrtime()), size(0) {
     }
 
     ~ObserveSet();
@@ -120,6 +122,7 @@ private:
     EventuallyPersistentStore **epstore;
     EPStats *stats;
     hrtime_t lastTouched;
+    int size;
 };
 
 class VBObserveSet {
@@ -132,7 +135,8 @@ public:
     ~VBObserveSet();
 
     bool add(const std::string &key, const uint64_t cas);
-    void remove(const std::string &key, const uint64_t cas);
+    bool remove(const std::string &key, const uint64_t cas);
+    int  size(void) { return keylist.size(); };
     void getState(state_map* sm);
     void keyEvent(const std::string &key, const uint64_t cas,
                   int event);

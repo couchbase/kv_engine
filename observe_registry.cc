@@ -177,7 +177,14 @@ bool ObserveSet::add(const std::string &key, uint64_t cas,
             obs_set = res.first;
         }
         lastTouched = gethrtime();
-        return obs_set->second->add(key, cas);
+        if (size >= MAX_OBS_SET_SIZE) {
+            return false;
+        } else if (obs_set->second->add(key, cas)) {
+            size++;
+            return true;
+        } else {
+            return false;
+        }
     }
     return true;
 }
@@ -186,7 +193,9 @@ void ObserveSet::remove(const std::string &key, const uint64_t cas,
                         const uint16_t vbucket) {
     if (observe_set.find(vbucket) != observe_set.end()) {
         VBObserveSet *vb_observe_set = observe_set.find(vbucket)->second;
-        vb_observe_set->remove(key, cas);
+        if (vb_observe_set->remove(key, cas)) {
+            size--;
+        }
         lastTouched = gethrtime();
     }
 }
@@ -224,6 +233,7 @@ state_map* ObserveSet::getState() {
 ObserveSet::~ObserveSet() {
     std::map<int, VBObserveSet* >::iterator itr;
     for (itr = observe_set.begin(); itr != observe_set.end(); itr++) {
+        size -= itr->second->size();
         delete itr->second;
         stats->totalObserveSets--;
     }
@@ -233,6 +243,7 @@ VBObserveSet::~VBObserveSet() {
     stats->obsRegSize -= keylist.size();
 }
 
+// Returns true if an item was added to the list
 bool VBObserveSet::add(const std::string &key, const uint64_t cas) {
     observed_key_t obs_key(key, cas);
     std::list<observed_key_t>::iterator itr;
@@ -246,16 +257,19 @@ bool VBObserveSet::add(const std::string &key, const uint64_t cas) {
     return true;
 }
 
-void VBObserveSet::remove(const std::string &key, const uint64_t cas) {
+// Returns true if an item was removed from the list, returns false if
+// the item didn't exist
+bool VBObserveSet::remove(const std::string &key, const uint64_t cas) {
     std::list<observed_key_t>::iterator itr;
     for (itr = keylist.begin(); itr != keylist.end(); itr++) {
         observed_key_t obs_key = *itr;
         if (obs_key.key.compare(key) == 0 && obs_key.cas == cas) {
             stats->obsRegSize--;
             keylist.erase(itr);
-            break;
+            return true;
         }
     }
+    return false;
 }
 
 void VBObserveSet::getState(state_map *sm) {
