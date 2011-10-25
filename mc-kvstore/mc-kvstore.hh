@@ -144,6 +144,8 @@ private:
     MemcachedEngine *mc;
     Configuration &config;
     EventuallyPersistentEngine &engine;
+    size_t vbBatchCount;
+    size_t vbBatchSize;
 };
 
 #endif /* MC_KVSTORE_H */

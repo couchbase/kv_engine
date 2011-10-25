@@ -10,13 +10,18 @@
 
 MCKVStore::MCKVStore(EventuallyPersistentEngine &theEngine) :
     KVStore(), stats(theEngine.getEpStats()), intransaction(false), mc(NULL),
-            config(theEngine.getConfiguration()), engine(theEngine) {
+    config(theEngine.getConfiguration()), engine(theEngine),
+    vbBatchCount(config.getCouchVbucketBatchCount()) {
+
+    vbBatchSize = config.getMaxTxnSize() / vbBatchCount;
+    vbBatchSize = vbBatchSize == 0 ? config.getCouchDefaultBatchSize() : vbBatchSize;
     open();
 }
 
 MCKVStore::MCKVStore(const MCKVStore &from) :
     KVStore(from), stats(from.stats), intransaction(false), mc(NULL),
-            config(from.config), engine(from.engine) {
+    config(from.config), engine(from.engine),
+    vbBatchCount(from.vbBatchCount), vbBatchSize(from.vbBatchSize) {
     open();
 }
 
@@ -152,6 +157,9 @@ void MCKVStore::open() {
     intransaction = false;
     delete mc;
     mc = new MemcachedEngine(&engine, config);
+    RememberingCallback<bool> cb;
+    mc->setVBucketBatchCount(vbBatchCount, cb);
+    cb.waitForValue();
 }
 
 bool MCKVStore::commit(void) {
@@ -179,7 +187,49 @@ void MCKVStore::addStats(const std::string &prefix,
 }
 
 void MCKVStore::optimizeWrites(std::vector<queued_item> &items) {
+    if (items.empty()) {
+        return;
+    }
     CompareQueuedItemsByVBAndKey cq;
-    // Make sure that the items are sorted in the ascending order.
+    // Make sure that the items are sorted in the ascending order of vbucket ids and keys.
     assert(sorted(items.begin(), items.end(), cq));
+
+    size_t pos = 0;
+    uint16_t current_vbid = items[0]->getVBucketId();
+    std::vector< std::vector<queued_item> > vb_chunks;
+    std::vector<queued_item> chunk;
+    std::vector<queued_item>::iterator it = items.begin();
+    for (; it != items.end(); ++it) {
+        bool moveToNextVB = current_vbid != (*it)->getVBucketId() ? true : false;
+        if (!moveToNextVB) {
+            chunk.push_back(*it);
+        }
+        if (chunk.size() == vbBatchSize || moveToNextVB || (it + 1) == items.end()) {
+            if (pos < vb_chunks.size()) {
+                std::vector<queued_item> &chunk_items = vb_chunks[pos];
+                chunk_items.insert(chunk_items.end(), chunk.begin(), chunk.end());
+            } else {
+                vb_chunks.push_back(chunk);
+            }
+            chunk.clear();
+            if (moveToNextVB) {
+                chunk.push_back(*it);
+                current_vbid = (*it)->getVBucketId();
+                pos = 0;
+            } else {
+                ++pos;
+            }
+        }
+    }
+    if (!chunk.empty()) {
+        assert(pos < vb_chunks.size());
+        std::vector<queued_item> &chunk_items = vb_chunks[pos];
+        chunk_items.insert(chunk_items.end(), chunk.begin(), chunk.end());
+    }
+
+    items.clear();
+    std::vector< std::vector<queued_item> >::iterator iter = vb_chunks.begin();
+    for (; iter != vb_chunks.end(); ++iter) {
+        items.insert(items.end(), iter->begin(), iter->end());
+    }
 }

@@ -69,6 +69,29 @@
             "dynamic": false,
             "type": "size_t"
         },
+        "couch_vbucket_batch_count": {
+            "default": "4",
+            "descr": "max number of vbuckets that can be concurrently written by the mccouch side",
+            "dynamic": false,
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "max": 256,
+                    "min": 1
+                }
+            }
+        },
+        "couch_default_batch_size": {
+            "default": "500",
+            "descr": "Default batch size per mccouch worker",
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "max": 10000000,
+                    "min": 1
+                }
+            }
+        },
         "db_shards": {
             "default": "4",
             "type": "size_t"
@@ -137,7 +160,7 @@
             "type": "size_t"
         },
         "max_txn_size": {
-            "default": "500",
+            "default": "4000",
             "descr": "Maximum number of mutations per transaction",
             "type": "size_t",
             "validator": {

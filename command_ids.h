@@ -190,6 +190,20 @@ typedef protocol_binary_response_no_extras protocol_binary_response_get_meta;
 #define CMD_SNAPSHOT_VB_STATES 0x50
 
 /**
+ * Command to send vbucket batch counter to the underlying storage engine
+ */
+#define CMD_VBUCKET_BATCH_COUNT 0xa7
+typedef union {
+    struct {
+        protocol_binary_request_header header;
+        struct {
+            uint32_t size;
+        } body;
+    } message;
+    uint8_t bytes[sizeof(protocol_binary_request_header) + 4];
+} protocol_binary_request_set_batch_count;
+
+/**
  * The physical layout for the CMD_SET_WITH_META looks like the the normal
  * set request with the addition of a bulk of extra meta data stored
  * at the <b>end</b> of the package.

@@ -470,6 +470,32 @@ private:
     Callback<bool> &callback;
 };
 
+class VBBatchCountResponseHandler: public BinaryPacketHandler {
+public:
+    VBBatchCountResponseHandler(uint32_t sno, EPStats *st, Callback<bool> &cb) :
+        BinaryPacketHandler(sno, st), callback(cb) {
+    }
+
+    virtual void response(protocol_binary_response_header *res) {
+        uint16_t rcode = ntohs(res->response.status);
+        bool success = true;
+
+        if (rcode != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+            success = false;
+        }
+
+        callback.callback(success);
+    }
+
+    virtual void connectionReset() {
+        bool value = false;
+        callback.callback(value);
+    }
+
+private:
+    Callback<bool> &callback;
+};
+
 /*
  * Implementation of the mmeber functions in the MemcachedEngine class
  */
@@ -1313,6 +1339,24 @@ void MemcachedEngine::noop(Callback<bool> &cb)
     wait();
 }
 
+void MemcachedEngine::setVBucketBatchCount(size_t batch_count, Callback<bool> &cb) {
+    protocol_binary_request_set_batch_count req;
+    memset(req.bytes, 0, sizeof(req.bytes));
+    req.message.header.request.magic = PROTOCOL_BINARY_REQ;
+    req.message.header.request.opcode = CMD_VBUCKET_BATCH_COUNT;
+    req.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
+    req.message.header.request.bodylen = ntohl((uint32_t)sizeof(uint32_t));
+    req.message.header.request.opaque = seqno;
+    req.message.body.size = ntohl((uint32_t)batch_count);
+    sendIov[0].iov_base = (char*)req.bytes;
+    sendIov[0].iov_len = sizeof(req.bytes);
+    numiovec = 1;
+
+    sendCommand(new VBBatchCountResponseHandler(seqno++, epStats, cb));
+    // Wait for response!!
+    wait();
+}
+
 void MemcachedEngine::addStats(const std::string &prefix,
                                ADD_STAT add_stat,
                                const void *c)
@@ -1336,6 +1380,8 @@ const char *MemcachedEngine::cmd2str(uint8_t cmd)
         return "setq_with_meta";
     case CMD_SNAPSHOT_VB_STATES:
         return "snapshot_vb_states";
+    case CMD_VBUCKET_BATCH_COUNT:
+        return "vbucket_batch_count";
     case PROTOCOL_BINARY_CMD_DEL_VBUCKET:
         return "del_vbucket";
     case PROTOCOL_BINARY_CMD_FLUSH:
