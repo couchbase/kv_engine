@@ -1337,6 +1337,8 @@ const char *MemcachedEngine::cmd2str(uint8_t cmd) {
         return "delq";
     case CMD_SETQ_WITH_META:
         return "setq_with_meta";
+    case CMD_SNAPSHOT_VB_STATES:
+        return "snapshot_vb_states";
     case PROTOCOL_BINARY_CMD_DEL_VBUCKET:
         return "del_vbucket";
     case PROTOCOL_BINARY_CMD_FLUSH:
