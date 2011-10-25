@@ -58,6 +58,7 @@ EP_ENGINE_CC_SRC = \
                  mc-kvstore/mc-engine.cc \
                  mc-kvstore/mc-kvstore.cc \
                  objectregistry.cc \
+                 observe_registry.cc \
                  priority.cc \
                  queueditem.cc \
                  restore_impl.cc \
