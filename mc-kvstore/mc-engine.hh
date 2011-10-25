@@ -111,6 +111,9 @@ public:
     void setVBucket(uint16_t vb, vbucket_state_t state, Callback<bool> &cb);
     void delVBucket(uint16_t vb, Callback<bool> &cb);
 
+    // Set a bunch of vbuckets in a single operation
+    void snapshotVBuckets(const vbucket_map_t &m, Callback<bool> &cb);
+
     void tap(shared_ptr<TapCallback> cb);
     void tapKeys(shared_ptr<TapCallback> cb);
     void tap(const std::vector<uint16_t> &vbids, bool full, shared_ptr<TapCallback> cb);

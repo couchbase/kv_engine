@@ -1145,6 +1145,43 @@ void MemcachedEngine::setVBucket(uint16_t vb, vbucket_state_t state,
     insertCommand(new SetVBucketResponseHandler(buffer, epStats, cb));
 }
 
+void MemcachedEngine::snapshotVBuckets(const vbucket_map_t &m, Callback<bool> &cb) {
+    protocol_binary_request_noop *req;
+    const size_t tuplesize = sizeof(uint16_t) + sizeof(uint64_t) + sizeof(uint32_t);
+    size_t bodysize = tuplesize * m.size();
+
+    Buffer *buffer = new Buffer(sizeof(req->bytes) + bodysize);
+    req = (protocol_binary_request_noop *)buffer->data;
+    memset(buffer->data, 0, buffer->size);
+
+    req->message.header.request.magic = PROTOCOL_BINARY_REQ;
+    req->message.header.request.opcode = CMD_SNAPSHOT_VB_STATES;
+    req->message.header.request.extlen = 0;
+    req->message.header.request.vbucket = 0;
+    req->message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
+    req->message.header.request.bodylen = ntohl((uint32_t)bodysize);
+
+    uint8_t *dest = req->bytes + sizeof(req->bytes);
+    vbucket_map_t::const_iterator iter;
+    for (iter = m.begin(); iter != m.end(); ++iter) {
+        std::pair<uint16_t, uint16_t> first = iter->first;
+        const vbucket_state vbstate = iter->second;
+        uint16_t vbid = ntohs(first.first);
+        uint32_t state = ntohl((uint32_t)vbstate.state);
+        uint64_t checkpointId = ntohll(vbstate.checkpointId);
+
+        memcpy(dest, &vbid, sizeof(vbid));
+        dest += sizeof(vbid);
+        memcpy(dest, &state, sizeof(state));
+        dest += sizeof(state);
+        memcpy(dest, &checkpointId, sizeof(checkpointId));
+        dest += sizeof(checkpointId);
+    }
+    buffer->avail = buffer->size;
+
+    insertCommand(new SetVBucketResponseHandler(buffer, epStats, cb));
+}
+
 void MemcachedEngine::delVBucket(uint16_t vb, Callback<bool> &cb) {
     protocol_binary_request_del_vbucket *req;
     Buffer *buffer = new Buffer(sizeof(req->bytes));

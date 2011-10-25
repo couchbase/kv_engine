@@ -183,6 +183,12 @@ typedef protocol_binary_response_no_extras protocol_binary_response_get_meta;
 #define CMD_SETQ_WITH_META 0xa3
 #define CMD_ADD_WITH_META 0xa4
 #define CMD_ADDQ_WITH_META 0xa5
+
+/**
+ * Command to snapshot VB states
+ */
+#define CMD_SNAPSHOT_VB_STATES 0x50
+
 /**
  * The physical layout for the CMD_SET_WITH_META looks like the the normal
  * set request with the addition of a bulk of extra meta data stored
