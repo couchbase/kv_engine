@@ -1298,6 +1298,8 @@ const char *MemcachedEngine::cmd2str(uint8_t cmd) {
     switch(cmd) {
     case PROTOCOL_BINARY_CMD_DELETEQ:
         return "delq";
+    case CMD_SETQ_WITH_META:
+        return "setq_with_meta";
     case PROTOCOL_BINARY_CMD_DEL_VBUCKET:
         return "del_vbucket";
     case PROTOCOL_BINARY_CMD_FLUSH:
@@ -1306,8 +1308,6 @@ const char *MemcachedEngine::cmd2str(uint8_t cmd) {
         return "get";
     case PROTOCOL_BINARY_CMD_NOOP:
         return "noop";
-    case PROTOCOL_BINARY_CMD_SETQ:
-        return "setq";
     case PROTOCOL_BINARY_CMD_SET_VBUCKET:
         return "set_vbucket";
     case PROTOCOL_BINARY_CMD_STAT:
