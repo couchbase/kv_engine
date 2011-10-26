@@ -325,6 +325,7 @@ void VBObserveSet::keyEvent(const std::string &key, const uint64_t cas,
         } else if (itr->key.compare(key) == 0 && itr->cas != cas &&
                    event == OBS_MODIFIED_EVENT) {
             itr->mutated = true;
+            itr->deleted = false;
         } else if (itr->key.compare(key) == 0 && itr->cas == cas) {
             if (event == OBS_PERSISTED_EVENT) {
                 itr->persisted = true;
