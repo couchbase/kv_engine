@@ -325,7 +325,7 @@ public:
         seqno = htonl(seqno);
         cas = htonll(cas);
         length = htonl(length);
-        flags = htonl(flags);
+        // flags are stored in network byte order thus no conversion here
 
         dest[0] = 0x01;
         dest[1] = 20;
@@ -358,8 +358,8 @@ public:
         memcpy(&length, dta, 4);
         length = ntohl(length);
         dta += 4;
+        // flags are kept in network byte order
         memcpy(&flags, dta, 4);
-        flags = ntohl(flags);
 
         return true;
     }

@@ -3689,7 +3689,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
     uint8_t *key = request->bytes + sizeof(request->bytes);
     uint16_t nkey = ntohs(request->message.header.request.keylen);
     uint16_t vbucket = ntohs(request->message.header.request.vbucket);
-    uint32_t flags = ntohl(request->message.body.flags);
+    uint32_t flags = request->message.body.flags;
 
     uint8_t *dta = key + nkey;
     size_t nbytes = ntohl(request->message.header.request.bodylen);
@@ -3713,7 +3713,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
                             PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
     }
 
-    Item *itm = new Item(key, nkey, nbytes, request->message.body.flags,
+    Item *itm = new Item(key, nkey, nbytes, flags,
                          exptime, cas, -1, vbucket);
     if (itm == NULL) {
         return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
