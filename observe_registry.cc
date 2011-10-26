@@ -257,6 +257,13 @@ bool VBObserveSet::add(const std::string &key, const uint64_t cas,
             return true;
         }
     }
+    StoredValue *sv = (*epstore)->getStoredValue(key, vbucket, false);
+    if (sv == NULL) {
+        obs_key.deleted = true;
+    } else {
+        obs_key.mutated = (sv->getCas() != cas);
+        obs_key.persisted = (sv->getCas() == cas && sv->isClean());
+    }
     if ((*epstore)->getVBucket(vbucket)->getState() == vbucket_state_replica) {
         obs_key.replicas = -1;
     }
