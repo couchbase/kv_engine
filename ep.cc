@@ -1435,6 +1435,62 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setWithMeta(const Item &itm,
     return ret;
 }
 
+ENGINE_ERROR_CODE EventuallyPersistentStore::deleteWithMeta(const std::string &key,
+                                                            uint32_t seqno,
+                                                            uint64_t cas,
+                                                            uint16_t vbucket,
+                                                            const void *cookie,
+                                                            bool force) {
+    RCPtr<VBucket> vb = getVBucket(vbucket);
+    if (!vb || vb->getState() == vbucket_state_dead) {
+        ++stats.numNotMyVBuckets;
+        return ENGINE_NOT_MY_VBUCKET;
+    } else if (vb->getState() == vbucket_state_active) {
+        if (vb->checkpointManager.isHotReload()) {
+            if (vb->addPendingOp(cookie)) {
+                return ENGINE_EWOULDBLOCK;
+            }
+        }
+    } else if(vb->getState() == vbucket_state_replica && !force) {
+        ++stats.numNotMyVBuckets;
+        return ENGINE_NOT_MY_VBUCKET;
+    } else if(vb->getState() == vbucket_state_pending && !force) {
+        if (vb->addPendingOp(cookie)) {
+            return ENGINE_EWOULDBLOCK;
+        }
+    }
+
+    int bucket_num(0);
+    LockHolder lh = vb->ht.getLockedBucket(key, &bucket_num);
+    StoredValue *v = vb->ht.unlocked_find(key, bucket_num);
+    if (!v) {
+        if (engine.isDegradedMode()) {
+            return ENGINE_TMPFAIL;
+        }
+
+        return ENGINE_KEY_ENOENT;
+    }
+    value_t value = v->getValue();
+
+    mutation_type_t delrv = vb->ht.unlocked_softDeleteWithMeta(key, seqno,
+                                                               cas, bucket_num);
+    ENGINE_ERROR_CODE rv;
+
+    if (delrv == NOT_FOUND) {
+        rv = ENGINE_KEY_ENOENT;
+    } else if (delrv == IS_LOCKED) {
+        rv = ENGINE_TMPFAIL;
+    } else {
+        rv = ENGINE_SUCCESS;
+    }
+
+    if (delrv == WAS_CLEAN || delrv == WAS_DIRTY || (delrv == NOT_FOUND && v->getId() != -1)) {
+        queueDirty(key, vbucket, queue_op_del, value,
+                   v->getFlags(), v->getExptime(), cas, v->getSeqno(), v->getId());
+    }
+    return rv;
+}
+
 GetValue EventuallyPersistentStore::getAndUpdateTtl(const std::string &key,
                                                     uint16_t vbucket,
                                                     const void *cookie,

@@ -494,6 +494,21 @@ public:
                                   const void *cookie,
                                   bool force,
                                   bool allowReplace);
+    /**
+     * delete an item in the store.
+     * @param key the key of the item
+     * @param cas value to match
+     * @param vbucket location of the item
+     * @param cookie the cookie representing the client to store the item
+     * @param force override vbucket states
+     * @return the result of the store operation
+     */
+    ENGINE_ERROR_CODE deleteWithMeta(const std::string &key,
+                                     uint32_t seqno,
+                                     uint64_t cas,
+                                     uint16_t vbucket,
+                                     const void *cookie,
+                                     bool force);
 
     /**
      * Retrieve a value, but update its TTL first

@@ -777,6 +777,11 @@ extern "C" {
             return h->setWithMeta(cookie,
                                   reinterpret_cast<protocol_binary_request_set_with_meta*>(request),
                                   response);
+        case CMD_DEL_WITH_META:
+        case CMD_DELQ_WITH_META:
+            return h->deleteWithMeta(cookie,
+                                     reinterpret_cast<protocol_binary_request_delete_with_meta*>(request),
+                                     response);
         }
 
         // Send a special response for getl since we don't want to send the key
@@ -3753,4 +3758,66 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
     return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
                         PROTOCOL_BINARY_RAW_BYTES,
                         rc, cas, cookie);
+}
+
+ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(const void* cookie,
+                                                             protocol_binary_request_delete_with_meta *request,
+                                                             ADD_RESPONSE response) {
+    // revid_nbytes, flags and exptime is mandatory fields.. and we need a key
+    if (request->message.header.request.extlen != 12 || request->message.header.request.keylen == 0) {
+        return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
+                            PROTOCOL_BINARY_RAW_BYTES,
+                            PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
+    }
+
+    if (isDegradedMode()) {
+        // We're allowed to run set in restore mode..
+        if (!restore.enabled.get()) {
+            return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
+                                PROTOCOL_BINARY_RAW_BYTES,
+                                PROTOCOL_BINARY_RESPONSE_ETMPFAIL,
+                                0, cookie);
+        }
+    }
+
+    const char *key_ptr = reinterpret_cast<const char*>(request->bytes);
+    key_ptr += sizeof(request->bytes);
+    uint16_t nkey = ntohs(request->message.header.request.keylen);
+    std::string key(key_ptr, nkey);
+    uint16_t vbucket = ntohs(request->message.header.request.vbucket);
+
+    uint8_t *dta = request->bytes + sizeof(request->bytes) + nkey;
+    size_t nbytes = ntohl(request->message.header.request.bodylen);
+    nbytes -= nkey + request->message.header.request.extlen;
+    uint32_t metabytes = ntohl(request->message.body.nmeta_bytes);
+    nbytes -= metabytes;
+
+    uint32_t seqno;
+    uint64_t cas;
+    uint32_t length;
+    uint32_t fl;
+    uint8_t opcode = request->message.header.request.opcode;
+
+    if (!Item::decodeMeta(dta + nbytes, seqno, cas, length, fl) || length != nbytes) {
+        return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
+                            PROTOCOL_BINARY_RAW_BYTES,
+                            PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
+    }
+
+    ENGINE_ERROR_CODE ret = epstore->deleteWithMeta(key, seqno,
+                                                    ntohll(request->message.header.request.cas),
+                                                    vbucket, cookie, false);
+    protocol_binary_response_status rc;
+    rc = engine_error_2_protocol_error(ret);
+
+    if (ret == ENGINE_SUCCESS) {
+        addDeleteEvent(key, vbucket, ntohll(request->message.header.request.cas));
+    }
+
+    if (opcode == CMD_DELQ_WITH_META && rc == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+        return ENGINE_SUCCESS;
+    }
+
+    return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
+                        PROTOCOL_BINARY_RAW_BYTES, rc, 0, cookie);
 }

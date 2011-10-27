@@ -380,6 +380,9 @@ public:
     ENGINE_ERROR_CODE setWithMeta(const void* cookie,
                                   protocol_binary_request_set_with_meta *request,
                                   ADD_RESPONSE response);
+    ENGINE_ERROR_CODE deleteWithMeta(const void* cookie,
+                                     protocol_binary_request_delete_with_meta *request,
+                                     ADD_RESPONSE response);
 
     /**
      * Visit the objects and add them to the tap connecitons queue.

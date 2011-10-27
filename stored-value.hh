@@ -522,6 +522,17 @@ public:
         }
     }
 
+    /**
+     * Set a new sequence number.
+     *
+     * This is a NOOP for small item types.
+     */
+    void setSeqno(uint32_t s) {
+        if (!_isSmall) {
+            extra.feature.seqno = s;
+        }
+    }
+
 
     /**
      * Generate a new Item out of this object
@@ -1131,6 +1142,43 @@ public:
         return rv;
     }
 
+    /**
+     * Unlocked implementation of softDelete.
+     */
+    mutation_type_t unlocked_softDeleteWithMeta(const std::string &key,
+                                                uint32_t seqno,
+                                                uint64_t cas,
+                                                int bucket_num) {
+        mutation_type_t rv = NOT_FOUND;
+        StoredValue *v = unlocked_find(key, bucket_num);
+        if (v) {
+            if (v->isExpired(ep_real_time())) {
+                v->del(stats, *this);
+                return rv;
+            }
+
+            if (v->isLocked(ep_current_time())) {
+                return IS_LOCKED;
+            }
+
+            if (cas != 0 && cas != v->getCas()) {
+                return NOT_FOUND;
+            }
+
+            if (!v->isResident()) {
+                --numNonResidentItems;
+            }
+
+            /* allow operation*/
+            v->unlock();
+
+            rv = v->isClean() ? WAS_CLEAN : WAS_DIRTY;
+            v->setSeqno(seqno);
+            v->del(stats, *this);
+        }
+        return rv;
+    }
+
 
     /**
      * Insert an item to this hashtable. This is called from the backfill
@@ -1286,6 +1334,9 @@ public:
             v->unlock();
 
             rv = v->isClean() ? WAS_CLEAN : WAS_DIRTY;
+
+            uint32_t seqno = v->getSeqno();
+            v->setSeqno(++seqno);
             v->del(stats, *this);
         }
         return rv;

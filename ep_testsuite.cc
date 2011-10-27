@@ -4876,6 +4876,40 @@ static enum test_result test_add_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     return SUCCESS;
 }
 
+static enum test_result test_delete_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    union {
+        protocol_binary_request_header pkt;
+        protocol_binary_request_delete_with_meta req;
+        char buffer[1024];
+    } msg;
+    memset(&msg.req, 0, sizeof(msg));
+
+    msg.req.message.header.request.magic = PROTOCOL_BINARY_REQ;
+    msg.req.message.header.request.opcode = CMD_DEL_WITH_META;
+    msg.req.message.header.request.extlen = 12;
+    msg.req.message.header.request.keylen = ntohs(20);
+    msg.req.message.header.request.vbucket = htons(0);
+    msg.req.message.header.request.bodylen = htonl(12 + 20 + 22);
+    memcpy(msg.buffer + sizeof(msg.req.bytes), "delete_with_meta_key", 20);
+    msg.req.message.body.nmeta_bytes = ntohl(22);
+
+    size_t nb = 22;
+    // encode the revid:
+    encodeMeta(10, 0xdeadbeef, 0, 0xdeadbeef,
+               (uint8_t*)msg.buffer + sizeof(msg.req.bytes) + 20, nb);
+
+    item *i = NULL;
+    check(store(h, h1, NULL, OPERATION_SET, "delete_with_meta_key",
+                "somevalue", &i) == ENGINE_SUCCESS, "Failed set.");
+
+    ENGINE_ERROR_CODE ret = h1->unknown_command(h, NULL, &msg.pkt,
+                                                add_response);
+    check(ret == ENGINE_SUCCESS, "Expected to be able to delete with meta");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+
+    return SUCCESS;
+}
+
 static enum test_result prepare(engine_test_t *test) {
     if (test->cfg == NULL || // No config
         strstr(test->cfg, "backend") == NULL || // No backend specified
@@ -5377,6 +5411,9 @@ engine_test_t* get_tests(void) {
                  teardown, NULL, prepare, cleanup, BACKEND_ALL),
 
         TestCase("add with meta", test_add_with_meta, NULL,
+                 teardown, NULL, prepare, cleanup, BACKEND_ALL),
+
+        TestCase("delete with meta", test_delete_with_meta, NULL,
                  teardown, NULL, prepare, cleanup, BACKEND_ALL),
 
         TestCase(NULL, NULL, NULL, NULL, NULL, prepare, cleanup, BACKEND_ALL)
