@@ -281,8 +281,8 @@ void VBObserveSet::getState(state_map *sm) {
     for (itr = keylist.begin(); itr != keylist.end(); itr++) {
         std::stringstream state_key;
         std::stringstream state_value;
-        state_key << itr->key << " " << itr->cas;
-        state_value << (int)itr->replicas << " ";
+        state_key << itr->key << "," << itr->cas;
+        state_value << (int)itr->replicas << ",";
         if (itr->deleted) {
             state_value << "deleted";
         }
