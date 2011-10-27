@@ -209,6 +209,28 @@ typedef union {
 } protocol_binary_request_set_with_meta;
 
 /**
+ * CMD_DEL_WITH_META is used to delete a kv-pair with additional meta
+ * information.
+ */
+#define CMD_DEL_WITH_META 0xa8
+#define CMD_DELQ_WITH_META 0xa9
+
+/**
+ * The physical layout for the CMD_SET_WITH_META looks like the the normal
+ * set request with the addition of a bulk of extra meta data stored
+ * at the <b>end</b> of the package.
+ */
+typedef union {
+    struct {
+        protocol_binary_request_header header;
+        struct {
+            uint32_t nmeta_bytes; // # of bytes in the body that is meta info
+        } body;
+    } message;
+    uint8_t bytes[sizeof(protocol_binary_request_header) + 4];
+} protocol_binary_request_delete_with_meta;
+
+/**
  * The response for CMD_SET_WITH_META does not carry any user-data and the
  * status of the operation is signalled in the status bits.
  */
