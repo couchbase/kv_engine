@@ -143,9 +143,10 @@ void StrategicSqlite3::reset() {
     }
 }
 
-void StrategicSqlite3::del(const std::string &key, uint64_t rowid,
-                           uint16_t vb, uint16_t vbver,
-                           Callback<int> &cb) {
+void StrategicSqlite3::del(const Item &itm, uint64_t rowid,
+                           uint16_t vbver, Callback<int> &cb) {
+    std::string key = itm.getKey();
+    uint16_t vb = itm.getVBucketId();
     PreparedStatement *del_stmt = strategy->getStatements(vb, vbver, key)->del();
     del_stmt->bind64(1, rowid);
     int rv = del_stmt->execute();

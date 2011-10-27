@@ -63,7 +63,8 @@ static void testGet(MCKVStore &kvstore) {
 
 static void testDel(MCKVStore &kvstore) {
     RememberingCallback<int> cb;
-    kvstore.del("foo", 0, 0, 0, cb);
+    Item itm("foo", 3, 0, NULL, 0);
+    kvstore.del(itm, 0, 0, cb);
     cb.waitForValue();
 }
 

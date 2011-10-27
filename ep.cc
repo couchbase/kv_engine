@@ -2317,7 +2317,7 @@ int EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
             uint16_t vbid(qi->getVBucketId());
             uint16_t vbver(vbuckets.getBucketVersion(vbid));
             tctx.addCallback(cb);
-            rwUnderlying->del(qi->getKey(), rowid, vbid, vbver, *cb);
+            rwUnderlying->del(qi->getItem(), rowid, vbver, *cb);
             ++vb->opsDelete;
         } else {
             // bypass deletion if missing items, but still call the

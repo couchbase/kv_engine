@@ -104,9 +104,8 @@ public:
     /**
      * Overrides del().
      */
-    void del(const std::string &key, uint64_t rowid,
-             uint16_t vb, uint16_t vbver,
-             Callback<int> &cb);
+    void del(const Item &itm, uint64_t rowid,
+             uint16_t vbver, Callback<int> &cb);
 
     bool delVBucket(uint16_t vbucket, uint16_t vb_version);
 

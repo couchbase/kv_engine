@@ -152,9 +152,8 @@ public:
     /**
      * Delete an item from the kv store.
      */
-    virtual void del(const std::string &key, uint64_t rowid,
-                     uint16_t vb, uint16_t vbver,
-                     Callback<int> &cb) = 0;
+    virtual void del(const Item &itm, uint64_t rowid,
+                     uint16_t vbver, Callback<int> &cb) = 0;
 
     /**
      * Bulk delete some versioned records from a vbucket.

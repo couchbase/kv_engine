@@ -906,7 +906,6 @@ void MemcachedEngine::sendCommand(BinaryPacketHandler *rh)
     } while (true);
 }
 
-
 void MemcachedEngine::maybeProcessInput()
 {
     struct pollfd fds;
@@ -1031,9 +1030,9 @@ void MemcachedEngine::wait()
     }
 }
 
-void MemcachedEngine::delq(const std::string &key, uint16_t vb,
-                           Callback<int> &cb)
-{
+void MemcachedEngine::delq(const Item &itm, Callback<int> &cb) {
+    const std::string key = itm.getKey();
+    const uint16_t vb = itm.getVBucketId();
     protocol_binary_request_delete req;
     memset(req.bytes, 0, sizeof(req.bytes));
     req.message.header.request.magic = PROTOCOL_BINARY_REQ;
