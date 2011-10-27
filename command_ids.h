@@ -141,6 +141,15 @@ typedef protocol_binary_request_gat protocol_binary_request_getl;
  */
 #define CMD_GET_META 0xa0
 #define CMD_GETQ_META 0xa1
+
+/**
+ * This flag is used with the get meta response packet. If set it
+ * specifies that the item recieved has been deleted, but that the
+ * items meta data is still contained in ep-engine. Eg. the item
+ * has been soft deleted.
+ */
+#define GET_META_ITEM_DELETED_FLAG 0x01
+
 /**
  * The physical layout for a CMD_GET_META command returns the meta-data
  * section for an item:
@@ -161,7 +170,15 @@ typedef protocol_binary_request_no_extras protocol_binary_request_get_meta;
  *       uint32_t seqno
  *       uint8_t  id[nnn] (where nnn == the length - size of seqno)
  */
-typedef protocol_binary_response_no_extras protocol_binary_response_get_meta;
+typedef union {
+    struct {
+        protocol_binary_request_header header;
+        struct {
+            uint32_t flags;
+        } body;
+    }message;
+    uint8_t bytes[sizeof(protocol_binary_request_header) + 4];
+} protocol_binary_response_get_meta;
 
 /**
  * CMD_SET_WITH_META is used to set a kv-pair with additional meta

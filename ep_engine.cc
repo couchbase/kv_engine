@@ -3651,12 +3651,13 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getMeta(const void* cookie,
 
     std::string meta;
     uint64_t cas;
+    uint32_t flags;
 
     ENGINE_ERROR_CODE rv = epstore->getMetaData(key, vbucket, cookie,
-                                                meta, cas);
+                                                meta, cas, flags);
 
     if (rv == ENGINE_SUCCESS) {
-        rv = sendResponse(response, NULL, 0, NULL, 0,
+        rv = sendResponse(response, NULL, 0, (const void *)&flags, 4,
                           meta.data(), meta.length(),
                           PROTOCOL_BINARY_RAW_BYTES,
                           PROTOCOL_BINARY_RESPONSE_SUCCESS,

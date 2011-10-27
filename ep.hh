@@ -472,12 +472,14 @@ public:
      * @param cookie the connection cookie
      * @param meta where to store the meta informaion
      * @param cas where to store the cas information
+     * @param flags where to store the flags information
      */
     ENGINE_ERROR_CODE getMetaData(const std::string &key,
                                   uint16_t vbucket,
                                   const void *cookie,
                                   std::string &meta,
-                                  uint64_t &cas);
+                                  uint64_t &cas,
+                                  uint32_t &flags);
 
     /**
      * Set an item in the store.

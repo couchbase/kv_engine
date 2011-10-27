@@ -1345,7 +1345,8 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::getMetaData(const std::string &key,
                                                          uint16_t vbucket,
                                                          const void *cookie,
                                                          std::string &meta,
-                                                         uint64_t &cas)
+                                                         uint64_t &cas,
+                                                         uint32_t &flags)
 {
     RCPtr<VBucket> vb = getVBucket(vbucket);
     if (!vb || vb->getState() == vbucket_state_dead ||
@@ -1362,10 +1363,14 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::getMetaData(const std::string &key,
     }
 
     int bucket_num(0);
+    flags = 0;
     LockHolder lh = vb->ht.getLockedBucket(key, &bucket_num);
-    StoredValue *v = fetchValidValue(vb, key, bucket_num);
+    StoredValue *v = fetchValidValue(vb, key, bucket_num, true);
 
     if (v) {
+        if (v->isDeleted()) {
+            flags |= ntohl(GET_META_ITEM_DELETED_FLAG);
+        }
         cas = v->getCas();
         Item::encodeMeta(v->getSeqno(), cas, v->valLength(),
                          v->getFlags(), meta);
