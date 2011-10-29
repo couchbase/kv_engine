@@ -45,10 +45,6 @@ void StrategicSqlite3::insert(const Item &itm, uint16_t vb_version,
     stats.io_write_bytes += itm.getKey().length() + itm.getNBytes();
 
     int rv = ins_stmt->execute();
-    if (rv == 1) {
-        stats.totalPersisted++;
-    }
-
     int64_t newId = lastRowId();
 
     std::pair<int, int64_t> p(rv, newId);
@@ -73,9 +69,6 @@ void StrategicSqlite3::update(const Item &itm, uint16_t vb_version,
     upd_stmt->bind64(7, itm.getId());
 
     int rv = upd_stmt->execute();
-    if (rv == 1) {
-        stats.totalPersisted++;
-    }
     ++stats.io_num_write;
     stats.io_write_bytes += itm.getKey().length() + itm.getNBytes();
 
@@ -156,9 +149,6 @@ void StrategicSqlite3::del(const std::string &key, uint64_t rowid,
     PreparedStatement *del_stmt = strategy->getStatements(vb, vbver, key)->del();
     del_stmt->bind64(1, rowid);
     int rv = del_stmt->execute();
-    if (rv > 0) {
-        stats.totalPersisted++;
-    }
     cb.callback(rv);
     del_stmt->reset();
 }

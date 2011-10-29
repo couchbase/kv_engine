@@ -2061,6 +2061,7 @@ public:
     // This callback is invoked for set only.
     void callback(mutation_result &value) {
         if (value.first == 1) {
+            stats->totalPersisted++;
             if (value.second > 0) {
                 ++stats->newItems;
                 setId(value.second);
@@ -2118,6 +2119,7 @@ public:
         // 0 means we did not delete a row, but did not fail (did not exist)
         if (value >= 0) {
             if (value > 0) {
+                stats->totalPersisted++;
                 ++stats->delItems;
             }
             // We have succesfully removed an item from the disk, we
