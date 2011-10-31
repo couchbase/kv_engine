@@ -9,30 +9,6 @@
 #include "mc-kvstore/mc-engine.hh"
 #include "ep_engine.h"
 
-#ifdef HAVE_MEMCACHED_PACKET_DEBUG_H
-#include "mc-kvstore/mc-debug.hh"
-static bool packet_debug = true;
-std::ostream& operator<<(std::ostream& out, const Buffer *buffer) {
-    switch ((uint8_t)buffer->data[0]) {
-    case PROTOCOL_BINARY_REQ:
-        out
-                << reinterpret_cast<const protocol_binary_request_header *> (buffer->data);
-        break;
-    case PROTOCOL_BINARY_RES:
-        out
-                << reinterpret_cast<const protocol_binary_response_header *> (buffer->data);
-        break;
-    default:
-        out << "Invalid packet" << std::endl;
-    }
-
-    return out;
-}
-#else
-static bool packet_debug = false;
-#endif
-
-
 /*
  * C interface wrapping back into the Engine class
  */
@@ -809,18 +785,10 @@ Buffer *MemcachedEngine::nextToSend() {
     Buffer *ret = commandQueue.front();
     commandQueue.pop();
 
-    if (packet_debug) {
-        std::cout << ret;
-    }
-
     return ret;
 }
 
 void MemcachedEngine::handleResponse(protocol_binary_response_header *res) {
-    if (packet_debug) {
-        std::cout << res;
-    }
-
     LockHolder lh(mutex);
     std::list<BinaryPacketHandler*>::iterator iter;
     for (iter = responseHandler.begin(); iter != responseHandler.end()
@@ -875,10 +843,6 @@ void MemcachedEngine::handleResponse(protocol_binary_response_header *res) {
 
 void MemcachedEngine::handleRequest(protocol_binary_request_header *req) {
     LockHolder lh(mutex);
-
-    if (packet_debug) {
-        std::cout << req;
-    }
 
     std::list<BinaryPacketHandler*>::iterator iter;
     for (iter = tapHandler.begin(); iter != tapHandler.end() && (*iter)->seqno

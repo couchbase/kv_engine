@@ -115,8 +115,6 @@ libsqlite_kvstore_la_LIBADD =
 libsqlite_kvstore_la_DEPENDENCIES =
 
 libmc_kvstore_la_SOURCES = kvstore.hh \
-                           mc-kvstore/mc-debug.cc \
-                           mc-kvstore/mc-debug.hh \
                            mc-kvstore/mc-engine.cc \
                            mc-kvstore/mc-engine.hh \
                            mc-kvstore/mc-kvstore.cc \
