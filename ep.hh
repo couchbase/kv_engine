@@ -358,6 +358,7 @@ public:
      */
     void setTxnSize(int to) {
         txnSize.set(to);
+        underlying->processTxnSizeChange(to);
     }
 
     void addUncommittedItem(const queued_item &item);

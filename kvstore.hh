@@ -246,6 +246,9 @@ public:
         // EMPTY
     }
 
+    virtual void processTxnSizeChange(size_t txn_size) {
+        (void)txn_size;
+    }
 };
 
 class KVStoreFactory {

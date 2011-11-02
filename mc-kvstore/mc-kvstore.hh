@@ -123,6 +123,8 @@ public:
 
     void optimizeWrites(std::vector<queued_item> &items);
 
+    void processTxnSizeChange(size_t txn_size);
+
 private:
 
     EPStats &stats;

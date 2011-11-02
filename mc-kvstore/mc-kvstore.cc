@@ -233,3 +233,8 @@ void MCKVStore::optimizeWrites(std::vector<queued_item> &items) {
         items.insert(items.end(), iter->begin(), iter->end());
     }
 }
+
+void MCKVStore::processTxnSizeChange(size_t txn_size) {
+    size_t new_batch_size = txn_size / vbBatchCount;
+    vbBatchSize = new_batch_size == 0 ? vbBatchSize : new_batch_size;
+}
