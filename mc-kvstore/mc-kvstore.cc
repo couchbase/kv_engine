@@ -203,7 +203,23 @@ void MCKVStore::addStats(const std::string &prefix,
                          const void *c)
 {
     KVStore::addStats(prefix, add_stat, c);
+    addStat(prefix, "vbucket_batch_count", vbBatchCount, add_stat, c);
+    addStat(prefix, "vbucket_batch_size", vbBatchSize, add_stat, c);
     mc->addStats(prefix, add_stat, c);
+}
+
+template <typename T>
+void MCKVStore::addStat(const std::string &prefix, const char *nm, T val,
+                        ADD_STAT add_stat, const void *c) {
+    std::stringstream name;
+    name << prefix << ":" << nm;
+    std::stringstream value;
+    value << val;
+    std::string n = name.str();
+    add_stat(n.data(), static_cast<uint16_t>(n.length()),
+             value.str().data(),
+             static_cast<uint32_t>(value.str().length()),
+             c);
 }
 
 void MCKVStore::optimizeWrites(std::vector<queued_item> &items) {

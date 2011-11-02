@@ -139,6 +139,10 @@ private:
         mc = NULL;
     }
 
+    template <typename T>
+    void addStat(const std::string &prefix, const char *nm, T val,
+                 ADD_STAT add_stat, const void *c);
+
     bool intransaction;
 
 
