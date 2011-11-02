@@ -472,7 +472,7 @@ private:
 
 class VBBatchCountResponseHandler: public BinaryPacketHandler {
 public:
-    VBBatchCountResponseHandler(uint32_t sno, EPStats *st, Callback<bool> &cb) :
+    VBBatchCountResponseHandler(uint32_t sno, EPStats *st, Callback<bool> *cb) :
         BinaryPacketHandler(sno, st), callback(cb) {
     }
 
@@ -484,16 +484,20 @@ public:
             success = false;
         }
 
-        callback.callback(success);
+        if (callback) {
+            callback->callback(success);
+        }
     }
 
     virtual void connectionReset() {
-        bool value = false;
-        callback.callback(value);
+        if (callback) {
+            bool value = false;
+            callback->callback(value);
+        }
     }
 
 private:
-    Callback<bool> &callback;
+    Callback<bool> *callback;
 };
 
 /*
@@ -1339,7 +1343,7 @@ void MemcachedEngine::noop(Callback<bool> &cb)
     wait();
 }
 
-void MemcachedEngine::setVBucketBatchCount(size_t batch_count, Callback<bool> &cb) {
+void MemcachedEngine::setVBucketBatchCount(size_t batch_count, Callback<bool> *cb) {
     protocol_binary_request_set_batch_count req;
     memset(req.bytes, 0, sizeof(req.bytes));
     req.message.header.request.magic = PROTOCOL_BINARY_REQ;

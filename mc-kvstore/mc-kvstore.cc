@@ -8,6 +8,22 @@
 #include "mc-kvstore.hh"
 #include "ep_engine.h"
 
+
+class MCKVStoreChangeListener : public ValueChangedListener {
+public:
+    MCKVStoreChangeListener(MCKVStore &st) : store(st) {
+    }
+
+    virtual void sizeValueChanged(const std::string &key, size_t value) {
+        if (key.compare("couch_vbucket_batch_count") == 0) {
+            store.setVBBatchCount(value);
+        }
+    }
+
+private:
+    MCKVStore &store;
+};
+
 MCKVStore::MCKVStore(EventuallyPersistentEngine &theEngine) :
     KVStore(), stats(theEngine.getEpStats()), intransaction(false), mc(NULL),
     config(theEngine.getConfiguration()), engine(theEngine),
@@ -16,6 +32,8 @@ MCKVStore::MCKVStore(EventuallyPersistentEngine &theEngine) :
     vbBatchSize = config.getMaxTxnSize() / vbBatchCount;
     vbBatchSize = vbBatchSize == 0 ? config.getCouchDefaultBatchSize() : vbBatchSize;
     open();
+    config.addValueChangedListener("couch_vbucket_batch_count",
+                                   new MCKVStoreChangeListener(*this));
 }
 
 MCKVStore::MCKVStore(const MCKVStore &from) :
@@ -23,6 +41,8 @@ MCKVStore::MCKVStore(const MCKVStore &from) :
     config(from.config), engine(from.engine),
     vbBatchCount(from.vbBatchCount), vbBatchSize(from.vbBatchSize) {
     open();
+    config.addValueChangedListener("couch_vbucket_batch_count",
+                                   new MCKVStoreChangeListener(*this));
 }
 
 void MCKVStore::reset() {
@@ -158,7 +178,7 @@ void MCKVStore::open() {
     delete mc;
     mc = new MemcachedEngine(&engine, config);
     RememberingCallback<bool> cb;
-    mc->setVBucketBatchCount(vbBatchCount, cb);
+    mc->setVBucketBatchCount(vbBatchCount, &cb);
     cb.waitForValue();
 }
 
@@ -237,4 +257,14 @@ void MCKVStore::optimizeWrites(std::vector<queued_item> &items) {
 void MCKVStore::processTxnSizeChange(size_t txn_size) {
     size_t new_batch_size = txn_size / vbBatchCount;
     vbBatchSize = new_batch_size == 0 ? vbBatchSize : new_batch_size;
+}
+
+void MCKVStore::setVBBatchCount(size_t batch_count) {
+    if (vbBatchCount == batch_count) {
+        return;
+    }
+    vbBatchCount = batch_count;
+    size_t new_batch_size = engine.getEpStore()->getTxnSize() / vbBatchCount;
+    vbBatchSize = new_batch_size == 0 ? vbBatchSize : new_batch_size;
+    mc->setVBucketBatchCount(vbBatchCount, NULL);
 }

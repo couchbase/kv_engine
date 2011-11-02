@@ -72,7 +72,6 @@
         "couch_vbucket_batch_count": {
             "default": "4",
             "descr": "max number of vbuckets that can be concurrently written by the mccouch side",
-            "dynamic": false,
             "type": "size_t",
             "validator": {
                 "range": {

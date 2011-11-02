@@ -109,7 +109,7 @@ public:
     void tap(const std::vector<uint16_t> &vbids, bool full, shared_ptr<TapCallback> cb);
     void noop(Callback<bool> &cb);
 
-    void setVBucketBatchCount(size_t batch_count, Callback<bool> &cb);
+    void setVBucketBatchCount(size_t batch_count, Callback<bool> *cb);
 
     void addStats(const std::string &prefix,
                   ADD_STAT add_stat,

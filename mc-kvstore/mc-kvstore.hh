@@ -125,6 +125,8 @@ public:
 
     void processTxnSizeChange(size_t txn_size);
 
+    void setVBBatchCount(size_t batch_count);
+
 private:
 
     EPStats &stats;
