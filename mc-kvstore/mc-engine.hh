@@ -18,12 +18,6 @@
 #define evutil_socket_t int
 #endif
 
-extern "C" {
-void *start_memcached_engine(void *);
-void memcached_engine_libevent_callback(evutil_socket_t , short, void *);
-void memcached_engine_notify_callback(evutil_socket_t , short, void *);
-}
-
 class Buffer {
 public:
     char *data;
@@ -98,10 +92,6 @@ class MemcachedEngine {
 public:
     MemcachedEngine(EventuallyPersistentEngine *engine, Configuration &config);
 
-    void start();
-
-    ~MemcachedEngine();
-
     void flush(Callback<bool> &cb);
     void setmq(const Item &item, Callback<mutation_result> &cb);
     void get(const std::string &key, uint16_t vb, Callback<GetValue> &cb);
@@ -125,14 +115,6 @@ public:
 
 protected:
     friend class SelectBucketResponseHandler;
-    friend void *start_memcached_engine(void *arg);
-    friend void memcached_engine_libevent_callback(evutil_socket_t sock,
-                                                   short which, void *arg);
-    friend void memcached_engine_notify_callback(evutil_socket_t sock,
-                                                 short which, void *arg);
-    void run();
-    void libeventCallback(evutil_socket_t s, short which);
-    void notifyHandler(evutil_socket_t s, short which);
 
 private:
     template <typename T>
@@ -148,47 +130,32 @@ private:
                  c);
     }
 
-    void doSelectBucket(void);
+    void selectBucket(void);
     void reschedule(std::list<BinaryPacketHandler*> &packets);
     void resetConnection();
 
-    void updateEvent(evutil_socket_t s);
-    void receiveData(evutil_socket_t s);
-    void sendData(evutil_socket_t s);
-
-    Buffer *nextToSend();
-    void insertCommand(BinaryPacketHandler *rh);
-    void doInsertCommand(BinaryPacketHandler *rh);
+    void sendSingleChunk(const unsigned char *ptr, size_t nb);
+    void sendCommand(BinaryPacketHandler *rh);
+    void processInput();
+    void maybeProcessInput();
+    void wait();
 
     void handleResponse(protocol_binary_response_header *res);
     void handleRequest(protocol_binary_request_header *req);
 
-    void notify();
+    bool waitForWritable();
+    bool waitForReadable();
 
     bool connect();
+    void ensureConnection(void);
 
-    bool createNotificationPipe();
-
-    evutil_socket_t notifyPipe[2];
     evutil_socket_t sock;
 
-    pthread_t threadid;
     Configuration &configuration;
     bool configurationError;
     bool shutdown;
 
-    /** The event base this instance is connected to */
-    struct event_base *ev_base;
-    /** The event item representing the memcached server object */
-    struct event ev_event;
-    /** The current set of flags to the memcached server */
-    short ev_flags;
-
-    /** The event item representing the notify pipe */
-    struct event ev_notify;
-
     uint32_t seqno;
-    Buffer *output;
     Buffer input;
 
     /**
@@ -249,11 +216,15 @@ private:
     // a subset of the packets...
 
     Mutex mutex;
-    std::queue<Buffer*> commandQueue;
     std::list<BinaryPacketHandler*> responseHandler;
     std::list<BinaryPacketHandler*> tapHandler;
     EventuallyPersistentEngine *engine;
     EPStats *epStats;
+    bool connected;
+
+    struct msghdr sendMsg;
+    struct iovec sendIov[IOV_MAX];
+    int numiovec;
 };
 
 #endif /* MC_ENGINE_HH */

@@ -152,7 +152,6 @@ void MCKVStore::open() {
     intransaction = false;
     delete mc;
     mc = new MemcachedEngine(&engine, config);
-    mc->start();
 }
 
 bool MCKVStore::commit(void) {
