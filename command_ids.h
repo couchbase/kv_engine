@@ -187,7 +187,7 @@ typedef protocol_binary_response_no_extras protocol_binary_response_get_meta;
 /**
  * Command to snapshot VB states
  */
-#define CMD_SNAPSHOT_VB_STATES 0x50
+#define CMD_SNAPSHOT_VB_STATES 0xa6
 
 /**
  * Command to send vbucket batch counter to the underlying storage engine
