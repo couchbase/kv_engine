@@ -1357,7 +1357,9 @@ void MemcachedEngine::setVBucketBatchCount(size_t batch_count, Callback<bool> *c
 
     sendCommand(new VBBatchCountResponseHandler(seqno++, epStats, cb));
     // Wait for response!!
-    wait();
+    if (cb) {
+        wait();
+    }
 }
 
 void MemcachedEngine::addStats(const std::string &prefix,
