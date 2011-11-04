@@ -9,6 +9,10 @@
 #include "mc-kvstore/mc-engine.hh"
 #include "ep_engine.h"
 
+#ifdef WIN32
+static ssize_t sendmsg(SOCKET s, const struct msghdr *msg, int flags);
+#endif
+
 /*
  * The various response handlers
  */
@@ -776,7 +780,7 @@ bool MemcachedEngine::waitForWritable()
     return false;
 }
 
-void MemcachedEngine::sendSingleChunk(const unsigned char *ptr, size_t nb)
+void MemcachedEngine::sendSingleChunk(const char *ptr, size_t nb)
 {
     while (nb > 0) {
         ssize_t nw = send(sock, ptr, nb, 0);
@@ -836,7 +840,7 @@ void MemcachedEngine::sendCommand(BinaryPacketHandler *rh)
             case EMSGSIZE:
                 // Too big.. try to use send instead..
                 for (int ii = 0; ii < numiovec; ++ii) {
-                    sendSingleChunk((const unsigned char*)(sendIov[ii].iov_base), sendIov[ii].iov_len);
+                    sendSingleChunk((const char*)(sendIov[ii].iov_base), sendIov[ii].iov_len);
                 }
                 break;
 

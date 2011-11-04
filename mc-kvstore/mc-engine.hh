@@ -136,7 +136,7 @@ private:
     void reschedule(std::list<BinaryPacketHandler*> &packets);
     void resetConnection();
 
-    void sendSingleChunk(const unsigned char *ptr, size_t nb);
+    void sendSingleChunk(const char *ptr, size_t nb);
     void sendCommand(BinaryPacketHandler *rh);
     void processInput();
     void maybeProcessInput();
