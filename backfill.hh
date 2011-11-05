@@ -19,7 +19,7 @@
  * Note that this is only used if the KVStore reports that it has
  * efficient vbucket ops.
  */
-class BackfillDiskLoad : public DispatcherCallback, public Callback<GetValue> {
+class BackfillDiskLoad : public DispatcherCallback {
 public:
 
     BackfillDiskLoad(const std::string &n, EventuallyPersistentEngine* e,

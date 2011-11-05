@@ -12,15 +12,35 @@ static bool isMemoryUsageTooHigh(EPStats &stats) {
     return currentSize > (maxSize * BACKFILL_MEM_THRESHOLD);
 }
 
-void BackfillDiskLoad::callback(GetValue &gv) {
+/**
+ * Callback class used to process an item backfilled from disk and push it into
+ * the corresponding TAP queue.
+ */
+class BackfillDiskCallback : public Callback<GetValue> {
+public:
+    BackfillDiskCallback(const std::string &n, TapConnMap &tcm, EventuallyPersistentEngine* e)
+        : tapConnName(n), connMap(tcm), engine(e) {
+        assert(engine);
+    }
+
+    void callback(GetValue &val);
+
+private:
+
+    const std::string           tapConnName;
+    TapConnMap                 &connMap;
+    EventuallyPersistentEngine *engine;
+};
+
+void BackfillDiskCallback::callback(GetValue &gv) {
     ReceivedItemTapOperation tapop(true);
     // if the tap connection is closed, then free an Item instance
-    if (!connMap.performTapOp(name, tapop, gv.getValue())) {
+    if (!connMap.performTapOp(tapConnName, tapop, gv.getValue())) {
         delete gv.getValue();
     }
 
     NotifyPausedTapOperation notifyOp;
-    connMap.performTapOp(name, notifyOp, engine);
+    connMap.performTapOp(tapConnName, notifyOp, engine);
 }
 
 bool BackfillDiskLoad::callback(Dispatcher &d, TaskId t) {
@@ -32,7 +52,8 @@ bool BackfillDiskLoad::callback(Dispatcher &d, TaskId t) {
     }
 
     if (connMap.checkConnectivity(name) && !engine->getEpStore()->isFlushAllScheduled()) {
-        store->dump(vbucket, shared_ptr<Callback<GetValue> >(this));
+        shared_ptr<Callback<GetValue> > backfill_cb(new BackfillDiskCallback(name, connMap, engine));
+        store->dump(vbucket, backfill_cb);
         valid = true;
     }
     // Should decr the disk backfill counter regardless of the connectivity status
