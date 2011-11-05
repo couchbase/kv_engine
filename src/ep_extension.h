@@ -22,10 +22,10 @@ public:
 
     void initialize();
 
-    ENGINE_ERROR_CODE executeGetl(int argc, token_t *argv, void *cookie,
+    ENGINE_ERROR_CODE executeGetl(int argc, mc_extension_token_t *argv, void *cookie,
                                   RESPONSE_HANDLER_T response_handler);
 
-    ENGINE_ERROR_CODE executeUnl(int argc, token_t *argv, void *cookie,
+    ENGINE_ERROR_CODE executeUnl(int argc, mc_extension_token_t *argv, void *cookie,
                                  RESPONSE_HANDLER_T response_handler);
 
 

@@ -39,7 +39,7 @@ extern "C" {
     }
 
     static ENGINE_ERROR_CODE ext_execute(const void *cmd_cookie, const void *cookie,
-            int argc, token_t *argv,
+            int argc, mc_extension_token_t *argv,
             RESPONSE_HANDLER_T response_handler) {
         (void) cmd_cookie;
 
@@ -55,7 +55,7 @@ extern "C" {
     }
 
     static bool ext_accept(const void *cmd_cookie, void *cookie,
-            int argc, token_t *argv, size_t *ndata,
+            int argc, mc_extension_token_t *argv, size_t *ndata,
             char **ptr) {
         (void) cmd_cookie;
         (void) cookie;
@@ -96,7 +96,7 @@ void GetlExtension::initialize()
     }
 }
 
-ENGINE_ERROR_CODE GetlExtension::executeGetl(int argc, token_t *argv,
+ENGINE_ERROR_CODE GetlExtension::executeGetl(int argc, mc_extension_token_t *argv,
                                              void *response_cookie,
                                              RESPONSE_HANDLER_T response_handler)
 {
@@ -164,7 +164,8 @@ ENGINE_ERROR_CODE GetlExtension::executeGetl(int argc, token_t *argv,
     return ret;
 }
 
-ENGINE_ERROR_CODE GetlExtension::executeUnl(int argc, token_t *argv, void *response_cookie,
+ENGINE_ERROR_CODE GetlExtension::executeUnl(int argc, mc_extension_token_t *argv,
+                                            void *response_cookie,
                                             RESPONSE_HANDLER_T response_handler)
 {
     uint64_t cas = 0;
