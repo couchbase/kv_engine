@@ -776,7 +776,6 @@ private:
     time_t databaseInitTime;
     pthread_t notifyThreadId;
     bool startedEngineThreads;
-    AtomicQueue<QueuedItem> pendingTapNotifications;
     volatile bool shutdown;
     GET_SERVER_API getServerApiFunc;
     union {

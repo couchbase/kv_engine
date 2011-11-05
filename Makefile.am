@@ -171,7 +171,6 @@ libsqlite3_la_CFLAGS = $(AM_CFLAGS) ${NO_WERROR} -DSQLITE_THREADSAFE=2
 
 check_PROGRAMS=mc-kvstore-test \
                atomic_ptr_test \
-               atomic_queue_test \
                atomic_test \
                checkpoint_test \
                chunk_creation_test \
@@ -255,10 +254,6 @@ atomic_ptr_test_DEPENDENCIES = atomic.hh
 mutex_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
 mutex_test_SOURCES = t/mutex_test.cc locks.hh
 mutex_test_DEPENDENCIES = locks.hh
-
-atomic_queue_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
-atomic_queue_test_SOURCES = t/atomic_queue_test.cc atomic.hh
-atomic_queue_test_DEPENDENCIES = atomic.hh
 
 dispatcher_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
 dispatcher_test_SOURCES = t/dispatcher_test.cc dispatcher.cc dispatcher.hh priority.cc priority.hh testlogger.cc
