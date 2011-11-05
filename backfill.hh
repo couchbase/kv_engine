@@ -24,10 +24,7 @@ public:
 
     BackfillDiskLoad(const std::string &n, EventuallyPersistentEngine* e,
                      TapConnMap &tcm, KVStore *s, uint16_t vbid, const void *token)
-        : name(n), engine(e), connMap(tcm), store(s), vbucket(vbid), validityToken(token) {
-
-        vbucket_version = engine->getEpStore()->getVBucketVersion(vbucket);
-    }
+        : name(n), engine(e), connMap(tcm), store(s), vbucket(vbid), validityToken(token) { }
 
     void callback(GetValue &gv);
 
@@ -41,7 +38,6 @@ private:
     TapConnMap                 &connMap;
     KVStore                    *store;
     uint16_t                    vbucket;
-    uint16_t                    vbucket_version;
     const void                 *validityToken;
 };
 
