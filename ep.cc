@@ -33,6 +33,7 @@
 #include "ep_engine.h"
 #include "htresizer.hh"
 #include "checkpoint_remover.hh"
+#include "invalid_vbtable_remover.hh"
 
 extern "C" {
     static rel_time_t uninitialized_current_time(void) {
@@ -643,6 +644,14 @@ void EventuallyPersistentStore::initialize() {
     shared_ptr<StatSnap> sscb(new StatSnap(&engine));
     dispatcher->schedule(sscb, NULL, Priority::StatSnapPriority,
                          STATSNAP_FREQ);
+
+    if (config.getBackend().compare("sqlite") == 0 &&
+        rwUnderlying->getStorageProperties().hasEfficientVBDeletion()) {
+        shared_ptr<DispatcherCallback> invalidVBTableRemover(new InvalidVBTableRemover(&engine));
+        dispatcher->schedule(invalidVBTableRemover, NULL,
+                             Priority::VBucketDeletionPriority,
+                             INVALID_VBTABLE_DEL_FREQ);
+    }
 }
 
 
