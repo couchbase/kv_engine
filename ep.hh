@@ -908,6 +908,8 @@ private:
 
     bool isVbCachedStateStale(uint16_t vb, vbucket_state_t state);
 
+    bool hasItemsForPersistence(void);
+
     friend class Flusher;
     friend class BGFetchCallback;
     friend class VKeyStatBGFetchCallback;

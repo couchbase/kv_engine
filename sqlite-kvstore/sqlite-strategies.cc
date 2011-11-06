@@ -184,6 +184,22 @@ void SingleTableSqliteStrategy::destroyTables(void) {
     execute("drop table if exists kv");
 }
 
+void SingleTableSqliteStrategy::destroyInvalidTables(bool destroyOnlyOne) {
+    assert(db);
+    char buf[1024];
+    PreparedStatement st(db, "select name from sqlite_master where name like 'invalid_kv_%'");
+    while (st.fetch()) {
+        snprintf(buf, sizeof(buf), "drop table if exists %s",
+                 st.column(0));
+        execute(buf);
+        getLogger()->log(EXTENSION_LOG_INFO, NULL,
+                         "Removed the temp table %s\n", st.column(0));
+        if (destroyOnlyOne) {
+            break;
+        }
+    }
+}
+
 //
 // ----------------------------------------------------------------------
 // Multi DB strategy
@@ -235,6 +251,26 @@ void MultiDBSingleTableSqliteStrategy::destroyTables() {
     for (int i = 0; i < numTables; i++) {
         snprintf(buf, sizeof(buf), "drop table if exists kv_%d.kv", i);
         execute(buf);
+    }
+}
+
+void MultiDBSingleTableSqliteStrategy::destroyInvalidTables(bool destroyOnlyOne) {
+    assert(db);
+    char buf[1024];
+    for (int i = 0; i < numTables; ++i) {
+        snprintf(buf, sizeof(buf),
+                 "select name from kv_%d.sqlite_master where name like 'invalid_kv_%%'", i);
+        PreparedStatement st(db, buf);
+        while (st.fetch()) {
+            snprintf(buf, sizeof(buf), "drop table if exists kv_%d.%s",
+                     i, st.column(0));
+            execute(buf);
+            getLogger()->log(EXTENSION_LOG_INFO, NULL,
+                             "Removed the temp table kv_%d.%s\n", i, st.column(0));
+            if (destroyOnlyOne) {
+                return;
+            }
+        }
     }
 }
 
@@ -294,6 +330,55 @@ void MultiTableSqliteStrategy::destroyTables() {
     }
 }
 
+void MultiTableSqliteStrategy::destroyInvalidTables(bool destroyOnlyOne) {
+    assert(db);
+    char buf[1024];
+    std::vector<std::string> tables;
+
+    PreparedStatement st(db, "select name from sqlite_master where name like 'invalid_kv_%'");
+    while (st.fetch()) {
+        tables.push_back(std::string(st.column(0)));
+        if (destroyOnlyOne) {
+            break;
+        }
+    }
+    st.reset();
+    std::vector<std::string>::iterator it = tables.begin();
+    for (; it != tables.end(); ++it) {
+        snprintf(buf, sizeof(buf), "drop table if exists %s",
+                 it->c_str());
+        execute(buf);
+        getLogger()->log(EXTENSION_LOG_INFO, NULL,
+                         "Removed the temp table %s\n", it->c_str());
+        if (destroyOnlyOne) {
+            break;
+        }
+    }
+}
+
+void MultiTableSqliteStrategy::renameVBTable(uint16_t vbucket, const std::string &newName) {
+    assert(db);
+    char buf[1024];
+    snprintf(buf, sizeof(buf),
+             "alter table kv_%d rename to %s", static_cast<int>(vbucket), newName.c_str());
+    execute(buf);
+}
+
+void MultiTableSqliteStrategy::createVBTable(uint16_t vbucket) {
+    assert(db);
+    char buf[1024];
+    snprintf(buf, sizeof(buf),
+             "create table if not exists kv_%d"
+             " (vbucket integer,"
+             "  vb_version integer,"
+             "  k varchar(250),"
+             "  flags integer,"
+             "  exptime integer,"
+             "  cas integer,"
+             "  v text)", static_cast<int>(vbucket));
+    execute(buf);
+}
+
 void MultiTableSqliteStrategy::destroyStatements() {
     while (!statements.empty()) {
         Statements *st = statements.back();
@@ -330,6 +415,64 @@ void ShardedMultiTableSqliteStrategy::destroyTables() {
                      static_cast<int>(i), static_cast<int>(j));
             execute(buf);
         }
+    }
+}
+
+void ShardedMultiTableSqliteStrategy::destroyInvalidTables(bool destroyOnlyOne) {
+    assert(db);
+    char buf[1024];
+    for (size_t i = 0; i < shardCount; ++i) {
+        std::vector<std::string> tables;
+        snprintf(buf, sizeof(buf),
+                 "select name from kv_%d.sqlite_master where name like 'invalid_kv_%%'",
+                 static_cast<int>(i));
+        PreparedStatement st(db, buf);
+        while (st.fetch()) {
+            tables.push_back(std::string(st.column(0)));
+            if (destroyOnlyOne) {
+                break;
+            }
+        }
+        st.reset();
+        std::vector<std::string>::iterator it = tables.begin();
+        for (; it != tables.end(); ++it) {
+            snprintf(buf, sizeof(buf), "drop table if exists kv_%d.%s",
+                     static_cast<int>(i), it->c_str());
+            execute(buf);
+            getLogger()->log(EXTENSION_LOG_INFO, NULL,
+                             "Removed the temp table kv_%d.%s\n", i, it->c_str());
+            if (destroyOnlyOne) {
+                return;
+            }
+        }
+    }
+}
+
+void ShardedMultiTableSqliteStrategy::renameVBTable(uint16_t vbucket, const std::string &newName) {
+    assert(db);
+    char buf[1024];
+    for (size_t i = 0; i < shardCount; ++i) {
+        snprintf(buf, sizeof(buf),
+                 "alter table kv_%d.kv_%d rename to %s",
+                 static_cast<int>(i), static_cast<int>(vbucket), newName.c_str());
+        execute(buf);
+    }
+}
+
+void ShardedMultiTableSqliteStrategy::createVBTable(uint16_t vbucket) {
+    assert(db);
+    char buf[1024];
+    for (size_t i = 0; i < shardCount; ++i) {
+        snprintf(buf, sizeof(buf),
+                 "create table if not exists kv_%d.kv_%d"
+                 " (vbucket integer,"
+                 "  vb_version integer,"
+                 "  k varchar(250),"
+                 "  flags integer,"
+                 "  exptime integer,"
+                 "  cas integer,"
+                 "  v text)", static_cast<int>(i), static_cast<int>(vbucket));
+        execute(buf);
     }
 }
 
@@ -416,6 +559,64 @@ void ShardedByVBucketSqliteStrategy::destroyTables() {
                  static_cast<int>(j));
         execute(buf);
     }
+}
+
+void ShardedByVBucketSqliteStrategy::destroyInvalidTables(bool destroyOnlyOne) {
+    assert(db);
+    char buf[1024];
+    for (size_t i = 0; i < shardCount; ++i) {
+        std::vector<std::string> tables;
+        snprintf(buf, sizeof(buf),
+                 "select name from kv_%d.sqlite_master where name like 'invalid_kv_%%'",
+                 static_cast<int>(i));
+        PreparedStatement st(db, buf);
+        while (st.fetch()) {
+            tables.push_back(std::string(st.column(0)));
+            if (destroyOnlyOne) {
+                break;
+            }
+        }
+        st.reset();
+        std::vector<std::string>::iterator it = tables.begin();
+        for (; it != tables.end(); ++it) {
+            snprintf(buf, sizeof(buf), "drop table if exists kv_%d.%s",
+                     static_cast<int>(i), it->c_str());
+            execute(buf);
+            getLogger()->log(EXTENSION_LOG_INFO, NULL,
+                             "Removed the temp table kv_%d.%s\n", i, it->c_str());
+            if (destroyOnlyOne) {
+                return;
+            }
+        }
+    }
+}
+
+void ShardedByVBucketSqliteStrategy::renameVBTable(uint16_t vbucket, const std::string &newName) {
+    assert(db);
+    char buf[1024];
+    snprintf(buf, sizeof(buf),
+             "alter table kv_%d.kv_%d rename to %s",
+             static_cast<int>(getShardForVBucket(static_cast<uint16_t>(vbucket))),
+             static_cast<int>(vbucket),
+             newName.c_str());
+    execute(buf);
+}
+
+void ShardedByVBucketSqliteStrategy::createVBTable(uint16_t vbucket) {
+    assert(db);
+    char buf[1024];
+    snprintf(buf, sizeof(buf),
+             "create table if not exists kv_%d.kv_%d"
+             " (vbucket integer,"
+             "  vb_version integer,"
+             "  k varchar(250),"
+             "  flags integer,"
+             "  exptime integer,"
+             "  cas integer,"
+             "  v text)",
+             static_cast<int>(getShardForVBucket(static_cast<uint16_t>(vbucket))),
+             static_cast<int>(vbucket));
+    execute(buf);
 }
 
 void ShardedByVBucketSqliteStrategy::initDB() {

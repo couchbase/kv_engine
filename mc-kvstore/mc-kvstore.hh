@@ -126,6 +126,10 @@ public:
 
     void setVBBatchCount(size_t batch_count);
 
+    void destroyInvalidVBuckets(bool destroyOnlyOne = false) {
+        (void) destroyOnlyOne;
+    }
+
 private:
 
     EPStats &stats;

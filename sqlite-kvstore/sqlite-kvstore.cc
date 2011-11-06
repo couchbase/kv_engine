@@ -179,15 +179,14 @@ bool StrategicSqlite3::delVBucket(uint16_t vbucket, uint16_t vb_version) {
     (void) vb_version;
     assert(strategy->hasEfficientVBDeletion());
     bool rv = true;
-    std::vector<PreparedStatement*> vb_del(strategy->getVBStatements(vbucket, delete_vbucket));
-
-    std::vector<PreparedStatement*>::iterator it;
-    for (it = vb_del.begin(); it != vb_del.end(); ++it) {
-        PreparedStatement *st = *it;
-        rv &= st->execute() >= 0;
+    std::stringstream tmp_table_name;
+    tmp_table_name << "invalid_kv_" << vbucket << "_" << gethrtime();
+    rv = begin();
+    if (rv) {
+        strategy->renameVBTable(vbucket, tmp_table_name.str());
+        strategy->createVBTable(vbucket);
+        rv = commit();
     }
-
-    strategy->closeVBStatements(vb_del);
     return rv;
 }
 

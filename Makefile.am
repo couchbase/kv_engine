@@ -69,6 +69,8 @@ ep_la_SOURCES = \
                  flusher.cc flusher.hh \
                  histo.hh \
                  htresizer.cc htresizer.hh \
+                 invalid_vbtable_remover.hh \
+                 invalid_vbtable_remover.cc \
                  item.cc item.hh \
                  item_pager.cc item_pager.hh \
                  kvstore.hh \

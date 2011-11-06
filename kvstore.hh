@@ -248,6 +248,13 @@ public:
     virtual void processTxnSizeChange(size_t txn_size) {
         (void)txn_size;
     }
+
+    /**
+     * Remove invalid vbuckets from the underlying storage engine.
+     * @param destroyOnlyOne True if this run should remove only one invalid vbucket.
+     * This can be set to true if we want to delete all invalid vbuckets over the time.
+     */
+    virtual void destroyInvalidVBuckets(bool destroyOnlyOne = false) = 0;
 };
 
 class KVStoreFactory {

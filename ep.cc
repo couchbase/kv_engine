@@ -1734,7 +1734,7 @@ bool EventuallyPersistentStore::isVbCachedStateStale(uint16_t vb, vbucket_state_
 std::queue<queued_item>* EventuallyPersistentStore::beginFlush() {
     std::queue<queued_item> *rv(NULL);
 
-    if (getWriteQueueSize() == 0 && writing.empty() && !diskFlushAll) {
+    if (!hasItemsForPersistence() && writing.empty() && !diskFlushAll) {
         stats.dirtyAge = 0;
         // If the persistence queue is empty, reset queue-related stats for each vbucket.
         size_t numOfVBuckets = vbuckets.getSize();
@@ -1951,6 +1951,23 @@ size_t EventuallyPersistentStore::getWriteQueueSize(void) {
         }
     }
     return size;
+}
+
+bool EventuallyPersistentStore::hasItemsForPersistence(void) {
+    bool hasItems = false;
+    size_t numOfVBuckets = vbuckets.getSize();
+    for (size_t i = 0; i < numOfVBuckets; ++i) {
+        assert(i <= std::numeric_limits<uint16_t>::max());
+        uint16_t vbid = static_cast<uint16_t>(i);
+        RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
+        if (vb && (vb->getState() != vbucket_state_dead)) {
+            if (vb->checkpointManager.hasNextForPersistence() || vb->getBackfillSize() > 0) {
+                hasItems = true;
+                break;
+            }
+        }
+    }
+    return hasItems;
 }
 
 void EventuallyPersistentStore::setPersistenceCheckpointId(uint16_t vbid, uint64_t checkpointId) {

@@ -52,6 +52,7 @@ EP_ENGINE_CC_SRC = \
                  flusher.cc \
                  kvstore.cc \
                  htresizer.cc \
+                 invalid_vbtable_remover.cc \
                  item.cc \
                  item_pager.cc \
                  mc-kvstore/mc-debug.cc \

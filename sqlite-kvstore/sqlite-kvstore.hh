@@ -142,6 +142,10 @@ public:
         strategy->optimizeWrites(items);
     }
 
+    void destroyInvalidVBuckets(bool destroyOnlyOne = false) {
+        strategy->destroyInvalidTables(destroyOnlyOne);
+    }
+
 private:
     /**
      * Shortcut to execute a simple query.
