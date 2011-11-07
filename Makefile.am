@@ -120,7 +120,9 @@ libmc_kvstore_la_SOURCES = kvstore.hh \
                            mc-kvstore/mc-engine.cc \
                            mc-kvstore/mc-engine.hh \
                            mc-kvstore/mc-kvstore.cc \
-                           mc-kvstore/mc-kvstore.hh
+                           mc-kvstore/mc-kvstore.hh \
+                           tools/cJSON.c \
+                           tools/cJSON.h
 libmc_kvstore_la_CPPFLAGS = -I$(top_srcdir) -I$(top_srcdir)/sqlite-kvstore \
                             $(AM_CPPFLAGS)
 libmc_kvstore_la_LIBADD =

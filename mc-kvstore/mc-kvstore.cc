@@ -7,7 +7,16 @@
 
 #include "mc-kvstore.hh"
 #include "ep_engine.h"
+#include "tools/cJSON.h"
 
+
+static std::string getStringFromJSONObj(cJSON *i) {
+    if (i == NULL) {
+        return "";
+    }
+    assert(i->type == cJSON_String);
+    return i->valuestring;
+}
 
 class MCKVStoreChangeListener : public ValueChangedListener {
 public:
@@ -100,15 +109,28 @@ vbucket_map_t MCKVStore::listPersistedVbuckets() {
     mc->stats("vbucket", cb);
 
     cb.waitForValue();
-    // @todo We need to figure out the checkpoints!!!
     std::map<std::pair<uint16_t, uint16_t>, vbucket_state> rv;
     std::map<std::string, std::string>::const_iterator iter;
     for (iter = cb.val.begin(); iter != cb.val.end(); ++iter) {
         std::pair<uint16_t, uint16_t> vb(
                 (uint16_t)atoi(iter->first.c_str() + 3), -1);
+        const std::string &state_json = iter->second;
+        cJSON *jsonObj = cJSON_Parse(state_json.c_str());
+        std::string state = getStringFromJSONObj(cJSON_GetObjectItem(jsonObj, "state"));
+        std::string checkpoint_id = getStringFromJSONObj(cJSON_GetObjectItem(jsonObj,
+                                                                             "checkpoint_id"));
+        cJSON_Delete(jsonObj);
+        if (state.compare("") == 0 || checkpoint_id.compare("") == 0) {
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                             "Warning: State JSON doc for vbucket %d is in the wrong format: %s",
+                             vb.first, state_json.c_str());
+            continue;
+        }
+
         vbucket_state vb_state;
-        vb_state.state = VBucket::fromString(iter->second.c_str());
-        vb_state.checkpointId = 0;
+        vb_state.state = VBucket::fromString(state.c_str());
+        char *ptr = NULL;
+        vb_state.checkpointId = strtoull(checkpoint_id.c_str(), &ptr, 10);
         rv[vb] = vb_state;
     }
 
