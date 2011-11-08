@@ -211,12 +211,12 @@ bool MCKVStore::commit(void) {
     RememberingCallback<bool> wait;
     mc->noop(wait);
     wait.waitForValue();
-    intransaction = false;
+    intransaction = wait.val ? false : true;
     // This is somewhat bogus, because we don't support "real"
     // transactions.. Some of the objects in the transaction
     // may have failed so the caller needs to check the
     // callback status for all of the items it added..
-    return wait.val;
+    return !intransaction;
 }
 
 void MCKVStore::addStats(const std::string &prefix,
