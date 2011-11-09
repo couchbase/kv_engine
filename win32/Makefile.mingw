@@ -80,7 +80,8 @@ EP_ENGINE_CC_SRC = \
 EP_ENGINE_C_SRC = \
                  byteorder.c \
                  embedded/sqlite3.c \
-                 gethrtime.c
+                 gethrtime.c \
+                 tools/cJSON.c
 
 EP_ENGINE_OBJS = ${EP_ENGINE_C_SRC:%.c=.libs/%.o} ${EP_ENGINE_CC_SRC:%.cc=.libs/%.o}
 
