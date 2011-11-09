@@ -28,6 +28,7 @@ install: ${BINARIES} $(INSTALLDIRS)
 	cp ./management/* $(TMP_DIR)
 	rm -f $(TMP_DIR)/*.pyc && rm -f $(TMP_DIR)/*.cc && rm -f $(TMP_DIR)/*.o
 	cp $(TMP_DIR)/* $(LOCAL)/bin
+	rm -rf .libs/tools
 
 
 CFLAGS = -std=gnu99 -DNDEBUG -g \
