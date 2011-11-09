@@ -20,6 +20,7 @@ GENFILES=.libs/config_version.h
 CPPFLAGS= $(MARCH) -O2 -DHAVE_CONFIG_H ${INCLUDE} -Wall -DSQLITE_THREADSAFE=2
 
 all: ${BINARIES}
+	rm -rf .libs/tools
 
 install: ${BINARIES} $(INSTALLDIRS)
 	cp management/sqlite3.exe management/mbdbconvert.exe $(LOCAL)/bin

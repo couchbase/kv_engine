@@ -55,7 +55,6 @@ EP_ENGINE_CC_SRC = \
                  invalid_vbtable_remover.cc \
                  item.cc \
                  item_pager.cc \
-                 mc-kvstore/mc-debug.cc \
                  mc-kvstore/mc-engine.cc \
                  mc-kvstore/mc-kvstore.cc \
                  objectregistry.cc \
@@ -110,7 +109,6 @@ LIBSQLITE_KVSTORE_C_SRC = embedded/sqlite3.c
 LIBSQLITE_KVSTORE_OBJS = ${LIBSQLITE_KVSTORE_CC_SRC:%.cc=.libs/%.o} ${LIBSQLITE_KVSTORE_C_SRC:%.c=.libs/%.o}
 
 LIBMC_KVSTORE_CC_SRC = \
-        mc-kvstore/mc-debug.cc \
         mc-kvstore/mc-engine.cc \
         mc-kvstore/mc-kvstore.cc
 
