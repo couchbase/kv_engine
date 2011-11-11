@@ -150,7 +150,7 @@ class MemcachedClient(object):
 
     def set(self, key, exp, flags, val):
         """Set a value in the memcached server."""
-        return self._mutate(memcacheConstants.CMD_SET, key, exp, flags, cas, val)
+        return self._mutate(memcacheConstants.CMD_SET, key, exp, flags, 0, val)
 
     def setWithMeta(self, key, exp, flags, value, meta):
         """Set a value and its meta data in the memcached server."""
