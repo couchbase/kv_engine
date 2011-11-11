@@ -428,6 +428,10 @@ public:
         inconsistentSlaveCheckpoint = allow_inconsistency;
     }
 
+    static bool isInconsistentSlaveCheckpoint() {
+        return inconsistentSlaveCheckpoint;
+    }
+
 private:
 
     void registerPersistenceCursor();
