@@ -239,25 +239,24 @@ def loop(mc, db, timeout, txn_size, source):
                 needAck = flags & memcacheConstants.TAP_FLAG_ACK
 
             elif cmd == memcacheConstants.CMD_TAP_CHECKPOINT_START:
-                if vbucketId in vbmap:
-                    sys.exit("ERROR: repeated checkpoint start: %s vb: %s"
-                             % (val, vbucketId))
-
                 if len(ext) > 0:
                     eng_length, flags, ttl, flg, exp, needAck = parseTapExt(ext)
-
-                checkpointIdPrev = -1
+                checkpointStartExists = False
                 if vbucketId in vbmap:
-                    checkpointIdPrev = vbmap[vbucketId][0]
-
-                vbmap[vbucketId] = [val, 0]
-
-                t = datetime.datetime.now().strftime('%Y%m%d%H%M%S')
-                s = "INSERT into cpoint_state" \
-                    "(vbucket_id, cpoint_id, prev_cpoint_id, state, source, updated_at)" \
-                    " VALUES (?, ?, ?, \"open\", ?, ?)"
-                c.execute(s, (vbucketId, val, checkpointIdPrev, source, t))
-                db.commit()
+                    if vbmap[vbucketId][0] == val:
+                        checkpointStartExists = True
+                    else:
+                        sys.exit("ERROR: CHECKPOINT_START with checkpoint Id %s arrived" \
+                                 " before receiving CHECKPOINT_END with checkpoint Id $s"
+                                 % (val, vbmap[vbucketId][0]))
+                if checkpointStartExists == False:
+                    vbmap[vbucketId] = [val, 0]
+                    t = datetime.datetime.now().strftime('%Y%m%d%H%M%S')
+                    s = "INSERT into cpoint_state" \
+                        "(vbucket_id, cpoint_id, prev_cpoint_id, state, source, updated_at)" \
+                        " VALUES (?, ?, ?, \"open\", ?, ?)"
+                    c.execute(s, (vbucketId, val, -1, source, t))
+                    db.commit()
 
             elif cmd == memcacheConstants.CMD_TAP_CHECKPOINT_END:
                 db.commit()
