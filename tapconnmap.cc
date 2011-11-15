@@ -104,6 +104,11 @@ ssize_t TapConnMap::backfillQueueDepth(const std::string &name) {
     return rv;
 }
 
+TapConnection* TapConnMap::findByName(const std::string &name) {
+    LockHolder lh(notifySync);
+    return findByName_UNLOCKED(name);
+}
+
 TapConnection* TapConnMap::findByName_UNLOCKED(const std::string&name) {
     TapConnection *rv(NULL);
     std::list<TapConnection*>::iterator iter;

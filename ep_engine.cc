@@ -2135,6 +2135,11 @@ bool EventuallyPersistentEngine::createTapQueue(const void *cookie,
         isClosedCheckpointOnly = closedCheckpointOnly > 0 ? true : false;
     }
 
+    TapProducer *tp = dynamic_cast<TapProducer*>(tapConnMap.findByName(name));
+    if (tp && tp->isConnected() && !tp->doDisconnect() && isRegisteredClient) {
+        return false;
+    }
+
     TapProducer *tap = tapConnMap.newProducer(cookie, name, flags,
                                               backfillAge,
                                               static_cast<int>(tapKeepAlive));
