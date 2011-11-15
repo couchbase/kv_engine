@@ -987,6 +987,8 @@ private:
 
     void reschedule_UNLOCKED(const std::list<TapLogElement>::iterator &iter);
 
+    void clearQueues_UNLOCKED();
+
 
     //! Lock held during queue operations.
     Mutex queueLock;
