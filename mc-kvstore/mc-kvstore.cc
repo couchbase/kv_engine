@@ -5,7 +5,8 @@
 #include <cctype>
 #include <algorithm>
 
-#include "mc-kvstore.hh"
+#include "mc-kvstore/mc-kvstore.hh"
+#include "mc-kvstore/mc-engine.hh"
 #include "ep_engine.h"
 #include "tools/cJSON.h"
 
@@ -202,6 +203,13 @@ void MCKVStore::open() {
     mc->setVBucketBatchCount(vbBatchCount, &cb);
     cb.waitForValue();
 }
+
+void MCKVStore::close() {
+    intransaction = false;
+    delete mc;
+    mc = NULL;
+}
+
 
 bool MCKVStore::commit(void) {
     // Trying to commit without an begin is a semantically bogus

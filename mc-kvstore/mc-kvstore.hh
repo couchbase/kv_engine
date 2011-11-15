@@ -5,12 +5,13 @@
 #include "kvstore.hh"
 #include "item.hh"
 #include "stats.hh"
-
-#include "mc-kvstore/mc-engine.hh"
+#include "configuration.hh"
 
 class EventuallyPersistentEngine;
 class EPStats;
 class MCKVStoreTestEnvironment;
+class MemcachedEngine;
+
 /**
  * A persistence store that stores stuff via memcached protocol.
  */
@@ -136,11 +137,7 @@ private:
 
     void open();
 
-    void close() {
-        intransaction = false;
-        delete mc;
-        mc = NULL;
-    }
+    void close();
 
     template <typename T>
     void addStat(const std::string &prefix, const char *nm, T val,
