@@ -2922,6 +2922,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     add_casted_stat("ep_exp_pager_stime", getExpiryPagerSleeptime(),
                     add_stat, cookie);
 
+    add_casted_stat("ep_inconsistent_slave_chk", CheckpointManager::isInconsistentSlaveCheckpoint(),
+                    add_stat, cookie);
 
     return ENGINE_SUCCESS;
 }
