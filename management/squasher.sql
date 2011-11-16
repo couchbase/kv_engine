@@ -1,4 +1,4 @@
-attach database "sqashed.mbb" as squashed;
+attach database "squashed.mbb" as squashed;
 begin;
 create table if not exists squashed.cpoint_op
   (vbucket_id, cpoint_id, seq, op, key, flg, exp, cas, val,
