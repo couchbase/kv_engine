@@ -296,6 +296,12 @@ extern "C" {
                 validate(vsize, static_cast<uint64_t>(0),
                          std::numeric_limits<uint64_t>::max());
                 e->setExpiryPagerSleeptime((size_t)vsize);
+            } else if (strcmp(keyz, "inconsistent_slave_chk") == 0) {
+                bool inconsistentSlaveCheckpoint = false;
+                if (strcmp(valz, "true") == 0) {
+                    inconsistentSlaveCheckpoint = true;
+                }
+                CheckpointManager::allowInconsistentSlaveCheckpoint(inconsistentSlaveCheckpoint);
             } else {
                 *msg = "Unknown config param";
                 rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
