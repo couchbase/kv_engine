@@ -401,7 +401,8 @@ public:
     static void initializeCheckpointConfig(size_t checkpoint_period,
                                            size_t checkpoint_max_items,
                                            size_t max_checkpoints,
-                                           bool allow_inconsistency = false);
+                                           bool allow_inconsistency = false,
+                                           bool keep_closed_checkpoints = false);
 
     static void setCheckpointPeriod(size_t checkpoint_period) {
         if (!validateCheckpointPeriodParam(checkpoint_period)) {
@@ -430,6 +431,14 @@ public:
 
     static bool isInconsistentSlaveCheckpoint() {
         return inconsistentSlaveCheckpoint;
+    }
+
+    static void keepClosedCheckpointsUnderHighWat(bool keep_closed_checkpoints) {
+        keepClosedCheckpoints = keep_closed_checkpoints;
+    }
+
+    static bool isKeepingClosedCheckpoints() {
+        return keepClosedCheckpoints;
     }
 
 private:
@@ -540,6 +549,9 @@ private:
     // Flag indicating if a downstream active vbucket is allowed to receive checkpoint start/end
     // messages from the master active vbucket.
     static bool               inconsistentSlaveCheckpoint;
+    // Flag indicating if closed checkpoints should be kept in memory if the current memory usage
+    // below the high water mark.
+    static bool               keepClosedCheckpoints;
 
     Atomic<bool>              doOnlineUpdate;
     Atomic<bool>              doHotReload;

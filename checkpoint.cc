@@ -106,6 +106,7 @@ Atomic<rel_time_t> CheckpointManager::checkpointPeriod = DEFAULT_CHECKPOINT_PERI
 Atomic<size_t> CheckpointManager::checkpointMaxItems = DEFAULT_CHECKPOINT_ITEMS;
 Atomic<size_t> CheckpointManager::maxCheckpoints = DEFAULT_MAX_CHECKPOINTS;
 bool CheckpointManager::inconsistentSlaveCheckpoint = false;
+bool CheckpointManager::keepClosedCheckpoints = false;
 
 CheckpointManager::~CheckpointManager() {
     LockHolder lh(queueLock);
@@ -420,8 +421,14 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(const RCPtr<VBucket> &vbu
     LockHolder lh(queueLock);
     assert(vbucket);
     uint64_t oldCheckpointId = 0;
+    bool canCreateNewCheckpoint = false;
+    if (checkpointList.size() < maxCheckpoints ||
+        (checkpointList.size() == maxCheckpoints &&
+         checkpointList.front()->getReferenceCounter() == 0)) {
+        canCreateNewCheckpoint = true;
+    }
     if (vbucket->getState() == vbucket_state_active && !inconsistentSlaveCheckpoint &&
-        checkpointList.size() < maxCheckpoints) {
+        canCreateNewCheckpoint) {
 
         bool forceCreation = isCheckpointCreationForHighMemUsage(vbucket);
         // Check if this master active vbucket needs to create a new open checkpoint.
@@ -454,6 +461,13 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(const RCPtr<VBucket> &vbu
         }
     }
 
+    if (keepClosedCheckpoints) {
+        double current = static_cast<double>(stats.currentSize.get() + stats.memOverhead.get());
+        if (current < stats.mem_high_wat && checkpointList.size() <= maxCheckpoints) {
+            return 0;
+        }
+    }
+
     size_t numUnrefItems = 0;
     std::list<Checkpoint*> unrefCheckpointList;
     std::list<Checkpoint*>::iterator it = checkpointList.begin();
@@ -462,6 +476,12 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(const RCPtr<VBucket> &vbu
             break;
         } else {
             numUnrefItems += (*it)->getNumItems() + 2; // 2 is for checkpoint start and end items.
+            if (keepClosedCheckpoints) {
+                // Remove only one unreferenced closed checkpoint from memory at a time
+                // if we want to keep as many closed checkpoints as possible.
+                ++it;
+                break;
+            }
         }
     }
     if (numUnrefItems > 0) {
@@ -503,8 +523,14 @@ bool CheckpointManager::queueDirty(const queued_item &item, const RCPtr<VBucket>
     size_t numItemsAfter = getNumItemsForPersistence_UNLOCKED();
 
     assert(vbucket);
+    bool canCreateNewCheckpoint = false;
+    if (checkpointList.size() < maxCheckpoints ||
+        (checkpointList.size() == maxCheckpoints &&
+         checkpointList.front()->getReferenceCounter() == 0)) {
+        canCreateNewCheckpoint = true;
+    }
     if (vbucket->getState() == vbucket_state_active && !inconsistentSlaveCheckpoint &&
-        checkpointList.size() < maxCheckpoints) {
+        canCreateNewCheckpoint) {
         // Only the master active vbucket can create a next open checkpoint.
         checkOpenCheckpoint_UNLOCKED(false, true);
     }
@@ -906,7 +932,8 @@ bool CheckpointManager::hasNextForPersistence() {
 void CheckpointManager::initializeCheckpointConfig(size_t checkpoint_period,
                                                    size_t checkpoint_max_items,
                                                    size_t max_checkpoints,
-                                                   bool allow_inconsistency) {
+                                                   bool allow_inconsistency,
+                                                   bool keep_closed_checkpoints) {
     if (!validateCheckpointMaxItemsParam(checkpoint_max_items) ||
         !validateCheckpointPeriodParam(checkpoint_period) ||
         !validateMaxCheckpointsParam(max_checkpoints)) {
@@ -916,6 +943,7 @@ void CheckpointManager::initializeCheckpointConfig(size_t checkpoint_period,
     checkpointMaxItems = checkpoint_max_items;
     maxCheckpoints = max_checkpoints;
     inconsistentSlaveCheckpoint = allow_inconsistency;
+    keepClosedCheckpoints = keep_closed_checkpoints;
 }
 
 bool CheckpointManager::validateCheckpointMaxItemsParam(size_t checkpoint_max_items) {

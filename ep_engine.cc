@@ -302,6 +302,12 @@ extern "C" {
                     inconsistentSlaveCheckpoint = true;
                 }
                 CheckpointManager::allowInconsistentSlaveCheckpoint(inconsistentSlaveCheckpoint);
+            } else if (strcmp(keyz, "keep_closed_chks") == 0) {
+                bool keepClosedCheckpoints = false;
+                if (strcmp(valz, "true") == 0) {
+                    keepClosedCheckpoints = true;
+                }
+                CheckpointManager::keepClosedCheckpointsUnderHighWat(keepClosedCheckpoints);
             } else {
                 *msg = "Unknown config param";
                 rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
@@ -1051,7 +1057,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         size_t maxSize = 0;
         float mutation_mem_threshold = 0;
 
-        const int max_items = 51;
+        const int max_items = 52;
         struct config_item items[max_items];
         int ii = 0;
         memset(items, 0, sizeof(items));
@@ -1288,6 +1294,13 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         items[ii].value.dt_bool = &inconsistentSlaveCheckpoint;
 
         ++ii;
+        bool keepClosedCheckpoints;
+        int keep_closed_chks_idx = ii;
+        items[ii].key = "keep_closed_chks";
+        items[ii].datatype = DT_BOOL;
+        items[ii].value.dt_bool = &keepClosedCheckpoints;
+
+        ++ii;
         bool restore_mode;
         int restore_idx = ii;
         items[ii].key = "restore_mode";
@@ -1374,6 +1387,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
             }
             if (items[inconsistent_chk_idx].found) {
                 CheckpointManager::allowInconsistentSlaveCheckpoint(inconsistentSlaveCheckpoint);
+            }
+            if (items[keep_closed_chks_idx].found) {
+                CheckpointManager::keepClosedCheckpointsUnderHighWat(keepClosedCheckpoints);
             }
 
             if (items[restore_idx].found && restore_mode) {
@@ -2923,6 +2939,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                     add_stat, cookie);
 
     add_casted_stat("ep_inconsistent_slave_chk", CheckpointManager::isInconsistentSlaveCheckpoint(),
+                    add_stat, cookie);
+    add_casted_stat("ep_keep_closed_checkpoints", CheckpointManager::isKeepingClosedCheckpoints(),
                     add_stat, cookie);
 
     return ENGINE_SUCCESS;
