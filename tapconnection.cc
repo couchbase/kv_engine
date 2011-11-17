@@ -59,7 +59,8 @@ TapConnection::TapConnection(EventuallyPersistentEngine &theEngine,
     seqno(initialAckSequenceNumber),
     seqnoReceived(initialAckSequenceNumber - 1),
     ackSupported(false),
-    notifySent(false)
+    notifySent(false),
+    suspended(false)
 {
     evaluateFlags();
     queue = new std::list<QueuedItem>;
