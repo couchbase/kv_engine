@@ -16,6 +16,8 @@
  */
 #include "item.hh"
 
+#include "tools/cJSON.h"
+
 Atomic<uint64_t> Item::casCounter(1);
 
 bool Item::append(const Item &i) {
@@ -42,4 +44,27 @@ bool Item::prepend(const Item &i) {
     std::memcpy(newValue + i.getValue()->length(), value->getData(), value->length());
     value.reset(newData);
     return true;
+}
+
+void Item::fixupJSON(void) {
+    const char *ptr = value->getData();
+    while (isspace(*ptr)) {
+        ++ptr;
+    }
+
+    if (*ptr == '{') {
+        // This may be JSON. Unfortunately we don't know if it's zero
+        // terminated
+        std::string data(value->getData(), value->getSize());
+        cJSON *json = cJSON_Parse(data.c_str());
+        if (json != 0) {
+            char *packed = cJSON_PrintUnformatted(json);
+            if (packed != 0) {
+                Blob *newData = Blob::New(packed, strlen(packed));
+                free(packed);
+                value.reset(newData);
+            }
+            cJSON_Delete(json);
+        }
+    }
 }

@@ -1213,6 +1213,7 @@ ENGINE_ERROR_CODE  EventuallyPersistentEngine::store(const void *cookie,
     item *i = NULL;
 
     it->setVBucketId(vbucket);
+    it->fixupJSON();
 
     switch (operation) {
     case OPERATION_CAS:
