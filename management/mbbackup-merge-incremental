@@ -1,0 +1,97 @@
+#!/usr/bin/env python
+
+import os
+import sys
+import glob
+import getopt
+import exceptions
+import string
+import traceback
+import util
+import subprocess
+
+
+DEFAULT_OUTPUT_FILE = "./squashed.mbb"
+
+def usage(err=0):
+    print >> sys.stderr, """
+Usage: %s [-o %s] [-v] incremental_backup_file1 incremental_backup_file2 ...
+""" % (os.path.basename(sys.argv[0]), DEFAULT_OUTPUT_FILE)
+    sys.exit(err)
+
+def parse_args(args):
+    output_file = DEFAULT_OUTPUT_FILE
+    verbosity = 0
+
+    try:
+        opts, args = getopt.getopt(args, 'o:v', ['help'])
+    except getopt.GetoptError, e:
+        usage(e.msg)
+
+    for (o, a) in opts:
+        if o == '--help':
+            usage()
+        elif o == '-o':
+            output_file = a
+        elif o == '-v':
+            verbosity = verbosity + 1
+        else:
+            usage("unknown option - " + o)
+
+    if not args:
+        usage("missing incremental backup files")
+
+    return output_file, args, verbosity
+
+def findCmd(cmdName):
+    cmd_dir = os.path.dirname(sys.argv[0])
+    possible = []
+    for bin_dir in [cmd_dir, os.path.join(cmd_dir, "..", "..", "bin")]:
+        possible = possible + [os.path.join(bin_dir, p) for p in [cmdName, cmdName + '.exe']]
+    cmdbin = [p for p in possible if os.path.exists(p)][0]
+    return cmdbin
+
+def log(level, *args):
+    global verbosity
+    if level < verbosity:
+       s = ", ".join(list(args))
+       print string.rjust(s, (level * 2) + len(s))
+
+def main():
+    global verbosity
+
+    output_file, input_files, verbosity = parse_args(sys.argv[1:])
+    log(1, "incremental backup files = " + ' '.join(input_files))
+    log(1, "output backup file = %s" % output_file)
+    log(1, "verbosity = " + str(verbosity) + "\n")
+
+    backup_files = []
+    for file in input_files:
+        backup_files.extend(glob.glob(file))
+
+    ## Sort the backup files alphabetically and then reverse them so that the most recent
+    ## backup file becomes the first element in the list.
+    ## (e.g., ['backup-003.mbb', 'backup-002.mbb', 'backup-001'.mbb'])
+    backup_files.sort()
+    backup_files.reverse()
+
+    sqlite = findCmd("sqlite3")
+    squasher_sql_file = findCmd("squasher.sql")
+    sql_stmt = open(squasher_sql_file, 'r').read()
+    sql_stmt = string.replace(sql_stmt, "__SQUASHED_DATABASE__", output_file)
+    for bfile in backup_files:
+        sql_cmd = string.replace(sql_stmt, "__INCREMENTAL_DATABASE__", bfile)
+        p = subprocess.Popen(sqlite,
+                             stdin=subprocess.PIPE,
+                             stdout=subprocess.PIPE,
+                             stderr=subprocess.PIPE)
+        (output, err) = p.communicate(sql_cmd)
+        if p.returncode != 0:
+            log(1, "Error in merging \"%s\"" % bfile)
+            sys.exit(err)
+        log(1, "Incremental backup file: \"%s\"" % bfile)
+
+    log(1, "Merging incremental backup files are completed.\n")
+
+if __name__ == '__main__':
+    main()
