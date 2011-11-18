@@ -1043,7 +1043,7 @@ void TapConsumer::addStats(ADD_STAT add_stat, const void *c) {
 void TapConsumer::setBackfillPhase(bool isBackfill, uint16_t vbucket) {
     const VBucketMap &vbuckets = engine.getEpStore()->getVBuckets();
     RCPtr<VBucket> vb = vbuckets.getBucket(vbucket);
-    if (!vb) {
+    if (!(vb && supportCheckpointSync)) {
         return;
     }
 
