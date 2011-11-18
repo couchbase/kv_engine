@@ -545,7 +545,7 @@ bool TapConnMap::closeTapConnectionByName(const std::string &name) {
             tp->setRegisteredClient(false);
             removeTapCursors_UNLOCKED(tp);
 
-            tp->setExpiryTime((rel_time_t)-1);
+            tp->setExpiryTime(ep_current_time() - 1);
             tp->setName(TapConnection::getAnonName());
             tp->setDisconnect(true);
             tp->paused = true;
