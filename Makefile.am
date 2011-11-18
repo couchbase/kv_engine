@@ -304,7 +304,8 @@ pythonlib_DATA= \
                 management/mc_bin_server.py \
                 management/memcacheConstants.py \
                 management/tap.py \
-                management/tap_example.py
+                management/tap_example.py \
+                management/util.py
 
 pythonlib_SCRIPTS= \
                 management/mbadm-online-restore \
