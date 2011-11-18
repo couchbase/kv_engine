@@ -6,6 +6,7 @@ bin_SCRIPTS = management/analyze_core \
               wrapper/mbadm-tap-registration \
               wrapper/mbbackup \
               wrapper/mbbackup-incremental \
+              wrapper/mbbackup-merge-incremental \
               wrapper/mbdbconvert \
               wrapper/mbdbmaint \
               wrapper/mbdbupgrade \
@@ -311,6 +312,7 @@ pythonlib_SCRIPTS= \
                 management/mbadm-tap-registration \
                 management/mbbackup \
                 management/mbbackup-incremental \
+                management/mbbackup-merge-incremental \
                 management/mbdbconvert \
                 management/mbdbmaint \
                 management/mbdbupgrade \
@@ -325,6 +327,7 @@ PYTHON_TOOLS= \
               wrapper/mbadm-tap-registration \
               wrapper/mbbackup \
               wrapper/mbbackup-incremental \
+              wrapper/mbbackup-merge-incremental \
               wrapper/mbdbconvert \
               wrapper/mbdbmaint \
               wrapper/mbdbupgrade \
