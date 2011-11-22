@@ -19,20 +19,6 @@ static std::string getStringFromJSONObj(cJSON *i) {
     return i->valuestring;
 }
 
-class MCKVStoreChangeListener : public ValueChangedListener {
-public:
-    MCKVStoreChangeListener(MCKVStore &st) : store(st) {
-    }
-
-    virtual void sizeValueChanged(const std::string &key, size_t value) {
-        if (key.compare("couch_vbucket_batch_count") == 0) {
-            store.setVBBatchCount(value);
-        }
-    }
-
-private:
-    MCKVStore &store;
-};
 
 MCKVStore::MCKVStore(EventuallyPersistentEngine &theEngine) :
     KVStore(), stats(theEngine.getEpStats()), intransaction(false), mc(NULL),
@@ -42,8 +28,6 @@ MCKVStore::MCKVStore(EventuallyPersistentEngine &theEngine) :
     vbBatchSize = config.getMaxTxnSize() / vbBatchCount;
     vbBatchSize = vbBatchSize == 0 ? config.getCouchDefaultBatchSize() : vbBatchSize;
     open();
-    config.addValueChangedListener("couch_vbucket_batch_count",
-                                   new MCKVStoreChangeListener(*this));
 }
 
 MCKVStore::MCKVStore(const MCKVStore &from) :
@@ -51,8 +35,6 @@ MCKVStore::MCKVStore(const MCKVStore &from) :
     config(from.config), engine(from.engine),
     vbBatchCount(from.vbBatchCount), vbBatchSize(from.vbBatchSize) {
     open();
-    config.addValueChangedListener("couch_vbucket_batch_count",
-                                   new MCKVStoreChangeListener(*this));
 }
 
 void MCKVStore::reset() {

@@ -27,6 +27,7 @@ const Priority Priority::VBucketPersistHighPriority("vbucket_persist_high_priori
 const Priority Priority::FastVBucketDeletionPriority("vbucket_deletion_hi_priority", 2);
 const Priority Priority::FlushAllPriority("flush_all_priority", 3);
 const Priority Priority::FlusherPriority("flusher_priority", 5);
+const Priority Priority::VBucketBatchCountPriority("vbucket_batch_count_priority", 6);
 const Priority Priority::VBucketDeletionPriority("vbucket_deletion_priority", 9);
 const Priority Priority::VBucketPersistLowPriority("vbucket_persist_low_priority", 9);
 const Priority Priority::StatSnapPriority("statsnap_priority", 9);

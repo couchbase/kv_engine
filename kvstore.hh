@@ -249,6 +249,10 @@ public:
         (void)txn_size;
     }
 
+    virtual void setVBBatchCount(size_t batch_count) {
+        (void)batch_count;
+    }
+
     /**
      * Remove invalid vbuckets from the underlying storage engine.
      * @param destroyOnlyOne True if this run should remove only one invalid vbucket.

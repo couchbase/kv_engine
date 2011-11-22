@@ -78,6 +78,30 @@ private:
     EPStats &stats;
 };
 
+/**
+ * Dispatcher job to notify the underlying kv storage of a new vbucket batch count
+ */
+class VBucketBatchCountCallback : public DispatcherCallback {
+public:
+    VBucketBatchCountCallback(KVStore *s, size_t batch_count) :
+        kvStore(s), batchCount(batch_count) { }
+
+    bool callback(Dispatcher &, TaskId) {
+        kvStore->setVBBatchCount(batchCount);
+        return false;
+    }
+
+    std::string description() {
+        std::stringstream ss;
+        ss << "Notifying the kv storage of a new vbucket batch count " << batchCount;
+        return ss.str();
+    }
+
+private:
+    KVStore *kvStore;
+    size_t batchCount;
+};
+
 class EPStoreValueChangeListener : public ValueChangedListener {
 public:
     EPStoreValueChangeListener(EventuallyPersistentStore &st) : store(st) {
@@ -96,6 +120,12 @@ public:
             store.setTxnSize(value);
         } else if (key.compare("exp_pager_stime") == 0) {
             store.setExpiryPagerSleeptime(value);
+        } else if (key.compare("couch_vbucket_batch_count") == 0) {
+            shared_ptr<DispatcherCallback> cb(new VBucketBatchCountCallback(store.getRWUnderlying(),
+                                                                            value));
+            store.getDispatcher()->schedule(cb, NULL,
+                                            Priority::VBucketBatchCountPriority,
+                                            0, false);
         }
     }
 
@@ -492,6 +522,9 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
                                    new EPStoreValueChangeListener(*this));
 
     invalidItemDbPager = new InvalidItemDbPager(this, stats, vbDelChunkSize);
+
+    config.addValueChangedListener("couch_vbucket_batch_count",
+                                   new EPStoreValueChangeListener(*this));
 
     if (startVb0) {
         RCPtr<VBucket> vb(new VBucket(0, vbucket_state_active, stats,
