@@ -2,7 +2,7 @@
 # -*-python-*-
 
 """
-Backup tool for Membase.
+Backup tool for Couchbase.
 
 """
 
@@ -15,12 +15,12 @@ if len(sys.argv) < 3:
     if os.name == 'posix':
         sys.exit('\n'.join([r'usage: %(prog)s [bucket_path_name] [dest_dir_path]',
                         r'examples:',
-                        r'   %(prog)s /opt/membase/var/lib/membase/data/default-data/default /backups/2010-10-31/'])
+                        r'   %(prog)s /opt/couchbase/var/lib/couchbase/data/default-data/default /backups/2010-10-31/'])
              % {'prog': sys.argv[0]})
     elif os.name == 'nt':
         sys.exit('\n'.join([r'usage: %(prog)s [bucket_path_name] [dest_dir_path]',
                         r'examples:',
-                        r'   %(prog)s "c:/program files/membase/server/var/lib/membase/data/default-data/default" c:/backups/2010-10-31/'])
+                        r'   %(prog)s "c:/program files/couchbase/server/var/lib/couchbase/data/default-data/default" c:/backups/2010-10-31/'])
              % {'prog': sys.argv[0]})
 
 def backup(sqlite_path, srcdir, destdir, fn):

@@ -1,23 +1,23 @@
 ACLOCAL_AMFLAGS = -I m4 --force
 bin_SCRIPTS = management/analyze_core \
-              wrapper/mbadm-online-restore \
-              wrapper/mbadm-online-update \
-              wrapper/mbadm-tap-registration \
-              wrapper/mbbackup \
-              wrapper/mbbackup-incremental \
-              wrapper/mbdbconvert \
-              wrapper/mbdbmaint \
-              wrapper/mbdbupgrade \
-              wrapper/mbflushctl \
-              wrapper/mbrestore \
-              wrapper/mbstats \
-              wrapper/mbvbucketctl
+              wrapper/cbadm-online-restore \
+              wrapper/cbadm-online-update \
+              wrapper/cbadm-tap-registration \
+              wrapper/cbbackup \
+              wrapper/cbbackup-incremental \
+              wrapper/cbdbconvert \
+              wrapper/cbdbmaint \
+              wrapper/cbdbupgrade \
+              wrapper/cbflushctl \
+              wrapper/cbrestore \
+              wrapper/cbstats \
+              wrapper/cbvbucketctl
 
 memcachedlibdir = $(libdir)/memcached
 memcachedlib_LTLIBRARIES = ep.la ep_testsuite.la timing_tests.la
 noinst_LTLIBRARIES = libkvstore.la libobjectregistry.la
 
-bin_PROGRAMS = management/mbdbconvert
+bin_PROGRAMS = management/cbdbconvert
 BUILT_SOURCES =
 CLEANFILES = mbbackup-0001.mbb mbbackup-0002.mbb
 
@@ -27,14 +27,14 @@ noinst_PROGRAMS = sizes
 
 man_MANS =
 if BUILD_DOCS
-man_MANS += mbadm-online-update.1m \
-            mbbackup-incremental.1m
+man_MANS += cbadm-online-update.1m \
+            cbbackup-incremental.1m
 endif
 
-mbadm-online-update.1m: docs/mbadm-online-update.pod
+cbadm-online-update.1m: docs/cbadm-online-update.pod
 	${POD2MAN} -c "$*" -r "" -s 1m $< $@
 
-mbbackup-incremental.1m: docs/mbbackup-incremental.pod
+cbbackup-incremental.1m: docs/cbbackup-incremental.pod
 	${POD2MAN} -c "$*" -r "" -s 1m $< $@
 
 ep_la_CPPFLAGS = -I$(top_srcdir) $(AM_CPPFLAGS)
@@ -104,24 +104,24 @@ ep_la_DEPENDENCIES = libkvstore.la libobjectregistry.la
 ep_testsuite_la_LIBADD = libkvstore.la libobjectregistry.la
 ep_testsuite_la_DEPENDENCIES = libkvstore.la libobjectregistry.la
 
-management_mbdbconvert_SOURCES = management/dbconvert.cc \
+management_cbdbconvert_SOURCES = management/dbconvert.cc \
                                  testlogger.cc
-management_mbdbconvert_LDADD = libkvstore.la libobjectregistry.la
-management_mbdbconvert_DEPENDENCIES = libkvstore.la libobjectregistry.la
+management_cbdbconvert_LDADD = libkvstore.la libobjectregistry.la
+management_cbdbconvert_DEPENDENCIES = libkvstore.la libobjectregistry.la
 
 if BUILD_EMBEDDED_LIBSQLITE3
 ep_la_LIBADD += libsqlite3.la
 ep_la_DEPENDENCIES += libsqlite3.la
 ep_testsuite_la_LIBADD += libsqlite3.la
 ep_testsuite_la_DEPENDENCIES += libsqlite3.la
-management_mbdbconvert_LDADD += libsqlite3.la
-management_mbdbconvert_DEPENDENCIES += libsqlite3.la
+management_cbdbconvert_LDADD += libsqlite3.la
+management_cbdbconvert_DEPENDENCIES += libsqlite3.la
 noinst_LTLIBRARIES += libsqlite3.la
 bin_PROGRAMS += management/sqlite3
 else
 ep_la_LIBADD += $(LIBSQLITE3)
 ep_testsuite_la_LIBADD += $(LIBSQLITE3)
-management_mbdbconvert_LDADD += $(LIBSQLITE3)
+management_cbdbconvert_LDADD += $(LIBSQLITE3)
 endif
 
 libsqlite3_la_SOURCES = embedded/sqlite3.h embedded/sqlite3.c
@@ -286,7 +286,7 @@ hrtime_test_SOURCES += gethrtime.c
 dispatcher_test_SOURCES += gethrtime.c
 vbucket_test_SOURCES += gethrtime.c
 checkpoint_test_SOURCES += gethrtime.c
-management_mbdbconvert_SOURCES += gethrtime.c
+management_cbdbconvert_SOURCES += gethrtime.c
 ep_testsuite_la_SOURCES += gethrtime.c
 endif
 
@@ -305,32 +305,32 @@ pythonlib_DATA= \
                 management/tap_example.py
 
 pythonlib_SCRIPTS= \
-                management/mbadm-online-restore \
-                management/mbadm-online-update \
-                management/mbadm-tap-registration \
-                management/mbbackup \
-                management/mbbackup-incremental \
-                management/mbdbconvert \
-                management/mbdbmaint \
-                management/mbdbupgrade \
-                management/mbflushctl \
-                management/mbrestore \
-                management/mbstats \
-                management/mbvbucketctl
+                management/cbadm-online-restore \
+                management/cbadm-online-update \
+                management/cbadm-tap-registration \
+                management/cbbackup \
+                management/cbbackup-incremental \
+                management/cbdbconvert \
+                management/cbdbmaint \
+                management/cbdbupgrade \
+                management/cbflushctl \
+                management/cbrestore \
+                management/cbstats \
+                management/cbvbucketctl
 
 PYTHON_TOOLS= \
-              wrapper/mbadm-online-restore \
-              wrapper/mbadm-online-update \
-              wrapper/mbadm-tap-registration \
-              wrapper/mbbackup \
-              wrapper/mbbackup-incremental \
-              wrapper/mbdbconvert \
-              wrapper/mbdbmaint \
-              wrapper/mbdbupgrade \
-              wrapper/mbflushctl \
-              wrapper/mbrestore \
-              wrapper/mbstats \
-              wrapper/mbvbucketctl
+              wrapper/cbadm-online-restore \
+              wrapper/cbadm-online-update \
+              wrapper/cbadm-tap-registration \
+              wrapper/cbbackup \
+              wrapper/cbbackup-incremental \
+              wrapper/cbdbconvert \
+              wrapper/cbdbmaint \
+              wrapper/cbdbupgrade \
+              wrapper/cbflushctl \
+              wrapper/cbrestore \
+              wrapper/cbstats \
+              wrapper/cbvbucketctl
 
 ${PYTHON_TOOLS}: wrapper/wrapper
 	cp $< $@

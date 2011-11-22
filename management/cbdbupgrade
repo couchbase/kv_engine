@@ -122,7 +122,7 @@ def doset(sqlite, src, dest):
     v = version(sqlite, src)
     print 'Source version from "%s" is %d' % (src, v)
 
-    args = [findCmd('mbdbconvert')]
+    args = [findCmd('cbdbconvert')]
     if v < 2:
         args.append("--remove-crlf")
     if os.path.exists(src + '-0.mb'):
@@ -134,9 +134,9 @@ def doset(sqlite, src, dest):
     args.append("--report-every=2000")
     mydir = os.path.dirname(sys.argv[0])
     if os.name == 'nt':
-        init_file = os.path.join(mydir, '..', 'etc', 'membase', 'init.sql')
+        init_file = os.path.join(mydir, '..', 'etc', 'couchbase', 'init.sql')
     else:
-        init_file = os.path.join(mydir, '..', '..', 'etc', 'membase', 'init.sql')
+        init_file = os.path.join(mydir, '..', '..', 'etc', 'couchbase', 'init.sql')
     args.append("--init-file=" + init_file)
 
     print " ".join(args)
