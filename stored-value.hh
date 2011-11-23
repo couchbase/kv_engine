@@ -883,7 +883,7 @@ public:
 
     size_t memorySize() {
         return sizeof(HashTable)
-            + (size * sizeof(StoredValue*))
+            + (numItems * sizeof(StoredValue*))
             + (n_locks * sizeof(Mutex));
     }
 
