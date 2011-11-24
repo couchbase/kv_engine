@@ -10,6 +10,7 @@
 #include "kvstore.hh"
 #include "sqlite-kvstore.hh"
 #include "mc-kvstore/mc-kvstore.hh"
+#include "blackhole-kvstore/blackhole.hh"
 
 KVStore *KVStoreFactory::create(EventuallyPersistentEngine &theEngine) {
     Configuration &c = theEngine.getConfiguration();
@@ -19,6 +20,8 @@ KVStore *KVStoreFactory::create(EventuallyPersistentEngine &theEngine) {
         return SqliteKVStoreFactory::create(theEngine);
     } else if (backend.compare("couchdb") == 0) {
         return new MCKVStore(theEngine);
+    } else if (backend.compare("blackhole") == 0) {
+        return new BlackholeKVStore(theEngine);
     } else {
         getLogger()->log(EXTENSION_LOG_WARNING, NULL, "Unknown backend: [%s]",
                 backend.c_str());

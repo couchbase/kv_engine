@@ -21,6 +21,7 @@ pkginclude_HEADERS = command_ids.h
 memcachedlibdir = $(libdir)/memcached
 memcachedlib_LTLIBRARIES = ep.la ep_testsuite.la timing_tests.la
 noinst_LTLIBRARIES = \
+                     libblackhole-kvstore.la \
                      libconfiguration.la \
                      libkvstore.la \
                      libmc-kvstore.la \
@@ -118,6 +119,10 @@ libsqlite_kvstore_la_CPPFLAGS = -I$(top_srcdir) -I$(top_srcdir)/sqlite-kvstore \
 libsqlite_kvstore_la_LIBADD =
 libsqlite_kvstore_la_DEPENDENCIES =
 
+libblackhole_kvstore_la_SOURCES = kvstore.hh \
+                                  blackhole-kvstore/blackhole.cc \
+                                  blackhole-kvstore/blackhole.hh
+
 libmc_kvstore_la_SOURCES = kvstore.hh \
                            mc-kvstore/mc-engine.cc \
                            mc-kvstore/mc-engine.hh \
@@ -141,19 +146,27 @@ libconfiguration_la_SOURCES = \
                               configuration.cc
 
 ep_la_LIBADD = libkvstore.la libsqlite-kvstore.la libmc-kvstore.la \
+               libblackhole-kvstore.la \
                libobjectregistry.la libconfiguration.la $(LTLIBEVENT)
-ep_la_DEPENDENCIES = libkvstore.la libsqlite-kvstore.la libmc-kvstore.la \
-                     libobjectregistry.la libconfiguration.la
-ep_testsuite_la_LIBADD = libkvstore.la libsqlite-kvstore.la libmc-kvstore.la \
-                         libobjectregistry.la libconfiguration.la $(LTLIBEVENT)
-ep_testsuite_la_DEPENDENCIES = libkvstore.la libsqlite-kvstore.la libmc-kvstore.la \
+ep_la_DEPENDENCIES = libkvstore.la libsqlite-kvstore.la	\
+               libmc-kvstore.la libblackhole-kvstore.la	\
+               libobjectregistry.la libconfiguration.la
+ep_testsuite_la_LIBADD = libkvstore.la libsqlite-kvstore.la		\
+                         libmc-kvstore.la libblackhole-kvstore.la	\
+                         libobjectregistry.la libconfiguration.la	\
+                         $(LTLIBEVENT)
+ep_testsuite_la_DEPENDENCIES = libkvstore.la libsqlite-kvstore.la	\
+                               libmc-kvstore.la				\
+                               libblackhole-kvstore.la			\
                                libobjectregistry.la
 
 management_cbdbconvert_SOURCES = atomic.cc mutex.cc management/dbconvert.cc \
                                  testlogger.cc
-management_cbdbconvert_LDADD = libkvstore.la libsqlite-kvstore.la libmc-kvstore.la \
-                               libobjectregistry.la libconfiguration.la \
-                               $(LTLIBEVENT)
+management_cbdbconvert_LDADD = libkvstore.la libsqlite-kvstore.la	\
+                               libmc-kvstore.la				\
+                               libblackhole-kvstore.la			\
+                               libobjectregistry.la			\
+                               libconfiguration.la $(LTLIBEVENT)
 management_cbdbconvert_DEPENDENCIES = libkvstore.la libsqlite-kvstore.la libmc-kvstore.la \
                                       libobjectregistry.la libconfiguration.la
 
