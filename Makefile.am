@@ -102,6 +102,7 @@ libkvstore_la_CPPFLAGS = -I$(top_srcdir) -I$(top_srcdir)/sqlite-kvstore \
                          $(AM_CPPFLAGS)
 
 libsqlite_kvstore_la_SOURCES = kvstore.hh \
+                               sqlite-kvstore/factory.cc \
                                sqlite-kvstore/pathexpand.hh \
                                sqlite-kvstore/pathexpand.cc \
                                sqlite-kvstore/sqlite-eval.cc \

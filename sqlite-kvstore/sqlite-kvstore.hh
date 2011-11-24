@@ -20,6 +20,38 @@
 class EventuallyPersistentEngine;
 class EPStats;
 
+
+class SqliteKVStoreFactory {
+public:
+
+    /**
+     * Create a KVStore with the given properties.
+     *
+     * @param type the type of DB to set up
+     * @param stats the server stats
+     * @param conf type-specific parameters
+     */
+    static KVStore *create(EventuallyPersistentEngine &theEngine);
+
+    /**
+     * Get the name of a db type.
+     */
+    static const char* typeToString(enum db_type type);
+
+    /**
+     * Get the type for a given name.
+     *
+     * @param name the name to parse
+     * @param typeOut a reference to a type to fill
+     *
+     * @return true if we were able to parse the type
+     */
+    static bool stringToType(std::string name,
+                             enum db_type &typeOut);
+
+};
+
+
 /**
  * A persistence store based on sqlite that uses a SqliteStrategy to
  * configure itself.

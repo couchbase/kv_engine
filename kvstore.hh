@@ -272,22 +272,6 @@ public:
      * @param conf type-specific parameters
      */
     static KVStore *create(EventuallyPersistentEngine &theEngine);
-
-    /**
-     * Get the name of a db type.
-     */
-    static const char* typeToString(enum db_type type);
-
-    /**
-     * Get the type for a given name.
-     *
-     * @param name the name to parse
-     * @param typeOut a reference to a type to fill
-     *
-     * @return true if we were able to parse the type
-     */
-    static bool stringToType(std::string name,
-                             enum db_type &typeOut);
 };
 
 #endif // KVSTORE_HH

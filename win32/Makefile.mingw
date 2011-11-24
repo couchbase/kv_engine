@@ -64,6 +64,7 @@ EP_ENGINE_CC_SRC = \
                  queueditem.cc \
                  restore_impl.cc \
                  sizes.cc \
+                 sqlite-kvstore/factory.cc \
                  sqlite-kvstore/pathexpand.cc \
                  sqlite-kvstore/sqlite-eval.cc \
                  sqlite-kvstore/sqlite-kvstore.cc \
@@ -99,6 +100,7 @@ ${GEN_CONFIG}: configuration.json
 
 LIBSQLITE_KVSTORE_CC_SRC = \
          kvstore.cc \
+         sqlite-kvstore/factory.cc \
          sqlite-kvstore/pathexpand.cc \
          sqlite-kvstore/sqlite-eval.cc \
          sqlite-kvstore/sqlite-kvstore.cc \

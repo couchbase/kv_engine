@@ -45,7 +45,7 @@ static KVStore *getStore(EPStats &st,
                          const char *initFile = NULL) {
     db_type dbStrategy = multi_db;
 
-    if (!KVStoreFactory::stringToType(strategyName, dbStrategy)) {
+    if (!SqliteKVStoreFactory::stringToType(strategyName, dbStrategy)) {
         cerr << "Unable to parse strategy type:  " << strategyName << endl;
         exit(EX_USAGE);
     }
