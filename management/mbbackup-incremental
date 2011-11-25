@@ -313,7 +313,7 @@ def loop(mc, db, timeout, txn_size, source):
                 update_count = 0
 
             if needAck:
-                mc._sendMsg(cmd, key, val, opaque,
+                mc._sendMsg(cmd, '', '', opaque,
                             vbucketId=0,
                             fmt=memcacheConstants.RES_PKT_FMT,
                             magic=memcacheConstants.RES_MAGIC_BYTE)
