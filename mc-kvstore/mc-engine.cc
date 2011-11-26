@@ -1053,7 +1053,7 @@ void MemcachedEngine::delq(const Item &itm, Callback<int> &cb) {
     sendIov[1].iov_len = key.length();
 
     numiovec = 2;
-    sendCommand(new DelResponseHandler(seqno, epStats, cb));
+    sendCommand(new DelResponseHandler(seqno++, epStats, cb));
 }
 
 void MemcachedEngine::setmq(const Item &it, Callback<mutation_result> &cb) {
