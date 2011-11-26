@@ -1107,7 +1107,7 @@ void MemcachedEngine::get(const std::string &key, uint16_t vb,
     sendIov[1].iov_base = const_cast<char*>(key.c_str());
     sendIov[1].iov_len = key.length();
     numiovec = 2;
-    sendCommand(new GetResponseHandler(seqno, epStats, key, vb, cb));
+    sendCommand(new GetResponseHandler(seqno++, epStats, key, vb, cb));
     wait();
 }
 
