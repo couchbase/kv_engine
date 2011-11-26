@@ -67,7 +67,11 @@ def main():
 
     backup_files = []
     for file in input_files:
-        backup_files.extend(glob.glob(file))
+        bfiles = glob.glob(file)
+        if len(bfiles) == 0:
+            err_msg = "Backup file '%s' does not exist!!!" % (file)
+            exit(err_msg)
+        backup_files.extend(bfiles)
 
     ## Sort the backup files alphabetically and then reverse them so that the most recent
     ## backup file becomes the first element in the list.
