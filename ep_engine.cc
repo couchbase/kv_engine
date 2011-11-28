@@ -296,6 +296,11 @@ extern "C" {
                 validate(vsize, static_cast<uint64_t>(0),
                          std::numeric_limits<uint64_t>::max());
                 e->setExpiryPagerSleeptime((size_t)vsize);
+            } else if (strcmp(keyz, "tap_throttle_queue_cap") == 0) {
+                char *ptr = NULL;
+                EPStats &stats = e->getEpStats();
+                size_t vsize = strtoul(valz, &ptr, 10);
+                stats.tapThrottleWriteQueueCap = vsize;
             } else {
                 *msg = "Unknown config param";
                 rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
@@ -1045,7 +1050,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         size_t maxSize = 0;
         float mutation_mem_threshold = 0;
 
-        const int max_items = 51;
+        const int max_items = 52;
         struct config_item items[max_items];
         int ii = 0;
         memset(items, 0, sizeof(items));
@@ -1316,6 +1321,13 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         items[ii].value.dt_float = &mutation_mem_threshold;
 
         ++ii;
+        size_t tap_throttle_write_queue_cap;
+        int tap_throttle_queue_cap_idx = ii;
+        items[ii].key = "tap_throttle_queue_cap";
+        items[ii].datatype = DT_SIZE;
+        items[ii].value.dt_size = &tap_throttle_write_queue_cap;
+
+        ++ii;
         items[ii].key = NULL;
 
         assert(ii < max_items);
@@ -1381,6 +1393,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
 
             if (items[backfill_resident_threshold_idx].found) {
                 BackFillVisitor::setResidentItemThreshold(backfill_resident_threshold);
+            }
+
+            if (items[tap_throttle_queue_cap_idx].found) {
+                stats.tapThrottleWriteQueueCap = tap_throttle_write_queue_cap;
+            } else {
+                stats.tapThrottleWriteQueueCap = 1000000;
             }
 
             if (dbs != NULL) {
@@ -2613,6 +2631,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     add_casted_stat("ep_expired", epstats.expired, add_stat, cookie);
     add_casted_stat("ep_item_flush_expired",
                     epstats.flushExpired, add_stat, cookie);
+    add_casted_stat("ep_tap_throttle_queue_cap",
+                    epstats.tapThrottleWriteQueueCap, add_stat, cookie);
     add_casted_stat("ep_queue_size",
                     epstats.queue_size, add_stat, cookie);
     add_casted_stat("ep_flusher_todo",

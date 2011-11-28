@@ -4,11 +4,10 @@
 #include "tapthrottle.hh"
 
 const double TAP_THROTTLE_MEM_THRESHOLD(0.9);
-const size_t MAXIMUM_QUEUE(1000000);
 
 bool TapThrottle::persistenceQueueSmallEnough() const {
     size_t queueSize = stats.queue_size.get() + stats.flusher_todo.get();
-    return queueSize < MAXIMUM_QUEUE;
+    return queueSize < stats.tapThrottleWriteQueueCap;
 }
 
 bool TapThrottle::hasSomeMemory() const {

@@ -37,6 +37,8 @@ public:
     Atomic<size_t> warmDups;
     //! Number of OOM failures at warmup time.
     Atomic<size_t> warmOOM;
+    //! The tap throttle write queue cap
+    Atomic<size_t> tapThrottleWriteQueueCap;
 
     //! size of the input queue
     Atomic<size_t> queue_size;
