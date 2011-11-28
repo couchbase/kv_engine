@@ -12,6 +12,7 @@
 *.tcov
 *~
 .deps/
+.DS_Store
 .generated_configuration
 .genstamp
 .libs/
