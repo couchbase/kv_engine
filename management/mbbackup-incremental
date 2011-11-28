@@ -227,13 +227,13 @@ def loop(mc, db, timeout, txn_size, source):
                         "(vbucket_id, cpoint_id, seq, op, key, flg, exp, cas, val)" \
                         " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
                     c.execute(s, (vbucketId, checkpointId, seq, cmdOp,
-                                   key, flg, exp, cas, val))
+                                   key, flg, exp, cas, sqlite3.Binary(val)))
                 else:
                     s = "INSERT into cpoint_op" \
                         "(vbucket_id, cpoint_id, seq, op, key, cas, val)" \
                         " VALUES (?, ?, ?, ?, ?, ?, ?)"
                     c.execute(s, (vbucketId, checkpointId, seq, cmdOp,
-                                   key, cas, val))
+                                   key, cas, sqlite3.Binary(val)))
 
                 update_count = update_count + 1
                 needAck = flags & memcacheConstants.TAP_FLAG_ACK
@@ -366,7 +366,7 @@ def createSchema(db):
 BEGIN;
 CREATE TABLE cpoint_op
   (vbucket_id integer, cpoint_id integer, seq integer, op text,
-   key varchar(250), flg integer, exp integer, cas integer, val text);
+   key varchar(250), flg integer, exp integer, cas integer, val blob);
 CREATE TABLE cpoint_state
   (vbucket_id integer, cpoint_id integer, prev_cpoint_id integer, state varchar(1),
    source varchar(250), updated_at text);
