@@ -1,8 +1,12 @@
 #!/usr/bin/env python
 import os
 import sys
+import glob
 import getopt
 import exceptions
+import string
+import traceback
+import time
 import mc_bin_client
 import memcacheConstants
 
@@ -12,7 +16,7 @@ DEFAULT_HOST_PORT = ["127.0.0.1", DEFAULT_PORT]
 def usage(err=0):
     print >> sys.stderr, """
 
-Usage: %s [-h %s[:%s]] [-f filename] [-c]
+Usage: %s [-h %s[:%s]] [-c] [-v] incremental_backup_file1 incremental_backup_file2 ...
 
 """ % (os.path.basename(sys.argv[0]),
        DEFAULT_HOST_PORT[0], DEFAULT_HOST_PORT[1])
@@ -20,12 +24,12 @@ Usage: %s [-h %s[:%s]] [-f filename] [-c]
 
 def parse_args(args):
     host_port = DEFAULT_HOST_PORT
-    filename = ''
-    finish = 0
+    finish = False
     status = 0
+    verbosity = 0
 
     try:
-        opts, args = getopt.getopt(args, 'h:f:c', ['help', 'host=', 'finish', 'file='])
+        opts, args = getopt.getopt(args, 'h:cv', ['help', 'host=', 'finish'])
     except getopt.GetoptError, e:
         usage(e.msg)
 
@@ -36,33 +40,67 @@ def parse_args(args):
             host_port = a.split(':')
             if len(host_port) < 2:
                 host_port = [a, DEFAULT_PORT]
-        elif o == '-f' or o == '--file':
-            filename = a
         elif o == '-c' or o == '--finish':
-            finish = 1
+            finish = True
+        elif o == '-v':
+            verbosity = verbosity + 1
         else:
             usage("unknown option - " + o)
 
-    if len(filename) == 0 and finish == 0:
+    if not args and finish == False:
         usage("You need to specify one operation")
 
-    return host_port, filename, finish
+    return host_port, finish, args, verbosity
+
+def log(level, *args):
+    global verbosity
+    if level < verbosity:
+        s = ", ".join(list(args))
+        print string.rjust(s, (level * 2) + len(s))
+
+def wait_for_restore_state_change(mc):
+    done = False
+    while not done:
+        restore_stats = mc.stats('restore')
+        restore_state = restore_stats['ep_restore:state']
+        if restore_state != "zombie":
+            time.sleep(1)
+        else:
+            done = True
 
 if __name__ == '__main__':
-    global mc
-    host_port, filename, finish = parse_args(sys.argv[1:])
+    global verbosity
+
+    host_port, finish, input_files, verbosity = parse_args(sys.argv[1:])
+    log(1, "complete restore mode = " + str(finish))
+    log(1, "incremental backup files = " + ' '.join(input_files))
+    log(1, "verbosity = " + str(verbosity) + "\n")
 
     mc = mc_bin_client.MemcachedClient(host_port[0], int(host_port[1]))
 
     try:
-        if len(filename) > 0:
-            fnm = os.path.realpath(filename)
-            if not os.path.exists(fnm):
-                sys.exit("ERROR: no such file: " + filename)
-            mc.restore_file(fnm)
+        backup_files = []
+        for file in input_files:
+            bfiles = glob.glob(file)
+            if len(bfiles) == 0:
+                err_msg = "Backup file '%s' does not exist!!!" % (file)
+                exit(err_msg)
+            backup_files.extend(bfiles)
+        ## Sort the backup files alphabetically and then reverse them so that the most recent
+        ## backup file becomes the first element in the list.
+        ## (e.g., ['backup-003.mbb', 'backup-002.mbb', 'backup-001'.mbb'])
+        backup_files.sort()
+        backup_files.reverse()
 
-        if finish == 1:
+        for bfile in backup_files:
+            filepath = os.path.realpath(bfile)
+            log(1, "Restoring an incremental backup file: \"%s\"" % filepath)
+            mc.restore_file(filepath)
+            wait_for_restore_state_change(mc)
+
+        if finish == True:
             mc.restore_complete()
+            log(1, "Restore mode opeartion completed!!!\n")
 
     except mc_bin_client.MemcachedError as ne:
         sys.exit("ERROR: " + str(ne))
