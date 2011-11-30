@@ -161,31 +161,6 @@ private:
 };
 
 /**
- * Wake up connections blocked on pending vbuckets when their state
- * changes.
- */
-class NotifyVBStateChangeCallback : public DispatcherCallback {
-public:
-    NotifyVBStateChangeCallback(RCPtr<VBucket> vb, EventuallyPersistentEngine &e)
-        : vbucket(vb), engine(e) { }
-
-    bool callback(Dispatcher &, TaskId) {
-        vbucket->fireAllOps(engine);
-        return false;
-    }
-
-    std::string description() {
-        std::stringstream ss;
-        ss << "Notifying state change of vbucket " << vbucket->getId();
-        return ss.str();
-    }
-
-private:
-    RCPtr<VBucket>              vbucket;
-    EventuallyPersistentEngine &engine;
-};
-
-/**
  * Dispatcher job to perform fast vbucket deletion.
  */
 class FastVBucketDeletionCallback : public DispatcherCallback {
@@ -478,6 +453,16 @@ RCPtr<VBucket> EventuallyPersistentStore::getVBucket(uint16_t vbid,
     }
 }
 
+void EventuallyPersistentStore::firePendingVBucketOps() {
+    uint16_t i;
+    for (i = 0; i < vbuckets.getSize(); i++) {
+        RCPtr<VBucket> vb = getVBucket(i, vbucket_state_active);
+        if (vb) {
+            vb->fireAllOps(engine);
+        }
+    }
+}
+
 /// @cond DETAILS
 /**
  * Inner loop of deleteExpiredItems.
@@ -757,10 +742,9 @@ void EventuallyPersistentStore::setVBucketState(uint16_t vbid,
     if (vb) {
         vb->setState(to, engine.getServerApi());
         lh.unlock();
-        nonIODispatcher->schedule(shared_ptr<DispatcherCallback>
-                                             (new NotifyVBStateChangeCallback(vb,
-                                                                        engine)),
-                                  NULL, Priority::NotifyVBStateChangePriority, 0, false);
+        if (vb->getState() == vbucket_state_pending && to == vbucket_state_active) {
+            engine.getTapConnMap().notify();
+        }
         scheduleVBSnapshot(Priority::VBucketPersistLowPriority);
     } else {
         RCPtr<VBucket> newvb(new VBucket(vbid, to, stats));
@@ -1663,12 +1647,8 @@ protocol_binary_response_status EventuallyPersistentStore::revertOnlineUpdate(RC
 
     //Stop the hot reload process
     vb->checkpointManager.endHotReload(total);
+    engine.getTapConnMap().notify();
 
-    //Notify all the blocked client requests
-    nonIODispatcher->schedule(shared_ptr<DispatcherCallback>
-                                             (new NotifyVBStateChangeCallback(vb,
-                                                                        engine)),
-                                  NULL, Priority::NotifyVBStateChangePriority, 0, false);
     return rv;
 }
 

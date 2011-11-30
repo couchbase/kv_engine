@@ -86,7 +86,10 @@ void VBucket::fireAllOps(EventuallyPersistentEngine &engine, ENGINE_ERROR_CODE c
             stats.pendingOpsHisto.add(d);
             stats.pendingOpsMaxDuration.setIfBigger(d);
         }
+    } else {
+        return;
     }
+
     pendingOpsStart = 0;
     stats.pendingOps.decr(pendingOps.size());
     stats.pendingOpsMax.setIfBigger(pendingOps.size());

@@ -675,6 +675,8 @@ public:
     vbucket_del_result completeVBucketDeletion(uint16_t vbid, uint16_t vbver);
     bool deleteVBucket(uint16_t vbid);
 
+    void firePendingVBucketOps();
+
     /**
      * Reset a given vbucket from memory and disk. This differs from vbucket deletion in that
      * it does not delete the vbucket instance from memory hash table.

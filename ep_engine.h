@@ -48,7 +48,7 @@ extern "C" {
     ENGINE_ERROR_CODE create_instance(uint64_t interface,
                                       GET_SERVER_API get_server_api,
                                       ENGINE_HANDLE **handle);
-    void *EvpNotifyTapIo(void*arg);
+    void *EvpNotifyPendingConns(void*arg);
 
     EXPORT_FUNCTION
     ENGINE_ERROR_CODE getLocked(EventuallyPersistentEngine *e,
@@ -647,8 +647,8 @@ private:
         }
     }
 
-    friend void *EvpNotifyTapIo(void*arg);
-    void notifyTapIoThread(void);
+    friend void *EvpNotifyPendingConns(void*arg);
+    void notifyPendingConnections(void);
 
     friend class BackFillVisitor;
     friend class TapBGFetchCallback;

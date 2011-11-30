@@ -941,9 +941,9 @@ extern "C" {
         return ENGINE_SUCCESS;
     }
 
-    void *EvpNotifyTapIo(void*arg) {
+    void *EvpNotifyPendingConns(void*arg) {
         ObjectRegistry::onSwitchThread(static_cast<EventuallyPersistentEngine*>(arg));
-        static_cast<EventuallyPersistentEngine*>(arg)->notifyTapIoThread();
+        static_cast<EventuallyPersistentEngine*>(arg)->notifyPendingConnections();
         return NULL;
     }
 
@@ -2447,8 +2447,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::processTapAck(const void *cookie,
 void EventuallyPersistentEngine::startEngineThreads(void)
 {
     assert(!startedEngineThreads);
-    if (pthread_create(&notifyThreadId, NULL, EvpNotifyTapIo, this) != 0) {
-        throw std::runtime_error("Error creating thread to notify Tap connections");
+    if (pthread_create(&notifyThreadId, NULL, EvpNotifyPendingConns, this) != 0) {
+        throw std::runtime_error("Error creating thread to notify pending connections");
     }
     startedEngineThreads = true;
 }
@@ -3566,10 +3566,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
     return rv;
 }
 
-void EventuallyPersistentEngine::notifyTapIoThread(void) {
+void EventuallyPersistentEngine::notifyPendingConnections(void) {
     // Fix clean shutdown!!!
     while (!shutdown) {
         tapConnMap.notifyIOThreadMain();
+        epstore->firePendingVBucketOps();
 
         if (shutdown) {
             return;
