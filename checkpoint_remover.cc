@@ -25,7 +25,7 @@ public:
         // If the new checkpoint is created, notify this event to the tap notify IO thread
         // so that it can then signal all paused TAP connections.
         if (newCheckpointCreated) {
-            store->getEPEngine().notifyTapNotificationThread();
+            store->getEPEngine().notifyNotificationThread();
         }
         update();
         return false;

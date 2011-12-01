@@ -657,7 +657,7 @@ ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
         lh.unlock();
 
         if (notifyTapNotificationThread || doTakeOver) {
-            engine.notifyTapNotificationThread();
+            engine.notifyNotificationThread();
         }
 
         if (complete() && idle()) {

@@ -743,7 +743,7 @@ void EventuallyPersistentStore::setVBucketState(uint16_t vbid,
         vb->setState(to, engine.getServerApi());
         lh.unlock();
         if (vb->getState() == vbucket_state_pending && to == vbucket_state_active) {
-            engine.getTapConnMap().notify();
+            engine.notifyNotificationThread();
         }
         scheduleVBSnapshot(Priority::VBucketPersistLowPriority);
     } else {

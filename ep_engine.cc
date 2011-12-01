@@ -3580,7 +3580,7 @@ void EventuallyPersistentEngine::notifyPendingConnections(void) {
     }
 }
 
-void EventuallyPersistentEngine::notifyTapNotificationThread(void) {
+void EventuallyPersistentEngine::notifyNotificationThread(void) {
     tapConnMap.notify();
 }
 

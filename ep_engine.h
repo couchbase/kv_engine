@@ -548,7 +548,7 @@ public:
         return syncRegistry;
     }
 
-    void notifyTapNotificationThread(void);
+    void notifyNotificationThread(void);
     void setTapValidity(const std::string &name, const void* token);
 
     ENGINE_ERROR_CODE handleRestoreCmd(const void* cookie,
