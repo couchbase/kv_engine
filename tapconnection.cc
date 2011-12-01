@@ -1325,7 +1325,7 @@ queued_item TapProducer::next(bool &shouldPause) {
     if (!queue->empty()) {
         queued_item qi = queue->front();
         queue->pop_front();
-        --queueSize;
+        queueSize = queue->empty() ? 0 : --queueSize;
         if (queueMemSize > sizeof(queued_item)) {
             queueMemSize.decr(sizeof(queued_item));
         } else {
