@@ -4,6 +4,7 @@ Flush control for ep-engine.
 
 Copyright (c) 2010  Dustin Sallings <dustin@spy.net>
 """
+import sys
 import time
 
 import clitool
@@ -44,6 +45,18 @@ def evict(mc, key, username=None, password=""):
     auth(mc, username, password)
     mc.evict_key(key)
 
+def drain(mc, username=None, password=""):
+    auth(mc, username, password)
+    while True:
+        s = mc.stats()
+        if s['ep_queue_size'] == "0" and \
+           s['ep_flusher_todo'] == "0":
+           print("done")
+           return
+        time.sleep(2)
+        sys.stdout.write('.')
+        sys.stdout.flush()
+
 if __name__ == '__main__':
 
     c = clitool.CliTool("""
@@ -53,6 +66,7 @@ two parameters.
 Persistence:
     stop           - stop persistence
     start          - start persistence
+    drain          - wait until queues are drained
 
 Available params for "set":
     min_data_age   - minimum data age before flushing data
@@ -68,5 +82,6 @@ Available params for "set":
     c.addCommand('start', start, 'start')
     c.addCommand('set', set_param, 'set param value')
     c.addCommand('evict', evict, "evict key")
+    c.addCommand('drain', drain, "drain")
 
     c.execute()
