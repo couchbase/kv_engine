@@ -97,6 +97,8 @@ memcached like this:
 | sync_cmd_timeout       | int    | The timeout for SYNC requests in (ms)      |
 | mutation_mem_threshold | float  | Memory threshold on the current bucket     |
 |                        |        | quota for accepting a new mutation         |
+| tap_throttle_threshold | float  | Percentage of memory in use before we      |
+|                        |        | throttle tap streams                       |
 
 ** Shard Patterns
 

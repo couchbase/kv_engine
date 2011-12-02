@@ -282,7 +282,8 @@ For introductory information on stats within membase, start with the
 | ep_tap_queue_backoff     | Total back-off items                       |
 | ep_tap_queue_backfill    | Number of backfill remaining               |
 | ep_tap_queue_itemondisk  | Number of items remaining on disk          |
-
+| ep_tap_throttle_threshold     | Percentage of memory in use before we      |
+|                               | throttle tap streams                       |
 
 *** Per Tap Client Stats
 

@@ -243,6 +243,10 @@ extern "C" {
             } else if (strcmp(keyz, "bg_fetch_delay") == 0) {
                 validate(v, 0, MAX_BG_FETCH_DELAY);
                 e->setBGFetchDelay(static_cast<uint32_t>(v));
+            } else if (strcmp(keyz, "tap_throttle_threshold") == 0) {
+                validate(v, 0, 100);
+                EPStats &stats = e->getEpStats();
+                stats.tapThrottleThreshold = static_cast<double>(v) / 100.0;
             } else if (strcmp(keyz, "chk_max_items") == 0) {
                 validate(v, MIN_CHECKPOINT_ITEMS, MAX_CHECKPOINT_ITEMS);
                 CheckpointManager::setCheckpointMaxItems(v);
@@ -1047,8 +1051,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     size_t txnSize = 0;
     size_t tapIdleTimeout = (size_t)-1;
     size_t expiryPagerSleeptime = 3600;
+    float tapThrottleThreshold(-1);
 
     resetStats();
+
+    stats.tapThrottleThreshold = 0.9;
+
     if (config != NULL) {
         char *dbn = NULL, *shardPat = NULL, *initf = NULL, *pinitf = NULL,
             *svaltype = NULL, *dbs=NULL;
@@ -1057,7 +1065,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         size_t maxSize = 0;
         float mutation_mem_threshold = 0;
 
-        const int max_items = 52;
+        const int max_items = 53;
         struct config_item items[max_items];
         int ii = 0;
         memset(items, 0, sizeof(items));
@@ -1335,6 +1343,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         items[ii].value.dt_float = &mutation_mem_threshold;
 
         ++ii;
+        items[ii].key = "tap_throttle_threshold";
+        items[ii].datatype = DT_FLOAT;
+        items[ii].value.dt_float = &tapThrottleThreshold;
+
+        ++ii;
         items[ii].key = NULL;
 
         assert(ii < max_items);
@@ -1374,6 +1387,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
             if (items[tap_ack_initial_sequence_number_idx].found) {
                 uint32_t init_seq_num = (uint32_t)tap_ack_initial_sequence_number;
                 TapProducer::initialAckSequenceNumber = init_seq_num == 0 ? 1 : init_seq_num;
+            }
+
+            if (tapThrottleThreshold > 0) {
+                stats.tapThrottleThreshold = static_cast<double>(tapThrottleThreshold);
             }
 
             if (items[checkpoint_max_items_idx].found) {
@@ -3321,7 +3338,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTapStats(const void *cookie,
     add_casted_stat("ep_tap_backoff_period",
                     TapProducer::backoffSleepTime,
                     add_stat, cookie);
-
+    add_casted_stat("ep_tap_throttle_threshold",
+                    stats.tapThrottleThreshold * 100.0,
+                    add_stat, cookie);
 
     if (stats.tapBgNumOperations > 0) {
         add_casted_stat("ep_tap_bg_num_samples", stats.tapBgNumOperations,
