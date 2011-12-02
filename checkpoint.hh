@@ -164,6 +164,13 @@ public:
     }
 
     /**
+     * Return the list of all cursor names in this checkpoint
+     */
+    const std::set<std::string> &getCursorNameList() const {
+        return cursors;
+    }
+
+    /**
      * Queue an item to be written to persistent layer.
      * @param item the item to be persisted
      * @param checkpointManager the checkpoint manager to which this checkpoint belongs
@@ -460,6 +467,8 @@ private:
      * @param id the id of a checkpoint to be created.
      */
     bool addNewCheckpoint_UNLOCKED(uint64_t id);
+
+    void removeInvalidCursorsOnCheckpoint(Checkpoint *pCheckpoint);
 
     /**
      * Create a new open checkpoint and add it to the checkpoint list.
