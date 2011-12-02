@@ -9,7 +9,6 @@
 #include "ep_extension.h"
 #include "dispatcher.hh"
 #include "item_pager.hh"
-#include "sync_registry.hh"
 #include "observe_registry.hh"
 
 #include <cstdio>
@@ -467,12 +466,6 @@ public:
         return epstore->getLocked(key, vbucket, cb, currentTime, lockTimeout, cookie);
     }
 
-    ENGINE_ERROR_CODE sync(std::set<key_spec_t> *keys,
-                           const void *cookie,
-                           sync_type_t syncType,
-                           uint8_t replicas,
-                           ADD_RESPONSE response);
-
     ENGINE_ERROR_CODE unlockKey(const std::string &key,
                                 uint16_t vbucket,
                                 uint64_t cas,
@@ -534,10 +527,6 @@ public:
 
     SERVER_HANDLE_V1* getServerApi() { return serverApi; }
 
-    SyncRegistry &getSyncRegistry() {
-        return syncRegistry;
-    }
-
     ObserveRegistry &getObserveRegistry() {
         return observeRegistry;
     }
@@ -573,20 +562,8 @@ public:
         return getlMaxTimeout;
     }
 
-    size_t getSyncCmdTimeout() const {
-        return syncTimeout;
-    }
-
     bool isDegradedMode() const {
         return warmingUp.get() || restore.enabled.get();
-    }
-
-    size_t maySyncOnPersist() const {
-        return syncOnPersist;
-    }
-
-    void setMaySyncOnPersist(bool to) {
-        syncOnPersist = to;
     }
 
 protected:
@@ -602,13 +579,6 @@ protected:
 
     void setGetlMaxTimeout(size_t value) {
         getlMaxTimeout = value;
-    }
-
-    /**
-     * Set the timeout for the SYNC command. Timeout is in milliseconds.
-     */
-    void setSyncCmdTimeout(size_t timeout) {
-        syncTimeout = timeout;
     }
 
 private:
@@ -669,7 +639,6 @@ private:
             tapConnMap->notify();
         }
         ++mutation_count;
-        syncRegistry.itemModified(*it);
         observeRegistry.itemModified(*it);
     }
 
@@ -678,7 +647,6 @@ private:
             tapConnMap->notify();
         }
         ++mutation_count;
-        syncRegistry.itemDeleted(key_spec_t(cas, vbid, key));
         observeRegistry.itemDeleted(key, cas, vbid);
     }
 
@@ -794,13 +762,10 @@ private:
     Atomic<uint64_t> mutation_count;
     size_t getlDefaultTimeout;
     size_t getlMaxTimeout;
-    size_t syncTimeout;
     EPStats stats;
-    SyncRegistry syncRegistry;
     ObserveRegistry observeRegistry;
     Configuration configuration;
     Atomic<bool> warmingUp;
-    bool syncOnPersist;
     struct {
         Mutex mutex;
         RestoreManager *manager;

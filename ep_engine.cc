@@ -32,18 +32,6 @@
 #include "htresizer.hh"
 #include "backfill.hh"
 
-static void assembleSyncResponse(std::stringstream &resp,
-                                 SyncListener *syncListener,
-                                 EventuallyPersistentStore &epstore);
-static void addSyncKeySpecs(std::stringstream &resp,
-                            std::set<key_spec_t> &keyspecs,
-                            uint8_t eventid,
-                            EventuallyPersistentStore &epstore,
-                            bool addCurrentCas = true);
-static bool parseSyncOptions(uint32_t flags, sync_type_t *syncType, uint8_t *replicas);
-static void notifyListener(std::vector< std::pair<StoredValue*, uint16_t> > &svList,
-                           SyncListener *listener);
-
 static size_t percentOf(size_t val, double percent) {
     return static_cast<size_t>(static_cast<double>(val) * percent);
 }
@@ -284,10 +272,6 @@ extern "C" {
                          std::numeric_limits<uint64_t>::max());
                 EPStats &stats = e->getEpStats();
                 stats.mem_high_wat = vsize;
-            } else if (strcmp(keyz, "sync_cmd_timeout") == 0) {
-                char *ptr = NULL;
-                size_t vsize = strtoul(valz, &ptr, 10);
-                e->getConfiguration().setSyncCmdTimeout(vsize);
             } else if (strcmp(keyz, "timing_log") == 0) {
                 EPStats &stats = e->getEpStats();
                 std::ostream *old = stats.timingLog;
@@ -528,120 +512,6 @@ extern "C" {
         return rv;
     }
 
-    static ENGINE_ERROR_CODE syncCmd(EventuallyPersistentEngine *e,
-                                     protocol_binary_request_header *request,
-                                     const void *cookie,
-                                     ADD_RESPONSE response) {
-        void *data = e->getServerApi()->cookie->get_engine_specific(cookie);
-
-        if (data != NULL) {
-            SyncListener *syncListener = static_cast<SyncListener *>(data);
-
-            if (!syncListener->isFinished()) {
-                syncListener->destroy();
-                if (response(NULL, 0, NULL, 0, NULL, 0, PROTOCOL_BINARY_RAW_BYTES,
-                             PROTOCOL_BINARY_RESPONSE_ETMPFAIL, 0, cookie)) {
-                    return ENGINE_SUCCESS;
-                } else {
-                    return ENGINE_FAILED;
-                }
-            } else {
-                std::stringstream resp;
-
-                assembleSyncResponse(resp, syncListener, *e->getEpStore());
-                syncListener->destroy();
-
-                std::string body = resp.str();
-                bool respSent = response(NULL, 0, NULL, 0,
-                                         body.c_str(),
-                                         static_cast<uint16_t>(body.length()),
-                                         PROTOCOL_BINARY_RAW_BYTES,
-                                         PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
-
-                return respSent ? ENGINE_SUCCESS : ENGINE_FAILED;
-            }
-        }
-
-        char *body = (char *) (request + 1);
-        off_t offset = 0;
-        // flags, 32 bits
-        uint32_t flags;
-
-        memcpy(&flags, body + offset, sizeof(uint32_t));
-        flags = ntohl(flags);
-        offset += sizeof(uint32_t);
-
-        uint8_t replicas;
-        sync_type_t syncType;
-        bool validFlags = parseSyncOptions(flags, &syncType, &replicas);
-
-        if (!validFlags) {
-            bool respSent = response(NULL, 0, NULL, 0, "", 0, PROTOCOL_BINARY_RAW_BYTES,
-                                     PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
-            return respSent ? ENGINE_SUCCESS : ENGINE_FAILED;
-        }
-
-        bool persistSyncDisabled(!e->maySyncOnPersist());
-        if (persistSyncDisabled && (syncType == PERSIST || syncType == REP_OR_PERSIST ||
-                                   syncType == REP_AND_PERSIST)) {
-
-            const std::string msg("SYNC for persistence is not supported.");
-            bool respSent = response(NULL, 0, NULL, 0, msg.c_str(), msg.length(),
-                                     PROTOCOL_BINARY_RAW_BYTES,
-                                     PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0, cookie);
-            return respSent ? ENGINE_SUCCESS : ENGINE_FAILED;
-        }
-
-        if (replicas > 1) {
-            // replica count > 1 not supported for chain mode replication, which is
-            // the default in Membase deployments (ticket MB-3817)
-            const std::string msg("A replica count > 1 is not supported.");
-            bool respSent = response(NULL, 0, NULL, 0, msg.c_str(), msg.length(),
-                                     PROTOCOL_BINARY_RAW_BYTES,
-                                     PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0, cookie);
-            return respSent ? ENGINE_SUCCESS : ENGINE_FAILED;
-        }
-
-        // number of keys in the request, 16 bits
-        uint16_t nkeys;
-
-        memcpy(&nkeys, body + offset, sizeof(uint16_t));
-        nkeys = ntohs(nkeys);
-        offset += sizeof(uint16_t);
-
-        // key specifications
-        std::set<key_spec_t> *keyset = new std::set<key_spec_t>();
-
-        for (int i = 0; i < nkeys; i++) {
-            // CAS, 64 bits
-            uint64_t cas;
-            memcpy(&cas, body + offset, sizeof(uint64_t));
-            cas = ntohll(cas);
-            offset += sizeof(uint64_t);
-
-            // vbucket id, 16 bits
-            uint16_t vbucketid;
-            memcpy(&vbucketid, body + offset, sizeof(uint16_t));
-            vbucketid = ntohs(vbucketid);
-            offset += sizeof(uint16_t);
-
-            // key length, 16 bits
-            uint16_t keylen;
-            memcpy(&keylen, body + offset, sizeof(uint16_t));
-            keylen = ntohs(keylen);
-            offset += sizeof(uint16_t);
-
-            // key string
-            std::string key(body + offset, keylen);
-            offset += keylen;
-
-            key_spec_t keyspec(cas, vbucketid, key);
-            keyset->insert(keyspec);
-        }
-
-        return e->sync(keyset, cookie, syncType, replicas, response);
-    }
-
     static ENGINE_ERROR_CODE observeCmd(EventuallyPersistentEngine *e,
                                         protocol_binary_request_header *request,
                                         const void *cookie,
@@ -864,9 +734,6 @@ extern "C" {
             break;
         case CMD_UNLOCK_KEY:
             res = unlockKey(h, request, &msg, &msg_size);
-            break;
-        case CMD_SYNC:
-            return syncCmd(h, request, cookie, response);
             break;
         case CMD_OBSERVE:
             return observeCmd(h, request, cookie, response);
@@ -1141,18 +1008,11 @@ public:
             engine.setGetlMaxTimeout(value);
         } else if (key.compare("getl_default_timeout") == 0) {
             engine.setGetlDefaultTimeout(value);
-        } else if (key.compare("sync_cmd_timeout") == 0) {
-            engine.setSyncCmdTimeout(value);
         } else if (key.compare("max_item_size") == 0) {
             engine.setMaxItemSize(value);
         }
     }
 
-    virtual void booleanValueChanged(const std::string &key, bool to) {
-        if (key.compare("sync_on_persist") == 0) {
-            engine.setMaySyncOnPersist(to);
-        }
-    }
 private:
     EventuallyPersistentEngine &engine;
 };
@@ -1204,12 +1064,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
                                           new EpEngineValueChangeListener(*this));
     getlMaxTimeout = configuration.getGetlMaxTimeout();
     configuration.addValueChangedListener("getl_max_timeout",
-                                          new EpEngineValueChangeListener(*this));
-    syncTimeout = configuration.getSyncCmdTimeout();
-    configuration.addValueChangedListener("sync_cmd_timeout",
-                                          new EpEngineValueChangeListener(*this));
-    syncOnPersist = configuration.isSyncOnPersist();
-    configuration.addValueChangedListener("sync_on_persist",
                                           new EpEngineValueChangeListener(*this));
 
     tapConnMap = new TapConnMap(*this);
@@ -1555,7 +1409,6 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
         if (!connection->supportsAck()) {
             if (gv.getStoredValue() != NULL) {
                 gv.getStoredValue()->incrementNumReplicas();
-                syncRegistry.itemReplicated(*it);
                 observeRegistry.itemReplicated(*it);
             } else {
                 getLogger()->log(EXTENSION_LOG_WARNING, NULL,
@@ -1611,7 +1464,6 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
 
                 if (!connection->supportsAck()) {
                     gv.getStoredValue()->incrementNumReplicas();
-                    syncRegistry.itemReplicated(*gv.getValue());
                     observeRegistry.itemReplicated(*gv.getValue());
                 }
 
@@ -1664,7 +1516,6 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
                 if (!connection->supportsAck()) {
                     if (sv && sv->getCas() == it->getCas()) {
                         sv->incrementNumReplicas();
-                        syncRegistry.itemReplicated(*it);
                         observeRegistry.itemReplicated(*it);
                     }
                 }
@@ -3561,86 +3412,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::onlineUpdate(const void *cookie,
                         PROTOCOL_BINARY_RAW_BYTES, rv, 0, cookie);
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentEngine::sync(std::set<key_spec_t> *keys,
-                                                   const void *cookie,
-                                                   sync_type_t syncType,
-                                                   uint8_t replicas,
-                                                   ADD_RESPONSE response) {
-
-    SyncListener *syncListener = new SyncListener(*this, cookie,
-                                                  keys, syncType, replicas);
-    std::vector< std::pair<StoredValue*, uint16_t> > storedValues;
-    std::set<key_spec_t>::iterator it = keys->begin();
-
-    while (it != keys->end()) {
-        StoredValue *sv = epstore->getStoredValue(it->key, it->vbucketid, false);
-
-        if (sv == NULL) {
-            syncListener->getNonExistentKeys().insert(*it);
-            keys->erase(it++);
-        } else {
-            if ((it->cas != 0) && (sv->getCas() != it->cas)) {
-                syncListener->getInvalidCasKeys().insert(*it);
-                keys->erase(it++);
-                continue;
-            }
-
-            std::pair<StoredValue*, uint16_t> pair(sv, it->vbucketid);
-            storedValues.push_back(pair);
-            ++it;
-        }
-    }
-
-    if (keys->size() == 0) {
-        std::stringstream resp;
-
-        assembleSyncResponse(resp, syncListener, *epstore);
-        syncListener->destroy();
-
-        std::string body = resp.str();
-        return sendResponse(response, NULL, 0, NULL, 0,
-                            body.c_str(), static_cast<uint16_t>(body.length()),
-                            PROTOCOL_BINARY_RAW_BYTES,
-                            PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
-    }
-
-    switch (syncType) {
-    case PERSIST:
-        syncRegistry.addPersistenceListener(syncListener);
-        notifyListener(storedValues, syncListener);
-        break;
-    case MUTATION:
-        syncRegistry.addMutationListener(syncListener);
-        break;
-    case REP:
-        syncRegistry.addReplicationListener(syncListener);
-        notifyListener(storedValues, syncListener);
-        break;
-    case REP_OR_PERSIST:
-    case REP_AND_PERSIST:
-        syncRegistry.addReplicationListener(syncListener);
-        syncRegistry.addPersistenceListener(syncListener);
-        notifyListener(storedValues, syncListener);
-    }
-
-    if (syncListener->maybeEnableNotifyIOComplete()) {
-        // Not all keys are SYNCed. Allow the SyncRegistry to notifyIOComplete
-        // this request and block for now.
-        return ENGINE_EWOULDBLOCK;
-    }
-
-    std::stringstream resp;
-
-    assembleSyncResponse(resp, syncListener, *epstore);
-    syncListener->destroy();
-
-    std::string body = resp.str();
-    return sendResponse(response, NULL, 0, NULL, 0,
-                        body.c_str(), static_cast<uint16_t>(body.length()),
-                        PROTOCOL_BINARY_RAW_BYTES,
-                        PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
-}
-
 ENGINE_ERROR_CODE EventuallyPersistentEngine::observe(const void *cookie,
                                                       std::string key,
                                                       uint64_t cas,
@@ -3675,150 +3446,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::unobserve(const void *cookie,
                      key.c_str(), cas, obs_set.c_str());
     getObserveRegistry().unobserveKey(key, cas, vbucket, obs_set);
     return sendResponse(response, NULL, 0, NULL, 0, NULL, 0, 0, 0, 0, cookie);
-}
-
-static void notifyListener(std::vector< std::pair<StoredValue*, uint16_t> > &svList,
-                           SyncListener *listener) {
-
-    sync_type_t syncType = listener->getSyncType();
-    std::vector< std::pair<StoredValue*, uint16_t> >::iterator it;
-
-    for (it = svList.begin(); it != svList.end(); it++) {
-        StoredValue *sv = it->first;
-        key_spec_t keyspec(sv->getCas(), it->second, sv->getKey());
-        uint8_t replicas = sv->getNumReplicas();
-
-        if ((replicas > 0) &&
-            (syncType == REP || syncType == REP_OR_PERSIST ||
-             syncType == REP_AND_PERSIST)) {
-
-            listener->keySynced(keyspec, replicas);
-        }
-
-        if (sv->isClean() &&
-            (syncType == PERSIST || syncType == REP_OR_PERSIST ||
-             syncType == REP_AND_PERSIST)) {
-
-            listener->keySynced(keyspec);
-        }
-    }
-}
-
-static bool parseSyncOptions(uint32_t flags, sync_type_t *syncType, uint8_t *replicas) {
-    *replicas = (uint8_t) ((flags & 0xf0) >> 4);
-    bool syncRep = (*replicas > 0);
-    bool syncPersist = ((flags & 0x8) == 0x8);
-    bool syncMutation = ((flags & 0x4) == 0x4);
-
-    if ((syncPersist && syncMutation) ||
-        (syncRep && syncMutation)) {
-        return false;
-    }
-
-    if (syncPersist && !syncRep) {
-        *syncType = PERSIST;
-    } else if (!syncPersist && syncRep) {
-        *syncType = REP;
-    } else if (syncPersist && syncRep) {
-        if (flags & 0x2) {
-            *syncType = REP_AND_PERSIST;
-        } else {
-            *syncType = REP_OR_PERSIST;
-        }
-    } else if (syncMutation) {
-        *syncType = MUTATION;
-    } else {
-        // No flags set at all or only the reserved bits
-        // are used (ignore them for now).
-        return false;
-    }
-
-    return true;
-}
-
-static void assembleSyncResponse(std::stringstream &resp,
-                                 SyncListener *syncListener,
-                                 EventuallyPersistentStore &epstore) {
-    uint16_t nkeys = syncListener->getInvalidCasKeys().size() +
-                     syncListener->getNonExistentKeys().size();
-
-    switch (syncListener->getSyncType()) {
-    case PERSIST:
-        nkeys += syncListener->getPersistedKeys().size();
-        break;
-    case MUTATION:
-        nkeys += syncListener->getModifiedKeys().size();
-        nkeys += syncListener->getDeletedKeys().size();
-        break;
-    case REP:
-        nkeys += syncListener->getReplicatedKeys().size();
-        break;
-    case REP_AND_PERSIST:
-    case REP_OR_PERSIST:
-        nkeys += syncListener->getReplicatedKeys().size();
-        nkeys += syncListener->getPersistedKeys().size();
-    }
-
-    nkeys = htons(nkeys);
-    resp.write((char *) &nkeys, sizeof(uint16_t));
-
-    addSyncKeySpecs(resp, syncListener->getNonExistentKeys(),
-                    SYNC_INVALID_KEY, epstore, false);
-    addSyncKeySpecs(resp, syncListener->getInvalidCasKeys(),
-                    SYNC_INVALID_CAS, epstore, false);
-
-    switch (syncListener->getSyncType()) {
-    case PERSIST:
-        addSyncKeySpecs(resp, syncListener->getPersistedKeys(),
-                        SYNC_PERSISTED_EVENT, epstore);
-        break;
-    case MUTATION:
-        addSyncKeySpecs(resp, syncListener->getModifiedKeys(),
-                        SYNC_MODIFIED_EVENT, epstore);
-        addSyncKeySpecs(resp, syncListener->getDeletedKeys(),
-                        SYNC_DELETED_EVENT, epstore);
-        break;
-    case REP:
-        addSyncKeySpecs(resp, syncListener->getReplicatedKeys(),
-                        SYNC_REPLICATED_EVENT, epstore);
-        break;
-    case REP_OR_PERSIST:
-    case REP_AND_PERSIST:
-        addSyncKeySpecs(resp, syncListener->getReplicatedKeys(),
-                        SYNC_REPLICATED_EVENT, epstore);
-        addSyncKeySpecs(resp, syncListener->getPersistedKeys(),
-                        SYNC_PERSISTED_EVENT, epstore);
-    }
-}
-
-
-static void addSyncKeySpecs(std::stringstream &resp,
-                            std::set<key_spec_t> &keyspecs,
-                            uint8_t eventid,
-                            EventuallyPersistentStore &epstore,
-                            bool addCurrentCas) {
-    std::set<key_spec_t>::iterator it = keyspecs.begin();
-
-    for ( ; it != keyspecs.end(); it++) {
-        uint64_t cas = it->cas;
-        uint16_t vbid = htons(it->vbucketid);
-        uint16_t keylen = htons(it->key.length());
-
-        if (addCurrentCas) {
-            StoredValue *sv = epstore.getStoredValue(it->key, it->vbucketid);
-
-            if (sv != NULL) {
-                cas = sv->getCas();
-            }
-        }
-
-        cas = htonll(cas);
-        resp.write((char *) &cas, sizeof(uint64_t));
-        resp.write((char *) &vbid, sizeof(uint16_t));
-        resp.write((char *) &keylen, sizeof(uint16_t));
-        resp.write((char *) &eventid, sizeof(uint8_t));
-        resp.write(it->key.c_str(), it->key.length());
-    }
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::handleRestoreCmd(const void *cookie,

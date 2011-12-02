@@ -1594,7 +1594,6 @@ static void notifyReplicatedItems(std::list<TapLogElement>::iterator from,
                                                                   false);
             if (sv != NULL) {
                 sv->incrementNumReplicas();
-                engine.getSyncRegistry().itemReplicated(qi);
                 engine.getObserveRegistry().itemReplicated(qi->getItem());
             }
         }

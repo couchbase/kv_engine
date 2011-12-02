@@ -71,7 +71,6 @@ EP_ENGINE_CC_SRC = \
                  sqlite-kvstore/sqlite-strategies.cc \
                  statsnap.cc \
                  stored-value.cc \
-                 sync_registry.cc \
                  tapconnmap.cc \
                  tapconnection.cc \
                  tapthrottle.cc \

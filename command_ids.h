@@ -39,8 +39,6 @@
 #define CMD_GET_LOCKED        0x94
 #define CMD_UNLOCK_KEY        0x95
 
-#define CMD_SYNC              0x96
-
 #define CMD_OBSERVE           0xb1
 #define CMD_UNOBSERVE         0xb2
 
@@ -125,16 +123,6 @@
  * vbuckets on B and C, which are replicated from A.
  */
 #define CMD_RESET_REPLICATION_CHAIN 0x9f
-
-/*
- * IDs for the events of the SYNC command.
- */
-#define SYNC_PERSISTED_EVENT    1
-#define SYNC_MODIFIED_EVENT     2
-#define SYNC_DELETED_EVENT      3
-#define SYNC_REPLICATED_EVENT   4
-#define SYNC_INVALID_KEY        5
-#define SYNC_INVALID_CAS        6
 
 /*
  * IDs for the events of the observe command.
