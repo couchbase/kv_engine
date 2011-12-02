@@ -96,6 +96,8 @@ memcached like this:
 |                        |        | quota for accepting a new mutation         |
 | tap_throttle_queue_cap | int    | The maximum size of the disk write queue   |
 |                        |        | to throttle down tap-based replication     |
+| tap_throttle_threshold | float  | Percentage of memory in use before we      |
+|                        |        | throttle tap streams                       |
 
 ** Shard Patterns
 
