@@ -466,6 +466,7 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(const RCPtr<VBucket> &vbu
     std::list<Checkpoint*> unrefCheckpointList;
     std::list<Checkpoint*>::iterator it = checkpointList.begin();
     for (; it != checkpointList.end(); it++) {
+        removeInvalidCursorsOnCheckpoint(*it);
         if ((*it)->getNumberOfCursors() > 0) {
             break;
         }
@@ -489,6 +490,34 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(const RCPtr<VBucket> &vbu
     }
 
     return numUnrefItems;
+}
+
+void CheckpointManager::removeInvalidCursorsOnCheckpoint(Checkpoint *pCheckpoint) {
+    std::list<std::string> invalidCursorNames;
+    const std::set<std::string> &cursors = pCheckpoint->getCursorNameList();
+    std::set<std::string>::const_iterator cit = cursors.begin();
+    for (; cit != cursors.end(); ++cit) {
+        // Check it with persistence cursor
+        if ((*cit).compare(persistenceCursor.name) == 0) {
+            if (pCheckpoint != *(persistenceCursor.currentCheckpoint)) {
+                invalidCursorNames.push_back(*cit);
+            }
+        } else if ((*cit).compare(onlineUpdateCursor.name) == 0) { // OnlineUpdate cursor
+            if (pCheckpoint != *(onlineUpdateCursor.currentCheckpoint)) {
+                invalidCursorNames.push_back(*cit);
+            }
+        } else { // Check it with tap cursors
+            std::map<const std::string, CheckpointCursor>::iterator mit = tapCursors.find(*cit);
+            if (mit == tapCursors.end() || pCheckpoint != *(mit->second.currentCheckpoint)) {
+                invalidCursorNames.push_back(*cit);
+            }
+        }
+    }
+
+    std::list<std::string>::iterator it = invalidCursorNames.begin();
+    for (; it != invalidCursorNames.end(); ++it) {
+        pCheckpoint->removeCursorName(*it);
+    }
 }
 
 bool CheckpointManager::queueDirty(const queued_item &item, const RCPtr<VBucket> &vbucket) {
