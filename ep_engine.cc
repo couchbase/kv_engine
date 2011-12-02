@@ -1383,7 +1383,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
             }
 
             if (tapThrottleThreshold > 0) {
-                stats.tapThrottleThreshold = static_cast<double>(tapThrottleThreshold > 0);
+                stats.tapThrottleThreshold = static_cast<double>(tapThrottleThreshold);
             }
 
             if (items[checkpoint_max_items_idx].found) {
