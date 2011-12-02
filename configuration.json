@@ -292,6 +292,17 @@
             "dynamic": false,
             "type": "bool"
         },
+        "tap_throttle_threshold": {
+            "default": "90",
+            "descr": "Percentage of max mem at which we begin NAKing tap input.",
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "max": 100,
+                    "min": 0
+                }
+            }
+        },
         "vb0": {
             "default": "true",
             "type": "bool"

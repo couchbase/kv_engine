@@ -71,6 +71,8 @@ public:
             stats.min_data_age.set(value);
         } else if (key.compare("queue_age_cap") == 0) {
             stats.queue_age_cap.set(value);
+        } else if (key.compare("tap_throttle_threshold") == 0) {
+            stats.tapThrottleThreshold.set(static_cast<double>(value) / 100.0);
         }
     }
 
@@ -508,6 +510,11 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
 
     stats.queue_age_cap.set(config.getQueueAgeCap());
     config.addValueChangedListener("queue_age_cap",
+                                   new StatsValueChangeListener(stats));
+
+    stats.tapThrottleThreshold.set(static_cast<double>(config.getTapThrottleThreshold())
+                                   / 100.0);
+    config.addValueChangedListener("tap_throttle_threshold",
                                    new StatsValueChangeListener(stats));
 
     setBGFetchDelay(config.getBgFetchDelay());

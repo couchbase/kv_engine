@@ -215,6 +215,8 @@ public:
     Atomic<size_t> tapBgNumOperations;
     //! The number of tap notify messages throttled by TapThrottle.
     Atomic<size_t> tapThrottled;
+    //! Percentage of memory in use before we throttle tap input
+    Atomic<double> tapThrottleThreshold;
     /** The sum of the deltas (in usec) from a tap item was put in queue until
      *  the dispatcher started the work for this item
      */

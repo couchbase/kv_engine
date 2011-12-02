@@ -300,6 +300,8 @@ extern "C" {
                 validate(vsize, static_cast<uint64_t>(0),
                          std::numeric_limits<uint64_t>::max());
                 e->getConfiguration().setExpPagerStime((size_t)vsize);
+            } else if (strcmp(keyz, "tap_throttle_threshold") == 0) {
+                e->getConfiguration().setTapThrottleThreshold(v);
             } else {
                 *msg = "Unknown config param";
                 rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
@@ -2919,6 +2921,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTapStats(const void *cookie,
                     add_stat, cookie);
     add_casted_stat("ep_tap_backoff_period",
                     tapConfig->getBackoffSleepTime(),
+                    add_stat, cookie);
+    add_casted_stat("ep_tap_throttle_threshold",
+                    stats.tapThrottleThreshold * 100.0,
                     add_stat, cookie);
 
 
