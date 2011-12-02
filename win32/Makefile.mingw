@@ -13,7 +13,7 @@ INSTALLDIRS=$(LOCAL)/bin $(LOCAL)/lib $(LOCAL)/lib/memcached
 MEMCACHED=../memcached
 
 OBJDIR = .libs .libs/embedded .libs/poll .libs/management
-BINARIES= .libs/ep.so management/sqlite3.exe management/mbdbconvert.exe
+BINARIES= .libs/ep.so management/sqlite3.exe management/cbdbconvert.exe
 LIB=$(LOCALLIB) -L${MEMCACHED}/lib
 INCLUDE= -Iwin32 -I.libs -Iembedded -I${MEMCACHED}/include -I. $(LOCALINC)
 GENFILES=.libs/config_version.h
@@ -22,7 +22,7 @@ CPPFLAGS= $(MARCH) -O2 -DHAVE_CONFIG_H ${INCLUDE} -Wall -DSQLITE_THREADSAFE=2
 all: ${BINARIES}
 
 install: ${BINARIES} $(INSTALLDIRS)
-	cp management/sqlite3.exe management/mbdbconvert.exe $(LOCAL)/bin
+	cp management/sqlite3.exe management/cbdbconvert.exe $(LOCAL)/bin
 	cp .libs/ep.so $(LOCAL)/lib/memcached
 	rm -rf $(TMP_DIR) && mkdir -p $(TMP_DIR)
 	cp ./management/* $(TMP_DIR)
@@ -106,7 +106,7 @@ MBDBCONVERT_SRC = management/dbconvert.cc testlogger.cc objectregistry.cc
 
 MBDBCONVERT_OBJS = ${MBDBCONVERT_SRC:%.cc=.libs/%.o}
 
-management/mbdbconvert.exe: ${OBJDIR} ${GENFILES} ${MBDBCONVERT_OBJS} ${LIBKVSTORE_OBJS}
+management/cbdbconvert.exe: ${OBJDIR} ${GENFILES} ${MBDBCONVERT_OBJS} ${LIBKVSTORE_OBJS}
 	${LINK.cc} -o $@ ${MBDBCONVERT_OBJS} .libs/gethrtime.o ${LIBKVSTORE_OBJS} ${LIB} -lpthread
 
 .libs/config_version.h:
