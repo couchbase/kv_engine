@@ -172,7 +172,9 @@ void TapProducer::setVBucketFilter(const std::vector<uint16_t> &vbuckets)
                 if (!vb) {
                     continue;
                 }
-                vb->checkpointManager.removeTAPCursor(name);
+                if (!registeredTAPClient) {
+                    vb->checkpointManager.removeTAPCursor(name);
+                }
             }
         }
 
@@ -399,8 +401,52 @@ bool TapProducer::requestAck(tap_event_t event, uint16_t vbucket) {
             empty_UNLOCKED()); // but if we're almost up to date, ack more often
 }
 
+void TapProducer::clearQueues_UNLOCKED() {
+    /* No point of keeping the rep queue when someone wants to flush it */
+    queue->clear();
+    queueSize = 0;
+    queueMemSize = 0;
+
+    // Clear bg-fetched items.
+    while (!backfilledItems.empty()) {
+        Item *i(backfilledItems.front());
+        assert(i);
+        delete i;
+        backfilledItems.pop();
+    }
+    bgResultSize = 0;
+    while (!backfillQueue.empty()) {
+        backfillQueue.pop();
+    }
+    bgQueueSize = 0;
+
+    // Clear the checkpoint message queue as well
+    while (!checkpointMsgs.empty()) {
+        checkpointMsgs.pop();
+    }
+    // Clear the vbucket state message queues
+    while (!vBucketHighPriority.empty()) {
+        vBucketHighPriority.pop();
+    }
+    while (!vBucketLowPriority.empty()) {
+        vBucketLowPriority.pop();
+    }
+}
+
 void TapProducer::rollback() {
     LockHolder lh(queueLock);
+    if (registeredTAPClient && closedCheckpointOnly) {
+        // If the connection is for a registered TAP client that is only interested in closed
+        // checkpoints, we don't need to resend unACKed items to the client because its replication
+        // cursor is reset to the beginning of the checkpoint to which the cursor currently belongs.
+        tapLog.clear();
+        clearQueues_UNLOCKED();
+        seqno = initialAckSequenceNumber;
+        seqnoReceived = seqno -1;
+        checkpointMsgCounter = 0;
+        return;
+    }
+
     size_t checkpoint_msg_sent = 0;
     std::vector<uint16_t> backfillVBs;
     std::list<TapLogElement>::iterator i = tapLog.begin();
@@ -997,7 +1043,7 @@ void TapConsumer::addStats(ADD_STAT add_stat, const void *c) {
 void TapConsumer::setBackfillPhase(bool isBackfill, uint16_t vbucket) {
     const VBucketMap &vbuckets = engine.getEpStore()->getVBuckets();
     RCPtr<VBucket> vb = vbuckets.getBucket(vbucket);
-    if (!vb) {
+    if (!(vb && supportCheckpointSync)) {
         return;
     }
 

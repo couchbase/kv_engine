@@ -87,6 +87,9 @@ memcached like this:
 | inconsistent_slave_chk | bool   | True if we allow a "downstream" master to  |
 |                        |        | receive checkpoint begin/end messages      |
 |                        |        | along with normal get/set operations.      |
+| keep_closed_chks       | bool   | True if we want to keep closed checkpoints |
+|                        |        | in memory if the current memory usage is   |
+|                        |        | below high water mark                      |
 | bf_resident_threshold  | float  | Resident item threshold for only memory    |
 |                        |        | backfill to be kicked off                  |
 | getl_default_timeout   | int    | The default timeout for a getl lock in (s) |

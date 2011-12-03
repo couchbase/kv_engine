@@ -1,10 +1,12 @@
 ACLOCAL_AMFLAGS = -I m4 --force
 bin_SCRIPTS = management/analyze_core \
+              management/squasher.sql \
               wrapper/cbadm-online-restore \
               wrapper/cbadm-online-update \
               wrapper/cbadm-tap-registration \
               wrapper/cbbackup \
               wrapper/cbbackup-incremental \
+              wrapper/cbbackup-merge-incremental \
               wrapper/cbdbconvert \
               wrapper/cbdbmaint \
               wrapper/cbdbupgrade \
@@ -302,7 +304,8 @@ pythonlib_DATA= \
                 management/mc_bin_server.py \
                 management/memcacheConstants.py \
                 management/tap.py \
-                management/tap_example.py
+                management/tap_example.py \
+                management/util.py
 
 pythonlib_SCRIPTS= \
                 management/cbadm-online-restore \
@@ -310,6 +313,7 @@ pythonlib_SCRIPTS= \
                 management/cbadm-tap-registration \
                 management/cbbackup \
                 management/cbbackup-incremental \
+                management/cbbackup-merge-incremental \
                 management/cbdbconvert \
                 management/cbdbmaint \
                 management/cbdbupgrade \
@@ -324,6 +328,7 @@ PYTHON_TOOLS= \
               wrapper/cbadm-tap-registration \
               wrapper/cbbackup \
               wrapper/cbbackup-incremental \
+              wrapper/cbbackup-merge-incremental \
               wrapper/cbdbconvert \
               wrapper/cbdbmaint \
               wrapper/cbdbupgrade \
