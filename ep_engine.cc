@@ -2675,8 +2675,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     add_casted_stat("ep_expired", epstats.expired, add_stat, cookie);
     add_casted_stat("ep_item_flush_expired",
                     epstats.flushExpired, add_stat, cookie);
-    add_casted_stat("ep_tap_throttle_queue_cap",
-                    epstats.tapThrottleWriteQueueCap, add_stat, cookie);
     add_casted_stat("ep_queue_size",
                     epstats.queue_size, add_stat, cookie);
     add_casted_stat("ep_flusher_todo",
@@ -3361,6 +3359,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTapStats(const void *cookie,
     add_casted_stat("ep_tap_throttle_threshold",
                     stats.tapThrottleThreshold * 100.0,
                     add_stat, cookie);
+    add_casted_stat("ep_tap_throttle_queue_cap",
+                    stats.tapThrottleWriteQueueCap, add_stat, cookie);
 
     if (stats.tapBgNumOperations > 0) {
         add_casted_stat("ep_tap_bg_num_samples", stats.tapBgNumOperations,

@@ -284,6 +284,8 @@ For introductory information on stats within membase, start with the
 | ep_tap_queue_itemondisk   | Number of items remaining on disk          |
 | ep_tap_throttle_threshold | Percentage of memory in use before we      |
 |                           | throttle tap streams                       |
+| ep_tap_throttle_queue_cap | Disk write queue cap to throttle           |
+|                           | tap streams                                |
 
 
 *** Per Tap Client Stats
