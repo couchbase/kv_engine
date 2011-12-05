@@ -639,7 +639,6 @@ private:
             tapConnMap->notify();
         }
         ++mutation_count;
-        observeRegistry.itemModified(*it);
     }
 
     void addDeleteEvent(const std::string &key, uint16_t vbid, uint64_t cas) {
@@ -647,7 +646,6 @@ private:
             tapConnMap->notify();
         }
         ++mutation_count;
-        observeRegistry.itemDeleted(key, cas, vbid);
     }
 
     void startEngineThreads(void);

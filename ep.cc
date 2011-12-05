@@ -2712,7 +2712,6 @@ void TransactionContext::commit() {
     stats.commit_time.set(complete_time - cstart);
     stats.cumulativeCommitTime.incr(complete_time - cstart);
     intxn = false;
-    observeRegistry.itemsPersisted(uncommittedItems);
     uncommittedItems.clear();
     numUncommittedItems = 0;
 }

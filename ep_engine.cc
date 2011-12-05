@@ -1411,7 +1411,6 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
         if (!connection->supportsAck()) {
             if (gv.getStoredValue() != NULL) {
                 gv.getStoredValue()->incrementNumReplicas();
-                observeRegistry.itemReplicated(*it);
             } else {
                 getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                                  "NULL StoredValue* for key %s, vbucket %d",
@@ -1466,7 +1465,6 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
 
                 if (!connection->supportsAck()) {
                     gv.getStoredValue()->incrementNumReplicas();
-                    observeRegistry.itemReplicated(*gv.getValue());
                 }
 
                 ++stats.numTapFGFetched;
@@ -1518,7 +1516,6 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
                 if (!connection->supportsAck()) {
                     if (sv && sv->getCas() == it->getCas()) {
                         sv->incrementNumReplicas();
-                        observeRegistry.itemReplicated(*it);
                     }
                 }
 
