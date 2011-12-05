@@ -2078,6 +2078,7 @@ tap_event_t EventuallyPersistentEngine::walkTapQueue(const void *cookie,
             *seqno = connection->getSeqno();
             if (connection->requestAck(ret, *vbucket)) {
                 *flags = TAP_FLAG_ACK;
+                connection->seqnoAckRequested = *seqno;
             }
         }
     }

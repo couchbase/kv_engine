@@ -1130,6 +1130,9 @@ private:
     // The last tap sequence number received
     uint32_t seqnoReceived;
 
+    // The last tap sequence number for which an ack is requested
+    uint32_t seqnoAckRequested;
+
     std::list<TapLogElement> tapLog;
 
     Mutex backfillLock;

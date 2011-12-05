@@ -74,6 +74,7 @@ TapProducer::TapProducer(EventuallyPersistentEngine &theEngine,
     queueDrain(0),
     seqno(initialAckSequenceNumber),
     seqnoReceived(initialAckSequenceNumber - 1),
+    seqnoAckRequested(initialAckSequenceNumber - 1),
     notifySent(false),
     registeredTAPClient(false),
     isLastAckSucceed(false),
@@ -443,6 +444,7 @@ void TapProducer::rollback() {
         clearQueues_UNLOCKED();
         seqno = initialAckSequenceNumber;
         seqnoReceived = seqno -1;
+        seqnoAckRequested = seqno - 1;
         checkpointMsgCounter = 0;
         return;
     }
@@ -528,6 +530,7 @@ void TapProducer::rollback() {
         scheduleBackfill_UNLOCKED(backfillVBs);
     }
     seqnoReceived = seqno - 1;
+    seqnoAckRequested = seqno - 1;
     checkpointMsgCounter -= checkpoint_msg_sent;
 }
 
@@ -998,6 +1001,7 @@ void TapProducer::addStats(ADD_STAT add_stat, const void *c) {
     if (supportAck) {
         addStat("ack_seqno", seqno, add_stat, c);
         addStat("recv_ack_seqno", seqnoReceived, add_stat, c);
+        addStat("seqno_ack_requested", seqnoAckRequested, add_stat, c);
         addStat("ack_log_size", getTapAckLogSize(), add_stat, c);
         addStat("ack_window_full", windowIsFull(), add_stat, c);
         if (windowIsFull()) {
