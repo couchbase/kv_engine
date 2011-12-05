@@ -634,14 +634,14 @@ private:
         warmingUp.set(false);
     }
 
-    void addMutationEvent(Item *it) {
+    void addMutationEvent(Item *) {
         if (mutation_count == 0) {
             tapConnMap->notify();
         }
         ++mutation_count;
     }
 
-    void addDeleteEvent(const std::string &key, uint16_t vbid, uint64_t cas) {
+    void addDeleteEvent(const std::string &, uint16_t, uint64_t) {
         if (mutation_count == 0) {
             tapConnMap->notify();
         }
