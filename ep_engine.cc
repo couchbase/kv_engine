@@ -3171,7 +3171,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
                                                        const char* stat_key,
                                                        int nkey,
                                                        ADD_STAT add_stat) {
-    getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "%s %d", stat_key, nkey);
+    if (stat_key != NULL) {
+        getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "stats %s %d", stat_key, nkey);
+    } else {
+        getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "stats engine");
+    }
+
     ENGINE_ERROR_CODE rv = ENGINE_KEY_ENOENT;
     if (stat_key == NULL) {
         rv = doEngineStats(cookie, add_stat);
