@@ -237,7 +237,7 @@ extern "C" {
                 validate(v, DEFAULT_MAX_CHECKPOINTS, MAX_CHECKPOINTS_UPPER_BOUND);
                 e->getConfiguration().setMaxCheckpoints(v);
             } else if (strcmp(keyz, "item_num_based_new_chk") == 0) {
-                if (strcmp(valz, "on")) {
+                if (strcmp(valz, "true") == 0) {
                     e->getConfiguration().setItemNumBasedNewChk(true);
                 } else {
                     e->getConfiguration().setItemNumBasedNewChk(false);
@@ -302,6 +302,20 @@ extern "C" {
                 e->getConfiguration().setExpPagerStime((size_t)vsize);
             } else if (strcmp(keyz, "tap_throttle_threshold") == 0) {
                 e->getConfiguration().setTapThrottleThreshold(v);
+            } else if (strcmp(keyz, "tap_throttle_queue_cap") == 0) {
+                e->getConfiguration().setTapThrottleQueueCap(v);
+            } else if (strcmp(keyz, "inconsistent_slave_chk") == 0) {
+                if (strcmp(valz, "true") == 0) {
+                    e->getConfiguration().setInconsistentSlaveChk(true);
+                } else {
+                    e->getConfiguration().setInconsistentSlaveChk(false);
+                }
+            } else if (strcmp(keyz, "keep_closed_chks") == 0) {
+                if (strcmp(valz, "true") == 0) {
+                    e->getConfiguration().setKeepClosedChks(true);
+                } else {
+                    e->getConfiguration().setKeepClosedChks(false);
+                }
             } else {
                 *msg = "Unknown config param";
                 rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
@@ -901,9 +915,9 @@ extern "C" {
         return ENGINE_SUCCESS;
     }
 
-    void *EvpNotifyTapIo(void*arg) {
+    void *EvpNotifyPendingConns(void*arg) {
         ObjectRegistry::onSwitchThread(static_cast<EventuallyPersistentEngine*>(arg));
-        static_cast<EventuallyPersistentEngine*>(arg)->notifyTapIoThread();
+        static_cast<EventuallyPersistentEngine*>(arg)->notifyPendingConnections();
         return NULL;
     }
 
@@ -1624,6 +1638,7 @@ tap_event_t EventuallyPersistentEngine::walkTapQueue(const void *cookie,
             *seqno = connection->getSeqno();
             if (connection->requestAck(ret, *vbucket)) {
                 *flags = TAP_FLAG_ACK;
+                connection->seqnoAckRequested = *seqno;
             }
         }
     }
@@ -1736,6 +1751,11 @@ bool EventuallyPersistentEngine::createTapQueue(const void *cookie,
             ptr += sizeof(closedCheckpointOnly);
         }
         isClosedCheckpointOnly = closedCheckpointOnly > 0 ? true : false;
+    }
+
+    TapProducer *tp = dynamic_cast<TapProducer*>(tapConnMap->findByName(name));
+    if (tp && tp->isConnected() && !tp->doDisconnect() && isRegisteredClient) {
+        return false;
     }
 
     TapProducer *tap = tapConnMap->newProducer(cookie, name, flags,
@@ -2070,8 +2090,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::processTapAck(const void *cookie,
 void EventuallyPersistentEngine::startEngineThreads(void)
 {
     assert(!startedEngineThreads);
-    if (pthread_create(&notifyThreadId, NULL, EvpNotifyTapIo, this) != 0) {
-        throw std::runtime_error("Error creating thread to notify Tap connections");
+    if (pthread_create(&notifyThreadId, NULL, EvpNotifyPendingConns, this) != 0) {
+        throw std::runtime_error("Error creating thread to notify pending connections");
     }
     startedEngineThreads = true;
 }
@@ -2540,7 +2560,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     add_casted_stat("ep_obs_reg_clean_job", epstats.obsCleanerRuns, add_stat,
                     cookie);
 
-
     return ENGINE_SUCCESS;
 }
 
@@ -2922,7 +2941,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTapStats(const void *cookie,
     add_casted_stat("ep_tap_throttle_threshold",
                     stats.tapThrottleThreshold * 100.0,
                     add_stat, cookie);
-
+    add_casted_stat("ep_tap_throttle_queue_cap",
+                    stats.tapThrottleWriteQueueCap, add_stat, cookie);
 
     if (stats.tapBgNumOperations > 0) {
         add_casted_stat("ep_tap_bg_num_samples", stats.tapBgNumOperations,
@@ -3239,10 +3259,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
     return rv;
 }
 
-void EventuallyPersistentEngine::notifyTapIoThread(void) {
+void EventuallyPersistentEngine::notifyPendingConnections(void) {
     // Fix clean shutdown!!!
     while (!shutdown) {
         tapConnMap->notifyIOThreadMain();
+        epstore->firePendingVBucketOps();
 
         if (shutdown) {
             return;
@@ -3252,7 +3273,7 @@ void EventuallyPersistentEngine::notifyTapIoThread(void) {
     }
 }
 
-void EventuallyPersistentEngine::notifyTapNotificationThread(void) {
+void EventuallyPersistentEngine::notifyNotificationThread(void) {
     tapConnMap->notify();
 }
 

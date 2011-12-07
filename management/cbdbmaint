@@ -52,7 +52,7 @@ def main():
     if not opts:
         usage()
 
-    flushctl = findCmd('mbflushctl')
+    flushctl = findCmd('cbflushctl')
     sqlitebin = findCmd('sqlite3')
 
     optdict = dict(opts)

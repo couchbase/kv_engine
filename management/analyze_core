@@ -72,6 +72,41 @@ else
    digest="md5sum"
 fi
 
+ls "${root}" >/dev/null 2>&1
+if [ $? -ne 0 ]
+then
+   echo "Couchbase root directory (${root}) doesn't exist"
+   exit 1
+fi
+
+cmdfile=/tmp/gdb-commands.$$
+cat > $cmdfile <<EOF
+info auxv
+EOF
+binary=`gdb --core "${corefile}" --batch -x $cmdfile | grep AT_EXECFN | cut -f2 -d\"`
+rm $cmdfile
+if [ "x${binary}" = "x" ]
+then
+   binary_name=`file ${corefile} | cut -f 2 -d \'`
+   binary=`(cd ${root} && find . -type f -name "${binary_name}" | head -n1)`
+   if [ "x${binary}" = "x" ]
+   then
+       echo "Failed to determine the binary name from the corefile"
+       exit 1
+   fi
+fi
+
+if [ `echo "${binary}" | cut -c1` = "/" ]
+  executable=`ls "${root}/${binary}" 2>/dev/null`
+fi
+
+if [ "x${executable}" = "x" ]
+then
+   echo "Failed to locate the binary for the corefile."
+   echo "Your tools might be broken. Consider sending core dump to support@couchbase.com."
+   exit 1
+fi
+
 cat > ${report}  <<EOF
 Basic crash dump analysis of ${corefile}.
 

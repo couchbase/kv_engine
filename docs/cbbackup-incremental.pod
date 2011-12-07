@@ -1,25 +1,25 @@
 =head1 NAME
 
-mbbackup incremental - incrementally backup membase
+cbbackup incremental - incrementally backup couchbase
 
 =head1 SYNOPSIS
 
 =over 2
 
-B<mbbackup incremental> [-h host:port] [-o output_filename] [-T timeout_secs] [-r] [-t transaction_size] [-v] tap_name
+B<cbbackup incremental> [-h host:port] [-o output_filename] [-T timeout_secs] [-r] [-t transaction_size] [-v] tap_name
 
-B<mbbackup incremental> db_file
+B<cbbackup incremental> db_file
 
 =back
 
 =head1 DESCRIPTION
 
-B<mbbackup-incremental> gives one the ability to create an incremental backup
-from a checkpoint created and managed by the Membase server.  In
-conjunction with the output from B<mbbackup-incremental>, a Membase
+B<cbbackup-incremental> gives one the ability to create an incremental backup
+from a checkpoint created and managed by the Couchbase server.  In
+conjunction with the output from B<cbbackup-incremental>, a Couchbase
 server may be restored to a given consistent checkpoint.
 
-B<mbbackup-incremental> can also verify a given backup file.
+B<cbbackup-incremental> can also verify a given backup file.
 
 It should be noted that a complete set of incremental backups will be
 required to get to a particular restore point.
@@ -48,12 +48,12 @@ Note that the client will substitute an incrementing integer on each
 execution for a "%" character included in the backup file name.
 For purposes of simple sorting, it will automatically pad 5 digits
 in place of the "%", starting with 00000.  This allows one to run
-B<mbbackup incremental> via cron or some other
+B<cbbackup incremental> via cron or some other
 job controller on a regular basis to create a set of incremental
 backups.  The pattern may take at most one "%" character.
 
 B<Warning:> it is recommended, when moving old incremental
-backups, to leave the most recent one.  This way, B<mbbackup>
+backups, to leave the most recent one.  This way, B<cbbackup>
 B<incremental> will always increment the number in the filename
 monotonically rather than have multiple backups with the same
 name.
@@ -102,20 +102,20 @@ B<Example 1> creating the first backup from a given server.
 
 =over 2
 
-# mbbackup incremental -o my_backup_%.mbb hourly_backup
+# cbbackup incremental -o my_backup_%.cbb hourly_backup
 
 =back
 
 This example creates a backup, using the registered name
 "hourly_backup" on the server.  The file created will be
-my_backup_00000.mbb if it is the first file.  Otherwise
+my_backup_00000.cbb if it is the first file.  Otherwise
 it will increment over the digit found in the directory.
 
 B<Example 2> Backing up a remote server
 
 =over 2
 
-# mbbackup incremental -h myserver.bigco.com:11210 -o got_my_back%.mbb hourly_backup
+# cbbackup incremental -h myserver.bigco.com:11210 -o got_my_back%.cbb hourly_backup
 
 =back
 

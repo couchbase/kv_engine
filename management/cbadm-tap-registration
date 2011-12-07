@@ -13,7 +13,7 @@ DEFAULT_HOST_PORT = ["127.0.0.1", DEFAULT_PORT]
 def usage(err=0):
     print >> sys.stderr, """
 
-Usage: %s [-h %s[:%s]] [-r|d tap_name] [-c]
+Usage: %s [-h %s[:%s]] [-r|d tap_name] [-l last_closed_checkpoint_id] [-c]
 
 """ % (os.path.basename(sys.argv[0]),
        DEFAULT_HOST_PORT[0], DEFAULT_HOST_PORT[1])
@@ -25,9 +25,10 @@ def parse_args(args):
     is_registration = True
     # By default, the TAP client receives mutations from the open checkpoint as well.
     closed_checkpoint_only = 0x00
+    last_closed_checkpoint_id = -1
 
     try:
-        opts, args = getopt.getopt(args, 'h:r:d:c', ['help'])
+        opts, args = getopt.getopt(args, 'h:r:d:l:c', ['help'])
     except getopt.GetoptError, e:
         usage(e.msg)
 
@@ -45,12 +46,14 @@ def parse_args(args):
             is_registration = False
         elif o == '-c':
             closed_checkpoint_only = 0x01
+        elif o == '-l':
+            last_closed_checkpoint_id = a
         else:
             usage("unknown option - " + o)
 
     if len(tap_name) == 0:
         usage("missing name argument, which is the registered client name")
-    return host_port, tap_name, is_registration, closed_checkpoint_only
+    return host_port, tap_name, is_registration, closed_checkpoint_only, last_closed_checkpoint_id
 
 def readTap(mc):
     ext = ''
@@ -71,20 +74,27 @@ def encodeTAPConnectOpts(opts):
         if op in memcacheConstants.TAP_FLAG_TYPES:
             val.append(struct.pack(memcacheConstants.TAP_FLAG_TYPES[op],
                                    opts[op]))
+        elif op == memcacheConstants.TAP_FLAG_CHECKPOINT:
+            if opts[op][2] >= 0:
+                val.append(struct.pack(">HHQ", opts[op][0], opts[op][1], opts[op][2]))
         else:
             val.append(opts[op])
     return struct.pack(">I", header), ''.join(val)
 
 if __name__ == '__main__':
     global mc
-    host_port, tap_name, is_registration, closed_checkpoint_only = parse_args(sys.argv[1:])
+    host_port, tap_name, is_registration, \
+        closed_checkpoint_only, last_closed_checkpoint_id = parse_args(sys.argv[1:])
 
     try:
         mc = mc_bin_client.MemcachedClient(host_port[0], int(host_port[1]))
 
         if is_registration:
             ext, val = encodeTAPConnectOpts({
-            memcacheConstants.TAP_FLAG_CHECKPOINT: '',
+            ## The three args for TAP_FLAG_CHECKPOINT represents the number of vbuckets,
+            ## the list of vbucket ids, and their last closed checkpoint ids. At this time,
+            ## we only support a single vbucket 0.
+            memcacheConstants.TAP_FLAG_CHECKPOINT: (1, 0, int(last_closed_checkpoint_id)),
             memcacheConstants.TAP_FLAG_SUPPORT_ACK: '',
             memcacheConstants.TAP_FLAG_REGISTERED_CLIENT: closed_checkpoint_only,
             })

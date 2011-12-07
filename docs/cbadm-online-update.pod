@@ -1,32 +1,32 @@
 =head1 NAME
 
-mbadm online-update - pause persistence and checkpointing for an application update
+cbadm online-update - pause persistence and checkpointing for an application update
 
 =head1 SYNOPSIS
 
 =over 2
 
-B<mbadm online-update> host:port start|complete|revert
+B<cbadm online-update> host:port start|complete|revert
 
 =back
 
 =head1 DESCRIPTION
 
-B<mbadm online-update> allows for a Membase cluster to enter a
+B<cbadm online-update> allows for a Couchbase cluster to enter a
 state where reads/writes will be accepted and replicated, but
 will not be persisted.  This is commonly used to allow for the
-deployment of new application code which accesses Membase,
+deployment of new application code which accesses Couchbase,
 followed by verification of the behavior of the application code.
 
 If the application code behaves correctly, which can be verified
-by normal Membase operations such as get or TAP, the online-update
+by normal Couchbase operations such as get or TAP, the online-update
 will then be completed, which will re-enable regular persistence and
 checkpoint operations on both the master and slaves of that given
 master.
 
 If, on the other hand, the application changes are causing unwanted
 changes to data within the system, the online-update should be
-reverted, meaning that the state of the data on the Membase master
+reverted, meaning that the state of the data on the Couchbase master
 and all slaves will go back to what it was just prior to the
 acceptance of the start command.
 
@@ -37,7 +37,7 @@ the system to the given checkpoint that was closed at the time of
 the start.  The online-update interval occurs entirely within
 its own checkpoint.
 
-Note that the B<mbadm online-update start> command should only
+Note that the B<cbadm online-update start> command should only
 be issued at the master for a set of vbuckets.
 
 B<Warning:> during an online update, all data modifications will
@@ -45,7 +45,7 @@ be stored only in memory.  This means those changes are volatile
 and means that the server will begin to send temporary OOM errors
 if all memory is consumed with modified items.  It is therefore
 recommended that the B<online-update> period be kept as short
-as possible and that client applications of Membase be written to
+as possible and that client applications of Couchbase be written to
 handle temporary OOM failures.
 
 =head1 OPERANDS
@@ -65,7 +65,7 @@ B<Example 1> Starting an online-update.
 
 =over 2
 
-$ /opt/membase/bin/mbadm-online-update localhost:11211 start
+$ /opt/couchbase/bin/cbadm-online-update localhost:11211 start
 
 =back
 
@@ -75,7 +75,7 @@ B<Example 2> Completing an online-update.
 
 =over 2
 
-$ /opt/membase/bin/mbadm-online-update localhost:11211 complete
+$ /opt/couchbase/bin/cbadm-online-update localhost:11211 complete
 
 =back
 
@@ -87,7 +87,7 @@ B<Example 3> Reverting an online-update.
 
 =over 2
 
-$ /opt/membase/bin/mbadm-online-update localhost:11211 Revert
+$ /opt/couchbase/bin/cbadm-online-update localhost:11211 Revert
 
 =back
 
@@ -102,8 +102,8 @@ B<online-update start> command being accepted.
 
 This command was written for and tested in an environment where
 vbuckets may be explicitly defined in active or replica state on a
-given server.  It is not tested for use within common Membase
-clusters, though it may be compatible.  B<mbadm online-update> is not
-supported for use in common Membase clusters at this time.
+given server.  It is not tested for use within common Couchbase
+clusters, though it may be compatible.  B<cbadm online-update> is not
+supported for use in common Couchbase clusters at this time.
 
 =cut

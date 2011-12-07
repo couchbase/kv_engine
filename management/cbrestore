@@ -2,7 +2,7 @@
 # -*-python-*-
 
 """
-Restore tool for Membase.
+Restore tool for Couchbase.
 
 """
 
@@ -12,11 +12,12 @@ import Queue
 import socket
 import sys
 import os
+import re
 import subprocess
 try:
     import sqlite3
 except:
-    print "mbrestore requires python version 2.6 or greater"
+    print "cbrestore requires python version 2.6 or greater"
     sys.exit(1)
 import thread
 import threading
@@ -147,7 +148,7 @@ def main():
     parser.add_option("-t", "--threads", type="int", default=DEFAULT_THREADS,
                       help="Number of worker threads")
     parser.add_option("-k", "--key", default="",
-                      help="Key name to restore")
+                      help="Keys to restore which match regular expression")
     parser.add_option("-d", "--data", default=None,
                       help="Server side value to match")
     parser.add_option("-i", "--id", default="",
@@ -169,7 +170,7 @@ def main():
     if max(versions.values()) < 2:
         sys.exit("Either the metadata db file is not specified\n"
                  "or the backup files need to be upgraded to version 2.\n"
-                 "Please use mbdbupgrade for upgrade or contact support.")
+                 "Please use cbdbupgrade for upgrade or contact support.")
 
     attached_dbs = ["db{0}".format(i) for i in xrange(len(db_filenames))]
 
@@ -206,9 +207,7 @@ def main():
         sys.exit("Unable to locate unique vbucket_states table in database files")
 
     vbucket = {True: "kv_"+opts.id, False: """`{{0}}`.`{{1}}`"""}[bool(opts.id)]
-    print "vbucket: {0}".format(vbucket)
-    key = {True: opts.key, False: "%"}[bool(opts.key)]
-    print "key: {0}".format(key)
+    key = {True: re.compile(opts.key), False: False}[bool(opts.key)]
 
     sql = """select k, flags, exptime, v from `{{0}}`.`{{1}}` as kv,
                  `{0}`.vbucket_states as vb
@@ -229,8 +228,9 @@ def main():
           if kv == "kv_{0}".format(opts.id):
             for db_name in dbs:
                 cur.execute(sql.format(db_name,kv))
-                for row in cur:
-                    queue.put(row)
+                for k, flags, exptime, v in cur:
+                    if not key or re.search(key, k):
+                       queue.put((k, flags, exptime, v))
                     count += 1
                     if count & 1023 == 0:
                         print count
@@ -238,11 +238,10 @@ def main():
         if 'kv_' in kv:
             for db_name in dbs:
                 cur.execute(sql.format(db_name, kv))
-                for row in cur:
-                    queue.put(row)
+                for k, flags, exptime, v in cur:
+                    if not key or re.search(key, k):
+                       queue.put((k, flags, exptime, v))
                     count += 1
-                    #if bool(opts.verbose):
-                        #print row
                     if count & 1023 == 0:
                         print count
     queue.join()

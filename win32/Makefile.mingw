@@ -122,9 +122,6 @@ MBDBCONVERT_SRC = \
 
 MBDBCONVERT_OBJS = ${MBDBCONVERT_SRC:%.cc=.libs/%.o}
 
-management/mbdbconvert.exe: ${OBJDIR} ${GENFILES} ${MBDBCONVERT_OBJS} ${LIBSQLITE_KVSTORE_OBJS}
-	${LINK.cc} -o $@ ${MBDBCONVERT_OBJS} .libs/gethrtime.o ${LIBSQLITE_KVSTORE_OBJS} ${LIB} -lpthread
-
 .libs/config_version.h:
 	./win32/config.sh
 

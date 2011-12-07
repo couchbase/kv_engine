@@ -28,7 +28,6 @@ public:
     static const Priority InvalidItemDbPagerPriority;
 
     // Priorities for NON-IO dispatcher
-    static const Priority NotifyVBStateChangePriority;
     static const Priority CheckpointRemoverPriority;
     static const Priority ItemPagerPriority;
     static const Priority BackfillTaskPriority;

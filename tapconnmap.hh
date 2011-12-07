@@ -273,6 +273,8 @@ public:
 
     bool closeTapConnectionByName(const std::string &name);
 
+    TapConnection* findByName(const std::string &name);
+
     void shutdownAllTapConnections();
 
     void scheduleBackfill(const std::set<uint16_t> &backfillVBuckets);

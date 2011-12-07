@@ -73,6 +73,8 @@ public:
             stats.queue_age_cap.set(value);
         } else if (key.compare("tap_throttle_threshold") == 0) {
             stats.tapThrottleThreshold.set(static_cast<double>(value) / 100.0);
+        } else if (key.compare("tap_throttle_queue_cap") == 0) {
+            stats.tapThrottleWriteQueueCap.set(value);
         }
     }
 
@@ -237,31 +239,6 @@ public:
 private:
     EventuallyPersistentStore *ep;
     const Priority &priority;
-};
-
-/**
- * Wake up connections blocked on pending vbuckets when their state
- * changes.
- */
-class NotifyVBStateChangeCallback : public DispatcherCallback {
-public:
-    NotifyVBStateChangeCallback(RCPtr<VBucket> vb, EventuallyPersistentEngine &e)
-        : vbucket(vb), engine(e) { }
-
-    bool callback(Dispatcher &, TaskId) {
-        vbucket->fireAllOps(engine);
-        return false;
-    }
-
-    std::string description() {
-        std::stringstream ss;
-        ss << "Notifying state change of vbucket " << vbucket->getId();
-        return ss.str();
-    }
-
-private:
-    RCPtr<VBucket>              vbucket;
-    EventuallyPersistentEngine &engine;
 };
 
 /**
@@ -515,6 +492,10 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
     stats.tapThrottleThreshold.set(static_cast<double>(config.getTapThrottleThreshold())
                                    / 100.0);
     config.addValueChangedListener("tap_throttle_threshold",
+                                   new StatsValueChangeListener(stats));
+
+    stats.tapThrottleWriteQueueCap.set(config.getTapThrottleQueueCap());
+    config.addValueChangedListener("tap_throttle_queue_cap",
                                    new StatsValueChangeListener(stats));
 
     setBGFetchDelay(config.getBgFetchDelay());
@@ -774,6 +755,16 @@ RCPtr<VBucket> EventuallyPersistentStore::getVBucket(uint16_t vbid,
     }
 }
 
+void EventuallyPersistentStore::firePendingVBucketOps() {
+    uint16_t i;
+    for (i = 0; i < vbuckets.getSize(); i++) {
+        RCPtr<VBucket> vb = getVBucket(i, vbucket_state_active);
+        if (vb) {
+            vb->fireAllOps(engine);
+        }
+    }
+}
+
 /// @cond DETAILS
 /**
  * Inner loop of deleteExpiredItems.
@@ -964,7 +955,10 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::add(const Item &itm,
 ENGINE_ERROR_CODE EventuallyPersistentStore::addTAPBackfillItem(const Item &itm, bool meta) {
 
     RCPtr<VBucket> vb = getVBucket(itm.getVBucketId());
-    if (!vb || vb->getState() == vbucket_state_dead || vb->getState() == vbucket_state_active) {
+    if (!vb ||
+        vb->getState() == vbucket_state_dead ||
+        (vb->getState() == vbucket_state_active &&
+         vb->checkpointManager.getCheckpointConfig().isInconsistentSlaveCheckpoint())) {
         ++stats.numNotMyVBuckets;
         return ENGINE_NOT_MY_VBUCKET;
     }
@@ -1060,10 +1054,9 @@ void EventuallyPersistentStore::setVBucketState(uint16_t vbid,
     if (vb) {
         vb->setState(to, engine.getServerApi());
         lh.unlock();
-        nonIODispatcher->schedule(shared_ptr<DispatcherCallback>
-                                             (new NotifyVBStateChangeCallback(vb,
-                                                                        engine)),
-                                  NULL, Priority::NotifyVBStateChangePriority, 0, false);
+        if (vb->getState() == vbucket_state_pending && to == vbucket_state_active) {
+            engine.notifyNotificationThread();
+        }
         scheduleVBSnapshot(Priority::VBucketPersistLowPriority);
     } else {
         RCPtr<VBucket> newvb(new VBucket(vbid, to, stats, engine.getCheckpointConfig()));
@@ -2096,12 +2089,8 @@ protocol_binary_response_status EventuallyPersistentStore::revertOnlineUpdate(RC
 
     //Stop the hot reload process
     vb->checkpointManager.endHotReload(total);
+    engine.getTapConnMap().notify();
 
-    //Notify all the blocked client requests
-    nonIODispatcher->schedule(shared_ptr<DispatcherCallback>
-                                             (new NotifyVBStateChangeCallback(vb,
-                                                                        engine)),
-                                  NULL, Priority::NotifyVBStateChangePriority, 0, false);
     return rv;
 }
 

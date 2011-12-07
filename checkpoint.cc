@@ -27,6 +27,8 @@ public:
             config.allowInconsistentSlaveCheckpoint(value);
         } else if (key.compare("item_num_based_new_chk") == 0) {
             config.allowItemNumBasedNewCheckpoint(value);
+        } else if (key.compare("keep_closed_chks") == 0) {
+            config.allowKeepClosedCheckpoints(value);
         }
     }
 
@@ -213,7 +215,7 @@ void CheckpointManager::registerPersistenceCursor() {
     assert(checkpointList.size() > 0);
     persistenceCursor.currentCheckpoint = checkpointList.begin();
     persistenceCursor.currentPos = checkpointList.front()->begin();
-    checkpointList.front()->incrReferenceCounter();
+    checkpointList.front()->registerCursorName(persistenceCursor.name);
 }
 
 protocol_binary_response_status CheckpointManager::startOnlineUpdate() {
@@ -236,7 +238,7 @@ protocol_binary_response_status CheckpointManager::startOnlineUpdate() {
     --(onlineUpdateCursor.currentCheckpoint);
 
     onlineUpdateCursor.currentPos = checkpointList.back()->begin();
-    (*(onlineUpdateCursor.currentCheckpoint))->incrReferenceCounter();
+    (*(onlineUpdateCursor.currentCheckpoint))->registerCursorName(onlineUpdateCursor.name);
 
     doOnlineUpdate = true;
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
@@ -257,7 +259,7 @@ protocol_binary_response_status CheckpointManager::stopOnlineUpdate() {
     //close the current checkpoint and create a new checkpoint
     checkOpenCheckpoint_UNLOCKED(true, true);
 
-    (*(onlineUpdateCursor.currentCheckpoint))->decrReferenceCounter();
+    (*(onlineUpdateCursor.currentCheckpoint))->removeCursorName(onlineUpdateCursor.name);
 
     // Adjust for onlineupdate start and end items
     numItems -= 2;
@@ -298,11 +300,11 @@ protocol_binary_response_status CheckpointManager::beginHotReload() {
     checkOpenCheckpoint_UNLOCKED(true, true);
 
     //Update persistence cursor due to hotReload
-    (*(persistenceCursor.currentCheckpoint))->decrReferenceCounter();
+    (*(persistenceCursor.currentCheckpoint))->removeCursorName(persistenceCursor.name);
     persistenceCursor.currentCheckpoint = --(checkpointList.end());
     persistenceCursor.currentPos = checkpointList.back()->begin();
 
-    (*(persistenceCursor.currentCheckpoint))->incrReferenceCounter();
+    (*(persistenceCursor.currentCheckpoint))->registerCursorName(persistenceCursor.name);
 
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
@@ -316,7 +318,7 @@ protocol_binary_response_status CheckpointManager::endHotReload(uint64_t total) 
 
     persistenceCursor.offset += total-1;    // Should ignore the first dummy item
 
-    (*(onlineUpdateCursor.currentCheckpoint))->decrReferenceCounter();
+    (*(onlineUpdateCursor.currentCheckpoint))->removeCursorName(onlineUpdateCursor.name);
     doHotReload = false;
     doOnlineUpdate = false;
 
@@ -345,22 +347,22 @@ bool CheckpointManager::registerTAPCursor(const std::string &name, uint64_t chec
         }
     }
 
-    // If the tap cursor exists, decrease the reference counter of the checkpoint that is
+    // If the tap cursor exists, remove its name from the checkpoint that is
     // currently referenced by the tap cursor.
     std::map<const std::string, CheckpointCursor>::iterator map_it = tapCursors.find(name);
     if (map_it != tapCursors.end()) {
-        (*(map_it->second.currentCheckpoint))->decrReferenceCounter();
+        (*(map_it->second.currentCheckpoint))->removeCursorName(name);
     }
 
     if (!found) {
         // If the checkpoint to start with is not found, set the TAP cursor to the current
         // open checkpoint. This case requires the full materialization through backfill.
         it = --(checkpointList.end());
-        CheckpointCursor cursor(it, (*it)->begin(),
+        CheckpointCursor cursor(name, it, (*it)->begin(),
                             numItems - ((*it)->getNumItems() + 1), // 1 is for checkpoint start item
                             closedCheckpointOnly);
         tapCursors[name] = cursor;
-        (*it)->incrReferenceCounter();
+        (*it)->registerCursorName(name);
     } else {
         size_t offset = 0;
         std::list<queued_item>::iterator curr;
@@ -380,11 +382,10 @@ bool CheckpointManager::registerTAPCursor(const std::string &name, uint64_t chec
             }
         }
 
-        CheckpointCursor cursor(it, curr, offset, closedCheckpointOnly);
+        CheckpointCursor cursor(name, it, curr, offset, closedCheckpointOnly);
         tapCursors[name] = cursor;
-        // Increase the reference counter of the checkpoint that is newly referenced
-        // by the tap cursor.
-        (*it)->incrReferenceCounter();
+        // Register the tap cursor's name to the checkpoint.
+        (*it)->registerCursorName(name);
     }
 
     return found;
@@ -396,7 +397,16 @@ bool CheckpointManager::removeTAPCursor(const std::string &name) {
     if (it == tapCursors.end()) {
         return false;
     }
-    (*(it->second.currentCheckpoint))->decrReferenceCounter();
+
+    // We can simply remove the cursor's name from the checkpoint to which it currently belongs,
+    // by calling
+    // (*(it->second.currentCheckpoint))->removeCursorName(name);
+    // However, we just want to do more sanity checks by looking at each checkpoint. This won't
+    // cause much overhead because the max number of checkpoints allowed per vbucket is small.
+    std::list<Checkpoint*>::iterator cit = checkpointList.begin();
+    for (; cit != checkpointList.end(); cit++) {
+        (*cit)->removeCursorName(name);
+    }
 
     tapCursors.erase(it);
     return true;
@@ -427,7 +437,7 @@ bool CheckpointManager::isCheckpointCreationForHighMemUsage(const RCPtr<VBucket>
     double current = static_cast<double>(stats.currentSize.get() + stats.memOverhead.get());
     // pesistence and tap cursors are all currently in the open checkpoint?
     bool allCursorsInOpenCheckpoint =
-        (1 + tapCursors.size()) == checkpointList.back()->getReferenceCounter() ? true : false;
+        (1 + tapCursors.size()) == checkpointList.back()->getNumberOfCursors() ? true : false;
 
     if (current > stats.mem_high_wat &&
         allCursorsInOpenCheckpoint &&
@@ -445,9 +455,15 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(const RCPtr<VBucket> &vbu
     LockHolder lh(queueLock);
     assert(vbucket);
     uint64_t oldCheckpointId = 0;
+    bool canCreateNewCheckpoint = false;
+    if (checkpointList.size() < checkpointConfig.getMaxCheckpoints() ||
+        (checkpointList.size() == checkpointConfig.getMaxCheckpoints() &&
+         checkpointList.front()->getNumberOfCursors() == 0)) {
+        canCreateNewCheckpoint = true;
+    }
     if (vbucket->getState() == vbucket_state_active &&
         !checkpointConfig.isInconsistentSlaveCheckpoint() &&
-        checkpointList.size() < checkpointConfig.getMaxCheckpoints()) {
+        canCreateNewCheckpoint) {
 
         bool forceCreation = isCheckpointCreationForHighMemUsage(vbucket);
         // Check if this master active vbucket needs to create a new open checkpoint.
@@ -480,14 +496,29 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(const RCPtr<VBucket> &vbu
         }
     }
 
+    if (checkpointConfig.canKeepClosedCheckpoints()) {
+        double current = static_cast<double>(stats.currentSize.get() + stats.memOverhead.get());
+        if (current < stats.mem_high_wat &&
+            checkpointList.size() <= checkpointConfig.getMaxCheckpoints()) {
+            return 0;
+        }
+    }
+
     size_t numUnrefItems = 0;
     std::list<Checkpoint*> unrefCheckpointList;
     std::list<Checkpoint*>::iterator it = checkpointList.begin();
     for (; it != checkpointList.end(); it++) {
-        if ((*it)->getReferenceCounter() > 0) {
+        removeInvalidCursorsOnCheckpoint(*it);
+        if ((*it)->getNumberOfCursors() > 0) {
             break;
         } else {
             numUnrefItems += (*it)->getNumItems() + 2; // 2 is for checkpoint start and end items.
+            if (checkpointConfig.canKeepClosedCheckpoints()) {
+                // Remove only one unreferenced closed checkpoint from memory at a time
+                // if we want to keep as many closed checkpoints as possible.
+                ++it;
+                break;
+            }
         }
     }
     if (numUnrefItems > 0) {
@@ -510,6 +541,34 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(const RCPtr<VBucket> &vbu
     return numUnrefItems;
 }
 
+void CheckpointManager::removeInvalidCursorsOnCheckpoint(Checkpoint *pCheckpoint) {
+    std::list<std::string> invalidCursorNames;
+    const std::set<std::string> &cursors = pCheckpoint->getCursorNameList();
+    std::set<std::string>::const_iterator cit = cursors.begin();
+    for (; cit != cursors.end(); ++cit) {
+        // Check it with persistence cursor
+        if ((*cit).compare(persistenceCursor.name) == 0) {
+            if (pCheckpoint != *(persistenceCursor.currentCheckpoint)) {
+                invalidCursorNames.push_back(*cit);
+            }
+        } else if ((*cit).compare(onlineUpdateCursor.name) == 0) { // OnlineUpdate cursor
+            if (pCheckpoint != *(onlineUpdateCursor.currentCheckpoint)) {
+                invalidCursorNames.push_back(*cit);
+            }
+        } else { // Check it with tap cursors
+            std::map<const std::string, CheckpointCursor>::iterator mit = tapCursors.find(*cit);
+            if (mit == tapCursors.end() || pCheckpoint != *(mit->second.currentCheckpoint)) {
+                invalidCursorNames.push_back(*cit);
+            }
+        }
+    }
+
+    std::list<std::string>::iterator it = invalidCursorNames.begin();
+    for (; it != invalidCursorNames.end(); ++it) {
+        pCheckpoint->removeCursorName(*it);
+    }
+}
+
 bool CheckpointManager::queueDirty(const queued_item &qi, const RCPtr<VBucket> &vbucket) {
     LockHolder lh(queueLock);
     if (vbucket->getState() != vbucket_state_active &&
@@ -529,9 +588,15 @@ bool CheckpointManager::queueDirty(const queued_item &qi, const RCPtr<VBucket> &
     size_t numItemsAfter = getNumItemsForPersistence_UNLOCKED();
 
     assert(vbucket);
+    bool canCreateNewCheckpoint = false;
+    if (checkpointList.size() < checkpointConfig.getMaxCheckpoints() ||
+        (checkpointList.size() == checkpointConfig.getMaxCheckpoints() &&
+         checkpointList.front()->getNumberOfCursors() == 0)) {
+        canCreateNewCheckpoint = true;
+    }
     if (vbucket->getState() == vbucket_state_active &&
         !checkpointConfig.isInconsistentSlaveCheckpoint() &&
-        checkpointList.size() < checkpointConfig.getMaxCheckpoints()) {
+        canCreateNewCheckpoint) {
         // Only the master active vbucket can create a next open checkpoint.
         checkOpenCheckpoint_UNLOCKED(false, true);
     }
@@ -708,7 +773,7 @@ void CheckpointManager::clear(vbucket_state_t vbState) {
     persistenceCursor.currentCheckpoint = checkpointList.begin();
     persistenceCursor.currentPos = checkpointList.front()->begin();
     persistenceCursor.offset = 0;
-    checkpointList.front()->incrReferenceCounter();
+    checkpointList.front()->registerCursorName(persistenceCursor.name);
 
     // Reset all the TAP cursors.
     std::map<const std::string, CheckpointCursor>::iterator cit = tapCursors.begin();
@@ -716,7 +781,7 @@ void CheckpointManager::clear(vbucket_state_t vbState) {
         cit->second.currentCheckpoint = checkpointList.begin();
         cit->second.currentPos = checkpointList.front()->begin();
         cit->second.offset = 0;
-        checkpointList.front()->incrReferenceCounter();
+        checkpointList.front()->registerCursorName(cit->second.name);
     }
 }
 
@@ -730,13 +795,13 @@ bool CheckpointManager::moveCursorToNextCheckpoint(CheckpointCursor &cursor) {
         }
     }
 
-    // decr the reference counter for the current checkpoint by 1.
-    (*(cursor.currentCheckpoint))->decrReferenceCounter();
+    // Remove the cursor's name from its current checkpoint.
+    (*(cursor.currentCheckpoint))->removeCursorName(cursor.name);
     // Move the cursor to the next checkpoint.
     ++(cursor.currentCheckpoint);
     cursor.currentPos = (*(cursor.currentCheckpoint))->begin();
-    // incr the reference counter for the next checkpoint by 1.
-    (*(cursor.currentCheckpoint))->incrReferenceCounter();
+    // Register the cursor's name to its new current checkpoint.
+    (*(cursor.currentCheckpoint))->registerCursorName(cursor.name);
     return true;
 }
 
@@ -767,7 +832,7 @@ bool CheckpointManager::isKeyResidentInCheckpoints(const std::string &key, uint6
     std::list<Checkpoint*>::iterator it = checkpointList.begin();
     // Find the first checkpoint that is referenced by any cursor.
     for (; it != checkpointList.end(); ++it) {
-        if ((*it)->getReferenceCounter() > 0) {
+        if ((*it)->getNumberOfCursors() > 0) {
             break;
         }
     }
@@ -885,7 +950,7 @@ bool CheckpointManager::checkAndAddNewCheckpoint(uint64_t id, bool &pCursorRepos
                 persistenceCursor.currentCheckpoint = --(checkpointList.end());
                 persistenceCursor.currentPos = checkpointList.back()->begin();
                 persistenceCursor.offset = numItems - 1;
-                checkpointList.back()->incrReferenceCounter();
+                checkpointList.back()->registerCursorName(persistenceCursor.name);
             }
             std::set<std::string>::iterator set_it = tapClients.begin();
             for (; set_it != tapClients.end(); ++set_it) {
@@ -894,7 +959,7 @@ bool CheckpointManager::checkAndAddNewCheckpoint(uint64_t id, bool &pCursorRepos
                 map_it->second.currentCheckpoint = --(checkpointList.end());
                 map_it->second.currentPos = checkpointList.back()->begin();
                 map_it->second.offset = numItems - 1;
-                checkpointList.back()->incrReferenceCounter();
+                checkpointList.back()->registerCursorName(map_it->second.name);
             }
         }
 
@@ -954,6 +1019,8 @@ void CheckpointConfig::addConfigChangeListener(EventuallyPersistentEngine &engin
                               new CheckpointConfigChangeListener(engine.getCheckpointConfig()));
     configuration.addValueChangedListener("item_num_based_new_chk",
                               new CheckpointConfigChangeListener(engine.getCheckpointConfig()));
+    configuration.addValueChangedListener("keep_closed_chks",
+                              new CheckpointConfigChangeListener(engine.getCheckpointConfig()));
 }
 
 CheckpointConfig::CheckpointConfig(EventuallyPersistentEngine &e) {
@@ -963,6 +1030,7 @@ CheckpointConfig::CheckpointConfig(EventuallyPersistentEngine &e) {
     maxCheckpoints = config.getMaxCheckpoints();
     inconsistentSlaveCheckpoint = config.isInconsistentSlaveChk();
     itemNumBasedNewCheckpoint = config.isItemNumBasedNewChk();
+    keepClosedCheckpoints = config.isKeepClosedChks();
 }
 
 bool CheckpointConfig::validateCheckpointMaxItemsParam(size_t checkpoint_max_items) {

@@ -1113,6 +1113,8 @@ private:
 
     void reschedule_UNLOCKED(const std::list<TapLogElement>::iterator &iter);
 
+    void clearQueues_UNLOCKED();
+
 
     //! Lock held during queue operations.
     Mutex queueLock;
@@ -1253,6 +1255,9 @@ private:
 
     // The last tap sequence number received
     uint32_t seqnoReceived;
+
+    // The last tap sequence number for which an ack is requested
+    uint32_t seqnoAckRequested;
 
     std::list<TapLogElement> tapLog;
 

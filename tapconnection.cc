@@ -153,6 +153,7 @@ TapProducer::TapProducer(EventuallyPersistentEngine &theEngine,
     queueDrain(0),
     seqno(theEngine.getTapConfig().getAckInitialSequenceNumber()),
     seqnoReceived(theEngine.getTapConfig().getAckInitialSequenceNumber() - 1),
+    seqnoAckRequested(theEngine.getTapConfig().getAckInitialSequenceNumber() - 1),
     notifySent(false),
     registeredTAPClient(false),
     lastMsgTime(ep_current_time()),
@@ -252,7 +253,9 @@ void TapProducer::setVBucketFilter(const std::vector<uint16_t> &vbuckets)
                 if (!vb) {
                     continue;
                 }
-                vb->checkpointManager.removeTAPCursor(name);
+                if (!registeredTAPClient) {
+                    vb->checkpointManager.removeTAPCursor(name);
+                }
             }
         }
 
@@ -481,12 +484,57 @@ bool TapProducer::requestAck(tap_event_t event, uint16_t vbucket) {
     return (explicitEvent ||
             ((seqno - 1) % ackInterval) == 0 || // ack at a regular interval
             isExplicitAck ||
-            (!backfillCompleted && bgResultSize == 0 && queueSize == 0) || // Backfill being done
+            (!backfillCompleted && getBackfillRemaining_UNLOCKED() == 0) || // Backfill being done
             empty_UNLOCKED()); // but if we're almost up to date, ack more often
+}
+
+void TapProducer::clearQueues_UNLOCKED() {
+    /* No point of keeping the rep queue when someone wants to flush it */
+    queue->clear();
+    queueSize = 0;
+    queueMemSize = 0;
+
+    // Clear bg-fetched items.
+    while (!backfilledItems.empty()) {
+        Item *i(backfilledItems.front());
+        assert(i);
+        delete i;
+        backfilledItems.pop();
+    }
+    bgResultSize = 0;
+    while (!backfillQueue.empty()) {
+        backfillQueue.pop();
+    }
+    bgQueueSize = 0;
+
+    // Clear the checkpoint message queue as well
+    while (!checkpointMsgs.empty()) {
+        checkpointMsgs.pop();
+    }
+    // Clear the vbucket state message queues
+    while (!vBucketHighPriority.empty()) {
+        vBucketHighPriority.pop();
+    }
+    while (!vBucketLowPriority.empty()) {
+        vBucketLowPriority.pop();
+    }
 }
 
 void TapProducer::rollback() {
     LockHolder lh(queueLock);
+    if (registeredTAPClient && closedCheckpointOnly) {
+        // If the connection is for a registered TAP client that is only interested in closed
+        // checkpoints, we don't need to resend unACKed items to the client because its replication
+        // cursor is reset to the beginning of the checkpoint to which the cursor currently belongs.
+        tapLog.clear();
+        clearQueues_UNLOCKED();
+        seqno = engine.getTapConfig().getAckInitialSequenceNumber();
+        seqnoReceived = seqno -1;
+        seqnoAckRequested = seqno - 1;
+        checkpointMsgCounter = 0;
+        return;
+    }
+
     size_t checkpoint_msg_sent = 0;
     size_t tapLogSize = 0;
     std::vector<uint16_t> backfillVBs;
@@ -573,6 +621,7 @@ void TapProducer::rollback() {
         scheduleBackfill_UNLOCKED(backfillVBs);
     }
     seqnoReceived = seqno - 1;
+    seqnoAckRequested = seqno - 1;
     checkpointMsgCounter -= checkpoint_msg_sent;
 }
 
@@ -752,7 +801,7 @@ ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
         lh.unlock();
 
         if (notifyTapNotificationThread || doTakeOver) {
-            engine.notifyTapNotificationThread();
+            engine.notifyNotificationThread();
         }
 
         if (complete() && idle()) {
@@ -1066,6 +1115,7 @@ void TapProducer::addStats(ADD_STAT add_stat, const void *c) {
     if (supportAck) {
         addStat("ack_seqno", seqno, add_stat, c);
         addStat("recv_ack_seqno", seqnoReceived, add_stat, c);
+        addStat("seqno_ack_requested", seqnoAckRequested, add_stat, c);
         addStat("ack_log_size", getTapAckLogSize(), add_stat, c);
         addStat("ack_window_full", windowIsFull(), add_stat, c);
         if (windowIsFull()) {
@@ -1113,7 +1163,7 @@ void TapConsumer::addStats(ADD_STAT add_stat, const void *c) {
 void TapConsumer::setBackfillPhase(bool isBackfill, uint16_t vbucket) {
     const VBucketMap &vbuckets = engine.getEpStore()->getVBuckets();
     RCPtr<VBucket> vb = vbuckets.getBucket(vbucket);
-    if (!vb) {
+    if (!(vb && supportCheckpointSync)) {
         return;
     }
 
@@ -1444,7 +1494,7 @@ queued_item TapProducer::next(bool &shouldPause) {
     if (!queue->empty()) {
         queued_item qi = queue->front();
         queue->pop_front();
-        --queueSize;
+        queueSize = queue->empty() ? 0 : queueSize - 1;
         if (queueMemSize > sizeof(queued_item)) {
             queueMemSize.decr(sizeof(queued_item));
         } else {

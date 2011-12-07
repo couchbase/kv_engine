@@ -92,10 +92,15 @@ memcached like this:
 |                        |        | along with normal get/set operations.      |
 | tap_backfill_resident  | float  | Resident item threshold for only memory    |
 |                        |        | backfill to be kicked off                  |
+| keep_closed_chks       | bool   | True if we want to keep closed checkpoints |
+|                        |        | in memory if the current memory usage is   |
+|                        |        | below high water mark                      |
 | getl_default_timeout   | int    | The default timeout for a getl lock in (s) |
 | getl_max_timeout       | int    | The maximum timeout for a getl lock in (s) |
 | mutation_mem_threshold | float  | Memory threshold on the current bucket     |
 |                        |        | quota for accepting a new mutation         |
+| tap_throttle_queue_cap | int    | The maximum size of the disk write queue   |
+|                        |        | to throttle down tap-based replication     |
 | tap_throttle_threshold | float  | Percentage of memory in use before we      |
 |                        |        | throttle tap streams                       |
 

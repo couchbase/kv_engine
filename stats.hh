@@ -45,6 +45,8 @@ public:
     Atomic<size_t> warmDups;
     //! Number of OOM failures at warmup time.
     Atomic<size_t> warmOOM;
+    //! The tap throttle write queue cap
+    Atomic<size_t> tapThrottleWriteQueueCap;
 
     //! size of the input queue
     Atomic<size_t> queue_size;
@@ -217,6 +219,7 @@ public:
     Atomic<size_t> tapThrottled;
     //! Percentage of memory in use before we throttle tap input
     Atomic<double> tapThrottleThreshold;
+
     /** The sum of the deltas (in usec) from a tap item was put in queue until
      *  the dispatcher started the work for this item
      */

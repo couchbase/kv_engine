@@ -23,7 +23,7 @@ except:
     sys.exit("%s requires python version 2.6 or greater" %
               (os.path.basename(sys.argv[0])))
 
-MBI = "./management/mbbackup-incremental"
+MBI = "./management/cbbackup-incremental"
 
 KEY_PREFIX = "hello-\x01\x00\xff-"
 VAL_PREFIX = "world\x00\xff-"

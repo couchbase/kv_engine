@@ -61,11 +61,11 @@ For introductory information on stats within membase, start with the
 | ep_commit_time_total           | Cumulative seconds spent committing.       |
 | ep_vbucket_del                 | Number of vbucket deletion events.         |
 | ep_vbucket_del_fail            | Number of failed vbucket deletion events.  |
-| ep_vbucket_del_max_walltime    | Max wall time (µs) spent by deleting      |
+| ep_vbucket_del_max_walltime    | Max wall time (µs) spent by deleting       |
 |                                | a vbucket                                  |
-| ep_vbucket_del_total_walltime  | Total wall time (µs) spent by deleting    |
+| ep_vbucket_del_total_walltime  | Total wall time (µs) spent by deleting     |
 |                                | vbuckets                                   |
-| ep_vbucket_del_avg_walltime    | Avg wall time (µs) spent by deleting      |
+| ep_vbucket_del_avg_walltime    | Avg wall time (µs) spent by deleting       |
 |                                | a vbucket                                  |
 | ep_flush_preempts              | Num of flush early exits for read reqs.    |
 | ep_flush_duration              | Number of seconds of most recent flush.    |
@@ -175,6 +175,8 @@ For introductory information on stats within membase, start with the
 |                                | protocol violation)                        |
 | ep_obs_reg_clean_job           | Number of time the observe registry        |
 |                                | cleaner job has run                        |
+| ep_inconsistent_slave_chk     | Flag indicating if we allow a "downstream"  |
+|                               | master to receive checkpoint messages       |
 
 ** vBucket total stats
 
@@ -300,7 +302,9 @@ For introductory information on stats within membase, start with the
 | ep_tap_queue_backfill     | Number of backfill remaining               |
 | ep_tap_queue_itemondisk   | Number of items remaining on disk          |
 | ep_tap_throttle_threshold | Percentage of memory in use before we      |
-|                           | throttle tap streams                                           |
+|                           | throttle tap streams                       |
+| ep_tap_throttle_queue_cap | Disk write queue cap to throttle           |
+|                           | tap streams                                |
 
 
 *** Per Tap Client Stats

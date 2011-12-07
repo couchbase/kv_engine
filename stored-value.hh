@@ -441,13 +441,15 @@ public:
         // *resident* length instead of the length of the actual value
         // as it existed.
         size_t vallen = isDeleted() ? 0 : value->length();
-        size_t valign = std::min(sizeof(void*),
-                                 sizeof(void*) - vallen % sizeof(void*));
-        size_t kalign = std::min(sizeof(void*),
-                                 sizeof(void*) - getKeyLen() % sizeof(void*));
-
-        return sizeOf(_isSmall) + getKeyLen() + vallen +
-            sizeof(value_t) + valign + kalign;
+        size_t valign = 0;
+        if (vallen % sizeof(void*) != 0) {
+            valign = sizeof(void*) - vallen % sizeof(void*);
+        }
+        size_t kalign = 0;
+        if (getKeyLen() % sizeof(void*) != 0) {
+            kalign = sizeof(void*) - getKeyLen() % sizeof(void*);
+        }
+        return sizeOf(_isSmall) + getKeyLen() + vallen + valign + kalign;
     }
 
     /**

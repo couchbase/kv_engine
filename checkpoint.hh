@@ -50,13 +50,17 @@ class CheckpointCursor {
 public:
     CheckpointCursor() { }
 
-    CheckpointCursor(std::list<Checkpoint*>::iterator checkpoint,
+    CheckpointCursor(const std::string &n) : name(n) { }
+
+    CheckpointCursor(const std::string &n,
+                     std::list<Checkpoint*>::iterator checkpoint,
                      std::list<queued_item>::iterator pos,
                      size_t os = 0, bool isClosedCheckpointOnly = false) :
-        currentCheckpoint(checkpoint), currentPos(pos),
+        name(n), currentCheckpoint(checkpoint), currentPos(pos),
         offset(os), closedCheckpointOnly(isClosedCheckpointOnly) { }
 
 private:
+    std::string                      name;
     std::list<Checkpoint*>::iterator currentCheckpoint;
     std::list<queued_item>::iterator currentPos;
     Atomic<size_t>                   offset;
@@ -78,7 +82,7 @@ class Checkpoint {
 public:
     Checkpoint(EPStats &st, uint64_t id, checkpoint_state state = opened) :
         stats(st), checkpointId(id), creationTime(ep_real_time()),
-        checkpointState(state), referenceCounter(0), numItems(0), memOverhead(0) {
+        checkpointState(state), numItems(0), memOverhead(0) {
         stats.memOverhead.incr(memorySize());
         assert(stats.memOverhead.get() < GIGANTOR);
     }
@@ -135,25 +139,36 @@ public:
     /**
      * Return the number of cursors that are currently walking through this checkpoint.
      */
-    size_t getReferenceCounter() const {
-        return referenceCounter;
+    size_t getNumberOfCursors() const {
+        return cursors.size();
     }
 
     /**
-     * Increase the reference counter by 1.
+     * Register a cursor's name to this checkpoint
      */
-    void incrReferenceCounter() {
-        ++referenceCounter;
+    void registerCursorName(const std::string &name) {
+        cursors.insert(name);
     }
 
     /**
-     * Decrease the reference counter by 1.
+     * Remove a cursor's name from this checkpoint
      */
-    void decrReferenceCounter() {
-        if (referenceCounter == 0) {
-            return;
-        }
-        --referenceCounter;
+    void removeCursorName(const std::string &name) {
+        cursors.erase(name);
+    }
+
+    /**
+     * Return true if the cursor with a given name exists in this checkpoint
+     */
+    bool hasCursorName(const std::string &name) const {
+        return cursors.find(name) != cursors.end();
+    }
+
+    /**
+     * Return the list of all cursor names in this checkpoint
+     */
+    const std::set<std::string> &getCursorNameList() const {
+        return cursors;
     }
 
     /**
@@ -162,7 +177,7 @@ public:
      * @param checkpointManager the checkpoint manager to which this checkpoint belongs
      * @return a result indicating the status of the operation.
      */
-    queue_dirty_t queueDirty(const queued_item &item, CheckpointManager *checkpointManager);
+    queue_dirty_t queueDirty(const queued_item &qi, CheckpointManager *checkpointManager);
 
 
     std::list<queued_item>::iterator begin() {
@@ -190,8 +205,8 @@ private:
     uint64_t                       checkpointId;
     rel_time_t                     creationTime;
     checkpoint_state               checkpointState;
-    size_t                         referenceCounter;
     size_t                         numItems;
+    std::set<std::string>          cursors; // List of cursors with their unique names.
     // List is used for queueing mutations as vector incurs shift operations for deduplication.
     std::list<queued_item>         toWrite;
     checkpoint_index               keyIndex;
@@ -211,8 +226,9 @@ public:
     CheckpointManager(EPStats &st, uint16_t vbucket,
                       CheckpointConfig &config, uint64_t checkpointId = 1) :
         stats(st), checkpointConfig(config), vbucketId(vbucket), numItems(0),
-        mutationCounter(0), doOnlineUpdate(false), doHotReload(false) {
-
+        mutationCounter(0), persistenceCursor("persistence"), onlineUpdateCursor("online_update"),
+        doOnlineUpdate(false), doHotReload(false) {
+    
         addNewCheckpoint(checkpointId);
         registerPersistenceCursor();
     }
@@ -315,7 +331,7 @@ public:
      * @param vbucket the vbucket that a new item is pushed into.
      * @return true if an item queued increases the size of persistence queue by 1.
      */
-    bool queueDirty(const queued_item &item, const RCPtr<VBucket> &vbucket);
+    bool queueDirty(const queued_item &qi, const RCPtr<VBucket> &vbucket);
 
     /**
      * Return the next item to be sent to a given TAP connection
@@ -404,6 +420,10 @@ public:
 
     bool hasNextForPersistence();
 
+    const CheckpointConfig &getCheckpointConfig() const {
+        return checkpointConfig;
+    }
+
 private:
 
     void registerPersistenceCursor();
@@ -414,6 +434,8 @@ private:
      * @param id the id of a checkpoint to be created.
      */
     bool addNewCheckpoint_UNLOCKED(uint64_t id);
+
+    void removeInvalidCursorsOnCheckpoint(Checkpoint *pCheckpoint);
 
     /**
      * Create a new open checkpoint and add it to the checkpoint list.
@@ -540,6 +562,10 @@ public:
         return itemNumBasedNewCheckpoint;
     }
 
+    bool canKeepClosedCheckpoints() const {
+        return keepClosedCheckpoints;
+    }
+
 protected:
     friend class CheckpointConfigChangeListener;
     friend class EventuallyPersistentEngine;
@@ -560,6 +586,10 @@ protected:
         itemNumBasedNewCheckpoint = value;
     }
 
+    void allowKeepClosedCheckpoints(bool value) {
+        keepClosedCheckpoints = value;
+    } 
+
     static void addConfigChangeListener(EventuallyPersistentEngine &engine);
 
 private:
@@ -575,6 +605,10 @@ private:
     // Flag indicating if a new checkpoint is created once the number of items in the current
     // checkpoint is greater than the max number allowed.
     bool itemNumBasedNewCheckpoint;
+    // Flag indicating if closed checkpoints should be kept in memory if the current memory usage
+    // below the high water mark.
+    bool keepClosedCheckpoints;
+
 };
 
 #endif /* CHECKPOINT_HH */

@@ -149,6 +149,11 @@
             "default": "",
             "type": "string"
         },
+        "keep_closed_chks": {
+            "default": "false",
+            "descr": "True if we want to keep the closed checkpoints for each vbucket unless the memory usage is above high water mark",
+            "type": "bool"
+        },
         "max_item_size": {
             "default": "(20 * 1024 * 1024)",
             "descr": "Maximum number of bytes allowed for an item",
@@ -299,6 +304,17 @@
             "validator": {
                 "range": {
                     "max": 100,
+                    "min": 0
+                }
+            }
+        },
+        "tap_throttle_queue_cap": {
+            "default": "1000000",
+            "descr": "Max size of a write queue to throttle incoming tap input.",
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "max": 100000000,
                     "min": 0
                 }
             }

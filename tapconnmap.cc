@@ -135,6 +135,11 @@ ssize_t TapConnMap::backfillQueueDepth(const std::string &name) {
     return rv;
 }
 
+TapConnection* TapConnMap::findByName(const std::string &name) {
+    LockHolder lh(notifySync);
+    return findByName_UNLOCKED(name);
+}
+
 TapConnection* TapConnMap::findByName_UNLOCKED(const std::string&name) {
     TapConnection *rv(NULL);
     std::list<TapConnection*>::iterator iter;
@@ -472,41 +477,19 @@ void TapConnMap::notifyIOThreadMain() {
     // We should pause unless we purged some connections or
     // all queues have items.
     getExpiredConnections_UNLOCKED(deadClients, registeredClients);
-    bool shouldPause = deadClients.empty() && registeredClients.empty();
-    bool noEvents = engine.mutation_count == 0;
     engine.mutation_count = 0;
 
-    if (shouldPause) {
-        shouldPause = noEvents;
-    }
     // see if I have some channels that I have to signal..
     std::map<const void*, TapConnection*>::iterator iter;
     for (iter = map.begin(); iter != map.end(); ++iter) {
         TapProducer *tp = dynamic_cast<TapProducer*>(iter->second);
         if (tp != NULL) {
             if (tp->supportsAck() && (tp->getExpiryTime() < now) && tp->windowIsFull()) {
-                shouldPause = false;
                 tp->setDisconnect(true);
             } else if (addNoop) {
                 tp->setTimeForNoop();
-                shouldPause = false;
-            } else if (tp->doDisconnect() || !tp->idle()) {
-                shouldPause = false;
-            } else if ((tp->lastWalkTime + maxIdleTime) < now) {
-                shouldPause = false;
             }
         }
-    }
-
-    if (shouldPause) {
-        // We're going to do a full second wait
-        notifySync.wait(1.0);
-        if (engine.shutdown) {
-            return;
-        }
-
-        getExpiredConnections_UNLOCKED(deadClients, registeredClients);
-        now = ep_current_time();
     }
 
     // Collect the list of connections that need to be signaled.
@@ -570,7 +553,7 @@ bool TapConnMap::closeTapConnectionByName(const std::string &name) {
             tp->setRegisteredClient(false);
             removeTapCursors_UNLOCKED(tp);
 
-            tp->setExpiryTime((rel_time_t)-1);
+            tp->setExpiryTime(ep_current_time() - 1);
             tp->setName(TapConnection::getAnonName());
             tp->setDisconnect(true);
             tp->paused = true;
