@@ -123,21 +123,6 @@ public:
     queued_item item;
 };
 
-/**
- * An item queued for background fetch from tap.
- */
-class TapBGFetchQueueItem {
-public:
-    TapBGFetchQueueItem(const std::string &k, uint64_t i,
-                        uint16_t vb, uint16_t vbv) :
-        key(k), id(i), vbucket(vb), vbversion(vbv) {}
-
-    const std::string key;
-    const uint64_t id;
-    const uint16_t vbucket;
-    const uint16_t vbversion;
-};
-
 typedef enum {
     backfill,
     checkpoint_start,
@@ -677,7 +662,7 @@ private:
     }
 
     bool empty_UNLOCKED() {
-        return bgQueueSize == 0 && bgResultSize == 0 && (bgJobIssued - bgJobCompleted) == 0 &&
+        return bgResultSize == 0 && (bgJobIssued - bgJobCompleted) == 0 &&
                !hasQueuedItem_UNLOCKED();
     }
 
@@ -709,8 +694,7 @@ private:
      * Find out how many items are still remaining from backfill.
      */
     size_t getBackfillRemaining_UNLOCKED() {
-        return bgResultSize + bgQueueSize
-            + (bgJobIssued - bgJobCompleted) + queueSize;
+        return bgResultSize + (bgJobIssued - bgJobCompleted) + queueSize;
     }
 
     size_t getBackfillRemaining() {
@@ -729,7 +713,7 @@ private:
 
     size_t getRemaingOnDisk() {
          LockHolder lh(queueLock);
-         return bgQueueSize + (bgJobIssued - bgJobCompleted);
+         return bgJobIssued - bgJobCompleted;
     }
 
     size_t getQueueFillTotal() {
@@ -878,13 +862,10 @@ private:
      * @param id the disk id of the item to fetch
      * @param vb the vbucket ID
      * @param vbv the vbucket version
+     * @param c the connection cookie
      */
-    void queueBGFetch(const std::string &key, uint64_t id, uint16_t vb, uint16_t vbv);
-
-    /**
-     * Run some background fetch jobs.
-     */
-    void runBGFetch(Dispatcher *dispatcher, const void *cookie);
+    void queueBGFetch(const std::string &key, uint64_t id, uint16_t vb,
+                      uint16_t vbv, const void *c);
 
     TapProducer(EventuallyPersistentEngine &theEngine,
                 const void *cookie,
@@ -1111,7 +1092,6 @@ private:
 
     static Atomic<uint64_t> tapCounter;
 
-    Atomic<size_t> bgQueueSize;
     Atomic<size_t> bgQueued;
     Atomic<size_t> bgResultSize;
     Atomic<size_t> bgResults;
@@ -1133,7 +1113,6 @@ private:
     std::list<TapLogElement> tapLog;
 
     Mutex backfillLock;
-    std::queue<TapBGFetchQueueItem> backfillQueue;
     std::queue<Item*> backfilledItems;
 
     /**
