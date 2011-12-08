@@ -695,6 +695,11 @@ private:
      * Find out how many items are still remaining from backfill.
      */
     size_t getBackfillRemaining_UNLOCKED() {
+        if (backfillCompleted) {
+            return 0;
+        }
+        bgResultSize = backfilledItems.empty() ? 0 : bgResultSize.get();
+        queueSize = queue->empty() ? 0 : queueSize;
         return bgResultSize + (bgJobIssued - bgJobCompleted) + queueSize;
     }
 
