@@ -916,7 +916,6 @@ void TapProducer::gotBGItem(Item *i, bool implicitEnqueue) {
     }
     backfilledItems.push(i);
     ++bgResultSize;
-    assert(hasItem());
 }
 
 void TapProducer::completedBGFetchJob() {
@@ -925,7 +924,7 @@ void TapProducer::completedBGFetchJob() {
 
 Item* TapProducer::nextFetchedItem() {
     LockHolder lh(queueLock);
-    assert(hasItem());
+    assert(!backfilledItems.empty());
     Item *rv = backfilledItems.front();
     assert(rv);
     backfilledItems.pop();

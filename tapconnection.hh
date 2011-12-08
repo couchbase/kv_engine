@@ -662,7 +662,7 @@ private:
     }
 
     bool empty_UNLOCKED() {
-        return bgResultSize == 0 && (bgJobIssued - bgJobCompleted) == 0 &&
+        return backfilledItems.empty() && (bgJobIssued - bgJobCompleted) == 0 &&
                !hasQueuedItem_UNLOCKED();
     }
 
@@ -677,7 +677,8 @@ private:
     }
 
     bool hasItem() {
-        return bgResultSize != 0;
+        LockHolder lh(queueLock);
+        return !backfilledItems.empty();
     }
 
     bool hasQueuedItem() {
