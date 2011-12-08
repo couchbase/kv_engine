@@ -1880,7 +1880,6 @@ int EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
                     qi->getItem().setValue(v->getValue());
                     qi->getItem().setFlags(v->getFlags());
                     qi->getItem().setCas(v->getCas());
-                    qi->getItem().setSeqno(v->getSeqno());
                     qi->getItem().setExpTime(v->getExptime());
                 }
             }
