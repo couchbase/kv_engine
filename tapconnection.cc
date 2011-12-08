@@ -416,10 +416,6 @@ void TapProducer::clearQueues_UNLOCKED() {
         backfilledItems.pop();
     }
     bgResultSize = 0;
-    while (!backfillQueue.empty()) {
-        backfillQueue.pop();
-    }
-    bgQueueSize = 0;
 
     // Clear the checkpoint message queue as well
     while (!checkpointMsgs.empty()) {
@@ -897,28 +893,18 @@ private:
 };
 
 void TapProducer::queueBGFetch(const std::string &key, uint64_t id,
-                                 uint16_t vb, uint16_t vbv) {
+                               uint16_t vb, uint16_t vbv, const void *c) {
     LockHolder lh(queueLock);
-    backfillQueue.push(TapBGFetchQueueItem(key, id, vb, vbv));
+    shared_ptr<TapBGFetchCallback> dcb(new TapBGFetchCallback(&engine,
+                                                              getName(), key,
+                                                              vb, vbv,
+                                                              id, c));
+    engine.getEpStore()->getRODispatcher()->schedule(dcb, NULL, Priority::TapBgFetcherPriority);
     ++bgQueued;
-    ++bgQueueSize;
+    ++bgJobIssued;
     assert(!empty_UNLOCKED());
     assert(!idle_UNLOCKED());
     assert(!complete_UNLOCKED());
-}
-
-void TapProducer::runBGFetch(Dispatcher *dispatcher, const void *c) {
-    LockHolder lh(queueLock);
-    TapBGFetchQueueItem qi(backfillQueue.front());
-    backfillQueue.pop();
-    --bgQueueSize;
-
-    shared_ptr<TapBGFetchCallback> dcb(new TapBGFetchCallback(&engine,
-                                                              getName(), qi.key,
-                                                              qi.vbucket, qi.vbversion,
-                                                              qi.id, c));
-    ++bgJobIssued;
-    dispatcher->schedule(dcb, NULL, Priority::TapBgFetcherPriority);
 }
 
 void TapProducer::gotBGItem(Item *i, bool implicitEnqueue) {
@@ -967,7 +953,6 @@ void TapProducer::addStats(ADD_STAT add_stat, const void *c) {
     addStat("has_item", hasItem(), add_stat, c);
     addStat("has_queued_item", hasQueuedItem(), add_stat, c);
     addStat("bg_wait_for_results", waitForBackfill(), add_stat, c);
-    addStat("bg_queue_size", bgQueueSize, add_stat, c);
     addStat("bg_queued", bgQueued, add_stat, c);
     addStat("bg_result_size", bgResultSize, add_stat, c);
     addStat("bg_results", bgResults, add_stat, c);

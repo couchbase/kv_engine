@@ -1932,9 +1932,7 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
                 return TAP_NOOP;
             } else if (r == ENGINE_EWOULDBLOCK) {
                 connection->queueBGFetch(qi->getKey(), gv.getId(), *vbucket,
-                                         epstore->getVBucketVersion(*vbucket));
-                // This can optionally collect a few and batch them.
-                connection->runBGFetch(epstore->getRODispatcher(), cookie);
+                                         epstore->getVBucketVersion(*vbucket), cookie);
                 // If there's an item ready, return NOOP so we'll come
                 // back immediately, otherwise pause the connection
                 // while we wait.
