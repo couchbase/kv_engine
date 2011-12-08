@@ -1116,7 +1116,6 @@ private:
 
     std::list<TapLogElement> tapLog;
 
-    Mutex backfillLock;
     std::queue<Item*> backfilledItems;
 
     /**
