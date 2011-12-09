@@ -232,8 +232,13 @@ public:
     }
 
     void acquire() {
+#define SPINLOCK_NUM_FAST_SPIN 500
+        int spin = SPINLOCK_NUM_FAST_SPIN;
         while (!tryAcquire()) {
-            sched_yield();
+            if (--spin == 0) {
+                sched_yield();
+                spin = SPINLOCK_NUM_FAST_SPIN;
+            }
         }
     }
 
