@@ -1862,6 +1862,11 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
             delete item;
             *itm = item = gv.getValue();
         } else {
+            if (item->isExpired(ep_real_time())) {
+                delete item;
+                retry = true;
+                return TAP_NOOP;
+            }
             *itm = item;
         }
         *vbucket = static_cast<Item*>(*itm)->getVBucketId();
