@@ -59,6 +59,7 @@
 /wrapper/*badm-tap-registration
 /wrapper/*bbackup
 /wrapper/*bbackup-incremental
+/wrapper/*bbackup-merge-incremental
 /wrapper/*bdbconvert
 /wrapper/*bdbmaint
 /wrapper/*bdbupgrade
