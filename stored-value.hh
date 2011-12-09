@@ -1181,7 +1181,7 @@ public:
 
         v->markClean(NULL);
 
-        if (eject || partial) {
+        if (eject) {
             v->ejectValue(stats, *this);
         }
 
