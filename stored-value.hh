@@ -1159,6 +1159,9 @@ public:
 
         if (v == NULL) {
             v = valFact(itm, values[bucket_num], *this);
+            if (partial) {
+                v->extra.feature.resident = false;
+            }
             values[bucket_num] = v;
             ++numItems;
         } else {
@@ -1181,7 +1184,7 @@ public:
 
         v->markClean(NULL);
 
-        if (eject) {
+        if (eject && !partial) {
             v->ejectValue(stats, *this);
         }
 
