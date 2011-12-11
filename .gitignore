@@ -53,6 +53,7 @@
 /wrapper/mbadm-tap-registration
 /wrapper/mbbackup
 /wrapper/mbbackup-incremental
+/wrapper/mbbackup-merge-incremental
 /wrapper/mbdbconvert
 /wrapper/mbdbmaint
 /wrapper/mbdbupgrade
