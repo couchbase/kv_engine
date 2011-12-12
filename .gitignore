@@ -37,6 +37,7 @@
 /config/plugin.ac
 /configure
 /docs/doxy
+/dtrace/probes.h
 /gen_config
 /generated_configuration.*
 /generated_suite_*.c

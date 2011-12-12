@@ -95,4 +95,10 @@ extern "C" {
 #endif
 #endif
 
+#ifdef HAVE_DTRACE
+#include "dtrace/probes.h"
+#else
+#include "dtrace/dummy_probes.h"
+#endif
+
 #endif

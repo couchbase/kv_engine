@@ -416,3 +416,32 @@ engine_tests: ep.la ep_testsuite.la mbbackup-0002.mbb
 
 test: all check-TESTS engine_tests sizes
 	./sizes
+
+if HAVE_DTRACE
+BUILT_SOURCES += dtrace/probes.h
+CLEANFILES += dtrace/probes.h
+
+ep_la_SOURCES += dtrace/probes.d
+
+if DTRACE_NEEDS_OBJECTS
+ep_la_LIBADD += probes.lo
+ep_la_DEPENDENCIES += probes.lo
+CLEANFILES += probes.o probes.lo
+endif
+endif
+
+dtrace/probes.h: dtrace/probes.d
+	$(DTRACE) $(DTRACEFLAGS) -h \
+                  -s $(top_srcdir)/dtrace/probes.d \
+                  -o dtrace/probes.h
+	sed -e 's,void \*,const void \*,g' dtrace/probes.h | \
+            sed -e 's,char \*,const char \*,g' | tr '\t' ' ' > dtrace/probes.tmp
+	mv dtrace/probes.tmp dtrace/probes.h
+
+EP_ENGINE_OBJS=$(ep_la_OBJECTS:%lo=.libs/%o)
+probes.lo: $(ep_la_OBJECTS)
+	$(DTRACE) $(DTRACEFLAGS) -G \
+                  -o .libs/ep_la-probes.o \
+                  -s ${srcdir}/dtrace/probes.d \
+                  $(EP_ENGINE_OBJS)
+	sed -e s,item,probes,g ep_la-item.lo > probes.lo
