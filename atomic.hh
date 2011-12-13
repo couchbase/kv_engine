@@ -225,21 +225,19 @@ public:
  */
 class SpinLock {
 public:
-    SpinLock() : lock(0) {}
+    // It seems like inlining the code caused the dtrace probe to
+    // be optimized away ;)
+    SpinLock();
+    ~SpinLock();
 
+    void acquire(void);
+    void release(void);
+
+private:
     bool tryAcquire() {
        return ep_sync_lock_test_and_set(&lock, 1) == 0;
     }
 
-    // It seems like inlining the code caused the dtrace probe to
-    // be optimized away ;)
-    void acquire(void);
-
-    void release() {
-        ep_sync_lock_release(&lock);
-    }
-
-private:
     volatile int lock;
     DISALLOW_COPY_AND_ASSIGN(SpinLock);
 };

@@ -18,11 +18,25 @@
 #include "config.h"
 #include "atomic.hh"
 
+SpinLock::SpinLock() : lock(0) {
+    EP_SPINLOCK_CREATED(this);
+}
+
+SpinLock::~SpinLock() {
+    assert(lock == 0);
+    EP_SPINLOCK_DESTROYED(this);
+}
+
 void SpinLock::acquire(void) {
    int spin = 0;
    while (!tryAcquire()) {
       ++spin;
    }
 
-   EP_SPINLOCK_ACQUIRED((const void*)this, spin);
+   EP_SPINLOCK_ACQUIRED(this, spin);
+}
+
+void SpinLock::release(void) {
+    ep_sync_lock_release(&lock);
+    EP_SPINLOCK_RELEASED(this);
 }

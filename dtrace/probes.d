@@ -16,12 +16,30 @@
  */
 provider ep {
     /**
+     * A SpinLock object was created
+     * @param lock the address of the newly created spinlock object
+     */
+    probe spinlock__created(const void *lock);
+
+    /**
+     * A SpinLock object was destroyed
+     * @param lock the address of the spinlock object that was destroyed
+     */
+    probe spinlock__destroyed(const void *lock);
+
+    /**
      * Fired when a spin lock was successfully acquired.
      *
      * @param lock the address of the lock
      * @param num the number of iterations we had to spin to acquire the lock
      */
     probe spinlock__acquired(const void *lock, uint32_t num);
+
+    /**
+     * A SpinLock object was just released
+     * @param lock the address of the spinlock object
+     */
+    probe spinlock__released(const void *lock);
 
     /**
      * A Mutex object was created
