@@ -77,7 +77,7 @@ ep_la_SOURCES = \
                  item_pager.cc item_pager.hh \
                  kvstore.hh \
                  locks.hh \
-                 mutex.hh \
+                 mutex.cc mutex.hh \
                  priority.cc priority.hh \
                  queueditem.cc queueditem.hh \
                  restore.hh \
@@ -149,7 +149,7 @@ ep_testsuite_la_LIBADD = libkvstore.la libsqlite-kvstore.la libmc-kvstore.la \
 ep_testsuite_la_DEPENDENCIES = libkvstore.la libsqlite-kvstore.la libmc-kvstore.la \
                                libobjectregistry.la
 
-management_cbdbconvert_SOURCES = atomic.cc management/dbconvert.cc \
+management_cbdbconvert_SOURCES = atomic.cc mutex.cc management/dbconvert.cc \
                                  testlogger.cc
 management_cbdbconvert_LDADD = libkvstore.la libsqlite-kvstore.la libmc-kvstore.la \
                                libobjectregistry.la libconfiguration.la \
@@ -250,28 +250,28 @@ timing_tests_la_SOURCES= timing_tests.cc
 timing_tests_la_LDFLAGS= -module -dynamic
 
 atomic_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
-atomic_test_SOURCES = t/atomic_test.cc atomic.hh
+atomic_test_SOURCES = t/atomic_test.cc atomic.hh mutex.cc
 atomic_test_DEPENDENCIES = atomic.hh
 
 atomic_ptr_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
-atomic_ptr_test_SOURCES = t/atomic_ptr_test.cc atomic.cc atomic.hh
+atomic_ptr_test_SOURCES = t/atomic_ptr_test.cc atomic.cc atomic.hh mutex.cc mutex.hh
 atomic_ptr_test_DEPENDENCIES = atomic.hh
 
 mutex_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
-mutex_test_SOURCES = t/mutex_test.cc locks.hh
+mutex_test_SOURCES = t/mutex_test.cc locks.hh mutex.cc
 mutex_test_DEPENDENCIES = locks.hh
 
 dispatcher_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
 dispatcher_test_SOURCES = t/dispatcher_test.cc dispatcher.cc	\
                           dispatcher.hh priority.cc priority.hh	\
-                          testlogger.cc atomic.cc
+                          testlogger.cc atomic.cc mutex.cc
 dispatcher_test_DEPENDENCIES = common.hh dispatcher.hh dispatcher.cc	\
                                priority.cc priority.hh libobjectregistry.la
 dispatcher_test_LDADD = libobjectregistry.la
 
 hash_table_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
 hash_table_test_SOURCES = t/hash_table_test.cc item.cc stored-value.cc	\
-                          stored-value.hh testlogger.cc atomic.cc
+                          stored-value.hh testlogger.cc atomic.cc mutex.cc
 hash_table_test_DEPENDENCIES = stored-value.cc stored-value.hh ep.hh item.hh \
                                libobjectregistry.la
 hash_table_test_LDADD = libobjectregistry.la
@@ -299,7 +299,8 @@ management_sqlite3_LDADD = libsqlite3.la
 vbucket_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
 vbucket_test_SOURCES = t/vbucket_test.cc t/threadtests.hh vbucket.hh	\
                vbucket.cc stored-value.cc stored-value.hh atomic.cc	\
-               testlogger.cc checkpoint.hh checkpoint.cc byteorder.c
+               testlogger.cc checkpoint.hh checkpoint.cc byteorder.c    \
+               mutex.cc
 vbucket_test_DEPENDENCIES = vbucket.hh stored-value.cc stored-value.hh  \
                checkpoint.hh checkpoint.cc libobjectregistry.la         \
                libconfiguration.la
@@ -310,7 +311,7 @@ checkpoint_test_SOURCES = t/checkpoint_test.cc checkpoint.hh            \
                           checkpoint.cc vbucket.hh vbucket.cc           \
                           testlogger.cc stored-value.cc                 \
                           stored-value.hh queueditem.hh byteorder.c     \
-                          atomic.cc
+                          atomic.cc mutex.cc
 checkpoint_test_DEPENDENCIES = checkpoint.hh vbucket.hh         \
               stored-value.cc stored-value.hh queueditem.hh     \
               libobjectregistry.la libconfiguration.la
@@ -436,6 +437,8 @@ management_cbdbconvert_LDADD += .libs/cddbconvert-probes.o
 management_cbdbconvert_DEPENDENCIES += .libs/cddbconvert-probes.o
 atomic_ptr_test_LDADD = .libs/atomic_ptr_test-probes.o
 atomic_ptr_test_DEPENDENCIES += .libs/atomic_ptr_test-probes.o
+atomic_test_LDADD = .libs/atomic_test-probes.o
+atomic_test_DEPENDENCIES += .libs/atomic_test-probes.o
 checkpoint_test_LDADD += .libs/checkpoint_test-probes.o
 checkpoint_test_DEPENDENCIES += .libs/checkpoint_test-probes.o
 dispatcher_test_LDADD += .libs/dispatcher_test-probes.o
@@ -444,6 +447,8 @@ hash_table_test_LDADD += .libs/hash_table_test-probes.o
 hash_table_test_DEPENDENCIES += .libs/hash_table_test-probes.o
 vbucket_test_LDADD += .libs/vbucket_test-probes.o
 vbucket_test_DEPENDENCIES += .libs/vbucket_test-probes.o
+mutex_test_LDADD = .libs/mutex_test-probes.o
+mutex_test_DEPENDENCIES += .libs/mutex_test-probes.o
 
 CLEANFILES += ep_la-probes.o ep_la-probes.lo                            \
               .libs/cddbconvert-probes.o .libs/cddbconvert-probes.o     \
@@ -451,7 +456,9 @@ CLEANFILES += ep_la-probes.o ep_la-probes.lo                            \
               .libs/checkpoint_test-probes.o                            \
               .libs/dispatcher_test-probes.o                            \
               .libs/hash_table_test-probes.o                            \
-              .libs/vbucket_test-probes.o
+              .libs/vbucket_test-probes.o                               \
+              .libs/atomic_test-probes.o                                \
+              .libs/mutex_test-probes.o
 endif
 endif
 
@@ -492,6 +499,12 @@ ep_testsuite_la-probes.lo: $(ep_testsuite_OBJECTS) dtrace/probes.h
                   -s ${srcdir}/dtrace/probes.d \
                   $(atomic_ptr_test_OBJECTS)
 
+.libs/atomic_test-probes.o: $(atomic_test_OBJECTS) dtrace/probes.h
+	$(DTRACE) $(DTRACEFLAGS) -G \
+                  -o .libs/atomic_test-probes.o \
+                  -s ${srcdir}/dtrace/probes.d \
+                  $(atomic_test_OBJECTS)
+
 .libs/checkpoint_test-probes.o: $(checkpoint_test_OBJECTS) dtrace/probes.h
 	$(DTRACE) $(DTRACEFLAGS) -G \
                   -o .libs/checkpoint_test-probes.o \
@@ -515,3 +528,9 @@ ep_testsuite_la-probes.lo: $(ep_testsuite_OBJECTS) dtrace/probes.h
                   -o .libs/vbucket_test-probes.o \
                   -s ${srcdir}/dtrace/probes.d \
                   $(vbucket_test_OBJECTS)
+
+.libs/mutex_test-probes.o: $(mutex_test_OBJECTS) dtrace/probes.h
+	$(DTRACE) $(DTRACEFLAGS) -G \
+                  -o .libs/mutex_test-probes.o \
+                  -s ${srcdir}/dtrace/probes.d \
+                  $(mutex_test_OBJECTS)

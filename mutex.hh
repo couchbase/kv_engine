@@ -17,38 +17,9 @@
  */
 class Mutex {
 public:
-    Mutex() : held(false)
-    {
-        pthread_mutexattr_t *attr = NULL;
-        int e=0;
+    Mutex();
 
-#ifdef HAVE_PTHREAD_MUTEX_ERRORCHECK
-        pthread_mutexattr_t the_attr;
-        attr = &the_attr;
-
-        if (pthread_mutexattr_init(attr) != 0 ||
-            (e = pthread_mutexattr_settype(attr, PTHREAD_MUTEX_ERRORCHECK)) != 0) {
-            std::string message = "MUTEX ERROR: Failed to initialize mutex: ";
-            message.append(std::strerror(e));
-            throw std::runtime_error(message);
-        }
-#endif
-
-        if ((e = pthread_mutex_init(&mutex, attr)) != 0) {
-            std::string message = "MUTEX ERROR: Failed to initialize mutex: ";
-            message.append(std::strerror(e));
-            throw std::runtime_error(message);
-        }
-    }
-
-    virtual ~Mutex() {
-        int e;
-        if ((e = pthread_mutex_destroy(&mutex)) != 0) {
-            std::string message = "MUTEX ERROR: Failed to destroy mutex: ";
-            message.append(std::strerror(e));
-            throw std::runtime_error(message);
-        }
-    }
+    virtual ~Mutex();
 
     /**
      * True if I own this lock.
@@ -65,26 +36,8 @@ protected:
     friend class LockHolder;
     friend class MultiLockHolder;
 
-    void acquire() {
-        int e;
-        if ((e = pthread_mutex_lock(&mutex)) != 0) {
-            std::string message = "MUTEX ERROR: Failed to acquire lock: ";
-            message.append(std::strerror(e));
-            throw std::runtime_error(message);
-        }
-        setHolder(true);
-    }
-
-    void release() {
-        assert(held && pthread_equal(holder, pthread_self()));
-        setHolder(false);
-        int e;
-        if ((e = pthread_mutex_unlock(&mutex)) != 0) {
-            std::string message = "MUTEX_ERROR: Failed to release lock: ";
-            message.append(std::strerror(e));
-            throw std::runtime_error(message);
-        }
-    }
+    void acquire();
+    void release();
 
     void setHolder(bool isHeld) {
         held = isHeld;
