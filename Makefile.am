@@ -175,7 +175,7 @@ endif
 libsqlite3_la_SOURCES = embedded/sqlite3.h embedded/sqlite3.c
 libsqlite3_la_CFLAGS = $(AM_CFLAGS) ${NO_WERROR} -DSQLITE_THREADSAFE=2
 
-check_PROGRAMS=mc-kvstore-test \
+check_PROGRAMS=\
                atomic_ptr_test \
                atomic_test \
                checkpoint_test \
@@ -330,11 +330,6 @@ vb_del_chunk_list_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
 vb_del_chunk_list_test_SOURCES = t/vb_del_chunk_list_test.cc ep.hh
 vb_del_chunk_list_test_DEPENDENCIES = ep.hh
 
-mc_kvstore_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
-mc_kvstore_test_SOURCES = t/mc-kvstore-test.cc byteorder.c
-mc_kvstore_test_DEPENDENCIES = libmc-kvstore.la libobjectregistry.la libconfiguration.la
-mc_kvstore_test_LDADD = libmc-kvstore.la libobjectregistry.la libconfiguration.la $(LTLIBEVENT)
-
 if BUILD_GETHRTIME
 ep_la_SOURCES += gethrtime.c
 hrtime_test_SOURCES += gethrtime.c
@@ -342,7 +337,6 @@ dispatcher_test_SOURCES += gethrtime.c
 vbucket_test_SOURCES += gethrtime.c
 checkpoint_test_SOURCES += gethrtime.c
 management_cbdbconvert_SOURCES += gethrtime.c
-mc_kvstore_test_SOURCES += gethrtime.c
 ep_testsuite_la_SOURCES += gethrtime.c
 hash_table_test_SOURCES += gethrtime.c
 endif
