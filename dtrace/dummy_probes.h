@@ -23,5 +23,7 @@
 #ifndef DUMMY_PROBES_H
 #define DUMMY_PROBES_H
 
+#define EP_SPINLOCK_ACQUIRED(arg0, arg1)
+#define EP_SPINLOCK_ACQUIRED_ENABLED() (0)
 
 #endif /* DUMMY_PROBES_H */

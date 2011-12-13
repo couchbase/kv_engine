@@ -14,18 +14,15 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-provider ep {
-    /**
-     * Fired when a spin lock was successfully acquired.
-     *
-     * @param lock the address of the lock
-     * @param num the number of iterations we had to spin to acquire the lock
-     */
-    probe spinlock__acquired(const void *lock, uint32_t num);
-};
 
-#pragma D attributes Unstable/Unstable/Common provider ep provider
-#pragma D attributes Private/Private/Common provider ep module
-#pragma D attributes Private/Private/Common provider ep function
-#pragma D attributes Unstable/Unstable/Common provider ep name
-#pragma D attributes Unstable/Unstable/Common provider ep args
+#include "config.h"
+#include "atomic.hh"
+
+void SpinLock::acquire(void) {
+   int spin = 0;
+   while (!tryAcquire()) {
+      ++spin;
+   }
+
+   EP_SPINLOCK_ACQUIRED((const void*)this, spin);
+}

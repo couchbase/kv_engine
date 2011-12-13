@@ -231,16 +231,9 @@ public:
        return ep_sync_lock_test_and_set(&lock, 1) == 0;
     }
 
-    void acquire() {
-#define SPINLOCK_NUM_FAST_SPIN 500
-        int spin = SPINLOCK_NUM_FAST_SPIN;
-        while (!tryAcquire()) {
-            if (--spin == 0) {
-                sched_yield();
-                spin = SPINLOCK_NUM_FAST_SPIN;
-            }
-        }
-    }
+    // It seems like inlining the code caused the dtrace probe to
+    // be optimized away ;)
+    void acquire(void);
 
     void release() {
         ep_sync_lock_release(&lock);
