@@ -13,7 +13,7 @@ INSTALLDIRS=$(LOCAL)/bin $(LOCAL)/lib $(LOCAL)/lib/memcached
 MEMCACHED=../memcached
 GEN_CONFIG = generated_configuration.hh generated_configuration.cc
 
-OBJDIR = .libs .libs/embedded .libs/poll .libs/management .libs/sqlite-kvstore .libs/mc-kvstore
+OBJDIR = .libs .libs/embedded .libs/poll .libs/management .libs/sqlite-kvstore .libs/mc-kvstore .libs/blackhole-kvstore
 BINARIES= ${GEN_CONFIG} .libs/ep.so management/sqlite3.exe
 LIB=$(LOCALLIB) -L${MEMCACHED}/lib
 INCLUDE= -Iwin32 -Isqlite-kvstore -I.libs -Iembedded -I${MEMCACHED}/include -I${MEMCACHED}/win32 -I. $(LOCALINC)
@@ -42,7 +42,9 @@ CXXFLAGS = -std=gnu++0x -g \
            -Wno-long-long  -Wmissing-declarations -Wno-redundant-decls
 
 EP_ENGINE_CC_SRC = \
+                 atomic.cc \
                  backfill.cc \
+                 blackhole-kvstore/blackhole.cc \
                  checkpoint.cc \
                  checkpoint_remover.cc \
                  configuration.cc \
@@ -58,6 +60,7 @@ EP_ENGINE_CC_SRC = \
                  item_pager.cc \
                  mc-kvstore/mc-engine.cc \
                  mc-kvstore/mc-kvstore.cc \
+                 mutex.cc \
                  objectregistry.cc \
                  observe_registry.cc \
                  priority.cc \
