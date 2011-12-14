@@ -1857,7 +1857,7 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
         // If there's a better version in memory, grab it, else go
         // with what we pulled from disk.
         GetValue gv(epstore->get(item->getKey(), item->getVBucketId(),
-                                 cookie, false));
+                                 cookie, false, false));
         if (gv.getStatus() == ENGINE_SUCCESS) {
             delete item;
             *itm = item = gv.getValue();
