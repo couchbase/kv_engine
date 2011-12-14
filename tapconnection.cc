@@ -308,7 +308,7 @@ void TapProducer::registerTAPCursor(std::map<uint16_t, uint64_t> &lastCheckpoint
             if(vb && !vb->checkpointManager.registerTAPCursor(name,
                                                        tapCheckpointState[vbid].currentCheckpointId,
                                                        closedCheckpointOnly, fromBeginning)) {
-                if (backfillAge < current_time && !registeredTAPClient) { // Backfill is required.
+                if (backfillAge < current_time) { // Backfill is required.
                     TapCheckpointState st(vbid, 0, backfill);
                     tapCheckpointState[vbid] = st;
                     // As we set the cursor to the beginning of the open checkpoint when backfill
@@ -329,7 +329,7 @@ void TapProducer::registerTAPCursor(std::map<uint16_t, uint64_t> &lastCheckpoint
         }
     }
 
-    if (backfill_vbuckets.size() > 0 && !registeredTAPClient) {
+    if (backfill_vbuckets.size() > 0) {
         if (backfillAge < current_time) {
             scheduleBackfill_UNLOCKED(backfill_vbuckets);
         }
