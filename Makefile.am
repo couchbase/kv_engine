@@ -466,9 +466,6 @@ dtrace/probes.h: dtrace/probes.d
 	$(DTRACE) $(DTRACEFLAGS) -h \
                   -s $(top_srcdir)/dtrace/probes.d \
                   -o dtrace/probes.h
-	sed -e 's,void \*,const void \*,g' dtrace/probes.h | \
-            sed -e 's,char \*,const char \*,g' | tr '\t' ' ' > dtrace/probes.tmp
-	mv dtrace/probes.tmp dtrace/probes.h
 
 EP_ENGINE_OBJS=$(ep_la_OBJECTS:%lo=.libs/%o)
 ep_la-probes.lo: $(ep_la_OBJECTS) dtrace/probes.h
