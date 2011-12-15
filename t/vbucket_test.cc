@@ -8,7 +8,9 @@
 #include <vector>
 #include <algorithm>
 
+#include "configuration.hh"
 #include "vbucket.hh"
+#include "vbucketmap.hh"
 #include "stats.hh"
 #include "threadtests.hh"
 
@@ -54,7 +56,8 @@ static void testVBucketLookup() {
     std::vector<VBucket*> bucketList(3);
     std::generate_n(bucketList.begin(), bucketList.capacity(), vbgen);
 
-    VBucketMap vbm;
+    Configuration config;
+    VBucketMap vbm(config);
     vbm.addBuckets(bucketList);
 
     assert(!vbm.getBucket(4));
@@ -88,7 +91,8 @@ private:
 };
 
 static void testConcurrentUpdate(void) {
-    VBucketMap vbm;
+    Configuration config;
+    VBucketMap vbm(config);
     AtomicUpdater au(&vbm);
     getCompletedThreads<bool>(numThreads, &au);
 

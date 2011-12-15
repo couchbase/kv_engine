@@ -77,7 +77,6 @@ int main(int, char **) {
     display("Item", sizeof(Item));
     display("QueuedItem", sizeof(QueuedItem));
     display("VBucket", sizeof(VBucket));
-    display("VBucketHolder", sizeof(VBucketHolder));
     display("VBucketMap", sizeof(VBucketMap));
     display("Stats", sizeof(EPStats));
     display("CheckpointManager", sizeof(CheckpointManager));

@@ -93,7 +93,9 @@ ep_la_SOURCES = \
                  tapconnection.cc tapconnection.hh \
                  tapconnmap.cc tapconnmap.hh \
                  tapthrottle.cc tapthrottle.hh \
-                 vbucket.cc vbucket.hh
+                 vbucket.cc vbucket.hh \
+                 vbucketmap.cc vbucketmap.hh
+
 
 
 libobjectregistry_la_SOURCES = objectregistry.cc objectregistry.hh
@@ -313,7 +315,7 @@ vbucket_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
 vbucket_test_SOURCES = t/vbucket_test.cc t/threadtests.hh vbucket.hh	\
                vbucket.cc stored-value.cc stored-value.hh atomic.cc	\
                testlogger.cc checkpoint.hh checkpoint.cc byteorder.c    \
-               mutex.cc
+               mutex.cc vbucketmap.cc
 vbucket_test_DEPENDENCIES = vbucket.hh stored-value.cc stored-value.hh  \
                checkpoint.hh checkpoint.cc libobjectregistry.la         \
                libconfiguration.la

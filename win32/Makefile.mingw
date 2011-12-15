@@ -79,6 +79,7 @@ EP_ENGINE_CC_SRC = \
                  tapconnection.cc \
                  tapthrottle.cc \
                  vbucket.cc \
+                 vbucketmap.cc
 
 EP_ENGINE_C_SRC = \
                  byteorder.c \

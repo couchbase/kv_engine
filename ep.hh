@@ -46,6 +46,7 @@ extern EXTENSION_LOGGER_DESCRIPTOR *getLogger(void);
 #include "atomic.hh"
 #include "dispatcher.hh"
 #include "vbucket.hh"
+#include "vbucketmap.hh"
 #include "item_pager.hh"
 
 #define MAX_BG_FETCH_DELAY 900

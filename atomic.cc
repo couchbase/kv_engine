@@ -31,6 +31,9 @@ void SpinLock::acquire(void) {
    int spin = 0;
    while (!tryAcquire()) {
       ++spin;
+      if (spin > 64) {
+          sched_yield();
+      }
    }
 
    EP_SPINLOCK_ACQUIRED(this, spin);

@@ -444,7 +444,9 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
                                                      bool startVb0,
                                                      bool concurrentDB) :
     engine(theEngine), stats(engine.getEpStats()), rwUnderlying(t),
-    storageProperties(t->getStorageProperties()), diskFlushAll(false),
+    storageProperties(t->getStorageProperties()),
+    vbuckets(theEngine.getConfiguration()),
+    diskFlushAll(false),
     tctx(stats, t, theEngine.observeRegistry),
     bgFetchDelay(0)
 {
