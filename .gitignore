@@ -52,7 +52,7 @@
 /wrapper/*badm-online-update
 /wrapper/*badm-tap-registration
 /wrapper/*bbackup
-/wrapper/*bbackup-incremental
+/wrapper/*bbackup*-incremental
 /wrapper/*bdbconvert
 /wrapper/*bdbmaint
 /wrapper/*bdbupgrade

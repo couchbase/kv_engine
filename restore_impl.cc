@@ -30,7 +30,7 @@ static const char *query =
     "  join cpoint_op on (cpoint_op.vbucket_id = cpoint_state.vbucket_id and"
     "                     cpoint_op.cpoint_id = cpoint_state.cpoint_id) "
     "where cpoint_state.state = \"closed\" "
-    "order by cpoint_op.cpoint_id desc, cpoint_op.seq desc";
+    "order by cpoint_op.cpoint_id desc";
 
 static const int vbucket_id_idx = 0;
 static const int op_idx = 1;

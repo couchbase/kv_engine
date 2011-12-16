@@ -7,7 +7,7 @@ import exceptions
 import string
 import traceback
 import time
-import util
+import backup_util
 import mc_bin_client
 import memcacheConstants
 
@@ -88,18 +88,8 @@ if __name__ == '__main__':
                 exit(err_msg)
             backup_files.extend(bfiles)
 
-        ## Check if there are any missing files in the input backup files
-        missing_file_seq_numbers = util.retrieve_missing_file_seq_numbers(backup_files)
-        for mseq in missing_file_seq_numbers:
-            log(0, "Missing incremental backup file's seq number: %s" % mseq)
-        if len(missing_file_seq_numbers) > 0:
-            sys.exit("Error: Some incremental backup files are missing!!!")
-
-        ## Sort the backup files alphabetically and then reverse them so that the most recent
-        ## backup file becomes the first element in the list.
-        ## (e.g., ['backup-003.mbb', 'backup-002.mbb', 'backup-001'.mbb'])
-        backup_files.sort()
-        backup_files.reverse()
+        ## Check if there are any missing checkpoints in the input backup files
+        backup_files = backup_util.validate_incremental_backup_files(backup_files)
 
         for bfile in backup_files:
             filepath = os.path.realpath(bfile)
