@@ -76,6 +76,7 @@ TapProducer::TapProducer(EventuallyPersistentEngine &theEngine,
     seqnoReceived(initialAckSequenceNumber - 1),
     seqnoAckRequested(initialAckSequenceNumber - 1),
     notifySent(false),
+    suspended(false),
     registeredTAPClient(false),
     isLastAckSucceed(false),
     isSeqNumRotated(false),
@@ -561,13 +562,13 @@ private:
 };
 
 bool TapProducer::isSuspended() const {
-    return suspended.get();
+    return suspended;
 }
 
-void TapProducer::setSuspended(bool value)
+void TapProducer::setSuspended_UNLOCKED(bool value)
 {
     if (value) {
-        if (backoffSleepTime > 0 && !suspended.get()) {
+        if (backoffSleepTime > 0 && !suspended) {
             double sleepTime = takeOverCompletionPhase ? 0.5 : backoffSleepTime;
             Dispatcher *d = engine.getEpStore()->getNonIODispatcher();
             d->schedule(shared_ptr<DispatcherCallback>
@@ -583,8 +584,16 @@ void TapProducer::setSuspended(bool value)
             // backoff disabled, or already in a suspended state
             return;
         }
+    } else {
+        getLogger()->log(EXTENSION_LOG_INFO, NULL,
+                         "Unlocked %s from the suspended state\n", name.c_str());
     }
-    suspended.set(value);
+    suspended = value;
+}
+
+void TapProducer::setSuspended(bool value) {
+    LockHolder lh(queueLock);
+    setSuspended_UNLOCKED(value);
 }
 
 void TapProducer::reschedule_UNLOCKED(const std::list<TapLogElement>::iterator &iter)
@@ -716,7 +725,7 @@ ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
 
     case PROTOCOL_BINARY_RESPONSE_EBUSY:
     case PROTOCOL_BINARY_RESPONSE_ETMPFAIL:
-        setSuspended(true);
+        setSuspended_UNLOCKED(true);
         ++numTapNack;
         getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
                          "Received temporary TAP nack from <%s> (#%u): Code: %u (%s)\n",

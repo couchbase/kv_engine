@@ -408,6 +408,7 @@ public:
     virtual bool cleanSome();
 
     bool isSuspended() const;
+    void setSuspended_UNLOCKED(bool value);
     void setSuspended(bool value);
 
     bool isTimeForNoop();
@@ -1145,7 +1146,7 @@ private:
      * Is this tap connection in a suspended state (the receiver may
      * be too slow
      */
-    Atomic<bool> suspended;
+    bool suspended;
 
 
     /**
