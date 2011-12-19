@@ -64,7 +64,7 @@ public:
         delete queue;
     }
 
-    bool visitBucket(RCPtr<VBucket> vb);
+    bool visitBucket(RCPtr<VBucket> &vb);
 
     void visit(StoredValue *v);
 

@@ -1011,7 +1011,7 @@ void EventuallyPersistentStore::snapshotVBuckets(const Priority &priority) {
     class VBucketStateVisitor : public VBucketVisitor {
     public:
         VBucketStateVisitor(VBucketMap &vb_map) : vbuckets(vb_map) { }
-        bool visitBucket(RCPtr<VBucket> vb) {
+        bool visitBucket(RCPtr<VBucket> &vb) {
             std::pair<uint16_t, uint16_t> p(vb->getId(),
                                             vbuckets.getBucketVersion(vb->getId()));
             vbucket_state vb_state;

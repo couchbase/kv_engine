@@ -73,7 +73,7 @@ std::string BackfillDiskLoad::description() {
     return rv.str();
 }
 
-bool BackFillVisitor::visitBucket(RCPtr<VBucket> vb) {
+bool BackFillVisitor::visitBucket(RCPtr<VBucket> &vb) {
     apply();
 
     if (vBucketFilter(vb->getId())) {

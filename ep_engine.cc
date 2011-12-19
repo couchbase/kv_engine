@@ -2153,7 +2153,7 @@ static void add_casted_stat(const char *k, const Histogram<T> &v,
     std::for_each(v.begin(), v.end(), a);
 }
 
-bool VBucketCountVisitor::visitBucket(RCPtr<VBucket> vb) {
+bool VBucketCountVisitor::visitBucket(RCPtr<VBucket> &vb) {
     ++numVbucket;
     numItems += vb->ht.getNumItems();
     nonResident += vb->ht.getNumNonResidentItems();
@@ -2186,7 +2186,7 @@ bool VBucketCountVisitor::visitBucket(RCPtr<VBucket> vb) {
  */
 class VBucketCountAggregator : public VBucketVisitor  {
 public:
-    bool visitBucket(RCPtr<VBucket> vb)  {
+    bool visitBucket(RCPtr<VBucket> &vb)  {
         std::map<vbucket_state_t, VBucketCountVisitor*>::iterator it;
         it = visitorMap.find(vb->getState());
         if ( it != visitorMap.end() ) {
@@ -2598,7 +2598,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doVBucketStats(const void *cookie,
             cookie(c), add_stat(a), isPrevState(isPrevStateRequested),
             isDetailsRequested(detailsRequested) {}
 
-        bool visitBucket(RCPtr<VBucket> vb) {
+        bool visitBucket(RCPtr<VBucket> &vb) {
             if (isPrevState) {
                 char buf[16];
                 snprintf(buf, sizeof(buf), "vb_%d", vb->getId());
@@ -2629,7 +2629,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doHashStats(const void *cookie,
     public:
         StatVBucketVisitor(const void *c, ADD_STAT a) : cookie(c), add_stat(a) {}
 
-        bool visitBucket(RCPtr<VBucket> vb) {
+        bool visitBucket(RCPtr<VBucket> &vb) {
             uint16_t vbid = vb->getId();
             char buf[32];
             snprintf(buf, sizeof(buf), "vb_%d:state", vbid);
@@ -2681,7 +2681,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doCheckpointStats(const void *cook
         StatCheckpointVisitor(EventuallyPersistentStore * eps, const void *c,
                               ADD_STAT a) : epstore(eps), cookie(c), add_stat(a) {}
 
-        bool visitBucket(RCPtr<VBucket> vb) {
+        bool visitBucket(RCPtr<VBucket> &vb) {
             uint16_t vbid = vb->getId();
             char buf[32];
             snprintf(buf, sizeof(buf), "vb_%d:state", vbid);
@@ -3363,7 +3363,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::onlineUpdate(const void *cookie,
                     StartOnlineUpdateVBucketVisitor(protocol_binary_response_status& r)
                         : rv(r) {}
 
-                    bool visitBucket(RCPtr<VBucket> vb) {
+                    bool visitBucket(RCPtr<VBucket> &vb) {
                         if (!vb || vb->getState() == vbucket_state_dead) {
                             return false;
                         }
@@ -3389,7 +3389,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::onlineUpdate(const void *cookie,
                     CompleteOnlineUpdateVBucketVisitor(protocol_binary_response_status& r)
                         : rv(r) {}
 
-                    bool visitBucket(RCPtr<VBucket> vb) {
+                    bool visitBucket(RCPtr<VBucket> &vb) {
                         if (!vb || vb->getState() == vbucket_state_dead) {
                             return false;
                         }
@@ -3416,7 +3416,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::onlineUpdate(const void *cookie,
                                                      protocol_binary_response_status& r)
                         : epstore(e), rv(r) {}
 
-                    bool visitBucket(RCPtr<VBucket> vb) {
+                    bool visitBucket(RCPtr<VBucket> &vb) {
                         protocol_binary_response_status r = epstore->revertOnlineUpdate(vb);
                         if (r != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
                             rv = r;

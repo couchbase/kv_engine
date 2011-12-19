@@ -16,7 +16,7 @@ public:
 
     ResizingVisitor() { }
 
-    bool visitBucket(RCPtr<VBucket> vb) {
+    bool visitBucket(RCPtr<VBucket> &vb) {
         vb->ht.resize();
         return false;
     }

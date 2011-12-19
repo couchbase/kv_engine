@@ -61,7 +61,7 @@ public:
         }
     }
 
-    bool visitBucket(RCPtr<VBucket> vb) {
+    bool visitBucket(RCPtr<VBucket> &vb) {
          update();
          return VBucketVisitor::visitBucket(vb);
     }

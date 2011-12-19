@@ -68,7 +68,7 @@ public:
      *
      * @return true iff we want to walk the hashtable in this vbucket
      */
-    virtual bool visitBucket(RCPtr<VBucket> vb) {
+    virtual bool visitBucket(RCPtr<VBucket> &vb) {
         if (vBucketFilter(vb->getId())) {
             currentBucket = vb;
             return true;

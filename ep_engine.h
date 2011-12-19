@@ -90,7 +90,7 @@ public:
                                                  pendingWrites(0), onlineUpdate(false)
     { }
 
-    bool visitBucket(RCPtr<VBucket> vb);
+    bool visitBucket(RCPtr<VBucket> &vb);
 
     void visit(StoredValue* v) {
         (void)v;

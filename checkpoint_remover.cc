@@ -18,7 +18,7 @@ public:
         : store(s), stats(st), removed(0),
           stateFinalizer(sfin) {}
 
-    bool visitBucket(RCPtr<VBucket> vb) {
+    bool visitBucket(RCPtr<VBucket> &vb) {
         currentBucket = vb;
         bool newCheckpointCreated = false;
         removed = vb->checkpointManager.removeClosedUnrefCheckpoints(vb, newCheckpointCreated);
