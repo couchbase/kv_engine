@@ -158,7 +158,8 @@ void Flusher::initialize(TaskId tid) {
 
     warmupStartTime = gethrtime();
     initialVbState = store->loadVBucketState();
-    if (store->getROUnderlying()->isKeyDumpSupported()) {
+    if (store->getMutationLog()->isEnabled()
+        || store->getROUnderlying()->isKeyDumpSupported()) {
         transition_state(loading_keys);
     } else {
         transition_state(loading_data);

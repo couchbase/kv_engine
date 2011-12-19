@@ -108,6 +108,12 @@ memcached like this:
 |                        |        | means don't throttle.                      |
 | tap_throttle_threshold | float  | Percentage of memory in use before we      |
 |                        |        | throttle tap streams                       |
+| klog_path              | string | Path to the mutation key log.              |
+| klog_block_size        | int    | Mutation key log block size.               |
+| klog_flush             | string | When to force buffer flushes during        |
+|                        |        | klog (off, commit1, commit2, full)         |
+| klog_sync              | string | When to fsync during klog.                 |
+
 
 ** Shard Patterns
 

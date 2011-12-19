@@ -109,6 +109,7 @@ bool abort_msg(const char *expr, const char *msg, int line) {
 
 static void rmdb(void) {
     remove("/tmp/test.db");
+    remove("/tmp/mutation.log");
     remove("/tmp/test.db-0.sqlite");
     remove("/tmp/test.db-1.sqlite");
     remove("/tmp/test.db-2.sqlite");

@@ -473,6 +473,9 @@ form to describe when time was spent doing various things:
 | disk_commit           | waiting for a commit after a batch of updates  |
 | disk_invalid_item_del | Waiting for disk to delete a chunk of invalid  |
 |                       | items with the old vbucket version             |
+| klogPadding           | Amount of wasted "padding" space in the klog.  |
+| klogFlushTime         | Time spent flushing the klog.                  |
+| klogSyncTime          | Time spent syncing the klog.                   |
 
 ** Hash Stats
 
@@ -559,6 +562,17 @@ Note that tcmalloc stats are not available on some operating systems
 |                                     | dedicates for small objects.         |
 | tcmalloc_current_thread_cache_bytes | A measure of some of the memory      |
 |                                     | TCMalloc is using for small objects. |
+
+** Key Log
+
+Stats =klog= shows counts what's going on with the key mutation log.
+
+| size          | The size of the logfile.                   |
+| count_new     | Number of "new key" events in the log.     |
+| count_del     | Number of "deleted key" events in the log. |
+| count_del_all | Number of "delete all" events in the log.  |
+| count_commit1 | Number of "commit1" events in the log.     |
+| count_commit2 | Number of "commit2" events in the log.     |
 
 * Details
 

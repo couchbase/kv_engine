@@ -446,8 +446,10 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
     engine(theEngine), stats(engine.getEpStats()), rwUnderlying(t),
     storageProperties(t->getStorageProperties()),
     vbuckets(theEngine.getConfiguration()),
+    mutationLog(theEngine.getConfiguration().getKlogPath(),
+                theEngine.getConfiguration().getKlogBlockSize()),
     diskFlushAll(false),
-    tctx(stats, t, theEngine.observeRegistry),
+    tctx(stats, t, mutationLog, theEngine.observeRegistry),
     bgFetchDelay(0)
 {
     getLogger()->log(EXTENSION_LOG_INFO, NULL,
@@ -527,6 +529,9 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
     for (size_t i = 0; i < BASE_VBUCKET_SIZE; ++i) {
         persistenceCheckpointIds[i] = 0;
     }
+
+    bool syncset(mutationLog.setSyncConfig(theEngine.getConfiguration().getKlogSync()));
+    assert(syncset);
 
     startDispatcher();
     startFlusher();
@@ -1122,6 +1127,11 @@ EventuallyPersistentStore::completeVBucketDeletion(uint16_t vbid, uint16_t vbver
         lh.unlock();
         if (rwUnderlying->delVBucket(vbid, vbver)) {
             vbuckets.setBucketDeletion(vbid, false);
+            mutationLog.deleteAll(vbid);
+            // This is happening in an independent transaction, so
+            // we're going go ahead and commit it out.
+            mutationLog.commit1();
+            mutationLog.commit2();
             ++stats.vbucketDeletions;
             return vbucket_del_success;
         } else {
@@ -2185,9 +2195,11 @@ class PersistenceCallback : public Callback<mutation_result>,
 public:
 
     PersistenceCallback(const queued_item &qi, std::queue<queued_item> *q,
-                        EventuallyPersistentStore *st,
+                        EventuallyPersistentStore *st, MutationLog *ml,
                         rel_time_t qd, rel_time_t d, EPStats *s) :
-        queuedItem(qi), rq(q), store(st), queued(qd), dirtied(d), stats(s) {
+        queuedItem(qi), rq(q), store(st), mutationLog(ml),
+        queued(qd), dirtied(d), stats(s) {
+
         assert(rq);
         assert(s);
     }
@@ -2197,6 +2209,8 @@ public:
         if (value.first == 1) {
             stats->totalPersisted++;
             if (value.second > 0) {
+                mutationLog->newItem(queuedItem->getVBucketId(), queuedItem->getKey(),
+                                     value.second);
                 ++stats->newItems;
                 setId(value.second);
             }
@@ -2265,6 +2279,9 @@ public:
                 ++stats->delItems;
                 ++vb->opsDelete;
             }
+
+            mutationLog->delItem(queuedItem->getVBucketId(), queuedItem->getKey());
+
             // We have succesfully removed an item from the disk, we
             // may now remove it from the hash table.
             if (vb) {
@@ -2315,6 +2332,7 @@ private:
     const queued_item queuedItem;
     std::queue<queued_item> *rq;
     EventuallyPersistentStore *store;
+    MutationLog *mutationLog;
     rel_time_t queued;
     rel_time_t dirtied;
     EPStats *stats;
@@ -2323,6 +2341,15 @@ private:
 
 int EventuallyPersistentStore::flushOneDeleteAll() {
     rwUnderlying->reset();
+    // Log a flush of every known vbucket.
+    std::vector<int> vbs(vbuckets.getBuckets());
+    for (std::vector<int>::iterator it(vbs.begin()); it != vbs.end(); ++it) {
+        mutationLog.deleteAll(static_cast<uint16_t>(*it));
+    }
+    // This is happening in an independent transaction, so we're going
+    // go ahead and commit it out.
+    mutationLog.commit1();
+    mutationLog.commit2();
     diskFlushAll.cas(true, false);
     return 1;
 }
@@ -2428,7 +2455,7 @@ int EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
                                  rowid == -1 ? "disk_insert" : "disk_update",
                                  stats.timingLog);
                 PersistenceCallback *cb;
-                cb = new PersistenceCallback(qi, rejectQueue, this,
+                cb = new PersistenceCallback(qi, rejectQueue, this, &mutationLog,
                                              queued, dirtied, &stats);
                 tctx.addCallback(cb);
                 rwUnderlying->set(itm, qi->getVBucketVersion(), *cb);
@@ -2444,8 +2471,8 @@ int EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
         BlockTimer timer(&stats.diskDelHisto, "disk_delete", stats.timingLog);
 
         PersistenceCallback *cb;
-        cb = new PersistenceCallback(qi, rejectQueue, this, queued,
-                                     dirtied, &stats);
+        cb = new PersistenceCallback(qi, rejectQueue, this, &mutationLog,
+                                     queued, dirtied, &stats);
         if (rowid > 0) {
             uint16_t vbid(qi->getVBucketId());
             uint16_t vbver(vbuckets.getBucketVersion(vbid));
@@ -2586,6 +2613,59 @@ void EventuallyPersistentStore::warmupCompleted() {
     }
 }
 
+static void warmupLogCallback(void *arg, uint16_t vb, uint16_t vbver,
+                              const std::string &key, uint64_t rowid) {
+    shared_ptr<Callback<GetValue> > *cb = reinterpret_cast<shared_ptr<Callback<GetValue> >*>(arg);
+    Item *itm = new Item(key.data(), key.size(),
+                         0, // flags
+                         0, // exp
+                         NULL, 0, // data
+                         0, // CAS
+                         rowid,
+                         vb);
+
+    GetValue gv(itm, ENGINE_SUCCESS, rowid, vbver, NULL, true /* partial */);
+
+    (*cb)->callback(gv);
+}
+
+bool EventuallyPersistentStore::warmupFromLog(const std::map<std::pair<uint16_t, uint16_t>,
+                                                             vbucket_state> &state,
+                                              shared_ptr<Callback<GetValue> > cb) {
+
+    bool rv(true);
+
+    MutationLogHarvester harvester(mutationLog);
+    for (std::map<std::pair<uint16_t, uint16_t>, vbucket_state>::const_iterator it = state.begin();
+         it != state.end(); ++it) {
+
+        harvester.setVbVer(it->first.first, it->first.second);
+    }
+
+    hrtime_t start(gethrtime());
+
+    harvester.load();
+
+    hrtime_t end1(gethrtime());
+
+    getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                     "Completed log read in %s with %d entries\n",
+                     hrtime2text(end1 - start).c_str(), harvester.total());
+
+    harvester.apply(&cb, &warmupLogCallback);
+    mutationLog.resetCounts(harvester.getItemsSeen());
+
+    hrtime_t end2(gethrtime());
+    getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                     "Completed repopulation from log in %dms\n",
+                     ((end2 - end1) / 1000000));
+
+    // Anything left in the "loading" map at this point is uncommitted.
+    // TODO:  Forward reconciliation of uncommitted data.
+
+    return rv;
+}
+
 void
 EventuallyPersistentStore::warmup(const std::map<std::pair<uint16_t, uint16_t>, vbucket_state> &st,
                                   bool keysOnly) {
@@ -2609,7 +2689,9 @@ EventuallyPersistentStore::warmup(const std::map<std::pair<uint16_t, uint16_t>, 
     }
 
     if (keysOnly) {
-        roUnderlying->dumpKeys(vbids, cb);
+        if (!warmupFromLog(st, cb)) {
+            roUnderlying->dumpKeys(vbids, cb);
+        }
     } else {
         roUnderlying->dump(cb);
         invalidItemDbPager->createRangeList();
@@ -2679,7 +2761,8 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
             epstore->getInvalidItemDbPager()->addInvalidItem(i, val.getVBucketVersion());
 
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "Received invalid item.. ignored");
+                             "Received invalid item (v %d != v %d).. ignored",
+                             val.getVBucketVersion(), vb_version);
 
             delete i;
             return;
@@ -2791,10 +2874,12 @@ void TransactionContext::leave(int completed) {
 void TransactionContext::commit() {
     BlockTimer timer(&stats.diskCommitHisto, "disk_commit", stats.timingLog);
     rel_time_t cstart = ep_current_time();
+    mutationLog.commit1();
     while (!underlying->commit()) {
         sleep(1);
         ++stats.commitFailed;
     }
+    mutationLog.commit2();
     ++stats.flusherCommits;
 
     std::list<PersistenceCallback*>::iterator iter;

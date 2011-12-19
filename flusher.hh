@@ -5,6 +5,7 @@
 #include "common.hh"
 #include "ep.hh"
 #include "dispatcher.hh"
+#include "mutation_log.hh"
 
 enum flusher_state {
     initializing,

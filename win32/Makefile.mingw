@@ -60,6 +60,7 @@ EP_ENGINE_CC_SRC = \
                  item_pager.cc \
                  mc-kvstore/mc-engine.cc \
                  mc-kvstore/mc-kvstore.cc \
+                 mutation_log.cc \
                  mutex.cc \
                  objectregistry.cc \
                  observe_registry.cc \
@@ -83,6 +84,7 @@ EP_ENGINE_CC_SRC = \
 
 EP_ENGINE_C_SRC = \
                  byteorder.c \
+                 crc32.c \
                  embedded/sqlite3.c \
                  gethrtime.c \
                  tools/cJSON.c

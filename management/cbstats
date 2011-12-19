@@ -2,6 +2,7 @@
 
 import clitool
 import sys
+import math
 import itertools
 import re
 
@@ -51,6 +52,38 @@ def stats_formatter(stats, prefix=" ", cmp=None):
             s = stat + ":"
             print "%s%s%s" % (prefix, s.ljust(longest), val)
 
+def time_label(s):
+    # -(2**64) -> '-inf'
+    # 2**64 -> 'inf'
+    # 0 -> '0'
+    # 4 -> '4us'
+    # 838384 -> '838ms'
+    # 8283852 -> '8s'
+    if s > BIG_VALUE:
+        return 'inf'
+    elif s < SMALL_VALUE:
+        return '-inf'
+    elif s == 0:
+        return '0'
+    product = 1
+    sizes = (('us', 1), ('ms', 1000), ('s', 1000), ('m', 60))
+    sizeMap = []
+    for l,sz in sizes:
+        product = sz * product
+        sizeMap.insert(0, (l, product))
+    lbl, factor = itertools.dropwhile(lambda x: x[1] > s, sizeMap).next()
+    return "%d%s" % (s / factor, lbl)
+
+def size_label(s):
+    if s == 0:
+        return "0"
+    sizes=['', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB']
+    e = math.floor(math.log(s, 1024))
+    suffix = sizes[int(e)]
+    return "%d%s" % (s/(1024 ** math.floor(e)), suffix)
+
+@cmd
+
 def histograms(mc, raw_stats):
     def seg(k, v):
         # Parse ('some_stat_x_y', 'v') into (('some_stat', x, y), v)
@@ -75,8 +108,10 @@ def histograms(mc, raw_stats):
     dd = {}
     totals = {}
     longest = 0
+    labelers = {'klogPadding': size_label}
     for s in stats:
-        lbl = "%s - %s" % (time_label(s[0][1]), time_label(s[0][2]))
+        labeler = labelers.get(s[0][0], time_label)
+        lbl = "%s - %s" % (labeler(s[0][1]), labeler(s[0][2]))
         longest = max(longest, len(lbl) + 1)
         k = s[0][0]
         l = dd.get(k, [])

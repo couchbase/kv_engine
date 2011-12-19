@@ -2932,7 +2932,19 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTimingStats(const void *cookie,
     add_casted_stat("disk_invalid_item_del", stats.diskInvaidItemDelHisto,
                     add_stat, cookie);
 
-    add_casted_stat("online_update_revert", stats.checkpointRevertHisto, add_stat, cookie);
+    add_casted_stat("online_update_revert", stats.checkpointRevertHisto,
+                    add_stat, cookie);
+
+    // Mutation Log
+    const MutationLog *mutationLog(epstore->getMutationLog());
+    if (mutationLog->isEnabled()) {
+        add_casted_stat("klogPadding", mutationLog->paddingHisto,
+                        add_stat, cookie);
+        add_casted_stat("klogFlushTime", mutationLog->flushTimeHisto,
+                        add_stat, cookie);
+        add_casted_stat("klogSyncTime", mutationLog->syncTimeHisto,
+                        add_stat, cookie);
+    }
 
     return ENGINE_SUCCESS;
 }
@@ -3012,6 +3024,21 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doObserveStats(const void* cookie,
     return ENGINE_SUCCESS;
 }
 
+ENGINE_ERROR_CODE EventuallyPersistentEngine::doKlogStats(const void* cookie,
+                                                          ADD_STAT add_stat) {
+    const MutationLog *mutationLog(epstore->getMutationLog());
+    add_casted_stat("size", mutationLog->logSize, add_stat, cookie);
+    for (int i(0); i < MUTATION_LOG_TYPES; ++i) {
+        size_t v(mutationLog->itemsLogged[i]);
+        if (v > 0) {
+            char key[32];
+            snprintf(key, sizeof(key), "count_%s", mutation_log_type_names[i]);
+            add_casted_stat(key, v, add_stat, cookie);
+        }
+    }
+    return ENGINE_SUCCESS;
+}
+
 ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
                                                        const char* stat_key,
                                                        int nkey,
@@ -3041,6 +3068,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
         rv = doVBucketStats(cookie, add_stat, true, false);
     } else if (nkey == 10 && strncmp(stat_key, "checkpoint", 10) == 0) {
         rv = doCheckpointStats(cookie, add_stat);
+    } else if (nkey == 4 && strncmp(stat_key, "klog", 10) == 0) {
+        rv = doKlogStats(cookie, add_stat);
     } else if (nkey == 7 && strncmp(stat_key, "timings", 7) == 0) {
         rv = doTimingStats(cookie, add_stat);
     } else if (nkey == 10 && strncmp(stat_key, "dispatcher", 10) == 0) {

@@ -48,6 +48,7 @@ extern EXTENSION_LOGGER_DESCRIPTOR *getLogger(void);
 #include "vbucket.hh"
 #include "vbucketmap.hh"
 #include "item_pager.hh"
+#include "mutation_log.hh"
 
 #define MAX_BG_FETCH_DELAY 900
 
@@ -299,8 +300,9 @@ class PersistenceCallback;
 class TransactionContext {
 public:
 
-    TransactionContext(EPStats &st, KVStore *ks, ObserveRegistry &obsReg)
-        : stats(st), underlying(ks), _remaining(0), intxn(false),
+    TransactionContext(EPStats &st, KVStore *ks, MutationLog &log,
+                       ObserveRegistry &obsReg)
+        : stats(st), underlying(ks), mutationLog(log), _remaining(0), intxn(false),
         observeRegistry(obsReg) {}
 
     /**
@@ -373,6 +375,7 @@ public:
 private:
     EPStats     &stats;
     KVStore     *underlying;
+    MutationLog &mutationLog;
     int          _remaining;
     Atomic<int>  txnSize;
     Atomic<size_t> numUncommittedItems;
@@ -835,10 +838,18 @@ public:
      */
     void completeDegradedMode();
 
+
+    /**
+     * Get access to the mutation log.
+     */
+    const MutationLog *getMutationLog() const { return &mutationLog; }
+
 protected:
     // Method called by the flusher
     std::map<std::pair<uint16_t, uint16_t>, vbucket_state> loadVBucketState();
 
+    bool warmupFromLog(const std::map<std::pair<uint16_t, uint16_t>, vbucket_state> &state,
+                       shared_ptr<Callback<GetValue> >cb);
     void warmup(const std::map<std::pair<uint16_t, uint16_t>, vbucket_state> &state, bool keysOnly);
     void warmupCompleted();
 
@@ -938,6 +949,8 @@ private:
     InvalidItemDbPager        *invalidItemDbPager;
     VBucketMap                 vbuckets;
     SyncObject                 mutex;
+
+    MutationLog                mutationLog;
 
     // The writing queue is used by the flusher thread to keep
     // track of the objects it works on. It should _not_ be used

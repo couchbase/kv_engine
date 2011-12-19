@@ -162,6 +162,38 @@
             "descr": "True if we want to keep the closed checkpoints for each vbucket unless the memory usage is above high water mark",
             "type": "bool"
         },
+        "klog_block_size": {
+            "default": "4096",
+            "descr": "Logging block size.",
+            "type": "size_t"
+        },
+        "klog_flush": {
+            "default": "commit2",
+            "descr": "When to flush the log (complete current block).",
+            "enum": [
+                "off",
+                "commit1",
+                "commit2",
+                "full"
+            ],
+            "type": "std::string"
+        },
+        "klog_path": {
+            "default": "",
+            "descr": "Path to the mutation key log.",
+            "type": "std::string"
+        },
+        "klog_sync": {
+            "default": "commit2",
+            "descr": "When to sync the log.",
+            "enum": [
+                "off",
+                "commit1",
+                "commit2",
+                "full"
+            ],
+            "type": "std::string"
+        },
         "max_checkpoints": {
             "default": "2",
             "type": "size_t"

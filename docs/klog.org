@@ -1,0 +1,99 @@
+* Overview of the Key Mutation Log
+
+This change introduces a new on-disk binary format for logging major
+key events only.  These events are limited to the creation and
+destruction of keys only -- modification of keys is out of scope, as
+is storing values.
+
+* Flow
+
+The logging hooks in to the persistence flow and does the following:
+
+After writing any new key or deleting any existing key from disk, a
+new log entry is buffered.
+
+The buffer is written when a block is full or on a flush event
+(configurable, usually after a commit1 or commit2 event).
+
+Before sending a commit to the underlying store, a commit1 event is
+logged.
+
+After the underlying store completes its commit, a commit2 is logged.
+
+* Configuration
+
+There are four new engine parameters that come with this feature:
+
+** klog_path
+
+Where the events should be logged.  An empty string (default) disables
+logging.
+
+** klog_block_size
+
+The buffer/block size for log entries.  The number should line up with
+the underlying filesystem block size.  Multiples may increase
+throughput.
+
+** klog_flush
+
+Configures when the buffer should be force-flushed.  There are four
+possible values:
+
+   off: never force a flush
+   commit1: force a flush after commit1 only
+   commit2: force a flush after commit2 only
+   full: force a flush after both commit1 and commit2
+
+** klog_sync
+
+Configures when the file should be fsynced.  There are four
+possible values:
+
+   off: never fsync
+   commit1: fsync after commit1 only
+   commit2: fsync after commit2 only
+   full: fsync after both commit1 and commit2
+
+* Data Format
+
+Each file consists of a header and then an arbitrary number of blocks
+which each contain an arbitrary number of records.  All fields are
+big-endian byte encoded.
+
+** Header
+
+The file begins with a header of at least 4,096 bytes long.  The
+header defines some basic info about the file.
+
+- 32-bit version number (this document describes version 1)
+- 32-bit block size
+- 32-bit block count
+- k/v properties to store additional tagged config
+  - 8-bit key len
+  - 8-bit value len
+  - key bytes
+  - value bytes
+- terminated by zero-length key
+
+If the block size listed in the header is larger 4,096 bytes, the
+first block itself will be this length (assume anything extra is
+zero-padded).
+
+** Block
+
+- checksum (16-bits, IEEE crc32 & 0xffff)
+- record count (16-bits)
+- []record
+
+Block size is variable.  I've been using 4k, for now.  Blocks are 0
+padded at the end when we need to sync or we can't fit more entries.
+
+** Record
+
+- rowid (64-bit)
+- vbucket (16-bit)
+- magic (0x45)
+- type (8-bit)
+- key len (8-bit)
+- key ([]byte)

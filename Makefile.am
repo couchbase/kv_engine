@@ -66,6 +66,7 @@ ep_la_SOURCES = \
                  command_ids.h \
                  common.hh \
                  config_static.h \
+                 crc32.c crc32.h \
                  dispatcher.cc dispatcher.hh \
                  ep.cc ep.hh \
                  ep_engine.cc ep_engine.h \
@@ -79,6 +80,7 @@ ep_la_SOURCES = \
                  item_pager.cc item_pager.hh \
                  kvstore.hh \
                  locks.hh \
+                 mutation_log.cc mutation_log.hh \
                  mutex.cc mutex.hh \
                  priority.cc priority.hh \
                  queueditem.cc queueditem.hh \
@@ -201,6 +203,7 @@ check_PROGRAMS=\
                histo_test \
                hrtime_test \
                misc_test \
+               mutation_log_test \
                mutex_test \
                pathexpand_test \
                priority_test \
@@ -335,6 +338,14 @@ checkpoint_test_DEPENDENCIES = checkpoint.hh vbucket.hh         \
               libobjectregistry.la libconfiguration.la
 checkpoint_test_LDADD = libobjectregistry.la libconfiguration.la
 
+mutation_log_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
+mutation_log_test_SOURCES = t/mutation_log_test.cc mutation_log.hh	\
+                            testlogger.cc mutation_log.cc \
+                            byteorder.h byteorder.c \
+                            crc32.h crc32.c
+mutation_log_test_DEPENDENCIES = mutation_log.hh
+mutation_log_test_LDADD =
+
 hrtime_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
 hrtime_test_SOURCES = t/hrtime_test.cc common.hh
 
@@ -368,6 +379,7 @@ checkpoint_test_SOURCES += gethrtime.c
 management_cbdbconvert_SOURCES += gethrtime.c
 ep_testsuite_la_SOURCES += gethrtime.c
 hash_table_test_SOURCES += gethrtime.c
+mutation_log_test_SOURCES += gethrtime.c
 endif
 
 if BUILD_BYTEORDER
@@ -474,6 +486,7 @@ CLEANFILES += ep_la-probes.o ep_la-probes.lo                            \
               .libs/cddbconvert-probes.o .libs/cddbconvert-probes.o     \
               .libs/atomic_ptr_test-probes.o                            \
               .libs/checkpoint_test-probes.o                            \
+              .libs/mutation_test-probes.o                              \
               .libs/dispatcher_test-probes.o                            \
               .libs/hash_table_test-probes.o                            \
               .libs/vbucket_test-probes.o                               \
@@ -527,6 +540,12 @@ ep_testsuite_la-probes.lo: $(ep_testsuite_la_OBJECTS) dtrace/probes.h
                   -o .libs/checkpoint_test-probes.o \
                   -s ${srcdir}/dtrace/probes.d \
                   $(checkpoint_test_OBJECTS)
+
+.libs/mutation_test-probes.o: $(mutation_test_OBJECTS) dtrace/probes.h
+	$(DTRACE) $(DTRACEFLAGS) -G \
+                  -o .libs/mutation_test-probes.o \
+                  -s ${srcdir}/dtrace/probes.d \
+                  $(mutation_test_OBJECTS)
 
 .libs/dispatcher_test-probes.o: $(dispatcher_test_OBJECTS) dtrace/probes.h
 	$(DTRACE) $(DTRACEFLAGS) -G \
