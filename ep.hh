@@ -683,22 +683,7 @@ public:
      */
     bool resetVBucket(uint16_t vbid);
 
-    void visit(VBucketVisitor &visitor) {
-        size_t maxSize = vbuckets.getSize();
-        for (size_t i = 0; i <= maxSize; ++i) {
-            assert(i <= std::numeric_limits<uint16_t>::max());
-            uint16_t vbid = static_cast<uint16_t>(i);
-            RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
-            if (vb) {
-                bool wantData = visitor.visitBucket(vb);
-                // We could've lost this along the way.
-                if (wantData) {
-                    vb->ht.visit(visitor);
-                }
-            }
-        }
-        visitor.complete();
-    }
+    void visit(VBucketVisitor &visitor);
 
     /**
      * Run a vbucket visitor with separate jobs per vbucket.
