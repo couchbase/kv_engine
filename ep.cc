@@ -2053,7 +2053,6 @@ int EventuallyPersistentStore::addUnlessThere(const std::string &key,
         LockHolder lh(restore.mutex);
         queued_item qi(new QueuedItem(key, value, vbid, op, vbuckets.getBucketVersion(vbid),
                                       -1, flags, exptime, cas));
-        qi->setEjectValue(true);
         restore.items.push_back(qi);
         return 0;
     }

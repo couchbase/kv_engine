@@ -33,7 +33,7 @@ public:
     QueuedItem(const std::string &k, const uint16_t vb, enum queue_operation o,
                const uint16_t vb_version = -1, const int64_t rid = -1, const uint32_t f = 0,
                const time_t expiry_time = 0, const uint64_t cv = 0)
-        : op(o),vbucket_version(vb_version), ejectValue(false), queued(ep_current_time()),
+        : op(o),vbucket_version(vb_version), queued(ep_current_time()),
           dirtied(ep_current_time()), item(k, f, expiry_time, NULL, 0, cv, rid, vb) {
         ObjectRegistry::onCreateQueuedItem(this);
     }
@@ -41,7 +41,7 @@ public:
     QueuedItem(const std::string &k, value_t v, const uint16_t vb, enum queue_operation o,
                const uint16_t vb_version = -1, const int64_t rid = -1, const uint32_t f = 0,
                const time_t expiry_time = 0, const uint64_t cv = 0)
-        : op(o), vbucket_version(vb_version), ejectValue(false), queued(ep_current_time()),
+        : op(o), vbucket_version(vb_version), queued(ep_current_time()),
           dirtied(ep_current_time()), item(k, f, expiry_time, v, cv, rid, vb)
     {
         ObjectRegistry::onCreateQueuedItem(this);
@@ -64,14 +64,6 @@ public:
     value_t getValue() const { return item.getValue(); }
     Item &getItem() { return item; }
 
-    void setEjectValue(bool val) {
-        ejectValue = val;
-    }
-
-    bool isEjectValue() {
-        return ejectValue;
-    }
-
     void setQueuedTime(uint32_t queued_time) {
         queued = queued_time;
     }
@@ -92,7 +84,6 @@ public:
 private:
     enum queue_operation op;
     uint16_t vbucket_version;
-    bool ejectValue : 1;
     uint32_t queued;
     // Additional variables below are required to support the checkpoint and cursors
     // as memory hashtable always contains the latest value and latest meta data for each key.
