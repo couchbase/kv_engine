@@ -34,7 +34,7 @@ public:
                const uint16_t vb_version = -1, const int64_t rid = -1, const uint32_t f = 0,
                const time_t expiry_time = 0, const uint64_t cv = 0)
         : op(o),vbucket_version(vb_version), queued(ep_current_time()),
-          dirtied(ep_current_time()), item(k, f, expiry_time, NULL, 0, cv, rid, vb) {
+          item(k, f, expiry_time, NULL, 0, cv, rid, vb) {
         ObjectRegistry::onCreateQueuedItem(this);
     }
 
@@ -42,7 +42,7 @@ public:
                const uint16_t vb_version = -1, const int64_t rid = -1, const uint32_t f = 0,
                const time_t expiry_time = 0, const uint64_t cv = 0)
         : op(o), vbucket_version(vb_version), queued(ep_current_time()),
-          dirtied(ep_current_time()), item(k, f, expiry_time, v, cv, rid, vb)
+          item(k, f, expiry_time, v, cv, rid, vb)
     {
         ObjectRegistry::onCreateQueuedItem(this);
     }
@@ -57,7 +57,6 @@ public:
     uint32_t getQueuedTime(void) const { return queued; }
     enum queue_operation getOperation(void) const { return op; }
     int64_t getRowId() const { return item.getId(); }
-    uint32_t getDirtiedTime() const { return dirtied; }
     uint32_t getFlags() const { return item.getFlags(); }
     time_t getExpiryTime() const { return item.getExptime(); }
     uint64_t getCas() const { return item.getCas(); }
@@ -85,9 +84,6 @@ private:
     enum queue_operation op;
     uint16_t vbucket_version;
     uint32_t queued;
-    // Additional variables below are required to support the checkpoint and cursors
-    // as memory hashtable always contains the latest value and latest meta data for each key.
-    uint32_t dirtied;
     Item item;
 
     DISALLOW_COPY_AND_ASSIGN(QueuedItem);
