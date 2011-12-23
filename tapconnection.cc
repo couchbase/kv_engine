@@ -368,7 +368,7 @@ bool TapProducer::requestAck(tap_event_t event, uint16_t vbucket) {
         return false;
     }
 
-    bool isExplicitAck = false;
+    bool explicitEvent = false;
     if (supportCheckpointSync && (event == TAP_MUTATION || event == TAP_DELETION)) {
         std::map<uint16_t, TapCheckpointState>::iterator map_it =
             tapCheckpointState.find(vbucket);
@@ -377,7 +377,7 @@ bool TapProducer::requestAck(tap_event_t event, uint16_t vbucket) {
             if (map_it->second.lastItem || map_it->second.state == checkpoint_end) {
                 // Always ack for the last item or any items that were NAcked after the cursor
                 // reaches to the checkpoint end.
-                isExplicitAck = true;
+                explicitEvent = true;
             }
         }
     }
@@ -388,7 +388,6 @@ bool TapProducer::requestAck(tap_event_t event, uint16_t vbucket) {
         seqno = 1;
     }
 
-    bool explicitEvent = false;
     if (event == TAP_VBUCKET_SET ||
         event == TAP_OPAQUE ||
         event == TAP_CHECKPOINT_START ||
@@ -398,7 +397,6 @@ bool TapProducer::requestAck(tap_event_t event, uint16_t vbucket) {
 
     return (explicitEvent ||
             ((seqno - 1) % ackInterval) == 0 || // ack at a regular interval
-            isExplicitAck ||
             (!backfillCompleted && getBackfillRemaining_UNLOCKED() < 100) || // Backfill almost done
             empty_UNLOCKED()); // but if we're almost up to date, ack more often
 }
