@@ -569,15 +569,14 @@ void TapProducer::setSuspended_UNLOCKED(bool value)
 {
     if (value) {
         if (backoffSleepTime > 0 && !suspended) {
-            double sleepTime = takeOverCompletionPhase ? 0.5 : backoffSleepTime;
             Dispatcher *d = engine.getEpStore()->getNonIODispatcher();
             d->schedule(shared_ptr<DispatcherCallback>
                         (new TapResumeCallback(engine, *this)),
-                        NULL, Priority::TapResumePriority, sleepTime,
+                        NULL, Priority::TapResumePriority, backoffSleepTime,
                         false);
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                              "Suspend %s for %.2f secs\n", getName().c_str(),
-                             sleepTime);
+                             backoffSleepTime);
 
 
         } else {
@@ -725,7 +724,9 @@ ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
 
     case PROTOCOL_BINARY_RESPONSE_EBUSY:
     case PROTOCOL_BINARY_RESPONSE_ETMPFAIL:
-        setSuspended_UNLOCKED(true);
+        if (!takeOverCompletionPhase) {
+            setSuspended_UNLOCKED(true);
+        }
         ++numTapNack;
         getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
                          "Received temporary TAP nack from <%s> (#%u): Code: %u (%s)\n",
