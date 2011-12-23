@@ -1034,36 +1034,25 @@ void MemcachedEngine::wait()
     }
 }
 
-void MemcachedEngine::delq(const Item &it, Callback<int> &cb) {
-    protocol_binary_request_delete_with_meta req;
+void MemcachedEngine::delq(const Item &itm, Callback<int> &cb) {
+    const std::string key = itm.getKey();
+    const uint16_t vb = itm.getVBucketId();
+    protocol_binary_request_delete req;
     memset(req.bytes, 0, sizeof(req.bytes));
     req.message.header.request.magic = PROTOCOL_BINARY_REQ;
-    req.message.header.request.opcode = CMD_DEL_WITH_META;
-    req.message.header.request.extlen = 4;
-    req.message.header.request.keylen = ntohs((uint16_t)it.getNKey());
+    req.message.header.request.opcode = PROTOCOL_BINARY_CMD_DELETEQ;
+    req.message.header.request.keylen = ntohs((uint16_t)key.length());
     req.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
-    req.message.header.request.vbucket = ntohs(it.getVBucketId());
+    req.message.header.request.vbucket = ntohs(vb);
+    req.message.header.request.bodylen = ntohl((uint32_t)key.length());
     req.message.header.request.opaque = seqno;
-    uint32_t bodylen = req.message.header.request.extlen + it.getNKey()
-                       + it.getNMetaBytes();
-    req.message.header.request.bodylen = ntohl(bodylen);
-    req.message.body.nmeta_bytes = ntohl(it.getNMetaBytes());
-
-    uint8_t meta[30];
-    size_t nmeta = it.getNMetaBytes();
-    Item::encodeMeta(it, meta, nmeta);
 
     sendIov[0].iov_base = (char*)req.bytes;
     sendIov[0].iov_len = sizeof(req.bytes);
-    sendIov[1].iov_base = const_cast<char*>(it.getKey().c_str());
-    sendIov[1].iov_len = it.getNKey();
-    sendIov[2].iov_base = const_cast<char*>(it.getData());
-    sendIov[2].iov_len = it.getNBytes();
-    sendIov[3].iov_base = reinterpret_cast<char*>(meta);
-    sendIov[3].iov_len = nmeta;
+    sendIov[1].iov_base = const_cast<char*>(key.c_str());
+    sendIov[1].iov_len = key.length();
 
-    numiovec = 4;
-
+    numiovec = 2;
     sendCommand(new DelResponseHandler(seqno++, epStats, cb));
 }
 
