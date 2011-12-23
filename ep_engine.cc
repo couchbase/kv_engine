@@ -2006,7 +2006,7 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
             assert(ev.event == TAP_VBUCKET_SET);
             if (ev.state == vbucket_state_active && myState == vbucket_state_active &&
                 connection->getTapAckLogSize() < MAX_TAKEOVER_TAP_LOG_SIZE) {
-                // Set vbucket state to dead if the number of items waiting for acks is
+                // Set vbucket state to dead if the number of items waiting for implicit acks is
                 // less than the threshold.
                 getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                                  "Vbucket <%d> is going dead.\n",
