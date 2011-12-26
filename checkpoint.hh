@@ -258,13 +258,16 @@ public:
     uint64_t getOpenCheckpointId_UNLOCKED();
     uint64_t getOpenCheckpointId();
 
-    uint64_t getLastClosedCheckpointId() {
-        LockHolder lh(queueLock);
+    uint64_t getLastClosedCheckpointId_UNLOCKED() {
         if (!isCollapsedCheckpoint) {
             uint64_t id = getOpenCheckpointId_UNLOCKED();
             lastClosedCheckpointId = id > 0 ? (id - 1) : 0;
         }
         return lastClosedCheckpointId;
+    }
+    uint64_t getLastClosedCheckpointId() {
+        LockHolder lh(queueLock);
+        return getLastClosedCheckpointId_UNLOCKED();
     }
 
     void setOpenCheckpointId_UNLOCKED(uint64_t id);
@@ -442,6 +445,8 @@ public:
     bool hasNext(const std::string &name);
 
     bool hasNextForPersistence();
+
+    void addStats(ADD_STAT add_stat, const void *cookie);
 
     static void initializeCheckpointConfig(size_t checkpoint_period,
                                            size_t checkpoint_max_items,
