@@ -314,6 +314,8 @@ public:
 
     size_t getNumOfTAPCursors();
 
+    std::list<std::string> getTAPCursorNames();
+
     /**
      * Start onlineupdate - stop persisting mutation to disk
      * @return :
