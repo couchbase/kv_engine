@@ -2739,38 +2739,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doCheckpointStats(const void *cook
             }
 
             uint16_t vbid = vb->getId();
-            char buf[64];
+            char buf[256];
             snprintf(buf, sizeof(buf), "vb_%d:state", vbid);
             add_casted_stat(buf, VBucket::toString(vb->getState()), add_stat, cookie);
-
-            snprintf(buf, sizeof(buf), "vb_%d:open_checkpoint_id", vbid);
-            add_casted_stat(buf, vb->checkpointManager.getOpenCheckpointId(), add_stat, cookie);
-            snprintf(buf, sizeof(buf), "vb_%d:last_closed_checkpoint_id", vbid);
-            add_casted_stat(buf, vb->checkpointManager.getLastClosedCheckpointId(),
-                            add_stat, cookie);
+            vb->checkpointManager.addStats(add_stat, cookie);
             snprintf(buf, sizeof(buf), "vb_%d:persisted_checkpoint_id", vbid);
             add_casted_stat(buf, eps->getLastPersistedCheckpointId(vbid), add_stat, cookie);
-            snprintf(buf, sizeof(buf), "vb_%d:num_tap_cursors", vbid);
-            add_casted_stat(buf, vb->checkpointManager.getNumOfTAPCursors(), add_stat, cookie);
-            snprintf(buf, sizeof(buf), "vb_%d:num_checkpoint_items", vbid);
-            add_casted_stat(buf, vb->checkpointManager.getNumItems(), add_stat, cookie);
-            snprintf(buf, sizeof(buf), "vb_%d:num_checkpoints", vbid);
-            add_casted_stat(buf, vb->checkpointManager.getNumCheckpoints(), add_stat, cookie);
-            snprintf(buf, sizeof(buf), "vb_%d:num_items_for_persistence", vbid);
-            add_casted_stat(buf, vb->checkpointManager.getNumItemsForPersistence(),
-                            add_stat, cookie);
-            snprintf(buf, sizeof(buf), "vb_%d:checkpoint_extension", vbid);
-            add_casted_stat(buf,
-                            vb->checkpointManager.isCheckpointExtension() ? "true" : "false",
-                            add_stat, cookie);
-            std::list<std::string> tapcursor_names = vb->checkpointManager.getTAPCursorNames();
-            std::list<std::string>::iterator tap_it = tapcursor_names.begin();
-            for (;tap_it != tapcursor_names.end(); ++tap_it) {
-                snprintf(buf, sizeof(buf),
-                         "vb_%d:cursor_checkpoint_id:%s", vbid, (*tap_it).c_str());
-                add_casted_stat(buf, vb->checkpointManager.getCheckpointIdForTAPCursor(*tap_it),
-                            add_stat, cookie);
-            }
         }
 
         EventuallyPersistentStore *epstore;

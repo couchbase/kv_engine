@@ -509,7 +509,7 @@ Therefore, please do not poll them from the server frequently.
 Each stat is prefixed with =vb_= followed by a number, a colon, and then
 each stat name.
 
-| cursor_checkpoint_id:cursor_name | Checkpoint ID at which the cursor having  |
+| cursor_name:cursor_checkpoint_id | Checkpoint ID at which the cursor is      |
 |                                  | name 'cursor_name' is pointing now        |
 | open_checkpoint_id               | ID of the current open checkpoint         |
 | num_tap_cursors                  | Number of referencing TAP cursors         |
