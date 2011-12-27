@@ -1085,6 +1085,15 @@ public:
             v = valFact(itm, values[bucket_num], *this);
             values[bucket_num] = v;
             ++numItems;
+
+            /**
+             * Possibly, this item is being recreated. Conservatively assign it
+             * a seqno that is greater than the greatest seqno of all deleted
+             * items seen so far.
+             */
+            uint32_t seqno = getMaxDeletedSeqno() + 1;
+            v->setSeqno(seqno);
+            itm.setSeqno(seqno);
         }
         return rv;
     }
@@ -1137,6 +1146,15 @@ public:
                 v = valFact(itm, values[bucket_num], *this, isDirty);
                 values[bucket_num] = v;
                 ++numItems;
+
+                /**
+                 * Possibly, this item is being recreated. Conservatively assign
+                 * it a seqno that is greater than the greatest seqno of all
+                 * deleted items seen so far.
+                 */
+                uint32_t seqno = getMaxDeletedSeqno() + 1;
+                v->setSeqno(seqno);
+                itm.setSeqno(seqno);
             }
             if (!storeVal) {
                 v->ejectValue(stats, *this);
@@ -1185,6 +1203,7 @@ public:
                     --numNonResidentItems;
                 }
                 v->del(stats, *this);
+                updateMaxDeletedSeqno(v->getSeqno());
                 return rv;
             }
 
@@ -1206,6 +1225,8 @@ public:
             rv = v->isClean() ? WAS_CLEAN : WAS_DIRTY;
             v->setSeqno(seqno);
             v->del(stats, *this);
+
+            updateMaxDeletedSeqno(v->getSeqno());
         }
         return rv;
     }
@@ -1436,6 +1457,28 @@ public:
      */
     static const char* getDefaultStorageValueTypeStr();
 
+    /**
+     * Get the max deleted seqno seen so far.
+     */
+    const uint32_t getMaxDeletedSeqno() const {
+        return maxDeletedSeqno;
+    }
+
+    /**
+     * Set the max deleted seqno (required during warmup).
+     */
+    void setMaxDeletedSeqno(const uint32_t seqno) {
+        maxDeletedSeqno.set(seqno);
+    }
+
+    /**
+     * Update maxDeletedSeqno to a (possibly) new value.
+     */
+    void updateMaxDeletedSeqno(const uint32_t seqno) {
+        maxDeletedSeqno.setIfBigger(seqno);
+    }
+
+    Atomic<uint32_t>     maxDeletedSeqno;
     Atomic<size_t>       numNonResidentItems;
     Atomic<size_t>       numEjects;
     //! Memory consumed by items in this hashtable.
