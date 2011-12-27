@@ -1274,7 +1274,7 @@ public:
         while (v->next) {
             if (v->next->hasKey(key)) {
                 StoredValue *tmp = v->next;
-                if (!v->isDeleted() && tmp->isLocked(ep_current_time())) {
+                if (!tmp->isDeleted() && tmp->isLocked(ep_current_time())) {
                     return false;
                 }
                 v->next = v->next->next;
