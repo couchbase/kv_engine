@@ -99,14 +99,20 @@ vbucket_map_t MCKVStore::listPersistedVbuckets() {
                 (uint16_t)atoi(iter->first.c_str() + 3), -1);
         const std::string &state_json = iter->second;
         cJSON *jsonObj = cJSON_Parse(state_json.c_str());
-        std::string state = getStringFromJSONObj(cJSON_GetObjectItem(jsonObj, "state"));
-        std::string checkpoint_id = getStringFromJSONObj(cJSON_GetObjectItem(jsonObj,
-                                                                             "checkpoint_id"));
+        std::string state =
+            getStringFromJSONObj(cJSON_GetObjectItem(jsonObj, "state"));
+        std::string checkpoint_id =
+            getStringFromJSONObj(cJSON_GetObjectItem(jsonObj, "checkpoint_id"));
+        std::string max_deleted_seqno =
+            getStringFromJSONObj(cJSON_GetObjectItem(jsonObj,
+                                                     "max_deleted_seqno"));
         cJSON_Delete(jsonObj);
-        if (state.compare("") == 0 || checkpoint_id.compare("") == 0) {
+        if (state.compare("") == 0
+            || checkpoint_id.compare("") == 0
+            || max_deleted_seqno.compare("") == 0) {
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "Warning: State JSON doc for vbucket %d is in the wrong format: %s",
-                             vb.first, state_json.c_str());
+                "Warning: State JSON doc for vbucket %d is in the wrong format: %s",
+                vb.first, state_json.c_str());
             continue;
         }
 
@@ -114,6 +120,8 @@ vbucket_map_t MCKVStore::listPersistedVbuckets() {
         vb_state.state = VBucket::fromString(state.c_str());
         char *ptr = NULL;
         vb_state.checkpointId = strtoull(checkpoint_id.c_str(), &ptr, 10);
+        vb_state.maxDeletedSeqno = strtoul(max_deleted_seqno.c_str(), &ptr,
+                                            10);
         rv[vb] = vb_state;
     }
 

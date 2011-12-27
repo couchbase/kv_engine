@@ -93,6 +93,7 @@ vbucket_map_t StrategicSqlite3::listPersistedVbuckets() {
         vbucket_state vb_state;
         vb_state.state = (vbucket_state_t)st->column_int(2);
         vb_state.checkpointId = st->column_int64(3);
+        vb_state.maxDeletedSeqno = 0;
         rv[vb] = vb_state;
     }
 
