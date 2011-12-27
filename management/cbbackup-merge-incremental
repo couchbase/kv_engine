@@ -23,7 +23,7 @@ DEFAULT_MAX_DB_SIZE = 512 # Default max size 512MB of a merged database file
 
 def usage(err=0):
     print >> sys.stderr, """
-Usage: %s [-o %s] [-m %s] [-v] incremental_backup_file1 incremental_backup_file2 ...
+Usage: %s [-o %s] [-s %s] [-v] incremental_backup_file1 incremental_backup_file2 ...
 """ % (os.path.basename(sys.argv[0]), DEFAULT_OUTPUT_FILE, DEFAULT_MAX_DB_SIZE)
     sys.exit(err)
 
@@ -31,9 +31,10 @@ def parse_args(args):
     output_file = DEFAULT_OUTPUT_FILE
     max_db_size = DEFAULT_MAX_DB_SIZE
     verbosity = 0
+    split_backup = False
 
     try:
-        opts, args = getopt.getopt(args, 'o:m:v', ['help'])
+        opts, args = getopt.getopt(args, 'o:s:v', ['help'])
     except getopt.GetoptError, e:
         usage(e.msg)
 
@@ -42,8 +43,9 @@ def parse_args(args):
             usage()
         elif o == '-o':
             output_file = a
-        elif o == '-m':
+        elif o == '-s':
             max_db_size = int(a)
+            split_backup = True
         elif o == '-v':
             verbosity = verbosity + 1
         else:
@@ -52,7 +54,7 @@ def parse_args(args):
     if not args:
         usage("missing incremental backup files")
 
-    return output_file, max_db_size, args, verbosity
+    return output_file, max_db_size, args, verbosity, split_backup
 
 def findCmd(cmdName):
     cmd_dir = os.path.dirname(sys.argv[0])
@@ -186,10 +188,11 @@ def split_single_merged_db_file(single_output_file, split_output_file, max_db_si
 def main():
     global verbosity
 
-    split_output_file, max_db_size, input_files, verbosity = parse_args(sys.argv[1:])
+    output_file, max_db_size, input_files, verbosity, split_backup = parse_args(sys.argv[1:])
     log(1, "incremental backup files = " + ' '.join(input_files))
-    log(1, "output backup file = %s" % split_output_file)
-    log(1, "max size of a single merged database = %d MB" % max_db_size)
+    log(1, "output backup file = %s" % output_file)
+    if split_backup:
+        log(1, "max size of a single merged database = %d MB" % max_db_size)
     log(1, "verbosity = " + str(verbosity) + "\n")
 
     backup_files = []
@@ -203,19 +206,30 @@ def main():
     ## Check if there are any missing checkpoints in the input backup files
     backup_files = backup_util.validate_incremental_backup_files(backup_files)
 
-    timestamp = str(time.time())
-    single_output_file = "./" + timestamp + ".mbb"
-    rindex = split_output_file.rfind('/')
-    if rindex != -1:
-        single_output_file = split_output_file[0:rindex+1] + timestamp + '.mbb'
-    ## Merge all incremental backup files into a single database file
-    merge_incremental_backup_files(backup_files, single_output_file)
+    if split_backup:
+        timestamp = str(time.time())
+        single_output_file = "./" + timestamp + ".mbb"
+        rindex = output_file.rfind('/')
+        if rindex != -1:
+            single_output_file = output_file[0:rindex+1] + timestamp + '.mbb'
+    else:
+            single_output_file = output_file
 
-    ## Split the single merged database file into multiple database files,
-    ## so that each split file size does not exceed the max size provided.
-    split_single_merged_db_file(single_output_file, split_output_file, max_db_size)
+    if len(backup_files) == 1:
+        if not split_backup:
+            err_msg = "You should provide atleast two files for merging without splitting"
+            exit(err_msg)
+        single_output_file = backup_files[0]
+    else:
+        ## Merge all incremental backup files into a single database file
+        merge_incremental_backup_files(backup_files, single_output_file)
 
-    os.unlink(single_output_file)
+    if split_backup:
+        ## Split the single merged database file into multiple database files,
+        ## so that each split file size does not exceed the max size provided.
+        split_single_merged_db_file(single_output_file, output_file, max_db_size)
+        os.unlink(single_output_file)
+
     log(1, "\n  Merging incremental backup files are completed.\n")
 
 if __name__ == '__main__':

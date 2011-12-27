@@ -2696,7 +2696,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doCheckpointStats(const void *cook
 
         bool visitBucket(RCPtr<VBucket> &vb) {
             uint16_t vbid = vb->getId();
-            char buf[32];
+            char buf[64];
             snprintf(buf, sizeof(buf), "vb_%d:state", vbid);
             add_casted_stat(buf, VBucket::toString(vb->getState()), add_stat, cookie);
 
@@ -2716,6 +2716,14 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doCheckpointStats(const void *cook
             snprintf(buf, sizeof(buf), "vb_%d:num_items_for_persistence", vbid);
             add_casted_stat(buf, vb->checkpointManager.getNumItemsForPersistence(),
                             add_stat, cookie);
+            std::list<std::string> tapcursor_names = vb->checkpointManager.getTAPCursorNames();
+            std::list<std::string>::iterator tap_it = tapcursor_names.begin();
+            for (;tap_it != tapcursor_names.end(); ++tap_it) {
+                snprintf(buf, sizeof(buf),
+                         "vb_%d:cursor_checkpoint_id:%s", vbid, (*tap_it).c_str());
+                add_casted_stat(buf, vb->checkpointManager.getCheckpointIdForTAPCursor(*tap_it),
+                            add_stat, cookie);
+            }
             return false;
         }
 

@@ -478,6 +478,16 @@ size_t CheckpointManager::getNumCheckpoints() {
     return checkpointList.size();
 }
 
+std::list<std::string> CheckpointManager::getTAPCursorNames() {
+    LockHolder lh(queueLock);
+    std::list<std::string> cursor_names;
+    std::map<const std::string, CheckpointCursor>::iterator tap_it = tapCursors.begin();
+        for (; tap_it != tapCursors.end(); ++tap_it) {
+        cursor_names.push_back((tap_it->first));
+    }
+    return cursor_names;
+}
+
 bool CheckpointManager::isCheckpointCreationForHighMemUsage(const RCPtr<VBucket> &vbucket) {
     bool forceCreation = false;
     double current = static_cast<double>(stats.currentSize.get() + stats.memOverhead.get());
