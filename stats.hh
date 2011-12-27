@@ -358,6 +358,7 @@ public:
         itemsRemovedFromCheckpoints.set(0);
         numValueEjects.set(0);
         numFailedEjects.set(0);
+        numNotMyVBuckets.set(0);
         io_num_read.set(0);
         io_num_write.set(0);
         io_read_bytes.set(0);

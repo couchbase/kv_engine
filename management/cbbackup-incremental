@@ -115,6 +115,7 @@ def main():
           memcacheConstants.TAP_FLAG_CHECKPOINT: '',
           memcacheConstants.TAP_FLAG_SUPPORT_ACK: '',
           memcacheConstants.TAP_FLAG_REGISTERED_CLIENT: 0x01, # "value > 0" means "closed checkpoints only"
+          memcacheConstants.TAP_FLAG_BACKFILL: 0xffffffff
         })
 
         mc._sendCmd(memcacheConstants.CMD_TAP_CONNECT, name, val, 0, ext)

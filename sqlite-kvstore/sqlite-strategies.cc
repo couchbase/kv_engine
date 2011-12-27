@@ -106,7 +106,9 @@ sqlite3 *SqliteStrategy::open(void) {
             | SQLITE_OPEN_PRIVATECACHE;
 
         if(sqlite3_open_v2(filename, &db, flags, NULL) !=  SQLITE_OK) {
-            throw std::runtime_error("Error initializing sqlite3");
+            std::stringstream ss;
+            ss << "Error initializing sqlite3: " << sqlite3_errcode(db) << std::endl;
+            throw std::runtime_error(ss.str());
         }
 
         if(sqlite3_extended_result_codes(db, 1) != SQLITE_OK) {
@@ -131,7 +133,11 @@ void SqliteStrategy::close(void) {
     if(db) {
         destroyMetaStatements();
         destroyStatements();
-        sqlite3_close(db);
+        if (sqlite3_close(db) != SQLITE_OK) {
+            std::stringstream ss;
+            ss << "Error closing sqlite3: " << sqlite3_errcode(db) << std::endl;
+            throw std::runtime_error(ss.str());
+        }
         db = NULL;
     }
 }

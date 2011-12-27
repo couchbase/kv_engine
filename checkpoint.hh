@@ -188,6 +188,14 @@ public:
         return toWrite.end();
     }
 
+    std::list<queued_item>::reverse_iterator rbegin() {
+        return toWrite.rbegin();
+    }
+
+    std::list<queued_item>::reverse_iterator rend() {
+        return toWrite.rend();
+    }
+
     uint64_t getCasForKey(const std::string &key);
 
     /**
@@ -199,6 +207,21 @@ public:
     size_t memorySize() {
         return sizeof(Checkpoint) + memOverhead;
     }
+
+    /**
+     * Merge the previous checkpoint into the this checkpoint by adding the items from
+     * the previous checkpoint, which don't exist in this checkpoint.
+     * @param pPrevCheckpoint pointer to the previous checkpoint.
+     * @return the number of items added from the previous checkpoint.
+     */
+    size_t mergePrevCheckpoint(Checkpoint *pPrevCheckpoint);
+
+    /**
+     * Get the mutation id for a given key in this checkpoint
+     * @param key a key to retrieve its mutation id
+     * @return the mutation id for a given key
+     */
+    uint64_t getMutationIdForKey(const std::string &key);
 
 private:
     EPStats                       &stats;
@@ -227,8 +250,8 @@ public:
                       CheckpointConfig &config, uint64_t checkpointId = 1) :
         stats(st), checkpointConfig(config), vbucketId(vbucket), numItems(0),
         mutationCounter(0), persistenceCursor("persistence"), onlineUpdateCursor("online_update"),
-        doOnlineUpdate(false), doHotReload(false) {
-    
+        isCollapsedCheckpoint(false), doOnlineUpdate(false), doHotReload(false) {
+
         addNewCheckpoint(checkpointId);
         registerPersistenceCursor();
     }
@@ -236,14 +259,15 @@ public:
     ~CheckpointManager();
 
     uint64_t getOpenCheckpointId_UNLOCKED();
-    uint64_t getOpenCheckpointId() {
-        LockHolder lh(queueLock);
-        return getOpenCheckpointId_UNLOCKED();
-    }
+    uint64_t getOpenCheckpointId();
 
     uint64_t getLastClosedCheckpointId() {
-        uint64_t id = getOpenCheckpointId();
-        return id > 0 ? (id - 1) : 0;
+        LockHolder lh(queueLock);
+        if (!isCollapsedCheckpoint) {
+            uint64_t id = getOpenCheckpointId_UNLOCKED();
+            lastClosedCheckpointId = id > 0 ? (id - 1) : 0;
+        }
+        return lastClosedCheckpointId;
     }
 
     void setOpenCheckpointId_UNLOCKED(uint64_t id);
@@ -509,6 +533,8 @@ private:
 
     bool isCheckpointCreationForHighMemUsage(const RCPtr<VBucket> &vbucket);
 
+    void collapseClosedCheckpoints(std::list<Checkpoint*> &collapsedChks);
+
     static queued_item createCheckpointItem(uint64_t id, uint16_t vbid,
                                             enum queue_operation checkpoint_op);
 
@@ -522,6 +548,8 @@ private:
     std::list<Checkpoint*>   checkpointList;
     CheckpointCursor         persistenceCursor;
     CheckpointCursor         onlineUpdateCursor;
+    bool                     isCollapsedCheckpoint;
+    uint64_t                 lastClosedCheckpointId;
     std::map<const std::string, CheckpointCursor> tapCursors;
 
     Atomic<bool>              doOnlineUpdate;

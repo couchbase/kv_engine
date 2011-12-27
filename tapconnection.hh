@@ -24,7 +24,7 @@ struct TapAggStatBuilder;
 struct PopulateEventsBody;
 
 #define MAX_TAP_KEEP_ALIVE 3600
-#define MAX_TAKEOVER_TAP_LOG_SIZE 500
+#define MAX_TAKEOVER_TAP_LOG_SIZE 10
 #define MINIMUM_BACKFILL_RESIDENT_THRESHOLD 0.7
 #define DEFAULT_BACKFILL_RESIDENT_THRESHOLD 0.9
 
@@ -123,25 +123,6 @@ public:
 
     vbucket_state_t state;
     queued_item item;
-};
-
-/**
- * An item queued for background fetch from tap.
- */
-class TapBGFetchQueueItem {
-public:
-    TapBGFetchQueueItem(const std::string &k, uint64_t i,
-                        uint16_t vb, uint16_t vbv) :
-        key(k), id(i), vbucket(vb), vbversion(vbv) {}
-
-    size_t size() {
-        return sizeof(TapBGFetchQueueItem) + key.size();
-    }
-
-    const std::string key;
-    const uint64_t id;
-    const uint16_t vbucket;
-    const uint16_t vbversion;
 };
 
 typedef enum {
@@ -533,6 +514,7 @@ public:
     virtual bool cleanSome();
 
     bool isSuspended() const;
+    void setSuspended_UNLOCKED(bool value);
     void setSuspended(bool value);
 
     bool isTimeForNoop();
@@ -793,7 +775,7 @@ private:
     }
 
     bool empty_UNLOCKED() {
-        return bgQueueSize == 0 && bgResultSize == 0 && (bgJobIssued - bgJobCompleted) == 0 &&
+        return backfilledItems.empty() && (bgJobIssued - bgJobCompleted) == 0 &&
                !hasQueuedItem_UNLOCKED();
     }
 
@@ -808,7 +790,8 @@ private:
     }
 
     bool hasItem() {
-        return bgResultSize != 0;
+        LockHolder lh(queueLock);
+        return !backfilledItems.empty();
     }
 
     bool hasQueuedItem() {
@@ -825,8 +808,12 @@ private:
      * Find out how many items are still remaining from backfill.
      */
     size_t getBackfillRemaining_UNLOCKED() {
-        return bgResultSize + bgQueueSize
-            + (bgJobIssued - bgJobCompleted) + queueSize;
+        if (backfillCompleted) {
+            return 0;
+        }
+        bgResultSize = backfilledItems.empty() ? 0 : bgResultSize.get();
+        queueSize = queue->empty() ? 0 : queueSize;
+        return bgResultSize + (bgJobIssued - bgJobCompleted) + queueSize;
     }
 
     size_t getBackfillRemaining() {
@@ -845,7 +832,7 @@ private:
 
     size_t getRemaingOnDisk() {
          LockHolder lh(queueLock);
-         return bgQueueSize + (bgJobIssued - bgJobCompleted);
+         return bgJobIssued - bgJobCompleted;
     }
 
     size_t getQueueFillTotal() {
@@ -1002,13 +989,10 @@ private:
      * @param id the disk id of the item to fetch
      * @param vb the vbucket ID
      * @param vbv the vbucket version
+     * @param c the connection cookie
      */
-    void queueBGFetch(const std::string &key, uint64_t id, uint16_t vb, uint16_t vbv);
-
-    /**
-     * Run some background fetch jobs.
-     */
-    void runBGFetch(Dispatcher *dispatcher, const void *cookie);
+    void queueBGFetch(const std::string &key, uint64_t id, uint16_t vb,
+                      uint16_t vbv, const void *c);
 
     TapProducer(EventuallyPersistentEngine &theEngine,
                 const void *cookie,
@@ -1237,7 +1221,6 @@ private:
 
     static Atomic<uint64_t> tapCounter;
 
-    Atomic<size_t> bgQueueSize;
     Atomic<size_t> bgQueued;
     Atomic<size_t> bgResultSize;
     Atomic<size_t> bgResults;
@@ -1261,8 +1244,6 @@ private:
 
     std::list<TapLogElement> tapLog;
 
-    Mutex backfillLock;
-    std::queue<TapBGFetchQueueItem> backfillQueue;
     std::queue<Item*> backfilledItems;
 
     /**
@@ -1287,7 +1268,7 @@ private:
      * Is this tap connection in a suspended state (the receiver may
      * be too slow
      */
-    Atomic<bool> suspended;
+    bool suspended;
 
 
     /**

@@ -6,6 +6,9 @@
 
 bool TapThrottle::persistenceQueueSmallEnough() const {
     size_t queueSize = stats.queue_size.get() + stats.flusher_todo.get();
+    if (stats.tapThrottleWriteQueueCap == static_cast<size_t>(-1)) {
+        return true;
+    }
     return queueSize < stats.tapThrottleWriteQueueCap;
 }
 

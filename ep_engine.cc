@@ -1355,9 +1355,8 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
         return TAP_FLUSH;
     }
 
-    // Do not schedule the backfill for the registered TAP client (e.g., incremental backup client)
     VBucketFilter backFillVBFilter;
-    if (connection->runBackfill(backFillVBFilter) && !(connection->registeredTAPClient)) {
+   if (connection->runBackfill(backFillVBFilter)) {
         queueBackfill(backFillVBFilter, connection, cookie);
     }
 
@@ -1419,11 +1418,16 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
         // If there's a better version in memory, grab it, else go
         // with what we pulled from disk.
         GetValue gv(epstore->get(it->getKey(), it->getVBucketId(),
-                                 cookie, false));
+                                 cookie, false, false));
         if (gv.getStatus() == ENGINE_SUCCESS) {
             delete it;
             *itm = it = gv.getValue();
         } else {
+            if (it->isExpired(ep_real_time())) {
+                delete it;
+                retry = true;
+                return TAP_NOOP;
+            }
             *itm = it;
         }
         *vbucket = static_cast<Item*>(*itm)->getVBucketId();
@@ -1456,7 +1460,7 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
         *es = (void*)it->getMetaData();
         *nes = it->getNMetaBytes();
     } else if (connection->hasQueuedItem()) {
-        if (connection->waitForBackfill() || connection->waitForCheckpointMsgAck()) {
+        if (connection->waitForCheckpointMsgAck()) {
             return TAP_PAUSE;
         }
 
@@ -1496,9 +1500,7 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
                 return TAP_NOOP;
             } else if (r == ENGINE_EWOULDBLOCK) {
                 connection->queueBGFetch(qi->getKey(), gv.getId(), *vbucket,
-                                         epstore->getVBucketVersion(*vbucket));
-                // This can optionally collect a few and batch them.
-                connection->runBGFetch(epstore->getRODispatcher(), cookie);
+                                         epstore->getVBucketVersion(*vbucket), cookie);
                 // If there's an item ready, return NOOP so we'll come
                 // back immediately, otherwise pause the connection
                 // while we wait.
@@ -1569,7 +1571,7 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
             assert(ev.event == TAP_VBUCKET_SET);
             if (ev.state == vbucket_state_active && myState == vbucket_state_active &&
                 connection->getTapAckLogSize() < MAX_TAKEOVER_TAP_LOG_SIZE) {
-                // Set vbucket state to dead if the number of items waiting for acks is
+                // Set vbucket state to dead if the number of items waiting for implicit acks is
                 // less than the threshold.
                 getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                                  "Vbucket <%d> is going dead.\n",

@@ -34,8 +34,8 @@ public:
                const uint16_t vb_version = -1, const int64_t rid = -1, const uint32_t f = 0,
                const time_t expiry_time = 0, const uint64_t cv = 0, uint32_t seqno = 1)
         : item(k, f, expiry_time, NULL, 0, cv, rid, vb),
-          queued(ep_current_time()), dirtied(ep_current_time()),
-          op(o), vbucket_version(vb_version), ejectValue(false)
+          queued(ep_current_time()),
+          op(o), vbucket_version(vb_version)
     {
         ObjectRegistry::onCreateQueuedItem(this);
         item.setSeqno(seqno);
@@ -45,8 +45,8 @@ public:
                const uint16_t vb_version = -1, const int64_t rid = -1, const uint32_t f = 0,
                const time_t expiry_time = 0, const uint64_t cv = 0, uint32_t seqno = 1)
         : item(k, f, expiry_time, v, cv, rid, vb),
-          queued(ep_current_time()), dirtied(ep_current_time()),
-          op(o), vbucket_version(vb_version), ejectValue(false)
+          queued(ep_current_time()),
+          op(o), vbucket_version(vb_version)
     {
         ObjectRegistry::onCreateQueuedItem(this);
         item.setSeqno(seqno);
@@ -62,20 +62,11 @@ public:
     uint32_t getQueuedTime(void) const { return queued; }
     enum queue_operation getOperation(void) const { return op; }
     int64_t getRowId() const { return item.getId(); }
-    uint32_t getDirtiedTime() const { return dirtied; }
     uint32_t getFlags() const { return item.getFlags(); }
     time_t getExpiryTime() const { return item.getExptime(); }
     uint64_t getCas() const { return item.getCas(); }
     value_t getValue() const { return item.getValue(); }
     Item &getItem() { return item; }
-
-    void setEjectValue(bool val) {
-        ejectValue = val;
-    }
-
-    bool isEjectValue() {
-        return ejectValue;
-    }
 
     void setQueuedTime(uint32_t queued_time) {
         queued = queued_time;
@@ -97,10 +88,8 @@ public:
 private:
     Item item;
     uint32_t queued;
-    uint32_t dirtied;
     enum queue_operation op;
     uint16_t vbucket_version;
-    bool ejectValue : 1;
 
     DISALLOW_COPY_AND_ASSIGN(QueuedItem);
 };

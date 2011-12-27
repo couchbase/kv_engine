@@ -1790,7 +1790,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::del(const std::string &key,
         rv = ENGINE_SUCCESS;
     }
 
-    if (delrv == WAS_CLEAN || delrv == WAS_DIRTY || (delrv == NOT_FOUND && v->getId() != -1)) {
+    if (delrv == WAS_CLEAN || delrv == WAS_DIRTY || delrv == NOT_FOUND) {
         queueDirty(key, vbucket, queue_op_del, value,
                    v->getFlags(), v->getExptime(), cas, v->getSeqno(), v->getId());
     }
@@ -2545,7 +2545,6 @@ int EventuallyPersistentStore::addUnlessThere(const std::string &key,
         LockHolder lh(restore.mutex);
         queued_item qi(new QueuedItem(key, value, vbid, op, vbuckets.getBucketVersion(vbid),
                                       -1, flags, exptime, cas));
-        qi->setEjectValue(true);
         restore.items.push_back(qi);
         return 0;
     }

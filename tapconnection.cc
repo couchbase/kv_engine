@@ -155,6 +155,7 @@ TapProducer::TapProducer(EventuallyPersistentEngine &theEngine,
     seqnoReceived(theEngine.getTapConfig().getAckInitialSequenceNumber() - 1),
     seqnoAckRequested(theEngine.getTapConfig().getAckInitialSequenceNumber() - 1),
     notifySent(false),
+    suspended(false),
     registeredTAPClient(false),
     lastMsgTime(ep_current_time()),
     isLastAckSucceed(false),
@@ -389,7 +390,7 @@ void TapProducer::registerTAPCursor(std::map<uint16_t, uint64_t> &lastCheckpoint
             if(vb && !vb->checkpointManager.registerTAPCursor(name,
                                                        tapCheckpointState[vbid].currentCheckpointId,
                                                        closedCheckpointOnly, fromBeginning)) {
-                if (backfillAge < current_time && !registeredTAPClient) { // Backfill is required.
+                if (backfillAge < current_time) { // Backfill is required.
                     TapCheckpointState st(vbid, 0, backfill);
                     tapCheckpointState[vbid] = st;
                     // As we set the cursor to the beginning of the open checkpoint when backfill
@@ -410,7 +411,7 @@ void TapProducer::registerTAPCursor(std::map<uint16_t, uint64_t> &lastCheckpoint
         }
     }
 
-    if (backfill_vbuckets.size() > 0 && !registeredTAPClient) {
+    if (backfill_vbuckets.size() > 0) {
         if (backfillAge < current_time) {
             scheduleBackfill_UNLOCKED(backfill_vbuckets);
         }
@@ -450,7 +451,7 @@ bool TapProducer::requestAck(tap_event_t event, uint16_t vbucket) {
         return false;
     }
 
-    bool isExplicitAck = false;
+    bool explicitEvent = false;
     if (supportCheckpointSync && (event == TAP_MUTATION || event == TAP_DELETION)) {
         std::map<uint16_t, TapCheckpointState>::iterator map_it =
             tapCheckpointState.find(vbucket);
@@ -459,7 +460,7 @@ bool TapProducer::requestAck(tap_event_t event, uint16_t vbucket) {
             if (map_it->second.lastItem || map_it->second.state == checkpoint_end) {
                 // Always ack for the last item or any items that were NAcked after the cursor
                 // reaches to the checkpoint end.
-                isExplicitAck = true;
+                explicitEvent = true;
             }
         }
     }
@@ -470,7 +471,6 @@ bool TapProducer::requestAck(tap_event_t event, uint16_t vbucket) {
         seqno = 1;
     }
 
-    bool explicitEvent = false;
     if (event == TAP_VBUCKET_SET ||
         event == TAP_OPAQUE ||
         event == TAP_CHECKPOINT_START ||
@@ -483,8 +483,7 @@ bool TapProducer::requestAck(tap_event_t event, uint16_t vbucket) {
 
     return (explicitEvent ||
             ((seqno - 1) % ackInterval) == 0 || // ack at a regular interval
-            isExplicitAck ||
-            (!backfillCompleted && getBackfillRemaining_UNLOCKED() == 0) || // Backfill being done
+            (!backfillCompleted && getBackfillRemaining_UNLOCKED() < 100) || // Backfill almost done
             empty_UNLOCKED()); // but if we're almost up to date, ack more often
 }
 
@@ -502,10 +501,6 @@ void TapProducer::clearQueues_UNLOCKED() {
         backfilledItems.pop();
     }
     bgResultSize = 0;
-    while (!backfillQueue.empty()) {
-        backfillQueue.pop();
-    }
-    bgQueueSize = 0;
 
     // Clear the checkpoint message queue as well
     while (!checkpointMsgs.empty()) {
@@ -656,31 +651,38 @@ private:
 };
 
 bool TapProducer::isSuspended() const {
-    return suspended.get();
+    return suspended;
 }
 
-void TapProducer::setSuspended(bool value)
+void TapProducer::setSuspended_UNLOCKED(bool value)
 {
     if (value) {
         const TapConfig &config = engine.getTapConfig();
-        if (config.getBackoffSleepTime() > 0 && !suspended.get()) {
-            double sleepTime = takeOverCompletionPhase ? 0.5 : config.getBackoffSleepTime();
+        if (config.getBackoffSleepTime() > 0 && !suspended) {
             Dispatcher *d = engine.getEpStore()->getNonIODispatcher();
             d->schedule(shared_ptr<DispatcherCallback>
                         (new TapResumeCallback(engine, *this)),
-                        NULL, Priority::TapResumePriority, sleepTime,
+                        NULL, Priority::TapResumePriority, config.getBackoffSleepTime(),
                         false);
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                              "Suspend %s for %.2f secs\n", getName().c_str(),
-                             sleepTime);
+                             config.getBackoffSleepTime());
 
 
         } else {
             // backoff disabled, or already in a suspended state
             return;
         }
+    } else {
+        getLogger()->log(EXTENSION_LOG_INFO, NULL,
+                         "Unlocked %s from the suspended state\n", name.c_str());
     }
-    suspended.set(value);
+    suspended = value;
+}
+
+void TapProducer::setSuspended(bool value) {
+    LockHolder lh(queueLock);
+    setSuspended_UNLOCKED(value);
 }
 
 void TapProducer::reschedule_UNLOCKED(const std::list<TapLogElement>::iterator &iter)
@@ -815,7 +817,9 @@ ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
 
     case PROTOCOL_BINARY_RESPONSE_EBUSY:
     case PROTOCOL_BINARY_RESPONSE_ETMPFAIL:
-        setSuspended(true);
+        if (!takeOverCompletionPhase) {
+            setSuspended_UNLOCKED(true);
+        }
         ++numTapNack;
         getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
                          "Received temporary TAP nack from <%s> (#%u): Code: %u (%s)\n",
@@ -998,34 +1002,18 @@ private:
 };
 
 void TapProducer::queueBGFetch(const std::string &key, uint64_t id,
-                                 uint16_t vb, uint16_t vbv) {
+                               uint16_t vb, uint16_t vbv, const void *c) {
     LockHolder lh(queueLock);
-    TapBGFetchQueueItem qi(key, id, vb, vbv);
-    backfillQueue.push(qi);
+    shared_ptr<TapBGFetchCallback> dcb(new TapBGFetchCallback(&engine,
+                                                              getName(), key,
+                                                              vb, vbv,
+                                                              id, c));
+    engine.getEpStore()->getRODispatcher()->schedule(dcb, NULL, Priority::TapBgFetcherPriority);
     ++bgQueued;
-    ++bgQueueSize;
-
-    stats.memOverhead.incr(qi.size());
-    assert(stats.memOverhead.get() < GIGANTOR);
+    ++bgJobIssued;
     assert(!empty_UNLOCKED());
     assert(!idle_UNLOCKED());
     assert(!complete_UNLOCKED());
-}
-
-void TapProducer::runBGFetch(Dispatcher *dispatcher, const void *c) {
-    LockHolder lh(queueLock);
-    TapBGFetchQueueItem qi(backfillQueue.front());
-    backfillQueue.pop();
-    --bgQueueSize;
-    stats.memOverhead.decr(qi.size());
-    assert(stats.memOverhead.get() < GIGANTOR);
-
-    shared_ptr<TapBGFetchCallback> dcb(new TapBGFetchCallback(&engine,
-                                                              getName(), qi.key,
-                                                              qi.vbucket, qi.vbversion,
-                                                              qi.id, c));
-    ++bgJobIssued;
-    dispatcher->schedule(dcb, NULL, Priority::TapBgFetcherPriority);
 }
 
 void TapProducer::gotBGItem(Item *i, bool implicitEnqueue) {
@@ -1043,7 +1031,6 @@ void TapProducer::gotBGItem(Item *i, bool implicitEnqueue) {
 
     stats.memOverhead.incr(sizeof(Item *));
     assert(stats.memOverhead.get() < GIGANTOR);
-    assert(hasItem());
 }
 
 void TapProducer::completedBGFetchJob() {
@@ -1052,7 +1039,7 @@ void TapProducer::completedBGFetchJob() {
 
 Item* TapProducer::nextFetchedItem() {
     LockHolder lh(queueLock);
-    assert(hasItem());
+    assert(!backfilledItems.empty());
     Item *rv = backfilledItems.front();
     assert(rv);
     backfilledItems.pop();
@@ -1081,7 +1068,6 @@ void TapProducer::addStats(ADD_STAT add_stat, const void *c) {
     addStat("has_item", hasItem(), add_stat, c);
     addStat("has_queued_item", hasQueuedItem(), add_stat, c);
     addStat("bg_wait_for_results", waitForBackfill(), add_stat, c);
-    addStat("bg_queue_size", bgQueueSize, add_stat, c);
     addStat("bg_queued", bgQueued, add_stat, c);
     addStat("bg_result_size", bgResultSize, add_stat, c);
     addStat("bg_results", bgResults, add_stat, c);

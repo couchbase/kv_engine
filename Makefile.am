@@ -386,7 +386,8 @@ pythonlib_DATA= \
                 management/memcacheConstants.py \
                 management/tap.py \
                 management/tap_example.py \
-                management/util.py
+                management/util.py \
+                management/backup_util.py
 
 pythonlib_SCRIPTS= \
                 management/cbadm-online-restore \
