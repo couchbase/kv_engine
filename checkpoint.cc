@@ -551,6 +551,7 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(const RCPtr<VBucket> &vbu
     }
 
     size_t numUnrefItems = 0;
+    size_t numCheckpointsRemoved = 0;
     std::list<Checkpoint*> unrefCheckpointList;
     std::list<Checkpoint*>::iterator it = checkpointList.begin();
     for (; it != checkpointList.end(); it++) {
@@ -559,9 +560,11 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(const RCPtr<VBucket> &vbu
             break;
         } else {
             numUnrefItems += (*it)->getNumItems() + 2; // 2 is for checkpoint start and end items.
-            if (keepClosedCheckpoints) {
-                // Remove only one unreferenced closed checkpoint from memory at a time
-                // if we want to keep as many closed checkpoints as possible.
+            ++numCheckpointsRemoved;
+            if (keepClosedCheckpoints &&
+                (checkpointList.size() - numCheckpointsRemoved) <= maxCheckpoints) {
+                // Collect unreferenced closed checkpoints until the number of checkpoints is equal
+                // to the number of max checkpoints allowed.
                 ++it;
                 break;
             }
