@@ -6,7 +6,8 @@ create table if not exists squashed.cpoint_op
    primary key(vbucket_id, key));
 create table if not exists squashed.cpoint_state
   (vbucket_id integer, cpoint_id integer, prev_cpoint_id integer, state varchar(1),
-   source varchar(250), updated_at text);
+   source varchar(250), updated_at text,
+   primary key(vbucket_id, cpoint_id));
 commit;
 
 attach database "__INCREMENTAL_DATABASE__" as next;
