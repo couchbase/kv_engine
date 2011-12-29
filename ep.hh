@@ -796,7 +796,7 @@ public:
     int addUnlessThere(const std::string &key,
                        uint16_t vbid,
                        enum queue_operation op,
-                       value_t value,
+                       const value_t &value,
                        uint32_t flags,
                        time_t exptime,
                        uint64_t cas);
@@ -815,7 +815,7 @@ private:
 
     /* Queue an item to be written to persistent layer. */
     void queueDirty(const std::string &key, uint16_t vbid,
-                    enum queue_operation op, value_t value,
+                    enum queue_operation op, const value_t &value,
                     uint32_t flags = 0, time_t exptime = 0, uint64_t cas = 0,
                     int64_t rowid = -1, bool tapBackfill = false);
 

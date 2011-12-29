@@ -53,7 +53,7 @@ bool StoredValue::ejectValue(EPStats &stats, HashTable &ht) {
     return false;
 }
 
-bool StoredValue::restoreValue(value_t v, EPStats &stats, HashTable &ht) {
+bool StoredValue::restoreValue(const value_t &v, EPStats &stats, HashTable &ht) {
     if (!isResident()) {
         size_t oldsize = size();
         size_t oldValueSize = isDeleted() ? 0 : value->length();

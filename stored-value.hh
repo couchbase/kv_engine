@@ -192,7 +192,7 @@ public:
     /**
      * Get this item's value.
      */
-    value_t getValue() const {
+    const value_t &getValue() const {
         return value;
     }
 
@@ -248,7 +248,7 @@ public:
      * @param stats the global stats
      * @param ht the hashtable that contains this StoredValue instance
      */
-    void setValue(value_t v, uint32_t newFlags, time_t newExp,
+    void setValue(const value_t &v, uint32_t newFlags, time_t newExp,
                   uint64_t theCas, EPStats &stats, HashTable &ht) {
         size_t currSize = size();
         reduceCacheSize(ht, currSize);
@@ -297,7 +297,7 @@ public:
      * @param stats the global stat instance
      * @param ht the hashtable that contains this StoredValue instance
      */
-    bool restoreValue(value_t v, EPStats &stats, HashTable &ht);
+    bool restoreValue(const value_t &v, EPStats &stats, HashTable &ht);
 
     /**
      * Get this item's CAS identifier.
@@ -941,7 +941,7 @@ public:
     bool addUnlessThere(const std::string &key,
                         uint16_t vbid,
                         enum queue_operation op,
-                        value_t value,
+                        const value_t &value,
                         uint32_t flags,
                         time_t exptime,
                         uint64_t cas)
