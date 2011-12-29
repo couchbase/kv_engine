@@ -5048,10 +5048,10 @@ static enum test_result test_delete_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
 
     msg.req.message.header.request.magic = PROTOCOL_BINARY_REQ;
     msg.req.message.header.request.opcode = CMD_DEL_WITH_META;
-    msg.req.message.header.request.extlen = 12;
+    msg.req.message.header.request.extlen = 4;
     msg.req.message.header.request.keylen = ntohs(20);
     msg.req.message.header.request.vbucket = htons(0);
-    msg.req.message.header.request.bodylen = htonl(12 + 20 + 22);
+    msg.req.message.header.request.bodylen = htonl(4 + 20 + 22);
     memcpy(msg.buffer + sizeof(msg.req.bytes), "delete_with_meta_key", 20);
     msg.req.message.body.nmeta_bytes = ntohl(22);
 

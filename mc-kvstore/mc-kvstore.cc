@@ -66,7 +66,7 @@ void MCKVStore::get(const std::string &key, uint64_t, uint16_t vb, uint16_t,
 void MCKVStore::del(const Item &itm, uint64_t, uint16_t, Callback<int> &cb) {
 
     assert(intransaction);
-    mc->delq(itm, cb);
+    mc->delmq(itm, cb);
 }
 
 bool MCKVStore::delVBucket(uint16_t vbucket, uint16_t vb_version,

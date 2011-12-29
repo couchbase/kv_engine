@@ -1056,25 +1056,36 @@ void MemcachedEngine::wait()
     }
 }
 
-void MemcachedEngine::delq(const Item &itm, Callback<int> &cb) {
+void MemcachedEngine::delmq(const Item &itm, Callback<int> &cb) {
     const std::string key = itm.getKey();
     const uint16_t vb = itm.getVBucketId();
-    protocol_binary_request_delete req;
+    protocol_binary_request_delete_with_meta req;
     memset(req.bytes, 0, sizeof(req.bytes));
     req.message.header.request.magic = PROTOCOL_BINARY_REQ;
-    req.message.header.request.opcode = PROTOCOL_BINARY_CMD_DELETEQ;
+    req.message.header.request.opcode = CMD_DELQ_WITH_META;
+    req.message.header.request.extlen = 4;
     req.message.header.request.keylen = ntohs((uint16_t)key.length());
     req.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
     req.message.header.request.vbucket = ntohs(vb);
-    req.message.header.request.bodylen = ntohl((uint32_t)key.length());
+
+    size_t nmeta = itm.getNMetaBytes();
+    uint32_t bodylen = req.message.header.request.extlen + key.length() + nmeta;
+
+    req.message.header.request.bodylen = ntohl(bodylen);
     req.message.header.request.opaque = seqno;
+    req.message.body.nmeta_bytes = ntohl(nmeta);
+
+    uint8_t meta[30];
+    Item::encodeMeta(itm, meta, nmeta);
 
     sendIov[0].iov_base = (char*)req.bytes;
     sendIov[0].iov_len = sizeof(req.bytes);
     sendIov[1].iov_base = const_cast<char*>(key.c_str());
     sendIov[1].iov_len = key.length();
+    sendIov[2].iov_base = reinterpret_cast<char*>(meta);
+    sendIov[2].iov_len = nmeta;
 
-    numiovec = 2;
+    numiovec = 3;
     sendCommand(new DelResponseHandler(seqno++, epStats, cb));
 }
 

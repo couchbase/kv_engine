@@ -232,8 +232,15 @@ typedef union {
 } protocol_binary_request_set_with_meta;
 
 /**
- * The physical layout for the CMD_SET_WITH_META looks like the the normal
- * set request with the addition of a bulk of extra meta data stored
+ * CMD_DEL_WITH_META is used to delete a kv-pair with additional meta
+ * information.
+ */
+#define CMD_DEL_WITH_META 0xa8
+#define CMD_DELQ_WITH_META 0xa9
+
+/**
+ * The physical layout for the CMD_DEL_WITH_META looks like the the normal
+ * delete request with the addition of a bulk of extra meta data stored
  * at the <b>end</b> of the package.
  */
 typedef union {
