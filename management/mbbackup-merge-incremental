@@ -23,7 +23,7 @@ DEFAULT_MAX_DB_SIZE = 512 # Default max size 512MB of a merged database file
 
 def usage(err=0):
     print >> sys.stderr, """
-Usage: %s [-o %s] [-s %s] [-v] incremental_backup_file1 incremental_backup_file2 ...
+Usage: %s [-o %s] [-s %s] [-v] [-f] incremental_backup_file1 incremental_backup_file2 ...
 """ % (os.path.basename(sys.argv[0]), DEFAULT_OUTPUT_FILE, DEFAULT_MAX_DB_SIZE)
     sys.exit(err)
 
@@ -32,9 +32,10 @@ def parse_args(args):
     max_db_size = DEFAULT_MAX_DB_SIZE
     verbosity = 0
     split_backup = False
+    force_merge = False
 
     try:
-        opts, args = getopt.getopt(args, 'o:s:v', ['help'])
+        opts, args = getopt.getopt(args, 'o:s:vf', ['help'])
     except getopt.GetoptError, e:
         usage(e.msg)
 
@@ -48,13 +49,15 @@ def parse_args(args):
             split_backup = True
         elif o == '-v':
             verbosity = verbosity + 1
+        elif o == '-f':
+            force_merge = True
         else:
             usage("unknown option - " + o)
 
     if not args:
         usage("missing incremental backup files")
 
-    return output_file, max_db_size, args, verbosity, split_backup
+    return output_file, max_db_size, args, verbosity, split_backup, force_merge
 
 def findCmd(cmdName):
     cmd_dir = os.path.dirname(sys.argv[0])
@@ -188,7 +191,7 @@ def split_single_merged_db_file(single_output_file, split_output_file, max_db_si
 def main():
     global verbosity
 
-    output_file, max_db_size, input_files, verbosity, split_backup = parse_args(sys.argv[1:])
+    output_file, max_db_size, input_files, verbosity, split_backup, force_merge = parse_args(sys.argv[1:])
     log(1, "incremental backup files = " + ' '.join(input_files))
     log(1, "output backup file = %s" % output_file)
     if split_backup:
@@ -215,7 +218,7 @@ def main():
     else:
             single_output_file = output_file
 
-    if len(backup_files) == 1:
+    if len(backup_files) == 1 and not force_merge:
         if not split_backup:
             err_msg = "You should provide atleast two files for merging without splitting"
             exit(err_msg)
