@@ -492,7 +492,7 @@ public:
             LockHolder lh = vb->ht.getLockedBucket(vk.second, &bucket_num);
             StoredValue *v = vb->ht.unlocked_find(vk.second, bucket_num);
             if (v && v->isExpired(startTime)) {
-                value_t value = v->getValue();
+                value_t value(NULL);
                 uint64_t cas = v->getCas();
                 vb->ht.unlocked_softDelete(vk.second, 0, bucket_num);
                 e->queueDirty(vk.second, vb->getId(), queue_op_del, value,
@@ -521,7 +521,7 @@ StoredValue *EventuallyPersistentStore::fetchValidValue(RCPtr<VBucket> vb,
     if (v && !v->isDeleted()) { // In the deleted case, we ignore expiration time.
         if (v->isExpired(ep_real_time())) {
             ++stats.expired;
-            value_t value = v->getValue();
+            value_t value(NULL);
             uint64_t cas = v->getCas();
             vb->ht.unlocked_softDelete(key, 0, bucket_num);
             queueDirty(key, vb->getId(), queue_op_del, value,
@@ -1340,7 +1340,6 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::del(const std::string &key,
 
         return ENGINE_KEY_ENOENT;
     }
-    value_t value = v->getValue();
 
     mutation_type_t delrv = vb->ht.unlocked_softDelete(key, cas, bucket_num);
     ENGINE_ERROR_CODE rv;
@@ -1354,6 +1353,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::del(const std::string &key,
     }
 
     if (delrv == WAS_CLEAN || delrv == WAS_DIRTY || delrv == NOT_FOUND) {
+        value_t value(NULL);
         queueDirty(key, vbucket, queue_op_del, value,
                    v->getFlags(), v->getExptime(), cas, v->getId());
     }
