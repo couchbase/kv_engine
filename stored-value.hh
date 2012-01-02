@@ -1118,7 +1118,7 @@ public:
             }
 
             if (cas != 0 && cas != v->getCas()) {
-                return NOT_FOUND;
+                return INVALID_CAS;
             }
 
             if (!v->isResident()) {
