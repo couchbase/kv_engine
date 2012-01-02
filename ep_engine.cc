@@ -4051,7 +4051,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::handleRestoreCmd(const void *cooki
     }
 
     if (request->request.opcode == CMD_RESTORE_FILE) {
-        std::string filename((const char*)request->bytes + sizeof(request->bytes) + request->request.extlen, ntohs(request->request.keylen));
+        std::string filename((const char*)request->bytes + sizeof(request->bytes) +
+                             request->request.extlen, ntohs(request->request.keylen));
         try {
             restore.manager->initialize(filename);
         } catch (std::string e) {
@@ -4097,6 +4098,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::handleRestoreCmd(const void *cooki
         destroy_restore_manager(restore.manager);
         restore.enabled.set(false);
         restore.manager = NULL;
+        epstore->completeOnlineRestore();
     }
 
     if (response(NULL, 0, NULL, 0, NULL, 0,
