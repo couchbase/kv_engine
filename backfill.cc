@@ -47,8 +47,12 @@ bool BackfillDiskLoad::callback(Dispatcher &d, TaskId t) {
     bool valid = false;
 
     if (isMemoryUsageTooHigh(engine->getEpStats())) {
-         d.snooze(t, 1);
-         return true;
+        getLogger()->log(EXTENSION_LOG_INFO, NULL,
+                         "VBucket %d backfill task from disk is temporarily suspended "
+                         "because the current memory usage is too high.\n",
+                         vbucket);
+        d.snooze(t, 1);
+        return true;
     }
 
     if (connMap.checkConnectivity(name) && !engine->getEpStore()->isFlushAllScheduled()) {
@@ -56,6 +60,11 @@ bool BackfillDiskLoad::callback(Dispatcher &d, TaskId t) {
         store->dump(vbucket, backfill_cb);
         valid = true;
     }
+
+    getLogger()->log(EXTENSION_LOG_INFO, NULL,
+                     "VBucket %d backfill task from disk is completed.\n",
+                     vbucket);
+
     // Should decr the disk backfill counter regardless of the connectivity status
     CompleteDiskBackfillTapOperation op;
     connMap.performTapOp(name, op, static_cast<void*>(NULL));
@@ -124,6 +133,9 @@ void BackFillVisitor::apply(void) {
             Dispatcher *d(engine->epstore->getRODispatcher());
             KVStore *underlying(engine->epstore->getROUnderlying());
             assert(d);
+            getLogger()->log(EXTENSION_LOG_INFO, NULL,
+                             "Schedule a full backfill from disk for vbucket %d.\n",
+                              *it);
             shared_ptr<DispatcherCallback> cb(new BackfillDiskLoad(name,
                                                                    engine,
                                                                    *engine->tapConnMap,
@@ -160,7 +172,7 @@ bool BackFillVisitor::pauseVisitor() {
 
     ssize_t theSize(engine->tapConnMap->backfillQueueDepth(name));
     if (!checkValidity() || theSize < 0) {
-        getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                          "TapProducer %s went away.  Stopping backfill.\n",
                          name.c_str());
         valid = false;
@@ -171,8 +183,9 @@ bool BackFillVisitor::pauseVisitor() {
     pause = theSize > maxBackfillSize || isMemoryUsageTooHigh(engine->getEpStats());
 
     if (pause) {
-        getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                         "Tap queue depth too big for %s or memory usage too high, sleeping\n",
+        getLogger()->log(EXTENSION_LOG_INFO, NULL,
+                         "Tap queue depth is too big for %s or memory usage too high, "
+                         "Pausing temporarily...\n",
                          name.c_str());
     }
     return pause;
@@ -185,6 +198,9 @@ void BackFillVisitor::complete() {
     if (engine->tapConnMap->checkBackfillCompletion(name)) {
         engine->notifyNotificationThread();
     }
+    getLogger()->log(EXTENSION_LOG_INFO, NULL,
+                     "Backfill dispatcher task for TapProducer %s is completed.\n",
+                     name.c_str());
 }
 
 bool BackFillVisitor::checkValidity() {
@@ -192,7 +208,8 @@ bool BackFillVisitor::checkValidity() {
         valid = engine->tapConnMap->checkConnectivity(name);
         if (!valid) {
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "Backfilling connectivity for %s went invalid. Stopping backfill.\n",
+                             "Backfilling connectivity for %s went invalid. "
+                             "Stopping backfill.\n",
                              name.c_str());
         }
     }

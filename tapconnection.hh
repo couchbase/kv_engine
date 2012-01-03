@@ -337,7 +337,6 @@ protected:
     TapConnection(EventuallyPersistentEngine &theEngine,
                   const void *c, const std::string &n);
 
-
     template <typename T>
     void addStat(const char *nm, T val, ADD_STAT add_stat, const void *c) {
         std::stringstream tap;
@@ -352,6 +351,10 @@ protected:
 
     void addStat(const char *nm, bool val, ADD_STAT add_stat, const void *c) {
         addStat(nm, val ? "true" : "false", add_stat, c);
+    }
+
+    void setLogHeader(const std::string &header) {
+        logString = header;
     }
 
 public:
@@ -382,7 +385,9 @@ public:
         return s.str();
     }
 
-    virtual ~TapConnection() { /* EMPTY */ }
+    const char* logHeader();
+
+    virtual ~TapConnection();
     virtual const std::string &getName() const { return name; }
     void setName(const std::string &n) { name.assign(n); }
     void setReserved(bool r) { reserved = r; }
@@ -462,6 +467,11 @@ public:
     void setDisconnect(bool val) {
         disconnect = val;
     }
+
+    static const char* opaqueCmdToString(uint32_t opaque_code);
+
+private:
+    std::string logString;
 };
 
 /**
