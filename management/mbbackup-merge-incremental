@@ -206,8 +206,18 @@ def main():
             exit(err_msg)
         backup_files.extend(bfiles)
 
-    ## Check if there are any missing checkpoints in the input backup files
-    backup_files = backup_util.validate_incremental_backup_files(backup_files)
+    ## Check if there are any missing checkpoints in the backup files
+    if os.path.exists(output_file):
+        backup_files.append(output_file)
+        backup_files = backup_util.validate_incremental_backup_files(backup_files)
+        if backup_files[0] == output_file:
+            backup_files.remove(output_file)
+        else:
+            err_msg = "There are missing checkpoints between the " \
+                      "output file and input backup files"
+            exit(err_msg)
+    else:
+        backup_files = backup_util.validate_incremental_backup_files(backup_files)
 
     if split_backup:
         timestamp = str(time.time())
@@ -220,7 +230,8 @@ def main():
 
     if len(backup_files) == 1 and not force_merge:
         if not split_backup:
-            err_msg = "You should provide atleast two files for merging without splitting"
+            err_msg = "You should provide atleast two files for merging" \
+                    "without splitting"
             exit(err_msg)
         single_output_file = backup_files[0]
     else:
