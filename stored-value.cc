@@ -24,14 +24,14 @@ static ssize_t prime_size_table[] = {
 bool StoredValue::ejectValue(EPStats &stats, HashTable &ht) {
     if (eligibleForEviction()) {
         size_t oldsize = size();
-        size_t oldValueSize = value->length();
+        size_t old_valsize = value->length();
         blobval uval;
         uval.len = valLength();
         RCPtr<Blob> sp(Blob::New(uval.chlen, sizeof(uval)));
         extra.feature.resident = false;
         value = sp;
         size_t newsize = size();
-        size_t newValueSize = value->length();
+        size_t new_valsize = value->length();
 
         // ejecting the value may increase the object size....
         if (oldsize < newsize) {
@@ -39,10 +39,13 @@ bool StoredValue::ejectValue(EPStats &stats, HashTable &ht) {
         } else if (newsize < oldsize) {
             reduceCacheSize(ht, oldsize - newsize, true);
         }
-        if ((oldsize - oldValueSize) < (newsize - newValueSize)) {
-            increaseCurrentSize(stats, (newsize - newValueSize) - (oldsize - oldValueSize));
-        } else if ((newsize - newValueSize) < (oldsize - oldValueSize)) {
-            reduceCurrentSize(stats, (oldsize - oldValueSize) - (newsize - newValueSize));
+        // Add or substract the key/meta data overhead differenece.
+        size_t old_keymeta_overhead = (oldsize - old_valsize);
+        size_t new_keymeta_overhead = (newsize - new_valsize);
+        if (old_keymeta_overhead < new_keymeta_overhead) {
+            increaseCurrentSize(stats, new_keymeta_overhead - old_keymeta_overhead);
+        } else if (new_keymeta_overhead < old_keymeta_overhead) {
+            reduceCurrentSize(stats, old_keymeta_overhead - new_keymeta_overhead);
         }
         ++stats.numValueEjects;
         ++ht.numNonResidentItems;
@@ -56,7 +59,7 @@ bool StoredValue::ejectValue(EPStats &stats, HashTable &ht) {
 bool StoredValue::restoreValue(const value_t &v, EPStats &stats, HashTable &ht) {
     if (!isResident()) {
         size_t oldsize = size();
-        size_t oldValueSize = isDeleted() ? 0 : value->length();
+        size_t old_valsize = isDeleted() ? 0 : value->length();
         assert(v);
         if (v->length() != valLength()) {
             int diff(static_cast<int>(valLength()) - // expected
@@ -69,16 +72,19 @@ bool StoredValue::restoreValue(const value_t &v, EPStats &stats, HashTable &ht) 
         value = v;
 
         size_t newsize = size();
-        size_t newValueSize = value->length();
+        size_t new_valsize = value->length();
         if (oldsize < newsize) {
             increaseCacheSize(ht, newsize - oldsize, true);
         } else if (newsize < oldsize) {
             reduceCacheSize(ht, oldsize - newsize, true);
         }
-        if ((oldsize - oldValueSize) < (newsize - newValueSize)) {
-            increaseCurrentSize(stats, (newsize - newValueSize) - (oldsize - oldValueSize));
-        } else if ((newsize - newValueSize) < (oldsize - oldValueSize)) {
-            reduceCurrentSize(stats, (oldsize - oldValueSize) - (newsize - newValueSize));
+        // Add or substract the key/meta data overhead differenece.
+        size_t old_keymeta_overhead = (oldsize - old_valsize);
+        size_t new_keymeta_overhead = (newsize - new_valsize);
+        if (old_keymeta_overhead < new_keymeta_overhead) {
+            increaseCurrentSize(stats, new_keymeta_overhead - old_keymeta_overhead);
+        } else if (new_keymeta_overhead < old_keymeta_overhead) {
+            reduceCurrentSize(stats, old_keymeta_overhead - new_keymeta_overhead);
         }
         --ht.numNonResidentItems;
         return true;
