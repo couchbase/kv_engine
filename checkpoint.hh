@@ -54,9 +54,11 @@ public:
     CheckpointCursor(const std::string &n,
                      std::list<Checkpoint*>::iterator checkpoint,
                      std::list<queued_item>::iterator pos,
-                     size_t os = 0, bool isClosedCheckpointOnly = false) :
+                     size_t os = 0, bool isClosedCheckpointOnly = false,
+                     uint64_t lastClosedChkId = 0) :
         name(n), currentCheckpoint(checkpoint), currentPos(pos),
-        offset(os), closedCheckpointOnly(isClosedCheckpointOnly) { }
+        offset(os), closedCheckpointOnly(isClosedCheckpointOnly),
+        lastClosedCheckpointId(lastClosedChkId) { }
 
 private:
     std::string                      name;
@@ -64,6 +66,7 @@ private:
     std::list<queued_item>::iterator currentPos;
     Atomic<size_t>                   offset;
     bool                             closedCheckpointOnly;
+    uint64_t                         lastClosedCheckpointId;
 };
 
 /**
@@ -259,14 +262,8 @@ public:
     uint64_t getOpenCheckpointId_UNLOCKED();
     uint64_t getOpenCheckpointId();
 
-    uint64_t getLastClosedCheckpointId() {
-        LockHolder lh(queueLock);
-        if (!isCollapsedCheckpoint) {
-            uint64_t id = getOpenCheckpointId_UNLOCKED();
-            lastClosedCheckpointId = id > 0 ? (id - 1) : 0;
-        }
-        return lastClosedCheckpointId;
-    }
+    uint64_t getLastClosedCheckpointId_UNLOCKED();
+    uint64_t getLastClosedCheckpointId();
 
     void setOpenCheckpointId_UNLOCKED(uint64_t id);
 

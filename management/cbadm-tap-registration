@@ -3,6 +3,7 @@ import os
 import sys
 import getopt
 import exceptions
+import socket
 import struct
 import mc_bin_client
 import memcacheConstants
@@ -116,7 +117,9 @@ if __name__ == '__main__':
             mc.deregister_tap_client(tap_name)
     except mc_bin_client.MemcachedError as ne:
         sys.exit("ERROR: " + str(ne))
-
+    except socket.error:
+        sys.exit("ERROR: Connection to server on %s:%s failed" %(host_port[0],
+            host_port[1]))
 
     finally:
         if mc:

@@ -798,7 +798,7 @@ public:
     int addUnlessThere(const std::string &key,
                        uint16_t vbid,
                        enum queue_operation op,
-                       value_t value,
+                       const value_t &value,
                        uint32_t flags,
                        time_t exptime,
                        uint64_t cas);
@@ -809,6 +809,14 @@ public:
 
     void setPersistenceCheckpointId(uint16_t vbid, uint64_t checkpointId);
 
+    bool isRestoreEnabled();
+
+    /**
+     * Complete the online restore phase by clearing the list of deleted items that
+     * are received from the upstream master via TAP or from the normal clients
+     */
+    void completeOnlineRestore();
+
 private:
 
     void scheduleVBDeletion(RCPtr<VBucket> vb, uint16_t vb_version, double delay);
@@ -817,7 +825,7 @@ private:
 
     /* Queue an item to be written to persistent layer. */
     void queueDirty(const std::string &key, uint16_t vbid,
-                    enum queue_operation op, value_t value,
+                    enum queue_operation op, const value_t &value,
                     uint32_t flags = 0, time_t exptime = 0, uint64_t cas = 0,
                     int64_t rowid = -1, bool tapBackfill = false);
 
@@ -916,7 +924,11 @@ private:
     // This is solved by using a separate list for those objects.
     struct {
         Mutex mutex;
-        std::vector<queued_item> items;
+        std::map<uint16_t, std::vector<queued_item> > items;
+        // Maintain the list of deleted keys that are received from the upstream
+        // master via TAP or from the normal clients during online restore.
+        // As an alternative to std::set, we can consider boost::unordered_set later.
+        std::set<std::string> itemsDeleted;
     } restore;
 
     DISALLOW_COPY_AND_ASSIGN(EventuallyPersistentStore);

@@ -23,7 +23,7 @@ DEFAULT_MAX_DB_SIZE = 512 # Default max size 512MB of a merged database file
 
 def usage(err=0):
     print >> sys.stderr, """
-Usage: %s [-o %s] [-s %s] [-v] incremental_backup_file1 incremental_backup_file2 ...
+Usage: %s [-o %s] [-s %s] [-v] [-f] incremental_backup_file1 incremental_backup_file2 ...
 """ % (os.path.basename(sys.argv[0]), DEFAULT_OUTPUT_FILE, DEFAULT_MAX_DB_SIZE)
     sys.exit(err)
 
@@ -32,9 +32,10 @@ def parse_args(args):
     max_db_size = DEFAULT_MAX_DB_SIZE
     verbosity = 0
     split_backup = False
+    force_merge = False
 
     try:
-        opts, args = getopt.getopt(args, 'o:s:v', ['help'])
+        opts, args = getopt.getopt(args, 'o:s:vf', ['help'])
     except getopt.GetoptError, e:
         usage(e.msg)
 
@@ -48,13 +49,15 @@ def parse_args(args):
             split_backup = True
         elif o == '-v':
             verbosity = verbosity + 1
+        elif o == '-f':
+            force_merge = True
         else:
             usage("unknown option - " + o)
 
     if not args:
         usage("missing incremental backup files")
 
-    return output_file, max_db_size, args, verbosity, split_backup
+    return output_file, max_db_size, args, verbosity, split_backup, force_merge
 
 def findCmd(cmdName):
     cmd_dir = os.path.dirname(sys.argv[0])
@@ -70,22 +73,66 @@ def log(level, *args):
        s = ", ".join(list(args))
        print string.rjust(s, (level * 2) + len(s))
 
+def create_single_output_db(db_file_name):
+    db = None
+    try:
+        db = sqlite3.connect(db_file_name)
+        db.text_factory = str
+        db.executescript("""
+        BEGIN;
+        CREATE TABLE IF NOT EXISTS cpoint_op
+        (vbucket_id integer, cpoint_id integer, seq integer, op text,
+        key varchar(250), flg integer, exp integer, cas integer, val blob,
+        primary key(vbucket_id, key));
+        CREATE TABLE IF NOT EXISTS cpoint_state
+        (vbucket_id integer, cpoint_id integer, prev_cpoint_id integer, state varchar(1),
+        source varchar(250), updated_at text,
+        primary key(vbucket_id, cpoint_id));
+        COMMIT;
+        """)
+    except Exception as e:
+        traceback.print_exc(file=sys.stdout)
+        exit("ERROR: " + str(e))
+    return db
+
 def merge_incremental_backup_files(backup_files, single_output_file):
-    sqlite = findCmd("sqlite3")
-    squasher_sql_file = findCmd("squasher.sql")
-    sql_stmt = open(squasher_sql_file, 'r').read()
-    sql_stmt = string.replace(sql_stmt, "__SQUASHED_DATABASE__", single_output_file)
-    for bfile in backup_files:
-        sql_cmd = string.replace(sql_stmt, "__INCREMENTAL_DATABASE__", bfile)
-        p = subprocess.Popen(sqlite,
-                             stdin=subprocess.PIPE,
-                             stdout=subprocess.PIPE,
-                             stderr=subprocess.PIPE)
-        (output, err) = p.communicate(sql_cmd)
-        if p.returncode != 0:
-            log(1, "Error in merging \"%s\"" % bfile)
-            sys.exit(err)
-        log(1, "Incremental backup file: \"%s\"" % bfile)
+    try:
+        output_db = create_single_output_db(single_output_file)
+        for bfile in backup_files:
+            log(1, "Incremental backup file: \"%s\"" % bfile)
+            backup_db = sqlite3.connect(bfile)
+            backup_db.text_factory = str
+            bd_cursor = backup_db.cursor()
+            bd_cursor.arraysize = 5000
+            ## Insert checkpoint_state records into the output db file.
+            bd_cursor.execute("SELECT vbucket_id, cpoint_id, prev_cpoint_id, state, " \
+                              "source, updated_at FROM cpoint_state " \
+                              "WHERE state = \"closed\"")
+            checkpoint_states = bd_cursor.fetchall()
+            copy_checkpoint_state_records(checkpoint_states, output_db)
+
+            op_records = []
+            ## Insert checkpoint_operation records into the output db file.
+            bd_cursor.execute("SELECT cpoint_op.vbucket_id, cpoint_op.cpoint_id, seq, " \
+                              "op, key, flg, exp, cas, val " \
+                              "FROM cpoint_state JOIN cpoint_op ON " \
+                              "(cpoint_op.vbucket_id = cpoint_state.vbucket_id AND " \
+                              "cpoint_op.cpoint_id = cpoint_state.cpoint_id) " \
+                              "WHERE cpoint_state.state = \"closed\" " \
+                              "ORDER BY cpoint_op.cpoint_id DESC")
+            while True:
+                op_records = bd_cursor.fetchmany(bd_cursor.arraysize)
+                if op_records == []:
+                    break
+                if copy_checkpoint_op_records(op_records, output_db) != True:
+                    sys.exit("Error in merging \"%s\"" % bfile)
+            backup_db.close()
+    except Exception as e:
+        traceback.print_exc(file=sys.stdout)
+        exit("ERROR: " + str(e))
+    finally:
+        if output_db:
+            output_db.close()
 
 def create_split_db(db_file_name, max_db_size):
     db = None
@@ -113,7 +160,7 @@ def create_split_db(db_file_name, max_db_size):
 
 def copy_checkpoint_state_records(checkpoint_states, db):
     c = db.cursor()
-    stmt = "INSERT into cpoint_state" \
+    stmt = "INSERT OR IGNORE into cpoint_state" \
            "(vbucket_id, cpoint_id, prev_cpoint_id, state, source, updated_at)" \
            " VALUES (?, ?, ?, ?, ?, ?)"
     for cstate in checkpoint_states:
@@ -124,7 +171,7 @@ def copy_checkpoint_state_records(checkpoint_states, db):
 def copy_checkpoint_op_records(op_records, db):
     result = True
     c = db.cursor()
-    stmt = "INSERT into cpoint_op" \
+    stmt = "INSERT OR IGNORE into cpoint_op" \
            "(vbucket_id, cpoint_id, seq, op, key, flg, exp, cas, val)" \
            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
     try:
@@ -188,7 +235,7 @@ def split_single_merged_db_file(single_output_file, split_output_file, max_db_si
 def main():
     global verbosity
 
-    output_file, max_db_size, input_files, verbosity, split_backup = parse_args(sys.argv[1:])
+    output_file, max_db_size, input_files, verbosity, split_backup, force_merge = parse_args(sys.argv[1:])
     log(1, "incremental backup files = " + ' '.join(input_files))
     log(1, "output backup file = %s" % output_file)
     if split_backup:
@@ -203,8 +250,18 @@ def main():
             exit(err_msg)
         backup_files.extend(bfiles)
 
-    ## Check if there are any missing checkpoints in the input backup files
-    backup_files = backup_util.validate_incremental_backup_files(backup_files)
+    ## Check if there are any missing checkpoints in the backup files
+    if os.path.exists(output_file):
+        backup_files.append(output_file)
+        backup_files = backup_util.validate_incremental_backup_files(backup_files)
+        if backup_files[0] == output_file:
+            backup_files.remove(output_file)
+        else:
+            err_msg = "There are missing checkpoints between the " \
+                      "output file and input backup files"
+            exit(err_msg)
+    else:
+        backup_files = backup_util.validate_incremental_backup_files(backup_files)
 
     if split_backup:
         timestamp = str(time.time())
@@ -215,9 +272,10 @@ def main():
     else:
             single_output_file = output_file
 
-    if len(backup_files) == 1:
+    if len(backup_files) == 1 and not force_merge:
         if not split_backup:
-            err_msg = "You should provide atleast two files for merging without splitting"
+            err_msg = "You should provide atleast two files for merging" \
+                    "without splitting"
             exit(err_msg)
         single_output_file = backup_files[0]
     else:

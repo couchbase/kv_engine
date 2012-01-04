@@ -38,7 +38,7 @@ public:
         ObjectRegistry::onCreateQueuedItem(this);
     }
 
-    QueuedItem(const std::string &k, value_t v, const uint16_t vb, enum queue_operation o,
+    QueuedItem(const std::string &k, const value_t &v, const uint16_t vb, enum queue_operation o,
                const uint16_t vb_version = -1, const int64_t rid = -1, const uint32_t f = 0,
                const time_t expiry_time = 0, const uint64_t cv = 0)
         : op(o), vbucket_version(vb_version), queued(ep_current_time()),
@@ -60,7 +60,7 @@ public:
     uint32_t getFlags() const { return item.getFlags(); }
     time_t getExpiryTime() const { return item.getExptime(); }
     uint64_t getCas() const { return item.getCas(); }
-    value_t getValue() const { return item.getValue(); }
+    const value_t &getValue() const { return item.getValue(); }
     Item &getItem() { return item; }
 
     void setQueuedTime(uint32_t queued_time) {

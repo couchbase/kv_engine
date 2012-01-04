@@ -28,10 +28,11 @@ DEFAULT_PORT      = "11210"
 DEFAULT_HOST_PORT = ["127.0.0.1", DEFAULT_PORT]
 DEFAULT_FILE      = "./backup-%.mbb"
 DEFAULT_TXN_SIZE  = 5000
+DEFAULT_MAX_BACKUP_SIZE = 512 # Default max size 512MB of a single incremental backup file generated
 
 def usage(err=0):
     print >> sys.stderr, """
-Usage: %s [-h %s[:%s]] [-o %s] [-T num_secs] [-r] [-c] [-t transaction_size] [-v] tap_name|db_file
+Usage: %s [-h %s[:%s]] [-o %s] [-s %s] [-T num_secs] [-r] [-c] [-t transaction_size] [-v] tap_name|db_file
 """ % (os.path.basename(sys.argv[0]),
        DEFAULT_HOST_PORT[0], DEFAULT_HOST_PORT[1], DEFAULT_FILE)
     sys.exit(err)
@@ -44,9 +45,11 @@ def parse_args(args):
     only_name = False
     only_check = False
     txn_size  = DEFAULT_TXN_SIZE
+    max_backup_size = DEFAULT_MAX_BACKUP_SIZE
+    split_backup = False
 
     try:
-        opts, args = getopt.getopt(args, 'h:o:T:t:rcv', ['help'])
+        opts, args = getopt.getopt(args, 'h:o:s:T:t:rcv', ['help'])
     except getopt.GetoptError, e:
         usage(e.msg)
 
@@ -59,6 +62,9 @@ def parse_args(args):
                 host_port = [a, DEFAULT_PORT]
         elif o == '-o':
             file = a
+        elif o == '-s':
+            max_backup_size = int(a)
+            split_backup = True
         elif o == '-T':
             timeout = float(a)
         elif o == '-r':
@@ -77,7 +83,8 @@ def parse_args(args):
     if len(args) != 1:
         usage("incorrect number of arguments - only one registered name or backup file name needed")
 
-    return host_port, file, args[0], timeout, only_name, only_check, txn_size, verbosity
+    return host_port, file, args[0], timeout, only_name, only_check, txn_size, verbosity,\
+           max_backup_size, split_backup
 
 def log(level, *args):
     global verbosity
@@ -88,7 +95,8 @@ def log(level, *args):
 def main():
     global verbosity
 
-    host_port, file, name, timeout, only_name, only_check, txn_size, verbosity = parse_args(sys.argv[1:])
+    host_port, file, name, timeout, only_name, only_check, txn_size, verbosity,\
+               max_backup_size, split_backup = parse_args(sys.argv[1:])
     log(1, "host_port = " + ':'.join(host_port))
     log(1, "verbosity = " + str(verbosity))
     log(1, "only_name = " + str(only_name))
@@ -96,13 +104,14 @@ def main():
     log(1, "timeout = " + str(timeout))
     log(1, "transaction_size = " + str(txn_size))
     log(1, "file = " + file)
+    if split_backup:
+        log(1, "max size of a single backup file = %d MB" % max_backup_size)
     if only_check:
         log(1, "incremental_backup_file = " + name)
     else:
         log(1, "registered_client_name = " + name)
 
     mc = None
-    db = None
 
     try:
         if only_check:
@@ -126,16 +135,7 @@ def main():
                 sys.exit(0);
             sys.exit("ERROR: could not register name: " + name)
 
-        file = util.expand_file_pattern(file)
-        log(1, "file actual = " + file)
-        if os.path.exists(file):
-           sys.exit("ERROR: file exists already: " + file)
-
-        db = sqlite3.connect(file) # TODO: Revisit isolation level
-        db.text_factory = str
-        createSchema(db)
-
-        loop(mc, db, timeout, txn_size, ':'.join(host_port) + '-' + name)
+        loop(mc, file, max_backup_size, split_backup, timeout, txn_size, ':'.join(host_port) + '-' + name)
 
     except NameError as ne:
         sys.exit("ERROR: " + str(ne))
@@ -147,8 +147,6 @@ def main():
     finally:
         if mc:
            mc.close()
-        if db:
-           db.close()
 
 def check_incremental_backup_file(file_name):
     db = None
@@ -177,7 +175,37 @@ def check_incremental_backup_file(file_name):
         if db:
             db.close()
 
-def loop(mc, db, timeout, txn_size, source):
+def get_available_backup_file_name(file_name_pattern):
+    next_backup_file = util.expand_file_pattern(file_name_pattern)
+    log(1, "Next backup file = " + next_backup_file)
+    if os.path.exists(next_backup_file):
+        sys.exit("ERROR: file exists already: " + next_backup_file)
+    return next_backup_file
+
+def add_record(cursor, stmt, fields):
+    result = True
+    try:
+        cursor.execute(stmt, fields)
+    except sqlite3.Error, e: ## Can't find the better exeception code for database full error.
+        log(1, "Backup database size exceeds the max size allowed: " + e.args[0])
+        result = False
+    return result
+
+def update_checkpoint_state_in_split_backups(split_backup_files, chk_stmt, fields):
+    for bfile in split_backup_files:
+        db = sqlite3.connect(bfile)
+        db.text_factory = str
+        cursor = db.cursor()
+        cursor.execute(chk_stmt, fields)
+        db.commit()
+        cursor.close()
+        db.close()
+
+def loop(mc, file, max_backup_size, split_backup, timeout, txn_size, source):
+    split_backup_files = []
+    next_backup_file = get_available_backup_file_name(file)
+    db = create_backup_db(next_backup_file, max_backup_size, split_backup)
+
     vbmap = {} # Key is vbucketId, value is [checkpointId, seq].
 
     cmdInfo = {
@@ -190,6 +218,16 @@ def loop(mc, db, timeout, txn_size, source):
         sinput = [mc.s]
         c = db.cursor()
         update_count = 0
+        tap_stmt = "INSERT into cpoint_op" \
+                   "(vbucket_id, cpoint_id, seq, op, key, flg, exp, cas, val)" \
+                   " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        chk_start_stmt = "INSERT into cpoint_state" \
+                         "(vbucket_id, cpoint_id, prev_cpoint_id, state, source, updated_at)" \
+                         " VALUES (?, ?, ?, \"open\", ?, ?)"
+        chk_end_stmt = "UPDATE cpoint_state" \
+                       " SET state=\"closed\", updated_at=?" \
+                       " WHERE vbucket_id=? AND cpoint_id=? AND state=\"open\" AND source=?"
+        op_records = [] ## Used for keeping the list of records in the current transaction
 
         while True:
             if timeout > 0:
@@ -223,21 +261,31 @@ def loop(mc, db, timeout, txn_size, source):
 
                 eng_length, flags, ttl, flg, exp, needAck = parseTapExt(ext)
 
-                if (cmd == memcacheConstants.CMD_TAP_MUTATION):
-                    s = "INSERT into cpoint_op" \
-                        "(vbucket_id, cpoint_id, seq, op, key, flg, exp, cas, val)" \
-                        " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
-                    c.execute(s, (vbucketId, checkpointId, seq, cmdOp,
-                                   key, flg, exp, cas, sqlite3.Binary(val)))
-                else:
-                    s = "INSERT into cpoint_op" \
-                        "(vbucket_id, cpoint_id, seq, op, key, cas, val)" \
-                        " VALUES (?, ?, ?, ?, ?, ?, ?)"
-                    c.execute(s, (vbucketId, checkpointId, seq, cmdOp,
-                                   key, cas, sqlite3.Binary(val)))
-
+                val = sqlite3.Binary(val)
+                op_records.append((vbucketId, checkpointId, seq, cmdOp,key, flg, exp, cas, val))
+                result = add_record(c, tap_stmt, (vbucketId, checkpointId, seq, cmdOp,
+                                                  key, flg, exp, cas, val))
+                if result == False:
+                    ## The current backup db file is full
+                    try:
+                        db.rollback()
+                    except sqlite3.Error, e: ## Can't find the better error for rollback failure.
+                        log(1, "Insertion transaction was already rollbacked: " + e.args[0])
+                    c.close()
+                    db.close()
+                    split_backup_files.append(next_backup_file)
+                    ## Open the new backup db file
+                    next_backup_file = get_available_backup_file_name(file)
+                    db = create_backup_db(next_backup_file, max_backup_size, split_backup)
+                    c = db.cursor()
+                    ## Insert checkpoint_start record
+                    t = datetime.datetime.now().strftime('%Y%m%d%H%M%S')
+                    add_record(c, chk_start_stmt, (vbucketId, checkpointId, -1, source, t))
+                    db.commit();
+                    ## Insert all the records that belong to the rollbacked transaction.
+                    for record in op_records:
+                        add_record(c, tap_stmt, record)
                 update_count = update_count + 1
-                needAck = flags & memcacheConstants.TAP_FLAG_ACK
 
             elif cmd == memcacheConstants.CMD_TAP_CHECKPOINT_START:
                 if len(ext) > 0:
@@ -254,15 +302,26 @@ def loop(mc, db, timeout, txn_size, source):
                 if checkpointStartExists == False:
                     vbmap[vbucketId] = [checkpoint_id[0], 0]
                     t = datetime.datetime.now().strftime('%Y%m%d%H%M%S')
-                    s = "INSERT into cpoint_state" \
-                        "(vbucket_id, cpoint_id, prev_cpoint_id, state, source, updated_at)" \
-                        " VALUES (?, ?, ?, \"open\", ?, ?)"
-                    c.execute(s, (vbucketId, checkpoint_id[0], -1, source, t))
+                    result = add_record(c, chk_start_stmt,
+                                        (vbucketId, checkpoint_id[0], -1, source, t))
+                    if result == False:
+                        ## The current backup db file is full and closed.
+                        c.close()
+                        db.close()
+                        split_backup_files.append(next_backup_file)
+                        ## Open the new backup db file
+                        next_backup_file = get_available_backup_file_name(file)
+                        db = create_backup_db(next_backup_file, max_backup_size, split_backup)
+                        c = db.cursor()
+                        ## Insert checkpoint_start record that was rejected above
+                        add_record(c, chk_start_stmt, (vbucketId, checkpoint_id[0], -1, source, t))
                     db.commit()
 
             elif cmd == memcacheConstants.CMD_TAP_CHECKPOINT_END:
-                db.commit()
-                update_count = 0
+                if update_count > 0:
+                    db.commit()
+                    op_records = []
+                    update_count = 0
                 checkpoint_id = struct.unpack(">Q", val)
                 if not vbucketId in vbmap:
                     sys.exit("ERROR: unmatched checkpoint end: %s vb: %s"
@@ -279,14 +338,14 @@ def loop(mc, db, timeout, txn_size, source):
                 del vbmap[vbucketId]
 
                 t = datetime.datetime.now().strftime('%Y%m%d%H%M%S')
-                s = "UPDATE cpoint_state" \
-                    " SET state=\"closed\", updated_at=?" \
-                    " WHERE vbucket_id=? AND cpoint_id=? AND state=\"open\" AND source=?"
-                r = c.execute(s, (t, vbucketId, current_checkpoint_id, source))
+                r = c.execute(chk_end_stmt, (t, vbucketId, current_checkpoint_id, source))
                 db.commit()
                 if r.rowcount != 1:
-                   sys.exit("ERROR: unexpected rowcount during update: "
+                   sys.exit("ERROR: unexpected rowcount while updating checkpoint state: "
                             + ",".join([t, vbucketId, checkpointId, source]))
+                ## Update the corresponding checkpoint state if exists in the split backup files
+                update_checkpoint_state_in_split_backups(split_backup_files, chk_end_stmt,
+                                                         (t, vbucketId, current_checkpoint_id, source))
 
             elif cmd == memcacheConstants.CMD_TAP_OPAQUE:
                 if len(ext) > 0:
@@ -295,12 +354,16 @@ def loop(mc, db, timeout, txn_size, source):
                     if opaque_opcode[0] == memcacheConstants.TAP_OPAQUE_OPEN_CHECKPOINT:
                         if update_count > 0:
                             db.commit()
+                            op_records = []
+                            update_count = 0
                         log(1, "Incremental backup is currently at the open checkpoint. Exit...")
                         exit(0)
 
             elif cmd == memcacheConstants.CMD_TAP_CONNECT:
                 if update_count > 0:
                     db.commit()
+                    op_records = []
+                    update_count = 0
                 sys.exit("ERROR: TAP_CONNECT error: " + str(key))
 
             elif cmd == memcacheConstants.CMD_NOOP:
@@ -311,6 +374,7 @@ def loop(mc, db, timeout, txn_size, source):
 
             if update_count == txn_size:
                 db.commit()
+                op_records = []
                 update_count = 0
 
             if needAck:
@@ -319,8 +383,12 @@ def loop(mc, db, timeout, txn_size, source):
                             fmt=memcacheConstants.RES_PKT_FMT,
                             magic=memcacheConstants.RES_MAGIC_BYTE)
 
-    except exceptions.EOFError:
-        pass
+    except Exception as e:
+        traceback.print_exc(file=sys.stdout)
+        sys.exit("ERROR: " + str(e))
+    finally:
+        if db:
+           db.close()
 
 def readTap(mc):
     ext = ''
@@ -358,22 +426,34 @@ def parseTapExt(ext):
 
     return eng_length, flags, ttl, flg, exp, needAck
 
-def createSchema(db):
-    cur = db.execute("pragma user_version").fetchall()[0][0] # File's version.
-    if (cur != 0):
-        sys.exit("ERROR: unexpected db user version: " + str(cur))
-
-    db.executescript("""
-BEGIN;
-CREATE TABLE cpoint_op
-  (vbucket_id integer, cpoint_id integer, seq integer, op text,
-   key varchar(250), flg integer, exp integer, cas integer, val blob);
-CREATE TABLE cpoint_state
-  (vbucket_id integer, cpoint_id integer, prev_cpoint_id integer, state varchar(1),
-   source varchar(250), updated_at text);
-pragma user_version=%s;
-COMMIT;
-""" % (MBB_VERSION))
+def create_backup_db(backup_file_name, max_backup_size, split_backup):
+    db = None
+    try:
+        db = sqlite3.connect(backup_file_name) # TODO: Revisit isolation level
+        db.text_factory = str
+        cur = db.execute("pragma user_version").fetchall()[0][0] # File's version.
+        if (cur != 0):
+            sys.exit("ERROR: unexpected db user version: " + str(cur))
+        db.executescript("""
+        BEGIN;
+        CREATE TABLE cpoint_op
+        (vbucket_id integer, cpoint_id integer, seq integer, op text,
+        key varchar(250), flg integer, exp integer, cas integer, val blob);
+        CREATE TABLE cpoint_state
+        (vbucket_id integer, cpoint_id integer, prev_cpoint_id integer, state varchar(1),
+        source varchar(250), updated_at text);
+        pragma user_version=%s;
+        COMMIT;
+        """ % (MBB_VERSION))
+        if split_backup:
+            max_backup_size = max_backup_size * 1024 * 1024 # Convert MB to bytes
+            db_page_size = db.execute("pragma page_size").fetchone()[0]
+            db_max_page_count = max_backup_size / db_page_size
+            db.execute("pragma max_page_count=%d" % (db_max_page_count))
+    except Exception as e:
+        traceback.print_exc(file=sys.stdout)
+        sys.exit("ERROR: " + str(e))
+    return db
 
 if __name__ == '__main__':
     main()
