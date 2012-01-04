@@ -73,22 +73,66 @@ def log(level, *args):
        s = ", ".join(list(args))
        print string.rjust(s, (level * 2) + len(s))
 
+def create_single_output_db(db_file_name):
+    db = None
+    try:
+        db = sqlite3.connect(db_file_name)
+        db.text_factory = str
+        db.executescript("""
+        BEGIN;
+        CREATE TABLE IF NOT EXISTS cpoint_op
+        (vbucket_id integer, cpoint_id integer, seq integer, op text,
+        key varchar(250), flg integer, exp integer, cas integer, val blob,
+        primary key(vbucket_id, key));
+        CREATE TABLE IF NOT EXISTS cpoint_state
+        (vbucket_id integer, cpoint_id integer, prev_cpoint_id integer, state varchar(1),
+        source varchar(250), updated_at text,
+        primary key(vbucket_id, cpoint_id));
+        COMMIT;
+        """)
+    except Exception as e:
+        traceback.print_exc(file=sys.stdout)
+        exit("ERROR: " + str(e))
+    return db
+
 def merge_incremental_backup_files(backup_files, single_output_file):
-    sqlite = findCmd("sqlite3")
-    squasher_sql_file = findCmd("squasher.sql")
-    sql_stmt = open(squasher_sql_file, 'r').read()
-    sql_stmt = string.replace(sql_stmt, "__SQUASHED_DATABASE__", single_output_file)
-    for bfile in backup_files:
-        sql_cmd = string.replace(sql_stmt, "__INCREMENTAL_DATABASE__", bfile)
-        p = subprocess.Popen(sqlite,
-                             stdin=subprocess.PIPE,
-                             stdout=subprocess.PIPE,
-                             stderr=subprocess.PIPE)
-        (output, err) = p.communicate(sql_cmd)
-        if p.returncode != 0:
-            log(1, "Error in merging \"%s\"" % bfile)
-            sys.exit(err)
-        log(1, "Incremental backup file: \"%s\"" % bfile)
+    try:
+        output_db = create_single_output_db(single_output_file)
+        for bfile in backup_files:
+            log(1, "Incremental backup file: \"%s\"" % bfile)
+            backup_db = sqlite3.connect(bfile)
+            backup_db.text_factory = str
+            bd_cursor = backup_db.cursor()
+            bd_cursor.arraysize = 5000
+            ## Insert checkpoint_state records into the output db file.
+            bd_cursor.execute("SELECT vbucket_id, cpoint_id, prev_cpoint_id, state, " \
+                              "source, updated_at FROM cpoint_state " \
+                              "WHERE state = \"closed\"")
+            checkpoint_states = bd_cursor.fetchall()
+            copy_checkpoint_state_records(checkpoint_states, output_db)
+
+            op_records = []
+            ## Insert checkpoint_operation records into the output db file.
+            bd_cursor.execute("SELECT cpoint_op.vbucket_id, cpoint_op.cpoint_id, seq, " \
+                              "op, key, flg, exp, cas, val " \
+                              "FROM cpoint_state JOIN cpoint_op ON " \
+                              "(cpoint_op.vbucket_id = cpoint_state.vbucket_id AND " \
+                              "cpoint_op.cpoint_id = cpoint_state.cpoint_id) " \
+                              "WHERE cpoint_state.state = \"closed\" " \
+                              "ORDER BY cpoint_op.cpoint_id DESC")
+            while True:
+                op_records = bd_cursor.fetchmany(bd_cursor.arraysize)
+                if op_records == []:
+                    break
+                if copy_checkpoint_op_records(op_records, output_db) != True:
+                    sys.exit("Error in merging \"%s\"" % bfile)
+            backup_db.close()
+    except Exception as e:
+        traceback.print_exc(file=sys.stdout)
+        exit("ERROR: " + str(e))
+    finally:
+        if output_db:
+            output_db.close()
 
 def create_split_db(db_file_name, max_db_size):
     db = None
@@ -116,7 +160,7 @@ def create_split_db(db_file_name, max_db_size):
 
 def copy_checkpoint_state_records(checkpoint_states, db):
     c = db.cursor()
-    stmt = "INSERT into cpoint_state" \
+    stmt = "INSERT OR IGNORE into cpoint_state" \
            "(vbucket_id, cpoint_id, prev_cpoint_id, state, source, updated_at)" \
            " VALUES (?, ?, ?, ?, ?, ?)"
     for cstate in checkpoint_states:
@@ -127,7 +171,7 @@ def copy_checkpoint_state_records(checkpoint_states, db):
 def copy_checkpoint_op_records(op_records, db):
     result = True
     c = db.cursor()
-    stmt = "INSERT into cpoint_op" \
+    stmt = "INSERT OR IGNORE into cpoint_op" \
            "(vbucket_id, cpoint_id, seq, op, key, flg, exp, cas, val)" \
            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
     try:
