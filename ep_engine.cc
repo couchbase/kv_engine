@@ -2263,11 +2263,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
     case TAP_DELETION:
         {
             ret = epstore->del(k, 0, vbucket, cookie, true);
-            if (ret == ENGINE_KEY_ENOENT) {
-                ret = ENGINE_SUCCESS;
-            }
             if (ret == ENGINE_SUCCESS) {
                 addDeleteEvent(k, vbucket, 0);
+            }
+            if (ret == ENGINE_KEY_ENOENT) {
+                ret = ENGINE_SUCCESS;
             }
             TapConsumer *tc = dynamic_cast<TapConsumer*>(connection);
             if (tc && !tc->supportsCheckpointSync()) {
