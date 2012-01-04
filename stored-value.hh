@@ -483,25 +483,31 @@ public:
      * Logically delete this object.
      */
     void del(EPStats &stats, HashTable &ht) {
+        if (isDeleted()) {
+            return;
+        }
+
         size_t oldsize = size();
-        size_t oldValueSize = isDeleted() ? 0 : value->length();
+        size_t old_valsize = value->length();
 
         value.reset();
         markDirty();
         setCas(getCas() + 1);
 
         size_t newsize = size();
-        size_t newValueSize = isDeleted() ? 0 : value->length();
         if (oldsize < newsize) {
             increaseCacheSize(ht, newsize - oldsize, true);
         } else if (newsize < oldsize) {
             reduceCacheSize(ht, oldsize - newsize, true);
         }
-        if ((oldsize - oldValueSize) < (newsize - newValueSize)) {
-            increaseCurrentSize(stats, (newsize - newValueSize) - (oldsize - oldValueSize));
-        } else if ((newsize - newValueSize) < (oldsize - oldValueSize)) {
-            reduceCurrentSize(stats, (oldsize - oldValueSize) - (newsize - newValueSize));
+        // Add or substract the key/meta data overhead differenece.
+        if ((oldsize - old_valsize) < newsize) {
+            increaseCurrentSize(stats, newsize - (oldsize - old_valsize));
+        } else if (newsize < (oldsize - old_valsize)) {
+            reduceCurrentSize(stats, (oldsize - old_valsize) - newsize);
         }
+        // Note that the value memory overhead is automatically substracted from
+        // Blob's deconstructor.
     }
 
     /**
