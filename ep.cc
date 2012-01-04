@@ -1864,7 +1864,7 @@ int EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
 
     int ret = 0;
 
-    if (isDirty && v->isExpired(ep_real_time() + engine.getItemExpiryWindow())) {
+    if (!deleted && isDirty && v->isExpired(ep_real_time() + engine.getItemExpiryWindow())) {
         ++stats.flushExpired;
         v->markClean(&dirtied);
         isDirty = false;
