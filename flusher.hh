@@ -60,7 +60,8 @@ public:
     Flusher(EventuallyPersistentStore *st, Dispatcher *d) :
         store(st), _state(initializing), dispatcher(d),
         flushRv(0), prevFlushRv(0), minSleepTime(0.1),
-        flushQueue(NULL), rejectQueue(NULL), vbStateLoaded(false), forceShutdownReceived(false) {
+        flushQueue(NULL), rejectQueue(NULL), vbStateLoaded(false),
+        forceShutdownReceived(false) {
     }
 
     ~Flusher() {
@@ -108,12 +109,13 @@ private:
     void schedule_UNLOCKED();
     double computeMinSleepTime();
 
-    EventuallyPersistentStore *store;
-    volatile enum flusher_state _state;
-    Mutex taskMutex;
-    TaskId task;
-    Dispatcher *dispatcher;
     const char * stateName(enum flusher_state st) const;
+
+    EventuallyPersistentStore   *store;
+    volatile enum flusher_state  _state;
+    Mutex                        taskMutex;
+    TaskId                       task;
+    Dispatcher                  *dispatcher;
 
     // Current flush cycle state.
     int                      flushRv;
@@ -122,11 +124,13 @@ private:
     std::queue<queued_item> *flushQueue;
     std::queue<queued_item> *rejectQueue;
     rel_time_t               flushStart;
+
     // I need the initial vbstate transferred between two states :(
-    std::map<std::pair<uint16_t, uint16_t>, vbucket_state> initialVbState;
-    Atomic<bool>             vbStateLoaded;
-    Atomic<bool>             forceShutdownReceived;
-    hrtime_t warmupStartTime;
+    std::map<std::pair<uint16_t, uint16_t>, vbucket_state>  initialVbState;
+
+    Atomic<bool> vbStateLoaded;
+    Atomic<bool> forceShutdownReceived;
+    hrtime_t     warmupStartTime;
 
     struct {
         Mutex mutex;
