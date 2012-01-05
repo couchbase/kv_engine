@@ -159,7 +159,6 @@ For introductory information on stats within membase, start with the
 | ep_bg_load                     | The total elapse time for items to be      |
 |                                | loaded from the persistence layer          |
 | ep_latency_get_cmd             | The total elapse time for get command      |
-| ep_latency_store_cmd           | The total elapse time for store command    |
 | ep_latency_arith_cmd           | The total eplase time for arith command    |
 | ep_onlineupdate                | True if engine is in online updated mode   |
 | ep_onlineupdate_revert_add     | Number of reverted newly added items       |
@@ -458,7 +457,6 @@ form to describe when time was spent doing various things:
 | storage_age           | Analogous to ep_storage_age in main stats.     |
 | data_age              | Analogous to ep_data_age in main stats.        |
 | get_cmd               | servicing get requests                         |
-| store_cmd             | servicing store requests                       |
 | arith_cmd             | servicing incr/decr requests                   |
 | get_vb_cmd            | servicing vbucket status requests              |
 | set_vb_cmd            | servicing vbucket set state commands           |

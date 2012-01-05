@@ -1207,7 +1207,6 @@ ENGINE_ERROR_CODE  EventuallyPersistentEngine::store(const void *cookie,
                                                      ENGINE_STORE_OPERATION operation,
                                                      uint16_t vbucket)
 {
-    BlockTimer timer(&stats.storeCmdHisto);
     ENGINE_ERROR_CODE ret;
     Item *it = static_cast<Item*>(itm);
     item *i = NULL;
@@ -2553,8 +2552,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
 
     add_casted_stat("ep_latency_get_cmd", epstats.getCmdHisto.total(),
                     add_stat, cookie);
-    add_casted_stat("ep_latency_store_cmd", epstats.storeCmdHisto.total(),
-                    add_stat, cookie);
     add_casted_stat("ep_latency_arith_cmd", epstats.arithCmdHisto.total(),
                     add_stat, cookie);
 
@@ -3085,7 +3082,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTimingStats(const void *cookie,
 
     // Regular commands
     add_casted_stat("get_cmd", stats.getCmdHisto, add_stat, cookie);
-    add_casted_stat("store_cmd", stats.storeCmdHisto, add_stat, cookie);
     add_casted_stat("arith_cmd", stats.arithCmdHisto, add_stat, cookie);
     // Admin commands
     add_casted_stat("get_vb_cmd", stats.getVbucketCmdHisto, add_stat, cookie);
