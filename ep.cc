@@ -1399,9 +1399,11 @@ std::queue<queued_item>* EventuallyPersistentStore::beginFlush() {
         } else {
             std::vector<queued_item> item_list;
             item_list.reserve(DEFAULT_TXN_SIZE);
+            size_t dedup = 0;
+
             size_t numOfVBuckets = vbuckets.getSize();
+            assert(numOfVBuckets <= std::numeric_limits<uint16_t>::max());
             for (size_t i = 0; i < numOfVBuckets; ++i) {
-                assert(i <= std::numeric_limits<uint16_t>::max());
                 uint16_t vbid = static_cast<uint16_t>(i);
                 RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
                 if (!vb || vb->getState() == vbucket_state_dead) {
@@ -1423,21 +1425,19 @@ std::queue<queued_item>* EventuallyPersistentStore::beginFlush() {
                 // Perform further deduplication here by removing duplicate
                 // mutations for each key. For this, traverse the array from
                 // the last element.
-                for(; reverse_it != item_list.rend(); ++reverse_it) {
-                    queued_item qi = *reverse_it;
-                    if (qi->getOperation() == queue_op_set || qi->getOperation() == queue_op_del) {
-                        int bucket_num(0);
-                        LockHolder lh = vb->ht.getLockedBucket(qi->getKey(), &bucket_num);
-                        StoredValue *v = fetchValidValue(vb, qi->getKey(), bucket_num, true);
-                        if (!v || v->isClean()) {
-                            vb->doStatsForFlushing(*qi, qi->size());
-                            continue;
-                        }
-                        lh.unlock();
+                for (; reverse_it != item_list.rend(); ++reverse_it) {
+                    const queued_item &qi = *reverse_it;
+                    switch (qi->getOperation()) {
+                    case queue_op_set:
+                    case queue_op_del:
                         ret = item_set.insert(qi);
-                        if (!(ret.second)) {
+                        if (!ret.second) {
+                            ++dedup;
                             vb->doStatsForFlushing(*qi, qi->size());
                         }
+                    default:
+                        // Ignore
+                        ;
                     }
                 }
                 item_list.assign(item_set.begin(), item_set.end());
@@ -1445,6 +1445,7 @@ std::queue<queued_item>* EventuallyPersistentStore::beginFlush() {
                 if (item_list.size() > 0) {
                     pushToOutgoingQueue(item_list);
                 }
+                stats.flusherDedup += dedup;
             }
         }
 

@@ -65,6 +65,8 @@ public:
     Atomic<size_t> queue_size;
     //! Size of the in-process (output) queue.
     Atomic<size_t> flusher_todo;
+    //! Number of deduplications fixed by the flusher
+    Atomic<size_t> flusherDedup;
     //! Number of transaction commits.
     Atomic<size_t> flusherCommits;
     //! Number of times the flusher was preempted for a read
