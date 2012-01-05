@@ -1295,11 +1295,10 @@ bool TapConsumer::processCheckpointCommand(tap_event_t event, uint16_t vbucket,
 void TapConsumer::checkVBOpenCheckpoint(uint16_t vbucket) {
     const VBucketMap &vbuckets = engine.getEpStore()->getVBuckets();
     RCPtr<VBucket> vb = vbuckets.getBucket(vbucket);
-    if (!vb) {
+    if (!vb || vb->getState() == vbucket_state_active) {
         return;
     }
-    bool forceCreation = vb->checkpointManager.isCheckpointCreationForHighMemUsage(vb);
-    vb->checkpointManager.checkOpenCheckpoint(forceCreation, true);
+    vb->checkpointManager.checkOpenCheckpoint(false, true);
 }
 
 bool TapConsumer::processOnlineUpdateCommand(uint32_t opcode, uint16_t vbucket) {

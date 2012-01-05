@@ -1833,11 +1833,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
     case TAP_DELETION:
         {
             ret = epstore->del(k, 0, vbucket, cookie, true);
-            if (ret == ENGINE_KEY_ENOENT) {
-                ret = ENGINE_SUCCESS;
-            }
             if (ret == ENGINE_SUCCESS) {
                 addDeleteEvent(k, vbucket, 0);
+            }
+            if (ret == ENGINE_KEY_ENOENT) {
+                ret = ENGINE_SUCCESS;
             }
             TapConsumer *tc = dynamic_cast<TapConsumer*>(connection);
             if (tc && !tc->supportsCheckpointSync()) {
@@ -3510,7 +3510,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::handleRestoreCmd(const void *cooki
     }
 
     if (request->request.opcode == CMD_RESTORE_FILE) {
-        std::string filename((const char*)request->bytes + sizeof(request->bytes) + request->request.extlen, ntohs(request->request.keylen));
+        std::string filename((const char*)request->bytes + sizeof(request->bytes) +
+                             request->request.extlen, ntohs(request->request.keylen));
         try {
             restore.manager->initialize(filename);
         } catch (std::string e) {
@@ -3545,6 +3546,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::handleRestoreCmd(const void *cooki
         destroy_restore_manager(restore.manager);
         restore.enabled.set(false);
         restore.manager = NULL;
+        if (!isDegradedMode()) {
+            epstore->completeDegradedMode();
+        }
     }
 
     return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,

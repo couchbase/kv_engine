@@ -781,7 +781,7 @@ public:
             LockHolder lh = vb->ht.getLockedBucket(vk.second, &bucket_num);
             StoredValue *v = vb->ht.unlocked_find(vk.second, bucket_num);
             if (v && v->isExpired(startTime)) {
-                value_t value = v->getValue();
+                value_t value(NULL);
                 uint64_t cas = v->getCas();
                 vb->ht.unlocked_softDelete(vk.second, 0, bucket_num);
                 e->queueDirty(vk.second, vb->getId(), queue_op_del, value,
@@ -810,7 +810,7 @@ StoredValue *EventuallyPersistentStore::fetchValidValue(RCPtr<VBucket> vb,
     if (v && !v->isDeleted()) { // In the deleted case, we ignore expiration time.
         if (v->isExpired(ep_real_time())) {
             ++stats.expired;
-            value_t value = v->getValue();
+            value_t value(NULL);
             uint64_t cas = v->getCas();
             vb->ht.unlocked_softDelete(key, 0, bucket_num);
             queueDirty(key, vb->getId(), queue_op_del, value,
@@ -1466,22 +1466,29 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteWithMeta(const std::string &k
     }
 
     int bucket_num(0);
+    uint32_t flags = 0;
+    time_t exptime = 0;
+    int rowid = -1;
     LockHolder lh = vb->ht.getLockedBucket(key, &bucket_num);
     StoredValue *v = vb->ht.unlocked_find(key, bucket_num);
     if (!v) {
         if (engine.isDegradedMode()) {
-            return ENGINE_TMPFAIL;
+            LockHolder rlh(restore.mutex);
+            restore.itemsDeleted.insert(key);
+        } else {
+            return ENGINE_KEY_ENOENT;
         }
-
-        return ENGINE_KEY_ENOENT;
+    } else {
+        flags = v->getFlags();
+        exptime = v->getExptime();
+        rowid = v->getId();
     }
-    value_t value = v->getValue();
 
     mutation_type_t delrv = vb->ht.unlocked_softDeleteWithMeta(key, seqno,
                                                                cas, bucket_num);
     ENGINE_ERROR_CODE rv;
 
-    if (delrv == NOT_FOUND) {
+    if (delrv == NOT_FOUND || delrv == INVALID_CAS) {
         rv = ENGINE_KEY_ENOENT;
     } else if (delrv == IS_LOCKED) {
         rv = ENGINE_TMPFAIL;
@@ -1489,9 +1496,13 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteWithMeta(const std::string &k
         rv = ENGINE_SUCCESS;
     }
 
-    if (delrv == WAS_CLEAN || delrv == WAS_DIRTY || (delrv == NOT_FOUND && v->getId() != -1)) {
-        queueDirty(key, vbucket, queue_op_del, value,
-                   v->getFlags(), v->getExptime(), cas, v->getSeqno(), v->getId());
+    if (delrv == WAS_CLEAN ||
+        delrv == WAS_DIRTY ||
+        (delrv == NOT_FOUND && engine.isDegradedMode())) {
+        // As replication is interleaved with online restore, deletion of items that might
+        // exist in the restore backup files should be queued and replicated.
+        value_t value(NULL);
+        queueDirty(key, vbucket, queue_op_del, value, flags, exptime, cas, seqno, rowid);
     }
     return rv;
 }
@@ -1768,21 +1779,29 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::del(const std::string &key,
     }
 
     int bucket_num(0);
+    uint32_t flags = 0, seqno = 0;
+    time_t exptime = 0;
+    int rowid = -1;
     LockHolder lh = vb->ht.getLockedBucket(key, &bucket_num);
     StoredValue *v = vb->ht.unlocked_find(key, bucket_num);
     if (!v) {
         if (engine.isDegradedMode()) {
-            return ENGINE_TMPFAIL;
+            LockHolder rlh(restore.mutex);
+            restore.itemsDeleted.insert(key);
+        } else {
+            return ENGINE_KEY_ENOENT;
         }
-
-        return ENGINE_KEY_ENOENT;
+    } else {
+        flags = v->getFlags();
+        exptime = v->getExptime();
+        rowid = v->getId();
+        seqno = v->getSeqno();
     }
-    value_t value = v->getValue();
 
     mutation_type_t delrv = vb->ht.unlocked_softDelete(key, cas, bucket_num);
     ENGINE_ERROR_CODE rv;
 
-    if (delrv == NOT_FOUND) {
+    if (delrv == NOT_FOUND || delrv == INVALID_CAS) {
         rv = ENGINE_KEY_ENOENT;
     } else if (delrv == IS_LOCKED) {
         rv = ENGINE_TMPFAIL;
@@ -1790,9 +1809,13 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::del(const std::string &key,
         rv = ENGINE_SUCCESS;
     }
 
-    if (delrv == WAS_CLEAN || delrv == WAS_DIRTY || delrv == NOT_FOUND) {
-        queueDirty(key, vbucket, queue_op_del, value,
-                   v->getFlags(), v->getExptime(), cas, v->getSeqno(), v->getId());
+    if (delrv == WAS_CLEAN ||
+        delrv == WAS_DIRTY ||
+        (delrv == NOT_FOUND && engine.isDegradedMode())) {
+        // As replication is interleaved with online restore, deletion of items that might
+        // exist in the restore backup files should be queued and replicated.
+        value_t value(NULL);
+        queueDirty(key, vbucket, queue_op_del, value, flags, exptime, cas, seqno, rowid);
     }
     return rv;
 }
@@ -1863,86 +1886,73 @@ std::queue<queued_item>* EventuallyPersistentStore::beginFlush() {
             assert(stats.memOverhead.get() < GIGANTOR);
         }
 
-        if (engine.isDegradedMode()) {
-            // Add all of the objects in the restore list to the write list..
-            LockHolder lh(restore.mutex);
-            if (!restore.items.empty()) {
-                rwUnderlying->optimizeWrites(restore.items);
-                std::vector<queued_item>::iterator iter = restore.items.begin();
-                for ( /* empty */ ; iter != restore.items.end(); ++iter) {
-                    uint16_t vbid = (*iter)->getVBucketId();
-                    RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
-                    assert(vb);
-                    vbucket_state_t st = vb->getState();
-                    if (isVbCachedStateStale(vbid, st)) {
-                        rwUnderlying->vbStateChanged(vbid, st);
-                    }
-                    writing.push(*iter);
-                }
-                stats.memOverhead.incr(restore.items.size() * sizeof(queued_item));
-                assert(stats.memOverhead.get() < GIGANTOR);
-                restore.items.clear();
+        std::vector<queued_item> item_list;
+        item_list.reserve(getTxnSize());
+        size_t numOfVBuckets = vbuckets.getSize();
+        for (size_t i = 0; i < numOfVBuckets; ++i) {
+            assert(i <= std::numeric_limits<uint16_t>::max());
+            uint16_t vbid = static_cast<uint16_t>(i);
+            RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
+            if (!vb) {
+                // Undefined vbucket..
+                continue;
             }
-        } else {
-            std::vector<queued_item> item_list;
-            item_list.reserve(getTxnSize());
-            size_t numOfVBuckets = vbuckets.getSize();
-            for (size_t i = 0; i < numOfVBuckets; ++i) {
-                assert(i <= std::numeric_limits<uint16_t>::max());
-                uint16_t vbid = static_cast<uint16_t>(i);
-                RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
-                if (!vb) {
-                    // Undefined vbucket..
-                    continue;
-                }
 
-                vbucket_state_t st = vb->getState();
-                if (isVbCachedStateStale(vbid, st)) {
-                    rwUnderlying->vbStateChanged(vbid, st);
-                }
+            vbucket_state_t st = vb->getState();
+            if (isVbCachedStateStale(vbid, st)) {
+                rwUnderlying->vbStateChanged(vbid, st);
+            }
 
-                if (st == vbucket_state_dead) {
-                    // Don't persist items for dead buckets...
-                    continue;
-                }
+            if (st == vbucket_state_dead) {
+                // Don't persist items for dead buckets...
+                continue;
+            }
 
-                // Grab all the backfill items if exist.
-                vb->getBackfillItems(item_list);
+            // Grab all the items from online restore.
+            LockHolder rlh(restore.mutex);
+            std::map<uint16_t, std::vector<queued_item> >::iterator rit = restore.items.find(vbid);
+            if (rit != restore.items.end()) {
+                item_list.insert(item_list.end(), rit->second.begin(), rit->second.end());
+                rit->second.clear();
+            }
+            rlh.unlock();
 
-                // Get all the mutations from the current position of the
-                // persistence cursor to the tail of the current open
-                // checkpoint.
-                uint64_t checkpointId = vb->checkpointManager.getAllItemsForPersistence(item_list);
-                persistenceCheckpointIds[vbid] = checkpointId;
+            // Grab all the backfill items if exist.
+            vb->getBackfillItems(item_list);
 
-                std::set<queued_item, CompareQueuedItemsByKey> item_set;
-                std::pair<std::set<queued_item, CompareQueuedItemsByKey>::iterator, bool> ret;
-                std::vector<queued_item>::reverse_iterator reverse_it = item_list.rbegin();
-                // Perform further deduplication here by removing duplicate
-                // mutations for each key. For this, traverse the array from
-                // the last element.
-                for(; reverse_it != item_list.rend(); ++reverse_it) {
-                    queued_item qi = *reverse_it;
-                    if (qi->getOperation() == queue_op_set || qi->getOperation() == queue_op_del) {
-                        int bucket_num(0);
-                        LockHolder lh = vb->ht.getLockedBucket(qi->getKey(), &bucket_num);
-                        StoredValue *v = fetchValidValue(vb, qi->getKey(), bucket_num, true);
-                        if (!v || v->isClean()) {
-                            vb->doStatsForFlushing(*qi, qi->size());
-                            continue;
-                        }
-                        lh.unlock();
-                        ret = item_set.insert(qi);
-                        if (!(ret.second)) {
-                            vb->doStatsForFlushing(*qi, qi->size());
-                        }
+            // Get all the mutations from the current position of the
+            // persistence cursor to the tail of the current open
+            // checkpoint.
+            uint64_t checkpointId = vb->checkpointManager.getAllItemsForPersistence(item_list);
+            persistenceCheckpointIds[vbid] = checkpointId;
+
+            std::set<queued_item, CompareQueuedItemsByKey> item_set;
+            std::pair<std::set<queued_item, CompareQueuedItemsByKey>::iterator, bool> ret;
+            std::vector<queued_item>::reverse_iterator reverse_it = item_list.rbegin();
+            // Perform further deduplication here by removing duplicate
+            // mutations for each key. For this, traverse the array from
+            // the last element.
+            for(; reverse_it != item_list.rend(); ++reverse_it) {
+                queued_item qi = *reverse_it;
+                if (qi->getOperation() == queue_op_set || qi->getOperation() == queue_op_del) {
+                    int bucket_num(0);
+                    LockHolder lh = vb->ht.getLockedBucket(qi->getKey(), &bucket_num);
+                    StoredValue *v = fetchValidValue(vb, qi->getKey(), bucket_num, true);
+                    if (!v || v->isClean()) {
+                        vb->doStatsForFlushing(*qi, qi->size());
+                        continue;
+                    }
+                    lh.unlock();
+                    ret = item_set.insert(qi);
+                    if (!(ret.second)) {
+                        vb->doStatsForFlushing(*qi, qi->size());
                     }
                 }
-                item_list.assign(item_set.begin(), item_set.end());
+            }
+            item_list.assign(item_set.begin(), item_set.end());
 
-                if (item_list.size() > 0) {
-                    pushToOutgoingQueue(item_list);
-                }
+            if (item_list.size() > 0) {
+                pushToOutgoingQueue(item_list);
             }
         }
 
@@ -2066,7 +2076,11 @@ bool EventuallyPersistentStore::hasItemsForPersistence(void) {
         uint16_t vbid = static_cast<uint16_t>(i);
         RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
         if (vb && (vb->getState() != vbucket_state_dead)) {
-            if (vb->checkpointManager.hasNextForPersistence() || vb->getBackfillSize() > 0) {
+            LockHolder rlh(restore.mutex);
+            std::map<uint16_t, std::vector<queued_item> >::iterator it = restore.items.find(vbid);
+            if (vb->checkpointManager.hasNextForPersistence() ||
+                vb->getBackfillSize() > 0 ||
+                (it != restore.items.end() && !it->second.empty())) {
                 hasItems = true;
                 break;
             }
@@ -2248,8 +2262,11 @@ public:
                 LockHolder lh = vb->ht.getLockedBucket(queuedItem->getKey(), &bucket_num);
                 StoredValue *v = store->fetchValidValue(vb, queuedItem->getKey(),
                                                         bucket_num, true);
-
                 if (v && v->isDeleted()) {
+                    if (store->getEPEngine().isDegradedMode()) {
+                        LockHolder rlh(store->restore.mutex);
+                        store->restore.itemsDeleted.insert(queuedItem->getKey());
+                    }
                     bool deleted = vb->ht.unlocked_del(queuedItem->getKey(),
                                                        bucket_num);
                     assert(deleted);
@@ -2326,7 +2343,7 @@ int EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
 
     int ret = 0;
 
-    if (isDirty && v->isExpired(ep_real_time() + itemExpiryWindow)) {
+    if (!deleted && isDirty && v->isExpired(ep_real_time() + itemExpiryWindow)) {
         ++stats.flushExpired;
         v->markClean(&dirtied);
         isDirty = false;
@@ -2495,7 +2512,7 @@ int EventuallyPersistentStore::flushOne(std::queue<queued_item> *q,
 void EventuallyPersistentStore::queueDirty(const std::string &key,
                                            uint16_t vbid,
                                            enum queue_operation op,
-                                           value_t value,
+                                           const value_t &value,
                                            uint32_t flags,
                                            time_t exptime,
                                            uint64_t cas,
@@ -2529,7 +2546,7 @@ void EventuallyPersistentStore::queueDirty(const std::string &key,
 int EventuallyPersistentStore::addUnlessThere(const std::string &key,
                                               uint16_t vbid,
                                               enum queue_operation op,
-                                              value_t value,
+                                              const value_t &value,
                                               uint32_t flags,
                                               time_t exptime,
                                               uint64_t cas)
@@ -2539,13 +2556,20 @@ int EventuallyPersistentStore::addUnlessThere(const std::string &key,
         return -1;
     }
 
-    if (vb->ht.addUnlessThere(key, vbid, op, value, flags, exptime, cas)) {
-        // tell the flusher to write it!
+    LockHolder lh(restore.mutex);
+    if (restore.itemsDeleted.find(key) == restore.itemsDeleted.end() &&
+        vb->ht.addUnlessThere(key, vbid, op, value, flags, exptime, cas)) {
 
-        LockHolder lh(restore.mutex);
         queued_item qi(new QueuedItem(key, value, vbid, op, vbuckets.getBucketVersion(vbid),
                                       -1, flags, exptime, cas));
-        restore.items.push_back(qi);
+        std::map<uint16_t, std::vector<queued_item> >::iterator it = restore.items.find(vbid);
+        if (it != restore.items.end()) {
+            it->second.push_back(qi);
+        } else {
+            std::vector<queued_item> vb_items;
+            vb_items.push_back(qi);
+            restore.items[vbid] = vb_items;
+        }
         return 0;
     }
 
@@ -2556,16 +2580,26 @@ std::map<std::pair<uint16_t, uint16_t>, vbucket_state> EventuallyPersistentStore
     return roUnderlying->listPersistedVbuckets();
 }
 
-void EventuallyPersistentStore::warmupCompleted() {
-    engine.warmupCompleted();
+void EventuallyPersistentStore::completeDegradedMode() {
+    LockHolder lh(restore.mutex);
+    restore.itemsDeleted.clear();
 }
 
-void EventuallyPersistentStore::warmup(const std::map<std::pair<uint16_t, uint16_t>, vbucket_state> &state, bool keysOnly) {
+void EventuallyPersistentStore::warmupCompleted() {
+    engine.warmupCompleted();
+    if (!engine.isDegradedMode()) {
+        completeDegradedMode();
+    }
+}
+
+void
+EventuallyPersistentStore::warmup(const std::map<std::pair<uint16_t, uint16_t>, vbucket_state> &st,
+                                  bool keysOnly) {
     LoadStorageKVPairCallback *load_cb = new LoadStorageKVPairCallback(vbuckets, stats, this);
     shared_ptr<Callback<GetValue> > cb(load_cb);
     std::map<std::pair<uint16_t, uint16_t>, vbucket_state>::const_iterator it;
     std::vector<uint16_t> vbids;
-    for (it = state.begin(); it != state.end(); ++it) {
+    for (it = st.begin(); it != st.end(); ++it) {
         std::pair<uint16_t, uint16_t> vbp = it->first;
         vbucket_state vbs = it->second;
         if (vbs.state == vbucket_state_active || vbs.state == vbucket_state_replica) {

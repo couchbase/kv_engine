@@ -193,7 +193,7 @@ public:
     /**
      * Get this item's value.
      */
-    value_t getValue() const {
+    const value_t &getValue() const {
         return value;
     }
 
@@ -242,10 +242,7 @@ public:
     /**
      * Set a new value for this item.
      *
-     * @param v the new value
-     * @param newFlags the new client-defined flags
-     * @param newExp the new expiration
-     * @param theCas thenew CAS identifier
+     * @param itm the item with a new value
      * @param stats the global stats
      * @param ht the hashtable that contains this StoredValue instance
      * @param preserveSeqno Preserve the sequence number from the item.
@@ -304,7 +301,7 @@ public:
      * @param stats the global stat instance
      * @param ht the hashtable that contains this StoredValue instance
      */
-    bool restoreValue(value_t v, EPStats &stats, HashTable &ht);
+    bool restoreValue(const value_t &v, EPStats &stats, HashTable &ht);
 
     /**
      * Get this item's CAS identifier.
@@ -492,25 +489,31 @@ public:
      * Logically delete this object.
      */
     void del(EPStats &stats, HashTable &ht) {
+        if (isDeleted()) {
+            return;
+        }
+
         size_t oldsize = size();
-        size_t oldValueSize = isDeleted() ? 0 : value->length();
+        size_t old_valsize = value->length();
 
         value.reset();
         markDirty();
         setCas(getCas() + 1);
 
         size_t newsize = size();
-        size_t newValueSize = isDeleted() ? 0 : value->length();
         if (oldsize < newsize) {
             increaseCacheSize(ht, newsize - oldsize, true);
         } else if (newsize < oldsize) {
             reduceCacheSize(ht, oldsize - newsize, true);
         }
-        if ((oldsize - oldValueSize) < (newsize - newValueSize)) {
-            increaseCurrentSize(stats, (newsize - newValueSize) - (oldsize - oldValueSize));
-        } else if ((newsize - newValueSize) < (oldsize - oldValueSize)) {
-            reduceCurrentSize(stats, (oldsize - oldValueSize) - (newsize - newValueSize));
+        // Add or substract the key/meta data overhead differenece.
+        if ((oldsize - old_valsize) < newsize) {
+            increaseCurrentSize(stats, newsize - (oldsize - old_valsize));
+        } else if (newsize < (oldsize - old_valsize)) {
+            reduceCurrentSize(stats, (oldsize - old_valsize) - newsize);
         }
+        // Note that the value memory overhead is automatically substracted from
+        // Blob's deconstructor.
     }
 
 
@@ -977,7 +980,7 @@ public:
     bool addUnlessThere(const std::string &key,
                         uint16_t vbid,
                         enum queue_operation op,
-                        value_t value,
+                        const value_t &value,
                         uint32_t flags,
                         time_t exptime,
                         uint64_t cas)
@@ -1162,7 +1165,7 @@ public:
             }
 
             if (cas != 0 && cas != v->getCas()) {
-                return NOT_FOUND;
+                return INVALID_CAS;
             }
 
             if (!v->isResident()) {
@@ -1323,7 +1326,7 @@ public:
             }
 
             if (cas != 0 && cas != v->getCas()) {
-                return NOT_FOUND;
+                return INVALID_CAS;
             }
 
             if (!v->isResident()) {

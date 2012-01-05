@@ -156,7 +156,7 @@ public:
     }
 
     Item(const std::string &k, const uint32_t fl, const time_t exp,
-         value_t val, uint64_t theCas = 0,  int64_t i = -1, uint16_t vbid = 0,
+         const value_t &val, uint64_t theCas = 0,  int64_t i = -1, uint16_t vbid = 0,
          uint32_t sno = 1) :
         flags(fl), exptime(exp), value(val), cas(theCas), id(i), vbucketId(vbid),
         seqno(sno)
@@ -186,7 +186,7 @@ public:
         return value->getData();
     }
 
-    value_t getValue() const {
+    const value_t &getValue() const {
         return value;
     }
 
@@ -240,7 +240,7 @@ public:
         cas = ncas;
     }
 
-    void setValue(value_t v) {
+    void setValue(const value_t &v) {
         value.reset(v);
     }
 
