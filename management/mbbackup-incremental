@@ -34,7 +34,7 @@ def usage(err=0):
     print >> sys.stderr, """
 Usage: %s [-h %s[:%s]] [-o %s] [-s %s] [-T num_secs] [-r] [-c] [-t transaction_size] [-v] tap_name|db_file
 """ % (os.path.basename(sys.argv[0]),
-       DEFAULT_HOST_PORT[0], DEFAULT_HOST_PORT[1], DEFAULT_FILE)
+       DEFAULT_HOST_PORT[0], DEFAULT_HOST_PORT[1], DEFAULT_FILE, DEFAULT_MAX_BACKUP_SIZE)
     sys.exit(err)
 
 def parse_args(args):
