@@ -454,6 +454,19 @@ private:
     friend struct TapAggStatBuilder;
     friend struct PopulateEventsBody;
 
+
+    /**
+     * Get the next item (e.g., checkpoint_start, checkpoint_end, tap_mutation, or
+     * tap_deletion) to be transmitted.
+     */
+    Item *getNextItem(const void *c, uint16_t *vbucket, tap_event_t &ret);
+
+    /**
+     * Check if TAP_DUMP or TAP_TAKEOVER is completed and close the connection if
+     * all messages including vbucket_state change commands are sent.
+     */
+    TapVBucketEvent checkDumpOrTakeOverCompletion();
+
     void completeBackfillCommon_UNLOCKED() {
         if (complete_UNLOCKED() && idle_UNLOCKED()) {
             // There is no data for this connection..
@@ -528,9 +541,9 @@ private:
     }
 
     /**
-     * Get the next item from the queue
+     * Get the next item from the queue that has items fetched from memory.
      */
-    queued_item next(bool &shouldPause);
+    queued_item nextFgFetched_UNLOCKED(bool &shouldPause);
 
     void addVBucketHighPriority_UNLOCKED(TapVBucketEvent &ev) {
         vBucketHighPriority.push(ev);
@@ -639,7 +652,7 @@ private:
     }
 
     queued_item nextCheckpointMessage_UNLOCKED() {
-        queued_item item(new QueuedItem("", 0xffff, queue_op_empty));
+        queued_item item(NULL);
         if (!checkpointMsgs.empty()) {
             item = checkpointMsgs.front();
             checkpointMsgs.pop();
@@ -662,6 +675,10 @@ private:
         return !queue->empty() || hasNextFromCheckpoints_UNLOCKED();
     }
 
+    bool hasItemFromDisk_UNLOCKED() {
+        return !backfilledItems.empty();
+    }
+
     bool empty_UNLOCKED() {
         return backfilledItems.empty() && (bgJobIssued - bgJobCompleted) == 0 &&
                !hasQueuedItem_UNLOCKED();
@@ -677,9 +694,9 @@ private:
         return idle_UNLOCKED();
     }
 
-    bool hasItem() {
+    bool hasItemFromDisk() {
         LockHolder lh(queueLock);
-        return !backfilledItems.empty();
+        return hasItemFromDisk_UNLOCKED();
     }
 
     bool hasQueuedItem() {
@@ -760,7 +777,10 @@ private:
         return hasNextFromCheckpoints_UNLOCKED();
     }
 
-    Item* nextFetchedItem();
+    /**
+     * Get the next item from the queue that has items fetched from disk.
+     */
+    Item* nextBgFetchedItem_UNLOCKED();
 
     void flush() {
         LockHolder lh(queueLock);
@@ -871,8 +891,8 @@ private:
      * @param vbv the vbucket version
      * @param c the connection cookie
      */
-    void queueBGFetch(const std::string &key, uint64_t id, uint16_t vb,
-                      uint16_t vbv, const void *c);
+    void queueBGFetch_UNLOCKED(const std::string &key, uint64_t id, uint16_t vb,
+                               uint16_t vbv, const void *c);
 
     TapProducer(EventuallyPersistentEngine &theEngine,
                 const void *cookie,
@@ -958,19 +978,9 @@ private:
      */
     void registerTAPCursor(std::map<uint16_t, uint64_t> &lastCheckpointIds);
 
-    bool hasPendingAcks() {
-        LockHolder lh(queueLock);
-        return !tapLog.empty();
-    }
-
     size_t getTapAckLogSize(void) {
         LockHolder lh(queueLock);
         return tapLog.size();
-    }
-
-    void popTapLog(void) {
-        LockHolder lh(queueLock);
-        tapLog.pop_back();
     }
 
     void reschedule_UNLOCKED(const std::list<TapLogElement>::iterator &iter);
