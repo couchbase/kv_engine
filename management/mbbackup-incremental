@@ -297,7 +297,7 @@ def loop(mc, file, max_backup_size, split_backup, timeout, txn_size, source):
                         checkpointStartExists = True
                     else:
                         sys.exit("ERROR: CHECKPOINT_START with checkpoint Id %s arrived" \
-                                 " before receiving CHECKPOINT_END with checkpoint Id $s"
+                                 " before receiving CHECKPOINT_END with checkpoint Id %s"
                                  % (checkpoint_id[0], vbmap[vbucketId][0]))
                 if checkpointStartExists == False:
                     vbmap[vbucketId] = [checkpoint_id[0], 0]
