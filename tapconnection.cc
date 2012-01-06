@@ -753,6 +753,24 @@ ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
     return ret;
 }
 
+static void notifyReplicatedItems(std::list<TapLogElement>::iterator from,
+                                  std::list<TapLogElement>::iterator to,
+                                  EventuallyPersistentEngine &engine) {
+
+    for (std::list<TapLogElement>::iterator it = from; it != to; ++it) {
+        if (it->event == TAP_MUTATION) {
+            queued_item qi = it->item;
+            StoredValue *sv = engine.getEpStore()->getStoredValue(qi->getKey(),
+                                                                  qi->getVBucketId(),
+                                                                  false);
+            if (sv != NULL) {
+                sv->incrementNumReplicas();
+                engine.getSyncRegistry().itemReplicated(qi);
+            }
+        }
+    }
+}
+
 bool TapProducer::checkBackfillCompletion_UNLOCKED() {
     bool rv = false;
     if (!backfillCompleted && !isPendingBackfill_UNLOCKED() &&
@@ -1681,20 +1699,143 @@ TapVBucketEvent TapProducer::checkDumpOrTakeOverCompletion() {
     return ev;
 }
 
-static void notifyReplicatedItems(std::list<TapLogElement>::iterator from,
-                                  std::list<TapLogElement>::iterator to,
-                                  EventuallyPersistentEngine &engine) {
+bool TapProducer::addEvent_UNLOCKED(const queued_item &it) {
+    if (vbucketFilter(it->getVBucketId())) {
+        bool wasEmpty = queue->empty();
+        queue->push_back(it);
+        ++queueSize;
+        queueMemSize.incr(sizeof(queued_item));
+        return wasEmpty;
+    } else {
+        return queue->empty();
+    }
+}
 
-    for (std::list<TapLogElement>::iterator it = from; it != to; ++it) {
-        if (it->event == TAP_MUTATION) {
-            queued_item qi = it->item;
-            StoredValue *sv = engine.getEpStore()->getStoredValue(qi->getKey(),
-                                                                  qi->getVBucketId(),
-                                                                  false);
-            if (sv != NULL) {
-                sv->incrementNumReplicas();
-                engine.getSyncRegistry().itemReplicated(qi);
+TapVBucketEvent TapProducer::nextVBucketHighPriority_UNLOCKED() {
+    TapVBucketEvent ret(TAP_PAUSE, 0, vbucket_state_active);
+    if (!vBucketHighPriority.empty()) {
+        ret = vBucketHighPriority.front();
+        vBucketHighPriority.pop();
+
+        // We might have objects in our queue that aren't in our filter
+        // If so, just skip them..
+        switch (ret.event) {
+        case TAP_OPAQUE:
+            opaqueCommandCode = (uint32_t)ret.state;
+            if (opaqueCommandCode == htonl(TAP_OPAQUE_ENABLE_AUTO_NACK) ||
+                opaqueCommandCode == htonl(TAP_OPAQUE_ENABLE_CHECKPOINT_SYNC) ||
+                opaqueCommandCode == htonl(TAP_OPAQUE_CLOSE_BACKFILL)) {
+                break;
+            }
+            // FALLTHROUGH
+        default:
+            if (!vbucketFilter(ret.vbucket)) {
+                return nextVBucketHighPriority_UNLOCKED();
             }
         }
+
+        ++recordsFetched;
+        ++seqno;
+        addTapLogElement_UNLOCKED(ret);
     }
+    return ret;
+}
+
+TapVBucketEvent TapProducer::nextVBucketLowPriority_UNLOCKED() {
+    TapVBucketEvent ret(TAP_PAUSE, 0, vbucket_state_active);
+    if (!vBucketLowPriority.empty()) {
+        ret = vBucketLowPriority.front();
+        vBucketLowPriority.pop();
+        // We might have objects in our queue that aren't in our filter
+        // If so, just skip them..
+        if (!vbucketFilter(ret.vbucket)) {
+            return nextVBucketHighPriority_UNLOCKED();
+        }
+        ++recordsFetched;
+        ++seqno;
+        addTapLogElement_UNLOCKED(ret);
+    }
+    return ret;
+}
+
+queued_item TapProducer::nextCheckpointMessage_UNLOCKED() {
+    queued_item item(NULL);
+    if (!checkpointMsgs.empty()) {
+        item = checkpointMsgs.front();
+        checkpointMsgs.pop();
+        if (!vbucketFilter(item->getVBucketId())) {
+            return nextCheckpointMessage_UNLOCKED();
+        }
+        ++checkpointMsgCounter;
+        ++recordsFetched;
+        addTapLogElement_UNLOCKED(item);
+    }
+    return item;
+}
+
+size_t TapProducer::getBackfillRemaining_UNLOCKED() {
+    if (backfillCompleted) {
+        return 0;
+    }
+    bgResultSize = backfilledItems.empty() ? 0 : bgResultSize.get();
+    queueSize = queue->empty() ? 0 : queueSize;
+    return bgResultSize + (bgJobIssued - bgJobCompleted) + queueSize;
+}
+
+bool TapProducer::shouldNotify() {
+    bool ret = false;
+    // Don't notify if we've got a pending notification
+    if (!notifySent) {
+        // Always notify for disconnects, but only disconnect if
+        // we're paused and got data to send
+        if (doDisconnect() || (paused && !empty())) {
+            ret = true;
+        }
+    }
+
+    return ret;
+}
+
+void TapProducer::flush() {
+    LockHolder lh(queueLock);
+    pendingFlush = true;
+    /* No point of keeping the rep queue when someone wants to flush it */
+    queue->clear();
+    queueSize = 0;
+    queueMemSize = 0;
+
+    // Clear bg-fetched items.
+    while (!backfilledItems.empty()) {
+        Item *i(backfilledItems.front());
+        assert(i);
+        delete i;
+        backfilledItems.pop();
+    }
+    bgResultSize = 0;
+
+    // Clear the checkpoint message queue as well
+    while (!checkpointMsgs.empty()) {
+        checkpointMsgs.pop();
+    }
+}
+
+void TapProducer::appendQueue(std::list<queued_item> *q) {
+    LockHolder lh(queueLock);
+    queue->splice(queue->end(), *q);
+    queueSize = queue->size();
+
+    for(std::list<queued_item>::iterator i = q->begin(); i != q->end(); ++i)  {
+        queueMemSize.incr((*i)->size());
+    }
+}
+
+bool TapProducer::runBackfill(VBucketFilter &vbFilter) {
+    LockHolder lh(queueLock);
+    bool rv = doRunBackfill;
+    if (doRunBackfill) {
+        doRunBackfill = false;
+        ++pendingBackfillCounter; // Will be decremented when each backfill thread is completed
+        vbFilter = backFillVBucketFilter;
+    }
+    return rv;
 }

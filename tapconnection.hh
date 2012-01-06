@@ -483,17 +483,7 @@ private:
      *
      * @return true if the the queue was empty
      */
-    bool addEvent_UNLOCKED(const queued_item &it) {
-        if (vbucketFilter(it->getVBucketId())) {
-            bool wasEmpty = queue->empty();
-            queue->push_back(it);
-            ++queueSize;
-            queueMemSize.incr(sizeof(queued_item));
-            return wasEmpty;
-        } else {
-            return queue->empty();
-        }
-    }
+    bool addEvent_UNLOCKED(const queued_item &it);
 
     /**
      * Add a new item to the tap queue.
@@ -564,35 +554,7 @@ private:
     /**
      * Get the next high priority TapVBucketEvent for this TapProducer
      */
-    TapVBucketEvent nextVBucketHighPriority_UNLOCKED() {
-        TapVBucketEvent ret(TAP_PAUSE, 0, vbucket_state_active);
-        if (!vBucketHighPriority.empty()) {
-            ret = vBucketHighPriority.front();
-            vBucketHighPriority.pop();
-
-            // We might have objects in our queue that aren't in our filter
-            // If so, just skip them..
-            switch (ret.event) {
-            case TAP_OPAQUE:
-                opaqueCommandCode = (uint32_t)ret.state;
-                if (opaqueCommandCode == htonl(TAP_OPAQUE_ENABLE_AUTO_NACK) ||
-                    opaqueCommandCode == htonl(TAP_OPAQUE_ENABLE_CHECKPOINT_SYNC) ||
-                    opaqueCommandCode == htonl(TAP_OPAQUE_CLOSE_BACKFILL)) {
-                    break;
-                }
-                // FALLTHROUGH
-            default:
-                if (!vbucketFilter(ret.vbucket)) {
-                    return nextVBucketHighPriority_UNLOCKED();
-                }
-            }
-
-            ++recordsFetched;
-            ++seqno;
-            addTapLogElement_UNLOCKED(ret);
-        }
-        return ret;
-    }
+    TapVBucketEvent nextVBucketHighPriority_UNLOCKED();
 
     TapVBucketEvent nextVBucketHighPriority() {
         LockHolder lh(queueLock);
@@ -616,22 +578,7 @@ private:
     /**
      * Get the next low priority TapVBucketEvent for this TapProducer.
      */
-    TapVBucketEvent nextVBucketLowPriority_UNLOCKED() {
-        TapVBucketEvent ret(TAP_PAUSE, 0, vbucket_state_active);
-        if (!vBucketLowPriority.empty()) {
-            ret = vBucketLowPriority.front();
-            vBucketLowPriority.pop();
-            // We might have objects in our queue that aren't in our filter
-            // If so, just skip them..
-            if (!vbucketFilter(ret.vbucket)) {
-                return nextVBucketHighPriority_UNLOCKED();
-            }
-            ++recordsFetched;
-            ++seqno;
-            addTapLogElement_UNLOCKED(ret);
-        }
-        return ret;
-    }
+    TapVBucketEvent nextVBucketLowPriority_UNLOCKED();
 
     TapVBucketEvent nextVBucketLowPriority() {
         LockHolder lh(queueLock);
@@ -651,20 +598,7 @@ private:
         addCheckpointMessage_UNLOCKED(item);
     }
 
-    queued_item nextCheckpointMessage_UNLOCKED() {
-        queued_item item(NULL);
-        if (!checkpointMsgs.empty()) {
-            item = checkpointMsgs.front();
-            checkpointMsgs.pop();
-            if (!vbucketFilter(item->getVBucketId())) {
-                return nextCheckpointMessage_UNLOCKED();
-            }
-            ++checkpointMsgCounter;
-            ++recordsFetched;
-            addTapLogElement_UNLOCKED(item);
-        }
-        return item;
-    }
+    queued_item nextCheckpointMessage_UNLOCKED();
 
     queued_item nextCheckpointMessage() {
         LockHolder lh(queueLock);
@@ -712,14 +646,7 @@ private:
     /**
      * Find out how many items are still remaining from backfill.
      */
-    size_t getBackfillRemaining_UNLOCKED() {
-        if (backfillCompleted) {
-            return 0;
-        }
-        bgResultSize = backfilledItems.empty() ? 0 : bgResultSize.get();
-        queueSize = queue->empty() ? 0 : queueSize;
-        return bgResultSize + (bgJobIssued - bgJobCompleted) + queueSize;
-    }
+    size_t getBackfillRemaining_UNLOCKED();
 
     size_t getBackfillRemaining() {
         LockHolder lh(queueLock);
@@ -752,19 +679,7 @@ private:
          return numTapNack;
     }
 
-    bool shouldNotify() {
-        bool ret = false;
-        // Don't notify if we've got a pending notification
-        if (!notifySent) {
-            // Always notify for disconnects, but only disconnect if
-            // we're paused and got data to send
-            if (doDisconnect() || (paused && !empty())) {
-                ret = true;
-            }
-        }
-
-        return ret;
-    }
+    bool shouldNotify();
 
     /**
      * Get the total number of remaining items from all checkpoints.
@@ -782,28 +697,7 @@ private:
      */
     Item* nextBgFetchedItem_UNLOCKED();
 
-    void flush() {
-        LockHolder lh(queueLock);
-        pendingFlush = true;
-        /* No point of keeping the rep queue when someone wants to flush it */
-        queue->clear();
-        queueSize = 0;
-        queueMemSize = 0;
-
-        // Clear bg-fetched items.
-        while (!backfilledItems.empty()) {
-            Item *i(backfilledItems.front());
-            assert(i);
-            delete i;
-            backfilledItems.pop();
-        }
-        bgResultSize = 0;
-
-        // Clear the checkpoint message queue as well
-        while (!checkpointMsgs.empty()) {
-            checkpointMsgs.pop();
-        }
-    }
+    void flush();
 
     bool shouldFlush() {
         bool ret = pendingFlush;
@@ -812,15 +706,7 @@ private:
     }
 
     // This method is called while holding the tapNotifySync lock.
-    void appendQueue(std::list<queued_item> *q) {
-        LockHolder lh(queueLock);
-        queue->splice(queue->end(), *q);
-        queueSize = queue->size();
-
-        for(std::list<queued_item>::iterator i = q->begin(); i != q->end(); ++i)  {
-            queueMemSize.incr((*i)->size());
-        }
-    }
+    void appendQueue(std::list<queued_item> *q);
 
     bool isPendingDiskBackfill() {
         LockHolder lh(queueLock);
@@ -858,16 +744,7 @@ private:
         scheduleBackfill_UNLOCKED(vblist);
     }
 
-    bool runBackfill(VBucketFilter &vbFilter) {
-        LockHolder lh(queueLock);
-        bool rv = doRunBackfill;
-        if (doRunBackfill) {
-            doRunBackfill = false;
-            ++pendingBackfillCounter; // Will be decremented when each backfill thread is completed
-            vbFilter = backFillVBucketFilter;
-        }
-        return rv;
-    }
+    bool runBackfill(VBucketFilter &vbFilter);
 
     /**
      * A TapProducer is complete when it has nothing to transmit and
