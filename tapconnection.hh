@@ -684,7 +684,11 @@ private:
     /**
      * Get the total number of remaining items from all checkpoints.
      */
-    size_t getRemainingOnCheckpoints();
+    size_t getRemainingOnCheckpoints_UNLOCKED();
+    size_t getRemainingOnCheckpoints() {
+        LockHolder lh(queueLock);
+        return getRemainingOnCheckpoints_UNLOCKED();
+    }
 
     bool hasNextFromCheckpoints_UNLOCKED();
     bool hasNextFromCheckpoints() {
@@ -816,6 +820,7 @@ private:
 
     void evaluateFlags();
 
+    bool waitForBackfill_UNLOCKED();
     bool waitForBackfill();
 
     bool waitForCheckpointMsgAck();

@@ -814,12 +814,16 @@ void TapProducer::encodeVBucketStateTransition(const TapVBucketEvent &ev, void *
     *nes = sizeof(vbucket_state_t);
 }
 
-bool TapProducer::waitForBackfill() {
-    LockHolder lh(queueLock);
+bool TapProducer::waitForBackfill_UNLOCKED() {
     if ((bgJobIssued - bgJobCompleted) > bgMaxPending) {
         return true;
     }
     return false;
+}
+
+bool TapProducer::waitForBackfill() {
+    LockHolder lh(queueLock);
+    return waitForBackfill_UNLOCKED();
 }
 
 bool TapProducer::waitForCheckpointMsgAck() {
@@ -961,7 +965,9 @@ Item* TapProducer::nextBgFetchedItem_UNLOCKED() {
 
 void TapProducer::addStats(ADD_STAT add_stat, const void *c) {
     TapConnection::addStats(add_stat, c);
-    addStat("qlen", getQueueSize(), add_stat, c);
+
+    LockHolder lh(queueLock);
+    addStat("qlen", queueSize, add_stat, c);
     addStat("qlen_high_pri", vBucketHighPriority.size(), add_stat, c);
     addStat("qlen_low_pri", vBucketLowPriority.size(), add_stat, c);
     addStat("vb_filters", vbucketFilter.size(), add_stat, c);
@@ -970,32 +976,33 @@ void TapProducer::addStats(ADD_STAT add_stat, const void *c) {
     if (recordsSkipped > 0) {
         addStat("rec_skipped", recordsSkipped, add_stat, c);
     }
-    addStat("idle", idle(), add_stat, c);
-    addStat("empty", empty(), add_stat, c);
-    addStat("complete", complete(), add_stat, c);
-    addStat("has_item_from_disk", hasItemFromDisk(), add_stat, c);
-    addStat("has_queued_item", hasQueuedItem(), add_stat, c);
-    addStat("bg_wait_for_results", waitForBackfill(), add_stat, c);
+    addStat("idle", idle_UNLOCKED(), add_stat, c);
+    addStat("empty", empty_UNLOCKED(), add_stat, c);
+    addStat("complete", complete_UNLOCKED(), add_stat, c);
+    addStat("has_item_from_disk", hasItemFromDisk_UNLOCKED(), add_stat, c);
+    addStat("has_queued_item", hasQueuedItem_UNLOCKED(), add_stat, c);
+    addStat("bg_wait_for_results", waitForBackfill_UNLOCKED(), add_stat, c);
     addStat("bg_queued", bgQueued, add_stat, c);
     addStat("bg_result_size", bgResultSize, add_stat, c);
     addStat("bg_results", bgResults, add_stat, c);
     addStat("bg_jobs_issued", bgJobIssued, add_stat, c);
     addStat("bg_jobs_completed", bgJobCompleted, add_stat, c);
-    addStat("bg_backlog_size", getRemaingOnDisk(), add_stat, c);
+    addStat("bg_backlog_size", bgJobIssued - bgJobCompleted, add_stat, c);
     addStat("flags", flagsText, add_stat, c);
     addStat("suspended", isSuspended(), add_stat, c);
     addStat("paused", paused, add_stat, c);
-    addStat("pending_backfill", isPendingBackfill(), add_stat, c);
-    addStat("pending_disk_backfill", isPendingDiskBackfill(), add_stat, c);
-    addStat("backfill_completed", isBackfillCompleted(), add_stat, c);
+    addStat("pending_backfill", isPendingBackfill_UNLOCKED(), add_stat, c);
+    addStat("pending_disk_backfill", diskBackfillCounter > 0, add_stat, c);
+    addStat("backfill_completed", isBackfillCompleted_UNLOCKED(), add_stat, c);
 
     addStat("queue_memory", getQueueMemory(), add_stat, c);
     addStat("queue_fill", getQueueFillTotal(), add_stat, c);
     addStat("queue_drain", getQueueDrainTotal(), add_stat, c);
     addStat("queue_backoff", getQueueBackoff(), add_stat, c);
-    addStat("queue_backfillremaining", getBackfillRemaining(), add_stat, c);
-    addStat("queue_itemondisk", getRemaingOnDisk(), add_stat, c);
-    addStat("total_backlog_size", getBackfillRemaining() + getRemainingOnCheckpoints(),
+    addStat("queue_backfillremaining", getBackfillRemaining_UNLOCKED(), add_stat, c);
+    addStat("queue_itemondisk", bgJobIssued - bgJobCompleted, add_stat, c);
+    addStat("total_backlog_size",
+            getBackfillRemaining_UNLOCKED() + getRemainingOnCheckpoints_UNLOCKED(),
             add_stat, c);
     addStat("total_noops", numNoops, add_stat, c);
 
@@ -1010,14 +1017,14 @@ void TapProducer::addStats(ADD_STAT add_stat, const void *c) {
         addStat("ack_seqno", seqno, add_stat, c);
         addStat("recv_ack_seqno", seqnoReceived, add_stat, c);
         addStat("seqno_ack_requested", seqnoAckRequested, add_stat, c);
-        addStat("ack_log_size", getTapAckLogSize(), add_stat, c);
+        addStat("ack_log_size", tapLog.size(), add_stat, c);
         addStat("ack_window_full", windowIsFull(), add_stat, c);
         if (windowIsFull()) {
             addStat("expires", expiryTime - ep_current_time(), add_stat, c);
         }
         addStat("num_tap_nack", numTapNack, add_stat, c);
         addStat("num_tap_tmpfail_survivors", numTmpfailSurvivors, add_stat, c);
-        addStat("ack_playback_size", getTapAckLogSize(), add_stat, c);
+        addStat("ack_playback_size", tapLog.size(), add_stat, c);
      }
 }
 
@@ -1398,9 +1405,7 @@ queued_item TapProducer::nextFgFetched_UNLOCKED(bool &shouldPause) {
     return empty_item;
 }
 
-size_t TapProducer::getRemainingOnCheckpoints() {
-    LockHolder lh(queueLock);
-
+size_t TapProducer::getRemainingOnCheckpoints_UNLOCKED() {
     size_t numItems = 0;
     const VBucketMap &vbuckets = engine.getEpStore()->getVBuckets();
     std::map<uint16_t, TapCheckpointState>::iterator it = tapCheckpointState.begin();
