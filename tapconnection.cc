@@ -1602,7 +1602,7 @@ Item* TapProducer::getNextItem(const void *c, uint16_t *vbucket, tap_event_t &re
         }
 
         if (qi->getOperation() == queue_op_set) {
-            if (qi->getValue()->length() == 0) { // Fetch an item's value from hash table
+            if (qi->getValue().get() == NULL) { // Fetch an item's value from hash table
                 GetValue gv(engine.getEpStore()->get(qi->getKey(), qi->getVBucketId(),
                                                      c, false, false));
                 ENGINE_ERROR_CODE r = gv.getStatus();
