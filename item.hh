@@ -180,7 +180,7 @@ public:
     }
 
     const char *getData() const {
-        return value->getData();
+        return value.get() ? value->getData() : NULL;
     }
 
     const value_t &getValue() const {
@@ -204,7 +204,11 @@ public:
     }
 
     uint32_t getNBytes() const {
-        return static_cast<uint32_t>(value->length());
+        return value.get() ? static_cast<uint32_t>(value->length()) : 0;
+    }
+
+    size_t getValMemSize() const {
+        return value.get() ? value->getSize() : 0;
     }
 
     time_t getExptime() const {
@@ -277,7 +281,7 @@ public:
     }
 
     size_t size() {
-        return sizeof(Item) + key.size() + value->getSize();
+        return sizeof(Item) + key.size() + getValMemSize();
     }
 
 private:
