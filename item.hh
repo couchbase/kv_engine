@@ -136,7 +136,7 @@ public:
     Item(const void* k, const size_t nk, const size_t nb,
          const uint32_t fl, const time_t exp, uint64_t theCas = 0,
          int64_t i = -1, uint16_t vbid = 0) :
-        flags(fl), exptime(exp), cas(theCas), id(i), vbucketId(vbid)
+        cas(theCas), id(i), exptime(exp), flags(fl), vbucketId(vbid)
     {
         key.assign(static_cast<const char*>(k), nk);
         assert(id != 0);
@@ -147,7 +147,7 @@ public:
     Item(const std::string &k, const uint32_t fl, const time_t exp,
          const void *dta, const size_t nb, uint64_t theCas = 0,
          int64_t i = -1, uint16_t vbid = 0) :
-        flags(fl), exptime(exp), cas(theCas), id(i), vbucketId(vbid)
+        cas(theCas), id(i), exptime(exp), flags(fl), vbucketId(vbid)
     {
         key.assign(k);
         assert(id != 0);
@@ -157,7 +157,7 @@ public:
 
     Item(const std::string &k, const uint32_t fl, const time_t exp,
          const value_t &val, uint64_t theCas = 0,  int64_t i = -1, uint16_t vbid = 0) :
-        flags(fl), exptime(exp), value(val), cas(theCas), id(i), vbucketId(vbid)
+        value(val), cas(theCas), id(i), exptime(exp), flags(fl), vbucketId(vbid)
     {
         assert(id != 0);
         key.assign(k);
@@ -167,7 +167,7 @@ public:
     Item(const void *k, uint16_t nk, const uint32_t fl, const time_t exp,
          const void *dta, const size_t nb, uint64_t theCas = 0,
          int64_t i = -1, uint16_t vbid = 0) :
-        flags(fl), exptime(exp), cas(theCas), id(i), vbucketId(vbid)
+        cas(theCas), id(i), exptime(exp), flags(fl), vbucketId(vbid)
     {
         assert(id != 0);
         key.assign(static_cast<const char*>(k), nk);
@@ -297,12 +297,12 @@ private:
         value.reset(data);
     }
 
-    uint32_t flags;
-    time_t exptime;
-    std::string key;
     value_t value;
+    std::string key;
     uint64_t cas;
     int64_t id;
+    time_t exptime;
+    uint32_t flags;
     uint16_t vbucketId;
 
     static uint64_t nextCas(void) {

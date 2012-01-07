@@ -33,16 +33,17 @@ public:
     QueuedItem(const std::string &k, const uint16_t vb, enum queue_operation o,
                const uint16_t vb_version = -1, const int64_t rid = -1, const uint32_t f = 0,
                const time_t expiry_time = 0, const uint64_t cv = 0)
-        : op(o),vbucket_version(vb_version), queued(ep_current_time()),
-          item(k, f, expiry_time, NULL, 0, cv, rid, vb) {
+        : item(k, f, expiry_time, NULL, 0, cv, rid, vb), queued(ep_current_time()),
+          op(o), vbucket_version(vb_version)
+    {
         ObjectRegistry::onCreateQueuedItem(this);
     }
 
     QueuedItem(const std::string &k, const value_t &v, const uint16_t vb, enum queue_operation o,
                const uint16_t vb_version = -1, const int64_t rid = -1, const uint32_t f = 0,
                const time_t expiry_time = 0, const uint64_t cv = 0)
-        : op(o), vbucket_version(vb_version), queued(ep_current_time()),
-          item(k, f, expiry_time, v, cv, rid, vb)
+        : item(k, f, expiry_time, v, cv, rid, vb), queued(ep_current_time()),
+          op(o), vbucket_version(vb_version)
     {
         ObjectRegistry::onCreateQueuedItem(this);
     }
@@ -81,10 +82,10 @@ public:
     }
 
 private:
+    Item item;
+    uint32_t queued;
     enum queue_operation op;
     uint16_t vbucket_version;
-    uint32_t queued;
-    Item item;
 
     DISALLOW_COPY_AND_ASSIGN(QueuedItem);
 };
