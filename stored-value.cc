@@ -15,6 +15,8 @@ enum stored_value_type HashTable::defaultStoredValueType = featured;
 double StoredValue::mutation_mem_threshold = 0.9;
 const int64_t StoredValue::state_id_cleared = -1;
 const int64_t StoredValue::state_id_pending = -2;
+const int64_t StoredValue::state_deleted_key = -3;
+const int64_t StoredValue::state_non_existent_key = -4;
 
 static ssize_t prime_size_table[] = {
     3, 7, 13, 23, 47, 97, 193, 383, 769, 1531, 3067, 6143, 12289, 24571, 49157,

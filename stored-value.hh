@@ -440,6 +440,40 @@ public:
     }
 
     /**
+     * Set the stored value state to the specified value
+     */
+    void setStoredValueState(const int64_t to) {
+        assert(to == state_deleted_key || to == state_non_existent_key);
+        id = to;
+    }
+
+    /**
+     * Is this a temporary item created for processing a get-meta request?
+     */
+     bool isTempItem() {
+         return(isTempNonExistentItem() || isTempDeletedItem());
+
+     }
+
+    /**
+     * Is this a temporary item created for a non-existent key?
+     */
+     bool isTempNonExistentItem() {
+         const int64_t l_id = getId();
+         return(l_id == state_non_existent_key);
+
+     }
+
+    /**
+     * Is this a temporary item created for a deleted key?
+     */
+     bool isTempDeletedItem() {
+         const int64_t l_id = getId();
+         return(l_id == state_deleted_key);
+
+     }
+
+    /**
      * Get the total size of this item.
      *
      * @return the amount of memory used by this item.
@@ -577,6 +611,16 @@ public:
 
     static const int64_t state_id_cleared;
     static const int64_t state_id_pending;
+
+    /*
+     * Values of the id attribute used by temporarily created StoredValue
+     * objects.
+     * state_deleted_key: represents an item that's deleted from memory but
+     *                    present in the persistent store.
+     * state_non_existent_key: represents a non existent item
+     */
+    static const int64_t state_deleted_key;
+    static const int64_t state_non_existent_key;
 
 private:
 
