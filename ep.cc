@@ -685,7 +685,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::addTAPBackfillItem(const Item &item
         }
         // FALLTHROUGH
     case WAS_CLEAN:
-        queueDirty(item.getKey(), item.getVBucketId(), queue_op_set, item.getValue(),
+        queueDirty(item.getKey(), item.getVBucketId(), queue_op_set, value_t(NULL),
                    item.getFlags(), item.getExptime(), item.getCas(), row_id, true);
         break;
     case INVALID_VBUCKET:
@@ -1885,23 +1885,6 @@ int EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
                                                stats.dirtyAgeHighWat.get()));
             stats.dataAgeHighWat.set(std::max(stats.dataAge.get(),
                                               stats.dataAgeHighWat.get()));
-
-            if (!deleted) {
-                assert(rowid == v->getId());
-                qi->getItem().setId(rowid);
-                if (qi->getCas() != v->getCas()) {
-                    // New mutation was received while this item was waiting in the queue.
-                    // Update the item's value and meta data with the ones in cache.
-                    qi->getItem().setValue(v->getValue());
-                    qi->getItem().setFlags(v->getFlags());
-                    qi->getItem().setCas(v->getCas());
-                    qi->getItem().setExpTime(v->getExptime());
-                }
-            }
-
-            if (rowid == -1) {
-                v->setPendingId();
-            }
         } else {
             isDirty = false;
             v->reDirty(dirtied);
@@ -1922,12 +1905,21 @@ int EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
                 rejectQueue->push(qi);
                 ++vb->opsReject;
             } else {
+                assert(rowid == v->getId());
+                if (rowid == -1) {
+                    v->setPendingId();
+                }
+
+                Item itm(qi->getKey(), v->getFlags(), v->getExptime(),
+                         v->getValue(), v->getCas(), rowid, qi->getVBucketId());
+                // TODO: An item should be marked as clean in TransactionContext::commit()
+                // to support a consistent read from disk after the item is ejected.
                 v->markClean(NULL);
                 lh.unlock();
                 BlockTimer timer(rowid == -1 ?
                                  &stats.diskInsertHisto : &stats.diskUpdateHisto);
                 PersistenceCallback cb(qi, rejectQueue, this, queued, dirtied, &stats);
-                rwUnderlying->set(qi->getItem(), qi->getVBucketVersion(), cb);
+                rwUnderlying->set(itm, qi->getVBucketVersion(), cb);
                 if (rowid == -1)  {
                     ++vb->opsCreate;
                 } else {
