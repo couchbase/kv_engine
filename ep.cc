@@ -2033,7 +2033,8 @@ int EventuallyPersistentStore::addUnlessThere(const std::string &key,
     if (restore.itemsDeleted.find(key) == restore.itemsDeleted.end() &&
         vb->ht.addUnlessThere(key, vbid, op, value, flags, exptime, cas)) {
 
-        queued_item qi(new QueuedItem(key, value, vbid, op, vbuckets.getBucketVersion(vbid),
+        queued_item qi(new QueuedItem(key, value_t(NULL), vbid, op,
+                                      vbuckets.getBucketVersion(vbid),
                                       -1, flags, exptime, cas));
         std::map<uint16_t, std::vector<queued_item> >::iterator it = restore.items.find(vbid);
         if (it != restore.items.end()) {
