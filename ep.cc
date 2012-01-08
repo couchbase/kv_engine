@@ -2000,14 +2000,9 @@ void EventuallyPersistentStore::queueDirty(const std::string &key,
     if (doPersistence) {
         RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
         if (vb) {
-            QueuedItem *qi = NULL;
-            if (op == queue_op_set) {
-                qi = new QueuedItem(key, value, vbid, op, vbuckets.getBucketVersion(vbid),
-                                    rowid, flags, exptime, cas);
-            } else {
-                qi = new QueuedItem(key, vbid, op, vbuckets.getBucketVersion(vbid), rowid, flags,
-                                    exptime, cas);
-            }
+            QueuedItem *qi = new QueuedItem(key, value, vbid, op,
+                                            vbuckets.getBucketVersion(vbid),
+                                            rowid, flags, exptime, cas);
 
             queued_item item(qi);
             bool rv = tapBackfill ?
