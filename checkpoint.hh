@@ -38,6 +38,7 @@ typedef unordered_map<std::string, index_entry> checkpoint_index;
 
 class Checkpoint;
 class CheckpointManager;
+class CheckpointConfig;
 class VBucket;
 
 /**
@@ -248,8 +249,9 @@ class CheckpointManager {
     friend class TapConsumer;
 public:
 
-    CheckpointManager(EPStats &st, uint16_t vbucket, uint64_t checkpointId = 1) :
-        stats(st), vbucketId(vbucket), numItems(0),
+    CheckpointManager(EPStats &st, uint16_t vbucket,
+                      CheckpointConfig &config, uint64_t checkpointId = 1) :
+        stats(st), checkpointConfig(config), vbucketId(vbucket), numItems(0),
         mutationCounter(0), persistenceCursor("persistence"), onlineUpdateCursor("online_update"),
         isCollapsedCheckpoint(false), doOnlineUpdate(false), doHotReload(false) {
 
@@ -441,49 +443,6 @@ public:
 
     bool hasNextForPersistence();
 
-    static void initializeCheckpointConfig(size_t checkpoint_period,
-                                           size_t checkpoint_max_items,
-                                           size_t max_checkpoints,
-                                           bool allow_inconsistency = false,
-                                           bool keep_closed_checkpoints = false);
-
-    static void setCheckpointPeriod(size_t checkpoint_period) {
-        if (!validateCheckpointPeriodParam(checkpoint_period)) {
-            return;
-        }
-        checkpointPeriod = checkpoint_period;
-    }
-
-    static void setCheckpointMaxItems(size_t checkpoint_max_items) {
-        if (!validateCheckpointMaxItemsParam(checkpoint_max_items)) {
-            return;
-        }
-        checkpointMaxItems = checkpoint_max_items;
-    }
-
-    static void setMaxCheckpoints(size_t max_checkpoints) {
-        if (!validateMaxCheckpointsParam(max_checkpoints)) {
-            return;
-        }
-        maxCheckpoints = max_checkpoints;
-    }
-
-    static void allowInconsistentSlaveCheckpoint(bool allow_inconsistency) {
-        inconsistentSlaveCheckpoint = allow_inconsistency;
-    }
-
-    static bool isInconsistentSlaveCheckpoint() {
-        return inconsistentSlaveCheckpoint;
-    }
-
-    static void keepClosedCheckpointsUnderHighWat(bool keep_closed_checkpoints) {
-        keepClosedCheckpoints = keep_closed_checkpoints;
-    }
-
-    static bool isKeepingClosedCheckpoints() {
-        return keepClosedCheckpoints;
-    }
-
 private:
 
     void registerPersistenceCursor();
@@ -571,13 +530,11 @@ private:
 
     void collapseClosedCheckpoints(std::list<Checkpoint*> &collapsedChks);
 
-    static bool validateCheckpointMaxItemsParam(size_t checkpoint_max_items);
-    static bool validateCheckpointPeriodParam(size_t checkpoint_period);
-    static bool validateMaxCheckpointsParam(size_t max_checkpoints);
     static queued_item createCheckpointItem(uint64_t id, uint16_t vbid,
                                             enum queue_operation checkpoint_op);
 
     EPStats                 &stats;
+    CheckpointConfig        &checkpointConfig;
     Mutex                    queueLock;
     uint16_t                 vbucketId;
     Atomic<size_t>           numItems;
@@ -589,21 +546,83 @@ private:
     uint64_t                 lastClosedCheckpointId;
     std::map<const std::string, CheckpointCursor> tapCursors;
 
-    // Period of a checkpoint in terms of time in sec
-    static Atomic<rel_time_t> checkpointPeriod;
-    // Number of max items allowed in each checkpoint
-    static Atomic<size_t>     checkpointMaxItems;
-    // Number of max checkpoints allowed
-    static Atomic<size_t>     maxCheckpoints;
-    // Flag indicating if a downstream active vbucket is allowed to receive checkpoint start/end
-    // messages from the master active vbucket.
-    static bool               inconsistentSlaveCheckpoint;
-    // Flag indicating if closed checkpoints should be kept in memory if the current memory usage
-    // below the high water mark.
-    static bool               keepClosedCheckpoints;
-
     Atomic<bool>              doOnlineUpdate;
     Atomic<bool>              doHotReload;
+};
+
+/**
+* A class containing the config parameters for checkpoint.
+*/
+class CheckpointConfig {
+public:
+    CheckpointConfig()
+        : checkpointPeriod(DEFAULT_CHECKPOINT_PERIOD),
+          checkpointMaxItems(DEFAULT_CHECKPOINT_ITEMS),
+          maxCheckpoints(DEFAULT_MAX_CHECKPOINTS),
+          inconsistentSlaveCheckpoint (false),
+          itemNumBasedNewCheckpoint(true) { }
+
+    rel_time_t getCheckpointPeriod() const {
+        return checkpointPeriod;
+    }
+
+    size_t getCheckpointMaxItems() const {
+        return checkpointMaxItems;
+    }
+
+    size_t getMaxCheckpoints() const {
+        return maxCheckpoints;
+    }
+
+    bool isInconsistentSlaveCheckpoint() const {
+        return inconsistentSlaveCheckpoint;
+    }
+
+    bool isItemNumBasedNewCheckpoint() const {
+        return itemNumBasedNewCheckpoint;
+    }
+
+    bool canKeepClosedCheckpoints() const {
+        return keepClosedCheckpoints;
+    }
+
+    bool validateCheckpointMaxItemsParam(size_t checkpoint_max_items);
+    bool validateCheckpointPeriodParam(size_t checkpoint_period);
+    bool validateMaxCheckpointsParam(size_t max_checkpoints);
+
+    void setCheckpointPeriod(size_t value);
+    void setCheckpointMaxItems(size_t value);
+    void setMaxCheckpoints(size_t value);
+
+    void allowInconsistentSlaveCheckpoint(bool value) {
+        inconsistentSlaveCheckpoint = value;
+    }
+
+    void allowItemNumBasedNewCheckpoint(bool value) {
+        itemNumBasedNewCheckpoint = value;
+    }
+
+    void allowKeepClosedCheckpoints(bool value) {
+        keepClosedCheckpoints = value;
+    }
+
+private:
+    // Period of a checkpoint in terms of time in sec
+    rel_time_t checkpointPeriod;
+    // Number of max items allowed in each checkpoint
+    size_t checkpointMaxItems;
+    // Number of max checkpoints allowed
+    size_t maxCheckpoints;
+    // Flag indicating if a downstream active vbucket is allowed to receive checkpoint start/end
+    // messages from the master active vbucket.
+    bool inconsistentSlaveCheckpoint;
+    // Flag indicating if a new checkpoint is created once the number of items in the current
+    // checkpoint is greater than the max number allowed.
+    bool itemNumBasedNewCheckpoint;
+    // Flag indicating if closed checkpoints should be kept in memory if the current memory usage
+    // below the high water mark.
+    bool keepClosedCheckpoints;
+
 };
 
 #endif /* CHECKPOINT_HH */

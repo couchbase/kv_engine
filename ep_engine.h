@@ -509,6 +509,7 @@ public:
     }
 
     ~EventuallyPersistentEngine() {
+        delete checkpointConfig;
         delete epstore;
         delete kvstore;
         delete getlExtension;
@@ -537,6 +538,8 @@ public:
     size_t getVbChunkDelThresholdTime() const {
         return vb_chunk_del_threshold_time;
     }
+
+    CheckpointConfig &getCheckpointConfig() { return *checkpointConfig; }
 
     bool isForceShutdown(void) const {
         return forceShutdown;
@@ -784,6 +787,7 @@ private:
     GetlExtension *getlExtension;
 
     TapConnMap tapConnMap;
+    CheckpointConfig *checkpointConfig;
     Mutex tapMutex;
     size_t maxItemSize;
     size_t tapBacklogLimit;

@@ -5783,7 +5783,7 @@ engine_test_t* get_tests(void) {
 
         // checkpoint tests
         {"checkpoint: get last closed checkpoint Id", test_get_last_closed_checkpoint_id,
-         NULL, teardown, "chk_max_items=500"},
+         NULL, teardown, "chk_max_items=500;item_num_based_new_chk=true"},
         {"checkpoint: validate checkpoint config params", test_validate_checkpoint_params,
          NULL, teardown, NULL},
 

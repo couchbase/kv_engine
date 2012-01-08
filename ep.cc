@@ -357,7 +357,8 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
     setTxnSize(DEFAULT_TXN_SIZE);
 
     if (startVb0) {
-        RCPtr<VBucket> vb(new VBucket(0, vbucket_state_active, stats));
+        RCPtr<VBucket> vb(new VBucket(0, vbucket_state_active, stats,
+                                      engine.getCheckpointConfig()));
         vbuckets.addBucket(vb);
         vbuckets.setBucketVersion(0, 0);
     }
@@ -656,7 +657,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::addTAPBackfillItem(const Item &item
     if (!vb ||
         vb->getState() == vbucket_state_dead ||
         (vb->getState() == vbucket_state_active &&
-         !CheckpointManager::isInconsistentSlaveCheckpoint())) {
+         engine.getCheckpointConfig().isInconsistentSlaveCheckpoint())) {
         ++stats.numNotMyVBuckets;
         return ENGINE_NOT_MY_VBUCKET;
     }
@@ -750,7 +751,7 @@ void EventuallyPersistentStore::setVBucketState(uint16_t vbid,
         }
         scheduleVBSnapshot(Priority::VBucketPersistLowPriority);
     } else {
-        RCPtr<VBucket> newvb(new VBucket(vbid, to, stats));
+        RCPtr<VBucket> newvb(new VBucket(vbid, to, stats, engine.getCheckpointConfig()));
         if (to != vbucket_state_active) {
             newvb->checkpointManager.setOpenCheckpointId(0);
         }
@@ -2086,7 +2087,8 @@ void LoadStorageKVPairCallback::initVBucket(uint16_t vbid,
                                             vbucket_state_t newState) {
     RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
     if (!vb) {
-        vb.reset(new VBucket(vbid, newState, stats));
+        vb.reset(new VBucket(vbid, newState, stats,
+                             epstore->getEPEngine().getCheckpointConfig()));
         vbuckets.addBucket(vb);
     }
     // Set the past initial state of each vbucket.
@@ -2111,7 +2113,8 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
 
         RCPtr<VBucket> vb = vbuckets.getBucket(i->getVBucketId());
         if (!vb) {
-            vb.reset(new VBucket(i->getVBucketId(), vbucket_state_dead, stats));
+            vb.reset(new VBucket(i->getVBucketId(), vbucket_state_dead, stats,
+                                 epstore->getEPEngine().getCheckpointConfig()));
             vbuckets.addBucket(vb);
             vbuckets.setBucketVersion(i->getVBucketId(), val.getVBucketVersion());
         }

@@ -249,13 +249,19 @@ extern "C" {
                 stats.tapThrottleThreshold = static_cast<double>(v) / 100.0;
             } else if (strcmp(keyz, "chk_max_items") == 0) {
                 validate(v, MIN_CHECKPOINT_ITEMS, MAX_CHECKPOINT_ITEMS);
-                CheckpointManager::setCheckpointMaxItems(v);
+                e->getCheckpointConfig().setCheckpointMaxItems(v);
             } else if (strcmp(keyz, "chk_period") == 0) {
                 validate(v, MIN_CHECKPOINT_PERIOD, MAX_CHECKPOINT_PERIOD);
-                CheckpointManager::setCheckpointPeriod(v);
+                e->getCheckpointConfig().setCheckpointPeriod(v);
             } else if (strcmp(keyz, "max_checkpoints") == 0) {
                 validate(v, DEFAULT_MAX_CHECKPOINTS, MAX_CHECKPOINTS_UPPER_BOUND);
-                CheckpointManager::setMaxCheckpoints(v);
+                e->getCheckpointConfig().setMaxCheckpoints(v);
+            } else if (strcmp(keyz, "item_num_based_new_chk") == 0) {
+                if (strcmp(valz, "true") == 0) {
+                    e->getCheckpointConfig().allowItemNumBasedNewCheckpoint(true);
+                } else {
+                    e->getCheckpointConfig().allowItemNumBasedNewCheckpoint(false);
+                }
             } else if (strcmp(keyz, "max_size") == 0) {
                 // Want more bits than int.
                 char *ptr = NULL;
@@ -306,17 +312,17 @@ extern "C" {
                 size_t vsize = strtoul(valz, &ptr, 10);
                 stats.tapThrottleWriteQueueCap = vsize;
             } else if (strcmp(keyz, "inconsistent_slave_chk") == 0) {
-                bool inconsistentSlaveCheckpoint = false;
+                bool inconsistent_slave_chk = false;
                 if (strcmp(valz, "true") == 0) {
-                    inconsistentSlaveCheckpoint = true;
+                    inconsistent_slave_chk = true;
                 }
-                CheckpointManager::allowInconsistentSlaveCheckpoint(inconsistentSlaveCheckpoint);
+                e->getCheckpointConfig().allowInconsistentSlaveCheckpoint(inconsistent_slave_chk);
             } else if (strcmp(keyz, "keep_closed_chks") == 0) {
-                bool keepClosedCheckpoints = false;
+                bool keep_closed_chks = false;
                 if (strcmp(valz, "true") == 0) {
-                    keepClosedCheckpoints = true;
+                    keep_closed_chks = true;
                 }
-                CheckpointManager::keepClosedCheckpointsUnderHighWat(keepClosedCheckpoints);
+                e->getCheckpointConfig().allowKeepClosedCheckpoints(keep_closed_chks);
             } else {
                 *msg = "Unknown config param";
                 rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
@@ -1007,7 +1013,8 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server
     epstore(NULL), tapThrottle(new TapThrottle(stats)), databaseInitTime(0), tapKeepAlive(0),
     tapNoopInterval(DEFAULT_TAP_NOOP_INTERVAL), nextTapNoop(0),
     startedEngineThreads(false), shutdown(false),
-    getServerApiFunc(get_server_api), getlExtension(NULL), tapConnMap(*this),
+    getServerApiFunc(get_server_api), getlExtension(NULL),
+    tapConnMap(*this), checkpointConfig(NULL),
     maxItemSize(20*1024*1024), tapBacklogLimit(5000),
     memLowWat(std::numeric_limits<size_t>::max()),
     memHighWat(std::numeric_limits<size_t>::max()),
@@ -1061,6 +1068,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     resetStats();
 
     stats.tapThrottleThreshold = 0.9;
+    checkpointConfig = new CheckpointConfig();
 
     if (config != NULL) {
         char *dbn = NULL, *shardPat = NULL, *initf = NULL, *pinitf = NULL,
@@ -1070,7 +1078,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         size_t maxSize = 0;
         float mutation_mem_threshold = 0;
 
-        const int max_items = 54;
+        const int max_items = 55;
         struct config_item items[max_items];
         int ii = 0;
         memset(items, 0, sizeof(items));
@@ -1300,18 +1308,25 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         items[ii].value.dt_size = &max_checkpoints;
 
         ++ii;
-        bool inconsistentSlaveCheckpoint;
+        bool inconsistent_slave_chk;
         int inconsistent_chk_idx = ii;
         items[ii].key = "inconsistent_slave_chk";
         items[ii].datatype = DT_BOOL;
-        items[ii].value.dt_bool = &inconsistentSlaveCheckpoint;
+        items[ii].value.dt_bool = &inconsistent_slave_chk;
 
         ++ii;
-        bool keepClosedCheckpoints;
+        bool keep_closed_chks;
         int keep_closed_chks_idx = ii;
         items[ii].key = "keep_closed_chks";
         items[ii].datatype = DT_BOOL;
-        items[ii].value.dt_bool = &keepClosedCheckpoints;
+        items[ii].value.dt_bool = &keep_closed_chks;
+
+        ++ii;
+        bool item_num_based_new_chk;
+        int item_num_based_new_chk_idx = ii;
+        items[ii].key = "item_num_based_new_chk";
+        items[ii].datatype = DT_BOOL;
+        items[ii].value.dt_bool = &item_num_based_new_chk;
 
         ++ii;
         bool restore_mode;
@@ -1406,19 +1421,22 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
             }
 
             if (items[checkpoint_max_items_idx].found) {
-                CheckpointManager::setCheckpointMaxItems(checkpoint_max_items);
+                checkpointConfig->setCheckpointMaxItems(checkpoint_max_items);
             }
             if (items[checkpoint_period_idx].found) {
-                CheckpointManager::setCheckpointPeriod(checkpoint_period);
+                checkpointConfig->setCheckpointPeriod(checkpoint_period);
             }
             if (items[max_checkpoints_idx].found) {
-                CheckpointManager::setMaxCheckpoints(max_checkpoints);
+                checkpointConfig->setMaxCheckpoints(max_checkpoints);
             }
             if (items[inconsistent_chk_idx].found) {
-                CheckpointManager::allowInconsistentSlaveCheckpoint(inconsistentSlaveCheckpoint);
+                checkpointConfig->allowInconsistentSlaveCheckpoint(inconsistent_slave_chk);
             }
             if (items[keep_closed_chks_idx].found) {
-                CheckpointManager::keepClosedCheckpointsUnderHighWat(keepClosedCheckpoints);
+                checkpointConfig->allowKeepClosedCheckpoints(keep_closed_chks);
+            }
+            if (items[item_num_based_new_chk_idx].found) {
+                checkpointConfig->allowItemNumBasedNewCheckpoint(item_num_based_new_chk);
             }
 
             if (items[restore_idx].found && restore_mode) {
@@ -2790,9 +2808,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     add_casted_stat("ep_exp_pager_stime", getExpiryPagerSleeptime(),
                     add_stat, cookie);
 
-    add_casted_stat("ep_inconsistent_slave_chk", CheckpointManager::isInconsistentSlaveCheckpoint(),
+    add_casted_stat("ep_inconsistent_slave_chk", checkpointConfig->isInconsistentSlaveCheckpoint(),
                     add_stat, cookie);
-    add_casted_stat("ep_keep_closed_checkpoints", CheckpointManager::isKeepingClosedCheckpoints(),
+    add_casted_stat("ep_keep_closed_checkpoints", checkpointConfig->canKeepClosedCheckpoints(),
                     add_stat, cookie);
 
     return ENGINE_SUCCESS;

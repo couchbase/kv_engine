@@ -19,6 +19,7 @@
 #define NUM_ITEMS 50000
 
 EPStats global_stats;
+CheckpointConfig checkpoint_config;
 
 struct thread_args {
     SyncObject *mutex;
@@ -149,9 +150,10 @@ int main(int argc, char **argv) {
 
     HashTable::setDefaultNumBuckets(5);
     HashTable::setDefaultNumLocks(1);
-    RCPtr<VBucket> vbucket(new VBucket(0, vbucket_state_active, global_stats));
+    RCPtr<VBucket> vbucket(new VBucket(0, vbucket_state_active, global_stats, checkpoint_config));
 
-    CheckpointManager *checkpoint_manager = new CheckpointManager(global_stats, 0, 1);
+    CheckpointManager *checkpoint_manager = new CheckpointManager(global_stats, 0,
+                                                                  checkpoint_config, 1);
     SyncObject *mutex = new SyncObject();
     SyncObject *gate = new SyncObject();
     int *counter = new int;

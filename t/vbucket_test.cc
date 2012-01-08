@@ -16,6 +16,7 @@ static const size_t numThreads = 10;
 static const size_t vbucketsEach = 100;
 
 EPStats global_stats;
+CheckpointConfig checkpoint_config;
 
 extern "C" {
     static rel_time_t basic_current_time(void) {
@@ -31,12 +32,14 @@ extern "C" {
 
 class VBucketGenerator {
 public:
-    VBucketGenerator(EPStats &s, int start = 1) : st(s), i(start) {}
+    VBucketGenerator(EPStats &s, CheckpointConfig &c, int start = 1)
+        : st(s), config(c), i(start) {}
     VBucket *operator()() {
-        return new VBucket(i++, vbucket_state_active, st);
+        return new VBucket(i++, vbucket_state_active, st, config);
     }
 private:
     EPStats &st;
+    CheckpointConfig &config;
     int i;
 };
 
@@ -47,7 +50,7 @@ static void assertVBucket(const VBucketMap& vbm, int id) {
 }
 
 static void testVBucketLookup() {
-    VBucketGenerator vbgen(global_stats);
+    VBucketGenerator vbgen(global_stats, checkpoint_config);
     std::vector<VBucket*> bucketList(3);
     std::generate_n(bucketList.begin(), bucketList.capacity(), vbgen);
 
@@ -67,7 +70,8 @@ public:
         for (size_t j = 0; j < vbucketsEach; j++) {
             int newId = ++i;
 
-            RCPtr<VBucket> v(new VBucket(newId, vbucket_state_active, global_stats));
+            RCPtr<VBucket> v(new VBucket(newId, vbucket_state_active,
+                                         global_stats, checkpoint_config));
             vbm->addBucket(v);
             assert(vbm->getBucket(newId) == v);
 
