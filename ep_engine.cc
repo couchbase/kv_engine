@@ -323,6 +323,12 @@ extern "C" {
                     keep_closed_chks = true;
                 }
                 e->getCheckpointConfig().allowKeepClosedCheckpoints(keep_closed_chks);
+            } else if (strcmp(keyz, "chk_meta_items_only") == 0) {
+                bool chk_meta_items_only = true;
+                if (strcmp(valz, "false") == 0) {
+                    chk_meta_items_only = false;
+                }
+                e->getCheckpointConfig().allowMetaItemsOnly(chk_meta_items_only);
             } else {
                 *msg = "Unknown config param";
                 rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
@@ -1078,7 +1084,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         size_t maxSize = 0;
         float mutation_mem_threshold = 0;
 
-        const int max_items = 55;
+        const int max_items = 56;
         struct config_item items[max_items];
         int ii = 0;
         memset(items, 0, sizeof(items));
@@ -1329,6 +1335,13 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         items[ii].value.dt_bool = &item_num_based_new_chk;
 
         ++ii;
+        bool chk_meta_items_only;
+        int chk_meta_items_only_idx = ii;
+        items[ii].key = "chk_meta_items_only";
+        items[ii].datatype = DT_BOOL;
+        items[ii].value.dt_bool = &chk_meta_items_only;
+
+        ++ii;
         bool restore_mode;
         int restore_idx = ii;
         items[ii].key = "restore_mode";
@@ -1437,6 +1450,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
             }
             if (items[item_num_based_new_chk_idx].found) {
                 checkpointConfig->allowItemNumBasedNewCheckpoint(item_num_based_new_chk);
+            }
+            if (items[chk_meta_items_only_idx].found) {
+                checkpointConfig->allowMetaItemsOnly(chk_meta_items_only);
             }
 
             if (items[restore_idx].found && restore_mode) {

@@ -560,7 +560,8 @@ public:
           checkpointMaxItems(DEFAULT_CHECKPOINT_ITEMS),
           maxCheckpoints(DEFAULT_MAX_CHECKPOINTS),
           inconsistentSlaveCheckpoint (false),
-          itemNumBasedNewCheckpoint(true) { }
+          itemNumBasedNewCheckpoint(true),
+          metaItemsOnly(true) { }
 
     rel_time_t getCheckpointPeriod() const {
         return checkpointPeriod;
@@ -586,6 +587,10 @@ public:
         return keepClosedCheckpoints;
     }
 
+    bool canHaveMetaItemsOnly() const {
+        return metaItemsOnly;
+    }
+
     bool validateCheckpointMaxItemsParam(size_t checkpoint_max_items);
     bool validateCheckpointPeriodParam(size_t checkpoint_period);
     bool validateMaxCheckpointsParam(size_t max_checkpoints);
@@ -606,6 +611,10 @@ public:
         keepClosedCheckpoints = value;
     }
 
+    void allowMetaItemsOnly(bool value) {
+        metaItemsOnly = value;
+    }
+
 private:
     // Period of a checkpoint in terms of time in sec
     rel_time_t checkpointPeriod;
@@ -622,6 +631,8 @@ private:
     // Flag indicating if closed checkpoints should be kept in memory if the current memory usage
     // below the high water mark.
     bool keepClosedCheckpoints;
+    // Flag indicating if a checkpoint should contain items with keys and meta data only.
+    bool metaItemsOnly;
 
 };
 

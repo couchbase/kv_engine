@@ -2008,8 +2008,9 @@ void EventuallyPersistentStore::queueDirty(const std::string &key,
     if (doPersistence) {
         RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
         if (vb) {
-            QueuedItem *qi = new QueuedItem(key, value, vbid, op,
-                                            vbuckets.getBucketVersion(vbid),
+            bool meta_items_only = engine.getCheckpointConfig().canHaveMetaItemsOnly();
+            QueuedItem *qi = new QueuedItem(key, meta_items_only ? value_t(NULL) : value,
+                                            vbid, op, vbuckets.getBucketVersion(vbid),
                                             rowid, flags, exptime, cas);
 
             queued_item item(qi);
