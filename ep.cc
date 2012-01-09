@@ -1712,7 +1712,14 @@ public:
                 double current = static_cast<double>(StoredValue::getCurrentSize(*stats));
                 double lower = static_cast<double>(stats->mem_low_wat);
                 if (v && current > lower) {
-                    if (v->ejectValue(*stats, vb->ht) && vb->getState() == vbucket_state_replica) {
+                    // Check if the key with the same CAS value exists in the open or closed
+                    // checkpoints.
+                    bool foundInCheckpoints =
+                        vb->checkpointManager.isKeyResidentInCheckpoints(v->getKey(),
+                                                                         v->getCas());
+                    if (!foundInCheckpoints &&
+                        v->ejectValue(*stats, vb->ht) &&
+                        vb->getState() == vbucket_state_replica) {
                         ++stats->numReplicaEjects;
                     }
                 }
