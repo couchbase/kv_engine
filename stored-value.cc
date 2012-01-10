@@ -168,6 +168,34 @@ mutation_type_t HashTable::insert(const Item &itm, bool eject, bool partial) {
     }
 
     return NOT_FOUND;
+
+}
+
+bool StoredValue::unlocked_restoreMeta(Item *itm,
+                                       size_t expiration,
+                                       ENGINE_ERROR_CODE status) {
+    assert(state_deleted_key != getId() && state_non_existent_key != getId());
+    uint32_t exptime = (uint32_t)(ep_real_time() + expiration);
+    switch(status) {
+    case ENGINE_SUCCESS:
+        assert(0 == itm->getValue()->length());
+        setSeqno(itm->getSeqno());
+        setCas(itm->getCas());
+        flags = itm->getFlags();
+        extra.feature.exptime = exptime;
+        setStoredValueState(state_deleted_key);
+        break;
+    case ENGINE_KEY_ENOENT:
+        extra.feature.exptime = exptime;
+        setStoredValueState(state_non_existent_key);
+        break;
+    default:
+        extra.feature.exptime = exptime;
+        getLogger()->log(
+            EXTENSION_LOG_WARNING, NULL,
+            "mccouch returned error %d for get_meta\n", status);
+    }
+    return true;
 }
 
 static inline size_t getDefault(size_t x, size_t d) {
