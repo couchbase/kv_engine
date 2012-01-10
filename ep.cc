@@ -758,11 +758,18 @@ public:
         if (vb) {
             int bucket_num(0);
             LockHolder lh = vb->ht.getLockedBucket(vk.second, &bucket_num);
-            StoredValue *v = vb->ht.unlocked_find(vk.second, bucket_num);
+            StoredValue *v = vb->ht.unlocked_find(vk.second, bucket_num, true);
             if (v && v->isExpired(startTime)) {
-                vb->ht.unlocked_softDelete(v, 0);
-                e->queueDirty(vk.second, vb->getId(), queue_op_del,
-                              v->getSeqno(), v->getId(), false);
+                if (v->isTempItem()) {
+                    // This is a temporary item whose background fetch for
+                    // metadata has completed.
+                    bool deleted = vb->ht.unlocked_del(vk.second, bucket_num);
+                    assert(deleted);
+                } else {
+                    vb->ht.unlocked_softDelete(v, 0);
+                    e->queueDirty(vk.second, vb->getId(), queue_op_del,
+                                  v->getSeqno(), v->getId(), false);
+                }
             }
         }
     }
