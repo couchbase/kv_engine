@@ -841,6 +841,13 @@ public:
      */
     void completeDegradedMode();
 
+    size_t getTmpItemExpiryWindow() {
+        return tmpItemExpiryWindow;
+    }
+
+    void setTmpItemExpiryWindow(size_t value) {
+        tmpItemExpiryWindow = value;
+    }
 
     /**
      * Get access to the mutation log.
@@ -1016,6 +1023,7 @@ private:
     size_t itemExpiryWindow;
     size_t vbDelChunkSize;
     size_t vbChunkDelThresholdTime;
+    size_t tmpItemExpiryWindow;
 
     DISALLOW_COPY_AND_ASSIGN(EventuallyPersistentStore);
 };

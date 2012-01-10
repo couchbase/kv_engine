@@ -389,6 +389,11 @@
                 }
             }
         },
+        "tmp_item_expiry_window": {
+            "default": "3600",
+            "descr": "The number of seconds after which a temp item created for background fetch of a (possibly) deleted item's metadata will expire",
+            "type": "size_t"
+        },
         "vb0": {
             "default": "true",
             "type": "bool"
