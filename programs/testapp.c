@@ -1087,8 +1087,8 @@ static off_t arithmetic_command(char* buf,
     request->message.header.request.extlen = 20;
     request->message.header.request.bodylen = htonl(keylen + 20);
     request->message.header.request.opaque = 0xdeadbeef;
-    request->message.body.delta = htonll(delta);
-    request->message.body.initial = htonll(initial);
+    request->message.body.delta = memcached_htonll(delta);
+    request->message.body.initial = memcached_htonll(initial);
     request->message.body.expiration = htonl(exp);
 
     off_t key_offset = sizeof(protocol_binary_request_no_extras) + 20;
@@ -1552,7 +1552,7 @@ static enum test_return test_binary_incr_impl(const char* key, uint8_t cmd) {
             safe_recv_packet(receive.bytes, sizeof(receive.bytes));
             validate_response_header(&receive.response_header, cmd,
                                      PROTOCOL_BINARY_RESPONSE_SUCCESS);
-            assert(ntohll(receive.response.message.body.value) == ii);
+            assert(memcached_ntohll(receive.response.message.body.value) == ii);
         }
     }
 
@@ -1589,7 +1589,7 @@ static enum test_return test_binary_decr_impl(const char* key, uint8_t cmd) {
             safe_recv_packet(receive.bytes, sizeof(receive.bytes));
             validate_response_header(&receive.response_header, cmd,
                                      PROTOCOL_BINARY_RESPONSE_SUCCESS);
-            assert(ntohll(receive.response.message.body.value) == ii);
+            assert(memcached_ntohll(receive.response.message.body.value) == ii);
         }
     }
 
@@ -1599,7 +1599,7 @@ static enum test_return test_binary_decr_impl(const char* key, uint8_t cmd) {
         safe_recv_packet(receive.bytes, sizeof(receive.bytes));
         validate_response_header(&receive.response_header, cmd,
                                  PROTOCOL_BINARY_RESPONSE_SUCCESS);
-        assert(ntohll(receive.response.message.body.value) == 0);
+        assert(memcached_ntohll(receive.response.message.body.value) == 0);
     } else {
         test_binary_noop();
     }

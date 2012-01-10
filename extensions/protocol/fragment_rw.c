@@ -96,7 +96,7 @@ static ENGINE_ERROR_CODE handle_fragment_rw(EXTENSION_BINARY_PROTOCOL_DESCRIPTOR
     uint64_t offset = ntohl(req->message.body.offset);
     uint64_t len = ntohl(req->message.body.length);
     uint16_t vbucket = ntohs(request->request.vbucket);
-    uint64_t cas = ntohll(request->request.cas);
+    uint64_t cas = memcached_ntohll(request->request.cas);
     ENGINE_HANDLE_V1 *v1 = (void*)handle;
     item *item = NULL;
     uint8_t *data = key + nkey;

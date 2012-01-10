@@ -1305,7 +1305,7 @@ static void add_bin_header(conn *c, uint16_t err, uint8_t hdr_len, uint16_t key_
 
     header->response.bodylen = htonl(body_len);
     header->response.opaque = c->opaque;
-    header->response.cas = htonll(c->cas);
+    header->response.cas = memcached_htonll(c->cas);
 
     if (settings.verbose > 1) {
         char buffer[1024];
@@ -1467,8 +1467,8 @@ static void complete_incr_bin(conn *c) {
     assert(c->wsize >= sizeof(*rsp));
 
     /* fix byteorder in the request */
-    uint64_t delta = ntohll(req->message.body.delta);
-    uint64_t initial = ntohll(req->message.body.initial);
+    uint64_t delta = memcached_ntohll(req->message.body.delta);
+    uint64_t initial = memcached_ntohll(req->message.body.initial);
     rel_time_t expiration = ntohl(req->message.body.expiration);
     char *key = binary_get_key(c);
     size_t nkey = c->binary_header.request.keylen;
@@ -1504,7 +1504,7 @@ static void complete_incr_bin(conn *c) {
 
     switch (ret) {
     case ENGINE_SUCCESS:
-        rsp->message.body.value = htonll(rsp->message.body.value);
+        rsp->message.body.value = memcached_htonll(rsp->message.body.value);
         write_bin_response(c, &rsp->message.body, 0, 0,
                            sizeof (rsp->message.body.value));
         if (incr) {
@@ -1714,7 +1714,7 @@ static void process_bin_get(conn *c) {
             keylen = nkey;
         }
         add_bin_header(c, 0, sizeof(rsp->message.body), keylen, bodylen);
-        rsp->message.header.response.cas = htonll(info.cas);
+        rsp->message.header.response.cas = memcached_htonll(info.cas);
 
         // add the flags
         rsp->message.body.flags = info.flags;
@@ -2290,7 +2290,7 @@ static bool binary_response_handler(const void *key, uint16_t keylen,
         .response.status = (uint16_t)htons(status),
         .response.bodylen = htonl(bodylen + keylen + extlen),
         .response.opaque = c->opaque,
-        .response.cas = htonll(cas),
+        .response.cas = memcached_htonll(cas),
     };
 
     memcpy(buf, header.bytes, sizeof(header.response));
@@ -2439,7 +2439,7 @@ static void ship_tap_log(conn *c) {
                 pthread_mutex_unlock(&tap_stats.mutex);
             }
 
-            msg.mutation.message.header.request.cas = htonll(info.cas);
+            msg.mutation.message.header.request.cas = memcached_htonll(info.cas);
             msg.mutation.message.header.request.keylen = htons(info.nkey);
             msg.mutation.message.header.request.extlen = 16;
 
@@ -2483,7 +2483,7 @@ static void ship_tap_log(conn *c) {
             send_data = true;
             c->ilist[c->ileft++] = it;
             msg.delete.message.header.request.opcode = PROTOCOL_BINARY_CMD_TAP_DELETE;
-            msg.delete.message.header.request.cas = htonll(info.cas);
+            msg.delete.message.header.request.cas = memcached_htonll(info.cas);
             msg.delete.message.header.request.keylen = htons(info.nkey);
 
             bodylen = 8 + info.nkey + nengine;
@@ -2747,7 +2747,7 @@ static void process_bin_tap_packet(tap_event_t event, conn *c) {
                                                  event, seqno,
                                                  key, nkey,
                                                  flags, exptime,
-                                                 ntohll(tap->message.header.request.cas),
+                                                 memcached_ntohll(tap->message.header.request.cas),
                                                  data, ndata,
                                                  c->binary_header.request.vbucket);
         }
@@ -3207,7 +3207,7 @@ static void process_bin_update(conn *c) {
         if (c->cmd == PROTOCOL_BINARY_CMD_SET) {
             /* @todo fix this for the ASYNC interface! */
             settings.engine.v1->remove(settings.engine.v0, c, key, nkey,
-                                       ntohll(req->message.header.request.cas),
+                                       memcached_ntohll(req->message.header.request.cas),
                                        c->binary_header.request.vbucket);
         }
 
@@ -3345,7 +3345,7 @@ static void process_bin_delete(conn *c) {
             stats_prefix_record_delete(key, nkey);
         }
         ret = settings.engine.v1->remove(settings.engine.v0, c, key, nkey,
-                                         ntohll(req->message.header.request.cas),
+                                         memcached_ntohll(req->message.header.request.cas),
                                          c->binary_header.request.vbucket);
     }
 
@@ -4715,7 +4715,7 @@ static int try_read_command(conn *c) {
             c->binary_header.request.keylen = ntohs(req->request.keylen);
             c->binary_header.request.bodylen = ntohl(req->request.bodylen);
             c->binary_header.request.vbucket = ntohs(req->request.vbucket);
-            c->binary_header.request.cas = ntohll(req->request.cas);
+            c->binary_header.request.cas = memcached_ntohll(req->request.cas);
 
 
             if (c->binary_header.request.magic != PROTOCOL_BINARY_REQ &&

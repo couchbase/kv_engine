@@ -143,12 +143,19 @@ static uint64_t mc_swap64(uint64_t in) {
 #endif
 }
 
-uint64_t ntohll(uint64_t val) {
+static uint64_t ntohll(uint64_t val) {
    return mc_swap64(val);
 }
 
-uint64_t htonll(uint64_t val) {
+static uint64_t htonll(uint64_t val) {
    return mc_swap64(val);
 }
 #endif
 
+uint64_t memcached_ntohll(uint64_t val) {
+   return ntohll(val);
+}
+
+uint64_t memcached_htonll(uint64_t val) {
+   return htonll(val);
+}
