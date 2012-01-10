@@ -1316,8 +1316,6 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::del(const std::string &key,
     }
 
     int bucket_num(0);
-    uint32_t flags = 0;
-    time_t exptime = 0;
     int rowid = -1;
     LockHolder lh = vb->ht.getLockedBucket(key, &bucket_num);
     StoredValue *v = vb->ht.unlocked_find(key, bucket_num);
@@ -1329,29 +1327,31 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::del(const std::string &key,
             return ENGINE_KEY_ENOENT;
         }
     } else {
-        flags = v->getFlags();
-        exptime = v->getExptime();
         rowid = v->getId();
     }
 
     mutation_type_t delrv = vb->ht.unlocked_softDelete(key, cas, bucket_num);
     ENGINE_ERROR_CODE rv;
+    bool expired = false;
 
     if (delrv == NOT_FOUND || delrv == INVALID_CAS) {
+        if (v && v->isExpired(ep_real_time())) {
+            expired = true;
+        }
         rv = ENGINE_KEY_ENOENT;
     } else if (delrv == IS_LOCKED) {
         rv = ENGINE_TMPFAIL;
-    } else {
+    } else { // WAS_CLEAN or WAS_DIRTY
         rv = ENGINE_SUCCESS;
     }
+    lh.unlock();
 
     if (delrv == WAS_CLEAN ||
         delrv == WAS_DIRTY ||
-        (delrv == NOT_FOUND && isRestoreEnabled())) {
+        (delrv == NOT_FOUND && (expired || isRestoreEnabled()))) {
         // As replication is interleaved with online restore, deletion of items that might
         // exist in the restore backup files should be queued and replicated.
-        value_t value(NULL);
-        queueDirty(key, vbucket, queue_op_del, value, flags, exptime, cas, rowid);
+        queueDirty(key, vbucket, queue_op_del, value_t(NULL), 0, 0, cas, rowid);
     }
     return rv;
 }
