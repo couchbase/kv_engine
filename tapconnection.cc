@@ -1887,18 +1887,18 @@ TapVBucketEvent TapProducer::nextVBucketLowPriority_UNLOCKED() {
 }
 
 queued_item TapProducer::nextCheckpointMessage_UNLOCKED() {
-    queued_item item(NULL);
+    queued_item an_item(NULL);
     if (!checkpointMsgs.empty()) {
-        item = checkpointMsgs.front();
+        an_item = checkpointMsgs.front();
         checkpointMsgs.pop();
-        if (!vbucketFilter(item->getVBucketId())) {
+        if (!vbucketFilter(an_item->getVBucketId())) {
             return nextCheckpointMessage_UNLOCKED();
         }
         ++checkpointMsgCounter;
         ++recordsFetched;
-        addTapLogElement_UNLOCKED(item);
+        addTapLogElement_UNLOCKED(an_item);
     }
-    return item;
+    return an_item;
 }
 
 size_t TapProducer::getBackfillRemaining_UNLOCKED() {
