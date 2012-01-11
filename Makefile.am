@@ -370,6 +370,7 @@ endif
 
 if BUILD_BYTEORDER
 ep_la_SOURCES += byteorder.c
+ep_testsuite_la_SOURCES += byteorder.c
 management_cbdbconvert_SOURCES += byteorder.c
 endif
 
