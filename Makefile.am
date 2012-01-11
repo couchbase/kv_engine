@@ -256,7 +256,7 @@ default_engine_dtrace.lo: $(default_engine_la_OBJECTS)
 	sed -e s,assoc,default_engine_dtrace,g default_engine_la-assoc.lo > default_engine_dtrace.lo
 
 DIST_DIRS = scripts
-EXTRA_DIST = doc scripts t memcached.spec memcached_dtrace.d m4/version.m4 \
+EXTRA_DIST = doc scripts t memcached_dtrace.d m4/version.m4 \
              testsuite/breakdancer/engine_test.py testsuite/breakdancer/breakdancer.py \
              LICENSE CONTRIBUTING HACKING win32
 
