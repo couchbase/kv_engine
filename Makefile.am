@@ -213,7 +213,8 @@ EXTRA_TESTS =
 ep_testsuite_la_CPPFLAGS = -I$(top_srcdir) -I$(top_srcdir)/sqlite-kvstore \
                          $(AM_CPPFLAGS) ${NO_WERROR}
 ep_testsuite_la_SOURCES= ep_testsuite.cc ep_testsuite.h \
-                         atomic.cc locks.hh mutex.cc mutex.hh testlogger_libify.cc
+                         atomic.cc locks.hh mutex.cc mutex.hh \
+                         item.cc testlogger_libify.cc
 ep_testsuite_la_LDFLAGS= -module -dynamic
 
 # This is because automake can't figure out how to build the same code

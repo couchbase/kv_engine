@@ -1381,7 +1381,7 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
             connection->encodeVBucketStateTransition(ev, es, nes, vbucket);
             break;
         case TAP_OPAQUE:
-            connection->opaqueCommandCode = ev.state;
+            connection->opaqueCommandCode = (uint32_t) ev.state;
             *vbucket = ev.vbucket;
             *es = &connection->opaqueCommandCode;
             *nes = sizeof(connection->opaqueCommandCode);
@@ -1400,8 +1400,9 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
     case TAP_DELETION:
         *itm = it;
         if (ret == TAP_MUTATION || ret == TAP_DELETION) {
-            *es = (void*)it->getMetaData();
-            *nes = it->getNMetaBytes();
+            connection->itemRevSeqno = htonl(it->getSeqno());
+            *es = &connection->itemRevSeqno;
+            *nes = sizeof(connection->itemRevSeqno);
         }
         break;
     case TAP_NOOP:
@@ -1608,7 +1609,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
                                                         size_t nkey,
                                                         uint32_t flags,
                                                         uint32_t exptime,
-                                                        uint64_t, // cas
+                                                        uint64_t cas,
                                                         const void *data,
                                                         size_t ndata,
                                                         uint16_t vbucket)
@@ -1705,17 +1706,13 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
 
             if (tc) {
                 bool meta = false;
-                if (nengine > 0) {
-                    uint32_t s;
-                    uint64_t c;
-                    uint32_t l;
-                    uint32_t f;
-
-                    if (Item::decodeMeta((uint8_t*)engine_specific, s, c, l, f)) {
-                        itm->setCas(c);
-                        itm->setSeqno(s);
-                        meta = true;
-                    }
+                if (nengine == sizeof(uint32_t)) {
+                    uint32_t seqnum;
+                    memcpy(&seqnum, engine_specific, sizeof(seqnum));
+                    seqnum = ntohl(seqnum);
+                    itm->setCas(cas);
+                    itm->setSeqno(seqnum);
+                    meta = true;
                 }
 
                 if (tc->isBackfillPhase(vbucket)) {

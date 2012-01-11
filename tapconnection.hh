@@ -1143,6 +1143,11 @@ private:
      */
     uint32_t opaqueCommandCode;
 
+    /**
+     * Revision seq number of the item to be transmitted. This variable's value is
+     * copied to the engine_specific field in a memcached tap message.
+     */
+    uint32_t itemRevSeqno;
 
     /**
      * Is this tap connection in a suspended state (the receiver may

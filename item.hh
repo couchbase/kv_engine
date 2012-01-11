@@ -202,16 +202,6 @@ public:
         return static_cast<int>(key.length());
     }
 
-    uint32_t getNMetaBytes() const {
-        return sizeof(meta);
-    }
-
-    const char *getMetaData() {
-        size_t nb = sizeof(meta);
-        encodeMeta(seqno, cas, getNBytes(), flags, meta, nb);
-        return (const char*)meta;
-    }
-
     uint32_t getNBytes() const {
         return value.get() ? static_cast<uint32_t>(value->length()) : 0;
     }
@@ -366,6 +356,9 @@ public:
         return true;
     }
 
+    static uint32_t getNMetaBytes() {
+        return metaDataSize;
+    }
 
 private:
     /**
@@ -393,8 +386,6 @@ private:
     uint32_t seqno;
     uint16_t vbucketId;
 
-    uint8_t meta[22];
-
     static uint64_t nextCas(void) {
         uint64_t ret = gethrtime();
         if ((ret & 1000) == 0) {
@@ -409,6 +400,7 @@ private:
     }
 
     static Atomic<uint64_t> casCounter;
+    static const uint32_t metaDataSize;
     DISALLOW_COPY_AND_ASSIGN(Item);
 };
 

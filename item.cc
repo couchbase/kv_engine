@@ -19,6 +19,8 @@
 #include "tools/cJSON.h"
 
 Atomic<uint64_t> Item::casCounter(1);
+// header(2 bytes) + seqno(uint32) + cas(uint64_t) + value_len(uint32_t) + flags(uint32_t)
+const uint32_t Item::metaDataSize(3 * sizeof(uint32_t) + sizeof(uint64_t) + 2);
 
 bool Item::append(const Item &i) {
     assert(value.get() != NULL);

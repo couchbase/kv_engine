@@ -1066,14 +1066,14 @@ void MemcachedEngine::setmq(const Item &it, Callback<mutation_result> &cb) {
     req.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
     req.message.header.request.vbucket = ntohs(it.getVBucketId());
     uint32_t bodylen = req.message.header.request.extlen + it.getNKey()
-        + it.getNBytes() + it.getNMetaBytes();
+        + it.getNBytes() + Item::getNMetaBytes();
     req.message.header.request.bodylen = ntohl(bodylen);
-    req.message.body.nmeta_bytes = ntohl(it.getNMetaBytes());
+    req.message.body.nmeta_bytes = ntohl(Item::getNMetaBytes());
     req.message.body.flags = it.getFlags();
     req.message.body.expiration = htonl((uint32_t)it.getExptime());
 
     uint8_t meta[30];
-    size_t nmeta = it.getNMetaBytes();
+    size_t nmeta = Item::getNMetaBytes();
     Item::encodeMeta(it, meta, nmeta);
 
     sendIov[0].iov_base = (char*)req.bytes;
