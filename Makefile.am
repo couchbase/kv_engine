@@ -177,7 +177,8 @@ ascii_scrub_la_LDFLAGS= -avoid-version -shared -module -no-undefined
 
 # An extension that supports partital read/write operation
 fragment_rw_ops_la_CPPFLAGS = $(CPPFLAGS) -I$(top_srcdir)/extensions
-fragment_rw_ops_la_SOURCES = extensions/protocol/fragment_rw.c
+fragment_rw_ops_la_SOURCES = extensions/protocol/fragment_rw.c \
+                             extensions/protocol/fragment_rw.h
 fragment_rw_ops_la_LDFLAGS = -avoid-version -shared -module -no-undefined
 fragment_rw_ops_la_LIBADD = libmemcached_utilities.la $(LIBM)
 fragment_rw_ops_la_DEPENDENCIES = libmemcached_utilities.la
