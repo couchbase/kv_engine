@@ -1612,7 +1612,7 @@ Item* TapProducer::getNextItem(const void *c, uint16_t *vbucket, tap_event_t &re
                     ret = TAP_MUTATION;
                 } else if (r == ENGINE_KEY_ENOENT) {
                     // Item was deleted and set a message type to tap_deletion.
-                    itm = new Item(qi->getKey(), qi->getKey().length(), 0, 0, 0);
+                    itm = new Item(qi->getKey().c_str(), qi->getKey().length(), 0, 0, 0);
                     ret = TAP_DELETION;
                 } else if (r == ENGINE_EWOULDBLOCK) {
                     queueBGFetch_UNLOCKED(qi->getKey(), gv.getId(), *vbucket,
