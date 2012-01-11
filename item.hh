@@ -134,8 +134,7 @@ public:
     Item(const void* k, const size_t nk, const size_t nb,
          const uint32_t fl, const time_t exp, uint64_t theCas = 0,
          int64_t i = -1, uint16_t vbid = 0) :
-        flags(fl), exptime(exp), cas(theCas), id(i), vbucketId(vbid),
-        seqno(1)
+        cas(theCas), id(i), exptime(exp), flags(fl), seqno(1), vbucketId(vbid)
     {
         key.assign(static_cast<const char*>(k), nk);
         assert(id != 0);
@@ -146,8 +145,7 @@ public:
     Item(const std::string &k, const uint32_t fl, const time_t exp,
          const void *dta, const size_t nb, uint64_t theCas = 0,
          int64_t i = -1, uint16_t vbid = 0) :
-        flags(fl), exptime(exp), cas(theCas), id(i), vbucketId(vbid),
-        seqno(1)
+        cas(theCas), id(i), exptime(exp), flags(fl), seqno(1), vbucketId(vbid)
     {
         key.assign(k);
         assert(id != 0);
@@ -158,8 +156,7 @@ public:
     Item(const std::string &k, const uint32_t fl, const time_t exp,
          const value_t &val, uint64_t theCas = 0,  int64_t i = -1, uint16_t vbid = 0,
          uint32_t sno = 1) :
-        flags(fl), exptime(exp), value(val), cas(theCas), id(i), vbucketId(vbid),
-        seqno(sno)
+         value(val), cas(theCas), id(i), exptime(exp), flags(fl), seqno(sno), vbucketId(vbid)
     {
         assert(id != 0);
         key.assign(k);
@@ -169,8 +166,7 @@ public:
     Item(const void *k, uint16_t nk, const uint32_t fl, const time_t exp,
          const void *dta, const size_t nb, uint64_t theCas = 0,
          int64_t i = -1, uint16_t vbid = 0) :
-        flags(fl), exptime(exp), cas(theCas), id(i), vbucketId(vbid),
-        seqno(1)
+        cas(theCas), id(i), exptime(exp), flags(fl), seqno(1), vbucketId(vbid)
     {
         assert(id != 0);
         key.assign(static_cast<const char*>(k), nk);
@@ -183,7 +179,7 @@ public:
     }
 
     const char *getData() const {
-        return value->getData();
+        return value.get() ? value->getData() : NULL;
     }
 
     const value_t &getValue() const {
@@ -217,7 +213,11 @@ public:
     }
 
     uint32_t getNBytes() const {
-        return static_cast<uint32_t>(value->length());
+        return value.get() ? static_cast<uint32_t>(value->length()) : 0;
+    }
+
+    size_t getValMemSize() const {
+        return value.get() ? value->getSize() : 0;
     }
 
     time_t getExptime() const {
@@ -292,7 +292,7 @@ public:
     }
 
     size_t size() {
-        return sizeof(Item) + key.size() + value->getSize();
+        return sizeof(Item) + key.size() + getValMemSize();
     }
 
     uint32_t getSeqno() const {
@@ -384,15 +384,15 @@ private:
         value.reset(data);
     }
 
-    uint32_t flags;
-    time_t exptime;
-    std::string key;
     value_t value;
+    std::string key;
     uint64_t cas;
     int64_t id;
+    time_t exptime;
+    uint32_t flags;
+    uint32_t seqno;
     uint16_t vbucketId;
 
-    uint32_t seqno;
     uint8_t meta[22];
 
     static uint64_t nextCas(void) {

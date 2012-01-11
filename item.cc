@@ -21,6 +21,8 @@
 Atomic<uint64_t> Item::casCounter(1);
 
 bool Item::append(const Item &i) {
+    assert(value.get() != NULL);
+    assert(i.getValue().get() != NULL);
     size_t newSize = value->length() + i.getValue()->length();
     Blob *newData = Blob::New(newSize);
     char *newValue = (char *) newData->getData();
@@ -37,6 +39,8 @@ bool Item::append(const Item &i) {
  * @return true if success
  */
 bool Item::prepend(const Item &i) {
+    assert(value.get() != NULL);
+    assert(i.getValue().get() != NULL);
     size_t newSize = value->length() + i.getValue()->length();
     Blob *newData = Blob::New(newSize);
     char *newValue = (char *) newData->getData();

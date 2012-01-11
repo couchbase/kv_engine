@@ -960,7 +960,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::addTAPBackfillItem(const Item &itm,
     if (!vb ||
         vb->getState() == vbucket_state_dead ||
         (vb->getState() == vbucket_state_active &&
-         vb->checkpointManager.getCheckpointConfig().isInconsistentSlaveCheckpoint())) {
+         !engine.getCheckpointConfig().isInconsistentSlaveCheckpoint())) {
         ++stats.numNotMyVBuckets;
         return ENGINE_NOT_MY_VBUCKET;
     }
@@ -995,7 +995,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::addTAPBackfillItem(const Item &itm,
         }
         // FALLTHROUGH
     case WAS_CLEAN:
-        queueDirty(itm.getKey(), itm.getVBucketId(), queue_op_set, itm.getValue(),
+        queueDirty(itm.getKey(), itm.getVBucketId(), queue_op_set, value_t(NULL),
                    itm.getFlags(), itm.getExptime(), itm.getCas(), itm.getSeqno(),
                    row_id, true);
         break;
@@ -1466,9 +1466,6 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteWithMeta(const std::string &k
     }
 
     int bucket_num(0);
-    uint32_t flags = 0;
-    time_t exptime = 0;
-    int rowid = -1;
     LockHolder lh = vb->ht.getLockedBucket(key, &bucket_num);
     StoredValue *v = vb->ht.unlocked_find(key, bucket_num);
     if (!v) {
@@ -1478,31 +1475,32 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteWithMeta(const std::string &k
         } else {
             return ENGINE_KEY_ENOENT;
         }
-    } else {
-        flags = v->getFlags();
-        exptime = v->getExptime();
-        rowid = v->getId();
     }
 
     mutation_type_t delrv = vb->ht.unlocked_softDeleteWithMeta(key, seqno,
                                                                cas, bucket_num);
     ENGINE_ERROR_CODE rv;
+    bool expired = false;
 
     if (delrv == NOT_FOUND || delrv == INVALID_CAS) {
+        if (v && v->isExpired(ep_real_time())) {
+            expired = true;
+        }
         rv = ENGINE_KEY_ENOENT;
     } else if (delrv == IS_LOCKED) {
         rv = ENGINE_TMPFAIL;
-    } else {
+    } else { // WAS_CLEAN or WAS_DIRTY
         rv = ENGINE_SUCCESS;
     }
 
     if (delrv == WAS_CLEAN ||
         delrv == WAS_DIRTY ||
-        (delrv == NOT_FOUND && engine.isDegradedMode())) {
+        (delrv == NOT_FOUND && (expired || engine.isDegradedMode()))) {
         // As replication is interleaved with online restore, deletion of items that might
         // exist in the restore backup files should be queued and replicated.
-        value_t value(NULL);
-        queueDirty(key, vbucket, queue_op_del, value, flags, exptime, cas, seqno, rowid);
+        uint64_t casv = v ? v->getCas() : 0;
+        int rowid = v ? v->getId() : -1;
+        queueDirty(key, vbucket, queue_op_del, value_t(NULL), 0, 0, casv, seqno, rowid);
     }
     return rv;
 }
@@ -1779,9 +1777,6 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::del(const std::string &key,
     }
 
     int bucket_num(0);
-    uint32_t flags = 0, seqno = 0;
-    time_t exptime = 0;
-    int rowid = -1;
     LockHolder lh = vb->ht.getLockedBucket(key, &bucket_num);
     StoredValue *v = vb->ht.unlocked_find(key, bucket_num);
     if (!v) {
@@ -1791,31 +1786,33 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::del(const std::string &key,
         } else {
             return ENGINE_KEY_ENOENT;
         }
-    } else {
-        flags = v->getFlags();
-        exptime = v->getExptime();
-        rowid = v->getId();
-        seqno = v->getSeqno();
     }
 
     mutation_type_t delrv = vb->ht.unlocked_softDelete(key, cas, bucket_num);
     ENGINE_ERROR_CODE rv;
+    bool expired = false;
 
     if (delrv == NOT_FOUND || delrv == INVALID_CAS) {
+        if (v && v->isExpired(ep_real_time())) {
+            expired = true;
+        }
         rv = ENGINE_KEY_ENOENT;
     } else if (delrv == IS_LOCKED) {
         rv = ENGINE_TMPFAIL;
-    } else {
+    } else { // WAS_CLEAN or WAS_DIRTY
         rv = ENGINE_SUCCESS;
     }
+    lh.unlock();
 
     if (delrv == WAS_CLEAN ||
         delrv == WAS_DIRTY ||
-        (delrv == NOT_FOUND && engine.isDegradedMode())) {
+        (delrv == NOT_FOUND && (expired || engine.isDegradedMode()))) {
         // As replication is interleaved with online restore, deletion of items that might
         // exist in the restore backup files should be queued and replicated.
-        value_t value(NULL);
-        queueDirty(key, vbucket, queue_op_del, value, flags, exptime, cas, seqno, rowid);
+        uint64_t casv = v ? v->getCas() : 0;
+        uint32_t seqno = v ? v->getSeqno() : 0;
+        int rowid = v ? v->getId() : -1;
+        queueDirty(key, vbucket, queue_op_del, value_t(NULL), 0, 0, casv, seqno, rowid);
     }
     return rv;
 }
@@ -2209,7 +2206,14 @@ public:
                 double current = static_cast<double>(StoredValue::getCurrentSize(*stats));
                 double lower = static_cast<double>(stats->mem_low_wat);
                 if (v && current > lower) {
-                    if (v->ejectValue(*stats, vb->ht) && vb->getState() == vbucket_state_replica) {
+                    // Check if the key with the same CAS value exists in the open or closed
+                    // checkpoints.
+                    bool foundInCheckpoints =
+                        vb->checkpointManager.isKeyResidentInCheckpoints(v->getKey(),
+                                                                         v->getCas());
+                    if (!foundInCheckpoints &&
+                        v->ejectValue(*stats, vb->ht) &&
+                        vb->getState() == vbucket_state_replica) {
                         ++stats->numReplicaEjects;
                     }
                 }
@@ -2376,32 +2380,14 @@ int EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
 
         if (eligible) {
             assert(dirtyAge < (86400 * 30));
-            stats.dirtyAgeHisto.add(dirtyAge * 1000000);
-            stats.dataAgeHisto.add(dataAge * 1000000);
+            stats.dirtyAgeHisto.add(dirtyAge / 1000);
+            stats.dataAgeHisto.add(dataAge / 1000);
             stats.dirtyAge.set(dirtyAge);
             stats.dataAge.set(dataAge);
             stats.dirtyAgeHighWat.set(std::max(stats.dirtyAge.get(),
                                                stats.dirtyAgeHighWat.get()));
             stats.dataAgeHighWat.set(std::max(stats.dataAge.get(),
                                               stats.dataAgeHighWat.get()));
-
-            if (!deleted) {
-                assert(rowid == v->getId());
-                qi->getItem().setId(rowid);
-                if (qi->getCas() != v->getCas()) {
-                    // New mutation was received while this item was waiting in the queue.
-                    // Update the item's value and meta data with the ones in cache.
-                    qi->getItem().setValue(v->getValue());
-                    qi->getItem().setFlags(v->getFlags());
-                    qi->getItem().setCas(v->getCas());
-                    qi->getItem().setSeqno(v->getSeqno());
-                    qi->getItem().setExpTime(v->getExptime());
-                }
-            }
-
-            if (rowid == -1) {
-                v->setPendingId();
-            }
         } else {
             isDirty = false;
             v->reDirty(dirtied);
@@ -2422,19 +2408,26 @@ int EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
                 rejectQueue->push(qi);
                 ++vb->opsReject;
             } else {
+                assert(rowid == v->getId());
+                if (rowid == -1) {
+                    v->setPendingId();
+                }
+
+                Item itm(qi->getKey(), v->getFlags(), v->getExptime(),
+                         v->getValue(), v->getCas(), rowid, qi->getVBucketId());
+                // TODO: An item should be marked as clean in TransactionContext::commit()
+                // to support a consistent read from disk after the item is ejected.
                 v->markClean(NULL);
                 lh.unlock();
                 BlockTimer timer(rowid == -1 ?
                                  &stats.diskInsertHisto : &stats.diskUpdateHisto,
                                  rowid == -1 ? "disk_insert" : "disk_update",
                                  stats.timingLog);
-
                 PersistenceCallback *cb;
                 cb = new PersistenceCallback(qi, rejectQueue, this,
                                              queued, dirtied, &stats);
-
                 tctx.addCallback(cb);
-                rwUnderlying->set(qi->getItem(), qi->getVBucketVersion(), *cb);
+                rwUnderlying->set(itm, qi->getVBucketVersion(), *cb);
                 if (rowid == -1)  {
                     ++vb->opsCreate;
                 } else {
@@ -2523,14 +2516,10 @@ void EventuallyPersistentStore::queueDirty(const std::string &key,
     if (doPersistence) {
         RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
         if (vb) {
-            QueuedItem *qi = NULL;
-            if (op == queue_op_set) {
-                qi = new QueuedItem(key, value, vbid, op, vbuckets.getBucketVersion(vbid),
-                                    rowid, flags, exptime, cas, seqno);
-            } else {
-                qi = new QueuedItem(key, vbid, op, vbuckets.getBucketVersion(vbid), rowid, flags,
-                                    exptime, cas, seqno);
-            }
+            bool meta_items_only = engine.getCheckpointConfig().canHaveMetaItemsOnly();
+            QueuedItem *qi = new QueuedItem(key, meta_items_only ? value_t(NULL) : value,
+                                            vbid, op, vbuckets.getBucketVersion(vbid),
+                                            rowid, flags, exptime, cas, seqno);
 
             queued_item itm(qi);
             bool rv = tapBackfill ?
@@ -2561,7 +2550,8 @@ int EventuallyPersistentStore::addUnlessThere(const std::string &key,
     if (restore.itemsDeleted.find(key) == restore.itemsDeleted.end() &&
         vb->ht.addUnlessThere(key, vbid, op, value, flags, exptime, cas)) {
 
-        queued_item qi(new QueuedItem(key, value, vbid, op, vbuckets.getBucketVersion(vbid),
+        queued_item qi(new QueuedItem(key, value_t(NULL), vbid, op,
+                                      vbuckets.getBucketVersion(vbid),
                                       -1, flags, exptime, cas));
         std::map<uint16_t, std::vector<queued_item> >::iterator it = restore.items.find(vbid);
         if (it != restore.items.end()) {

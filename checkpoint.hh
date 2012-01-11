@@ -558,6 +558,7 @@ private:
 /**
  * A class containing the config parameters for checkpoint.
  */
+
 class CheckpointConfig {
 public:
     CheckpointConfig()
@@ -565,7 +566,9 @@ public:
           checkpointMaxItems(DEFAULT_CHECKPOINT_ITEMS),
           maxCheckpoints(DEFAULT_MAX_CHECKPOINTS),
           inconsistentSlaveCheckpoint (false),
-          itemNumBasedNewCheckpoint(false) { }
+          itemNumBasedNewCheckpoint(true),
+          keepClosedCheckpoints(false),
+          metaItemsOnly(true) { }
 
     CheckpointConfig(EventuallyPersistentEngine &e);
 
@@ -593,6 +596,10 @@ public:
         return keepClosedCheckpoints;
     }
 
+    bool canHaveMetaItemsOnly() const {
+        return metaItemsOnly;
+    }
+
 protected:
     friend class CheckpointConfigChangeListener;
     friend class EventuallyPersistentEngine;
@@ -615,7 +622,11 @@ protected:
 
     void allowKeepClosedCheckpoints(bool value) {
         keepClosedCheckpoints = value;
-    } 
+    }
+
+    void allowMetaItemsOnly(bool value) {
+        metaItemsOnly = value;
+    }
 
     static void addConfigChangeListener(EventuallyPersistentEngine &engine);
 
@@ -635,7 +646,8 @@ private:
     // Flag indicating if closed checkpoints should be kept in memory if the current memory usage
     // below the high water mark.
     bool keepClosedCheckpoints;
-
+    // Flag indicating if a checkpoint should contain items with keys and meta data only.
+    bool metaItemsOnly;
 };
 
 #endif /* CHECKPOINT_HH */

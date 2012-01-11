@@ -36,6 +36,11 @@
             "default": "2",
             "type": "size_t"
         },
+        "chk_meta_items_only": {
+            "default": "true",
+            "descr": "True if a checkpoint should contain items with keys and meta data only.",
+            "type": "bool"
+        },
         "chk_remover_stime": {
             "default": "5",
             "type": "size_t"
@@ -141,7 +146,7 @@
             "type": "bool"
         },
         "item_num_based_new_chk": {
-            "default": "false",
+            "default": "true",
             "descr": "True if the number of items in the current checkpoint plays a role in a new checkpoint creation",
             "type": "bool"
         },

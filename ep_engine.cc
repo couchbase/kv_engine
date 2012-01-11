@@ -316,6 +316,12 @@ extern "C" {
                 } else {
                     e->getConfiguration().setKeepClosedChks(false);
                 }
+            } else if (strcmp(keyz, "chk_meta_items_only") == 0) {
+                bool chk_meta_items_only = true;
+                if (strcmp(valz, "false") == 0) {
+                    chk_meta_items_only = false;
+                }
+                e->getConfiguration().setChkMetaItemsOnly(chk_meta_items_only);
             } else {
                 *msg = "Unknown config param";
                 rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
@@ -1386,223 +1392,31 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
         return ev.event;
     }
 
-    // Check if there are any checkpoint start / end messages to be sent to the TAP client.
-    queued_item checkpoint_msg = connection->nextCheckpointMessage();
-    if (checkpoint_msg->getOperation() != queue_op_empty) {
-        switch (checkpoint_msg->getOperation()) {
-        case queue_op_checkpoint_start:
-            ret = TAP_CHECKPOINT_START;
-            break;
-        case queue_op_checkpoint_end:
-            ret = TAP_CHECKPOINT_END;
-            break;
-        default:
-            abort();
-        }
-        *vbucket = checkpoint_msg->getVBucketId();
-        Item *it = new Item(checkpoint_msg->getKey(), 0, 0, checkpoint_msg->getValue(),
-                            0, -1, checkpoint_msg->getVBucketId());
+    Item *it = connection->getNextItem(cookie, vbucket, ret);
+    switch (ret) {
+    case TAP_CHECKPOINT_START:
+    case TAP_CHECKPOINT_END:
+    case TAP_MUTATION:
+    case TAP_DELETION:
         *itm = it;
-        return ret;
-    }
-
-    // Check if there are any items fetched from disk for backfill operations.
-    if (connection->hasItem()) {
-        ret = TAP_MUTATION;
-        Item *it = connection->nextFetchedItem();
-
-        ++stats.numTapBGFetched;
-        ++connection->queueDrain;
-
-        // If there's a better version in memory, grab it, else go
-        // with what we pulled from disk.
-        GetValue gv(epstore->get(it->getKey(), it->getVBucketId(),
-                                 cookie, false, false));
-        if (gv.getStatus() == ENGINE_SUCCESS) {
-            delete it;
-            *itm = it = gv.getValue();
-        } else {
-            if (it->isExpired(ep_real_time())) {
-                delete it;
-                retry = true;
-                return TAP_NOOP;
-            }
-            *itm = it;
-        }
-        *vbucket = static_cast<Item*>(*itm)->getVBucketId();
-
-        if (!connection->supportsAck()) {
-            if (gv.getStoredValue() != NULL) {
-                gv.getStoredValue()->incrementNumReplicas();
-            } else {
-                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                 "NULL StoredValue* for key %s, vbucket %d",
-                                 it->getKey().c_str(), it->getVBucketId());
-            }
-        }
-
-        if (!connection->vbucketFilter(*vbucket)) {
-            // We were going to use the item that we received from
-            // disk, but the filter says not to, so we need to get rid
-            // of it now.
-            if (gv.getStatus() != ENGINE_SUCCESS) {
-                delete it;
-            }
-            retry = true;
-            return TAP_NOOP;
-        }
-
-        queued_item qi(new QueuedItem(it->getKey(), it->getValue(), it->getVBucketId(),
-                                      queue_op_set, -1, it->getId(), it->getFlags(),
-                                      it->getExptime(), it->getCas()));
-        connection->addTapLogElement(qi);
-        *es = (void*)it->getMetaData();
-        *nes = it->getNMetaBytes();
-    } else if (connection->hasQueuedItem()) {
-        if (connection->waitForCheckpointMsgAck()) {
-            return TAP_PAUSE;
-        }
-
-        bool shouldPause = false;
-        queued_item qi = connection->next(shouldPause);
-        if (qi->getOperation() == queue_op_empty) {
-            if (shouldPause) {
-                return TAP_PAUSE;
-            }
-            retry = true;
-            return TAP_NOOP;
-        }
-
-        *vbucket = qi->getVBucketId();
-        // The item is from the backfill operation and needs to be fetched from the hashtable.
-        if (qi->getOperation() == queue_op_set && qi->getValue()->length() == 0) {
-            GetValue gv(epstore->get(qi->getKey(), qi->getVBucketId(), cookie,
-                                     false, false));
-            ENGINE_ERROR_CODE r = gv.getStatus();
-            if (r == ENGINE_SUCCESS) {
-                assert(gv.getStoredValue() != NULL);
-                *itm = gv.getValue();
-                ret = TAP_MUTATION;
-                *es = (void*)gv.getValue()->getMetaData();
-                *nes = gv.getValue()->getNMetaBytes();
-
-                if (!connection->supportsAck()) {
-                    gv.getStoredValue()->incrementNumReplicas();
-                }
-
-                ++stats.numTapFGFetched;
-                ++connection->queueDrain;
-            } else if (r == ENGINE_KEY_ENOENT) {
-                // Any deletions after the backfill gets the list of keys will be transmitted
-                // through checkpoints below. Therefore, don't need to transmit it here.
-                retry = true;
-                return TAP_NOOP;
-            } else if (r == ENGINE_EWOULDBLOCK) {
-                connection->queueBGFetch(qi->getKey(), gv.getId(), *vbucket,
-                                         epstore->getVBucketVersion(*vbucket), cookie);
-                // If there's an item ready, return NOOP so we'll come
-                // back immediately, otherwise pause the connection
-                // while we wait.
-                if (connection->hasQueuedItem() || connection->hasItem()) {
-                    retry = true;
-                    return TAP_NOOP;
-                }
-                return TAP_PAUSE;
-            } else {
-                if (r == ENGINE_NOT_MY_VBUCKET) {
-                    getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                     "Trying to fetch an item for a bucket that "
-                                     "doesn't exist on this server <%s>\n",
-                                     connection->getName().c_str());
-                } else {
-                    getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                     "Tap internal error Internal error! <%s>:%d.  "
-                                     "Disconnecting\n", connection->getName().c_str(), r);
-                    return TAP_DISCONNECT;
-                }
-                retry = true;
-                return TAP_NOOP;
-            }
-        } else { // The item is from the checkpoint in the unified queue.
-            if (qi->getOperation() == queue_op_set) {
-                Item *it = new Item(qi->getKey(), qi->getFlags(), qi->getExpiryTime(),
-                                    qi->getValue(), qi->getCas(), qi->getRowId(), qi->getVBucketId());
-                *itm = it;
-                ret = TAP_MUTATION;
-                *es = (void*)it->getMetaData();
-                *nes = it->getNMetaBytes();
-
-                StoredValue *sv = epstore->getStoredValue(qi->getKey(), qi->getVBucketId(), false);
-
-                if (!connection->supportsAck()) {
-                    if (sv && sv->getCas() == it->getCas()) {
-                        sv->incrementNumReplicas();
-                    }
-                }
-
-                ++stats.numTapFGFetched;
-                ++connection->queueDrain;
-            } else if (qi->getOperation() == queue_op_del) {
-                ret = TAP_DELETION;
-                ENGINE_ERROR_CODE r = itemAllocate(cookie, itm, qi->getKey().c_str(),
-                                                   qi->getKey().length(), 0, 0, 0);
-                if (r != ENGINE_SUCCESS) {
-                    getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                     "Failed to allocate memory for deletion of: %s\n",
-                                     qi->getKey().c_str());
-                    ret = TAP_PAUSE;
-                }
-                ++stats.numTapDeletes;
-                ++connection->queueDrain;
-            }
-        }
-
         if (ret == TAP_MUTATION || ret == TAP_DELETION) {
-            connection->addTapLogElement(qi);
+            *es = (void*)it->getMetaData();
+            *nes = it->getNMetaBytes();
         }
+        break;
+    case TAP_NOOP:
+        retry = true;
+        break;
+    default:
+        break;
     }
 
-    if (ret == TAP_PAUSE && connection->complete()) {
-        ev = connection->nextVBucketLowPriority();
-        if (ev.event != TAP_PAUSE) {
-            RCPtr<VBucket> vb = getVBucket(ev.vbucket);
-            vbucket_state_t myState(vb ? vb->getState() : vbucket_state_dead);
-            assert(ev.event == TAP_VBUCKET_SET);
-            if (ev.state == vbucket_state_active && myState == vbucket_state_active &&
-                connection->getTapAckLogSize() < MAX_TAKEOVER_TAP_LOG_SIZE) {
-                // Set vbucket state to dead if the number of items waiting for implicit acks is
-                // less than the threshold.
-                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                 "Vbucket <%d> is going dead.\n",
-                                  ev.vbucket);
-                epstore->setVBucketState(ev.vbucket, vbucket_state_dead);
-                connection->setTakeOverCompletionPhase(true);
-            }
-            if (connection->getTapAckLogSize() > 1) {
-                // We're still waiting for acks for regular items.
-                // Pop the tap log for this vbucket_state_active message and requeue it.
-                connection->popTapLog();
-                TapVBucketEvent lo(TAP_VBUCKET_SET, ev.vbucket, vbucket_state_active);
-                connection->addVBucketLowPriority(lo);
-                ret = TAP_PAUSE;
-            } else {
-                connection->encodeVBucketStateTransition(ev, es, nes, vbucket);
-                ret = ev.event;
-            }
-        } else if (connection->hasPendingAcks()) {
-            ret = TAP_PAUSE;
-        } else {
-            // Transfer stream termination is logged at a higher level
-            // since it's a rather important event.
-            EXTENSION_LOG_LEVEL logLevel(connection->doTakeOver
-                                         ? EXTENSION_LOG_WARNING
-                                         : EXTENSION_LOG_INFO);
-            getLogger()->log(logLevel, NULL,
-                             "Disconnecting completed tap stream %s\n",
-                             connection->getName().c_str());
-            connection->setDisconnect(true);
-            ret = TAP_DISCONNECT;
+    if (ret == TAP_PAUSE && (connection->dumpQueue || connection->doTakeOver)) {
+        TapVBucketEvent vbev = connection->checkDumpOrTakeOverCompletion();
+        if (vbev.event == TAP_VBUCKET_SET) {
+            connection->encodeVBucketStateTransition(vbev, es, nes, vbucket);
         }
+        ret = vbev.event;
     }
 
     return ret;

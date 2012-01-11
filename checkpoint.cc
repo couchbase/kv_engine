@@ -29,6 +29,8 @@ public:
             config.allowItemNumBasedNewCheckpoint(value);
         } else if (key.compare("keep_closed_chks") == 0) {
             config.allowKeepClosedCheckpoints(value);
+        } else if (key.compare("chk_meta_items_only") == 0) {
+            config.allowMetaItemsOnly(value);
         }
     }
 
@@ -1190,6 +1192,8 @@ void CheckpointConfig::addConfigChangeListener(EventuallyPersistentEngine &engin
                               new CheckpointConfigChangeListener(engine.getCheckpointConfig()));
     configuration.addValueChangedListener("keep_closed_chks",
                               new CheckpointConfigChangeListener(engine.getCheckpointConfig()));
+    configuration.addValueChangedListener("chk_meta_items_only",
+                              new CheckpointConfigChangeListener(engine.getCheckpointConfig()));
 }
 
 CheckpointConfig::CheckpointConfig(EventuallyPersistentEngine &e) {
@@ -1200,6 +1204,7 @@ CheckpointConfig::CheckpointConfig(EventuallyPersistentEngine &e) {
     inconsistentSlaveCheckpoint = config.isInconsistentSlaveChk();
     itemNumBasedNewCheckpoint = config.isItemNumBasedNewChk();
     keepClosedCheckpoints = config.isKeepClosedChks();
+    metaItemsOnly = config.isChkMetaItemsOnly();
 }
 
 bool CheckpointConfig::validateCheckpointMaxItemsParam(size_t checkpoint_max_items) {
