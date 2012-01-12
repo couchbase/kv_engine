@@ -1646,11 +1646,21 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
         break;
     case TAP_DELETION:
         {
-            ret = epstore->del(k, 0, vbucket, cookie, true);
+            bool meta = false;
+            uint32_t seqnum = 0;
+            if (nengine == sizeof(uint32_t)) {
+                memcpy(&seqnum, engine_specific, sizeof(seqnum));
+                seqnum = ntohl(seqnum);
+                meta = true;
+            }
+            if (meta) {
+                ret = epstore->deleteWithMeta(k, seqnum, 0, vbucket, cookie, true);
+            } else {
+                ret = epstore->del(k, 0, vbucket, cookie, true);
+            }
             if (ret == ENGINE_SUCCESS) {
                 addDeleteEvent(k, vbucket, 0);
-            }
-            if (ret == ENGINE_KEY_ENOENT) {
+            } else if (ret == ENGINE_KEY_ENOENT) {
                 ret = ENGINE_SUCCESS;
             }
             TapConsumer *tc = dynamic_cast<TapConsumer*>(connection);
