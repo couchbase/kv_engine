@@ -33,7 +33,8 @@ BUILT_SOURCES = generated_configuration.cc \
                 generated_configuration.hh
 CLEANFILES = mbbackup-0001.mbb mbbackup-0002.mbb
 
-EXTRA_DIST = docs management README.markdown win32 Doxyfile LICENSE dtrace
+EXTRA_DIST = Doxyfile LICENSE README.markdown configuration.json docs   \
+             dtrace management win32
 
 noinst_PROGRAMS = sizes gen_config
 
