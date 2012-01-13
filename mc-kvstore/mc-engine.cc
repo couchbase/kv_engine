@@ -119,15 +119,37 @@ public:
         uint16_t rcode = ntohs(res->response.status);
         if (rcode == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
             updateHistogram(ntohl(res->response.bodylen) - 4, true);
-            protocol_binary_response_get *gres;
-            gres = (protocol_binary_response_get*)res;
 
-            // @todo I need to get the exptime somehow, or is that
-            // overwritten with the value we've got in the cache??
-            Item *it = new Item(key, gres->message.body.flags, 0,
-                    gres->bytes + sizeof(gres->bytes),
-                    ntohl(res->response.bodylen) - 4,
-                    ntohll(res->response.cas), -1, vbucket);
+            Item *it;
+            RememberingCallback<GetValue> *rc =
+                dynamic_cast<RememberingCallback<GetValue> *>(&callback);
+            if (rc && rc->val.isPartial()) {
+                protocol_binary_response_get_meta *gres;
+                gres = (protocol_binary_response_get_meta*)res;
+
+                uint32_t s;
+                uint64_t c;
+                uint32_t l;
+                uint32_t f;
+                uint8_t *meta = gres->bytes + sizeof(gres->bytes);
+                if (!Item::decodeMeta(meta, s, c, l, f)) {
+                    getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                        "FATAL: invalid metadata returned from mccouch");
+                    abort();
+                }
+                it = new Item(key.c_str(), (size_t) key.length(), (size_t)l,
+                              f, (time_t)0, c);
+            } else {
+                protocol_binary_response_get *gres;
+                gres = (protocol_binary_response_get*)res;
+
+                // @todo I need to get the exptime somehow, or is that
+                // overwritten with the value we've got in the cache??
+                it = new Item(key, gres->message.body.flags, 0,
+                        gres->bytes + sizeof(gres->bytes),
+                        ntohl(res->response.bodylen) - 4,
+                        ntohll(res->response.cas), -1, vbucket);
+            }
             GetValue rv(it);
             callback.callback(rv);
         } else {
@@ -1128,7 +1150,13 @@ void MemcachedEngine::get(const std::string &key, uint16_t vb,
     protocol_binary_request_get req;
     memset(req.bytes, 0, sizeof(req.bytes));
     req.message.header.request.magic = PROTOCOL_BINARY_REQ;
-    req.message.header.request.opcode = PROTOCOL_BINARY_CMD_GET;
+    RememberingCallback<GetValue> *rc =
+        dynamic_cast<RememberingCallback<GetValue> *> (&cb);
+    if (rc && rc->val.isPartial()) {
+        req.message.header.request.opcode = CMD_GET_META;
+    } else {
+        req.message.header.request.opcode = PROTOCOL_BINARY_CMD_GET;
+    }
     req.message.header.request.keylen = ntohs((uint16_t)key.length());
     req.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
     req.message.header.request.vbucket = ntohs(vb);
