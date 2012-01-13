@@ -424,6 +424,11 @@ enum warmup_source {
     warmup_from_full_dump
 };
 
+typedef enum {
+    BG_FETCH_VALUE,
+    BG_FETCH_METADATA
+} bg_fetch_type_t;
+
 /**
  * Manager of all interaction with the persistence.
  */
@@ -654,15 +659,18 @@ public:
      * @param vbver the version of the vbucket
      * @param rowid the rowid of the record within its shard
      * @param cookie the cookie of the requestor
+     * @param type whether the fetch is for a non-resident value or metadata of
+     *             a (possibly) deleted item
      */
     void bgFetch(const std::string &key,
                  uint16_t vbucket,
                  uint16_t vbver,
                  uint64_t rowid,
-                 const void *cookie);
+                 const void *cookie,
+                 bg_fetch_type_t type = BG_FETCH_VALUE);
 
     /**
-     * Complete a background fetch.
+     * Complete a background fetch of a non resident value or metadata.
      *
      * @param key the key that was fetched
      * @param vbucket the vbucket in which the key lived
@@ -670,13 +678,28 @@ public:
      * @param rowid the rowid of the record within its shard
      * @param cookie the cookie of the requestor
      * @param init the timestamp of when the request came in
+     * @param type whether the fetch is for a non-resident value or metadata of
+     *             a (possibly) deleted item
      */
     void completeBGFetch(const std::string &key,
                          uint16_t vbucket,
                          uint16_t vbver,
                          uint64_t rowid,
                          const void *cookie,
-                         hrtime_t init);
+                         hrtime_t init,
+                         bg_fetch_type_t type);
+
+    /**
+     * Helper function to update stats after completion of a background fetch
+     * for either the value of metadata of a key.
+     *
+     * @param init the time of epstore's initialization
+     * @param start the time when the background fetch was started
+     * @param stop the time when the background fetch completed
+     */
+    void updateBGStats(const hrtime_t init,
+                       const hrtime_t start,
+                       const hrtime_t stop);
 
     RCPtr<VBucket> getVBucket(uint16_t vbid);
 

@@ -139,15 +139,15 @@ class BGFetchCallback : public DispatcherCallback {
 public:
     BGFetchCallback(EventuallyPersistentStore *e,
                     const std::string &k, uint16_t vbid, uint16_t vbv,
-                    uint64_t r, const void *c) :
-        ep(e), key(k), vbucket(vbid), vbver(vbv), rowid(r), cookie(c),
+                    uint64_t r, const void *c, bg_fetch_type_t t) :
+        ep(e), key(k), vbucket(vbid), vbver(vbv), rowid(r), cookie(c), type(t),
         counter(ep->bgFetchQueue), init(gethrtime()) {
         assert(ep);
         assert(cookie);
     }
 
     bool callback(Dispatcher &, TaskId) {
-        ep->completeBGFetch(key, vbucket, vbver, rowid, cookie, init);
+        ep->completeBGFetch(key, vbucket, vbver, rowid, cookie, init, type);
         return false;
     }
 
@@ -164,6 +164,7 @@ private:
     uint16_t                   vbver;
     uint64_t                   rowid;
     const void                *cookie;
+    bg_fetch_type_t            type;
     BGFetchCounter             counter;
 
     hrtime_t init;
@@ -1196,46 +1197,9 @@ bool EventuallyPersistentStore::resetVBucket(uint16_t vbid) {
     return rv;
 }
 
-void EventuallyPersistentStore::completeBGFetch(const std::string &key,
-                                                uint16_t vbucket,
-                                                uint16_t vbver,
-                                                uint64_t rowid,
-                                                const void *cookie,
-                                                hrtime_t init) {
-    hrtime_t start(gethrtime());
-    ++stats.bg_fetched;
-    std::stringstream ss;
-    ss << "Completed a background fetch, now at " << bgFetchQueue.get()
-       << std::endl;
-    getLogger()->log(EXTENSION_LOG_DEBUG, NULL, ss.str().c_str());
-
-    // Go find the data
-    RememberingCallback<GetValue> gcb;
-
-    roUnderlying->get(key, rowid, vbucket, vbver, gcb);
-    gcb.waitForValue();
-    assert(gcb.fired);
-
-    // Lock to prevent a race condition between a fetch for restore and delete
-    LockHolder lh(vbsetMutex);
-
-    RCPtr<VBucket> vb = getVBucket(vbucket);
-    if (vb && vb->getState() == vbucket_state_active && gcb.val.getStatus() == ENGINE_SUCCESS) {
-        int bucket_num(0);
-        LockHolder hlh = vb->ht.getLockedBucket(key, &bucket_num);
-        StoredValue *v = fetchValidValue(vb, key, bucket_num);
-
-        if (v && !v->isResident()) {
-            assert(gcb.val.getStatus() == ENGINE_SUCCESS);
-            v->unlocked_restoreValue(gcb.val.getValue(), stats, vb->ht);
-            assert(v->isResident());
-        }
-    }
-
-    lh.unlock();
-
-    hrtime_t stop = gethrtime();
-
+void EventuallyPersistentStore::updateBGStats(const hrtime_t init,
+                                              const hrtime_t start,
+                                              const hrtime_t stop) {
     if (stop > start && start > init) {
         // skip the measurement if the counter wrapped...
         ++stats.bgNumOperations;
@@ -1253,6 +1217,58 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
         stats.bgMinLoad.setIfLess(l);
         stats.bgMaxLoad.setIfBigger(l);
     }
+}
+
+void EventuallyPersistentStore::completeBGFetch(const std::string &key,
+                                                uint16_t vbucket,
+                                                uint16_t vbver,
+                                                uint64_t rowid,
+                                                const void *cookie,
+                                                hrtime_t init,
+                                                bg_fetch_type_t type) {
+    hrtime_t start(gethrtime());
+    ++stats.bg_fetched;
+    std::stringstream ss;
+    ss << "Completed a background fetch, now at " << bgFetchQueue.get()
+       << std::endl;
+    getLogger()->log(EXTENSION_LOG_DEBUG, NULL, ss.str().c_str());
+
+    // Go find the data
+    RememberingCallback<GetValue> gcb;
+    if (BG_FETCH_METADATA == type) {
+        gcb.val.setPartial();
+    }
+    roUnderlying->get(key, rowid, vbucket, vbver, gcb);
+    gcb.waitForValue();
+    assert(gcb.fired);
+
+    // Lock to prevent a race condition between a fetch for restore and delete
+    LockHolder lh(vbsetMutex);
+
+    RCPtr<VBucket> vb = getVBucket(vbucket);
+    if (vb && vb->getState() == vbucket_state_active) {
+        int bucket_num(0);
+        LockHolder hlh = vb->ht.getLockedBucket(key, &bucket_num);
+        StoredValue *v = fetchValidValue(vb, key, bucket_num, true);
+        if (BG_FETCH_METADATA == type) {
+            if (v) {
+                v->unlocked_restoreMeta(gcb.val.getValue(),
+                                        getTmpItemExpiryWindow(),
+                                        gcb.val.getStatus());
+            }
+        } else {
+            if (v && !v->isResident()) {
+                assert(gcb.val.getStatus() == ENGINE_SUCCESS);
+                v->unlocked_restoreValue(gcb.val.getValue(), stats, vb->ht);
+                assert(v->isResident());
+            }
+        }
+    }
+
+    lh.unlock();
+
+    hrtime_t stop = gethrtime();
+    updateBGStats(init, start, stop);
 
     engine.notifyIOComplete(cookie, gcb.val.getStatus());
     delete gcb.val.getValue();
@@ -1262,10 +1278,11 @@ void EventuallyPersistentStore::bgFetch(const std::string &key,
                                         uint16_t vbucket,
                                         uint16_t vbver,
                                         uint64_t rowid,
-                                        const void *cookie) {
+                                        const void *cookie,
+                                        bg_fetch_type_t type) {
     shared_ptr<BGFetchCallback> dcb(new BGFetchCallback(this, key,
                                                         vbucket, vbver,
-                                                        rowid, cookie));
+                                                        rowid, cookie, type));
     assert(bgFetchQueue > 0);
     std::stringstream ss;
     ss << "Queued a background fetch, now at " << bgFetchQueue.get()
@@ -1345,15 +1362,37 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::getMetaData(const std::string &key,
     StoredValue *v = fetchValidValue(vb, key, bucket_num, true);
 
     if (v) {
-        if (v->isDeleted()) {
-            flags |= ntohl(GET_META_ITEM_DELETED_FLAG);
+        if (StoredValue::state_non_existent_key == v->getId()) {
+            return ENGINE_KEY_ENOENT;
+        } else {
+            if (v->isDeleted()) {
+                flags |= ntohl(GET_META_ITEM_DELETED_FLAG);
+            }
+            cas = v->getCas();
+            Item::encodeMeta(v->getSeqno(), cas, v->valLength(),
+                             v->getFlags(), meta);
+            return ENGINE_SUCCESS;
         }
-        cas = v->getCas();
-        Item::encodeMeta(v->getSeqno(), cas, v->valLength(),
-                         v->getFlags(), meta);
-        return ENGINE_SUCCESS;
     } else {
-        return ENGINE_KEY_ENOENT;
+        // The key wasn't found. However, this may be because it was previously
+        // deleted. So, add a temporary item corresponding to the key to the
+        // hash table and schedule a background fetch for its metadata from the
+        // persistent store. The item's state will be updated after the fetch
+        // completes and the item will automatically expire after a pre-
+        // determined amount of time.
+        add_type_t rv = vb->ht.unlocked_addTempDeletedItem(bucket_num, key);
+        switch(rv) {
+        case ADD_NOMEM:
+            return ENGINE_ENOMEM;
+        case ADD_EXISTS:
+        case ADD_UNDEL:
+            // Since the hashtable bucket is locked, we should never get here
+            abort();
+        case ADD_SUCCESS:
+            bgFetch(key, vbucket, vbuckets.getBucketVersion(vbucket), -1,
+                    cookie, BG_FETCH_METADATA);
+        }
+        return ENGINE_EWOULDBLOCK;
     }
 }
 
