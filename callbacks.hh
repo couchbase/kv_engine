@@ -62,6 +62,10 @@ public:
         return partial;
     }
 
+    void setPartial() {
+        partial = true;
+    }
+
 private:
 
     Item* value;
