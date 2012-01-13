@@ -380,10 +380,11 @@ bool CheckpointManager::registerTAPCursor(const std::string &name, uint64_t chec
         }
     }
 
-    // Get the last closed checkpoint Id. The cursor that grabs items from closed checkpoints only
-    // walks the checkpoint datastructure until it reaches to the end of this last closed
-    // checkpoint. One of the typical use cases is the cursor for the incremental backup client.
-    uint64_t lastClosedChkId = getLastClosedCheckpointId_UNLOCKED();
+    // Get the current open_checkpoint_id. The cursor that grabs items from closed checkpoints
+    // only walks the checkpoint datastructure until it reaches to the beginning of the
+    // checkpoint with open_checkpoint_id. One of the typical use cases is the cursor for the
+    // incremental backup client.
+    uint64_t open_chk_id = getOpenCheckpointId_UNLOCKED();
 
     // If the tap cursor exists, remove its name from the checkpoint that is
     // currently referenced by the tap cursor.
@@ -398,7 +399,7 @@ bool CheckpointManager::registerTAPCursor(const std::string &name, uint64_t chec
         it = --(checkpointList.end());
         CheckpointCursor cursor(name, it, (*it)->begin(),
                             numItems - ((*it)->getNumItems() + 1), // 1 is for checkpoint start item
-                            closedCheckpointOnly, lastClosedChkId);
+                            closedCheckpointOnly, open_chk_id);
         tapCursors[name] = cursor;
         (*it)->registerCursorName(name);
     } else {
@@ -420,7 +421,7 @@ bool CheckpointManager::registerTAPCursor(const std::string &name, uint64_t chec
             }
         }
 
-        CheckpointCursor cursor(name, it, curr, offset, closedCheckpointOnly, lastClosedChkId);
+        CheckpointCursor cursor(name, it, curr, offset, closedCheckpointOnly, open_chk_id);
         tapCursors[name] = cursor;
         // Register the tap cursor's name to the checkpoint.
         (*it)->registerCursorName(name);
@@ -835,10 +836,11 @@ queued_item CheckpointManager::nextItem(const std::string &name, bool &isLastMut
 
 queued_item CheckpointManager::nextItemFromClosedCheckpoint(CheckpointCursor &cursor,
                                                             bool &isLastMutationItem) {
-    // The cursor already passed the last closed checkpoint that it saw when registered.
-    // Simply return an empty item so that the corresponding TAP client can close the connection.
+    // The cursor already reached to the beginning of the checkpoint that had "open" state
+    // when registered. Simply return an empty item so that the corresponding TAP client
+    // can close the connection.
     if (cursor.closedCheckpointOnly &&
-        cursor.lastClosedCheckpointId < (*(cursor.currentCheckpoint))->getId()) {
+        cursor.openChkIdAtRegistration <= (*(cursor.currentCheckpoint))->getId()) {
         queued_item qi(new QueuedItem("", vbucketId, queue_op_empty));
         return qi;
     }
