@@ -1833,6 +1833,8 @@ bool TapProducer::addEvent_UNLOCKED(const queued_item &it) {
         queue->push_back(it);
         ++queueSize;
         queueMemSize.incr(sizeof(queued_item));
+        stats.memOverhead.incr(sizeof(queued_item));
+        assert(stats.memOverhead.get() < GIGANTOR);
         return wasEmpty;
     } else {
         return queue->empty();
@@ -1949,8 +1951,11 @@ void TapProducer::flush() {
 
 void TapProducer::appendQueue(std::list<queued_item> *q) {
     LockHolder lh(queueLock);
+    size_t old_queue_size = queue->size();
     queue->splice(queue->end(), *q);
     queueSize = queue->size();
+    stats.memOverhead.incr(sizeof(queued_item) * (queueSize - old_queue_size));
+    assert(stats.memOverhead.get() < GIGANTOR);
 
     for(std::list<queued_item>::iterator i = q->begin(); i != q->end(); ++i)  {
         queueMemSize.incr((*i)->size());
