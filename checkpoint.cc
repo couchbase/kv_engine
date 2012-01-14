@@ -1049,11 +1049,32 @@ bool CheckpointManager::checkAndAddNewCheckpoint(uint64_t id, bool &pCursorRepos
         } else if ((checkpointList.back()->getId() + 1) == id) {
             isCollapsedCheckpoint = false;
         }
-        if (checkpointList.back()->getState() == opened) {
-            closeOpenCheckpoint_UNLOCKED(checkpointList.back()->getId());
-        }
         pCursorRepositioned = false;
-        return addNewCheckpoint_UNLOCKED(id);
+        if (checkpointList.back()->getState() == opened &&
+            checkpointList.back()->getNumItems() == 0) {
+            // If the current open checkpoint doesn't have any items, simply set its id to
+            // the one from the master node.
+            setOpenCheckpointId_UNLOCKED(id);
+            // Reposition all the cursors in the open checkpoint to the begining position
+            // so that a checkpoint_start message can be sent again with the correct id.
+            const std::set<std::string> &cursors = checkpointList.back()->getCursorNameList();
+            std::set<std::string>::const_iterator cit = cursors.begin();
+            for (; cit != cursors.end(); ++cit) {
+                if ((*cit).compare(persistenceCursor.name) == 0) { // Persistence cursor
+                    persistenceCursor.currentPos = checkpointList.back()->begin();
+                } else if ((*cit).compare(onlineUpdateCursor.name) == 0) { // OnlineUpdate cursor
+                    onlineUpdateCursor.currentPos = checkpointList.back()->begin();
+                } else { // TAP cursors
+                    std::map<const std::string, CheckpointCursor>::iterator mit =
+                        tapCursors.find(*cit);
+                    mit->second.currentPos = checkpointList.back()->begin();
+                }
+            }
+            return true;
+        } else {
+            closeOpenCheckpoint_UNLOCKED(checkpointList.back()->getId());
+            return addNewCheckpoint_UNLOCKED(id);
+        }
     } else {
         bool ret = true;
         bool persistenceCursorReposition = false;
