@@ -54,14 +54,17 @@ bool Item::prepend(const Item &i) {
 
 void Item::fixupJSON(void) {
     const char *ptr = value->getData();
-    while (isspace(*ptr)) {
+    size_t len = value->length();
+    size_t ii = 0;
+    while (ii < len && isspace(*ptr)) {
         ++ptr;
+        ++ii;
     }
 
-    if (*ptr == '{') {
+    if (ii < len && *ptr == '{') {
         // This may be JSON. Unfortunately we don't know if it's zero
         // terminated
-        std::string data(value->getData(), value->getSize());
+        std::string data(value->getData(), value->length());
         cJSON *json = cJSON_Parse(data.c_str());
         if (json != 0) {
             char *packed = cJSON_PrintUnformatted(json);
