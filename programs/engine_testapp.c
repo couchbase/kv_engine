@@ -21,6 +21,8 @@ struct mock_engine {
     TAP_ITERATOR iterator;
 };
 
+static bool color_enabled;
+
 #ifndef WIN32
 static sig_atomic_t alarmed;
 
@@ -517,16 +519,17 @@ static void usage(void) {
     printf("-.                           Print a . for each executed test.");
     printf("\n");
     printf("-h                           Prints this usage text.\n");
+    printf("-v                           verbose output\n");
     printf("\n");
 }
 
-static int report_test(const char *name, enum test_result r, bool quiet) {
+static int report_test(const char *name, enum test_result r, bool quiet, bool compact) {
     int rc = 0;
     char *msg = NULL;
-    bool color_enabled = getenv("TESTAPP_ENABLE_COLOR") != NULL;
     int color = 0;
     char color_str[8] = { 0 };
-    char *reset_color = "\033[m";
+    const char *reset_color = color_enabled ? "\033[m" : "";
+
     switch(r) {
     case SUCCESS:
         msg="OK";
@@ -561,18 +564,29 @@ static int report_test(const char *name, enum test_result r, bool quiet) {
         msg = "PENDING";
         break;
     }
+
     assert(msg);
     if (color_enabled) {
         snprintf(color_str, sizeof(color_str), "\033[%dm", color);
     }
+
     if (quiet) {
         if (r != SUCCESS) {
-            printf("%s:  %s%s%s\n", name, color_str, msg,
-                   color_enabled ? reset_color : "");
+            printf("%s:  %s%s%s\n", name, color_str, msg, reset_color);
             fflush(stdout);
         }
     } else {
-        printf("%s%s%s\n", color_str, msg, color_enabled ? reset_color : "");
+        if (compact && (r == SUCCESS || r == SKIPPED || r == PENDING)) {
+            fprintf(stdout, "\r");
+            int len = strlen(name) + 15; // 15 is the magic "Running xxxx ..." etc
+            for (int ii = 0; ii < len; ++ii) {
+                fprintf(stdout, " ");
+            }
+            fprintf(stdout, "\r");
+            fflush(stdout);
+        } else {
+            printf(" %s%s%s\n", color_str, msg, reset_color);
+        }
     }
     return rc;
 }
@@ -742,6 +756,7 @@ static void clear_test_timeout() {
 
 int main(int argc, char **argv) {
     int c, exitcode = 0, num_cases = 0, timeout = 0;
+    bool verbose = false;
     bool quiet = false;
     bool dot = false;
     const char *engine = NULL;
@@ -769,6 +784,7 @@ int main(int argc, char **argv) {
         void* voidptr;
     } my_teardown_suite = {.teardown_suite = NULL };
 
+    color_enabled = getenv("TESTAPP_ENABLE_COLOR") != NULL;
 
     /* Use unbuffered stdio */
     setbuf(stdout, NULL);
@@ -786,6 +802,7 @@ int main(int argc, char **argv) {
           "q"  /* Be more quiet (only report failures) */
           "."  /* dot mode. */
           "n:"  /* test case to run */
+          "v" /* verbose output */
         ))) {
         switch (c) {
         case 'E':
@@ -805,6 +822,9 @@ int main(int argc, char **argv) {
             break;
         case 'n':
             test_case = optarg;
+            break;
+        case 'v' :
+            verbose = true;
             break;
         case 'q':
             quiet = true;
@@ -884,7 +904,7 @@ int main(int argc, char **argv) {
         if (test_case != NULL && strcmp(test_case, testcases[i].name) != 0)
             continue;
         if (!quiet) {
-            printf("Running %s... ", testcases[i].name);
+            printf("Running %s...", testcases[i].name);
             fflush(stdout);
         } else if(dot) {
             printf(".");
@@ -898,7 +918,7 @@ int main(int argc, char **argv) {
         set_test_timeout(timeout);
         exitcode += report_test(testcases[i].name,
                                 run_test(testcases[i], engine, engine_args),
-                                quiet);
+                                quiet, !verbose);
         clear_test_timeout();
     }
 
