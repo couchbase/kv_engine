@@ -28,18 +28,14 @@
             "default": "30000",
             "type": "size_t"
         },
-        "chk_period": {
-            "default": "3600",
-            "type": "size_t"
-        },
-        "max_checkpoints": {
-            "default": "2",
-            "type": "size_t"
-        },
         "chk_meta_items_only": {
             "default": "true",
             "descr": "True if a checkpoint should contain items with keys and meta data only.",
             "type": "bool"
+        },
+        "chk_period": {
+            "default": "3600",
+            "type": "size_t"
         },
         "chk_remover_stime": {
             "default": "5",
@@ -58,6 +54,17 @@
             "default": "default",
             "dynamic": false,
             "type": "std::string"
+        },
+        "couch_default_batch_size": {
+            "default": "500",
+            "descr": "Default batch size per mccouch worker",
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "max": 10000000,
+                    "min": 1
+                }
+            }
         },
         "couch_host": {
             "default": "localhost",
@@ -81,17 +88,6 @@
             "validator": {
                 "range": {
                     "max": 256,
-                    "min": 1
-                }
-            }
-        },
-        "couch_default_batch_size": {
-            "default": "500",
-            "descr": "Default batch size per mccouch worker",
-            "type": "size_t",
-            "validator": {
-                "range": {
-                    "max": 10000000,
                     "min": 1
                 }
             }
@@ -145,19 +141,23 @@
             "default": "false",
             "type": "bool"
         },
+        "initfile": {
+            "default": "",
+            "type": "string"
+        },
         "item_num_based_new_chk": {
             "default": "true",
             "descr": "True if the number of items in the current checkpoint plays a role in a new checkpoint creation",
             "type": "bool"
         },
-        "initfile": {
-            "default": "",
-            "type": "string"
-        },
         "keep_closed_chks": {
             "default": "false",
             "descr": "True if we want to keep the closed checkpoints for each vbucket unless the memory usage is above high water mark",
             "type": "bool"
+        },
+        "max_checkpoints": {
+            "default": "2",
+            "type": "size_t"
         },
         "max_item_size": {
             "default": "(20 * 1024 * 1024)",
@@ -235,11 +235,6 @@
             "default": "",
             "type": "std::string"
         },
-        "sync_on_persist": {
-            "type": "bool",
-            "default": "true",
-            "descr": "Do we allow syncing on persistence events?"
-        },
         "sync_cmd_timeout": {
             "default": "2500",
             "descr": "The timeout for SYNC requests in (ms)",
@@ -250,6 +245,11 @@
                     "min": 10
                 }
             }
+        },
+        "sync_on_persist": {
+            "default": "true",
+            "descr": "Do we allow syncing on persistence events?",
+            "type": "bool"
         },
         "tap_ack_grace_period": {
             "default": "300",
@@ -279,13 +279,15 @@
             "default": "5.0",
             "type": "float"
         },
-        "tap_requeue_sleep_time": {
-            "default": "0.1",
-            "type": "float"
-        },
         "tap_bg_max_pending": {
             "default": "500",
             "type": "size_t"
+        },
+        "tap_conn_map_notifications": {
+            "default": "false",
+            "descr": "Should TapConnMap use notifications or not",
+            "dynamic": false,
+            "type": "bool"
         },
         "tap_keepalive": {
             "default": "0",
@@ -296,22 +298,9 @@
             "descr": "Number of seconds between a noop is sent on an idle connection",
             "type": "size_t"
         },
-        "tap_conn_map_notifications": {
-            "default": "false",
-            "descr": "Should TapConnMap use notifications or not",
-            "dynamic": false,
-            "type": "bool"
-        },
-        "tap_throttle_threshold": {
-            "default": "90",
-            "descr": "Percentage of max mem at which we begin NAKing tap input.",
-            "type": "size_t",
-            "validator": {
-                "range": {
-                    "max": 100,
-                    "min": 0
-                }
-            }
+        "tap_requeue_sleep_time": {
+            "default": "0.1",
+            "type": "float"
         },
         "tap_throttle_queue_cap": {
             "default": "1000000",
@@ -320,6 +309,17 @@
             "validator": {
                 "range": {
                     "max": 100000000,
+                    "min": 0
+                }
+            }
+        },
+        "tap_throttle_threshold": {
+            "default": "90",
+            "descr": "Percentage of max mem at which we begin NAKing tap input.",
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "max": 100,
                     "min": 0
                 }
             }
