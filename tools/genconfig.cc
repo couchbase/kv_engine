@@ -96,6 +96,36 @@ static string getRangeValidatorCode(const std::string &key, cJSON *o) {
     return ss.str();
 }
 
+static string getEnumValidatorCode(const std::string &key, cJSON *o) {
+
+    if (o->type != cJSON_Array) {
+        cerr << "Incorrect enum value for " << key
+             << ".  Array of values is required." << endl;
+        exit(1);
+    }
+
+    if (cJSON_GetArraySize(o) < 1) {
+        cerr << "At least one validator enum element is required ("
+             << key << ")" << endl;
+        exit(1);
+    }
+
+    stringstream ss;
+    ss << "(new EnumValidator())";
+
+    for (cJSON *p(o->child); p; p = p->next) {
+        if (p->type != cJSON_String) {
+            cerr << "Incorrect validator for " << key
+                 << ", all enum entries must be strings." << endl;
+            exit(1);
+        }
+        char *value = cJSON_Print(p);
+        ss << "\n\t\t->add(" << value << ")";
+        free(value);
+    }
+    return ss.str();
+}
+
 static void initialize() {
     prototypes << "// ###########################################" << endl
                << "// # DO NOT EDIT! THIS IS A GENERATED FILE " << endl
@@ -105,6 +135,7 @@ static void initialize() {
                    << "// # DO NOT EDIT! THIS IS A GENERATED FILE " << endl
                    << "// ###########################################" << endl;
     validators["range"] = getRangeValidatorCode;
+    validators["enum"] = getEnumValidatorCode;
     getters["std::string"] = "getString";
     getters["bool"] = "getBool";
     getters["size_t"] = "getInteger";

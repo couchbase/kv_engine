@@ -8,7 +8,14 @@
         "backend": {
             "default": "sqlite",
             "dynamic": false,
-            "type": "std::string"
+            "type": "std::string",
+            "validator": {
+                "enum": [
+                    "blackhole",
+                    "couchdb",
+                    "sqlite"
+                ]
+            }
         },
         "bg_fetch_delay": {
             "default": "0",

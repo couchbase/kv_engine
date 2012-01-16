@@ -19,6 +19,7 @@
 
 #include <string>
 #include <map>
+#include <set>
 #include <assert.h>
 #include <iostream>
 
@@ -187,6 +188,24 @@ public:
 private:
     float lower;
     float upper;
+};
+
+class EnumValidator : public ValueChangedValidator {
+public:
+    EnumValidator() {}
+
+    EnumValidator *add(const char *s) {
+        acceptable.insert(std::string(s));
+        return this;
+    }
+
+    virtual bool validateString(const std::string &key, const char *value) {
+        (void)key;
+        return acceptable.find(std::string(value)) != acceptable.end();
+    }
+
+private:
+    std::set<std::string> acceptable;
 };
 
 class Configuration {
