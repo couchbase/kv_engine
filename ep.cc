@@ -2356,7 +2356,6 @@ int EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
         // from hashtable and remove the old item from database.
         v->clearId();
         deleted = true;
-        qi->setOperation(queue_op_del);
     }
 
     if (isDirty) {
