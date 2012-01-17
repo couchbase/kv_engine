@@ -405,7 +405,7 @@ public:
      * Clear the ID (after disk deletion when an object was reused).
      */
     void clearId() {
-        id = -1;
+        id = state_id_cleared;
         assert(!hasId());
     }
 
@@ -418,7 +418,7 @@ public:
      * @return true if the item is waiting for an ID.
      */
     bool isPendingId() {
-        return id == -2;
+        return id == state_id_pending;
     }
 
     /**
@@ -427,7 +427,7 @@ public:
     void setPendingId() {
         assert(!hasId());
         assert(!isPendingId());
-        id = -2;
+        id = state_id_pending;
     }
 
     /**
@@ -435,7 +435,7 @@ public:
      */
     void clearPendingId() {
         if (isPendingId()) {
-            id = -1;
+            id = state_id_cleared;
         }
     }
 
@@ -574,6 +574,9 @@ public:
      * Set the memory threshold on the current bucket quota for accepting a new mutation
      */
     static void setMutationMemoryThreshold(double memThreshold);
+
+    static const int64_t state_id_cleared;
+    static const int64_t state_id_pending;
 
 private:
 
