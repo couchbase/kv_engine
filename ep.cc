@@ -1796,7 +1796,11 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::del(const std::string &key,
         if (v && v->isExpired(ep_real_time())) {
             expired = true;
         }
-        rv = ENGINE_KEY_ENOENT;
+        if (delrv == INVALID_CAS) {
+            rv = ENGINE_KEY_EEXISTS;
+        } else {
+            rv = ENGINE_KEY_ENOENT;
+        }
     } else if (delrv == IS_LOCKED) {
         rv = ENGINE_TMPFAIL;
     } else { // WAS_CLEAN or WAS_DIRTY

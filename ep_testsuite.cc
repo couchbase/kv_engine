@@ -233,6 +233,7 @@ static bool get_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
         fprintf(stderr, "get_item_info failed\n");
         return false;
     }
+
     h1->release(h, NULL, i);
     return true;
 }
@@ -850,8 +851,13 @@ static enum test_result test_wrong_vb_mutation(ENGINE_HANDLE *h, ENGINE_HANDLE_V
                                                ENGINE_STORE_OPERATION op) {
     item *i = NULL;
     int numNotMyVBucket = get_int_stat(h, h1, "ep_num_not_my_vbuckets");
+    uint64_t cas = 11;
+    if (op == OPERATION_ADD) {
+        // Add operation with cas != 0 doesn't make sense
+        cas = 0;
+    }
     check(store(h, h1, NULL, op,
-                "key", "somevalue", &i, 11, 1) == ENGINE_NOT_MY_VBUCKET,
+                "key", "somevalue", &i, cas, 1) == ENGINE_NOT_MY_VBUCKET,
         "Expected not_my_vbucket");
     wait_for_stat_change(h, h1, "ep_num_not_my_vbuckets", numNotMyVBucket);
     return SUCCESS;
@@ -864,8 +870,13 @@ static enum test_result test_pending_vb_mutation(ENGINE_HANDLE *h, ENGINE_HANDLE
     item *i = NULL;
     check(set_vbucket_state(h, h1, 1, vbucket_state_pending), "Failed to set vbucket state.");
     check(verify_vbucket_state(h, h1, 1, vbucket_state_pending), "Bucket state was not set to pending.");
+    uint64_t cas = 11;
+    if (op == OPERATION_ADD) {
+        // Add operation with cas != 0 doesn't make sense..
+        cas = 0;
+    }
     check(store(h, h1, cookie, op,
-                "key", "somevalue", &i, 11, 1) == ENGINE_EWOULDBLOCK,
+                "key", "somevalue", &i, cas, 1) == ENGINE_EWOULDBLOCK,
         "Expected woodblock");
     testHarness.destroy_cookie(cookie);
     return SUCCESS;
@@ -877,8 +888,14 @@ static enum test_result test_replica_vb_mutation(ENGINE_HANDLE *h, ENGINE_HANDLE
     check(set_vbucket_state(h, h1, 1, vbucket_state_replica), "Failed to set vbucket state.");
     check(verify_vbucket_state(h, h1, 1, vbucket_state_replica), "Bucket state was not set to replica.");
     int numNotMyVBucket = get_int_stat(h, h1, "ep_num_not_my_vbuckets");
+
+    uint64_t cas = 11;
+    if (op == OPERATION_ADD) {
+        // performing add with a CAS != 0 doesn't make sense...
+        cas = 0;
+    }
     check(store(h, h1, NULL, op,
-                "key", "somevalue", &i, 11, 1) == ENGINE_NOT_MY_VBUCKET,
+                "key", "somevalue", &i, cas, 1) == ENGINE_NOT_MY_VBUCKET,
         "Expected not my vbucket");
     wait_for_stat_change(h, h1, "ep_num_not_my_vbuckets", numNotMyVBucket);
     return SUCCESS;
@@ -1116,6 +1133,28 @@ static enum test_result test_add(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
           "Failed to add value again.");
 
     return check_key_value(h, h1, "key", "newvalue", 8);
+}
+
+static enum test_result test_add_add_with_cas(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    item *i = NULL;
+    check(store(h, h1, NULL, OPERATION_ADD, "key",
+                "somevalue", &i) == ENGINE_SUCCESS,
+          "Failed set.");
+    check_key_value(h, h1, "key", "somevalue", 9);
+    item_info info;
+    info.nvalue = 1;
+    info.nvalue = 1;
+    check(h1->get_item_info(h, NULL, i, &info) == true,
+          "Should be able to get info");
+
+    item *i2 = NULL;
+    ENGINE_ERROR_CODE ret;
+    check((ret = store(h, h1, NULL, OPERATION_ADD, "key",
+                       "somevalue", &i2, info.cas)) == ENGINE_KEY_EEXISTS,
+          "Should not be able to add the key two times");
+
+    h1->release(h, NULL, i);
+    return SUCCESS;
 }
 
 static enum test_result test_replace(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
@@ -1491,6 +1530,23 @@ static enum test_result test_set_delete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
     check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key"), "Expected missing key");
     wait_for_flusher_to_settle(h, h1);
     check(get_int_stat(h, h1, "curr_items") == 0, "Deleting left tombstone.");
+    return SUCCESS;
+}
+
+static enum test_result test_set_delete_invalid_cas(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    item *i = NULL;
+    check(store(h, h1, NULL, OPERATION_SET, "key",
+                "somevalue", &i) == ENGINE_SUCCESS,
+          "Failed set.");
+    check_key_value(h, h1, "key", "somevalue", 9);
+    item_info info;
+    info.nvalue = 1;
+    info.nvalue = 1;
+    check(h1->get_item_info(h, NULL, i, &info) == true,
+          "Should be able to get info");
+
+    check(h1->remove(h, NULL, "key", 3, info.cas + 1, 0) == ENGINE_KEY_EEXISTS,
+          "Didn't expect to be able to remove the item with wrong cas");
     return SUCCESS;
 }
 
@@ -5089,6 +5145,9 @@ engine_test_t* get_tests(void) {
                  NULL, prepare, cleanup, BACKEND_ALL),
         TestCase("add", test_add, NULL, teardown, NULL, prepare, cleanup,
                  BACKEND_ALL),
+        TestCase("add+add(same cas)", test_add_add_with_cas, NULL,
+                 teardown, NULL, prepare, cleanup,
+                 BACKEND_ALL),
         TestCase("cas", test_cas, NULL, teardown, NULL, prepare, cleanup,
                  BACKEND_ALL),
         TestCase("append", test_append, NULL, teardown, NULL, prepare, cleanup,
@@ -5114,6 +5173,9 @@ engine_test_t* get_tests(void) {
         TestCase("delete", test_delete, NULL, teardown, NULL, prepare, cleanup,
                  BACKEND_ALL),
         TestCase("set/delete", test_set_delete, NULL, teardown, NULL,
+                 prepare, cleanup, BACKEND_ALL),
+        TestCase("set/delete (invalid cas)", test_set_delete_invalid_cas,
+                 NULL, teardown, NULL,
                  prepare, cleanup, BACKEND_ALL),
         TestCase("delete/set/delete", test_delete_set, NULL, teardown, NULL,
                  prepare, cleanup, BACKEND_ALL),

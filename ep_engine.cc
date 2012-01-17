@@ -1249,6 +1249,11 @@ ENGINE_ERROR_CODE  EventuallyPersistentEngine::store(const void *cookie,
             return ENGINE_TMPFAIL;
         }
 
+        if (it->getCas() != 0) {
+            // Adding an item with a cas value doesn't really make sense...
+            return ENGINE_KEY_EEXISTS;
+        }
+
         ret = epstore->add(*it, cookie);
         if (ret == ENGINE_SUCCESS) {
             *cas = it->getCas();
