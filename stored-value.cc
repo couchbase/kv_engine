@@ -412,6 +412,54 @@ const char* HashTable::getDefaultStorageValueTypeStr() {
     return rv;
 }
 
+add_type_t HashTable::unlocked_add(int &bucket_num,
+                                   const Item &val,
+                                   bool isDirty,
+                                   bool storeVal,
+                                   bool resetVal) {
+    StoredValue *v = unlocked_find(val.getKey(), bucket_num, true);
+    add_type_t rv = ADD_SUCCESS;
+    if (v && !v->isDeleted() && !v->isExpired(ep_real_time())) {
+        rv = ADD_EXISTS;
+    } else {
+        Item &itm = const_cast<Item&>(val);
+        itm.setCas();
+        if (!StoredValue::hasAvailableSpace(stats, itm)) {
+            return ADD_NOMEM;
+        }
+        if (v) {
+            rv = (v->isDeleted() || v->isExpired(ep_real_time())) ? ADD_UNDEL : ADD_SUCCESS;
+            v->setValue(itm, stats, *this, false);
+            if (isDirty) {
+                v->markDirty();
+            } else {
+                v->markClean(NULL);
+            }
+        } else {
+            v = valFact(itm, values[bucket_num], *this, isDirty);
+            values[bucket_num] = v;
+            ++numItems;
+
+            /**
+             * Possibly, this item is being recreated. Conservatively assign
+             * it a seqno that is greater than the greatest seqno of all
+             * deleted items seen so far.
+             */
+            uint32_t seqno = getMaxDeletedSeqno() + 1;
+            v->setSeqno(seqno);
+            itm.setSeqno(seqno);
+        }
+        if (!storeVal) {
+            v->ejectValue(stats, *this);
+        }
+        if (resetVal) {
+            v->resetValue();
+        }
+    }
+
+    return rv;
+}
+
 void StoredValue::setMutationMemoryThreshold(double memThreshold) {
     if (memThreshold > 0.0 && memThreshold <= 1.0) {
         mutation_mem_threshold = memThreshold;

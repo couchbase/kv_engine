@@ -1179,45 +1179,26 @@ public:
         assert(isActive());
         int bucket_num(0);
         LockHolder lh = getLockedBucket(val.getKey(), &bucket_num);
-        StoredValue *v = unlocked_find(val.getKey(), bucket_num, true);
-        add_type_t rv = ADD_SUCCESS;
-        if (v && !v->isDeleted() && !v->isExpired(ep_real_time())) {
-            rv = ADD_EXISTS;
-        } else {
-            Item &itm = const_cast<Item&>(val);
-            itm.setCas();
-            if (!StoredValue::hasAvailableSpace(stats, itm)) {
-                return ADD_NOMEM;
-            }
-            if (v) {
-                rv = (v->isDeleted() || v->isExpired(ep_real_time())) ? ADD_UNDEL : ADD_SUCCESS;
-                v->setValue(itm, stats, *this, false);
-                if (isDirty) {
-                    v->markDirty();
-                } else {
-                    v->markClean(NULL);
-                }
-            } else {
-                v = valFact(itm, values[bucket_num], *this, isDirty);
-                values[bucket_num] = v;
-                ++numItems;
-
-                /**
-                 * Possibly, this item is being recreated. Conservatively assign
-                 * it a seqno that is greater than the greatest seqno of all
-                 * deleted items seen so far.
-                 */
-                uint32_t seqno = getMaxDeletedSeqno() + 1;
-                v->setSeqno(seqno);
-                itm.setSeqno(seqno);
-            }
-            if (!storeVal) {
-                v->ejectValue(stats, *this);
-            }
-        }
-
-        return rv;
+        return unlocked_add(bucket_num, val, isDirty, storeVal);
     }
+
+    /**
+     * Unlocked version of the add() method.
+     *
+     * @param bucket_num the locked partition where the key belongs
+     * @param val the item to store
+     * @param isDirty true if the item should be marked dirty on store
+     * @param storeVal true if the value should be stored (paged-in)
+     * @param resetVal false if the value should be reset (marked as deleted)
+     *                       soon after being added. Useful for adding temporary
+     *                       items during get-meta processing.
+     * @return an indication of what happened
+     */
+    add_type_t unlocked_add(int &bucket_num,
+                            const Item &val,
+                            bool isDirty = true,
+                            bool storeVal = true,
+                            bool resetVal = false);
 
     /**
      * Mark the given record logically deleted.
