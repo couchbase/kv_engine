@@ -2481,13 +2481,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doMemoryStats(const void *cookie,
     add_casted_stat("ep_oom_errors", stats.oom_errors, add_stat, cookie);
     add_casted_stat("ep_tmp_oom_errors", stats.tmp_oom_errors, add_stat, cookie);
 
-    std::map<std::string, size_t> allocator_stats;
-    MemoryAllocatorStats::getAllocatorStats(allocator_stats);
-    std::map<std::string, size_t>::iterator it = allocator_stats.begin();
-    for (; it != allocator_stats.end(); ++it) {
-        add_casted_stat(it->first.c_str(), it->second, add_stat, cookie);
-    }
-
     return ENGINE_SUCCESS;
 }
 
