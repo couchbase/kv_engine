@@ -31,7 +31,7 @@ def parse_args(args):
     enable_backfill = False
 
     try:
-        opts, args = getopt.getopt(args, 'h:r:d:l:c:b', ['help'])
+        opts, args = getopt.getopt(args, 'h:r:d:l:cb', ['help'])
     except getopt.GetoptError, e:
         usage(e.msg)
 

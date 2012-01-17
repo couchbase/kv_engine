@@ -101,6 +101,7 @@ public:
      */
     ~DecrementalRestorer() {
         if (db != NULL) {
+            (void)sqlite3_finalize(statement);
             (void)sqlite3_close(db);
         }
     }
@@ -143,6 +144,7 @@ public:
         if (sqlite3_prepare_v2(db, query,
                                strlen(query),
                                &statement, NULL) != SQLITE_OK) {
+            (void)sqlite3_finalize(statement);
             (void)sqlite3_close(db);
             db = NULL;
             throw std::string("Failed to prepare statement");
@@ -161,6 +163,7 @@ public:
             }
         }
 
+        (void)sqlite3_finalize(statement);
         (void)sqlite3_close(db);
         db = NULL;
     }

@@ -3322,10 +3322,13 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::handleRestoreCmd(const void *cooki
 {
     LockHolder lh(restore.mutex);
     if (restore.manager == NULL) { // we need another "mode" variable
-        return sendResponse(response,NULL, 0, NULL, 0, NULL, 0,
-                            PROTOCOL_BINARY_RAW_BYTES,
-                            PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED,
-                            0, cookie);
+        std::string msg = "Restore mode is not enabled.";
+        if (response(NULL, 0, NULL, 0, msg.c_str(), msg.length(),
+                     PROTOCOL_BINARY_RAW_BYTES,
+                     PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0, cookie)) {
+            return ENGINE_SUCCESS;
+        }
+        return ENGINE_FAILED;
     }
 
     if (request->request.opcode == CMD_RESTORE_FILE) {
