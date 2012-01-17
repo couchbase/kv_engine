@@ -274,6 +274,14 @@ public:
         increaseCurrentSize(stats, newSize - value->length());
     }
 
+    /**
+     * Reset the value of this item.
+     */
+    void resetValue() {
+        assert(!isDeleted());
+        value.reset();
+    }
+
     size_t valLength() {
         if (isDeleted()) {
             return 0;
@@ -541,7 +549,7 @@ public:
         size_t oldsize = size();
         size_t old_valsize = value->length();
 
-        value.reset();
+        resetValue();
         markDirty();
         setCas(getCas() + 1);
 
