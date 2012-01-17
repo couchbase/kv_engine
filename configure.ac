@@ -190,19 +190,6 @@ AS_IF([test "$with_docs" = "yes"],
   ])
 AM_CONDITIONAL(BUILD_DOCS, test "$with_docs" = "yes")
 
-AC_ARG_WITH([tcmalloc-headers],
-   [AS_HELP_STRING([--with-tcmalloc-headers],
-     [Location of the tcmalloc header files])],
-   [ac_cv_with_tcmalloc_headers="$withval"],
-   [ac_cv_with_tcmalloc_headers=""])
-
-AS_IF(test "x${ac_cv_with_tcmalloc_headers}" != "x",
-     [CPPFLAGS="-I${ac_cv_with_tcmalloc_headers} $CPPFLAGS" ])
-
-AC_CHECK_HEADERS(google/malloc_extension.h)
-
-AM_CONDITIONAL(BUILD_TCMALLOC_STATS, test "x${ac_cv_with_tcmalloc_headers}" != "x")
-
 dnl ----------------------------------------------------------------------------
 
 AC_CONFIG_FILES(Makefile wrapper/wrapper)
