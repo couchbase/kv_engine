@@ -1201,6 +1201,19 @@ public:
                             bool resetVal = false);
 
     /**
+     * Add a temporary item to the hash table iff it doesn't already exist.
+     *
+     * NOTE: This method should be called after acquiring the correct
+     *       bucket/partition lock.
+     *
+     * @param bucket_num the locked partition where the key belongs
+     * @param key the key for which a temporary item needs to be added
+     * @return an indication of what happened
+     */
+    add_type_t unlocked_addTempDeletedItem(int &bucket_num,
+                                           const std::string &key);
+
+    /**
      * Mark the given record logically deleted.
      *
      * @param key the key of the item to delete

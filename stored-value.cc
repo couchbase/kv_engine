@@ -460,6 +460,13 @@ add_type_t HashTable::unlocked_add(int &bucket_num,
     return rv;
 }
 
+add_type_t HashTable::unlocked_addTempDeletedItem(int &bucket_num,
+                                                  const std::string &key) {
+    assert(isActive());
+    Item itm(key.c_str(), key.length(), (size_t)0, (uint32_t)0, (time_t)0);
+    return unlocked_add(bucket_num, itm, false, true, true);
+}
+
 void StoredValue::setMutationMemoryThreshold(double memThreshold) {
     if (memThreshold > 0.0 && memThreshold <= 1.0) {
         mutation_mem_threshold = memThreshold;
