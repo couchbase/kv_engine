@@ -578,7 +578,7 @@ static int report_test(const char *name, enum test_result r, bool quiet, bool co
     } else {
         if (compact && (r == SUCCESS || r == SKIPPED || r == PENDING)) {
             fprintf(stdout, "\r");
-            int len = strlen(name) + 15; // 15 is the magic "Running xxxx ..." etc
+            int len = strlen(name) + 27; // for "Running [0/0] xxxx ..." etc
             for (int ii = 0; ii < len; ++ii) {
                 fprintf(stdout, " ");
             }
@@ -904,7 +904,8 @@ int main(int argc, char **argv) {
         if (test_case != NULL && strcmp(test_case, testcases[i].name) != 0)
             continue;
         if (!quiet) {
-            printf("Running %s...", testcases[i].name);
+            printf("Running [%04d/%04d]: %s...", i, num_cases,
+                   testcases[i].name);
             fflush(stdout);
         } else if(dot) {
             printf(".");
