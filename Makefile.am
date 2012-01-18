@@ -496,7 +496,7 @@ ep_la-probes.lo: $(ep_la_OBJECTS) dtrace/probes.h
 	sed -e s,item,probes,g ep_la-item.lo > ep_la-probes.lo
 
 EP_TESTSUITE_OBJS=$(ep_testsuite_la_OBJECTS:%lo=.libs/%o)
-ep_testsuite_la-probes.lo: $(ep_testsuite_OBJECTS) dtrace/probes.h
+ep_testsuite_la-probes.lo: $(ep_testsuite_la_OBJECTS) dtrace/probes.h
 	$(DTRACE) $(DTRACEFLAGS) -G \
                   -o .libs/ep_testsuite_la-probes.o \
                   -s ${srcdir}/dtrace/probes.d \
