@@ -186,7 +186,7 @@ public:
     }
 
     virtual void connectionReset() {
-        mutation_result p(0, -1);
+        mutation_result p(-1, -1);
         callback.callback(p);
     }
 
