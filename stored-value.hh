@@ -1156,6 +1156,9 @@ public:
         StoredValue *v = unlocked_find(key, bucket_num);
         if (v) {
             if (v->isExpired(ep_real_time())) {
+                if (!v->isResident()) {
+                    --numNonResidentItems;
+                }
                 v->del(stats, *this);
                 return rv;
             }
