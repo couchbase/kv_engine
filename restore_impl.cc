@@ -25,7 +25,7 @@
 #endif
 
 static const char *query =
-    "select cpoint_op.vbucket_id,op,key,flg,exp,cas,val "
+    "select cpoint_op.vbucket_id,op,key,flg,exp,cas,val,cpoint_op.cpoint_id "
     "from cpoint_state "
     "  join cpoint_op on (cpoint_op.vbucket_id = cpoint_state.vbucket_id and"
     "                     cpoint_op.cpoint_id = cpoint_state.cpoint_id) "
@@ -39,6 +39,7 @@ static const int flag_idx = 3;
 static const int exp_idx = 4;
 static const int cas_idx = 5;
 static const int val_idx = 6;
+static const int cpoint_idx = 7;
 
 extern "C" {
     static void *restoreThreadMain(void *arg);
@@ -90,7 +91,7 @@ public:
                         const std::string &dbname) :
         db(NULL), statement(NULL), engine(theEngine),
         store(*engine.getEpStore()), file(dbname),
-        expired(0), wrongVBucket(0), restored(0), skipped(0), busy(0)
+        expired(0), wrongVBucket(0), restored(0), skipped(0), busy(0), restore_cpoint(0)
     {
         // None needed
     }
@@ -113,6 +114,10 @@ public:
 
     uint32_t getNumBusy() const {
         return busy;
+    }
+
+    uint32_t getRestoreCheckpoint() const {
+        return restore_cpoint;
     }
 
     uint32_t getNumRestored() const {
@@ -194,6 +199,11 @@ private:
 
         uint16_t vbid =  (uint16_t)sqlite3_column_int(statement,
                                                       vbucket_id_idx);
+        if (!restore_cpoint) {
+            restore_cpoint = (uint32_t)sqlite3_column_int(statement,
+                                                            cpoint_idx);
+        }
+
         int r = store.addUnlessThere(key, vbid, op, value,
                                      sqlite3_column_int(statement, flag_idx),
                                      sqlite3_column_int(statement, exp_idx),
@@ -217,6 +227,7 @@ private:
     uint32_t restored;
     uint32_t skipped;
     uint32_t busy;
+    uint32_t restore_cpoint;
 };
 
 class RestoreManagerImpl : public RestoreManager {
@@ -229,6 +240,7 @@ public:
         restored(0),
         skipped(0),
         busy(0),
+        restore_cpoint(0),
         state(&State::Uninitialized)
     {
         // None needed
@@ -304,17 +316,21 @@ public:
 
         LockHolder lh(mutex);
         addStat(cookie, "state", state->toString(), add_stat);
+
         if (errorMsg.length() > 0) {
             addStat(cookie, "last_error", errorMsg, add_stat);
         }
 
         if (instance == NULL) {
+            addStat(cookie, "restore_checkpoint", restore_cpoint, add_stat);
             addStat(cookie, "number_busy", busy, add_stat);
             addStat(cookie, "number_skipped", skipped, add_stat);
             addStat(cookie, "number_restored", restored, add_stat);
             addStat(cookie, "number_expired", expired, add_stat);
             addStat(cookie, "number_wrong_vbucket", wrongVBucket, add_stat);
         } else {
+            addStat(cookie, "restore_checkpoint", restore_cpoint ? restore_cpoint :
+                                        instance->getRestoreCheckpoint(), add_stat);
             addStat(cookie, "file", instance->getDbFile(), add_stat);
             addStat(cookie, "number_busy", instance->getNumBusy() + busy,
                     add_stat);
@@ -358,6 +374,9 @@ private:
         skipped += instance->getNumSkipped();
         busy += instance->getNumBusy();
         restored += instance->getNumRestored();
+        if (!restore_cpoint) {
+            restore_cpoint = instance->getRestoreCheckpoint();
+        }
     }
 
     void reap_UNLOCKED() throw (std::string) {
@@ -396,6 +415,7 @@ private:
     uint32_t restored;
     uint32_t skipped;
     uint32_t busy;
+    uint32_t restore_cpoint;
 
     // should we abort or not?
     Atomic<bool> terminate;
