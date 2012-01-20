@@ -1482,6 +1482,7 @@ void EventuallyPersistentStore::requeueRejectedItems(std::queue<queued_item> *re
 void EventuallyPersistentStore::completeFlush(rel_time_t flush_start) {
     LockHolder lh(vbsetMutex);
     size_t numOfVBuckets = vbuckets.getSize();
+    bool schedule_vb_snapshot = false;
     for (size_t i = 0; i < numOfVBuckets; ++i) {
         assert(i <= std::numeric_limits<uint16_t>::max());
         uint16_t vbid = static_cast<uint16_t>(i);
@@ -1489,15 +1490,19 @@ void EventuallyPersistentStore::completeFlush(rel_time_t flush_start) {
         if (!vb || vb->getState() == vbucket_state_dead) {
             continue;
         }
-        if (persistenceCheckpointIds[vbid] > 0) {
+        if (persistenceCheckpointIds[vbid] > 0 &&
+            persistenceCheckpointIds[vbid] != vbuckets.getPersistenceCheckpointId(vbid)) {
             vbuckets.setPersistenceCheckpointId(vbid, persistenceCheckpointIds[vbid]);
+            schedule_vb_snapshot = true;
         }
     }
     lh.unlock();
 
     // Schedule the vbucket state snapshot task to record the latest checkpoint Id
     // that was successfully persisted for each vbucket.
-    scheduleVBSnapshot(Priority::VBucketPersistHighPriority);
+    if (schedule_vb_snapshot) {
+        scheduleVBSnapshot(Priority::VBucketPersistHighPriority);
+    }
 
     stats.flusher_todo.set(writing.size());
     stats.queue_size.set(getWriteQueueSize());
