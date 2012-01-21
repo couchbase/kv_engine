@@ -99,6 +99,11 @@ memcached like this:
 |                        |        | quota for accepting a new mutation         |
 | tap_throttle_threshold | float  | Percentage of memory in use before we      |
 |                        |        | throttle tap streams                       |
+| restore_mode           | bool   | If true, enable online restore mode        |
+|                        |        |                                            |
+| restore_file_checks    | bool   | If false, disable expensive validation     |
+|                        |        | checks on the backup. Results in much      |
+|                        |        | faster restores.                           |
 
 ** Shard Patterns
 

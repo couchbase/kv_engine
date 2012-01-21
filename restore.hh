@@ -82,6 +82,7 @@ public:
 
     virtual bool isRunning() = 0;
 
+    virtual void enableRestoreFileChecks(bool restore_file_checks) = 0;
 
     /**
      * Release all allocated resources.

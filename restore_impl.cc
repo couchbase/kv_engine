@@ -24,13 +24,17 @@
 #include "embedded/sqlite3.h"
 #endif
 
-static const char *query =
+static const char *checks_enabled_query =
     "select cpoint_op.vbucket_id,op,key,flg,exp,cas,val,cpoint_op.cpoint_id "
     "from cpoint_state "
     "  join cpoint_op on (cpoint_op.vbucket_id = cpoint_state.vbucket_id and"
     "                     cpoint_op.cpoint_id = cpoint_state.cpoint_id) "
     "where cpoint_state.state = \"closed\" "
     "order by cpoint_op.cpoint_id desc";
+
+static const char *checks_disabled_query =
+    "select cpoint_op.vbucket_id,op,key,flg,exp,cas,val,cpoint_id "
+    "from cpoint_op ";
 
 static const int vbucket_id_idx = 0;
 static const int op_idx = 1;
@@ -88,12 +92,12 @@ public:
      * @param dbname the name of the incremental database to restore
      */
     DecrementalRestorer(EventuallyPersistentEngine &theEngine,
-                        const std::string &dbname) :
+                        const std::string &dbname, bool restore_file_checks) :
         db(NULL), statement(NULL), engine(theEngine),
         store(*engine.getEpStore()), file(dbname),
         expired(0), wrongVBucket(0), restored(0), skipped(0), busy(0), restore_cpoint(0)
     {
-        // None needed
+        query = restore_file_checks == true ? checks_enabled_query : checks_disabled_query;
     }
 
     /**
@@ -228,6 +232,7 @@ private:
     uint32_t skipped;
     uint32_t busy;
     uint32_t restore_cpoint;
+    const char *query;
 };
 
 class RestoreManagerImpl : public RestoreManager {
@@ -241,6 +246,7 @@ public:
         skipped(0),
         busy(0),
         restore_cpoint(0),
+        restore_file_checks(true),
         state(&State::Uninitialized)
     {
         // None needed
@@ -264,7 +270,7 @@ public:
         }
 
         assert(instance == NULL);
-        instance = new DecrementalRestorer(engine, config);
+        instance = new DecrementalRestorer(engine, config, restore_file_checks);
         setState_UNLOCKED(State::Initialized);
     }
 
@@ -352,6 +358,10 @@ public:
                 state == &State::Running);
     }
 
+    virtual void enableRestoreFileChecks(bool chk) {
+        restore_file_checks = chk;
+    }
+
     virtual ~RestoreManagerImpl() {
         wait();
     }
@@ -416,6 +426,7 @@ private:
     uint32_t skipped;
     uint32_t busy;
     uint32_t restore_cpoint;
+    bool restore_file_checks;
 
     // should we abort or not?
     Atomic<bool> terminate;
