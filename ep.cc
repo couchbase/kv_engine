@@ -2259,13 +2259,14 @@ public:
         // 1 means we deleted one row
         // 0 means we did not delete a row, but did not fail (did not exist)
         if (value >= 0) {
+            RCPtr<VBucket> vb = store->getVBucket(queuedItem->getVBucketId());
             if (value > 0) {
                 stats->totalPersisted++;
                 ++stats->delItems;
+                ++vb->opsDelete;
             }
             // We have succesfully removed an item from the disk, we
             // may now remove it from the hash table.
-            RCPtr<VBucket> vb = store->getVBucket(queuedItem->getVBucketId());
             if (vb) {
                 int bucket_num(0);
                 LockHolder lh = vb->ht.getLockedBucket(queuedItem->getKey(), &bucket_num);
@@ -2450,7 +2451,6 @@ int EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
             uint16_t vbver(vbuckets.getBucketVersion(vbid));
             tctx.addCallback(cb);
             rwUnderlying->del(qi->getItem(), rowid, vbver, *cb);
-            ++vb->opsDelete;
         } else {
             // bypass deletion if missing items, but still call the
             // deletion callback for clean cleanup.
