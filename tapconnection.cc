@@ -1688,7 +1688,7 @@ Item* TapProducer::getNextItem(const void *c, uint16_t *vbucket, tap_event_t &re
         if (gv.getStatus() == ENGINE_SUCCESS) {
             delete itm;
             itm = gv.getValue();
-        } else if (itm->isExpired(ep_real_time())) {
+        } else if (gv.getStatus() == ENGINE_KEY_ENOENT || itm->isExpired(ep_real_time())) {
             delete itm;
             ret = TAP_NOOP;
             return NULL;
