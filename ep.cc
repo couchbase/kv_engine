@@ -993,7 +993,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::addTAPBackfillItem(const Item &itm,
     mutation_type_t mtype;
 
     if (meta) {
-        mtype = vb->ht.setWithMeta(itm, 0, row_id, true);
+        mtype = vb->ht.set(itm, 0, row_id, true);
     } else {
         mtype = vb->ht.set(itm, row_id);
     }
@@ -1433,7 +1433,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setWithMeta(const Item &itm,
     }
 
     int64_t row_id = -1;
-    mutation_type_t mtype = vb->ht.setWithMeta(itm, cas, row_id, allowExisting);
+    mutation_type_t mtype = vb->ht.set(itm, cas, row_id, allowExisting);
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
 
     switch (mtype) {

@@ -1008,85 +1008,30 @@ public:
     }
 
     /**
-     * Set a new Item into this hashtable.
+     * Set a new Item into this hashtable. Use this function when your item
+     * doesn't contain meta data.
      *
      * @param val the Item to store
      * @param row_id the row id that is assigned to the item to store
      * @return a result indicating the status of the store
      */
     mutation_type_t set(const Item &val, int64_t &row_id) {
-        assert(isActive());
-        Item &itm = const_cast<Item&>(val);
-        if (!StoredValue::hasAvailableSpace(stats, itm)) {
-            return NOMEM;
-        }
-
-        mutation_type_t rv = NOT_FOUND;
-        int bucket_num(0);
-        LockHolder lh = getLockedBucket(val.getKey(), &bucket_num);
-        StoredValue *v = unlocked_find(val.getKey(), bucket_num, true);
-        /*
-         * prior to checking for the lock, we should check if this object
-         * has expired. If so, then check if CAS value has been provided
-         * for this set op. In this case the operation should be denied since
-         * a cas operation for a key that doesn't exist is not a very cool
-         * thing to do. See MB 3252
-         */
-        if (v && v->isExpired(ep_real_time())) {
-            if (v->isLocked(ep_current_time())) {
-                v->unlock();
-            }
-            if (val.getCas()) {
-                /* item has expired and cas value provided. Deny ! */
-                return NOT_FOUND;
-            }
-        }
-        if (v) {
-            if (v->isLocked(ep_current_time())) {
-                /*
-                 * item is locked, deny if there is cas value mismatch
-                 * or no cas value is provided by the user
-                 */
-                if (val.getCas() != v->getCas()) {
-                    return IS_LOCKED;
-                }
-                /* allow operation*/
-                v->unlock();
-            } else if (val.getCas() != 0 && val.getCas() != v->getCas()) {
-                return INVALID_CAS;
-            }
-
-            itm.setCas();
-            rv = v->isClean() ? WAS_CLEAN : WAS_DIRTY;
-            if (!v->isResident()) {
-                --numNonResidentItems;
-            }
-            v->setValue(itm, stats, *this, false);
-            row_id = v->getId();
-        } else {
-            if (itm.getCas() != 0) {
-                return NOT_FOUND;
-            }
-
-            itm.setCas();
-            v = valFact(itm, values[bucket_num], *this);
-            values[bucket_num] = v;
-            ++numItems;
-        }
-        return rv;
+        return set(val, val.getCas(), row_id, true, false);
     }
 
     /**
-     * Set an item into the cache and <b>preserve</b> the cas and
-     * sequence number.
+     * Set an Item into the this hashtable. Use this function to do a set
+     * when your item includes meta data.
      *
      * @param val the Item to store
      * @param cas This is the cas value for the item <b>in</b> the cache
      * @param row_id the row id that is assigned to the item to store
      * @param allowExisting should we allow existing items or not
+     * @param hasMetaData should we keep the seqno the same or increment it
      * @return a result indicating the status of the store
      */
-    mutation_type_t setWithMeta(const Item &val, uint64_t cas, int64_t &row_id, bool allowExisting) {
+    mutation_type_t set(const Item &val, uint64_t cas, int64_t &row_id,
+                        bool allowExisting, bool hasMetaData = true) {
         assert(isActive());
         Item &itm = const_cast<Item&>(val);
         if (!StoredValue::hasAvailableSpace(stats, itm)) {
@@ -1133,15 +1078,21 @@ public:
                 return INVALID_CAS;
             }
 
+            if (!hasMetaData) {
+                itm.setCas();
+            }
             rv = v->isClean() ? WAS_CLEAN : WAS_DIRTY;
             if (!v->isResident()) {
                 --numNonResidentItems;
             }
-            v->setValue(itm, stats, *this, true);
+            v->setValue(itm, stats, *this, hasMetaData /*Preserve seqno*/);
             row_id = v->getId();
         } else if (cas != 0) {
             rv = NOT_FOUND;
         } else {
+            if (!hasMetaData) {
+                itm.setCas();
+            }
             v = valFact(itm, values[bucket_num], *this);
             values[bucket_num] = v;
             ++numItems;
