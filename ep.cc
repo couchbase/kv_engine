@@ -2058,10 +2058,13 @@ int EventuallyPersistentStore::restoreItem(const Item &itm, enum queue_operation
         return -1;
     }
 
-    LockHolder lh(restore.mutex);
+    int bucket_num(0);
+    LockHolder lh = vb->ht.getLockedBucket(key, &bucket_num);
+    LockHolder rlh(restore.mutex);
     if (restore.itemsDeleted.find(key) == restore.itemsDeleted.end() &&
-        vb->ht.restoreItem(itm, op)) {
+        vb->ht.unlocked_restoreItem(itm, op, bucket_num)) {
 
+        lh.unlock();
         queued_item qi(new QueuedItem(key, itm.getValue(),
                                       vbid, op,
                                       vbuckets.getBucketVersion(vbid),

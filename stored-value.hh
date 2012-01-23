@@ -942,10 +942,10 @@ public:
      *
      * @return true if added, false if skipped
      */
-    bool restoreItem(const Item &itm, enum queue_operation op)
+    bool unlocked_restoreItem(const Item &itm,
+                              enum queue_operation op,
+                              int bucket_num)
     {
-        int bucket_num(0);
-        LockHolder lh = getLockedBucket(itm.getKey(), &bucket_num);
         if (unlocked_find(itm.getKey(), bucket_num, true)) {
             // it's already there...
             return false;
