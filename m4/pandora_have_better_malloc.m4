@@ -40,7 +40,7 @@ AC_DEFUN([PANDORA_HAVE_BETTER_MALLOC],[
     AC_CHECK_LIB(umem,malloc,[],[])
   ],[
     case "$target_os" in
-      *linux*)
+      *linux*|*darwin*)
         AS_IF([test "x$ac_enable_tcmalloc" != "xno"],[
           AC_CHECK_LIB(tcmalloc-minimal,malloc,[],[])
           AS_IF([test "x$ac_cv_lib_tcmalloc_minimal_malloc" != "xyes"],[
