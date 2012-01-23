@@ -998,7 +998,7 @@ public:
         values[bucket_num] = v;
         ++numItems;
         if (op == queue_op_del) {
-            unlocked_softDelete(key, cas, bucket_num);
+            unlocked_softDelete(v, cas);
         }
         return true;
     }
@@ -1146,47 +1146,6 @@ public:
     }
 
     /**
-     * Unlocked implementation of softDelete.
-     */
-    mutation_type_t unlocked_softDeleteWithMeta(const std::string &key,
-                                                uint32_t seqno,
-                                                uint64_t cas,
-                                                int bucket_num) {
-        mutation_type_t rv = NOT_FOUND;
-        StoredValue *v = unlocked_find(key, bucket_num);
-        if (v) {
-            if (v->isExpired(ep_real_time())) {
-                if (!v->isResident()) {
-                    --numNonResidentItems;
-                }
-                v->del(stats, *this);
-                return rv;
-            }
-
-            if (v->isLocked(ep_current_time())) {
-                return IS_LOCKED;
-            }
-
-            if (cas != 0 && cas != v->getCas()) {
-                return INVALID_CAS;
-            }
-
-            if (!v->isResident()) {
-                --numNonResidentItems;
-            }
-
-            /* allow operation*/
-            v->unlock();
-
-            rv = v->isClean() ? WAS_CLEAN : WAS_DIRTY;
-            v->setSeqno(seqno);
-            v->del(stats, *this);
-        }
-        return rv;
-    }
-
-
-    /**
      * Insert an item to this hashtable. This is called from the backfill
      * so we need a bit more logic here. If we're trying to insert a partial
      * item we don't allow the object to be stored there (and if you try to
@@ -1305,16 +1264,22 @@ public:
         if (v) {
             row_id = v->getId();
         }
-        return unlocked_softDelete(key, cas, bucket_num);
+        return unlocked_softDelete(v, cas);
+    }
+
+    mutation_type_t unlocked_softDelete(StoredValue *v, uint64_t cas) {
+        if (v) {
+            uint32_t seqno = v->getSeqno();
+            return unlocked_softDelete(v, cas, ++seqno);
+        }
+        return NOT_FOUND;
     }
 
     /**
      * Unlocked implementation of softDelete.
      */
-    mutation_type_t unlocked_softDelete(const std::string &key, uint64_t cas,
-                                        int bucket_num) {
+    mutation_type_t unlocked_softDelete(StoredValue *v, uint64_t cas, uint32_t seqno) {
         mutation_type_t rv = NOT_FOUND;
-        StoredValue *v = unlocked_find(key, bucket_num);
         if (v) {
             if (v->isExpired(ep_real_time())) {
                 if (!v->isResident()) {
@@ -1340,9 +1305,7 @@ public:
             v->unlock();
 
             rv = v->isClean() ? WAS_CLEAN : WAS_DIRTY;
-
-            uint32_t seqno = v->getSeqno();
-            v->setSeqno(++seqno);
+            v->setSeqno(seqno);
             v->del(stats, *this);
         }
         return rv;

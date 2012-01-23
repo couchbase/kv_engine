@@ -788,7 +788,7 @@ public:
             if (v && v->isExpired(startTime)) {
                 value_t value(NULL);
                 uint64_t cas = v->getCas();
-                vb->ht.unlocked_softDelete(vk.second, 0, bucket_num);
+                vb->ht.unlocked_softDelete(v, 0);
                 e->queueDirty(vk.second, vb->getId(), queue_op_del, value,
                               v->getFlags(), v->getExptime(), cas, v->getSeqno(), v->getId(), false);
             }
@@ -817,7 +817,7 @@ StoredValue *EventuallyPersistentStore::fetchValidValue(RCPtr<VBucket> vb,
             ++stats.expired;
             value_t value(NULL);
             uint64_t cas = v->getCas();
-            vb->ht.unlocked_softDelete(key, 0, bucket_num);
+            vb->ht.unlocked_softDelete(v, 0);
             queueDirty(key, vb->getId(), queue_op_del, value,
                        v->getFlags(), v->getExptime(), cas, v->getSeqno(), v->getId());
             return NULL;
@@ -1487,8 +1487,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteWithMeta(const std::string &k
         }
     }
 
-    mutation_type_t delrv = vb->ht.unlocked_softDeleteWithMeta(key, seqno,
-                                                               cas, bucket_num);
+    mutation_type_t delrv = vb->ht.unlocked_softDelete(v, cas, seqno);
     ENGINE_ERROR_CODE rv;
     bool expired = false;
 
@@ -1798,7 +1797,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::del(const std::string &key,
         }
     }
 
-    mutation_type_t delrv = vb->ht.unlocked_softDelete(key, cas, bucket_num);
+    mutation_type_t delrv = vb->ht.unlocked_softDelete(v, cas);
     ENGINE_ERROR_CODE rv;
     bool expired = false;
 
