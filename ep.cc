@@ -1916,11 +1916,6 @@ std::queue<queued_item>* EventuallyPersistentStore::beginFlush() {
                 rwUnderlying->vbStateChanged(vbid, st);
             }
 
-            if (st == vbucket_state_dead) {
-                // Don't persist items for dead buckets...
-                continue;
-            }
-
             // Grab all the items from online restore.
             LockHolder rlh(restore.mutex);
             std::map<uint16_t, std::vector<queued_item> >::iterator rit = restore.items.find(vbid);
