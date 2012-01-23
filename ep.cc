@@ -1406,7 +1406,7 @@ std::queue<queued_item>* EventuallyPersistentStore::beginFlush() {
             for (size_t i = 0; i < numOfVBuckets; ++i) {
                 uint16_t vbid = static_cast<uint16_t>(i);
                 RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
-                if (!vb || vb->getState() == vbucket_state_dead) {
+                if (!vb) {
                     continue;
                 }
 
