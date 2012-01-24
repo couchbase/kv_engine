@@ -350,11 +350,11 @@ void MutationLog::iterator::nextBlock() {
         assert(buf);
     }
     ssize_t bytesread = pread(log->fd(), buf, log->header().blockSize(), offset);
-    if (bytesread < log->header().blockSize()) {
+    if (bytesread < (ssize_t)(log->header().blockSize())) {
         isEnd = true;
         return;
     }
-    assert(bytesread == log->header().blockSize());
+    assert(bytesread == (ssize_t)(log->header().blockSize()));
     offset += bytesread;
     p = buf;
 
