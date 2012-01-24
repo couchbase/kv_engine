@@ -2049,14 +2049,10 @@ void EventuallyPersistentStore::queueDirty(const std::string &key,
     }
 }
 
-int EventuallyPersistentStore::addUnlessThere(const std::string &key,
-                                              uint16_t vbid,
-                                              enum queue_operation op,
-                                              const value_t &value,
-                                              uint32_t flags,
-                                              time_t exptime,
-                                              uint64_t cas)
+int EventuallyPersistentStore::restoreItem(const Item &itm, enum queue_operation op)
 {
+    const std::string &key = itm.getKey();
+    uint16_t vbid = itm.getVBucketId();
     RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
     if (!vb) {
         return -1;
@@ -2064,10 +2060,13 @@ int EventuallyPersistentStore::addUnlessThere(const std::string &key,
 
     LockHolder lh(restore.mutex);
     if (restore.itemsDeleted.find(key) == restore.itemsDeleted.end() &&
-        vb->ht.addUnlessThere(key, vbid, op, value, flags, exptime, cas)) {
+        vb->ht.restoreItem(itm, op)) {
 
-        queued_item qi(new QueuedItem(key, value, vbid, op, vbuckets.getBucketVersion(vbid),
-                                      -1, flags, exptime, cas));
+        queued_item qi(new QueuedItem(key, itm.getValue(),
+                                      vbid, op,
+                                      vbuckets.getBucketVersion(vbid),
+                                      -1, itm.getFlags(),
+                                      itm.getExptime(), itm.getCas()));
         std::map<uint16_t, std::vector<queued_item> >::iterator it = restore.items.find(vbid);
         if (it != restore.items.end()) {
             it->second.push_back(qi);

@@ -208,10 +208,12 @@ private:
                                                             cpoint_idx);
         }
 
-        int r = store.addUnlessThere(key, vbid, op, value,
-                                     sqlite3_column_int(statement, flag_idx),
-                                     sqlite3_column_int(statement, exp_idx),
-                                     sqlite3_column_int(statement, cas_idx));
+        uint32_t flags = sqlite3_column_int(statement, flag_idx);
+        time_t expiration = sqlite3_column_int(statement, exp_idx);
+        uint64_t cas = sqlite3_column_int64(statement, cas_idx);
+
+        Item itm(key, flags, expiration, value, cas, -1, vbid);
+        int r = store.restoreItem(itm, op);
         if (r == 0) {
             ++restored;
         } else if (r == 1) {

@@ -938,34 +938,25 @@ public:
     }
 
     /**
-     * During restore from backup we read the most recent values first
-     * and works our way back until epoch.. We should therefore only
-     * add values to the backup if they're not there;
+     * Add an item from online restore.
      *
      * @return true if added, false if skipped
      */
-    bool addUnlessThere(const std::string &key,
-                        uint16_t vbid,
-                        enum queue_operation op,
-                        const value_t &value,
-                        uint32_t flags,
-                        time_t exptime,
-                        uint64_t cas)
+    bool restoreItem(const Item &itm, enum queue_operation op)
     {
         int bucket_num(0);
-        LockHolder lh = getLockedBucket(key, &bucket_num);
-        if (unlocked_find(key, bucket_num, true)) {
+        LockHolder lh = getLockedBucket(itm.getKey(), &bucket_num);
+        if (unlocked_find(itm.getKey(), bucket_num, true)) {
             // it's already there...
             return false;
         }
 
-        Item itm(key, flags, exptime, value, cas, -1, vbid);
         StoredValue *v = valFact(itm, values[bucket_num], *this);
         assert(v);
         values[bucket_num] = v;
         ++numItems;
         if (op == queue_op_del) {
-            unlocked_softDelete(key, cas, bucket_num);
+            unlocked_softDelete(itm.getKey(), itm.getCas(), bucket_num);
         }
         return true;
     }
