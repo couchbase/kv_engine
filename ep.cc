@@ -654,8 +654,6 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::addTAPBackfillItem(const Item &itm)
         return ENGINE_NOT_MY_VBUCKET;
     }
 
-    bool cas_op = (itm.getCas() != 0);
-
     int64_t row_id = -1;
     mutation_type_t mtype = vb->ht.set(itm, row_id);
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
@@ -669,13 +667,9 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::addTAPBackfillItem(const Item &itm)
         ret = ENGINE_KEY_EEXISTS;
         break;
     case WAS_DIRTY:
-        // Do normal stuff, but don't enqueue dirty flags.
+        // If a given backfill item is already dirty, don't queue the same item again.
         break;
     case NOT_FOUND:
-        if (cas_op) {
-            ret = ENGINE_KEY_ENOENT;
-            break;
-        }
         // FALLTHROUGH
     case WAS_CLEAN:
         queueDirty(itm.getKey(), itm.getVBucketId(), queue_op_set, row_id, true);
