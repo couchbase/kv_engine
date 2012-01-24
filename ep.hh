@@ -499,21 +499,6 @@ public:
                                   const void *cookie,
                                   bool force,
                                   bool allowReplace);
-    /**
-     * delete an item in the store.
-     * @param key the key of the item
-     * @param cas value to match
-     * @param vbucket location of the item
-     * @param cookie the cookie representing the client to store the item
-     * @param force override vbucket states
-     * @return the result of the store operation
-     */
-    ENGINE_ERROR_CODE deleteWithMeta(const std::string &key,
-                                     uint32_t seqno,
-                                     uint64_t cas,
-                                     uint16_t vbucket,
-                                     const void *cookie,
-                                     bool force);
 
     /**
      * Retrieve a value, but update its TTL first
@@ -550,21 +535,25 @@ public:
                                              size_t *msg_size,
                                              bool force=false);
 
-
     /**
-     * Delete an item from the store
-     * @param key key to delete
+     * delete an item in the store.
+     * @param key the key of the item
+     * @param seqno the seq no of the item
      * @param cas the CAS ID for a CASed delete (0 to override)
-     * @param vbucket the bucket for the key
+     * @param vbucket the vbucket for the key
      * @param cookie the cookie representing the client
      * @param force override access to the vbucket even if the state of the
      *              vbucket would deny mutations.
+     * @param use_meta delete an item using its meta data
      * @return the result of the delete operation
      */
-    ENGINE_ERROR_CODE del(const std::string &key, uint64_t cas,
-                          uint16_t vbucket, const void *cookie,
-                          bool force = false);
-
+    ENGINE_ERROR_CODE deleteItem(const std::string &key,
+                                 uint32_t seqno,
+                                 uint64_t cas,
+                                 uint16_t vbucket,
+                                 const void *cookie,
+                                 bool force,
+                                 bool use_meta);
 
     /**
      * Revert online update, all mutations during online update period will be reverted

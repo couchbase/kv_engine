@@ -1444,70 +1444,6 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setWithMeta(const Item &itm,
     return ret;
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentStore::deleteWithMeta(const std::string &key,
-                                                            uint32_t seqno,
-                                                            uint64_t cas,
-                                                            uint16_t vbucket,
-                                                            const void *cookie,
-                                                            bool force) {
-    RCPtr<VBucket> vb = getVBucket(vbucket);
-    if (!vb || vb->getState() == vbucket_state_dead) {
-        ++stats.numNotMyVBuckets;
-        return ENGINE_NOT_MY_VBUCKET;
-    } else if (vb->getState() == vbucket_state_active) {
-        if (vb->checkpointManager.isHotReload()) {
-            if (vb->addPendingOp(cookie)) {
-                return ENGINE_EWOULDBLOCK;
-            }
-        }
-    } else if(vb->getState() == vbucket_state_replica && !force) {
-        ++stats.numNotMyVBuckets;
-        return ENGINE_NOT_MY_VBUCKET;
-    } else if(vb->getState() == vbucket_state_pending && !force) {
-        if (vb->addPendingOp(cookie)) {
-            return ENGINE_EWOULDBLOCK;
-        }
-    }
-
-    int bucket_num(0);
-    LockHolder lh = vb->ht.getLockedBucket(key, &bucket_num);
-    StoredValue *v = vb->ht.unlocked_find(key, bucket_num);
-    if (!v) {
-        if (engine.isDegradedMode()) {
-            LockHolder rlh(restore.mutex);
-            restore.itemsDeleted.insert(key);
-        } else {
-            return ENGINE_KEY_ENOENT;
-        }
-    }
-
-    mutation_type_t delrv = vb->ht.unlocked_softDelete(v, cas, seqno);
-    ENGINE_ERROR_CODE rv;
-    bool expired = false;
-
-    if (delrv == NOT_FOUND || delrv == INVALID_CAS) {
-        if (v && v->isExpired(ep_real_time())) {
-            expired = true;
-        }
-        rv = ENGINE_KEY_ENOENT;
-    } else if (delrv == IS_LOCKED) {
-        rv = ENGINE_TMPFAIL;
-    } else { // WAS_CLEAN or WAS_DIRTY
-        rv = ENGINE_SUCCESS;
-    }
-
-    if (delrv == WAS_CLEAN ||
-        delrv == WAS_DIRTY ||
-        (delrv == NOT_FOUND && (expired || engine.isDegradedMode()))) {
-        // As replication is interleaved with online restore, deletion of items that might
-        // exist in the restore backup files should be queued and replicated.
-        uint64_t casv = v ? v->getCas() : 0;
-        int rowid = v ? v->getId() : -1;
-        queueDirty(key, vbucket, queue_op_del, value_t(NULL), 0, 0, casv, seqno, rowid);
-    }
-    return rv;
-}
-
 GetValue EventuallyPersistentStore::getAndUpdateTtl(const std::string &key,
                                                     uint16_t vbucket,
                                                     const void *cookie,
@@ -1755,11 +1691,13 @@ bool EventuallyPersistentStore::getKeyStats(const std::string &key,
     return found;
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentStore::del(const std::string &key,
-                                                 uint64_t cas,
-                                                 uint16_t vbucket,
-                                                 const void *cookie,
-                                                 bool force) {
+ENGINE_ERROR_CODE EventuallyPersistentStore::deleteItem(const std::string &key,
+                                                        uint32_t seqno,
+                                                        uint64_t cas,
+                                                        uint16_t vbucket,
+                                                        const void *cookie,
+                                                        bool force,
+                                                        bool use_meta) {
     RCPtr<VBucket> vb = getVBucket(vbucket);
     if (!vb || vb->getState() == vbucket_state_dead) {
         ++stats.numNotMyVBuckets;
@@ -1791,25 +1729,25 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::del(const std::string &key,
         }
     }
 
-    mutation_type_t delrv = vb->ht.unlocked_softDelete(v, cas);
+    mutation_type_t delrv;
+    if (use_meta) {
+        delrv = vb->ht.unlocked_softDelete(v, cas, seqno);
+    } else {
+        delrv = vb->ht.unlocked_softDelete(v, cas);
+    }
+
     ENGINE_ERROR_CODE rv;
     bool expired = false;
-
     if (delrv == NOT_FOUND || delrv == INVALID_CAS) {
         if (v && v->isExpired(ep_real_time())) {
             expired = true;
         }
-        if (delrv == INVALID_CAS) {
-            rv = ENGINE_KEY_EEXISTS;
-        } else {
-            rv = ENGINE_KEY_ENOENT;
-        }
+        rv = (delrv == INVALID_CAS) ? ENGINE_KEY_EEXISTS : ENGINE_KEY_ENOENT;
     } else if (delrv == IS_LOCKED) {
         rv = ENGINE_TMPFAIL;
     } else { // WAS_CLEAN or WAS_DIRTY
         rv = ENGINE_SUCCESS;
     }
-    lh.unlock();
 
     if (delrv == WAS_CLEAN ||
         delrv == WAS_DIRTY ||
@@ -1817,9 +1755,10 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::del(const std::string &key,
         // As replication is interleaved with online restore, deletion of items that might
         // exist in the restore backup files should be queued and replicated.
         uint64_t casv = v ? v->getCas() : 0;
-        uint32_t seqno = v ? v->getSeqno() : 0;
-        int rowid = v ? v->getId() : -1;
-        queueDirty(key, vbucket, queue_op_del, value_t(NULL), 0, 0, casv, seqno, rowid);
+        uint32_t seqnum = v ? v->getSeqno() : 0;
+        int64_t rowid = v ? v->getId() : -1;
+        lh.unlock();
+        queueDirty(key, vbucket, queue_op_del, value_t(NULL), 0, 0, casv, seqnum, rowid);
     }
     return rv;
 }
@@ -2815,7 +2754,10 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                              "Item was expired at load:  %s",
                              i->getKey().c_str());
-            epstore->del(i->getKey(), 0, i->getVBucketId(), NULL, true);
+            epstore->deleteItem(i->getKey(),
+                                0, 0, // seqno, cas
+                                i->getVBucketId(), NULL,
+                                true, false); // force, use_meta
         }
         delete i;
     }
