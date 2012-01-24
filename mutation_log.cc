@@ -15,9 +15,33 @@ const char *mutation_log_type_names[] = {
     "new", "del", "del_all", "commit1", "commit2", NULL
 };
 
+static inline ssize_t doWrite(int fd, const uint8_t *buf, size_t nbytes) {
+    ssize_t ret;
+    while ((ret = write(fd, buf, nbytes)) == -1 && (errno == EINTR)) {
+        /* Retry */
+    }
+    return ret;
+}
+
+static inline int doClose(int fd) {
+    int ret;
+    while ((ret = close(fd)) == -1 && (errno == EINTR)) {
+        /* Retry */
+    }
+    return ret;
+}
+
+static inline int doFsync(int fd) {
+    int ret;
+    while ((ret = fsync(fd)) == -1 && (errno == EINTR)) {
+        /* Retry */
+    }
+    return ret;
+}
+
 static void writeFully(int fd, const uint8_t *buf, size_t nbytes) {
     while (nbytes > 0) {
-        ssize_t written = write(fd, buf, nbytes);
+        ssize_t written = doWrite(fd, buf, nbytes);
         assert(written >= 0);
 
         nbytes -= written;
@@ -52,7 +76,8 @@ MutationLog::MutationLog(const std::string &path,
 MutationLog::~MutationLog() {
     flush();
     if (file >= 0) {
-        close(file);
+        int close_result = doClose(file);
+        assert(close_result != -1);
     }
     free(entryBuffer);
     free(blockBuffer);
@@ -92,7 +117,8 @@ void MutationLog::commit1() {
         }
         if ((getSyncConfig() & SYNC_COMMIT_1) != 0) {
             BlockTimer timer(&syncTimeHisto);
-            fsync(file);
+            int fsyncResult = doFsync(file);
+            assert(fsyncResult != -1);
         }
     }
 }
@@ -107,7 +133,8 @@ void MutationLog::commit2() {
         }
         if ((getSyncConfig() & SYNC_COMMIT_2) != 0) {
             BlockTimer timer(&syncTimeHisto);
-            fsync(file);
+            int fsyncResult = doFsync(file);
+            assert(fsyncResult != -1);
         }
     }
 }
