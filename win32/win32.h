@@ -166,4 +166,37 @@ static inline int poll(struct pollfd fds[], int nfds, int tmo)
     return ret;
 }
 
+static inline int fsync(int fd)
+{
+    HANDLE h = (HANDLE) _get_osfhandle (fd);
+    DWORD err;
+
+    if (h == INVALID_HANDLE_VALUE) {
+        errno = EBADF;
+        return -1;
+    }
+
+    if (!FlushFileBuffers (h))  {
+        err = GetLastError ();
+        switch (err)  {
+        case ERROR_INVALID_HANDLE:
+            errno = EINVAL;
+            break;
+        default:
+            errno = EIO;
+        }
+        return -1;
+    }
+    return 0;
+}
+
+static inline ssize_t pread(int fd, void *buf, size_t count, off_t offset)
+{
+    off_t pos = lseek(fd, offset, SEEK_SET);
+    if (pos < 0) {
+        return pos;
+    }
+
+    return read(fd, buf, count);
+}
 #endif /* WIN32_H */
