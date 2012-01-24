@@ -59,46 +59,56 @@ MutationLog::~MutationLog() {
 }
 
 void MutationLog::newItem(uint16_t vbucket, const std::string &key, uint64_t rowid) {
-    MutationLogEntry *mle = MutationLogEntry::newEntry(entryBuffer,
-                                                       rowid, ML_NEW, vbucket, key);
-    writeEntry(mle);
+    if (isEnabled()) {
+        MutationLogEntry *mle = MutationLogEntry::newEntry(entryBuffer,
+                                                           rowid, ML_NEW, vbucket, key);
+        writeEntry(mle);
+    }
 }
 
 void MutationLog::delItem(uint16_t vbucket, const std::string &key) {
-    MutationLogEntry *mle = MutationLogEntry::newEntry(entryBuffer,
-                                                       0, ML_DEL, vbucket, key);
-    writeEntry(mle);
+    if (isEnabled()) {
+        MutationLogEntry *mle = MutationLogEntry::newEntry(entryBuffer,
+                                                           0, ML_DEL, vbucket, key);
+        writeEntry(mle);
+    }
 }
 
 void MutationLog::deleteAll(uint16_t vbucket) {
-    MutationLogEntry *mle = MutationLogEntry::newEntry(entryBuffer,
-                                                       0, ML_DEL_ALL, vbucket, "");
-    writeEntry(mle);
+    if (isEnabled()) {
+        MutationLogEntry *mle = MutationLogEntry::newEntry(entryBuffer,
+                                                           0, ML_DEL_ALL, vbucket, "");
+        writeEntry(mle);
+    }
 }
 
 void MutationLog::commit1() {
-    MutationLogEntry *mle = MutationLogEntry::newEntry(entryBuffer,
-                                                       0, ML_COMMIT1, 0, "");
-    writeEntry(mle);
-    if ((getSyncConfig() & FLUSH_COMMIT_1) != 0) {
-        flush();
-    }
-    if ((getSyncConfig() & SYNC_COMMIT_1) != 0) {
-        BlockTimer timer(&syncTimeHisto);
-        fsync(file);
+    if (isEnabled()) {
+        MutationLogEntry *mle = MutationLogEntry::newEntry(entryBuffer,
+                                                           0, ML_COMMIT1, 0, "");
+        writeEntry(mle);
+        if ((getSyncConfig() & FLUSH_COMMIT_1) != 0) {
+            flush();
+        }
+        if ((getSyncConfig() & SYNC_COMMIT_1) != 0) {
+            BlockTimer timer(&syncTimeHisto);
+            fsync(file);
+        }
     }
 }
 
 void MutationLog::commit2() {
-    MutationLogEntry *mle = MutationLogEntry::newEntry(entryBuffer,
-                                                       0, ML_COMMIT2, 0, "");
-    writeEntry(mle);
-    if ((getSyncConfig() & FLUSH_COMMIT_2) != 0) {
-        flush();
-    }
-    if ((getSyncConfig() & SYNC_COMMIT_2) != 0) {
-        BlockTimer timer(&syncTimeHisto);
-        fsync(file);
+    if (isEnabled()) {
+        MutationLogEntry *mle = MutationLogEntry::newEntry(entryBuffer,
+                                                           0, ML_COMMIT2, 0, "");
+        writeEntry(mle);
+        if ((getSyncConfig() & FLUSH_COMMIT_2) != 0) {
+            flush();
+        }
+        if ((getSyncConfig() & SYNC_COMMIT_2) != 0) {
+            BlockTimer timer(&syncTimeHisto);
+            fsync(file);
+        }
     }
 }
 
@@ -215,9 +225,7 @@ void MutationLog::flush() {
 }
 
 void MutationLog::writeEntry(MutationLogEntry *mle) {
-    if (!isEnabled()) {
-        return;
-    }
+    assert(isEnabled());
     size_t len(mle->len());
     if (blockPos + len > blockSize) {
         flush();
