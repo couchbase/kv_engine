@@ -341,7 +341,7 @@ checkpoint_test_LDADD = libobjectregistry.la libconfiguration.la
 mutation_log_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
 mutation_log_test_SOURCES = t/mutation_log_test.cc mutation_log.hh	\
                             testlogger.cc mutation_log.cc \
-                            byteorder.h byteorder.c \
+                            byteorder.c \
                             crc32.h crc32.c
 mutation_log_test_DEPENDENCIES = mutation_log.hh
 mutation_log_test_LDADD =
