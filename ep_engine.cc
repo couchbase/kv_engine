@@ -3608,7 +3608,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getMeta(const void* cookie,
         } else {
             rv = sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
                               PROTOCOL_BINARY_RAW_BYTES,
-                              engine_error_2_protocol_error(rv), 0, cookie);
+                              engine_error_2_protocol_error(rv), cas, cookie);
         }
     }
 

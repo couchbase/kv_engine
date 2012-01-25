@@ -1369,7 +1369,8 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::getMetaData(const std::string &key,
     StoredValue *v = fetchValidValue(vb, key, bucket_num, true);
 
     if (v) {
-        if (StoredValue::state_non_existent_key == v->getId()) {
+        if (v->isTempNonExistentItem()) {
+            cas = v->getCas();
             return ENGINE_KEY_ENOENT;
         } else {
             if (v->isDeleted()) {
