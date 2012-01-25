@@ -312,7 +312,7 @@ public:
      * @param stats the global stat instance
      * @param ht the hashtable that contains this StoredValue instance
      */
-    bool restoreValue(Item *itm, EPStats &stats, HashTable &ht);
+    bool unlocked_restoreValue(Item *itm, EPStats &stats, HashTable &ht);
 
     /**
      * Get this item's CAS identifier.

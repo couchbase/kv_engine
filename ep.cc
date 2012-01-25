@@ -1227,7 +1227,7 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
 
         if (v && !v->isResident()) {
             assert(gcb.val.getStatus() == ENGINE_SUCCESS);
-            v->restoreValue(gcb.val.getValue(), stats, vb->ht);
+            v->unlocked_restoreValue(gcb.val.getValue(), stats, vb->ht);
             assert(v->isResident());
         }
     }

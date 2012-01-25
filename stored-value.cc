@@ -61,7 +61,8 @@ bool StoredValue::ejectValue(EPStats &stats, HashTable &ht) {
     return false;
 }
 
-bool StoredValue::restoreValue(Item *itm, EPStats &stats, HashTable &ht) {
+bool StoredValue::unlocked_restoreValue(Item *itm, EPStats &stats,
+                                        HashTable &ht) {
     // If cas == we loaded the object from our meta file, but
     // we didn't know the size of the object.. Don't report
     // this as an unexpected size change.
