@@ -3154,17 +3154,21 @@ static void process_bin_update(conn *c) {
             c->store_op = OPERATION_ADD;
             break;
         case PROTOCOL_BINARY_CMD_SET:
-            c->store_op = OPERATION_SET;
+            if (c->binary_header.request.cas != 0) {
+                c->store_op = OPERATION_CAS;
+            } else {
+                c->store_op = OPERATION_SET;
+            }
             break;
         case PROTOCOL_BINARY_CMD_REPLACE:
-            c->store_op = OPERATION_REPLACE;
+            if (c->binary_header.request.cas != 0) {
+                c->store_op = OPERATION_CAS;
+            } else {
+                c->store_op = OPERATION_REPLACE;
+            }
             break;
         default:
             assert(0);
-        }
-
-        if (c->binary_header.request.cas != 0) {
-            c->store_op = OPERATION_CAS;
         }
 
         c->item = it;

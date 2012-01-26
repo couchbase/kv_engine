@@ -1324,6 +1324,13 @@ static enum test_return test_binary_add_impl(const char *key, uint8_t cmd) {
         }
     }
 
+    // And verify that it doesn't work with the "correct" CAS
+    // value
+    send.request.message.header.request.cas = receive.response.message.header.response.cas;
+    safe_send(send.bytes, len, false);
+    safe_recv_packet(receive.bytes, sizeof(receive.bytes));
+    validate_response_header(&receive.response, cmd,
+                             PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS);
     return TEST_PASS;
 }
 
