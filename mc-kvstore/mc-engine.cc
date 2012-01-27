@@ -753,6 +753,9 @@ void MemcachedEngine::ensureConnection()
 
 bool MemcachedEngine::waitForWritable()
 {
+    size_t timeout = 1000;
+    size_t waitTime = 0;
+
     while (connected) {
         struct pollfd fds;
         fds.fd = sock;
@@ -760,7 +763,7 @@ bool MemcachedEngine::waitForWritable()
         fds.revents = 0;
 
         // @todo do not block forever.. but allow shutdown..
-        int ret = poll(&fds, 1, 1000);
+        int ret = poll(&fds, 1, timeout);
         if (ret > 0) {
             if (fds.revents & POLLIN) {
                 maybeProcessInput();
@@ -773,6 +776,12 @@ bool MemcachedEngine::waitForWritable()
             getLogger()->log(EXTENSION_LOG_WARNING, this,
                              "poll() failed: \"%s\"",
                              strerror(errno));
+            resetConnection();
+        }  else if ((waitTime += timeout) >= configuration.getCouchResponseTimeout()) {
+            // Poll failed due to timeouts multiple times and is above timeout threshold.
+            getLogger()->log(EXTENSION_LOG_INFO, this,
+                             "No response for mccouch in %zu seconds. Resetting connection.",
+                             waitTime);
             resetConnection();
         }
     }
@@ -993,6 +1002,9 @@ void MemcachedEngine::processInput() {
 
 bool MemcachedEngine::waitForReadable()
 {
+    size_t timeout = 1000;
+    size_t waitTime = 0;
+
     while (connected) {
         struct pollfd fds;
         fds.fd = sock;
@@ -1000,7 +1012,7 @@ bool MemcachedEngine::waitForReadable()
         fds.revents = 0;
 
         // @todo do not block forever.. but allow shutdown..
-        int ret = poll(&fds, 1, 1000);
+        int ret = poll(&fds, 1, timeout);
         if (ret > 0) {
             if (fds.revents & POLLIN) {
                 return true;
@@ -1010,6 +1022,12 @@ bool MemcachedEngine::waitForReadable()
             getLogger()->log(EXTENSION_LOG_WARNING, this,
                              "poll() failed: \"%s\"",
                              strerror(errno));
+            resetConnection();
+        } else if ((waitTime += timeout) >= configuration.getCouchResponseTimeout()) {
+            // Poll failed due to timeouts multiple times and is above timeout threshold.
+            getLogger()->log(EXTENSION_LOG_INFO, this,
+                             "No response for mccouch in %d seconds. Resetting connection.",
+                             waitTime);
             resetConnection();
         }
     }

@@ -322,6 +322,8 @@ extern "C" {
                     chk_meta_items_only = false;
                 }
                 e->getConfiguration().setChkMetaItemsOnly(chk_meta_items_only);
+            } else if (strcmp(keyz, "couchdb_response_timeout") == 0) {
+                e->getConfiguration().setCouchResponseTimeout(v);
             } else {
                 *msg = "Unknown config param";
                 rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;

@@ -47,6 +47,9 @@ memcached like this:
 | min_data_age           | int    | Minimum data stability time before         |
 |                        |        | persist.                                   |
 | queue_age_cap          | int    | Maximum queue time before forcing persist. |
+| couch_response_timeout | int    | The maximum time to wait for couch to      |
+|                        |        | respond to a persistence request before    |
+|                        |        | resetting the connection (milliseconds)    |
 | tap_backlog_limit      | int    | Max number of items allowed in a           |
 |                        |        | tap backfill                               |
 | tap_noop_interval      | int    | Number of seconds between a noop is sent   |

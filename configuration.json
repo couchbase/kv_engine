@@ -88,6 +88,11 @@
             "dynamic": false,
             "type": "size_t"
         },
+        "couch_response_timeout": {
+            "default": "600000",
+            "descr": "Length of time to wait for a response from couchdb before reconnecting (in ms)",
+            "type": "size_t"
+        },
         "couch_vbucket_batch_count": {
             "default": "4",
             "descr": "max number of vbuckets that can be concurrently written by the mccouch side",
