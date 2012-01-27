@@ -530,6 +530,16 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
         persistenceCheckpointIds[i] = 0;
     }
 
+    try {
+        mutationLog.open();
+        assert(theEngine.getConfiguration().getKlogPath() == ""
+               || mutationLog.isEnabled());
+    } catch(MutationLog::ReadException e) {
+        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                         "Error opening mutation log:  %s (disabling)", e.what());
+        mutationLog.disable();
+    }
+
     bool syncset(mutationLog.setSyncConfig(theEngine.getConfiguration().getKlogSync()));
     assert(syncset);
 
@@ -2621,7 +2631,15 @@ EventuallyPersistentStore::warmup(const std::map<std::pair<uint16_t, uint16_t>, 
     }
 
     if (keysOnly) {
-        if (!warmupFromLog(st, cb)) {
+        bool readLog(false);
+
+        try {
+            readLog = warmupFromLog(st, cb);
+        } catch(MutationLog::ReadException e) {
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                             "Error reading warmup log:  %s", e.what());
+        }
+        if (!readLog && roUnderlying->isKeyDumpSupported()) {
             roUnderlying->dumpKeys(vbids, cb);
         }
     } else {

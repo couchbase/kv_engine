@@ -82,6 +82,14 @@ MutationLog::~MutationLog() {
     free(blockBuffer);
 }
 
+void MutationLog::disable() {
+    if (file >= 0) {
+        int close_res = close(file);
+        assert(close_res == 0);
+        file = DISABLED_FD;
+    }
+}
+
 void MutationLog::newItem(uint16_t vbucket, const std::string &key, uint64_t rowid) {
     if (isEnabled()) {
         MutationLogEntry *mle = MutationLogEntry::newEntry(entryBuffer,

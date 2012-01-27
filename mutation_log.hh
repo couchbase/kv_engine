@@ -178,6 +178,8 @@ public:
 
     void sync();
 
+    void disable();
+
     bool isEnabled() const {
         return file != DISABLED_FD;
     }
