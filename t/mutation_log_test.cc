@@ -17,6 +17,7 @@
 
 static void testUnconfigured() {
     MutationLog ml("");
+    ml.open();
     assert(!ml.isEnabled());
     ml.newItem(3, "somekey", 931);
     ml.delItem(3, "somekey");
@@ -41,6 +42,7 @@ static void testSyncSet() {
     // Now the real tests.
     //
     MutationLog ml("");
+    ml.open();
 
     assert(ml.setSyncConfig("off"));
     assert(ml.getSyncConfig() == 0);
@@ -107,6 +109,7 @@ static void testLogging() {
 
     {
         MutationLog ml(TMP_LOG_FILE);
+        ml.open();
 
         ml.newItem(3, "key1", 1);
         ml.newItem(2, "key1", 2);
@@ -126,6 +129,7 @@ static void testLogging() {
 
     {
         MutationLog ml(TMP_LOG_FILE);
+        ml.open();
         MutationLogHarvester h(ml);
         h.setVbVer(1, 1);
         h.setVbVer(2, 1);
@@ -167,6 +171,7 @@ static void testDelAll() {
 
     {
         MutationLog ml(TMP_LOG_FILE);
+        ml.open();
 
         ml.newItem(3, "key1", 1);
         ml.newItem(2, "key1", 2);
@@ -187,6 +192,7 @@ static void testDelAll() {
 
     {
         MutationLog ml(TMP_LOG_FILE);
+        ml.open();
         MutationLogHarvester h(ml);
         h.setVbVer(1, 1);
         h.setVbVer(2, 1);
@@ -244,6 +250,7 @@ static void testLoggingDirty() {
 
     {
         MutationLog ml(TMP_LOG_FILE);
+        ml.open();
 
         ml.newItem(3, "key1", 1);
         ml.newItem(2, "key1", 2);
@@ -263,6 +270,7 @@ static void testLoggingDirty() {
 
     {
         MutationLog ml(TMP_LOG_FILE);
+        ml.open();
         MutationLogHarvester h(ml);
         h.setVbVer(1, 1);
         h.setVbVer(2, 1);
@@ -317,6 +325,7 @@ static void testLoggingBadCRC() {
 
     {
         MutationLog ml(TMP_LOG_FILE);
+        ml.open();
 
         ml.newItem(3, "key1", 1);
         ml.newItem(2, "key1", 2);
@@ -345,6 +354,7 @@ static void testLoggingBadCRC() {
 
     {
         MutationLog ml(TMP_LOG_FILE);
+        ml.open();
         MutationLogHarvester h(ml);
         h.setVbVer(1, 1);
         h.setVbVer(2, 1);
@@ -391,6 +401,7 @@ static void testLoggingShortRead() {
 
     {
         MutationLog ml(TMP_LOG_FILE);
+        ml.open();
 
         ml.newItem(3, "key1", 1);
         ml.newItem(2, "key1", 2);
@@ -411,27 +422,33 @@ static void testLoggingShortRead() {
     // Break the log
     assert(truncate(TMP_LOG_FILE, 5000) == 0);
 
-    try {
+    {
         MutationLog ml(TMP_LOG_FILE);
-        MutationLogHarvester h(ml);
-        h.setVbVer(1, 1);
-        h.setVbVer(2, 1);
-        h.setVbVer(3, 1);
+        try {
+            ml.open();
+            MutationLogHarvester h(ml);
+            h.setVbVer(1, 1);
+            h.setVbVer(2, 1);
+            h.setVbVer(3, 1);
 
-        h.load();
-        abort();
-    } catch(MutationLog::ShortReadException e) {
-        // expected
+            h.load();
+            abort();
+        } catch(MutationLog::ShortReadException e) {
+            // expected
+        }
     }
 
     // Break the log harder (can't read even the initial block)
     assert(truncate(TMP_LOG_FILE, 4000) == 0);
 
-    try {
+    {
         MutationLog ml(TMP_LOG_FILE);
-        abort();
-    } catch(MutationLog::ShortReadException e) {
-        // expected
+        try {
+            ml.open();
+            abort();
+        } catch(MutationLog::ShortReadException e) {
+            // expected
+        }
     }
 
     remove(TMP_LOG_FILE);
@@ -441,8 +458,9 @@ static void testYUNOOPEN() {
     int file = open(TMP_LOG_FILE, O_CREAT|O_RDWR, 0);
     assert(file >= 0);
     close(file);
+    MutationLog ml(TMP_LOG_FILE);
     try {
-        MutationLog ml(TMP_LOG_FILE);
+        ml.open();
         abort();
     } catch(MutationLog::ReadException e) {
         std::string exp("Unable to open log file: Permission denied");

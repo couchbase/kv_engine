@@ -70,7 +70,6 @@ MutationLog::MutationLog(const std::string &path,
     if (logPath == "") {
         file = DISABLED_FD;
     }
-    open();
 }
 
 MutationLog::~MutationLog() {
@@ -108,6 +107,7 @@ void MutationLog::deleteAll(uint16_t vbucket) {
 }
 
 void MutationLog::sync() {
+    assert(isOpen());
     BlockTimer timer(&syncTimeHisto);
     int fsyncResult = doFsync(file);
     assert(fsyncResult != -1);
@@ -143,6 +143,7 @@ void MutationLog::commit2() {
 
 void MutationLog::writeInitialBlock() {
     assert(isEnabled());
+    assert(isOpen());
     headerBlock.set(blockSize);
 
     writeFully(file, (uint8_t*)&headerBlock, sizeof(headerBlock));
@@ -156,6 +157,7 @@ void MutationLog::writeInitialBlock() {
 }
 
 void MutationLog::readInitialBlock() {
+    assert(isOpen());
     uint8_t buf[MIN_LOG_HEADER_SIZE];
     ssize_t bytesread = pread(file, buf, sizeof(buf), 0);
     assert(bytesread == sizeof(buf));
@@ -171,6 +173,7 @@ void MutationLog::readInitialBlock() {
 
 void MutationLog::prepareWrites() {
     if (isEnabled()) {
+        assert(isOpen());
         int lseek_result = lseek(file, 0, SEEK_END);
         assert(lseek_result > 0);
         if (lseek_result % blockSize != 0) {
@@ -239,10 +242,12 @@ void MutationLog::open() {
     }
 
     prepareWrites();
+    assert(isOpen());
 }
 
 void MutationLog::flush() {
     if (isEnabled() && blockPos > HEADER_RESERVED) {
+        assert(isOpen());
         BlockTimer timer(&flushTimeHisto);
 
         if (blockPos < blockSize) {
@@ -268,6 +273,7 @@ void MutationLog::flush() {
 
 void MutationLog::writeEntry(MutationLogEntry *mle) {
     assert(isEnabled());
+    assert(isOpen());
     size_t len(mle->len());
     if (blockPos + len > blockSize) {
         flush();
@@ -395,6 +401,7 @@ size_t MutationLog::iterator::bufferBytesRemaining() {
 }
 
 void MutationLog::iterator::nextBlock() {
+    assert(!log->isEnabled() || log->isOpen());
     if (buf == NULL) {
         buf = static_cast<uint8_t*>(calloc(1, log->header().blockSize()));
         assert(buf);

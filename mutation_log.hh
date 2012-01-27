@@ -182,6 +182,10 @@ public:
         return file != DISABLED_FD;
     }
 
+    bool isOpen() const {
+        return file >= 0;
+    }
+
     LogHeaderBlock header() const {
         return headerBlock;
     }
@@ -197,6 +201,13 @@ public:
     uint8_t getFlushConfig() const {
         return syncConfig & FLUSH_FULL;
     }
+
+    /**
+     * Open and initialize the log.
+     *
+     * This typically happens automatically.
+     */
+    void open();
 
     bool setSyncConfig(const std::string &s);
     bool setFlushConfig(const std::string &s);
@@ -296,8 +307,6 @@ public:
     Atomic<size_t> logSize;
 
 private:
-
-    void open();
 
     void writeEntry(MutationLogEntry *mle);
 
