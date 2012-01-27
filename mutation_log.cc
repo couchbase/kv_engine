@@ -107,6 +107,12 @@ void MutationLog::deleteAll(uint16_t vbucket) {
     }
 }
 
+void MutationLog::sync() {
+    BlockTimer timer(&syncTimeHisto);
+    int fsyncResult = doFsync(file);
+    assert(fsyncResult != -1);
+}
+
 void MutationLog::commit1() {
     if (isEnabled()) {
         MutationLogEntry *mle = MutationLogEntry::newEntry(entryBuffer,
@@ -116,9 +122,7 @@ void MutationLog::commit1() {
             flush();
         }
         if ((getSyncConfig() & SYNC_COMMIT_1) != 0) {
-            BlockTimer timer(&syncTimeHisto);
-            int fsyncResult = doFsync(file);
-            assert(fsyncResult != -1);
+            sync();
         }
     }
 }
@@ -132,9 +136,7 @@ void MutationLog::commit2() {
             flush();
         }
         if ((getSyncConfig() & SYNC_COMMIT_2) != 0) {
-            BlockTimer timer(&syncTimeHisto);
-            int fsyncResult = doFsync(file);
-            assert(fsyncResult != -1);
+            sync();
         }
     }
 }

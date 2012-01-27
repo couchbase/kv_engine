@@ -176,6 +176,8 @@ public:
 
     void flush();
 
+    void sync();
+
     bool isEnabled() const {
         return file != DISABLED_FD;
     }
