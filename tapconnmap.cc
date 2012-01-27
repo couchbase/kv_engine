@@ -304,10 +304,10 @@ TapProducer *TapConnMap::newProducer(const void* cookie,
         }
         tap->setCookie(cookie);
         tap->setReserved(true);
+        tap->evaluateFlags();
         tap->rollback();
         tap->setConnected(true);
         tap->setDisconnect(false);
-        tap->evaluateFlags();
         reconnect = true;
     }
 

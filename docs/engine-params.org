@@ -113,7 +113,11 @@ memcached like this:
 | klog_flush             | string | When to force buffer flushes during        |
 |                        |        | klog (off, commit1, commit2, full)         |
 | klog_sync              | string | When to fsync during klog.                 |
-
+| restore_mode           | bool   | If true, enable online restore mode        |
+|                        |        |                                            |
+| restore_file_checks    | bool   | If false, disable expensive validation     |
+|                        |        | checks on the backup. Results in much      |
+|                        |        | faster restores.                           |
 
 ** Shard Patterns
 

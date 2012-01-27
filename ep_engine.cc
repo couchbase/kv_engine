@@ -1083,6 +1083,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
                     "Failed to create restore manager");
             return ENGINE_FAILED;
         }
+        restore.manager->enableRestoreFileChecks(configuration.isRestoreFileChecks());
         restore.enabled.set(true);
     }
 

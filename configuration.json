@@ -262,6 +262,10 @@
                 }
             }
         },
+        "restore_file_checks": {
+            "default": "true",
+            "type": "bool"
+        },
         "restore_mode": {
             "default": "false",
             "type": "bool"
