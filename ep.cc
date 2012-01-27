@@ -368,6 +368,9 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
         persistenceCheckpointIds[i] = 0;
     }
 
+    size_t num_shards = rwUnderlying->getNumShards();
+    dbShardQueues = new std::vector<queued_item>[num_shards];
+
     startDispatcher();
     startFlusher();
     startNonIODispatcher();
@@ -402,6 +405,7 @@ EventuallyPersistentStore::~EventuallyPersistentStore() {
     delete dispatcher;
     delete nonIODispatcher;
     delete []persistenceCheckpointIds;
+    delete []dbShardQueues;
 }
 
 void EventuallyPersistentStore::startDispatcher() {
@@ -1407,11 +1411,14 @@ std::queue<queued_item>* EventuallyPersistentStore::beginFlush() {
         }
 
         std::vector<queued_item> item_list;
-        item_list.reserve(DEFAULT_TXN_SIZE);
+        std::set<queued_item, CompareQueuedItemsByKey> item_set;
         size_t dedup = 0;
-
+        size_t num_items = 0;
         size_t numOfVBuckets = vbuckets.getSize();
+
+        item_list.reserve(DEFAULT_TXN_SIZE);
         assert(numOfVBuckets <= std::numeric_limits<uint16_t>::max());
+
         for (size_t i = 0; i < numOfVBuckets; ++i) {
             uint16_t vbid = static_cast<uint16_t>(i);
             RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
@@ -1431,25 +1438,18 @@ std::queue<queued_item>* EventuallyPersistentStore::beginFlush() {
             // Grab all the backfill items if exist.
             vb->getBackfillItems(item_list);
 
-            // Get all the mutations from the current position of the
-            // persistence cursor to the tail of the current open
-            // checkpoint.
+            // Get all dirty items from the checkpoint.
             uint64_t checkpointId = vb->checkpointManager.getAllItemsForPersistence(item_list);
             persistenceCheckpointIds[vbid] = checkpointId;
 
-            std::set<queued_item, CompareQueuedItemsByKey> item_set;
-            std::pair<std::set<queued_item, CompareQueuedItemsByKey>::iterator, bool> ret;
             std::vector<queued_item>::reverse_iterator reverse_it = item_list.rbegin();
-            // Perform further deduplication here by removing duplicate
-            // mutations for each key. For this, traverse the array from
-            // the last element.
-            for(; reverse_it != item_list.rend(); ++reverse_it) {
+            // Perform further deduplication here by removing duplicate mutations for each key.
+            for (; reverse_it != item_list.rend(); ++reverse_it) {
                 queued_item qi = *reverse_it;
                 switch (qi->getOperation()) {
                 case queue_op_set:
                 case queue_op_del:
-                    ret = item_set.insert(qi);
-                    if (!ret.second) {
+                    if (!(item_set.insert(qi).second)) {
                         ++dedup;
                         vb->doStatsForFlushing(*qi, qi->size());
                     }
@@ -1458,15 +1458,24 @@ std::queue<queued_item>* EventuallyPersistentStore::beginFlush() {
                     ;
                 }
             }
-            item_list.assign(item_set.begin(), item_set.end());
 
-            if (item_list.size() > 0) {
-                pushToOutgoingQueue(item_list);
+            uint16_t shard_id = 0;
+            std::set<queued_item, CompareQueuedItemsByKey>::iterator sit = item_set.begin();
+            for (; sit != item_set.end(); ++sit) {
+                const queued_item &qitem = *sit;
+                shard_id = rwUnderlying->getShardId(*qitem);
+                dbShardQueues[shard_id].push_back(*sit);
             }
-            stats.flusherDedup += dedup;
+            num_items += item_set.size();
+            item_list.clear();
+            item_set.clear();
         }
 
+        if (num_items > 0) {
+            pushToOutgoingQueue();
+        }
         size_t queue_size = getWriteQueueSize();
+        stats.flusherDedup += dedup;
         stats.flusher_todo.set(writing.size());
         stats.queue_size.set(queue_size);
         getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
@@ -1477,13 +1486,19 @@ std::queue<queued_item>* EventuallyPersistentStore::beginFlush() {
     return rv;
 }
 
-void EventuallyPersistentStore::pushToOutgoingQueue(std::vector<queued_item> &items) {
-    rwUnderlying->optimizeWrites(items);
-    std::vector<queued_item>::iterator it = items.begin();
-    for(; it != items.end(); ++it) {
-        writing.push(*it);
+void EventuallyPersistentStore::pushToOutgoingQueue() {
+    size_t num_shards = rwUnderlying->getNumShards();
+    for (size_t i = 0; i < num_shards; ++i) {
+        if (dbShardQueues[i].empty()) {
+            continue;
+        }
+        rwUnderlying->optimizeWrites(dbShardQueues[i]);
+        std::vector<queued_item>::iterator it = dbShardQueues[i].begin();
+        for(; it != dbShardQueues[i].end(); ++it) {
+            writing.push(*it);
+        }
+        dbShardQueues[i].clear();
     }
-    items.clear();
 }
 
 void EventuallyPersistentStore::requeueRejectedItems(std::queue<queued_item> *rej) {
@@ -2025,26 +2040,27 @@ void EventuallyPersistentStore::queueDirty(const std::string &key,
     }
 }
 
-int EventuallyPersistentStore::addUnlessThere(const std::string &key,
-                                              uint16_t vbid,
-                                              enum queue_operation op,
-                                              const value_t &value,
-                                              uint32_t flags,
-                                              time_t exptime,
-                                              uint64_t cas)
+int EventuallyPersistentStore::restoreItem(const Item &itm, enum queue_operation op)
 {
+    const std::string &key = itm.getKey();
+    uint16_t vbid = itm.getVBucketId();
     RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
     if (!vb) {
         return -1;
     }
 
-    LockHolder lh(restore.mutex);
+    int bucket_num(0);
+    LockHolder lh = vb->ht.getLockedBucket(key, &bucket_num);
+    LockHolder rlh(restore.mutex);
     if (restore.itemsDeleted.find(key) == restore.itemsDeleted.end() &&
-        vb->ht.addUnlessThere(key, vbid, op, value, flags, exptime, cas)) {
+        vb->ht.unlocked_restoreItem(itm, op, bucket_num)) {
 
-        queued_item qi(new QueuedItem(key, value_t(NULL), vbid, op,
+        lh.unlock();
+        queued_item qi(new QueuedItem(key, value_t(NULL),
+                                      vbid, op,
                                       vbuckets.getBucketVersion(vbid),
-                                      -1, flags, exptime, cas));
+                                      -1, itm.getFlags(),
+                                      itm.getExptime(), itm.getCas()));
         std::map<uint16_t, std::vector<queued_item> >::iterator it = restore.items.find(vbid);
         if (it != restore.items.end()) {
             it->second.push_back(qi);

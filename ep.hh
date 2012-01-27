@@ -795,13 +795,7 @@ public:
      *
      * @return 0 success, 1 skipped, -1 invalid vbucket
      */
-    int addUnlessThere(const std::string &key,
-                       uint16_t vbid,
-                       enum queue_operation op,
-                       const value_t &value,
-                       uint32_t flags,
-                       time_t exptime,
-                       uint64_t cas);
+    int restoreItem(const Item &itm, enum queue_operation op);
 
     bool isFlushAllScheduled() {
         return diskFlushAll.get();
@@ -864,7 +858,7 @@ private:
     }
 
     std::queue<queued_item> *beginFlush();
-    void pushToOutgoingQueue(std::vector<queued_item> &items);
+    void pushToOutgoingQueue();
     void requeueRejectedItems(std::queue<queued_item> *rejects);
     void completeFlush(rel_time_t flush_start);
 
@@ -912,6 +906,7 @@ private:
     VBucketMap                 vbuckets;
     SyncObject                 mutex;
     std::queue<queued_item>    writing;
+    std::vector<queued_item>  *dbShardQueues;
     pthread_t                  thread;
     Atomic<size_t>             bgFetchQueue;
     Atomic<bool>               diskFlushAll;

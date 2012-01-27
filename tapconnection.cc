@@ -492,6 +492,8 @@ void TapProducer::rollback() {
                     break;
                 case TAP_OPAQUE_INITIAL_VBUCKET_STREAM:
                     {
+                        TapVBucketEvent e(i->event, i->vbucket, i->state);
+                        addVBucketHighPriority_UNLOCKED(e);
                         backfillVBs.push_back(i->vbucket);
                     }
                     break;

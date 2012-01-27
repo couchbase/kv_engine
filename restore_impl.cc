@@ -24,13 +24,17 @@
 #include "embedded/sqlite3.h"
 #endif
 
-static const char *query =
-    "select cpoint_op.vbucket_id,op,key,flg,exp,cas,val "
+static const char *checks_enabled_query =
+    "select cpoint_op.vbucket_id,op,key,flg,exp,cas,val,cpoint_op.cpoint_id "
     "from cpoint_state "
     "  join cpoint_op on (cpoint_op.vbucket_id = cpoint_state.vbucket_id and"
     "                     cpoint_op.cpoint_id = cpoint_state.cpoint_id) "
     "where cpoint_state.state = \"closed\" "
     "order by cpoint_op.cpoint_id desc";
+
+static const char *checks_disabled_query =
+    "select cpoint_op.vbucket_id,op,key,flg,exp,cas,val,cpoint_id "
+    "from cpoint_op ";
 
 static const int vbucket_id_idx = 0;
 static const int op_idx = 1;
@@ -39,6 +43,7 @@ static const int flag_idx = 3;
 static const int exp_idx = 4;
 static const int cas_idx = 5;
 static const int val_idx = 6;
+static const int cpoint_idx = 7;
 
 extern "C" {
     static void *restoreThreadMain(void *arg);
@@ -87,12 +92,12 @@ public:
      * @param dbname the name of the incremental database to restore
      */
     DecrementalRestorer(EventuallyPersistentEngine &theEngine,
-                        const std::string &dbname) :
+                        const std::string &dbname, bool restore_file_checks) :
         db(NULL), statement(NULL), engine(theEngine),
         store(*engine.getEpStore()), file(dbname),
-        expired(0), wrongVBucket(0), restored(0), skipped(0), busy(0)
+        expired(0), wrongVBucket(0), restored(0), skipped(0), busy(0), restore_cpoint(0)
     {
-        // None needed
+        query = restore_file_checks == true ? checks_enabled_query : checks_disabled_query;
     }
 
     /**
@@ -101,6 +106,7 @@ public:
      */
     ~DecrementalRestorer() {
         if (db != NULL) {
+            (void)sqlite3_finalize(statement);
             (void)sqlite3_close(db);
         }
     }
@@ -112,6 +118,10 @@ public:
 
     uint32_t getNumBusy() const {
         return busy;
+    }
+
+    uint32_t getRestoreCheckpoint() const {
+        return restore_cpoint;
     }
 
     uint32_t getNumRestored() const {
@@ -143,6 +153,7 @@ public:
         if (sqlite3_prepare_v2(db, query,
                                strlen(query),
                                &statement, NULL) != SQLITE_OK) {
+            (void)sqlite3_finalize(statement);
             (void)sqlite3_close(db);
             db = NULL;
             throw std::string("Failed to prepare statement");
@@ -161,6 +172,7 @@ public:
             }
         }
 
+        (void)sqlite3_finalize(statement);
         (void)sqlite3_close(db);
         db = NULL;
     }
@@ -191,10 +203,17 @@ private:
 
         uint16_t vbid =  (uint16_t)sqlite3_column_int(statement,
                                                       vbucket_id_idx);
-        int r = store.addUnlessThere(key, vbid, op, value,
-                                     sqlite3_column_int(statement, flag_idx),
-                                     sqlite3_column_int(statement, exp_idx),
-                                     sqlite3_column_int(statement, cas_idx));
+        if (!restore_cpoint) {
+            restore_cpoint = (uint32_t)sqlite3_column_int(statement,
+                                                            cpoint_idx);
+        }
+
+        uint32_t flags = sqlite3_column_int(statement, flag_idx);
+        time_t expiration = sqlite3_column_int(statement, exp_idx);
+        uint64_t cas = sqlite3_column_int64(statement, cas_idx);
+
+        Item itm(key, flags, expiration, value, cas, -1, vbid);
+        int r = store.restoreItem(itm, op);
         if (r == 0) {
             ++restored;
         } else if (r == 1) {
@@ -214,6 +233,8 @@ private:
     uint32_t restored;
     uint32_t skipped;
     uint32_t busy;
+    uint32_t restore_cpoint;
+    const char *query;
 };
 
 class RestoreManagerImpl : public RestoreManager {
@@ -226,6 +247,8 @@ public:
         restored(0),
         skipped(0),
         busy(0),
+        restore_cpoint(0),
+        restore_file_checks(true),
         state(&State::Uninitialized)
     {
         // None needed
@@ -249,7 +272,7 @@ public:
         }
 
         assert(instance == NULL);
-        instance = new DecrementalRestorer(engine, config);
+        instance = new DecrementalRestorer(engine, config, restore_file_checks);
         setState_UNLOCKED(State::Initialized);
     }
 
@@ -301,17 +324,21 @@ public:
 
         LockHolder lh(mutex);
         addStat(cookie, "state", state->toString(), add_stat);
+
         if (errorMsg.length() > 0) {
             addStat(cookie, "last_error", errorMsg, add_stat);
         }
 
         if (instance == NULL) {
+            addStat(cookie, "restore_checkpoint", restore_cpoint, add_stat);
             addStat(cookie, "number_busy", busy, add_stat);
             addStat(cookie, "number_skipped", skipped, add_stat);
             addStat(cookie, "number_restored", restored, add_stat);
             addStat(cookie, "number_expired", expired, add_stat);
             addStat(cookie, "number_wrong_vbucket", wrongVBucket, add_stat);
         } else {
+            addStat(cookie, "restore_checkpoint", restore_cpoint ? restore_cpoint :
+                                        instance->getRestoreCheckpoint(), add_stat);
             addStat(cookie, "file", instance->getDbFile(), add_stat);
             addStat(cookie, "number_busy", instance->getNumBusy() + busy,
                     add_stat);
@@ -331,6 +358,10 @@ public:
         LockHolder lh(mutex);
         return (state == &State::Starting ||
                 state == &State::Running);
+    }
+
+    virtual void enableRestoreFileChecks(bool chk) {
+        restore_file_checks = chk;
     }
 
     virtual ~RestoreManagerImpl() {
@@ -355,6 +386,9 @@ private:
         skipped += instance->getNumSkipped();
         busy += instance->getNumBusy();
         restored += instance->getNumRestored();
+        if (!restore_cpoint) {
+            restore_cpoint = instance->getRestoreCheckpoint();
+        }
     }
 
     void reap_UNLOCKED() throw (std::string) {
@@ -393,6 +427,8 @@ private:
     uint32_t restored;
     uint32_t skipped;
     uint32_t busy;
+    uint32_t restore_cpoint;
+    bool restore_file_checks;
 
     // should we abort or not?
     Atomic<bool> terminate;

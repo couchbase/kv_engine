@@ -56,10 +56,10 @@ public:
                      std::list<Checkpoint*>::iterator checkpoint,
                      std::list<queued_item>::iterator pos,
                      size_t os = 0, bool isClosedCheckpointOnly = false,
-                     uint64_t lastClosedChkId = 0) :
+                     uint64_t openChkId = 1) :
         name(n), currentCheckpoint(checkpoint), currentPos(pos),
         offset(os), closedCheckpointOnly(isClosedCheckpointOnly),
-        lastClosedCheckpointId(lastClosedChkId) { }
+        openChkIdAtRegistration(openChkId) { }
 
 private:
     std::string                      name;
@@ -67,7 +67,7 @@ private:
     std::list<queued_item>::iterator currentPos;
     Atomic<size_t>                   offset;
     bool                             closedCheckpointOnly;
-    uint64_t                         lastClosedCheckpointId;
+    uint64_t                         openChkIdAtRegistration;
 };
 
 /**

@@ -1084,7 +1084,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         size_t maxSize = 0;
         float mutation_mem_threshold = 0;
 
-        const int max_items = 56;
+        const int max_items = 57;
         struct config_item items[max_items];
         int ii = 0;
         memset(items, 0, sizeof(items));
@@ -1349,6 +1349,13 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         items[ii].value.dt_bool = &restore_mode;
 
         ++ii;
+        bool restore_file_checks;
+        int restore_file_checks_idx = ii;
+        items[ii].key = "restore_file_checks";
+        items[ii].datatype = DT_BOOL;
+        items[ii].value.dt_bool = &restore_file_checks;
+
+        ++ii;
         float backfill_resident_threshold;
         int backfill_resident_threshold_idx = ii;
         items[ii].key = "bf_resident_threshold";
@@ -1460,6 +1467,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
                     getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                                      "Failed to create restore manager");
                     return ENGINE_FAILED;
+                }
+
+                if (items[restore_file_checks_idx].found) {
+                    restore.manager->enableRestoreFileChecks(restore_file_checks);
                 }
                 restore.enabled.set(true);
             }
@@ -3918,7 +3929,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::handleRestoreCmd(const void *cooki
 {
     LockHolder lh(restore.mutex);
     if (restore.manager == NULL) { // we need another "mode" variable
-        if (response(NULL, 0, NULL, 0, NULL, 0, PROTOCOL_BINARY_RAW_BYTES,
+        std::string msg = "Restore mode is not enabled.";
+        if (response(NULL, 0, NULL, 0, msg.c_str(), msg.length(),
+                     PROTOCOL_BINARY_RAW_BYTES,
                      PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0, cookie)) {
             return ENGINE_SUCCESS;
         }

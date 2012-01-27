@@ -32,7 +32,7 @@ DEFAULT_MAX_BACKUP_SIZE = 512 # Default max size 512MB of a single incremental b
 
 def usage(err=0):
     print >> sys.stderr, """
-Usage: %s [-h %s[:%s]] [-o %s] [-s %s] [-T num_secs] [-r] [-c] [-t transaction_size] [-v] tap_name|db_file
+Usage: %s [-h %s[:%s]] [-o %s] [-s %s] [-T num_secs] [-r] [-c] [-d] [-t transaction_size] [-v] tap_name|db_file
 """ % (os.path.basename(sys.argv[0]),
        DEFAULT_HOST_PORT[0], DEFAULT_HOST_PORT[1], DEFAULT_FILE, DEFAULT_MAX_BACKUP_SIZE)
     sys.exit(err)
@@ -47,9 +47,10 @@ def parse_args(args):
     txn_size  = DEFAULT_TXN_SIZE
     max_backup_size = DEFAULT_MAX_BACKUP_SIZE
     split_backup = False
+    deduplicate = False
 
     try:
-        opts, args = getopt.getopt(args, 'h:o:s:T:t:rcv', ['help'])
+        opts, args = getopt.getopt(args, 'h:o:s:T:t:rcdv', ['help'])
     except getopt.GetoptError, e:
         usage(e.msg)
 
@@ -71,6 +72,8 @@ def parse_args(args):
             only_name = True # Only register the name and exit.
         elif o == '-c':
             only_check = True # Only check the incremental backup file by showing the list of checkpoints.
+        elif o == '-d':
+            deduplicate = True
         elif o == '-t':
             txn_size = int(a)
         elif o == '-v':
@@ -84,7 +87,7 @@ def parse_args(args):
         usage("incorrect number of arguments - only one registered name or backup file name needed")
 
     return host_port, file, args[0], timeout, only_name, only_check, txn_size, verbosity,\
-           max_backup_size, split_backup
+           max_backup_size, split_backup, deduplicate
 
 def log(level, *args):
     global verbosity
@@ -96,7 +99,7 @@ def main():
     global verbosity
 
     host_port, file, name, timeout, only_name, only_check, txn_size, verbosity,\
-               max_backup_size, split_backup = parse_args(sys.argv[1:])
+               max_backup_size, split_backup, deduplicate = parse_args(sys.argv[1:])
     log(1, "host_port = " + ':'.join(host_port))
     log(1, "verbosity = " + str(verbosity))
     log(1, "only_name = " + str(only_name))
@@ -135,7 +138,7 @@ def main():
                 sys.exit(0);
             sys.exit("ERROR: could not register name: " + name)
 
-        loop(mc, file, max_backup_size, split_backup, timeout, txn_size, ':'.join(host_port) + '-' + name)
+        loop(mc, file, max_backup_size, split_backup, deduplicate, timeout, txn_size, ':'.join(host_port) + '-' + name)
 
     except NameError as ne:
         sys.exit("ERROR: " + str(ne))
@@ -201,10 +204,10 @@ def update_checkpoint_state_in_split_backups(split_backup_files, chk_stmt, field
         cursor.close()
         db.close()
 
-def loop(mc, file, max_backup_size, split_backup, timeout, txn_size, source):
+def loop(mc, file, max_backup_size, split_backup, deduplicate, timeout, txn_size, source):
     split_backup_files = []
     next_backup_file = get_available_backup_file_name(file)
-    db = create_backup_db(next_backup_file, max_backup_size, split_backup)
+    db = create_backup_db(next_backup_file, max_backup_size, split_backup, deduplicate)
 
     vbmap = {} # Key is vbucketId, value is [checkpointId, seq].
 
@@ -218,7 +221,7 @@ def loop(mc, file, max_backup_size, split_backup, timeout, txn_size, source):
         sinput = [mc.s]
         c = db.cursor()
         update_count = 0
-        tap_stmt = "INSERT into cpoint_op" \
+        tap_stmt = "INSERT OR REPLACE into cpoint_op" \
                    "(vbucket_id, cpoint_id, seq, op, key, flg, exp, cas, val)" \
                    " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
         chk_start_stmt = "INSERT into cpoint_state" \
@@ -276,7 +279,8 @@ def loop(mc, file, max_backup_size, split_backup, timeout, txn_size, source):
                     split_backup_files.append(next_backup_file)
                     ## Open the new backup db file
                     next_backup_file = get_available_backup_file_name(file)
-                    db = create_backup_db(next_backup_file, max_backup_size, split_backup)
+                    db = create_backup_db(next_backup_file, max_backup_size,
+                                                    split_backup, deduplicate)
                     c = db.cursor()
                     ## Insert checkpoint_start record
                     t = datetime.datetime.now().strftime('%Y%m%d%H%M%S')
@@ -426,7 +430,7 @@ def parseTapExt(ext):
 
     return eng_length, flags, ttl, flg, exp, needAck
 
-def create_backup_db(backup_file_name, max_backup_size, split_backup):
+def create_backup_db(backup_file_name, max_backup_size, split_backup, deduplicate):
     db = None
     try:
         db = sqlite3.connect(backup_file_name) # TODO: Revisit isolation level
@@ -434,17 +438,32 @@ def create_backup_db(backup_file_name, max_backup_size, split_backup):
         cur = db.execute("pragma user_version").fetchall()[0][0] # File's version.
         if (cur != 0):
             sys.exit("ERROR: unexpected db user version: " + str(cur))
-        db.executescript("""
-        BEGIN;
-        CREATE TABLE cpoint_op
-        (vbucket_id integer, cpoint_id integer, seq integer, op text,
-        key varchar(250), flg integer, exp integer, cas integer, val blob);
-        CREATE TABLE cpoint_state
-        (vbucket_id integer, cpoint_id integer, prev_cpoint_id integer, state varchar(1),
-        source varchar(250), updated_at text);
-        pragma user_version=%s;
-        COMMIT;
-        """ % (MBB_VERSION))
+        if deduplicate:
+            db.executescript("""
+            BEGIN;
+            CREATE TABLE cpoint_op
+            (vbucket_id integer, cpoint_id integer, seq integer, op text,
+            key varchar(250), flg integer, exp integer, cas integer, val blob,
+            primary key(vbucket_id, key));
+            CREATE TABLE cpoint_state
+            (vbucket_id integer, cpoint_id integer, prev_cpoint_id integer, state varchar(1),
+            source varchar(250), updated_at text);
+            pragma user_version=%s;
+            COMMIT;
+            """ % (MBB_VERSION))
+        else:
+            db.executescript("""
+            BEGIN;
+            CREATE TABLE cpoint_op
+            (vbucket_id integer, cpoint_id integer, seq integer, op text,
+            key varchar(250), flg integer, exp integer, cas integer, val blob);
+            CREATE TABLE cpoint_state
+            (vbucket_id integer, cpoint_id integer, prev_cpoint_id integer, state varchar(1),
+            source varchar(250), updated_at text);
+            pragma user_version=%s;
+            COMMIT;
+            """ % (MBB_VERSION))
+
         if split_backup:
             max_backup_size = max_backup_size * 1024 * 1024 # Convert MB to bytes
             db_page_size = db.execute("pragma page_size").fetchone()[0]
