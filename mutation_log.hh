@@ -307,7 +307,7 @@ private:
     int fd() const { return file; }
 
     LogHeaderBlock     headerBlock;
-    const std::string &logPath;
+    const std::string  logPath;
     size_t             blockSize;
     size_t             blockPos;
     int                file;
