@@ -9,6 +9,7 @@
 #include <functional>
 #include <numeric>
 #include <iterator>
+#include <exception>
 
 #include <cstdio>
 
@@ -206,7 +207,33 @@ public:
     void resetCounts(size_t *);
 
     /**
+     * Exception thrown upon failure to read a mutation log.
+     */
+    class ReadException : public std::runtime_error {
+    public:
+        ReadException(const std::string &s) : std::runtime_error(s) {}
+    };
+
+    /**
+     * Exception thrown when a CRC mismatch is read in the log.
+     */
+    class CRCReadException : public ReadException {
+    public:
+        CRCReadException() : ReadException("CRC Mismatch") {}
+    };
+
+    /**
+     * Exception thrown when a short read occurred.
+     */
+    class ShortReadException : public ReadException {
+    public:
+        ShortReadException() : ReadException("Short Read") {}
+    };
+
+    /**
      * An iterator for the mutation log.
+     *
+     * A ReadException may be thrown at any point along iteration.
      */
     class iterator  : public std::iterator<std::input_iterator_tag,
                                            const MutationLogEntry*> {

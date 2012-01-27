@@ -160,6 +160,7 @@ void MutationLog::readInitialBlock() {
 
     headerBlock.set(buf, sizeof(buf));
 
+    // These are reserved for future use.
     assert(headerBlock.version() == LOG_VERSION);
     assert(headerBlock.blockCount() == 1);
 
@@ -170,7 +171,9 @@ void MutationLog::prepareWrites() {
     if (isEnabled()) {
         int lseek_result = lseek(file, 0, SEEK_END);
         assert(lseek_result > 0);
-        assert(lseek_result % blockSize == 0);
+        if (lseek_result % blockSize != 0) {
+            throw ShortReadException();
+        }
         logSize = static_cast<size_t>(lseek_result);
     }
 }
@@ -212,10 +215,20 @@ void MutationLog::open() {
         return;
     }
     file = ::open(const_cast<char*>(logPath.c_str()), O_RDWR|O_CREAT, 0666);
-    assert(file >= 0);
+    if (file < 0) {
+        std::stringstream ss;
+        ss << "Unable to open log file: " << strerror(errno);
+        throw ReadException(ss.str());
+    }
     struct stat st;
     int stat_result = fstat(file, &st);
     assert(stat_result == 0);
+
+    if (st.st_size > 0 && st.st_size < static_cast<off_t>(blockSize)) {
+        close(file);
+        file = DISABLED_FD;
+        throw ShortReadException();
+    }
 
     if (st.st_size > 0) {
         readInitialBlock();
@@ -384,21 +397,26 @@ void MutationLog::iterator::nextBlock() {
         buf = static_cast<uint8_t*>(calloc(1, log->header().blockSize()));
         assert(buf);
     }
+    p = buf;
+
     ssize_t bytesread = pread(log->fd(), buf, log->header().blockSize(), offset);
-    if (bytesread < (ssize_t)(log->header().blockSize())) {
+    if (bytesread < 1) {
         isEnd = true;
         return;
     }
-    assert(bytesread == (ssize_t)(log->header().blockSize()));
+    if (bytesread != (ssize_t)(log->header().blockSize())) {
+        throw ShortReadException();
+    }
     offset += bytesread;
-    p = buf;
 
     uint32_t crc32(crc32buf(buf + 2, log->header().blockSize() - 2));
     uint16_t computed_crc16(crc32 & 0xffff);
     uint16_t retrieved_crc16;
     memcpy(&retrieved_crc16, buf, sizeof(retrieved_crc16));
     retrieved_crc16 = ntohs(retrieved_crc16);
-    assert(computed_crc16 == retrieved_crc16);
+    if (computed_crc16 != retrieved_crc16) {
+        throw CRCReadException();
+    }
 
     memcpy(&items, buf + 2, 2);
     items = ntohs(items);

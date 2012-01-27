@@ -8,6 +8,7 @@
 #include <set>
 #include <map>
 #include <algorithm>
+#include <stdexcept>
 
 #include "assert.h"
 #include "mutation_log.hh"
@@ -311,12 +312,158 @@ static void testLoggingDirty() {
     remove(TMP_LOG_FILE);
 }
 
+static void testLoggingBadCRC() {
+    remove(TMP_LOG_FILE);
+
+    {
+        MutationLog ml(TMP_LOG_FILE);
+
+        ml.newItem(3, "key1", 1);
+        ml.newItem(2, "key1", 2);
+        ml.commit1();
+        ml.commit2();
+        ml.newItem(3, "key2", 3);
+        ml.delItem(3, "key1");
+        ml.commit1();
+        ml.commit2();
+        // Remaining:   3:key2, 2:key1
+
+        assert(ml.itemsLogged[ML_NEW] == 3);
+        assert(ml.itemsLogged[ML_DEL] == 1);
+        assert(ml.itemsLogged[ML_COMMIT1] == 2);
+        assert(ml.itemsLogged[ML_COMMIT2] == 2);
+    }
+
+    // Break the log
+    int file = open(TMP_LOG_FILE, O_RDWR, 0666);
+    assert(lseek(file, 5000, SEEK_SET) == 5000);
+    uint8_t b;
+    assert(read(file, &b, sizeof(b)) == 1);
+    assert(lseek(file, 5000, SEEK_SET) == 5000);
+    b = ~b;
+    assert(write(file, &b, sizeof(b)) == 1);
+
+    {
+        MutationLog ml(TMP_LOG_FILE);
+        MutationLogHarvester h(ml);
+        h.setVbVer(1, 1);
+        h.setVbVer(2, 1);
+        h.setVbVer(3, 1);
+
+        try {
+            h.load();
+            abort();
+        } catch(MutationLog::CRCReadException e) {
+            // expected
+        }
+
+        assert(h.getItemsSeen()[ML_NEW] == 0);
+        assert(h.getItemsSeen()[ML_DEL] == 0);
+        assert(h.getItemsSeen()[ML_COMMIT1] == 0);
+        assert(h.getItemsSeen()[ML_COMMIT2] == 0);
+
+        // Check stat copying
+        ml.resetCounts(h.getItemsSeen());
+
+        assert(ml.itemsLogged[ML_NEW] == 0);
+        assert(ml.itemsLogged[ML_DEL] == 0);
+        assert(ml.itemsLogged[ML_COMMIT1] == 0);
+        assert(ml.itemsLogged[ML_COMMIT2] == 0);
+
+        // See if we got what we expect.
+        std::map<std::string, uint64_t> maps[4];
+        h.apply(&maps, loaderFun);
+
+        assert(maps[0].size() == 0);
+        assert(maps[1].size() == 0);
+        assert(maps[2].size() == 0);
+        assert(maps[3].size() == 0);
+
+        assert(maps[2].find("key1") == maps[2].end());
+        assert(maps[3].find("key2") == maps[3].end());
+    }
+
+    remove(TMP_LOG_FILE);
+}
+
+static void testLoggingShortRead() {
+    remove(TMP_LOG_FILE);
+
+    {
+        MutationLog ml(TMP_LOG_FILE);
+
+        ml.newItem(3, "key1", 1);
+        ml.newItem(2, "key1", 2);
+        ml.commit1();
+        ml.commit2();
+        ml.newItem(3, "key2", 3);
+        ml.delItem(3, "key1");
+        ml.commit1();
+        ml.commit2();
+        // Remaining:   3:key2, 2:key1
+
+        assert(ml.itemsLogged[ML_NEW] == 3);
+        assert(ml.itemsLogged[ML_DEL] == 1);
+        assert(ml.itemsLogged[ML_COMMIT1] == 2);
+        assert(ml.itemsLogged[ML_COMMIT2] == 2);
+    }
+
+    // Break the log
+    assert(truncate(TMP_LOG_FILE, 5000) == 0);
+
+    try {
+        MutationLog ml(TMP_LOG_FILE);
+        MutationLogHarvester h(ml);
+        h.setVbVer(1, 1);
+        h.setVbVer(2, 1);
+        h.setVbVer(3, 1);
+
+        h.load();
+        abort();
+    } catch(MutationLog::ShortReadException e) {
+        // expected
+    }
+
+    // Break the log harder (can't read even the initial block)
+    assert(truncate(TMP_LOG_FILE, 4000) == 0);
+
+    try {
+        MutationLog ml(TMP_LOG_FILE);
+        abort();
+    } catch(MutationLog::ShortReadException e) {
+        // expected
+    }
+
+    remove(TMP_LOG_FILE);
+}
+
+static void testYUNOOPEN() {
+    int file = open(TMP_LOG_FILE, O_CREAT|O_RDWR, 0);
+    assert(file >= 0);
+    close(file);
+    try {
+        MutationLog ml(TMP_LOG_FILE);
+        abort();
+    } catch(MutationLog::ReadException e) {
+        std::string exp("Unable to open log file: Permission denied");
+        // This is kind of a soft assertion.  The actual text may vary.
+        if (e.what() != exp) {
+            std::cerr << "Expected ``" << exp << "'', got: " << e.what() << std::endl;
+        }
+    }
+    assert(remove(TMP_LOG_FILE) == 0);
+}
+
 int main(int, char **) {
     testUnconfigured();
     testSyncSet();
     testLogging();
     testDelAll();
     testLoggingDirty();
+    testLoggingBadCRC();
+    testLoggingShortRead();
+    testYUNOOPEN();
 
+    remove(TMP_LOG_FILE);
     return 0;
 }
