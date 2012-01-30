@@ -26,7 +26,7 @@ def cmd(f):
                 password = ''
             mc.sasl_auth_plain(username, password)
 
-        if kwargs['allBuckets']:
+        if kwargs.get('allBuckets', None):
             buckets = mc.stats('bucket')
             for bucket in buckets.iterkeys():
                 print '*' * 78
