@@ -2098,6 +2098,87 @@ static enum test_result test_bug3522(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return SUCCESS;
 }
 
+static protocol_binary_request_header *
+           prepare_get_replica(ENGINE_HANDLE *h,
+                               ENGINE_HANDLE_V1 *h1,
+                               vbucket_state_t state) {
+    const char *key = "k0";
+    size_t key_size = strlen(key);
+
+    size_t hdr_size = sizeof(protocol_binary_request_no_extras);
+    char *pkt_raw = static_cast<char*>(calloc(1, strlen(key) + hdr_size));
+
+    uint16_t id = 0;
+    uint8_t  extlen = 8;
+
+    protocol_binary_request_no_extras *gr;
+    protocol_binary_request_header *pkt;
+
+    memcpy(pkt_raw + hdr_size, key, key_size);
+    gr = (protocol_binary_request_no_extras *)pkt_raw;
+    gr->message.header.request.opcode = CMD_GET_REPLICA;
+    gr->message.header.request.extlen = extlen;
+    gr->message.header.request.bodylen = htonl(key_size + extlen);
+    gr->message.header.request.keylen = htons(key_size);
+    gr->message.header.request.vbucket = htons(id);
+
+    pkt = &gr->message.header;
+
+    item *i = NULL;
+    check(store(h, h1, NULL, OPERATION_SET, key, "replicadata", &i, 0, id)
+              == ENGINE_SUCCESS, "Get Replica Failed");
+
+    check(set_vbucket_state(h, h1, id, state),
+          "Failed to set vbucket active state, Get Replica Failed");
+
+    return pkt;
+}
+
+static enum test_result test_get_replica_active_state(ENGINE_HANDLE *h,
+                                                      ENGINE_HANDLE_V1 *h1) {
+    protocol_binary_request_header *pkt;
+    pkt =prepare_get_replica(h, h1, vbucket_state_active);
+    check(h1->unknown_command(h, NULL, pkt, add_response) ==
+          ENGINE_NOT_MY_VBUCKET, "Should have returned error for active state");
+
+    return SUCCESS;
+}
+
+static enum test_result test_get_replica_pending_state(ENGINE_HANDLE *h,
+                                                       ENGINE_HANDLE_V1 *h1) {
+    protocol_binary_request_header *pkt;
+
+    const void *cookie = testHarness.create_cookie();
+    testHarness.set_ewouldblock_handling(cookie, false);
+    pkt = prepare_get_replica(h, h1, vbucket_state_pending);
+    check(h1->unknown_command(h, cookie, pkt, add_response) ==
+          ENGINE_EWOULDBLOCK, "Should have returned error for pending state");
+    testHarness.destroy_cookie(cookie);
+    return SUCCESS;
+}
+
+static enum test_result test_get_replica_dead_state(ENGINE_HANDLE *h,
+                                                    ENGINE_HANDLE_V1 *h1) {
+    protocol_binary_request_header *pkt;
+    pkt = prepare_get_replica(h, h1, vbucket_state_dead);
+    check(h1->unknown_command(h, NULL, pkt, add_response) ==
+          ENGINE_NOT_MY_VBUCKET, "Should have returned error for dead state");
+
+    return SUCCESS;
+}
+
+static enum test_result test_get_replica(ENGINE_HANDLE *h,
+                                         ENGINE_HANDLE_V1 *h1) {
+    protocol_binary_request_header *pkt;
+    pkt = prepare_get_replica(h, h1, vbucket_state_replica);
+    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
+                              "Get Replica Failed");
+    check(strcmp("replicadata", last_body) == 0,
+                 "Should have returned identical value");
+
+    return SUCCESS;
+}
+
 static enum test_result test_vb_del_pending(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const void *cookie = testHarness.create_cookie();
     testHarness.set_ewouldblock_handling(cookie, false);
@@ -5223,7 +5304,15 @@ engine_test_t* get_tests(void) {
                  prepare, cleanup, BACKEND_ALL),
         TestCase("expiry_no_items_warmup", test_bug3522, NULL, teardown, NULL,
                  prepare, cleanup, BACKEND_ALL),
-        // Stats tests
+        TestCase("replica read", test_get_replica, NULL, teardown, NULL,
+                 prepare, cleanup, BACKEND_ALL),
+        TestCase("replica read: invalid state - active", test_get_replica_active_state,
+                 NULL, teardown, NULL, prepare, cleanup, BACKEND_ALL),
+        TestCase("replica read: invalid state - pending", test_get_replica_pending_state,
+                 NULL, teardown, NULL, prepare, cleanup, BACKEND_ALL),
+        TestCase("replica read: invalid state - dead", test_get_replica_dead_state,
+                 NULL, teardown, NULL, prepare, cleanup, BACKEND_ALL),
+       // Stats tests
         TestCase("stats", test_stats, NULL, teardown, NULL, prepare, cleanup,
                  BACKEND_ALL),
         TestCase("io stats", test_io_stats, NULL, teardown, NULL, prepare,

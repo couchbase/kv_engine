@@ -687,6 +687,41 @@ extern "C" {
         return ENGINE_SUCCESS;
     }
 
+    static ENGINE_ERROR_CODE getReplicaCmd(EventuallyPersistentEngine *e,
+                                           protocol_binary_request_header *request,
+                                           const void *cookie,
+                                           Item **item,
+                                           const char **msg,
+                                           protocol_binary_response_status *res) {
+        EventuallyPersistentStore *eps = e->getEpStore();
+        protocol_binary_request_no_extras *req =
+            (protocol_binary_request_no_extras*)request;
+
+        char key[256];
+        int keylen = ntohs(req->message.header.request.keylen);
+        uint16_t vbucket = ntohs(req->message.header.request.vbucket);
+        ENGINE_ERROR_CODE error_code;
+
+        memcpy(key, ((char *)request) + sizeof(req->message.header), keylen);
+        std::string keystr(key, keylen);
+
+        GetValue rv(eps->getReplica(keystr, vbucket, cookie, true));
+
+        if ((error_code = rv.getStatus()) != ENGINE_SUCCESS) {
+            if (error_code == ENGINE_NOT_MY_VBUCKET) {
+                *msg = "That's not my bucket.";
+                *res = PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET;
+            } else if (error_code == ENGINE_TMPFAIL) {
+                *msg = "NOT_FOUND";
+                *res = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
+            }
+            return error_code;
+        }
+
+        *item = rv.getValue();
+        return error_code;
+    }
+
     static ENGINE_ERROR_CODE EvpUnknownCommand(ENGINE_HANDLE* handle,
                                                const void* cookie,
                                                protocol_binary_request_header *request,
@@ -772,7 +807,6 @@ extern "C" {
             return h->handleGetLastClosedCheckpointId(cookie, request, response);
         case CMD_RESET_REPLICATION_CHAIN:
             return h->resetReplicationChain(cookie, request, response);
-
         case CMD_GET_META:
         case CMD_GETQ_META:
             return h->getMeta(cookie,
@@ -790,6 +824,12 @@ extern "C" {
             return h->deleteWithMeta(cookie,
                                      reinterpret_cast<protocol_binary_request_delete_with_meta*>(request),
                                      response);
+        case CMD_GET_REPLICA:
+            rv = getReplicaCmd(h, request, cookie, &itm, &msg, &res);
+            if (rv != ENGINE_SUCCESS) {
+                return rv;
+            }
+            break;
         }
 
         // Send a special response for getl since we don't want to send the key

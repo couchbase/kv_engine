@@ -21,6 +21,12 @@
 #define CMD_START_PERSISTENCE 0x81
 #define CMD_SET_FLUSH_PARAM   0x82
 
+/**
+ * Retrieve data corresponding to a set of keys from a replica vbucket
+ */
+#define CMD_GET_REPLICA 0x83
+
+
 /* The following commands are used by bucket engine:
 
 #define CREATE_BUCKET 0x85
