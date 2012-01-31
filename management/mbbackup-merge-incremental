@@ -252,7 +252,7 @@ def main():
 
     ## Check if there are any missing checkpoints in the backup files
     if os.path.exists(output_file):
-        backup_files.append(output_file)
+        backup_files.insert(0, output_file)
         backup_files = backup_util.validate_incremental_backup_files(backup_files)
         if backup_files[0] == output_file:
             backup_files.remove(output_file)
