@@ -476,6 +476,8 @@ form to describe when time was spent doing various things:
 | klogPadding           | Amount of wasted "padding" space in the klog.  |
 | klogFlushTime         | Time spent flushing the klog.                  |
 | klogSyncTime          | Time spent syncing the klog.                   |
+| item_alloc_sizes      | Item allocation size counters (in bytes).      |
+
 
 ** Hash Stats
 

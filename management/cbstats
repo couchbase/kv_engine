@@ -108,7 +108,8 @@ def histograms(mc, raw_stats):
     dd = {}
     totals = {}
     longest = 0
-    labelers = {'klogPadding': size_label}
+    labelers = {'klogPadding': size_label,
+                'item_alloc_sizes': size_label}
     for s in stats:
         labeler = labelers.get(s[0][0], time_label)
         lbl = "%s - %s" % (labeler(s[0][1]), labeler(s[0][2]))

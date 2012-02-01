@@ -271,6 +271,9 @@ public:
     //! Histogram of queue processing data age.
     Histogram<hrtime_t> dataAgeHisto;
 
+    //! Histogram of item allocation sizes.
+    Histogram<size_t> itemAllocSizeHisto;
+
     //
     // Command timers
     //
@@ -415,6 +418,7 @@ public:
         diskInvaidItemDelHisto.reset();
 
         dataAgeHisto.reset();
+        itemAllocSizeHisto.reset();
         dirtyAgeHisto.reset();
     }
 

@@ -2934,6 +2934,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTimingStats(const void *cookie,
     add_casted_stat("online_update_revert", stats.checkpointRevertHisto,
                     add_stat, cookie);
 
+    add_casted_stat("item_alloc_sizes", stats.itemAllocSizeHisto,
+                    add_stat, cookie);
+
     // Mutation Log
     const MutationLog *mutationLog(epstore->getMutationLog());
     if (mutationLog->isEnabled()) {
