@@ -572,6 +572,8 @@ private:
 
     void collapseClosedCheckpoints(std::list<Checkpoint*> &collapsedChks);
 
+    void resetCursors();
+
     static bool validateCheckpointMaxItemsParam(size_t checkpoint_max_items);
     static bool validateCheckpointPeriodParam(size_t checkpoint_period);
     static bool validateMaxCheckpointsParam(size_t max_checkpoints);
