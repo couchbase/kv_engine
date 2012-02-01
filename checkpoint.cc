@@ -1006,54 +1006,34 @@ bool CheckpointManager::checkAndAddNewCheckpoint(uint64_t id, bool &pCursorRepos
         pCursorRepositioned = false;
         return addNewCheckpoint_UNLOCKED(id);
     } else {
-        bool ret = true;
-        bool persistenceCursorReposition = false;
-        std::set<std::string> tapClients;
-        std::list<Checkpoint*>::iterator curr = it;
-        for (; curr != checkpointList.end(); ++curr) {
-            if (*(persistenceCursor.currentCheckpoint) == *curr) {
-                persistenceCursorReposition = true;
-            }
-            std::map<const std::string, CheckpointCursor>::iterator map_it = tapCursors.begin();
-            for (; map_it != tapCursors.end(); ++map_it) {
-                if (*(map_it->second.currentCheckpoint) == *curr) {
-                    tapClients.insert(map_it->first);
-                }
-            }
-            if ((*curr)->getState() == closed) {
-                numItems -= ((*curr)->getNumItems() + 2); // 2 is for checkpoint start and end items.
-            } else if ((*curr)->getState() == opened) {
-                numItems -= ((*curr)->getNumItems() + 1); // 1 is for checkpoint start.
-            }
-            delete *curr;
+        assert(checkpointList.size() > 0);
+        std::list<Checkpoint*>::reverse_iterator rit = checkpointList.rbegin();
+        ++rit; // Move to the last closed checkpoint.
+        size_t numDuplicatedItems = 0, numMetaItems = 0;
+        // Collapse all checkpoints.
+        for (; rit != checkpointList.rend(); ++rit) {
+            size_t numAddedItems = checkpointList.back()->mergePrevCheckpoint(*rit);
+            numDuplicatedItems += ((*rit)->getNumItems() - numAddedItems);
+            numMetaItems += 2; // checkpoint start and end meta items
+            delete *rit;
         }
-        checkpointList.erase(it, checkpointList.end());
+        numItems -= (numDuplicatedItems + numMetaItems);
 
-        ret = addNewCheckpoint_UNLOCKED(id);
-        if (ret) {
-            if (checkpointList.back()->getState() == closed) {
-                checkpointList.back()->popBackCheckpointEndItem();
-                checkpointList.back()->setState(opened);
-            }
-            if (persistenceCursorReposition) {
-                persistenceCursor.currentCheckpoint = --(checkpointList.end());
-                persistenceCursor.currentPos = checkpointList.back()->begin();
-                persistenceCursor.offset = numItems - 1;
-                checkpointList.back()->registerCursorName(persistenceCursor.name);
-            }
-            std::set<std::string>::iterator set_it = tapClients.begin();
-            for (; set_it != tapClients.end(); ++set_it) {
-                std::map<const std::string, CheckpointCursor>::iterator map_it =
-                    tapCursors.find(*set_it);
-                map_it->second.currentCheckpoint = --(checkpointList.end());
-                map_it->second.currentPos = checkpointList.back()->begin();
-                map_it->second.offset = numItems - 1;
-                checkpointList.back()->registerCursorName(map_it->second.name);
-            }
+        if (checkpointList.size() > 1) {
+            checkpointList.erase(checkpointList.begin(), --checkpointList.end());
         }
+        assert(checkpointList.size() == 1);
 
-        pCursorRepositioned = persistenceCursorReposition;
-        return ret;
+        if (checkpointList.back()->getState() == closed) {
+            checkpointList.back()->popBackCheckpointEndItem();
+            --numItems;
+            checkpointList.back()->setState(opened);
+        }
+        setOpenCheckpointId_UNLOCKED(id);
+        resetCursors();
+
+        pCursorRepositioned = true;
+        return true;
     }
 }
 
