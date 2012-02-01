@@ -113,6 +113,7 @@ def stats_timings(mc):
     dd = {}
     totals = {}
     longest = 0
+    labelers = {'item_alloc_sizes': size_label}
     for s in stats:
         lbl = "%s - %s" % (time_label(s[0][1]), time_label(s[0][2]))
         longest = max(longest, len(lbl) + 1)

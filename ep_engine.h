@@ -197,6 +197,7 @@ public:
         if (*item == NULL) {
             return memoryCondition();
         } else {
+            stats.itemAllocSizeHisto.add(nbytes);
             return ENGINE_SUCCESS;
         }
     }

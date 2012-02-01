@@ -456,6 +456,7 @@ form to describe when time was spent doing various things:
 | disk_commit           | waiting for a commit after a batch of updates  |
 | disk_invalid_item_del | Waiting for disk to delete a chunk of invalid  |
 |                       | items with the old vbucket version             |
+| item_alloc_sizes      | Item allocation size counters (in bytes).      |
 
 ** Hash Stats
 
