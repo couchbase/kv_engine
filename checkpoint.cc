@@ -934,7 +934,10 @@ void CheckpointManager::clear(vbucket_state_t vbState) {
     uint64_t checkpointId = vbState == vbucket_state_active ? 1 : 0;
     // Add a new open checkpoint.
     addNewCheckpoint_UNLOCKED(checkpointId);
+    resetCursors();
+}
 
+void CheckpointManager::resetCursors() {
     // Reset the persistence cursor.
     persistenceCursor.currentCheckpoint = checkpointList.begin();
     persistenceCursor.currentPos = checkpointList.front()->begin();

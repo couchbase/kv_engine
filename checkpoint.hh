@@ -534,6 +534,8 @@ private:
 
     void collapseClosedCheckpoints(std::list<Checkpoint*> &collapsedChks);
 
+    void resetCursors();
+
     static queued_item createCheckpointItem(uint64_t id, uint16_t vbid,
                                             enum queue_operation checkpoint_op);
 
