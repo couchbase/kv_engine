@@ -230,6 +230,7 @@ def loop(mc, file, max_backup_size, split_backup, deduplicate, timeout, txn_size
         chk_end_stmt = "UPDATE cpoint_state" \
                        " SET state=\"closed\", updated_at=?" \
                        " WHERE vbucket_id=? AND cpoint_id=? AND state=\"open\" AND source=?"
+        del_chk_start_stmt = "DELETE FROM cpoint_state WHERE state=\"open\""
         op_records = [] ## Used for keeping the list of records in the current transaction
 
         while True:
@@ -360,6 +361,11 @@ def loop(mc, file, max_backup_size, split_backup, deduplicate, timeout, txn_size
                             db.commit()
                             op_records = []
                             update_count = 0
+                        ## Clear all checkpoint state records that have "open" state.
+                        c.execute(del_chk_start_stmt)
+                        db.commit()
+                        update_checkpoint_state_in_split_backups(split_backup_files,
+                                                                 del_chk_start_stmt, ())
                         log(1, "Incremental backup is currently at the open checkpoint. Exit...")
                         exit(0)
 
