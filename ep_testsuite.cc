@@ -3628,7 +3628,11 @@ static enum test_result test_bg_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     h1->reset_stats(h, NULL);
     wait_for_persisted_value(h, h1, "a", "b\r\n");
     evict_key(h, h1, "a", 0, "Ejected.");
+    testHarness.time_travel(43);
     check_key_value(h, h1, "a", "b\r\n", 3, 0);
+
+    check(get_int_stat(h, h1, "paged_out_time_32,64", "timings") == 1,
+          "Expected one sample from 32s to 64s.");
 
     check(get_int_stat(h, h1, "ep_bg_num_samples") == 1,
           "Expected one sample");

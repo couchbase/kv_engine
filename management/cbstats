@@ -74,6 +74,10 @@ def time_label(s):
     lbl, factor = itertools.dropwhile(lambda x: x[1] > s, sizeMap).next()
     return "%d%s" % (s / factor, lbl)
 
+def sec_label(s):
+    print "sec_label(%d)" % s
+    return time_label(s * 1000000)
+
 def size_label(s):
     if s == 0:
         return "0"
@@ -109,7 +113,8 @@ def histograms(mc, raw_stats):
     totals = {}
     longest = 0
     labelers = {'klogPadding': size_label,
-                'item_alloc_sizes': size_label}
+                'item_alloc_sizes': size_label,
+                'paged_out_time': sec_label}
     for s in stats:
         labeler = labelers.get(s[0][0], time_label)
         lbl = "%s - %s" % (labeler(s[0][1]), labeler(s[0][2]))

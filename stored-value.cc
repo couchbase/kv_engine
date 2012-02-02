@@ -29,6 +29,7 @@ bool StoredValue::ejectValue(EPStats &stats, HashTable &ht) {
         uval.len = valLength();
         RCPtr<Blob> sp(Blob::New(uval.chlen, sizeof(uval)));
         extra.feature.resident = false;
+        timestampEviction();
         value = sp;
         size_t newsize = size();
         size_t new_valsize = value->length();
@@ -68,6 +69,8 @@ bool StoredValue::restoreValue(const value_t &v, EPStats &stats, HashTable &ht) 
                              "Object unexpectedly changed size by %d bytes\n",
                              diff);
         }
+        rel_time_t evicted_time(getEvictedTime());
+        stats.pagedOutTimeHisto.add(ep_current_time() - evicted_time);
         extra.feature.resident = true;
         value = v;
 

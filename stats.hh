@@ -204,6 +204,9 @@ public:
     //! Histogram of background wait loads.
     Histogram<hrtime_t> bgLoadHisto;
 
+    //! Histogram of time an item spends non-resident.
+    Histogram<rel_time_t> pagedOutTimeHisto;
+
     /* TAP related stats */
     //! The total number of tap events sent (not including noops)
     Atomic<size_t> numTapFetched;
@@ -397,6 +400,7 @@ public:
         pendingOpsHisto.reset();
         bgWaitHisto.reset();
         bgLoadHisto.reset();
+        pagedOutTimeHisto.reset();
         tapBgWaitHisto.reset();
         tapBgLoadHisto.reset();
         getVbucketCmdHisto.reset();

@@ -77,7 +77,7 @@ public:
      * Update the "last used" time for the object.
      */
     void touch() {
-        if (!isDirty()) {
+        if (isResident() && !isDirty()) {
             dirtiness = ep_current_time() >> 2;
         }
     }
@@ -327,6 +327,14 @@ public:
     }
 
     /**
+     * Get the timestamp at which time this object went non-resident.
+     */
+    rel_time_t getEvictedTime() const {
+        assert(!isResident());
+        return getDataAge();
+    }
+
+    /**
      * Set a new CAS ID.
      *
      * This is a NOOP for small item types.
@@ -470,7 +478,7 @@ public:
     /**
      * True if this value is resident in memory currently.
      */
-    bool isResident() {
+    bool isResident() const {
         if (_isSmall) {
             return true;
         } else {
@@ -616,6 +624,11 @@ private:
         if (!_isSmall) {
             extra.feature.resident = 1;
         }
+    }
+
+    void timestampEviction() {
+        assert(!isResident());
+        dirtiness = ep_current_time() >> 2;
     }
 
     friend class HashTable;

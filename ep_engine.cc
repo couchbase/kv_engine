@@ -2904,6 +2904,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTimingStats(const void *cookie,
 
     add_casted_stat("storage_age", stats.dirtyAgeHisto, add_stat, cookie);
     add_casted_stat("data_age", stats.dataAgeHisto, add_stat, cookie);
+    add_casted_stat("paged_out_time", stats.pagedOutTimeHisto, add_stat, cookie);
 
     // Regular commands
     add_casted_stat("get_cmd", stats.getCmdHisto, add_stat, cookie);

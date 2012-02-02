@@ -465,6 +465,7 @@ form to describe when time was spent doing various things:
 | tap_vb_reset          | servicing tap vbucket reset commands           |
 | tap_mutation          | servicing tap mutations                        |
 | notify_io             | waking blocked connections                     |
+| paged_out_time        | time (in seconds) objects are non-resident     |
 | disk_insert           | waiting for disk to store a new item           |
 | disk_update           | waiting for disk to modify an existing item    |
 | disk_del              | waiting for disk to delete an item             |
