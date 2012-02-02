@@ -664,7 +664,7 @@ static enum test_result test_unl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     }
 
     /* set the correct cas value in the outgoing request */
-    pkt_ul->request.cas = cas;
+    pkt_ul->request.cas = htonll(cas);
 
     check(h1->unknown_command(h, NULL, pkt_ul, add_response) == ENGINE_SUCCESS,
           "Unlock failed");
