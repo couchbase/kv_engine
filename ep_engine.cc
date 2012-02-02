@@ -468,7 +468,7 @@ extern "C" {
                          keyz);
 
         RememberingCallback<GetValue> getCb;
-        uint64_t cas = request->request.cas;
+        uint64_t cas = ntohll(request->request.cas);
 
         ENGINE_ERROR_CODE rv = e->unlockKey(key, vbucket, cas, ep_current_time());
 
