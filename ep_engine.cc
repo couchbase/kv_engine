@@ -3704,7 +3704,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(const void* cookie,
                                                              protocol_binary_request_delete_with_meta *request,
                                                              ADD_RESPONSE response) {
     // revid_nbytes, flags and exptime is mandatory fields.. and we need a key
-    if (request->message.header.request.extlen != 12 || request->message.header.request.keylen == 0) {
+    if (request->message.header.request.extlen != 4 || request->message.header.request.keylen == 0) {
         return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
                             PROTOCOL_BINARY_RAW_BYTES,
                             PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
