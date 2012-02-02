@@ -1432,6 +1432,10 @@ void TapProducer::setClosedCheckpointOnlyFlag(bool isClosedCheckpointOnly) {
 }
 
 void TapProducer::scheduleBackfill_UNLOCKED(const std::vector<uint16_t> &vblist) {
+    if (backfillAge > (uint64_t)ep_real_time()) {
+        return;
+    }
+
     const VBucketMap &vbuckets = engine.getEpStore()->getVBuckets();
     std::vector<uint16_t> vbs;
     std::vector<uint16_t>::const_iterator vbit = vblist.begin();
