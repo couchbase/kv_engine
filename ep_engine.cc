@@ -211,11 +211,64 @@ extern "C" {
         return rv;
     }
 
+    static protocol_binary_response_status setCheckpointParam(EventuallyPersistentEngine *e,
+                                                              const char *keyz,
+                                                              const char *valz,
+                                                              const char **msg,
+                                                              size_t *) {
+        protocol_binary_response_status rv = PROTOCOL_BINARY_RESPONSE_SUCCESS;
+
+        try {
+            int v = atoi(valz);
+            if (strcmp(keyz, "chk_max_items") == 0) {
+                validate(v, MIN_CHECKPOINT_ITEMS, MAX_CHECKPOINT_ITEMS);
+                e->getConfiguration().setChkMaxItems(v);
+            } else if (strcmp(keyz, "chk_period") == 0) {
+                validate(v, MIN_CHECKPOINT_PERIOD, MAX_CHECKPOINT_PERIOD);
+                e->getConfiguration().setChkPeriod(v);
+            } else if (strcmp(keyz, "max_checkpoints") == 0) {
+                validate(v, DEFAULT_MAX_CHECKPOINTS, MAX_CHECKPOINTS_UPPER_BOUND);
+                e->getConfiguration().setMaxCheckpoints(v);
+            } else if (strcmp(keyz, "item_num_based_new_chk") == 0) {
+                if (strcmp(valz, "true") == 0) {
+                    e->getConfiguration().setItemNumBasedNewChk(true);
+                } else {
+                    e->getConfiguration().setItemNumBasedNewChk(false);
+                }
+            } else if (strcmp(keyz, "inconsistent_slave_chk") == 0) {
+                if (strcmp(valz, "true") == 0) {
+                    e->getConfiguration().setInconsistentSlaveChk(true);
+                } else {
+                    e->getConfiguration().setInconsistentSlaveChk(false);
+                }
+            } else if (strcmp(keyz, "keep_closed_chks") == 0) {
+                if (strcmp(valz, "true") == 0) {
+                    e->getConfiguration().setKeepClosedChks(true);
+                } else {
+                    e->getConfiguration().setKeepClosedChks(false);
+                }
+            } else if (strcmp(keyz, "chk_meta_items_only") == 0) {
+                bool chk_meta_items_only = true;
+                if (strcmp(valz, "false") == 0) {
+                    chk_meta_items_only = false;
+                }
+                e->getConfiguration().setChkMetaItemsOnly(chk_meta_items_only);
+            } else {
+                *msg = "Unknown config param";
+                rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
+            }
+        } catch(std::runtime_error ignored_exception) {
+            *msg = "Value out of range.";
+            rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
+        }
+
+        return rv;
+    }
+
     static protocol_binary_response_status setFlushParam(EventuallyPersistentEngine *e,
                                                          const char *keyz, const char *valz,
                                                          const char **msg,
                                                          size_t *) {
-        *msg = "Updated";
         protocol_binary_response_status rv = PROTOCOL_BINARY_RESPONSE_SUCCESS;
 
         // Handle the actual mutation.
@@ -231,21 +284,6 @@ extern "C" {
                 e->getConfiguration().setCouchVbucketBatchCount(v);
             } else if (strcmp(keyz, "bg_fetch_delay") == 0) {
                 e->getConfiguration().setBgFetchDelay(v);
-            } else if (strcmp(keyz, "chk_max_items") == 0) {
-                validate(v, MIN_CHECKPOINT_ITEMS, MAX_CHECKPOINT_ITEMS);
-                e->getConfiguration().setChkMaxItems(v);
-            } else if (strcmp(keyz, "chk_period") == 0) {
-                validate(v, MIN_CHECKPOINT_PERIOD, MAX_CHECKPOINT_PERIOD);
-                e->getConfiguration().setChkPeriod(v);
-            } else if (strcmp(keyz, "max_checkpoints") == 0) {
-                validate(v, DEFAULT_MAX_CHECKPOINTS, MAX_CHECKPOINTS_UPPER_BOUND);
-                e->getConfiguration().setMaxCheckpoints(v);
-            } else if (strcmp(keyz, "item_num_based_new_chk") == 0) {
-                if (strcmp(valz, "true") == 0) {
-                    e->getConfiguration().setItemNumBasedNewChk(true);
-                } else {
-                    e->getConfiguration().setItemNumBasedNewChk(false);
-                }
             } else if (strcmp(keyz, "max_size") == 0) {
                 // Want more bits than int.
                 char *ptr = NULL;
@@ -304,24 +342,6 @@ extern "C" {
                 validate(vsize, static_cast<uint64_t>(0),
                          std::numeric_limits<uint64_t>::max());
                 e->getConfiguration().setExpPagerStime((size_t)vsize);
-            } else if (strcmp(keyz, "inconsistent_slave_chk") == 0) {
-                if (strcmp(valz, "true") == 0) {
-                    e->getConfiguration().setInconsistentSlaveChk(true);
-                } else {
-                    e->getConfiguration().setInconsistentSlaveChk(false);
-                }
-            } else if (strcmp(keyz, "keep_closed_chks") == 0) {
-                if (strcmp(valz, "true") == 0) {
-                    e->getConfiguration().setKeepClosedChks(true);
-                } else {
-                    e->getConfiguration().setKeepClosedChks(false);
-                }
-            } else if (strcmp(keyz, "chk_meta_items_only") == 0) {
-                bool chk_meta_items_only = true;
-                if (strcmp(valz, "false") == 0) {
-                    chk_meta_items_only = false;
-                }
-                e->getConfiguration().setChkMetaItemsOnly(chk_meta_items_only);
             } else if (strcmp(keyz, "couchdb_response_timeout") == 0) {
                 e->getConfiguration().setCouchResponseTimeout(v);
             } else {
@@ -491,43 +511,53 @@ extern "C" {
     }
 
     static protocol_binary_response_status setParam(EventuallyPersistentEngine *e,
-                                                    protocol_binary_request_header *request,
+                                                    protocol_binary_request_set_param *req,
                                                     const char **msg,
                                                     size_t *msg_size) {
-        protocol_binary_request_no_extras *req =
-            (protocol_binary_request_no_extras*)request;
+        size_t keylen = ntohs(req->message.header.request.keylen);
+        uint8_t extlen = req->message.header.request.extlen;
+        size_t vallen = ntohl(req->message.header.request.bodylen);
+        engine_param_t paramtype =
+            static_cast<engine_param_t>(ntohl(req->message.body.param_type));
+
+        if (keylen == 0 || (vallen - keylen - extlen) == 0) {
+            return PROTOCOL_BINARY_RESPONSE_EINVAL;
+        }
+
+        const char *keyp = reinterpret_cast<const char*>(req->bytes) + sizeof(req->bytes);
+        const char *valuep = keyp + keylen;
+        vallen -= (keylen + extlen);
 
         char keyz[32];
         char valz[512];
 
         // Read the key.
-        int keylen = ntohs(req->message.header.request.keylen);
-        if (keylen >= (int)sizeof(keyz)) {
+        if (keylen >= sizeof(keyz)) {
             *msg = "Key is too large.";
             return PROTOCOL_BINARY_RESPONSE_EINVAL;
         }
-        memcpy(keyz, ((char*)request) + sizeof(req->message.header), keylen);
+        memcpy(keyz, keyp, keylen);
         keyz[keylen] = 0x00;
 
         // Read the value.
-        size_t bodylen = ntohl(req->message.header.request.bodylen)
-            - ntohs(req->message.header.request.keylen);
-        if (bodylen >= sizeof(valz)) {
+        if (vallen >= sizeof(valz)) {
             *msg = "Value is too large.";
             return PROTOCOL_BINARY_RESPONSE_EINVAL;
         }
-        memcpy(valz, (char*)request + sizeof(req->message.header)
-               + keylen, bodylen);
-        valz[bodylen] = 0x00;
+        memcpy(valz, valuep, vallen);
+        valz[vallen] = 0x00;
 
         protocol_binary_response_status rv;
 
-        switch (request->request.opcode) {
-        case CMD_SET_FLUSH_PARAM:
+        switch (paramtype) {
+        case engine_param_flush:
             rv = setFlushParam(e, keyz, valz, msg, msg_size);
             break;
-        case CMD_SET_TAP_PARAM:
+        case engine_param_tap:
             rv = setTapParam(e, keyz, valz, msg, msg_size);
+            break;
+        case engine_param_checkpoint:
+            rv = setCheckpointParam(e, keyz, valz, msg, msg_size);
             break;
         default:
             rv = PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND;
@@ -775,9 +805,9 @@ extern "C" {
         case CMD_START_PERSISTENCE:
             res = startFlusher(h, &msg, &msg_size);
             break;
-        case CMD_SET_FLUSH_PARAM:
-        case CMD_SET_TAP_PARAM:
-            res = setParam(h, request, &msg, &msg_size);
+        case CMD_SET_PARAM:
+            res = setParam(h, reinterpret_cast<protocol_binary_request_set_param*>(request),
+                           &msg, &msg_size);
             break;
         case CMD_EVICT_KEY:
             res = evictKey(h, request, &msg, &msg_size);

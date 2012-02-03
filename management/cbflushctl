@@ -8,6 +8,7 @@ import sys
 import time
 
 import clitool
+from memcacheConstants import ENGINE_PARAM_FLUSH
 
 def auth(mc, username, password):
     if username:
@@ -39,7 +40,7 @@ def start(mc, username=None, password=""):
 
 def set_param(mc, key, val, username=None, password=""):
     auth(mc, username, password)
-    mc.set_flush_param(key, val)
+    mc.set_param(key, val, ENGINE_PARAM_FLUSH)
 
 def evict(mc, key, username=None, password=""):
     auth(mc, username, password)

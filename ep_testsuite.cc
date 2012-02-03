@@ -444,6 +444,29 @@ static protocol_binary_request_header* createObsPacket(uint16_t vbid,
     return (protocol_binary_request_header *)req;
 }
 
+static protocol_binary_request_header* create_set_param_packet(uint8_t opcode,
+                                                               engine_param_t paramtype,
+                                                               const char *key,
+                                                               const char *val) {
+    size_t keylen = strlen(key);
+    size_t vallen = strlen(val);
+    size_t header_size = sizeof(protocol_binary_request_header) + sizeof(engine_param_t);
+
+    char *pkt_raw = static_cast<char*>(calloc(1, header_size + keylen + vallen));
+    assert(pkt_raw);
+    protocol_binary_request_set_param *req = (protocol_binary_request_set_param*) pkt_raw;
+    req->message.header.request.magic = PROTOCOL_BINARY_REQ;
+    req->message.header.request.opcode = opcode;
+    req->message.header.request.extlen = sizeof(engine_param_t);
+    req->message.header.request.bodylen = htonl(keylen + vallen + sizeof(engine_param_t));
+    req->message.header.request.keylen = htons(keylen);
+    req->message.body.param_type = static_cast<engine_param_t>(htonl(paramtype));
+    memcpy(pkt_raw + header_size, key, keylen);
+    memcpy(pkt_raw + header_size + keylen, val, vallen);
+
+    return (protocol_binary_request_header *)req;
+}
+
 static void evict_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                       const char *key, uint16_t vbucketId=0,
                       const char *msg = NULL) {
@@ -709,21 +732,11 @@ static bool set_vbucket_state(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     return last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static bool set_flush_param(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                            const char *param, const char *val) {
-    protocol_binary_request_header *pkt = create_packet(CMD_SET_FLUSH_PARAM,
-                                                        param, val);
-    if (h1->unknown_command(h, NULL, pkt, add_response) != ENGINE_SUCCESS) {
-        return false;
-    }
-
-    return last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS;
-}
-
-static bool set_tap_param(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                            const char *param, const char *val) {
-    protocol_binary_request_header *pkt = create_packet(CMD_SET_TAP_PARAM,
-                                                        param, val);
+static bool set_param(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                      engine_param_t paramtype, const char *param, const char *val) {
+    protocol_binary_request_header *pkt = create_set_param_packet(CMD_SET_PARAM,
+                                                                  paramtype,
+                                                                  param, val);
     if (h1->unknown_command(h, NULL, pkt, add_response) != ENGINE_SUCCESS) {
         return false;
     }
@@ -3591,10 +3604,10 @@ static enum test_result test_tap_implicit_ack_stream(ENGINE_HANDLE *h, ENGINE_HA
 
 static enum test_result test_set_tap_param(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
 {
-    set_tap_param(h, h1, "tap_keepalive", "600");
+    set_param(h, h1, engine_param_tap, "tap_keepalive", "600");
     check(get_int_stat(h, h1, "ep_tap_keepalive") == 600,
           "Incorrect tap_keepalive value.");
-    set_tap_param(h, h1, "tap_keepalive", "5000");
+    set_param(h, h1, engine_param_tap, "tap_keepalive", "5000");
     check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL,
           "Expected an invalid value error due to exceeding a max value allowed");
     return SUCCESS;
@@ -4321,7 +4334,7 @@ static enum test_result test_disk_gt_ram_set_race(ENGINE_HANDLE *h,
                                                   ENGINE_HANDLE_V1 *h1) {
     wait_for_persisted_value(h, h1, "k1", "some value");
 
-    set_flush_param(h, h1, "bg_fetch_delay", "3");
+    set_param(h, h1, engine_param_flush, "bg_fetch_delay", "3");
 
     evict_key(h, h1, "k1");
 
@@ -4345,7 +4358,7 @@ static enum test_result test_disk_gt_ram_incr_race(ENGINE_HANDLE *h,
     wait_for_persisted_value(h, h1, "k1", "13");
     assert(1 == get_int_stat(h, h1, "ep_total_enqueued"));
 
-    set_flush_param(h, h1, "bg_fetch_delay", "3");
+    set_param(h, h1, engine_param_flush, "bg_fetch_delay", "3");
 
     evict_key(h, h1, "k1");
 
@@ -4377,7 +4390,7 @@ static enum test_result test_disk_gt_ram_rm_race(ENGINE_HANDLE *h,
                                                  ENGINE_HANDLE_V1 *h1) {
     wait_for_persisted_value(h, h1, "k1", "some value");
 
-    set_flush_param(h, h1, "bg_fetch_delay", "3");
+    set_param(h, h1, engine_param_flush, "bg_fetch_delay", "3");
 
     evict_key(h, h1, "k1");
 
@@ -4434,7 +4447,7 @@ static enum test_result test_max_size_settings(ENGINE_HANDLE *h,
     check(epsilon(get_int_stat(h, h1, "ep_mem_high_wat"), 750),
           "Incorrect initial high wat.");
 
-    set_flush_param(h, h1, "max_size", "1000000");
+    set_param(h, h1, engine_param_flush, "max_size", "1000000");
 
     check(get_int_stat(h, h1, "ep_max_data_size") == 1000000,
           "Incorrect new size.");
@@ -4443,15 +4456,15 @@ static enum test_result test_max_size_settings(ENGINE_HANDLE *h,
     check(epsilon(get_int_stat(h, h1, "ep_mem_high_wat"), 750000),
           "Incorrect larger high wat.");
 
-    set_flush_param(h, h1, "mem_low_wat", "700000");
-    set_flush_param(h, h1, "mem_high_wat", "800000");
+    set_param(h, h1, engine_param_flush, "mem_low_wat", "700000");
+    set_param(h, h1, engine_param_flush, "mem_high_wat", "800000");
 
     check(get_int_stat(h, h1, "ep_mem_low_wat") == 700000,
           "Incorrect even larger low wat.");
     check(get_int_stat(h, h1, "ep_mem_high_wat") == 800000,
           "Incorrect even larger high wat.");
 
-    set_flush_param(h, h1, "max_size", "100");
+    set_param(h, h1, engine_param_flush, "max_size", "100");
 
     check(get_int_stat(h, h1, "ep_max_data_size") == 100,
           "Incorrect smaller size.");
@@ -4460,8 +4473,8 @@ static enum test_result test_max_size_settings(ENGINE_HANDLE *h,
     check(epsilon(get_int_stat(h, h1, "ep_mem_high_wat"), 75),
           "Incorrect smaller high wat.");
 
-    set_flush_param(h, h1, "mem_low_wat", "50");
-    set_flush_param(h, h1, "mem_high_wat", "70");
+    set_param(h, h1, engine_param_flush, "mem_low_wat", "50");
+    set_param(h, h1, engine_param_flush, "mem_high_wat", "70");
 
     check(get_int_stat(h, h1, "ep_mem_low_wat") == 50,
           "Incorrect even smaller low wat.");
@@ -4880,23 +4893,23 @@ static enum test_result test_get_last_closed_checkpoint_id(ENGINE_HANDLE *h, ENG
 }
 
 static enum test_result test_validate_checkpoint_params(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    set_flush_param(h, h1, "chk_max_items", "1000");
+    set_param(h, h1, engine_param_checkpoint, "chk_max_items", "1000");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
           "Failed to set checkpoint_max_item param");
-    set_flush_param(h, h1, "chk_period", "100");
+    set_param(h, h1, engine_param_checkpoint, "chk_period", "100");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
           "Failed to set checkpoint_period param");
-    set_flush_param(h, h1, "max_checkpoints", "2");
+    set_param(h, h1, engine_param_checkpoint, "max_checkpoints", "2");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
           "Failed to set max_checkpoints param");
 
-    set_flush_param(h, h1, "chk_max_items", "50");
+    set_param(h, h1, engine_param_checkpoint, "chk_max_items", "50");
     check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL,
           "Expected to have an invalid value error for checkpoint_max_items param");
-    set_flush_param(h, h1, "chk_period", "10");
+    set_param(h, h1, engine_param_checkpoint, "chk_period", "10");
     check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL,
           "Expected to have an invalid value error for checkpoint_period param");
-    set_flush_param(h, h1, "max_checkpoints", "6");
+    set_param(h, h1, engine_param_checkpoint, "max_checkpoints", "6");
     check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL,
           "Expected to have an invalid value error for max_checkpoints param");
 

@@ -42,11 +42,10 @@ CMD_SELECT_BUCKET = 0x89
 
 CMD_STOP_PERSISTENCE = 0x80
 CMD_START_PERSISTENCE = 0x81
-CMD_SET_FLUSH_PARAM = 0x82
+CMD_SET_PARAM = 0x82
 
 CMD_START_REPLICATION = 0x90
 CMD_STOP_REPLICATION = 0x91
-CMD_SET_TAP_PARAM = 0x92
 CMD_EVICT_KEY = 0x93
 
 CMD_RESTORE_FILE = 0x98
@@ -90,8 +89,6 @@ CMD_DELETE_VBUCKET = 0x3f
 
 CMD_GET_LOCKED = 0x94
 
-CMD_SYNC = 0x96
-
 # event IDs for the SYNC command responses
 CMD_SYNC_EVENT_PERSISTED  = 1
 CMD_SYNC_EVENT_MODIFED    = 2
@@ -108,6 +105,12 @@ VB_STATE_NAMES={'active': VB_STATE_ACTIVE,
                 'replica': VB_STATE_REPLICA,
                 'pending': VB_STATE_PENDING,
                 'dead': VB_STATE_DEAD}
+
+# Parameter types of CMD_SET_PARAM command.
+ENGINE_PARAM_FLUSH      = 1
+ENGINE_PARAM_TAP        = 2
+ENGINE_PARAM_CHECKPOINT = 3
+
 
 COMMAND_NAMES = dict(((globals()[k], k) for k in globals() if k.startswith("CMD_")))
 
@@ -162,6 +165,9 @@ FLUSH_PKT_FMT=">I"
 TOUCH_PKT_FMT=">I"
 GAT_PKT_FMT=">I"
 GETL_PKT_FMT=">I"
+
+# set param command
+SET_PARAM_FMT=">I"
 
 # 2 bit integer.  :/
 VB_SET_PKT_FMT=">I"

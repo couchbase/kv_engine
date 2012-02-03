@@ -1,11 +1,12 @@
 #!/usr/bin/env python
 
 import clitool
+from memcacheConstants import ENGINE_PARAM_TAP
 
 def set_param(mc, key, val, username=None, password=""):
     if username:
         mc.sasl_auth_plain(username, password)
-    mc.set_tap_param(key, val)
+    mc.set_param(key, val, ENGINE_PARAM_TAP)
 
 if __name__ == '__main__':
 

@@ -19,7 +19,7 @@
 
 #define CMD_STOP_PERSISTENCE  0x80
 #define CMD_START_PERSISTENCE 0x81
-#define CMD_SET_FLUSH_PARAM   0x82
+#define CMD_SET_PARAM         0x82
 
 /**
  * Retrieve data corresponding to a set of keys from a replica vbucket
@@ -40,7 +40,6 @@
 
 #define CMD_START_REPLICATION 0x90
 #define CMD_STOP_REPLICATION  0x91
-#define CMD_SET_TAP_PARAM     0x92
 #define CMD_EVICT_KEY         0x93
 #define CMD_GET_LOCKED        0x94
 #define CMD_UNLOCK_KEY        0x95
@@ -137,6 +136,29 @@
 #define OBS_MODIFIED_EVENT     2
 #define OBS_DELETED_EVENT      3
 #define OBS_REPLICATED_EVENT   4
+
+/*
+ * Parameter types of CMD_SET_PARAM command.
+ */
+typedef enum {
+    engine_param_flush = 1,  // flusher-related param type
+    engine_param_tap,        // tap-related param type
+    engine_param_checkpoint  // checkpoint-related param type
+} engine_param_t;
+
+/**
+ * CMD_SET_PARAM command message to set engine parameters.
+ * flush, tap, and checkpoint parameter types are currently supported.
+ */
+typedef union {
+    struct {
+        protocol_binary_request_header header;
+        struct {
+            engine_param_t param_type;
+        } body;
+    } message;
+    uint8_t bytes[sizeof(protocol_binary_request_header) + sizeof(engine_param_t)];
+} protocol_binary_request_set_param;
 
 typedef protocol_binary_request_gat protocol_binary_request_getl;
 
