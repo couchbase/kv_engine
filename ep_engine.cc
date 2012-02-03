@@ -191,10 +191,14 @@ extern "C" {
         protocol_binary_response_status rv = PROTOCOL_BINARY_RESPONSE_SUCCESS;
 
         try {
+            int v = atoi(valz);
             if (strcmp(keyz, "tap_keepalive") == 0) {
-                int v = atoi(valz);
                 validate(v, 0, MAX_TAP_KEEP_ALIVE);
                 e->setTapKeepAlive(static_cast<uint32_t>(v));
+            } else if (strcmp(keyz, "tap_throttle_threshold") == 0) {
+                e->getConfiguration().setTapThrottleThreshold(v);
+            } else if (strcmp(keyz, "tap_throttle_queue_cap") == 0) {
+                e->getConfiguration().setTapThrottleQueueCap(v);
             } else {
                 *msg = "Unknown config param";
                 rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
@@ -300,10 +304,6 @@ extern "C" {
                 validate(vsize, static_cast<uint64_t>(0),
                          std::numeric_limits<uint64_t>::max());
                 e->getConfiguration().setExpPagerStime((size_t)vsize);
-            } else if (strcmp(keyz, "tap_throttle_threshold") == 0) {
-                e->getConfiguration().setTapThrottleThreshold(v);
-            } else if (strcmp(keyz, "tap_throttle_queue_cap") == 0) {
-                e->getConfiguration().setTapThrottleQueueCap(v);
             } else if (strcmp(keyz, "inconsistent_slave_chk") == 0) {
                 if (strcmp(valz, "true") == 0) {
                     e->getConfiguration().setInconsistentSlaveChk(true);
