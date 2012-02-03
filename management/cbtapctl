@@ -1,0 +1,19 @@
+#!/usr/bin/env python
+
+import clitool
+
+def set_param(mc, key, val, username=None, password=""):
+    if username:
+        mc.sasl_auth_plain(username, password)
+    mc.set_tap_param(key, val)
+
+if __name__ == '__main__':
+
+    c = clitool.CliTool("""
+Available params for "set":
+    tap_keepalive           - Seconds to hold a named tap connection
+    tap_throttle_threshold  - Percentage of memory in use to throttle tap streams
+    tap_throttle_queue_cap  - Max disk write queue size to throttle tap streams""")
+
+    c.addCommand('set', set_param, 'set param value [username password]')
+    c.execute()
