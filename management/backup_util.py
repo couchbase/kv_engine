@@ -96,8 +96,12 @@ def validate_incremental_backup_files(backup_files):
         if checkpoint_missing == True:
             exit("Error: Some checkpoint ids are missing from incremental backup files!!!")
 
+        backup_chks_items = []
+        for bf in backup_files:
+            backup_chks_items.append((bf, bfile_chks[bf]))
+
         # Sort backup files by the descending order of their checkpoints ids for vbuckets
-        sorted_bfile_chks = sorted(bfile_chks.items(), cmp=compare_backup_files, reverse=True)
+        sorted_bfile_chks = sorted(backup_chks_items, cmp=compare_backup_files, reverse=True)
         sorted_backup_files = []
         for bfile in sorted_bfile_chks:
             sorted_backup_files.append(bfile[0])

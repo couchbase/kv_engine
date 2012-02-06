@@ -382,14 +382,10 @@ void TapProducer::registerTAPCursor(std::map<uint16_t, uint64_t> &lastCheckpoint
                 continue;
             }
 
-            // If the connection is for a registered TAP client that is only interested in closed
-            // checkpoints, we always start from the beginning of the checkpoint to which the
-            // registered TAP client's cursor currently belongs.
-            bool fromBeginning = registeredTAPClient && closedCheckpointOnly;
             // Check if the unified queue contains the checkpoint to start with.
             if(vb && !vb->checkpointManager.registerTAPCursor(name,
                                                        tapCheckpointState[vbid].currentCheckpointId,
-                                                       closedCheckpointOnly, fromBeginning)) {
+                                                       closedCheckpointOnly, registeredTAPClient)) {
                 if (backfillAge < current_time) { // Backfill is required.
                     TapCheckpointState st(vbid, 0, backfill);
                     tapCheckpointState[vbid] = st;
@@ -1587,6 +1583,10 @@ void TapProducer::setClosedCheckpointOnlyFlag(bool isClosedCheckpointOnly) {
 }
 
 void TapProducer::scheduleBackfill_UNLOCKED(const std::vector<uint16_t> &vblist) {
+    if (backfillAge > (uint64_t)ep_real_time()) {
+        return;
+    }
+
     const VBucketMap &vbuckets = engine.getEpStore()->getVBuckets();
     std::vector<uint16_t> vbs;
     std::vector<uint16_t>::const_iterator vbit = vblist.begin();
