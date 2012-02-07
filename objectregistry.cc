@@ -19,6 +19,10 @@
 
 static ThreadLocal<EventuallyPersistentEngine*> *th;
 
+/**
+ * Object registry link hook for getting the registry thread local
+ * installed.
+ */
 class installer {
 public:
    installer() {

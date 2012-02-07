@@ -261,6 +261,10 @@ public:
     virtual void destroyInvalidVBuckets(bool destroyOnlyOne = false) = 0;
 };
 
+/**
+ * The KVStoreFactory creates the correct KVStore instance(s) when
+ * needed by EPStore.
+ */
 class KVStoreFactory {
 public:
 

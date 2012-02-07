@@ -1066,6 +1066,11 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server
     restore.manager = NULL;
 }
 
+/**
+ * A configuration value changed listener that responds to ep-engine
+ * parameter changes by invoking engine-specific methods on
+ * configuration change events.
+ */
 class EpEngineValueChangeListener : public ValueChangedListener {
 public:
     EpEngineValueChangeListener(EventuallyPersistentEngine &e) : engine(e) {

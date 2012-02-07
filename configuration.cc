@@ -275,6 +275,9 @@ void Configuration::addStats(ADD_STAT add_stat, const void *c) const {
     }
 }
 
+/**
+ * Internal container of an engine parameter.
+ */
 class ConfigItem: public config_item {
 public:
     ConfigItem(const char *theKey, config_datatype theDatatype) {

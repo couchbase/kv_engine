@@ -144,6 +144,10 @@ public:
     virtual ~ValueChangedValidator() { }
 };
 
+/**
+ * A configuration input validator that ensures a numeric (size_t)
+ * value falls between a specified upper and lower limit.
+ */
 class SizeRangeValidator : public ValueChangedValidator {
 public:
     SizeRangeValidator() : lower(0), upper(0) {}
@@ -167,6 +171,10 @@ private:
     size_t upper;
 };
 
+/**
+ * A configuration input validator that ensures that a numeric (float)
+ * value falls between a specified upper and lower limit.
+ */
 class FloatRangeValidator : public ValueChangedValidator {
 public:
     FloatRangeValidator() : lower(0), upper(0) {}
@@ -190,6 +198,10 @@ private:
     float upper;
 };
 
+/**
+ * A configuration input validator that ensures that a value is one
+ * from a predefined set of acceptable values.
+ */
 class EnumValidator : public ValueChangedValidator {
 public:
     EnumValidator() {}
@@ -208,6 +220,10 @@ private:
     std::set<std::string> acceptable;
 };
 
+/**
+ * The configuration class represents and provides access to the
+ * entire configuration of the server.
+ */
 class Configuration {
 public:
     Configuration();

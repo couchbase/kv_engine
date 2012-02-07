@@ -38,6 +38,10 @@ const uint8_t FLUSH_FULL(FLUSH_COMMIT_1 | FLUSH_COMMIT_2);
 
 const uint8_t DEFAULT_SYNC_CONF(FLUSH_COMMIT_2 | SYNC_COMMIT_2);
 
+/**
+ * The header block representing the first 4k (or so) of a MutationLog
+ * file.
+ */
 class LogHeaderBlock {
 public:
     LogHeaderBlock() : _version(htonl(LOG_VERSION)), _blockSize(0), _blockCount(0) {
@@ -86,15 +90,32 @@ typedef enum {
 
 extern const char *mutation_log_type_names[];
 
+/**
+ * An entry in the MutationLog.
+ */
 class MutationLogEntry {
 public:
 
+    /**
+     * Initialize a new entry inside the given buffer.
+     *
+     * @param r the rowid
+     * @param t the type of log entry
+     * @param vb the vbucket
+     * @param k the key
+     */
     static MutationLogEntry* newEntry(uint8_t *buf,
                                       uint64_t r, mutation_log_type_t t,
                                       uint16_t vb, const std::string &k) {
         return new (buf) MutationLogEntry(r, t, vb, k);
     }
 
+    /**
+     * Initialize a new entry using the contents of the given buffer.
+     *
+     * @param buf a chunk of memory thought to contain a valid MutationLogEntry
+     * @param buflen the length of said buf
+     */
     static MutationLogEntry* newEntry(uint8_t *buf, size_t buflen) {
         assert(buflen >= len(0));
         MutationLogEntry *me = reinterpret_cast<MutationLogEntry*>(buf);
@@ -107,26 +128,46 @@ public:
         // Statically buffered.  There is no delete.
     }
 
+    /**
+     * The size of a MutationLogEntry, in bytes, containing a key of
+     * the specified length.
+     */
     static size_t len(size_t klen) {
         // 13 == the exact empty record size as will be packed into
         // the layout
         return 13 + klen;
     }
 
+    /**
+     * The number of bytes of the serialized form of this
+     * MutationLogEntry.
+     */
     size_t len() const {
         return MutationLogEntry::len(keylen);
     }
 
+    /**
+     * This entry's key.
+     */
     const std::string key() const {
         return std::string(_key, keylen);
     }
 
+    /**
+     * This entry's rowid.
+     */
     uint64_t rowid() const;
 
+    /**
+     * This entry's vbucket.
+     */
     uint16_t vbucket() const {
         return ntohs(_vbucket);
     }
 
+    /**
+     * The type of this log entry.
+     */
     uint8_t type() const {
         return _type;
     }
@@ -157,6 +198,11 @@ private:
 
 std::ostream& operator <<(std::ostream &out, const MutationLogEntry &mle);
 
+
+/**
+ * The MutationLog records major key events to allow ep-engine to more
+ * quickly restore the server to its previous state upon restart.
+ */
 class MutationLog {
 public:
 
@@ -287,12 +333,18 @@ public:
         bool               isEnd;
     };
 
+    /**
+     * An iterator pointing to the beginning of the log file.
+     */
     iterator begin() {
         iterator it(iterator(this));
         it.nextBlock();
         return it;
     }
 
+    /**
+     * An iterator pointing at the end of the log file.
+     */
     iterator end() {
         return iterator(this, true);
     }

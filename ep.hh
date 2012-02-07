@@ -470,17 +470,15 @@ public:
     }
 
     /**
-     * Retrieve a value.
+     * Retrieve a value from a vbucket in replica state.
      *
      * @param key the key to fetch
      * @param vbucket the vbucket from which to retrieve the key
      * @param cookie the connection cookie
      * @param queueBG if true, automatically queue a background fetch if necessary
-     * @param requestState fetch a result iff the vbucket state == requestState
      *
      * @return a GetValue representing the result of the request
      */
-
     GetValue getReplica(const std::string &key, uint16_t vbucket,
                         const void *cookie, bool queueBG) {
         return getInternal(key, vbucket, cookie, queueBG, true,

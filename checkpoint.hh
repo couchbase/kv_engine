@@ -24,16 +24,25 @@
 #define DEFAULT_MAX_CHECKPOINTS 2
 #define MAX_CHECKPOINTS_UPPER_BOUND 5
 
+/**
+ * The state of a given checkpoint.
+ */
 typedef enum {
-    opened,
-    closed
+    opened, //!< The checkpoint is open.
+    closed  //!< The checkpoint is not open.
 } checkpoint_state;
 
+/**
+ * A checkpoint index entry.
+ */
 struct index_entry {
     std::list<queued_item>::iterator position;
     uint64_t mutation_id;
 };
 
+/**
+ * The checkpoint index maps a key to a checkpoint index_entry.
+ */
 typedef unordered_map<std::string, index_entry> checkpoint_index;
 
 class Checkpoint;

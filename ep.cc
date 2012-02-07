@@ -106,6 +106,11 @@ private:
     size_t batchCount;
 };
 
+/**
+ * A configuration value changed listener that responds to ep-engine
+ * parameter changes by invoking engine-specific methods on
+ * configuration change events.
+ */
 class EPStoreValueChangeListener : public ValueChangedListener {
 public:
     EPStoreValueChangeListener(EventuallyPersistentStore &st) : store(st) {
