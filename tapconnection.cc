@@ -427,7 +427,17 @@ void TapProducer::clearQueues_UNLOCKED() {
 
 void TapProducer::rollback() {
     LockHolder lh(queueLock);
-    bool reschedule_mutations = !(registeredTAPClient && closedCheckpointOnly);
+    if (registeredTAPClient && closedCheckpointOnly) {
+        // If the connection is for a registered TAP client that is only interested in closed
+        // checkpoints, we don't need to resend unACKed items to the client because its replication
+        // cursor is reset to the beginning of the checkpoint to which the cursor currently belongs.
+        tapLog.clear();
+        clearQueues_UNLOCKED();
+        seqno = initialAckSequenceNumber;
+        seqnoReceived = seqno -1;
+        checkpointMsgCounter = 0;
+        return;
+    }
 
     size_t checkpoint_msg_sent = 0;
     std::vector<uint16_t> backfillVBs;
@@ -447,9 +457,7 @@ void TapProducer::rollback() {
         case TAP_CHECKPOINT_START:
         case TAP_CHECKPOINT_END:
             ++checkpoint_msg_sent;
-            if (reschedule_mutations) {
-                addCheckpointMessage_UNLOCKED(i->item);
-            }
+            addCheckpointMessage_UNLOCKED(i->item);
             break;
         case TAP_FLUSH:
             addEvent_UNLOCKED(i->item);
@@ -467,9 +475,7 @@ void TapProducer::rollback() {
                             "TAP Checkpoint State for VBucket %d Not Found", i->vbucket);
                     }
                 }
-                if (reschedule_mutations) {
-                    addEvent_UNLOCKED(i->item);
-                }
+                addEvent_UNLOCKED(i->item);
             }
             break;
         case TAP_OPAQUE:
