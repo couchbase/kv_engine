@@ -456,6 +456,11 @@ public:
         return checkpointConfig;
     }
 
+    /**
+     * Create a new open checkpoint by force.
+     */
+    void createNewCheckpoint();
+
 private:
 
     void registerPersistenceCursor();

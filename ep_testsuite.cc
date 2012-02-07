@@ -4852,9 +4852,9 @@ static enum test_result test_restore_with_data(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     return SUCCESS;
 }
 
-static enum test_result test_get_last_closed_checkpoint_id(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    // Number of max items allowed per checkpoint is set to 500. Inserting more than 500 items will cause
-    // a new open checkpoint to be created.
+static enum test_result test_create_new_checkpoint(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    // Inserting more than 500 items will cause a new open checkpoint with id 2
+    // to be created.
     for (int j = 0; j < 600; ++j) {
         std::stringstream ss;
         ss << "key" << j;
@@ -4864,31 +4864,32 @@ static enum test_result test_get_last_closed_checkpoint_id(ENGINE_HANDLE *h, ENG
         h1->release(h, NULL, i);
     }
 
-    protocol_binary_request_get_vbucket req;
+    protocol_binary_request_no_extras req;
     protocol_binary_request_header *pkt;
     pkt = reinterpret_cast<protocol_binary_request_header*>(&req);
     memset(&req, 0, sizeof(req));
 
+    // Command to create a new checkpoint with id 3 by force.
     req.message.header.request.magic = PROTOCOL_BINARY_REQ;
-    req.message.header.request.opcode = CMD_LAST_CLOSED_CHECKPOINT;
+    req.message.header.request.opcode = CMD_CREATE_CHECKPOINT;
     req.message.header.request.vbucket = htons(0);
 
-    ENGINE_ERROR_CODE errcode = h1->unknown_command(h, NULL, pkt, add_response);
-    if (errcode != ENGINE_SUCCESS) {
-        fprintf(stderr, "Error code when getting the last closed checkpoint Id: %d\n", errcode);
-        return FAIL;
-    }
+    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
+          "Failed to create a new checkpoint.");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+          "Expected success response from creating a new checkpoint");
 
-    if (last_status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-        fprintf(stderr, "Last protocol status was %d (%s)\n",
-                last_status, last_body ? last_body : "unknown");
-        return FAIL;
-    }
+    req.message.header.request.opcode = CMD_LAST_CLOSED_CHECKPOINT;
+    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
+          "Failed to get the last closed checkpoint id.");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+          "Expected success response from getting the last closed checkpoint id");
 
     uint64_t checkpointId;
     memcpy(&checkpointId, last_body, sizeof(checkpointId));
     checkpointId = static_cast<uint64_t>(ntohll(checkpointId));
-    check(checkpointId == 1, "Last closed checkpoint Id for VB 0 should be 1");
+    check(checkpointId == 2, "Last closed checkpoint Id for VB 0 should be 2");
+
     return SUCCESS;
 }
 
@@ -5573,8 +5574,8 @@ engine_test_t* get_tests(void) {
                  NULL, teardown, NULL, prepare, cleanup, BACKEND_ALL),
 
         // checkpoint tests
-        TestCase("checkpoint: get last closed checkpoint Id",
-                 test_get_last_closed_checkpoint_id,
+        TestCase("checkpoint: create a new checkpoint",
+                 test_create_new_checkpoint,
                  NULL, teardown, "chk_max_items=500;item_num_based_new_chk=true",
                  prepare, cleanup, BACKEND_ALL),
         TestCase("checkpoint: validate checkpoint config params",

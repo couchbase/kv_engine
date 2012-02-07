@@ -179,6 +179,10 @@
 #define CMD_DEL_WITH_META 0xa8
 #define CMD_DELQ_WITH_META 0xa9
 
+/**
+ * Command to create a new checkpoint on a given vbucket by force
+ */
+#define CMD_CREATE_CHECKPOINT 0xaa
 
 /*
  * Parameter types of CMD_SET_PARAM command.

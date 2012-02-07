@@ -831,10 +831,11 @@ extern "C" {
         case CMD_DEREGISTER_TAP_CLIENT:
             return h->deregisterTapClient(cookie, request, response);
             break;
-        case CMD_LAST_CLOSED_CHECKPOINT:
-            return h->handleGetLastClosedCheckpointId(cookie, request, response);
         case CMD_RESET_REPLICATION_CHAIN:
             return h->resetReplicationChain(cookie, request, response);
+        case CMD_LAST_CLOSED_CHECKPOINT:
+        case CMD_CREATE_CHECKPOINT:
+            return h->handleCheckpointCmds(cookie, request, response);
         case CMD_GET_META:
         case CMD_GETQ_META:
             return h->getMeta(cookie,
@@ -3520,22 +3521,54 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deregisterTapClient(const void *co
 }
 
 ENGINE_ERROR_CODE
-EventuallyPersistentEngine::handleGetLastClosedCheckpointId(const void *cookie,
-                                                            protocol_binary_request_header *req,
-                                                            ADD_RESPONSE response) {
+EventuallyPersistentEngine::handleCheckpointCmds(const void *cookie,
+                                                 protocol_binary_request_header *req,
+                                                 ADD_RESPONSE response)
+{
+    std::stringstream msg;
     uint16_t vbucket = ntohs(req->request.vbucket);
     RCPtr<VBucket> vb = getVBucket(vbucket);
+
     if (!vb) {
-        return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
+        msg << "VBucket " << vbucket << " not found!!!";
+        return sendResponse(response, NULL, 0, NULL, 0,
+                            msg.str().c_str(), msg.str().length(),
                             PROTOCOL_BINARY_RAW_BYTES,
                             PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, 0, cookie);
     }
 
-    uint64_t checkpointId = vb->checkpointManager.getLastClosedCheckpointId();
-    checkpointId = htonll(checkpointId);
-    return sendResponse(response, NULL, 0, NULL, 0, &checkpointId,
-                        sizeof(checkpointId), PROTOCOL_BINARY_RAW_BYTES,
-                        PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
+    int16_t status = PROTOCOL_BINARY_RESPONSE_SUCCESS;
+
+    switch (req->request.opcode) {
+    case CMD_LAST_CLOSED_CHECKPOINT:
+        {
+            uint64_t checkpointId = vb->checkpointManager.getLastClosedCheckpointId();
+            checkpointId = htonll(checkpointId);
+            return sendResponse(response, NULL, 0, NULL, 0,
+                                &checkpointId, sizeof(checkpointId),
+                                PROTOCOL_BINARY_RAW_BYTES,
+                                status, 0, cookie);
+        }
+        break;
+    case CMD_CREATE_CHECKPOINT:
+        if (vb->getState() != vbucket_state_active) {
+            msg << "VBucket " << vbucket << " not in active state!!!";
+            status = PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET;
+        } else {
+            vb->checkpointManager.createNewCheckpoint();
+        }
+        break;
+    default:
+        {
+            msg << "Unknown checkpoint command opcode: " << req->request.opcode;
+            status = PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND;
+        }
+    }
+
+    return sendResponse(response, NULL, 0, NULL, 0,
+                        msg.str().c_str(), msg.str().length(),
+                        PROTOCOL_BINARY_RAW_BYTES,
+                        status, 0, cookie);
 }
 
 ENGINE_ERROR_CODE

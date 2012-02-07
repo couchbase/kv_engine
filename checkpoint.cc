@@ -1184,6 +1184,11 @@ bool CheckpointManager::hasNextForPersistence() {
     return hasMore;
 }
 
+void CheckpointManager::createNewCheckpoint() {
+    LockHolder lh(queueLock);
+    checkOpenCheckpoint_UNLOCKED(true, true); // First true means a force checkpoint creation
+}
+
 void CheckpointConfig::addConfigChangeListener(EventuallyPersistentEngine &engine) {
     Configuration &configuration = engine.getConfiguration();
     configuration.addValueChangedListener("chk_period",
