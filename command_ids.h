@@ -137,6 +137,49 @@
 #define OBS_DELETED_EVENT      3
 #define OBS_REPLICATED_EVENT   4
 
+// Command identifiers used by Cross Data Center Replication (cdcr)
+
+/**
+ * CMD_GET_META is used to retrieve the meta section for an item.
+ */
+#define CMD_GET_META 0xa0
+#define CMD_GETQ_META 0xa1
+
+/**
+ * This flag is used with the get meta response packet. If set it
+ * specifies that the item recieved has been deleted, but that the
+ * items meta data is still contained in ep-engine. Eg. the item
+ * has been soft deleted.
+ */
+#define GET_META_ITEM_DELETED_FLAG 0x01
+
+/**
+ * CMD_SET_WITH_META is used to set a kv-pair with additional meta
+ * information.
+ */
+#define CMD_SET_WITH_META 0xa2
+#define CMD_SETQ_WITH_META 0xa3
+#define CMD_ADD_WITH_META 0xa4
+#define CMD_ADDQ_WITH_META 0xa5
+
+/**
+ * Command to snapshot VB states
+ */
+#define CMD_SNAPSHOT_VB_STATES 0xa6
+
+/**
+ * Command to send vbucket batch counter to the underlying storage engine
+ */
+#define CMD_VBUCKET_BATCH_COUNT 0xa7
+
+/**
+ * CMD_DEL_WITH_META is used to delete a kv-pair with additional meta
+ * information.
+ */
+#define CMD_DEL_WITH_META 0xa8
+#define CMD_DELQ_WITH_META 0xa9
+
+
 /*
  * Parameter types of CMD_SET_PARAM command.
  */
@@ -159,30 +202,6 @@ typedef union {
     } message;
     uint8_t bytes[sizeof(protocol_binary_request_header) + sizeof(engine_param_t)];
 } protocol_binary_request_set_param;
-
-typedef protocol_binary_request_gat protocol_binary_request_getl;
-
-// Command identifiers used by Cross Data Center Replication (cdcr)
-
-/**
- * CMD_GET_META is used to retrieve the meta section for an item.
- */
-#define CMD_GET_META 0xa0
-#define CMD_GETQ_META 0xa1
-
-/**
- * This flag is used with the get meta response packet. If set it
- * specifies that the item recieved has been deleted, but that the
- * items meta data is still contained in ep-engine. Eg. the item
- * has been soft deleted.
- */
-#define GET_META_ITEM_DELETED_FLAG 0x01
-
-/**
- * The physical layout for a CMD_GET_META command returns the meta-data
- * section for an item:
- */
-typedef protocol_binary_request_no_extras protocol_binary_request_get_meta;
 
 /**
  * The return message for a CMD_GET_META returns just the meta data
@@ -208,24 +227,6 @@ typedef union {
     uint8_t bytes[sizeof(protocol_binary_request_header) + 4];
 } protocol_binary_response_get_meta;
 
-/**
- * CMD_SET_WITH_META is used to set a kv-pair with additional meta
- * information.
- */
-#define CMD_SET_WITH_META 0xa2
-#define CMD_SETQ_WITH_META 0xa3
-#define CMD_ADD_WITH_META 0xa4
-#define CMD_ADDQ_WITH_META 0xa5
-
-/**
- * Command to snapshot VB states
- */
-#define CMD_SNAPSHOT_VB_STATES 0xa6
-
-/**
- * Command to send vbucket batch counter to the underlying storage engine
- */
-#define CMD_VBUCKET_BATCH_COUNT 0xa7
 typedef union {
     struct {
         protocol_binary_request_header header;
@@ -254,13 +255,6 @@ typedef union {
 } protocol_binary_request_set_with_meta;
 
 /**
- * CMD_DEL_WITH_META is used to delete a kv-pair with additional meta
- * information.
- */
-#define CMD_DEL_WITH_META 0xa8
-#define CMD_DELQ_WITH_META 0xa9
-
-/**
  * The physical layout for the CMD_SET_WITH_META looks like the the normal
  * set request with the addition of a bulk of extra meta data stored
  * at the <b>end</b> of the package.
@@ -274,6 +268,17 @@ typedef union {
     } message;
     uint8_t bytes[sizeof(protocol_binary_request_header) + 4];
 } protocol_binary_request_delete_with_meta;
+
+/**
+ * The message format for getLocked engine API
+ */
+typedef protocol_binary_request_gat protocol_binary_request_getl;
+
+/**
+ * The physical layout for a CMD_GET_META command returns the meta-data
+ * section for an item:
+ */
+typedef protocol_binary_request_no_extras protocol_binary_request_get_meta;
 
 /**
  * The response for CMD_SET_WITH_META does not carry any user-data and the
