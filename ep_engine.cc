@@ -690,20 +690,18 @@ extern "C" {
     static ENGINE_ERROR_CODE getReplicaCmd(EventuallyPersistentEngine *e,
                                            protocol_binary_request_header *request,
                                            const void *cookie,
-                                           Item **item,
+                                           Item **it,
                                            const char **msg,
                                            protocol_binary_response_status *res) {
         EventuallyPersistentStore *eps = e->getEpStore();
         protocol_binary_request_no_extras *req =
             (protocol_binary_request_no_extras*)request;
 
-        char key[256];
         int keylen = ntohs(req->message.header.request.keylen);
         uint16_t vbucket = ntohs(req->message.header.request.vbucket);
         ENGINE_ERROR_CODE error_code;
 
-        memcpy(key, ((char *)request) + sizeof(req->message.header), keylen);
-        std::string keystr(key, keylen);
+        std::string keystr(((char *)request) + sizeof(req->message.header), keylen);
 
         GetValue rv(eps->getReplica(keystr, vbucket, cookie, true));
 
@@ -718,7 +716,7 @@ extern "C" {
             return error_code;
         }
 
-        *item = rv.getValue();
+        *it = rv.getValue();
         return error_code;
     }
 
