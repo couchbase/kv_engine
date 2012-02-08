@@ -32,7 +32,7 @@ DEFAULT_MAX_BACKUP_SIZE = 512 # Default max size 512MB of a single incremental b
 
 def usage(err=0):
     print >> sys.stderr, """
-Usage: %s [-h %s[:%s]] [-o %s] [-s %s] [-T num_secs] [-r] [-c] [-d] [-t transaction_size] [-v] tap_name|db_file
+Usage: %s [-h %s[:%s]] [-o %s] [-s %s] [-T num_secs] [-r] [-c] [-d] [-t transaction_size] [-f] [-v] tap_name|db_file
 """ % (os.path.basename(sys.argv[0]),
        DEFAULT_HOST_PORT[0], DEFAULT_HOST_PORT[1], DEFAULT_FILE, DEFAULT_MAX_BACKUP_SIZE)
     sys.exit(err)
@@ -48,9 +48,10 @@ def parse_args(args):
     max_backup_size = DEFAULT_MAX_BACKUP_SIZE
     split_backup = False
     deduplicate = False
+    full_backup = False
 
     try:
-        opts, args = getopt.getopt(args, 'h:o:s:T:t:rcdv', ['help'])
+        opts, args = getopt.getopt(args, 'h:o:s:T:t:frcdv', ['help'])
     except getopt.GetoptError, e:
         usage(e.msg)
 
@@ -78,6 +79,8 @@ def parse_args(args):
             txn_size = int(a)
         elif o == '-v':
             verbosity = verbosity + 1
+        elif o == '-f':
+            full_backup = True
         else:
             usage("unknown option - " + o)
 
@@ -87,7 +90,7 @@ def parse_args(args):
         usage("incorrect number of arguments - only one registered name or backup file name needed")
 
     return host_port, file, args[0], timeout, only_name, only_check, txn_size, verbosity,\
-           max_backup_size, split_backup, deduplicate
+           max_backup_size, split_backup, deduplicate, full_backup
 
 def log(level, *args):
     global verbosity
@@ -99,7 +102,7 @@ def main():
     global verbosity
 
     host_port, file, name, timeout, only_name, only_check, txn_size, verbosity,\
-               max_backup_size, split_backup, deduplicate = parse_args(sys.argv[1:])
+               max_backup_size, split_backup, deduplicate, full_backup = parse_args(sys.argv[1:])
     log(1, "host_port = " + ':'.join(host_port))
     log(1, "verbosity = " + str(verbosity))
     log(1, "only_name = " + str(only_name))
@@ -121,8 +124,23 @@ def main():
             check_incremental_backup_file(name)
             sys.exit(0)
 
-        mc = mc_bin_client.MemcachedClient(host_port[0], int(host_port[1]))
+        if full_backup:
+            mc = mc_bin_client.MemcachedClient(host_port[0], int(host_port[1]))
+            mc.deregister_tap_client(name)
+            ext, val = encodeTAPConnectOpts({
+            memcacheConstants.TAP_FLAG_CHECKPOINT: (1, 0, 0),
+            memcacheConstants.TAP_FLAG_SUPPORT_ACK: '',
+            memcacheConstants.TAP_FLAG_REGISTERED_CLIENT: 0x01, # "value > 0" means "closed checkpoints only"
+            memcacheConstants.TAP_FLAG_BACKFILL: 0x00000000
+            }, True)
 
+            mc._sendCmd(memcacheConstants.CMD_TAP_CONNECT, name, val, 0, ext)
+            cmd, opaque, cas, vbucketId, key, ext, val = readTap(mc)
+            if cmd != memcacheConstants.CMD_TAP_OPAQUE:
+                sys.exit("ERROR: could not register name: " + name)
+            mc.close()
+
+        mc = mc_bin_client.MemcachedClient(host_port[0], int(host_port[1]))
         ext, val = encodeTAPConnectOpts({
           memcacheConstants.TAP_FLAG_CHECKPOINT: '',
           memcacheConstants.TAP_FLAG_SUPPORT_ACK: '',
@@ -138,7 +156,7 @@ def main():
                 sys.exit(0);
             sys.exit("ERROR: could not register name: " + name)
 
-        loop(mc, file, max_backup_size, split_backup, deduplicate, timeout, txn_size, ':'.join(host_port) + '-' + name)
+        loop(mc, file, max_backup_size, split_backup, deduplicate, full_backup, timeout, txn_size, ':'.join(host_port) + '-' + name)
 
     except NameError as ne:
         sys.exit("ERROR: " + str(ne))
@@ -204,7 +222,7 @@ def update_checkpoint_state_in_split_backups(split_backup_files, chk_stmt, field
         cursor.close()
         db.close()
 
-def loop(mc, file, max_backup_size, split_backup, deduplicate, timeout, txn_size, source):
+def loop(mc, file, max_backup_size, split_backup, deduplicate, full_backup, timeout, txn_size, source):
     split_backup_files = []
     next_backup_file = get_available_backup_file_name(file)
     db = create_backup_db(next_backup_file, max_backup_size, split_backup, deduplicate)
@@ -230,8 +248,12 @@ def loop(mc, file, max_backup_size, split_backup, deduplicate, timeout, txn_size
         chk_end_stmt = "UPDATE cpoint_state" \
                        " SET state=\"closed\", updated_at=?" \
                        " WHERE vbucket_id=? AND cpoint_id=? AND state=\"open\" AND source=?"
+        chk_bfill_stmt = "INSERT into cpoint_state" \
+                         "(vbucket_id, cpoint_id, prev_cpoint_id, state, source, updated_at)" \
+                         " VALUES (?, ?, ?, \"closed\", ?, ?)"
         del_chk_start_stmt = "DELETE FROM cpoint_state WHERE state=\"open\""
         op_records = [] ## Used for keeping the list of records in the current transaction
+        backfill_chk_start = False
 
         while True:
             if timeout > 0:
@@ -253,6 +275,19 @@ def loop(mc, file, max_backup_size, split_backup, deduplicate, timeout, txn_size
                 cmd == memcacheConstants.CMD_TAP_DELETE or
                 cmd == memcacheConstants.CMD_TAP_FLUSH):
                 cmdName, cmdOp = cmdInfo[cmd]
+
+                if full_backup and backfill_chk_start == False and len(vbmap) == 0:
+                    vbmap[vbucketId] = [1, 0]
+                    t = datetime.datetime.now().strftime('%Y%m%d%H%M%S')
+                    max_cpoint_id = int(mc.stats('checkpoint')['vb_0:open_checkpoint_id'])
+                    for i in range(1, max_cpoint_id):
+                        result = add_record(c, chk_bfill_stmt,
+                                        (vbucketId, i, -1, source, t))
+                        if result == False:
+                            sys.exit("ERROR: Unable to write checkpoint states "
+                                                                "to backup file")
+                    backfill_chk_start = True
+
                 if not vbucketId in vbmap:
                     log(2, "%s with unknown vbucketId: %s" % (cmdName, vbucketId))
                     sys.exit("ERROR: received %s without checkpoint in vbucket: %s\n" \
@@ -297,6 +332,10 @@ def loop(mc, file, max_backup_size, split_backup, deduplicate, timeout, txn_size
                     eng_length, flags, ttl, flg, exp, needAck = parseTapExt(ext)
                 checkpoint_id = struct.unpack(">Q", val)
                 checkpointStartExists = False
+
+                if backfill_chk_start:
+                    del vbmap[vbucketId]
+
                 if vbucketId in vbmap:
                     if vbmap[vbucketId][0] == checkpoint_id[0]:
                         checkpointStartExists = True
@@ -411,7 +450,7 @@ def readTap(mc):
         val = data[extlen+keylen:]
     return cmd, opaque, cas, vbucketId, key, ext, val
 
-def encodeTAPConnectOpts(opts):
+def encodeTAPConnectOpts(opts, backfill=False):
     header = 0
     val = []
     for op in sorted(opts.keys()):
@@ -419,6 +458,9 @@ def encodeTAPConnectOpts(opts):
         if op in memcacheConstants.TAP_FLAG_TYPES:
             val.append(struct.pack(memcacheConstants.TAP_FLAG_TYPES[op],
                                    opts[op]))
+        elif backfill and op == memcacheConstants.TAP_FLAG_CHECKPOINT:
+            if opts[op][2] >= 0:
+                val.append(struct.pack(">HHQ", opts[op][0], opts[op][1], opts[op][2]))
         else:
             val.append(opts[op])
     return struct.pack(">I", header), ''.join(val)
