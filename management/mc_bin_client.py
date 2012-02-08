@@ -232,6 +232,11 @@ class MemcachedClient(object):
             struct.pack(memcacheConstants.GAT_PKT_FMT, exp))
         return self.__parseGet(parts)
 
+    def getr(self, key):
+        """Get the value for a given key in a replica vbucket within the memcached server."""
+        parts=self._doCmd(memcacheConstants.CMD_GET_REPLICA, key, '')
+        return self.__parseGet(parts, len(key))
+
     def version(self):
         """Get the value for a given key within the memcached server."""
         return self._doCmd(memcacheConstants.CMD_VERSION, '', '')
