@@ -10,7 +10,7 @@
 #include "item_pager.hh"
 #include "ep.hh"
 
-static const double threshold = 75.0;
+static const double EJECTION_RATIO_THRESHOLD(0.1);
 static const size_t MAX_PERSISTENCE_QUEUE_SIZE = 1000000;
 
 /**
@@ -33,6 +33,7 @@ public:
     PagingVisitor(EventuallyPersistentStore *s, EPStats &st, double pcnt,
                   bool *sfin, bool pause = false)
         : store(s), stats(st), percent(pcnt), ejected(0),
+          totalEjected(0), totalEjectionAttempts(0),
           startTime(ep_real_time()), stateFinalizer(sfin), canPause(pause) {}
 
     void visit(StoredValue *v) {
@@ -44,6 +45,7 @@ public:
 
         double r = static_cast<double>(std::rand()) / static_cast<double>(RAND_MAX);
         if (percent >= r) {
+            ++totalEjectionAttempts;
             if (!v->eligibleForEviction()) {
                 ++stats.numFailedEjects;
                 return;
@@ -69,7 +71,6 @@ public:
 
     void update() {
         stats.expired.incr(expired.size());
-
         store->deleteExpiredItems(expired);
 
         if (numEjected() > 0) {
@@ -77,10 +78,13 @@ public:
                              "Paged out %d values\n", numEjected());
         }
 
-        if (!expired.empty()) {
+        size_t num_expired = expired.size();
+        if (num_expired > 0) {
             getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                             "Purged %d expired items\n", expired.size());
+                             "Purged %d expired items\n", num_expired);
         }
+
+        totalEjected += (ejected + num_expired);
         ejected = 0;
         expired.clear();
     }
@@ -102,6 +106,17 @@ public:
      */
     size_t numEjected() { return ejected; }
 
+    /**
+     * Get the total number of items whose values are ejected or removed due to
+     * the expiry time.
+     */
+    size_t getTotalEjected() { return totalEjected; }
+
+    /**
+     * Get the total number of ejection attempts.
+     */
+    size_t getTotalEjectionAttempts() { return totalEjectionAttempts; }
+
 private:
     std::list<std::pair<uint16_t, std::string> > expired;
 
@@ -109,6 +124,8 @@ private:
     EPStats                   &stats;
     double                     percent;
     size_t                     ejected;
+    size_t                     totalEjected;
+    size_t                     totalEjectionAttempts;
     time_t                     startTime;
     bool                      *stateFinalizer;
     bool                       canPause;
@@ -134,6 +151,27 @@ bool ItemPager::callback(Dispatcher &d, TaskId t) {
         shared_ptr<PagingVisitor> pv(new PagingVisitor(store, stats,
                                                        toKill, &available));
         store->visit(pv, "Item pager", &d, Priority::ItemPagerPriority);
+
+        double total_eject_attms = static_cast<double>(pv->getTotalEjectionAttempts());
+        double total_ejected = static_cast<double>(pv->getTotalEjected());
+        double ejection_ratio =
+            total_eject_attms > 0 ? total_ejected / total_eject_attms : 0;
+
+        if (StoredValue::getCurrentSize(stats) > stats.mem_high_wat &&
+            ejection_ratio < EJECTION_RATIO_THRESHOLD)
+        {
+            const VBucketMap &vbuckets = store->getVBuckets();
+            size_t num_vbuckets = vbuckets.getSize();
+            for (size_t i = 0; i < num_vbuckets; ++i) {
+                assert(i <= std::numeric_limits<uint16_t>::max());
+                uint16_t vbid = static_cast<uint16_t>(i);
+                RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
+                if (!vb) {
+                    continue;
+                }
+                vb->checkpointManager.setCheckpointExtension(false);
+            }
+        }
     }
 
     d.snooze(t, 10);

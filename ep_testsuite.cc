@@ -4918,6 +4918,22 @@ static enum test_result test_extend_open_checkpoint(ENGINE_HANDLE *h, ENGINE_HAN
     check(get_int_stat(h, h1, "vb_0:last_closed_checkpoint_id", "checkpoint 0") == 0,
           "Last closed checkpoint Id for VB 0 should be still 0");
 
+    set_param(h, h1, engine_param_flush, "max_size", "300000");
+    check(epsilon(get_int_stat(h, h1, "ep_mem_high_wat"), 225000),
+          "Incorrect larger high wat.");
+
+    int itemsRemoved = get_int_stat(h, h1, "ep_items_rm_from_checkpoints");
+    testHarness.time_travel(60);
+    // Wait until the current open checkpoint is closed and purged from memory.
+    wait_for_stat_change(h, h1, "ep_items_rm_from_checkpoints", itemsRemoved);
+
+    check(h1->get_stats(h, NULL, "checkpoint 0", 12, add_stats) == ENGINE_SUCCESS,
+          "Failed to get stats.");
+    std::string extension_enabled = vals["vb_0:checkpoint_extension"];
+    assert(strcmp(extension_enabled.c_str(), "false") == 0);
+    check(get_int_stat(h, h1, "vb_0:last_closed_checkpoint_id", "checkpoint 0") == 1,
+          "Last closed checkpoint Id for VB 0 should be 1");
+
     free(pkt_raw);
     return SUCCESS;
 }
@@ -5609,7 +5625,7 @@ engine_test_t* get_tests(void) {
                  prepare, cleanup, BACKEND_ALL),
         TestCase("checkpoint: extend the open checkpoint",
                  test_extend_open_checkpoint,
-                 NULL, teardown, "chk_max_items=500;item_num_based_new_chk=true",
+                 NULL, teardown, "chk_remover_stime=1;chk_max_items=500",
                  prepare, cleanup, BACKEND_ALL),
         TestCase("checkpoint: validate checkpoint config params",
                  test_validate_checkpoint_params,
