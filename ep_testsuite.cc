@@ -4893,6 +4893,51 @@ static enum test_result test_create_new_checkpoint(ENGINE_HANDLE *h, ENGINE_HAND
     return SUCCESS;
 }
 
+static enum test_result test_extend_open_checkpoint(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    char *pkt_raw = static_cast<char*>(calloc(1,
+                                              sizeof(protocol_binary_request_header)
+                                              + 4));
+    protocol_binary_request_header *pkt = (protocol_binary_request_header*) pkt_raw;
+
+    // Command to extend the open checkpoint.
+    pkt->request.magic = PROTOCOL_BINARY_REQ;
+    pkt->request.opcode = CMD_EXTEND_CHECKPOINT;
+    pkt->request.vbucket = htons(0);
+    pkt->request.bodylen = htonl(4);
+    uint32_t val = htonl(1);
+    memcpy(pkt_raw + sizeof(protocol_binary_request_header), &val, sizeof(uint32_t));
+
+    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
+          "Failed to extend the open checkpoint.");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+          "Expected success response from extending the open checkpoint");
+
+    // Inserting more than 500 items should not create a new checkpoint.
+    for (int j = 0; j < 1000; ++j) {
+        std::stringstream ss;
+        ss << "key" << j;
+        item *i;
+        check(store(h, h1, NULL, OPERATION_SET,
+              ss.str().c_str(), ss.str().c_str(), &i, 0, 0) == ENGINE_SUCCESS,
+              "Failed to store a value");
+        h1->release(h, NULL, i);
+    }
+
+    pkt->request.opcode = CMD_LAST_CLOSED_CHECKPOINT;
+    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
+          "Failed to get the last closed checkpoint id");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+          "Expected success response from getting the last closed checkpoint id");
+
+    uint64_t checkpointId;
+    memcpy(&checkpointId, last_body, sizeof(checkpointId));
+    checkpointId = static_cast<uint64_t>(ntohll(checkpointId));
+    check(checkpointId == 0, "Last closed checkpoint Id for VB 0 should be still 0");
+
+    free(pkt_raw);
+    return SUCCESS;
+}
+
 static enum test_result test_validate_checkpoint_params(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     set_param(h, h1, engine_param_checkpoint, "chk_max_items", "1000");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
@@ -5576,6 +5621,10 @@ engine_test_t* get_tests(void) {
         // checkpoint tests
         TestCase("checkpoint: create a new checkpoint",
                  test_create_new_checkpoint,
+                 NULL, teardown, "chk_max_items=500;item_num_based_new_chk=true",
+                 prepare, cleanup, BACKEND_ALL),
+        TestCase("checkpoint: extend the open checkpoint",
+                 test_extend_open_checkpoint,
                  NULL, teardown, "chk_max_items=500;item_num_based_new_chk=true",
                  prepare, cleanup, BACKEND_ALL),
         TestCase("checkpoint: validate checkpoint config params",

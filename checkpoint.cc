@@ -975,7 +975,12 @@ bool CheckpointManager::moveCursorToNextCheckpoint(CheckpointCursor &cursor) {
 }
 
 uint64_t CheckpointManager::checkOpenCheckpoint_UNLOCKED(bool forceCreation, bool timeBound) {
-    int checkpointId = 0;
+    int checkpoint_id = 0;
+
+    if (checkpointExtension) {
+        return checkpoint_id;
+    }
+
     timeBound = timeBound &&
                 (ep_real_time() - checkpointList.back()->getCreationTime()) >=
                 checkpointConfig.getCheckpointPeriod();
@@ -988,11 +993,11 @@ uint64_t CheckpointManager::checkOpenCheckpoint_UNLOCKED(bool forceCreation, boo
          checkpointList.back()->getNumItems() >= checkpointConfig.getCheckpointMaxItems()) ||
         (checkpointList.back()->getNumItems() > 0 && timeBound)) {
 
-        checkpointId = checkpointList.back()->getId();
-        closeOpenCheckpoint_UNLOCKED(checkpointId);
-        addNewCheckpoint_UNLOCKED(checkpointId + 1);
+        checkpoint_id = checkpointList.back()->getId();
+        closeOpenCheckpoint_UNLOCKED(checkpoint_id);
+        addNewCheckpoint_UNLOCKED(checkpoint_id + 1);
     }
-    return checkpointId;
+    return checkpoint_id;
 }
 
 bool CheckpointManager::isKeyResidentInCheckpoints(const std::string &key, uint64_t cas) {

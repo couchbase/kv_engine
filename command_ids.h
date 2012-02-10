@@ -184,6 +184,12 @@
  */
 #define CMD_CREATE_CHECKPOINT 0xaa
 
+/**
+ * Command if the current open checkpoint on a given vbucket should be
+ * extended or not.
+ */
+#define CMD_EXTEND_CHECKPOINT 0xab
+
 /*
  * Parameter types of CMD_SET_PARAM command.
  */

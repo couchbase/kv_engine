@@ -261,9 +261,10 @@ public:
     CheckpointManager(EPStats &st, uint16_t vbucket,
                       CheckpointConfig &config, uint64_t checkpointId = 1) :
         stats(st), checkpointConfig(config), vbucketId(vbucket), numItems(0),
-        mutationCounter(0), persistenceCursor("persistence"), onlineUpdateCursor("online_update"),
-        isCollapsedCheckpoint(false), doOnlineUpdate(false), doHotReload(false) {
-
+        mutationCounter(0), persistenceCursor("persistence"),
+        onlineUpdateCursor("online_update"), isCollapsedCheckpoint(false),
+        checkpointExtension(false), doOnlineUpdate(false), doHotReload(false)
+    {
         addNewCheckpoint(checkpointId);
         registerPersistenceCursor();
     }
@@ -461,6 +462,16 @@ public:
      */
     void createNewCheckpoint();
 
+    /**
+     * Set if the current open checkpoint should be extended.
+     */
+    void setCheckpointExtension(bool extend) { checkpointExtension = extend; }
+
+    /**
+     * True if the current open checkpoint is currently extended.
+     */
+    bool isCheckpointExtension(void) { return checkpointExtension; }
+
 private:
 
     void registerPersistenceCursor();
@@ -563,6 +574,7 @@ private:
     CheckpointCursor         persistenceCursor;
     CheckpointCursor         onlineUpdateCursor;
     bool                     isCollapsedCheckpoint;
+    bool                     checkpointExtension;
     uint64_t                 lastClosedCheckpointId;
     std::map<const std::string, CheckpointCursor> tapCursors;
 

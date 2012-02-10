@@ -526,6 +526,8 @@ each stat name.
 | num_checkpoints                  | Number of checkpoints in a checkpoint     |
 |                                  | datastructure                             |
 | num_items_for_persiste           | Number of items remaining for persistence |
+| checkpoint_extension             | True if the open checkpoint is in the     |
+|                                  | extension mode.                           |
 
 ** Memory Stats
 

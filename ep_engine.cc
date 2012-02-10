@@ -835,6 +835,7 @@ extern "C" {
             return h->resetReplicationChain(cookie, request, response);
         case CMD_LAST_CLOSED_CHECKPOINT:
         case CMD_CREATE_CHECKPOINT:
+        case CMD_EXTEND_CHECKPOINT:
             return h->handleCheckpointCmds(cookie, request, response);
         case CMD_GET_META:
         case CMD_GETQ_META:
@@ -2614,6 +2615,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doCheckpointStats(const void *cook
             snprintf(buf, sizeof(buf), "vb_%d:num_items_for_persistence", vbid);
             add_casted_stat(buf, vb->checkpointManager.getNumItemsForPersistence(),
                             add_stat, cookie);
+            snprintf(buf, sizeof(buf), "vb_%d:checkpoint_extension", vbid);
+            add_casted_stat(buf,
+                            vb->checkpointManager.isCheckpointExtension() ? "true" : "false",
+                            add_stat, cookie);
             std::list<std::string> tapcursor_names = vb->checkpointManager.getTAPCursorNames();
             std::list<std::string>::iterator tap_it = tapcursor_names.begin();
             for (;tap_it != tapcursor_names.end(); ++tap_it) {
@@ -3556,6 +3561,25 @@ EventuallyPersistentEngine::handleCheckpointCmds(const void *cookie,
             status = PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET;
         } else {
             vb->checkpointManager.createNewCheckpoint();
+        }
+        break;
+    case CMD_EXTEND_CHECKPOINT:
+        {
+            protocol_binary_request_no_extras *noext_req =
+                (protocol_binary_request_no_extras*)req;
+            uint16_t keylen = ntohs(noext_req->message.header.request.keylen);
+            uint32_t bodylen = ntohl(noext_req->message.header.request.bodylen);
+
+            if ((bodylen - keylen) == 0) {
+                msg << "No value is given for CMD_EXTEND_CHECKPOINT!!!";
+                status = PROTOCOL_BINARY_RESPONSE_EINVAL;
+            } else {
+                uint32_t val;
+                memcpy(&val, req->bytes + sizeof(req->bytes) + keylen,
+                       bodylen - keylen);
+                val = ntohl(val);
+                vb->checkpointManager.setCheckpointExtension(val > 0 ? true : false);
+            }
         }
         break;
     default:
