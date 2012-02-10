@@ -833,7 +833,6 @@ extern "C" {
             break;
         case CMD_RESET_REPLICATION_CHAIN:
             return h->resetReplicationChain(cookie, request, response);
-        case CMD_LAST_CLOSED_CHECKPOINT:
         case CMD_CREATE_CHECKPOINT:
         case CMD_EXTEND_CHECKPOINT:
             return h->handleCheckpointCmds(cookie, request, response);
@@ -2586,7 +2585,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doHashStats(const void *cookie,
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doCheckpointStats(const void *cookie,
-                                                                ADD_STAT add_stat) {
+                                                                ADD_STAT add_stat,
+                                                                const char* stat_key,
+                                                                int nkey) {
 
     class StatCheckpointVisitor : public VBucketVisitor {
     public:
@@ -2594,6 +2595,16 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doCheckpointStats(const void *cook
                               ADD_STAT a) : epstore(eps), cookie(c), add_stat(a) {}
 
         bool visitBucket(RCPtr<VBucket> &vb) {
+            addCheckpointStat(cookie, add_stat, epstore, vb);
+            return false;
+        }
+
+        static void addCheckpointStat(const void *cookie, ADD_STAT add_stat,
+                                      EventuallyPersistentStore *eps, RCPtr<VBucket> &vb) {
+            if (!vb) {
+                return;
+            }
+
             uint16_t vbid = vb->getId();
             char buf[64];
             snprintf(buf, sizeof(buf), "vb_%d:state", vbid);
@@ -2605,7 +2616,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doCheckpointStats(const void *cook
             add_casted_stat(buf, vb->checkpointManager.getLastClosedCheckpointId(),
                             add_stat, cookie);
             snprintf(buf, sizeof(buf), "vb_%d:persisted_checkpoint_id", vbid);
-            add_casted_stat(buf, epstore->getLastPersistedCheckpointId(vbid), add_stat, cookie);
+            add_casted_stat(buf, eps->getLastPersistedCheckpointId(vbid), add_stat, cookie);
             snprintf(buf, sizeof(buf), "vb_%d:num_tap_cursors", vbid);
             add_casted_stat(buf, vb->checkpointManager.getNumOfTAPCursors(), add_stat, cookie);
             snprintf(buf, sizeof(buf), "vb_%d:num_checkpoint_items", vbid);
@@ -2627,7 +2638,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doCheckpointStats(const void *cook
                 add_casted_stat(buf, vb->checkpointManager.getCheckpointIdForTAPCursor(*tap_it),
                             add_stat, cookie);
             }
-            return false;
         }
 
         EventuallyPersistentStore *epstore;
@@ -2635,8 +2645,18 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doCheckpointStats(const void *cook
         ADD_STAT add_stat;
     };
 
-    StatCheckpointVisitor cv(epstore, cookie, add_stat);
-    epstore->visit(cv);
+    if (strncmp(stat_key, "checkpoint", 10) == 0) {
+        if (nkey == 10) {
+            StatCheckpointVisitor cv(epstore, cookie, add_stat);
+            epstore->visit(cv);
+        } else if (nkey > 11) {
+            std::string vbid(&stat_key[11], nkey - 11);
+            uint16_t vbucket_id(0);
+            parseUint16(vbid.c_str(), &vbucket_id);
+            RCPtr<VBucket> vb = getVBucket(vbucket_id);
+            StatCheckpointVisitor::addCheckpointStat(cookie, add_stat, epstore, vb);
+        }
+    }
 
     return ENGINE_SUCCESS;
 }
@@ -3148,8 +3168,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
         rv = doVBucketStats(cookie, add_stat, false, true);
     } else if (nkey == 12 && strncmp(stat_key, "prev-vbucket", 12) == 0) {
         rv = doVBucketStats(cookie, add_stat, true, false);
-    } else if (nkey == 10 && strncmp(stat_key, "checkpoint", 10) == 0) {
-        rv = doCheckpointStats(cookie, add_stat);
+    } else if (nkey >= 10 && strncmp(stat_key, "checkpoint", 10) == 0) {
+        rv = doCheckpointStats(cookie, add_stat, stat_key, nkey);
     } else if (nkey == 4 && strncmp(stat_key, "klog", 10) == 0) {
         rv = doKlogStats(cookie, add_stat);
     } else if (nkey == 7 && strncmp(stat_key, "timings", 7) == 0) {

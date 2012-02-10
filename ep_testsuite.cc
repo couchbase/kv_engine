@@ -4879,16 +4879,8 @@ static enum test_result test_create_new_checkpoint(ENGINE_HANDLE *h, ENGINE_HAND
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
           "Expected success response from creating a new checkpoint");
 
-    req.message.header.request.opcode = CMD_LAST_CLOSED_CHECKPOINT;
-    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
-          "Failed to get the last closed checkpoint id.");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
-          "Expected success response from getting the last closed checkpoint id");
-
-    uint64_t checkpointId;
-    memcpy(&checkpointId, last_body, sizeof(checkpointId));
-    checkpointId = static_cast<uint64_t>(ntohll(checkpointId));
-    check(checkpointId == 2, "Last closed checkpoint Id for VB 0 should be 2");
+    check(get_int_stat(h, h1, "vb_0:last_closed_checkpoint_id", "checkpoint 0") == 2,
+          "Last closed checkpoint Id for VB 0 should be 2");
 
     return SUCCESS;
 }
@@ -4923,16 +4915,8 @@ static enum test_result test_extend_open_checkpoint(ENGINE_HANDLE *h, ENGINE_HAN
         h1->release(h, NULL, i);
     }
 
-    pkt->request.opcode = CMD_LAST_CLOSED_CHECKPOINT;
-    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
-          "Failed to get the last closed checkpoint id");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
-          "Expected success response from getting the last closed checkpoint id");
-
-    uint64_t checkpointId;
-    memcpy(&checkpointId, last_body, sizeof(checkpointId));
-    checkpointId = static_cast<uint64_t>(ntohll(checkpointId));
-    check(checkpointId == 0, "Last closed checkpoint Id for VB 0 should be still 0");
+    check(get_int_stat(h, h1, "vb_0:last_closed_checkpoint_id", "checkpoint 0") == 0,
+          "Last closed checkpoint Id for VB 0 should be still 0");
 
     free(pkt_raw);
     return SUCCESS;
