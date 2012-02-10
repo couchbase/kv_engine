@@ -170,8 +170,12 @@ def stats_tapagg(mc):
     stats_formatter(stats_perform(mc, 'tapagg _'))
 
 @cmd
-def stats_checkpoint(mc):
-    stats_formatter(stats_perform(mc, 'checkpoint'))
+def stats_checkpoint(mc, vb=-1):
+    if vb == -1:
+        cmd = 'checkpoint'
+    else:
+        cmd = "checkpoint %s" % (str(vb))
+    stats_formatter(stats_perform(mc, cmd))
 
 @cmd
 def stats_allocator(mc):
@@ -300,6 +304,8 @@ def main():
     c.addCommand('vkey', stats_vkey, 'vkey keyname vbid [username password]')
     c.addCommand('all', stats_all, 'all [username password]')
     c.addCommand('allocator', stats_allocator, 'allocator [username password]')
+    c.addCommand('checkpoint', stats_checkpoint, 'checkpoint [vbid] [username password]')
+    c.addCommand('dispatcher', stats_dispatcher, 'dispatcher [logs] [username password]')
     c.addCommand('hash', stats_hash, 'hash [detail] [username password]')
     c.addCommand('checkpoint', stats_checkpoint, 'checkpoint [username password]')
     c.addCommand('tap', stats_tap, 'tap [username password]')

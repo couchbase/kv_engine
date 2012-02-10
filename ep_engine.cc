@@ -3260,7 +3260,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doHashStats(const void *cookie,
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doCheckpointStats(const void *cookie,
-                                                                ADD_STAT add_stat) {
+                                                                ADD_STAT add_stat,
+                                                                const char* stat_key,
+                                                                int nkey) {
 
     class StatCheckpointVisitor : public VBucketVisitor {
     public:
@@ -3268,14 +3270,23 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doCheckpointStats(const void *cook
                               ADD_STAT a) : epstore(eps), cookie(c), add_stat(a) {}
 
         bool visitBucket(RCPtr<VBucket> vb) {
+            addCheckpointStat(cookie, add_stat, epstore, vb);
+            return false;
+        }
+
+        static void addCheckpointStat(const void *cookie, ADD_STAT add_stat,
+                                      EventuallyPersistentStore *eps, RCPtr<VBucket> &vb) {
+            if (!vb) {
+                return;
+            }
+
             uint16_t vbid = vb->getId();
             char buf[256];
             snprintf(buf, sizeof(buf), "vb_%d:state", vbid);
             add_casted_stat(buf, VBucket::toString(vb->getState()), add_stat, cookie);
             vb->checkpointManager.addStats(add_stat, cookie);
             snprintf(buf, sizeof(buf), "vb_%d:persisted_checkpoint_id", vbid);
-            add_casted_stat(buf, epstore->getLastPersistedCheckpointId(vbid), add_stat, cookie);
-            return false;
+            add_casted_stat(buf, eps->getLastPersistedCheckpointId(vbid), add_stat, cookie);
         }
 
         EventuallyPersistentStore *epstore;
@@ -3283,8 +3294,18 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doCheckpointStats(const void *cook
         ADD_STAT add_stat;
     };
 
-    StatCheckpointVisitor cv(epstore, cookie, add_stat);
-    epstore->visit(cv);
+    if (strncmp(stat_key, "checkpoint", 10) == 0) {
+        if (nkey == 10) {
+            StatCheckpointVisitor cv(epstore, cookie, add_stat);
+            epstore->visit(cv);
+        } else if (nkey > 11) {
+            std::string vbid(&stat_key[11], nkey - 11);
+            uint16_t vbucket_id(0);
+            parseUint16(vbid.c_str(), &vbucket_id);
+            RCPtr<VBucket> vb = getVBucket(vbucket_id);
+            StatCheckpointVisitor::addCheckpointStat(cookie, add_stat, epstore, vb);
+        }
+    }
 
     return ENGINE_SUCCESS;
 }
@@ -3757,8 +3778,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
         rv = doVBucketStats(cookie, add_stat);
     } else if (nkey == 12 && strncmp(stat_key, "prev-vbucket", 12) == 0) {
         rv = doVBucketStats(cookie, add_stat, true);
-    } else if (nkey == 10 && strncmp(stat_key, "checkpoint", 10) == 0) {
-        rv = doCheckpointStats(cookie, add_stat);
+    } else if (nkey >= 10 && strncmp(stat_key, "checkpoint", 10) == 0) {
+        rv = doCheckpointStats(cookie, add_stat, stat_key, nkey);
     } else if (nkey == 7 && strncmp(stat_key, "timings", 7) == 0) {
         rv = doTimingStats(cookie, add_stat);
     } else if (nkey == 10 && strncmp(stat_key, "dispatcher", 10) == 0) {
