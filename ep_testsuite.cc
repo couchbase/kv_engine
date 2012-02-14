@@ -2101,7 +2101,8 @@ static enum test_result test_bug3522(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 static protocol_binary_request_header *
            prepare_get_replica(ENGINE_HANDLE *h,
                                ENGINE_HANDLE_V1 *h1,
-                               vbucket_state_t state) {
+                               vbucket_state_t state,
+                               bool makeinvalidkey = false) {
     const char *key = "k0";
     size_t key_size = strlen(key);
 
@@ -2124,12 +2125,14 @@ static protocol_binary_request_header *
 
     pkt = &gr->message.header;
 
-    item *i = NULL;
-    check(store(h, h1, NULL, OPERATION_SET, key, "replicadata", &i, 0, id)
+    if (!makeinvalidkey) {
+        item *i = NULL;
+        check(store(h, h1, NULL, OPERATION_SET, key, "replicadata", &i, 0, id)
               == ENGINE_SUCCESS, "Get Replica Failed");
 
-    check(set_vbucket_state(h, h1, id, state),
-          "Failed to set vbucket active state, Get Replica Failed");
+        check(set_vbucket_state(h, h1, id, state),
+              "Failed to set vbucket active state, Get Replica Failed");
+    }
 
     return pkt;
 }
@@ -2137,9 +2140,11 @@ static protocol_binary_request_header *
 static enum test_result test_get_replica_active_state(ENGINE_HANDLE *h,
                                                       ENGINE_HANDLE_V1 *h1) {
     protocol_binary_request_header *pkt;
-    pkt =prepare_get_replica(h, h1, vbucket_state_active);
+    pkt = prepare_get_replica(h, h1, vbucket_state_active);
     check(h1->unknown_command(h, NULL, pkt, add_response) ==
-          ENGINE_NOT_MY_VBUCKET, "Should have returned error for active state");
+          ENGINE_SUCCESS, "Get Replica Failed");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET,
+          "Expected PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET response.");
 
     return SUCCESS;
 }
@@ -2162,7 +2167,9 @@ static enum test_result test_get_replica_dead_state(ENGINE_HANDLE *h,
     protocol_binary_request_header *pkt;
     pkt = prepare_get_replica(h, h1, vbucket_state_dead);
     check(h1->unknown_command(h, NULL, pkt, add_response) ==
-          ENGINE_NOT_MY_VBUCKET, "Should have returned error for dead state");
+          ENGINE_SUCCESS, "Get Replica Failed");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET,
+          "Expected PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET response.");
 
     return SUCCESS;
 }
@@ -2173,9 +2180,23 @@ static enum test_result test_get_replica(ENGINE_HANDLE *h,
     pkt = prepare_get_replica(h, h1, vbucket_state_replica);
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
                               "Get Replica Failed");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+          "Expected PROTOCOL_BINARY_RESPONSE_SUCCESS response.");
     check(strcmp("replicadata", last_body) == 0,
                  "Should have returned identical value");
 
+    return SUCCESS;
+}
+
+static enum test_result test_get_replica_invalid_key(ENGINE_HANDLE *h,
+                                                     ENGINE_HANDLE_V1 *h1) {
+    protocol_binary_request_header *pkt;
+    bool makeinvalidkey = true;
+    pkt = prepare_get_replica(h, h1, vbucket_state_replica, makeinvalidkey);
+    check(h1->unknown_command(h, NULL, pkt, add_response) ==
+          ENGINE_SUCCESS, "Get Replica Failed");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET,
+          "Expected PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET response.");
     return SUCCESS;
 }
 
@@ -5311,6 +5332,8 @@ engine_test_t* get_tests(void) {
         TestCase("replica read: invalid state - pending", test_get_replica_pending_state,
                  NULL, teardown, NULL, prepare, cleanup, BACKEND_ALL),
         TestCase("replica read: invalid state - dead", test_get_replica_dead_state,
+                 NULL, teardown, NULL, prepare, cleanup, BACKEND_ALL),
+        TestCase("replica read: invalid key", test_get_replica_invalid_key,
                  NULL, teardown, NULL, prepare, cleanup, BACKEND_ALL),
        // Stats tests
         TestCase("stats", test_stats, NULL, teardown, NULL, prepare, cleanup,

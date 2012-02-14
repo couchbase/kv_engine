@@ -480,7 +480,7 @@ public:
      * @return a GetValue representing the result of the request
      */
     GetValue getReplica(const std::string &key, uint16_t vbucket,
-                        const void *cookie, bool queueBG) {
+                        const void *cookie, bool queueBG=true) {
         return getInternal(key, vbucket, cookie, queueBG, true,
                            vbucket_state_replica);
     }

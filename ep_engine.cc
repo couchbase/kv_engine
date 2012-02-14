@@ -696,11 +696,9 @@ extern "C" {
         EventuallyPersistentStore *eps = e->getEpStore();
         protocol_binary_request_no_extras *req =
             (protocol_binary_request_no_extras*)request;
-
         int keylen = ntohs(req->message.header.request.keylen);
         uint16_t vbucket = ntohs(req->message.header.request.vbucket);
         ENGINE_ERROR_CODE error_code;
-
         std::string keystr(((char *)request) + sizeof(req->message.header), keylen);
 
         GetValue rv(eps->getReplica(keystr, vbucket, cookie, true));
@@ -712,12 +710,14 @@ extern "C" {
             } else if (error_code == ENGINE_TMPFAIL) {
                 *msg = "NOT_FOUND";
                 *res = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
+            } else {
+                return error_code;
             }
-            return error_code;
+        } else {
+            *it = rv.getValue();
+            *res = PROTOCOL_BINARY_RESPONSE_SUCCESS;
         }
-
-        *it = rv.getValue();
-        return error_code;
+        return ENGINE_SUCCESS;
     }
 
     static ENGINE_ERROR_CODE EvpUnknownCommand(ENGINE_HANDLE* handle,
