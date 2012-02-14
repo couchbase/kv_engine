@@ -56,9 +56,10 @@ Mutex::~Mutex() {
 void Mutex::acquire() {
     int e;
     if ((e = pthread_mutex_lock(&mutex)) != 0) {
-        std::string message = "MUTEX ERROR: Failed to acquire lock: ";
-        message.append(std::strerror(e));
-        throw std::runtime_error(message);
+        std::cerr << "MUTEX ERROR: Failed to acquire lock: ";
+        std::cerr << std::strerror(e) << std::endl;
+        std::cerr.flush();
+        abort();
     }
     setHolder(true);
 
@@ -70,9 +71,10 @@ void Mutex::release() {
     setHolder(false);
     int e;
     if ((e = pthread_mutex_unlock(&mutex)) != 0) {
-        std::string message = "MUTEX_ERROR: Failed to release lock: ";
-        message.append(std::strerror(e));
-        throw std::runtime_error(message);
+        std::cerr << "MUTEX ERROR: Failed to release lock: ";
+        std::cerr << std::strerror(e) << std::endl;
+        std::cerr.flush();
+        abort();
     }
     EP_MUTEX_RELEASED(this);
 }
