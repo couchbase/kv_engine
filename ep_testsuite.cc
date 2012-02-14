@@ -384,66 +384,6 @@ static protocol_binary_request_header* createPacket(uint8_t opcode,
     return req;
 }
 
-static protocol_binary_request_header* createUnobsPacket(uint16_t vbid,
-                                                         uint32_t cas,
-                                                         const char *key,
-                                                         const char *val) {
-    uint32_t keylen = strlen(key);
-    uint32_t vallen = strlen(val);
-    char *pkt_raw = static_cast<char*>(calloc(1,
-                                        sizeof(protocol_binary_request_observe)
-                                        + keylen
-                                        + vallen));
-    assert(pkt_raw);
-    protocol_binary_request_unobserve *req =
-        (protocol_binary_request_unobserve*)pkt_raw;
-
-    req->request.magic = PROTOCOL_BINARY_REQ;
-    req->request.opcode = CMD_UNOBSERVE;
-    req->request.vbucket = htons(vbid);
-    req->request.cas = htonll(cas);
-    req->request.bodylen = htonl(keylen + vallen);
-    req->request.keylen = htons(keylen);
-
-    memcpy(pkt_raw + sizeof(protocol_binary_request_unobserve), key, keylen);
-    memcpy(pkt_raw + sizeof(protocol_binary_request_unobserve) + keylen, val,
-           vallen);
-
-    return (protocol_binary_request_header *)req;
-}
-
-static protocol_binary_request_header* createObsPacket(uint16_t vbid,
-                                                       uint64_t cas,
-                                                       uint32_t expiration,
-                                                       const char *key,
-                                                       const char *val) {
-    uint32_t keylen = strlen(key);
-    uint32_t vallen = strlen(val);
-    char *pkt_raw = static_cast<char*>(calloc(1,
-                                        sizeof(protocol_binary_request_observe)
-                                        + keylen
-                                        + vallen));
-    assert(pkt_raw);
-    protocol_binary_request_observe *req =
-        (protocol_binary_request_observe*)pkt_raw;
-
-    req->message.header.request.magic = PROTOCOL_BINARY_REQ;
-    req->message.header.request.opcode = CMD_OBSERVE;
-    req->message.header.request.extlen = 4;
-    req->message.header.request.vbucket = htons(vbid);
-    req->message.header.request.cas = htonll(cas);
-    req->message.header.request.bodylen = htonl(keylen + vallen + 4);
-    req->message.header.request.keylen = htons(keylen);
-    req->message.body.expiration = htonl(expiration);
-
-    memcpy(pkt_raw + sizeof(protocol_binary_request_observe), key, keylen);
-
-    memcpy(pkt_raw + sizeof(protocol_binary_request_observe) + keylen, val,
-           vallen);
-
-    return (protocol_binary_request_header *)req;
-}
-
 static protocol_binary_request_header* create_set_param_packet(uint8_t opcode,
                                                                engine_param_t paramtype,
                                                                const char *key,
@@ -828,14 +768,6 @@ static void wait_for_stat_change(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     }
 }
 
-static void wait_for_stat_to_be(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                             const char *stat, int final) {
-    useconds_t sleepTime = 128;
-    while (get_int_stat(h, h1, stat) != final) {
-        decayingSleep(&sleepTime);
-    }
-}
-
 static void wait_for_flusher_to_settle(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     useconds_t sleepTime = 128;
     while (get_int_stat(h, h1, "ep_flusher_todo")
@@ -912,53 +844,6 @@ static enum test_result test_replica_vb_mutation(ENGINE_HANDLE *h, ENGINE_HANDLE
                 "key", "somevalue", &i, cas, 1) == ENGINE_NOT_MY_VBUCKET,
         "Expected not my vbucket");
     wait_for_stat_change(h, h1, "ep_num_not_my_vbuckets", numNotMyVBucket);
-    return SUCCESS;
-}
-
-static void observeKey(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, uint16_t vbid,
-                       uint32_t exp, uint64_t cas, const char* key,
-                       const char* obsset, ENGINE_ERROR_CODE code,
-                       const char* failure_message) {
-    protocol_binary_request_header *pkt = createObsPacket(vbid, cas, exp,
-                                                          key, obsset);
-    check(h1->unknown_command(h, NULL, pkt, add_response) == code,
-          failure_message);
-    free(pkt);
-}
-
-static void unobserveKey(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, uint16_t vbid,
-                         uint64_t cas, const char* key, const char* obsset,
-                         ENGINE_ERROR_CODE code, const char* failue_message) {
-    protocol_binary_request_header *pkt = createUnobsPacket(vbid, cas, key, obsset);
-    check(h1->unknown_command(h, NULL, pkt, add_response) == code,
-          failue_message);
-    free(pkt);
-}
-
-static enum test_result test_observe(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    const char *obsset = "watchset1";
-
-    // Check that error is returned if no key or observe set is specified
-    observeKey(h, h1, 0, 10, 30, "", obsset, ENGINE_FAILED,
-               "Observe succeeded with no key");
-    observeKey(h, h1, 0, 10, 30, "k1", "", ENGINE_FAILED,
-               "Observe succeeded with no observe set");
-    observeKey(h, h1, 0, 10, 30, "", "", ENGINE_FAILED,
-               "Observe succeeded with no key or observe set");
-
-    observeKey(h, h1, 0, 10, 30, "k1", obsset, ENGINE_SUCCESS, "Observe Failed");
-    observeKey(h, h1, 0, 11, 30, "k2", obsset, ENGINE_SUCCESS, "Observe Failed");
-    observeKey(h, h1, 0, 12, 30, "k3", obsset, ENGINE_SUCCESS, "Observe Failed");
-    observeKey(h, h1, 0, 13, 30, "k4", obsset, ENGINE_SUCCESS, "Observe Failed");
-    observeKey(h, h1, 0, 14, 30, "k5", obsset, ENGINE_SUCCESS, "Observe Failed");
-    unobserveKey(h, h1, 0, 10, "k1", obsset, ENGINE_SUCCESS, "Unobserve Failed");
-    wait_for_stat_to_be(h, h1, "ep_observe_registry_size", 4);
-
-    // Make sure the watchset times out. Value is 65 becuase it
-    // takes a minute for the dispatcher job to kick in.
-    testHarness.time_travel(65);
-    wait_for_stat_to_be(h, h1, "ep_observe_registry_size", 4);
-
     return SUCCESS;
 }
 
@@ -5299,8 +5184,6 @@ engine_test_t* get_tests(void) {
                  teardown,
                  "ht_locks=1;ht_size=3;max_txn_size=10", prepare, cleanup,
                  BACKEND_ALL),
-        TestCase("observe protocol", test_observe, NULL, teardown, NULL,
-                 prepare, cleanup, BACKEND_ALL),
         TestCase("getl", test_getl, NULL, teardown, NULL, prepare, cleanup,
                  BACKEND_ALL),
         TestCase("unl",  test_unl, NULL, teardown, NULL, prepare, cleanup,
