@@ -23,6 +23,8 @@
 #include "ep.hh"
 #include "vbucket.hh"
 #include "histo.hh"
+#include "checkpoint.hh"
+#include "sqlite-stats.hh"
 
 static void display(const char *name, size_t size) {
     std::cout << name << "\t" << size << std::endl;
@@ -91,5 +93,10 @@ int main(int, char **) {
     display("Default Histo", stats.diskInsertHisto);
     display("Commit Histo", stats.diskCommitHisto);
     display("Hash table depth histo", dv.depthHisto);
+
+    SQLiteStats sqstats;
+    display("Sqlite Seek Histo", sqstats.writeSeekHisto);
+    display("Sqlite Size Histo", sqstats.writeSizeHisto);
+
     return 0;
 }

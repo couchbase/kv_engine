@@ -9,6 +9,7 @@
 #include "common.hh"
 #include "queueditem.hh"
 #include "sqlite-pst.hh"
+#include "sqlite-stats.hh"
 
 class EventuallyPersistentEngine;
 
@@ -102,6 +103,8 @@ public:
     static void disableSchemaCheck() {
         shouldCheckSchemaVersion = false;
     }
+
+    SQLiteStats         sqliteStats;
 
 protected:
 

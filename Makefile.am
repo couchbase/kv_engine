@@ -92,13 +92,13 @@ endif
 
 libobjectregistry_la_SOURCES = objectregistry.cc objectregistry.hh
 
-
 libkvstore_la_SOURCES = kvstore.cc kvstore.hh \
                         pathexpand.hh pathexpand.cc \
                         sqlite-eval.cc sqlite-eval.hh \
                         sqlite-kvstore.cc sqlite-kvstore.hh \
                         sqlite-pst.cc sqlite-pst.hh \
-                        sqlite-strategies.cc sqlite-strategies.hh
+                        sqlite-strategies.cc sqlite-strategies.hh \
+                        sqlite-vfs.c
 libkvstore_la_LIBADD =
 libkvstore_la_DEPENDENCIES =
 

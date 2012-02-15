@@ -5,6 +5,7 @@
 #include <map>
 
 #include "common.hh"
+#include "ep_engine.h"
 #include "stats.hh"
 #include "kvstore.hh"
 #include "sqlite-kvstore.hh"

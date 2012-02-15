@@ -17,6 +17,8 @@
 #include "item.hh"
 #include "stats.hh"
 
+#include "sqlite-stats.hh"
+
 class EventuallyPersistentEngine;
 class EPStats;
 
@@ -146,6 +148,9 @@ public:
     void destroyInvalidVBuckets(bool destroyOnlyOne = false) {
         strategy->destroyInvalidTables(destroyOnlyOne);
     }
+
+    void addStats(const std::string &prefix, ADD_STAT add_stat, const void *c);
+    void addTimingStats(const std::string &prefix, ADD_STAT add_stat, const void *c);
 
 private:
     /**

@@ -76,7 +76,8 @@ EP_ENGINE_CC_SRC = \
 EP_ENGINE_C_SRC = \
                  byteorder.c \
                  embedded/sqlite3.c \
-                 gethrtime.c
+                 gethrtime.c \
+                 sqlite-vfs.c
 
 EP_ENGINE_OBJS = ${EP_ENGINE_C_SRC:%.c=.libs/%.o} ${EP_ENGINE_CC_SRC:%.cc=.libs/%.o}
 
@@ -99,7 +100,9 @@ LIBKVSTORE_CC_SRC = \
          sqlite-pst.cc \
          sqlite-strategies.cc
 
-LIBKVSTORE_C_SRC = embedded/sqlite3.c
+LIBKVSTORE_C_SRC = \
+         embedded/sqlite3.c \
+         sqlite-vfs.c
 
 LIBKVSTORE_OBJS = ${LIBKVSTORE_CC_SRC:%.cc=.libs/%.o} ${LIBKVSTORE_C_SRC:%.c=.libs/%.o}
 
