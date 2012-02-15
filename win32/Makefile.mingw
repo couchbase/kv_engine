@@ -10,20 +10,35 @@ MARCH=-march=i686
 TMP_DIR=./tmp
 INSTALLDIRS=$(LOCAL)/bin $(LOCAL)/lib $(LOCAL)/lib/memcached
 
+TCMALLOC_ROOT= /opt/gperftools
+TCMALLOC_LIB= ${TCMALLOC_ROOT}/lib
+TCMALLOC_INCLUDE = ${TCMALLOC_ROOT}/include
+
+TCMALLOC_FLAGS = -Wwrite-strings \
+                  -Wno-sign-compare -DNO_FRAME_POINTER -DHAVE_LIBTCMALLOC_MINIMAL \
+                    -fno-builtin-malloc -fno-builtin-free -fno-builtin-realloc \
+                    -fno-builtin-calloc -fno-builtin-cfree \
+                    -fno-builtin-memalign -fno-builtin-posix_memalign \
+                    -fno-builtin-valloc -fno-builtin-pvalloc
+
+TCMALLOC_LIB_FLAGS = -Wl,-u__tcmalloc \
+                 $(TCMALLOC_LIB)/libtcmalloc_minimal.a -lPsapi -lshlwapi \
+                 -lstdc++.dll
+
 MEMCACHED=../memcached
 
-OBJDIR = .libs .libs/embedded .libs/poll .libs/management
+OBJDIR = .libs .libs/embedded .libs/poll .libs/management .libs/tcmalloc
 BINARIES= .libs/ep.so management/sqlite3.exe management/cbdbconvert.exe
 LIB=$(LOCALLIB) -L${MEMCACHED}/lib
-INCLUDE= -Iwin32 -I.libs -Iembedded -I${MEMCACHED}/include -I. $(LOCALINC)
+INCLUDE= -Iwin32 -I.libs -Iembedded -I${MEMCACHED}/include -I. -Itcmalloc -I${TCMALLOC_INCLUDE} $(LOCALINC)
 GENFILES=.libs/config_version.h
-CPPFLAGS= $(MARCH) -O2 -DHAVE_CONFIG_H ${INCLUDE} -Wall -DSQLITE_THREADSAFE=2
+CPPFLAGS= $(MARCH) -O2 -DHAVE_CONFIG_H ${INCLUDE} -Wall -DSQLITE_THREADSAFE=2 \
+           $(TCMALLOC_FLAGS)
 
 all: ${BINARIES}
 
 install: ${BINARIES} $(INSTALLDIRS)
-	cp management/sqlite3.exe management/cbdbconvert.exe $(LOCAL)/bin
-	cp .libs/ep.so $(LOCAL)/lib/memcached
+	cp management/sqlite3.exe management/cbdbconvert.exe $(LOCAL)/bin cp .libs/ep.so $(LOCAL)/lib/memcached
 	rm -rf $(TMP_DIR) && mkdir -p $(TMP_DIR)
 	cp ./management/* $(TMP_DIR)
 	rm -f $(TMP_DIR)/*.pyc && rm -f $(TMP_DIR)/*.cc && rm -f $(TMP_DIR)/*.o
@@ -33,12 +48,16 @@ install: ${BINARIES} $(INSTALLDIRS)
 CFLAGS = -std=gnu99 -DNDEBUG -g \
            -fno-strict-aliasing -Wstrict-prototypes -Wmissing-prototypes \
            -Wmissing-declarations -Wredundant-decls \
+           -DGLIBCXX_FORCE_NEW \
+            $(TCMALLOC_FLAGS)
 
 CXXFLAGS = -std=gnu++0x -g \
            -pedantic -Wshadow -fdiagnostics-show-option \
            -Wformat=2 -Wconversion -Wstrict-aliasing -Wextra \
            -Woverloaded-virtual -Wnon-virtual-dtor -Wctor-dtor-privacy \
-           -Wno-long-long  -Wmissing-declarations -Wno-redundant-decls
+           -Wno-long-long  -Wmissing-declarations -Wno-redundant-decls \
+           -DGLIBCXX_FORCE_NEW \
+            $(TCMALLOC_FLAGS)
 
 EP_ENGINE_CC_SRC = \
                  backfill.cc \
@@ -70,6 +89,7 @@ EP_ENGINE_CC_SRC = \
                  tapconnmap.cc \
                  tapconnection.cc \
                  tapthrottle.cc \
+                 tcmalloc/tcmalloc_stats.cc \
                  vbucket.cc
 
 EP_ENGINE_C_SRC = \
@@ -83,10 +103,11 @@ SQLITE3_SRC = embedded/sqlite3.c embedded/sqlite3-shell.c
 SQLITE3_OBJS = ${SQLITE3_SRC:%.c=.libs/%.o}
 
 management/sqlite3.exe: ${OBJDIR} ${GENFILES} ${SQLITE3_OBJS}
-	${LINK.cc} -o $@ ${SQLITE3_OBJS}
+	${LINK.cc} -o $@ ${SQLITE3_OBJS} $(TCMALLOC_LIB_FLAGS)
 
 .libs/ep.so: ${OBJDIR} ${GENFILES} $(EP_ENGINE_OBJS)
 	${LINK.cc} -o $@ -shared ${EP_ENGINE_OBJS} \
+                  $(TCMALLOC_LIB_FLAGS) \
                   ${LIB} -lpthread \
                   -lws2_32
 
@@ -107,7 +128,7 @@ MBDBCONVERT_SRC = management/dbconvert.cc testlogger.cc objectregistry.cc
 MBDBCONVERT_OBJS = ${MBDBCONVERT_SRC:%.cc=.libs/%.o}
 
 management/cbdbconvert.exe: ${OBJDIR} ${GENFILES} ${MBDBCONVERT_OBJS} ${LIBKVSTORE_OBJS}
-	${LINK.cc} -o $@ ${MBDBCONVERT_OBJS} .libs/gethrtime.o ${LIBKVSTORE_OBJS} ${LIB} -lpthread
+	${LINK.cc} -o $@ ${MBDBCONVERT_OBJS} .libs/gethrtime.o ${LIBKVSTORE_OBJS} $(TCMALLOC_LIB_FLAGS) ${LIB} -lpthread
 
 .libs/config_version.h:
 	./win32/config.sh
