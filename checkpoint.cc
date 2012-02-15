@@ -3,6 +3,14 @@
 #include "vbucket.hh"
 #include "checkpoint.hh"
 
+Checkpoint::~Checkpoint() {
+    getLogger()->log(EXTENSION_LOG_INFO, NULL,
+                     "Checkpoint %d for vbucket %d is purged from memory.\n",
+                     checkpointId, vbucketId);
+    stats.memOverhead.decr(memorySize());
+    assert(stats.memOverhead.get() < GIGANTOR);
+}
+
 void Checkpoint::setState(checkpoint_state state) {
     checkpointState = state;
 }
@@ -100,6 +108,11 @@ size_t Checkpoint::mergePrevCheckpoint(Checkpoint *pPrevCheckpoint) {
     size_t numNewItems = 0;
     size_t newEntryMemOverhead = 0;
     std::list<queued_item>::reverse_iterator rit = pPrevCheckpoint->rbegin();
+
+    getLogger()->log(EXTENSION_LOG_INFO, NULL,
+                     "Collapse the checkpoint %d into the checkpoint %d for vbucket %d.\n",
+                     pPrevCheckpoint->getId(), checkpointId, vbucketId);
+
     for (; rit != pPrevCheckpoint->rend(); ++rit) {
         const std::string &key = (*rit)->getKey();
         if (key.size() == 0) {
@@ -169,6 +182,9 @@ uint64_t CheckpointManager::getOpenCheckpointId() {
 
 void CheckpointManager::setOpenCheckpointId_UNLOCKED(uint64_t id) {
     if (checkpointList.size() > 0) {
+        getLogger()->log(EXTENSION_LOG_INFO, NULL,
+                         "Set the current open checkpoint id to %d for vbucket %d.\n",
+                         id, vbucketId);
         checkpointList.back()->setId(id);
         // Update the checkpoint_start item with the new Id.
         queued_item qi = createCheckpointItem(id, vbucketId, queue_op_checkpoint_start);
@@ -183,7 +199,11 @@ bool CheckpointManager::addNewCheckpoint_UNLOCKED(uint64_t id) {
         closeOpenCheckpoint_UNLOCKED(checkpointList.back()->getId());
     }
 
-    Checkpoint *checkpoint = new Checkpoint(stats, id, opened);
+    getLogger()->log(EXTENSION_LOG_INFO, NULL,
+                     "Create a new open checkpoint %d for vbucket %d.\n",
+                     id, vbucketId);
+
+    Checkpoint *checkpoint = new Checkpoint(stats, id, vbucketId, opened);
     // Add a dummy item into the new checkpoint, so that any cursor referring to the actual first
     // item in this new checkpoint can be safely shifted left by 1 if the first item is removed
     // and pushed into the tail.
@@ -210,6 +230,9 @@ bool CheckpointManager::closeOpenCheckpoint_UNLOCKED(uint64_t id) {
     if (id != checkpointList.back()->getId() || checkpointList.back()->getState() == closed) {
         return true;
     }
+
+    getLogger()->log(EXTENSION_LOG_INFO, NULL,
+                     "Close the open checkpoint %d for vbucket %d\n", id, vbucketId);
 
     // This item represents the end of the current open checkpoint and is sent to the slave node.
     queued_item qi = createCheckpointItem(id, vbucketId, queue_op_checkpoint_end);
@@ -361,6 +384,10 @@ bool CheckpointManager::registerTAPCursor(const std::string &name, uint64_t chec
         }
     }
 
+    getLogger()->log(EXTENSION_LOG_INFO, NULL,
+                     "Register the tap cursor with the name \"%s\" for vbucket %d.\n",
+                     name.c_str(), vbucketId);
+
     // If the tap cursor exists, remove its name from the checkpoint that is
     // currently referenced by the tap cursor.
     std::map<const std::string, CheckpointCursor>::iterator map_it = tapCursors.find(name);
@@ -369,8 +396,10 @@ bool CheckpointManager::registerTAPCursor(const std::string &name, uint64_t chec
     }
 
     if (!found) {
-        // If the checkpoint to start with is not found, set the TAP cursor to the current
-        // open checkpoint. This case requires the full materialization through backfill.
+        getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                         "Checkpoint %d for vbucket %d doesn't exist in memory. "
+                         "Set the cursor with the name \"%s\" to the open checkpoint.\n",
+                         checkpointId, vbucketId, name.c_str());
         it = --(checkpointList.end());
         CheckpointCursor cursor(name, it, (*it)->begin(),
                             numItems - ((*it)->getNumItems() + 1), // 1 is for checkpoint start item
@@ -380,6 +409,12 @@ bool CheckpointManager::registerTAPCursor(const std::string &name, uint64_t chec
     } else {
         size_t offset = 0;
         std::list<queued_item>::iterator curr;
+
+        getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                         "Checkpoint %d for vbucket %d exists in memory. "
+                         "Set the cursor with the name \"%s\" to the checkpoint %d\n",
+                         checkpointId, vbucketId, name.c_str(), checkpointId);
+
         if (!alwaysFromBeginning &&
             map_it != tapCursors.end() &&
             (*(map_it->second.currentCheckpoint))->getId() == (*it)->getId()) {
@@ -407,6 +442,11 @@ bool CheckpointManager::registerTAPCursor(const std::string &name, uint64_t chec
 
 bool CheckpointManager::removeTAPCursor(const std::string &name) {
     LockHolder lh(queueLock);
+
+    getLogger()->log(EXTENSION_LOG_INFO, NULL,
+                     "Remove the checkpoint cursor with the name \"%s\" from vbucket %d.\n",
+                     name.c_str(), vbucketId);
+
     std::map<const std::string, CheckpointCursor>::iterator it = tapCursors.find(name);
     if (it == tapCursors.end()) {
         return false;
@@ -739,6 +779,11 @@ uint64_t CheckpointManager::getAllItemsForPersistence(std::vector<queued_item> &
         checkpointId = getAllItemsFromCurrentPosition(persistenceCursor, 0, items);
         persistenceCursor.offset = numItems;
     }
+
+    getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                     "Grab %d items through the persistence cursor from vbucket %d.\n",
+                     items.size(), vbucketId);
+
     return checkpointId;
 }
 
@@ -754,6 +799,11 @@ uint64_t CheckpointManager::getAllItemsForTAPConnection(const std::string &name,
     }
     uint64_t checkpointId = getAllItemsFromCurrentPosition(it->second, 0, items);
     it->second.offset = numItems;
+
+    getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                     "Grab %d items through the tap cursor with name \"%s\" from vbucket %d.\n",
+                     items.size(), name.c_str(), vbucketId);
+
     return checkpointId;
 }
 
@@ -774,15 +824,17 @@ queued_item CheckpointManager::nextItem(const std::string &name, bool &isLastMut
     isLastMutationItem = false;
     std::map<const std::string, CheckpointCursor>::iterator it = tapCursors.find(name);
     if (it == tapCursors.end()) {
-        getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                         "The cursor for TAP connection \"%s\" is not found in the checkpoint.\n",
-                         name.c_str());
+        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                         "The cursor with name \"%s\" is not found in "
+                         "the checkpoint of vbucket %d.\n",
+                         name.c_str(), vbucketId);
         queued_item qi(new QueuedItem("", 0xffff, queue_op_empty));
         return qi;
     }
     if (checkpointList.back()->getId() == 0) {
-        getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                         "VBucket %d CheckpointManager: Wait for backfill completion...\n",
+        getLogger()->log(EXTENSION_LOG_INFO, NULL,
+                         "VBucket %d is still in backfill phase that doesn't allow "
+                         " the tap cursor to fetch an item from it's current checkpoint.\n",
                          vbucketId);
         queued_item qi(new QueuedItem("", 0xffff, queue_op_empty));
         return qi;

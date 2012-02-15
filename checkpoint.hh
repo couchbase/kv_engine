@@ -79,17 +79,15 @@ typedef enum {
  */
 class Checkpoint {
 public:
-    Checkpoint(EPStats &st, uint64_t id, checkpoint_state state = opened) :
-        stats(st), checkpointId(id), creationTime(ep_real_time()),
+    Checkpoint(EPStats &st, uint64_t id, uint16_t vbid, checkpoint_state state = opened) :
+        stats(st), checkpointId(id), vbucketId(vbid), creationTime(ep_real_time()),
         checkpointState(state), numItems(0), indexMemOverhead(0) {
+
         stats.memOverhead.incr(memorySize());
         assert(stats.memOverhead.get() < GIGANTOR);
     }
 
-    ~Checkpoint() {
-        stats.memOverhead.decr(memorySize());
-        assert(stats.memOverhead.get() < GIGANTOR);
-    }
+    ~Checkpoint();
 
     /**
      * Return the checkpoint Id
@@ -225,6 +223,7 @@ public:
 private:
     EPStats                       &stats;
     uint64_t                       checkpointId;
+    uint16_t                       vbucketId;
     rel_time_t                     creationTime;
     checkpoint_state               checkpointState;
     size_t                         numItems;
