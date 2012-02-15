@@ -291,10 +291,10 @@ private:
  */
 class Dispatcher {
 public:
-    Dispatcher(EventuallyPersistentEngine &e) :
+    Dispatcher(EventuallyPersistentEngine &e, const char *desc = NULL) :
         notifications(0), joblog(JOB_LOG_SIZE), slowjobs(JOB_LOG_SIZE),
         idleTask(new IdleTask), state(dispatcher_running),
-        forceTermination(false), engine(e)
+        forceTermination(false), engine(e), name(desc ? desc : "Dispatcher")
     {
         noTask();
     }
@@ -350,16 +350,12 @@ public:
      * @param t the task to delay
      * @param sleeptime how long to delay the task
      */
-    void snooze(TaskId t, double sleeptime) {
-        t->snooze(sleeptime);
-    }
+    void snooze(TaskId t, double sleeptime);
 
     /**
      * Cancel a task.
      */
-    void cancel(TaskId t) {
-        t->cancel();
-    }
+    void cancel(TaskId t);
 
     /**
      * Get the name of the currently executing task.
@@ -377,6 +373,8 @@ public:
                                joblog.contents(), slowjobs.contents());
     }
 
+    const std::string &getName() { return name; }
+
 private:
 
     friend class IdleTask;
@@ -385,12 +383,7 @@ private:
         taskDesc = "none";
     }
 
-    void reschedule(TaskId task) {
-        // If the task is already in the queue it'll get run twice
-        LockHolder lh(mutex);
-        futureQueue.push(task);
-        notify();
-    }
+    void reschedule(TaskId task);
 
     void notify() {
         ++notifications;
@@ -434,6 +427,7 @@ private:
     bool forceTermination;
 
     EventuallyPersistentEngine &engine;
+    std::string name;
 };
 
 #endif

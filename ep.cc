@@ -337,18 +337,18 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
                      storageProperties.maxWriters());
 
     doPersistence = getenv("EP_NO_PERSISTENCE") == NULL;
-    dispatcher = new Dispatcher(theEngine);
+    dispatcher = new Dispatcher(theEngine, "RW_Dispatcher");
     if (storageProperties.maxConcurrency() > 1
         && storageProperties.maxReaders() > 1
         && concurrentDB) {
         roUnderlying = engine.newKVStore();
-        roDispatcher = new Dispatcher(theEngine);
+        roDispatcher = new Dispatcher(theEngine, "RO_Dispatcher");
         roDispatcher->start();
     } else {
         roUnderlying = rwUnderlying;
         roDispatcher = dispatcher;
     }
-    nonIODispatcher = new Dispatcher(theEngine);
+    nonIODispatcher = new Dispatcher(theEngine, "NONIO_Dispatcher");
     flusher = new Flusher(this, dispatcher);
     invalidItemDbPager = new InvalidItemDbPager(this, stats, engine.getVbDelChunkSize());
 
