@@ -119,7 +119,8 @@ libsqlite_kvstore_la_SOURCES = kvstore.hh \
                                sqlite-kvstore/sqlite-pst.cc \
                                sqlite-kvstore/sqlite-pst.hh \
                                sqlite-kvstore/sqlite-strategies.cc \
-                               sqlite-kvstore/sqlite-strategies.hh
+                               sqlite-kvstore/sqlite-strategies.hh \
+                               sqlite-kvstore/sqlite-vfs.c
 libsqlite_kvstore_la_CPPFLAGS = -I$(top_srcdir) -I$(top_srcdir)/sqlite-kvstore \
                                 $(AM_CPPFLAGS)
 libsqlite_kvstore_la_LIBADD =

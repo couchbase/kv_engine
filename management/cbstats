@@ -82,7 +82,7 @@ def size_label(s):
     if s == 0:
         return "0"
     sizes=['', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB']
-    e = math.floor(math.log(s, 1024))
+    e = math.floor(math.log(abs(s), 1024))
     suffix = sizes[int(e)]
     return "%d%s" % (s/(1024 ** math.floor(e)), suffix)
 
@@ -116,7 +116,12 @@ def histograms(mc, raw_stats):
                 'item_alloc_sizes': size_label,
                 'paged_out_time': sec_label}
     for s in stats:
-        labeler = labelers.get(s[0][0], time_label)
+        def_lbl = time_label
+        if s[0][0].endswith("Size"):
+            def_lbl = size_label
+        elif s[0][0].endswith("Seek"):
+            def_lbl = size_label
+        labeler = labelers.get(s[0][0], def_lbl)
         lbl = "%s - %s" % (labeler(s[0][1]), labeler(s[0][2]))
         longest = max(longest, len(lbl) + 1)
         k = s[0][0]

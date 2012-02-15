@@ -338,3 +338,35 @@ StorageProperties StrategicSqlite3::getStorageProperties() {
                          strategy->hasEfficientVBDeletion());
     return rv;
 }
+
+void StrategicSqlite3::addStats(const std::string &prefix,
+                             ADD_STAT add_stat, const void *c) {
+    if (prefix != "rw") {
+        return;
+    }
+
+    SQLiteStats &st(strategy->sqliteStats);
+    add_casted_stat("sector_size", st.sectorSize, add_stat, c);
+    add_casted_stat("open", st.numOpen, add_stat, c);
+    add_casted_stat("close", st.numClose, add_stat, c);
+    add_casted_stat("lock", st.numLocks, add_stat, c);
+    add_casted_stat("truncate", st.numTruncates, add_stat, c);
+}
+
+
+void StrategicSqlite3::addTimingStats(const std::string &prefix,
+                                    ADD_STAT add_stat, const void *c) {
+    if (prefix != "rw") {
+        return;
+    }
+
+    SQLiteStats &st(strategy->sqliteStats);
+    add_casted_stat("delete", st.deleteHisto, add_stat, c);
+    add_casted_stat("sync", st.syncTimeHisto, add_stat, c);
+    add_casted_stat("readTime", st.readTimeHisto, add_stat, c);
+    add_casted_stat("readSeek", st.readSeekHisto, add_stat, c);
+    add_casted_stat("readSize", st.readSizeHisto, add_stat, c);
+    add_casted_stat("writeTime", st.writeTimeHisto, add_stat, c);
+    add_casted_stat("writeSeek", st.writeSeekHisto, add_stat, c);
+    add_casted_stat("writeSize", st.writeSizeHisto, add_stat, c);
+}

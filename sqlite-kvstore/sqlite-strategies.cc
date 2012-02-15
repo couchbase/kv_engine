@@ -9,9 +9,55 @@
 #include "ep.hh"
 #include "pathexpand.hh"
 
+#include "sqlite-vfs.h"
+
 static const int CURRENT_SCHEMA_VERSION(2);
 
 bool SqliteStrategy::shouldCheckSchemaVersion = true;
+
+extern "C" {
+
+static void traceGotSectorSize(int s, void *arg) {
+    static_cast<SQLiteStats*>(arg)->sectorSize = static_cast<size_t>(s);
+}
+
+static void traceOpen(int, void *arg) {
+    ++static_cast<SQLiteStats*>(arg)->numOpen;
+}
+
+static void traceClose(int, void *arg) {
+    ++static_cast<SQLiteStats*>(arg)->numClose;
+}
+
+static void traceLock(int, void *arg) {
+    ++static_cast<SQLiteStats*>(arg)->numLocks;
+}
+
+static void traceTrunc(int, void *arg) {
+    ++static_cast<SQLiteStats*>(arg)->numTruncates;
+}
+
+static void traceDelete(int, hrtime_t elapsed, void *arg) {
+    static_cast<SQLiteStats*>(arg)->deleteHisto.add(elapsed / 1000);
+}
+
+static void traceSync(int, int, hrtime_t elapsed, void *arg) {
+    static_cast<SQLiteStats*>(arg)->syncTimeHisto.add(elapsed / 1000);
+}
+
+static void traceRead(int, size_t rs, ssize_t dist, hrtime_t elapsed, void *arg) {
+    static_cast<SQLiteStats*>(arg)->readTimeHisto.add(elapsed / 1000);
+    static_cast<SQLiteStats*>(arg)->readSizeHisto.add(rs);
+    static_cast<SQLiteStats*>(arg)->readSeekHisto.add(abs(dist));
+}
+
+static void traceWrite(int, size_t rs, ssize_t dist, hrtime_t elapsed, void *arg) {
+    static_cast<SQLiteStats*>(arg)->writeTimeHisto.add(elapsed / 1000);
+    static_cast<SQLiteStats*>(arg)->writeSizeHisto.add(rs);
+    static_cast<SQLiteStats*>(arg)->writeSeekHisto.add(abs(dist));
+}
+
+}
 
 SqliteStrategy::SqliteStrategy(const char * const fn,
                                const char * const finit,
@@ -27,10 +73,32 @@ SqliteStrategy::SqliteStrategy(const char * const fn,
 
     assert(filename);
     assert(shardCount > 0);
+
+    sqlite3_vfs *default_vfs(sqlite3_vfs_find(NULL));
+    assert(default_vfs);
+
+    static struct vfs_callbacks sqlite_vfs_callbacks = {
+        traceGotSectorSize,
+        traceOpen,
+        traceClose,
+        traceLock,
+        traceTrunc,
+        traceDelete,
+        traceSync,
+        traceRead,
+        traceWrite
+    };
+
+    vfsepstat_register(filename, default_vfs->zName,
+                       sqlite_vfs_callbacks, &sqliteStats);
 }
 
 SqliteStrategy::~SqliteStrategy() {
     close();
+    sqlite3_vfs *toDestroy(sqlite3_vfs_find(filename));
+    if (toDestroy) {
+        sqlite3_vfs_unregister(toDestroy);
+    }
 }
 
 void SqliteStrategy::destroyMetaStatements() {
@@ -105,7 +173,7 @@ sqlite3 *SqliteStrategy::open(void) {
         int flags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE
             | SQLITE_OPEN_PRIVATECACHE;
 
-        if(sqlite3_open_v2(filename, &db, flags, NULL) !=  SQLITE_OK) {
+        if(sqlite3_open_v2(filename, &db, flags, filename) !=  SQLITE_OK) {
             std::stringstream ss;
             ss << "Error initializing sqlite3: " << sqlite3_errcode(db) << std::endl;
             throw std::runtime_error(ss.str());
