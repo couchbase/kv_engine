@@ -32,6 +32,10 @@
 #include "htresizer.hh"
 #include "backfill.hh"
 
+#define STATWRITER_NAMESPACE core_engine
+#include "statwriter.hh"
+#undef STATWRITER_NAMESPACE
+
 static size_t percentOf(size_t val, double percent) {
     return static_cast<size_t>(static_cast<double>(val) * percent);
 }
@@ -2016,54 +2020,6 @@ void EventuallyPersistentEngine::queueBackfill(const VBucketFilter &backfillVBFi
                                             0, false, false);
 }
 
-static void add_casted_stat(const char *k, const char *v,
-                            ADD_STAT add_stat, const void *cookie) {
-    add_stat(k, static_cast<uint16_t>(strlen(k)),
-             v, static_cast<uint32_t>(strlen(v)), cookie);
-}
-
-template <typename T>
-static void add_casted_stat(const char *k, T v,
-                            ADD_STAT add_stat, const void *cookie) {
-    std::stringstream vals;
-    vals << v;
-    add_casted_stat(k, vals.str().c_str(), add_stat, cookie);
-}
-
-template <typename T>
-static void add_casted_stat(const char *k, const Atomic<T> &v,
-                            ADD_STAT add_stat, const void *cookie) {
-    add_casted_stat(k, v.get(), add_stat, cookie);
-}
-
-/// @cond DETAILS
-/**
- * Convert a histogram into a bunch of calls to add stats.
- */
-template <typename T>
-struct histo_stat_adder {
-    histo_stat_adder(const char *k, ADD_STAT a, const void *c)
-        : prefix(k), add_stat(a), cookie(c) {}
-    void operator() (const HistogramBin<T>* b) {
-        if (b->count()) {
-            std::stringstream ss;
-            ss << prefix << "_" << b->start() << "," << b->end();
-            add_casted_stat(ss.str().c_str(), b->count(), add_stat, cookie);
-        }
-    }
-    const char *prefix;
-    ADD_STAT add_stat;
-    const void *cookie;
-};
-/// @endcond
-
-template <typename T>
-static void add_casted_stat(const char *k, const Histogram<T> &v,
-                            ADD_STAT add_stat, const void *cookie) {
-    histo_stat_adder<T> a(k, add_stat, cookie);
-    std::for_each(v.begin(), v.end(), a);
-}
-
 bool VBucketCountVisitor::visitBucket(RCPtr<VBucket> &vb) {
     ++numVbucket;
     numItems += vb->ht.getNumItems();
@@ -3230,6 +3186,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
         add_casted_stat("ep_set_fail", stats.couchSetFailHisto,
                         add_stat, cookie);
 
+        rv = ENGINE_SUCCESS;
+    } else if (nkey == 9 && strncmp(stat_key, "kvtimings", 9) == 0) {
+        getEpStore()->getROUnderlying()->addTimingStats("ro", add_stat, cookie);
+        getEpStore()->getRWUnderlying()->addTimingStats("rw", add_stat, cookie);
         rv = ENGINE_SUCCESS;
     } else if (nkey == 7 && strncmp(stat_key, "kvstore", 7) == 0) {
         getEpStore()->getROUnderlying()->addStats("ro", add_stat, cookie);

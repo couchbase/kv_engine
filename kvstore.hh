@@ -108,6 +108,16 @@ public:
     }
 
     /**
+     * Show kvstore specific timing stats.
+     *
+     * @param prefix prefix to use for the stats
+     * @param add_stat the callback function to add statistics
+     * @param c the cookie to pass to the callback function
+     */
+    virtual void addTimingStats(const std::string &, ADD_STAT, const void *) {
+    }
+
+    /**
      * Reset the store to a clean state.
      */
     virtual void reset() = 0;
@@ -259,6 +269,7 @@ public:
      * This can be set to true if we want to delete all invalid vbuckets over the time.
      */
     virtual void destroyInvalidVBuckets(bool destroyOnlyOne = false) = 0;
+
 };
 
 /**

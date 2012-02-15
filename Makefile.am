@@ -90,6 +90,7 @@ ep_la_SOURCES = \
                  sizes.cc \
                  stats.hh \
                  statsnap.cc statsnap.hh \
+                 statwriter.hh \
                  stored-value.cc stored-value.hh \
                  syncobject.hh \
                  observe_registry.cc observe_registry.hh \

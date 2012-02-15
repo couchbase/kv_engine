@@ -9,6 +9,10 @@
 #include "mc-kvstore/mc-engine.hh"
 #include "ep_engine.h"
 
+#define STATWRITER_NAMESPACE mc_engine
+#include "statwriter.hh"
+#undef STATWRITER_NAMESPACE
+
 #ifdef WIN32
 static ssize_t sendmsg(SOCKET s, const struct msghdr *msg, int flags);
 #endif
@@ -1388,13 +1392,13 @@ void MemcachedEngine::addStats(const std::string &prefix,
                                ADD_STAT add_stat,
                                const void *c)
 {
-    addStat(prefix, "type", "mccouch", add_stat, c);
+    add_prefixed_stat(prefix, "type", "mccouch", add_stat, c);
     for (uint8_t ii = 0; ii < 0xff; ++ii) {
         commandStats[ii].addStats(prefix, cmd2str(ii), add_stat, c);
     }
-    addStat(prefix, "current_command", cmd2str(currentCommand), add_stat, c);
-    addStat(prefix, "last_sent_command", cmd2str(lastSentCommand), add_stat, c);
-    addStat(prefix, "last_received_command", cmd2str(lastReceivedCommand),
+    add_prefixed_stat(prefix, "current_command", cmd2str(currentCommand), add_stat, c);
+    add_prefixed_stat(prefix, "last_sent_command", cmd2str(lastSentCommand), add_stat, c);
+    add_prefixed_stat(prefix, "last_received_command", cmd2str(lastReceivedCommand),
             add_stat, c);
 }
 

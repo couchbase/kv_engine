@@ -119,19 +119,6 @@ protected:
     friend class SelectBucketResponseHandler;
 
 private:
-    template <typename T>
-    void addStat(const std::string &prefix, const char *nm, T val, ADD_STAT add_stat, const void *c) {
-        std::stringstream name;
-        name << prefix << ":" << nm;
-        std::stringstream value;
-        value << val;
-        std::string n = name.str();
-        add_stat(n.data(), static_cast<uint16_t>(n.length()),
-                 value.str().data(),
-                 static_cast<uint32_t>(value.str().length()),
-                 c);
-    }
-
     void selectBucket(void);
     void reschedule(std::list<BinaryPacketHandler*> &packets);
     void resetConnection();
