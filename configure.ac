@@ -8,6 +8,7 @@ AC_CANONICAL_SYSTEM
 AC_CONFIG_SRCDIR(Makefile.am)
 AM_INIT_AUTOMAKE(AC_PACKAGE_NAME, AC_PACKAGE_VERSION)
 AM_CONFIG_HEADER(config.h)
+AC_CONFIG_MACRO_DIR([m4])
 
 AC_PROG_CC
 AC_DISABLE_STATIC
@@ -507,6 +508,8 @@ AC_ARG_ENABLE([breakdancer],
 
 AM_CONDITIONAL(ENABLE_BREAKDANCE,
                test "x$ac_cv_enable_breakdancer" = "xyes" -a "x$PYTHON" != "xno")
+
+MALLOC_MACROS
 
 dnl Generate output files
 CPPFLAGS="-I\${top_srcdir}/include ${CPPFLAGS}"

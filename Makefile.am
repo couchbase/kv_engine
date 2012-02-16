@@ -99,7 +99,7 @@ memcached_CPPFLAGS = $(CPPFLAGS) -I$(top_srcdir)/daemon
 memcached_LDFLAGS =-R '$(pkglibdir)' -R '$(libdir)'
 memcached_CFLAGS = @PROFILER_FLAGS@
 memcached_DEPENDENCIES = libmemcached_utilities.la
-memcached_LDADD = @PROFILER_LDFLAGS@ libmemcached_utilities.la -levent $(APPLICATION_LIBS)
+memcached_LDADD = @PROFILER_LDFLAGS@ $(MALLOC_LIBS) libmemcached_utilities.la -levent $(APPLICATION_LIBS)
 
 if EMBEDDED_LIBEVENT
 libevent.stamp:
