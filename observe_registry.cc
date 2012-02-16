@@ -89,8 +89,11 @@ void ObserveRegistry::itemsPersisted(std::list<queued_item> &itemlist) {
         std::map<std::string,ObserveSet*>::iterator obs_itr;
         for (obs_itr = registry.begin(); obs_itr != registry.end(); obs_itr++) {
             if (!obs_itr->second->isExpired()) {
+                StoredValue *sv = (*epstore)->getStoredValue((*itr)->getKey(),
+                                                             (*itr)->getVBucketId(),
+                                                             false);
                 obs_itr->second->keyEvent((*itr)->getKey().c_str(),
-                                          (*itr)->getCas(),
+                                          sv ? sv->getCas() : 0,
                                           (*itr)->getVBucketId(),
                                           OBS_PERSISTED_EVENT);
             } else {

@@ -98,8 +98,6 @@ memcached like this:
 | keep_closed_chks       | bool   | True if we want to keep closed checkpoints |
 |                        |        | in memory if the current memory usage is   |
 |                        |        | below high water mark                      |
-| chk_meta_items_only    | bool   | True if a checkpoint should contain items  |
-|                        |        | with keys and meta data only.              |
 | bf_resident_threshold  | float  | Resident item threshold for only memory    |
 |                        |        | backfill to be kicked off                  |
 | getl_default_timeout   | int    | The default timeout for a getl lock in (s) |

@@ -16,8 +16,6 @@ if __name__ == '__main__':
     c = clitool.CliTool("""
 Available params for "set":
     chk_max_items            - Max number of items allowed in a checkpoint
-    chk_meta_items_only      - true if a checkpoint should have items with keys and
-                               meta data only
     chk_period               - Time bound (in sec.) on a checkpoint
     inconsistent_slave_chk   - true if we allow a downstream master to receive checkpoint
                                begin/end messages from the upstream master

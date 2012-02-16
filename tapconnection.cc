@@ -1520,10 +1520,7 @@ queued_item TapProducer::nextFgFetched_UNLOCKED(bool &shouldPause) {
                 break;
             case queue_op_checkpoint_start:
                 {
-                    uint64_t checkpointId;
-                    memcpy(&checkpointId, qi->getValue()->getData(), sizeof(checkpointId));
-                    checkpointId = ntohll(checkpointId);
-                    it->second.currentCheckpointId = checkpointId;
+                    it->second.currentCheckpointId = (uint64_t) qi->getRowId();
                     if (supportCheckpointSync) {
                         it->second.state = checkpoint_start;
                         addCheckpointMessage_UNLOCKED(qi);
@@ -1771,7 +1768,9 @@ Item* TapProducer::getNextItem(const void *c, uint16_t *vbucket, tap_event_t &re
             return NULL;
         }
         *vbucket = checkpoint_msg->getVBucketId();
-        itm = new Item(checkpoint_msg->getKey(), 0, 0, checkpoint_msg->getValue(),
+        uint64_t cid = htonll((uint64_t) checkpoint_msg->getRowId());
+        value_t vblob(Blob::New((const char*)&cid, sizeof(cid)));
+        itm = new Item(checkpoint_msg->getKey(), 0, 0, vblob,
                        0, -1, checkpoint_msg->getVBucketId());
         return itm;
     }
@@ -1809,9 +1808,8 @@ Item* TapProducer::getNextItem(const void *c, uint16_t *vbucket, tap_event_t &re
         ++stats.numTapBGFetched;
         ++queueDrain;
 
-        queued_item qi(new QueuedItem(itm->getKey(), itm->getValue(), itm->getVBucketId(),
-                                      queue_op_set, -1, itm->getId(), itm->getFlags(),
-                                      itm->getExptime(), itm->getCas(), itm->getSeqno()));
+        queued_item qi(new QueuedItem(itm->getKey(), itm->getVBucketId(),
+                                      queue_op_set, -1, itm->getId()));
         addTapLogElement_UNLOCKED(qi);
     } else if (hasQueuedItem_UNLOCKED()) { // Item from memory backfill or checkpoints
         if (waitForCheckpointMsgAck()) {
@@ -1836,57 +1834,50 @@ Item* TapProducer::getNextItem(const void *c, uint16_t *vbucket, tap_event_t &re
         }
 
         if (qi->getOperation() == queue_op_set) {
-            if (qi->getValue().get() == NULL) { // Fetch an item's value from hash table
-                GetValue gv(engine.getEpStore()->get(qi->getKey(), qi->getVBucketId(),
-                                                     c, false, false));
-                ENGINE_ERROR_CODE r = gv.getStatus();
-                if (r == ENGINE_SUCCESS) {
-                    assert(gv.getStoredValue() != NULL);
-                    itm = gv.getValue();
-                    ret = TAP_MUTATION;
-                } else if (r == ENGINE_KEY_ENOENT) {
-                    // Item was deleted and set a message type to tap_deletion.
-                    itm = new Item(qi->getKey().c_str(), qi->getKey().length(), 0,
-                                   qi->getFlags(), 0, qi->getCas(), -1, qi->getVBucketId());
-                    itm->setSeqno(qi->getSeqno());
-                    ret = TAP_DELETION;
-                } else if (r == ENGINE_EWOULDBLOCK) {
-                    queueBGFetch_UNLOCKED(qi->getKey(), gv.getId(), *vbucket,
-                                          engine.getEpStore()->getVBucketVersion(*vbucket), c);
-                    // If there's an item ready, return NOOP so we'll come
-                    // back immediately, otherwise pause the connection
-                    // while we wait.
-                    if (hasQueuedItem_UNLOCKED() || hasItemFromDisk_UNLOCKED()) {
-                        ret = TAP_NOOP;
-                    } else {
-                        ret = TAP_PAUSE;
-                    }
-                    return NULL;
-                } else {
-                    if (r == ENGINE_NOT_MY_VBUCKET) {
-                        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                         "%s Trying to fetch an item for vbucket %d that "
-                                         "doesn't exist on this server.\n",
-                                         logHeader(), qi->getVBucketId());
-                        ret = TAP_NOOP;
-                    } else {
-                        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                         "%s Tap internal error with status %d. "
-                                         "Disconnecting\n", logHeader(), r);
-                        ret = TAP_DISCONNECT;
-                    }
-                    return NULL;
-                }
-            } else {
-                itm = new Item(qi->getKey(), qi->getFlags(), qi->getExpiryTime(),
-                               qi->getValue(), qi->getCas(), qi->getRowId(),
-                               qi->getVBucketId(), qi->getSeqno());
+            GetValue gv(engine.getEpStore()->get(qi->getKey(), qi->getVBucketId(),
+                                                 c, false, false));
+            ENGINE_ERROR_CODE r = gv.getStatus();
+            if (r == ENGINE_SUCCESS) {
+                assert(gv.getStoredValue() != NULL);
+                itm = gv.getValue();
                 ret = TAP_MUTATION;
+            } else if (r == ENGINE_KEY_ENOENT) {
+                // Item was deleted and set a message type to tap_deletion.
+                itm = new Item(qi->getKey().c_str(), qi->getKey().length(), 0,
+                               0, 0, 0, -1, qi->getVBucketId());
+                itm->setSeqno(qi->getSeqno());
+                ret = TAP_DELETION;
+            } else if (r == ENGINE_EWOULDBLOCK) {
+                queueBGFetch_UNLOCKED(qi->getKey(), gv.getId(), *vbucket,
+                                      engine.getEpStore()->getVBucketVersion(*vbucket), c);
+                // If there's an item ready, return NOOP so we'll come
+                // back immediately, otherwise pause the connection
+                // while we wait.
+                if (hasQueuedItem_UNLOCKED() || hasItemFromDisk_UNLOCKED()) {
+                    ret = TAP_NOOP;
+                } else {
+                    ret = TAP_PAUSE;
+                }
+                return NULL;
+            } else {
+                if (r == ENGINE_NOT_MY_VBUCKET) {
+                    getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                     "%s Trying to fetch an item for vbucket %d that "
+                                     "doesn't exist on this server.\n",
+                                     logHeader(), qi->getVBucketId());
+                    ret = TAP_NOOP;
+                } else {
+                    getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                     "%s Tap internal error with status %d. "
+                                     "Disconnecting\n", logHeader(), r);
+                    ret = TAP_DISCONNECT;
+                }
+                return NULL;
             }
             ++stats.numTapFGFetched;
         } else if (qi->getOperation() == queue_op_del) {
             itm = new Item(qi->getKey().c_str(), qi->getKey().length(), 0,
-                           qi->getFlags(), 0, qi->getCas(), -1, qi->getVBucketId());
+                           0, 0, 0, -1, qi->getVBucketId());
             itm->setSeqno(qi->getSeqno());
             ret = TAP_DELETION;
             ++stats.numTapDeletes;

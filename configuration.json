@@ -35,11 +35,6 @@
             "default": "30000",
             "type": "size_t"
         },
-        "chk_meta_items_only": {
-            "default": "true",
-            "descr": "True if a checkpoint should contain items with keys and meta data only.",
-            "type": "bool"
-        },
         "chk_period": {
             "default": "3600",
             "type": "size_t"

@@ -50,11 +50,9 @@ public:
                 ++stats.numFailedEjects;
                 return;
             }
-            // Check if the key with its CAS value exists in the open or closed referenced
-            // checkpoints.
+            // Check if the key exists in the open or closed referenced checkpoints.
             bool foundInCheckpoints =
-                currentBucket->checkpointManager.isKeyResidentInCheckpoints(v->getKey(),
-                                                                            v->getCas());
+                currentBucket->checkpointManager.isKeyResidentInCheckpoints(v->getKey());
             if (!foundInCheckpoints && v->ejectValue(stats, currentBucket->ht)) {
                 if (currentBucket->getState() == vbucket_state_replica) {
                     ++stats.numReplicaEjects;

@@ -251,12 +251,6 @@ extern "C" {
                 } else {
                     e->getConfiguration().setKeepClosedChks(false);
                 }
-            } else if (strcmp(keyz, "chk_meta_items_only") == 0) {
-                bool chk_meta_items_only = true;
-                if (strcmp(valz, "false") == 0) {
-                    chk_meta_items_only = false;
-                }
-                e->getConfiguration().setChkMetaItemsOnly(chk_meta_items_only);
             } else {
                 *msg = "Unknown config param";
                 rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;

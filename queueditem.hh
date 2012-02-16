@@ -30,44 +30,26 @@ typedef enum {
  */
 class QueuedItem : public RCValue {
 public:
-    QueuedItem(const std::string &k, const uint16_t vb, enum queue_operation o,
-               const uint16_t vb_version = -1, const int64_t rid = -1, const uint32_t f = 0,
-               const time_t expiry_time = 0, const uint64_t cv = 0, uint32_t seqno = 1)
-        : itm(k, f, expiry_time, NULL, 0, cv, rid, vb),
-          queued(ep_current_time()),
-          op(o), vbucket_version(vb_version)
+    QueuedItem(const std::string &k, const uint16_t vb,
+               enum queue_operation o, const uint16_t vb_version = -1,
+               const int64_t rid = -1, const uint32_t seqno = 1)
+        : key(k), rowId(rid), seqNum(seqno), queued(ep_current_time()),
+          op(o), vbucket(vb), vbucketVersion(vb_version)
     {
         ObjectRegistry::onCreateQueuedItem(this);
-        itm.setSeqno(seqno);
-    }
-
-    QueuedItem(const std::string &k, const value_t &v, const uint16_t vb, enum queue_operation o,
-               const uint16_t vb_version = -1, const int64_t rid = -1, const uint32_t f = 0,
-               const time_t expiry_time = 0, const uint64_t cv = 0, uint32_t seqno = 1)
-        : itm(k, f, expiry_time, v, cv, rid, vb),
-          queued(ep_current_time()),
-          op(o), vbucket_version(vb_version)
-    {
-        ObjectRegistry::onCreateQueuedItem(this);
-        itm.setSeqno(seqno);
     }
 
     ~QueuedItem() {
         ObjectRegistry::onDeleteQueuedItem(this);
     }
 
-    const std::string &getKey(void) const { return itm.getKey(); }
-    uint16_t getVBucketId(void) const { return itm.getVBucketId(); }
-    uint16_t getVBucketVersion(void) const { return vbucket_version; }
+    const std::string &getKey(void) const { return key; }
+    uint16_t getVBucketId(void) const { return vbucket; }
+    uint16_t getVBucketVersion(void) const { return vbucketVersion; }
     uint32_t getQueuedTime(void) const { return queued; }
     enum queue_operation getOperation(void) const { return op; }
-    int64_t getRowId() const { return itm.getId(); }
-    uint32_t getFlags() const { return itm.getFlags(); }
-    time_t getExpiryTime() const { return itm.getExptime(); }
-    uint64_t getCas() const { return itm.getCas(); }
-    uint32_t getSeqno() const { return itm.getSeqno(); }
-    const value_t &getValue() const { return itm.getValue(); }
-    Item &getItem() { return itm; }
+    int64_t getRowId() const { return rowId; }
+    uint32_t getSeqno() const { return seqNum; }
 
     void setQueuedTime(uint32_t queued_time) {
         queued = queued_time;
@@ -83,14 +65,17 @@ public:
     }
 
     size_t size() {
-        return sizeof(QueuedItem) + getKey().size() + itm.getValMemSize();
+        return sizeof(QueuedItem) + getKey().size();
     }
 
 private:
-    Item itm;
+    std::string key;
+    int64_t  rowId;
+    uint32_t seqNum;
     uint32_t queued;
     enum queue_operation op;
-    uint16_t vbucket_version;
+    uint16_t vbucket;
+    uint16_t vbucketVersion;
 
     DISALLOW_COPY_AND_ASSIGN(QueuedItem);
 };
