@@ -38,7 +38,8 @@ CPPFLAGS= $(MARCH) -O2 -DHAVE_CONFIG_H ${INCLUDE} -Wall -DSQLITE_THREADSAFE=2 \
 all: ${BINARIES}
 
 install: ${BINARIES} $(INSTALLDIRS)
-	cp management/sqlite3.exe management/cbdbconvert.exe $(LOCAL)/bin cp .libs/ep.so $(LOCAL)/lib/memcached
+	cp management/sqlite3.exe management/cbdbconvert.exe $(LOCAL)/bin 
+	cp .libs/ep.so $(LOCAL)/lib/memcached
 	rm -rf $(TMP_DIR) && mkdir -p $(TMP_DIR)
 	cp ./management/* $(TMP_DIR)
 	rm -f $(TMP_DIR)/*.pyc && rm -f $(TMP_DIR)/*.cc && rm -f $(TMP_DIR)/*.o
