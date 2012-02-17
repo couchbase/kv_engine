@@ -9,7 +9,7 @@
 
 namespace STATWRITER_NAMESPACE {
 
-void add_casted_stat(const char *k, const char *v,
+inline void add_casted_stat(const char *k, const char *v,
                             ADD_STAT add_stat, const void *cookie) {
     add_stat(k, static_cast<uint16_t>(strlen(k)),
              v, static_cast<uint32_t>(strlen(v)), cookie);
