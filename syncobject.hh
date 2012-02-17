@@ -44,6 +44,7 @@ public:
             setHolder(true);
             return true;
         case ETIMEDOUT:
+        case CB_ETIMEDOUT:
             setHolder(true);
             return false;
         default:

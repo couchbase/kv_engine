@@ -61,6 +61,11 @@ using UNORDERED_MAP_NAMESPACE::unordered_map;
 #define UINT16_MAX 65535
 #endif /* UINT16_MAX */
 
+//On Cygwin/mingw, it is redefined ETIMEDOUT to WSAETIMEDOUT,
+//which is 10060. Here we still keep the original ETIMEDOUT value
+// for return value of functions such as pthread_cond_timedwait
+#define CB_ETIMEDOUT 110
+
 // Stolen from http://google-styleguide.googlecode.com/svn/trunk/cppguide.xml
 // A macro to disallow the copy constructor and operator= functions
 // This should be used in the private: declarations for a class
