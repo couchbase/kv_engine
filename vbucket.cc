@@ -122,10 +122,6 @@ void VBucket::setState(vbucket_state_t to, SERVER_HANDLE_V1 *sapi) {
         checkpointManager.setOpenCheckpointId(1);
     }
 
-    if (oldstate == vbucket_state_dead || to == vbucket_state_dead) {
-        resetStats();
-    }
-
     getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
                      "transitioning vbucket %d from %s to %s\n",
                      id, VBucket::toString(oldstate), VBucket::toString(to));
