@@ -78,25 +78,34 @@ bool BackFillVisitor::visitBucket(RCPtr<VBucket> &vb) {
 
     if (vBucketFilter(vb->getId())) {
         VBucketVisitor::visitBucket(vb);
-        // If the current resident ratio for a given vbucket is below the resident threshold
-        // for memory backfill only, schedule the disk backfill for more efficient bg fetches.
-        double numItems = static_cast<double>(vb->ht.getNumItems());
-        double numNonResident = static_cast<double>(vb->ht.getNumNonResidentItems());
-        if (numItems == 0) {
+        double num_items = static_cast<double>(vb->ht.getNumItems());
+        double num_non_resident = static_cast<double>(vb->ht.getNumNonResidentItems());
+        size_t num_backfill_items = 0;
+
+        if (num_items == 0) {
             return true;
         }
 
-        double residentThreshold = engine->getTapConfig().getBackfillResidentThreshold();
+        double resident_threshold = engine->getTapConfig().getBackfillResidentThreshold();
         residentRatioBelowThreshold =
-            ((numItems - numNonResident) / numItems) < residentThreshold ? true : false;
+            ((num_items - num_non_resident) / num_items) < resident_threshold ? true : false;
+
         if (efficientVBDump && residentRatioBelowThreshold) {
+            // disk backfill for persisted items + memory backfill for resident items
+            num_backfill_items = (vb->opsCreate - vb->opsDelete) +
+                static_cast<size_t>(num_items - num_non_resident);
             vbuckets.push_back(vb->getId());
             ScheduleDiskBackfillTapOperation tapop;
             engine->tapConnMap->performTapOp(name, tapop, static_cast<void*>(NULL));
+        } else {
+            num_backfill_items = static_cast<size_t>(num_items);
         }
+
         // When the backfill is scheduled for a given vbucket, set the TAP cursor to
         // the beginning of the open checkpoint.
         engine->tapConnMap->SetCursorToOpenCheckpoint(name, vb->getId());
+        engine->tapConnMap->incrBackfillRemaining(name, num_backfill_items);
+
         return true;
     }
     return false;

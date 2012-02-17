@@ -178,6 +178,7 @@ TapProducer::TapProducer(EventuallyPersistentEngine &theEngine,
     backfillCompleted(true),
     pendingBackfillCounter(0),
     diskBackfillCounter(0),
+    totalBackfillBacklogs(0),
     vbucketFilter(),
     queueMemSize(0),
     queueFill(0),
@@ -527,10 +528,10 @@ bool TapProducer::requestAck(tap_event_t event, uint16_t vbucket) {
     const TapConfig &config = engine.getTapConfig();
     uint32_t ackInterval = config.getAckInterval();
 
-    return (explicitEvent ||
-            ((seqno - 1) % ackInterval) == 0 || // ack at a regular interval
-            (!backfillCompleted && getBackfillRemaining_UNLOCKED() < 100) || // Backfill almost done
-            empty_UNLOCKED()); // but if we're almost up to date, ack more often
+    return explicitEvent ||
+           (seqno - 1) % ackInterval == 0 || // ack at a regular interval
+           (!backfillCompleted && getBackfillQueueSize_UNLOCKED() < 100) ||
+           empty_UNLOCKED(); // but if we're almost up to date, ack more often
 }
 
 void TapProducer::clearQueues_UNLOCKED() {
@@ -778,6 +779,9 @@ void TapProducer::reschedule_UNLOCKED(const std::list<TapLogElement>::iterator &
                 }
             }
             addEvent_UNLOCKED(iter->item);
+            if (!isBackfillCompleted_UNLOCKED()) {
+                ++totalBackfillBacklogs;
+            }
         }
         break;
     case TAP_OPAQUE:
@@ -948,7 +952,7 @@ static void notifyReplicatedItems(std::list<TapLogElement>::iterator from,
 bool TapProducer::checkBackfillCompletion_UNLOCKED() {
     bool rv = false;
     if (!backfillCompleted && !isPendingBackfill_UNLOCKED() &&
-        getBackfillRemaining_UNLOCKED() == 0 && tapLog.empty()) {
+        getBackfillQueueSize_UNLOCKED() == 0 && tapLog.empty()) {
 
         backfillCompleted = true;
         std::stringstream ss("Backfill is completed with VBuckets ");
@@ -1773,6 +1777,8 @@ Item* TapProducer::getNextItem(const void *c, uint16_t *vbucket, tap_event_t &re
         return itm;
     }
 
+    queued_item qi;
+
     // Check if there are any items fetched from disk for backfill operations.
     if (hasItemFromDisk_UNLOCKED()) {
         itm = nextBgFetchedItem_UNLOCKED();
@@ -1802,13 +1808,11 @@ Item* TapProducer::getNextItem(const void *c, uint16_t *vbucket, tap_event_t &re
             ret = TAP_NOOP;
             return NULL;
         }
+
         ret = TAP_MUTATION;
         ++stats.numTapBGFetched;
-        ++queueDrain;
-
-        queued_item qi(new QueuedItem(itm->getKey(), itm->getVBucketId(),
-                                      queue_op_set, -1, itm->getId()));
-        addTapLogElement_UNLOCKED(qi);
+        qi = queued_item(new QueuedItem(itm->getKey(), itm->getVBucketId(),
+                                        queue_op_set, -1, itm->getId()));
     } else if (hasQueuedItem_UNLOCKED()) { // Item from memory backfill or checkpoints
         if (waitForCheckpointMsgAck()) {
             getLogger()->log(EXTENSION_LOG_INFO, NULL,
@@ -1820,7 +1824,7 @@ Item* TapProducer::getNextItem(const void *c, uint16_t *vbucket, tap_event_t &re
         }
 
         bool shouldPause = false;
-        queued_item qi = nextFgFetched_UNLOCKED(shouldPause);
+        qi = nextFgFetched_UNLOCKED(shouldPause);
         if (qi.get() == NULL) {
             ret = shouldPause ? TAP_PAUSE : TAP_NOOP;
             return NULL;
@@ -1880,10 +1884,13 @@ Item* TapProducer::getNextItem(const void *c, uint16_t *vbucket, tap_event_t &re
             ret = TAP_DELETION;
             ++stats.numTapDeletes;
         }
+    }
 
-        if (ret == TAP_MUTATION || ret == TAP_DELETION) {
-            ++queueDrain;
-            addTapLogElement_UNLOCKED(qi);
+    if (ret == TAP_MUTATION || ret == TAP_DELETION) {
+        ++queueDrain;
+        addTapLogElement_UNLOCKED(qi);
+        if (!isBackfillCompleted_UNLOCKED() && totalBackfillBacklogs > 0) {
+            --totalBackfillBacklogs;
         }
     }
 
@@ -2010,12 +2017,21 @@ queued_item TapProducer::nextCheckpointMessage_UNLOCKED() {
 }
 
 size_t TapProducer::getBackfillRemaining_UNLOCKED() {
+    return backfillCompleted ? 0 : totalBackfillBacklogs;
+}
+
+size_t TapProducer::getBackfillQueueSize_UNLOCKED() {
     if (backfillCompleted) {
         return 0;
     }
     bgResultSize = backfilledItems.empty() ? 0 : bgResultSize.get();
     queueSize = queue->empty() ? 0 : queueSize;
     return bgResultSize + (bgJobIssued - bgJobCompleted) + queueSize;
+}
+
+void TapProducer::incrBackfillRemaining(size_t incr) {
+    LockHolder lh(queueLock);
+    totalBackfillBacklogs += incr;
 }
 
 bool TapProducer::shouldNotify() {

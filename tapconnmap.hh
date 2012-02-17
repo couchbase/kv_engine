@@ -271,6 +271,8 @@ public:
 
     bool SetCursorToOpenCheckpoint(const std::string &name, uint16_t vbucket);
 
+    void incrBackfillRemaining(const std::string &name, size_t num_backfill_items);
+
     bool closeTapConnectionByName(const std::string &name);
 
     TapConnection* findByName(const std::string &name);

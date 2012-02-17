@@ -134,7 +134,7 @@ ssize_t TapConnMap::backfillQueueDepth(const std::string &name) {
     if (tc) {
         TapProducer *tp = dynamic_cast<TapProducer*>(tc);
         assert(tp);
-        rv = tp->getBackfillRemaining();
+        rv = tp->getBackfillQueueSize();
     }
 
     return rv;
@@ -562,6 +562,17 @@ bool TapConnMap::SetCursorToOpenCheckpoint(const std::string &name, uint16_t vbu
     }
 
     return rv;
+}
+
+void TapConnMap::incrBackfillRemaining(const std::string &name, size_t num_backfill_items) {
+    LockHolder lh(notifySync);
+
+    TapConnection *tc = findByName_UNLOCKED(name);
+    if (tc) {
+        TapProducer *tp = dynamic_cast<TapProducer*>(tc);
+        assert(tp);
+        tp->incrBackfillRemaining(num_backfill_items);
+    }
 }
 
 bool TapConnMap::closeTapConnectionByName(const std::string &name) {

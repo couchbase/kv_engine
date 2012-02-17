@@ -561,6 +561,26 @@ public:
      */
     void completedBGFetchJob();
 
+    /**
+     * Find out how many items are still remaining from backfill.
+     */
+    size_t getBackfillRemaining() {
+        LockHolder lh(queueLock);
+        return getBackfillRemaining_UNLOCKED();
+    }
+
+    void incrBackfillRemaining(size_t incr);
+
+    /**
+     * Return the current backfill queue size.
+     * This differs from getBackfillRemaining() that returns the approximated size
+     * of total backfill backlogs.
+     */
+    size_t getBackfillQueueSize() {
+        LockHolder lh(queueLock);
+        return getBackfillQueueSize_UNLOCKED();
+    }
+
 private:
     friend class EventuallyPersistentEngine;
     friend class TapConnMap;
@@ -763,15 +783,9 @@ private:
         return empty_UNLOCKED();
     }
 
-    /**
-     * Find out how many items are still remaining from backfill.
-     */
     size_t getBackfillRemaining_UNLOCKED();
 
-    size_t getBackfillRemaining() {
-        LockHolder lh(queueLock);
-        return getBackfillRemaining_UNLOCKED();
-    }
+    size_t getBackfillQueueSize_UNLOCKED();
 
     size_t getQueueSize() {
         LockHolder lh(queueLock);
@@ -1041,6 +1055,8 @@ private:
     size_t pendingBackfillCounter;
     //! Number of vbuckets that are currently scheduled for disk backfill.
     size_t diskBackfillCounter;
+    //! Total backfill backlogs
+    size_t totalBackfillBacklogs;
 
     //! Filter for the vbuckets we want.
     VBucketFilter vbucketFilter;
