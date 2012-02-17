@@ -992,124 +992,62 @@ private:
 
     //! Lock held during queue operations.
     Mutex queueLock;
-    /**
-     * The queue of keys that needs to be sent (this is the "live stream")
-     */
+    //! Queue of live stream items that needs to be sent
     std::list<queued_item> *queue;
-    /**
-     * Calling size() on a list is a heavy operation (it will traverse
-     * the list to determine the size).. During tap backfill we're calling
-     * this for every message we want to send to determine if we should
-     * require a tap ack or not. Let's cache the value to stop eating up
-     * the CPU :-)
-     */
+    //! Live stream queue size
     size_t queueSize;
+    //! Queue of items backfilled from disk
+    std::queue<Item*> backfilledItems;
+    //! List of items that are waiting for acks from the client
+    std::list<TapLogElement> tapLog;
 
-    /**
-     * Flags passed by the client
-     */
-    uint32_t flags;
-    /**
-     * Counter of the number of records fetched from this stream since the
-     * beginning
-     */
-    size_t recordsFetched;
-    /**
-     * Counter of the number of records skipped due to changing the filter on the connection
-     *
-     */
-    Atomic<size_t> recordsSkipped;
-
-    /**
-     * Do we have a pending flush command?
-     */
-    bool pendingFlush;
-
-    /**
-     * Number of times this client reconnected
-     */
-    uint32_t reconnects;
-
-    /**
-     * is his paused
-     */
-    Atomic<bool> paused;
-
-    /**
-     * Backfill age for the connection
-     */
-    uint64_t backfillAge;
-
-    /**
-     * Dump and disconnect?
-     */
-    bool dumpQueue;
-
-    /**
-     * Take over and disconnect?
-     */
-    bool doTakeOver;
-
-    /**
-     * Take over completion phase?
-     */
-    bool takeOverCompletionPhase;
-
-    /**
-     * We don't want to do the backfill in the thread used by the client,
-     * because that would block all clients bound to the same thread.
-     * Instead we run the backfill the first time we try to walk the
-     * stream (that would be in the TAP thread). This would cause the other
-     * tap streams to block, but allows all clients to use the cache.
-     */
-    bool doRunBackfill;
-
-    // True if items from backfill are all successfully transmitted to the destination.
-    bool backfillCompleted;
-
-    // Number of pending backfill tasks
-    size_t pendingBackfillCounter;
-
-    /**
-     * Number of vbuckets that are currently scheduled for disk backfill.
-     */
-    size_t diskBackfillCounter;
-
-    /**
-     * Filter for the buckets we want.
-     */
-    VBucketFilter vbucketFilter;
-    /**
-     * Filter for the vbuckets that require backfill by the next backfill task
-     */
-     VBucketFilter backFillVBucketFilter;
-    /**
-     * List of the vbuckets that are being backfilled by all backfill tasks in the current
-     * backfill session
-     */
-    std::set<uint16_t> backfillVBuckets;
-
-    /**
-     * For each vbucket, maintain the current checkpoint Id that this TAP producer should
-     * transmit to its TAP client.
-     */
-    std::map<uint16_t, TapCheckpointState> tapCheckpointState;
-
-    /**
-     * Checkpoint start and end messages
-     */
-    std::queue<queued_item> checkpointMsgs;
-
-    /**
-     * VBucket status messages immediately (before userdata)
-     */
+    //! VBucket status messages immediately (before userdata)
     std::queue<TapVBucketEvent> vBucketHighPriority;
-    /**
-     * VBucket status messages sent when there is nothing else to send
-     */
+    //! VBucket status messages sent when there is nothing else to send
     std::queue<TapVBucketEvent> vBucketLowPriority;
 
-    static Atomic<uint64_t> tapCounter;
+    //! Checkpoint start and end messages
+    std::queue<queued_item> checkpointMsgs;
+    //! Checkpoint state per vbucket
+    std::map<uint16_t, TapCheckpointState> tapCheckpointState;
+
+    //! Flags passed by the client
+    uint32_t flags;
+    //! Number of records fetched from this stream since the
+    size_t recordsFetched;
+    //! Number of records skipped due to changing the filter on the connection
+    Atomic<size_t> recordsSkipped;
+    //! Do we have a pending flush command?
+    bool pendingFlush;
+    //! Number of times this client reconnected
+    uint32_t reconnects;
+    //! Connection is temporarily paused?
+    Atomic<bool> paused;
+    //! Backfill age for the connection
+    uint64_t backfillAge;
+
+    //! Dump and disconnect?
+    bool dumpQueue;
+    //! Take over and disconnect?
+    bool doTakeOver;
+    //! Take over completion phase?
+    bool takeOverCompletionPhase;
+
+    //! Should a new backfill task be scheduled now?
+    bool doRunBackfill;
+    //! True if items from backfill are all successfully transmitted to the destination.
+    bool backfillCompleted;
+    //! Number of pending backfill tasks
+    size_t pendingBackfillCounter;
+    //! Number of vbuckets that are currently scheduled for disk backfill.
+    size_t diskBackfillCounter;
+
+    //! Filter for the vbuckets we want.
+    VBucketFilter vbucketFilter;
+    //! Filter for the vbuckets that require backfill by the next backfill task
+    VBucketFilter backFillVBucketFilter;
+    //! vbuckets that are being backfilled by the current backfill session
+    std::set<uint16_t> backfillVBuckets;
 
     Atomic<size_t> bgQueued;
     Atomic<size_t> bgResultSize;
@@ -1123,82 +1061,40 @@ private:
     Atomic<size_t> queueDrain;
     Atomic<size_t> checkpointMsgCounter;
 
-    // Current tap sequence number (for ack's)
+    //! Current tap sequence number (for ack's)
     uint32_t seqno;
-
-    // The last tap sequence number received
+    //! The last tap sequence number received
     uint32_t seqnoReceived;
-
-    // The last tap sequence number for which an ack is requested
+    //! The last tap sequence number for which an ack is requested
     uint32_t seqnoAckRequested;
-
-    std::list<TapLogElement> tapLog;
-
-    std::queue<Item*> backfilledItems;
-
-    /**
-     * We don't want the tap notify thread to send multiple tap notifications
-     * for the same connection. We set the notifySent member right before
-     * sending notify_io_complete (we're holding the tap lock), and clear
-     * it in doWalkTapQueue...
-     */
+    //! Flag indicating if the pending memcached connection is notified
     Atomic<bool> notifySent;
 
-    /**
-     * We might send userdata with tap opaque messages, but we need
-     * to provide the memory for it (that need to persist until the next
-     * invokation of doWalkTapStream(). I don't want to do memory allocation
-     * for the command code, so let's just keep a variable here and use it
-     * whenever we may need it.
-     */
+    //! tap opaque command code.
     uint32_t opaqueCommandCode;
-
-    /**
-     * Revision seq number of the item to be transmitted. This variable's value is
-     * copied to the engine_specific field in a memcached tap message.
-     */
+    //! Revision seq number of the item to be transmitted.
     uint32_t itemRevSeqno;
 
-    /**
-     * Is this tap connection in a suspended state (the receiver may
-     * be too slow
-     */
+    //! Is this tap connection in a suspended state
     bool suspended;
-
-
-    /**
-     * Textual representation of the vbucket filter..
-     */
+    //! Textual representation of the vbucket filter.
     std::string filterText;
-
-    /**
-     * Textual representation of the flags..
-     */
+    //! Textual representation of the flags..
     std::string flagsText;
 
-    /**
-     * Should we send a NOOP
-     */
-    Atomic<bool> noop;
-
-    /**
-     * Is this TAP producer for the registered TAP client?
-     */
+    //! Is this TAP producer for the registered TAP client?
     Atomic<bool> registeredTAPClient;
-
-    /**
-     * Is this TAP producer for replicating items from the closed checkpoints only?
-     */
+    //! Is this TAP producer for replicating items from the closed checkpoints only?
     Atomic<bool> closedCheckpointOnly;
 
     Atomic<rel_time_t> lastWalkTime;
-
     Atomic<rel_time_t> lastMsgTime;
 
     bool isLastAckSucceed;
-
     bool isSeqNumRotated;
 
+    //! Should we send a NOOP message now?
+    Atomic<bool> noop;
     size_t numNoops;
 
     DISALLOW_COPY_AND_ASSIGN(TapProducer);
