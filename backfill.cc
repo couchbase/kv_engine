@@ -43,17 +43,8 @@ void BackfillDiskCallback::callback(GetValue &gv) {
     connMap.performTapOp(tapConnName, notifyOp, engine);
 }
 
-bool BackfillDiskLoad::callback(Dispatcher &d, TaskId t) {
+bool BackfillDiskLoad::callback(Dispatcher &, TaskId) {
     bool valid = false;
-
-    if (isMemoryUsageTooHigh(engine->getEpStats())) {
-        getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                         "VBucket %d backfill task from disk is temporarily suspended "
-                         "because the current memory usage is too high.\n",
-                         vbucket);
-        d.snooze(t, 1);
-        return true;
-    }
 
     if (connMap.checkConnectivity(name) && !engine->getEpStore()->isFlushAllScheduled()) {
         shared_ptr<Callback<GetValue> > backfill_cb(new BackfillDiskCallback(name, connMap, engine));
