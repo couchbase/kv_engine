@@ -581,6 +581,14 @@ public:
         return getBackfillQueueSize_UNLOCKED();
     }
 
+    /**
+     * Return the live replication queue size.
+     */
+    size_t getQueueSize() {
+        LockHolder lh(queueLock);
+        return getQueueSize_UNLOCKED();
+    }
+
 private:
     friend class EventuallyPersistentEngine;
     friend class TapConnMap;
@@ -787,10 +795,7 @@ private:
 
     size_t getBackfillQueueSize_UNLOCKED();
 
-    size_t getQueueSize() {
-        LockHolder lh(queueLock);
-        return queueSize;
-    }
+    size_t getQueueSize_UNLOCKED();
 
     size_t getQueueMemory() {
         return queueMemSize;

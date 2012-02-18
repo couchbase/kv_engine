@@ -1159,7 +1159,7 @@ void TapProducer::addStats(ADD_STAT add_stat, const void *c) {
     TapConnection::addStats(add_stat, c);
 
     LockHolder lh(queueLock);
-    addStat("qlen", queueSize, add_stat, c);
+    addStat("qlen", getQueueSize_UNLOCKED(), add_stat, c);
     addStat("qlen_high_pri", vBucketHighPriority.size(), add_stat, c);
     addStat("qlen_low_pri", vBucketLowPriority.size(), add_stat, c);
     addStat("vb_filters", vbucketFilter.size(), add_stat, c);
@@ -2021,9 +2021,10 @@ size_t TapProducer::getBackfillRemaining_UNLOCKED() {
 }
 
 size_t TapProducer::getBackfillQueueSize_UNLOCKED() {
-    if (backfillCompleted) {
-        return 0;
-    }
+    return backfillCompleted ? 0 : getQueueSize_UNLOCKED();
+}
+
+size_t TapProducer::getQueueSize_UNLOCKED() {
     bgResultSize = backfilledItems.empty() ? 0 : bgResultSize.get();
     queueSize = queue->empty() ? 0 : queueSize;
     return bgResultSize + (bgJobIssued - bgJobCompleted) + queueSize;
