@@ -959,8 +959,8 @@ private:
 
     void evaluateFlags();
 
-    bool waitForBackfill_UNLOCKED();
-    bool waitForBackfill();
+    bool waitForBgFetches_UNLOCKED();
+    bool waitForBgFetches();
 
     bool waitForCheckpointMsgAck();
 
