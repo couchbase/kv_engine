@@ -561,11 +561,6 @@ void ScheduleDiskBackfillTapOperation::perform(TapProducer *tc, void *) {
     tc->scheduleDiskBackfill();
 }
 
-void ReceivedItemTapOperation::perform(TapProducer *tc, Item *arg) {
-    tc->gotBGItem(arg, implicitEnqueue);
-}
-
-void CompletedBGFetchTapOperation::perform(TapProducer *tc,
-                                           EventuallyPersistentEngine *) {
-    tc->completedBGFetchJob();
+void CompletedBGFetchTapOperation::perform(TapProducer *tc, Item *arg) {
+    tc->completeBGFetchJob(arg, implicitEnqueue);
 }

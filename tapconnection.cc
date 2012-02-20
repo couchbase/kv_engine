@@ -828,14 +828,8 @@ public:
         gcb.waitForValue();
         assert(gcb.fired);
 
-        if (gcb.val.getStatus() == ENGINE_SUCCESS) {
-            ReceivedItemTapOperation tapop;
-            // if the tap connection is closed, then free an Item instance
-            if (!epe->tapConnMap.performTapOp(name, tapop, gcb.val.getValue())) {
-                delete gcb.val.getValue();
-            }
-            epe->notifyIOComplete(cookie, ENGINE_SUCCESS);
-        } else { // If a tap bg fetch job is failed, schedule it again.
+        // If a tap bg fetch job is failed, schedule it again.
+        if (gcb.val.getStatus() != ENGINE_SUCCESS) {
             RCPtr<VBucket> vb = epstore->getVBucket(vbucket);
             if (vb) {
                 int bucket_num(0);
@@ -850,7 +844,10 @@ public:
         }
 
         CompletedBGFetchTapOperation tapop;
-        epe->tapConnMap.performTapOp(name, tapop, epe);
+        if (!epe->getTapConnMap().performTapOp(name, tapop, gcb.val.getValue())) {
+            delete gcb.val.getValue(); // Tap connection is closed. Free an item instance.
+        }
+        epe->notifyIOComplete(cookie, ENGINE_SUCCESS);
 
         hrtime_t stop = gethrtime();
 
@@ -909,7 +906,7 @@ void TapProducer::queueBGFetch(const std::string &key, uint64_t id,
     assert(!complete_UNLOCKED());
 }
 
-void TapProducer::gotBGItem(Item *i, bool implicitEnqueue) {
+void TapProducer::completeBGFetchJob(Item *itm, bool implicitEnqueue) {
     LockHolder lh(queueLock);
     // implicitEnqueue is used for the optimized disk fetch wherein we
     // receive the item and want the stats to reflect an
@@ -917,14 +914,13 @@ void TapProducer::gotBGItem(Item *i, bool implicitEnqueue) {
     if (implicitEnqueue) {
         ++bgQueued;
         ++bgJobIssued;
-        ++bgJobCompleted;
     }
-    backfilledItems.push(i);
-    ++bgResultSize;
-}
-
-void TapProducer::completedBGFetchJob() {
     ++bgJobCompleted;
+
+    if (itm) {
+        backfilledItems.push(itm);
+        ++bgResultSize;
+    }
 }
 
 Item* TapProducer::nextFetchedItem() {

@@ -14,13 +14,7 @@ static bool isMemoryUsageTooHigh(EPStats &stats) {
 }
 
 void BackfillDiskLoad::callback(GetValue &gv) {
-    // If a vbucket version of a bg fetched item is different from the current version,
-    // skip this item.
-    if (vbucket_version != gv.getVBucketVersion()) {
-        delete gv.getValue();
-        return;
-    }
-    ReceivedItemTapOperation tapop(true);
+    CompletedBGFetchTapOperation tapop(true);
     // if the tap connection is closed, then free an Item instance
     if (!connMap.performTapOp(name, tapop, gv.getValue())) {
         delete gv.getValue();
