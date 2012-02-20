@@ -700,20 +700,6 @@ void EventuallyPersistentStore::initialize() {
     }
 }
 
-
-/**
- * Hash table visitor used to collect dirty objects to verify storage.
- */
-class VerifyStoredVisitor : public HashTableVisitor {
-public:
-    std::vector<std::string> dirty;
-    void visit(StoredValue *v) {
-        if (v->isDirty()) {
-            dirty.push_back(v->getKey());
-        }
-    }
-};
-
 EventuallyPersistentStore::~EventuallyPersistentStore() {
     bool forceShutdown = engine.isForceShutdown();
     stopFlusher();
