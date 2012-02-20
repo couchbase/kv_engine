@@ -530,7 +530,7 @@ bool TapProducer::requestAck(tap_event_t event, uint16_t vbucket) {
 
     return explicitEvent ||
            (seqno - 1) % ackInterval == 0 || // ack at a regular interval
-           (!backfillCompleted && getBackfillQueueSize_UNLOCKED() < 100) ||
+           (!backfillCompleted && getBackfillQueueSize_UNLOCKED() == 0) ||
            empty_UNLOCKED(); // but if we're almost up to date, ack more often
 }
 
