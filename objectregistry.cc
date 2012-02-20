@@ -111,3 +111,23 @@ void ObjectRegistry::onSwitchThread(EventuallyPersistentEngine *engine)
 {
    th->set(engine);
 }
+
+bool ObjectRegistry::memoryAllocated(size_t mem) {
+   EventuallyPersistentEngine *engine = th->get();
+   if (!engine) {
+        return false;
+   }
+   EPStats &stats = engine->getEpStats();
+   stats.totalMemory.incr(mem);
+   return true;
+}
+
+bool ObjectRegistry::memoryDeallocated(size_t mem) {
+   EventuallyPersistentEngine *engine = th->get();
+   if (!engine) {
+        return false;
+   }
+   EPStats &stats = engine->getEpStats();
+   stats.totalMemory.decr(mem);
+   return true;
+}

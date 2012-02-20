@@ -69,6 +69,8 @@ extern EXTENSION_LOGGER_DESCRIPTOR *getLogger(void);
 
 #include "ep_time.h"
 
+extern ALLOCATOR_HOOKS_API *getHooksApi(void);
+
 // Time handling functions
 inline void advance_tv(struct timeval &tv, const double secs) {
     double ip, fp;

@@ -82,6 +82,7 @@ ep_la_SOURCES = \
                  item_pager.cc item_pager.hh \
                  kvstore.hh \
                  locks.hh \
+                 memory_tracker.cc memory_tracker.hh \
                  mutex.cc mutex.hh \
                  priority.cc priority.hh \
                  queueditem.cc queueditem.hh \
@@ -298,7 +299,7 @@ dispatcher_test_LDADD = libobjectregistry.la
 hash_table_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
 hash_table_test_SOURCES = t/hash_table_test.cc item.cc stored-value.cc	\
                           stored-value.hh testlogger.cc atomic.cc mutex.cc \
-                          tools/cJSON.c
+                          tools/cJSON.c test_memory_tracker.cc memory_tracker.hh
 hash_table_test_DEPENDENCIES = stored-value.cc stored-value.hh ep.hh item.hh \
                                libobjectregistry.la
 hash_table_test_LDADD = libobjectregistry.la
@@ -327,7 +328,7 @@ vbucket_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
 vbucket_test_SOURCES = t/vbucket_test.cc t/threadtests.hh vbucket.hh	\
                vbucket.cc stored-value.cc stored-value.hh atomic.cc	\
                testlogger.cc checkpoint.hh checkpoint.cc byteorder.c    \
-               mutex.cc vbucketmap.cc
+               mutex.cc vbucketmap.cc test_memory_tracker.cc memory_tracker.hh
 vbucket_test_DEPENDENCIES = vbucket.hh stored-value.cc stored-value.hh  \
                checkpoint.hh checkpoint.cc libobjectregistry.la         \
                libconfiguration.la
@@ -338,7 +339,8 @@ checkpoint_test_SOURCES = t/checkpoint_test.cc checkpoint.hh            \
                           checkpoint.cc vbucket.hh vbucket.cc           \
                           testlogger.cc stored-value.cc                 \
                           stored-value.hh queueditem.hh byteorder.c     \
-                          atomic.cc mutex.cc
+                          atomic.cc mutex.cc test_memory_tracker.cc     \
+                          memory_tracker.hh
 checkpoint_test_DEPENDENCIES = checkpoint.hh vbucket.hh         \
               stored-value.cc stored-value.hh queueditem.hh     \
               libobjectregistry.la libconfiguration.la

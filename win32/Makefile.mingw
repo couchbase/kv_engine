@@ -61,6 +61,7 @@ EP_ENGINE_CC_SRC = \
                  item_pager.cc \
                  mc-kvstore/mc-engine.cc \
                  mc-kvstore/mc-kvstore.cc \
+                 memory_tracker.cc
                  mutation_log.cc \
                  mutation_log_compactor.cc \
                  mutex.cc \
