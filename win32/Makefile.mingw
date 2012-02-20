@@ -87,7 +87,8 @@ EP_ENGINE_C_SRC = \
                  crc32.c \
                  embedded/sqlite3.c \
                  gethrtime.c \
-                 tools/cJSON.c
+                 tools/cJSON.c \
+                 sqlite-kvstore/sqlite-vfs.c
 
 EP_ENGINE_OBJS = ${EP_ENGINE_C_SRC:%.c=.libs/%.o} ${EP_ENGINE_CC_SRC:%.cc=.libs/%.o}
 
@@ -113,7 +114,9 @@ LIBSQLITE_KVSTORE_CC_SRC = \
          sqlite-kvstore/sqlite-pst.cc \
          sqlite-kvstore/sqlite-strategies.cc
 
-LIBSQLITE_KVSTORE_C_SRC = embedded/sqlite3.c
+LIBSQLITE_KVSTORE_C_SRC = \
+         embedded/sqlite3.c \
+         sqlite-kvstore/sqlite-vfs.c
 
 LIBSQLITE_KVSTORE_OBJS = ${LIBSQLITE_KVSTORE_CC_SRC:%.cc=.libs/%.o} ${LIBSQLITE_KVSTORE_C_SRC:%.c=.libs/%.o}
 
