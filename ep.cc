@@ -2586,6 +2586,10 @@ bool EventuallyPersistentStore::warmupFromLog(const std::map<std::pair<uint16_t,
                                                              vbucket_state> &state,
                                               shared_ptr<Callback<GetValue> > cb) {
 
+    if (!mutationLog.exists()) {
+        return false;
+    }
+
     bool rv(true);
 
     MutationLogHarvester harvester(mutationLog);
@@ -2596,10 +2600,15 @@ bool EventuallyPersistentStore::warmupFromLog(const std::map<std::pair<uint16_t,
     }
 
     hrtime_t start(gethrtime());
-
-    harvester.load();
-
+    rv = harvester.load();
     hrtime_t end1(gethrtime());
+
+    if (!rv) {
+        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                         "Failed to read mutation log: %s",
+                         mutationLog.getLogFile().c_str());
+        return false;
+    }
 
     if (harvester.total() == 0) {
         // We didn't read a single item from the log..

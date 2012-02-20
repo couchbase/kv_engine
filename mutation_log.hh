@@ -250,6 +250,10 @@ public:
         return syncConfig & FLUSH_FULL;
     }
 
+    bool exists() const;
+
+    const std::string &getLogFile() const { return logPath; }
+
     /**
      * Open and initialize the log.
      *

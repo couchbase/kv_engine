@@ -223,6 +223,10 @@ bool MutationLog::setFlushConfig(const std::string &s) {
     return v != 0xff;
 }
 
+bool MutationLog::exists() const {
+    return access(logPath.c_str(), F_OK) == 0;
+}
+
 void MutationLog::open() {
     if (!isEnabled()) {
         return;
