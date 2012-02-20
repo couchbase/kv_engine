@@ -74,6 +74,8 @@ extern "C" {
     extern time_t ep_real_time();
 }
 
+extern ALLOCATOR_HOOKS_API *getHooksApi(void);
+
 // Time handling functions
 inline void advance_tv(struct timeval &tv, const double secs) {
     double ip, fp;

@@ -31,6 +31,7 @@
 #include "checkpoint_remover.hh"
 #include "backfill.hh"
 #include "invalid_vbtable_remover.hh"
+#include "memory_tracker.hh"
 
 static void assembleSyncResponse(std::stringstream &resp,
                                  SyncListener *syncListener,
@@ -43,6 +44,8 @@ static void addSyncKeySpecs(std::stringstream &resp,
 static bool parseSyncOptions(uint32_t flags, sync_type_t *syncType, uint8_t *replicas);
 static void notifyListener(std::vector< std::pair<StoredValue*, uint16_t> > &svList,
                            SyncListener *listener);
+
+static ALLOCATOR_HOOKS_API *hooksApi;
 
 static size_t percentOf(size_t val, double percent) {
     return static_cast<size_t>(static_cast<double>(val) * percent);
@@ -999,6 +1002,10 @@ EXTENSION_LOGGER_DESCRIPTOR *getLogger(void) {
     return NULL;
 }
 
+ALLOCATOR_HOOKS_API *getHooksApi(void) {
+    return hooksApi;
+}
+
 EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server_api) :
     dbname("/tmp/test.db"), shardPattern(DEFAULT_SHARD_PATTERN),
     initFile(NULL), postInitFile(NULL), dbStrategy(multi_db),
@@ -1041,7 +1048,9 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server
     ENGINE_HANDLE_V1::aggregate_stats = NULL;
 
     serverApi = getServerApiFunc();
+    hooksApi = serverApi->alloc_hooks;
     extensionApi = serverApi->extension;
+    MemoryTracker::getInstance();
     memset(&info, 0, sizeof(info));
     info.info.description = "EP engine v" VERSION;
     info.info.features[info.info.num_features++].feature = ENGINE_FEATURE_CAS;
@@ -2979,6 +2988,13 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doMemoryStats(const void *cookie,
     add_casted_stat("ep_mem_high_wat", stats.mem_high_wat, add_stat, cookie);
     add_casted_stat("ep_oom_errors", stats.oom_errors, add_stat, cookie);
     add_casted_stat("ep_tmp_oom_errors", stats.tmp_oom_errors, add_stat, cookie);
+
+    std::map<std::string, size_t> allocator_stats;
+    MemoryTracker::getInstance()->getAllocatorStats(allocator_stats);
+    std::map<std::string, size_t>::iterator it = allocator_stats.begin();
+    for (; it != allocator_stats.end(); ++it) {
+        add_casted_stat(it->first.c_str(), it->second, add_stat, cookie);
+    }
 
     return ENGINE_SUCCESS;
 }

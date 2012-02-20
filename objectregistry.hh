@@ -33,6 +33,9 @@ public:
     static void onDeleteItem(Item *pItem);
 
     static void onSwitchThread(EventuallyPersistentEngine *engine);
+
+    static bool memoryAllocated(size_t mem);
+    static bool memoryDeallocated(size_t mem);
 };
 
 #endif

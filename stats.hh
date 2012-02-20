@@ -8,6 +8,7 @@
 #include "common.hh"
 #include "atomic.hh"
 #include "histo.hh"
+#include "memory_tracker.hh"
 
 #ifndef DEFAULT_MAX_DATA_SIZE
 /* Something something something ought to be enough for anybody */
@@ -38,6 +39,12 @@ public:
     }
 
     size_t getTotalMemoryUsed() {
+        if (MemoryTracker::trackingMemoryAllocations()) {
+            double total_alloc_bytes = getHooksApi()->get_allocated_size();
+            double frag_bytes = getHooksApi()->get_fragmented_size();
+            double adjFrag = totalMemory / total_alloc_bytes * frag_bytes;
+            return static_cast<size_t>(totalMemory + adjFrag);
+        }
         return currentSize.get() + memOverhead.get();
     }
 
@@ -143,6 +150,8 @@ public:
     Atomic<size_t> totalValueSize;
     //! Amount of memory used to track items and what-not.
     Atomic<size_t> memOverhead;
+    //! The total amount of memory used by this bucket (From memory tracking)
+    Atomic<size_t> totalMemory;
 
     //! Pager low water mark.
     Atomic<size_t> mem_low_wat;
