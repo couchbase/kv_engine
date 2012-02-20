@@ -7,6 +7,7 @@
 #include <memcached/engine.h>
 #include <memcached/extension.h>
 #include <memcached/extension_loggers.h>
+#include <memcached/allocator_hooks.h>
 #include <mock_server.h>
 
 #define REALTIME_MAXDELTA 60*60*24*3
@@ -254,6 +255,42 @@ static void mock_perform_callbacks(ENGINE_EVENT_TYPE type,
     }
 }
 
+static bool mock_add_new_hook(void (*hook)(const void* ptr, size_t size)) {
+    return false;
+}
+
+static bool mock_remove_new_hook(void (*hook)(const void* ptr, size_t size)) {
+    return false;
+}
+
+static bool mock_add_delete_hook(void (*hook)(const void* ptr)) {
+    return false;
+}
+
+static bool mock_remove_delete_hook(void (*hook)(const void* ptr)) {
+    return false;
+}
+
+static int mock_get_stats_size() {
+    return 0;
+}
+
+static void mock_get_allocator_stats(allocator_stat* stats) {
+
+}
+
+static size_t mock_get_allocation_size(void* ptr) {
+    return 0;
+}
+
+static size_t mock_get_fragmented_size(void) {
+    return 0;
+}
+
+static size_t mock_get_allocated_size(void) {
+    return 0;
+}
+
 SERVER_HANDLE_V1 *get_mock_server_api(void)
 {
     static SERVER_CORE_API core_api = {
@@ -292,13 +329,26 @@ SERVER_HANDLE_V1 *get_mock_server_api(void)
         .perform_callbacks = mock_perform_callbacks
     };
 
+    static ALLOCATOR_HOOKS_API hooks_api = {
+        .add_new_hook = mock_add_new_hook,
+        .remove_new_hook = mock_remove_new_hook,
+        .add_delete_hook = mock_add_delete_hook,
+        .remove_delete_hook = mock_remove_delete_hook,
+        .get_stats_size = mock_get_stats_size,
+        .get_allocator_stats = mock_get_allocator_stats,
+        .get_allocation_size = mock_get_allocation_size,
+        .get_fragmented_size = mock_get_fragmented_size,
+        .get_allocated_size = mock_get_allocated_size
+    };
+
     static SERVER_HANDLE_V1 rv = {
         .interface = 1,
         .core = &core_api,
         .stat = &server_stat_api,
         .extension = &extension_api,
         .callback = &callback_api,
-        .cookie = &server_cookie_api
+        .cookie = &server_cookie_api,
+        .alloc_hooks = &hooks_api
     };
 
     return &rv;

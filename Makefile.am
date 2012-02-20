@@ -5,6 +5,7 @@ man_MANS = doc/memcached.1
 bin_PROGRAMS = engine_testapp memcached mcstat
 noinst_PROGRAMS = sizes testapp timedrun
 pkginclude_HEADERS = \
+                     include/memcached/allocator_hooks.h \
                      include/memcached/callback.h \
                      include/memcached/config_parser.h \
                      include/memcached/engine.h \
@@ -62,6 +63,7 @@ engine_testapp_SOURCES = \
                         programs/engine_testapp.c \
                         programs/mock_server.c \
                         programs/mock_server.h \
+                        include/memcached/allocator_hooks.h \
                         include/memcached/engine_testapp.h
 engine_testapp_DEPENDENCIES= libmemcached_utilities.la
 engine_testapp_LDADD= libmemcached_utilities.la $(APPLICATION_LIBS)
@@ -94,6 +96,8 @@ memcached_SOURCES = \
                     daemon/stats.c \
                     daemon/stats.h \
                     daemon/thread.c \
+                    daemon/alloc_hooks.c \
+                    daemon/alloc_hooks.h \
                     trace.h
 memcached_CPPFLAGS = $(CPPFLAGS) -I$(top_srcdir)/daemon
 memcached_LDFLAGS =-R '$(pkglibdir)' -R '$(libdir)'

@@ -15,6 +15,7 @@
 #include "memcached/config_parser.h"
 #include "memcached/server_api.h"
 #include "memcached/callback.h"
+#include "memcached/allocator_hooks.h"
 #include "memcached/extension.h"
 #include "memcached/vbucket.h"
 #include "memcached/engine_common.h"
@@ -74,6 +75,7 @@ extern "C" {
         ENGINE_HANDLE *engine;
         SERVER_LOG_API *log;
         SERVER_COOKIE_API *cookie;
+        ALLOCATOR_HOOKS_API *alloc_hooks;
     };
 
     typedef enum { TAP_MUTATION = 1,
