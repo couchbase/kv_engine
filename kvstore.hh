@@ -228,7 +228,7 @@ public:
      */
     virtual void dumpKeys(const std::vector<uint16_t> &vbids, shared_ptr<Callback<GetValue> > cb) {
         (void)vbids; (void)cb;
-        throw std::runtime_error("Unsupported operation");
+        throw std::runtime_error("Backed does not support dumpKeys()");
     }
 
     /**
