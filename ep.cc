@@ -34,31 +34,7 @@
 #include "htresizer.hh"
 #include "checkpoint_remover.hh"
 #include "invalid_vbtable_remover.hh"
-
-extern "C" {
-    static rel_time_t uninitialized_current_time(void) {
-        abort();
-        return 0;
-    }
-
-    static time_t default_abs_time(rel_time_t) {
-        abort();
-        return 0;
-    }
-
-    static rel_time_t default_reltime(time_t) {
-        abort();
-        return 0;
-    }
-
-    rel_time_t (*ep_current_time)() = uninitialized_current_time;
-    time_t (*ep_abs_time)(rel_time_t) = default_abs_time;
-    rel_time_t (*ep_reltime)(time_t) = default_reltime;
-
-    time_t ep_real_time() {
-        return ep_abs_time(ep_current_time());
-    }
-}
+#include "access_scanner.hh"
 
 class StatsValueChangeListener : public ValueChangedListener {
 public:
@@ -75,6 +51,10 @@ public:
             stats.tapThrottleThreshold.set(static_cast<double>(value) / 100.0);
         } else if (key.compare("tap_throttle_queue_cap") == 0) {
             stats.tapThrottleWriteQueueCap.set(value);
+        } else if (key.compare("warmup_min_memory_threshold") == 0) {
+            stats.warmupMemUsedCap.set(static_cast<double>(value) / 100.0);
+        } else if (key.compare("warmup_min_items_threshold") == 0) {
+            stats.warmupNumReadCap.set(static_cast<double>(value) / 100.0);
         }
     }
 
@@ -415,41 +395,6 @@ private:
     chunk_range_iterator_t        current_range;
 };
 
-
-/**
- * Helper class used to insert items into the storage by using
- * the KVStore::dump method to load items from the database
- */
-class LoadStorageKVPairCallback : public Callback<GetValue> {
-public:
-    LoadStorageKVPairCallback(VBucketMap &vb, EPStats &st,
-                              EventuallyPersistentStore *ep)
-        : vbuckets(vb), stats(st), epstore(ep), startTime(ep_real_time()),
-          hasPurged(false) {
-        assert(epstore);
-    }
-
-    void initVBucket(uint16_t vbid, uint16_t vb_version,
-                     uint64_t checkpointId, vbucket_state_t prevState);
-
-    void callback(GetValue &val);
-
-private:
-
-    bool shouldEject() {
-        return StoredValue::getCurrentSize(stats) >= stats.mem_low_wat;
-    }
-
-    void purge();
-
-    VBucketMap &vbuckets;
-    EPStats    &stats;
-    EventuallyPersistentStore *epstore;
-    time_t      startTime;
-    bool        hasPurged;
-};
-
-
 EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine &theEngine,
                                                      KVStore *t,
                                                      bool startVb0,
@@ -459,6 +404,8 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
     vbuckets(theEngine.getConfiguration()),
     mutationLog(theEngine.getConfiguration().getKlogPath(),
                 theEngine.getConfiguration().getKlogBlockSize()),
+    accessLog(engine.getConfiguration().getAlogPath(),
+              engine.getConfiguration().getAlogBlockSize()),
     diskFlushAll(false),
     tctx(stats, t, mutationLog, theEngine.observeRegistry),
     bgFetchDelay(0)
@@ -527,6 +474,14 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
     invalidItemDbPager = new InvalidItemDbPager(this, stats, vbDelChunkSize);
 
     config.addValueChangedListener("couch_vbucket_batch_count",
+                                   new EPStoreValueChangeListener(*this));
+
+
+    stats.warmupMemUsedCap.set(static_cast<double>(config.getWarmupMinMemoryThreshold()) / 100.0);
+    config.addValueChangedListener("warmup_min_memory_threshold",
+                                   new EPStoreValueChangeListener(*this));
+    stats.warmupNumReadCap.set(static_cast<double>(config.getWarmupMinItemsThreshold()) / 100.0);
+    config.addValueChangedListener("warmup_min_items_threshold",
                                    new EPStoreValueChangeListener(*this));
 
     if (startVb0) {
@@ -935,6 +890,22 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::set(const Item &itm,
     case INVALID_VBUCKET:
         ret = ENGINE_NOT_MY_VBUCKET;
         break;
+
+    case NEED_METADATA:
+        {
+            int bucket_num(0);
+            LockHolder lh = vb->ht.getLockedBucket(itm.getKey(), &bucket_num);
+            StoredValue *v = fetchValidValue(vb, itm.getKey(), bucket_num);
+            if (v && !v->isResident()) {
+                bgFetch(itm.getKey(), itm.getVBucketId(),
+                        vbuckets.getBucketVersion(itm.getVBucketId()),
+                        v->getId(), cookie);
+                ret = ENGINE_EWOULDBLOCK;
+            } else {
+                ret = ENGINE_TMPFAIL;
+            }
+        }
+        break;
     }
 
     return ret;
@@ -1011,6 +982,10 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::addTAPBackfillItem(const Item &itm,
         break;
     case INVALID_VBUCKET:
         ret = ENGINE_NOT_MY_VBUCKET;
+        break;
+
+    case NEED_METADATA:
+        ret = ENGINE_TMPFAIL;
         break;
     }
 
@@ -1257,7 +1232,7 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
 
         if (v && !v->isResident()) {
             assert(gcb.val.getStatus() == ENGINE_SUCCESS);
-            v->restoreValue(gcb.val.getValue()->getValue(), stats, vb->ht);
+            v->restoreValue(gcb.val.getValue(), stats, vb->ht);
             assert(v->isResident());
         }
     }
@@ -2433,6 +2408,16 @@ void EventuallyPersistentStore::warmupCompleted() {
     if (!engine.isDegradedMode()) {
         completeDegradedMode();
     }
+
+    if (HashTable::getDefaultStorageValueType() != small) {
+        if (engine.getConfiguration().getAlogPath().length() > 0) {
+            AccessScanner *as = new AccessScanner(*this);
+            shared_ptr<DispatcherCallback> cb(as);
+            dispatcher->schedule(cb, NULL,
+                                 Priority::AccessScannerPriority,
+                                 as->getSleepTime());
+        }
+    }
 }
 
 static void warmupLogCallback(void *arg, uint16_t vb, uint16_t vbver,
@@ -2550,10 +2535,51 @@ bool EventuallyPersistentStore::warmupFromLog(const std::map<std::pair<uint16_t,
     return rv;
 }
 
-void
-EventuallyPersistentStore::warmup(const std::map<std::pair<uint16_t, uint16_t>, vbucket_state> &st,
-                                  bool keysOnly) {
-    LoadStorageKVPairCallback *load_cb = new LoadStorageKVPairCallback(vbuckets, stats, this);
+/**
+ * Helper class used to insert items into the storage by using
+ * the KVStore::dump method to load items from the database
+ */
+class LoadStorageKVPairCallback : public Callback<GetValue> {
+public:
+    LoadStorageKVPairCallback(VBucketMap &vb,
+                              EventuallyPersistentStore *ep,
+                              bool _maybeEnableTraffic)
+        : vbuckets(vb), stats(ep->getEPEngine().getEpStats()),
+          epstore(ep), startTime(ep_real_time()),
+          hasPurged(false), maybeEnableTraffic(_maybeEnableTraffic)
+    {
+        assert(epstore);
+    }
+
+    void initVBucket(uint16_t vbid, uint16_t vb_version,
+                     uint64_t checkpointId, vbucket_state_t prevState);
+
+    void callback(GetValue &val);
+
+private:
+
+    bool shouldEject() {
+        return StoredValue::getCurrentSize(stats) >= stats.mem_low_wat;
+    }
+
+    void purge();
+
+    VBucketMap &vbuckets;
+    EPStats    &stats;
+    EventuallyPersistentStore *epstore;
+    time_t      startTime;
+    bool        hasPurged;
+    bool        maybeEnableTraffic;
+};
+
+bool
+EventuallyPersistentStore::warmup(const std::map<std::pair<uint16_t, uint16_t>,
+                                  vbucket_state> &st,
+                                  enum warmup_source source,
+                                  bool maybeEnable)
+{
+    LoadStorageKVPairCallback *load_cb;
+    load_cb = new LoadStorageKVPairCallback(vbuckets, this, maybeEnable);
     shared_ptr<Callback<GetValue> > cb(load_cb);
     std::map<std::pair<uint16_t, uint16_t>, vbucket_state>::const_iterator it;
     std::vector<uint16_t> vbids;
@@ -2564,6 +2590,8 @@ EventuallyPersistentStore::warmup(const std::map<std::pair<uint16_t, uint16_t>, 
             vbids.push_back(vbp.first);
         }
 
+        bool keysOnly = (source == warmup_from_mutation_log ||
+                         source == warmup_from_key_dump);
         getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
                          "Loading %s for vbucket %d - was in %s state\n",
                          keysOnly ? "keys" : "data", vbp.first,
@@ -2572,21 +2600,68 @@ EventuallyPersistentStore::warmup(const std::map<std::pair<uint16_t, uint16_t>, 
                        vbs.state);
     }
 
-    if (keysOnly) {
-        bool readLog(false);
-
+    bool success = false;
+    if (source == warmup_from_mutation_log) {
         try {
-            readLog = warmupFromLog(st, cb);
+            success = warmupFromLog(st, cb);
         } catch(MutationLog::ReadException e) {
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                              "Error reading warmup log:  %s", e.what());
         }
-        if (!readLog && roUnderlying->isKeyDumpSupported()) {
-            roUnderlying->dumpKeys(vbids, cb);
+    } else if (source == warmup_from_key_dump) {
+        roUnderlying->dumpKeys(vbids, cb);
+        success = true;
+    } else if (source == warmup_from_access_log) {
+        if (accessLog.exists()) {
+            accessLog.open();
+            if (roUnderlying->warmup(accessLog, st, *load_cb) != (size_t)-1) {
+                success = true;
+            }
         }
-    } else {
+
+        if (!success) {
+            // Do we have the previous file?
+            std::string nm = accessLog.getLogFile();
+            nm.append(".old");
+            MutationLog old(nm);
+            if (old.exists()) {
+                old.open();
+                if (roUnderlying->warmup(old, st, *load_cb) != (size_t)-1) {
+                    success = true;
+                }
+            }
+        }
+    } else if (source == warmup_from_full_dump) {
         roUnderlying->dump(cb);
         invalidItemDbPager->createRangeList();
+        success = true;
+    } else {
+        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                         "Internal error: Unknown warmup source");
+        abort();
+    }
+
+    return success;
+}
+
+void EventuallyPersistentStore::maybeEnableTraffic()
+{
+    // @todo rename.. skal vaere isTrafficDisabled elns
+    if (engine.isDegradedMode()) {
+        double currentSize = static_cast<double>(stats.currentSize.get() + stats.memOverhead.get());
+        double maxSize = static_cast<double>(stats.maxDataSize.get());
+
+        if (currentSize > (maxSize * stats.warmupMemUsedCap)) {
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                             "Enough MB of data loaded to enable traffic");
+            engine.warmupCompleted();
+        } else if (stats.warmedUp > (stats.warmedUpMeta * stats.warmupNumReadCap)) {
+            // Let ep-engine think we're done with the warmup phase
+            // (we should refactor this into "enableTraffic")
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                             "Enough number of items loaded to enable traffic");
+            engine.warmupCompleted();
+        }
     }
 }
 
@@ -2720,8 +2795,14 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
                                 true, false); // force, use_meta
         }
         delete i;
+
+        if (maybeEnableTraffic) {
+            epstore->maybeEnableTraffic();
+        }
     }
-    if (!val.isPartial()) {
+    if (val.isPartial()) {
+        ++stats.warmedUpMeta;
+    } else {
         ++stats.warmedUp;
     }
 }

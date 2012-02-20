@@ -259,6 +259,12 @@ void SingleTableSqliteStrategy::initStatements(void) {
     statements.push_back(st);
 }
 
+std::string SingleTableSqliteStrategy::getKvTableName(const std::string &,
+                                                      uint16_t)
+{
+    return std::string("kv");
+}
+
 void SingleTableSqliteStrategy::destroyTables(void) {
     execute("drop table if exists kv");
 }
@@ -323,6 +329,14 @@ void MultiDBSingleTableSqliteStrategy::initStatements() {
         snprintf(buf, sizeof(buf), "kv_%d.kv", i);
         statements.push_back(new Statements(db, std::string(buf), &sfact));
     }
+}
+
+std::string MultiDBSingleTableSqliteStrategy::getKvTableName(const std::string &key,
+                                                             uint16_t)
+{
+    char buf[64];
+    snprintf(buf, sizeof(buf), "kv_%d.kv", static_cast<int>(getDbShardIdForKey(key)));
+    return std::string(buf);
 }
 
 void MultiDBSingleTableSqliteStrategy::destroyTables() {
@@ -398,6 +412,15 @@ void MultiTableSqliteStrategy::initStatements() {
         snprintf(buf, sizeof(buf), "kv_%d", static_cast<int>(i));
         statements.push_back(new Statements(db, std::string(buf), &sfact));
     }
+}
+
+std::string MultiTableSqliteStrategy::getKvTableName(const std::string &,
+                                                     uint16_t vbid)
+{
+    char buf[64];
+    snprintf(buf, sizeof(buf), "kv_%d",
+             static_cast<int>(vbid));
+    return std::string(buf);
 }
 
 void MultiTableSqliteStrategy::destroyTables() {
@@ -624,6 +647,16 @@ void ShardedMultiTableSqliteStrategy::initStatements() {
     }
 }
 
+std::string ShardedMultiTableSqliteStrategy::getKvTableName(const std::string &key,
+                                                            uint16_t vbid)
+{
+    char buf[64];
+    snprintf(buf, sizeof(buf), "kv_%d.kv_%d",
+             static_cast<int>(getDbShardIdForKey(key)),
+             static_cast<int>(vbid));
+    return std::string(buf);
+}
+
 //
 // ----------------------------------------------------------------------
 // Sharded by VBucket
@@ -740,4 +773,14 @@ void ShardedByVBucketSqliteStrategy::initStatements() {
                  static_cast<int>(j));
         statements[j] = new Statements(db, std::string(buf), &sfact);
     }
+}
+
+std::string ShardedByVBucketSqliteStrategy::getKvTableName(const std::string &,
+                                                           uint16_t vbid)
+{
+    char buf[64];
+    snprintf(buf, sizeof(buf), "kv_%d.kv_%d",
+             static_cast<int>(getShardForVBucket(vbid)),
+             static_cast<int>(vbid));
+    return std::string(buf);
 }

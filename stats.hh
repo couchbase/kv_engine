@@ -40,12 +40,21 @@ public:
     Atomic<hrtime_t> warmupTime;
     //! Whether we're warming up.
     Atomic<bool> warmupComplete;
+    //! Number of records warmed up with metadata.
+    Atomic<size_t> warmedUpMeta;
     //! Number of records warmed up.
     Atomic<size_t> warmedUp;
     //! Number of warmup failures due to duplicates
     Atomic<size_t> warmDups;
     //! Number of OOM failures at warmup time.
     Atomic<size_t> warmOOM;
+
+    //! Fill % of memory used during warmup we're going to enable traffic
+    Atomic<double> warmupMemUsedCap;
+    //! Fill % of number of items read during warmup we're going to
+    //  enable traffic
+    Atomic<double> warmupNumReadCap;
+
     //! The tap throttle write queue cap
     Atomic<size_t> tapThrottleWriteQueueCap;
 

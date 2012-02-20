@@ -42,6 +42,7 @@ CXXFLAGS = -std=gnu++0x -g \
            -Wno-long-long  -Wmissing-declarations -Wno-redundant-decls
 
 EP_ENGINE_CC_SRC = \
+                 access_scanner.cc \
                  atomic.cc \
                  backfill.cc \
                  blackhole-kvstore/blackhole.cc \

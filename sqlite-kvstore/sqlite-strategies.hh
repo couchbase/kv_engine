@@ -42,6 +42,9 @@ public:
         return getDbShardIdForKey(qi.getKey());
     }
 
+
+    virtual std::string getKvTableName(const std::string &key, const uint16_t vbid) = 0;
+
     virtual const std::vector<Statements *> &allStatements() = 0;
 
     virtual Statements *getStatements(uint16_t vbid, uint16_t vbver,
@@ -198,6 +201,8 @@ public:
         return statements.at(getDbShardIdForKey(key));
     }
 
+    virtual std::string getKvTableName(const std::string &key, const uint16_t vbid);
+
     void destroyStatements();
     virtual void destroyTables();
     virtual void destroyInvalidTables(bool destroyOnlyOne = false);
@@ -281,6 +286,8 @@ public:
     void destroyTables(void);
     void destroyInvalidTables(bool destroyOnlyOne = false);
 
+    virtual std::string getKvTableName(const std::string &key, const uint16_t vbid);
+
 private:
     const char * const shardpattern;
     int numTables;
@@ -331,6 +338,8 @@ public:
         assert(static_cast<size_t>(vbid) < statements.size());
         return statements.at(vbid);
     }
+
+    virtual std::string getKvTableName(const std::string &key, const uint16_t vbid);
 
     virtual void destroyStatements();
     virtual void destroyTables();
@@ -422,6 +431,8 @@ public:
     Statements *getStatements(uint16_t vbid, uint16_t vbver,
                               const std::string &key);
 
+    virtual std::string getKvTableName(const std::string &key, const uint16_t vbid);
+
     void destroyStatements();
     void destroyTables();
     void destroyInvalidTables(bool destroyOnlyOne = false);
@@ -484,6 +495,7 @@ public:
     }
 
     virtual ~ShardedByVBucketSqliteStrategy() { }
+    virtual std::string getKvTableName(const std::string &key, const uint16_t vbid);
 
     void destroyTables();
     void destroyInvalidTables(bool destroyOnlyOne = false);

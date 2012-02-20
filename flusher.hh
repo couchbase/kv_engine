@@ -9,8 +9,11 @@
 
 enum flusher_state {
     initializing,
+    loading_mutation_log,
     loading_keys,
+    load_metadata_complete,
     loading_data,
+    loading_access_log,
     warmup_complete,
     running,
     pausing,

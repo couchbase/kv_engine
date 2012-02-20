@@ -8,6 +8,7 @@
 #include "sqlite-kvstore.hh"
 #include "sqlite-pst.hh"
 #include "vbucket.hh"
+#include "ep_engine.h"
 
 #define STATWRITER_NAMESPACE sqlite_engine
 #include "statwriter.hh"
@@ -369,4 +370,124 @@ void StrategicSqlite3::addTimingStats(const std::string &prefix,
     add_casted_stat("writeTime", st.writeTimeHisto, add_stat, c);
     add_casted_stat("writeSeek", st.writeSeekHisto, add_stat, c);
     add_casted_stat("writeSize", st.writeSizeHisto, add_stat, c);
+}
+
+typedef std::map<std::string, std::list<uint64_t> > ShardRowidMap;
+
+struct WarmupCookie {
+    WarmupCookie(StrategicSqlite3 *s) :
+        store(s)
+    { /* EMPTY */ }
+    StrategicSqlite3 *store;
+    ShardRowidMap objmap;
+};
+
+static void warmupCallback(void *arg, uint16_t vb, uint16_t,
+                           const std::string &key, uint64_t rowid)
+{
+    WarmupCookie *cookie = static_cast<WarmupCookie*>(arg);
+    cookie->objmap[cookie->store->getKvTableName(key, vb)].push_back(rowid);
+}
+
+size_t StrategicSqlite3::warmup(MutationLog &lf,
+                                const std::map<std::pair<uint16_t, uint16_t>, vbucket_state> &vbmap,
+                                Callback<GetValue> &cb)
+{
+    // First build up the various maps...
+
+    MutationLogHarvester harvester(lf);
+    std::map<std::pair<uint16_t, uint16_t>, vbucket_state>::const_iterator it;
+    for (it = vbmap.begin(); it != vbmap.end(); ++it) {
+        harvester.setVbVer(it->first.first, it->first.second);
+    }
+
+    hrtime_t start = gethrtime();
+    if (!harvester.load()) {
+        return -1;
+    }
+    hrtime_t end = gethrtime();
+
+    getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                     "Completed log read in %s with %d entries\n",
+                     hrtime2text(end - start).c_str(), harvester.total());
+
+    start = gethrtime();
+    WarmupCookie cookie(this);
+    harvester.apply(&cookie, &warmupCallback);
+
+    // Ok, run through all of the lists and apply each one of them..
+    size_t total = 0;
+    for (ShardRowidMap::iterator iter = cookie.objmap.begin();
+         iter != cookie.objmap.end();
+         ++iter) {
+
+        total += warmupSingleShard(iter->first, iter->second, cb);
+    }
+    end = gethrtime();
+
+    getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                     "Warmed up %ld items in %s", (long)total,
+                     hrtime2text(end - start).c_str());
+
+    return total;
+}
+
+bool list_compare(uint64_t first, uint64_t second) {
+    return first < second;
+}
+
+size_t StrategicSqlite3::warmupSingleShard(const std::string &table,
+                                           std::list<uint64_t> &ids,
+                                           Callback<GetValue> &cb)
+{
+    using namespace std;
+
+    string prefix("select k, v, flags, exptime, cas, vbucket, vb_version, rowid from ");
+    prefix.append(table);
+    prefix.append(" where rowid in (");
+
+    ids.sort(list_compare);
+
+    list<uint64_t>::iterator iter = ids.begin();
+
+    size_t batchSize;
+    if (engine) {
+        batchSize = engine->getConfiguration().getWarmupBatchSize();
+    } else {
+        batchSize = 1000;
+    }
+    size_t ret = 0;
+    do {
+        stringstream ss;
+        size_t num = 0;
+
+        // @todo make this configurable
+        while (iter != ids.end() && num < batchSize) {
+            ss << *iter << ",";
+            ++num; ++iter;
+        }
+
+        if (num != 0) {
+            // we need to execute the query
+            string query = prefix + ss.str();
+            query.resize(query.length() - 1);
+            query.append(")");
+
+            PreparedStatement st(db, query.c_str());
+            while (st.fetch()) {
+                ++ret;
+                Item *it = new Item(st.column_blob(0),
+                                    static_cast<uint16_t>(st.column_bytes(0)),
+                                    st.column_int(2), st.column_int(3),
+                                    st.column_blob(1), st.column_bytes(1),
+                                    st.column_int64(4), st.column_int64(7),
+                                    static_cast<uint16_t>(st.column_int(5)));
+                GetValue rv(it, ENGINE_SUCCESS, -1,
+                            static_cast<uint16_t>(st.column_int(6)));
+                cb.callback(rv);
+            }
+        }
+    } while (iter != ids.end());
+
+    return ret;
 }

@@ -416,6 +416,13 @@ private:
 
 class EventuallyPersistentEngine;
 
+enum warmup_source {
+    warmup_from_mutation_log = 1,
+    warmup_from_key_dump,
+    warmup_from_access_log,
+    warmup_from_full_dump
+};
+
 /**
  * Manager of all interaction with the persistence.
  */
@@ -846,12 +853,22 @@ public:
     }
 
 protected:
+    // During the warmup phase we might want to enable external traffic
+    // at a given point in time.. The LoadStorageKvPairCallback will be
+    // triggered whenever we want to check if we could enable traffic..
+    friend class LoadStorageKVPairCallback;
+    void maybeEnableTraffic(void);
+
     // Method called by the flusher
     std::map<std::pair<uint16_t, uint16_t>, vbucket_state> loadVBucketState();
 
     bool warmupFromLog(const std::map<std::pair<uint16_t, uint16_t>, vbucket_state> &state,
                        shared_ptr<Callback<GetValue> >cb);
-    void warmup(const std::map<std::pair<uint16_t, uint16_t>, vbucket_state> &state, bool keysOnly);
+
+    bool warmup(const std::map<std::pair<uint16_t, uint16_t>,
+                vbucket_state> &state,
+                enum warmup_source source,
+                bool maybeEnableTraffic);
     void warmupCompleted();
 
 private:
@@ -960,6 +977,7 @@ private:
 
     MutationLog                mutationLog;
     MutationLogCompactorConfig mlogCompactorConfig;
+    MutationLog                accessLog;
 
     // The writing queue is used by the flusher thread to keep
     // track of the objects it works on. It should _not_ be used

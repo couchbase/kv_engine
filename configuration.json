@@ -5,6 +5,24 @@
             "dynamic": false,
             "type": "bool"
         },
+        "alog_block_size": {
+            "default": "4096",
+            "descr": "Logging block size.",
+            "dynamic": false,
+            "type": "size_t"
+        },
+        "alog_path": {
+            "default": "",
+            "descr": "Path to the access log.",
+            "dynamic": false,
+            "type": "std::string"
+        },
+        "alog_sleep_time": {
+            "default": "30",
+            "descr": "Number of minutes between each sweep for the access log",
+            "dynamic": true,
+            "type": "size_t"
+        },
         "backend": {
             "default": "sqlite",
             "dynamic": false,
@@ -408,6 +426,40 @@
         "warmup": {
             "default": "true",
             "type": "bool"
+        },
+        "warmup_batch_size": {
+            "default": "1000",
+            "descr": "The size of each batch loaded during warmup.",
+            "dynamic": false,
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "max": 10000,
+                    "min": 1
+                }
+            }
+        },
+        "warmup_min_memory_threshold": {
+            "default": "10",
+            "descr": "Percentage of max mem warmed up before we enable traffic.",
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "max": 100,
+                    "min": 0
+                }
+            }
+        },
+        "warmup_min_items_threshold": {
+            "default": "10",
+            "descr": "Percentage of total items warmed up before we enable traffic.",
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "max": 100,
+                    "min": 0
+                }
+            }
         }
     }
 }

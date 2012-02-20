@@ -11,6 +11,7 @@
 #include "stats.hh"
 #include "item.hh"
 #include "queueditem.hh"
+#include "mutation_log.hh"
 
 /**
  * Result of database mutation operations.
@@ -92,6 +93,9 @@ enum db_type {
  */
 class KVStore {
 public:
+    KVStore() : engine(NULL) { }
+
+
     virtual ~KVStore() {}
 
     /**
@@ -269,6 +273,31 @@ public:
      * This can be set to true if we want to delete all invalid vbuckets over the time.
      */
     virtual void destroyInvalidVBuckets(bool destroyOnlyOne = false) = 0;
+
+
+    /**
+     * Warm up the cache by using the given mutation log (this is actually an access log),
+     * The default implementaiton of the warmup warmup will scan the access file and load
+     * each key in a sequence. Each backend may overload this function with a more optimal
+     * version.
+     *
+     * NOTE: this operation block until all warmup is complete
+     *
+     * @param lf the access log file
+     * @param vbmap A map containing the map of vb id and version to warm up
+     * @param cb callback used to load objects into the cache
+     * @return number of items loaded
+     */
+    virtual size_t warmup(MutationLog &lf,
+                          const std::map<std::pair<uint16_t, uint16_t>, vbucket_state> &vb,
+                          Callback<GetValue> &cb);
+
+    void setEngine(EventuallyPersistentEngine *theEngine) {
+        engine = theEngine;
+    }
+
+protected:
+    EventuallyPersistentEngine *engine;
 
 };
 

@@ -2366,8 +2366,13 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                         epstats.warmupComplete.get() ? "complete" : "running",
                         add_stat, cookie);
         add_casted_stat("ep_warmed_up", epstats.warmedUp, add_stat, cookie);
+        add_casted_stat("ep_warmed_up_meta", epstats.warmedUpMeta, add_stat, cookie);
         add_casted_stat("ep_warmup_dups", epstats.warmDups, add_stat, cookie);
         add_casted_stat("ep_warmup_oom", epstats.warmOOM, add_stat, cookie);
+        add_casted_stat("ep_warmup_min_memory_threshold",
+                        stats.warmupMemUsedCap * 100.0, add_stat, cookie);
+        add_casted_stat("ep_warmup_min_item_threshold",
+                        stats.warmupNumReadCap * 100.0, add_stat, cookie);
 
         if (epstats.warmupKeysTime > 0) {
             add_casted_stat("ep_warmup_keys_time", epstats.warmupKeysTime,

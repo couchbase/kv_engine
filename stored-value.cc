@@ -57,22 +57,38 @@ bool StoredValue::ejectValue(EPStats &stats, HashTable &ht) {
     return false;
 }
 
-bool StoredValue::restoreValue(const value_t &v, EPStats &stats, HashTable &ht) {
+bool StoredValue::restoreValue(Item *itm, EPStats &stats, HashTable &ht) {
+    // If cas == we loaded the object from our meta file, but
+    // we didn't know the size of the object.. Don't report
+    // this as an unexpected size change.
+    if (getCas() == 0 && !_isSmall) {
+        extra.feature.cas = itm->getCas();
+        flags = itm->getFlags();
+        extra.feature.exptime = itm->getExptime();
+        extra.feature.seqno = itm->getSeqno();
+        setValue(*itm, stats, ht, true);
+        if (!isResident()) {
+            --ht.numNonResidentItems;
+        }
+        markClean(NULL);
+        return true;
+    }
+
     if (!isResident()) {
         size_t oldsize = size();
         size_t old_valsize = isDeleted() ? 0 : value->length();
-        assert(v);
-        if (v->length() != valLength()) {
+        if (itm->getValue()->length() != valLength()) {
             int diff(static_cast<int>(valLength()) - // expected
-                     static_cast<int>(v->length())); // got
+                     static_cast<int>(itm->getValue()->length())); // got
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                              "Object unexpectedly changed size by %d bytes\n",
                              diff);
         }
+
         rel_time_t evicted_time(getEvictedTime());
         stats.pagedOutTimeHisto.add(ep_current_time() - evicted_time);
         extra.feature.resident = true;
-        value = v;
+        value = itm->getValue();
 
         size_t newsize = size();
         size_t new_valsize = value->length();
@@ -93,6 +109,61 @@ bool StoredValue::restoreValue(const value_t &v, EPStats &stats, HashTable &ht) 
         return true;
     }
     return false;
+}
+
+mutation_type_t HashTable::insert(const Item &itm, bool eject, bool partial) {
+    assert(isActive());
+    if (!StoredValue::hasAvailableSpace(stats, itm)) {
+        return NOMEM;
+    }
+
+    assert(itm.getCas() != static_cast<uint64_t>(-1));
+
+    mutation_type_t rv = NOT_FOUND;
+    int bucket_num(0);
+    LockHolder lh = getLockedBucket(itm.getKey(), &bucket_num);
+    StoredValue *v = unlocked_find(itm.getKey(), bucket_num, true);
+
+    if (v == NULL) {
+        v = valFact(itm, values[bucket_num], *this);
+        v->markClean(NULL);
+        if (partial) {
+            v->extra.feature.resident = false;
+        }
+        values[bucket_num] = v;
+        ++numItems;
+    } else {
+        if (partial) {
+            // We don't have a better error code ;)
+            return INVALID_CAS;
+        }
+
+        // Verify that the CAS isn't changed
+        if (v->getCas() != itm.getCas()) {
+            if (v->getCas() == 0) {
+                v->extra.feature.cas = itm.getCas();
+                v->flags = itm.getFlags();
+                v->extra.feature.exptime = itm.getExptime();
+                v->extra.feature.seqno = itm.getSeqno();
+            } else {
+                return INVALID_CAS;
+            }
+        }
+
+        if (!v->isResident()) {
+            --numNonResidentItems;
+        }
+
+        v->setValue(const_cast<Item&>(itm), stats, *this, true);
+    }
+
+    v->markClean(NULL);
+
+    if (eject && !partial) {
+        v->ejectValue(stats, *this);
+    }
+
+    return rv;
 }
 
 static inline size_t getDefault(size_t x, size_t d) {

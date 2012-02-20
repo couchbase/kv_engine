@@ -60,9 +60,21 @@ static bool validTransition(enum flusher_state from,
 
     switch (from) {
     case initializing:
-        return (to == loading_keys || to == loading_data);
+        return (to == loading_keys ||
+                to == loading_data ||
+                to == loading_mutation_log);
+    case loading_mutation_log:
+        return (to == loading_keys ||
+                to == load_metadata_complete ||
+                to == loading_data);
     case loading_keys:
-        return (to == loading_data);
+        return (to == load_metadata_complete || to == loading_data);
+
+    case load_metadata_complete:
+        return (to == loading_access_log || to == loading_data);
+
+    case loading_access_log:
+        return (to == warmup_complete || to == loading_data);
     case loading_data:
         return (to == warmup_complete);
     case warmup_complete:
@@ -84,7 +96,9 @@ static bool validTransition(enum flusher_state from,
 
 const char * Flusher::stateName(enum flusher_state st) const {
     static const char * const stateNames[] = {
-        "initializing", "loading keys", "loading data", "warmup complete",
+        "initializing", "loading mutation log", "loading keys",
+        "load_metadata_complete",
+        "loading data", "loading access log", "warmup complete",
         "running", "pausing", "paused", "stopping", "stopped"
     };
     assert(st >= initializing && st <= stopped);
@@ -133,8 +147,9 @@ void Flusher::initialize(TaskId tid) {
 
     warmupStartTime = gethrtime();
     initialVbState = store->loadVBucketState();
-    if (store->getMutationLog()->isEnabled()
-        || store->getROUnderlying()->isKeyDumpSupported()) {
+    if (store->getMutationLog()->isEnabled()) {
+        transition_state(loading_mutation_log);
+    } else if (store->getROUnderlying()->isKeyDumpSupported()) {
         transition_state(loading_keys);
     } else {
         transition_state(loading_data);
@@ -165,38 +180,64 @@ bool Flusher::step(Dispatcher &d, TaskId tid) {
             initialize(tid);
             return true;
 
-        case loading_keys:
-            store->warmup(initialVbState, true);
-            store->stats.warmupKeysTime.set((gethrtime() - warmupStartTime) / 1000);
-            if (store->stats.warmupKeysTime > 0) {
-                getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                                 "Keys loaded in %s",
-                                 hrtime2text(store->stats.warmupKeysTime * 1000).c_str());
+        case loading_mutation_log:
+            if (store->warmup(initialVbState, warmup_from_mutation_log,
+                              false)) {
+                transition_state(load_metadata_complete);
+            } else if (store->getROUnderlying()->isKeyDumpSupported()) {
+                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                 "Failed to load mutation log, falling back to key dump");
+                transition_state(loading_keys);
+            } else {
+                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                 "Failed to load mutation log, falling back to full dump");
+                transition_state(loading_data);
             }
-            // We knows about all keays and their meta-data, so we can
-            // safely allow mutation operations as of now..
-            store->warmupCompleted();
-            store->stats.warmupComplete.set(true);
-            transition_state(loading_data);
+            return true;
+
+        case loading_keys:
+            if (store->warmup(initialVbState, warmup_from_key_dump, false)) {
+                transition_state(load_metadata_complete);
+            } else {
+                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                 "Failed to load keys and their meta data from the underlying store. Falling back to full dump");
+                transition_state(loading_data);
+            }
+
+            return true;
+
+        case load_metadata_complete:
+            store->stats.warmupKeysTime.set((gethrtime() - warmupStartTime) / 1000);
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                 "metadata loaded in %s",
+                                 hrtime2text(store->stats.warmupKeysTime * 1000).c_str());
+            transition_state(loading_access_log);
+            return true;
+
+        case loading_access_log:
+            if (store->warmup(initialVbState, warmup_from_access_log, true)) {
+                transition_state(warmup_complete);
+            } else {
+                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                 "Failed to load access log, falling back to full sweep warmup");
+                transition_state(loading_data);
+            }
             return true;
 
         case loading_data:
-            store->warmup(initialVbState, false);
+            store->warmup(initialVbState, warmup_from_full_dump,
+                          store->stats.warmupComplete);
             transition_state(warmup_complete);
             return true;
 
         case warmup_complete:
-            if (!store->getROUnderlying()->isKeyDumpSupported()) {
-                // This backend didn't support a two-phase loading..
-                // Enable data mutations!
-                store->warmupCompleted();
-                store->stats.warmupComplete.set(true);
-                store->stats.warmupTime.set((gethrtime() - warmupStartTime) / 1000);
-                if (store->stats.warmupTime > 0) {
-                    getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                                     "warmup completed in %s",
-                                     hrtime2text(store->stats.warmupTime * 1000).c_str());
-                }
+            store->warmupCompleted();
+            store->stats.warmupComplete.set(true);
+            store->stats.warmupTime.set((gethrtime() - warmupStartTime) / 1000);
+            if (store->stats.warmupTime > 0) {
+                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                 "warmup completed in %s",
+                                 hrtime2text(store->stats.warmupTime * 1000).c_str());
             }
             transition_state(running);
             return true;

@@ -27,6 +27,7 @@ public:
     static const Priority StatSnapPriority;
     static const Priority InvalidItemDbPagerPriority;
     static const Priority MutationLogCompactorPriority;
+    static const Priority AccessScannerPriority;
 
     // Priorities for NON-IO dispatcher
     static const Priority CheckpointRemoverPriority;

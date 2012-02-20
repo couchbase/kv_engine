@@ -43,6 +43,7 @@ struct feature_data {
     rel_time_t lock_expiry;     //!< getl lock expiration
     bool       locked : 1;      //!< True if this item is locked
     bool       resident : 1;    //!< True if this object's value is in memory.
+    bool       nru : 1;         //!< True if referenced since last sweep
     uint8_t    keylen;          //!< Length of the key
     char       keybytes[1];     //!< The key itself.
 };
@@ -79,6 +80,22 @@ public:
     void touch() {
         if (isResident() && !isDirty()) {
             dirtiness = ep_current_time() >> 2;
+        }
+    }
+
+    bool isReferenced() {
+        bool ret = false;
+        if (!_isSmall) {
+            ret = extra.feature.nru;
+            extra.feature.nru = false;
+        }
+
+        return ret;
+    }
+
+    void referenced() {
+        if (!_isSmall) {
+            extra.feature.nru = true;
         }
     }
 
@@ -283,11 +300,11 @@ public:
 
     /**
      * Restore the value for this item.
-     * @param v the new value to be restored
+     * @param itm the item to be restored
      * @param stats the global stat instance
      * @param ht the hashtable that contains this StoredValue instance
      */
-    bool restoreValue(const value_t &v, EPStats &stats, HashTable &ht);
+    bool restoreValue(Item *itm, EPStats &stats, HashTable &ht);
 
     /**
      * Get this item's CAS identifier.
@@ -656,7 +673,8 @@ typedef enum {
     WAS_CLEAN,                  //!< The item was clean before this mutation
     WAS_DIRTY,                  //!< This item was already dirty before this mutation
     IS_LOCKED,                  //!< The item is locked and can't be updated.
-    NOMEM                       //!< Insufficient memory to store this item.
+    NOMEM,                      //!< Insufficient memory to store this item.
+    NEED_METADATA               //!< The metadata for this item isn't loaded
 } mutation_type_t;
 
 /**
@@ -1028,6 +1046,10 @@ public:
         LockHolder lh = getLockedBucket(val.getKey(), &bucket_num);
         StoredValue *v = unlocked_find(val.getKey(), bucket_num, true);
 
+        if (v && !v->_isSmall && v->getCas() == 0) {
+            return NEED_METADATA;
+        }
+
         /*
          * prior to checking for the lock, we should check if this object
          * has expired. If so, then check if CAS value has been provided
@@ -1097,52 +1119,7 @@ public:
      * @param partial is this a complete item, or just the key and meta-data
      * @return a result indicating the status of the store
      */
-    mutation_type_t insert(const Item &itm, bool eject, bool partial) {
-        assert(isActive());
-        if (!StoredValue::hasAvailableSpace(stats, itm)) {
-            return NOMEM;
-        }
-
-        assert(itm.getCas() != static_cast<uint64_t>(-1));
-
-        mutation_type_t rv = NOT_FOUND;
-        int bucket_num(0);
-        LockHolder lh = getLockedBucket(itm.getKey(), &bucket_num);
-        StoredValue *v = unlocked_find(itm.getKey(), bucket_num, true);
-
-        if (v == NULL) {
-            v = valFact(itm, values[bucket_num], *this);
-            if (partial) {
-                v->extra.feature.resident = false;
-            }
-            values[bucket_num] = v;
-            ++numItems;
-        } else {
-            if (partial) {
-                // We don't have a better error code ;)
-                return INVALID_CAS;
-            }
-
-            // Verify that the CAS isn't changed
-            if (v->getCas() != itm.getCas()) {
-                return INVALID_CAS;
-            }
-
-            if (!v->isResident()) {
-                --numNonResidentItems;
-            }
-
-            v->setValue(const_cast<Item&>(itm), stats, *this, true);
-        }
-
-        v->markClean(NULL);
-
-        if (eject && !partial) {
-            v->ejectValue(stats, *this);
-        }
-
-        return rv;
-    }
+    mutation_type_t insert(const Item &itm, bool eject, bool partial);
 
     /**
      * Add an item to the hash table iff it doesn't already exist.
@@ -1266,6 +1243,7 @@ public:
         StoredValue *v = values[bucket_num];
         while (v) {
             if (v->hasKey(key)) {
+                v->referenced();
                 if (wantsDeleted || !v->isDeleted()) {
                     return v;
                 } else {

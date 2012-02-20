@@ -53,6 +53,8 @@ cbbackup-incremental.1m: docs/cbbackup-incremental.pod
 ep_la_CPPFLAGS = -I$(top_srcdir) $(AM_CPPFLAGS)
 ep_la_LDFLAGS = -module -dynamic
 ep_la_SOURCES = \
+                 access_scanner.cc \
+                 access_scanner.hh \
                  atomic/gcc_atomics.h \
                  atomic/libatomic.h \
                  atomic.cc atomic.hh \
@@ -66,11 +68,11 @@ ep_la_SOURCES = \
                  command_ids.h \
                  common.hh \
                  config_static.h \
-                 crc32.c crc32.h \
                  dispatcher.cc dispatcher.hh \
                  ep.cc ep.hh \
                  ep_engine.cc ep_engine.h \
                  ep_extension.cc ep_extension.h \
+                 ep_time.c ep_time.h \
                  flusher.cc flusher.hh \
                  histo.hh \
                  htresizer.cc htresizer.hh \
@@ -80,8 +82,6 @@ ep_la_SOURCES = \
                  item_pager.cc item_pager.hh \
                  kvstore.hh \
                  locks.hh \
-                 mutation_log.cc mutation_log.hh \
-                 mutation_log_compactor.cc mutation_log_compactor.hh \
                  mutex.cc mutex.hh \
                  priority.cc priority.hh \
                  queueditem.cc queueditem.hh \
@@ -102,10 +102,12 @@ ep_la_SOURCES = \
                  vbucketmap.cc vbucketmap.hh
 
 
-
 libobjectregistry_la_SOURCES = objectregistry.cc objectregistry.hh
 
-libkvstore_la_SOURCES = kvstore.cc kvstore.hh
+libkvstore_la_SOURCES = crc32.c crc32.h kvstore.cc kvstore.hh   \
+                        mutation_log.cc mutation_log.hh         \
+                        mutation_log_compactor.cc               \
+                        mutation_log_compactor.hh
 libkvstore_la_CPPFLAGS = -I$(top_srcdir) -I$(top_srcdir)/sqlite-kvstore \
                          $(AM_CPPFLAGS)
 
@@ -159,22 +161,20 @@ ep_la_LIBADD = libkvstore.la libsqlite-kvstore.la libmc-kvstore.la \
 ep_la_DEPENDENCIES = libkvstore.la libsqlite-kvstore.la	\
                libmc-kvstore.la libblackhole-kvstore.la	\
                libobjectregistry.la libconfiguration.la
-ep_testsuite_la_LIBADD = libkvstore.la libsqlite-kvstore.la		\
-                         libmc-kvstore.la libblackhole-kvstore.la	\
-                         libobjectregistry.la libconfiguration.la	\
-                         $(LTLIBEVENT)
-ep_testsuite_la_DEPENDENCIES = libkvstore.la libsqlite-kvstore.la	\
-                               libmc-kvstore.la				\
-                               libblackhole-kvstore.la			\
-                               libobjectregistry.la
+ep_testsuite_la_LIBADD =libobjectregistry.la
+ep_testsuite_la_DEPENDENCIES = libobjectregistry.la
 
-management_cbdbconvert_SOURCES = atomic.cc mutex.cc management/dbconvert.cc \
-                                 testlogger.cc
-management_cbdbconvert_LDADD = libkvstore.la libsqlite-kvstore.la	\
-                               libmc-kvstore.la				\
-                               libblackhole-kvstore.la			\
-                               libobjectregistry.la			\
-                               libconfiguration.la $(LTLIBEVENT)
+management_cbdbconvert_SOURCES = atomic.cc mutex.cc                     \
+                                 management/dbconvert.cc testlogger.cc  \
+                                 item.cc
+management_cbdbconvert_LDADD = libkvstore.la libsqlite-kvstore.la       \
+                               libmc-kvstore.la                         \
+                               libblackhole-kvstore.la                  \
+                               libobjectregistry.la                     \
+                               libconfiguration.la libkvstore.la        \
+                               libblackhole-kvstore.la                  \
+                               libmc-kvstore.la $(LTLIBEVENT)
+
 management_cbdbconvert_DEPENDENCIES = libkvstore.la libsqlite-kvstore.la libmc-kvstore.la \
                                       libobjectregistry.la libconfiguration.la
 
@@ -219,9 +219,11 @@ EXTRA_TESTS =
 
 ep_testsuite_la_CPPFLAGS = -I$(top_srcdir) -I$(top_srcdir)/sqlite-kvstore \
                          $(AM_CPPFLAGS) ${NO_WERROR}
-ep_testsuite_la_SOURCES= ep_testsuite.cc ep_testsuite.h \
-                         atomic.cc locks.hh mutex.cc mutex.hh \
-                         item.cc testlogger_libify.cc
+ep_testsuite_la_SOURCES= ep_testsuite.cc ep_testsuite.h atomic.cc       \
+                         locks.hh mutex.cc mutex.hh item.cc             \
+                         testlogger_libify.cc dispatcher.cc ep_time.c   \
+                         ep_time.h sqlite-kvstore/sqlite-pst.cc         \
+                         tools/cJSON.c tools/cJSON.h
 ep_testsuite_la_LDFLAGS= -module -dynamic
 
 # This is because automake can't figure out how to build the same code

@@ -172,6 +172,10 @@ public:
         return strategy->getDbShardId(i);
     }
 
+    std::string getKvTableName(const std::string &key, uint16_t vb) {
+        return strategy->getKvTableName(key, vb);
+    }
+
     void optimizeWrites(std::vector<queued_item> &items) {
         strategy->optimizeWrites(items);
     }
@@ -183,7 +187,18 @@ public:
     void addStats(const std::string &prefix, ADD_STAT add_stat, const void *c);
     void addTimingStats(const std::string &prefix, ADD_STAT add_stat, const void *c);
 
+    /**
+     * Override the warmup method to bulk load the items
+     */
+    virtual size_t warmup(MutationLog &lf,
+                          const std::map<std::pair<uint16_t, uint16_t>, vbucket_state> &vbmap,
+                          Callback<GetValue> &cb);
+
 private:
+    size_t warmupSingleShard(const std::string &table,
+                             std::list<uint64_t> &ids,
+                             Callback<GetValue> &cb);
+
     /**
      * Shortcut to execute a simple query.
      *
