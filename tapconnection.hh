@@ -554,12 +554,7 @@ public:
     /**
      * Invoked each time a background item fetch completes.
      */
-    void gotBGItem(Item *item, bool implicitEnqueue);
-
-    /**
-     * Invoked once per batch bg fetch job.
-     */
-    void completedBGFetchJob();
+    void completeBGFetchJob(Item *item, bool implicitEnqueue);
 
     /**
      * Find out how many items are still remaining from backfill.

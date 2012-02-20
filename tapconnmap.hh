@@ -56,23 +56,15 @@ public:
 };
 
 /**
- * Give the tap connection a new item.
+ * Complete a bg fetch job and give the item to the given tap connection.
  */
-class ReceivedItemTapOperation : public TapOperation<Item*> {
+class CompletedBGFetchTapOperation : public TapOperation<Item*> {
 public:
-    ReceivedItemTapOperation(bool ie=false) : implicitEnqueue(ie) {}
+    CompletedBGFetchTapOperation(bool ie=false) : implicitEnqueue(ie) {}
 
     void perform(TapProducer *tc, Item* arg);
 private:
     bool implicitEnqueue;
-};
-
-/**
- * Indicate a background fetch completed on a tap connection.
- */
-class CompletedBGFetchTapOperation : public TapOperation<EventuallyPersistentEngine*> {
-public:
-    void perform(TapProducer *tc, EventuallyPersistentEngine* arg);
 };
 
 /**
