@@ -86,7 +86,7 @@ int main(int argc, char **argv) {
     }
 
     IdleTask it;
-    assert(hrtime2text(it.maxExpectedDuration()) == std::string("3600 s"));
+    assert(hrtime2text(it.maxExpectedDuration()) == std::string("3600 ms"));
 
     return 0;
 }

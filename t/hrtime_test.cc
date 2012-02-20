@@ -4,21 +4,42 @@
 #undef NDEBUG
 #include <assert.h>
 
-int main(int argc, char **argv) {
-   (void)argc; (void)argv;
-
-   assert(hrtime2text(0) == "0 usec");
-   assert(hrtime2text(9999) == "9999 usec");
-   assert(hrtime2text(10000) == "10 ms");
-   assert(hrtime2text(9999999) == "9999 ms");
-   assert(hrtime2text(10000000) == "10 s");
-
-   // Using math for some of the bigger ones because compilers on 32
-   // bit systems whine about large integer constants.
-   hrtime_t val = 10000;
-   val *= 1000000;
-   assert(hrtime2text(val) == "10000 s");
-   assert(hrtime2text(val - 1) == "9999 s");
+int main(void)
+{
+   hrtime_t val = 0;
+   assert(hrtime2text(val) == std::string("0 ns"));
+   val = 9;
+   assert(hrtime2text(val) == std::string("9 ns"));
+   val = 99;
+   assert(hrtime2text(val) == std::string("99 ns"));
+   val = 999;
+   assert(hrtime2text(val) == std::string("999 ns"));
+   val = 9999;
+   assert(hrtime2text(val) == std::string("9999 ns"));
+   val *= 1000;
+   assert(hrtime2text(val) == std::string("9999 usec"));
+   val *= 1000;
+   assert(hrtime2text(val) == std::string("9999 ms"));
+   val = 599;
+   val *= 1000*1000*1000;
+   assert(hrtime2text(val) == std::string("599 s"));
+   val = 600;
+   val *= 1000*1000*1000;
+   assert(hrtime2text(val) == std::string("0h:10m:0s"));
+   val = 1;
+   assert(hrtime2text(val) == std::string("1 ns"));
+   val = 10;
+   assert(hrtime2text(val) == std::string("10 ns"));
+   val = 100;
+   assert(hrtime2text(val) == std::string("100 ns"));
+   val = 1000;
+   assert(hrtime2text(val) == std::string("1000 ns"));
+   val = 10000;
+   assert(hrtime2text(val) == std::string("10 usec"));
+   val *= 1000;
+   assert(hrtime2text(val) == std::string("10 ms"));
+   val *= 1000;
+   assert(hrtime2text(val) == std::string("10 s"));
 
    hrtime_t now = gethrtime();
    usleep(200);
