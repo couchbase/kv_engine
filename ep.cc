@@ -2604,6 +2604,14 @@ bool EventuallyPersistentStore::warmupFromLog(const std::map<std::pair<uint16_t,
         return false;
     }
 
+    if (harvester.total() == 0) {
+        // We didn't read a single item from the log..
+        // @todo. the harvester should be extened to either
+        // "throw" a FileNotFound exception, or a method we may
+        // look at in order to check if it existed.
+        return false;
+    }
+
     getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
                      "Completed log read in %s with %d entries\n",
                      hrtime2text(end1 - start).c_str(), harvester.total());
