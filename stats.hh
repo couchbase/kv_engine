@@ -26,6 +26,7 @@ public:
                 dirtyAgeHisto(GrowingWidthGenerator<hrtime_t>(0, ONE_SECOND, 1.4), 25),
                 dataAgeHisto(GrowingWidthGenerator<hrtime_t>(0, ONE_SECOND, 1.4), 25),
                 diskCommitHisto(GrowingWidthGenerator<hrtime_t>(0, ONE_SECOND, 1.4), 25),
+                mlogCompactorHisto(GrowingWidthGenerator<hrtime_t>(0, ONE_SECOND, 1.4), 25),
                 timingLog(NULL) {}
 
     ~EPStats() {
@@ -265,6 +266,8 @@ public:
     //! The number of times the observe registry cleaner has run
     Atomic<size_t> obsCleanerRuns;
 
+    //! The number of tiems the mutation log compactor is exectued
+    Atomic<size_t> mlogCompactorRuns;
 
     //! Histogram of tap background wait loads.
     Histogram<hrtime_t> tapBgLoadHisto;
@@ -348,6 +351,9 @@ public:
     Histogram<hrtime_t> couchSetHisto;
     Histogram<hrtime_t> couchSetFailHisto;
 
+    //! Histogram of mutation log compactor
+    Histogram<hrtime_t> mlogCompactorHisto;
+
 
     //! Reset all stats to reasonable values.
     void reset() {
@@ -396,6 +402,7 @@ public:
         unobserveCalls.set(0);
         obsErrors.set(0);
         obsCleanerRuns.set(0);
+        mlogCompactorRuns.set(0);
 
         pendingOpsHisto.reset();
         bgWaitHisto.reset();
@@ -424,6 +431,7 @@ public:
         dataAgeHisto.reset();
         itemAllocSizeHisto.reset();
         dirtyAgeHisto.reset();
+        mlogCompactorHisto.reset();
     }
 
     // Used by stats logging infrastructure.

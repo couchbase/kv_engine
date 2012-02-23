@@ -342,6 +342,18 @@ extern "C" {
                 e->getConfiguration().setExpPagerStime((size_t)vsize);
             } else if (strcmp(keyz, "couchdb_response_timeout") == 0) {
                 e->getConfiguration().setCouchResponseTimeout(v);
+            } else if (strcmp(keyz, "klog_max_log_size") == 0) {
+                char *ptr = NULL;
+                uint64_t msize = strtoull(valz, &ptr, 10);
+                validate(msize, static_cast<uint64_t>(0),
+                         std::numeric_limits<uint64_t>::max());
+                e->getConfiguration().setKlogMaxLogSize((size_t)msize);
+            } else if (strcmp(keyz, "klog_max_entry_ratio") == 0) {
+                validate(v, 0, std::numeric_limits<int>::max());
+                e->getConfiguration().setKlogMaxEntryRatio(v);
+            } else if (strcmp(keyz, "klog_compactor_queue_cap") == 0) {
+                validate(v, 0, std::numeric_limits<int>::max());
+                e->getConfiguration().setKlogCompactorQueueCap(v);
             } else {
                 *msg = "Unknown config param";
                 rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
@@ -2497,6 +2509,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     add_casted_stat("ep_obs_reg_clean_job", epstats.obsCleanerRuns, add_stat,
                     cookie);
 
+    add_casted_stat("ep_mlog_compactor_runs", epstats.mlogCompactorRuns,
+                    add_stat, cookie);
+
     return ENGINE_SUCCESS;
 }
 
@@ -3071,6 +3086,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTimingStats(const void *cookie,
         add_casted_stat("klogFlushTime", mutationLog->flushTimeHisto,
                         add_stat, cookie);
         add_casted_stat("klogSyncTime", mutationLog->syncTimeHisto,
+                        add_stat, cookie);
+        add_casted_stat("klogCompactorTime", stats.mlogCompactorHisto,
                         add_stat, cookie);
     }
 

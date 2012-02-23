@@ -135,6 +135,12 @@ public:
             store.getDispatcher()->schedule(cb, NULL,
                                             Priority::VBucketBatchCountPriority,
                                             0, false);
+        } else if (key.compare("klog_max_log_size") == 0) {
+            store.getMutationLogCompactorConfig().setMaxLogSize(value);
+        } else if (key.compare("klog_max_entry_ratio") == 0) {
+            store.getMutationLogCompactorConfig().setMaxEntryRatio(value);
+        } else if (key.compare("klog_compactor_queue_cap") == 0) {
+            store.getMutationLogCompactorConfig().setMaxEntryRatio(value);
         }
     }
 
@@ -551,6 +557,17 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
     bool syncset(mutationLog.setSyncConfig(theEngine.getConfiguration().getKlogSync()));
     assert(syncset);
 
+    mlogCompactorConfig.setMaxLogSize(config.getKlogMaxLogSize());
+    config.addValueChangedListener("klog_max_log_size",
+                                   new EPStoreValueChangeListener(*this));
+    mlogCompactorConfig.setMaxEntryRatio(config.getKlogMaxEntryRatio());
+    config.addValueChangedListener("klog_max_entry_ratio",
+                                   new EPStoreValueChangeListener(*this));
+    mlogCompactorConfig.setQueueCap(config.getKlogCompactorQueueCap());
+    config.addValueChangedListener("klog_compactor_queue_cap",
+                                   new EPStoreValueChangeListener(*this));
+    mlogCompactorConfig.setSleepTime(config.getKlogCompactorStime());
+
     startDispatcher();
     startFlusher();
     startNonIODispatcher();
@@ -690,6 +707,13 @@ void EventuallyPersistentStore::initialize() {
     shared_ptr<StatSnap> sscb(new StatSnap(&engine));
     dispatcher->schedule(sscb, NULL, Priority::StatSnapPriority,
                          STATSNAP_FREQ);
+
+    if (mutationLog.isEnabled()) {
+        shared_ptr<MutationLogCompactor>
+            compactor(new MutationLogCompactor(this, mutationLog, mlogCompactorConfig, stats));
+        dispatcher->schedule(compactor, NULL, Priority::MutationLogCompactorPriority,
+                             mlogCompactorConfig.getSleepTime());
+    }
 
     if (config.getBackend().compare("sqlite") == 0 &&
         rwUnderlying->getStorageProperties().hasEfficientVBDeletion()) {

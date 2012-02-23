@@ -26,6 +26,7 @@ public:
     static const Priority VBucketPersistLowPriority;
     static const Priority StatSnapPriority;
     static const Priority InvalidItemDbPagerPriority;
+    static const Priority MutationLogCompactorPriority;
 
     // Priorities for NON-IO dispatcher
     static const Priority CheckpointRemoverPriority;

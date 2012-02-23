@@ -32,6 +32,7 @@ const Priority Priority::VBucketDeletionPriority("vbucket_deletion_priority", 9)
 const Priority Priority::VBucketPersistLowPriority("vbucket_persist_low_priority", 9);
 const Priority Priority::StatSnapPriority("statsnap_priority", 9);
 const Priority Priority::InvalidItemDbPagerPriority("invalid_item_db_pager_priority", 9);
+const Priority Priority::MutationLogCompactorPriority("mutation_log_compactor_priority", 9);
 
 // Priorities for NON-IO dispatcher
 const Priority Priority::CheckpointRemoverPriority("checkpoint_remover_priority", 6);

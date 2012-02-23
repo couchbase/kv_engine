@@ -74,18 +74,14 @@ MutationLog::MutationLog(const std::string &path,
 
 MutationLog::~MutationLog() {
     flush();
-    if (file >= 0) {
-        int close_result = doClose(file);
-        assert(close_result != -1);
-    }
+    close();
     free(entryBuffer);
     free(blockBuffer);
 }
 
 void MutationLog::disable() {
     if (file >= 0) {
-        int close_res = close(file);
-        assert(close_res == 0);
+        close();
         file = DISABLED_FD;
     }
 }
@@ -242,7 +238,7 @@ void MutationLog::open() {
     assert(stat_result == 0);
 
     if (st.st_size > 0 && st.st_size < static_cast<off_t>(blockSize)) {
-        close(file);
+        close();
         file = DISABLED_FD;
         throw ShortReadException();
     }
@@ -255,6 +251,48 @@ void MutationLog::open() {
 
     prepareWrites();
     assert(isOpen());
+}
+
+void MutationLog::close() {
+   if (!isEnabled()) {
+        return;
+   }
+
+   if (file >= 0) {
+       int close_result = doClose(file);
+       assert(close_result != -1);
+       file = -1;
+   }
+}
+
+bool MutationLog::replaceWith(MutationLog &mlog) {
+    assert(mlog.isEnabled());
+    assert(isEnabled());
+
+    mlog.flush();
+    mlog.close();
+    flush();
+    close();
+
+    for (int i(0); i < MUTATION_LOG_TYPES; ++i) {
+        itemsLogged[i] = mlog.itemsLogged[i];
+    }
+
+    if (rename(mlog.getLogFile().c_str(), getLogFile().c_str()) != 0) {
+        open();
+        std::stringstream ss;
+        ss << "Unable to rename a mutation log \"" << mlog.getLogFile() << "\" "
+           << "to \"" << getLogFile() << "\": " << strerror(errno);
+        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                         "%s!!! Reopened the old log file.\n", ss.str().c_str());
+        return false;
+    }
+
+    open();
+    getLogger()->log(EXTENSION_LOG_INFO, NULL,
+                     "Renamed a mutation log \"%s\" to \"%s\" and reopened it.\n",
+                     mlog.getLogFile().c_str(), getLogFile().c_str());
+    return true;
 }
 
 void MutationLog::flush() {

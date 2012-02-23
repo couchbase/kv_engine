@@ -174,8 +174,10 @@ For introductory information on stats within membase, start with the
 |                                | protocol violation)                        |
 | ep_obs_reg_clean_job           | Number of time the observe registry        |
 |                                | cleaner job has run                        |
-| ep_inconsistent_slave_chk     | Flag indicating if we allow a "downstream"  |
-|                               | master to receive checkpoint messages       |
+| ep_inconsistent_slave_chk      | Flag indicating if we allow a "downstream" |
+|                                | master to receive checkpoint messages      |
+| ep_mlog_compactor_runs         | Number of times mutation log compactor is  |
+|                                | executed.                                  |
 
 ** vBucket total stats
 
@@ -477,6 +479,7 @@ form to describe when time was spent doing various things:
 | klogPadding           | Amount of wasted "padding" space in the klog.  |
 | klogFlushTime         | Time spent flushing the klog.                  |
 | klogSyncTime          | Time spent syncing the klog.                   |
+| klogCompactorTime     | Time spent by the mutation log compactor.      |
 | item_alloc_sizes      | Item allocation size counters (in bytes).      |
 
 

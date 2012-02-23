@@ -5025,6 +5025,58 @@ static enum test_result test_delete_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
     return SUCCESS;
 }
 
+static enum test_result test_compact_mutation_log(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+
+    std::vector<std::string> keys;
+    for (int j = 0; j < 1000; ++j) {
+        std::stringstream ss;
+        ss << "key-" << j;
+        std::string key(ss.str());
+        keys.push_back(key);
+    }
+
+    int compactor_runs = get_int_stat(h, h1, "ep_mlog_compactor_runs");
+
+    std::vector<std::string>::iterator it;
+    for (it = keys.begin(); it != keys.end(); ++it) {
+        item *i;
+        check(store(h, h1, NULL, OPERATION_SET, it->c_str(), it->c_str(), &i, 0, 0)
+              == ENGINE_SUCCESS, "Failed to store a value");
+        h1->release(h, NULL, i);
+    }
+    wait_for_flusher_to_settle(h, h1);
+
+    for (it = keys.begin(); it != keys.end(); ++it) {
+        check(h1->remove(h, NULL, (*it).c_str(), (*it).length(), 0, 0) == ENGINE_SUCCESS,
+              "Failed to remove a key");
+    }
+    wait_for_flusher_to_settle(h, h1);
+
+    for (it = keys.begin(); it != keys.end(); ++it) {
+        item *i;
+        check(store(h, h1, NULL, OPERATION_SET, it->c_str(), it->c_str(), &i, 0, 0)
+              == ENGINE_SUCCESS, "Failed to store a value");
+        h1->release(h, NULL, i);
+    }
+    testHarness.time_travel(10);
+    wait_for_flusher_to_settle(h, h1);
+
+    // Wait until the current open checkpoint is closed and purged from memory.
+    wait_for_stat_change(h, h1, "ep_mlog_compactor_runs", compactor_runs);
+
+    testHarness.reload_engine(&h, &h1,
+                              testHarness.engine_path,
+                              "klog_path=/tmp/mutation.log",
+                              true, false);
+    assert(get_int_stat(h, h1, "ep_warmed_up") == 1000);
+    check(get_int_stat(h, h1, "count_new", "klog") == 1000,
+          "Number of new log entries should be 2000");
+    check(get_int_stat(h, h1, "count_del", "klog") == 0,
+          "Number of delete log entries should be 0");
+
+    return SUCCESS;
+}
+
 static enum test_result prepare(engine_test_t *test) {
     if (test->cfg == NULL || // No config
         strstr(test->cfg, "backend") == NULL || // No backend specified
@@ -5550,6 +5602,13 @@ engine_test_t* get_tests(void) {
 
         TestCase("delete with meta", test_delete_with_meta, NULL,
                  teardown, NULL, prepare, cleanup, BACKEND_ALL),
+
+        // mutation log compactor tests
+        TestCase("compact a mutation log", test_compact_mutation_log,
+                 NULL, teardown,
+                 "klog_path=/tmp/mutation.log;klog_max_log_size=32768;"
+                 "klog_max_entry_ratio=2;klog_compactor_stime=5",
+                 prepare, cleanup, BACKEND_ALL),
 
         TestCase(NULL, NULL, NULL, NULL, NULL, prepare, cleanup, BACKEND_ALL)
     };

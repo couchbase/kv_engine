@@ -81,6 +81,7 @@ ep_la_SOURCES = \
                  kvstore.hh \
                  locks.hh \
                  mutation_log.cc mutation_log.hh \
+                 mutation_log_compactor.cc mutation_log_compactor.hh \
                  mutex.cc mutex.hh \
                  priority.cc priority.hh \
                  queueditem.cc queueditem.hh \

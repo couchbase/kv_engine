@@ -167,6 +167,16 @@
             "descr": "Logging block size.",
             "type": "size_t"
         },
+        "klog_compactor_queue_cap": {
+            "default": "500000",
+            "descr": "Persistence queue cap to prevent the log compactor from being scheduled",
+            "type": "size_t"
+        },
+        "klog_compactor_stime": {
+            "default": "3600",
+            "descr": "Sleep time of a mutation log compactor",
+            "type": "size_t"
+        },
         "klog_flush": {
             "default": "commit2",
             "descr": "When to flush the log (complete current block).",
@@ -177,6 +187,16 @@
                 "full"
             ],
             "type": "std::string"
+        },
+        "klog_max_entry_ratio": {
+            "default": "10",
+            "descr": "Maximum ratio of the number of items logged to the number of unique items",
+            "type": "size_t"
+        },
+        "klog_max_log_size": {
+            "default": "4294967296",
+            "descr": "Maximum size of a log file allowed (4GB by default)",
+            "type": "size_t"
         },
         "klog_path": {
             "default": "",

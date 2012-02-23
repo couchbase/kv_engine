@@ -250,6 +250,10 @@ public:
         return syncConfig & FLUSH_FULL;
     }
 
+    size_t getBlockSize() const {
+        return blockSize;
+    }
+
     bool exists() const;
 
     const std::string &getLogFile() const { return logPath; }
@@ -260,6 +264,16 @@ public:
      * This typically happens automatically.
      */
     void open();
+
+    /**
+     * Close the log file.
+     */
+    void close();
+
+    /**
+     * Replace the current log with a given log.
+     */
+    bool replaceWith(MutationLog &mlog);
 
     bool setSyncConfig(const std::string &s);
     bool setFlushConfig(const std::string &s);

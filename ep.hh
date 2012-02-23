@@ -49,6 +49,7 @@ extern EXTENSION_LOGGER_DESCRIPTOR *getLogger(void);
 #include "vbucketmap.hh"
 #include "item_pager.hh"
 #include "mutation_log.hh"
+#include "mutation_log_compactor.hh"
 
 #define MAX_BG_FETCH_DELAY 900
 
@@ -846,6 +847,13 @@ public:
      */
     const MutationLog *getMutationLog() const { return &mutationLog; }
 
+    /**
+     * Get the config of the mutation log compactor.
+     */
+    MutationLogCompactorConfig &getMutationLogCompactorConfig() {
+        return mlogCompactorConfig;
+    }
+
 protected:
     // Method called by the flusher
     std::map<std::pair<uint16_t, uint16_t>, vbucket_state> loadVBucketState();
@@ -960,6 +968,7 @@ private:
     SyncObject                 mutex;
 
     MutationLog                mutationLog;
+    MutationLogCompactorConfig mlogCompactorConfig;
 
     // The writing queue is used by the flusher thread to keep
     // track of the objects it works on. It should _not_ be used
