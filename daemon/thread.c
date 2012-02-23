@@ -44,11 +44,11 @@ struct conn_queue {
 pthread_mutex_t conn_lock = PTHREAD_MUTEX_INITIALIZER;
 
 /* Lock for global stats */
-static pthread_mutex_t stats_lock;
+static pthread_mutex_t stats_lock = PTHREAD_MUTEX_INITIALIZER;
 
 /* Free list of CQ_ITEM structs */
 static CQ_ITEM *cqi_freelist;
-static pthread_mutex_t cqi_freelist_lock;
+static pthread_mutex_t cqi_freelist_lock = PTHREAD_MUTEX_INITIALIZER;
 
 static LIBEVENT_THREAD dispatcher_thread;
 
@@ -65,8 +65,8 @@ LIBEVENT_THREAD *tap_thread;
  * Number of worker threads that have finished setting themselves up.
  */
 static int init_count = 0;
-static pthread_mutex_t init_lock;
-static pthread_cond_t init_cond;
+static pthread_mutex_t init_lock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t init_cond = PTHREAD_COND_INITIALIZER;
 
 
 static void thread_libevent_process(int fd, short which, void *arg);
@@ -831,11 +831,6 @@ void thread_init(int nthr, struct event_base *main_base,
     int i;
     nthreads = nthr + 1;
 
-    pthread_mutex_init(&stats_lock, NULL);
-    pthread_mutex_init(&init_lock, NULL);
-    pthread_cond_init(&init_cond, NULL);
-
-    pthread_mutex_init(&cqi_freelist_lock, NULL);
     cqi_freelist = NULL;
 
     threads = calloc(nthreads, sizeof(LIBEVENT_THREAD));
