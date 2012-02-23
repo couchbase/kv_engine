@@ -1256,6 +1256,10 @@ queued_item TapProducer::next(bool &shouldPause) {
     LockHolder lh(queueLock);
     shouldPause = false;
 
+    if (!isBackfillCompleted_UNLOCKED()) {
+        checkBackfillCompletion_UNLOCKED();
+    }
+
     if (queue->empty() && isBackfillCompleted_UNLOCKED()) {
         const VBucketMap &vbuckets = engine.getEpStore()->getVBuckets();
         uint16_t invalid_count = 0;
