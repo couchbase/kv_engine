@@ -820,12 +820,14 @@ ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
     seqnoReceived = s;
     isLastAckSucceed = false;
 
+    size_t num_logs = 0;
     /* Implicit ack _every_ message up until this message */
     while (iter != tapLog.end() && iter->seqno != s) {
         getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
                          "%s Implicit ack (#%u)\n",
                          logHeader(), iter->seqno);
         ++iter;
+        ++num_logs;
     }
 
     bool notifyTapNotificationThread = false;
@@ -849,10 +851,12 @@ ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
             getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
                              "%s Explicit ack (#%u)\n",
                              logHeader(), iter->seqno);
+            ++num_logs;
             ++iter;
             tapLog.erase(tapLog.begin(), iter);
             isLastAckSucceed = true;
         } else {
+            num_logs = 0;
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                              "%s Explicit ack of nonexisting entry (#%u)\n",
                              logHeader(), s);
@@ -898,11 +902,8 @@ ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
 
         // Reschedule _this_ sequence number..
         if (iter != tapLog.end()) {
-            // As we remove the tap log entry for this nacked sequence number and reschedule it,
-            // simply reduce memory overhead here.
-            stats.memOverhead.decr(sizeof(TapLogElement));
-            assert(stats.memOverhead.get() < GIGANTOR);
             reschedule_UNLOCKED(iter);
+            ++num_logs;
             ++iter;
         }
         tapLog.erase(tapLog.begin(), iter);
@@ -917,6 +918,9 @@ ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
         expiryTime = 0;
         ret = ENGINE_DISCONNECT;
     }
+
+    stats.memOverhead.decr(num_logs * sizeof(TapLogElement));
+    assert(stats.memOverhead.get() < GIGANTOR);
 
     return ret;
 }
