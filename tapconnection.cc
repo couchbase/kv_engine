@@ -19,9 +19,6 @@
 #include "ep_engine.h"
 #include "dispatcher.hh"
 
-static void notifyReplicatedItems(std::list<TapLogElement>::iterator from,
-                                  std::list<TapLogElement>::iterator to,
-                                  EventuallyPersistentEngine &engine);
 
 Atomic<uint64_t> TapConnection::tapCounter(1);
 
@@ -853,7 +850,6 @@ ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
                              "%s Explicit ack (#%u)\n",
                              logHeader(), iter->seqno);
             ++iter;
-            notifyReplicatedItems(tapLog.begin(), iter, engine);
             tapLog.erase(tapLog.begin(), iter);
             isLastAckSucceed = true;
         } else {
@@ -900,7 +896,6 @@ ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
                          "%s Received temporary TAP nack (#%u): Code: %u (%s)\n",
                          logHeader(), seqnoReceived, status, msg.c_str());
 
-        notifyReplicatedItems(tapLog.begin(), iter, engine);
         // Reschedule _this_ sequence number..
         if (iter != tapLog.end()) {
             // As we remove the tap log entry for this nacked sequence number and reschedule it,
@@ -913,7 +908,6 @@ ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
         tapLog.erase(tapLog.begin(), iter);
         break;
     default:
-        notifyReplicatedItems(tapLog.begin(), iter, engine);
         tapLog.erase(tapLog.begin(), iter);
         ++numTapNack;
         getLogger()->log(EXTENSION_LOG_WARNING, NULL,
@@ -925,28 +919,6 @@ ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
     }
 
     return ret;
-}
-
-static void notifyReplicatedItems(std::list<TapLogElement>::iterator from,
-                                  std::list<TapLogElement>::iterator to,
-                                  EventuallyPersistentEngine &engine) {
-
-    size_t numTapLogs = 0;
-    for (std::list<TapLogElement>::iterator it = from; it != to; ++it) {
-        if (it->event == TAP_MUTATION) {
-            queued_item qi = it->item;
-            StoredValue *sv = engine.getEpStore()->getStoredValue(qi->getKey(),
-                                                                  qi->getVBucketId(),
-                                                                  false);
-            if (sv != NULL) {
-                sv->incrementNumReplicas();
-            }
-        }
-        ++numTapLogs;
-    }
-
-    engine.getEpStats().memOverhead.decr(numTapLogs * sizeof(TapLogElement));
-    assert(engine.getEpStats().memOverhead.get() < GIGANTOR);
 }
 
 bool TapProducer::checkBackfillCompletion_UNLOCKED() {

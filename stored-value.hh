@@ -227,19 +227,6 @@ public:
     }
 
     /**
-     * Get the number of times this value was replicated.
-     *
-     * @return the number of times this value was replicaded
-     */
-    uint8_t getNumReplicas() const {
-        return replicas;
-    }
-
-    void incrementNumReplicas(uint8_t count = 1) {
-        replicas += count;
-    }
-
-    /**
      * Set a new value for this item.
      *
      * @param itm the item with a new value
@@ -268,7 +255,6 @@ public:
         size_t newSize = size();
         increaseCacheSize(ht, newSize);
         increaseCurrentSize(stats, newSize - value->length());
-        replicas = 0;
     }
 
     size_t valLength() {
@@ -595,7 +581,7 @@ private:
     StoredValue(const Item &itm, StoredValue *n, EPStats &stats, HashTable &ht,
                 bool setDirty = true, bool small = false) :
         value(itm.getValue()), next(n), id(itm.getId()),
-        dirtiness(0), _isSmall(small), flags(itm.getFlags()), replicas(0)
+        dirtiness(0), _isSmall(small), flags(itm.getFlags())
     {
 
         if (_isSmall) {
@@ -641,7 +627,6 @@ private:
     bool               _isSmall  :  1; // 1 bit    | 4 bytes
     bool               _isDirty  :  1; // 1 bit  --+
     uint32_t           flags;          // 4 bytes
-    Atomic<uint8_t>    replicas;       // 1 byte
 
 
     union stored_value_bodies extra;
