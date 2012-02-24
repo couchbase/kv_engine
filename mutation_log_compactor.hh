@@ -7,7 +7,7 @@
 #include "stats.hh"
 #include "mutation_log.hh"
 
-const size_t MAX_LOG_SIZE(4294967296);
+const size_t MAX_LOG_SIZE((size_t)(unsigned int)-1);
 const size_t MAX_ENTRY_RATIO(10);
 const size_t LOG_COMPACTOR_QUEUE_CAP(500000);
 const int MUTATION_LOG_COMPACTOR_FREQ(3600);
