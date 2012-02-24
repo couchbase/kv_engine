@@ -305,7 +305,8 @@ static void testLoggingDirty() {
         assert(maps[3].find("key2") == maps[3].end());
 
         // Check the leftovers
-        std::vector<mutation_log_uncommitted_t> leftovers(h.getUncommitted());
+        std::vector<mutation_log_uncommitted_t> leftovers;
+        h.getUncommitted(leftovers);
         std::sort(leftovers.begin(), leftovers.end(), leftover_compare);
         assert(leftovers.size() == 2);
         assert(leftovers[0].vbucket == 3);

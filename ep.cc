@@ -2649,7 +2649,44 @@ bool EventuallyPersistentStore::warmupFromLog(const std::map<std::pair<uint16_t,
                      ((end2 - end1) / 1000000));
 
     // Anything left in the "loading" map at this point is uncommitted.
-    // TODO:  Forward reconciliation of uncommitted data.
+    std::vector<mutation_log_uncommitted_t> uitems;
+    harvester.getUncommitted(uitems);
+    if (uitems.size() > 0) {
+        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                         "%d items were uncommitted in the mutation log file. "
+                         "Deleting them from the underlying data store.\n",
+                         uitems.size());
+        std::vector<mutation_log_uncommitted_t>::iterator uit = uitems.begin();
+        for (; uit != uitems.end(); ++uit) {
+            const mutation_log_uncommitted_t &record = *uit;
+            RCPtr<VBucket> vb = getVBucket(record.vbucket);
+            if (!vb) {
+                continue;
+            }
+
+            bool should_delete = false;
+            if (record.type == ML_NEW) {
+                Item itm(record.key.c_str(), record.key.size(),
+                         0, 0, // flags, expiration
+                         NULL, 0, // data
+                         0, // CAS,
+                         record.rowid, record.vbucket);
+                if (vb->ht.insert(itm, false, true) == NOT_FOUND) {
+                    should_delete = true;
+                }
+            } else if (record.type == ML_DEL) {
+                should_delete = true;
+            }
+
+            if (should_delete) {
+                // Deletion is pushed into the checkpoint for persistence.
+                deleteItem(record.key,
+                           0, 0, // seqno, cas
+                           record.vbucket, NULL,
+                           true, false); // force, use_meta
+            }
+        }
+    }
 
     return rv;
 }

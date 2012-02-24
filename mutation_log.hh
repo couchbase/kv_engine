@@ -472,7 +472,7 @@ public:
     /**
      * Get the list of uncommitted keys and stuff from the log.
      */
-    std::vector<mutation_log_uncommitted_t> getUncommitted();
+    void getUncommitted(std::vector<mutation_log_uncommitted_t> &uitems);
 
 private:
 

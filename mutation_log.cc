@@ -574,8 +574,7 @@ void MutationLogHarvester::apply(void *arg, mlCallback mlc) {
     }
 }
 
-std::vector<mutation_log_uncommitted_t> MutationLogHarvester::getUncommitted() {
-    std::vector<mutation_log_uncommitted_t> rv;
+void MutationLogHarvester::getUncommitted(std::vector<mutation_log_uncommitted_t> &uitems) {
 
     for (std::set<uint16_t>::const_iterator vit = vbid_set.begin(); vit != vbid_set.end(); ++vit) {
         uint16_t vb(*vit);
@@ -592,11 +591,9 @@ std::vector<mutation_log_uncommitted_t> MutationLogHarvester::getUncommitted() {
             leftover.rowid = t.first;
             leftover.type = static_cast<mutation_log_type_t>(t.second);
 
-            rv.push_back(leftover);
+            uitems.push_back(leftover);
         }
     }
-
-    return rv;
 }
 
 size_t MutationLogHarvester::total() {
