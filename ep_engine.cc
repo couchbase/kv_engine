@@ -1881,17 +1881,6 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
         }
         *vbucket = static_cast<Item*>(*itm)->getVBucketId();
 
-        if (!connection->supportsAck()) {
-            if (gv.getStoredValue() != NULL) {
-                gv.getStoredValue()->incrementNumReplicas();
-                syncRegistry.itemReplicated(*item);
-            } else {
-                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                 "NULL StoredValue* for key %s, vbucket %d",
-                                 item->getKey().c_str(), item->getVBucketId());
-            }
-        }
-
         if (!connection->vbucketFilter(*vbucket)) {
             // We were going to use the item that we received from
             // disk, but the filter says not to, so we need to get rid
@@ -1931,11 +1920,6 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
                 assert(gv.getStoredValue() != NULL);
                 *itm = gv.getValue();
                 ret = TAP_MUTATION;
-
-                if (!connection->supportsAck()) {
-                    gv.getStoredValue()->incrementNumReplicas();
-                    syncRegistry.itemReplicated(*gv.getValue());
-                }
 
                 ++stats.numTapFGFetched;
                 ++connection->queueDrain;
@@ -3912,14 +3896,6 @@ static void notifyListener(std::vector< std::pair<StoredValue*, uint16_t> > &svL
     for (it = svList.begin(); it != svList.end(); it++) {
         StoredValue *sv = it->first;
         key_spec_t keyspec(sv->getCas(), it->second, sv->getKey());
-        uint8_t replicas = sv->getNumReplicas();
-
-        if ((replicas > 0) &&
-            (syncType == REP || syncType == REP_OR_PERSIST ||
-             syncType == REP_AND_PERSIST)) {
-
-            listener->keySynced(keyspec, replicas);
-        }
 
         if (sv->isClean() &&
             (syncType == PERSIST || syncType == REP_OR_PERSIST ||

@@ -19,9 +19,6 @@
 #include "ep_engine.h"
 #include "dispatcher.hh"
 
-static void notifyReplicatedItems(std::list<TapLogElement>::iterator from,
-                                  std::list<TapLogElement>::iterator to,
-                                  EventuallyPersistentEngine &engine);
 
 Atomic<uint64_t> TapConnection::tapCounter(1);
 
@@ -692,7 +689,6 @@ ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
                              "Explicit ack <%s> (#%u)\n",
                              getName().c_str(), iter->seqno);
             ++iter;
-            notifyReplicatedItems(tapLog.begin(), iter, engine);
             tapLog.erase(tapLog.begin(), iter);
             isLastAckSucceed = true;
         } else {
@@ -730,7 +726,6 @@ ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
                          "Received temporary TAP nack from <%s> (#%u): Code: %u (%s)\n",
                          getName().c_str(), seqnoReceived, status, msg.c_str());
 
-        notifyReplicatedItems(tapLog.begin(), iter, engine);
         // Reschedule _this_ sequence number..
         if (iter != tapLog.end()) {
             reschedule_UNLOCKED(iter);
@@ -739,7 +734,6 @@ ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
         tapLog.erase(tapLog.begin(), iter);
         break;
     default:
-        notifyReplicatedItems(tapLog.begin(), iter, engine);
         tapLog.erase(tapLog.begin(), iter);
         ++numTapNack;
         getLogger()->log(EXTENSION_LOG_WARNING, NULL,
@@ -1500,22 +1494,5 @@ void TapProducer::scheduleBackfill_UNLOCKED(const std::vector<uint16_t> &vblist)
     if (newBackfillVBs.size() > 0) {
         doRunBackfill = true;
         backfillCompleted = false;
-    }
-}
-
-static void notifyReplicatedItems(std::list<TapLogElement>::iterator from,
-                                  std::list<TapLogElement>::iterator to,
-                                  EventuallyPersistentEngine &engine) {
-    for (std::list<TapLogElement>::iterator it = from; it != to; ++it) {
-        if (it->event == TAP_MUTATION) {
-            queued_item qi = it->item;
-            StoredValue *sv = engine.getEpStore()->getStoredValue(qi->getKey(),
-                                                                  qi->getVBucketId(),
-                                                                  false);
-            if (sv != NULL) {
-                sv->incrementNumReplicas();
-                engine.getSyncRegistry().itemReplicated(qi);
-            }
-        }
     }
 }
