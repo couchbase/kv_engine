@@ -3657,7 +3657,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
     uint8_t opcode = request->message.header.request.opcode;
 
     if (!Item::decodeMeta(dta + nbytes, seqno, cas, length, fl) ||
-        length != nbytes || fl != flags) {
+        fl != flags) {
         return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
                             PROTOCOL_BINARY_RAW_BYTES,
                             PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
