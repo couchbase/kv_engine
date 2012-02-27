@@ -294,121 +294,6 @@ void CheckpointManager::registerPersistenceCursor() {
     checkpointList.front()->registerCursorName(persistenceCursor.name);
 }
 
-protocol_binary_response_status CheckpointManager::startOnlineUpdate() {
-    LockHolder lh(queueLock);
-    assert(checkpointList.size() > 0);
-
-    if (doOnlineUpdate) {
-        return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
-    }
-
-    // close the current checkpoint and create a new checkpoint
-    checkOpenCheckpoint_UNLOCKED(true, true);
-
-    // This item represents the start of online update and is also sent to the slave node..
-    queued_item dummyItem(new QueuedItem("", vbucketId, queue_op_online_update_start));
-    checkpointList.back()->queueDirty(dummyItem, this);
-    ++numItems;
-
-    onlineUpdateCursor.currentCheckpoint = checkpointList.end();
-    --(onlineUpdateCursor.currentCheckpoint);
-
-    onlineUpdateCursor.currentPos = checkpointList.back()->begin();
-    (*(onlineUpdateCursor.currentCheckpoint))->registerCursorName(onlineUpdateCursor.name);
-
-    doOnlineUpdate = true;
-    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
-}
-
-protocol_binary_response_status CheckpointManager::stopOnlineUpdate() {
-    LockHolder lh(queueLock);
-
-    if ( !doOnlineUpdate ) {
-        return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
-    }
-
-    // This item represents the end of online update and is also sent to the slave node..
-    queued_item dummyItem(new QueuedItem("", vbucketId, queue_op_online_update_end));
-    checkpointList.back()->queueDirty(dummyItem, this);
-    ++numItems;
-
-    //close the current checkpoint and create a new checkpoint
-    checkOpenCheckpoint_UNLOCKED(true, true);
-
-    (*(onlineUpdateCursor.currentCheckpoint))->removeCursorName(onlineUpdateCursor.name);
-
-    // Adjust for onlineupdate start and end items
-    numItems -= 2;
-    decrPersistenceCursorOffset(2);
-    std::map<const std::string, CheckpointCursor>::iterator map_it = tapCursors.begin();
-    for (; map_it != tapCursors.end(); ++map_it) {
-        map_it->second.offset -= 2;
-    }
-
-    doOnlineUpdate = false;
-    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
-}
-
-protocol_binary_response_status CheckpointManager::beginHotReload() {
-    LockHolder lh(queueLock);
-
-    if (!doOnlineUpdate) {
-         getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                          "Not in online update phase, just return.");
-         return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
-    }
-    if (doHotReload) {
-        getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                         "In online update revert phase already, just return.");
-        return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
-    }
-
-    doHotReload = true;
-
-    assert(persistenceCursor.currentCheckpoint == onlineUpdateCursor.currentCheckpoint);
-
-    // This item represents the end of online update and is also sent to the slave node..
-    queued_item dummyItem(new QueuedItem("", vbucketId, queue_op_online_update_revert));
-    checkpointList.back()->queueDirty(dummyItem, this);
-    ++numItems;
-
-    //close the current checkpoint and create a new checkpoint
-    checkOpenCheckpoint_UNLOCKED(true, true);
-
-    //Update persistence cursor due to hotReload
-    (*(persistenceCursor.currentCheckpoint))->removeCursorName(persistenceCursor.name);
-    persistenceCursor.currentCheckpoint = --(checkpointList.end());
-    persistenceCursor.currentPos = checkpointList.back()->begin();
-
-    (*(persistenceCursor.currentCheckpoint))->registerCursorName(persistenceCursor.name);
-
-    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
-}
-
-protocol_binary_response_status CheckpointManager::endHotReload(uint64_t total)  {
-    LockHolder lh(queueLock);
-
-    if (!doHotReload) {
-        return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
-    }
-
-    persistenceCursor.offset += total-1;    // Should ignore the first dummy item
-
-    (*(onlineUpdateCursor.currentCheckpoint))->removeCursorName(onlineUpdateCursor.name);
-    doHotReload = false;
-    doOnlineUpdate = false;
-
-    // Adjust for onlineupdate start and end items
-    numItems -= 2;
-    decrPersistenceCursorOffset(2);
-    std::map<const std::string, CheckpointCursor>::iterator map_it = tapCursors.begin();
-    for (; map_it != tapCursors.end(); ++map_it) {
-        map_it->second.offset -= 2;
-    }
-
-    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
-}
-
 bool CheckpointManager::registerTAPCursor(const std::string &name, uint64_t checkpointId,
                                           bool closedCheckpointOnly, bool alwaysFromBeginning) {
     LockHolder lh(queueLock);
@@ -673,10 +558,6 @@ void CheckpointManager::removeInvalidCursorsOnCheckpoint(Checkpoint *pCheckpoint
             if (pCheckpoint != *(persistenceCursor.currentCheckpoint)) {
                 invalidCursorNames.push_back(*cit);
             }
-        } else if ((*cit).compare(onlineUpdateCursor.name) == 0) { // OnlineUpdate cursor
-            if (pCheckpoint != *(onlineUpdateCursor.currentCheckpoint)) {
-                invalidCursorNames.push_back(*cit);
-            }
         } else { // Check it with tap cursors
             std::map<const std::string, CheckpointCursor>::iterator mit = tapCursors.find(*cit);
             if (mit == tapCursors.end() || pCheckpoint != *(mit->second.currentCheckpoint)) {
@@ -719,11 +600,6 @@ void CheckpointManager::collapseClosedCheckpoints(std::list<Checkpoint*> &collap
                 persistenceCursor.currentPos =  (*lastClosedChk)->begin();
                 persistenceCursor.offset = 0;
                 (*lastClosedChk)->registerCursorName(persistenceCursor.name);
-            } else if ((*sit).compare(onlineUpdateCursor.name) == 0) { // onlineUpdate cursor
-                onlineUpdateCursor.currentCheckpoint = lastClosedChk;
-                onlineUpdateCursor.currentPos =  (*lastClosedChk)->begin();
-                onlineUpdateCursor.offset = 0;
-                (*lastClosedChk)->registerCursorName(onlineUpdateCursor.name);
             } else { // Reposition tap cursors
                 std::map<const std::string, CheckpointCursor>::iterator mit = tapCursors.find(*sit);
                 if (mit != tapCursors.end()) {
@@ -744,8 +620,6 @@ void CheckpointManager::collapseClosedCheckpoints(std::list<Checkpoint*> &collap
         for (; cit != fastCursors.end(); ++cit) {
             if ((*cit).compare(persistenceCursor.name) == 0) {
                 decrPersistenceCursorOffset(numDuplicatedItems + numMetaItems);
-            } else if ((*cit).compare(onlineUpdateCursor.name) == 0) {
-                onlineUpdateCursor.offset -= (numDuplicatedItems + numMetaItems);
             } else {
                 std::map<const std::string, CheckpointCursor>::iterator mit = tapCursors.find(*cit);
                 if (mit != tapCursors.end()) {
@@ -831,23 +705,15 @@ uint64_t CheckpointManager::getAllItemsFromCurrentPosition(CheckpointCursor &cur
 
 uint64_t CheckpointManager::getAllItemsForPersistence(std::vector<queued_item> &items) {
     LockHolder lh(queueLock);
-    uint64_t checkpointId;
-    if (doOnlineUpdate) {
-        // Get all the items up to the start of the onlineUpdate cursor.
-        uint64_t barrier = (*(onlineUpdateCursor.currentCheckpoint))->getId();
-        checkpointId = getAllItemsFromCurrentPosition(persistenceCursor, barrier, items);
-        persistenceCursor.offset += items.size();
-    } else {
-        // Get all the items up to the end of the current open checkpoint.
-        checkpointId = getAllItemsFromCurrentPosition(persistenceCursor, 0, items);
-        persistenceCursor.offset = numItems;
-    }
+    // Get all the items up to the end of the current open checkpoint.
+    uint64_t checkpoint_id = getAllItemsFromCurrentPosition(persistenceCursor, 0, items);
+    persistenceCursor.offset = numItems;
 
     getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
                      "Grab %d items through the persistence cursor from vbucket %d.\n",
                      items.size(), vbucketId);
 
-    return checkpointId;
+    return checkpoint_id;
 }
 
 uint64_t CheckpointManager::getAllItemsForTAPConnection(const std::string &name,
@@ -866,18 +732,6 @@ uint64_t CheckpointManager::getAllItemsForTAPConnection(const std::string &name,
     getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
                      "Grab %d items through the tap cursor with name \"%s\" from vbucket %d.\n",
                      items.size(), name.c_str(), vbucketId);
-
-    return checkpointId;
-}
-
-uint64_t CheckpointManager::getAllItemsForOnlineUpdate(std::vector<queued_item> &items) {
-    LockHolder lh(queueLock);
-    uint64_t checkpointId = 0;
-    if (doOnlineUpdate) {
-        // Get all the items up to the end of the current open checkpoint
-        checkpointId = getAllItemsFromCurrentPosition(onlineUpdateCursor, 0, items);
-        onlineUpdateCursor.offset += items.size();
-    }
 
     return checkpointId;
 }
@@ -1144,8 +998,6 @@ bool CheckpointManager::checkAndAddNewCheckpoint(uint64_t id, bool &pCursorRepos
             for (; cit != cursors.end(); ++cit) {
                 if ((*cit).compare(persistenceCursor.name) == 0) { // Persistence cursor
                     persistenceCursor.currentPos = checkpointList.back()->begin();
-                } else if ((*cit).compare(onlineUpdateCursor.name) == 0) { // OnlineUpdate cursor
-                    onlineUpdateCursor.currentPos = checkpointList.back()->begin();
                 } else { // TAP cursors
                     std::map<const std::string, CheckpointCursor>::iterator mit =
                         tapCursors.find(*cit);

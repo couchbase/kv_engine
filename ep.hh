@@ -575,15 +575,6 @@ public:
                                  bool force,
                                  bool use_meta);
 
-    /**
-     * Revert online update, all mutations during online update period will be reverted
-     * Deleted and reset items will be marked as evicted. Newly added items will be removed
-     * from hashtable. During revert period, all other clients request will be temporarily
-     * blocked.
-     * @return the result of the stop onlineupdate operation
-     */
-    protocol_binary_response_status revertOnlineUpdate(RCPtr<VBucket> vb);
-
     void reset();
 
     /**

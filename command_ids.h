@@ -84,39 +84,6 @@
 #define CMD_RESTORE_COMPLETE 0x9a
 
 /**
- * Start online update, all mutations won't be persisted to disk
- * The server will return the following error codes:
- * <ul>
- *  <li>PROTOCOL_BINARY_RESPONSE_SUCCESS if the online update process is started</li>
- *  <li>PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED if the server is in online update mode already</li>
- * </ul>
- *
- */
-#define CMD_ONLINE_UPDATE_START 0x9b
-
-/**
- * Complete online update, all queued mutations will be persisted again
- * The server will return the following error codes:
- * <ul>
- *  <li>PROTOCOL_BINARY_RESPONSE_SUCCESS if the online update process is done</li>
- *  <li>PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED if the server is NOT in online update mode</li>
- * </ul>
- *
- */
-#define CMD_ONLINE_UPDATE_COMPLETE 0x9c
-
-/**
- * Revert online update, all queued mutations will be discarded
- * The server will return the following error codes:
- * <ul>
- *  <li>PROTOCOL_BINARY_RESPONSE_SUCCESS if the online update process is reverted</li>
- *  <li>PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED if the server is NOT in online update mode</li>
- * </ul>
- *
- */
-#define CMD_ONLINE_UPDATE_REVERT 0x9d
-
-/**
  * Close the TAP connection for the registered TAP client and remove the
  * checkpoint cursors from its registered vbuckets.
  */

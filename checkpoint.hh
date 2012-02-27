@@ -260,8 +260,8 @@ public:
                       CheckpointConfig &config, uint64_t checkpointId = 1) :
         stats(st), checkpointConfig(config), vbucketId(vbucket), numItems(0),
         mutationCounter(0), persistenceCursor("persistence"),
-        onlineUpdateCursor("online_update"), isCollapsedCheckpoint(false),
-        checkpointExtension(false), doOnlineUpdate(false), doHotReload(false)
+        isCollapsedCheckpoint(false),
+        checkpointExtension(false)
     {
         addNewCheckpoint(checkpointId);
         registerPersistenceCursor();
@@ -324,39 +324,6 @@ public:
     std::list<std::string> getTAPCursorNames();
 
     /**
-     * Start onlineupdate - stop persisting mutation to disk
-     * @return :
-     *    PROTOCOL_BINARY_RESPONSE_SUCCESS if the online update mode is enabled
-     *    PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED if server is in online update mode.
-     */
-    protocol_binary_response_status startOnlineUpdate();
-
-    /**
-     * Stop onlineupdate and continue persisting mutations
-     * @return :
-     *    PROTOCOL_BINARY_RESPONSE_SUCCESS if the online update process finishes.
-     *    PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED if server is noT in online update mode
-     */
-    protocol_binary_response_status stopOnlineUpdate();
-
-    /**
-    *  Start hot reload process to create a hotreload event for taps and
-    *  move persistenceCursor to skip all mutations during onlineupgrade period.
-    *  @return :
-    *     PROTOCOL_BINARY_RESPONSE_SUCCESS if successfully to start hot reload process
-    *     PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED if the server is NOT in online update mode
-    */
-    protocol_binary_response_status beginHotReload();
-
-    /**
-    *  Finish hot reload process
-    * @total total items that are reverted
-    * @return
-    *    PROTOCOL_BINARY_RESPONSE_SUCCESS - finish hot reload process
-    */
-    protocol_binary_response_status endHotReload(uint64_t total);
-
-    /**
      * Queue an item to be written to persistent layer.
      * @param item the item to be persisted.
      * @param vbucket the vbucket that a new item is pushed into.
@@ -380,13 +347,6 @@ public:
      * @return the last closed checkpoint Id.
      */
     uint64_t getAllItemsForPersistence(std::vector<queued_item> &items);
-    /**
-     * Return the list of items, which needs to be updated from backgrond fetcher.
-     * @param items the array that will contain the list of items to be fetched and
-     * be updated to the hashtable.
-     * @return the last closed checkpoint Id.
-     */
-    uint64_t getAllItemsForOnlineUpdate(std::vector<queued_item> &items);
 
     /**
      * Return the list of all the items to a given TAP cursor since its current position.
@@ -433,11 +393,6 @@ public:
      * Clear all the checkpoints managed by this checkpoint manager.
      */
     void clear(vbucket_state_t vbState);
-
-    bool isOnlineUpdate() { return doOnlineUpdate; }
-    void setOnlineUpdate(bool olupdate) { doOnlineUpdate = olupdate; }
-
-    bool isHotReload() { return doHotReload; }
 
     /**
      * If a given TAP cursor currently points to the checkpoint_end dummy item,
@@ -570,14 +525,10 @@ private:
     uint64_t                 mutationCounter;
     std::list<Checkpoint*>   checkpointList;
     CheckpointCursor         persistenceCursor;
-    CheckpointCursor         onlineUpdateCursor;
     bool                     isCollapsedCheckpoint;
     bool                     checkpointExtension;
     uint64_t                 lastClosedCheckpointId;
     std::map<const std::string, CheckpointCursor> tapCursors;
-
-    Atomic<bool>              doOnlineUpdate;
-    Atomic<bool>              doHotReload;
 };
 
 /**

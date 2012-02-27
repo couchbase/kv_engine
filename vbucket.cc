@@ -197,7 +197,5 @@ void VBucket::addStats(bool details, ADD_STAT add_stat, const void *c) {
         addStat("queue_drain", dirtyQueueDrain, add_stat, c);
         addStat("queue_age", getQueueAge(), add_stat, c);
         addStat("pending_writes", dirtyQueuePendingWrites, add_stat, c);
-        addStat("online_update", checkpointManager.isOnlineUpdate() ?
-                "true" : "false", add_stat, c);
     }
 }

@@ -289,15 +289,6 @@ class MemcachedClient(object):
     def start_replication(self):
         return self._doCmd(memcacheConstants.CMD_START_REPLICATION, '', '')
 
-    def start_onlineupdate(self):
-        return self._doCmd(memcacheConstants.CMD_START_ONLINEUPDATE, '', '')
-
-    def complete_onlineupdate(self):
-        return self._doCmd(memcacheConstants.CMD_COMPLETE_ONLINEUPDATE, '', '')
-
-    def revert_onlineupdate(self):
-        return self._doCmd(memcacheConstants.CMD_REVERT_ONLINEUPDATE, '', '')
-
     def set_vbucket_state(self, vbucket, stateName):
         assert isinstance(vbucket, int)
         self.vbucketId = vbucket

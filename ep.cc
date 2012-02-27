@@ -897,12 +897,6 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::set(const Item &itm,
     if (!vb || vb->getState() == vbucket_state_dead) {
         ++stats.numNotMyVBuckets;
         return ENGINE_NOT_MY_VBUCKET;
-    } else if (vb->getState() == vbucket_state_active) {
-        if (vb->checkpointManager.isHotReload()) {
-            if (vb->addPendingOp(cookie)) {
-                return ENGINE_EWOULDBLOCK;
-            }
-        }
     } else if (vb->getState() == vbucket_state_replica && !force) {
         ++stats.numNotMyVBuckets;
         return ENGINE_NOT_MY_VBUCKET;
@@ -953,12 +947,6 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::add(const Item &itm,
     if (!vb || vb->getState() == vbucket_state_dead || vb->getState() == vbucket_state_replica) {
         ++stats.numNotMyVBuckets;
         return ENGINE_NOT_MY_VBUCKET;
-    } else if (vb->getState() == vbucket_state_active) {
-        if (vb->checkpointManager.isHotReload()) {
-            if (vb->addPendingOp(cookie)) {
-                return ENGINE_EWOULDBLOCK;
-            }
-        }
     } else if(vb->getState() == vbucket_state_pending) {
         if (vb->addPendingOp(cookie)) {
             return ENGINE_EWOULDBLOCK;
@@ -1331,12 +1319,6 @@ GetValue EventuallyPersistentStore::getInternal(const std::string &key,
     } else if (honorStates && vb->getState() == vbucket_state_dead) {
         ++stats.numNotMyVBuckets;
         return GetValue(NULL, ENGINE_NOT_MY_VBUCKET);
-    } else if (vb->getState() == allowedState) {
-        if (vb->checkpointManager.isHotReload()) {
-            if (vb->addPendingOp(cookie)) {
-                return GetValue(NULL, ENGINE_EWOULDBLOCK);
-            }
-        }
     } else if (honorStates && vb->getState() == disallowedState) {
         ++stats.numNotMyVBuckets;
         return GetValue(NULL, ENGINE_NOT_MY_VBUCKET);
@@ -1379,18 +1361,12 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::getMetaData(const std::string &key,
                                                          uint64_t &cas,
                                                          uint32_t &flags)
 {
+    (void) cookie;
     RCPtr<VBucket> vb = getVBucket(vbucket);
     if (!vb || vb->getState() == vbucket_state_dead ||
         vb->getState() == vbucket_state_replica) {
         ++stats.numNotMyVBuckets;
         return ENGINE_NOT_MY_VBUCKET;
-    } else if (vb->getState() == vbucket_state_active ||
-               vb->getState() == vbucket_state_pending) {
-        if (vb->checkpointManager.isHotReload()) {
-            if (vb->addPendingOp(cookie)) {
-                return ENGINE_EWOULDBLOCK;
-            }
-        }
     }
 
     int bucket_num(0);
@@ -1421,12 +1397,6 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setWithMeta(const Item &itm,
     if (!vb || vb->getState() == vbucket_state_dead) {
         ++stats.numNotMyVBuckets;
         return ENGINE_NOT_MY_VBUCKET;
-    } else if (vb->getState() == vbucket_state_active) {
-        if (vb->checkpointManager.isHotReload()) {
-            if (vb->addPendingOp(cookie)) {
-                return ENGINE_EWOULDBLOCK;
-            }
-        }
     } else if (vb->getState() == vbucket_state_replica && !force) {
         ++stats.numNotMyVBuckets;
         return ENGINE_NOT_MY_VBUCKET;
@@ -1477,12 +1447,6 @@ GetValue EventuallyPersistentStore::getAndUpdateTtl(const std::string &key,
     } else if (vb->getState() == vbucket_state_dead) {
         ++stats.numNotMyVBuckets;
         return GetValue(NULL, ENGINE_NOT_MY_VBUCKET);
-    } else if (vb->getState() == vbucket_state_active) {
-        if (vb->checkpointManager.isHotReload()) {
-            if (vb->addPendingOp(cookie)) {
-                return GetValue(NULL, ENGINE_EWOULDBLOCK);
-            }
-        }
     } else if (vb->getState() == vbucket_state_replica) {
         ++stats.numNotMyVBuckets;
         return GetValue(NULL, ENGINE_NOT_MY_VBUCKET);
@@ -1531,12 +1495,6 @@ EventuallyPersistentStore::getFromUnderlying(const std::string &key,
     if (!vb || vb->getState() == vbucket_state_dead) {
         ++stats.numNotMyVBuckets;
         return ENGINE_NOT_MY_VBUCKET;
-    } else if (vb->getState() == vbucket_state_active) {
-        if (vb->checkpointManager.isHotReload()) {
-            if (vb->addPendingOp(cookie)) {
-                return ENGINE_EWOULDBLOCK;
-            }
-        }
     } else if (vb->getState() == vbucket_state_replica) {
         ++stats.numNotMyVBuckets;
         return ENGINE_NOT_MY_VBUCKET;
@@ -1722,12 +1680,6 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteItem(const std::string &key,
     if (!vb || vb->getState() == vbucket_state_dead) {
         ++stats.numNotMyVBuckets;
         return ENGINE_NOT_MY_VBUCKET;
-    } else if (vb->getState() == vbucket_state_active) {
-        if (vb->checkpointManager.isHotReload()) {
-            if (vb->addPendingOp(cookie)) {
-                return ENGINE_EWOULDBLOCK;
-            }
-        }
     } else if(vb->getState() == vbucket_state_replica && !force) {
         ++stats.numNotMyVBuckets;
         return ENGINE_NOT_MY_VBUCKET;
@@ -2054,85 +2006,6 @@ bool EventuallyPersistentStore::hasItemsForPersistence(void) {
 void EventuallyPersistentStore::setPersistenceCheckpointId(uint16_t vbid, uint64_t checkpointId) {
     LockHolder lh(vbsetMutex);
     vbuckets.setPersistenceCheckpointId(vbid, checkpointId);
-}
-
-
-protocol_binary_response_status EventuallyPersistentStore::revertOnlineUpdate(RCPtr<VBucket> vb) {
-    protocol_binary_response_status rv(PROTOCOL_BINARY_RESPONSE_SUCCESS);
-
-    const char *msg = NULL;
-    size_t msg_size = 0;
-    std::vector<queued_item> item_list;
-
-    if (!vb || vb->getState() == vbucket_state_dead) {
-        return rv;
-    }
-
-    uint16_t vbid = vb->getId();
-    BlockTimer timer(&stats.checkpointRevertHisto);
-
-    //Acquire a lock before starting the hot reload process
-    LockHolder lh(vbsetMutex);
-    rv = vb->checkpointManager.beginHotReload();
-    if ( rv != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-        return rv;
-    }
-    lh.unlock();
-
-    // Get all the mutations from the current position of the online update cursor to
-    // the tail of the current open checkpoint.
-    vb->checkpointManager.getAllItemsForOnlineUpdate(item_list);
-    if (item_list.size() == 0) {
-        // Need to count items for checkpoint_start, checkpoint_end, onlineupdate_start,
-        // onlineupdate_revert
-        vb->checkpointManager.endHotReload(4);
-        return rv;
-    }
-
-    std::set<queued_item, CompareQueuedItemsByKey> item_set;
-    std::pair<std::set<queued_item, CompareQueuedItemsByKey>::iterator, bool> ret;
-    std::vector<queued_item>::reverse_iterator reverse_it = item_list.rbegin();
-    // Perform further deduplication here by removing duplicate mutations for each key.
-    // For this, traverse the array from the last element.
-    uint64_t total = 0;
-    for(; reverse_it != item_list.rend(); ++reverse_it, ++total) {
-        queued_item qi = *reverse_it;
-
-        ret = item_set.insert(qi);
-
-        vb->doStatsForFlushing(*qi, qi->size());
-    }
-    item_list.assign(item_set.begin(), item_set.end());
-
-    std::vector<queued_item>::iterator it = item_list.begin();
-    for(; it != item_list.end(); ++it) {
-        if ((*it)->getOperation() == queue_op_del)  {
-            ++stats.numRevertDeletes;
-            //Reset the deleted value first before evict it.
-            Item itm((*it)->getKey().c_str(), (*it)->getKey().length(), 0,
-                     0, 0, 0, -1, (*it)->getVBucketId());
-            vb->ht.add(itm, false, false);
-            this->evictKey((*it)->getKey(), vbid, &msg, &msg_size, true);
-        } else if ((*it)->getOperation() == queue_op_set) {
-            //check if it is add or set
-            if ((*it)->getRowId() < 0)  {
-                ++stats.numRevertAdds;
-                //since no value exists on disk, simply delete it from hashtable
-                vb->ht.del((*it)->getKey());
-            } else {
-                ++stats.numRevertUpdates;
-                this->evictKey((*it)->getKey(), vbid, &msg, &msg_size, true);
-            }
-        }
-
-    }
-    item_list.clear();
-
-    //Stop the hot reload process
-    vb->checkpointManager.endHotReload(total);
-    engine.getTapConnMap().notify();
-
-    return rv;
 }
 
 /**

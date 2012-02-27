@@ -87,7 +87,7 @@ public:
                                                  opsReject(0), queueSize(0),
                                                  queueMemory(0), queueAge(0),
                                                  queueFill(0), queueDrain(0),
-                                                 pendingWrites(0), onlineUpdate(false)
+                                                 pendingWrites(0)
     { }
 
     bool visitBucket(RCPtr<VBucket> &vb);
@@ -128,7 +128,6 @@ public:
     size_t getQueueDrain() { return queueDrain; }
     uint64_t getAge() { return queueAge; }
     size_t getPendingWrites() { return pendingWrites; }
-    bool   isOnlineUpdate() { return onlineUpdate; }
 
 private:
     vbucket_state_t desired_state;
@@ -152,8 +151,6 @@ private:
     size_t queueFill;
     size_t queueDrain;
     size_t pendingWrites;
-
-    bool   onlineUpdate;
 };
 
 /**
@@ -372,11 +369,6 @@ public:
     ENGINE_ERROR_CODE touch(const void* cookie,
                             protocol_binary_request_header *request,
                             ADD_RESPONSE response);
-
-    ENGINE_ERROR_CODE onlineUpdate(const void* cookie,
-                            protocol_binary_request_header *request,
-                            ADD_RESPONSE response);
-
 
     ENGINE_ERROR_CODE getMeta(const void* cookie,
                               protocol_binary_request_get_meta *request,

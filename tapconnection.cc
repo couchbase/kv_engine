@@ -68,12 +68,6 @@ const char *TapConnection::opaqueCmdToString(uint32_t opaque_code) {
         return "enable_checkpoint_sync";
     case TAP_OPAQUE_OPEN_CHECKPOINT:
         return "open_checkpoint";
-    case TAP_OPAQUE_START_ONLINEUPDATE:
-        return "start_online_update";
-    case TAP_OPAQUE_STOP_ONLINEUPDATE:
-        return "stop_online_update";
-    case TAP_OPAQUE_REVERT_ONLINEUPDATE:
-        return "revert_online_update";
     case TAP_OPAQUE_CLOSE_TAP_STREAM:
         return "close_tap_stream";
     case TAP_OPAQUE_CLOSE_BACKFILL:
@@ -640,9 +634,6 @@ void TapProducer::rollback() {
                     break;
                 case TAP_OPAQUE_CLOSE_BACKFILL:
                 case TAP_OPAQUE_OPEN_CHECKPOINT:
-                case TAP_OPAQUE_START_ONLINEUPDATE:
-                case TAP_OPAQUE_STOP_ONLINEUPDATE:
-                case TAP_OPAQUE_REVERT_ONLINEUPDATE:
                     {
                         TapVBucketEvent e(i->event, i->vbucket, i->state);
                         addVBucketHighPriority_UNLOCKED(e);
@@ -1392,39 +1383,6 @@ void TapConsumer::checkVBOpenCheckpoint(uint16_t vbucket) {
     vb->checkpointManager.checkOpenCheckpoint(false, true);
 }
 
-bool TapConsumer::processOnlineUpdateCommand(uint32_t opcode, uint16_t vbucket) {
-    const VBucketMap &vbuckets = engine.getEpStore()->getVBuckets();
-    RCPtr<VBucket> vb = vbuckets.getBucket(vbucket);
-    if (!vb) {
-        return false;
-    }
-
-    protocol_binary_response_status ret;
-    switch (opcode) {
-    case TAP_OPAQUE_START_ONLINEUPDATE:
-        ret = vb->checkpointManager.startOnlineUpdate();
-        getLogger()->log(EXTENSION_LOG_INFO, NULL, "%s Start online update\n",
-                         logHeader());
-        break;
-    case TAP_OPAQUE_STOP_ONLINEUPDATE:
-        ret = vb->checkpointManager.stopOnlineUpdate();
-        getLogger()->log(EXTENSION_LOG_INFO, NULL, "%s Complete online update\n",
-                         logHeader());
-        break;
-    case TAP_OPAQUE_REVERT_ONLINEUPDATE:
-        ret = engine.getEpStore()->revertOnlineUpdate(vb);
-        getLogger()->log(EXTENSION_LOG_INFO, NULL, "%s Revert online update\n",
-                         logHeader());
-        break;
-    default:
-        ret = PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
-        getLogger()->log(EXTENSION_LOG_WARNING, NULL, "%s Unknown online update command\n",
-                         logHeader());
-        break;
-    }
-    return (ret == PROTOCOL_BINARY_RESPONSE_SUCCESS);
-}
-
 bool TapProducer::isTimeForNoop() {
     bool rv = noop.swap(false);
     if (rv) {
@@ -1518,27 +1476,6 @@ queued_item TapProducer::nextFgFetched_UNLOCKED(bool &shouldPause) {
                         vb->checkpointManager.decrTapCursorFromCheckpointEnd(name);
                         ++wait_for_ack_count;
                     }
-                }
-                break;
-            case queue_op_online_update_start:
-                {
-                    TapVBucketEvent ev(TAP_OPAQUE, qi->getVBucketId(),
-                                         (vbucket_state_t)htonl(TAP_OPAQUE_START_ONLINEUPDATE));
-                    addVBucketHighPriority_UNLOCKED(ev);
-                }
-                break;
-            case queue_op_online_update_end:
-                {
-                    TapVBucketEvent ev(TAP_OPAQUE, qi->getVBucketId(),
-                                         (vbucket_state_t)htonl(TAP_OPAQUE_STOP_ONLINEUPDATE));
-                    addVBucketHighPriority_UNLOCKED(ev);
-                }
-                break;
-            case queue_op_online_update_revert:
-                {
-                    TapVBucketEvent ev(TAP_OPAQUE, qi->getVBucketId(),
-                                         (vbucket_state_t)htonl(TAP_OPAQUE_REVERT_ONLINEUPDATE));
-                    addVBucketHighPriority_UNLOCKED(ev);
                 }
                 break;
             case queue_op_empty:
