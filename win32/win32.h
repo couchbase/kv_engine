@@ -107,6 +107,10 @@ int inet_aton(register const char *cp, struct in_addr *addr);
         ( *(_lasts) = strtok( (_s), (_sep) ) )
 #endif /* strtok_r */
 
+#if !defined(AI_ALL)
+#define AI_ALL 0X0
+#endif
+
 static inline void mapErr(int error) {
     switch(error) {
         default:
