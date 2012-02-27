@@ -489,21 +489,9 @@ private:
         return ++mutationCounter;
     }
 
-    void decrPersistenceCursorOffset(size_t decr) {
-        if (persistenceCursor.offset >= decr) {
-            persistenceCursor.offset -= decr;
-        } else {
-            persistenceCursor.offset = 0;
-            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "VBucket persistence cursor's offset is negative. Reset it to 0.");
-        }
-    }
+    void decrCursorOffset_UNLOCKED(CheckpointCursor &cursor, size_t decr);
 
-    void decrPersistenceCursorPos_UNLOCKED() {
-        if (persistenceCursor.currentPos != (*(persistenceCursor.currentCheckpoint))->begin()) {
-            --(persistenceCursor.currentPos);
-        }
-    }
+    void decrCursorPos_UNLOCKED(CheckpointCursor &cursor);
 
     bool isLastMutationItemInCheckpoint(CheckpointCursor &cursor);
 
