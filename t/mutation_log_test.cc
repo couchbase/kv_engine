@@ -473,7 +473,38 @@ static void testYUNOOPEN() {
     assert(remove(TMP_LOG_FILE) == 0);
 }
 
+// @todo
+//   Test Read Only log
+//   Test close / open / close / open
+//   Fix copy constructor bug
+//
+
+static void testReadOnly() {
+    MutationLog ml(TMP_LOG_FILE);
+    try {
+        ml.open(true);
+        abort();
+    } catch (MutationLog::FileNotFoundException &e) {
+    }
+
+    MutationLog m2(TMP_LOG_FILE);
+    m2.open();
+    m2.newItem(3, "key1", 1);
+    m2.close();
+
+    // We should be able to open the file now
+    ml.open(true);
+
+    // But we should not be able to add items to a read only stream
+    try {
+        ml.newItem(4, "key2", 1);
+        abort();
+    } catch (MutationLog::WriteException &e) {
+    }
+}
+
 int main(int, char **) {
+    testReadOnly();
     testUnconfigured();
     testSyncSet();
     testLogging();

@@ -63,8 +63,9 @@ MutationLog::MutationLog(const std::string &path,
     entries(0),
     entryBuffer(static_cast<uint8_t*>(calloc(MutationLogEntry::len(256), 1))),
     blockBuffer(static_cast<uint8_t*>(calloc(bs, 1))),
-    syncConfig(DEFAULT_SYNC_CONF) {
-
+    syncConfig(DEFAULT_SYNC_CONF),
+    readOnly(false)
+{
     assert(entryBuffer);
     assert(blockBuffer);
     if (logPath == "") {
@@ -146,6 +147,7 @@ void MutationLog::commit2() {
 }
 
 void MutationLog::writeInitialBlock() {
+    assert(!readOnly);
     assert(isEnabled());
     assert(isOpen());
     headerBlock.set(blockSize);
@@ -164,7 +166,10 @@ void MutationLog::readInitialBlock() {
     assert(isOpen());
     uint8_t buf[MIN_LOG_HEADER_SIZE];
     ssize_t bytesread = pread(file, buf, sizeof(buf), 0);
-    assert(bytesread == sizeof(buf));
+
+    if (bytesread != sizeof(buf)) {
+        throw ShortReadException();
+    }
 
     headerBlock.set(buf, sizeof(buf));
 
@@ -173,6 +178,23 @@ void MutationLog::readInitialBlock() {
     assert(headerBlock.blockCount() == 1);
 
     blockSize = headerBlock.blockSize();
+}
+
+void MutationLog::updateInitialBlock() {
+    assert(!readOnly);
+    assert(isOpen());
+    needWriteAccess();
+
+    uint8_t buf[MIN_LOG_HEADER_SIZE];
+    memset(buf, 0, sizeof(buf));
+    memcpy(buf, (uint8_t*)&headerBlock, sizeof(headerBlock));
+
+    ssize_t byteswritten = pwrite(file, buf, sizeof(buf), 0);
+
+    // @todo we need a write exception
+    if (byteswritten != sizeof(buf)) {
+        throw WriteException("Failed to update header block");
+    }
 }
 
 void MutationLog::prepareWrites() {
@@ -223,11 +245,20 @@ bool MutationLog::exists() const {
     return access(logPath.c_str(), F_OK) == 0;
 }
 
-void MutationLog::open() {
+void MutationLog::open(bool _readOnly) {
     if (!isEnabled()) {
         return;
     }
-    file = ::open(const_cast<char*>(logPath.c_str()), O_RDWR|O_CREAT, 0666);
+    readOnly = _readOnly;
+    if (readOnly) {
+        if (!exists()) {
+            throw FileNotFoundException(logPath);
+        }
+        file = ::open(const_cast<char*>(logPath.c_str()), O_RDONLY);
+    } else {
+        file = ::open(const_cast<char*>(logPath.c_str()), O_RDWR|O_CREAT, 0666);
+    }
+
     if (file < 0) {
         std::stringstream ss;
         ss << "Unable to open log file: " << strerror(errno);
@@ -237,16 +268,21 @@ void MutationLog::open() {
     int stat_result = fstat(file, &st);
     assert(stat_result == 0);
 
-    if (st.st_size > 0 && st.st_size < static_cast<off_t>(blockSize)) {
-        close();
-        file = DISABLED_FD;
-        throw ShortReadException();
-    }
-
-    if (st.st_size > 0) {
-        readInitialBlock();
-    } else {
+    if (st.st_size == 0) {
         writeInitialBlock();
+    } else {
+        try {
+            readInitialBlock();
+        } catch (ShortReadException &e) {
+            close();
+            file = DISABLED_FD;
+            throw ShortReadException();
+        }
+
+        if (!readOnly) {
+            headerBlock.setRdwr(1);
+            updateInitialBlock();
+        }
     }
 
     prepareWrites();
@@ -254,15 +290,20 @@ void MutationLog::open() {
 }
 
 void MutationLog::close() {
-   if (!isEnabled()) {
+    if (!isEnabled() || !isOpen()) {
         return;
-   }
+    }
 
-   if (file >= 0) {
-       int close_result = doClose(file);
-       assert(close_result != -1);
-       file = -1;
-   }
+    if (!readOnly) {
+        flush();
+        sync();
+        headerBlock.setRdwr(0);
+        updateInitialBlock();
+    }
+
+    int close_result = doClose(file);
+    assert(close_result != -1);
+    file = -1;
 }
 
 bool MutationLog::replaceWith(MutationLog &mlog) {
@@ -298,6 +339,7 @@ bool MutationLog::replaceWith(MutationLog &mlog) {
 void MutationLog::flush() {
     if (isEnabled() && blockPos > HEADER_RESERVED) {
         assert(isOpen());
+        needWriteAccess();
         BlockTimer timer(&flushTimeHisto);
 
         if (blockPos < blockSize) {
@@ -324,6 +366,8 @@ void MutationLog::flush() {
 void MutationLog::writeEntry(MutationLogEntry *mle) {
     assert(isEnabled());
     assert(isOpen());
+    needWriteAccess();
+
     size_t len(mle->len());
     if (blockPos + len > blockSize) {
         flush();

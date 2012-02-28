@@ -44,7 +44,7 @@ const uint8_t DEFAULT_SYNC_CONF(FLUSH_COMMIT_2 | SYNC_COMMIT_2);
  */
 class LogHeaderBlock {
 public:
-    LogHeaderBlock() : _version(htonl(LOG_VERSION)), _blockSize(0), _blockCount(0) {
+    LogHeaderBlock() : _version(htonl(LOG_VERSION)), _blockSize(0), _blockCount(0), _rdwr(1) {
     }
 
     void set(uint32_t bs, uint32_t bc=1) {
@@ -61,6 +61,8 @@ public:
         offset += sizeof(_blockSize);
         memcpy(&_blockCount, buf + offset, sizeof(_blockCount));
         offset += sizeof(_blockCount);
+        memcpy(&_rdwr, buf + offset, sizeof(_rdwr));
+        offset += sizeof(_rdwr);
     }
 
     uint32_t version() const {
@@ -75,11 +77,20 @@ public:
         return ntohl(_blockCount);
     }
 
+    uint32_t rdwr() const {
+        return ntohl(_rdwr);
+    }
+
+    void setRdwr(uint32_t nval) {
+        _rdwr = htonl(nval);
+    }
+
 private:
 
     uint32_t _version;
     uint32_t _blockSize;
     uint32_t _blockCount;
+    uint32_t _rdwr;
 };
 
 typedef enum {
@@ -263,7 +274,7 @@ public:
      *
      * This typically happens automatically.
      */
-    void open();
+    void open(bool _readOnly = false);
 
     /**
      * Close the log file.
@@ -288,9 +299,22 @@ public:
     /**
      * Exception thrown upon failure to read a mutation log.
      */
+    class WriteException : public std::runtime_error {
+    public:
+        WriteException(const std::string &s) : std::runtime_error(s) {}
+    };
+
+    /**
+     * Exception thrown upon failure to read a mutation log.
+     */
     class ReadException : public std::runtime_error {
     public:
         ReadException(const std::string &s) : std::runtime_error(s) {}
+    };
+
+    class FileNotFoundException : public ReadException {
+    public:
+        FileNotFoundException(const std::string &s) : ReadException(s) {}
     };
 
     /**
@@ -379,11 +403,16 @@ public:
     Atomic<size_t> logSize;
 
 private:
-
+    void needWriteAccess(void) {
+        if (readOnly) {
+            throw WriteException("Invalid access (file opened read only)");
+        }
+    }
     void writeEntry(MutationLogEntry *mle);
 
     void writeInitialBlock();
     void readInitialBlock();
+    void updateInitialBlock(void);
 
     void prepareWrites();
 
@@ -398,6 +427,7 @@ private:
     uint8_t           *entryBuffer;
     uint8_t           *blockBuffer;
     uint8_t            syncConfig;
+    bool               readOnly;
 
     DISALLOW_COPY_AND_ASSIGN(MutationLog);
 };
