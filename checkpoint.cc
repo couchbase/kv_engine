@@ -596,19 +596,20 @@ void CheckpointManager::collapseClosedCheckpoints(std::list<Checkpoint*> &collap
         // Reposition the slow cursors to the beginning of the last closed checkpoint.
         std::set<std::string>::iterator sit = slowCursors.begin();
         for (; sit != slowCursors.end(); ++sit) {
+            CheckpointCursor *cursor = NULL;
             if ((*sit).compare(persistenceCursor.name) == 0) { // Reposition persistence cursor
-                persistenceCursor.currentCheckpoint = lastClosedChk;
-                persistenceCursor.currentPos =  (*lastClosedChk)->begin();
-                persistenceCursor.offset = 0;
-                (*lastClosedChk)->registerCursorName(persistenceCursor.name);
+                cursor = &persistenceCursor;
             } else { // Reposition tap cursors
                 std::map<const std::string, CheckpointCursor>::iterator mit = tapCursors.find(*sit);
                 if (mit != tapCursors.end()) {
-                    mit->second.currentCheckpoint = lastClosedChk;
-                    mit->second.currentPos =  (*lastClosedChk)->begin();
-                    mit->second.offset = 0;
-                    (*lastClosedChk)->registerCursorName(mit->second.name);
+                    cursor = &(mit->second);
                 }
+            }
+            if (cursor) {
+                cursor->currentCheckpoint = lastClosedChk;
+                cursor->currentPos =  (*lastClosedChk)->begin();
+                cursor->offset = 0;
+                (*lastClosedChk)->registerCursorName(cursor->name);
             }
         }
 
