@@ -370,8 +370,9 @@ MutationLog::iterator::iterator(const MutationLog *l, bool e)
     buf(NULL),
     p(buf),
     offset(l->header().blockSize() * l->header().blockCount()),
-    items(0), isEnd(e) {
-
+    items(0),
+    isEnd(e)
+{
     assert(log);
 }
 
@@ -381,9 +382,9 @@ MutationLog::iterator::iterator(const MutationLog::iterator& mit)
     buf(NULL),
     p(NULL),
     offset(mit.offset),
-    items(0),
-    isEnd(mit.isEnd) {
-
+    items(mit.items),
+    isEnd(mit.isEnd)
+{
     assert(log);
     if (mit.buf != NULL) {
         buf = static_cast<uint8_t*>(calloc(1, log->header().blockSize()));
@@ -391,8 +392,9 @@ MutationLog::iterator::iterator(const MutationLog::iterator& mit)
         memcpy(buf, mit.buf, log->header().blockSize());
         p = buf + (mit.p - mit.buf);
     }
+
     if (mit.entryBuf != NULL) {
-        buf = static_cast<uint8_t*>(calloc(1, LOG_ENTRY_BUF_SIZE));
+        entryBuf = static_cast<uint8_t*>(calloc(1, LOG_ENTRY_BUF_SIZE));
         assert(entryBuf);
         memcpy(entryBuf, mit.entryBuf, LOG_ENTRY_BUF_SIZE);
     }
