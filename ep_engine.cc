@@ -2327,8 +2327,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                     pendingCountVisitor.getPendingWrites(),
                     add_stat, cookie);
 
-    add_casted_stat("mem_used", stats.getTotalMemoryUsed(), add_stat,
-                    cookie);
+    size_t memUsed =  stats.getTotalMemoryUsed();
+    add_casted_stat("mem_used", memUsed, add_stat, cookie);
+    add_casted_stat("bytes", memUsed, add_stat, cookie);
     add_casted_stat("ep_kv_size", stats.currentSize, add_stat, cookie);
     add_casted_stat("ep_value_size", stats.totalValueSize, add_stat, cookie);
     add_casted_stat("ep_overhead", stats.memOverhead, add_stat, cookie);

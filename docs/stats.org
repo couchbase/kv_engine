@@ -527,7 +527,8 @@ This provides various memory-related stats including the stats from tcmalloc.
 Note that tcmalloc stats are not available on some operating systems
 (e.g., Windows) that do not support tcmalloc.
 
-| mem_used                            | Engine's total memory usage          |
+| mem_used (deprecated)               | Engine's total memory usage          |
+| bytes                               | Engine's total memory usage          |
 | ep_kv_size                          | Memory used to store item metadata,  |
 |                                     | keys and values, no matter the       |
 |                                     | vbucket's state. If an item's value  |

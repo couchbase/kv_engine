@@ -4938,6 +4938,23 @@ static enum test_result test_regression_mb4314(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     return SUCCESS;
 }
 
+static enum test_result test_mb3466(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
+{
+    check(h1->get_stats(h, NULL, NULL, 0, add_stats) == ENGINE_SUCCESS,
+          "Failed to get stats.");
+
+    check(vals.find("mem_used") != vals.end(),
+          "Expected \"mem_used\" to be returned");
+    check(vals.find("bytes") != vals.end(),
+          "Expected \"bytes\" to be returned");
+    std::string memUsed = vals["mem_used"];
+    std::string bytes = vals["bytes"];
+    check(memUsed == bytes,
+          "Expected mem_used and bytes to have the same value");
+
+    return SUCCESS;
+}
+
 static enum test_result test_json_fixup(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
 {
     item *it;
@@ -5595,6 +5612,9 @@ engine_test_t* get_tests(void) {
                  teardown, NULL, prepare, cleanup, BACKEND_ALL),
 
         TestCase("mb-4314", test_regression_mb4314, NULL,
+                 teardown, NULL, prepare, cleanup, BACKEND_ALL),
+
+        TestCase("mb-3466", test_mb3466, NULL,
                  teardown, NULL, prepare, cleanup, BACKEND_ALL),
 
         TestCase("add with meta", test_add_with_meta, NULL,
