@@ -2667,7 +2667,12 @@ static void ship_tap_log(conn *c) {
                 bodylen += info.info.nbytes;
             }
             msg.mutation.message.header.request.bodylen = htonl(bodylen);
-            msg.mutation.message.body.item.flags = htonl(info.info.flags);
+
+            if ((tap_flags & TAP_FLAG_NETWORK_BYTE_ORDER) == 0) {
+                msg.mutation.message.body.item.flags = htonl(info.info.flags);
+            } else {
+                msg.mutation.message.body.item.flags = info.info.flags;
+            }
             msg.mutation.message.body.item.expiration = htonl(info.info.exptime);
             msg.mutation.message.body.tap.enginespecific_length = htons(nengine);
             msg.mutation.message.body.tap.ttl = ttl;
@@ -2959,7 +2964,11 @@ static void process_bin_tap_packet(tap_event_t event, conn *c) {
         if (event == TAP_MUTATION || event == TAP_CHECKPOINT_START ||
             event == TAP_CHECKPOINT_END) {
             protocol_binary_request_tap_mutation *mutation = (void*)tap;
-            flags = ntohl(mutation->message.body.item.flags);
+            flags = mutation->message.body.item.flags;
+            if ((tap_flags & TAP_FLAG_NETWORK_BYTE_ORDER) == 0) {
+                flags = ntohl(flags);
+            }
+
             exptime = ntohl(mutation->message.body.item.expiration);
             key += 8;
             data += 8;
