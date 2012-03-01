@@ -432,7 +432,7 @@ size_t StrategicSqlite3::warmup(MutationLog &lf,
     return total;
 }
 
-bool list_compare(uint64_t first, uint64_t second) {
+static bool list_compare(uint64_t first, uint64_t second) {
     return first < second;
 }
 
