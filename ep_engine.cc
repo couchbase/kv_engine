@@ -1579,6 +1579,12 @@ tap_event_t EventuallyPersistentEngine::walkTapQueue(const void *cookie,
                 *flags = TAP_FLAG_ACK;
                 connection->seqnoAckRequested = *seqno;
             }
+
+            if (ret == TAP_MUTATION) {
+                if (connection->haveTapFlagByteorderSupport()) {
+                    *flags |= TAP_FLAG_NETWORK_BYTE_ORDER;
+                }
+            }
         }
     }
 

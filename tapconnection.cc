@@ -183,7 +183,8 @@ TapProducer::TapProducer(EventuallyPersistentEngine &theEngine,
     lastMsgTime(ep_current_time()),
     isLastAckSucceed(false),
     isSeqNumRotated(false),
-    numNoops(0)
+    numNoops(0),
+    tapFlagByteorderSupport(false)
 {
     evaluateFlags();
     queue = new std::list<queued_item>;
@@ -1178,7 +1179,11 @@ void TapProducer::addStats(ADD_STAT add_stat, const void *c) {
         addStat("num_tap_nack", numTapNack, add_stat, c);
         addStat("num_tap_tmpfail_survivors", numTmpfailSurvivors, add_stat, c);
         addStat("ack_playback_size", tapLog.size(), add_stat, c);
-     }
+    }
+
+    if (tapFlagByteorderSupport) {
+        addStat("flag_byteorder_support", true, add_stat, c);
+    }
 }
 
 void TapProducer::processedEvent(tap_event_t event, ENGINE_ERROR_CODE)

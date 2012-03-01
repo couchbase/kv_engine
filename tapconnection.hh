@@ -568,6 +568,13 @@ public:
         return getQueueSize_UNLOCKED();
     }
 
+    void setTapFlagByteorderSupport(bool enable) {
+        tapFlagByteorderSupport = enable;
+    }
+    bool haveTapFlagByteorderSupport(void) const {
+        return tapFlagByteorderSupport;
+    }
+
 private:
     friend class EventuallyPersistentEngine;
     friend class TapConnMap;
@@ -1096,6 +1103,9 @@ private:
     //! Should we send a NOOP message now?
     Atomic<bool> noop;
     size_t numNoops;
+
+    //! Does the Tap Consumer know about the byteorder bug for the flags
+    bool tapFlagByteorderSupport;
 
     DISALLOW_COPY_AND_ASSIGN(TapProducer);
 };

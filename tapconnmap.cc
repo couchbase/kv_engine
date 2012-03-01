@@ -323,6 +323,7 @@ TapProducer *TapConnMap::newProducer(const void* cookie,
         reconnect = true;
     }
 
+    tap->setTapFlagByteorderSupport((flags & TAP_CONNECT_TAP_FIX_FLAG_BYTEORDER) != 0);
     tap->setBackfillAge(backfillAge, reconnect);
     setValidity(tap->getName(), cookie);
 
