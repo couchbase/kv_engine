@@ -11,23 +11,26 @@ chomp $version;
 #my $version = '1.4.2-30-gf966dba';
 #my $version = '1.4.3-rc1';
 #my $version = '1.4.3';
-unless ($version =~ m/^\d+\.\d+\.\d+/) {
+#my $version = 'membase-1.7.1.1-44-gc0d22b8';
+unless ($version =~ m/\d+\.\d+\.\d+(.\d+)?/) {
     write_file('m4/version.m4', "m4_define([VERSION_NUMBER], [UNKNOWN])\n");
     exit;
 }
 
+$version =~ s/^[a-z]+-//g;
 $version =~ s/-/_/g;
 write_file('m4/version.m4', "m4_define([VERSION_NUMBER], [$version])\n");
+
 my ($VERSION, $FULLVERSION, $RELEASE);
 
 if ($version =~ m/^(\d+\.\d+\.\d+)_rc(\d+)$/) {
     $VERSION = $1;
     $FULLVERSION = $version;
     $RELEASE = '0.1.rc' . $2;
-} elsif ($version =~ m/^(\d+\.\d+\.\d+)_(.+)$/) {
+} elsif ($version =~ m/^(\d+\.\d+\.\d+(.\d+)?)_(.+)$/) {
     $VERSION = $1;
     $FULLVERSION = $version;
-    $RELEASE = '1.' . $2;
+    $RELEASE = '1.' . $3;
 } elsif ($version =~ m/^(\d+\.\d+\.\d+)$/) {
     $VERSION = $1;
     $FULLVERSION = $version;
