@@ -316,22 +316,6 @@
             "default": "",
             "type": "std::string"
         },
-        "sync_cmd_timeout": {
-            "default": "2500",
-            "descr": "The timeout for SYNC requests in (ms)",
-            "type": "size_t",
-            "validator": {
-                "range": {
-                    "max": 60000,
-                    "min": 10
-                }
-            }
-        },
-        "sync_on_persist": {
-            "default": "true",
-            "descr": "Do we allow syncing on persistence events?",
-            "type": "bool"
-        },
         "tap_ack_grace_period": {
             "default": "300",
             "type": "size_t"
