@@ -119,7 +119,6 @@ mutation_type_t HashTable::insert(const Item &itm, bool eject, bool partial) {
 
     assert(itm.getCas() != static_cast<uint64_t>(-1));
 
-    mutation_type_t rv = NOT_FOUND;
     int bucket_num(0);
     LockHolder lh = getLockedBucket(itm.getKey(), &bucket_num);
     StoredValue *v = unlocked_find(itm.getKey(), bucket_num, true);
@@ -163,7 +162,7 @@ mutation_type_t HashTable::insert(const Item &itm, bool eject, bool partial) {
         v->ejectValue(stats, *this);
     }
 
-    return rv;
+    return NOT_FOUND;
 }
 
 static inline size_t getDefault(size_t x, size_t d) {
