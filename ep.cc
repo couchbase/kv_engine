@@ -2021,7 +2021,7 @@ public:
                 LockHolder lh = vb->ht.getLockedBucket(queuedItem->getKey(), &bucket_num);
                 StoredValue *v = store->fetchValidValue(vb, queuedItem->getKey(),
                                                         bucket_num, true);
-                double current = static_cast<double>(StoredValue::getCurrentSize(*stats));
+                double current = static_cast<double>(stats->getTotalMemoryUsed());
                 double lower = static_cast<double>(stats->mem_low_wat);
                 if (v && current > lower) {
                     // Check if the key exists in the open or closed checkpoints.
@@ -2559,7 +2559,7 @@ public:
 private:
 
     bool shouldEject() {
-        return StoredValue::getCurrentSize(stats) >= stats.mem_low_wat;
+        return stats.getTotalMemoryUsed() >= stats.mem_low_wat;
     }
 
     void purge();
@@ -2648,10 +2648,10 @@ void EventuallyPersistentStore::maybeEnableTraffic()
 {
     // @todo rename.. skal vaere isTrafficDisabled elns
     if (engine.isDegradedMode()) {
-        double currentSize = static_cast<double>(stats.currentSize.get() + stats.memOverhead.get());
-        double maxSize = static_cast<double>(stats.maxDataSize.get());
+        double memoryUsed = static_cast<double>(stats.getTotalMemoryUsed());
+        double maxSize = static_cast<double>(stats.getMaxDataSize());
 
-        if (currentSize > (maxSize * stats.warmupMemUsedCap)) {
+        if (memoryUsed > (maxSize * stats.warmupMemUsedCap)) {
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                              "Enough MB of data loaded to enable traffic");
             engine.warmupCompleted();

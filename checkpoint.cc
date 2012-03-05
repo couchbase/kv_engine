@@ -429,12 +429,12 @@ std::list<std::string> CheckpointManager::getTAPCursorNames() {
 
 bool CheckpointManager::isCheckpointCreationForHighMemUsage(const RCPtr<VBucket> &vbucket) {
     bool forceCreation = false;
-    double current = static_cast<double>(stats.currentSize.get() + stats.memOverhead.get());
+    double memoryUsed = static_cast<double>(stats.getTotalMemoryUsed());
     // pesistence and tap cursors are all currently in the open checkpoint?
     bool allCursorsInOpenCheckpoint =
         (1 + tapCursors.size()) == checkpointList.back()->getNumberOfCursors() ? true : false;
 
-    if (current > stats.mem_high_wat &&
+    if (memoryUsed > stats.mem_high_wat &&
         allCursorsInOpenCheckpoint &&
         (checkpointList.back()->getNumItems() >= MIN_CHECKPOINT_ITEMS ||
          checkpointList.back()->getNumItems() == vbucket->ht.getNumItems())) {
@@ -492,8 +492,8 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(const RCPtr<VBucket> &vbu
     }
 
     if (checkpointConfig.canKeepClosedCheckpoints()) {
-        double current = static_cast<double>(stats.currentSize.get() + stats.memOverhead.get());
-        if (current < stats.mem_high_wat &&
+        double memoryUsed = static_cast<double>(stats.getTotalMemoryUsed());
+        if (memoryUsed < stats.mem_high_wat &&
             checkpointList.size() <= checkpointConfig.getMaxCheckpoints()) {
             return 0;
         }

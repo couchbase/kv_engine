@@ -389,7 +389,7 @@ static void testPoisonKey() {
 
 int main() {
     putenv(strdup("ALLOW_NO_STATS_UPDATE=yeah"));
-    global_stats.maxDataSize = 64*1024*1024;
+    global_stats.setMaxDataSize(64*1024*1024);
     HashTable::setDefaultNumBuckets(3);
     alarm(60);
     testHashSize();

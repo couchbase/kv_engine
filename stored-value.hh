@@ -571,27 +571,9 @@ public:
     }
 
     /**
-     * Set the maximum amount of data this instance can store.
-     *
-     * While there's other overhead, this only takes into
-     * consideration the sum of StoredValue::size() values.
-     */
-    static void setMaxDataSize(EPStats&, size_t);
-
-    /**
      * Set the memory threshold on the current bucket quota for accepting a new mutation
      */
     static void setMutationMemoryThreshold(double memThreshold);
-
-    /**
-     * Get the maximum amount of memory this instance can store.
-     */
-    static size_t getMaxDataSize(EPStats&);
-
-    /**
-     * Get the current amount of of data stored.
-     */
-    static size_t getCurrentSize(EPStats&);
 
 private:
 
