@@ -2654,17 +2654,15 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doCheckpointStats(const void *cook
         ADD_STAT add_stat;
     };
 
-    if (strncmp(stat_key, "checkpoint", 10) == 0) {
-        if (nkey == 10) {
-            StatCheckpointVisitor cv(epstore, cookie, add_stat);
-            epstore->visit(cv);
-        } else if (nkey > 11) {
-            std::string vbid(&stat_key[11], nkey - 11);
-            uint16_t vbucket_id(0);
-            parseUint16(vbid.c_str(), &vbucket_id);
-            RCPtr<VBucket> vb = getVBucket(vbucket_id);
-            StatCheckpointVisitor::addCheckpointStat(cookie, add_stat, epstore, vb);
-        }
+    if (nkey == 10) {
+        StatCheckpointVisitor cv(epstore, cookie, add_stat);
+        epstore->visit(cv);
+    } else if (nkey > 11) {
+        std::string vbid(&stat_key[11], nkey - 11);
+        uint16_t vbucket_id(0);
+        parseUint16(vbid.c_str(), &vbucket_id);
+        RCPtr<VBucket> vb = getVBucket(vbucket_id);
+        StatCheckpointVisitor::addCheckpointStat(cookie, add_stat, epstore, vb);
     }
 
     return ENGINE_SUCCESS;
