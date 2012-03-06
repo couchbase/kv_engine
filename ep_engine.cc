@@ -839,6 +839,7 @@ extern "C" {
             break;
         case CMD_RESET_REPLICATION_CHAIN:
             return h->resetReplicationChain(cookie, request, response);
+        case CMD_LAST_CLOSED_CHECKPOINT:
         case CMD_CREATE_CHECKPOINT:
         case CMD_EXTEND_CHECKPOINT:
             return h->handleCheckpointCmds(cookie, request, response);
