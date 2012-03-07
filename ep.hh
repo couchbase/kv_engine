@@ -777,7 +777,7 @@ public:
         return roUnderlying;
     }
 
-    InvalidItemDbPager* getInvalidItemDbPager() {
+    const shared_ptr<InvalidItemDbPager> &getInvalidItemDbPager() {
         return invalidItemDbPager;
     }
 
@@ -943,36 +943,36 @@ private:
     friend class Deleter;
     friend class VBCBAdaptor;
 
-    EventuallyPersistentEngine &engine;
-    EPStats                    &stats;
-    bool                        doPersistence;
-    KVStore                    *rwUnderlying;
-    KVStore                    *roUnderlying;
-    StorageProperties          storageProperties;
-    Dispatcher                *dispatcher;
-    Dispatcher                *roDispatcher;
-    Dispatcher                *nonIODispatcher;
-    Flusher                   *flusher;
-    InvalidItemDbPager        *invalidItemDbPager;
-    VBucketMap                 vbuckets;
-    SyncObject                 mutex;
+    EventuallyPersistentEngine     &engine;
+    EPStats                        &stats;
+    bool                            doPersistence;
+    KVStore                        *rwUnderlying;
+    KVStore                        *roUnderlying;
+    StorageProperties               storageProperties;
+    Dispatcher                     *dispatcher;
+    Dispatcher                     *roDispatcher;
+    Dispatcher                     *nonIODispatcher;
+    Flusher                        *flusher;
+    shared_ptr<InvalidItemDbPager>  invalidItemDbPager;
+    VBucketMap                      vbuckets;
+    SyncObject                      mutex;
 
-    MutationLog                mutationLog;
+    MutationLog                     mutationLog;
 
     // The writing queue is used by the flusher thread to keep
     // track of the objects it works on. It should _not_ be used
     // by any other threads (because the flusher use it without
     // locking...
-    std::queue<queued_item>    writing;
-    std::vector<queued_item>  *dbShardQueues;
-    std::map<uint16_t, vbucket_state_t> flusherCachedVbStates;
-    pthread_t                  thread;
-    Atomic<size_t>             bgFetchQueue;
-    Atomic<bool>               diskFlushAll;
-    TransactionContext         tctx;
-    Mutex                      vbsetMutex;
-    uint32_t                   bgFetchDelay;
-    uint64_t                  *persistenceCheckpointIds;
+    std::queue<queued_item>              writing;
+    std::vector<queued_item>            *dbShardQueues;
+    std::map<uint16_t, vbucket_state_t>  flusherCachedVbStates;
+    pthread_t                            thread;
+    Atomic<size_t>                       bgFetchQueue;
+    Atomic<bool>                         diskFlushAll;
+    TransactionContext                   tctx;
+    Mutex                                vbsetMutex;
+    uint32_t                             bgFetchDelay;
+    uint64_t                            *persistenceCheckpointIds;
     // During restore we're bypassing the checkpoint lists with the
     // objects we're restoring, but we need them to be persisted.
     // This is solved by using a separate list for those objects.
