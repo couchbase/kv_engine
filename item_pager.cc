@@ -112,7 +112,7 @@ private:
 };
 
 bool ItemPager::callback(Dispatcher &d, TaskId t) {
-    double current = static_cast<double>(StoredValue::getCurrentSize(stats));
+    double current = static_cast<double>(stats.getTotalMemoryUsed());
     double upper = static_cast<double>(stats.mem_high_wat);
     double lower = static_cast<double>(stats.mem_low_wat);
     if (available && current > upper) {
@@ -122,7 +122,7 @@ bool ItemPager::callback(Dispatcher &d, TaskId t) {
         double toKill = (current - static_cast<double>(lower)) / current;
 
         std::stringstream ss;
-        ss << "Using " << StoredValue::getCurrentSize(stats)
+        ss << "Using " << stats.getTotalMemoryUsed()
            << " bytes of memory, paging out %0f%% of items." << std::endl;
         getLogger()->log(EXTENSION_LOG_INFO, NULL, ss.str().c_str(),
                          (toKill*100.0));

@@ -329,35 +329,10 @@ const char* HashTable::getDefaultStorageValueTypeStr() {
     return rv;
 }
 
-/**
- * Get the maximum amount of memory available for storing data.
- *
- * @return the memory ceiling
- */
-size_t StoredValue::getMaxDataSize(EPStats& st) {
-    return st.maxDataSize;
-}
-
-/**
- * Set the default number of bytes available for stored values.
- */
-void StoredValue::setMaxDataSize(EPStats &st, size_t to) {
-    if (to != 0) {
-        st.maxDataSize = to;
-    }
-}
-
 void StoredValue::setMutationMemoryThreshold(double memThreshold) {
     if (memThreshold > 0.0 && memThreshold <= 1.0) {
         mutation_mem_threshold = memThreshold;
     }
-}
-
-/**
- * What's the total size of allocations?
- */
-size_t StoredValue::getCurrentSize(EPStats &st) {
-    return st.currentSize.get() + st.memOverhead.get();
 }
 
 void StoredValue::increaseCacheSize(HashTable &ht,
@@ -396,9 +371,9 @@ void StoredValue::reduceCurrentSize(EPStats &st, size_t by) {
 /**
  * Is there enough space for this thing?
  */
-bool StoredValue::hasAvailableSpace(EPStats &st, const Item &item) {
-    double newSize = static_cast<double>(getCurrentSize(st) +
-                                         sizeof(StoredValue) + item.getNKey());
-    double maxSize=  static_cast<double>(getMaxDataSize(st)) * mutation_mem_threshold;
+bool StoredValue::hasAvailableSpace(EPStats &st, const Item &itm) {
+    double newSize = static_cast<double>(st.getTotalMemoryUsed() +
+                                         sizeof(StoredValue) + itm.getNKey());
+    double maxSize=  static_cast<double>(st.getMaxDataSize()) * mutation_mem_threshold;
     return newSize <= maxSize;
 }

@@ -317,7 +317,7 @@ public:
 private:
 
     bool shouldBeResident() {
-        return StoredValue::getCurrentSize(stats) < stats.mem_low_wat;
+        return stats.getTotalMemoryUsed() < stats.mem_low_wat;
     }
 
     void purge();

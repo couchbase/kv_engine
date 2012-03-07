@@ -264,10 +264,10 @@ extern "C" {
                 validate(vsize, static_cast<uint64_t>(0),
                          std::numeric_limits<uint64_t>::max());
                 EPStats &stats = e->getEpStats();
-                stats.maxDataSize = vsize;
+                stats.setMaxDataSize(vsize);
 
-                stats.mem_low_wat = percentOf(StoredValue::getMaxDataSize(stats), 0.6);
-                stats.mem_high_wat = percentOf(StoredValue::getMaxDataSize(stats), 0.75);
+                stats.mem_low_wat = percentOf(stats.getMaxDataSize(), 0.6);
+                stats.mem_high_wat = percentOf(stats.getMaxDataSize(), 0.75);
             } else if (strcmp(keyz, "mem_low_wat") == 0) {
                 // Want more bits than int.
                 char *ptr = NULL;
@@ -1449,7 +1449,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
             }
             HashTable::setDefaultNumBuckets(htBuckets);
             HashTable::setDefaultNumLocks(htLocks);
-            StoredValue::setMaxDataSize(stats, maxSize);
+            stats.setMaxDataSize(maxSize);
             StoredValue::setMutationMemoryThreshold(mutation_mem_threshold);
 
             if (svaltype && !HashTable::setDefaultStorageValueType(svaltype)) {
@@ -1484,10 +1484,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         }
 
         if (memLowWat == std::numeric_limits<size_t>::max()) {
-            memLowWat = percentOf(StoredValue::getMaxDataSize(stats), 0.6);
+            memLowWat = percentOf(stats.getMaxDataSize(), 0.6);
         }
         if (memHighWat == std::numeric_limits<size_t>::max()) {
-            memHighWat = percentOf(StoredValue::getMaxDataSize(stats), 0.75);
+            memHighWat = percentOf(stats.getMaxDataSize(), 0.75);
         }
 
         stats.mem_low_wat = memLowWat;
@@ -2803,12 +2803,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                     pendingCountVisitor.getPendingWrites(),
                     add_stat, cookie);
 
-    add_casted_stat("mem_used", stats.currentSize + stats.memOverhead, add_stat,
+    add_casted_stat("mem_used", stats.getTotalMemoryUsed(), add_stat,
                     cookie);
     add_casted_stat("ep_kv_size", stats.currentSize, add_stat, cookie);
     add_casted_stat("ep_value_size", stats.totalValueSize, add_stat, cookie);
     add_casted_stat("ep_overhead", stats.memOverhead, add_stat, cookie);
-    add_casted_stat("ep_max_data_size", epstats.maxDataSize, add_stat, cookie);
+    add_casted_stat("ep_max_data_size", epstats.getMaxDataSize(), add_stat, cookie);
     add_casted_stat("ep_mem_low_wat", epstats.mem_low_wat, add_stat, cookie);
     add_casted_stat("ep_mem_high_wat", epstats.mem_high_wat, add_stat, cookie);
     add_casted_stat("ep_total_cache_size",
@@ -2970,12 +2970,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doMemoryStats(const void *cookie,
                                                            ADD_STAT add_stat) {
 
-    add_casted_stat("mem_used", stats.currentSize + stats.memOverhead, add_stat,
-                    cookie);
+    add_casted_stat("mem_used", stats.getTotalMemoryUsed(), add_stat, cookie);
     add_casted_stat("ep_kv_size", stats.currentSize, add_stat, cookie);
     add_casted_stat("ep_value_size", stats.totalValueSize, add_stat, cookie);
     add_casted_stat("ep_overhead", stats.memOverhead, add_stat, cookie);
-    add_casted_stat("ep_max_data_size", stats.maxDataSize, add_stat, cookie);
+    add_casted_stat("ep_max_data_size", stats.getMaxDataSize(), add_stat, cookie);
     add_casted_stat("ep_mem_low_wat", stats.mem_low_wat, add_stat, cookie);
     add_casted_stat("ep_mem_high_wat", stats.mem_high_wat, add_stat, cookie);
     add_casted_stat("ep_oom_errors", stats.oom_errors, add_stat, cookie);

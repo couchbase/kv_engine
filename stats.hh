@@ -22,10 +22,24 @@ static const hrtime_t ONE_SECOND(1000000);
 class EPStats {
 public:
 
-    EPStats() : maxDataSize(DEFAULT_MAX_DATA_SIZE),
-                dirtyAgeHisto(GrowingWidthGenerator<hrtime_t>(0, ONE_SECOND, 1.4), 25),
+    EPStats() : dirtyAgeHisto(GrowingWidthGenerator<hrtime_t>(0, ONE_SECOND, 1.4), 25),
                 dataAgeHisto(GrowingWidthGenerator<hrtime_t>(0, ONE_SECOND, 1.4), 25),
-                diskCommitHisto(GrowingWidthGenerator<hrtime_t>(0, ONE_SECOND, 1.4), 25) {}
+                diskCommitHisto(GrowingWidthGenerator<hrtime_t>(0, ONE_SECOND, 1.4), 25),
+                maxDataSize(DEFAULT_MAX_DATA_SIZE) {}
+
+    size_t getMaxDataSize() {
+        return maxDataSize.get();
+    }
+
+    void setMaxDataSize(size_t size) {
+        if (size > 0) {
+            maxDataSize.set(size);
+        }
+    }
+
+    size_t getTotalMemoryUsed() {
+        return currentSize.get() + memOverhead.get();
+    }
 
     //! How long it took us to load the data from disk.
     Atomic<hrtime_t> warmupTime;
@@ -123,8 +137,6 @@ public:
     Atomic<size_t> numRevertAdds;
     //! Number of updated items reverted from hot reload
     Atomic<size_t> numRevertUpdates;
-    //! Max allowable memory size.
-    Atomic<size_t> maxDataSize;
     //! Total size of stored objects.
     Atomic<size_t> currentSize;
     //! Total memory overhead to store values for resident keys.
@@ -376,6 +388,9 @@ public:
     }
 
 private:
+
+    //! Max allowable memory size.
+    Atomic<size_t> maxDataSize;
 
     DISALLOW_COPY_AND_ASSIGN(EPStats);
 };

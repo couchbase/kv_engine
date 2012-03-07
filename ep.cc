@@ -1689,7 +1689,7 @@ public:
                 LockHolder lh = vb->ht.getLockedBucket(queuedItem->getKey(), &bucket_num);
                 StoredValue *v = store->fetchValidValue(vb, queuedItem->getKey(),
                                                         bucket_num, true);
-                double current = static_cast<double>(StoredValue::getCurrentSize(*stats));
+                double current = static_cast<double>(stats->getTotalMemoryUsed());
                 double lower = static_cast<double>(stats->mem_low_wat);
                 if (v && current > lower) {
                     // Check if the key exists in the open or closed checkpoints.

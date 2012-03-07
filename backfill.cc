@@ -8,9 +8,9 @@
 double BackFillVisitor::backfillResidentThreshold = DEFAULT_BACKFILL_RESIDENT_THRESHOLD;
 
 static bool isMemoryUsageTooHigh(EPStats &stats) {
-    double currentSize = static_cast<double>(stats.currentSize.get() + stats.memOverhead.get());
-    double maxSize = static_cast<double>(stats.maxDataSize.get());
-    return currentSize > (maxSize * BACKFILL_MEM_THRESHOLD);
+    double memoryUsed = static_cast<double>(stats.getTotalMemoryUsed());
+    double maxSize = static_cast<double>(stats.getMaxDataSize());
+    return memoryUsed > (maxSize * BACKFILL_MEM_THRESHOLD);
 }
 
 void BackfillDiskLoad::callback(GetValue &gv) {
