@@ -471,7 +471,8 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
     config.addValueChangedListener("vb_chunk_del_time",
                                    new EPStoreValueChangeListener(*this));
 
-    invalidItemDbPager = new InvalidItemDbPager(this, stats, vbDelChunkSize);
+    invalidItemDbPager = shared_ptr<InvalidItemDbPager>(
+                            new InvalidItemDbPager(this, stats, vbDelChunkSize));
 
     config.addValueChangedListener("couch_vbucket_batch_count",
                                    new EPStoreValueChangeListener(*this));
