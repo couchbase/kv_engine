@@ -84,6 +84,8 @@ size_t KVStore::warmup(MutationLog &lf,
                      "Completed log read in %s with %d entries\n",
                      hrtime2text(end - start).c_str(), harvester.total());
 
+    engine->getEpStats().warmup.numKeysInAccessLog = harvester.total();
+
     WarmupCookie cookie(this, cb);
     start = gethrtime();
     harvester.apply(&cookie, &warmupCallback);

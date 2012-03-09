@@ -2473,13 +2473,7 @@ bool EventuallyPersistentStore::warmupFromLog(const std::map<std::pair<uint16_t,
         return false;
     }
 
-    if (harvester.total() == 0) {
-        // We didn't read a single item from the log..
-        // @todo. the harvester should be extened to either
-        // "throw" a FileNotFound exception, or a method we may
-        // look at in order to check if it existed.
-        return false;
-    }
+    stats.warmup.numKeysInMutationLog = harvester.total();
 
     getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
                      "Completed log read in %s with %d entries\n",
@@ -2604,8 +2598,10 @@ EventuallyPersistentStore::warmup(const std::map<std::pair<uint16_t, uint16_t>,
     bool success = false;
     if (source == warmup_from_mutation_log) {
         try {
+            stats.warmup.readMutationLog = true;
             success = warmupFromLog(st, cb);
-        } catch(MutationLog::ReadException e) {
+        } catch (MutationLog::ReadException e) {
+            stats.warmup.corruptMutationLog = true;
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                              "Error reading warmup log:  %s", e.what());
         }
@@ -2614,9 +2610,14 @@ EventuallyPersistentStore::warmup(const std::map<std::pair<uint16_t, uint16_t>,
         success = true;
     } else if (source == warmup_from_access_log) {
         if (accessLog.exists()) {
-            accessLog.open();
-            if (roUnderlying->warmup(accessLog, st, *load_cb) != (size_t)-1) {
-                success = true;
+            try {
+                stats.warmup.readAccessLog = true;
+                accessLog.open();
+                if (roUnderlying->warmup(accessLog, st, *load_cb) != (size_t)-1) {
+                    success = true;
+                }
+            } catch (MutationLog::ReadException e) {
+                stats.warmup.corruptAccessLog = true;
             }
         }
 
@@ -2626,9 +2627,13 @@ EventuallyPersistentStore::warmup(const std::map<std::pair<uint16_t, uint16_t>,
             nm.append(".old");
             MutationLog old(nm);
             if (old.exists()) {
-                old.open();
-                if (roUnderlying->warmup(old, st, *load_cb) != (size_t)-1) {
-                    success = true;
+                try {
+                    old.open();
+                    if (roUnderlying->warmup(old, st, *load_cb) != (size_t)-1) {
+                        success = true;
+                    }
+                } catch (MutationLog::ReadException e) {
+                    stats.warmup.corruptAccessLog = true;
                 }
             }
         }

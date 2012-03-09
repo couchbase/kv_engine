@@ -2369,9 +2369,18 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                     epstats.dbCleanerComplete.get() ? "complete" : "running",
                     add_stat, cookie);
     if (configuration.isWarmup()) {
-        add_casted_stat("ep_warmup_thread",
-                        epstats.warmupComplete.get() ? "complete" : "running",
-                        add_stat, cookie);
+        // @todo We should refactor the warmup logic out of the flusher and
+        //       into it's own thread... I really don't like the string
+        //       comparison here, but it looked so stupid to have the
+        //       warmup_state to be running when it was complete ;)
+        const char *state = epstore->getFlusher()->stateName();
+        if (strcmp(state, "running") == 0) {
+            add_casted_stat("ep_warmup_thread", "complete", add_stat, cookie);
+            add_casted_stat("ep_warmup_state", "done", add_stat, cookie);
+        } else {
+            add_casted_stat("ep_warmup_state", state, add_stat, cookie);
+            add_casted_stat("ep_warmup_thread", "running", add_stat, cookie);
+        }
         add_casted_stat("ep_warmed_up", epstats.warmedUp, add_stat, cookie);
         add_casted_stat("ep_warmed_up_meta", epstats.warmedUpMeta, add_stat, cookie);
         add_casted_stat("ep_warmup_dups", epstats.warmDups, add_stat, cookie);
@@ -2389,6 +2398,28 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
         if (epstats.warmupComplete.get()) {
             add_casted_stat("ep_warmup_time", epstats.warmupTime,
                             add_stat, cookie);
+        }
+
+        if (epstats.warmup.readMutationLog) {
+            if (epstats.warmup.corruptMutationLog) {
+                add_casted_stat("ep_warmup_mutation_log", "corrupt",
+                                add_stat, cookie);
+            } else {
+                add_casted_stat("ep_warmup_mutation_log",
+                                epstats.warmup.numKeysInMutationLog,
+                                add_stat, cookie);
+            }
+        }
+
+        if (epstats.warmup.readAccessLog) {
+            if (epstats.warmup.corruptAccessLog) {
+                add_casted_stat("ep_warmup_access_log", "corrupt",
+                                add_stat, cookie);
+            } else {
+                add_casted_stat("ep_warmup_access_log",
+                                epstats.warmup.numKeysInAccessLog,
+                                add_stat, cookie);
+            }
         }
     }
 

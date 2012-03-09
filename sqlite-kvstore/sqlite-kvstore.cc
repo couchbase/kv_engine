@@ -407,6 +407,8 @@ size_t StrategicSqlite3::warmup(MutationLog &lf,
     }
     hrtime_t end = gethrtime();
 
+    engine->getEpStats().warmup.numKeysInAccessLog = harvester.total();
+
     getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
                      "Completed log read in %s with %d entries\n",
                      hrtime2text(end - start).c_str(), harvester.total());
