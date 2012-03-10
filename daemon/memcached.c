@@ -4148,6 +4148,7 @@ static char *process_stat(conn *c, token_t *tokens, const size_t ntokens) {
     } else if (strcmp(subcommand, "settings") == 0) {
         process_stat_settings(&append_stats, c);
     } else if (strcmp(subcommand, "cachedump") == 0) {
+#ifdef FUTURE
         char *buf = NULL;
         unsigned int bytes = 0, id, limit = 0;
 
@@ -4167,10 +4168,11 @@ static char *process_stat(conn *c, token_t *tokens, const size_t ntokens) {
             return NULL;
         }
 
-#ifdef FUTURE
         buf = item_cachedump(id, limit, &bytes);
-#endif
         write_and_free(c, buf, bytes);
+        return NULL;
+#endif
+        out_string(c, "SERVER_ERROR Not supported");
         return NULL;
     } else if (strcmp(subcommand, "aggregate") == 0) {
         server_stats(&append_stats, c, true);
