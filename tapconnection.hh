@@ -122,12 +122,12 @@ typedef enum {
  */
 class TapCheckpointState {
 public:
-    TapCheckpointState() : currentCheckpointId(0), openCheckpointIdAtBackfillEnd(0),
+    TapCheckpointState() : currentCheckpointId(0),
                            lastSeqNum(0), lastItem(false) {}
 
     TapCheckpointState(uint16_t vb, uint64_t checkpointId, tap_checkpoint_state s) :
         vbucket(vb), currentCheckpointId(checkpointId),
-        openCheckpointIdAtBackfillEnd(0), lastSeqNum(0), lastItem(false), state(s) {}
+        lastSeqNum(0), lastItem(false), state(s) {}
 
     TapCheckpointState(const TapCheckpointState &other) {
         vbucket = other.vbucket;
@@ -138,8 +138,6 @@ public:
     uint16_t vbucket;
     // Id of the checkpoint that is currently referenced by the given TAP client's cursor.
     uint64_t currentCheckpointId;
-    // Id of the current open checkpoint at the time of backfill completion.
-    uint64_t openCheckpointIdAtBackfillEnd;
     // Last sequence number sent to the slave.
     uint32_t lastSeqNum;
     // True if the TAP cursor reaches to the last item at its current checkpoint.
