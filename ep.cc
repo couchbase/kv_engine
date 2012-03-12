@@ -26,6 +26,7 @@
 
 #include "ep.hh"
 #include "flusher.hh"
+#include "warmup.hh"
 #include "statsnap.hh"
 #include "locks.hh"
 #include "dispatcher.hh"
@@ -529,17 +530,26 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
     startNonIODispatcher();
     assert(rwUnderlying);
     assert(roUnderlying);
+
+    // @todo - Ideally we should run the warmup thread in it's own
+    //         thread so that it won't block the flusher (in the write
+    //         thread), but we can't put it in the RO dispatcher either,
+    //         because that would block the background fetches..
+    warmupTask = new Warmup(this, dispatcher);
 }
 
-class FlusherLeavingStateListener : public FlusherStateListener {
+class WarmupWaitListener : public WarmupStateListener {
 public:
-    FlusherLeavingStateListener(Flusher &f, enum flusher_state st) :
-        flusher(f), state(st) {}
+    WarmupWaitListener(Warmup &f, bool wfw) :
+        warmup(f), waitForWarmup(wfw) { }
 
-    virtual void  stateChanged(const enum flusher_state &from,
-                               const enum flusher_state &to) {
-        (void)from;
-        if (to != state) {
+    virtual void stateChanged(const int, const int to) {
+        if (waitForWarmup) {
+            if (to == WarmupState::LoadingAccessLog || to == WarmupState::Done) {
+                LockHolder lh(syncobject);
+                syncobject.notify();
+            }
+        } else if (to != WarmupState::Initialize) {
             LockHolder lh(syncobject);
             syncobject.notify();
         }
@@ -547,45 +557,25 @@ public:
 
     void wait() {
         LockHolder lh(syncobject);
-        if (flusher.state() != state) {
-            // We're not in that state anymore
-            return;
+        // Verify that we're not already reached the state...
+        int currstate = warmup.getState().getState();
+
+        if (waitForWarmup) {
+            if (currstate == WarmupState::LoadingAccessLog ||
+                currstate == WarmupState::Done)
+            {
+                return;
+            }
+        } else if (currstate != WarmupState::Initialize) {
+            return ;
         }
+
         syncobject.wait();
     }
 
 private:
-    Flusher &flusher;
-    enum flusher_state state;
-    SyncObject syncobject;
-};
-
-class FlusherEnterStateListener : public FlusherStateListener {
-public:
-    FlusherEnterStateListener(Flusher &f, enum flusher_state st) :
-        flusher(f), state(st) {}
-
-    virtual void  stateChanged(const enum flusher_state &from,
-                               const enum flusher_state &to) {
-        (void)from;
-        if (to == state) {
-            LockHolder lh(syncobject);
-            syncobject.notify();
-        }
-    }
-
-    void wait() {
-        LockHolder lh(syncobject);
-        if (flusher.state() == state) {
-            // We're already that state
-            return;
-        }
-        syncobject.wait();
-    }
-
-private:
-    Flusher &flusher;
-    enum flusher_state state;
+    Warmup &warmup;
+    bool waitForWarmup;
     SyncObject syncobject;
 };
 
@@ -596,25 +586,11 @@ void EventuallyPersistentStore::initialize() {
         reset();
     }
 
-    // We should at least wait until we've got the vbucket lists..
-    FlusherLeavingStateListener flusherListener(*flusher, initializing);
-    flusher->addFlusherStateListener(&flusherListener);
-    flusherListener.wait();
-    flusher->removeFlusherStateListener(&flusherListener);
-
-    // We might want to wait until we've loaded all data...
-    if (config.isWaitforwarmup()) {
-        flusher_state state = running;
-
-        if (getROUnderlying()->isKeyDumpSupported()) {
-            state = loading_data;
-        }
-
-        FlusherEnterStateListener fl(*flusher, state);
-        flusher->addFlusherStateListener(&fl);
-        fl.wait();
-        flusher->removeFlusherStateListener(&fl);
-    }
+    WarmupWaitListener warmupListener(*warmupTask, config.isWaitforwarmup());
+    warmupTask->addWarmupStateListener(&warmupListener);
+    warmupTask->start();
+    warmupListener.wait();
+    warmupTask->removeWarmupStateListener(&warmupListener);
 
     if (config.isFailpartialwarmup() && stats.warmOOM > 0) {
         getLogger()->log(EXTENSION_LOG_WARNING, NULL,
@@ -695,6 +671,7 @@ EventuallyPersistentStore::~EventuallyPersistentStore() {
     delete nonIODispatcher;
     delete []persistenceCheckpointIds;
     delete []dbShardQueues;
+    delete warmupTask;
 }
 
 void EventuallyPersistentStore::startDispatcher() {
@@ -708,6 +685,11 @@ void EventuallyPersistentStore::startNonIODispatcher() {
 const Flusher* EventuallyPersistentStore::getFlusher() {
     return flusher;
 }
+
+const Warmup* EventuallyPersistentStore::getWarmup(void) const {
+    return warmupTask;
+}
+
 
 void EventuallyPersistentStore::startFlusher() {
     flusher->start();
@@ -2606,8 +2588,10 @@ EventuallyPersistentStore::warmup(const std::map<std::pair<uint16_t, uint16_t>,
                              "Error reading warmup log:  %s", e.what());
         }
     } else if (source == warmup_from_key_dump) {
-        roUnderlying->dumpKeys(vbids, cb);
-        success = true;
+        if (roUnderlying->isKeyDumpSupported()) {
+            roUnderlying->dumpKeys(vbids, cb);
+            success = true;
+        }
     } else if (source == warmup_from_access_log) {
         if (accessLog.exists()) {
             try {

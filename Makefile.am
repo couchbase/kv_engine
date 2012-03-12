@@ -99,7 +99,8 @@ ep_la_SOURCES = \
                  tapconnmap.cc tapconnmap.hh \
                  tapthrottle.cc tapthrottle.hh \
                  vbucket.cc vbucket.hh \
-                 vbucketmap.cc vbucketmap.hh
+                 vbucketmap.cc vbucketmap.hh \
+                 warmup.cc warmup.hh
 
 
 libobjectregistry_la_SOURCES = objectregistry.cc objectregistry.hh

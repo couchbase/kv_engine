@@ -15,6 +15,7 @@ public:
     static const Priority BgFetcherPriority;
     static const Priority TapBgFetcherPriority;
     static const Priority VKeyStatBgFetcherPriority;
+    static const Priority WarmupPriority;
 
     // Priorities for Read-Write dispatcher
     static const Priority VBucketPersistHighPriority;

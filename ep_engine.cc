@@ -31,6 +31,7 @@
 #include "tapthrottle.hh"
 #include "htresizer.hh"
 #include "backfill.hh"
+#include "warmup.hh"
 
 #define STATWRITER_NAMESPACE core_engine
 #include "statwriter.hh"
@@ -2369,16 +2370,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                     epstats.dbCleanerComplete.get() ? "complete" : "running",
                     add_stat, cookie);
     if (configuration.isWarmup()) {
-        // @todo We should refactor the warmup logic out of the flusher and
-        //       into it's own thread... I really don't like the string
-        //       comparison here, but it looked so stupid to have the
-        //       warmup_state to be running when it was complete ;)
-        const char *state = epstore->getFlusher()->stateName();
-        if (strcmp(state, "running") == 0) {
+        const char *state = epstore->getWarmup()->getState().toString();
+        add_casted_stat("ep_warmup_state", state, add_stat, cookie);
+        if (strcmp(state, "done") == 0) {
             add_casted_stat("ep_warmup_thread", "complete", add_stat, cookie);
-            add_casted_stat("ep_warmup_state", "done", add_stat, cookie);
         } else {
-            add_casted_stat("ep_warmup_state", state, add_stat, cookie);
             add_casted_stat("ep_warmup_thread", "running", add_stat, cookie);
         }
         add_casted_stat("ep_warmed_up", epstats.warmedUp, add_stat, cookie);

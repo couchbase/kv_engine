@@ -289,6 +289,7 @@ public:
 
 // Forward declaration
 class Flusher;
+class Warmup;
 class TapBGFetchCallback;
 class EventuallyPersistentStore;
 
@@ -737,6 +738,7 @@ public:
     }
 
     const Flusher* getFlusher();
+    const Warmup* getWarmup(void) const;
 
     bool getKeyStats(const std::string &key, uint16_t vbucket,
                      key_stats &kstats);
@@ -864,7 +866,6 @@ protected:
 
     bool warmupFromLog(const std::map<std::pair<uint16_t, uint16_t>, vbucket_state> &state,
                        shared_ptr<Callback<GetValue> >cb);
-
     bool warmup(const std::map<std::pair<uint16_t, uint16_t>,
                 vbucket_state> &state,
                 enum warmup_source source,
@@ -952,6 +953,7 @@ private:
                          bool honorStates,
                          vbucket_state_t allowedState);
 
+    friend class Warmup;
     friend class Flusher;
     friend class BGFetchCallback;
     friend class VKeyStatBGFetchCallback;
@@ -971,6 +973,7 @@ private:
     Dispatcher                     *roDispatcher;
     Dispatcher                     *nonIODispatcher;
     Flusher                        *flusher;
+    Warmup                         *warmupTask;
     shared_ptr<InvalidItemDbPager>  invalidItemDbPager;
     VBucketMap                      vbuckets;
     SyncObject                      mutex;

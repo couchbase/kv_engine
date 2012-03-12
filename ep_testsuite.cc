@@ -5068,7 +5068,7 @@ static enum test_result test_compact_mutation_log(ENGINE_HANDLE *h, ENGINE_HANDL
                               testHarness.engine_path,
                               "klog_path=/tmp/mutation.log",
                               true, false);
-    assert(get_int_stat(h, h1, "ep_warmed_up") == 1000);
+    assert(get_int_stat(h, h1, "ep_warmed_up_meta") == 1000);
     check(get_int_stat(h, h1, "count_new", "klog") == 1000,
           "Number of new log entries should be 2000");
     check(get_int_stat(h, h1, "count_del", "klog") == 0,

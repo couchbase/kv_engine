@@ -21,6 +21,7 @@
 const Priority Priority::BgFetcherPriority("bg_fetcher_priority", 0);
 const Priority Priority::TapBgFetcherPriority("tap_bg_fetcher_priority", 1);
 const Priority Priority::VKeyStatBgFetcherPriority("vkey_stat_bg_fetcher_priority", 3);
+const Priority Priority::WarmupPriority("warmup_priority", 0);
 
 // Priorities for Read-Write dispatcher
 const Priority Priority::VBucketPersistHighPriority("vbucket_persist_high_priority", 1);

@@ -60,24 +60,6 @@ static bool validTransition(enum flusher_state from,
 
     switch (from) {
     case initializing:
-        return (to == loading_keys ||
-                to == loading_data ||
-                to == loading_mutation_log);
-    case loading_mutation_log:
-        return (to == loading_keys ||
-                to == load_metadata_complete ||
-                to == loading_data);
-    case loading_keys:
-        return (to == load_metadata_complete || to == loading_data);
-
-    case load_metadata_complete:
-        return (to == loading_access_log || to == loading_data);
-
-    case loading_access_log:
-        return (to == warmup_complete || to == loading_data);
-    case loading_data:
-        return (to == warmup_complete);
-    case warmup_complete:
         return (to == running);
     case running:
         return (to == pausing);
@@ -96,10 +78,7 @@ static bool validTransition(enum flusher_state from,
 
 const char * Flusher::stateName(enum flusher_state st) const {
     static const char * const stateNames[] = {
-        "initializing", "loading mutation log", "loading keys",
-        "load_metadata_complete",
-        "loading data", "loading access log", "warmup complete",
-        "running", "pausing", "paused", "stopping", "stopped"
+        "initializing", "running", "pausing", "paused", "stopping", "stopped"
     };
     assert(st >= initializing && st <= stopped);
     return stateNames[st];
@@ -118,7 +97,6 @@ bool Flusher::transition_state(enum flusher_state to) {
         return false;
     }
 
-    fireStateChange(static_cast<enum flusher_state>(_state), to);
     getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
                      "Transitioning from %s to %s\n",
                      stateName(_state), stateName(to));
@@ -143,17 +121,8 @@ enum flusher_state Flusher::state() const {
 void Flusher::initialize(TaskId tid) {
     assert(task.get() == tid.get());
     getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                     "Initializing flusher; warming up");
-
-    warmupStartTime = gethrtime();
-    initialVbState = store->loadVBucketState();
-    if (store->getMutationLog()->isEnabled()) {
-        transition_state(loading_mutation_log);
-    } else if (store->getROUnderlying()->isKeyDumpSupported()) {
-        transition_state(loading_keys);
-    } else {
-        transition_state(loading_data);
-    }
+                     "Initializing flusher");
+    transition_state(running);
 }
 
 void Flusher::schedule_UNLOCKED() {
@@ -179,69 +148,6 @@ bool Flusher::step(Dispatcher &d, TaskId tid) {
         case initializing:
             initialize(tid);
             return true;
-
-        case loading_mutation_log:
-            if (store->warmup(initialVbState, warmup_from_mutation_log,
-                              false)) {
-                transition_state(load_metadata_complete);
-            } else if (store->getROUnderlying()->isKeyDumpSupported()) {
-                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                 "Failed to load mutation log, falling back to key dump");
-                transition_state(loading_keys);
-            } else {
-                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                 "Failed to load mutation log, falling back to full dump");
-                transition_state(loading_data);
-            }
-            return true;
-
-        case loading_keys:
-            if (store->warmup(initialVbState, warmup_from_key_dump, false)) {
-                transition_state(load_metadata_complete);
-            } else {
-                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                 "Failed to load keys and their meta data from the underlying store. Falling back to full dump");
-                transition_state(loading_data);
-            }
-
-            return true;
-
-        case load_metadata_complete:
-            store->stats.warmupKeysTime.set((gethrtime() - warmupStartTime) / 1000);
-            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                 "metadata loaded in %s",
-                                 hrtime2text(store->stats.warmupKeysTime * 1000).c_str());
-            transition_state(loading_access_log);
-            return true;
-
-        case loading_access_log:
-            if (store->warmup(initialVbState, warmup_from_access_log, true)) {
-                transition_state(warmup_complete);
-            } else {
-                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                 "Failed to load access log, falling back to full sweep warmup");
-                transition_state(loading_data);
-            }
-            return true;
-
-        case loading_data:
-            store->warmup(initialVbState, warmup_from_full_dump,
-                          store->stats.warmupComplete);
-            transition_state(warmup_complete);
-            return true;
-
-        case warmup_complete:
-            store->warmupCompleted();
-            store->stats.warmupComplete.set(true);
-            store->stats.warmupTime.set((gethrtime() - warmupStartTime) / 1000);
-            if (store->stats.warmupTime > 0) {
-                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                 "warmup completed in %s",
-                                 hrtime2text(store->stats.warmupTime * 1000).c_str());
-            }
-            transition_state(running);
-            return true;
-
         case paused:
             return false;
         case pausing:
@@ -362,24 +268,3 @@ int Flusher::doFlush() {
     return flushRv;
 }
 
-void Flusher::addFlusherStateListener(FlusherStateListener *listener) {
-    LockHolder lh(stateListeners.mutex);
-    stateListeners.listeners.push_back(listener);
-}
-
-void Flusher::removeFlusherStateListener(FlusherStateListener *listener) {
-    LockHolder lh(stateListeners.mutex);
-    stateListeners.listeners.remove(listener);
-}
-
-void Flusher::fireStateChange(const enum flusher_state &from,
-                              const enum flusher_state &to)
-{
-    LockHolder lh(stateListeners.mutex);
-    std::list<FlusherStateListener*>::iterator ii;
-    for (ii = stateListeners.listeners.begin();
-         ii != stateListeners.listeners.end();
-         ++ii) {
-        (*ii)->stateChanged(from, to);
-    }
-}
