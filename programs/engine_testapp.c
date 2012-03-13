@@ -755,10 +755,11 @@ static void clear_test_timeout() {
 }
 
 int main(int argc, char **argv) {
-    int c, exitcode = 0, num_cases = 0, timeout = 0;
+    int c, exitcode = 0, num_cases = 0, timeout = 0, loop_count = 0;
     bool verbose = false;
     bool quiet = false;
     bool dot = false;
+    bool loop = false;
     const char *engine = NULL;
     const char *engine_args = NULL;
     const char *test_suite = NULL;
@@ -799,6 +800,7 @@ int main(int argc, char **argv) {
           "e:" /* Engine options */
           "T:" /* Library with tests to load */
           "t:" /* Timeout */
+          "L"  /* Loop until failure */
           "q"  /* Be more quiet (only report failures) */
           "."  /* dot mode. */
           "n:"  /* test case to run */
@@ -819,6 +821,9 @@ int main(int argc, char **argv) {
             break;
         case 't':
             timeout = atoi(optarg);
+            break;
+        case 'L':
+            loop = true;
             break;
         case 'n':
             test_case = optarg;
@@ -898,34 +903,39 @@ int main(int argc, char **argv) {
         printf("1..%d\n", num_cases);
     }
 
-    int i;
-    bool need_newline = false;
-    for (i = 0; testcases[i].name; i++) {
-        if (test_case != NULL && strcmp(test_case, testcases[i].name) != 0)
-            continue;
-        if (!quiet) {
-            printf("Running [%04d/%04d]: %s...", i, num_cases,
-                   testcases[i].name);
-            fflush(stdout);
-        } else if(dot) {
-            printf(".");
-            need_newline = true;
-            /* Add a newline every few tests */
-            if ((i+1) % 70 == 0) {
-                printf("\n");
-                need_newline = false;
+    do {
+        int i;
+        bool need_newline = false;
+        for (i = 0; testcases[i].name; i++) {
+            if (test_case != NULL && strcmp(test_case, testcases[i].name) != 0)
+                continue;
+            if (!quiet) {
+                printf("Running [%04d/%04d]: %s...",
+                       i + num_cases * loop_count,
+                       num_cases * (loop_count + 1),
+                       testcases[i].name);
+                fflush(stdout);
+            } else if(dot) {
+                printf(".");
+                need_newline = true;
+                /* Add a newline every few tests */
+                if ((i+1) % 70 == 0) {
+                    printf("\n");
+                    need_newline = false;
+                }
             }
+            set_test_timeout(timeout);
+            exitcode += report_test(testcases[i].name,
+                                    run_test(testcases[i], engine, engine_args),
+                                    quiet, !verbose);
+            clear_test_timeout();
         }
-        set_test_timeout(timeout);
-        exitcode += report_test(testcases[i].name,
-                                run_test(testcases[i], engine, engine_args),
-                                quiet, !verbose);
-        clear_test_timeout();
-    }
 
-    if (need_newline) {
-        printf("\n");
-    }
+        if (need_newline) {
+            printf("\n");
+        }
+        ++loop_count;
+    } while (loop && exitcode == 0);
 
     //tear down the suite if needed
     symbol = dlsym(handle, "teardown_suite");
