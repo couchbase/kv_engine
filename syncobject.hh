@@ -16,6 +16,11 @@
 class SyncObject : public Mutex {
 public:
     SyncObject() : Mutex() {
+#ifdef VALGRIND
+        // valgrind complains about an uninitialzed memory read
+        // if we just initialize the cond with pthread_cond_init.
+        memset(&cond, 0, sizeof(cond));
+#endif
         if (pthread_cond_init(&cond, NULL) != 0) {
             throw std::runtime_error("MUTEX ERROR: Failed to initialize cond.");
         }

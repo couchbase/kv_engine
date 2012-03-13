@@ -24,6 +24,11 @@ Mutex::Mutex() : held(false)
 
 #ifdef HAVE_PTHREAD_MUTEX_ERRORCHECK
     pthread_mutexattr_t the_attr;
+#ifdef VALGRIND
+    // valgrind complains about an uninitialzed memory read
+    // if we just initialize the mutexattr with pthread_mutexattr_init.
+    memset(&the_attr, 0, sizeof(the_attr));
+#endif
     attr = &the_attr;
 
     if (pthread_mutexattr_init(attr) != 0 ||
@@ -32,6 +37,12 @@ Mutex::Mutex() : held(false)
         message.append(std::strerror(e));
         throw std::runtime_error(message);
     }
+#endif
+
+#ifdef VALGRIND
+    // valgrind complains about an uninitialzed memory read
+    // if we just initialize the mutex with pthread_mutex_init.
+    memset(&mutex, 0, sizeof(mutex));
 #endif
 
     if ((e = pthread_mutex_init(&mutex, attr)) != 0) {

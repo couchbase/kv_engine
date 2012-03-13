@@ -20,6 +20,15 @@ PANDORA_REQUIRE_PTHREAD
 PANDORA_REQUIRE_LIBEVENT
 PANDORA_ENABLE_DTRACE
 
+AC_ARG_ENABLE([valgrind],
+    [AS_HELP_STRING([--enable-valgrind],
+            [Build with extra memsets to mask out false hits from valgrind. @<:@default=off@:>@])],
+    [ac_enable_valgrind="$enableval"],
+    [ac_enable_valgrind="no"])
+
+AS_IF([test "$ac_enable_valgrind" = "yes"],
+      [ AC_DEFINE(VALGRIND, 1, [Enable extra memset to help valgrind])])
+
 AC_ARG_ENABLE([system-libsqlite3],
     [AS_HELP_STRING([--enable-system-libsqlite3],
             [Build with system installed libsqlite3. @<:@default=off@:>@])],
