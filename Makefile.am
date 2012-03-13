@@ -452,8 +452,20 @@ mbbackup-0002.mbb: $(top_srcdir)/t/generate-mbbackup
 	echo "Generate incremental restore files used by the test suite"
 	@$(top_srcdir)/t/generate-mbbackup
 
+VALGRIND=valgrind
+VALGRIND_OPTIONS=--log-file=valgrind.log --tool=Memcheck --num-callers=50 \
+                 --error-limit=yes --track-origins=yes --malloc-fill=55 \
+                 --free-fill=aa --dsymutil=yes -q
+
+valgrind_engine_tests: ep.la ep_testsuite.la mbbackup-0002.mbb
+	@$(MAKE) \
+             ENGINE_TESTAPP_LAUNCHER="$(VALGRIND) $(VALGRIND_OPTIONS)" \
+             engine_tests
+
 engine_tests: ep.la ep_testsuite.la mbbackup-0002.mbb
-	$(ENGINE_TESTAPP) -E .libs/ep.so -t $(TEST_TIMEOUT) \
+	$(ENGINE_TESTAPP_LAUNCHER) $(ENGINE_TESTAPP) \
+                $(ENGINE_TESTS_EXTRA_OPTIONS) \
+                -E .libs/ep.so -t $(TEST_TIMEOUT) \
 		-T .libs/ep_testsuite.so \
 		-e 'ht_size=13;ht_locks=7;initfile=t/test_pragma.sql;min_data_age=0;db_strategy=multiDB'
 
