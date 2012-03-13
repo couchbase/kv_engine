@@ -129,12 +129,6 @@ public:
         vbucket(vb), currentCheckpointId(checkpointId),
         lastSeqNum(0), lastItem(false), state(s) {}
 
-    TapCheckpointState(const TapCheckpointState &other) {
-        vbucket = other.vbucket;
-        currentCheckpointId = other.currentCheckpointId;
-        state = other.state;
-    }
-
     uint16_t vbucket;
     // Id of the checkpoint that is currently referenced by the given TAP client's cursor.
     uint64_t currentCheckpointId;
