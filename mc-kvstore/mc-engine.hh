@@ -111,6 +111,22 @@ public:
 
     void setVBucketBatchCount(size_t batch_count, Callback<bool> *cb);
 
+    void notify_update(uint16_t vbucket,
+                       uint64_t file_version,
+                       uint64_t header_offset,
+                       bool vbucket_state_updated,
+                       uint32_t state,
+                       uint64_t checkpoint,
+                       Callback<uint16_t> &cb);
+
+    void notify_headerpos_update(uint16_t vbucket,
+                                 uint64_t file_version,
+                                 uint64_t header_offset,
+                                 Callback<uint16_t> &cb) {
+        notify_update(vbucket, file_version, header_offset,
+                      false, 0, 0, cb);
+    }
+
     void addStats(const std::string &prefix,
                   ADD_STAT add_stat,
                   const void *c);

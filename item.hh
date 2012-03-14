@@ -242,8 +242,6 @@ public:
         exptime = exp_time;
     }
 
-    void fixupJSON(void);
-
     /**
      * Append another item to this item
      *
