@@ -76,7 +76,7 @@ bool WarmupState::legalTransition(int to) const {
                 to == KeyDump);
     case KeyDump:
         return (to == LoadingKVPairs ||
-                to == LoadingData);
+                to == LoadingAccessLog);
     case LoadingAccessLog:
         return (to == Done ||
                 to == LoadingData);
