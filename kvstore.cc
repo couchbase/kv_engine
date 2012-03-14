@@ -11,6 +11,7 @@
 #include "sqlite-kvstore.hh"
 #include "mc-kvstore/mc-kvstore.hh"
 #include "blackhole-kvstore/blackhole.hh"
+#include "warmup.hh"
 
 KVStore *KVStoreFactory::create(EventuallyPersistentEngine &theEngine) {
     Configuration &c = theEngine.getConfiguration();
@@ -66,7 +67,8 @@ static void warmupCallback(void *arg, uint16_t vb, uint16_t vbver,
 
 size_t KVStore::warmup(MutationLog &lf,
                        const std::map<std::pair<uint16_t, uint16_t>, vbucket_state> &vbmap,
-                       Callback<GetValue> &cb)
+                       Callback<GetValue> &cb,
+                       Callback<size_t> &estimate)
 {
     MutationLogHarvester harvester(lf);
     std::map<std::pair<uint16_t, uint16_t>, vbucket_state>::const_iterator it;
@@ -80,11 +82,11 @@ size_t KVStore::warmup(MutationLog &lf,
     }
     hrtime_t end = gethrtime();
 
+    size_t total = harvester.total();
+    estimate.callback(total);
     getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
                      "Completed log read in %s with %d entries\n",
-                     hrtime2text(end - start).c_str(), harvester.total());
-
-    engine->getEpStats().warmup.numKeysInAccessLog = harvester.total();
+                     hrtime2text(end - start).c_str(), total);
 
     WarmupCookie cookie(this, cb);
     start = gethrtime();
@@ -97,4 +99,9 @@ size_t KVStore::warmup(MutationLog &lf,
                      cookie.loaded, cookie.skipped, cookie.error);
 
     return cookie.loaded;
+}
+
+bool KVStore::getEstimatedItemCount(size_t &) {
+    // Not supported
+    return false;
 }

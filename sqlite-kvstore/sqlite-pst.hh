@@ -208,6 +208,8 @@ public:
                                         const std::string &table) const;
     virtual PreparedStatement *mkSelectAll(sqlite3 *dbh,
                                            const std::string &table) const;
+    virtual PreparedStatement *mkCountAll(sqlite3 *dbh,
+                                          const std::string &table) const;
     virtual PreparedStatement *mkDelete(sqlite3 *dbh,
                                         const std::string &table) const;
     virtual PreparedStatement *mkDeleteVBucket(sqlite3 *dbh,
@@ -233,7 +235,9 @@ public:
         delete del_stmt;
         delete del_vb_stmt;
         delete all_stmt;
-        ins_stmt = upd_stmt = sel_stmt = del_stmt = del_vb_stmt = all_stmt = NULL;
+        delete count_all_stmt;
+        ins_stmt = upd_stmt = sel_stmt = del_stmt = del_vb_stmt = all_stmt =
+            count_all_stmt = NULL;
     }
 
     PreparedStatement *ins() {
@@ -259,6 +263,11 @@ public:
     PreparedStatement *all() {
         return all_stmt;
     }
+
+    PreparedStatement *count_all() {
+        return count_all_stmt;
+    }
+
 private:
 
     void initStatements(const StatementFactory *sfact);
@@ -271,6 +280,7 @@ private:
     PreparedStatement *del_stmt;
     PreparedStatement *del_vb_stmt;
     PreparedStatement *all_stmt;
+    PreparedStatement *count_all_stmt;
 
     DISALLOW_COPY_AND_ASSIGN(Statements);
 };
