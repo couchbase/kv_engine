@@ -16,6 +16,7 @@
  */
 #include "config.h"
 #include "warmup.hh"
+#include "ep_engine.h"
 
 const int WarmupState::Initialize = 0;
 const int WarmupState::LoadingMutationLog = 1;
@@ -241,5 +242,62 @@ void Warmup::fireStateChange(const int from, const int to)
          ii != stateListeners.listeners.end();
          ++ii) {
         (*ii)->stateChanged(from, to);
+    }
+}
+
+void Warmup::addStats(ADD_STAT add_stat, const void *c) const
+{
+    if (store->getEPEngine().getConfiguration().isWarmup()) {
+        EPStats &stats = store->getEPEngine().getEpStats();
+        addStat(NULL, "enabled", add_stat, c);
+        const char *stateName = state.toString();
+        addStat("state", stateName, add_stat, c);
+        if (strcmp(stateName, "done") == 0) {
+            addStat("thread", "complete", add_stat, c);
+        } else {
+            addStat("thread", "running", add_stat, c);
+        }
+        addStat("count", stats.warmedUp, add_stat, c);
+        addStat("dups", stats.warmDups, add_stat, c);
+        addStat("oom", stats.warmOOM, add_stat, c);
+        addStat("min_memory_threshold",
+                        stats.warmupMemUsedCap * 100.0, add_stat, c);
+        addStat("min_item_threshold",
+                        stats.warmupNumReadCap * 100.0, add_stat, c);
+
+        if (stats.warmupKeysTime > 0) {
+            addStat("keys_time", stats.warmupKeysTime,
+                            add_stat, c);
+        }
+
+        if (stats.warmupComplete.get()) {
+            addStat("time", stats.warmupTime,
+                            add_stat, c);
+        }
+
+        if (stats.warmup.readMutationLog) {
+            if (stats.warmup.corruptMutationLog) {
+                addStat("mutation_log", "corrupt",
+                                add_stat, c);
+            } else {
+                addStat("mutation_log",
+                                stats.warmup.numKeysInMutationLog,
+                                add_stat, c);
+            }
+        }
+
+
+        if (stats.warmup.readAccessLog) {
+            if (stats.warmup.corruptAccessLog) {
+                addStat("access_log", "corrupt",
+                                add_stat, c);
+            } else {
+                addStat("access_log",
+                                stats.warmup.numKeysInAccessLog,
+                                add_stat, c);
+            }
+        }
+    } else {
+        addStat(NULL, "disabled", add_stat, c);
     }
 }

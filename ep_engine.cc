@@ -2369,55 +2369,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     add_casted_stat("ep_db_cleaner_status",
                     epstats.dbCleanerComplete.get() ? "complete" : "running",
                     add_stat, cookie);
-    if (configuration.isWarmup()) {
-        const char *state = epstore->getWarmup()->getState().toString();
-        add_casted_stat("ep_warmup_state", state, add_stat, cookie);
-        if (strcmp(state, "done") == 0) {
-            add_casted_stat("ep_warmup_thread", "complete", add_stat, cookie);
-        } else {
-            add_casted_stat("ep_warmup_thread", "running", add_stat, cookie);
-        }
-        add_casted_stat("ep_warmed_up", epstats.warmedUp, add_stat, cookie);
-        add_casted_stat("ep_warmed_up_meta", epstats.warmedUpMeta, add_stat, cookie);
-        add_casted_stat("ep_warmup_dups", epstats.warmDups, add_stat, cookie);
-        add_casted_stat("ep_warmup_oom", epstats.warmOOM, add_stat, cookie);
-        add_casted_stat("ep_warmup_min_memory_threshold",
-                        stats.warmupMemUsedCap * 100.0, add_stat, cookie);
-        add_casted_stat("ep_warmup_min_item_threshold",
-                        stats.warmupNumReadCap * 100.0, add_stat, cookie);
-
-        if (epstats.warmupKeysTime > 0) {
-            add_casted_stat("ep_warmup_keys_time", epstats.warmupKeysTime,
-                            add_stat, cookie);
-        }
-
-        if (epstats.warmupComplete.get()) {
-            add_casted_stat("ep_warmup_time", epstats.warmupTime,
-                            add_stat, cookie);
-        }
-
-        if (epstats.warmup.readMutationLog) {
-            if (epstats.warmup.corruptMutationLog) {
-                add_casted_stat("ep_warmup_mutation_log", "corrupt",
-                                add_stat, cookie);
-            } else {
-                add_casted_stat("ep_warmup_mutation_log",
-                                epstats.warmup.numKeysInMutationLog,
-                                add_stat, cookie);
-            }
-        }
-
-        if (epstats.warmup.readAccessLog) {
-            if (epstats.warmup.corruptAccessLog) {
-                add_casted_stat("ep_warmup_access_log", "corrupt",
-                                add_stat, cookie);
-            } else {
-                add_casted_stat("ep_warmup_access_log",
-                                epstats.warmup.numKeysInAccessLog,
-                                add_stat, cookie);
-            }
-        }
-    }
 
     add_casted_stat("ep_dbinit", databaseInitTime, add_stat, cookie);
     add_casted_stat("ep_io_num_read", epstats.io_num_read, add_stat, cookie);
@@ -3276,6 +3227,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
     } else if (nkey == 7 && strncmp(stat_key, "kvstore", 7) == 0) {
         getEpStore()->getROUnderlying()->addStats("ro", add_stat, cookie);
         getEpStore()->getRWUnderlying()->addStats("rw", add_stat, cookie);
+        rv = ENGINE_SUCCESS;
+    } else if (nkey == 6 && strncmp(stat_key, "warmup", 6) == 0) {
+        epstore->getWarmup()->addStats(add_stat, cookie);
         rv = ENGINE_SUCCESS;
     }
 

@@ -114,21 +114,11 @@ For introductory information on stats within membase, start with the
 | ep_num_eject_failures          | Number of items that could not be ejected  |
 | ep_num_not_my_vbuckets         | Number of times Not My VBucket exception   |
 |                                | happened during runtime                    |
-| ep_warmup_state                | The current state of the warmup thread     |
-| ep_warmup_thread               | Warmup thread status.                      |
-| ep_warmed_up                   | Number of items warmed up.                 |
-| ep_warmup_dups                 | Duplicates encountered during warmup.      |
-| ep_warmup_oom                  | OOMs encountered during warmup.            |
-| ep_warmup_time                 | Time (µs) spent by warming data.           |
-| ep_warmup_keys_time            | Time (µs) spent by warming keys.           |
-| ep_warmup_mutation_log         | Number of keys present in mutation log     |
-| ep_warmup_access_log           | Number of keys present in access log       |
 | ep_tap_keepalive               | Tap keepalive time.                        |
 | ep_dbname                      | DB path.                                   |
 | ep_dbinit                      | Number of seconds to initialize DB.        |
 | ep_dbshards                    | Number of shards for db store              |
 | ep_db_strategy                 | SQLite db strategy                         |
-| ep_warmup                      | true if warmup is enabled.                 |
 | ep_io_num_read                 | Number of io read operations               |
 | ep_io_num_write                | Number of io write operations              |
 | ep_io_read_bytes               | Number of bytes read (key + values)        |
@@ -580,6 +570,24 @@ Stats =klog= shows counts what's going on with the key mutation log.
 | count_del_all | Number of "delete all" events in the log.  |
 | count_commit1 | Number of "commit1" events in the log.     |
 | count_commit2 | Number of "commit2" events in the log.     |
+
+
+** Warmup
+
+Stats =warmup= shows statistics related to warmup logic
+
+| ep_warmup                      | Shows if warmup is enabled / disabled      |
+| ep_warmup_state                | The current state of the warmup thread     |
+| ep_warmup_thread               | Warmup thread status.                      |
+| ep_warmed_count                | Number of items warmed up.                 |
+| ep_warmup_dups                 | Duplicates encountered during warmup.      |
+| ep_warmup_oom                  | OOMs encountered during warmup.            |
+| ep_warmup_time                 | Time (µs) spent by warming data.           |
+| ep_warmup_keys_time            | Time (µs) spent by warming keys.           |
+| ep_warmup_mutation_log         | Number of keys present in mutation log     |
+| ep_warmup_access_log           | Number of keys present in access log       |
+
+
 
 * Details
 

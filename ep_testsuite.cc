@@ -1855,7 +1855,7 @@ static enum test_result test_expiry_loader(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
                               testHarness.engine_path,
                               testHarness.default_engine_cfg,
                               true, false);
-    assert(0 == get_int_stat(h, h1, "ep_warmed_up"));
+    assert(0 == get_int_stat(h, h1, "ep_warmup_count", "warmup"));
 
     return SUCCESS;
 }
@@ -1936,8 +1936,8 @@ static enum test_result test_bug3454(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                               testHarness.engine_path,
                               testHarness.default_engine_cfg,
                               true, false);
-    assert(1 == get_int_stat(h, h1, "ep_warmed_up"));
-    assert(0 == get_int_stat(h, h1, "ep_warmup_dups"));
+    assert(1 == get_int_stat(h, h1, "ep_warmup_count", "warmup"));
+    assert(0 == get_int_stat(h, h1, "ep_warmup_dups", "warmup"));
 
     return SUCCESS;
 }
@@ -1990,8 +1990,8 @@ static enum test_result test_bug3522(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                               testHarness.engine_path,
                               testHarness.default_engine_cfg,
                               true, false);
-    assert(0 == get_int_stat(h, h1, "ep_warmed_up"));
-    assert(0 == get_int_stat(h, h1, "ep_warmup_dups"));
+    assert(0 == get_int_stat(h, h1, "ep_warmup_count", "warmup"));
+    assert(0 == get_int_stat(h, h1, "ep_warmup_dups", "warmup"));
 
     return SUCCESS;
 }
@@ -3756,7 +3756,7 @@ static enum test_result test_warmup_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
                               true, false);
 
     useconds_t sleepTime = 128;
-    while (h1->get_stats(h, NULL, NULL, 0, add_stats) == ENGINE_SUCCESS) {
+    while (h1->get_stats(h, NULL, "warmup", 6, add_stats) == ENGINE_SUCCESS) {
         std::string s = vals["ep_warmup_thread"];
         if (strcmp(s.c_str(), "complete") == 0) {
             break;
@@ -3766,7 +3766,7 @@ static enum test_result test_warmup_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     }
 
     check(vals.find("ep_warmup_thread") != vals.end(), "Found no ep_warmup_thread");
-    check(vals.find("ep_warmed_up") != vals.end(), "Found no ep_warmed_up");
+    check(vals.find("ep_warmup_count") != vals.end(), "Found no ep_warmup_count");
     check(vals.find("ep_warmup_dups") != vals.end(), "Found no ep_warmup_dups");
     check(vals.find("ep_warmup_oom") != vals.end(), "Found no ep_warmup_oom");
     check(vals.find("ep_warmup_time") != vals.end(), "Found no ep_warmup_time");
@@ -5068,7 +5068,7 @@ static enum test_result test_compact_mutation_log(ENGINE_HANDLE *h, ENGINE_HANDL
                               testHarness.engine_path,
                               "klog_path=/tmp/mutation.log",
                               true, false);
-    assert(get_int_stat(h, h1, "ep_warmed_up_meta") == 1000);
+    assert(get_int_stat(h, h1, "curr_items") == 1000);
     check(get_int_stat(h, h1, "count_new", "klog") == 1000,
           "Number of new log entries should be 2000");
     check(get_int_stat(h, h1, "count_del", "klog") == 0,
