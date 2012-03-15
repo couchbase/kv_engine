@@ -212,8 +212,8 @@
             "type": "size_t"
         },
         "klog_max_log_size": {
-            "default": "4294967296",
-            "descr": "Maximum size of a log file allowed (4GB by default)",
+            "default": "2147483647",
+            "descr": "Maximum size of a log file allowed (2GB by default)",
             "type": "size_t"
         },
         "klog_path": {
