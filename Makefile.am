@@ -28,15 +28,22 @@ noinst_LTLIBRARIES = \
                      libobjectregistry.la \
                      libsqlite-kvstore.la
 
+fixup_stats_json:
+	cat docs/stats.json | python -mjson.tool > /tmp/stats.json.tmp
+	mv /tmp/stats.json.tmp docs/stats.json
+
+dist_doc_DATA = docs/stats.json
+
 bin_PROGRAMS = management/cbdbconvert
 BUILT_SOURCES = generated_configuration.cc \
-                generated_configuration.hh
+                generated_configuration.hh \
+                stats-info.c stats-info.h
 CLEANFILES = mbbackup-0001.mbb mbbackup-0002.mbb
 
 EXTRA_DIST = Doxyfile LICENSE README.markdown configuration.json docs   \
              dtrace management win32
 
-noinst_PROGRAMS = sizes gen_config
+noinst_PROGRAMS = sizes gen_config gen_code
 
 man_MANS =
 if BUILD_DOCS
@@ -91,6 +98,7 @@ ep_la_SOURCES = \
                  ringbuffer.hh \
                  sizes.cc \
                  stats.hh \
+                 stats-info.h stats-info.c \
                  statsnap.cc statsnap.hh \
                  statwriter.hh \
                  stored-value.cc stored-value.hh \
@@ -146,6 +154,11 @@ libmc_kvstore_la_CPPFLAGS = -I$(top_srcdir) -I$(top_srcdir)/sqlite-kvstore \
                             $(AM_CPPFLAGS)
 libmc_kvstore_la_LIBADD =
 libmc_kvstore_la_DEPENDENCIES =
+
+.generated_stat-info: gen_code docs/stats.json
+	./gen_code -j docs/stats.json -h stats-info.h -c stats-info.c -f get_stats_info && touch .generated_stat-info
+
+stats-info.h stats-info.c: .generated_stat-info
 
 .generated_configuration: gen_config configuration.json
 	./gen_config && touch .generated_configuration
@@ -318,6 +331,9 @@ sizes_DEPENDENCIES = vbucket.hh stored-value.hh item.hh
 gen_config_CPPFLAGS = -I$(top_srcdir) -I$(top_srcdir)/tools $(AM_CPPFLAGS)
 gen_config_SOURCES = tools/genconfig.cc tools/cJSON.c tools/cJSON.h
 gen_config_LDFLAGS = -lm
+
+gen_code_CPPFLAGS = -I$(top_srcdir) -I$(top_srcdir)/tools $(AM_CPPFLAGS)
+gen_code_SOURCES = tools/gencode.cc tools/cJSON.c tools/cJSON.h
 
 management_sqlite3_SOURCES = embedded/sqlite3-shell.c
 management_sqlite3_CFLAGS = $(AM_CFLAGS) ${NO_WERROR}

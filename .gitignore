@@ -14,6 +14,7 @@
 .deps/
 .DS_Store
 .generated_configuration
+.generated_stat-info
 .genstamp
 .libs/
 /*_test
@@ -38,6 +39,7 @@
 /configure
 /docs/doxy
 /dtrace/probes.h
+/gen_code
 /gen_config
 /generated_configuration.*
 /generated_suite_*.c
@@ -54,6 +56,7 @@
 /mbbackup-????.mbb
 /sizes
 /stamp-h1
+/stats-info.[ch]
 /testlogger_libify.cc
 /wrapper/*badm-online-restore
 /wrapper/*badm-online-update
