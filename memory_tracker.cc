@@ -30,6 +30,24 @@ MemoryTracker *MemoryTracker::getInstance() {
     return instance;
 }
 
+extern "C" {
+    static void NewHook(const void* ptr, size_t) {
+        if (ptr != NULL) {
+            void* p = const_cast<void*>(ptr);
+            size_t alloc = getHooksApi()->get_allocation_size(p);
+            ObjectRegistry::memoryAllocated(alloc);
+        }
+    }
+
+    static void DeleteHook(const void* ptr) {
+        if (ptr != NULL) {
+            void* p = const_cast<void*>(ptr);
+            size_t alloc = getHooksApi()->get_allocation_size(p);
+            ObjectRegistry::memoryDeallocated(alloc);
+        }
+    }
+}
+
 MemoryTracker::MemoryTracker() {
     if (getHooksApi()->add_new_hook(&NewHook)) {
         getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "Registered add hook");
@@ -71,19 +89,3 @@ bool MemoryTracker::trackingMemoryAllocations() {
     return trackingAllocations;
 }
 
-void MemoryTracker::NewHook(const void* ptr, size_t size) {
-    (void)size;
-    if (ptr != NULL) {
-        void* p = const_cast<void*>(ptr);
-        size_t alloc = getHooksApi()->get_allocation_size(p);
-        ObjectRegistry::memoryAllocated(alloc);
-    }
-}
-
-void MemoryTracker::DeleteHook(const void* ptr) {
-    if (ptr != NULL) {
-        void* p = const_cast<void*>(ptr);
-        size_t alloc = getHooksApi()->get_allocation_size(p);
-        ObjectRegistry::memoryDeallocated(alloc);
-    }
-}
