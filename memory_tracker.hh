@@ -45,10 +45,6 @@ private:
     static bool trackingAllocations;
     // Singleton memory tracker
     static MemoryTracker *instance;
-
-    // Hooks for what to do when an allocation or free takes place
-    static void NewHook(const void* ptr, size_t size);
-    static void DeleteHook(const void* ptr);
 };
 
 #endif /* MEMORY_TRACKER_H */

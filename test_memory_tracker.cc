@@ -87,13 +87,3 @@ bool MemoryTracker::trackingMemoryAllocations() {
     return trackingAllocations;
 }
 
-void MemoryTracker::NewHook(const void* ptr, size_t size) {
-    (void) ptr;
-    (void) size;
-    // Do nothing
-}
-
-void MemoryTracker::DeleteHook(const void* ptr) {
-    (void) ptr;
-    // Do Nothing
-}
