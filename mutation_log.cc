@@ -306,6 +306,26 @@ void MutationLog::close() {
     file = -1;
 }
 
+bool MutationLog::reset() {
+    if (!isEnabled()) {
+        return false;
+    }
+    close();
+
+    if (remove(getLogFile().c_str()) == -1) {
+        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                         "FATAL: Failed to remove '%s': %s",
+                         getLogFile().c_str(), strerror(errno));
+        return false;
+    }
+
+    open();
+    getLogger()->log(EXTENSION_LOG_INFO, NULL,
+                     "Reset a mutation log '%s' successfully.\n",
+                     getLogFile().c_str());
+    return true;
+}
+
 bool MutationLog::replaceWith(MutationLog &mlog) {
     assert(mlog.isEnabled());
     assert(isEnabled());
