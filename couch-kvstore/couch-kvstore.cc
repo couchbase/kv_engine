@@ -176,23 +176,21 @@ CouchKVStore::CouchKVStore(EventuallyPersistentEngine &theEngine) :
                            KVStore(), engine(theEngine),
                            epStats(theEngine.getEpStats()),
                            configuration(theEngine.getConfiguration()),
-                           mc(NULL), pendingReqsQ(NULL), pendingCommitCnt(0),
-                           intransaction(false),
+                           mc(NULL), pendingCommitCnt(0), intransaction(false),
                            vbBatchCount(configuration.getCouchVbucketBatchCount()) {
     vbBatchSize = configuration.getMaxTxnSize() / vbBatchCount;
     if (vbBatchSize == 0) {
         vbBatchSize = configuration.getCouchDefaultBatchSize();
     }
     open();
-    dbFileMap.clear();
 }
 
 CouchKVStore::CouchKVStore(const CouchKVStore &copyFrom) :
                            KVStore(copyFrom), engine(copyFrom.engine),
                            epStats(copyFrom.epStats),
                            configuration(copyFrom.configuration), mc(NULL),
-                           pendingReqsQ(NULL), pendingCommitCnt(0),
-                           intransaction(false), vbBatchCount(copyFrom.vbBatchCount),
+                           pendingCommitCnt(0), intransaction(false),
+                           vbBatchCount(copyFrom.vbBatchCount),
                            vbBatchSize(copyFrom.vbBatchSize) {
     open();
     dbFileMap = copyFrom.dbFileMap;
