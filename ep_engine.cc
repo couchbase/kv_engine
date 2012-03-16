@@ -1312,6 +1312,7 @@ ENGINE_ERROR_CODE  EventuallyPersistentEngine::store(const void *cookie,
     item *i = NULL;
 
     it->setVBucketId(vbucket);
+    it->fixupJSON();
 
     switch (operation) {
     case OPERATION_CAS:
@@ -3212,9 +3213,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
         parseUint16(vbid.c_str(), &vbucket_id);
         // Validating version; blocks
         rv = doKeyStats(cookie, add_stat, vbucket_id, key, true);
-    } else if (nkey == 7 &&
-               (strncmp(stat_key, "couchdb", 7) == 0 ||
-                strncmp(stat_key, "mccouch", 7) == 0)) {
+    } else if (nkey == 7 && strncmp(stat_key, "couchdb", 7) == 0) {
         add_casted_stat("ep_set_vbucket", stats.setVbucketStateHisto,
                         add_stat, cookie);
         add_casted_stat("ep_snapshot_vbucket", stats.snapshotVbucketHisto,
