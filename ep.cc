@@ -2587,6 +2587,15 @@ EventuallyPersistentStore::warmup(const std::map<std::pair<uint16_t, uint16_t>,
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                              "Error reading warmup log:  %s", e.what());
         }
+
+        try {
+            if (!success && mutationLog.reset()) {
+                warmupTask->setReconstructLog(true);
+            }
+        } catch (MutationLog::ReadException e) {
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                             "Failed to reset mutation log:  %s", e.what());
+        }
     } else if (source == warmup_from_key_dump) {
         if (roUnderlying->isKeyDumpSupported()) {
             roUnderlying->dumpKeys(vbids, cb);
@@ -2629,6 +2638,13 @@ EventuallyPersistentStore::warmup(const std::map<std::pair<uint16_t, uint16_t>,
         getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                          "Internal error: Unknown warmup source");
         abort();
+    }
+
+    if (success && warmupTask->doReconstructLog() &&
+        (source == warmup_from_key_dump || source == warmup_from_full_dump)) {
+        mutationLog.commit1();
+        mutationLog.commit2();
+        warmupTask->setReconstructLog(false);
     }
 
     return success;
@@ -2783,6 +2799,10 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
                                 0, 0, // seqno, cas
                                 i->getVBucketId(), NULL,
                                 true, false); // force, use_meta
+        }
+
+        if (succeeded && epstore->warmupTask->doReconstructLog()) {
+            epstore->mutationLog.newItem(i->getVBucketId(), i->getKey(), i->getId());
         }
         delete i;
 

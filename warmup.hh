@@ -66,6 +66,10 @@ public:
 
     void addStats(ADD_STAT add_stat, const void *c) const;
 
+    void setReconstructLog(bool val);
+
+    bool doReconstructLog(void) const { return reconstructLog; }
+
 private:
     template <typename T>
     void addStat(const char *nm, T val, ADD_STAT add_stat, const void *c) const {
@@ -104,6 +108,8 @@ private:
     hrtime_t warmup;
     // I need the initial vbstate transferred between two states :(
     std::map<std::pair<uint16_t, uint16_t>, vbucket_state>  initialVbState;
+    // True if a mutation log should be reconstructed at warmup
+    bool reconstructLog;
 
     struct {
         Mutex mutex;

@@ -1662,6 +1662,36 @@ static enum test_result test_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return check_key_value(h, h1, "key", val, strlen(val));
 }
 
+static enum test_result test_mb4898(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    std::vector<std::string> keys;
+    for (int j = 0; j < 10; ++j) {
+        std::stringstream ss;
+        ss << "key-" << j;
+        std::string key(ss.str());
+        keys.push_back(key);
+    }
+
+    std::vector<std::string>::iterator it;
+    for (it = keys.begin(); it != keys.end(); ++it) {
+        item *i;
+        check(store(h, h1, NULL, OPERATION_SET, it->c_str(), it->c_str(), &i, 0, 0)
+              == ENGINE_SUCCESS, "Failed to store a value");
+        h1->release(h, NULL, i);
+    }
+    wait_for_flusher_to_settle(h, h1);
+
+    testHarness.reload_engine(&h, &h1,
+                              testHarness.engine_path,
+                              "klog_path=/tmp/mutation.log", // Enable a mutation log
+                              true, false);
+    assert(get_int_stat(h, h1, "curr_items") == 10);
+    check(get_int_stat(h, h1, "count_new", "klog") == 10,
+          "Number of new log entries should be 10");
+
+    return SUCCESS;
+}
+
+
 static enum test_result test_restart_bin_val(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
 
@@ -5425,6 +5455,10 @@ engine_test_t* get_tests(void) {
                  teardown, NULL, prepare, cleanup, BACKEND_ALL),
         TestCase("test kill -9 bucket", test_kill9_bucket, NULL, teardown,
                  NULL, prepare, cleanup, BACKEND_ALL),
+        TestCase("test restart with non-empty DB and empty mutation log",
+                 test_mb4898, NULL, teardown, NULL,
+                 prepare, cleanup, BACKEND_ALL),
+
         // disk>RAM tests
         TestCase("verify not multi dispatcher", test_not_multi_dispatcher_conf,
                  NULL, teardown, NULL, prepare, cleanup, BACKEND_ALL),

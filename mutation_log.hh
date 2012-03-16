@@ -282,6 +282,11 @@ public:
     void close();
 
     /**
+     * Reset the log.
+     */
+    bool reset();
+
+    /**
      * Replace the current log with a given log.
      */
     bool replaceWith(MutationLog &mlog);

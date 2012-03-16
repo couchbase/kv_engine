@@ -98,9 +98,14 @@ std::ostream& operator <<(std::ostream &out, const WarmupState &state)
 }
 
 Warmup::Warmup(EventuallyPersistentStore *st, Dispatcher *d) :
-    state(), store(st), dispatcher(d), startTime(0), metadata(0), warmup(0)
+    state(), store(st), dispatcher(d), startTime(0), metadata(0),
+    warmup(0), reconstructLog(false)
 {
 
+}
+
+void Warmup::setReconstructLog(bool val) {
+    reconstructLog = val;
 }
 
 void Warmup::start(void)
