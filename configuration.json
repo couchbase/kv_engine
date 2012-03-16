@@ -31,7 +31,8 @@
                 "enum": [
                     "blackhole",
                     "couchdb",
-                    "sqlite"
+                    "sqlite",
+                    "mccouch"
                 ]
             }
         },

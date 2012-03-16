@@ -273,4 +273,21 @@ typedef protocol_binary_response_no_extras protocol_binary_response_set_with_met
 typedef protocol_binary_request_touch protocol_binary_request_observe;
 typedef protocol_binary_request_header protocol_binary_request_unobserve;
 
+#define CMD_NOTIFY_VBUCKET_UPDATE 0xaa
+
+typedef union {
+    struct {
+        protocol_binary_request_header header;
+        struct {
+            uint64_t file_version;
+            uint64_t header_offset;
+            uint32_t vbucket_state_updated;
+            uint32_t state;
+            uint64_t checkpoint;
+        } body;
+    } message;
+    uint8_t bytes[sizeof(protocol_binary_request_header) + 32];
+} protocol_binary_request_notify_vbucket_update;
+typedef protocol_binary_response_no_extras protocol_binary_response_notify_vbucket_update;
+
 #endif /* EP_ENGINE_COMMAND_IDS_H */
