@@ -1839,9 +1839,11 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
             abort();
         }
         *vbucket = checkpoint_msg->getVBucketId();
-        Item *item = new Item(checkpoint_msg->getKey(), 0, 0, checkpoint_msg->getValue(),
-                              0, -1, checkpoint_msg->getVBucketId());
-        *itm = item;
+        uint64_t cid = htonll((uint64_t) checkpoint_msg->getRowId());
+        value_t vblob(Blob::New((const char*)&cid, sizeof(cid)));
+        Item *it = new Item(checkpoint_msg->getKey(), 0, 0, vblob,
+                           0, -1, checkpoint_msg->getVBucketId());
+        *itm = it;
         return ret;
     }
 
@@ -1892,9 +1894,8 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
             return TAP_NOOP;
         }
 
-        queued_item qi(new QueuedItem(item->getKey(), item->getValue(), item->getVBucketId(),
-                                      queue_op_set, -1, item->getId(), item->getFlags(),
-                                      item->getExptime(), item->getCas()));
+        queued_item qi(new QueuedItem(item->getKey(), item->getVBucketId(),
+                                      queue_op_set, -1, item->getId()));
         connection->addTapLogElement(qi);
     } else if (connection->hasQueuedItem()) {
         if (connection->waitForCheckpointMsgAck()) {
@@ -1913,7 +1914,7 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
 
         *vbucket = qi->getVBucketId();
         // The item is from the backfill operation and needs to be fetched from the hashtable.
-        if (qi->getOperation() == queue_op_set && qi->getValue()->length() == 0) {
+        if (qi->getOperation() == queue_op_set) {
             GetValue gv(epstore->get(qi->getKey(), qi->getVBucketId(), cookie,
                                      false, false));
             ENGINE_ERROR_CODE r = gv.getStatus();
@@ -1930,10 +1931,11 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
                 ++stats.numTapFGFetched;
                 ++connection->queueDrain;
             } else if (r == ENGINE_KEY_ENOENT) {
-                // Any deletions after the backfill gets the list of keys will be transmitted
-                // through checkpoints below. Therefore, don't need to transmit it here.
-                retry = true;
-                return TAP_NOOP;
+                // Item was deleted and set a message type to tap_deletion.
+                Item *it = new Item(qi->getKey().c_str(), qi->getKey().length(), 0,
+                                   0, 0, 0, -1, qi->getVBucketId());
+                *itm = it;
+	            ret = TAP_DELETION;
             } else if (r == ENGINE_EWOULDBLOCK) {
                 connection->queueBGFetch(qi->getKey(), gv.getId(), *vbucket,
                                          epstore->getVBucketVersion(*vbucket), cookie);
@@ -1960,37 +1962,18 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
                 retry = true;
                 return TAP_NOOP;
             }
-        } else { // The item is from the checkpoint in the unified queue.
-            if (qi->getOperation() == queue_op_set) {
-                Item *item = new Item(qi->getKey(), qi->getFlags(), qi->getExpiryTime(),
-                                  qi->getValue(), qi->getCas(), qi->getRowId(), qi->getVBucketId());
-                *itm = item;
-                ret = TAP_MUTATION;
-
-                StoredValue *sv = epstore->getStoredValue(qi->getKey(), qi->getVBucketId(), false);
-
-                if (!connection->supportsAck()) {
-                    if (sv && sv->getCas() == item->getCas()) {
-                        sv->incrementNumReplicas();
-                        syncRegistry.itemReplicated(*item);
-                    }
-                }
-
-                ++stats.numTapFGFetched;
-                ++connection->queueDrain;
-            } else if (qi->getOperation() == queue_op_del) {
-                ret = TAP_DELETION;
-                ENGINE_ERROR_CODE r = itemAllocate(cookie, itm, qi->getKey().c_str(),
-                                                   qi->getKey().length(), 0, 0, 0);
-                if (r != ENGINE_SUCCESS) {
-                    getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                     "Failed to allocate memory for deletion of: %s\n",
-                                     qi->getKey().c_str());
-                    ret = TAP_PAUSE;
-                }
-                ++stats.numTapDeletes;
-                ++connection->queueDrain;
+        } else if (qi->getOperation() == queue_op_del) {
+            ret = TAP_DELETION;
+            ENGINE_ERROR_CODE r = itemAllocate(cookie, itm, qi->getKey().c_str(),
+                                               qi->getKey().length(), 0, 0, 0);
+            if (r != ENGINE_SUCCESS) {
+                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                 "Failed to allocate memory for deletion of: %s\n",
+                                 qi->getKey().c_str());
+                ret = TAP_PAUSE;
             }
+            ++stats.numTapDeletes;
+            ++connection->queueDrain;
         }
 
         if (ret == TAP_MUTATION || ret == TAP_DELETION) {

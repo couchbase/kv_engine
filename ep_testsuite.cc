@@ -3996,8 +3996,6 @@ static enum test_result test_disk_gt_ram_golden(ENGINE_HANDLE *h,
                                                 ENGINE_HANDLE_V1 *h1) {
     // Check/grab initial state.
     int overhead = get_int_stat(h, h1, "ep_overhead");
-    check(get_int_stat(h, h1, "ep_kv_size") > 0,
-          "Initial kv_size should be greater than 0 due to the CHECKPOINT_START meta item.");
 
     int itemsRemoved = get_int_stat(h, h1, "ep_items_rm_from_checkpoints");
     // Store some data and check post-set state.
@@ -4047,11 +4045,9 @@ static enum test_result test_disk_gt_ram_golden(ENGINE_HANDLE *h,
     testHarness.time_travel(65);
     wait_for_stat_change(h, h1, "ep_items_rm_from_checkpoints", itemsRemoved);
 
-    check(get_int_stat(h, h1, "ep_kv_size") > 0,
-          "kv_size should be still greater than 0 due to the CHECKPOINT_START meta item.");
     check(get_int_stat(h, h1, "ep_overhead") == overhead,
           "Fell below initial overhead.");
-    check(get_int_stat(h, h1, "mem_used") > overhead,
+    check(get_int_stat(h, h1, "mem_used") == overhead,
           "mem_used (ep_kv_size + ep_overhead) should be greater than ep_overhead");
 
     return SUCCESS;
@@ -4061,8 +4057,6 @@ static enum test_result test_disk_gt_ram_paged_rm(ENGINE_HANDLE *h,
                                                   ENGINE_HANDLE_V1 *h1) {
     // Check/grab initial state.
     int overhead = get_int_stat(h, h1, "ep_overhead");
-    check(get_int_stat(h, h1, "ep_kv_size") > 0,
-          "Initial kv_size should be greater than 0 due to the CHECKPOINT_START meta item.");
 
     // Store some data and check post-set state.
     wait_for_persisted_value(h, h1, "k1", "some value");
@@ -4083,11 +4077,9 @@ static enum test_result test_disk_gt_ram_paged_rm(ENGINE_HANDLE *h,
     testHarness.time_travel(65);
     wait_for_stat_change(h, h1, "ep_items_rm_from_checkpoints", itemsRemoved);
 
-    check(get_int_stat(h, h1, "ep_kv_size") > 0,
-          "kv_size should be still greater than 0 due to the CHECKPOINT_START meta item.");
     check(get_int_stat(h, h1, "ep_overhead") == overhead,
           "Fell below initial overhead.");
-    check(get_int_stat(h, h1, "mem_used") > overhead,
+    check(get_int_stat(h, h1, "mem_used") == overhead,
           "mem_used (ep_kv_size + ep_overhead) should be greater than ep_overhead");
 
     return SUCCESS;

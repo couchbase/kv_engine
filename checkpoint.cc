@@ -13,14 +13,8 @@ void Checkpoint::popBackCheckpointEndItem() {
     }
 }
 
-uint64_t Checkpoint::getCasForKey(const std::string &key) {
-    uint64_t cas = 0;
-    checkpoint_index::iterator it = keyIndex.find(key);
-    if (it != keyIndex.end()) {
-        std::list<queued_item>::iterator currPos = it->second.position;
-        cas = (*(currPos))->getCas();
-    }
-    return cas;
+bool Checkpoint::keyExists(const std::string &key) {
+    return keyIndex.find(key) != keyIndex.end() ? true : false;
 }
 
 queue_dirty_t Checkpoint::queueDirty(const queued_item &item, CheckpointManager *checkpointManager) {
@@ -916,7 +910,7 @@ uint64_t CheckpointManager::checkOpenCheckpoint_UNLOCKED(bool forceCreation, boo
     return checkpointId;
 }
 
-bool CheckpointManager::isKeyResidentInCheckpoints(const std::string &key, uint64_t cas) {
+bool CheckpointManager::isKeyResidentInCheckpoints(const std::string &key) {
     LockHolder lh(queueLock);
 
     std::list<Checkpoint*>::iterator it = checkpointList.begin();
@@ -927,17 +921,12 @@ bool CheckpointManager::isKeyResidentInCheckpoints(const std::string &key, uint6
         }
     }
 
-    uint64_t cas_from_checkpoint;
     bool found = false;
-    // Check if a given key with its CAS value exists in any subsequent checkpoints.
+    // Check if a given key exists in any checkpoints.
     for (; it != checkpointList.end(); ++it) {
-        cas_from_checkpoint = (*it)->getCasForKey(key);
-        if (cas == cas_from_checkpoint) {
+        if ((*it)->keyExists(key)) {
             found = true;
             break;
-        } else if (cas < cas_from_checkpoint) {
-            break; // if a key's CAS value is less than the one from the checkpoint, we do not
-                   // have to look at any following checkpoints.
         }
     }
 
@@ -1082,6 +1071,14 @@ bool CheckpointManager::hasNext(const std::string &name) {
     return hasMore;
 }
 
+queued_item CheckpointManager::createCheckpointItem(uint64_t id,
+                                                    uint16_t vbid,
+                                                    enum queue_operation checkpoint_op) {
+    assert(checkpoint_op == queue_op_checkpoint_start || checkpoint_op == queue_op_checkpoint_end);
+    queued_item qi(new QueuedItem("", vbid, checkpoint_op, -1, (int64_t) id));
+    return qi;
+}
+
 bool CheckpointManager::hasNextForPersistence() {
     LockHolder lh(queueLock);
     bool hasMore = true;
@@ -1148,14 +1145,4 @@ bool CheckpointManager::validateMaxCheckpointsParam(size_t max_checkpoints) {
         return false;
     }
     return true;
-}
-
-queued_item CheckpointManager::createCheckpointItem(uint64_t id,
-                                                    uint16_t vbid,
-                                                    enum queue_operation checkpoint_op) {
-    assert(checkpoint_op == queue_op_checkpoint_start || checkpoint_op == queue_op_checkpoint_end);
-    uint64_t cid = htonll(id);
-    RCPtr<Blob> vblob(Blob::New((const char*)&cid, sizeof(cid)));
-    queued_item qi(new QueuedItem("", vblob, vbid, checkpoint_op));
-    return qi;
 }

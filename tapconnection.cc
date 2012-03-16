@@ -1285,10 +1285,7 @@ queued_item TapProducer::next(bool &shouldPause) {
                 break;
             case queue_op_checkpoint_start:
                 {
-                    uint64_t checkpointId;
-                    memcpy(&checkpointId, item->getValue()->getData(), sizeof(checkpointId));
-                    checkpointId = ntohll(checkpointId);
-                    it->second.currentCheckpointId = checkpointId;
+                    it->second.currentCheckpointId = (uint64_t) item->getRowId();
                     if (supportCheckpointSync) {
                         it->second.state = checkpoint_start;
                         addCheckpointMessage_UNLOCKED(item);
@@ -1505,7 +1502,6 @@ void TapProducer::scheduleBackfill_UNLOCKED(const std::vector<uint16_t> &vblist)
 static void notifyReplicatedItems(std::list<TapLogElement>::iterator from,
                                   std::list<TapLogElement>::iterator to,
                                   EventuallyPersistentEngine &engine) {
-
     for (std::list<TapLogElement>::iterator it = from; it != to; ++it) {
         if (it->event == TAP_MUTATION) {
             queued_item qi = it->item;

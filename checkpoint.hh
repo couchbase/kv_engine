@@ -195,7 +195,7 @@ public:
         return toWrite.rend();
     }
 
-    uint64_t getCasForKey(const std::string &key);
+    bool keyExists(const std::string &key);
 
     /**
      * Return the memory overhead of this checkpoint instance, except for the memory used by
@@ -414,11 +414,11 @@ public:
     size_t getNumItemsForTAPConnection(const std::string &name);
 
     /**
-     * Return true if a given key with its CAS value exists in the open or
-     * closed referenced checkpoints. This function is invoked by the item pager to determine
+     * Return true if a given key exists in the open or closed referenced checkpoints.
+     * This function is invoked by the item pager to determine
      * if a given key's value can be evicted from memory hashtable.
      */
-    bool isKeyResidentInCheckpoints(const std::string &key, uint64_t cas);
+    bool isKeyResidentInCheckpoints(const std::string &key);
 
     /**
      * Clear all the checkpoints managed by this checkpoint manager.

@@ -816,10 +816,11 @@ private:
     RCPtr<VBucket> getVBucket(uint16_t vbid, vbucket_state_t wanted_state);
 
     /* Queue an item to be written to persistent layer. */
-    void queueDirty(const std::string &key, uint16_t vbid,
-                    enum queue_operation op, value_t value,
-                    uint32_t flags = 0, time_t exptime = 0, uint64_t cas = 0,
-                    int64_t rowid = -1, bool tapBackfill = false);
+    void queueDirty(const std::string &key,
+                    uint16_t vbid,
+                    enum queue_operation op,
+                    int64_t rowid,
+                    bool tapBackfill = false);
 
     /**
      * Retrieve a StoredValue and invoke a method on it.
