@@ -57,6 +57,7 @@ MCSTAT_SRC = programs/mcstat.c win32/win32.c
 MCSTAT_OBJS = ${MCSTAT_SRC:%.c=.libs/%.o}
 
 MEMCACHED_SRC = \
+	      daemon/alloc_hooks.c \
 	      daemon/cache.c \
 	      daemon/hash.c \
 	      daemon/isasl.c \
