@@ -125,6 +125,7 @@ inline bool ep_sync_bool_compare_and_swap(volatile int *dest, int prev, int next
     }
 }
 
+#ifdef _LP64
 inline bool ep_sync_bool_compare_and_swap(volatile unsigned int *dest, unsigned int prev, unsigned int next) {
     hrtime_t original = *dest;
     if (original == atomic_cas_uint((volatile uint_t*)dest, (uint_t)prev, (uint_t)next)) {
@@ -133,6 +134,7 @@ inline bool ep_sync_bool_compare_and_swap(volatile unsigned int *dest, unsigned 
         return false;
     }
 }
+#endif
 
 inline bool ep_sync_bool_compare_and_swap(volatile hrtime_t *dest, hrtime_t prev, hrtime_t next) {
     hrtime_t original = *dest;
