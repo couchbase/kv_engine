@@ -14,11 +14,14 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
+#include "config.h"
 #include <cerrno>
 #include <cstdlib>
 #include <string.h>
 #include <strings.h>
 #include <cerrno>
+#include <unistd.h>
+#include <getopt.h>
 #include <sys/stat.h>
 #include <iostream>
 #include <fstream>
