@@ -125,6 +125,15 @@ inline bool ep_sync_bool_compare_and_swap(volatile int *dest, int prev, int next
     }
 }
 
+inline bool ep_sync_bool_compare_and_swap(volatile unsigned int *dest, unsigned int prev, unsigned int next) {
+    hrtime_t original = *dest;
+    if (original == atomic_cas_uint((volatile uint_t*)dest, (uint_t)prev, (uint_t)next)) {
+        return true;
+    } else {
+        return false;
+    }
+}
+
 inline bool ep_sync_bool_compare_and_swap(volatile hrtime_t *dest, hrtime_t prev, hrtime_t next) {
     hrtime_t original = *dest;
     if (original == atomic_cas_64((volatile uint64_t*)dest, (uint64_t)prev, (uint64_t)next)) {
