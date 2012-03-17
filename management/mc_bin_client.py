@@ -42,7 +42,7 @@ class MemcachedClient(object):
         self.host = host
         self.port = port
         self.s=socket.socket(family, socket.SOCK_STREAM)
-        if family == socket.AF_UNIX:
+        if hasattr(socket, 'AF_UNIX') and family == socket.AF_UNIX:
             self.s.connect_ex(host)
         else:
             self.s.connect_ex((host, port))
