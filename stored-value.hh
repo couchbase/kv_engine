@@ -1523,8 +1523,8 @@ public:
     /**
      * Get the max deleted seqno seen so far.
      */
-    const uint32_t getMaxDeletedSeqno() const {
-        return maxDeletedSeqno;
+    uint32_t getMaxDeletedSeqno() const {
+        return maxDeletedSeqno.get();
     }
 
     /**
