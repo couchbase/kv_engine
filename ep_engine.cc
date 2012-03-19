@@ -883,6 +883,7 @@ extern "C" {
                     PROTOCOL_BINARY_RAW_BYTES,
                     static_cast<uint16_t>(res), itm->getCas(),
                     cookie);
+            delete itm;
         } else if (itm) {
             std::string key  = itm->getKey();
             uint32_t flags = itm->getFlags();
