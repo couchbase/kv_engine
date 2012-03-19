@@ -1972,24 +1972,7 @@ void TapProducer::flush() {
                      logHeader());
 
     pendingFlush = true;
-    /* No point of keeping the rep queue when someone wants to flush it */
-    queue->clear();
-    queueSize = 0;
-    queueMemSize = 0;
-
-    // Clear bg-fetched items.
-    while (!backfilledItems.empty()) {
-        Item *i(backfilledItems.front());
-        assert(i);
-        delete i;
-        backfilledItems.pop();
-    }
-    bgResultSize = 0;
-
-    // Clear the checkpoint message queue as well
-    while (!checkpointMsgs.empty()) {
-        checkpointMsgs.pop();
-    }
+    clearQueues_UNLOCKED();
 }
 
 void TapProducer::appendQueue(std::list<queued_item> *q) {
