@@ -1506,13 +1506,16 @@ queued_item TapProducer::nextFgFetched_UNLOCKED(bool &shouldPause) {
             case queue_op_checkpoint_end:
                 if (supportCheckpointSync) {
                     it->second.state = checkpoint_end;
-                    uint32_t seqnoAcked;
+                    uint32_t seqno_acked;
                     if (seqnoReceived == 0) {
-                        seqnoAcked = 0;
+                        seqno_acked = 0;
                     } else {
-                        seqnoAcked = isLastAckSucceed ? seqnoReceived : seqnoReceived - 1;
+                        seqno_acked = isLastAckSucceed ? seqnoReceived : seqnoReceived - 1;
                     }
-                    if (it->second.lastSeqNum <= seqnoAcked) {
+                    if (it->second.lastSeqNum <= seqno_acked &&
+                        it->second.isBgFetchCompleted()) {
+                        // All resident and non-resident items in a checkpoint are sent
+                        // and acked. CHEKCPOINT_END message is going to be sent.
                         addCheckpointMessage_UNLOCKED(qi);
                     } else {
                         vb->checkpointManager.decrTapCursorFromCheckpointEnd(name);
