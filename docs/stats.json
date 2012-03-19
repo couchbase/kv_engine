@@ -1,0 +1,86 @@
+{
+    "checkpoint": {},
+    "couchdb": {},
+    "dispatcher": {},
+    "hash": {},
+    "key": {},
+    "klog": {},
+    "kvstore": {},
+    "kvtimings": {},
+    "memory": {},
+    "observe": {},
+    "prev-vbucket": {},
+    "restore": {},
+    "tap": {},
+    "tapagg": {},
+    "timings": {},
+    "vbucket": {},
+    "vbucket-details": {},
+    "vkey": {},
+    "warmup": {
+        "description": "Information related to loading data from disk during startup",
+        "ep_warmup": {
+            "description": "Is warmup enabled",
+            "values": {
+                "disabled": "Data on disk will be discarded during startup",
+                "enabled": "Data will be read from disk during startup"
+            }
+        },
+        "ep_warmup_access_log": {
+            "description": "The number of items found in the access log (or 'currupt' if checksumming the file failed)"
+        },
+        "ep_warmup_count": {
+            "description": "The number of items warmed up"
+        },
+        "ep_warmup_dups": {
+            "description": "The number of duplicates found during warmup"
+        },
+        "ep_warmup_estimate_time": {
+            "description": "The time spent estimating the number of keys in the cache"
+        },
+        "ep_warmup_estimated_item_count": {
+            "description": "The estimated number of items in the cache, or 'unknown' if we don't know"
+        },
+        "ep_warmup_estimated_warmup_count": {
+            "description": "The estimated number of items to warm up"
+        },
+        "ep_warmup_keys_time": {
+            "description": "Time (usec) spent by warming keys."
+        },
+        "ep_warmup_min_item_threshold": {
+            "description": "The minimum number of items that needs to be warmed up before external data mutations is allowed. This is in % of the number of items"
+        },
+        "ep_warmup_min_memory_threshold": {
+            "description": "The minimum amount of memory that needs to be warmed up before external data mutations is allowed. This is in % of the configured maximum memory."
+        },
+        "ep_warmup_mutation_log": {
+            "description": "The number of items found in the mutation log (or 'corrupt' if checksumming the file failed)"
+        },
+        "ep_warmup_oom": {
+            "description": "The number of out of memory encountered during warmup"
+        },
+        "ep_warmup_state": {
+            "description": "The current state of the warmup process",
+            "values": {
+                "done": "The warmup is complete",
+                "estimating database item count": "The system is trying to estimate the number of items in the database",
+                "initialize": "The warmup is initializing",
+                "loading access log": "The warmup is trying to load the items recently used",
+                "loading data": "The warmup is trying to load all of the values in the database",
+                "loading k/v pairs": "The warmup is loading all key-value paris in the database",
+                "loading keys": "The warmup is loading the metadata from the underlying storage",
+                "loading mutation log": "The warmup is loading metadata from a mutation log"
+            }
+        },
+        "ep_warmup_thread": {
+            "description": "Overall status for the warmup progress",
+            "values": {
+                "complete": "The warmup is complete",
+                "running": "The warmup is running"
+            }
+        },
+        "ep_warmup_time": {
+            "description": "Time (usec) spent by warming data."
+        }
+    }
+}

@@ -78,6 +78,8 @@ public:
         close();
     }
 
+    bool getEstimatedItemCount(size_t &nItem);
+
     /**
      * Reset database to a clean state.
      */
@@ -192,7 +194,8 @@ public:
      */
     virtual size_t warmup(MutationLog &lf,
                           const std::map<std::pair<uint16_t, uint16_t>, vbucket_state> &vbmap,
-                          Callback<GetValue> &cb);
+                          Callback<GetValue> &cb,
+                          Callback<size_t> &estimate);
 
 private:
     size_t warmupSingleShard(const std::string &table,

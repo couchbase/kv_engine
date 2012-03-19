@@ -417,13 +417,6 @@ private:
 
 class EventuallyPersistentEngine;
 
-enum warmup_source {
-    warmup_from_mutation_log = 1,
-    warmup_from_key_dump,
-    warmup_from_access_log,
-    warmup_from_full_dump
-};
-
 typedef enum {
     BG_FETCH_VALUE,
     BG_FETCH_METADATA
@@ -761,7 +754,7 @@ public:
     }
 
     const Flusher* getFlusher();
-    const Warmup* getWarmup(void) const;
+    Warmup* getWarmup(void) const;
 
     bool getKeyStats(const std::string &key, uint16_t vbucket,
                      key_stats &kstats);
@@ -896,10 +889,6 @@ protected:
 
     bool warmupFromLog(const std::map<std::pair<uint16_t, uint16_t>, vbucket_state> &state,
                        shared_ptr<Callback<GetValue> >cb);
-    bool warmup(const std::map<std::pair<uint16_t, uint16_t>,
-                vbucket_state> &state,
-                enum warmup_source source,
-                bool maybeEnableTraffic);
     void warmupCompleted();
 
 private:

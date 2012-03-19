@@ -24,6 +24,7 @@ class WarmupState {
 public:
     static const int Initialize;
     static const int LoadingMutationLog;
+    static const int EstimateDatabaseItemCount;
     static const int KeyDump;
     static const int LoadingAccessLog;
     static const int LoadingKVPairs;
@@ -52,6 +53,8 @@ public:
     virtual void stateChanged(const int from, const int to) = 0;
 };
 
+class LoadStorageKVPairCallback;
+
 class Warmup {
 public:
     Warmup(EventuallyPersistentStore *st, Dispatcher *d);
@@ -63,6 +66,10 @@ public:
     void removeWarmupStateListener(WarmupStateListener *listener);
 
     const WarmupState &getState(void) const { return state; }
+
+    void setEstimatedItemCount(size_t num);
+
+    void setEstimatedWarmupCount(size_t num);
 
     void addStats(ADD_STAT add_stat, const void *c) const;
 
@@ -90,6 +97,7 @@ private:
 
     bool initialize(Dispatcher&, TaskId);
     bool loadingMutationLog(Dispatcher&, TaskId);
+    bool estimateDatabaseItemCount(Dispatcher&, TaskId);
     bool keyDump(Dispatcher&, TaskId);
     bool loadingAccessLog(Dispatcher&, TaskId);
     bool loadingKVPairs(Dispatcher&, TaskId);
@@ -98,6 +106,9 @@ private:
 
     void transition(int to);
 
+
+    LoadStorageKVPairCallback *createLKVPCB(const std::map<std::pair<uint16_t, uint16_t>, vbucket_state> &st,
+                                            bool maybeEnable);
 
     WarmupState state;
     EventuallyPersistentStore *store;
@@ -110,6 +121,12 @@ private:
     std::map<std::pair<uint16_t, uint16_t>, vbucket_state>  initialVbState;
     // True if a mutation log should be reconstructed at warmup
     bool reconstructLog;
+
+    hrtime_t estimateTime;
+    size_t estimatedItemCount;
+    bool corruptMutationLog;
+    bool corruptAccessLog;
+    size_t estimatedWarmupCount;
 
     struct {
         Mutex mutex;

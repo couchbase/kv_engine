@@ -12,9 +12,10 @@ INSTALLDIRS=$(LOCAL)/bin $(LOCAL)/lib $(LOCAL)/lib/memcached
 
 MEMCACHED=../memcached
 GEN_CONFIG = generated_configuration.hh generated_configuration.cc
+GEN_CODE = stats-info.h stats-info.c
 
 OBJDIR = .libs .libs/embedded .libs/poll .libs/management .libs/sqlite-kvstore .libs/mc-kvstore .libs/blackhole-kvstore
-BINARIES= ${GEN_CONFIG} .libs/ep.so management/sqlite3.exe
+BINARIES= ${GEN_CONFIG} ${GEN_CODE} .libs/ep.so management/sqlite3.exe
 LIB=$(LOCALLIB) -L${MEMCACHED}/lib
 INCLUDE= -Iwin32 -Isqlite-kvstore -I.libs -Iembedded -I${MEMCACHED}/include -I${MEMCACHED}/win32 -I. $(LOCALINC)
 GENFILES=.libs/config_version.h
@@ -88,6 +89,7 @@ EP_ENGINE_CC_SRC = \
 EP_ENGINE_C_SRC = \
                  byteorder.c \
                  crc32.c \
+                 stats-info.c \
                  embedded/sqlite3.c \
                  gethrtime.c \
                  tools/cJSON.c \
@@ -107,6 +109,9 @@ management/sqlite3.exe: ${OBJDIR} ${GENFILES} ${SQLITE3_OBJS}
                   -lws2_32
 ${GEN_CONFIG}: configuration.json
 	$(shell make -f win32/Makefile.genconf) || true
+
+${GEN_CODE}: docs\stats.json
+	$(shell make -f win32/Makefile.getcode) || true
 
 LIBSQLITE_KVSTORE_CC_SRC = \
          kvstore.cc \

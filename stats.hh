@@ -53,10 +53,6 @@ public:
         return currentSize.get() + memOverhead.get();
     }
 
-    //! How long it took us to load the keys from disk.
-    Atomic<hrtime_t> warmupKeysTime;
-    //! How long it took us to load the data from disk.
-    Atomic<hrtime_t> warmupTime;
     //! Whether we're warming up.
     Atomic<bool> warmupComplete;
     //! Number of records warmed up with metadata.
@@ -67,20 +63,6 @@ public:
     Atomic<size_t> warmDups;
     //! Number of OOM failures at warmup time.
     Atomic<size_t> warmOOM;
-    struct {
-        //! True if we've tried to look at the mutation log
-        Atomic<bool> readMutationLog;
-        //! True if we failed to read the mutation log
-        Atomic<bool> corruptMutationLog;
-        //! Number of keys in the mutation log
-        size_t numKeysInMutationLog;
-        //! True if we've tried to look at the access log
-        Atomic<bool> readAccessLog;
-        //! True if we failed to read the access log
-        Atomic<bool> corruptAccessLog;
-        //! Number of keys in the access log
-        Atomic<size_t> numKeysInAccessLog;
-    } warmup;
 
     //! Fill % of memory used during warmup we're going to enable traffic
     Atomic<double> warmupMemUsedCap;

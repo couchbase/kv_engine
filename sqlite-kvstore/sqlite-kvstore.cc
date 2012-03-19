@@ -9,6 +9,7 @@
 #include "sqlite-pst.hh"
 #include "vbucket.hh"
 #include "ep_engine.h"
+#include "warmup.hh"
 
 #define STATWRITER_NAMESPACE sqlite_engine
 #include "statwriter.hh"
@@ -392,7 +393,8 @@ static void warmupCallback(void *arg, uint16_t vb, uint16_t,
 
 size_t StrategicSqlite3::warmup(MutationLog &lf,
                                 const std::map<std::pair<uint16_t, uint16_t>, vbucket_state> &vbmap,
-                                Callback<GetValue> &cb)
+                                Callback<GetValue> &cb,
+                                Callback<size_t> &estimate)
 {
     // First build up the various maps...
 
@@ -408,18 +410,19 @@ size_t StrategicSqlite3::warmup(MutationLog &lf,
     }
     hrtime_t end = gethrtime();
 
-    engine->getEpStats().warmup.numKeysInAccessLog = harvester.total();
+    size_t total = harvester.total();
+    estimate.callback(total);
 
     getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
                      "Completed log read in %s with %d entries\n",
-                     hrtime2text(end - start).c_str(), harvester.total());
+                     hrtime2text(end - start).c_str(), total);
 
     start = gethrtime();
     WarmupCookie cookie(this);
     harvester.apply(&cookie, &warmupCallback);
 
     // Ok, run through all of the lists and apply each one of them..
-    size_t total = 0;
+    total = 0;
     for (ShardRowidMap::iterator iter = cookie.objmap.begin();
          iter != cookie.objmap.end();
          ++iter) {
@@ -493,4 +496,26 @@ size_t StrategicSqlite3::warmupSingleShard(const std::string &table,
     } while (iter != ids.end());
 
     return ret;
+}
+
+bool StrategicSqlite3::getEstimatedItemCount(size_t &nItems) {
+    if (getenv("COUCHBASE_FORCE_SQLITE_ESTIMATE_COUNT") != NULL) {
+        size_t num = 0;
+
+        const std::vector<Statements*> statements = strategy->allStatements();
+        std::vector<Statements*>::const_iterator it;
+        for (it = statements.begin(); it != statements.end(); ++it) {
+            PreparedStatement *st = (*it)->count_all();
+            st->reset();
+            if (st->fetch()) {
+                num += static_cast<size_t>(st->column_int(0));
+            }
+            st->reset();
+        }
+
+        nItems = num;
+        return true;
+    } else {
+        return false;
+    }
 }

@@ -33,6 +33,7 @@
 #include "backfill.hh"
 #include "warmup.hh"
 #include "memory_tracker.hh"
+#include "stats-info.h"
 
 #define STATWRITER_NAMESPACE core_engine
 #include "statwriter.hh"
@@ -882,6 +883,7 @@ extern "C" {
                     PROTOCOL_BINARY_RAW_BYTES,
                     static_cast<uint16_t>(res), itm->getCas(),
                     cookie);
+            delete itm;
         } else if (itm) {
             std::string key  = itm->getKey();
             uint32_t flags = itm->getFlags();
@@ -3240,6 +3242,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
         rv = ENGINE_SUCCESS;
     } else if (nkey == 6 && strncmp(stat_key, "warmup", 6) == 0) {
         epstore->getWarmup()->addStats(add_stat, cookie);
+        rv = ENGINE_SUCCESS;
+    } else if (nkey == 4 && strncmp(stat_key, "info", 4) == 0) {
+        add_casted_stat("info", get_stats_info(), add_stat, cookie);
         rv = ENGINE_SUCCESS;
     }
 

@@ -385,12 +385,6 @@ public:
                              "Preloaded %zu keys (with metadata)",
                              num);
         }
-        if (!keysOnly && isWarmup) {
-            stats->warmupTime.set(getDelta());
-            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "The second phase of warmup took %ld (us).",
-                             stats->warmupTime.get());
-        }
     }
 
     virtual void response(protocol_binary_response_header *res) {

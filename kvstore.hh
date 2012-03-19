@@ -99,6 +99,9 @@ public:
 
     virtual ~KVStore() {}
 
+    virtual bool getEstimatedItemCount(size_t &items);
+
+
     /**
      * Allow the kvstore to add extra statistics information
      * back to the client
@@ -287,11 +290,14 @@ public:
      * @param lf the access log file
      * @param vbmap A map containing the map of vb id and version to warm up
      * @param cb callback used to load objects into the cache
+     * @param estimate is a callback used to push out the estimated number of
+     *                 items going to be warmed up
      * @return number of items loaded
      */
     virtual size_t warmup(MutationLog &lf,
                           const std::map<std::pair<uint16_t, uint16_t>, vbucket_state> &vb,
-                          Callback<GetValue> &cb);
+                          Callback<GetValue> &cb,
+                          Callback<size_t> &estimate);
 
     void setEngine(EventuallyPersistentEngine *theEngine) {
         engine = theEngine;

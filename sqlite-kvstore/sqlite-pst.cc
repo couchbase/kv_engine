@@ -153,6 +153,8 @@ void Statements::initStatements(const StatementFactory *sfact) {
     assert(del_stmt);
     del_vb_stmt = sfact->mkDeleteVBucket(db, tableName);
     assert(del_vb_stmt);
+    count_all_stmt = sfact->mkCountAll(db, tableName);
+    assert(count_all_stmt);
 }
 
 PreparedStatement *StatementFactory::mkInsert(sqlite3 *db,
@@ -191,6 +193,14 @@ PreparedStatement *StatementFactory::mkSelectAll(sqlite3 *db,
     snprintf(buf, sizeof(buf),
              "select k, v, flags, exptime, cas, vbucket, vb_version, rowid "
              "from %s", table.c_str());
+    return new PreparedStatement(db, buf);
+}
+
+PreparedStatement *StatementFactory::mkCountAll(sqlite3 *db,
+                                                const std::string &table) const
+{
+    char buf[1024];
+    snprintf(buf, sizeof(buf), "select count(*) from %s", table.c_str());
     return new PreparedStatement(db, buf);
 }
 
