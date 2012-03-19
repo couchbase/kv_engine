@@ -540,6 +540,11 @@ void TapProducer::clearQueues_UNLOCKED() {
         backfilledItems.pop();
     }
     bgResultSize = 0;
+    // Reset bg result size in a checkpoint state.
+    std::map<uint16_t, TapCheckpointState>::iterator it = tapCheckpointState.begin();
+    for (; it != tapCheckpointState.end(); ++it) {
+        it->second.bgResultSize = 0;
+    }
 
     // Clear the checkpoint message queue as well
     while (!checkpointMsgs.empty()) {
@@ -1024,7 +1029,7 @@ public:
             }
         }
 
-        CompletedBGFetchTapOperation tapop;
+        CompletedBGFetchTapOperation tapop(vbucket);
         if (!epe->getTapConnMap().performTapOp(name, tapop, gcb.val.getValue())) {
             delete gcb.val.getValue(); // Tap connection is closed. Free an item instance.
         }
@@ -1080,25 +1085,41 @@ void TapProducer::queueBGFetch_UNLOCKED(const std::string &key, uint64_t id,
     engine.getEpStore()->getRODispatcher()->schedule(dcb, NULL, Priority::TapBgFetcherPriority);
     ++bgQueued;
     ++bgJobIssued;
+    std::map<uint16_t, TapCheckpointState>::iterator it = tapCheckpointState.find(vb);
+    if (it != tapCheckpointState.end()) {
+        ++(it->second.bgJobIssued);
+    }
+
     assert(!empty_UNLOCKED());
     assert(!idle_UNLOCKED());
     assert(!complete_UNLOCKED());
 }
 
-void TapProducer::completeBGFetchJob(Item *itm, bool implicitEnqueue) {
+void TapProducer::completeBGFetchJob(Item *itm, uint16_t vbid, bool implicitEnqueue) {
     LockHolder lh(queueLock);
+    std::map<uint16_t, TapCheckpointState>::iterator it = tapCheckpointState.find(vbid);
+
     // implicitEnqueue is used for the optimized disk fetch wherein we
     // receive the item and want the stats to reflect an
     // enqueue/execute cycle.
     if (implicitEnqueue) {
         ++bgQueued;
         ++bgJobIssued;
+        if (it != tapCheckpointState.end()) {
+            ++(it->second.bgJobIssued);
+        }
     }
     ++bgJobCompleted;
+    if (it != tapCheckpointState.end()) {
+        ++(it->second.bgJobCompleted);
+    }
 
     if (itm) {
         backfilledItems.push(itm);
         ++bgResultSize;
+        if (it != tapCheckpointState.end()) {
+            ++(it->second.bgResultSize);
+        }
         stats.memOverhead.incr(sizeof(Item *));
         assert(stats.memOverhead.get() < GIGANTOR);
     }
@@ -1110,6 +1131,12 @@ Item* TapProducer::nextBgFetchedItem_UNLOCKED() {
     assert(rv);
     backfilledItems.pop();
     --bgResultSize;
+
+    std::map<uint16_t, TapCheckpointState>::iterator it =
+        tapCheckpointState.find(rv->getVBucketId());
+    if (it != tapCheckpointState.end()) {
+        --(it->second.bgResultSize);
+    }
 
     stats.memOverhead.decr(sizeof(Item *));
     assert(stats.memOverhead.get() < GIGANTOR);

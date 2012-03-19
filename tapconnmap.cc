@@ -633,5 +633,6 @@ void ScheduleDiskBackfillTapOperation::perform(TapProducer *tc, void *) {
 }
 
 void CompletedBGFetchTapOperation::perform(TapProducer *tc, Item *arg) {
-    tc->completeBGFetchJob(arg, implicitEnqueue);
+    // As item pointer could be NULL, vbucket id should be passed for stat updates.
+    tc->completeBGFetchJob(arg, vbid, implicitEnqueue);
 }

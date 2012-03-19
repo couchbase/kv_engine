@@ -122,18 +122,32 @@ typedef enum {
  */
 class TapCheckpointState {
 public:
-    TapCheckpointState() : currentCheckpointId(0),
-                           lastSeqNum(0), lastItem(false) {}
+    TapCheckpointState() :
+        currentCheckpointId(0), lastSeqNum(0), bgResultSize(0),
+        bgJobIssued(0), bgJobCompleted(0), lastItem(false) {}
 
     TapCheckpointState(uint16_t vb, uint64_t checkpointId, tap_checkpoint_state s) :
-        vbucket(vb), currentCheckpointId(checkpointId),
-        lastSeqNum(0), lastItem(false), state(s) {}
+        vbucket(vb), currentCheckpointId(checkpointId), lastSeqNum(0),
+        bgResultSize(0), bgJobIssued(0), bgJobCompleted(0),
+        lastItem(false), state(s) {}
+
+    bool isBgFetchCompleted(void) const {
+        return bgResultSize == 0 && (bgJobIssued - bgJobCompleted) == 0;
+    }
 
     uint16_t vbucket;
     // Id of the checkpoint that is currently referenced by the given TAP client's cursor.
     uint64_t currentCheckpointId;
     // Last sequence number sent to the slave.
     uint32_t lastSeqNum;
+
+    // Number of bg-fetched items for a given vbucket, which are ready for streaming.
+    size_t bgResultSize;
+    // Number of bg-fetched jobs issued for a given vbucket.
+    size_t bgJobIssued;
+    // Number of bg-fetched jobs completed for a given vbucket
+    size_t bgJobCompleted;
+
     // True if the TAP cursor reaches to the last item at its current checkpoint.
     bool lastItem;
     tap_checkpoint_state state;
@@ -530,7 +544,7 @@ public:
     /**
      * Invoked each time a background item fetch completes.
      */
-    void completeBGFetchJob(Item *item, bool implicitEnqueue);
+    void completeBGFetchJob(Item *item, uint16_t vbid, bool implicitEnqueue);
 
     /**
      * Find out how many items are still remaining from backfill.
