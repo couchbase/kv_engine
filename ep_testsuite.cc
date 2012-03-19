@@ -4985,6 +4985,22 @@ static enum test_result test_mb3466(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
     return SUCCESS;
 }
 
+static enum test_result test_json_fixup(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
+{
+    item *it;
+    check(store(h, h1, NULL, OPERATION_SET, "test_json", "  { \"age\" : 100 } ",
+                &it, 0, 0) == ENGINE_SUCCESS, "Failed to store a value");
+    h1->release(h, NULL, it);
+    item_info info;
+    info.nvalue = 1;
+    check(get_value(h, h1, "test_json", &info), "Expected to get the item");
+    check(info.value[0].iov_len == 11 && memcmp(info.value[0].iov_base,
+                                               "{\"age\":100}", 11) == 0,
+          "Expected the JSON to be fixed");
+
+    return SUCCESS;
+}
+
 static enum test_result test_add_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
 {
     union {
@@ -5245,6 +5261,8 @@ engine_test_t* get_tests(void) {
         TestCase("test single in-memory db strategy", test_single_db_strategy,
                  NULL, teardown, "db_strategy=singleDB;dbname=:memory:",
                  prepare, cleanup, BACKEND_ALL),
+        TestCase("JSON fixup", test_json_fixup, NULL, teardown, NULL, prepare,
+                 cleanup, BACKEND_ALL),
         TestCase("get miss", test_get_miss, NULL, teardown, NULL, prepare,
                  cleanup, BACKEND_ALL),
         TestCase("set", test_set, NULL, teardown, NULL, prepare, cleanup,

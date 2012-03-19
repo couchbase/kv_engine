@@ -12,7 +12,6 @@
 #include "mc-kvstore/mc-kvstore.hh"
 #include "blackhole-kvstore/blackhole.hh"
 #include "warmup.hh"
-#include "couch-kvstore/couch-kvstore.hh"
 
 KVStore *KVStoreFactory::create(EventuallyPersistentEngine &theEngine) {
     Configuration &c = theEngine.getConfiguration();
@@ -22,11 +21,9 @@ KVStore *KVStoreFactory::create(EventuallyPersistentEngine &theEngine) {
     if (backend.compare("sqlite") == 0) {
         ret = SqliteKVStoreFactory::create(theEngine);
     } else if (backend.compare("couchdb") == 0) {
-        ret = new CouchKVStore(theEngine);
+        ret = new MCKVStore(theEngine);
     } else if (backend.compare("blackhole") == 0) {
         ret = new BlackholeKVStore(theEngine);
-    } else if (backend.compare("mccouch") == 0) {
-        ret = new MCKVStore(theEngine);
     } else {
         getLogger()->log(EXTENSION_LOG_WARNING, NULL, "Unknown backend: [%s]",
                 backend.c_str());

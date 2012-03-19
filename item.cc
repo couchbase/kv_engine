@@ -51,3 +51,29 @@ bool Item::prepend(const Item &i) {
     value.reset(newData);
     return true;
 }
+
+void Item::fixupJSON(void) {
+    const char *ptr = value->getData();
+    size_t len = value->length();
+    size_t ii = 0;
+    while (ii < len && isspace(*ptr)) {
+        ++ptr;
+        ++ii;
+    }
+
+    if (ii < len && *ptr == '{') {
+        // This may be JSON. Unfortunately we don't know if it's zero
+        // terminated
+        std::string data(value->getData(), value->length());
+        cJSON *json = cJSON_Parse(data.c_str());
+        if (json != 0) {
+            char *packed = cJSON_PrintUnformatted(json);
+            if (packed != 0) {
+                Blob *newData = Blob::New(packed, strlen(packed));
+                free(packed);
+                value.reset(newData);
+            }
+            cJSON_Delete(json);
+        }
+    }
+}

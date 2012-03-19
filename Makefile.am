@@ -26,8 +26,7 @@ noinst_LTLIBRARIES = \
                      libkvstore.la \
                      libmc-kvstore.la \
                      libobjectregistry.la \
-                     libsqlite-kvstore.la \
-                     libcouch-kvstore.la
+                     libsqlite-kvstore.la
 
 fixup_stats_json:
 	cat docs/stats.json | python -mjson.tool > /tmp/stats.json.tmp
@@ -41,7 +40,7 @@ BUILT_SOURCES = generated_configuration.cc \
                 stats-info.c stats-info.h
 CLEANFILES = mbbackup-0001.mbb mbbackup-0002.mbb
 
-EXTRA_DIST = Doxyfile LICENSE README.markdown configuration.json docs \
+EXTRA_DIST = Doxyfile LICENSE README.markdown configuration.json docs   \
              dtrace management win32
 
 noinst_PROGRAMS = sizes gen_config gen_code
@@ -57,10 +56,6 @@ cbadm-online-update.1m: docs/cbadm-online-update.pod
 
 cbbackup-incremental.1m: docs/cbbackup-incremental.pod
 	${POD2MAN} -c "$*" -r "" -s 1m $< $@
-
-couchstore_srcdir = ../couchstore
-couchstorelibdir = $(couchstore_srcdir)
-couchstorelib_LIB = libcouchstore.la
 
 ep_la_CPPFLAGS = -I$(top_srcdir) $(AM_CPPFLAGS)
 ep_la_LDFLAGS = -module -dynamic
@@ -124,7 +119,7 @@ libkvstore_la_SOURCES = crc32.c crc32.h kvstore.cc kvstore.hh   \
                         mutation_log_compactor.cc               \
                         mutation_log_compactor.hh
 libkvstore_la_CPPFLAGS = -I$(top_srcdir) -I$(top_srcdir)/sqlite-kvstore \
-                         -I$(couchstore_srcdir)/include/libcouchstore $(AM_CPPFLAGS)
+                         $(AM_CPPFLAGS)
 
 libsqlite_kvstore_la_SOURCES = kvstore.hh \
                                sqlite-kvstore/factory.cc \
@@ -155,8 +150,6 @@ libmc_kvstore_la_SOURCES = kvstore.hh \
                            mc-kvstore/mc-kvstore.hh \
                            tools/cJSON.c \
                            tools/cJSON.h
-
-
 libmc_kvstore_la_CPPFLAGS = -I$(top_srcdir) -I$(top_srcdir)/sqlite-kvstore \
                             $(AM_CPPFLAGS)
 libmc_kvstore_la_LIBADD =
@@ -172,27 +165,17 @@ stats-info.h stats-info.c: .generated_stat-info
 
 generated_configuration.hh generated_configuration.cc: .generated_configuration
 
-libcouch_kvstore_la_SOURCES = kvstore.hh \
-                              couch-kvstore/couch-kvstore.cc \
-                              couch-kvstore/couch-kvstore.hh
-
-libcouch_kvstore_la_CPPFLAGS = -I$(top_srcdir) \
-                               -I$(couchstore_srcdir)/include/libcouchstore $(AM_CPPFLAGS)
-
-libcouch_kvstore_la_LIBADD = $(couchstorelibdir)/$(couchstorelib_LIB)
-
 libconfiguration_la_SOURCES = \
                               generated_configuration.hh \
                               configuration.hh \
                               configuration.cc
 
 ep_la_LIBADD = libkvstore.la libsqlite-kvstore.la libmc-kvstore.la \
-               libblackhole-kvstore.la libcouch-kvstore.la \
+               libblackhole-kvstore.la \
                libobjectregistry.la libconfiguration.la $(LTLIBEVENT)
 ep_la_DEPENDENCIES = libkvstore.la libsqlite-kvstore.la	\
                libmc-kvstore.la libblackhole-kvstore.la	\
-               libobjectregistry.la libconfiguration.la \
-               libcouch-kvstore.la
+               libobjectregistry.la libconfiguration.la
 ep_testsuite_la_LIBADD =libobjectregistry.la
 ep_testsuite_la_DEPENDENCIES = libobjectregistry.la
 
@@ -205,10 +188,10 @@ management_cbdbconvert_LDADD = libkvstore.la libsqlite-kvstore.la       \
                                libobjectregistry.la                     \
                                libconfiguration.la libkvstore.la        \
                                libblackhole-kvstore.la                  \
-                               libcouch-kvstore.la                      \
                                libmc-kvstore.la $(LTLIBEVENT)
+
 management_cbdbconvert_DEPENDENCIES = libkvstore.la libsqlite-kvstore.la libmc-kvstore.la \
-                                      libcouch-kvstore.la libobjectregistry.la libconfiguration.la
+                                      libobjectregistry.la libconfiguration.la
 
 if BUILD_EMBEDDED_LIBSQLITE3
 ep_la_LIBADD += libsqlite3.la

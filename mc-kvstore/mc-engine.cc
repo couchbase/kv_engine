@@ -494,28 +494,6 @@ private:
     Callback<bool> &callback;
 };
 
-
-class NotifyVbucketUpdateResponseHandler: public BinaryPacketHandler {
-public:
-    NotifyVbucketUpdateResponseHandler(uint32_t sno,
-                                       EPStats *st, Callback<uint16_t> &cb) :
-        BinaryPacketHandler(sno, st), callback(cb) {
-    }
-
-    virtual void response(protocol_binary_response_header *res) {
-        uint16_t rcode = ntohs(res->response.status);
-        callback.callback(rcode);
-    }
-
-    virtual void connectionReset() {
-        uint16_t rcode = PROTOCOL_BINARY_RESPONSE_ETMPFAIL;
-        callback.callback(rcode);
-    }
-
-private:
-    Callback<uint16_t> &callback;
-};
-
 class VBBatchCountResponseHandler: public BinaryPacketHandler {
 public:
     VBBatchCountResponseHandler(uint32_t sno, EPStats *st, Callback<bool> *cb) :
@@ -1423,39 +1401,6 @@ void MemcachedEngine::noop(Callback<bool> &cb)
     wait();
 }
 
-void MemcachedEngine::notify_update(uint16_t vbucket,
-                                    uint64_t file_version,
-                                    uint64_t header_offset,
-                                    bool vbucket_state_updated,
-                                    uint32_t state,
-                                    uint64_t checkpoint,
-                                    Callback<uint16_t> &cb)
-{
-    protocol_binary_request_notify_vbucket_update req;
-    memset(req.bytes, 0, sizeof(req.bytes));
-    req.message.header.request.magic = PROTOCOL_BINARY_REQ;
-    req.message.header.request.opcode = CMD_NOTIFY_VBUCKET_UPDATE;
-    req.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
-    req.message.header.request.vbucket = ntohs(vbucket);
-    req.message.header.request.opaque = seqno;
-    req.message.header.request.bodylen = ntohl(32);
-
-    req.message.body.file_version = ntohll(file_version);
-    req.message.body.header_offset = ntohll(header_offset);
-    req.message.body.vbucket_state_updated = (vbucket_state_updated) ?
-                                             ntohl(1) : 0;
-    req.message.body.state = ntohl(state);
-    req.message.body.checkpoint = ntohll(checkpoint);
-
-    sendIov[0].iov_base = (char*)req.bytes;
-    sendIov[0].iov_len = sizeof(req.bytes);
-    numiovec = 1;
-
-    sendCommand(new NotifyVbucketUpdateResponseHandler(seqno++, epStats, cb));
-    // Wait for response!!
-    wait();
-}
-
 void MemcachedEngine::setVBucketBatchCount(size_t batch_count, Callback<bool> *cb) {
     protocol_binary_request_set_batch_count req;
     memset(req.bytes, 0, sizeof(req.bytes));
@@ -1519,8 +1464,6 @@ const char *MemcachedEngine::cmd2str(uint8_t cmd)
         return "tap_mutation";
     case PROTOCOL_BINARY_CMD_TAP_OPAQUE:
         return "tap_opaque";
-    case CMD_NOTIFY_VBUCKET_UPDATE:
-        return "notify_vbucket_update";
     case 0x89 :
         return "select_vbucket";
 
