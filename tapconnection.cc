@@ -1138,7 +1138,6 @@ void TapProducer::addStats(ADD_STAT add_stat, const void *c) {
     addStat("bg_wait_for_results", waitForBgFetches_UNLOCKED(), add_stat, c);
     addStat("bg_queued", bgQueued, add_stat, c);
     addStat("bg_result_size", bgResultSize, add_stat, c);
-    addStat("bg_results", bgResults, add_stat, c);
     addStat("bg_jobs_issued", bgJobIssued, add_stat, c);
     addStat("bg_jobs_completed", bgJobCompleted, add_stat, c);
     addStat("bg_backlog_size", bgJobIssued - bgJobCompleted, add_stat, c);
