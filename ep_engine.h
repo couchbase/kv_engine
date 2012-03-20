@@ -26,9 +26,6 @@
 #include "restore.hh"
 #include "configuration.hh"
 
-#define DEFAULT_BACKFILL_RESIDENT_THRESHOLD 0.9
-#define MINIMUM_BACKFILL_RESIDENT_THRESHOLD 0.7
-
 extern "C" {
     EXPORT_FUNCTION
     ENGINE_ERROR_CODE create_instance(uint64_t interface,
