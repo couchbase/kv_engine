@@ -900,28 +900,38 @@ uint64_t CheckpointManager::checkOpenCheckpoint_UNLOCKED(bool forceCreation, boo
     return checkpoint_id;
 }
 
-bool CheckpointManager::isKeyResidentInCheckpoints(const std::string &key) {
+bool CheckpointManager::eligibleForEviction(const std::string &key) {
     LockHolder lh(queueLock);
+    uint64_t smallest_mid = 0;
 
-    std::list<Checkpoint*>::iterator it = checkpointList.begin();
-    // Find the first checkpoint that is referenced by any cursor.
-    for (; it != checkpointList.end(); ++it) {
-        if ((*it)->getNumberOfCursors() > 0) {
+    // Get the mutation id of the item pointed by the slowest cursor.
+    // This won't cause much overhead as the number of cursors per vbucket is
+    // usually bounded to 3 (persistence cursor + 2 replicas).
+    const std::string &pkey = (*(persistenceCursor.currentPos))->getKey();
+    smallest_mid = (*(persistenceCursor.currentCheckpoint))->getMutationIdForKey(pkey);
+    std::map<const std::string, CheckpointCursor>::iterator mit = tapCursors.begin();
+    for (; mit != tapCursors.end(); ++mit) {
+        const std::string &tkey = (*(mit->second.currentPos))->getKey();
+        uint64_t mid = (*(mit->second.currentCheckpoint))->getMutationIdForKey(tkey);
+        if (mid < smallest_mid) {
+            smallest_mid = mid;
+        }
+    }
+
+    bool can_evict = true;
+    std::list<Checkpoint*>::reverse_iterator it = checkpointList.rbegin();
+    for (; it != checkpointList.rend(); ++it) {
+        uint64_t mid = (*it)->getMutationIdForKey(key);
+        if (mid == 0) { // key doesn't exist in a checkpoint.
+            continue;
+        }
+        if (smallest_mid < mid) { // The slowest cursor is still sitting behind a given key.
+            can_evict = false;
             break;
         }
     }
 
-    bool found = false;
-    // Check if a given key exists in any checkpoints.
-    for (; it != checkpointList.end(); ++it) {
-        if ((*it)->keyExists(key)) {
-            found = true;
-            break;
-        }
-    }
-
-    lh.unlock();
-    return found;
+    return can_evict;
 }
 
 size_t CheckpointManager::getNumItemsForTAPConnection(const std::string &name) {

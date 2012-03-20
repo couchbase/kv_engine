@@ -2007,10 +2007,9 @@ public:
                 double current = static_cast<double>(stats->getTotalMemoryUsed());
                 double lower = static_cast<double>(stats->mem_low_wat);
                 if (v && current > lower) {
-                    // Check if the key exists in the open or closed checkpoints.
-                    bool foundInCheckpoints =
-                        vb->checkpointManager.isKeyResidentInCheckpoints(v->getKey());
-                    if (!foundInCheckpoints &&
+                    // Check if the key was already visited by all the cursors.
+                    bool can_evict = vb->checkpointManager.eligibleForEviction(v->getKey());
+                    if (can_evict &&
                         v->ejectValue(*stats, vb->ht) &&
                         vb->getState() == vbucket_state_replica) {
                         ++stats->numReplicaEjects;
