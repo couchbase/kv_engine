@@ -55,7 +55,7 @@ void Checkpoint::popBackCheckpointEndItem() {
 }
 
 bool Checkpoint::keyExists(const std::string &key) {
-    return keyIndex.find(key) != keyIndex.end() ? true : false;
+    return keyIndex.find(key) != keyIndex.end();
 }
 
 queue_dirty_t Checkpoint::queueDirty(const queued_item &qi, CheckpointManager *checkpointManager) {
@@ -432,7 +432,7 @@ bool CheckpointManager::isCheckpointCreationForHighMemUsage(const RCPtr<VBucket>
     double memoryUsed = static_cast<double>(stats.getTotalMemoryUsed());
     // pesistence and tap cursors are all currently in the open checkpoint?
     bool allCursorsInOpenCheckpoint =
-        (1 + tapCursors.size()) == checkpointList.back()->getNumberOfCursors() ? true : false;
+        (tapCursors.size() + 1) == checkpointList.back()->getNumberOfCursors();
 
     if (memoryUsed > stats.mem_high_wat &&
         allCursorsInOpenCheckpoint &&
@@ -464,7 +464,7 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(const RCPtr<VBucket> &vbu
         // Check if this master active vbucket needs to create a new open checkpoint.
         oldCheckpointId = checkOpenCheckpoint_UNLOCKED(forceCreation, true);
     }
-    newOpenCheckpointCreated = oldCheckpointId > 0 ? true : false;
+    newOpenCheckpointCreated = oldCheckpointId > 0;
     if (oldCheckpointId > 0) {
         // If the persistence cursor reached to the end of the old open checkpoint, move it to
         // the new open checkpoint.
@@ -668,7 +668,7 @@ bool CheckpointManager::queueDirty(const queued_item &qi, const RCPtr<VBucket> &
     // Note that the creation of a new checkpoint on the replica vbucket will be controlled by TAP
     // mutation messages from the active vbucket, which contain the checkpoint Ids.
 
-    return (numItemsAfter - numItemsBefore) > 0 ? true : false;
+    return (numItemsAfter - numItemsBefore) > 0;
 }
 
 uint64_t CheckpointManager::getAllItemsFromCurrentPosition(CheckpointCursor &cursor,
@@ -976,7 +976,7 @@ bool CheckpointManager::checkAndAddNewCheckpoint(uint64_t id, bool &pCursorRepos
     // simply set the current open checkpoint id to the one received from the active vbucket.
     if (checkpointList.back()->getId() == 0) {
         setOpenCheckpointId_UNLOCKED(id);
-        pCursorRepositioned = id > 0 ? true : false;
+        pCursorRepositioned = id > 0;
         return true;
     }
 
