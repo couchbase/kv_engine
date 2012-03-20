@@ -1050,7 +1050,6 @@ private:
 
     Atomic<size_t> bgQueued;
     Atomic<size_t> bgResultSize;
-    Atomic<size_t> bgResults;
     Atomic<size_t> bgJobIssued;
     Atomic<size_t> bgJobCompleted;
     Atomic<size_t> numTapNack;
