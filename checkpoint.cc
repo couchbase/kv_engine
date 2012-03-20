@@ -114,7 +114,7 @@ queue_dirty_t Checkpoint::queueDirty(const queued_item &qi, CheckpointManager *c
         toWrite.erase(currPos);
         rv = EXISTING_ITEM;
     } else {
-        if (qi->getKey().size() > 0) {
+        if (qi->getOperation() == queue_op_set || qi->getOperation() == queue_op_del) {
             ++numItems;
         }
         rv = NEW_ITEM;
@@ -247,7 +247,7 @@ bool CheckpointManager::addNewCheckpoint_UNLOCKED(uint64_t id) {
     // Add a dummy item into the new checkpoint, so that any cursor referring to the actual first
     // item in this new checkpoint can be safely shifted left by 1 if the first item is removed
     // and pushed into the tail.
-    queued_item dummyItem(new QueuedItem("", 0xffff, queue_op_empty));
+    queued_item dummyItem(new QueuedItem("dummy_key", 0xffff, queue_op_empty));
     checkpoint->queueDirty(dummyItem, this);
 
     // This item represents the start of the new checkpoint and is also sent to the slave node.
@@ -1064,7 +1064,13 @@ queued_item CheckpointManager::createCheckpointItem(uint64_t id,
                                                     uint16_t vbid,
                                                     enum queue_operation checkpoint_op) {
     assert(checkpoint_op == queue_op_checkpoint_start || checkpoint_op == queue_op_checkpoint_end);
-    queued_item qi(new QueuedItem("", vbid, checkpoint_op, -1, (int64_t) id));
+    std::stringstream key;
+    if (checkpoint_op == queue_op_checkpoint_start) {
+        key << "checkpoint_start";
+    } else {
+        key << "checkpoint_end";
+    }
+    queued_item qi(new QueuedItem(key.str(), vbid, checkpoint_op, -1, (int64_t) id));
     return qi;
 }
 
