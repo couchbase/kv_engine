@@ -941,7 +941,7 @@ static enum test_result test_conc_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     testHarness.reload_engine(&h, &h1,
                               testHarness.engine_path,
-                              testHarness.default_engine_cfg,
+                              testHarness.get_current_testcase()->cfg,
                               true, false);
 
     assert(0 == get_int_stat(h, h1, "ep_warmed_dups"));
@@ -1331,7 +1331,7 @@ static enum test_result test_flush_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     // Restart once to ensure written to disk.
     testHarness.reload_engine(&h, &h1,
                               testHarness.engine_path,
-                              testHarness.default_engine_cfg,
+                              testHarness.get_current_testcase()->cfg,
                               true, false);
 
     // Read value from disk.
@@ -1348,7 +1348,7 @@ static enum test_result test_flush_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     // Restart again, ensure written to disk.
     testHarness.reload_engine(&h, &h1,
                               testHarness.engine_path,
-                              testHarness.default_engine_cfg,
+                              testHarness.get_current_testcase()->cfg,
                               true, false);
 
     check(store(h, h1, NULL, OPERATION_SET, "key3", "somevalue", &i) == ENGINE_SUCCESS,
@@ -1374,7 +1374,7 @@ static enum test_result test_flush_multiv_restart(ENGINE_HANDLE *h, ENGINE_HANDL
     // Restart once to ensure written to disk.
     testHarness.reload_engine(&h, &h1,
                               testHarness.engine_path,
-                              testHarness.default_engine_cfg,
+                              testHarness.get_current_testcase()->cfg,
                               true, false);
 
     // Read value from disk.
@@ -1387,7 +1387,7 @@ static enum test_result test_flush_multiv_restart(ENGINE_HANDLE *h, ENGINE_HANDL
     // Restart again, ensure written to disk.
     testHarness.reload_engine(&h, &h1,
                               testHarness.engine_path,
-                              testHarness.default_engine_cfg,
+                              testHarness.get_current_testcase()->cfg,
                               true, false);
 
     // Read value again, should not be there.
@@ -1463,7 +1463,7 @@ static enum test_result test_bug2509(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     // Restart again, to verify we don't have any duplicates.
     testHarness.reload_engine(&h, &h1,
                               testHarness.engine_path,
-                              testHarness.default_engine_cfg,
+                              testHarness.get_current_testcase()->cfg,
                               true, false);
 
     return get_int_stat(h, h1, "ep_warmup_dups") == 0 ? SUCCESS : FAIL;
@@ -1632,7 +1632,7 @@ static enum test_result test_delete_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
 
     testHarness.reload_engine(&h, &h1,
                               testHarness.engine_path,
-                              testHarness.default_engine_cfg,
+                              testHarness.get_current_testcase()->cfg,
                               true, false);
 
     check_key_value(h, h1, "key", "value2", 6);
@@ -1641,7 +1641,7 @@ static enum test_result test_delete_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
 
     testHarness.reload_engine(&h, &h1,
                               testHarness.engine_path,
-                              testHarness.default_engine_cfg,
+                              testHarness.get_current_testcase()->cfg,
                               true, false);
 
     check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key"), "Expected missing key");
@@ -1657,7 +1657,7 @@ static enum test_result test_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     testHarness.reload_engine(&h, &h1,
                               testHarness.engine_path,
-                              testHarness.default_engine_cfg,
+                              testHarness.get_current_testcase()->cfg,
                               true, false);
     return check_key_value(h, h1, "key", val, strlen(val));
 }
@@ -1707,7 +1707,7 @@ static enum test_result test_restart_bin_val(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 
 
     testHarness.reload_engine(&h, &h1,
                               testHarness.engine_path,
-                              testHarness.default_engine_cfg,
+                              testHarness.get_current_testcase()->cfg,
                               true, false);
 
     return check_key_value(h, h1, "key", binaryData, sizeof(binaryData));
@@ -1883,7 +1883,7 @@ static enum test_result test_expiry_loader(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     // Restart the engine to ensure the above expired item is not loaded
     testHarness.reload_engine(&h, &h1,
                               testHarness.engine_path,
-                              testHarness.default_engine_cfg,
+                              testHarness.get_current_testcase()->cfg,
                               true, false);
     assert(0 == get_int_stat(h, h1, "ep_warmup_count", "warmup"));
 
@@ -1964,7 +1964,7 @@ static enum test_result test_bug3454(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     // Restart the engine to ensure the above unexpired new item is loaded
     testHarness.reload_engine(&h, &h1,
                               testHarness.engine_path,
-                              testHarness.default_engine_cfg,
+                              testHarness.get_current_testcase()->cfg,
                               true, false);
     assert(1 == get_int_stat(h, h1, "ep_warmup_count", "warmup"));
     assert(0 == get_int_stat(h, h1, "ep_warmup_dups", "warmup"));
@@ -2018,7 +2018,7 @@ static enum test_result test_bug3522(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     // Restart the engine.
     testHarness.reload_engine(&h, &h1,
                               testHarness.engine_path,
-                              testHarness.default_engine_cfg,
+                              testHarness.get_current_testcase()->cfg,
                               true, false);
     assert(0 == get_int_stat(h, h1, "ep_warmup_count", "warmup"));
     assert(0 == get_int_stat(h, h1, "ep_warmup_dups", "warmup"));
@@ -2614,7 +2614,7 @@ static enum test_result test_vbucket_destroy_restart(ENGINE_HANDLE *h, ENGINE_HA
     // Reload to get a flush forced.
     testHarness.reload_engine(&h, &h1,
                               testHarness.engine_path,
-                              testHarness.default_engine_cfg,
+                              testHarness.get_current_testcase()->cfg,
                               true, false);
 
     check(verify_vbucket_state(h, h1, 1, vbucket_state_dead),
@@ -2635,7 +2635,7 @@ static enum test_result test_vbucket_destroy_restart(ENGINE_HANDLE *h, ENGINE_HA
 
     testHarness.reload_engine(&h, &h1,
                               testHarness.engine_path,
-                              testHarness.default_engine_cfg,
+                              testHarness.get_current_testcase()->cfg,
                               true, false);
 
     if (verify_vbucket_state(h, h1, 1, vbucket_state_pending, true)) {
@@ -3782,7 +3782,7 @@ static enum test_result test_warmup_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     // Restart the server.
     testHarness.reload_engine(&h, &h1,
                               testHarness.engine_path,
-                              testHarness.default_engine_cfg,
+                              testHarness.get_current_testcase()->cfg,
                               true, false);
 
     useconds_t sleepTime = 128;
@@ -4032,7 +4032,7 @@ static enum test_result test_duplicate_items_disk(ENGINE_HANDLE *h, ENGINE_HANDL
 
     testHarness.reload_engine(&h, &h1,
                               testHarness.engine_path,
-                              testHarness.default_engine_cfg,
+                              testHarness.get_current_testcase()->cfg,
                               true, false);
     check(set_vbucket_state(h, h1, 1, vbucket_state_active), "Failed to set vbucket state.");
     // Make sure that a key/value item is persisted correctly
@@ -4422,7 +4422,7 @@ static enum test_result test_kill9_bucket(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     // Last parameter indicates the force shutdown for the engine.
     testHarness.reload_engine(&h, &h1,
                               testHarness.engine_path,
-                              testHarness.default_engine_cfg,
+                              testHarness.get_current_testcase()->cfg,
                               true, true);
 
     keys.clear();
