@@ -612,7 +612,9 @@ void CouchKVStore::tap(shared_ptr<TapCallback> cb, bool keysOnly,
                 abort();
             }
         } else {
-            if (errorCode == ERROR_OPEN_FILE || errorCode == ERROR_NO_HEADER) {
+            if (errorCode == COUCHSTORE_ERROR_OPEN_FILE ||
+                errorCode == COUCHSTORE_ERROR_NO_HEADER)
+            {
                 db = NULL;
                 continue;
             } else {
@@ -622,8 +624,9 @@ void CouchKVStore::tap(shared_ptr<TapCallback> cb, bool keysOnly,
                 std::string dbName = configuration.getDbname() + "/" +
                                       vbid.str() + ".couch." + rev.str();
                 getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                 "Failed to open database, name=%s error=%d\n",
-                                 dbName.c_str(), errorCode);
+                                 "Failed to open database, name=%s error=%s",
+                                 dbName.c_str(),
+                                 couchstore_strerror((couchstore_error_t)errorCode));
                 // TODO abort of return error?
                 abort();
             }
