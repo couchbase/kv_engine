@@ -599,9 +599,6 @@ void EventuallyPersistentStore::initialize() {
         exit(1);
     }
 
-    // Run the vbucket state snapshot job once after the warmup
-    scheduleVBSnapshot(Priority::VBucketPersistHighPriority);
-
     size_t expiryPagerSleeptime = config.getExpPagerStime();
     if (HashTable::getDefaultStorageValueType() != small) {
         shared_ptr<DispatcherCallback> cb(new ItemPager(this, stats));
@@ -614,11 +611,6 @@ void EventuallyPersistentStore::initialize() {
 
     shared_ptr<DispatcherCallback> htr(new HashtableResizer(this));
     nonIODispatcher->schedule(htr, NULL, Priority::HTResizePriority, 10);
-
-    shared_ptr<DispatcherCallback> item_db_cb(getInvalidItemDbPager());
-    dispatcher->schedule(item_db_cb, NULL,
-                         Priority::InvalidItemDbPagerPriority, 0);
-
 
     size_t checkpointRemoverInterval = config.getChkRemoverStime();
     shared_ptr<DispatcherCallback> chk_cb(new ClosedUnrefCheckpointRemover(this,
@@ -636,23 +628,11 @@ void EventuallyPersistentStore::initialize() {
                               Priority::ObserveRegistryCleanerPriority,
                               10);
 
-    shared_ptr<StatSnap> sscb(new StatSnap(&engine));
-    dispatcher->schedule(sscb, NULL, Priority::StatSnapPriority,
-                         STATSNAP_FREQ);
-
     if (mutationLog.isEnabled()) {
         shared_ptr<MutationLogCompactor>
             compactor(new MutationLogCompactor(this, mutationLog, mlogCompactorConfig, stats));
         dispatcher->schedule(compactor, NULL, Priority::MutationLogCompactorPriority,
                              mlogCompactorConfig.getSleepTime());
-    }
-
-    if (config.getBackend().compare("sqlite") == 0 &&
-        rwUnderlying->getStorageProperties().hasEfficientVBDeletion()) {
-        shared_ptr<DispatcherCallback> invalidVBTableRemover(new InvalidVBTableRemover(&engine));
-        dispatcher->schedule(invalidVBTableRemover, NULL,
-                             Priority::VBucketDeletionPriority,
-                             INVALID_VBTABLE_DEL_FREQ);
     }
 }
 
@@ -2391,6 +2371,9 @@ void EventuallyPersistentStore::warmupCompleted() {
         completeDegradedMode();
     }
 
+    // Run the vbucket state snapshot job once after the warmup
+    scheduleVBSnapshot(Priority::VBucketPersistHighPriority);
+
     if (HashTable::getDefaultStorageValueType() != small) {
         if (engine.getConfiguration().getAlogPath().length() > 0) {
             AccessScanner *as = new AccessScanner(*this);
@@ -2399,6 +2382,22 @@ void EventuallyPersistentStore::warmupCompleted() {
                                  Priority::AccessScannerPriority,
                                  as->getSleepTime());
         }
+    }
+
+    shared_ptr<DispatcherCallback> item_db_cb(invalidItemDbPager);
+    dispatcher->schedule(item_db_cb, NULL,
+                         Priority::InvalidItemDbPagerPriority, 0);
+
+    shared_ptr<StatSnap> sscb(new StatSnap(&engine));
+    dispatcher->schedule(sscb, NULL, Priority::StatSnapPriority,
+                         STATSNAP_FREQ);
+
+    if (engine.getConfiguration().getBackend().compare("sqlite") == 0 &&
+        storageProperties.hasEfficientVBDeletion()) {
+        shared_ptr<DispatcherCallback> invalidVBTableRemover(new InvalidVBTableRemover(&engine));
+        dispatcher->schedule(invalidVBTableRemover, NULL,
+                             Priority::VBucketDeletionPriority,
+                             INVALID_VBTABLE_DEL_FREQ);
     }
 }
 
