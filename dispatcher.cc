@@ -168,7 +168,15 @@ void Dispatcher::schedule(shared_ptr<DispatcherCallback> callback,
                           const Priority &priority,
                           double sleeptime,
                           bool isDaemon,
-                          bool mustComplete) {
+                          bool mustComplete)
+{
+    // MB-4930 We might end up with a deadlock if some of the tasks try
+    //         to reschedule new tasks during shutdown (while we're
+    //         running completeNonDaemonTasks
+    if (state == dispatcher_stopping || state == dispatcher_stopped) {
+        return ;
+    }
+
     LockHolder lh(mutex);
     TaskId task(new Task(callback, priority.getPriorityValue(), sleeptime,
                          isDaemon, mustComplete));
