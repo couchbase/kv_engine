@@ -208,7 +208,7 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
                 }
                 break;
             case INVALID_CAS:
-                if (epstore->getRWUnderlying()->isKeyDumpSupported()) {
+                if (epstore->getROUnderlying()->isKeyDumpSupported()) {
                     getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
                         "Value changed in memory before restore from disk. Ignored disk value for: %s.",
                          i->getKey().c_str());
@@ -361,7 +361,7 @@ bool Warmup::loadingMutationLog(Dispatcher&, TaskId)
 bool Warmup::estimateDatabaseItemCount(Dispatcher&, TaskId)
 {
     hrtime_t st = gethrtime();
-    store->rwUnderlying->getEstimatedItemCount(estimatedItemCount);
+    store->roUnderlying->getEstimatedItemCount(estimatedItemCount);
     estimateTime = gethrtime() - st;
 
     transition(WarmupState::KeyDump);
@@ -371,7 +371,7 @@ bool Warmup::estimateDatabaseItemCount(Dispatcher&, TaskId)
 bool Warmup::keyDump(Dispatcher&, TaskId)
 {
     bool success = false;
-    if (store->rwUnderlying->isKeyDumpSupported()) {
+    if (store->roUnderlying->isKeyDumpSupported()) {
         shared_ptr<Callback<GetValue> > cb(createLKVPCB(initialVbState, false));
         std::map<std::pair<uint16_t, uint16_t>, vbucket_state>::const_iterator it;
         std::vector<uint16_t> vbids;
@@ -383,14 +383,14 @@ bool Warmup::keyDump(Dispatcher&, TaskId)
             }
         }
 
-        store->rwUnderlying->dumpKeys(vbids, cb);
+        store->roUnderlying->dumpKeys(vbids, cb);
         success = true;
     }
 
     if (success) {
         transition(WarmupState::LoadingAccessLog);
     } else {
-        if (store->rwUnderlying->isKeyDumpSupported()) {
+        if (store->roUnderlying->isKeyDumpSupported()) {
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                              "Failed to dump keys, falling back to full dump");
         }
@@ -425,7 +425,7 @@ bool Warmup::loadingAccessLog(Dispatcher&, TaskId)
     if (store->accessLog.exists()) {
         try {
             store->accessLog.open();
-            if (store->rwUnderlying->warmup(store->accessLog, initialVbState,
+            if (store->roUnderlying->warmup(store->accessLog, initialVbState,
                                             *load_cb, w) != (size_t)-1) {
                 success = true;
             }
@@ -442,7 +442,7 @@ bool Warmup::loadingAccessLog(Dispatcher&, TaskId)
         if (old.exists()) {
             try {
                 old.open();
-                if (store->rwUnderlying->warmup(old, initialVbState,
+                if (store->roUnderlying->warmup(old, initialVbState,
                                                 *load_cb, w) != (size_t)-1) {
                     success = true;
                 }
@@ -470,7 +470,7 @@ bool Warmup::loadingAccessLog(Dispatcher&, TaskId)
 bool Warmup::loadingKVPairs(Dispatcher&, TaskId)
 {
     shared_ptr<Callback<GetValue> > cb(createLKVPCB(initialVbState, false));
-    store->rwUnderlying->dump(cb);
+    store->roUnderlying->dump(cb);
 
     if (doReconstructLog()) {
         store->mutationLog.commit1();
@@ -484,7 +484,7 @@ bool Warmup::loadingKVPairs(Dispatcher&, TaskId)
 bool Warmup::loadingData(Dispatcher&, TaskId)
 {
     shared_ptr<Callback<GetValue> > cb(createLKVPCB(initialVbState, true));
-    store->rwUnderlying->dump(cb);
+    store->roUnderlying->dump(cb);
     transition(WarmupState::Done);
     return true;
 }
