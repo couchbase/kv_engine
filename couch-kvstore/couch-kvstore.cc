@@ -1,3 +1,4 @@
+/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 #include "config.h"
 #include <string.h>
 #include <cstdlib>
@@ -16,6 +17,15 @@
 #include "couch_db.h"
 #include "tools/cJSON.h"
 #include "common.hh"
+
+static void closeDatabaseHandle(Db *db) {
+    couchstore_error_t ret = couchstore_close_db(db);
+    if (ret != COUCHSTORE_SUCCESS) {
+        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                         "Failed to close database handle: %s",
+                         couchstore_strerror(ret));
+    }
+}
 
 static bool isJSON(const value_t &value) {
     bool isJSON = false;
@@ -267,8 +277,7 @@ void CouchKVStore::get(const std::string &key, uint64_t, uint16_t vb, uint16_t,
 
     free_docinfo(docInfo);
     free_doc(doc);
-    close_db(db);
-
+    closeDatabaseHandle(db);
     cb.callback(rv);
 }
 
@@ -419,7 +428,7 @@ bool CouchKVStore::setVBucketState(uint16_t vbucketId, vbucket_state_t state,
     while (retry) {
         retry = false;
         errorCode = openDB(vbucketId, fileRev, &db,
-                           (uint64_t)COUCH_CREATE_FILES, &newFileRev);
+                           (uint64_t)COUCHSTORE_OPEN_FLAG_CREATE, &newFileRev);
         if (errorCode) {
             std::stringstream fileName;
             fileName << vbucketId << ".couch." << fileRev;
@@ -446,7 +455,7 @@ bool CouchKVStore::setVBucketState(uint16_t vbucketId, vbucket_state_t state,
            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                             "Failed to save local doc, name=%s error=%d\n",
                             dbFileName.c_str(), errorCode);
-           close_db(db);
+           closeDatabaseHandle(db);
            return false;
         }
 
@@ -479,7 +488,7 @@ bool CouchKVStore::setVBucketState(uint16_t vbucketId, vbucket_state_t state,
                 }
             }
         }
-        close_db(db);
+        closeDatabaseHandle(db);
     }
     return true;
 }
@@ -631,7 +640,7 @@ void CouchKVStore::tap(shared_ptr<TapCallback> cb, bool keysOnly,
                 abort();
             }
         }
-        close_db(db);
+        closeDatabaseHandle(db);
         db = NULL;
     }
 
@@ -742,7 +751,7 @@ void CouchKVStore::updateDbFileMap(uint16_t vbucketId, int newFileRev,
 
 int CouchKVStore::openDB(uint16_t vbucketId, uint16_t fileRev, Db **db,
                          uint64_t options, uint16_t *newFileRev) {
-    int errorCode = 0;
+    couchstore_error_t errorCode;
     std::stringstream fileName;
     fileName << vbucketId << ".couch." << fileRev;
     std::string dbName = configuration.getDbname() + "/" + fileName.str();
@@ -750,18 +759,17 @@ int CouchKVStore::openDB(uint16_t vbucketId, uint16_t fileRev, Db **db,
     int newRevNum = fileRev;
     // first try to open database without options, we don't want to create
     // a duplicate db that has the same name with different revision number
-    if ((errorCode = open_db(const_cast<char *>(dbName.c_str()), 0, NULL, db))) {
+    if ((errorCode = couchstore_open_db(dbName.c_str(), 0, NULL, db))) {
         if ((newRevNum = checkNewRevNum(dbName))) {
-            errorCode = open_db(const_cast<char *>(dbName.c_str()), 0, NULL, db);
-            if (!errorCode) {
+            errorCode = couchstore_open_db(dbName.c_str(), 0, NULL, db);
+            if (errorCode == COUCHSTORE_SUCCESS) {
                 updateDbFileMap(vbucketId, newRevNum);
             }
         } else {
             if (options) {
                 newRevNum = fileRev;
-                errorCode = open_db(const_cast<char *>(dbName.c_str()), options,
-                                    NULL, db);
-                if (!errorCode) {
+                errorCode = couchstore_open_db(dbName.c_str(), options, NULL, db);
+                if (errorCode == COUCHSTORE_SUCCESS) {
                     updateDbFileMap(vbucketId, newRevNum, true);
                 }
             }
@@ -1042,7 +1050,7 @@ int CouchKVStore::saveDocs(uint16_t vbid, int rev, Doc **docs, DocInfo **docinfo
                     abort();
                 }
             }
-            close_db(db);
+            closeDatabaseHandle(db);
         }
     } while (retry_save_docs);
 
