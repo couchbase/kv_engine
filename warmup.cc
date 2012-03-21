@@ -497,8 +497,6 @@ bool Warmup::done(Dispatcher&, TaskId)
     getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                      "warmup completed in %s",
                      hrtime2text(warmup).c_str());
-
-    store->invalidItemDbPager->createRangeList();
     return false;
 }
 

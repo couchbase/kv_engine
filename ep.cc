@@ -2384,6 +2384,7 @@ void EventuallyPersistentStore::warmupCompleted() {
         }
     }
 
+    invalidItemDbPager->createRangeList();
     shared_ptr<DispatcherCallback> item_db_cb(invalidItemDbPager);
     dispatcher->schedule(item_db_cb, NULL,
                          Priority::InvalidItemDbPagerPriority, 0);
