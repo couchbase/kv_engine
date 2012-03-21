@@ -5109,10 +5109,17 @@ static enum test_result test_compact_mutation_log(ENGINE_HANDLE *h, ENGINE_HANDL
 }
 
 static enum test_result prepare(engine_test_t *test) {
-    if (test->cfg == NULL || // No config
-        strstr(test->cfg, "backend") == NULL || // No backend specified
-        strstr(test->cfg, "sqlite") != NULL) // SQLite backend specified
-    {
+    rmdb();
+    enum test_result ret = verify_no_db();
+    if (ret != SUCCESS) {
+        return ret;
+    }
+
+    if (test->cfg == NULL || strstr(test->cfg, "backend") == NULL) {
+        return SUCCESS;
+    }
+
+    if (strstr(test->cfg, "backend=sqlite") != NULL) {
 #ifdef __sun
         // Some of the tests doesn't work on Solaris.. Don't know why yet..
         if (strcmp(test->name, "concurrent set (sqlite)") == 0 ||
@@ -5121,13 +5128,18 @@ static enum test_result prepare(engine_test_t *test) {
             return SKIPPED;
         }
 #endif
-        // Remove the database files we're going to operate on
-        rmdb();
-        return verify_no_db();
-    }
+    } else if (strstr(test->cfg, "backend=couchdb") != NULL) {
+        /* DO I need special init? */
+    } else {
+        // unknow backend!
+        using namespace std;
 
-    // unknow backend!
-    return FAIL;
+        cerr << endl << "Unknown backend specified! " << endl
+             << test->cfg << endl;
+
+        return FAIL;
+    }
+    return SUCCESS;
 }
 
 static void cleanup(engine_test_t *test, enum test_result result) {
@@ -5140,9 +5152,10 @@ static void cleanup(engine_test_t *test, enum test_result result) {
 
 // the backends is a bitmask for which backend to run the given test
 // for.
-#define BACKEND_SQLITE 1
-#define BACKEND_ALL 0x1
-#define BACKEND_VARIANTS 1
+#define BACKEND_COUCH 1
+#define BACKEND_SQLITE 2
+#define BACKEND_ALL 0x3
+#define BACKEND_VARIANTS 2
 
 class TestCase {
 public:
@@ -5185,12 +5198,16 @@ public:
             std::string nm(name);
             std::stringstream ss;
             if (cfg != 0) {
-                ss << cfg;
+                ss << cfg << ";";
             }
 
             switch (backend) {
             case BACKEND_SQLITE:
                 nm.append(" (sqlite)");
+                break;
+            case BACKEND_COUCH:
+                nm.append(" (couchstore)");
+                ss << "backend=couchdb";
                 break;
             default:
                 abort();
