@@ -346,6 +346,8 @@ public:
     */
     protocol_binary_response_status endHotReload(uint64_t total);
 
+    bool tapCursorExists(const std::string &name);
+
     /**
      * Queue an item to be written to persistent layer.
      * @param item the item to be persisted.

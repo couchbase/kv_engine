@@ -486,6 +486,10 @@ size_t CheckpointManager::getNumCheckpoints() {
     return checkpointList.size();
 }
 
+bool CheckpointManager::tapCursorExists(const std::string &name) {
+    return tapCursors.find(name) != tapCursors.end();
+}
+
 bool CheckpointManager::isCheckpointCreationForHighMemUsage(const RCPtr<VBucket> &vbucket) {
     bool forceCreation = false;
     double memoryUsed = static_cast<double>(stats.getTotalMemoryUsed());

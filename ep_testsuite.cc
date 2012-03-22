@@ -2854,6 +2854,7 @@ static enum test_result test_tap_takeover(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
         case TAP_PAUSE:
             testHarness.waitfor_cookie(cookie);
             break;
+        case TAP_OPAQUE:
         case TAP_NOOP:
             break;
         case TAP_MUTATION:
