@@ -1522,6 +1522,16 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
             connection->itemRevSeqno = htonl(it->getSeqno());
             *es = &connection->itemRevSeqno;
             *nes = sizeof(connection->itemRevSeqno);
+        } else if (ret == TAP_CHECKPOINT_START) {
+            // Send the current value of the max deleted seqno
+            RCPtr<VBucket> vb = getVBucket(*vbucket);
+            if (!vb) {
+                retry = true;
+                return TAP_NOOP;
+            }
+            connection->itemRevSeqno = htonl(vb->ht.getMaxDeletedSeqno());
+            *es = &connection->itemRevSeqno;
+            *nes = sizeof(connection->itemRevSeqno);
         }
         break;
     case TAP_NOOP:
@@ -1806,6 +1816,18 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
         {
             TapConsumer *tc = dynamic_cast<TapConsumer*>(connection);
             if (tc) {
+                if(tap_event == TAP_CHECKPOINT_START && nengine == sizeof(uint32_t)) {
+                    // Set the current value for the max deleted seqno
+                    RCPtr<VBucket> vb = getVBucket(vbucket);
+                    if (!vb) {
+                        return ENGINE_TMPFAIL;
+                    }
+                    uint32_t seqnum;
+                    memcpy(&seqnum, engine_specific, sizeof(seqnum));
+                    seqnum = ntohl(seqnum);
+                    vb->ht.setMaxDeletedSeqno(seqnum);
+                }
+
                 if (data != NULL) {
                     uint64_t checkpointId;
                     memcpy(&checkpointId, data, sizeof(checkpointId));
