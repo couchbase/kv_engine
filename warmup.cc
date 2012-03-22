@@ -124,7 +124,7 @@ public:
     }
 
     void initVBucket(uint16_t vbid, uint16_t vb_version,
-                     uint64_t checkpointId, vbucket_state_t prevState);
+                     const vbucket_state &vbstate);
 
     void callback(GetValue &val);
 
@@ -145,7 +145,7 @@ private:
 };
 
 void LoadStorageKVPairCallback::initVBucket(uint16_t vbid, uint16_t vb_version,
-                                            uint64_t checkpointId, vbucket_state_t prevState) {
+                                            const vbucket_state &vbs) {
     RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
     if (!vb) {
         vb.reset(new VBucket(vbid, vbucket_state_dead, stats,
@@ -153,14 +153,16 @@ void LoadStorageKVPairCallback::initVBucket(uint16_t vbid, uint16_t vb_version,
         vbuckets.addBucket(vb);
     }
     // Set the past initial state of each vbucket.
-    vb->setInitialState(prevState);
+    vb->setInitialState(vbs.state);
     // Pass the open checkpoint Id for each vbucket.
-    vb->checkpointManager.setOpenCheckpointId(checkpointId);
+    vb->checkpointManager.setOpenCheckpointId(vbs.checkpointId);
+    // Pass the max deleted seqno for each vbucket.
+    vb->ht.setMaxDeletedSeqno(vbs.maxDeletedSeqno);
     // For each vbucket, set its vbucket version.
     vbuckets.setBucketVersion(vbid, vb_version);
     // For each vbucket, set its latest checkpoint Id that was
     // successfully persisted.
-    vbuckets.setPersistenceCheckpointId(vbid, checkpointId - 1);
+    vbuckets.setPersistenceCheckpointId(vbid, vbs.checkpointId - 1);
 }
 
 void LoadStorageKVPairCallback::callback(GetValue &val) {
@@ -627,7 +629,8 @@ LoadStorageKVPairCallback *Warmup::createLKVPCB(const std::map<std::pair<uint16_
     for (it = st.begin(); it != st.end(); ++it) {
         std::pair<uint16_t, uint16_t> vbp = it->first;
         vbucket_state vbs = it->second;
-        load_cb->initVBucket(vbp.first, vbp.second, vbs.checkpointId + 1, vbs.state);
+        vbs.checkpointId++;
+        load_cb->initVBucket(vbp.first, vbp.second, vbs);
     }
 
     return load_cb;
