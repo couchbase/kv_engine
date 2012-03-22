@@ -2965,6 +2965,11 @@ static void process_bin_tap_packet(tap_event_t event, conn *c) {
         if (event == TAP_MUTATION || event == TAP_CHECKPOINT_START ||
             event == TAP_CHECKPOINT_END) {
             protocol_binary_request_tap_mutation *mutation = (void*)tap;
+
+            // engine_specific data in protocol_binary_request_tap_mutation is
+            // at a different offset than protocol_binary_request_tap_no_extras
+            engine_specific = packet + sizeof(mutation->bytes);
+
             flags = mutation->message.body.item.flags;
             if ((tap_flags & TAP_FLAG_NETWORK_BYTE_ORDER) == 0) {
                 flags = ntohl(flags);
