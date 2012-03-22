@@ -55,6 +55,12 @@ int recordDbDumpC(Db* db, DocInfo* docinfo, void *ctx) {
     return CouchKVStore::recordDbDump(db, docinfo, ctx);
 }
 
+extern "C" int recordDbStatC(Db* db, DocInfo* docinfo, void *ctx);
+int recordDbStatC(Db* db, DocInfo* docinfo, void *ctx) {
+    return CouchKVStore::recordDbStat(db, docinfo, ctx);
+}
+
+
 static const std::string getJSONObjString(cJSON *i) {
     if (i == NULL) {
         return "";
@@ -101,6 +107,11 @@ static bool discoverDbFiles(const std::string &dir,
     closedir(dhdl);
     return true;
 }
+
+struct StatResponseCtx {
+    std::map<std::pair<uint16_t, uint16_t>, vbucket_state> &statMap;
+    uint16_t vbId;
+};
 
 struct TapResponseCtx {
     shared_ptr<TapCallback> callback;
@@ -322,38 +333,57 @@ bool CouchKVStore::delVBucket(uint16_t vbucket, uint16_t) {
 }
 
 vbucket_map_t CouchKVStore::listPersistedVbuckets() {
-    //TODO, implement CouchKVStore::stats()
-    assert(mc);
-    RememberingCallback<std::map<std::string, std::string> > cb;
-    mc->stats("vbucket", cb);
-    cb.waitForValue();
-
     std::map<std::pair<uint16_t, uint16_t>, vbucket_state> rv;
-    std::map<std::string, std::string>::const_iterator iter;
-    for (iter = cb.val.begin(); iter != cb.val.end(); ++iter) {
-        std::pair<uint16_t, uint16_t> vb(
-                (uint16_t)atoi(iter->first.c_str() + 3), -1);
-        const std::string &state_json = iter->second;
-        cJSON *jsonObj = cJSON_Parse(state_json.c_str());
-        const std::string state = getJSONObjString(cJSON_GetObjectItem(jsonObj, "state"));
-        const std::string checkpoint_id = getJSONObjString(cJSON_GetObjectItem(jsonObj,
-                                                           "checkpoint_id"));
-        cJSON_Delete(jsonObj);
-        if (state.compare("") == 0 || checkpoint_id.compare("") == 0) {
-            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "Warning: State JSON doc for vbucket %d is in the wrong format: %s",
-                             vb.first, state_json.c_str());
-            continue;
-        }
+    std::string dirname = configuration.getDbname();
+    std::vector<std::string> files = std::vector<std::string>();
 
-        vbucket_state vb_state;
-        vb_state.state = VBucket::fromString(state.c_str());
-        char *ptr = NULL;
-        vb_state.checkpointId = strtoull(checkpoint_id.c_str(), &ptr, 10);
-        // TODO: fix the maxDeletedSeqno in the vbstate document. We are
-        // just fixing compiler warnings here.
-        vb_state.maxDeletedSeqno = 0;
-        rv[vb] = vb_state;
+    if (dbFileMap.empty()) {
+        // warmup, first discover db files from local directory
+        if (discoverDbFiles(dirname, files)) {
+            populateFileNameMap(files);
+        } else {
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                    "Warning: Data diretory does not exist, %s\n",
+                    dirname.c_str());
+            return rv;
+        }
+    }
+
+    Db *db = NULL;
+    int errorCode;
+    std::map<uint16_t, int>::iterator itr = dbFileMap.begin();
+    for (; itr != dbFileMap.end(); itr++) {
+        errorCode = openDB(itr->first, itr->second, &db, 0);
+        if (!errorCode) {
+            StatResponseCtx ctx = { rv, itr->first };
+            errorCode = changes_since(db, 0, 0, recordDbStatC, (void *)&ctx);
+            if (errorCode) {
+                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                        "Warning: changes_since failed, vBucket=%d rev=%d error=%d\n",
+                        itr->first, itr->second, errorCode);
+                //TODO abort or continue?
+                abort();
+            }
+        } else {
+            if (errorCode == COUCHSTORE_ERROR_OPEN_FILE ||
+                errorCode == COUCHSTORE_ERROR_NO_HEADER) {
+                db = NULL;
+                continue;
+            } else {
+                std::stringstream rev, vbid;
+                rev  << itr->second;
+                vbid << itr->first;
+                std::string dbName = dirname + "/" + vbid.str() + ".couch." +
+                                     rev.str();
+                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                        "Failed to open database, name=%s error=%d\n",
+                        dbName.c_str(), errorCode);
+                // TODO abort of return error?
+                abort();
+            }
+        }
+        couchstore_close_db(db);
+        db = NULL;
     }
     return rv;
 }
@@ -586,21 +616,22 @@ void CouchKVStore::tap(shared_ptr<TapCallback> cb, bool keysOnly,
     std::map<uint16_t, int> &filemap = dbFileMap;
     std::map<uint16_t, int> vbmap;
 
-    if (vbids) {
-        // get entries for given vbucket(s) from dbFileMap
-        getFileNameMap(vbids, dirname, vbmap);
-        filemap = vbmap;
-    } else {
+    if (dbFileMap.empty()) {
         // warmup, first discover db files from local directory
         if (discoverDbFiles(dirname, files)) {
             populateFileNameMap(files);
         } else {
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "Data diretory does not exists, %s\n",
+                             "Warning: Data diretory is empty, %s\n",
                              dirname.c_str());
-            //TODO, just return or abort?
             return;
         }
+    }
+
+    if (vbids) {
+        // get entries for given vbucket(s) from dbFileMap
+        getFileNameMap(vbids, dirname, vbmap);
+        filemap = vbmap;
     }
 
     Db *db = NULL;
@@ -630,8 +661,8 @@ void CouchKVStore::tap(shared_ptr<TapCallback> cb, bool keysOnly,
                 std::stringstream rev, vbid;
                 rev  << itr->second;
                 vbid << itr->first;
-                std::string dbName = configuration.getDbname() + "/" +
-                                      vbid.str() + ".couch." + rev.str();
+                std::string dbName = dirname + "/" + vbid.str() + ".couch." +
+                                     rev.str();
                 getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                                  "Failed to open database, name=%s error=%s",
                                  dbName.c_str(),
@@ -1109,4 +1140,47 @@ void CouchKVStore::commitCallback(CouchRequest **committedReqs, int numReqs,
             setCb->callback(p);
         }
     }
+}
+
+int CouchKVStore::recordDbStat(Db* db, DocInfo*, void *ctx) {
+    int errCode;
+    sized_buf id;
+    LocalDoc *ldoc = NULL;
+    StatResponseCtx *statCtx = (StatResponseCtx *)ctx;
+    std::map<std::pair<uint16_t, uint16_t>, vbucket_state> &rv = statCtx->statMap;
+    std::pair<uint16_t, uint16_t> vb(statCtx->vbId, -1);
+
+    id.buf = (char *)"_local/vbstate";
+    id.size = sizeof("_local/vbstate") - 1;
+    errCode = open_local_doc(db, (uint8_t *)id.buf, id.size, &ldoc);
+    if (errCode) {
+        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                         "Failed to retrieve stat info for vBucket=%d error=%d\n",
+                         statCtx->vbId, errCode);
+        abort();
+    }
+
+    const std::string statjson(ldoc->json.buf, ldoc->json.size);
+    cJSON *jsonObj = cJSON_Parse(statjson.c_str());
+    const std::string state = getJSONObjString(cJSON_GetObjectItem(jsonObj, "state"));
+    const std::string checkpoint_id = getJSONObjString(cJSON_GetObjectItem(jsonObj,
+                                                       "checkpoint_id"));
+    cJSON_Delete(jsonObj);
+    if (state.compare("") == 0 || checkpoint_id.compare("") == 0) {
+        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                "Warning: State JSON doc for vbucket %d is in the wrong format: %s",
+                vb.first, statjson.c_str());
+    }
+
+    vbucket_state vb_state;
+    vb_state.state = VBucket::fromString(state.c_str());
+    char *ptr = NULL;
+    vb_state.checkpointId = strtoull(checkpoint_id.c_str(), &ptr, 10);
+    // TODO: fix the maxDeletedSeqno in the vbstate document. We are
+    // just fixing compiler warnings here.
+    vb_state.maxDeletedSeqno = 0;
+    rv[vb] = vb_state;
+
+    free_local_doc(ldoc);
+    return 0;
 }

@@ -156,6 +156,7 @@ public:
     }
 
     static int recordDbDump(Db* db, DocInfo* docinfo, void *ctx);
+    static int recordDbStat(Db* db, DocInfo* docinfo, void *ctx);
 
 protected:
     void tap(shared_ptr<TapCallback> cb, bool keysOnly,
