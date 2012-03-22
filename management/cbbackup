@@ -26,9 +26,11 @@ if len(sys.argv) < 3:
 def backup(sqlite_path, srcdir, destdir, fn):
     done = False
     sleep_time = 12
+    retry = 0
+    max_retry = 3
     src_path_name = os.path.join(srcdir, fn)
     if os.path.exists(src_path_name):
-        while not done:
+        while not done and retry < max_retry:
             pb = subprocess.Popen([sqlite_path, src_path_name,
                                   '.backup "%s" ' % os.path.join(destdir, fn)])
             pb.communicate()
@@ -36,13 +38,26 @@ def backup(sqlite_path, srcdir, destdir, fn):
                 print "Try backup %s again" % fn
                 time.sleep(sleep_time)
                 done = False
+                retry += 1
             else:
-                print "Backup of %s done" % fn
+                print "Backup of %s done, check integrity now" % fn
                 pv = subprocess.Popen([sqlite_path, os.path.join(destdir, fn),
+                                      'PRAGMA integrity_check;'])
+                (sd, se) = pv.communicate()
+                if pv.returncode != 0:
+                    print "Error :  %s" % sd
+                    print "Try backup $s again" % fn
+                    time.sleep(sleep_time)
+                    done = False
+                    retry += 1
+                else:
+                    pv = subprocess.Popen([sqlite_path, os.path.join(destdir, fn),
                                       'vacuum'])
-                pv.communicate()
-                print "Vacuum of %s done" % fn
-                done = True
+                    pv.communicate()
+                    print "Vacuum of %s done" % fn
+                    done = True
+        if retry >= max_retry:
+            print "Error : Backup fails after multiple retries."
 
 def findCmd(cmdName):
     cmd_dir = os.path.dirname(sys.argv[0])
