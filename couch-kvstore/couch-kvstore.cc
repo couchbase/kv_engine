@@ -459,11 +459,11 @@ bool CouchKVStore::setVBucketState(uint16_t vbucketId, vbucket_state_t state,
            return false;
         }
 
-        errorCode = commit_all(db, 0);
-        if (errorCode) {
+        couchstore_error_t err = couchstore_commit(db);
+        if (err) {
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "Failed to write header and fsync, error = %d\n",
-                             errorCode);
+                             "Commit failed: %s",
+                             couchstore_strerror(err));
             // TODO, error handling
             abort();
         } else {
@@ -759,16 +759,16 @@ int CouchKVStore::openDB(uint16_t vbucketId, uint16_t fileRev, Db **db,
     int newRevNum = fileRev;
     // first try to open database without options, we don't want to create
     // a duplicate db that has the same name with different revision number
-    if ((errorCode = couchstore_open_db(dbName.c_str(), 0, NULL, db))) {
+    if ((errorCode = couchstore_open_db(dbName.c_str(), 0, db))) {
         if ((newRevNum = checkNewRevNum(dbName))) {
-            errorCode = couchstore_open_db(dbName.c_str(), 0, NULL, db);
+            errorCode = couchstore_open_db(dbName.c_str(), 0, db);
             if (errorCode == COUCHSTORE_SUCCESS) {
                 updateDbFileMap(vbucketId, newRevNum);
             }
         } else {
             if (options) {
                 newRevNum = fileRev;
-                errorCode = couchstore_open_db(dbName.c_str(), options, NULL, db);
+                errorCode = couchstore_open_db(dbName.c_str(), options, db);
                 if (errorCode == COUCHSTORE_SUCCESS) {
                     updateDbFileMap(vbucketId, newRevNum, true);
                 }
@@ -1016,20 +1016,22 @@ int CouchKVStore::saveDocs(uint16_t vbid, int rev, Doc **docs, DocInfo **docinfo
                              vbucket2save, fileRev, errCode);
             return errCode;
         } else {
-            errCode = save_docs(db, docs, docinfos, docCount, 0 /* no options */);
-            if (errCode) {
+            couchstore_error_t err;
+            err = couchstore_save_documents(db, docs, docinfos, docCount,
+                                            0 /* no options */);
+            if (err != COUCHSTORE_SUCCESS) {
                 getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                 "Failed to save docs to database, error = %d\n",
-                                 errCode);
-                return errCode;
+                                 "Failed to save docs to database, error = %s\n",
+                                 couchstore_strerror(err));
+                return (int)err;
             }
 
-            errCode = commit_all(db, 0);
-            if (errCode) {
+            err = couchstore_commit(db);
+            if (err) {
                 getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                 "Failed to write header and fsync, error = %d\n",
-                                 errCode);
-                return errCode;
+                                 "Commit failed: %s",
+                                 couchstore_strerror(err));
+                return (int)err;
             }
 
             RememberingCallback<uint16_t> cb;
