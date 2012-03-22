@@ -737,9 +737,6 @@ int CouchKVStore::checkNewRevNum(std::string &dbname, bool newFile) {
     }
 
     if (glob(nameKey.c_str(), GLOB_ERR | GLOB_MARK, NULL, &fglob)) {
-       getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                        "Cannot find a specified database file, %s\n",
-                        nameKey.c_str());
        return newrev;
     }
 
