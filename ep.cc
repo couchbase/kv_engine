@@ -1709,7 +1709,10 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteItem(const std::string &key,
 
     int bucket_num(0);
     LockHolder lh = vb->ht.getLockedBucket(key, &bucket_num);
-    StoredValue *v = vb->ht.unlocked_find(key, bucket_num);
+    // If use_meta is true (delete_with_meta), we'd like to look for the key
+    // with the wantsDeleted flag set to true in case a prior get_meta has
+    // created a temporary item for the key.
+    StoredValue *v = vb->ht.unlocked_find(key, bucket_num, use_meta);
     if (!v) {
         if (engine.isDegradedMode()) {
             LockHolder rlh(restore.mutex);
@@ -2315,13 +2318,21 @@ int EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
             }
         }
     } else if (deleted) {
+        bool tempItem = v->isTempItem();
         lh.unlock();
         BlockTimer timer(&stats.diskDelHisto, "disk_delete", stats.timingLog);
 
         PersistenceCallback *cb;
         cb = new PersistenceCallback(qi, rejectQueue, this, &mutationLog,
                                      queued, dirtied, &stats);
-        if (rowid > 0) {
+        if (rowid > 0 || tempItem) {
+            // Temporary items created as a result of get_meta requests have
+            // rowid < 1. The isTempItem() check ensures that such items will
+            // also get deleted. We may have to "delete" a temporary item to the
+            // disk in the following case: a delete_with_meta command is issued
+            // on a key that's either non-existent or it was previously deleted.
+            // In either case, we need to update Couch with the winning revision
+            // specified in the delete-with-meta command.
             uint16_t vbid(qi->getVBucketId());
             uint16_t vbver(vbuckets.getBucketVersion(vbid));
             tctx.addCallback(cb);
