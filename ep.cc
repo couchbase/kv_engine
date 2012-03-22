@@ -807,6 +807,25 @@ protocol_binary_response_status EventuallyPersistentStore::evictKey(const std::s
     return rv;
 }
 
+ENGINE_ERROR_CODE EventuallyPersistentStore::processNeedMetaData(const RCPtr<VBucket> &vb,
+                                                                 const Item &itm,
+                                                                 const void *cookie)
+{
+    int bucket_num(0);
+    LockHolder lh = vb->ht.getLockedBucket(itm.getKey(), &bucket_num);
+    StoredValue *v = fetchValidValue(vb, itm.getKey(), bucket_num);
+
+    ENGINE_ERROR_CODE ret = ENGINE_TMPFAIL;
+    if (v && !v->isResident()) {
+        bgFetch(itm.getKey(), itm.getVBucketId(),
+                vbuckets.getBucketVersion(itm.getVBucketId()),
+                v->getId(), cookie);
+        ret = ENGINE_EWOULDBLOCK;
+    }
+
+    return ret;
+}
+
 ENGINE_ERROR_CODE EventuallyPersistentStore::set(const Item &itm,
                                                  const void *cookie,
                                                  bool force) {
@@ -855,19 +874,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::set(const Item &itm,
         break;
 
     case NEED_METADATA:
-        {
-            int bucket_num(0);
-            LockHolder lh = vb->ht.getLockedBucket(itm.getKey(), &bucket_num);
-            StoredValue *v = fetchValidValue(vb, itm.getKey(), bucket_num);
-            if (v && !v->isResident()) {
-                bgFetch(itm.getKey(), itm.getVBucketId(),
-                        vbuckets.getBucketVersion(itm.getVBucketId()),
-                        v->getId(), cookie);
-                ret = ENGINE_EWOULDBLOCK;
-            } else {
-                ret = ENGINE_TMPFAIL;
-            }
-        }
+        ret = processNeedMetaData(vb, itm, cookie);
         break;
     }
 
@@ -1365,8 +1372,9 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setWithMeta(const Item &itm,
         queueDirty(itm.getKey(), itm.getVBucketId(), queue_op_set,
                    itm.getSeqno(), row_id);
         break;
-    default:
-        abort();
+    case NEED_METADATA:
+        ret = processNeedMetaData(vb, itm, cookie);
+        break;
     }
 
     return ret;
