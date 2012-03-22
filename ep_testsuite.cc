@@ -5152,10 +5152,12 @@ static void cleanup(engine_test_t *test, enum test_result result) {
 
 // the backends is a bitmask for which backend to run the given test
 // for.
-#define BACKEND_COUCH 1
-#define BACKEND_SQLITE 2
-#define BACKEND_ALL 0x3
-#define BACKEND_VARIANTS 2
+#define BACKEND_SQLITE 1
+#define BACKEND_COUCH 2
+// When BACKEND_COUCH is ready, change to BACKEND_ALL to 0x3 and
+// BACKEND_VARIANTS to 2
+#define BACKEND_ALL 0x1
+#define BACKEND_VARIANTS 1
 
 class TestCase {
 public:
