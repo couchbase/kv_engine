@@ -109,6 +109,10 @@ static bool discoverDbFiles(const std::string &dir,
 }
 
 struct StatResponseCtx {
+public:
+    StatResponseCtx(std::map<std::pair<uint16_t, uint16_t>, vbucket_state> &sm,
+                    uint16_t vb) : statMap(sm), vbId(vb) { /* EMPTY */}
+
     std::map<std::pair<uint16_t, uint16_t>, vbucket_state> &statMap;
     uint16_t vbId;
 };
@@ -354,7 +358,7 @@ vbucket_map_t CouchKVStore::listPersistedVbuckets() {
     for (; itr != dbFileMap.end(); itr++) {
         errorCode = openDB(itr->first, itr->second, &db, 0);
         if (!errorCode) {
-            StatResponseCtx ctx = { rv, itr->first };
+            StatResponseCtx ctx(rv, itr->first);
             errorCode = couchstore_changes_since(db, 0, 0, recordDbStatC,
                                                  static_cast<void *>(&ctx));
             if (errorCode) {
