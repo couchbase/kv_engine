@@ -267,15 +267,12 @@ void CouchKVStore::get(const std::string &key, uint64_t, uint16_t vb, uint16_t,
     }
 
     uint32_t itemFlags;
-    uint64_t cas;
     void *valuePtr = NULL;
     size_t valuelen = 0;
     sized_buf metadata;
 
     metadata = docInfo->rev_meta;
     assert(metadata.size == 16);
-    memcpy(&cas, metadata.buf, 8);
-    cas = ntohll(cas);
     memcpy(&itemFlags, (metadata.buf) + 12, 4);
     itemFlags = ntohl(itemFlags);
     if (doc->data.size) {
@@ -283,7 +280,7 @@ void CouchKVStore::get(const std::string &key, uint64_t, uint16_t vb, uint16_t,
         valuePtr = doc->data.buf;
     }
 
-    Item *it = new Item(key, itemFlags, 0, valuePtr, valuelen, cas, -1, vb);
+    Item *it = new Item(key, itemFlags, 0, valuePtr, valuelen, 0, -1, vb);
     GetValue rv(it);
 
     free_docinfo(docInfo);
@@ -899,10 +896,14 @@ int CouchKVStore::recordDbDump(Db* db, DocInfo* docinfo, void *ctx) {
     uint32_t itemflags;
     uint16_t vbucketId = tapCtx->vbucketId;
     sized_buf key = docinfo->id;
+    uint64_t cas;
+    uint32_t exptime;
 
     assert(key.size <= UINT16_MAX);
     assert(metadata.size == 16);
 
+    memcpy(&cas, metadata.buf, 8);
+    memcpy(&exptime, (metadata.buf) + 8, 4);
     memcpy(&itemflags, (metadata.buf) + 12, 4);
     itemflags = ntohs(itemflags);
 
@@ -927,10 +928,10 @@ int CouchKVStore::recordDbDump(Db* db, DocInfo* docinfo, void *ctx) {
     it = new Item((void *)key.buf,
                   key.size,
                   itemflags,
-                  (time_t)0 /*expiration */,
+                  (time_t)exptime,
                   valuePtr, valuelen,
-                  0 /* cas */,
-                  1 /* id */,
+                  cas,
+                  1,
                   vbucketId);
 
     GetValue rv(it, ENGINE_SUCCESS, -1, -1, NULL, tapCtx->keysonly);
