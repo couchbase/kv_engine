@@ -203,8 +203,8 @@ private:
     void updateDbFileMap(uint16_t vbucketId, int newFileRev,
                         bool insertImmediately = false);
     void remVBucketFromDbFileMap(uint16_t vbucketId);
-    int openDB(uint16_t vbucketId, uint16_t fileRev, Db **db,
-               uint64_t options, uint16_t *newFileRev = NULL);
+    couchstore_error_t  openDB(uint16_t vbucketId, uint16_t fileRev, Db **db,
+                               uint64_t options, uint16_t *newFileRev = NULL);
     int saveDocs(uint16_t vbid, int rev, Doc **docs, DocInfo **docinfos,
                  int docCount);
     void commitCallback(CouchRequest **committedReqs, int numReqs, int errCode);
