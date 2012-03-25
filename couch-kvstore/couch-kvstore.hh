@@ -146,6 +146,9 @@ public:
     void dump(shared_ptr<Callback<GetValue> > cb);
     void dump(uint16_t vb, shared_ptr<Callback<GetValue> > cb);
     void dumpKeys(const std::vector<uint16_t> &vbids,  shared_ptr<Callback<GetValue> > cb);
+    bool isKeyDumpSupported() {
+        return true;
+    }
 
     virtual void addStats(const std::string &prefix, ADD_STAT add_stat, const void *c);
     void optimizeWrites(std::vector<queued_item> &items);
