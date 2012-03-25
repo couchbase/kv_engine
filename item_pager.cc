@@ -50,10 +50,10 @@ public:
                 ++stats.numFailedEjects;
                 return;
             }
-            // Check if the key exists in the open or closed referenced checkpoints.
-            bool foundInCheckpoints =
-                currentBucket->checkpointManager.isKeyResidentInCheckpoints(v->getKey());
-            if (!foundInCheckpoints && v->ejectValue(stats, currentBucket->ht)) {
+            // Check if the key was already visited by all the cursors.
+            bool can_evict =
+                currentBucket->checkpointManager.eligibleForEviction(v->getKey());
+            if (can_evict && v->ejectValue(stats, currentBucket->ht)) {
                 if (currentBucket->getState() == vbucket_state_replica) {
                     ++stats.numReplicaEjects;
                 }

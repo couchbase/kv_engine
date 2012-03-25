@@ -55,7 +55,7 @@ void Checkpoint::popBackCheckpointEndItem() {
 }
 
 bool Checkpoint::keyExists(const std::string &key) {
-    return keyIndex.find(key) != keyIndex.end() ? true : false;
+    return keyIndex.find(key) != keyIndex.end();
 }
 
 queue_dirty_t Checkpoint::queueDirty(const queued_item &qi, CheckpointManager *checkpointManager) {
@@ -114,7 +114,7 @@ queue_dirty_t Checkpoint::queueDirty(const queued_item &qi, CheckpointManager *c
         toWrite.erase(currPos);
         rv = EXISTING_ITEM;
     } else {
-        if (qi->getKey().size() > 0) {
+        if (qi->getOperation() == queue_op_set || qi->getOperation() == queue_op_del) {
             ++numItems;
         }
         rv = NEW_ITEM;
@@ -247,7 +247,7 @@ bool CheckpointManager::addNewCheckpoint_UNLOCKED(uint64_t id) {
     // Add a dummy item into the new checkpoint, so that any cursor referring to the actual first
     // item in this new checkpoint can be safely shifted left by 1 if the first item is removed
     // and pushed into the tail.
-    queued_item dummyItem(new QueuedItem("", 0xffff, queue_op_empty));
+    queued_item dummyItem(new QueuedItem("dummy_key", 0xffff, queue_op_empty));
     checkpoint->queueDirty(dummyItem, this);
 
     // This item represents the start of the new checkpoint and is also sent to the slave node.
@@ -432,7 +432,7 @@ bool CheckpointManager::isCheckpointCreationForHighMemUsage(const RCPtr<VBucket>
     double memoryUsed = static_cast<double>(stats.getTotalMemoryUsed());
     // pesistence and tap cursors are all currently in the open checkpoint?
     bool allCursorsInOpenCheckpoint =
-        (1 + tapCursors.size()) == checkpointList.back()->getNumberOfCursors() ? true : false;
+        (tapCursors.size() + 1) == checkpointList.back()->getNumberOfCursors();
 
     if (memoryUsed > stats.mem_high_wat &&
         allCursorsInOpenCheckpoint &&
@@ -464,7 +464,7 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(const RCPtr<VBucket> &vbu
         // Check if this master active vbucket needs to create a new open checkpoint.
         oldCheckpointId = checkOpenCheckpoint_UNLOCKED(forceCreation, true);
     }
-    newOpenCheckpointCreated = oldCheckpointId > 0 ? true : false;
+    newOpenCheckpointCreated = oldCheckpointId > 0;
     if (oldCheckpointId > 0) {
         // If the persistence cursor reached to the end of the old open checkpoint, move it to
         // the new open checkpoint.
@@ -668,7 +668,7 @@ bool CheckpointManager::queueDirty(const queued_item &qi, const RCPtr<VBucket> &
     // Note that the creation of a new checkpoint on the replica vbucket will be controlled by TAP
     // mutation messages from the active vbucket, which contain the checkpoint Ids.
 
-    return (numItemsAfter - numItemsBefore) > 0 ? true : false;
+    return (numItemsAfter - numItemsBefore) > 0;
 }
 
 uint64_t CheckpointManager::getAllItemsFromCurrentPosition(CheckpointCursor &cursor,
@@ -900,28 +900,38 @@ uint64_t CheckpointManager::checkOpenCheckpoint_UNLOCKED(bool forceCreation, boo
     return checkpoint_id;
 }
 
-bool CheckpointManager::isKeyResidentInCheckpoints(const std::string &key) {
+bool CheckpointManager::eligibleForEviction(const std::string &key) {
     LockHolder lh(queueLock);
+    uint64_t smallest_mid = 0;
 
-    std::list<Checkpoint*>::iterator it = checkpointList.begin();
-    // Find the first checkpoint that is referenced by any cursor.
-    for (; it != checkpointList.end(); ++it) {
-        if ((*it)->getNumberOfCursors() > 0) {
+    // Get the mutation id of the item pointed by the slowest cursor.
+    // This won't cause much overhead as the number of cursors per vbucket is
+    // usually bounded to 3 (persistence cursor + 2 replicas).
+    const std::string &pkey = (*(persistenceCursor.currentPos))->getKey();
+    smallest_mid = (*(persistenceCursor.currentCheckpoint))->getMutationIdForKey(pkey);
+    std::map<const std::string, CheckpointCursor>::iterator mit = tapCursors.begin();
+    for (; mit != tapCursors.end(); ++mit) {
+        const std::string &tkey = (*(mit->second.currentPos))->getKey();
+        uint64_t mid = (*(mit->second.currentCheckpoint))->getMutationIdForKey(tkey);
+        if (mid < smallest_mid) {
+            smallest_mid = mid;
+        }
+    }
+
+    bool can_evict = true;
+    std::list<Checkpoint*>::reverse_iterator it = checkpointList.rbegin();
+    for (; it != checkpointList.rend(); ++it) {
+        uint64_t mid = (*it)->getMutationIdForKey(key);
+        if (mid == 0) { // key doesn't exist in a checkpoint.
+            continue;
+        }
+        if (smallest_mid < mid) { // The slowest cursor is still sitting behind a given key.
+            can_evict = false;
             break;
         }
     }
 
-    bool found = false;
-    // Check if a given key exists in any checkpoints.
-    for (; it != checkpointList.end(); ++it) {
-        if ((*it)->keyExists(key)) {
-            found = true;
-            break;
-        }
-    }
-
-    lh.unlock();
-    return found;
+    return can_evict;
 }
 
 size_t CheckpointManager::getNumItemsForTAPConnection(const std::string &name) {
@@ -966,7 +976,7 @@ bool CheckpointManager::checkAndAddNewCheckpoint(uint64_t id, bool &pCursorRepos
     // simply set the current open checkpoint id to the one received from the active vbucket.
     if (checkpointList.back()->getId() == 0) {
         setOpenCheckpointId_UNLOCKED(id);
-        pCursorRepositioned = id > 0 ? true : false;
+        pCursorRepositioned = id > 0;
         return true;
     }
 
@@ -1064,7 +1074,13 @@ queued_item CheckpointManager::createCheckpointItem(uint64_t id,
                                                     uint16_t vbid,
                                                     enum queue_operation checkpoint_op) {
     assert(checkpoint_op == queue_op_checkpoint_start || checkpoint_op == queue_op_checkpoint_end);
-    queued_item qi(new QueuedItem("", vbid, checkpoint_op, -1, (int64_t) id));
+    std::stringstream key;
+    if (checkpoint_op == queue_op_checkpoint_start) {
+        key << "checkpoint_start";
+    } else {
+        key << "checkpoint_end";
+    }
+    queued_item qi(new QueuedItem(key.str(), vbid, checkpoint_op, -1, (int64_t) id));
     return qi;
 }
 

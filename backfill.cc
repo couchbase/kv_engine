@@ -33,7 +33,8 @@ private:
 };
 
 void BackfillDiskCallback::callback(GetValue &gv) {
-    CompletedBGFetchTapOperation tapop(true);
+    assert(gv.getValue());
+    CompletedBGFetchTapOperation tapop(gv.getValue()->getVBucketId(), true);
     // if the tap connection is closed, then free an Item instance
     if (!connMap.performTapOp(tapConnName, tapop, gv.getValue())) {
         delete gv.getValue();

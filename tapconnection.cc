@@ -361,7 +361,6 @@ void TapProducer::setVBucketFilter(const std::vector<uint16_t> &vbuckets)
 void TapProducer::registerTAPCursor(std::map<uint16_t, uint64_t> &lastCheckpointIds) {
     LockHolder lh(queueLock);
 
-    tapCheckpointState.clear();
     uint64_t current_time = (uint64_t)ep_real_time();
     std::vector<uint16_t> backfill_vbuckets;
     const VBucketMap &vbuckets = engine.getEpStore()->getVBuckets();
@@ -372,38 +371,40 @@ void TapProducer::registerTAPCursor(std::map<uint16_t, uint64_t> &lastCheckpoint
         if (vbucketFilter(vbid)) {
             RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
             if (!vb) {
+                tapCheckpointState.erase(vbid);
                 getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                                  "%s VBucket %d not found for TAP cursor. Skip it...\n",
                                  logHeader(), vbid);
                 continue;
             }
 
+            uint64_t chk_id_to_start = 0;
             std::map<uint16_t, uint64_t>::iterator it = lastCheckpointIds.find(vbid);
             if (it != lastCheckpointIds.end()) {
                 // Now, we assume that the checkpoint Id for a given vbucket is monotonically
-                // increased. TODO: If the server supports collapsing multiple closed referenced
-                // checkpoints due to very slow TAP clients, the server should maintain the list
-                // of checkpoint Ids for each collapsed checkpoint.
-                TapCheckpointState st(vbid, it->second + 1, checkpoint_start);
-                tapCheckpointState[vbid] = st;
+                // increased.
+                chk_id_to_start = it->second + 1;
             } else {
                 // If a TAP client doesn't specify the last closed checkpoint Id for a given vbucket,
                 // check if the checkpoint manager currently has the cursor for that TAP client.
                 uint64_t cid = vb->checkpointManager.getCheckpointIdForTAPCursor(name);
-                if (cid > 0) {
-                    TapCheckpointState st(vbid, cid, checkpoint_start);
-                    tapCheckpointState[vbid] = st;
-                } else {
-                    // Start with the checkpoint 1
-                    TapCheckpointState st(vbid, 1, checkpoint_start);
-                    tapCheckpointState[vbid] = st;
-                }
+                chk_id_to_start = cid > 0 ? cid : 1;
+            }
+
+            std::map<uint16_t, TapCheckpointState>::iterator cit = tapCheckpointState.find(vbid);
+            if (cit != tapCheckpointState.end()) {
+                cit->second.currentCheckpointId = chk_id_to_start;
+            } else {
+                TapCheckpointState st(vbid, chk_id_to_start, checkpoint_start);
+                tapCheckpointState[vbid] = st;
             }
 
             // If backfill is currently running for this vbucket, skip the cursor registration.
             if (backfillVBuckets.find(vbid) != backfillVBuckets.end()) {
-                TapCheckpointState st(vbid, 0, backfill);
-                tapCheckpointState[vbid] = st;
+                cit = tapCheckpointState.find(vbid);
+                assert(cit != tapCheckpointState.end());
+                cit->second.currentCheckpointId = 0;
+                cit->second.state = backfill;
                 continue;
             }
 
@@ -420,9 +421,13 @@ void TapProducer::registerTAPCursor(std::map<uint16_t, uint64_t> &lastCheckpoint
             if(vb && !vb->checkpointManager.registerTAPCursor(name,
                                                        tapCheckpointState[vbid].currentCheckpointId,
                                                        closedCheckpointOnly, registeredTAPClient)) {
-                if (backfillAge < current_time) { // Backfill is required.
-                    TapCheckpointState st(vbid, 0, backfill);
-                    tapCheckpointState[vbid] = st;
+                // Backfill is required because the checkpoint to start with doesn't exist in memory
+                uint64_t chk_id;
+                tap_checkpoint_state cstate;
+
+                if (backfillAge < current_time) {
+                    chk_id = 0;
+                    cstate = backfill;
                     // As we set the cursor to the beginning of the open checkpoint when backfill
                     // is scheduled, we can simply remove the cursor now.
                     vb->checkpointManager.removeTAPCursor(name);
@@ -432,21 +437,27 @@ void TapProducer::registerTAPCursor(std::map<uint16_t, uint64_t> &lastCheckpoint
                         // we will schedule the backfill for this tap connection separately.
                         backfill_vbuckets.push_back(vbid);
                     }
-                } else { // If backfill is not required, simply start from the first checkpoint.
-                    uint64_t cid = vb->checkpointManager.getCheckpointIdForTAPCursor(name);
-                    TapCheckpointState st(vbid, cid, checkpoint_start);
-                    tapCheckpointState[vbid] = st;
+                } else { // Backfill age is in the future, simply start from the first checkpoint.
+                    chk_id = vb->checkpointManager.getCheckpointIdForTAPCursor(name);
+                    cstate = checkpoint_start;
                     getLogger()->log(EXTENSION_LOG_INFO, NULL,
                                      "%s Backfill age is greater than current time."
                                      " Full backfill is not required for vbucket %d\n",
                                      logHeader(), vbid);
                 }
+
+                cit = tapCheckpointState.find(vbid);
+                assert(cit != tapCheckpointState.end());
+                cit->second.currentCheckpointId = chk_id;
+                cit->second.state = cstate;
             } else {
                 getLogger()->log(EXTENSION_LOG_INFO, NULL,
                                  "%s The checkpoint to start with is still in memory. "
                                  "Full backfill is not required for vbucket %d\n",
                                  logHeader(), vbid);
             }
+        } else { // The vbucket doesn't belong to this tap connection anymore.
+            tapCheckpointState.erase(vbid);
         }
     }
 
@@ -540,6 +551,11 @@ void TapProducer::clearQueues_UNLOCKED() {
         backfilledItems.pop();
     }
     bgResultSize = 0;
+    // Reset bg result size in a checkpoint state.
+    std::map<uint16_t, TapCheckpointState>::iterator it = tapCheckpointState.begin();
+    for (; it != tapCheckpointState.end(); ++it) {
+        it->second.bgResultSize = 0;
+    }
 
     // Clear the checkpoint message queue as well
     while (!checkpointMsgs.empty()) {
@@ -1024,7 +1040,7 @@ public:
             }
         }
 
-        CompletedBGFetchTapOperation tapop;
+        CompletedBGFetchTapOperation tapop(vbucket);
         if (!epe->getTapConnMap().performTapOp(name, tapop, gcb.val.getValue())) {
             delete gcb.val.getValue(); // Tap connection is closed. Free an item instance.
         }
@@ -1080,25 +1096,41 @@ void TapProducer::queueBGFetch_UNLOCKED(const std::string &key, uint64_t id,
     engine.getEpStore()->getRODispatcher()->schedule(dcb, NULL, Priority::TapBgFetcherPriority);
     ++bgQueued;
     ++bgJobIssued;
+    std::map<uint16_t, TapCheckpointState>::iterator it = tapCheckpointState.find(vb);
+    if (it != tapCheckpointState.end()) {
+        ++(it->second.bgJobIssued);
+    }
+
     assert(!empty_UNLOCKED());
     assert(!idle_UNLOCKED());
     assert(!complete_UNLOCKED());
 }
 
-void TapProducer::completeBGFetchJob(Item *itm, bool implicitEnqueue) {
+void TapProducer::completeBGFetchJob(Item *itm, uint16_t vbid, bool implicitEnqueue) {
     LockHolder lh(queueLock);
+    std::map<uint16_t, TapCheckpointState>::iterator it = tapCheckpointState.find(vbid);
+
     // implicitEnqueue is used for the optimized disk fetch wherein we
     // receive the item and want the stats to reflect an
     // enqueue/execute cycle.
     if (implicitEnqueue) {
         ++bgQueued;
         ++bgJobIssued;
+        if (it != tapCheckpointState.end()) {
+            ++(it->second.bgJobIssued);
+        }
     }
     ++bgJobCompleted;
+    if (it != tapCheckpointState.end()) {
+        ++(it->second.bgJobCompleted);
+    }
 
     if (itm) {
         backfilledItems.push(itm);
         ++bgResultSize;
+        if (it != tapCheckpointState.end()) {
+            ++(it->second.bgResultSize);
+        }
         stats.memOverhead.incr(sizeof(Item *));
         assert(stats.memOverhead.get() < GIGANTOR);
     }
@@ -1110,6 +1142,12 @@ Item* TapProducer::nextBgFetchedItem_UNLOCKED() {
     assert(rv);
     backfilledItems.pop();
     --bgResultSize;
+
+    std::map<uint16_t, TapCheckpointState>::iterator it =
+        tapCheckpointState.find(rv->getVBucketId());
+    if (it != tapCheckpointState.end()) {
+        --(it->second.bgResultSize);
+    }
 
     stats.memOverhead.decr(sizeof(Item *));
     assert(stats.memOverhead.get() < GIGANTOR);
@@ -1468,13 +1506,16 @@ queued_item TapProducer::nextFgFetched_UNLOCKED(bool &shouldPause) {
             case queue_op_checkpoint_end:
                 if (supportCheckpointSync) {
                     it->second.state = checkpoint_end;
-                    uint32_t seqnoAcked;
+                    uint32_t seqno_acked;
                     if (seqnoReceived == 0) {
-                        seqnoAcked = 0;
+                        seqno_acked = 0;
                     } else {
-                        seqnoAcked = isLastAckSucceed ? seqnoReceived : seqnoReceived - 1;
+                        seqno_acked = isLastAckSucceed ? seqnoReceived : seqnoReceived - 1;
                     }
-                    if (it->second.lastSeqNum <= seqnoAcked) {
+                    if (it->second.lastSeqNum <= seqno_acked &&
+                        it->second.isBgFetchCompleted()) {
+                        // All resident and non-resident items in a checkpoint are sent
+                        // and acked. CHEKCPOINT_END message is going to be sent.
                         addCheckpointMessage_UNLOCKED(qi);
                     } else {
                         vb->checkpointManager.decrTapCursorFromCheckpointEnd(name);

@@ -972,6 +972,14 @@ private:
                          bool honorStates,
                          vbucket_state_t allowedState);
 
+    /**
+     * Process NEED_METADATA response from hash table set call in order to figure
+     * out if an item's meta data should be fetched from disk or not.
+     */
+    ENGINE_ERROR_CODE processNeedMetaData(const RCPtr<VBucket> &vb,
+                                          const Item &itm,
+                                          const void *cookie);
+
     friend class Warmup;
     friend class Flusher;
     friend class BGFetchCallback;

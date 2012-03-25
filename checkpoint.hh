@@ -383,11 +383,10 @@ public:
     size_t getNumItemsForTAPConnection(const std::string &name);
 
     /**
-     * Return true if a given key exists in the open or closed referenced checkpoints.
-     * This function is invoked by the item pager to determine
-     * if a given key's value can be evicted from memory hashtable.
+     * Return true if a given key was already visited by all the cursors
+     * and is eligible for eviction.
      */
-    bool isKeyResidentInCheckpoints(const std::string &key);
+    bool eligibleForEviction(const std::string &key);
 
     /**
      * Clear all the checkpoints managed by this checkpoint manager.

@@ -606,9 +606,6 @@ void EventuallyPersistentStore::initialize() {
         exit(1);
     }
 
-    // Run the vbucket state snapshot job once after the warmup
-    scheduleVBSnapshot(Priority::VBucketPersistHighPriority);
-
     size_t expiryPagerSleeptime = config.getExpPagerStime();
     if (HashTable::getDefaultStorageValueType() != small) {
         shared_ptr<DispatcherCallback> cb(new ItemPager(this, stats));
@@ -621,11 +618,6 @@ void EventuallyPersistentStore::initialize() {
 
     shared_ptr<DispatcherCallback> htr(new HashtableResizer(this));
     nonIODispatcher->schedule(htr, NULL, Priority::HTResizePriority, 10);
-
-    shared_ptr<DispatcherCallback> item_db_cb(getInvalidItemDbPager());
-    dispatcher->schedule(item_db_cb, NULL,
-                         Priority::InvalidItemDbPagerPriority, 0);
-
 
     size_t checkpointRemoverInterval = config.getChkRemoverStime();
     shared_ptr<DispatcherCallback> chk_cb(new ClosedUnrefCheckpointRemover(this,
@@ -643,23 +635,11 @@ void EventuallyPersistentStore::initialize() {
                               Priority::ObserveRegistryCleanerPriority,
                               10);
 
-    shared_ptr<StatSnap> sscb(new StatSnap(&engine));
-    dispatcher->schedule(sscb, NULL, Priority::StatSnapPriority,
-                         STATSNAP_FREQ);
-
     if (mutationLog.isEnabled()) {
         shared_ptr<MutationLogCompactor>
             compactor(new MutationLogCompactor(this, mutationLog, mlogCompactorConfig, stats));
         dispatcher->schedule(compactor, NULL, Priority::MutationLogCompactorPriority,
                              mlogCompactorConfig.getSleepTime());
-    }
-
-    if (config.getBackend().compare("sqlite") == 0 &&
-        rwUnderlying->getStorageProperties().hasEfficientVBDeletion()) {
-        shared_ptr<DispatcherCallback> invalidVBTableRemover(new InvalidVBTableRemover(&engine));
-        dispatcher->schedule(invalidVBTableRemover, NULL,
-                             Priority::VBucketDeletionPriority,
-                             INVALID_VBTABLE_DEL_FREQ);
     }
 }
 
@@ -846,6 +826,25 @@ protocol_binary_response_status EventuallyPersistentStore::evictKey(const std::s
     return rv;
 }
 
+ENGINE_ERROR_CODE EventuallyPersistentStore::processNeedMetaData(const RCPtr<VBucket> &vb,
+                                                                 const Item &itm,
+                                                                 const void *cookie)
+{
+    int bucket_num(0);
+    LockHolder lh = vb->ht.getLockedBucket(itm.getKey(), &bucket_num);
+    StoredValue *v = fetchValidValue(vb, itm.getKey(), bucket_num);
+
+    ENGINE_ERROR_CODE ret = ENGINE_TMPFAIL;
+    if (v && !v->isResident()) {
+        bgFetch(itm.getKey(), itm.getVBucketId(),
+                vbuckets.getBucketVersion(itm.getVBucketId()),
+                v->getId(), cookie);
+        ret = ENGINE_EWOULDBLOCK;
+    }
+
+    return ret;
+}
+
 ENGINE_ERROR_CODE EventuallyPersistentStore::set(const Item &itm,
                                                  const void *cookie,
                                                  bool force) {
@@ -894,19 +893,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::set(const Item &itm,
         break;
 
     case NEED_METADATA:
-        {
-            int bucket_num(0);
-            LockHolder lh = vb->ht.getLockedBucket(itm.getKey(), &bucket_num);
-            StoredValue *v = fetchValidValue(vb, itm.getKey(), bucket_num);
-            if (v && !v->isResident()) {
-                bgFetch(itm.getKey(), itm.getVBucketId(),
-                        vbuckets.getBucketVersion(itm.getVBucketId()),
-                        v->getId(), cookie);
-                ret = ENGINE_EWOULDBLOCK;
-            } else {
-                ret = ENGINE_TMPFAIL;
-            }
-        }
+        ret = processNeedMetaData(vb, itm, cookie);
         break;
     }
 
@@ -1445,8 +1432,9 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setWithMeta(const Item &itm,
         queueDirty(itm.getKey(), itm.getVBucketId(), queue_op_set,
                    itm.getSeqno(), row_id);
         break;
-    default:
-        abort();
+    case NEED_METADATA:
+        ret = processNeedMetaData(vb, itm, cookie);
+        break;
     }
 
     return ret;
@@ -2070,10 +2058,9 @@ public:
                 double current = static_cast<double>(stats->getTotalMemoryUsed());
                 double lower = static_cast<double>(stats->mem_low_wat);
                 if (v && current > lower) {
-                    // Check if the key exists in the open or closed checkpoints.
-                    bool foundInCheckpoints =
-                        vb->checkpointManager.isKeyResidentInCheckpoints(v->getKey());
-                    if (!foundInCheckpoints &&
+                    // Check if the key was already visited by all the cursors.
+                    bool can_evict = vb->checkpointManager.eligibleForEviction(v->getKey());
+                    if (can_evict &&
                         v->ejectValue(*stats, vb->ht) &&
                         vb->getState() == vbucket_state_replica) {
                         ++stats->numReplicaEjects;
@@ -2463,6 +2450,9 @@ void EventuallyPersistentStore::warmupCompleted() {
         completeDegradedMode();
     }
 
+    // Run the vbucket state snapshot job once after the warmup
+    scheduleVBSnapshot(Priority::VBucketPersistHighPriority);
+
     if (HashTable::getDefaultStorageValueType() != small) {
         if (engine.getConfiguration().getAlogPath().length() > 0) {
             AccessScanner *as = new AccessScanner(*this);
@@ -2471,6 +2461,23 @@ void EventuallyPersistentStore::warmupCompleted() {
                                  Priority::AccessScannerPriority,
                                  as->getSleepTime());
         }
+    }
+
+    invalidItemDbPager->createRangeList();
+    shared_ptr<DispatcherCallback> item_db_cb(invalidItemDbPager);
+    dispatcher->schedule(item_db_cb, NULL,
+                         Priority::InvalidItemDbPagerPriority, 0);
+
+    shared_ptr<StatSnap> sscb(new StatSnap(&engine));
+    dispatcher->schedule(sscb, NULL, Priority::StatSnapPriority,
+                         STATSNAP_FREQ);
+
+    if (engine.getConfiguration().getBackend().compare("sqlite") == 0 &&
+        storageProperties.hasEfficientVBDeletion()) {
+        shared_ptr<DispatcherCallback> invalidVBTableRemover(new InvalidVBTableRemover(&engine));
+        dispatcher->schedule(invalidVBTableRemover, NULL,
+                             Priority::VBucketDeletionPriority,
+                             INVALID_VBTABLE_DEL_FREQ);
     }
 }
 
