@@ -57,10 +57,27 @@ using UNORDERED_MAP_NAMESPACE::unordered_map;
 #define UINT16_MAX 65535
 #endif /* UINT16_MAX */
 
-//On Cygwin/mingw, it is redefined ETIMEDOUT to WSAETIMEDOUT,
-//which is 10060. Here we still keep the original ETIMEDOUT value
-// for return value of functions such as pthread_cond_timedwait
-#define CB_ETIMEDOUT 110
+#if defined(WIN32)
+#include <pthread.h>
+
+static inline int my_pthread_cond_timedwait(pthread_cond_t *restrict cond,
+                                            pthread_mutex_t *restrict mutex,
+                                            const struct timespec *restrict abstime) {
+    int rv = pthread_cond_timedwait(cond, mutex, abstime);
+    //On Cygwin/mingw, it is redefined ETIMEDOUT to WSAETIMEDOUT,
+    //which is 10060. Here we still keep the original ETIMEDOUT value
+    // for return value of functions such as pthread_cond_timedwait
+    // NOTE: wsasock2.h is included in win32/config.h so we expect this define to be made
+    assert(WSAETIMEDOUT == ETIMEDOUT);
+    if (rv == 110) {
+        rv = ETIMEDOUT;
+    }
+    return rv;
+}
+
+#define pthread_cond_timedwait(a,b,c) my_pthread_cond_timedwait(a,b,c)
+
+#endif
 
 // Stolen from http://google-styleguide.googlecode.com/svn/trunk/cppguide.xml
 // A macro to disallow the copy constructor and operator= functions
