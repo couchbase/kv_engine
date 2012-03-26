@@ -5207,6 +5207,9 @@ public:
             switch (backend) {
             case BACKEND_SQLITE:
                 nm.append(" (sqlite)");
+                if (cfg == NULL || strstr(cfg, "backend") == NULL) {
+                    ss << "backend=sqlite";
+                }
                 break;
             case BACKEND_COUCH:
                 nm.append(" (couchstore)");
