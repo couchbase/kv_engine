@@ -357,38 +357,29 @@ vbucket_map_t CouchKVStore::listPersistedVbuckets() {
     std::map<uint16_t, int>::iterator itr = dbFileMap.begin();
     for (; itr != dbFileMap.end(); itr++) {
         errorCode = openDB(itr->first, itr->second, &db, 0);
-        if (!errorCode) {
+        if (errorCode != COUCHSTORE_SUCCESS) {
+            std::stringstream rev, vbid;
+            rev  << itr->second;
+            vbid << itr->first;
+            std::string dbName = dirname + "/" + vbid.str() + ".couch." +
+                                 rev.str();
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                    "Warning: failed to open database file, name=%s error=%s\n",
+                    dbName.c_str(), couchstore_strerror(errorCode));
+            db = NULL;
+        } else {
             StatResponseCtx ctx(rv, itr->first);
             errorCode = couchstore_changes_since(db, 0, 0, recordDbStatC,
                                                  static_cast<void *>(&ctx));
-            if (errorCode) {
+            if (errorCode != COUCHSTORE_SUCCESS) {
                 getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                         "Warning: changes_since failed, vBucket=%d rev=%d error=%s\n",
                         itr->first, itr->second,
                         couchstore_strerror(errorCode));
-                //TODO abort or continue?
-                abort();
             }
-        } else {
-            if (errorCode == COUCHSTORE_ERROR_OPEN_FILE ||
-                errorCode == COUCHSTORE_ERROR_NO_HEADER) {
-                db = NULL;
-                continue;
-            } else {
-                std::stringstream rev, vbid;
-                rev  << itr->second;
-                vbid << itr->first;
-                std::string dbName = dirname + "/" + vbid.str() + ".couch." +
-                                     rev.str();
-                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                        "Warning: failed to open database file, name=%s error=%s\n",
-                        dbName.c_str(), couchstore_strerror(errorCode));
-                // TODO abort of return error?
-                abort();
-            }
+            closeDatabaseHandle(db);
+            db = NULL;
         }
-        couchstore_close_db(db);
-        db = NULL;
     }
     return rv;
 }
@@ -648,41 +639,30 @@ void CouchKVStore::tap(shared_ptr<TapCallback> cb, bool keysOnly,
     std::map<uint16_t, int>::iterator itr = filemap.begin();
     for (; itr != filemap.end(); itr++, keyNum++) {
         errorCode = openDB(itr->first, itr->second, &db, 0);
-        if (!errorCode) {
+        if (errorCode != COUCHSTORE_SUCCESS) {
+            std::stringstream rev, vbid;
+            rev  << itr->second;
+            vbid << itr->first;
+            std::string dbName = dirname + "/" + vbid.str() + ".couch." +
+                                 rev.str();
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                             "Failed to open database, name=%s error=%s",
+                              dbName.c_str(),
+                              couchstore_strerror(errorCode));
+        } else {
             TapResponseCtx ctx;
             ctx.vbucketId = itr->first;
             ctx.keysonly = keysOnly;
             ctx.callback = cb;
             errorCode = couchstore_changes_since(db, 0, 0, recordDbDumpC,
                                                  static_cast<void *>(&ctx));
-            if (errorCode) {
+            if (errorCode != COUCHSTORE_SUCCESS) {
                 getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                                  "couchstore_changes_since failed, error=%s\n",
                                  couchstore_strerror(errorCode));
-                // TODO abort or return error?
-                abort();
             }
-        } else {
-            if (errorCode == COUCHSTORE_ERROR_OPEN_FILE ||
-                errorCode == COUCHSTORE_ERROR_NO_HEADER)
-            {
-                db = NULL;
-                continue;
-            } else {
-                std::stringstream rev, vbid;
-                rev  << itr->second;
-                vbid << itr->first;
-                std::string dbName = dirname + "/" + vbid.str() + ".couch." +
-                                     rev.str();
-                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                 "Failed to open database, name=%s error=%s",
-                                 dbName.c_str(),
-                                 couchstore_strerror(errorCode));
-                // TODO abort of return error?
-                abort();
-            }
+            closeDatabaseHandle(db);
         }
-        closeDatabaseHandle(db);
         db = NULL;
     }
 
@@ -1003,7 +983,6 @@ bool CouchKVStore::commit2couchstore(void) {
                                &docinfos[flushStartIndex],
                                numDocs2save);
             if (errCode) {
-                // TODO error handling instead of assert
                 getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                                  "Failed to save CouchDB docs, vbucket = %d rev = %d\n",
                                  vbucket2flush,
@@ -1044,7 +1023,8 @@ bool CouchKVStore::commit2couchstore(void) {
 
 int CouchKVStore::saveDocs(uint16_t vbid, int rev, Doc **docs, DocInfo **docinfos,
                            int docCount) {
-    int errCode, fileRev;
+    couchstore_error_t errCode;
+    int fileRev;
     uint16_t newFileRev;
     uint16_t vbucket2save = vbid;
     Db *db = NULL;
@@ -1056,13 +1036,12 @@ int CouchKVStore::saveDocs(uint16_t vbid, int rev, Doc **docs, DocInfo **docinfo
     do {
         retry_save_docs = false;
         errCode = openDB(vbucket2save, fileRev, &db, 0, &newFileRev);
-        if (errCode) {
-            //TODO ERROR RETURN OR ABORT??
+        if (errCode != COUCHSTORE_SUCCESS) {
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                              "Failed to open database, vbucketId = %d fileRev = %d "
                              "error = %d\n",
                              vbucket2save, fileRev, errCode);
-            return errCode;
+            return (int)errCode;
         } else {
             couchstore_error_t err;
             err = couchstore_save_documents(db, docs, docinfos, docCount,
