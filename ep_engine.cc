@@ -1145,7 +1145,7 @@ ALLOCATOR_HOOKS_API *getHooksApi(void) {
 EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server_api) :
     forceShutdown(false), kvstore(NULL),
     epstore(NULL), tapThrottle(new TapThrottle(stats)), databaseInitTime(0),
-    startedEngineThreads(false), shutdown(false),
+    startedEngineThreads(false),
     getServerApiFunc(get_server_api), getlExtension(NULL),
     tapConnMap(NULL), tapConfig(NULL), checkpointConfig(NULL),
     memLowWat(std::numeric_limits<size_t>::max()),
@@ -3332,12 +3332,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
 }
 
 void EventuallyPersistentEngine::notifyPendingConnections(void) {
-    // Fix clean shutdown!!!
-    while (!shutdown) {
+    // No need to aquire shutdown lock
+    while (!shutdown.isShutdown) {
         tapConnMap->notifyIOThreadMain();
         epstore->firePendingVBucketOps();
 
-        if (shutdown) {
+        if (shutdown.isShutdown) {
             return;
         }
 
@@ -3346,7 +3346,10 @@ void EventuallyPersistentEngine::notifyPendingConnections(void) {
 }
 
 void EventuallyPersistentEngine::notifyNotificationThread(void) {
-    tapConnMap->notify();
+    LockHolder lh(shutdown.mutex);
+    if (!shutdown.isShutdown) {
+        tapConnMap->notify();
+    }
 }
 
 void EventuallyPersistentEngine::setTapValidity(const std::string &name, const void* token) {
