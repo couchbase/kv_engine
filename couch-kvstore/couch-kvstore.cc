@@ -227,8 +227,8 @@ void CouchKVStore::get(const std::string &key, uint64_t, uint16_t vb, uint16_t,
 
     if (!(getDbFile(vb, dbFile))) {
         getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                         "Failed to retrieve data from vBucketId = %d, key = %s ",
-                         "cannot locate database file %s\n",
+                         "Warning: failed to retrieve data from vBucketId = %d "
+                         "[key=%s], cannot locate database file %s\n",
                          vb, key.c_str(), dbFile.c_str());
         GetValue rv;
         cb.callback(rv);
@@ -237,12 +237,13 @@ void CouchKVStore::get(const std::string &key, uint64_t, uint16_t vb, uint16_t,
 
     couchstore_error_t errCode = openDB(vb, dbFileRev(dbFile), &db, 0, NULL);
     if (errCode != COUCHSTORE_SUCCESS) {
-        // TODO return error or assert?
         getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                         "Failed to open database, name=%s error=%s\n",
+                         "Warning: failed to open database, name=%s error=%s\n",
                          dbFile.c_str(),
                          couchstore_strerror(errCode));
-        abort();
+        GetValue rv;
+        cb.callback(rv);
+        return;
     }
 
     id.size = key.size();
@@ -251,22 +252,26 @@ void CouchKVStore::get(const std::string &key, uint64_t, uint16_t vb, uint16_t,
                                        id.size, &docInfo);
     if (errCode != COUCHSTORE_SUCCESS) {
         getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                         "Failed to retrieve doc info from database, "
-                         "name=%s key=%s error=%s\n",
+                         "Warning: failed to retrieve doc info from "
+                         "database, name=%s key=%s error=%s\n",
                          dbFile.c_str(), id.buf,
                          couchstore_strerror(errCode));
-        abort();
+        GetValue rv;
+        cb.callback(rv);
+        return;
     } else {
         assert(docInfo);
         errCode = couchstore_open_doc_with_docinfo(db, docInfo, &doc, 0);
-        if (errCode != COUCHSTORE_SUCCESS) {
-            // TODO return error or assert?
+        if (errCode != COUCHSTORE_SUCCESS || docInfo->deleted) {
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "Failed to retrieve key value from database, "
-                             "name=%s key=%s error=%s\n",
+                             "Warning: failed to retrieve key value from "
+                             "database, name=%s key=%s error=%s deleted=%s\n",
                              dbFile.c_str(), id.buf,
-                             couchstore_strerror(errCode));
-            abort();
+                             couchstore_strerror(errCode),
+                             docInfo->deleted ? "yes" : "no");
+            GetValue rv;
+            cb.callback(rv);
+            return;
         }
         assert(doc && (doc->id.size <= UINT16_MAX));
         assert(strncmp(doc->id.buf, key.c_str(), doc->id.size) == 0);
@@ -346,7 +351,7 @@ vbucket_map_t CouchKVStore::listPersistedVbuckets() {
             populateFileNameMap(files);
         } else {
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                    "Warning: Data diretory does not exist, %s\n",
+                    "Warning: data directory does not exist, %s\n",
                     dirname.c_str());
             return rv;
         }
@@ -366,7 +371,7 @@ vbucket_map_t CouchKVStore::listPersistedVbuckets() {
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                     "Warning: failed to open database file, name=%s error=%s\n",
                     dbName.c_str(), couchstore_strerror(errorCode));
-            db = NULL;
+            remVBucketFromDbFileMap(itr->first);
         } else {
             StatResponseCtx ctx(rv, itr->first);
             errorCode = couchstore_changes_since(db, 0, 0, recordDbStatC,
@@ -376,10 +381,11 @@ vbucket_map_t CouchKVStore::listPersistedVbuckets() {
                         "Warning: changes_since failed, vBucket=%d rev=%d error=%s\n",
                         itr->first, itr->second,
                         couchstore_strerror(errorCode));
+                remVBucketFromDbFileMap(itr->first);
             }
             closeDatabaseHandle(db);
-            db = NULL;
         }
+        db = NULL;
     }
     return rv;
 }
@@ -410,7 +416,7 @@ bool CouchKVStore::snapshotVBuckets(const vbucket_map_t &m) {
         success = setVBucketState(vbucketId, state, checkpointId);
         if (!success) {
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "Warning: Failed to set new state, %s, for vbucket %d\n",
+                             "Warning: failed to set new state, %s, for vbucket %d\n",
                              VBucket::toString(state), vbucketId);
             break;
         }
@@ -621,7 +627,7 @@ void CouchKVStore::tap(shared_ptr<TapCallback> cb, bool keysOnly,
             populateFileNameMap(files);
         } else {
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "Warning: Data diretory is empty, %s\n",
+                             "Warning: Data directory is empty, %s\n",
                              dirname.c_str());
             return;
         }
@@ -649,6 +655,7 @@ void CouchKVStore::tap(shared_ptr<TapCallback> cb, bool keysOnly,
                              "Failed to open database, name=%s error=%s",
                               dbName.c_str(),
                               couchstore_strerror(errorCode));
+            remVBucketFromDbFileMap(itr->first);
         } else {
             TapResponseCtx ctx;
             ctx.vbucketId = itr->first;
@@ -660,6 +667,7 @@ void CouchKVStore::tap(shared_ptr<TapCallback> cb, bool keysOnly,
                 getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                                  "couchstore_changes_since failed, error=%s\n",
                                  couchstore_strerror(errorCode));
+                remVBucketFromDbFileMap(itr->first);
             }
             closeDatabaseHandle(db);
         }
@@ -906,8 +914,14 @@ int CouchKVStore::recordDbDump(Db* db, DocInfo* docinfo, void *ctx) {
 
     valuePtr = NULL;
     valuelen = 0;
+
+    if (docinfo->deleted) {
+        // skip deleted doc
+        return 0;
+    }
+
     if (!tapCtx->keysonly) {
-        couchstore_error_t errCode;
+        couchstore_error_t errCode ;
         errCode = couchstore_open_doc_with_docinfo(db, docinfo, &doc, 0);
 
         if (errCode == COUCHSTORE_SUCCESS) {
@@ -917,8 +931,8 @@ int CouchKVStore::recordDbDump(Db* db, DocInfo* docinfo, void *ctx) {
             }
         } else {
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "Failed to retrieve key value from database, "
-                             "vBucket=%d key=%s error=%s\n",
+                             "Warning: failed to retrieve key value from database "
+                             "database, vBucket=%d key=%s error=%s\n",
                              vbucketId, key.buf, couchstore_strerror(errCode));
             abort();
         }
@@ -1139,45 +1153,47 @@ void CouchKVStore::commitCallback(CouchRequest **committedReqs, int numReqs,
 }
 
 int CouchKVStore::recordDbStat(Db* db, DocInfo*, void *ctx) {
-    int errCode;
+    couchstore_error_t errCode;
     sized_buf id;
     LocalDoc *ldoc = NULL;
     StatResponseCtx *statCtx = (StatResponseCtx *)ctx;
     std::map<std::pair<uint16_t, uint16_t>, vbucket_state> &rv = statCtx->statMap;
     std::pair<uint16_t, uint16_t> vb(statCtx->vbId, -1);
 
+    vbucket_state vb_state;
+    vb_state.state = vbucket_state_dead;
+    vb_state.checkpointId = 0;
+    vb_state.maxDeletedSeqno = 0;
+
     id.buf = (char *)"_local/vbstate";
     id.size = sizeof("_local/vbstate") - 1;
-    errCode = couchstore_open_local_document(db, (uint8_t *)id.buf,
+    errCode = couchstore_open_local_document(db, (void *)id.buf,
                                              id.size, &ldoc);
-    if (errCode) {
-        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                         "Failed to retrieve stat info for vBucket=%d error=%d\n",
-                         statCtx->vbId, errCode);
-        abort();
-    }
+    if (errCode != COUCHSTORE_SUCCESS) {
+        getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                         "Warning: failed to retrieve stat info for vBucket=%d error=%d\n",
+                         statCtx->vbId, (int)errCode);
+    } else {
+        const std::string statjson(ldoc->json.buf, ldoc->json.size);
+        cJSON *jsonObj = cJSON_Parse(statjson.c_str());
+        const std::string state = getJSONObjString(cJSON_GetObjectItem(jsonObj, "state"));
+        const std::string checkpoint_id = getJSONObjString(cJSON_GetObjectItem(jsonObj,
+                                                           "checkpoint_id"));
+        cJSON_Delete(jsonObj);
+        if (state.compare("") == 0 || checkpoint_id.compare("") == 0) {
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                    "Warning: state JSON doc for vbucket %d is in the wrong format: %s",
+                    vb.first, statjson.c_str());
+        }
 
-    const std::string statjson(ldoc->json.buf, ldoc->json.size);
-    cJSON *jsonObj = cJSON_Parse(statjson.c_str());
-    const std::string state = getJSONObjString(cJSON_GetObjectItem(jsonObj, "state"));
-    const std::string checkpoint_id = getJSONObjString(cJSON_GetObjectItem(jsonObj,
-                                                       "checkpoint_id"));
-    cJSON_Delete(jsonObj);
-    if (state.compare("") == 0 || checkpoint_id.compare("") == 0) {
-        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                "Warning: State JSON doc for vbucket %d is in the wrong format: %s",
-                vb.first, statjson.c_str());
+        vb_state.state = VBucket::fromString(state.c_str());
+        char *ptr = NULL;
+        vb_state.checkpointId = strtoull(checkpoint_id.c_str(), &ptr, 10);
+        // TODO: fix the maxDeletedSeqno in the vbstate document. We are
+        // just fixing compiler warnings here.
+        vb_state.maxDeletedSeqno = 0;
     }
-
-    vbucket_state vb_state;
-    vb_state.state = VBucket::fromString(state.c_str());
-    char *ptr = NULL;
-    vb_state.checkpointId = strtoull(checkpoint_id.c_str(), &ptr, 10);
-    // TODO: fix the maxDeletedSeqno in the vbstate document. We are
-    // just fixing compiler warnings here.
-    vb_state.maxDeletedSeqno = 0;
     rv[vb] = vb_state;
-
     couchstore_free_local_document(ldoc);
     return 0;
 }
