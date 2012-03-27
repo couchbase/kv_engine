@@ -22,6 +22,7 @@ TCMALLOC_INCLUDE = ${TCMALLOC_ROOT}/include
 TCMALLOC_FLAGS =
 TCMALLOC_FLAGS += -Wwrite-strings \
                     -Wno-sign-compare -DNO_FRAME_POINTER \
+                    -DHAVE_LIBTCMALLOC_MINIMAL \
                     -fno-builtin-malloc -fno-builtin-free -fno-builtin-realloc \
                     -fno-builtin-calloc -fno-builtin-cfree \
                     -fno-builtin-memalign -fno-builtin-posix_memalign \
