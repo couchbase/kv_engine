@@ -27,7 +27,7 @@ TCMALLOC_LIB_FLAGS = -Wl,-u__tcmalloc \
 
 MEMCACHED=../memcached
 
-OBJDIR = .libs .libs/embedded .libs/poll .libs/management .libs/tcmalloc
+OBJDIR = .libs .libs/embedded .libs/poll .libs/management
 BINARIES= .libs/ep.so management/sqlite3.exe management/cbdbconvert.exe
 LIB=$(LOCALLIB) -L${MEMCACHED}/lib
 INCLUDE= -Iwin32 -I.libs -Iembedded -I${MEMCACHED}/include -I. -Itcmalloc -I${TCMALLOC_INCLUDE} $(LOCALINC)
@@ -91,7 +91,6 @@ EP_ENGINE_CC_SRC = \
                  tapconnmap.cc \
                  tapconnection.cc \
                  tapthrottle.cc \
-                 tcmalloc/tcmalloc_stats.cc \
                  vbucket.cc
 
 EP_ENGINE_C_SRC = \
