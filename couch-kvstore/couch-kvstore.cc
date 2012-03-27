@@ -381,7 +381,7 @@ vbucket_map_t CouchKVStore::listPersistedVbuckets() {
                 std::string dbName = dirname + "/" + vbid.str() + ".couch." +
                                      rev.str();
                 getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                        "Failed to open database, name=%s error=%s\n",
+                        "Warning: failed to open database file, name=%s error=%s\n",
                         dbName.c_str(), couchstore_strerror(errorCode));
                 // TODO abort of return error?
                 abort();
@@ -407,7 +407,7 @@ bool CouchKVStore::snapshotVBuckets(const vbucket_map_t &m) {
     uint16_t vbucketId;
     vbucket_state_t state;
     uint64_t checkpointId;
-    bool success = false;
+    bool success = m.empty() ? true : false;
     hrtime_t start = gethrtime();
 
     for (iter = m.begin(); iter != m.end(); ++iter) {
@@ -824,8 +824,8 @@ couchstore_error_t CouchKVStore::openDB(uint16_t vbucketId,
 
     if (errorCode) {
         getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                         "open_db() failed to open database file, %s\n",
-                          dbName.c_str());
+                         "open_db() failed to open database file, name=%s error=%d\n",
+                          dbName.c_str(), errorCode);
     }
     return errorCode;
 }
