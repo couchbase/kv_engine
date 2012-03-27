@@ -675,8 +675,11 @@ private:
     void startEngineThreads(void);
     void stopEngineThreads(void) {
         if (startedEngineThreads) {
-            shutdown = true;
-            tapConnMap.notify();
+            {
+                LockHolder lh(shutdown.mutex);
+                shutdown.isShutdown = true;
+                tapConnMap.notify();
+            }
             pthread_join(notifyThreadId, NULL);
         }
     }
@@ -776,7 +779,11 @@ private:
     pthread_t notifyThreadId;
     bool startedEngineThreads;
     AtomicQueue<QueuedItem> pendingTapNotifications;
-    volatile bool shutdown;
+    struct Shutdown {
+        Shutdown() : isShutdown(false) {}
+        bool isShutdown;
+        Mutex mutex;
+    } shutdown;
     GET_SERVER_API getServerApiFunc;
     union {
         engine_info info;

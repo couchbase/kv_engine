@@ -1014,9 +1014,8 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server
     startVb0(true), concurrentDB(true), forceShutdown(false), kvstore(NULL),
     epstore(NULL), tapThrottle(new TapThrottle(stats)), databaseInitTime(0), tapKeepAlive(0),
     tapNoopInterval(DEFAULT_TAP_NOOP_INTERVAL), nextTapNoop(0),
-    startedEngineThreads(false), shutdown(false),
-    getServerApiFunc(get_server_api), getlExtension(NULL), tapConnMap(*this),
-    maxItemSize(20*1024*1024), tapBacklogLimit(5000),
+    startedEngineThreads(false), getServerApiFunc(get_server_api),
+    getlExtension(NULL), tapConnMap(*this), maxItemSize(20*1024*1024), tapBacklogLimit(5000),
     memLowWat(std::numeric_limits<size_t>::max()),
     memHighWat(std::numeric_limits<size_t>::max()),
     minDataAge(DEFAULT_MIN_DATA_AGE),
@@ -3689,12 +3688,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
 }
 
 void EventuallyPersistentEngine::notifyPendingConnections(void) {
-    // Fix clean shutdown!!!
-    while (!shutdown) {
+    // No need to aquire shutdown lock
+    while (!shutdown.isShutdown) {
         tapConnMap.notifyIOThreadMain();
         epstore->firePendingVBucketOps();
 
-        if (shutdown) {
+        if (shutdown.isShutdown) {
             return;
         }
 
@@ -3703,7 +3702,10 @@ void EventuallyPersistentEngine::notifyPendingConnections(void) {
 }
 
 void EventuallyPersistentEngine::notifyNotificationThread(void) {
-    tapConnMap.notify();
+    LockHolder lh(shutdown.mutex);
+    if (!shutdown.isShutdown) {
+        tapConnMap.notify();
+    }
 }
 
 void EventuallyPersistentEngine::setTapValidity(const std::string &name, const void* token) {
