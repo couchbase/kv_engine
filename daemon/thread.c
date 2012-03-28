@@ -24,6 +24,7 @@ extern volatile sig_atomic_t memcached_shutdown;
 typedef struct conn_queue_item CQ_ITEM;
 struct conn_queue_item {
     SOCKET            sfd;
+    int               parent_port;
     STATE_FUNC        init_state;
     int               event_flags;
     int               read_buffer_size;
@@ -338,9 +339,9 @@ static void thread_libevent_process(int fd, short which, void *arg) {
     }
 
     while ((item = cq_pop(me->new_conn_queue)) != NULL) {
-        conn *c = conn_new(item->sfd, item->init_state, item->event_flags,
-                           item->read_buffer_size, item->transport, me->base,
-                           NULL);
+        conn *c = conn_new(item->sfd, item->parent_port, item->init_state,
+                           item->event_flags, item->read_buffer_size,
+                           item->transport, me->base, NULL);
         if (c == NULL) {
             if (IS_UDP(item->transport)) {
                 settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
@@ -689,7 +690,8 @@ static int last_thread = -1;
  * from the main thread, either during initialization (for UDP) or because
  * of an incoming connection.
  */
-void dispatch_conn_new(SOCKET sfd, STATE_FUNC init_state, int event_flags,
+void dispatch_conn_new(SOCKET sfd, int parent_port,
+                       STATE_FUNC init_state, int event_flags,
                        int read_buffer_size, enum network_transport transport) {
     CQ_ITEM *item = cqi_new();
     int tid = (last_thread + 1) % settings.num_threads;
@@ -699,6 +701,7 @@ void dispatch_conn_new(SOCKET sfd, STATE_FUNC init_state, int event_flags,
     last_thread = tid;
 
     item->sfd = sfd;
+    item->parent_port = parent_port;
     item->init_state = init_state;
     item->event_flags = event_flags;
     item->read_buffer_size = read_buffer_size;

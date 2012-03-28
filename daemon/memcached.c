@@ -230,10 +230,25 @@ static time_t abstime(const rel_time_t exptime)
     return process_started + exptime;
 }
 
+/**
+ * Return the TCP or domain socket listening_port structure that
+ * has a given port number
+ */
+static struct listening_port *get_listening_port_instance(const int port) {
+    struct listening_port *port_ins = NULL;
+    for (int i = 0; i < settings.num_ports; ++i) {
+        if (stats.listening_ports[i].port == port) {
+            port_ins = &stats.listening_ports[i];
+        }
+    }
+    return port_ins;
+}
+
 static void stats_init(void) {
     stats.daemon_conns = 0;
     stats.rejected_conns = 0;
     stats.curr_conns = stats.total_conns = stats.conn_structs = 0;
+    stats.listening_ports = calloc(settings.num_ports, sizeof(struct listening_port));
 
     stats_prefix_init();
 }
@@ -276,6 +291,7 @@ static void settings_init(void) {
     settings.topkeys = 0;
     settings.require_sasl = false;
     settings.extensions.logger = get_stderr_logger();
+    settings.num_ports = 1;
 }
 
 /*
@@ -548,8 +564,8 @@ static void conn_destructor(void *buffer, void *unused) {
     STATS_UNLOCK();
 }
 
-conn *conn_new(const SOCKET sfd, STATE_FUNC init_state,
-               const int event_flags,
+conn *conn_new(const SOCKET sfd, const int parent_port,
+               STATE_FUNC init_state, const int event_flags,
                const int read_buffer_size, enum network_transport transport,
                struct event_base *base, struct timeval *timeout) {
     conn *c = cache_alloc(conn_cache);
@@ -608,6 +624,7 @@ conn *conn_new(const SOCKET sfd, STATE_FUNC init_state,
     }
 
     c->sfd = sfd;
+    c->parent_port = parent_port;
     c->state = init_state;
     c->rlbytes = 0;
     c->cmd = -1;
@@ -3687,6 +3704,15 @@ static void server_stats(ADD_STAT add_stats, conn *c, bool aggregate) {
 
     APPEND_STAT("daemon_connections", "%u", stats.daemon_conns);
     APPEND_STAT("curr_connections", "%u", stats.curr_conns);
+    char stat_key[1024];
+    for (int i = 0; i < settings.num_ports; ++i) {
+        sprintf(stat_key, "%s", "max_conns_on_port_");
+        sprintf(stat_key + strlen(stat_key), "%d", stats.listening_ports[i].port);
+        APPEND_STAT(stat_key, "%d", stats.listening_ports[i].maxconns);
+        sprintf(stat_key, "%s", "curr_conns_on_port_");
+        sprintf(stat_key + strlen(stat_key), "%d", stats.listening_ports[i].port);
+        APPEND_STAT(stat_key, "%d", stats.listening_ports[i].curr_conns);
+    }
     APPEND_STAT("total_connections", "%u", stats.total_conns);
     APPEND_STAT("connection_structures", "%u", stats.conn_structs);
     APPEND_STAT("cmd_get", "%"PRIu64, thread_stats.cmd_get);
@@ -5047,11 +5073,15 @@ bool conn_listening(conn *c)
 
     STATS_LOCK();
     int curr_conns = ++stats.curr_conns;
+    struct listening_port *port_instance = get_listening_port_instance(c->parent_port);
+    assert(port_instance);
+    int port_conns = ++port_instance->curr_conns;
     STATS_UNLOCK();
 
-    if (curr_conns >= settings.maxconns) {
+    if (curr_conns >= settings.maxconns || port_conns >= port_instance->maxconns) {
         STATS_LOCK();
         ++stats.rejected_conns;
+        --port_instance->curr_conns;
         STATS_UNLOCK();
 
         if (settings.verbose > 0) {
@@ -5064,11 +5094,14 @@ bool conn_listening(conn *c)
     }
 
     if (evutil_make_socket_nonblocking(sfd) == -1) {
+        STATS_LOCK();
+        --port_instance->curr_conns;
+        STATS_UNLOCK();
         safe_close(sfd);
         return false;
     }
 
-    dispatch_conn_new(sfd, conn_new_cmd, EV_READ | EV_PERSIST,
+    dispatch_conn_new(sfd, c->parent_port, conn_new_cmd, EV_READ | EV_PERSIST,
                       DATA_BUFFER_SIZE, tcp_transport);
 
     return false;
@@ -5461,6 +5494,14 @@ bool conn_closing(conn *c) {
         return false;
     }
 
+    if (!IS_UDP(c->transport)) {
+        STATS_LOCK();
+        struct listening_port *port_instance = get_listening_port_instance(c->parent_port);
+        assert(port_instance);
+        --port_instance->curr_conns;
+        STATS_UNLOCK();
+    }
+
     // We don't want any network notifications anymore..
     unregister_event(c);
     safe_close(c->sfd);
@@ -5830,7 +5871,7 @@ static int server_socket(const char *interface,
 
             for (c = 0; c < settings.num_threads_per_udp; c++) {
                 /* this is guaranteed to hit all threads because we round-robin */
-                dispatch_conn_new(sfd, conn_read, EV_READ | EV_PERSIST,
+                dispatch_conn_new(sfd, port, conn_read, EV_READ | EV_PERSIST,
                                   UDP_READ_BUFFER_SIZE, transport);
                 STATS_LOCK();
                 ++stats.curr_conns;
@@ -5838,7 +5879,7 @@ static int server_socket(const char *interface,
                 STATS_UNLOCK();
             }
         } else {
-            if (!(listen_conn_add = conn_new(sfd, conn_listening,
+            if (!(listen_conn_add = conn_new(sfd, port, conn_listening,
                                              EV_READ | EV_PERSIST, 1,
                                              transport, main_base, NULL))) {
                 settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
@@ -5850,6 +5891,9 @@ static int server_socket(const char *interface,
             STATS_LOCK();
             ++stats.curr_conns;
             ++stats.daemon_conns;
+            struct listening_port *port_instance = get_listening_port_instance(port);
+            assert(port_instance);
+            ++port_instance->curr_conns;
             STATS_UNLOCK();
         }
     }
@@ -5863,6 +5907,10 @@ static int server_socket(const char *interface,
 static int server_sockets(int port, enum network_transport transport,
                           FILE *portnumber_file) {
     if (settings.inter == NULL) {
+        if (!IS_UDP(transport)) {
+            stats.listening_ports[0].port = port == -1 ? 0 : port;
+            stats.listening_ports[0].maxconns = settings.maxconns;
+        }
         return server_socket(settings.inter, port, transport, portnumber_file);
     } else {
         // tokenize them and bind to each one of them..
@@ -5875,26 +5923,72 @@ static int server_sockets(int port, enum network_transport transport,
                                             "Failed to allocate memory for parsing server interface string\n");
             return 1;
         }
+
+        int total_max_conns = 0;
+        int num_zero_max_conns = 0;
+        int pidx = 0;
         for (char *p = strtok_r(list, ";,", &b);
              p != NULL;
              p = strtok_r(NULL, ";,", &b)) {
+
             int the_port = port;
+            int max_conns_on_port = 0;
 
             char *s = strchr(p, ':');
             if (s != NULL) {
                 *s = '\0';
                 ++s;
+                char *m = strchr(s, ':');
+                if (m != NULL) {
+                    *m = '\0';
+                    ++m;
+                }
+
                 if (!safe_strtol(s, &the_port)) {
                     settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
                                                     "Invalid port number: \"%s\"", s);
                     return 1;
                 }
+                if (m && !safe_strtol(m, &max_conns_on_port)) {
+                    settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                                    "Invalid max connection limit: \"%s\"", m);
+                    return 1;
+                }
+
+                total_max_conns += max_conns_on_port;
+                if (total_max_conns > settings.maxconns) {
+                    settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                                    "Aggregated port max connections %d exceed "
+                                                    " the process limit %d",
+                                                    total_max_conns, settings.maxconns);
+                    return 1;
+                }
             }
+
+            if (!IS_UDP(transport)) {
+                stats.listening_ports[pidx].port = the_port == -1 ? 0 : the_port;
+                stats.listening_ports[pidx].maxconns = max_conns_on_port;
+                ++pidx;
+                if (max_conns_on_port == 0) {
+                    ++num_zero_max_conns;
+                }
+            }
+
             if (strcmp(p, "*") == 0) {
                 p = NULL;
             }
             ret |= server_socket(p, the_port, transport, portnumber_file);
         }
+        // For ports whose max connection limit is missing from cmd
+        if (!IS_UDP(transport) && num_zero_max_conns > 0) {
+            int max_conns = (settings.maxconns - total_max_conns) / num_zero_max_conns;
+            for (int i = 0; i < settings.num_ports; ++i) {
+                if (stats.listening_ports[i].maxconns == 0) {
+                    stats.listening_ports[i].maxconns = max_conns;
+                }
+            }
+        }
+
         free(list);
         return ret;
     }
@@ -5972,7 +6066,9 @@ static int server_socket_unix(const char *path, int access_mask) {
         safe_close(sfd);
         return 1;
     }
-    if (!(listen_conn = conn_new(sfd, conn_listening,
+    stats.listening_ports[0].port = settings.port; // Port number for unix domain socket?
+    stats.listening_ports[0].maxconns = settings.maxconns;
+    if (!(listen_conn = conn_new(sfd, settings.port, conn_listening,
                                  EV_READ | EV_PERSIST, 1,
                                  local_transport, main_base, NULL))) {
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
@@ -6027,10 +6123,10 @@ static void usage(void) {
            "-s <file>     UNIX socket path to listen on (disables network support)\n"
            "-a <mask>     access mask for UNIX socket, in octal (default: 0700)\n"
            "-l <addr>     interface to listen on (default: INADDR_ANY, all addresses)\n"
-           "              <addr> may be specified as host:port. If you don't specify\n"
-           "              a port number, the value you specified with -p or -U is\n"
-           "              used. You may specify multiple addresses separated by comma\n"
-           "              or by using -l multiple times\n"
+           "              <addr> may be specified as host:port:max_connections.\n"
+           "              If you don't specify a port number, the value you specified\n"
+           "              with -p or -U is used. You may specify multiple addresses\n"
+           "              separated by comma or by using -l multiple times\n"
            "-d            run as a daemon\n"
            "-r            maximize core file limit\n"
            "-u <username> assume identity of <username> (only when run as root)\n"
@@ -6855,6 +6951,7 @@ int main (int argc, char **argv) {
     struct rlimit rlim;
     char unit = '\0';
     int size_max = 0;
+    int num_ports = 0;
 
     bool protocol_specified = false;
     bool tcp_specified = false;
@@ -6966,19 +7063,30 @@ int main (int argc, char **argv) {
             perform_callbacks(ON_LOG_LEVEL, NULL, NULL);
             break;
         case 'l':
-            if (settings.inter != NULL) {
-                size_t len = strlen(settings.inter) + strlen(optarg) + 2;
-                char *p = malloc(len);
-                if (p == NULL) {
-                    settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                                    "Failed to allocate memory\n");
-                    return 1;
+            {
+                if (settings.inter != NULL) {
+                    size_t len = strlen(settings.inter) + strlen(optarg) + 2;
+                    char *p = malloc(len);
+                    if (p == NULL) {
+                        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                                        "Failed to allocate memory\n");
+                        return 1;
+                    }
+                    snprintf(p, len, "%s,%s", settings.inter, optarg);
+                    free(settings.inter);
+                    settings.inter = p;
+                } else {
+                    settings.inter= strdup(optarg);
                 }
-                snprintf(p, len, "%s,%s", settings.inter, optarg);
-                free(settings.inter);
-                settings.inter = p;
-            } else {
-                settings.inter= strdup(optarg);
+
+                char *c;
+                char *ilist = strdup(settings.inter);
+                for (char *p = strtok_r(ilist, ";,", &c); p != NULL;
+                     p = strtok_r(NULL, ";,", &c))
+                {
+                    ++num_ports;
+                }
+                free(ilist);
             }
             break;
         case 'd':
@@ -7173,6 +7281,10 @@ int main (int argc, char **argv) {
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
                                         "Failed to install SIGTERM handler\n");
         exit(EXIT_FAILURE);
+    }
+
+    if (num_ports > 0) {
+        settings.num_ports = num_ports;
     }
 
     char *topkeys_env = getenv("MEMCACHED_TOP_KEYS");
@@ -7489,6 +7601,10 @@ int main (int argc, char **argv) {
     /* Clean up strdup() call for bind() address */
     if (settings.inter)
       free(settings.inter);
+    /* Free the memory used by listening_port structure */
+    if (stats.listening_ports) {
+        free(stats.listening_ports);
+    }
 
     return EXIT_SUCCESS;
 }
