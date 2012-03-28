@@ -160,6 +160,7 @@ public:
 
     static int recordDbDump(Db* db, DocInfo* docinfo, void *ctx);
     static int recordDbStat(Db* db, DocInfo* docinfo, void *ctx);
+    static void readVBState(Db *db, uint16_t vbId, vbucket_state &vbState);
 
 protected:
     void tap(shared_ptr<TapCallback> cb, bool keysOnly,
@@ -211,11 +212,10 @@ private:
     void remVBucketFromDbFileMap(uint16_t vbucketId);
     couchstore_error_t  openDB(uint16_t vbucketId, uint16_t fileRev, Db **db,
                                uint64_t options, uint16_t *newFileRev = NULL);
-    int saveDocs(uint16_t vbid, int rev, Doc **docs, DocInfo **docinfos,
-                 int docCount);
+    couchstore_error_t saveDocs(uint16_t vbid, int rev, Doc **docs,
+                                DocInfo **docinfos, int docCount);
     void commitCallback(CouchRequest **committedReqs, int numReqs, int errCode);
-
-    // set stat: the number of docs committed in the last flush
+    couchstore_error_t saveVBState(Db *db, vbucket_state &vbState);
     void setDocsCommitted(uint16_t docs);
 };
 

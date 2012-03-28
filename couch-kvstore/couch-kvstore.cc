@@ -108,6 +108,20 @@ static bool discoverDbFiles(const std::string &dir,
     return true;
 }
 
+static uint32_t computeMaxDeletedSeqNum(DocInfo **docinfos, const int numdocs)
+{
+    uint32_t max = 0;
+    uint32_t seqNum;
+    for(int idx = 0; idx < numdocs; idx++) {
+       if (docinfos[idx]->deleted) {
+           // check seq number only from a deleted file
+           seqNum = (uint32_t)docinfos[idx]->rev_seq;
+           max = std::max(seqNum, max);
+       }
+    }
+    return max;
+}
+
 struct StatResponseCtx {
 public:
     StatResponseCtx(std::map<std::pair<uint16_t, uint16_t>, vbucket_state> &sm,
@@ -225,6 +239,7 @@ void CouchKVStore::get(const std::string &key, uint64_t, uint16_t vb, uint16_t,
     Doc *doc = NULL;
     std::string dbFile;
     sized_buf id;
+    Item *it;
 
     if (!(getDbFile(vb, dbFile))) {
         getLogger()->log(EXTENSION_LOG_WARNING, NULL,
@@ -247,54 +262,67 @@ void CouchKVStore::get(const std::string &key, uint64_t, uint16_t vb, uint16_t,
         return;
     }
 
+    RememberingCallback<GetValue> *rc =
+            dynamic_cast<RememberingCallback<GetValue> *> (&cb);
+    bool getMetaOnly = rc && rc->val.isPartial();
+
     id.size = key.size();
     id.buf = const_cast<char *>(key.c_str());
     errCode = couchstore_docinfo_by_id(db, (uint8_t *)id.buf,
                                        id.size, &docInfo);
     if (errCode != COUCHSTORE_SUCCESS) {
-        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                         "Warning: failed to retrieve doc info from "
-                         "database, name=%s key=%s error=%s\n",
-                         dbFile.c_str(), id.buf,
-                         couchstore_strerror(errCode));
+        if (!getMetaOnly) {
+            // log error only if this is non-xdcr case
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                             "Warning: failed to retrieve doc info from "
+                             "database, name=%s key=%s error=%s\n",
+                             dbFile.c_str(), id.buf,
+                             couchstore_strerror(errCode));
+        }
         GetValue rv;
         cb.callback(rv);
         return;
     } else {
         assert(docInfo);
-        errCode = couchstore_open_doc_with_docinfo(db, docInfo, &doc, 0);
-        if (errCode != COUCHSTORE_SUCCESS || docInfo->deleted) {
-            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "Warning: failed to retrieve key value from "
-                             "database, name=%s key=%s error=%s deleted=%s\n",
-                             dbFile.c_str(), id.buf,
-                             couchstore_strerror(errCode),
-                             docInfo->deleted ? "yes" : "no");
-            GetValue rv;
-            cb.callback(rv);
-            return;
+        uint32_t itemFlags;
+        void *valuePtr = NULL;
+        size_t valuelen = 0;
+        sized_buf metadata;
+
+        metadata = docInfo->rev_meta;
+        assert(metadata.size == 16);
+        memcpy(&itemFlags, (metadata.buf) + 12, 4);
+        itemFlags = ntohl(itemFlags);
+
+        if (getMetaOnly) {
+            uint64_t cas;
+            memcpy(&cas, (metadata.buf), 8);
+            cas = ntohll(cas);
+            it = new Item(key.c_str(), (size_t)key.length(), (size_t)0,
+                          itemFlags, (time_t)0, cas);
+        } else {
+            errCode = couchstore_open_doc_with_docinfo(db, docInfo, &doc, 0);
+            if (errCode != COUCHSTORE_SUCCESS || docInfo->deleted) {
+                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                 "Warning: failed to retrieve key value from "
+                                 "database, name=%s key=%s error=%s deleted=%s\n",
+                                 dbFile.c_str(), id.buf,
+                                 couchstore_strerror(errCode),
+                                 docInfo->deleted ? "yes" : "no");
+                GetValue rv;
+                cb.callback(rv);
+                return;
+            }
+            assert(doc && (doc->id.size <= UINT16_MAX));
+            assert(strncmp(doc->id.buf, key.c_str(), doc->id.size) == 0);
+
+            valuelen = doc->data.size;
+            valuePtr = doc->data.buf;
+            it = new Item(key, itemFlags, 0, valuePtr, valuelen, 0, -1, vb);
         }
-        assert(doc && (doc->id.size <= UINT16_MAX));
-        assert(strncmp(doc->id.buf, key.c_str(), doc->id.size) == 0);
     }
 
-    uint32_t itemFlags;
-    void *valuePtr = NULL;
-    size_t valuelen = 0;
-    sized_buf metadata;
-
-    metadata = docInfo->rev_meta;
-    assert(metadata.size == 16);
-    memcpy(&itemFlags, (metadata.buf) + 12, 4);
-    itemFlags = ntohl(itemFlags);
-    if (doc->data.size) {
-        valuelen = doc->data.size;
-        valuePtr = doc->data.buf;
-    }
-
-    Item *it = new Item(key, itemFlags, 0, valuePtr, valuelen, 0, -1, vb);
     GetValue rv(it);
-
     couchstore_free_docinfo(docInfo);
     couchstore_free_document(doc);
     closeDatabaseHandle(db);
@@ -435,14 +463,12 @@ bool CouchKVStore::snapshotStats(const std::map<std::string, std::string> &) {
 bool CouchKVStore::setVBucketState(uint16_t vbucketId, vbucket_state_t state,
                                    uint64_t checkpointId) {
     Db *db = NULL;
-    LocalDoc lDoc;
-
-    int rev;
     couchstore_error_t errorCode;
     uint16_t fileRev, newFileRev;
     std::stringstream id;
     std::string dbFileName;
     std::map<uint16_t, int>::iterator mapItr;
+    int rev;
 
     id << vbucketId;
     dbFileName = configuration.getDbname() + "/" + id.str() + ".couch";
@@ -473,20 +499,17 @@ bool CouchKVStore::setVBucketState(uint16_t vbucketId, vbucket_state_t state,
                              couchstore_strerror(errorCode));
             return false;
         }
-
         fileRev = newFileRev;
-        std::stringstream jsonState;
-        jsonState << "{\"state\": \"" << VBucket::toString(state)
-                  << "\", \"checkpoint_id\": \"" << checkpointId << "\"}";
 
-        lDoc.id.buf =  (char *)"_local/vbstate";
-        lDoc.id.size = sizeof("_local/vbstate") - 1;
-        std::string stateString = jsonState.str();
-        lDoc.json.buf = (char *)stateString.data();
-        lDoc.json.size = stateString.size();
-        lDoc.deleted = 0;
+        // first get current max_deleted_seq before updating
+        // local doc (vbstate)
+        vbucket_state vbState;
+        readVBState(db, vbucketId, vbState);
 
-        errorCode = couchstore_save_local_document(db, &lDoc);
+        // update local doc with new state & checkpoint_id
+        vbState.state = state;
+        vbState.checkpointId = checkpointId;
+        errorCode = saveVBState(db, vbState);
         if (errorCode != COUCHSTORE_SUCCESS) {
            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                             "Failed to save local doc, name=%s error=%s\n",
@@ -966,7 +989,7 @@ bool CouchKVStore::commit2couchstore(void) {
     DocInfo **docinfos;
     uint16_t vbucket2flush, vbucketId;
     int reqIndex,  flushStartIndex, numDocs2save;
-    int errCode = 0;
+    couchstore_error_t errCode;
     bool success = true;
 
     std::string dbName;
@@ -1005,9 +1028,11 @@ bool CouchKVStore::commit2couchstore(void) {
                                numDocs2save);
             if (errCode) {
                 getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                 "Failed to save CouchDB docs, vbucket = %d rev = %d\n",
+                                 "Failed to save CouchDB docs, vbucket = %d "
+                                 "rev = %d error = %d\n",
                                  vbucket2flush,
-                                 committedReqs[flushStartIndex]->getRevNum());
+                                 committedReqs[flushStartIndex]->getRevNum(),
+                                 (int)errCode);
                 abort();
             }
             commitCallback(&committedReqs[flushStartIndex], numDocs2save, errCode);
@@ -1026,9 +1051,11 @@ bool CouchKVStore::commit2couchstore(void) {
                            numDocs2save);
         if (errCode) {
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "Failed to save CouchDB docs, vbucket = %d rev = %d\n",
+                             "Failed to save CouchDB docs, vbucket = %d "
+                             "rev = %d error = %d\n",
                              vbucket2flush,
-                             committedReqs[flushStartIndex]->getRevNum());
+                             committedReqs[flushStartIndex]->getRevNum(),
+                             (int)errCode);
             abort();
         }
         commitCallback(&committedReqs[flushStartIndex], numDocs2save, errCode);
@@ -1042,8 +1069,8 @@ bool CouchKVStore::commit2couchstore(void) {
     return success;
 }
 
-int CouchKVStore::saveDocs(uint16_t vbid, int rev, Doc **docs, DocInfo **docinfos,
-                           int docCount) {
+couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, int rev, Doc **docs,
+                                          DocInfo **docinfos, int docCount) {
     couchstore_error_t errCode;
     int fileRev;
     uint16_t newFileRev;
@@ -1062,15 +1089,38 @@ int CouchKVStore::saveDocs(uint16_t vbid, int rev, Doc **docs, DocInfo **docinfo
                              "Failed to open database, vbucketId = %d fileRev = %d "
                              "error = %d\n",
                              vbucket2save, fileRev, errCode);
-            return (int)errCode;
+            return errCode;
         } else {
+            uint32_t max = computeMaxDeletedSeqNum(docinfos, docCount);
+
+            // update max_deleted_seq in the local doc (vbstate)
+            // before save docs for the given vBucket
+            if (max > 0) {
+                vbucket_state vbState;
+                readVBState(db, vbucket2save, vbState);
+                assert(vbState.state != vbucket_state_dead);
+                if (vbState.maxDeletedSeqno < max) {
+                    vbState.maxDeletedSeqno = max;
+                    errCode = saveVBState(db, vbState);
+                    if (errCode != COUCHSTORE_SUCCESS) {
+                        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                         "Warning: failed to save local doc for, "
+                                         "vBucket = %d error = %s\n",
+                                         vbucket2save, couchstore_strerror(errCode));
+                        closeDatabaseHandle(db);
+                        return errCode;
+                    }
+                }
+            }
+
             errCode = couchstore_save_documents(db, docs, docinfos, docCount,
-                                            0 /* no options */);
+                                                0 /* no options */);
             if (errCode != COUCHSTORE_SUCCESS) {
                 getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                                  "Failed to save docs to database, error = %s\n",
                                  couchstore_strerror(errCode));
-                return (int)errCode;
+                closeDatabaseHandle(db);
+                return errCode;
             }
 
             errCode = couchstore_commit(db);
@@ -1078,7 +1128,8 @@ int CouchKVStore::saveDocs(uint16_t vbid, int rev, Doc **docs, DocInfo **docinfo
                 getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                                  "Commit failed: %s",
                                  couchstore_strerror(errCode));
-                return (int)errCode;
+                closeDatabaseHandle(db);
+                return errCode;
             }
 
             RememberingCallback<uint16_t> cb;
@@ -1103,9 +1154,7 @@ int CouchKVStore::saveDocs(uint16_t vbid, int rev, Doc **docs, DocInfo **docinfo
         }
     } while (retry_save_docs);
 
-    // update stat of the docs committed
     setDocsCommitted(docCount);
-
     return errCode;
 }
 
@@ -1133,6 +1182,7 @@ void CouchKVStore::commitCallback(CouchRequest **committedReqs, int numReqs,
     bool isDelete;
     size_t dataSize;
     hrtime_t spent;
+    int rv;
 
     Callback<mutation_result> *setCb = NULL;
     Callback<int> *delCb = NULL;
@@ -1144,35 +1194,48 @@ void CouchKVStore::commitCallback(CouchRequest **committedReqs, int numReqs,
         spent = committedReqs[index]->getDelta() / dataSize;
 
         if (isDelete) {
-            int value = 1;
+            rv = (errCode) ? -1 : 1;
             epStats.couchDelqHisto.add(spent);
             delCb = committedReqs[index]->getDelCallback();
-            delCb->callback(value);
+            delCb->callback(rv);
         } else {
+            rv = (errCode) ? 0 : 1;
             if (errCode) {
                 epStats.couchSetFailHisto.add(spent);
             } else {
                 epStats.couchSetHisto.add(spent);
             }
             setCb = committedReqs[index]->getSetCallback();
-            mutation_result p(1, committedReqs[index]->getItemId());
+            mutation_result p(rv, committedReqs[index]->getItemId());
             setCb->callback(p);
         }
     }
 }
 
-int CouchKVStore::recordDbStat(Db* db, DocInfo*, void *ctx) {
-    couchstore_error_t errCode;
-    sized_buf id;
-    LocalDoc *ldoc = NULL;
+int CouchKVStore::recordDbStat(Db *db, DocInfo *, void *ctx)
+{
     StatResponseCtx *statCtx = (StatResponseCtx *)ctx;
     std::map<std::pair<uint16_t, uint16_t>, vbucket_state> &rv = statCtx->statMap;
     std::pair<uint16_t, uint16_t> vb(statCtx->vbId, -1);
 
     vbucket_state vb_state;
-    vb_state.state = vbucket_state_dead;
-    vb_state.checkpointId = 0;
-    vb_state.maxDeletedSeqno = 0;
+    readVBState(db, statCtx->vbId, vb_state);
+
+    // insert populated state to the array of vbucket_state which is returned to
+    // the caller
+    rv[vb] = vb_state;
+    return 0;
+}
+
+void CouchKVStore::readVBState(Db *db, uint16_t vbId, vbucket_state &vbState)
+{
+    sized_buf id;
+    LocalDoc *ldoc = NULL;
+    couchstore_error_t errCode;
+
+    vbState.state = vbucket_state_dead;
+    vbState.checkpointId = 0;
+    vbState.maxDeletedSeqno = 0;
 
     id.buf = (char *)"_local/vbstate";
     id.size = sizeof("_local/vbstate") - 1;
@@ -1181,30 +1244,48 @@ int CouchKVStore::recordDbStat(Db* db, DocInfo*, void *ctx) {
     if (errCode != COUCHSTORE_SUCCESS) {
         getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
                          "Warning: failed to retrieve stat info for vBucket=%d error=%d\n",
-                         statCtx->vbId, (int)errCode);
+                         vbId, (int)errCode);
     } else {
         const std::string statjson(ldoc->json.buf, ldoc->json.size);
         cJSON *jsonObj = cJSON_Parse(statjson.c_str());
         const std::string state = getJSONObjString(cJSON_GetObjectItem(jsonObj, "state"));
         const std::string checkpoint_id = getJSONObjString(cJSON_GetObjectItem(jsonObj,
                                                            "checkpoint_id"));
-        cJSON_Delete(jsonObj);
-        if (state.compare("") == 0 || checkpoint_id.compare("") == 0) {
+        const std::string max_deleted_seqno = getJSONObjString(cJSON_GetObjectItem(jsonObj,
+                                                               "max_deleted_seqno"));
+        if (state.compare("") == 0 || checkpoint_id.compare("") == 0
+            || max_deleted_seqno.compare("") == 0) {
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                    "Warning: state JSON doc for vbucket %d is in the wrong format: %s",
-                    vb.first, statjson.c_str());
+                    "Warning: state JSON doc for vbucket %d is in the wrong format: %s\n",
+                    vbId, statjson.c_str());
+        } else {
+            vbState.state = VBucket::fromString(state.c_str());
+            parseUint32(max_deleted_seqno.c_str(), &vbState.maxDeletedSeqno);
+            parseUint64(checkpoint_id.c_str(), &vbState.checkpointId);
         }
-
-        vb_state.state = VBucket::fromString(state.c_str());
-        char *ptr = NULL;
-        vb_state.checkpointId = strtoull(checkpoint_id.c_str(), &ptr, 10);
-        // TODO: fix the maxDeletedSeqno in the vbstate document. We are
-        // just fixing compiler warnings here.
-        vb_state.maxDeletedSeqno = 0;
+        cJSON_Delete(jsonObj);
+        couchstore_free_local_document(ldoc);
     }
-    rv[vb] = vb_state;
-    couchstore_free_local_document(ldoc);
-    return 0;
+}
+
+couchstore_error_t CouchKVStore::saveVBState(Db *db, vbucket_state &vbState)
+{
+    LocalDoc lDoc;
+    std::stringstream jsonState;
+
+    jsonState << "{\"state\": \"" << VBucket::toString(vbState.state)
+              << "\", \"checkpoint_id\": \"" << vbState.checkpointId
+              << "\", \"max_deleted_seqno\": \"" << vbState.maxDeletedSeqno
+              << "\"}";
+
+    assert(jsonState.str().compare("unknonw") != 0);
+    lDoc.id.buf =  (char *)"_local/vbstate";
+    lDoc.id.size = sizeof("_local/vbstate") - 1;
+    lDoc.json.buf = (char *)jsonState.str().c_str();
+    lDoc.json.size = jsonState.str().size();
+    lDoc.deleted = 0;
+
+    return couchstore_save_local_document(db, &lDoc);
 }
 
 /**
