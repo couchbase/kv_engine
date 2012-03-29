@@ -66,6 +66,10 @@ bool BackFillVisitor::visitBucket(RCPtr<VBucket> vb) {
     apply();
 
     if (vBucketFilter(vb->getId())) {
+        // When the backfill is scheduled for a given vbucket, set the TAP cursor to
+        // the beginning of the open checkpoint.
+        engine->tapConnMap.SetCursorToOpenCheckpoint(name, vb->getId());
+
         VBucketVisitor::visitBucket(vb);
         // If the current resident ratio for a given vbucket is below the resident threshold
         // for memory backfill only, schedule the disk backfill for more efficient bg fetches.
@@ -81,9 +85,6 @@ bool BackFillVisitor::visitBucket(RCPtr<VBucket> vb) {
             ScheduleDiskBackfillTapOperation tapop;
             engine->tapConnMap.performTapOp(name, tapop, static_cast<void*>(NULL));
         }
-        // When the backfill is scheduled for a given vbucket, set the TAP cursor to
-        // the beginning of the open checkpoint.
-        engine->tapConnMap.SetCursorToOpenCheckpoint(name, vb->getId());
         return true;
     }
     return false;
