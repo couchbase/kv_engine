@@ -27,10 +27,10 @@ void init_alloc_hooks() {
 bool init_tcmalloc_hooks(void) {
     void* handle = dlopen(NULL, RTLD_LAZY);
 
-    // This should never fail since we're asking for our own library.
     if (!handle) {
-        fprintf(stderr, "%s\n", dlerror());
-        exit(EXIT_FAILURE);
+        get_stderr_logger()->log(EXTENSION_LOG_WARNING, NULL,
+                                 "Was unable to dlopen itself in order to activate allocator hooks: %s", dlerror());
+        return false;
     }
 
     addNewHook.ptr = dlsym(handle, "MallocHook_AddNewHook");
