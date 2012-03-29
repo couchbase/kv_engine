@@ -75,6 +75,10 @@ bool BackFillVisitor::visitBucket(RCPtr<VBucket> &vb) {
     apply();
 
     if (vBucketFilter(vb->getId())) {
+        // When the backfill is scheduled for a given vbucket, set the TAP cursor to
+        // the beginning of the open checkpoint.
+        engine->tapConnMap->SetCursorToOpenCheckpoint(name, vb->getId());
+
         VBucketVisitor::visitBucket(vb);
         double num_items = static_cast<double>(vb->ht.getNumItems());
         double num_non_resident = static_cast<double>(vb->ht.getNumNonResidentItems());
@@ -99,11 +103,7 @@ bool BackFillVisitor::visitBucket(RCPtr<VBucket> &vb) {
             num_backfill_items = static_cast<size_t>(num_items);
         }
 
-        // When the backfill is scheduled for a given vbucket, set the TAP cursor to
-        // the beginning of the open checkpoint.
-        engine->tapConnMap->SetCursorToOpenCheckpoint(name, vb->getId());
         engine->tapConnMap->incrBackfillRemaining(name, num_backfill_items);
-
         return true;
     }
     return false;
