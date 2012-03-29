@@ -179,6 +179,9 @@ private:
     size_t pendingCommitCnt;
     bool intransaction;
 
+    // stat: the number of docs committed
+    uint16_t  docsCommitted;
+
     // no longer needed, remove once CouchKVStore::addStat is ready
     size_t vbBatchCount;
     size_t vbBatchSize;
@@ -211,6 +214,9 @@ private:
     int saveDocs(uint16_t vbid, int rev, Doc **docs, DocInfo **docinfos,
                  int docCount);
     void commitCallback(CouchRequest **committedReqs, int numReqs, int errCode);
+
+    // set stat: the number of docs committed in the last flush
+    void setDocsCommitted(uint16_t docs);
 };
 
 #endif /* COUCHSTORE_KVSTORE_H */

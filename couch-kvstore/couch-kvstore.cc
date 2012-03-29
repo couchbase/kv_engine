@@ -168,7 +168,7 @@ CouchKVStore::CouchKVStore(EventuallyPersistentEngine &theEngine) :
                            epStats(theEngine.getEpStats()),
                            configuration(theEngine.getConfiguration()),
                            mc(NULL), pendingCommitCnt(0),
-                           intransaction(false),
+                           intransaction(false), docsCommitted(0),
                            vbBatchCount(configuration.getCouchVbucketBatchCount()) {
     vbBatchSize = configuration.getMaxTxnSize() / vbBatchCount;
     if (vbBatchSize == 0) {
@@ -182,6 +182,7 @@ CouchKVStore::CouchKVStore(const CouchKVStore &copyFrom) :
                            epStats(copyFrom.epStats),
                            configuration(copyFrom.configuration), mc(NULL),
                            pendingCommitCnt(0), intransaction(false),
+                           docsCommitted(0),
                            vbBatchCount(copyFrom.vbBatchCount),
                            vbBatchSize(copyFrom.vbBatchSize) {
     open();
@@ -572,6 +573,8 @@ void CouchKVStore::addStats(const std::string &prefix,
     KVStore::addStats(prefix, add_stat, c);
     addStat(prefix, "vbucket_batch_count", vbBatchCount, add_stat, c);
     addStat(prefix, "vbucket_batch_size", vbBatchSize, add_stat, c);
+    // add stat of # of docs commited
+    addStat(prefix, "last_committed_docs", docsCommitted, add_stat, c);
     mc->addStats(prefix, add_stat, c);
 }
 
@@ -1057,22 +1060,21 @@ int CouchKVStore::saveDocs(uint16_t vbid, int rev, Doc **docs, DocInfo **docinfo
                              vbucket2save, fileRev, errCode);
             return (int)errCode;
         } else {
-            couchstore_error_t err;
-            err = couchstore_save_documents(db, docs, docinfos, docCount,
+            errCode = couchstore_save_documents(db, docs, docinfos, docCount,
                                             0 /* no options */);
-            if (err != COUCHSTORE_SUCCESS) {
+            if (errCode != COUCHSTORE_SUCCESS) {
                 getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                                  "Failed to save docs to database, error = %s\n",
-                                 couchstore_strerror(err));
-                return (int)err;
+                                 couchstore_strerror(errCode));
+                return (int)errCode;
             }
 
-            err = couchstore_commit(db);
-            if (err) {
+            errCode = couchstore_commit(db);
+            if (errCode) {
                 getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                                  "Commit failed: %s",
-                                 couchstore_strerror(err));
-                return (int)err;
+                                 couchstore_strerror(errCode));
+                return (int)errCode;
             }
 
             RememberingCallback<uint16_t> cb;
@@ -1096,6 +1098,9 @@ int CouchKVStore::saveDocs(uint16_t vbid, int rev, Doc **docs, DocInfo **docinfo
             closeDatabaseHandle(db);
         }
     } while (retry_save_docs);
+
+    // update stat of the docs committed
+    setDocsCommitted(docCount);
 
     return errCode;
 }
@@ -1196,4 +1201,21 @@ int CouchKVStore::recordDbStat(Db* db, DocInfo*, void *ctx) {
     rv[vb] = vb_state;
     couchstore_free_local_document(ldoc);
     return 0;
+}
+
+/**
+ * setDocsCommitted:
+ * Set the stat of the number of docs in the last commit
+ *
+ * @param:
+ * uint_16   docs (IN) - # of docs in the last commit
+ *
+ * @return:
+ * void
+ */
+void CouchKVStore::setDocsCommitted(uint16_t docs) {
+    if( docs != docsCommitted ) {
+        docsCommitted = docs;
+    }
+    return;
 }
