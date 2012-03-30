@@ -77,6 +77,8 @@ public:
 
     bool doReconstructLog(void) const { return reconstructLog; }
 
+    hrtime_t getTime(void) { return warmup; }
+
 private:
     template <typename T>
     void addStat(const char *nm, T val, ADD_STAT add_stat, const void *c) const {

@@ -2497,6 +2497,21 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     add_casted_stat("ep_mlog_compactor_runs", epstats.mlogCompactorRuns,
                     add_stat, cookie);
 
+    if (getConfiguration().isWarmup()) {
+        Warmup *wp = epstore->getWarmup();
+        assert(wp);
+        if (strcmp(wp->getState().toString(), "done") == 0) {
+            add_casted_stat("ep_warmup_thread", "complete", add_stat, cookie);
+        } else {
+            add_casted_stat("ep_warmup_thread", "running", add_stat, cookie);
+        }
+        if (wp->getTime() > 0) {
+            add_casted_stat("ep_warmup_time", wp->getTime() / 1000, add_stat, cookie);
+        }
+        add_casted_stat("ep_warmup_oom", epstats.warmOOM, add_stat, cookie);
+        add_casted_stat("ep_warmup_dups", epstats.warmDups, add_stat, cookie);
+    }
+
     return ENGINE_SUCCESS;
 }
 
