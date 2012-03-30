@@ -128,9 +128,9 @@ CouchRequest::CouchRequest(const Item &it, int rev, CouchRequestCallback &cb, bo
                            vbucketId(it.getVBucketId()), fileRevNum(rev),
                            key(it.getKey()), deleteItem(del) {
     bool isjson = false;
-    uint64_t cas = it.getCas();
-    uint32_t flags = it.getFlags();
-    uint32_t exptime = it.getExptime();
+    uint64_t cas = htonll(it.getCas());
+    uint32_t flags = htonl(it.getFlags());
+    uint32_t exptime = htonl(it.getExptime());
 
     itemId = (it.getId() <= 0) ? 1 : 0;
     dbDoc.id.buf = const_cast<char *>(key.c_str());
@@ -913,7 +913,9 @@ int CouchKVStore::recordDbDump(Db* db, DocInfo* docinfo, void *ctx) {
     memcpy(&cas, metadata.buf, 8);
     memcpy(&exptime, (metadata.buf) + 8, 4);
     memcpy(&itemflags, (metadata.buf) + 12, 4);
-    itemflags = ntohs(itemflags);
+    itemflags = ntohl(itemflags);
+    exptime = ntohl(exptime);
+    cas = ntohll(cas);
 
     valuePtr = NULL;
     valuelen = 0;
