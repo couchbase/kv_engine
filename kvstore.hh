@@ -146,6 +146,29 @@ public:
     virtual ~KVStore() {}
 
     /**
+     * Allow the kvstore to add extra statistics information
+     * back to the client
+     * @param prefix prefix to use for the stats
+     * @param add_stat the callback function to add statistics
+     * @param c the cookie to pass to the callback function
+     */
+    virtual void addStats(const std::string &prefix, ADD_STAT add_stat, const void *c) {
+        (void)prefix;
+        (void)add_stat;
+        (void)c;
+    }
+
+    /**
+     * Show kvstore specific timing stats.
+     *
+     * @param prefix prefix to use for the stats
+     * @param add_stat the callback function to add statistics
+     * @param c the cookie to pass to the callback function
+     */
+    virtual void addTimingStats(const std::string &, ADD_STAT, const void *) {
+    }
+
+    /**
      * Reset the store to a clean state.
      */
     virtual void reset() = 0;

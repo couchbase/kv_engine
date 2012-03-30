@@ -2,6 +2,7 @@
 
 import clitool
 import sys
+import math
 import itertools
 import re
 
@@ -25,7 +26,7 @@ def cmd(f):
                 password = ''
             mc.sasl_auth_plain(username, password)
 
-        if kwargs['allBuckets']:
+        if kwargs.get('allBuckets', None):
             buckets = mc.stats('bucket')
             for bucket in buckets.iterkeys():
                 print '*' * 78
@@ -100,8 +101,7 @@ def size_label(s):
     suffix = sizes[int(e)]
     return "%d%s" % (s/(1024 ** math.floor(e)), suffix)
 
-@cmd
-def stats_timings(mc):
+def histograms(mc, raw_stats):
     def seg(k, v):
         # Parse ('some_stat_x_y', 'v') into (('some_stat', x, y), v)
         ka = k.split('_')
@@ -121,7 +121,7 @@ def stats_timings(mc):
             return 79
 
     # Acquire, sort, categorize, and label the timings.
-    stats = sorted([seg(*kv) for kv in mc.stats('timings').items()])
+    stats = sorted([seg(*kv) for kv in raw_stats.items()])
     dd = {}
     totals = {}
     longest = 0
@@ -158,6 +158,10 @@ def stats_timings(mc):
             print "%s %s" % (toprint, '#' * int(lpcnt * remaining))
 
 @cmd
+def stats_timings(mc):
+    histograms(mc, mc.stats('timings'))
+
+@cmd
 def stats_tap(mc):
     stats_formatter(stats_perform(mc, 'tap'))
 
@@ -176,6 +180,14 @@ def stats_slabs(mc):
 @cmd
 def stats_items(mc):
     stats_formatter(stats_perform(mc, 'items'))
+
+@cmd
+def stats_kvstore(mc):
+    stats_formatter(stats_perform(mc, 'kvstore'))
+
+@cmd
+def stats_kvtimings(mc):
+    histograms(mc, mc.stats('kvtimings'))
 
 def avg(s):
     return sum(s) / len(s)
@@ -293,6 +305,8 @@ def main():
     c.addCommand('dispatcher', stats_dispatcher, 'dispatcher [logs] [username password]')
     c.addCommand('slabs', stats_slabs, 'slabs [username password]')
     c.addCommand('items', stats_items, 'items [username password]')
+    c.addCommand('kvstore', stats_kvstore, 'kvstore [username password]')
+    c.addCommand('kvtimings', stats_kvtimings, 'kvtimings [username password]')
     c.addFlag('-a', 'allBuckets', 'iterate over all buckets (requires admin u/p)')
 
     c.execute()

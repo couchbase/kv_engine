@@ -3682,6 +3682,14 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
         parseUint16(vbid.c_str(), &vbucket_id);
         // Validating version; blocks
         rv = doKeyStats(cookie, add_stat, vbucket_id, key, true);
+    } else if (nkey == 9 && strncmp(stat_key, "kvtimings", 9) == 0) {
+        getEpStore()->getROUnderlying()->addTimingStats("ro", add_stat, cookie);
+        getEpStore()->getRWUnderlying()->addTimingStats("rw", add_stat, cookie);
+        rv = ENGINE_SUCCESS;
+    } else if (nkey == 7 && strncmp(stat_key, "kvstore", 7) == 0) {
+        getEpStore()->getROUnderlying()->addStats("ro", add_stat, cookie);
+        getEpStore()->getRWUnderlying()->addStats("rw", add_stat, cookie);
+        rv = ENGINE_SUCCESS;
     }
 
     return rv;
