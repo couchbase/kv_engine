@@ -622,3 +622,19 @@ ep_testsuite_la-probes.lo: $(ep_testsuite_la_OBJECTS) dtrace/probes.h
                   -o .libs/mutex_test-probes.o \
                   -s ${srcdir}/dtrace/probes.d \
                   $(mutex_test_OBJECTS)
+
+reformat:
+	astyle --mode=c \
+               --quiet \
+               --style=1tbs \
+               --indent=spaces=4 \
+               --indent-namespaces \
+               --indent-col1-comments \
+               --max-instatement-indent=78 \
+               --pad-oper \
+               --pad-header \
+               --unpad-paren \
+               --add-brackets \
+               --align-pointer=name \
+               --align-reference=name \
+               $(top_srcdir)/couch-kvstore/*.[ch][ch]

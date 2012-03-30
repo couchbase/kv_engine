@@ -7,6 +7,7 @@
 *.gcno
 *.gcov
 *.l[ao]
+*.orig
 *.pyc
 *.tar.gz
 *.tcov
