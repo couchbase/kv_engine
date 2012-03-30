@@ -1480,7 +1480,7 @@ void MemcachedEngine::addStats(const std::string &prefix,
                                ADD_STAT add_stat,
                                const void *c)
 {
-    add_prefixed_stat(prefix, "type", "mccouch", add_stat, c);
+    add_prefixed_stat(prefix, "mc_engine_type", "mccouch", add_stat, c);
     for (uint8_t ii = 0; ii < 0xff; ++ii) {
         commandStats[ii].addStats(prefix, cmd2str(ii), add_stat, c);
     }

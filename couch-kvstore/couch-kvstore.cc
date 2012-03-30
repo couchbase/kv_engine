@@ -576,6 +576,7 @@ void CouchKVStore::addStats(const std::string &prefix,
     addStat(prefix, "vbucket_batch_size", vbBatchSize, add_stat, c);
     // add stat of # of docs commited
     addStat(prefix, "last_committed_docs", docsCommitted, add_stat, c);
+    addStat(prefix, "backend_type", "couchdb", add_stat, c);
     mc->addStats(prefix, add_stat, c);
 }
 
