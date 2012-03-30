@@ -355,7 +355,7 @@ def main():
     c.addCommand('hash', stats_hash, 'hash [detail] [username password]')
     c.addCommand('items', stats_items, 'items [username password]')
     c.addCommand('kvstore', stats_kvstore, 'kvstore [username password]')
-    c.addCommand('kvtimings', stats_kvtimings, 'kvstore [username password]')
+    c.addCommand('kvtimings', stats_kvtimings, 'kvtimings [username password]')
     c.addCommand('memory', stats_memory, 'memory [username password]')
     c.addCommand('prev-vbucket', stats_prev_vbucket, 'prev-vbucket [username password]')
     c.addCommand('raw', stats_raw, 'raw argument [username password]')
