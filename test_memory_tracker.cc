@@ -59,7 +59,7 @@ ALLOCATOR_HOOKS_API* getHooksApi(void) {
     return &hooksApi;
 }
 
-bool MemoryTracker::trackingAllocations = false;
+bool MemoryTracker::tracking = false;
 MemoryTracker *MemoryTracker::instance = 0;
 
 MemoryTracker *MemoryTracker::getInstance() {
@@ -84,6 +84,6 @@ void MemoryTracker::getAllocatorStats(std::map<std::string, size_t> &allocator_s
 
 bool MemoryTracker::trackingMemoryAllocations() {
     // This should ALWAYS return false
-    return trackingAllocations;
+    return tracking;
 }
 
