@@ -20,7 +20,7 @@
 #include "objectregistry.hh"
 #include <memcached/engine.h>
 
-bool MemoryTracker::trackingAllocations = false;
+bool MemoryTracker::tracking = false;
 MemoryTracker *MemoryTracker::instance = NULL;
 
 MemoryTracker *MemoryTracker::getInstance() {
@@ -54,7 +54,7 @@ MemoryTracker::MemoryTracker() {
         if (getHooksApi()->add_delete_hook(&DeleteHook)) {
             getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "Registered delete hook");
             std::cout.flush();
-            trackingAllocations = true;
+            tracking = true;
             return;
         }
         std::cout.flush();
@@ -66,6 +66,8 @@ MemoryTracker::MemoryTracker() {
 MemoryTracker::~MemoryTracker() {
     getHooksApi()->remove_new_hook(&NewHook);
     getHooksApi()->remove_delete_hook(&DeleteHook);
+    tracking = false;
+    instance = NULL;
 }
 
 void MemoryTracker::getAllocatorStats(std::map<std::string, size_t> &allocator_stats) {
@@ -86,6 +88,6 @@ void MemoryTracker::getAllocatorStats(std::map<std::string, size_t> &allocator_s
 }
 
 bool MemoryTracker::trackingMemoryAllocations() {
-    return trackingAllocations;
+    return tracking;
 }
 

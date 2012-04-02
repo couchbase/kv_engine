@@ -42,7 +42,7 @@ private:
     MemoryTracker();
 
     // Wheter or not we have the ability to accurately track memory allocations
-    static bool trackingAllocations;
+    static bool tracking;
     // Singleton memory tracker
     static MemoryTracker *instance;
 };
