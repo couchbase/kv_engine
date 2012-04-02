@@ -481,8 +481,9 @@ bool CouchKVStore::setVBucketState(uint16_t vbucketId, vbucket_state_t state,
 
         lDoc.id.buf =  (char *)"_local/vbstate";
         lDoc.id.size = sizeof("_local/vbstate") - 1;
-        lDoc.json.buf = (char *)jsonState.str().c_str();
-        lDoc.json.size = jsonState.str().size();
+        std::string stateString = jsonState.str();
+        lDoc.json.buf = (char *)stateString.data();
+        lDoc.json.size = stateString.size();
         lDoc.deleted = 0;
 
         errorCode = couchstore_save_local_document(db, &lDoc);
