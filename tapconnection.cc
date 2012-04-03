@@ -361,9 +361,6 @@ void TapProducer::registerTAPCursor(std::map<uint16_t, uint64_t> &lastCheckpoint
                 if (backfillAge < current_time) {
                     TapCheckpointState st(vbid, 0, backfill);
                     tapCheckpointState[vbid] = st;
-                    // As we set the cursor to the beginning of the open checkpoint when backfill
-                    // is scheduled, we can simply remove the cursor now.
-                    vb->checkpointManager.removeTAPCursor(name);
                     if (vb->checkpointManager.getOpenCheckpointId() > 0) {
                         // If the current open checkpoint is 0, it means that this vbucket is still
                         // receiving backfill items from another node. Once the backfill is done,
@@ -1594,12 +1591,22 @@ void TapProducer::scheduleBackfill_UNLOCKED(const std::vector<uint16_t> &vblist)
     const std::vector<uint16_t> &newBackfillVBs = backFillVBucketFilter.getVector();
     std::vector<uint16_t>::const_iterator it = newBackfillVBs.begin();
     for (; it != newBackfillVBs.end(); ++it) {
-        getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                         "%s Schedule the backfill for vbucket %d\n",
-                         logHeader(), *it);
+        RCPtr<VBucket> vb = vbuckets.getBucket(*it);
+        if (!vb) {
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                             "%s VBucket %d not exist for backfill. Skip it...\n",
+                             logHeader(), *it);
+            continue;
+        }
+        // As we set the cursor to the beginning of the open checkpoint when backfill
+        // is scheduled, we can simply remove the cursor now.
+        vb->checkpointManager.removeTAPCursor(name);
         TapVBucketEvent hi(TAP_OPAQUE, *it,
                            (vbucket_state_t)htonl(TAP_OPAQUE_INITIAL_VBUCKET_STREAM));
         addVBucketHighPriority_UNLOCKED(hi);
+        getLogger()->log(EXTENSION_LOG_INFO, NULL,
+                         "%s Schedule the backfill for vbucket %d\n",
+                         logHeader(), *it);
     }
 
     if (newBackfillVBs.size() > 0) {
