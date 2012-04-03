@@ -588,6 +588,30 @@ Stats =warmup= shows statistics related to warmup logic
 | ep_warmup_access_log           | Number of keys present in access log       |
 
 
+** KV Store Stats
+
+These provide various low-level stats and timings from the underlying KV
+storage system and useful to understand various states of the storage
+system.
+
+The following stats are available for the SQlite database engine:
+
+| sector_size       | Disk sector size (bytes)                           |
+| open              | Number of database open operations                 |
+| close             | Number of database close operations                |
+| lock              | Number of database lock operations                 |
+| truncate          | Number of truncate operations                      |
+
+The various timings are also provided:
+
+| delete            | Time spent  in delete() calls     |
+| sync              | Time spent in sync() calls        |
+| readTime          | Time spent in read operations     |
+| readSeek          | Seek distance in read operations  |
+| readSize          | Size of data in read operations   |
+| writeTime         | Time spent in write operations    |
+| writeSeek         | Seek distance in write operations |
+| writeSize         | Size of data in write operations  |
 
 * Details
 
