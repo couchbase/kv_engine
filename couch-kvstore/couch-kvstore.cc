@@ -1272,6 +1272,7 @@ couchstore_error_t CouchKVStore::saveVBState(Db *db, vbucket_state &vbState)
 {
     LocalDoc lDoc;
     std::stringstream jsonState;
+    std::string state;
 
     jsonState << "{\"state\": \"" << VBucket::toString(vbState.state)
               << "\", \"checkpoint_id\": \"" << vbState.checkpointId
@@ -1281,8 +1282,9 @@ couchstore_error_t CouchKVStore::saveVBState(Db *db, vbucket_state &vbState)
     assert(jsonState.str().compare("unknonw") != 0);
     lDoc.id.buf =  (char *)"_local/vbstate";
     lDoc.id.size = sizeof("_local/vbstate") - 1;
-    lDoc.json.buf = (char *)jsonState.str().c_str();
-    lDoc.json.size = jsonState.str().size();
+    state = jsonState.str();
+    lDoc.json.buf = (char *)state.c_str();
+    lDoc.json.size = state.size();
     lDoc.deleted = 0;
 
     return couchstore_save_local_document(db, &lDoc);
