@@ -176,12 +176,7 @@ CouchKVStore::CouchKVStore(EventuallyPersistentEngine &theEngine) :
                            epStats(theEngine.getEpStats()),
                            configuration(theEngine.getConfiguration()),
                            mc(NULL), pendingCommitCnt(0),
-                           intransaction(false), docsCommitted(0),
-                           vbBatchCount(configuration.getCouchVbucketBatchCount()) {
-    vbBatchSize = configuration.getMaxTxnSize() / vbBatchCount;
-    if (vbBatchSize == 0) {
-        vbBatchSize = configuration.getCouchDefaultBatchSize();
-    }
+                           intransaction(false), docsCommitted(0) {
     open();
 }
 
@@ -190,9 +185,7 @@ CouchKVStore::CouchKVStore(const CouchKVStore &copyFrom) :
                            epStats(copyFrom.epStats),
                            configuration(copyFrom.configuration), mc(NULL),
                            pendingCommitCnt(0), intransaction(false),
-                           docsCommitted(0),
-                           vbBatchCount(copyFrom.vbBatchCount),
-                           vbBatchSize(copyFrom.vbBatchSize) {
+                           docsCommitted(0) {
     open();
     dbFileMap = copyFrom.dbFileMap;
 }
@@ -581,8 +574,6 @@ void CouchKVStore::addStats(const std::string &prefix,
                             const void *c) {
     //TODO CouchKVStore::addState()
     KVStore::addStats(prefix, add_stat, c);
-    addStat(prefix, "vbucket_batch_count", vbBatchCount, add_stat, c);
-    addStat(prefix, "vbucket_batch_size", vbBatchSize, add_stat, c);
     // add stat of # of docs commited
     addStat(prefix, "last_committed_docs", docsCommitted, add_stat, c);
     addStat(prefix, "backend_type", "couchdb", add_stat, c);
@@ -611,21 +602,6 @@ void CouchKVStore::optimizeWrites(std::vector<queued_item> &items) {
     }
     CompareQueuedItemsByVBAndKey cq;
     std::sort(items.begin(), items.end(), cq);
-}
-
-void CouchKVStore::processTxnSizeChange(size_t txn_size) {
-    // TODO remove this once CouchKVStore::addStat is ready
-    size_t new_batch_size = txn_size / vbBatchCount;
-    vbBatchSize = new_batch_size == 0 ? vbBatchSize : new_batch_size;
-}
-
-void CouchKVStore::setVBBatchCount(size_t batch_count) {
-    if (vbBatchCount == batch_count) {
-        return;
-    }
-    vbBatchCount = batch_count;
-    size_t new_batch_size = engine.getEpStore()->getTxnSize() / vbBatchCount;
-    vbBatchSize = new_batch_size == 0 ? vbBatchSize : new_batch_size;
 }
 
 void CouchKVStore::tap(shared_ptr<TapCallback> cb, bool keysOnly,

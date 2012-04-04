@@ -153,8 +153,12 @@ public:
 
     virtual void addStats(const std::string &prefix, ADD_STAT add_stat, const void *c);
     void optimizeWrites(std::vector<queued_item> &items);
-    void processTxnSizeChange(size_t txn_size);
-    void setVBBatchCount(size_t batch_count);
+    void processTxnSizeChange(size_t txn_size) {
+        (void) txn_size;
+    }
+    void setVBBatchCount(size_t batch_count) {
+        (void) batch_count;
+    }
     void destroyInvalidVBuckets(bool destroyOnlyOne = false) {
         (void) destroyOnlyOne;
     }
@@ -209,10 +213,6 @@ private:
 
     // stat: the number of docs committed
     uint16_t  docsCommitted;
-
-    // no longer needed, remove once CouchKVStore::addStat is ready
-    size_t vbBatchCount;
-    size_t vbBatchSize;
 };
 
 #endif /* COUCHSTORE_KVSTORE_H */
