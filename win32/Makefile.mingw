@@ -15,8 +15,25 @@ LOCALINC=-I${LOCAL}/include
 DEST=${LOCAL}
 INSTALLDIRS=${DEST}/bin ${DEST}/lib ${DEST}/include/memcached
 
+TCMALLOC_ROOT= /opt/gperftools
+TCMALLOC_LIB= ${TCMALLOC_ROOT}/lib
+TCMALLOC_INCLUDE = ${TCMALLOC_ROOT}/include
+
+TCMALLOC_FLAGS =
+TCMALLOC_FLAGS += -Wwrite-strings \
+                    -Wno-sign-compare -DNO_FRAME_POINTER \
+                    -DHAVE_LIBTCMALLOC_MINIMAL \
+                    -fno-builtin-malloc -fno-builtin-free -fno-builtin-realloc \
+                    -fno-builtin-calloc -fno-builtin-cfree \
+                    -fno-builtin-memalign -fno-builtin-posix_memalign \
+                    -fno-builtin-valloc -fno-builtin-pvalloc
+TCMALLOC_LIB_FLAGS =
+TCMALLOC_LIB_FLAGS += -Wl,-u__tcmalloc \
+                 $(TCMALLOC_LIB)/libtcmalloc_minimal.a -lPsapi -lshlwapi \
+                 -lstdc++.dll
+
 OBJDIR = .libs \
-	 .libs/engines \
+         .libs/engines \
          .libs/daemon \
          .libs/engines/default_engine \
          .libs/extensions/daemon \
@@ -30,8 +47,8 @@ OBJDIR = .libs \
 BINARIES= mcstat.exe \
           memcached.exe \
           engine_testapp.exe \
-	  sizes.exe \
-	  .libs/ascii_scrub.so \
+          sizes.exe \
+          .libs/ascii_scrub.so \
           .libs/basic_engine_testsuite.so \
           .libs/default_engine.so \
           .libs/example_protocol.so \
@@ -51,6 +68,7 @@ install: ${BINARIES} ${INSTALLDIRS}
 CFLAGS = -std=gnu99 -O2 -g -DNDEBUG -fno-strict-aliasing -Wall \
  -Wstrict-prototypes -Wmissing-prototypes -Wmissing-declarations \
  -Wredundant-decls \
+ $(TCMALLOC_FLAGS) \
  ${INCLUDE} -DHAVE_CONFIG_H
 
 MCSTAT_SRC = programs/mcstat.c win32/win32.c
@@ -114,20 +132,23 @@ GENFILES=.libs/config_version.h
 
 mcstat.exe: ${OBJDIR} ${GENFILES} $(MCSTAT_OBJS)
 	${LINK.c} -o $@ $(MCSTAT_OBJS) \
+                  $(TCMALLOC_LIB_FLAGS)  \
                   ${LIB} -lmswsock -lws2_32
 
 memcached.exe: ${OBJDIR} ${GENFILES} $(MEMCACHED_OBJS)
 	${LINK.c} -o $@ $(MEMCACHED_OBJS) \
+                  $(TCMALLOC_LIB_FLAGS) \
                   ${LIB} -levent -lmswsock \
                   -lws2_32 -lpthread
 
 engine_testapp.exe: ${OBJDIR} ${GENFILES} $(ENGINE_TESTAPP_OBJS)
 	${LINK.c} -o $@ $(ENGINE_TESTAPP_OBJS) \
+                  $(TCMALLOC_LIB_FLAGS) \
                   ${LIB} -levent -lmswsock \
                   -lws2_32 -lpthread
 
 sizes.exe: ${OBJDIR} ${GENFILES} $(SIZES_OBJS)
-	${LINK.c} -o $@ $(SIZES_OBJS)
+	${LINK.c} -o $@ $(SIZES_OBJS) $(TCMALLOC_LIB_FLAGS)
 
 .libs/default_engine.so: ${OBJDIR} $(DEFAULT_ENGINE_OBJS)
 	${LINK.c} -o $@ -shared ${DEFAULT_ENGINE_OBJS} \

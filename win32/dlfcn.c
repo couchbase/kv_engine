@@ -12,9 +12,8 @@ static bool self = false;
 
 void* dlopen(const char* path, int mode) {
     if (path == NULL) {
-        // We don't support opening ourself
         self = true;
-        return NULL;
+        return GetCurrentProcess();
     }
 
     void* handle = LoadLibrary(path);
