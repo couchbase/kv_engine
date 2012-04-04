@@ -172,22 +172,6 @@ protected:
                  ADD_STAT add_stat, const void *c);
 
 private:
-    EventuallyPersistentEngine &engine;
-    EPStats &epStats;
-    Configuration &configuration;
-    MemcachedEngine *mc;
-    std::map<uint16_t, int>dbFileMap;
-    std::list<CouchRequest *> pendingReqsQ;
-    size_t pendingCommitCnt;
-    bool intransaction;
-
-    // stat: the number of docs committed
-    uint16_t  docsCommitted;
-
-    // no longer needed, remove once CouchKVStore::addStat is ready
-    size_t vbBatchCount;
-    size_t vbBatchSize;
-
     void operator=(const CouchKVStore &from);
 
     void open();
@@ -212,6 +196,23 @@ private:
     void commitCallback(CouchRequest **committedReqs, int numReqs, int errCode);
     couchstore_error_t saveVBState(Db *db, vbucket_state &vbState);
     void setDocsCommitted(uint16_t docs);
+
+
+    EventuallyPersistentEngine &engine;
+    EPStats &epStats;
+    Configuration &configuration;
+    MemcachedEngine *mc;
+    std::map<uint16_t, int>dbFileMap;
+    std::list<CouchRequest *> pendingReqsQ;
+    size_t pendingCommitCnt;
+    bool intransaction;
+
+    // stat: the number of docs committed
+    uint16_t  docsCommitted;
+
+    // no longer needed, remove once CouchKVStore::addStat is ready
+    size_t vbBatchCount;
+    size_t vbBatchSize;
 };
 
 #endif /* COUCHSTORE_KVSTORE_H */
