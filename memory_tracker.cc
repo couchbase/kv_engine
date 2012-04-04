@@ -80,7 +80,6 @@ void MemoryTracker::getAllocatorStats(std::map<std::string, size_t> &allocator_s
         std::string key((*(stats + i)).key);
         size_t value = (*(stats + i)).value;
         allocator_stats.insert(std::pair<std::string, size_t>(key, value));
-        free((*(stats + i)).key);
     }
     if (stats) {
         free(stats);
