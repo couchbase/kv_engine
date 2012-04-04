@@ -196,14 +196,8 @@ private:
     void queue(CouchRequest &req);
 
     bool getDbFile(uint16_t vbucketId, std::string &dbFileName);
-    bool getDbFile(const Item &it, std::string &dbName) {
-        return getDbFile(it.getVBucketId(), dbName);
-    }
 
     int checkNewRevNum(std::string &dbname, bool newFile = false);
-    int checkNewDbFile(std::string &dbname) {
-        return checkNewRevNum(dbname, true);
-    }
 
     void populateFileNameMap(std::vector<std::string> &filenames);
     void getFileNameMap(std::vector<uint16_t> *vbids, std::string &dirname,

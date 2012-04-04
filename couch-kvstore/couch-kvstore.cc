@@ -211,7 +211,7 @@ void CouchKVStore::set(const Item &itm, uint16_t, Callback<mutation_result> &cb)
     std::string dbFile;
 
     requestcb.setCb = &cb;
-    if (!(getDbFile(itm, dbFile))) {
+    if (!(getDbFile(itm.getVBucketId(), dbFile))) {
         getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                          "Warning: failed to set data, cannot locate database file %s\n",
                          dbFile.c_str());
@@ -326,7 +326,7 @@ void CouchKVStore::del(const Item &itm,
     std::string dbFile;
     CouchRequestCallback requestcb;
 
-    if (!(getDbFile(itm, dbFile))) {
+    if (!(getDbFile(itm.getVBucketId(), dbFile))) {
         getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                          "Warning: failed to delete data, cannot locate database file %s\n",
                          dbFile.c_str());
@@ -461,7 +461,7 @@ bool CouchKVStore::setVBucketState(uint16_t vbucketId, vbucket_state_t state,
     dbFileName = configuration.getDbname() + "/" + id.str() + ".couch";
     mapItr = dbFileMap.find(vbucketId);
     if (mapItr == dbFileMap.end()) {
-        rev = checkNewDbFile(dbFileName);
+        rev = checkNewRevNum(dbFileName, true);
         if (rev == 0) {
             fileRev = 1; // file does not exist, create the db file with rev = 1
         } else {
@@ -714,7 +714,7 @@ bool CouchKVStore::getDbFile(uint16_t vbucketId,
     itr = dbFileMap.find(vbucketId);
     if (itr == dbFileMap.end()) {
        dbFileName = fileName.str();
-       int rev = checkNewDbFile(dbFileName);
+       int rev = checkNewRevNum(dbFileName, true);
        if (rev > 0) {
            updateDbFileMap(vbucketId, rev, true);
            fileName << "." << rev;
@@ -842,7 +842,7 @@ void CouchKVStore::getFileNameMap(std::vector<uint16_t> *vbids,
         dbName = nameKey.str();
         dbFileItr = dbFileMap.find(*vbidItr);
         if (dbFileItr == dbFileMap.end()) {
-            int rev = checkNewDbFile(dbName);
+            int rev = checkNewRevNum(dbName, true);
             if (rev > 0) {
                 filemap.insert(std::pair<uint16_t, int>(*vbidItr, rev));
             } else {
