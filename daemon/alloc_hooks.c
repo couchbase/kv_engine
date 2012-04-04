@@ -99,7 +99,7 @@ void mc_get_allocator_stats(allocator_stat* stats) {
 
         int i;
         for (i = 0; i < mc_get_stats_size(); i++) {
-            (*(stats + i)).key = strdup(stats_names[i]);
+            strcpy(stats[i].key, stats_names[i]);
             (getStatsProp.func)(tcmalloc_stats_names[i], &((*(stats + i)).value));
         }
     }

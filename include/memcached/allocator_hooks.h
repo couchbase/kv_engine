@@ -17,7 +17,7 @@ extern "C" {
 #endif
 
 typedef struct allocator_stat {
-    char* key;
+    char key[48];
     size_t value;
 } allocator_stat;
 
