@@ -17,7 +17,8 @@ typedef union {
     Callback <int> *delCb;
 } CouchRequestCallback;
 
-#define COUCHSTORE_METADATA_SIZE (2*sizeof(uint32_t) + sizeof(uint64_t))
+const size_t COUCHSTORE_METADATA_SIZE (2*sizeof(uint32_t) + sizeof(uint64_t));
+
 class CouchRequest {
 public:
     CouchRequest(const Item &it, int rev, CouchRequestCallback &cb, bool del);
