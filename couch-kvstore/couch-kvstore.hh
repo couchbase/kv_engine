@@ -17,6 +17,17 @@ typedef union {
     Callback <int> *delCb;
 } CouchRequestCallback;
 
+class LoadCallback {
+public:
+    LoadCallback(shared_ptr<Callback<GetValue> > &data,
+                 shared_ptr<RememberingCallback<bool> > &w) :
+        cb(data), complete(w) {
+    }
+
+    shared_ptr<Callback<GetValue> > cb;
+    shared_ptr<RememberingCallback<bool> > complete;
+};
+
 const size_t COUCHSTORE_METADATA_SIZE (2*sizeof(uint32_t) + sizeof(uint64_t));
 
 class CouchRequest {
@@ -168,8 +179,8 @@ public:
     static void readVBState(Db *db, uint16_t vbId, vbucket_state &vbState);
 
 protected:
-    void tap(shared_ptr<TapCallback> cb, bool keysOnly,
-             std::vector<uint16_t> *vbids);
+    void loadDB(shared_ptr<LoadCallback> cb, bool keysOnly,
+                std::vector<uint16_t> *vbids);
     bool setVBucketState(uint16_t vbucketId, vbucket_state_t state, uint64_t checkpointId);
     template <typename T>
     void addStat(const std::string &prefix, const char *nm, T val,

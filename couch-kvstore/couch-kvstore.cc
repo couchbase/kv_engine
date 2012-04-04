@@ -125,8 +125,8 @@ public:
     uint16_t vbId;
 };
 
-struct TapResponseCtx {
-    shared_ptr<TapCallback> callback;
+struct LoadResponseCtx {
+    shared_ptr<LoadCallback> callback;
     uint16_t vbucketId;
     bool keysonly;
 };
@@ -535,23 +535,23 @@ bool CouchKVStore::setVBucketState(uint16_t vbucketId, vbucket_state_t state,
 
 void CouchKVStore::dump(shared_ptr<Callback<GetValue> > cb) {
     shared_ptr<RememberingCallback<bool> > wait(new RememberingCallback<bool>());
-    shared_ptr<TapCallback> callback(new TapCallback(cb, wait));
-    tap(callback, false, NULL);
+    shared_ptr<LoadCallback> callback(new LoadCallback(cb, wait));
+    loadDB(callback, false, NULL);
 }
 
 void CouchKVStore::dump(uint16_t vb, shared_ptr<Callback<GetValue> > cb) {
     shared_ptr<RememberingCallback<bool> > wait(new RememberingCallback<bool>());
-    shared_ptr<TapCallback> callback(new TapCallback(cb, wait));
+    shared_ptr<LoadCallback> callback(new LoadCallback(cb, wait));
     std::vector<uint16_t> vbids;
     vbids.push_back(vb);
-    tap(callback, false, &vbids);
+    loadDB(callback, false, &vbids);
 }
 
 void CouchKVStore::dumpKeys(const std::vector<uint16_t> &vbids,  shared_ptr<Callback<GetValue> > cb) {
     shared_ptr<RememberingCallback<bool> > wait(new RememberingCallback<bool>());
-    shared_ptr<TapCallback> callback(new TapCallback(cb, wait));
+    shared_ptr<LoadCallback> callback(new LoadCallback(cb, wait));
     (void)vbids;
-    tap(callback, true, NULL);
+    loadDB(callback, true, NULL);
 }
 
 
@@ -604,8 +604,8 @@ void CouchKVStore::optimizeWrites(std::vector<queued_item> &items) {
     std::sort(items.begin(), items.end(), cq);
 }
 
-void CouchKVStore::tap(shared_ptr<TapCallback> cb, bool keysOnly,
-                       std::vector<uint16_t> *vbids) {
+void CouchKVStore::loadDB(shared_ptr<LoadCallback> cb, bool keysOnly,
+                          std::vector<uint16_t> *vbids) {
     std::string dirname = configuration.getDbname();
     std::vector<std::string> files = std::vector<std::string>();
     std::map<uint16_t, int> &filemap = dbFileMap;
@@ -647,7 +647,7 @@ void CouchKVStore::tap(shared_ptr<TapCallback> cb, bool keysOnly,
                               couchstore_strerror(errorCode));
             remVBucketFromDbFileMap(itr->first);
         } else {
-            TapResponseCtx ctx;
+            LoadResponseCtx ctx;
             ctx.vbucketId = itr->first;
             ctx.keysonly = keysOnly;
             ctx.callback = cb;
@@ -873,8 +873,8 @@ void CouchKVStore::populateFileNameMap(std::vector<std::string> &filenames) {
 int CouchKVStore::recordDbDump(Db* db, DocInfo* docinfo, void *ctx) {
     Item *it = NULL;
     Doc *doc = NULL;
-    TapResponseCtx *tapCtx = (TapResponseCtx *)ctx;
-    shared_ptr<TapCallback> callback = tapCtx->callback;
+    LoadResponseCtx *loadCtx = (LoadResponseCtx *)ctx;
+    shared_ptr<LoadCallback> callback = loadCtx->callback;
 
     // TODO enable below when couchstore is ready
     // bool compressed = (docinfo->content_meta & 0x80);
@@ -884,7 +884,7 @@ int CouchKVStore::recordDbDump(Db* db, DocInfo* docinfo, void *ctx) {
     size_t valuelen;
     sized_buf  metadata = docinfo->rev_meta;
     uint32_t itemflags;
-    uint16_t vbucketId = tapCtx->vbucketId;
+    uint16_t vbucketId = loadCtx->vbucketId;
     sized_buf key = docinfo->id;
     uint64_t cas;
     uint32_t exptime;
@@ -907,7 +907,7 @@ int CouchKVStore::recordDbDump(Db* db, DocInfo* docinfo, void *ctx) {
         return 0;
     }
 
-    if (!tapCtx->keysonly) {
+    if (!loadCtx->keysonly) {
         couchstore_error_t errCode ;
         errCode = couchstore_open_doc_with_docinfo(db, docinfo, &doc, 0);
 
@@ -934,7 +934,7 @@ int CouchKVStore::recordDbDump(Db* db, DocInfo* docinfo, void *ctx) {
                   1,
                   vbucketId);
 
-    GetValue rv(it, ENGINE_SUCCESS, -1, -1, NULL, tapCtx->keysonly);
+    GetValue rv(it, ENGINE_SUCCESS, -1, -1, NULL, loadCtx->keysonly);
     callback->cb->callback(rv);
 
     couchstore_free_document(doc);
