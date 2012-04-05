@@ -23,15 +23,6 @@
 bool MemoryTracker::tracking = false;
 MemoryTracker *MemoryTracker::instance = NULL;
 
-static void *updateStatsThread(void* arg) {
-    MemoryTracker* tracker = static_cast<MemoryTracker*>(arg);
-    while (tracker->trackingMemoryAllocations()) {
-        tracker->updateStats();
-        usleep(250000);
-    }
-    return NULL;
-}
-
 MemoryTracker *MemoryTracker::getInstance() {
     if (!instance) {
         instance = new MemoryTracker();
@@ -61,21 +52,7 @@ MemoryTracker::MemoryTracker() {
     stats.ext_stats_size = getHooksApi()->get_extra_stats_size();
     stats.ext_stats = (allocator_ext_stat*) calloc(stats.ext_stats_size,
                                                    sizeof(allocator_ext_stat));
-    if (getHooksApi()->add_new_hook(&NewHook)) {
-        getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "Registered add hook");
-        if (getHooksApi()->add_delete_hook(&DeleteHook)) {
-            getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "Registered delete hook");
-            std::cout.flush();
-            tracking = true;
-            updateStats();
-            if (pthread_create(&statsThreadId, NULL, updateStatsThread, this) != 0) {
-                throw std::runtime_error("Error creating thread to update stats");
-            }
-            return;
-        }
-        std::cout.flush();
-        getHooksApi()->remove_new_hook(&NewHook);
-    }
+    tracking = false;
     getLogger()->log(EXTENSION_LOG_WARNING, NULL, "Failed to register allocator hooks");
 }
 
