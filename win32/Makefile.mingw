@@ -35,12 +35,14 @@ install: ${BINARIES} $(INSTALLDIRS)
 CFLAGS = -std=gnu99 -DNDEBUG -g \
            -fno-strict-aliasing -Wstrict-prototypes -Wmissing-prototypes \
            -Wmissing-declarations -Wredundant-decls \
+           -DGLIBCXX_FORCE_NEW
 
 CXXFLAGS = -std=gnu++0x -g \
            -pedantic -Wshadow -fdiagnostics-show-option \
            -Wformat=2 -Wconversion -Wstrict-aliasing -Wextra \
            -Woverloaded-virtual -Wnon-virtual-dtor -Wctor-dtor-privacy \
-           -Wno-long-long  -Wmissing-declarations -Wno-redundant-decls
+           -Wno-long-long  -Wmissing-declarations -Wno-redundant-decls \
+           -DGLIBCXX_FORCE_NEW
 
 EP_ENGINE_CC_SRC = \
                  access_scanner.cc \
@@ -140,6 +142,8 @@ MBDBCONVERT_SRC = \
         objectregistry.cc
 
 MBDBCONVERT_OBJS = ${MBDBCONVERT_SRC:%.cc=.libs/%.o}
+management/cbdbconvert.exe: ${OBJDIR} ${GENFILES} ${MBDBCONVERT_OBJS} ${LIBKVSTORE_OBJS}
+	${LINK.cc} -o $@ ${MBDBCONVERT_OBJS} .libs/gethrtime.o ${LIBKVSTORE_OBJS} ${LIB} -lpthread
 
 .libs/config_version.h:
 	./win32/config.sh
