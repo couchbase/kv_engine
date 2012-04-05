@@ -2030,9 +2030,9 @@ public:
 
     PersistenceCallback(const queued_item &qi, std::queue<queued_item> *q,
                         EventuallyPersistentStore *st, MutationLog *ml,
-                        rel_time_t qd, rel_time_t d, EPStats *s) :
+                        rel_time_t qd, rel_time_t d, EPStats *s, uint64_t c) :
         queuedItem(qi), rq(q), store(st), mutationLog(ml),
-        queued(qd), dirtied(d), stats(s) {
+        queued(qd), dirtied(d), stats(s), cas(c) {
 
         assert(rq);
         assert(s);
@@ -2048,30 +2048,39 @@ public:
                 ++stats->newItems;
                 setId(value.second);
             }
+
             RCPtr<VBucket> vb = store->getVBucket(queuedItem->getVBucketId());
-            if (vb && vb->getState() != vbucket_state_active &&
-                vb->getState() != vbucket_state_pending) {
+            if (vb) {
                 int bucket_num(0);
                 LockHolder lh = vb->ht.getLockedBucket(queuedItem->getKey(), &bucket_num);
                 StoredValue *v = store->fetchValidValue(vb, queuedItem->getKey(),
                                                         bucket_num, true);
-                double current = static_cast<double>(stats->getTotalMemoryUsed());
-                double lower = static_cast<double>(stats->mem_low_wat);
-                if (v && current > lower) {
-                    // Check if the key was already visited by all the cursors.
-                    bool can_evict = vb->checkpointManager.eligibleForEviction(v->getKey());
-                    if (can_evict &&
-                        v->ejectValue(*stats, vb->ht) &&
-                        vb->getState() == vbucket_state_replica) {
-                        ++stats->numReplicaEjects;
+                if (v && cas == v->getCas()) {
+                    // mark this item clean only if current and stored cas
+                    // value match
+                    v->markClean(NULL);
+                    vbucket_state_t vbstate = vb->getState();
+                    if (vbstate != vbucket_state_active &&
+                        vbstate != vbucket_state_pending) {
+                        double current = static_cast<double>(stats->getTotalMemoryUsed());
+                        double lower = static_cast<double>(stats->mem_low_wat);
+                        if (current > lower) {
+                            // Check if the key was already visited by all the cursors.
+                            bool can_evict = vb->checkpointManager.eligibleForEviction(v->getKey());
+                            if (can_evict &&
+                                v->ejectValue(*stats, vb->ht) &&
+                                vbstate == vbucket_state_replica) {
+                                ++stats->numReplicaEjects;
+                            }
+                        }
                     }
                 }
             }
         } else {
             // If the return was 0 here, we're in a bad state because
             // we do not know the rowid of this object.
-            if (value.first == 0) {
-                RCPtr<VBucket> vb = store->getVBucket(queuedItem->getVBucketId());
+            RCPtr<VBucket> vb = store->getVBucket(queuedItem->getVBucketId());
+            if (vb && value.first == 0) {
                 int bucket_num(0);
                 LockHolder lh = vb->ht.getLockedBucket(queuedItem->getKey(), &bucket_num);
                 StoredValue *v = store->fetchValidValue(vb, queuedItem->getKey(),
@@ -2167,6 +2176,7 @@ private:
     rel_time_t queued;
     rel_time_t dirtied;
     EPStats *stats;
+    uint64_t cas;
     DISALLOW_COPY_AND_ASSIGN(PersistenceCallback);
 };
 
@@ -2284,9 +2294,6 @@ int EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
                     v->setPendingId();
                 }
 
-                // TODO: An item should be marked as clean in TransactionContext::commit()
-                // to support a consistent read from disk after the item is ejected.
-                v->markClean(NULL);
                 lh.unlock();
                 BlockTimer timer(rowid == -1 ?
                                  &stats.diskInsertHisto : &stats.diskUpdateHisto,
@@ -2294,7 +2301,7 @@ int EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
                                  stats.timingLog);
                 PersistenceCallback *cb;
                 cb = new PersistenceCallback(qi, rejectQueue, this, &mutationLog,
-                                             queued, dirtied, &stats);
+                                             queued, dirtied, &stats, itm.getCas());
                 tctx.addCallback(cb);
                 rwUnderlying->set(itm, qi->getVBucketVersion(), *cb);
                 if (rowid == -1)  {
@@ -2311,7 +2318,7 @@ int EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
 
         PersistenceCallback *cb;
         cb = new PersistenceCallback(qi, rejectQueue, this, &mutationLog,
-                                     queued, dirtied, &stats);
+                                     queued, dirtied, &stats, 0);
         if (rowid > 0 || tempItem) {
             // Temporary items created as a result of get_meta requests have
             // rowid < 1. The isTempItem() check ensures that such items will
