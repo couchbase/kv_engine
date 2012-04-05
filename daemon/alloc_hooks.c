@@ -74,30 +74,30 @@ bool mc_remove_delete_hook(void (*hook)(const void* ptr)) {
     return (removeDelHook.func)(hook) ? true : false;
 }
 
-int mc_get_stats_size() {
+int mc_get_extra_stats_size() {
     if (type == tcmalloc) {
-        return 7;
+        return 3;
     }
     return 0;
 }
 
-void mc_get_allocator_stats(allocator_stat* stats) {
+void mc_get_allocator_stats(allocator_stats* stats) {
     if (type == tcmalloc) {
-        strcpy(stats[0].key, "total_allocated_bytes");
-        strcpy(stats[1].key, "total_heap_size");
-        strcpy(stats[2].key, "total_free_bytes");
-        strcpy(stats[3].key, "total_fragmented_bytes");
-        strcpy(stats[4].key, "tcmalloc_unmapped_bytes");
-        strcpy(stats[5].key, "tcmalloc_max_thread_cache_bytes");
-        strcpy(stats[6].key, "tcmalloc_current_thread_cache_bytes");
+        (getStatsProp.func)("generic.current_allocated_bytes", &(stats->allocated_size));
+        (getStatsProp.func)("generic.heap_size", &(stats->heap_size));
+        (getStatsProp.func)("tcmalloc.pageheap_free_bytes", &(stats->free_size));
+        stats->fragmentation_size = stats->heap_size - stats->allocated_size - stats->free_size;
 
-        (getStatsProp.func)("generic.current_allocated_bytes", &stats[0].value);
-        (getStatsProp.func)("generic.heap_size", &stats[1].value);
-        (getStatsProp.func)("tcmalloc.pageheap_free_bytes", &stats[2].value);
-        stats[3].value = stats[1].value - stats[0].value - stats[2].value;
-        (getStatsProp.func)("tcmalloc.pageheap_unmapped_bytes", &stats[4].value);
-        (getStatsProp.func)("tcmalloc.max_total_thread_cache_bytes", &stats[5].value);
-        (getStatsProp.func)("tcmalloc.current_total_thread_cache_bytes", &stats[6].value);
+        strcpy(stats->ext_stats[0].key, "tcmalloc_unmapped_bytes");
+        strcpy(stats->ext_stats[1].key, "tcmalloc_max_thread_cache_bytes");
+        strcpy(stats->ext_stats[2].key, "tcmalloc_current_thread_cache_bytes");
+
+        (getStatsProp.func)("tcmalloc.pageheap_unmapped_bytes",
+                            &(stats->ext_stats[0].value));
+        (getStatsProp.func)("tcmalloc.max_total_thread_cache_bytes",
+                            &(stats->ext_stats[1].value));
+        (getStatsProp.func)("tcmalloc.current_total_thread_cache_bytes",
+                            &(stats->ext_stats[2].value));
     }
 }
 
