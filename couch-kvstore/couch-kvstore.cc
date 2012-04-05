@@ -55,12 +55,6 @@ int recordDbDumpC(Db* db, DocInfo* docinfo, void *ctx) {
     return CouchKVStore::recordDbDump(db, docinfo, ctx);
 }
 
-extern "C" int recordDbStatC(Db* db, DocInfo* docinfo, void *ctx);
-int recordDbStatC(Db* db, DocInfo* docinfo, void *ctx) {
-    return CouchKVStore::recordDbStat(db, docinfo, ctx);
-}
-
-
 static const std::string getJSONObjString(cJSON *i) {
     if (i == NULL) {
         return "";
@@ -396,16 +390,15 @@ vbucket_map_t CouchKVStore::listPersistedVbuckets() {
                     dbName.c_str(), couchstore_strerror(errorCode));
             remVBucketFromDbFileMap(itr->first);
         } else {
-            StatResponseCtx ctx(rv, itr->first);
-            errorCode = couchstore_changes_since(db, 0, 0, recordDbStatC,
-                                                 static_cast<void *>(&ctx));
-            if (errorCode != COUCHSTORE_SUCCESS) {
-                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                        "Warning: changes_since failed, vBucket=%d rev=%d error=%s\n",
-                        itr->first, itr->second,
-                        couchstore_strerror(errorCode));
-                remVBucketFromDbFileMap(itr->first);
-            }
+            vbucket_state vb_state;
+            uint16_t      vbID = itr->first;
+            std::pair<uint16_t, uint16_t> vb(vbID, -1);
+
+            /* read state of VBucket from db file */
+            readVBState(db, vbID, vb_state);
+            /* insert populated state to the array to return to the caller */
+            rv[vb] = vb_state;
+
             closeDatabaseHandle(db);
         }
         db = NULL;
@@ -1204,21 +1197,6 @@ void CouchKVStore::commitCallback(CouchRequest **committedReqs, int numReqs,
             setCb->callback(p);
         }
     }
-}
-
-int CouchKVStore::recordDbStat(Db *db, DocInfo *, void *ctx)
-{
-    StatResponseCtx *statCtx = (StatResponseCtx *)ctx;
-    std::map<std::pair<uint16_t, uint16_t>, vbucket_state> &rv = statCtx->statMap;
-    std::pair<uint16_t, uint16_t> vb(statCtx->vbId, -1);
-
-    vbucket_state vb_state;
-    readVBState(db, statCtx->vbId, vb_state);
-
-    // insert populated state to the array of vbucket_state which is returned to
-    // the caller
-    rv[vb] = vb_state;
-    return 0;
 }
 
 void CouchKVStore::readVBState(Db *db, uint16_t vbId, vbucket_state &vbState)
