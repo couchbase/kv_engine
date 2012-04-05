@@ -44,6 +44,8 @@ public:
 
     size_t getTotalBytesAllocated();
 
+    size_t getTotalHeapBytes();
+
 private:
     MemoryTracker();
 

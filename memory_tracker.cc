@@ -116,6 +116,10 @@ size_t MemoryTracker::getTotalBytesAllocated() {
     return stats.allocated_size;
 }
 
+size_t MemoryTracker::getTotalHeapBytes() {
+    return stats.heap_size;
+}
+
 bool MemoryTracker::trackingMemoryAllocations() {
     return tracking;
 }
