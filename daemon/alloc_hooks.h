@@ -33,7 +33,5 @@ bool mc_remove_delete_hook(void (*)(const void* ptr));
 void mc_get_allocator_stats(allocator_stat*);
 int mc_get_stats_size(void);
 size_t mc_get_allocation_size(void*);
-size_t mc_get_fragmented_size(void);
-size_t mc_get_allocated_size(void);
 
 #endif /* MEM_HOOKS_H */

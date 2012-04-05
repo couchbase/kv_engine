@@ -79,19 +79,6 @@ typedef struct engine_allocator_hooks_v1 {
      */
     size_t (*get_allocation_size)(void*);
 
-    /**
-     * Gets the heap fragmentation in bytes from the allocator. This
-     * value may be computed differently based on the allocator in
-     * use.
-     */
-    size_t (*get_fragmented_size)(void);
-
-    /**
-     * Gets the amount of bytes allocated for a specific allocation
-     * from the allocator in use.
-     */
-    size_t (*get_allocated_size)(void);
-
 } ALLOCATOR_HOOKS_API;
 
 #ifdef __cplusplus

@@ -288,14 +288,6 @@ static size_t mock_get_allocation_size(void* ptr) {
     return 0;
 }
 
-static size_t mock_get_fragmented_size(void) {
-    return 0;
-}
-
-static size_t mock_get_allocated_size(void) {
-    return 0;
-}
-
 SERVER_HANDLE_V1 *get_mock_server_api(void)
 {
     static SERVER_CORE_API core_api = {
@@ -342,9 +334,7 @@ SERVER_HANDLE_V1 *get_mock_server_api(void)
         .remove_delete_hook = mock_remove_delete_hook,
         .get_stats_size = mock_get_stats_size,
         .get_allocator_stats = mock_get_allocator_stats,
-        .get_allocation_size = mock_get_allocation_size,
-        .get_fragmented_size = mock_get_fragmented_size,
-        .get_allocated_size = mock_get_allocated_size
+        .get_allocation_size = mock_get_allocation_size
     };
 
     static SERVER_HANDLE_V1 rv = {

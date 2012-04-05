@@ -105,25 +105,6 @@ size_t mc_get_allocation_size(void* ptr) {
     return (size_t)(getAllocSize.func)(ptr);
 }
 
-size_t mc_get_fragmented_size() {
-    if (type == tcmalloc) {
-        size_t heap_bytes = 0;
-        size_t allocated_bytes = 0;
-        size_t free_bytes = 0;
-        (getStatsProp.func)("generic.heap_size", &heap_bytes);
-        (getStatsProp.func)("generic.current_allocated_bytes", &allocated_bytes);
-        (getStatsProp.func)("tcmalloc.pageheap_free_bytes", &free_bytes);
-        return heap_bytes - allocated_bytes - free_bytes;
-    }
-    return 0;
-}
-
-size_t mc_get_allocated_size() {
-    size_t allocated_bytes = 0;
-    (getStatsProp.func)("generic.current_allocated_bytes", &allocated_bytes);
-    return allocated_bytes;
-}
-
 bool invalid_hook_function(void (*hook)(const void* ptr, size_t size)) {
     return false;
 }
