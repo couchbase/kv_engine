@@ -93,3 +93,7 @@ size_t MemoryTracker::getTotalBytesAllocated() {
     return 0;
 }
 
+size_t MemoryTracker::getTotalHeapBytes() {
+    return 0;
+}
+
