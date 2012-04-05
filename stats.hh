@@ -45,8 +45,9 @@ public:
 
     size_t getTotalMemoryUsed() {
         if (MemoryTracker::trackingMemoryAllocations()) {
-            double total_alloc_bytes = getHooksApi()->get_allocated_size();
-            double frag_bytes = getHooksApi()->get_fragmented_size();
+            MemoryTracker* tracker = MemoryTracker::getInstance();
+            double total_alloc_bytes = tracker->getTotalBytesAllocated();
+            double frag_bytes = tracker->getFragmentation();
             double adjFrag = totalMemory / total_alloc_bytes * frag_bytes;
             return static_cast<size_t>(totalMemory + adjFrag);
         }

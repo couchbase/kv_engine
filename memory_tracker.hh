@@ -38,6 +38,12 @@ public:
 
     static bool trackingMemoryAllocations();
 
+    void updateStats();
+
+    size_t getFragmentation();
+
+    size_t getTotalBytesAllocated();
+
 private:
     MemoryTracker();
 
@@ -45,6 +51,8 @@ private:
     static bool tracking;
     // Singleton memory tracker
     static MemoryTracker *instance;
+    pthread_t statsThreadId;
+    allocator_stats stats;
 };
 
 #endif /* MEMORY_TRACKER_H */

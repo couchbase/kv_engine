@@ -24,11 +24,11 @@ extern "C" {
         return false;
     }
 
-    static int mock_get_stats_size() {
+    static int mock_get_extra_stats_size() {
         return 0;
     }
 
-    static void mock_get_allocator_stats(allocator_stat*) {
+    static void mock_get_allocator_stats(allocator_stats*) {
         // Empty
     }
 
@@ -51,11 +51,9 @@ ALLOCATOR_HOOKS_API* getHooksApi(void) {
     hooksApi.remove_new_hook = mock_remove_new_hook;
     hooksApi.add_delete_hook = mock_add_delete_hook;
     hooksApi.remove_delete_hook = mock_remove_delete_hook;
-    hooksApi.get_stats_size = mock_get_stats_size;
+    hooksApi.get_extra_stats_size = mock_get_extra_stats_size;
     hooksApi.get_allocator_stats = mock_get_allocator_stats;
     hooksApi.get_allocation_size = mock_get_allocation_size;
-    hooksApi.get_fragmented_size = mock_get_fragmented_size;
-    hooksApi.get_allocated_size = mock_get_allocated_size;
     return &hooksApi;
 }
 
@@ -85,5 +83,13 @@ void MemoryTracker::getAllocatorStats(std::map<std::string, size_t> &allocator_s
 bool MemoryTracker::trackingMemoryAllocations() {
     // This should ALWAYS return false
     return tracking;
+}
+
+size_t MemoryTracker::getFragmentation() {
+    return 0;
+}
+
+size_t MemoryTracker::getTotalBytesAllocated() {
+    return 0;
 }
 
