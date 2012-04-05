@@ -83,9 +83,9 @@ int mc_get_stats_size() {
 
 void mc_get_allocator_stats(allocator_stat* stats) {
     if (type == tcmalloc) {
-        strcpy(stats[0].key, "tcmalloc_allocated_bytes");
-        strcpy(stats[1].key, "tcmalloc_heap_size");
-        strcpy(stats[2].key, "tcmalloc_free_bytes");
+        strcpy(stats[0].key, "total_allocated_bytes");
+        strcpy(stats[1].key, "total_heap_size");
+        strcpy(stats[2].key, "total_free_bytes");
         strcpy(stats[3].key, "total_fragmented_bytes");
         strcpy(stats[4].key, "tcmalloc_unmapped_bytes");
         strcpy(stats[5].key, "tcmalloc_max_thread_cache_bytes");
