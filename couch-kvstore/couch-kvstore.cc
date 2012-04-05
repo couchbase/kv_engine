@@ -240,13 +240,13 @@ void CouchKVStore::get(const std::string &key, uint64_t, uint16_t vb, uint16_t,
     std::string dbFile;
     sized_buf id;
     Item *it;
+    GetValue rv;
 
     if (!(getDbFile(vb, dbFile))) {
         getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                          "Warning: failed to retrieve data from vBucketId = %d "
                          "[key=%s], cannot locate database file %s\n",
                          vb, key.c_str(), dbFile.c_str());
-        GetValue rv;
         cb.callback(rv);
         return;
     }
@@ -257,7 +257,6 @@ void CouchKVStore::get(const std::string &key, uint64_t, uint16_t vb, uint16_t,
                          "Warning: failed to open database, name=%s error=%s\n",
                          dbFile.c_str(),
                          couchstore_strerror(errCode));
-        GetValue rv;
         cb.callback(rv);
         return;
     }
@@ -279,9 +278,6 @@ void CouchKVStore::get(const std::string &key, uint64_t, uint16_t vb, uint16_t,
                              dbFile.c_str(), id.buf,
                              couchstore_strerror(errCode));
         }
-        GetValue rv;
-        cb.callback(rv);
-        return;
     } else {
         assert(docInfo);
         uint32_t itemFlags;
@@ -300,6 +296,7 @@ void CouchKVStore::get(const std::string &key, uint64_t, uint16_t vb, uint16_t,
             cas = ntohll(cas);
             it = new Item(key.c_str(), (size_t)key.length(), (size_t)0,
                           itemFlags, (time_t)0, cas);
+            rv = GetValue(it);
         } else {
             errCode = couchstore_open_doc_with_docinfo(db, docInfo, &doc, 0);
             if (errCode != COUCHSTORE_SUCCESS || docInfo->deleted) {
@@ -309,20 +306,17 @@ void CouchKVStore::get(const std::string &key, uint64_t, uint16_t vb, uint16_t,
                                  dbFile.c_str(), id.buf,
                                  couchstore_strerror(errCode),
                                  docInfo->deleted ? "yes" : "no");
-                GetValue rv;
-                cb.callback(rv);
-                return;
-            }
-            assert(doc && (doc->id.size <= UINT16_MAX));
-            assert(strncmp(doc->id.buf, key.c_str(), doc->id.size) == 0);
+            } else {
+                assert(doc && (doc->id.size <= UINT16_MAX));
+                assert(strncmp(doc->id.buf, key.c_str(), doc->id.size) == 0);
 
-            valuelen = doc->data.size;
-            valuePtr = doc->data.buf;
-            it = new Item(key, itemFlags, 0, valuePtr, valuelen, 0, -1, vb);
+                valuelen = doc->data.size;
+                valuePtr = doc->data.buf;
+                it = new Item(key, itemFlags, 0, valuePtr, valuelen, 0, -1, vb);
+                rv = GetValue(it);
+            }
         }
     }
-
-    GetValue rv(it);
     couchstore_free_docinfo(docInfo);
     couchstore_free_document(doc);
     closeDatabaseHandle(db);
