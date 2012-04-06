@@ -16,6 +16,8 @@ bool init_tcmalloc_hooks(void);
 bool invalid_hook_function(void (*)(const void*, size_t));
 size_t invalid_size_function(const char*, size_t*);
 
+#define TCMALLOC_DLL "libtcmalloc_minimal-4.dll"
+
 void init_alloc_hooks() {
     if (!init_tcmalloc_hooks()) {
         init_no_hooks();
@@ -25,7 +27,11 @@ void init_alloc_hooks() {
 }
 
 bool init_tcmalloc_hooks(void) {
+#ifndef __WIN32__
     void* handle = dlopen(NULL, RTLD_LAZY);
+#else
+    void* handle = dlopen(TCMALLOC_DLL, RTLD_LAZY);
+#endif
 
     if (!handle) {
         get_stderr_logger()->log(EXTENSION_LOG_WARNING, NULL,
