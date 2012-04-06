@@ -288,7 +288,7 @@ void CouchKVStore::get(const std::string &key, uint64_t, uint16_t vb, uint16_t,
             uint64_t cas;
             memcpy(&cas, (metadata.buf), 8);
             cas = ntohll(cas);
-            it = new Item(key.c_str(), (size_t)key.length(), (size_t)0,
+            it = new Item(key.c_str(), (size_t)key.length(), docInfo->size,
                           itemFlags, (time_t)0, cas);
             rv = GetValue(it);
         } else {
