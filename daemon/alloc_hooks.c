@@ -27,10 +27,10 @@ void init_alloc_hooks() {
 }
 
 bool init_tcmalloc_hooks(void) {
-#ifndef __WIN32__
-    void* handle = dlopen(NULL, RTLD_LAZY);
-#else
+#ifdef __WIN32__
     void* handle = dlopen(TCMALLOC_DLL, RTLD_LAZY);
+#else
+    void* handle = dlopen(NULL, RTLD_LAZY);
 #endif
 
     if (!handle) {
