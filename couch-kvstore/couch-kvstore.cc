@@ -213,7 +213,7 @@ void CouchKVStore::set(const Item &itm, uint16_t, Callback<mutation_result> &cb)
     requestcb.setCb = &cb;
     if (!(getDbFile(itm, dbFile))) {
         getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                         "Failed to set data, cannot locate database file %s\n",
+                         "Warning: failed to set data, cannot locate database file %s\n",
                          dbFile.c_str());
         mutation_result p(0, -1);
         cb.callback(p);
@@ -328,7 +328,7 @@ void CouchKVStore::del(const Item &itm,
 
     if (!(getDbFile(itm, dbFile))) {
         getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                         "Failed to delete data, cannot locate database file %s\n",
+                         "Warning: failed to delete data, cannot locate database file %s\n",
                          dbFile.c_str());
         int value = -1;
         cb.callback(value);
@@ -481,7 +481,7 @@ bool CouchKVStore::setVBucketState(uint16_t vbucketId, vbucket_state_t state,
             fileName << vbucketId << ".couch." << fileRev;
             dbFileName = configuration.getDbname() + "/" + fileName.str();
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "Failed to open database, name=%s error=%s\n",
+                             "Warning: failed to open database, name=%s error=%s\n",
                              dbFileName.c_str(),
                              couchstore_strerror(errorCode));
             return false;
@@ -499,7 +499,7 @@ bool CouchKVStore::setVBucketState(uint16_t vbucketId, vbucket_state_t state,
         errorCode = saveVBState(db, vbState);
         if (errorCode != COUCHSTORE_SUCCESS) {
            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                            "Failed to save local doc, name=%s error=%s\n",
+                            "Warning: failed to save local doc, name=%s error=%s\n",
                             dbFileName.c_str(),
                             couchstore_strerror(errorCode));
            closeDatabaseHandle(db);
@@ -509,10 +509,10 @@ bool CouchKVStore::setVBucketState(uint16_t vbucketId, vbucket_state_t state,
         errorCode = couchstore_commit(db);
         if (errorCode != COUCHSTORE_SUCCESS) {
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "Commit failed: %s",
-                             couchstore_strerror(errorCode));
-            // TODO, error handling
-            abort();
+                             "Warning: commit failed, vbid=%u rev=%u error=%s",
+                             vbucketId, fileRev, couchstore_strerror(errorCode));
+            closeDatabaseHandle(db);
+            return false;
         } else {
             uint64_t newHeaderPos = couchstore_get_header_position(db);
             RememberingCallback<uint16_t> lcb;
@@ -523,14 +523,13 @@ bool CouchKVStore::setVBucketState(uint16_t vbucketId, vbucket_state_t state,
                 if (lcb.val == PROTOCOL_BINARY_RESPONSE_ETMPFAIL) {
                     getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                                      "Retry notify CouchDB of update, "
-                                     "vbid=%u, rev=%u\n", vbucketId, fileRev);
+                                     "vbid=%u rev=%u\n", vbucketId, fileRev);
                     retry = true;
                 } else {
                     getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                     "Failed to notify CouchDB of update, "
-                                     "vbid=%u, rev=%u, error=0x%x\n",
+                                     "Warning: failed to notify CouchDB of update, "
+                                     "vbid=%u rev=%u error=0x%x\n",
                                      vbucketId, fileRev, lcb.val);
-                    // TODO, better error handling
                     abort();
                 }
             }
@@ -642,7 +641,7 @@ void CouchKVStore::tap(shared_ptr<TapCallback> cb, bool keysOnly,
             populateFileNameMap(files);
         } else {
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "Warning: Data directory is empty, %s\n",
+                             "Warning: data directory is empty, %s\n",
                              dirname.c_str());
             return;
         }
@@ -667,7 +666,7 @@ void CouchKVStore::tap(shared_ptr<TapCallback> cb, bool keysOnly,
             std::string dbName = dirname + "/" + vbid.str() + ".couch." +
                                  rev.str();
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "Failed to open database, name=%s error=%s",
+                             "Warning: failed to open database, name=%s error=%s",
                               dbName.c_str(),
                               couchstore_strerror(errorCode));
             remVBucketFromDbFileMap(itr->first);
@@ -680,7 +679,7 @@ void CouchKVStore::tap(shared_ptr<TapCallback> cb, bool keysOnly,
                                                  static_cast<void *>(&ctx));
             if (errorCode != COUCHSTORE_SUCCESS) {
                 getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                 "couchstore_changes_since failed, error=%s\n",
+                                 "Warning: couchstore_changes_since failed, error=%s\n",
                                  couchstore_strerror(errorCode));
                 remVBucketFromDbFileMap(itr->first);
             }
@@ -720,9 +719,6 @@ bool CouchKVStore::getDbFile(uint16_t vbucketId,
            updateDbFileMap(vbucketId, rev, true);
            fileName << "." << rev;
        } else {
-           getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                            "Database file does not exist, %s\n",
-                            dbFileName.c_str());
            return false;
        }
     } else {
@@ -827,7 +823,7 @@ couchstore_error_t CouchKVStore::openDB(uint16_t vbucketId,
 
     if (errorCode) {
         getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                         "open_db() failed to open database file, name=%s error=%d\n",
+                         "open_db() failed, name=%s error=%d\n",
                           dbName.c_str(), errorCode);
     }
     return errorCode;
@@ -851,10 +847,8 @@ void CouchKVStore::getFileNameMap(std::vector<uint16_t> *vbids,
                 filemap.insert(std::pair<uint16_t, int>(*vbidItr, rev));
             } else {
                 getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                 "Database file does not exist, %s\n",
+                                 "Warning: database file does not exist, %s\n",
                                   dbName.c_str());
-                // TODO abort or continue?
-                abort();
             }
         } else {
             filemap.insert(std::pair<uint16_t, int>(dbFileItr->first,
@@ -951,7 +945,7 @@ int CouchKVStore::recordDbDump(Db* db, DocInfo* docinfo, void *ctx) {
                              "Warning: failed to retrieve key value from database "
                              "database, vBucket=%d key=%s error=%s\n",
                              vbucketId, key.buf, couchstore_strerror(errCode));
-            abort();
+            return 0;
         }
     }
 
@@ -1015,12 +1009,11 @@ bool CouchKVStore::commit2couchstore(void) {
                                numDocs2save);
             if (errCode) {
                 getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                 "Failed to save CouchDB docs, vbucket = %d "
-                                 "rev = %d error = %d\n",
+                                 "Warning: commit failed, cannot save CouchDB "
+                                 "docs for vbucket = %d rev = %d error = %d\n",
                                  vbucket2flush,
                                  committedReqs[flushStartIndex]->getRevNum(),
                                  (int)errCode);
-                abort();
             }
             commitCallback(&committedReqs[flushStartIndex], numDocs2save, errCode);
             numDocs2save = 0;
@@ -1038,12 +1031,11 @@ bool CouchKVStore::commit2couchstore(void) {
                            numDocs2save);
         if (errCode) {
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "Failed to save CouchDB docs, vbucket = %d "
-                             "rev = %d error = %d\n",
+                             "Warning: commit failed, cannot save CouchDB docs "
+                             "for vbucket = %d rev = %d error = %d\n",
                              vbucket2flush,
                              committedReqs[flushStartIndex]->getRevNum(),
                              (int)errCode);
-            abort();
         }
         commitCallback(&committedReqs[flushStartIndex], numDocs2save, errCode);
     }
@@ -1073,8 +1065,8 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, int rev, Doc **docs,
         errCode = openDB(vbucket2save, fileRev, &db, 0, &newFileRev);
         if (errCode != COUCHSTORE_SUCCESS) {
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "Failed to open database, vbucketId = %d fileRev = %d "
-                             "error = %d\n",
+                             "Warning: failed to open database, vbucketId = %d "
+                             "fileRev = %d error = %d\n",
                              vbucket2save, fileRev, errCode);
             return errCode;
         } else {
@@ -1131,8 +1123,8 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, int rev, Doc **docs,
                     retry_save_docs = true;
                 } else {
                     getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                     "Failed to notify CouchDB of update, vbucket=%d, "
-                                     "error= %d\n",
+                                     "Warning: failed to notify CouchDB of "
+                                     "update for vbucket=%d, error=0x%x\n",
                                      vbucket2save, cb.val);
                     abort();
                 }
