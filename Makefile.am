@@ -58,10 +58,6 @@ cbadm-online-update.1m: docs/cbadm-online-update.pod
 cbbackup-incremental.1m: docs/cbbackup-incremental.pod
 	${POD2MAN} -c "$*" -r "" -s 1m $< $@
 
-couchstore_srcdir = ../couchstore
-couchstorelibdir = $(couchstore_srcdir)
-couchstorelib_LIB = libcouchstore.la
-
 ep_la_CPPFLAGS = -I$(top_srcdir) $(AM_CPPFLAGS)
 ep_la_LDFLAGS = -module -dynamic
 ep_la_SOURCES = \
@@ -124,7 +120,7 @@ libkvstore_la_SOURCES = crc32.c crc32.h kvstore.cc kvstore.hh   \
                         mutation_log_compactor.cc               \
                         mutation_log_compactor.hh
 libkvstore_la_CPPFLAGS = -I$(top_srcdir) -I$(top_srcdir)/sqlite-kvstore \
-                         -I$(couchstore_srcdir)/include/libcouchstore $(AM_CPPFLAGS)
+                         $(AM_CPPFLAGS)
 
 libsqlite_kvstore_la_SOURCES = kvstore.hh \
                                sqlite-kvstore/factory.cc \
@@ -172,14 +168,19 @@ stats-info.h stats-info.c: .generated_stat-info
 
 generated_configuration.hh generated_configuration.cc: .generated_configuration
 
-libcouch_kvstore_la_SOURCES = kvstore.hh \
-                              couch-kvstore/couch-kvstore.cc \
-                              couch-kvstore/couch-kvstore.hh
+libcouch_kvstore_la_SOURCES = kvstore.hh
 
-libcouch_kvstore_la_CPPFLAGS = -I$(top_srcdir) \
-                               -I$(couchstore_srcdir)/include/libcouchstore $(AM_CPPFLAGS)
+if HAVE_LIBCOUCHSTORE
+libcouch_kvstore_la_SOURCES += couch-kvstore/couch-kvstore.cc \
+                               couch-kvstore/couch-kvstore.hh
+#libcouch_kvstore_la_CPPFLAGS = -I$(top_srcdir) \
+#                               $(AM_CPPFLAGS)
+libcouch_kvstore_la_LIBADD = $(LTLIBCOUCHSTORE)
+else
+libcouch_kvstore_la_SOURCES += couch-kvstore/couch-kvstore-dummy.hh \
+                               couch-kvstore/couch-kvstore-dummy.cc
+endif
 
-libcouch_kvstore_la_LIBADD = $(couchstorelibdir)/$(couchstorelib_LIB)
 
 libconfiguration_la_SOURCES = \
                               generated_configuration.hh \

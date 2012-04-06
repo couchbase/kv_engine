@@ -14,7 +14,6 @@
 
 #include "couch-kvstore/couch-kvstore.hh"
 #include "ep_engine.h"
-#include "couch_db.h"
 #include "tools/cJSON.h"
 #include "common.hh"
 

@@ -12,7 +12,11 @@
 #include "mc-kvstore/mc-kvstore.hh"
 #include "blackhole-kvstore/blackhole.hh"
 #include "warmup.hh"
+#ifdef HAVE_LIBCOUCHSTORE
 #include "couch-kvstore/couch-kvstore.hh"
+#else
+#include "couch-kvstore/couch-kvstore-dummy.hh"
+#endif
 
 KVStore *KVStoreFactory::create(EventuallyPersistentEngine &theEngine) {
     Configuration &c = theEngine.getConfiguration();

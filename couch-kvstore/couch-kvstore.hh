@@ -1,7 +1,7 @@
 #ifndef COUCH_KVSTORE_H
 #define COUCH_KVSTORE_H 1
 
-#include "couch_db.h"
+#include "libcouchstore/couch_db.h"
 #include "kvstore.hh"
 #include "item.hh"
 #include "stats.hh"
