@@ -16,7 +16,7 @@ DEST=${LOCAL}
 INSTALLDIRS=${DEST}/bin ${DEST}/lib ${DEST}/include/memcached
 
 TCMALLOC_ROOT= /opt/gperftools
-TCMALLOC_LIB= ${TCMALLOC_ROOT}/lib
+TCMALLOC_LIB= -L${TCMALLOC_ROOT}/lib
 TCMALLOC_INCLUDE = ${TCMALLOC_ROOT}/include
 
 TCMALLOC_FLAGS =
@@ -29,7 +29,7 @@ TCMALLOC_FLAGS += -Wwrite-strings \
                     -fno-builtin-valloc -fno-builtin-pvalloc
 TCMALLOC_LIB_FLAGS =
 TCMALLOC_LIB_FLAGS += -Wl,-u__tcmalloc \
-                 $(TCMALLOC_LIB)/libtcmalloc_minimal.a -lPsapi -lshlwapi \
+                 -ltcmalloc_minimal.dll -lPsapi -lshlwapi \
                  -lstdc++.dll
 
 OBJDIR = .libs \
@@ -134,18 +134,18 @@ GENFILES=.libs/config_version.h
 
 mcstat.exe: ${OBJDIR} ${GENFILES} $(MCSTAT_OBJS)
 	${LINK.c} -o $@ $(MCSTAT_OBJS) \
-                  $(TCMALLOC_LIB_FLAGS)  \
+                  $(TCMALLOC_LIB_FLAGS)  ${TCMALLOC_LIB} \
                   ${LIB} -lmswsock -lws2_32
 
 memcached.exe: ${OBJDIR} ${GENFILES} $(MEMCACHED_OBJS)
 	${LINK.c} -o $@ $(MEMCACHED_OBJS) \
-                  $(TCMALLOC_LIB_FLAGS) \
+                  $(TCMALLOC_LIB_FLAGS)  ${TCMALLOC_LIB} \
                   ${LIB} -levent -lmswsock \
                   -lws2_32 -lpthread
 
 engine_testapp.exe: ${OBJDIR} ${GENFILES} $(ENGINE_TESTAPP_OBJS)
 	${LINK.c} -o $@ $(ENGINE_TESTAPP_OBJS) \
-                  $(TCMALLOC_LIB_FLAGS) \
+                 $(TCMALLOC_LIB_FLAGS)  ${TCMALLOC_LIB} \
                   ${LIB} -levent -lmswsock \
                   -lws2_32 -lpthread
 
