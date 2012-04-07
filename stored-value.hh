@@ -1141,6 +1141,10 @@ public:
                 return INVALID_CAS;
             }
 
+            if (v->isTempItem()) {
+                v->clearId();
+            }
+
             if (!hasMetaData) {
                 itm.setCas();
             }
