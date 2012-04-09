@@ -145,7 +145,7 @@ engine_testapp.exe: ${OBJDIR} ${GENFILES} $(ENGINE_TESTAPP_OBJS)
                   -lws2_32 -lpthread
 
 sizes.exe: ${OBJDIR} ${GENFILES} $(SIZES_OBJS)
-	${LINK.c} -o $@ $(SIZES_OBJS) $(TCMALLOC_LIB_FLAGS)
+	${LINK.c} -o $@ $(SIZES_OBJS)
 
 .libs/default_engine.so: ${OBJDIR} $(DEFAULT_ENGINE_OBJS)
 	${LINK.c} -o $@ -shared ${DEFAULT_ENGINE_OBJS} \
