@@ -35,8 +35,6 @@
 
 #include <memcached/engine.h>
 
-extern EXTENSION_LOGGER_DESCRIPTOR *getLogger(void);
-
 #include "queueditem.hh"
 #include "stats.hh"
 #include "locks.hh"
