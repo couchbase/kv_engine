@@ -1869,7 +1869,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
                 seqnum = ntohl(seqnum);
                 meta = true;
             }
-            ret = epstore->deleteItem(k, seqnum, 0, vbucket, cookie, true, meta);
+            ret = epstore->deleteItem(k, seqnum, 0, vbucket, cookie, true, meta,
+                                      cas, flags, exptime);
             if (ret == ENGINE_SUCCESS) {
                 addDeleteEvent(k, vbucket, 0);
             } else if (ret == ENGINE_KEY_ENOENT) {
@@ -3837,7 +3838,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(const void* cookie,
 
     ENGINE_ERROR_CODE ret = epstore->deleteItem(key, itm_meta.seqno,
                                                 ntohll(request->message.header.request.cas),
-                                                vbucket, cookie, false, true);
+                                                vbucket, cookie, false, true,
+                                                itm_meta.cas, itm_meta.flags,
+                                                itm_meta.exptime);
     protocol_binary_response_status rc;
     rc = engine_error_2_protocol_error(ret);
 

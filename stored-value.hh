@@ -244,6 +244,13 @@ public:
     }
 
     /**
+     * Set the client-defined flags for this item.
+     */
+    void setFlags(uint32_t fl) {
+        flags = fl;
+    }
+
+    /**
      * Set a new value for this item.
      *
      * @param itm the item with a new value
@@ -1263,7 +1270,12 @@ public:
     /**
      * Unlocked implementation of softDelete.
      */
-    mutation_type_t unlocked_softDelete(StoredValue *v, uint64_t cas, uint32_t seqno) {
+    mutation_type_t unlocked_softDelete(StoredValue *v, uint64_t cas,
+                                        uint32_t newSeqno,
+                                        bool use_meta=false,
+                                        uint64_t newCas=0,
+                                        uint32_t newFlags=0,
+                                        time_t newExptime=0) {
         mutation_type_t rv = NOT_FOUND;
         if (v) {
             if (v->isExpired(ep_real_time())) {
@@ -1291,7 +1303,13 @@ public:
             v->unlock();
 
             rv = v->isClean() ? WAS_CLEAN : WAS_DIRTY;
-            v->setSeqno(seqno);
+            v->setSeqno(newSeqno);
+            if (use_meta) {
+                v->setCas(newCas);
+                v->setFlags(newFlags);
+                v->setExptime(newExptime);
+                v->setStoredValueState(StoredValue::state_deleted_key);
+            }
             v->del(stats, *this);
 
             updateMaxDeletedSeqno(v->getSeqno());

@@ -562,22 +562,28 @@ public:
     /**
      * delete an item in the store.
      * @param key the key of the item
-     * @param seqno the seq no of the item
+     * @param newSeqno the new seq no of the item
      * @param cas the CAS ID for a CASed delete (0 to override)
      * @param vbucket the vbucket for the key
      * @param cookie the cookie representing the client
      * @param force override access to the vbucket even if the state of the
      *              vbucket would deny mutations.
      * @param use_meta delete an item using its meta data
+     * @param newCas the new CAS value of the item (used in delete_with_meta)
+     * @param newFlags the new flags of the item (used in delete_with_meta)
+     * @param newExptime the new exptime of the item (used in delete_with_meta)
      * @return the result of the delete operation
      */
     ENGINE_ERROR_CODE deleteItem(const std::string &key,
-                                 uint32_t seqno,
+                                 uint32_t newSeqno,
                                  uint64_t cas,
                                  uint16_t vbucket,
                                  const void *cookie,
                                  bool force,
-                                 bool use_meta);
+                                 bool use_meta,
+                                 uint64_t newCas=0,
+                                 uint32_t newFlags=0,
+                                 time_t newExptime=0);
 
     void reset();
 

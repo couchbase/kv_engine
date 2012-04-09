@@ -1667,12 +1667,15 @@ bool EventuallyPersistentStore::getKeyStats(const std::string &key,
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentStore::deleteItem(const std::string &key,
-                                                        uint32_t seqno,
+                                                        uint32_t newSeqno,
                                                         uint64_t cas,
                                                         uint16_t vbucket,
                                                         const void *cookie,
                                                         bool force,
-                                                        bool use_meta) {
+                                                        bool use_meta,
+                                                        uint64_t newCas,
+                                                        uint32_t newFlags,
+                                                        time_t newExptime) {
     RCPtr<VBucket> vb = getVBucket(vbucket);
     if (!vb || vb->getState() == vbucket_state_dead) {
         ++stats.numNotMyVBuckets;
@@ -1698,7 +1701,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteItem(const std::string &key,
             restore.itemsDeleted.insert(key);
         } else {
             if (vb->getState() != vbucket_state_active && force) {
-                queueDirty(key, vbucket, queue_op_del, seqno, -1);
+                queueDirty(key, vbucket, queue_op_del, newSeqno, -1);
             }
             return ENGINE_KEY_ENOENT;
         }
@@ -1706,7 +1709,8 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteItem(const std::string &key,
 
     mutation_type_t delrv;
     if (use_meta) {
-        delrv = vb->ht.unlocked_softDelete(v, cas, seqno);
+        delrv = vb->ht.unlocked_softDelete(v, cas, newSeqno, use_meta, newCas,
+                                           newFlags, newExptime);
     } else {
         delrv = vb->ht.unlocked_softDelete(v, cas);
     }
