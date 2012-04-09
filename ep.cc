@@ -1247,7 +1247,7 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
         LockHolder hlh = vb->ht.getLockedBucket(key, &bucket_num);
         StoredValue *v = fetchValidValue(vb, key, bucket_num, true);
         if (BG_FETCH_METADATA == type) {
-            if (v) {
+            if (v && !v->isDirty()) {
                 if (v->unlocked_restoreMeta(gcb.val.getValue(),
                                             getTmpItemExpiryWindow(),
                                             gcb.val.getStatus())) {
