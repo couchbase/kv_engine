@@ -66,11 +66,6 @@ static inline EventuallyPersistentEngine* getHandle(ENGINE_HANDLE* handle)
     return ret;
 }
 
-static inline void releaseHandle(ENGINE_HANDLE* handle) {
-    (void) handle;
-    ObjectRegistry::onSwitchThread(NULL);
-}
-
 void LookupCallback::callback(GetValue &value) {
     if (value.getStatus() == ENGINE_SUCCESS) {
         engine->addLookupResult(cookie, value.getValue());
@@ -92,24 +87,19 @@ extern "C" {
 
     static const engine_info* EvpGetInfo(ENGINE_HANDLE* handle)
     {
-        engine_info* info = getHandle(handle)->getInfo();
-        releaseHandle(handle);
-        return info;
+        return getHandle(handle)->getInfo();
     }
 
     static ENGINE_ERROR_CODE EvpInitialize(ENGINE_HANDLE* handle,
                                            const char* config_str)
     {
-        ENGINE_ERROR_CODE err_code = getHandle(handle)->initialize(config_str);
-        releaseHandle(handle);
-        return err_code;
+        return getHandle(handle)->initialize(config_str);
     }
 
     static void EvpDestroy(ENGINE_HANDLE* handle, const bool force)
     {
         getHandle(handle)->destroy(force);
         delete getHandle(handle);
-        releaseHandle(handle);
     }
 
     static ENGINE_ERROR_CODE EvpItemAllocate(ENGINE_HANDLE* handle,
@@ -121,11 +111,8 @@ extern "C" {
                                              const int flags,
                                              const rel_time_t exptime)
     {
-        ENGINE_ERROR_CODE err_code = getHandle(handle)->itemAllocate(cookie, item, key,
-                                                                     nkey, nbytes, flags,
-                                                                     exptime);
-        releaseHandle(handle);
-        return err_code;
+        return getHandle(handle)->itemAllocate(cookie, item, key,
+                                               nkey, nbytes, flags, exptime);
     }
 
     static ENGINE_ERROR_CODE EvpItemDelete(ENGINE_HANDLE* handle,
@@ -135,10 +122,7 @@ extern "C" {
                                            uint64_t cas,
                                            uint16_t vbucket)
     {
-        ENGINE_ERROR_CODE err_code = getHandle(handle)->itemDelete(cookie, key, nkey,
-                                                                   cas, vbucket);
-        releaseHandle(handle);
-        return err_code;
+        return getHandle(handle)->itemDelete(cookie, key, nkey, cas, vbucket);
     }
 
     static void EvpItemRelease(ENGINE_HANDLE* handle,
@@ -146,7 +130,6 @@ extern "C" {
                                item* item)
     {
         getHandle(handle)->itemRelease(cookie, item);
-        releaseHandle(handle);
     }
 
     static ENGINE_ERROR_CODE EvpGet(ENGINE_HANDLE* handle,
@@ -156,9 +139,7 @@ extern "C" {
                                     const int nkey,
                                     uint16_t vbucket)
     {
-        ENGINE_ERROR_CODE err_code = getHandle(handle)->get(cookie, item, key, nkey, vbucket);
-        releaseHandle(handle);
-        return err_code;
+        return getHandle(handle)->get(cookie, item, key, nkey, vbucket);
     }
 
     static ENGINE_ERROR_CODE EvpGetStats(ENGINE_HANDLE* handle,
@@ -167,10 +148,7 @@ extern "C" {
                                          int nkey,
                                          ADD_STAT add_stat)
     {
-        ENGINE_ERROR_CODE err_code = getHandle(handle)->getStats(cookie, stat_key, nkey,
-                                                                 add_stat);
-        releaseHandle(handle);
-        return err_code;
+        return getHandle(handle)->getStats(cookie, stat_key, nkey, add_stat);
     }
 
     static ENGINE_ERROR_CODE EvpStore(ENGINE_HANDLE* handle,
@@ -180,10 +158,7 @@ extern "C" {
                                       ENGINE_STORE_OPERATION operation,
                                       uint16_t vbucket)
     {
-        ENGINE_ERROR_CODE err_code = getHandle(handle)->store(cookie, item, cas, operation,
-                                                              vbucket);
-        releaseHandle(handle);
-        return err_code;
+        return getHandle(handle)->store(cookie, item, cas, operation, vbucket);
     }
 
     static ENGINE_ERROR_CODE EvpArithmetic(ENGINE_HANDLE* handle,
@@ -199,25 +174,20 @@ extern "C" {
                                            uint64_t *result,
                                            uint16_t vbucket)
     {
-        ENGINE_ERROR_CODE err_code = getHandle(handle)->arithmetic(cookie, key, nkey, increment,
-                                             create, delta, initial, exptime, cas, result,
-                                             vbucket);
-        releaseHandle(handle);
-        return err_code;
+        return getHandle(handle)->arithmetic(cookie, key, nkey, increment,
+                                             create, delta, initial, exptime,
+                                             cas, result, vbucket);
     }
 
     static ENGINE_ERROR_CODE EvpFlush(ENGINE_HANDLE* handle,
                                       const void* cookie, time_t when)
     {
-        ENGINE_ERROR_CODE err_code = getHandle(handle)->flush(cookie, when);
-        releaseHandle(handle);
-        return err_code;
+        return getHandle(handle)->flush(cookie, when);
     }
 
     static void EvpResetStats(ENGINE_HANDLE* handle, const void *)
     {
-        getHandle(handle)->resetStats();
-        releaseHandle(handle);
+        return getHandle(handle)->resetStats();
     }
 
     static protocol_binary_response_status stopFlusher(EventuallyPersistentEngine *e,
@@ -794,52 +764,36 @@ extern "C" {
         case PROTOCOL_BINARY_CMD_GET_VBUCKET:
             {
                 BlockTimer timer(&stats.getVbucketCmdHisto);
-                rv = getVBucket(h, cookie, request, response);
-                releaseHandle(handle);
-                return rv;
+                return getVBucket(h, cookie, request, response);
             }
 
         case PROTOCOL_BINARY_CMD_DEL_VBUCKET:
             {
                 BlockTimer timer(&stats.delVbucketCmdHisto);
-                rv = delVBucket(h, cookie, request, response);
-                releaseHandle(handle);
-                return rv;
+                return delVBucket(h, cookie, request, response);
             }
             break;
 
         case PROTOCOL_BINARY_CMD_SET_VBUCKET:
             {
                 BlockTimer timer(&stats.setVbucketCmdHisto);
-                rv = setVBucket(h, cookie, request, response);
-                releaseHandle(handle);
-                return rv;
+                return setVBucket(h, cookie, request, response);
             }
             break;
         case CMD_ONLINE_UPDATE_START:
         case CMD_ONLINE_UPDATE_COMPLETE:
         case CMD_ONLINE_UPDATE_REVERT:
-            {
-                rv = h->onlineUpdate(cookie, request, response);
-                releaseHandle(handle);
-                return rv;
-            }
+            return h->onlineUpdate(cookie, request, response);
         case PROTOCOL_BINARY_CMD_TOUCH:
         case PROTOCOL_BINARY_CMD_GAT:
         case PROTOCOL_BINARY_CMD_GATQ:
-            {
-                rv = h->touch(cookie, request, response);
-                releaseHandle(handle);
-                return rv;
-            }
+            return h->touch(cookie, request, response);
+
         case CMD_RESTORE_FILE:
         case CMD_RESTORE_ABORT:
         case CMD_RESTORE_COMPLETE:
-            {
-                rv = h->handleRestoreCmd(cookie, request, response);
-                releaseHandle(handle);
-                return rv;
-            }
+            return h->handleRestoreCmd(cookie, request, response);
+
         case CMD_STOP_PERSISTENCE:
             res = stopFlusher(h, &msg, &msg_size);
             break;
@@ -857,7 +811,6 @@ extern "C" {
             rv = getLocked(h, (protocol_binary_request_getl*)request, cookie, &item, &msg, &msg_size, &res);
             if (rv == ENGINE_EWOULDBLOCK) {
                 // we dont have the value for the item yet
-                releaseHandle(handle);
                 return rv;
             }
             break;
@@ -865,29 +818,15 @@ extern "C" {
             res = unlockKey(h, request, &msg, &msg_size);
             break;
         case CMD_SYNC:
-            {
-                rv = syncCmd(h, request, cookie, response);
-                releaseHandle(handle);
-                return rv;
-            }
+            return syncCmd(h, request, cookie, response);
+            break;
         case CMD_DEREGISTER_TAP_CLIENT:
-            {
-                rv = h->deregisterTapClient(cookie, request, response);
-                releaseHandle(handle);
-                return rv;
-            }
+            return h->deregisterTapClient(cookie, request, response);
+            break;
         case CMD_LAST_CLOSED_CHECKPOINT:
-            {
-                rv = h->handleGetLastClosedCheckpointId(cookie, request, response);
-                releaseHandle(handle);
-                return rv;
-            }
+            return h->handleGetLastClosedCheckpointId(cookie, request, response);
         case CMD_RESET_REPLICATION_CHAIN:
-            {
-                rv = h->resetReplicationChain(cookie, request, response);
-                releaseHandle(handle);
-                return rv;
-            }
+            return h->resetReplicationChain(cookie, request, response);
         }
 
         // Send a special response for getl since we don't want to send the key
@@ -923,7 +862,6 @@ extern "C" {
                     static_cast<uint16_t>(res), 0, cookie);
 
         }
-        releaseHandle(handle);
         return ENGINE_SUCCESS;
     }
 
@@ -949,12 +887,11 @@ extern "C" {
                                           size_t ndata,
                                           uint16_t vbucket)
     {
-        ENGINE_ERROR_CODE err_code = getHandle(handle)->tapNotify(cookie, engine_specific,
-                                            nengine, ttl, tap_flags, tap_event, tap_seqno,
-                                            key, nkey, flags, exptime, cas, data, ndata,
+        return getHandle(handle)->tapNotify(cookie, engine_specific, nengine,
+                                            ttl, tap_flags, tap_event,
+                                            tap_seqno, key, nkey, flags,
+                                            exptime, cas, data, ndata,
                                             vbucket);
-        releaseHandle(handle);
-        return err_code;
     }
 
     static tap_event_t EvpTapIterator(ENGINE_HANDLE* handle,
@@ -962,10 +899,8 @@ extern "C" {
                                       void **es, uint16_t *nes, uint8_t *ttl,
                                       uint16_t *flags, uint32_t *seqno,
                                       uint16_t *vbucket) {
-        tap_event_t tap_event = getHandle(handle)->walkTapQueue(cookie, itm, es, nes, ttl,
-                                                                flags, seqno, vbucket);
-        releaseHandle(handle);
-        return tap_event;
+        return getHandle(handle)->walkTapQueue(cookie, itm, es, nes, ttl,
+                                               flags, seqno, vbucket);
     }
 
     static TAP_ITERATOR EvpGetTapIterator(ENGINE_HANDLE* handle,
@@ -980,10 +915,8 @@ extern "C" {
         // to the handle
         if (getHandle(handle)->createTapQueue(cookie, c, flags,
                                               userdata, nuserdata)) {
-            releaseHandle(handle);
             return EvpTapIterator;
         } else {
-            releaseHandle(handle);
             return NULL;
         }
     }
@@ -996,8 +929,7 @@ extern "C" {
         assert(type == ON_DISCONNECT);
         assert(event_data == NULL);
         void *c = const_cast<void*>(cb_data);
-        getHandle(static_cast<ENGINE_HANDLE*>(c))->handleDisconnect(cookie);
-        releaseHandle(static_cast<ENGINE_HANDLE*>(c));
+        return getHandle(static_cast<ENGINE_HANDLE*>(c))->handleDisconnect(cookie);
     }
 
 
