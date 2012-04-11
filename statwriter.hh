@@ -5,14 +5,17 @@
 #include <memcached/engine.h>
 #include <memcached/protocol_binary.h>
 
+#include "ep_engine.h"
 #include "histo.hh"
 
 namespace STATWRITER_NAMESPACE {
 
 inline void add_casted_stat(const char *k, const char *v,
                             ADD_STAT add_stat, const void *cookie) {
+    EventuallyPersistentEngine *e = ObjectRegistry::onSwitchThread(NULL, true);
     add_stat(k, static_cast<uint16_t>(strlen(k)),
              v, static_cast<uint32_t>(strlen(v)), cookie);
+    ObjectRegistry::onSwitchThread(e);
 }
 
 template <typename T>
