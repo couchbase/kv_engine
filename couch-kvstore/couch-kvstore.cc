@@ -17,15 +17,9 @@
 #include "tools/cJSON.h"
 #include "common.hh"
 
-static void closeDatabaseHandle(Db *db)
-{
-    couchstore_error_t ret = couchstore_close_db(db);
-    if (ret != COUCHSTORE_SUCCESS) {
-        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                         "Failed to close database handle: %s",
-                         couchstore_strerror(ret));
-    }
-}
+#define STATWRITER_NAMESPACE couchstore_engine
+#include "statwriter.hh"
+#undef STATWRITER_NAMESPACE
 
 static bool isJSON(const value_t &value)
 {
@@ -193,7 +187,7 @@ CouchKVStore::CouchKVStore(EventuallyPersistentEngine &theEngine) :
     configuration(theEngine.getConfiguration()),
     dbname(configuration.getDbname()),
     mc(NULL), pendingCommitCnt(0),
-    intransaction(false), docsCommitted(0)
+    intransaction(false)
 {
     open();
 }
@@ -204,8 +198,7 @@ CouchKVStore::CouchKVStore(const CouchKVStore &copyFrom) :
     configuration(copyFrom.configuration),
     dbname(copyFrom.dbname),
     mc(NULL),
-    pendingCommitCnt(0), intransaction(false),
-    docsCommitted(0)
+    pendingCommitCnt(0), intransaction(false)
 {
     open();
     dbFileMap = copyFrom.dbFileMap;
@@ -228,6 +221,7 @@ void CouchKVStore::set(const Item &itm, uint16_t, Callback<mutation_result> &cb)
 
     requestcb.setCb = &cb;
     if (!(getDbFile(itm.getVBucketId(), dbFile))) {
+        ++st.numSetFailure;
         getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                          "Warning: failed to set data, cannot locate database file %s\n",
                          dbFile.c_str());
@@ -245,15 +239,17 @@ void CouchKVStore::set(const Item &itm, uint16_t, Callback<mutation_result> &cb)
 void CouchKVStore::get(const std::string &key, uint64_t, uint16_t vb, uint16_t,
                        Callback<GetValue> &cb)
 {
+    hrtime_t start = gethrtime();
     Db *db = NULL;
     DocInfo *docInfo = NULL;
     Doc *doc = NULL;
+    Item *it = NULL;
     std::string dbFile;
-    sized_buf id;
-    Item *it;
     GetValue rv;
+    sized_buf id;
 
     if (!(getDbFile(vb, dbFile))) {
+        ++st.numGetFailure;
         getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                          "Warning: failed to retrieve data from vBucketId = %d "
                          "[key=%s], cannot locate database file %s\n",
@@ -264,6 +260,7 @@ void CouchKVStore::get(const std::string &key, uint64_t, uint16_t vb, uint16_t,
 
     couchstore_error_t errCode = openDB(vb, dbFileRev(dbFile), &db, 0, NULL);
     if (errCode != COUCHSTORE_SUCCESS) {
+        ++st.numGetFailure;
         getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                          "Warning: failed to open database, name=%s error=%s\n",
                          dbFile.c_str(),
@@ -308,8 +305,8 @@ void CouchKVStore::get(const std::string &key, uint64_t, uint16_t vb, uint16_t,
             it = new Item(key.c_str(), (size_t)key.length(), docInfo->size,
                           itemFlags, (time_t)0, cas);
             rv = GetValue(it);
-            /* update IO stats */
-            epStats.io_num_read++;
+            /* update ep-engine IO stats */
+            ++epStats.io_num_read;
             epStats.io_read_bytes += key.length();
         } else {
             errCode = couchstore_open_doc_with_docinfo(db, docInfo, &doc, 0);
@@ -328,17 +325,25 @@ void CouchKVStore::get(const std::string &key, uint64_t, uint16_t vb, uint16_t,
                 valuePtr = doc->data.buf;
                 it = new Item(key, itemFlags, 0, valuePtr, valuelen, cas, -1, vb);
                 rv = GetValue(it);
-
-                /* update IO stats */
-                epStats.io_num_read++;
+                /* update ep-engine IO stats */
+                ++epStats.io_num_read;
                 epStats.io_read_bytes += key.length() + valuelen;
             }
         }
+
+        // record stats
+        st.readTimeHisto.add((gethrtime() - start) / 1000);
+        st.readSizeHisto.add(key.length() + valuelen);
     }
+
     couchstore_free_docinfo(docInfo);
     couchstore_free_document(doc);
     closeDatabaseHandle(db);
     cb.callback(rv);
+
+    if(errCode != COUCHSTORE_SUCCESS) {
+        ++st.numGetFailure;
+    }
 }
 
 void CouchKVStore::del(const Item &itm,
@@ -347,23 +352,24 @@ void CouchKVStore::del(const Item &itm,
                        Callback<int> &cb)
 {
     assert(intransaction);
-    bool deleteItem = true;
     std::string dbFile;
-    CouchRequestCallback requestcb;
 
-    if (!(getDbFile(itm.getVBucketId(), dbFile))) {
-        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                         "Warning: failed to delete data, cannot locate database file %s\n",
-                         dbFile.c_str());
+    if (getDbFile(itm.getVBucketId(), dbFile)) {
+        CouchRequestCallback requestcb;
+        requestcb.delCb = &cb;
+        // each req will be de-allocated after commit
+        CouchRequest *req = new CouchRequest(itm, dbFileRev(dbFile),
+                                             requestcb, true);
+        this->queue(*req);
+    } else {
         int value = -1;
+        ++st.numDelFailure;
+        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                         "Warning: failed to delete data, cannot locate "
+                         "database file %s\n",
+                         dbFile.c_str());
         cb.callback(value);
     }
-
-    requestcb.delCb = &cb;
-    // each req will be de-allocated after commit
-    CouchRequest *req = new CouchRequest(itm, dbFileRev(dbFile),
-                                         requestcb, deleteItem);
-    this->queue(*req);
 }
 
 bool CouchKVStore::delVBucket(uint16_t,
@@ -425,9 +431,8 @@ vbucket_map_t CouchKVStore::listPersistedVbuckets()
             readVBState(db, vbID, vb_state);
             /* insert populated state to the array to return to the caller */
             rv[vb] = vb_state;
-
-            /* update IO stats */
-            epStats.io_num_read++;
+            /* update stat */
+            ++st.numLoadedVb;
             closeDatabaseHandle(db);
         }
         db = NULL;
@@ -469,7 +474,7 @@ bool CouchKVStore::snapshotVBuckets(const vbucket_map_t &m)
         }
     }
 
-    epStats.snapshotVbucketHisto.add((gethrtime() - start) / 1000);
+    st.snapshotVbHisto.add((gethrtime() - start) / 1000);
     return success;
 }
 
@@ -510,12 +515,12 @@ bool CouchKVStore::setVBucketState(uint16_t vbucketId, vbucket_state_t state,
         errorCode = openDB(vbucketId, fileRev, &db,
                            (uint64_t)COUCHSTORE_OPEN_FLAG_CREATE, &newFileRev);
         if (errorCode != COUCHSTORE_SUCCESS) {
-            std::stringstream fileName;
-            fileName << vbucketId << ".couch." << fileRev;
-            dbFileName = dbname + "/" + fileName.str();
+            std::stringstream filename;
+            filename << dbname << "/" << vbucketId << ".couch." << fileRev;
+            ++st.numVbSetFailure;
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                              "Warning: failed to open database, name=%s error=%s\n",
-                             dbFileName.c_str(),
+                             filename.str().c_str(),
                              couchstore_strerror(errorCode));
             return false;
         }
@@ -531,16 +536,18 @@ bool CouchKVStore::setVBucketState(uint16_t vbucketId, vbucket_state_t state,
         vbState.checkpointId = checkpointId;
         errorCode = saveVBState(db, vbState);
         if (errorCode != COUCHSTORE_SUCCESS) {
+            ++st.numVbSetFailure;
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "Warning: failed to save local doc, name=%s error=%s\n",
-                             dbFileName.c_str(),
-                             couchstore_strerror(errorCode));
+                            "Warning: failed to save local doc, name=%s error=%s\n",
+                            dbFileName.c_str(),
+                            couchstore_strerror(errorCode));
             closeDatabaseHandle(db);
             return false;
         }
 
         errorCode = couchstore_commit(db);
         if (errorCode != COUCHSTORE_SUCCESS) {
+            ++st.numVbSetFailure;
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                              "Warning: commit failed, vbid=%u rev=%u error=%s",
                              vbucketId, fileRev, couchstore_strerror(errorCode));
@@ -569,6 +576,7 @@ bool CouchKVStore::setVBucketState(uint16_t vbucketId, vbucket_state_t state,
         }
         closeDatabaseHandle(db);
     }
+
     return true;
 }
 
@@ -618,29 +626,40 @@ void CouchKVStore::addStats(const std::string &prefix,
                             ADD_STAT add_stat,
                             const void *c)
 {
-    //TODO CouchKVStore::addState()
-    KVStore::addStats(prefix, add_stat, c);
-    // add stat of # of docs commited
-    addStat(prefix, "last_committed_docs", docsCommitted, add_stat, c);
-    addStat(prefix, "backend_type", "couchdb", add_stat, c);
-    mc->addStats(prefix, add_stat, c);
+    const char *prefix_str = prefix.c_str();
+
+    /* stats for both read-only and read-write threads */
+    addStat(prefix_str, "backend_type",   "couchstore",       add_stat, c);
+    addStat(prefix_str, "open",           st.numOpen,         add_stat, c);
+    addStat(prefix_str, "close",          st.numClose,        add_stat, c);
+    addStat(prefix_str, "readTime",       st.readTimeHisto,   add_stat, c);
+    addStat(prefix_str, "readSize",       st.readSizeHisto,   add_stat, c);
+    addStat(prefix_str, "numLoadedVb",    st.numLoadedVb,     add_stat, c);
+
+    // failure stats
+    addStat(prefix_str, "failure_open",   st.numOpenFailure, add_stat, c);
+    addStat(prefix_str, "failure_get",    st.numGetFailure,  add_stat, c);
+
+    // stats for read-write thread only
+    if( prefix.compare("rw") == 0 ) {
+        addStat(prefix_str, "delete",        st.delTimeHisto,    add_stat, c);
+        addStat(prefix_str, "failure_set",   st.numSetFailure,   add_stat, c);
+        addStat(prefix_str, "failure_del",   st.numDelFailure,   add_stat, c);
+        addStat(prefix_str, "failure_vbset", st.numVbSetFailure, add_stat, c);
+        addStat(prefix_str, "writeTime",     st.writeTimeHisto,  add_stat, c);
+        addStat(prefix_str, "writeSize",     st.writeSizeHisto,  add_stat, c);
+        addStat(prefix_str, "lastCommDocs",  st.docsCommitted,   add_stat, c);
+        addStat(prefix_str, "snapshotVbTime",st.snapshotVbHisto, add_stat, c);
+    }
 }
 
 template <typename T>
-void CouchKVStore::addStat(const std::string &prefix, const char *nm, T val,
+void CouchKVStore::addStat(const std::string &prefix, const char *stat, T &val,
                            ADD_STAT add_stat, const void *c)
 {
-    std::stringstream name;
-    name << prefix << ":" << nm;
-    std::stringstream value;
-    value << val;
-    std::string n = name.str();
-    add_stat(n.data(), static_cast<uint16_t>(n.length()),
-             value.str().data(),
-             static_cast<uint32_t>(value.str().length()),
-             c);
-
-    return;
+    std::stringstream fullstat;
+    fullstat << prefix << ":" << stat;
+    add_casted_stat(fullstat.str().c_str(), val, add_stat, c);
 }
 
 void CouchKVStore::optimizeWrites(std::vector<queued_item> &items)
@@ -873,6 +892,13 @@ couchstore_error_t CouchKVStore::openDB(uint16_t vbucketId,
                          "open_db() failed, name=%s error=%d\n",
                          dbFileName.c_str(), errorCode);
     }
+
+    /* update command statistics */
+    st.numOpen++;
+    if (errorCode) {
+        st.numOpenFailure++;
+    }
+
     return errorCode;
 }
 
@@ -1165,7 +1191,7 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, int rev, Doc **docs,
             if (cb.val != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
                 if (cb.val == PROTOCOL_BINARY_RESPONSE_ETMPFAIL) {
                     getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                     "Retry notify CouchDB of update, vbucket=%d rev=%d\n",
+                                   "Retry notify CouchDB of update, vbucket=%d rev=%d\n",
                                      vbucket2save, newFileRev);
                     fileRev = newFileRev;
                     retry_save_docs = true;
@@ -1181,7 +1207,11 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, int rev, Doc **docs,
         }
     } while (retry_save_docs);
 
-    setDocsCommitted(docCount);
+    /* update stat */
+    if(errCode == COUCHSTORE_SUCCESS) {
+        st.docsCommitted = docCount;
+    }
+
     return errCode;
 }
 
@@ -1205,33 +1235,30 @@ void CouchKVStore::commitCallback(CouchRequest **committedReqs, int numReqs,
                                   int errCode)
 {
     for (int index = 0; index < numReqs; index++) {
-        bool isDelete = committedReqs[index]->isDelete();
         size_t dataSize = committedReqs[index]->getNBytes();
         size_t keySize = committedReqs[index]->getKey().length();
-        dataSize = (dataSize) ? dataSize : 1;
-        hrtime_t spent = committedReqs[index]->getDelta() / dataSize;
-
         /* update ep stats */
-        epStats.io_num_write++;
+        ++epStats.io_num_write;
         epStats.io_write_bytes += keySize + dataSize;
 
-        if (isDelete) {
+        if (committedReqs[index]->isDelete()) {
             int rv = (errCode) ? -1 : 1;
-            epStats.couchDelqHisto.add(spent);
-            Callback<int> *delCb = committedReqs[index]->getDelCallback();
-            delCb->callback(rv);
+            if (errCode) {
+                ++st.numDelFailure;
+            } else {
+                st.delTimeHisto.add(committedReqs[index]->getDelta() / 1000);
+            }
+            committedReqs[index]->getDelCallback()->callback(rv);
         } else {
             int rv = (errCode) ? 0 : 1;
             if (errCode) {
-                epStats.couchSetFailHisto.add(spent);
+                ++st.numSetFailure;
             } else {
-                epStats.couchSetHisto.add(spent);
+                st.writeTimeHisto.add(committedReqs[index]->getDelta() / 1000);
+                st.writeSizeHisto.add(dataSize + keySize);
             }
-
-            Callback<mutation_result> *setCb;
-            setCb = committedReqs[index]->getSetCallback();
             mutation_result p(rv, committedReqs[index]->getItemId());
-            setCb->callback(p);
+            committedReqs[index]->getSetCallback()->callback(p);
         }
     }
 }
@@ -1298,15 +1325,14 @@ couchstore_error_t CouchKVStore::saveVBState(Db *db, vbucket_state &vbState)
     return couchstore_save_local_document(db, &lDoc);
 }
 
-/**
- * setDocsCommitted:
- * Set the stat of the number of docs in the last commit
- *
- * @param docs # of docs in the last commit
- */
-void CouchKVStore::setDocsCommitted(uint16_t docs)
-{
-    if (docs != docsCommitted) {
-        docsCommitted = docs;
+void CouchKVStore::closeDatabaseHandle(Db *db) {
+    couchstore_error_t ret = couchstore_close_db(db);
+    if (ret != COUCHSTORE_SUCCESS) {
+        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                         "Failed to close database handle: %s",
+                         couchstore_strerror(ret));
     }
+    st.numClose++;
 }
+
+/* end of couch-kvstore.cc */

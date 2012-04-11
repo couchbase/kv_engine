@@ -186,7 +186,8 @@ private:
         volatile size_t numImplicit;
         volatile size_t numError;
 
-        void addStat(const std::string &prefix, const char *nm, size_t val, ADD_STAT add_stat, const void *c) {
+        void addStat(const std::string &prefix, const char *nm, size_t val,
+                     ADD_STAT add_stat, const void *c) {
             std::stringstream name;
             name << prefix << ":" << nm;
             std::stringstream value;

@@ -594,24 +594,33 @@ These provide various low-level stats and timings from the underlying KV
 storage system and useful to understand various states of the storage
 system.
 
-The following stats are available for the SQlite database engine:
+The following stats are available for all database engine:
 
-| sector_size       | Disk sector size (bytes)                           |
 | open              | Number of database open operations                 |
 | close             | Number of database close operations                |
+| readTime          | Time spent in read operations                      |
+| readSize          | Size of data in read operations                    |
+| writeTime         | Time spent in write operations                     |
+| writeSize         | Size of data in write operations                   |
+| delete            | Time spent  in delete() calls                      |
+
+The following stats are available for the Sqlite database engine:
+
+| sector_size       | Disk sector size (bytes)                           |
 | lock              | Number of database lock operations                 |
 | truncate          | Number of truncate operations                      |
+| sync              | Time spent in sync() calls                         |
+| readSeek          | Seek distance in read operations                   |
+| writeSeek         | Seek distance in write operations                  |
 
-The various timings are also provided:
+The following stats are available for the CouchStore database engine:
 
-| delete            | Time spent  in delete() calls     |
-| sync              | Time spent in sync() calls        |
-| readTime          | Time spent in read operations     |
-| readSeek          | Seek distance in read operations  |
-| readSize          | Size of data in read operations   |
-| writeTime         | Time spent in write operations    |
-| writeSeek         | Seek distance in write operations |
-| writeSize         | Size of data in write operations  |
+| backend_type      | Type of backend database engine                    |
+| numLoadedVb       | Number of Vbuckets loaded into memory              |
+| lastCommDocs      | Number of docs in the last commit                  |
+| failure_set       | Number of failed set operation                     |
+| failure_get       | Number of failed get operation                     |
+| failure_vbset     | Number of failed vbucket set operation             |
 
 * Details
 

@@ -4,10 +4,58 @@
 #include "libcouchstore/couch_db.h"
 #include "kvstore.hh"
 #include "item.hh"
+#include "histo.hh"
 #include "stats.hh"
 #include "configuration.hh"
 #include "mc-kvstore/mc-engine.hh"
 #include "tools/cJSON.h"
+
+/**
+ * Stats and timings for couchKVStore
+ */
+class CouchKVStoreStats {
+
+public:
+    CouchKVStoreStats() :
+      docsCommitted(0), numOpen(0), numClose(0),
+      numLoadedVb(0), numGetFailure(0), numSetFailure(0),
+      numDelFailure(0), numOpenFailure(0), numVbSetFailure(0),
+      readSizeHisto(ExponentialGenerator<size_t>(1, 2), 25),
+      writeSizeHisto(ExponentialGenerator<size_t>(1, 2), 25) {
+    }
+
+    // the number of docs committed
+    Atomic<size_t> docsCommitted;
+    // the number of open() calls
+    Atomic<size_t> numOpen;
+    // the number of close() calls
+    Atomic<size_t> numClose;
+    // the number of vbuckets loaded
+    Atomic<size_t> numLoadedVb;
+
+    //stats tracking failures
+    Atomic<size_t> numGetFailure;
+    Atomic<size_t> numSetFailure;
+    Atomic<size_t> numDelFailure;
+    Atomic<size_t> numOpenFailure;
+    Atomic<size_t> numVbSetFailure;
+
+    /* for flush and vb delete, no error handling in CouchKVStore, such
+     * failure should be tracked in MC-engine  */
+
+    // How long it takes us to complete a read
+    Histogram<hrtime_t> readTimeHisto;
+    // How big are our reads?
+    Histogram<size_t> readSizeHisto;
+    // How long it takes us to complete a write
+    Histogram<hrtime_t> writeTimeHisto;
+    // How big are our writes?
+    Histogram<size_t> writeSizeHisto;
+    // Time spent in snapshot vbuckets.
+    Histogram<hrtime_t> snapshotVbHisto;
+    // Time spent in delete() calls.
+    Histogram<hrtime_t> delTimeHisto;
+};
 
 class EventuallyPersistentEngine;
 class EPStats;
@@ -210,7 +258,7 @@ protected:
                 std::vector<uint16_t> *vbids);
     bool setVBucketState(uint16_t vbucketId, vbucket_state_t state, uint64_t checkpointId);
     template <typename T>
-    void addStat(const std::string &prefix, const char *nm, T val,
+    void addStat(const std::string &prefix, const char *nm, T &val,
                  ADD_STAT add_stat, const void *c);
 
 private:
@@ -238,7 +286,7 @@ private:
     void commitCallback(CouchRequest **committedReqs, int numReqs, int errCode);
     couchstore_error_t saveVBState(Db *db, vbucket_state &vbState);
     void setDocsCommitted(uint16_t docs);
-
+    void closeDatabaseHandle(Db *db);
 
     EventuallyPersistentEngine &engine;
     EPStats &epStats;
@@ -250,8 +298,8 @@ private:
     size_t pendingCommitCnt;
     bool intransaction;
 
-    // stat: the number of docs committed
-    uint16_t  docsCommitted;
+    /* all stats */
+    CouchKVStoreStats   st;
 };
 
 #endif /* COUCHSTORE_KVSTORE_H */
