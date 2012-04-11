@@ -194,7 +194,7 @@ ep_la_DEPENDENCIES = libkvstore.la libsqlite-kvstore.la	\
                libmc-kvstore.la libblackhole-kvstore.la	\
                libobjectregistry.la libconfiguration.la \
                libcouch-kvstore.la
-ep_testsuite_la_LIBADD =libobjectregistry.la
+ep_testsuite_la_LIBADD =libobjectregistry.la $(LTLIBEVENT)
 ep_testsuite_la_DEPENDENCIES = libobjectregistry.la
 
 management_cbdbconvert_SOURCES = atomic.cc mutex.cc                     \
@@ -256,7 +256,8 @@ ep_testsuite_la_SOURCES= ep_testsuite.cc ep_testsuite.h atomic.cc       \
                          locks.hh mutex.cc mutex.hh item.cc             \
                          testlogger_libify.cc dispatcher.cc ep_time.c   \
                          ep_time.h sqlite-kvstore/sqlite-pst.cc         \
-                         tools/cJSON.c tools/cJSON.h
+                         tools/cJSON.c tools/cJSON.h                    \
+                         mock/mccouch.cc mock/mccouch.hh
 ep_testsuite_la_LDFLAGS= -module -dynamic
 
 # This is because automake can't figure out how to build the same code

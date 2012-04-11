@@ -52,6 +52,8 @@
 
 #include "ep_testsuite.h"
 #include "command_ids.h"
+#include "mock/mccouch.hh"
+
 
 #ifdef linux
 /* /usr/include/netinet/in.h defines macros from ntohs() to _bswap_nn to
@@ -5109,6 +5111,8 @@ static enum test_result test_compact_mutation_log(ENGINE_HANDLE *h, ENGINE_HANDL
     return SUCCESS;
 }
 
+static McCouchMockServer *mccouchMock;
+
 static enum test_result prepare(engine_test_t *test) {
     rmdb();
     enum test_result ret = verify_no_db();
@@ -5130,7 +5134,12 @@ static enum test_result prepare(engine_test_t *test) {
         }
 #endif
     } else if (strstr(test->cfg, "backend=couchdb") != NULL) {
-        /* DO I need special init? */
+        /* Start a mock server... */
+        int port;
+        mccouchMock = new McCouchMockServer(port);
+        char config[1024];
+        sprintf(config, "%s;couch_port=%d", test->cfg, port);
+        test->cfg = strdup(config);
     } else {
         // unknow backend!
         using namespace std;
