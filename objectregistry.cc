@@ -103,9 +103,15 @@ void ObjectRegistry::onDeleteItem(Item *pItem)
    }
 }
 
-void ObjectRegistry::onSwitchThread(EventuallyPersistentEngine *engine)
+EventuallyPersistentEngine *ObjectRegistry::onSwitchThread(EventuallyPersistentEngine *engine,
+                                                           bool want_old_thread_local)
 {
-   th->set(engine);
+    EventuallyPersistentEngine *old_engine = NULL;
+    if (want_old_thread_local) {
+        old_engine = th->get();
+    }
+    th->set(engine);
+    return old_engine;
 }
 
 bool ObjectRegistry::memoryAllocated(size_t mem) {

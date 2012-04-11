@@ -22,6 +22,7 @@
 #include <memcached/engine.h>
 
 class EventuallyPersistentEngine;
+class ObjectRegistry;
 
 /**
  * The restore manager is responsible for running the restore of a set of
@@ -97,9 +98,12 @@ protected:
         std::stringstream value;
         value << val;
         std::string n = name.str();
+
+        EventuallyPersistentEngine *e = ObjectRegistry::onSwitchThread(NULL, true);
         add_stat(n.data(), static_cast<uint16_t>(n.length()),
                  value.str().data(), static_cast<uint32_t>(value.str().length()),
                  cookie);
+        ObjectRegistry::onSwitchThread(e);
     }
 
     void addStat(const char *nm, bool val, ADD_STAT add_stat, const void *c) {

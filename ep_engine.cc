@@ -66,6 +66,32 @@ static inline EventuallyPersistentEngine* getHandle(ENGINE_HANDLE* handle)
     return ret;
 }
 
+static inline void releaseHandle(ENGINE_HANDLE* handle) {
+    (void) handle;
+    ObjectRegistry::onSwitchThread(NULL);
+}
+
+/**
+ * Call the response callback and return the appropriate value so that
+ * the core knows what to do..
+ */
+static ENGINE_ERROR_CODE sendResponse(ADD_RESPONSE response, const void *key,
+                                      uint16_t keylen,
+                                      const void *ext, uint8_t extlen,
+                                      const void *body, uint32_t bodylen,
+                                      uint8_t datatype, uint16_t status,
+                                      uint64_t cas, const void *cookie)
+{
+    ENGINE_ERROR_CODE rv = ENGINE_FAILED;
+    EventuallyPersistentEngine *e = ObjectRegistry::onSwitchThread(NULL, true);
+    if (response(key, keylen, ext, extlen, body, bodylen, datatype,
+                 status, cas, cookie)) {
+        rv = ENGINE_SUCCESS;
+    }
+    ObjectRegistry::onSwitchThread(e);
+    return rv;
+}
+
 void LookupCallback::callback(GetValue &value) {
     if (value.getStatus() == ENGINE_SUCCESS) {
         engine->addLookupResult(cookie, value.getValue());
@@ -87,19 +113,24 @@ extern "C" {
 
     static const engine_info* EvpGetInfo(ENGINE_HANDLE* handle)
     {
-        return getHandle(handle)->getInfo();
+        engine_info* info = getHandle(handle)->getInfo();
+        releaseHandle(handle);
+        return info;
     }
 
     static ENGINE_ERROR_CODE EvpInitialize(ENGINE_HANDLE* handle,
                                            const char* config_str)
     {
-        return getHandle(handle)->initialize(config_str);
+        ENGINE_ERROR_CODE err_code = getHandle(handle)->initialize(config_str);
+        releaseHandle(handle);
+        return err_code;
     }
 
     static void EvpDestroy(ENGINE_HANDLE* handle, const bool force)
     {
         getHandle(handle)->destroy(force);
         delete getHandle(handle);
+        releaseHandle(NULL);
     }
 
     static ENGINE_ERROR_CODE EvpItemAllocate(ENGINE_HANDLE* handle,
@@ -111,8 +142,11 @@ extern "C" {
                                              const int flags,
                                              const rel_time_t exptime)
     {
-        return getHandle(handle)->itemAllocate(cookie, item, key,
-                                               nkey, nbytes, flags, exptime);
+        ENGINE_ERROR_CODE err_code = getHandle(handle)->itemAllocate(cookie, item, key,
+                                                                     nkey, nbytes, flags,
+                                                                     exptime);
+        releaseHandle(handle);
+        return err_code;
     }
 
     static ENGINE_ERROR_CODE EvpItemDelete(ENGINE_HANDLE* handle,
@@ -122,7 +156,10 @@ extern "C" {
                                            uint64_t cas,
                                            uint16_t vbucket)
     {
-        return getHandle(handle)->itemDelete(cookie, key, nkey, cas, vbucket);
+        ENGINE_ERROR_CODE err_code = getHandle(handle)->itemDelete(cookie, key, nkey,
+                                                                   cas, vbucket);
+        releaseHandle(handle);
+        return err_code;
     }
 
     static void EvpItemRelease(ENGINE_HANDLE* handle,
@@ -130,6 +167,7 @@ extern "C" {
                                item* item)
     {
         getHandle(handle)->itemRelease(cookie, item);
+        releaseHandle(handle);
     }
 
     static ENGINE_ERROR_CODE EvpGet(ENGINE_HANDLE* handle,
@@ -139,7 +177,9 @@ extern "C" {
                                     const int nkey,
                                     uint16_t vbucket)
     {
-        return getHandle(handle)->get(cookie, item, key, nkey, vbucket);
+        ENGINE_ERROR_CODE err_code = getHandle(handle)->get(cookie, item, key, nkey, vbucket);
+        releaseHandle(handle);
+        return err_code;
     }
 
     static ENGINE_ERROR_CODE EvpGetStats(ENGINE_HANDLE* handle,
@@ -148,7 +188,10 @@ extern "C" {
                                          int nkey,
                                          ADD_STAT add_stat)
     {
-        return getHandle(handle)->getStats(cookie, stat_key, nkey, add_stat);
+        ENGINE_ERROR_CODE err_code = getHandle(handle)->getStats(cookie, stat_key, nkey,
+                                                                 add_stat);
+        releaseHandle(handle);
+        return err_code;
     }
 
     static ENGINE_ERROR_CODE EvpStore(ENGINE_HANDLE* handle,
@@ -158,7 +201,10 @@ extern "C" {
                                       ENGINE_STORE_OPERATION operation,
                                       uint16_t vbucket)
     {
-        return getHandle(handle)->store(cookie, item, cas, operation, vbucket);
+        ENGINE_ERROR_CODE err_code = getHandle(handle)->store(cookie, item, cas, operation,
+                                                              vbucket);
+        releaseHandle(handle);
+        return err_code;
     }
 
     static ENGINE_ERROR_CODE EvpArithmetic(ENGINE_HANDLE* handle,
@@ -174,20 +220,25 @@ extern "C" {
                                            uint64_t *result,
                                            uint16_t vbucket)
     {
-        return getHandle(handle)->arithmetic(cookie, key, nkey, increment,
-                                             create, delta, initial, exptime,
-                                             cas, result, vbucket);
+        ENGINE_ERROR_CODE ecode = getHandle(handle)->arithmetic(cookie, key, nkey, increment,
+                                                                create, delta, initial,
+                                                                exptime, cas, result, vbucket);
+        releaseHandle(handle);
+        return ecode;
     }
 
     static ENGINE_ERROR_CODE EvpFlush(ENGINE_HANDLE* handle,
                                       const void* cookie, time_t when)
     {
-        return getHandle(handle)->flush(cookie, when);
+        ENGINE_ERROR_CODE err_code = getHandle(handle)->flush(cookie, when);
+        releaseHandle(handle);
+        return err_code;
     }
 
     static void EvpResetStats(ENGINE_HANDLE* handle, const void *)
     {
-        return getHandle(handle)->resetStats();
+        getHandle(handle)->resetStats();
+        releaseHandle(handle);
     }
 
     static protocol_binary_response_status stopFlusher(EventuallyPersistentEngine *e,
@@ -551,12 +602,9 @@ extern "C" {
 
             if (!syncListener->isFinished()) {
                 syncListener->destroy();
-                if (response(NULL, 0, NULL, 0, NULL, 0, PROTOCOL_BINARY_RAW_BYTES,
-                             PROTOCOL_BINARY_RESPONSE_ETMPFAIL, 0, cookie)) {
-                    return ENGINE_SUCCESS;
-                } else {
-                    return ENGINE_FAILED;
-                }
+                return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
+                                    PROTOCOL_BINARY_RAW_BYTES,
+                                    PROTOCOL_BINARY_RESPONSE_ETMPFAIL, 0, cookie);
             } else {
                 std::stringstream resp;
 
@@ -564,13 +612,11 @@ extern "C" {
                 syncListener->destroy();
 
                 std::string body = resp.str();
-                bool respSent = response(NULL, 0, NULL, 0,
-                                         body.c_str(),
-                                         static_cast<uint16_t>(body.length()),
-                                         PROTOCOL_BINARY_RAW_BYTES,
-                                         PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
-
-                return respSent ? ENGINE_SUCCESS : ENGINE_FAILED;
+                return sendResponse(response, NULL, 0, NULL, 0,
+                                    body.c_str(),
+                                    static_cast<uint16_t>(body.length()),
+                                    PROTOCOL_BINARY_RAW_BYTES,
+                                    PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
             }
         }
 
@@ -588,9 +634,9 @@ extern "C" {
         bool validFlags = parseSyncOptions(flags, &syncType, &replicas);
 
         if (!validFlags) {
-            bool respSent = response(NULL, 0, NULL, 0, "", 0, PROTOCOL_BINARY_RAW_BYTES,
-                                     PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
-            return respSent ? ENGINE_SUCCESS : ENGINE_FAILED;
+            return sendResponse(response, NULL, 0, NULL, 0, "", 0,
+                                PROTOCOL_BINARY_RAW_BYTES,
+                                PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
         }
 
         if (syncType == PERSIST || syncType == REP_OR_PERSIST ||
@@ -598,20 +644,18 @@ extern "C" {
 
             // SYNC for persistence not yet supported (MB-3817 related).
             const std::string msg("SYNC for persistence is not supported.");
-            bool respSent = response(NULL, 0, NULL, 0, msg.c_str(), msg.length(),
-                                     PROTOCOL_BINARY_RAW_BYTES,
-                                     PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0, cookie);
-            return respSent ? ENGINE_SUCCESS : ENGINE_FAILED;
+            return sendResponse(response, NULL, 0, NULL, 0, msg.c_str(), msg.length(),
+                                PROTOCOL_BINARY_RAW_BYTES,
+                                PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0, cookie);
         }
 
         if (replicas > 1) {
             // replica count > 1 not supported for chain mode replication, which is
             // the default in Membase deployments (ticket MB-3817)
             const std::string msg("A replica count > 1 is not supported.");
-            bool respSent = response(NULL, 0, NULL, 0, msg.c_str(), msg.length(),
-                                     PROTOCOL_BINARY_RAW_BYTES,
-                                     PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0, cookie);
-            return respSent ? ENGINE_SUCCESS : ENGINE_FAILED;
+            return sendResponse(response, NULL, 0, NULL, 0, msg.c_str(), msg.length(),
+                                PROTOCOL_BINARY_RAW_BYTES,
+                                PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0, cookie);
         }
 
         // number of keys in the request, 16 bits
@@ -666,16 +710,15 @@ extern "C" {
         RCPtr<VBucket> vb = e->getVBucket(vbucket);
         if (!vb) {
             const std::string msg("That's not my bucket.");
-            response(NULL, 0, NULL, 0, msg.c_str(), msg.length(),
-                     PROTOCOL_BINARY_RAW_BYTES,
-                     PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, 0, cookie);
+            return sendResponse(response, NULL, 0, NULL, 0, msg.c_str(), msg.length(),
+                                PROTOCOL_BINARY_RAW_BYTES,
+                                PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, 0, cookie);
         } else {
             vbucket_state_t state = (vbucket_state_t)ntohl(vb->getState());
-            response(NULL, 0, NULL, 0, &state, sizeof(state),
-                     PROTOCOL_BINARY_RAW_BYTES,
-                     PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
+            return sendResponse(response, NULL, 0, NULL, 0, &state, sizeof(state),
+                                PROTOCOL_BINARY_RAW_BYTES,
+                                PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
         }
-        return ENGINE_SUCCESS;
     }
 
     static ENGINE_ERROR_CODE setVBucket(EventuallyPersistentEngine *e,
@@ -690,9 +733,9 @@ extern "C" {
             - ntohs(req->message.header.request.keylen);
         if (bodylen != sizeof(vbucket_state_t)) {
             const std::string msg("Incorrect packet format");
-            response(NULL, 0, NULL, 0, msg.c_str(), msg.length(),
-                     PROTOCOL_BINARY_RAW_BYTES,
-                     PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
+            sendResponse(response, NULL, 0, NULL, 0, msg.c_str(), msg.length(),
+                         PROTOCOL_BINARY_RAW_BYTES,
+                         PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
         }
 
         vbucket_state_t state;
@@ -701,16 +744,15 @@ extern "C" {
 
         if (!is_valid_vbucket_state_t(state)) {
             const std::string msg("Invalid vbucket state");
-            response(NULL, 0, NULL, 0, msg.c_str(), msg.length(),
-                     PROTOCOL_BINARY_RAW_BYTES,
-                     PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
+            sendResponse(response, NULL, 0, NULL, 0, msg.c_str(), msg.length(),
+                         PROTOCOL_BINARY_RAW_BYTES,
+                         PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
         }
 
         e->setVBucketState(ntohs(req->message.header.request.vbucket), state);
-        response(NULL, 0, NULL, 0, NULL, 0, PROTOCOL_BINARY_RAW_BYTES,
-                 PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
-
-        return ENGINE_SUCCESS;
+        return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
+                            PROTOCOL_BINARY_RAW_BYTES,
+                            PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
     }
 
     static ENGINE_ERROR_CODE delVBucket(EventuallyPersistentEngine *e,
@@ -719,30 +761,29 @@ extern "C" {
                                         ADD_RESPONSE response) {
         uint16_t vbucket = ntohs(req->request.vbucket);
         if (e->deleteVBucket(vbucket)) {
-            response(NULL, 0, NULL, 0, NULL, 0, PROTOCOL_BINARY_RAW_BYTES,
-                     PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
+            return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
+                                PROTOCOL_BINARY_RAW_BYTES,
+                                PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
         } else {
             // If we fail to delete, try to figure out why.
             RCPtr<VBucket> vb = e->getVBucket(vbucket);
             if (!vb) {
                 const std::string msg("Failed to delete vbucket.  Bucket not found.");
-                response(NULL, 0, NULL, 0, msg.c_str(), msg.length(),
-                         PROTOCOL_BINARY_RAW_BYTES,
-                         PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, 0, cookie);
+                return sendResponse(response, NULL, 0, NULL, 0, msg.c_str(), msg.length(),
+                                    PROTOCOL_BINARY_RAW_BYTES,
+                                    PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, 0, cookie);
             } else if(vb->getState() != vbucket_state_dead) {
                 const std::string msg("Failed to delete vbucket.  Must be in the dead state.");
-                response(NULL, 0, NULL, 0, msg.c_str(), msg.length(),
-                         PROTOCOL_BINARY_RAW_BYTES,
-                         PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
+                return sendResponse(response, NULL, 0, NULL, 0, msg.c_str(), msg.length(),
+                                    PROTOCOL_BINARY_RAW_BYTES,
+                                    PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
             } else {
                 const std::string msg("Failed to delete vbucket.  Unknown reason.");
-                response(NULL, 0, NULL, 0, msg.c_str(), msg.length(),
-                         PROTOCOL_BINARY_RAW_BYTES,
-                         PROTOCOL_BINARY_RESPONSE_EINTERNAL, 0, cookie);
+                return sendResponse(response, NULL, 0, NULL, 0, msg.c_str(), msg.length(),
+                                    PROTOCOL_BINARY_RAW_BYTES,
+                                    PROTOCOL_BINARY_RESPONSE_EINTERNAL, 0, cookie);
             }
         }
-
-        return ENGINE_SUCCESS;
     }
 
     static ENGINE_ERROR_CODE EvpUnknownCommand(ENGINE_HANDLE* handle,
@@ -750,13 +791,12 @@ extern "C" {
                                                protocol_binary_request_header *request,
                                                ADD_RESPONSE response)
     {
-        protocol_binary_response_status res =
-            PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND;
+        EventuallyPersistentEngine *h = getHandle(handle);
+        protocol_binary_response_status res = PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND;
         const char *msg = NULL;
         size_t msg_size = 0;
         Item *item = NULL;
 
-        EventuallyPersistentEngine *h = getHandle(handle);
         EPStats &stats = h->getEpStats();
         ENGINE_ERROR_CODE rv = ENGINE_SUCCESS;
 
@@ -764,36 +804,48 @@ extern "C" {
         case PROTOCOL_BINARY_CMD_GET_VBUCKET:
             {
                 BlockTimer timer(&stats.getVbucketCmdHisto);
-                return getVBucket(h, cookie, request, response);
+                rv = getVBucket(h, cookie, request, response);
+                releaseHandle(handle);
+                return rv;
             }
-
         case PROTOCOL_BINARY_CMD_DEL_VBUCKET:
             {
                 BlockTimer timer(&stats.delVbucketCmdHisto);
-                return delVBucket(h, cookie, request, response);
+                rv = delVBucket(h, cookie, request, response);
+                releaseHandle(handle);
+                return rv;
             }
-            break;
-
         case PROTOCOL_BINARY_CMD_SET_VBUCKET:
             {
                 BlockTimer timer(&stats.setVbucketCmdHisto);
-                return setVBucket(h, cookie, request, response);
+                rv = setVBucket(h, cookie, request, response);
+                releaseHandle(handle);
+                return rv;
             }
-            break;
         case CMD_ONLINE_UPDATE_START:
         case CMD_ONLINE_UPDATE_COMPLETE:
         case CMD_ONLINE_UPDATE_REVERT:
-            return h->onlineUpdate(cookie, request, response);
+            {
+                rv = h->onlineUpdate(cookie, request, response);
+                releaseHandle(handle);
+                return rv;
+            }
         case PROTOCOL_BINARY_CMD_TOUCH:
         case PROTOCOL_BINARY_CMD_GAT:
         case PROTOCOL_BINARY_CMD_GATQ:
-            return h->touch(cookie, request, response);
-
+            {
+                rv = h->touch(cookie, request, response);
+                releaseHandle(handle);
+                return rv;
+            }
         case CMD_RESTORE_FILE:
         case CMD_RESTORE_ABORT:
         case CMD_RESTORE_COMPLETE:
-            return h->handleRestoreCmd(cookie, request, response);
-
+            {
+                rv = h->handleRestoreCmd(cookie, request, response);
+                releaseHandle(handle);
+                return rv;
+            }
         case CMD_STOP_PERSISTENCE:
             res = stopFlusher(h, &msg, &msg_size);
             break;
@@ -811,6 +863,7 @@ extern "C" {
             rv = getLocked(h, (protocol_binary_request_getl*)request, cookie, &item, &msg, &msg_size, &res);
             if (rv == ENGINE_EWOULDBLOCK) {
                 // we dont have the value for the item yet
+                releaseHandle(handle);
                 return rv;
             }
             break;
@@ -818,51 +871,66 @@ extern "C" {
             res = unlockKey(h, request, &msg, &msg_size);
             break;
         case CMD_SYNC:
-            return syncCmd(h, request, cookie, response);
-            break;
+            {
+                rv = syncCmd(h, request, cookie, response);
+                releaseHandle(handle);
+                return rv;
+            }
         case CMD_DEREGISTER_TAP_CLIENT:
-            return h->deregisterTapClient(cookie, request, response);
-            break;
+            {
+                rv = h->deregisterTapClient(cookie, request, response);
+                releaseHandle(handle);
+                return rv;
+            }
         case CMD_LAST_CLOSED_CHECKPOINT:
-            return h->handleGetLastClosedCheckpointId(cookie, request, response);
+            {
+                rv = h->handleGetLastClosedCheckpointId(cookie, request, response);
+                releaseHandle(handle);
+                return rv;
+            }
         case CMD_RESET_REPLICATION_CHAIN:
-            return h->resetReplicationChain(cookie, request, response);
+            {
+                rv = h->resetReplicationChain(cookie, request, response);
+                releaseHandle(handle);
+                return rv;
+            }
         }
 
         // Send a special response for getl since we don't want to send the key
         if (item && request->request.opcode == CMD_GET_LOCKED) {
             uint32_t flags = item->getFlags();
 
-            response(NULL, 0, (const void *)&flags, sizeof(uint32_t),
-                    static_cast<const void *>(item->getData()),
-                    item->getNBytes(),
-                    PROTOCOL_BINARY_RAW_BYTES,
-                    static_cast<uint16_t>(res), item->getCas(),
-                    cookie);
+            rv = sendResponse(response, NULL, 0, (const void *)&flags, sizeof(uint32_t),
+                              static_cast<const void *>(item->getData()),
+                              item->getNBytes(),
+                              PROTOCOL_BINARY_RAW_BYTES,
+                              static_cast<uint16_t>(res), item->getCas(),
+                              cookie);
             delete item;
         } else if (item) {
             std::string key  = item->getKey();
             uint32_t flags = item->getFlags();
 
-            response(static_cast<const void *>(key.data()),
-                    item->getNKey(),
-                    (const void *)&flags, sizeof(uint32_t),
-                    static_cast<const void *>(item->getData()),
-                    item->getNBytes(),
-                    PROTOCOL_BINARY_RAW_BYTES,
-                    static_cast<uint16_t>(res), item->getCas(),
-                    cookie);
+            rv = sendResponse(response, static_cast<const void *>(key.data()),
+                              item->getNKey(),
+                              (const void *)&flags, sizeof(uint32_t),
+                              static_cast<const void *>(item->getData()),
+                              item->getNBytes(),
+                              PROTOCOL_BINARY_RAW_BYTES,
+                              static_cast<uint16_t>(res), item->getCas(),
+                              cookie);
             delete item;
         } else {
 
             msg_size = (msg_size > 0 || msg == NULL) ? msg_size : strlen(msg);
-            response(NULL, 0, NULL, 0,
-                    msg, static_cast<uint16_t>(msg_size),
-                    PROTOCOL_BINARY_RAW_BYTES,
-                    static_cast<uint16_t>(res), 0, cookie);
+            rv = sendResponse(response, NULL, 0, NULL, 0,
+                              msg, static_cast<uint16_t>(msg_size),
+                              PROTOCOL_BINARY_RAW_BYTES,
+                              static_cast<uint16_t>(res), 0, cookie);
 
         }
-        return ENGINE_SUCCESS;
+        releaseHandle(handle);
+        return rv;
     }
 
     static void EvpItemSetCas(ENGINE_HANDLE* , const void *,
@@ -887,11 +955,12 @@ extern "C" {
                                           size_t ndata,
                                           uint16_t vbucket)
     {
-        return getHandle(handle)->tapNotify(cookie, engine_specific, nengine,
-                                            ttl, tap_flags, tap_event,
-                                            tap_seqno, key, nkey, flags,
-                                            exptime, cas, data, ndata,
+        ENGINE_ERROR_CODE err_code = getHandle(handle)->tapNotify(cookie, engine_specific,
+                                            nengine, ttl, tap_flags, tap_event, tap_seqno,
+                                            key, nkey, flags, exptime, cas, data, ndata,
                                             vbucket);
+        releaseHandle(handle);
+        return err_code;
     }
 
     static tap_event_t EvpTapIterator(ENGINE_HANDLE* handle,
@@ -899,8 +968,10 @@ extern "C" {
                                       void **es, uint16_t *nes, uint8_t *ttl,
                                       uint16_t *flags, uint32_t *seqno,
                                       uint16_t *vbucket) {
-        return getHandle(handle)->walkTapQueue(cookie, itm, es, nes, ttl,
-                                               flags, seqno, vbucket);
+        tap_event_t tap_event = getHandle(handle)->walkTapQueue(cookie, itm, es, nes, ttl,
+                                                                flags, seqno, vbucket);
+        releaseHandle(handle);
+        return tap_event;
     }
 
     static TAP_ITERATOR EvpGetTapIterator(ENGINE_HANDLE* handle,
@@ -909,14 +980,17 @@ extern "C" {
                                           size_t nclient,
                                           uint32_t flags,
                                           const void* userdata,
-                                          size_t nuserdata) {
+                                          size_t nuserdata)
+    {
+        EventuallyPersistentEngine *h = getHandle(handle);
         std::string c(static_cast<const char*>(client), nclient);
         // Figure out what we want from the userdata before adding it to the API
         // to the handle
-        if (getHandle(handle)->createTapQueue(cookie, c, flags,
-                                              userdata, nuserdata)) {
+        if (h->createTapQueue(cookie, c, flags, userdata, nuserdata)) {
+            releaseHandle(handle);
             return EvpTapIterator;
         } else {
+            releaseHandle(handle);
             return NULL;
         }
     }
@@ -929,7 +1003,8 @@ extern "C" {
         assert(type == ON_DISCONNECT);
         assert(event_data == NULL);
         void *c = const_cast<void*>(cb_data);
-        return getHandle(static_cast<ENGINE_HANDLE*>(c))->handleDisconnect(cookie);
+        getHandle(static_cast<ENGINE_HANDLE*>(c))->handleDisconnect(cookie);
+        releaseHandle(static_cast<ENGINE_HANDLE*>(c));
     }
 
 
@@ -2572,8 +2647,12 @@ void EventuallyPersistentEngine::queueBackfill(const VBucketFilter &backfillVBFi
 
 static void add_casted_stat(const char *k, const char *v,
                             ADD_STAT add_stat, const void *cookie) {
+    // Set the thread local to NULL as it is going to call add_stat memcached callback.
+    EventuallyPersistentEngine *engine = ObjectRegistry::onSwitchThread(NULL, true);
     add_stat(k, static_cast<uint16_t>(strlen(k)),
              v, static_cast<uint32_t>(strlen(v)), cookie);
+    // Set the thread local to its old value again.
+    ObjectRegistry::onSwitchThread(engine);
 }
 
 template <typename T>
@@ -3725,12 +3804,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::touch(const void *cookie,
                                                     ADD_RESPONSE response)
 {
     if (request->request.extlen != 4 || request->request.keylen == 0) {
-        if (response(NULL, 0, NULL, 0, NULL, 0, PROTOCOL_BINARY_RAW_BYTES,
-                     PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie)) {
-            return ENGINE_SUCCESS;
-        } else {
-            return ENGINE_FAILED;
-        }
+        return sendResponse(response, NULL, 0, NULL, 0, NULL, 0, PROTOCOL_BINARY_RAW_BYTES,
+                            PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
     }
 
     protocol_binary_request_touch *t = reinterpret_cast<protocol_binary_request_touch*>(request);
@@ -3748,45 +3823,31 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::touch(const void *cookie,
                                          exptime));
     ENGINE_ERROR_CODE rv = gv.getStatus();
     if (rv == ENGINE_SUCCESS) {
-        bool ret;
         Item *it = gv.getValue();
         if (request->request.opcode == PROTOCOL_BINARY_CMD_TOUCH) {
-            ret = response(NULL, 0, NULL, 0, NULL, 0,
-                           PROTOCOL_BINARY_RAW_BYTES,
-                           PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
+            rv = sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
+                              PROTOCOL_BINARY_RAW_BYTES,
+                              PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
         } else {
             uint32_t flags = it->getFlags();
-            ret = response(NULL, 0, &flags, sizeof(flags),
-                           it->getData(), it->getNBytes(),
-                           PROTOCOL_BINARY_RAW_BYTES,
-                           PROTOCOL_BINARY_RESPONSE_SUCCESS, it->getCas(),
-                           cookie);
+            rv = sendResponse(response, NULL, 0, &flags, sizeof(flags),
+                              it->getData(), it->getNBytes(),
+                              PROTOCOL_BINARY_RAW_BYTES,
+                              PROTOCOL_BINARY_RESPONSE_SUCCESS, it->getCas(),
+                              cookie);
         }
         delete it;
-        if (ret) {
-            rv = ENGINE_SUCCESS;
-        } else {
-            rv = ENGINE_FAILED;
-        }
     } else if (rv == ENGINE_KEY_ENOENT) {
         if (request->request.opcode == PROTOCOL_BINARY_CMD_GATQ) {
             // GATQ should not return response upon cache miss
             rv = ENGINE_SUCCESS;
         } else {
-            if (response(NULL, 0, NULL, 0, NULL, 0, PROTOCOL_BINARY_RAW_BYTES,
-                         PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, 0, cookie)) {
-                rv = ENGINE_SUCCESS;
-            } else {
-                rv = ENGINE_FAILED;
-            }
+            rv = sendResponse(response, NULL, 0, NULL, 0, NULL, 0, PROTOCOL_BINARY_RAW_BYTES,
+                              PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, 0, cookie);
         }
     } else if (rv == ENGINE_NOT_MY_VBUCKET) {
-        if (response(NULL, 0, NULL, 0, NULL, 0, PROTOCOL_BINARY_RAW_BYTES,
-                     PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, 0, cookie)) {
-            rv = ENGINE_SUCCESS;
-        } else {
-            rv = ENGINE_FAILED;
-        }
+        rv = sendResponse(response, NULL, 0, NULL, 0, NULL, 0, PROTOCOL_BINARY_RAW_BYTES,
+                          PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, 0, cookie);
     }
 
     return rv;
@@ -3879,12 +3940,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::onlineUpdate(const void *cookie,
         break;
     }
 
-    if (response(NULL, 0, NULL, 0, NULL, 0, PROTOCOL_BINARY_RAW_BYTES,
-                 rv, 0, cookie)) {
-        return ENGINE_SUCCESS;
-    } else {
-        return ENGINE_FAILED;
-    }
+    return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
+                        PROTOCOL_BINARY_RAW_BYTES,
+                        rv, 0, cookie);
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::sync(std::set<key_spec_t> *keys,
@@ -3924,12 +3982,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::sync(std::set<key_spec_t> *keys,
         syncListener->destroy();
 
         std::string body = resp.str();
-        response(NULL, 0, NULL, 0,
-                 body.c_str(), static_cast<uint16_t>(body.length()),
-                 PROTOCOL_BINARY_RAW_BYTES,
-                 PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
-
-        return ENGINE_SUCCESS;
+        return sendResponse(response, NULL, 0, NULL, 0,
+                            body.c_str(), static_cast<uint16_t>(body.length()),
+                            PROTOCOL_BINARY_RAW_BYTES,
+                            PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
     }
 
     switch (syncType) {
@@ -3963,12 +4019,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::sync(std::set<key_spec_t> *keys,
     syncListener->destroy();
 
     std::string body = resp.str();
-    response(NULL, 0, NULL, 0,
-             body.c_str(), static_cast<uint16_t>(body.length()),
-             PROTOCOL_BINARY_RAW_BYTES,
-             PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
-
-    return ENGINE_SUCCESS;
+    return sendResponse(response, NULL, 0, NULL, 0,
+                        body.c_str(), static_cast<uint16_t>(body.length()),
+                        PROTOCOL_BINARY_RAW_BYTES,
+                        PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
 }
 
 static void notifyListener(std::vector< std::pair<StoredValue*, uint16_t> > &svList,
@@ -4113,55 +4167,42 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::handleRestoreCmd(const void *cooki
 {
     LockHolder lh(restore.mutex);
     if (restore.manager == NULL) { // we need another "mode" variable
-        if (response(NULL, 0, NULL, 0, NULL, 0, PROTOCOL_BINARY_RAW_BYTES,
-                     PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0, cookie)) {
-            return ENGINE_SUCCESS;
-        }
-        return ENGINE_FAILED;
+        return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
+                            PROTOCOL_BINARY_RAW_BYTES,
+                            PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0, cookie);
     }
 
     if (request->request.opcode == CMD_RESTORE_FILE) {
-        std::string filename((const char*)request->bytes + sizeof(request->bytes) + request->request.extlen, ntohs(request->request.keylen));
+        std::string filename((const char*)request->bytes + sizeof(request->bytes) +
+                             request->request.extlen, ntohs(request->request.keylen));
         try {
             restore.manager->initialize(filename);
         } catch (std::string e) {
-            if (response(NULL, 0, NULL, 0, e.c_str(), e.length(),
-                         PROTOCOL_BINARY_RAW_BYTES,
-                         PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, 0, cookie)) {
-                return ENGINE_SUCCESS;
-            }
-            return ENGINE_FAILED;
+            return sendResponse(response, NULL, 0, NULL, 0, e.c_str(), e.length(),
+                                PROTOCOL_BINARY_RAW_BYTES,
+                                PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, 0, cookie);
         }
 
         try {
             restore.manager->start();
         } catch (std::string e) {
-            if (response(NULL, 0, NULL, 0, e.c_str(), e.length(),
-                         PROTOCOL_BINARY_RAW_BYTES,
-                         PROTOCOL_BINARY_RESPONSE_EINTERNAL, 0, cookie)) {
-                return ENGINE_SUCCESS;
-            }
-            return ENGINE_FAILED;
+            return sendResponse(response, NULL, 0, NULL, 0, e.c_str(), e.length(),
+                                PROTOCOL_BINARY_RAW_BYTES,
+                                PROTOCOL_BINARY_RESPONSE_EINTERNAL, 0, cookie);
         }
     } else if (request->request.opcode == CMD_RESTORE_ABORT) {
         try {
             restore.manager->abort();
         } catch (std::string e) {
-            if (response(NULL, 0, NULL, 0, e.c_str(), e.length(),
-                         PROTOCOL_BINARY_RAW_BYTES,
-                         PROTOCOL_BINARY_RESPONSE_EINTERNAL, 0, cookie)) {
-                return ENGINE_SUCCESS;
-            }
-            return ENGINE_FAILED;
+            return sendResponse(response, NULL, 0, NULL, 0, e.c_str(), e.length(),
+                                PROTOCOL_BINARY_RAW_BYTES,
+                                PROTOCOL_BINARY_RESPONSE_EINTERNAL, 0, cookie);
         }
     } else {
         if (restore.manager->isRunning()) {
-            if (response(NULL, 0, NULL, 0, NULL, 0,
-                         PROTOCOL_BINARY_RAW_BYTES,
-                         PROTOCOL_BINARY_RESPONSE_EBUSY, 0, cookie)) {
-                return ENGINE_SUCCESS;
-            }
-            return ENGINE_FAILED;
+            return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
+                                PROTOCOL_BINARY_RAW_BYTES,
+                                PROTOCOL_BINARY_RESPONSE_EBUSY, 0, cookie);
         }
 
         destroy_restore_manager(restore.manager);
@@ -4169,12 +4210,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::handleRestoreCmd(const void *cooki
         restore.manager = NULL;
     }
 
-    if (response(NULL, 0, NULL, 0, NULL, 0,
-                 PROTOCOL_BINARY_RAW_BYTES,
-                 PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie)) {
-        return ENGINE_SUCCESS;
-    }
-    return ENGINE_FAILED;
+    return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
+                        PROTOCOL_BINARY_RAW_BYTES,
+                        PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::deregisterTapClient(const void *cookie,
@@ -4203,12 +4241,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deregisterTapClient(const void *co
         }
     }
 
-    if (response(NULL, 0, NULL, 0, NULL, 0,
-                 PROTOCOL_BINARY_RAW_BYTES,
-                 PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie)) {
-        return ENGINE_SUCCESS;
-    }
-    return ENGINE_FAILED;
+    return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
+                        PROTOCOL_BINARY_RAW_BYTES,
+                        PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
 }
 
 ENGINE_ERROR_CODE
@@ -4218,21 +4253,16 @@ EventuallyPersistentEngine::handleGetLastClosedCheckpointId(const void *cookie,
     uint16_t vbucket = ntohs(req->request.vbucket);
     RCPtr<VBucket> vb = getVBucket(vbucket);
     if (!vb) {
-        if (response(NULL, 0, NULL, 0, NULL, 0,
-                     PROTOCOL_BINARY_RAW_BYTES,
-                     PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, 0, cookie)) {
-            return ENGINE_SUCCESS;
-        }
-        return ENGINE_FAILED;
+        return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
+                            PROTOCOL_BINARY_RAW_BYTES,
+                            PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, 0, cookie);
     }
 
     uint64_t checkpointId = vb->checkpointManager.getLastClosedCheckpointId();
     checkpointId = htonll(checkpointId);
-    if (response(NULL, 0, NULL, 0, &checkpointId, sizeof(checkpointId),
-                 PROTOCOL_BINARY_RAW_BYTES, PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie)) {
-        return ENGINE_SUCCESS;
-    }
-    return ENGINE_FAILED;
+    return sendResponse(response, NULL, 0, NULL, 0, &checkpointId, sizeof(checkpointId),
+                        PROTOCOL_BINARY_RAW_BYTES,
+                        PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
 }
 
 ENGINE_ERROR_CODE
@@ -4241,9 +4271,7 @@ EventuallyPersistentEngine::resetReplicationChain(const void *cookie,
                                                   ADD_RESPONSE response) {
     (void) req;
     tapConnMap.resetReplicaChain();
-    if (response(NULL, 0, NULL, 0, NULL, 0,
-                 PROTOCOL_BINARY_RAW_BYTES, PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie)) {
-        return ENGINE_SUCCESS;
-    }
-    return ENGINE_FAILED;
+    return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
+                        PROTOCOL_BINARY_RAW_BYTES,
+                        PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
 }
