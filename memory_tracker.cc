@@ -49,18 +49,8 @@ extern "C" {
 }
 
 MemoryTracker::MemoryTracker() {
-    if (getHooksApi()->add_new_hook(&NewHook)) {
-        getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "Registered add hook");
-        if (getHooksApi()->add_delete_hook(&DeleteHook)) {
-            getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "Registered delete hook");
-            std::cout.flush();
-            trackingAllocations = true;
-            return;
-        }
-        std::cout.flush();
-        getHooksApi()->remove_new_hook(&NewHook);
-    }
-    getLogger()->log(EXTENSION_LOG_WARNING, NULL, "Failed to register allocator hooks");
+    getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                     "Memory Tracker is disabled by default");
 }
 
 MemoryTracker::~MemoryTracker() {
