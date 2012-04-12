@@ -22,7 +22,7 @@
 #include <string>
 #include <vector>
 #include <cstdlib>
-
+#include <sys/stat.h>
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -31,6 +31,7 @@
 #include <sys/wait.h>
 #include <pthread.h>
 #include <netinet/in.h>
+#include <dirent.h>
 
 #ifdef HAS_ARPA_INET_H
 #include <arpa/inet.h>
@@ -109,42 +110,72 @@ bool abort_msg(const char *expr, const char *msg, int line) {
     return false;
 }
 
-static void rmdb(void) {
-    remove("/tmp/test.db");
-    remove("/tmp/mutation.log");
-    remove("/tmp/test.db-0.sqlite");
-    remove("/tmp/test.db-1.sqlite");
-    remove("/tmp/test.db-2.sqlite");
-    remove("/tmp/test.db-3.sqlite");
-    remove("/tmp/test.db-wal");
-    remove("/tmp/test.db-0.sqlite-wal");
-    remove("/tmp/test.db-1.sqlite-wal");
-    remove("/tmp/test.db-2.sqlite-wal");
-    remove("/tmp/test.db-3.sqlite-wal");
-    remove("/tmp/test.db-shm");
-    remove("/tmp/test.db-0.sqlite-shm");
-    remove("/tmp/test.db-1.sqlite-shm");
-    remove("/tmp/test.db-2.sqlite-shm");
-    remove("/tmp/test.db-3.sqlite-shm");
+static void rmrf(const char *fname)
+{
+    struct stat st;
+    if (stat(fname, &st) == 0) {
+        if ((st.st_mode & S_IFDIR) == S_IFDIR) {
+            DIR *dp = opendir(fname);
+            if (dp != NULL) {
+                struct dirent *de;
+                char buffer[PATH_MAX + sizeof(*de)];
+
+                while (true) {
+                    // readdir_r doesn't work the same way on solaris/mac/linux
+                    de = NULL;
+                    readdir_r(dp, (struct dirent*)buffer, &de);
+                    if (de == NULL) {
+                        break;
+                    }
+                    if (!(de->d_name[0] == '.' &&
+                          (de->d_name[1] == '.' || de->d_name[1] == '\0'))) {
+                        char path[PATH_MAX];
+                        snprintf(path, sizeof(path), "%s/%s",
+                                 fname, de->d_name);
+                        rmrf(path);
+                    }
+                }
+                closedir(dp);
+            }
+        }
+
+        check(remove(fname) == 0, "Failed to remove file");
+    }
 }
 
-static enum test_result verify_no_db(void) {
-    if (access("/tmp/test.db", F_OK) != -1 ||
-        access("/tmp/test.db-0.sqlite", F_OK) != -1 ||
-        access("/tmp/test.db-1.sqlite", F_OK) != -1 ||
-        access("/tmp/test.db-2.sqlite", F_OK) != -1 ||
-        access("/tmp/test.db-3.sqlite", F_OK) != -1 ||
-        access("/tmp/test.db-wal", F_OK) != -1 ||
-        access("/tmp/test.db-0.sqlite-wal", F_OK) != -1 ||
-        access("/tmp/test.db-1.sqlite-wal", F_OK) != -1 ||
-        access("/tmp/test.db-2.sqlite-wal", F_OK) != -1 ||
-        access("/tmp/test.db-3.sqlite-wal", F_OK) != -1 ||
-        access("/tmp/test.db-shm", F_OK) != -1 ||
-        access("/tmp/test.db-0.sqlite-shm", F_OK) != -1 ||
-        access("/tmp/test.db-1.sqlite-shm", F_OK) != -1 ||
-        access("/tmp/test.db-2.sqlite-shm", F_OK) != -1 ||
-        access("/tmp/test.db-3.sqlite-shm", F_OK) != -1) {
-        return FAIL;
+static enum test_result rmdb(void)
+{
+    const char *files[] = { WHITESPACE_DB,
+                            WHITESPACE_DB,
+                            WHITESPACE_DB "-0.sqlite",
+                            WHITESPACE_DB "-1.sqlite",
+                            WHITESPACE_DB "-2.sqlite",
+                            WHITESPACE_DB "-3.sqlite",
+                            "/tmp/test.db",
+                            "/tmp/mutation.log",
+                            "/tmp/test.db-0.sqlite",
+                            "/tmp/test.db-1.sqlite",
+                            "/tmp/test.db-2.sqlite",
+                            "/tmp/test.db-3.sqlite",
+                            "/tmp/test.db-wal",
+                            "/tmp/test.db-0.sqlite-wal",
+                            "/tmp/test.db-1.sqlite-wal",
+                            "/tmp/test.db-2.sqlite-wal",
+                            "/tmp/test.db-3.sqlite-wal",
+                            "/tmp/test.db-shm",
+                            "/tmp/test.db-0.sqlite-shm",
+                            "/tmp/test.db-1.sqlite-shm",
+                            "/tmp/test.db-2.sqlite-shm",
+                            "/tmp/test.db-3.sqlite-shm",
+                            NULL };
+    int ii = 0;
+    while (files[ii] != NULL) {
+        rmrf(files[ii]);
+        if (access(files[ii], F_OK) != -1) {
+            std::cerr << "Failed to remove: " << files[ii] << " ";
+            return FAIL;
+        }
+        ++ii;
     }
 
     return SUCCESS;
@@ -2387,13 +2418,7 @@ static enum test_result test_whitespace_db(ENGINE_HANDLE *h,
         return FAIL;
     }
 
-    check(remove(WHITESPACE_DB) == 0,
-          "Error removing whitespace remanant.");
-    remove(WHITESPACE_DB "-0.sqlite");
-    remove(WHITESPACE_DB "-1.sqlite");
-    remove(WHITESPACE_DB "-2.sqlite");
-    remove(WHITESPACE_DB "-3.sqlite");
-
+    check(access(WHITESPACE_DB, F_OK) != -1, "I expected the whitespace db to exist");
     return SUCCESS;
 }
 
@@ -5114,25 +5139,27 @@ static enum test_result test_compact_mutation_log(ENGINE_HANDLE *h, ENGINE_HANDL
 static McCouchMockServer *mccouchMock;
 
 static enum test_result prepare(engine_test_t *test) {
-    rmdb();
-    enum test_result ret = verify_no_db();
-    if (ret != SUCCESS) {
-        return ret;
-    }
-
-    if (test->cfg == NULL || strstr(test->cfg, "backend") == NULL) {
-        return SUCCESS;
-    }
-
-    if (strstr(test->cfg, "backend=sqlite") != NULL) {
 #ifdef __sun
         // Some of the tests doesn't work on Solaris.. Don't know why yet..
-        if (strcmp(test->name, "concurrent set (sqlite)") == 0 ||
-            strcmp(test->name, "retain rowid over a soft delete (sqlite)") == 0)
+        if (strstr(test->name, "concurrent set") != NULL ||
+            strstr(test->name, "retain rowid over a soft delete") != NULL)
         {
             return SKIPPED;
         }
 #endif
+
+
+    if (test->cfg == NULL || strstr(test->cfg, "backend") == NULL) {
+        return rmdb();
+    }
+
+    enum test_result ret = rmdb();
+    if (ret != SUCCESS) {
+        return ret;
+    }
+
+    if (strstr(test->cfg, "backend=sqlite") != NULL) {
+        // No specialized init needed yet..
     } else if (strstr(test->cfg, "backend=couchdb") != NULL) {
         /* Start a mock server... */
         int port;
