@@ -118,3 +118,8 @@ bool invalid_hook_function(void (*hook)(const void* ptr, size_t size)) {
 size_t invalid_size_function(const char* property, size_t* value) {
     return 0;
 }
+
+__attribute__((constructor))
+static void load_tcmalloc_as_early_as_possible(void) {
+     init_alloc_hooks();
+}

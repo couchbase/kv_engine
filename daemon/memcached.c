@@ -6973,9 +6973,6 @@ int main (int argc, char **argv) {
     /* init settings */
     settings_init();
 
-    /* Initialize memory allocator hooks */
-    init_alloc_hooks();
-
     if (memcached_initialize_stderr_logger(get_server_api) != EXTENSION_SUCCESS) {
         fprintf(stderr, "Failed to initialize log system\n");
         return EX_OSERR;
