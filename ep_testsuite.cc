@@ -1685,7 +1685,8 @@ static enum test_result test_delete_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
 static enum test_result test_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
     static const char val[] = "somevalue";
-    check(store(h, h1, NULL, OPERATION_SET, "key", val, &i) == ENGINE_SUCCESS,
+    ENGINE_ERROR_CODE ret;
+    check((ret = store(h, h1, NULL, OPERATION_SET, "key", val, &i)) == ENGINE_SUCCESS,
           "Failed set.");
 
     testHarness.reload_engine(&h, &h1,
@@ -1713,9 +1714,11 @@ static enum test_result test_mb4898(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     }
     wait_for_flusher_to_settle(h, h1);
 
+    std::stringstream cfg;
+    cfg << testHarness.get_current_testcase()->cfg << ";klog_path=/tmp/mutation.log";
     testHarness.reload_engine(&h, &h1,
                               testHarness.engine_path,
-                              "klog_path=/tmp/mutation.log", // Enable a mutation log
+                              cfg.str().c_str(), // Enable a mutation log
                               true, false);
     assert(get_int_stat(h, h1, "curr_items") == 10);
     check(get_int_stat(h, h1, "count_new", "klog") == 10,
@@ -5125,7 +5128,7 @@ static enum test_result test_compact_mutation_log(ENGINE_HANDLE *h, ENGINE_HANDL
 
     testHarness.reload_engine(&h, &h1,
                               testHarness.engine_path,
-                              "klog_path=/tmp/mutation.log",
+                              testHarness.get_current_testcase()->cfg,
                               true, false);
     assert(get_int_stat(h, h1, "curr_items") == 1000);
     check(get_int_stat(h, h1, "count_new", "klog") == 1000,
@@ -5167,6 +5170,20 @@ static enum test_result prepare(engine_test_t *test) {
         char config[1024];
         sprintf(config, "%s;couch_port=%d", test->cfg, port);
         test->cfg = strdup(config);
+        std::string dbname;
+        const char *nm = strstr(test->cfg, "dbname=");
+        if (nm == NULL) {
+            dbname.assign("/tmp/test.db");
+        } else {
+            dbname.assign(nm + 7);
+            std::string::size_type end = dbname.find(';');
+            if (end != dbname.npos) {
+                dbname = dbname.substr(0, end);
+            }
+        }
+        if (dbname.find("/non/") == dbname.npos) {
+            mkdir(dbname.c_str(), 0777);
+        }
     } else {
         // unknow backend!
         using namespace std;
@@ -5189,12 +5206,10 @@ static void cleanup(engine_test_t *test, enum test_result result) {
 
 // the backends is a bitmask for which backend to run the given test
 // for.
-#define BACKEND_SQLITE 1
-#define BACKEND_COUCH 2
-// When BACKEND_COUCH is ready, change to BACKEND_ALL to 0x3 and
-// BACKEND_VARIANTS to 2
-#define BACKEND_ALL 0x1
-#define BACKEND_VARIANTS 1
+#define BACKEND_SQLITE 2
+#define BACKEND_COUCH 1
+#define BACKEND_ALL 0x3
+#define BACKEND_VARIANTS 2
 
 class TestCase {
 public:
@@ -5280,12 +5295,12 @@ engine_test_t* get_tests(void) {
     TestCase tc[] = {
         TestCase("validate engine handle", test_validate_engine_handle,
                  NULL, teardown, "db_strategy=singleDB;dbname=:memory:",
-                 prepare, cleanup, BACKEND_ALL),
+                 prepare, cleanup, BACKEND_SQLITE),
         // basic tests
         TestCase("test alloc limit", test_alloc_limit, NULL, teardown,
                  NULL, prepare, cleanup, BACKEND_ALL),
         TestCase("test init failure", test_init_fail, NULL, teardown,
-                 NULL, prepare, cleanup, BACKEND_ALL),
+                 NULL, prepare, cleanup, BACKEND_SQLITE),
         TestCase("test total memory limit", test_memory_limit, NULL, teardown,
                  "max_size=4096;ht_locks=1;ht_size=3;chk_remover_stime=1;chk_period=60;mutation_mem_threshold=0.9",
                  prepare, cleanup, BACKEND_ALL),
@@ -5297,13 +5312,13 @@ engine_test_t* get_tests(void) {
                  prepare, cleanup, BACKEND_ALL),
         TestCase("test db shards", test_db_shards, NULL, teardown,
                  "db_shards=5;db_strategy=multiDB", prepare, cleanup,
-                 BACKEND_ALL),
+                 BACKEND_SQLITE),
         TestCase("test single db strategy", test_single_db_strategy,
                  NULL, teardown, "db_strategy=singleDB", prepare, cleanup,
-                 BACKEND_ALL),
+                 BACKEND_SQLITE),
         TestCase("test single in-memory db strategy", test_single_db_strategy,
                  NULL, teardown, "db_strategy=singleDB;dbname=:memory:",
-                 prepare, cleanup, BACKEND_ALL),
+                 prepare, cleanup, BACKEND_SQLITE),
         TestCase("get miss", test_get_miss, NULL, teardown, NULL, prepare,
                  cleanup, BACKEND_ALL),
         TestCase("set", test_set, NULL, teardown, NULL, prepare, cleanup,
@@ -5363,11 +5378,11 @@ engine_test_t* get_tests(void) {
         TestCase("retain rowid over a soft delete", test_bug2509,
                  NULL, teardown, NULL, prepare, cleanup, BACKEND_ALL),
         TestCase("vbucket deletion doesn't affect new data", test_bug2761,
-                 NULL, teardown, NULL, prepare, cleanup, BACKEND_ALL),
+                 NULL, teardown, NULL, prepare, cleanup, BACKEND_SQLITE),
         TestCase("start transaction failure handling", test_bug2830, NULL,
                  teardown,
                  "db_shards=1;ht_size=13;ht_locks=7;db_strategy=multiDB",
-                 prepare, cleanup, BACKEND_ALL),
+                 prepare, cleanup, BACKEND_SQLITE),
         TestCase("non-resident decrementers", test_mb3169, NULL, teardown,
                  NULL, prepare, cleanup, BACKEND_ALL),
         TestCase("flush", test_flush, NULL, teardown, NULL, prepare, cleanup,
@@ -5498,11 +5513,11 @@ engine_test_t* get_tests(void) {
                  NULL, prepare, cleanup, BACKEND_ALL),
         TestCase("test restart with non-empty DB and empty mutation log",
                  test_mb4898, NULL, teardown, NULL,
-                 prepare, cleanup, BACKEND_ALL),
+                 prepare, cleanup, BACKEND_SQLITE),
 
         // disk>RAM tests
         TestCase("verify not multi dispatcher", test_not_multi_dispatcher_conf,
-                 NULL, teardown, NULL, prepare, cleanup, BACKEND_ALL),
+                 NULL, teardown, NULL, prepare, cleanup, BACKEND_SQLITE),
         TestCase("disk>RAM golden path", test_disk_gt_ram_golden, NULL,
                  teardown, "chk_remover_stime=1;chk_period=60", prepare,
                  cleanup, BACKEND_ALL),
@@ -5654,19 +5669,19 @@ engine_test_t* get_tests(void) {
         TestCase("restore: not enabled", test_restore_not_enabled, NULL,
                  teardown,
                  "db_strategy=singleDB;dbname=:memory:", prepare, cleanup,
-                 BACKEND_ALL),
+                 BACKEND_SQLITE),
         TestCase("restore: no such file", test_restore_no_such_file, NULL,
                  teardown,
                  "db_strategy=singleDB;dbname=:memory:;restore_mode=true",
-                 prepare, cleanup, BACKEND_ALL),
+                 prepare, cleanup, BACKEND_SQLITE),
         TestCase("restore: invalid file", test_restore_invalid_file, NULL,
                  teardown,
                  "db_strategy=singleDB;dbname=:memory:;restore_mode=true",
-                 prepare, cleanup, BACKEND_ALL),
+                 prepare, cleanup, BACKEND_SQLITE),
         TestCase("restore: data miss during restore", test_restore_data_miss,
                  NULL, teardown,
                  "db_strategy=singleDB;dbname=:memory:;restore_mode=true",
-                 prepare, cleanup, BACKEND_ALL),
+                 prepare, cleanup, BACKEND_SQLITE),
         TestCase("restore: no data in there", test_restore_clean, NULL,
                  teardown,
                  "restore_mode=true", prepare, cleanup, BACKEND_ALL),
@@ -5675,12 +5690,12 @@ engine_test_t* get_tests(void) {
                  "restore_mode=true", prepare, cleanup, BACKEND_ALL),
         TestCase("restore: with keys", test_restore_with_data, NULL, teardown,
                  "db_strategy=singleDB;dbname=:memory:;restore_mode=true",
-                 prepare, cleanup, BACKEND_ALL),
+                 prepare, cleanup, BACKEND_SQLITE),
 #ifdef future
         TestCase("restore: multiple incrementalfiles", test_restore_multi,
                  NULL, teardown,
                  "db_strategy=singleDB;dbname=:memory:;restore_mode=true",
-                 prepare, cleanup, BACKEND_ALL),
+                 prepare, cleanup, BACKEND_SQLITE),
 #endif
         // revision id's
         TestCase("revision sequence numbers", test_revid, NULL,
