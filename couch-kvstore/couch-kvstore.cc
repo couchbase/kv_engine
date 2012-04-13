@@ -303,6 +303,9 @@ void CouchKVStore::get(const std::string &key, uint64_t, uint16_t vb, uint16_t,
             it = new Item(key.c_str(), (size_t)key.length(), docInfo->size,
                           itemFlags, (time_t)0, cas);
             rv = GetValue(it);
+            /* update IO stats */
+            epStats.io_num_read++;
+            epStats.io_read_bytes += key.length();
         } else {
             errCode = couchstore_open_doc_with_docinfo(db, docInfo, &doc, 0);
             if (errCode != COUCHSTORE_SUCCESS || docInfo->deleted) {
@@ -320,6 +323,10 @@ void CouchKVStore::get(const std::string &key, uint64_t, uint16_t vb, uint16_t,
                 valuePtr = doc->data.buf;
                 it = new Item(key, itemFlags, 0, valuePtr, valuelen, cas, -1, vb);
                 rv = GetValue(it);
+
+                /* update IO stats */
+                epStats.io_num_read++;
+                epStats.io_read_bytes += key.length() + valuelen;
             }
         }
     }
@@ -415,6 +422,8 @@ vbucket_map_t CouchKVStore::listPersistedVbuckets()
             /* insert populated state to the array to return to the caller */
             rv[vb] = vb_state;
 
+            /* update IO stats */
+            epStats.io_num_read++;
             closeDatabaseHandle(db);
         }
         db = NULL;
@@ -1187,32 +1196,31 @@ void CouchKVStore::remVBucketFromDbFileMap(uint16_t vbucketId)
 void CouchKVStore::commitCallback(CouchRequest **committedReqs, int numReqs,
                                   int errCode)
 {
-    bool isDelete;
-    size_t dataSize;
-    hrtime_t spent;
-    int rv;
-
-    Callback<mutation_result> *setCb = NULL;
-    Callback<int> *delCb = NULL;
-
     for (int index = 0; index < numReqs; index++) {
-        isDelete = committedReqs[index]->isDelete();
-        dataSize = committedReqs[index]->getNBytes();
+        bool isDelete = committedReqs[index]->isDelete();
+        size_t dataSize = committedReqs[index]->getNBytes();
+        size_t keySize = committedReqs[index]->getKey().length();
         dataSize = (dataSize) ? dataSize : 1;
-        spent = committedReqs[index]->getDelta() / dataSize;
+        hrtime_t spent = committedReqs[index]->getDelta() / dataSize;
+
+        /* update ep stats */
+        epStats.io_num_write++;
+        epStats.io_write_bytes += keySize + dataSize;
 
         if (isDelete) {
-            rv = (errCode) ? -1 : 1;
+            int rv = (errCode) ? -1 : 1;
             epStats.couchDelqHisto.add(spent);
-            delCb = committedReqs[index]->getDelCallback();
+            Callback<int> *delCb = committedReqs[index]->getDelCallback();
             delCb->callback(rv);
         } else {
-            rv = (errCode) ? 0 : 1;
+            int rv = (errCode) ? 0 : 1;
             if (errCode) {
                 epStats.couchSetFailHisto.add(spent);
             } else {
                 epStats.couchSetHisto.add(spent);
             }
+
+            Callback<mutation_result> *setCb;
             setCb = committedReqs[index]->getSetCallback();
             mutation_result p(rv, committedReqs[index]->getItemId());
             setCb->callback(p);

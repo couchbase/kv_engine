@@ -67,6 +67,10 @@ public:
         return deleteItem;
     };
 
+    const std::string& getKey(void) const {
+        return key;
+    }
+
 private :
     value_t value;
     size_t valuelen;
