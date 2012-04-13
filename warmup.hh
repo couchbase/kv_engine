@@ -27,6 +27,7 @@ public:
     static const int EstimateDatabaseItemCount;
     static const int KeyDump;
     static const int LoadingAccessLog;
+    static const int CheckForAccessLog;
     static const int LoadingKVPairs;
     static const int LoadingData;
     static const int Done;
@@ -102,6 +103,7 @@ private:
     bool estimateDatabaseItemCount(Dispatcher&, TaskId);
     bool keyDump(Dispatcher&, TaskId);
     bool loadingAccessLog(Dispatcher&, TaskId);
+    bool checkForAccessLog(Dispatcher&, TaskId);
     bool loadingKVPairs(Dispatcher&, TaskId);
     bool loadingData(Dispatcher&, TaskId);
     bool done(Dispatcher&, TaskId);

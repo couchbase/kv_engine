@@ -22,10 +22,11 @@ const int WarmupState::Initialize = 0;
 const int WarmupState::LoadingMutationLog = 1;
 const int WarmupState::EstimateDatabaseItemCount = 2;
 const int WarmupState::KeyDump = 3;
-const int WarmupState::LoadingAccessLog = 4;
-const int WarmupState::LoadingKVPairs = 5;
-const int WarmupState::LoadingData = 6;
-const int WarmupState::Done = 7;
+const int WarmupState::CheckForAccessLog = 4;
+const int WarmupState::LoadingAccessLog = 5;
+const int WarmupState::LoadingKVPairs = 6;
+const int WarmupState::LoadingData = 7;
+const int WarmupState::Done = 8;
 
 const char *WarmupState::toString(void) const {
     return getStateDescription(state);
@@ -41,6 +42,8 @@ const char *WarmupState::getStateDescription(int st) const {
         return "estimating database item count";
     case KeyDump:
         return "loading keys";
+    case CheckForAccessLog:
+        return "determine access log availability";
     case LoadingAccessLog:
         return "loading access log";
     case LoadingKVPairs:
@@ -76,16 +79,17 @@ bool WarmupState::legalTransition(int to) const {
     case Initialize:
         return to == LoadingMutationLog;
     case LoadingMutationLog:
-        return (to == LoadingAccessLog ||
+        return (to == CheckForAccessLog ||
                 to == EstimateDatabaseItemCount);
     case EstimateDatabaseItemCount:
         return (to == KeyDump);
     case KeyDump:
         return (to == LoadingKVPairs ||
-                to == LoadingAccessLog);
+                to == CheckForAccessLog);
+    case CheckForAccessLog:
+        return (to == LoadingAccessLog || to == LoadingData);
     case LoadingAccessLog:
-        return (to == Done ||
-                to == LoadingData);
+        return (to == Done || to == LoadingData);
     case LoadingKVPairs:
         return (to == Done);
     case LoadingData:
@@ -341,7 +345,7 @@ bool Warmup::loadingMutationLog(Dispatcher&, TaskId)
     }
 
     if (success) {
-        transition(WarmupState::LoadingAccessLog);
+        transition(WarmupState::CheckForAccessLog);
     } else {
         try {
             if (store->mutationLog.reset()) {
@@ -390,7 +394,7 @@ bool Warmup::keyDump(Dispatcher&, TaskId)
     }
 
     if (success) {
-        transition(WarmupState::LoadingAccessLog);
+        transition(WarmupState::CheckForAccessLog);
     } else {
         if (store->roUnderlying->isKeyDumpSupported()) {
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
@@ -414,13 +418,27 @@ private:
     Warmup &warmup;
 };
 
-bool Warmup::loadingAccessLog(Dispatcher&, TaskId)
+bool Warmup::checkForAccessLog(Dispatcher&, TaskId)
 {
     metadata = gethrtime() - startTime;
     getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                      "metadata loaded in %s",
                      hrtime2text(metadata).c_str());
 
+    std::string curr = store->accessLog.getLogFile();
+    std::string old = store->accessLog.getLogFile();
+    old.append(".old");
+    if (access(curr.c_str(), F_OK) == 0 || access(old.c_str(), F_OK) == 0) {
+        transition(WarmupState::LoadingAccessLog);
+    } else {
+        transition(WarmupState::LoadingData);
+    }
+
+    return true;
+}
+
+bool Warmup::loadingAccessLog(Dispatcher&, TaskId)
+{
     EstimateWarmupSize w(*this);
     LoadStorageKVPairCallback *load_cb = createLKVPCB(initialVbState, true);
     bool success = false;
@@ -513,6 +531,8 @@ bool Warmup::step(Dispatcher &d, TaskId t) {
             return estimateDatabaseItemCount(d, t);
         case WarmupState::KeyDump:
             return keyDump(d, t);
+        case WarmupState::CheckForAccessLog:
+            return checkForAccessLog(d, t);
         case WarmupState::LoadingAccessLog:
             return loadingAccessLog(d, t);
         case WarmupState::LoadingKVPairs:
