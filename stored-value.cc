@@ -179,18 +179,18 @@ bool StoredValue::unlocked_restoreMeta(Item *itm,
         flags = itm->getFlags();
         extra.feature.exptime = exptime;
         setStoredValueState(state_deleted_key);
-        break;
+        return true;
     case ENGINE_KEY_ENOENT:
         extra.feature.exptime = exptime;
         setStoredValueState(state_non_existent_key);
-        break;
+        return true;
     default:
         extra.feature.exptime = exptime;
         getLogger()->log(
             EXTENSION_LOG_WARNING, NULL,
             "mccouch returned error %d for get_meta\n", status);
+        return false;
     }
-    return true;
 }
 
 static inline size_t getDefault(size_t x, size_t d) {

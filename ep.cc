@@ -1236,6 +1236,7 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
     roUnderlying->get(key, rowid, vbucket, vbver, gcb);
     gcb.waitForValue();
     assert(gcb.fired);
+    ENGINE_ERROR_CODE status = gcb.val.getStatus();
 
     // Lock to prevent a race condition between a fetch for restore and delete
     LockHolder lh(vbsetMutex);
@@ -1247,9 +1248,11 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
         StoredValue *v = fetchValidValue(vb, key, bucket_num, true);
         if (BG_FETCH_METADATA == type) {
             if (v) {
-                v->unlocked_restoreMeta(gcb.val.getValue(),
-                                        getTmpItemExpiryWindow(),
-                                        gcb.val.getStatus());
+                if (v->unlocked_restoreMeta(gcb.val.getValue(),
+                                            getTmpItemExpiryWindow(),
+                                            gcb.val.getStatus())) {
+                    status = ENGINE_SUCCESS;
+                }
             }
         } else {
             if (v && !v->isResident()) {
@@ -1265,7 +1268,7 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
     hrtime_t stop = gethrtime();
     updateBGStats(init, start, stop);
 
-    engine.notifyIOComplete(cookie, gcb.val.getStatus());
+    engine.notifyIOComplete(cookie, status);
     delete gcb.val.getValue();
 }
 
