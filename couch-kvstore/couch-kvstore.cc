@@ -115,6 +115,11 @@ static uint32_t computeMaxDeletedSeqNum(DocInfo **docinfos, const int numdocs)
     return max;
 }
 
+static bool compareItemsByKey(const queued_item &i1, const queued_item &i2)
+{
+    return i1->getKey() == i2->getKey();
+}
+
 struct StatResponseCtx {
 public:
     StatResponseCtx(std::map<std::pair<uint16_t, uint16_t>, vbucket_state> &sm,
@@ -601,6 +606,9 @@ void CouchKVStore::optimizeWrites(std::vector<queued_item> &items) {
     }
     CompareQueuedItemsByVBAndKey cq;
     std::sort(items.begin(), items.end(), cq);
+    std::vector<queued_item>::iterator itr;
+    itr = std::unique(items.begin(), items.end(), compareItemsByKey);
+    items.resize(itr - items.begin());
 }
 
 void CouchKVStore::loadDB(shared_ptr<LoadCallback> cb, bool keysOnly,
