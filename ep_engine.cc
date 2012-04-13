@@ -1142,8 +1142,6 @@ private:
 
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
-    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-
     resetStats();
     if (config != NULL) {
         if (!configuration.parseConfiguration(config, serverApi)) {
@@ -1196,62 +1194,56 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     checkpointConfig = new CheckpointConfig(*this);
     CheckpointConfig::addConfigChangeListener(*this);
 
-    if (ret == ENGINE_SUCCESS) {
-        time_t start = ep_real_time();
-        try {
-            if ((kvstore = KVStoreFactory::create(*this)) == NULL) {
-                return ENGINE_FAILED;
-            }
-        } catch (std::exception& e) {
-            std::stringstream ss;
-            ss << "Failed to create database: " << e.what() << std::endl;
-            if (!dbAccess()) {
-                ss << "No access to \"" << configuration.getDbname() << "\"."
-                   << std::endl;
-            }
-
-            getLogger()->log(EXTENSION_LOG_WARNING, NULL, "%s",
-                             ss.str().c_str());
+    time_t start = ep_real_time();
+    try {
+        if ((kvstore = KVStoreFactory::create(*this)) == NULL) {
             return ENGINE_FAILED;
         }
-
-        if (memLowWat == std::numeric_limits<size_t>::max()) {
-            memLowWat = percentOf(stats.getMaxDataSize(), 0.6);
-        }
-        if (memHighWat == std::numeric_limits<size_t>::max()) {
-            memHighWat = percentOf(stats.getMaxDataSize(), 0.75);
-        }
-
-        stats.mem_low_wat = memLowWat;
-        stats.mem_high_wat = memHighWat;
-
-        databaseInitTime = ep_real_time() - start;
-        epstore = new EventuallyPersistentStore(*this, kvstore, configuration.isVb0(),
-                                                configuration.isConcurrentDB());
-        if (epstore == NULL) {
-            ret = ENGINE_ENOMEM;
-            return ret;
+    } catch (std::exception& e) {
+        std::stringstream ss;
+        ss << "Failed to create database: " << e.what() << std::endl;
+        if (!dbAccess()) {
+            ss << "No access to \"" << configuration.getDbname() << "\"."
+               << std::endl;
         }
 
-        // Register the callback
-        SERVER_CALLBACK_API *sapi;
-        sapi = getServerApi()->callback;
-        sapi->register_callback(reinterpret_cast<ENGINE_HANDLE*>(this),
-                                ON_DISCONNECT, EvpHandleDisconnect, this);
-        startEngineThreads();
-
-        // Complete the initialization of the ep-store
-        epstore->initialize();
+        getLogger()->log(EXTENSION_LOG_WARNING, NULL, "%s",
+                         ss.str().c_str());
+        return ENGINE_FAILED;
     }
 
-    if (ret == ENGINE_SUCCESS) {
-        getlExtension = new GetlExtension(epstore, getServerApiFunc);
-        getlExtension->initialize();
+    if (memLowWat == std::numeric_limits<size_t>::max()) {
+        memLowWat = percentOf(stats.getMaxDataSize(), 0.6);
     }
+    if (memHighWat == std::numeric_limits<size_t>::max()) {
+        memHighWat = percentOf(stats.getMaxDataSize(), 0.75);
+    }
+
+    stats.mem_low_wat = memLowWat;
+    stats.mem_high_wat = memHighWat;
+
+    databaseInitTime = ep_real_time() - start;
+    epstore = new EventuallyPersistentStore(*this, kvstore, configuration.isVb0(),
+                                            configuration.isConcurrentDB());
+    if (epstore == NULL) {
+        return ENGINE_ENOMEM;
+    }
+
+    // Register the callback
+    SERVER_CALLBACK_API *sapi = getServerApi()->callback;
+    sapi->register_callback(reinterpret_cast<ENGINE_HANDLE*>(this),
+                            ON_DISCONNECT, EvpHandleDisconnect, this);
+    startEngineThreads();
+
+    // Complete the initialization of the ep-store
+    epstore->initialize();
+
+    getlExtension = new GetlExtension(epstore, getServerApiFunc);
+    getlExtension->initialize();
 
     getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "Engine init complete.\n");
 
-    return ret;
+    return ENGINE_SUCCESS;
 }
 
 KVStore* EventuallyPersistentEngine::newKVStore() {
