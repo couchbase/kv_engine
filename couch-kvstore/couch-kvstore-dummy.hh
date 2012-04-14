@@ -14,7 +14,8 @@ class EPStats;
  * THis is a dummy implementation of the couchkvstore just to satisfy the
  * linker without a too advanced Makefile (for builds without libcouchkvstore)
  */
-class CouchKVStore : public KVStore {
+class CouchKVStore : public KVStore
+{
 public:
     CouchKVStore(EventuallyPersistentEngine &theEngine);
     CouchKVStore(const CouchKVStore &from);

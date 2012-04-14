@@ -17,7 +17,8 @@ typedef union {
     Callback <int> *delCb;
 } CouchRequestCallback;
 
-class LoadCallback {
+class LoadCallback
+{
 public:
     LoadCallback(shared_ptr<Callback<GetValue> > &data,
                  shared_ptr<RememberingCallback<bool> > &w) :
@@ -28,22 +29,43 @@ public:
     shared_ptr<RememberingCallback<bool> > complete;
 };
 
-const size_t COUCHSTORE_METADATA_SIZE (2*sizeof(uint32_t) + sizeof(uint64_t));
+const size_t COUCHSTORE_METADATA_SIZE(2 * sizeof(uint32_t) + sizeof(uint64_t));
 
-class CouchRequest {
+class CouchRequest
+{
 public:
     CouchRequest(const Item &it, int rev, CouchRequestCallback &cb, bool del);
 
-    uint16_t getVBucketId(void) { return vbucketId; }
-    int getRevNum(void) { return fileRevNum; }
-    Doc *getDbDoc(void) { return &dbDoc; }
-    DocInfo *getDbDocInfo(void) { return &dbDocInfo; }
-    Callback<mutation_result> *getSetCallback(void) { return callback.setCb; }
-    Callback<int> *getDelCallback(void) { return callback.delCb; }
-    int64_t getItemId(void) { return itemId; }
-    hrtime_t getDelta() { return (gethrtime() - start) / 1000; }
-    size_t getNBytes() { return valuelen; }
-    bool   isDelete() { return deleteItem; };
+    uint16_t getVBucketId(void) {
+        return vbucketId;
+    }
+    int getRevNum(void) {
+        return fileRevNum;
+    }
+    Doc *getDbDoc(void) {
+        return &dbDoc;
+    }
+    DocInfo *getDbDocInfo(void) {
+        return &dbDocInfo;
+    }
+    Callback<mutation_result> *getSetCallback(void) {
+        return callback.setCb;
+    }
+    Callback<int> *getDelCallback(void) {
+        return callback.delCb;
+    }
+    int64_t getItemId(void) {
+        return itemId;
+    }
+    hrtime_t getDelta() {
+        return (gethrtime() - start) / 1000;
+    }
+    size_t getNBytes() {
+        return valuelen;
+    }
+    bool   isDelete() {
+        return deleteItem;
+    };
 
 private :
     value_t value;
@@ -64,7 +86,8 @@ private :
 /**
  * Couchstore kv-store
  */
-class CouchKVStore : public KVStore {
+class CouchKVStore : public KVStore
+{
 public:
     /**
      * Build it!
@@ -147,9 +170,9 @@ public:
      */
     bool snapshotStats(const std::map<std::string, std::string> &m);
 
-     /**
-     * Take a snapshot of the vbucket states in the main DB.
-     */
+    /**
+    * Take a snapshot of the vbucket states in the main DB.
+    */
     bool snapshotVBuckets(const vbucket_map_t &m);
 
     /**
@@ -174,8 +197,8 @@ public:
         (void) destroyOnlyOne;
     }
 
-    static int recordDbDump(Db* db, DocInfo* docinfo, void *ctx);
-    static int recordDbStat(Db* db, DocInfo* docinfo, void *ctx);
+    static int recordDbDump(Db *db, DocInfo *docinfo, void *ctx);
+    static int recordDbStat(Db *db, DocInfo *docinfo, void *ctx);
     static void readVBState(Db *db, uint16_t vbId, vbucket_state &vbState);
 
 protected:
@@ -202,7 +225,7 @@ private:
     void getFileNameMap(std::vector<uint16_t> *vbids, std::string &dirname,
                         std::map<uint16_t, int> &filemap);
     void updateDbFileMap(uint16_t vbucketId, int newFileRev,
-                        bool insertImmediately = false);
+                         bool insertImmediately = false);
     void remVBucketFromDbFileMap(uint16_t vbucketId);
     couchstore_error_t  openDB(uint16_t vbucketId, uint16_t fileRev, Db **db,
                                uint64_t options, uint16_t *newFileRev = NULL);

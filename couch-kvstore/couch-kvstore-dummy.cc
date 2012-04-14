@@ -2,11 +2,13 @@
 #include "config.h"
 #include "couch-kvstore/couch-kvstore-dummy.hh"
 
-CouchKVStore::CouchKVStore(EventuallyPersistentEngine &) : KVStore() {
+CouchKVStore::CouchKVStore(EventuallyPersistentEngine &) : KVStore()
+{
     throw std::runtime_error("This kvstore should never be used");
 }
 
-CouchKVStore::CouchKVStore(const CouchKVStore &) : KVStore() {
+CouchKVStore::CouchKVStore(const CouchKVStore &) : KVStore()
+{
     throw std::runtime_error("This kvstore should never be used");
 }
 
@@ -53,37 +55,45 @@ bool CouchKVStore::delVBucket(uint16_t,
     throw std::runtime_error("This kvstore should never be used");
 }
 
-bool CouchKVStore::delVBucket(uint16_t, uint16_t) {
+bool CouchKVStore::delVBucket(uint16_t, uint16_t)
+{
     throw std::runtime_error("This kvstore should never be used");
 }
 
-vbucket_map_t CouchKVStore::listPersistedVbuckets() {
+vbucket_map_t CouchKVStore::listPersistedVbuckets()
+{
     throw std::runtime_error("This kvstore should never be used");
 }
 
 
-bool CouchKVStore::snapshotVBuckets(const vbucket_map_t &) {
+bool CouchKVStore::snapshotVBuckets(const vbucket_map_t &)
+{
     throw std::runtime_error("This kvstore should never be used");
 }
 
-bool CouchKVStore::snapshotStats(const std::map<std::string, std::string> &) {
+bool CouchKVStore::snapshotStats(const std::map<std::string, std::string> &)
+{
     // noop, virtual function implementation for abstract base class
     return true;
 }
 
-void CouchKVStore::dump(shared_ptr<Callback<GetValue> >) {
+void CouchKVStore::dump(shared_ptr<Callback<GetValue> >)
+{
     throw std::runtime_error("This kvstore should never be used");
 }
 
-void CouchKVStore::dump(uint16_t, shared_ptr<Callback<GetValue> >) {
+void CouchKVStore::dump(uint16_t, shared_ptr<Callback<GetValue> >)
+{
     throw std::runtime_error("This kvstore should never be used");
 }
 
-StorageProperties CouchKVStore::getStorageProperties() {
+StorageProperties CouchKVStore::getStorageProperties()
+{
     throw std::runtime_error("This kvstore should never be used");
 }
 
-bool CouchKVStore::commit(void) {
+bool CouchKVStore::commit(void)
+{
     throw std::runtime_error("This kvstore should never be used");
 }
 
