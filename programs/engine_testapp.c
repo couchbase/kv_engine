@@ -760,6 +760,7 @@ int main(int argc, char **argv) {
     bool quiet = false;
     bool dot = false;
     bool loop = false;
+    bool terminate_on_error = false;
     const char *engine = NULL;
     const char *engine_args = NULL;
     const char *test_suite = NULL;
@@ -805,6 +806,7 @@ int main(int argc, char **argv) {
           "."  /* dot mode. */
           "n:"  /* test case to run */
           "v" /* verbose output */
+          "Z"  /* Terminate on first error */
         ))) {
         switch (c) {
         case 'E':
@@ -836,6 +838,9 @@ int main(int argc, char **argv) {
             break;
         case '.':
             dot = true;
+            break;
+        case 'Z' :
+            terminate_on_error = true;
             break;
         default:
             fprintf(stderr, "Illegal argument \"%c\"\n", c);
@@ -907,6 +912,7 @@ int main(int argc, char **argv) {
         int i;
         bool need_newline = false;
         for (i = 0; testcases[i].name; i++) {
+            int error;
             if (test_case != NULL && strcmp(test_case, testcases[i].name) != 0)
                 continue;
             if (!quiet) {
@@ -925,10 +931,17 @@ int main(int argc, char **argv) {
                 }
             }
             set_test_timeout(timeout);
-            exitcode += report_test(testcases[i].name,
-                                    run_test(testcases[i], engine, engine_args),
-                                    quiet, !verbose);
+            error = report_test(testcases[i].name,
+                                run_test(testcases[i], engine, engine_args),
+                                quiet, !verbose);
             clear_test_timeout();
+
+            if (error != 0) {
+                ++exitcode;
+                if (terminate_on_error) {
+                    exit(EXIT_FAILURE);
+                }
+            }
         }
 
         if (need_newline) {
