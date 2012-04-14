@@ -274,17 +274,17 @@ void CouchKVStore::get(const std::string &key, uint64_t, uint16_t vb, uint16_t,
         uint32_t itemFlags;
         void *valuePtr = NULL;
         size_t valuelen = 0;
+        uint64_t cas;
         sized_buf metadata;
 
         metadata = docInfo->rev_meta;
         assert(metadata.size == 16);
+        memcpy(&cas, (metadata.buf), 8);
+        cas = ntohll(cas);
         memcpy(&itemFlags, (metadata.buf) + 12, 4);
         itemFlags = ntohl(itemFlags);
 
         if (getMetaOnly) {
-            uint64_t cas;
-            memcpy(&cas, (metadata.buf), 8);
-            cas = ntohll(cas);
             it = new Item(key.c_str(), (size_t)key.length(), docInfo->size,
                           itemFlags, (time_t)0, cas);
             rv = GetValue(it);
@@ -303,7 +303,7 @@ void CouchKVStore::get(const std::string &key, uint64_t, uint16_t vb, uint16_t,
 
                 valuelen = doc->data.size;
                 valuePtr = doc->data.buf;
-                it = new Item(key, itemFlags, 0, valuePtr, valuelen, 0, -1, vb);
+                it = new Item(key, itemFlags, 0, valuePtr, valuelen, cas, -1, vb);
                 rv = GetValue(it);
             }
         }
