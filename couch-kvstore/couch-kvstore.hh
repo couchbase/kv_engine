@@ -243,6 +243,7 @@ private:
     EventuallyPersistentEngine &engine;
     EPStats &epStats;
     Configuration &configuration;
+    const std::string dbname;
     MemcachedEngine *mc;
     std::map<uint16_t, int>dbFileMap;
     std::list<CouchRequest *> pendingReqsQ;
