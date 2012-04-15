@@ -51,13 +51,14 @@ static bool isJSON(const value_t &value)
     return isJSON;
 }
 
-extern "C" int recordDbDumpC(Db *db, DocInfo *docinfo, void *ctx);
-int recordDbDumpC(Db *db, DocInfo *docinfo, void *ctx)
-{
-    return CouchKVStore::recordDbDump(db, docinfo, ctx);
+extern "C" {
+    static int recordDbDumpC(Db *db, DocInfo *docinfo, void *ctx)
+    {
+        return CouchKVStore::recordDbDump(db, docinfo, ctx);
+    }
 }
 
-static const std::string getJSONObjString(cJSON *i)
+static const std::string getJSONObjString(const cJSON *i)
 {
     if (i == NULL) {
         return "";
@@ -87,24 +88,25 @@ static int dbFileRev(const std::string &dbname)
 static bool discoverDbFiles(const std::string &dir,
                             std::vector<std::string> &v)
 {
-    DIR *dhdl = NULL;
-    struct dirent *direntry = NULL;
+    DIR *dhdl;
 
     if ((dhdl = opendir(dir.c_str())) == NULL) {
         return false;
-    } else {
-        while ((direntry = readdir(dhdl))) {
-            if (strlen(direntry->d_name) < (sizeof(".couch") - 1)) {
-                continue;
-            }
-            std::stringstream filename;
-            filename << dir << std::string("/") << std::string(direntry->d_name);
-            if (!endWithCompact(filename.str())) {
-                v.push_back(std::string(filename.str()));
-            }
+    }
+
+    struct dirent *direntry;
+    while ((direntry = readdir(dhdl))) {
+        if (strlen(direntry->d_name) < (sizeof(".couch") - 1)) {
+            continue;
+        }
+        std::stringstream filename;
+        filename << dir << std::string("/") << std::string(direntry->d_name);
+        if (!endWithCompact(filename.str())) {
+            v.push_back(std::string(filename.str()));
         }
     }
     closedir(dhdl);
+
     return true;
 }
 
@@ -1174,11 +1176,8 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, int rev, Doc **docs,
 
 void CouchKVStore::queue(CouchRequest &req)
 {
-
     pendingReqsQ.push_back(&req);
     pendingCommitCnt++;
-
-    return;
 }
 
 void CouchKVStore::remVBucketFromDbFileMap(uint16_t vbucketId)
@@ -1189,8 +1188,6 @@ void CouchKVStore::remVBucketFromDbFileMap(uint16_t vbucketId)
     if (itr != dbFileMap.end()) {
         dbFileMap.erase(itr);
     }
-
-    return;
 }
 
 void CouchKVStore::commitCallback(CouchRequest **committedReqs, int numReqs,
@@ -1280,7 +1277,6 @@ couchstore_error_t CouchKVStore::saveVBState(Db *db, vbucket_state &vbState)
               << "\", \"max_deleted_seqno\": \"" << vbState.maxDeletedSeqno
               << "\"}";
 
-    assert(jsonState.str().compare("unknonw") != 0);
     lDoc.id.buf = (char *)"_local/vbstate";
     lDoc.id.size = sizeof("_local/vbstate") - 1;
     state = jsonState.str();
@@ -1295,16 +1291,11 @@ couchstore_error_t CouchKVStore::saveVBState(Db *db, vbucket_state &vbState)
  * setDocsCommitted:
  * Set the stat of the number of docs in the last commit
  *
- * @param:
- * uint_16   docs (IN) - # of docs in the last commit
- *
- * @return:
- * void
+ * @param docs # of docs in the last commit
  */
 void CouchKVStore::setDocsCommitted(uint16_t docs)
 {
     if (docs != docsCommitted) {
         docsCommitted = docs;
     }
-    return;
 }
