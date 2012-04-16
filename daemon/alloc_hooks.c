@@ -16,6 +16,8 @@ bool init_tcmalloc_hooks(void);
 bool invalid_hook_function(void (*)(const void*, size_t));
 size_t invalid_size_function(const char*, size_t*);
 
+#define TCMALLOC_DLL "libtcmalloc_minimal-4.dll"
+
 void init_alloc_hooks() {
     if (!init_tcmalloc_hooks()) {
         init_no_hooks();
@@ -25,7 +27,11 @@ void init_alloc_hooks() {
 }
 
 bool init_tcmalloc_hooks(void) {
+#ifdef __WIN32__
+    void* handle = dlopen(TCMALLOC_DLL, RTLD_LAZY);
+#else
     void* handle = dlopen(NULL, RTLD_LAZY);
+#endif
 
     if (!handle) {
         get_stderr_logger()->log(EXTENSION_LOG_WARNING, NULL,
@@ -74,58 +80,35 @@ bool mc_remove_delete_hook(void (*hook)(const void* ptr)) {
     return (removeDelHook.func)(hook) ? true : false;
 }
 
-int mc_get_stats_size() {
+int mc_get_extra_stats_size() {
     if (type == tcmalloc) {
-        return 6;
+        return 3;
     }
     return 0;
 }
 
-void mc_get_allocator_stats(allocator_stat* stats) {
+void mc_get_allocator_stats(allocator_stats* stats) {
     if (type == tcmalloc) {
-        char* tcmalloc_stats_names[] = {"generic.current_allocated_bytes",
-                                        "generic.heap_size",
-                                        "tcmalloc.pageheap_free_bytes",
-                                        "tcmalloc.pageheap_unmapped_bytes",
-                                        "tcmalloc.max_total_thread_cache_bytes",
-                                        "tcmalloc.current_total_thread_cache_bytes"};
+        (getStatsProp.func)("generic.current_allocated_bytes", &(stats->allocated_size));
+        (getStatsProp.func)("generic.heap_size", &(stats->heap_size));
+        (getStatsProp.func)("tcmalloc.pageheap_free_bytes", &(stats->free_size));
+        stats->fragmentation_size = stats->heap_size - stats->allocated_size - stats->free_size;
 
-        char* stats_names[] = {"tcmalloc_allocated_bytes",
-                               "tcmalloc_heap_size",
-                               "tcmalloc_free_bytes",
-                               "tcmalloc_unmapped_bytes",
-                               "tcmalloc_max_thread_cache_bytes",
-                               "tcmalloc_current_thread_cache_bytes"};
+        strcpy(stats->ext_stats[0].key, "tcmalloc_unmapped_bytes");
+        strcpy(stats->ext_stats[1].key, "tcmalloc_max_thread_cache_bytes");
+        strcpy(stats->ext_stats[2].key, "tcmalloc_current_thread_cache_bytes");
 
-        int i;
-        for (i = 0; i < mc_get_stats_size(); i++) {
-            (*(stats + i)).key = strdup(stats_names[i]);
-            (getStatsProp.func)(tcmalloc_stats_names[i], &((*(stats + i)).value));
-        }
+        (getStatsProp.func)("tcmalloc.pageheap_unmapped_bytes",
+                            &(stats->ext_stats[0].value));
+        (getStatsProp.func)("tcmalloc.max_total_thread_cache_bytes",
+                            &(stats->ext_stats[1].value));
+        (getStatsProp.func)("tcmalloc.current_total_thread_cache_bytes",
+                            &(stats->ext_stats[2].value));
     }
 }
 
 size_t mc_get_allocation_size(void* ptr) {
     return (size_t)(getAllocSize.func)(ptr);
-}
-
-size_t mc_get_fragmented_size() {
-    if (type == tcmalloc) {
-        size_t heap_bytes = 0;
-        size_t allocated_bytes = 0;
-        size_t free_bytes = 0;
-        (getStatsProp.func)("generic.heap_size", &heap_bytes);
-        (getStatsProp.func)("generic.current_allocated_bytes", &allocated_bytes);
-        (getStatsProp.func)("tcmalloc.pageheap_free_bytes", &free_bytes);
-        return heap_bytes - allocated_bytes - free_bytes;
-    }
-    return 0;
-}
-
-size_t mc_get_allocated_size() {
-    size_t allocated_bytes = 0;
-    (getStatsProp.func)("generic.current_allocated_bytes", &allocated_bytes);
-    return allocated_bytes;
 }
 
 bool invalid_hook_function(void (*hook)(const void* ptr, size_t size)) {
@@ -134,4 +117,9 @@ bool invalid_hook_function(void (*hook)(const void* ptr, size_t size)) {
 
 size_t invalid_size_function(const char* property, size_t* value) {
     return 0;
+}
+
+__attribute__((constructor))
+static void load_tcmalloc_as_early_as_possible(void) {
+     init_alloc_hooks();
 }
