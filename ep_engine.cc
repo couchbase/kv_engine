@@ -2375,7 +2375,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
                     } else {
                         ret = ENGINE_DISCONNECT;
                         getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                         "%s Error processing checkpoint %d. Force disconnect\n",
+                                         "%s Error processing checkpoint %llu. Force disconnect\n",
                                          connection->logHeader(), checkpointId);
                     }
                 } else {

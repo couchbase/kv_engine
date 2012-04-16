@@ -119,7 +119,7 @@ void Flusher::initialize(TaskId tid) {
     store->stats.warmupComplete.set(true);
 
     getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                     "Warmup completed in %ds\n", store->stats.warmupTime.get());
+                     "Warmup completed in %llus\n", store->stats.warmupTime.get());
     transition_state(running);
 }
 

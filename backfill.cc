@@ -133,7 +133,7 @@ void BackFillVisitor::setResidentItemThreshold(double residentThreshold) {
         std::stringstream ss;
         ss << "Resident item threshold " << residentThreshold
            << " for memory backfill only is too low. Ignore this new threshold...";
-        getLogger()->log(EXTENSION_LOG_WARNING, NULL, ss.str().c_str());
+        getLogger()->log(EXTENSION_LOG_WARNING, NULL, "%s\n", ss.str().c_str());
         return;
     }
     backfillResidentThreshold = residentThreshold;

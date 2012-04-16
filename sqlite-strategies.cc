@@ -519,7 +519,7 @@ void ShardedMultiTableSqliteStrategy::destroyInvalidTables(bool destroyOnlyOne) 
                      static_cast<int>(i), it->c_str());
             execute(buf);
             getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                             "Removed the temp table kv_%d.%s\n", i, it->c_str());
+                             "Removed the temp table kv_%ld.%s\n", i, it->c_str());
             if (destroyOnlyOne) {
                 return;
             }
@@ -662,7 +662,7 @@ void ShardedByVBucketSqliteStrategy::destroyInvalidTables(bool destroyOnlyOne) {
                      static_cast<int>(i), it->c_str());
             execute(buf);
             getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                             "Removed the temp table kv_%d.%s\n", i, it->c_str());
+                             "Removed the temp table kv_%ld.%s\n", i, it->c_str());
             if (destroyOnlyOne) {
                 return;
             }

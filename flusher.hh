@@ -62,7 +62,7 @@ public:
         }
         if (rejectQueue != NULL) {
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "Flusher being destroyed with %d tasks in the reject queue\n",
+                             "Flusher being destroyed with %ld tasks in the reject queue\n",
                              rejectQueue->size());
             delete rejectQueue;
         }

@@ -284,7 +284,7 @@ public:
             d.snooze(t, 10);
             rv = true;
             getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                             "Reschedule to delete the chunk %d of vbucket %d from disk\n",
+                             "Reschedule to delete the chunk %ld of vbucket %d from disk\n",
                              chunk_num, vbucket);
             break;
         case vbucket_del_invalid:
@@ -331,7 +331,7 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
     bgFetchDelay(0)
 {
     getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                     "Storage props:  c=%d/r=%d/rw=%d\n",
+                     "Storage props:  c=%ld/r=%ld/rw=%ld\n",
                      storageProperties.maxConcurrency(),
                      storageProperties.maxReaders(),
                      storageProperties.maxWriters());
@@ -892,7 +892,7 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
     std::stringstream ss;
     ss << "Completed a background fetch, now at " << bgFetchQueue.get()
        << std::endl;
-    getLogger()->log(EXTENSION_LOG_DEBUG, NULL, ss.str().c_str());
+    getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "%s\n", ss.str().c_str());
 
     // Go find the data
     RememberingCallback<GetValue> gcb;
@@ -953,7 +953,7 @@ void EventuallyPersistentStore::bgFetch(const std::string &key,
     std::stringstream ss;
     ss << "Queued a background fetch, now at " << bgFetchQueue.get()
        << std::endl;
-    getLogger()->log(EXTENSION_LOG_DEBUG, NULL, ss.str().c_str());
+    getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "%s\n", ss.str().c_str());
     roDispatcher->schedule(dcb, NULL, Priority::BgFetcherPriority, bgFetchDelay);
 }
 
@@ -1447,7 +1447,7 @@ std::queue<queued_item>* EventuallyPersistentStore::beginFlush() {
         stats.flusher_todo.set(writing.size());
         stats.queue_size.set(queue_size);
         getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                         "Flushing %d items with %d still in queue\n",
+                         "Flushing %ld items with %ld still in queue\n",
                          writing.size(), queue_size);
         rv = &writing;
     }

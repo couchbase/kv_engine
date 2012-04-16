@@ -118,7 +118,7 @@ public:
     ~VBucket() {
         if (!pendingOps.empty()) {
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "Have %d pending ops while destroying vbucket\n",
+                             "Have %ld pending ops while destroying vbucket\n",
                              pendingOps.size());
         }
         stats.memOverhead.decr(sizeof(VBucket) + ht.memorySize() + sizeof(CheckpointManager));
