@@ -188,7 +188,7 @@ bool StoredValue::unlocked_restoreMeta(Item *itm,
         extra.feature.exptime = exptime;
         getLogger()->log(
             EXTENSION_LOG_WARNING, NULL,
-            "mccouch returned error %d for get_meta\n", status);
+            "The underlying storage returned error %d for get_meta\n", status);
         return false;
     }
 }
