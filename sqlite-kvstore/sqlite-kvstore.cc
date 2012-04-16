@@ -413,7 +413,7 @@ size_t StrategicSqlite3::warmup(MutationLog &lf,
     estimate.callback(total);
 
     getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                     "Completed log read in %s with %d entries\n",
+                     "Completed log read in %s with %ld entries\n",
                      hrtime2text(end - start).c_str(), total);
 
     start = gethrtime();

@@ -73,13 +73,13 @@ public:
 
         if (numEjected() > 0) {
             getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                             "Paged out %d values\n", numEjected());
+                             "Paged out %ld values\n", numEjected());
         }
 
         size_t num_expired = expired.size();
         if (num_expired > 0) {
             getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                             "Purged %d expired items\n", num_expired);
+                             "Purged %ld expired items\n", num_expired);
         }
 
         totalEjected += (ejected + num_expired);
@@ -239,7 +239,7 @@ bool InvalidItemDbPager::callback(Dispatcher &d, TaskId t) {
     else {
         d.snooze(t, 10);
         getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                         "Reschedule to delete the old chunk of vbucket %d with",
+                         "Reschedule to delete the old chunk of vbucket %d with"
                          " the version %d from disk\n",
                          vbid, vb_version);
     }

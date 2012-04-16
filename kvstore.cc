@@ -85,7 +85,7 @@ size_t KVStore::warmup(MutationLog &lf,
     size_t total = harvester.total();
     estimate.callback(total);
     getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                     "Completed log read in %s with %d entries\n",
+                     "Completed log read in %s with %ld entries\n",
                      hrtime2text(end - start).c_str(), total);
 
     WarmupCookie cookie(this, cb);
@@ -94,7 +94,7 @@ size_t KVStore::warmup(MutationLog &lf,
     end = gethrtime();
 
     getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                     "Populated log in %s with (l: %d, s: %d, e: %d)",
+                     "Populated log in %s with (l: %ld, s: %ld, e: %ld)",
                      hrtime2text(end - start).c_str(),
                      cookie.loaded, cookie.skipped, cookie.error);
 

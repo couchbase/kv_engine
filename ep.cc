@@ -359,7 +359,7 @@ public:
             d.snooze(t, 10);
             rv = true;
             getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                             "Reschedule to delete the chunk %d of vbucket %d from disk\n",
+                             "Reschedule to delete the chunk %ld of vbucket %d from disk\n",
                              chunk_num, vbucket);
             break;
         case vbucket_del_invalid:
@@ -412,7 +412,7 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
     bgFetchDelay(0)
 {
     getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                     "Storage props:  c=%d/r=%d/rw=%d\n",
+                     "Storage props:  c=%ld/r=%ld/rw=%ld\n",
                      storageProperties.maxConcurrency(),
                      storageProperties.maxReaders(),
                      storageProperties.maxWriters());
@@ -1182,7 +1182,7 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
     std::stringstream ss;
     ss << "Completed a background fetch, now at " << bgFetchQueue.get()
        << std::endl;
-    getLogger()->log(EXTENSION_LOG_DEBUG, NULL, ss.str().c_str());
+    getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "%s\n", ss.str().c_str());
 
     // Go find the data
     RememberingCallback<GetValue> gcb;
@@ -1245,7 +1245,7 @@ void EventuallyPersistentStore::bgFetch(const std::string &key,
     std::stringstream ss;
     ss << "Queued a background fetch, now at " << bgFetchQueue.get()
        << std::endl;
-    getLogger()->log(EXTENSION_LOG_DEBUG, NULL, ss.str().c_str());
+    getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "%s\n", ss.str().c_str());
     roDispatcher->schedule(dcb, NULL, Priority::BgFetcherPriority, bgFetchDelay);
 }
 
@@ -1807,7 +1807,7 @@ std::queue<queued_item>* EventuallyPersistentStore::beginFlush() {
         stats.flusher_todo.set(writing.size());
         stats.queue_size.set(queue_size);
         getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                         "Flushing %d items with %d still in queue\n",
+                         "Flushing %ld items with %ld still in queue\n",
                          writing.size(), queue_size);
         rv = &writing;
     }
@@ -2465,7 +2465,7 @@ bool EventuallyPersistentStore::warmupFromLog(const std::map<std::pair<uint16_t,
     warmupTask->setEstimatedItemCount(harvester.total());
 
     getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                     "Completed log read in %s with %d entries\n",
+                     "Completed log read in %s with %ld entries\n",
                      hrtime2text(end1 - start).c_str(), harvester.total());
 
     harvester.apply(&cb, &warmupLogCallback);
@@ -2473,7 +2473,7 @@ bool EventuallyPersistentStore::warmupFromLog(const std::map<std::pair<uint16_t,
 
     hrtime_t end2(gethrtime());
     getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                     "Completed repopulation from log in %dms\n",
+                     "Completed repopulation from log in %llums\n",
                      ((end2 - end1) / 1000000));
 
     // Anything left in the "loading" map at this point is uncommitted.
@@ -2481,7 +2481,7 @@ bool EventuallyPersistentStore::warmupFromLog(const std::map<std::pair<uint16_t,
     harvester.getUncommitted(uitems);
     if (uitems.size() > 0) {
         getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                         "%d items were uncommitted in the mutation log file. "
+                         "%ld items were uncommitted in the mutation log file. "
                          "Deleting them from the underlying data store.\n",
                          uitems.size());
         std::vector<mutation_log_uncommitted_t>::iterator uit = uitems.begin();

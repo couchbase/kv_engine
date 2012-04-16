@@ -263,7 +263,7 @@ void TapProducer::setBackfillAge(uint64_t age, bool reconnect) {
     if (flags & TAP_CONNECT_FLAG_BACKFILL) {
         backfillAge = age;
         getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                         "%s Backfill age set to %d\n",
+                         "%s Backfill age set to %llu\n",
                          logHeader(), age);
     }
 }
@@ -297,7 +297,7 @@ void TapProducer::setVBucketFilter(const std::vector<uint16_t> &vbuckets)
         ss << logHeader() << ": Changing the vbucket filter from "
            << vbucketFilter << " to "
            << filter << " (diff: " << diff << ")" << std::endl;
-        getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+        getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "%s\n",
                          ss.str().c_str());
         vbucketFilter = filter;
 
@@ -893,7 +893,8 @@ ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
                 ss << "TAP takeover is completed. ";
             }
             ss << "Disconnecting tap stream <" << getName() << ">";
-            getLogger()->log(EXTENSION_LOG_WARNING, NULL, ss.str().c_str());
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL, "%s\n",
+                             ss.str().c_str());
 
             setDisconnect(true);
             expiryTime = 0;
@@ -1377,7 +1378,7 @@ bool TapConsumer::processCheckpointCommand(tap_event_t event, uint16_t vbucket,
     if (vb->getState() == vbucket_state_active &&
         !engine.getCheckpointConfig().isInconsistentSlaveCheckpoint()) {
         getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                         "%s Checkpoint %d ignored because vbucket %d is in active state\n",
+                         "%s Checkpoint %llu ignored because vbucket %d is in active state\n",
                          logHeader(), checkpointId, vbucket);
         return true;
     }
@@ -1387,7 +1388,7 @@ bool TapConsumer::processCheckpointCommand(tap_event_t event, uint16_t vbucket,
     case TAP_CHECKPOINT_START:
         {
             getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                             "%s Received checkpoint_start message with id %d for vbucket %d\n",
+                             "%s Received checkpoint_start message with id %llu for vbucket %d\n",
                              logHeader(), checkpointId, vbucket);
             if (vb->isBackfillPhase() && checkpointId > 0) {
                 setBackfillPhase(false, vbucket);
@@ -1405,7 +1406,7 @@ bool TapConsumer::processCheckpointCommand(tap_event_t event, uint16_t vbucket,
         break;
     case TAP_CHECKPOINT_END:
         getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                         "%s Received checkpoint_end message with id %d for vbucket %d\n",
+                         "%s Received checkpoint_end message with id %llu for vbucket %d\n",
                          logHeader(), checkpointId, vbucket);
         ret = vb->checkpointManager.closeOpenCheckpoint(checkpointId);
         break;
@@ -1480,7 +1481,7 @@ queued_item TapProducer::nextFgFetched_UNLOCKED(bool &shouldPause) {
             if (!vb || (vb->getState() == vbucket_state_dead && !doTakeOver)) {
                 getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                                  "%s Skip vbucket %d checkpoint queue as it's in invalid state.\n",
-                                 logHeader());
+                                 logHeader(), vbid);
                 ++invalid_count;
                 continue;
             }

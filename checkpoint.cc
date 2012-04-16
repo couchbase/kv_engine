@@ -38,7 +38,7 @@ private:
 
 Checkpoint::~Checkpoint() {
     getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                     "Checkpoint %d for vbucket %d is purged from memory.\n",
+                     "Checkpoint %llu for vbucket %d is purged from memory.\n",
                      checkpointId, vbucketId);
     stats.memOverhead.decr(memorySize());
     assert(stats.memOverhead.get() < GIGANTOR);
@@ -144,7 +144,7 @@ size_t Checkpoint::mergePrevCheckpoint(Checkpoint *pPrevCheckpoint) {
     std::list<queued_item>::reverse_iterator rit = pPrevCheckpoint->rbegin();
 
     getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                     "Collapse the checkpoint %d into the checkpoint %d for vbucket %d.\n",
+                     "Collapse the checkpoint %llu into the checkpoint %llu for vbucket %d.\n",
                      pPrevCheckpoint->getId(), checkpointId, vbucketId);
 
     for (; rit != pPrevCheckpoint->rend(); ++rit) {
@@ -223,7 +223,7 @@ uint64_t CheckpointManager::getLastClosedCheckpointId() {
 void CheckpointManager::setOpenCheckpointId_UNLOCKED(uint64_t id) {
     if (checkpointList.size() > 0) {
         getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                         "Set the current open checkpoint id to %d for vbucket %d.\n",
+                         "Set the current open checkpoint id to %llu for vbucket %d.\n",
                          id, vbucketId);
         checkpointList.back()->setId(id);
         // Update the checkpoint_start item with the new Id.
@@ -240,7 +240,7 @@ bool CheckpointManager::addNewCheckpoint_UNLOCKED(uint64_t id) {
     }
 
     getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                     "Create a new open checkpoint %d for vbucket %d.\n",
+                     "Create a new open checkpoint %llu for vbucket %d.\n",
                      id, vbucketId);
 
     Checkpoint *checkpoint = new Checkpoint(stats, id, vbucketId, opened);
@@ -272,7 +272,7 @@ bool CheckpointManager::closeOpenCheckpoint_UNLOCKED(uint64_t id) {
     }
 
     getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                     "Close the open checkpoint %d for vbucket %d\n", id, vbucketId);
+                     "Close the open checkpoint %llu for vbucket %d\n", id, vbucketId);
 
     // This item represents the end of the current open checkpoint and is sent to the slave node.
     queued_item qi = createCheckpointItem(id, vbucketId, queue_op_checkpoint_end);
@@ -328,7 +328,7 @@ bool CheckpointManager::registerTAPCursor(const std::string &name, uint64_t chec
 
     if (!found) {
         getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                         "Checkpoint %d for vbucket %d doesn't exist in memory. "
+                         "Checkpoint %llu for vbucket %d doesn't exist in memory. "
                          "Set the cursor with the name \"%s\" to the open checkpoint.\n",
                          checkpointId, vbucketId, name.c_str());
         it = --(checkpointList.end());
@@ -342,8 +342,8 @@ bool CheckpointManager::registerTAPCursor(const std::string &name, uint64_t chec
         std::list<queued_item>::iterator curr;
 
         getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                         "Checkpoint %d for vbucket %d exists in memory. "
-                         "Set the cursor with the name \"%s\" to the checkpoint %d\n",
+                         "Checkpoint %llu for vbucket %d exists in memory. "
+                         "Set the cursor with the name \"%s\" to the checkpoint %llu\n",
                          checkpointId, vbucketId, name.c_str(), checkpointId);
 
         if (!alwaysFromBeginning &&
@@ -716,7 +716,7 @@ uint64_t CheckpointManager::getAllItemsForPersistence(std::vector<queued_item> &
     persistenceCursor.offset = numItems;
 
     getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                     "Grab %d items through the persistence cursor from vbucket %d.\n",
+                     "Grab %ld items through the persistence cursor from vbucket %d.\n",
                      items.size(), vbucketId);
 
     return checkpoint_id;
@@ -736,7 +736,7 @@ uint64_t CheckpointManager::getAllItemsForTAPConnection(const std::string &name,
     it->second.offset = numItems;
 
     getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                     "Grab %d items through the tap cursor with name \"%s\" from vbucket %d.\n",
+                     "Grab %ld items through the tap cursor with name \"%s\" from vbucket %d.\n",
                      items.size(), name.c_str(), vbucketId);
 
     return checkpointId;
@@ -1155,7 +1155,7 @@ bool CheckpointConfig::validateCheckpointMaxItemsParam(size_t checkpoint_max_ite
         ss << "New checkpoint_max_items param value " << checkpoint_max_items
            << " is not ranged between the min allowed value " << MIN_CHECKPOINT_ITEMS
            << " and max value " << MAX_CHECKPOINT_ITEMS;
-        getLogger()->log(EXTENSION_LOG_WARNING, NULL, ss.str().c_str());
+        getLogger()->log(EXTENSION_LOG_WARNING, NULL, "%s\n", ss.str().c_str());
         return false;
     }
     return true;
@@ -1168,7 +1168,7 @@ bool CheckpointConfig::validateCheckpointPeriodParam(size_t checkpoint_period) {
         ss << "New checkpoint_period param value " << checkpoint_period
            << " is not ranged between the min allowed value " << MIN_CHECKPOINT_PERIOD
            << " and max value " << MAX_CHECKPOINT_PERIOD;
-        getLogger()->log(EXTENSION_LOG_WARNING, NULL, ss.str().c_str());
+        getLogger()->log(EXTENSION_LOG_WARNING, NULL, "%s\n", ss.str().c_str());
         return false;
     }
     return true;
@@ -1181,7 +1181,7 @@ bool CheckpointConfig::validateMaxCheckpointsParam(size_t max_checkpoints) {
         ss << "New max_checkpoints param value " << max_checkpoints
            << " is not ranged between the min allowed value " << DEFAULT_MAX_CHECKPOINTS
            << " and max value " << MAX_CHECKPOINTS_UPPER_BOUND;
-        getLogger()->log(EXTENSION_LOG_WARNING, NULL, ss.str().c_str());
+        getLogger()->log(EXTENSION_LOG_WARNING, NULL, "%s\n", ss.str().c_str());
         return false;
     }
     return true;
