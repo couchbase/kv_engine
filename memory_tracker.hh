@@ -34,7 +34,7 @@ public:
 
     static MemoryTracker *getInstance();
 
-    void getAllocatorStats(std::map<std::string, size_t> &allocator_stats);
+    void getAllocatorStats(std::map<std::string, size_t> &alloc_stats);
 
     static bool trackingMemoryAllocations();
 

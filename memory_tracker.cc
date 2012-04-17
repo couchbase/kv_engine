@@ -89,19 +89,19 @@ MemoryTracker::~MemoryTracker() {
     instance = NULL;
 }
 
-void MemoryTracker::getAllocatorStats(std::map<std::string, size_t> &allocator_stats) {
+void MemoryTracker::getAllocatorStats(std::map<std::string, size_t> &alloc_stats) {
     for (size_t i = 0; i < stats.ext_stats_size; ++i) {
-        allocator_stats.insert(std::pair<std::string, size_t>(stats.ext_stats[i].key,
-                                                              stats.ext_stats[i].value));
+        alloc_stats.insert(std::pair<std::string, size_t>(stats.ext_stats[i].key,
+                                                          stats.ext_stats[i].value));
     }
-    allocator_stats.insert(std::pair<std::string, size_t>("total_allocated_bytes",
-                                                          stats.allocated_size));
-    allocator_stats.insert(std::pair<std::string, size_t>("total_heap_bytes",
-                                                          stats.heap_size));
-    allocator_stats.insert(std::pair<std::string, size_t>("total_free_bytes",
-                                                          stats.free_size));
-    allocator_stats.insert(std::pair<std::string, size_t>("total_fragmentation_bytes",
-                                                          stats.fragmentation_size));
+    alloc_stats.insert(std::pair<std::string, size_t>("total_allocated_bytes",
+                                                      stats.allocated_size));
+    alloc_stats.insert(std::pair<std::string, size_t>("total_heap_bytes",
+                                                      stats.heap_size));
+    alloc_stats.insert(std::pair<std::string, size_t>("total_free_bytes",
+                                                      stats.free_size));
+    alloc_stats.insert(std::pair<std::string, size_t>("total_fragmentation_bytes",
+                                                      stats.fragmentation_size));
 }
 
 void MemoryTracker::updateStats() {
