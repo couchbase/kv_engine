@@ -7163,11 +7163,9 @@ static SERVER_HANDLE_V1 *get_server_api(void)
         .remove_new_hook = mc_remove_new_hook,
         .add_delete_hook = mc_add_delete_hook,
         .remove_delete_hook = mc_remove_delete_hook,
-        .get_stats_size = mc_get_stats_size,
+        .get_extra_stats_size = mc_get_extra_stats_size,
         .get_allocator_stats = mc_get_allocator_stats,
-        .get_allocation_size = mc_get_allocation_size,
-        .get_fragmented_size = mc_get_fragmented_size,
-        .get_allocated_size = mc_get_allocated_size,
+        .get_allocation_size = mc_get_allocation_size
     };
 
     static SERVER_HANDLE_V1 rv = {
@@ -7302,9 +7300,6 @@ int main (int argc, char **argv) {
     settings_init();
 
     initialize_binary_lookup_map();
-
-    /* Initialize memory allocator hooks */
-    init_alloc_hooks();
 
     if (memcached_initialize_stderr_logger(get_server_api) != EXTENSION_SUCCESS) {
         fprintf(stderr, "Failed to initialize log system\n");

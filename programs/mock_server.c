@@ -271,23 +271,16 @@ static bool mock_remove_delete_hook(void (*hook)(const void* ptr)) {
     return false;
 }
 
-static int mock_get_stats_size() {
+static int mock_get_extra_stats_size() {
     return 0;
 }
 
-static void mock_get_allocator_stats(allocator_stat* stats) {
-
+static void mock_get_allocator_stats(allocator_stats* stats) {
+    (void) stats;
+    return;
 }
 
 static size_t mock_get_allocation_size(void* ptr) {
-    return 0;
-}
-
-static size_t mock_get_fragmented_size(void) {
-    return 0;
-}
-
-static size_t mock_get_allocated_size(void) {
     return 0;
 }
 
@@ -334,11 +327,9 @@ SERVER_HANDLE_V1 *get_mock_server_api(void)
         .remove_new_hook = mock_remove_new_hook,
         .add_delete_hook = mock_add_delete_hook,
         .remove_delete_hook = mock_remove_delete_hook,
-        .get_stats_size = mock_get_stats_size,
+        .get_extra_stats_size = mock_get_extra_stats_size,
         .get_allocator_stats = mock_get_allocator_stats,
-        .get_allocation_size = mock_get_allocation_size,
-        .get_fragmented_size = mock_get_fragmented_size,
-        .get_allocated_size = mock_get_allocated_size
+        .get_allocation_size = mock_get_allocation_size
     };
 
     static SERVER_HANDLE_V1 rv = {
