@@ -20,8 +20,17 @@
 #include "objectregistry.hh"
 #include <memcached/engine.h>
 
-bool MemoryTracker::trackingAllocations = false;
+bool MemoryTracker::tracking = false;
 MemoryTracker *MemoryTracker::instance = NULL;
+
+static void *updateStatsThread(void* arg) {
+    MemoryTracker* tracker = static_cast<MemoryTracker*>(arg);
+    while (tracker->trackingMemoryAllocations()) {
+        tracker->updateStats();
+        usleep(250000);
+    }
+    return NULL;
+}
 
 MemoryTracker *MemoryTracker::getInstance() {
     if (!instance) {
@@ -49,33 +58,69 @@ extern "C" {
 }
 
 MemoryTracker::MemoryTracker() {
-    getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                     "Memory Tracker is disabled by default");
+    stats.ext_stats_size = getHooksApi()->get_extra_stats_size();
+    stats.ext_stats = (allocator_ext_stat*) calloc(stats.ext_stats_size,
+                                                   sizeof(allocator_ext_stat));
+    if (getHooksApi()->add_new_hook(&NewHook)) {
+        getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "Registered add hook");
+        if (getHooksApi()->add_delete_hook(&DeleteHook)) {
+            getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "Registered delete hook");
+            std::cout.flush();
+            tracking = true;
+            updateStats();
+            if (pthread_create(&statsThreadId, NULL, updateStatsThread, this) != 0) {
+                throw std::runtime_error("Error creating thread to update stats");
+            }
+            return;
+        }
+        std::cout.flush();
+        getHooksApi()->remove_new_hook(&NewHook);
+    }
+    getLogger()->log(EXTENSION_LOG_WARNING, NULL, "Failed to register allocator hooks");
 }
 
 MemoryTracker::~MemoryTracker() {
     getHooksApi()->remove_new_hook(&NewHook);
     getHooksApi()->remove_delete_hook(&DeleteHook);
+    if (tracking) {
+        tracking = false;
+        pthread_join(statsThreadId, NULL);
+    }
+    instance = NULL;
 }
 
 void MemoryTracker::getAllocatorStats(std::map<std::string, size_t> &allocator_stats) {
-    int stats_size = getHooksApi()->get_stats_size();
-    allocator_stat* stats = (allocator_stat*)calloc(stats_size, sizeof(allocator_stat));
-    getHooksApi()->get_allocator_stats(stats);
+    for (size_t i = 0; i < stats.ext_stats_size; ++i) {
+        allocator_stats.insert(std::pair<std::string, size_t>(stats.ext_stats[i].key,
+                                                              stats.ext_stats[i].value));
+    }
+    allocator_stats.insert(std::pair<std::string, size_t>("total_allocated_bytes",
+                                                          stats.allocated_size));
+    allocator_stats.insert(std::pair<std::string, size_t>("total_heap_bytes",
+                                                          stats.heap_size));
+    allocator_stats.insert(std::pair<std::string, size_t>("total_free_bytes",
+                                                          stats.free_size));
+    allocator_stats.insert(std::pair<std::string, size_t>("total_fragmentation_bytes",
+                                                          stats.fragmentation_size));
+}
 
-    int i;
-    for (i = 0; i < stats_size; i++) {
-        std::string key((*(stats + i)).key);
-        size_t value = (*(stats + i)).value;
-        allocator_stats.insert(std::pair<std::string, size_t>(key, value));
-        free((*(stats + i)).key);
-    }
-    if (stats) {
-        free(stats);
-    }
+void MemoryTracker::updateStats() {
+    getHooksApi()->get_allocator_stats(&stats);
+}
+
+size_t MemoryTracker::getFragmentation() {
+    return stats.fragmentation_size;
+}
+
+size_t MemoryTracker::getTotalBytesAllocated() {
+    return stats.allocated_size;
+}
+
+size_t MemoryTracker::getTotalHeapBytes() {
+    return stats.heap_size;
 }
 
 bool MemoryTracker::trackingMemoryAllocations() {
-    return trackingAllocations;
+    return tracking;
 }
 

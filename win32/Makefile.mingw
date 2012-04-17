@@ -10,6 +10,14 @@ MARCH=-march=i686
 TMP_DIR=./tmp
 INSTALLDIRS=$(LOCAL)/bin $(LOCAL)/lib $(LOCAL)/lib/memcached
 
+TCMALLOC_FLAGS = -Wwrite-strings \
+                    -Wno-sign-compare -DNO_FRAME_POINTER \
+                    -DHAVE_LIBTCMALLOC_MINIMAL \
+                    -fno-builtin-malloc -fno-builtin-free -fno-builtin-realloc \
+                    -fno-builtin-calloc -fno-builtin-cfree \
+                    -fno-builtin-memalign -fno-builtin-posix_memalign \
+                    -fno-builtin-valloc -fno-builtin-pvalloc
+
 MEMCACHED=../memcached
 GEN_CONFIG = generated_configuration.hh generated_configuration.cc
 GEN_CODE = stats-info.h stats-info.c
@@ -35,12 +43,16 @@ install: ${BINARIES} $(INSTALLDIRS)
 CFLAGS = -std=gnu99 -DNDEBUG -g \
            -fno-strict-aliasing -Wstrict-prototypes -Wmissing-prototypes \
            -Wmissing-declarations -Wredundant-decls \
+           $(TCMALLOC_FLAGS) \
+           -DGLIBCXX_FORCE_NEW
 
 CXXFLAGS = -std=gnu++0x -g \
            -pedantic -Wshadow -fdiagnostics-show-option \
            -Wformat=2 -Wconversion -Wstrict-aliasing -Wextra \
            -Woverloaded-virtual -Wnon-virtual-dtor -Wctor-dtor-privacy \
-           -Wno-long-long  -Wmissing-declarations -Wno-redundant-decls
+           -Wno-long-long  -Wmissing-declarations -Wno-redundant-decls \
+           $(TCMALLOC_FLAGS) \
+           -DGLIBCXX_FORCE_NEW
 
 EP_ENGINE_CC_SRC = \
                  access_scanner.cc \
@@ -140,6 +152,8 @@ MBDBCONVERT_SRC = \
         objectregistry.cc
 
 MBDBCONVERT_OBJS = ${MBDBCONVERT_SRC:%.cc=.libs/%.o}
+management/cbdbconvert.exe: ${OBJDIR} ${GENFILES} ${MBDBCONVERT_OBJS} ${LIBKVSTORE_OBJS}
+	${LINK.cc} -o $@ ${MBDBCONVERT_OBJS} .libs/gethrtime.o ${LIBKVSTORE_OBJS} ${LIB} -lpthread
 
 .libs/config_version.h:
 	./win32/config.sh
