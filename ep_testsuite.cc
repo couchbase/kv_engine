@@ -1215,6 +1215,40 @@ static enum test_result test_flush(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return SUCCESS;
 }
 
+static enum test_result test_flush_disabled(ENGINE_HANDLE *h,
+                                            ENGINE_HANDLE_V1 *h1) {
+    item *i = NULL;
+    // start an engine with disabled flush, the flush() should be noop and
+    // we expect to see the key after flush()
+
+    // store a key and check its existence
+    check(store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i) == ENGINE_SUCCESS,
+          "Failed set.");
+    check_key_value(h, h1, "key", "somevalue", 9);
+    // expect error msg engine does not support operation
+    check(h1->flush(h, NULL, 0) == ENGINE_ENOTSUP, "Flush should be disabled");
+    //check the key
+    check(ENGINE_SUCCESS == verify_key(h, h1, "key"), "Expected key");
+
+    // restart engine with flush enabled and redo the test, we expect flush to succeed
+    std::string param = "flushall_enabled=false";
+    std::string config = testHarness.default_engine_cfg;
+    size_t found = config.find(param);
+    if(found != config.npos) {
+        config.replace(found, param.size(), "flushall_enabled=true");
+    }
+    testHarness.reload_engine(&h, &h1,
+                              testHarness.engine_path,
+                              config.c_str(),
+                              true, false);
+
+    check(h1->flush(h, NULL, 0) == ENGINE_SUCCESS, "Flush should be enabled");
+    //expect missing key
+    check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key"), "Expected missing key");
+
+    return SUCCESS;
+}
+
 static enum test_result test_flush_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
     int mem_used = get_int_stat(h, h1, "mem_used");
@@ -5098,15 +5132,20 @@ engine_test_t* get_tests(void) {
         {"start transaction failure handling", test_bug2830, NULL, teardown,
          "db_shards=1;ht_size=13;ht_locks=7;db_strategy=multiDB"},
         {"non-resident decrementers", test_mb3169, NULL, teardown, NULL},
+
         {"flush", test_flush, NULL, teardown, NULL},
-        {"flush with stats", test_flush_stats, NULL, teardown, "chk_remover_stime=1;chk_period=60"},
+        {"flush with stats", test_flush_stats, NULL, teardown,
+         "flushall_enabled=true;chk_remover_stime=1;chk_period=60"},
         {"flush multi vbuckets", test_flush_multiv, NULL, teardown, NULL},
         {"flush multi vbuckets single mt", test_flush_multiv, NULL, teardown,
-         "db_strategy=singleMTDB;max_vbuckets=16;ht_size=7;ht_locks=3"},
+         "flushall_enabled=true;db_strategy=singleMTDB;max_vbuckets=16;ht_size=7;ht_locks=3"},
         {"flush multi vbuckets multi mt", test_flush_multiv, NULL, teardown,
-         "db_strategy=multiMTDB;max_vbuckets=16;ht_size=7;ht_locks=3"},
+         "flushall_enabled=true;db_strategy=multiMTDB;max_vbuckets=16;ht_size=7;ht_locks=3"},
         {"flush multi vbuckets multi mt vb", test_flush_multiv, NULL, teardown,
-         "db_strategy=multiMTVBDB;max_vbuckets=16;ht_size=7;ht_locks=3"},
+         "flushall_enabled=true;db_strategy=multiMTVBDB;max_vbuckets=16;ht_size=7;ht_locks=3"},
+        {"flush disabled", test_flush_disabled, NULL, teardown,
+         "flushall_enabled=false;db_strategy=multiMTVBDB;max_vbuckets=16;ht_size=7;ht_locks=3"},
+
         {"expiry", test_expiry, NULL, teardown, NULL},
         {"expiry_loader", test_expiry_loader, NULL, teardown, NULL},
         {"expiry_flush", test_expiry_flush, NULL, teardown, NULL},

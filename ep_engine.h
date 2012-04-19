@@ -823,6 +823,8 @@ private:
         RestoreManager *manager;
         Atomic<bool> enabled;
     } restore;
+
+    bool flushAllEnabled;
 };
 
 #endif

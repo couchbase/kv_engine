@@ -1098,7 +1098,7 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server
     itemExpiryWindow(3), checkpointRemoverInterval(5),
     nVBuckets(1024), dbShards(4), vb_del_chunk_size(100), vb_chunk_del_threshold_time(500),
     mutation_count(0), getlDefaultTimeout(15), getlMaxTimeout(30),
-    syncTimeout(DEFAULT_SYNC_TIMEOUT)
+    syncTimeout(DEFAULT_SYNC_TIMEOUT), flushAllEnabled(false)
 {
     interface.interface = 1;
     ENGINE_HANDLE_V1::get_info = EvpGetInfo;
@@ -1444,6 +1444,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         items[ii].value.dt_float = &tapThrottleThreshold;
 
         ++ii;
+        items[ii].key = "flushall_enabled";
+        items[ii].datatype = DT_BOOL;
+        items[ii].value.dt_bool = &flushAllEnabled;
+
+        ++ii;
         items[ii].key = NULL;
 
         assert(ii < max_items);
@@ -1712,6 +1717,11 @@ private:
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::flush(const void *, time_t when) {
     shared_ptr<AllFlusher> cb(new AllFlusher(epstore, tapConnMap));
+
+    if (!flushAllEnabled) {
+        return ENGINE_ENOTSUP;
+    }
+
     if (when == 0) {
         cb->doFlush();
     } else {

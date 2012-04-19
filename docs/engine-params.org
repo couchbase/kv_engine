@@ -102,6 +102,9 @@ memcached like this:
 |                        |        | means don't throttle.                      |
 | tap_throttle_threshold | float  | Percentage of memory in use before we      |
 |                        |        | throttle tap streams                       |
+| flushall_enabled       | bool   | True if we enable flush_all command; The   |
+|                        |        | default value is False.                    |
+
 
 ** Shard Patterns
 
