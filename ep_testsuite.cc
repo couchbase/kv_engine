@@ -5164,6 +5164,10 @@ static enum test_result prepare(engine_test_t *test) {
     if (strstr(test->cfg, "backend=sqlite") != NULL) {
         // No specialized init needed yet..
     } else if (strstr(test->cfg, "backend=couchdb") != NULL) {
+#ifndef HAVE_COUCHSTORE
+        (void)mccouchMock;
+        return SKIPPED;
+#else
         /* Start a mock server... */
         int port;
         mccouchMock = new McCouchMockServer(port);
@@ -5184,6 +5188,7 @@ static enum test_result prepare(engine_test_t *test) {
         if (dbname.find("/non/") == dbname.npos) {
             mkdir(dbname.c_str(), 0777);
         }
+#endif
     } else {
         // unknow backend!
         using namespace std;
