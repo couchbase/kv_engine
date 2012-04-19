@@ -1150,7 +1150,8 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server
     tapConnMap(NULL), tapConfig(NULL), checkpointConfig(NULL),
     memLowWat(std::numeric_limits<size_t>::max()),
     memHighWat(std::numeric_limits<size_t>::max()),
-    mutation_count(0), observeRegistry(&epstore, &stats), warmingUp(true)
+    mutation_count(0), observeRegistry(&epstore, &stats), warmingUp(true),
+    flushAllEnabled(false)
 {
     interface.interface = 1;
     ENGINE_HANDLE_V1::get_info = EvpGetInfo;
@@ -1261,6 +1262,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     configuration.addValueChangedListener("getl_max_timeout",
                                           new EpEngineValueChangeListener(*this));
 
+    flushAllEnabled = configuration.isFlushallEnabled();
+
     tapConnMap = new TapConnMap(*this);
     tapConfig = new TapConfig(*this);
     TapConfig::addConfigChangeListener(*this);
@@ -1364,6 +1367,11 @@ private:
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::flush(const void *, time_t when) {
     shared_ptr<AllFlusher> cb(new AllFlusher(epstore, *tapConnMap));
+
+    if (!flushAllEnabled) {
+        return ENGINE_ENOTSUP;
+    }
+
     if (when == 0) {
         cb->doFlush();
     } else {

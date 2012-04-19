@@ -144,6 +144,11 @@
             "default": "true",
             "type": "bool"
         },
+        "flushall_enabled": {
+            "default": "false",
+            "descr": "True if memcached flush API is enabled",
+            "type": "bool"
+        },
         "getl_default_timeout": {
             "default": "15",
             "descr": "The default timeout for a getl lock in (s)",

@@ -119,6 +119,8 @@ memcached like this:
 | restore_file_checks    | bool   | If false, disable expensive validation     |
 |                        |        | checks on the backup. Results in much      |
 |                        |        | faster restores.                           |
+| flushall_enabled       | bool   | True if we enable flush_all command; The   |
+|                        |        | default value is False.                    |
 
 ** Shard Patterns
 
