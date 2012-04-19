@@ -23,13 +23,15 @@
 bool MemoryTracker::tracking = false;
 MemoryTracker *MemoryTracker::instance = NULL;
 
-static void *updateStatsThread(void* arg) {
-    MemoryTracker* tracker = static_cast<MemoryTracker*>(arg);
-    while (tracker->trackingMemoryAllocations()) {
-        tracker->updateStats();
-        usleep(250000);
+extern "C" {
+    static void *updateStatsThread(void* arg) {
+        MemoryTracker* tracker = static_cast<MemoryTracker*>(arg);
+        while (tracker->trackingMemoryAllocations()) {
+            tracker->updateStats();
+            usleep(250000);
+        }
+        return NULL;
     }
-    return NULL;
 }
 
 MemoryTracker *MemoryTracker::getInstance() {
