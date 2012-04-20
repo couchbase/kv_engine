@@ -213,12 +213,6 @@ class MemcachedClient(object):
         print "setting flush param:", key, val
         return self._doCmd(memcacheConstants.CMD_SET_FLUSH_PARAM, key, val)
 
-    def stop_replication(self):
-        return self._doCmd(memcacheConstants.CMD_STOP_REPLICATION, '', '')
-
-    def start_replication(self):
-        return self._doCmd(memcacheConstants.CMD_START_REPLICATION, '', '')
-
     def start_onlineupdate(self):
         return self._doCmd(memcacheConstants.CMD_START_ONLINEUPDATE, '', '')
 
