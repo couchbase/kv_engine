@@ -382,7 +382,7 @@ public:
     ~TapResponseHandler() {
         if (keysOnly) {
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "Preloaded %zu keys (with metadata)",
+                             "Preloaded %ld keys (with metadata)",
                              num);
         }
     }
@@ -703,7 +703,7 @@ bool MemcachedEngine::connect() {
             msg << hptr << ":";
         }
         msg << port << "\"";
-        getLogger()->log(EXTENSION_LOG_WARNING, this, msg.str().c_str());
+        getLogger()->log(EXTENSION_LOG_WARNING, this, "%s\n", msg.str().c_str());
         configurationError = true;
         ainfo = NULL;
         return false;
@@ -732,7 +732,7 @@ bool MemcachedEngine::connect() {
             msg << hptr << ":";
         }
         msg << port << "\"";
-        getLogger()->log(EXTENSION_LOG_WARNING, this, msg.str().c_str());
+        getLogger()->log(EXTENSION_LOG_WARNING, this, "%s\n", msg.str().c_str());
         configurationError = true;
         return false;
     }
@@ -752,7 +752,7 @@ void MemcachedEngine::ensureConnection()
            << configuration.getCouchHost().c_str() << ":"
            << configuration.getCouchPort() << "\"";
 
-        getLogger()->log(EXTENSION_LOG_WARNING, this, rv.str().c_str());
+        getLogger()->log(EXTENSION_LOG_WARNING, this, "%s\n", rv.str().c_str());
         while (!connect()) {
             if (shutdown) {
                 return ;
@@ -771,7 +771,7 @@ void MemcachedEngine::ensureConnection()
                 rv << "Failed to connect to: \""
                    << configuration.getCouchHost().c_str() << ":"
                    << configuration.getCouchPort() << "\"";
-                getLogger()->log(EXTENSION_LOG_WARNING, this, rv.str().c_str());
+                getLogger()->log(EXTENSION_LOG_WARNING, this, "%s\n", rv.str().c_str());
 
                 usleep(5000);
                 // we might have new configuration parameters...
@@ -781,7 +781,7 @@ void MemcachedEngine::ensureConnection()
                 rv << "Connection refused: \""
                    << configuration.getCouchHost().c_str() << ":"
                    << configuration.getCouchPort() << "\"";
-                getLogger()->log(EXTENSION_LOG_WARNING, this, rv.str().c_str());
+                getLogger()->log(EXTENSION_LOG_WARNING, this, "%s\n", rv.str().c_str());
                 usleep(configuration.getCouchReconnectSleeptime());
             }
         }
@@ -789,7 +789,7 @@ void MemcachedEngine::ensureConnection()
         rv << "Connected to mccouch: \""
            << configuration.getCouchHost().c_str() << ":"
            << configuration.getCouchPort() << "\"";
-        getLogger()->log(EXTENSION_LOG_WARNING, this, rv.str().c_str());
+        getLogger()->log(EXTENSION_LOG_WARNING, this, "%s\n", rv.str().c_str());
     }
 }
 
@@ -822,7 +822,7 @@ bool MemcachedEngine::waitForWritable()
         }  else if ((waitTime += timeout) >= configuration.getCouchResponseTimeout()) {
             // Poll failed due to timeouts multiple times and is above timeout threshold.
             getLogger()->log(EXTENSION_LOG_INFO, this,
-                             "No response for mccouch in %zu seconds. Resetting connection.",
+                             "No response for mccouch in %ld seconds. Resetting connection.",
                              waitTime);
             resetConnection();
         }
@@ -1068,7 +1068,7 @@ bool MemcachedEngine::waitForReadable()
         } else if ((waitTime += timeout) >= configuration.getCouchResponseTimeout()) {
             // Poll failed due to timeouts multiple times and is above timeout threshold.
             getLogger()->log(EXTENSION_LOG_INFO, this,
-                             "No response for mccouch in %d seconds. Resetting connection.",
+                             "No response for mccouch in %ld seconds. Resetting connection.",
                              waitTime);
             resetConnection();
         }

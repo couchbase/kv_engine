@@ -30,7 +30,7 @@ public:
             mutationLog.commit1();
             mutationLog.commit2();
             getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                             "Mutation log compactor: Dumped %d items from VBucket %d "
+                             "Mutation log compactor: Dumped %ld items from VBucket %d "
                              "into a new mutation log file.\n",
                              numItemsLogged, currentBucket->getId());
             totalItemsLogged += numItemsLogged;
@@ -41,7 +41,7 @@ public:
     void complete() {
         update();
         getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                         "Mutation log compactor: Completed by dumping total %d items "
+                         "Mutation log compactor: Completed by dumping total %ld items "
                          "into a new mutation log file.\n", totalItemsLogged);
     }
 
@@ -84,7 +84,7 @@ bool MutationLogCompactor::callback(Dispatcher &d, TaskId t) {
             new_log.setSyncConfig(mutationLog.getSyncConfig());
 
             LogCompactionVisitor compact_visitor(new_log, stats);
-            epStore->visit(compact_visitor); 
+            epStore->visit(compact_visitor);
             mutationLog.replaceWith(new_log);
         } catch (MutationLog::ReadException e) {
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,

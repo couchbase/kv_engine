@@ -1902,7 +1902,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
                     } else {
                         ret = ENGINE_DISCONNECT;
                         getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                         "%s Error processing checkpoint %d. Force disconnect\n",
+                                         "%s Error processing checkpoint %llu. Force disconnect\n",
                                          connection->logHeader(), checkpointId);
                     }
                 } else {
@@ -3439,7 +3439,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe(const void *cookie,
     protocol_binary_response_status rv;
 
     stats.observeCalls++;
-    getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "observe %s %ld %s %d",
+    getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "observe %s %llu %s %d",
                      key.c_str(), cas, obs_set.c_str(), expiration);
     rv = getObserveRegistry().observeKey(key, cas, vbucket, expiration, obs_set);
     if (rv == PROTOCOL_BINARY_RESPONSE_ETMPFAIL) {
@@ -3459,7 +3459,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::unobserve(const void *cookie,
                                                         std::string obs_set,
                                                         ADD_RESPONSE response) {
     stats.unobserveCalls++;
-    getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "unobserve %s %ld %s",
+    getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "unobserve %s %llu %s",
                      key.c_str(), cas, obs_set.c_str());
     getObserveRegistry().unobserveKey(key, cas, vbucket, obs_set);
     return sendResponse(response, NULL, 0, NULL, 0, NULL, 0, 0, 0, 0, cookie);
