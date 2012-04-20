@@ -37,9 +37,6 @@
 
  */
 
-
-#define CMD_START_REPLICATION 0x90
-#define CMD_STOP_REPLICATION  0x91
 #define CMD_EVICT_KEY         0x93
 #define CMD_GET_LOCKED        0x94
 #define CMD_UNLOCK_KEY        0x95
