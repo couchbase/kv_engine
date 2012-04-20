@@ -291,6 +291,7 @@ void CouchKVStore::get(const std::string &key, uint64_t, uint16_t vb, uint16_t,
         if (getMetaOnly) {
             it = new Item(key.c_str(), (size_t)key.length(), docInfo->size,
                           itemFlags, (time_t)0, cas);
+            it->setSeqno(docInfo->rev_seq);
             rv = GetValue(it);
             /* update ep-engine IO stats */
             ++epStats.io_num_read;

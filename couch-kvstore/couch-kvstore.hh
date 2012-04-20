@@ -91,7 +91,11 @@ public:
         return fileRevNum;
     }
     Doc *getDbDoc(void) {
-        return &dbDoc;
+        if (deleteItem) {
+            return NULL;
+        } else {
+            return &dbDoc;
+        }
     }
     DocInfo *getDbDocInfo(void) {
         return &dbDocInfo;
