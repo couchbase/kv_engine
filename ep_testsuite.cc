@@ -5164,7 +5164,7 @@ static enum test_result prepare(engine_test_t *test) {
     if (strstr(test->cfg, "backend=sqlite") != NULL) {
         // No specialized init needed yet..
     } else if (strstr(test->cfg, "backend=couchdb") != NULL) {
-#ifndef HAVE_COUCHSTORE
+#ifndef HAVE_LIBCOUCHSTORE
         (void)mccouchMock;
         return SKIPPED;
 #else
