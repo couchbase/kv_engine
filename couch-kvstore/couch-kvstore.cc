@@ -1151,7 +1151,6 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, int rev, Doc **docs,
             if (max > 0) {
                 vbucket_state vbState;
                 readVBState(db, vbucket2save, vbState);
-                assert(vbState.state != vbucket_state_dead);
                 if (vbState.maxDeletedSeqno < max) {
                     vbState.maxDeletedSeqno = max;
                     errCode = saveVBState(db, vbState);
