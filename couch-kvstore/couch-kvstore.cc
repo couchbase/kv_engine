@@ -996,7 +996,7 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx)
     cas = ntohll(cas);
 
     valuePtr = NULL;
-    valuelen = 0;
+    valuelen = docinfo->size;
 
     if (docinfo->deleted) {
         // skip deleted doc
