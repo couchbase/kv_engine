@@ -84,7 +84,6 @@ class TapConnMap {
 public:
     TapConnMap(EventuallyPersistentEngine &theEngine);
 
-
     /**
      * Disconnect a tap connection by its cookie.
      */
@@ -192,15 +191,24 @@ public:
     void notify() {
         if (doNotify) {
             LockHolder lh(notifySync);
+            notifyCounter++;
             notifySync.notify();
         }
     }
 
-    void wait(double howlong) {
+    uint32_t wait(double howlong, uint32_t previousCounter) {
         // Prevent the notify thread from busy-looping while
         // holding locks when there's work to do.
         LockHolder lh(notifySync);
-        notifySync.wait(howlong);
+        if (previousCounter == notifyCounter) {
+            notifySync.wait(howlong);
+        }
+        return notifyCounter;
+    }
+
+    uint32_t prepareWait() {
+        LockHolder lh(notifySync);
+        return notifyCounter;
     }
 
     /**
@@ -304,6 +312,7 @@ private:
     bool shouldDisconnect(TapConnection *tc);
 
     SyncObject                               notifySync;
+    uint32_t                                 notifyCounter;
     std::map<const void*, TapConnection*>    map;
     std::map<const std::string, const void*> validity;
     std::list<TapConnection*>                all;

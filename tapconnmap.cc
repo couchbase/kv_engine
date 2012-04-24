@@ -60,7 +60,7 @@ private:
 };
 
 TapConnMap::TapConnMap(EventuallyPersistentEngine &theEngine) :
-    engine(theEngine), nextTapNoop(0),
+    notifyCounter(0), engine(theEngine), nextTapNoop(0),
     doNotify(getenv("EP-ENGINE-TESTSUITE") != NULL)
 {
     Configuration &config = engine.getConfiguration();
