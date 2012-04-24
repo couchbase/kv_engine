@@ -7,6 +7,7 @@
 
 #include <map>
 #include <vector>
+#include <set>
 #include <sstream>
 #include <algorithm>
 
@@ -34,18 +35,17 @@ public:
      * Instantiate a VBucketFilter that returns true for any of the
      * given vbucket IDs.
      */
-    explicit VBucketFilter(const std::vector<uint16_t> &a) : acceptable(a) {
-        std::sort(acceptable.begin(), acceptable.end());
-    }
+    explicit VBucketFilter(const std::vector<uint16_t> &a) :
+        acceptable(a.begin(), a.end()) {}
 
-    void assign(const std::vector<uint16_t> &a) {
+    explicit VBucketFilter(const std::set<uint16_t> &s) : acceptable(s) {}
+
+    void assign(const std::set<uint16_t> &a) {
         acceptable = a;
-        std::sort(acceptable.begin(), acceptable.end());
     }
 
     bool operator ()(uint16_t v) const {
-        return acceptable.empty() || std::binary_search(acceptable.begin(),
-                                                        acceptable.end(), v);
+        return acceptable.empty() || acceptable.find(v) != acceptable.end();
     }
 
     size_t size() const { return acceptable.size(); }
@@ -72,15 +72,11 @@ public:
      */
     VBucketFilter filter_intersection(const VBucketFilter &other) const;
 
-    const std::vector<uint16_t> &getVector() const { return acceptable; }
+    const std::set<uint16_t> &getVBSet() const { return acceptable; }
 
     bool addVBucket(uint16_t vbucket) {
-        bool rv = false;
-        if (!std::binary_search(acceptable.begin(), acceptable.end(), vbucket)) {
-            acceptable.push_back(vbucket);
-            rv = true;
-        }
-        return rv;
+        std::pair<std::set<uint16_t>::iterator, bool> rv = acceptable.insert(vbucket);
+        return rv.second;
     }
 
     /**
@@ -92,7 +88,7 @@ public:
 
 private:
 
-    std::vector<uint16_t> acceptable;
+    std::set<uint16_t> acceptable;
 };
 
 class EventuallyPersistentEngine;
