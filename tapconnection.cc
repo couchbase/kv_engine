@@ -834,7 +834,8 @@ bool TapProducer::checkBackfillCompletion_UNLOCKED() {
         getBackfillRemaining_UNLOCKED() == 0 && tapLog.empty()) {
 
         backfillCompleted = true;
-        std::stringstream ss("Backfill is completed with VBuckets ");
+        std::stringstream ss;
+        ss << "Backfill is completed with VBuckets ";
         std::set<uint16_t>::iterator it = backfillVBuckets.begin();
         for (; it != backfillVBuckets.end(); ++it) {
             ss << *it << ", ";
