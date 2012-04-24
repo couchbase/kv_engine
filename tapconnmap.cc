@@ -430,7 +430,8 @@ void TapConnMap::resetReplicaChain() {
                          "%s Reset the replication chain.\n",
                          tp->logHeader());
         // Get the list of vbuckets that each TAP producer is replicating
-        const std::vector<uint16_t> &vblist = tp->getVBucketFilter().getVector();
+        VBucketFilter vbfilter = tp->getVBucketFilter();
+        std::vector<uint16_t> vblist (vbfilter.getVBSet().begin(), vbfilter.getVBSet().end());
         // TAP producer sends INITIAL_VBUCKET_STREAM messages to the destination to reset
         // replica vbuckets, and then backfills items to the destination.
         tp->scheduleBackfill(vblist);

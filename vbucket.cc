@@ -26,8 +26,8 @@ VBucketFilter VBucketFilter::filter_intersection(const VBucketFilter &other) con
     return VBucketFilter(std::vector<uint16_t>(tmp.begin(), end));
 }
 
-static bool isRange(std::vector<uint16_t>::const_iterator it,
-                    const std::vector<uint16_t>::const_iterator &end,
+static bool isRange(std::set<uint16_t>::const_iterator it,
+                    const std::set<uint16_t>::const_iterator &end,
                     size_t &length)
 {
     length = 0;
@@ -45,7 +45,7 @@ static bool isRange(std::vector<uint16_t>::const_iterator it,
 std::ostream& operator <<(std::ostream &out, const VBucketFilter &filter)
 {
     bool needcomma = false;
-    std::vector<uint16_t>::const_iterator it;
+    std::set<uint16_t>::const_iterator it;
 
     if (filter.acceptable.empty()) {
         out << "{ empty }";
@@ -60,8 +60,12 @@ std::ostream& operator <<(std::ostream &out, const VBucketFilter &filter)
 
             size_t length;
             if (isRange(it, filter.acceptable.end(), length)) {
-                out << "[" << *it << "," << *(it + length) << "]";
-                it += length;
+                std::set<uint16_t>::iterator last = it;
+                for (size_t i = 0; i < length; ++i) {
+                    ++last;
+                }
+                out << "[" << *it << "," << *last << "]";
+                it = last;
             } else {
                 out << *it;
             }
