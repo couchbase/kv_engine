@@ -3785,6 +3785,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
 }
 
 void EventuallyPersistentEngine::notifyPendingConnections(void) {
+    uint32_t blurb = tapConnMap.prepareWait();
     // No need to aquire shutdown lock
     while (!shutdown.isShutdown) {
         tapConnMap.notifyIOThreadMain();
@@ -3794,7 +3795,7 @@ void EventuallyPersistentEngine::notifyPendingConnections(void) {
             return;
         }
 
-        tapConnMap.wait(1.0);
+        blurb = tapConnMap.wait(1.0, blurb);
     }
 }
 
