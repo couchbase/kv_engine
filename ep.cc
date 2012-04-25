@@ -2042,20 +2042,19 @@ public:
     void callback(mutation_result &value) {
         if (value.first == 1) {
             stats->totalPersisted++;
-            if (value.second > 0) {
-                mutationLog->newItem(queuedItem->getVBucketId(), queuedItem->getKey(),
-                                     value.second);
-                ++stats->newItems;
-                setId(value.second);
-            }
-
             RCPtr<VBucket> vb = store->getVBucket(queuedItem->getVBucketId());
             if (vb) {
                 int bucket_num(0);
                 LockHolder lh = vb->ht.getLockedBucket(queuedItem->getKey(), &bucket_num);
                 StoredValue *v = store->fetchValidValue(vb, queuedItem->getKey(),
                                                         bucket_num, true);
-                if (v && cas == v->getCas()) {
+                if (v && value.second > 0) {
+                    mutationLog->newItem(queuedItem->getVBucketId(), queuedItem->getKey(),
+                                         value.second);
+                    ++stats->newItems;
+                    v->setId(value.second);
+                }
+                if (v && v->getCas() == cas) {
                     // mark this item clean only if current and stored cas
                     // value match
                     v->markClean(NULL);
