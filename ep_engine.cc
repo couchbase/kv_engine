@@ -3741,39 +3741,31 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
     uint8_t *key = request->bytes + sizeof(request->bytes);
     uint16_t nkey = ntohs(request->message.header.request.keylen);
     uint16_t vbucket = ntohs(request->message.header.request.vbucket);
-    uint32_t flags = request->message.body.flags;
 
     uint8_t *dta = key + nkey;
     size_t nbytes = ntohl(request->message.header.request.bodylen);
     nbytes -= nkey + request->message.header.request.extlen;
     uint32_t metabytes = ntohl(request->message.body.nmeta_bytes);
     nbytes -= metabytes;
-    uint32_t exptime = ntohl(request->message.body.expiration);
-    if (exptime != 0) {
-        exptime = serverApi->core->abstime(serverApi->core->realtime(exptime));
-    }
-    uint32_t seqno;
-    uint64_t cas;
-    uint32_t length;
-    uint32_t fl;
+
+    item_metadata itm_meta;
     uint8_t opcode = request->message.header.request.opcode;
 
-    if (!Item::decodeMeta(dta + nbytes, seqno, cas, length, fl) ||
-        fl != flags) {
+    if (!Item::decodeMeta(dta + nbytes, itm_meta)) {
         return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
                             PROTOCOL_BINARY_RAW_BYTES,
                             PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
     }
 
-    Item *itm = new Item(key, nkey, nbytes, flags,
-                         exptime, cas, -1, vbucket);
+    Item *itm = new Item(key, nkey, nbytes, itm_meta.flags,
+                         itm_meta.exptime, itm_meta.cas, -1, vbucket);
     if (itm == NULL) {
         return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
                             PROTOCOL_BINARY_RAW_BYTES,
                             PROTOCOL_BINARY_RESPONSE_ENOMEM, 0, cookie);
     }
     memcpy((char*)itm->getData(), dta, nbytes);
-    itm->setSeqno(seqno);
+    itm->setSeqno(itm_meta.seqno);
 
     bool allowExisting = (opcode == CMD_SET_WITH_META ||
                           opcode == CMD_SETQ_WITH_META);
@@ -3786,9 +3778,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
 
     if (ret == ENGINE_SUCCESS) {
         addMutationEvent(itm);
-        cas = itm->getCas();
+        itm_meta.cas = itm->getCas();
     } else {
-        cas = 0;
+        itm_meta.cas = 0;
     }
 
     delete itm;
@@ -3799,7 +3791,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
 
     return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
                         PROTOCOL_BINARY_RAW_BYTES,
-                        rc, cas, cookie);
+                        rc, itm_meta.cas, cookie);
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(const void* cookie,
@@ -3834,19 +3826,16 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(const void* cookie,
     uint32_t metabytes = ntohl(request->message.body.nmeta_bytes);
     nbytes -= metabytes;
 
-    uint32_t seqno;
-    uint64_t cas;
-    uint32_t length;
-    uint32_t fl;
+    item_metadata itm_meta;
     uint8_t opcode = request->message.header.request.opcode;
 
-    if (!Item::decodeMeta(dta + nbytes, seqno, cas, length, fl) || length != nbytes) {
+    if (!Item::decodeMeta(dta + nbytes, itm_meta)) {
         return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
                             PROTOCOL_BINARY_RAW_BYTES,
                             PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
     }
 
-    ENGINE_ERROR_CODE ret = epstore->deleteItem(key, seqno,
+    ENGINE_ERROR_CODE ret = epstore->deleteItem(key, itm_meta.seqno,
                                                 ntohll(request->message.header.request.cas),
                                                 vbucket, cookie, false, true);
     protocol_binary_response_status rc;

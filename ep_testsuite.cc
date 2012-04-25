@@ -5087,7 +5087,7 @@ static enum test_result test_revid(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
     return SUCCESS;
 }
 
-static bool encodeMeta(uint32_t seqno, uint64_t cas, uint32_t length,
+static bool encodeMeta(uint32_t seqno, uint64_t cas, time_t exptime,
                        uint32_t flags, uint8_t *dest, size_t &nbytes)
 {
     if (nbytes < 22) {
@@ -5095,14 +5095,14 @@ static bool encodeMeta(uint32_t seqno, uint64_t cas, uint32_t length,
     }
     seqno = htonl(seqno);
     cas = htonll(cas);
-    length = htonl(length);
+    exptime = htonl(exptime);
     flags = htonl(flags);
 
     dest[0] = 0x01;
     dest[1] = 20;
     memcpy(dest + 2, &seqno, 4);
     memcpy(dest + 6, &cas, 8);
-    memcpy(dest + 14, &length, 4);
+    memcpy(dest + 14, &exptime, 4);
     memcpy(dest + 18, &flags, 4);
     nbytes = 22;
     return true;

@@ -1368,7 +1368,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::getMetaData(const std::string &key,
                 flags |= ntohl(GET_META_ITEM_DELETED_FLAG);
             }
             cas = v->getCas();
-            Item::encodeMeta(v->getSeqno(), cas, v->valLength(),
+            Item::encodeMeta(v->getSeqno(), v->getCas(), v->getExptime(),
                              v->getFlags(), meta);
             return ENGINE_SUCCESS;
         }

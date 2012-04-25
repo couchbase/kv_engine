@@ -124,6 +124,13 @@ private:
 
 typedef RCPtr<Blob> value_t;
 
+struct item_metadata {
+    uint64_t cas;
+    uint32_t seqno;
+    uint32_t flags;
+    time_t exptime;
+};
+
 /**
  * The Item structure we use to pass information between the memcached
  * core and the backend. Please note that the kvstore don't store these
@@ -291,22 +298,22 @@ public:
         seqno = to;
     }
 
-    static void encodeMeta(uint32_t seqno, uint64_t cas, uint32_t length,
+    static void encodeMeta(uint32_t seqno, uint64_t cas, time_t exptime,
                            uint32_t flags, std::string &dest)
     {
         uint8_t meta[22];
         size_t len = sizeof(meta);
-        encodeMeta(seqno, cas, length, flags, meta, len);
+        encodeMeta(seqno, cas, exptime, flags, meta, len);
         dest.assign((char*)meta, len);
     }
 
     static bool encodeMeta(const Item &itm, uint8_t *dest, size_t &nbytes)
     {
-        return encodeMeta(itm.seqno, itm.cas, itm.getNBytes(), itm.flags,
+        return encodeMeta(itm.seqno, itm.cas, itm.exptime, itm.flags,
                           dest, nbytes);
     }
 
-    static bool encodeMeta(uint32_t seqno, uint64_t cas, uint32_t length,
+    static bool encodeMeta(uint32_t seqno, uint64_t cas, time_t exptime,
                            uint32_t flags, uint8_t *dest, size_t &nbytes)
     {
         if (nbytes < 22) {
@@ -314,21 +321,25 @@ public:
         }
         seqno = htonl(seqno);
         cas = htonll(cas);
-        length = htonl(length);
-        // flags are stored in network byte order thus no conversion here
+        exptime = htonl(exptime);
+        flags = htonl(flags);
 
         dest[0] = 0x01;
         dest[1] = 20;
         memcpy(dest + 2, &seqno, 4);
         memcpy(dest + 6, &cas, 8);
-        memcpy(dest + 14, &length, 4);
+        memcpy(dest + 14, &exptime, 4);
         memcpy(dest + 18, &flags, 4);
         nbytes = 22;
         return true;
     }
 
-    static bool decodeMeta(const uint8_t *dta, uint32_t &seqno, uint64_t &cas,
-                           uint32_t &length, uint32_t &flags) {
+    static bool decodeMeta(const uint8_t *dta, item_metadata &meta) {
+        uint32_t seqno;
+        uint64_t cas;
+        time_t exptime;
+        uint32_t flags;
+
         if (*dta != 0x01) {
             // Unsupported meta tag
             return false;
@@ -345,11 +356,16 @@ public:
         memcpy(&cas, dta, 8);
         cas = ntohll(cas);
         dta += 8;
-        memcpy(&length, dta, 4);
-        length = ntohl(length);
+        memcpy(&exptime, dta, 4);
+        exptime = ntohl(exptime);
         dta += 4;
-        // flags are kept in network byte order
         memcpy(&flags, dta, 4);
+        flags = ntohl(flags);
+
+        meta.cas = cas;
+        meta.seqno = seqno;
+        meta.flags = flags;
+        meta.exptime = exptime;
 
         return true;
     }

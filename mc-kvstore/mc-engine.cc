@@ -127,18 +127,17 @@ public:
                 protocol_binary_response_get_meta *gres;
                 gres = (protocol_binary_response_get_meta*)res;
 
-                uint32_t s;
-                uint64_t c;
-                uint32_t l;
-                uint32_t f;
-                uint8_t *meta = gres->bytes + sizeof(gres->bytes);
-                if (!Item::decodeMeta(meta, s, c, l, f)) {
+                item_metadata itm_meta;
+                uint8_t *meta_bytes = gres->bytes + sizeof(gres->bytes);
+                if (!Item::decodeMeta(meta_bytes, itm_meta)) {
                     getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                         "FATAL: invalid metadata returned from mccouch");
                     abort();
                 }
-                it = new Item(key.c_str(), (size_t) key.length(), (size_t)l,
-                              f, (time_t)0, c);
+                // note: we do not have the length information here
+                it = new Item(key.c_str(), (size_t) key.length(), (size_t)0,
+                              itm_meta.flags, (time_t)itm_meta.exptime,
+                              itm_meta.cas);
             } else {
                 protocol_binary_response_get *gres;
                 gres = (protocol_binary_response_get*)res;
@@ -438,18 +437,15 @@ public:
                                  "FATAL: Object returned from mccouch without revid");
                 abort();
             }
-            uint32_t s;
-            uint64_t c;
-            uint32_t l;
-            uint32_t f;
+            item_metadata itm_meta;
 
-            if (!Item::decodeMeta(es, s, c, l, f)) {
+            if (!Item::decodeMeta(es, itm_meta)) {
                 getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                                  "FATAL: Object returned from mccouch with CAS == 0");
                 abort();
             }
-            it->setCas(c);
-            it->setSeqno(s);
+            it->setCas(itm_meta.cas);
+            it->setSeqno(itm_meta.seqno);
             GetValue rv(it, ENGINE_SUCCESS, -1, -1, NULL, partial);
             callback->cb->callback(rv);
             ++num;
