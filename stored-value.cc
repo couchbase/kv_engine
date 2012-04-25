@@ -133,10 +133,6 @@ mutation_type_t HashTable::insert(const Item &itm, bool eject, bool partial) {
         v->markClean(NULL);
         if (partial) {
             v->extra.feature.resident = false;
-            blobval uval;
-            uval.len = itm.getValue()->length();
-            RCPtr<Blob> sp(Blob::New(uval.chlen, sizeof(uval)));
-            v->value = sp;
         }
         values[bucket_num] = v;
         ++numItems;
