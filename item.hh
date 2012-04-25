@@ -172,8 +172,8 @@ public:
 
     Item(const void *k, uint16_t nk, const uint32_t fl, const time_t exp,
          const void *dta, const size_t nb, uint64_t theCas = 0,
-         int64_t i = -1, uint16_t vbid = 0) :
-        cas(theCas), id(i), exptime(exp), flags(fl), seqno(1), vbucketId(vbid)
+         int64_t i = -1, uint16_t vbid = 0, uint32_t sno = 1) :
+        cas(theCas), id(i), exptime(exp), flags(fl), seqno(sno), vbucketId(vbid)
     {
         assert(id != 0);
         key.assign(static_cast<const char*>(k), nk);
