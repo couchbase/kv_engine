@@ -115,6 +115,38 @@ void StrategicSqlite3::set(const Item &itm, uint16_t vb_version,
     }
 }
 
+void StrategicSqlite3::setMeta(const Item &itm, uint16_t vb_version,
+                               Callback<mutation_result> &cb) {
+
+    assert(itm.getId() > 0);
+
+    PreparedStatement *set_meta_stmt =
+        strategy->getStatements(itm.getVBucketId(),
+                                vb_version,
+                                itm.getKey())->set_meta();
+
+    set_meta_stmt->bind(1, itm.getKey());
+    set_meta_stmt->bind(2, itm.getFlags());
+    set_meta_stmt->bind(3, itm.getExptime());
+    set_meta_stmt->bind64(4, itm.getCas());
+    set_meta_stmt->bind(5, vb_version);
+    set_meta_stmt->bind64(6, itm.getId());
+
+    int rv = set_meta_stmt->execute();
+    if (rv == 1) {
+        stats.totalPersisted++;
+    }
+    ++stats.io_num_write;
+    stats.io_write_bytes += itm.getKey().length();
+
+    std::pair<int, int64_t> p(rv, 0);
+    cb.callback(p);
+    set_meta_stmt->reset();
+
+    return;
+}
+
+
 void StrategicSqlite3::get(const std::string &key, uint64_t rowid,
                            uint16_t vb, uint16_t vbver, Callback<GetValue> &cb) {
     PreparedStatement *sel_stmt = strategy->getStatements(vb, vbver, key)->sel();

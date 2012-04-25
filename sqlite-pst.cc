@@ -145,6 +145,8 @@ void Statements::initStatements(const StatementFactory *sfact) {
     assert(ins_stmt);
     upd_stmt = sfact->mkUpdate(db, tableName);
     assert(upd_stmt);
+    set_meta_stmt = sfact->mkSetMeta(db, tableName);
+    assert(set_meta_stmt);
     sel_stmt = sfact->mkSelect(db, tableName);
     assert(sel_stmt);
     all_stmt = sfact->mkSelectAll(db, tableName);
@@ -170,6 +172,17 @@ PreparedStatement *StatementFactory::mkUpdate(sqlite3 *db,
     // Note that vbucket IDs don't change here.
     snprintf(buf, sizeof(buf),
              "update %s set k=?, v=?, flags=?, exptime=?, cas=?, vb_version=? "
+             " where rowid = ?", table.c_str());
+    return new PreparedStatement(db, buf);
+}
+
+PreparedStatement *StatementFactory::mkSetMeta(sqlite3 *db,
+                                               const std::string &table)
+                                               const {
+    char buf[1024];
+    // Note that vbucket IDs don't change here.
+    snprintf(buf, sizeof(buf),
+             "update %s set k=?, flags=?, exptime=?, cas=?, vb_version=? "
              " where rowid = ?", table.c_str());
     return new PreparedStatement(db, buf);
 }

@@ -98,6 +98,11 @@ public:
     void set(const Item &item, uint16_t vb_version, Callback<mutation_result> &cb);
 
     /**
+     * Overrides setMeta().
+     */
+    void setMeta(const Item &item, uint16_t vb_version, Callback<mutation_result> &cb);
+
+    /**
      * Overrides get().
      */
     void get(const std::string &key, uint64_t rowid,

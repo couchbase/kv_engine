@@ -204,6 +204,8 @@ public:
                                         const std::string &table) const;
     virtual PreparedStatement *mkUpdate(sqlite3 *dbh,
                                         const std::string &table) const;
+    virtual PreparedStatement *mkSetMeta(sqlite3 *dbh,
+                                         const std::string &table) const;
     virtual PreparedStatement *mkSelect(sqlite3 *dbh,
                                         const std::string &table) const;
     virtual PreparedStatement *mkSelectAll(sqlite3 *dbh,
@@ -229,11 +231,13 @@ public:
     ~Statements() {
         delete ins_stmt;
         delete upd_stmt;
+        delete set_meta_stmt;
         delete sel_stmt;
         delete del_stmt;
         delete del_vb_stmt;
         delete all_stmt;
-        ins_stmt = upd_stmt = sel_stmt = del_stmt = del_vb_stmt = all_stmt = NULL;
+        ins_stmt = set_meta_stmt = upd_stmt = sel_stmt = NULL;
+        del_stmt = del_vb_stmt = all_stmt = NULL;
     }
 
     PreparedStatement *ins() {
@@ -242,6 +246,10 @@ public:
 
     PreparedStatement *upd() {
         return upd_stmt;
+    }
+
+    PreparedStatement *set_meta() {
+        return set_meta_stmt;
     }
 
     PreparedStatement *sel() {
@@ -267,6 +275,7 @@ private:
     std::string        tableName;
     PreparedStatement *ins_stmt;
     PreparedStatement *upd_stmt;
+    PreparedStatement *set_meta_stmt;
     PreparedStatement *sel_stmt;
     PreparedStatement *del_stmt;
     PreparedStatement *del_vb_stmt;

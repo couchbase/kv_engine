@@ -202,6 +202,11 @@ public:
      */
     virtual void set(const Item &item, uint16_t vb_version,
                      Callback<mutation_result> &cb) = 0;
+    /**
+     * Set the meta fields of a key in the kv store
+     */
+    virtual void setMeta(const Item &item, uint16_t vb_version,
+                         Callback<mutation_result> &cb) = 0;
 
     /**
      * Get an item from the kv store.
