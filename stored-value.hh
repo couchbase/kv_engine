@@ -288,6 +288,11 @@ public:
         } else if (isResident()) {
             return value->length();
         } else {
+            // This is a special case for two phase warmup as an item's value size
+            // is not known during the first phase warmup.
+            if (value->length() == 0) {
+                return 0;
+            }
             blobval uval;
             assert(value->length() == sizeof(uval));
             std::memcpy(uval.chlen, value->getData(), sizeof(uval));
