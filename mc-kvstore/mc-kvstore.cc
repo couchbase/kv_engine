@@ -246,7 +246,8 @@ void MCKVStore::optimizeWrites(std::vector<queued_item> &items) {
         return;
     }
     CompareQueuedItemsByVBAndKey cq;
-    std::sort(items.begin(), items.end(), cq);
+    // Make sure that the items are sorted in the ascending order of vbucket ids and keys.
+    assert(sorted(items.begin(), items.end(), cq));
 
     size_t pos = 0;
     uint16_t current_vbid = items[0]->getVBucketId();
