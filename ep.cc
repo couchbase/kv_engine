@@ -1810,8 +1810,6 @@ std::queue<queued_item>* EventuallyPersistentStore::beginFlush() {
         }
 
         std::vector<queued_item> item_list;
-        std::set<queued_item, CompareQueuedItemsByKey> item_set;
-        size_t dedup = 0;
         size_t num_items = 0;
         size_t numOfVBuckets = vbuckets.getSize();
 
@@ -1847,40 +1845,28 @@ std::queue<queued_item>* EventuallyPersistentStore::beginFlush() {
             uint64_t checkpointId = vb->checkpointManager.getAllItemsForPersistence(item_list);
             persistenceCheckpointIds[vbid] = checkpointId;
 
-            std::vector<queued_item>::reverse_iterator reverse_it = item_list.rbegin();
-            // Perform further deduplication here by removing duplicate mutations for each key.
-            for (; reverse_it != item_list.rend(); ++reverse_it) {
-                queued_item qi = *reverse_it;
+            uint16_t shard_id = 0;
+            std::vector<queued_item>::iterator it = item_list.begin();
+            for (; it != item_list.end(); ++it) {
+                const queued_item &qi = *it;
                 switch (qi->getOperation()) {
                 case queue_op_set:
                 case queue_op_del:
-                    if (!(item_set.insert(qi).second)) {
-                        ++dedup;
-                        vb->doStatsForFlushing(*qi, qi->size());
-                    }
+                    shard_id = rwUnderlying->getShardId(*qi);
+                    dbShardQueues[shard_id].push_back(qi);
                 default:
                     // Ignore
                     ;
                 }
             }
-
-            uint16_t shard_id = 0;
-            std::set<queued_item, CompareQueuedItemsByKey>::iterator sit = item_set.begin();
-            for (; sit != item_set.end(); ++sit) {
-                const queued_item &qitem = *sit;
-                shard_id = rwUnderlying->getShardId(*qitem);
-                dbShardQueues[shard_id].push_back(*sit);
-            }
-            num_items += item_set.size();
+            num_items += item_list.size();
             item_list.clear();
-            item_set.clear();
         }
 
         if (num_items > 0) {
             pushToOutgoingQueue();
         }
         size_t queue_size = getWriteQueueSize();
-        stats.flusherDedup += dedup;
         stats.flusher_todo.set(writing.size());
         stats.queue_size.set(queue_size);
         getLogger()->log(EXTENSION_LOG_DEBUG, NULL,

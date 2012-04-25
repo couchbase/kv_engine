@@ -238,6 +238,7 @@ public:
     }
 
     virtual void addStats(const std::string &prefix, ADD_STAT add_stat, const void *c);
+    void optimizeWrites(std::vector<queued_item> &items);
     void processTxnSizeChange(size_t txn_size) {
         (void) txn_size;
     }
