@@ -102,8 +102,6 @@ public:
             store.setBGFetchDelay(static_cast<uint32_t>(value));
         } else if (key.compare("expiry_window") == 0) {
             store.setItemExpiryWindow(value);
-        }  else if (key.compare("tmp_item_expiry_window") == 0) {
-            store.setTmpItemExpiryWindow(value);
         } else if (key.compare("vb_del_chunk_size") == 0) {
             store.setVbDelChunkSize(value);
         } else if (key.compare("vb_chunk_del_time") == 0) {
@@ -441,10 +439,6 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
 
     setItemExpiryWindow(config.getExpiryWindow());
     config.addValueChangedListener("expiry_window",
-                                   new EPStoreValueChangeListener(*this));
-
-    setTmpItemExpiryWindow(config.getTmpItemExpiryWindow());
-    config.addValueChangedListener("tmp_item_expiry_window",
                                    new EPStoreValueChangeListener(*this));
 
     setTxnSize(config.getMaxTxnSize());
