@@ -92,6 +92,10 @@ MemoryTracker::~MemoryTracker() {
 }
 
 void MemoryTracker::getAllocatorStats(std::map<std::string, size_t> &alloc_stats) {
+    if (!trackingMemoryAllocations()) {
+        return;
+    }
+
     for (size_t i = 0; i < stats.ext_stats_size; ++i) {
         alloc_stats.insert(std::pair<std::string, size_t>(stats.ext_stats[i].key,
                                                           stats.ext_stats[i].value));
@@ -125,4 +129,3 @@ size_t MemoryTracker::getTotalHeapBytes() {
 bool MemoryTracker::trackingMemoryAllocations() {
     return tracking;
 }
-
