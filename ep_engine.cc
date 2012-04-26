@@ -1976,15 +1976,13 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
             }
             *itm = item;
         }
-        *vbucket = static_cast<Item*>(*itm)->getVBucketId();
 
+        *vbucket = static_cast<Item*>(*itm)->getVBucketId();
         if (!connection->vbucketFilter(*vbucket)) {
             // We were going to use the item that we received from
             // disk, but the filter says not to, so we need to get rid
             // of it now.
-            if (gv.getStatus() != ENGINE_SUCCESS) {
-                delete item;
-            }
+            delete item;
             retry = true;
             return TAP_NOOP;
         }
