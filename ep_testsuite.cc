@@ -5463,6 +5463,40 @@ static enum test_result test_delete_with_meta_nonexistent(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+static enum test_result test_temp_item_deletion(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
+{
+    // Do get_meta for an existing key
+    char const *k1 = "k1";
+    item *i = NULL;
+    check(store(h, h1, NULL, OPERATION_SET, k1, "somevalue", &i) == ENGINE_SUCCESS,
+          "Failed set.");
+    wait_for_flusher_to_settle(h, h1);
+
+    check(h1->remove(h, NULL, k1, strlen(k1), 0, 0) == ENGINE_SUCCESS,
+          "Delete failed");
+    wait_for_flusher_to_settle(h, h1);
+
+    item_metadata itm_meta;
+    check(get_meta(h, h1, k1, itm_meta), "Expected to get meta");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    check(last_deleted_flag, "Expected deleted flag to be set");
+
+    // Do get_meta for a non-existing key
+    char const *k2 = "k2";
+    check(!get_meta(h, h1, k2, itm_meta), "Expected get meta to return false");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, "Expected enoent");
+
+    // Trigger the expiry pager and verify that two temp items are deleted
+    int num_expired = get_int_stat(h, h1, "ep_expired");
+    testHarness.time_travel(30);
+    wait_for_stat_change(h, h1, "ep_expired", num_expired);
+    num_expired = get_int_stat(h, h1, "ep_expired");
+    check(num_expired == 2, "Expected 2 temporary items to expire");
+
+    return SUCCESS;
+}
+
+
 static enum test_result test_compact_mutation_log(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     std::vector<std::string> keys;
@@ -6132,6 +6166,9 @@ engine_test_t* get_tests(void) {
 
         TestCase("delete with meta nonexistent", test_delete_with_meta_nonexistent, NULL,
                  teardown, NULL, prepare, cleanup, BACKEND_COUCH),
+
+        TestCase("temp item deletion", test_temp_item_deletion, NULL,
+                 teardown, "exp_pager_stime=3", prepare, cleanup, BACKEND_COUCH),
 
         // mutation log compactor tests
         TestCase("compact a mutation log", test_compact_mutation_log,
