@@ -22,6 +22,10 @@
 
 using namespace CouchKVStoreDirectoryUtilities;
 
+static const int MUTATION_FAILED = -1;
+static const int DOC_NOT_FOUND = 0;
+static const int MUTATION_SUCCESS = 1;
+
 static bool isJSON(const value_t &value)
 {
     bool isJSON = false;
@@ -108,6 +112,22 @@ static uint32_t computeMaxDeletedSeqNum(DocInfo **docinfos, const int numdocs)
 static bool compareItemsByKey(const queued_item &i1, const queued_item &i2)
 {
     return i1->getKey() == i2->getKey();
+}
+
+static int getMutationStatus(couchstore_error_t errCode)
+{
+    switch (errCode) {
+    case COUCHSTORE_SUCCESS:
+        return MUTATION_SUCCESS;
+    case COUCHSTORE_ERROR_DOC_NOT_FOUND:
+        // this return causes ep engine to drop the failed flush
+        // of an item since it does not know about the itme any longer
+        return DOC_NOT_FOUND;
+    default:
+        // this return causes ep engine to keep requeuing the failed
+        // flush of an item
+        return MUTATION_FAILED;
+    }
 }
 
 struct StatResponseCtx {
@@ -212,7 +232,7 @@ void CouchKVStore::set(const Item &itm, uint16_t, Callback<mutation_result> &cb)
         getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                          "Warning: failed to set data, cannot locate database file %s\n",
                          dbFile.c_str());
-        mutation_result p(0, -1);
+        mutation_result p(MUTATION_FAILED, 0);
         cb.callback(p);
         return;
     }
@@ -241,6 +261,7 @@ void CouchKVStore::get(const std::string &key, uint64_t, uint16_t vb, uint16_t,
                          "Warning: failed to retrieve data from vBucketId = %d "
                          "[key=%s], cannot locate database file %s\n",
                          vb, key.c_str(), dbFile.c_str());
+        rv.setStatus(ENGINE_NOT_MY_VBUCKET);
         cb.callback(rv);
         return;
     }
@@ -252,6 +273,7 @@ void CouchKVStore::get(const std::string &key, uint64_t, uint16_t vb, uint16_t,
                          "Warning: failed to open database, name=%s error=%s\n",
                          dbFile.c_str(),
                          couchstore_strerror(errCode));
+        rv.setStatus(couchErr2EngineErr(errCode));
         cb.callback(rv);
         return;
     }
@@ -330,6 +352,7 @@ void CouchKVStore::get(const std::string &key, uint64_t, uint16_t vb, uint16_t,
     couchstore_free_docinfo(docInfo);
     couchstore_free_document(doc);
     closeDatabaseHandle(db);
+    rv.setStatus(couchErr2EngineErr(errCode));
     cb.callback(rv);
 
     if(errCode != COUCHSTORE_SUCCESS) {
@@ -353,12 +376,12 @@ void CouchKVStore::del(const Item &itm,
                                              requestcb, true);
         this->queue(*req);
     } else {
-        int value = -1;
         ++st.numDelFailure;
         getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                          "Warning: failed to delete data, cannot locate "
                          "database file %s\n",
                          dbFile.c_str());
+        int value = DOC_NOT_FOUND;
         cb.callback(value);
     }
 }
@@ -1221,7 +1244,7 @@ void CouchKVStore::remVBucketFromDbFileMap(uint16_t vbucketId)
 }
 
 void CouchKVStore::commitCallback(CouchRequest **committedReqs, int numReqs,
-                                  int errCode)
+                                  couchstore_error_t errCode)
 {
     for (int index = 0; index < numReqs; index++) {
         size_t dataSize = committedReqs[index]->getNBytes();
@@ -1231,7 +1254,7 @@ void CouchKVStore::commitCallback(CouchRequest **committedReqs, int numReqs,
         epStats.io_write_bytes += keySize + dataSize;
 
         if (committedReqs[index]->isDelete()) {
-            int rv = (errCode) ? -1 : 1;
+            int rv = getMutationStatus(errCode);
             if (errCode) {
                 ++st.numDelFailure;
             } else {
@@ -1239,14 +1262,16 @@ void CouchKVStore::commitCallback(CouchRequest **committedReqs, int numReqs,
             }
             committedReqs[index]->getDelCallback()->callback(rv);
         } else {
-            int rv = (errCode) ? 0 : 1;
+            int rv = getMutationStatus(errCode);
+            int64_t newItemId = committedReqs[index]->getItemId();
             if (errCode) {
                 ++st.numSetFailure;
+                newItemId = 0;
             } else {
                 st.writeTimeHisto.add(committedReqs[index]->getDelta() / 1000);
                 st.writeSizeHisto.add(dataSize + keySize);
             }
-            mutation_result p(rv, committedReqs[index]->getItemId());
+            mutation_result p(rv, newItemId);
             committedReqs[index]->getSetCallback()->callback(p);
         }
     }
@@ -1322,6 +1347,24 @@ void CouchKVStore::closeDatabaseHandle(Db *db) {
                          couchstore_strerror(ret));
     }
     st.numClose++;
+}
+
+ENGINE_ERROR_CODE CouchKVStore::couchErr2EngineErr(couchstore_error_t errCode)
+{
+    switch (errCode) {
+    case COUCHSTORE_SUCCESS:
+        return ENGINE_SUCCESS;
+    case COUCHSTORE_ERROR_ALLOC_FAIL:
+        return ENGINE_ENOMEM;
+    case COUCHSTORE_ERROR_DOC_NOT_FOUND:
+        return ENGINE_KEY_ENOENT;
+    case COUCHSTORE_ERROR_NO_SUCH_FILE:
+        return ENGINE_NOT_MY_VBUCKET;
+    default:
+        // same as the general error return code of
+        // EvetuallyPersistentStore::getInternal
+        return ENGINE_TMPFAIL;
+    }
 }
 
 /* end of couch-kvstore.cc */

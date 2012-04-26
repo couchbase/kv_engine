@@ -287,10 +287,12 @@ private:
                                uint64_t options, uint16_t *newFileRev = NULL);
     couchstore_error_t saveDocs(uint16_t vbid, int rev, Doc **docs,
                                 DocInfo **docinfos, int docCount);
-    void commitCallback(CouchRequest **committedReqs, int numReqs, int errCode);
+    void commitCallback(CouchRequest **committedReqs, int numReqs,
+                        couchstore_error_t errCode);
     couchstore_error_t saveVBState(Db *db, vbucket_state &vbState);
     void setDocsCommitted(uint16_t docs);
     void closeDatabaseHandle(Db *db);
+    ENGINE_ERROR_CODE couchErr2EngineErr(couchstore_error_t errCode);
 
     EventuallyPersistentEngine &engine;
     EPStats &epStats;
