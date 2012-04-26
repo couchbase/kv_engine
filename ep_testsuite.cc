@@ -4008,6 +4008,40 @@ static enum test_result test_value_eviction(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
     return SUCCESS;
 }
 
+static enum test_result test_mb5172(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    item *i = NULL;
+    check(store(h, h1, NULL, OPERATION_SET, "key-1", "value-1", &i, 0, 0)
+          == ENGINE_SUCCESS, "Failed to store a value");
+    check(store(h, h1, NULL, OPERATION_SET, "key-2", "value-2", &i, 0, 0)
+          == ENGINE_SUCCESS, "Failed to store a value");
+
+    wait_for_flusher_to_settle(h, h1);
+
+    check(get_int_stat(h, h1, "ep_num_non_resident") == 0,
+          "Expected all items to be resident");
+
+    // restart the server.
+    testHarness.reload_engine(&h, &h1,
+                              testHarness.engine_path,
+                              testHarness.get_current_testcase()->cfg,
+                              true, false);
+
+    useconds_t sleepTime = 50;
+    while (h1->get_stats(h, NULL, "warmup", 6, add_stats) == ENGINE_SUCCESS) {
+        std::string s = vals["ep_warmup_thread"];
+        if (strcmp(s.c_str(), "complete") == 0) {
+            break;
+        }
+        decayingSleep(&sleepTime);
+        vals.clear();
+    }
+
+    check(get_int_stat(h, h1, "ep_num_non_resident") == 0,
+          "Expected all items to be resident");
+    return SUCCESS;
+}
+
+
 static enum test_result test_mb3169(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
     uint64_t cas(0);
@@ -5425,6 +5459,8 @@ engine_test_t* get_tests(void) {
                  "db_shards=1;ht_size=13;ht_locks=7;db_strategy=multiDB",
                  prepare, cleanup, BACKEND_SQLITE),
         TestCase("non-resident decrementers", test_mb3169, NULL, teardown,
+                 NULL, prepare, cleanup, BACKEND_ALL),
+        TestCase("resident ratio after warmup", test_mb5172, NULL, teardown,
                  NULL, prepare, cleanup, BACKEND_ALL),
         TestCase("flush", test_flush, NULL, teardown, NULL, prepare, cleanup,
                  BACKEND_ALL),
