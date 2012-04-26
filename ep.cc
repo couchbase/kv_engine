@@ -739,20 +739,19 @@ public:
             int bucket_num(0);
             LockHolder lh = vb->ht.getLockedBucket(vk.second, &bucket_num);
             StoredValue *v = vb->ht.unlocked_find(vk.second, bucket_num, true);
-            if (v && v->isExpired(startTime)) {
-                if (v->isTempItem()) {
-                    // This is a temporary item whose background fetch for
-                    // metadata has completed.
-                    bool deleted = vb->ht.unlocked_del(vk.second, bucket_num);
-                    assert(deleted);
-                } else {
-                    vb->ht.unlocked_softDelete(v, 0);
-                    e->queueDirty(vk.second, vb->getId(), queue_op_del,
-                                  v->getSeqno(), v->getId(), false);
-                }
+            if (v && v->isTempItem()) {
+                // This is a temporary item whose background fetch for metadata
+                // has completed.
+                bool deleted = vb->ht.unlocked_del(vk.second, bucket_num);
+                assert(deleted);
+            } else if (v && v->isExpired(startTime)) {
+                vb->ht.unlocked_softDelete(v, 0);
+                e->queueDirty(vk.second, vb->getId(), queue_op_del,
+                              v->getSeqno(), v->getId(), false);
             }
         }
     }
+
 private:
     EventuallyPersistentStore *e;
     time_t                     startTime;
@@ -774,13 +773,9 @@ StoredValue *EventuallyPersistentStore::fetchValidValue(RCPtr<VBucket> vb,
     if (v && !v->isDeleted()) { // In the deleted case, we ignore expiration time.
         if (v->isExpired(ep_real_time())) {
             ++stats.expired;
-            if (v->isTempItem()) {
-                vb->ht.unlocked_del(key, bucket_num);
-            } else {
-                vb->ht.unlocked_softDelete(v, 0);
-                queueDirty(key, vb->getId(), queue_op_del, v->getSeqno(),
-                           v->getId());
-            }
+            vb->ht.unlocked_softDelete(v, 0);
+            queueDirty(key, vb->getId(), queue_op_del, v->getSeqno(),
+                       v->getId());
             return NULL;
         }
         v->touch();
@@ -1249,7 +1244,6 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
         if (BG_FETCH_METADATA == type) {
             if (v && !v->isDirty()) {
                 if (v->unlocked_restoreMeta(gcb.val.getValue(),
-                                            getTmpItemExpiryWindow(),
                                             gcb.val.getStatus())) {
                     status = ENGINE_SUCCESS;
                 }
@@ -1357,14 +1351,14 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::getMetaData(const std::string &key,
     int bucket_num(0);
     flags = 0;
     LockHolder lh = vb->ht.getLockedBucket(key, &bucket_num);
-    StoredValue *v = fetchValidValue(vb, key, bucket_num, true);
+    StoredValue *v = vb->ht.unlocked_find(key, bucket_num, true);
 
     if (v) {
         if (v->isTempNonExistentItem()) {
             cas = v->getCas();
             return ENGINE_KEY_ENOENT;
         } else {
-            if (v->isDeleted()) {
+            if (v->isDeleted() || v->isExpired(ep_real_time())) {
                 flags |= ntohl(GET_META_ITEM_DELETED_FLAG);
             }
             cas = v->getCas();

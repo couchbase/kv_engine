@@ -166,26 +166,21 @@ mutation_type_t HashTable::insert(const Item &itm, bool eject, bool partial) {
 
 }
 
-bool StoredValue::unlocked_restoreMeta(Item *itm,
-                                       size_t expiration,
-                                       ENGINE_ERROR_CODE status) {
+bool StoredValue::unlocked_restoreMeta(Item *itm, ENGINE_ERROR_CODE status) {
     assert(state_deleted_key != getId() && state_non_existent_key != getId());
-    uint32_t exptime = (uint32_t)(ep_real_time() + expiration);
     switch(status) {
     case ENGINE_SUCCESS:
         assert(0 == itm->getValue()->length());
         setSeqno(itm->getSeqno());
         setCas(itm->getCas());
         flags = itm->getFlags();
-        extra.feature.exptime = exptime;
+        setExptime(itm->getExptime());
         setStoredValueState(state_deleted_key);
         return true;
     case ENGINE_KEY_ENOENT:
-        extra.feature.exptime = exptime;
         setStoredValueState(state_non_existent_key);
         return true;
     default:
-        extra.feature.exptime = exptime;
         getLogger()->log(
             EXTENSION_LOG_WARNING, NULL,
             "The underlying storage returned error %d for get_meta\n", status);

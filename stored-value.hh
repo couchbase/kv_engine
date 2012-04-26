@@ -324,14 +324,10 @@ public:
      * background fetch assuming the hashtable bucket is locked.
      *
      * @param itm the Item whose metadata is being restored
-     * @param expiration when should the temporary item expire after it is
-     *                   restored
      * @param status the engine code describing the result of the background
      *               fetch
      */
-    bool unlocked_restoreMeta(Item *itm,
-                              size_t expiration,
-                              ENGINE_ERROR_CODE status);
+    bool unlocked_restoreMeta(Item *itm, ENGINE_ERROR_CODE status);
 
     /**
      * Get this item's CAS identifier.
