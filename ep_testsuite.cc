@@ -5335,6 +5335,134 @@ static enum test_result test_delete_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
     return SUCCESS;
 }
 
+static enum test_result test_delete_with_meta_deleted(ENGINE_HANDLE *h,
+                                                      ENGINE_HANDLE_V1 *h1) {
+    const char *key = "delete_with_meta_key";
+    uint16_t keylen = (uint16_t)strlen(key);
+    item *i = NULL;
+
+    // add a key
+    check(store(h, h1, NULL, OPERATION_SET, key, "somevalue", &i) == ENGINE_SUCCESS,
+          "Failed set.");
+    wait_for_flusher_to_settle(h, h1);
+
+    // delete the key
+    check(h1->remove(h, NULL, key, strlen(key), 0, 0) == ENGINE_SUCCESS,
+          "Delete failed");
+    wait_for_flusher_to_settle(h, h1);
+
+    // get metadata of deleted key
+    item_metadata itm_meta;
+    check(get_meta(h, h1, key, itm_meta), "Expected to get meta");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    check(last_deleted_flag, "Expected deleted flag to be set");
+
+    // this is the cas to be used with a subsequent delete with meta
+    uint64_t cas_for_delete = last_cas;
+
+    // do delete with meta
+    union {
+        protocol_binary_request_header pkt;
+        protocol_binary_request_delete_with_meta req;
+        char buffer[1024];
+    } msg;
+    memset(&msg.req, 0, sizeof(msg));
+    msg.req.message.header.request.magic = PROTOCOL_BINARY_REQ;
+    msg.req.message.header.request.opcode = CMD_DEL_WITH_META;
+    msg.req.message.header.request.extlen = 4;
+    msg.req.message.header.request.keylen = ntohs(keylen);
+    msg.req.message.header.request.vbucket = htons(0);
+    msg.req.message.header.request.bodylen = htonl(4 + keylen + 22);
+    memcpy(msg.buffer + sizeof(msg.req.bytes), key, keylen);
+    msg.req.message.body.nmeta_bytes = ntohl(22);
+
+    size_t nb = 22;
+    encodeMeta(10, 0xdeadbeef, 300, 0xdeadbeef,
+               (uint8_t*)msg.buffer + sizeof(msg.req.bytes) + keylen, nb);
+
+    // do delete with meta with an incorrect cas value. should fail.
+    msg.req.message.header.request.cas = htonll(1229);
+    ENGINE_ERROR_CODE ret = h1->unknown_command(h, NULL, &msg.pkt, add_response);
+    check(ret == ENGINE_SUCCESS, "Expected to be able to delete with meta");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
+          "Expected invalid cas error");
+
+    // do delete with meta with the correct cas value. should pass.
+    msg.req.message.header.request.cas = htonll(cas_for_delete);
+    ret = h1->unknown_command(h, NULL, &msg.pkt, add_response);
+    check(ret == ENGINE_SUCCESS, "Expected to be able to delete with meta");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+
+    // get metadata again to verify that delete with meta was successful
+    check(get_meta(h, h1, key, itm_meta), "Expected to get meta");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    check(last_deleted_flag, "Expected deleted flag to be set");
+    check(itm_meta.seqno == 10, "Expected seqno to match");
+    check(itm_meta.cas == 0xdeadbeef, "Expected cas to match");
+    check(itm_meta.exptime == 300, "Expected exptime to match");
+    check(itm_meta.flags == 0xdeadbeef, "Expected flags to match");
+
+    return SUCCESS;
+}
+
+static enum test_result test_delete_with_meta_nonexistent(ENGINE_HANDLE *h,
+                                                          ENGINE_HANDLE_V1 *h1) {
+    const char *key = "delete_with_meta_key";
+    uint16_t keylen = (uint16_t)strlen(key);
+
+    // get metadata of nonexistent key
+    item_metadata itm_meta;
+    check(!get_meta(h, h1, key, itm_meta), "Expected get meta to return false");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, "Expected enoent");
+
+    // this is the cas to be used with a subsequent delete with meta
+    uint64_t cas_for_delete = last_cas;
+
+    // do delete with meta
+    union {
+        protocol_binary_request_header pkt;
+        protocol_binary_request_delete_with_meta req;
+        char buffer[1024];
+    } msg;
+    memset(&msg.req, 0, sizeof(msg));
+    msg.req.message.header.request.magic = PROTOCOL_BINARY_REQ;
+    msg.req.message.header.request.opcode = CMD_DEL_WITH_META;
+    msg.req.message.header.request.extlen = 4;
+    msg.req.message.header.request.keylen = ntohs(keylen);
+    msg.req.message.header.request.vbucket = htons(0);
+    msg.req.message.header.request.bodylen = htonl(4 + keylen + 22);
+    memcpy(msg.buffer + sizeof(msg.req.bytes), key, keylen);
+    msg.req.message.body.nmeta_bytes = ntohl(22);
+
+    size_t nb = 22;
+    encodeMeta(10, 0xdeadbeef, 300, 0xdeadbeef,
+               (uint8_t*)msg.buffer + sizeof(msg.req.bytes) + keylen, nb);
+
+    // do delete with meta with an incorrect cas value. should fail.
+    msg.req.message.header.request.cas = htonll(1229);
+    ENGINE_ERROR_CODE ret = h1->unknown_command(h, NULL, &msg.pkt, add_response);
+    check(ret == ENGINE_SUCCESS, "Expected to be able to delete with meta");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
+          "Expected invalid cas error");
+
+    // do delete with meta with the correct cas value. should pass.
+    msg.req.message.header.request.cas = htonll(cas_for_delete);
+    ret = h1->unknown_command(h, NULL, &msg.pkt, add_response);
+    check(ret == ENGINE_SUCCESS, "Expected to be able to delete with meta");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+
+    // get metadata again to verify that delete with meta was successful
+    check(get_meta(h, h1, key, itm_meta), "Expected to get meta");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    check(last_deleted_flag, "Expected deleted flag to be set");
+    check(itm_meta.seqno == 10, "Expected seqno to match");
+    check(itm_meta.cas == 0xdeadbeef, "Expected cas to match");
+    check(itm_meta.exptime == 300, "Expected exptime to match");
+    check(itm_meta.flags == 0xdeadbeef, "Expected flags to match");
+
+    return SUCCESS;
+}
+
 static enum test_result test_compact_mutation_log(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     std::vector<std::string> keys;
@@ -5997,7 +6125,13 @@ engine_test_t* get_tests(void) {
                  teardown, NULL, prepare, cleanup, BACKEND_ALL),
 
         TestCase("delete with meta", test_delete_with_meta, NULL,
-                 teardown, NULL, prepare, cleanup, BACKEND_ALL),
+                 teardown, NULL, prepare, cleanup, BACKEND_COUCH),
+
+        TestCase("delete with meta deleted", test_delete_with_meta_deleted, NULL,
+                 teardown, NULL, prepare, cleanup, BACKEND_COUCH),
+
+        TestCase("delete with meta nonexistent", test_delete_with_meta_nonexistent, NULL,
+                 teardown, NULL, prepare, cleanup, BACKEND_COUCH),
 
         // mutation log compactor tests
         TestCase("compact a mutation log", test_compact_mutation_log,
