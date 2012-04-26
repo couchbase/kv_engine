@@ -84,7 +84,6 @@ class TapConnMap {
 public:
     TapConnMap(EventuallyPersistentEngine &theEngine);
 
-
     /**
      * Disconnect a tap connection by its cookie.
      */
@@ -151,18 +150,6 @@ public:
     bool checkConnectivity(const std::string &name);
 
     /**
-     * Increments reference count of validity token (cookie in
-     * fact). NOTE: takes notifySync lock.
-     */
-    ENGINE_ERROR_CODE reserveValidityToken(const void *token);
-
-    /**
-     * Decrements and posibly frees/invalidate validity token (cookie
-     * in fact). NOTE: this acquires notifySync lock.
-     */
-    void releaseValidityToken(const void *token);
-
-    /**
      * Return true if the backfill is completed for a given TAP connection.
      */
     bool checkBackfillCompletion(const std::string &name);
@@ -192,15 +179,24 @@ public:
     void notify() {
         if (doNotify) {
             LockHolder lh(notifySync);
+            notifyCounter++;
             notifySync.notify();
         }
     }
 
-    void wait(double howlong) {
+    uint32_t wait(double howlong, uint32_t previousCounter) {
         // Prevent the notify thread from busy-looping while
         // holding locks when there's work to do.
         LockHolder lh(notifySync);
-        notifySync.wait(howlong);
+        if (previousCounter == notifyCounter) {
+            notifySync.wait(howlong);
+        }
+        return notifyCounter;
+    }
+
+    uint32_t prepareWait() {
+        LockHolder lh(notifySync);
+        return notifyCounter;
     }
 
     /**
@@ -304,6 +300,7 @@ private:
     bool shouldDisconnect(TapConnection *tc);
 
     SyncObject                               notifySync;
+    uint32_t                                 notifyCounter;
     std::map<const void*, TapConnection*>    map;
     std::map<const std::string, const void*> validity;
     std::list<TapConnection*>                all;

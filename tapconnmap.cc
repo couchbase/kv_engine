@@ -60,7 +60,7 @@ private:
 };
 
 TapConnMap::TapConnMap(EventuallyPersistentEngine &theEngine) :
-    engine(theEngine), nextTapNoop(0),
+    notifyCounter(0), engine(theEngine), nextTapNoop(0),
     doNotify(getenv("EP-ENGINE-TESTSUITE") != NULL)
 {
     Configuration &config = engine.getConfiguration();
@@ -462,7 +462,8 @@ void TapConnMap::resetReplicaChain() {
                          "%s Reset the replication chain.\n",
                          tp->logHeader());
         // Get the list of vbuckets that each TAP producer is replicating
-        const std::vector<uint16_t> &vblist = tp->getVBucketFilter().getVector();
+        VBucketFilter vbfilter = tp->getVBucketFilter();
+        std::vector<uint16_t> vblist (vbfilter.getVBSet().begin(), vbfilter.getVBSet().end());
         // TAP producer sends INITIAL_VBUCKET_STREAM messages to the destination to reset
         // replica vbuckets, and then backfills items to the destination.
         tp->scheduleBackfill(vblist);
@@ -600,24 +601,6 @@ bool TapConnMap::closeTapConnectionByName(const std::string &name) {
         }
     }
     return rv;
-}
-
-/**
- * Increments reference count of validity token (cookie in
- * fact). NOTE: takes notifySync lock.
- */
-ENGINE_ERROR_CODE TapConnMap::reserveValidityToken(const void *token) {
-    LockHolder lh(notifySync);
-    return engine.getServerApi()->cookie->reserve(token);
-}
-
-/**
- * Decrements and posibly frees/invalidate validity token (cookie
- * in fact). NOTE: this acquires notifySync lock.
- */
-void TapConnMap::releaseValidityToken(const void *token) {
-    LockHolder lh(notifySync);
-    engine.getServerApi()->cookie->release(token);
 }
 
 void CompleteBackfillTapOperation::perform(TapProducer *tc, void *) {

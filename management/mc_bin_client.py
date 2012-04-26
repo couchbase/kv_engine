@@ -283,12 +283,6 @@ class MemcachedClient(object):
         type = struct.pack(memcacheConstants.SET_PARAM_FMT, type)
         return self._doCmd(memcacheConstants.CMD_SET_PARAM, key, val, type)
 
-    def stop_replication(self):
-        return self._doCmd(memcacheConstants.CMD_STOP_REPLICATION, '', '')
-
-    def start_replication(self):
-        return self._doCmd(memcacheConstants.CMD_START_REPLICATION, '', '')
-
     def set_vbucket_state(self, vbucket, stateName):
         assert isinstance(vbucket, int)
         self.vbucketId = vbucket

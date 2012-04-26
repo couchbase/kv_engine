@@ -1145,12 +1145,13 @@ ALLOCATOR_HOOKS_API *getHooksApi(void) {
 EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server_api) :
     forceShutdown(false), kvstore(NULL),
     epstore(NULL), tapThrottle(new TapThrottle(stats)), databaseInitTime(0),
-    startedEngineThreads(false), shutdown(false),
+    startedEngineThreads(false),
     getServerApiFunc(get_server_api), getlExtension(NULL),
     tapConnMap(NULL), tapConfig(NULL), checkpointConfig(NULL),
     memLowWat(std::numeric_limits<size_t>::max()),
     memHighWat(std::numeric_limits<size_t>::max()),
-    mutation_count(0), observeRegistry(&epstore, &stats), warmingUp(true)
+    mutation_count(0), observeRegistry(&epstore, &stats), warmingUp(true),
+    flushAllEnabled(false)
 {
     interface.interface = 1;
     ENGINE_HANDLE_V1::get_info = EvpGetInfo;
@@ -1259,6 +1260,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     configuration.addValueChangedListener("getl_max_timeout",
                                           new EpEngineValueChangeListener(*this));
 
+    flushAllEnabled = configuration.isFlushallEnabled();
+
     tapConnMap = new TapConnMap(*this);
     tapConfig = new TapConfig(*this);
     TapConfig::addConfigChangeListener(*this);
@@ -1356,6 +1359,11 @@ private:
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::flush(const void *, time_t when) {
     shared_ptr<AllFlusher> cb(new AllFlusher(epstore, *tapConnMap));
+
+    if (!flushAllEnabled) {
+        return ENGINE_ENOTSUP;
+    }
+
     if (when == 0) {
         cb->doFlush();
     } else {
@@ -3354,21 +3362,25 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
 }
 
 void EventuallyPersistentEngine::notifyPendingConnections(void) {
-    // Fix clean shutdown!!!
-    while (!shutdown) {
+    uint32_t blurb = tapConnMap->prepareWait();
+    // No need to aquire shutdown lock
+    while (!shutdown.isShutdown) {
         tapConnMap->notifyIOThreadMain();
         epstore->firePendingVBucketOps();
 
-        if (shutdown) {
+        if (shutdown.isShutdown) {
             return;
         }
 
-        tapConnMap->wait(1.0);
+        blurb = tapConnMap->wait(1.0, blurb);
     }
 }
 
 void EventuallyPersistentEngine::notifyNotificationThread(void) {
-    tapConnMap->notify();
+    LockHolder lh(shutdown.mutex);
+    if (!shutdown.isShutdown) {
+        tapConnMap->notify();
+    }
 }
 
 void EventuallyPersistentEngine::setTapValidity(const std::string &name, const void* token) {

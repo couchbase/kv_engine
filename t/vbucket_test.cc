@@ -150,30 +150,30 @@ static void assertFilterTxt(const VBucketFilter &filter, const std::string &res)
 }
 
 static void testVBucketFilterFormatter(void) {
-    std::vector<uint16_t> v;
+    std::set<uint16_t> v;
 
     VBucketFilter filter(v);
     assertFilterTxt(filter, "{ empty }");
-    v.push_back(1);
+    v.insert(1);
     filter.assign(v);
     assertFilterTxt(filter, "{ 1 }");
 
     for (uint16_t ii = 2; ii < 100; ++ii) {
-        v.push_back(ii);
+        v.insert(ii);
     }
     filter.assign(v);
     assertFilterTxt(filter, "{ [1,99] }");
 
-    v.push_back(101);
-    v.push_back(102);
+    v.insert(101);
+    v.insert(102);
     filter.assign(v);
     assertFilterTxt(filter, "{ [1,99], 101, 102 }");
 
-    v.push_back(103);
+    v.insert(103);
     filter.assign(v);
     assertFilterTxt(filter, "{ [1,99], [101,103] }");
 
-    v.push_back(100);
+    v.insert(100);
     filter.assign(v);
     assertFilterTxt(filter, "{ [1,103] }");
 }

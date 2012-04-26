@@ -145,6 +145,11 @@
             "default": "true",
             "type": "bool"
         },
+        "flushall_enabled": {
+            "default": "false",
+            "descr": "True if memcached flush API is enabled",
+            "type": "bool"
+        },
         "getl_default_timeout": {
             "default": "15",
             "descr": "The default timeout for a getl lock in (s)",
@@ -350,7 +355,7 @@
             "type": "size_t"
         },
         "tap_conn_map_notifications": {
-            "default": "false",
+            "default": "true",
             "descr": "Should TapConnMap use notifications or not",
             "dynamic": false,
             "type": "bool"
