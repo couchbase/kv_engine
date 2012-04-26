@@ -90,6 +90,7 @@ char *last_body = NULL;
 static bool dump_stats = false;
 std::map<std::string, std::string> vals;
 uint64_t last_cas = 0;
+bool last_deleted_flag = false;
 
 struct test_harness testHarness;
 
@@ -366,6 +367,22 @@ static bool add_response(const void *key, uint16_t keylen,
     return true;
 }
 
+static bool add_response_get_meta(const void *key, uint16_t keylen,
+                                  const void *ext, uint8_t extlen,
+                                  const void *body, uint32_t bodylen,
+                                  uint8_t datatype, uint16_t status,
+                                  uint64_t cas, const void *cookie) {
+    (void)datatype;
+    (void)cookie;
+    if (ext && extlen > 0) {
+        uint32_t flags;
+        memcpy(&flags, ext, extlen);
+        last_deleted_flag = ntohl(flags) & GET_META_ITEM_DELETED_FLAG;
+    }
+    return add_response(key, keylen, ext, extlen, body, bodylen, datatype,
+                        status, cas, cookie);
+}
+
 static protocol_binary_request_header* create_packet(uint8_t opcode,
                                                      const char *key,
                                                      const char *val) {
@@ -456,6 +473,34 @@ static void evict_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
         fprintf(stderr, "Expected evict to return ``%s'', but it returned ``%s''\n",
                 msg, last_body);
         abort();
+    }
+}
+
+static bool get_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
+                     item_metadata &itm_meta) {
+    uint16_t nkey = strlen(key);
+
+    union {
+        protocol_binary_request_header pkt;
+        protocol_binary_request_get req;
+        char buffer[1024];
+    } msg;
+    memset(&msg.req, 0, sizeof(msg));
+
+    msg.req.message.header.request.magic = PROTOCOL_BINARY_REQ;
+    msg.req.message.header.request.opcode = CMD_GET_META;
+    msg.req.message.header.request.keylen = ntohs(nkey);
+    msg.req.message.header.request.vbucket = htons(0);
+    msg.req.message.header.request.bodylen = htonl(nkey);
+    memcpy(msg.buffer + sizeof(msg.req.bytes), key, nkey);
+
+    ENGINE_ERROR_CODE ret = h1->unknown_command(h, NULL, &msg.pkt,
+                                                add_response_get_meta);
+    check(ret == ENGINE_SUCCESS, "Expected get_meta call to be successful");
+    if (last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+        return Item::decodeMeta((uint8_t *)last_body, itm_meta);
+    } else {
+        return false;
     }
 }
 
@@ -5163,6 +5208,62 @@ static enum test_result test_mb3466(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
     return SUCCESS;
 }
 
+static enum test_result test_get_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
+{
+    char const *key = "test_get_meta";
+    item *i = NULL;
+    check(store(h, h1, NULL, OPERATION_SET, key, "somevalue", &i) == ENGINE_SUCCESS,
+          "Failed set.");
+    Item *it = reinterpret_cast<Item*>(i);
+
+    item_metadata itm_meta;
+    check(get_meta(h, h1, key, itm_meta), "Expected to get meta");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    check(itm_meta.seqno == it->getSeqno(), "Expected seqno to match");
+    check(itm_meta.cas == it->getCas(), "Expected cas to match");
+    check(itm_meta.exptime == it->getExptime(), "Expected exptime to match");
+    check(itm_meta.flags == it->getFlags(), "Expected flags to match");
+
+    return SUCCESS;
+}
+
+static enum test_result test_get_meta_deleted(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
+{
+    char const *key = "k1";
+    item *i = NULL;
+
+    check(store(h, h1, NULL, OPERATION_SET, key, "somevalue", &i) == ENGINE_SUCCESS,
+          "Failed set.");
+    check(store(h, h1, NULL, OPERATION_SET, key, "somevalue", &i) == ENGINE_SUCCESS,
+          "Failed set.");
+    Item *it = reinterpret_cast<Item*>(i);
+    wait_for_flusher_to_settle(h, h1);
+
+    check(h1->remove(h, NULL, key, strlen(key), it->getCas(), 0) == ENGINE_SUCCESS,
+          "Delete failed");
+    wait_for_flusher_to_settle(h, h1);
+
+    item_metadata itm_meta;
+    check(get_meta(h, h1, key, itm_meta), "Expected to get meta");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    check(last_deleted_flag, "Expected deleted flag to be set");
+    check(itm_meta.seqno == it->getSeqno() + 1, "Expected seqno to match");
+    check(itm_meta.cas == it->getCas() + 1, "Expected cas to match");
+    check(itm_meta.flags == it->getFlags(), "Expected flags to match");
+
+    return SUCCESS;
+}
+
+static enum test_result test_get_meta_nonexistent(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
+{
+    char const *key = "k1";
+    item_metadata itm_meta;
+    check(!get_meta(h, h1, key, itm_meta), "Expected get meta to return false");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, "Expected enoent");
+
+    return SUCCESS;
+}
+
 static enum test_result test_add_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
 {
     union {
@@ -5882,6 +5983,15 @@ engine_test_t* get_tests(void) {
 
         TestCase("mb-3466", test_mb3466, NULL,
                  teardown, NULL, prepare, cleanup, BACKEND_ALL),
+
+        TestCase("get meta", test_get_meta, NULL,
+                 teardown, NULL, prepare, cleanup, BACKEND_COUCH),
+
+        TestCase("get meta deleted", test_get_meta_deleted, NULL,
+                 teardown, NULL, prepare, cleanup, BACKEND_COUCH),
+
+        TestCase("get meta nonexistent", test_get_meta_nonexistent, NULL,
+                 teardown, NULL, prepare, cleanup, BACKEND_COUCH),
 
         TestCase("add with meta", test_add_with_meta, NULL,
                  teardown, NULL, prepare, cleanup, BACKEND_ALL),
