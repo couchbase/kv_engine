@@ -2158,6 +2158,162 @@ static enum test_result test_gat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return SUCCESS;
 }
 
+static uint64_t test_mb5013_helper(ENGINE_HANDLE *h,
+                                   ENGINE_HANDLE_V1 *h1,
+                                   std::string key)
+{
+    // helper of unit test MB5013 to return exp time
+    uint64_t exptime = 0;
+    const void *cookie = testHarness.create_cookie();
+    std::string statkey("vkey " + key + " 0");
+    // get all stats
+    check(h1->get_stats(h, cookie, statkey.c_str(), strlen(statkey.c_str()), add_stats) ==
+          ENGINE_SUCCESS, "Failed to get stats.");
+
+    // we should be able to find key_exptime in stats
+    check(vals.find("key_exptime") != vals.end(), "Found no key_exptime");
+    std::string myString = vals.find("key_exptime")->second;
+    exptime = atoi(myString.c_str());
+    testHarness.destroy_cookie(cookie);
+
+    return exptime;
+}
+
+static enum test_result test_mb5013(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
+{
+    // testcase for bug MB5013: TTL not persisted when set via "gat"
+    char buffer[512];
+    item *itm = NULL;
+    uint8_t extlen = 4;                           /* 4-byte extension for GAT */
+    std::string key = "mykey";
+    std::string value = "somevalue";
+    protocol_binary_request_gat *req = NULL;
+    protocol_binary_request_header *request = NULL;
+    uint64_t exptime1, exptime2, exptime3;
+    uint8_t delta = 60;
+
+    memset(buffer, 0, sizeof(buffer));
+    req = reinterpret_cast<protocol_binary_request_gat *>(buffer);
+    request = reinterpret_cast<protocol_binary_request_header*>(req);
+    // build request message header
+    req->message.header.request.magic = PROTOCOL_BINARY_REQ;
+    req->message.header.request.opcode = PROTOCOL_BINARY_CMD_GAT;
+    req->message.header.request.vbucket = 0;
+    req->message.header.request.extlen = extlen;
+    req->message.header.request.keylen = htons(key.size());
+    req->message.header.request.bodylen = htonl(extlen+key.size()+value.size());
+
+    /** testcase 1
+     * 1) store a (key, value) pair, make it persistent;
+     * 2) set a new TTL for resident item;
+     * 3) reload engine
+     * 4) check to make sure TTL persistent.
+     */
+    // store an item
+    check(store(h, h1, NULL, OPERATION_SET, key.c_str(), value.c_str(),
+                &itm) == ENGINE_SUCCESS, "Failed set.");
+    h1->release(h, NULL, itm);
+    // make sure item is there
+    check(check_key_value(h, h1, key.c_str(), value.c_str(), value.size())
+           == SUCCESS, "Failed to retrieve data");
+    wait_for_persisted_value(h, h1, key.c_str(), value.c_str());
+    // get expiration time of this item
+    exptime1 = test_mb5013_helper(h, h1, key);
+    // item expires delta seconds from now....
+    req->message.body.expiration = ntohl(delta);
+    memcpy(buffer + sizeof(req->bytes), key.c_str(), key.size());
+    // issue gat command to set expiration time
+    check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
+          "Failed to call gat");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "gat mykey");
+    wait_for_flusher_to_settle(h, h1);
+    // get new expiration time
+    exptime2 = test_mb5013_helper(h, h1, key);
+    // verify
+    check((exptime1 != exptime2), "Error: expiration time unchanged");
+    //reload engine
+    testHarness.reload_engine(&h, &h1,
+                              testHarness.engine_path,
+                              testHarness.default_engine_cfg,
+                              true, false);
+    // get persisted expiration time
+    exptime3 = test_mb5013_helper(h, h1, key);
+    // verify
+    check((exptime3==exptime2), "Error: incorrect persisted expiration time");
+    // remove the key
+    check(h1->remove(h, NULL, key.c_str(), key.size(), 0, 0) == ENGINE_SUCCESS,
+          "Failed remove with value.");
+    wait_for_flusher_to_settle(h, h1);
+
+    /** testcase 2
+     * 1) store a (key, value) pair, make it persistent;
+     * 2) evict key, make it non-resident
+     * 3) set a new TTL for a non-resident item;
+     * 4) reload engine
+     * 5) check to make sure TTL persistent.
+     */
+    // store an item
+    check(store(h, h1, NULL, OPERATION_SET, key.c_str(), value.c_str(),
+                &itm) == ENGINE_SUCCESS, "Failed set.");
+    h1->release(h, NULL, itm);
+    wait_for_persisted_value(h, h1, key.c_str(), value.c_str());
+    // evict key from memory
+    evict_key(h, h1, key.c_str(), 0, "Ejected.");
+    // item expires delta seconds from now....
+    req->message.body.expiration = ntohl(2*delta);
+    req->message.header.request.opcode = PROTOCOL_BINARY_CMD_TOUCH;
+    memcpy(buffer + sizeof(req->bytes), key.c_str(), key.size());
+    // issue touch command to set expiration time
+    check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
+          "Failed to call touch");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "touch mykey");
+    wait_for_flusher_to_settle(h, h1);
+    // get new TTL
+    exptime2 = test_mb5013_helper(h, h1, key);
+    //reload engine
+    testHarness.reload_engine(&h, &h1,
+                              testHarness.engine_path,
+                              testHarness.default_engine_cfg,
+                              true, false);
+    // get persisted expiration time
+    exptime3 = test_mb5013_helper(h, h1, key);
+    // verify
+    check((exptime3==exptime2), "Error: incorrect persisted expiration time");
+    // remove the key
+    check(h1->remove(h, NULL, key.c_str(), key.size(), 0, 0) == ENGINE_SUCCESS,
+          "Failed remove with value.");
+    wait_for_flusher_to_settle(h, h1);
+
+   /** testcase 3
+     * 1) store a (key, value) pair;
+     * 2) set a new TTL for a resident item;
+     * 3) short time travel, key should stay;
+     * 4) long time travel, key should expire.
+     */
+    // store an item
+    check(store(h, h1, NULL, OPERATION_SET, key.c_str(), value.c_str(),
+                &itm) == ENGINE_SUCCESS, "Failed set.");
+    // item expires delta seconds from now....
+    req->message.body.expiration = ntohl(delta);
+    req->message.header.request.opcode = PROTOCOL_BINARY_CMD_TOUCH;
+    memcpy(buffer + sizeof(req->bytes), key.c_str(), key.size());
+    // issue touch command to set expiration time
+    check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
+          "Failed to call touch");
+    // start a short time travel
+    testHarness.time_travel(10);
+    // make sure the key should stay after 10 seconds
+    check(h1->get(h, NULL, &itm, key.c_str(), key.size(), 0) == ENGINE_SUCCESS,
+          "missing key");
+    // start a long time travel
+    testHarness.time_travel(delta);
+    // key should expire
+    check(h1->get(h, NULL, &itm, key.c_str(), key.size(), 0) == ENGINE_KEY_ENOENT,
+          "expected missing key");
+
+    return SUCCESS;
+}
+
 static enum test_result test_gatq(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     char buffer[512];
     memset(buffer, 0, sizeof(buffer));
@@ -5198,6 +5354,7 @@ engine_test_t* get_tests(void) {
         {"test touch", test_touch, NULL, teardown, NULL},
         {"test gat", test_gat, NULL, teardown, NULL},
         {"test gatq", test_gatq, NULL, teardown, NULL},
+        {"test bug MB-5013", test_mb5013, NULL, teardown, NULL},
         {"delete", test_delete, NULL, teardown, NULL},
         {"set/delete", test_set_delete, NULL, teardown, NULL},
         {"delete/set/delete", test_delete_set, NULL, teardown, NULL},

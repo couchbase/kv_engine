@@ -1047,7 +1047,13 @@ GetValue EventuallyPersistentStore::getAndUpdateTtl(const std::string &key,
     StoredValue *v = fetchValidValue(vb, key, bucket_num);
 
     if (v) {
-        v->setExptime(exptime);
+        // mark dirty if expireation time changes
+        if (exptime != v->getExptime()) {
+           v->setExptime(exptime);
+           v->markDirty();
+           queueDirty(key, vbucket, queue_op_set, v->getId());
+        }
+
         // If the value is not resident, wait for it...
         if (!v->isResident()) {
             if (queueBG) {
@@ -1905,12 +1911,26 @@ int EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
 
                 // TODO: An item should be marked as clean in TransactionContext::commit()
                 // to support a consistent read from disk after the item is ejected.
+                bool resident = v->isResident();
                 v->markClean(NULL);
                 lh.unlock();
                 BlockTimer timer(rowid == -1 ?
                                  &stats.diskInsertHisto : &stats.diskUpdateHisto);
                 PersistenceCallback cb(qi, rejectQueue, this, queued, dirtied, &stats);
-                rwUnderlying->set(itm, qi->getVBucketVersion(), cb);
+
+                // if item is not resident, use set_meta to update meta data only,
+                // otherwise, use set op to update the complete row
+                if (!resident) {
+                    /**
+                     * we touch/gat to set a TTL for an item which is not resident;
+                     * to persist the TTL, we only need to persist the meta data
+                     * instead of the complete (k, v) pair which is not resident.
+                     */
+                    rwUnderlying->setMeta(itm, qi->getVBucketVersion(), cb);
+                } else {
+                    rwUnderlying->set(itm, qi->getVBucketVersion(), cb);
+                }
+
                 if (rowid == -1)  {
                     ++vb->opsCreate;
                 } else {
