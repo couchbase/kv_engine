@@ -550,7 +550,6 @@ public:
     }
 
     void notifyNotificationThread(void);
-    void setTapValidity(const std::string &name, const void* token);
 
     ENGINE_ERROR_CODE handleRestoreCmd(const void* cookie,
                                        protocol_binary_request_header *request,
