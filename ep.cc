@@ -1307,7 +1307,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::del(const std::string &key,
         if (engine.restore.enabled.get()) {
             return ENGINE_TMPFAIL;
         }
-
+        queueDirty(key, vbucket, queue_op_del, -1);
         return ENGINE_KEY_ENOENT;
     }
     value_t value = v->getValue();
