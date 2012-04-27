@@ -325,28 +325,9 @@ TapProducer *TapConnMap::newProducer(const void* cookie,
 
     tap->setTapFlagByteorderSupport((flags & TAP_CONNECT_TAP_FIX_FLAG_BYTEORDER) != 0);
     tap->setBackfillAge(backfillAge, reconnect);
-    setValidity(tap->getName(), cookie);
 
     map[cookie] = tap;
     return tap;
-}
-
-// These two methods are always called with a lock.
-void TapConnMap::setValidity(const std::string &name,
-                             const void* token) {
-    validity[name] = token;
-}
-void TapConnMap::clearValidity(const std::string &name) {
-    validity.erase(name);
-}
-
-// This is always called without a lock.
-bool TapConnMap::checkValidity(const std::string &name,
-                               const void* token) {
-    LockHolder lh(notifySync);
-    std::map<const std::string, const void*>::iterator viter =
-        validity.find(name);
-    return viter != validity.end() && viter->second == token;
 }
 
 bool TapConnMap::checkConnectivity(const std::string &name) {
@@ -416,7 +397,6 @@ void TapConnMap::shutdownAllTapConnections() {
     }
     all.clear();
     map.clear();
-    validity.clear();
 }
 
 void TapConnMap::scheduleBackfill(const std::set<uint16_t> &backfillVBuckets) {

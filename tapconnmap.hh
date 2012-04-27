@@ -118,31 +118,12 @@ public:
             ret = false;
         }
 
-        if (clear) {
-            clearValidity(name);
-        }
-
         if (shouldNotify) {
             notifySync.notify();
         }
 
         return ret;
     }
-
-    /**
-     * Clear the tap validity for the given named connection.
-     */
-    void clearValidity(const std::string &name);
-
-    /**
-     * Set named tap validity for the given token.
-     */
-    void setValidity(const std::string &name, const void* token);
-
-    /**
-     * Return true if the given name is valid for the given token.
-     */
-    bool checkValidity(const std::string &name, const void* token);
 
     /**
      * Return true if the TAP connection with the given name is still alive
@@ -302,7 +283,6 @@ private:
     SyncObject                               notifySync;
     uint32_t                                 notifyCounter;
     std::map<const void*, TapConnection*>    map;
-    std::map<const std::string, const void*> validity;
     std::list<TapConnection*>                all;
 
     /* Handle to the engine who owns us */
