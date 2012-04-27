@@ -656,17 +656,11 @@ private:
     friend class EventuallyPersistentStore;
 
     void addMutationEvent(Item *it) {
-        if (mutation_count == 0) {
-            tapConnMap.notify();
-        }
         ++mutation_count;
         syncRegistry.itemModified(*it);
     }
 
     void addDeleteEvent(const std::string &key, uint16_t vbid, uint64_t cas) {
-        if (mutation_count == 0) {
-            tapConnMap.notify();
-        }
         ++mutation_count;
         syncRegistry.itemDeleted(key_spec_t(cas, vbid, key));
     }
