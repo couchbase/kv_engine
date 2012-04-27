@@ -630,16 +630,10 @@ private:
     }
 
     void addMutationEvent(Item *) {
-        if (mutation_count == 0) {
-            tapConnMap->notify();
-        }
         ++mutation_count;
     }
 
     void addDeleteEvent(const std::string &, uint16_t, uint64_t) {
-        if (mutation_count == 0) {
-            tapConnMap->notify();
-        }
         ++mutation_count;
     }
 
