@@ -477,8 +477,6 @@ void TapConnMap::notifyIOThreadMain() {
         }
     }
 
-    lh.unlock();
-
     // Delete all of the dead clients
     if (!deadClients.empty()) {
         Dispatcher *d = engine.getEpStore()->getNonIODispatcher();
@@ -493,6 +491,7 @@ void TapConnMap::notifyIOThreadMain() {
                         0, false, true);
         }
     }
+    lh.unlock();
 
     engine.notifyIOComplete(toNotify, ENGINE_SUCCESS);
 }
