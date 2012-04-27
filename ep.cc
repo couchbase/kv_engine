@@ -1643,7 +1643,9 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteItem(const std::string &key,
             LockHolder rlh(restore.mutex);
             restore.itemsDeleted.insert(key);
         } else {
-            queueDirty(key, vbucket, queue_op_del, seqno, -1);
+            if (vb->getState() != vbucket_state_active && force) {
+                queueDirty(key, vbucket, queue_op_del, seqno, -1);
+            }
             return ENGINE_KEY_ENOENT;
         }
     }
