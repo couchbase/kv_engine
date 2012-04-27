@@ -27,7 +27,8 @@ noinst_LTLIBRARIES = \
                      libmc-kvstore.la \
                      libobjectregistry.la \
                      libsqlite-kvstore.la \
-                     libcouch-kvstore.la
+                     libcouch-kvstore.la \
+                     libdirutils.la
 
 fixup_stats_json:
 	cat docs/stats.json | python -mjson.tool > /tmp/stats.json.tmp
@@ -168,14 +169,16 @@ stats-info.h stats-info.c: .generated_stat-info
 
 generated_configuration.hh generated_configuration.cc: .generated_configuration
 
+libdirutils_la_SOURCES = couch-kvstore/dirutils.cc \
+                         couch-kvstore/dirutils.hh
+
+
 libcouch_kvstore_la_SOURCES = kvstore.hh
 
 if HAVE_LIBCOUCHSTORE
 libcouch_kvstore_la_SOURCES += couch-kvstore/couch-kvstore.cc \
                                couch-kvstore/couch-kvstore.hh
-#libcouch_kvstore_la_CPPFLAGS = -I$(top_srcdir) \
-#                               $(AM_CPPFLAGS)
-libcouch_kvstore_la_LIBADD = $(LTLIBCOUCHSTORE)
+libcouch_kvstore_la_LIBADD = libdirutils.la $(LTLIBCOUCHSTORE)
 else
 libcouch_kvstore_la_SOURCES += couch-kvstore/couch-kvstore-dummy.hh \
                                couch-kvstore/couch-kvstore-dummy.cc
@@ -234,6 +237,7 @@ check_PROGRAMS=\
                atomic_test \
                checkpoint_test \
                chunk_creation_test \
+               dirutils_test \
                dispatcher_test \
                hash_table_test \
                histo_test \
@@ -381,6 +385,9 @@ checkpoint_test_DEPENDENCIES = checkpoint.hh vbucket.hh         \
               stored-value.cc stored-value.hh queueditem.hh     \
               libobjectregistry.la libconfiguration.la
 checkpoint_test_LDADD = libobjectregistry.la libconfiguration.la
+
+dirutils_test_SOURCES = t/dirutils_test.cc
+dirutils_test_LDADD = libdirutils.la
 
 mutation_log_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
 mutation_log_test_SOURCES = t/mutation_log_test.cc mutation_log.hh	\

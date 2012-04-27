@@ -6,13 +6,12 @@
 #include <algorithm>
 #include <stdio.h>
 #include <dirent.h>
-#include <glob.h>
 #include <sys/types.h>
-#include <sys/uio.h>
 #include <unistd.h>
 #include <fcntl.h>
 
 #include "couch-kvstore/couch-kvstore.hh"
+#include "couch-kvstore/dirutils.hh"
 #include "ep_engine.h"
 #include "tools/cJSON.h"
 #include "common.hh"
@@ -20,6 +19,8 @@
 #define STATWRITER_NAMESPACE couchstore_engine
 #include "statwriter.hh"
 #undef STATWRITER_NAMESPACE
+
+using namespace CouchKVStoreDirectoryUtilities;
 
 static bool isJSON(const value_t &value)
 {
@@ -781,31 +782,26 @@ bool CouchKVStore::getDbFile(uint16_t vbucketId,
 
 int CouchKVStore::checkNewRevNum(std::string &dbFileName, bool newFile)
 {
+    using namespace CouchKVStoreDirectoryUtilities;
     int newrev = 0;
-    glob_t fglob;
 
-    std::string filename, revnum, nameKey;
+    std::string revnum, nameKey;
     size_t secondDot;
 
     if (!newFile) {
         // extract out the file revision number first
         secondDot = dbFileName.rfind(".");
         nameKey = dbFileName.substr(0, secondDot);
-        nameKey.append(".*", 2);
     } else {
         nameKey = dbFileName;
-        nameKey.append(".*", 2);
     }
-
-    if (glob(nameKey.c_str(), GLOB_ERR | GLOB_MARK, NULL, &fglob)) {
-        return newrev;
-    }
-
+    nameKey.append(".");
+    const std::vector<std::string> files = findFilesWithPrefix(nameKey);
+    std::vector<std::string>::const_iterator itor;
     // found file(s) whoes name has the same key name pair with different
     // revision number
-    int max = fglob.gl_pathc;
-    for (int count = 0; count < max; count++) {
-        filename = std::string(fglob.gl_pathv[count]);
+    for (itor = files.begin(); itor != files.end(); ++itor) {
+        const std::string &filename = *itor;
         if (endWithCompact(filename)) {
             continue;
         }
@@ -817,7 +813,6 @@ int CouchKVStore::checkNewRevNum(std::string &dbFileName, bool newFile)
             dbFileName = filename;
         }
     }
-    globfree(&fglob);
     return newrev;
 }
 
