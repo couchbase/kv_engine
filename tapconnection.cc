@@ -1479,9 +1479,9 @@ queued_item TapProducer::nextFgFetched_UNLOCKED(bool &shouldPause) {
         for (; it != tapCheckpointState.end(); ++it) {
             uint16_t vbid = it->first;
             RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
-            if (!vb || (vb->getState() == vbucket_state_dead && !doTakeOver)) {
+            if (!vb) {
                 getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                 "%s Skip vbucket %d checkpoint queue as it's in invalid state.\n",
+                                 "%s Skip vbucket %d checkpoint queue as it doesn't exist anymore.\n",
                                  logHeader(), vbid);
                 ++invalid_count;
                 continue;
@@ -1618,10 +1618,10 @@ bool TapProducer::SetCursorToOpenCheckpoint(uint16_t vbid) {
     LockHolder lh(queueLock);
     const VBucketMap &vbuckets = engine.getEpStore()->getVBuckets();
     RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
-    if (!vb || vb->getState() == vbucket_state_dead) {
+    if (!vb) {
         getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                          "%s Failed to set the TAP cursor to the open checkpoint"
-                         " because vbucket %d is in invalid state\n",
+                         " because vbucket %d does not exist anymore\n",
                          logHeader(), vbid);
         return false;
     }
