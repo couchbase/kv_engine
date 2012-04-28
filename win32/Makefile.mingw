@@ -22,7 +22,7 @@ MEMCACHED=../memcached
 GEN_CONFIG = generated_configuration.hh generated_configuration.cc
 GEN_CODE = stats-info.h stats-info.c
 
-OBJDIR = .libs .libs/embedded .libs/poll .libs/management .libs/sqlite-kvstore .libs/mc-kvstore .libs/blackhole-kvstore
+OBJDIR = .libs .libs/embedded .libs/poll .libs/management .libs/sqlite-kvstore .libs/mc-kvstore .libs/blackhole-kvstore .libs/couch-kvstore
 BINARIES= ${GEN_CONFIG} ${GEN_CODE} .libs/ep.so management/sqlite3.exe
 LIB=$(LOCALLIB) -L${MEMCACHED}/lib
 INCLUDE= -Iwin32 -Isqlite-kvstore -I.libs -Iembedded -I${MEMCACHED}/include -I${MEMCACHED}/win32 -I. $(LOCALINC)
@@ -62,19 +62,20 @@ EP_ENGINE_CC_SRC = \
                  checkpoint.cc \
                  checkpoint_remover.cc \
                  configuration.cc \
+                 couch-kvstore/couch-kvstore.cc \
                  dispatcher.cc \
                  ep.cc \
                  ep_engine.cc \
                  ep_extension.cc \
                  flusher.cc \
-                 kvstore.cc \
                  htresizer.cc \
                  invalid_vbtable_remover.cc \
                  item.cc \
                  item_pager.cc \
+                 kvstore.cc \
                  mc-kvstore/mc-engine.cc \
                  mc-kvstore/mc-kvstore.cc \
-                 memory_tracker.cc
+                 memory_tracker.cc \
                  mutation_log.cc \
                  mutation_log_compactor.cc \
                  mutex.cc \
@@ -92,17 +93,19 @@ EP_ENGINE_CC_SRC = \
                  sqlite-kvstore/sqlite-strategies.cc \
                  statsnap.cc \
                  stored-value.cc \
-                 tapconnmap.cc \
                  tapconnection.cc \
+                 tapconnmap.cc \
                  tapthrottle.cc \
                  vbucket.cc \
-                 vbucketmap.cc
+                 vbucketmap.cc \
+                 warmup.cc
 
 EP_ENGINE_C_SRC = \
                  byteorder.c \
                  crc32.c \
                  stats-info.c \
                  embedded/sqlite3.c \
+                 ep_time.c \
                  gethrtime.c \
                  tools/cJSON.c \
                  sqlite-kvstore/sqlite-vfs.c
@@ -117,13 +120,13 @@ management/sqlite3.exe: ${OBJDIR} ${GENFILES} ${SQLITE3_OBJS}
 
 .libs/ep.so: ${OBJDIR} ${GENFILES} $(EP_ENGINE_OBJS)
 	${LINK.cc} -o $@ -shared ${EP_ENGINE_OBJS} \
-                  ${LIB} -lpthread -levent\
+                  ${LIB} -lpthread -lcouchstore -levent\
                   -lws2_32
 ${GEN_CONFIG}: configuration.json
-	$(shell make -f win32/Makefile.genconf) || true
+	$(MAKE) $(MAKEFLAGS) -f win32/Makefile.genconf)
 
 ${GEN_CODE}: docs\stats.json
-	$(shell make -f win32/Makefile.getcode) || true
+	$(MAKE) $(MAKEFLAGS) -f win32/Makefile.gencode)
 
 LIBSQLITE_KVSTORE_CC_SRC = \
          kvstore.cc \

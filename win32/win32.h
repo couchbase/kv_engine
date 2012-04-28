@@ -166,6 +166,8 @@ static inline int poll(struct pollfd fds[], int nfds, int tmo)
     return ret;
 }
 
+#ifndef __CYGWIN__
+
 static inline int fsync(int fd)
 {
     HANDLE h = (HANDLE) _get_osfhandle (fd);
@@ -199,4 +201,17 @@ static inline ssize_t pread(int fd, void *buf, size_t count, off_t offset)
 
     return read(fd, buf, count);
 }
+
+static inline ssize_t pwrite(int fd, const void *buf, size_t count, off_t offset)
+{
+    off_t pos = lseek(fd, offset, SEEK_SET);
+    if (pos < 0) {
+        return pos;
+    }
+
+    return write(fd, buf, count);
+}
+
+#endif
+
 #endif /* WIN32_H */
