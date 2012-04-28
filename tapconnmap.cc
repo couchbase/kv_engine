@@ -371,10 +371,6 @@ bool TapConnMap::isPaused(TapProducer *tc) {
     return tc && tc->paused;
 }
 
-bool TapConnMap::shouldDisconnect(TapConnection *tc) {
-    return tc && tc->doDisconnect();
-}
-
 void TapConnMap::shutdownAllTapConnections() {
     getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                      "Shutting down tap connections!");
