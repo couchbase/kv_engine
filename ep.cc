@@ -1706,6 +1706,9 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteItem(const std::string &key,
             LockHolder rlh(restore.mutex);
             restore.itemsDeleted.insert(key);
         } else {
+            if (vb->getState() != vbucket_state_active && force) {
+                queueDirty(key, vbucket, queue_op_del, seqno, -1);
+            }
             return ENGINE_KEY_ENOENT;
         }
     }
@@ -1718,11 +1721,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteItem(const std::string &key,
     }
 
     ENGINE_ERROR_CODE rv;
-    bool expired = false;
     if (delrv == NOT_FOUND || delrv == INVALID_CAS) {
-        if (v && v->isExpired(ep_real_time())) {
-            expired = true;
-        }
         rv = (delrv == INVALID_CAS) ? ENGINE_KEY_EEXISTS : ENGINE_KEY_ENOENT;
     } else if (delrv == IS_LOCKED) {
         rv = ENGINE_TMPFAIL;
@@ -1730,11 +1729,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteItem(const std::string &key,
         rv = ENGINE_SUCCESS;
     }
 
-    if (delrv == WAS_CLEAN ||
-        delrv == WAS_DIRTY ||
-        (delrv == NOT_FOUND && (expired || engine.isDegradedMode()))) {
-        // As replication is interleaved with online restore, deletion of items that might
-        // exist in the restore backup files should be queued and replicated.
+    if (delrv == WAS_CLEAN || delrv == WAS_DIRTY || delrv == NOT_FOUND) {
         uint32_t seqnum = v ? v->getSeqno() : 0;
         int64_t rowid = v ? v->getId() : -1;
         lh.unlock();

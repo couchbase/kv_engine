@@ -532,7 +532,6 @@ public:
     }
 
     void notifyNotificationThread(void);
-    void setTapValidity(const std::string &name, const void* token);
 
     ENGINE_ERROR_CODE handleRestoreCmd(const void* cookie,
                                        protocol_binary_request_header *request,
@@ -631,16 +630,10 @@ private:
     }
 
     void addMutationEvent(Item *) {
-        if (mutation_count == 0) {
-            tapConnMap->notify();
-        }
         ++mutation_count;
     }
 
     void addDeleteEvent(const std::string &, uint16_t, uint64_t) {
-        if (mutation_count == 0) {
-            tapConnMap->notify();
-        }
         ++mutation_count;
     }
 

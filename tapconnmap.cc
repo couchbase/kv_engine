@@ -325,28 +325,9 @@ TapProducer *TapConnMap::newProducer(const void* cookie,
 
     tap->setTapFlagByteorderSupport((flags & TAP_CONNECT_TAP_FIX_FLAG_BYTEORDER) != 0);
     tap->setBackfillAge(backfillAge, reconnect);
-    setValidity(tap->getName(), cookie);
 
     map[cookie] = tap;
     return tap;
-}
-
-// These two methods are always called with a lock.
-void TapConnMap::setValidity(const std::string &name,
-                             const void* token) {
-    validity[name] = token;
-}
-void TapConnMap::clearValidity(const std::string &name) {
-    validity.erase(name);
-}
-
-// This is always called without a lock.
-bool TapConnMap::checkValidity(const std::string &name,
-                               const void* token) {
-    LockHolder lh(notifySync);
-    std::map<const std::string, const void*>::iterator viter =
-        validity.find(name);
-    return viter != validity.end() && viter->second == token;
 }
 
 bool TapConnMap::checkConnectivity(const std::string &name) {
@@ -416,7 +397,6 @@ void TapConnMap::shutdownAllTapConnections() {
     }
     all.clear();
     map.clear();
-    validity.clear();
 }
 
 void TapConnMap::scheduleBackfill(const std::set<uint16_t> &backfillVBuckets) {
@@ -520,6 +500,7 @@ void TapConnMap::notifyIOThreadMain() {
             if (!tp->notifySent || (tp->lastWalkTime + maxIdleTime < now)) {
                 tp->notifySent.set(true);
                 toNotify.push_back(iter->first);
+                engine.getServerApi()->cookie->reserve(iter->first);
             }
         }
     }
@@ -530,8 +511,6 @@ void TapConnMap::notifyIOThreadMain() {
             (*ii)->releaseReference(true);
         }
     }
-
-    lh.unlock();
 
     // Delete all of the dead clients
     if (!deadClients.empty()) {
@@ -547,8 +526,15 @@ void TapConnMap::notifyIOThreadMain() {
                         0, false, true);
         }
     }
+    lh.unlock();
 
     engine.notifyIOComplete(toNotify, ENGINE_SUCCESS);
+
+    lh.lock();
+    std::list<const void *>::iterator ii;
+    for (ii = toNotify.begin(); ii != toNotify.end(); ++ii) {
+        engine.getServerApi()->cookie->release(*ii);
+    }
 }
 
 bool TapConnMap::SetCursorToOpenCheckpoint(const std::string &name, uint16_t vbucket) {
