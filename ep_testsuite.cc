@@ -5566,6 +5566,214 @@ static enum test_result test_delete_with_meta_nonexistent(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+static enum test_result test_delete_with_meta_race_with_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
+{
+    char const *key1 = "key1";
+    uint16_t key1_len = (uint16_t)strlen(key1);
+    char const *key2 = "key2";
+    uint16_t key2_len = (uint16_t)strlen(key2);
+
+    size_t nb = 22;
+    item *i = NULL;
+    item_metadata itm_meta;
+    union {
+        protocol_binary_request_header pkt;
+        protocol_binary_request_delete_with_meta req;
+        char buffer[1024];
+    } msg;
+    memset(&msg.req, 0, sizeof(msg));
+    msg.req.message.header.request.magic = PROTOCOL_BINARY_REQ;
+    msg.req.message.header.request.opcode = CMD_DEL_WITH_META;
+    msg.req.message.header.request.extlen = 4;
+    msg.req.message.header.request.vbucket = htons(0);
+    msg.req.message.body.nmeta_bytes = ntohl(nb);
+
+    //
+    // test race with a concurrent set for an existing key. should fail.
+    //
+
+    // create a new key and do get_meta
+    check(store(h, h1, NULL, OPERATION_SET, key1, "somevalue", &i) == ENGINE_SUCCESS,
+          "Failed set.");
+    wait_for_flusher_to_settle(h, h1);
+    check(get_meta(h, h1, key1, itm_meta), "Expected to get meta");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+
+    // do a concurrent set that changes the cas
+    check(store(h, h1, NULL, OPERATION_SET, key1, "someothervalue", &i) == ENGINE_SUCCESS,
+          "Failed set.");
+
+    // attempt delete_with_meta. should fail since cas is no longer valid.
+    msg.req.message.header.request.cas = htonll(last_cas);
+    msg.req.message.header.request.keylen = ntohs(key1_len);
+    msg.req.message.header.request.bodylen = htonl(4 + key1_len + nb);
+    memcpy(msg.buffer + sizeof(msg.req.bytes), key1, key1_len);
+    encodeMeta(10, 0xdeadbeef, 300, 0xdeadbeef,
+               (uint8_t*)msg.buffer + sizeof(msg.req.bytes) + key1_len, nb);
+    check(h1->unknown_command(h, NULL, &msg.pkt, add_response) == ENGINE_SUCCESS,
+          "Expected to be able to delete with meta");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
+          "Expected invalid cas error");
+
+    //
+    // test race with a concurrent set for a deleted key. should fail.
+    //
+
+    // do get_meta for the deleted key
+    check(h1->remove(h, NULL, key1, strlen(key1), 0, 0) == ENGINE_SUCCESS,
+          "Delete failed");
+    wait_for_flusher_to_settle(h, h1);
+    check(get_meta(h, h1, key1, itm_meta), "Expected to get meta");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    check(last_deleted_flag, "Expected deleted flag to be set");
+
+    // do a concurrent set that changes the cas
+    check(store(h, h1, NULL, OPERATION_SET, key1, "someothervalue", &i) == ENGINE_SUCCESS,
+          "Failed set.");
+
+    // attempt delete_with_meta. should fail since cas is no longer valid.
+    msg.req.message.header.request.cas = htonll(last_cas);
+    msg.req.message.header.request.keylen = ntohs(key1_len);
+    msg.req.message.header.request.bodylen = htonl(4 + key1_len + nb);
+    memcpy(msg.buffer + sizeof(msg.req.bytes), key1, key1_len);
+    encodeMeta(10, 0xdeadbeef, 300, 0xdeadbeef,
+               (uint8_t*)msg.buffer + sizeof(msg.req.bytes) + key1_len, nb);
+    check(h1->unknown_command(h, NULL, &msg.pkt, add_response) == ENGINE_SUCCESS,
+          "Expected to be able to delete with meta");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
+          "Expected invalid cas error");
+
+    //
+    // test race with a concurrent set for a nonexistent key. should fail.
+    //
+
+    // do get_meta for a nonexisting key
+    check(!get_meta(h, h1, key2, itm_meta), "Expected get meta to return false");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, "Expected enoent");
+
+    // do a concurrent set that changes the cas
+    check(store(h, h1, NULL, OPERATION_SET, key2, "someothervalue", &i) == ENGINE_SUCCESS,
+          "Failed set.");
+
+    // attempt delete_with_meta. should fail since cas is no longer valid.
+    msg.req.message.header.request.cas = htonll(last_cas);
+    msg.req.message.header.request.keylen = ntohs(key2_len);
+    msg.req.message.header.request.bodylen = htonl(4 + key2_len + nb);
+    memcpy(msg.buffer + sizeof(msg.req.bytes), key2, key2_len);
+    encodeMeta(10, 0xdeadbeef, 300, 0xdeadbeef,
+               (uint8_t*)msg.buffer + sizeof(msg.req.bytes) + key2_len, nb);
+    check(h1->unknown_command(h, NULL, &msg.pkt, add_response) == ENGINE_SUCCESS,
+          "Expected to be able to delete with meta");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
+          "Expected invalid cas error");
+
+    return SUCCESS;
+}
+
+static enum test_result test_delete_with_meta_race_with_delete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
+{
+    char const *key1 = "key1";
+    uint16_t key1_len = (uint16_t)strlen(key1);
+    char const *key2 = "key2";
+    uint16_t key2_len = (uint16_t)strlen(key2);
+
+    size_t nb = 22;
+    item *i = NULL;
+    item_metadata itm_meta;
+    union {
+        protocol_binary_request_header pkt;
+        protocol_binary_request_delete_with_meta req;
+        char buffer[1024];
+    } msg;
+    memset(&msg.req, 0, sizeof(msg));
+    msg.req.message.header.request.magic = PROTOCOL_BINARY_REQ;
+    msg.req.message.header.request.opcode = CMD_DEL_WITH_META;
+    msg.req.message.header.request.extlen = 4;
+    msg.req.message.header.request.vbucket = htons(0);
+    msg.req.message.body.nmeta_bytes = ntohl(nb);
+
+    //
+    // test race with a concurrent delete for an existing key. should fail.
+    //
+
+    // create a new key and do get_meta
+    check(store(h, h1, NULL, OPERATION_SET, key1, "somevalue", &i) == ENGINE_SUCCESS,
+          "Failed set.");
+    wait_for_flusher_to_settle(h, h1);
+    check(get_meta(h, h1, key1, itm_meta), "Expected to get meta");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+
+    // do a concurrent delete
+    check(h1->remove(h, NULL, key1, strlen(key1), 0, 0) == ENGINE_SUCCESS,
+          "Delete failed");
+
+    // attempt delete_with_meta. should fail since cas is no longer valid.
+    msg.req.message.header.request.cas = htonll(last_cas);
+    msg.req.message.header.request.keylen = ntohs(key1_len);
+    msg.req.message.header.request.bodylen = htonl(4 + key1_len + nb);
+    memcpy(msg.buffer + sizeof(msg.req.bytes), key1, key1_len);
+    encodeMeta(10, 0xdeadbeef, 300, 0xdeadbeef,
+               (uint8_t*)msg.buffer + sizeof(msg.req.bytes) + key1_len, nb);
+    check(h1->unknown_command(h, NULL, &msg.pkt, add_response) == ENGINE_SUCCESS,
+          "Expected to be able to set with meta");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
+          "Expected invalid cas error");
+
+    //
+    // test race with a concurrent delete for a deleted key. should pass since
+    // the delete itself will fail.
+    //
+
+    // do get_meta for the deleted key
+    wait_for_flusher_to_settle(h, h1);
+    check(get_meta(h, h1, key1, itm_meta), "Expected to get meta");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    check(last_deleted_flag, "Expected deleted flag to be set");
+
+    // do a concurrent delete
+    check(h1->remove(h, NULL, key1, strlen(key1), 0, 0) == ENGINE_KEY_ENOENT,
+          "Delete failed");
+
+    // attempt delete_with_meta. should pass.
+    msg.req.message.header.request.cas = htonll(last_cas);
+    msg.req.message.header.request.keylen = ntohs(key1_len);
+    msg.req.message.header.request.bodylen = htonl(4 + key1_len + nb);
+    memcpy(msg.buffer + sizeof(msg.req.bytes), key1, key1_len);
+    encodeMeta(10, 0xdeadbeef, 300, 0xdeadbeef,
+               (uint8_t*)msg.buffer + sizeof(msg.req.bytes) + key1_len, nb);
+    check(h1->unknown_command(h, NULL, &msg.pkt, add_response) == ENGINE_SUCCESS,
+          "Expected to be able to set with meta");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+          "Expected delete_with_meta success");
+
+    //
+    // test race with a concurrent delete for a nonexistent key. should pass
+    // since the delete itself will fail.
+    //
+
+    // do get_meta for a nonexisting key
+    check(!get_meta(h, h1, key2, itm_meta), "Expected get meta to return false");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, "Expected enoent");
+
+    // do a concurrent delete
+    check(h1->remove(h, NULL, key1, strlen(key1), 0, 0) == ENGINE_KEY_ENOENT,
+          "Delete failed");
+
+    // attempt delete_with_meta. should pass.
+    msg.req.message.header.request.cas = htonll(last_cas);
+    msg.req.message.header.request.keylen = ntohs(key2_len);
+    msg.req.message.header.request.bodylen = htonl(4 + key2_len + nb);
+    memcpy(msg.buffer + sizeof(msg.req.bytes), key2, key2_len);
+    encodeMeta(10, 0xdeadbeef, 300, 0xdeadbeef,
+               (uint8_t*)msg.buffer + sizeof(msg.req.bytes) + key2_len, nb);
+    check(h1->unknown_command(h, NULL, &msg.pkt, add_response) == ENGINE_SUCCESS,
+          "Expected to be able to set with meta");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+          "Expected delete_with_meta success");
+
+    return SUCCESS;
+}
+
 static enum test_result test_set_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const char* key = "set_with_meta_key";
     uint16_t keylen = (uint16_t)strlen(key);
@@ -6676,6 +6884,12 @@ engine_test_t* get_tests(void) {
                  teardown, NULL, prepare, cleanup, BACKEND_COUCH),
 
         TestCase("delete with meta nonexistent", test_delete_with_meta_nonexistent, NULL,
+                 teardown, NULL, prepare, cleanup, BACKEND_COUCH),
+
+        TestCase("delete_with_meta race with concurrent delete", test_delete_with_meta_race_with_delete, NULL,
+                 teardown, NULL, prepare, cleanup, BACKEND_COUCH),
+
+        TestCase("delete_with_meta race with concurrent set", test_delete_with_meta_race_with_set, NULL,
                  teardown, NULL, prepare, cleanup, BACKEND_COUCH),
 
         TestCase("set with meta", test_set_with_meta, NULL,
