@@ -5264,6 +5264,109 @@ static enum test_result test_get_meta_nonexistent(ENGINE_HANDLE *h, ENGINE_HANDL
     return SUCCESS;
 }
 
+static enum test_result test_get_meta_with_get(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
+{
+    char const *key1 = "key1";
+    char const *key2 = "key2";
+
+    item *i = NULL;
+    item_metadata itm_meta;
+
+    // test get_meta followed by get for an existing key. should pass.
+    check(store(h, h1, NULL, OPERATION_SET, key1, "somevalue", &i) == ENGINE_SUCCESS,
+          "Failed set.");
+    wait_for_flusher_to_settle(h, h1);
+    check(get_meta(h, h1, key1, itm_meta), "Expected to get meta");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    check(h1->get(h, NULL, &i, key1, strlen(key1), 0) == ENGINE_SUCCESS, "Expected get success");
+
+    // test get_meta followed by get for a deleted key. should fail.
+    check(h1->remove(h, NULL, key1, strlen(key1), 0, 0) == ENGINE_SUCCESS,
+          "Delete failed");
+    wait_for_flusher_to_settle(h, h1);
+    check(get_meta(h, h1, key1, itm_meta), "Expected to get meta");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    check(last_deleted_flag, "Expected deleted flag to be set");
+    check(h1->get(h, NULL, &i, key1, strlen(key1), 0) == ENGINE_KEY_ENOENT, "Expected enoent");
+
+    // test get_meta followed by get for a nonexistent key. should fail.
+    check(!get_meta(h, h1, key2, itm_meta), "Expected get meta to return false");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, "Expected enoent");
+    check(h1->get(h, NULL, &i, key2, strlen(key2), 0) == ENGINE_KEY_ENOENT, "Expected enoent");
+
+    return SUCCESS;
+}
+
+static enum test_result test_get_meta_with_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
+{
+    char const *key1 = "key1";
+    char const *key2 = "key2";
+
+    item *i = NULL;
+    item_metadata itm_meta;
+
+    // test get_meta followed by set for an existing key. should pass.
+    check(store(h, h1, NULL, OPERATION_SET, key1, "somevalue", &i) == ENGINE_SUCCESS,
+          "Failed set.");
+    wait_for_flusher_to_settle(h, h1);
+    check(get_meta(h, h1, key1, itm_meta), "Expected to get meta");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    check(store(h, h1, NULL, OPERATION_SET, key1, "someothervalue", &i) == ENGINE_SUCCESS,
+          "Failed set.");
+
+    // test get_meta followed by set for a deleted key. should pass.
+    check(h1->remove(h, NULL, key1, strlen(key1), 0, 0) == ENGINE_SUCCESS,
+          "Delete failed");
+    wait_for_flusher_to_settle(h, h1);
+    check(get_meta(h, h1, key1, itm_meta), "Expected to get meta");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    check(last_deleted_flag, "Expected deleted flag to be set");
+    check(store(h, h1, NULL, OPERATION_SET, key1, "someothervalue", &i) == ENGINE_SUCCESS,
+          "Failed set.");
+
+    // test get_meta followed by set for a nonexistent key. should pass.
+    check(!get_meta(h, h1, key2, itm_meta), "Expected get meta to return false");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, "Expected enoent");
+    check(store(h, h1, NULL, OPERATION_SET, key2, "someothervalue", &i) == ENGINE_SUCCESS,
+          "Failed set.");
+
+    return SUCCESS;
+}
+
+static enum test_result test_get_meta_with_delete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
+{
+    char const *key1 = "key1";
+    char const *key2 = "key2";
+
+    item *i = NULL;
+    item_metadata itm_meta;
+
+    // test get_meta followed by delete for an existing key. should pass.
+    check(store(h, h1, NULL, OPERATION_SET, key1, "somevalue", &i) == ENGINE_SUCCESS,
+          "Failed set.");
+    wait_for_flusher_to_settle(h, h1);
+    check(get_meta(h, h1, key1, itm_meta), "Expected to get meta");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    check(h1->remove(h, NULL, key1, strlen(key1), 0, 0) == ENGINE_SUCCESS,
+          "Delete failed");
+
+    // test get_meta followed by delete for a deleted key. should fail.
+    wait_for_flusher_to_settle(h, h1);
+    check(get_meta(h, h1, key1, itm_meta), "Expected to get meta");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    check(last_deleted_flag, "Expected deleted flag to be set");
+    check(h1->remove(h, NULL, key1, strlen(key1), 0, 0) == ENGINE_KEY_ENOENT,
+          "Expected enoent");
+
+    // test get_meta followed by delete for a nonexistent key. should fail.
+    check(!get_meta(h, h1, key2, itm_meta), "Expected get meta to return false");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, "Expected enoent");
+    check(h1->remove(h, NULL, key2, strlen(key2), 0, 0) == ENGINE_KEY_ENOENT,
+          "Expected enoent");
+
+    return SUCCESS;
+}
+
 static enum test_result test_add_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
 {
     union {
@@ -6346,6 +6449,15 @@ engine_test_t* get_tests(void) {
                  teardown, NULL, prepare, cleanup, BACKEND_COUCH),
 
         TestCase("get meta nonexistent", test_get_meta_nonexistent, NULL,
+                 teardown, NULL, prepare, cleanup, BACKEND_COUCH),
+
+        TestCase("get meta followed by get", test_get_meta_with_get, NULL,
+                 teardown, NULL, prepare, cleanup, BACKEND_COUCH),
+
+        TestCase("get meta followed by set", test_get_meta_with_set, NULL,
+                 teardown, NULL, prepare, cleanup, BACKEND_COUCH),
+
+        TestCase("get meta followed by delete", test_get_meta_with_delete, NULL,
                  teardown, NULL, prepare, cleanup, BACKEND_COUCH),
 
         TestCase("add with meta", test_add_with_meta, NULL,
