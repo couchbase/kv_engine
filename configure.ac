@@ -211,6 +211,26 @@ AS_IF([test "$with_docs" = "yes"],
   ])
 AM_CONDITIONAL(BUILD_DOCS, test "$with_docs" = "yes")
 
+AC_CACHE_CHECK([for gtest], [ac_cv_have_gtest], [
+  AC_LANG_PUSH([C++])
+  SAVED_LIBS="$LIBS"
+  LIBS="-lgtest"
+  AC_LINK_IFELSE(
+    [AC_LANG_PROGRAM(
+      [
+#include "gtest/gtest.h"
+      ],
+      [
+return 0;
+      ])],
+    [ac_cv_have_gtest=yes],
+    [ac_cv_have_gtest=no])
+  AC_LANG_POP([C++])
+  LIBS="$SAVED_LIBS"
+])
+
+AM_CONDITIONAL(HAVE_GOOGLETEST, [test "$ac_cv_have_gtest" = "yes"])
+
 dnl ----------------------------------------------------------------------------
 
 AC_CONFIG_FILES(Makefile wrapper/wrapper)
@@ -226,5 +246,14 @@ echo "   * C++ Compiler:              $CXX_VERSION"
 echo "   * Assertions enabled:        $ac_cv_assert"
 echo "   * Debug enabled:             $with_debug"
 echo "   * Warnings as failure:       $ac_cv_warnings_as_errors"
+echo "   * Google test framework:     $ac_cv_have_gtest"
 echo ""
+AS_IF(test "$ac_cv_have_gtest" = "", [
+      echo "**************************************************************"
+      echo "You should consider installing gtest to be able to run tests.."
+      echo "Mac users may run: brew install gtest"
+      echo "Others may look at: http://code.google.com/p/googletest/"
+      echo "**************************************************************"
+      echo ""
+      ])
 echo "---"
