@@ -2,6 +2,7 @@
 #include "config.h"
 #include <dirent.h>
 #include "couch-kvstore/dirutils.hh"
+#include <string.h>
 
 namespace CouchKVStoreDirectoryUtilities
 {
