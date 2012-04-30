@@ -1364,9 +1364,9 @@ queued_item TapProducer::next(bool &shouldPause) {
         for (; it != tapCheckpointState.end(); ++it) {
             uint16_t vbid = it->first;
             RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
-            if (!vb) {
+            if (!vb || (vb->getState() == vbucket_state_dead && !doTakeOver)) {
                 getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                 "%s Skip vbucket %d checkpoint queue as it doesn't exist anymore.\n",
+                                 "%s Skip vbucket %d checkpoint queue as it's in invalid state.\n",
                                  logHeader(), vbid);
                 ++invalid_count;
                 continue;
