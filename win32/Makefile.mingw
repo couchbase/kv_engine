@@ -47,8 +47,8 @@ CFLAGS = -std=gnu99 -DNDEBUG -g \
            -DGLIBCXX_FORCE_NEW
 
 CXXFLAGS = -std=gnu++0x -g \
-           -pedantic -Wshadow -fdiagnostics-show-option \
-           -Wformat=2 -Wconversion -Wstrict-aliasing -Wextra \
+           -fdiagnostics-show-option \
+           -Wformat=2  \
            -Woverloaded-virtual -Wnon-virtual-dtor -Wctor-dtor-privacy \
            -Wno-long-long  -Wmissing-declarations -Wno-redundant-decls \
            $(TCMALLOC_FLAGS) \
