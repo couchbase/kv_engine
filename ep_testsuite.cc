@@ -801,6 +801,14 @@ static void wait_for_stat_change(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     }
 }
 
+static void wait_for_stat_to_be(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                                const char *stat, int final, const char* stat_key=NULL) {
+    useconds_t sleepTime = 128;
+    while (get_int_stat(h, h1, stat, stat_key) != final) {
+        decayingSleep(&sleepTime);
+    }
+}
+
 static void wait_for_flusher_to_settle(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     useconds_t sleepTime = 128;
     while (get_int_stat(h, h1, "ep_flusher_todo")
@@ -3630,6 +3638,77 @@ static enum test_result test_tap_notify(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
     return SUCCESS;
 }
 
+static enum test_result test_checkpoint_create(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
+{
+    item* itm;
+    for (int i = 0; i < 5000; i++) {
+        char key[8];
+        sprintf(key, "key%d", i);
+        check(store(h, h1, NULL, OPERATION_SET, key, "value", &itm, 0, 0)
+                    == ENGINE_SUCCESS, "Failed to store an item.");
+    }
+    check(get_int_stat(h, h1, "vb_0:open_checkpoint_id", "checkpoint") == 2,
+          "New checkpoint wasn't create after 5000 item creates");
+    return SUCCESS;
+}
+
+static enum test_result test_checkpoint_timeout(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
+{
+    item* itm;
+    check(store(h, h1, NULL, OPERATION_SET, "key", "value", &itm, 0, 0)
+                == ENGINE_SUCCESS, "Failed to store an item.");
+    testHarness.time_travel(600);
+    wait_for_stat_to_be(h, h1, "vb_0:open_checkpoint_id", 2, "checkpoint");
+    return SUCCESS;
+}
+
+static enum test_result test_checkpoint_deduplication(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
+{
+    item* itm;
+    for (int i = 0; i < 5; i++) {
+        for (int j = 0; j < 4500; j++) {
+            char key[8];
+            sprintf(key, "key%d", j);
+            check(store(h, h1, NULL, OPERATION_SET, key, "value", &itm, 0, 0)
+                        == ENGINE_SUCCESS, "Failed to store an item.");
+        }
+    }
+    wait_for_stat_to_be(h, h1, "vb_0:num_checkpoint_items", 4501, "checkpoint");
+    return SUCCESS;
+}
+
+static enum test_result test_checkpoint_collapse(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
+{
+    protocol_binary_request_header *pkt = create_packet(CMD_STOP_PERSISTENCE, "", "");
+    pkt->request.vbucket = htons(0);
+
+    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
+          "Stop Persistence Command Failed");
+
+    item* itm;
+    for (int i = 0; i < 20000; i++) {
+        char key[9];
+        sprintf(key, "key%d", i);
+        check(store(h, h1, NULL, OPERATION_SET, key, "value", &itm, 0, 0)
+                    == ENGINE_SUCCESS, "Failed to store an item.");
+    }
+
+    wait_for_stat_to_be(h, h1, "vb_0:num_checkpoints", 2, "checkpoint");
+    wait_for_stat_to_be(h, h1, "vb_0:num_checkpoint_items", 20003, "checkpoint");
+
+    for (int i = 0; i < 15000; i++) {
+        char key[9];
+        sprintf(key, "key%d", i);
+        check(h1->remove(h, NULL, key, strlen(key), 0, 0) == ENGINE_SUCCESS,
+              "Failed remove with value.");
+    }
+
+    wait_for_stat_to_be(h, h1, "vb_0:num_checkpoints", 2, "checkpoint");
+    wait_for_stat_to_be(h, h1, "vb_0:num_checkpoint_items", 25003, "checkpoint");
+
+    return SUCCESS;
+}
+
 static enum test_result test_novb0(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(verify_vbucket_missing(h, h1, 0), "vb0 existed and shouldn't have.");
     return SUCCESS;
@@ -5749,6 +5828,18 @@ engine_test_t* get_tests(void) {
         TestCase("checkpoint: validate checkpoint config params",
                  test_validate_checkpoint_params,
                  NULL, teardown, NULL, prepare, cleanup, BACKEND_ALL),
+        TestCase("test checkpoint collapse", test_checkpoint_collapse, NULL, teardown,
+                 "chk_max_items=5000;chk_period=600",
+                 prepare, cleanup, BACKEND_ALL),
+        TestCase("test checkpoint create", test_checkpoint_create, NULL, teardown,
+                 "chk_max_items=5000;chk_period=600",
+                 prepare, cleanup, BACKEND_ALL),
+        TestCase("test checkpoint timeout", test_checkpoint_timeout, NULL, teardown,
+                 "chk_max_items=5000;chk_period=600",
+                 prepare, cleanup, BACKEND_ALL),
+        TestCase("test checkpoint deduplication", test_checkpoint_deduplication, NULL,
+                 teardown, "chk_max_items=5000;chk_period=600",
+                 prepare, cleanup, BACKEND_ALL),
 
         // Restore tests
         TestCase("restore: not enabled", test_restore_not_enabled, NULL,
