@@ -3,161 +3,216 @@
 #include "couch-kvstore/dirutils.hh"
 #include <sys/stat.h>
 #include <cerrno>
-
-#undef NDEBUG
-#include <cassert>
-
+#include <gtest/gtest.h>
 
 using namespace CouchKVStoreDirectoryUtilities;
 using namespace std;
 
 #include <iostream>
 
-static void test_dirname(void) {
-    assert(dirname("foo") == ".");
-    assert(dirname("\\foo") == "\\");
-    assert(dirname("foo\\bar") == "foo");
-    assert(dirname("\\foo\\bar") == "\\foo");
-    assert(dirname("foo\\bar\\foobar") == "foo\\bar");
-    assert(dirname("\\foo\\bar\\foobar") == "\\foo\\bar");
-    assert(dirname("/foo") == "/");
-    assert(dirname("foo/bar") == "foo");
-    assert(dirname("/foo/bar") == "/foo");
-    assert(dirname("foo/bar/foobar") == "foo/bar");
-    assert(dirname("/foo/bar/foobar") == "/foo/bar");
+class DirnameTest : public ::testing::Test
+{
+};
 
+TEST_F(DirnameTest, HandleEmptyString)
+{
+    EXPECT_EQ(".", dirname(""));
 }
 
-static void test_basename(void) {
-    assert(basename("foo") == "foo");
-    assert(basename("\\foo") == "foo");
-    assert(basename("foo\\bar") == "bar");
-    assert(basename("\\foo\\bar") == "bar");
-    assert(basename("foo\\bar\\foobar") == "foobar");
-    assert(basename("\\foo\\bar\\foobar") == "foobar");
-    assert(basename("/foo") == "foo");
-    assert(basename("foo/bar") == "bar");
-    assert(basename("/foo/bar") == "bar");
-    assert(basename("foo/bar/foobar") == "foobar");
-    assert(basename("/foo/bar/foobar") == "foobar");
+TEST_F(DirnameTest, HandleNoDirectorySeparator)
+{
+    EXPECT_EQ(".", dirname("foo"));
 }
 
-static int mymkdir(const char *path) {
-    int ret = 0;
-    if (mkdir(path, S_IRWXU) == -1) {
-        if (errno != EEXIST) {
-            ret = -1;
+TEST_F(DirnameTest, HandleRootDirectory)
+{
+    EXPECT_EQ("\\", dirname("\\foo"));
+    EXPECT_EQ("/", dirname("/foo"));
+}
+
+TEST_F(DirnameTest, HandleSingleDirectory)
+{
+    EXPECT_EQ("foo", dirname("foo\\bar"));
+    EXPECT_EQ("foo", dirname("foo/bar"));
+}
+
+TEST_F(DirnameTest, HandleRootedSingleDirectory)
+{
+    EXPECT_EQ("\\foo", dirname("\\foo\\bar"));
+    EXPECT_EQ("/foo", dirname("/foo/bar"));
+}
+
+TEST_F(DirnameTest, HandleTwolevelDirectory)
+{
+    EXPECT_EQ("foo\\bar", dirname("foo\\bar\\foobar"));
+    EXPECT_EQ("foo/bar", dirname("foo/bar/foobar"));
+}
+
+TEST_F(DirnameTest, HandleRootedTwolevelDirectory)
+{
+    EXPECT_EQ("\\foo\\bar", dirname("\\foo\\bar\\foobar"));
+    EXPECT_EQ("/foo/bar", dirname("/foo/bar/foobar"));
+}
+
+class BasenameTest : public ::testing::Test
+{
+};
+
+TEST_F(BasenameTest, HandleEmptyString)
+{
+    EXPECT_EQ("", basename(""));
+}
+
+TEST_F(BasenameTest, HandleNoDirectory)
+{
+    EXPECT_EQ("foo", basename("foo"));
+}
+
+TEST_F(BasenameTest, HandleRootDirectory)
+{
+    EXPECT_EQ("foo", basename("\\foo"));
+    EXPECT_EQ("foo", basename("/foo"));
+}
+
+TEST_F(BasenameTest, HandleSingleDirectory)
+{
+    EXPECT_EQ("bar", basename("foo\\bar"));
+    EXPECT_EQ("bar", basename("foo/bar"));
+}
+
+TEST_F(BasenameTest, HandleRootedSingleDirectory)
+{
+    EXPECT_EQ("bar", basename("\\foo\\bar"));
+    EXPECT_EQ("bar", basename("/foo/bar"));
+}
+
+TEST_F(BasenameTest, HandleTwoLevelDirectory)
+{
+    EXPECT_EQ("foobar", basename("foo\\bar\\foobar"));
+    EXPECT_EQ("foobar", basename("foo/bar/foobar"));
+}
+
+TEST_F(BasenameTest, HandleRootedTwoLevelDirectory)
+{
+    EXPECT_EQ("foobar", basename("\\foo\\bar\\foobar"));
+    EXPECT_EQ("foobar", basename("/foo/bar/foobar"));
+}
+
+class DiskMatchingTest : public ::testing::Test
+{
+public:
+    DiskMatchingTest() {
+        files.push_back("my-dirutil-test/a.0");
+        files.push_back("my-dirutil-test/a.1");
+        files.push_back("my-dirutil-test/a.2");
+        files.push_back("my-dirutil-test/a.3");
+        files.push_back("my-dirutil-test/b.0");
+        files.push_back("my-dirutil-test/b.1");
+        files.push_back("my-dirutil-test/c.0");
+        files.push_back("my-dirutil-test/c.1");
+    }
+
+    virtual void SetUp(void) {
+        if (mkdir("my-dirutil-test", S_IRWXU) == -1) {
+            ASSERT_EQ(EEXIST, errno);
+        }
+
+        vector<string>::iterator ii;
+        for (ii = files.begin(); ii != files.end(); ++ii) {
+            ASSERT_TRUE(touch(*ii));
         }
     }
 
-    return ret;
-}
+    virtual void TearDown(void) {
 
-static int touch(const char *name) {
-    FILE *fp = fopen(name, "w");
-    if (fp != NULL) {
-        fclose(fp);
-        return 0;
-    }
-    return -1;
-}
-
-void assertInList(const vector<string> &files, const string &nm)
-{
-    for (size_t idx = 0; idx < files.size(); ++idx) {
-        if (files[idx] == nm) {
-            return;
+        vector<string>::iterator ii;
+        for (ii = files.begin(); ii != files.end(); ++ii) {
+            ASSERT_EQ(0, remove((*ii).c_str()));
         }
-    }
-    assert(false);
-}
 
-static void test_findFilesWithPrefix(void) {
-    assert(mymkdir("my-dirutil-test") == 0);
-    const char *filenames[] = {
-        "my-dirutil-test/a.0",
-        "my-dirutil-test/a.1",
-        "my-dirutil-test/a.2",
-        "my-dirutil-test/a.3",
-        "my-dirutil-test/b.0",
-        "my-dirutil-test/b.1",
-        "my-dirutil-test/c.0",
-        "my-dirutil-test/c.1",
-        NULL
-    };
-
-    for (int idx = 0; filenames[idx] != NULL; ++idx) {
-        assert(touch(filenames[idx]) == 0);
+        ASSERT_EQ(0, remove("my-dirutil-test"));
     }
 
-    vector<string> files = findFilesWithPrefix("my-dirutil-test", "a.0");
-    assert(files.size() == 1);
-    assert(files[0] == "my-dirutil-test/a.0");
+protected:
+    bool inList(const vector<string> &list, const string &name) {
+        vector<string>::const_iterator ii;
+        for (ii = list.begin(); ii != list.end(); ++ii) {
+            if (*ii == name) {
+                return true;
+            }
+        }
 
-    files = findFilesWithPrefix("my-dirutil-test", "a.");
-    assert(files.size() == 4);
-    assertInList(files, "my-dirutil-test/a.0");
-    assertInList(files, "my-dirutil-test/a.1");
-    assertInList(files, "my-dirutil-test/a.2");
-    assertInList(files, "my-dirutil-test/a.3");
-
-    files = findFilesWithPrefix("my-dirutil-test", "");
-    assert(files.size() >= 8);
-    assertInList(files, "my-dirutil-test/a.0");
-    assertInList(files, "my-dirutil-test/a.1");
-    assertInList(files, "my-dirutil-test/a.2");
-    assertInList(files, "my-dirutil-test/a.3");
-    assertInList(files, "my-dirutil-test/b.0");
-    assertInList(files, "my-dirutil-test/b.1");
-    assertInList(files, "my-dirutil-test/c.0");
-    assertInList(files, "my-dirutil-test/c.1");
-
-    files = findFilesWithPrefix("my-nonexisting/dir", "foo");
-    assert(files.size() == 0);
-
-    files = findFilesWithPrefix("my-nonexisting/dir", "");
-    assert(files.size() == 0);
-
-    // Re-run the test with the other method to grab the files
-    files = findFilesWithPrefix("my-dirutil-test/a.0");
-    assert(files.size() == 1);
-    assert(files[0] == "my-dirutil-test/a.0");
-
-    files = findFilesWithPrefix("my-dirutil-test/a.");
-    assert(files.size() == 4);
-    assertInList(files, "my-dirutil-test/a.0");
-    assertInList(files, "my-dirutil-test/a.1");
-    assertInList(files, "my-dirutil-test/a.2");
-    assertInList(files, "my-dirutil-test/a.3");
-
-    files = findFilesWithPrefix("my-dirutil-test/");
-    assert(files.size() >= 8);
-    assertInList(files, "my-dirutil-test/a.0");
-    assertInList(files, "my-dirutil-test/a.1");
-    assertInList(files, "my-dirutil-test/a.2");
-    assertInList(files, "my-dirutil-test/a.3");
-    assertInList(files, "my-dirutil-test/b.0");
-    assertInList(files, "my-dirutil-test/b.1");
-    assertInList(files, "my-dirutil-test/c.0");
-    assertInList(files, "my-dirutil-test/c.1");
-
-    files = findFilesWithPrefix("my-nonexisting/dir/foo");
-    assert(files.size() == 0);
-
-    files = findFilesWithPrefix("my-nonexisting/dir", "");
-    assert(files.size() == 0);
-
-    for (int idx = 0; filenames[idx] != NULL; ++idx) {
-        assert(remove(filenames[idx]) == 0);
+        return false;
     }
 
-    assert(remove("my-dirutil-test") == 0);
-}
+    bool touch(const string &name) {
+        FILE *fp = fopen(name.c_str(), "w");
+        if (fp != NULL) {
+            fclose(fp);
+            return true;
+        }
+        return false;
+    }
 
-int main(void)
+    vector<string> files;
+};
+
+TEST_F(DiskMatchingTest, NonExistingDirectory)
 {
-    test_dirname();
-    test_basename();
-    test_findFilesWithPrefix();
-    exit(EXIT_SUCCESS);
+    vector<string> f1 = findFilesWithPrefix("my-nonexisting", "dir");
+    EXPECT_EQ(0, f1.size());
+
+    vector<string> f2 = findFilesWithPrefix("my-nonexisting/dir");
+    EXPECT_EQ(0, f2.size());
+}
+
+TEST_F(DiskMatchingTest, findAllFiles)
+{
+    vector<string> f1 = findFilesWithPrefix("my-dirutil-test", "");
+    EXPECT_LE(files.size(), f1.size());
+    vector<string>::const_iterator ii;
+
+    for (ii = files.begin(); ii != files.end(); ++ii) {
+        EXPECT_TRUE(inList(f1, *ii));
+    }
+
+    vector<string> f2 = findFilesWithPrefix("my-dirutil-test/");
+    EXPECT_LE(files.size(), f2.size());
+    for (ii = files.begin(); ii != files.end(); ++ii) {
+        EXPECT_TRUE(inList(f2, *ii));
+    }
+}
+
+TEST_F(DiskMatchingTest, findA0)
+{
+    vector<string> f1 = findFilesWithPrefix("my-dirutil-test", "a.0");
+    EXPECT_EQ(1, f1.size());
+
+    vector<string> f2 = findFilesWithPrefix("my-dirutil-test/a.0");
+    EXPECT_EQ(1, f2.size());
+}
+
+TEST_F(DiskMatchingTest, findAllA)
+{
+    vector<string> f1 = findFilesWithPrefix("my-dirutil-test", "a");
+    EXPECT_EQ(4, f1.size());
+
+    EXPECT_TRUE(inList(f1, "my-dirutil-test/a.0"));
+    EXPECT_TRUE(inList(f1, "my-dirutil-test/a.1"));
+    EXPECT_TRUE(inList(f1, "my-dirutil-test/a.2"));
+    EXPECT_TRUE(inList(f1, "my-dirutil-test/a.3"));
+
+    vector<string> f2 = findFilesWithPrefix("my-dirutil-test/a");
+    EXPECT_EQ(4, f2.size());
+
+    EXPECT_TRUE(inList(f2, "my-dirutil-test/a.0"));
+    EXPECT_TRUE(inList(f2, "my-dirutil-test/a.1"));
+    EXPECT_TRUE(inList(f2, "my-dirutil-test/a.2"));
+    EXPECT_TRUE(inList(f2, "my-dirutil-test/a.3"));
+}
+
+int main(int argc, char **argv)
+{
+    ::testing::InitGoogleTest(&argc, argv);
+    return RUN_ALL_TESTS();
 }

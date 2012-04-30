@@ -237,7 +237,6 @@ check_PROGRAMS=\
                atomic_test \
                checkpoint_test \
                chunk_creation_test \
-               dirutils_test \
                dispatcher_test \
                hash_table_test \
                histo_test \
@@ -250,6 +249,10 @@ check_PROGRAMS=\
                ringbuffer_test \
                vb_del_chunk_list_test \
                vbucket_test
+
+if HAVE_GOOGLETEST
+check_PROGRAMS += t/dirutils_test
+endif
 
 TESTS=${check_PROGRAMS}
 EXTRA_TESTS =
@@ -386,8 +389,10 @@ checkpoint_test_DEPENDENCIES = checkpoint.hh vbucket.hh         \
               libobjectregistry.la libconfiguration.la
 checkpoint_test_LDADD = libobjectregistry.la libconfiguration.la
 
-dirutils_test_SOURCES = t/dirutils_test.cc
-dirutils_test_LDADD = libdirutils.la
+t_dirutils_test_SOURCES = t/dirutils_test.cc
+t_dirutils_test_DEPENDENCIES = libdirutils.la
+t_dirutils_test_LDADD = libdirutils.la
+t_dirutils_test_LDFLAGS = -lgtest
 
 mutation_log_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
 mutation_log_test_SOURCES = t/mutation_log_test.cc mutation_log.hh	\

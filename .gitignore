@@ -58,6 +58,7 @@
 /sizes
 /stamp-h1
 /stats-info.[ch]
+/t/*_test
 /testlogger_libify.cc
 /wrapper/*badm-online-restore
 /wrapper/*badm-online-update
