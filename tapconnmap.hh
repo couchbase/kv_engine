@@ -103,7 +103,6 @@ public:
     template <typename V>
     bool performTapOp(const std::string &name, TapOperation<V> &tapop, V arg) {
         bool shouldNotify(true);
-        bool clear(true);
         bool ret(true);
         LockHolder lh(notifySync);
 
@@ -113,7 +112,6 @@ public:
             assert(tp != NULL);
             tapop.perform(tp, arg);
             shouldNotify = isPaused(tp);
-            clear = shouldDisconnect(tc);
         } else {
             ret = false;
         }
