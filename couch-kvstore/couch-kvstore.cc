@@ -5,7 +5,6 @@
 #include <cctype>
 #include <algorithm>
 #include <stdio.h>
-#include <dirent.h>
 #include <sys/types.h>
 #include <unistd.h>
 #include <fcntl.h>
@@ -81,29 +80,15 @@ static int dbFileRev(const std::string &dbname)
     return atoi(dbname.substr(secondDot + 1).c_str());
 }
 
-static bool discoverDbFiles(const std::string &dir,
-                            std::vector<std::string> &v)
+static void discoverDbFiles(const std::string &dir, std::vector<std::string> &v)
 {
-    DIR *dhdl;
-
-    if ((dhdl = opendir(dir.c_str())) == NULL) {
-        return false;
-    }
-
-    struct dirent *direntry;
-    while ((direntry = readdir(dhdl))) {
-        if (strlen(direntry->d_name) < (sizeof(".couch") - 1)) {
-            continue;
-        }
-        std::stringstream filename;
-        filename << dir << std::string("/") << std::string(direntry->d_name);
-        if (!endWithCompact(filename.str())) {
-            v.push_back(std::string(filename.str()));
+    std::vector<std::string> files = findFilesContaining(dir, ".couch");
+    std::vector<std::string>::iterator ii;
+    for (ii = files.begin(); ii != files.end(); ++ii) {
+        if (!endWithCompact(*ii)) {
+            v.push_back(*ii);
         }
     }
-    closedir(dhdl);
-
-    return true;
 }
 
 static uint32_t computeMaxDeletedSeqNum(DocInfo **docinfos, const int numdocs)
@@ -399,14 +384,8 @@ vbucket_map_t CouchKVStore::listPersistedVbuckets()
 
     if (dbFileMap.empty()) {
         // warmup, first discover db files from local directory
-        if (discoverDbFiles(dbname, files)) {
-            populateFileNameMap(files);
-        } else {
-            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "Warning: data directory does not exist, %s\n",
-                             dbname.c_str());
-            return rv;
-        }
+        discoverDbFiles(dbname, files);
+        populateFileNameMap(files);
     }
 
     Db *db = NULL;
@@ -685,14 +664,8 @@ void CouchKVStore::loadDB(shared_ptr<LoadCallback> cb, bool keysOnly,
 
     if (dbFileMap.empty()) {
         // warmup, first discover db files from local directory
-        if (discoverDbFiles(dbname, files)) {
-            populateFileNameMap(files);
-        } else {
-            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "Warning: data directory is empty, %s\n",
-                             dbname.c_str());
-            return;
-        }
+        discoverDbFiles(dbname, files);
+        populateFileNameMap(files);
     }
 
     if (vbids) {

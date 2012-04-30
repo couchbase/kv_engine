@@ -30,6 +30,12 @@ namespace CouchKVStoreDirectoryUtilities
      * name specified with this absolute path
      */
     vector<string> findFilesWithPrefix(const string &name);
+
+    /**
+     * Return a vector containing all of the files containing a given substring
+     * located in a given directory
+     */
+    vector<string> findFilesContaining(const string &dir, const string &name);
 }
 
 #endif

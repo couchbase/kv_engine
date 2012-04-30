@@ -65,4 +65,25 @@ namespace CouchKVStoreDirectoryUtilities
     {
         return findFilesWithPrefix(dirname(name), basename(name));
     }
+
+    vector<string> findFilesContaining(const string &dir, const string &name)
+    {
+        vector<string> files;
+        DIR *dp = opendir(dir.c_str());
+        if (dp != NULL) {
+            struct dirent *de;
+            while ((de = readdir(dp)) != NULL) {
+                if (name.empty() || strstr(de->d_name, name.c_str()) != NULL) {
+                    string entry = dir;
+                    entry.append("/");
+                    entry.append(de->d_name);
+                    files.push_back(entry);
+                }
+            }
+
+            closedir(dp);
+        }
+
+        return files;
+    }
 }

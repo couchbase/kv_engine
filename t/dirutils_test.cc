@@ -110,6 +110,17 @@ public:
         files.push_back("my-dirutil-test/b.1");
         files.push_back("my-dirutil-test/c.0");
         files.push_back("my-dirutil-test/c.1");
+        files.push_back("my-dirutil-test/0.couch");
+        files.push_back("my-dirutil-test/0.couch.0");
+        files.push_back("my-dirutil-test/0.couch.2");
+        files.push_back("my-dirutil-test/3.couch.compact");
+        files.push_back("my-dirutil-test/1.couch");
+        files.push_back("my-dirutil-test/2.couch");
+        files.push_back("my-dirutil-test/3.couch");
+        files.push_back("my-dirutil-test/4.couch");
+        files.push_back("my-dirutil-test/5.couch");
+        files.push_back("my-dirutil-test/w1");
+        files.push_back("my-dirutil-test/w2");
     }
 
     virtual void SetUp(void) {
@@ -210,6 +221,50 @@ TEST_F(DiskMatchingTest, findAllA)
     EXPECT_TRUE(inList(f2, "my-dirutil-test/a.2"));
     EXPECT_TRUE(inList(f2, "my-dirutil-test/a.3"));
 }
+
+TEST_F(DiskMatchingTest, matchNoDirSubString)
+{
+    vector<string> f1 = findFilesContaining("", "");
+    EXPECT_EQ(0, f1.size());
+}
+
+TEST_F(DiskMatchingTest, matchEmptySubString)
+{
+    vector<string> f1 = findFilesContaining("my-dirutil-test", "");
+    EXPECT_LE(files.size(), f1.size());
+}
+
+TEST_F(DiskMatchingTest, matchSingleCharSubString)
+{
+    vector<string> f1 = findFilesContaining("my-dirutil-test", "w");
+    EXPECT_EQ(2, f1.size());
+    EXPECT_TRUE(inList(f1, "my-dirutil-test/w1"));
+    EXPECT_TRUE(inList(f1, "my-dirutil-test/w2"));
+}
+
+TEST_F(DiskMatchingTest, matchLongerSubString)
+{
+    vector<string> f1 = findFilesContaining("my-dirutil-test", "couch");
+    EXPECT_EQ(9, f1.size());
+
+    EXPECT_TRUE(inList(f1, "my-dirutil-test/0.couch"));
+    EXPECT_TRUE(inList(f1, "my-dirutil-test/0.couch.0"));
+    EXPECT_TRUE(inList(f1, "my-dirutil-test/0.couch.2"));
+    EXPECT_TRUE(inList(f1, "my-dirutil-test/3.couch.compact"));
+    EXPECT_TRUE(inList(f1, "my-dirutil-test/1.couch"));
+    EXPECT_TRUE(inList(f1, "my-dirutil-test/2.couch"));
+    EXPECT_TRUE(inList(f1, "my-dirutil-test/3.couch"));
+    EXPECT_TRUE(inList(f1, "my-dirutil-test/4.couch"));
+    EXPECT_TRUE(inList(f1, "my-dirutil-test/5.couch"));
+}
+
+TEST_F(DiskMatchingTest, matchTailSubString)
+{
+    vector<string> f1 = findFilesContaining("my-dirutil-test", "compact");
+    EXPECT_EQ(1, f1.size());
+    EXPECT_TRUE(inList(f1, "my-dirutil-test/3.couch.compact"));
+}
+
 
 int main(int argc, char **argv)
 {
