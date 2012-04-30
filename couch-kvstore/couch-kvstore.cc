@@ -9,6 +9,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <sys/stat.h>
 
 #include "couch-kvstore/couch-kvstore.hh"
 #include "couch-kvstore/dirutils.hh"
@@ -746,6 +747,22 @@ void CouchKVStore::open()
     intransaction = false;
     delete mc;
     mc = new MemcachedEngine(&engine, configuration);
+
+    struct stat dbstat;
+    bool havedir = false;
+
+    if (stat(dbname.c_str(), &dbstat) == 0 && (dbstat.st_mode & S_IFDIR) == S_IFDIR) {
+        havedir = true;
+    }
+
+    if (!havedir) {
+        if (mkdir(dbname.c_str(), S_IRWXU) == -1) {
+            std::stringstream ss;
+            ss << "Warning: Failed to create data directory ["
+               << dbname << "]: " << strerror(errno);
+            throw std::runtime_error(ss.str());
+        }
+    }
 }
 
 void CouchKVStore::close()

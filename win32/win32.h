@@ -21,6 +21,8 @@
 #include <stdint.h>
 #include <process.h>
 
+#define mkdir(a, b) mkdir(a)
+
 #define EWOULDBLOCK        EAGAIN
 #define EAFNOSUPPORT       47
 #define EADDRINUSE         WSAEADDRINUSE
