@@ -596,7 +596,7 @@ public:
     }
 
 
-    uint32_t getSeqno() {
+    uint32_t getSeqno() const {
         if (_isSmall) {
             return 0;
         } else {
@@ -617,9 +617,12 @@ public:
 
 
     /**
-     * Generate a new Item out of this object
+     * Generate a new Item out of this object.
+     *
+     * @param lck if true, the new item will return a locked CAS ID.
+     * @param vbucket the vbucket containing this item.
      */
-    Item *toItem(bool locked, uint16_t vbucket) const;
+    Item *toItem(bool lck, uint16_t vbucket) const;
 
     /**
      * Get the size of a StoredValue object.
