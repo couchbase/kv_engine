@@ -502,7 +502,7 @@ public:
      * @return a GetValue representing the result of the request
      */
     GetValue getAndUpdateTtl(const std::string &key, uint16_t vbucket,
-                             const void *cookie, bool queueBG, uint32_t exptime);
+                             const void *cookie, bool queueBG, time_t exptime);
 
     /**
      * Retrieve an item from the disk for vkey stats
