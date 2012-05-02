@@ -599,6 +599,7 @@ void TapProducer::rollback() {
 
     size_t checkpoint_msg_sent = 0;
     size_t tapLogSize = 0;
+    size_t opaque_msg_sent = 0;
     std::list<TapLogElement>::iterator i = tapLog.begin();
     while (i != tapLog.end()) {
         switch (i->event) {
@@ -643,11 +644,11 @@ void TapProducer::rollback() {
                 switch (val) {
                 case TAP_OPAQUE_ENABLE_AUTO_NACK:
                 case TAP_OPAQUE_ENABLE_CHECKPOINT_SYNC:
-                    break;
                 case TAP_OPAQUE_INITIAL_VBUCKET_STREAM:
                 case TAP_OPAQUE_CLOSE_BACKFILL:
                 case TAP_OPAQUE_OPEN_CHECKPOINT:
                     {
+                        ++opaque_msg_sent;
                         TapVBucketEvent e(i->event, i->vbucket, i->state);
                         addVBucketHighPriority_UNLOCKED(e);
                     }
@@ -679,6 +680,7 @@ void TapProducer::rollback() {
     seqnoReceived = seqno - 1;
     seqnoAckRequested = seqno - 1;
     checkpointMsgCounter -= checkpoint_msg_sent;
+    opaqueMsgCounter -= opaque_msg_sent;
 }
 
 /**
@@ -784,6 +786,7 @@ void TapProducer::reschedule_UNLOCKED(const std::list<TapLogElement>::iterator &
         break;
     case TAP_OPAQUE:
         {
+            --opaqueMsgCounter;
             TapVBucketEvent ev(iter->event, iter->vbucket,
                                          (vbucket_state_t)iter->state);
             addVBucketHighPriority_UNLOCKED(ev);
@@ -847,6 +850,9 @@ ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
                     map_it->second.state = checkpoint_end_synced;
                 }
                 --checkpointMsgCounter;
+                notifyTapNotificationThread = true;
+            } else if (iter->event == TAP_OPAQUE) {
+                --opaqueMsgCounter;
                 notifyTapNotificationThread = true;
             }
             getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
@@ -991,6 +997,10 @@ bool TapProducer::waitForBgFetches() {
 
 bool TapProducer::waitForCheckpointMsgAck() {
     return checkpointMsgCounter > 0;
+}
+
+bool TapProducer::waitForOpaqueMsgAck() {
+    return supportAck && opaqueMsgCounter > 0;
 }
 
 /**
@@ -1938,6 +1948,9 @@ TapVBucketEvent TapProducer::nextVBucketHighPriority_UNLOCKED() {
             }
         }
 
+        if (ret.event == TAP_OPAQUE) {
+            ++opaqueMsgCounter;
+        }
         ++recordsFetched;
         ++seqno;
         addTapLogElement_UNLOCKED(ret);

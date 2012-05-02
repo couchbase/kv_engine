@@ -959,6 +959,8 @@ private:
 
     bool waitForCheckpointMsgAck();
 
+    bool waitForOpaqueMsgAck();
+
     void setRegisteredClient(bool isRegisteredClient);
 
     void setClosedCheckpointOnlyFlag(bool isClosedCheckpointOnly);
@@ -1075,6 +1077,7 @@ private:
     Atomic<size_t> queueFill;
     Atomic<size_t> queueDrain;
     Atomic<size_t> checkpointMsgCounter;
+    Atomic<size_t> opaqueMsgCounter;
 
     //! Current tap sequence number (for ack's)
     uint32_t seqno;
