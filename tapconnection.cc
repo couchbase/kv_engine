@@ -599,7 +599,6 @@ void TapProducer::rollback() {
 
     size_t checkpoint_msg_sent = 0;
     size_t tapLogSize = 0;
-    std::vector<uint16_t> backfillVBs;
     std::list<TapLogElement>::iterator i = tapLog.begin();
     while (i != tapLog.end()) {
         switch (i->event) {
@@ -646,12 +645,6 @@ void TapProducer::rollback() {
                 case TAP_OPAQUE_ENABLE_CHECKPOINT_SYNC:
                     break;
                 case TAP_OPAQUE_INITIAL_VBUCKET_STREAM:
-                    {
-                        TapVBucketEvent e(i->event, i->vbucket, i->state);
-                        addVBucketHighPriority_UNLOCKED(e);
-                        backfillVBs.push_back(i->vbucket);
-                    }
-                    break;
                 case TAP_OPAQUE_CLOSE_BACKFILL:
                 case TAP_OPAQUE_OPEN_CHECKPOINT:
                     {
@@ -683,9 +676,6 @@ void TapProducer::rollback() {
     stats.memOverhead.decr(tapLogSize * sizeof(TapLogElement));
     assert(stats.memOverhead.get() < GIGANTOR);
 
-    if (backfillVBs.size() > 0) {
-        scheduleBackfill_UNLOCKED(backfillVBs);
-    }
     seqnoReceived = seqno - 1;
     seqnoAckRequested = seqno - 1;
     checkpointMsgCounter -= checkpoint_msg_sent;
