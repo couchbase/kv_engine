@@ -7,6 +7,7 @@ static func_ptr removeNewHook;
 static func_ptr removeDelHook;
 static func_ptr getStatsProp;
 static func_ptr getAllocSize;
+static func_ptr getDetailedStats;
 
 static alloc_hooks_type type;
 
@@ -15,6 +16,7 @@ bool init_tcmalloc_hooks(void);
 
 bool invalid_hook_function(void (*)(const void*, size_t));
 size_t invalid_size_function(const char*, size_t*);
+void invalid_detailed_stats_function(char*, int);
 
 #define TCMALLOC_DLL "libtcmalloc_minimal-4.dll"
 
@@ -45,6 +47,7 @@ bool init_tcmalloc_hooks(void) {
     removeDelHook.ptr = dlsym(handle, "MallocHook_RemoveDeleteHook");
     getStatsProp.ptr = dlsym(handle, "MallocExtension_GetNumericProperty");
     getAllocSize.ptr = dlsym(handle, "MallocExtension_GetAllocatedSize");
+    getDetailedStats.ptr = dlsym(handle, "MallocExtension_GetStats");
 
     if (addNewHook.ptr && addDelHook.ptr && removeNewHook.ptr && removeDelHook.ptr
         && getStatsProp.ptr && getAllocSize.ptr) {
@@ -61,6 +64,7 @@ void init_no_hooks(void) {
     removeDelHook.func = (void *(*)())invalid_hook_function;
     getStatsProp.func = (void *(*)())invalid_size_function;
     getAllocSize.func = (void *(*)())invalid_size_function;
+    getDetailedStats.func = (void *(*)())invalid_detailed_stats_function;
     type = unknown;
 }
 
@@ -111,12 +115,21 @@ size_t mc_get_allocation_size(void* ptr) {
     return (size_t)(getAllocSize.func)(ptr);
 }
 
+void mc_get_detailed_stats(char* buffer, int size) {
+        (getDetailedStats.func)(buffer, size);
+}
+
 bool invalid_hook_function(void (*hook)(const void* ptr, size_t size)) {
     return false;
 }
 
 size_t invalid_size_function(const char* property, size_t* value) {
     return 0;
+}
+
+void invalid_detailed_stats_function(char* buffer, int size) {
+    (void) buffer;
+    (void) size;
 }
 
 __attribute__((constructor))

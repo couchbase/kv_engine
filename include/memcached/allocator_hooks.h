@@ -88,6 +88,11 @@ typedef struct engine_allocator_hooks_v1 {
      */
     size_t (*get_allocation_size)(void*);
 
+    /**
+     * Fills a buffer with special detailed allocator stats.
+     */
+    void (*get_detailed_stats)(char*, int);
+
 } ALLOCATOR_HOOKS_API;
 
 #ifdef __cplusplus
