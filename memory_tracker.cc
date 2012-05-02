@@ -60,6 +60,11 @@ extern "C" {
 }
 
 MemoryTracker::MemoryTracker() {
+    if (getenv("EP_NO_MEMACCOUNT") != NULL) {
+        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                        "Memory allocation tracking disabled");
+        return;
+    }
     stats.ext_stats_size = getHooksApi()->get_extra_stats_size();
     stats.ext_stats = (allocator_ext_stat*) calloc(stats.ext_stats_size,
                                                    sizeof(allocator_ext_stat));
