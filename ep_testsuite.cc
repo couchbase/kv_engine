@@ -3432,7 +3432,6 @@ static enum test_result test_tap_ack_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
             if (numRollbacks > 0) {
                 if (random() % 4 == 0) {
                     iter = NULL;
-                    continue;
                 }
             }
             testHarness.unlock_cookie(cookie);

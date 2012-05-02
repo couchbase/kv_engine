@@ -1583,6 +1583,10 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
         return ev.event;
     }
 
+    if (connection->waitForOpaqueMsgAck()) {
+        return TAP_PAUSE;
+    }
+
     Item *it = connection->getNextItem(cookie, vbucket, ret);
     switch (ret) {
     case TAP_CHECKPOINT_START:
