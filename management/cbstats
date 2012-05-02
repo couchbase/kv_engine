@@ -204,6 +204,10 @@ def stats_checkpoint(mc, vb=-1):
     stats_formatter(stats_perform(mc, cmd))
 
 @cmd
+def stats_allocator(mc):
+    print stats_perform(mc, 'allocator')['detailed']
+
+@cmd
 def stats_slabs(mc):
     stats_formatter(stats_perform(mc, 'slabs'))
 
@@ -349,6 +353,7 @@ def main():
     c = clitool.CliTool()
 
     c.addCommand('all', stats_all, 'all [username password]')
+    c.addCommand('allocator', stats_allocator, 'allocator [username password]')
     c.addCommand('checkpoint', stats_checkpoint, 'checkpoint [vbid] [username password]')
     c.addCommand('couchdb', stats_couchdb, 'couchdb [username password]')
     c.addCommand('dispatcher', stats_dispatcher, 'dispatcher [logs] [username password]')

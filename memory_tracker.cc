@@ -111,6 +111,10 @@ void MemoryTracker::getAllocatorStats(std::map<std::string, size_t> &alloc_stats
                                                       stats.fragmentation_size));
 }
 
+void MemoryTracker::getDetailedStats(char* buffer, int size) {
+    getHooksApi()->get_detailed_stats(buffer, size);
+}
+
 void MemoryTracker::updateStats() {
     getHooksApi()->get_allocator_stats(&stats);
 }
