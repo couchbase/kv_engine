@@ -40,6 +40,8 @@ public:
 
     void updateStats();
 
+    void getDetailedStats(char* buffer, int size);
+
     size_t getFragmentation();
 
     size_t getTotalBytesAllocated();
