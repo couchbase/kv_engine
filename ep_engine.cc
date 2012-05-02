@@ -1931,6 +1931,10 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
         return ev.event;
     }
 
+    if (connection->waitForOpaqueMsgAck()) {
+        return TAP_PAUSE;
+    }
+
     // Check if there are any checkpoint start / end messages to be sent to the TAP client.
     queued_item checkpoint_msg = connection->nextCheckpointMessage();
     if (checkpoint_msg->getOperation() != queue_op_empty) {
