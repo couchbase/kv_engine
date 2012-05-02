@@ -996,7 +996,7 @@ bool TapProducer::waitForBgFetches() {
 }
 
 bool TapProducer::waitForCheckpointMsgAck() {
-    return checkpointMsgCounter > 0;
+    return supportAck && checkpointMsgCounter > 0;
 }
 
 bool TapProducer::waitForOpaqueMsgAck() {
