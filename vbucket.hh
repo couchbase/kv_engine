@@ -52,6 +52,10 @@ public:
 
     bool empty() const { return acceptable.empty(); }
 
+    void reset() {
+        acceptable.clear();
+    }
+
     /**
      * Calculate the difference between this and another filter.
      * If "this" contains elements, [1,2,3,4] and other contains [3,4,5,6]

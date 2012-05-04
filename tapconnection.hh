@@ -856,6 +856,7 @@ private:
             doRunBackfill = false;
             ++pendingBackfillCounter; // Will be decremented when each backfill thread is completed
             vbFilter = backFillVBucketFilter;
+            backFillVBucketFilter.reset();
         }
         return rv;
     }
