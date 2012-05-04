@@ -51,8 +51,6 @@ public:
     Histogram<hrtime_t> writeTimeHisto;
     // How big are our writes?
     Histogram<size_t> writeSizeHisto;
-    // Time spent in snapshot vbuckets.
-    Histogram<hrtime_t> snapshotVbHisto;
     // Time spent in delete() calls.
     Histogram<hrtime_t> delTimeHisto;
 };

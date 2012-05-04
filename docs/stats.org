@@ -181,6 +181,7 @@ For introductory information on stats within membase, start with the
 | ep_diskqueue_fill             | Total enqueued items on disk queue         |
 | ep_diskqueue_drain            | Total drained items on disk queue          |
 | ep_diskqueue_pending          | Total bytes of pending writes              |
+| ep_vb_snapshot_total          | Total VB state snapshots persisted in disk |
 
 
 *** Active vBucket class stats
@@ -464,6 +465,7 @@ form to describe when time was spent doing various things:
 | disk_commit           | waiting for a commit after a batch of updates  |
 | disk_invalid_item_del | Waiting for disk to delete a chunk of invalid  |
 |                       | items with the old vbucket version             |
+| disk_vbstate_snapshot | Time spent persisting vbucket state changes    |
 | klogPadding           | Amount of wasted "padding" space in the klog.  |
 | klogFlushTime         | Time spent flushing the klog.                  |
 | klogSyncTime          | Time spent syncing the klog.                   |

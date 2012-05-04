@@ -1005,10 +1005,13 @@ void EventuallyPersistentStore::snapshotVBuckets(const Priority &priority) {
 
     VBucketStateVisitor v(vbuckets);
     visit(v);
+    hrtime_t start = gethrtime();
     if (!rwUnderlying->snapshotVBuckets(v.states)) {
         getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
                          "Rescheduling a task to snapshot vbuckets\n");
         scheduleVBSnapshot(priority);
+    } else {
+        stats.snapshotVbucketHisto.add((gethrtime() - start) / 1000);
     }
 }
 

@@ -465,7 +465,6 @@ bool CouchKVStore::snapshotVBuckets(const vbucket_map_t &m)
     vbucket_state_t state;
     uint64_t checkpointId;
     bool success = m.empty() ? true : false;
-    hrtime_t start = gethrtime();
 
     for (iter = m.begin(); iter != m.end(); ++iter) {
         const vbucket_state vbstate = iter->second;
@@ -481,8 +480,6 @@ bool CouchKVStore::snapshotVBuckets(const vbucket_map_t &m)
             break;
         }
     }
-
-    st.snapshotVbHisto.add((gethrtime() - start) / 1000);
     return success;
 }
 
@@ -657,7 +654,6 @@ void CouchKVStore::addStats(const std::string &prefix,
         addStat(prefix_str, "writeTime",     st.writeTimeHisto,  add_stat, c);
         addStat(prefix_str, "writeSize",     st.writeSizeHisto,  add_stat, c);
         addStat(prefix_str, "lastCommDocs",  st.docsCommitted,   add_stat, c);
-        addStat(prefix_str, "snapshotVbTime",st.snapshotVbHisto, add_stat, c);
     }
 }
 

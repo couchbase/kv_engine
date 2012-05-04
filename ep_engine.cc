@@ -2400,8 +2400,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                    add_stat, cookie);
     add_casted_stat("vb_pending_queue_fill", pendingCountVisitor.getQueueFill(), add_stat, cookie);
     add_casted_stat("vb_pending_queue_drain", pendingCountVisitor.getQueueDrain(), add_stat, cookie);
-
     add_casted_stat("vb_dead_num", deadCountVisitor.getVBucketNumber(), add_stat, cookie);
+
+    add_casted_stat("ep_vb_snapshot_total", epstats.snapshotVbucketHisto.total(),
+                    add_stat, cookie);
 
     add_casted_stat("ep_vb_total",
                    activeCountVisitor.getVBucketNumber() +
@@ -3145,6 +3147,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTimingStats(const void *cookie,
     add_casted_stat("disk_commit", stats.diskCommitHisto, add_stat, cookie);
     add_casted_stat("disk_invalid_item_del", stats.diskInvaidItemDelHisto,
                     add_stat, cookie);
+    add_casted_stat("disk_vbstate_snapshot", stats.snapshotVbucketHisto,
+                    add_stat, cookie);
 
     add_casted_stat("item_alloc_sizes", stats.itemAllocSizeHisto,
                     add_stat, cookie);
@@ -3332,8 +3336,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
                (strncmp(stat_key, "couchdb", 7) == 0 ||
                 strncmp(stat_key, "mccouch", 7) == 0)) {
         add_casted_stat("ep_set_vbucket", stats.setVbucketStateHisto,
-                        add_stat, cookie);
-        add_casted_stat("ep_snapshot_vbucket", stats.snapshotVbucketHisto,
                         add_stat, cookie);
         add_casted_stat("ep_delq", stats.couchDelqHisto,
                         add_stat, cookie);

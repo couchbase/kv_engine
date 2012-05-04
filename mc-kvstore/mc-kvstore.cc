@@ -138,11 +138,9 @@ bool MCKVStore::snapshotVBuckets(const vbucket_map_t &m) {
     if (m.size() == 0) {
         return true;
     }
-    hrtime_t start = gethrtime();
     RememberingCallback<bool> cb;
     mc->snapshotVBuckets(m, cb);
     cb.waitForValue();
-    stats.snapshotVbucketHisto.add((gethrtime() - start) / 1000);
     return cb.val;
 }
 
