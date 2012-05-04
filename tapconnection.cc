@@ -287,9 +287,9 @@ void TapProducer::setVBucketFilter(const std::vector<uint16_t> &vbuckets)
                 if (!vb) {
                     continue;
                 }
-                if (!registeredTAPClient) {
-                    vb->checkpointManager.removeTAPCursor(name);
-                }
+                vb->checkpointManager.removeTAPCursor(name);
+                backfillVBuckets.erase(*it);
+                backFillVBucketFilter.removeVBucket(*it);
             }
         }
 
