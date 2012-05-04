@@ -5257,6 +5257,9 @@ static enum test_result test_get_meta_nonexistent(ENGINE_HANDLE *h, ENGINE_HANDL
 {
     char const *key = "k1";
     item_metadata itm_meta;
+
+    // wait until the vb snapshot has run
+    wait_for_stat_change(h, h1, "ep_vb_snapshot_total", 0);
     check(!get_meta(h, h1, key, itm_meta), "Expected get meta to return false");
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, "Expected enoent");
 
@@ -5511,9 +5514,11 @@ static enum test_result test_delete_with_meta_nonexistent(ENGINE_HANDLE *h,
                                                           ENGINE_HANDLE_V1 *h1) {
     const char *key = "delete_with_meta_key";
     uint16_t keylen = (uint16_t)strlen(key);
+    item_metadata itm_meta;
+    // wait until the vb snapshot has run
+    wait_for_stat_change(h, h1, "ep_vb_snapshot_total", 0);
 
     // get metadata of nonexistent key
-    item_metadata itm_meta;
     check(!get_meta(h, h1, key, itm_meta), "Expected get meta to return false");
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, "Expected enoent");
 
@@ -5913,9 +5918,11 @@ static enum test_result test_set_with_meta_nonexistent(ENGINE_HANDLE *h, ENGINE_
     uint16_t keylen = (uint16_t)strlen(key);
     const char* val = "somevalue";
     uint16_t valLen = (uint16_t)strlen(val);
-
-    // get metadata for the key
     item_metadata itm_meta;
+
+    // wait until the vb snapshot has run
+    wait_for_stat_change(h, h1, "ep_vb_snapshot_total", 0);
+    // get metadata for the key
     check(!get_meta(h, h1, key, itm_meta), "Expected get meta to return false");
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, "Expected enoent");
 
