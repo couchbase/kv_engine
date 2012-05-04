@@ -83,6 +83,10 @@ public:
         return rv.second;
     }
 
+    void removeVBucket(uint16_t vbucket) {
+        acceptable.erase(vbucket);
+    }
+
     /**
      * Dump the filter in a human readable form ( "{ bucket, bucket, bucket }"
      * to the specified output stream.
