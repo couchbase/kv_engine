@@ -2109,7 +2109,9 @@ public:
             if (value > 0) {
                 stats->totalPersisted++;
                 ++stats->delItems;
-                ++vb->opsDelete;
+                if (vb) {
+                    ++vb->opsDelete;
+                }
             }
 
             mutationLog->delItem(queuedItem->getVBucketId(), queuedItem->getKey());
