@@ -1651,49 +1651,22 @@ void TapProducer::scheduleBackfill_UNLOCKED(const std::vector<uint16_t> &vblist)
     }
 
     const VBucketMap &vbuckets = engine.getEpStore()->getVBuckets();
-    std::set<uint16_t> vbs;
     std::vector<uint16_t>::const_iterator vbit = vblist.begin();
-    // Skip all the vbuckets that are receiving backfill items from the upstream servers.
+    // Skip all the vbuckets that are (1) receiving backfill from their master nodes
+    // or (2) already scheduled for backfill.
     for (; vbit != vblist.end(); ++vbit) {
         RCPtr<VBucket> vb = vbuckets.getBucket(*vbit);
-        if (vb && !vb->isBackfillPhase()) {
-            vbs.insert(*vbit);
+        if (!vb || vb->isBackfillPhase() ||
+            backfillVBuckets.find(*vbit) != backfillVBuckets.end()) {
+            continue;
         }
+        backfillVBuckets.insert(*vbit);
+        backFillVBucketFilter.addVBucket(*vbit);
     }
 
-    if (vbs.empty()) {
-        return;
-    }
-
-    if (!backfillCompleted) {
-        // Backfill tasks from the current backfill session are still running.
-        // Simply add the new vbuckets only to the next backfill task.
-
-        if (!doRunBackfill) {
-            std::set<uint16_t> emptyVBs;
-            // Clear backfill vb filter for the next backfill task
-            backFillVBucketFilter.assign(emptyVBs);
-        }
-        std::set<uint16_t>::iterator it = vbs.begin();
-        for(; it != vbs.end(); ++it) {
-            std::pair<std::set<uint16_t>::iterator, bool> ret = backfillVBuckets.insert(*it);
-            if (ret.second) {
-                backFillVBucketFilter.addVBucket(*it);
-            }
-        }
-    } else {
-        // All backfill tasks from the current backfill session were completed.
-        // This will create a new backfill session.
-        backfillVBuckets.clear();
-        backfillVBuckets.insert(vbs.begin(), vbs.end());
-        backFillVBucketFilter.assign(vbs);
-    }
-
-    // Send an initial_vbucket_stream message to the destination node so that it can
-    // delete the corresponding vbucket before receiving the backfill stream.
-    const std::set<uint16_t> &newBackfillVBs = backFillVBucketFilter.getVBSet();
-    std::set<uint16_t>::const_iterator it = newBackfillVBs.begin();
-    for (; it != newBackfillVBs.end(); ++it) {
+    const std::set<uint16_t> &new_backfill_vbs = backFillVBucketFilter.getVBSet();
+    std::set<uint16_t>::const_iterator it = new_backfill_vbs.begin();
+    for (; it != new_backfill_vbs.end(); ++it) {
         RCPtr<VBucket> vb = vbuckets.getBucket(*it);
         if (!vb) {
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
@@ -1704,6 +1677,8 @@ void TapProducer::scheduleBackfill_UNLOCKED(const std::vector<uint16_t> &vblist)
         // As we set the cursor to the beginning of the open checkpoint when backfill
         // is scheduled, we can simply remove the cursor now.
         vb->checkpointManager.removeTAPCursor(name);
+        // Send an initial_vbucket_stream message to the destination node so that it can
+        // reset the corresponding vbucket before receiving the backfill stream.
         TapVBucketEvent hi(TAP_OPAQUE, *it,
                            (vbucket_state_t)htonl(TAP_OPAQUE_INITIAL_VBUCKET_STREAM));
         addVBucketHighPriority_UNLOCKED(hi);
@@ -1712,7 +1687,7 @@ void TapProducer::scheduleBackfill_UNLOCKED(const std::vector<uint16_t> &vblist)
                          logHeader(), *it);
     }
 
-    if (newBackfillVBs.size() > 0) {
+    if (new_backfill_vbs.size() > 0) {
         doRunBackfill = true;
         backfillCompleted = false;
     }
@@ -2054,6 +2029,7 @@ bool TapProducer::runBackfill(VBucketFilter &vbFilter) {
         doRunBackfill = false;
         ++pendingBackfillCounter; // Will be decremented when each backfill thread is completed
         vbFilter = backFillVBucketFilter;
+        backFillVBucketFilter.reset();
     }
     return rv;
 }
