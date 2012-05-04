@@ -19,7 +19,6 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <stdint.h>
-#include <process.h>
 
 #define mkdir(a, b) mkdir(a)
 
