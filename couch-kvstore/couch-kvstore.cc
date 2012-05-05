@@ -596,6 +596,7 @@ bool CouchKVStore::setVBucketState(uint16_t vbucketId, vbucket_state_t state,
             rev = checkNewRevNum(dbFileName, true);
             if (rev == 0) {
                 fileRev = 1;
+                newfile = true;
             } else {
                 fileRev = rev;
             }
@@ -621,10 +622,14 @@ bool CouchKVStore::setVBucketState(uint16_t vbucketId, vbucket_state_t state,
         }
         fileRev = newFileRev;
 
-        // first get current max_deleted_seq before updating
-        // local doc (vbstate)
+        // if not newly created file, get current max_deleted_seq number
+        // first from the local doc before updating it
         vbucket_state vbState;
-        readVBState(db, vbucketId, vbState);
+        if (newfile) {
+            vbState.maxDeletedSeqno = 0;
+        } else {
+            readVBState(db, vbucketId, vbState);
+        }
 
         // update local doc with new state & checkpointId
         vbState.state = state;
