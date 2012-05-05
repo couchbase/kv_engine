@@ -1037,6 +1037,7 @@ public:
                 LockHolder lh = vb->ht.getLockedBucket(key, &bucket_num);
                 StoredValue *v = epstore->fetchValidValue(vb, key, bucket_num);
                 if (v) {
+                    rowid = v->getId();
                     const TapConfig &config = epe->getTapConfig();
                     d.snooze(t, config.getRequeueSleepTime());
                     ++stats.numTapBGFetchRequeued;
