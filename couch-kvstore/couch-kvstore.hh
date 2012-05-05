@@ -258,7 +258,8 @@ public:
 protected:
     void loadDB(shared_ptr<LoadCallback> cb, bool keysOnly,
                 std::vector<uint16_t> *vbids);
-    bool setVBucketState(uint16_t vbucketId, vbucket_state_t state, uint64_t checkpointId);
+    bool setVBucketState(uint16_t vbucketId, vbucket_state_t state,
+                         uint64_t checkpointId, bool newfile = false);
     template <typename T>
     void addStat(const std::string &prefix, const char *nm, T &val,
                  ADD_STAT add_stat, const void *c);

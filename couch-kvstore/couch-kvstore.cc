@@ -214,9 +214,52 @@ CouchKVStore::CouchKVStore(const CouchKVStore &copyFrom) :
 void CouchKVStore::reset()
 {
     // TODO CouchKVStore::flush() when couchstore api ready
+    Db *db = NULL;
     RememberingCallback<bool> cb;
+    std::map<uint16_t, vbucket_state> vbStateArray;
+
+    if (dbFileMap.empty()) {
+        std::vector<std::string> files;
+        discoverDbFiles(dbname, files);
+        populateFileNameMap(files);
+    }
+
+    std::map<uint16_t, int>::iterator itr = dbFileMap.begin();
+    for (; itr != dbFileMap.end(); itr++) {
+        vbucket_state vbstate;
+        couchstore_error_t errCode = openDB(itr->first, itr->second, &db, 0);
+        if (errCode == COUCHSTORE_SUCCESS) {
+            readVBState(db, itr->first, vbstate);
+            vbStateArray.insert(std::pair<uint16_t,
+                                          vbucket_state>(itr->first, vbstate));
+            closeDatabaseHandle(db);
+        } else {
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                             "Warning: failed to open database file to flush, "
+                             "vb=%d error=%s\n",
+                             (int)itr->first, couchstore_strerror(errCode));
+        }
+    }
+    dbFileMap.clear();
+
     mc->flush(cb);
     cb.waitForValue();
+
+    std::map<uint16_t, vbucket_state>::iterator itor = vbStateArray.begin();
+    for (; itor != vbStateArray.end(); itor++) {
+        // create an empty database file with given vbucket state
+        uint16_t vbucket = itor->first;
+        vbucket_state_t state = itor->second.state;
+        uint64_t checkpointId = itor->second.checkpointId;
+        if (setVBucketState(vbucket, state, checkpointId, true)) {
+            updateDbFileMap(vbucket, 1, true);
+        } else {
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                             "Warning: failed to create and itialize an empty "
+                             "database file for vbucket %d after delete\n",
+                             (int)vbucket);
+        }
+    }
 }
 
 void CouchKVStore::set(const Item &itm, uint16_t, Callback<mutation_result> &cb)
@@ -265,7 +308,6 @@ void CouchKVStore::get(const std::string &key, uint64_t, uint16_t vb, uint16_t,
         cb.callback(rv);
         return;
     }
-
     couchstore_error_t errCode = openDB(vb, dbFileRev(dbFile), &db, 0, NULL);
     if (errCode != COUCHSTORE_SUCCESS) {
         ++st.numGetFailure;
@@ -398,16 +440,59 @@ bool CouchKVStore::delVBucket(uint16_t vbucket, uint16_t)
 {
     assert(mc);
     RememberingCallback<bool> cb;
+
+    Db *db = NULL;
+    std::string dbFile;
+    vbucket_state vbstate;
+    bool restoreVBstate = false;
+
+    // we need to preserve vbucket state and restore it in
+    // an empty database file after deletion, this is done
+    // so backfills from a source node can continue to write
+    // after the vbucket deletion
+
+    if (getDbFile(vbucket, dbFile)) {
+        couchstore_error_t errCode = openDB(vbucket, dbFileRev(dbFile), &db, 0);
+        if (errCode == COUCHSTORE_SUCCESS) {
+            restoreVBstate = true;
+            readVBState(db, vbucket, vbstate);
+            closeDatabaseHandle(db);
+        } else {
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                             "Warning: failed to open database to read "
+                             "vbucket state, vb=%d error=%s\n",
+                             (int)vbucket, couchstore_strerror(errCode));
+        }
+        remVBucketFromDbFileMap(vbucket);
+    } else {
+        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                         "Warning: cannot locate database file to read vbucket "
+                         "state, file=%s\n", dbFile.c_str());
+    }
+
     mc->delVBucket(vbucket, cb);
     cb.waitForValue();
-    remVBucketFromDbFileMap(vbucket);
+
+    if (restoreVBstate) {
+        // create an empty database file with stashed vbucket state
+        uint64_t checkpointId = vbstate.checkpointId;
+        vbucket_state_t state = vbstate.state;
+        if (setVBucketState(vbucket, state, checkpointId, true)) {
+            updateDbFileMap(vbucket, 1, false);
+        } else {
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                             "Warning: failed to create and itialize an empty "
+                             "database file for vbucket %d after delete\n",
+                             (int)vbucket);
+        }
+    }
     return cb.val;
 }
 
 vbucket_map_t CouchKVStore::listPersistedVbuckets()
 {
     std::map<std::pair<uint16_t, uint16_t>, vbucket_state> rv;
-    std::vector<std::string> files = std::vector<std::string>();
+    std::vector<std::string> files;
 
     if (dbFileMap.empty()) {
         // warmup, first discover db files from local directory
@@ -490,7 +575,7 @@ bool CouchKVStore::snapshotStats(const std::map<std::string, std::string> &)
 }
 
 bool CouchKVStore::setVBucketState(uint16_t vbucketId, vbucket_state_t state,
-                                   uint64_t checkpointId)
+                                   uint64_t checkpointId, bool newfile)
 {
     Db *db = NULL;
     couchstore_error_t errorCode;
@@ -502,16 +587,21 @@ bool CouchKVStore::setVBucketState(uint16_t vbucketId, vbucket_state_t state,
 
     id << vbucketId;
     dbFileName = dbname + "/" + id.str() + ".couch";
-    mapItr = dbFileMap.find(vbucketId);
-    if (mapItr == dbFileMap.end()) {
-        rev = checkNewRevNum(dbFileName, true);
-        if (rev == 0) {
-            fileRev = 1; // file does not exist, create the db file with rev = 1
-        } else {
-            fileRev = rev;
-        }
+
+    if (newfile) {
+        fileRev = 1; // create a db file with rev = 1
     } else {
-        fileRev = mapItr->second;
+        mapItr = dbFileMap.find(vbucketId);
+        if (mapItr == dbFileMap.end()) {
+            rev = checkNewRevNum(dbFileName, true);
+            if (rev == 0) {
+                fileRev = 1;
+            } else {
+                fileRev = rev;
+            }
+        } else {
+            fileRev = mapItr->second;
+        }
     }
 
     bool retry = true;
@@ -536,7 +626,7 @@ bool CouchKVStore::setVBucketState(uint16_t vbucketId, vbucket_state_t state,
         vbucket_state vbState;
         readVBState(db, vbucketId, vbState);
 
-        // update local doc with new state & checkpoint_id
+        // update local doc with new state & checkpointId
         vbState.state = state;
         vbState.checkpointId = checkpointId;
         errorCode = saveVBState(db, vbState);

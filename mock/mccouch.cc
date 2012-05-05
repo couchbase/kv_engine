@@ -312,12 +312,6 @@ static void removeVbucketFile(uint16_t vbucket)
     snprintf(fname, sizeof(fname), "/tmp/test.db/%d.couch.1",
              vbucket);
     remove(fname);
-
-    // create a empty file with the same name, this is done
-    // to emualte how mccouch does for handling delete vbucket
-    FILE *pFile;
-    pFile = fopen(fname, "w+");
-    fclose(pFile);
 }
 
 void McConnection::handleDeleteVbucket(protocol_binary_request_header *req)
