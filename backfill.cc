@@ -19,9 +19,6 @@ void BackfillDiskLoad::callback(GetValue &gv) {
     if (!connMap.performTapOp(name, tapop, gv.getValue())) {
         delete gv.getValue();
     }
-
-    NotifyPausedTapOperation notifyOp;
-    connMap.performTapOp(name, notifyOp, engine);
 }
 
 bool BackfillDiskLoad::callback(Dispatcher &d, TaskId t) {
