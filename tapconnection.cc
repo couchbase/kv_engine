@@ -929,6 +929,14 @@ public:
                     d.snooze(t, TapProducer::requeueSleepTime);
                     ++stats.numTapBGFetchRequeued;
                     return true;
+                } else {
+                    // As an item is deleted from hash table, push the item
+                    // deletion event into the TAP queue.
+                    queued_item qitem(new QueuedItem(key, vbucket, queue_op_del,
+                                                     vbver, -1));
+                    std::list<queued_item> del_items;
+                    del_items.push_back(qitem);
+                    epe->getTapConnMap().setEvents(name, &del_items);
                 }
             }
         }
