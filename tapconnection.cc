@@ -930,6 +930,8 @@ public:
                     ++stats.numTapBGFetchRequeued;
                     return true;
                 } else {
+                    CompletedBGFetchTapOperation tapop;
+                    epe->getTapConnMap().performTapOp(name, tapop, gcb.val.getValue());
                     // As an item is deleted from hash table, push the item
                     // deletion event into the TAP queue.
                     queued_item qitem(new QueuedItem(key, vbucket, queue_op_del,
@@ -937,7 +939,15 @@ public:
                     std::list<queued_item> del_items;
                     del_items.push_back(qitem);
                     epe->getTapConnMap().setEvents(name, &del_items);
+                    return false;
                 }
+            } else {
+                CompletedBGFetchTapOperation tapop;
+                epe->getTapConnMap().performTapOp(name, tapop, gcb.val.getValue());
+                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                 "VBucket %d not exist!!! TAP BG fetch failed for TAP %s\n",
+                                 vbucket, name.c_str());
+                return false;
             }
         }
 
