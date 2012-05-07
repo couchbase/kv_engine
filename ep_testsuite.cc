@@ -21,6 +21,7 @@
 #include <map>
 #include <string>
 #include <vector>
+#include <sstream>
 #include <cstdlib>
 #include <sys/stat.h>
 #include <assert.h>
@@ -72,9 +73,21 @@
 // away ;)
 typedef void (*UNLOCK_COOKIE_T)(const void *cookie);
 
-extern "C" {
+extern "C" bool abort_msg(const char *expr, const char *msg, int line);
 
-bool abort_msg(const char *expr, const char *msg, int line);
+
+template <typename T>
+static void checkeqfn(T exp, T got, const char *msg, const char *file, const int linenum) {
+    if (exp != got) {
+        std::stringstream ss;
+        ss << "Expected `" << exp << "', got `" << got << "' - " << msg;
+        abort_msg(ss.str().c_str(), file, linenum);
+    }
+}
+
+#define checkeq(a, b, c) checkeqfn(a, b, c, __FILE__, __LINE__)
+
+extern "C" {
 
 #define check(expr, msg) \
     static_cast<void>((expr) ? 0 : abort_msg(#expr, msg, __LINE__))
@@ -340,7 +353,7 @@ static enum test_result check_key_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     if (vlen != info.value[0].iov_len) {
         std::cerr << "Expected length " << vlen
                   << " got " << info.value[0].iov_len << std::endl;
-        check(vlen == info.value[0].iov_len, "Length mismatch.");
+        checkeq(vlen, info.value[0].iov_len, "Length mismatch.");
     }
 
     check(memcmp(info.value[0].iov_base, val, vlen) == 0,
@@ -887,9 +900,8 @@ static void wait_for_persisted_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 
     item *i = NULL;
     int commitNum = get_int_stat(h, h1, "ep_commit_num");
-
-    check(store(h, h1, NULL, OPERATION_SET, key, val, &i, 0, vbucketId) == ENGINE_SUCCESS,
-          "Failed to store an item.");
+    checkeq(ENGINE_SUCCESS, store(h, h1, NULL, OPERATION_SET, key, val, &i, 0, vbucketId),
+            "Failed to store an item.");
 
     // Wait for persistence...
     wait_for_flusher_to_settle(h, h1);
@@ -999,10 +1011,10 @@ extern "C" {
             store(hp->h, hp->h1, NULL, OPERATION_ADD,
                   "key", "somevalue", &it);
             usleep(10);
-            check(ENGINE_SUCCESS ==
-                  store(hp->h, hp->h1, NULL, OPERATION_SET,
-                        "key", "somevalue", &it),
-                  "Error setting.");
+            checkeq(ENGINE_SUCCESS,
+                    store(hp->h, hp->h1, NULL, OPERATION_SET,
+                          "key", "somevalue", &it),
+                    "Error setting.");
             usleep(10);
             // Ignoring the result here -- we're racing.
             hp->h1->remove(hp->h, NULL, "key", 3, 0, 0);
@@ -1553,26 +1565,26 @@ static enum test_result test_delete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key"), "Expected missing key");
 
     // Can I time travel to an expired object and delete it?
-    check(store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i) == ENGINE_SUCCESS,
-          "Failed set.");
+    checkeq(ENGINE_SUCCESS, store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i),
+            "Failed set.");
     testHarness.time_travel(3617);
-    check(h1->remove(h, NULL, "key", 3, 0, 0) == ENGINE_KEY_ENOENT,
-          "Did not get ENOENT removing an expired object.");
-    check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key"), "Expected missing key");
+    checkeq(ENGINE_KEY_ENOENT, h1->remove(h, NULL, "key", 3, 0, 0),
+            "Did not get ENOENT removing an expired object.");
+    checkeq(ENGINE_KEY_ENOENT, verify_key(h, h1, "key"), "Expected missing key");
 
     return SUCCESS;
 }
 
 static enum test_result test_set_delete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
-    check(store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i) == ENGINE_SUCCESS,
-          "Failed set.");
+    checkeq(ENGINE_SUCCESS, store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i),
+            "Failed set.");
     check_key_value(h, h1, "key", "somevalue", 9);
-    check(h1->remove(h, NULL, "key", 3, 0, 0) == ENGINE_SUCCESS,
-          "Failed remove with value.");
-    check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key"), "Expected missing key");
+    checkeq(ENGINE_SUCCESS, h1->remove(h, NULL, "key", 3, 0, 0),
+            "Failed remove with value.");
+    checkeq(ENGINE_KEY_ENOENT, verify_key(h, h1, "key"), "Expected missing key");
     wait_for_flusher_to_settle(h, h1);
-    check(get_int_stat(h, h1, "curr_items") == 0, "Deleting left tombstone.");
+    checkeq(0, get_int_stat(h, h1, "curr_items"), "Deleting left tombstone.");
     return SUCCESS;
 }
 
@@ -1596,11 +1608,12 @@ static enum test_result test_set_delete_invalid_cas(ENGINE_HANDLE *h, ENGINE_HAN
 static enum test_result test_bug2509(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     for (int j = 0; j < 10000; ++j) {
         item *itm = NULL;
-        check(store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &itm)
-              == ENGINE_SUCCESS, "Failed set.");
+        checkeq(ENGINE_SUCCESS,
+                store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &itm),
+                "Failed set.");
         usleep(10);
-        check(h1->remove(h, NULL, "key", 3, 0, 0) == ENGINE_SUCCESS,
-              "Failed remove with value.");
+        checkeq(ENGINE_SUCCESS, h1->remove(h, NULL, "key", 3, 0, 0),
+                "Failed remove with value.");
         usleep(10);
     }
 
@@ -1989,13 +2002,13 @@ static enum test_result test_expiry(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     assert(1 == get_int_stat(h, h1, "ep_expired"));
 
-    check(store(h, h1, NULL, OPERATION_SET, key, data, &it) == ENGINE_SUCCESS,
-                "Failed set.");
+    checkeq(ENGINE_SUCCESS, store(h, h1, NULL, OPERATION_SET, key, data, &it),
+            "Failed set.");
 
     std::stringstream ss;
     ss << "curr_items stat should be still 1 after ";
     ss << "overwriting the key that was expired, but not purged yet";
-    check(get_int_stat(h, h1, "curr_items") == 1, ss.str().c_str());
+    checkeq(1, get_int_stat(h, h1, "curr_items"), ss.str().c_str());
 
     return SUCCESS;
 }
@@ -3873,11 +3886,11 @@ static enum test_result test_bg_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     testHarness.time_travel(43);
     check_key_value(h, h1, "a", "b\r\n", 3, 0);
 
-    check(get_int_stat(h, h1, "paged_out_time_32,64", "timings") == 1,
-          "Expected one sample from 32s to 64s.");
+    checkeq(1, get_int_stat(h, h1, "paged_out_time_32,64", "timings"),
+            "Expected one sample from 32s to 64s.");
 
-    check(get_int_stat(h, h1, "ep_bg_num_samples") == 1,
-          "Expected one sample");
+    checkeq(1, get_int_stat(h, h1, "ep_bg_num_samples"),
+            "Expected one sample");
 
     check(vals.find("ep_bg_min_wait") != vals.end(), "Found no ep_bg_min_wait.");
     check(vals.find("ep_bg_max_wait") != vals.end(), "Found no ep_bg_max_wait.");
@@ -4131,17 +4144,17 @@ static enum test_result test_value_eviction(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
           "Expected reset stats to set ep_num_value_ejects to zero");
 
     check_key_value(h, h1, "k1", "v1", 2);
-    check(get_int_stat(h, h1, "ep_num_non_resident") == 1,
-          "Expected only one item to be non-resident");
-    check(get_int_stat(h, h1, "ep_num_active_non_resident") == 1,
-          "Expected only one active vbucket item to be non-resident");
+    checkeq(1, get_int_stat(h, h1, "ep_num_non_resident"),
+            "Expected only one item to be non-resident");
+    checkeq(1, get_int_stat(h, h1, "ep_num_active_non_resident"),
+            "Expected only one active vbucket item to be non-resident");
 
     check(set_vbucket_state(h, h1, 0, vbucket_state_replica), "Failed to set vbucket state.");
     check(set_vbucket_state(h, h1, 1, vbucket_state_replica), "Failed to set vbucket state.");
-    check(get_int_stat(h, h1, "ep_num_non_resident") == 1,
-          "Expected only one item to be non-resident");
-    check(get_int_stat(h, h1, "ep_num_active_non_resident") == 0,
-          "Expected no non-resident items");
+    checkeq(1, get_int_stat(h, h1, "ep_num_non_resident"),
+            "Expected only one item to be non-resident");
+    checkeq(0, get_int_stat(h, h1, "ep_num_active_non_resident"),
+            "Expected no non-resident items");
 
     return SUCCESS;
 }
@@ -4197,7 +4210,7 @@ static enum test_result test_mb3169(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(store(h, h1, NULL, OPERATION_SET, "set", "value2", &i, 0, 0)
           == ENGINE_SUCCESS, "Failed to store a value");
 
-    check(get_int_stat(h, h1, "ep_num_non_resident") == 3,
+    checkeq(3, get_int_stat(h, h1, "ep_num_non_resident"),
           "Expected mutation to mark item resident");
 
     check(h1->arithmetic(h, NULL, "incr", 4, true, false, 1, 1, 0,
@@ -4400,7 +4413,7 @@ static enum test_result test_disk_gt_ram_update_paged_out(ENGINE_HANDLE *h,
 
     check_key_value(h, h1, "k1", "new value", 9);
 
-    assert(0 == get_int_stat(h, h1, "ep_bg_fetched"));
+    checkeq(0, get_int_stat(h, h1, "ep_bg_fetched"), "bg fetched something");
 
     return SUCCESS;
 }
@@ -5132,7 +5145,7 @@ static enum test_result test_revid(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
         uint32_t seqno;
         memcpy(&seqno, last_body + 2, 4);
         seqno = ntohl(seqno);
-        check(seqno == ii, "Unexpected sequence number");
+        checkeq(ii, seqno, "Unexpected sequence number");
     }
 
     return SUCCESS;
