@@ -235,13 +235,16 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
         } while (!succeeded && retry > 0);
 
         if (succeeded && i->isExpired(startTime)) {
+            item_metadata itemMeta;
+
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                              "Item was expired at load:  %s",
                              i->getKey().c_str());
             epstore->deleteItem(i->getKey(),
-                                0, 0, // seqno, cas
+                                0, // cas
                                 i->getVBucketId(), NULL,
-                                true, false); // force, use_meta
+                                true, false, // force, use_meta
+                                &itemMeta);
         }
 
         if (succeeded && epstore->warmupTask->doReconstructLog()) {

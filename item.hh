@@ -124,7 +124,16 @@ private:
 
 typedef RCPtr<Blob> value_t;
 
-struct item_metadata {
+class item_metadata {
+public:
+    item_metadata() :
+        cas(0), seqno(0), flags(0), exptime(0) {
+    }
+
+    item_metadata(uint64_t c, uint32_t s, uint32_t f, time_t e) :
+        cas(c), seqno(s), flags(f), exptime(e) {
+    }
+
     uint64_t cas;
     uint32_t seqno;
     uint32_t flags;

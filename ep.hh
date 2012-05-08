@@ -569,21 +569,18 @@ public:
      * @param force override access to the vbucket even if the state of the
      *              vbucket would deny mutations.
      * @param use_meta delete an item using its meta data
-     * @param newCas the new CAS value of the item (used in delete_with_meta)
-     * @param newFlags the new flags of the item (used in delete_with_meta)
-     * @param newExptime the new exptime of the item (used in delete_with_meta)
+     * @param newItem pointer to metadata of new item
      * @return the result of the delete operation
      */
     ENGINE_ERROR_CODE deleteItem(const std::string &key,
-                                 uint32_t newSeqno,
                                  uint64_t cas,
                                  uint16_t vbucket,
                                  const void *cookie,
                                  bool force,
                                  bool use_meta,
-                                 uint64_t newCas=0,
-                                 uint32_t newFlags=0,
-                                 time_t newExptime=0);
+                                 item_metadata *newItemMeta);
+
+
 
     void reset();
 

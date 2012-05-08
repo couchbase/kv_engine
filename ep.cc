@@ -1670,15 +1670,18 @@ bool EventuallyPersistentStore::getKeyStats(const std::string &key,
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentStore::deleteItem(const std::string &key,
-                                                        uint32_t newSeqno,
                                                         uint64_t cas,
                                                         uint16_t vbucket,
                                                         const void *cookie,
                                                         bool force,
                                                         bool use_meta,
-                                                        uint64_t newCas,
-                                                        uint32_t newFlags,
-                                                        time_t newExptime) {
+                                                        item_metadata *itemMeta)
+{
+    uint32_t newSeqno = itemMeta->seqno;
+    uint64_t newCas   = itemMeta->cas;
+    uint32_t newFlags = itemMeta->flags;
+    time_t newExptime = itemMeta->exptime;
+
     RCPtr<VBucket> vb = getVBucket(vbucket);
     if (!vb || vb->getState() == vbucket_state_dead) {
         ++stats.numNotMyVBuckets;
@@ -2579,11 +2582,14 @@ bool EventuallyPersistentStore::warmupFromLog(const std::map<std::pair<uint16_t,
             }
 
             if (should_delete) {
+                item_metadata itemMeta;
+
                 // Deletion is pushed into the checkpoint for persistence.
                 deleteItem(record.key,
-                           0, 0, // seqno, cas
+                           0, // cas
                            record.vbucket, NULL,
-                           true, false); // force, use_meta
+                           true, false, // force, use_meta
+                           &itemMeta);
             }
         }
     }
