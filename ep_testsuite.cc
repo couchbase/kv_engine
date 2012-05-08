@@ -6862,6 +6862,7 @@ engine_test_t* get_tests(void) {
         TestCase("mb-3466", test_mb3466, NULL,
                  teardown, NULL, prepare, cleanup, BACKEND_ALL),
 
+        // XDCR unit tests
         TestCase("get meta", test_get_meta, NULL,
                  teardown, NULL, prepare, cleanup, BACKEND_COUCH),
 
@@ -6886,16 +6887,19 @@ engine_test_t* get_tests(void) {
         TestCase("delete with meta", test_delete_with_meta, NULL,
                  teardown, NULL, prepare, cleanup, BACKEND_COUCH),
 
-        TestCase("delete with meta deleted", test_delete_with_meta_deleted, NULL,
+        TestCase("delete with meta deleted", test_delete_with_meta_deleted,
+                 NULL, teardown, NULL, prepare, cleanup, BACKEND_COUCH),
+
+        TestCase("delete with meta nonexistent",
+                 test_delete_with_meta_nonexistent, NULL,
                  teardown, NULL, prepare, cleanup, BACKEND_COUCH),
 
-        TestCase("delete with meta nonexistent", test_delete_with_meta_nonexistent, NULL,
+        TestCase("delete_with_meta race with concurrent delete",
+                 test_delete_with_meta_race_with_delete, NULL,
                  teardown, NULL, prepare, cleanup, BACKEND_COUCH),
 
-        TestCase("delete_with_meta race with concurrent delete", test_delete_with_meta_race_with_delete, NULL,
-                 teardown, NULL, prepare, cleanup, BACKEND_COUCH),
-
-        TestCase("delete_with_meta race with concurrent set", test_delete_with_meta_race_with_set, NULL,
+        TestCase("delete_with_meta race with concurrent set",
+                 test_delete_with_meta_race_with_set, NULL,
                  teardown, NULL, prepare, cleanup, BACKEND_COUCH),
 
         TestCase("set with meta", test_set_with_meta, NULL,
@@ -6904,17 +6908,19 @@ engine_test_t* get_tests(void) {
         TestCase("set with meta deleted", test_set_with_meta_deleted, NULL,
                  teardown, NULL, prepare, cleanup, BACKEND_COUCH),
 
-        TestCase("set with meta nonexistent", test_set_with_meta_nonexistent, NULL,
+        TestCase("set with meta nonexistent", test_set_with_meta_nonexistent,
+                 NULL, teardown, NULL, prepare, cleanup, BACKEND_COUCH),
+
+        TestCase("set_with_meta race with concurrent set",
+                 test_set_with_meta_race_with_set, NULL,
                  teardown, NULL, prepare, cleanup, BACKEND_COUCH),
 
-        TestCase("set_with_meta race with concurrent set", test_set_with_meta_race_with_set, NULL,
+        TestCase("set_with_meta race with concurrent delete",
+                 test_set_with_meta_race_with_delete, NULL,
                  teardown, NULL, prepare, cleanup, BACKEND_COUCH),
 
-        TestCase("set_with_meta race with concurrent delete", test_set_with_meta_race_with_delete, NULL,
-                 teardown, NULL, prepare, cleanup, BACKEND_COUCH),
-
-        TestCase("temp item deletion", test_temp_item_deletion, NULL,
-                 teardown, "exp_pager_stime=3", prepare, cleanup, BACKEND_COUCH),
+        TestCase("temp item deletion", test_temp_item_deletion, NULL,teardown,
+                 "exp_pager_stime=3", prepare, cleanup, BACKEND_COUCH),
 
         // mutation log compactor tests
         TestCase("compact a mutation log", test_compact_mutation_log,
