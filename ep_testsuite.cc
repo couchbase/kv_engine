@@ -477,7 +477,7 @@ static void evict_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 }
 
 static bool get_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
-                     item_metadata &itm_meta) {
+                     ItemMetaData &itm_meta) {
     uint16_t nkey = strlen(key);
 
     union {
@@ -5215,7 +5215,7 @@ static enum test_result test_get_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
           "Failed set.");
     Item *it = reinterpret_cast<Item*>(i);
 
-    item_metadata itm_meta;
+    ItemMetaData itm_meta;
     check(get_meta(h, h1, key, itm_meta), "Expected to get meta");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
     check(itm_meta.seqno == it->getSeqno(), "Expected seqno to match");
@@ -5242,7 +5242,7 @@ static enum test_result test_get_meta_deleted(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
           "Delete failed");
     wait_for_flusher_to_settle(h, h1);
 
-    item_metadata itm_meta;
+    ItemMetaData itm_meta;
     check(get_meta(h, h1, key, itm_meta), "Expected to get meta");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
     check(last_deleted_flag, "Expected deleted flag to be set");
@@ -5256,7 +5256,7 @@ static enum test_result test_get_meta_deleted(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
 static enum test_result test_get_meta_nonexistent(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
 {
     char const *key = "k1";
-    item_metadata itm_meta;
+    ItemMetaData itm_meta;
 
     // wait until the vb snapshot has run
     wait_for_stat_change(h, h1, "ep_vb_snapshot_total", 0);
@@ -5272,7 +5272,7 @@ static enum test_result test_get_meta_with_get(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     char const *key2 = "key2";
 
     item *i = NULL;
-    item_metadata itm_meta;
+    ItemMetaData itm_meta;
 
     // test get_meta followed by get for an existing key. should pass.
     check(store(h, h1, NULL, OPERATION_SET, key1, "somevalue", &i) == ENGINE_SUCCESS,
@@ -5305,7 +5305,7 @@ static enum test_result test_get_meta_with_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     char const *key2 = "key2";
 
     item *i = NULL;
-    item_metadata itm_meta;
+    ItemMetaData itm_meta;
 
     // test get_meta followed by set for an existing key. should pass.
     check(store(h, h1, NULL, OPERATION_SET, key1, "somevalue", &i) == ENGINE_SUCCESS,
@@ -5341,7 +5341,7 @@ static enum test_result test_get_meta_with_delete(ENGINE_HANDLE *h, ENGINE_HANDL
     char const *key2 = "key2";
 
     item *i = NULL;
-    item_metadata itm_meta;
+    ItemMetaData itm_meta;
 
     // test get_meta followed by delete for an existing key. should pass.
     check(store(h, h1, NULL, OPERATION_SET, key1, "somevalue", &i) == ENGINE_SUCCESS,
@@ -5457,7 +5457,7 @@ static enum test_result test_delete_with_meta_deleted(ENGINE_HANDLE *h,
     wait_for_flusher_to_settle(h, h1);
 
     // get metadata of deleted key
-    item_metadata itm_meta;
+    ItemMetaData itm_meta;
     check(get_meta(h, h1, key, itm_meta), "Expected to get meta");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
     check(last_deleted_flag, "Expected deleted flag to be set");
@@ -5514,7 +5514,7 @@ static enum test_result test_delete_with_meta_nonexistent(ENGINE_HANDLE *h,
                                                           ENGINE_HANDLE_V1 *h1) {
     const char *key = "delete_with_meta_key";
     uint16_t keylen = (uint16_t)strlen(key);
-    item_metadata itm_meta;
+    ItemMetaData itm_meta;
     // wait until the vb snapshot has run
     wait_for_stat_change(h, h1, "ep_vb_snapshot_total", 0);
 
@@ -5579,7 +5579,7 @@ static enum test_result test_delete_with_meta_race_with_set(ENGINE_HANDLE *h, EN
 
     size_t nb = 22;
     item *i = NULL;
-    item_metadata itm_meta;
+    ItemMetaData itm_meta;
     union {
         protocol_binary_request_header pkt;
         protocol_binary_request_delete_with_meta req;
@@ -5683,7 +5683,7 @@ static enum test_result test_delete_with_meta_race_with_delete(ENGINE_HANDLE *h,
 
     size_t nb = 22;
     item *i = NULL;
-    item_metadata itm_meta;
+    ItemMetaData itm_meta;
     union {
         protocol_binary_request_header pkt;
         protocol_binary_request_delete_with_meta req;
@@ -5791,7 +5791,7 @@ static enum test_result test_set_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
           "Failed set.");
 
     // get metadata for the key
-    item_metadata itm_meta;
+    ItemMetaData itm_meta;
     check(get_meta(h, h1, key, itm_meta), "Expected to get meta");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
 
@@ -5861,7 +5861,7 @@ static enum test_result test_set_with_meta_deleted(ENGINE_HANDLE *h, ENGINE_HAND
     wait_for_flusher_to_settle(h, h1);
 
     // get metadata for the key
-    item_metadata itm_meta;
+    ItemMetaData itm_meta;
     check(get_meta(h, h1, key, itm_meta), "Expected to get meta");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
     check(last_deleted_flag, "Expected deleted flag to be set");
@@ -5918,7 +5918,7 @@ static enum test_result test_set_with_meta_nonexistent(ENGINE_HANDLE *h, ENGINE_
     uint16_t keylen = (uint16_t)strlen(key);
     const char* val = "somevalue";
     uint16_t valLen = (uint16_t)strlen(val);
-    item_metadata itm_meta;
+    ItemMetaData itm_meta;
 
     // wait until the vb snapshot has run
     wait_for_stat_change(h, h1, "ep_vb_snapshot_total", 0);
@@ -5982,7 +5982,7 @@ static enum test_result test_set_with_meta_race_with_set(ENGINE_HANDLE *h, ENGIN
 
     size_t nb = 22;
     item *i = NULL;
-    item_metadata itm_meta;
+    ItemMetaData itm_meta;
     union {
         protocol_binary_request_header pkt;
         protocol_binary_request_set_with_meta req;
@@ -6086,7 +6086,7 @@ static enum test_result test_set_with_meta_race_with_delete(ENGINE_HANDLE *h, EN
 
     size_t nb = 22;
     item *i = NULL;
-    item_metadata itm_meta;
+    ItemMetaData itm_meta;
     union {
         protocol_binary_request_header pkt;
         protocol_binary_request_set_with_meta req;
@@ -6192,7 +6192,7 @@ static enum test_result test_temp_item_deletion(ENGINE_HANDLE *h, ENGINE_HANDLE_
           "Delete failed");
     wait_for_flusher_to_settle(h, h1);
 
-    item_metadata itm_meta;
+    ItemMetaData itm_meta;
     check(get_meta(h, h1, k1, itm_meta), "Expected to get meta");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
     check(last_deleted_flag, "Expected deleted flag to be set");

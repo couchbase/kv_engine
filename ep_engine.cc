@@ -1868,7 +1868,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
         {
             bool meta = false;
             uint32_t seqnum = 0;
-            item_metadata *itemMeta = new item_metadata(0, cas, flags, exptime);
+            ItemMetaData *itemMeta = new ItemMetaData(0, cas, flags, exptime);
 
             if (nengine == sizeof(uint32_t)) {
                 memcpy(&seqnum, engine_specific, sizeof(seqnum));
@@ -3758,7 +3758,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
     uint32_t metabytes = ntohl(request->message.body.nmeta_bytes);
     nbytes -= metabytes;
 
-    item_metadata itm_meta;
+    ItemMetaData itm_meta;
     uint8_t opcode = request->message.header.request.opcode;
 
     if (!Item::decodeMeta(dta + nbytes, itm_meta)) {
@@ -3836,7 +3836,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(const void* cookie,
     uint32_t metabytes = ntohl(request->message.body.nmeta_bytes);
     nbytes -= metabytes;
 
-    item_metadata itm_meta;
+    ItemMetaData itm_meta;
     uint8_t opcode = request->message.header.request.opcode;
 
     if (!Item::decodeMeta(dta + nbytes, itm_meta)) {

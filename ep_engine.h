@@ -198,11 +198,11 @@ public:
                                  uint64_t cas,
                                  uint16_t vbucket)
     {
-        item_metadata itemMeta;
-        ENGINE_ERROR_CODE ret = epstore->deleteItem(key, cas, // cas
+        ItemMetaData itemMeta;
+        ENGINE_ERROR_CODE ret = epstore->deleteItem(key, cas,
                                                     vbucket, cookie,
-                                                    false, // force
-                                                    false, // use metadata
+                                                    false, // not force
+                                                    false, // not use metadata
                                                     &itemMeta);
 
         if (ret == ENGINE_SUCCESS) {

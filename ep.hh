@@ -578,7 +578,7 @@ public:
                                  const void *cookie,
                                  bool force,
                                  bool use_meta,
-                                 item_metadata *newItemMeta);
+                                 ItemMetaData *newItemMeta);
 
 
 

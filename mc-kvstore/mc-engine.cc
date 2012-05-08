@@ -127,7 +127,7 @@ public:
                 protocol_binary_response_get_meta *gres;
                 gres = (protocol_binary_response_get_meta*)res;
 
-                item_metadata itm_meta;
+                ItemMetaData itm_meta;
                 uint8_t *meta_bytes = gres->bytes + sizeof(gres->bytes);
                 if (!Item::decodeMeta(meta_bytes, itm_meta)) {
                     getLogger()->log(EXTENSION_LOG_WARNING, NULL,
@@ -437,7 +437,7 @@ public:
                                  "FATAL: Object returned from mccouch without revid");
                 abort();
             }
-            item_metadata itm_meta;
+            ItemMetaData itm_meta;
 
             if (!Item::decodeMeta(es, itm_meta)) {
                 getLogger()->log(EXTENSION_LOG_WARNING, NULL,

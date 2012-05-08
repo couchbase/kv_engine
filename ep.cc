@@ -1675,7 +1675,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteItem(const std::string &key,
                                                         const void *cookie,
                                                         bool force,
                                                         bool use_meta,
-                                                        item_metadata *itemMeta)
+                                                        ItemMetaData *itemMeta)
 {
     uint32_t newSeqno = itemMeta->seqno;
     uint64_t newCas   = itemMeta->cas;
@@ -2582,7 +2582,7 @@ bool EventuallyPersistentStore::warmupFromLog(const std::map<std::pair<uint16_t,
             }
 
             if (should_delete) {
-                item_metadata itemMeta;
+                ItemMetaData itemMeta;
 
                 // Deletion is pushed into the checkpoint for persistence.
                 deleteItem(record.key,

@@ -235,7 +235,7 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
         } while (!succeeded && retry > 0);
 
         if (succeeded && i->isExpired(startTime)) {
-            item_metadata itemMeta;
+            ItemMetaData itemMeta;
 
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                              "Item was expired at load:  %s",

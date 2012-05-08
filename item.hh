@@ -124,13 +124,17 @@ private:
 
 typedef RCPtr<Blob> value_t;
 
-class item_metadata {
+/**
+ * The ItemMetaData structure is used to pass meata data information of
+ * an Item.
+ */
+class ItemMetaData {
 public:
-    item_metadata() :
+    ItemMetaData() :
         cas(0), seqno(0), flags(0), exptime(0) {
     }
 
-    item_metadata(uint64_t c, uint32_t s, uint32_t f, time_t e) :
+    ItemMetaData(uint64_t c, uint32_t s, uint32_t f, time_t e) :
         cas(c), seqno(s), flags(f), exptime(e) {
     }
 
@@ -343,7 +347,7 @@ public:
         return true;
     }
 
-    static bool decodeMeta(const uint8_t *dta, item_metadata &meta) {
+    static bool decodeMeta(const uint8_t *dta, ItemMetaData &meta) {
         uint32_t seqno;
         uint64_t cas;
         time_t exptime;
