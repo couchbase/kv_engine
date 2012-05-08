@@ -955,7 +955,6 @@ public:
         if (!epe->getTapConnMap().performTapOp(name, tapop, gcb.val.getValue())) {
             delete gcb.val.getValue(); // Tap connection is closed. Free an item instance.
         }
-        epe->notifyIOComplete(cookie, ENGINE_SUCCESS);
 
         hrtime_t stop = gethrtime();
 
