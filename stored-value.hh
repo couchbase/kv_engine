@@ -287,6 +287,10 @@ public:
     void resetValue() {
         assert(!isDeleted());
         value.reset();
+        // item no longer resident once reset the value
+        if (!_isSmall) {
+            extra.feature.resident = false;
+        }
     }
 
     size_t valLength() {

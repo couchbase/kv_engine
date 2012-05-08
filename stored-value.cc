@@ -481,8 +481,14 @@ add_type_t HashTable::unlocked_add(int &bucket_num,
 
 add_type_t HashTable::unlocked_addTempDeletedItem(int &bucket_num,
                                                   const std::string &key) {
+
     assert(isActive());
     Item itm(key.c_str(), key.length(), (size_t)0, (uint32_t)0, (time_t)0);
+
+    // if a temp item for a possibly deleted, set it non-resident by resetting
+    // the value cuz normally a new item added is considered resident which does
+    // not apply for temp item.
+
     return unlocked_add(bucket_num, itm, false, true, true);
 }
 
