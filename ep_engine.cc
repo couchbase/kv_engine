@@ -1868,16 +1868,15 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
         {
             bool meta = false;
             uint32_t seqnum = 0;
-            ItemMetaData *itemMeta = new ItemMetaData(0, cas, flags, exptime);
+            ItemMetaData itemMeta(0, cas, flags, exptime);
 
             if (nengine == sizeof(uint32_t)) {
                 memcpy(&seqnum, engine_specific, sizeof(seqnum));
-                seqnum = ntohl(seqnum);
-                itemMeta->seqno = seqnum;
+                itemMeta.seqno = ntohl(seqnum);
                 meta = true;
             }
             ret = epstore->deleteItem(k, 0, vbucket, cookie, true, meta,
-                                      itemMeta);
+                                      &itemMeta);
             if (ret == ENGINE_SUCCESS) {
                 addDeleteEvent(k, vbucket, 0);
             } else if (ret == ENGINE_KEY_ENOENT) {
