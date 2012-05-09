@@ -513,6 +513,7 @@ public:
      * Set the memory threshold on the current bucket quota for accepting a new mutation
      */
     static void setMutationMemoryThreshold(double memThreshold);
+    static double getMutationMemoryThreshold();
 
 private:
 
