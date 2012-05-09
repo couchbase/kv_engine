@@ -1974,9 +1974,7 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
             *itm = item = gv.getValue();
         } else {
             if (gv.getStatus() == ENGINE_KEY_ENOENT || item->isExpired(ep_real_time())) {
-                delete item;
-                retry = true;
-                return TAP_NOOP;
+                ret = TAP_DELETION;
             }
             *itm = item;
         }
@@ -1992,7 +1990,8 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
         }
 
         queued_item qi(new QueuedItem(item->getKey(), item->getVBucketId(),
-                                      queue_op_set, -1, item->getId()));
+                                      ret == TAP_MUTATION ? queue_op_set : queue_op_del,
+                                      -1, item->getId()));
         connection->addTapLogElement(qi);
     } else if (connection->hasQueuedItem()) {
         if (connection->waitForCheckpointMsgAck()) {
