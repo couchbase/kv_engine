@@ -1743,6 +1743,7 @@ Item* TapProducer::getNextItem(const void *c, uint16_t *vbucket, tap_event_t &re
 
     // Check if there are any items fetched from disk for backfill operations.
     if (hasItemFromDisk_UNLOCKED()) {
+        ret = TAP_MUTATION;
         itm = nextBgFetchedItem_UNLOCKED();
         *vbucket = itm->getVBucketId();
         if (!vbucketFilter(*vbucket)) {
@@ -1766,15 +1767,13 @@ Item* TapProducer::getNextItem(const void *c, uint16_t *vbucket, tap_event_t &re
             delete itm;
             itm = gv.getValue();
         } else if (gv.getStatus() == ENGINE_KEY_ENOENT || itm->isExpired(ep_real_time())) {
-            delete itm;
-            ret = TAP_NOOP;
-            return NULL;
+            ret = TAP_DELETION;
         }
 
-        ret = TAP_MUTATION;
         ++stats.numTapBGFetched;
         qi = queued_item(new QueuedItem(itm->getKey(), itm->getVBucketId(),
-                                        queue_op_set, -1, itm->getId()));
+                                        ret == TAP_MUTATION ? queue_op_set : queue_op_del,
+                                        -1, itm->getId()));
     } else if (hasQueuedItem_UNLOCKED()) { // Item from memory backfill or checkpoints
         if (waitForCheckpointMsgAck()) {
             getLogger()->log(EXTENSION_LOG_INFO, NULL,
