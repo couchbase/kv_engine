@@ -688,7 +688,7 @@ private:
 
     void setResident() {
         if (!_isSmall) {
-            extra.feature.resident = 1;
+            extra.feature.resident = true;
         }
     }
 
