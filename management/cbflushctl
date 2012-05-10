@@ -71,14 +71,24 @@ Persistence:
     drain          - wait until queues are drained
 
 Available params for "set":
-    min_data_age   - minimum data age before flushing data
-    queue_age_cap  - maximum queue age before flushing data
-    max_txn_size   - maximum number of items in a flusher transaction
-    bg_fetch_delay - delay before executing a bg fetch (test feature)
-    max_size       - max memory used by the server
-    mem_high_wat   - high water mark
-    mem_low_wat    - low water mark
-    exp_pager_stime- Expiry Pager Sleeptime""")
+    bg_fetch_delay         - Delay before executing a bg fetch (test feature)
+    chk_max_items          - Maximum items before creating a new checkpoint
+    chk_period             - Duration before creating a new checkpoint
+    exp_pager_stime        - Expiry Pager Sleeptime
+    inconsistent_slave_chk - Enables active to active replication
+    queue_age_cap          - Maximum queue age before flushing data
+    max_checkpoints        - Maximum number of checkpoints
+    max_size               - Max memory used by the server
+    max_txn_size           - Maximum number of items in a flusher transaction
+    mem_high_wat           - High water mark
+    mem_low_wat            - Low water mark
+    min_data_age           - Minimum data age before flushing data
+    sync_cmd_timeout       - The timeout for the sync command
+    tap_throttle_queue_cap - Destination disk write queue cap for tap backoff
+                             ('infinite' means no cap)
+    tap_throttle_threshold - Destination memory threshold for tap backoff
+    keep_closed_chks       - Keep all closed checkpoints in memory
+    """)
 
     c.addCommand('stop', stop, 'stop')
     c.addCommand('start', start, 'start')
