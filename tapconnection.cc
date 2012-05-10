@@ -1008,7 +1008,7 @@ void TapProducer::queueBGFetch(const std::string &key, uint64_t id,
     engine.getEpStore()->getRODispatcher()->schedule(dcb, NULL, Priority::TapBgFetcherPriority);
     ++bgQueued;
     ++bgJobIssued;
-    assert(bgJobIssued - bgJobCompleted > 0);
+    assert(bgJobIssued > bgJobCompleted);
 }
 
 void TapProducer::completeBGFetchJob(Item *itm, bool implicitEnqueue) {
@@ -1021,6 +1021,7 @@ void TapProducer::completeBGFetchJob(Item *itm, bool implicitEnqueue) {
         ++bgJobIssued;
     }
     ++bgJobCompleted;
+    assert(bgJobIssued >= bgJobCompleted);
 
     if (itm) {
         backfilledItems.push(itm);
