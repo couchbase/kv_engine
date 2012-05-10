@@ -60,7 +60,6 @@ static LIBEVENT_THREAD dispatcher_thread;
 static int nthreads;
 static LIBEVENT_THREAD *threads;
 static pthread_t *thread_ids;
-LIBEVENT_THREAD *tap_thread;
 
 /*
  * Number of worker threads that have finished setting themselves up.
@@ -71,7 +70,6 @@ static pthread_cond_t init_cond;
 
 
 static void thread_libevent_process(int fd, short which, void *arg);
-static void libevent_tap_process(int fd, short which, void *arg);
 
 /*
  * Initializes a connection queue.
@@ -240,8 +238,8 @@ static void setup_dispatcher(struct event_base *main_base,
 /*
  * Set up a thread's information.
  */
-static void setup_thread(LIBEVENT_THREAD *me, bool tap) {
-    me->type = tap ? TAP : GENERAL;
+static void setup_thread(LIBEVENT_THREAD *me) {
+    me->type = GENERAL;
     me->base = event_init();
     if (! me->base) {
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
@@ -252,7 +250,7 @@ static void setup_thread(LIBEVENT_THREAD *me, bool tap) {
     /* Listen for notifications from other threads */
     event_set(&me->notify_event, me->notify[0],
               EV_READ | EV_PERSIST,
-              tap ? libevent_tap_process : thread_libevent_process, me);
+              thread_libevent_process, me);
     event_base_set(me->base, &me->notify_event);
 
     if (event_add(&me->notify_event, 0) == -1) {
@@ -261,15 +259,13 @@ static void setup_thread(LIBEVENT_THREAD *me, bool tap) {
         exit(1);
     }
 
-    if (!tap) {
-        me->new_conn_queue = malloc(sizeof(struct conn_queue));
-        if (me->new_conn_queue == NULL) {
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                            "Failed to allocate memory for connection queue");
-            exit(EXIT_FAILURE);
-        }
-        cq_init(me->new_conn_queue);
+    me->new_conn_queue = malloc(sizeof(struct conn_queue));
+    if (me->new_conn_queue == NULL) {
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                        "Failed to allocate memory for connection queue");
+        exit(EXIT_FAILURE);
     }
+    cq_init(me->new_conn_queue);
 
     if ((pthread_mutex_init(&me->mutex, NULL) != 0)) {
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
@@ -362,27 +358,35 @@ static void thread_libevent_process(int fd, short which, void *arg) {
         cqi_free(item);
     }
 
-    pthread_mutex_lock(&me->mutex);
+    LOCK_THREAD(me);
     conn* pending = me->pending_io;
     me->pending_io = NULL;
-    pthread_mutex_unlock(&me->mutex);
     while (pending != NULL) {
         conn *c = pending;
         assert(me == c->thread);
         pending = pending->next;
         c->next = NULL;
-        register_event(c, 0);
+
+        if (c->sfd != INVALID_SOCKET && !c->registered_in_libevent) {
+            // The socket may have been shut down while we're looping
+            // in delayed shutdown
+            register_event(c, 0);
+        }
         /*
          * We don't want the thread to keep on serving all of the data
          * from the context of the notification pipe, so just let it
          * run one time to set up the correct mask in libevent
          */
         c->nevents = 1;
-       /* c->nevents = settings.reqs_per_event; */
-        while (c->state(c)) {
-            /* do task */
-        }
+        do {
+            if (settings.verbose) {
+                settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
+                                                "%d - Running task: (%s)\n",
+                                                c->sfd, state_text(c->state));
+            }
+        } while (c->state(c));
     }
+    UNLOCK_THREAD(me);
 }
 
 extern volatile rel_time_t current_time;
@@ -440,9 +444,8 @@ size_t list_to_array(conn **dest, size_t max_items, conn **l) {
 
 void enlist_conn(conn *c, conn **list) {
     LIBEVENT_THREAD *thr = c->thread;
-    assert(list == &thr->pending_io || list == &thr->pending_close);
+    assert(list == &thr->pending_io);
     if ((c->list_state & LIST_STATE_PROCESSING) == 0) {
-        assert(!list_contains(thr->pending_close, c));
         assert(!list_contains(thr->pending_io, c));
         assert(c->next == NULL);
         c->next = *list;
@@ -450,9 +453,7 @@ void enlist_conn(conn *c, conn **list) {
         assert(list_contains(*list, c));
         assert(!has_cycle(*list));
     } else {
-        c->list_state |= (list == &thr->pending_io ?
-                          LIST_STATE_REQ_PENDING_IO :
-                          LIST_STATE_REQ_PENDING_CLOSE);
+        c->list_state |= LIST_STATE_REQ_PENDING_IO;
     }
 }
 
@@ -463,8 +464,6 @@ void finalize_list(conn **list, size_t items) {
             if (list[i]->sfd != INVALID_SOCKET) {
                 if (list[i]->list_state & LIST_STATE_REQ_PENDING_IO) {
                     enlist_conn(list[i], &list[i]->thread->pending_io);
-                } else if (list[i]->list_state & LIST_STATE_REQ_PENDING_CLOSE) {
-                    enlist_conn(list[i], &list[i]->thread->pending_close);
                 }
             }
             list[i]->list_state = 0;
@@ -472,208 +471,21 @@ void finalize_list(conn **list, size_t items) {
     }
 }
 
-
-static void libevent_tap_process(int fd, short which, void *arg) {
-    LIBEVENT_THREAD *me = arg;
-    assert(me->type == TAP);
-
-    if (recv(fd, devnull, sizeof(devnull), 0) == -1) {
-        if (settings.verbose > 0) {
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                            "Can't read from libevent pipe: %s\n",
-                                            strerror(errno));
-        }
-    }
-
-    if (memcached_shutdown) {
-        event_base_loopbreak(me->base);
-        return ;
-    }
-
-    // Do we have pending closes?
-    const size_t max_items = 256;
-    LOCK_THREAD(me);
-    conn *pending_close[max_items];
-    size_t n_pending_close = 0;
-
-    if (me->pending_close && me->last_checked != current_time) {
-        assert(!has_cycle(me->pending_close));
-        me->last_checked = current_time;
-
-        n_pending_close = list_to_array(pending_close, max_items,
-                                        &me->pending_close);
-    }
-
-    // Now copy the pending IO buffer and run them...
-    conn *pending_io[max_items];
-    size_t n_items = list_to_array(pending_io, max_items, &me->pending_io);
-
-    UNLOCK_THREAD(me);
-    for (size_t i = 0; i < n_items; ++i) {
-        conn *c = pending_io[i];
-
-        assert(c->thread == me);
-
-        LOCK_THREAD(c->thread);
-        assert(me == c->thread);
-        settings.extensions.logger->log(EXTENSION_LOG_DEBUG, NULL,
-                                        "Processing tap pending_io for %d\n", c->sfd);
-
-        UNLOCK_THREAD(me);
-        if (!c->registered_in_libevent) {
-            register_event(c, NULL);
-        }
-        /*
-         * We don't want the thread to keep on serving all of the data
-         * from the context of the notification pipe, so just let it
-         * run one time to set up the correct mask in libevent
-         */
-        c->nevents = 1;
-        c->which = EV_WRITE;
-        while (c->state(c)) {
-            /* do task */
-        }
-    }
-
-    /* Close any connections pending close */
-    for (size_t i = 0; i < n_pending_close; ++i) {
-        conn *ce = pending_close[i];
-        if (ce->refcount == 1) {
-            settings.extensions.logger->log(EXTENSION_LOG_DEBUG, NULL,
-                                            "OK, time to nuke: %p\n",
-                                            (void*)ce);
-            assert(ce->next == NULL);
-            conn_close(ce);
-            pending_close[i] = NULL;
-        } else {
-            LOCK_THREAD(me);
-            enlist_conn(ce, &me->pending_close);
-            UNLOCK_THREAD(me);
-        }
-    }
-
-    LOCK_THREAD(me);
-    finalize_list(pending_io, n_items);
-    finalize_list(pending_close, n_pending_close);
-    UNLOCK_THREAD(me);
-}
-
-static bool is_thread_me(LIBEVENT_THREAD *thr) {
-#ifdef __WIN32__
-    pthread_t tid = pthread_self();
-    return(tid.p == thr->thread_id.p && tid.x == thr->thread_id.x);
-#else
-    return pthread_self() == thr->thread_id;
-#endif
-}
-
 void notify_io_complete(const void *cookie, ENGINE_ERROR_CODE status)
 {
-    if (cookie == NULL) {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                        "notify_io_complete called without a valid cookie (status %x)\n",
-                                        status);
-        return ;
-    }
-
     struct conn *conn = (struct conn *)cookie;
+    assert(conn);
+    LIBEVENT_THREAD *thr = conn->thread;
+    assert(thr);
 
     settings.extensions.logger->log(EXTENSION_LOG_DEBUG, NULL,
                                     "Got notify from %d, status %x\n",
                                     conn->sfd, status);
 
-    /*
-    ** TROND:
-    **   I changed the logic for the tap connections so that the core
-    **   issues the ON_DISCONNECT call to the engine instead of trying
-    **   to close the connection. Then it let's the engine have a grace
-    **   period to call notify_io_complete if not it will go ahead and
-    **   kill it.
-    **
-    */
-    if (status == ENGINE_DISCONNECT && conn->thread == tap_thread) {
-        LOCK_THREAD(conn->thread);
-
-        /** Remove the connection from both of the lists */
-        conn->thread->pending_io = list_remove(conn->thread->pending_io,
-                                               conn);
-        conn->thread->pending_close = list_remove(conn->thread->pending_close,
-                                                  conn);
-
-
-        if (conn->state == conn_pending_close ||
-            conn->state == conn_immediate_close) {
-            if (conn->refcount == 1) {
-                settings.extensions.logger->log(EXTENSION_LOG_DEBUG, NULL,
-                                                "Complete shutdown of %p",
-                                                conn);
-                conn_set_state(conn, conn_immediate_close);
-                enlist_conn(conn, &conn->thread->pending_close);
-            } else {
-                settings.extensions.logger->log(EXTENSION_LOG_DEBUG, NULL,
-                                                "Keep on waiting for shutdown of %p",
-                                                conn);
-            }
-        } else {
-            settings.extensions.logger->log(EXTENSION_LOG_DEBUG, NULL,
-                                            "Engine requested shutdown of %p",
-                                            conn);
-            conn_set_state(conn, conn_closing);
-            enlist_conn(conn, &conn->thread->pending_io);
-        }
-
-        if (!is_thread_me(conn->thread)) {
-            /* kick the thread in the butt */
-            notify_thread(conn->thread);
-        }
-
-        UNLOCK_THREAD(conn->thread);
-        return;
-    }
-
-    /*
-    ** There may be a race condition between the engine calling this
-    ** function and the core closing the connection.
-    ** Let's lock the connection structure (this might not be the
-    ** correct one) and re-evaluate.
-    */
-    LIBEVENT_THREAD *thr = conn->thread;
-    if (thr == NULL || (conn->state == conn_closing ||
-                        conn->state == conn_pending_close ||
-                        conn->state == conn_immediate_close)) {
-        return;
-    }
-
-    int notify = 0;
-
     LOCK_THREAD(thr);
-    if (thr != conn->thread || !conn->ewouldblock) {
-        // Ignore
-        UNLOCK_THREAD(thr);
-        return;
-    }
-
     conn->aiostat = status;
 
-    /* Move the connection to the closing state if the engine
-     * wants it to be disconnected
-     */
-    if (status == ENGINE_DISCONNECT) {
-        conn->state = conn_closing;
-        notify = 1;
-        thr->pending_io = list_remove(thr->pending_io, conn);
-        if (number_of_pending(conn, thr->pending_close) == 0) {
-            enlist_conn(conn, &thr->pending_close);
-        }
-    } else {
-        if (number_of_pending(conn, thr->pending_io) +
-            number_of_pending(conn, thr->pending_close) == 0) {
-            if (thr->pending_io == NULL) {
-                notify = 1;
-            }
-            enlist_conn(conn, &thr->pending_io);
-        }
-    }
+    int notify = add_conn_to_pending_io_list(conn);
     UNLOCK_THREAD(thr);
 
     /* kick the thread in the butt */
@@ -862,7 +674,7 @@ void thread_init(int nthr, struct event_base *main_base,
         }
         threads[i].index = i;
 
-        setup_thread(&threads[i], i == (nthreads - 1));
+        setup_thread(&threads[i]);
     }
 
     /* Create threads after we've done all the libevent setup. */
@@ -870,8 +682,6 @@ void thread_init(int nthr, struct event_base *main_base,
         create_worker(worker_libevent, &threads[i], &thread_ids[i]);
         threads[i].thread_id = thread_ids[i];
     }
-
-    tap_thread = &threads[nthreads - 1];
 
     /* Wait for all the threads to set themselves up before returning. */
     pthread_mutex_lock(&init_lock);
@@ -895,14 +705,20 @@ void threads_shutdown(void)
 
 void notify_thread(LIBEVENT_THREAD *thread) {
     if (send(thread->notify[1], "", 1, 0) != 1) {
-        if (thread == tap_thread) {
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                            "Failed to notify TAP thread: %s",
-                                            strerror(errno));
-        } else {
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                            "Failed to notify thread: %s",
-                                            strerror(errno));
-        }
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                        "Failed to notify thread: %s",
+                                        strerror(errno));
     }
+}
+
+int add_conn_to_pending_io_list(conn *c) {
+    int notify = 0;
+    if (number_of_pending(c, c->thread->pending_io) == 0) {
+        if (c->thread->pending_io == NULL) {
+            notify = 1;
+        }
+        enlist_conn(c, &c->thread->pending_io);
+    }
+
+    return notify;
 }

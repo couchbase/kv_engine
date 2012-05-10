@@ -1,8 +1,9 @@
 # Please list files alphabetically in the lists to reduce the risk for
 # a merge conflict.
 #
+ACLOCAL_AMFLAGS = -I m4 --force
 man_MANS = doc/memcached.1
-bin_PROGRAMS = engine_testapp memcached mcstat
+bin_PROGRAMS = engine_testapp memcached mcstat mcbasher
 noinst_PROGRAMS = sizes testapp timedrun
 pkginclude_HEADERS = \
                      include/memcached/allocator_hooks.h \
@@ -30,7 +31,8 @@ pkglib_LTLIBRARIES = libmemcached_utilities.la \
                      default_engine.la \
                      example_protocol.la \
                      blackhole_logger.la \
-                     stdin_term_handler.la
+                     stdin_term_handler.la \
+                     tap_mock_engine.la
 
 if BUILD_SYSLOG_LOGGER
 pkglib_LTLIBRARIES += syslog_logger.la
@@ -55,6 +57,8 @@ testapp_LDADD= libmemcached_utilities.la $(APPLICATION_LIBS)
 mcstat_SOURCES = programs/mcstat.c
 mcstat_LDADD = $(APPLICATION_LIBS)
 
+mcbasher_SOURCES = programs/mcbasher.cc
+mcbasher_LDADD = $(APPLICATION_LIBS)
 
 # New and fancy test program to test engines without the need to run
 # everything through the network layer
@@ -157,6 +161,15 @@ default_engine_la_CPPFLAGS = $(CPPFLAGS) -I$(top_srcdir)/engines/default_engine
 default_engine_la_DEPENDENCIES= libmemcached_utilities.la
 default_engine_la_LIBADD= libmemcached_utilities.la $(LIBM)
 default_engine_la_LDFLAGS= -avoid-version -shared -module -no-undefined
+
+# A mock engine I may use to test tap
+tap_mock_engine_la_SOURCES = engines/tap_mock_engine/tap_mock_engine.cc \
+                             engines/tap_mock_engine/tap_mock_engine.h
+
+tap_mock_engine_la_CPPFLAGS = $(CPPFLAGS) -I$(top_srcdir)/engines/tap_mock_engine
+tap_mock_engine_la_DEPENDENCIES= libmemcached_utilities.la
+tap_mock_engine_la_LIBADD= libmemcached_utilities.la $(LIBM)
+tap_mock_engine_la_LDFLAGS= -avoid-version -shared -module -no-undefined
 
 if BUILD_DTRACE
 BUILT_SOURCES += memcached_dtrace.h

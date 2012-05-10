@@ -252,7 +252,6 @@ typedef struct {
     enum thread_type type;      /* Type of IO this thread processes */
 
     rel_time_t last_checked;
-    struct conn *pending_close; /* list of connections close at a later time */
 } LIBEVENT_THREAD;
 
 #define LOCK_THREAD(t)                          \
@@ -272,8 +271,6 @@ typedef struct {
 extern void notify_thread(LIBEVENT_THREAD *thread);
 extern void notify_dispatcher(void);
 extern bool create_notification_pipe(LIBEVENT_THREAD *me);
-
-extern LIBEVENT_THREAD* tap_thread;
 
 typedef struct conn conn;
 typedef bool (*STATE_FUNC)(conn *);
@@ -469,6 +466,8 @@ bool set_socket_nonblocking(SOCKET sfd);
 
 void conn_close(conn *c);
 
+int add_conn_to_pending_io_list(conn *c);
+
 
 #if HAVE_DROP_PRIVILEGES
 extern void drop_privileges(void);
@@ -490,7 +489,6 @@ bool conn_immediate_close(conn *c);
 bool conn_closing(conn *c);
 bool conn_mwrite(conn *c);
 bool conn_ship_log(conn *c);
-bool conn_add_tap_client(conn *c);
 bool conn_setup_tap_stream(conn *c);
 
 /* If supported, give compiler hints for branch prediction. */
