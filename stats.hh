@@ -57,13 +57,6 @@ public:
         return currentSize.get() + memOverhead.get();
     }
 
-    size_t getAllocatedMemory() {
-        if (MemoryTracker::trackingMemoryAllocations()) {
-            return totalMemory.get();
-        }
-        return currentSize.get() + memOverhead.get();
-    }
-
     //! How long it took us to load the data from disk.
     Atomic<hrtime_t> warmupTime;
     //! Whether we're warming up.

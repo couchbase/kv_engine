@@ -112,17 +112,13 @@ private:
 };
 
 bool ItemPager::callback(Dispatcher &d, TaskId t) {
-    double total_mem = static_cast<double>(stats.getTotalMemoryUsed());
-    double allocated_mem = static_cast<double>(stats.getAllocatedMemory());
-    double mem_limit = static_cast<double>(stats.getMaxDataSize())
-                       * StoredValue::getMutationMemoryThreshold();
+    double current = static_cast<double>(stats.getTotalMemoryUsed());
     double upper = static_cast<double>(stats.mem_high_wat);
     double lower = static_cast<double>(stats.mem_low_wat);
-    if (available && (total_mem > mem_limit || allocated_mem > upper)) {
+    if (available && current > upper) {
 
         ++stats.pagerRuns;
 
-        double current = total_mem > mem_limit ? total_mem : allocated_mem;
         double toKill = (current - static_cast<double>(lower)) / current;
 
         std::stringstream ss;

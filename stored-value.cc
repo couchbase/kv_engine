@@ -335,10 +335,6 @@ void StoredValue::setMutationMemoryThreshold(double memThreshold) {
     }
 }
 
-double StoredValue::getMutationMemoryThreshold() {
-    return mutation_mem_threshold;
-}
-
 void StoredValue::increaseCacheSize(HashTable &ht,
                                     size_t by, bool residentOnly) {
     if (!residentOnly) {
