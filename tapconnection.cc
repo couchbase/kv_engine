@@ -1124,7 +1124,7 @@ void TapProducer::queueBGFetch_UNLOCKED(const std::string &key, uint64_t id,
     if (it != tapCheckpointState.end()) {
         ++(it->second.bgJobIssued);
     }
-    assert(bgJobIssued - bgJobCompleted > 0);
+    assert(bgJobIssued > bgJobCompleted);
 }
 
 void TapProducer::completeBGFetchJob(Item *itm, uint16_t vbid, bool implicitEnqueue) {
@@ -1145,6 +1145,7 @@ void TapProducer::completeBGFetchJob(Item *itm, uint16_t vbid, bool implicitEnqu
     if (it != tapCheckpointState.end()) {
         ++(it->second.bgJobCompleted);
     }
+    assert(bgJobIssued >= bgJobCompleted);
 
     if (itm) {
         backfilledItems.push(itm);
