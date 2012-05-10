@@ -7165,7 +7165,8 @@ static SERVER_HANDLE_V1 *get_server_api(void)
         .remove_delete_hook = mc_remove_delete_hook,
         .get_extra_stats_size = mc_get_extra_stats_size,
         .get_allocator_stats = mc_get_allocator_stats,
-        .get_allocation_size = mc_get_allocation_size
+        .get_allocation_size = mc_get_allocation_size,
+        .get_detailed_stats = mc_get_detailed_stats
     };
 
     static SERVER_HANDLE_V1 rv = {
