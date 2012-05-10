@@ -45,19 +45,7 @@ public:
 
     size_t getTotalMemoryUsed() {
         if (MemoryTracker::trackingMemoryAllocations()) {
-            MemoryTracker* tracker = MemoryTracker::getInstance();
-            double frag_bytes = tracker->getFragmentation();
-            double heap_size = tracker->getTotalHeapBytes();
-
-            double adjSize;
-            if (heap_size > maxDataSize) {
-                adjSize = totalMemory / heap_size * frag_bytes;
-            } else {
-                double total_alloc_bytes = tracker->getTotalBytesAllocated();
-                adjSize = totalMemory / total_alloc_bytes * frag_bytes;
-            }
-
-            return static_cast<size_t>(totalMemory + adjSize);
+            return totalMemory.get();
         }
         return currentSize.get() + memOverhead.get();
     }
