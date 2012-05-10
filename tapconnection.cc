@@ -287,9 +287,9 @@ void TapProducer::setVBucketFilter(const std::vector<uint16_t> &vbuckets)
                 if (!vb) {
                     continue;
                 }
-                if (!registeredTAPClient) {
-                    vb->checkpointManager.removeTAPCursor(name);
-                }
+                vb->checkpointManager.removeTAPCursor(name);
+                backfillVBuckets.erase(*it);
+                backFillVBucketFilter.removeVBucket(*it);
             }
         }
 
@@ -1037,11 +1037,30 @@ public:
                 LockHolder lh = vb->ht.getLockedBucket(key, &bucket_num);
                 StoredValue *v = epstore->fetchValidValue(vb, key, bucket_num);
                 if (v) {
+                    rowid = v->getId();
                     const TapConfig &config = epe->getTapConfig();
                     d.snooze(t, config.getRequeueSleepTime());
                     ++stats.numTapBGFetchRequeued;
                     return true;
+                } else {
+                    CompletedBGFetchTapOperation tapop(vbucket);
+                    epe->getTapConnMap().performTapOp(name, tapop, gcb.val.getValue());
+                    // As an item is deleted from hash table, push the item
+                    // deletion event into the TAP queue.
+                    queued_item qitem(new QueuedItem(key, vbucket, queue_op_del,
+                                                     vbver, -1));
+                    std::list<queued_item> del_items;
+                    del_items.push_back(qitem);
+                    epe->getTapConnMap().setEvents(name, &del_items);
+                    return false;
                 }
+            } else {
+                CompletedBGFetchTapOperation tapop(vbucket);
+                epe->getTapConnMap().performTapOp(name, tapop, gcb.val.getValue());
+                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                 "VBucket %d not exist!!! TAP BG fetch failed for TAP %s\n",
+                                 vbucket, name.c_str());
+                return false;
             }
         }
 
@@ -1105,10 +1124,7 @@ void TapProducer::queueBGFetch_UNLOCKED(const std::string &key, uint64_t id,
     if (it != tapCheckpointState.end()) {
         ++(it->second.bgJobIssued);
     }
-
-    assert(!empty_UNLOCKED());
-    assert(!idle_UNLOCKED());
-    assert(!complete_UNLOCKED());
+    assert(bgJobIssued - bgJobCompleted > 0);
 }
 
 void TapProducer::completeBGFetchJob(Item *itm, uint16_t vbid, bool implicitEnqueue) {
@@ -1651,49 +1667,22 @@ void TapProducer::scheduleBackfill_UNLOCKED(const std::vector<uint16_t> &vblist)
     }
 
     const VBucketMap &vbuckets = engine.getEpStore()->getVBuckets();
-    std::set<uint16_t> vbs;
     std::vector<uint16_t>::const_iterator vbit = vblist.begin();
-    // Skip all the vbuckets that are receiving backfill items from the upstream servers.
+    // Skip all the vbuckets that are (1) receiving backfill from their master nodes
+    // or (2) already scheduled for backfill.
     for (; vbit != vblist.end(); ++vbit) {
         RCPtr<VBucket> vb = vbuckets.getBucket(*vbit);
-        if (vb && !vb->isBackfillPhase()) {
-            vbs.insert(*vbit);
+        if (!vb || vb->isBackfillPhase() ||
+            backfillVBuckets.find(*vbit) != backfillVBuckets.end()) {
+            continue;
         }
+        backfillVBuckets.insert(*vbit);
+        backFillVBucketFilter.addVBucket(*vbit);
     }
 
-    if (vbs.empty()) {
-        return;
-    }
-
-    if (!backfillCompleted) {
-        // Backfill tasks from the current backfill session are still running.
-        // Simply add the new vbuckets only to the next backfill task.
-
-        if (!doRunBackfill) {
-            std::set<uint16_t> emptyVBs;
-            // Clear backfill vb filter for the next backfill task
-            backFillVBucketFilter.assign(emptyVBs);
-        }
-        std::set<uint16_t>::iterator it = vbs.begin();
-        for(; it != vbs.end(); ++it) {
-            std::pair<std::set<uint16_t>::iterator, bool> ret = backfillVBuckets.insert(*it);
-            if (ret.second) {
-                backFillVBucketFilter.addVBucket(*it);
-            }
-        }
-    } else {
-        // All backfill tasks from the current backfill session were completed.
-        // This will create a new backfill session.
-        backfillVBuckets.clear();
-        backfillVBuckets.insert(vbs.begin(), vbs.end());
-        backFillVBucketFilter.assign(vbs);
-    }
-
-    // Send an initial_vbucket_stream message to the destination node so that it can
-    // delete the corresponding vbucket before receiving the backfill stream.
-    const std::set<uint16_t> &newBackfillVBs = backFillVBucketFilter.getVBSet();
-    std::set<uint16_t>::const_iterator it = newBackfillVBs.begin();
-    for (; it != newBackfillVBs.end(); ++it) {
+    const std::set<uint16_t> &new_backfill_vbs = backFillVBucketFilter.getVBSet();
+    std::set<uint16_t>::const_iterator it = new_backfill_vbs.begin();
+    for (; it != new_backfill_vbs.end(); ++it) {
         RCPtr<VBucket> vb = vbuckets.getBucket(*it);
         if (!vb) {
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
@@ -1704,6 +1693,8 @@ void TapProducer::scheduleBackfill_UNLOCKED(const std::vector<uint16_t> &vblist)
         // As we set the cursor to the beginning of the open checkpoint when backfill
         // is scheduled, we can simply remove the cursor now.
         vb->checkpointManager.removeTAPCursor(name);
+        // Send an initial_vbucket_stream message to the destination node so that it can
+        // reset the corresponding vbucket before receiving the backfill stream.
         TapVBucketEvent hi(TAP_OPAQUE, *it,
                            (vbucket_state_t)htonl(TAP_OPAQUE_INITIAL_VBUCKET_STREAM));
         addVBucketHighPriority_UNLOCKED(hi);
@@ -1712,7 +1703,7 @@ void TapProducer::scheduleBackfill_UNLOCKED(const std::vector<uint16_t> &vblist)
                          logHeader(), *it);
     }
 
-    if (newBackfillVBs.size() > 0) {
+    if (new_backfill_vbs.size() > 0) {
         doRunBackfill = true;
         backfillCompleted = false;
     }
@@ -1752,6 +1743,7 @@ Item* TapProducer::getNextItem(const void *c, uint16_t *vbucket, tap_event_t &re
 
     // Check if there are any items fetched from disk for backfill operations.
     if (hasItemFromDisk_UNLOCKED()) {
+        ret = TAP_MUTATION;
         itm = nextBgFetchedItem_UNLOCKED();
         *vbucket = itm->getVBucketId();
         if (!vbucketFilter(*vbucket)) {
@@ -1775,15 +1767,13 @@ Item* TapProducer::getNextItem(const void *c, uint16_t *vbucket, tap_event_t &re
             delete itm;
             itm = gv.getValue();
         } else if (gv.getStatus() == ENGINE_KEY_ENOENT || itm->isExpired(ep_real_time())) {
-            delete itm;
-            ret = TAP_NOOP;
-            return NULL;
+            ret = TAP_DELETION;
         }
 
-        ret = TAP_MUTATION;
         ++stats.numTapBGFetched;
         qi = queued_item(new QueuedItem(itm->getKey(), itm->getVBucketId(),
-                                        queue_op_set, -1, itm->getId()));
+                                        ret == TAP_MUTATION ? queue_op_set : queue_op_del,
+                                        -1, itm->getId()));
     } else if (hasQueuedItem_UNLOCKED()) { // Item from memory backfill or checkpoints
         if (waitForCheckpointMsgAck()) {
             getLogger()->log(EXTENSION_LOG_INFO, NULL,
@@ -2054,6 +2044,7 @@ bool TapProducer::runBackfill(VBucketFilter &vbFilter) {
         doRunBackfill = false;
         ++pendingBackfillCounter; // Will be decremented when each backfill thread is completed
         vbFilter = backFillVBucketFilter;
+        backFillVBucketFilter.reset();
     }
     return rv;
 }

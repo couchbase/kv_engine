@@ -3365,6 +3365,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
     } else if (nkey == 4 && strncmp(stat_key, "info", 4) == 0) {
         add_casted_stat("info", get_stats_info(), add_stat, cookie);
         rv = ENGINE_SUCCESS;
+    } else if (nkey == 9 && strncmp(stat_key, "allocator", 9) ==0) {
+        char* buffer = (char*)malloc(sizeof(char) * 20000);
+        MemoryTracker::getInstance()->getDetailedStats(buffer, 20000);
+        add_casted_stat("detailed", buffer, add_stat, cookie);
+        free(buffer);
+        rv = ENGINE_SUCCESS;
     }
 
     return rv;

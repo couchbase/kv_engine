@@ -52,6 +52,10 @@ public:
 
     bool empty() const { return acceptable.empty(); }
 
+    void reset() {
+        acceptable.clear();
+    }
+
     /**
      * Calculate the difference between this and another filter.
      * If "this" contains elements, [1,2,3,4] and other contains [3,4,5,6]
@@ -77,6 +81,10 @@ public:
     bool addVBucket(uint16_t vbucket) {
         std::pair<std::set<uint16_t>::iterator, bool> rv = acceptable.insert(vbucket);
         return rv.second;
+    }
+
+    void removeVBucket(uint16_t vbucket) {
+        acceptable.erase(vbucket);
     }
 
     /**
