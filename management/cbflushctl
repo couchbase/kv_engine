@@ -38,6 +38,8 @@ def start(mc, username=None, password=""):
     mc.start_persistence()
 
 def set_param(mc, key, val, username=None, password=""):
+    if key == 'tap_throttle_queue_cap' and val == 'infinite':
+        val = '-1'
     auth(mc, username, password)
     mc.set_flush_param(key, val)
 
