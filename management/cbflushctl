@@ -6,8 +6,8 @@ Copyright (c) 2010  Dustin Sallings <dustin@spy.net>
 """
 import sys
 import time
-
 import clitool
+import mc_bin_client
 from memcacheConstants import ENGINE_PARAM_FLUSH
 
 def auth(mc, username, password):
@@ -15,50 +15,62 @@ def auth(mc, username, password):
         mc.sasl_auth_plain(username, password)
 
 def stop(mc, username=None, password=""):
-    auth(mc, username, password)
-    mc.stop_persistence()
-    stopped = False
-    while not stopped:
-        time.sleep(0.5)
-        try:
-            stats = mc.stats()
-            success = True
-        except:
-            if success:
-                import mc_bin_client
-                mc = mc_bin_client.MemcachedClient(mc.host, mc.port)
-                raise
-            else:
-                raise
-        success = False
-        if stats['ep_flusher_state'] == 'paused':
-            stopped = True
+    try:
+        auth(mc, username, password)
+        mc.stop_persistence()
+        stopped = False
+        while not stopped:
+            time.sleep(0.5)
+            try:
+                stats = mc.stats()
+                success = True
+            except:
+                if success:
+                    mc = mc_bin_client.MemcachedClient(mc.host, mc.port)
+                    raise
+                else:
+                    raise
+            success = False
+            if stats['ep_flusher_state'] == 'paused':
+                stopped = True
+    except mc_bin_client.MemcachedError as error:
+        print 'Error: %s' % error.msg
 
 def start(mc, username=None, password=""):
-    auth(mc, username, password)
-    mc.start_persistence()
+    try:
+        auth(mc, username, password)
+        mc.start_persistence()
+    except mc_bin_client.MemcachedError as error:
+        print 'Error: %s' % error.msg
 
 def set_param(mc, key, val, username=None, password=""):
-    if key == 'tap_throttle_queue_cap' and val == 'infinite':
-        val = '-1'
-    auth(mc, username, password)
-    mc.set_param(key, val, ENGINE_PARAM_FLUSH)
+    try:
+        auth(mc, username, password)
+        mc.set_param(key, val, ENGINE_PARAM_FLUSH)
+    except mc_bin_client.MemcachedError as error:
+        print 'Error: %s' % error.msg
 
 def evict(mc, key, username=None, password=""):
-    auth(mc, username, password)
-    mc.evict_key(key)
+    try:
+        auth(mc, username, password)
+        mc.evict_key(key)
+    except mc_bin_client.MemcachedError as error:
+        print 'Error: %s' % error.msg
 
 def drain(mc, username=None, password=""):
-    auth(mc, username, password)
-    while True:
-        s = mc.stats()
-        if s['ep_queue_size'] == "0" and \
-           s['ep_flusher_todo'] == "0":
-           print("done")
-           return
-        time.sleep(2)
-        sys.stdout.write('.')
-        sys.stdout.flush()
+    try:
+        auth(mc, username, password)
+        while True:
+            s = mc.stats()
+            if s['ep_queue_size'] == "0" and \
+                s['ep_flusher_todo'] == "0":
+                print("done")
+                return
+            time.sleep(2)
+            sys.stdout.write('.')
+            sys.stdout.flush()
+    except mc_bin_client.MemcachedError as error:
+        print 'Error: %s' % error.msg
 
 if __name__ == '__main__':
 
