@@ -584,6 +584,10 @@ public:
         return tapFlagByteorderSupport;
     }
 
+    bool isReconnected() const {
+        return reconnects > 0;
+    }
+
 private:
     friend class EventuallyPersistentEngine;
     friend class TapConnMap;

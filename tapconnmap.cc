@@ -602,6 +602,8 @@ void ScheduleDiskBackfillTapOperation::perform(TapProducer *tc, void *) {
 }
 
 void CompletedBGFetchTapOperation::perform(TapProducer *tc, Item *arg) {
-    // As item pointer could be NULL, vbucket id should be passed for stat updates.
+    if (connCookie != tc->getCookie() && !tc->isReconnected()) {
+        return;
+    }
     tc->completeBGFetchJob(arg, vbid, implicitEnqueue);
 }

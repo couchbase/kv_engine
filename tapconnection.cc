@@ -1043,7 +1043,7 @@ public:
                     ++stats.numTapBGFetchRequeued;
                     return true;
                 } else {
-                    CompletedBGFetchTapOperation tapop(vbucket);
+                    CompletedBGFetchTapOperation tapop(cookie, vbucket);
                     epe->getTapConnMap().performTapOp(name, tapop, gcb.val.getValue());
                     // As an item is deleted from hash table, push the item
                     // deletion event into the TAP queue.
@@ -1055,7 +1055,7 @@ public:
                     return false;
                 }
             } else {
-                CompletedBGFetchTapOperation tapop(vbucket);
+                CompletedBGFetchTapOperation tapop(cookie, vbucket);
                 epe->getTapConnMap().performTapOp(name, tapop, gcb.val.getValue());
                 getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                                  "VBucket %d not exist!!! TAP BG fetch failed for TAP %s\n",
@@ -1064,7 +1064,7 @@ public:
             }
         }
 
-        CompletedBGFetchTapOperation tapop(vbucket);
+        CompletedBGFetchTapOperation tapop(cookie, vbucket);
         if (!epe->getTapConnMap().performTapOp(name, tapop, gcb.val.getValue())) {
             delete gcb.val.getValue(); // Tap connection is closed. Free an item instance.
         }

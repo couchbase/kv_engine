@@ -18,8 +18,9 @@ static bool isMemoryUsageTooHigh(EPStats &stats) {
  */
 class BackfillDiskCallback : public Callback<GetValue> {
 public:
-    BackfillDiskCallback(const std::string &n, TapConnMap &tcm, EventuallyPersistentEngine* e)
-        : tapConnName(n), connMap(tcm), engine(e) {
+    BackfillDiskCallback(const void *token, const std::string &n,
+                         TapConnMap &tcm, EventuallyPersistentEngine* e)
+        : validityToken(token), tapConnName(n), connMap(tcm), engine(e) {
         assert(engine);
     }
 
@@ -27,6 +28,7 @@ public:
 
 private:
 
+    const void                 *validityToken;
     const std::string           tapConnName;
     TapConnMap                 &connMap;
     EventuallyPersistentEngine *engine;
@@ -34,7 +36,7 @@ private:
 
 void BackfillDiskCallback::callback(GetValue &gv) {
     assert(gv.getValue());
-    CompletedBGFetchTapOperation tapop(gv.getValue()->getVBucketId(), true);
+    CompletedBGFetchTapOperation tapop(validityToken, gv.getValue()->getVBucketId(), true);
     // if the tap connection is closed, then free an Item instance
     if (!connMap.performTapOp(tapConnName, tapop, gv.getValue())) {
         delete gv.getValue();
@@ -45,7 +47,9 @@ bool BackfillDiskLoad::callback(Dispatcher &, TaskId) {
     bool valid = false;
 
     if (connMap.checkConnectivity(name) && !engine->getEpStore()->isFlushAllScheduled()) {
-        shared_ptr<Callback<GetValue> > backfill_cb(new BackfillDiskCallback(name, connMap, engine));
+        shared_ptr<Callback<GetValue> > backfill_cb(new BackfillDiskCallback(validityToken,
+                                                                             name, connMap,
+                                                                             engine));
         store->dump(vbucket, backfill_cb);
         valid = true;
     }

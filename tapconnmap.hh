@@ -60,11 +60,12 @@ public:
  */
 class CompletedBGFetchTapOperation : public TapOperation<Item*> {
 public:
-    CompletedBGFetchTapOperation(uint16_t vb, bool ie=false) :
-        vbid(vb), implicitEnqueue(ie) {}
+    CompletedBGFetchTapOperation(const void *cookie, uint16_t vb, bool ie=false) :
+        connCookie(cookie), vbid(vb), implicitEnqueue(ie) {}
 
     void perform(TapProducer *tc, Item* arg);
 private:
+    const void *connCookie;
     uint16_t vbid;
     bool implicitEnqueue;
 };
