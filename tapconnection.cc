@@ -115,10 +115,6 @@ TapProducer::TapProducer(EventuallyPersistentEngine &theEngine,
     evaluateFlags();
     queue = new std::list<queued_item>;
 
-    if (supportAck) {
-        expiryTime = ep_current_time() + ackGracePeriod;
-    }
-
     if (cookie != NULL) {
         setReserved(true);
     }
@@ -713,7 +709,6 @@ ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
     std::list<TapLogElement>::iterator iter = tapLog.begin();
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
 
-    expiryTime = ep_current_time() + ackGracePeriod;
     if (isSeqNumRotated && s < seqnoReceived) {
         // if the ack seq number is rotated, reset the last seq number of each vbucket to 0.
         std::map<uint16_t, TapCheckpointState>::iterator it = tapCheckpointState.begin();
