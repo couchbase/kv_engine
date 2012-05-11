@@ -322,6 +322,7 @@ void Warmup::setReconstructLog(bool val) {
 
 void Warmup::start(void)
 {
+    store->stats.warmupComplete.set(false);
     dispatcher->schedule(shared_ptr<WarmupStepper>(new WarmupStepper(this)),
                          &task, Priority::WarmupPriority);
 }
@@ -593,7 +594,7 @@ void Warmup::addStats(ADD_STAT add_stat, const void *c) const
         addStat(NULL, "enabled", add_stat, c);
         const char *stateName = state.toString();
         addStat("state", stateName, add_stat, c);
-        if (strcmp(stateName, "done") == 0) {
+        if (stats.warmupComplete) {
             addStat("thread", "complete", add_stat, c);
         } else {
             addStat("thread", "running", add_stat, c);

@@ -2581,7 +2581,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     if (getConfiguration().isWarmup()) {
         Warmup *wp = epstore->getWarmup();
         assert(wp);
-        if (strcmp(wp->getState().toString(), "done") == 0) {
+        if (epstats.warmupComplete) {
             add_casted_stat("ep_warmup_thread", "complete", add_stat, cookie);
         } else {
             add_casted_stat("ep_warmup_thread", "running", add_stat, cookie);
