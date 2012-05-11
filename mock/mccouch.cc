@@ -390,12 +390,7 @@ void McConnection::updateEvent()
         flags |= EV_WRITE ;
     }
 
-    if (flags == ev_flags) {
-        // no change in flags!
-        return;
-    }
-
-    if (ev_flags != 0) {
+    if (flags == ev_flags || ev_flags != 0) {
         event_del(&ev_event);
     }
 
