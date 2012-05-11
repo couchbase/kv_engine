@@ -60,10 +60,12 @@ public:
  */
 class CompletedBGFetchTapOperation : public TapOperation<Item*> {
 public:
-    CompletedBGFetchTapOperation(bool ie=false) : implicitEnqueue(ie) {}
+    CompletedBGFetchTapOperation(const void *cookie, bool ie=false) :
+        connCookie(cookie), implicitEnqueue(ie) {}
 
     void perform(TapProducer *tc, Item* arg);
 private:
+    const void *connCookie;
     bool implicitEnqueue;
 };
 

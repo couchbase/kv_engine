@@ -453,6 +453,10 @@ public:
      */
     void completeBGFetchJob(Item *item, bool implicitEnqueue);
 
+    bool isReconnected() const {
+        return reconnects > 0;
+    }
+
 private:
     friend class EventuallyPersistentEngine;
     friend class TapConnMap;

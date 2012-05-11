@@ -555,5 +555,8 @@ void ScheduleDiskBackfillTapOperation::perform(TapProducer *tc, void *) {
 }
 
 void CompletedBGFetchTapOperation::perform(TapProducer *tc, Item *arg) {
+    if (connCookie != tc->getCookie() && !tc->isReconnected()) {
+        return;
+    }
     tc->completeBGFetchJob(arg, implicitEnqueue);
 }

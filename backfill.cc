@@ -14,7 +14,7 @@ static bool isMemoryUsageTooHigh(EPStats &stats) {
 }
 
 void BackfillDiskLoad::callback(GetValue &gv) {
-    CompletedBGFetchTapOperation tapop(true);
+    CompletedBGFetchTapOperation tapop(validityToken, true);
     // if the tap connection is closed, then free an Item instance
     if (!connMap.performTapOp(name, tapop, gv.getValue())) {
         delete gv.getValue();
