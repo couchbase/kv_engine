@@ -1259,8 +1259,8 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
     hrtime_t stop = gethrtime();
     updateBGStats(init, start, stop);
 
-    engine.notifyIOComplete(cookie, status);
     delete gcb.val.getValue();
+    engine.notifyIOComplete(cookie, status);
 }
 
 void EventuallyPersistentStore::bgFetch(const std::string &key,
