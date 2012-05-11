@@ -487,7 +487,6 @@ void TapConnMap::notifyIOThreadMain() {
             if (!tp->notifySent || (tp->lastWalkTime + maxIdleTime < now)) {
                 tp->notifySent.set(true);
                 toNotify.push_back(iter->first);
-                engine.getServerApi()->cookie->reserve(iter->first);
             }
         }
     }
@@ -516,12 +515,6 @@ void TapConnMap::notifyIOThreadMain() {
     lh.unlock();
 
     engine.notifyIOComplete(toNotify, ENGINE_SUCCESS);
-
-    lh.lock();
-    std::list<const void *>::iterator ii;
-    for (ii = toNotify.begin(); ii != toNotify.end(); ++ii) {
-        engine.getServerApi()->cookie->release(*ii);
-    }
 }
 
 bool TapConnMap::SetCursorToOpenCheckpoint(const std::string &name, uint16_t vbucket) {
