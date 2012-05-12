@@ -581,9 +581,9 @@ public:
 
         size_t newsize = size();
         if (oldsize < newsize) {
-            increaseCacheSize(ht, newsize - oldsize, true);
+            increaseCacheSize(ht, newsize - oldsize);
         } else if (newsize < oldsize) {
-            reduceCacheSize(ht, oldsize - newsize, true);
+            reduceCacheSize(ht, oldsize - newsize);
         }
         // Add or substract the key/meta data overhead differenece.
         if ((oldsize - old_valsize) < newsize) {
@@ -711,10 +711,8 @@ private:
 
     union stored_value_bodies extra;
 
-    static void increaseCacheSize(HashTable &ht,
-                                  size_t by, bool residentOnly = false);
-    static void reduceCacheSize(HashTable &ht,
-                                size_t by, bool residentOnly = false);
+    static void increaseCacheSize(HashTable &ht, size_t by);
+    static void reduceCacheSize(HashTable &ht, size_t by);
     static void increaseCurrentSize(EPStats&, size_t by);
     static void reduceCurrentSize(EPStats&, size_t by);
     static bool hasAvailableSpace(EPStats&, const Item &item);

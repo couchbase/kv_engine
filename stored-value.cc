@@ -40,9 +40,9 @@ bool StoredValue::ejectValue(EPStats &stats, HashTable &ht) {
 
         // ejecting the value may increase the object size....
         if (oldsize < newsize) {
-            increaseCacheSize(ht, newsize - oldsize, true);
+            increaseCacheSize(ht, newsize - oldsize);
         } else if (newsize < oldsize) {
-            reduceCacheSize(ht, oldsize - newsize, true);
+            reduceCacheSize(ht, oldsize - newsize);
         }
         // Add or substract the key/meta data overhead differenece.
         size_t old_keymeta_overhead = (oldsize - old_valsize);
@@ -98,9 +98,9 @@ bool StoredValue::unlocked_restoreValue(Item *itm, EPStats &stats,
         size_t newsize = size();
         size_t new_valsize = value->length();
         if (oldsize < newsize) {
-            increaseCacheSize(ht, newsize - oldsize, true);
+            increaseCacheSize(ht, newsize - oldsize);
         } else if (newsize < oldsize) {
-            reduceCacheSize(ht, oldsize - newsize, true);
+            reduceCacheSize(ht, oldsize - newsize);
         }
         // Add or substract the key/meta data overhead differenece.
         size_t old_keymeta_overhead = (oldsize - old_valsize);
@@ -498,22 +498,16 @@ void StoredValue::setMutationMemoryThreshold(double memThreshold) {
     }
 }
 
-void StoredValue::increaseCacheSize(HashTable &ht,
-                                    size_t by, bool residentOnly) {
-    if (!residentOnly) {
-        ht.cacheSize.incr(by);
-        assert(ht.cacheSize.get() < GIGANTOR);
-    }
+void StoredValue::increaseCacheSize(HashTable &ht, size_t by) {
+    ht.cacheSize.incr(by);
+    assert(ht.cacheSize.get() < GIGANTOR);
     ht.memSize.incr(by);
     assert(ht.memSize.get() < GIGANTOR);
 }
 
-void StoredValue::reduceCacheSize(HashTable &ht,
-                                  size_t by, bool residentOnly) {
-    if (!residentOnly) {
-        ht.cacheSize.decr(by);
-        assert(ht.cacheSize.get() < GIGANTOR);
-    }
+void StoredValue::reduceCacheSize(HashTable &ht, size_t by) {
+    ht.cacheSize.decr(by);
+    assert(ht.cacheSize.get() < GIGANTOR);
     ht.memSize.decr(by);
     assert(ht.memSize.get() < GIGANTOR);
 }

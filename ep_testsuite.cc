@@ -3808,7 +3808,7 @@ static enum test_result test_mem_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
           "ep_kv_size should be greater than the hashtable cache size due to the checkpoint overhead");
     evict_key(h, h1, "key", 0, "Ejected.");
 
-    check(get_int_stat(h, h1, "ep_total_cache_size") == cache_size,
+    check(get_int_stat(h, h1, "ep_total_cache_size") <= cache_size,
           "Evict a value shouldn't increase the total cache size");
     check(get_int_stat(h, h1, "mem_used") < mem_used,
           "Expected mem_used to decrease when an item is evicted");
