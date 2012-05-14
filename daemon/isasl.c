@@ -15,21 +15,12 @@
 #include "isasl.h"
 #include "memcached.h"
 
-#define MTIME_STABILITY_THRESHOLD 2
-
-static struct stat prev_stat = { 0 };
-static int mtime_stability_counter;
-
 static pthread_mutex_t uhash_lock = PTHREAD_MUTEX_INITIALIZER;
-static pthread_mutex_t sasl_db_thread_lock = PTHREAD_MUTEX_INITIALIZER;
-static bool run_sasl_db_thread;
-static pthread_t sasl_db_thread_tid;
-
 static user_db_entry_t **user_ht;
 static const int n_uht_buckets = 12289;
 
 static void kill_whitey(char *s) {
-    for(int i = strlen(s) - 1; i > 0 && isspace(s[i]); i--) {
+    for (int i = strlen(s) - 1; i > 0 && isspace(s[i]); i--) {
         s[i] = '\0';
     }
 }
@@ -61,7 +52,10 @@ static char *find_pw(const char *u, char **cfg)
     }
 }
 
-static void store_pw(user_db_entry_t **ht, const char *u, const char *p, const char *cfg)
+static void store_pw(user_db_entry_t **ht,
+                     const char *u,
+                     const char *p,
+                     const char *cfg)
 {
     assert(ht);
     assert(u);
@@ -107,25 +101,22 @@ static const char *get_isasl_filename(void)
 
 static int load_user_db(void)
 {
-    user_db_entry_t **new_ut = calloc(n_uht_buckets,
-                                      sizeof(user_db_entry_t*));
-
-    if (!new_ut) {
-        return SASL_NOMEM;
-    }
-
-    pthread_mutex_lock(&uhash_lock);
-    free_user_ht();
-    user_ht = new_ut;
-    pthread_mutex_unlock(&uhash_lock);
-
     const char *filename = get_isasl_filename();
     if (!filename) {
         return SASL_OK;
     }
+
     FILE *sfile = fopen(filename, "r");
     if (!sfile) {
-        return SASL_OK;
+        return SASL_FAIL;
+    }
+
+    user_db_entry_t **new_ut = calloc(n_uht_buckets,
+                                      sizeof(user_db_entry_t*));
+
+    if (!new_ut) {
+        fclose(sfile);
+        return SASL_NOMEM;
     }
 
     // File has lines that are newline terminated.
@@ -180,6 +171,12 @@ static int load_user_db(void)
                                         filename);
     }
 
+    /* Replace the current configuration with the new one */
+    pthread_mutex_lock(&uhash_lock);
+    free_user_ht();
+    user_ht = new_ut;
+    pthread_mutex_unlock(&uhash_lock);
+
     return SASL_OK;
 }
 
@@ -191,101 +188,15 @@ void sasl_dispose(sasl_conn_t **pconn)
     *pconn = NULL;
 }
 
-static bool isasl_is_fresh(void)
-{
-    bool rv = true;
-    struct stat st;
-    const char *filename = get_isasl_filename();
-
-    if (filename) {
-        if (stat(get_isasl_filename(), &st) < 0) {
-            perror(get_isasl_filename());
-        } else {
-            rv = (prev_stat.st_mtime != st.st_mtime);
-            if (rv) {
-                /* if mtime changes, reset stability counter */
-                mtime_stability_counter = MTIME_STABILITY_THRESHOLD;
-            } else if (mtime_stability_counter) {
-                /* if mtime haven't changed, but counter hasn't
-                 * reached zero, reply true (fresh data) and
-                 * decrement counter */
-                mtime_stability_counter--;
-                rv = true;
-            }
-            prev_stat = st;
-        }
-    }
-    return rv;
-}
-
-static void* check_isasl_db_thread(void* arg)
-{
-    uint32_t sleep_time = *(int*)arg;
-    if (settings.verbose > 1) {
-        settings.extensions.logger->log(EXTENSION_LOG_INFO, NULL,
-                                        "isasl checking DB every %ds",
-                                        sleep_time);
-    }
-
-    run_sasl_db_thread = true;
-    bool run = true;
-    while (run) {
-        sleep(sleep_time);
-
-        if (isasl_is_fresh()) {
-            load_user_db();
-        }
-
-        pthread_mutex_lock(&sasl_db_thread_lock);
-        if (!run_sasl_db_thread) {
-           run = false;
-        }
-        pthread_mutex_unlock(&sasl_db_thread_lock);
-    }
-
-    return NULL;
-}
-
 void shutdown_sasl(void)
 {
-   pthread_mutex_lock(&sasl_db_thread_lock);
-   run_sasl_db_thread = false;
-   pthread_mutex_unlock(&sasl_db_thread_lock);
-   pthread_join(sasl_db_thread_tid, NULL);
+
 }
 
 int sasl_server_init(const sasl_callback_t *callbacks,
                      const char *appname)
 {
-    int rv = load_user_db();
-    if (rv == SASL_OK) {
-        static uint32_t sleep_time;
-        const char *sleep_time_str = getenv("ISASL_DB_CHECK_TIME");
-        pthread_attr_t attr;
-
-        if (pthread_attr_init(&attr) != 0 ||
-            pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED) != 0)
-        {
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                            "Failed to initialize pthread attributes: %s",
-                                            strerror(errno));
-           exit(EX_OSERR);
-        }
-
-        if (! (sleep_time_str && safe_strtoul(sleep_time_str, &sleep_time))) {
-            // If we can't find a more frequent sleep time, set it to 60s.
-            sleep_time = 60;
-        }
-        if (get_isasl_filename() != NULL &&
-            pthread_create(&sasl_db_thread_tid, &attr, check_isasl_db_thread,
-                           &sleep_time) != 0)
-        {
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                            "couldn't create isasl db update thread.");
-            exit(EX_OSERR);
-        }
-    }
-    return rv;
+    return load_user_db();
 }
 
 int sasl_server_new(const char *service,
@@ -406,4 +317,43 @@ int sasl_getprop(sasl_conn_t *conn, int propnum,
     }
 
     return SASL_OK;
+}
+
+static void *isasl_refresh_main(void *c)
+{
+    int rv = load_user_db();
+    if (rv == SASL_OK) {
+        notify_io_complete(c, ENGINE_SUCCESS);
+    } else {
+        notify_io_complete(c, ENGINE_EINVAL);
+    }
+
+    return NULL;
+}
+
+ENGINE_ERROR_CODE isasl_refresh(conn *c)
+{
+    pthread_t tid;
+    pthread_attr_t attr;
+    int err;
+
+    if (pthread_attr_init(&attr) != 0 ||
+        pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED) != 0)
+    {
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                        "Failed to initialize pthread attributes: %s",
+                                        strerror(errno));
+        return ENGINE_DISCONNECT;
+    }
+
+    err = pthread_create(&tid, &attr, isasl_refresh_main, c);
+    if (err != 0) {
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                        "Failed to create isasl db "
+                                        "update thread: %s",
+                                        strerror(err));
+        return ENGINE_DISCONNECT;
+    }
+
+    return ENGINE_EWOULDBLOCK;
 }

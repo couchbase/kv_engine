@@ -35,6 +35,7 @@
 /doc/protocol-binary-range.txt
 /doc/protocol-binary.txt
 /engine_testapp
+/isasladm
 /libevent
 /libevent-*
 /libevent.stamp
