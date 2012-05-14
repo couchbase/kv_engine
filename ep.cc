@@ -1137,9 +1137,7 @@ bool EventuallyPersistentStore::deleteVBucket(uint16_t vbid) {
         uint16_t vb_version = vbuckets.getBucketVersion(vbid);
         lh.unlock();
         rv = true;
-        HashTableStatVisitor statvis = vb->ht.clear();
-        stats.currentSize.decr(statvis.memSize - statvis.valSize);
-        assert(stats.currentSize.get() < GIGANTOR);
+        vb->ht.clear();
         vbuckets.removeBucket(vbid);
         scheduleVBSnapshot(Priority::VBucketPersistHighPriority);
         scheduleVBDeletion(vb, vb_version);
@@ -1170,9 +1168,7 @@ bool EventuallyPersistentStore::resetVBucket(uint16_t vbid) {
         lh.unlock();
 
         // Clear the hashtable, checkpoints, and stats for the target vbucket.
-        HashTableStatVisitor statvis = vb->ht.clear();
-        stats.currentSize.decr(statvis.memSize - statvis.valSize);
-        assert(stats.currentSize.get() < GIGANTOR);
+        vb->ht.clear();
         vb->checkpointManager.clear(vb->getState());
         vb->resetStats();
 
@@ -1745,9 +1741,7 @@ void EventuallyPersistentStore::reset() {
     for (it = buckets.begin(); it != buckets.end(); ++it) {
         RCPtr<VBucket> vb = getVBucket(*it);
         if (vb) {
-            HashTableStatVisitor statvis = vb->ht.clear();
-            stats.currentSize.decr(statvis.memSize - statvis.valSize);
-            assert(stats.currentSize.get() < GIGANTOR);
+            vb->ht.clear();
             vb->checkpointManager.clear(vb->getState());
             vb->resetStats();
         }

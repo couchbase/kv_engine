@@ -238,6 +238,9 @@ HashTableStatVisitor HashTable::clear(bool deactivate) {
         }
     }
 
+    stats.currentSize.decr(rv.memSize - rv.valSize);
+    assert(stats.currentSize.get() < GIGANTOR);
+
     numItems.set(0);
     numNonResidentItems.set(0);
     memSize.set(0);

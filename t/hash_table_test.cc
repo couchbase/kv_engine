@@ -413,6 +413,32 @@ static void testSizeStats() {
     free(someval);
 }
 
+static void testSizeStatsFlush() {
+    global_stats.reset();
+    HashTable ht(global_stats, 5, 1);
+    assert(ht.memSize.get() == 0);
+    assert(ht.cacheSize.get() == 0);
+    size_t initialSize = global_stats.currentSize.get();
+
+    const char *k("somekey");
+    const size_t itemSize(16 * 1024);
+    char *someval(static_cast<char*>(calloc(1, itemSize)));
+    assert(someval);
+
+    Item i(k, 0, 0, someval, itemSize);
+
+    int64_t row_id = -1;
+    assert(ht.set(i, row_id) == NOT_FOUND);
+
+    ht.clear();
+
+    assert(ht.memSize.get() == 0);
+    assert(ht.cacheSize.get() == 0);
+    assert(initialSize == global_stats.currentSize.get());
+
+    free(someval);
+}
+
 static void testSizeStatsSoftDel() {
     global_stats.reset();
     HashTable ht(global_stats, 5, 1);
@@ -432,6 +458,33 @@ static void testSizeStatsSoftDel() {
 
     assert(ht.softDelete(k, 0, row_id) == WAS_DIRTY);
     ht.del(k);
+
+    assert(ht.memSize.get() == 0);
+    assert(ht.cacheSize.get() == 0);
+    assert(initialSize == global_stats.currentSize.get());
+
+    free(someval);
+}
+
+static void testSizeStatsSoftDelFlush() {
+    global_stats.reset();
+    HashTable ht(global_stats, 5, 1);
+    assert(ht.memSize.get() == 0);
+    assert(ht.cacheSize.get() == 0);
+    size_t initialSize = global_stats.currentSize.get();
+
+    const char *k("somekey");
+    const size_t itemSize(16 * 1024);
+    char *someval(static_cast<char*>(calloc(1, itemSize)));
+    assert(someval);
+
+    Item i(k, 0, 0, someval, itemSize);
+
+    int64_t row_id = -1;
+    assert(ht.set(i, row_id) == NOT_FOUND);
+
+    assert(ht.softDelete(k, 0, row_id) == WAS_DIRTY);
+    ht.clear();
 
     assert(ht.memSize.get() == 0);
     assert(ht.cacheSize.get() == 0);
@@ -472,6 +525,38 @@ static void testSizeStatsEject() {
     free(someval);
 }
 
+static void testSizeStatsEjectFlush() {
+    global_stats.reset();
+    HashTable ht(global_stats, 5, 1);
+    assert(ht.memSize.get() == 0);
+    assert(ht.cacheSize.get() == 0);
+    size_t initialSize = global_stats.currentSize.get();
+
+    const char *k("somekey");
+    std::string kstring(k);
+    const size_t itemSize(16 * 1024);
+    char *someval(static_cast<char*>(calloc(1, itemSize)));
+    assert(someval);
+
+    Item i(k, 0, 0, someval, itemSize);
+
+    int64_t row_id = -1;
+    assert(ht.set(i, row_id) == NOT_FOUND);
+
+    StoredValue *v(ht.find(kstring));
+    assert(v);
+    v->markClean(NULL);
+    assert(v->ejectValue(global_stats, ht));
+
+    ht.clear();
+
+    assert(ht.memSize.get() == 0);
+    assert(ht.cacheSize.get() == 0);
+    assert(initialSize == global_stats.currentSize.get());
+
+    free(someval);
+}
+
 int main() {
     putenv(strdup("ALLOW_NO_STATS_UPDATE=yeah"));
     global_stats.setMaxDataSize(64*1024*1024);
@@ -491,7 +576,10 @@ int main() {
     testConcurrentAccessResize();
     testAutoResize();
     testSizeStats();
+    testSizeStatsFlush();
     testSizeStatsSoftDel();
+    testSizeStatsSoftDelFlush();
     testSizeStatsEject();
+    testSizeStatsEjectFlush();
     exit(0);
 }
