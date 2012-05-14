@@ -458,6 +458,9 @@ void conn_close(conn *c);
 
 int add_conn_to_pending_io_list(conn *c);
 
+#ifdef ENABLE_ISASL
+ENGINE_ERROR_CODE isasl_refresh(conn *c);
+#endif
 
 #if HAVE_DROP_PRIVILEGES
 extern void drop_privileges(void);
@@ -480,6 +483,7 @@ bool conn_closing(conn *c);
 bool conn_mwrite(conn *c);
 bool conn_ship_log(conn *c);
 bool conn_setup_tap_stream(conn *c);
+bool conn_refresh_isasl(conn *c);
 
 /* If supported, give compiler hints for branch prediction. */
 #if !defined(__builtin_expect) && (!defined(__GNUC__) || (__GNUC__ == 2 && __GNUC_MINOR__ < 96))

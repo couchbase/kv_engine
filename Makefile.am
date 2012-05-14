@@ -132,7 +132,12 @@ endif
 
 if ENABLE_ISASL
 memcached_SOURCES += daemon/sasl_defs.c daemon/isasl.c daemon/isasl.h
+bin_PROGRAMS += isasladm
 endif
+
+isasladm_SOURCES = programs/isasladm.c
+isasladm_LDADD = $(APPLICATION_LIBS)
+
 
 if INCLUDE_DEFAULT_ENGINE
 memcached_SOURCES += $(default_engine_la_SOURCES)

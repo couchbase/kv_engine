@@ -1049,6 +1049,8 @@ const char *state_text(STATE_FUNC state) {
         return "conn_pending_close";
     } else if (state == conn_immediate_close) {
         return "conn_immediate_close";
+    } else if (state == conn_refresh_isasl) {
+        return "conn_refresh_isasl";
     } else {
         return "Unknown";
     }
@@ -2851,7 +2853,6 @@ static void setup_binary_lookup_cmd(EXTENSION_BINARY_PROTOCOL_DESCRIPTOR *descri
 static void process_bin_unknown_packet(conn *c) {
     void *packet = c->rcurr - (c->binary_header.request.bodylen +
                                sizeof(c->binary_header));
-
     ENGINE_ERROR_CODE ret = c->aiostat;
     c->aiostat = ENGINE_SUCCESS;
     c->ewouldblock = false;
@@ -2884,6 +2885,34 @@ static void process_bin_unknown_packet(conn *c) {
         write_bin_packet(c, engine_error_2_protocol_error(ret), 0);
     }
 }
+
+#ifdef ENABLE_ISASL
+static void process_bin_isasl_refresh(conn *c)
+{
+    ENGINE_ERROR_CODE ret = c->aiostat;
+    c->aiostat = ENGINE_SUCCESS;
+    c->ewouldblock = false;
+
+    if (ret == ENGINE_SUCCESS) {
+        ret = isasl_refresh(c);
+    }
+
+    switch (ret) {
+    case ENGINE_SUCCESS:
+        write_bin_response(c, NULL, 0, 0, 0);
+        break;
+    case ENGINE_EWOULDBLOCK:
+        c->ewouldblock = true;
+        conn_set_state(c, conn_refresh_isasl);
+        break;
+    case ENGINE_DISCONNECT:
+        conn_set_state(c, conn_closing);
+        break;
+    default:
+        write_bin_packet(c, engine_error_2_protocol_error(ret), 0);
+    }
+}
+#endif
 
 static void process_bin_tap_connect(conn *c) {
     char *packet = (c->rcurr - (c->binary_header.request.bodylen +
@@ -3112,6 +3141,11 @@ static void process_bin_packet(conn *c) {
     case PROTOCOL_BINARY_CMD_VERBOSITY:
         process_bin_verbosity(c);
         break;
+#ifdef ENABLE_ISASL
+    case PROTOCOL_BINARY_CMD_ISASL_REFRESH:
+        process_bin_isasl_refresh(c);
+        break;
+#endif
     default:
         process_bin_unknown_packet(c);
     }
@@ -3324,6 +3358,16 @@ static void dispatch_bin_command(conn *c) {
                 protocol_error = 1;
             }
             break;
+
+#ifdef ENABLE_ISASL
+         case PROTOCOL_BINARY_CMD_ISASL_REFRESH:
+            if (extlen != 0 || keylen != 0 || bodylen != 0) {
+                protocol_error = 1;
+            } else {
+                bin_read_chunk(c, bin_reading_packet, 0);
+            }
+            break;
+#endif
         default:
             if (settings.engine.v1->unknown_command == NULL) {
                 write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND,
@@ -5791,6 +5835,27 @@ bool conn_closing(conn *c) {
 
 bool conn_setup_tap_stream(conn *c) {
     process_bin_tap_connect(c);
+    return true;
+}
+
+bool conn_refresh_isasl(conn *c) {
+    ENGINE_ERROR_CODE ret = c->aiostat;
+    c->aiostat = ENGINE_SUCCESS;
+    c->ewouldblock = false;
+
+    assert(ret != ENGINE_EWOULDBLOCK);
+
+    switch (ret) {
+    case ENGINE_SUCCESS:
+        write_bin_response(c, NULL, 0, 0, 0);
+        break;
+    case ENGINE_DISCONNECT:
+        conn_set_state(c, conn_closing);
+        break;
+    default:
+        write_bin_packet(c, engine_error_2_protocol_error(ret), 0);
+    }
+
     return true;
 }
 
