@@ -14,7 +14,6 @@
 #include <cstdio>
 
 #include <fcntl.h>
-#include <unistd.h>
 
 #include "common.hh"
 #include "atomic.hh"

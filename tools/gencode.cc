@@ -20,7 +20,6 @@
 #include <string.h>
 #include <strings.h>
 #include <cerrno>
-#include <unistd.h>
 #include <getopt.h>
 #include <sys/stat.h>
 #include <iostream>

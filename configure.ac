@@ -79,6 +79,7 @@ AC_CHECK_HEADERS([mach/mach_time.h])
 AC_CHECK_HEADERS([poll.h])
 AC_CHECK_HEADERS([atomic.h])
 AC_CHECK_HEADERS([sysexits.h])
+AC_CHECK_HEADERS([unistd.h])
 
 AC_CHECK_HEADERS_ONCE([sys/socket.h
                        netinet/in.h

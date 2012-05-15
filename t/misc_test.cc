@@ -1,7 +1,6 @@
 #include "config.h"
 #include <cassert>
 #include <iostream>
-#include <unistd.h>
 
 #include "common.hh"
 

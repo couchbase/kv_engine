@@ -7,6 +7,10 @@
 #ifndef CONFIG_STATIC_H
 #define CONFIG_STATIC_H 1
 
+#ifdef HAVE_UNISTD_H
+#include <unistd.h>
+#endif
+
 #include <sys/types.h>
 
 #ifdef HAVE_INTTYPES_H

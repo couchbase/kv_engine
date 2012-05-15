@@ -2,7 +2,6 @@
 #include "config.h"
 #include <pthread.h>
 #include <signal.h>
-#include <unistd.h>
 
 #include <cassert>
 #include <vector>

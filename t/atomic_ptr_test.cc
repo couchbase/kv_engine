@@ -1,7 +1,6 @@
 #include "config.h"
 #include <assert.h>
 #include <pthread.h>
-#include <unistd.h>
 
 #include "atomic.hh"
 #include "locks.hh"

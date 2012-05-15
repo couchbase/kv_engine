@@ -1,7 +1,6 @@
 #include "config.h"
 
 #include <signal.h>
-#include <unistd.h>
 
 #include <limits>
 #include <cassert>
