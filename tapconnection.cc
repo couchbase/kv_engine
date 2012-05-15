@@ -1644,7 +1644,17 @@ bool TapProducer::SetCursorToOpenCheckpoint(uint16_t vbid) {
 
     uint64_t checkpointId = vb->checkpointManager.getOpenCheckpointId();
     std::map<uint16_t, TapCheckpointState>::iterator it = tapCheckpointState.find(vbid);
-    if (it == tapCheckpointState.end() || dumpQueue) {
+    if (it == tapCheckpointState.end()) {
+        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                         "%s Failed to set the TAP cursor to the open checkpoint"
+                         " because the TAP checkpoint state for vbucket %d does not exist\n",
+                         logHeader(), vbid);
+        return false;
+    } else if (dumpQueue) {
+        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                         "%s Skip the TAP checkpoint cursor registration "
+                         " because the TAP producer is connected with DUMP flag\n",
+                         logHeader(), vbid);
         return false;
     }
 
