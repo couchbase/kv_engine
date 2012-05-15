@@ -1599,7 +1599,7 @@ void TapProducer::scheduleBackfill_UNLOCKED(const std::vector<uint16_t> &vblist)
         TapVBucketEvent hi(TAP_OPAQUE, *it,
                            (vbucket_state_t)htonl(TAP_OPAQUE_INITIAL_VBUCKET_STREAM));
         addVBucketHighPriority_UNLOCKED(hi);
-        getLogger()->log(EXTENSION_LOG_INFO, NULL,
+        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                          "%s Schedule the backfill for vbucket %d\n",
                          logHeader(), *it);
     }
