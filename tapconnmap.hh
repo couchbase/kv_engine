@@ -130,11 +130,6 @@ public:
     bool checkConnectivity(const std::string &name);
 
     /**
-     * Return true if the backfill is completed for a given TAP connection.
-     */
-    bool checkBackfillCompletion(const std::string &name);
-
-    /**
      * Set some backfilled events for a named conn.
      */
     bool setEvents(const std::string &name,

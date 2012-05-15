@@ -343,19 +343,6 @@ bool TapConnMap::checkConnectivity(const std::string &name) {
     return false;
 }
 
-bool TapConnMap::checkBackfillCompletion(const std::string &name) {
-    LockHolder lh(notifySync);
-    bool rv = false;
-
-    TapConnection *tc = findByName_UNLOCKED(name);
-    if (tc) {
-        TapProducer *tp = dynamic_cast<TapProducer*>(tc);
-        assert(tp);
-        rv = tp->checkBackfillCompletion();
-    }
-    return rv;
-}
-
 bool TapConnMap::mapped(TapConnection *tc) {
     bool rv = false;
     std::map<const void*, TapConnection*>::iterator it;
