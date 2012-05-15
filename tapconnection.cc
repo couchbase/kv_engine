@@ -284,10 +284,9 @@ void TapProducer::setVBucketFilter(const std::vector<uint16_t> &vbuckets)
         for (std::set<uint16_t>::const_iterator it = vset.begin(); it != vset.end(); ++it) {
             if (vbucketFilter(*it)) {
                 RCPtr<VBucket> vb = vbMap.getBucket(*it);
-                if (!vb) {
-                    continue;
+                if (vb) {
+                    vb->checkpointManager.removeTAPCursor(name);
                 }
-                vb->checkpointManager.removeTAPCursor(name);
                 backfillVBuckets.erase(*it);
                 backFillVBucketFilter.removeVBucket(*it);
             }
