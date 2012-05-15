@@ -1566,14 +1566,14 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
     if (ev.event != TAP_PAUSE) {
         switch (ev.event) {
         case TAP_VBUCKET_SET:
-            getLogger()->log(EXTENSION_LOG_INFO, NULL,
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                              "%s Sending TAP_VBUCKET_SET with vbucket %d and state \"%s\"\n",
                              connection->logHeader(), ev.vbucket,
                              VBucket::toString(ev.state));
             connection->encodeVBucketStateTransition(ev, es, nes, vbucket);
             break;
         case TAP_OPAQUE:
-            getLogger()->log(EXTENSION_LOG_INFO, NULL,
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                              "%s Sending TAP_OPAQUE with command \"%s\" and vbucket %d\n",
                              connection->logHeader(),
                              TapConnection::opaqueCmdToString((uint32_t) ev.state),
@@ -1619,7 +1619,7 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
     if (ret == TAP_PAUSE && (connection->dumpQueue || connection->doTakeOver)) {
         TapVBucketEvent vbev = connection->checkDumpOrTakeOverCompletion();
         if (vbev.event == TAP_VBUCKET_SET) {
-            getLogger()->log(EXTENSION_LOG_INFO, NULL,
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                              "%s Sending TAP_VBUCKET_SET with vbucket %d and state \"%s\"\n",
                              connection->logHeader(), vbev.vbucket,
                              VBucket::toString(vbev.state));
