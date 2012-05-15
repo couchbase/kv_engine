@@ -124,7 +124,7 @@ extern "C" {
     typedef struct {
         char *value;
         size_t length;
-    } token_t;
+    } mc_extension_token_t;
 
     /**
      * ASCII protocol extensions must provide the following descriptor to
@@ -168,7 +168,7 @@ extern "C" {
         bool (*accept)(const void *cmd_cookie,
                        void *cookie,
                        int argc,
-                       token_t *argv,
+                       mc_extension_token_t *argv,
                        size_t *ndata,
                        char **ptr);
 
@@ -184,7 +184,7 @@ extern "C" {
          */
         ENGINE_ERROR_CODE (*execute)(const void *cmd_cookie,
                                      const void *cookie,
-                                     int argc, token_t *argv,
+                                     int argc, mc_extension_token_t *argv,
                                      ENGINE_ERROR_CODE (*response_handler)(const void *cookie,
                                                                            int nbytes,
                                                                            const char *dta));

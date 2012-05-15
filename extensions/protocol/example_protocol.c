@@ -17,10 +17,10 @@
 
 static const char *get_name(const void *cmd_cookie);
 static bool accept_command(const void *cmd_cookie, void *cookie,
-                           int argc, token_t *argv, size_t *ndata,
+                           int argc, mc_extension_token_t *argv, size_t *ndata,
                            char **ptr);
 static ENGINE_ERROR_CODE execute_command(const void *cmd_cookie, const void *cookie,
-                                         int argc, token_t *argv,
+                                         int argc, mc_extension_token_t *argv,
                                          ENGINE_ERROR_CODE (*response_handler)(const void *cookie,
                                                                                int nbytes,
                                                                                const char *dta));
@@ -51,7 +51,7 @@ static const char *get_name(const void *cmd_cookie) {
 }
 
 static bool accept_command(const void *cmd_cookie, void *cookie,
-                           int argc, token_t *argv, size_t *ndata,
+                           int argc, mc_extension_token_t *argv, size_t *ndata,
                            char **ptr) {
     if (cmd_cookie == &noop_descriptor) {
         return strcmp(argv[0].value, "noop") == 0;
@@ -61,7 +61,7 @@ static bool accept_command(const void *cmd_cookie, void *cookie,
 }
 
 static ENGINE_ERROR_CODE execute_command(const void *cmd_cookie, const void *cookie,
-                                         int argc, token_t *argv,
+                                         int argc, mc_extension_token_t *argv,
                                          ENGINE_ERROR_CODE (*response_handler)(const void *cookie,
                                                                                int nbytes,
                                                                                const char *dta))

@@ -3841,7 +3841,7 @@ static void complete_nread(conn *c) {
  *      command  = tokens[ix].value;
  *   }
  */
-static size_t tokenize_command(char *command, token_t *tokens, const size_t max_tokens) {
+static size_t tokenize_command(char *command, mc_extension_token_t *tokens, const size_t max_tokens) {
     char *s, *e;
     size_t ntokens = 0;
 
@@ -3879,7 +3879,8 @@ static size_t tokenize_command(char *command, token_t *tokens, const size_t max_
     return ntokens;
 }
 
-static void detokenize(token_t *tokens, int ntokens, char **out, int *nbytes) {
+static void detokenize(mc_extension_token_t *tokens, int ntokens,
+                       char **out, int *nbytes) {
     int i, nb;
     char *buf, *p;
 
@@ -3917,7 +3918,7 @@ static void write_and_free(conn *c, char *buf, int bytes) {
     }
 }
 
-static inline bool set_noreply_maybe(conn *c, token_t *tokens, size_t ntokens)
+static inline bool set_noreply_maybe(conn *c, mc_extension_token_t *tokens, size_t ntokens)
 {
     int noreply_index = ntokens - 2;
 
@@ -4191,7 +4192,7 @@ static void process_stat_settings(ADD_STAT add_stats, void *c) {
     }
 }
 
-static char *process_stat(conn *c, token_t *tokens, const size_t ntokens) {
+static char *process_stat(conn *c, mc_extension_token_t *tokens, const size_t ntokens) {
     const char *subcommand = tokens[SUBCOMMAND_TOKEN].value;
     c->dynamic_buffer.offset = 0;
 
@@ -4406,12 +4407,12 @@ static int construct_ascii_get_response(conn *c, bool return_cas, item_info_hold
 }
 
 /* ntokens is overwritten here... shrug.. */
-static inline char* process_get_command(conn *c, token_t *tokens, size_t ntokens, bool return_cas) {
+static inline char* process_get_command(conn *c, mc_extension_token_t *tokens, size_t ntokens, bool return_cas) {
     char *key;
     size_t nkey;
     int i = c->ileft;
     item *it;
-    token_t *key_token = &tokens[KEY_TOKEN];
+    mc_extension_token_t *key_token = &tokens[KEY_TOKEN];
     assert(c != NULL);
 
     do {
@@ -4540,7 +4541,7 @@ static inline char* process_get_command(conn *c, token_t *tokens, size_t ntokens
     return NULL;
 }
 
-static void process_update_command(conn *c, token_t *tokens, const size_t ntokens, ENGINE_STORE_OPERATION store_op, bool handle_cas) {
+static void process_update_command(conn *c, mc_extension_token_t *tokens, const size_t ntokens, ENGINE_STORE_OPERATION store_op, bool handle_cas) {
     char *key;
     size_t nkey;
     unsigned int flags;
@@ -4639,7 +4640,7 @@ static void process_update_command(conn *c, token_t *tokens, const size_t ntoken
     }
 }
 
-static char* process_arithmetic_command(conn *c, token_t *tokens, const size_t ntokens, const bool incr) {
+static char* process_arithmetic_command(conn *c, mc_extension_token_t *tokens, const size_t ntokens, const bool incr) {
 
     uint64_t delta;
     char *key;
@@ -4719,7 +4720,7 @@ static char* process_arithmetic_command(conn *c, token_t *tokens, const size_t n
     return NULL;
 }
 
-static char *process_delete_command(conn *c, token_t *tokens,
+static char *process_delete_command(conn *c, mc_extension_token_t *tokens,
                                     const size_t ntokens) {
     char *key;
     size_t nkey;
@@ -4778,7 +4779,7 @@ static char *process_delete_command(conn *c, token_t *tokens,
     return NULL;
 }
 
-static void process_verbosity_command(conn *c, token_t *tokens, const size_t ntokens) {
+static void process_verbosity_command(conn *c, mc_extension_token_t *tokens, const size_t ntokens) {
     unsigned int level;
 
     assert(c != NULL);
@@ -4802,7 +4803,7 @@ static void process_verbosity_command(conn *c, token_t *tokens, const size_t nto
 
 static char* process_command(conn *c, char *command) {
 
-    token_t tokens[MAX_TOKENS];
+    mc_extension_token_t tokens[MAX_TOKENS];
     size_t ntokens;
     int comm;
     char *ret = NULL;
