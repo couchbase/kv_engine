@@ -377,7 +377,8 @@ void CouchKVStore::get(const std::string &key, uint64_t, uint16_t vb, uint16_t,
 
                 valuelen = doc->data.size;
                 valuePtr = doc->data.buf;
-                it = new Item(key, itemFlags, 0, valuePtr, valuelen, cas, -1, vb);
+                it = new Item(key, itemFlags, (time_t)exptime, valuePtr,
+                              valuelen, cas, -1, vb);
                 rv = GetValue(it);
                 /* update ep-engine IO stats */
                 ++epStats.io_num_read;

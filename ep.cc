@@ -1246,6 +1246,12 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
                 assert(gcb.val.getStatus() == ENGINE_SUCCESS);
                 v->unlocked_restoreValue(gcb.val.getValue(), stats, vb->ht);
                 assert(v->isResident());
+                if (v->getExptime() != gcb.val.getValue()->getExptime()) {
+                    assert(v->isDirty());
+                    // exptime mutated, schedule it into new checkpoint
+                    queueDirty(key, vbucket, queue_op_set,
+                               v->getSeqno(), v->getId());
+                }
             }
         }
     }
@@ -1457,10 +1463,23 @@ GetValue EventuallyPersistentStore::getAndUpdateTtl(const std::string &key,
     StoredValue *v = fetchValidValue(vb, key, bucket_num);
 
     if (v) {
+        bool exptime_mutated = exptime != v->getExptime() ? true : false;
+        if (exptime_mutated) {
+           v->markDirty();
+        }
         v->setExptime(exptime);
-        // If the value is not resident, wait for it...
-        if (!v->isResident()) {
-            if (queueBG) {
+
+        if (v->isResident()) {
+            if (exptime_mutated) {
+                // persist the itme in the underlying storage for
+                // mutated exptime
+                queueDirty(key, vbucket, queue_op_set, v->getSeqno(),
+                           v->getId());
+            }
+        } else {
+            if (queueBG || exptime_mutated) {
+                // in case exptime_mutated, first do bgFetch then
+                // persist mutated exptime in the underlying storage
                 bgFetch(key, vbucket, vbuckets.getBucketVersion(vbucket),
                         v->getId(), cookie);
                 return GetValue(NULL, ENGINE_EWOULDBLOCK, v->getId());
@@ -1478,6 +1497,7 @@ GetValue EventuallyPersistentStore::getAndUpdateTtl(const std::string &key,
         if (engine.isDegradedMode()) {
             rv.setStatus(ENGINE_TMPFAIL);
         }
+        // status == ENGINE_KEY_ENOENT
         return rv;
     }
 }

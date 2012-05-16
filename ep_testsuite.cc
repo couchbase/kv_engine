@@ -2519,6 +2519,74 @@ static enum test_result test_gatq(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return SUCCESS;
 }
 
+static enum test_result test_mb5215(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    item *itm = NULL;
+    check(store(h, h1, NULL, OPERATION_SET, "coolkey", "cooler", &itm)
+          == ENGINE_SUCCESS, "Failed set.");
+    h1->release(h, NULL, itm);
+
+    check(check_key_value(h, h1, "coolkey", "cooler", strlen("cooler"))
+          == SUCCESS, "Failed to retrieve data");
+
+    // set new exptime to 111
+    int expTime = time(NULL) + 111;
+    char buffer[512];
+    memset(buffer, 0, sizeof(buffer));
+    protocol_binary_request_touch *req =
+        reinterpret_cast<protocol_binary_request_touch *>(buffer);
+    protocol_binary_request_header *request =
+        reinterpret_cast<protocol_binary_request_header*>(req);
+    req->message.header.request.magic = PROTOCOL_BINARY_REQ;
+    req->message.header.request.opcode = PROTOCOL_BINARY_CMD_TOUCH;
+    req->message.header.request.vbucket = 0;
+    req->message.header.request.extlen = 4;
+    req->message.header.request.keylen = htons(7);
+    req->message.header.request.bodylen = htonl(17);
+    req->message.body.expiration = ntohl(expTime);
+    memcpy(buffer + sizeof(req->bytes), "coolkey", 7);
+
+    check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
+          "Failed to call touch");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "touch coolkey");
+
+    //reload engine
+    testHarness.reload_engine(&h, &h1,
+                              testHarness.engine_path,
+                              testHarness.get_current_testcase()->cfg,
+                              true, false);
+    wait_for_warmup_complete(h, h1);
+
+    //verify persisted expiration time
+    const char *statkey = "key coolkey 0";
+    int newExpTime;
+    check(h1->get(h, NULL, &itm, "coolkey", 7, 0) == ENGINE_SUCCESS,
+          "Missing key");
+    newExpTime = get_int_stat(h, h1, "key_exptime", statkey);
+    check(newExpTime == expTime, "Failed to persist new exptime");
+
+    // evict key, touch expiration time, and verify
+    evict_key(h, h1, "coolkey", 0, "Ejected.");
+
+    expTime = time(NULL) + 222;
+    req->message.body.expiration = ntohl(expTime);
+    check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
+          "Failed to call touch");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "touch coolkey");
+
+    testHarness.reload_engine(&h, &h1,
+                              testHarness.engine_path,
+                              testHarness.get_current_testcase()->cfg,
+                              true, false);
+    wait_for_warmup_complete(h, h1);
+
+    check(h1->get(h, NULL, &itm, "coolkey", 7, 0) == ENGINE_SUCCESS,
+          "Missing key");
+    newExpTime = get_int_stat(h, h1, "key_exptime", statkey);
+    check(newExpTime == expTime, "Failed to persist new exptime");
+
+    return SUCCESS;
+}
+
 static enum test_result test_alloc_limit(ENGINE_HANDLE *h,
                                          ENGINE_HANDLE_V1 *h1) {
     item *it = NULL;
@@ -6525,6 +6593,8 @@ engine_test_t* get_tests(void) {
                  NULL, prepare, cleanup, BACKEND_ALL),
         TestCase("test gatq", test_gatq, test_setup, teardown,
                  NULL, prepare, cleanup, BACKEND_ALL),
+        TestCase("test mb5215", test_mb5215, test_setup, teardown,
+                 NULL, prepare, cleanup, BACKEND_COUCH),
         TestCase("delete", test_delete, test_setup, teardown,
                  NULL, prepare, cleanup, BACKEND_ALL),
         TestCase("set/delete", test_set_delete, test_setup,
