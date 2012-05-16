@@ -44,14 +44,11 @@ void BackfillDiskCallback::callback(GetValue &gv) {
 }
 
 bool BackfillDiskLoad::callback(Dispatcher &, TaskId) {
-    bool valid = false;
-
     if (connMap.checkConnectivity(name) && !engine->getEpStore()->isFlushAllScheduled()) {
         shared_ptr<Callback<GetValue> > backfill_cb(new BackfillDiskCallback(validityToken,
                                                                              name, connMap,
                                                                              engine));
         store->dump(vbucket, backfill_cb);
-        valid = true;
     }
 
     getLogger()->log(EXTENSION_LOG_INFO, NULL,
