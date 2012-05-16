@@ -60,11 +60,12 @@ public:
  */
 class CompletedBGFetchTapOperation : public TapOperation<Item*> {
 public:
-    CompletedBGFetchTapOperation(uint16_t vb, bool ie=false) :
-        vbid(vb), implicitEnqueue(ie) {}
+    CompletedBGFetchTapOperation(const void *cookie, uint16_t vb, bool ie=false) :
+        connCookie(cookie), vbid(vb), implicitEnqueue(ie) {}
 
     void perform(TapProducer *tc, Item* arg);
 private:
+    const void *connCookie;
     uint16_t vbid;
     bool implicitEnqueue;
 };
@@ -127,11 +128,6 @@ public:
      * Return true if the TAP connection with the given name is still alive
      */
     bool checkConnectivity(const std::string &name);
-
-    /**
-     * Return true if the backfill is completed for a given TAP connection.
-     */
-    bool checkBackfillCompletion(const std::string &name);
 
     /**
      * Set some backfilled events for a named conn.
@@ -269,7 +265,7 @@ private:
 
     TapConnection *findByName_UNLOCKED(const std::string &name);
     void getExpiredConnections_UNLOCKED(std::list<TapConnection*> &deadClients,
-                                        std::list<TapConnection*> &regClients);
+                                        std::list<const void*> &regClients);
 
     void removeTapCursors_UNLOCKED(TapProducer *tp);
 

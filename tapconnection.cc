@@ -284,10 +284,9 @@ void TapProducer::setVBucketFilter(const std::vector<uint16_t> &vbuckets)
         for (std::set<uint16_t>::const_iterator it = vset.begin(); it != vset.end(); ++it) {
             if (vbucketFilter(*it)) {
                 RCPtr<VBucket> vb = vbMap.getBucket(*it);
-                if (!vb) {
-                    continue;
+                if (vb) {
+                    vb->checkpointManager.removeTAPCursor(name);
                 }
-                vb->checkpointManager.removeTAPCursor(name);
                 backfillVBuckets.erase(*it);
                 backFillVBucketFilter.removeVBucket(*it);
             }
@@ -1043,7 +1042,7 @@ public:
                     ++stats.numTapBGFetchRequeued;
                     return true;
                 } else {
-                    CompletedBGFetchTapOperation tapop(vbucket);
+                    CompletedBGFetchTapOperation tapop(cookie, vbucket);
                     epe->getTapConnMap().performTapOp(name, tapop, gcb.val.getValue());
                     // As an item is deleted from hash table, push the item
                     // deletion event into the TAP queue.
@@ -1055,7 +1054,7 @@ public:
                     return false;
                 }
             } else {
-                CompletedBGFetchTapOperation tapop(vbucket);
+                CompletedBGFetchTapOperation tapop(cookie, vbucket);
                 epe->getTapConnMap().performTapOp(name, tapop, gcb.val.getValue());
                 getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                                  "VBucket %d not exist!!! TAP BG fetch failed for TAP %s\n",
@@ -1064,7 +1063,7 @@ public:
             }
         }
 
-        CompletedBGFetchTapOperation tapop(vbucket);
+        CompletedBGFetchTapOperation tapop(cookie, vbucket);
         if (!epe->getTapConnMap().performTapOp(name, tapop, gcb.val.getValue())) {
             delete gcb.val.getValue(); // Tap connection is closed. Free an item instance.
         }
@@ -1124,7 +1123,7 @@ void TapProducer::queueBGFetch_UNLOCKED(const std::string &key, uint64_t id,
     if (it != tapCheckpointState.end()) {
         ++(it->second.bgJobIssued);
     }
-    assert(bgJobIssued - bgJobCompleted > 0);
+    assert(bgJobIssued > bgJobCompleted);
 }
 
 void TapProducer::completeBGFetchJob(Item *itm, uint16_t vbid, bool implicitEnqueue) {
@@ -1145,6 +1144,7 @@ void TapProducer::completeBGFetchJob(Item *itm, uint16_t vbid, bool implicitEnqu
     if (it != tapCheckpointState.end()) {
         ++(it->second.bgJobCompleted);
     }
+    assert(bgJobIssued >= bgJobCompleted);
 
     if (itm) {
         backfilledItems.push(itm);
@@ -1644,7 +1644,17 @@ bool TapProducer::SetCursorToOpenCheckpoint(uint16_t vbid) {
 
     uint64_t checkpointId = vb->checkpointManager.getOpenCheckpointId();
     std::map<uint16_t, TapCheckpointState>::iterator it = tapCheckpointState.find(vbid);
-    if (it == tapCheckpointState.end() || dumpQueue) {
+    if (it == tapCheckpointState.end()) {
+        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                         "%s Failed to set the TAP cursor to the open checkpoint"
+                         " because the TAP checkpoint state for vbucket %d does not exist\n",
+                         logHeader(), vbid);
+        return false;
+    } else if (dumpQueue) {
+        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                         "%s Skip the TAP checkpoint cursor registration "
+                         " because the TAP producer is connected with DUMP flag\n",
+                         logHeader(), vbid);
         return false;
     }
 
@@ -1698,7 +1708,7 @@ void TapProducer::scheduleBackfill_UNLOCKED(const std::vector<uint16_t> &vblist)
         TapVBucketEvent hi(TAP_OPAQUE, *it,
                            (vbucket_state_t)htonl(TAP_OPAQUE_INITIAL_VBUCKET_STREAM));
         addVBucketHighPriority_UNLOCKED(hi);
-        getLogger()->log(EXTENSION_LOG_INFO, NULL,
+        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                          "%s Schedule the backfill for vbucket %d\n",
                          logHeader(), *it);
     }

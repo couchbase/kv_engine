@@ -39,6 +39,8 @@ def start(mc, username=None, password=""):
     mc.start_persistence()
 
 def set_param(mc, key, val, username=None, password=""):
+    if key == 'tap_throttle_queue_cap' and val == 'infinite':
+        val = '-1'
     auth(mc, username, password)
     mc.set_param(key, val, ENGINE_PARAM_FLUSH)
 
@@ -70,20 +72,30 @@ Persistence:
     drain          - wait until queues are drained
 
 Available params for "set":
-    min_data_age              - minimum data age before flushing data
-    queue_age_cap             - maximum queue age before flushing data
-    max_txn_size              - maximum number of items in a flusher transaction
-    bg_fetch_delay            - delay before executing a bg fetch (test feature)
-    max_size                  - max memory used by the server
-    mem_high_wat              - high water mark
-    mem_low_wat               - low water mark
-    timing_log                - path to log detailed timing stats
-    exp_pager_stime           - Expiry Pager Sleeptime
+    bg_fetch_delay            - Delay before executing a bg fetch (test feature)
+    chk_max_items             - Maximum items before creating a new checkpoint
+    chk_period                - Duration before creating a new checkpoint
     couch_vbucket_batch_count - vbucket batch size for couchdb persistence
     couchdb_response_timeout  - timeout in receiving a response from couchdb
+    exp_pager_stime           - Expiry Pager Sleeptime
+    inconsistent_slave_chk    - Enables active to active replication
+    queue_age_cap             - Maximum queue age before flushing data
+    max_checkpoints           - Maximum number of checkpoints
+    max_size                  - Max memory used by the server
+    max_txn_size              - Maximum number of items in a flusher transaction
+    mem_high_wat              - High water mark
+    mem_low_wat               - Low water mark
+    min_data_age              - Minimum data age before flushing data
+    sync_cmd_timeout          - The timeout for the sync command
+    tap_throttle_queue_cap    - Destination disk write queue cap for tap backoff
+                                ('infinite' means no cap)
+    tap_throttle_threshold    - Destination memory threshold for tap backoff
+    timing_log                - path to log detailed timing stats
+    keep_closed_chks          - Keep all closed checkpoints in memory
     klog_max_log_size         - maximum size of a mutation log file allowed
     klog_max_entry_ratio      - max ratio of # of items logged to # of unique items
-    klog_compactor_queue_cap  - queue cap to throttle the log compactor""")
+    klog_compactor_queue_cap  - queue cap to throttle the log compactor
+    """)
 
     c.addCommand('stop', stop, 'stop')
     c.addCommand('start', start, 'start')
