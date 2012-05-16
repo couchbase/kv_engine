@@ -11,6 +11,7 @@ AM_CONFIG_HEADER(config.h)
 AC_CONFIG_MACRO_DIR([m4])
 
 AC_PROG_CC
+AC_PROG_CXX
 AC_DISABLE_STATIC
 AC_PROG_LIBTOOL
 
@@ -57,12 +58,12 @@ AC_DEFUN([DETECT_SUNCC],
 ])
 
 AS_IF(test "x$GCC" = "xyes",
-      DETECT_ICC([CFLAGS="-pthread $CFLAGS"],
-          [CFLAGS="-fvisibility=hidden -pthread $CFLAGS"
+      DETECT_ICC([CPPFLAGS="-pthread $CPPFLAGS"],
+          [CPPFLAGS="-fvisibility=hidden -pthread $CPPFLAGS"
            LDFLAGS="-pthread $LDFLAGS"
           ]),
       ICC=no
-      DETECT_SUNCC([CFLAGS="-xldscope=hidden -mt -xc99=all $CFLAGS"], []))
+      DETECT_SUNCC([CPPFLAGS="-xldscope=hidden -mt -xc99=all $CPPFLAGS"], []))
 
 if test "$ICC" = "no"; then
    AC_PROG_CC_C99

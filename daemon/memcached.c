@@ -249,7 +249,7 @@ static struct listening_port *get_listening_port_instance(const int port) {
 static void stats_init(void) {
     stats.daemon_conns = 0;
     stats.rejected_conns = 0;
-    stats.curr_conns = stats.total_conns = stats.conn_structs = 0;
+    stats.curr_conns = stats.total_conns = 0;
     stats.listening_ports = calloc(settings.num_ports, sizeof(struct listening_port));
 
     stats_prefix_init();
@@ -514,7 +514,7 @@ static int conn_constructor(conn *c) {
     memset(c, 0, sizeof(*c));
     MEMCACHED_CONN_CREATE(c);
 
-    c->state = conn_closing;
+    c->state = conn_immediate_close;
     c->sfd = INVALID_SOCKET;
     if (!conn_reset_buffersize(c)) {
         free(c->rbuf);
@@ -933,21 +933,19 @@ static void conn_cleanup(conn *c) {
 void conn_close(conn *c) {
     assert(c != NULL);
     assert(c->sfd == INVALID_SOCKET);
+    assert(c->state == conn_immediate_close);
 
     if (c->ascii_cmd != NULL) {
         c->ascii_cmd->abort(c->ascii_cmd, c);
     }
 
     assert(c->thread);
-    LOCK_THREAD(c->thread);
     /* remove from pending-io list */
     if (settings.verbose > 1 && list_contains(c->thread->pending_io, c)) {
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                         "Current connection was in the pending-io list.. Nuking it\n");
     }
     c->thread->pending_io = list_remove(c->thread->pending_io, c);
-    c->thread->pending_close = list_remove(c->thread->pending_close, c);
-    UNLOCK_THREAD(c->thread);
 
     conn_cleanup(c);
 
@@ -1045,8 +1043,6 @@ const char *state_text(STATE_FUNC state) {
         return "conn_mwrite";
     } else if (state == conn_ship_log) {
         return "conn_ship_log";
-    } else if (state == conn_add_tap_client) {
-        return "conn_add_tap_client";
     } else if (state == conn_setup_tap_stream) {
         return "conn_setup_tap_stream";
     } else if (state == conn_pending_close) {
@@ -1073,7 +1069,7 @@ void conn_set_state(conn *c, STATE_FUNC state) {
          * New messages may appear from both sides, so we can't block on
          * read from the nework / engine
          */
-        if (c->thread == tap_thread) {
+        if (c->tap_iterator != NULL) {
             if (state == conn_waiting) {
                 c->which = EV_WRITE;
                 state = conn_ship_log;
@@ -1081,7 +1077,7 @@ void conn_set_state(conn *c, STATE_FUNC state) {
         }
 
         if (settings.verbose > 2 || c->state == conn_closing
-            || c->state == conn_add_tap_client) {
+            || c->state == conn_setup_tap_stream) {
             settings.extensions.logger->log(EXTENSION_LOG_DETAIL, c,
                                             "%d: going from %s to %s\n",
                                             c->sfd, state_text(c->state),
@@ -2573,7 +2569,6 @@ struct tap_stats {
 } tap_stats = { .mutex = PTHREAD_MUTEX_INITIALIZER };
 
 static void ship_tap_log(conn *c) {
-    assert(c->thread->type == TAP);
     c->msgcurr = 0;
     c->msgused = 0;
     c->iovused = 0;
@@ -3079,7 +3074,7 @@ static void process_bin_packet(conn *c) {
         pthread_mutex_lock(&tap_stats.mutex);
         tap_stats.received.connect++;
         pthread_mutex_unlock(&tap_stats.mutex);
-        conn_set_state(c, conn_add_tap_client);
+        conn_set_state(c, conn_setup_tap_stream);
         break;
     case PROTOCOL_BINARY_CMD_TAP_MUTATION:
         pthread_mutex_lock(&tap_stats.mutex);
@@ -5081,13 +5076,10 @@ static int try_read_command(conn *c) {
 
         assert(cont <= (c->rcurr + c->rbytes));
 
-        LIBEVENT_THREAD *thread = c->thread;
-        LOCK_THREAD(thread);
         left = process_command(c, c->rcurr);
         if (c->ewouldblock) {
             unregister_event(c);
         }
-        UNLOCK_THREAD(thread);
 
         if (left != NULL) {
             /*
@@ -5233,6 +5225,7 @@ static enum try_read_result try_read_network(conn *c) {
 
 bool register_event(conn *c, struct timeval *timeout) {
     assert(!c->registered_in_libevent);
+    assert(c->sfd != INVALID_SOCKET);
 
     if (event_add(&c->event, timeout) == -1) {
         settings.extensions.logger->log(EXTENSION_LOG_WARNING,
@@ -5249,6 +5242,7 @@ bool register_event(conn *c, struct timeval *timeout) {
 
 bool unregister_event(conn *c) {
     assert(c->registered_in_libevent);
+    assert(c->sfd != INVALID_SOCKET);
 
     if (event_del(&c->event) == -1) {
         return false;
@@ -5455,7 +5449,6 @@ bool conn_ship_log(conn *c) {
     } else if (c->which & EV_WRITE) {
         --c->nevents;
         if (c->nevents >= 0) {
-            LOCK_THREAD(c->thread);
             c->ewouldblock = false;
             ship_tap_log(c);
             if (c->ewouldblock) {
@@ -5463,7 +5456,6 @@ bool conn_ship_log(conn *c) {
             } else {
                 cont = true;
             }
-            UNLOCK_THREAD(c->thread);
         }
     }
 
@@ -5607,20 +5599,12 @@ bool conn_nread(conn *c) {
     ssize_t res;
 
     if (c->rlbytes == 0) {
-        LIBEVENT_THREAD *t = c->thread;
-        LOCK_THREAD(t);
         bool block = c->ewouldblock = false;
         complete_nread(c);
-        UNLOCK_THREAD(t);
-        /* Breaking this into two, as complete_nread may have
-           moved us to a different thread */
-        t = c->thread;
-        LOCK_THREAD(t);
         if (c->ewouldblock) {
             unregister_event(c);
             block = true;
         }
-        UNLOCK_THREAD(t);
         return !block;
     }
     /* first check if we have leftovers in the conn_read buffer */
@@ -5762,30 +5746,33 @@ bool conn_pending_close(conn *c) {
     settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
                                     "Awaiting clients to release the cookie (pending close for %p)",
                                     (void*)c);
-    LOCK_THREAD(c->thread);
-    c->thread->pending_io = list_remove(c->thread->pending_io, c);
-    if (!list_contains(c->thread->pending_close, c)) {
-        enlist_conn(c, &c->thread->pending_close);
-    }
-    UNLOCK_THREAD(c->thread);
-
     /*
      * tell the tap connection that we're disconnecting it now,
      * but give it a grace period
      */
     perform_callbacks(ON_DISCONNECT, NULL, c);
 
-    /*
-     * disconnect callback may have changed the state for the object
-     * so we might complete the disconnect now
-     */
-    return c->state != conn_pending_close;
+    if (c->refcount > 1) {
+        return false;
+    }
+
+    conn_set_state(c, conn_immediate_close);
+    return true;
 }
 
 bool conn_immediate_close(conn *c) {
+    assert(c->sfd == INVALID_SOCKET);
     settings.extensions.logger->log(EXTENSION_LOG_DETAIL, c,
-                                    "Immediate close of %p",
-                                    (void*)c);
+                                    "Releasing connection %p",
+                                    c);
+
+    STATS_LOCK();
+    struct listening_port *port_instance;
+    port_instance = get_listening_port_instance(c->parent_port);
+    assert(port_instance);
+    --port_instance->curr_conns;
+    STATS_UNLOCK();
+
     perform_callbacks(ON_DISCONNECT, NULL, c);
     conn_close(c);
 
@@ -5798,62 +5785,17 @@ bool conn_closing(conn *c) {
         return false;
     }
 
-    if (!IS_UDP(c->transport)) {
-        STATS_LOCK();
-        struct listening_port *port_instance = get_listening_port_instance(c->parent_port);
-        assert(port_instance);
-        --port_instance->curr_conns;
-        STATS_UNLOCK();
-    }
-
     // We don't want any network notifications anymore..
     unregister_event(c);
     safe_close(c->sfd);
     c->sfd = INVALID_SOCKET;
 
-    if (c->refcount > 1) {
+    if (c->refcount > 1 || c->ewouldblock) {
         conn_set_state(c, conn_pending_close);
     } else {
         conn_set_state(c, conn_immediate_close);
     }
     return true;
-}
-
-bool conn_add_tap_client(conn *c) {
-    LIBEVENT_THREAD *tp = tap_thread;
-    LIBEVENT_THREAD *orig_thread = c->thread;
-
-    assert(orig_thread);
-    assert(orig_thread != tp);
-
-    c->ewouldblock = true;
-
-    unregister_event(c);
-
-    LOCK_THREAD(orig_thread);
-    /* Clean out the lists */
-    orig_thread->pending_io = list_remove(orig_thread->pending_io, c);
-    orig_thread->pending_close = list_remove(orig_thread->pending_close, c);
-
-    LOCK_THREAD(tp);
-    c->ev_flags = 0;
-    conn_set_state(c, conn_setup_tap_stream);
-    settings.extensions.logger->log(EXTENSION_LOG_DEBUG, NULL,
-                                    "Moving %d conn from %p to %p\n",
-                                    c->sfd, c->thread, tp);
-    c->thread = tp;
-    c->event.ev_base = tp->base;
-    assert(c->next == NULL);
-    assert(c->list_state == 0);
-    enlist_conn(c, &tp->pending_io);
-
-    UNLOCK_THREAD(tp);
-
-    UNLOCK_THREAD(orig_thread);
-
-    notify_thread(tp);
-
-    return false;
 }
 
 bool conn_setup_tap_stream(conn *c) {
@@ -5862,9 +5804,7 @@ bool conn_setup_tap_stream(conn *c) {
 }
 
 void event_handler(const int fd, const short which, void *arg) {
-    conn *c;
-
-    c = (conn *)arg;
+    conn *c = arg;
     assert(c != NULL);
 
     if (memcached_shutdown) {
@@ -5872,79 +5812,39 @@ void event_handler(const int fd, const short which, void *arg) {
         return ;
     }
 
+    LIBEVENT_THREAD *thr = c->thread;
+    if (!is_listen_thread()) {
+        assert(thr);
+        LOCK_THREAD(thr);
+        /*
+         * Remove the list from the list of pending io's (in case the
+         * object was scheduled to run in the dispatcher before the
+         * callback for the worker thread is executed.
+         */
+        c->thread->pending_io = list_remove(c->thread->pending_io, c);
+    }
+
     c->which = which;
 
     /* sanity */
-    if (fd != c->sfd) {
-        if (c->sfd != INVALID_SOCKET) {
-            settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
-                    "Catastrophic: event fd doesn't match conn fd!\n");
-        }
-        unregister_event(c);
-        if (c->sfd != INVALID_SOCKET && c->thread != NULL) {
-            conn_close(c);
-        }
-        return;
-    }
-
+    assert(fd == c->sfd);
     perform_callbacks(ON_SWITCH_CONN, c, c);
+
 
     c->nevents = settings.reqs_per_event;
     if (c->state == conn_ship_log) {
         c->nevents = settings.reqs_per_tap_event;
     }
 
-    LIBEVENT_THREAD *thr = c->thread;
-
-    // Do we have pending closes?
-    const size_t max_items = 256;
-    conn *pending_close[max_items];
-    size_t n_pending_close = 0;
-    if (thr != NULL) {
-        LOCK_THREAD(thr);
-        if (thr->pending_close && thr->last_checked != current_time) {
-            assert(!has_cycle(thr->pending_close));
-            thr->last_checked = current_time;
-
-            n_pending_close = list_to_array(pending_close, max_items,
-                                            &thr->pending_close);
-        }
-        UNLOCK_THREAD(thr);
-    }
-
-    if (settings.verbose) {
-        do {
+    do {
+        if (settings.verbose) {
             settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
                                             "%d - Running task: (%s)\n",
                                             c->sfd, state_text(c->state));
-        } while (c->state(c));
-    } else {
-        while (c->state(c)) {
-            /* empty */
         }
-    }
+    } while (c->state(c));
 
-    /* Close any connections pending close */
-    if (n_pending_close > 0) {
-        for (size_t i = 0; i < n_pending_close; ++i) {
-            conn *ce = pending_close[i];
-            if (ce->refcount == 1) {
-                settings.extensions.logger->log(EXTENSION_LOG_DEBUG, NULL,
-                                                "OK, time to nuke: %p\n",
-                                                (void*)ce);
-                conn_close(ce);
-                pending_close[i] = NULL;
-            } else {
-                LOCK_THREAD(ce->thread);
-                enlist_conn(ce, &ce->thread->pending_close);
-                UNLOCK_THREAD(ce->thread);
-            }
-        }
-    }
-
-    if (thr != NULL) {
-        LOCK_THREAD(thr);
-        finalize_list(pending_close, n_pending_close);
+    if (thr) {
         UNLOCK_THREAD(thr);
     }
 }
@@ -6693,7 +6593,27 @@ static ENGINE_ERROR_CODE reserve_cookie(const void *cookie) {
 
 static ENGINE_ERROR_CODE release_cookie(const void *cookie) {
     conn *c = (conn *)cookie;
+    assert(c);
+
+    LIBEVENT_THREAD *thr = c->thread;
+    assert(thr);
+    LOCK_THREAD(thr);
     --c->refcount;
+
+    /* Releasing the refererence to the object may cause it to change
+     * state. (NOTE: the release call shall never be called from the
+     * worker threads), so should put the connection in the pool of
+     * pending IO and have the system retry the operation for the
+     * connection
+     */
+    int notify = add_conn_to_pending_io_list(c);
+    UNLOCK_THREAD(thr);
+
+    /* kick the thread in the butt */
+    if (notify) {
+        notify_thread(thr);
+    }
+
     return ENGINE_SUCCESS;
 }
 
