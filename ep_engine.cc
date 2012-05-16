@@ -1541,11 +1541,6 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
         return TAP_FLUSH;
     }
 
-    VBucketFilter backFillVBFilter;
-   if (connection->runBackfill(backFillVBFilter)) {
-        queueBackfill(backFillVBFilter, connection, cookie);
-    }
-
     if (connection->isTimeForNoop()) {
         getLogger()->log(EXTENSION_LOG_INFO, NULL,
                          "%s Sending a NOOP message.\n",
@@ -1594,6 +1589,11 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
 
     if (connection->waitForOpaqueMsgAck()) {
         return TAP_PAUSE;
+    }
+
+    VBucketFilter backFillVBFilter;
+    if (connection->runBackfill(backFillVBFilter)) {
+        queueBackfill(backFillVBFilter, connection, cookie);
     }
 
     Item *it = connection->getNextItem(cookie, vbucket, ret);
