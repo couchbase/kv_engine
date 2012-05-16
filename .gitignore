@@ -37,6 +37,7 @@
 /config/missing
 /config/mkinstalldirs
 /config/plugin.ac
+/config/ar-lib
 /configure
 /docs/doxy
 /dtrace/probes.h
