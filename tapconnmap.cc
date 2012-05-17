@@ -47,32 +47,6 @@ private:
     bool releaseReference;
 };
 
-class ReleaseCookieCallback : public DispatcherCallback {
-public:
-    ReleaseCookieCallback(EventuallyPersistentEngine &e, const void *c)
-        : engine(e), cookie(c)
-    {
-        std::stringstream ss;
-        ss << "Releasing cookie: " << cookie;
-        descr = ss.str();
-    }
-
-    bool callback(Dispatcher &, TaskId) {
-        engine.getServerApi()->cookie->release(cookie);
-        return false;
-    }
-
-    std::string description() {
-        return descr;
-    }
-
-private:
-    EventuallyPersistentEngine &engine;
-    const void *cookie;
-    std::string descr;
-};
-
-
 class TapConnMapValueChangeListener : public ValueChangedListener {
 public:
     TapConnMapValueChangeListener(TapConnMap &tc) : tapconnmap(tc) {
@@ -186,8 +160,7 @@ TapConnection* TapConnMap::findByName_UNLOCKED(const std::string&name) {
     return rv;
 }
 
-void TapConnMap::getExpiredConnections_UNLOCKED(std::list<TapConnection*> &deadClients,
-                                                std::list<const void*> &regClients) {
+void TapConnMap::getExpiredConnections_UNLOCKED(std::list<TapConnection*> &deadClients) {
     rel_time_t now = ep_current_time();
 
     std::list<TapConnection*>::iterator iter;
@@ -207,12 +180,6 @@ void TapConnMap::getExpiredConnections_UNLOCKED(std::list<TapConnection*> &deadC
                 }
             } else {
                 deadClients.push_back(tc);
-            }
-        } else if (tc->isReserved()) {
-            if (tp == NULL || !tp->suspended) {
-                // to avoid others to release it as well ;)
-                tc->setReserved(false);
-                regClients.push_back(tc->getCookie());
             }
         }
     }
@@ -295,16 +262,10 @@ TapProducer *TapConnMap::newProducer(const void* cookie,
         }
     }
 
-    // Disconnects aren't quite immediate yet, so if we see a
-    // connection request for a client *and* expiryTime is 0, we
-    // should kill this guy off.
     if (tap != NULL) {
-        std::map<const void*, TapConnection*>::iterator miter;
-        for (miter = map.begin(); miter != map.end(); ++miter) {
-            if (miter->second == tap) {
-                break;
-            }
-        }
+        const void *old_cookie = tap->getCookie();
+        assert(old_cookie);
+        map.erase(old_cookie);
 
         if (tapKeepAlive == 0 || (tap->complete() && tap->idle())) {
             getLogger()->log(EXTENSION_LOG_INFO, NULL,
@@ -312,27 +273,29 @@ TapProducer *TapConnMap::newProducer(const void* cookie,
                              tap->logHeader());
             tap->setName(TapConnection::getAnonName());
             tap->setDisconnect(true);
+            tap->setConnected(false);
             tap->paused = true;
+            tap->setExpiryTime(ep_current_time() - 1);
             tap = NULL;
         } else {
             getLogger()->log(EXTENSION_LOG_INFO, NULL,
                              "%s exists... grabbing the channel\n",
                              tap->logHeader());
-            if (miter != map.end()) {
-                TapProducer *n = new TapProducer(engine,
-                                                 NULL,
-                                                 TapConnection::getAnonName(),
-                                                 0);
-                n->setDisconnect(true);
-                n->setConnected(false);
-                n->paused = true;
-                all.push_back(n);
-                map[miter->first] = n;
-            }
+            // Create the dummy expired tap connection for the old connection cookie.
+            // This dummy tap connection will be used for releasing the corresponding
+            // memcached connection.
+            TapProducer *n = new TapProducer(engine,
+                                             old_cookie,
+                                             TapConnection::getAnonName(),
+                                             0);
+            n->setDisconnect(true);
+            n->setConnected(false);
+            n->paused = true;
+            n->setExpiryTime(ep_current_time() - 1);
+            all.push_back(n);
         }
     }
 
-    const void *old_cookie = NULL;
     bool reconnect = false;
     if (tap == NULL) {
         tap = new TapProducer(engine, cookie, name, flags);
@@ -340,10 +303,6 @@ TapProducer *TapConnMap::newProducer(const void* cookie,
                          tap->logHeader());
         all.push_back(tap);
     } else {
-        if (tap->isReserved()) {
-            assert(tap->getCookie() != NULL);
-            old_cookie = tap->getCookie();
-        }
         tap->setCookie(cookie);
         tap->setReserved(true);
         tap->evaluateFlags();
@@ -356,19 +315,6 @@ TapProducer *TapConnMap::newProducer(const void* cookie,
     tap->setTapFlagByteorderSupport((flags & TAP_CONNECT_TAP_FIX_FLAG_BYTEORDER) != 0);
     tap->setBackfillAge(backfillAge, reconnect);
     map[cookie] = tap;
-
-    lh.unlock();
-
-    if (old_cookie) {
-        Dispatcher *d = engine.getEpStore()->getNonIODispatcher();
-        getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                         "Schedule release of \"%p\"",
-                         old_cookie);
-        d->schedule(shared_ptr<DispatcherCallback>
-                    (new ReleaseCookieCallback(engine, old_cookie)),
-                    NULL, Priority::TapConnectionReaperPriority,
-                    0, false, true);
-    }
 
     return tap;
 }
@@ -494,12 +440,11 @@ void TapConnMap::notifyIOThreadMain() {
     }
 
     std::list<TapConnection*> deadClients;
-    std::list<const void*> registeredClients;
 
     LockHolder lh(notifySync);
     // We should pause unless we purged some connections or
     // all queues have items.
-    getExpiredConnections_UNLOCKED(deadClients, registeredClients);
+    getExpiredConnections_UNLOCKED(deadClients);
     engine.mutation_count = 0;
 
     // see if I have some channels that I have to signal..
@@ -522,7 +467,7 @@ void TapConnMap::notifyIOThreadMain() {
     std::list<const void *> toNotify;
     for (iter = map.begin(); iter != map.end(); ++iter) {
         TapProducer *tp = dynamic_cast<TapProducer*>(iter->second);
-        if (tp && (tp->paused || tp->doDisconnect()) && !tp->suspended) {
+        if (tp && (tp->paused || tp->doDisconnect()) && !tp->suspended && tp->isReserved()) {
             if (!tp->notifySent || (tp->lastWalkTime + maxIdleTime < now)) {
                 tp->notifySent.set(true);
                 toNotify.push_back(iter->first);
@@ -532,12 +477,7 @@ void TapConnMap::notifyIOThreadMain() {
 
     lh.unlock();
 
-    if (!registeredClients.empty()) {
-        std::list<const void*>::iterator ii;
-        for (ii = registeredClients.begin(); ii != registeredClients.end(); ++ii) {
-            engine.getServerApi()->cookie->release(*ii);
-        }
-    }
+    engine.notifyIOComplete(toNotify, ENGINE_SUCCESS);
 
     // Delete all of the dead clients
     if (!deadClients.empty()) {
@@ -553,8 +493,6 @@ void TapConnMap::notifyIOThreadMain() {
                         0, false, true);
         }
     }
-
-    engine.notifyIOComplete(toNotify, ENGINE_SUCCESS);
 }
 
 bool TapConnMap::SetCursorToOpenCheckpoint(const std::string &name, uint16_t vbucket) {

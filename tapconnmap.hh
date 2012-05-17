@@ -264,8 +264,7 @@ protected:
 private:
 
     TapConnection *findByName_UNLOCKED(const std::string &name);
-    void getExpiredConnections_UNLOCKED(std::list<TapConnection*> &deadClients,
-                                        std::list<const void*> &regClients);
+    void getExpiredConnections_UNLOCKED(std::list<TapConnection*> &deadClients);
 
     void removeTapCursors_UNLOCKED(TapProducer *tp);
 
