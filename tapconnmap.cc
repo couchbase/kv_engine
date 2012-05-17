@@ -526,7 +526,7 @@ void TapConnMap::notifyIOThreadMain() {
     std::list<const void *> toNotify;
     for (iter = map.begin(); iter != map.end(); ++iter) {
         TapProducer *tp = dynamic_cast<TapProducer*>(iter->second);
-        if (tp && (tp->paused || tp->doDisconnect()) && !tp->suspended) {
+        if (tp && (tp->paused || tp->doDisconnect()) && !tp->suspended && tp->isReserved()) {
             if (!tp->notifySent || (tp->lastWalkTime + maxIdleTime < now)) {
                 tp->notifySent.set(true);
                 toNotify.push_back(iter->first);
