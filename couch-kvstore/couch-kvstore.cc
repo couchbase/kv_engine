@@ -1220,6 +1220,7 @@ bool CouchKVStore::commit2couchstore(void)
     while (reqIndex--) {
         delete committedReqs[reqIndex];
     }
+    delete [] committedReqs;
     delete [] docs;
     delete [] docinfos;
     return success;
