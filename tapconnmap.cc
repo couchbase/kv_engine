@@ -536,6 +536,8 @@ void TapConnMap::notifyIOThreadMain() {
 
     lh.unlock();
 
+    engine.notifyIOComplete(toNotify, ENGINE_SUCCESS);
+
     if (!registeredClients.empty()) {
         std::list<const void*>::iterator ii;
         for (ii = registeredClients.begin(); ii != registeredClients.end(); ++ii) {
@@ -557,8 +559,6 @@ void TapConnMap::notifyIOThreadMain() {
                         0, false, true);
         }
     }
-
-    engine.notifyIOComplete(toNotify, ENGINE_SUCCESS);
 }
 
 bool TapConnMap::SetCursorToOpenCheckpoint(const std::string &name, uint16_t vbucket) {
