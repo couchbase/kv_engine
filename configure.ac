@@ -249,6 +249,7 @@ return sizeof(void*) == 8 ? 0 : 1;
       ])
     ],[
       CFLAGS="-m64 $org_cflags"
+      CXXFLAGS="-m64 $CXXFLAGS"
     ],[
     AC_MSG_ERROR([Don't know how to build a 64-bit object.])
     ])
