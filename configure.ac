@@ -63,7 +63,9 @@ AS_IF(test "x$GCC" = "xyes",
            LDFLAGS="-pthread $LDFLAGS"
           ]),
       ICC=no
-      DETECT_SUNCC([CPPFLAGS="-xldscope=hidden -mt -xc99=all $CPPFLAGS"], []))
+      DETECT_SUNCC([CPPFLAGS="-xldscope=hidden -mt $CPPFLAGS"
+                    CXXFLAGS="-xlang=c99 $CXXFLAGS"
+                    CFLAGS="-xc99=all $CFLAGS"], []))
 
 if test "$ICC" = "no"; then
    AC_PROG_CC_C99
