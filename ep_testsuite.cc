@@ -352,7 +352,7 @@ static enum test_result check_key_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     if (vlen != info.value[0].iov_len) {
         std::cerr << "Expected length " << vlen
                   << " got " << info.value[0].iov_len << std::endl;
-        checkeq(vlen, info.value[0].iov_len, "Length mismatch.");
+        checkeq(vlen, (size_t)info.value[0].iov_len, "Length mismatch.");
     }
 
     check(memcmp(info.value[0].iov_base, val, vlen) == 0,
