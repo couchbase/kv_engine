@@ -1440,7 +1440,7 @@ GetValue EventuallyPersistentStore::getAndUpdateTtl(const std::string &key,
                                                     uint16_t vbucket,
                                                     const void *cookie,
                                                     bool queueBG,
-                                                    uint32_t exptime)
+                                                    time_t exptime)
 {
     RCPtr<VBucket> vb = getVBucket(vbucket);
     if (!vb) {

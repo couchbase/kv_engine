@@ -3419,7 +3419,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::touch(const void *cookie,
     exptime = serverApi->core->abstime(serverApi->core->realtime(exptime));
     GetValue gv(epstore->getAndUpdateTtl(k, vbucket, cookie,
                                          request->request.opcode != PROTOCOL_BINARY_CMD_TOUCH,
-                                         exptime));
+                                         (time_t)exptime));
     ENGINE_ERROR_CODE rv = gv.getStatus();
     if (rv == ENGINE_SUCCESS) {
         Item *it = gv.getValue();
