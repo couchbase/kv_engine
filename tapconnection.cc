@@ -357,7 +357,7 @@ void TapProducer::setVBucketFilter(const std::vector<uint16_t> &vbuckets)
     }
 }
 
-void TapProducer::registerTAPCursor(std::map<uint16_t, uint64_t> &lastCheckpointIds) {
+void TapProducer::registerTAPCursor(const std::map<uint16_t, uint64_t> &lastCheckpointIds) {
     LockHolder lh(queueLock);
 
     uint64_t current_time = (uint64_t)ep_real_time();
@@ -378,7 +378,7 @@ void TapProducer::registerTAPCursor(std::map<uint16_t, uint64_t> &lastCheckpoint
             }
 
             uint64_t chk_id_to_start = 0;
-            std::map<uint16_t, uint64_t>::iterator it = lastCheckpointIds.find(vbid);
+            std::map<uint16_t, uint64_t>::const_iterator it = lastCheckpointIds.find(vbid);
             if (it != lastCheckpointIds.end()) {
                 // Now, we assume that the checkpoint Id for a given vbucket is monotonically
                 // increased.
