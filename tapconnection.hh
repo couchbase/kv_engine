@@ -974,7 +974,7 @@ private:
     /**
      * Register the unified queue cursor for this TAP producer.
      */
-    void registerTAPCursor(std::map<uint16_t, uint64_t> &lastCheckpointIds);
+    void registerTAPCursor(const std::map<uint16_t, uint64_t> &lastCheckpointIds);
 
     bool hasPendingAcks() {
         LockHolder lh(queueLock);

@@ -2281,12 +2281,12 @@ bool EventuallyPersistentEngine::createTapQueue(const void *cookie,
 
     TapProducer *tap = tapConnMap.newProducer(cookie, name, flags,
                                               backfillAge,
-                                              static_cast<int>(tapKeepAlive));
+                                              static_cast<int>(tapKeepAlive),
+                                              isRegisteredClient,
+                                              isClosedCheckpointOnly,
+                                              vbuckets,
+                                              lastCheckpointIds);
 
-    tap->setRegisteredClient(isRegisteredClient);
-    tap->setClosedCheckpointOnlyFlag(isClosedCheckpointOnly);
-    tap->setVBucketFilter(vbuckets);
-    tap->registerTAPCursor(lastCheckpointIds);
     serverApi->cookie->store_engine_specific(cookie, tap);
     serverApi->cookie->set_tap_nack_mode(cookie, tap->supportsAck());
     tapConnMap.notify();

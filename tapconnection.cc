@@ -283,7 +283,7 @@ void TapProducer::setVBucketFilter(const std::vector<uint16_t> &vbuckets)
     }
 }
 
-void TapProducer::registerTAPCursor(std::map<uint16_t, uint64_t> &lastCheckpointIds) {
+void TapProducer::registerTAPCursor(const std::map<uint16_t, uint64_t> &lastCheckpointIds) {
     LockHolder lh(queueLock);
 
     tapCheckpointState.clear();
@@ -303,7 +303,7 @@ void TapProducer::registerTAPCursor(std::map<uint16_t, uint64_t> &lastCheckpoint
                 continue;
             }
 
-            std::map<uint16_t, uint64_t>::iterator it = lastCheckpointIds.find(vbid);
+            std::map<uint16_t, uint64_t>::const_iterator it = lastCheckpointIds.find(vbid);
             if (it != lastCheckpointIds.end()) {
                 // Now, we assume that the checkpoint Id for a given vbucket is monotonically
                 // increased. TODO: If the server supports collapsing multiple closed referenced

@@ -182,7 +182,11 @@ public:
                              const std::string &name,
                              uint32_t flags,
                              uint64_t backfillAge,
-                             int tapKeepAlive);
+                             int tapKeepAlive,
+                             bool isRegistered,
+                             bool closedCheckpointOnly,
+                             const std::vector<uint16_t> &vbuckets,
+                             const std::map<uint16_t, uint64_t> &lastCheckpointIds);
 
     /**
      * Create a new consumer and add it in the list of TapConnections

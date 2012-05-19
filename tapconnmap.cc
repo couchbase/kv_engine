@@ -216,7 +216,11 @@ TapProducer *TapConnMap::newProducer(const void* cookie,
                                      const std::string &name,
                                      uint32_t flags,
                                      uint64_t backfillAge,
-                                     int tapKeepAlive) {
+                                     int tapKeepAlive,
+                                     bool isRegistered,
+                                     bool closedCheckpointOnly,
+                                     const std::vector<uint16_t> &vbuckets,
+                                     const std::map<uint16_t, uint64_t> &lastCheckpointIds) {
     LockHolder lh(notifySync);
     TapProducer *tap(NULL);
 
@@ -275,7 +279,6 @@ TapProducer *TapConnMap::newProducer(const void* cookie,
     } else {
         tap->setCookie(cookie);
         tap->setReserved(true);
-        tap->rollback();
         tap->setConnected(true);
         tap->setDisconnect(false);
         tap->evaluateFlags();
@@ -283,8 +286,16 @@ TapProducer *TapConnMap::newProducer(const void* cookie,
     }
 
     tap->setBackfillAge(backfillAge, reconnect);
-    map[cookie] = tap;
+    tap->setRegisteredClient(isRegistered);
+    tap->setClosedCheckpointOnlyFlag(closedCheckpointOnly);
+    tap->setVBucketFilter(vbuckets);
+    tap->registerTAPCursor(lastCheckpointIds);
 
+    if (reconnect) {
+        tap->rollback();
+    }
+
+    map[cookie] = tap;
     return tap;
 }
 
