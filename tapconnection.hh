@@ -809,12 +809,17 @@ private:
     // This method is called while holding the tapNotifySync lock.
     void appendQueue(std::list<queued_item> *q) {
         LockHolder lh(queueLock);
-        queue->splice(queue->end(), *q);
-        queueSize = queue->size();
-
-        for(std::list<queued_item>::iterator i = q->begin(); i != q->end(); ++i)  {
-            queueMemSize.incr((*i)->size());
+        size_t count = 0;
+        std::list<queued_item>::iterator it = q->begin();
+        for (; it != q->end(); ++it) {
+            if (vbucketFilter((*it)->getVBucketId())) {
+                queue->push_back(*it);
+                ++count;
+            }
         }
+        queueSize += count;
+        queueMemSize.incr(count * sizeof(queued_item));
+        q->clear();
     }
 
     bool isPendingDiskBackfill() {

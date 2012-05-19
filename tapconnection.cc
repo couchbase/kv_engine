@@ -1020,9 +1020,11 @@ void TapProducer::completeBGFetchJob(Item *itm, bool implicitEnqueue) {
     ++bgJobCompleted;
     assert(bgJobIssued >= bgJobCompleted);
 
-    if (itm) {
+    if (vbucketFilter(itm->getVBucketId()) && itm) {
         backfilledItems.push(itm);
         ++bgResultSize;
+    } else {
+        delete itm;
     }
 }
 
