@@ -1144,7 +1144,7 @@ void TapProducer::completeBGFetchJob(Item *itm, uint16_t vbid, bool implicitEnqu
     }
     assert(bgJobIssued >= bgJobCompleted);
 
-    if (itm) {
+    if (vbucketFilter(itm->getVBucketId()) && itm) {
         backfilledItems.push(itm);
         ++bgResultSize;
         if (it != tapCheckpointState.end()) {
@@ -1152,6 +1152,8 @@ void TapProducer::completeBGFetchJob(Item *itm, uint16_t vbid, bool implicitEnqu
         }
         stats.memOverhead.incr(sizeof(Item *));
         assert(stats.memOverhead.get() < GIGANTOR);
+    } else {
+        delete itm;
     }
 }
 
@@ -2036,15 +2038,19 @@ void TapProducer::flush() {
 
 void TapProducer::appendQueue(std::list<queued_item> *q) {
     LockHolder lh(queueLock);
-    size_t old_queue_size = queue->size();
-    queue->splice(queue->end(), *q);
-    queueSize = queue->size();
-    stats.memOverhead.incr(sizeof(queued_item) * (queueSize - old_queue_size));
-    assert(stats.memOverhead.get() < GIGANTOR);
-
-    for(std::list<queued_item>::iterator i = q->begin(); i != q->end(); ++i)  {
-        queueMemSize.incr((*i)->size());
+    size_t count = 0;
+    std::list<queued_item>::iterator it = q->begin();
+    for (; it != q->end(); ++it) {
+        if (vbucketFilter((*it)->getVBucketId())) {
+            queue->push_back(*it);
+            ++count;
+        }
     }
+    queueSize += count;
+    stats.memOverhead.incr(count * sizeof(queued_item));
+    assert(stats.memOverhead.get() < GIGANTOR);
+    queueMemSize.incr(count * sizeof(queued_item));
+    q->clear();
 }
 
 bool TapProducer::runBackfill(VBucketFilter &vbFilter) {
