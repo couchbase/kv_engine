@@ -1676,6 +1676,7 @@ void TapProducer::scheduleBackfill_UNLOCKED(const std::vector<uint16_t> &vblist)
         return;
     }
 
+    std::vector<uint16_t> new_vblist;
     const VBucketMap &vbuckets = engine.getEpStore()->getVBuckets();
     std::vector<uint16_t>::const_iterator vbit = vblist.begin();
     // Skip all the vbuckets that are (1) receiving backfill from their master nodes
@@ -1687,12 +1688,13 @@ void TapProducer::scheduleBackfill_UNLOCKED(const std::vector<uint16_t> &vblist)
             continue;
         }
         backfillVBuckets.insert(*vbit);
-        backFillVBucketFilter.addVBucket(*vbit);
+        if (backFillVBucketFilter.addVBucket(*vbit)) {
+            new_vblist.push_back(*vbit);
+        }
     }
 
-    const std::set<uint16_t> &new_backfill_vbs = backFillVBucketFilter.getVBSet();
-    std::set<uint16_t>::const_iterator it = new_backfill_vbs.begin();
-    for (; it != new_backfill_vbs.end(); ++it) {
+    std::vector<uint16_t>::iterator it = new_vblist.begin();
+    for (; it != new_vblist.end(); ++it) {
         RCPtr<VBucket> vb = vbuckets.getBucket(*it);
         if (!vb) {
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
@@ -1713,7 +1715,7 @@ void TapProducer::scheduleBackfill_UNLOCKED(const std::vector<uint16_t> &vblist)
                          logHeader(), *it);
     }
 
-    if (new_backfill_vbs.size() > 0) {
+    if (new_vblist.size() > 0) {
         doRunBackfill = true;
         backfillCompleted = false;
     }
