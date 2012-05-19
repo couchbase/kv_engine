@@ -467,8 +467,6 @@ void TapProducer::registerTAPCursor(std::map<uint16_t, uint64_t> &lastCheckpoint
         if (backfillAge < current_time) {
             scheduleBackfill_UNLOCKED(backfill_vbuckets);
         }
-    } else {
-        doRunBackfill = false;
     }
 }
 
