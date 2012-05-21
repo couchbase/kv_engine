@@ -419,8 +419,8 @@ void TapProducer::registerTAPCursor(const std::map<uint16_t, uint64_t> &lastChec
             // If this tap connection is for a new client with checkpoint 1, we should always
             // schedule backfill because the tap producer could be restarted with the open
             // checkpoint 1, but not restore the items in the open checkpoint.
-            bool empty_client =
-                !vb->checkpointManager.tapCursorExists(name) && (chk_id_to_start == 1);
+            bool empty_client = !vb->checkpointManager.tapCursorExists(name) &&
+                                chk_id_to_start == 1 && vb->ht.getNumItems() > 0;
             // Check if the unified queue contains the checkpoint to start with.
             bool chk_exists = vb->checkpointManager.registerTAPCursor(name,
                                                                       chk_id_to_start,
