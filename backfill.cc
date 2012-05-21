@@ -69,7 +69,7 @@ bool BackFillVisitor::visitBucket(RCPtr<VBucket> vb) {
         double numItems = static_cast<double>(vb->ht.getNumItems());
         double numNonResident = static_cast<double>(vb->ht.getNumNonResidentItems());
         if (numItems == 0) {
-            return true;
+            return false;
         }
         residentRatioBelowThreshold =
             ((numItems - numNonResident) / numItems) < backfillResidentThreshold ? true : false;
