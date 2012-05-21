@@ -120,7 +120,7 @@ public:
         }
 
         if (shouldNotify) {
-            notifySync.notify();
+            notify_UNLOCKED();
         }
 
         return ret;
@@ -150,13 +150,17 @@ public:
      */
     void addFlushEvent();
 
+    void notify_UNLOCKED() {
+        ++notifyCounter;
+        notifySync.notify();
+    }
+
     /**
      * Notify anyone who's waiting for tap stuff.
      */
     void notify() {
         LockHolder lh(notifySync);
-        notifyCounter++;
-        notifySync.notify();
+        notify_UNLOCKED();
     }
 
     uint32_t wait(double howlong, uint32_t previousCounter) {

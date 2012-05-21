@@ -73,7 +73,7 @@ void TapConnMap::disconnect(const void *cookie, int tapKeepAlive) {
         map.erase(iter);
 
         // Notify the daemon thread so that it may reap them..
-        notifySync.notify();
+        notify_UNLOCKED();
     }
 }
 
@@ -93,7 +93,7 @@ bool TapConnMap::setEvents(const std::string &name,
     }
 
     if (shouldNotify) {
-        notifySync.notify();
+        notify_UNLOCKED();
     }
 
     return found;
@@ -197,7 +197,7 @@ void TapConnMap::addFlushEvent() {
         }
     }
     if (shouldNotify) {
-        notifySync.notify();
+        notify_UNLOCKED();
     }
 }
 
@@ -380,7 +380,7 @@ void TapConnMap::scheduleBackfill(const std::set<uint16_t> &backfillVBuckets) {
         }
     }
     if (shouldNotify) {
-        notifySync.notify();
+        notify_UNLOCKED();
     }
 }
 
@@ -404,7 +404,7 @@ void TapConnMap::resetReplicaChain() {
         // replica vbuckets, and then backfills items to the destination.
         tp->scheduleBackfill(vblist);
     }
-    notifySync.notify();
+    notify_UNLOCKED();
 }
 
 void TapConnMap::notifyIOThreadMain() {
@@ -510,7 +510,7 @@ bool TapConnMap::closeTapConnectionByName(const std::string &name) {
             tp->setDisconnect(true);
             tp->paused = true;
             rv = true;
-            notifySync.notify();
+            notify_UNLOCKED();
         }
     }
     return rv;
