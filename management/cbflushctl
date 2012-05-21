@@ -88,6 +88,7 @@ Available params for "set":
                              ('infinite' means no cap)
     tap_throttle_threshold - Destination memory threshold for tap backoff
     keep_closed_chks       - Keep all closed checkpoints in memory
+    flushall_enabled       - Enable flush operation
     """)
 
     c.addCommand('stop', stop, 'stop')

@@ -297,6 +297,14 @@ extern "C" {
             } else if (strcmp(keyz, "bg_fetch_delay") == 0) {
                 validate(v, 0, MAX_BG_FETCH_DELAY);
                 e->setBGFetchDelay(static_cast<uint32_t>(v));
+            } else if (strcmp(keyz, "flushall_enabled") == 0) {
+                if (strcmp(valz, "true") == 0) {
+                    e->setFlushAll(true);
+                } else if(strcmp(valz, "false") == 0) {
+                    e->setFlushAll(false);
+                } else {
+                    throw std::runtime_error("value out of range.");
+               }
             } else if (strcmp(keyz, "tap_throttle_threshold") == 0) {
                 validate(v, 0, 100);
                 EPStats &stats = e->getEpStats();

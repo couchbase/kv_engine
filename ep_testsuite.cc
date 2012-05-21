@@ -5311,6 +5311,35 @@ static enum test_result test_validate_checkpoint_params(ENGINE_HANDLE *h, ENGINE
     return SUCCESS;
 }
 
+static enum test_result test_CBD_152(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    item *i = NULL;
+
+    // turn off flushall_enabled parameter
+    set_flush_param(h, h1, "flushall_enabled", "false");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+          "Failed to set flushall_enabled param");
+
+    // store a key and check its existence
+    check(store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i) == ENGINE_SUCCESS,
+          "Failed set.");
+    check_key_value(h, h1, "key", "somevalue", 9);
+    // expect error msg engine does not support operation
+    check(h1->flush(h, NULL, 0) == ENGINE_ENOTSUP, "Flush should be disabled");
+    //check the key
+    check(ENGINE_SUCCESS == verify_key(h, h1, "key"), "Expected key");
+
+    // turn on flushall_enabled parameter
+    set_flush_param(h, h1, "flushall_enabled", "true");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+          "Failed to set flushall_enabled param");
+    // flush should succeed
+    check(h1->flush(h, NULL, 0) == ENGINE_SUCCESS, "Flush should be enabled");
+    //expect missing key
+    check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key"), "Expected missing key");
+
+    return SUCCESS;
+}
+
 MEMCACHED_PUBLIC_API
 engine_test_t* get_tests(void) {
 
@@ -5380,6 +5409,8 @@ engine_test_t* get_tests(void) {
          "flushall_enabled=true;db_strategy=multiMTVBDB;max_vbuckets=16;ht_size=7;ht_locks=3"},
         {"flush disabled", test_flush_disabled, NULL, teardown,
          "flushall_enabled=false;db_strategy=multiMTVBDB;max_vbuckets=16;ht_size=7;ht_locks=3"},
+        {"flushall params", test_CBD_152, NULL, teardown,
+         "flushall_enabled=true;db_strategy=multiMTVBDB;max_vbuckets=16;ht_size=7;ht_locks=3"},
 
         {"expiry", test_expiry, NULL, teardown, NULL},
         {"expiry_loader", test_expiry_loader, NULL, teardown, NULL},

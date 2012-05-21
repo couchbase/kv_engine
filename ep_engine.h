@@ -472,6 +472,10 @@ public:
         tapKeepAlive = to;
     }
 
+    void setFlushAll(bool enabled) {
+        flushAllEnabled = enabled;
+    }
+
     protocol_binary_response_status evictKey(const std::string &key,
                                              uint16_t vbucket,
                                              const char **msg,
