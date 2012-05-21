@@ -118,7 +118,7 @@ public:
         }
 
         if (shouldNotify) {
-            notifySync.notify();
+            notify_UNLOCKED();
         }
 
         return ret;
@@ -148,14 +148,18 @@ public:
      */
     void addFlushEvent();
 
+    void notify_UNLOCKED() {
+        ++notifyCounter;
+        notifySync.notify();
+    }
+
     /**
      * Notify anyone who's waiting for tap stuff.
      */
     void notify() {
         if (doNotify) {
             LockHolder lh(notifySync);
-            notifyCounter++;
-            notifySync.notify();
+            notify_UNLOCKED();
         }
     }
 
