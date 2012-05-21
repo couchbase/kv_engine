@@ -5237,6 +5237,35 @@ static enum test_result test_compact_mutation_log(ENGINE_HANDLE *h, ENGINE_HANDL
     return SUCCESS;
 }
 
+static enum test_result test_CBD_152(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    item *i = NULL;
+
+    // turn off flushall_enabled parameter
+    set_param(h, h1, engine_param_flush, "flushall_enabled", "false");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+          "Failed to set flushall_enabled param");
+
+    // store a key and check its existence
+    check(store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i) == ENGINE_SUCCESS,
+          "Failed set.");
+    check_key_value(h, h1, "key", "somevalue", 9);
+    // expect error msg engine does not support operation
+    check(h1->flush(h, NULL, 0) == ENGINE_ENOTSUP, "Flush should be disabled");
+    //check the key
+    check(ENGINE_SUCCESS == verify_key(h, h1, "key"), "Expected key");
+
+    // turn on flushall_enabled parameter
+    set_param(h, h1, engine_param_flush, "flushall_enabled", "true");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+          "Failed to set flushall_enabled param");
+    // flush should succeed
+    check(h1->flush(h, NULL, 0) == ENGINE_SUCCESS, "Flush should be enabled");
+    //expect missing key
+    check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key"), "Expected missing key");
+
+    return SUCCESS;
+}
+
 static enum test_result prepare(engine_test_t *test) {
     if (test->cfg == NULL || // No config
         strstr(test->cfg, "backend") == NULL || // No backend specified
@@ -5467,6 +5496,11 @@ engine_test_t* get_tests(void) {
         TestCase("flush_disabled", test_flush_disabled, NULL,
                  teardown,
                  "flushall_enabled=false;db_strategy=multiMTVBDB;max_vbuckets=16;"
+                 "ht_size=7;ht_locks=3",
+                 prepare, cleanup, BACKEND_ALL),
+        TestCase("flushall params", test_CBD_152, NULL,
+                 teardown,
+                 "flushall_enabled=true;db_strategy=multiMTVBDB;max_vbuckets=16;"
                  "ht_size=7;ht_locks=3",
                  prepare, cleanup, BACKEND_ALL),
         TestCase("expiry", test_expiry, NULL, teardown, NULL, prepare, cleanup,

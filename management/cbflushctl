@@ -78,6 +78,7 @@ Available params for "set":
     couch_vbucket_batch_count - vbucket batch size for couchdb persistence
     couchdb_response_timeout  - timeout in receiving a response from couchdb
     exp_pager_stime           - Expiry Pager Sleeptime
+    flushall_enabled          - Enable flush operation
     inconsistent_slave_chk    - Enables active to active replication
     queue_age_cap             - Maximum queue age before flushing data
     max_checkpoints           - Maximum number of checkpoints

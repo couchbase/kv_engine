@@ -338,6 +338,14 @@ extern "C" {
                 e->getConfiguration().setCouchVbucketBatchCount(v);
             } else if (strcmp(keyz, "bg_fetch_delay") == 0) {
                 e->getConfiguration().setBgFetchDelay(v);
+            } else if (strcmp(keyz, "flushall_enabled") == 0) {
+                if (strcmp(valz, "true") == 0) {
+                    e->getConfiguration().setFlushallEnabled(true);
+                } else if(strcmp(valz, "false") == 0) {
+                    e->getConfiguration().setFlushallEnabled(false);
+                } else {
+                    throw std::runtime_error("value out of range.");
+               }
             } else if (strcmp(keyz, "max_size") == 0) {
                 // Want more bits than int.
                 char *ptr = NULL;
@@ -1208,6 +1216,12 @@ public:
         }
     }
 
+    virtual void booleanValueChanged(const std::string &key, bool value) {
+        if (key.compare("flushall_enabled") == 0) {
+            engine.setFlushAll(value);
+        }
+    }
+
 private:
     EventuallyPersistentEngine &engine;
 };
@@ -1263,6 +1277,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
                                           new EpEngineValueChangeListener(*this));
 
     flushAllEnabled = configuration.isFlushallEnabled();
+    configuration.addValueChangedListener("flushall_enabled",
+                                          new EpEngineValueChangeListener(*this));
 
     tapConnMap = new TapConnMap(*this);
     tapConfig = new TapConfig(*this);
