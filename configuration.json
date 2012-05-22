@@ -51,11 +51,11 @@
             "type": "size_t"
         },
         "chk_max_items": {
-            "default": "30000",
+            "default": "5000",
             "type": "size_t"
         },
         "chk_period": {
-            "default": "3600",
+            "default": "1800",
             "type": "size_t"
         },
         "chk_remover_stime": {
