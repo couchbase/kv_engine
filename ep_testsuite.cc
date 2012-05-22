@@ -5102,8 +5102,8 @@ static enum test_result test_extend_open_checkpoint(ENGINE_HANDLE *h, ENGINE_HAN
     check(get_int_stat(h, h1, "vb_0:last_closed_checkpoint_id", "checkpoint 0") == 0,
           "Last closed checkpoint Id for VB 0 should be still 0");
 
-    set_param(h, h1, engine_param_flush, "max_size", "250000");
-    check(epsilon(get_int_stat(h, h1, "ep_mem_high_wat"), 187500),
+    set_param(h, h1, engine_param_flush, "max_size", "100000");
+    check(epsilon(get_int_stat(h, h1, "ep_mem_high_wat"), 75000),
           "Incorrect larger high wat.");
 
     int itemsRemoved = get_int_stat(h, h1, "ep_items_rm_from_checkpoints");
