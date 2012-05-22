@@ -82,7 +82,7 @@ bool BackFillVisitor::visitBucket(RCPtr<VBucket> &vb) {
         size_t num_backfill_items = 0;
 
         if (num_items == 0) {
-            return true;
+            return false;
         }
 
         double resident_threshold = engine->getTapConfig().getBackfillResidentThreshold();
