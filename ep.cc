@@ -997,8 +997,8 @@ void EventuallyPersistentStore::snapshotVBuckets(const Priority &priority) {
     VBucketStateVisitor v(vbuckets);
     visit(v);
     if (!rwUnderlying->snapshotVBuckets(v.states)) {
-        getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                         "Rescheduling a task to snapshot vbuckets\n");
+        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                         "VBucket snapshot task failed!!! Reschedule it...\n");
         scheduleVBSnapshot(priority);
     }
 }
@@ -2015,11 +2015,15 @@ public:
                        << ") returned 0 updates\n";
                     getLogger()->log(EXTENSION_LOG_WARNING, NULL, "%s", ss.str().c_str());
                 } else {
-                    getLogger()->log(EXTENSION_LOG_INFO, NULL,
+                    getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                                      "Error persisting now missing ``%s'' from vb%d\n",
                                      queuedItem->getKey().c_str(), queuedItem->getVBucketId());
                 }
             } else {
+                std::stringstream ss;
+                ss << "Fatal error in persisting SET ``" << queuedItem->getKey() << "'' on vb "
+                   << queuedItem->getVBucketId() << "!!! Requeue it...\n";
+                getLogger()->log(EXTENSION_LOG_WARNING, NULL, "%s", ss.str().c_str());
                 redirty();
             }
         }
@@ -2065,6 +2069,10 @@ public:
                 }
             }
         } else {
+            std::stringstream ss;
+            ss << "Fatal error in persisting DELETE ``" << queuedItem->getKey() << "'' on vb "
+               << queuedItem->getVBucketId() << "!!! Requeue it...\n";
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL, "%s", ss.str().c_str());
             redirty();
         }
     }
@@ -2591,6 +2599,8 @@ void TransactionContext::commit() {
     rel_time_t cstart = ep_current_time();
     mutationLog.commit1();
     while (!underlying->commit()) {
+        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                         "Flusher commit failed!!! Retry in 1 sec...\n");
         sleep(1);
         ++stats.commitFailed;
     }
