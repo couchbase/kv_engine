@@ -775,6 +775,9 @@ private:
     } restore;
 
     bool flushAllEnabled;
+    // a unique system generated token initialized at each time
+    // ep_engine starts up.
+    time_t startupTime;
 };
 
 #endif

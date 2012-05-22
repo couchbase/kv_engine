@@ -4067,6 +4067,42 @@ static enum test_result test_warmup_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     return SUCCESS;
 }
 
+static enum test_result test_cbd_225(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    item *i = NULL;
+    time_t token1 = 0;
+    time_t token2 = 0;
+    time_t token3 = 0;
+
+    // get engine startup token
+    token1 = get_int_stat(h, h1, "ep_startup_time");
+    check(token1 != 0, "Expected non-zero startup token");
+
+    // store some random data
+    check(store(h, h1, NULL, OPERATION_SET,"k1", "v1", &i) == ENGINE_SUCCESS,
+          "Failed to fail to store an item.");
+    check(store(h, h1, NULL, OPERATION_SET,"k2", "v2", &i) == ENGINE_SUCCESS,
+          "Failed to fail to store an item.");
+    wait_for_flusher_to_settle(h, h1);
+
+    // check token again, which should be the same as before
+    token2 = get_int_stat(h, h1, "ep_startup_time");
+    check(token2 == token1, "Expected the same startup token");
+
+    // reload the engine
+    testHarness.time_travel(10);
+    testHarness.reload_engine(&h, &h1,
+                              testHarness.engine_path,
+                              testHarness.get_current_testcase()->cfg,
+                              true, false);
+    wait_for_warmup_complete(h, h1);
+
+    // check token, this time we should get a different one
+    token3 = get_int_stat(h, h1, "ep_startup_time");
+    check(token3 != token1, "Expected a different startup token");
+
+    return SUCCESS;
+}
+
 static enum test_result test_curr_items(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
 
@@ -6674,7 +6710,7 @@ engine_test_t* get_tests(void) {
         TestCase("replica read: invalid key", test_get_replica_invalid_key,
                  test_setup, teardown, NULL, prepare, cleanup,
                  BACKEND_ALL),
-       // Stats tests
+        // Stats tests
         TestCase("stats", test_stats, test_setup, teardown, NULL,
                  prepare, cleanup, BACKEND_ALL),
         TestCase("io stats", test_io_stats, test_setup, teardown,
@@ -6692,6 +6728,10 @@ engine_test_t* get_tests(void) {
                  teardown, NULL, prepare, cleanup, BACKEND_ALL),
         TestCase("stats curr_items", test_curr_items, test_setup,
                  teardown, NULL, prepare, cleanup, BACKEND_ALL),
+        TestCase("startup token stat", test_cbd_225, test_setup,
+                 teardown, NULL, prepare, cleanup, BACKEND_ALL),
+
+
         // eviction
         TestCase("value eviction", test_value_eviction, test_setup,
                  teardown, NULL, prepare, cleanup, BACKEND_ALL),

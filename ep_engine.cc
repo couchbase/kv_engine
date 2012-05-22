@@ -1159,7 +1159,7 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server
     memLowWat(std::numeric_limits<size_t>::max()),
     memHighWat(std::numeric_limits<size_t>::max()),
     mutation_count(0), observeRegistry(&epstore, &stats), warmingUp(true),
-    flushAllEnabled(false)
+    flushAllEnabled(false), startupTime(0)
 {
     interface.interface = 1;
     ENGINE_HANDLE_V1::get_info = EvpGetInfo;
@@ -1331,6 +1331,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
 
     getlExtension = new GetlExtension(epstore, getServerApiFunc);
     getlExtension->initialize();
+
+    // record engine initialization time
+    startupTime = ep_real_time();
 
     getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "Engine init complete.\n");
 
@@ -2593,6 +2596,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
 
     add_casted_stat("ep_mlog_compactor_runs", epstats.mlogCompactorRuns,
                     add_stat, cookie);
+
+    add_casted_stat("ep_startup_time", startupTime, add_stat, cookie);
 
     if (getConfiguration().isWarmup()) {
         Warmup *wp = epstore->getWarmup();
