@@ -4892,7 +4892,7 @@ static enum test_result test_restore_clean(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     strcat(cwd, "/mbbackup-0001.mbb");
     ensure_file(cwd);
 
-    for (uint16_t ii = 0; ii < 1000; ++ ii) {
+    for (uint16_t ii = 0; ii < 100; ++ ii) {
         check(set_vbucket_state(h, h1, ii, vbucket_state_active), "Failed to activate vbucket");
     }
 
@@ -4992,7 +4992,7 @@ static enum test_result test_restore_with_data(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     ensure_file(cwd);
     protocol_binary_request_header *req = create_restore_file_packet(cwd);
 
-    for (uint16_t ii = 0; ii < 1000; ++ ii) {
+    for (uint16_t ii = 0; ii < 100; ++ ii) {
         check(set_vbucket_state(h, h1, ii, vbucket_state_active), "Failed to activate vbucket");
     }
 
