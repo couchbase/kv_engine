@@ -4146,11 +4146,12 @@ static enum test_result test_value_eviction(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
     check(store(h, h1, NULL, OPERATION_SET,"k1", "v1", &i, 0, 0) == ENGINE_SUCCESS,
           "Failed to fail to store an item.");
     evict_key(h, h1, "k1", 0, "Can't eject: Dirty or a small object.");
+    wait_for_flusher_to_settle(h, h1);
     check(store(h, h1, NULL, OPERATION_SET,"k2", "v2", &i, 0, 1) == ENGINE_SUCCESS,
           "Failed to fail to store an item.");
     evict_key(h, h1, "k2", 1, "Can't eject: Dirty or a small object.");
-
     wait_for_flusher_to_settle(h, h1);
+
     evict_key(h, h1, "k1", 0, "Ejected.");
     evict_key(h, h1, "k2", 1, "Ejected.");
 
