@@ -6386,6 +6386,8 @@ static void cleanup(engine_test_t *test, enum test_result result) {
     rmdb();
     free(const_cast<char*>(test->name));
     free(const_cast<char*>(test->cfg));
+    delete mccouchMock;
+    mccouchMock = 0;
 }
 
 // the backends is a bitmask for which backend to run the given test

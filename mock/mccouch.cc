@@ -181,8 +181,8 @@ McConnection::McConnection(evutil_socket_t s, struct event_base *b):
 McConnection::~McConnection()
 {
     EVUTIL_CLOSESOCKET(sock);
-    if (ev_flags != 0 && event_del(&ev_event) == -1) {
-        assert(0);
+    if (ev_flags != 0) {
+        event_del(&ev_event);
     }
 }
 
