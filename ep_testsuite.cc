@@ -6258,11 +6258,8 @@ static enum test_result test_temp_item_deletion(ENGINE_HANDLE *h, ENGINE_HANDLE_
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, "Expected enoent");
 
     // Trigger the expiry pager and verify that two temp items are deleted
-    int num_expired = get_int_stat(h, h1, "ep_expired");
     testHarness.time_travel(30);
-    wait_for_stat_change(h, h1, "ep_expired", num_expired);
-    num_expired = get_int_stat(h, h1, "ep_expired");
-    check(num_expired == 2, "Expected 2 temporary items to expire");
+    wait_for_stat_to_be(h, h1, "ep_expired", 2);
 
     return SUCCESS;
 }
