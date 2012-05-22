@@ -106,7 +106,7 @@ namespace mccouch
     class McConnection
     {
     public:
-        McConnection(evutil_socket_t s, struct event_base *b);
+        McConnection(evutil_socket_t s, struct event_base *b, McCouchMockServerInstance *svr);
         virtual ~McConnection();
 
         bool doFillInput();
@@ -137,12 +137,13 @@ namespace mccouch
         short ev_flags;
         struct event_base *base;
         bool disconnected;
+        McCouchMockServerInstance *server;
     };
 
     class McEndpoint : public McConnection
     {
     public:
-        McEndpoint(evutil_socket_t s, struct event_base *b);
+        McEndpoint(evutil_socket_t s, struct event_base *b, McCouchMockServerInstance *svr);
         virtual ~McEndpoint() {}
         virtual void step(short which);
     };
@@ -150,13 +151,20 @@ namespace mccouch
     class McCouchMockServerInstance
     {
     private:
-        list<McEndpoint *> ep;
+        list<McConnection *> conns;
 
     public:
         McCouchMockServerInstance(int &port);
         ~McCouchMockServerInstance();
 
         void run();
+
+        void addConnection(McConnection *conn) {
+            conns.push_back(conn);
+        }
+        void removeConnection(McConnection *conn) {
+            conns.remove(conn);
+        }
 
     protected:
         pthread_t threadid;
@@ -172,10 +180,14 @@ extern "C" {
     static void mccouch_libevent_callback(evutil_socket_t , short, void *);
 }
 
-McConnection::McConnection(evutil_socket_t s, struct event_base *b):
-    sock(s), ev_flags(0), base(b), disconnected(false)
+McConnection::McConnection(evutil_socket_t s, struct event_base *b,
+                           McCouchMockServerInstance *svr)
+    : sock(s), ev_flags(0), base(b), disconnected(false), server(svr)
 {
     updateEvent();
+    if( server ) {
+        server->addConnection(this);
+    }
 }
 
 McConnection::~McConnection()
@@ -376,6 +388,8 @@ void McConnection::doDisconnect()
         event_del(&ev_event);
     }
     ev_flags = 0;
+    disconnected = true;
+    server->removeConnection(this);
 }
 
 void McConnection::updateEvent()
@@ -407,8 +421,8 @@ void McConnection::updateEvent()
     }
 }
 
-McEndpoint::McEndpoint(evutil_socket_t s, struct event_base *b) :
-    McConnection(s, b)
+McEndpoint::McEndpoint(evutil_socket_t s, struct event_base *b, McCouchMockServerInstance *svr) :
+    McConnection(s, b, svr)
 {
 
 }
@@ -425,7 +439,7 @@ void McEndpoint::step(short which)
             assert(0);
         }
 
-        new McConnection(c, base);
+        new McConnection(c, base, server);
     }
     updateEvent();
 }
@@ -465,7 +479,7 @@ McCouchMockServerInstance::McCouchMockServerInstance(int &port) :
                     } else {
                         port = ntohs(my_sockaddr.in6.sin6_port);
                     }
-                    ep.push_back(new McEndpoint(sock, ev_base));
+                    new McEndpoint(sock, ev_base, this);
                     break;
                 } else {
                     EVUTIL_CLOSESOCKET(sock);
@@ -478,7 +492,7 @@ McCouchMockServerInstance::McCouchMockServerInstance(int &port) :
     }
 
     freeaddrinfo(ainfo);
-    if (ep.size() == 0) {
+    if (conns.size() == 0) {
         throw runtime_error("Failed to create temp mock server");
     }
 
@@ -494,8 +508,8 @@ McCouchMockServerInstance::~McCouchMockServerInstance()
     if (ret != 0) {
         assert(0);
     }
-    list<McEndpoint *>::iterator it = ep.begin();
-    for (; it != ep.end(); ++it) {
+    list<McConnection *>::iterator it = conns.begin();
+    for (; it != conns.end(); ++it) {
         delete *it;
     }
     event_base_free(ev_base);
