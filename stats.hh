@@ -78,6 +78,8 @@ public:
     Atomic<size_t> flusherCommits;
     //! Number of times the flusher was preempted for a read
     Atomic<size_t> flusherPreempts;
+    // # of completed flushes since engine starts up
+    Atomic<size_t> numCompletedFlush;
     //! Total time spent flushing.
     Atomic<size_t> cumulativeFlushTime;
     //! Total time spent committing.
