@@ -141,15 +141,16 @@ private:
 
     void sendSingleChunk(const char *ptr, size_t nb);
     void sendCommand(BinaryPacketHandler *rh);
-    void processInput();
+    bool processInput();
     void maybeProcessInput();
     void wait();
+    bool waitOnce();
 
     void handleResponse(protocol_binary_response_header *res);
     void handleRequest(protocol_binary_request_header *req);
 
     bool waitForWritable();
-    bool waitForReadable();
+    bool waitForReadable(bool tryOnce = false);
 
     bool connect();
     void ensureConnection(void);
@@ -227,6 +228,7 @@ private:
     EventuallyPersistentEngine *engine;
     EPStats *epStats;
     bool connected;
+    bool inSelectBucket;
 
     struct msghdr sendMsg;
     struct iovec sendIov[IOV_MAX];

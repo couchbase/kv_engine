@@ -549,7 +549,7 @@ MemcachedEngine::MemcachedEngine(EventuallyPersistentEngine *e, Configuration &c
     sock(INVALID_SOCKET), configuration(config), configurationError(true),
     shutdown(false), seqno(0),
     currentCommand(0xff), lastSentCommand(0xff), lastReceivedCommand(0xff),
-    engine(e), epStats(NULL), connected(false)
+    engine(e), epStats(NULL), connected(false), inSelectBucket(false)
 {
     memset(&sendMsg, 0, sizeof(sendMsg));
     sendMsg.msg_iov = sendIov;
@@ -562,7 +562,7 @@ MemcachedEngine::MemcachedEngine(EventuallyPersistentEngine *e, Configuration &c
     selectBucket();
 }
 
-void MemcachedEngine::resetConnection(void) {
+void MemcachedEngine::resetConnection() {
     LockHolder lh(mutex);
     lastReceivedCommand = 0xff;
     lastSentCommand = 0xff;
@@ -586,9 +586,12 @@ void MemcachedEngine::resetConnection(void) {
 
     responseHandler.clear();
     tapHandler.clear();
+    lh.unlock();
 
-    // Now insert the select vbucket command..
-    selectBucket();
+    // insert the select vbucket command, if necessary
+    if (!inSelectBucket) {
+        selectBucket();
+    }
 }
 
 void MemcachedEngine::handleResponse(protocol_binary_response_header *res) {
@@ -972,7 +975,7 @@ void MemcachedEngine::maybeProcessInput()
     }
 }
 
-void MemcachedEngine::processInput() {
+bool MemcachedEngine::processInput() {
     // we don't want to block unless there is a message there..
     // this will unfortunately increase the overhead..
     assert(sock != INVALID_SOCKET);
@@ -1001,7 +1004,7 @@ void MemcachedEngine::processInput() {
                 getLogger()->log(EXTENSION_LOG_WARNING, this,
                         "Rubbish received on the backend stream. closing it");
                 resetConnection();
-                return;
+                return false;
             }
 
             processed = ntohl(res->response.bodylen) + sizeof(*res);
@@ -1019,31 +1022,34 @@ void MemcachedEngine::processInput() {
             case EINTR:
                 break;
             case EWOULDBLOCK:
-                return;
+                return true;
             default:
                 getLogger()->log(EXTENSION_LOG_WARNING, this,
                                  "Failed to read from mccouch: \"%s\"",
                                  strerror(errno));
                 resetConnection();
-                return;
+                return false;
             }
         } else if (nr == 0) {
             getLogger()->log(EXTENSION_LOG_WARNING, this,
                              "Connection closed by mccouch");
             resetConnection();
-            return;
+            return false;
         } else {
             input.avail += (size_t)nr;
         }
     } while (true);
+
+    return true;
 }
 
-bool MemcachedEngine::waitForReadable()
+bool MemcachedEngine::waitForReadable(bool tryOnce)
 {
     size_t timeout = 1000;
     size_t waitTime = 0;
 
     while (connected) {
+        bool reconnect = false;
         struct pollfd fds;
         fds.fd = sock;
         fds.events = POLLIN;
@@ -1055,18 +1061,24 @@ bool MemcachedEngine::waitForReadable()
             if (fds.revents & POLLIN) {
                 return true;
             }
-
         } else if (ret < 0) {
             getLogger()->log(EXTENSION_LOG_WARNING, this,
                              "poll() failed: \"%s\"",
                              strerror(errno));
-            resetConnection();
+            reconnect = true;
         } else if ((waitTime += timeout) >= configuration.getCouchResponseTimeout()) {
             // Poll failed due to timeouts multiple times and is above timeout threshold.
             getLogger()->log(EXTENSION_LOG_INFO, this,
                              "No response for mccouch in %ld seconds. Resetting connection.",
                              waitTime);
+            reconnect = true;
+        }
+
+        if (reconnect) {
             resetConnection();
+            if (tryOnce) {
+                return false;
+            }
         }
     }
 
@@ -1088,6 +1100,23 @@ void MemcachedEngine::wait()
         // there...
         processInput();
     }
+}
+
+bool MemcachedEngine::waitOnce()
+{
+    std::list<BinaryPacketHandler*> *handler;
+
+    if (tapHandler.size() > 0) {
+        handler = &tapHandler;
+    } else {
+        handler = &responseHandler;
+    }
+
+    bool succeed = false;
+    while (handler->size() > 0 && (succeed = waitForReadable(true))) {
+        succeed = processInput();
+    }
+    return succeed;
 }
 
 void MemcachedEngine::delmq(const Item &itm, Callback<int> &cb) {
@@ -1310,7 +1339,6 @@ void MemcachedEngine::selectBucket() {
     req.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
     req.message.header.request.keylen = ntohs((uint16_t)name.length());
     req.message.header.request.bodylen = ntohl((uint32_t)name.length());
-    req.message.header.request.opaque = seqno;
 
     sendIov[0].iov_base = (char*)req.bytes;
     sendIov[0].iov_len = sizeof(req.bytes);
@@ -1318,7 +1346,14 @@ void MemcachedEngine::selectBucket() {
     sendIov[1].iov_len = name.length();
     numiovec = 2;
 
-    sendCommand(new SelectBucketResponseHandler(seqno++, epStats));
+    // select bucket must succeed
+    do {
+        inSelectBucket = true;
+        req.message.header.request.opaque = seqno;
+        sendCommand(new SelectBucketResponseHandler(seqno++, epStats));
+    } while (!waitOnce());
+
+    inSelectBucket = false;
 }
 
 void MemcachedEngine::tap(shared_ptr<TapCallback> cb) {
