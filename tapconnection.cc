@@ -538,8 +538,10 @@ bool TapProducer::requestAck(tap_event_t event, uint16_t vbucket) {
 }
 
 void TapProducer::clearQueues_UNLOCKED() {
-    /* No point of keeping the rep queue when someone wants to flush it */
+    size_t mem_overhead = 0;
+    // Clear fg-fetched items.
     queue->clear();
+    mem_overhead += (queueSize * sizeof(queued_item));
     queueSize = 0;
     queueMemSize = 0;
 
@@ -550,7 +552,9 @@ void TapProducer::clearQueues_UNLOCKED() {
         delete i;
         backfilledItems.pop();
     }
+    mem_overhead += (bgResultSize * sizeof(Item *));
     bgResultSize = 0;
+
     // Reset bg result size in a checkpoint state.
     std::map<uint16_t, TapCheckpointState>::iterator it = tapCheckpointState.begin();
     for (; it != tapCheckpointState.end(); ++it) {
@@ -569,6 +573,13 @@ void TapProducer::clearQueues_UNLOCKED() {
         vBucketLowPriority.pop();
     }
 
+    // Clear the tap logs
+    mem_overhead += (tapLog.size() * sizeof(TapLogElement));
+    tapLog.clear();
+
+    stats.memOverhead.decr(mem_overhead);
+    assert(stats.memOverhead.get() < GIGANTOR);
+
     getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                      "%s Clear the tap queues by force\n",
                      logHeader());
@@ -580,7 +591,6 @@ void TapProducer::rollback() {
         // If the connection is for a registered TAP client that is only interested in closed
         // checkpoints, we don't need to resend unACKed items to the client because its replication
         // cursor is reset to the beginning of the checkpoint to which the cursor currently belongs.
-        tapLog.clear();
         clearQueues_UNLOCKED();
         seqno = engine.getTapConfig().getAckInitialSequenceNumber();
         seqnoReceived = seqno -1;
@@ -1458,24 +1468,6 @@ void TapProducer::setTimeForNoop()
 {
     rel_time_t now = ep_current_time();
     noop = (lastMsgTime + engine.getTapConnMap().getTapNoopInterval()) < now ? true : false;
-}
-
-bool TapProducer::cleanSome()
-{
-    int ii = 0;
-    LockHolder lh(queueLock);
-    while (!backfilledItems.empty() && ii < 1000) {
-        Item *i(backfilledItems.front());
-        assert(i);
-        delete i;
-        backfilledItems.pop();
-        --bgResultSize;
-        ++ii;
-    }
-    stats.memOverhead.decr(ii * sizeof(Item *));
-    assert(stats.memOverhead.get() < GIGANTOR);
-
-    return backfilledItems.empty();
 }
 
 queued_item TapProducer::nextFgFetched_UNLOCKED(bool &shouldPause) {

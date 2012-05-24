@@ -407,18 +407,6 @@ public:
         (void)ret;
     }
 
-    /**
-     * Some of the TAP objects may have large amounts of internal data
-     * to clean up. To avoid blocking the dispatcher for a long time just clean
-     * up some items at the time.
-     *
-     * @return true if all of the internal data structures are cleaned up and
-     *              its safe to kill the object
-     */
-    virtual bool cleanSome() {
-        return true;
-    }
-
     void setSupportAck(bool ack) {
         supportAck = ack;
     }
@@ -514,7 +502,6 @@ public:
     virtual void addStats(ADD_STAT add_stat, const void *c);
     virtual void processedEvent(tap_event_t event, ENGINE_ERROR_CODE ret);
     virtual const char *getType() const { return "producer"; };
-    virtual bool cleanSome();
 
     bool isSuspended() const;
     void setSuspended_UNLOCKED(bool value);
@@ -586,6 +573,11 @@ public:
 
     bool isReconnected() const {
         return reconnects > 0;
+    }
+
+    void clearQueues() {
+        LockHolder lh(queueLock);
+        clearQueues_UNLOCKED();
     }
 
 private:
@@ -919,7 +911,6 @@ private:
                 uint32_t f);
 
     ~TapProducer() {
-        assert(cleanSome());
         delete queue;
         assert(!isReserved());
     }
