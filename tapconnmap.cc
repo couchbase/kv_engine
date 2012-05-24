@@ -29,11 +29,13 @@ public:
             connection->releaseReference();
             releaseReference = false;
         }
-        if (connection->cleanSome()) {
-            delete connection;
-            return false;
+
+        TapProducer *tp = dynamic_cast<TapProducer*>(connection);
+        if (tp) {
+            tp->clearQueues();
         }
-        return true;
+        delete connection;
+        return false;
     }
 
     std::string description() {
