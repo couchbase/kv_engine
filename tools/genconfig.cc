@@ -139,9 +139,11 @@ static void initialize() {
     getters["std::string"] = "getString";
     getters["bool"] = "getBool";
     getters["size_t"] = "getInteger";
+    getters["ssize_t"] = "getSignedInteger";
     getters["float"] = "getFloat";
     datatypes["bool"] = "bool";
     datatypes["size_t"] = "size_t";
+    datatypes["ssize_t"] = "ssize_t";
     datatypes["float"] = "float";
     datatypes["string"] = "std::string";
     datatypes["std::string"] = "std::string";

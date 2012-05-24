@@ -80,6 +80,18 @@ size_t Configuration::getInteger(const std::string &key) const {
     return iter->second.val.v_size;
 }
 
+ssize_t Configuration::getSignedInteger(const std::string &key) const {
+    Mutex *ptr = const_cast<Mutex*> (&mutex);
+    LockHolder lh(*ptr);
+
+    std::map<std::string, value_t>::const_iterator iter;
+    if ((iter = attributes.find(key)) == attributes.end()) {
+        return 0;
+    }
+    assert(iter->second.datatype == DT_SSIZE);
+    return iter->second.val.v_ssize;
+}
+
 std::ostream& operator <<(std::ostream &out, const Configuration &config) {
     LockHolder lh(const_cast<Mutex&> (config.mutex));
     std::map<std::string, Configuration::value_t>::const_iterator iter;
@@ -100,6 +112,9 @@ std::ostream& operator <<(std::ostream &out, const Configuration &config) {
             break;
         case DT_SIZE:
             line << iter->second.val.v_size;
+            break;
+        case DT_SSIZE:
+            line << iter->second.val.v_ssize;
             break;
         case DT_FLOAT:
             line << iter->second.val.v_float;
@@ -152,6 +167,31 @@ void Configuration::setParameter(const std::string &key, size_t value) {
         attributes["max_size"].val.v_size = value;
     } else {
         attributes[key].val.v_size = value;
+    }
+
+    std::vector<ValueChangedListener*> copy(attributes[key].changeListener);
+    lh.unlock();
+    std::vector<ValueChangedListener*>::iterator iter;
+    for (iter = copy.begin(); iter != copy.end(); ++iter) {
+        (*iter)->sizeValueChanged(key, value);
+    }
+}
+
+void Configuration::setParameter(const std::string &key, ssize_t value) {
+    LockHolder lh(mutex);
+    std::map<std::string, value_t>::iterator validator = attributes.find(key);
+    if (validator != attributes.end()) {
+        if (validator->second.validator != NULL) {
+            if (!validator->second.validator->validateSSize(key, value)) {
+                throw std::runtime_error("value out of range.");
+            }
+        }
+    }
+    attributes[key].datatype = DT_SSIZE;
+    if (key.compare("cache_size") == 0) {
+        attributes["max_size"].val.v_ssize = value;
+    } else {
+        attributes[key].val.v_ssize = value;
     }
 
     std::vector<ValueChangedListener*> copy(attributes[key].changeListener);
@@ -256,6 +296,9 @@ void Configuration::addStats(ADD_STAT add_stat, const void *c) const {
         case DT_SIZE:
             value << iter->second.val.v_size;
             break;
+        case DT_SSIZE:
+            value << iter->second.val.v_ssize;
+            break;
         case DT_FLOAT:
             value << iter->second.val.v_float;
             break;
@@ -324,6 +367,9 @@ bool Configuration::parseConfiguration(const char *str, SERVER_HANDLE_V1* sapi) 
                     break;
                 case DT_SIZE:
                     setParameter(items[ii].key, *items[ii].value.dt_size);
+                    break;
+                case DT_SSIZE:
+                    setParameter(items[ii].key, *items[ii].value.dt_ssize);
                     break;
                 case DT_BOOL:
                     setParameter(items[ii].key, *items[ii].value.dt_bool);

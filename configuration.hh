@@ -59,6 +59,17 @@ public:
     }
 
     /**
+     * Callback if when a numeric configuration value changed
+     * @param key the key who changed
+     * @param value the new value for the key
+     */
+    virtual void ssizeValueChanged(const std::string &key, ssize_t) {
+        getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                         "Configuration error.. %s does not expect"
+                         " a size value", key.c_str());
+    }
+
+    /**
      * Callback if when a floatingpoint configuration value changed
      * @param key the key who changed
      * @param value the new value for the key
@@ -116,6 +127,19 @@ public:
     }
 
     /**
+     * Validator for a signed numeric value
+     * @param key the key that is about to change
+     * @param value the requested new value
+     * @return true the value is ok, false the value is not ok
+     */
+    virtual bool validateSSize(const std::string &key, ssize_t) {
+        getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                         "Configuration error.. %s does not take"
+                         " a ssize_t parameter", key.c_str());
+        return false;
+    }
+
+    /**
      * Validator for a floating point
      * @param key the key that is about to change
      * @param value the requested new value
@@ -165,6 +189,13 @@ public:
     virtual bool validateSize(const std::string &key, size_t value) {
         (void)key;
         return (value >= lower && value <= upper);
+    }
+
+    virtual bool validateSSize(const std::string &key, ssize_t value) {
+        (void)key;
+        ssize_t s_lower = static_cast<ssize_t> (lower);
+        ssize_t s_upper = static_cast<ssize_t> (upper);
+        return (value >= s_lower && value <= s_upper);
     }
 private:
     size_t lower;
@@ -295,6 +326,14 @@ protected:
     void setParameter(const std::string &key, size_t value);
     /**
      * Set the configuration parameter for a given key to
+     * a ssize_t value.
+     * @param key the key to specify
+     * @param value the new value
+     * @throws std::string if the value is refused by the validator
+     */
+    void setParameter(const std::string &key, ssize_t value);
+    /**
+     * Set the configuration parameter for a given key to
      * a floating value.
      * @param key the key to specify
      * @param value the new value
@@ -324,6 +363,7 @@ private:
     bool getBool(const std::string &key) const;
     float getFloat(const std::string &key) const;
     size_t getInteger(const std::string &key) const;
+    ssize_t getSignedInteger(const std::string &key) const;
 
     struct value_t {
         value_t() : validator(NULL) { val.v_string = 0; }
@@ -332,6 +372,7 @@ private:
         config_datatype datatype;
         union {
             size_t v_size;
+            ssize_t v_ssize;
             float v_float;
             bool v_bool;
             const char *v_string;
