@@ -14,6 +14,7 @@ extern "C" {
  */
 enum config_datatype {
    DT_SIZE,
+   DT_SSIZE,
    DT_FLOAT,
    DT_BOOL,
    DT_STRING,
@@ -25,6 +26,7 @@ enum config_datatype {
  */
 union config_value {
    size_t *dt_size;
+    ssize_t *dt_ssize;
    float *dt_float;
    bool *dt_bool;
    char **dt_string;

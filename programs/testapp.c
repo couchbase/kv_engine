@@ -579,6 +579,7 @@ static char* trim(char* ptr) {
 static enum test_return test_config_parser(void) {
     bool bool_val = false;
     size_t size_val = 0;
+    ssize_t ssize_val = 0;
     float float_val = 0;
     char *string_val = 0;
 
@@ -590,6 +591,9 @@ static enum test_return test_config_parser(void) {
         { .key = "size_t",
           .datatype = DT_SIZE,
           .value.dt_size = &size_val },
+        { .key = "ssize_t",
+          .datatype = DT_SSIZE,
+          .value.dt_ssize = &ssize_val },
         { .key = "float",
           .datatype = DT_FLOAT,
           .value.dt_float = &float_val},
@@ -640,45 +644,45 @@ static enum test_return test_config_parser(void) {
     /* Empty string */
     /* XXX:  This test fails on Linux, but works on OS X.
     assert(parse_config("string=", items, error) == 0);
-    assert(items[3].found);
+    assert(items[4].found);
     assert(strcmp(string_val, "") == 0);
-    items[3].found = false;
+    items[4].found = false;
     */
     /* Plain string */
     assert(parse_config("string=sval", items, error) == 0);
-    assert(items[3].found);
+    assert(items[4].found);
     assert(strcmp(string_val, "sval") == 0);
-    items[3].found = false;
+    items[4].found = false;
     /* Leading space */
     assert(parse_config("string= sval", items, error) == 0);
-    assert(items[3].found);
+    assert(items[4].found);
     assert(strcmp(string_val, "sval") == 0);
-    items[3].found = false;
+    items[4].found = false;
     /* Escaped leading space */
     assert(parse_config("string=\\ sval", items, error) == 0);
-    assert(items[3].found);
+    assert(items[4].found);
     assert(strcmp(string_val, " sval") == 0);
-    items[3].found = false;
+    items[4].found = false;
     /* trailing space */
     assert(parse_config("string=sval ", items, error) == 0);
-    assert(items[3].found);
+    assert(items[4].found);
     assert(strcmp(string_val, "sval") == 0);
-    items[3].found = false;
+    items[4].found = false;
     /* escaped trailing space */
     assert(parse_config("string=sval\\ ", items, error) == 0);
-    assert(items[3].found);
+    assert(items[4].found);
     assert(strcmp(string_val, "sval ") == 0);
-    items[3].found = false;
+    items[4].found = false;
     /* escaped stop char */
     assert(parse_config("string=sval\\;blah=x", items, error) == 0);
-    assert(items[3].found);
+    assert(items[4].found);
     assert(strcmp(string_val, "sval;blah=x") == 0);
-    items[3].found = false;
+    items[4].found = false;
     /* middle space */
     assert(parse_config("string=s val", items, error) == 0);
-    assert(items[3].found);
+    assert(items[4].found);
     assert(strcmp(string_val, "s val") == 0);
-    items[3].found = false;
+    items[4].found = false;
 
     /* And all of the variables */
     assert(parse_config("bool=true;size_t=1024;float=12.5;string=somestr",
