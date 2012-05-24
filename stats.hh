@@ -68,7 +68,7 @@ public:
     Atomic<double> warmupNumReadCap;
 
     //! The tap throttle write queue cap
-    Atomic<size_t> tapThrottleWriteQueueCap;
+    Atomic<ssize_t> tapThrottleWriteQueueCap;
 
     //! size of the input queue
     Atomic<size_t> queue_size;

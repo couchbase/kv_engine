@@ -376,11 +376,11 @@
         "tap_throttle_queue_cap": {
             "default": "1000000",
             "descr": "Max size of a write queue to throttle incoming tap input.",
-            "type": "size_t",
+            "type": "ssize_t",
             "validator": {
                 "range": {
                     "max": 100000000,
-                    "min": 0
+                    "min": -1
                 }
             }
         },
