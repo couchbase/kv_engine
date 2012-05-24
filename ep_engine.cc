@@ -456,7 +456,14 @@ extern "C" {
                          "Manually evicting object with key %s\n",
                          keyz);
 
-        return e->evictKey(key, vbucket, msg, msg_size);
+        protocol_binary_response_status rv = e->evictKey(key, vbucket, msg, msg_size);
+        if (rv == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET ||
+            rv == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT) {
+            if (e->isDegradedMode()) {
+                return PROTOCOL_BINARY_RESPONSE_ETMPFAIL;
+            }
+        }
+        return rv;
     }
 
     ENGINE_ERROR_CODE getLocked(EventuallyPersistentEngine *e,
@@ -519,6 +526,12 @@ extern "C" {
             *res = PROTOCOL_BINARY_RESPONSE_ETMPFAIL;
             return ENGINE_TMPFAIL;
         } else {
+            if (e->isDegradedMode()) {
+                *msg = "LOCK_TMP_ERROR";
+                *res = PROTOCOL_BINARY_RESPONSE_ETMPFAIL;
+                return ENGINE_TMPFAIL;
+            }
+
             RCPtr<VBucket> vb = e->getVBucket(vbucket);
             if (!vb) {
                 *msg = "That's not my bucket.";
@@ -572,6 +585,11 @@ extern "C" {
             *msg =  "UNLOCK_ERROR";
             res = PROTOCOL_BINARY_RESPONSE_ETMPFAIL;
         } else {
+            if (e->isDegradedMode()) {
+                *msg = "LOCK_TMP_ERROR";
+                return PROTOCOL_BINARY_RESPONSE_ETMPFAIL;
+            }
+
             RCPtr<VBucket> vb = e->getVBucket(vbucket);
             if (!vb) {
                 *msg = "That's not my bucket.";
@@ -1388,6 +1406,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::flush(const void *, time_t when) {
         return ENGINE_ENOTSUP;
     }
 
+    if (isDegradedMode()) {
+        return ENGINE_TMPFAIL;
+    }
+
     if (when == 0) {
         cb->doFlush();
     } else {
@@ -1529,6 +1551,10 @@ ENGINE_ERROR_CODE  EventuallyPersistentEngine::store(const void *cookie,
 
     if (ret == ENGINE_ENOMEM) {
         ret = memoryCondition();
+    } else if (ret == ENGINE_NOT_STORED || ret == ENGINE_NOT_MY_VBUCKET) {
+        if (isDegradedMode()) {
+            return ENGINE_TMPFAIL;
+        }
     }
 
     return ret;
@@ -3037,7 +3063,13 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doKeyStats(const void *cookie,
         }
     } else if (validate) {
         shared_ptr<LookupCallback> cb(new LookupCallback(this, cookie));
-        return epstore->getFromUnderlying(key, vbid, cookie, cb);
+        rv = epstore->getFromUnderlying(key, vbid, cookie, cb);
+        if (rv == ENGINE_NOT_MY_VBUCKET || rv == ENGINE_KEY_ENOENT) {
+            if (isDegradedMode()) {
+                return ENGINE_TMPFAIL;
+            }
+        }
+        return rv;
     }
 
     if (epstore->getKeyStats(key, vbid, kstats)) {
@@ -3418,7 +3450,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::touch(const void *cookie,
         }
         delete it;
     } else if (rv == ENGINE_KEY_ENOENT) {
-        if (request->request.opcode == PROTOCOL_BINARY_CMD_GATQ) {
+        if (isDegradedMode()) {
+            rv = sendResponse(response, NULL, 0, NULL, 0, NULL, 0, PROTOCOL_BINARY_RAW_BYTES,
+                              PROTOCOL_BINARY_RESPONSE_ETMPFAIL, 0, cookie);
+        } else if (request->request.opcode == PROTOCOL_BINARY_CMD_GATQ) {
             // GATQ should not return response upon cache miss
             rv = ENGINE_SUCCESS;
         } else {
@@ -3426,8 +3461,13 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::touch(const void *cookie,
                               PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, 0, cookie);
         }
     } else if (rv == ENGINE_NOT_MY_VBUCKET) {
-        rv = sendResponse(response, NULL, 0, NULL, 0, NULL, 0, PROTOCOL_BINARY_RAW_BYTES,
-                          PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, 0, cookie);
+        if (isDegradedMode()) {
+            rv = sendResponse(response, NULL, 0, NULL, 0, NULL, 0, PROTOCOL_BINARY_RAW_BYTES,
+                              PROTOCOL_BINARY_RESPONSE_ETMPFAIL, 0, cookie);
+        } else {
+            rv = sendResponse(response, NULL, 0, NULL, 0, NULL, 0, PROTOCOL_BINARY_RAW_BYTES,
+                              PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, 0, cookie);
+        }
     }
 
     return rv;

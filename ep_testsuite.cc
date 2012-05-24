@@ -4669,7 +4669,7 @@ static enum test_result test_restore_data_miss(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     r = h1->store(h, NULL, it, &cas, OPERATION_REPLACE, 0);
     check(r == ENGINE_TMPFAIL, "Replace shouldn't work for a missing item during restore.");
     r = h1->remove(h, NULL, "foobar", 6, 0, 0);
-    check(r == ENGINE_KEY_ENOENT, "Delete of non-existing item should work during restore");
+    check(r == ENGINE_TMPFAIL, "Delete of non-existing item should work during restore");
     r = h1->store(h, NULL, it, &cas, OPERATION_SET, 0);
     check(r == ENGINE_SUCCESS, "Set should work.");
     r = h1->store(h, NULL, it, &cas, OPERATION_REPLACE, 0);

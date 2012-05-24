@@ -1292,9 +1292,6 @@ GetValue EventuallyPersistentStore::getInternal(const std::string &key,
         return rv;
     } else {
         GetValue rv;
-        if (engine.isDegradedMode()) {
-            rv.setStatus(ENGINE_TMPFAIL);
-        }
         return rv;
     }
 }
@@ -1425,9 +1422,6 @@ GetValue EventuallyPersistentStore::getAndUpdateTtl(const std::string &key,
         return rv;
     } else {
         GetValue rv;
-        if (engine.isDegradedMode()) {
-            rv.setStatus(ENGINE_TMPFAIL);
-        }
         return rv;
     }
 }
@@ -1464,8 +1458,6 @@ EventuallyPersistentStore::getFromUnderlying(const std::string &key,
         assert(bgFetchQueue > 0);
         roDispatcher->schedule(dcb, NULL, Priority::VKeyStatBgFetcherPriority, bgFetchDelay);
         return ENGINE_EWOULDBLOCK;
-    } else if (engine.isDegradedMode()) {
-        return ENGINE_TMPFAIL;
     } else {
         return ENGINE_KEY_ENOENT;
     }
@@ -1522,9 +1514,6 @@ bool EventuallyPersistentStore::getLocked(const std::string &key,
 
     } else {
         GetValue rv;
-        if (engine.isDegradedMode()) {
-            rv.setStatus(ENGINE_TMPFAIL);
-        }
         cb.callback(rv);
     }
     return true;
@@ -1576,10 +1565,6 @@ EventuallyPersistentStore::unlockKey(const std::string &key,
                 return ENGINE_SUCCESS;
             }
         }
-        return ENGINE_TMPFAIL;
-    }
-
-    if (engine.isDegradedMode()) {
         return ENGINE_TMPFAIL;
     }
 
@@ -1639,15 +1624,10 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteItem(const std::string &key,
     LockHolder lh = vb->ht.getLockedBucket(key, &bucket_num);
     StoredValue *v = vb->ht.unlocked_find(key, bucket_num);
     if (!v) {
-        if (engine.isDegradedMode()) {
-            LockHolder rlh(restore.mutex);
-            restore.itemsDeleted.insert(key);
-        } else {
-            if (vb->getState() != vbucket_state_active && force) {
-                queueDirty(key, vbucket, queue_op_del, seqno, -1);
-            }
-            return ENGINE_KEY_ENOENT;
+        if (vb->getState() != vbucket_state_active && force) {
+            queueDirty(key, vbucket, queue_op_del, seqno, -1);
         }
+        return ENGINE_KEY_ENOENT;
     }
 
     mutation_type_t delrv;
