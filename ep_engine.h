@@ -221,6 +221,10 @@ public:
 
         if (ret == ENGINE_SUCCESS) {
             addDeleteEvent(key, vbucket, cas);
+        } else if (ret == ENGINE_KEY_ENOENT || ret == ENGINE_NOT_MY_VBUCKET) {
+            if (isDegradedMode()) {
+                return ENGINE_TMPFAIL;
+            }
         }
         return ret;
     }
@@ -242,14 +246,17 @@ public:
         std::string k(static_cast<const char*>(key), nkey);
 
         GetValue gv(epstore->get(k, vbucket, cookie, serverApi->core));
+        ENGINE_ERROR_CODE ret = gv.getStatus();
 
-        if (gv.getStatus() == ENGINE_SUCCESS) {
+        if (ret == ENGINE_SUCCESS) {
             *item = gv.getValue();
-        } else if (gv.getStatus() == ENGINE_KEY_ENOENT && restore.enabled.get()) {
-            return ENGINE_TMPFAIL;
+        } else if (ret == ENGINE_KEY_ENOENT || ret == ENGINE_NOT_MY_VBUCKET) {
+            if (isDegradedMode()) {
+                return ENGINE_TMPFAIL;
+            }
         }
 
-        return gv.getStatus();
+        return ret;
     }
 
     ENGINE_ERROR_CODE getStats(const void* cookie,
@@ -326,18 +333,21 @@ public:
 
             delete item;
         } else if (ret == ENGINE_NOT_MY_VBUCKET) {
-            return ret;
-        } else if (ret == ENGINE_KEY_ENOENT && create) {
-            std::stringstream vals;
-
-            vals << initial;
-            size_t nb = vals.str().length();
-
-            *result = initial;
-            Item *item = new Item(key, (uint16_t)nkey, 0, expiretime,
-                                  vals.str().c_str(), nb);
-            ret = store(cookie, item, cas, OPERATION_ADD, vbucket);
-            delete item;
+            return isDegradedMode() ? ENGINE_TMPFAIL: ret;
+        } else if (ret == ENGINE_KEY_ENOENT) {
+            if (isDegradedMode()) {
+                return ENGINE_TMPFAIL;
+            }
+            if (create) {
+                std::stringstream vals;
+                vals << initial;
+                size_t nb = vals.str().length();
+                *result = initial;
+                Item *item = new Item(key, (uint16_t)nkey, 0, expiretime,
+                                      vals.str().c_str(), nb);
+                ret = store(cookie, item, cas, OPERATION_ADD, vbucket);
+                delete item;
+            }
         }
 
         /* We had a race condition.. just call ourself recursively to retry */
@@ -573,6 +583,10 @@ public:
 
     size_t getGetlDefaultTimeout() { return getlDefaultTimeout; }
     size_t getGetlMaxTimeout() { return getlMaxTimeout; }
+
+    bool isDegradedMode() const {
+        return !stats.warmupComplete.get() || restore.enabled.get();
+    }
 
     /**
      * Set the timeout for the SYNC command. Timeout is in milliseconds.

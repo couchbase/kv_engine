@@ -1007,9 +1007,6 @@ GetValue EventuallyPersistentStore::get(const std::string &key,
         return rv;
     } else {
         GetValue rv;
-        if (engine.restore.enabled.get()) {
-            rv.setStatus(ENGINE_TMPFAIL);
-        }
         return rv;
     }
 }
@@ -1076,9 +1073,6 @@ GetValue EventuallyPersistentStore::getAndUpdateTtl(const std::string &key,
         return rv;
     } else {
         GetValue rv;
-        if (engine.restore.enabled.get()) {
-            rv.setStatus(ENGINE_TMPFAIL);
-        }
         return rv;
     }
 }
@@ -1121,8 +1115,6 @@ EventuallyPersistentStore::getFromUnderlying(const std::string &key,
         assert(bgFetchQueue > 0);
         roDispatcher->schedule(dcb, NULL, Priority::VKeyStatBgFetcherPriority, bgFetchDelay);
         return ENGINE_EWOULDBLOCK;
-    } else if (engine.restore.enabled.get()) {
-        return ENGINE_TMPFAIL;
     } else {
         return ENGINE_KEY_ENOENT;
     }
@@ -1181,9 +1173,6 @@ bool EventuallyPersistentStore::getLocked(const std::string &key,
 
     } else {
         GetValue rv;
-        if (engine.restore.enabled.get()) {
-            rv.setStatus(ENGINE_TMPFAIL);
-        }
         cb.callback(rv);
     }
     return true;
@@ -1235,10 +1224,6 @@ EventuallyPersistentStore::unlockKey(const std::string &key,
                 return ENGINE_SUCCESS;
             }
         }
-        return ENGINE_TMPFAIL;
-    }
-
-    if (engine.restore.enabled.get()) {
         return ENGINE_TMPFAIL;
     }
 
@@ -1310,9 +1295,6 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::del(const std::string &key,
     LockHolder lh = vb->ht.getLockedBucket(key, &bucket_num);
     StoredValue *v = vb->ht.unlocked_find(key, bucket_num);
     if (!v) {
-        if (engine.restore.enabled.get()) {
-            return ENGINE_TMPFAIL;
-        }
         if (vb->getState() != vbucket_state_active && force) {
             queueDirty(key, vbucket, queue_op_del, -1);
         }
