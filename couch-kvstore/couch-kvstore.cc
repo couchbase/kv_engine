@@ -129,6 +129,17 @@ static int getMutationStatus(couchstore_error_t errCode)
     }
 }
 
+static bool allDigit(std::string &input)
+{
+    size_t numchar = input.length();
+    for(size_t i = 0; i < numchar; ++i) {
+        if (!isdigit(input[i])) {
+            return false;
+        }
+    }
+    return true;
+}
+
 struct StatResponseCtx {
 public:
     StatResponseCtx(std::map<std::pair<uint16_t, uint16_t>, vbucket_state> &sm,
@@ -1033,37 +1044,36 @@ void CouchKVStore::getFileNameMap(std::vector<uint16_t> *vbids,
 
 void CouchKVStore::populateFileNameMap(std::vector<std::string> &filenames)
 {
-    std::string filename;
-    std::string nameKey;
-    std::string revNumStr;
-    std::string vbIdStr;
-
-    int revNum, vbId;
-    size_t secondDot, firstDot, firstSlash;
-
-    std::map<uint16_t, int>::iterator mapItr;
     std::vector<std::string>::iterator fileItr;
 
     for (fileItr = filenames.begin(); fileItr != filenames.end(); fileItr++) {
-        filename = *fileItr;
-        secondDot = filename.rfind(".");
-        nameKey = filename.substr(0, secondDot);
-        firstDot = nameKey.rfind(".");
-        firstSlash = nameKey.rfind("/");
+        const std::string &filename = *fileItr;
+        size_t secondDot = filename.rfind(".");
+        std::string nameKey = filename.substr(0, secondDot);
+        size_t firstDot = nameKey.rfind(".");
+        size_t firstSlash = nameKey.rfind("/");
 
-        revNumStr = filename.substr(secondDot + 1);
-        revNum = atoi(revNumStr.c_str());
-        vbIdStr = nameKey.substr(firstSlash + 1, (firstDot - firstSlash));
-        vbId = atoi(vbIdStr.c_str());
+        std::string revNumStr = filename.substr(secondDot + 1);
+        int revNum = atoi(revNumStr.c_str());
 
-        mapItr = dbFileMap.find(vbId);
-        if (mapItr == dbFileMap.end()) {
-            dbFileMap.insert(std::pair<uint16_t, int>(vbId, revNum));
-        } else {
-            // duplicate key
-            if (mapItr->second < revNum) {
-                mapItr->second = revNum;
+        std::string vbIdStr = nameKey.substr(firstSlash + 1, (firstDot - firstSlash) - 1);
+        if (allDigit(vbIdStr)) {
+            int vbId = atoi(vbIdStr.c_str());
+            std::map<uint16_t, int>::iterator mapItr = dbFileMap.find(vbId);
+            if (mapItr == dbFileMap.end()) {
+                dbFileMap.insert(std::pair<uint16_t, int>(vbId, revNum));
+            } else {
+                // duplicate key
+                if (mapItr->second < revNum) {
+                    mapItr->second = revNum;
+                }
             }
+        } else {
+            // skip non-vbucket database file, master.couch etc
+            getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                             "Non-vbucket database file, %s, skip adding "
+                             "to CouchKVStore dbFileMap\n",
+                             filename.c_str());
         }
     }
 }
