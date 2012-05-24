@@ -34,15 +34,10 @@ const Priority Priority::InvalidItemDbPagerPriority("invalid_item_db_pager_prior
 
 // Priorities for NON-IO dispatcher
 const Priority Priority::CheckpointRemoverPriority("checkpoint_remover_priority", 6);
+const Priority Priority::TapConnectionReaperPriority("tapconnection_reaper_priority", 6);
 const Priority Priority::ItemPagerPriority("item_pager_priority", 7);
 const Priority Priority::BackfillTaskPriority("backfill_task_priority", 8);
 const Priority Priority::HTResizePriority("hashtable_resize_priority", 211);
 const Priority Priority::SyncDestroyPriority("sync_destroy_priority", 314);
 const Priority Priority::TapResumePriority("tap_resume_priority", 316);
 const Priority Priority::SyncAbortPriority("sync_abort_priority", 316);
-/**
- * The tap connection reaper run with short iterations to give memory back to the
- * system. It should normally run for a short period of time for each iteration.
- * Too bad our dispatcher don't support automatic backoff...
- */
-const Priority Priority::TapConnectionReaperPriority("tapconnection_reaper_priority", 10);

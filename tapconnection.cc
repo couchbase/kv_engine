@@ -452,7 +452,6 @@ bool TapProducer::requestAck(tap_event_t event, uint16_t vbucket) {
 }
 
 void TapProducer::clearQueues_UNLOCKED() {
-    /* No point of keeping the rep queue when someone wants to flush it */
     queue->clear();
     queueSize = 0;
     queueMemSize = 0;
@@ -1345,22 +1344,6 @@ bool TapProducer::isTimeForNoop() {
 void TapProducer::setTimeForNoop()
 {
     noop.set(true);
-}
-
-bool TapProducer::cleanSome()
-{
-    int ii = 0;
-    LockHolder lh(queueLock);
-    while (!backfilledItems.empty() && ii < 1000) {
-        Item *i(backfilledItems.front());
-        assert(i);
-        delete i;
-        backfilledItems.pop();
-        --bgResultSize;
-        ++ii;
-    }
-
-    return backfilledItems.empty();
 }
 
 queued_item TapProducer::next(bool &shouldPause) {
