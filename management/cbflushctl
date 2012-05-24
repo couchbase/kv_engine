@@ -85,29 +85,20 @@ Persistence:
 
 Available params for "set":
     bg_fetch_delay            - Delay before executing a bg fetch (test feature)
-    chk_max_items             - Maximum items before creating a new checkpoint
-    chk_period                - Duration before creating a new checkpoint
     couch_vbucket_batch_count - vbucket batch size for couchdb persistence
     couchdb_response_timeout  - timeout in receiving a response from couchdb
     exp_pager_stime           - Expiry Pager Sleeptime
     flushall_enabled          - Enable flush operation
-    inconsistent_slave_chk    - Enables active to active replication
+    klog_compactor_queue_cap  - queue cap to throttle the log compactor
+    klog_max_log_size         - maximum size of a mutation log file allowed
+    klog_max_entry_ratio      - max ratio of # of items logged to # of unique items
     queue_age_cap             - Maximum queue age before flushing data
-    max_checkpoints           - Maximum number of checkpoints
     max_size                  - Max memory used by the server
     max_txn_size              - Maximum number of items in a flusher transaction
     mem_high_wat              - High water mark
     mem_low_wat               - Low water mark
     min_data_age              - Minimum data age before flushing data
-    sync_cmd_timeout          - The timeout for the sync command
-    tap_throttle_queue_cap    - Destination disk write queue cap for tap backoff
-                                ('infinite' means no cap)
-    tap_throttle_threshold    - Destination memory threshold for tap backoff
     timing_log                - path to log detailed timing stats
-    keep_closed_chks          - Keep all closed checkpoints in memory
-    klog_max_log_size         - maximum size of a mutation log file allowed
-    klog_max_entry_ratio      - max ratio of # of items logged to # of unique items
-    klog_compactor_queue_cap  - queue cap to throttle the log compactor
     """)
 
     c.addCommand('stop', stop, 'stop')
