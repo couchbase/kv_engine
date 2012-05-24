@@ -1154,7 +1154,7 @@ void TapProducer::completeBGFetchJob(Item *itm, uint16_t vbid, bool implicitEnqu
     }
     assert(bgJobIssued >= bgJobCompleted);
 
-    if (vbucketFilter(itm->getVBucketId()) && itm) {
+    if (itm && vbucketFilter(itm->getVBucketId())) {
         backfilledItems.push(itm);
         ++bgResultSize;
         if (it != tapCheckpointState.end()) {
