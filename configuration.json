@@ -103,7 +103,7 @@
             "type": "size_t"
         },
         "couch_response_timeout": {
-            "default": "600000",
+            "default": "180000",
             "descr": "Length of time to wait for a response from couchdb before reconnecting (in ms)",
             "type": "size_t"
         },
