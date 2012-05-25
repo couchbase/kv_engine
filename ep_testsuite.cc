@@ -5380,6 +5380,139 @@ static bool encodeMeta(uint32_t seqno, uint64_t cas, time_t exptime,
     return true;
 }
 
+static void set_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                          const char *key, const size_t keylen,
+                          const char *val, const size_t vallen,
+                          const uint32_t vb, ItemMetaData *itemMeta,
+                          uint64_t cas_for_set)
+{
+    union {
+        protocol_binary_request_header pkt;
+        protocol_binary_request_set_with_meta req;
+        char buffer[1024];
+    } msg;
+    memset(&msg.req, 0, sizeof(msg));
+
+    // size of meta data encoded, see function encodeMeta() for layout
+    size_t nb = 22;
+    // extlen of operation SET_WITH_META is 12
+    uint8_t extlen = 12;
+    size_t bodyLen = keylen + extlen + vallen + nb;
+
+    msg.req.message.header.request.magic = PROTOCOL_BINARY_REQ;
+    msg.req.message.header.request.opcode = CMD_SET_WITH_META;
+    msg.req.message.header.request.extlen = extlen;
+    msg.req.message.header.request.keylen = ntohs(keylen);
+    msg.req.message.header.request.vbucket = htons(vb);
+    msg.req.message.header.request.bodylen = htonl(bodyLen);
+    msg.req.message.header.request.cas = htonll(cas_for_set);
+
+    memcpy(msg.buffer + sizeof(msg.req.bytes), key, keylen);
+    // if comes with value
+    if( vallen > 0 && val ) {
+        memcpy(msg.buffer + sizeof(msg.req.bytes) + keylen, val, vallen);
+    }
+    msg.req.message.body.nmeta_bytes = ntohl(nb);
+    msg.req.message.body.flags = ntohl(itemMeta->flags);
+    msg.req.message.body.expiration = 0;
+
+    // encode the revid:
+    encodeMeta(itemMeta->seqno, itemMeta->cas, itemMeta->exptime, itemMeta->flags,
+               (uint8_t*)msg.buffer + sizeof(msg.req.bytes) + keylen + vallen,
+               nb);
+
+    ENGINE_ERROR_CODE ret = h1->unknown_command(h, NULL, &msg.pkt,
+                                                add_response);
+
+    check(ret == ENGINE_SUCCESS, "Expected to be able to store with meta");
+
+    return;
+}
+
+static void add_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                          const char *key, const size_t keylen,
+                          const char *val, const size_t vallen,
+                          const uint32_t vb, ItemMetaData *itemMeta)
+{
+    union {
+        protocol_binary_request_header pkt;
+        protocol_binary_request_set_with_meta req;
+        char buffer[1024];
+    } msg;
+    memset(&msg.req, 0, sizeof(msg));
+
+    // size of meta data encoded, see function encodeMeta() for layout
+    size_t nb = 22;
+    // extlen of operation ADD_WITH_META is 12
+    uint8_t extlen = 12;
+    size_t bodyLen = keylen + extlen + vallen + nb;
+
+    msg.req.message.header.request.magic = PROTOCOL_BINARY_REQ;
+    msg.req.message.header.request.opcode = CMD_ADD_WITH_META;
+    msg.req.message.header.request.extlen = extlen;
+    msg.req.message.header.request.keylen = ntohs(keylen);
+    msg.req.message.header.request.vbucket = htons(vb);
+    msg.req.message.header.request.bodylen = htonl(bodyLen);
+    memcpy(msg.buffer + sizeof(msg.req.bytes), key, keylen);
+    // if comes with value
+    if( vallen > 0 && val ) {
+        memcpy(msg.buffer + sizeof(msg.req.bytes) + keylen, val, vallen);
+    }
+
+    msg.req.message.body.nmeta_bytes = ntohl(nb);
+    msg.req.message.body.flags = ntohl(itemMeta->flags);
+    msg.req.message.body.expiration = 0;
+
+    // encode the revid:
+    encodeMeta(itemMeta->seqno, itemMeta->cas, itemMeta->exptime, itemMeta->flags,
+               (uint8_t*)msg.buffer + sizeof(msg.req.bytes) + keylen + vallen,
+               nb);
+
+    ENGINE_ERROR_CODE ret = h1->unknown_command(h, NULL, &msg.pkt,
+                                                add_response);
+
+    check(ret == ENGINE_SUCCESS, "Expected to be able to store with meta");
+
+    return;
+}
+
+static void del_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                          const char *key, const size_t keylen,
+                          const uint32_t vb, ItemMetaData *itemMeta,
+                          uint64_t cas_for_delete = 0)
+{
+    union {
+        protocol_binary_request_header pkt;
+        protocol_binary_request_delete_with_meta req;
+        char buffer[1024];
+    } msg;
+    memset(&msg.req, 0, sizeof(msg));
+
+    // size of meta data encoded, see function encodeMeta() for layout
+    size_t nb = 22;
+    // extlen of operation DEL_WITH_META is 4
+    const uint8_t extlen = 4;
+    msg.req.message.header.request.magic = PROTOCOL_BINARY_REQ;
+    msg.req.message.header.request.opcode = CMD_DEL_WITH_META;
+    msg.req.message.header.request.extlen = extlen;
+    msg.req.message.header.request.keylen = ntohs(keylen);
+    msg.req.message.header.request.vbucket = htons(vb);
+    msg.req.message.header.request.bodylen = htonl(keylen + extlen + nb);
+    msg.req.message.header.request.cas = htonll(cas_for_delete);
+    memcpy(msg.buffer + sizeof(msg.req.bytes), key, keylen);
+    msg.req.message.body.nmeta_bytes = ntohl(nb);
+
+    encodeMeta(itemMeta->seqno, itemMeta->cas, itemMeta->exptime, itemMeta->flags,
+               (uint8_t*)msg.buffer + sizeof(msg.req.bytes) + keylen, nb);
+
+    ENGINE_ERROR_CODE ret = h1->unknown_command(h, NULL, &msg.pkt,
+                                                add_response);
+
+    check(ret == ENGINE_SUCCESS, "Expected to be able to delete with meta");
+
+    return;
+}
+
 static enum test_result test_regression_mb4314(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
 {
     union {
@@ -5435,6 +5568,7 @@ static enum test_result test_mb3466(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
     return SUCCESS;
 }
 
+// ------------------- beginning of XDCR unit tests -----------------------//
 static enum test_result test_get_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
 {
     char const *key = "test_get_meta";
@@ -5465,6 +5599,7 @@ static enum test_result test_get_meta_deleted(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
     h1->release(h, NULL, i);
     check(store(h, h1, NULL, OPERATION_SET, key, "somevalue", &i) == ENGINE_SUCCESS,
           "Failed set.");
+
     Item *it = reinterpret_cast<Item*>(i);
     wait_for_flusher_to_settle(h, h1);
 
@@ -5609,35 +5744,22 @@ static enum test_result test_get_meta_with_delete(ENGINE_HANDLE *h, ENGINE_HANDL
 
 static enum test_result test_add_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
 {
-    union {
-        protocol_binary_request_header pkt;
-        protocol_binary_request_set_with_meta req;
-        char buffer[1024];
-    } msg;
-    memset(&msg.req, 0, sizeof(msg));
+    const char *key = "mykey";
+    const size_t keylen = strlen(key);
+    ItemMetaData itemMeta;
 
-    msg.req.message.header.request.magic = PROTOCOL_BINARY_REQ;
-    msg.req.message.header.request.opcode = CMD_ADD_WITH_META;
-    msg.req.message.header.request.extlen = 12;
-    msg.req.message.header.request.keylen = ntohs(18);
-    msg.req.message.header.request.vbucket = htons(0);
-    msg.req.message.header.request.bodylen = htonl(12 + 18 + 22);
-    memcpy(msg.buffer + sizeof(msg.req.bytes), "test_add_with_meta", 18);
-    msg.req.message.body.nmeta_bytes = ntohl(22);
-    msg.req.message.body.flags = ntohl(0xdeadbeef);
-    msg.req.message.body.expiration = 0;
+    // put some random metadata
+    itemMeta.seqno = 10;
+    itemMeta.cas = 0xdeadbeef;
+    itemMeta.exptime = 0;
+    itemMeta.flags = 0xdeadbeef;
 
-    size_t nb = 22;
-    // encode the revid:
-    encodeMeta(10, 0xdeadbeef, 0, 0xdeadbeef,
-               (uint8_t*)msg.buffer + sizeof(msg.req.bytes) + 18, nb);
-    ENGINE_ERROR_CODE ret = h1->unknown_command(h, NULL, &msg.pkt,
-                                                add_response);
-    check(ret == ENGINE_SUCCESS, "Expected to be able to store with meta");
+    // store an item with meta data
+    add_with_meta(h, h1, key, keylen, NULL, 0, 0, &itemMeta);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
 
-    ret = h1->unknown_command(h, NULL, &msg.pkt, add_response);
-    check(ret == ENGINE_SUCCESS, "Expected to be able to store with meta");
+    // store the item again, expect key exists
+    add_with_meta(h, h1, key, keylen, NULL, 0, 0, &itemMeta);
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
           "Expected add to fail when the item exists already");
 
@@ -5645,54 +5767,43 @@ static enum test_result test_add_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
 }
 
 static enum test_result test_delete_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    union {
-        protocol_binary_request_header pkt;
-        protocol_binary_request_delete_with_meta req;
-        char buffer[1024];
-    } msg;
-    memset(&msg.req, 0, sizeof(msg));
 
-    msg.req.message.header.request.magic = PROTOCOL_BINARY_REQ;
-    msg.req.message.header.request.opcode = CMD_DEL_WITH_META;
-    msg.req.message.header.request.extlen = 4;
-    msg.req.message.header.request.keylen = ntohs(20);
-    msg.req.message.header.request.vbucket = htons(0);
-    msg.req.message.header.request.bodylen = htonl(4 + 20 + 22);
-    memcpy(msg.buffer + sizeof(msg.req.bytes), "delete_with_meta_key", 20);
-    msg.req.message.body.nmeta_bytes = ntohl(22);
+    const char *key = "delete_with_meta_key";
+    const size_t keylen = strlen(key);
+    ItemMetaData itemMeta;
 
-    size_t nb = 22;
-    // encode the revid:
-    encodeMeta(10, 0xdeadbeef, 0, 0xdeadbeef,
-               (uint8_t*)msg.buffer + sizeof(msg.req.bytes) + 20, nb);
+    // put some random meta data
+    itemMeta.seqno = 10;
+    itemMeta.cas = 0xdeadbeef;
+    itemMeta.exptime = 0;
+    itemMeta.flags = 0xdeadbeef;
 
+    // store an item
     item *i = NULL;
-    check(store(h, h1, NULL, OPERATION_SET, "delete_with_meta_key",
+    check(store(h, h1, NULL, OPERATION_SET, key,
                 "somevalue", &i) == ENGINE_SUCCESS, "Failed set.");
-    h1->release(h, NULL, i);
 
-    ENGINE_ERROR_CODE ret = h1->unknown_command(h, NULL, &msg.pkt,
-                                                add_response);
-    check(ret == ENGINE_SUCCESS, "Expected to be able to delete with meta");
+    // delete an item with meta data
+    del_with_meta(h, h1, key, keylen, 0, &itemMeta);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
 
+    h1->release(h, NULL, i);
     return SUCCESS;
 }
 
 static enum test_result test_delete_with_meta_deleted(ENGINE_HANDLE *h,
                                                       ENGINE_HANDLE_V1 *h1) {
     const char *key = "delete_with_meta_key";
-    uint16_t keylen = (uint16_t)strlen(key);
+    const size_t keylen = strlen(key);
     item *i = NULL;
 
     // add a key
     check(store(h, h1, NULL, OPERATION_SET, key, "somevalue", &i) == ENGINE_SUCCESS,
           "Failed set.");
-    h1->release(h, NULL, i);
     wait_for_flusher_to_settle(h, h1);
 
     // delete the key
-    check(h1->remove(h, NULL, key, strlen(key), 0, 0) == ENGINE_SUCCESS,
+    check(h1->remove(h, NULL, key, keylen, 0, 0) == ENGINE_SUCCESS,
           "Delete failed");
     wait_for_flusher_to_settle(h, h1);
 
@@ -5703,57 +5814,42 @@ static enum test_result test_delete_with_meta_deleted(ENGINE_HANDLE *h,
     check(last_deleted_flag, "Expected deleted flag to be set");
 
     // this is the cas to be used with a subsequent delete with meta
-    uint64_t cas_for_delete = last_cas;
-
-    // do delete with meta
-    union {
-        protocol_binary_request_header pkt;
-        protocol_binary_request_delete_with_meta req;
-        char buffer[1024];
-    } msg;
-    memset(&msg.req, 0, sizeof(msg));
-    msg.req.message.header.request.magic = PROTOCOL_BINARY_REQ;
-    msg.req.message.header.request.opcode = CMD_DEL_WITH_META;
-    msg.req.message.header.request.extlen = 4;
-    msg.req.message.header.request.keylen = ntohs(keylen);
-    msg.req.message.header.request.vbucket = htons(0);
-    msg.req.message.header.request.bodylen = htonl(4 + keylen + 22);
-    memcpy(msg.buffer + sizeof(msg.req.bytes), key, keylen);
-    msg.req.message.body.nmeta_bytes = ntohl(22);
-
-    size_t nb = 22;
-    encodeMeta(10, 0xdeadbeef, 300, 0xdeadbeef,
-               (uint8_t*)msg.buffer + sizeof(msg.req.bytes) + keylen, nb);
+    uint64_t valid_cas = last_cas;
+    uint64_t invalid_cas = 2012;
+    // put some random metadata and delete the item with new meta data
+    itm_meta.seqno = 10;
+    itm_meta.cas = 0xdeadbeef;
+    itm_meta.exptime = 300;
+    itm_meta.flags = 0xdeadbeef;
 
     // do delete with meta with an incorrect cas value. should fail.
-    msg.req.message.header.request.cas = htonll(1229);
-    ENGINE_ERROR_CODE ret = h1->unknown_command(h, NULL, &msg.pkt, add_response);
-    check(ret == ENGINE_SUCCESS, "Expected to be able to delete with meta");
+    del_with_meta(h, h1, key, keylen, 0, &itm_meta, invalid_cas);
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
           "Expected invalid cas error");
 
     // do delete with meta with the correct cas value. should pass.
-    msg.req.message.header.request.cas = htonll(cas_for_delete);
-    ret = h1->unknown_command(h, NULL, &msg.pkt, add_response);
-    check(ret == ENGINE_SUCCESS, "Expected to be able to delete with meta");
+    del_with_meta(h, h1, key, keylen, 0, &itm_meta, valid_cas);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
 
     // get metadata again to verify that delete with meta was successful
-    check(get_meta(h, h1, key, itm_meta), "Expected to get meta");
+    ItemMetaData itm_meta2;
+    check(get_meta(h, h1, key, itm_meta2), "Expected to get meta");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
     check(last_deleted_flag, "Expected deleted flag to be set");
-    check(itm_meta.seqno == 10, "Expected seqno to match");
-    check(itm_meta.cas == 0xdeadbeef, "Expected cas to match");
-    check(itm_meta.exptime == 300, "Expected exptime to match");
-    check(itm_meta.flags == 0xdeadbeef, "Expected flags to match");
+    check(itm_meta.seqno == itm_meta2.seqno, "Expected seqno to match");
+    check(itm_meta.cas == itm_meta2.cas, "Expected cas to match");
+    check(itm_meta.exptime == itm_meta2.exptime, "Expected exptime to match");
+    check(itm_meta.flags == itm_meta2.flags, "Expected flags to match");
 
+    h1->release(h, NULL, i);
     return SUCCESS;
 }
 
 static enum test_result test_delete_with_meta_nonexistent(ENGINE_HANDLE *h,
                                                           ENGINE_HANDLE_V1 *h1) {
     const char *key = "delete_with_meta_key";
-    uint16_t keylen = (uint16_t)strlen(key);
+    const size_t keylen = strlen(key);
+
     ItemMetaData itm_meta;
     // wait until the vb snapshot has run
     wait_for_stat_change(h, h1, "ep_vb_snapshot_total", 0);
@@ -5763,49 +5859,34 @@ static enum test_result test_delete_with_meta_nonexistent(ENGINE_HANDLE *h,
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, "Expected enoent");
 
     // this is the cas to be used with a subsequent delete with meta
-    uint64_t cas_for_delete = last_cas;
+    uint64_t valid_cas = last_cas;
+    uint64_t invalid_cas = 2012;
 
     // do delete with meta
-    union {
-        protocol_binary_request_header pkt;
-        protocol_binary_request_delete_with_meta req;
-        char buffer[1024];
-    } msg;
-    memset(&msg.req, 0, sizeof(msg));
-    msg.req.message.header.request.magic = PROTOCOL_BINARY_REQ;
-    msg.req.message.header.request.opcode = CMD_DEL_WITH_META;
-    msg.req.message.header.request.extlen = 4;
-    msg.req.message.header.request.keylen = ntohs(keylen);
-    msg.req.message.header.request.vbucket = htons(0);
-    msg.req.message.header.request.bodylen = htonl(4 + keylen + 22);
-    memcpy(msg.buffer + sizeof(msg.req.bytes), key, keylen);
-    msg.req.message.body.nmeta_bytes = ntohl(22);
-
-    size_t nb = 22;
-    encodeMeta(10, 0xdeadbeef, 300, 0xdeadbeef,
-               (uint8_t*)msg.buffer + sizeof(msg.req.bytes) + keylen, nb);
+    // put some random metadata and delete the item with new meta data
+    itm_meta.seqno = 10;
+    itm_meta.cas = 0xdeadbeef;
+    itm_meta.exptime = 300;
+    itm_meta.flags = 0xdeadbeef;
 
     // do delete with meta with an incorrect cas value. should fail.
-    msg.req.message.header.request.cas = htonll(1229);
-    ENGINE_ERROR_CODE ret = h1->unknown_command(h, NULL, &msg.pkt, add_response);
-    check(ret == ENGINE_SUCCESS, "Expected to be able to delete with meta");
+    del_with_meta(h, h1, key, keylen, 0, &itm_meta, invalid_cas);
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
           "Expected invalid cas error");
 
     // do delete with meta with the correct cas value. should pass.
-    msg.req.message.header.request.cas = htonll(cas_for_delete);
-    ret = h1->unknown_command(h, NULL, &msg.pkt, add_response);
-    check(ret == ENGINE_SUCCESS, "Expected to be able to delete with meta");
+    del_with_meta(h, h1, key, keylen, 0, &itm_meta, valid_cas);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
 
     // get metadata again to verify that delete with meta was successful
-    check(get_meta(h, h1, key, itm_meta), "Expected to get meta");
+    ItemMetaData itm_meta2;
+    check(get_meta(h, h1, key, itm_meta2), "Expected to get meta");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
     check(last_deleted_flag, "Expected deleted flag to be set");
-    check(itm_meta.seqno == 10, "Expected seqno to match");
-    check(itm_meta.cas == 0xdeadbeef, "Expected cas to match");
-    check(itm_meta.exptime == 300, "Expected exptime to match");
-    check(itm_meta.flags == 0xdeadbeef, "Expected flags to match");
+    check(itm_meta.seqno == itm_meta2.seqno, "Expected seqno to match");
+    check(itm_meta.cas == itm_meta2.cas, "Expected cas to match");
+    check(itm_meta.exptime == itm_meta2.exptime, "Expected exptime to match");
+    check(itm_meta.flags == itm_meta2.flags, "Expected flags to match");
 
     return SUCCESS;
 }
@@ -5813,24 +5894,16 @@ static enum test_result test_delete_with_meta_nonexistent(ENGINE_HANDLE *h,
 static enum test_result test_delete_with_meta_race_with_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
 {
     char const *key1 = "key1";
-    uint16_t key1_len = (uint16_t)strlen(key1);
+    const size_t keylen1 = strlen(key1);
     char const *key2 = "key2";
-    uint16_t key2_len = (uint16_t)strlen(key2);
+    const size_t keylen2 = strlen(key2);
 
-    size_t nb = 22;
     item *i = NULL;
     ItemMetaData itm_meta;
-    union {
-        protocol_binary_request_header pkt;
-        protocol_binary_request_delete_with_meta req;
-        char buffer[1024];
-    } msg;
-    memset(&msg.req, 0, sizeof(msg));
-    msg.req.message.header.request.magic = PROTOCOL_BINARY_REQ;
-    msg.req.message.header.request.opcode = CMD_DEL_WITH_META;
-    msg.req.message.header.request.extlen = 4;
-    msg.req.message.header.request.vbucket = htons(0);
-    msg.req.message.body.nmeta_bytes = ntohl(nb);
+    itm_meta.seqno = 10;
+    itm_meta.cas = 0xdeadbeef;
+    itm_meta.exptime = 300;
+    itm_meta.flags = 0xdeadbeef;
 
     //
     // test race with a concurrent set for an existing key. should fail.
@@ -5839,7 +5912,6 @@ static enum test_result test_delete_with_meta_race_with_set(ENGINE_HANDLE *h, EN
     // create a new key and do get_meta
     check(store(h, h1, NULL, OPERATION_SET, key1, "somevalue", &i) == ENGINE_SUCCESS,
           "Failed set.");
-    h1->release(h, NULL, i);
     wait_for_flusher_to_settle(h, h1);
     check(get_meta(h, h1, key1, itm_meta), "Expected to get meta");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
@@ -5847,17 +5919,9 @@ static enum test_result test_delete_with_meta_race_with_set(ENGINE_HANDLE *h, EN
     // do a concurrent set that changes the cas
     check(store(h, h1, NULL, OPERATION_SET, key1, "someothervalue", &i) == ENGINE_SUCCESS,
           "Failed set.");
-    h1->release(h, NULL, i);
 
     // attempt delete_with_meta. should fail since cas is no longer valid.
-    msg.req.message.header.request.cas = htonll(last_cas);
-    msg.req.message.header.request.keylen = ntohs(key1_len);
-    msg.req.message.header.request.bodylen = htonl(4 + key1_len + nb);
-    memcpy(msg.buffer + sizeof(msg.req.bytes), key1, key1_len);
-    encodeMeta(10, 0xdeadbeef, 300, 0xdeadbeef,
-               (uint8_t*)msg.buffer + sizeof(msg.req.bytes) + key1_len, nb);
-    check(h1->unknown_command(h, NULL, &msg.pkt, add_response) == ENGINE_SUCCESS,
-          "Expected to be able to delete with meta");
+    del_with_meta(h, h1, key1, keylen1, 0, &itm_meta, last_cas);
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
           "Expected invalid cas error");
 
@@ -5866,9 +5930,10 @@ static enum test_result test_delete_with_meta_race_with_set(ENGINE_HANDLE *h, EN
     //
 
     // do get_meta for the deleted key
-    check(h1->remove(h, NULL, key1, strlen(key1), 0, 0) == ENGINE_SUCCESS,
+    check(h1->remove(h, NULL, key1, keylen1, 0, 0) == ENGINE_SUCCESS,
           "Delete failed");
     wait_for_flusher_to_settle(h, h1);
+
     check(get_meta(h, h1, key1, itm_meta), "Expected to get meta");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
     check(last_deleted_flag, "Expected deleted flag to be set");
@@ -5876,17 +5941,7 @@ static enum test_result test_delete_with_meta_race_with_set(ENGINE_HANDLE *h, EN
     // do a concurrent set that changes the cas
     check(store(h, h1, NULL, OPERATION_SET, key1, "someothervalue", &i) == ENGINE_SUCCESS,
           "Failed set.");
-    h1->release(h, NULL, i);
-
-    // attempt delete_with_meta. should fail since cas is no longer valid.
-    msg.req.message.header.request.cas = htonll(last_cas);
-    msg.req.message.header.request.keylen = ntohs(key1_len);
-    msg.req.message.header.request.bodylen = htonl(4 + key1_len + nb);
-    memcpy(msg.buffer + sizeof(msg.req.bytes), key1, key1_len);
-    encodeMeta(10, 0xdeadbeef, 300, 0xdeadbeef,
-               (uint8_t*)msg.buffer + sizeof(msg.req.bytes) + key1_len, nb);
-    check(h1->unknown_command(h, NULL, &msg.pkt, add_response) == ENGINE_SUCCESS,
-          "Expected to be able to delete with meta");
+    del_with_meta(h, h1, key1, keylen1, 0, &itm_meta, last_cas);
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
           "Expected invalid cas error");
 
@@ -5901,44 +5956,24 @@ static enum test_result test_delete_with_meta_race_with_set(ENGINE_HANDLE *h, EN
     // do a concurrent set that changes the cas
     check(store(h, h1, NULL, OPERATION_SET, key2, "someothervalue", &i) == ENGINE_SUCCESS,
           "Failed set.");
-    h1->release(h, NULL, i);
-
     // attempt delete_with_meta. should fail since cas is no longer valid.
-    msg.req.message.header.request.cas = htonll(last_cas);
-    msg.req.message.header.request.keylen = ntohs(key2_len);
-    msg.req.message.header.request.bodylen = htonl(4 + key2_len + nb);
-    memcpy(msg.buffer + sizeof(msg.req.bytes), key2, key2_len);
-    encodeMeta(10, 0xdeadbeef, 300, 0xdeadbeef,
-               (uint8_t*)msg.buffer + sizeof(msg.req.bytes) + key2_len, nb);
-    check(h1->unknown_command(h, NULL, &msg.pkt, add_response) == ENGINE_SUCCESS,
-          "Expected to be able to delete with meta");
+    del_with_meta(h, h1, key2, keylen2, 0, &itm_meta, last_cas);
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
           "Expected invalid cas error");
 
+    h1->release(h, NULL, i);
     return SUCCESS;
 }
 
 static enum test_result test_delete_with_meta_race_with_delete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
 {
     char const *key1 = "key1";
-    uint16_t key1_len = (uint16_t)strlen(key1);
+    uint16_t keylen1 = (uint16_t)strlen(key1);
     char const *key2 = "key2";
-    uint16_t key2_len = (uint16_t)strlen(key2);
-
-    size_t nb = 22;
+    uint16_t keylen2 = (uint16_t)strlen(key2);
     item *i = NULL;
     ItemMetaData itm_meta;
-    union {
-        protocol_binary_request_header pkt;
-        protocol_binary_request_delete_with_meta req;
-        char buffer[1024];
-    } msg;
-    memset(&msg.req, 0, sizeof(msg));
-    msg.req.message.header.request.magic = PROTOCOL_BINARY_REQ;
-    msg.req.message.header.request.opcode = CMD_DEL_WITH_META;
-    msg.req.message.header.request.extlen = 4;
-    msg.req.message.header.request.vbucket = htons(0);
-    msg.req.message.body.nmeta_bytes = ntohl(nb);
+
 
     //
     // test race with a concurrent delete for an existing key. should fail.
@@ -5947,7 +5982,6 @@ static enum test_result test_delete_with_meta_race_with_delete(ENGINE_HANDLE *h,
     // create a new key and do get_meta
     check(store(h, h1, NULL, OPERATION_SET, key1, "somevalue", &i) == ENGINE_SUCCESS,
           "Failed set.");
-    h1->release(h, NULL, i);
     wait_for_flusher_to_settle(h, h1);
     check(get_meta(h, h1, key1, itm_meta), "Expected to get meta");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
@@ -5957,14 +5991,7 @@ static enum test_result test_delete_with_meta_race_with_delete(ENGINE_HANDLE *h,
           "Delete failed");
 
     // attempt delete_with_meta. should fail since cas is no longer valid.
-    msg.req.message.header.request.cas = htonll(last_cas);
-    msg.req.message.header.request.keylen = ntohs(key1_len);
-    msg.req.message.header.request.bodylen = htonl(4 + key1_len + nb);
-    memcpy(msg.buffer + sizeof(msg.req.bytes), key1, key1_len);
-    encodeMeta(10, 0xdeadbeef, 300, 0xdeadbeef,
-               (uint8_t*)msg.buffer + sizeof(msg.req.bytes) + key1_len, nb);
-    check(h1->unknown_command(h, NULL, &msg.pkt, add_response) == ENGINE_SUCCESS,
-          "Expected to be able to set with meta");
+    del_with_meta(h, h1, key1, keylen1, 0, &itm_meta, last_cas);
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
           "Expected invalid cas error");
 
@@ -5980,18 +6007,11 @@ static enum test_result test_delete_with_meta_race_with_delete(ENGINE_HANDLE *h,
     check(last_deleted_flag, "Expected deleted flag to be set");
 
     // do a concurrent delete
-    check(h1->remove(h, NULL, key1, strlen(key1), 0, 0) == ENGINE_KEY_ENOENT,
+    check(h1->remove(h, NULL, key1, keylen1, 0, 0) == ENGINE_KEY_ENOENT,
           "Delete failed");
 
     // attempt delete_with_meta. should pass.
-    msg.req.message.header.request.cas = htonll(last_cas);
-    msg.req.message.header.request.keylen = ntohs(key1_len);
-    msg.req.message.header.request.bodylen = htonl(4 + key1_len + nb);
-    memcpy(msg.buffer + sizeof(msg.req.bytes), key1, key1_len);
-    encodeMeta(10, 0xdeadbeef, 300, 0xdeadbeef,
-               (uint8_t*)msg.buffer + sizeof(msg.req.bytes) + key1_len, nb);
-    check(h1->unknown_command(h, NULL, &msg.pkt, add_response) == ENGINE_SUCCESS,
-          "Expected to be able to set with meta");
+    del_with_meta(h, h1, key1, keylen1, 0, &itm_meta, last_cas);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
           "Expected delete_with_meta success");
 
@@ -6009,32 +6029,25 @@ static enum test_result test_delete_with_meta_race_with_delete(ENGINE_HANDLE *h,
           "Delete failed");
 
     // attempt delete_with_meta. should pass.
-    msg.req.message.header.request.cas = htonll(last_cas);
-    msg.req.message.header.request.keylen = ntohs(key2_len);
-    msg.req.message.header.request.bodylen = htonl(4 + key2_len + nb);
-    memcpy(msg.buffer + sizeof(msg.req.bytes), key2, key2_len);
-    encodeMeta(10, 0xdeadbeef, 300, 0xdeadbeef,
-               (uint8_t*)msg.buffer + sizeof(msg.req.bytes) + key2_len, nb);
-    check(h1->unknown_command(h, NULL, &msg.pkt, add_response) == ENGINE_SUCCESS,
-          "Expected to be able to set with meta");
+    del_with_meta(h, h1, key2, keylen2, 0, &itm_meta, last_cas);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
           "Expected delete_with_meta success");
 
+    h1->release(h, NULL, i);
     return SUCCESS;
 }
 
 static enum test_result test_set_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const char* key = "set_with_meta_key";
-    uint16_t keylen = (uint16_t)strlen(key);
+    size_t keylen = strlen(key);
     const char* val = "somevalue";
     const char* newVal = "someothervalue";
-    uint16_t newValLen = (uint16_t)strlen(newVal);
+    size_t newValLen = strlen(newVal);
 
     // create a new key
     item *i = NULL;
     check(store(h, h1, NULL, OPERATION_SET, key, val, &i) == ENGINE_SUCCESS,
           "Failed set.");
-    h1->release(h, NULL, i);
 
     // get metadata for the key
     ItemMetaData itm_meta;
@@ -6043,38 +6056,19 @@ static enum test_result test_set_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
 
     // this is the cas to be used with a subsequent set with meta
     uint64_t cas_for_set = last_cas;
-
-    union {
-        protocol_binary_request_header pkt;
-        protocol_binary_request_set_with_meta req;
-        char buffer[1024];
-    } msg;
-    memset(&msg.req, 0, sizeof(msg));
-    msg.req.message.header.request.magic = PROTOCOL_BINARY_REQ;
-    msg.req.message.header.request.opcode = CMD_SET_WITH_META;
-    msg.req.message.header.request.extlen = 12;
-    msg.req.message.header.request.keylen = ntohs(keylen);
-    msg.req.message.header.request.vbucket = htons(0);
-    msg.req.message.header.request.bodylen = htonl(12 + keylen + newValLen + 22);
-    memcpy(msg.buffer + sizeof(msg.req.bytes), key, keylen);
-    memcpy(msg.buffer + sizeof(msg.req.bytes) + keylen, newVal, newValLen);
-    msg.req.message.body.nmeta_bytes = ntohl(22);
-
-    size_t nb = 22;
-    encodeMeta(10, 0xdeadbeef, 300, 0xdeadbeef,
-               (uint8_t*)msg.buffer + sizeof(msg.req.bytes) + keylen + newValLen, nb);
+    // init some random metadata
+    itm_meta.seqno = 10;
+    itm_meta.cas = 0xdeadbeef;
+    itm_meta.exptime = 300;
+    itm_meta.flags = 0xdeadbeef;
 
     // do set with meta with an incorrect cas value. should fail.
-    msg.req.message.header.request.cas = htonll(1229);
-    ENGINE_ERROR_CODE ret = h1->unknown_command(h, NULL, &msg.pkt, add_response);
-    check(ret == ENGINE_SUCCESS, "Expected to be able to set with meta");
+    set_with_meta(h, h1, key, keylen, newVal, newValLen, 0, &itm_meta, 1229);
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
           "Expected invalid cas error");
 
     // do set with meta with the correct cas value. should pass.
-    msg.req.message.header.request.cas = htonll(cas_for_set);
-    ret = h1->unknown_command(h, NULL, &msg.pkt, add_response);
-    check(ret == ENGINE_SUCCESS, "Expected to be able to set with meta");
+    set_with_meta(h, h1, key, keylen, newVal, newValLen, 0, &itm_meta, cas_for_set);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
 
     // get metadata again to verify that set with meta was successful
@@ -6085,12 +6079,13 @@ static enum test_result test_set_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     check(itm_meta.exptime == 300, "Expected exptime to match");
     check(itm_meta.flags == 0xdeadbeef, "Expected flags to match");
 
+    h1->release(h, NULL, i);
     return SUCCESS;
 }
 
 static enum test_result test_set_with_meta_deleted(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const char* key = "set_with_meta_key";
-    uint16_t keylen = (uint16_t)strlen(key);
+    size_t keylen = strlen(key);
     const char* val = "somevalue";
     const char* newVal = "someothervalue";
     uint16_t newValLen = (uint16_t)strlen(newVal);
@@ -6099,7 +6094,6 @@ static enum test_result test_set_with_meta_deleted(ENGINE_HANDLE *h, ENGINE_HAND
     item *i = NULL;
     check(store(h, h1, NULL, OPERATION_SET, key, val, &i) == ENGINE_SUCCESS,
           "Failed set.");
-    h1->release(h, NULL, i);
     wait_for_flusher_to_settle(h, h1);
 
     // delete the key
@@ -6115,38 +6109,19 @@ static enum test_result test_set_with_meta_deleted(ENGINE_HANDLE *h, ENGINE_HAND
 
     // this is the cas to be used with a subsequent set with meta
     uint64_t cas_for_set = last_cas;
-
-    union {
-        protocol_binary_request_header pkt;
-        protocol_binary_request_set_with_meta req;
-        char buffer[1024];
-    } msg;
-    memset(&msg.req, 0, sizeof(msg));
-    msg.req.message.header.request.magic = PROTOCOL_BINARY_REQ;
-    msg.req.message.header.request.opcode = CMD_SET_WITH_META;
-    msg.req.message.header.request.extlen = 12;
-    msg.req.message.header.request.keylen = ntohs(keylen);
-    msg.req.message.header.request.vbucket = htons(0);
-    msg.req.message.header.request.bodylen = htonl(12 + keylen + newValLen + 22);
-    memcpy(msg.buffer + sizeof(msg.req.bytes), key, keylen);
-    memcpy(msg.buffer + sizeof(msg.req.bytes) + keylen, newVal, newValLen);
-    msg.req.message.body.nmeta_bytes = ntohl(22);
-
-    size_t nb = 22;
-    encodeMeta(10, 0xdeadbeef, 300, 0xdeadbeef,
-               (uint8_t*)msg.buffer + sizeof(msg.req.bytes) + keylen + newValLen, nb);
+    // init some random metadata
+    itm_meta.seqno = 10;
+    itm_meta.cas = 0xdeadbeef;
+    itm_meta.exptime = 300;
+    itm_meta.flags = 0xdeadbeef;
 
     // do set with meta with an incorrect cas value. should fail.
-    msg.req.message.header.request.cas = htonll(1229);
-    ENGINE_ERROR_CODE ret = h1->unknown_command(h, NULL, &msg.pkt, add_response);
-    check(ret == ENGINE_SUCCESS, "Expected to be able to set with meta");
+    set_with_meta(h, h1, key, keylen, newVal, newValLen, 0, &itm_meta, 1229);
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
           "Expected invalid cas error");
 
     // do set with meta with the correct cas value. should pass.
-    msg.req.message.header.request.cas = htonll(cas_for_set);
-    ret = h1->unknown_command(h, NULL, &msg.pkt, add_response);
-    check(ret == ENGINE_SUCCESS, "Expected to be able to set with meta");
+    set_with_meta(h, h1, key, keylen, newVal, newValLen, 0, &itm_meta, cas_for_set);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
 
     // get metadata again to verify that set with meta was successful
@@ -6157,14 +6132,15 @@ static enum test_result test_set_with_meta_deleted(ENGINE_HANDLE *h, ENGINE_HAND
     check(itm_meta.exptime == 300, "Expected exptime to match");
     check(itm_meta.flags == 0xdeadbeef, "Expected flags to match");
 
+    h1->release(h, NULL, i);
     return SUCCESS;
 }
 
 static enum test_result test_set_with_meta_nonexistent(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const char* key = "set_with_meta_key";
-    uint16_t keylen = (uint16_t)strlen(key);
+    size_t keylen = strlen(key);
     const char* val = "somevalue";
-    uint16_t valLen = (uint16_t)strlen(val);
+    size_t valLen = strlen(val);
     ItemMetaData itm_meta;
 
     // wait until the vb snapshot has run
@@ -6175,38 +6151,19 @@ static enum test_result test_set_with_meta_nonexistent(ENGINE_HANDLE *h, ENGINE_
 
     // this is the cas to be used with a subsequent set with meta
     uint64_t cas_for_set = last_cas;
-
-    union {
-        protocol_binary_request_header pkt;
-        protocol_binary_request_set_with_meta req;
-        char buffer[1024];
-    } msg;
-    memset(&msg.req, 0, sizeof(msg));
-    msg.req.message.header.request.magic = PROTOCOL_BINARY_REQ;
-    msg.req.message.header.request.opcode = CMD_SET_WITH_META;
-    msg.req.message.header.request.extlen = 12;
-    msg.req.message.header.request.keylen = ntohs(keylen);
-    msg.req.message.header.request.vbucket = htons(0);
-    msg.req.message.header.request.bodylen = htonl(12 + keylen + valLen + 22);
-    memcpy(msg.buffer + sizeof(msg.req.bytes), key, keylen);
-    memcpy(msg.buffer + sizeof(msg.req.bytes) + keylen, val, valLen);
-    msg.req.message.body.nmeta_bytes = ntohl(22);
-
-    size_t nb = 22;
-    encodeMeta(10, 0xdeadbeef, 300, 0xdeadbeef,
-               (uint8_t*)msg.buffer + sizeof(msg.req.bytes) + keylen + valLen, nb);
+    // init some random metadata
+    itm_meta.seqno = 10;
+    itm_meta.cas = 0xdeadbeef;
+    itm_meta.exptime = 300;
+    itm_meta.flags = 0xdeadbeef;
 
     // do set with meta with an incorrect cas value. should fail.
-    msg.req.message.header.request.cas = htonll(1229);
-    ENGINE_ERROR_CODE ret = h1->unknown_command(h, NULL, &msg.pkt, add_response);
-    check(ret == ENGINE_SUCCESS, "Expected to be able to set with meta");
+    set_with_meta(h, h1, key, keylen, val, valLen, 0, &itm_meta, 1229);
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
           "Expected invalid cas error");
 
     // do set with meta with the correct cas value. should pass.
-    msg.req.message.header.request.cas = htonll(cas_for_set);
-    ret = h1->unknown_command(h, NULL, &msg.pkt, add_response);
-    check(ret == ENGINE_SUCCESS, "Expected to be able to set with meta");
+    set_with_meta(h, h1, key, keylen, val, valLen, 0, &itm_meta, cas_for_set);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
 
     // get metadata again to verify that set with meta was successful
@@ -6223,24 +6180,11 @@ static enum test_result test_set_with_meta_nonexistent(ENGINE_HANDLE *h, ENGINE_
 static enum test_result test_set_with_meta_race_with_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
 {
     char const *key1 = "key1";
-    uint16_t key1_len = (uint16_t)strlen(key1);
+    size_t keylen1 = strlen(key1);
     char const *key2 = "key2";
-    uint16_t key2_len = (uint16_t)strlen(key2);
-
-    size_t nb = 22;
-    item *i = NULL;
+    size_t keylen2 = strlen(key2);
     ItemMetaData itm_meta;
-    union {
-        protocol_binary_request_header pkt;
-        protocol_binary_request_set_with_meta req;
-        char buffer[1024];
-    } msg;
-    memset(&msg.req, 0, sizeof(msg));
-    msg.req.message.header.request.magic = PROTOCOL_BINARY_REQ;
-    msg.req.message.header.request.opcode = CMD_SET_WITH_META;
-    msg.req.message.header.request.extlen = 12;
-    msg.req.message.header.request.vbucket = htons(0);
-    msg.req.message.body.nmeta_bytes = ntohl(nb);
+    item *i = NULL;
 
     //
     // test race with a concurrent set for an existing key. should fail.
@@ -6249,7 +6193,6 @@ static enum test_result test_set_with_meta_race_with_set(ENGINE_HANDLE *h, ENGIN
     // create a new key and do get_meta
     check(store(h, h1, NULL, OPERATION_SET, key1, "somevalue", &i) == ENGINE_SUCCESS,
           "Failed set.");
-    h1->release(h, NULL, i);
     wait_for_flusher_to_settle(h, h1);
     check(get_meta(h, h1, key1, itm_meta), "Expected to get meta");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
@@ -6257,17 +6200,9 @@ static enum test_result test_set_with_meta_race_with_set(ENGINE_HANDLE *h, ENGIN
     // do a concurrent set that changes the cas
     check(store(h, h1, NULL, OPERATION_SET, key1, "someothervalue", &i) == ENGINE_SUCCESS,
           "Failed set.");
-    h1->release(h, NULL, i);
 
     // attempt set_with_meta. should fail since cas is no longer valid.
-    msg.req.message.header.request.cas = htonll(last_cas);
-    msg.req.message.header.request.keylen = ntohs(key1_len);
-    msg.req.message.header.request.bodylen = htonl(12 + key1_len + nb);
-    memcpy(msg.buffer + sizeof(msg.req.bytes), key1, key1_len);
-    encodeMeta(10, 0xdeadbeef, 300, 0xdeadbeef,
-               (uint8_t*)msg.buffer + sizeof(msg.req.bytes) + key1_len, nb);
-    check(h1->unknown_command(h, NULL, &msg.pkt, add_response) == ENGINE_SUCCESS,
-          "Expected to be able to set with meta");
+    set_with_meta(h, h1, key1, keylen1, NULL, 0, 0, &itm_meta, last_cas);
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
           "Expected invalid cas error");
 
@@ -6286,17 +6221,9 @@ static enum test_result test_set_with_meta_race_with_set(ENGINE_HANDLE *h, ENGIN
     // do a concurrent set that changes the cas
     check(store(h, h1, NULL, OPERATION_SET, key1, "someothervalue", &i) == ENGINE_SUCCESS,
           "Failed set.");
-    h1->release(h, NULL, i);
 
     // attempt set_with_meta. should fail since cas is no longer valid.
-    msg.req.message.header.request.cas = htonll(last_cas);
-    msg.req.message.header.request.keylen = ntohs(key1_len);
-    msg.req.message.header.request.bodylen = htonl(12 + key1_len + nb);
-    memcpy(msg.buffer + sizeof(msg.req.bytes), key1, key1_len);
-    encodeMeta(10, 0xdeadbeef, 300, 0xdeadbeef,
-               (uint8_t*)msg.buffer + sizeof(msg.req.bytes) + key1_len, nb);
-    check(h1->unknown_command(h, NULL, &msg.pkt, add_response) == ENGINE_SUCCESS,
-          "Expected to be able to set with meta");
+    set_with_meta(h, h1, key1, keylen1, NULL, 0, 0, &itm_meta, last_cas);
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
           "Expected invalid cas error");
 
@@ -6311,44 +6238,24 @@ static enum test_result test_set_with_meta_race_with_set(ENGINE_HANDLE *h, ENGIN
     // do a concurrent set that changes the cas
     check(store(h, h1, NULL, OPERATION_SET, key2, "someothervalue", &i) == ENGINE_SUCCESS,
           "Failed set.");
-    h1->release(h, NULL, i);
 
     // attempt set_with_meta. should fail since cas is no longer valid.
-    msg.req.message.header.request.cas = htonll(last_cas);
-    msg.req.message.header.request.keylen = ntohs(key2_len);
-    msg.req.message.header.request.bodylen = htonl(12 + key2_len + nb);
-    memcpy(msg.buffer + sizeof(msg.req.bytes), key2, key2_len);
-    encodeMeta(10, 0xdeadbeef, 300, 0xdeadbeef,
-               (uint8_t*)msg.buffer + sizeof(msg.req.bytes) + key2_len, nb);
-    check(h1->unknown_command(h, NULL, &msg.pkt, add_response) == ENGINE_SUCCESS,
-          "Expected to be able to set with meta");
+    set_with_meta(h, h1, key2, keylen2, NULL, 0, 0, &itm_meta, last_cas);
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
           "Expected invalid cas error");
 
+    h1->release(h, NULL, i);
     return SUCCESS;
 }
 
 static enum test_result test_set_with_meta_race_with_delete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
 {
     char const *key1 = "key1";
-    uint16_t key1_len = (uint16_t)strlen(key1);
+    size_t keylen1 = strlen(key1);
     char const *key2 = "key2";
-    uint16_t key2_len = (uint16_t)strlen(key2);
-
-    size_t nb = 22;
-    item *i = NULL;
+    size_t keylen2 = strlen(key2);
     ItemMetaData itm_meta;
-    union {
-        protocol_binary_request_header pkt;
-        protocol_binary_request_set_with_meta req;
-        char buffer[1024];
-    } msg;
-    memset(&msg.req, 0, sizeof(msg));
-    msg.req.message.header.request.magic = PROTOCOL_BINARY_REQ;
-    msg.req.message.header.request.opcode = CMD_SET_WITH_META;
-    msg.req.message.header.request.extlen = 12;
-    msg.req.message.header.request.vbucket = htons(0);
-    msg.req.message.body.nmeta_bytes = ntohl(nb);
+    item *i = NULL;
 
     //
     // test race with a concurrent delete for an existing key. should fail.
@@ -6357,7 +6264,6 @@ static enum test_result test_set_with_meta_race_with_delete(ENGINE_HANDLE *h, EN
     // create a new key and do get_meta
     check(store(h, h1, NULL, OPERATION_SET, key1, "somevalue", &i) == ENGINE_SUCCESS,
           "Failed set.");
-    h1->release(h, NULL, i);
     wait_for_flusher_to_settle(h, h1);
     check(get_meta(h, h1, key1, itm_meta), "Expected to get meta");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
@@ -6367,14 +6273,7 @@ static enum test_result test_set_with_meta_race_with_delete(ENGINE_HANDLE *h, EN
           "Delete failed");
 
     // attempt set_with_meta. should fail since cas is no longer valid.
-    msg.req.message.header.request.cas = htonll(last_cas);
-    msg.req.message.header.request.keylen = ntohs(key1_len);
-    msg.req.message.header.request.bodylen = htonl(12 + key1_len + nb);
-    memcpy(msg.buffer + sizeof(msg.req.bytes), key1, key1_len);
-    encodeMeta(10, 0xdeadbeef, 300, 0xdeadbeef,
-               (uint8_t*)msg.buffer + sizeof(msg.req.bytes) + key1_len, nb);
-    check(h1->unknown_command(h, NULL, &msg.pkt, add_response) == ENGINE_SUCCESS,
-          "Expected to be able to set with meta");
+    set_with_meta(h, h1, key1, keylen1, NULL, 0, 0, &itm_meta, last_cas);
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
           "Expected invalid cas error");
 
@@ -6394,14 +6293,7 @@ static enum test_result test_set_with_meta_race_with_delete(ENGINE_HANDLE *h, EN
           "Delete failed");
 
     // attempt set_with_meta. should pass since cas is still valid.
-    msg.req.message.header.request.cas = htonll(last_cas);
-    msg.req.message.header.request.keylen = ntohs(key1_len);
-    msg.req.message.header.request.bodylen = htonl(12 + key1_len + nb);
-    memcpy(msg.buffer + sizeof(msg.req.bytes), key1, key1_len);
-    encodeMeta(10, 0xdeadbeef, 300, 0xdeadbeef,
-               (uint8_t*)msg.buffer + sizeof(msg.req.bytes) + key1_len, nb);
-    check(h1->unknown_command(h, NULL, &msg.pkt, add_response) == ENGINE_SUCCESS,
-          "Expected to be able to set with meta");
+    set_with_meta(h, h1, key1, keylen1, NULL, 0, 0, &itm_meta, last_cas);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
 
     //
@@ -6418,16 +6310,10 @@ static enum test_result test_set_with_meta_race_with_delete(ENGINE_HANDLE *h, EN
           "Delete failed");
 
     // attempt set_with_meta. should pass since cas is still valid.
-    msg.req.message.header.request.cas = htonll(last_cas);
-    msg.req.message.header.request.keylen = ntohs(key2_len);
-    msg.req.message.header.request.bodylen = htonl(12 + key2_len + nb);
-    memcpy(msg.buffer + sizeof(msg.req.bytes), key2, key2_len);
-    encodeMeta(10, 0xdeadbeef, 300, 0xdeadbeef,
-               (uint8_t*)msg.buffer + sizeof(msg.req.bytes) + key2_len, nb);
-    check(h1->unknown_command(h, NULL, &msg.pkt, add_response) == ENGINE_SUCCESS,
-          "Expected to be able to set with meta");
+    set_with_meta(h, h1, key2, keylen2, NULL, 0, 0, &itm_meta, last_cas);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
 
+    h1->release(h, NULL, i);
     return SUCCESS;
 }
 
@@ -6438,7 +6324,6 @@ static enum test_result test_temp_item_deletion(ENGINE_HANDLE *h, ENGINE_HANDLE_
     item *i = NULL;
     check(store(h, h1, NULL, OPERATION_SET, k1, "somevalue", &i) == ENGINE_SUCCESS,
           "Failed set.");
-    h1->release(h, NULL, i);
     wait_for_flusher_to_settle(h, h1);
 
     check(h1->remove(h, NULL, k1, strlen(k1), 0, 0) == ENGINE_SUCCESS,
@@ -6459,9 +6344,10 @@ static enum test_result test_temp_item_deletion(ENGINE_HANDLE *h, ENGINE_HANDLE_
     testHarness.time_travel(30);
     wait_for_stat_to_be(h, h1, "ep_expired", 2);
 
+    h1->release(h, NULL, i);
     return SUCCESS;
 }
-
+// ------------------------------ end of XDCR unit tests -----------------------//
 
 static enum test_result test_compact_mutation_log(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
