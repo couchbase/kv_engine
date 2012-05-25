@@ -492,7 +492,7 @@ ${PYTHON_TOOLS}: wrapper/wrapper
 BUILT_SOURCES += ${PYTHON_TOOLS}
 CLEANFILES+= ${PYTHON_TOOLS}
 
-TEST_TIMEOUT=30
+TEST_TIMEOUT=60
 
 mbbackup-0002.mbb: $(top_srcdir)/t/generate-mbbackup
 	echo "Generate incremental restore files used by the test suite"

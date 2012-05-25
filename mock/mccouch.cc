@@ -103,6 +103,17 @@ public:
 
 namespace mccouch
 {
+    const static int mockIgnoreAccept    =  0;
+    const static int mockCloseSocket     =  1;
+    const static int mockDropResponse    =  2;
+    const static int mockGarbageResponse =  3;
+    const static int mockEtmpfail        =  4;
+    const static int mockSlowResponse    =  5;
+    const static int mockInvalid         = -1;
+
+    static bool mockRandomFailure = false;
+    static int  mockRandomRange;
+
     class McConnection
     {
     public:
@@ -130,6 +141,9 @@ namespace mccouch
 
         void updateEvent();
 
+        void genRandAction();
+        bool mockFailure(int failure);
+
         Buffer output;
         Buffer input;
         evutil_socket_t sock;
@@ -137,6 +151,7 @@ namespace mccouch
         short ev_flags;
         struct event_base *base;
         bool disconnected;
+        int  mock_failure;
         McCouchMockServerInstance *server;
     };
 
@@ -182,7 +197,7 @@ extern "C" {
 
 McConnection::McConnection(evutil_socket_t s, struct event_base *b,
                            McCouchMockServerInstance *svr)
-    : sock(s), ev_flags(0), base(b), disconnected(false), server(svr)
+    : sock(s), ev_flags(0), base(b), disconnected(false), mock_failure(mockInvalid), server(svr)
 {
     updateEvent();
     if( server ) {
@@ -196,6 +211,38 @@ McConnection::~McConnection()
     if (ev_flags != 0) {
         event_del(&ev_event);
     }
+}
+
+void McConnection::genRandAction()
+{
+    if (mccouch::mockRandomFailure) {
+        mock_failure = rand() % mockRandomRange;
+    }
+}
+
+bool McConnection::mockFailure(int failure)
+{
+    if (mock_failure != failure) {
+        return false;
+    }
+
+    bool rev = true;
+    switch( mock_failure ) {
+        case mockCloseSocket:
+            shutdown(sock, 1);
+            EVUTIL_CLOSESOCKET(sock);
+            break;
+        case mockDropResponse:
+        case mockGarbageResponse:
+        case mockIgnoreAccept:
+        case mockEtmpfail:
+        case mockSlowResponse:
+            break;
+        default:
+            rev = false;
+            break;
+    }
+    return rev;
 }
 
 bool McConnection::doFillInput()
@@ -285,6 +332,10 @@ bool McConnection::isDisconnected()
 
 void McConnection::step(short which)
 {
+    if (which & (EV_READ|EV_WRITE)) {
+        genRandAction();
+    }
+
     if (which & EV_READ) {
         if (!doFillInput()) {
             return;
@@ -301,9 +352,19 @@ void McConnection::step(short which)
 
 void McConnection::handleRequest(protocol_binary_request_header *req)
 {
+    if (mockFailure(mockDropResponse) || mockFailure(mockCloseSocket)) {
+        return;
+    }
+
     switch (req->request.opcode) {
-    case 0xaa: /* FALLTHROUGH */
-    case 0x89:
+    case 0xaa: /* CMD_NOTIFY_VBUCKET_UPDATE */
+        if (mockFailure(mockEtmpfail)) {
+            response(req, PROTOCOL_BINARY_RESPONSE_ETMPFAIL);
+        } else {
+            response(req, PROTOCOL_BINARY_RESPONSE_SUCCESS);
+        }
+        break;
+    case 0x89: /* SELECT_BUCKET */
         response(req, PROTOCOL_BINARY_RESPONSE_SUCCESS);
         break;
         // @todo handle other commands
@@ -346,15 +407,18 @@ void McConnection::response(const string &key, const uint8_t *ext,
                             protocol_binary_request_header *req)
 {
     protocol_binary_response_header res;
-    memset(res.bytes, 0, sizeof(res.bytes));
-    res.response.magic = PROTOCOL_BINARY_RES;
-    res.response.opcode = req->request.opcode;
-    res.response.extlen = extlen;
-    res.response.keylen = htons(static_cast<uint16_t>(key.length()));
-    res.response.status = htons(status);
-    res.response.bodylen = ntohl(body.length() + key.length() + extlen);
-    res.response.opaque = req->request.opaque;
-    res.response.cas = cas;
+
+    if (!mockFailure(mockGarbageResponse)) {
+        memset(res.bytes, 0, sizeof(res.bytes));
+        res.response.magic = PROTOCOL_BINARY_RES;
+        res.response.opcode = req->request.opcode;
+        res.response.extlen = extlen;
+        res.response.keylen = htons(static_cast<uint16_t>(key.length()));
+        res.response.status = htons(status);
+        res.response.bodylen = ntohl(body.length() + key.length() + extlen);
+        res.response.opaque = req->request.opaque;
+        res.response.cas = cas;
+    }
 
     output.grow(body.length() + key.length() + extlen + sizeof(res.bytes));
     memcpy(output.data + output.avail, res.bytes, sizeof(res.bytes));
@@ -373,6 +437,10 @@ void McConnection::response(const string &key, const uint8_t *ext,
     if (body.length()) {
         memcpy(output.data + output.avail, body.c_str(), body.length());
         output.avail += body.length();
+    }
+
+    if (mockFailure(mockSlowResponse)) {
+        sleep(10);
     }
 }
 
@@ -423,23 +491,25 @@ void McConnection::updateEvent()
 
 McEndpoint::McEndpoint(evutil_socket_t s, struct event_base *b, McCouchMockServerInstance *svr) :
     McConnection(s, b, svr)
-{
-
-}
+{}
 
 void McEndpoint::step(short which)
 {
     if (which & EV_READ) {
         struct sockaddr_storage addr;
         socklen_t addrlen = sizeof(addr);
-        evutil_socket_t c = accept(sock, (struct sockaddr *)&addr, &addrlen);
 
-        if (c == INVALID_SOCKET ||
+        genRandAction();
+        if (!mockFailure(mockIgnoreAccept)) {
+            evutil_socket_t c = accept(sock, (struct sockaddr *)&addr, &addrlen);
+
+            if (c == INVALID_SOCKET ||
                 evutil_make_socket_nonblocking(c) == -1) {
-            assert(0);
-        }
+                assert(0);
+            }
 
-        new McConnection(c, base, server);
+            new McConnection(c, base, server);
+        }
     }
     updateEvent();
 }
@@ -517,6 +587,8 @@ McCouchMockServerInstance::~McCouchMockServerInstance()
 
 void McCouchMockServerInstance::run()
 {
+    /* seed for randomized failure tests */
+    srand(time(NULL));
     event_base_loop(ev_base, 0);
 }
 
@@ -536,9 +608,11 @@ void mccouch_libevent_callback(evutil_socket_t sock, short which, void *arg)
     }
 }
 
-McCouchMockServer::McCouchMockServer(int &port)
+McCouchMockServer::McCouchMockServer(int &port, bool randomFailure, int randomRange)
 {
     instance = new McCouchMockServerInstance(port);
+    mccouch::mockRandomFailure = randomFailure;
+    mccouch::mockRandomRange = randomRange;
 }
 
 McCouchMockServer::~McCouchMockServer()

@@ -25,7 +25,7 @@ namespace mccouch
 class McCouchMockServer
 {
 public:
-    McCouchMockServer(int &port);
+    McCouchMockServer(int &port, bool randomFailure=false, int randomRange=20);
     ~McCouchMockServer();
 
 private:
