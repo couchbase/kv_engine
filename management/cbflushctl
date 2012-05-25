@@ -86,7 +86,7 @@ Persistence:
 Available params for "set":
     bg_fetch_delay            - Delay before executing a bg fetch (test feature)
     couch_vbucket_batch_count - vbucket batch size for couchdb persistence
-    couchdb_response_timeout  - timeout in receiving a response from couchdb
+    couch_response_timeout  - timeout in receiving a response from couchdb
     exp_pager_stime           - Expiry Pager Sleeptime
     flushall_enabled          - Enable flush operation
     klog_compactor_queue_cap  - queue cap to throttle the log compactor

@@ -404,7 +404,7 @@ extern "C" {
                 validate(vsize, static_cast<uint64_t>(0),
                          std::numeric_limits<uint64_t>::max());
                 e->getConfiguration().setExpPagerStime((size_t)vsize);
-            } else if (strcmp(keyz, "couchdb_response_timeout") == 0) {
+            } else if (strcmp(keyz, "couch_response_timeout") == 0) {
                 e->getConfiguration().setCouchResponseTimeout(v);
             } else if (strcmp(keyz, "klog_max_log_size") == 0) {
                 char *ptr = NULL;
