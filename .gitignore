@@ -16,6 +16,7 @@
 /breakdancer_testsuite.c
 /config.h
 /config.h.in
+/config.cache
 /config.log
 /config.status
 /config/Doxyfile
