@@ -268,6 +268,13 @@ public:
     //! The longest tap load time
     Atomic<hrtime_t> tapBgMaxLoad;
 
+    //! The number of get with meta operations
+    Atomic<size_t>  numOpsGetMeta;
+    //! The number of set with meta operations
+    Atomic<size_t>  numOpsSetMeta;
+    //! The number of delete with meta operations
+    Atomic<size_t>  numOpsDelMeta;
+
     //
     // Observe Stats
     //

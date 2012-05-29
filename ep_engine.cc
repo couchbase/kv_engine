@@ -2643,6 +2643,14 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
         add_casted_stat("ep_warmup_dups", epstats.warmDups, add_stat, cookie);
     }
 
+    add_casted_stat("ep_num_ops_get_meta", epstats.numOpsGetMeta,
+                    add_stat, cookie);
+    add_casted_stat("ep_num_ops_set_meta", epstats.numOpsSetMeta,
+                    add_stat, cookie);
+    add_casted_stat("ep_num_ops_del_meta", epstats.numOpsDelMeta,
+                    add_stat, cookie);
+
+
     return ENGINE_SUCCESS;
 }
 
