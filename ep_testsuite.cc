@@ -6738,7 +6738,7 @@ public:
                 break;
             case BACKEND_COUCH:
                 nm.append(" (couchstore)");
-                ss << "backend=couchdb";
+                ss << "backend=couchdb;couch_response_timeout=3000";
                 break;
             default:
                 abort();
