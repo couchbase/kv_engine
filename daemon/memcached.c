@@ -1768,17 +1768,8 @@ static void process_bin_get(conn *c) {
     case ENGINE_DISCONNECT:
         c->state = conn_closing;
         break;
-    case ENGINE_ENOTSUP:
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0);
-        break;
-    case ENGINE_NOT_MY_VBUCKET:
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, 0);
-        break;
     default:
-        /* @todo add proper error handling! */
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                        "Unknown error code: %d\n", ret);
-        abort();
+        write_bin_packet(c, engine_error_2_protocol_error(ret), 0);
     }
 
     if (settings.detail_enabled && ret != ENGINE_EWOULDBLOCK) {
