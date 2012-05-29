@@ -803,6 +803,7 @@ protocol_binary_response_status EventuallyPersistentStore::evictKey(const std::s
                 *msg = "Ejected.";
             } else {
                 *msg = "Can't eject: Dirty or a small object.";
+                rv = PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS;
             }
         } else {
             *msg = "Already ejected.";

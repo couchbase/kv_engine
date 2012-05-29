@@ -490,15 +490,21 @@ static protocol_binary_request_header* create_set_param_packet(uint8_t opcode,
 
 static void evict_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                       const char *key, uint16_t vbucketId=0,
-                      const char *msg = NULL) {
+                      const char *msg = NULL, bool expectError = false) {
     protocol_binary_request_header *pkt = create_packet(CMD_EVICT_KEY,
                                                         key, "");
     pkt->request.vbucket = htons(vbucketId);
 
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Failed to evict key.");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
-          "Expected success evicting key.");
+
+    if (expectError) {
+        check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
+              "Expected exists when evicting key.");
+    } else {
+        check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+              "Expected success evicting key.");
+    }
 
     if (msg != NULL && strcmp(last_body, msg) != 0) {
         fprintf(stderr, "Expected evict to return ``%s'', but it returned ``%s''\n",
@@ -4300,12 +4306,12 @@ static enum test_result test_value_eviction(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
     check(store(h, h1, NULL, OPERATION_SET,"k1", "v1", &i, 0, 0) == ENGINE_SUCCESS,
           "Failed to fail to store an item.");
     h1->release(h, NULL, i);
-    evict_key(h, h1, "k1", 0, "Can't eject: Dirty or a small object.");
+    evict_key(h, h1, "k1", 0, "Can't eject: Dirty or a small object.", true);
     wait_for_flusher_to_settle(h, h1);
     check(store(h, h1, NULL, OPERATION_SET,"k2", "v2", &i, 0, 1) == ENGINE_SUCCESS,
           "Failed to fail to store an item.");
     h1->release(h, NULL, i);
-    evict_key(h, h1, "k2", 1, "Can't eject: Dirty or a small object.");
+    evict_key(h, h1, "k2", 1, "Can't eject: Dirty or a small object.", true);
     wait_for_flusher_to_settle(h, h1);
 
     evict_key(h, h1, "k1", 0, "Ejected.");
