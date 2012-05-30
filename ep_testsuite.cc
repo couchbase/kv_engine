@@ -4067,9 +4067,19 @@ static enum test_result test_key_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
 static enum test_result test_vkey_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(set_vbucket_state(h, h1, 1, vbucket_state_active), "Failed set vbucket 1 state.");
+    check(set_vbucket_state(h, h1, 2, vbucket_state_active), "Failed set vbucket 2 state.");
+    check(set_vbucket_state(h, h1, 3, vbucket_state_active), "Failed set vbucket 3 state.");
+    check(set_vbucket_state(h, h1, 4, vbucket_state_active), "Failed set vbucket 4 state.");
 
     wait_for_persisted_value(h, h1, "k1", "v1");
     wait_for_persisted_value(h, h1, "k2", "v2", 1);
+    wait_for_persisted_value(h, h1, "k3", "v3", 2);
+    wait_for_persisted_value(h, h1, "k4", "v4", 3);
+    wait_for_persisted_value(h, h1, "k5", "v5", 4);
+
+    check(set_vbucket_state(h, h1, 2, vbucket_state_replica), "Failed to set VB2 state.");
+    check(set_vbucket_state(h, h1, 3, vbucket_state_pending), "Failed to set VB3 state.");
+    check(set_vbucket_state(h, h1, 4, vbucket_state_dead), "Failed to set VB4 state.");
 
     const void *cookie = testHarness.create_cookie();
 
@@ -4085,6 +4095,7 @@ static enum test_result test_vkey_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
     check(vals.find("key_data_age") != vals.end(), "Found no key_data_age");
     check(vals.find("key_last_modification_time") != vals.end(),
                     "Found no key_last_modification_time");
+    check(vals.find("key_vb_state") != vals.end(), "Found no key_vb_state");
     check(vals.find("key_valid") != vals.end(), "Found no key_valid");
 
     // stat for key "k2" and vbucket "1"
@@ -4099,6 +4110,52 @@ static enum test_result test_vkey_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
     check(vals.find("key_data_age") != vals.end(), "Found no key_data_age");
     check(vals.find("key_last_modification_time") != vals.end(),
                     "Found no key_last_modification_time");
+    check(vals.find("key_vb_state") != vals.end(), "Found no key_vb_state");
+    check(vals.find("key_valid") != vals.end(), "Found no key_valid");
+
+    // stat for key "k3" and vbucket "2"
+    const char *statkey3 = "vkey k3 2";
+    check(h1->get_stats(h, cookie, statkey3, strlen(statkey3), add_stats) == ENGINE_SUCCESS,
+          "Failed to get stats.");
+    check(vals.find("key_is_dirty") != vals.end(), "Found no key_is_dirty");
+    check(vals.find("key_exptime") != vals.end(), "Found no key_exptime");
+    check(vals.find("key_flags") != vals.end(), "Found no key_flags");
+    check(vals.find("key_cas") != vals.end(), "Found no key_cas");
+    check(vals.find("key_dirtied") != vals.end(), "Found no key_dirtied");
+    check(vals.find("key_data_age") != vals.end(), "Found no key_data_age");
+    check(vals.find("key_last_modification_time") != vals.end(),
+          "Found no key_last_modification_time");
+    check(vals.find("key_vb_state") != vals.end(), "Found no key_vb_state");
+    check(vals.find("key_valid") != vals.end(), "Found no key_valid");
+
+    // stat for key "k4" and vbucket "3"
+    const char *statkey4 = "vkey k4 3";
+    check(h1->get_stats(h, cookie, statkey4, strlen(statkey4), add_stats) == ENGINE_SUCCESS,
+          "Failed to get stats.");
+    check(vals.find("key_is_dirty") != vals.end(), "Found no key_is_dirty");
+    check(vals.find("key_exptime") != vals.end(), "Found no key_exptime");
+    check(vals.find("key_flags") != vals.end(), "Found no key_flags");
+    check(vals.find("key_cas") != vals.end(), "Found no key_cas");
+    check(vals.find("key_dirtied") != vals.end(), "Found no key_dirtied");
+    check(vals.find("key_data_age") != vals.end(), "Found no key_data_age");
+    check(vals.find("key_last_modification_time") != vals.end(),
+          "Found no key_last_modification_time");
+    check(vals.find("key_vb_state") != vals.end(), "Found no key_vb_state");
+    check(vals.find("key_valid") != vals.end(), "Found no key_valid");
+
+    // stat for key "k5" and vbucket "4"
+    const char *statkey5 = "vkey k5 4";
+    check(h1->get_stats(h, cookie, statkey5, strlen(statkey5), add_stats) == ENGINE_SUCCESS,
+          "Failed to get stats.");
+    check(vals.find("key_is_dirty") != vals.end(), "Found no key_is_dirty");
+    check(vals.find("key_exptime") != vals.end(), "Found no key_exptime");
+    check(vals.find("key_flags") != vals.end(), "Found no key_flags");
+    check(vals.find("key_cas") != vals.end(), "Found no key_cas");
+    check(vals.find("key_dirtied") != vals.end(), "Found no key_dirtied");
+    check(vals.find("key_data_age") != vals.end(), "Found no key_data_age");
+    check(vals.find("key_last_modification_time") != vals.end(),
+          "Found no key_last_modification_time");
+    check(vals.find("key_vb_state") != vals.end(), "Found no key_vb_state");
     check(vals.find("key_valid") != vals.end(), "Found no key_valid");
 
     testHarness.destroy_cookie(cookie);

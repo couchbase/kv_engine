@@ -489,6 +489,8 @@ struct key_stats {
     rel_time_t last_modification_time;
     //! The item's current flags.
     uint32_t flags;
+    //! The vbucket state for this key
+    vbucket_state_t vb_state;
     //! True if this item is dirty.
     bool dirty;
 };

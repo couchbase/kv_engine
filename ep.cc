@@ -1510,16 +1510,8 @@ EventuallyPersistentStore::getFromUnderlying(const std::string &key,
                                              const void *cookie,
                                              shared_ptr<Callback<GetValue> > cb) {
     RCPtr<VBucket> vb = getVBucket(vbucket);
-    if (!vb || vb->getState() == vbucket_state_dead) {
-        ++stats.numNotMyVBuckets;
+    if (!vb) {
         return ENGINE_NOT_MY_VBUCKET;
-    } else if (vb->getState() == vbucket_state_replica) {
-        ++stats.numNotMyVBuckets;
-        return ENGINE_NOT_MY_VBUCKET;
-    } else if (vb->getState() == vbucket_state_pending) {
-        if (vb->addPendingOp(cookie)) {
-            return ENGINE_EWOULDBLOCK;
-        }
     }
 
     int bucket_num(0);
@@ -1654,7 +1646,7 @@ bool EventuallyPersistentStore::getKeyStats(const std::string &key,
                                             uint16_t vbucket,
                                             struct key_stats &kstats)
 {
-    RCPtr<VBucket> vb = getVBucket(vbucket, vbucket_state_active);
+    RCPtr<VBucket> vb = getVBucket(vbucket);
     if (!vb) {
         return false;
     }
@@ -1673,6 +1665,7 @@ bool EventuallyPersistentStore::getKeyStats(const std::string &key,
         // TODO:  Know this somehow.
         kstats.dirtied = 0; // v->getDirtied();
         kstats.data_age = v->getDataAge();
+        kstats.vb_state = vb->getState();
         kstats.last_modification_time = ep_abs_time(v->getDataAge());
     }
     return found;
