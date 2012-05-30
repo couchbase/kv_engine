@@ -376,7 +376,7 @@ void TapConnMap::shutdownAllTapConnections() {
     Dispatcher *d = engine.getEpStore()->getNonIODispatcher();
     std::list<TapConnection*>::iterator ii;
     for (ii = all.begin(); ii != all.end(); ++ii) {
-        getLogger()->log(EXTENSION_LOG_INFO, NULL,
+        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                          "Schedule cleanup of \"%s\"",
                          (*ii)->getName().c_str());
         d->schedule(shared_ptr<DispatcherCallback>
@@ -470,7 +470,7 @@ void TapConnMap::notifyIOThreadMain() {
         TapProducer *tp = dynamic_cast<TapProducer*>(iter->second);
         if (tp != NULL) {
             if (tp->supportsAck() && (tp->getExpiryTime() < now) && tp->windowIsFull()) {
-                getLogger()->log(EXTENSION_LOG_INFO, NULL,
+                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                          "%s Expired and ack windows is full. Disconnecting...\n",
                          tp->logHeader());
                 tp->setDisconnect(true);
@@ -501,7 +501,7 @@ void TapConnMap::notifyIOThreadMain() {
         Dispatcher *d = engine.getEpStore()->getNonIODispatcher();
         std::list<TapConnection*>::iterator ii;
         for (ii = deadClients.begin(); ii != deadClients.end(); ++ii) {
-            getLogger()->log(EXTENSION_LOG_INFO, NULL,
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                              "Schedule cleanup of \"%s\"",
                              (*ii)->getName().c_str());
             d->schedule(shared_ptr<DispatcherCallback>
