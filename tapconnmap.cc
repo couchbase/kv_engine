@@ -86,11 +86,11 @@ void TapConnMap::disconnect(const void *cookie, int tapKeepAlive) {
             TapConsumer *tc = dynamic_cast<TapConsumer*>(iter->second);
             if (tc || iter->second->doDisconnect()) {
                 iter->second->setExpiryTime(now - 1);
-                getLogger()->log(EXTENSION_LOG_INFO, NULL,
+                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                                  "%s disconnected", iter->second->logHeader());
             } else {
                 iter->second->setExpiryTime(now + tapKeepAlive);
-                getLogger()->log(EXTENSION_LOG_INFO, NULL,
+                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                                  "%s disconnected, keep alive for %d seconds",
                                  iter->second->logHeader(), tapKeepAlive);
             }
@@ -545,7 +545,7 @@ bool TapConnMap::closeTapConnectionByName(const std::string &name) {
     if (tc) {
         TapProducer *tp = dynamic_cast<TapProducer*>(tc);
         if (tp) {
-            getLogger()->log(EXTENSION_LOG_INFO, NULL,
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                              "%s Connection is closed by force.\n",
                              tp->logHeader());
             tp->setRegisteredClient(false);
