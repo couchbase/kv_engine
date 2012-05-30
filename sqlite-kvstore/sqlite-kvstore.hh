@@ -240,6 +240,13 @@ private:
         db = NULL;
     }
 
+    void reopen() {
+        assert(strategy);
+        commit();
+        close();
+        open();
+    }
+
     shared_ptr<SqliteStrategy> strategy;
 
     bool intransaction;
