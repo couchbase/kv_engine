@@ -640,6 +640,10 @@ bool CouchKVStore::setVBucketState(uint16_t vbucketId, vbucket_state_t state,
             vbState.maxDeletedSeqno = 0;
         } else {
             readVBState(db, vbucketId, vbState);
+            if (state == vbState.state) {
+                closeDatabaseHandle(db);
+                return true;
+            }
         }
 
         // update local doc with new state & checkpointId

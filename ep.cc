@@ -1021,6 +1021,10 @@ void EventuallyPersistentStore::setVBucketState(uint16_t vbid,
     // Lock to prevent a race condition between a failed update and add.
     LockHolder lh(vbsetMutex);
     RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
+    if (vb && to == vb->getState()) {
+        return;
+    }
+
     if (vb) {
         vb->setState(to, engine.getServerApi());
         lh.unlock();
