@@ -144,9 +144,7 @@ For introductory information on stats within membase, start with the
 | ep_bg_max_load                 | The longest load time (µs)                 |
 | ep_bg_load_avg                 | The average time (µs) for an item to be    |
 |                                | loaded from the persistence layer          |
-| ep_num_non_resident            | The number of non-resident items           |
-| ep_num_active_non_resident     | Number of non-resident items in active     |
-|                                | vbuckets.                                  |
+| ep_num_non_resident            | The number of non-resident items           |                                 |
 | ep_store_max_concurrency       | Maximum allowed concurrency at the storage |
 |                                | layer.                                     |
 | ep_store_max_readers           | Maximum number of concurrent read-only.    |

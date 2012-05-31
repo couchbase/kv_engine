@@ -4319,7 +4319,7 @@ static enum test_result test_value_eviction(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
 
     check(get_int_stat(h, h1, "ep_num_non_resident") == 2,
           "Expected two non-resident items");
-    check(get_int_stat(h, h1, "ep_num_active_non_resident") == 2,
+    check(get_int_stat(h, h1, "vb_active_num_non_resident") == 2,
           "Expected two non-resident items for active vbuckets");
 
     evict_key(h, h1, "k1", 0, "Already ejected.");
@@ -4344,14 +4344,14 @@ static enum test_result test_value_eviction(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
     check_key_value(h, h1, "k1", "v1", 2);
     checkeq(1, get_int_stat(h, h1, "ep_num_non_resident"),
             "Expected only one item to be non-resident");
-    checkeq(1, get_int_stat(h, h1, "ep_num_active_non_resident"),
+    checkeq(1, get_int_stat(h, h1, "vb_active_num_non_resident"),
             "Expected only one active vbucket item to be non-resident");
 
     check(set_vbucket_state(h, h1, 0, vbucket_state_replica), "Failed to set vbucket state.");
     check(set_vbucket_state(h, h1, 1, vbucket_state_replica), "Failed to set vbucket state.");
     checkeq(1, get_int_stat(h, h1, "ep_num_non_resident"),
             "Expected only one item to be non-resident");
-    checkeq(0, get_int_stat(h, h1, "ep_num_active_non_resident"),
+    checkeq(0, get_int_stat(h, h1, "vb_active_num_non_resident"),
             "Expected no non-resident items");
 
     return SUCCESS;

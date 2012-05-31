@@ -2595,8 +2595,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                     pendingCountVisitor.getNonResident() +
                     replicaCountVisitor.getNonResident(),
                     add_stat, cookie);
-    add_casted_stat("ep_num_active_non_resident", activeCountVisitor.getNonResident(),
-                    add_stat, cookie);
 
     add_casted_stat("ep_latency_get_cmd", epstats.getCmdHisto.total(),
                     add_stat, cookie);
