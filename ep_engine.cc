@@ -3435,6 +3435,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
         add_casted_stat("detailed", buffer, add_stat, cookie);
         free(buffer);
         rv = ENGINE_SUCCESS;
+    } else if (nkey == 6 && strncmp(stat_key, "config", 6) == 0) {
+        configuration.addStats(add_stat, cookie);
+        rv = ENGINE_SUCCESS;
     }
 
     return rv;

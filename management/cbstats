@@ -235,6 +235,9 @@ def stats_memory(mc):
 def stats_restore(mc):
     stats_formatter(stats_perform(mc, 'restore'))
 
+@cmd
+def stats_config(mc):
+    stats_formatter(stats_perform(mc, 'config'))
 
 @cmd
 def stats_couchdb(mc):
@@ -355,6 +358,7 @@ def main():
     c.addCommand('all', stats_all, 'all [username password]')
     c.addCommand('allocator', stats_allocator, 'allocator [username password]')
     c.addCommand('checkpoint', stats_checkpoint, 'checkpoint [vbid] [username password]')
+    c.addCommand('config', stats_config, 'config [username password]')
     c.addCommand('couchdb', stats_couchdb, 'couchdb [username password]')
     c.addCommand('dispatcher', stats_dispatcher, 'dispatcher [logs] [username password]')
     c.addCommand('hash', stats_hash, 'hash [detail] [username password]')
