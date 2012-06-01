@@ -198,10 +198,31 @@ EXTRA_HDR_FMTS={
 EXTRA_HDR_SIZES=dict(
     [(k, struct.calcsize(v)) for (k,v) in EXTRA_HDR_FMTS.items()])
 
+# Kept for backwards compatibility with existing mc_bin_client users.
+
 ERR_UNKNOWN_CMD = 0x81
 ERR_NOT_FOUND = 0x1
 ERR_EXISTS = 0x2
 ERR_AUTH = 0x20
+
+# These error codes match protocol_binary.h naming.
+
+ERR_SUCCESS = 0x00
+ERR_KEY_ENOENT = 0x01
+ERR_KEY_EEXISTS = 0x02
+ERR_E2BIG = 0x03
+ERR_EINVAL = 0x04
+ERR_NOT_STORED = 0x05
+ERR_DELTA_BADVAL = 0x06
+ERR_NOT_MY_VBUCKET = 0x07
+ERR_AUTH_ERROR = 0x20
 ERR_AUTH_CONTINUE = 0x21
+ERR_ERANGE = 0x22
+ERR_UNKNOWN_COMMAND = 0x81
+ERR_ENOMEM = 0x82
+ERR_NOT_SUPPORTED = 0x83
+ERR_EINTERNAL = 0x84
+ERR_EBUSY = 0x85
+ERR_ETMPFAIL = 0x86
 
 META_REVID = 0x01
