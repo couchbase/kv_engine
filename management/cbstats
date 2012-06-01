@@ -147,6 +147,13 @@ def histograms(mc, raw_stats):
             print "%s %s" % (toprint, '#' * int(lpcnt * remaining))
 
 @cmd
+def stats_key(mc, key, vb):
+    cmd = "key %s %s" % (key, str(vb))
+    vbs = mc.stats(cmd)
+    print "stats for key", key
+    stats_formatter(vbs)
+
+@cmd
 def stats_vkey(mc, key, vb):
     cmd = "vkey %s %s" % (key, str(vb))
     vbs = mc.stats(cmd)
@@ -156,10 +163,6 @@ def stats_vkey(mc, key, vb):
 @cmd
 def stats_all(mc):
     stats_formatter(stats_perform(mc))
-
-@cmd
-def stats_raw(mc, arg):
-    stats_formatter(mc.stats(arg))
 
 def time_label(s):
     # -(2**64) -> '-inf'
@@ -363,11 +366,11 @@ def main():
     c.addCommand('dispatcher', stats_dispatcher, 'dispatcher [logs] [username password]')
     c.addCommand('hash', stats_hash, 'hash [detail] [username password]')
     c.addCommand('items', stats_items, 'items [username password]')
+    c.addCommand('key', stats_key, 'key keyname vbid [username password]')
     c.addCommand('kvstore', stats_kvstore, 'kvstore [username password]')
     c.addCommand('kvtimings', stats_kvtimings, 'kvtimings [username password]')
     c.addCommand('memory', stats_memory, 'memory [username password]')
     c.addCommand('prev-vbucket', stats_prev_vbucket, 'prev-vbucket [username password]')
-    c.addCommand('raw', stats_raw, 'raw argument [username password]')
     c.addCommand('reset', reset, 'reset [username password]')
     c.addCommand('restore', stats_restore, 'restore [username password]')
     c.addCommand('slabs', stats_slabs, 'slabs [username password]')
