@@ -3658,6 +3658,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTimingStats(const void *cookie,
     add_casted_stat("get_cmd", stats.getCmdHisto, add_stat, cookie);
     add_casted_stat("store_cmd", stats.storeCmdHisto, add_stat, cookie);
     add_casted_stat("arith_cmd", stats.arithCmdHisto, add_stat, cookie);
+    add_casted_stat("get_stats_cmd", stats.getStatsCmdHisto, add_stat, cookie);
     // Admin commands
     add_casted_stat("get_vb_cmd", stats.getVbucketCmdHisto, add_stat, cookie);
     add_casted_stat("set_vb_cmd", stats.setVbucketCmdHisto, add_stat, cookie);
@@ -3754,6 +3755,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
                                                        const char* stat_key,
                                                        int nkey,
                                                        ADD_STAT add_stat) {
+    BlockTimer timer(&stats.getStatsCmdHisto);
     ENGINE_ERROR_CODE rv = ENGINE_KEY_ENOENT;
     if (stat_key == NULL) {
         rv = doEngineStats(cookie, add_stat);

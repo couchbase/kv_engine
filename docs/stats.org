@@ -441,6 +441,7 @@ form to describe when time was spent doing various things:
 | get_cmd               | servicing get requests                         |
 | store_cmd             | servicing store requests                       |
 | arith_cmd             | servicing incr/decr requests                   |
+| get_stats_cmd         | servicing get_stats requests                   |
 | get_vb_cmd            | servicing vbucket status requests              |
 | set_vb_cmd            | servicing vbucket set state commands           |
 | del_vb_cmd            | servicing vbucket deletion commands            |
