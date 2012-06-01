@@ -567,6 +567,29 @@ Note that tcmalloc stats are not available on some operating systems
 | tcmalloc_current_thread_cache_bytes | A measure of some of the memory      |
 |                                     | TCMalloc is using for small objects. |
 
+
+** Stats Key and Vkey
+| key_cas                       | The keys current cas value             |KV|
+| key_data_age                  | How long the key has waited for its    |KV|
+|                               | value to be persisted (0 if clean)     |KV|
+| key_exptime                   | Expiration time from the epoch         |KV|
+| key_flags                     | Flags for this key                     |KV|
+| key_is_dirty                  | If the value is not yet persisted      |KV|
+| key_last_modified_time        | Last updated time                      |KV|
+| key_valid                     | See description below                  | V|
+| key_vb_state                  | The vbucket state of this key          |KV|
+
+=key_valid= can have the following responses:
+
+this_is_a_bug - Some case we didn't take care of.
+dirty - The value in memory has not been persisted yet.
+length_mismatch - The key length in memory doesn't match the length on disk.
+data_mismatch - The data in memroy doesn't match the data on disk.
+flags_mismatch - The flags in memory don't match the flags on disk.
+valid - The key is both on disk and in memory
+ram_but_not_disk - The value doesn't exist yet on disk.
+item_deleted - The item has been deleted.
+
 ** Key Log
 
 Stats =klog= shows counts what's going on with the key mutation log.
