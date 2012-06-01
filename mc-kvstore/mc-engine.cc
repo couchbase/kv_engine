@@ -1300,56 +1300,63 @@ void MemcachedEngine::snapshotVBuckets(const vbucket_map_t &m, Callback<bool> &c
 
 void MemcachedEngine::delVBucket(uint16_t vb, Callback<bool> &cb) {
     protocol_binary_request_del_vbucket req;
-    memset(req.bytes, 0, sizeof(req.bytes));
-    req.message.header.request.magic = PROTOCOL_BINARY_REQ;
-    req.message.header.request.opcode = PROTOCOL_BINARY_CMD_DEL_VBUCKET;
-    req.message.header.request.vbucket = ntohs(vb);
-    req.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
-    req.message.header.request.opaque = seqno;
+    // delete vbucket must wait for a response
+    do {
+        memset(req.bytes, 0, sizeof(req.bytes));
+        req.message.header.request.magic = PROTOCOL_BINARY_REQ;
+        req.message.header.request.opcode = PROTOCOL_BINARY_CMD_DEL_VBUCKET;
+        req.message.header.request.vbucket = ntohs(vb);
+        req.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
+        req.message.header.request.opaque = seqno;
 
-    sendIov[0].iov_base = (char*)req.bytes;
-    sendIov[0].iov_len = sizeof(req.bytes);
-    numiovec = 1;
-    sendCommand(new DelVBucketResponseHandler(seqno++, epStats, cb));
-    wait();
+        sendIov[0].iov_base = (char*)req.bytes;
+        sendIov[0].iov_len = sizeof(req.bytes);
+        numiovec = 1;
+
+        sendCommand(new DelVBucketResponseHandler(seqno++, epStats, cb));
+    } while (!waitOnce());
 }
 
 void MemcachedEngine::flush(Callback<bool> &cb) {
     protocol_binary_request_flush req;
-    memset(req.bytes, 0, sizeof(req.bytes));
-    req.message.header.request.magic = PROTOCOL_BINARY_REQ;
-    req.message.header.request.opcode = PROTOCOL_BINARY_CMD_FLUSH;
-    req.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
-    req.message.header.request.extlen = 4;
-    req.message.header.request.bodylen = ntohl(4);
-    req.message.header.request.opaque = seqno;
-    sendIov[0].iov_base = (char*)req.bytes;
-    sendIov[0].iov_len = sizeof(req.bytes);
-    numiovec = 1;
-    sendCommand(new FlushResponseHandler(seqno++, epStats, cb));
-    wait();
+    // flush must wait for a response
+    do {
+        memset(req.bytes, 0, sizeof(req.bytes));
+        req.message.header.request.magic = PROTOCOL_BINARY_REQ;
+        req.message.header.request.opcode = PROTOCOL_BINARY_CMD_FLUSH;
+        req.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
+        req.message.header.request.extlen = 4;
+        req.message.header.request.bodylen = ntohl(4);
+        req.message.header.request.opaque = seqno;
+        sendIov[0].iov_base = (char*)req.bytes;
+        sendIov[0].iov_len = sizeof(req.bytes);
+        numiovec = 1;
+
+        sendCommand(new FlushResponseHandler(seqno++, epStats, cb));
+    } while (!waitOnce());
 }
 
 void MemcachedEngine::selectBucket() {
     std::string name = configuration.getCouchBucket();
     protocol_binary_request_no_extras req;
-    memset(req.bytes, 0, sizeof(req.bytes));
-    req.message.header.request.magic = PROTOCOL_BINARY_REQ;
-    req.message.header.request.opcode = 0x89;
-    req.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
-    req.message.header.request.keylen = ntohs((uint16_t)name.length());
-    req.message.header.request.bodylen = ntohl((uint32_t)name.length());
-
-    sendIov[0].iov_base = (char*)req.bytes;
-    sendIov[0].iov_len = sizeof(req.bytes);
-    sendIov[1].iov_base = const_cast<char*>(name.c_str());
-    sendIov[1].iov_len = name.length();
-    numiovec = 2;
 
     // select bucket must succeed
     do {
-        inSelectBucket = true;
+        memset(req.bytes, 0, sizeof(req.bytes));
+        req.message.header.request.magic = PROTOCOL_BINARY_REQ;
+        req.message.header.request.opcode = 0x89;
+        req.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
         req.message.header.request.opaque = seqno;
+        req.message.header.request.keylen = ntohs((uint16_t)name.length());
+        req.message.header.request.bodylen = ntohl((uint32_t)name.length());
+
+        sendIov[0].iov_base = (char*)req.bytes;
+        sendIov[0].iov_len = sizeof(req.bytes);
+        sendIov[1].iov_base = const_cast<char*>(name.c_str());
+        sendIov[1].iov_len = name.length();
+        numiovec = 2;
+
+        inSelectBucket = true;
         sendCommand(new SelectBucketResponseHandler(seqno++, epStats));
     } while (!waitOnce());
 
@@ -1463,28 +1470,28 @@ void MemcachedEngine::notify_update(uint16_t vbucket,
                                     Callback<uint16_t> &cb)
 {
     protocol_binary_request_notify_vbucket_update req;
-    memset(req.bytes, 0, sizeof(req.bytes));
-    req.message.header.request.magic = PROTOCOL_BINARY_REQ;
-    req.message.header.request.opcode = CMD_NOTIFY_VBUCKET_UPDATE;
-    req.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
-    req.message.header.request.vbucket = ntohs(vbucket);
-    req.message.header.request.opaque = seqno;
-    req.message.header.request.bodylen = ntohl(32);
+    // notify_bucket must wait for a response
+    do {
+        memset(req.bytes, 0, sizeof(req.bytes));
+        req.message.header.request.magic = PROTOCOL_BINARY_REQ;
+        req.message.header.request.opcode = CMD_NOTIFY_VBUCKET_UPDATE;
+        req.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
+        req.message.header.request.vbucket = ntohs(vbucket);
+        req.message.header.request.opaque = seqno;
+        req.message.header.request.bodylen = ntohl(32);
 
-    req.message.body.file_version = ntohll(file_version);
-    req.message.body.header_offset = ntohll(header_offset);
-    req.message.body.vbucket_state_updated = (vbucket_state_updated) ?
-                                             ntohl(1) : 0;
-    req.message.body.state = ntohl(state);
-    req.message.body.checkpoint = ntohll(checkpoint);
+        req.message.body.file_version = ntohll(file_version);
+        req.message.body.header_offset = ntohll(header_offset);
+        req.message.body.vbucket_state_updated = (vbucket_state_updated) ? ntohl(1) : 0;
+        req.message.body.state = ntohl(state);
+        req.message.body.checkpoint = ntohll(checkpoint);
 
-    sendIov[0].iov_base = (char*)req.bytes;
-    sendIov[0].iov_len = sizeof(req.bytes);
-    numiovec = 1;
+        sendIov[0].iov_base = (char*)req.bytes;
+        sendIov[0].iov_len = sizeof(req.bytes);
+        numiovec = 1;
 
-    sendCommand(new NotifyVbucketUpdateResponseHandler(seqno++, epStats, cb));
-    // Wait for response!!
-    wait();
+        sendCommand(new NotifyVbucketUpdateResponseHandler(seqno++, epStats, cb));
+    } while(!waitOnce());
 }
 
 void MemcachedEngine::setVBucketBatchCount(size_t batch_count, Callback<bool> *cb) {
