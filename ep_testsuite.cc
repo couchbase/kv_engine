@@ -4091,7 +4091,6 @@ static enum test_result test_vkey_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
     check(vals.find("key_exptime") != vals.end(), "Found no key_exptime");
     check(vals.find("key_flags") != vals.end(), "Found no key_flags");
     check(vals.find("key_cas") != vals.end(), "Found no key_cas");
-    check(vals.find("key_dirtied") != vals.end(), "Found no key_dirtied");
     check(vals.find("key_data_age") != vals.end(), "Found no key_data_age");
     check(vals.find("key_last_modification_time") != vals.end(),
                     "Found no key_last_modification_time");
@@ -4106,7 +4105,6 @@ static enum test_result test_vkey_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
     check(vals.find("key_exptime") != vals.end(), "Found no key_exptime");
     check(vals.find("key_flags") != vals.end(), "Found no key_flags");
     check(vals.find("key_cas") != vals.end(), "Found no key_cas");
-    check(vals.find("key_dirtied") != vals.end(), "Found no key_dirtied");
     check(vals.find("key_data_age") != vals.end(), "Found no key_data_age");
     check(vals.find("key_last_modification_time") != vals.end(),
                     "Found no key_last_modification_time");
@@ -4121,7 +4119,6 @@ static enum test_result test_vkey_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
     check(vals.find("key_exptime") != vals.end(), "Found no key_exptime");
     check(vals.find("key_flags") != vals.end(), "Found no key_flags");
     check(vals.find("key_cas") != vals.end(), "Found no key_cas");
-    check(vals.find("key_dirtied") != vals.end(), "Found no key_dirtied");
     check(vals.find("key_data_age") != vals.end(), "Found no key_data_age");
     check(vals.find("key_last_modification_time") != vals.end(),
           "Found no key_last_modification_time");
@@ -4136,7 +4133,6 @@ static enum test_result test_vkey_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
     check(vals.find("key_exptime") != vals.end(), "Found no key_exptime");
     check(vals.find("key_flags") != vals.end(), "Found no key_flags");
     check(vals.find("key_cas") != vals.end(), "Found no key_cas");
-    check(vals.find("key_dirtied") != vals.end(), "Found no key_dirtied");
     check(vals.find("key_data_age") != vals.end(), "Found no key_data_age");
     check(vals.find("key_last_modification_time") != vals.end(),
           "Found no key_last_modification_time");
@@ -4151,7 +4147,6 @@ static enum test_result test_vkey_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
     check(vals.find("key_exptime") != vals.end(), "Found no key_exptime");
     check(vals.find("key_flags") != vals.end(), "Found no key_flags");
     check(vals.find("key_cas") != vals.end(), "Found no key_cas");
-    check(vals.find("key_dirtied") != vals.end(), "Found no key_dirtied");
     check(vals.find("key_data_age") != vals.end(), "Found no key_data_age");
     check(vals.find("key_last_modification_time") != vals.end(),
           "Found no key_last_modification_time");

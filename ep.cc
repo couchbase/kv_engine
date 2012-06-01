@@ -1662,8 +1662,6 @@ bool EventuallyPersistentStore::getKeyStats(const std::string &key,
         kstats.exptime = v->getExptime();
         kstats.flags = v->getFlags();
         kstats.cas = v->getCas();
-        // TODO:  Know this somehow.
-        kstats.dirtied = 0; // v->getDirtied();
         kstats.data_age = v->getDataAge();
         kstats.vb_state = vb->getState();
         kstats.last_modification_time = ep_abs_time(v->getDataAge());
