@@ -448,6 +448,7 @@ form to describe when time was spent doing various things:
 | data_age              | Analogous to ep_data_age in main stats.        |
 | get_cmd               | servicing get requests                         |
 | arith_cmd             | servicing incr/decr requests                   |
+| get_stats_cmd         | servicing get_stats requests                   |
 | get_vb_cmd            | servicing vbucket status requests              |
 | set_vb_cmd            | servicing vbucket set state commands           |
 | del_vb_cmd            | servicing vbucket deletion commands            |
