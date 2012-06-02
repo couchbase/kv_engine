@@ -51,6 +51,14 @@ void StrategicSqlite3::insert(const Item &itm, uint16_t vb_version,
     stats.io_write_bytes += itm.getKey().length() + itm.getNBytes();
 
     int rv = ins_stmt->execute();
+    if (rv < 0) {
+        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                         "Fatal sqlite error in inserting key '%s' !!! "
+                         "Reopen the database...\n",
+                         itm.getKey().c_str());
+        reopen();
+    }
+
     int64_t newId = lastRowId();
 
     std::pair<int, int64_t> p(rv, newId);
@@ -75,6 +83,13 @@ void StrategicSqlite3::update(const Item &itm, uint16_t vb_version,
     upd_stmt->bind64(7, itm.getId());
 
     int rv = upd_stmt->execute();
+    if (rv < 0) {
+        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                         "Fatal sqlite error in updating key '%s' !!! "
+                         "Reopen the database...\n",
+                         itm.getKey().c_str());
+        reopen();
+    }
     ++stats.io_num_write;
     stats.io_write_bytes += itm.getKey().length() + itm.getNBytes();
 
@@ -157,6 +172,13 @@ void StrategicSqlite3::del(const Item &itm, uint64_t rowid,
     PreparedStatement *del_stmt = strategy->getStatements(vb, vbver, key)->del();
     del_stmt->bind64(1, rowid);
     int rv = del_stmt->execute();
+    if (rv < 0) {
+        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                         "Fatal sqlite error in deleting key '%s' !!! "
+                         "Reopen the database...\n",
+                         key.c_str());
+        reopen();
+    }
     cb.callback(rv);
     del_stmt->reset();
 }
@@ -174,7 +196,16 @@ bool StrategicSqlite3::delVBucket(uint16_t vbucket, uint16_t vb_version,
             del_stmt->bind64(3, row_range.first);
             del_stmt->bind64(4, row_range.second);
         }
-        rv &= del_stmt->execute() >= 0;
+        int result = del_stmt->execute();
+        if (result < 0) {
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                             "Fatal sqlite error in deleting vbucket %d !!! "
+                             "Reopen the database...\n",
+                             vbucket);
+            reopen();
+            rv = false;
+            break;
+        }
     }
     strategy->closeVBStatements(vb_del);
     ++stats.io_num_write;
@@ -194,16 +225,37 @@ bool StrategicSqlite3::delVBucket(uint16_t vbucket, uint16_t vb_version) {
         strategy->createVBTable(vbucket);
         rv = commit();
     }
+    if (!rv) {
+        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                         "Fatal sqlite error in deleting vbucket %d !!! "
+                         "Reopen the database...\n",
+                         vbucket);
+        reopen();
+    }
     return rv;
 }
 
 bool StrategicSqlite3::snapshotVBuckets(const vbucket_map_t &m) {
-    return storeMap(strategy->getClearVBucketStateST(),
-                    strategy->getInsVBucketStateST(), m);
+    bool rv = storeMap(strategy->getClearVBucketStateST(),
+                       strategy->getInsVBucketStateST(), m);
+    if (!rv) {
+        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                         "Fatal sqlite error in snapshot vbucket states!!! "
+                         "Reopen the database...\n");
+        reopen();
+    }
+    return rv;
 }
 
 bool StrategicSqlite3::snapshotStats(const std::map<std::string, std::string> &m) {
-    return storeMap(strategy->getClearStatsST(), strategy->getInsStatST(), m);
+    bool rv = storeMap(strategy->getClearStatsST(), strategy->getInsStatST(), m);
+    if (!rv) {
+        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                         "Fatal sqlite error in snapshot engine stats!!! "
+                         "Reopen the database...\n");
+        reopen();
+    }
+    return rv;
 }
 
 /**
@@ -250,8 +302,7 @@ bool StrategicSqlite3::storeMap(PreparedStatement *clearSt,
         map_setter<T1, T2> ms(insSt, rv);
         std::for_each(m.begin(), m.end(), ms);
 
-        commit();
-        rv = true;
+        rv = commit();
     } catch(...) {
         rollback();
     }
