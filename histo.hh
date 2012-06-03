@@ -202,7 +202,7 @@ public:
      * @param n how many bins this histogram should contain
      */
     template <typename G>
-    Histogram(const G &generator, size_t n=25) : bins(n) {
+    Histogram(const G &generator, size_t n=30) : bins(n) {
         fill(generator);
     }
 
@@ -211,7 +211,7 @@ public:
      *
      * @param n how many bins this histogram should contain.
      */
-    Histogram(size_t n=25) : bins(n) {
+    Histogram(size_t n=30) : bins(n) {
         ExponentialGenerator<T> generator(0, 2.0);
         fill(generator);
     }
