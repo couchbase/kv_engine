@@ -329,6 +329,8 @@ TapProducer *TapConnMap::newProducer(const void* cookie,
     }
 
     map[cookie] = tap;
+    engine.getServerApi()->cookie->store_engine_specific(cookie, tap);
+
     return tap;
 }
 
