@@ -121,7 +121,9 @@ bool ObjectRegistry::memoryAllocated(size_t mem) {
    }
    EPStats &stats = engine->getEpStats();
    stats.totalMemory.incr(mem);
-   assert(stats.totalMemory.get() < GIGANTOR);
+   if (stats.totalMemory.get() < GIGANTOR) {
+        abort();
+   }
    return true;
 }
 
@@ -132,6 +134,8 @@ bool ObjectRegistry::memoryDeallocated(size_t mem) {
    }
    EPStats &stats = engine->getEpStats();
    stats.totalMemory.decr(mem);
-   assert(stats.totalMemory.get() < GIGANTOR);
+   if (stats.totalMemory.get() < GIGANTOR) {
+       abort();
+   }
    return true;
 }
