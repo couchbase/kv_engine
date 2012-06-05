@@ -497,6 +497,18 @@ static protocol_binary_request_header* create_set_param_packet(uint8_t opcode,
     return (protocol_binary_request_header *)req;
 }
 
+static void stop_persistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    protocol_binary_request_header *pkt = create_packet(CMD_STOP_PERSISTENCE, "", "");
+    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
+          "Failed to stop persistence.");
+}
+
+static void start_persistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    protocol_binary_request_header *pkt = create_packet(CMD_START_PERSISTENCE, "", "");
+    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
+          "Failed to stop persistence.");
+}
+
 static void evict_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                       const char *key, uint16_t vbucketId=0,
                       const char *msg = NULL, bool expectError = false) {
@@ -4365,15 +4377,20 @@ static enum test_result test_value_eviction(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
     check(get_int_stat(h, h1, "ep_num_active_non_resident") == 0,
           "Expected all active vbucket items to be resident");
 
+
+    stop_persistence(h, h1);
     check(store(h, h1, NULL, OPERATION_SET,"k1", "v1", &i, 0, 0) == ENGINE_SUCCESS,
           "Failed to fail to store an item.");
     h1->release(h, NULL, i);
     evict_key(h, h1, "k1", 0, "Can't eject: Dirty or a small object.", true);
+    start_persistence(h, h1);
     wait_for_flusher_to_settle(h, h1);
+    stop_persistence(h, h1);
     check(store(h, h1, NULL, OPERATION_SET,"k2", "v2", &i, 0, 1) == ENGINE_SUCCESS,
           "Failed to fail to store an item.");
     h1->release(h, NULL, i);
     evict_key(h, h1, "k2", 1, "Can't eject: Dirty or a small object.", true);
+    start_persistence(h, h1);
     wait_for_flusher_to_settle(h, h1);
 
     evict_key(h, h1, "k1", 0, "Ejected.");
