@@ -237,6 +237,15 @@ static bool test_setup(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return wait_for_warmup_complete(h, h1);
 }
 
+static int get_int_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                        const char *statname, const char *statkey = NULL) {
+    vals.clear();
+    check(h1->get_stats(h, NULL, statkey, statkey == NULL ? 0 : strlen(statkey),
+                        add_stats) == ENGINE_SUCCESS, "Failed to get stats.");
+    std::string s = vals[statname];
+    return atoi(s.c_str());
+}
+
 static ENGINE_ERROR_CODE storeCasVb11(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                       const void *cookie,
                                       ENGINE_STORE_OPERATION op,
@@ -491,6 +500,8 @@ static protocol_binary_request_header* create_set_param_packet(uint8_t opcode,
 static void evict_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                       const char *key, uint16_t vbucketId=0,
                       const char *msg = NULL, bool expectError = false) {
+    int nonResidentItems = get_int_stat(h, h1, "ep_num_non_resident");
+    int numEjectedItems = get_int_stat(h, h1, "ep_num_value_ejects");
     protocol_binary_request_header *pkt = create_packet(CMD_EVICT_KEY,
                                                         key, "");
     pkt->request.vbucket = htons(vbucketId);
@@ -502,9 +513,18 @@ static void evict_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
         check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
               "Expected exists when evicting key.");
     } else {
+        if (strcmp(last_body, "Already ejected.") != 0) {
+            nonResidentItems++;
+            numEjectedItems++;
+        }
         check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
               "Expected success evicting key.");
     }
+
+    checkeq(nonResidentItems, get_int_stat(h, h1, "ep_num_non_resident"),
+            "Incorrect number of non-resident items");
+    checkeq(numEjectedItems, get_int_stat(h, h1, "ep_num_value_ejects"),
+            "Incorrect number of ejected items");
 
     if (msg != NULL && strcmp(last_body, msg) != 0) {
         fprintf(stderr, "Expected evict to return ``%s'', but it returned ``%s''\n",
@@ -860,16 +880,6 @@ static bool verify_vbucket_missing(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     std::cerr << "Expected bucket missing, got " << vals[vbstr] << std::endl;
 
     return false;
-}
-
-static int get_int_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                        const char *statname, const char *statkey = NULL) {
-    vals.clear();
-    check(h1->get_stats(h, NULL, statkey, statkey == NULL ? 0 : strlen(statkey),
-                        add_stats) == ENGINE_SUCCESS,
-          "Failed to get stats.");
-    std::string s = vals[statname];
-    return atoi(s.c_str());
 }
 
 static void verify_curr_items(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
@@ -4369,8 +4379,6 @@ static enum test_result test_value_eviction(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
     evict_key(h, h1, "k1", 0, "Ejected.");
     evict_key(h, h1, "k2", 1, "Ejected.");
 
-    check(get_int_stat(h, h1, "ep_num_non_resident") == 2,
-          "Expected two non-resident items");
     check(get_int_stat(h, h1, "vb_active_num_non_resident") == 2,
           "Expected two non-resident items for active vbuckets");
 
@@ -4386,23 +4394,16 @@ static enum test_result test_value_eviction(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT,
           "expected the key to be missing...");
 
-    check(get_int_stat(h, h1, "ep_num_value_ejects") == 2,
-          "Expected only two items to be ejected");
-
     h1->reset_stats(h, NULL);
     check(get_int_stat(h, h1, "ep_num_value_ejects") == 0,
           "Expected reset stats to set ep_num_value_ejects to zero");
 
     check_key_value(h, h1, "k1", "v1", 2);
-    checkeq(1, get_int_stat(h, h1, "ep_num_non_resident"),
-            "Expected only one item to be non-resident");
     checkeq(1, get_int_stat(h, h1, "vb_active_num_non_resident"),
             "Expected only one active vbucket item to be non-resident");
 
     check(set_vbucket_state(h, h1, 0, vbucket_state_replica), "Failed to set vbucket state.");
     check(set_vbucket_state(h, h1, 1, vbucket_state_replica), "Failed to set vbucket state.");
-    checkeq(1, get_int_stat(h, h1, "ep_num_non_resident"),
-            "Expected only one item to be non-resident");
     checkeq(0, get_int_stat(h, h1, "vb_active_num_non_resident"),
             "Expected no non-resident items");
 
