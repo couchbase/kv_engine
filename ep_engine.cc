@@ -39,6 +39,7 @@
 #include "statwriter.hh"
 #undef STATWRITER_NAMESPACE
 
+static SERVER_EXTENSION_API *extensionApi;
 static ALLOCATOR_HOOKS_API *hooksApi;
 
 static size_t percentOf(size_t val, double percent) {
@@ -1113,6 +1114,10 @@ extern "C" {
             return ENGINE_ENOTSUP;
         }
 
+        hooksApi = api->alloc_hooks;
+        extensionApi = api->extension;
+        MemoryTracker::getInstance();
+
         EventuallyPersistentEngine *engine;
         engine = new struct EventuallyPersistentEngine(get_server_api);
         if (engine == NULL) {
@@ -1124,6 +1129,10 @@ extern "C" {
         ep_reltime = api->core->realtime;
 
         *handle = reinterpret_cast<ENGINE_HANDLE*> (engine);
+
+        if (MemoryTracker::trackingMemoryAllocations()) {
+            engine->getEpStats().totalMemory.incr(hooksApi->get_allocation_size(engine));
+        }
         return ENGINE_SUCCESS;
     }
 
@@ -1153,8 +1162,6 @@ extern "C" {
         return true;
     }
 } // C linkage
-
-static SERVER_EXTENSION_API *extensionApi;
 
 EXTENSION_LOGGER_DESCRIPTOR *getLogger(void) {
     if (extensionApi != NULL) {
@@ -1202,9 +1209,6 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server
     ENGINE_HANDLE_V1::aggregate_stats = NULL;
 
     serverApi = getServerApiFunc();
-    hooksApi = serverApi->alloc_hooks;
-    extensionApi = serverApi->extension;
-    MemoryTracker::getInstance();
     memset(&info, 0, sizeof(info));
     info.info.description = "EP engine v" VERSION;
     info.info.features[info.info.num_features++].feature = ENGINE_FEATURE_CAS;
