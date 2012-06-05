@@ -54,9 +54,6 @@ public:
             bool can_evict =
                 currentBucket->checkpointManager.eligibleForEviction(v->getKey());
             if (can_evict && v->ejectValue(stats, currentBucket->ht)) {
-                if (currentBucket->getState() == vbucket_state_replica) {
-                    ++stats.numReplicaEjects;
-                }
                 ++ejected;
             }
         }

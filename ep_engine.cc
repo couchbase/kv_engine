@@ -2519,8 +2519,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                     add_stat, cookie);
     add_casted_stat("ep_num_value_ejects", epstats.numValueEjects, add_stat,
                     cookie);
-    add_casted_stat("ep_num_eject_replicas", epstats.numReplicaEjects, add_stat,
-                    cookie);
     add_casted_stat("ep_num_eject_failures", epstats.numFailedEjects, add_stat,
                     cookie);
     add_casted_stat("ep_num_not_my_vbuckets", epstats.numNotMyVBuckets, add_stat,

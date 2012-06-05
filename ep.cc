@@ -2057,11 +2057,8 @@ public:
                         double lower = static_cast<double>(stats->mem_low_wat);
                         if (current > lower) {
                             // Check if the key was already visited by all the cursors.
-                            bool can_evict = vb->checkpointManager.eligibleForEviction(v->getKey());
-                            if (can_evict &&
-                                v->ejectValue(*stats, vb->ht) &&
-                                vbstate == vbucket_state_replica) {
-                                ++stats->numReplicaEjects;
+                            if (vb->checkpointManager.eligibleForEviction(v->getKey())) {
+                                v->ejectValue(*stats, vb->ht);
                             }
                         }
                     }
