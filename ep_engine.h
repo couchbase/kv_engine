@@ -523,12 +523,6 @@ public:
         epstore->setVBucketState(vbid, to);
     }
 
-    ~EventuallyPersistentEngine() {
-        delete epstore;
-        delete kvstore;
-        delete getlExtension;
-    }
-
     engine_info *getInfo() {
         return &info.info;
     }
@@ -622,6 +616,8 @@ public:
                                                     expiryPager.sleeptime);
         }
     }
+
+    ~EventuallyPersistentEngine();
 
 private:
     EventuallyPersistentEngine(GET_SERVER_API get_server_api);

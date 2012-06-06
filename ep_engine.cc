@@ -1164,6 +1164,13 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server
     restore.manager = NULL;
 }
 
+EventuallyPersistentEngine::~EventuallyPersistentEngine() {
+    delete epstore;
+    delete kvstore;
+    delete tapThrottle;
+    delete getlExtension;
+}
+
 ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
 
