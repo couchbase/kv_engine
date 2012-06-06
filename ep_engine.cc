@@ -1118,11 +1118,21 @@ extern "C" {
         extensionApi = api->extension;
         MemoryTracker::getInstance();
 
+        Atomic<size_t>* inital_tracking = new Atomic<size_t>();
+
+        ObjectRegistry::setStats(inital_tracking);
         EventuallyPersistentEngine *engine;
         engine = new struct EventuallyPersistentEngine(get_server_api);
+        ObjectRegistry::setStats(NULL);
+
         if (engine == NULL) {
             return ENGINE_ENOMEM;
         }
+
+        if (MemoryTracker::trackingMemoryAllocations()) {
+            engine->getEpStats().totalMemory.set(inital_tracking->get());
+        }
+        delete inital_tracking;
 
         ep_current_time = api->core->get_current_time;
         ep_abs_time = api->core->abstime;
@@ -1130,9 +1140,6 @@ extern "C" {
 
         *handle = reinterpret_cast<ENGINE_HANDLE*> (engine);
 
-        if (MemoryTracker::trackingMemoryAllocations()) {
-            engine->getEpStats().totalMemory.incr(hooksApi->get_allocation_size(engine));
-        }
         return ENGINE_SUCCESS;
     }
 
