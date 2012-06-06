@@ -161,12 +161,12 @@ bool BackFillVisitor::pauseVisitor() {
         return false;
     }
 
-    pause = theSize > maxBackfillSize || isMemoryUsageTooHigh(engine->getEpStats());
+    pause = theSize > maxBackfillSize;
 
     if (pause) {
         getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                         "Tap queue depth is too big for %s or memory usage too high, "
-                         "Pausing temporarily...\n",
+                         "Tap queue depth is too big for %s!!! ",
+                         "Pausing backfill temporarily...\n",
                          name.c_str());
     }
     return pause;
