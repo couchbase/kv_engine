@@ -23,6 +23,7 @@
 
 #include "tapconnmap.hh"
 #include "tapconnection.hh"
+#include "tapthrottle.hh"
 #include "restore.hh"
 #include "configuration.hh"
 
@@ -54,7 +55,6 @@ typedef void (*NOTIFY_IO_COMPLETE_T)(const void *cookie,
 // Forward decl
 class EventuallyPersistentEngine;
 class TapConnMap;
-class TapThrottle;
 
 /**
  * Base storage callback for things that look up data.
@@ -512,6 +512,7 @@ public:
         delete checkpointConfig;
         delete epstore;
         delete kvstore;
+        delete tapThrottle;
         delete getlExtension;
     }
 
