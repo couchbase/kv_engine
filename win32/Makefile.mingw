@@ -27,7 +27,7 @@ BINARIES= ${GEN_CONFIG} ${GEN_CODE} .libs/ep.so management/sqlite3.exe
 LIB=$(LOCALLIB) -L${MEMCACHED}/lib
 INCLUDE= -Iwin32 -Isqlite-kvstore -I.libs -Iembedded -I${MEMCACHED}/include -I${MEMCACHED}/win32 -I. $(LOCALINC)
 GENFILES=.libs/config_version.h
-CPPFLAGS= $(MARCH) -O2 -DHAVE_CONFIG_H ${INCLUDE} -Wall -DSQLITE_THREADSAFE=2
+CPPFLAGS= $(MARCH) -O2 -DHAVE_CONFIG_H ${INCLUDE} -Wall -DSQLITE_THREADSAFE=2 -DHAVE_LIBCOUCHSTORE
 
 all: ${BINARIES}
 
@@ -145,10 +145,18 @@ LIBSQLITE_KVSTORE_C_SRC = \
 LIBSQLITE_KVSTORE_OBJS = ${LIBSQLITE_KVSTORE_CC_SRC:%.cc=.libs/%.o} ${LIBSQLITE_KVSTORE_C_SRC:%.c=.libs/%.o}
 
 LIBMC_KVSTORE_CC_SRC = \
+        kvstore.cc \
         mc-kvstore/mc-engine.cc \
         mc-kvstore/mc-kvstore.cc
 
 LIBMC_KVSTORE_OBJS = ${LIBMC_KVSTORE_CC_SRC:%.cc=.libs/%.o}
+
+LIBCOUCH_KVSTORE_CC_SRC = \
+        kvstore.cc \
+        couch-kvstore/dirutils.cc \
+        couch-kvstore/couch-kvstore.cc
+
+LIBCOUCH_KVSTORE_OBJS = ${LIBCOUCH_KVSTORE_CC_SRC:%.cc=.libs/%.o}
 
 MBDBCONVERT_SRC = \
         management/dbconvert.cc \
@@ -172,6 +180,7 @@ ${OBJDIR} ${INSTALLDIRS}:; -@mkdir $@
 
 clean:
 	$(RM) ${EP_ENGINE_OBJS} ${BINARIES} ${EP_ENGINE_OBJS:.o=.d} \
+	${LIBMC_KVSTORE_OBJS:.o=.d} ${LIBCOUCH_KVSTORE_OBJS:.o=.d} \
               ${GENFILES} ${SQLITE3_OBJS} ${SQLITE3_OBJS:.o=.d}
 
 -include ${EP_ENGINE_OBJS:.o=.d}
