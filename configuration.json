@@ -174,7 +174,7 @@
         },
         "initfile": {
             "default": "",
-            "type": "string"
+            "type": "std::string"
         },
         "item_num_based_new_chk": {
             "default": "true",
@@ -293,7 +293,7 @@
         },
         "postInitfile": {
             "default": "",
-            "type": "string"
+            "type": "std::string"
         },
         "queue_age_cap": {
             "default": "900",
