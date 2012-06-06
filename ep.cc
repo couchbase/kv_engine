@@ -403,7 +403,6 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
         && concurrentDB) {
         roUnderlying = engine.newKVStore();
         roDispatcher = new Dispatcher(theEngine, "RO_Dispatcher");
-        roDispatcher->start();
     } else {
         roUnderlying = rwUnderlying;
         roDispatcher = dispatcher;
@@ -631,6 +630,9 @@ EventuallyPersistentStore::~EventuallyPersistentStore() {
 
 void EventuallyPersistentStore::startDispatcher() {
     dispatcher->start();
+    if (hasSeparateRODispatcher()) {
+        roDispatcher->start();
+    }
 }
 
 void EventuallyPersistentStore::startNonIODispatcher() {
