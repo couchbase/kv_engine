@@ -56,6 +56,10 @@ public:
             stats.warmupMemUsedCap.set(static_cast<double>(value) / 100.0);
         } else if (key.compare("warmup_min_items_threshold") == 0) {
             stats.warmupNumReadCap.set(static_cast<double>(value) / 100.0);
+        } else {
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                             "Failed to change value for unknown variable, %s\n",
+                             key.c_str());
         }
     }
 
@@ -92,6 +96,10 @@ public:
             store.getMutationLogCompactorConfig().setMaxEntryRatio(value);
         } else if (key.compare("klog_compactor_queue_cap") == 0) {
             store.getMutationLogCompactorConfig().setMaxEntryRatio(value);
+        } else {
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                             "Failed to change value for unknown variable, %s\n",
+                             key.c_str());
         }
     }
 
@@ -448,10 +456,10 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
 
     stats.warmupMemUsedCap.set(static_cast<double>(config.getWarmupMinMemoryThreshold()) / 100.0);
     config.addValueChangedListener("warmup_min_memory_threshold",
-                                   new EPStoreValueChangeListener(*this));
+                                   new StatsValueChangeListener(stats));
     stats.warmupNumReadCap.set(static_cast<double>(config.getWarmupMinItemsThreshold()) / 100.0);
     config.addValueChangedListener("warmup_min_items_threshold",
-                                   new EPStoreValueChangeListener(*this));
+                                   new StatsValueChangeListener(stats));
 
     if (startVb0) {
         RCPtr<VBucket> vb(new VBucket(0, vbucket_state_active, stats,
