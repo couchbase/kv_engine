@@ -22,7 +22,6 @@ public:
     static const Priority FastVBucketDeletionPriority;
     static const Priority FlusherPriority;
     static const Priority FlushAllPriority;
-    static const Priority VBucketBatchCountPriority;
     static const Priority VBucketDeletionPriority;
     static const Priority VBucketPersistLowPriority;
     static const Priority StatSnapPriority;

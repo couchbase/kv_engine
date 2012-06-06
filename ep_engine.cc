@@ -334,8 +334,6 @@ extern "C" {
                 e->getConfiguration().setQueueAgeCap(v);
             } else if (strcmp(keyz, "max_txn_size") == 0) {
                 e->getConfiguration().setMaxTxnSize(v);
-            } else if (strcmp(keyz, "couch_vbucket_batch_count") == 0) {
-                e->getConfiguration().setCouchVbucketBatchCount(v);
             } else if (strcmp(keyz, "bg_fetch_delay") == 0) {
                 e->getConfiguration().setBgFetchDelay(v);
             } else if (strcmp(keyz, "flushall_enabled") == 0) {

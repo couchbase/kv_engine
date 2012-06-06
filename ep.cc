@@ -64,30 +64,6 @@ private:
 };
 
 /**
- * Dispatcher job to notify the underlying kv storage of a new vbucket batch count
- */
-class VBucketBatchCountCallback : public DispatcherCallback {
-public:
-    VBucketBatchCountCallback(KVStore *s, size_t batch_count) :
-        kvStore(s), batchCount(batch_count) { }
-
-    bool callback(Dispatcher &, TaskId) {
-        kvStore->setVBBatchCount(batchCount);
-        return false;
-    }
-
-    std::string description() {
-        std::stringstream ss;
-        ss << "Notifying the kv storage of a new vbucket batch count " << batchCount;
-        return ss.str();
-    }
-
-private:
-    KVStore *kvStore;
-    size_t batchCount;
-};
-
-/**
  * A configuration value changed listener that responds to ep-engine
  * parameter changes by invoking engine-specific methods on
  * configuration change events.
@@ -110,12 +86,6 @@ public:
             store.setTxnSize(value);
         } else if (key.compare("exp_pager_stime") == 0) {
             store.setExpiryPagerSleeptime(value);
-        } else if (key.compare("couch_vbucket_batch_count") == 0) {
-            shared_ptr<DispatcherCallback> cb(new VBucketBatchCountCallback(store.getRWUnderlying(),
-                                                                            value));
-            store.getDispatcher()->schedule(cb, NULL,
-                                            Priority::VBucketBatchCountPriority,
-                                            0, false);
         } else if (key.compare("klog_max_log_size") == 0) {
             store.getMutationLogCompactorConfig().setMaxLogSize(value);
         } else if (key.compare("klog_max_entry_ratio") == 0) {
@@ -475,10 +445,6 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
 
     invalidItemDbPager = shared_ptr<InvalidItemDbPager>(
                             new InvalidItemDbPager(this, stats, vbDelChunkSize));
-
-    config.addValueChangedListener("couch_vbucket_batch_count",
-                                   new EPStoreValueChangeListener(*this));
-
 
     stats.warmupMemUsedCap.set(static_cast<double>(config.getWarmupMinMemoryThreshold()) / 100.0);
     config.addValueChangedListener("warmup_min_memory_threshold",
