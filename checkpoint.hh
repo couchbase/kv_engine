@@ -413,8 +413,9 @@ public:
 
     /**
      * Create a new open checkpoint by force.
+     * @return the new open checkpoint id
      */
-    void createNewCheckpoint();
+    uint64_t createNewCheckpoint();
 
     /**
      * Set if the current open checkpoint should be extended.

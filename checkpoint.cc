@@ -1100,9 +1100,18 @@ bool CheckpointManager::hasNextForPersistence() {
     return hasMore;
 }
 
-void CheckpointManager::createNewCheckpoint() {
+uint64_t CheckpointManager::createNewCheckpoint() {
     LockHolder lh(queueLock);
-    checkOpenCheckpoint_UNLOCKED(true, true); // First true means a force checkpoint creation
+    Checkpoint *currOpenChpt = checkpointList.back();
+    uint64_t cptId = currOpenChpt->getId();
+
+    // create a new checkpoint if current checkpoint is non-empty
+    if(currOpenChpt->getNumItems() > 0) {
+        // First true means a force checkpoint creation
+        cptId = checkOpenCheckpoint_UNLOCKED(true, true) + 1;
+    }
+
+    return cptId;
 }
 
 void CheckpointManager::decrCursorOffset_UNLOCKED(CheckpointCursor &cursor, size_t decr) {

@@ -3683,7 +3683,12 @@ EventuallyPersistentEngine::handleCheckpointCmds(const void *cookie,
             msg << "VBucket " << vbucket << " not in active state!!!";
             status = PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET;
         } else {
-            vb->checkpointManager.createNewCheckpoint();
+            uint64_t checkpointId = vb->checkpointManager.createNewCheckpoint();
+            checkpointId = htonll(checkpointId);
+            return sendResponse(response, NULL, 0, NULL, 0,
+                                &checkpointId, sizeof(checkpointId),
+                                PROTOCOL_BINARY_RAW_BYTES,
+                                status, 0, cookie);
         }
         break;
     case CMD_EXTEND_CHECKPOINT:
