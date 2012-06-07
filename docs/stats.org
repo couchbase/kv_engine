@@ -652,6 +652,82 @@ The following stats are available for the CouchStore database engine:
 | failure_get       | Number of failed get operation                     |
 | failure_vbset     | Number of failed vbucket set operation             |
 
+
+** Stats Reset
+
+Resets the list of stats below.
+
+Reset Stats:
+
+| ep_bg_load                        |
+| ep_bg_wait                        |
+| ep_bg_max_load                    |
+| ep_bg_min_load                    |
+| ep_bg_max_wait                    |
+| ep_bg_min_wait                    |
+| ep_commit_time                    |
+| ep_flush_duration                 |
+| ep_flush_duration_highwat         |
+| ep_io_num_read                    |
+| ep_io_num_write                   |
+| ep_io_read_bytes                  |
+| ep_io_write_bytes                 |
+| ep_items_rm_from_checkpoints      |
+| ep_num_checkpoint_remover_runs    |
+| ep_num_eject_failures             |
+| ep_num_pager_runs                 |
+| ep_num_not_my_vbuckets            |
+| ep_num_value_ejects               |
+| ep_pending_ops_max                |
+| ep_pending_ops_max_duration       |
+| ep_pending_ops_total              |
+| ep_storage_age                    |
+| ep_storage_age_highwat            |
+| ep_too_old                        |
+| ep_too_young                      |
+| ep_tap_bg_load_avg                |
+| ep_tap_bg_max_load                |
+| ep_tap_bg_max_wait                |
+| ep_tap_bg_min_load                |
+| ep_tap_bg_min_wait                |
+| ep_tap_bg_wait_avg                |
+| ep_tap_throttled                  |
+| ep_tap_total_fetched              |
+| ep_vbucket_del_max_walltime       |
+| ep_vbucket_del_total_walltime     |
+| pending_ops                       |
+
+Reset Histograms:
+
+| bg_load                           |
+| bg_wait                           |
+| bg_tap_load                       |
+| bg_tap_wait                       |
+| data_age                          |
+| del_vb_cmd                        |
+| disk_insert                       |
+| disk_update                       |
+| disk_del                          |
+| disk_vb_chunk_del                 |
+| disk_vb_del                       |
+| disk_invalid_vbtable_del          |
+| disk_commit                       |
+| disk_invalid_item_del             |
+| ep_latency_arith_cmd              |
+| ep_latency_get_cmd                |
+| ep_latency_store_cmd              |
+| get_stats_cmd                     |
+| item_alloc_sizes                  |
+| get_vb_cmd                        |
+| notify_io                         |
+| pending_ops                       |
+| set_vb_cmd                        |
+| storage_age                       |
+| tap_mutation                      |
+| tap_vb_reset                      |
+| tap_vb_set                        |
+
+
 * Details
 
 ** Ages
