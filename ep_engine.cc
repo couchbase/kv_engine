@@ -840,12 +840,11 @@ extern "C" {
         return ENGINE_SUCCESS;
     }
 
-    static ENGINE_ERROR_CODE EvpUnknownCommand(ENGINE_HANDLE* handle,
-                                               const void* cookie,
-                                               protocol_binary_request_header *request,
-                                               ADD_RESPONSE response)
+    static ENGINE_ERROR_CODE processUnknownCommand(EventuallyPersistentEngine *h,
+                                                   const void* cookie,
+                                                   protocol_binary_request_header *request,
+                                                   ADD_RESPONSE response)
     {
-        EventuallyPersistentEngine *h = getHandle(handle);
         protocol_binary_response_status res = PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND;
         const char *msg = NULL;
         size_t msg_size = 0;
@@ -859,21 +858,18 @@ extern "C" {
             {
                 BlockTimer timer(&stats.getVbucketCmdHisto);
                 rv = getVBucket(h, cookie, request, response);
-                releaseHandle(handle);
                 return rv;
             }
         case PROTOCOL_BINARY_CMD_DEL_VBUCKET:
             {
                 BlockTimer timer(&stats.delVbucketCmdHisto);
                 rv = delVBucket(h, cookie, request, response);
-                releaseHandle(handle);
                 return rv;
             }
         case PROTOCOL_BINARY_CMD_SET_VBUCKET:
             {
                 BlockTimer timer(&stats.setVbucketCmdHisto);
                 rv = setVBucket(h, cookie, request, response);
-                releaseHandle(handle);
                 return rv;
             }
         case PROTOCOL_BINARY_CMD_TOUCH:
@@ -881,7 +877,6 @@ extern "C" {
         case PROTOCOL_BINARY_CMD_GATQ:
             {
                 rv = h->touch(cookie, request, response);
-                releaseHandle(handle);
                 return rv;
             }
         case CMD_RESTORE_FILE:
@@ -889,7 +884,6 @@ extern "C" {
         case CMD_RESTORE_COMPLETE:
             {
                 rv = h->handleRestoreCmd(cookie, request, response);
-                releaseHandle(handle);
                 return rv;
             }
         case CMD_STOP_PERSISTENCE:
@@ -909,7 +903,6 @@ extern "C" {
             rv = getLocked(h, request, cookie, &itm, &msg, &msg_size, &res);
             if (rv == ENGINE_EWOULDBLOCK) {
                 // we dont have the value for the item yet
-                releaseHandle(handle);
                 return rv;
             }
             break;
@@ -919,25 +912,21 @@ extern "C" {
         case CMD_OBSERVE:
             {
                 rv = observeCmd(h, request, cookie, response);
-                releaseHandle(handle);
                 return rv;
             }
         case CMD_UNOBSERVE:
             {
                 rv = unobserveCmd(h, request, cookie, response);
-                releaseHandle(handle);
                 return rv;
             }
         case CMD_DEREGISTER_TAP_CLIENT:
             {
                 rv = h->deregisterTapClient(cookie, request, response);
-                releaseHandle(handle);
                 return rv;
             }
         case CMD_RESET_REPLICATION_CHAIN:
             {
                 rv = h->resetReplicationChain(cookie, request, response);
-                releaseHandle(handle);
                 return rv;
             }
         case CMD_LAST_CLOSED_CHECKPOINT:
@@ -945,7 +934,6 @@ extern "C" {
         case CMD_EXTEND_CHECKPOINT:
             {
                 rv = h->handleCheckpointCmds(cookie, request, response);
-                releaseHandle(handle);
                 return rv;
             }
         case CMD_GET_META:
@@ -954,7 +942,6 @@ extern "C" {
                 rv = h->getMeta(cookie,
                                 reinterpret_cast<protocol_binary_request_get_meta*>(request),
                                 response);
-                releaseHandle(handle);
                 return rv;
             }
         case CMD_SET_WITH_META:
@@ -965,7 +952,6 @@ extern "C" {
                 rv = h->setWithMeta(cookie,
                                     reinterpret_cast<protocol_binary_request_set_with_meta*>(request),
                                     response);
-                releaseHandle(handle);
                 return rv;
             }
         case CMD_DEL_WITH_META:
@@ -974,13 +960,11 @@ extern "C" {
                 rv = h->deleteWithMeta(cookie,
                                        reinterpret_cast<protocol_binary_request_delete_with_meta*>(request),
                                        response);
-                releaseHandle(handle);
                 return rv;
             }
         case CMD_GET_REPLICA:
             rv = getReplicaCmd(h, request, cookie, &itm, &msg, &res);
             if (rv != ENGINE_SUCCESS) {
-                releaseHandle(handle);
                 return rv;
             }
             break;
@@ -1016,8 +1000,18 @@ extern "C" {
                               static_cast<uint16_t>(res), 0, cookie);
 
         }
-        releaseHandle(handle);
         return rv;
+    }
+
+    static ENGINE_ERROR_CODE EvpUnknownCommand(ENGINE_HANDLE* handle,
+                                               const void* cookie,
+                                               protocol_binary_request_header *request,
+                                               ADD_RESPONSE response)
+    {
+        ENGINE_ERROR_CODE err_code = processUnknownCommand(getHandle(handle), cookie,
+                                                           request, response);
+        releaseHandle(handle);
+        return err_code;
     }
 
     static void EvpItemSetCas(ENGINE_HANDLE* , const void *,
@@ -1070,16 +1064,17 @@ extern "C" {
                                           size_t nuserdata)
     {
         EventuallyPersistentEngine *h = getHandle(handle);
-        std::string c(static_cast<const char*>(client), nclient);
-        // Figure out what we want from the userdata before adding it to the API
-        // to the handle
-        if (h->createTapQueue(cookie, c, flags, userdata, nuserdata)) {
-            releaseHandle(handle);
-            return EvpTapIterator;
-        } else {
-            releaseHandle(handle);
-            return NULL;
+        TAP_ITERATOR iterator = NULL;
+        {
+            std::string c(static_cast<const char*>(client), nclient);
+            // Figure out what we want from the userdata before adding it to the API
+            // to the handle
+            if (h->createTapQueue(cookie, c, flags, userdata, nuserdata)) {
+                iterator = EvpTapIterator;
+            }
         }
+        releaseHandle(handle);
+        return iterator;
     }
 
     static void EvpHandleDisconnect(const void *cookie,
@@ -1224,6 +1219,44 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server
     restore.manager = NULL;
 }
 
+ENGINE_ERROR_CODE EventuallyPersistentEngine::reserveCookie(const void *cookie) {
+    EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
+    ENGINE_ERROR_CODE rv = serverApi->cookie->reserve(cookie);
+    ObjectRegistry::onSwitchThread(epe);
+    return rv;
+}
+
+ENGINE_ERROR_CODE EventuallyPersistentEngine::releaseCookie(const void *cookie) {
+    EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
+    ENGINE_ERROR_CODE rv = serverApi->cookie->release(cookie);
+    ObjectRegistry::onSwitchThread(epe);
+    return rv;
+}
+
+void EventuallyPersistentEngine::storeEngineSpecific(const void *cookie,
+                                                     void *engine_data) {
+    EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
+    serverApi->cookie->store_engine_specific(cookie, engine_data);
+    ObjectRegistry::onSwitchThread(epe);
+}
+
+void *EventuallyPersistentEngine::getEngineSpecific(const void *cookie) {
+    EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
+    void *engine_data = serverApi->cookie->get_engine_specific(cookie);
+    ObjectRegistry::onSwitchThread(epe);
+    return engine_data;
+}
+
+void EventuallyPersistentEngine::registerEngineCallback(ENGINE_EVENT_TYPE type,
+                                                        EVENT_CALLBACK cb,
+                                                        const void *cb_data) {
+    EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
+    SERVER_CALLBACK_API *sapi = getServerApi()->callback;
+    sapi->register_callback(reinterpret_cast<ENGINE_HANDLE*>(this),
+                            type, cb, cb_data);
+    ObjectRegistry::onSwitchThread(epe);
+}
+
 /**
  * A configuration value changed listener that responds to ep-engine
  * parameter changes by invoking engine-specific methods on
@@ -1250,7 +1283,6 @@ public:
             engine.setFlushAll(value);
         }
     }
-
 private:
     EventuallyPersistentEngine &engine;
 };
@@ -1354,10 +1386,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         }
 
         // Register the callback
-        SERVER_CALLBACK_API *sapi;
-        sapi = getServerApi()->callback;
-        sapi->register_callback(reinterpret_cast<ENGINE_HANDLE*>(this),
-                                ON_DISCONNECT, EvpHandleDisconnect, this);
+        registerEngineCallback(ON_DISCONNECT, EvpHandleDisconnect, this);
         startEngineThreads();
 
         // Complete the initialization of the ep-store
@@ -1746,7 +1775,7 @@ bool EventuallyPersistentEngine::createTapQueue(const void *cookie,
                                                 const void *userdata,
                                                 size_t nuserdata)
 {
-    if (serverApi->cookie->reserve(cookie) != ENGINE_SUCCESS) {
+    if (reserveCookie(cookie) != ENGINE_SUCCESS) {
         return false;
     }
 
@@ -1880,7 +1909,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
                                                         size_t ndata,
                                                         uint16_t vbucket)
 {
-    void *specific = serverApi->cookie->get_engine_specific(cookie);
+    void *specific = getEngineSpecific(cookie);
     TapConnection *connection = NULL;
     if (specific == NULL) {
         if (tap_event == TAP_ACK) {
@@ -1897,7 +1926,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
                                  "Failed to create new tap consumer. Force disconnect\n");
                 return ENGINE_DISCONNECT;
             }
-            serverApi->cookie->store_engine_specific(cookie, connection);
+            storeEngineSpecific(cookie, connection);
         }
     } else {
         connection = reinterpret_cast<TapConnection *>(specific);
@@ -2185,7 +2214,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
 
 TapProducer* EventuallyPersistentEngine::getTapProducer(const void *cookie) {
     TapProducer *rv =
-        reinterpret_cast<TapProducer*>(serverApi->cookie->get_engine_specific(cookie));
+        reinterpret_cast<TapProducer*>(getEngineSpecific(cookie));
     if (!(rv && rv->connected)) {
         getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                          "Walking a non-existent tap queue, disconnecting\n");
