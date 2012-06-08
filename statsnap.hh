@@ -38,6 +38,8 @@ public:
      */
     std::map<std::string, std::string> &getMap() { return map; }
 
+    EventuallyPersistentEngine *getEngine() { return engine; }
+
     /**
      * Description of task.
      */
