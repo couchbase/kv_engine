@@ -16,18 +16,18 @@ extern "C" {
                          const void *cookie) {
         assert(cookie);
         void *cokie = const_cast<void *>(cookie);
-        std::map<std::string, std::string> *m =
-            static_cast<std::map<std::string, std::string>*>(cokie);
+        StatSnap *ssnap = static_cast<StatSnap *>(cokie);
 
+        ObjectRegistry::onSwitchThread(ssnap->getEngine());
         std::string k(key, klen);
         std::string v(val, vlen);
-        (*m)[k] = v;
+        ssnap->getMap()[k] = v;
     }
 }
 
 bool StatSnap::getStats(const char *s) {
     map.clear();
-    return engine->getStats(&map, s, s ? strlen(s) : 0,
+    return engine->getStats(this, s, s ? strlen(s) : 0,
                             add_stat) == ENGINE_SUCCESS;
 }
 
