@@ -346,8 +346,8 @@ void SyncListener::maybeNotifyIOComplete(bool timedout) {
     assert(finished || timedout);
 
     if (allowNotify) {
-        assert(engine.getServerApi()->cookie->get_engine_specific(cookie) == NULL);
-        engine.getServerApi()->cookie->store_engine_specific(cookie, this);
+        assert(engine.getEngineSpecific(cookie) == NULL);
+        engine.storeEngineSpecific(cookie, this);
         engine.notifyIOComplete(cookie, ENGINE_SUCCESS);
         allowNotify = false;
 
@@ -362,7 +362,7 @@ void SyncListener::maybeNotifyIOComplete(bool timedout) {
 
 void SyncListener::destroy() {
     // Before destroying the SyncListener object, clear its cookie's engine data
-    engine.getServerApi()->cookie->store_engine_specific(cookie, NULL);
+    engine.storeEngineSpecific(cookie, NULL);
 
     Dispatcher *d = engine.getEpStore()->getNonIODispatcher();
     d->schedule(shared_ptr<DispatcherCallback>(new SyncDestructionCallback(this)),

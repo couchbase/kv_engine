@@ -298,7 +298,7 @@ TapProducer *TapConnMap::newProducer(const void* cookie,
     }
 
     map[cookie] = tap;
-    engine.getServerApi()->cookie->store_engine_specific(cookie, tap);
+    engine.storeEngineSpecific(cookie, tap);
     engine.getServerApi()->cookie->set_tap_nack_mode(cookie, tap->supportsAck());
 
     return tap;

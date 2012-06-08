@@ -411,15 +411,30 @@ public:
                              "Tried to signal a NULL cookie!");
         } else {
             BlockTimer bt(&stats.notifyIOHisto);
+            EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
             serverApi->cookie->notify_io_complete(cookie, status);
+            ObjectRegistry::onSwitchThread(epe);
         }
     }
 
+    bool parseConfig(const char *config, struct config_item *items);
+
+    ENGINE_ERROR_CODE reserveCookie(const void *cookie);
+    ENGINE_ERROR_CODE releaseCookie(const void *cookie);
+
+    void storeEngineSpecific(const void *cookie, void *engine_data);
+    void *getEngineSpecific(const void *cookie);
+
+    void registerEngineCallback(ENGINE_EVENT_TYPE type,
+                                EVENT_CALLBACK cb, const void *cb_data);
+
     template <typename T>
     void notifyIOComplete(T cookies, ENGINE_ERROR_CODE status) {
+        EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
         std::for_each(cookies.begin(), cookies.end(),
                       std::bind2nd(std::ptr_fun((NOTIFY_IO_COMPLETE_T)serverApi->cookie->notify_io_complete),
                                    status));
+        ObjectRegistry::onSwitchThread(epe);
     }
 
     void handleDisconnect(const void *cookie) {
