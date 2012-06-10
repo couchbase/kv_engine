@@ -9,7 +9,6 @@
 #include "ep_extension.h"
 #include "dispatcher.hh"
 #include "item_pager.hh"
-#include "observe_registry.hh"
 
 #include <cstdio>
 #include <map>
@@ -500,21 +499,6 @@ public:
         return epstore->unlockKey(key, vbucket, cas, currentTime);
     }
 
-    ENGINE_ERROR_CODE observe(const void *cookie,
-                              std::string key,
-                              uint64_t cas,
-                              uint16_t vbucket,
-                              std::string obs_set,
-                              uint32_t expiration,
-                              ADD_RESPONSE response);
-
-    ENGINE_ERROR_CODE unobserve(const void *cookie,
-                                std::string key,
-                                uint64_t cas,
-                                uint16_t vbucket,
-                                std::string obs_set,
-                                ADD_RESPONSE response);
-
     RCPtr<VBucket> getVBucket(uint16_t vbucket) {
         return epstore->getVBucket(vbucket);
     }
@@ -554,10 +538,6 @@ public:
     }
 
     SERVER_HANDLE_V1* getServerApi() { return serverApi; }
-
-    ObserveRegistry &getObserveRegistry() {
-        return observeRegistry;
-    }
 
     Configuration &getConfiguration() {
         return configuration;
@@ -701,8 +681,6 @@ private:
         return ret;
     }
 
-    ENGINE_ERROR_CODE doObserveStats(const void* cookie, ADD_STAT add_s,
-                                     const char* stat_key, int nkey);
     ENGINE_ERROR_CODE doEngineStats(const void *cookie, ADD_STAT add_stat);
     ENGINE_ERROR_CODE doKlogStats(const void *cookie, ADD_STAT add_stat);
     ENGINE_ERROR_CODE doMemoryStats(const void *cookie, ADD_STAT add_stat);
@@ -789,7 +767,6 @@ private:
     size_t getlDefaultTimeout;
     size_t getlMaxTimeout;
     EPStats stats;
-    ObserveRegistry observeRegistry;
     Configuration configuration;
     Atomic<bool> warmingUp;
     struct {

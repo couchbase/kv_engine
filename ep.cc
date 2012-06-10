@@ -397,7 +397,7 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
     accessLog(engine.getConfiguration().getAlogPath(),
               engine.getConfiguration().getAlogBlockSize()),
     diskFlushAll(false),
-    tctx(stats, t, mutationLog, theEngine.observeRegistry),
+    tctx(stats, t, mutationLog),
     bgFetchDelay(0)
 {
     getLogger()->log(EXTENSION_LOG_INFO, NULL,
@@ -615,14 +615,6 @@ void EventuallyPersistentStore::initialize() {
     nonIODispatcher->schedule(chk_cb, NULL,
                               Priority::CheckpointRemoverPriority,
                               checkpointRemoverInterval);
-
-    shared_ptr<DispatcherCallback> obsRegCb(new ObserveRegistryCleaner(
-                                            engine.getObserveRegistry(),
-                                            stats, 60));
-
-    nonIODispatcher->schedule(obsRegCb, NULL,
-                              Priority::ObserveRegistryCleanerPriority,
-                              10);
 
     if (mutationLog.isEnabled()) {
         shared_ptr<MutationLogCompactor>

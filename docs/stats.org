@@ -158,16 +158,7 @@ For introductory information on stats within membase, start with the
 |                                | loaded from the persistence layer          |
 | ep_latency_get_cmd             | The total elapse time for get command      |
 | ep_latency_arith_cmd           | The total eplase time for arith command    |
-| ep_total_observe_set           | Number of observe sets                     |
-| ep_stats_observe_polls         | Number of stats observe calls              |
-| ep_observe_calls               | Number of observe calls                    |
-| ep_unobserve_calls             | Number of unobserve calls                  |
-| ep_observe_registry_size       | Number of key in the observe registry      |
-| ep_observe_errors              | Number of time an observe failed to be     |
-|                                | added to the observe registry (Not due to  |
-|                                | protocol violation)                        |
-| ep_obs_reg_clean_job           | Number of time the observe registry        |
-|                                | cleaner job has run                        |
+
 | ep_inconsistent_slave_chk      | Flag indicating if we allow a "downstream" |
 |                                | master to receive checkpoint messages      |
 | ep_mlog_compactor_runs         | Number of times mutation log compactor is  |

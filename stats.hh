@@ -275,25 +275,6 @@ public:
     //! The number of delete with meta operations
     Atomic<size_t>  numOpsDelMeta;
 
-    //
-    // Observe Stats
-    //
-
-    //! The number of observe sets
-    Atomic<size_t> totalObserveSets;
-    //! The number of stats observe polls
-    Atomic<size_t> statsObservePolls;
-    //! The number of observe polls
-    Atomic<size_t> observeCalls;
-    //! The number of unobserve polls
-    Atomic<size_t> unobserveCalls;
-    //! The number of items in the observe registry
-    Atomic<size_t> obsRegSize;
-    //! The number of observe errors
-    Atomic<size_t> obsErrors;
-    //! The number of times the observe registry cleaner has run
-    Atomic<size_t> obsCleanerRuns;
-
     //! The number of tiems the mutation log compactor is exectued
     Atomic<size_t> mlogCompactorRuns;
 
@@ -428,11 +409,6 @@ public:
         vbucketDelMaxWalltime.set(0);
         vbucketDelTotWalltime.set(0);
 
-        statsObservePolls.set(0);
-        observeCalls.set(0);
-        unobserveCalls.set(0);
-        obsErrors.set(0);
-        obsCleanerRuns.set(0);
         mlogCompactorRuns.set(0);
 
         pendingOpsHisto.reset();

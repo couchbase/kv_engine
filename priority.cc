@@ -41,5 +41,4 @@ const Priority Priority::TapConnectionReaperPriority("tapconnection_reaper_prior
 const Priority Priority::ItemPagerPriority("item_pager_priority", 7);
 const Priority Priority::BackfillTaskPriority("backfill_task_priority", 8);
 const Priority Priority::HTResizePriority("hashtable_resize_priority", 211);
-const Priority Priority::ObserveRegistryCleanerPriority("obs_reg_cleaneer_priority", 315);
 const Priority Priority::TapResumePriority("tap_resume_priority", 316);

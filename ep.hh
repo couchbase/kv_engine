@@ -40,7 +40,6 @@
 #include "locks.hh"
 #include "kvstore.hh"
 #include "stored-value.hh"
-#include "observe_registry.hh"
 #include "atomic.hh"
 #include "dispatcher.hh"
 #include "vbucket.hh"
@@ -300,10 +299,8 @@ class PersistenceCallback;
 class TransactionContext {
 public:
 
-    TransactionContext(EPStats &st, KVStore *ks, MutationLog &log,
-                       ObserveRegistry &obsReg)
-        : stats(st), underlying(ks), mutationLog(log), _remaining(0), intxn(false),
-        observeRegistry(obsReg) {}
+    TransactionContext(EPStats &st, KVStore *ks, MutationLog &log)
+        : stats(st), underlying(ks), mutationLog(log), _remaining(0), intxn(false) {}
 
     /**
      * Call this whenever entering a transaction.
@@ -381,7 +378,6 @@ private:
     Atomic<size_t> numUncommittedItems;
     bool         intxn;
     std::list<queued_item>     uncommittedItems;
-    ObserveRegistry           &observeRegistry;
     std::list<PersistenceCallback*> transactionCallbacks;
 };
 

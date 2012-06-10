@@ -81,7 +81,6 @@ EP_ENGINE_CC_SRC = \
                  mutation_log_compactor.cc \
                  mutex.cc \
                  objectregistry.cc \
-                 observe_registry.cc \
                  priority.cc \
                  queueditem.cc \
                  restore_impl.cc \

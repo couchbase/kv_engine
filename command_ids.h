@@ -41,9 +41,6 @@
 #define CMD_GET_LOCKED        0x94
 #define CMD_UNLOCK_KEY        0x95
 
-#define CMD_OBSERVE           0xb1
-#define CMD_UNOBSERVE         0xb2
-
 /**
  * Return the last closed checkpoint Id for a given VBucket.
  */

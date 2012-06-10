@@ -653,66 +653,6 @@ extern "C" {
         return rv;
     }
 
-    static ENGINE_ERROR_CODE observeCmd(EventuallyPersistentEngine *e,
-                                        protocol_binary_request_header *request,
-                                        const void *cookie,
-                                        ADD_RESPONSE response) {
-        protocol_binary_request_observe *req =
-            reinterpret_cast<protocol_binary_request_observe*>(request);
-        assert(req);
-
-        uint16_t keylen = ntohs(req->message.header.request.keylen);
-        uint8_t extlen = req->message.header.request.extlen;
-        uint16_t vbucket = ntohs(req->message.header.request.vbucket);
-        uint32_t bodylen = ntohl(req->message.header.request.bodylen);
-        uint64_t cas = ntohll(req->message.header.request.cas);
-        uint32_t exp = ntohl(req->message.body.expiration);
-
-        // Return invalid if no key or observe set is specified
-        if (keylen == 0 || (bodylen - keylen - extlen) == 0) {
-            sendResponse(response, NULL, 0, NULL, 0, "", 0, PROTOCOL_BINARY_RAW_BYTES,
-                         PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
-            return ENGINE_FAILED;
-        }
-
-        const char *keyp = reinterpret_cast<const char*>(req->bytes);
-        keyp += sizeof(request->bytes) + extlen;
-        std::string key(keyp, keylen);
-
-        const char *obs_set_pos = reinterpret_cast<const char*>(req->bytes);
-        obs_set_pos += sizeof(request->bytes) + extlen + keylen;
-        std::string obs_set(obs_set_pos, (bodylen - extlen - keylen));
-
-        return e->observe(cookie, key, cas, vbucket, obs_set, exp, response);
-    }
-
-    static ENGINE_ERROR_CODE unobserveCmd(EventuallyPersistentEngine *e,
-                                          protocol_binary_request_header *request,
-                                          const void *cookie,
-                                          ADD_RESPONSE response) {
-        uint16_t keylen = ntohs(request->request.keylen);
-        uint16_t vbucket = ntohs(request->request.vbucket);
-        uint32_t bodylen = ntohl(request->request.bodylen);
-        uint64_t cas = ntohll(request->request.cas);
-
-        // Return invalid if no key or observe set is specified
-        if (keylen == 0 || (bodylen - keylen) == 0) {
-            sendResponse(response, NULL, 0, NULL, 0, "", 0, PROTOCOL_BINARY_RAW_BYTES,
-                         PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
-            return ENGINE_FAILED;
-        }
-
-        const char *keyp = reinterpret_cast<const char*>(request->bytes);
-        keyp += sizeof(request->bytes);
-        std::string key(keyp, keylen);
-
-        const char *obs_set_pos = reinterpret_cast<const char*>(request->bytes);
-        obs_set_pos += sizeof(request->bytes) + keylen;
-        std::string obs_set(obs_set_pos, (bodylen - keylen));
-
-        return e->unobserve(cookie, key, cas, vbucket, obs_set, response);
-    }
-
     static ENGINE_ERROR_CODE getVBucket(EventuallyPersistentEngine *e,
                                         const void *cookie,
                                         protocol_binary_request_header *request,
@@ -903,16 +843,6 @@ extern "C" {
         case CMD_UNLOCK_KEY:
             res = unlockKey(h, request, &msg, &msg_size);
             break;
-        case CMD_OBSERVE:
-            {
-                rv = observeCmd(h, request, cookie, response);
-                return rv;
-            }
-        case CMD_UNOBSERVE:
-            {
-                rv = unobserveCmd(h, request, cookie, response);
-                return rv;
-            }
         case CMD_DEREGISTER_TAP_CLIENT:
             {
                 rv = h->deregisterTapClient(cookie, request, response);
@@ -1178,7 +1108,7 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server
     startedEngineThreads(false),
     getServerApiFunc(get_server_api), getlExtension(NULL),
     tapConnMap(NULL), tapConfig(NULL), checkpointConfig(NULL),
-    mutation_count(0), observeRegistry(&epstore, &stats), warmingUp(true),
+    mutation_count(0), warmingUp(true),
     flushAllEnabled(false), startupTime(0)
 {
     interface.interface = 1;
@@ -2643,19 +2573,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     add_casted_stat("ep_degraded_mode", isDegradedMode(), add_stat, cookie);
     add_casted_stat("ep_exp_pager_stime", epstore->getExpiryPagerSleeptime(),
                     add_stat, cookie);
-    add_casted_stat("ep_total_observe_sets", epstats.totalObserveSets,
-                    add_stat, cookie);
-    add_casted_stat("ep_stats_observe_polls", epstats.statsObservePolls,
-                    add_stat, cookie);
-    add_casted_stat("ep_observe_calls", epstats.observeCalls, add_stat,
-                    cookie);
-    add_casted_stat("ep_unobserve_calls", epstats.unobserveCalls, add_stat,
-                    cookie);
-    add_casted_stat("ep_observe_registry_size", epstats.obsRegSize, add_stat,
-                    cookie);
-    add_casted_stat("ep_observe_errors", epstats.obsErrors, add_stat, cookie);
-    add_casted_stat("ep_obs_reg_clean_job", epstats.obsCleanerRuns, add_stat,
-                    cookie);
 
     add_casted_stat("ep_mlog_compactor_runs", epstats.mlogCompactorRuns,
                     add_stat, cookie);
@@ -3310,21 +3227,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doDispatcherStats(const void *cook
     return ENGINE_SUCCESS;
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentEngine::doObserveStats(const void* cookie,
-                                                             ADD_STAT add_stat,
-                                                             const char* stat_key,
-                                                             int nkey) {
-    stats.statsObservePolls++;
-    std::string obs_set(stat_key, nkey);
-    state_map* smap = getObserveRegistry().getObserveSetState(obs_set);
-    std::map<std::string, std::string>::iterator itr;
-    for (itr = smap->begin(); itr != smap->end(); itr++) {
-        add_casted_stat(itr->first.c_str(), itr->second.c_str(), add_stat, cookie);
-    }
-    delete smap;
-    return ENGINE_SUCCESS;
-}
-
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doKlogStats(const void* cookie,
                                                           ADD_STAT add_stat) {
     const MutationLog *mutationLog(epstore->getMutationLog());
@@ -3354,8 +3256,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
     ENGINE_ERROR_CODE rv = ENGINE_KEY_ENOENT;
     if (stat_key == NULL) {
         rv = doEngineStats(cookie, add_stat);
-    } else if (nkey > 8 && strncmp(stat_key, "observe ", 8) == 0) {
-        rv = doObserveStats(cookie, add_stat, stat_key + 8, nkey - 8);
     } else if (nkey > 7 && strncmp(stat_key, "tapagg ", 7) == 0) {
         rv = doTapAggStats(cookie, add_stat, stat_key + 7, nkey - 7);
     } else if (nkey == 3 && strncmp(stat_key, "tap", 3) == 0) {
@@ -3541,42 +3441,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::touch(const void *cookie,
     }
 
     return rv;
-}
-
-ENGINE_ERROR_CODE EventuallyPersistentEngine::observe(const void *cookie,
-                                                      std::string key,
-                                                      uint64_t cas,
-                                                      uint16_t vbucket,
-                                                      std::string obs_set,
-                                                      uint32_t expiration,
-                                                      ADD_RESPONSE response) {
-    protocol_binary_response_status rv;
-
-    stats.observeCalls++;
-    getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "observe %s %llu %s %d",
-                     key.c_str(), cas, obs_set.c_str(), expiration);
-    rv = getObserveRegistry().observeKey(key, cas, vbucket, expiration, obs_set);
-    if (rv == PROTOCOL_BINARY_RESPONSE_ETMPFAIL) {
-        return sendResponse(response, NULL, 0, NULL, 0, NULL, 0, 0, memoryCondition(),
-                            0, cookie);
-    } else if (rv == PROTOCOL_BINARY_RESPONSE_EBUSY) {
-        return sendResponse(response, "Observe set full", 16, NULL, 0, NULL, 0, 0,
-                            rv, 0, cookie);
-    }
-    return sendResponse(response, NULL, 0, NULL, 0, NULL, 0, 0, rv, 0, cookie);
-}
-
-ENGINE_ERROR_CODE EventuallyPersistentEngine::unobserve(const void *cookie,
-                                                        std::string key,
-                                                        uint64_t cas,
-                                                        uint16_t vbucket,
-                                                        std::string obs_set,
-                                                        ADD_RESPONSE response) {
-    stats.unobserveCalls++;
-    getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "unobserve %s %llu %s",
-                     key.c_str(), cas, obs_set.c_str());
-    getObserveRegistry().unobserveKey(key, cas, vbucket, obs_set);
-    return sendResponse(response, NULL, 0, NULL, 0, NULL, 0, 0, 0, 0, cookie);
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::handleRestoreCmd(const void *cookie,
