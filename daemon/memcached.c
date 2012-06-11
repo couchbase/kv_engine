@@ -2150,6 +2150,9 @@ static void process_bin_stat(conn *c) {
             settings.engine.v1->reset_stats(settings.engine.v0, c);
         } else if (strncmp(subcommand, "settings", 8) == 0) {
             process_stat_settings(&append_stats, c);
+        } else if (strncmp(subcommand, "cachedump", 9) == 0) {
+            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0);
+            return;
         } else if (strncmp(subcommand, "detail", 6) == 0) {
             char *subcmd_pos = subcommand + 6;
             if (settings.allow_detailed) {
