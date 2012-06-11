@@ -125,33 +125,33 @@ void ObjectRegistry::setStats(Atomic<size_t>* init_track) {
 }
 
 bool ObjectRegistry::memoryAllocated(size_t mem) {
-   EventuallyPersistentEngine *engine = th->get();
+    EventuallyPersistentEngine *engine = th->get();
     if (initial_track->get()) {
         initial_track->get()->incr(mem);
     }
-   if (!engine) {
+    if (!engine) {
         return false;
-   }
-   EPStats &stats = engine->getEpStats();
-   stats.totalMemory.incr(mem);
-   if (stats.totalMemory.get() >= GIGANTOR) {
+    }
+    EPStats &stats = engine->getEpStats();
+    stats.totalMemory.incr(mem);
+    if (stats.totalMemory.get() >= GIGANTOR) {
         abort();
-   }
-   return true;
+    }
+    return true;
 }
 
 bool ObjectRegistry::memoryDeallocated(size_t mem) {
-   EventuallyPersistentEngine *engine = th->get();
+    EventuallyPersistentEngine *engine = th->get();
     if (initial_track->get()) {
         initial_track->get()->decr(mem);
     }
-   if (!engine) {
+    if (!engine) {
         return false;
-   }
-   EPStats &stats = engine->getEpStats();
-   stats.totalMemory.decr(mem);
-   if (stats.totalMemory.get() >= GIGANTOR) {
-       abort();
-   }
-   return true;
+    }
+    EPStats &stats = engine->getEpStats();
+    stats.totalMemory.decr(mem);
+    if (stats.totalMemory.get() >= GIGANTOR) {
+        abort();
+    }
+    return true;
 }
