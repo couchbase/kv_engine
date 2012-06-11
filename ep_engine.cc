@@ -2292,6 +2292,7 @@ bool VBucketCountVisitor::visitBucket(RCPtr<VBucket> &vb) {
         htItemMemory += vb->ht.getItemMemory();
         htCacheSize += vb->ht.cacheSize;
         numEjects += vb->ht.getNumEjects();
+        metaDataMemory += vb->ht.metaDataMemory;
         opsCreate += vb->opsCreate;
         opsUpdate += vb->opsUpdate;
         opsDelete += vb->opsDelete;
@@ -2423,6 +2424,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     add_casted_stat("vb_active_perc_mem_resident", activeCountVisitor.getMemResidentPer(),
                     add_stat, cookie);
     add_casted_stat("vb_active_eject", activeCountVisitor.getEjects(), add_stat, cookie);
+    add_casted_stat("vb_active_meta_data_memory", activeCountVisitor.getMetaDataMemory(),
+                    add_stat, cookie);
     add_casted_stat("vb_active_ht_memory", activeCountVisitor.getHashtableMemory(),
                    add_stat, cookie);
     add_casted_stat("vb_active_itm_memory", activeCountVisitor.getItemMemory(),
@@ -2448,6 +2451,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     add_casted_stat("vb_replica_perc_mem_resident", replicaCountVisitor.getMemResidentPer(),
                    add_stat, cookie);
     add_casted_stat("vb_replica_eject", replicaCountVisitor.getEjects(), add_stat, cookie);
+    add_casted_stat("vb_replica_meta_data_memory", replicaCountVisitor.getMetaDataMemory(),
+                    add_stat, cookie);
     add_casted_stat("vb_replica_ht_memory", replicaCountVisitor.getHashtableMemory(),
                    add_stat, cookie);
     add_casted_stat("vb_replica_itm_memory", replicaCountVisitor.getItemMemory(), add_stat, cookie);
@@ -2471,6 +2476,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     add_casted_stat("vb_pending_perc_mem_resident", pendingCountVisitor.getMemResidentPer(),
                    add_stat, cookie);
     add_casted_stat("vb_pending_eject", pendingCountVisitor.getEjects(), add_stat, cookie);
+    add_casted_stat("vb_pending_meta_data_memory", pendingCountVisitor.getMetaDataMemory(),
+                    add_stat, cookie);
     add_casted_stat("vb_pending_ht_memory", pendingCountVisitor.getHashtableMemory(),
                    add_stat, cookie);
     add_casted_stat("vb_pending_itm_memory", pendingCountVisitor.getItemMemory(), add_stat, cookie);

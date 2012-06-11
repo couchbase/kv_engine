@@ -528,6 +528,10 @@ public:
         return sizeOf(_isSmall) + getKeyLen() + vallen + valign + kalign;
     }
 
+    size_t metaDataSize() {
+        return sizeOf(_isSmall) + getKeyLen();
+    }
+
     /**
      * Return true if this item is locked as of the given timestamp.
      *
@@ -685,6 +689,7 @@ private:
             markClean(NULL);
         }
 
+        increaseMetaDataSize(ht, metaDataSize());
         increaseCacheSize(ht, size());
         increaseCurrentSize(stats, size() - value->length());
     }
@@ -714,6 +719,8 @@ private:
 
     union stored_value_bodies extra;
 
+    static void increaseMetaDataSize(HashTable &ht, size_t by);
+    static void reduceMetaDataSize(HashTable &ht, size_t by);
     static void increaseCacheSize(HashTable &ht, size_t by);
     static void reduceCacheSize(HashTable &ht, size_t by);
     static void increaseCurrentSize(EPStats&, size_t by);
@@ -1447,9 +1454,10 @@ public:
             }
             values[bucket_num] = v->next;
             size_t currSize = v->size();
-            v->reduceCacheSize(*this, currSize);
-            v->reduceCurrentSize(stats,
-                                 v->isDeleted() ? currSize : currSize - v->getValue()->length());
+            StoredValue::reduceCacheSize(*this, currSize);
+            StoredValue::reduceCurrentSize(stats, v->isDeleted() ? currSize
+                                           : currSize - v->getValue()->length());
+            StoredValue::reduceMetaDataSize(*this, v->metaDataSize());
             delete v;
             --numItems;
             return true;
@@ -1463,9 +1471,10 @@ public:
                 }
                 v->next = v->next->next;
                 size_t currSize = tmp->size();
-                tmp->reduceCacheSize(*this, currSize);
-                tmp->reduceCurrentSize(stats,
-                               tmp->isDeleted() ? currSize : currSize - tmp->getValue()->length());
+                StoredValue::reduceCacheSize(*this, currSize);
+                StoredValue::reduceCurrentSize(stats, tmp->isDeleted() ? currSize
+                                               : currSize - tmp->getValue()->length());
+                StoredValue::reduceMetaDataSize(*this, tmp->metaDataSize());
                 delete tmp;
                 --numItems;
                 return true;
@@ -1576,6 +1585,8 @@ public:
     Atomic<size_t>       memSize;
     //! Cache size.
     Atomic<size_t>       cacheSize;
+    //! Meta-data size.
+    Atomic<size_t>       metaDataMemory;
 
 private:
     inline bool isActive() const { return activeState; }

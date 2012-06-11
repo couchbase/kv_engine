@@ -528,6 +528,16 @@ void StoredValue::reduceCurrentSize(EPStats &st, size_t by) {
     } while (!st.currentSize.cas(val, val - by));;
 }
 
+void StoredValue::increaseMetaDataSize(HashTable &ht, size_t by) {
+    ht.metaDataMemory.incr(by);
+    assert(ht.metaDataMemory.get() < GIGANTOR);
+}
+
+void StoredValue::reduceMetaDataSize(HashTable &ht, size_t by) {
+    ht.metaDataMemory.decr(by);
+    assert(ht.metaDataMemory.get() < GIGANTOR);
+}
+
 /**
  * Is there enough space for this thing?
  */
