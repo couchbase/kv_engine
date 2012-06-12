@@ -49,7 +49,7 @@ const void *TapConnection::getCookie() const {
 void TapConnection::releaseReference(bool force)
 {
     if (force || reserved) {
-        engine.getServerApi()->cookie->release(cookie);
+        engine.releaseCookie(cookie);
         setReserved(false);
     }
 }

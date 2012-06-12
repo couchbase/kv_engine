@@ -92,22 +92,34 @@ int PreparedStatement::execute() {
 
 bool PreparedStatement::fetch() {
     bool rv = true;
+    int steps_run = 0;
     assert(st);
-    int rc = sqlite3_step(st);
-    switch(rc) {
-    case SQLITE_ROW:
-        break;
-    case SQLITE_DONE:
-        rv = false;
-        break;
-    default:
-        std::stringstream ss;
-        ss << "Unhandled case in sqlite-pst:  " << rc;
-        const char *msg = sqlite3_errmsg(db);
-        if (msg) {
-            ss << " (" << msg << ")";
+    while (true) {
+        int rc = sqlite3_step(st);
+        if (rc == SQLITE_ROW) {
+            break;
+        } else if (rc == SQLITE_DONE) {
+            rv = false;
+            break;
+        } else if (rc == SQLITE_SCHEMA) {
+            if (++steps_run > MAX_STEPS) {
+                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                 "Too many db steps!!! Terminate fetch() by force...\n");
+                rv = false;
+                break;
+            }
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                             "There were schema changes in sqlite while fetching a record!!! "
+                             "Fetching it again...\n");
+        } else {
+            std::stringstream ss;
+            ss << "Unhandled case in sqlite-pst:  " << rc;
+            const char *msg = sqlite3_errmsg(db);
+            if (msg) {
+                ss << " (" << msg << ")";
+            }
+            throw std::runtime_error(ss.str());
         }
-        throw std::runtime_error(ss.str());
     }
     return rv;
 }

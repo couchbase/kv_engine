@@ -102,6 +102,7 @@ For introductory information on stats within membase, start with the
 |                                | happened while processing operations       |
 | ep_tmp_oom_errors              | Number of times temporary OOMs             |
 |                                | happened while processing operations       |
+| ep_mem_tracker_enabled         | True if memory usage tracker is enabled    |
 | ep_bg_fetched                  | Number of items fetched from disk.         |
 | ep_tap_bg_fetched              | Number of tap disk fetches                 |
 | ep_tap_bg_fetch_requeued       | Number of times a tap bg fetch task is     |
@@ -515,7 +516,7 @@ Therefore, please do not poll them from the server frequently.
 Each stat is prefixed with =vb_= followed by a number, a colon, and then
 each stat name.
 
-| cursor_checkpoint_id:cursor_name | Checkpoint ID at which the cursor having  |
+| cursor_name:cursor_checkpoint_id | Checkpoint ID at which the cursor is      |
 |                                  | name 'cursor_name' is pointing now        |
 | open_checkpoint_id               | ID of the current open checkpoint         |
 | num_tap_cursors                  | Number of referencing TAP cursors         |

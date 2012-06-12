@@ -5,6 +5,9 @@ use warnings;
 use strict;
 
 my $version = `git describe`;
+if ($ENV{'PRODUCT_VERSION'}) {
+   $version = $ENV{'PRODUCT_VERSION'}
+}
 chomp $version;
 # Test the various versions.
 #my $version = 'foob';

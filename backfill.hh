@@ -10,7 +10,7 @@
 #include "dispatcher.hh"
 #include "ep_engine.h"
 
-#define BACKFILL_MEM_THRESHOLD 0.9
+#define BACKFILL_MEM_THRESHOLD 0.95
 
 /**
  * Dispatcher callback responsible for bulk backfilling tap queues
