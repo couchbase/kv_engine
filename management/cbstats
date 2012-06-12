@@ -4,6 +4,7 @@ import clitool
 import sys
 import math
 import itertools
+import mc_bin_client
 import re
 
 MAGIC_CONVERT_RE=re.compile("(\d+)")
@@ -18,13 +19,16 @@ def cmd(f):
     def g(*args, **kwargs):
         mc = args[0]
         n = f.func_code.co_argcount
-        if len(args) > n:
-            username = args[n]
-            if len(args) > n + 1:
-                password = args[n+1]
-            else:
-                password = ''
-            mc.sasl_auth_plain(username, password)
+
+        bucket = kwargs.get('bucketName', None)
+        password = kwargs.get('password', None) or ""
+
+        if bucket:
+            try:
+                mc.sasl_auth_plain(bucket, password)
+            except mc_bin_client.MemcachedError:
+                print "Authentication error for %s" % bucket
+                sys.exit(1)
 
         if kwargs.get('allBuckets', None):
             buckets = mc.stats('bucket')
@@ -35,6 +39,7 @@ def cmd(f):
                 mc.bucket_select(bucket)
                 f(*args[:n])
         else:
+            print args[:n]
             f(*args[:n])
 
     return g
@@ -301,24 +306,26 @@ def reset(mc):
 def main():
     c = clitool.CliTool()
 
-    c.addCommand('vkey', stats_vkey, 'vkey keyname vbid [username password]')
-    c.addCommand('all', stats_all, 'all [username password]')
-    c.addCommand('allocator', stats_allocator, 'allocator [username password]')
-    c.addCommand('checkpoint', stats_checkpoint, 'checkpoint [vbid] [username password]')
-    c.addCommand('dispatcher', stats_dispatcher, 'dispatcher [logs] [username password]')
-    c.addCommand('hash', stats_hash, 'hash [detail] [username password]')
-    c.addCommand('checkpoint', stats_checkpoint, 'checkpoint [username password]')
+    c.addCommand('vkey', stats_vkey, 'vkey keyname vbid')
+    c.addCommand('all', stats_all, 'all')
+    c.addCommand('allocator', stats_allocator, 'allocator')
+    c.addCommand('checkpoint', stats_checkpoint, 'checkpoint [vbid]')
+    c.addCommand('dispatcher', stats_dispatcher, 'dispatcher [logs]')
+    c.addCommand('hash', stats_hash, 'hash [detail]')
+    c.addCommand('checkpoint', stats_checkpoint, 'checkpoint [vbid]')
     c.addCommand('tap', stats_tap, 'tap [username password]')
-    c.addCommand('tapagg', stats_tapagg, 'tapagg [username password]')
-    c.addCommand('timings', stats_timings, 'timings [username password]')
-    c.addCommand('raw', stats_raw, 'raw argument [username password]')
-    c.addCommand('reset', reset, 'reset [username password]')
-    c.addCommand('dispatcher', stats_dispatcher, 'dispatcher [logs] [username password]')
-    c.addCommand('slabs', stats_slabs, 'slabs [username password]')
-    c.addCommand('items', stats_items, 'items [username password]')
-    c.addCommand('kvstore', stats_kvstore, 'kvstore [username password]')
-    c.addCommand('kvtimings', stats_kvtimings, 'kvtimings [username password]')
+    c.addCommand('tapagg', stats_tapagg, 'tapagg')
+    c.addCommand('timings', stats_timings, 'timings')
+    c.addCommand('raw', stats_raw, 'raw argument')
+    c.addCommand('reset', reset, 'reset')
+    c.addCommand('dispatcher', stats_dispatcher, 'dispatcher [logs]')
+    c.addCommand('slabs', stats_slabs, 'slabs')
+    c.addCommand('items', stats_items, 'items')
+    c.addCommand('kvstore', stats_kvstore, 'kvstore')
+    c.addCommand('kvtimings', stats_kvtimings, 'kvtimings')
     c.addFlag('-a', 'allBuckets', 'iterate over all buckets (requires admin u/p)')
+    c.addOption('-b', 'bucketName', 'the bucket to get stats from (Default: default)')
+    c.addOption('-p', 'password', 'the password for the bucket if one exists')
 
     c.execute()
 
