@@ -3226,6 +3226,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doDispatcherStats(const void *cook
         doDispatcherStat("ro_dispatcher", rods, cookie, add_stat);
     }
 
+    if (epstore->hasSeparateTapDispatcher()) {
+        DispatcherState tapds(epstore->getTapDispatcher()->getDispatcherState());
+        doDispatcherStat("tap_dispatcher", tapds, cookie, add_stat);
+    }
+
     DispatcherState nds(epstore->getNonIODispatcher()->getDispatcherState());
     doDispatcherStat("nio_dispatcher", nds, cookie, add_stat);
 

@@ -1033,7 +1033,7 @@ public:
         EventuallyPersistentStore *epstore = epe->getEpStore();
         assert(epstore);
 
-        epstore->getROUnderlying()->get(key, rowid, vbucket, vbver, gcb);
+        epstore->getTapUnderlying()->get(key, rowid, vbucket, vbver, gcb);
         gcb.waitForValue();
         assert(gcb.fired);
 
@@ -1125,7 +1125,7 @@ void TapProducer::queueBGFetch_UNLOCKED(const std::string &key, uint64_t id,
                                                               getName(), key,
                                                               vb, vbv,
                                                               id, c));
-    engine.getEpStore()->getRODispatcher()->schedule(dcb, NULL, Priority::TapBgFetcherPriority);
+    engine.getEpStore()->getTapDispatcher()->schedule(dcb, NULL, Priority::TapBgFetcherPriority);
     ++bgQueued;
     ++bgJobIssued;
     std::map<uint16_t, TapCheckpointState>::iterator it = tapCheckpointState.find(vb);

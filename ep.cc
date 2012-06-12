@@ -439,6 +439,15 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
         roUnderlying = rwUnderlying;
         roDispatcher = dispatcher;
     }
+    if (storageProperties.maxConcurrency() > 2
+        && storageProperties.maxReaders() > 2
+        && concurrentDB) {
+        tapUnderlying = engine.newKVStore();
+        tapDispatcher = new Dispatcher(theEngine, "TAP_Dispatcher");
+    } else {
+        tapUnderlying = roUnderlying;
+        tapDispatcher = roDispatcher;
+    }
     nonIODispatcher = new Dispatcher(theEngine, "NONIO_Dispatcher");
     flusher = new Flusher(this, dispatcher);
 
@@ -543,6 +552,7 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
     startNonIODispatcher();
     assert(rwUnderlying);
     assert(roUnderlying);
+    assert(tapUnderlying);
 
     // @todo - Ideally we should run the warmup thread in it's own
     //         thread so that it won't block the flusher (in the write
@@ -650,6 +660,11 @@ EventuallyPersistentStore::~EventuallyPersistentStore() {
         delete roDispatcher;
         delete roUnderlying;
     }
+    if (hasSeparateTapDispatcher()) {
+        tapDispatcher->stop(forceShutdown);
+        delete tapDispatcher;
+        delete tapUnderlying;
+    }
     nonIODispatcher->stop(forceShutdown);
 
     delete flusher;
@@ -663,6 +678,9 @@ void EventuallyPersistentStore::startDispatcher() {
     dispatcher->start();
     if (hasSeparateRODispatcher()) {
         roDispatcher->start();
+    }
+    if (hasSeparateTapDispatcher()) {
+        tapDispatcher->start();
     }
 }
 

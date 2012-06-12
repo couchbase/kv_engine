@@ -133,8 +133,8 @@ void BackFillVisitor::apply(void) {
     if (efficientVBDump) {
         std::vector<uint16_t>::iterator it = vbuckets.begin();
         for (; it != vbuckets.end(); it++) {
-            Dispatcher *d(engine->epstore->getRODispatcher());
-            KVStore *underlying(engine->epstore->getROUnderlying());
+            Dispatcher *d(engine->epstore->getTapDispatcher());
+            KVStore *underlying(engine->epstore->getTapUnderlying());
             assert(d);
             getLogger()->log(EXTENSION_LOG_INFO, NULL,
                              "Schedule a full backfill from disk for vbucket %d.\n",

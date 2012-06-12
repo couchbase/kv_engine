@@ -625,6 +625,21 @@ public:
     }
 
     /**
+     * Get the current tap-replication IO dispatcher.
+     */
+    Dispatcher* getTapDispatcher(void) {
+        assert(tapDispatcher);
+        return tapDispatcher;
+    }
+
+    /**
+     * True if the RO dispatcher and tap-replication dispatcher are distinct.
+     */
+    bool hasSeparateTapDispatcher() {
+        return roDispatcher != tapDispatcher;
+    }
+
+    /**
      * Get the current non-io dispatcher.
      *
      * Use this dispatcher to queue non-io jobs.
@@ -789,6 +804,11 @@ public:
     KVStore* getROUnderlying() {
         // This method might also be called leakAbstraction()
         return roUnderlying;
+    }
+
+    KVStore* getTapUnderlying() {
+        // This method might also be called leakAbstraction()
+        return tapUnderlying;
     }
 
     const shared_ptr<InvalidItemDbPager> &getInvalidItemDbPager() {
@@ -983,9 +1003,11 @@ private:
     bool                            doPersistence;
     KVStore                        *rwUnderlying;
     KVStore                        *roUnderlying;
+    KVStore                        *tapUnderlying;
     StorageProperties               storageProperties;
     Dispatcher                     *dispatcher;
     Dispatcher                     *roDispatcher;
+    Dispatcher                     *tapDispatcher;
     Dispatcher                     *nonIODispatcher;
     Flusher                        *flusher;
     Warmup                         *warmupTask;
