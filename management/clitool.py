@@ -9,6 +9,7 @@ class CliTool(object):
 
     def __init__(self, extraUsage=""):
         self.cmds = {}
+        self.flags = {}
         self.extraUsage = extraUsage.strip()
         self.parser = optparse.OptionParser()
 
@@ -18,7 +19,13 @@ class CliTool(object):
         self.cmds[name] = (f, help)
 
     def addFlag(self, flag, key, description):
+        self.flags[flag] = description
         self.parser.add_option(flag, dest=key, action='store_true',
+                               help=description)
+
+    def addOption(self, flag, key, description):
+        self.flags[flag] = description
+        self.parser.add_option(flag, dest=key, action='store',
                                help=description)
 
     def execute(self):
@@ -58,6 +65,9 @@ class CliTool(object):
         print >>sys.stderr, "Usage: %s host:port %s" % (program, cmds[0])
         for c in cmds[1:]:
             print >>sys.stderr, "  or   %s host:port %s" % (program, c)
+        print >>sys.stderr, "Flags:"
+        for f, d in self.flags.items():
+            print >>sys.stderr, "  %s : %s" % (f, d)
         if self.extraUsage:
             print >>sys.stderr, "\n" + self.extraUsage
         sys.exit(1)
