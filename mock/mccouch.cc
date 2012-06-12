@@ -357,7 +357,7 @@ void McConnection::handleRequest(protocol_binary_request_header *req)
     }
 
     switch (req->request.opcode) {
-    case 0xaa: /* CMD_NOTIFY_VBUCKET_UPDATE */
+    case 0xac: /* CMD_NOTIFY_VBUCKET_UPDATE */
         if (mockFailure(mockEtmpfail)) {
             response(req, PROTOCOL_BINARY_RESPONSE_ETMPFAIL);
         } else {

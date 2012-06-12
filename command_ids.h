@@ -154,6 +154,8 @@
  */
 #define CMD_EXTEND_CHECKPOINT 0xab
 
+#define CMD_NOTIFY_VBUCKET_UPDATE 0xac
+
 /*
  * Parameter types of CMD_SET_PARAM command.
  */
@@ -269,8 +271,6 @@ typedef protocol_binary_response_no_extras protocol_binary_response_set_with_met
 
 typedef protocol_binary_request_touch protocol_binary_request_observe;
 typedef protocol_binary_request_header protocol_binary_request_unobserve;
-
-#define CMD_NOTIFY_VBUCKET_UPDATE 0xaa
 
 typedef union {
     struct {
