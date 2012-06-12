@@ -616,6 +616,7 @@ EventuallyPersistentStore::~EventuallyPersistentStore() {
     dispatcher->stop(forceShutdown);
     if (hasSeparateRODispatcher()) {
         roDispatcher->stop(forceShutdown);
+        delete roDispatcher;
         delete roUnderlying;
     }
     nonIODispatcher->stop(forceShutdown);
