@@ -36,6 +36,10 @@ private:
     CheckpointConfig &config;
 };
 
+#define STATWRITER_NAMESPACE checkpoint
+#include "statwriter.hh"
+#undef STATWRITER_NAMESPACE
+
 Checkpoint::~Checkpoint() {
     getLogger()->log(EXTENSION_LOG_INFO, NULL,
                      "Checkpoint %llu for vbucket %d is purged from memory.\n",
@@ -1215,4 +1219,33 @@ void CheckpointConfig::setMaxCheckpoints(size_t value) {
         value = DEFAULT_MAX_CHECKPOINTS;
     }
     maxCheckpoints = value;
+}
+
+void CheckpointManager::addStats(ADD_STAT add_stat, const void *cookie) {
+    LockHolder lh(queueLock);
+    char buf[256];
+
+    snprintf(buf, sizeof(buf), "vb_%d:open_checkpoint_id", vbucketId);
+    add_casted_stat(buf, getOpenCheckpointId_UNLOCKED(), add_stat, cookie);
+    snprintf(buf, sizeof(buf), "vb_%d:last_closed_checkpoint_id", vbucketId);
+    add_casted_stat(buf, getLastClosedCheckpointId_UNLOCKED(), add_stat, cookie);
+    snprintf(buf, sizeof(buf), "vb_%d:num_tap_cursors", vbucketId);
+    add_casted_stat(buf, tapCursors.size(), add_stat, cookie);
+    snprintf(buf, sizeof(buf), "vb_%d:num_checkpoint_items", vbucketId);
+    add_casted_stat(buf, numItems, add_stat, cookie);
+    snprintf(buf, sizeof(buf), "vb_%d:num_checkpoints", vbucketId);
+    add_casted_stat(buf, checkpointList.size(), add_stat, cookie);
+    snprintf(buf, sizeof(buf), "vb_%d:num_items_for_persistence", vbucketId);
+    add_casted_stat(buf, getNumItemsForPersistence_UNLOCKED(), add_stat, cookie);
+    snprintf(buf, sizeof(buf), "vb_%d:checkpoint_extension", vbucketId);
+    add_casted_stat(buf, isCheckpointExtension() ? "true" : "false",
+                    add_stat, cookie);
+
+    std::map<const std::string, CheckpointCursor>::iterator tap_it = tapCursors.begin();
+    for (; tap_it != tapCursors.end(); ++tap_it) {
+        snprintf(buf, sizeof(buf),
+                 "vb_%d:%s:cursor_checkpoint_id", vbucketId, tap_it->first.c_str());
+        add_casted_stat(buf, (*(tap_it->second.currentCheckpoint))->getId(),
+                        add_stat, cookie);
+    }
 }

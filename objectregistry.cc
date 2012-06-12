@@ -18,6 +18,7 @@
 #include "ep_engine.h"
 
 static ThreadLocal<EventuallyPersistentEngine*> *th;
+static ThreadLocal<Atomic<size_t>*> *initial_track;
 
 /**
  * Object registry link hook for getting the registry thread local
@@ -28,6 +29,7 @@ public:
    installer() {
       if (th == NULL) {
          th = new ThreadLocal<EventuallyPersistentEngine*>();
+         initial_track = new ThreadLocal<Atomic<size_t>*>();
       }
    }
 } install;
@@ -118,22 +120,44 @@ EventuallyPersistentEngine *ObjectRegistry::onSwitchThread(EventuallyPersistentE
     return old_engine;
 }
 
+void ObjectRegistry::setStats(Atomic<size_t>* init_track) {
+    initial_track->set(init_track);
+}
+
 bool ObjectRegistry::memoryAllocated(size_t mem) {
-   EventuallyPersistentEngine *engine = th->get();
-   if (!engine) {
+    EventuallyPersistentEngine *engine = th->get();
+    if (initial_track->get()) {
+        initial_track->get()->incr(mem);
+    }
+    if (!engine) {
         return false;
-   }
-   EPStats &stats = engine->getEpStats();
-   stats.totalMemory.incr(mem);
-   return true;
+    }
+    EPStats &stats = engine->getEpStats();
+    stats.totalMemory.incr(mem);
+    if (stats.memoryTrackerEnabled && stats.totalMemory.get() >= GIGANTOR) {
+        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                         "Total memory in memoryAllocated() >= GIGANTOR !!! "
+                         "Disable the memory tracker...\n");
+        stats.memoryTrackerEnabled.set(false);
+    }
+    return true;
 }
 
 bool ObjectRegistry::memoryDeallocated(size_t mem) {
-   EventuallyPersistentEngine *engine = th->get();
-   if (!engine) {
+    EventuallyPersistentEngine *engine = th->get();
+    if (initial_track->get()) {
+        initial_track->get()->decr(mem);
+    }
+    if (!engine) {
         return false;
-   }
-   EPStats &stats = engine->getEpStats();
-   stats.totalMemory.decr(mem);
-   return true;
+    }
+    EPStats &stats = engine->getEpStats();
+    stats.totalMemory.decr(mem);
+    if (stats.memoryTrackerEnabled && stats.totalMemory.get() >= GIGANTOR) {
+        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                         "Total memory in memoryDeallocated() >= GIGANTOR !!! "
+                         "Disable the memory tracker...\n");
+        stats.memoryTrackerEnabled.set(false);
+    }
+    return true;
 }

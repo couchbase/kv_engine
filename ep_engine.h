@@ -23,6 +23,7 @@
 
 #include "tapconnmap.hh"
 #include "tapconnection.hh"
+#include "tapthrottle.hh"
 #include "restore.hh"
 #include "configuration.hh"
 
@@ -54,7 +55,6 @@ typedef void (*NOTIFY_IO_COMPLETE_T)(const void *cookie,
 // Forward decl
 class EventuallyPersistentEngine;
 class TapConnMap;
-class TapThrottle;
 
 /**
  * Base storage callback for things that look up data.
@@ -403,15 +403,28 @@ public:
                              "Tried to signal a NULL cookie!");
         } else {
             BlockTimer bt(&stats.notifyIOHisto);
+            EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
             serverApi->cookie->notify_io_complete(cookie, status);
+            ObjectRegistry::onSwitchThread(epe);
         }
     }
 
+    ENGINE_ERROR_CODE reserveCookie(const void *cookie);
+    ENGINE_ERROR_CODE releaseCookie(const void *cookie);
+
+    void storeEngineSpecific(const void *cookie, void *engine_data);
+    void *getEngineSpecific(const void *cookie);
+
+    void registerEngineCallback(ENGINE_EVENT_TYPE type,
+                                EVENT_CALLBACK cb, const void *cb_data);
+
     template <typename T>
     void notifyIOComplete(T cookies, ENGINE_ERROR_CODE status) {
+        EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
         std::for_each(cookies.begin(), cookies.end(),
                       std::bind2nd(std::ptr_fun((NOTIFY_IO_COMPLETE_T)serverApi->cookie->notify_io_complete),
                                    status));
+        ObjectRegistry::onSwitchThread(epe);
     }
 
     void handleDisconnect(const void *cookie) {
@@ -514,6 +527,7 @@ public:
         delete checkpointConfig;
         delete epstore;
         delete kvstore;
+        delete tapThrottle;
         delete getlExtension;
     }
 

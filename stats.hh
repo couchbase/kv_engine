@@ -44,7 +44,7 @@ public:
     }
 
     size_t getTotalMemoryUsed() {
-        if (MemoryTracker::trackingMemoryAllocations()) {
+        if (memoryTrackerEnabled.get()) {
             return totalMemory.get();
         }
         return currentSize.get() + memOverhead.get();
@@ -161,6 +161,8 @@ public:
     Atomic<size_t> memOverhead;
     //! The total amount of memory used by this bucket (From memory tracking)
     Atomic<size_t> totalMemory;
+    //! True if the memory usage tracker is enabled.
+    Atomic<bool> memoryTrackerEnabled;
 
     //! Pager low water mark.
     Atomic<size_t> mem_low_wat;

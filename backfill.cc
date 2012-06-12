@@ -43,7 +43,16 @@ void BackfillDiskCallback::callback(GetValue &gv) {
     }
 }
 
-bool BackfillDiskLoad::callback(Dispatcher &, TaskId) {
+bool BackfillDiskLoad::callback(Dispatcher &d, TaskId t) {
+    if (isMemoryUsageTooHigh(engine->getEpStats())) {
+        getLogger()->log(EXTENSION_LOG_INFO, NULL,
+                         "VBucket %d backfill task from disk is temporarily suspended "
+                         "because the current memory usage is too high.\n",
+                         vbucket);
+        d.snooze(t, 1);
+        return true;
+    }
+
     if (connMap.checkConnectivity(name) && !engine->getEpStore()->isFlushAllScheduled()) {
         shared_ptr<Callback<GetValue> > backfill_cb(new BackfillDiskCallback(validityToken,
                                                                              name, connMap,
@@ -174,12 +183,12 @@ bool BackFillVisitor::pauseVisitor() {
     }
 
     ssize_t maxBackfillSize = engine->getTapConfig().getBackfillBacklogLimit();
-    pause = theSize > maxBackfillSize || isMemoryUsageTooHigh(engine->getEpStats());
+    pause = theSize > maxBackfillSize;
 
     if (pause) {
         getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                         "Tap queue depth is too big for %s or memory usage too high, "
-                         "Pausing temporarily...\n",
+                         "Tap queue depth is too big for %s!!! ",
+                         "Pausing backfill temporarily...\n",
                          name.c_str());
     }
     return pause;
