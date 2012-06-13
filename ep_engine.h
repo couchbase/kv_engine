@@ -785,8 +785,6 @@ private:
     CheckpointConfig *checkpointConfig;
     Mutex tapMutex;
     size_t maxItemSize;
-    size_t memLowWat;
-    size_t memHighWat;
     Atomic<uint64_t> mutation_count;
     size_t getlDefaultTimeout;
     size_t getlMaxTimeout;

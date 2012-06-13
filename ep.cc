@@ -46,6 +46,16 @@ public:
     virtual void sizeValueChanged(const std::string &key, size_t value) {
         if (key.compare("min_data_age") == 0) {
             stats.min_data_age.set(value);
+        } else if (key.compare("max_size") == 0) {
+            stats.setMaxDataSize(value);
+            size_t low_wat = static_cast<size_t>(static_cast<double>(value) * 0.6);
+            size_t high_wat = static_cast<size_t>(static_cast<double>(value) * 0.75);
+            stats.mem_low_wat.set(low_wat);
+            stats.mem_high_wat.set(high_wat);
+        } else if (key.compare("mem_low_wat") == 0) {
+            stats.mem_low_wat.set(value);
+        } else if (key.compare("mem_high_wat") == 0) {
+            stats.mem_high_wat.set(value);
         } else if (key.compare("queue_age_cap") == 0) {
             stats.queue_age_cap.set(value);
         } else if (key.compare("tap_throttle_threshold") == 0) {
@@ -424,6 +434,18 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
 
     stats.min_data_age.set(config.getMinDataAge());
     config.addValueChangedListener("min_data_age",
+                                   new StatsValueChangeListener(stats));
+
+    stats.setMaxDataSize(config.getMaxSize());
+    config.addValueChangedListener("max_size",
+                                   new StatsValueChangeListener(stats));
+
+    stats.mem_low_wat.set(config.getMemLowWat());
+    config.addValueChangedListener("mem_low_wat",
+                                   new StatsValueChangeListener(stats));
+
+    stats.mem_high_wat.set(config.getMemHighWat());
+    config.addValueChangedListener("mem_high_wat",
                                    new StatsValueChangeListener(stats));
 
     stats.queue_age_cap.set(config.getQueueAgeCap());

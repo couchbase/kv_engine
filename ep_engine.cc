@@ -352,11 +352,9 @@ extern "C" {
                 uint64_t vsize = strtoull(valz, &ptr, 10);
                 validate(vsize, static_cast<uint64_t>(0),
                          std::numeric_limits<uint64_t>::max());
-                EPStats &stats = e->getEpStats();
-                stats.setMaxDataSize(vsize);
-
-                stats.mem_low_wat = percentOf(stats.getMaxDataSize(), 0.6);
-                stats.mem_high_wat = percentOf(stats.getMaxDataSize(), 0.75);
+                e->getConfiguration().setMaxSize(vsize);
+                e->getConfiguration().setMemLowWat(percentOf(vsize, 0.6));
+                e->getConfiguration().setMemHighWat(percentOf(vsize, 0.75));
             } else if (strcmp(keyz, "mem_low_wat") == 0) {
                 // Want more bits than int.
                 char *ptr = NULL;
@@ -364,8 +362,7 @@ extern "C" {
                 uint64_t vsize = strtoull(valz, &ptr, 10);
                 validate(vsize, static_cast<uint64_t>(0),
                          std::numeric_limits<uint64_t>::max());
-                EPStats &stats = e->getEpStats();
-                stats.mem_low_wat = vsize;
+                e->getConfiguration().setMemLowWat(vsize);
             } else if (strcmp(keyz, "mem_high_wat") == 0) {
                 // Want more bits than int.
                 char *ptr = NULL;
@@ -373,8 +370,7 @@ extern "C" {
                 uint64_t vsize = strtoull(valz, &ptr, 10);
                 validate(vsize, static_cast<uint64_t>(0),
                          std::numeric_limits<uint64_t>::max());
-                EPStats &stats = e->getEpStats();
-                stats.mem_high_wat = vsize;
+                e->getConfiguration().setMemHighWat(vsize);
             } else if (strcmp(keyz, "timing_log") == 0) {
                 EPStats &stats = e->getEpStats();
                 std::ostream *old = stats.timingLog;
@@ -1182,8 +1178,6 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server
     startedEngineThreads(false),
     getServerApiFunc(get_server_api), getlExtension(NULL),
     tapConnMap(NULL), tapConfig(NULL), checkpointConfig(NULL),
-    memLowWat(std::numeric_limits<size_t>::max()),
-    memHighWat(std::numeric_limits<size_t>::max()),
     mutation_count(0), observeRegistry(&epstore, &stats), warmingUp(true),
     flushAllEnabled(false), startupTime(0)
 {
@@ -1299,7 +1293,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     // Start updating the variables from the config!
     HashTable::setDefaultNumBuckets(configuration.getHtSize());
     HashTable::setDefaultNumLocks(configuration.getHtLocks());
-    stats.setMaxDataSize(configuration.getMaxSize());
     StoredValue::setMutationMemoryThreshold(configuration.getMutationMemThreshold());
     std::string storedValType = configuration.getStoredValType();
     if (storedValType.length() > 0) {
@@ -1310,12 +1303,21 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         }
     }
 
+    if (configuration.getMaxSize() == 0) {
+        configuration.setMaxSize(std::numeric_limits<size_t>::max());
+    }
+
+    if (configuration.getMemLowWat() == std::numeric_limits<size_t>::max()) {
+        configuration.setMemLowWat(percentOf(configuration.getMaxSize(), 0.6));
+    }
+
+    if (configuration.getMemHighWat() == std::numeric_limits<size_t>::max()) {
+        configuration.setMemHighWat(percentOf(configuration.getMaxSize(), 0.75));
+    }
+
     maxItemSize = configuration.getMaxItemSize();
     configuration.addValueChangedListener("max_item_size",
                                           new EpEngineValueChangeListener(*this));
-
-    memLowWat = configuration.getMemLowWat();
-    memHighWat = configuration.getMemHighWat();
 
     if (configuration.isRestoreMode()) {
         if ((restore.manager = create_restore_manager(*this)) == NULL) {
@@ -1362,16 +1364,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
                          ss.str().c_str());
         return ENGINE_FAILED;
     }
-
-    if (memLowWat == std::numeric_limits<size_t>::max()) {
-        memLowWat = percentOf(stats.getMaxDataSize(), 0.6);
-    }
-    if (memHighWat == std::numeric_limits<size_t>::max()) {
-        memHighWat = percentOf(stats.getMaxDataSize(), 0.75);
-    }
-
-    stats.mem_low_wat = memLowWat;
-    stats.mem_high_wat = memHighWat;
 
     databaseInitTime = ep_real_time() - start;
     epstore = new EventuallyPersistentStore(*this, kvstore, configuration.isVb0(),
