@@ -524,10 +524,10 @@ public:
     }
 
     ~EventuallyPersistentEngine() {
+        delete epstore;
         delete tapConnMap;
         delete tapConfig;
         delete checkpointConfig;
-        delete epstore;
         delete kvstore;
         delete tapThrottle;
         delete getlExtension;
