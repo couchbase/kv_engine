@@ -22,6 +22,13 @@ ENGINE_ERROR_CODE assoc_init(struct default_engine *engine) {
     return (engine->assoc.primary_hashtable != NULL) ? ENGINE_SUCCESS : ENGINE_ENOMEM;
 }
 
+void assoc_destroy(struct default_engine *engine) {
+    while (engine->assoc.expanding) {
+        usleep(250);
+    }
+    free(engine->assoc.primary_hashtable);
+}
+
 hash_item *assoc_find(struct default_engine *engine, uint32_t hash, const char *key, const size_t nkey) {
     hash_item *it;
     unsigned int oldbucket;

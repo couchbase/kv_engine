@@ -56,6 +56,26 @@ unsigned int slabs_clsid(struct default_engine *engine, const size_t size) {
     return res;
 }
 
+static void *my_allocate(struct default_engine *e, size_t size) {
+    /* Is threre room? */
+    if (e->slabs.allocs.next == e->slabs.allocs.size) {
+        size_t n = e->slabs.allocs.size + 1024;
+        void *p = realloc(e->slabs.allocs.ptrs, n * sizeof(void*));
+        if (p == NULL) {
+            return NULL;
+        }
+        e->slabs.allocs.ptrs = p;
+        e->slabs.allocs.size = n;
+    }
+
+    void *ptr = malloc(size);
+    if (ptr != NULL) {
+        e->slabs.allocs.ptrs[e->slabs.allocs.next++] = ptr;
+
+    }
+    return ptr;
+}
+
 /**
  * Determines the chunk sizes and initializes the slab class descriptors
  * accordingly.
@@ -71,7 +91,7 @@ ENGINE_ERROR_CODE slabs_init(struct default_engine *engine,
 
     if (prealloc) {
         /* Allocate everything in a big chunk with malloc */
-        engine->slabs.mem_base = malloc(engine->slabs.mem_limit);
+        engine->slabs.mem_base = my_allocate(engine, engine->slabs.mem_limit);
         if (engine->slabs.mem_base != NULL) {
             engine->slabs.mem_current = engine->slabs.mem_base;
             engine->slabs.mem_avail = engine->slabs.mem_limit;
@@ -361,7 +381,7 @@ static void *memory_allocate(struct default_engine *engine, size_t size) {
 
     if (engine->slabs.mem_base == NULL) {
         /* We are not using a preallocated large memory chunk */
-        ret = malloc(size);
+        ret = my_allocate(engine, size);
     } else {
         ret = engine->slabs.mem_current;
 
@@ -421,4 +441,20 @@ void slabs_adjust_mem_requested(struct default_engine *engine, unsigned int id, 
     p = &engine->slabs.slabclass[id];
     p->requested = p->requested - old + ntotal;
     pthread_mutex_unlock(&engine->slabs.lock);
+}
+
+void slabs_destroy(struct default_engine *e)
+{
+    /* Release the allocated backing store */
+    for (size_t ii = 0; ii < e->slabs.allocs.next; ++ii) {
+        free(e->slabs.allocs.ptrs[ii]);
+    }
+    free(e->slabs.allocs.ptrs);
+
+    /* Release the freelists */
+    for (int ii = POWER_SMALLEST; ii <= e->slabs.power_largest; ii++) {
+        slabclass_t *p = &e->slabs.slabclass[ii];
+        free(p->slots);
+        free(p->slab_list);
+    }
 }

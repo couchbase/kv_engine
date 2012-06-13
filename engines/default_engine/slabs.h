@@ -38,6 +38,12 @@ struct slabs {
    void *mem_current;
    size_t mem_avail;
 
+   struct {
+      void **ptrs;
+      size_t next;
+      size_t size;
+   } allocs;
+
    /**
     * Access to the slab allocator is protected by this lock
     */
@@ -58,6 +64,7 @@ ENGINE_ERROR_CODE slabs_init(struct default_engine *engine,
                              const double factor,
                              const bool prealloc);
 
+void slabs_destroy(struct default_engine *engine);
 
 /**
  * Given object size, return id to use when allocating/freeing memory for object

@@ -280,17 +280,24 @@ static ENGINE_ERROR_CODE default_initialize(ENGINE_HANDLE* handle,
 }
 
 static void default_destroy(ENGINE_HANDLE* handle, const bool force) {
-   (void) force;
-   struct default_engine* se = get_handle(handle);
+    (void) force;
+    struct default_engine* se = get_handle(handle);
 
-   if (se->initialized) {
-      pthread_mutex_destroy(&se->cache_lock);
-      pthread_mutex_destroy(&se->stats.lock);
-      pthread_mutex_destroy(&se->slabs.lock);
-      se->initialized = false;
-      free(se->tap_connections.clients);
-      free(se);
-   }
+    if (se->initialized) {
+        /* Destroy the association table */
+        assoc_destroy(se);
+
+        /* Destory the slabs cache */
+        slabs_destroy(se);
+
+        /* Clean up the mutexes */
+        pthread_mutex_destroy(&se->cache_lock);
+        pthread_mutex_destroy(&se->stats.lock);
+        pthread_mutex_destroy(&se->slabs.lock);
+        se->initialized = false;
+        free(se->tap_connections.clients);
+        free(se);
+    }
 }
 
 static ENGINE_ERROR_CODE default_item_allocate(ENGINE_HANDLE* handle,

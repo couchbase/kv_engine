@@ -30,6 +30,7 @@ struct assoc {
 
 /* associative array */
 ENGINE_ERROR_CODE assoc_init(struct default_engine *engine);
+void assoc_destroy(struct default_engine *engine);
 hash_item *assoc_find(struct default_engine *engine, uint32_t hash,
                       const char *key, const size_t nkey);
 int assoc_insert(struct default_engine *engine, uint32_t hash,
