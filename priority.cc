@@ -38,6 +38,7 @@ const Priority Priority::AccessScannerPriority("access_scanner_priority", 3);
 // Priorities for NON-IO dispatcher
 const Priority Priority::CheckpointRemoverPriority("checkpoint_remover_priority", 6);
 const Priority Priority::TapConnectionReaperPriority("tapconnection_reaper_priority", 6);
+const Priority Priority::VBMemoryDeletionPriority("vb_memory_deletion_priority", 6);
 const Priority Priority::ItemPagerPriority("item_pager_priority", 7);
 const Priority Priority::BackfillTaskPriority("backfill_task_priority", 8);
 const Priority Priority::HTResizePriority("hashtable_resize_priority", 211);

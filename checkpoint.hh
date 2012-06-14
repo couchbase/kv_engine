@@ -429,7 +429,14 @@ public:
      */
     bool isCheckpointExtension(void) { return checkpointExtension; }
 
+    void resetTAPCursors(const std::list<std::string> &cursors);
+
 private:
+
+    bool registerTAPCursor_UNLOCKED(const std::string &name,
+                                    uint64_t checkpointId = 1,
+                                    bool closedCheckpointOnly = false,
+                                    bool alwaysFromBeginning = false);
 
     void registerPersistenceCursor();
 

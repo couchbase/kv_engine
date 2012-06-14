@@ -302,6 +302,16 @@ void CheckpointManager::registerPersistenceCursor() {
 bool CheckpointManager::registerTAPCursor(const std::string &name, uint64_t checkpointId,
                                           bool closedCheckpointOnly, bool alwaysFromBeginning) {
     LockHolder lh(queueLock);
+    return registerTAPCursor_UNLOCKED(name,
+                                      checkpointId,
+                                      closedCheckpointOnly,
+                                      alwaysFromBeginning);
+}
+
+bool CheckpointManager::registerTAPCursor_UNLOCKED(const std::string &name,
+                                                   uint64_t checkpointId,
+                                                   bool closedCheckpointOnly,
+                                                   bool alwaysFromBeginning) {
     assert(checkpointList.size() > 0);
 
     bool found = false;
@@ -859,6 +869,14 @@ void CheckpointManager::resetCursors() {
         cit->second.currentPos = checkpointList.front()->begin();
         cit->second.offset = 0;
         checkpointList.front()->registerCursorName(cit->second.name);
+    }
+}
+
+void CheckpointManager::resetTAPCursors(const std::list<std::string> &cursors) {
+    LockHolder lh(queueLock);
+    std::list<std::string>::const_iterator it = cursors.begin();
+    for (; it != cursors.end(); it++) {
+        registerTAPCursor_UNLOCKED(*it, getOpenCheckpointId_UNLOCKED(), false, true);
     }
 }
 

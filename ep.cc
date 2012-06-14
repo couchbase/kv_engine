@@ -222,6 +222,28 @@ private:
     const Priority &priority;
 };
 
+class VBucketMemoryDeletionCallback : public DispatcherCallback {
+public:
+    VBucketMemoryDeletionCallback(EventuallyPersistentStore *e, RCPtr<VBucket> vb) :
+    ep(e), vbucket(vb) {}
+
+    bool callback(Dispatcher &, TaskId) {
+        vbucket->ht.clear();
+        vbucket.reset();
+        return false;
+    }
+
+    std::string description() {
+        std::stringstream ss;
+        ss << "Removing (dead) vbucket " << vbucket->getId() << " from memory";
+        return ss.str();
+    }
+
+private:
+    EventuallyPersistentStore *ep;
+    RCPtr<VBucket> vbucket;
+};
+
 /**
  * Dispatcher job to perform fast vbucket deletion.
  */
@@ -1102,6 +1124,9 @@ EventuallyPersistentStore::completeVBucketDeletion(uint16_t vbid, uint16_t vbver
 
 void EventuallyPersistentStore::scheduleVBDeletion(RCPtr<VBucket> vb, uint16_t vb_version,
                                                    double delay=0) {
+    shared_ptr<DispatcherCallback> mem_cb(new VBucketMemoryDeletionCallback(this, vb));
+    dispatcher->schedule(mem_cb, NULL, Priority::VBMemoryDeletionPriority, delay, false);
+
     if (vbuckets.setBucketDeletion(vb->getId(), true)) {
         if (storageProperties.hasEfficientVBDeletion()) {
             shared_ptr<DispatcherCallback> cb(new FastVBucketDeletionCallback(this, vb,
@@ -1126,19 +1151,17 @@ void EventuallyPersistentStore::scheduleVBDeletion(RCPtr<VBucket> vb, uint16_t v
 bool EventuallyPersistentStore::deleteVBucket(uint16_t vbid) {
     // Lock to prevent a race condition between a failed update and add (and delete).
     LockHolder lh(vbsetMutex);
-    bool rv(false);
 
     RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
     if (vb && vb->getState() == vbucket_state_dead) {
         uint16_t vb_version = vbuckets.getBucketVersion(vbid);
         lh.unlock();
-        rv = true;
-        vb->ht.clear();
         vbuckets.removeBucket(vbid);
         scheduleVBSnapshot(Priority::VBucketPersistHighPriority);
         scheduleVBDeletion(vb, vb_version);
+        return true;
     }
-    return rv;
+    return false;
 }
 
 bool EventuallyPersistentStore::resetVBucket(uint16_t vbid) {
@@ -1163,12 +1186,13 @@ bool EventuallyPersistentStore::resetVBucket(uint16_t vbid) {
         vbuckets.setPersistenceCheckpointId(vbid, 0);
         lh.unlock();
 
-        // Clear the hashtable, checkpoints, and stats for the target vbucket.
-        vb->ht.clear();
-        vb->checkpointManager.clear(vb->getState());
-        vb->resetStats();
+        vbuckets.removeBucket(vbid);
+        setVBucketState(vbid, vb->getState());
 
-        scheduleVBSnapshot(Priority::VBucketPersistHighPriority);
+        // Copy the all cursors from the old vbucket into the new vbucket
+        RCPtr<VBucket> newvb = vbuckets.getBucket(vbid);
+        newvb->checkpointManager.resetTAPCursors(vb->checkpointManager.getTAPCursorNames());
+
         // Clear all the items from the vbucket kv table on disk.
         scheduleVBDeletion(vb, vb_version);
         rv = true;

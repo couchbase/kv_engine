@@ -31,6 +31,7 @@ public:
 
     // Priorities for NON-IO dispatcher
     static const Priority CheckpointRemoverPriority;
+    static const Priority VBMemoryDeletionPriority;
     static const Priority ItemPagerPriority;
     static const Priority BackfillTaskPriority;
     static const Priority TapResumePriority;
