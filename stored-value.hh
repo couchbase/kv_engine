@@ -1164,7 +1164,7 @@ public:
                 itm.setCas();
             }
             rv = v->isClean() ? WAS_CLEAN : WAS_DIRTY;
-            if (!v->isResident()) {
+            if (!v->isResident() && !v->isDeleted()) {
                 --numNonResidentItems;
             }
             v->setValue(itm, stats, *this, hasMetaData /*Preserve seqno*/);
