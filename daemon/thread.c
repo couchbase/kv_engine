@@ -240,7 +240,7 @@ static void setup_dispatcher(struct event_base *main_base,
  */
 static void setup_thread(LIBEVENT_THREAD *me) {
     me->type = GENERAL;
-    me->base = event_init();
+    me->base = event_base_new();
     if (! me->base) {
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
                                         "Can't allocate event base\n");
@@ -695,7 +695,18 @@ void threads_shutdown(void)
     for (int ii = 0; ii < nthreads; ++ii) {
         safe_close(threads[ii].notify[0]);
         safe_close(threads[ii].notify[1]);
+        cache_destroy(threads[ii].suffix_cache);
+        event_base_free(threads[ii].base);
+
+        CQ_ITEM *it;
+        while ((it = cq_pop(threads[ii].new_conn_queue)) != NULL) {
+            cqi_free(it);
+        }
+        free(threads[ii].new_conn_queue);
     }
+
+    free(thread_ids);
+    free(threads);
 }
 
 void notify_thread(LIBEVENT_THREAD *thread) {

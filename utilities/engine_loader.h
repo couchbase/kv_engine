@@ -9,6 +9,8 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+MEMCACHED_PUBLIC_API void unload_engine(void);
+
 MEMCACHED_PUBLIC_API bool load_engine(const char *soname,
                                       SERVER_HANDLE_V1 *(*get_server_api)(void),
                                       EXTENSION_LOGGER_DESCRIPTOR *logger,

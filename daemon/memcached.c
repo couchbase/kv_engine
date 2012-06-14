@@ -592,6 +592,19 @@ static void initialize_connections(void)
     }
 }
 
+static void destroy_connections(void)
+{
+    for (int ii = 0; ii < settings.maxconns; ++ii) {
+        if (connections.all[ii]) {
+            conn *c = connections.all[ii];
+            conn_destructor(c);
+            free(c);
+        }
+    }
+
+    free(connections.all);
+}
+
 static conn *allocate_connection(void) {
     conn *ret;
 
@@ -7761,7 +7774,7 @@ int main (int argc, char **argv) {
     }
 
     /* initialize main thread libevent instance */
-    main_base = event_init();
+    main_base = event_base_new();
 
     /* Load the storage engine */
     ENGINE_HANDLE *engine_handle = NULL;
@@ -7898,6 +7911,12 @@ int main (int argc, char **argv) {
     if (stats.listening_ports) {
         free(stats.listening_ports);
     }
+
+    event_base_free(main_base);
+    release_independent_stats(default_independent_stats);
+    destroy_connections();
+
+    unload_engine();
 
     return EXIT_SUCCESS;
 }

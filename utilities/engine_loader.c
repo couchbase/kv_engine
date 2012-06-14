@@ -17,6 +17,13 @@ static const char * const feature_descriptions[] = {
 
 void *handle = NULL;
 
+void unload_engine(void)
+{
+    if (handle != NULL) {
+        dlclose(handle);
+    }
+}
+
 bool load_engine(const char *soname,
                  SERVER_HANDLE_V1 *(*get_server_api)(void),
                  EXTENSION_LOGGER_DESCRIPTOR *logger,
