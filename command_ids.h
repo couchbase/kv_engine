@@ -158,6 +158,11 @@
  */
 #define CMD_CHANGE_VB_FILTER 0xb0
 
+/**
+ * Command to enable data traffic after completion of warm
+ */
+#define CMD_ENABLE_TRAFFIC 0xad
+
 /*
  * Parameter types of CMD_SET_PARAM command.
  */

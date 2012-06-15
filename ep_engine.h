@@ -565,6 +565,9 @@ public:
                                         protocol_binary_request_header *request,
                                         ADD_RESPONSE response);
 
+    ENGINE_ERROR_CODE handleEnableTrafficCmd(const void* cookie,
+                                             ADD_RESPONSE response);
+
     size_t getGetlDefaultTimeout() const {
         return getlDefaultTimeout;
     }
@@ -643,6 +646,10 @@ private:
 
     void warmupCompleted() {
         warmingUp.set(false);
+    }
+
+    void enableTraffic() {
+        trafficEnabled.set(true);
     }
 
     void addMutationEvent(Item *) {
@@ -773,6 +780,7 @@ private:
     EPStats stats;
     Configuration configuration;
     Atomic<bool> warmingUp;
+    Atomic<bool> trafficEnabled;
     struct {
         Mutex mutex;
         RestoreManager *manager;

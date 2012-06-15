@@ -220,6 +220,29 @@ static void add_stats(const char *key, const uint16_t klen,
     vals[k] = v;
 }
 
+static int get_int_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                        const char *statname, const char *statkey = NULL) {
+    vals.clear();
+    check(h1->get_stats(h, NULL, statkey, statkey == NULL ? 0 : strlen(statkey),
+                        add_stats) == ENGINE_SUCCESS, "Failed to get stats.");
+    std::string s = vals[statname];
+    return atoi(s.c_str());
+}
+
+static void waitfor_restore_state(ENGINE_HANDLE *h,
+                                  ENGINE_HANDLE_V1 *h1,
+                                  const char *state,
+                                  uint32_t sampletime = 250)
+{
+    do {
+        usleep(sampletime);
+        vals.clear();
+        check(h1->get_stats(h, NULL, "restore", 7, add_stats) == ENGINE_SUCCESS,
+              "Failed to get stats.");
+    } while (vals["ep_restore:state"] != state);
+    vals.clear();
+}
+
 static bool wait_for_warmup_complete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     while (h1->get_stats(h, NULL, "warmup", 6, add_stats) == ENGINE_SUCCESS) {
         useconds_t sleepTime = 128;
@@ -231,19 +254,6 @@ static bool wait_for_warmup_complete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
         vals.clear();
     }
     return true;
-}
-
-static bool test_setup(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    return wait_for_warmup_complete(h, h1);
-}
-
-static int get_int_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                        const char *statname, const char *statkey = NULL) {
-    vals.clear();
-    check(h1->get_stats(h, NULL, statkey, statkey == NULL ? 0 : strlen(statkey),
-                        add_stats) == ENGINE_SUCCESS, "Failed to get stats.");
-    std::string s = vals[statname];
-    return atoi(s.c_str());
 }
 
 static ENGINE_ERROR_CODE storeCasVb11(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
@@ -421,6 +431,30 @@ static bool add_response_get_meta(const void *key, uint16_t keylen,
     }
     return add_response(key, keylen, ext, extlen, body, bodylen, datatype,
                         status, cas, cookie);
+}
+
+static bool test_setup(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    wait_for_warmup_complete(h, h1);
+
+    // warmup is complete, notify ep engine that it must now enable
+    // data traffic
+    protocol_binary_request_no_extras req;
+    protocol_binary_request_header *pkt;
+    pkt = reinterpret_cast<protocol_binary_request_header *>(&req);
+    memset (&req, 0, sizeof(req));
+
+    req.message.header.request.magic = PROTOCOL_BINARY_REQ;
+    req.message.header.request.opcode = CMD_ENABLE_TRAFFIC;
+
+    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
+          "Failed to enable data traffic");
+
+    int restore_mode = get_int_stat(h, h1, "ep_restore_mode");
+    if (!restore_mode) {
+        check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+              "Expected to be able to enable data traffic at engine level");
+    }
+    return true;
 }
 
 static protocol_binary_request_header* create_packet(uint8_t opcode,
@@ -5060,20 +5094,6 @@ static enum test_result test_restore_no_such_file(ENGINE_HANDLE *h, ENGINE_HANDL
     free(req);
     complete_restore(h, h1);
     return SUCCESS;
-}
-
-static void waitfor_restore_state(ENGINE_HANDLE *h,
-                                  ENGINE_HANDLE_V1 *h1,
-                                  const char *state,
-                                  uint32_t sampletime = 250)
-{
-    do {
-        usleep(sampletime);
-        vals.clear();
-        check(h1->get_stats(h, NULL, "restore", 7, add_stats) == ENGINE_SUCCESS,
-              "Failed to get stats.");
-    } while (vals["ep_restore:state"] != state);
-    vals.clear();
 }
 
 static enum test_result test_restore_invalid_file(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)

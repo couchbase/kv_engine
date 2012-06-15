@@ -897,6 +897,11 @@ extern "C" {
                 return rv;
             }
             break;
+        case CMD_ENABLE_TRAFFIC:
+            {
+                rv = h->handleEnableTrafficCmd(cookie, response);
+                return rv;
+            }
         }
 
         // Send a special response for getl since we don't want to send the key
@@ -3897,4 +3902,26 @@ EventuallyPersistentEngine::changeTapVBFilter(const void *cookie,
                         PROTOCOL_BINARY_RAW_BYTES,
                         static_cast<uint16_t>(rv),
                         0, cookie);
+}
+
+ENGINE_ERROR_CODE
+EventuallyPersistentEngine::handleEnableTrafficCmd(const void *cookie,
+                                                   ADD_RESPONSE response)
+{
+    std::string msg;
+    if (isDegradedMode()) {
+        // engine is still warming up, do not turn on data traffic yet
+        msg.assign("Persistent engine is still warming up!");
+        return sendResponse(response, NULL, 0, NULL, 0,
+                            msg.c_str(), msg.length(),
+                            PROTOCOL_BINARY_RAW_BYTES,
+                            PROTOCOL_BINARY_RESPONSE_ETMPFAIL, 0, cookie);
+    }
+
+    enableTraffic();
+    msg.assign("Data traffic to persistent engine is enabled");
+    return sendResponse(response, NULL, 0, NULL, 0,
+                        msg.c_str(), msg.length(),
+                        PROTOCOL_BINARY_RAW_BYTES,
+                        PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
 }
