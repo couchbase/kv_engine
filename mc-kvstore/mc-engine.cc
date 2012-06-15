@@ -129,7 +129,7 @@ public:
 
                 ItemMetaData itm_meta;
                 uint8_t *meta_bytes = gres->bytes + sizeof(gres->bytes);
-                if (!Item::decodeMeta(meta_bytes, itm_meta)) {
+                if (!ItemMetaData::decodeMeta(meta_bytes, itm_meta)) {
                     getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                         "FATAL: invalid metadata returned from mccouch");
                     abort();
@@ -439,7 +439,7 @@ public:
             }
             ItemMetaData itm_meta;
 
-            if (!Item::decodeMeta(es, itm_meta)) {
+            if (!ItemMetaData::decodeMeta(es, itm_meta)) {
                 getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                                  "FATAL: Object returned from mccouch with CAS == 0");
                 abort();
@@ -1139,7 +1139,8 @@ void MemcachedEngine::delmq(const Item &itm, Callback<int> &cb) {
     req.message.body.nmeta_bytes = ntohl(nmeta);
 
     uint8_t meta[30];
-    Item::encodeMeta(itm, meta, nmeta);
+    ItemMetaData::encodeMeta(itm.getSeqno(), itm.getCas(), itm.getExptime(),
+                             itm.getFlags(), meta, nmeta);
 
     sendIov[0].iov_base = (char*)req.bytes;
     sendIov[0].iov_len = sizeof(req.bytes);
@@ -1170,7 +1171,8 @@ void MemcachedEngine::setmq(const Item &it, Callback<mutation_result> &cb) {
 
     uint8_t meta[30];
     size_t nmeta = Item::getNMetaBytes();
-    Item::encodeMeta(it, meta, nmeta);
+    ItemMetaData::encodeMeta(it.getSeqno(), it.getCas(), it.getExptime(),
+                             it.getFlags(), meta, nmeta);
 
     sendIov[0].iov_base = (char*)req.bytes;
     sendIov[0].iov_len = sizeof(req.bytes);

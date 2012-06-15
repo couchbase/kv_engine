@@ -3736,7 +3736,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
     ItemMetaData itm_meta;
     uint8_t opcode = request->message.header.request.opcode;
 
-    if (!Item::decodeMeta(dta + nbytes, itm_meta)) {
+    if (!ItemMetaData::decodeMeta(dta + nbytes, itm_meta)) {
         return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
                             PROTOCOL_BINARY_RAW_BYTES,
                             PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
@@ -3814,7 +3814,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(const void* cookie,
     ItemMetaData itm_meta;
     uint8_t opcode = request->message.header.request.opcode;
 
-    if (!Item::decodeMeta(dta + nbytes, itm_meta)) {
+    if (!ItemMetaData::decodeMeta(dta + nbytes, itm_meta)) {
         return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
                             PROTOCOL_BINARY_RAW_BYTES,
                             PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);

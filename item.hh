@@ -138,6 +138,62 @@ public:
         cas(c), seqno(s), flags(f), exptime(e) {
     }
 
+    static void encodeMeta(uint32_t seqno, uint64_t cas, time_t exptime,
+                           uint32_t flags, std::string &dest)
+    {
+        uint8_t meta[22];
+        size_t len = sizeof(meta);
+        encodeMeta(seqno, cas, exptime, flags, meta, len);
+        dest.assign((char*)meta, len);
+    }
+
+    static bool encodeMeta(uint32_t seqno, uint64_t cas, time_t exptime,
+                           uint32_t flags, uint8_t *dest, size_t &nbytes)
+    {
+        if (nbytes < 22) {
+            return false;
+        }
+        seqno = htonl(seqno);
+        cas = htonll(cas);
+        exptime = htonl(exptime);
+        flags = htonl(flags);
+
+        dest[0] = 0x01;
+        dest[1] = 20;
+        memcpy(dest + 2, &seqno, 4);
+        memcpy(dest + 6, &cas, 8);
+        memcpy(dest + 14, &exptime, 4);
+        memcpy(dest + 18, &flags, 4);
+        nbytes = 22;
+        return true;
+    }
+
+    static bool decodeMeta(const uint8_t *dta, ItemMetaData &meta) {
+        if (*dta != 0x01) {
+            // Unsupported meta tag
+            return false;
+        }
+        ++dta;
+        if (*dta != 20) {
+            // Unsupported size
+            return false;
+        }
+        ++dta;
+        memcpy(&meta.seqno, dta, 4);
+        meta.seqno = ntohl(meta.seqno);
+        dta += 4;
+        memcpy(&meta.cas, dta, 8);
+        meta.cas = ntohll(meta.cas);
+        dta += 8;
+        memcpy(&meta.exptime, dta, 4);
+        meta.exptime = ntohl(meta.exptime);
+        dta += 4;
+        memcpy(&meta.flags, dta, 4);
+        meta.flags = ntohl(meta.flags);
+
+        return true;
+    }
+
     uint64_t cas;
     uint32_t seqno;
     uint32_t flags;
@@ -309,78 +365,6 @@ public:
 
     void setSeqno(uint32_t to) {
         seqno = to;
-    }
-
-    static void encodeMeta(uint32_t seqno, uint64_t cas, time_t exptime,
-                           uint32_t flags, std::string &dest)
-    {
-        uint8_t meta[22];
-        size_t len = sizeof(meta);
-        encodeMeta(seqno, cas, exptime, flags, meta, len);
-        dest.assign((char*)meta, len);
-    }
-
-    static bool encodeMeta(const Item &itm, uint8_t *dest, size_t &nbytes)
-    {
-        return encodeMeta(itm.seqno, itm.cas, itm.exptime, itm.flags,
-                          dest, nbytes);
-    }
-
-    static bool encodeMeta(uint32_t seqno, uint64_t cas, time_t exptime,
-                           uint32_t flags, uint8_t *dest, size_t &nbytes)
-    {
-        if (nbytes < 22) {
-            return false;
-        }
-        seqno = htonl(seqno);
-        cas = htonll(cas);
-        exptime = htonl(exptime);
-        flags = htonl(flags);
-
-        dest[0] = 0x01;
-        dest[1] = 20;
-        memcpy(dest + 2, &seqno, 4);
-        memcpy(dest + 6, &cas, 8);
-        memcpy(dest + 14, &exptime, 4);
-        memcpy(dest + 18, &flags, 4);
-        nbytes = 22;
-        return true;
-    }
-
-    static bool decodeMeta(const uint8_t *dta, ItemMetaData &meta) {
-        uint32_t seqno;
-        uint64_t cas;
-        time_t exptime;
-        uint32_t flags;
-
-        if (*dta != 0x01) {
-            // Unsupported meta tag
-            return false;
-        }
-        ++dta;
-        if (*dta != 20) {
-            // Unsupported size
-            return false;
-        }
-        ++dta;
-        memcpy(&seqno, dta, 4);
-        seqno = ntohl(seqno);
-        dta += 4;
-        memcpy(&cas, dta, 8);
-        cas = ntohll(cas);
-        dta += 8;
-        memcpy(&exptime, dta, 4);
-        exptime = ntohl(exptime);
-        dta += 4;
-        memcpy(&flags, dta, 4);
-        flags = ntohl(flags);
-
-        meta.cas = cas;
-        meta.seqno = seqno;
-        meta.flags = flags;
-        meta.exptime = exptime;
-
-        return true;
     }
 
     static uint32_t getNMetaBytes() {
