@@ -1917,7 +1917,6 @@ void EventuallyPersistentStore::requeueRejectedItems(std::queue<queued_item> *re
 }
 
 void EventuallyPersistentStore::completeFlush(rel_time_t flush_start) {
-    LockHolder lh(vbsetMutex);
     size_t numOfVBuckets = vbuckets.getSize();
     bool schedule_vb_snapshot = false;
     for (size_t i = 0; i < numOfVBuckets; ++i) {
@@ -1933,7 +1932,6 @@ void EventuallyPersistentStore::completeFlush(rel_time_t flush_start) {
             schedule_vb_snapshot = true;
         }
     }
-    lh.unlock();
 
     // Schedule the vbucket state snapshot task to record the latest checkpoint Id
     // that was successfully persisted for each vbucket.
@@ -2020,7 +2018,6 @@ bool EventuallyPersistentStore::hasItemsForPersistence(void) {
 }
 
 void EventuallyPersistentStore::setPersistenceCheckpointId(uint16_t vbid, uint64_t checkpointId) {
-    LockHolder lh(vbsetMutex);
     vbuckets.setPersistenceCheckpointId(vbid, checkpointId);
 }
 
