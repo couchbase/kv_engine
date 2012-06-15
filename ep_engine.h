@@ -577,7 +577,7 @@ public:
     }
 
     bool isDegradedMode() const {
-        return warmingUp.get() || restore.enabled.get();
+        return (warmingUp.get() && !trafficEnabled.get()) || restore.enabled.get();
     }
 
 protected:
