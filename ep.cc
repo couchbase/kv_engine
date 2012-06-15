@@ -548,7 +548,7 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
     //         thread so that it won't block the flusher (in the write
     //         thread), but we can't put it in the RO dispatcher either,
     //         because that would block the background fetches..
-    warmupTask = new Warmup(this, dispatcher);
+    warmupTask = new Warmup(this, roDispatcher);
 }
 
 class WarmupWaitListener : public WarmupStateListener {
