@@ -1155,8 +1155,8 @@ bool EventuallyPersistentStore::deleteVBucket(uint16_t vbid) {
     RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
     if (vb && vb->getState() == vbucket_state_dead) {
         uint16_t vb_version = vbuckets.getBucketVersion(vbid);
-        lh.unlock();
         vbuckets.removeBucket(vbid);
+        lh.unlock();
         scheduleVBSnapshot(Priority::VBucketPersistHighPriority);
         scheduleVBDeletion(vb, vb_version);
         return true;
@@ -1182,11 +1182,11 @@ bool EventuallyPersistentStore::resetVBucket(uint16_t vbid) {
             vb_new_version = vb_version;
         }
 
+        vbuckets.removeBucket(vbid);
         vbuckets.setBucketVersion(vbid, vb_new_version);
         vbuckets.setPersistenceCheckpointId(vbid, 0);
         lh.unlock();
 
-        vbuckets.removeBucket(vbid);
         setVBucketState(vbid, vb->getState());
 
         // Copy the all cursors from the old vbucket into the new vbucket
