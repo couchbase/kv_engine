@@ -48,6 +48,7 @@ BINARIES= mcstat.exe \
           .libs/default_engine.so \
           .libs/example_protocol.so \
           .libs/eventlog_logger.so \
+          .libs/file_logger.so \
           .libs/stdin_term_handler.so
 
 LIB=${LOCALLIB}
@@ -120,6 +121,9 @@ STDIN_TERM_HANDLER_OBJS = ${STDIN_TERM_HANDLER_SRC:%.c=.libs/%.o}
 EVENTLOG_LOGGER_SRC = extensions/loggers/eventlog_logger.c
 EVENTLOG_LOGGER_OBJS = ${EVENTLOG_LOGGER_SRC:%.c=.libs/%.o}
 
+FILE_LOGGER_SRC = extensions/loggers/file_logger.c
+FILE_LOGGER_OBJS = ${FILE_LOGGER_SRC:%.c=.libs/%.o}
+
 BASIC_ENGINE_TESTSUITE_SRC = testsuite/basic_engine_testsuite.c
 BASIC_ENGINE_TESTSUITE_OBJS = ${BASIC_ENGINE_TESTSUITE_SRC:%.c=.libs/%.o}
 
@@ -163,6 +167,10 @@ sizes.exe: ${OBJDIR} ${GENFILES} $(SIZES_OBJS)
 	${LINK.c} -o $@ -shared ${EVENTLOG_LOGGER_OBJS} ${LIBS} \
                   ${LIB}
 
+.libs/file_logger.so: ${OBJDIR} $(FILE_LOGGER_OBJS)
+	${LINK.c} -o $@ -shared ${FILE_LOGGER_OBJS} ${LIBS} \
+                  ${LIB} -lpthread
+
 .libs/basic_engine_testsuite.so: ${OBJDIR} $(BASIC_ENGINE_TESTSUITE_OBJS)
 	${LINK.c} -o $@ -shared ${BASIC_ENGINE_TESTSUITE_OBJS} ${LIB} -lpthread -lws2_32
 
@@ -195,6 +203,8 @@ clean:
               ${SIZES_OBJS} \
               ${EVENTLOG_LOGGER_OBJS:.o=.d} \
               ${EVENTLOG_LOGGER_OBJS} \
+              ${FILE_LOGGER_OBJS:.o=.d} \
+              ${FILE_LOGGER_OBJS} \
               ${STDIN_TERM_HANDLER_OBJS:.o=.d} \
               ${STDIN_TERM_HANDLER_OBJS}
 
@@ -207,4 +217,5 @@ clean:
          ${MCSTAT_OBJS:.o=.d} \
          ${SIZES_OBJS:.o=.d} \
          ${EVENTLOG_LOGGER_OBJS:.o=.d} \
+         ${FILE_LOGGER_OBJS:.o=.d} \
          ${STDIN_TERM_HANDLER_OBJS:.o=.d}

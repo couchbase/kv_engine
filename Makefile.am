@@ -29,6 +29,7 @@ pkglib_LTLIBRARIES = libmemcached_utilities.la \
                      basic_engine_testsuite.la \
                      default_engine.la \
                      example_protocol.la \
+                     file_logger.la \
                      fragment_rw_ops.la \
                      blackhole_logger.la \
                      stdin_term_handler.la \
@@ -229,6 +230,12 @@ eventlog_logger_la_SOURCES = extensions/loggers/eventlog_logger.c \
                              extensions/protocol_extension.h
 eventlog_logger_la_LDFLAGS = -avoid-version -shared -module -no-undefined
 
+# The file-based logger doing compression
+file_logger_la_CPPFLAGS = $(CPPFLAGS) -I$(top_srcdir)/extensions
+file_logger_la_SOURCES = extensions/loggers/file_logger.c \
+                         extensions/protocol_extension.h
+file_logger_la_LDFLAGS = -avoid-version -shared -module -no-undefined
+file_logger_la_LIBADD = $(LIBZ)
 
 basic_engine_testsuite_la_SOURCES= testsuite/basic_engine_testsuite.c \
                                    testsuite/basic_engine_testsuite.h
