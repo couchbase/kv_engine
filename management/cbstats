@@ -39,7 +39,6 @@ def cmd(f):
                 mc.bucket_select(bucket)
                 f(*args[:n])
         else:
-            print args[:n]
             f(*args[:n])
 
     return g
