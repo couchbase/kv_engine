@@ -2009,10 +2009,6 @@ bool EventuallyPersistentStore::hasItemsForPersistence(void) {
     return hasItems;
 }
 
-void EventuallyPersistentStore::setPersistenceCheckpointId(uint16_t vbid, uint64_t checkpointId) {
-    vbuckets.setPersistenceCheckpointId(vbid, checkpointId);
-}
-
 /**
  * Callback invoked after persisting an item from memory to disk.
  *

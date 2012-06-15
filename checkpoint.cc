@@ -990,20 +990,18 @@ bool CheckpointManager::isLastMutationItemInCheckpoint(CheckpointCursor &cursor)
     return false;
 }
 
-bool CheckpointManager::checkAndAddNewCheckpoint(uint64_t id, bool &pCursorRepositioned) {
+void CheckpointManager::checkAndAddNewCheckpoint(uint64_t id) {
     LockHolder lh(queueLock);
 
     // Ignore CHECKPOINT_START message with ID 0 as 0 is reserved for representing backfill.
     if (id == 0) {
-        pCursorRepositioned = false;
-        return true;
+        return;
     }
     // If the replica receives a checkpoint start message right after backfill completion,
     // simply set the current open checkpoint id to the one received from the active vbucket.
     if (checkpointList.back()->getId() == 0) {
         setOpenCheckpointId_UNLOCKED(id);
-        pCursorRepositioned = id > 0;
-        return true;
+        return;
     }
 
     std::list<Checkpoint*>::iterator it = checkpointList.begin();
@@ -1023,7 +1021,6 @@ bool CheckpointManager::checkAndAddNewCheckpoint(uint64_t id, bool &pCursorRepos
         } else if ((checkpointList.back()->getId() + 1) == id) {
             isCollapsedCheckpoint = false;
         }
-        pCursorRepositioned = false;
         if (checkpointList.back()->getState() == opened &&
             checkpointList.back()->getNumItems() == 0) {
             // If the current open checkpoint doesn't have any items, simply set its id to
@@ -1042,10 +1039,9 @@ bool CheckpointManager::checkAndAddNewCheckpoint(uint64_t id, bool &pCursorRepos
                     mit->second.currentPos = checkpointList.back()->begin();
                 }
             }
-            return true;
         } else {
             closeOpenCheckpoint_UNLOCKED(checkpointList.back()->getId());
-            return addNewCheckpoint_UNLOCKED(id);
+            addNewCheckpoint_UNLOCKED(id);
         }
     } else {
         assert(checkpointList.size() > 0);
@@ -1073,9 +1069,6 @@ bool CheckpointManager::checkAndAddNewCheckpoint(uint64_t id, bool &pCursorRepos
         }
         setOpenCheckpointId_UNLOCKED(id);
         resetCursors();
-
-        pCursorRepositioned = true;
-        return true;
     }
 }
 

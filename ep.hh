@@ -832,8 +832,6 @@ public:
         return diskFlushAll.get();
     }
 
-    void setPersistenceCheckpointId(uint16_t vbid, uint64_t checkpointId);
-
     void setItemExpiryWindow(size_t value) {
         itemExpiryWindow = value;
     }
