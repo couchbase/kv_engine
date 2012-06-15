@@ -1,0 +1,168 @@
+#!/usr/bin/env python
+
+import time
+import clitool
+import mc_bin_client
+import memcacheConstants
+
+def cmd(f):
+    """Decorate a function with code to authenticate based on 1-2
+    arguments past the normal number of arguments."""
+
+    def g(*args, **kwargs):
+        mc = args[0]
+        n = f.func_code.co_argcount
+
+        bucket = kwargs.get('bucketName', None)
+        password = kwargs.get('password', None) or ""
+
+        if bucket:
+            try:
+                mc.sasl_auth_plain(bucket, password)
+            except mc_bin_client.MemcachedError:
+                print "Authentication error for %s" % bucket
+                sys.exit(1)
+
+        if kwargs.get('allBuckets', None):
+            buckets = mc.stats('bucket')
+            for bucket in buckets.iterkeys():
+                print '*' * 78
+                print bucket
+                print
+                mc.bucket_select(bucket)
+                f(*args[:n])
+        else:
+            f(*args[:n])
+
+    return g
+
+@cmd
+def set_param(mc, type, key, val):
+    engine_param = None
+    if type == 'checkpoint_param':
+        engine_param = memcacheConstants.ENGINE_PARAM_CHECKPOINT
+    elif type == 'flush_param':
+        engine_param = memcacheConstants.ENGINE_PARAM_FLUSH
+    elif type == 'tap_param':
+        engine_param = memcacheConstants.ENGINE_PARAM_TAP
+    else:
+        print 'Error: Bad parameter %s' % type
+
+    if key == 'tap_throttle_queue_cap' and val == 'infinite':
+        val = '-1'
+
+    try:
+        mc.set_param(key, val, engine_param)
+        print 'set %s to %s' %(key, val)
+    except mc_bin_client.MemcachedError as error:
+        print 'Error: %s' % error.msg
+
+@cmd
+def stop(mc):
+    try:
+        mc.stop_persistence()
+        stopped = False
+        while not stopped:
+            time.sleep(0.5)
+            try:
+                stats = mc.stats()
+                success = True
+            except:
+                if success:
+                    mc = mc_bin_client.MemcachedClient(mc.host, mc.port)
+                    raise
+                else:
+                    raise
+            success = False
+            if stats['ep_flusher_state'] == 'paused':
+                stopped = True
+        print 'Persistence stopped'
+    except mc_bin_client.MemcachedError as error:
+        print 'Error: %s' % error.msg
+
+@cmd
+def start(mc):
+    try:
+        mc.start_persistence()
+        print 'Persistence started'
+    except mc_bin_client.MemcachedError as error:
+        print 'Error: %s' % error.msg
+
+@cmd
+def drain(mc):
+    try:
+        while True:
+            s = mc.stats()
+            if s['ep_queue_size'] == "0" and \
+                s['ep_flusher_todo'] == "0":
+                print("done")
+                return
+            time.sleep(2)
+            sys.stdout.write('.')
+            sys.stdout.flush()
+        print 'Write queues drained'
+    except mc_bin_client.MemcachedError as error:
+        print 'Error: %s' % error.msg
+
+if __name__ == '__main__':
+
+    c = clitool.CliTool("""
+Persistence:
+  stop           - stop persistence
+  start          - start persistence
+  drain          - wait until queues are drained
+
+
+Available params for "set":
+
+  Available params for set checkpoint_param:
+    chk_max_items             - Max number of items allowed in a checkpoint.
+    chk_period                - Time bound (in sec.) on a checkpoint.
+    inconsistent_slave_chk    - true if we allow a downstream master to receive
+                                checkpoint begin/end messages from the upstream
+                                master.
+    item_num_based_new_chk    - true if a new checkpoint can be created based
+                                on.
+                                the number of items in the open checkpoint.
+    keep_closed_chks          - true if we want to keep closed checkpoints in
+                                memory.
+                                as long as the current memory usage is below
+                                high water mark.
+    max_checkpoints           - Max number of checkpoints allowed per vbucket.
+
+
+  Available params for set flush_param:
+    bg_fetch_delay            - Delay before executing a bg fetch (test
+                                feature).
+    couch_response_timeout    - timeout in receiving a response from couchdb.
+    exp_pager_stime           - Expiry Pager Sleeptime.
+    flushall_enabled          - Enable flush operation.
+    klog_compactor_queue_cap  - queue cap to throttle the log compactor.
+    klog_max_log_size         - maximum size of a mutation log file allowed.
+    klog_max_entry_ratio      - max ratio of # of items logged to # of unique
+                                items.
+    queue_age_cap             - Maximum queue age before flushing data.
+    max_size                  - Max memory used by the server.
+    max_txn_size              - Maximum number of items in a flusher
+                                transaction.
+    mem_high_wat              - High water mark.
+    mem_low_wat               - Low water mark.
+    min_data_age              - Minimum data age before flushing data.
+    timing_log                - path to log detailed timing stats.
+
+  Available params for "set tap_param":
+    tap_keepalive             - Seconds to hold a named tap connection.
+    tap_throttle_queue_cap    - Max disk write queue size to throttle tap
+                                streams ('infinite' means no cap).
+    tap_throttle_threshold    - Percentage of memory in use to throttle tap
+                                streams.
+    """)
+
+    c.addCommand('drain', drain, "drain")
+    c.addCommand('set', set_param, 'set type param value')
+    c.addCommand('start', start, 'start')
+    c.addCommand('stop', stop, 'stop')
+    c.addFlag('-a', 'allBuckets', 'iterate over all buckets (requires admin u/p)')
+    c.addOption('-b', 'bucketName', 'the bucket to get stats from (Default: default)')
+    c.addOption('-p', 'password', 'the password for the bucket if one exists')
+    c.execute()
