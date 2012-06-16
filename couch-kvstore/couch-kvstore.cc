@@ -366,7 +366,9 @@ void CouchKVStore::get(const std::string &key, uint64_t, uint16_t vb, uint16_t,
         itemFlags = ntohl(itemFlags);
 
         if (getMetaOnly) {
-            it = new Item(key.c_str(), (size_t)key.length(), docInfo->size,
+            /* we should only do a metadata disk fetch for deleted items */
+            assert(docInfo->deleted);
+            it = new Item(key.c_str(), (size_t)key.length(), 0,
                           itemFlags, (time_t)exptime, cas);
             it->setSeqno(docInfo->rev_seq);
             rv = GetValue(it);
