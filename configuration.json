@@ -430,7 +430,7 @@
             }
         },
         "warmup_min_memory_threshold": {
-            "default": "10",
+            "default": "100",
             "descr": "Percentage of max mem warmed up before we enable traffic.",
             "type": "size_t",
             "validator": {
@@ -441,7 +441,7 @@
             }
         },
         "warmup_min_items_threshold": {
-            "default": "10",
+            "default": "100",
             "descr": "Percentage of total items warmed up before we enable traffic.",
             "type": "size_t",
             "validator": {
