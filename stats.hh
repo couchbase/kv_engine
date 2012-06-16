@@ -54,8 +54,10 @@ public:
     Atomic<bool> warmupComplete;
     //! Number of records warmed up with metadata.
     Atomic<size_t> warmedUpMeta;
-    //! Number of records warmed up.
-    Atomic<size_t> warmedUp;
+    //! Number of keys warmed up during key-only loading. 
+    Atomic<size_t> warmedUpKeys;
+    //! Number of key-values warmed up during data loading.
+    Atomic<size_t> warmedUpValues;
     //! Number of warmup failures due to duplicates
     Atomic<size_t> warmDups;
     //! Number of OOM failures at warmup time.

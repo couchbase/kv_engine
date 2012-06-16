@@ -2169,7 +2169,7 @@ static enum test_result test_expiry_loader(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
                               testHarness.engine_path,
                               testHarness.get_current_testcase()->cfg,
                               true, false);
-    assert(0 == get_int_stat(h, h1, "ep_warmup_count", "warmup"));
+    assert(0 == get_int_stat(h, h1, "ep_warmup_value_count", "warmup"));
 
     return SUCCESS;
 }
@@ -2252,7 +2252,7 @@ static enum test_result test_bug3454(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                               testHarness.engine_path,
                               testHarness.get_current_testcase()->cfg,
                               true, false);
-    assert(1 == get_int_stat(h, h1, "ep_warmup_count", "warmup"));
+    assert(1 == get_int_stat(h, h1, "ep_warmup_value_count", "warmup"));
     assert(0 == get_int_stat(h, h1, "ep_warmup_dups", "warmup"));
 
     return SUCCESS;
@@ -2306,7 +2306,7 @@ static enum test_result test_bug3522(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                               testHarness.engine_path,
                               testHarness.get_current_testcase()->cfg,
                               true, false);
-    assert(0 == get_int_stat(h, h1, "ep_warmup_count", "warmup"));
+    assert(0 == get_int_stat(h, h1, "ep_warmup_value_count", "warmup"));
     assert(0 == get_int_stat(h, h1, "ep_warmup_dups", "warmup"));
 
     return SUCCESS;
@@ -4279,7 +4279,8 @@ static enum test_result test_warmup_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
 
     wait_for_warmup_complete(h, h1);
     check(vals.find("ep_warmup_thread") != vals.end(), "Found no ep_warmup_thread");
-    check(vals.find("ep_warmup_count") != vals.end(), "Found no ep_warmup_count");
+    check(vals.find("ep_warmup_value_count") != vals.end(), "Found no ep_warmup_value_count");
+    check(vals.find("ep_warmup_key_count") != vals.end(), "Found no ep_warmup_key_count");
     check(vals.find("ep_warmup_dups") != vals.end(), "Found no ep_warmup_dups");
     check(vals.find("ep_warmup_oom") != vals.end(), "Found no ep_warmup_oom");
     check(vals.find("ep_warmup_time") != vals.end(), "Found no ep_warmup_time");

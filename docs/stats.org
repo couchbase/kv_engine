@@ -604,7 +604,8 @@ Stats =warmup= shows statistics related to warmup logic
 | ep_warmup                      | Shows if warmup is enabled / disabled      |
 | ep_warmup_state                | The current state of the warmup thread     |
 | ep_warmup_thread               | Warmup thread status.                      |
-| ep_warmed_count                | Number of items warmed up.                 |
+| ep_warmup_key_count            | Number of keys warmed up                   |
+| ep_warmup_value_count          | Number of values warmed up                 |
 | ep_warmup_dups                 | Duplicates encountered during warmup.      |
 | ep_warmup_oom                  | OOMs encountered during warmup.            |
 | ep_warmup_time                 | Time (µs) spent by warming data.           |

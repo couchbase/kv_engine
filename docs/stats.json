@@ -29,8 +29,11 @@
         "ep_warmup_access_log": {
             "description": "The number of items found in the access log (or 'currupt' if checksumming the file failed)"
         },
-        "ep_warmup_count": {
-            "description": "The number of items warmed up"
+        "ep_warmup_key_count": {
+            "description": "The number of item keys warmed up"
+        },
+        "ep_warmup_value_count": {
+            "description": "The number of item values warmed up"
         },
         "ep_warmup_dups": {
             "description": "The number of duplicates found during warmup"

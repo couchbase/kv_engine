@@ -112,7 +112,7 @@ private:
 
 
     LoadStorageKVPairCallback *createLKVPCB(const std::map<std::pair<uint16_t, uint16_t>, vbucket_state> &st,
-                                            bool maybeEnable);
+                                            bool maybeEnable, int warmupState);
 
     WarmupState state;
     EventuallyPersistentStore *store;

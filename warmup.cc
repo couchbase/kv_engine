@@ -119,10 +119,11 @@ std::ostream& operator <<(std::ostream &out, const WarmupState &state)
 class LoadStorageKVPairCallback : public Callback<GetValue> {
 public:
     LoadStorageKVPairCallback(EventuallyPersistentStore *ep,
-                              bool _maybeEnableTraffic)
+                              bool _maybeEnableTraffic, int _warmupState)
         : vbuckets(ep->vbuckets), stats(ep->getEPEngine().getEpStats()),
           epstore(ep), startTime(ep_real_time()),
-          hasPurged(false), maybeEnableTraffic(_maybeEnableTraffic)
+          hasPurged(false), maybeEnableTraffic(_maybeEnableTraffic),
+          warmupState(_warmupState)
     {
         assert(epstore);
     }
@@ -146,6 +147,7 @@ private:
     time_t      startTime;
     bool        hasPurged;
     bool        maybeEnableTraffic;
+    int         warmupState;
 };
 
 void LoadStorageKVPairCallback::initVBucket(uint16_t vbid, uint16_t vb_version,
@@ -259,7 +261,19 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
     if (val.isPartial()) {
         ++stats.warmedUpMeta;
     } else {
-        ++stats.warmedUp;
+        switch (warmupState) {
+        case WarmupState::KeyDump:
+        case WarmupState::LoadingMutationLog:
+            ++stats.warmedUpKeys;
+            break;
+        case WarmupState::LoadingData:
+        case WarmupState::LoadingAccessLog:
+            ++stats.warmedUpValues;
+            break;
+        default:
+            ++stats.warmedUpKeys;
+            ++stats.warmedUpValues;
+        }
     }
 }
 
@@ -337,7 +351,8 @@ bool Warmup::initialize(Dispatcher&, TaskId)
 
 bool Warmup::loadingMutationLog(Dispatcher&, TaskId)
 {
-    shared_ptr<Callback<GetValue> > cb(createLKVPCB(initialVbState, false));
+    shared_ptr<Callback<GetValue> > cb(createLKVPCB(initialVbState, false,
+                                                    state.getState()));
     bool success = false;
 
     try {
@@ -382,7 +397,8 @@ bool Warmup::keyDump(Dispatcher&, TaskId)
 {
     bool success = false;
     if (store->roUnderlying->isKeyDumpSupported()) {
-        shared_ptr<Callback<GetValue> > cb(createLKVPCB(initialVbState, false));
+        shared_ptr<Callback<GetValue> > cb(createLKVPCB(initialVbState, false,
+                                                        state.getState()));
         std::map<std::pair<uint16_t, uint16_t>, vbucket_state>::const_iterator it;
         std::vector<uint16_t> vbids;
         for (it = initialVbState.begin(); it != initialVbState.end(); ++it) {
@@ -444,7 +460,8 @@ bool Warmup::checkForAccessLog(Dispatcher&, TaskId)
 bool Warmup::loadingAccessLog(Dispatcher&, TaskId)
 {
     EstimateWarmupSize w(*this);
-    LoadStorageKVPairCallback *load_cb = createLKVPCB(initialVbState, true);
+    LoadStorageKVPairCallback *load_cb = createLKVPCB(initialVbState, true,
+                                                      state.getState());
     bool success = false;
     if (store->accessLog.exists()) {
         try {
@@ -493,7 +510,8 @@ bool Warmup::loadingAccessLog(Dispatcher&, TaskId)
 
 bool Warmup::loadingKVPairs(Dispatcher&, TaskId)
 {
-    shared_ptr<Callback<GetValue> > cb(createLKVPCB(initialVbState, false));
+    shared_ptr<Callback<GetValue> > cb(createLKVPCB(initialVbState, false,
+                                                    state.getState()));
     store->roUnderlying->dump(cb);
 
     if (doReconstructLog()) {
@@ -507,7 +525,8 @@ bool Warmup::loadingKVPairs(Dispatcher&, TaskId)
 
 bool Warmup::loadingData(Dispatcher&, TaskId)
 {
-    shared_ptr<Callback<GetValue> > cb(createLKVPCB(initialVbState, true));
+    shared_ptr<Callback<GetValue> > cb(createLKVPCB(initialVbState, true,
+                                       state.getState()));
     store->roUnderlying->dump(cb);
     transition(WarmupState::Done);
     return true;
@@ -599,7 +618,8 @@ void Warmup::addStats(ADD_STAT add_stat, const void *c) const
         } else {
             addStat("thread", "running", add_stat, c);
         }
-        addStat("count", stats.warmedUp, add_stat, c);
+        addStat("key_count", stats.warmedUpKeys, add_stat, c);
+        addStat("value_count", stats.warmedUpValues, add_stat, c);
         addStat("dups", stats.warmDups, add_stat, c);
         addStat("oom", stats.warmOOM, add_stat, c);
         addStat("min_memory_threshold",
@@ -643,10 +663,10 @@ void Warmup::addStats(ADD_STAT add_stat, const void *c) const
 }
 
 LoadStorageKVPairCallback *Warmup::createLKVPCB(const std::map<std::pair<uint16_t, uint16_t>, vbucket_state> &st,
-                                                bool maybeEnable)
+                                                bool maybeEnable, int warmupState)
 {
     LoadStorageKVPairCallback *load_cb;
-    load_cb = new LoadStorageKVPairCallback(store, maybeEnable);
+    load_cb = new LoadStorageKVPairCallback(store, maybeEnable, warmupState);
     std::map<std::pair<uint16_t, uint16_t>, vbucket_state>::const_iterator it;
     for (it = st.begin(); it != st.end(); ++it) {
         std::pair<uint16_t, uint16_t> vbp = it->first;
