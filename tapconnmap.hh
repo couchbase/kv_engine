@@ -256,6 +256,17 @@ public:
 
     void resetReplicaChain();
 
+    /**
+     * Change the vbucket filter for a given TAP producer
+     * @param name TAP producer name
+     * @param vbuckets a new vbucket filter
+     * @param checkpoints last closed checkpoint ids for a new vbucket filter
+     * @return true if the TAP producer's vbucket filter is changed successfully
+     */
+    bool changeVBucketFilter(const std::string &name,
+                             const std::vector<uint16_t> &vbuckets,
+                             const std::map<uint16_t, uint64_t> &checkpoints);
+
     size_t getTapNoopInterval() const {
         return tapNoopInterval;
     }

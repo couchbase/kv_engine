@@ -153,6 +153,11 @@
 
 #define CMD_NOTIFY_VBUCKET_UPDATE 0xac
 
+/**
+ * Command to change the vbucket filter for a given TAP producer.
+ */
+#define CMD_CHANGE_VB_FILTER 0xb0
+
 /*
  * Parameter types of CMD_SET_PARAM command.
  */

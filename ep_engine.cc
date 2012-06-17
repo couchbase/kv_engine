@@ -853,6 +853,11 @@ extern "C" {
                 rv = h->resetReplicationChain(cookie, request, response);
                 return rv;
             }
+        case CMD_CHANGE_VB_FILTER:
+            {
+                rv = h->changeTapVBFilter(cookie, request, response);
+                return rv;
+            }
         case CMD_LAST_CLOSED_CHECKPOINT:
         case CMD_CREATE_CHECKPOINT:
         case CMD_EXTEND_CHECKPOINT:
@@ -3827,4 +3832,64 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(const void* cookie,
 
     return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
                         PROTOCOL_BINARY_RAW_BYTES, rc, 0, cookie);
+}
+
+ENGINE_ERROR_CODE
+EventuallyPersistentEngine::changeTapVBFilter(const void *cookie,
+                                              protocol_binary_request_header *request,
+                                              ADD_RESPONSE response) {
+    protocol_binary_request_no_extras *req = (protocol_binary_request_no_extras*)request;
+
+    uint16_t keylen = ntohs(req->message.header.request.keylen);
+    const char *ptr = ((char*)req) + sizeof(req->message.header);
+    std::string tap_name = "eq_tapq:";
+    tap_name.append(std::string(ptr, keylen));
+
+    const char *msg = NULL;
+    protocol_binary_response_status rv = PROTOCOL_BINARY_RESPONSE_SUCCESS;
+    size_t nuserdata = ntohl(req->message.header.request.bodylen) - keylen;
+    uint16_t nvbuckets = 0;
+
+    if (nuserdata < sizeof(nvbuckets)) {
+        msg = "Number of vbuckets is missing";
+        rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
+    } else {
+        ptr += keylen;
+        memcpy(&nvbuckets, ptr, sizeof(nvbuckets));
+        nuserdata -= sizeof(nvbuckets);
+        ptr += sizeof(nvbuckets);
+        nvbuckets = ntohs(nvbuckets);
+        if (nvbuckets > 0) {
+            if (nuserdata < ((sizeof(uint16_t) + sizeof(uint64_t)) * nvbuckets)) {
+                msg = "Number of (vbucket id, checkpoint id) pair is not matched";
+                rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
+            } else {
+                std::vector<uint16_t> vbuckets;
+                std::map<uint16_t, uint64_t> checkpointIds;
+                for (uint16_t i = 0; i < nvbuckets; ++i) {
+                    uint16_t vbid;
+                    uint64_t chkid;
+                    memcpy(&vbid, ptr, sizeof(vbid));
+                    ptr += sizeof(uint16_t);
+                    memcpy(&chkid, ptr, sizeof(chkid));
+                    ptr += sizeof(uint64_t);
+                    vbuckets.push_back(ntohs(vbid));
+                    checkpointIds[ntohs(vbid)] = ntohll(chkid);
+                }
+                if (!tapConnMap->changeVBucketFilter(tap_name, vbuckets, checkpointIds)) {
+                    msg = "TAP producer not exist!!!";
+                    rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
+                }
+            }
+        } else {
+            msg = "Number of vbuckets should be greater than 0";
+            rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
+        }
+    }
+
+    return sendResponse(response, NULL, 0, NULL, 0,
+                        msg, msg ? static_cast<uint16_t>(strlen(msg)) : 0,
+                        PROTOCOL_BINARY_RAW_BYTES,
+                        static_cast<uint16_t>(rv),
+                        0, cookie);
 }

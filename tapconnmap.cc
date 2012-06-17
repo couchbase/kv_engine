@@ -440,6 +440,27 @@ void TapConnMap::resetReplicaChain() {
     }
 }
 
+bool TapConnMap::changeVBucketFilter(const std::string &name,
+                                     const std::vector<uint16_t> &vbuckets,
+                                     const std::map<uint16_t, uint64_t> &checkpoints) {
+    bool rv = false;
+    LockHolder lh(notifySync);
+    TapConnection *tc = findByName_UNLOCKED(name);
+    if (tc) {
+        TapProducer *tp = dynamic_cast<TapProducer*>(tc);
+        if (tp && (tp->isConnected() || tp->getExpiryTime() > ep_current_time())) {
+            getLogger()->log(EXTENSION_LOG_INFO, NULL,
+                             "%s Change the vbucket filter.\n",
+                             tp->logHeader());
+            tp->setVBucketFilter(vbuckets);
+            tp->registerTAPCursor(checkpoints);
+            rv = true;
+            notify_UNLOCKED();
+        }
+    }
+    return rv;
+}
+
 void TapConnMap::notifyIOThreadMain() {
     // To avoid connections to be stucked in a bogus state forever, we're going
     // to ping all connections that hasn't tried to walk the tap queue

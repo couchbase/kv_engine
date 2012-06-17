@@ -3408,17 +3408,40 @@ static enum test_result test_tap_filter_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V
 
     const void *cookie = testHarness.create_cookie();
     testHarness.lock_cookie(cookie);
-    uint16_t vbucketfilter[4];
-    vbucketfilter[0] = htons(2);
-    vbucketfilter[1] = htons(0);
+    uint16_t vbucketfilter[3];
+    vbucketfilter[0] = htons(0);
+    vbucketfilter[1] = htons(1);
     vbucketfilter[2] = htons(2);
+    uint64_t checkpointIds[3];
+    checkpointIds[0] = htonll(0);
+    checkpointIds[1] = htonll(0);
+    checkpointIds[2] = htonll(0);
+
+    uint16_t numOfVBs = htons(2); // Start with vbuckets 0 and 1
+    char *userdata = static_cast<char*>(calloc(1, 28));
+    char *ptr = userdata;
+    memcpy(ptr, &numOfVBs, sizeof(uint16_t));
+    ptr += sizeof(uint16_t);
+    for (int i = 0; i < 2; ++i) { // vbucket ids
+        memcpy(ptr, &vbucketfilter[i], sizeof(uint16_t));
+        ptr += sizeof(uint16_t);
+    }
+    memcpy(ptr, &numOfVBs, sizeof(uint16_t));
+    ptr += sizeof(uint16_t);
+    for (int i = 0; i < 2; ++i) { // vbucket ids and their checkpoint ids
+        memcpy(ptr, &vbucketfilter[i], sizeof(uint16_t));
+        ptr += sizeof(uint16_t);
+        memcpy(ptr, &checkpointIds[i], sizeof(uint64_t));
+        ptr += sizeof(uint64_t);
+    }
 
     std::string name = "tap_client_thread";
     TAP_ITERATOR iter = h1->get_tap_iterator(h, cookie, name.c_str(),
                                              name.length(),
-                                             TAP_CONNECT_FLAG_LIST_VBUCKETS,
-                                             static_cast<void*>(vbucketfilter),
-                                             6);
+                                             TAP_CONNECT_FLAG_LIST_VBUCKETS |
+                                             TAP_CONNECT_CHECKPOINT,
+                                             static_cast<void*>(userdata),
+                                             28); // userdata length
     check(iter != NULL, "Failed to create a tap iterator");
 
     item *it;
@@ -3447,8 +3470,9 @@ static enum test_result test_tap_filter_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V
         switch (event) {
         case TAP_PAUSE:
             done = true;
+            // Check if all the items except for vbucket 3 are received
             for (int ii = 0; ii < num_keys; ++ii) {
-                if ((ii % 4) != 1 && !keys[ii]) {
+                if ((ii % 4) != 3 && !keys[ii]) {
                     done = false;
                     break;
                 }
@@ -3459,36 +3483,56 @@ static enum test_result test_tap_filter_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V
             break;
         case TAP_NOOP:
         case TAP_OPAQUE:
+        case TAP_CHECKPOINT_START:
+        case TAP_CHECKPOINT_END:
             break;
 
         case TAP_MUTATION:
             check(get_key(h, h1, it, key), "Failed to read out the key");
             vbid = atoi(key.c_str()) % 4;
             check(vbid == vbucket, "Incorrect vbucket id");
-            check(vbid != 1,
+            check(vbid != 3,
                   "Received an item for a vbucket we don't subscribe to");
             keys[atoi(key.c_str())] = true;
             ++found;
             assert(vbucket != unlikely_vbucket_identifier);
             check(verify_item(h, h1, it, NULL, 0, "value", 5) == SUCCESS,
                   "Unexpected item arrived on tap stream");
+            h1->release(h, cookie, it);
 
             // We've got some of the elements.. Let's change the filter
             // and get the rest
             if (found == 10) {
-                vbucketfilter[0] = htons(3);
-                vbucketfilter[3] = htons(3);
-                testHarness.unlock_cookie(cookie);
-                iter = h1->get_tap_iterator(h, cookie, name.c_str(),
-                                            name.length(),
-                                            TAP_CONNECT_FLAG_LIST_VBUCKETS,
-                                            static_cast<void*>(vbucketfilter),
-                                            8);
-                check(iter != NULL, "Failed to create a tap iterator");
-                testHarness.lock_cookie(cookie);
+                size_t header_size = sizeof(protocol_binary_request_no_extras);
+                char *pkt_raw = static_cast<char*>(calloc(1, header_size + name.length() + 32));
+                protocol_binary_request_no_extras *req;
+                req = (protocol_binary_request_no_extras *)pkt_raw;
 
+                numOfVBs = htons(3); // vbuckets 0, 1, 2
+                pkt_raw += header_size;
+                memcpy(pkt_raw, name.c_str(), name.length());
+                pkt_raw += name.length();
+                memcpy(pkt_raw, &numOfVBs, sizeof(uint16_t));
+                pkt_raw += sizeof(uint16_t);
+                for (int i = 0; i < 3; ++i) {
+                    memcpy(pkt_raw, &vbucketfilter[i], sizeof(uint16_t));
+                    pkt_raw += sizeof(uint16_t);
+                    memcpy(pkt_raw, &checkpointIds[i], sizeof(uint64_t));
+                    pkt_raw += sizeof(uint64_t);
+                }
+
+                req->message.header.request.opcode = CMD_CHANGE_VB_FILTER;
+                req->message.header.request.bodylen = htonl(name.length() + 32);
+                req->message.header.request.keylen = htons(name.length());
+
+                protocol_binary_request_header *pkt;
+                pkt = reinterpret_cast<protocol_binary_request_header*>(req);
+                check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
+                      "Failed to change the TAP VB filter.");
+                check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                      "Expected success response from changing the TAP VB filter.");
+                free((char *)req);
             }
-
             break;
         case TAP_DISCONNECT:
             done = true;
@@ -3500,10 +3544,10 @@ static enum test_result test_tap_filter_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     } while (!done);
 
     testHarness.unlock_cookie(cookie);
-    h1->release(h, cookie, it);
 
     check(get_int_stat(h, h1, "eq_tapq:tap_client_thread:qlen", "tap") == 0,
           "queue should be empty");
+    free(userdata);
 
     return SUCCESS;
 }
