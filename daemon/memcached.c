@@ -5063,15 +5063,28 @@ static enum transmit_result transmit(conn *c) {
         /* if res == 0 or res == -1 and error is not EAGAIN or EWOULDBLOCK,
            we have a real error, on which we close the connection */
         if (settings.verbose > 0) {
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                            "Failed to write, and not due to blocking: %s",
-                                            strerror(errno));
+            if (res == -1) {
+                settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                                "Failed to write, and not due to blocking: %s",
+                                                strerror(errno));
+            } else {
+                settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                                "%d - sendmsg returned 0\n",
+                                                c->sfd);
+                for (int ii = 0; ii < m->msg_iovlen; ++ii) {
+                    settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                                    "\t%d - %zu\n",
+                                                    c->sfd, m->msg_iov[ii].iov_len);
+                }
+
+            }
         }
 
-        if (IS_UDP(c->transport))
+        if (IS_UDP(c->transport)) {
             conn_set_state(c, conn_read);
-        else
+        } else {
             conn_set_state(c, conn_closing);
+        }
         return TRANSMIT_HARD_ERROR;
     } else {
         return TRANSMIT_COMPLETE;
