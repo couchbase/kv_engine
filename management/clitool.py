@@ -38,7 +38,11 @@ class CliTool(object):
         except ValueError:
             self.usage()
 
-        mc = mc_bin_client.MemcachedClient(host, port)
+        try:
+            mc = mc_bin_client.MemcachedClient(host, port)
+        except socket.gaierror as e:
+            print 'Connection error: %s' % e
+            sys.exit(1)
 
         f = self.cmds.get(self.cmd)
 
