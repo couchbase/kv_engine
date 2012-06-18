@@ -248,6 +248,10 @@ def stats_config(mc):
     stats_formatter(stats_perform(mc, 'config'))
 
 @cmd
+def stats_raw(mc, arg):
+    stats_formatter(mc.stats(arg))
+
+@cmd
 def stats_couchdb(mc):
     histograms(mc, mc.stats('couchdb'))
 
@@ -376,6 +380,7 @@ def main():
     c.addCommand('kvtimings', stats_kvtimings, 'kvtimings')
     c.addCommand('memory', stats_memory, 'memory')
     c.addCommand('prev-vbucket', stats_prev_vbucket, 'prev-vbucket')
+    c.addCommand('raw', stats_raw, 'raw argument')
     c.addCommand('reset', reset, 'reset')
     c.addCommand('restore', stats_restore, 'restore')
     c.addCommand('slabs', stats_slabs, 'slabs')
