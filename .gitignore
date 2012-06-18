@@ -70,7 +70,7 @@
 /wrapper/*bdbconvert
 /wrapper/*bdbmaint
 /wrapper/*bdbupgrade
-/wrapper/*bflushctl
+/wrapper/*bconfig
 /wrapper/*brestore
 /wrapper/*bstats
 /wrapper/*bvbucketctl
