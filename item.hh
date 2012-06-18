@@ -210,7 +210,7 @@ public:
     Item(const void* k, const size_t nk, const size_t nb,
          const uint32_t fl, const time_t exp, uint64_t theCas = 0,
          int64_t i = -1, uint16_t vbid = 0) :
-        cas(theCas), id(i), exptime(exp), flags(fl), seqno(1), vbucketId(vbid)
+        metaData(theCas, 1, fl, exp), id(i), vbucketId(vbid)
     {
         key.assign(static_cast<const char*>(k), nk);
         assert(id != 0);
@@ -221,7 +221,7 @@ public:
     Item(const std::string &k, const uint32_t fl, const time_t exp,
          const void *dta, const size_t nb, uint64_t theCas = 0,
          int64_t i = -1, uint16_t vbid = 0) :
-        cas(theCas), id(i), exptime(exp), flags(fl), seqno(1), vbucketId(vbid)
+        metaData(theCas, 1, fl, exp), id(i), vbucketId(vbid)
     {
         key.assign(k);
         assert(id != 0);
@@ -232,7 +232,7 @@ public:
     Item(const std::string &k, const uint32_t fl, const time_t exp,
          const value_t &val, uint64_t theCas = 0,  int64_t i = -1, uint16_t vbid = 0,
          uint32_t sno = 1) :
-         value(val), cas(theCas), id(i), exptime(exp), flags(fl), seqno(sno), vbucketId(vbid)
+         metaData(theCas, sno, fl, exp), value(val), id(i), vbucketId(vbid)
     {
         assert(id != 0);
         key.assign(k);
@@ -242,7 +242,7 @@ public:
     Item(const void *k, uint16_t nk, const uint32_t fl, const time_t exp,
          const void *dta, const size_t nb, uint64_t theCas = 0,
          int64_t i = -1, uint16_t vbid = 0, uint32_t sno = 1) :
-        cas(theCas), id(i), exptime(exp), flags(fl), seqno(sno), vbucketId(vbid)
+         metaData(theCas, sno, fl, exp), id(i), vbucketId(vbid)
     {
         assert(id != 0);
         key.assign(static_cast<const char*>(k), nk);
@@ -287,23 +287,23 @@ public:
     }
 
     time_t getExptime() const {
-        return exptime;
+        return metaData.exptime;
     }
 
     uint32_t getFlags() const {
-        return flags;
+        return metaData.flags;
     }
 
     uint64_t getCas() const {
-        return cas;
+        return metaData.cas;
     }
 
     void setCas() {
-        cas = nextCas();
+        metaData.cas = nextCas();
     }
 
     void setCas(uint64_t ncas) {
-        cas = ncas;
+        metaData.cas = ncas;
     }
 
     void setValue(const value_t &v) {
@@ -311,11 +311,11 @@ public:
     }
 
     void setFlags(uint32_t f) {
-        flags = f;
+        metaData.flags = f;
     }
 
     void setExpTime(time_t exp_time) {
-        exptime = exp_time;
+        metaData.exptime = exp_time;
     }
 
     /**
@@ -349,7 +349,7 @@ public:
      * @return true if this item's expiry time < asOf
      */
     bool isExpired(time_t asOf) const {
-        if (getExptime() != 0 && getExptime() < asOf) {
+        if (metaData.exptime != 0 && metaData.exptime < asOf) {
             return true;
         }
         return false;
@@ -360,11 +360,11 @@ public:
     }
 
     uint32_t getSeqno() const {
-        return seqno;
+        return metaData.seqno;
     }
 
     void setSeqno(uint32_t to) {
-        seqno = to;
+        metaData.seqno = to;
     }
 
     static uint32_t getNMetaBytes() {
@@ -388,13 +388,10 @@ private:
         value.reset(data);
     }
 
+    ItemMetaData metaData;
     value_t value;
     std::string key;
-    uint64_t cas;
     int64_t id;
-    time_t exptime;
-    uint32_t flags;
-    uint32_t seqno;
     uint16_t vbucketId;
 
     static uint64_t nextCas(void) {
