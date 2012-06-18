@@ -714,31 +714,59 @@ extern "C" {
                                         const void *cookie,
                                         protocol_binary_request_header *req,
                                         ADD_RESPONSE response) {
+        std::string msg = "";
+        protocol_binary_response_status res = PROTOCOL_BINARY_RESPONSE_SUCCESS;
         uint16_t vbucket = ntohs(req->request.vbucket);
-        if (e->deleteVBucket(vbucket)) {
-            return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
+
+        if (ntohs(req->request.keylen) > 0 || req->request.extlen > 0) {
+            msg = "Incorrect packet format.";
+            return sendResponse(response, NULL, 0, NULL, 0, msg.c_str(), msg.length(),
                                 PROTOCOL_BINARY_RAW_BYTES,
-                                PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
-        } else {
-            // If we fail to delete, try to figure out why.
-            RCPtr<VBucket> vb = e->getVBucket(vbucket);
-            if (!vb) {
-                const std::string msg("Failed to delete vbucket.  Bucket not found.");
-                return sendResponse(response, NULL, 0, NULL, 0, msg.c_str(), msg.length(),
-                                    PROTOCOL_BINARY_RAW_BYTES,
-                                    PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, 0, cookie);
-            } else if(vb->getState() != vbucket_state_dead) {
-                const std::string msg("Failed to delete vbucket.  Must be in the dead state.");
-                return sendResponse(response, NULL, 0, NULL, 0, msg.c_str(), msg.length(),
-                                    PROTOCOL_BINARY_RAW_BYTES,
-                                    PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
-            } else {
-                const std::string msg("Failed to delete vbucket.  Unknown reason.");
-                return sendResponse(response, NULL, 0, NULL, 0, msg.c_str(), msg.length(),
-                                    PROTOCOL_BINARY_RAW_BYTES,
-                                    PROTOCOL_BINARY_RESPONSE_EINTERNAL, 0, cookie);
+                                PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
+        }
+
+        bool sync = false;
+        uint32_t bodylen = ntohl(req->request.bodylen);
+        if (bodylen > 0) {
+            const char* ptr = reinterpret_cast<const char*>(req->bytes) +
+                              sizeof(req->bytes);
+            if (bodylen == 7 && strncmp(ptr, "async=0", bodylen) == 0) {
+                sync = true;
             }
         }
+
+        ENGINE_ERROR_CODE err;
+        void* es = e->getEngineSpecific(cookie);
+        if (sync) {
+            if (es == NULL) {
+                err = e->deleteVBucket(vbucket, cookie);
+                e->storeEngineSpecific(cookie, e);
+            } else {
+                err = ENGINE_SUCCESS;
+            }
+        } else {
+            err = e->deleteVBucket(vbucket);
+        }
+        switch (err) {
+            case ENGINE_SUCCESS:
+                break;
+            case ENGINE_NOT_MY_VBUCKET:
+                msg = "Failed to delete vbucket.  Bucket not found.";
+                res = PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET;
+                break;
+            case ENGINE_EINVAL:
+                msg = "Failed to delete vbucket.  Must be in the dead state.";
+                res = PROTOCOL_BINARY_RESPONSE_EINVAL;
+                break;
+            case ENGINE_EWOULDBLOCK:
+                return ENGINE_EWOULDBLOCK;
+            default:
+                msg = "Failed to delete vbucket.  Unknown reason.";
+                res = PROTOCOL_BINARY_RESPONSE_EINTERNAL;
+        }
+
+        return sendResponse(response, NULL, 0, NULL, 0, msg.c_str(), msg.length(),
+                            PROTOCOL_BINARY_RAW_BYTES, res, 0, cookie);
     }
 
     static ENGINE_ERROR_CODE getReplicaCmd(EventuallyPersistentEngine *e,

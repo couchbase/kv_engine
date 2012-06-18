@@ -460,8 +460,8 @@ public:
         return rv;
     }
 
-    bool deleteVBucket(uint16_t vbid) {
-        return epstore->deleteVBucket(vbid);
+    ENGINE_ERROR_CODE deleteVBucket(uint16_t vbid, const void* c = NULL) {
+        return epstore->deleteVBucket(vbid, c);
     }
 
     bool resetVBucket(uint16_t vbid) {

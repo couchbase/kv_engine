@@ -2859,16 +2859,19 @@ static enum test_result test_vbucket_create(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
     return verify_vbucket_state(h, h1, 1, vbucket_state_active) ? SUCCESS : FAIL;
 }
 
-static enum test_result test_vbucket_destroy(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result vbucket_destroy(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                                             const char* value = NULL) {
     check(set_vbucket_state(h, h1, 1, vbucket_state_active), "Failed to set vbucket state.");
 
-    protocol_binary_request_header *pkt = createPacket(PROTOCOL_BINARY_CMD_DEL_VBUCKET, 1);
+    protocol_binary_request_header *pkt =
+        createPacket(PROTOCOL_BINARY_CMD_DEL_VBUCKET, 1, NULL, value);
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Failed to request delete bucket");
+
     check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL,
           "Expected failure deleting active bucket.");
 
-    pkt = createPacket(PROTOCOL_BINARY_CMD_DEL_VBUCKET, 2);
+    pkt = createPacket(PROTOCOL_BINARY_CMD_DEL_VBUCKET, 2, NULL, value);
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Failed to request delete bucket");
     check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET,
@@ -2876,9 +2879,10 @@ static enum test_result test_vbucket_destroy(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 
 
     check(set_vbucket_state(h, h1, 1, vbucket_state_dead), "Failed set set vbucket 1 state.");
 
-    pkt = createPacket(PROTOCOL_BINARY_CMD_DEL_VBUCKET, 1);
+    pkt = createPacket(PROTOCOL_BINARY_CMD_DEL_VBUCKET, 1, NULL, value);
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Failed to delete dead bucket.");
+
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
           "Expected failure deleting non-existent bucket.");
 
@@ -2946,10 +2950,12 @@ static enum test_result test_vbucket_destroy_stats(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_vbucket_destroy_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result vbucket_destroy_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                                                const char* value = NULL) {
+    protocol_binary_request_header *pkt =
+        createPacket(PROTOCOL_BINARY_CMD_DEL_VBUCKET, 1, NULL, value);
     check(set_vbucket_state(h, h1, 1, vbucket_state_active), "Failed to set vbucket state.");
 
-    protocol_binary_request_header *pkt = createPacket(PROTOCOL_BINARY_CMD_DEL_VBUCKET, 1);
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Failed to request delete bucket");
     check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL,
@@ -2975,7 +2981,6 @@ static enum test_result test_vbucket_destroy_restart(ENGINE_HANDLE *h, ENGINE_HA
 
     check(set_vbucket_state(h, h1, 1, vbucket_state_dead), "Failed set set vbucket 1 state.");
 
-    pkt = createPacket(PROTOCOL_BINARY_CMD_DEL_VBUCKET, 1);
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Failed to delete dead bucket.");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
@@ -2998,6 +3003,22 @@ static enum test_result test_vbucket_destroy_restart(ENGINE_HANDLE *h, ENGINE_HA
           "vbucket 1 was not missing after restart.");
 
     return SUCCESS;
+}
+
+static enum test_result test_async_vbucket_destroy(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    return vbucket_destroy(h, h1);
+}
+
+static enum test_result test_sync_vbucket_destroy(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    return vbucket_destroy(h, h1, "async=0");
+}
+
+static enum test_result test_async_vbucket_destroy_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    return vbucket_destroy_restart(h, h1);
+}
+
+static enum test_result test_sync_vbucket_destroy_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    return vbucket_destroy_restart(h, h1, "async=0");
 }
 
 static enum test_result test_vb_set_pending(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
@@ -7328,10 +7349,17 @@ engine_test_t* get_tests(void) {
         TestCase("test vbucket create", test_vbucket_create,
                  test_setup, teardown, NULL, prepare, cleanup,
                  BACKEND_ALL),
-        TestCase("test vbucket destroy", test_vbucket_destroy,
+        TestCase("test async vbucket destroy", test_async_vbucket_destroy,
                  test_setup, teardown, NULL, prepare, cleanup,
                  BACKEND_ALL),
-        TestCase("test vbucket destroy (multitable)", test_vbucket_destroy,
+        TestCase("test sync vbucket destroy", test_sync_vbucket_destroy,
+                 test_setup, teardown, NULL, prepare, cleanup,
+                 BACKEND_ALL),
+        TestCase("test async vbucket destroy (multitable)", test_async_vbucket_destroy,
+                 test_setup, teardown,
+                 "db_strategy=multiMTVBDB;max_vbuckets=16;ht_size=7;ht_locks=3",
+                 prepare, cleanup, BACKEND_ALL),
+        TestCase("test sync vbucket destroy (multitable)", test_sync_vbucket_destroy,
                  test_setup, teardown,
                  "db_strategy=multiMTVBDB;max_vbuckets=16;ht_size=7;ht_locks=3",
                  prepare, cleanup, BACKEND_ALL),
@@ -7339,9 +7367,12 @@ engine_test_t* get_tests(void) {
                  test_setup, teardown,
                  "chk_remover_stime=1;chk_period=60",
                  prepare, cleanup, BACKEND_ALL),
-        TestCase("test vbucket destroy restart", test_vbucket_destroy_restart,
-                 test_setup, teardown, NULL, prepare, cleanup,
-                 BACKEND_ALL),
+        TestCase("test async vbucket destroy restart",
+                 test_async_vbucket_destroy_restart, test_setup, teardown,
+                 NULL, prepare, cleanup, BACKEND_ALL),
+        TestCase("test sync vbucket destroy restart",
+                 test_sync_vbucket_destroy_restart, NULL, teardown, NULL,
+                 prepare, cleanup, BACKEND_ALL),
 
         // checkpoint tests
         TestCase("checkpoint: create a new checkpoint",

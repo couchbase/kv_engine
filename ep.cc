@@ -250,13 +250,11 @@ private:
 class FastVBucketDeletionCallback : public DispatcherCallback {
 public:
     FastVBucketDeletionCallback(EventuallyPersistentStore *e, RCPtr<VBucket> vb,
-                                uint16_t vbv, EPStats &st) : ep(e),
-                                                             vbucket(vb->getId()),
-                                                             vbver(vbv),
-                                               stats(st) {}
+                                uint16_t vbv, EPStats &st, const void* c = NULL) :
+                                ep(e), vbucket(vb->getId()), vbver(vbv),
+                                stats(st), cookie(c) {}
 
     bool callback(Dispatcher &, TaskId) {
-        bool rv(true); // try again by default
         hrtime_t start_time(gethrtime());
         vbucket_del_result result = ep->completeVBucketDeletion(vbucket, vbver);
         if (result == vbucket_del_success || result == vbucket_del_invalid) {
@@ -266,9 +264,13 @@ public:
             stats.diskVBDelHisto.add(wall_time);
             stats.vbucketDelMaxWalltime.setIfBigger(wall_time);
             stats.vbucketDelTotWalltime.incr(wall_time);
-            rv = false;
+            if (cookie) {
+                ep->getEPEngine().notifyIOComplete(cookie, ENGINE_SUCCESS);
+            }
+            return false;
         }
-        return rv;
+
+        return true;
     }
 
     std::string description() {
@@ -282,6 +284,7 @@ private:
     uint16_t vbucket;
     uint16_t vbver;
     EPStats &stats;
+    const void* cookie;
 };
 
 /**
@@ -291,10 +294,11 @@ class VBucketDeletionCallback : public DispatcherCallback {
 public:
     VBucketDeletionCallback(EventuallyPersistentStore *e, RCPtr<VBucket> vb,
                             uint16_t vbucket_version, EPStats &st,
-                            size_t csize = 100, uint32_t chunk_del_time = 500)
+                            size_t csize = 100, uint32_t chunk_del_time = 500,
+                            const void* c = NULL)
         : ep(e), stats(st), vb_version(vbucket_version),
           chunk_size(csize), chunk_del_threshold_time(chunk_del_time),
-          vbdv(csize) {
+          vbdv(csize), cookie(c) {
         assert(ep);
         assert(vb);
         chunk_num = 1;
@@ -377,6 +381,9 @@ public:
             break;
         }
 
+        if (cookie && !rv) {
+            ep->getEPEngine().notifyIOComplete(cookie, ENGINE_SUCCESS);
+        }
         return rv;
     }
 
@@ -405,6 +412,7 @@ private:
     hrtime_t                      start_wall_time;
     VBDeletionChunkRangeList      range_list;
     chunk_range_iterator_t        current_range;
+    const void*                   cookie;
 };
 
 EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine &theEngine,
@@ -1136,7 +1144,7 @@ EventuallyPersistentStore::completeVBucketDeletion(uint16_t vbid, uint16_t vbver
 }
 
 void EventuallyPersistentStore::scheduleVBDeletion(RCPtr<VBucket> vb, uint16_t vb_version,
-                                                   double delay=0) {
+                                                   const void* cookie=NULL, double delay=0) {
     shared_ptr<DispatcherCallback> mem_cb(new VBucketMemoryDeletionCallback(this, vb));
     nonIODispatcher->schedule(mem_cb, NULL, Priority::VBMemoryDeletionPriority, delay, false);
 
@@ -1144,7 +1152,8 @@ void EventuallyPersistentStore::scheduleVBDeletion(RCPtr<VBucket> vb, uint16_t v
         if (storageProperties.hasEfficientVBDeletion()) {
             shared_ptr<DispatcherCallback> cb(new FastVBucketDeletionCallback(this, vb,
                                                                               vb_version,
-                                                                              stats));
+                                                                              stats,
+                                                                              cookie));
             dispatcher->schedule(cb,
                                  NULL, Priority::FastVBucketDeletionPriority,
                                  delay, false);
@@ -1153,7 +1162,8 @@ void EventuallyPersistentStore::scheduleVBDeletion(RCPtr<VBucket> vb, uint16_t v
             uint32_t vb_chunk_del_time = vbChunkDelThresholdTime;
             shared_ptr<DispatcherCallback> cb(new VBucketDeletionCallback(this, vb, vb_version,
                                                                           stats, chunk_size,
-                                                                          vb_chunk_del_time));
+                                                                          vb_chunk_del_time,
+                                                                          cookie));
             dispatcher->schedule(cb,
                                  NULL, Priority::VBucketDeletionPriority,
                                  delay, false);
@@ -1161,20 +1171,27 @@ void EventuallyPersistentStore::scheduleVBDeletion(RCPtr<VBucket> vb, uint16_t v
     }
 }
 
-bool EventuallyPersistentStore::deleteVBucket(uint16_t vbid) {
+ENGINE_ERROR_CODE EventuallyPersistentStore::deleteVBucket(uint16_t vbid, const void* c) {
     // Lock to prevent a race condition between a failed update and add (and delete).
     LockHolder lh(vbsetMutex);
 
     RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
-    if (vb && vb->getState() == vbucket_state_dead) {
+    if (!vb) {
+        return ENGINE_NOT_MY_VBUCKET;
+    }
+
+    if (vb->getState() == vbucket_state_dead) {
         uint16_t vb_version = vbuckets.getBucketVersion(vbid);
         vbuckets.removeBucket(vbid);
         lh.unlock();
         scheduleVBSnapshot(Priority::VBucketPersistHighPriority);
-        scheduleVBDeletion(vb, vb_version);
-        return true;
+        scheduleVBDeletion(vb, vb_version, c);
+        if (c) {
+            return ENGINE_EWOULDBLOCK;
+        }
+        return ENGINE_SUCCESS;
     }
-    return false;
+    return ENGINE_EINVAL;
 }
 
 bool EventuallyPersistentStore::resetVBucket(uint16_t vbid) {

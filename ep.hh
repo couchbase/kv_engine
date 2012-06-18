@@ -730,7 +730,15 @@ public:
      * Perform a fast vbucket deletion.
      */
     vbucket_del_result completeVBucketDeletion(uint16_t vbid, uint16_t vbver);
-    bool deleteVBucket(uint16_t vbid);
+
+    /**
+     * Deletes a vbucket
+     *
+     * @param vbid The vbucket to delete.
+     * @param c The cookie for this connection. Used in synchronous bucket deletes
+     *          to notify the connection of operation completion.
+     */
+    ENGINE_ERROR_CODE deleteVBucket(uint16_t vbid, const void* c = NULL);
 
     void firePendingVBucketOps();
 
@@ -901,7 +909,8 @@ protected:
 
 private:
 
-    void scheduleVBDeletion(RCPtr<VBucket> vb, uint16_t vb_version, double delay);
+    void scheduleVBDeletion(RCPtr<VBucket> vb, uint16_t vb_version,
+                            const void* cookie, double delay);
 
     RCPtr<VBucket> getVBucket(uint16_t vbid, vbucket_state_t wanted_state);
 
