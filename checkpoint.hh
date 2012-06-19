@@ -261,7 +261,8 @@ public:
         stats(st), checkpointConfig(config), vbucketId(vbucket), numItems(0),
         mutationCounter(0), persistenceCursor("persistence"),
         isCollapsedCheckpoint(false),
-        checkpointExtension(false)
+        checkpointExtension(false),
+        pCursorPreCheckpointId(0)
     {
         addNewCheckpoint(checkpointId);
         registerPersistenceCursor();
@@ -346,18 +347,16 @@ public:
      * Return the list of items, which needs to be persisted, to the flusher.
      * @param items the array that will contain the list of items to be persisted and
      * be pushed into the flusher's outgoing queue where the further IO optimization is performed.
-     * @return the last closed checkpoint Id.
      */
-    uint64_t getAllItemsForPersistence(std::vector<queued_item> &items);
+    void getAllItemsForPersistence(std::vector<queued_item> &items);
 
     /**
      * Return the list of all the items to a given TAP cursor since its current position.
      * @param name the name of a given TAP connection.
      * @param items the array that will contain the list of items to be returned
      * to the TAP connection.
-     * @return the last closed checkpoint Id.
      */
-    uint64_t getAllItemsForTAPConnection(const std::string &name, std::vector<queued_item> &items);
+    void getAllItemsForTAPConnection(const std::string &name, std::vector<queued_item> &items);
 
     /**
      * Return the total number of items that belong to this checkpoint manager.
@@ -431,6 +430,12 @@ public:
 
     void resetTAPCursors(const std::list<std::string> &cursors);
 
+    /**
+     * Get id of the previous checkpoint that is followed by the checkpoint
+     * where the persistence cursor is currently walking.
+     */
+    uint64_t getPersistenceCursorPreChkId();
+
 private:
 
     bool registerTAPCursor_UNLOCKED(const std::string &name,
@@ -459,9 +464,9 @@ private:
 
     queued_item nextItemFromOpenedCheckpoint(CheckpointCursor &cursor, bool &isLastMutationItem);
 
-    uint64_t getAllItemsFromCurrentPosition(CheckpointCursor &cursor,
-                                            uint64_t barrier,
-                                            std::vector<queued_item> &items);
+    void getAllItemsFromCurrentPosition(CheckpointCursor &cursor,
+                                        uint64_t barrier,
+                                        std::vector<queued_item> &items);
 
     bool moveCursorToNextCheckpoint(CheckpointCursor &cursor);
 
@@ -525,6 +530,7 @@ private:
     bool                     isCollapsedCheckpoint;
     bool                     checkpointExtension;
     uint64_t                 lastClosedCheckpointId;
+    uint64_t                 pCursorPreCheckpointId;
     std::map<const std::string, CheckpointCursor> tapCursors;
 };
 

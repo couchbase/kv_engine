@@ -511,11 +511,6 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
         vbuckets.setBucketVersion(0, 0);
     }
 
-    persistenceCheckpointIds = new uint64_t[BASE_VBUCKET_SIZE];
-    for (size_t i = 0; i < BASE_VBUCKET_SIZE; ++i) {
-        persistenceCheckpointIds[i] = 0;
-    }
-
     size_t num_shards = rwUnderlying->getNumShards();
     dbShardQueues = new std::vector<queued_item>[num_shards];
 
@@ -660,7 +655,6 @@ EventuallyPersistentStore::~EventuallyPersistentStore() {
     delete flusher;
     delete dispatcher;
     delete nonIODispatcher;
-    delete []persistenceCheckpointIds;
     delete []dbShardQueues;
     delete warmupTask;
 }
@@ -1841,8 +1835,7 @@ std::queue<queued_item>* EventuallyPersistentStore::beginFlush() {
             vb->getBackfillItems(item_list);
 
             // Get all dirty items from the checkpoint.
-            uint64_t checkpointId = vb->checkpointManager.getAllItemsForPersistence(item_list);
-            persistenceCheckpointIds[vbid] = checkpointId;
+            vb->checkpointManager.getAllItemsForPersistence(item_list);
 
             uint16_t shard_id = 0;
             std::vector<queued_item>::iterator it = item_list.begin();
@@ -1918,9 +1911,10 @@ void EventuallyPersistentStore::completeFlush(rel_time_t flush_start) {
         if (!vb || vb->getState() == vbucket_state_dead) {
             continue;
         }
-        if (persistenceCheckpointIds[vbid] > 0 &&
-            persistenceCheckpointIds[vbid] != vbuckets.getPersistenceCheckpointId(vbid)) {
-            vbuckets.setPersistenceCheckpointId(vbid, persistenceCheckpointIds[vbid]);
+        uint64_t pcursor_chkid = vb->checkpointManager.getPersistenceCursorPreChkId();
+        if (pcursor_chkid > 0 &&
+            pcursor_chkid != vbuckets.getPersistenceCheckpointId(vbid)) {
+            vbuckets.setPersistenceCheckpointId(vbid, pcursor_chkid);
             schedule_vb_snapshot = true;
         }
     }

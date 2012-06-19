@@ -689,9 +689,9 @@ bool CheckpointManager::queueDirty(const queued_item &qi, const RCPtr<VBucket> &
     return (numItemsAfter - numItemsBefore) > 0;
 }
 
-uint64_t CheckpointManager::getAllItemsFromCurrentPosition(CheckpointCursor &cursor,
-                                                           uint64_t barrier,
-                                                           std::vector<queued_item> &items) {
+void CheckpointManager::getAllItemsFromCurrentPosition(CheckpointCursor &cursor,
+                                                       uint64_t barrier,
+                                                       std::vector<queued_item> &items) {
     while (true) {
         if ( barrier > 0 )  {
             if ((*(cursor.currentCheckpoint))->getId() >= barrier) {
@@ -712,31 +712,21 @@ uint64_t CheckpointManager::getAllItemsFromCurrentPosition(CheckpointCursor &cur
             break;
         }
     }
-
-    uint64_t checkpointId = 0;
-    // Get the last closed checkpoint Id.
-    if(checkpointList.size() > 0) {
-        uint64_t id = (*(cursor.currentCheckpoint))->getId();
-        checkpointId = id > 0 ? id - 1 : 0;
-    }
-
-    return checkpointId;
 }
 
-uint64_t CheckpointManager::getAllItemsForPersistence(std::vector<queued_item> &items) {
+void CheckpointManager::getAllItemsForPersistence(std::vector<queued_item> &items) {
     LockHolder lh(queueLock);
     // Get all the items up to the end of the current open checkpoint.
-    uint64_t checkpoint_id = getAllItemsFromCurrentPosition(persistenceCursor, 0, items);
+    getAllItemsFromCurrentPosition(persistenceCursor, 0, items);
     persistenceCursor.offset = numItems;
+    pCursorPreCheckpointId = getLastClosedCheckpointId_UNLOCKED();
 
     getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
                      "Grab %ld items through the persistence cursor from vbucket %d.\n",
                      items.size(), vbucketId);
-
-    return checkpoint_id;
 }
 
-uint64_t CheckpointManager::getAllItemsForTAPConnection(const std::string &name,
+void CheckpointManager::getAllItemsForTAPConnection(const std::string &name,
                                                     std::vector<queued_item> &items) {
     LockHolder lh(queueLock);
     std::map<const std::string, CheckpointCursor>::iterator it = tapCursors.find(name);
@@ -744,16 +734,14 @@ uint64_t CheckpointManager::getAllItemsForTAPConnection(const std::string &name,
         getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
                          "The cursor for TAP connection \"%s\" is not found in the checkpoint.\n",
                          name.c_str());
-        return 0;
+        return;
     }
-    uint64_t checkpointId = getAllItemsFromCurrentPosition(it->second, 0, items);
+    getAllItemsFromCurrentPosition(it->second, 0, items);
     it->second.offset = numItems;
 
     getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
                      "Grab %ld items through the tap cursor with name \"%s\" from vbucket %d.\n",
                      items.size(), name.c_str(), vbucketId);
-
-    return checkpointId;
 }
 
 queued_item CheckpointManager::nextItem(const std::string &name, bool &isLastMutationItem) {
@@ -1144,6 +1132,11 @@ void CheckpointManager::decrCursorPos_UNLOCKED(CheckpointCursor &cursor) {
     if (cursor.currentPos != (*(cursor.currentCheckpoint))->begin()) {
         --(cursor.currentPos);
     }
+}
+
+uint64_t CheckpointManager::getPersistenceCursorPreChkId() {
+    LockHolder lh(queueLock);
+    return pCursorPreCheckpointId;
 }
 
 void CheckpointConfig::addConfigChangeListener(EventuallyPersistentEngine &engine) {

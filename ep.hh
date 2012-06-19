@@ -1010,7 +1010,6 @@ private:
     TransactionContext                   tctx;
     Mutex                                vbsetMutex;
     uint32_t                             bgFetchDelay;
-    uint64_t                            *persistenceCheckpointIds;
     // During restore we're bypassing the checkpoint lists with the
     // objects we're restoring, but we need them to be persisted.
     // This is solved by using a separate list for those objects.
