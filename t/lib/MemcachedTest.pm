@@ -144,6 +144,7 @@ sub supports_udp {
 
 sub supports_sasl {
     my $output = `$builddir/memcached -h`;
+    return 0 if $output =~ /iSASL/;
     return 1 if $output =~ /sasl/i;
     return 0;
 }

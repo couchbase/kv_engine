@@ -6457,7 +6457,13 @@ static void usage(void) {
            "              (default: 1mb, min: 1k, max: 128m)\n");
     printf("-q            Disable detailed stats commands\n");
 #ifdef SASL_ENABLED
-    printf("-S            Require SASL authentication\n");
+    printf("-S            Require SASL authentication%s\n",
+#ifdef ENABLE_ISASL
+           " (iSASL)"
+#else
+           ""
+#endif
+           );
 #endif
     printf("-X module,cfg Load the module and initialize it with the config\n");
     printf("-E engine     Load engine as the storage engine\n");
