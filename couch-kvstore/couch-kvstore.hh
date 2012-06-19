@@ -305,6 +305,8 @@ private:
 
     /* all stats */
     CouchKVStoreStats   st;
+    /* initial vbucket states */
+    vbucket_map_t warmupVbStates;
 };
 
 #endif /* COUCHSTORE_KVSTORE_H */

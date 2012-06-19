@@ -504,13 +504,16 @@ bool CouchKVStore::delVBucket(uint16_t vbucket, uint16_t)
 
 vbucket_map_t CouchKVStore::listPersistedVbuckets()
 {
-    std::map<std::pair<uint16_t, uint16_t>, vbucket_state> rv;
     std::vector<std::string> files;
 
     if (dbFileMap.empty()) {
         // warmup, first discover db files from local directory
         discoverDbFiles(dbname, files);
         populateFileNameMap(files);
+    }
+
+    if (!warmupVbStates.empty()) {
+        warmupVbStates.clear();
     }
 
     Db *db = NULL;
@@ -536,14 +539,14 @@ vbucket_map_t CouchKVStore::listPersistedVbuckets()
             /* read state of VBucket from db file */
             readVBState(db, vbID, vb_state);
             /* insert populated state to the array to return to the caller */
-            rv[vb] = vb_state;
+            warmupVbStates[vb] = vb_state;
             /* update stat */
             ++st.numLoadedVb;
             closeDatabaseHandle(db);
         }
         db = NULL;
     }
-    return rv;
+    return warmupVbStates;
 }
 
 void CouchKVStore::vbStateChanged(uint16_t vbucket, vbucket_state_t newState)
@@ -796,6 +799,9 @@ void CouchKVStore::loadDB(shared_ptr<LoadCallback> cb, bool keysOnly,
     std::vector<std::string> files = std::vector<std::string>();
     std::map<uint16_t, int> &filemap = dbFileMap;
     std::map<uint16_t, int> vbmap;
+    std::vector< std::pair<uint16_t, int> > vbuckets;
+    std::vector< std::pair<uint16_t, int> > replicaVbuckets;
+    bool loadingData = !vbids && !keysOnly;
 
     if (dbFileMap.empty()) {
         // warmup, first discover db files from local directory
@@ -810,11 +816,41 @@ void CouchKVStore::loadDB(shared_ptr<LoadCallback> cb, bool keysOnly,
         filemap = vbmap;
     }
 
+    // order vbuckets data loading by using vbucket states
+    if (loadingData && warmupVbStates.empty()) {
+        listPersistedVbuckets();
+    }
+
+    std::map<uint16_t, int>::iterator fitr = filemap.begin();
+    for (; fitr != filemap.end(); fitr++) {
+        if (loadingData) {
+            vbucket_map_t::const_iterator vsit = warmupVbStates.find(make_pair(fitr->first, -1));
+            if (vsit != warmupVbStates.end()) {
+                vbucket_state vbs = vsit->second;
+                // ignore loading dead vbuckets during warmup
+                if (vbs.state == vbucket_state_active) {
+                    vbuckets.push_back(make_pair(fitr->first, fitr->second));
+                } else if (vbs.state == vbucket_state_replica) {
+                    replicaVbuckets.push_back(make_pair(fitr->first, fitr->second));
+                }
+            }
+        } else {
+            vbuckets.push_back(make_pair(fitr->first, fitr->second));
+        }
+    }
+
+    if (loadingData) {
+        std::vector< std::pair<uint16_t, int> >::iterator it = replicaVbuckets.begin();
+        for (; it != replicaVbuckets.end(); it++) {
+            vbuckets.push_back(*it);
+        }
+    }
+
     Db *db = NULL;
     couchstore_error_t errorCode;
     int keyNum = 0;
-    std::map<uint16_t, int>::iterator itr = filemap.begin();
-    for (; itr != filemap.end(); itr++, keyNum++) {
+    std::vector< std::pair<uint16_t, int> >::iterator itr = vbuckets.begin();
+    for (; itr != vbuckets.end(); itr++, keyNum++) {
         errorCode = openDB(itr->first, itr->second, &db, 0);
         if (errorCode != COUCHSTORE_SUCCESS) {
             std::stringstream rev, vbid;
@@ -843,6 +879,11 @@ void CouchKVStore::loadDB(shared_ptr<LoadCallback> cb, bool keysOnly,
             closeDatabaseHandle(db);
         }
         db = NULL;
+    }
+
+    if (loadingData) {
+        /* clear this map because it is no longer needed */
+        warmupVbStates.clear();
     }
 
     bool success = true;
