@@ -1941,6 +1941,75 @@ static enum test_result test_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return check_key_value(h, h1, "key", val, strlen(val));
 }
 
+static enum test_result test_specialKeys(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    item *i = NULL;
+    ENGINE_ERROR_CODE ret;
+
+    // Simplified Chinese "Couchbase"
+    static const char key0[] = "沙发数据库";
+    static const char val0[] = "some Chinese value";
+    check((ret = store(h, h1, NULL, OPERATION_SET, key0, val0, &i)) == ENGINE_SUCCESS,
+          "Failed set Chinese key");
+    check_key_value(h, h1, key0, val0, strlen(val0));
+    h1->release(h, NULL, i);
+    // Traditional Chinese "Couchbase"
+    static const char key1[] = "沙發數據庫";
+    static const char val1[] = "some Traditional Chinese value";
+    check((ret = store(h, h1, NULL, OPERATION_SET, key1, val1, &i)) == ENGINE_SUCCESS,
+          "Failed set Traditional Chinese key");
+    h1->release(h, NULL, i);
+    // Korean "couch potato"
+    static const char key2[] = "쇼파감자";
+    static const char val2[] = "some Korean value";
+    check((ret = store(h, h1, NULL, OPERATION_SET, key2, val2, &i)) == ENGINE_SUCCESS,
+          "Failed set Korean key");
+    h1->release(h, NULL, i);
+    // Russian "couch potato"
+    static const char key3[] = "лодырь, лентяй";
+    static const char val3[] = "some Russian value";
+    check((ret = store(h, h1, NULL, OPERATION_SET, key3, val3, &i)) == ENGINE_SUCCESS,
+          "Failed set Russian key");
+    h1->release(h, NULL, i);
+    // Japanese "couch potato"
+    static const char key4[] = "カウチポテト";
+    static const char val4[] = "some Japanese value";
+    check((ret = store(h, h1, NULL, OPERATION_SET, key4, val4, &i)) == ENGINE_SUCCESS,
+          "Failed set Japanese key");
+    h1->release(h, NULL, i);
+    // Indian char key, and no idea what it is
+    static const char key5[] = "हरियानवी";
+    static const char val5[] = "some Indian value";
+    check((ret = store(h, h1, NULL, OPERATION_SET, key5, val5, &i)) == ENGINE_SUCCESS,
+          "Failed set Indian key");
+    h1->release(h, NULL, i);
+    // Portuguese translation "couch potato"
+    static const char key6[] = "sedentário";
+    static const char val6[] = "some Portuguese value";
+    check((ret = store(h, h1, NULL, OPERATION_SET, key6, val6, &i)) == ENGINE_SUCCESS,
+          "Failed set Portuguese key");
+    h1->release(h, NULL, i);
+    // Arabic translation "couch potato"
+    static const char key7[] = "الحافلةالبطاطة";
+    static const char val7[] = "some Arabic value";
+    check((ret = store(h, h1, NULL, OPERATION_SET, key7, val7, &i)) == ENGINE_SUCCESS,
+          "Failed set Arabic key");
+    h1->release(h, NULL, i);
+
+    testHarness.reload_engine(&h, &h1,
+                              testHarness.engine_path,
+                              testHarness.get_current_testcase()->cfg,
+                              true, false);
+    check_key_value(h, h1, key0, val0, strlen(val0));
+    check_key_value(h, h1, key1, val1, strlen(val1));
+    check_key_value(h, h1, key2, val2, strlen(val2));
+    check_key_value(h, h1, key3, val3, strlen(val3));
+    check_key_value(h, h1, key4, val4, strlen(val4));
+    check_key_value(h, h1, key5, val5, strlen(val5));
+    check_key_value(h, h1, key6, val6, strlen(val6));
+    check_key_value(h, h1, key7, val7, strlen(val7));
+    return SUCCESS;
+}
+
 static enum test_result test_mb4898(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     std::vector<std::string> keys;
     for (int j = 0; j < 10; ++j) {
@@ -7101,6 +7170,9 @@ engine_test_t* get_tests(void) {
         TestCase("duplicate items on disk", test_duplicate_items_disk,
                  test_setup, teardown, NULL, prepare, cleanup,
                  BACKEND_ALL),
+        // special non-Ascii keys
+        TestCase("test special char keys", test_specialKeys, test_setup,
+                 teardown, NULL, prepare, cleanup, BACKEND_ALL),
         // tap tests
         TestCase("set tap param", test_set_tap_param, test_setup,
                  teardown, NULL, prepare, cleanup, BACKEND_ALL),
