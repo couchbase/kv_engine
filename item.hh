@@ -138,37 +138,36 @@ public:
         cas(c), seqno(s), flags(f), exptime(e) {
     }
 
-    static void encodeMeta(uint32_t seqno, uint64_t cas, time_t exptime,
-                           uint32_t flags, std::string &dest)
+    void encode(std::string &dest)
     {
         uint8_t meta[22];
         size_t len = sizeof(meta);
-        encodeMeta(seqno, cas, exptime, flags, meta, len);
+        encode(meta, len);
         dest.assign((char*)meta, len);
     }
 
-    static bool encodeMeta(uint32_t seqno, uint64_t cas, time_t exptime,
-                           uint32_t flags, uint8_t *dest, size_t &nbytes)
+    bool encode(uint8_t *dest, size_t &nbytes) const
     {
         if (nbytes < 22) {
             return false;
         }
-        seqno = htonl(seqno);
-        cas = htonll(cas);
-        exptime = htonl(exptime);
-        flags = htonl(flags);
+
+        uint32_t s = htonl(seqno);
+        uint64_t c = htonll(cas);
+        time_t e = htonl(exptime);
+        uint32_t f = htonl(flags);
 
         dest[0] = 0x01;
         dest[1] = 20;
-        memcpy(dest + 2, &seqno, 4);
-        memcpy(dest + 6, &cas, 8);
-        memcpy(dest + 14, &exptime, 4);
-        memcpy(dest + 18, &flags, 4);
+        memcpy(dest + 2, &s, 4);
+        memcpy(dest + 6, &c, 8);
+        memcpy(dest + 14, &e, 4);
+        memcpy(dest + 18, &f, 4);
         nbytes = 22;
         return true;
     }
 
-    static bool decodeMeta(const uint8_t *dta, ItemMetaData &meta) {
+    bool decode(const uint8_t *dta) {
         if (*dta != 0x01) {
             // Unsupported meta tag
             return false;
@@ -179,17 +178,17 @@ public:
             return false;
         }
         ++dta;
-        memcpy(&meta.seqno, dta, 4);
-        meta.seqno = ntohl(meta.seqno);
+        memcpy(&seqno, dta, 4);
+        seqno = ntohl(seqno);
         dta += 4;
-        memcpy(&meta.cas, dta, 8);
-        meta.cas = ntohll(meta.cas);
+        memcpy(&cas, dta, 8);
+        cas = ntohll(cas);
         dta += 8;
-        memcpy(&meta.exptime, dta, 4);
-        meta.exptime = ntohl(meta.exptime);
+        memcpy(&exptime, dta, 4);
+        exptime = ntohl(exptime);
         dta += 4;
-        memcpy(&meta.flags, dta, 4);
-        meta.flags = ntohl(meta.flags);
+        memcpy(&flags, dta, 4);
+        flags = ntohl(flags);
 
         return true;
     }
@@ -369,6 +368,10 @@ public:
 
     static uint32_t getNMetaBytes() {
         return metaDataSize;
+    }
+
+    const ItemMetaData& getMetaData() const {
+        return metaData;
     }
 
 private:

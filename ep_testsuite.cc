@@ -601,7 +601,7 @@ static bool get_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
                                                 add_response_get_meta);
     check(ret == ENGINE_SUCCESS, "Expected get_meta call to be successful");
     if (last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-        return ItemMetaData::decodeMeta((uint8_t *)last_body, itm_meta);
+        return itm_meta.decode((uint8_t *)last_body);
     } else {
         return false;
     }
@@ -5538,8 +5538,7 @@ static void set_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 
     // encode the revid:
     uint8_t* meta_data = (uint8_t*)msg.buffer + sizeof(msg.req.bytes) + keylen + vallen;
-    ItemMetaData::encodeMeta(itemMeta->seqno, itemMeta->cas, itemMeta->exptime,
-                             itemMeta->flags, meta_data, nb);
+    itemMeta->encode(meta_data, nb);
 
     ENGINE_ERROR_CODE ret = h1->unknown_command(h, NULL, &msg.pkt,
                                                 add_response);
@@ -5585,8 +5584,7 @@ static void add_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 
     // encode the revid:
     uint8_t* meta_data = (uint8_t*)msg.buffer + sizeof(msg.req.bytes) + keylen + vallen;
-    ItemMetaData::encodeMeta(itemMeta->seqno, itemMeta->cas, itemMeta->exptime,
-                             itemMeta->flags, meta_data, nb);
+    itemMeta->encode(meta_data, nb);
 
     ENGINE_ERROR_CODE ret = h1->unknown_command(h, NULL, &msg.pkt,
                                                 add_response);
@@ -5623,8 +5621,7 @@ static void del_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     msg.req.message.body.nmeta_bytes = ntohl(nb);
 
     uint8_t* meta_data = (uint8_t*)msg.buffer + sizeof(msg.req.bytes) + keylen;
-    ItemMetaData::encodeMeta(itemMeta->seqno, itemMeta->cas, itemMeta->exptime,
-                             itemMeta->flags, meta_data, nb);
+    itemMeta->encode(meta_data, nb);
 
     ENGINE_ERROR_CODE ret = h1->unknown_command(h, NULL, &msg.pkt,
                                                 add_response);
@@ -5656,8 +5653,9 @@ static enum test_result test_regression_mb4314(ENGINE_HANDLE *h, ENGINE_HANDLE_V
 
     size_t nb = 22;
     // encode the revid:
-    ItemMetaData::encodeMeta(10, 0xdeadbeef, 0, 0xdeadbeef,
-                             (uint8_t*)msg.buffer + sizeof(msg.req.bytes) + 22, nb);
+    ItemMetaData md(0xdeadbeef, 10, 0xdeadbeef, 0);
+    md.encode((uint8_t*)msg.buffer + sizeof(msg.req.bytes) + 22, nb);
+
     ENGINE_ERROR_CODE ret = h1->unknown_command(h, NULL, &msg.pkt,
                                                 add_response);
     check(ret == ENGINE_SUCCESS, "Expected to be able to store with meta");
