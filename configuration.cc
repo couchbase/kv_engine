@@ -23,6 +23,10 @@
 #include <sstream>
 #include <iostream>
 
+#define STATWRITER_NAMESPACE core_engine
+#include "statwriter.hh"
+#undef STATWRITER_NAMESPACE
+
 Configuration::Configuration() {
     initialize();
 }
@@ -311,10 +315,7 @@ void Configuration::addStats(ADD_STAT add_stat, const void *c) const {
         std::stringstream key;
         key << "ep_" << iter->first;
         std::string k = key.str();
-        add_stat(k.c_str(),
-                static_cast<uint16_t> (k.length()),
-                value.str().data(),
-                static_cast<uint32_t> (value.str().length()), c);
+        add_casted_stat(k.c_str(), value.str().data(), add_stat, c);
     }
 }
 

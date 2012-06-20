@@ -11,6 +11,11 @@
 #include "tools/cJSON.h"
 
 
+#define STATWRITER_NAMESPACE mc_engine
+#include "statwriter.hh"
+#undef STATWRITER_NAMESPACE
+
+
 static std::string getStringFromJSONObj(cJSON *i) {
     if (i == NULL) {
         return "";
@@ -233,10 +238,8 @@ void MCKVStore::addStat(const std::string &prefix, const char *nm, T val,
     std::stringstream value;
     value << val;
     std::string n = name.str();
-    add_stat(n.data(), static_cast<uint16_t>(n.length()),
-             value.str().data(),
-             static_cast<uint32_t>(value.str().length()),
-             c);
+
+    add_casted_stat(n.data(), value.str().data(), add_stat, c);
 }
 
 void MCKVStore::optimizeWrites(std::vector<queued_item> &items) {

@@ -194,10 +194,13 @@ private:
             std::stringstream value;
             value << val;
             std::string n = name.str();
-            add_stat(n.data(), static_cast<uint16_t>(n.length()),
-                     value.str().data(),
-                     static_cast<uint32_t>(value.str().length()),
-                     c);
+
+            EventuallyPersistentEngine *e = ObjectRegistry::onSwitchThread(NULL, true);
+            add_stat(n.data(),
+                    static_cast<uint16_t> (n.length()),
+                    value.str().data(),
+                    static_cast<uint32_t> (value.str().length()), c);
+            ObjectRegistry::onSwitchThread(e);
         }
 
         void addStats(const std::string &prefix,
