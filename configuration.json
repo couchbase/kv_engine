@@ -118,6 +118,11 @@
                 }
             }
         },
+        "data_traffic_enabled": {
+            "default": "true",
+            "descr": "True if we want to enable data traffic after warmup is complete",
+            "type": "bool"
+        },
         "db_shards": {
             "default": "4",
             "type": "size_t"

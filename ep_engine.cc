@@ -1319,6 +1319,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     // Complete the initialization of the ep-store
     epstore->initialize();
 
+    if(configuration.isDataTrafficEnabled()) {
+        enableTraffic();
+    }
+
     getlExtension = new GetlExtension(epstore, getServerApiFunc);
     getlExtension->initialize();
 
