@@ -2175,18 +2175,6 @@ public:
 
 private:
 
-    void setId(int64_t id) {
-        bool did = store->invokeOnLockedStoredValue(queuedItem->getKey(),
-                                                    queuedItem->getVBucketId(),
-                                                    &StoredValue::setId,
-                                                    id);
-        if (!did) {
-            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "Failed to set id on vb%d ``%s''\n",
-                             queuedItem->getVBucketId(), queuedItem->getKey().c_str());
-        }
-    }
-
     void redirty() {
         ++stats->flushFailed;
         store->invokeOnLockedStoredValue(queuedItem->getKey(),
