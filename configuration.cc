@@ -23,7 +23,7 @@
 #include <sstream>
 #include <iostream>
 
-#define STATWRITER_NAMESPACE core_engine
+#define STATWRITER_NAMESPACE config
 #include "statwriter.hh"
 #undef STATWRITER_NAMESPACE
 

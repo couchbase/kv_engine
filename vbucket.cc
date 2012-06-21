@@ -5,6 +5,10 @@
 #include "vbucket.hh"
 #include "ep_engine.h"
 
+#define STATWRITER_NAMESPACE vbucket
+#include "statwriter.hh"
+#undef STATWRITER_NAMESPACE
+
 VBucketFilter VBucketFilter::filter_diff(const VBucketFilter &other) const {
     std::vector<uint16_t> tmp(acceptable.size() + other.size());
     std::vector<uint16_t>::iterator end;
@@ -180,6 +184,19 @@ void VBucket::resetStats() {
     dirtyQueueAge.set(0);
     dirtyQueuePendingWrites.set(0);
     dirtyQueueDrain.set(0);
+}
+
+template <typename T>
+void VBucket::addStat(const char *nm, T val, ADD_STAT add_stat, const void *c) {
+    std::stringstream name;
+    name << "vb_" << id;
+    if (nm != NULL) {
+        name << ":" << nm;
+    }
+    std::stringstream value;
+    value << val;
+    std::string n = name.str();
+    add_casted_stat(n.data(), value.str().data(), add_stat, c);
 }
 
 void VBucket::addStats(bool details, ADD_STAT add_stat, const void *c) {

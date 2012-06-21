@@ -82,22 +82,7 @@ public:
 
 private:
     template <typename T>
-    void addStat(const char *nm, T val, ADD_STAT add_stat, const void *c) const {
-        std::string name = "ep_warmup";
-        if (nm != NULL) {
-            name.append("_");
-            name.append(nm);
-        }
-
-        std::stringstream value;
-        value << val;
-
-        EventuallyPersistentEngine *e = ObjectRegistry::onSwitchThread(NULL, true);
-        add_stat(name.data(), static_cast<uint16_t>(name.length()),
-                 value.str().data(), static_cast<uint32_t>(value.str().length()),
-                 c);
-        ObjectRegistry::onSwitchThread(e);
-    }
+    void addStat(const char *nm, T val, ADD_STAT add_stat, const void *c) const;
 
     void fireStateChange(const int from, const int to);
 

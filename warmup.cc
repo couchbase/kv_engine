@@ -18,6 +18,10 @@
 #include "warmup.hh"
 #include "ep_engine.h"
 
+#define STATWRITER_NAMESPACE warmup
+#include "statwriter.hh"
+#undef STATWRITER_NAMESPACE
+
 const int WarmupState::Initialize = 0;
 const int WarmupState::LoadingMutationLog = 1;
 const int WarmupState::EstimateDatabaseItemCount = 2;
@@ -604,6 +608,20 @@ void Warmup::fireStateChange(const int from, const int to)
          ++ii) {
         (*ii)->stateChanged(from, to);
     }
+}
+
+template <typename T>
+void Warmup::addStat(const char *nm, T val, ADD_STAT add_stat,
+                     const void *c) const {
+    std::string name = "ep_warmup";
+    if (nm != NULL) {
+        name.append("_");
+        name.append(nm);
+    }
+
+    std::stringstream value;
+    value << val;
+    add_casted_stat(name.data(), value.str().data(), add_stat, c);
 }
 
 void Warmup::addStats(ADD_STAT add_stat, const void *c) const

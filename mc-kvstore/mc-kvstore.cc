@@ -11,7 +11,7 @@
 #include "tools/cJSON.h"
 
 
-#define STATWRITER_NAMESPACE mc_engine
+#define STATWRITER_NAMESPACE mckv_engine
 #include "statwriter.hh"
 #undef STATWRITER_NAMESPACE
 

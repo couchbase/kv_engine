@@ -19,6 +19,9 @@
 #include "ep_engine.h"
 #include "dispatcher.hh"
 
+#define STATWRITER_NAMESPACE tap
+#include "statwriter.hh"
+#undef STATWRITER_NAMESPACE
 
 Atomic<uint64_t> TapConnection::tapCounter(1);
 
@@ -40,6 +43,16 @@ TapConnection::TapConnection(EventuallyPersistentEngine &theEngine,
 TapConnection::~TapConnection() {
     getLogger()->log(EXTENSION_LOG_INFO, NULL,
                      "%s Remove tap connection instance.\n", logHeader());
+}
+
+template <typename T>
+void TapConnection::addStat(const char *nm, T val, ADD_STAT add_stat, const void *c) {
+    std::stringstream tap;
+    tap << name << ":" << nm;
+    std::stringstream value;
+    value << val;
+    std::string n = tap.str();
+    add_casted_stat(n.data(), value.str().data(), add_stat, c);
 }
 
 const void *TapConnection::getCookie() const {
