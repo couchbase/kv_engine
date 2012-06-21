@@ -89,8 +89,15 @@ class TapConnection(mc_bin_server.MemcachedBinaryChannel):
 
     def processCommand(self, cmd, klen, vb, extralen, cas, data):
         extra = data[0:extralen]
-        key = data[extralen:(extralen+klen)]
-        val = data[(extralen+klen):]
+        if len(extra) == 8:
+            es_length, _flags, _ttl = \
+                struct.unpack(memcacheConstants.TAP_GENERAL_PKT_FMT, extra)
+        else:
+            es_length, _flags, _ttl, _flg, _exp = \
+                struct.unpack(memcacheConstants.TAP_MUTATION_PKT_FMT, extra)
+        key_start = extralen + es_length
+        key = data[key_start:(key_start+klen)]
+        val = data[(key_start+klen):]
         return self.callback(self.identifier, cmd, extra, key, vb, val, cas)
 
     def handle_connect(self):
