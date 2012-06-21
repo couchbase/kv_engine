@@ -423,7 +423,7 @@ void TapProducer::registerTAPCursor(const std::map<uint16_t, uint64_t> &lastChec
             // As TAP dump option simply requires the snapshot of each vbucket, simply schedule
             // backfill and skip the checkpoint cursor registration.
             if (dumpQueue) {
-                if (vb->getState() == vbucket_state_active) {
+                if (vb->getState() == vbucket_state_active && vb->ht.getNumItems() > 0) {
                     backfill_vbuckets.push_back(vbid);
                 }
                 continue;
