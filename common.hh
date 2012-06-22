@@ -64,11 +64,11 @@ static inline int my_pthread_cond_timedwait(pthread_cond_t *restrict cond,
                                             pthread_mutex_t *restrict mutex,
                                             const struct timespec *restrict abstime) {
     int rv = pthread_cond_timedwait(cond, mutex, abstime);
-    //On Cygwin/mingw, it is redefined ETIMEDOUT to WSAETIMEDOUT,
+    //On 64bit Cygwin/mingw, it is redefined ETIMEDOUT to WSAETIMEDOUT,
     //which is 10060. Here we still keep the original ETIMEDOUT value
     // for return value of functions such as pthread_cond_timedwait
     // NOTE: wsasock2.h is included in win32/config.h so we expect this define to be made
-    assert(WSAETIMEDOUT == ETIMEDOUT);
+    // But on 32bit Cygwin/mingw, we just keep the original return value.
     if (rv == 110) {
         rv = ETIMEDOUT;
     }
