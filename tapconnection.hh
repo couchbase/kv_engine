@@ -732,7 +732,7 @@ private:
         return nextCheckpointMessage_UNLOCKED();
     }
 
-    bool hasQueuedItem_UNLOCKED() {
+    bool hasItemFromVBHashtable_UNLOCKED() {
         return !queue->empty() || hasNextFromCheckpoints_UNLOCKED();
     }
 
@@ -741,8 +741,8 @@ private:
     }
 
     bool empty_UNLOCKED() {
-        return backfilledItems.empty() && (bgJobIssued - bgJobCompleted) == 0 &&
-               !hasQueuedItem_UNLOCKED();
+        return !hasItemFromDisk_UNLOCKED() && (bgJobIssued - bgJobCompleted) == 0 &&
+               !hasItemFromVBHashtable_UNLOCKED();
     }
 
     bool idle_UNLOCKED() {
@@ -760,9 +760,9 @@ private:
         return hasItemFromDisk_UNLOCKED();
     }
 
-    bool hasQueuedItem() {
+    bool hasItemFromVBHashtable() {
         LockHolder lh(queueLock);
-        return hasQueuedItem_UNLOCKED();
+        return hasItemFromVBHashtable_UNLOCKED();
     }
 
     bool empty() {

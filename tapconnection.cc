@@ -1198,10 +1198,8 @@ void TapProducer::addStats(ADD_STAT add_stat, const void *c) {
         addStat("rec_skipped", recordsSkipped, add_stat, c);
     }
     addStat("idle", idle_UNLOCKED(), add_stat, c);
-    addStat("empty", empty_UNLOCKED(), add_stat, c);
     addStat("complete", complete_UNLOCKED(), add_stat, c);
-    addStat("has_item_from_disk", hasItemFromDisk_UNLOCKED(), add_stat, c);
-    addStat("has_queued_item", hasQueuedItem_UNLOCKED(), add_stat, c);
+    addStat("has_queued_item", !empty_UNLOCKED(), add_stat, c);
     addStat("bg_result_size", bgResultSize, add_stat, c);
     addStat("bg_jobs_issued", bgJobIssued, add_stat, c);
     addStat("bg_jobs_completed", bgJobCompleted, add_stat, c);
@@ -1763,7 +1761,7 @@ Item* TapProducer::getNextItem(const void *c, uint16_t *vbucket, tap_event_t &re
         qi = queued_item(new QueuedItem(itm->getKey(), itm->getVBucketId(),
                                         ret == TAP_MUTATION ? queue_op_set : queue_op_del,
                                         -1, itm->getId()));
-    } else if (hasQueuedItem_UNLOCKED()) { // Item from memory backfill or checkpoints
+    } else if (hasItemFromVBHashtable_UNLOCKED()) { // Item from memory backfill or checkpoints
         if (waitForCheckpointMsgAck()) {
             getLogger()->log(EXTENSION_LOG_INFO, NULL,
                              "%s Waiting for an ack for checkpoint_start/checkpoint_end"
@@ -1805,7 +1803,7 @@ Item* TapProducer::getNextItem(const void *c, uint16_t *vbucket, tap_event_t &re
                 // If there's an item ready, return NOOP so we'll come
                 // back immediately, otherwise pause the connection
                 // while we wait.
-                if (hasQueuedItem_UNLOCKED() || hasItemFromDisk_UNLOCKED()) {
+                if (hasItemFromVBHashtable_UNLOCKED() || hasItemFromDisk_UNLOCKED()) {
                     ret = TAP_NOOP;
                 } else {
                     ret = TAP_PAUSE;

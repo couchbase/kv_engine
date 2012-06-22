@@ -318,12 +318,9 @@ another colon.  For example, if your client is named, =slave1=, the
 | rec_skipped               | Number of messages skipped due to        | P  |
 |                           | tap reconnect with a different filter    | P  |
 | idle                      | True if this connection is idle.         | P  |
-| empty                     | True if this connection has no items.    | P  |
 | complete                  | True if backfill is complete.            | P  |
-| has_item                  | True when there is a bg fetched item     | P  |
-|                           | ready.                                   | P  |
-| has_queued_item           | True when there is a key ready to be     | P  |
-|                           | looked up (may become fg or bg item)     | P  |
+| has_queued_item           | True if there are any remaining items    | P  |
+|                           | from hash table or disk.                 |    |
 | bg_queue_size             | Number of bg fetches enqueued for this   | P  |
 |                           | connection.                              | P  |
 | bg_result_size            | Number of ready background results.      | P  |
