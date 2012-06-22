@@ -1003,19 +1003,6 @@ void TapProducer::encodeVBucketStateTransition(const TapVBucketEvent &ev, void *
     *nes = sizeof(vbucket_state_t);
 }
 
-bool TapProducer::waitForBgFetches_UNLOCKED() {
-    const TapConfig &config = engine.getTapConfig();
-    if ((bgJobIssued - bgJobCompleted) > config.getBgMaxPending()) {
-        return true;
-    }
-    return false;
-}
-
-bool TapProducer::waitForBgFetches() {
-    LockHolder lh(queueLock);
-    return waitForBgFetches_UNLOCKED();
-}
-
 bool TapProducer::waitForCheckpointMsgAck() {
     return supportAck && checkpointMsgCounter > 0;
 }
@@ -1218,7 +1205,6 @@ void TapProducer::addStats(ADD_STAT add_stat, const void *c) {
     addStat("complete", complete_UNLOCKED(), add_stat, c);
     addStat("has_item_from_disk", hasItemFromDisk_UNLOCKED(), add_stat, c);
     addStat("has_queued_item", hasQueuedItem_UNLOCKED(), add_stat, c);
-    addStat("bg_wait_for_results", waitForBgFetches_UNLOCKED(), add_stat, c);
     addStat("bg_queued", bgQueued, add_stat, c);
     addStat("bg_result_size", bgResultSize, add_stat, c);
     addStat("bg_jobs_issued", bgJobIssued, add_stat, c);

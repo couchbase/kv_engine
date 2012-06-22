@@ -324,8 +324,6 @@ another colon.  For example, if your client is named, =slave1=, the
 |                           | ready.                                   | P  |
 | has_queued_item           | True when there is a key ready to be     | P  |
 |                           | looked up (may become fg or bg item)     | P  |
-| bg_wait_for_result        | True if the max number of background     | P  |
-|                           | operations is started                    | P  |
 | bg_queue_size             | Number of bg fetches enqueued for this   | P  |
 |                           | connection.                              | P  |
 | bg_queued                 | Number of background fetches enqueued.   | P  |

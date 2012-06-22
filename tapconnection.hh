@@ -937,9 +937,6 @@ private:
 
     void evaluateFlags();
 
-    bool waitForBgFetches_UNLOCKED();
-    bool waitForBgFetches();
-
     bool waitForCheckpointMsgAck();
 
     bool waitForOpaqueMsgAck();
