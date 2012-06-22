@@ -797,8 +797,6 @@ private:
          return numTapNack;
     }
 
-    bool shouldNotify();
-
     /**
      * Get the total number of remaining items from all checkpoints.
      */

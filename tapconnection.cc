@@ -1986,20 +1986,6 @@ void TapProducer::incrBackfillRemaining(size_t incr) {
     totalBackfillBacklogs += incr;
 }
 
-bool TapProducer::shouldNotify() {
-    bool ret = false;
-    // Don't notify if we've got a pending notification
-    if (!notifySent) {
-        // Always notify for disconnects, but only disconnect if
-        // we're paused and got data to send
-        if (doDisconnect() || (paused && !empty())) {
-            ret = true;
-        }
-    }
-
-    return ret;
-}
-
 void TapProducer::flush() {
     LockHolder lh(queueLock);
 
