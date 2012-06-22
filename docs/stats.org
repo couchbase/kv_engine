@@ -321,8 +321,6 @@ another colon.  For example, if your client is named, =slave1=, the
 | complete                  | True if backfill is complete.            | P  |
 | has_queued_item           | True if there are any remaining items    | P  |
 |                           | from hash table or disk.                 |    |
-| bg_queue_size             | Number of bg fetches enqueued for this   | P  |
-|                           | connection.                              | P  |
 | bg_result_size            | Number of ready background results.      | P  |
 | bg_jobs_issued            | Number of background jobs started.       | P  |
 | bg_jobs_completed         | Number of background jobs completed.     | P  |
