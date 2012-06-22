@@ -769,7 +769,6 @@ void TapProducer::setSuspended(bool value) {
 
 void TapProducer::reschedule_UNLOCKED(const std::list<TapLogElement>::iterator &iter)
 {
-    ++numTmpfailSurvivors;
     switch (iter->event) {
     case TAP_VBUCKET_SET:
         {
@@ -1126,7 +1125,6 @@ void TapProducer::queueBGFetch_UNLOCKED(const std::string &key, uint64_t id,
                                                               vb, vbv,
                                                               id, c));
     engine.getEpStore()->getTapDispatcher()->schedule(dcb, NULL, Priority::TapBgFetcherPriority);
-    ++bgQueued;
     ++bgJobIssued;
     std::map<uint16_t, TapCheckpointState>::iterator it = tapCheckpointState.find(vb);
     if (it != tapCheckpointState.end()) {
@@ -1143,7 +1141,6 @@ void TapProducer::completeBGFetchJob(Item *itm, uint16_t vbid, bool implicitEnqu
     // receive the item and want the stats to reflect an
     // enqueue/execute cycle.
     if (implicitEnqueue) {
-        ++bgQueued;
         ++bgJobIssued;
         if (it != tapCheckpointState.end()) {
             ++(it->second.bgJobIssued);
@@ -1205,11 +1202,9 @@ void TapProducer::addStats(ADD_STAT add_stat, const void *c) {
     addStat("complete", complete_UNLOCKED(), add_stat, c);
     addStat("has_item_from_disk", hasItemFromDisk_UNLOCKED(), add_stat, c);
     addStat("has_queued_item", hasQueuedItem_UNLOCKED(), add_stat, c);
-    addStat("bg_queued", bgQueued, add_stat, c);
     addStat("bg_result_size", bgResultSize, add_stat, c);
     addStat("bg_jobs_issued", bgJobIssued, add_stat, c);
     addStat("bg_jobs_completed", bgJobCompleted, add_stat, c);
-    addStat("bg_backlog_size", bgJobIssued - bgJobCompleted, add_stat, c);
     addStat("flags", flagsText, add_stat, c);
     addStat("suspended", isSuspended(), add_stat, c);
     addStat("paused", paused, add_stat, c);
@@ -1244,9 +1239,6 @@ void TapProducer::addStats(ADD_STAT add_stat, const void *c) {
         if (windowIsFull()) {
             addStat("expires", expiryTime - ep_current_time(), add_stat, c);
         }
-        addStat("num_tap_nack", numTapNack, add_stat, c);
-        addStat("num_tap_tmpfail_survivors", numTmpfailSurvivors, add_stat, c);
-        addStat("ack_playback_size", tapLog.size(), add_stat, c);
     }
 
     if (tapFlagByteorderSupport) {

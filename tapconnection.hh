@@ -1047,12 +1047,10 @@ private:
     //! vbuckets that are being backfilled by the current backfill session
     std::set<uint16_t> backfillVBuckets;
 
-    Atomic<size_t> bgQueued;
     Atomic<size_t> bgResultSize;
     Atomic<size_t> bgJobIssued;
     Atomic<size_t> bgJobCompleted;
     Atomic<size_t> numTapNack;
-    Atomic<size_t> numTmpfailSurvivors;
     Atomic<size_t> queueMemSize;
     Atomic<size_t> queueFill;
     Atomic<size_t> queueDrain;

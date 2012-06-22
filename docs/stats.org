@@ -326,11 +326,9 @@ another colon.  For example, if your client is named, =slave1=, the
 |                           | looked up (may become fg or bg item)     | P  |
 | bg_queue_size             | Number of bg fetches enqueued for this   | P  |
 |                           | connection.                              | P  |
-| bg_queued                 | Number of background fetches enqueued.   | P  |
 | bg_result_size            | Number of ready background results.      | P  |
 | bg_jobs_issued            | Number of background jobs started.       | P  |
 | bg_jobs_completed         | Number of background jobs completed.     | P  |
-| bg_backlog_size           | Number of items pending bg fetch.        | P  |
 | flags                     | Connection flags set by the client.      | P  |
 | pending_disconnect        | true if we're hanging up on this client  | P  |
 | paused                    | true if this client is blocked           | P  |
@@ -347,9 +345,6 @@ another colon.  For example, if your client is named, =slave1=, the
 | ack_log_size              | Tap ACK backlog size.                    | P  |
 | ack_window_full           | true if our tap ACK window is full.      | P  |
 | expires                   | When this ACK backlog expires.           | P  |
-| num_tap_nack              | The number of negative tap acks received | P  |
-| num_tap_tmpfail_survivors | The number of items rescheduled due to   | P  |
-|                           | a temporary nack.                        | P  |
 | queue_memory              | Memory used for tap queue                | P  |
 | queue_fill                | Total queued items                       | P  |
 | queue_drain               | Total drained items                      | P  |
