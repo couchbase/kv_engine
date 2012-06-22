@@ -548,7 +548,7 @@ bool TapProducer::requestAck(tap_event_t event, uint16_t vbucket) {
     return explicitEvent ||
            (seqno - 1) % ackInterval == 0 || // ack at a regular interval
            (!backfillCompleted && getBackfillQueueSize_UNLOCKED() == 0) ||
-           empty_UNLOCKED(); // but if we're almost up to date, ack more often
+           emptyQueue_UNLOCKED(); // but if we're almost up to date, ack more often
 }
 
 void TapProducer::clearQueues_UNLOCKED() {
@@ -893,13 +893,14 @@ ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
             notifyTapNotificationThread = true;
         }
 
-        lh.unlock();
+        lh.unlock(); // Release the lock to avoid the deadlock with the notify thread
 
         if (notifyTapNotificationThread || doTakeOver) {
             engine.notifyNotificationThread();
         }
 
-        if (complete() && idle()) {
+        lh.lock();
+        if (mayCompleteDumpOrTakeover_UNLOCKED() && idle_UNLOCKED()) {
             // We've got all of the ack's need, now we can shut down the
             // stream
             std::stringstream ss;
@@ -1198,8 +1199,7 @@ void TapProducer::addStats(ADD_STAT add_stat, const void *c) {
         addStat("rec_skipped", recordsSkipped, add_stat, c);
     }
     addStat("idle", idle_UNLOCKED(), add_stat, c);
-    addStat("complete", complete_UNLOCKED(), add_stat, c);
-    addStat("has_queued_item", !empty_UNLOCKED(), add_stat, c);
+    addStat("has_queued_item", !emptyQueue_UNLOCKED(), add_stat, c);
     addStat("bg_result_size", bgResultSize, add_stat, c);
     addStat("bg_jobs_issued", bgJobIssued, add_stat, c);
     addStat("bg_jobs_completed", bgJobCompleted, add_stat, c);
@@ -1849,7 +1849,7 @@ TapVBucketEvent TapProducer::checkDumpOrTakeOverCompletion() {
     LockHolder lh(queueLock);
     TapVBucketEvent ev(TAP_PAUSE, 0, vbucket_state_active);
 
-    if (complete_UNLOCKED()) {
+    if (mayCompleteDumpOrTakeover_UNLOCKED()) {
         ev = nextVBucketLowPriority_UNLOCKED();
         if (ev.event != TAP_PAUSE) {
             RCPtr<VBucket> vb = engine.getVBucket(ev.vbucket);

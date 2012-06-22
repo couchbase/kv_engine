@@ -273,7 +273,7 @@ TapProducer *TapConnMap::newProducer(const void* cookie,
         assert(old_cookie);
         map.erase(old_cookie);
 
-        if (tapKeepAlive == 0 || (tap->complete() && tap->idle())) {
+        if (tapKeepAlive == 0 || (tap->mayCompleteDumpOrTakeover() && tap->idle())) {
             getLogger()->log(EXTENSION_LOG_INFO, NULL,
                              "%s keep alive timed out, should be nuked\n",
                              tap->logHeader());

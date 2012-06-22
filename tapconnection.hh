@@ -591,7 +591,7 @@ private:
     TapVBucketEvent checkDumpOrTakeOverCompletion();
 
     void completeBackfillCommon_UNLOCKED() {
-        if (complete_UNLOCKED() && idle_UNLOCKED()) {
+        if (mayCompleteDumpOrTakeover_UNLOCKED() && idle_UNLOCKED()) {
             // There is no data for this connection..
             // Just go ahead and disconnect it.
             setDisconnect(true);
@@ -740,14 +740,14 @@ private:
         return !backfilledItems.empty();
     }
 
-    bool empty_UNLOCKED() {
+    bool emptyQueue_UNLOCKED() {
         return !hasItemFromDisk_UNLOCKED() && (bgJobIssued - bgJobCompleted) == 0 &&
                !hasItemFromVBHashtable_UNLOCKED();
     }
 
     bool idle_UNLOCKED() {
-        return empty_UNLOCKED() && vBucketLowPriority.empty() && vBucketHighPriority.empty() &&
-               checkpointMsgs.empty() && tapLog.empty();
+        return emptyQueue_UNLOCKED() && vBucketLowPriority.empty() &&
+               vBucketHighPriority.empty() && checkpointMsgs.empty() && tapLog.empty();
     }
 
     bool idle() {
@@ -765,9 +765,9 @@ private:
         return hasItemFromVBHashtable_UNLOCKED();
     }
 
-    bool empty() {
+    bool emptyQueue() {
         LockHolder lh(queueLock);
-        return empty_UNLOCKED();
+        return emptyQueue_UNLOCKED();
     }
 
     size_t getBackfillRemaining_UNLOCKED();
@@ -867,16 +867,17 @@ private:
     bool runBackfill(VBucketFilter &vbFilter);
 
     /**
-     * A TapProducer is complete when it has nothing to transmit and
-     * a disconnect was requested at the end.
+     * True if the TAP producer doesn't have any queued items and is ready for
+     * for completing TAP_DUMP or TAP_VBUCKET_TAKEOVER.
      */
-    bool complete_UNLOCKED(void) {
-        return (dumpQueue || doTakeOver) && isBackfillCompleted_UNLOCKED() && empty_UNLOCKED();
+    bool mayCompleteDumpOrTakeover_UNLOCKED(void) {
+        return (dumpQueue || doTakeOver) && isBackfillCompleted_UNLOCKED() &&
+               emptyQueue_UNLOCKED();
     }
 
-    bool complete(void) {
+    bool mayCompleteDumpOrTakeover(void) {
         LockHolder lh(queueLock);
-        return complete_UNLOCKED();
+        return mayCompleteDumpOrTakeover_UNLOCKED();
     }
 
     /**
