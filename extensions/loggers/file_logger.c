@@ -19,7 +19,6 @@ static const char extension[] = "gz";
 #else
 typedef FILE* gzFile;
 #define gzopen(path, mode) fopen(path, mode)
-#define gzbuffer(a, b)
 #define gzsetparams(a, b, c)
 #define gzflush(fp, b) fflush(fp);
 #define gzclose(fp) fclose(fp)
@@ -165,7 +164,6 @@ static gzFile open_logfile(const char *fnm) {
     } while (access(fname, F_OK) == 0);
     gzFile ret = gzopen(fname, "wb");
     if (ret) {
-        gzbuffer(ret, 128 * 1024);
         gzsetparams(ret, Z_DEFAULT_COMPRESSION, Z_DEFAULT_STRATEGY);
     } else {
         fprintf(stderr, "Failed to open memcached log file\n");
