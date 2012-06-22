@@ -970,7 +970,7 @@ private:
     int flushOneDelOrSet(const queued_item &qi, std::queue<queued_item> *rejectQueue);
 
     StoredValue *fetchValidValue(RCPtr<VBucket> vb, const std::string &key,
-                                 int bucket_num, bool wantsDeleted=false);
+                                 int bucket_num, bool wantsDeleted=false, bool trackReference=true);
 
     bool shouldPreemptFlush(size_t completed) {
         return (completed > 100

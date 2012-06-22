@@ -1050,11 +1050,11 @@ public:
      * @param key the key to find
      * @return a pointer to a StoredValue -- NULL if not found
      */
-    StoredValue *find(std::string &key) {
+    StoredValue *find(std::string &key, bool trackReference=true) {
         assert(isActive());
         int bucket_num(0);
         LockHolder lh = getLockedBucket(key, &bucket_num);
-        return unlocked_find(key, bucket_num);
+        return unlocked_find(key, bucket_num, false, trackReference);
     }
 
     /**
@@ -1264,7 +1264,7 @@ public:
         assert(isActive());
         int bucket_num(0);
         LockHolder lh = getLockedBucket(key, &bucket_num);
-        StoredValue *v = unlocked_find(key, bucket_num);
+        StoredValue *v = unlocked_find(key, bucket_num, false, false);
         if (v) {
             row_id = v->getId();
         }
@@ -1340,11 +1340,13 @@ public:
      * @return a pointer to a StoredValue -- NULL if not found
      */
     StoredValue *unlocked_find(const std::string &key, int bucket_num,
-                               bool wantsDeleted=false) {
+                               bool wantsDeleted=false, bool trackReference=true) {
         StoredValue *v = values[bucket_num];
         while (v) {
             if (v->hasKey(key)) {
-                v->referenced();
+                if (trackReference && !v->isDeleted()) {
+                    v->referenced();
+                }
                 if (wantsDeleted || !v->isDeleted()) {
                     return v;
                 } else {

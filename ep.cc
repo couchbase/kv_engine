@@ -765,7 +765,7 @@ public:
         if (vb) {
             int bucket_num(0);
             LockHolder lh = vb->ht.getLockedBucket(vk.second, &bucket_num);
-            StoredValue *v = vb->ht.unlocked_find(vk.second, bucket_num, true);
+            StoredValue *v = vb->ht.unlocked_find(vk.second, bucket_num, true, false);
             if (v && v->isTempItem()) {
                 // This is a temporary item whose background fetch for metadata
                 // has completed.
@@ -795,8 +795,9 @@ EventuallyPersistentStore::deleteExpiredItems(std::list<std::pair<uint16_t, std:
 StoredValue *EventuallyPersistentStore::fetchValidValue(RCPtr<VBucket> vb,
                                                         const std::string &key,
                                                         int bucket_num,
-                                                        bool wantDeleted) {
-    StoredValue *v = vb->ht.unlocked_find(key, bucket_num, wantDeleted);
+                                                        bool wantDeleted,
+                                                        bool trackReference) {
+    StoredValue *v = vb->ht.unlocked_find(key, bucket_num, wantDeleted, trackReference);
     if (v && !v->isDeleted()) { // In the deleted case, we ignore expiration time.
         if (v->isExpired(ep_real_time())) {
             ++stats.expired;
@@ -822,7 +823,7 @@ protocol_binary_response_status EventuallyPersistentStore::evictKey(const std::s
 
     int bucket_num(0);
     LockHolder lh = vb->ht.getLockedBucket(key, &bucket_num);
-    StoredValue *v = fetchValidValue(vb, key, bucket_num, force);
+    StoredValue *v = fetchValidValue(vb, key, bucket_num, force, false);
 
     protocol_binary_response_status rv(PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
@@ -1736,7 +1737,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteItem(const std::string &key,
     // If use_meta is true (delete_with_meta), we'd like to look for the key
     // with the wantsDeleted flag set to true in case a prior get_meta has
     // created a temporary item for the key.
-    StoredValue *v = vb->ht.unlocked_find(key, bucket_num, use_meta);
+    StoredValue *v = vb->ht.unlocked_find(key, bucket_num, use_meta, false);
     if (!v) {
         if (vb->getState() != vbucket_state_active && force) {
             queueDirty(key, vbucket, queue_op_del, newSeqno, -1);
@@ -2068,7 +2069,7 @@ public:
                 int bucket_num(0);
                 LockHolder lh = vb->ht.getLockedBucket(queuedItem->getKey(), &bucket_num);
                 StoredValue *v = store->fetchValidValue(vb, queuedItem->getKey(),
-                                                        bucket_num, true);
+                                                        bucket_num, true, false);
                 if (v && value.second > 0) {
                     mutationLog->newItem(queuedItem->getVBucketId(), queuedItem->getKey(),
                                          value.second);
@@ -2101,7 +2102,7 @@ public:
                 int bucket_num(0);
                 LockHolder lh = vb->ht.getLockedBucket(queuedItem->getKey(), &bucket_num);
                 StoredValue *v = store->fetchValidValue(vb, queuedItem->getKey(),
-                                                        bucket_num, true);
+                                                        bucket_num, true, false);
                 if (v) {
                     std::stringstream ss;
                     ss << "Persisting ``" << queuedItem->getKey() << "'' on vb"
@@ -2151,7 +2152,7 @@ public:
                 int bucket_num(0);
                 LockHolder lh = vb->ht.getLockedBucket(queuedItem->getKey(), &bucket_num);
                 StoredValue *v = store->fetchValidValue(vb, queuedItem->getKey(),
-                                                        bucket_num, true);
+                                                        bucket_num, true, false);
                 if (v && v->isDeleted()) {
                     if (store->getEPEngine().isDegradedMode()) {
                         LockHolder rlh(store->restore.mutex);
@@ -2223,7 +2224,7 @@ int EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
 
     int bucket_num(0);
     LockHolder lh = vb->ht.getLockedBucket(qi->getKey(), &bucket_num);
-    StoredValue *v = fetchValidValue(vb, qi->getKey(), bucket_num, true);
+    StoredValue *v = fetchValidValue(vb, qi->getKey(), bucket_num, true, false);
 
     size_t itemBytes = qi->size();
     vb->doStatsForFlushing(*qi, itemBytes);
