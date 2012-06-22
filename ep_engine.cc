@@ -3094,7 +3094,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doKeyStats(const void *cookie,
         return rv;
     }
 
-    if (epstore->getKeyStats(key, vbid, kstats)) {
+    rv = epstore->getKeyStats(key, vbid, kstats);
+    if (rv == ENGINE_SUCCESS) {
         std::string valid("this_is_a_bug");
         if (validate) {
             if (kstats.dirty) {
@@ -3140,11 +3141,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doKeyStats(const void *cookie,
         if (validate) {
             add_casted_stat("key_valid", valid.c_str(), add_stat, cookie);
         }
-        rv = ENGINE_SUCCESS;
-    } else {
-        rv = ENGINE_KEY_ENOENT;
     }
-
     return rv;
 }
 

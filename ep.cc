@@ -1679,22 +1679,20 @@ EventuallyPersistentStore::unlockKey(const std::string &key,
 }
 
 
-bool EventuallyPersistentStore::getKeyStats(const std::string &key,
+ENGINE_ERROR_CODE EventuallyPersistentStore::getKeyStats(const std::string &key,
                                             uint16_t vbucket,
                                             struct key_stats &kstats)
 {
     RCPtr<VBucket> vb = getVBucket(vbucket);
     if (!vb) {
-        return false;
+        return ENGINE_NOT_MY_VBUCKET;
     }
 
-    bool found = false;
     int bucket_num(0);
     LockHolder lh = vb->ht.getLockedBucket(key, &bucket_num);
     StoredValue *v = fetchValidValue(vb, key, bucket_num);
 
-    found = (v != NULL);
-    if (found) {
+    if (v) {
         kstats.dirty = v->isDirty();
         kstats.exptime = v->getExptime();
         kstats.flags = v->getFlags();
@@ -1702,8 +1700,9 @@ bool EventuallyPersistentStore::getKeyStats(const std::string &key,
         kstats.data_age = v->getDataAge();
         kstats.vb_state = vb->getState();
         kstats.last_modification_time = ep_abs_time(v->getDataAge());
+        return ENGINE_SUCCESS;
     }
-    return found;
+    return ENGINE_KEY_ENOENT;
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentStore::deleteItem(const std::string &key,

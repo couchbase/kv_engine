@@ -776,8 +776,8 @@ public:
     const Flusher* getFlusher();
     Warmup* getWarmup(void) const;
 
-    bool getKeyStats(const std::string &key, uint16_t vbucket,
-                     key_stats &kstats);
+    ENGINE_ERROR_CODE getKeyStats(const std::string &key, uint16_t vbucket,
+                                  key_stats &kstats);
 
     bool getLocked(const std::string &key, uint16_t vbucket,
                    Callback<GetValue> &cb,
