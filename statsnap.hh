@@ -21,7 +21,8 @@ class EventuallyPersistentEngine;
  */
 class StatSnap : public DispatcherCallback {
 public:
-    StatSnap(EventuallyPersistentEngine *e) : engine(e) { }
+    StatSnap(EventuallyPersistentEngine *e, bool runOneTimeOnly = false) :
+        engine(e), runOnce(runOneTimeOnly) { }
 
     bool callback(Dispatcher &d, TaskId t);
 
@@ -50,6 +51,7 @@ public:
 
 private:
     EventuallyPersistentEngine         *engine;
+    bool                                runOnce;
     std::map<std::string, std::string>  map;
 };
 

@@ -8,6 +8,8 @@
 #include <sys/types.h>
 #include <fcntl.h>
 #include <sys/stat.h>
+#include <iostream>
+#include <fstream>
 
 #include "couch-kvstore/couch-kvstore.hh"
 #include "couch-kvstore/dirutils.hh"
@@ -584,10 +586,49 @@ bool CouchKVStore::snapshotVBuckets(const vbucket_map_t &m)
     return success;
 }
 
-bool CouchKVStore::snapshotStats(const std::map<std::string, std::string> &)
+bool CouchKVStore::snapshotStats(const std::map<std::string, std::string> &stats)
 {
-    // noop, virtual function implementation for abstract base class
-    return true;
+    std::stringstream stats_buf;
+    stats_buf << "{";
+    std::map<std::string, std::string>::const_iterator it = stats.begin();
+    for (; it != stats.end(); ++it) {
+        stats_buf << "\"" << it->first << "\": \"" << it->second << "\", ";
+    }
+    stats_buf << "}";
+
+    // TODO: This stats json should be written into the master database. However,
+    // we don't support the write synchronization between CouchKVStore in C++ and
+    // compaction manager in the erlang side for the master database yet. At this time,
+    // we simply log the engine stats into a separate json file. As part of futhre work,
+    // we need to get rid of the tight coupling between those two components.
+    bool rv = true;
+    std::string tmp_fname = dbname + "/stats.json.new";
+    std::ofstream new_stats;
+    new_stats.exceptions (new_stats.failbit | new_stats.badbit);
+    try {
+        new_stats.open(tmp_fname.c_str());
+        new_stats << stats_buf.str().c_str() << std::endl;
+        new_stats.flush();
+        new_stats.close();
+    } catch (const std::ofstream::failure& e) {
+        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                         "Warning: failed to log the engine stats due to IO exception "
+                         "\"%s\"", e.what());
+        rv = false;
+    }
+
+    if (rv) {
+        std::string stats_fname = dbname + "/stats.json";
+        if (rename(tmp_fname.c_str(), stats_fname.c_str()) != 0) {
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                             "Warning: failed to rename '%s' to '%s': %s",
+                             tmp_fname.c_str(), stats_fname.c_str(), strerror(errno));
+            remove(tmp_fname.c_str());
+            rv = false;
+        }
+    }
+
+    return rv;
 }
 
 bool CouchKVStore::setVBucketState(uint16_t vbucketId, vbucket_state_t state,

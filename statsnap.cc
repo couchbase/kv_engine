@@ -27,13 +27,22 @@ extern "C" {
 
 bool StatSnap::getStats(const char *s) {
     map.clear();
-    return engine->getStats(this, s, s ? strlen(s) : 0,
-                            add_stat) == ENGINE_SUCCESS;
+    bool rv = engine->getStats(this, s, s ? strlen(s) : 0, add_stat) == ENGINE_SUCCESS;
+    if (rv && engine->isShutdownMode()) {
+        map["ep_force_shutdown"] = engine->isForceShutdown() ? "true" : "false";
+        std::stringstream ss;
+        ss << ep_real_time();
+        map["ep_shutdown_time"] = ss.str();
+    }
+    return rv;
 }
 
 bool StatSnap::callback(Dispatcher &d, TaskId t) {
     if (getStats()) {
         engine->getEpStore()->getRWUnderlying()->snapshotStats(map);
+    }
+    if (runOnce) {
+        return false;
     }
     d.snooze(t, STATSNAP_FREQ);
     return true;
