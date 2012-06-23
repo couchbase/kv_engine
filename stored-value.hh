@@ -83,11 +83,13 @@ public:
         }
     }
 
-    bool isReferenced() {
+    bool isReferenced(bool reset=false) {
         bool ret = false;
         if (!_isSmall) {
             ret = extra.feature.nru;
-            extra.feature.nru = false;
+            if (reset) {
+                extra.feature.nru = false;
+            }
         }
 
         return ret;
