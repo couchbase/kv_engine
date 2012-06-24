@@ -871,6 +871,8 @@ extern "C" {
         case CMD_UNLOCK_KEY:
             res = unlockKey(h, request, &msg, &msg_size);
             break;
+        case CMD_OBSERVE:
+            return h->observe(cookie, request, response);
         case CMD_DEREGISTER_TAP_CLIENT:
             {
                 rv = h->deregisterTapClient(cookie, request, response);
@@ -3423,6 +3425,93 @@ void EventuallyPersistentEngine::notifyNotificationThread(void) {
     if (!shutdown.isShutdown) {
         tapConnMap->notify();
     }
+}
+
+ENGINE_ERROR_CODE EventuallyPersistentEngine::observe(const void* cookie,
+                                                      protocol_binary_request_header *request,
+                                                      ADD_RESPONSE response) {
+    protocol_binary_request_no_extras *req =
+        (protocol_binary_request_no_extras*)request;
+
+    size_t offset = 0;
+    const char* data = reinterpret_cast<const char*>(req->bytes) + sizeof(req->bytes);
+    uint32_t data_len = ntohl(req->message.header.request.bodylen);
+    std::stringstream result;
+
+    while (offset < data_len) {
+        uint16_t vb_id;
+        uint16_t keylen;
+
+        // Parse a key
+        if (data_len - offset < 4) {
+            std::string msg("Invalid packet structure");
+            return sendResponse(response, NULL, 0, 0, 0, msg.c_str(), msg.length(),
+                                PROTOCOL_BINARY_RAW_BYTES,
+                                PROTOCOL_BINARY_RESPONSE_EINVAL, 0,
+                                cookie);
+        }
+
+        memcpy(&vb_id, data + offset, sizeof(uint16_t));
+        vb_id = ntohs(vb_id);
+        offset += sizeof(uint16_t);
+
+        memcpy(&keylen, data + offset, sizeof(uint16_t));
+        keylen = ntohs(keylen);
+        offset += sizeof(uint16_t);
+
+        if (data_len - offset < keylen) {
+            std::string msg("Invalid packet structure");
+            return sendResponse(response, NULL, 0, 0, 0, msg.c_str(), msg.length(),
+                                PROTOCOL_BINARY_RAW_BYTES,
+                                PROTOCOL_BINARY_RESPONSE_EINVAL, 0,
+                                cookie);
+        }
+
+        const std::string key(data + offset, keylen);
+        offset += keylen;
+
+        getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "Observing key: %s, in vbucket %d.",
+                         key.c_str(), vb_id);
+
+        // Get key stats
+        struct key_stats kstats;
+        ENGINE_ERROR_CODE rv = epstore->getKeyStats(key, vb_id, kstats);
+        if (rv == ENGINE_NOT_MY_VBUCKET) {
+            std::string msg("Not my vbucket");
+            return sendResponse(response, NULL, 0, 0, 0, msg.c_str(), msg.length(),
+                                PROTOCOL_BINARY_RAW_BYTES,
+                                PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, 0,
+                                cookie);
+        } else if (rv == ENGINE_KEY_ENOENT) {
+            std::string msg("Not found");
+            return sendResponse(response, NULL, 0, 0, 0, msg.c_str(), msg.length(),
+                                PROTOCOL_BINARY_RAW_BYTES,
+                                PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, 0,
+                                cookie);
+        } else if (rv != ENGINE_SUCCESS) {
+            std::string msg("Internal error");
+            return sendResponse(response, NULL, 0, 0, 0, msg.c_str(), msg.length(),
+                                PROTOCOL_BINARY_RAW_BYTES,
+                                PROTOCOL_BINARY_RESPONSE_EINTERNAL, 0,
+                                cookie);
+        }
+
+        // Put the result into a response buffer
+        uint8_t persisted = kstats.dirty ? 0 : 1;
+        vb_id = htons(vb_id);
+        keylen = htons(keylen);
+        result.write((char*) &vb_id, sizeof(uint16_t));
+        result.write((char*) &keylen, sizeof(uint16_t));
+        result.write(key.c_str(), ntohs(keylen));
+        result.write((char*) &persisted, sizeof(uint8_t));
+        result.write((char*) &kstats.cas, sizeof(uint64_t));
+    }
+
+    return sendResponse(response, NULL, 0, 0, 0, result.str().data(),
+                                result.str().length(),
+                                PROTOCOL_BINARY_RAW_BYTES,
+                                PROTOCOL_BINARY_RESPONSE_SUCCESS, 0,
+                                cookie);
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::touch(const void *cookie,

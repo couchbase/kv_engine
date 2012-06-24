@@ -543,6 +543,37 @@ static void start_persistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
           "Failed to stop persistence.");
 }
 
+static protocol_binary_request_header*
+       createObservePacket(std::map<std::string, uint16_t> obskeys) {
+    std::stringstream value;
+    std::map<std::string, uint16_t>::iterator it;
+    for (it = obskeys.begin(); it != obskeys.end(); it++) {
+        uint16_t vb = htons(it->second);
+        uint16_t keylen = htons(it->first.length());
+        value.write((char*) &vb, sizeof(uint16_t));
+        value.write((char*) &keylen, sizeof(uint16_t));
+        value.write(it->first.c_str(), it->first.length());
+    }
+
+    uint16_t val_len = value.str().length();
+
+    char *pkt_raw;
+    pkt_raw = static_cast<char*>(calloc(1, sizeof(protocol_binary_request_header)
+                                           + val_len));
+    assert(pkt_raw);
+    protocol_binary_request_header *req = (protocol_binary_request_header*)pkt_raw;
+    req->request.opcode = CMD_OBSERVE;
+    req->request.vbucket = ntohs(0);
+    req->request.bodylen = htonl(val_len);
+    req->request.keylen = htons(0);
+
+    if (val_len > 0) {
+        memcpy(pkt_raw + sizeof(protocol_binary_request_header),
+            value.str().data(), val_len);
+    }
+    return req;
+}
+
 static void evict_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                       const char *key, uint16_t vbucketId=0,
                       const char *msg = NULL, bool expectError = false) {
@@ -6730,6 +6761,172 @@ static enum test_result test_temp_item_deletion(ENGINE_HANDLE *h, ENGINE_HANDLE_
 }
 // ------------------------------ end of XDCR unit tests -----------------------//
 
+static enum test_result test_observe_no_data(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    protocol_binary_request_header *pkt = createPacket(CMD_OBSERVE, 0);
+    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
+          "Observe failed.");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    free(pkt);
+    return SUCCESS;
+}
+
+static enum test_result test_observe_single_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    stop_persistence(h, h1);
+
+    // Set an item
+    item *it = NULL;
+    uint64_t cas1;
+    check(h1->allocate(h, NULL, &it, "key", 3, 100, 0, 0)== ENGINE_SUCCESS,
+          "Allocation failed.");
+    check(h1->store(h, NULL, it, &cas1, OPERATION_SET, 0)== ENGINE_SUCCESS,
+          "Set should work.");
+    h1->release(h, NULL, it);
+
+    // Do an observe
+    std::map<std::string, uint16_t> obskeys;
+    obskeys["key"] = 0;
+    protocol_binary_request_header *pkt = createObservePacket(obskeys);
+    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
+          "Observe failed.");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    free(pkt);
+
+    // Check that the key is not persisted
+    uint16_t vb;
+    uint16_t keylen;
+    char key[3];
+    uint8_t persisted;
+    uint64_t cas;
+
+    memcpy(&vb, last_body, sizeof(uint16_t));
+    check(ntohs(vb) == 0, "Wrong vbucket in result");
+    memcpy(&keylen, last_body + 2, sizeof(uint16_t));
+    check(ntohs(keylen) == 3, "Wrong keylen in result");
+    memcpy(&key, last_body + 4, ntohs(keylen));
+    check(strncmp(key, "key", 3) == 0, "Wrong key in result");
+    memcpy(&persisted, last_body + 7, sizeof(uint8_t));
+    check(persisted == 0, "Expected persisted in result");
+    memcpy(&cas, last_body + 8, sizeof(uint64_t));
+    check(cas == cas1, "Wrong cas in result");
+
+    return SUCCESS;
+}
+
+static enum test_result test_observe_multi_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    // Create some vbuckets
+    check(set_vbucket_state(h, h1, 1, vbucket_state_active), "Failed to set vbucket state.");
+
+    // Set some keys
+    item *it = NULL;
+    uint64_t cas1, cas2, cas3;
+    check(h1->allocate(h, NULL, &it, "key1", 4, 100, 0, 0)== ENGINE_SUCCESS,
+          "Allocation failed.");
+    check(h1->store(h, NULL, it, &cas1, OPERATION_SET, 0)== ENGINE_SUCCESS,
+          "Set should work.");
+    h1->release(h, NULL, it);
+
+    check(h1->allocate(h, NULL, &it, "key2", 4, 100, 0, 0)== ENGINE_SUCCESS,
+          "Allocation failed.");
+    check(h1->store(h, NULL, it, &cas2, OPERATION_SET, 1)== ENGINE_SUCCESS,
+          "Set should work.");
+    h1->release(h, NULL, it);
+
+    check(h1->allocate(h, NULL, &it, "key3", 4, 100, 0, 0)== ENGINE_SUCCESS,
+          "Allocation failed.");
+    check(h1->store(h, NULL, it, &cas3, OPERATION_SET, 1)== ENGINE_SUCCESS,
+          "Set should work.");
+    h1->release(h, NULL, it);
+    wait_for_flusher_to_settle(h, h1);
+
+    // Do observe
+    std::map<std::string, uint16_t> obskeys;
+    obskeys["key1"] = 0;
+    obskeys["key2"] = 1;
+    obskeys["key3"] = 1;
+    protocol_binary_request_header *pkt = createObservePacket(obskeys);
+    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
+          "Observe failed.");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    free(pkt);
+
+    // Check the result
+    uint16_t vb;
+    uint16_t keylen;
+    char key[3];
+    uint8_t persisted;
+    uint64_t cas;
+
+    memcpy(&vb, last_body, sizeof(uint16_t));
+    check(ntohs(vb) == 0, "Wrong vbucket in result");
+    memcpy(&keylen, last_body + 2, sizeof(uint16_t));
+    check(ntohs(keylen) == 4, "Wrong keylen in result");
+    memcpy(&key, last_body + 4, ntohs(keylen));
+    check(strncmp(key, "key1", 4) == 0, "Wrong key in result");
+    memcpy(&persisted, last_body + 8, sizeof(uint8_t));
+    check(persisted == 1, "Expected persisted in result");
+    memcpy(&cas, last_body + 9, sizeof(uint64_t));
+    check(cas == cas1, "Wrong cas in result");
+
+    memcpy(&vb, last_body + 17, sizeof(uint16_t));
+    check(ntohs(vb) == 1, "Wrong vbucket in result");
+    memcpy(&keylen, last_body + 19, sizeof(uint16_t));
+    check(ntohs(keylen) == 4, "Wrong keylen in result");
+    memcpy(&key, last_body + 21, ntohs(keylen));
+    check(strncmp(key, "key2", 4) == 0, "Wrong key in result");
+    memcpy(&persisted, last_body + 25, sizeof(uint8_t));
+    check(persisted == 1, "Expected persisted in result");
+    memcpy(&cas, last_body + 26, sizeof(uint64_t));
+    check(cas == cas2, "Wrong cas in result");
+
+    memcpy(&vb, last_body + 34, sizeof(uint16_t));
+    check(ntohs(vb) == 1, "Wrong vbucket in result");
+    memcpy(&keylen, last_body + 36, sizeof(uint16_t));
+    check(ntohs(keylen) == 4, "Wrong keylen in result");
+    memcpy(&key, last_body + 38, ntohs(keylen));
+    check(strncmp(key, "key3", 4) == 0, "Wrong key in result");
+    memcpy(&persisted, last_body + 42, sizeof(uint8_t));
+    check(persisted == 1, "Expected persisted in result");
+    memcpy(&cas, last_body + 43, sizeof(uint64_t));
+    check(cas == cas3, "Wrong cas in result");
+
+    return SUCCESS;
+}
+
+static enum test_result test_observe_errors(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    std::map<std::string, uint16_t> obskeys;
+
+    // Check not my vbucket error
+    obskeys["key"] = 1;
+    protocol_binary_request_header *pkt = createObservePacket(obskeys);
+    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
+          "Observe failed.");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, "Expected not my vbucket");
+    free(pkt);
+
+    // Check not found error
+    obskeys["key"] = 0;
+    pkt = createObservePacket(obskeys);
+    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
+          "Observe failed.");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, "Expected not found");
+    free(pkt);
+
+    // Check invalid packets
+    pkt = createPacket(CMD_OBSERVE, 0, NULL, "0");
+    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
+          "Observe failed.");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL, "Expected invalid");
+    free(pkt);
+
+    pkt = createPacket(CMD_OBSERVE, 0, NULL, "0000");
+    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
+          "Observe failed.");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL, "Expected invalid");
+    free(pkt);
+
+    return SUCCESS;
+}
+
 static enum test_result test_compact_mutation_log(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     std::vector<std::string> keys;
@@ -7140,6 +7337,14 @@ engine_test_t* get_tests(void) {
         TestCase("replica read: invalid key", test_get_replica_invalid_key,
                  test_setup, teardown, NULL, prepare, cleanup,
                  BACKEND_ALL),
+        TestCase("test observe no data", test_observe_no_data, NULL, teardown,
+                 NULL, prepare, cleanup, BACKEND_ALL),
+        TestCase("test observe single key", test_observe_single_key, NULL, teardown,
+                 NULL, prepare, cleanup, BACKEND_ALL),
+        TestCase("test observe multi key", test_observe_multi_key, NULL, teardown,
+                 NULL, prepare, cleanup, BACKEND_ALL),
+        TestCase("test observe not my vbucket", test_observe_errors, NULL, teardown,
+                 NULL, prepare, cleanup, BACKEND_ALL),
         // Stats tests
         TestCase("stats", test_stats, test_setup, teardown, NULL,
                  prepare, cleanup, BACKEND_ALL),

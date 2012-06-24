@@ -499,6 +499,10 @@ public:
         return epstore->unlockKey(key, vbucket, cas, currentTime);
     }
 
+    ENGINE_ERROR_CODE observe(const void* cookie,
+                              protocol_binary_request_header *request,
+                              ADD_RESPONSE response);
+
     RCPtr<VBucket> getVBucket(uint16_t vbucket) {
         return epstore->getVBucket(vbucket);
     }
