@@ -91,10 +91,10 @@ Available params for "set":
     flushall_enabled       - Enable flush operation
     """)
 
-    c.addCommand('stop', stop, 'stop')
-    c.addCommand('start', start, 'start')
-    c.addCommand('set', set_param, 'set param value')
-    c.addCommand('evict', evict, "evict key")
-    c.addCommand('drain', drain, "drain")
+    c.addCommand('stop', stop, 'stop [username password]')
+    c.addCommand('start', start, 'start [username password]')
+    c.addCommand('set', set_param, 'set param value [username password]')
+    c.addCommand('evict', evict, 'evict key [username password]')
+    c.addCommand('drain', drain, 'drain [username password]')
 
     c.execute()
