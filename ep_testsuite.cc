@@ -6896,7 +6896,7 @@ static enum test_result test_observe_multi_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     // Check the result
     uint16_t vb;
     uint16_t keylen;
-    char key[3];
+    char key[10];
     uint8_t persisted;
     uint64_t cas;
 
