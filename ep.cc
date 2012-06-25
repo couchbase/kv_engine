@@ -285,7 +285,7 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
                                                      bool startVb0,
                                                      bool concurrentDB) :
     engine(theEngine), stats(engine.getEpStats()), rwUnderlying(t),
-    storageProperties(t->getStorageProperties()),
+    storageProperties(t->getStorageProperties()), bgFetcher(NULL),
     vbuckets(theEngine.getConfiguration()),
     mutationLog(theEngine.getConfiguration().getKlogPath(),
                 theEngine.getConfiguration().getKlogBlockSize()),
@@ -323,6 +323,10 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
     }
     nonIODispatcher = new Dispatcher(theEngine, "NONIO_Dispatcher");
     flusher = new Flusher(this, dispatcher);
+
+    if (multiBGFetchEnabled()) {
+        bgFetcher = new BgFetcher(this, roDispatcher, stats);
+    }
 
     stats.memOverhead = sizeof(EventuallyPersistentStore);
 
@@ -411,6 +415,7 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
 
     startDispatcher();
     startFlusher();
+    startBgFetcher();
     startNonIODispatcher();
     assert(rwUnderlying);
     assert(roUnderlying);
@@ -516,6 +521,7 @@ void EventuallyPersistentStore::initialize() {
 EventuallyPersistentStore::~EventuallyPersistentStore() {
     bool forceShutdown = engine.isForceShutdown();
     stopFlusher();
+    stopBgFetcher();
     dispatcher->schedule(shared_ptr<DispatcherCallback>(new StatSnap(&engine, true)),
                          NULL, Priority::StatSnapPriority, 0, false, true);
     dispatcher->stop(forceShutdown);
@@ -532,6 +538,7 @@ EventuallyPersistentStore::~EventuallyPersistentStore() {
     nonIODispatcher->stop(forceShutdown);
 
     delete flusher;
+    delete bgFetcher;
     delete dispatcher;
     delete nonIODispatcher;
     delete []dbShardQueues;
@@ -579,6 +586,27 @@ bool EventuallyPersistentStore::pauseFlusher() {
 
 bool EventuallyPersistentStore::resumeFlusher() {
     return flusher->resume();
+}
+
+void EventuallyPersistentStore::startBgFetcher() {
+    if (multiBGFetchEnabled()) {
+        getLogger()->log(EXTENSION_LOG_INFO, NULL,
+                         "Starting bg fetcher for underlying storage\n");
+        bgFetcher->start();
+    }
+}
+
+void EventuallyPersistentStore::stopBgFetcher() {
+    if (multiBGFetchEnabled()) {
+        if (bgFetcher->pendingJob()) {
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                             "Shutting down engine while there are "
+                             "still pending data read from database storage\n");
+        }
+        getLogger()->log(EXTENSION_LOG_INFO, NULL,
+                         "Stopping bg fetcher for underlying storage\n");
+        bgFetcher->stop();
+    }
 }
 
 RCPtr<VBucket> EventuallyPersistentStore::getVBucket(uint16_t vbucket) {
@@ -1117,20 +1145,89 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
     engine.notifyIOComplete(cookie, status);
 }
 
+void EventuallyPersistentStore::completeBGFetchMulti(uint16_t vbId,
+                                 std::vector<VBucketBGFetchItem *> &fetchedItems,
+                                 hrtime_t startTime)
+{
+    stats.bg_fetched += fetchedItems.size();
+    RCPtr<VBucket> vb = getVBucket(vbId);
+    if (!vb) {
+       getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                        "EP Store completes %d of batched background fetch for "
+                        "for vBucket = %d that is already deleted\n",
+                        (int)fetchedItems.size(), vbId);
+       return;
+    }
+
+    std::vector<VBucketBGFetchItem *>::iterator itemItr = fetchedItems.begin();
+    for (; itemItr != fetchedItems.end(); itemItr++) {
+        GetValue &value = (*itemItr)->value;
+        ENGINE_ERROR_CODE status = value.getStatus();
+        Item *fetchedValue = value.getValue();
+        const std::string &key = (*itemItr)->key;
+
+        if (vb->getState() == vbucket_state_active) {
+            int bucket = 0;
+            LockHolder blh = vb->ht.getLockedBucket(key, &bucket);
+            StoredValue *v = fetchValidValue(vb, key, bucket, true);
+            if (v && !v->isResident()) {
+                assert(status == ENGINE_SUCCESS);
+                v->unlocked_restoreValue(fetchedValue, stats, vb->ht);
+                assert(v->isResident());
+                if (v->getExptime() != fetchedValue->getExptime()) {
+                    assert(v->isDirty());
+                    // exptime mutated, schedule it into new checkpoint
+                    queueDirty(key, vbId, queue_op_set, v->getSeqno(),
+                            v->getId());
+                }
+            }
+        }
+
+        hrtime_t endTime = gethrtime();
+        updateBGStats((*itemItr)->initTime, startTime, endTime);
+        engine.notifyIOComplete((*itemItr)->cookie, status);
+        std::stringstream ss;
+        ss << "Completed a background fetch, now at "
+           << vb->numPendingBGFetchItems() << std::endl;
+        getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "%s\n", ss.str().c_str());
+    }
+
+    getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                     "EP Store completes %d of batched background fetch "
+                     "for vBucket = %d endTime = %lld\n",
+                     fetchedItems.size(), vbId, gethrtime()/1000000);
+}
+
 void EventuallyPersistentStore::bgFetch(const std::string &key,
                                         uint16_t vbucket,
                                         uint64_t rowid,
                                         const void *cookie,
                                         bg_fetch_type_t type) {
-    shared_ptr<BGFetchCallback> dcb(new BGFetchCallback(this, key,
-                                                        vbucket,
-                                                        rowid, cookie, type));
-    assert(bgFetchQueue > 0);
     std::stringstream ss;
-    ss << "Queued a background fetch, now at " << bgFetchQueue.get()
-       << std::endl;
-    getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "%s\n", ss.str().c_str());
-    roDispatcher->schedule(dcb, NULL, Priority::BgFetcherPriority, bgFetchDelay);
+
+    // NOTE: mutil-fetch feature will be disabled for metadata
+    // read until MB-5808 is fixed
+    if (multiBGFetchEnabled() && type != BG_FETCH_METADATA) {
+        RCPtr<VBucket> vb = getVBucket(vbucket);
+        assert(vb);
+
+        // schedule to the current batch of background fetch of the given vbucket
+        VBucketBGFetchItem * fetchThis = new VBucketBGFetchItem(key, rowid, cookie);
+        vb->queueBGFetchItem(fetchThis);
+        ss << "Queued a background fetch, now at "
+           << vb->numPendingBGFetchItems() << std::endl;
+        getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "%s\n", ss.str().c_str());
+    } else {
+        shared_ptr<BGFetchCallback> dcb(new BGFetchCallback(this, key,
+                                                            vbucket,
+                                                            rowid, cookie, type));
+        assert(bgFetchQueue > 0);
+        ss << "Queued a background fetch, now at " << bgFetchQueue.get()
+           << std::endl;
+        getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "%s\n", ss.str().c_str());
+        roDispatcher->schedule(dcb, NULL, Priority::BgFetcherGetMetaPriority,
+                               bgFetchDelay);
+    }
 }
 
 GetValue EventuallyPersistentStore::getInternal(const std::string &key,

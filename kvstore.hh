@@ -12,6 +12,7 @@
 #include "item.hh"
 #include "queueditem.hh"
 #include "mutation_log.hh"
+#include "vbucket.hh"
 
 /**
  * Result of database mutation operations.
@@ -54,9 +55,11 @@ typedef std::map<uint16_t, vbucket_state> vbucket_map_t;
 class StorageProperties {
 public:
 
-    StorageProperties(size_t c, size_t r, size_t w, bool evb, bool evd, bool pd)
+    StorageProperties(size_t c, size_t r, size_t w, bool evb, bool evd,
+                      bool pd, bool eget)
         : maxc(c), maxr(r), maxw(w), efficientVBDump(evb),
-          efficientVBDeletion(evd), persistedDeletions(pd) {}
+          efficientVBDeletion(evd), persistedDeletions(pd),
+          efficientGet(eget) {}
 
     //! The maximum number of active queries.
     size_t maxConcurrency()   const { return maxc; }
@@ -68,8 +71,12 @@ public:
     bool hasEfficientVBDump() const { return efficientVBDump; }
     //! True if we can efficiently delete a vbucket all at once.
     bool hasEfficientVBDeletion() const { return efficientVBDeletion; }
+
     //! True if we can persisted deletions to disk.
     bool hasPersistedDeletions() const { return persistedDeletions; }
+
+    //! True if we can batch-process multiple get operations at once.
+    bool hasEfficientGet() const { return efficientGet; }
 
 private:
     size_t maxc;
@@ -78,6 +85,7 @@ private:
     bool efficientVBDump;
     bool efficientVBDeletion;
     bool persistedDeletions;
+    bool efficientGet;
 };
 
 /**
@@ -169,6 +177,14 @@ public:
     virtual void get(const std::string &key, uint64_t rowid,
                      uint16_t vb,
                      Callback<GetValue> &cb) = 0;
+
+    /**
+     * Get multiple items if supported by the kv store
+     */
+    virtual void getMulti(uint16_t vb, vb_bgfetch_queue_t &itms) {
+        (void) itms; (void) vb;
+        throw std::runtime_error("Backend does not support getMulti()");
+    }
 
     /**
      * Delete an item from the kv store.

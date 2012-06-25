@@ -432,7 +432,6 @@ public:
      * It is an error to set an ID on an item that already has one.
      */
     void setId(int64_t to) {
-        assert(!hasId());
         id = to;
         assert(hasId());
     }

@@ -8,6 +8,8 @@
 
 enum queue_operation {
     queue_op_set,
+    queue_op_get,
+    queue_op_get_meta,
     queue_op_del,
     queue_op_flush,
     queue_op_empty,

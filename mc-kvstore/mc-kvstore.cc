@@ -169,7 +169,8 @@ void MCKVStore::dumpKeys(const std::vector<uint16_t> &vbids,  shared_ptr<Callbac
 
 StorageProperties MCKVStore::getStorageProperties() {
     size_t concurrency(10);
-    StorageProperties rv(concurrency, concurrency - 1, 1, true, true, true);
+    StorageProperties rv(concurrency, concurrency - 1, 1, true, true,
+                         true, false);
     return rv;
 }
 

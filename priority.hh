@@ -13,6 +13,7 @@ class Priority {
 public:
     // Priorities for Read-only dispatcher
     static const Priority BgFetcherPriority;
+    static const Priority BgFetcherGetMetaPriority;
     static const Priority TapBgFetcherPriority;
     static const Priority VKeyStatBgFetcherPriority;
     static const Priority WarmupPriority;

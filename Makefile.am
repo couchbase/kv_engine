@@ -66,6 +66,8 @@ ep_la_SOURCES = \
                  atomic.cc atomic.hh \
                  backfill.hh \
                  backfill.cc \
+                 bgfetcher.hh \
+                 bgfetcher.cc \
                  callbacks.hh \
                  checkpoint.hh \
                  checkpoint.cc \

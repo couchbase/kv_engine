@@ -357,6 +357,8 @@ public:
     //! Histogram of mutation log compactor
     Histogram<hrtime_t> mlogCompactorHisto;
 
+    //! Historgram of batch reads
+    Histogram<hrtime_t> getMultiHisto;
 
     //! Reset all stats to reasonable values.
     void reset() {
@@ -430,6 +432,7 @@ public:
         itemAllocSizeHisto.reset();
         dirtyAgeHisto.reset();
         mlogCompactorHisto.reset();
+        getMultiHisto.reset();
     }
 
     // Used by stats logging infrastructure.

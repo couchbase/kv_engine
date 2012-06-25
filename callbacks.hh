@@ -43,6 +43,11 @@ public:
      */
     uint64_t getId() { return id; }
 
+    /**
+     * Set the item's underlying ID.
+     */
+    void setId(uint64_t newId) { id = newId; }
+
     bool isPartial() const { return partial; }
 
     void setPartial() { partial = true; }

@@ -101,6 +101,24 @@ private:
 
 class EventuallyPersistentEngine;
 
+class VBucketBGFetchItem {
+public:
+    VBucketBGFetchItem(const std::string k, uint64_t s, const void *c) :
+                       key(k), cookie(c), initTime(gethrtime()) {
+        value.setId(s);
+    }
+    ~VBucketBGFetchItem() {
+        delete value.getValue();
+    }
+
+    const std::string key;
+    const void * cookie;
+    GetValue value;
+    hrtime_t initTime;
+};
+
+typedef unordered_map<uint64_t, std::list<VBucketBGFetchItem *> > vb_bgfetch_queue_t;
+
 /**
  * An individual vbucket.
  */
@@ -120,10 +138,16 @@ public:
     }
 
     ~VBucket() {
-        if (!pendingOps.empty()) {
+        if (!pendingOps.empty() || !pendingBGFetches.empty()) {
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "Have %ld pending ops while destroying vbucket\n",
-                             pendingOps.size());
+                             "Have %ld pending ops and %ld pending reads "
+                             "while destroying vbucket\n",
+                             pendingOps.size(), pendingBGFetches.size());
+        }
+
+        while(!pendingBGFetches.empty()) {
+            delete pendingBGFetches.front();
+            pendingBGFetches.pop();
         }
         stats.memOverhead.decr(sizeof(VBucket) + ht.memorySize() + sizeof(CheckpointManager));
         assert(stats.memOverhead.get() < GIGANTOR);
@@ -209,6 +233,17 @@ public:
         bool isBackfillPhase;
     } backfill;
 
+    bool getBGFetchItems(vb_bgfetch_queue_t &fetches);
+    void queueBGFetchItem(VBucketBGFetchItem *fetch);
+    size_t numPendingBGFetchItems(void) {
+        LockHolder lh(pendingBGFetchesLock);
+        return pendingBGFetches.size();
+    }
+    bool hasPendingBGFetchItems(void) {
+        LockHolder lh(pendingBGFetchesLock);
+        return !pendingBGFetches.empty();
+    }
+
     static const char* toString(vbucket_state_t s) {
         switch(s) {
         case vbucket_state_active: return "active"; break;
@@ -265,6 +300,9 @@ private:
     std::vector<const void*> pendingOps;
     hrtime_t                 pendingOpsStart;
     EPStats                 &stats;
+
+    Mutex pendingBGFetchesLock;
+    std::queue<VBucketBGFetchItem *> pendingBGFetches;
 
     DISALLOW_COPY_AND_ASSIGN(VBucket);
 };

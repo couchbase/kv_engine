@@ -59,6 +59,7 @@ EP_ENGINE_CC_SRC = \
                  atomic.cc \
                  backfill.cc \
                  blackhole-kvstore/blackhole.cc \
+                 bgfetcher.cc \
                  checkpoint.cc \
                  checkpoint_remover.cc \
                  configuration.cc \

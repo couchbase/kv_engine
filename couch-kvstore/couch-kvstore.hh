@@ -207,6 +207,11 @@ public:
              uint16_t vb, Callback<GetValue> &cb);
 
     /**
+     * Overrides getMulti().
+     */
+    void getMulti(uint16_t vb, vb_bgfetch_queue_t &itms);
+
+    /**
      * Overrides del().
      */
     void del(const Item &itm, uint64_t rowid,
@@ -253,7 +258,15 @@ public:
 
     static int recordDbDump(Db *db, DocInfo *docinfo, void *ctx);
     static int recordDbStat(Db *db, DocInfo *docinfo, void *ctx);
+    static int getMultiCb(Db *db, DocInfo *docinfo, void *ctx);
     static void readVBState(Db *db, uint16_t vbId, vbucket_state &vbState);
+
+    couchstore_error_t fetchDoc(Db *db, DocInfo *docinfo,
+                                GetValue &docValue, uint16_t vbId,
+                                bool metaOnly);
+    ENGINE_ERROR_CODE couchErr2EngineErr(couchstore_error_t errCode);
+
+    CouchKVStoreStats &getCKVStoreStat(void) { return st; }
 
 protected:
     void loadDB(shared_ptr<LoadCallback> cb, bool keysOnly,
@@ -293,7 +306,6 @@ private:
     couchstore_error_t saveVBState(Db *db, vbucket_state &vbState);
     void setDocsCommitted(uint16_t docs);
     void closeDatabaseHandle(Db *db);
-    ENGINE_ERROR_CODE couchErr2EngineErr(couchstore_error_t errCode);
 
     EventuallyPersistentEngine &engine;
     EPStats &epStats;

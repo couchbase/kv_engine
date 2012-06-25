@@ -366,7 +366,7 @@ StorageProperties StrategicSqlite3::getStorageProperties() {
     StorageProperties rv(concurrency, concurrency - 1, 1,
                          strategy->hasEfficientVBLoad(),
                          strategy->hasEfficientVBDeletion(),
-                         strategy->hasPersistedDeletions());
+                         strategy->hasPersistedDeletions(), false);
     return rv;
 }
 

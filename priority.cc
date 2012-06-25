@@ -19,6 +19,7 @@
 
 // Priorities for Read-only dispatcher
 const Priority Priority::BgFetcherPriority("bg_fetcher_priority", 0);
+const Priority Priority::BgFetcherGetMetaPriority("bg_fetcher_meta_priority", 1);
 const Priority Priority::WarmupPriority("warmup_priority", 0);
 const Priority Priority::VKeyStatBgFetcherPriority("vkey_stat_bg_fetcher_priority", 3);
 

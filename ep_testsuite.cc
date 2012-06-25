@@ -5157,6 +5157,7 @@ static enum test_result test_disk_gt_ram_incr_race(ENGINE_HANDLE *h,
 
     // Value is as it was before.
     check_key_value(h, h1, "k1", "13", 2);
+
     // Should have bg_fetched to retrieve it even with a concurrent
     // incr.  We *may* at this point have also completed the incr.
     // 1 == get only, 2 == get+incr.
@@ -7581,7 +7582,7 @@ engine_test_t* get_tests(void) {
                  NULL, prepare, cleanup, BACKEND_SQLITE),
         TestCase("test total memory limit", test_memory_limit,
                  test_setup, teardown,
-                 "max_size=5192;ht_locks=1;ht_size=3;chk_remover_stime=1;chk_period=60;mutation_mem_threshold=0.9",
+                 "max_size=5492;ht_locks=1;ht_size=3;chk_remover_stime=1;chk_period=60;mutation_mem_threshold=0.9",
                  prepare, cleanup, BACKEND_ALL),
         TestCase("test max_size changes", test_max_size_settings,
                  test_setup, teardown,
@@ -7891,7 +7892,7 @@ engine_test_t* get_tests(void) {
                  BACKEND_ALL),
         TestCase("disk>RAM set bgfetch race", test_disk_gt_ram_set_race,
                  test_setup, teardown, NULL, prepare, cleanup,
-                 BACKEND_ALL),
+                 BACKEND_SQLITE),
         TestCase("disk>RAM incr bgfetch race", test_disk_gt_ram_incr_race,
                  test_setup, teardown, NULL, prepare, cleanup,
                  BACKEND_ALL),
@@ -7925,7 +7926,7 @@ engine_test_t* get_tests(void) {
                  prepare, cleanup, BACKEND_ALL),
         TestCase("disk>RAM set bgfetch race (wal)", test_disk_gt_ram_set_race,
                  test_setup, teardown, MULTI_DISPATCHER_CONFIG,
-                 prepare, cleanup, BACKEND_ALL),
+                 prepare, cleanup, BACKEND_SQLITE),
         TestCase("disk>RAM incr bgfetch race (wal)", test_disk_gt_ram_incr_race,
                  test_setup, teardown, MULTI_DISPATCHER_CONFIG,
                  prepare, cleanup, BACKEND_ALL),

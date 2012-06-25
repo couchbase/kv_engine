@@ -47,6 +47,7 @@
 #include "item_pager.hh"
 #include "mutation_log.hh"
 #include "mutation_log_compactor.hh"
+#include "bgfetcher.hh"
 
 #define MAX_BG_FETCH_DELAY 900
 
@@ -423,6 +424,8 @@ public:
         bgFetchDelay = to;
     }
 
+    double getBGFetchDelay(void) { return (double)bgFetchDelay; }
+
     void startDispatcher(void);
 
     void startNonIODispatcher(void);
@@ -485,6 +488,9 @@ public:
     bool pauseFlusher(void);
     bool resumeFlusher(void);
 
+    void startBgFetcher(void);
+    void stopBgFetcher(void);
+
     /**
      * Enqueue a background fetch for a key.
      *
@@ -518,6 +524,18 @@ public:
                          const void *cookie,
                          hrtime_t init,
                          bg_fetch_type_t type);
+    /**
+     * Complete a batch of background fetch of a non resident value or metadata.
+     *
+     * @param vbId the vbucket in which the requested key lived
+     * @param fetchedItems vector of completed background feches containing key,
+     *                     value, client cookies
+     * @param start the time when the background fetch was started
+     *
+     */
+    void completeBGFetchMulti(uint16_t vbId,
+                              std::vector<VBucketBGFetchItem *> &fetchedItems,
+                              hrtime_t start);
 
     /**
      * Helper function to update stats after completion of a background fetch
@@ -714,6 +732,10 @@ public:
         ++vb->numExpiredItems;
     }
 
+    bool multiBGFetchEnabled() {
+        return hasSeparateRODispatcher() && storageProperties.hasEfficientGet();
+    }
+
 protected:
     // During the warmup phase we might want to enable external traffic
     // at a given point in time.. The LoadStorageKvPairCallback will be
@@ -840,6 +862,7 @@ private:
     Dispatcher                     *tapDispatcher;
     Dispatcher                     *nonIODispatcher;
     Flusher                        *flusher;
+    BgFetcher                      *bgFetcher;
     Warmup                         *warmupTask;
     VBucketMap                      vbuckets;
     SyncObject                      mutex;

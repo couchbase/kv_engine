@@ -3207,6 +3207,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTimingStats(const void *cookie,
     add_casted_stat("tap_mutation", stats.tapMutationHisto, add_stat, cookie);
     // Misc
     add_casted_stat("notify_io", stats.notifyIOHisto, add_stat, cookie);
+    add_casted_stat("batch_read", stats.getMultiHisto, add_stat, cookie);
 
     // Disk stats
     add_casted_stat("disk_insert", stats.diskInsertHisto, add_stat, cookie);
@@ -3818,7 +3819,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getMeta(const void* cookie,
 
     ENGINE_ERROR_CODE rv = epstore->getMetaData(key, vbucket, cookie,
                                                 meta, cas, flags);
-
     if (rv == ENGINE_SUCCESS) {
         rv = sendResponse(response, NULL, 0, (const void *)&flags, 4,
                           meta.data(), meta.length(),
