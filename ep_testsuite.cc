@@ -2041,6 +2041,50 @@ static enum test_result test_specialKeys(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
     return SUCCESS;
 }
 
+static enum test_result test_binKeys(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    item *i = NULL;
+    ENGINE_ERROR_CODE ret;
+
+    // binary key with char values beyond 0x7F
+    static const char key0[] = "\xe0\xed\xf1\x6f\x7f\xf8\xfa";
+    static const char val0[] = "some value val8";
+    check((ret = store(h, h1, NULL, OPERATION_SET, key0, val0, &i)) == ENGINE_SUCCESS,
+          "Failed set binary key0");
+    check_key_value(h, h1, key0, val0, strlen(val0));
+    h1->release(h, NULL, i);
+    // binary keys with char values beyond 0x7F
+    static const char key1[] = "\xf1\xfd\xfe\xff\xf0\xf8\xef";
+    static const char val1[] = "some value val9";
+    check((ret = store(h, h1, NULL, OPERATION_SET, key1, val1, &i)) == ENGINE_SUCCESS,
+          "Failed set binary key1");
+    check_key_value(h, h1, key1, val1, strlen(val1));
+    h1->release(h, NULL, i);
+    // binary keys with special utf-8 BOM (Byte Order Mark) values 0xBB 0xBF 0xEF
+    static const char key2[] = "\xff\xfe\xbb\xbf\xef";
+    static const char val2[] = "some utf-8 bom value";
+    check((ret = store(h, h1, NULL, OPERATION_SET, key2, val2, &i)) == ENGINE_SUCCESS,
+          "Failed set binary utf-8 bom key");
+    check_key_value(h, h1, key2, val2, strlen(val2));
+    h1->release(h, NULL, i);
+    // binary keys with special utf-16BE BOM values "U+FEFF"
+    static const char key3[] = "U+\xfe\xff\xefU+\xff\xfe";
+    static const char val3[] = "some utf-16 bom value";
+    check((ret = store(h, h1, NULL, OPERATION_SET, key3, val3, &i)) == ENGINE_SUCCESS,
+          "Failed set binary utf-16 bom key");
+    check_key_value(h, h1, key3, val3, strlen(val3));
+    h1->release(h, NULL, i);
+
+    testHarness.reload_engine(&h, &h1,
+                              testHarness.engine_path,
+                              testHarness.get_current_testcase()->cfg,
+                              true, false);
+    check_key_value(h, h1, key0, val0, strlen(val0));
+    check_key_value(h, h1, key1, val1, strlen(val1));
+    check_key_value(h, h1, key2, val2, strlen(val2));
+    check_key_value(h, h1, key3, val3, strlen(val3));
+    return SUCCESS;
+}
+
 static enum test_result test_mb4898(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     std::vector<std::string> keys;
     for (int j = 0; j < 10; ++j) {
@@ -7377,6 +7421,8 @@ engine_test_t* get_tests(void) {
                  BACKEND_ALL),
         // special non-Ascii keys
         TestCase("test special char keys", test_specialKeys, test_setup,
+                 teardown, NULL, prepare, cleanup, BACKEND_ALL),
+        TestCase("test binary keys", test_binKeys, test_setup,
                  teardown, NULL, prepare, cleanup, BACKEND_ALL),
         // tap tests
         TestCase("set tap param", test_set_tap_param, test_setup,
