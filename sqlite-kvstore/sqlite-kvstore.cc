@@ -167,11 +167,17 @@ void StrategicSqlite3::reset() {
 
 void StrategicSqlite3::del(const Item &itm, uint64_t rowid,
                            uint16_t vbver, Callback<int> &cb) {
+    int rv = 0;
+    if (rowid <= 0) {
+        cb.callback(rv);
+        return;
+    }
+
     std::string key = itm.getKey();
     uint16_t vb = itm.getVBucketId();
     PreparedStatement *del_stmt = strategy->getStatements(vb, vbver, key)->del();
     del_stmt->bind64(1, rowid);
-    int rv = del_stmt->execute();
+    rv = del_stmt->execute();
     if (rv < 0) {
         getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                          "Fatal sqlite error in deleting key '%s' !!! "
