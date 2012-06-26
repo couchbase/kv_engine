@@ -29,7 +29,11 @@ class CliTool(object):
                                help=description)
 
     def execute(self):
-        opts, args = self.parser.parse_args()
+
+        try:
+            opts, args = self.parser.parse_args()
+        except SystemExit:
+            self.usage(True)
 
         try:
             hp, self.cmd = args[:2]
@@ -63,15 +67,15 @@ class CliTool(object):
             else:
                 raise
 
-    def usage(self):
+    def usage(self, skipOptions=False):
+        if not skipOptions:
+            try:
+                self.parser.print_help()
+            except SystemExit:
+                pass
         cmds = sorted(c[1] for c in self.cmds.values())
         program=os.path.basename(sys.argv[0])
         print >>sys.stderr, "Usage: %s host:port %s" % (program, cmds[0])
         for c in cmds[1:]:
             print >>sys.stderr, "  or   %s host:port %s" % (program, c)
-        print >>sys.stderr, "Flags:"
-        for f, d in self.flags.items():
-            print >>sys.stderr, "  %s : %s" % (f, d)
-        if self.extraUsage:
-            print >>sys.stderr, "\n" + self.extraUsage
         sys.exit(1)
