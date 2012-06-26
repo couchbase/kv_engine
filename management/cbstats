@@ -383,7 +383,7 @@ def main():
     c.addCommand('raw', stats_raw, 'raw argument')
     c.addCommand('reset', reset, 'reset')
     c.addCommand('restore', stats_restore, 'restore')
-    c.addCommand('slabs', stats_slabs, 'slabs')
+    c.addCommand('slabs', stats_slabs, 'slabs (memcached bucket only)')
     c.addCommand('tap', stats_tap, 'tap')
     c.addCommand('tapagg', stats_tapagg, 'tapagg')
     c.addCommand('timings', stats_timings, 'timings')
