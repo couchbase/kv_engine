@@ -155,14 +155,14 @@
 #define CMD_NOTIFY_VBUCKET_UPDATE 0xac
 
 /**
- * Command to change the vbucket filter for a given TAP producer.
- */
-#define CMD_CHANGE_VB_FILTER 0xb0
-
-/**
  * Command to enable data traffic after completion of warm
  */
 #define CMD_ENABLE_TRAFFIC 0xad
+
+/**
+ * Command to change the vbucket filter for a given TAP producer.
+ */
+#define CMD_CHANGE_VB_FILTER 0xb0
 
 
 /**
