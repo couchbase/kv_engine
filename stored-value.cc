@@ -476,6 +476,8 @@ add_type_t HashTable::unlocked_add(int &bucket_num,
         }
         if (resetVal) {
             v->resetValue();
+        } else {
+            v->referenced();
         }
     }
 

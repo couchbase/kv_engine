@@ -1180,6 +1180,7 @@ public:
             v = valFact(itm, values[bucket_num], *this);
             values[bucket_num] = v;
             ++numItems;
+            v->referenced();
 
             /**
              * Possibly, this item is being recreated. Conservatively assign it
