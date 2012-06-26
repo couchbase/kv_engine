@@ -374,7 +374,7 @@ def main():
     c.addCommand('couchdb', stats_couchdb, 'couchdb')
     c.addCommand('dispatcher', stats_dispatcher, 'dispatcher [logs]')
     c.addCommand('hash', stats_hash, 'hash [detail]')
-    c.addCommand('items', stats_items, 'items')
+    c.addCommand('items', stats_items, 'items (memcached bucket only)')
     c.addCommand('key', stats_key, 'key keyname vbid')
     c.addCommand('kvstore', stats_kvstore, 'kvstore')
     c.addCommand('kvtimings', stats_kvtimings, 'kvtimings')
