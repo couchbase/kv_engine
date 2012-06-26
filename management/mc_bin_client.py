@@ -189,10 +189,11 @@ class MemcachedClient(object):
         return self.__parseGet(parts)
 
     def __parseMeta(self, data):
-        meta_type = struct.unpack('B', data[-1][0])[0]
-        length = struct.unpack('B', data[-1][1])[0]
-        meta = data[-1][2:2 + length]
-        return (meta_type, meta)
+        flags = struct.unpack('I', data[-1][0:4])[0]
+        meta_type = struct.unpack('B', data[-1][4])[0]
+        length = struct.unpack('B', data[-1][5])[0]
+        meta = data[-1][6:6 + length]
+        return (meta_type, flags, meta)
 
     def getMeta(self, key):
         """Get the metadata for a given key within the memcached server."""
@@ -201,7 +202,7 @@ class MemcachedClient(object):
 
     def getRev(self, key):
         """Get the revision for a given key within the memcached server."""
-        (meta_type, meta_data) = self.getMeta(key)
+        (meta_type, flags, meta_data) = self.getMeta(key)
         if meta_type != memcacheConstants.META_REVID:
             raise ValueError("Invalid meta type %x" % meta_type)
 
