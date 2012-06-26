@@ -28,13 +28,6 @@ struct PopulateEventsBody;
 #define MINIMUM_BACKFILL_RESIDENT_THRESHOLD 0.7
 #define DEFAULT_BACKFILL_RESIDENT_THRESHOLD 0.9
 
-#define TAP_OPAQUE_ENABLE_AUTO_NACK 0
-#define TAP_OPAQUE_INITIAL_VBUCKET_STREAM 1
-#define TAP_OPAQUE_ENABLE_CHECKPOINT_SYNC 2
-#define TAP_OPAQUE_OPEN_CHECKPOINT 3
-#define TAP_OPAQUE_CLOSE_TAP_STREAM 7
-#define TAP_OPAQUE_CLOSE_BACKFILL 8
-
 /**
  * A tap event that represents a change to the state of a vbucket.
  *
@@ -958,7 +951,8 @@ private:
 
     void setBackfillAge(uint64_t age, bool reconnect);
 
-    void setVBucketFilter(const std::vector<uint16_t> &vbuckets);
+    void setVBucketFilter(const std::vector<uint16_t> &vbuckets,
+                          bool notifyCompletion = false);
 
     const VBucketFilter &getVBucketFilter() {
         LockHolder lh(queueLock);

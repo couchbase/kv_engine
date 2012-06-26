@@ -3657,7 +3657,7 @@ static enum test_result test_tap_filter_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     uint16_t unlikely_vbucket_identifier = 17293;
     std::string key;
     bool done = false;
-
+    bool filter_change_done = false;
     uint16_t vbid;
 
     do {
@@ -3681,7 +3681,17 @@ static enum test_result test_tap_filter_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V
             }
             break;
         case TAP_NOOP:
+            break;
         case TAP_OPAQUE:
+            if (nengine_specific == sizeof(uint32_t)) {
+                uint32_t opaque_code;
+                memcpy(&opaque_code, engine_specific, sizeof(opaque_code));
+                opaque_code = ntohl(opaque_code);
+                if (opaque_code == TAP_OPAQUE_COMPLETE_VB_FILTER_CHANGE) {
+                    filter_change_done = true;
+                }
+            }
+            break;
         case TAP_CHECKPOINT_START:
         case TAP_CHECKPOINT_END:
             break;
@@ -3744,6 +3754,7 @@ static enum test_result test_tap_filter_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V
 
     testHarness.unlock_cookie(cookie);
 
+    assert(filter_change_done);
     check(get_int_stat(h, h1, "eq_tapq:tap_client_thread:qlen", "tap") == 0,
           "queue should be empty");
     free(userdata);

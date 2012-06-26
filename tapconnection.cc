@@ -85,6 +85,8 @@ const char *TapConnection::opaqueCmdToString(uint32_t opaque_code) {
         return "close_tap_stream";
     case TAP_OPAQUE_CLOSE_BACKFILL:
         return "close_backfill";
+    case TAP_OPAQUE_COMPLETE_VB_FILTER_CHANGE:
+        return "complete_vb_filter_change";
     }
     return "unknown";
 }
@@ -281,7 +283,8 @@ void TapProducer::setBackfillAge(uint64_t age, bool reconnect) {
     }
 }
 
-void TapProducer::setVBucketFilter(const std::vector<uint16_t> &vbuckets)
+void TapProducer::setVBucketFilter(const std::vector<uint16_t> &vbuckets,
+                                   bool notifyCompletion)
 {
     LockHolder lh(queueLock);
     VBucketFilter diff;
@@ -367,6 +370,12 @@ void TapProducer::setVBucketFilter(const std::vector<uint16_t> &vbuckets)
             ++iter;
         }
         doTakeOver = true;
+    }
+
+    if (notifyCompletion) {
+        TapVBucketEvent notification(TAP_OPAQUE, 0,
+            (vbucket_state_t)htonl(TAP_OPAQUE_COMPLETE_VB_FILTER_CHANGE));
+        addVBucketHighPriority_UNLOCKED(notification);
     }
 }
 
@@ -668,6 +677,7 @@ void TapProducer::rollback() {
                 case TAP_OPAQUE_INITIAL_VBUCKET_STREAM:
                 case TAP_OPAQUE_CLOSE_BACKFILL:
                 case TAP_OPAQUE_OPEN_CHECKPOINT:
+                case TAP_OPAQUE_COMPLETE_VB_FILTER_CHANGE:
                     {
                         ++opaque_msg_sent;
                         TapVBucketEvent e(i->event, i->vbucket, i->state);
@@ -1915,7 +1925,8 @@ TapVBucketEvent TapProducer::nextVBucketHighPriority_UNLOCKED() {
             opaqueCommandCode = (uint32_t)ret.state;
             if (opaqueCommandCode == htonl(TAP_OPAQUE_ENABLE_AUTO_NACK) ||
                 opaqueCommandCode == htonl(TAP_OPAQUE_ENABLE_CHECKPOINT_SYNC) ||
-                opaqueCommandCode == htonl(TAP_OPAQUE_CLOSE_BACKFILL)) {
+                opaqueCommandCode == htonl(TAP_OPAQUE_CLOSE_BACKFILL) ||
+                opaqueCommandCode == htonl(TAP_OPAQUE_COMPLETE_VB_FILTER_CHANGE)) {
                 break;
             }
             // FALLTHROUGH

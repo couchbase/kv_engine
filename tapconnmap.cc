@@ -452,7 +452,7 @@ bool TapConnMap::changeVBucketFilter(const std::string &name,
             getLogger()->log(EXTENSION_LOG_INFO, NULL,
                              "%s Change the vbucket filter.\n",
                              tp->logHeader());
-            tp->setVBucketFilter(vbuckets);
+            tp->setVBucketFilter(vbuckets, true);
             tp->registerTAPCursor(checkpoints);
             rv = true;
             notify_UNLOCKED();
