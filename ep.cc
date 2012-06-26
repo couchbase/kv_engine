@@ -2278,8 +2278,8 @@ int EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
 
         if (eligible) {
             assert(dirtyAge < (86400 * 30));
-            stats.dirtyAgeHisto.add(dirtyAge / 1000);
-            stats.dataAgeHisto.add(dataAge / 1000);
+            stats.dirtyAgeHisto.add(dirtyAge * 1000000);
+            stats.dataAgeHisto.add(dataAge * 1000000);
             stats.dirtyAge.set(dirtyAge);
             stats.dataAge.set(dataAge);
             stats.dirtyAgeHighWat.set(std::max(stats.dirtyAge.get(),
