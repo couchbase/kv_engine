@@ -2140,6 +2140,15 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
                                  "%s Received close tap stream. Switching to takeover phase.\n",
                                  connection->logHeader());
                 break;
+            case TAP_OPAQUE_COMPLETE_VB_FILTER_CHANGE:
+                /**
+                 * This opaque message is just for notifying that the source node receives
+                 * change_vbucket_filter request and processes it successfully.
+                 */
+                getLogger()->log(EXTENSION_LOG_INFO, NULL,
+                                 "%s Notified that the source node changed a vbucket filter.\n",
+                                 connection->logHeader());
+                break;
             default:
                 getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                                  "%s Received an unknown opaque command\n",
