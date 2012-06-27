@@ -330,6 +330,8 @@ TapProducer *TapConnMap::newProducer(const void* cookie,
 
     map[cookie] = tap;
     engine.storeEngineSpecific(cookie, tap);
+    // Clear all previous session stats for this producer.
+    clearPrevSessionStats(tap->getName());
 
     return tap;
 }
@@ -583,6 +585,32 @@ bool TapConnMap::closeTapConnectionByName(const std::string &name) {
     return rv;
 }
 
+void TapConnMap::loadPrevSessionStats(const std::map<std::string, std::string> &session_stats) {
+    LockHolder lh(notifySync);
+    std::map<std::string, std::string>::const_iterator it =
+        session_stats.find("ep_force_shutdown");
+
+    if (it != session_stats.end()) {
+        if (it->second.compare("true") == 0) {
+            prevSessionStats.normalShutdown = false;
+        }
+    } else if (session_stats.size() > 0) { // possible crash on the previous session.
+        prevSessionStats.normalShutdown = false;
+    }
+
+    std::string tap_prefix("eq_tapq:");
+    for (it = session_stats.begin(); it != session_stats.end(); ++it) {
+        const std::string &stat_name = it->first;
+        if (stat_name.substr(0, 8).compare(tap_prefix) == 0) {
+            if (stat_name.find("backfill_completed") != std::string::npos ||
+                stat_name.find("idle") != std::string::npos) {
+                prevSessionStats.stats[stat_name] = it->second;
+            }
+        }
+    }
+}
+
+
 void CompleteBackfillTapOperation::perform(TapProducer *tc, void *) {
     tc->completeBackfill();
 }
@@ -600,4 +628,28 @@ void CompletedBGFetchTapOperation::perform(TapProducer *tc, Item *arg) {
         return;
     }
     tc->completeBGFetchJob(arg, vbid, implicitEnqueue);
+}
+
+bool TAPSessionStats::wasReplicationCompleted(const std::string &name) const {
+    bool rv = true;
+
+    std::string backfill_stat(name + ":backfill_completed");
+    std::map<std::string, std::string>::const_iterator it = stats.find(backfill_stat);
+    if (it != stats.end() && (it->second == "false" || !normalShutdown)) {
+        rv = false;
+    }
+    std::string idle_stat(name + ":idle");
+    it = stats.find(idle_stat);
+    if (it != stats.end() && (it->second == "false" || !normalShutdown)) {
+        rv = false;
+    }
+
+    return rv;
+}
+
+void TAPSessionStats::clearStats(const std::string &name) {
+    std::string backfill_stat(name + ":backfill_completed");
+    stats.erase(backfill_stat);
+    std::string idle_stat(name + ":idle");
+    stats.erase(idle_stat);
 }

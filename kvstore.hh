@@ -200,6 +200,17 @@ public:
     virtual vbucket_map_t listPersistedVbuckets(void) = 0;
 
     /**
+     * Get a list of all persisted engine and tap stats. This API is mainly
+     * invoked during warmup to get the engine stats from the previous session.
+     *
+     * @param stats map instance where the engine stats from the previous
+     * session is stored.
+     */
+    virtual void getPersistedStats(std::map<std::string, std::string> &stats) {
+        (void) stats;
+    }
+
+    /**
      * Persist a snapshot of a collection of stats.
      */
     virtual bool snapshotStats(const std::map<std::string, std::string> &m) = 0;

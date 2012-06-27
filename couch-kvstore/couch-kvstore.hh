@@ -214,6 +214,8 @@ public:
 
     vbucket_map_t listPersistedVbuckets(void);
 
+    void getPersistedStats(std::map<std::string, std::string> &stats);
+
     /**
      * Change the vbucket state in the main DB.
      */

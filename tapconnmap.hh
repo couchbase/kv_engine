@@ -78,6 +78,18 @@ public:
     void perform(TapProducer *, EventuallyPersistentEngine*) {}
 };
 
+class TAPSessionStats {
+public:
+    TAPSessionStats() : normalShutdown(true) {}
+
+    bool wasReplicationCompleted(const std::string &name) const;
+
+    void clearStats(const std::string &name);
+
+    bool normalShutdown;
+    std::map<std::string, std::string> stats;
+};
+
 /**
  * A collection of tap connections.
  */
@@ -271,6 +283,25 @@ public:
         return tapNoopInterval;
     }
 
+    /**
+     * Load TAP-related stats from the previous engine sessions
+     *
+     * @param session_stats all the stats from the previous engine sessions
+     */
+    void loadPrevSessionStats(const std::map<std::string, std::string> &session_stats);
+
+    /**
+     * Check if the given TAP producer completed the replication before
+     * shutdown or crash.
+     *
+     * @param name TAP producer's name
+     * @return true if the replication from the given TAP producer was
+     * completed before shutdown or crash.
+     */
+    bool prevSessionReplicaCompleted(const std::string &name) {
+        return prevSessionStats.wasReplicationCompleted(name);
+    }
+
 protected:
     friend class TapConnMapValueChangeListener;
 
@@ -291,6 +322,15 @@ private:
 
     bool isPaused(TapProducer *tc);
 
+    /**
+     * Clear all the session stats for a given TAP producer
+     *
+     * @param name TAP producer's name
+     */
+    void clearPrevSessionStats(const std::string &name) {
+        prevSessionStats.clearStats(name);
+    }
+
     SyncObject                               notifySync;
     uint32_t                                 notifyCounter;
     std::map<const void*, TapConnection*>    map;
@@ -302,6 +342,7 @@ private:
     size_t nextTapNoop;
 
     bool doNotify;
+    TAPSessionStats prevSessionStats;
 };
 
 #endif /* TAPCONNMAP_HH */

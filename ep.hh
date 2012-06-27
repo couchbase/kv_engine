@@ -900,8 +900,9 @@ protected:
     friend class LoadStorageKVPairCallback;
     void maybeEnableTraffic(void);
 
-    // Method called by the flusher
+    // Methods called during warmup
     std::map<std::pair<uint16_t, uint16_t>, vbucket_state> loadVBucketState();
+    void loadSessionStats();
 
     bool warmupFromLog(const std::map<std::pair<uint16_t, uint16_t>, vbucket_state> &state,
                        shared_ptr<Callback<GetValue> >cb);

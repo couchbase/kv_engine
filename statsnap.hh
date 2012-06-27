@@ -28,11 +28,9 @@ public:
 
     /**
      * Grab stats from the engine.
-     *
-     * @param stats the optional stat parameter
      * @return true if the stat fetch was successful
      */
-    bool getStats(const char *stats=NULL);
+    bool getStats();
 
     /**
      * Get the current map of data.

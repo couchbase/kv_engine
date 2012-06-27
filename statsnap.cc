@@ -25,9 +25,10 @@ extern "C" {
     }
 }
 
-bool StatSnap::getStats(const char *s) {
+bool StatSnap::getStats() {
     map.clear();
-    bool rv = engine->getStats(this, s, s ? strlen(s) : 0, add_stat) == ENGINE_SUCCESS;
+    bool rv = engine->getStats(this, NULL, 0, add_stat) == ENGINE_SUCCESS &&
+              engine->getStats(this, "tap", 3, add_stat) == ENGINE_SUCCESS;
     if (rv && engine->isShutdownMode()) {
         map["ep_force_shutdown"] = engine->isForceShutdown() ? "true" : "false";
         std::stringstream ss;

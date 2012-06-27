@@ -346,6 +346,7 @@ bool Warmup::initialize(Dispatcher&, TaskId)
 {
     startTime = gethrtime();
     initialVbState = store->loadVBucketState();
+    store->loadSessionStats();
     transition(WarmupState::LoadingMutationLog);
     return true;
 }

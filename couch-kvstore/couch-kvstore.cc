@@ -552,6 +552,47 @@ vbucket_map_t CouchKVStore::listPersistedVbuckets()
     return warmupVbStates;
 }
 
+void CouchKVStore::getPersistedStats(std::map<std::string, std::string> &stats)
+{
+    char *buffer = NULL;
+    std::string fname = dbname + "/stats.json";
+    std::ifstream session_stats;
+    session_stats.exceptions (session_stats.failbit | session_stats.badbit);
+    try {
+        session_stats.open(fname.c_str(), ios::binary);
+        session_stats.seekg (0, ios::end);
+        int flen = session_stats.tellg();
+        session_stats.seekg (0, ios::beg);
+        buffer = new char[flen];
+        session_stats.read(buffer, flen);
+
+        cJSON *json_obj = cJSON_Parse(buffer);
+        if (!json_obj) {
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                             "Warning: failed to parse the session stats json doc!!!\n");
+            delete[] buffer;
+            return;
+        }
+
+        int json_arr_size = cJSON_GetArraySize(json_obj);
+        for (int i = 0; i < json_arr_size; ++i) {
+            cJSON *obj = cJSON_GetArrayItem(json_obj, i);
+            if (obj) {
+                stats[obj->string] = obj->valuestring;
+            }
+        }
+        cJSON_Delete(json_obj);
+
+        session_stats.close();
+    } catch (const std::ifstream::failure& e) {
+        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                         "Warning: failed to load the engine session stats "
+                         " due to IO exception \"%s\"", e.what());
+    }
+
+    delete[] buffer;
+}
+
 void CouchKVStore::vbStateChanged(uint16_t vbucket, vbucket_state_t newState)
 {
     if (!(setVBucketState(vbucket, newState, 0))) {
@@ -589,11 +630,17 @@ bool CouchKVStore::snapshotVBuckets(const vbucket_map_t &m)
 
 bool CouchKVStore::snapshotStats(const std::map<std::string, std::string> &stats)
 {
+    size_t count = 0;
+    size_t size = stats.size();
     std::stringstream stats_buf;
     stats_buf << "{";
     std::map<std::string, std::string>::const_iterator it = stats.begin();
     for (; it != stats.end(); ++it) {
-        stats_buf << "\"" << it->first << "\": \"" << it->second << "\", ";
+        stats_buf << "\"" << it->first << "\": \"" << it->second << "\"";
+        ++count;
+        if (count < size) {
+            stats_buf << ", ";
+        }
     }
     stats_buf << "}";
 

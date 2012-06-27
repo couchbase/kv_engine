@@ -2446,6 +2446,12 @@ std::map<std::pair<uint16_t, uint16_t>, vbucket_state> EventuallyPersistentStore
     return roUnderlying->listPersistedVbuckets();
 }
 
+void EventuallyPersistentStore::loadSessionStats() {
+    std::map<std::string, std::string> session_stats;
+    roUnderlying->getPersistedStats(session_stats);
+    engine.getTapConnMap().loadPrevSessionStats(session_stats);
+}
+
 void EventuallyPersistentStore::completeDegradedMode() {
     LockHolder lh(restore.mutex);
     restore.itemsDeleted.clear();
@@ -2476,8 +2482,9 @@ void EventuallyPersistentStore::warmupCompleted() {
                          Priority::InvalidItemDbPagerPriority, 0);
 
     shared_ptr<StatSnap> sscb(new StatSnap(&engine));
-    dispatcher->schedule(sscb, NULL, Priority::StatSnapPriority,
-                         STATSNAP_FREQ);
+    // "0" sleep_time means that the first snapshot task will be executed right after
+    // warmup. Subsequent snapshot tasks will be scheduled every 60 sec by default.
+    dispatcher->schedule(sscb, NULL, Priority::StatSnapPriority, 0);
 
     if (engine.getConfiguration().getBackend().compare("sqlite") == 0 &&
         storageProperties.hasEfficientVBDeletion()) {
