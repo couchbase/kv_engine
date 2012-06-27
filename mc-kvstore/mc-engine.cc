@@ -446,7 +446,7 @@ public:
             }
             it->setCas(itm_meta.cas);
             it->setSeqno(itm_meta.seqno);
-            GetValue rv(it, ENGINE_SUCCESS, -1, -1, NULL, partial);
+            GetValue rv(it, ENGINE_SUCCESS, -1, -1, partial);
             callback->cb->callback(rv);
             ++num;
         }

@@ -7,21 +7,20 @@
 #include "locks.hh"
 
 class Item;
-class StoredValue;
 
 /**
  * Value for callback for GET operations.
  */
 class GetValue {
 public:
-    GetValue() : value(NULL), storedValue(NULL), id(-1),
+    GetValue() : value(NULL), id(-1),
                  vb_version(-1), status(ENGINE_KEY_ENOENT),
                  partial(false) { }
 
     explicit GetValue(Item *v, ENGINE_ERROR_CODE s=ENGINE_SUCCESS,
                       uint64_t i = -1, uint16_t vbucket_version = -1,
-                      StoredValue *sv = NULL, bool incomplete = false) :
-        value(v), storedValue(sv), id(i), vb_version(vbucket_version), status(s),
+                      bool incomplete = false) :
+        value(v), id(i), vb_version(vbucket_version), status(s),
         partial(incomplete) { }
 
 
@@ -51,13 +50,6 @@ public:
      */
     uint16_t getVBucketVersion() { return vb_version; }
 
-    /**
-     * Get the StoredValue instance associated with the item (if applicable).
-     */
-    StoredValue* getStoredValue() const {
-        return storedValue;
-    }
-
     bool isPartial() const {
         return partial;
     }
@@ -69,7 +61,6 @@ public:
 private:
 
     Item* value;
-    StoredValue* storedValue;
     uint64_t id;
     uint16_t vb_version;
     ENGINE_ERROR_CODE status;

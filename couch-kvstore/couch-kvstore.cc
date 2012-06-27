@@ -1291,7 +1291,7 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx)
                   vbucketId,
                   docinfo->rev_seq);
 
-    GetValue rv(it, ENGINE_SUCCESS, -1, -1, NULL, loadCtx->keysonly);
+    GetValue rv(it, ENGINE_SUCCESS, -1, -1, loadCtx->keysonly);
     callback->cb->callback(rv);
 
     couchstore_free_document(doc);

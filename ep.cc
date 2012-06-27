@@ -1363,7 +1363,7 @@ GetValue EventuallyPersistentStore::getInternal(const std::string &key,
         }
 
         GetValue rv(v->toItem(v->isLocked(ep_current_time()), vbucket),
-                    ENGINE_SUCCESS, v->getId(), -1, v);
+                    ENGINE_SUCCESS, v->getId(), -1);
         return rv;
     } else {
         GetValue rv;
@@ -2506,7 +2506,7 @@ static void warmupLogCallback(void *arg, uint16_t vb, uint16_t vbver,
                          rowid,
                          vb);
 
-    GetValue gv(itm, ENGINE_SUCCESS, rowid, vbver, NULL, true /* partial */);
+    GetValue gv(itm, ENGINE_SUCCESS, rowid, vbver, true /* partial */);
 
     (*cb)->callback(gv);
 }
