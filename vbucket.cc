@@ -126,8 +126,8 @@ void VBucket::setState(vbucket_state_t to, SERVER_HANDLE_V1 *sapi) {
     assert(sapi);
     vbucket_state_t oldstate(state);
 
-    if (to == vbucket_state_active && checkpointManager.getOpenCheckpointId() == 0) {
-        checkpointManager.setOpenCheckpointId(1);
+    if (to == vbucket_state_active && checkpointManager.getOpenCheckpointId() < 2) {
+        checkpointManager.setOpenCheckpointId(2);
     }
 
     getLogger()->log(EXTENSION_LOG_DEBUG, NULL,

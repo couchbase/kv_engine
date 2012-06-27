@@ -1068,9 +1068,9 @@ void EventuallyPersistentStore::setVBucketState(uint16_t vbid,
         scheduleVBSnapshot(Priority::VBucketPersistLowPriority);
     } else {
         RCPtr<VBucket> newvb(new VBucket(vbid, to, stats, engine.getCheckpointConfig()));
-        if (to != vbucket_state_active) {
-            newvb->checkpointManager.setOpenCheckpointId(0);
-        }
+        // The first checkpoint for active vbucket should start with id 2.
+        uint64_t start_chk_id = (to == vbucket_state_active) ? 2 : 0;
+        newvb->checkpointManager.setOpenCheckpointId(start_chk_id);
         uint16_t vb_version = vbuckets.getBucketVersion(vbid);
         uint16_t vb_new_version = vb_version == (std::numeric_limits<uint16_t>::max() - 1) ?
                                   0 : vb_version + 1;
