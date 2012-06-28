@@ -2617,7 +2617,7 @@ void EventuallyPersistentStore::maybeEnableTraffic()
         getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                 "Enough MB of data loaded to enable traffic");
         engine.warmupCompleted();
-    } else if (stats.warmedUpValues > (stats.warmedUpMeta * stats.warmupNumReadCap)) {
+    } else if (stats.warmedUpValues > (stats.warmedUpKeys * stats.warmupNumReadCap)) {
         // Let ep-engine think we're done with the warmup phase
         // (we should refactor this into "enableTraffic")
         getLogger()->log(EXTENSION_LOG_WARNING, NULL,

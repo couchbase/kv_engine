@@ -262,10 +262,8 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
             epstore->maybeEnableTraffic();
         }
     }
-    if (val.isPartial()) {
-        ++stats.warmedUpMeta;
-    } else {
-        switch (warmupState) {
+
+    switch (warmupState) {
         case WarmupState::KeyDump:
         case WarmupState::LoadingMutationLog:
             ++stats.warmedUpKeys;
@@ -277,7 +275,6 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
         default:
             ++stats.warmedUpKeys;
             ++stats.warmedUpValues;
-        }
     }
 }
 

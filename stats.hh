@@ -52,8 +52,6 @@ public:
 
     //! Whether we're warming up.
     Atomic<bool> warmupComplete;
-    //! Number of records warmed up with metadata.
-    Atomic<size_t> warmedUpMeta;
     //! Number of keys warmed up during key-only loading. 
     Atomic<size_t> warmedUpKeys;
     //! Number of key-values warmed up during data loading.

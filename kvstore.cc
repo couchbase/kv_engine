@@ -64,10 +64,13 @@ static void warmupCallback(void *arg, uint16_t vb, uint16_t vbver,
     cookie->store->get(key, rowid, vb, vbver, cb);
     cb.waitForValue();
 
-    if (cb.getStatus() == ENGINE_SUCCESS) {
+    if (cb.val.getStatus() == ENGINE_SUCCESS) {
         cookie->cb.callback(cb.val);
         cookie->loaded++;
     } else {
+        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                     "Warning: warmup failed to load data for vBucket = %d key = %s error = %X\n",
+                     vb, key.c_str(), cb.val.getStatus());
         cookie->error++;
     }
 }
