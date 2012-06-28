@@ -593,15 +593,6 @@ void CouchKVStore::getPersistedStats(std::map<std::string, std::string> &stats)
     delete[] buffer;
 }
 
-void CouchKVStore::vbStateChanged(uint16_t vbucket, vbucket_state_t newState)
-{
-    if (!(setVBucketState(vbucket, newState, 0))) {
-        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                         "Warning: Failed to set new state, %s, for vbucket %d\n",
-                         VBucket::toString(newState), vbucket);
-    }
-}
-
 bool CouchKVStore::snapshotVBuckets(const vbucket_map_t &m)
 {
 

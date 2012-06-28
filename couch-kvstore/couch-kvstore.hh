@@ -217,11 +217,6 @@ public:
     void getPersistedStats(std::map<std::string, std::string> &stats);
 
     /**
-     * Change the vbucket state in the main DB.
-     */
-    void vbStateChanged(uint16_t vbucket, vbucket_state_t newState);
-
-    /**
      * Take a snapshot of the stats in the main DB.
      */
     bool snapshotStats(const std::map<std::string, std::string> &m);

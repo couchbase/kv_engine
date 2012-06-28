@@ -1798,18 +1798,6 @@ void EventuallyPersistentStore::enqueueCommit() {
     ++stats.totalEnqueued;
 }
 
-bool EventuallyPersistentStore::isVbCachedStateStale(uint16_t vb, vbucket_state_t st) {
-    std::map<uint16_t, vbucket_state_t>::iterator iter;
-    iter = flusherCachedVbStates.find(vb);
-
-    if (iter == flusherCachedVbStates.end() || iter->second != st) {
-        flusherCachedVbStates[vb] = st;
-        return true;
-    }
-
-    return false;
-}
-
 std::queue<queued_item>* EventuallyPersistentStore::beginFlush() {
     std::queue<queued_item> *rv(NULL);
 
@@ -1850,11 +1838,6 @@ std::queue<queued_item>* EventuallyPersistentStore::beginFlush() {
             if (!vb) {
                 // Undefined vbucket..
                 continue;
-            }
-
-            vbucket_state_t st = vb->getState();
-            if (isVbCachedStateStale(vbid, st)) {
-                rwUnderlying->vbStateChanged(vbid, st);
             }
 
             // Grab all the items from online restore.

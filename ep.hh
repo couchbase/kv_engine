@@ -981,8 +981,6 @@ private:
 
     size_t getWriteQueueSize(void);
 
-    bool isVbCachedStateStale(uint16_t vb, vbucket_state_t state);
-
     bool hasItemsForPersistence(void);
 
     GetValue getInternal(const std::string &key, uint16_t vbucket,

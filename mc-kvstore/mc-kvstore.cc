@@ -133,12 +133,6 @@ vbucket_map_t MCKVStore::listPersistedVbuckets() {
     return rv;
 }
 
-void MCKVStore::vbStateChanged(uint16_t vbucket, vbucket_state_t newState) {
-    RememberingCallback<bool> cb;
-    mc->setVBucket(vbucket, newState, cb);
-    cb.waitForValue();
-}
-
 bool MCKVStore::snapshotVBuckets(const vbucket_map_t &m) {
     if (m.size() == 0) {
         return true;
