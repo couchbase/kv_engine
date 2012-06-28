@@ -145,6 +145,7 @@ bool ItemPager::callback(Dispatcher &d, TaskId t) {
         available = false;
         shared_ptr<PagingVisitor> pv(new PagingVisitor(store, stats,
                                                        toKill, &available));
+        std::srand(ep_real_time());
         store->visit(pv, "Item pager", &d, Priority::ItemPagerPriority);
 
         double total_eject_attms = static_cast<double>(pv->getTotalEjectionAttempts());
