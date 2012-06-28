@@ -229,6 +229,15 @@ static int get_int_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     return atoi(s.c_str());
 }
 
+static std::string get_str_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                        const char *statname, const char *statkey = NULL) {
+    vals.clear();
+    check(h1->get_stats(h, NULL, statkey, statkey == NULL ? 0 : strlen(statkey),
+                        add_stats) == ENGINE_SUCCESS, "Failed to get stats.");
+    std::string s = vals[statname];
+    return s;
+}
+
 static void waitfor_restore_state(ENGINE_HANDLE *h,
                                   ENGINE_HANDLE_V1 *h1,
                                   const char *state,
@@ -1152,9 +1161,12 @@ static enum test_result test_conc_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     wait_for_flusher_to_settle(h, h1);
 
-    // There should be no more newer items than deleted items.
-    if (std::abs(get_int_stat(h, h1, "ep_total_new_items") -
-                 get_int_stat(h, h1, "ep_total_del_items")) > 1) {
+    std::string backend = get_str_stat(h, h1, "ep_backend");
+
+    // There should be no more newer items than deleted items (sqlite only).
+    if (backend.compare("sqlite") == 0 &&
+        std::abs(get_int_stat(h, h1, "ep_total_new_items") -
+        get_int_stat(h, h1, "ep_total_del_items")) > 1) {
         std::cout << "new:       " << get_int_stat(h, h1, "ep_total_new_items") << std::endl
                   << "rm:        " << get_int_stat(h, h1, "ep_total_del_items") << std::endl
                   << "persisted: " << get_int_stat(h, h1, "ep_total_persisted") << std::endl
