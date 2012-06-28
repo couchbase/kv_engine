@@ -2088,7 +2088,8 @@ public:
                         double lower = static_cast<double>(stats->mem_low_wat);
                         if (current > lower) {
                             // Check if the key was already visited by all the cursors.
-                            if (vb->checkpointManager.eligibleForEviction(v->getKey())) {
+                            if (!v->isReferenced() &&
+                                vb->checkpointManager.eligibleForEviction(v->getKey())) {
                                 v->ejectValue(*stats, vb->ht);
                             }
                         }
