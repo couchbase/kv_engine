@@ -438,7 +438,7 @@ add_type_t HashTable::unlocked_add(int &bucket_num,
                                    const Item &val,
                                    bool isDirty,
                                    bool storeVal,
-                                   bool resetVal) {
+                                   bool isTempItem) {
     StoredValue *v = unlocked_find(val.getKey(), bucket_num, true);
     add_type_t rv = ADD_SUCCESS;
     if (v && !v->isDeleted() && !v->isExpired(ep_real_time())) {
@@ -460,7 +460,9 @@ add_type_t HashTable::unlocked_add(int &bucket_num,
         } else {
             v = valFact(itm, values[bucket_num], *this, isDirty);
             values[bucket_num] = v;
-            ++numItems;
+            if (!isTempItem) {
+                ++numItems;
+            }
 
             /**
              * Possibly, this item is being recreated. Conservatively assign
@@ -474,7 +476,7 @@ add_type_t HashTable::unlocked_add(int &bucket_num,
         if (!storeVal) {
             v->ejectValue(stats, *this);
         }
-        if (resetVal) {
+        if (isTempItem) {
             v->resetValue();
         } else {
             v->referenced();
