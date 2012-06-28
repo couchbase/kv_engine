@@ -641,7 +641,6 @@ bool CouchKVStore::setVBucketState(uint16_t vbucketId, vbucket_state_t state,
     std::string dbFileName;
     std::map<uint16_t, int>::iterator mapItr;
     int rev;
-    bool notify = true;
 
     id << vbucketId;
     dbFileName = dbname + "/" + id.str() + ".couch";
@@ -666,7 +665,6 @@ bool CouchKVStore::setVBucketState(uint16_t vbucketId, vbucket_state_t state,
     bool retry = true;
     while (retry) {
         retry = false;
-        notify = true;
         errorCode = openDB(vbucketId, fileRev, &db,
                            (uint64_t)COUCHSTORE_OPEN_FLAG_CREATE, &newFileRev);
         if (errorCode != COUCHSTORE_SUCCESS) {
@@ -688,9 +686,10 @@ bool CouchKVStore::setVBucketState(uint16_t vbucketId, vbucket_state_t state,
             vbState.maxDeletedSeqno = 0;
         } else {
             readVBState(db, vbucketId, vbState);
-            // no need of notify_update, if checkpointId change only
-            if (state == vbState.state) {
-                notify = false;
+            // no need to update if a vbucket state is not changed.
+            if (state == vbState.state && checkpointId == vbState.checkpointId) {
+                closeDatabaseHandle(db);
+                return true;
             }
         }
 
@@ -716,7 +715,7 @@ bool CouchKVStore::setVBucketState(uint16_t vbucketId, vbucket_state_t state,
                              vbucketId, fileRev, couchstore_strerror(errorCode));
             closeDatabaseHandle(db);
             return false;
-        } else if (notify) {
+        } else {
             uint64_t newHeaderPos = couchstore_get_header_position(db);
             RememberingCallback<uint16_t> lcb;
 
