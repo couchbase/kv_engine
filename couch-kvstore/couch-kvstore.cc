@@ -157,6 +157,7 @@ struct LoadResponseCtx {
     shared_ptr<LoadCallback> callback;
     uint16_t vbucketId;
     bool keysonly;
+    EventuallyPersistentEngine *engine;
 };
 
 CouchRequest::CouchRequest(const Item &it, int rev, CouchRequestCallback &cb, bool del) :
@@ -910,13 +911,21 @@ void CouchKVStore::loadDB(shared_ptr<LoadCallback> cb, bool keysOnly,
             ctx.vbucketId = itr->first;
             ctx.keysonly = keysOnly;
             ctx.callback = cb;
+            ctx.engine = &engine;
             errorCode = couchstore_changes_since(db, 0, 0, recordDbDumpC,
                                                  static_cast<void *>(&ctx));
             if (errorCode != COUCHSTORE_SUCCESS) {
-                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                 "Warning: couchstore_changes_since failed, error=%s\n",
-                                 couchstore_strerror(errorCode));
-                remVBucketFromDbFileMap(itr->first);
+                if (errorCode == COUCHSTORE_ERROR_CANCEL) {
+                    getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                     "Canceling loading database, warmup has completed\n");
+                    closeDatabaseHandle(db);
+                    break;
+                } else {
+                    getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                     "Warning: couchstore_changes_since failed, error=%s\n",
+                                     couchstore_strerror(errorCode));
+                    remVBucketFromDbFileMap(itr->first);
+                }
             }
             closeDatabaseHandle(db);
         }
@@ -1173,6 +1182,8 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx)
     Doc *doc = NULL;
     LoadResponseCtx *loadCtx = (LoadResponseCtx *)ctx;
     shared_ptr<LoadCallback> callback = loadCtx->callback;
+    EventuallyPersistentEngine *engine= loadCtx->engine;
+    bool warmup = engine->stillWarmingUp();
 
     // TODO enable below when couchstore is ready
     // bool compressed = (docinfo->content_meta & 0x80);
@@ -1237,7 +1248,19 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx)
     callback->cb->callback(rv);
 
     couchstore_free_document(doc);
-    return 0;
+
+    int returnCode = COUCHSTORE_SUCCESS;
+    if (warmup) {
+        if (!engine->stillWarmingUp()) {
+            // warmup has completed, return COUCHSTORE_ERROR_CANCEL to
+            // cancel remaining data dumps from couchstore
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                             "Engine warmup is complete, request to stop "
+                             "loading remaining database\n");
+            returnCode = COUCHSTORE_ERROR_CANCEL;
+        }
+    }
+    return returnCode;
 }
 
 bool CouchKVStore::commit2couchstore(void)

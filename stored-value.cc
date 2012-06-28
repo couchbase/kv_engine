@@ -83,11 +83,16 @@ bool StoredValue::unlocked_restoreValue(Item *itm, EPStats &stats,
         size_t oldsize = size();
         size_t old_valsize = isDeleted() ? 0 : value->length();
         if (itm->getValue()->length() != valLength()) {
-            int diff(static_cast<int>(valLength()) - // expected
-                     static_cast<int>(itm->getValue()->length())); // got
-            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "Object unexpectedly changed size by %d bytes\n",
-                             diff);
+            if (valLength()) {
+                // generate warning msg only if valLength() > 0, otherwise,
+                // no warning is necessary since it is the very first
+                // background fetch after warmup.
+                int diff(static_cast<int>(valLength()) - // expected
+                        static_cast<int>(itm->getValue()->length())); // got
+                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                        "Object unexpectedly changed size by %d bytes\n",
+                        diff);
+            }
         }
 
         rel_time_t evicted_time(getEvictedTime());

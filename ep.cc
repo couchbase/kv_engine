@@ -2605,21 +2605,24 @@ bool EventuallyPersistentStore::warmupFromLog(const std::map<std::pair<uint16_t,
 void EventuallyPersistentStore::maybeEnableTraffic()
 {
     // @todo rename.. skal vaere isTrafficDisabled elns
-    if (engine.isDegradedMode()) {
-        double memoryUsed = static_cast<double>(stats.getTotalMemoryUsed());
-        double maxSize = static_cast<double>(stats.getMaxDataSize());
+    double memoryUsed = static_cast<double>(stats.getTotalMemoryUsed());
+    double maxSize = static_cast<double>(stats.getMaxDataSize());
 
-        if (memoryUsed > (maxSize * stats.warmupMemUsedCap)) {
-            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "Enough MB of data loaded to enable traffic");
-            engine.warmupCompleted();
-        } else if (stats.warmedUpValues > (stats.warmedUpMeta * stats.warmupNumReadCap)) {
-            // Let ep-engine think we're done with the warmup phase
-            // (we should refactor this into "enableTraffic")
-            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "Enough number of items loaded to enable traffic");
-            engine.warmupCompleted();
-        }
+    if (memoryUsed  >= stats.mem_low_wat) {
+        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                "Total memory use reached to the low water mark, stop warmup");
+       engine.warmupCompleted();
+    }
+    if (memoryUsed > (maxSize * stats.warmupMemUsedCap)) {
+        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                "Enough MB of data loaded to enable traffic");
+        engine.warmupCompleted();
+    } else if (stats.warmedUpValues > (stats.warmedUpMeta * stats.warmupNumReadCap)) {
+        // Let ep-engine think we're done with the warmup phase
+        // (we should refactor this into "enableTraffic")
+        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                "Enough number of items loaded to enable traffic");
+        engine.warmupCompleted();
     }
 }
 

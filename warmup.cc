@@ -238,7 +238,7 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
             default:
                 abort();
             }
-        } while (!succeeded && retry > 0);
+        } while (!succeeded && retry-- > 0);
 
         if (succeeded && i->isExpired(startTime)) {
             ItemMetaData itemMeta;

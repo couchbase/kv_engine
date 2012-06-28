@@ -584,6 +584,10 @@ public:
         return (warmingUp.get() && !trafficEnabled.get()) || restore.enabled.get();
     }
 
+    bool stillWarmingUp() const {
+        return warmingUp.get();
+    }
+
     bool isShutdownMode() const {
         return shutdown.isShutdown;
     }
