@@ -3474,21 +3474,20 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe(const void* cookie,
                          key.c_str(), vb_id);
 
         // Get key stats
+        uint16_t keystatus = 0;
         struct key_stats kstats;
         ENGINE_ERROR_CODE rv = epstore->getKeyStats(key, vb_id, kstats);
-        if (rv == ENGINE_NOT_MY_VBUCKET) {
+        if (rv == ENGINE_SUCCESS) {
+            keystatus = kstats.dirty ? 0 : 1;
+        } else if (rv == ENGINE_KEY_ENOENT) {
+            keystatus = 0x80;
+        } else if (rv == ENGINE_NOT_MY_VBUCKET) {
             std::string msg("Not my vbucket");
             return sendResponse(response, NULL, 0, 0, 0, msg.c_str(), msg.length(),
                                 PROTOCOL_BINARY_RAW_BYTES,
                                 PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, 0,
                                 cookie);
-        } else if (rv == ENGINE_KEY_ENOENT) {
-            std::string msg("Not found");
-            return sendResponse(response, NULL, 0, 0, 0, msg.c_str(), msg.length(),
-                                PROTOCOL_BINARY_RAW_BYTES,
-                                PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, 0,
-                                cookie);
-        } else if (rv != ENGINE_SUCCESS) {
+        } else {
             std::string msg("Internal error");
             return sendResponse(response, NULL, 0, 0, 0, msg.c_str(), msg.length(),
                                 PROTOCOL_BINARY_RAW_BYTES,
@@ -3497,13 +3496,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe(const void* cookie,
         }
 
         // Put the result into a response buffer
-        uint8_t persisted = kstats.dirty ? 0 : 1;
         vb_id = htons(vb_id);
         keylen = htons(keylen);
         result.write((char*) &vb_id, sizeof(uint16_t));
         result.write((char*) &keylen, sizeof(uint16_t));
         result.write(key.c_str(), ntohs(keylen));
-        result.write((char*) &persisted, sizeof(uint8_t));
+        result.write((char*) &keystatus, sizeof(uint8_t));
         result.write((char*) &kstats.cas, sizeof(uint64_t));
     }
 
