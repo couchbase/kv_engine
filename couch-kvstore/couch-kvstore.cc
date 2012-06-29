@@ -636,11 +636,11 @@ bool CouchKVStore::snapshotStats(const std::map<std::string, std::string> &stats
     // we simply log the engine stats into a separate json file. As part of futhre work,
     // we need to get rid of the tight coupling between those two components.
     bool rv = true;
-    std::string tmp_fname = dbname + "/stats.json.new";
+    std::string next_fname = dbname + "/stats.json.new";
     std::ofstream new_stats;
     new_stats.exceptions (new_stats.failbit | new_stats.badbit);
     try {
-        new_stats.open(tmp_fname.c_str());
+        new_stats.open(next_fname.c_str());
         new_stats << stats_buf.str().c_str() << std::endl;
         new_stats.flush();
         new_stats.close();
@@ -652,12 +652,26 @@ bool CouchKVStore::snapshotStats(const std::map<std::string, std::string> &stats
     }
 
     if (rv) {
+        std::string old_fname = dbname + "/stats.json.old";
         std::string stats_fname = dbname + "/stats.json";
-        if (rename(tmp_fname.c_str(), stats_fname.c_str()) != 0) {
+        if (access(old_fname.c_str(), F_OK) == 0 && remove(old_fname.c_str()) != 0) {
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                             "FATAL: Failed to remove '%s': %s",
+                             old_fname.c_str(), strerror(errno));
+            remove(next_fname.c_str());
+            rv = false;
+        } else if (access(stats_fname.c_str(), F_OK) == 0 &&
+                   rename(stats_fname.c_str(), old_fname.c_str()) != 0) {
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                              "Warning: failed to rename '%s' to '%s': %s",
-                             tmp_fname.c_str(), stats_fname.c_str(), strerror(errno));
-            remove(tmp_fname.c_str());
+                             stats_fname.c_str(), old_fname.c_str(), strerror(errno));
+            remove(next_fname.c_str());
+            rv = false;
+        } else if (rename(next_fname.c_str(), stats_fname.c_str()) != 0) {
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                             "Warning: failed to rename '%s' to '%s': %s",
+                             next_fname.c_str(), stats_fname.c_str(), strerror(errno));
+            remove(next_fname.c_str());
             rv = false;
         }
     }
