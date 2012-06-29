@@ -64,7 +64,7 @@ static bool validTransition(enum flusher_state from,
     case running:
         return (to == pausing);
     case pausing:
-        return (to == paused);
+        return (to == paused || to == running);
     case paused:
         return (to == running);
     case stopping:

@@ -541,15 +541,27 @@ static protocol_binary_request_header* create_set_param_packet(uint8_t opcode,
 }
 
 static void stop_persistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    while (true) {
+        useconds_t sleepTime = 128;
+        if (get_str_stat(h, h1, "ep_flusher_state", 0) == "running") {
+            break;
+        }
+        decayingSleep(&sleepTime);
+    }
+
     protocol_binary_request_header *pkt = create_packet(CMD_STOP_PERSISTENCE, "", "");
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Failed to stop persistence.");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+          "Error stopping persistence.");
 }
 
 static void start_persistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     protocol_binary_request_header *pkt = create_packet(CMD_START_PERSISTENCE, "", "");
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Failed to stop persistence.");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+          "Error starting persistence.");
 }
 
 static protocol_binary_request_header*

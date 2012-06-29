@@ -720,13 +720,11 @@ void EventuallyPersistentStore::stopFlusher() {
 
 bool EventuallyPersistentStore::pauseFlusher() {
     tctx.commitSoon();
-    flusher->pause();
-    return true;
+    return flusher->pause();
 }
 
 bool EventuallyPersistentStore::resumeFlusher() {
-    flusher->resume();
-    return true;
+    return flusher->resume();
 }
 
 RCPtr<VBucket> EventuallyPersistentStore::getVBucket(uint16_t vbucket) {
