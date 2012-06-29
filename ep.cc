@@ -1897,9 +1897,17 @@ void EventuallyPersistentStore::pushToOutgoingQueue() {
         rwUnderlying->optimizeWrites(dbShardQueues[i]);
         std::vector<queued_item>::iterator it = dbShardQueues[i].begin();
         for(; it != dbShardQueues[i].end(); ++it) {
-            writing.push(*it);
+            if (writing.empty() || writing.back()->getKey() != (*it)->getKey()) {
+                writing.push(*it);
+                ++num_items;
+            } else {
+                const queued_item &duplicate = *it;
+                RCPtr<VBucket> vb = getVBucket(duplicate->getVBucketId());
+                if (vb) {
+                    vb->doStatsForFlushing(*duplicate, duplicate->size());
+                }
+            }
         }
-        num_items += dbShardQueues[i].size();
         dbShardQueues[i].clear();
     }
     stats.memOverhead.incr(num_items * sizeof(queued_item));
