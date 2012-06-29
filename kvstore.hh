@@ -303,6 +303,8 @@ public:
         engine = theEngine;
     }
 
+    EventuallyPersistentEngine *getEngine(void) { return engine; }
+
 protected:
     EventuallyPersistentEngine *engine;
 

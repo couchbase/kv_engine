@@ -45,10 +45,11 @@ KVStore *KVStoreFactory::create(EventuallyPersistentEngine &theEngine) {
 
 struct WarmupCookie {
     WarmupCookie(KVStore *s, Callback<GetValue>&c) :
-        store(s), cb(c), loaded(0), skipped(0), error(0)
+        store(s), cb(c), engine(s->getEngine()), loaded(0), skipped(0), error(0)
     { /* EMPTY */ }
     KVStore *store;
     Callback<GetValue> &cb;
+    EventuallyPersistentEngine *engine;
     size_t loaded;
     size_t skipped;
     size_t error;
@@ -59,19 +60,22 @@ static void warmupCallback(void *arg, uint16_t vb, uint16_t vbver,
 {
     WarmupCookie *cookie = static_cast<WarmupCookie*>(arg);
 
-    /* @todo check if we should start skipping items!!! */
-    RememberingCallback<GetValue> cb;
-    cookie->store->get(key, rowid, vb, vbver, cb);
-    cb.waitForValue();
+    if (cookie->engine->stillWarmingUp()) {
+        RememberingCallback<GetValue> cb;
+        cookie->store->get(key, rowid, vb, vbver, cb);
+        cb.waitForValue();
 
-    if (cb.val.getStatus() == ENGINE_SUCCESS) {
-        cookie->cb.callback(cb.val);
-        cookie->loaded++;
+        if (cb.val.getStatus() == ENGINE_SUCCESS) {
+            cookie->cb.callback(cb.val);
+            cookie->loaded++;
+        } else {
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                    "Warning: warmup failed to load data for vBucket = %d key = %s error = %X\n",
+                    vb, key.c_str(), cb.val.getStatus());
+            cookie->error++;
+        }
     } else {
-        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                     "Warning: warmup failed to load data for vBucket = %d key = %s error = %X\n",
-                     vb, key.c_str(), cb.val.getStatus());
-        cookie->error++;
+        cookie->skipped++;
     }
 }
 
