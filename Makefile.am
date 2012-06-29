@@ -4,13 +4,11 @@ bin_SCRIPTS = management/analyze_core \
               wrapper/cbadm-online-restore \
               wrapper/cbadm-online-update \
               wrapper/cbadm-tap-registration \
-              wrapper/cbbackup \
               wrapper/cbbackup-incremental \
               wrapper/cbbackup-merge-incremental \
               wrapper/cbdbmaint \
               wrapper/cbdbupgrade \
               wrapper/cbconfig \
-              wrapper/cbrestore \
               wrapper/cbstats \
               wrapper/cbvbucketctl
 
@@ -458,13 +456,11 @@ pythonlib_SCRIPTS= \
                 management/cbadm-online-restore \
                 management/cbadm-online-update \
                 management/cbadm-tap-registration \
-                management/cbbackup \
                 management/cbbackup-incremental \
                 management/cbbackup-merge-incremental \
                 management/cbdbmaint \
                 management/cbdbupgrade \
                 management/cbconfig \
-                management/cbrestore \
                 management/cbstats \
                 management/cbvbucketctl
 
@@ -472,13 +468,11 @@ PYTHON_TOOLS= \
               wrapper/cbadm-online-restore \
               wrapper/cbadm-online-update \
               wrapper/cbadm-tap-registration \
-              wrapper/cbbackup \
               wrapper/cbbackup-incremental \
               wrapper/cbbackup-merge-incremental \
               wrapper/cbdbmaint \
               wrapper/cbdbupgrade \
               wrapper/cbconfig \
-              wrapper/cbrestore \
               wrapper/cbstats \
               wrapper/cbvbucketctl
 
