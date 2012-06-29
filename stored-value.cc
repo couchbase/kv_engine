@@ -138,6 +138,7 @@ mutation_type_t HashTable::insert(const Item &itm, bool eject, bool partial) {
         v->markClean(NULL);
         if (partial) {
             v->extra.feature.resident = false;
+            ++numNonResidentItems;
         }
         values[bucket_num] = v;
         ++numItems;
@@ -157,6 +158,9 @@ mutation_type_t HashTable::insert(const Item &itm, bool eject, bool partial) {
             } else {
                 return INVALID_CAS;
             }
+        }
+        if (!v->isResident() && !v->isDeleted()) {
+            --numNonResidentItems;
         }
         v->setValue(const_cast<Item&>(itm), stats, *this, true);
     }
