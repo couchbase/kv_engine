@@ -6214,7 +6214,7 @@ static enum test_result test_delete_with_meta_deleted(ENGINE_HANDLE *h,
     // put some random metadata and delete the item with new meta data
     itm_meta.seqno = 10;
     itm_meta.cas = 0xdeadbeef;
-    itm_meta.exptime = 300;
+    itm_meta.exptime = 3735928559; // expires in 2088
     itm_meta.flags = 0xdeadbeef;
 
     // do delete with meta with an incorrect cas value. should fail.
@@ -6269,7 +6269,7 @@ static enum test_result test_delete_with_meta_nonexistent(ENGINE_HANDLE *h,
     // put some random metadata and delete the item with new meta data
     itm_meta.seqno = 10;
     itm_meta.cas = 0xdeadbeef;
-    itm_meta.exptime = 300;
+    itm_meta.exptime = 3735928559; // expires in 2088
     itm_meta.flags = 0xdeadbeef;
 
     // do delete with meta with an incorrect cas value. should fail.
@@ -6311,7 +6311,7 @@ static enum test_result test_delete_with_meta_race_with_set(ENGINE_HANDLE *h, EN
     ItemMetaData itm_meta;
     itm_meta.seqno = 10;
     itm_meta.cas = 0xdeadbeef;
-    itm_meta.exptime = 300;
+    itm_meta.exptime = 3735928559; // expires in 2088
     itm_meta.flags = 0xdeadbeef;
     size_t temp = 0;
     // check the stat
@@ -6520,8 +6520,11 @@ static enum test_result test_set_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
     check(itm_meta.seqno == 10, "Expected seqno to match");
     check(itm_meta.cas == 0xdeadbeef, "Expected cas to match");
-    check(itm_meta.exptime == 300, "Expected exptime to match");
     check(itm_meta.flags == 0xdeadbeef, "Expected flags to match");
+
+    // Make sure the item expiration was processed correctly
+    testHarness.time_travel(301);
+    check(h1->get(h, NULL, &i, key, keylen, 0) == ENGINE_KEY_ENOENT, "Failed to get value.");
 
     h1->release(h, NULL, i);
     return SUCCESS;
@@ -6560,7 +6563,7 @@ static enum test_result test_set_with_meta_deleted(ENGINE_HANDLE *h, ENGINE_HAND
     // init some random metadata
     itm_meta.seqno = 10;
     itm_meta.cas = 0xdeadbeef;
-    itm_meta.exptime = 300;
+    itm_meta.exptime = 3735928559; // expires in 2088
     itm_meta.flags = 0xdeadbeef;
 
     // do set with meta with an incorrect cas value. should fail.
@@ -6583,7 +6586,7 @@ static enum test_result test_set_with_meta_deleted(ENGINE_HANDLE *h, ENGINE_HAND
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
     check(itm_meta.seqno == 10, "Expected seqno to match");
     check(itm_meta.cas == 0xdeadbeef, "Expected cas to match");
-    check(itm_meta.exptime == 300, "Expected exptime to match");
+    check(itm_meta.exptime == 3735928559, "Expected exptime to match");
     check(itm_meta.flags == 0xdeadbeef, "Expected flags to match");
 
     h1->release(h, NULL, i);
@@ -6612,7 +6615,7 @@ static enum test_result test_set_with_meta_nonexistent(ENGINE_HANDLE *h, ENGINE_
     // init some random metadata
     itm_meta.seqno = 10;
     itm_meta.cas = 0xdeadbeef;
-    itm_meta.exptime = 300;
+    itm_meta.exptime = 3735928559; // expires in 2088
     itm_meta.flags = 0xdeadbeef;
 
     // do set with meta with an incorrect cas value. should fail.
@@ -6635,7 +6638,7 @@ static enum test_result test_set_with_meta_nonexistent(ENGINE_HANDLE *h, ENGINE_
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
     check(itm_meta.seqno == 10, "Expected seqno to match");
     check(itm_meta.cas == 0xdeadbeef, "Expected cas to match");
-    check(itm_meta.exptime == 300, "Expected exptime to match");
+    check(itm_meta.exptime == 3735928559, "Expected exptime to match");
     check(itm_meta.flags == 0xdeadbeef, "Expected flags to match");
 
     return SUCCESS;
