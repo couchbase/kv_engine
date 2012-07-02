@@ -49,11 +49,19 @@ public:
 
     virtual void complete() {
         if (log != NULL) {
-            // I'd like a better way to do this!!!!
+            size_t num_items = log->itemsLogged[ML_NEW];
             log->commit1();
             log->commit2();
             delete log;
             log = NULL;
+
+            if (num_items == 0) {
+                getLogger()->log(EXTENSION_LOG_INFO, NULL,
+                                 "The new access log is empty. "
+                                 "Delete it without replacing the current access log...\n");
+                remove(next.c_str());
+                return;
+            }
 
             if (access(prev.c_str(), F_OK) == 0 && remove(prev.c_str()) == -1) {
                 getLogger()->log(EXTENSION_LOG_WARNING, NULL,
