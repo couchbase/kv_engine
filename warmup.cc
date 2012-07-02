@@ -465,6 +465,7 @@ bool Warmup::loadingAccessLog(Dispatcher&, TaskId)
     LoadStorageKVPairCallback *load_cb = createLKVPCB(initialVbState, true,
                                                       state.getState());
     bool success = false;
+    hrtime_t stTime = gethrtime();
     if (store->accessLog.exists()) {
         try {
             store->accessLog.open();
@@ -495,7 +496,12 @@ bool Warmup::loadingAccessLog(Dispatcher&, TaskId)
         }
     }
 
-    if (success) {
+    size_t numItems = store->getEPEngine().getEpStats().warmedUpValues;
+    if (success && numItems) {
+        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                         "%d items loaded from access log, completed in %s",
+                         numItems,
+                         hrtime2text((gethrtime() - stTime) / 1000).c_str());
         if (doReconstructLog()) {
             store->mutationLog.commit1();
             store->mutationLog.commit2();
