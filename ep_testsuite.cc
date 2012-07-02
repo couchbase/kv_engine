@@ -6813,33 +6813,23 @@ static enum test_result test_temp_item_deletion(ENGINE_HANDLE *h, ENGINE_HANDLE_
     char const *k1 = "k1";
     item *i = NULL;
 
-    // create an item to make sure item pager will kick in
-    check(store(h, h1, NULL, OPERATION_SET, "k0", "randomvalue", &i) == ENGINE_SUCCESS,
-          "Failed set.");
-    wait_for_flusher_to_settle(h, h1);
-    check(get_int_stat(h, h1, "curr_items") == 1, "Expect one item");
-
     check(store(h, h1, NULL, OPERATION_SET, k1, "somevalue", &i) == ENGINE_SUCCESS,
           "Failed set.");
     wait_for_flusher_to_settle(h, h1);
-    check(get_int_stat(h, h1, "curr_items") == 2, "Expect one item");
 
     check(h1->remove(h, NULL, k1, strlen(k1), 0, 0) == ENGINE_SUCCESS,
           "Delete failed");
     wait_for_flusher_to_settle(h, h1);
-    check(get_int_stat(h, h1, "curr_items") == 1, "Expect zero item");
 
     ItemMetaData itm_meta;
     check(get_meta(h, h1, k1, itm_meta), "Expected to get meta");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
     check(last_deleted_flag, "Expected deleted flag to be set");
-    check(get_int_stat(h, h1, "curr_items") == 1, "Expect zero item");
 
     // Do get_meta for a non-existing key
     char const *k2 = "k2";
     check(!get_meta(h, h1, k2, itm_meta), "Expected get meta to return false");
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, "Expected enoent");
-    check(get_int_stat(h, h1, "curr_items") == 1, "Expect zero item");
 
     // Trigger the expiry pager and verify that two temp items are deleted
     testHarness.time_travel(30);
