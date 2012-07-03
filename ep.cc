@@ -1325,11 +1325,12 @@ void EventuallyPersistentStore::bgFetch(const std::string &key,
 }
 
 GetValue EventuallyPersistentStore::getInternal(const std::string &key,
-                                        uint16_t vbucket,
-                                        const void *cookie,
-                                        bool queueBG,
-                                        bool honorStates,
-                                        vbucket_state_t allowedState) {
+                                                uint16_t vbucket,
+                                                const void *cookie,
+                                                bool queueBG,
+                                                bool honorStates,
+                                                vbucket_state_t allowedState,
+                                                bool trackReference) {
     vbucket_state_t disallowedState = (allowedState == vbucket_state_active) ?
         vbucket_state_replica : vbucket_state_active;
     RCPtr<VBucket> vb = getVBucket(vbucket);
@@ -1350,7 +1351,7 @@ GetValue EventuallyPersistentStore::getInternal(const std::string &key,
 
     int bucket_num(0);
     LockHolder lh = vb->ht.getLockedBucket(key, &bucket_num);
-    StoredValue *v = fetchValidValue(vb, key, bucket_num);
+    StoredValue *v = fetchValidValue(vb, key, bucket_num, false, trackReference);
 
     if (v) {
         // If the value is not resident, wait for it...

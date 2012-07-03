@@ -1756,7 +1756,7 @@ Item* TapProducer::getNextItem(const void *c, uint16_t *vbucket, tap_event_t &re
         // If there's a better version in memory, grab it,
         // else go with what we pulled from disk.
         GetValue gv(engine.getEpStore()->get(itm->getKey(), itm->getVBucketId(),
-                                             c, false, false));
+                                             c, false, false, false));
         if (gv.getStatus() == ENGINE_SUCCESS) {
             delete itm;
             itm = gv.getValue();
@@ -1792,7 +1792,7 @@ Item* TapProducer::getNextItem(const void *c, uint16_t *vbucket, tap_event_t &re
 
         if (qi->getOperation() == queue_op_set) {
             GetValue gv(engine.getEpStore()->get(qi->getKey(), qi->getVBucketId(),
-                                                 c, false, false));
+                                                 c, false, false, false));
             ENGINE_ERROR_CODE r = gv.getStatus();
             if (r == ENGINE_SUCCESS) {
                 itm = gv.getValue();

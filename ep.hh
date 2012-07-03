@@ -460,14 +460,15 @@ public:
      * @param cookie the connection cookie
      * @param queueBG if true, automatically queue a background fetch if necessary
      * @param honorStates if false, fetch a result regardless of state
+     * @param trackReference true if we want to set the reference bit for the item
      *
      * @return a GetValue representing the result of the request
      */
     GetValue get(const std::string &key, uint16_t vbucket,
                  const void *cookie, bool queueBG=true,
-                 bool honorStates=true) {
+                 bool honorStates=true, bool trackReference=true) {
         return getInternal(key, vbucket, cookie, queueBG, honorStates,
-                           vbucket_state_active);
+                           vbucket_state_active, trackReference);
     }
 
     /**
@@ -987,7 +988,8 @@ private:
     GetValue getInternal(const std::string &key, uint16_t vbucket,
                          const void *cookie, bool queueBG,
                          bool honorStates,
-                         vbucket_state_t allowedState);
+                         vbucket_state_t allowedState,
+                         bool trackReference=true);
 
     /**
      * Process NEED_METADATA response from hash table set call in order to figure
