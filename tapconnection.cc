@@ -1856,6 +1856,7 @@ TapVBucketEvent TapProducer::checkDumpOrTakeOverCompletion() {
     LockHolder lh(queueLock);
     TapVBucketEvent ev(TAP_PAUSE, 0, vbucket_state_active);
 
+    checkBackfillCompletion_UNLOCKED();
     if (mayCompleteDumpOrTakeover_UNLOCKED()) {
         ev = nextVBucketLowPriority_UNLOCKED();
         if (ev.event != TAP_PAUSE) {
