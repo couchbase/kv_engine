@@ -222,44 +222,17 @@ CouchKVStore::CouchKVStore(const CouchKVStore &copyFrom) :
 void CouchKVStore::reset()
 {
     // TODO CouchKVStore::flush() when couchstore api ready
-    Db *db = NULL;
     RememberingCallback<bool> cb;
-    std::map<uint16_t, vbucket_state> vbStateArray;
-
-    if (dbFileMap.empty()) {
-        std::vector<std::string> files;
-        discoverDbFiles(dbname, files);
-        populateFileNameMap(files);
-    }
-
-    std::map<uint16_t, int>::iterator itr = dbFileMap.begin();
-    for (; itr != dbFileMap.end(); itr++) {
-        vbucket_state vbstate;
-        couchstore_error_t errCode = openDB(itr->first, itr->second, &db, 0);
-        if (errCode == COUCHSTORE_SUCCESS) {
-            readVBState(db, itr->first, vbstate);
-            vbStateArray.insert(std::pair<uint16_t,
-                                          vbucket_state>(itr->first, vbstate));
-            closeDatabaseHandle(db);
-        } else {
-            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "Warning: failed to open database file to flush, "
-                             "vb=%d error=%s\n",
-                             (int)itr->first, couchstore_strerror(errCode));
-        }
-    }
-    dbFileMap.clear();
 
     mc->flush(cb);
     cb.waitForValue();
 
-    std::map<uint16_t, vbucket_state>::iterator itor = vbStateArray.begin();
-    for (; itor != vbStateArray.end(); itor++) {
+    vbucket_map_t::iterator itor = cachedVBStates.begin();
+    for (; itor != cachedVBStates.end(); ++itor) {
         // create an empty database file with given vbucket state
-        uint16_t vbucket = itor->first;
-        vbucket_state_t state = itor->second.state;
-        uint64_t checkpointId = itor->second.checkpointId;
-        if (setVBucketState(vbucket, state, checkpointId, true)) {
+        uint16_t vbucket = itor->first.first;
+        itor->second.checkpointId = 0;
+        if (setVBucketState(vbucket, itor->second, true)) {
             updateDbFileMap(vbucket, 1, true);
         } else {
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
@@ -452,43 +425,14 @@ bool CouchKVStore::delVBucket(uint16_t vbucket, uint16_t)
     assert(mc);
     RememberingCallback<bool> cb;
 
-    Db *db = NULL;
-    std::string dbFile;
-    vbucket_state vbstate;
-    bool restoreVBstate = false;
-
-    // we need to preserve vbucket state and restore it in
-    // an empty database file after deletion, this is done
-    // so backfills from a source node can continue to write
-    // after the vbucket deletion
-
-    if (getDbFile(vbucket, dbFile)) {
-        couchstore_error_t errCode = openDB(vbucket, dbFileRev(dbFile), &db, 0);
-        if (errCode == COUCHSTORE_SUCCESS) {
-            restoreVBstate = true;
-            readVBState(db, vbucket, vbstate);
-            closeDatabaseHandle(db);
-        } else {
-            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "Warning: failed to open database to read "
-                             "vbucket state, vb=%d error=%s\n",
-                             (int)vbucket, couchstore_strerror(errCode));
-        }
-        remVBucketFromDbFileMap(vbucket);
-    } else {
-        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                         "Warning: cannot locate database file to read vbucket "
-                         "state, file=%s\n", dbFile.c_str());
-    }
-
     mc->delVBucket(vbucket, cb);
     cb.waitForValue();
 
-    if (restoreVBstate) {
+    vbucket_map_t::iterator itor = cachedVBStates.find(std::make_pair(vbucket, -1));
+    if (itor != cachedVBStates.end()) {
         // create an empty database file with stashed vbucket state
-        uint64_t checkpointId = vbstate.checkpointId;
-        vbucket_state_t state = vbstate.state;
-        if (setVBucketState(vbucket, state, checkpointId, true)) {
+        itor->second.checkpointId = 0;
+        if (setVBucketState(vbucket, itor->second, true)) {
             updateDbFileMap(vbucket, 1, false);
         } else {
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
@@ -510,8 +454,8 @@ vbucket_map_t CouchKVStore::listPersistedVbuckets()
         populateFileNameMap(files);
     }
 
-    if (!warmupVbStates.empty()) {
-        warmupVbStates.clear();
+    if (!cachedVBStates.empty()) {
+        cachedVBStates.clear();
     }
 
     Db *db = NULL;
@@ -537,14 +481,14 @@ vbucket_map_t CouchKVStore::listPersistedVbuckets()
             /* read state of VBucket from db file */
             readVBState(db, vbID, vb_state);
             /* insert populated state to the array to return to the caller */
-            warmupVbStates[vb] = vb_state;
+            cachedVBStates[vb] = vb_state;
             /* update stat */
             ++st.numLoadedVb;
             closeDatabaseHandle(db);
         }
         db = NULL;
     }
-    return warmupVbStates;
+    return cachedVBStates;
 }
 
 void CouchKVStore::getPersistedStats(std::map<std::string, std::string> &stats)
@@ -592,22 +536,36 @@ bool CouchKVStore::snapshotVBuckets(const vbucket_map_t &m)
 {
 
     vbucket_map_t::const_iterator iter;
-    uint16_t vbucketId;
-    vbucket_state_t state;
-    uint64_t checkpointId;
-    bool success = m.empty() ? true : false;
+    bool success = true;
 
     for (iter = m.begin(); iter != m.end(); ++iter) {
-        const vbucket_state vbstate = iter->second;
-        vbucketId = iter->first.first;
-        state = vbstate.state;
-        checkpointId = vbstate.checkpointId;
+        uint16_t vbucketId = iter->first.first;
+        vbucket_state vbstate = iter->second;
+        vbucket_map_t::iterator it =
+            cachedVBStates.find(std::make_pair<uint16_t, uint16_t>(vbucketId, -1));
+        bool state_changed = true;
+        if (it != cachedVBStates.end()) {
+            if (it->second.state == vbstate.state &&
+                it->second.checkpointId == vbstate.checkpointId) {
+                continue; // no changes
+            } else {
+                if (it->second.state == vbstate.state) {
+                    state_changed = false;
+                }
+                it->second.state = vbstate.state;
+                it->second.checkpointId = vbstate.checkpointId;
+                // Note that the max deleted seq number is maintained within CouchKVStore
+                vbstate.maxDeletedSeqno = it->second.maxDeletedSeqno;
+            }
+        } else {
+            cachedVBStates[std::make_pair<uint16_t, uint16_t>(vbucketId, -1)] = vbstate;
+        }
 
-        success = setVBucketState(vbucketId, state, checkpointId);
+        success = setVBucketState(vbucketId, vbstate, state_changed, false);
         if (!success) {
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                              "Warning: failed to set new state, %s, for vbucket %d\n",
-                             VBucket::toString(state), vbucketId);
+                             VBucket::toString(vbstate.state), vbucketId);
             break;
         }
     }
@@ -679,8 +637,8 @@ bool CouchKVStore::snapshotStats(const std::map<std::string, std::string> &stats
     return rv;
 }
 
-bool CouchKVStore::setVBucketState(uint16_t vbucketId, vbucket_state_t state,
-                                   uint64_t checkpointId, bool newfile)
+bool CouchKVStore::setVBucketState(uint16_t vbucketId, vbucket_state vbstate,
+                                   bool stateChanged, bool newfile)
 {
     Db *db = NULL;
     couchstore_error_t errorCode;
@@ -727,24 +685,7 @@ bool CouchKVStore::setVBucketState(uint16_t vbucketId, vbucket_state_t state,
         }
         fileRev = newFileRev;
 
-        // if not newly created file, get current max_deleted_seq number
-        // first from the local doc before updating it
-        vbucket_state vbState;
-        if (newfile) {
-            vbState.maxDeletedSeqno = 0;
-        } else {
-            readVBState(db, vbucketId, vbState);
-            // no need to update if a vbucket state is not changed.
-            if (state == vbState.state && checkpointId == vbState.checkpointId) {
-                closeDatabaseHandle(db);
-                return true;
-            }
-        }
-
-        // update local doc with new state & checkpointId
-        vbState.state = state;
-        vbState.checkpointId = checkpointId;
-        errorCode = saveVBState(db, vbState);
+        errorCode = saveVBState(db, vbstate);
         if (errorCode != COUCHSTORE_SUCCESS) {
             ++st.numVbSetFailure;
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
@@ -768,7 +709,7 @@ bool CouchKVStore::setVBucketState(uint16_t vbucketId, vbucket_state_t state,
             RememberingCallback<uint16_t> lcb;
 
             mc->notify_update(vbucketId, fileRev, newHeaderPos,
-                              true, state, checkpointId, lcb);
+                              stateChanged, vbstate.state, vbstate.checkpointId, lcb);
             if (lcb.val != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
                 if (lcb.val == PROTOCOL_BINARY_RESPONSE_ETMPFAIL) {
                     getLogger()->log(EXTENSION_LOG_WARNING, NULL,
@@ -904,15 +845,15 @@ void CouchKVStore::loadDB(shared_ptr<LoadCallback> cb, bool keysOnly,
     }
 
     // order vbuckets data loading by using vbucket states
-    if (loadingData && warmupVbStates.empty()) {
+    if (loadingData && cachedVBStates.empty()) {
         listPersistedVbuckets();
     }
 
     std::map<uint16_t, int>::iterator fitr = filemap.begin();
     for (; fitr != filemap.end(); fitr++) {
         if (loadingData) {
-            vbucket_map_t::const_iterator vsit = warmupVbStates.find(make_pair(fitr->first, -1));
-            if (vsit != warmupVbStates.end()) {
+            vbucket_map_t::const_iterator vsit = cachedVBStates.find(make_pair(fitr->first, -1));
+            if (vsit != cachedVBStates.end()) {
                 vbucket_state vbs = vsit->second;
                 // ignore loading dead vbuckets during warmup
                 if (vbs.state == vbucket_state_active) {
@@ -974,11 +915,6 @@ void CouchKVStore::loadDB(shared_ptr<LoadCallback> cb, bool keysOnly,
             closeDatabaseHandle(db);
         }
         db = NULL;
-    }
-
-    if (loadingData) {
-        /* clear this map because it is no longer needed */
-        warmupVbStates.clear();
     }
 
     bool success = true;
@@ -1398,7 +1334,6 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, int rev, Doc **docs,
     couchstore_error_t errCode;
     int fileRev;
     uint16_t newFileRev;
-    uint16_t vbucket2save = vbid;
     Db *db = NULL;
     bool retry_save_docs;
 
@@ -1407,12 +1342,12 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, int rev, Doc **docs,
 
     do {
         retry_save_docs = false;
-        errCode = openDB(vbucket2save, fileRev, &db, 0, &newFileRev);
+        errCode = openDB(vbid, fileRev, &db, 0, &newFileRev);
         if (errCode != COUCHSTORE_SUCCESS) {
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                              "Warning: failed to open database, vbucketId = %d "
                              "fileRev = %d error = %d\n",
-                             vbucket2save, fileRev, errCode);
+                             vbid, fileRev, errCode);
             return errCode;
         } else {
             uint32_t max = computeMaxDeletedSeqNum(docinfos, docCount);
@@ -1420,16 +1355,16 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, int rev, Doc **docs,
             // update max_deleted_seq in the local doc (vbstate)
             // before save docs for the given vBucket
             if (max > 0) {
-                vbucket_state vbState;
-                readVBState(db, vbucket2save, vbState);
-                if (vbState.maxDeletedSeqno < max) {
-                    vbState.maxDeletedSeqno = max;
-                    errCode = saveVBState(db, vbState);
+                vbucket_map_t::iterator it =
+                    cachedVBStates.find(std::make_pair<uint16_t, uint16_t>(vbid, -1));
+                if (it != cachedVBStates.end() && it->second.maxDeletedSeqno < max) {
+                    it->second.maxDeletedSeqno = max;
+                    errCode = saveVBState(db, it->second);
                     if (errCode != COUCHSTORE_SUCCESS) {
                         getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                                          "Warning: failed to save local doc for, "
                                          "vBucket = %d error = %s\n",
-                                         vbucket2save, couchstore_strerror(errCode));
+                                         vbid, couchstore_strerror(errCode));
                         closeDatabaseHandle(db);
                         return errCode;
                     }
@@ -1457,19 +1392,19 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, int rev, Doc **docs,
 
             RememberingCallback<uint16_t> cb;
             uint64_t newHeaderPos = couchstore_get_header_position(db);
-            mc->notify_headerpos_update(vbucket2save, newFileRev, newHeaderPos, cb);
+            mc->notify_headerpos_update(vbid, newFileRev, newHeaderPos, cb);
             if (cb.val != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
                 if (cb.val == PROTOCOL_BINARY_RESPONSE_ETMPFAIL) {
                     getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                                    "Retry notify CouchDB of update, vbucket=%d rev=%d\n",
-                                     vbucket2save, newFileRev);
+                                     vbid, newFileRev);
                     fileRev = newFileRev;
                     retry_save_docs = true;
                 } else {
                     getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                                      "Warning: failed to notify CouchDB of "
                                      "update for vbucket=%d, error=0x%x\n",
-                                     vbucket2save, cb.val);
+                                     vbid, cb.val);
                     abort();
                 }
             }
