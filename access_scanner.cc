@@ -99,7 +99,7 @@ public:
 
     virtual void sizeValueChanged(const std::string &key, size_t value) {
         if (key.compare("alog_sleep_time") == 0) {
-            scanner.setSleepTime(value);
+            scanner.store.setAccessScannerSleeptime(value);
         }
     }
 
@@ -107,14 +107,13 @@ private:
     AccessScanner &scanner;
 };
 
-AccessScanner::AccessScanner(EventuallyPersistentStore &_store) :
-    store(_store)
+AccessScanner::AccessScanner(EventuallyPersistentStore &_store, EPStats &st,
+                             size_t sleeptime) :
+        store(_store), stats(st), sleepTime(sleeptime)
 {
     Configuration &config = store.getEPEngine().getConfiguration();
     config.addValueChangedListener("alog_sleep_time",
                                    new AccessScannerValueChangeListener(*this));
-    setSleepTime(config.getAlogSleepTime());
-
 }
 
 bool AccessScanner::callback(Dispatcher &d, TaskId t) {
@@ -122,18 +121,11 @@ bool AccessScanner::callback(Dispatcher &d, TaskId t) {
     //       running multiple in parallel
     shared_ptr<ItemAccessVisitor> pv(new ItemAccessVisitor(store));
     store.visit(pv, "Item access scanner", &d, Priority::ItemPagerPriority);
+    ++stats.alogRuns;
     d.snooze(t, sleepTime);
     return true;
 }
 
 std::string AccessScanner::description() {
     return std::string("Generating access log");
-}
-
-double AccessScanner::getSleepTime() const {
-    return sleepTime;
-}
-
-void AccessScanner::setSleepTime(size_t t) {
-    sleepTime = (double)(t * 60);
 }

@@ -277,6 +277,8 @@ public:
 
     //! The number of tiems the mutation log compactor is exectued
     Atomic<size_t> mlogCompactorRuns;
+    //! The number of tiems the access scanner runs
+    Atomic<size_t> alogRuns;
 
     //! Histogram of tap background wait loads.
     Histogram<hrtime_t> tapBgLoadHisto;
@@ -410,6 +412,7 @@ public:
         vbucketDelTotWalltime.set(0);
 
         mlogCompactorRuns.set(0);
+        alogRuns.set(0);
 
         pendingOpsHisto.reset();
         bgWaitHisto.reset();

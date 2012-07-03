@@ -123,6 +123,7 @@ memcached like this:
 |                        |        | default value is False.                    |
 | data_traffic_enabled   | bool   | True if we want to enable data traffic     |
 |                        |        | immediately after warmup completion        |
+| alog_sleep_time        | int    | Interval of access scanner task in (min)   |
 
 ** Shard Patterns
 

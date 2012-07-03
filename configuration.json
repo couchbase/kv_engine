@@ -18,10 +18,15 @@
             "type": "std::string"
         },
         "alog_sleep_time": {
-            "default": "30",
+            "default": "1440",
             "descr": "Number of minutes between each sweep for the access log",
-            "dynamic": true,
-            "type": "size_t"
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "max": 4320,
+                    "min": 1
+                }
+            }
         },
         "backend": {
             "default": "sqlite",

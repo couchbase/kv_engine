@@ -7,19 +7,20 @@
 
 // Forward declaration.
 class EventuallyPersistentStore;
+class AccessScannerValueChangeListener;
 
 class AccessScanner : public DispatcherCallback {
+    friend class AccessScannerValueChangeListener;
 public:
-
-    AccessScanner(EventuallyPersistentStore &_store);
+    AccessScanner(EventuallyPersistentStore &_store, EPStats &st,
+                  size_t sleetime);
     bool callback(Dispatcher &d, TaskId t);
     std::string description();
-    double getSleepTime() const;
-    void setSleepTime(size_t t);
 
 private:
     EventuallyPersistentStore &store;
-    double sleepTime;
+    EPStats &stats;
+    size_t sleepTime;
 };
 
 #endif /* ACCESS_SCANNER_HH */

@@ -413,6 +413,8 @@ extern "C" {
             } else if (strcmp(keyz, "klog_compactor_queue_cap") == 0) {
                 validate(v, 0, std::numeric_limits<int>::max());
                 e->getConfiguration().setKlogCompactorQueueCap(v);
+            } else if (strcmp(keyz, "alog_sleep_time") == 0) {
+                e->getConfiguration().setAlogSleepTime(v);
             } else {
                 *msg = "Unknown config param";
                 rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
@@ -2626,6 +2628,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                     add_stat, cookie);
 
     add_casted_stat("ep_mlog_compactor_runs", epstats.mlogCompactorRuns,
+                    add_stat, cookie);
+    add_casted_stat("ep_num_access_scanner_runs", epstats.alogRuns,
                     add_stat, cookie);
 
     add_casted_stat("ep_startup_time", startupTime, add_stat, cookie);

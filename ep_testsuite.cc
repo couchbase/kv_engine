@@ -7324,7 +7324,7 @@ engine_test_t* get_tests(void) {
                  NULL, prepare, cleanup, BACKEND_SQLITE),
         TestCase("test total memory limit", test_memory_limit,
                  test_setup, teardown,
-                 "max_size=4096;ht_locks=1;ht_size=3;chk_remover_stime=1;chk_period=60;mutation_mem_threshold=0.9",
+                 "max_size=5192;ht_locks=1;ht_size=3;chk_remover_stime=1;chk_period=60;mutation_mem_threshold=0.9",
                  prepare, cleanup, BACKEND_ALL),
         TestCase("test max_size changes", test_max_size_settings,
                  test_setup, teardown,

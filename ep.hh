@@ -873,6 +873,7 @@ public:
     }
 
     void setExpiryPagerSleeptime(size_t val);
+    void setAccessScannerSleeptime(size_t val);
 
     /**
      * Complete the degraded mode phase by clearing the list of deleted items that
@@ -1057,6 +1058,12 @@ private:
         size_t sleeptime;
         TaskId task;
     } expiryPager;
+    struct ALogTask {
+        ALogTask() : sleeptime(0) {}
+        Mutex mutex;
+        size_t sleeptime;
+        TaskId task;
+    } accessScanner;
     size_t itemExpiryWindow;
     size_t vbDelChunkSize;
     size_t vbChunkDelThresholdTime;

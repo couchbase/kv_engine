@@ -2459,11 +2459,8 @@ void EventuallyPersistentStore::warmupCompleted() {
 
     if (HashTable::getDefaultStorageValueType() != small) {
         if (engine.getConfiguration().getAlogPath().length() > 0) {
-            AccessScanner *as = new AccessScanner(*this);
-            shared_ptr<DispatcherCallback> cb(as);
-            dispatcher->schedule(cb, NULL,
-                                 Priority::AccessScannerPriority,
-                                 as->getSleepTime());
+            size_t smin = engine.getConfiguration().getAlogSleepTime();
+            setAccessScannerSleeptime(smin);
         }
     }
 
@@ -2637,6 +2634,24 @@ void EventuallyPersistentStore::setExpiryPagerSleeptime(size_t val) {
         getNonIODispatcher()->schedule(exp_cb, &expiryPager.task,
                                        Priority::ItemPagerPriority,
                                        expiryPager.sleeptime);
+    }
+}
+
+void EventuallyPersistentStore::setAccessScannerSleeptime(size_t val) {
+    LockHolder lh(accessScanner.mutex);
+
+    if (accessScanner.sleeptime != 0) {
+        dispatcher->cancel(accessScanner.task);
+    }
+
+    // store sleeptime in seconds
+    accessScanner.sleeptime = val * 60;
+    if (accessScanner.sleeptime != 0) {
+        AccessScanner *as = new AccessScanner(*this, stats, accessScanner.sleeptime);
+        shared_ptr<DispatcherCallback> cb(as);
+        dispatcher->schedule(cb, &accessScanner.task,
+                             Priority::AccessScannerPriority,
+                             accessScanner.sleeptime);
     }
 }
 
