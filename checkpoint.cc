@@ -112,8 +112,10 @@ queue_dirty_t Checkpoint::queueDirty(const queued_item &qi, CheckpointManager *c
                 }
             }
         }
-        // Copy the queued time of the existing item to the new one.
-        qi->setQueuedTime((*currPos)->getQueuedTime());
+
+        queued_item &existing_itm = *currPos;
+        existing_itm->setOperation(qi->getOperation());
+        toWrite.push_back(existing_itm);
         // Remove the existing item for the same key from the list.
         toWrite.erase(currPos);
         rv = EXISTING_ITEM;
@@ -122,9 +124,9 @@ queue_dirty_t Checkpoint::queueDirty(const queued_item &qi, CheckpointManager *c
             ++numItems;
         }
         rv = NEW_ITEM;
+        // Push the new item into the list
+        toWrite.push_back(qi);
     }
-    // Push the new item into the list
-    toWrite.push_back(qi);
 
     if (qi->getKey().size() > 0) {
         std::list<queued_item>::iterator last = toWrite.end();
