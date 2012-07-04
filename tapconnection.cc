@@ -23,6 +23,50 @@
 #include "statwriter.hh"
 #undef STATWRITER_NAMESPACE
 
+const uint8_t TapEngineSpecific::nru(1);
+const short int TapEngineSpecific::sizeRevSeqno(4);
+const short int TapEngineSpecific::sizeExtra(1);
+const short int TapEngineSpecific::sizeTotal(5);
+
+void TapEngineSpecific::readSpecificData(tap_event_t ev, void *engine_specific,
+                                         uint16_t nengine, uint32_t *seqnum,
+                                         uint8_t *extra)
+{
+    uint8_t ex;
+    if (ev == TAP_CHECKPOINT_START || ev == TAP_CHECKPOINT_END || ev == TAP_DELETION ||
+        ev == TAP_MUTATION)
+    {
+        assert(nengine >= sizeRevSeqno);
+        memcpy(seqnum, engine_specific, sizeRevSeqno);
+        *seqnum = ntohl(*seqnum);
+        if (ev == TAP_MUTATION && nengine == sizeTotal) {
+            uint8_t *dptr = (uint8_t *)engine_specific + sizeRevSeqno;
+            memcpy(&ex, (void *)dptr, sizeExtra);
+            *extra = ex;
+        }
+    }
+}
+
+uint16_t TapEngineSpecific::packSpecificData(tap_event_t ev, TapProducer *tp,
+                                             uint32_t seqnum, bool referenced)
+{
+    uint32_t seqno;
+    uint16_t nengine = 0;
+    if (ev == TAP_MUTATION || ev == TAP_DELETION || ev == TAP_CHECKPOINT_START) {
+        seqno = htonl(seqnum);
+        memcpy(tp->specificData, (void *)&seqno, sizeRevSeqno);
+        if (ev == TAP_MUTATION && referenced) {
+            // transfer item nru reference bit in item extra byte
+            uint8_t itemNru = TapEngineSpecific::nru;
+            memcpy(&tp->specificData[sizeRevSeqno], (void*)&itemNru, sizeExtra);
+            nengine = sizeTotal;
+        } else {
+            nengine = sizeRevSeqno;
+        }
+    }
+    return nengine;
+}
+
 Atomic<uint64_t> TapConnection::tapCounter(1);
 
 
@@ -199,10 +243,12 @@ TapProducer::TapProducer(EventuallyPersistentEngine &theEngine,
     isLastAckSucceed(false),
     isSeqNumRotated(false),
     numNoops(0),
-    tapFlagByteorderSupport(false)
+    tapFlagByteorderSupport(false),
+    specificData(NULL)
 {
     evaluateFlags();
     queue = new std::list<queued_item>;
+    specificData = new uint8_t[TapEngineSpecific::sizeTotal];
 
     if (supportAck) {
         expiryTime = ep_current_time() + engine.getTapConfig().getAckGracePeriod();
@@ -1700,7 +1746,8 @@ void TapProducer::scheduleBackfill_UNLOCKED(const std::vector<uint16_t> &vblist)
     }
 }
 
-Item* TapProducer::getNextItem(const void *c, uint16_t *vbucket, tap_event_t &ret) {
+Item* TapProducer::getNextItem(const void *c, uint16_t *vbucket, tap_event_t &ret,
+                               bool &referenced) {
     LockHolder lh(queueLock);
     Item *itm = NULL;
 
@@ -1761,6 +1808,10 @@ Item* TapProducer::getNextItem(const void *c, uint16_t *vbucket, tap_event_t &re
             ret = TAP_DELETION;
         }
 
+        if (gv.isReferenced()) {
+            referenced = true;
+        }
+
         ++stats.numTapBGFetched;
         qi = queued_item(new QueuedItem(itm->getKey(), itm->getVBucketId(),
                                         ret == TAP_MUTATION ? queue_op_set : queue_op_del,
@@ -1794,6 +1845,9 @@ Item* TapProducer::getNextItem(const void *c, uint16_t *vbucket, tap_event_t &re
             if (r == ENGINE_SUCCESS) {
                 itm = gv.getValue();
                 assert(itm);
+                if (gv.isReferenced()) {
+                    referenced = true;
+                }
                 ret = TAP_MUTATION;
             } else if (r == ENGINE_KEY_ENOENT) {
                 // Item was deleted and set a message type to tap_deletion.

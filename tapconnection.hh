@@ -257,7 +257,45 @@ private:
     EventuallyPersistentEngine &engine;
 };
 
+/**
+ * TAP stream ep-engine specific data payload
+ */
+class TapEngineSpecific {
+public:
+    // item specific extra data
+    static const uint8_t nru;
 
+    // size of item revision seq number
+    static const short int sizeRevSeqno;
+    // size of item specific extra data
+    static const short int sizeExtra;
+    // size of complete specific data
+    static const short int sizeTotal;
+
+    /**
+     * Read engine specific data for a given tap event type
+     *
+     * @param ev tap event
+     * @param engine_specific input tap engine specific data
+     * @param nengine size of input data (bytes)
+     * @param output sequence number
+     * @param extra additional item specific data
+     */
+    static void readSpecificData(tap_event_t ev, void *engine_specific, uint16_t nengine,
+                                 uint32_t *seqnum, uint8_t *extra = NULL);
+
+    /**
+     * Pack engine specific data for a given tap event type
+     *
+     * @param ev tap event
+     * @param tp tap producer connection
+     * @param seqnum item sequence number
+     * @param referenced true if item nru reference is set
+     * @return size of tap engine specific data (bytes)
+     */
+    static uint16_t packSpecificData(tap_event_t ev, TapProducer *tp, uint32_t seqnum,
+                                     bool referenced = false);
+};
 
 /**
  * An abstract class representing a TAP connection. There are two different
@@ -569,13 +607,14 @@ private:
     friend struct TapStatBuilder;
     friend struct TapAggStatBuilder;
     friend struct PopulateEventsBody;
-
+    friend class TapEngineSpecific;
 
     /**
      * Get the next item (e.g., checkpoint_start, checkpoint_end, tap_mutation, or
      * tap_deletion) to be transmitted.
      */
-    Item *getNextItem(const void *c, uint16_t *vbucket, tap_event_t &ret);
+    Item *getNextItem(const void *c, uint16_t *vbucket, tap_event_t &ret,
+                      bool &referenced);
 
     /**
      * Check if TAP_DUMP or TAP_TAKEOVER is completed and close the connection if
@@ -891,6 +930,7 @@ private:
 
     ~TapProducer() {
         delete queue;
+        delete []specificData;
         assert(!isReserved());
     }
 
@@ -1060,8 +1100,6 @@ private:
 
     //! tap opaque command code.
     uint32_t opaqueCommandCode;
-    //! Revision seq number of the item to be transmitted.
-    uint32_t itemRevSeqno;
 
     //! Is this tap connection in a suspended state
     bool suspended;
@@ -1087,6 +1125,9 @@ private:
 
     //! Does the Tap Consumer know about the byteorder bug for the flags
     bool tapFlagByteorderSupport;
+
+    //! EP-engine specific item info
+    uint8_t *specificData;
 
     DISALLOW_COPY_AND_ASSIGN(TapProducer);
 };

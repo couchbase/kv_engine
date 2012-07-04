@@ -1640,17 +1640,21 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
         queueBackfill(backFillVBFilter, connection, cookie);
     }
 
-    Item *it = connection->getNextItem(cookie, vbucket, ret);
+    bool referenced = false;
+    Item *it = connection->getNextItem(cookie, vbucket, ret, referenced);
     switch (ret) {
     case TAP_CHECKPOINT_START:
     case TAP_CHECKPOINT_END:
     case TAP_MUTATION:
     case TAP_DELETION:
         *itm = it;
-        if (ret == TAP_MUTATION || ret == TAP_DELETION) {
-            connection->itemRevSeqno = htonl(it->getSeqno());
-            *es = &connection->itemRevSeqno;
-            *nes = sizeof(connection->itemRevSeqno);
+        if (ret == TAP_MUTATION) {
+            *nes = TapEngineSpecific::packSpecificData(ret, connection, it->getSeqno(),
+                                                       referenced);
+            *es = &connection->specificData;
+        } else if (ret == TAP_DELETION) {
+            *nes = TapEngineSpecific::packSpecificData(ret, connection, it->getSeqno());
+            *es = &connection->specificData;
         } else if (ret == TAP_CHECKPOINT_START) {
             // Send the current value of the max deleted seqno
             RCPtr<VBucket> vb = getVBucket(*vbucket);
@@ -1658,9 +1662,9 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
                 retry = true;
                 return TAP_NOOP;
             }
-            connection->itemRevSeqno = htonl(vb->ht.getMaxDeletedSeqno());
-            *es = &connection->itemRevSeqno;
-            *nes = sizeof(connection->itemRevSeqno);
+            *nes = TapEngineSpecific::packSpecificData(ret, connection,
+                                                       vb->ht.getMaxDeletedSeqno());
+            *es = &connection->specificData;
         }
         break;
     case TAP_NOOP:
@@ -1919,12 +1923,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
     case TAP_DELETION:
         {
             bool meta = false;
-            uint32_t seqnum = 0;
             ItemMetaData itemMeta(0, cas, flags, exptime);
 
-            if (nengine == sizeof(uint32_t)) {
-                memcpy(&seqnum, engine_specific, sizeof(seqnum));
-                itemMeta.seqno = ntohl(seqnum);
+            if (nengine == TapEngineSpecific::sizeRevSeqno) {
+                TapEngineSpecific::readSpecificData(tap_event, engine_specific, nengine,
+                                                    &itemMeta.seqno);
                 meta = true;
             }
             ret = epstore->deleteItem(k, 0, vbucket, cookie, true, meta,
@@ -1947,15 +1950,17 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
         {
             TapConsumer *tc = dynamic_cast<TapConsumer*>(connection);
             if (tc) {
-                if(tap_event == TAP_CHECKPOINT_START && nengine == sizeof(uint32_t)) {
+                if (tap_event == TAP_CHECKPOINT_START &&
+                    nengine == TapEngineSpecific::sizeRevSeqno)
+                {
                     // Set the current value for the max deleted seqno
                     RCPtr<VBucket> vb = getVBucket(vbucket);
                     if (!vb) {
                         return ENGINE_TMPFAIL;
                     }
                     uint32_t seqnum;
-                    memcpy(&seqnum, engine_specific, sizeof(seqnum));
-                    seqnum = ntohl(seqnum);
+                    TapEngineSpecific::readSpecificData(tap_event, engine_specific, nengine,
+                                                        &seqnum);
                     vb->ht.setMaxDeletedSeqno(seqnum);
                 }
 
@@ -2011,22 +2016,30 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
 
             if (tc) {
                 bool meta = false;
-                if (nengine == sizeof(uint32_t)) {
+                bool nru = false;
+                if (nengine >= TapEngineSpecific::sizeRevSeqno) {
                     uint32_t seqnum;
-                    memcpy(&seqnum, engine_specific, sizeof(seqnum));
-                    seqnum = ntohl(seqnum);
+                    uint8_t extra = 0;
+                    TapEngineSpecific::readSpecificData(tap_event, engine_specific, nengine,
+                                                        &seqnum, &extra);
+                    // extract replicated item nru reference
+                    if (nengine == TapEngineSpecific::sizeTotal &&
+                        extra == TapEngineSpecific::nru)
+                    {
+                        nru = true;
+                    }
                     itm->setCas(cas);
                     itm->setSeqno(seqnum);
                     meta = true;
                 }
 
                 if (tc->isBackfillPhase(vbucket)) {
-                    ret = epstore->addTAPBackfillItem(*itm, meta);
+                    ret = epstore->addTAPBackfillItem(*itm, meta, nru);
                 } else {
                     if (meta) {
-                        ret = epstore->setWithMeta(*itm, 0, cookie, true, true);
+                        ret = epstore->setWithMeta(*itm, 0, cookie, true, true, nru);
                     } else {
-                        ret = epstore->set(*itm, cookie, true);
+                        ret = epstore->set(*itm, cookie, true, nru);
                     }
                 }
             } else {

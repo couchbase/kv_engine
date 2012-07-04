@@ -258,11 +258,13 @@ public:
      * @param cookie the cookie representing the client to store the item
      * @param force override access to the vbucket even if the state of the
      *              vbucket would deny mutations.
+     * @param trackReference true if we want to set the nru bit for the item
      * @return the result of the store operation
      */
     ENGINE_ERROR_CODE set(const Item &item,
                           const void *cookie,
-                          bool force = false);
+                          bool force = false,
+                          bool trackReference = true);
 
     ENGINE_ERROR_CODE add(const Item &item, const void *cookie);
 
@@ -270,9 +272,11 @@ public:
      * Add an TAP backfill item into its corresponding vbucket
      * @param item the item to be added
      * @param meta contains meta info or not
+     * @param trackReference true if we want to set the nru bit for the item
      * @return the result of the operation
      */
-    ENGINE_ERROR_CODE addTAPBackfillItem(const Item &item, bool meta);
+    ENGINE_ERROR_CODE addTAPBackfillItem(const Item &item, bool meta,
+                                         bool trackReference=false);
 
     /**
      * Retrieve a value.
@@ -335,13 +339,15 @@ public:
      * @param force override vbucket states
      * @param allowExisting set to false if you want set to fail if the
      *                      item exists already
+     * @param trackReference true if we want to set the nru bit for the item
      * @return the result of the store operation
      */
     ENGINE_ERROR_CODE setWithMeta(const Item &item,
                                   uint64_t cas,
                                   const void *cookie,
                                   bool force,
-                                  bool allowReplace);
+                                  bool allowReplace,
+                                  bool trackReference = true);
 
     /**
      * Retrieve a value, but update its TTL first

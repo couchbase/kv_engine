@@ -3238,7 +3238,7 @@ static enum test_result test_vb_prepend_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_
 }
 
 static enum test_result test_tap_rcvr_mutate(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    char eng_specific[64];
+    char eng_specific[3];
     memset(eng_specific, 0, sizeof(eng_specific));
     for (size_t i = 0; i < 8192; ++i) {
         char *data = static_cast<char *>(malloc(i));

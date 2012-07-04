@@ -1089,10 +1089,13 @@ public:
      *
      * @param val the Item to store
      * @param row_id the row id that is assigned to the item to store
+     * @param trackReference true if we want to set the nru bit for the item
      * @return a result indicating the status of the store
      */
-    mutation_type_t set(const Item &val, int64_t &row_id) {
-        return set(val, val.getCas(), row_id, true, false);
+    mutation_type_t set(const Item &val, int64_t &row_id,
+                        bool trackReference=true)
+    {
+        return set(val, val.getCas(), row_id, true, false, trackReference);
     }
 
     /**
@@ -1104,10 +1107,12 @@ public:
      * @param row_id the row id that is assigned to the item to store
      * @param allowExisting should we allow existing items or not
      * @param hasMetaData should we keep the seqno the same or increment it
+     * @param trackReference true if we want to set the nru bit for the item
      * @return a result indicating the status of the store
      */
     mutation_type_t set(const Item &val, uint64_t cas, int64_t &row_id,
-                        bool allowExisting, bool hasMetaData = true) {
+                        bool allowExisting, bool hasMetaData = true,
+                        bool trackReference=true) {
         assert(isActive());
         Item &itm = const_cast<Item&>(val);
         if (!StoredValue::hasAvailableSpace(stats, itm)) {
@@ -1117,7 +1122,8 @@ public:
         mutation_type_t rv = NOT_FOUND;
         int bucket_num(0);
         LockHolder lh = getLockedBucket(val.getKey(), &bucket_num);
-        StoredValue *v = unlocked_find(val.getKey(), bucket_num, true);
+        StoredValue *v = unlocked_find(val.getKey(), bucket_num, true,
+                                       trackReference);
 
         if (v && !v->_isSmall && v->getCas() == 0) {
             return NEED_METADATA;
@@ -1180,7 +1186,9 @@ public:
             v = valFact(itm, values[bucket_num], *this);
             values[bucket_num] = v;
             ++numItems;
-            v->referenced();
+            if (trackReference) {
+                v->referenced();
+            }
 
             /**
              * Possibly, this item is being recreated. Conservatively assign it
