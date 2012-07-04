@@ -10,6 +10,8 @@
 #include "mc-kvstore/mc-engine.hh"
 #include "tools/cJSON.h"
 
+#define COUCHSTORE_NO_OPTIONS 0
+
 /**
  * Stats and timings for couchKVStore
  */
@@ -232,6 +234,7 @@ public:
     void dump(shared_ptr<Callback<GetValue> > cb);
     void dump(uint16_t vb, shared_ptr<Callback<GetValue> > cb);
     void dumpKeys(const std::vector<uint16_t> &vbids,  shared_ptr<Callback<GetValue> > cb);
+    void dumpDeleted(uint16_t vb,  shared_ptr<Callback<GetValue> > cb);
     bool isKeyDumpSupported() {
         return true;
     }
@@ -254,9 +257,11 @@ public:
 
 protected:
     void loadDB(shared_ptr<LoadCallback> cb, bool keysOnly,
-                std::vector<uint16_t> *vbids);
+                std::vector<uint16_t> *vbids,
+                couchstore_docinfos_options options=COUCHSTORE_NO_OPTIONS);
     bool setVBucketState(uint16_t vbucketId, vbucket_state vbstate,
                          bool stateChanged = true, bool newfile = false);
+
     template <typename T>
     void addStat(const std::string &prefix, const char *nm, T &val,
                  ADD_STAT add_stat, const void *c);

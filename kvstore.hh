@@ -55,9 +55,9 @@ typedef std::map<std::pair<uint16_t, uint16_t>, vbucket_state> vbucket_map_t;
 class StorageProperties {
 public:
 
-    StorageProperties(size_t c, size_t r, size_t w, bool evb, bool evd)
+    StorageProperties(size_t c, size_t r, size_t w, bool evb, bool evd, bool pd)
         : maxc(c), maxr(r), maxw(w), efficientVBDump(evb),
-          efficientVBDeletion(evd) {}
+          efficientVBDeletion(evd), persistedDeletions(pd) {}
 
     //! The maximum number of active queries.
     size_t maxConcurrency()   const { return maxc; }
@@ -69,6 +69,8 @@ public:
     bool hasEfficientVBDump() const { return efficientVBDump; }
     //! True if we can efficiently delete a vbucket all at once.
     bool hasEfficientVBDeletion() const { return efficientVBDeletion; }
+    //! True if we can persisted deletions to disk.
+    bool hasPersistedDeletions() const { return persistedDeletions; }
 
 private:
     size_t maxc;
@@ -76,6 +78,7 @@ private:
     size_t maxw;
     bool efficientVBDump;
     bool efficientVBDeletion;
+    bool persistedDeletions;
 };
 
 /**
@@ -238,6 +241,11 @@ public:
     virtual void dumpKeys(const std::vector<uint16_t> &vbids, shared_ptr<Callback<GetValue> > cb) {
         (void)vbids; (void)cb;
         throw std::runtime_error("Backed does not support dumpKeys()");
+    }
+
+    virtual void dumpDeleted(uint16_t vbid, shared_ptr<Callback<GetValue> > cb) {
+        (void) vbid; (void) cb;
+        throw std::runtime_error("Backend does not support dumpDeleted()");
     }
 
     /**

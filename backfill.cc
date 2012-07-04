@@ -57,7 +57,16 @@ bool BackfillDiskLoad::callback(Dispatcher &d, TaskId t) {
         shared_ptr<Callback<GetValue> > backfill_cb(new BackfillDiskCallback(validityToken,
                                                                              name, connMap,
                                                                              engine));
-        store->dump(vbucket, backfill_cb);
+        if (backfillType == ALL_MUTATIONS) {
+            store->dump(vbucket, backfill_cb);
+        } else if (store->getStorageProperties().hasPersistedDeletions() &&
+                   backfillType == DELETIONS_ONLY) {
+            store->dumpDeleted(vbucket, backfill_cb);
+        } else {
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                     "Underlying KVStore doesn't support this kind of backfill.\n");
+            abort();
+        }
     }
 
     getLogger()->log(EXTENSION_LOG_INFO, NULL,
@@ -102,10 +111,15 @@ bool BackFillVisitor::visitBucket(RCPtr<VBucket> &vb) {
             // disk backfill for persisted items + memory backfill for resident items
             num_backfill_items = (vb->opsCreate - vb->opsDelete) +
                 static_cast<size_t>(num_items - num_non_resident);
-            vbuckets.push_back(vb->getId());
+            vbuckets[vb->getId()] = ALL_MUTATIONS;
             ScheduleDiskBackfillTapOperation tapop;
             engine->tapConnMap->performTapOp(name, tapop, static_cast<void*>(NULL));
         } else {
+            if (engine->epstore->getStorageProperties().hasPersistedDeletions()) {
+                vbuckets[vb->getId()] = DELETIONS_ONLY;
+                ScheduleDiskBackfillTapOperation tapop;
+                engine->tapConnMap->performTapOp(name, tapop, static_cast<void*>(NULL));
+            }
             num_backfill_items = static_cast<size_t>(num_items);
         }
 
@@ -131,19 +145,20 @@ void BackFillVisitor::visit(StoredValue *v) {
 void BackFillVisitor::apply(void) {
     // If efficient VBdump is supported, schedule all the disk backfill tasks.
     if (efficientVBDump) {
-        std::vector<uint16_t>::iterator it = vbuckets.begin();
+        std::map<uint16_t, backfill_t>::iterator it = vbuckets.begin();
         for (; it != vbuckets.end(); it++) {
             Dispatcher *d(engine->epstore->getTapDispatcher());
             KVStore *underlying(engine->epstore->getTapUnderlying());
             assert(d);
             getLogger()->log(EXTENSION_LOG_INFO, NULL,
                              "Schedule a full backfill from disk for vbucket %d.\n",
-                              *it);
+                              it->first);
             shared_ptr<DispatcherCallback> cb(new BackfillDiskLoad(name,
                                                                    engine,
                                                                    *engine->tapConnMap,
                                                                    underlying,
-                                                                   *it,
+                                                                   it->first,
+                                                                   it->second,
                                                                    validityToken));
             d->schedule(cb, NULL, Priority::TapBgFetcherPriority);
         }

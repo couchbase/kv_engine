@@ -74,6 +74,8 @@ public:
 
     virtual bool hasEfficientVBDeletion() { return false; }
 
+    virtual bool hasPersistedDeletions() { return false; }
+
     virtual std::vector<PreparedStatement*> getVBStatements(uint16_t vb, vb_statement_type vbst) {
         (void)vb;
         (void)vbst;

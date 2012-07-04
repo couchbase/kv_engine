@@ -718,7 +718,7 @@ void CouchKVStore::dump(shared_ptr<Callback<GetValue> > cb)
 {
     shared_ptr<RememberingCallback<bool> > wait(new RememberingCallback<bool>());
     shared_ptr<LoadCallback> callback(new LoadCallback(cb, wait));
-    loadDB(callback, false, NULL);
+    loadDB(callback, false, NULL, COUCHSTORE_NO_DELETES);
 }
 
 void CouchKVStore::dump(uint16_t vb, shared_ptr<Callback<GetValue> > cb)
@@ -735,14 +735,22 @@ void CouchKVStore::dumpKeys(const std::vector<uint16_t> &vbids,  shared_ptr<Call
     shared_ptr<RememberingCallback<bool> > wait(new RememberingCallback<bool>());
     shared_ptr<LoadCallback> callback(new LoadCallback(cb, wait));
     (void)vbids;
-    loadDB(callback, true, NULL);
+    loadDB(callback, true, NULL, COUCHSTORE_NO_DELETES);
 }
 
+void CouchKVStore::dumpDeleted(uint16_t vb,  shared_ptr<Callback<GetValue> > cb)
+{
+    shared_ptr<RememberingCallback<bool> > wait(new RememberingCallback<bool>());
+    shared_ptr<LoadCallback> callback(new LoadCallback(cb, wait));
+    std::vector<uint16_t> vbids;
+    vbids.push_back(vb);
+    loadDB(callback, true, &vbids, COUCHSTORE_DELETES_ONLY);
+}
 
 StorageProperties CouchKVStore::getStorageProperties()
 {
     size_t concurrency(10);
-    StorageProperties rv(concurrency, concurrency - 1, 1, true, true);
+    StorageProperties rv(concurrency, concurrency - 1, 1, true, true, true);
     return rv;
 }
 
@@ -804,7 +812,8 @@ void CouchKVStore::optimizeWrites(std::vector<queued_item> &items)
 }
 
 void CouchKVStore::loadDB(shared_ptr<LoadCallback> cb, bool keysOnly,
-                          std::vector<uint16_t> *vbids)
+                          std::vector<uint16_t> *vbids,
+                          couchstore_docinfos_options options)
 {
     std::vector<std::string> files = std::vector<std::string>();
     std::map<uint16_t, int> &filemap = dbFileMap;
@@ -879,7 +888,7 @@ void CouchKVStore::loadDB(shared_ptr<LoadCallback> cb, bool keysOnly,
             ctx.keysonly = keysOnly;
             ctx.callback = cb;
             ctx.engine = &engine;
-            errorCode = couchstore_changes_since(db, 0, 0, recordDbDumpC,
+            errorCode = couchstore_changes_since(db, 0, options, recordDbDumpC,
                                                  static_cast<void *>(&ctx));
             if (errorCode != COUCHSTORE_SUCCESS) {
                 if (errorCode == COUCHSTORE_ERROR_CANCEL) {
@@ -1173,12 +1182,7 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx)
     valuePtr = NULL;
     valuelen = 0;
 
-    if (docinfo->deleted) {
-        // skip deleted doc
-        return 0;
-    }
-
-    if (!loadCtx->keysonly) {
+    if (!loadCtx->keysonly && !docinfo->deleted) {
         couchstore_error_t errCode ;
         errCode = couchstore_open_doc_with_docinfo(db, docinfo, &doc, 0);
 

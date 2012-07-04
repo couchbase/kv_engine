@@ -3487,6 +3487,81 @@ static enum test_result test_tap_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
     return SUCCESS;
 }
 
+static enum test_result test_tap_sends_deleted(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    const int num_keys = 5;
+    for (int ii = 0; ii < num_keys; ++ii) {
+        std::stringstream ss;
+        ss << "key" << ii;
+        check(store(h, h1, NULL, OPERATION_SET, ss.str().c_str(),
+                    "value", NULL, 0, 0) == ENGINE_SUCCESS,
+              "Failed to store an item.");
+    }
+    wait_for_flusher_to_settle(h, h1);
+
+    for (int ii = 0; ii < num_keys - 2; ++ii) {
+        std::stringstream ss;
+        ss << "key" << ii;
+        checkeq(ENGINE_SUCCESS, h1->remove(h, NULL, ss.str().c_str(),
+                ss.str().length(), 0, 0), "Delete failed");
+    }
+    wait_for_flusher_to_settle(h, h1);
+
+    const void *cookie = testHarness.create_cookie();
+    testHarness.lock_cookie(cookie);
+    std::string name = "tap_client_thread";
+    TAP_ITERATOR iter = h1->get_tap_iterator(h, cookie, name.c_str(),
+                                             name.length(),
+                                             TAP_CONNECT_FLAG_DUMP, NULL,
+                                             0);
+    check(iter != NULL, "Failed to create a tap iterator");
+
+    int num_mutations = 0;
+    int num_deletes = 0;
+
+    item *it;
+    void *engine_specific;
+    uint16_t nengine_specific;
+    uint8_t ttl;
+    uint16_t flags;
+    uint32_t seqno;
+    uint16_t vbucket;
+    tap_event_t event;
+    std::string key;
+
+    do {
+        event = iter(h, cookie, &it, &engine_specific,
+                     &nengine_specific, &ttl, &flags,
+                     &seqno, &vbucket);
+
+        switch (event) {
+        case TAP_PAUSE:
+            testHarness.waitfor_cookie(cookie);
+            break;
+        case TAP_OPAQUE:
+        case TAP_NOOP:
+        case TAP_DISCONNECT:
+            break;
+        case TAP_MUTATION:
+            num_mutations++;
+            break;
+        case TAP_DELETION:
+            num_deletes++;
+            break;
+        default:
+            std::cerr << "Unexpected event:  " << event << std::endl;
+            return FAIL;
+        }
+
+    } while (event != TAP_DISCONNECT);
+
+    check(num_mutations == 2, "Incorrect number of remaining mutations");
+    check(num_deletes == (num_keys - 2), "Incorrect number of deletes");
+
+    testHarness.unlock_cookie(cookie);
+
+    return SUCCESS;
+}
+
 static enum test_result test_tap_takeover(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const int num_keys = 30;
     bool keys[num_keys];
@@ -7567,6 +7642,8 @@ engine_test_t* get_tests(void) {
                  BACKEND_ALL),
         TestCase("tap stream", test_tap_stream, test_setup,
                  teardown, NULL, prepare, cleanup, BACKEND_ALL),
+        TestCase("tap stream send deletes", test_tap_sends_deleted, test_setup,
+                 teardown, NULL, prepare, cleanup, BACKEND_COUCH),
         TestCase("tap agg stats", test_tap_agg_stats, test_setup,
                  teardown, NULL, prepare, cleanup, BACKEND_ALL),
         TestCase("tap takeover (with concurrent mutations)", test_tap_takeover,

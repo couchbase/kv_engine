@@ -12,6 +12,11 @@
 
 #define BACKFILL_MEM_THRESHOLD 0.95
 
+typedef enum backfill_t {
+    ALL_MUTATIONS = 1,
+    DELETIONS_ONLY
+} backfill_t;
+
 /**
  * Dispatcher callback responsible for bulk backfilling tap queues
  * from a KVStore.
@@ -23,8 +28,10 @@ class BackfillDiskLoad : public DispatcherCallback {
 public:
 
     BackfillDiskLoad(const std::string &n, EventuallyPersistentEngine* e,
-                     TapConnMap &tcm, KVStore *s, uint16_t vbid, const void *token)
-        : name(n), engine(e), connMap(tcm), store(s), vbucket(vbid), validityToken(token) { }
+                     TapConnMap &tcm, KVStore *s, uint16_t vbid, backfill_t type,
+                     const void *token)
+        : name(n), engine(e), connMap(tcm), store(s), vbucket(vbid), backfillType(type),
+        validityToken(token) { }
 
     void callback(GetValue &gv);
 
@@ -38,6 +45,7 @@ private:
     TapConnMap                 &connMap;
     KVStore                    *store;
     uint16_t                    vbucket;
+    backfill_t                  backfillType;
     const void                 *validityToken;
 };
 
@@ -88,7 +96,7 @@ private:
     const std::string name;
     std::list<queued_item> *queue;
     std::vector<std::pair<uint16_t, queued_item> > found;
-    std::vector<uint16_t> vbuckets;
+    std::map<uint16_t, backfill_t> vbuckets;
     const void *validityToken;
     bool valid;
     bool efficientVBDump;
