@@ -20,7 +20,7 @@ typedef union func_ptr {
 } func_ptr;
 
 typedef enum alloc_hooks_type {
-    unknown = 0,
+    none = 0,
     tcmalloc
 } alloc_hooks_type;
 
@@ -34,5 +34,7 @@ void mc_get_allocator_stats(allocator_stats*);
 int mc_get_extra_stats_size(void);
 size_t mc_get_allocation_size(void*);
 void mc_get_detailed_stats(char*, int);
+
+alloc_hooks_type get_alloc_hooks_type(void);
 
 #endif /* MEM_HOOKS_H */

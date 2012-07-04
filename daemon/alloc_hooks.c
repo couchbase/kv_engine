@@ -65,7 +65,7 @@ void init_no_hooks(void) {
     getStatsProp.func = (void *(*)())invalid_size_function;
     getAllocSize.func = (void *(*)())invalid_size_function;
     getDetailedStats.func = (void *(*)())invalid_detailed_stats_function;
-    type = unknown;
+    type = none;
 }
 
 bool mc_add_new_hook(void (*hook)(const void* ptr, size_t size)) {
@@ -135,4 +135,8 @@ void invalid_detailed_stats_function(char* buffer, int size) {
 __attribute__((constructor))
 static void load_tcmalloc_as_early_as_possible(void) {
      init_alloc_hooks();
+}
+
+alloc_hooks_type get_alloc_hooks_type(void) {
+    return type;
 }
