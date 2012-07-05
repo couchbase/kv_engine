@@ -924,8 +924,10 @@ void CouchKVStore::open()
 {
     // TODO intransaction, is it needed?
     intransaction = false;
-    delete mc;
-    mc = new MemcachedEngine(&engine, configuration);
+    if (!isReadOnly()) {
+        delete mc;
+        mc = new MemcachedEngine(&engine, configuration);
+    }
 
     struct stat dbstat;
     bool havedir = false;
@@ -947,7 +949,9 @@ void CouchKVStore::open()
 void CouchKVStore::close()
 {
     intransaction = false;
-    delete mc;
+    if (!isReadOnly()) {
+        delete mc;
+    }
     mc = NULL;
 }
 
