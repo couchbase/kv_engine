@@ -25,8 +25,8 @@ static std::string getStringFromJSONObj(cJSON *i) {
 }
 
 
-MCKVStore::MCKVStore(EventuallyPersistentEngine &theEngine) :
-    KVStore(), stats(theEngine.getEpStats()), intransaction(false), mc(NULL),
+MCKVStore::MCKVStore(EventuallyPersistentEngine &theEngine, bool read_only) :
+    KVStore(read_only), stats(theEngine.getEpStats()), intransaction(false), mc(NULL),
     config(theEngine.getConfiguration()), engine(theEngine),
     vbBatchCount(config.getCouchVbucketBatchCount()) {
 
@@ -43,6 +43,7 @@ MCKVStore::MCKVStore(const MCKVStore &from) :
 }
 
 void MCKVStore::reset() {
+    assert(!isReadOnly());
     // @todo what is a clean state?
     // I guess we should probably create a new message to send
     //       directly to mcd to avoid having a lot of ping-pongs
@@ -52,6 +53,7 @@ void MCKVStore::reset() {
 }
 
 void MCKVStore::set(const Item &itm, uint16_t, Callback<mutation_result> &cb) {
+    assert(!isReadOnly());
     assert(intransaction);
     mc->setmq(itm, cb);
 }
@@ -69,7 +71,7 @@ void MCKVStore::get(const std::string &key, uint64_t, uint16_t vb, uint16_t,
 }
 
 void MCKVStore::del(const Item &itm, uint64_t, uint16_t, Callback<int> &cb) {
-
+    assert(!isReadOnly());
     assert(intransaction);
     mc->delmq(itm, cb);
 }
@@ -86,6 +88,7 @@ bool MCKVStore::delVBucket(uint16_t vbucket, uint16_t vb_version,
 }
 
 bool MCKVStore::delVBucket(uint16_t vbucket, uint16_t) {
+    assert(!isReadOnly());
     RememberingCallback<bool> cb;
     mc->delVBucket(vbucket, cb);
     cb.waitForValue();
@@ -134,6 +137,7 @@ vbucket_map_t MCKVStore::listPersistedVbuckets() {
 }
 
 bool MCKVStore::snapshotVBuckets(const vbucket_map_t &m) {
+    assert(!isReadOnly());
     if (m.size() == 0) {
         return true;
     }
@@ -199,6 +203,7 @@ void MCKVStore::close() {
 
 
 bool MCKVStore::commit(void) {
+    assert(!isReadOnly());
     // Trying to commit without an begin is a semantically bogus
     // way to do stuff
     assert(intransaction);
@@ -237,6 +242,7 @@ void MCKVStore::addStat(const std::string &prefix, const char *nm, T val,
 }
 
 void MCKVStore::optimizeWrites(std::vector<queued_item> &items) {
+    assert(!isReadOnly());
     if (items.empty()) {
         return;
     }

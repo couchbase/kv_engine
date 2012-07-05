@@ -17,7 +17,8 @@ static const char *stringToCharPtr(std::string str) {
     return NULL;
 }
 
-KVStore *SqliteKVStoreFactory::create(EventuallyPersistentEngine &theEngine) {
+KVStore *SqliteKVStoreFactory::create(EventuallyPersistentEngine &theEngine,
+                                      bool read_only) {
     Configuration &c = theEngine.getConfiguration();
     SqliteStrategy *sqliteInstance = NULL;
     enum db_type type = multi_db;
@@ -66,8 +67,10 @@ KVStore *SqliteKVStoreFactory::create(EventuallyPersistentEngine &theEngine) {
         break;
     }
 
-    return new StrategicSqlite3(theEngine.getEpStats(),
-                                shared_ptr<SqliteStrategy> (sqliteInstance));
+    KVStore *kvstore = new StrategicSqlite3(theEngine.getEpStats(),
+                                            shared_ptr<SqliteStrategy> (sqliteInstance),
+                                            read_only);
+    return kvstore;
 }
 
 static const char* MULTI_DB_NAME("multiDB");

@@ -7,7 +7,7 @@
 
 #include "blackhole-kvstore/blackhole.hh"
 
-BlackholeKVStore::BlackholeKVStore(EventuallyPersistentEngine &)
+BlackholeKVStore::BlackholeKVStore(EventuallyPersistentEngine &, bool)
 {
     // Empty
 }

@@ -196,8 +196,9 @@ CouchRequest::CouchRequest(const Item &it, int rev, CouchRequestCallback &cb, bo
     start = gethrtime();
 }
 
-CouchKVStore::CouchKVStore(EventuallyPersistentEngine &theEngine) :
-    KVStore(), engine(theEngine),
+CouchKVStore::CouchKVStore(EventuallyPersistentEngine &theEngine,
+                           bool read_only) :
+    KVStore(read_only), engine(theEngine),
     epStats(theEngine.getEpStats()),
     configuration(theEngine.getConfiguration()),
     dbname(configuration.getDbname()),
@@ -221,6 +222,7 @@ CouchKVStore::CouchKVStore(const CouchKVStore &copyFrom) :
 
 void CouchKVStore::reset()
 {
+    assert(!isReadOnly());
     // TODO CouchKVStore::flush() when couchstore api ready
     RememberingCallback<bool> cb;
 
@@ -238,6 +240,7 @@ void CouchKVStore::reset()
 
 void CouchKVStore::set(const Item &itm, uint16_t, Callback<mutation_result> &cb)
 {
+    assert(!isReadOnly());
     assert(intransaction);
     bool deleteItem = false;
     CouchRequestCallback requestcb;
@@ -384,6 +387,7 @@ void CouchKVStore::del(const Item &itm,
                        uint16_t,
                        Callback<int> &cb)
 {
+    assert(!isReadOnly());
     assert(intransaction);
     std::string dbFile;
 
@@ -415,6 +419,7 @@ bool CouchKVStore::delVBucket(uint16_t,
 
 bool CouchKVStore::delVBucket(uint16_t vbucket, uint16_t)
 {
+    assert(!isReadOnly());
     assert(mc);
     RememberingCallback<bool> cb;
 
@@ -516,7 +521,7 @@ void CouchKVStore::getPersistedStats(std::map<std::string, std::string> &stats)
 
 bool CouchKVStore::snapshotVBuckets(const vbucket_map_t &m)
 {
-
+    assert(!isReadOnly());
     vbucket_map_t::const_iterator iter;
     bool success = true;
 
@@ -556,6 +561,7 @@ bool CouchKVStore::snapshotVBuckets(const vbucket_map_t &m)
 
 bool CouchKVStore::snapshotStats(const std::map<std::string, std::string> &stats)
 {
+    assert(!isReadOnly());
     size_t count = 0;
     size_t size = stats.size();
     std::stringstream stats_buf;
@@ -756,6 +762,7 @@ StorageProperties CouchKVStore::getStorageProperties()
 
 bool CouchKVStore::commit(void)
 {
+    assert(!isReadOnly());
     // TODO get rid of bogus intransaction business
     assert(intransaction);
     intransaction = commit2couchstore() ? false : true;
@@ -804,6 +811,7 @@ void CouchKVStore::addStat(const std::string &prefix, const char *stat, T &val,
 
 void CouchKVStore::optimizeWrites(std::vector<queued_item> &items)
 {
+    assert(!isReadOnly());
     if (items.empty()) {
         return;
     }

@@ -1321,7 +1321,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
 
     time_t start = ep_real_time();
     try {
-        if ((kvstore = KVStoreFactory::create(*this)) == NULL) {
+        if ((kvstore = newKVStore()) == NULL) {
             return ENGINE_FAILED;
         }
     } catch (std::exception& e) {
@@ -1366,9 +1366,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     return ENGINE_SUCCESS;
 }
 
-KVStore* EventuallyPersistentEngine::newKVStore() {
+KVStore* EventuallyPersistentEngine::newKVStore(bool read_only) {
     // @todo nuke me!
-    return KVStoreFactory::create(*this);
+    return KVStoreFactory::create(*this, read_only);
 }
 
 void EventuallyPersistentEngine::destroy(bool force) {

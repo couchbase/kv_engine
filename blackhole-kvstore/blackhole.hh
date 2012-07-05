@@ -20,7 +20,8 @@ public:
     /**
      * Build it!
      */
-    BlackholeKVStore(EventuallyPersistentEngine &theEngine);
+    BlackholeKVStore(EventuallyPersistentEngine &theEngine,
+                     bool read_only = false);
 
     /**
      * Cleanup.

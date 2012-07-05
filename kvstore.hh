@@ -97,7 +97,8 @@ enum db_type {
  */
 class KVStore {
 public:
-    KVStore() : engine(NULL) { }
+    KVStore(bool read_only = false) :
+        engine(NULL), readOnly(read_only) { }
 
 
     virtual ~KVStore() {}
@@ -314,8 +315,13 @@ public:
 
     EventuallyPersistentEngine *getEngine(void) { return engine; }
 
+    bool isReadOnly(void) {
+        return readOnly;
+    }
+
 protected:
     EventuallyPersistentEngine *engine;
+    bool readOnly;
 
 };
 
@@ -327,13 +333,13 @@ class KVStoreFactory {
 public:
 
     /**
-     * Create a KVStore with the given properties.
+     * Create a KVStore with the given type.
      *
-     * @param type the type of DB to set up
-     * @param stats the server stats
-     * @param conf type-specific parameters
+     * @param theEngine the engine instance
+     * @param read_only true if the kvstore instance is for read operations only
      */
-    static KVStore *create(EventuallyPersistentEngine &theEngine);
+    static KVStore *create(EventuallyPersistentEngine &theEngine,
+                           bool read_only = false);
 };
 
 #endif // KVSTORE_HH

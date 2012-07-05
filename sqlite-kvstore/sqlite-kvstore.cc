@@ -15,15 +15,15 @@
 #include "statwriter.hh"
 #undef STATWRITER_NAMESPACE
 
-StrategicSqlite3::StrategicSqlite3(EPStats &st, shared_ptr<SqliteStrategy> s) : KVStore(),
-    stats(st), strategy(s),
-    intransaction(false) {
+StrategicSqlite3::StrategicSqlite3(EPStats &st, shared_ptr<SqliteStrategy> s,
+                                   bool read_only) :
+    KVStore(read_only), stats(st), strategy(s), intransaction(false) {
     open();
 }
 
-StrategicSqlite3::StrategicSqlite3(const StrategicSqlite3 &from) : KVStore(from),
-    stats(from.stats), strategy(from.strategy),
-    intransaction(false) {
+StrategicSqlite3::StrategicSqlite3(const StrategicSqlite3 &from) :
+    KVStore(from), stats(from.stats),
+    strategy(from.strategy), intransaction(false) {
     open();
 }
 
@@ -120,6 +120,7 @@ vbucket_map_t StrategicSqlite3::listPersistedVbuckets() {
 
 void StrategicSqlite3::set(const Item &itm, uint16_t vb_version,
                            Callback<mutation_result> &cb) {
+    assert(!isReadOnly());
     if (itm.getId() <= 0) {
         insert(itm, vb_version, cb);
     } else {
@@ -154,6 +155,7 @@ void StrategicSqlite3::get(const std::string &key, uint64_t rowid,
 }
 
 void StrategicSqlite3::reset() {
+    assert(!isReadOnly());
     if (db) {
         rollback();
         close();
@@ -167,6 +169,7 @@ void StrategicSqlite3::reset() {
 
 void StrategicSqlite3::del(const Item &itm, uint64_t rowid,
                            uint16_t vbver, Callback<int> &cb) {
+    assert(!isReadOnly());
     int rv = 0;
     if (rowid <= 0) {
         cb.callback(rv);
@@ -191,6 +194,7 @@ void StrategicSqlite3::del(const Item &itm, uint64_t rowid,
 
 bool StrategicSqlite3::delVBucket(uint16_t vbucket, uint16_t vb_version,
                                   std::pair<int64_t, int64_t> row_range) {
+    assert(!isReadOnly());
     bool rv = true;
     std::vector<PreparedStatement*> vb_del(strategy->getVBStatements(vbucket, delete_vbucket));
     std::vector<PreparedStatement*>::iterator it;
@@ -221,6 +225,7 @@ bool StrategicSqlite3::delVBucket(uint16_t vbucket, uint16_t vb_version,
 
 bool StrategicSqlite3::delVBucket(uint16_t vbucket, uint16_t vb_version) {
     (void) vb_version;
+    assert(!isReadOnly());
     assert(strategy->hasEfficientVBDeletion());
     bool rv = true;
     std::stringstream tmp_table_name;
@@ -242,6 +247,7 @@ bool StrategicSqlite3::delVBucket(uint16_t vbucket, uint16_t vb_version) {
 }
 
 bool StrategicSqlite3::snapshotVBuckets(const vbucket_map_t &m) {
+    assert(!isReadOnly());
     bool rv = storeMap(strategy->getClearVBucketStateST(),
                        strategy->getInsVBucketStateST(), m);
     if (!rv) {
@@ -254,6 +260,7 @@ bool StrategicSqlite3::snapshotVBuckets(const vbucket_map_t &m) {
 }
 
 bool StrategicSqlite3::snapshotStats(const std::map<std::string, std::string> &m) {
+    assert(!isReadOnly());
     bool rv = storeMap(strategy->getClearStatsST(), strategy->getInsStatST(), m);
     if (!rv) {
         getLogger()->log(EXTENSION_LOG_WARNING, NULL,

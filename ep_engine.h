@@ -753,7 +753,7 @@ private:
         }
     }
 
-    KVStore *newKVStore();
+    KVStore *newKVStore(bool read_only = false);
 
     // Get the current tap connection for this cookie.
     // If this method returns NULL, you should return TAP_DISCONNECT

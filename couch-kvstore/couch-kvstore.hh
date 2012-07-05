@@ -148,7 +148,8 @@ public:
     /**
      * Build it!
      */
-    CouchKVStore(EventuallyPersistentEngine &theEngine);
+    CouchKVStore(EventuallyPersistentEngine &theEngine,
+                 bool read_only = false);
     CouchKVStore(const CouchKVStore &from);
 
     /**
@@ -167,6 +168,7 @@ public:
      * Begin a transaction (if not already in one).
      */
     bool begin(void) {
+        assert(!isReadOnly());
         intransaction = true;
         return intransaction;
     }
@@ -182,6 +184,7 @@ public:
      * Rollback a transaction (unless not currently in one).
      */
     void rollback(void) {
+        assert(!isReadOnly());
         if (intransaction) {
             intransaction = false;
         }

@@ -27,13 +27,13 @@ class SqliteKVStoreFactory {
 public:
 
     /**
-     * Create a KVStore with the given properties.
+     * Create a KVStore with the given type.
      *
-     * @param type the type of DB to set up
-     * @param stats the server stats
-     * @param conf type-specific parameters
+     * @param theEngine the engine instance
+     * @param read_only true if the kvstore instance is for read operations only
      */
-    static KVStore *create(EventuallyPersistentEngine &theEngine);
+    static KVStore *create(EventuallyPersistentEngine &theEngine,
+                           bool read_only = false);
 
     /**
      * Get the name of a db type.
@@ -64,7 +64,8 @@ public:
     /**
      * Construct an instance of sqlite with the given database name.
      */
-    StrategicSqlite3(EPStats &st, shared_ptr<SqliteStrategy> s);
+    StrategicSqlite3(EPStats &st, shared_ptr<SqliteStrategy> s,
+                     bool read_only = false);
 
     /**
      * Copying opens a new underlying DB.
@@ -89,6 +90,7 @@ public:
      * Begin a transaction (if not already in one).
      */
     bool begin() {
+        assert(!isReadOnly());
         if(!intransaction) {
             if (execute("begin immediate") != -1) {
                 intransaction = true;
@@ -103,6 +105,7 @@ public:
      * Returns false if the commit fails.
      */
     bool commit() {
+        assert(!isReadOnly());
         if(intransaction) {
             // If commit returns -1, we're still in a transaction.
             intransaction = (execute("commit") == -1);
@@ -115,6 +118,7 @@ public:
      * Rollback a transaction (unless not currently in one).
      */
     void rollback() {
+        assert(!isReadOnly());
         if(intransaction) {
             intransaction = false;
             execute("rollback");

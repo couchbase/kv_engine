@@ -23,7 +23,8 @@ public:
     /**
      * Build it!
      */
-    MCKVStore(EventuallyPersistentEngine &theEngine);
+    MCKVStore(EventuallyPersistentEngine &theEngine,
+              bool read_only = false);
 
     /**
      * Copying opens a new underlying DB.
@@ -48,6 +49,7 @@ public:
      * Begin a transaction (if not already in one).
      */
     bool begin() {
+        assert(!isReadOnly());
         intransaction = true;
         return intransaction;
     }
@@ -63,6 +65,7 @@ public:
      * Rollback a transaction (unless not currently in one).
      */
     void rollback() {
+        assert(!isReadOnly());
         if(intransaction) {
             intransaction = false;
         }

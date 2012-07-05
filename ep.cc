@@ -441,7 +441,7 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
     if (storageProperties.maxConcurrency() > 1
         && storageProperties.maxReaders() > 1
         && concurrentDB) {
-        roUnderlying = engine.newKVStore();
+        roUnderlying = engine.newKVStore(true);
         roDispatcher = new Dispatcher(theEngine, "RO_Dispatcher");
     } else {
         roUnderlying = rwUnderlying;
@@ -450,7 +450,7 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
     if (storageProperties.maxConcurrency() > 2
         && storageProperties.maxReaders() > 2
         && concurrentDB) {
-        tapUnderlying = engine.newKVStore();
+        tapUnderlying = engine.newKVStore(true);
         tapDispatcher = new Dispatcher(theEngine, "TAP_Dispatcher");
     } else {
         tapUnderlying = roUnderlying;

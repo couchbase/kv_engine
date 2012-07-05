@@ -18,19 +18,20 @@
 #include "couch-kvstore/couch-kvstore-dummy.hh"
 #endif
 
-KVStore *KVStoreFactory::create(EventuallyPersistentEngine &theEngine) {
+KVStore *KVStoreFactory::create(EventuallyPersistentEngine &theEngine,
+                                bool read_only) {
     Configuration &c = theEngine.getConfiguration();
 
     KVStore *ret = NULL;
     std::string backend = c.getBackend();
     if (backend.compare("sqlite") == 0) {
-        ret = SqliteKVStoreFactory::create(theEngine);
+        ret = SqliteKVStoreFactory::create(theEngine, read_only);
     } else if (backend.compare("couchdb") == 0) {
-        ret = new CouchKVStore(theEngine);
+        ret = new CouchKVStore(theEngine, read_only);
     } else if (backend.compare("blackhole") == 0) {
-        ret = new BlackholeKVStore(theEngine);
+        ret = new BlackholeKVStore(theEngine, read_only);
     } else if (backend.compare("mccouch") == 0) {
-        ret = new MCKVStore(theEngine);
+        ret = new MCKVStore(theEngine, read_only);
     } else {
         getLogger()->log(EXTENSION_LOG_WARNING, NULL, "Unknown backend: [%s]",
                 backend.c_str());
