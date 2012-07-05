@@ -1,5 +1,5 @@
 ACLOCAL_AMFLAGS = -I m4 --force
-bin_SCRIPTS = management/analyze_core \
+bin_SCRIPTS = management/cbanalyze-core \
               management/squasher.sql \
               wrapper/cbadm-online-restore \
               wrapper/cbadm-online-update \
