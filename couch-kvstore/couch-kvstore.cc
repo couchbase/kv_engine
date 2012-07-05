@@ -229,17 +229,10 @@ void CouchKVStore::reset()
 
     vbucket_map_t::iterator itor = cachedVBStates.begin();
     for (; itor != cachedVBStates.end(); ++itor) {
-        // create an empty database file with given vbucket state
         uint16_t vbucket = itor->first.first;
         itor->second.checkpointId = 0;
-        if (setVBucketState(vbucket, itor->second, true)) {
-            updateDbFileMap(vbucket, 1, true);
-        } else {
-            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "Warning: failed to create and itialize an empty "
-                             "database file for vbucket %d after delete\n",
-                             (int)vbucket);
-        }
+        itor->second.maxDeletedSeqno = 0;
+        updateDbFileMap(vbucket, 1, true);
     }
 }
 
@@ -428,19 +421,8 @@ bool CouchKVStore::delVBucket(uint16_t vbucket, uint16_t)
     mc->delVBucket(vbucket, cb);
     cb.waitForValue();
 
-    vbucket_map_t::iterator itor = cachedVBStates.find(std::make_pair(vbucket, -1));
-    if (itor != cachedVBStates.end()) {
-        // create an empty database file with stashed vbucket state
-        itor->second.checkpointId = 0;
-        if (setVBucketState(vbucket, itor->second, true)) {
-            updateDbFileMap(vbucket, 1, false);
-        } else {
-            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "Warning: failed to create and itialize an empty "
-                             "database file for vbucket %d after delete\n",
-                             (int)vbucket);
-        }
-    }
+    cachedVBStates.erase(std::make_pair(vbucket, -1));
+    updateDbFileMap(vbucket, 1, false);
     return cb.val;
 }
 
@@ -1342,7 +1324,8 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, int rev, Doc **docs,
 
     do {
         retry_save_docs = false;
-        errCode = openDB(vbid, fileRev, &db, 0, &newFileRev);
+        errCode = openDB(vbid, fileRev, &db,
+                         (uint64_t)COUCHSTORE_OPEN_FLAG_CREATE, &newFileRev);
         if (errCode != COUCHSTORE_SUCCESS) {
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                              "Warning: failed to open database, vbucketId = %d "
