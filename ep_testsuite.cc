@@ -6041,7 +6041,7 @@ static enum test_result test_get_meta_nonexistent(ENGINE_HANDLE *h, ENGINE_HANDL
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, "Expected enoent");
     // check the stat again
     temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
-    check(temp == 0, "Failed operation does not count");
+    check(temp == 1, "Failed operation should also count");
 
     return SUCCESS;
 }
@@ -6088,7 +6088,7 @@ static enum test_result test_get_meta_with_get(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     check(h1->get(h, NULL, &i, key2, strlen(key2), 0) == ENGINE_KEY_ENOENT, "Expected enoent");
     // check the stat again
     temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
-    check(temp == 2, "Failed operation does not count");
+    check(temp == 3, "Failed operation should also count");
 
     return SUCCESS;
 }
@@ -6140,7 +6140,7 @@ static enum test_result test_get_meta_with_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V
           "Failed set.");
     // check the stat again
     temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
-    check(temp == 2, "Failed operation does not count");
+    check(temp == 3, "Failed operation should also count");
     h1->release(h, NULL, i);
 
     return SUCCESS;
@@ -6189,7 +6189,7 @@ static enum test_result test_get_meta_with_delete(ENGINE_HANDLE *h, ENGINE_HANDL
           "Expected enoent");
     // check the stat again
     temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
-    check(temp == 2, "Failed operation does not count");
+    check(temp == 3, "Failed operation should also count");
 
     return SUCCESS;
 }

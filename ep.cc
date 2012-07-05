@@ -1393,6 +1393,8 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::getMetaData(const std::string &key,
     StoredValue *v = vb->ht.unlocked_find(key, bucket_num, true);
 
     if (v) {
+        stats.numOpsGetMeta++;
+
         if (v->isTempNonExistentItem()) {
             cas = v->getCas();
             return ENGINE_KEY_ENOENT;
@@ -1403,7 +1405,6 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::getMetaData(const std::string &key,
             cas = v->getCas();
             ItemMetaData md(v->getCas(), v->getSeqno(), v->getFlags(), v->getExptime());
             md.encode(meta);
-            stats.numOpsGetMeta++;
             return ENGINE_SUCCESS;
         }
     } else {
