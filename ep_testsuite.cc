@@ -4163,7 +4163,7 @@ static enum test_result test_tap_notify(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
 static enum test_result test_checkpoint_create(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
 {
     item* itm;
-    for (int i = 0; i < 5000; i++) {
+    for (int i = 0; i < 5001; i++) {
         char key[8];
         sprintf(key, "key%d", i);
         check(store(h, h1, NULL, OPERATION_SET, key, "value", &itm, 0, 0)
@@ -4171,7 +4171,7 @@ static enum test_result test_checkpoint_create(ENGINE_HANDLE *h, ENGINE_HANDLE_V
         h1->release(h, NULL, itm);
     }
     check(get_int_stat(h, h1, "vb_0:open_checkpoint_id", "checkpoint") == 2,
-          "New checkpoint wasn't create after 5000 item creates");
+          "New checkpoint wasn't create after 5001 item creates");
     return SUCCESS;
 }
 
