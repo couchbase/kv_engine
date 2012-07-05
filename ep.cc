@@ -2318,7 +2318,7 @@ int EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
                 }
             }
         }
-    } else if (deleted) {
+    } else if (deleted || !found) {
         lh.unlock();
         BlockTimer timer(&stats.diskDelHisto, "disk_delete", stats.timingLog);
 
