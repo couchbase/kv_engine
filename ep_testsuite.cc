@@ -4247,6 +4247,8 @@ static enum test_result test_checkpoint_create(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     }
     check(get_int_stat(h, h1, "vb_0:open_checkpoint_id", "checkpoint") == 2,
           "New checkpoint wasn't create after 5001 item creates");
+    check(get_int_stat(h, h1, "vb_0:num_open_checkpoint_items", "checkpoint") == 1,
+          "New open checkpoint should has only one dirty item");
     return SUCCESS;
 }
 

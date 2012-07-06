@@ -1269,6 +1269,9 @@ void CheckpointManager::addStats(ADD_STAT add_stat, const void *cookie) {
     add_casted_stat(buf, tapCursors.size(), add_stat, cookie);
     snprintf(buf, sizeof(buf), "vb_%d:num_checkpoint_items", vbucketId);
     add_casted_stat(buf, numItems, add_stat, cookie);
+    snprintf(buf, sizeof(buf), "vb_%d:num_open_checkpoint_items", vbucketId);
+    add_casted_stat(buf, checkpointList.empty() ? 0 : checkpointList.back()->getNumItems(),
+                    add_stat, cookie);
     snprintf(buf, sizeof(buf), "vb_%d:num_checkpoints", vbucketId);
     add_casted_stat(buf, checkpointList.size(), add_stat, cookie);
     snprintf(buf, sizeof(buf), "vb_%d:num_items_for_persistence", vbucketId);
