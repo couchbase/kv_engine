@@ -6995,6 +6995,9 @@ static enum test_result test_observe_multi_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     check(h1->store(h, NULL, it, &cas3, OPERATION_SET, 1)== ENGINE_SUCCESS,
           "Set should work.");
     h1->release(h, NULL, it);
+
+    // Time travel to make the avg persistence time increase
+    testHarness.time_travel(5);
     wait_for_flusher_to_settle(h, h1);
 
     // Do observe
@@ -7014,6 +7017,8 @@ static enum test_result test_observe_multi_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     char key[10];
     uint8_t persisted;
     uint64_t cas;
+
+    check(ntohl(last_cas) > 4500, "Avg persistence time not properly reported");
 
     memcpy(&vb, last_body, sizeof(uint16_t));
     check(ntohs(vb) == 0, "Wrong vbucket in result");
