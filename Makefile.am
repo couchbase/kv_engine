@@ -76,8 +76,11 @@ ep_la_SOURCES = \
                  restore_impl.cc \
                  ringbuffer.hh \
                  sizes.cc \
+                 sqlite-stats.hh \
+                 sqlite-vfs.h \
                  stats.hh \
                  statsnap.cc statsnap.hh \
+                 statwriter.hh \
                  stored-value.cc stored-value.hh \
                  syncobject.hh \
                  sync_registry.cc sync_registry.hh \
