@@ -8,7 +8,7 @@ bin_SCRIPTS = management/cbanalyze-core \
               wrapper/cbbackup-merge-incremental \
               wrapper/cbdbmaint \
               wrapper/cbdbupgrade \
-              wrapper/cbconfig \
+              wrapper/cbepctl \
               wrapper/cbstats \
               wrapper/cbvbucketctl
 
@@ -455,7 +455,7 @@ pythonlib_SCRIPTS= \
                 management/cbbackup-merge-incremental \
                 management/cbdbmaint \
                 management/cbdbupgrade \
-                management/cbconfig \
+                management/cbepctl \
                 management/cbstats \
                 management/cbvbucketctl
 
@@ -467,7 +467,7 @@ PYTHON_TOOLS= \
               wrapper/cbbackup-merge-incremental \
               wrapper/cbdbmaint \
               wrapper/cbdbupgrade \
-              wrapper/cbconfig \
+              wrapper/cbepctl \
               wrapper/cbstats \
               wrapper/cbvbucketctl
 
