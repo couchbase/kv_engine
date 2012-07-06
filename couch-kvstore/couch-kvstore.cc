@@ -421,7 +421,7 @@ bool CouchKVStore::delVBucket(uint16_t vbucket, uint16_t)
     mc->delVBucket(vbucket, cb);
     cb.waitForValue();
 
-    cachedVBStates.erase(std::make_pair(vbucket, -1));
+    cachedVBStates.erase(make_pair(vbucket, -1));
     updateDbFileMap(vbucket, 1, false);
     return cb.val;
 }
@@ -524,7 +524,7 @@ bool CouchKVStore::snapshotVBuckets(const vbucket_map_t &m)
         uint16_t vbucketId = iter->first.first;
         vbucket_state vbstate = iter->second;
         vbucket_map_t::iterator it =
-            cachedVBStates.find(std::make_pair<uint16_t, uint16_t>(vbucketId, -1));
+            cachedVBStates.find(make_pair(vbucketId, -1));
         bool state_changed = true;
         if (it != cachedVBStates.end()) {
             if (it->second.state == vbstate.state &&
@@ -540,7 +540,7 @@ bool CouchKVStore::snapshotVBuckets(const vbucket_map_t &m)
                 vbstate.maxDeletedSeqno = it->second.maxDeletedSeqno;
             }
         } else {
-            cachedVBStates[std::make_pair<uint16_t, uint16_t>(vbucketId, -1)] = vbstate;
+            cachedVBStates[make_pair(vbucketId, -1)] = vbstate;
         }
 
         success = setVBucketState(vbucketId, vbstate, state_changed, false);
@@ -1343,7 +1343,7 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, int rev, Doc **docs,
             // before save docs for the given vBucket
             if (max > 0) {
                 vbucket_map_t::iterator it =
-                    cachedVBStates.find(std::make_pair<uint16_t, uint16_t>(vbid, -1));
+                    cachedVBStates.find(make_pair(vbid, -1));
                 if (it != cachedVBStates.end() && it->second.maxDeletedSeqno < max) {
                     it->second.maxDeletedSeqno = max;
                     errCode = saveVBState(db, it->second);
