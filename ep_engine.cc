@@ -3509,11 +3509,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe(const void* cookie,
         // Put the result into a response buffer
         vb_id = htons(vb_id);
         keylen = htons(keylen);
+        uint64_t cas = htonll(kstats.cas);
         result.write((char*) &vb_id, sizeof(uint16_t));
         result.write((char*) &keylen, sizeof(uint16_t));
         result.write(key.c_str(), ntohs(keylen));
         result.write((char*) &keystatus, sizeof(uint8_t));
-        result.write((char*) &kstats.cas, sizeof(uint64_t));
+        result.write((char*) &cas, sizeof(uint64_t));
     }
 
     return sendResponse(response, NULL, 0, 0, 0, result.str().data(),

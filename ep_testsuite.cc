@@ -6964,7 +6964,7 @@ static enum test_result test_observe_single_key(ENGINE_HANDLE *h, ENGINE_HANDLE_
     memcpy(&persisted, last_body + 7, sizeof(uint8_t));
     check(persisted == 0, "Expected persisted in result");
     memcpy(&cas, last_body + 8, sizeof(uint64_t));
-    check(cas == cas1, "Wrong cas in result");
+    check(ntohll(cas) == cas1, "Wrong cas in result");
 
     return SUCCESS;
 }
@@ -7022,7 +7022,7 @@ static enum test_result test_observe_multi_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     memcpy(&persisted, last_body + 8, sizeof(uint8_t));
     check(persisted == 1, "Expected persisted in result");
     memcpy(&cas, last_body + 9, sizeof(uint64_t));
-    check(cas == cas1, "Wrong cas in result");
+    check(ntohll(cas) == cas1, "Wrong cas in result");
 
     memcpy(&vb, last_body + 17, sizeof(uint16_t));
     check(ntohs(vb) == 1, "Wrong vbucket in result");
@@ -7033,7 +7033,7 @@ static enum test_result test_observe_multi_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     memcpy(&persisted, last_body + 25, sizeof(uint8_t));
     check(persisted == 1, "Expected persisted in result");
     memcpy(&cas, last_body + 26, sizeof(uint64_t));
-    check(cas == cas2, "Wrong cas in result");
+    check(ntohll(cas) == cas2, "Wrong cas in result");
 
     memcpy(&vb, last_body + 34, sizeof(uint16_t));
     check(ntohs(vb) == 1, "Wrong vbucket in result");
@@ -7044,7 +7044,7 @@ static enum test_result test_observe_multi_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     memcpy(&persisted, last_body + 42, sizeof(uint8_t));
     check(persisted == 1, "Expected persisted in result");
     memcpy(&cas, last_body + 43, sizeof(uint64_t));
-    check(cas == cas3, "Wrong cas in result");
+    check(ntohll(cas) == cas3, "Wrong cas in result");
 
     return SUCCESS;
 }
@@ -7096,7 +7096,7 @@ static enum test_result test_observe_with_not_found(ENGINE_HANDLE *h, ENGINE_HAN
     memcpy(&persisted, last_body + 8, sizeof(uint8_t));
     check(persisted == 1, "Expected persisted in result");
     memcpy(&cas, last_body + 9, sizeof(uint64_t));
-    check(cas == cas1, "Wrong cas in result");
+    check(ntohll(cas) == cas1, "Wrong cas in result");
 
     memcpy(&keylen, last_body + 19, sizeof(uint16_t));
     check(ntohs(keylen) == 4, "Wrong keylen in result");
@@ -7114,7 +7114,7 @@ static enum test_result test_observe_with_not_found(ENGINE_HANDLE *h, ENGINE_HAN
     memcpy(&persisted, last_body + 42, sizeof(uint8_t));
     check(persisted == 1, "Expected persisted in result");
     memcpy(&cas, last_body + 43, sizeof(uint64_t));
-    check(cas == cas3, "Wrong cas in result");
+    check(ntohll(cas) == cas3, "Wrong cas in result");
 
     return SUCCESS;
 }
