@@ -3876,7 +3876,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
     }
 
     Item *itm = new Item(key, nkey, nbytes, itm_meta.flags,
-                         ep_abs_time(ep_reltime(itm_meta.exptime)),
+                         itm_meta.exptime == 0 ? 0 : ep_abs_time(ep_reltime(itm_meta.exptime)),
                          itm_meta.cas, -1, vbucket);
     if (itm == NULL) {
         return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
@@ -3953,7 +3953,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(const void* cookie,
                             PROTOCOL_BINARY_RAW_BYTES,
                             PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
     }
-    itm_meta.exptime = ep_abs_time(ep_reltime(itm_meta.exptime));
+    itm_meta.exptime = itm_meta.exptime == 0 ? 0 : ep_abs_time(ep_reltime(itm_meta.exptime));
 
     ENGINE_ERROR_CODE ret = epstore->deleteItem(key,
                                                 ntohll(request->message.header.request.cas),
