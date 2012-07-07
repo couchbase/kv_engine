@@ -503,7 +503,11 @@ add_type_t HashTable::unlocked_addTempDeletedItem(int &bucket_num,
     // the value cuz normally a new item added is considered resident which does
     // not apply for temp item.
 
-    return unlocked_add(bucket_num, itm, false, true, true);
+    add_type_t rv = unlocked_add(bucket_num, itm, false, true, true);
+    if (rv == ADD_SUCCESS) {
+        ++numTempItems;
+    }
+    return rv;
 }
 
 void StoredValue::setMutationMemoryThreshold(double memThreshold) {

@@ -74,8 +74,8 @@ private:
  */
 class VBucketCountVisitor : public VBucketVisitor {
 public:
-    VBucketCountVisitor(vbucket_state_t state) : desired_state(state),
-                                                 numItems(0),nonResident(0),
+    VBucketCountVisitor(vbucket_state_t state) : desired_state(state), numItems(0),
+                                                 numTempItems(0),nonResident(0),
                                                  numVbucket(0), htMemory(0),
                                                  htItemMemory(0), htCacheSize(0),
                                                  numEjects(0), metaDataMemory(0),
@@ -96,6 +96,8 @@ public:
     vbucket_state_t getVBucketState() { return desired_state; }
 
     size_t getNumItems() { return numItems; }
+
+    size_t getNumTempItems() { return numTempItems; }
 
     size_t getNonResident() { return nonResident; }
 
@@ -130,6 +132,7 @@ private:
     vbucket_state_t desired_state;
 
     size_t numItems;
+    size_t numTempItems;
     size_t nonResident;
     size_t numVbucket;
     size_t htMemory;

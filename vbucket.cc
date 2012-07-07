@@ -202,7 +202,10 @@ void VBucket::addStat(const char *nm, T val, ADD_STAT add_stat, const void *c) {
 void VBucket::addStats(bool details, ADD_STAT add_stat, const void *c) {
     addStat(NULL, toString(state), add_stat, c);
     if (details) {
-        addStat("num_items", ht.getNumItems(), add_stat, c);
+        size_t numItems = ht.getNumItems();
+        size_t tempItems = ht.getNumTempItems();
+        addStat("num_items", numItems, add_stat, c);
+        addStat("num_temp_items", tempItems, add_stat, c);
         addStat("num_resident", ht.getNumNonResidentItems(), add_stat, c);
         addStat("ht_memory", ht.memorySize(), add_stat, c);
         addStat("ht_item_memory", ht.getItemMemory(), add_stat, c);

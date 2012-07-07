@@ -2275,6 +2275,7 @@ void EventuallyPersistentEngine::queueBackfill(const VBucketFilter &backfillVBFi
 bool VBucketCountVisitor::visitBucket(RCPtr<VBucket> &vb) {
     ++numVbucket;
     numItems += vb->ht.getNumItems();
+    numTempItems += vb->ht.getNumTempItems();
     nonResident += vb->ht.getNumNonResidentItems();
 
     if (desired_state != vbucket_state_dead) {
@@ -2404,6 +2405,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     add_casted_stat("ep_flush_all",
                     epstore->isFlushAllScheduled() ? "true" : "false", add_stat, cookie);
     add_casted_stat("curr_items", activeCountVisitor.getNumItems(), add_stat, cookie);
+    add_casted_stat("curr_temp_items", activeCountVisitor.getNumTempItems(), add_stat, cookie);
     add_casted_stat("curr_items_tot",
                    activeCountVisitor.getNumItems() +
                    replicaCountVisitor.getNumItems() +

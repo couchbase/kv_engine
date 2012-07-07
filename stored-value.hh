@@ -1037,6 +1037,11 @@ public:
     size_t getNumResizes() { return numResizes; }
 
     /**
+     * Get the number of temp. items within this hash table.
+     */
+    size_t getNumTempItems(void) { return numTempItems; }
+
+    /**
      * Automatically resize to fit the current data.
      */
     void resize();
@@ -1166,6 +1171,7 @@ public:
 
             if (v->isTempItem()) {
                 v->clearId();
+                --numTempItems;
             }
 
             if (!hasMetaData) {
@@ -1465,6 +1471,9 @@ public:
             if (!v->isDeleted() && v->isLocked(ep_current_time())) {
                 return false;
             }
+            if (v->isTempItem()) {
+                --numTempItems;
+            }
             values[bucket_num] = v->next;
             size_t currSize = v->size();
             StoredValue::reduceCacheSize(*this, currSize);
@@ -1481,6 +1490,9 @@ public:
                 StoredValue *tmp = v->next;
                 if (!tmp->isDeleted() && tmp->isLocked(ep_current_time())) {
                     return false;
+                }
+                if (tmp->isTempItem()) {
+                    --numTempItems;
                 }
                 v->next = v->next->next;
                 size_t currSize = tmp->size();
@@ -1614,6 +1626,7 @@ private:
     Atomic<size_t>       visitors;
     Atomic<size_t>       numItems;
     Atomic<size_t>       numResizes;
+    Atomic<size_t>       numTempItems;
     bool                 activeState;
 
     static size_t                 defaultNumBuckets;

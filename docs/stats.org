@@ -79,7 +79,8 @@ For introductory information on stats within membase, start with the
 | ep_num_ops_get_meta            | Number of getMeta operations               |
 | ep_num_ops_set_meta            | Number of setWithMeta operations           |
 | ep_num_ops_del_meta            | Number of delWithMeta operations           |
-| curr_items                     | Num items in active vbuckets.              |
+| curr_items                     | Num items in active vbuckets (temp + live) |
+| curr_temp_items                | Num temp items in active vbuckets          |
 | curr_items_tot                 | Num current items including those not      |
 |                                | active (replica, dead and pending states)  |
 | ep_kv_size                     | Memory used to store item metadata, keys   |
@@ -173,6 +174,7 @@ For introductory information on stats within membase, start with the
 | ep_vb_total                   | Total vBuckets (count)                     |
 | curr_items_tot                | Total number of items                      |
 | curr_items                    | Number of active items in memory           |
+| curr_temp_items               | Number of temporary items in memory        |
 | vb_dead_num                   | Number of dead vBuckets                    |
 | ep_diskqueue_items            | Total items in disk queue                  |
 | ep_diskqueue_memory           | Total memory used in disk queue            |
