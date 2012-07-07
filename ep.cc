@@ -618,6 +618,7 @@ public:
         RCPtr<VBucket> vb = e->getVBucket(vk.first);
         if (vb) {
             int bucket_num(0);
+            e->incExpirationStat(vb);
             LockHolder lh = vb->ht.getLockedBucket(vk.second, &bucket_num);
             StoredValue *v = vb->ht.unlocked_find(vk.second, bucket_num, true, false);
             if (v && v->isTempItem()) {
@@ -654,7 +655,7 @@ StoredValue *EventuallyPersistentStore::fetchValidValue(RCPtr<VBucket> vb,
     StoredValue *v = vb->ht.unlocked_find(key, bucket_num, wantDeleted, trackReference);
     if (v && !v->isDeleted()) { // In the deleted case, we ignore expiration time.
         if (v->isExpired(ep_real_time())) {
-            ++stats.expired;
+            incExpirationStat(vb, false);
             vb->ht.unlocked_softDelete(v, 0);
             queueDirty(key, vb->getId(), queue_op_del, v->getSeqno(),
                        v->getId());

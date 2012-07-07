@@ -101,7 +101,9 @@ public:
     //! Number of times an item is not flushed due to the item's expiry
     Atomic<size_t> flushExpired;
     //! Number of times an object was expired on access.
-    Atomic<size_t> expired;
+    Atomic<size_t> expired_access;
+    //! Number of times an object was expired by pager.
+    Atomic<size_t> expired_pager;
     //! Number of times we failed to start a transaction
     Atomic<size_t> beginFailed;
     //! Number of times a commit failed.

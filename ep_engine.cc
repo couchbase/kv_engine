@@ -2283,6 +2283,7 @@ bool VBucketCountVisitor::visitBucket(RCPtr<VBucket> &vb) {
         htItemMemory += vb->ht.getItemMemory();
         htCacheSize += vb->ht.cacheSize;
         numEjects += vb->ht.getNumEjects();
+        numExpiredItems += vb->numExpiredItems;
         metaDataMemory += vb->ht.metaDataMemory;
         opsCreate += vb->opsCreate;
         opsUpdate += vb->opsUpdate;
@@ -2369,7 +2370,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                     epstats.commitFailed, add_stat, cookie);
     add_casted_stat("ep_item_begin_failed",
                     epstats.beginFailed, add_stat, cookie);
-    add_casted_stat("ep_expired", epstats.expired, add_stat, cookie);
+    add_casted_stat("ep_expired_access", epstats.expired_access,
+                    add_stat, cookie);
+    add_casted_stat("ep_expired_pager", epstats.expired_pager,
+                    add_stat, cookie);
     add_casted_stat("ep_item_flush_expired",
                     epstats.flushExpired, add_stat, cookie);
     add_casted_stat("ep_queue_size",
@@ -2419,6 +2423,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     add_casted_stat("vb_active_perc_mem_resident", activeCountVisitor.getMemResidentPer(),
                     add_stat, cookie);
     add_casted_stat("vb_active_eject", activeCountVisitor.getEjects(), add_stat, cookie);
+    add_casted_stat("vb_active_expired", activeCountVisitor.getExpired(), add_stat, cookie);
     add_casted_stat("vb_active_meta_data_memory", activeCountVisitor.getMetaDataMemory(),
                     add_stat, cookie);
     add_casted_stat("vb_active_ht_memory", activeCountVisitor.getHashtableMemory(),
@@ -2446,6 +2451,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     add_casted_stat("vb_replica_perc_mem_resident", replicaCountVisitor.getMemResidentPer(),
                    add_stat, cookie);
     add_casted_stat("vb_replica_eject", replicaCountVisitor.getEjects(), add_stat, cookie);
+    add_casted_stat("vb_replica_expired", replicaCountVisitor.getExpired(), add_stat, cookie);
     add_casted_stat("vb_replica_meta_data_memory", replicaCountVisitor.getMetaDataMemory(),
                     add_stat, cookie);
     add_casted_stat("vb_replica_ht_memory", replicaCountVisitor.getHashtableMemory(),
@@ -2471,6 +2477,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     add_casted_stat("vb_pending_perc_mem_resident", pendingCountVisitor.getMemResidentPer(),
                    add_stat, cookie);
     add_casted_stat("vb_pending_eject", pendingCountVisitor.getEjects(), add_stat, cookie);
+    add_casted_stat("vb_pending_expired", pendingCountVisitor.getExpired(), add_stat, cookie);
     add_casted_stat("vb_pending_meta_data_memory", pendingCountVisitor.getMetaDataMemory(),
                     add_stat, cookie);
     add_casted_stat("vb_pending_ht_memory", pendingCountVisitor.getHashtableMemory(),

@@ -705,6 +705,15 @@ public:
         return mlogCompactorConfig;
     }
 
+    void incExpirationStat(RCPtr<VBucket> &vb, bool byPager = true) {
+        if (byPager) {
+            ++stats.expired_pager;
+        } else {
+            ++stats.expired_access;
+        }
+        ++vb->numExpiredItems;
+    }
+
 protected:
     // During the warmup phase we might want to enable external traffic
     // at a given point in time.. The LoadStorageKvPairCallback will be

@@ -65,7 +65,6 @@ public:
     }
 
     void update() {
-        stats.expired.incr(expired.size());
         store->deleteExpiredItems(expired);
 
         if (numEjected() > 0) {

@@ -247,8 +247,10 @@ public:
     Atomic<size_t>  dirtyQueueMem;
     Atomic<size_t>  dirtyQueueFill;
     Atomic<size_t>  dirtyQueueDrain;
-    Atomic<uint64_t>    dirtyQueueAge;
+    Atomic<uint64_t> dirtyQueueAge;
     Atomic<size_t>  dirtyQueuePendingWrites;
+
+    Atomic<size_t>  numExpiredItems;
 
 private:
     template <typename T>

@@ -2285,13 +2285,16 @@ static enum test_result test_expiry(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check_key_value(h, h1, key, data, strlen(data));
     h1->release(h, NULL, it);
 
-    testHarness.time_travel(3);
-
+    testHarness.time_travel(5);
     check(h1->get(h, NULL, &it, key, strlen(key), 0) == ENGINE_KEY_ENOENT,
           "Item didn't expire");
 
-    assert(1 == get_int_stat(h, h1, "ep_expired"));
-
+    int expired_access = get_int_stat(h, h1, "ep_expired_access");
+    int expired_pager = get_int_stat(h, h1, "ep_expired_pager");
+    int active_expired = get_int_stat(h, h1, "vb_active_expired");
+    check(expired_pager == 0, "Expected zero expired item by pager");
+    check(expired_access == 1, "Expected an expired item on access");
+    check(active_expired == 1, "Expected an expired active item");
     checkeq(ENGINE_SUCCESS, store(h, h1, NULL, OPERATION_SET, key, data, &it),
             "Failed set.");
     h1->release(h, NULL, it);
@@ -7008,7 +7011,7 @@ static enum test_result test_temp_item_deletion(ENGINE_HANDLE *h, ENGINE_HANDLE_
 
     // Trigger the expiry pager and verify that two temp items are deleted
     testHarness.time_travel(30);
-    wait_for_stat_to_be(h, h1, "ep_expired", 2);
+    wait_for_stat_to_be(h, h1, "ep_expired_pager", 2);
     curri = get_int_stat(h, h1, "curr_items");
     tempi = get_int_stat(h, h1, "curr_temp_items");
     check(tempi == 0, "Expected zero temp_items");

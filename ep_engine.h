@@ -78,12 +78,13 @@ public:
                                                  numTempItems(0),nonResident(0),
                                                  numVbucket(0), htMemory(0),
                                                  htItemMemory(0), htCacheSize(0),
-                                                 numEjects(0), metaDataMemory(0),
-                                                 opsCreate(0), opsUpdate(0),
-                                                 opsDelete(0), opsReject(0),
-                                                 queueSize(0), queueMemory(0),
-                                                 queueAge(0), queueFill(0),
-                                                 queueDrain(0), pendingWrites(0)
+                                                 numEjects(0), numExpiredItems(0),
+                                                 metaDataMemory(0), opsCreate(0),
+                                                 opsUpdate(0), opsDelete(0),
+                                                 opsReject(0), queueSize(0),
+                                                 queueMemory(0), queueAge(0),
+                                                 queueFill(0), queueDrain(0),
+                                                 pendingWrites(0)
     { }
 
     bool visitBucket(RCPtr<VBucket> &vb);
@@ -109,6 +110,7 @@ public:
     }
 
     size_t getEjects() { return numEjects; }
+    size_t getExpired() { return numExpiredItems; }
     size_t getMetaDataMemory() { return metaDataMemory; }
 
     size_t getHashtableMemory() { return htMemory; }
@@ -139,6 +141,7 @@ private:
     size_t htItemMemory;
     size_t htCacheSize;
     size_t numEjects;
+    size_t numExpiredItems;
     size_t metaDataMemory;
 
     size_t opsCreate;
