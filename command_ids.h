@@ -91,14 +91,6 @@
  */
 #define CMD_RESET_REPLICATION_CHAIN 0x9f
 
-/*
- * IDs for the events of the observe command.
- */
-#define OBS_PERSISTED_EVENT    1
-#define OBS_MODIFIED_EVENT     2
-#define OBS_DELETED_EVENT      3
-#define OBS_REPLICATED_EVENT   4
-
 // Command identifiers used by Cross Data Center Replication (cdcr)
 
 /**
@@ -282,9 +274,6 @@ typedef protocol_binary_request_no_extras protocol_binary_request_get_meta;
  * status of the operation is signalled in the status bits.
  */
 typedef protocol_binary_response_no_extras protocol_binary_response_set_with_meta;
-
-typedef protocol_binary_request_touch protocol_binary_request_observe;
-typedef protocol_binary_request_header protocol_binary_request_unobserve;
 
 typedef union {
     struct {

@@ -8,7 +8,6 @@
     "kvstore": {},
     "kvtimings": {},
     "memory": {},
-    "observe": {},
     "prev-vbucket": {},
     "restore": {},
     "tap": {},
