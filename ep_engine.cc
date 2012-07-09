@@ -3368,23 +3368,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
         parseUint16(vbid.c_str(), &vbucket_id);
         // Validating version; blocks
         rv = doKeyStats(cookie, add_stat, vbucket_id, key, true);
-    } else if (nkey == 7 &&
-               (strncmp(stat_key, "couchdb", 7) == 0 ||
-                strncmp(stat_key, "mccouch", 7) == 0)) {
-        add_casted_stat("ep_set_vbucket", stats.setVbucketStateHisto,
-                        add_stat, cookie);
-        add_casted_stat("ep_delq", stats.couchDelqHisto,
-                        add_stat, cookie);
-        add_casted_stat("ep_get_hit", stats.couchGetHisto,
-                        add_stat, cookie);
-        add_casted_stat("ep_get_fail", stats.couchGetFailHisto,
-                        add_stat, cookie);
-        add_casted_stat("ep_set_hit", stats.couchSetHisto,
-                        add_stat, cookie);
-        add_casted_stat("ep_set_fail", stats.couchSetFailHisto,
-                        add_stat, cookie);
-
-        rv = ENGINE_SUCCESS;
     } else if (nkey == 9 && strncmp(stat_key, "kvtimings", 9) == 0) {
         getEpStore()->getROUnderlying()->addTimingStats("ro", add_stat, cookie);
         getEpStore()->getRWUnderlying()->addTimingStats("rw", add_stat, cookie);

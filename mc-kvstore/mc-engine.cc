@@ -74,7 +74,6 @@ public:
     }
 
     virtual void response(protocol_binary_response_header *res) {
-        updateHistogram();
         uint16_t rcode = ntohs(res->response.status);
         int value = 1;
 
@@ -91,15 +90,8 @@ public:
     }
 
     virtual void implicitResponse() {
-        updateHistogram();
         int value = 1;
         callback.callback(value);
-    }
-
-    void updateHistogram() {
-        if (stats) {
-            stats->couchDelqHisto.add(getDelta());
-        }
     }
 
 private:
@@ -118,8 +110,6 @@ public:
     virtual void response(protocol_binary_response_header *res) {
         uint16_t rcode = ntohs(res->response.status);
         if (rcode == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-            updateHistogram(ntohl(res->response.bodylen) - 4, true);
-
             Item *it;
             RememberingCallback<GetValue> *rc =
                 dynamic_cast<RememberingCallback<GetValue> *>(&callback);
@@ -152,7 +142,6 @@ public:
             GetValue rv(it);
             callback.callback(rv);
         } else {
-            updateHistogram(0, false);
             GetValue rv;
             callback.callback(rv);
         }
@@ -163,20 +152,6 @@ public:
         // a cache miss may confuse the core :S
         GetValue rv;
         callback.callback(rv);
-    }
-
-    void updateHistogram(size_t size, bool success) {
-        if (stats) {
-            if (success) {
-                if (size == 0) {
-                    size = 1;
-                }
-
-                stats->couchGetHisto.add(getDelta() / size);
-            } else {
-                stats->couchGetFailHisto.add(getDelta());
-            }
-        }
     }
 
 private:
@@ -201,9 +176,6 @@ public:
         if (rcode != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
             newId = -1;
             rv = 0;
-            updateHistogram(false);
-        } else {
-            updateHistogram(true);
         }
 
         mutation_result p(rv, newId);
@@ -216,23 +188,8 @@ public:
     }
 
     virtual void implicitResponse() {
-        updateHistogram(true);
         mutation_result p(1, newId);
         callback.callback(p);
-    }
-
-    void updateHistogram(bool success) {
-        if (stats) {
-            if (success) {
-                if (nbytes == 0) {
-                    nbytes = 1;
-                }
-
-                stats->couchSetHisto.add(getDelta() / nbytes);
-            } else {
-                stats->couchSetFailHisto.add(getDelta());
-            }
-        }
     }
 
 private:

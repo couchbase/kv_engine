@@ -251,10 +251,6 @@ def stats_raw(mc, arg):
     stats_formatter(mc.stats(arg))
 
 @cmd
-def stats_couchdb(mc):
-    histograms(mc, mc.stats('couchdb'))
-
-@cmd
 def stats_kvstore(mc):
     stats_formatter(stats_perform(mc, 'kvstore'))
 
@@ -370,7 +366,6 @@ def main():
     c.addCommand('allocator', stats_allocator, 'allocator')
     c.addCommand('checkpoint', stats_checkpoint, 'checkpoint [vbid]')
     c.addCommand('config', stats_config, 'config')
-    c.addCommand('couchdb', stats_couchdb, 'couchdb')
     c.addCommand('dispatcher', stats_dispatcher, 'dispatcher [logs]')
     c.addCommand('hash', stats_hash, 'hash [detail]')
     c.addCommand('items', stats_items, 'items (memcached bucket only)')
