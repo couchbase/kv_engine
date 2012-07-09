@@ -32,12 +32,11 @@ int64_t StrategicSqlite3::lastRowId() {
     return static_cast<int64_t>(sqlite3_last_insert_rowid(db));
 }
 
-void StrategicSqlite3::insert(const Item &itm, uint16_t vb_version,
+void StrategicSqlite3::insert(const Item &itm,
                               Callback<mutation_result> &cb) {
     assert(itm.getId() <= 0);
 
     PreparedStatement *ins_stmt = strategy->getStatements(itm.getVBucketId(),
-                                                          vb_version,
                                                           itm.getKey())->ins();
     ins_stmt->bind(1, itm.getKey());
     ins_stmt->bind(2, const_cast<Item&>(itm).getData(), itm.getNBytes());
@@ -45,7 +44,6 @@ void StrategicSqlite3::insert(const Item &itm, uint16_t vb_version,
     ins_stmt->bind(4, itm.getExptime());
     ins_stmt->bind64(5, itm.getCas());
     ins_stmt->bind(6, itm.getVBucketId());
-    ins_stmt->bind(7, vb_version);
 
     ++stats.io_num_write;
     stats.io_write_bytes += itm.getKey().length() + itm.getNBytes();
@@ -66,12 +64,11 @@ void StrategicSqlite3::insert(const Item &itm, uint16_t vb_version,
     ins_stmt->reset();
 }
 
-void StrategicSqlite3::update(const Item &itm, uint16_t vb_version,
+void StrategicSqlite3::update(const Item &itm,
                               Callback<mutation_result> &cb) {
     assert(itm.getId() > 0);
 
     PreparedStatement *upd_stmt = strategy->getStatements(itm.getVBucketId(),
-                                                          vb_version,
                                                           itm.getKey())->upd();
 
     upd_stmt->bind(1, itm.getKey());
@@ -79,8 +76,7 @@ void StrategicSqlite3::update(const Item &itm, uint16_t vb_version,
     upd_stmt->bind(3, itm.getFlags());
     upd_stmt->bind(4, itm.getExptime());
     upd_stmt->bind64(5, itm.getCas());
-    upd_stmt->bind(6, vb_version);
-    upd_stmt->bind64(7, itm.getId());
+    upd_stmt->bind64(6, itm.getId());
 
     int rv = upd_stmt->execute();
     if (rv < 0) {
@@ -99,18 +95,18 @@ void StrategicSqlite3::update(const Item &itm, uint16_t vb_version,
 }
 
 vbucket_map_t StrategicSqlite3::listPersistedVbuckets() {
-    std::map<std::pair<uint16_t, uint16_t>, vbucket_state> rv;
+    std::map<uint16_t, vbucket_state> rv;
 
     PreparedStatement *st = strategy->getGetVBucketStateST();
 
     while (st->fetch()) {
         ++stats.io_num_read;
-        std::pair<uint16_t, uint16_t> vb(st->column_int(0), st->column_int(1));
+        uint16_t vbid = st->column_int(0);
         vbucket_state vb_state;
-        vb_state.state = (vbucket_state_t)st->column_int(2);
-        vb_state.checkpointId = st->column_int64(3);
+        vb_state.state = (vbucket_state_t)st->column_int(1);
+        vb_state.checkpointId = st->column_int64(2);
         vb_state.maxDeletedSeqno = 0;
-        rv[vb] = vb_state;
+        rv[vbid] = vb_state;
     }
 
     st->reset();
@@ -118,19 +114,19 @@ vbucket_map_t StrategicSqlite3::listPersistedVbuckets() {
     return rv;
 }
 
-void StrategicSqlite3::set(const Item &itm, uint16_t vb_version,
+void StrategicSqlite3::set(const Item &itm,
                            Callback<mutation_result> &cb) {
     assert(!isReadOnly());
     if (itm.getId() <= 0) {
-        insert(itm, vb_version, cb);
+        insert(itm, cb);
     } else {
-        update(itm, vb_version, cb);
+        update(itm, cb);
     }
 }
 
 void StrategicSqlite3::get(const std::string &key, uint64_t rowid,
-                           uint16_t vb, uint16_t vbver, Callback<GetValue> &cb) {
-    PreparedStatement *sel_stmt = strategy->getStatements(vb, vbver, key)->sel();
+                           uint16_t vb, Callback<GetValue> &cb) {
+    PreparedStatement *sel_stmt = strategy->getStatements(vb, key)->sel();
     sel_stmt->bind64(1, rowid);
 
     ++stats.io_num_read;
@@ -168,7 +164,7 @@ void StrategicSqlite3::reset() {
 }
 
 void StrategicSqlite3::del(const Item &itm, uint64_t rowid,
-                           uint16_t vbver, Callback<int> &cb) {
+                           Callback<int> &cb) {
     assert(!isReadOnly());
     int rv = 0;
     if (rowid <= 0) {
@@ -178,7 +174,7 @@ void StrategicSqlite3::del(const Item &itm, uint64_t rowid,
 
     std::string key = itm.getKey();
     uint16_t vb = itm.getVBucketId();
-    PreparedStatement *del_stmt = strategy->getStatements(vb, vbver, key)->del();
+    PreparedStatement *del_stmt = strategy->getStatements(vb, key)->del();
     del_stmt->bind64(1, rowid);
     rv = del_stmt->execute();
     if (rv < 0) {
@@ -192,39 +188,7 @@ void StrategicSqlite3::del(const Item &itm, uint64_t rowid,
     del_stmt->reset();
 }
 
-bool StrategicSqlite3::delVBucket(uint16_t vbucket, uint16_t vb_version,
-                                  std::pair<int64_t, int64_t> row_range) {
-    assert(!isReadOnly());
-    bool rv = true;
-    std::vector<PreparedStatement*> vb_del(strategy->getVBStatements(vbucket, delete_vbucket));
-    std::vector<PreparedStatement*>::iterator it;
-    for (it = vb_del.begin(); it != vb_del.end(); ++it) {
-        PreparedStatement *del_stmt = *it;
-        if (del_stmt->paramCount() > 0) {
-            del_stmt->bind(1, vbucket);
-            del_stmt->bind(2, vb_version);
-            del_stmt->bind64(3, row_range.first);
-            del_stmt->bind64(4, row_range.second);
-        }
-        int result = del_stmt->execute();
-        if (result < 0) {
-            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "Fatal sqlite error in deleting vbucket %d !!! "
-                             "Reopen the database...\n",
-                             vbucket);
-            reopen();
-            rv = false;
-            break;
-        }
-    }
-    strategy->closeVBStatements(vb_del);
-    ++stats.io_num_write;
-
-    return rv;
-}
-
-bool StrategicSqlite3::delVBucket(uint16_t vbucket, uint16_t vb_version) {
-    (void) vb_version;
+bool StrategicSqlite3::delVBucket(uint16_t vbucket) {
     assert(!isReadOnly());
     assert(strategy->hasEfficientVBDeletion());
     bool rv = true;
@@ -332,11 +296,10 @@ static void processDumpRow(EPStats &stats,
                          st->column_blob(1),
                          st->column_bytes(1),
                          st->column_int64(4),
-                         st->column_int64(7),
+                         st->column_int64(6),
                          static_cast<uint16_t>(st->column_int(5))),
                 ENGINE_SUCCESS,
-                -1,
-                static_cast<uint16_t>(st->column_int(6)));
+                -1);
     stats.io_read_bytes += rv.getValue()->getKey().length() + rv.getValue()->getNBytes();
     cb->callback(rv);
 }
@@ -449,7 +412,7 @@ struct WarmupCookie {
     ShardRowidMap objmap;
 };
 
-static void warmupCallback(void *arg, uint16_t vb, uint16_t,
+static void warmupCallback(void *arg, uint16_t vb,
                            const std::string &key, uint64_t rowid)
 {
     WarmupCookie *cookie = static_cast<WarmupCookie*>(arg);
@@ -457,16 +420,16 @@ static void warmupCallback(void *arg, uint16_t vb, uint16_t,
 }
 
 size_t StrategicSqlite3::warmup(MutationLog &lf,
-                                const std::map<std::pair<uint16_t, uint16_t>, vbucket_state> &vbmap,
+                                const std::map<uint16_t, vbucket_state> &vbmap,
                                 Callback<GetValue> &cb,
                                 Callback<size_t> &estimate)
 {
     // First build up the various maps...
 
     MutationLogHarvester harvester(lf);
-    std::map<std::pair<uint16_t, uint16_t>, vbucket_state>::const_iterator it;
+    std::map<uint16_t, vbucket_state>::const_iterator it;
     for (it = vbmap.begin(); it != vbmap.end(); ++it) {
-        harvester.setVbVer(it->first.first, it->first.second);
+        harvester.setVBucket(it->first);
     }
 
     hrtime_t start = gethrtime();
@@ -513,7 +476,7 @@ size_t StrategicSqlite3::warmupSingleShard(const std::string &table,
 {
     using namespace std;
 
-    string prefix("select k, v, flags, exptime, cas, vbucket, vb_version, rowid from ");
+    string prefix("select k, v, flags, exptime, cas, vbucket, rowid from ");
     prefix.append(table);
     prefix.append(" where rowid in (");
 
@@ -551,10 +514,9 @@ size_t StrategicSqlite3::warmupSingleShard(const std::string &table,
                                     static_cast<uint16_t>(st.column_bytes(0)),
                                     st.column_int(2), st.column_int(3),
                                     st.column_blob(1), st.column_bytes(1),
-                                    st.column_int64(4), st.column_int64(7),
+                                    st.column_int64(4), st.column_int64(6),
                                     static_cast<uint16_t>(st.column_int(5)));
-                GetValue rv(it, ENGINE_SUCCESS, -1,
-                            static_cast<uint16_t>(st.column_int(6)));
+                GetValue rv(it, ENGINE_SUCCESS, -1);
                 cb.callback(rv);
             }
         }

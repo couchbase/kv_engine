@@ -27,13 +27,11 @@ const Priority Priority::TapBgFetcherPriority("tap_bg_fetcher_priority", 1);
 
 // Priorities for Read-Write dispatcher
 const Priority Priority::VBucketPersistHighPriority("vbucket_persist_high_priority", 1);
-const Priority Priority::FastVBucketDeletionPriority("vbucket_deletion_hi_priority", 2);
+const Priority Priority::VBucketDeletionPriority("vbucket_deletion_priority", 2);
 const Priority Priority::FlushAllPriority("flush_all_priority", 3);
 const Priority Priority::FlusherPriority("flusher_priority", 5);
-const Priority Priority::VBucketDeletionPriority("vbucket_deletion_priority", 9);
 const Priority Priority::VBucketPersistLowPriority("vbucket_persist_low_priority", 9);
 const Priority Priority::StatSnapPriority("statsnap_priority", 9);
-const Priority Priority::InvalidItemDbPagerPriority("invalid_item_db_pager_priority", 9);
 const Priority Priority::MutationLogCompactorPriority("mutation_log_compactor_priority", 9);
 const Priority Priority::AccessScannerPriority("access_scanner_priority", 3);
 

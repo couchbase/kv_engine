@@ -137,7 +137,7 @@ void BackFillVisitor::visit(StoredValue *v) {
     }
     std::string k = v->getKey();
     queued_item qi(new QueuedItem(k, currentBucket->getId(), queue_op_set,
-                                  -1, v->getId()));
+                                  v->getId()));
     uint16_t shardId = engine->kvstore->getShardId(*qi);
     found.push_back(std::make_pair(shardId, qi));
 }

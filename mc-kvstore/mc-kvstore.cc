@@ -52,13 +52,13 @@ void MCKVStore::reset() {
     cb.waitForValue();
 }
 
-void MCKVStore::set(const Item &itm, uint16_t, Callback<mutation_result> &cb) {
+void MCKVStore::set(const Item &itm, Callback<mutation_result> &cb) {
     assert(!isReadOnly());
     assert(intransaction);
     mc->setmq(itm, cb);
 }
 
-void MCKVStore::get(const std::string &key, uint64_t, uint16_t vb, uint16_t,
+void MCKVStore::get(const std::string &key, uint64_t, uint16_t vb,
         Callback<GetValue> &cb) {
     if (dynamic_cast<RememberingCallback<GetValue> *> (&cb)) {
         mc->get(key, vb, cb);
@@ -70,24 +70,13 @@ void MCKVStore::get(const std::string &key, uint64_t, uint16_t vb, uint16_t,
     }
 }
 
-void MCKVStore::del(const Item &itm, uint64_t, uint16_t, Callback<int> &cb) {
+void MCKVStore::del(const Item &itm, uint64_t, Callback<int> &cb) {
     assert(!isReadOnly());
     assert(intransaction);
     mc->delmq(itm, cb);
 }
 
-bool MCKVStore::delVBucket(uint16_t vbucket, uint16_t vb_version,
-        std::pair<int64_t, int64_t> row_range) {
-    (void)vbucket;
-    (void)vb_version;
-    (void)row_range;
-
-    bool rv = true;
-    //abort();
-    return rv;
-}
-
-bool MCKVStore::delVBucket(uint16_t vbucket, uint16_t) {
+bool MCKVStore::delVBucket(uint16_t vbucket) {
     assert(!isReadOnly());
     RememberingCallback<bool> cb;
     mc->delVBucket(vbucket, cb);
@@ -100,11 +89,10 @@ vbucket_map_t MCKVStore::listPersistedVbuckets() {
     mc->stats("vbucket", cb);
 
     cb.waitForValue();
-    std::map<std::pair<uint16_t, uint16_t>, vbucket_state> rv;
+    std::map<uint16_t, vbucket_state> rv;
     std::map<std::string, std::string>::const_iterator iter;
     for (iter = cb.val.begin(); iter != cb.val.end(); ++iter) {
-        std::pair<uint16_t, uint16_t> vb(
-                (uint16_t)atoi(iter->first.c_str() + 3), -1);
+        uint16_t vbid = (uint16_t)atoi(iter->first.c_str() + 3);
         const std::string &state_json = iter->second;
         cJSON *jsonObj = cJSON_Parse(state_json.c_str());
         std::string state =
@@ -120,7 +108,7 @@ vbucket_map_t MCKVStore::listPersistedVbuckets() {
             || max_deleted_seqno.compare("") == 0) {
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                 "Warning: State JSON doc for vbucket %d is in the wrong format: %s",
-                vb.first, state_json.c_str());
+                vbid, state_json.c_str());
             continue;
         }
 
@@ -130,7 +118,7 @@ vbucket_map_t MCKVStore::listPersistedVbuckets() {
         vb_state.checkpointId = strtoull(checkpoint_id.c_str(), &ptr, 10);
         vb_state.maxDeletedSeqno = strtoul(max_deleted_seqno.c_str(), &ptr,
                                             10);
-        rv[vb] = vb_state;
+        rv[vbid] = vb_state;
     }
 
     return rv;

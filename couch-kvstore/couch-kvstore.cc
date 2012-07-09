@@ -231,14 +231,14 @@ void CouchKVStore::reset()
 
     vbucket_map_t::iterator itor = cachedVBStates.begin();
     for (; itor != cachedVBStates.end(); ++itor) {
-        uint16_t vbucket = itor->first.first;
+        uint16_t vbucket = itor->first;
         itor->second.checkpointId = 0;
         itor->second.maxDeletedSeqno = 0;
         updateDbFileMap(vbucket, 1, true);
     }
 }
 
-void CouchKVStore::set(const Item &itm, uint16_t, Callback<mutation_result> &cb)
+void CouchKVStore::set(const Item &itm, Callback<mutation_result> &cb)
 {
     assert(!isReadOnly());
     assert(intransaction);
@@ -263,7 +263,7 @@ void CouchKVStore::set(const Item &itm, uint16_t, Callback<mutation_result> &cb)
     this->queue(*req);
 }
 
-void CouchKVStore::get(const std::string &key, uint64_t, uint16_t vb, uint16_t,
+void CouchKVStore::get(const std::string &key, uint64_t, uint16_t vb,
                        Callback<GetValue> &cb)
 {
     hrtime_t start = gethrtime();
@@ -384,7 +384,6 @@ void CouchKVStore::get(const std::string &key, uint64_t, uint16_t vb, uint16_t,
 
 void CouchKVStore::del(const Item &itm,
                        uint64_t,
-                       uint16_t,
                        Callback<int> &cb)
 {
     assert(!isReadOnly());
@@ -409,15 +408,7 @@ void CouchKVStore::del(const Item &itm,
     }
 }
 
-bool CouchKVStore::delVBucket(uint16_t,
-                              uint16_t,
-                              std::pair<int64_t, int64_t>)
-{
-    // noop, it is required for abstract base class
-    return true;
-}
-
-bool CouchKVStore::delVBucket(uint16_t vbucket, uint16_t)
+bool CouchKVStore::delVBucket(uint16_t vbucket)
 {
     assert(!isReadOnly());
     assert(mc);
@@ -426,7 +417,7 @@ bool CouchKVStore::delVBucket(uint16_t vbucket, uint16_t)
     mc->delVBucket(vbucket, cb);
     cb.waitForValue();
 
-    cachedVBStates.erase(make_pair(vbucket, -1));
+    cachedVBStates.erase(vbucket);
     updateDbFileMap(vbucket, 1, false);
     return cb.val;
 }
@@ -462,13 +453,12 @@ vbucket_map_t CouchKVStore::listPersistedVbuckets()
             remVBucketFromDbFileMap(itr->first);
         } else {
             vbucket_state vb_state;
-            uint16_t      vbID = itr->first;
-            std::pair<uint16_t, uint16_t> vb(vbID, -1);
+            uint16_t vbID = itr->first;
 
             /* read state of VBucket from db file */
             readVBState(db, vbID, vb_state);
             /* insert populated state to the array to return to the caller */
-            cachedVBStates[vb] = vb_state;
+            cachedVBStates[vbID] = vb_state;
             /* update stat */
             ++st.numLoadedVb;
             closeDatabaseHandle(db);
@@ -526,10 +516,10 @@ bool CouchKVStore::snapshotVBuckets(const vbucket_map_t &m)
     bool success = true;
 
     for (iter = m.begin(); iter != m.end(); ++iter) {
-        uint16_t vbucketId = iter->first.first;
+        uint16_t vbucketId = iter->first;
         vbucket_state vbstate = iter->second;
         vbucket_map_t::iterator it =
-            cachedVBStates.find(make_pair(vbucketId, -1));
+            cachedVBStates.find(vbucketId);
         bool state_changed = true;
         if (it != cachedVBStates.end()) {
             if (it->second.state == vbstate.state &&
@@ -545,7 +535,7 @@ bool CouchKVStore::snapshotVBuckets(const vbucket_map_t &m)
                 vbstate.maxDeletedSeqno = it->second.maxDeletedSeqno;
             }
         } else {
-            cachedVBStates[make_pair(vbucketId, -1)] = vbstate;
+            cachedVBStates[vbucketId] = vbstate;
         }
 
         success = setVBucketState(vbucketId, vbstate, state_changed, false);
@@ -851,7 +841,7 @@ void CouchKVStore::loadDB(shared_ptr<LoadCallback> cb, bool keysOnly,
     std::map<uint16_t, int>::iterator fitr = filemap.begin();
     for (; fitr != filemap.end(); fitr++) {
         if (loadingData) {
-            vbucket_map_t::const_iterator vsit = cachedVBStates.find(make_pair(fitr->first, -1));
+            vbucket_map_t::const_iterator vsit = cachedVBStates.find(fitr->first);
             if (vsit != cachedVBStates.end()) {
                 vbucket_state vbs = vsit->second;
                 // ignore loading dead vbuckets during warmup
@@ -1222,7 +1212,7 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx)
                   vbucketId,
                   docinfo->rev_seq);
 
-    GetValue rv(it, ENGINE_SUCCESS, -1, -1, loadCtx->keysonly);
+    GetValue rv(it, ENGINE_SUCCESS, -1, loadCtx->keysonly);
     callback->cb->callback(rv);
 
     couchstore_free_document(doc);
@@ -1355,7 +1345,7 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, int rev, Doc **docs,
             // before save docs for the given vBucket
             if (max > 0) {
                 vbucket_map_t::iterator it =
-                    cachedVBStates.find(make_pair(vbid, -1));
+                    cachedVBStates.find(vbid);
                 if (it != cachedVBStates.end() && it->second.maxDeletedSeqno < max) {
                     it->second.maxDeletedSeqno = max;
                     errCode = saveVBState(db, it->second);

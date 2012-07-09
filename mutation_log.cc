@@ -635,7 +635,7 @@ void MutationLogHarvester::apply(void *arg, mlCallback mlc) {
             const std::string key(it2->first);
             uint64_t rowid(it2->second);
 
-            mlc(arg, vb, vbids[vb], key, rowid);
+            mlc(arg, vb, key, rowid);
         }
     }
 }

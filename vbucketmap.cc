@@ -6,7 +6,6 @@
 VBucketMap::VBucketMap(Configuration &config) :
     buckets(new RCPtr<VBucket>[config.getMaxVbuckets()]),
     bucketDeletion(new Atomic<bool>[config.getMaxVbuckets()]),
-    bucketVersions(new Atomic<uint16_t>[config.getMaxVbuckets()]),
     persistenceCheckpointIds(new Atomic<uint64_t>[config.getMaxVbuckets()]),
     size(config.getMaxVbuckets())
 {
@@ -14,7 +13,6 @@ VBucketMap::VBucketMap(Configuration &config) :
     lowPriorityVbSnapshot.set(false);
     for (size_t i = 0; i < size; ++i) {
         bucketDeletion[i].set(false);
-        bucketVersions[i].set(static_cast<uint16_t>(-1));
         persistenceCheckpointIds[i].set(0);
     }
 }
@@ -22,7 +20,6 @@ VBucketMap::VBucketMap(Configuration &config) :
 VBucketMap::~VBucketMap() {
     delete[] buckets;
     delete[] bucketDeletion;
-    delete[] bucketVersions;
     delete[] persistenceCheckpointIds;
 }
 
@@ -77,16 +74,6 @@ bool VBucketMap::isBucketDeletion(uint16_t id) const {
 bool VBucketMap::setBucketDeletion(uint16_t id, bool delBucket) {
     assert(id < size);
     return bucketDeletion[id].cas(!delBucket, delBucket);
-}
-
-uint16_t VBucketMap::getBucketVersion(uint16_t id) const {
-    assert(id < size);
-    return bucketVersions[id].get();
-}
-
-void VBucketMap::setBucketVersion(uint16_t id, uint16_t vb_version) {
-    assert(id < size);
-    bucketVersions[id].set(vb_version);
 }
 
 uint64_t VBucketMap::getPersistenceCheckpointId(uint16_t id) {

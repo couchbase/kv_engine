@@ -133,7 +133,7 @@
             "type": "size_t"
         },
         "db_strategy": {
-            "default": "multiDB",
+            "default": "multiMTVBDB",
             "type": "std::string"
         },
         "dbname": {
@@ -408,16 +408,6 @@
         "vb0": {
             "default": "true",
             "type": "bool"
-        },
-        "vb_chunk_del_time": {
-            "default": "500",
-            "descr": "vb chunk deletion threshold time (ms) used for adjusting the chunk size dynamically",
-            "type": "size_t"
-        },
-        "vb_del_chunk_size": {
-            "default": "100",
-            "descr": "Chunk size of vbucket deletion",
-            "type": "size_t"
         },
         "waitforwarmup": {
             "default": "true",

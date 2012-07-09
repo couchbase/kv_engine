@@ -163,8 +163,6 @@ void Statements::initStatements(const StatementFactory *sfact) {
     assert(all_stmt);
     del_stmt = sfact->mkDelete(db, tableName);
     assert(del_stmt);
-    del_vb_stmt = sfact->mkDeleteVBucket(db, tableName);
-    assert(del_vb_stmt);
     count_all_stmt = sfact->mkCountAll(db, tableName);
     assert(count_all_stmt);
 }
@@ -173,8 +171,8 @@ PreparedStatement *StatementFactory::mkInsert(sqlite3 *db,
                                               const std::string &table) const {
     char buf[1024];
     snprintf(buf, sizeof(buf),
-             "insert into %s (k, v, flags, exptime, cas, vbucket, vb_version) "
-             "values(?, ?, ?, ?, ?, ?, ?)", table.c_str());
+             "insert into %s (k, v, flags, exptime, cas, vbucket) "
+             "values(?, ?, ?, ?, ?, ?)", table.c_str());
     return new PreparedStatement(db, buf);
 }
 
@@ -183,7 +181,7 @@ PreparedStatement *StatementFactory::mkUpdate(sqlite3 *db,
     char buf[1024];
     // Note that vbucket IDs don't change here.
     snprintf(buf, sizeof(buf),
-             "update %s set k=?, v=?, flags=?, exptime=?, cas=?, vb_version=? "
+             "update %s set k=?, v=?, flags=?, exptime=?, cas=? "
              " where rowid = ?", table.c_str());
     return new PreparedStatement(db, buf);
 }
@@ -203,7 +201,7 @@ PreparedStatement *StatementFactory::mkSelectAll(sqlite3 *db,
     char buf[1024];
     // k=0, v=1, flags=2, exptime=3, cas=4, vbucket=5, rowid=6
     snprintf(buf, sizeof(buf),
-             "select k, v, flags, exptime, cas, vbucket, vb_version, rowid "
+             "select k, v, flags, exptime, cas, vbucket, rowid "
              "from %s", table.c_str());
     return new PreparedStatement(db, buf);
 }
@@ -221,14 +219,5 @@ PreparedStatement *StatementFactory::mkDelete(sqlite3 *db,
     char buf[1024];
     snprintf(buf, sizeof(buf), "delete from %s where rowid = ?",
              table.c_str());
-    return new PreparedStatement(db, buf);
-}
-
-PreparedStatement *StatementFactory::mkDeleteVBucket(sqlite3 *db,
-                                                     const std::string &table) const {
-    char buf[1024];
-    snprintf(buf, sizeof(buf),
-             "delete from %s where vbucket = ? and vb_version <= ? and "
-             "rowid between ? and ?", table.c_str());
     return new PreparedStatement(db, buf);
 }

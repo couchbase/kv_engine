@@ -212,8 +212,6 @@ public:
                                           const std::string &table) const;
     virtual PreparedStatement *mkDelete(sqlite3 *dbh,
                                         const std::string &table) const;
-    virtual PreparedStatement *mkDeleteVBucket(sqlite3 *dbh,
-                                               const std::string &table) const;
 };
 
 /**
@@ -233,10 +231,9 @@ public:
         delete upd_stmt;
         delete sel_stmt;
         delete del_stmt;
-        delete del_vb_stmt;
         delete all_stmt;
         delete count_all_stmt;
-        ins_stmt = upd_stmt = sel_stmt = del_stmt = del_vb_stmt = all_stmt =
+        ins_stmt = upd_stmt = sel_stmt = del_stmt = all_stmt =
             count_all_stmt = NULL;
     }
 
@@ -254,10 +251,6 @@ public:
 
     PreparedStatement *del() {
         return del_stmt;
-    }
-
-    PreparedStatement *del_vb() {
-        return del_vb_stmt;
     }
 
     PreparedStatement *all() {
@@ -278,7 +271,6 @@ private:
     PreparedStatement *upd_stmt;
     PreparedStatement *sel_stmt;
     PreparedStatement *del_stmt;
-    PreparedStatement *del_vb_stmt;
     PreparedStatement *all_stmt;
     PreparedStatement *count_all_stmt;
 

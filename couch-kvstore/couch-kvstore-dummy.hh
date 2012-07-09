@@ -24,16 +24,14 @@ public:
     bool commit();
     void rollback();
     StorageProperties getStorageProperties();
-    void set(const Item &item, uint16_t vb_version,
+    void set(const Item &item,
              Callback<mutation_result> &cb);
     void get(const std::string &key, uint64_t rowid,
-             uint16_t vb, uint16_t vbver,
+             uint16_t vb,
              Callback<GetValue> &cb);
     void del(const Item &itm, uint64_t rowid,
-             uint16_t vbver, Callback<int> &cb);
-    bool delVBucket(uint16_t vbucket, uint16_t vb_version);
-    bool delVBucket(uint16_t vbucket, uint16_t vb_version,
-                    std::pair<int64_t, int64_t> row_range);
+             Callback<int> &cb);
+    bool delVBucket(uint16_t vbucket);
     vbucket_map_t listPersistedVbuckets(void);
     bool snapshotStats(const std::map<std::string, std::string> &m);
     bool snapshotVBuckets(const vbucket_map_t &m);

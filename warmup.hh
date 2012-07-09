@@ -99,7 +99,7 @@ private:
     void transition(int to);
 
 
-    LoadStorageKVPairCallback *createLKVPCB(const std::map<std::pair<uint16_t, uint16_t>, vbucket_state> &st,
+    LoadStorageKVPairCallback *createLKVPCB(const std::map<uint16_t, vbucket_state> &st,
                                             bool maybeEnable, int warmupState);
 
     WarmupState state;
@@ -110,7 +110,7 @@ private:
     hrtime_t metadata;
     hrtime_t warmup;
     // I need the initial vbstate transferred between two states :(
-    std::map<std::pair<uint16_t, uint16_t>, vbucket_state>  initialVbState;
+    std::map<uint16_t, vbucket_state>  initialVbState;
     // True if a mutation log should be reconstructed at warmup
     bool reconstructLog;
 

@@ -19,13 +19,11 @@ public:
 
     // Priorities for Read-Write dispatcher
     static const Priority VBucketPersistHighPriority;
-    static const Priority FastVBucketDeletionPriority;
+    static const Priority VBucketDeletionPriority;
     static const Priority FlusherPriority;
     static const Priority FlushAllPriority;
-    static const Priority VBucketDeletionPriority;
     static const Priority VBucketPersistLowPriority;
     static const Priority StatSnapPriority;
-    static const Priority InvalidItemDbPagerPriority;
     static const Priority MutationLogCompactorPriority;
     static const Priority AccessScannerPriority;
 

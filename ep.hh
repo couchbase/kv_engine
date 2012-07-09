@@ -106,184 +106,6 @@ protected:
 typedef std::pair<int64_t, int64_t> chunk_range_t;
 typedef std::list<chunk_range_t>::iterator chunk_range_iterator_t;
 
-/**
- * Collection class that maintains the sorted list of row ID chunk ranges
- * for a vbucket deletion.
- */
-class VBDeletionChunkRangeList {
-public:
-
-    VBDeletionChunkRangeList() { }
-
-    chunk_range_iterator_t begin() {
-        return range_list.begin();
-    }
-
-    chunk_range_iterator_t end() {
-        return range_list.end();
-    }
-
-    void add(int64_t start_id, int64_t end_id) {
-        chunk_range_t r(start_id, end_id);
-        add(r);
-    }
-
-    void add(chunk_range_t range) {
-        if (range.first > range.second || (size() > 0 && back().second > range.first)) {
-            return;
-        }
-        range_list.push_back(range);
-    }
-
-    const chunk_range_t& front() {
-        return range_list.front();
-    }
-
-    const chunk_range_t& back() {
-        return range_list.back();
-    }
-
-    size_t size() {
-        return range_list.size();
-    }
-
-    /**
-     * Split the given chunk range into two ranges by using the new range size
-     * @param it pointer to a chunk range to be split
-     * @param range_size range size used for chunk split
-     */
-    void splitChunkRange(chunk_range_iterator_t it, int64_t range_size) {
-        if (it == end() || (it->second - it->first) <= range_size) {
-            return;
-        }
-
-        int64_t range_end = it->second;
-        it->second = it->first + range_size;
-        chunk_range_t r(it->second + 1, range_end);
-        range_list.insert(++it, r);
-    }
-
-    /**
-     * Merge multiple chunk ranges into one range
-     * @param start the pointer to the start chunk range for the merge operation
-     * @param range_size the new range size used for merging chunk ranges
-     */
-    void mergeChunkRanges(chunk_range_iterator_t start, int64_t range_size) {
-        if (start == end() || (start->second - start->first) >= range_size) {
-            return;
-        }
-        // Find the closest chunk C1 whose end point is greater than the point advanced by
-        // the new range size from the start chunk range's start point.
-        chunk_range_iterator_t p = findClosestChunkByRangeSize(start, range_size);
-        if (p != end()) {
-            int64_t endpoint = start->first + range_size;
-            if (p->first <= endpoint && endpoint <= p->second) {
-                // Set the start chunk range's end point by using the new range size
-                start->second = endpoint;
-                p->first = endpoint + 1;
-            } else {
-                chunk_range_iterator_t iter = p;
-                start->second = (--iter)->second;
-            }
-        } else { // Reached to the end of the range list
-            start->second = back().second;
-        }
-        // Remove the list of chunks between the start chunk and the chunk C1, excluding
-        // these two chunks
-        removeChunkRanges(start, p);
-    }
-
-private:
-
-    /**
-     * Remove the sub list of chunk ranges between two iterator arguments, excluding the ranges
-     * pointed by these two iterators.
-     * @param first iterator that points to the first chunk range in the sub list
-     * @param last iterator that points to the last chunk range in the sub list
-     */
-    void removeChunkRanges(chunk_range_iterator_t first, chunk_range_iterator_t last) {
-        if (first == last || first == end() ||
-            (first != end() && last != end() && first->second > last->first)) {
-            return;
-        }
-        range_list.erase(++first, last);
-    }
-
-    /**
-     * Find the closest chunk range whose end point is greater than the point advanced by
-     * a specified range size from the start point of a given chunk range.
-     * @param it pointer to a given chunk range
-     * @param range_size range size to be advanced
-     * @return the iterator that points to the chunk range found
-     */
-    chunk_range_iterator_t findClosestChunkByRangeSize(chunk_range_iterator_t it,
-                                                       int64_t range_size) {
-        chunk_range_iterator_t p = it;
-        while (p != end() && p->second <= (it->first + range_size)) {
-            ++p;
-        }
-        return p;
-    }
-
-    std::list<chunk_range_t> range_list;
-};
-
-/**
- * Hash table visitor that builds ranges of row IDs for deleting vbuckets.
- */
-class VBucketDeletionVisitor : public HashTableVisitor {
-public:
-    /**
-     * Construct a VBucketDeletionVisitor that will attempt to get all the
-     * row_ids for a given vbucket from memory.
-     */
-    VBucketDeletionVisitor(size_t deletion_size)
-        : row_ids(new std::set<int64_t>), chunk_size(deletion_size) {}
-
-    ~VBucketDeletionVisitor() {
-        if (row_ids) {
-            delete row_ids;
-        }
-    }
-
-    void visit(StoredValue *v) {
-        if(v->hasId()) {
-            row_ids->insert(v->getId());
-        }
-    }
-
-    /**
-     * Construct the list of chunks from the row id list for a given vbucket.
-     * Note that each chunk might have a different range size as each chunk is
-     * simply created by taking "chunk_size" elements from the row id list.
-     *
-     */
-    void createRangeList(VBDeletionChunkRangeList& range_list) {
-        size_t counter = 0;
-        int64_t start_row_id = -1, end_row_id = -1;
-
-        std::set<int64_t>::iterator iter;
-        for (iter = row_ids->begin(); iter != row_ids->end(); ++iter) {
-            ++counter;
-            if (counter == 1) {
-                start_row_id = *iter;
-            }
-            if (counter == chunk_size || iter == --(row_ids->end())) {
-                end_row_id = *iter;
-                chunk_range_t r(start_row_id, end_row_id);
-                range_list.add(r);
-                counter = 0;
-            }
-        }
-
-        delete row_ids;
-        row_ids = NULL;
-    }
-
-    std::set<int64_t>                       *row_ids;
-    size_t                                   chunk_size;
-};
-
 // Forward declaration
 class Flusher;
 class Warmup;
@@ -662,7 +484,6 @@ public:
      *
      * @param key the key to be bg fetched
      * @param vbucket the vbucket in which the key lives
-     * @param vbver the version of the vbucket
      * @param rowid the rowid of the record within its shard
      * @param cookie the cookie of the requestor
      * @param type whether the fetch is for a non-resident value or metadata of
@@ -670,7 +491,6 @@ public:
      */
     void bgFetch(const std::string &key,
                  uint16_t vbucket,
-                 uint16_t vbver,
                  uint64_t rowid,
                  const void *cookie,
                  bg_fetch_type_t type = BG_FETCH_VALUE);
@@ -680,7 +500,6 @@ public:
      *
      * @param key the key that was fetched
      * @param vbucket the vbucket in which the key lived
-     * @param vbver the vbucket version
      * @param rowid the rowid of the record within its shard
      * @param cookie the cookie of the requestor
      * @param init the timestamp of when the request came in
@@ -689,7 +508,6 @@ public:
      */
     void completeBGFetch(const std::string &key,
                          uint16_t vbucket,
-                         uint16_t vbver,
                          uint64_t rowid,
                          const void *cookie,
                          hrtime_t init,
@@ -709,10 +527,6 @@ public:
 
     RCPtr<VBucket> getVBucket(uint16_t vbid);
 
-    uint16_t getVBucketVersion(uint16_t vbv) {
-        return vbuckets.getBucketVersion(vbv);
-    }
-
     uint64_t getLastPersistedCheckpointId(uint16_t vb) {
         return vbuckets.getPersistenceCheckpointId(vb);
     }
@@ -722,15 +536,9 @@ public:
                          vbucket_state_t state);
 
     /**
-     * Perform a ranged vbucket deletion.
-     */
-    vbucket_del_result completeVBucketDeletion(uint16_t vbid, uint16_t vb_version,
-                                               std::pair<int64_t, int64_t> row_range,
-                                               bool isLastChunk);
-    /**
      * Perform a fast vbucket deletion.
      */
-    vbucket_del_result completeVBucketDeletion(uint16_t vbid, uint16_t vbver);
+    vbucket_del_result completeVBucketDeletion(uint16_t vbid);
 
     /**
      * Deletes a vbucket
@@ -820,10 +628,6 @@ public:
         return tapUnderlying;
     }
 
-    const shared_ptr<InvalidItemDbPager> &getInvalidItemDbPager() {
-        return invalidItemDbPager;
-    }
-
     void deleteExpiredItems(std::list<std::pair<uint16_t, std::string> > &);
 
     /**
@@ -903,16 +707,16 @@ protected:
     void maybeEnableTraffic(void);
 
     // Methods called during warmup
-    std::map<std::pair<uint16_t, uint16_t>, vbucket_state> loadVBucketState();
+    std::map<uint16_t, vbucket_state> loadVBucketState();
     void loadSessionStats();
 
-    bool warmupFromLog(const std::map<std::pair<uint16_t, uint16_t>, vbucket_state> &state,
+    bool warmupFromLog(const std::map<uint16_t, vbucket_state> &state,
                        shared_ptr<Callback<GetValue> >cb);
     void warmupCompleted();
 
 private:
 
-    void scheduleVBDeletion(RCPtr<VBucket> vb, uint16_t vb_version,
+    void scheduleVBDeletion(RCPtr<VBucket> vb,
                             const void* cookie, double delay);
 
     RCPtr<VBucket> getVBucket(uint16_t vbid, vbucket_state_t wanted_state);
@@ -1022,7 +826,6 @@ private:
     Dispatcher                     *nonIODispatcher;
     Flusher                        *flusher;
     Warmup                         *warmupTask;
-    shared_ptr<InvalidItemDbPager>  invalidItemDbPager;
     VBucketMap                      vbuckets;
     SyncObject                      mutex;
 

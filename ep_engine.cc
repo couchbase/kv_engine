@@ -3190,13 +3190,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTimingStats(const void *cookie,
     add_casted_stat("disk_insert", stats.diskInsertHisto, add_stat, cookie);
     add_casted_stat("disk_update", stats.diskUpdateHisto, add_stat, cookie);
     add_casted_stat("disk_del", stats.diskDelHisto, add_stat, cookie);
-    add_casted_stat("disk_vb_chunk_del", stats.diskVBChunkDelHisto, add_stat, cookie);
     add_casted_stat("disk_vb_del", stats.diskVBDelHisto, add_stat, cookie);
     add_casted_stat("disk_invalid_vbtable_del", stats.diskInvalidVBTableDelHisto,
                     add_stat, cookie);
     add_casted_stat("disk_commit", stats.diskCommitHisto, add_stat, cookie);
-    add_casted_stat("disk_invalid_item_del", stats.diskInvaidItemDelHisto,
-                    add_stat, cookie);
     add_casted_stat("disk_vbstate_snapshot", stats.snapshotVbucketHisto,
                     add_stat, cookie);
 

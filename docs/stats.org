@@ -450,10 +450,7 @@ form to describe when time was spent doing various things:
 | disk_update           | waiting for disk to modify an existing item    |
 | disk_del              | waiting for disk to delete an item             |
 | disk_vb_del           | waiting for disk to delete a vbucket           |
-| disk_vb_chunk_del     | waiting for disk to delete a vbucket chunk     |
 | disk_commit           | waiting for a commit after a batch of updates  |
-| disk_invalid_item_del | Waiting for disk to delete a chunk of invalid  |
-|                       | items with the old vbucket version             |
 | disk_vbstate_snapshot | Time spent persisting vbucket state changes    |
 | klogPadding           | Amount of wasted "padding" space in the klog.  |
 | klogFlushTime         | Time spent flushing the klog.                  |
@@ -694,11 +691,9 @@ Reset Histograms:
 | disk_insert                       |
 | disk_update                       |
 | disk_del                          |
-| disk_vb_chunk_del                 |
 | disk_vb_del                       |
 | disk_invalid_vbtable_del          |
 | disk_commit                       |
-| disk_invalid_item_del             |
 | ep_latency_arith_cmd              |
 | ep_latency_get_cmd                |
 | ep_latency_store_cmd              |

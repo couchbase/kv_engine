@@ -879,11 +879,10 @@ private:
      * @param key the item's key
      * @param id the disk id of the item to fetch
      * @param vb the vbucket ID
-     * @param vbv the vbucket version
      * @param c the connection cookie
      */
-    void queueBGFetch_UNLOCKED(const std::string &key, uint64_t id, uint16_t vb,
-                               uint16_t vbv, const void *c);
+    void queueBGFetch_UNLOCKED(const std::string &key, uint64_t id,
+                               uint16_t vb, const void *c);
 
     TapProducer(EventuallyPersistentEngine &theEngine,
                 const void *cookie,

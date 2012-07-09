@@ -97,7 +97,7 @@ static void testSyncSet() {
     assert(ml.getFlushConfig() == FLUSH_COMMIT_1);
 }
 
-static void loaderFun(void *arg, uint16_t vb, uint16_t,
+static void loaderFun(void *arg, uint16_t vb,
                       const std::string &k, uint64_t rowid) {
     std::map<std::string, uint64_t> *maps = reinterpret_cast<std::map<std::string, uint64_t> *>(arg);
     maps[vb][k] = rowid;
@@ -130,9 +130,9 @@ static void testLogging() {
         MutationLog ml(TMP_LOG_FILE);
         ml.open();
         MutationLogHarvester h(ml);
-        h.setVbVer(1, 1);
-        h.setVbVer(2, 1);
-        h.setVbVer(3, 1);
+        h.setVBucket(1);
+        h.setVBucket(2);
+        h.setVBucket(3);
 
         assert(h.load());
 
@@ -193,9 +193,9 @@ static void testDelAll() {
         MutationLog ml(TMP_LOG_FILE);
         ml.open();
         MutationLogHarvester h(ml);
-        h.setVbVer(1, 1);
-        h.setVbVer(2, 1);
-        h.setVbVer(3, 1);
+        h.setVBucket(1);
+        h.setVBucket(2);
+        h.setVBucket(3);
 
         assert(h.load());
 
@@ -271,9 +271,9 @@ static void testLoggingDirty() {
         MutationLog ml(TMP_LOG_FILE);
         ml.open();
         MutationLogHarvester h(ml);
-        h.setVbVer(1, 1);
-        h.setVbVer(2, 1);
-        h.setVbVer(3, 1);
+        h.setVBucket(1);
+        h.setVBucket(2);
+        h.setVBucket(3);
 
         assert(!h.load());
 
@@ -356,9 +356,9 @@ static void testLoggingBadCRC() {
         MutationLog ml(TMP_LOG_FILE);
         ml.open();
         MutationLogHarvester h(ml);
-        h.setVbVer(1, 1);
-        h.setVbVer(2, 1);
-        h.setVbVer(3, 1);
+        h.setVBucket(1);
+        h.setVBucket(2);
+        h.setVBucket(3);
 
         try {
             h.load();
@@ -427,9 +427,9 @@ static void testLoggingShortRead() {
         try {
             ml.open();
             MutationLogHarvester h(ml);
-            h.setVbVer(1, 1);
-            h.setVbVer(2, 1);
-            h.setVbVer(3, 1);
+            h.setVBucket(1);
+            h.setVBucket(2);
+            h.setVBucket(3);
 
             h.load();
             abort();

@@ -127,7 +127,7 @@ public:
     void callback(GetValue &gv) {
         Item *i = gv.getValue();
         adjust(&i);
-        dest->set(*i, 0, mv);
+        dest->set(*i, mv);
         delete i;
 
         if ((++transferred % txnSize) == 0) {

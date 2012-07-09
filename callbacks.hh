@@ -14,13 +14,12 @@ class Item;
 class GetValue {
 public:
     GetValue() : value(NULL), id(-1),
-                 vb_version(-1), status(ENGINE_KEY_ENOENT),
+                 status(ENGINE_KEY_ENOENT),
                  partial(false) { }
 
     explicit GetValue(Item *v, ENGINE_ERROR_CODE s=ENGINE_SUCCESS,
-                      uint64_t i = -1, uint16_t vbucket_version = -1,
-                      bool incomplete = false) :
-        value(v), id(i), vb_version(vbucket_version), status(s),
+                      uint64_t i = -1, bool incomplete = false) :
+        value(v), id(i), status(s),
         partial(incomplete) { }
 
 
@@ -45,11 +44,6 @@ public:
      */
     uint64_t getId() { return id; }
 
-    /**
-     * Get the item's vbucket version (if applicable).
-     */
-    uint16_t getVBucketVersion() { return vb_version; }
-
     bool isPartial() const {
         return partial;
     }
@@ -62,7 +56,6 @@ private:
 
     Item* value;
     uint64_t id;
-    uint16_t vb_version;
     ENGINE_ERROR_CODE status;
     bool partial;
 };

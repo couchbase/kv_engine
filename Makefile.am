@@ -243,7 +243,6 @@ check_PROGRAMS=\
                pathexpand_test \
                priority_test \
                ringbuffer_test \
-               vb_del_chunk_list_test \
                vbucket_test
 
 if HAVE_GOOGLETEST
@@ -418,10 +417,6 @@ ringbuffer_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
 ringbuffer_test_SOURCES = t/ringbuffer_test.cc ringbuffer.hh
 ringbuffer_test_DEPENDENCIES = ringbuffer.hh
 
-vb_del_chunk_list_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
-vb_del_chunk_list_test_SOURCES = t/vb_del_chunk_list_test.cc ep.hh
-vb_del_chunk_list_test_DEPENDENCIES = ep.hh
-
 if BUILD_GETHRTIME
 ep_la_SOURCES += gethrtime.c
 hrtime_test_SOURCES += gethrtime.c
@@ -503,7 +498,7 @@ engine_tests: ep.la ep_testsuite.la mbbackup-0002.mbb
                 $(ENGINE_TESTS_EXTRA_OPTIONS) \
                 -E .libs/ep.so -t $(TEST_TIMEOUT) \
 		-T .libs/ep_testsuite.so \
-		-e 'flushall_enabled=true;ht_size=13;ht_locks=7;initfile=t/test_pragma.sql;min_data_age=0;db_strategy=multiDB'
+		-e 'flushall_enabled=true;ht_size=13;ht_locks=7;initfile=t/test_pragma.sql;min_data_age=0;db_strategy=multiMTVBDB'
 
 test: all check-TESTS engine_tests sizes
 	./sizes

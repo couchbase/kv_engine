@@ -132,7 +132,7 @@ public:
         assert(epstore);
     }
 
-    void initVBucket(uint16_t vbid, uint16_t vb_version,
+    void initVBucket(uint16_t vbid,
                      const vbucket_state &vbstate);
 
     void callback(GetValue &val);
@@ -154,7 +154,7 @@ private:
     int         warmupState;
 };
 
-void LoadStorageKVPairCallback::initVBucket(uint16_t vbid, uint16_t vb_version,
+void LoadStorageKVPairCallback::initVBucket(uint16_t vbid,
                                             const vbucket_state &vbs) {
     RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
     if (!vb) {
@@ -168,8 +168,6 @@ void LoadStorageKVPairCallback::initVBucket(uint16_t vbid, uint16_t vb_version,
     vb->checkpointManager.setOpenCheckpointId(vbs.checkpointId);
     // Pass the max deleted seqno for each vbucket.
     vb->ht.setMaxDeletedSeqno(vbs.maxDeletedSeqno);
-    // For each vbucket, set its vbucket version.
-    vbuckets.setBucketVersion(vbid, vb_version);
     // For each vbucket, set its latest checkpoint Id that was
     // successfully persisted.
     vbuckets.setPersistenceCheckpointId(vbid, vbs.checkpointId - 1);
@@ -178,24 +176,11 @@ void LoadStorageKVPairCallback::initVBucket(uint16_t vbid, uint16_t vb_version,
 void LoadStorageKVPairCallback::callback(GetValue &val) {
     Item *i = val.getValue();
     if (i != NULL) {
-        uint16_t vb_version = vbuckets.getBucketVersion(i->getVBucketId());
-        if (vb_version != static_cast<uint16_t>(-1) && val.getVBucketVersion() != vb_version) {
-            epstore->getInvalidItemDbPager()->addInvalidItem(i, val.getVBucketVersion());
-
-            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "Received invalid item (v %d != v %d).. ignored",
-                             val.getVBucketVersion(), vb_version);
-
-            delete i;
-            return;
-        }
-
         RCPtr<VBucket> vb = vbuckets.getBucket(i->getVBucketId());
         if (!vb) {
             vb.reset(new VBucket(i->getVBucketId(), vbucket_state_dead, stats,
                                  epstore->getEPEngine().getCheckpointConfig()));
             vbuckets.addBucket(vb);
-            vbuckets.setBucketVersion(i->getVBucketId(), val.getVBucketVersion());
         }
         bool succeeded(false);
         int retry = 2;
@@ -401,13 +386,13 @@ bool Warmup::keyDump(Dispatcher&, TaskId)
     if (store->roUnderlying->isKeyDumpSupported()) {
         shared_ptr<Callback<GetValue> > cb(createLKVPCB(initialVbState, false,
                                                         state.getState()));
-        std::map<std::pair<uint16_t, uint16_t>, vbucket_state>::const_iterator it;
+        std::map<uint16_t, vbucket_state>::const_iterator it;
         std::vector<uint16_t> vbids;
         for (it = initialVbState.begin(); it != initialVbState.end(); ++it) {
-            std::pair<uint16_t, uint16_t> vbp = it->first;
+            uint16_t vbid = it->first;
             vbucket_state vbs = it->second;
             if (vbs.state == vbucket_state_active || vbs.state == vbucket_state_replica) {
-                vbids.push_back(vbp.first);
+                vbids.push_back(vbid);
             }
         }
 
@@ -684,17 +669,17 @@ void Warmup::addStats(ADD_STAT add_stat, const void *c) const
     }
 }
 
-LoadStorageKVPairCallback *Warmup::createLKVPCB(const std::map<std::pair<uint16_t, uint16_t>, vbucket_state> &st,
+LoadStorageKVPairCallback *Warmup::createLKVPCB(const std::map<uint16_t, vbucket_state> &st,
                                                 bool maybeEnable, int warmupState)
 {
     LoadStorageKVPairCallback *load_cb;
     load_cb = new LoadStorageKVPairCallback(store, maybeEnable, warmupState);
-    std::map<std::pair<uint16_t, uint16_t>, vbucket_state>::const_iterator it;
+    std::map<uint16_t, vbucket_state>::const_iterator it;
     for (it = st.begin(); it != st.end(); ++it) {
-        std::pair<uint16_t, uint16_t> vbp = it->first;
+        uint16_t vbid = it->first;
         vbucket_state vbs = it->second;
         vbs.checkpointId++;
-        load_cb->initVBucket(vbp.first, vbp.second, vbs);
+        load_cb->initVBucket(vbid, vbs);
     }
 
     return load_cb;

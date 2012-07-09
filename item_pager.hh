@@ -71,48 +71,4 @@ private:
     bool                       available;
 };
 
-/**
- * Dispatcher job responsible for purging invalid items with the old vbucket version
- * from disk.
- */
-class InvalidItemDbPager : public DispatcherCallback {
-public:
-
-    /**
-     * Construct an InvalidItemDbPager.
-     *
-     * @param s the store
-     * @param st the stats
-     * @param deletion_size removal chunk size
-     */
-    InvalidItemDbPager(EventuallyPersistentStore *s, EPStats &st,
-                       size_t deletion_size) :
-        store(s), stats(st), chunk_size(deletion_size) { }
-
-    ~InvalidItemDbPager() {
-        std::map<uint16_t, std::vector<int64_t>* >::iterator it;
-        for (it = vb_items.begin(); it != vb_items.end(); it++) {
-            delete (*it).second;
-        }
-    }
-
-    bool callback(Dispatcher &d, TaskId t);
-
-    void addInvalidItem(Item *item, uint16_t vb_version);
-
-    void createRangeList();
-
-    std::string description() {
-        return std::string("Removing items with the old vbucket version from disk.");
-    }
-
-private:
-    EventuallyPersistentStore                    *store;
-    EPStats                                      &stats;
-    size_t                                        chunk_size;
-    std::map<uint16_t, uint16_t>                  vb_versions;
-    std::map<uint16_t, std::vector<int64_t>* >    vb_items;
-    std::map<uint16_t, std::list<row_range_t> >   vb_row_ranges;
-};
-
 #endif /* ITEM_PAGER_HH */

@@ -446,7 +446,7 @@ public:
             }
             it->setCas(itm_meta.cas);
             it->setSeqno(itm_meta.seqno);
-            GetValue rv(it, ENGINE_SUCCESS, -1, -1, partial);
+            GetValue rv(it, ENGINE_SUCCESS, -1, partial);
             callback->cb->callback(rv);
             ++num;
         }
@@ -1275,9 +1275,8 @@ void MemcachedEngine::snapshotVBuckets(const vbucket_map_t &m, Callback<bool> &c
     uint8_t *dest = req->bytes + sizeof(req->bytes);
     vbucket_map_t::const_iterator iter;
     for (iter = m.begin(); iter != m.end(); ++iter) {
-        std::pair<uint16_t, uint16_t> first = iter->first;
         const vbucket_state vbstate = iter->second;
-        uint16_t vbid = ntohs(first.first);
+        uint16_t vbid = ntohs(iter->first);
         uint32_t state = ntohl((uint32_t)vbstate.state);
         uint64_t checkpointId = ntohll(vbstate.checkpointId);
 

@@ -47,7 +47,7 @@ public:
 
     virtual const std::vector<Statements *> &allStatements() = 0;
 
-    virtual Statements *getStatements(uint16_t vbid, uint16_t vbver,
+    virtual Statements *getStatements(uint16_t vbid,
                                       const std::string &key) = 0;
 
     PreparedStatement *getInsVBucketStateST() {
@@ -196,10 +196,9 @@ public:
         return statements;
     }
 
-    Statements *getStatements(uint16_t vbid, uint16_t vbver,
+    Statements *getStatements(uint16_t vbid,
                               const std::string &key) {
         (void)vbid;
-        (void)vbver;
         return statements.at(getDbShardIdForKey(key));
     }
 
@@ -223,9 +222,6 @@ public:
             switch (vbst) {
             case select_all:
                 rv.push_back((*it)->all());
-                break;
-            case delete_vbucket:
-                rv.push_back((*it)->del_vb());
                 break;
             default:
                 break;
@@ -333,9 +329,8 @@ public:
         return statements;
     }
 
-    virtual Statements *getStatements(uint16_t vbid, uint16_t vbver,
+    virtual Statements *getStatements(uint16_t vbid,
                                       const std::string &key) {
-        (void)vbver;
         (void)key;
         assert(static_cast<size_t>(vbid) < statements.size());
         return statements.at(vbid);
@@ -360,9 +355,6 @@ public:
         switch (vbst) {
         case select_all:
             rv.push_back(statements.at(vb)->all());
-            break;
-        case delete_vbucket:
-            rv.push_back(statements.at(vb)->del_vb());
             break;
         default:
             break;
@@ -430,7 +422,7 @@ public:
 
     virtual ~ShardedMultiTableSqliteStrategy() { }
 
-    Statements *getStatements(uint16_t vbid, uint16_t vbver,
+    Statements *getStatements(uint16_t vbid,
                               const std::string &key);
 
     virtual std::string getKvTableName(const std::string &key, const uint16_t vbid);

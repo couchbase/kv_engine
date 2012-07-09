@@ -1024,9 +1024,9 @@ bool TapProducer::waitForOpaqueMsgAck() {
 class TapBGFetchCallback : public DispatcherCallback {
 public:
     TapBGFetchCallback(EventuallyPersistentEngine *e, const std::string &n,
-                       const std::string &k, uint16_t vbid, uint16_t vbv,
+                       const std::string &k, uint16_t vbid,
                        uint64_t r, const void *c) :
-        epe(e), name(n), key(k), vbucket(vbid), vbver(vbv), rowid(r), cookie(c),
+        epe(e), name(n), key(k), vbucket(vbid), rowid(r), cookie(c),
         init(gethrtime()), start(0), counter(e->getEpStore()->bgFetchQueue) {
         assert(epe);
         assert(cookie);
@@ -1040,7 +1040,7 @@ public:
         EventuallyPersistentStore *epstore = epe->getEpStore();
         assert(epstore);
 
-        epstore->getTapUnderlying()->get(key, rowid, vbucket, vbver, gcb);
+        epstore->getTapUnderlying()->get(key, rowid, vbucket, gcb);
         gcb.waitForValue();
         assert(gcb.fired);
 
@@ -1062,8 +1062,7 @@ public:
                     epe->getTapConnMap().performTapOp(name, tapop, gcb.val.getValue());
                     // As an item is deleted from hash table, push the item
                     // deletion event into the TAP queue.
-                    queued_item qitem(new QueuedItem(key, vbucket, queue_op_del,
-                                                     vbver, -1));
+                    queued_item qitem(new QueuedItem(key, vbucket, queue_op_del, -1));
                     std::list<queued_item> del_items;
                     del_items.push_back(qitem);
                     epe->getTapConnMap().setEvents(name, &del_items);
@@ -1116,7 +1115,6 @@ private:
     const std::string           name;
     std::string                 key;
     uint16_t                    vbucket;
-    uint16_t                    vbver;
     uint64_t                    rowid;
     const void                 *cookie;
 
@@ -1127,11 +1125,10 @@ private:
 };
 
 void TapProducer::queueBGFetch_UNLOCKED(const std::string &key, uint64_t id,
-                                        uint16_t vb, uint16_t vbv, const void *c) {
+                                        uint16_t vb, const void *c) {
     shared_ptr<TapBGFetchCallback> dcb(new TapBGFetchCallback(&engine,
                                                               getName(), key,
-                                                              vb, vbv,
-                                                              id, c));
+                                                              vb, id, c));
     engine.getEpStore()->getTapDispatcher()->schedule(dcb, NULL, Priority::TapBgFetcherPriority);
     ++bgJobIssued;
     std::map<uint16_t, TapCheckpointState>::iterator it = tapCheckpointState.find(vb);
@@ -1805,8 +1802,7 @@ Item* TapProducer::getNextItem(const void *c, uint16_t *vbucket, tap_event_t &re
                 itm->setSeqno(qi->getSeqno());
                 ret = TAP_DELETION;
             } else if (r == ENGINE_EWOULDBLOCK) {
-                queueBGFetch_UNLOCKED(qi->getKey(), gv.getId(), *vbucket,
-                                      engine.getEpStore()->getVBucketVersion(*vbucket), c);
+                queueBGFetch_UNLOCKED(qi->getKey(), gv.getId(), *vbucket, c);
                 // If there's an item ready, return NOOP so we'll come
                 // back immediately, otherwise pause the connection
                 // while we wait.

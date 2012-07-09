@@ -37,12 +37,11 @@ struct vbucket_state {
 /**
  * Type of vbucket map.
  *
- * key.first is the vbucket identifier.
- * key.second is the vbucket version
+ * key is the vbucket identifier.
  * value is a pair of string representation of the vbucket state and
  * its latest checkpoint Id persisted.
  */
-typedef std::map<std::pair<uint16_t, uint16_t>, vbucket_state> vbucket_map_t;
+typedef std::map<uint16_t, vbucket_state> vbucket_map_t;
 
 /**
  * Properites of the storage layer.
@@ -161,35 +160,29 @@ public:
     /**
      * Set an item into the kv store.
      */
-    virtual void set(const Item &item, uint16_t vb_version,
+    virtual void set(const Item &item,
                      Callback<mutation_result> &cb) = 0;
 
     /**
      * Get an item from the kv store.
      */
     virtual void get(const std::string &key, uint64_t rowid,
-                     uint16_t vb, uint16_t vbver,
+                     uint16_t vb,
                      Callback<GetValue> &cb) = 0;
 
     /**
      * Delete an item from the kv store.
      */
     virtual void del(const Item &itm, uint64_t rowid,
-                     uint16_t vbver, Callback<int> &cb) = 0;
+                     Callback<int> &cb) = 0;
 
     /**
-     * Bulk delete some versioned records from a vbucket.
+     * Delete a given vbucket database.
      */
-    virtual bool delVBucket(uint16_t vbucket, uint16_t vb_version) = 0;
+    virtual bool delVBucket(uint16_t vbucket) = 0;
 
     /**
-     * Bulk delete some versioned records from a vbucket.
-     */
-    virtual bool delVBucket(uint16_t vbucket, uint16_t vb_version,
-                            std::pair<int64_t, int64_t> row_range) = 0;
-
-    /**
-     * Get a list of all persisted vbuckets (with their versions and states).
+     * Get a list of all persisted vbuckets (with their states).
      */
     virtual vbucket_map_t listPersistedVbuckets(void) = 0;
 
@@ -305,7 +298,7 @@ public:
      * @return number of items loaded
      */
     virtual size_t warmup(MutationLog &lf,
-                          const std::map<std::pair<uint16_t, uint16_t>, vbucket_state> &vb,
+                          const std::map<uint16_t, vbucket_state> &vbmap,
                           Callback<GetValue> &cb,
                           Callback<size_t> &estimate);
 

@@ -446,7 +446,7 @@ typedef std::pair<uint64_t, uint8_t> mutation_log_event_t;
 /**
  * MutationLogHarvester::apply callback type.
  */
-typedef void (*mlCallback)(void*, uint16_t, uint16_t, const std::string &, uint64_t);
+typedef void (*mlCallback)(void*, uint16_t, const std::string &, uint64_t);
 
 /**
  * Type for mutation log leftovers.
@@ -464,18 +464,13 @@ struct mutation_log_uncommitted_t {
 class MutationLogHarvester {
 public:
     MutationLogHarvester(MutationLog &ml) : mlog(ml) {
-        memset(vbids, 0, sizeof(vbids));
         memset(itemsSeen, 0, sizeof(itemsSeen));
     }
 
     /**
-     * Set a vbucket version before loading.
-     *
-     * Provided versions will be given to the callbacks at apply time.
-     * vbuckets that are not registered here will not be considered.
+     * Set a vbucket before loading.
      */
-    void setVbVer(uint16_t vb, uint16_t ver) {
-        vbids[vb] = ver;
+    void setVBucket(uint16_t vb) {
         vbid_set.insert(vb);
     }
 
@@ -513,7 +508,6 @@ private:
     MutationLog &mlog;
 
     std::set<uint16_t> vbid_set;
-    uint16_t vbids[65536];
 
     unordered_map<uint16_t, unordered_map<std::string, uint64_t> > committed;
     unordered_map<uint16_t, unordered_map<std::string, mutation_log_event_t> > loading;

@@ -24,7 +24,6 @@ void BlackholeKVStore::reset()
 }
 
 void BlackholeKVStore::set(const Item &itm,
-                           uint16_t,
                            Callback<mutation_result> &cb)
 {
     int cr = (itm.getId() <= 0) ? 1 : 0;
@@ -35,7 +34,6 @@ void BlackholeKVStore::set(const Item &itm,
 void BlackholeKVStore::get(const std::string &,
                            uint64_t,
                            uint16_t,
-                           uint16_t,
                            Callback<GetValue> &cb)
 {
     GetValue rv;
@@ -45,28 +43,20 @@ void BlackholeKVStore::get(const std::string &,
 
 void BlackholeKVStore::del(const Item &,
                            uint64_t,
-                           uint16_t,
                            Callback<int> &cb)
 {
     int val = 0;
     cb.callback(val);
 }
 
-bool BlackholeKVStore::delVBucket(uint16_t,
-                                  uint16_t,
-                                  std::pair<int64_t, int64_t>)
-{
-    return true;
-}
-
-bool BlackholeKVStore::delVBucket(uint16_t, uint16_t)
+bool BlackholeKVStore::delVBucket(uint16_t)
 {
     return true;
 }
 
 vbucket_map_t BlackholeKVStore::listPersistedVbuckets()
 {
-    std::map<std::pair<uint16_t, uint16_t>, vbucket_state> rv;
+    std::map<uint16_t, vbucket_state> rv;
     return rv;
 }
 

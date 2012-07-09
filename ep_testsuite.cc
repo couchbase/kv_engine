@@ -93,7 +93,7 @@ extern "C" {
 
 #define WHITESPACE_DB "whitespace sucks.db"
 #define MULTI_DISPATCHER_CONFIG \
-    "initfile=t/wal.sql;ht_size=129;ht_locks=3;chk_remover_stime=1;chk_period=60"
+    "initfile=t/wal.sql;ht_size=129;ht_locks=3;chk_remover_stime=1;chk_period=60;db_strategy=multiMTVBDB"
 
 protocol_binary_response_status last_status(static_cast<protocol_binary_response_status>(0));
 char *last_key = NULL;

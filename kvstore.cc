@@ -56,14 +56,14 @@ struct WarmupCookie {
     size_t error;
 };
 
-static void warmupCallback(void *arg, uint16_t vb, uint16_t vbver,
+static void warmupCallback(void *arg, uint16_t vb,
                            const std::string &key, uint64_t rowid)
 {
     WarmupCookie *cookie = static_cast<WarmupCookie*>(arg);
 
     if (cookie->engine->stillWarmingUp()) {
         RememberingCallback<GetValue> cb;
-        cookie->store->get(key, rowid, vb, vbver, cb);
+        cookie->store->get(key, rowid, vb, cb);
         cb.waitForValue();
 
         if (cb.val.getStatus() == ENGINE_SUCCESS) {
@@ -81,14 +81,14 @@ static void warmupCallback(void *arg, uint16_t vb, uint16_t vbver,
 }
 
 size_t KVStore::warmup(MutationLog &lf,
-                       const std::map<std::pair<uint16_t, uint16_t>, vbucket_state> &vbmap,
+                       const std::map<uint16_t, vbucket_state> &vbmap,
                        Callback<GetValue> &cb,
                        Callback<size_t> &estimate)
 {
     MutationLogHarvester harvester(lf);
-    std::map<std::pair<uint16_t, uint16_t>, vbucket_state>::const_iterator it;
+    std::map<uint16_t, vbucket_state>::const_iterator it;
     for (it = vbmap.begin(); it != vbmap.end(); ++it) {
-        harvester.setVbVer(it->first.first, it->first.second);
+        harvester.setVBucket(it->first);
     }
 
     hrtime_t start = gethrtime();

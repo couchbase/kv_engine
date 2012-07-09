@@ -12,7 +12,7 @@ int main(int argc, char **argv) {
    assert(Priority::VBucketPersistHighPriority > Priority::VKeyStatBgFetcherPriority);
    assert(Priority::VKeyStatBgFetcherPriority > Priority::FlusherPriority);
    assert(Priority::FlusherPriority > Priority::ItemPagerPriority);
-   assert(Priority::ItemPagerPriority > Priority::VBucketDeletionPriority);
+   assert(Priority::ItemPagerPriority > Priority::BackfillTaskPriority);
 
    return 0;
 }

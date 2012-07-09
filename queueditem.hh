@@ -28,10 +28,10 @@ typedef enum {
 class QueuedItem : public RCValue {
 public:
     QueuedItem(const std::string &k, const uint16_t vb,
-               enum queue_operation o, const uint16_t vb_version = -1,
-               const int64_t rid = -1, const uint32_t seqno = 1)
+               enum queue_operation o, const int64_t rid = -1,
+               const uint32_t seqno = 1)
         : key(k), rowId(rid), seqNum(seqno), queued(ep_current_time()),
-          op(o), vbucket(vb), vbucketVersion(vb_version)
+          op(o), vbucket(vb)
     {
         ObjectRegistry::onCreateQueuedItem(this);
     }
@@ -42,7 +42,6 @@ public:
 
     const std::string &getKey(void) const { return key; }
     uint16_t getVBucketId(void) const { return vbucket; }
-    uint16_t getVBucketVersion(void) const { return vbucketVersion; }
     uint32_t getQueuedTime(void) const { return queued; }
     enum queue_operation getOperation(void) const { return op; }
     int64_t getRowId() const { return rowId; }
@@ -72,7 +71,6 @@ private:
     uint32_t queued;
     enum queue_operation op;
     uint16_t vbucket;
-    uint16_t vbucketVersion;
 
     DISALLOW_COPY_AND_ASSIGN(QueuedItem);
 };

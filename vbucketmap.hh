@@ -21,8 +21,6 @@ public:
     std::vector<int> getBuckets(void) const;
     bool isBucketDeletion(uint16_t id) const;
     bool setBucketDeletion(uint16_t id, bool delBucket);
-    uint16_t getBucketVersion(uint16_t id) const;
-    void setBucketVersion(uint16_t id, uint16_t vb_version);
     uint64_t getPersistenceCheckpointId(uint16_t id);
     void setPersistenceCheckpointId(uint16_t id, uint64_t checkpointId);
     /**
@@ -89,7 +87,6 @@ private:
 
     RCPtr<VBucket> *buckets;
     Atomic<bool> *bucketDeletion;
-    Atomic<uint16_t> *bucketVersions;
     Atomic<uint64_t> *persistenceCheckpointIds;
     Atomic<bool> highPriorityVbSnapshot;
     Atomic<bool> lowPriorityVbSnapshot;

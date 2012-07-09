@@ -118,7 +118,6 @@ void SqliteStrategy::initMetaTables() {
     assert(db);
     execute("create table if not exists vbucket_states"
             " (vbid integer primary key on conflict replace,"
-            "  vb_version integer,"
             "  state varchar(16),"
             "  checkpoint_id integer,"
             "  last_change datetime)");
@@ -131,14 +130,14 @@ void SqliteStrategy::initMetaTables() {
 
 void SqliteStrategy::initMetaStatements(void) {
     const char *ins_query = "insert into vbucket_states"
-        " (vbid, vb_version, state, checkpoint_id, last_change)"
-        " values (?, ?, ?, ?, current_timestamp)";
+        " (vbid, state, checkpoint_id, last_change)"
+        " values (?, ?, ?, current_timestamp)";
     ins_vb_stmt = new PreparedStatement(db, ins_query);
 
     const char *del_query = "delete from vbucket_states";
     clear_vb_stmt = new PreparedStatement(db, del_query);
 
-    const char *sel_query = "select vbid, vb_version, state, checkpoint_id from vbucket_states";
+    const char *sel_query = "select vbid, state, checkpoint_id from vbucket_states";
     sel_vb_stmt = new PreparedStatement(db, sel_query);
 
     const char *clear_stats_query = "delete from stats_snap";
@@ -244,7 +243,6 @@ void SingleTableSqliteStrategy::initTables(void) {
     assert(db);
     execute("create table if not exists kv"
             " (vbucket integer,"
-            "  vb_version integer,"
             "  k varchar(250), "
             "  flags integer,"
             "  exptime integer,"
@@ -312,7 +310,6 @@ void MultiDBSingleTableSqliteStrategy::initTables() {
         snprintf(buf, sizeof(buf),
                  "create table if not exists kv_%d.kv"
                  " (vbucket integer,"
-                 "  vb_version integer,"
                  "  k varchar(250),"
                  "  flags integer,"
                  "  exptime integer,"
@@ -395,7 +392,6 @@ void MultiTableSqliteStrategy::initTables() {
         snprintf(buf, sizeof(buf),
                  "create table if not exists kv_%d"
                  " (vbucket integer,"
-                 "  vb_version integer,"
                  "  k varchar(250),"
                  "  flags integer,"
                  "  exptime integer,"
@@ -472,7 +468,6 @@ void MultiTableSqliteStrategy::createVBTable(uint16_t vbucket) {
     snprintf(buf, sizeof(buf),
              "create table if not exists kv_%d"
              " (vbucket integer,"
-             "  vb_version integer,"
              "  k varchar(250),"
              "  flags integer,"
              "  exptime integer,"
@@ -495,7 +490,7 @@ void MultiTableSqliteStrategy::destroyStatements() {
 // ----------------------------------------------------------------------
 //
 
-Statements *ShardedMultiTableSqliteStrategy::getStatements(uint16_t vbid, uint16_t,
+Statements *ShardedMultiTableSqliteStrategy::getStatements(uint16_t vbid,
                                                            const std::string &key) {
     size_t shard(getDbShardIdForKey(key));
     assert(static_cast<size_t>(shard) < statementsPerShard.size());
@@ -568,7 +563,6 @@ void ShardedMultiTableSqliteStrategy::createVBTable(uint16_t vbucket) {
         snprintf(buf, sizeof(buf),
                  "create table if not exists kv_%d.kv_%d"
                  " (vbucket integer,"
-                 "  vb_version integer,"
                  "  k varchar(250),"
                  "  flags integer,"
                  "  exptime integer,"
@@ -587,9 +581,6 @@ std::vector<PreparedStatement*> ShardedMultiTableSqliteStrategy::getVBStatements
         switch (vbst) {
         case select_all:
             rv.push_back(st.at(vb)->all());
-            break;
-        case delete_vbucket:
-            rv.push_back(st.at(vb)->del_vb());
             break;
         default:
             break;
@@ -619,7 +610,6 @@ void ShardedMultiTableSqliteStrategy::initTables() {
             snprintf(buf, sizeof(buf),
                      "create table if not exists kv_%d.kv_%d"
                      " (vbucket integer,"
-                     "  vb_version integer,"
                      "  k varchar(250),"
                      "  flags integer,"
                      "  exptime integer,"
@@ -720,7 +710,6 @@ void ShardedByVBucketSqliteStrategy::createVBTable(uint16_t vbucket) {
     snprintf(buf, sizeof(buf),
              "create table if not exists kv_%d.kv_%d"
              " (vbucket integer,"
-             "  vb_version integer,"
              "  k varchar(250),"
              "  flags integer,"
              "  exptime integer,"
@@ -751,7 +740,6 @@ void ShardedByVBucketSqliteStrategy::initTables() {
         snprintf(buf, sizeof(buf),
                  "create table if not exists kv_%d.kv_%d"
                  " (vbucket integer,"
-                 "  vb_version integer,"
                  "  k varchar(250),"
                  "  flags integer,"
                  "  exptime integer,"

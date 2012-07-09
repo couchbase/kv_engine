@@ -32,30 +32,23 @@ void CouchKVStore::destroyInvalidVBuckets(bool)
     throw std::runtime_error("This kvstore should never be used");
 }
 
-void CouchKVStore::set(const Item &, uint16_t, Callback<mutation_result> &)
+void CouchKVStore::set(const Item &, Callback<mutation_result> &)
 {
     throw std::runtime_error("This kvstore should never be used");
 }
 
-void CouchKVStore::get(const std::string &, uint64_t, uint16_t, uint16_t,
+void CouchKVStore::get(const std::string &, uint64_t, uint16_t,
                        Callback<GetValue> &)
 {
     throw std::runtime_error("This kvstore should never be used");
 }
 
-void CouchKVStore::del(const Item &, uint64_t, uint16_t, Callback<int> &)
+void CouchKVStore::del(const Item &, uint64_t, Callback<int> &)
 {
     throw std::runtime_error("This kvstore should never be used");
 }
 
-bool CouchKVStore::delVBucket(uint16_t,
-                              uint16_t,
-                              std::pair<int64_t, int64_t>)
-{
-    throw std::runtime_error("This kvstore should never be used");
-}
-
-bool CouchKVStore::delVBucket(uint16_t, uint16_t)
+bool CouchKVStore::delVBucket(uint16_t)
 {
     throw std::runtime_error("This kvstore should never be used");
 }

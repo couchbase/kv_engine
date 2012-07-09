@@ -338,9 +338,6 @@ public:
     //! Histogram of delete disk writes
     Histogram<hrtime_t> diskDelHisto;
 
-    //! Histogram of execution time of disk vbucket chunk deletions
-    Histogram<hrtime_t> diskVBChunkDelHisto;
-
     //! Histogram of execution time of disk vbucket deletions
     Histogram<hrtime_t> diskVBDelHisto;
 
@@ -349,9 +346,6 @@ public:
 
     //! Histogram of disk commits
     Histogram<hrtime_t> diskCommitHisto;
-
-    //! Histogram of purging a chunk of items with the old vbucket version from disk
-    Histogram<hrtime_t> diskInvaidItemDelHisto;
 
     Histogram<hrtime_t> checkpointRevertHisto;
 
@@ -433,11 +427,9 @@ public:
         diskInsertHisto.reset();
         diskUpdateHisto.reset();
         diskDelHisto.reset();
-        diskVBChunkDelHisto.reset();
         diskVBDelHisto.reset();
         diskInvalidVBTableDelHisto.reset();
         diskCommitHisto.reset();
-        diskInvaidItemDelHisto.reset();
 
         dataAgeHisto.reset();
         itemAllocSizeHisto.reset();

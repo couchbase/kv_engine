@@ -133,24 +133,21 @@ public:
     /**
      * Overrides set().
      */
-    void set(const Item &item, uint16_t vb_version, Callback<mutation_result> &cb);
+    void set(const Item &item, Callback<mutation_result> &cb);
 
     /**
      * Overrides get().
      */
     void get(const std::string &key, uint64_t rowid,
-             uint16_t vb, uint16_t vbver, Callback<GetValue> &cb);
+             uint16_t vb, Callback<GetValue> &cb);
 
     /**
      * Overrides del().
      */
     void del(const Item &itm, uint64_t rowid,
-             uint16_t vbver, Callback<int> &cb);
+             Callback<int> &cb);
 
-    bool delVBucket(uint16_t vbucket, uint16_t vb_version);
-
-    bool delVBucket(uint16_t vbucket, uint16_t vb_version,
-                    std::pair<int64_t, int64_t> row_range);
+    bool delVBucket(uint16_t vbucket);
 
     vbucket_map_t listPersistedVbuckets(void);
 
@@ -197,7 +194,7 @@ public:
      * Override the warmup method to bulk load the items
      */
     virtual size_t warmup(MutationLog &lf,
-                          const std::map<std::pair<uint16_t, uint16_t>, vbucket_state> &vbmap,
+                          const std::map<uint16_t, vbucket_state> &vbmap,
                           Callback<GetValue> &cb,
                           Callback<size_t> &estimate);
 
@@ -221,8 +218,8 @@ private:
                   PreparedStatement *insSt,
                   const std::map<T1, T2> &m);
 
-    void insert(const Item &itm, uint16_t vb_version, Callback<mutation_result> &cb);
-    void update(const Item &itm, uint16_t vb_version, Callback<mutation_result> &cb);
+    void insert(const Item &itm, Callback<mutation_result> &cb);
+    void update(const Item &itm, Callback<mutation_result> &cb);
     int64_t lastRowId();
 
     EPStats &stats;
