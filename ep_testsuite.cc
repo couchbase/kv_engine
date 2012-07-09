@@ -101,6 +101,7 @@ char *last_body = NULL;
 // set dump_stats to true if you like to dump the stats as we go along...
 static bool dump_stats = false;
 std::map<std::string, std::string> vals;
+uint32_t last_bodylen = 0;
 uint64_t last_cas = 0;
 bool last_deleted_flag = false;
 
@@ -401,6 +402,7 @@ static bool add_response(const void *key, uint16_t keylen,
     (void)extlen;
     (void)datatype;
     (void)cookie;
+    last_bodylen = bodylen;
     last_status = static_cast<protocol_binary_response_status>(status);
     if (last_body) {
         free(last_body);
@@ -7158,6 +7160,74 @@ static enum test_result test_observe_multi_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     return SUCCESS;
 }
 
+static enum test_result test_multiple_observes(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    // Holds the result
+    uint16_t vb;
+    uint16_t keylen;
+    char key[10];
+    uint8_t persisted;
+    uint64_t cas;
+
+    // Set some keys
+    item *it = NULL;
+    uint64_t cas1, cas2;
+    check(h1->allocate(h, NULL, &it, "key1", 4, 100, 0, 0)== ENGINE_SUCCESS,
+          "Allocation failed.");
+    check(h1->store(h, NULL, it, &cas1, OPERATION_SET, 0)== ENGINE_SUCCESS,
+          "Set should work.");
+    h1->release(h, NULL, it);
+    check(h1->allocate(h, NULL, &it, "key2", 4, 100, 0, 0)== ENGINE_SUCCESS,
+          "Allocation failed.");
+    check(h1->store(h, NULL, it, &cas2, OPERATION_SET, 0)== ENGINE_SUCCESS,
+          "Set should work.");
+    h1->release(h, NULL, it);
+    wait_for_flusher_to_settle(h, h1);
+
+    // Do observe
+    std::map<std::string, uint16_t> obskeys;
+    obskeys["key1"] = 0;
+    protocol_binary_request_header *pkt = createObservePacket(obskeys);
+    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
+          "Observe failed.");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    free(pkt);
+
+    memcpy(&vb, last_body, sizeof(uint16_t));
+    check(ntohs(vb) == 0, "Wrong vbucket in result");
+    memcpy(&keylen, last_body + 2, sizeof(uint16_t));
+    check(ntohs(keylen) == 4, "Wrong keylen in result");
+    memcpy(&key, last_body + 4, ntohs(keylen));
+    check(strncmp(key, "key1", 4) == 0, "Wrong key in result");
+    memcpy(&persisted, last_body + 8, sizeof(uint8_t));
+    check(persisted == 1, "Expected persisted in result");
+    memcpy(&cas, last_body + 9, sizeof(uint64_t));
+    check(ntohll(cas) == cas1, "Wrong cas in result");
+    check(last_bodylen == 17, "Incorrect body length");
+
+    // Do another observe
+    obskeys.clear();
+    obskeys["key2"] = 0;
+    pkt = createObservePacket(obskeys);
+    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
+          "Observe failed.");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    free(pkt);
+
+    memcpy(&vb, last_body, sizeof(uint16_t));
+    check(ntohs(vb) == 0, "Wrong vbucket in result");
+    memcpy(&keylen, last_body + 2, sizeof(uint16_t));
+    check(ntohs(keylen) == 4, "Wrong keylen in result");
+    memcpy(&key, last_body + 4, ntohs(keylen));
+    check(strncmp(key, "key2", 4) == 0, "Wrong key in result");
+    memcpy(&persisted, last_body + 8, sizeof(uint8_t));
+    check(persisted == 1, "Expected persisted in result");
+    memcpy(&cas, last_body + 9, sizeof(uint64_t));
+    check(ntohll(cas) == cas2, "Wrong cas in result");
+    check(last_bodylen == 17, "Incorrect body length");
+
+    return SUCCESS;
+}
+
 static enum test_result test_observe_with_not_found(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     // Create some vbuckets
     check(set_vbucket_state(h, h1, 1, vbucket_state_active), "Failed to set vbucket state.");
@@ -7670,6 +7740,8 @@ engine_test_t* get_tests(void) {
         TestCase("test observe single key", test_observe_single_key, NULL, teardown,
                  NULL, prepare, cleanup, BACKEND_ALL),
         TestCase("test observe multi key", test_observe_multi_key, NULL, teardown,
+                 NULL, prepare, cleanup, BACKEND_ALL),
+        TestCase("test multiple observes", test_multiple_observes, NULL, teardown,
                  NULL, prepare, cleanup, BACKEND_ALL),
         TestCase("test observe with not found", test_observe_with_not_found, NULL, teardown,
                  NULL, prepare, cleanup, BACKEND_ALL),
