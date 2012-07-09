@@ -272,7 +272,7 @@ private:
     void open();
     void close();
     bool commit2couchstore(void);
-    void queue(CouchRequest &req);
+    void queueItem(CouchRequest *req);
 
     bool getDbFile(uint16_t vbucketId, std::string &dbFileName);
 

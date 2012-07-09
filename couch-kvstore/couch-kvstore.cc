@@ -260,7 +260,7 @@ void CouchKVStore::set(const Item &itm, Callback<mutation_result> &cb)
     // each req will be de-allocated after commit
     CouchRequest *req = new CouchRequest(itm, dbFileRev(dbFile), requestcb,
                                          deleteItem);
-    this->queue(*req);
+    queueItem(req);
 }
 
 void CouchKVStore::get(const std::string &key, uint64_t, uint16_t vb,
@@ -396,7 +396,7 @@ void CouchKVStore::del(const Item &itm,
         // each req will be de-allocated after commit
         CouchRequest *req = new CouchRequest(itm, dbFileRev(dbFile),
                                              requestcb, true);
-        this->queue(*req);
+        queueItem(req);
     } else {
         ++st.numDelFailure;
         getLogger()->log(EXTENSION_LOG_WARNING, NULL,
@@ -1409,9 +1409,9 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, int rev, Doc **docs,
     return errCode;
 }
 
-void CouchKVStore::queue(CouchRequest &req)
+void CouchKVStore::queueItem(CouchRequest *req)
 {
-    pendingReqsQ.push_back(&req);
+    pendingReqsQ.push_back(req);
     pendingCommitCnt++;
 }
 
