@@ -28,7 +28,7 @@ public:
     }
 
     void visit(StoredValue *v) {
-        if (log != NULL && v->isReferenced(true)) {
+        if (log != NULL && v->isReferenced(true, &currentBucket->ht)) {
             if (v->isExpired(startTime) || v->isDeleted()) {
                 getLogger()->log(EXTENSION_LOG_INFO, NULL,
                                  "INFO: Skipping expired/deleted item: %s",

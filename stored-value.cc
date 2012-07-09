@@ -55,10 +55,33 @@ bool StoredValue::ejectValue(EPStats &stats, HashTable &ht) {
         ++stats.numValueEjects;
         ++ht.numNonResidentItems;
         ++ht.numEjects;
+        if (isReferenced()) {
+            ++ht.numReferencedEjects;
+        }
         return true;
     }
     ++stats.numFailedEjects;
     return false;
+}
+
+void StoredValue::referenced(HashTable &ht) {
+    if (!_isSmall && extra.feature.nru == false) {
+        extra.feature.nru = true;
+        ++ht.numReferenced;
+    }
+}
+
+bool StoredValue::isReferenced(bool reset, HashTable *ht) {
+    bool ret = false;
+    if (!_isSmall) {
+        ret = extra.feature.nru;
+        if (reset && extra.feature.nru) {
+            extra.feature.nru = false;
+            assert(ht);
+            --ht->numReferenced;
+        }
+    }
+    return ret;
 }
 
 bool StoredValue::unlocked_restoreValue(Item *itm, EPStats &stats,
@@ -254,6 +277,8 @@ HashTableStatVisitor HashTable::clear(bool deactivate) {
     numNonResidentItems.set(0);
     memSize.set(0);
     cacheSize.set(0);
+    numReferenced.set(0);
+    numReferencedEjects.set(0);
 
     return rv;
 }
@@ -486,7 +511,7 @@ add_type_t HashTable::unlocked_add(int &bucket_num,
         if (resetVal) {
             v->resetValue();
         } else {
-            v->referenced();
+            v->referenced(*this);
         }
     }
 

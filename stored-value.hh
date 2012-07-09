@@ -83,23 +83,9 @@ public:
         }
     }
 
-    bool isReferenced(bool reset=false) {
-        bool ret = false;
-        if (!_isSmall) {
-            ret = extra.feature.nru;
-            if (reset) {
-                extra.feature.nru = false;
-            }
-        }
+    bool isReferenced(bool reset=false, HashTable *ht=NULL);
 
-        return ret;
-    }
-
-    void referenced() {
-        if (!_isSmall) {
-            extra.feature.nru = true;
-        }
-    }
+    void referenced(HashTable &ht);
 
     /**
      * Mark this item as needing to be persisted.
@@ -1017,6 +1003,16 @@ public:
     size_t getNumEjects(void) { return numEjects; }
 
     /**
+     * Get the number of referenced items.
+     */
+    size_t getNumReferenced(void) { return numReferenced; }
+
+    /**
+     * Get the number of referenced items whose values are ejected.
+     */
+    size_t getNumReferencedEjects(void) { return numReferencedEjects; }
+
+    /**
      * Get the total item memory size in this hash table.
      */
     size_t getItemMemory(void) { return memSize; }
@@ -1192,7 +1188,7 @@ public:
             values[bucket_num] = v;
             ++numItems;
             if (trackReference) {
-                v->referenced();
+                v->referenced(*this);
             }
 
             /**
@@ -1365,7 +1361,7 @@ public:
         while (v) {
             if (v->hasKey(key)) {
                 if (trackReference && !v->isDeleted()) {
-                    v->referenced();
+                    v->referenced(*this);
                 }
                 if (wantsDeleted || !v->isDeleted()) {
                     return v;
@@ -1609,6 +1605,8 @@ public:
     Atomic<uint32_t>     maxDeletedSeqno;
     Atomic<size_t>       numNonResidentItems;
     Atomic<size_t>       numEjects;
+    Atomic<size_t>       numReferenced;
+    Atomic<size_t>       numReferencedEjects;
     //! Memory consumed by items in this hashtable.
     Atomic<size_t>       memSize;
     //! Cache size.
