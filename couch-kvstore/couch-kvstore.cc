@@ -1281,6 +1281,7 @@ bool CouchKVStore::commit2couchstore(void)
                                  vbucket2flush,
                                  committedReqs[flushStartIndex]->getRevNum(),
                                  (int)errCode);
+                ++epStats.commitFailed;
             }
             commitCallback(&committedReqs[flushStartIndex], numDocs2save, errCode);
             numDocs2save = 0;
@@ -1303,6 +1304,7 @@ bool CouchKVStore::commit2couchstore(void)
                              vbucket2flush,
                              committedReqs[flushStartIndex]->getRevNum(),
                              (int)errCode);
+            ++epStats.commitFailed;
         }
         commitCallback(&committedReqs[flushStartIndex], numDocs2save, errCode);
     }
