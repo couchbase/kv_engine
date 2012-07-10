@@ -1651,10 +1651,10 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
         if (ret == TAP_MUTATION) {
             *nes = TapEngineSpecific::packSpecificData(ret, connection, it->getSeqno(),
                                                        referenced);
-            *es = &connection->specificData;
+            *es = connection->specificData;
         } else if (ret == TAP_DELETION) {
             *nes = TapEngineSpecific::packSpecificData(ret, connection, it->getSeqno());
-            *es = &connection->specificData;
+            *es = connection->specificData;
         } else if (ret == TAP_CHECKPOINT_START) {
             // Send the current value of the max deleted seqno
             RCPtr<VBucket> vb = getVBucket(*vbucket);
@@ -1664,7 +1664,7 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
             }
             *nes = TapEngineSpecific::packSpecificData(ret, connection,
                                                        vb->ht.getMaxDeletedSeqno());
-            *es = &connection->specificData;
+            *es = connection->specificData;
         }
         break;
     case TAP_NOOP:
