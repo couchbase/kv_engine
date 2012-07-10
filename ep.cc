@@ -386,9 +386,6 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
         vbuckets.addBucket(vb);
     }
 
-    size_t num_shards = rwUnderlying->getNumShards();
-    dbShardQueues = new std::vector<queued_item>[num_shards];
-
     try {
         mutationLog.open();
         assert(theEngine.getConfiguration().getKlogPath() == ""
@@ -541,7 +538,6 @@ EventuallyPersistentStore::~EventuallyPersistentStore() {
     delete bgFetcher;
     delete dispatcher;
     delete nonIODispatcher;
-    delete []dbShardQueues;
     delete warmupTask;
 }
 
@@ -1731,7 +1727,6 @@ std::queue<queued_item>* EventuallyPersistentStore::beginFlush() {
         }
 
         std::vector<queued_item> item_list;
-        size_t num_items = 0;
         size_t numOfVBuckets = vbuckets.getSize();
 
         item_list.reserve(getTxnSize());
@@ -1756,31 +1751,13 @@ std::queue<queued_item>* EventuallyPersistentStore::beginFlush() {
 
             // Grab all the backfill items if exist.
             vb->getBackfillItems(item_list);
-
             // Get all dirty items from the checkpoint.
             vb->checkpointManager.getAllItemsForPersistence(item_list);
-
-            uint16_t shard_id = 0;
-            std::vector<queued_item>::iterator it = item_list.begin();
-            for (; it != item_list.end(); ++it) {
-                const queued_item &qi = *it;
-                switch (qi->getOperation()) {
-                case queue_op_set:
-                case queue_op_del:
-                    shard_id = rwUnderlying->getShardId(*qi);
-                    dbShardQueues[shard_id].push_back(qi);
-                default:
-                    // Ignore
-                    ;
-                }
+            if (item_list.size() > 0) {
+                pushToOutgoingQueue(item_list);
             }
-            num_items += item_list.size();
-            item_list.clear();
         }
 
-        if (num_items > 0) {
-            pushToOutgoingQueue();
-        }
         size_t queue_size = getWriteQueueSize();
         stats.flusher_todo.set(writing.size());
         stats.queue_size.set(queue_size);
@@ -1792,29 +1769,23 @@ std::queue<queued_item>* EventuallyPersistentStore::beginFlush() {
     return rv;
 }
 
-void EventuallyPersistentStore::pushToOutgoingQueue() {
+void EventuallyPersistentStore::pushToOutgoingQueue(std::vector<queued_item> &items) {
     size_t num_items = 0;
-    size_t num_shards = rwUnderlying->getNumShards();
-    for (size_t i = 0; i < num_shards; ++i) {
-        if (dbShardQueues[i].empty()) {
-            continue;
-        }
-        rwUnderlying->optimizeWrites(dbShardQueues[i]);
-        std::vector<queued_item>::iterator it = dbShardQueues[i].begin();
-        for(; it != dbShardQueues[i].end(); ++it) {
-            if (writing.empty() || writing.back()->getKey() != (*it)->getKey()) {
-                writing.push(*it);
-                ++num_items;
-            } else {
-                const queued_item &duplicate = *it;
-                RCPtr<VBucket> vb = getVBucket(duplicate->getVBucketId());
-                if (vb) {
-                    vb->doStatsForFlushing(*duplicate, duplicate->size());
-                }
+    rwUnderlying->optimizeWrites(items);
+    std::vector<queued_item>::iterator it = items.begin();
+    for(; it != items.end(); ++it) {
+        if (writing.empty() || writing.back()->getKey() != (*it)->getKey()) {
+            writing.push(*it);
+            ++num_items;
+        } else {
+            const queued_item &duplicate = *it;
+            RCPtr<VBucket> vb = getVBucket(duplicate->getVBucketId());
+            if (vb) {
+                vb->doStatsForFlushing(*duplicate, duplicate->size());
             }
         }
-        dbShardQueues[i].clear();
     }
+    items.clear();
     stats.memOverhead.incr(num_items * sizeof(queued_item));
     assert(stats.memOverhead.get() < GIGANTOR);
 }

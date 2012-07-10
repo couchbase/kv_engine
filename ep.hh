@@ -801,7 +801,7 @@ private:
     }
 
     std::queue<queued_item> *beginFlush();
-    void pushToOutgoingQueue();
+    void pushToOutgoingQueue(std::vector<queued_item> &items);
     void requeueRejectedItems(std::queue<queued_item> *rejects);
     void completeFlush(rel_time_t flush_start);
 
@@ -876,7 +876,6 @@ private:
     // by any other threads (because the flusher use it without
     // locking...
     std::queue<queued_item>              writing;
-    std::vector<queued_item>            *dbShardQueues;
     std::map<uint16_t, vbucket_state_t>  flusherCachedVbStates;
     pthread_t                            thread;
     Atomic<size_t>                       bgFetchQueue;
