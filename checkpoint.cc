@@ -160,13 +160,9 @@ size_t Checkpoint::mergePrevCheckpoint(Checkpoint *pPrevCheckpoint) {
         }
         checkpoint_index::iterator it = keyIndex.find(key);
         if (it == keyIndex.end()) {
-            // Skip the first two meta items
             std::list<queued_item>::iterator pos = toWrite.begin();
-            for (; pos != toWrite.end(); ++pos) {
-                if ((*pos)->getKey().compare("") != 0) {
-                    break;
-                }
-            }
+            // Skip the first two meta items
+            ++pos; ++pos;
             toWrite.insert(pos, *rit);
             index_entry entry = {--pos, pPrevCheckpoint->getMutationIdForKey(key)};
             keyIndex[key] = entry;
