@@ -19,6 +19,10 @@ def cmd(f):
     def g(*args, **kwargs):
         mc = args[0]
         n = f.func_code.co_argcount
+        if len(args) > n - 1:
+            print "Too many args, given %s, but expected a maximum of %s"\
+                    % (list(args[1:]), n - 1)
+            sys.exit(1)
 
         bucket = kwargs.get('bucketName', None)
         password = kwargs.get('password', None) or ""
