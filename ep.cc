@@ -218,7 +218,7 @@ private:
 
 class VBucketMemoryDeletionCallback : public DispatcherCallback {
 public:
-    VBucketMemoryDeletionCallback(EventuallyPersistentStore *e, RCPtr<VBucket> vb) :
+    VBucketMemoryDeletionCallback(EventuallyPersistentStore *e, RCPtr<VBucket> &vb) :
     ep(e), vbucket(vb) {}
 
     bool callback(Dispatcher &, TaskId) {
@@ -243,7 +243,7 @@ private:
  */
 class VBucketDeletionCallback : public DispatcherCallback {
 public:
-    VBucketDeletionCallback(EventuallyPersistentStore *e, RCPtr<VBucket> vb,
+    VBucketDeletionCallback(EventuallyPersistentStore *e, RCPtr<VBucket> &vb,
                             EPStats &st, const void* c = NULL) :
                             ep(e), vbucket(vb->getId()),
                             stats(st), cookie(c) {}
@@ -671,7 +671,7 @@ EventuallyPersistentStore::deleteExpiredItems(std::list<std::pair<uint16_t, std:
     std::for_each(keys.begin(), keys.end(), Deleter(this));
 }
 
-StoredValue *EventuallyPersistentStore::fetchValidValue(RCPtr<VBucket> vb,
+StoredValue *EventuallyPersistentStore::fetchValidValue(RCPtr<VBucket> &vb,
                                                         const std::string &key,
                                                         int bucket_num,
                                                         bool wantDeleted,
@@ -729,7 +729,7 @@ protocol_binary_response_status EventuallyPersistentStore::evictKey(const std::s
     return rv;
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentStore::processNeedMetaData(const RCPtr<VBucket> &vb,
+ENGINE_ERROR_CODE EventuallyPersistentStore::processNeedMetaData(RCPtr<VBucket> &vb,
                                                                  const Item &itm,
                                                                  const void *cookie)
 {
@@ -994,7 +994,7 @@ EventuallyPersistentStore::completeVBucketDeletion(uint16_t vbid) {
     return vbucket_del_invalid;
 }
 
-void EventuallyPersistentStore::scheduleVBDeletion(RCPtr<VBucket> vb,
+void EventuallyPersistentStore::scheduleVBDeletion(RCPtr<VBucket> &vb,
                                                    const void* cookie=NULL, double delay=0) {
     shared_ptr<DispatcherCallback> mem_cb(new VBucketMemoryDeletionCallback(this, vb));
     nonIODispatcher->schedule(mem_cb, NULL, Priority::VBMemoryDeletionPriority, delay, false);

@@ -753,7 +753,7 @@ protected:
 
 private:
 
-    void scheduleVBDeletion(RCPtr<VBucket> vb,
+    void scheduleVBDeletion(RCPtr<VBucket> &vb,
                             const void* cookie, double delay);
 
     RCPtr<VBucket> getVBucket(uint16_t vbid, vbucket_state_t wanted_state);
@@ -813,7 +813,7 @@ private:
     int flushOneDeleteAll(void);
     int flushOneDelOrSet(const queued_item &qi, std::queue<queued_item> *rejectQueue);
 
-    StoredValue *fetchValidValue(RCPtr<VBucket> vb, const std::string &key,
+    StoredValue *fetchValidValue(RCPtr<VBucket> &vb, const std::string &key,
                                  int bucket_num, bool wantsDeleted=false, bool trackReference=true);
 
     bool shouldPreemptFlush(size_t completed) {
@@ -836,7 +836,7 @@ private:
      * Process NEED_METADATA response from hash table set call in order to figure
      * out if an item's meta data should be fetched from disk or not.
      */
-    ENGINE_ERROR_CODE processNeedMetaData(const RCPtr<VBucket> &vb,
+    ENGINE_ERROR_CODE processNeedMetaData(RCPtr<VBucket> &vb,
                                           const Item &itm,
                                           const void *cookie);
 
