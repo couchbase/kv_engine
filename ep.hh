@@ -876,7 +876,6 @@ private:
     // by any other threads (because the flusher use it without
     // locking...
     std::queue<queued_item>              writing;
-    std::map<uint16_t, vbucket_state_t>  flusherCachedVbStates;
     pthread_t                            thread;
     Atomic<size_t>                       bgFetchQueue;
     Atomic<bool>                         diskFlushAll;
