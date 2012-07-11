@@ -1336,6 +1336,10 @@ public:
                 v->setCas(newCas);
                 v->setFlags(newFlags);
                 v->setExptime(newExptime);
+                if (!v->isTempItem()) {
+                    // this item is becoming a temp item
+                    ++numTempItems;
+                }
                 v->setStoredValueState(StoredValue::state_deleted_key);
             }
             v->del(stats, *this);
