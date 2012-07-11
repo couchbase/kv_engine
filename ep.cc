@@ -96,6 +96,8 @@ public:
             store.setTxnSize(value);
         } else if (key.compare("exp_pager_stime") == 0) {
             store.setExpiryPagerSleeptime(value);
+        } else if (key.compare("alog_sleep_time") == 0) {
+            store.setAccessScannerSleeptime(value);
         } else if (key.compare("klog_max_log_size") == 0) {
             store.getMutationLogCompactorConfig().setMaxLogSize(value);
         } else if (key.compare("klog_max_entry_ratio") == 0) {
@@ -2332,6 +2334,9 @@ void EventuallyPersistentStore::warmupCompleted() {
         if (engine.getConfiguration().getAlogPath().length() > 0) {
             size_t smin = engine.getConfiguration().getAlogSleepTime();
             setAccessScannerSleeptime(smin);
+            Configuration &config = engine.getConfiguration();
+            config.addValueChangedListener("alog_sleep_time",
+                                           new EPStoreValueChangeListener(*this));
         }
     }
 

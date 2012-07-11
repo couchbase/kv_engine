@@ -92,29 +92,10 @@ private:
     MutationLog *log;
 };
 
-class AccessScannerValueChangeListener : public ValueChangedListener {
-public:
-    AccessScannerValueChangeListener(AccessScanner &as) : scanner(as) {
-    }
-
-    virtual void sizeValueChanged(const std::string &key, size_t value) {
-        if (key.compare("alog_sleep_time") == 0) {
-            scanner.store.setAccessScannerSleeptime(value);
-        }
-    }
-
-private:
-    AccessScanner &scanner;
-};
-
 AccessScanner::AccessScanner(EventuallyPersistentStore &_store, EPStats &st,
                              size_t sleeptime) :
         store(_store), stats(st), sleepTime(sleeptime)
-{
-    Configuration &config = store.getEPEngine().getConfiguration();
-    config.addValueChangedListener("alog_sleep_time",
-                                   new AccessScannerValueChangeListener(*this));
-}
+{}
 
 bool AccessScanner::callback(Dispatcher &d, TaskId t) {
     // @todo we should be able to suspend this task to ensure that we're not
