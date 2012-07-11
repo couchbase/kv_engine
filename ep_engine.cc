@@ -1957,7 +1957,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
                     if (!vb) {
                         return ENGINE_TMPFAIL;
                     }
-                    uint32_t seqnum;
+                    uint64_t seqnum;
                     TapEngineSpecific::readSpecificData(tap_event, engine_specific, nengine,
                                                         &seqnum);
                     vb->ht.setMaxDeletedSeqno(seqnum);
@@ -2017,7 +2017,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
                 bool meta = false;
                 bool nru = false;
                 if (nengine >= TapEngineSpecific::sizeRevSeqno) {
-                    uint32_t seqnum;
+                    uint64_t seqnum;
                     uint8_t extra = 0;
                     TapEngineSpecific::readSpecificData(tap_event, engine_specific, nengine,
                                                         &seqnum, &extra);
@@ -3869,7 +3869,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
                                                     ADD_RESPONSE response)
 {
     // revid_nbytes, flags and exptime is mandatory fields.. and we need a key
-    if (request->message.header.request.extlen != 12 || request->message.header.request.keylen == 0) {
+    uint8_t extlen = request->message.header.request.extlen;
+    uint16_t keylen = ntohs(request->message.header.request.keylen);
+    if (extlen != 24 || request->message.header.request.keylen == 0) {
         return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
                             PROTOCOL_BINARY_RAW_BYTES,
                             PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
@@ -3885,35 +3887,28 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
         }
     }
 
-    uint8_t *key = request->bytes + sizeof(request->bytes);
-    uint16_t nkey = ntohs(request->message.header.request.keylen);
-    uint16_t vbucket = ntohs(request->message.header.request.vbucket);
-
-    uint8_t *dta = key + nkey;
-    size_t nbytes = ntohl(request->message.header.request.bodylen);
-    nbytes -= nkey + request->message.header.request.extlen;
-    uint32_t metabytes = ntohl(request->message.body.nmeta_bytes);
-    nbytes -= metabytes;
-
-    ItemMetaData itm_meta;
     uint8_t opcode = request->message.header.request.opcode;
+    uint8_t *key = request->bytes + sizeof(request->bytes);
+    uint16_t vbucket = ntohs(request->message.header.request.vbucket);
+    uint32_t bodylen = ntohl(request->message.header.request.bodylen);
+    size_t vallen = bodylen - keylen - extlen;
+    uint8_t *dta = key + keylen;
 
-    if (!itm_meta.decode(dta + nbytes)) {
-        return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
-                            PROTOCOL_BINARY_RAW_BYTES,
-                            PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
-    }
+    uint32_t flags = ntohl(request->message.body.flags);
+    uint32_t expiration = ntohl(request->message.body.expiration);
+    uint64_t seqno = ntohll(request->message.body.seqno);
+    uint64_t cas = ntohll(request->message.body.cas);
+    expiration = expiration == 0 ? 0 : ep_abs_time(ep_reltime(expiration));
 
-    Item *itm = new Item(key, nkey, nbytes, itm_meta.flags,
-                         itm_meta.exptime == 0 ? 0 : ep_abs_time(ep_reltime(itm_meta.exptime)),
-                         itm_meta.cas, -1, vbucket);
+    Item *itm = new Item(key, keylen, vallen, flags, expiration, cas, -1, vbucket);
+    itm->setSeqno(seqno);
+    memcpy((char*)itm->getData(), dta, vallen);
+
     if (itm == NULL) {
         return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
                             PROTOCOL_BINARY_RAW_BYTES,
                             PROTOCOL_BINARY_RESPONSE_ENOMEM, 0, cookie);
     }
-    memcpy((char*)itm->getData(), dta, nbytes);
-    itm->setSeqno(itm_meta.seqno);
 
     bool allowExisting = (opcode == CMD_SET_WITH_META ||
                           opcode == CMD_SETQ_WITH_META);
@@ -3925,9 +3920,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
     rc = engine_error_2_protocol_error(ret);
 
     if (ret == ENGINE_SUCCESS) {
-        itm_meta.cas = itm->getCas();
+        cas = itm->getCas();
     } else {
-        itm_meta.cas = 0;
+        cas = 0;
     }
 
     delete itm;
@@ -3938,14 +3933,14 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
 
     return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
                         PROTOCOL_BINARY_RAW_BYTES,
-                        rc, itm_meta.cas, cookie);
+                        rc, cas, cookie);
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(const void* cookie,
                                                              protocol_binary_request_delete_with_meta *request,
                                                              ADD_RESPONSE response) {
     // revid_nbytes, flags and exptime is mandatory fields.. and we need a key
-    if (request->message.header.request.extlen != 4 || request->message.header.request.keylen == 0) {
+    if (request->message.header.request.extlen != 24 || request->message.header.request.keylen == 0) {
         return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
                             PROTOCOL_BINARY_RAW_BYTES,
                             PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
@@ -3961,28 +3956,23 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(const void* cookie,
         }
     }
 
+    uint8_t opcode = request->message.header.request.opcode;
     const char *key_ptr = reinterpret_cast<const char*>(request->bytes);
     key_ptr += sizeof(request->bytes);
     uint16_t nkey = ntohs(request->message.header.request.keylen);
     std::string key(key_ptr, nkey);
     uint16_t vbucket = ntohs(request->message.header.request.vbucket);
 
-    uint8_t *dta = request->bytes + sizeof(request->bytes) + nkey;
+    uint32_t flags = ntohl(request->message.body.flags);
+    uint32_t expiration = ntohl(request->message.body.expiration);
+    uint64_t seqno = ntohll(request->message.body.seqno);
+    uint64_t cas = ntohll(request->message.body.cas);
+    expiration = expiration == 0 ? 0 : ep_abs_time(ep_reltime(expiration));
+
     size_t nbytes = ntohl(request->message.header.request.bodylen);
     nbytes -= nkey + request->message.header.request.extlen;
-    uint32_t metabytes = ntohl(request->message.body.nmeta_bytes);
-    nbytes -= metabytes;
 
-    ItemMetaData itm_meta;
-    uint8_t opcode = request->message.header.request.opcode;
-
-    if (!itm_meta.decode(dta + nbytes)) {
-        return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
-                            PROTOCOL_BINARY_RAW_BYTES,
-                            PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
-    }
-    itm_meta.exptime = itm_meta.exptime == 0 ? 0 : ep_abs_time(ep_reltime(itm_meta.exptime));
-
+    ItemMetaData itm_meta(cas, seqno, flags, expiration);
     ENGINE_ERROR_CODE ret = epstore->deleteItem(key,
                                                 ntohll(request->message.header.request.cas),
                                                 vbucket, cookie, false, true,

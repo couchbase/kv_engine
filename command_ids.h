@@ -203,7 +203,7 @@ typedef union {
  *
  * The following types are currently defined:
  *   META_REVID - 0x01 With the following layout
- *       uint32_t seqno
+ *       uint64_t seqno
  *       uint8_t  id[nnn] (where nnn == the length - size of seqno)
  */
 typedef union {
@@ -235,28 +235,19 @@ typedef union {
     struct {
         protocol_binary_request_header header;
         struct {
-            uint32_t nmeta_bytes; // # of bytes in the body that is meta info
             uint32_t flags;
             uint32_t expiration;
+            uint64_t seqno;
+            uint64_t cas;
         } body;
     } message;
-    uint8_t bytes[sizeof(protocol_binary_request_header) + 12];
+    uint8_t bytes[sizeof(protocol_binary_request_header) + 24];
 } protocol_binary_request_set_with_meta;
 
 /**
- * The physical layout for the CMD_DEL_WITH_META looks like the the normal
- * delete request with the addition of a bulk of extra meta data stored
- * at the <b>end</b> of the package.
+ * The message format for delete with meta
  */
-typedef union {
-    struct {
-        protocol_binary_request_header header;
-        struct {
-            uint32_t nmeta_bytes; // # of bytes in the body that is meta info
-        } body;
-    } message;
-    uint8_t bytes[sizeof(protocol_binary_request_header) + 4];
-} protocol_binary_request_delete_with_meta;
+typedef protocol_binary_request_set_with_meta protocol_binary_request_delete_with_meta;
 
 /**
  * The message format for getLocked engine API

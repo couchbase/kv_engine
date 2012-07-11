@@ -5767,7 +5767,7 @@ static enum test_result test_revid(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
     memcpy(msg.buffer + sizeof(msg.req.bytes), "test_revid", 10);
 
 
-    for (uint32_t ii = 1; ii < 10; ++ii) {
+    for (uint64_t ii = 1; ii < 10; ++ii) {
         item *it;
         check(store(h, h1, NULL, OPERATION_SET, "test_revid", "foo", &it, 0, 0)
               == ENGINE_SUCCESS, "Failed to store a value");
@@ -5779,10 +5779,10 @@ static enum test_result test_revid(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
         check(ret == ENGINE_SUCCESS, "Failed to get meta data");
         check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
         check(last_body[0] == 0x01, "Expected REVID meta");
-        check(last_body[1] == 20, "Expected 22 bytes long revid");
-        uint32_t seqno;
-        memcpy(&seqno, last_body + 2, 4);
-        seqno = ntohl(seqno);
+        check(last_body[1] == 24, "Expected 26 bytes long revid");
+        uint64_t seqno;
+        memcpy(&seqno, last_body + 2, 8);
+        seqno = ntohll(seqno);
         checkeq(ii, seqno, "Unexpected sequence number");
     }
 
@@ -5802,16 +5802,14 @@ static void set_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     } msg;
     memset(&msg.req, 0, sizeof(msg));
 
-    // size of meta data encoded, see function encodeMeta() for layout
-    size_t nb = 22;
-    // extlen of operation SET_WITH_META is 12
-    uint8_t extlen = 12;
-    size_t bodyLen = keylen + extlen + vallen + nb;
+    // extlen of operation SET_WITH_META is 24
+    uint8_t extlen = 24;
+    size_t bodyLen = keylen + extlen + vallen;
 
     msg.req.message.header.request.magic = PROTOCOL_BINARY_REQ;
     msg.req.message.header.request.opcode = CMD_SET_WITH_META;
     msg.req.message.header.request.extlen = extlen;
-    msg.req.message.header.request.keylen = ntohs(keylen);
+    msg.req.message.header.request.keylen = htons(keylen);
     msg.req.message.header.request.vbucket = htons(vb);
     msg.req.message.header.request.bodylen = htonl(bodyLen);
     msg.req.message.header.request.cas = htonll(cas_for_set);
@@ -5821,13 +5819,10 @@ static void set_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     if( vallen > 0 && val ) {
         memcpy(msg.buffer + sizeof(msg.req.bytes) + keylen, val, vallen);
     }
-    msg.req.message.body.nmeta_bytes = ntohl(nb);
-    msg.req.message.body.flags = ntohl(itemMeta->flags);
-    msg.req.message.body.expiration = 0;
-
-    // encode the revid:
-    uint8_t* meta_data = (uint8_t*)msg.buffer + sizeof(msg.req.bytes) + keylen + vallen;
-    itemMeta->encode(meta_data, nb);
+    msg.req.message.body.flags = htonl(itemMeta->flags);
+    msg.req.message.body.expiration = htonl(itemMeta->exptime);
+    msg.req.message.body.seqno = htonll(itemMeta->seqno);
+    msg.req.message.body.cas = htonll(itemMeta->cas);
 
     ENGINE_ERROR_CODE ret = h1->unknown_command(h, NULL, &msg.pkt,
                                                 add_response);
@@ -5849,16 +5844,14 @@ static void add_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     } msg;
     memset(&msg.req, 0, sizeof(msg));
 
-    // size of meta data encoded, see function encodeMeta() for layout
-    size_t nb = 22;
-    // extlen of operation ADD_WITH_META is 12
-    uint8_t extlen = 12;
-    size_t bodyLen = keylen + extlen + vallen + nb;
+    // extlen of operation ADD_WITH_META is 24
+    uint8_t extlen = 24;
+    size_t bodyLen = keylen + extlen + vallen;
 
     msg.req.message.header.request.magic = PROTOCOL_BINARY_REQ;
     msg.req.message.header.request.opcode = CMD_ADD_WITH_META;
     msg.req.message.header.request.extlen = extlen;
-    msg.req.message.header.request.keylen = ntohs(keylen);
+    msg.req.message.header.request.keylen = htons(keylen);
     msg.req.message.header.request.vbucket = htons(vb);
     msg.req.message.header.request.bodylen = htonl(bodyLen);
     memcpy(msg.buffer + sizeof(msg.req.bytes), key, keylen);
@@ -5867,13 +5860,10 @@ static void add_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
         memcpy(msg.buffer + sizeof(msg.req.bytes) + keylen, val, vallen);
     }
 
-    msg.req.message.body.nmeta_bytes = ntohl(nb);
-    msg.req.message.body.flags = ntohl(itemMeta->flags);
+    msg.req.message.body.flags = htonl(itemMeta->flags);
     msg.req.message.body.expiration = 0;
-
-    // encode the revid:
-    uint8_t* meta_data = (uint8_t*)msg.buffer + sizeof(msg.req.bytes) + keylen + vallen;
-    itemMeta->encode(meta_data, nb);
+    msg.req.message.body.seqno = htonll(itemMeta->seqno);
+    msg.req.message.body.cas = htonll(itemMeta->cas);
 
     ENGINE_ERROR_CODE ret = h1->unknown_command(h, NULL, &msg.pkt,
                                                 add_response);
@@ -5895,22 +5885,20 @@ static void del_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     } msg;
     memset(&msg.req, 0, sizeof(msg));
 
-    // size of meta data encoded, see function encodeMeta() for layout
-    size_t nb = 22;
-    // extlen of operation DEL_WITH_META is 4
-    const uint8_t extlen = 4;
+    // extlen of operation DEL_WITH_META is 24
+    const uint8_t extlen = 24;
     msg.req.message.header.request.magic = PROTOCOL_BINARY_REQ;
     msg.req.message.header.request.opcode = CMD_DEL_WITH_META;
     msg.req.message.header.request.extlen = extlen;
-    msg.req.message.header.request.keylen = ntohs(keylen);
+    msg.req.message.header.request.keylen = htons(keylen);
     msg.req.message.header.request.vbucket = htons(vb);
-    msg.req.message.header.request.bodylen = htonl(keylen + extlen + nb);
+    msg.req.message.header.request.bodylen = htonl(keylen + extlen);
     msg.req.message.header.request.cas = htonll(cas_for_delete);
     memcpy(msg.buffer + sizeof(msg.req.bytes), key, keylen);
-    msg.req.message.body.nmeta_bytes = ntohl(nb);
-
-    uint8_t* meta_data = (uint8_t*)msg.buffer + sizeof(msg.req.bytes) + keylen;
-    itemMeta->encode(meta_data, nb);
+    msg.req.message.body.flags = htonl(itemMeta->flags);
+    msg.req.message.body.expiration = htonl(itemMeta->exptime);
+    msg.req.message.body.seqno = htonll(itemMeta->seqno);
+    msg.req.message.body.cas = htonll(itemMeta->cas);
 
     ENGINE_ERROR_CODE ret = h1->unknown_command(h, NULL, &msg.pkt,
                                                 add_response);
@@ -5931,19 +5919,15 @@ static enum test_result test_regression_mb4314(ENGINE_HANDLE *h, ENGINE_HANDLE_V
 
     msg.req.message.header.request.magic = PROTOCOL_BINARY_REQ;
     msg.req.message.header.request.opcode = CMD_SET_WITH_META;
-    msg.req.message.header.request.extlen = 12;
-    msg.req.message.header.request.keylen = ntohs(22);
+    msg.req.message.header.request.extlen = 24;
+    msg.req.message.header.request.keylen = htons(22);
     msg.req.message.header.request.vbucket = htons(0);
-    msg.req.message.header.request.bodylen = htonl(12 + 22 + 22);
+    msg.req.message.header.request.bodylen = htonl(24 + 22);
     memcpy(msg.buffer + sizeof(msg.req.bytes), "test_regression_mb4314", 22);
-    msg.req.message.body.nmeta_bytes = ntohl(22);
-    msg.req.message.body.flags = ntohl(0xdeadbeef);
+    msg.req.message.body.flags = htonl(0xdeadbeef);
     msg.req.message.body.expiration = 0;
-
-    size_t nb = 22;
-    // encode the revid:
-    ItemMetaData md(0xdeadbeef, 10, 0xdeadbeef, 0);
-    md.encode((uint8_t*)msg.buffer + sizeof(msg.req.bytes) + 22, nb);
+    msg.req.message.body.seqno = htonll(10);
+    msg.req.message.body.cas = htonll(0xdeadbeef);
 
     ENGINE_ERROR_CODE ret = h1->unknown_command(h, NULL, &msg.pkt,
                                                 add_response);

@@ -140,7 +140,7 @@ public:
 
     void encode(std::string &dest)
     {
-        uint8_t meta[22];
+        uint8_t meta[26];
         size_t len = sizeof(meta);
         encode(meta, len);
         dest.assign((char*)meta, len);
@@ -148,22 +148,22 @@ public:
 
     bool encode(uint8_t *dest, size_t &nbytes) const
     {
-        if (nbytes < 22) {
+        if (nbytes < 26) {
             return false;
         }
 
-        uint32_t s = htonl(seqno);
+        uint64_t s = htonll(seqno);
         uint64_t c = htonll(cas);
         time_t e = htonl(exptime);
         uint32_t f = htonl(flags);
 
         dest[0] = 0x01;
-        dest[1] = 20;
-        memcpy(dest + 2, &s, 4);
-        memcpy(dest + 6, &c, 8);
-        memcpy(dest + 14, &e, 4);
-        memcpy(dest + 18, &f, 4);
-        nbytes = 22;
+        dest[1] = 24;
+        memcpy(dest + 2, &s, 8);
+        memcpy(dest + 10, &c, 8);
+        memcpy(dest + 18, &e, 4);
+        memcpy(dest + 22, &f, 4);
+        nbytes = 26;
         return true;
     }
 
@@ -173,14 +173,14 @@ public:
             return false;
         }
         ++dta;
-        if (*dta != 20) {
+        if (*dta != 24) {
             // Unsupported size
             return false;
         }
         ++dta;
-        memcpy(&seqno, dta, 4);
-        seqno = ntohl(seqno);
-        dta += 4;
+        memcpy(&seqno, dta, 8);
+        seqno = ntohll(seqno);
+        dta += 8;
         memcpy(&cas, dta, 8);
         cas = ntohll(cas);
         dta += 8;
@@ -194,7 +194,7 @@ public:
     }
 
     uint64_t cas;
-    uint32_t seqno;
+    uint64_t seqno;
     uint32_t flags;
     time_t exptime;
 };
@@ -230,7 +230,7 @@ public:
 
     Item(const std::string &k, const uint32_t fl, const time_t exp,
          const value_t &val, uint64_t theCas = 0,  int64_t i = -1, uint16_t vbid = 0,
-         uint32_t sno = 1) :
+         uint64_t sno = 1) :
          metaData(theCas, sno, fl, exp), value(val), id(i), vbucketId(vbid)
     {
         assert(id != 0);
@@ -240,7 +240,7 @@ public:
 
     Item(const void *k, uint16_t nk, const uint32_t fl, const time_t exp,
          const void *dta, const size_t nb, uint64_t theCas = 0,
-         int64_t i = -1, uint16_t vbid = 0, uint32_t sno = 1) :
+         int64_t i = -1, uint16_t vbid = 0, uint64_t sno = 1) :
          metaData(theCas, sno, fl, exp), id(i), vbucketId(vbid)
     {
         assert(id != 0);
@@ -358,11 +358,11 @@ public:
         return sizeof(Item) + key.size() + getValMemSize();
     }
 
-    uint32_t getSeqno() const {
+    uint64_t getSeqno() const {
         return metaData.seqno;
     }
 
-    void setSeqno(uint32_t to) {
+    void setSeqno(uint64_t to) {
         metaData.seqno = to;
     }
 

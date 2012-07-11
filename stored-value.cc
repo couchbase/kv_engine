@@ -501,7 +501,7 @@ add_type_t HashTable::unlocked_add(int &bucket_num,
              * it a seqno that is greater than the greatest seqno of all
              * deleted items seen so far.
              */
-            uint32_t seqno = getMaxDeletedSeqno() + 1;
+            uint64_t seqno = getMaxDeletedSeqno() + 1;
             v->setSeqno(seqno);
             itm.setSeqno(seqno);
         }

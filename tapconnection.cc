@@ -24,12 +24,12 @@
 #undef STATWRITER_NAMESPACE
 
 const uint8_t TapEngineSpecific::nru(1);
-const short int TapEngineSpecific::sizeRevSeqno(4);
+const short int TapEngineSpecific::sizeRevSeqno(8);
 const short int TapEngineSpecific::sizeExtra(1);
-const short int TapEngineSpecific::sizeTotal(5);
+const short int TapEngineSpecific::sizeTotal(9);
 
 void TapEngineSpecific::readSpecificData(tap_event_t ev, void *engine_specific,
-                                         uint16_t nengine, uint32_t *seqnum,
+                                         uint16_t nengine, uint64_t *seqnum,
                                          uint8_t *extra)
 {
     uint8_t ex;
@@ -38,7 +38,7 @@ void TapEngineSpecific::readSpecificData(tap_event_t ev, void *engine_specific,
     {
         assert(nengine >= sizeRevSeqno);
         memcpy(seqnum, engine_specific, sizeRevSeqno);
-        *seqnum = ntohl(*seqnum);
+        *seqnum = ntohll(*seqnum);
         if (ev == TAP_MUTATION && nengine == sizeTotal) {
             uint8_t *dptr = (uint8_t *)engine_specific + sizeRevSeqno;
             memcpy(&ex, (void *)dptr, sizeExtra);
@@ -48,12 +48,12 @@ void TapEngineSpecific::readSpecificData(tap_event_t ev, void *engine_specific,
 }
 
 uint16_t TapEngineSpecific::packSpecificData(tap_event_t ev, TapProducer *tp,
-                                             uint32_t seqnum, bool referenced)
+                                             uint64_t seqnum, bool referenced)
 {
-    uint32_t seqno;
+    uint64_t seqno;
     uint16_t nengine = 0;
     if (ev == TAP_MUTATION || ev == TAP_DELETION || ev == TAP_CHECKPOINT_START) {
-        seqno = htonl(seqnum);
+        seqno = htonll(seqnum);
         memcpy(tp->specificData, (void *)&seqno, sizeRevSeqno);
         if (ev == TAP_MUTATION && referenced) {
             // transfer item nru reference bit in item extra byte

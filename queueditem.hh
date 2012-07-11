@@ -31,7 +31,7 @@ class QueuedItem : public RCValue {
 public:
     QueuedItem(const std::string &k, const uint16_t vb,
                enum queue_operation o, const int64_t rid = -1,
-               const uint32_t seqno = 1)
+               const uint64_t seqno = 1)
         : key(k), rowId(rid), seqNum(seqno), queued(ep_current_time()),
           op(static_cast<uint16_t>(o)), vbucket(vb)
     {
@@ -49,7 +49,7 @@ public:
         return static_cast<enum queue_operation>(op);
     }
     int64_t getRowId() const { return rowId; }
-    uint32_t getSeqno() const { return seqNum; }
+    uint64_t getSeqno() const { return seqNum; }
 
     void setQueuedTime(uint32_t queued_time) {
         queued = queued_time;
@@ -71,7 +71,7 @@ public:
 private:
     std::string key;
     int64_t  rowId;
-    uint32_t seqNum;
+    uint64_t seqNum;
     uint32_t queued;
     uint16_t op;
     uint16_t vbucket;

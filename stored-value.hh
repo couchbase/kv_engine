@@ -38,8 +38,8 @@ struct small_data {
  */
 struct feature_data {
     uint64_t   cas;             //!< CAS identifier.
+    uint64_t   seqno;           //!< Revision id sequence number
     uint32_t   exptime;         //!< Expiration time of this item.
-    uint32_t   seqno;           //!< Revision id sequence number
     rel_time_t lock_expiry;     //!< getl lock expiration
     bool       locked : 1;      //!< True if this item is locked
     bool       resident : 1;    //!< True if this object's value is in memory.
@@ -589,7 +589,7 @@ public:
     }
 
 
-    uint32_t getSeqno() const {
+    uint64_t getSeqno() const {
         if (_isSmall) {
             return 0;
         } else {
@@ -602,7 +602,7 @@ public:
      *
      * This is a NOOP for small item types.
      */
-    void setSeqno(uint32_t s) {
+    void setSeqno(uint64_t s) {
         if (!_isSmall) {
             extra.feature.seqno = s;
         }
@@ -1198,7 +1198,7 @@ public:
              * a seqno that is greater than the greatest seqno of all deleted
              * items seen so far.
              */
-            uint32_t seqno = getMaxDeletedSeqno() + 1;
+            uint64_t seqno = getMaxDeletedSeqno() + 1;
             v->setSeqno(seqno);
             itm.setSeqno(seqno);
         }
@@ -1287,7 +1287,7 @@ public:
 
     mutation_type_t unlocked_softDelete(StoredValue *v, uint64_t cas) {
         if (v) {
-            uint32_t seqno = v->getSeqno();
+            uint64_t seqno = v->getSeqno();
             return unlocked_softDelete(v, cas, ++seqno);
         }
         return NOT_FOUND;
@@ -1297,7 +1297,7 @@ public:
      * Unlocked implementation of softDelete.
      */
     mutation_type_t unlocked_softDelete(StoredValue *v, uint64_t cas,
-                                        uint32_t newSeqno,
+                                        uint64_t newSeqno,
                                         bool use_meta=false,
                                         uint64_t newCas=0,
                                         uint32_t newFlags=0,
@@ -1586,25 +1586,25 @@ public:
     /**
      * Get the max deleted seqno seen so far.
      */
-    uint32_t getMaxDeletedSeqno() const {
+    uint64_t getMaxDeletedSeqno() const {
         return maxDeletedSeqno.get();
     }
 
     /**
      * Set the max deleted seqno (required during warmup).
      */
-    void setMaxDeletedSeqno(const uint32_t seqno) {
+    void setMaxDeletedSeqno(const uint64_t seqno) {
         maxDeletedSeqno.set(seqno);
     }
 
     /**
      * Update maxDeletedSeqno to a (possibly) new value.
      */
-    void updateMaxDeletedSeqno(const uint32_t seqno) {
+    void updateMaxDeletedSeqno(const uint64_t seqno) {
         maxDeletedSeqno.setIfBigger(seqno);
     }
 
-    Atomic<uint32_t>     maxDeletedSeqno;
+    Atomic<uint64_t>     maxDeletedSeqno;
     Atomic<size_t>       numNonResidentItems;
     Atomic<size_t>       numEjects;
     Atomic<size_t>       numReferenced;

@@ -284,7 +284,7 @@ public:
      * @param extra additional item specific data
      */
     static void readSpecificData(tap_event_t ev, void *engine_specific, uint16_t nengine,
-                                 uint32_t *seqnum, uint8_t *extra = NULL);
+                                 uint64_t *seqnum, uint8_t *extra = NULL);
 
     /**
      * Pack engine specific data for a given tap event type
@@ -295,7 +295,7 @@ public:
      * @param referenced true if item nru reference is set
      * @return size of tap engine specific data (bytes)
      */
-    static uint16_t packSpecificData(tap_event_t ev, TapProducer *tp, uint32_t seqnum,
+    static uint16_t packSpecificData(tap_event_t ev, TapProducer *tp, uint64_t seqnum,
                                      bool referenced = false);
 };
 

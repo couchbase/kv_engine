@@ -1618,7 +1618,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteItem(const std::string &key,
                                                         bool use_meta,
                                                         ItemMetaData *itemMeta)
 {
-    uint32_t newSeqno = itemMeta->seqno;
+    uint64_t newSeqno = itemMeta->seqno;
     uint64_t newCas   = itemMeta->cas;
     uint32_t newFlags = itemMeta->flags;
     time_t newExptime = itemMeta->exptime;
@@ -1670,7 +1670,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteItem(const std::string &key,
     }
 
     if (delrv == WAS_CLEAN || delrv == WAS_DIRTY || delrv == NOT_FOUND) {
-        uint32_t seqnum = v ? v->getSeqno() : 0;
+        uint64_t seqnum = v ? v->getSeqno() : 0;
         int64_t rowid = v ? v->getId() : -1;
         lh.unlock();
         queueDirty(key, vbucket, queue_op_del, seqnum, rowid);
@@ -2249,7 +2249,7 @@ int EventuallyPersistentStore::flushOne(std::queue<queued_item> *q,
 void EventuallyPersistentStore::queueDirty(const std::string &key,
                                            uint16_t vbid,
                                            enum queue_operation op,
-                                           uint32_t seqno,
+                                           uint64_t seqno,
                                            int64_t rowid,
                                            bool tapBackfill) {
     if (doPersistence) {

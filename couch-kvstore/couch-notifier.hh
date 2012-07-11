@@ -134,7 +134,7 @@ private:
     bool configurationError;
     bool shutdown;
 
-    uint32_t seqno;
+    uint64_t seqno;
     Buffer input;
 
     /**

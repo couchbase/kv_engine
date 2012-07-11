@@ -789,7 +789,7 @@ private:
     void queueDirty(const std::string &key,
                     uint16_t vbid,
                     enum queue_operation op,
-                    uint32_t seqno,
+                    uint64_t seqno,
                     int64_t rowid,
                     bool tapBackfill = false);
 

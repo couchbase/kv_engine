@@ -132,14 +132,9 @@ class MemcachedClient(object):
         """Decrement or create the named counter."""
         return self.__incrdecr(memcacheConstants.CMD_DECR, key, amt, init, exp)
 
-    def _doMetaCmd(self, cmd, key, exp, flags, value, meta, cas=0):
-        meta_type, meta_data = meta
-        extra = struct.pack('>III', len(meta_data) + 2, flags, exp)
-
-        meta_value = value + \
-            struct.pack('BB', meta_type, len(meta_data)) + meta_data
-
-        return self._doCmd(cmd, key, meta_value, extra, cas)
+    def _doMetaCmd(self, cmd, key, value, cas, exp, flags, seqno, remote_cas):
+        extra = struct.pack('>IIQQ', flags, exp, seqno, remote_cas)
+        return self._doCmd(cmd, key, value, extra, cas)
 
     def _doRevCmd(self, cmd, key, exp, flags, value, rev, cas=0):
         seqno, revid = rev
@@ -152,10 +147,10 @@ class MemcachedClient(object):
         """Set a value in the memcached server."""
         return self._mutate(memcacheConstants.CMD_SET, key, exp, flags, 0, val)
 
-    def setWithMeta(self, key, exp, flags, value, meta):
+    def setWithMeta(self, key, value, exp, flags, seqno, remote_cas):
         """Set a value and its meta data in the memcached server."""
         return self._doMetaCmd(memcacheConstants.CMD_SET_WITH_META,
-                               key, exp, flags, value, meta, cas=0)
+                               key, value, 0, exp, flags, seqno, remote_cas)
 
     def setWithRev(self, key, exp, flags, value, rev):
         """Set a value and its revision in the memcached server."""
@@ -166,9 +161,9 @@ class MemcachedClient(object):
         """Add a value in the memcached server iff it doesn't already exist."""
         return self._mutate(memcacheConstants.CMD_ADD, key, exp, flags, 0, val)
 
-    def addWithMeta(self, key, exp, flags, value, meta):
+    def addWithMeta(self, key, value, exp, flags, seqno, remote_cas):
         return self._doMetaCmd(memcacheConstants.CMD_ADD_WITH_META,
-                               key, exp, flags, value, meta)
+                               key, value, 0, exp, flags, seqno, remote_cas)
 
     def addWithRev(self, key, exp, flags, value, rev):
         return self._doRevCmd(memcacheConstants.CMD_ADD_WITH_META,
@@ -215,7 +210,7 @@ class MemcachedClient(object):
         if meta_type != memcacheConstants.META_REVID:
             raise ValueError("Invalid meta type %x" % meta_type)
 
-        seqno = struct.unpack('>I', meta_data[:4])[0]
+        seqno = struct.unpack('>Q', meta_data[:8])[0]
         revid = meta_data[4:]
 
         return (seqno, revid)
