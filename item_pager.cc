@@ -205,7 +205,7 @@ bool ItemPager::callback(Dispatcher &d, TaskId t) {
             phase >= PagingConfig::paging_max) {
             phase = PagingConfig::paging_unreferenced;
         } else { // move fast to next paging phase if memory usage is still high
-            sleepTime = 1;
+            sleepTime = 5;
         }
 
         double total_eject_attms = static_cast<double>(pv->getTotalEjectionAttempts());
