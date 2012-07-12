@@ -131,7 +131,7 @@ mutation_type_t HashTable::insert(const Item &itm, bool eject, bool partial) {
 
     int bucket_num(0);
     LockHolder lh = getLockedBucket(itm.getKey(), &bucket_num);
-    StoredValue *v = unlocked_find(itm.getKey(), bucket_num, true);
+    StoredValue *v = unlocked_find(itm.getKey(), bucket_num, true, false);
 
     if (v == NULL) {
         v = valFact(itm, values[bucket_num], *this);
