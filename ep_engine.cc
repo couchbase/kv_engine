@@ -3535,7 +3535,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe(const void* cookie,
         result.write((char*) &cas, sizeof(uint64_t));
     }
 
-    uint64_t avg_persist = htonl(stats.dirtyAge * 1000);
+    uint64_t avg_persist = ((uint64_t)(stats.dirtyAge * 1000)) << 32;
 
     return sendResponse(response, NULL, 0, 0, 0, result.str().data(),
                                 result.str().length(),

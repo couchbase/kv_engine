@@ -1705,7 +1705,6 @@ std::queue<queued_item>* EventuallyPersistentStore::beginFlush() {
     std::queue<queued_item> *rv(NULL);
 
     if (!hasItemsForPersistence() && writing.empty() && !diskFlushAll) {
-        stats.dirtyAge = 0;
         // If the persistence queue is empty, reset queue-related stats for each vbucket.
         size_t numOfVBuckets = vbuckets.getSize();
         for (size_t i = 0; i < numOfVBuckets; ++i) {
