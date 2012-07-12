@@ -33,7 +33,7 @@ public:
                enum queue_operation o, const int64_t rid = -1,
                const uint32_t seqno = 1)
         : key(k), rowId(rid), seqNum(seqno), queued(ep_current_time()),
-          op(o), vbucket(vb)
+          op(static_cast<uint16_t>(o)), vbucket(vb)
     {
         ObjectRegistry::onCreateQueuedItem(this);
     }
@@ -45,7 +45,9 @@ public:
     const std::string &getKey(void) const { return key; }
     uint16_t getVBucketId(void) const { return vbucket; }
     uint32_t getQueuedTime(void) const { return queued; }
-    enum queue_operation getOperation(void) const { return op; }
+    enum queue_operation getOperation(void) const {
+        return static_cast<enum queue_operation>(op);
+    }
     int64_t getRowId() const { return rowId; }
     uint32_t getSeqno() const { return seqNum; }
 
@@ -54,7 +56,7 @@ public:
     }
 
     void setOperation(enum queue_operation o) {
-        op = o;
+        op = static_cast<uint16_t>(o);
     }
 
     bool operator <(const QueuedItem &other) const {
@@ -71,7 +73,7 @@ private:
     int64_t  rowId;
     uint32_t seqNum;
     uint32_t queued;
-    enum queue_operation op;
+    uint16_t op;
     uint16_t vbucket;
 
     DISALLOW_COPY_AND_ASSIGN(QueuedItem);
