@@ -179,6 +179,15 @@ class MemcachedClient(object):
         return self._mutate(memcacheConstants.CMD_REPLACE, key, exp, flags, 0,
             val)
 
+    def observe(self, key, vbucket):
+        """Observe a key for persistence and replication."""
+        value = struct.pack('>HH', vbucket, len(key)) + key
+        opaque, cas, data = self._doCmd(memcacheConstants.CMD_OBSERVE, '', value)
+        rep_time = (cas & 0xFFFFFFFF)
+        persist_time =  (cas >> 32) & 0xFFFFFFFF
+        persisted = struct.unpack('>B', data[4+len(key)])[0]
+        return opaque, rep_time, persist_time, persisted
+
     def __parseGet(self, data, klen=0):
         flags=struct.unpack(memcacheConstants.GET_RES_FMT, data[-1][:4])[0]
         return flags, data[1], data[-1][4 + klen:]
