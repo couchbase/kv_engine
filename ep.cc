@@ -1953,7 +1953,8 @@ public:
                         vbstate != vbucket_state_pending) {
                         double current = static_cast<double>(stats->getTotalMemoryUsed());
                         double lower = static_cast<double>(stats->mem_low_wat);
-                        if (current > lower) {
+                        // evict unreferenced replica items only
+                        if (current > lower && !v->isReferenced()) {
                             // Check if the key was already visited by all the cursors.
                             if (vb->checkpointManager.eligibleForEviction(v->getKey())) {
                                 v->ejectValue(*stats, vb->ht);
