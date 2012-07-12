@@ -195,6 +195,12 @@ static enum test_result rmdb(void)
     return SUCCESS;
 }
 
+static enum test_result skipped_test_function(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    (void) h;
+    (void) h1;
+    return SKIPPED;
+}
+
 static bool teardown(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     (void)h; (void)h1;
     vals.clear();
@@ -7486,6 +7492,7 @@ static void cleanup(engine_test_t *test, enum test_result result) {
 #define BACKEND_SQLITE 2
 #define BACKEND_COUCH 1
 #define BACKEND_ALL 0x3
+#define SKIP_TEST 0x4
 #define BACKEND_VARIANTS 2
 
 class TestCase {
@@ -7545,6 +7552,9 @@ public:
                 nm.append(" (couchstore)");
                 ss << "backend=couchdb;couch_response_timeout=3000";
                 break;
+            case SKIP_TEST:
+                nm.append(" (skipped)");
+                ret->tfun = skipped_test_function;
             default:
                 abort();
             }
@@ -7672,7 +7682,7 @@ engine_test_t* get_tests(void) {
         TestCase("start transaction failure handling", test_bug2830,
                  test_setup, teardown,
                  "db_shards=1;ht_size=13;ht_locks=7;db_strategy=multiDB",
-                 prepare, cleanup, BACKEND_SQLITE),
+                 prepare, cleanup, SKIP_TEST),
         TestCase("non-resident decrementers", test_mb3169,
                  test_setup, teardown, NULL, prepare, cleanup,
                  BACKEND_ALL),
