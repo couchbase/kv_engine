@@ -79,7 +79,7 @@ private:
     DISALLOW_COPY_AND_ASSIGN(QueuedItem);
 };
 
-typedef RCPtr<QueuedItem> queued_item;
+typedef SingleThreadedRCPtr<QueuedItem> queued_item;
 
 /**
  * Order QueuedItem objects pointed by shared_ptr by their keys.

@@ -122,7 +122,7 @@ private:
     DISALLOW_COPY_AND_ASSIGN(Blob);
 };
 
-typedef RCPtr<Blob> value_t;
+typedef SingleThreadedRCPtr<Blob> value_t;
 
 /**
  * The ItemMetaData structure is used to pass meata data information of

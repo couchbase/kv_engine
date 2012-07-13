@@ -2012,7 +2012,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
 
             BlockTimer timer(&stats.tapMutationHisto);
             TapConsumer *tc = dynamic_cast<TapConsumer*>(connection);
-            RCPtr<Blob> vblob(Blob::New(static_cast<const char*>(data), ndata));
+            value_t vblob(Blob::New(static_cast<const char*>(data), ndata));
             Item *itm = new Item(k, flags, exptime, vblob);
             itm->setVBucketId(vbucket);
 

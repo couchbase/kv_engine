@@ -31,7 +31,7 @@ bool StoredValue::ejectValue(EPStats &stats, HashTable &ht) {
         size_t old_valsize = value->length();
         blobval uval;
         uval.len = valLength();
-        RCPtr<Blob> sp(Blob::New(uval.chlen, sizeof(uval)));
+        value_t sp(Blob::New(uval.chlen, sizeof(uval)));
         extra.feature.resident = false;
         timestampEviction();
         value = sp;
