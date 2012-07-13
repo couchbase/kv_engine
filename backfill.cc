@@ -135,8 +135,7 @@ void BackFillVisitor::visit(StoredValue *v) {
     if (efficientVBDump && residentRatioBelowThreshold && !v->isResident()) {
         return;
     }
-    std::string k = v->getKey();
-    queued_item qi(new QueuedItem(k, currentBucket->getId(), queue_op_set,
+    queued_item qi(new QueuedItem(v->getKey(), currentBucket->getId(), queue_op_set,
                                   v->getId()));
     uint16_t shardId = engine->kvstore->getShardId(*qi);
     found.push_back(std::make_pair(shardId, qi));

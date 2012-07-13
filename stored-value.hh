@@ -913,7 +913,7 @@ private:
                                 bool setDirty, bool small) {
         size_t base = StoredValue::sizeOf(small);
 
-        std::string key = itm.getKey();
+        const std::string &key = itm.getKey();
         assert(key.length() < 256);
         size_t len = key.length() + base;
 

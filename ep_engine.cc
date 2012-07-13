@@ -947,7 +947,7 @@ extern "C" {
                               cookie);
             delete itm;
         } else if (itm) {
-            std::string key  = itm->getKey();
+            const std::string &key  = itm->getKey();
             uint32_t flags = itm->getFlags();
             rv = sendResponse(response, static_cast<const void *>(key.data()),
                               itm->getNKey(),
