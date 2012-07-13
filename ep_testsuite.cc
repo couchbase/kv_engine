@@ -7129,7 +7129,8 @@ static enum test_result test_observe_multi_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     uint8_t persisted;
     uint64_t cas;
 
-    check(ntohl(last_cas) > 4500, "Avg persistence time not properly reported");
+    // Check avg persistence time
+    check((last_cas >> 32) > 4500, "Avg persistence time not properly reported");
 
     memcpy(&vb, last_body, sizeof(uint16_t));
     check(ntohs(vb) == 0, "Wrong vbucket in result");
