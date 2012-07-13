@@ -204,6 +204,14 @@ bool ItemPager::callback(Dispatcher &d, TaskId t) {
         shared_ptr<PagingVisitor> pv(new PagingVisitor(store, stats, toKill,
                                                        &available, false, bias));
         std::srand(ep_real_time());
+
+        // skip active vbuckets if active resident ratio is lower than replica
+        if (phase == PagingConfig::paging_active &&
+            store->cachedResidentRatio.activeRatio <
+            store->cachedResidentRatio.replicaRatio)
+        {
+            phase = PagingConfig::paging_replica;
+        }
         pv->configPaging(PagingConfig::phaseConfig[phase], toKill);
         store->visit(pv, "Item pager", &d, Priority::ItemPagerPriority);
 

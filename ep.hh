@@ -736,6 +736,11 @@ public:
         return hasSeparateRODispatcher() && storageProperties.hasEfficientGet();
     }
 
+    void updateCachedResidentRatio(size_t activePerc, size_t replicaPerc) {
+        cachedResidentRatio.activeRatio.set(activePerc);
+        cachedResidentRatio.replicaRatio.set(replicaPerc);
+    }
+
 protected:
     // During the warmup phase we might want to enable external traffic
     // at a given point in time.. The LoadStorageKvPairCallback will be
@@ -849,6 +854,7 @@ private:
     friend class PersistenceCallback;
     friend class Deleter;
     friend class VBCBAdaptor;
+    friend class ItemPager;
 
     EventuallyPersistentEngine     &engine;
     EPStats                        &stats;
@@ -905,6 +911,10 @@ private:
         size_t sleeptime;
         TaskId task;
     } accessScanner;
+    struct ResidentRatio {
+        Atomic<size_t> activeRatio;
+        Atomic<size_t> replicaRatio;
+    } cachedResidentRatio;
     size_t itemExpiryWindow;
     size_t vbDelChunkSize;
     size_t vbChunkDelThresholdTime;

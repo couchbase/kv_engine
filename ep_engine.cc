@@ -2346,6 +2346,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
 
     epstore->visit(aggregator);
 
+    epstore->updateCachedResidentRatio(activeCountVisitor.getMemResidentPer(),
+                                       replicaCountVisitor.getMemResidentPer());
+
     configuration.addStats(add_stat, cookie);
 
     EPStats &epstats = getEpStats();
