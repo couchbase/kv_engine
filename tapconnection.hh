@@ -71,7 +71,9 @@ public:
 
     TapLogElement(uint32_t s, const queued_item &qi) :
         seqno(s),
+        event(TAP_MUTATION),
         vbucket(qi->getVBucketId()),
+        state(vbucket_state_active),
         item(qi)
     {
         switch(item->getOperation()) {
