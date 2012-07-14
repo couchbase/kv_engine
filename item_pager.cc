@@ -34,14 +34,15 @@ public:
      * @param s the store that will handle the bulk removal
      * @param st the stats where we'll track what we've done
      * @param pcnt percentage of objects to attempt to evict (0-1)
+     * @param bias active vbuckets eviction probability bias multiplier (0-1)
      * @param sfin pointer to a bool to be set to true after run completes
      * @param pause flag indicating if PagingVisitor can pause between vbucket visits
      * @param nru false if ignoring reference bits during warmup
      */
     PagingVisitor(EventuallyPersistentStore *s, EPStats &st, double pcnt,
-                  bool *sfin, bool pause = false)
+                  bool *sfin, bool pause = false, double bias = 1)
         : store(s), stats(st), config(PagingConfig::phaseConfig[0]), percent(pcnt),
-          ejected(0), totalEjected(0), totalEjectionAttempts(0),
+          activeBias(bias), ejected(0), totalEjected(0), totalEjectionAttempts(0),
           startTime(ep_real_time()), stateFinalizer(sfin), canPause(pause), nru(true) {}
 
     void visit(StoredValue *v) {
@@ -154,11 +155,11 @@ private:
     void adjustPercent(double prob, vbucket_state_t nostate) {
         if (nostate == vbucket_state_active) {
             // replica items should have higher eviction probability
-            double p = prob*1.2;
+            double p = prob*(2 - activeBias);
             percent = p < 0.9 ? p : 0.9;
         } else if (nostate == vbucket_state_replica) {
             // active items have lower eviction probability
-            percent = prob*0.8;
+            percent = prob*activeBias;
         }
     }
 
@@ -168,6 +169,7 @@ private:
     EPStats                   &stats;
     PagingConfig::config_t     config;
     double                     percent;
+    double                     activeBias;
     size_t                     ejected;
     size_t                     totalEjected;
     size_t                     totalEjectionAttempts;
@@ -193,9 +195,14 @@ bool ItemPager::callback(Dispatcher &d, TaskId t) {
         getLogger()->log(EXTENSION_LOG_INFO, NULL, ss.str().c_str(),
                          (toKill*100.0));
 
+        // compute active vbuckets evicition bias factor
+        Configuration &cfg = store->getEPEngine().getConfiguration();
+        size_t activeEvictPerc = cfg.getPagerActiveVbucketPercent();
+        double bias = static_cast<double>(activeEvictPerc) / 50;
+
         available = false;
-        shared_ptr<PagingVisitor> pv(new PagingVisitor(store, stats,
-                                                       toKill, &available));
+        shared_ptr<PagingVisitor> pv(new PagingVisitor(store, stats, toKill,
+                                                       &available, false, bias));
         std::srand(ep_real_time());
         pv->configPaging(PagingConfig::phaseConfig[phase], toKill);
         store->visit(pv, "Item pager", &d, Priority::ItemPagerPriority);

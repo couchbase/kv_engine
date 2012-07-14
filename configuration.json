@@ -301,6 +301,17 @@
             "default": "0.0",
             "type": "float"
         },
+        "pager_active_vbucket_percent": {
+            "default": "40",
+	    "descr": "Active vbuckets paging percentage",
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "max": 50,
+                    "min": 0
+                }
+            }
+        },
         "postInitfile": {
             "default": "",
             "type": "std::string"
