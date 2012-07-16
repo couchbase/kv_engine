@@ -7908,7 +7908,7 @@ engine_test_t* get_tests(void) {
                  test_setup, teardown, NULL, prepare, cleanup, SKIP_TEST),
         TestCase("disk>RAM delete bgfetch race", test_disk_gt_ram_rm_race,
                  test_setup, teardown, NULL, prepare, cleanup,
-                 BACKEND_ALL),
+                 BACKEND_SQLITE),
         // disk>RAM tests with WAL
         TestCase("verify multi dispatcher", test_multi_dispatcher_conf,
                  test_setup, teardown, MULTI_DISPATCHER_CONFIG,
@@ -7942,7 +7942,7 @@ engine_test_t* get_tests(void) {
                  prepare, cleanup, SKIP_TEST),
         TestCase("disk>RAM delete bgfetch race (wal)", test_disk_gt_ram_rm_race,
                  test_setup, teardown, MULTI_DISPATCHER_CONFIG,
-                 prepare, cleanup, BACKEND_ALL),
+                 prepare, cleanup, BACKEND_SQLITE),
         // vbucket negative tests
         TestCase("vbucket incr (dead)", test_wrong_vb_incr,
                  test_setup, teardown, NULL, prepare, cleanup,

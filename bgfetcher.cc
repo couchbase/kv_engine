@@ -2,7 +2,7 @@
 
 #include "ep.hh"
 
-const double BgFetcher::sleepInterval = 0.001;
+const double BgFetcher::sleepInterval = 0.1;
 
 bool BgFetcherCallback::callback(Dispatcher &, TaskId t) {
     return bgfetcher->run(t);
