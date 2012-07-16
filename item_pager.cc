@@ -197,7 +197,7 @@ bool ItemPager::callback(Dispatcher &d, TaskId t) {
 
         // compute active vbuckets evicition bias factor
         Configuration &cfg = store->getEPEngine().getConfiguration();
-        size_t activeEvictPerc = cfg.getPagerActiveVbucketPercent();
+        size_t activeEvictPerc = cfg.getPagerActiveVbPcnt();
         double bias = static_cast<double>(activeEvictPerc) / 50;
 
         available = false;

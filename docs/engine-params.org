@@ -121,6 +121,8 @@ memcached like this:
 | data_traffic_enabled   | bool   | True if we want to enable data traffic     |
 |                        |        | immediately after warmup completion        |
 | alog_sleep_time        | int    | Interval of access scanner task in (min)   |
+| pager_active_vb_pcnt   | int    | Percentage of active vbucket items among   |
+|                        |        | all evicted items by item pager.           |
 
 ** Shard Patterns
 

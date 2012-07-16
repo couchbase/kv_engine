@@ -301,7 +301,7 @@
             "default": "0.0",
             "type": "float"
         },
-        "pager_active_vbucket_percent": {
+        "pager_active_vb_pcnt": {
             "default": "40",
 	    "descr": "Active vbuckets paging percentage",
             "type": "size_t",
