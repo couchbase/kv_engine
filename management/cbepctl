@@ -54,7 +54,7 @@ def set_param(mc, type, key, val):
     try:
         mc.set_param(key, val, engine_param)
         print 'set %s to %s' %(key, val)
-    except mc_bin_client.MemcachedError as error:
+    except mc_bin_client.MemcachedError, error:
         print 'Error: %s' % error.msg
 
 @cmd
@@ -77,7 +77,7 @@ def stop(mc):
             if stats['ep_flusher_state'] == 'paused':
                 stopped = True
         print 'Persistence stopped'
-    except mc_bin_client.MemcachedError as error:
+    except mc_bin_client.MemcachedError, error:
         print 'Error: %s' % error.msg
 
 @cmd
@@ -85,7 +85,7 @@ def start(mc):
     try:
         mc.start_persistence()
         print 'Persistence started'
-    except mc_bin_client.MemcachedError as error:
+    except mc_bin_client.MemcachedError, error:
         print 'Error: %s' % error.msg
 
 @cmd
@@ -101,7 +101,7 @@ def drain(mc):
             sys.stdout.write('.')
             sys.stdout.flush()
         print 'Write queues drained'
-    except mc_bin_client.MemcachedError as error:
+    except mc_bin_client.MemcachedError, error:
         print 'Error: %s' % error.msg
 
 if __name__ == '__main__':
