@@ -48,7 +48,17 @@ public:
     void start(void);
     void stop(void);
     bool run(TaskId tid);
-    bool pendingJob(void);
+    bool pendingJob(void) {
+        return numRemainingItems > 0;
+    }
+
+    void notifyBGEvent(void) {
+        if (++numRemainingItems == 1) {
+            LockHolder lh(taskMutex);
+            assert(task.get());
+            dispatcher->wake(task, &task);
+        }
+    }
 
 private:
     void doFetch(uint16_t vbId);
@@ -58,7 +68,9 @@ private:
     Dispatcher *dispatcher;
     vb_bgfetch_queue_t items2fetch;
     TaskId task;
+    Mutex taskMutex;
     EPStats &stats;
+    Atomic<size_t> numRemainingItems;
 };
 
 #endif /* BGFETCHER_HH */

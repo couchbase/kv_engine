@@ -364,11 +364,11 @@ management_sqlite3_DEPENDENCIES = libsqlite3.la
 management_sqlite3_LDADD = libsqlite3.la
 
 vbucket_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
-vbucket_test_SOURCES = t/vbucket_test.cc t/threadtests.hh vbucket.hh	\
-               vbucket.cc stored-value.cc stored-value.hh atomic.cc	\
-               testlogger.cc checkpoint.hh checkpoint.cc byteorder.c    \
+vbucket_test_SOURCES = t/vbucket_test.cc t/threadtests.hh vbucket.hh	       \
+               vbucket.cc stored-value.cc stored-value.hh atomic.cc	       \
+               testlogger.cc checkpoint.hh checkpoint.cc byteorder.c           \
                mutex.cc vbucketmap.cc test_memory_tracker.cc memory_tracker.hh \
-               item.cc tools/cJSON.c
+               item.cc tools/cJSON.c bgfetcher.hh dispatcher.hh dispatcher.cc
 vbucket_test_DEPENDENCIES = vbucket.hh stored-value.cc stored-value.hh  \
                checkpoint.hh checkpoint.cc libobjectregistry.la         \
                libconfiguration.la
@@ -380,7 +380,8 @@ checkpoint_test_SOURCES = t/checkpoint_test.cc checkpoint.hh            \
                           testlogger.cc stored-value.cc                 \
                           stored-value.hh queueditem.hh byteorder.c     \
                           atomic.cc mutex.cc test_memory_tracker.cc     \
-                          memory_tracker.hh item.cc tools/cJSON.c
+                          memory_tracker.hh item.cc tools/cJSON.c       \
+                          bgfetcher.hh dispatcher.hh dispatcher.cc
 checkpoint_test_DEPENDENCIES = checkpoint.hh vbucket.hh         \
               stored-value.cc stored-value.hh queueditem.hh     \
               libobjectregistry.la libconfiguration.la

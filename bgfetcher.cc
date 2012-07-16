@@ -2,19 +2,22 @@
 
 #include "ep.hh"
 
-const double BgFetcher::sleepInterval = 0.1;
+const double BgFetcher::sleepInterval = 1.0;
 
 bool BgFetcherCallback::callback(Dispatcher &, TaskId t) {
     return bgfetcher->run(t);
 }
 
 void BgFetcher::start() {
+    LockHolder lh(taskMutex);
     dispatcher->schedule(shared_ptr<BgFetcherCallback>(new BgFetcherCallback(this)),
                          &task, Priority::BgFetcherPriority);
     assert(task.get());
 }
 
 void BgFetcher::stop() {
+    LockHolder lh(taskMutex);
+    assert(task.get());
     dispatcher->cancel(task);
 }
 
@@ -55,37 +58,26 @@ void BgFetcher::clearItems(void) {
 }
 
 bool BgFetcher::run(TaskId tid) {
-    assert(task.get() == tid.get());
+    assert(tid.get());
+    size_t num_fetched_items = 0;
 
     const VBucketMap &vbMap = store->getVBuckets();
     size_t numVbuckets = vbMap.getSize();
     for (size_t vbid = 0; vbid < numVbuckets; vbid++) {
-       RCPtr<VBucket> vb = vbMap.getBucket(vbid);
-       assert(items2fetch.empty());
-       if (vb && vb->getBGFetchItems(items2fetch)) {
-           doFetch(vbid);
-           items2fetch.clear();
-       }
+        RCPtr<VBucket> vb = vbMap.getBucket(vbid);
+        assert(items2fetch.empty());
+        if (vb && vb->getBGFetchItems(items2fetch)) {
+            doFetch(vbid);
+            num_fetched_items += items2fetch.size();
+            items2fetch.clear();
+        }
     }
 
-    if (!pendingJob()) {
+    if (numRemainingItems.decr(num_fetched_items) == 0) {
         // wait a bit until next fetche request arrives
         double sleep = std::max(store->getBGFetchDelay(), sleepInterval);
         dispatcher->snooze(tid, sleep);
     }
     return true;
-}
-
-bool BgFetcher::pendingJob() {
-    const VBucketMap &vbMap = store->getVBuckets();
-
-    size_t numVbuckets = vbMap.getSize();
-    for (size_t vbid = 0; vbid <numVbuckets; vbid++) {
-       RCPtr<VBucket> vb = vbMap.getBucket(vbid);
-       if (vb && vb->hasPendingBGFetchItems()) {
-           return true;
-       }
-    }
-    return false;
 }
 

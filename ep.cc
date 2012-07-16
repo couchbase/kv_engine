@@ -1211,7 +1211,7 @@ void EventuallyPersistentStore::bgFetch(const std::string &key,
 
         // schedule to the current batch of background fetch of the given vbucket
         VBucketBGFetchItem * fetchThis = new VBucketBGFetchItem(key, rowid, cookie);
-        vb->queueBGFetchItem(fetchThis);
+        vb->queueBGFetchItem(fetchThis, bgFetcher);
         ss << "Queued a background fetch, now at "
            << vb->numPendingBGFetchItems() << std::endl;
         getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "%s\n", ss.str().c_str());

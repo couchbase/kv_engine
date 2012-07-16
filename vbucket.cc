@@ -199,9 +199,12 @@ void VBucket::addStat(const char *nm, T val, ADD_STAT add_stat, const void *c) {
     add_casted_stat(n.data(), value.str().data(), add_stat, c);
 }
 
-void VBucket::queueBGFetchItem(VBucketBGFetchItem *fetch) {
+void VBucket::queueBGFetchItem(VBucketBGFetchItem *fetch,
+                               BgFetcher *bgFetcher) {
     LockHolder lh(pendingBGFetchesLock);
     pendingBGFetches.push(fetch);
+    assert(bgFetcher);
+    bgFetcher->notifyBGEvent();
 }
 
 bool VBucket::getBGFetchItems(vb_bgfetch_queue_t &fetches) {

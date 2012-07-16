@@ -100,6 +100,7 @@ private:
 };
 
 class EventuallyPersistentEngine;
+class BgFetcher;
 
 class VBucketBGFetchItem {
 public:
@@ -234,7 +235,7 @@ public:
     } backfill;
 
     bool getBGFetchItems(vb_bgfetch_queue_t &fetches);
-    void queueBGFetchItem(VBucketBGFetchItem *fetch);
+    void queueBGFetchItem(VBucketBGFetchItem *fetch, BgFetcher *bgFetcher);
     size_t numPendingBGFetchItems(void) {
         LockHolder lh(pendingBGFetchesLock);
         return pendingBGFetches.size();

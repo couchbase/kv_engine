@@ -197,8 +197,9 @@ void Dispatcher::wake(TaskId task, TaskId *outtid) {
     LockHolder lh(mutex);
     TaskId oldTask(task);
     TaskId newTask(new Task(*oldTask));
+    newTask->snooze(0);
     if (outtid) {
-        *outtid = TaskId(task);
+        *outtid = TaskId(newTask);
     }
 
     getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
