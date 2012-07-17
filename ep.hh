@@ -704,12 +704,17 @@ public:
     void setExpiryPagerSleeptime(size_t val);
     void setAccessScannerSleeptime(size_t val);
 
+    void resetAccessScannerTasktime() {
+        accessScanner.tasktime = gethrtime();
+        // notify item pager to check access scanner task time
+        pager.biased = false;
+    }
+
     /**
      * Complete the degraded mode phase by clearing the list of deleted items that
      * are received from the upstream master via TAP or from the normal clients
      */
     void completeDegradedMode();
-
 
     /**
      * Get access to the mutation log.
@@ -907,15 +912,20 @@ private:
         TaskId task;
     } expiryPager;
     struct ALogTask {
-        ALogTask() : sleeptime(0) {}
+        ALogTask() : sleeptime(0), tasktime(gethrtime()) {}
         Mutex mutex;
         size_t sleeptime;
         TaskId task;
+        hrtime_t tasktime;
     } accessScanner;
     struct ResidentRatio {
         Atomic<size_t> activeRatio;
         Atomic<size_t> replicaRatio;
     } cachedResidentRatio;
+    struct ItemPagerInfo {
+        ItemPagerInfo() : biased(true) {}
+        bool biased;
+    } pager;
     size_t itemExpiryWindow;
     size_t vbDelChunkSize;
     size_t vbChunkDelThresholdTime;

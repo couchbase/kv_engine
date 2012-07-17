@@ -101,6 +101,7 @@ bool AccessScanner::callback(Dispatcher &d, TaskId t) {
     // @todo we should be able to suspend this task to ensure that we're not
     //       running multiple in parallel
     shared_ptr<ItemAccessVisitor> pv(new ItemAccessVisitor(store));
+    store.resetAccessScannerTasktime();
     store.visit(pv, "Item access scanner", &d, Priority::ItemPagerPriority);
     ++stats.alogRuns;
     d.snooze(t, sleepTime);

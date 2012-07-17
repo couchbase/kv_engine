@@ -312,6 +312,17 @@
                 }
             }
         },
+        "pager_unbiased_period": {
+            "default": "60",
+            "descr": "Number of minutes since access scanner time in which item pager ignores items nru info",
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "max": 720,
+                    "min": 1
+                }
+            }
+        },
         "postInitfile": {
             "default": "",
             "type": "std::string"
