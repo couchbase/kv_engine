@@ -447,6 +447,9 @@ typedef std::pair<uint64_t, uint8_t> mutation_log_event_t;
  * MutationLogHarvester::apply callback type.
  */
 typedef void (*mlCallback)(void*, uint16_t, const std::string &, uint64_t);
+typedef void (*mlCallbackWithQueue)(uint16_t,
+                    std::vector<std::pair<std::string, uint64_t> > &,
+                    void *arg);
 
 /**
  * Type for mutation log leftovers.
@@ -485,6 +488,7 @@ public:
      * Apply the processed log entries through the given function.
      */
     void apply(void *arg, mlCallback mlc);
+    void apply(void *arg, mlCallbackWithQueue mlc);
 
     /**
      * Get the total number of entries found in the log.

@@ -640,6 +640,20 @@ void MutationLogHarvester::apply(void *arg, mlCallback mlc) {
     }
 }
 
+void MutationLogHarvester::apply(void *arg, mlCallbackWithQueue mlc) {
+    std::vector<std::pair<std::string, uint64_t> > fetches;
+    std::set<uint16_t>::const_iterator it = vbid_set.begin();
+    for (; it != vbid_set.end(); ++it) {
+        uint16_t vb(*it);
+        unordered_map<std::string, uint64_t>::iterator it2 = committed[vb].begin();
+        for (; it2 != committed[vb].end(); ++it2) {
+            fetches.push_back(std::make_pair(it2->first, it2->second));
+        }
+        mlc(vb, fetches, arg);
+        fetches.clear();
+    }
+}
+
 void MutationLogHarvester::getUncommitted(std::vector<mutation_log_uncommitted_t> &uitems) {
 
     for (std::set<uint16_t>::const_iterator vit = vbid_set.begin(); vit != vbid_set.end(); ++vit) {

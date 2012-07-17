@@ -54,6 +54,8 @@ public:
 
     bool isReferenced() const { return nru; }
 
+    void setValue(Item *i) { value = i; }
+
 private:
 
     Item* value;

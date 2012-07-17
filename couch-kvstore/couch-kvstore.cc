@@ -144,6 +144,60 @@ static bool allDigit(std::string &input)
     return true;
 }
 
+struct WarmupCookie {
+    WarmupCookie(KVStore *s, Callback<GetValue>&c) :
+        store(s), cb(c), engine(s->getEngine()), loaded(0), skipped(0), error(0)
+    { /* EMPTY */ }
+    KVStore *store;
+    Callback<GetValue> &cb;
+    EventuallyPersistentEngine *engine;
+    size_t loaded;
+    size_t skipped;
+    size_t error;
+};
+
+static void batchWarmupCallback(uint16_t vbId,
+                                std::vector<std::pair<std::string, uint64_t> > &fetches,
+                                void *arg)
+{
+    WarmupCookie *c = static_cast<WarmupCookie *>(arg);
+    EventuallyPersistentEngine *engine = c->engine;
+
+    if (engine->stillWarmingUp()) {
+        vb_bgfetch_queue_t items2fetch;
+        std::vector<std::pair<std::string, uint64_t> >::iterator itm =
+            fetches.begin();
+        for(; itm != fetches.end(); itm++) {
+            assert(items2fetch.find((*itm).second) == items2fetch.end());
+            items2fetch[(*itm).second].push_back(
+                new VBucketBGFetchItem((*itm).first, (*itm).second, NULL));
+        }
+
+        c->store->getMulti(vbId, items2fetch);
+
+        vb_bgfetch_queue_t::iterator items = items2fetch.begin();
+        for (; items != items2fetch.end(); items++) {
+           VBucketBGFetchItem * fetchedItem = (*items).second.back();
+           GetValue &val = fetchedItem->value;
+           if (val.getStatus() == ENGINE_SUCCESS) {
+               c->loaded++;
+               c->cb.callback(val);
+           } else {
+               getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                "Warning: warmup failed to load data for "
+                                "vBucket = %d key = %s error = %X\n", vbId,
+                                fetchedItem->key.c_str(), val.getStatus());
+               c->error++;
+
+          }
+          delete fetchedItem;
+        }
+    } else {
+        c->skipped++;
+    }
+}
+
+
 struct GetMultiCbCtx {
     CouchKVStore &cks;
     uint16_t vbId;
@@ -1695,6 +1749,41 @@ ENGINE_ERROR_CODE CouchKVStore::couchErr2EngineErr(couchstore_error_t errCode)
         // EvetuallyPersistentStore::getInternal
         return ENGINE_TMPFAIL;
     }
+}
+
+size_t CouchKVStore::warmup(MutationLog &lf,
+                            const std::map<uint16_t, vbucket_state> &vbmap,
+                            Callback<GetValue> &cb,
+                            Callback<size_t> &estimate)
+{
+    assert(engine.getEpStore()->multiBGFetchEnabled());
+    MutationLogHarvester harvester(lf);
+    std::map<uint16_t, vbucket_state>::const_iterator it;
+    for (it = vbmap.begin(); it != vbmap.end(); ++it) {
+        harvester.setVBucket(it->first);
+    }
+
+    hrtime_t start = gethrtime();
+    if (!harvester.load()) {
+        return -1;
+    }
+    hrtime_t end = gethrtime();
+
+    size_t total = harvester.total();
+    estimate.callback(total);
+    getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+            "Completed log read in %s with %ld entries\n",
+            hrtime2text(end - start).c_str(), total);
+
+    start = gethrtime();
+    WarmupCookie cookie(this, cb);
+    harvester.apply(&cookie, &batchWarmupCallback);
+    end = gethrtime();
+    getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                     "Populated log in %s with (l: %ld, s: %ld, e: %ld)",
+                      hrtime2text(end - start).c_str(),
+                      cookie.loaded, cookie.skipped, cookie.error);
+    return cookie.loaded;
 }
 
 /* end of couch-kvstore.cc */

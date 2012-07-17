@@ -242,6 +242,7 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
             epstore->mutationLog.newItem(i->getVBucketId(), i->getKey(), i->getId());
         }
         delete i;
+        val.setValue(NULL);
 
         if (maybeEnableTraffic) {
             epstore->maybeEnableTraffic();

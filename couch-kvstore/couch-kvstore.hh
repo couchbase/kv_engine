@@ -244,6 +244,14 @@ public:
         return true;
     }
 
+    /**
+     * Overrides warmup
+     */
+    size_t warmup(MutationLog &lf,
+                  const std::map<uint16_t, vbucket_state> &vbmap,
+                  Callback<GetValue> &cb,
+                  Callback<size_t> &estimate);
+
     virtual void addStats(const std::string &prefix, ADD_STAT add_stat, const void *c);
     void optimizeWrites(std::vector<queued_item> &items);
     void processTxnSizeChange(size_t txn_size) {
