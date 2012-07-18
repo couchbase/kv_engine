@@ -2,7 +2,7 @@
 #include "config.h"
 #include "couch-kvstore/couch-kvstore-dummy.hh"
 
-CouchKVStore::CouchKVStore(EventuallyPersistentEngine &) : KVStore()
+CouchKVStore::CouchKVStore(EventuallyPersistentEngine &, bool) : KVStore()
 {
     throw std::runtime_error("This kvstore should never be used");
 }
