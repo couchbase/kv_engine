@@ -137,8 +137,7 @@ void BackFillVisitor::visit(StoredValue *v) {
     }
     queued_item qi(new QueuedItem(v->getKey(), currentBucket->getId(), queue_op_set,
                                   v->getId()));
-    uint16_t shardId = engine->kvstore->getShardId(*qi);
-    found.push_back(std::make_pair(shardId, qi));
+    queue->push_back(qi);
 }
 
 void BackFillVisitor::apply(void) {
@@ -169,16 +168,7 @@ void BackFillVisitor::apply(void) {
 
 void BackFillVisitor::setEvents() {
     if (checkValidity()) {
-        if (!found.empty()) {
-            // Don't notify unless we've got some data..
-            TaggedQueuedItemComparator<uint16_t> comparator;
-            std::sort(found.begin(), found.end(), comparator);
-
-            std::vector<std::pair<uint16_t, queued_item> >::iterator it(found.begin());
-            for (; it != found.end(); ++it) {
-                queue->push_back(it->second);
-            }
-            found.clear();
+        if (!queue->empty()) {
             engine->tapConnMap->setEvents(name, queue);
         }
     }

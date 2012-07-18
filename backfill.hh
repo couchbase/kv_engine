@@ -60,13 +60,9 @@ public:
                     const void *token, const VBucketFilter &backfillVBfilter):
         VBucketVisitor(backfillVBfilter), engine(e), name(tc->getName()),
         queue(new std::list<queued_item>),
-        found(),
         validityToken(token), valid(true),
         efficientVBDump(e->epstore->getStorageProperties().hasEfficientVBDump()),
-        residentRatioBelowThreshold(false) {
-
-        found.reserve(e->getTapConfig().getBackfillBacklogLimit());
-    }
+        residentRatioBelowThreshold(false) { }
 
     virtual ~BackFillVisitor() {
         delete queue;
@@ -95,7 +91,6 @@ private:
     EventuallyPersistentEngine *engine;
     const std::string name;
     std::list<queued_item> *queue;
-    std::vector<std::pair<uint16_t, queued_item> > found;
     std::map<uint16_t, backfill_t> vbuckets;
     const void *validityToken;
     bool valid;

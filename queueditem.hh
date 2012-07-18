@@ -129,19 +129,4 @@ public:
     }
 };
 
-/**
- * Compare two Schwartzian-transformed QueuedItems.
- */
-template <typename T>
-class TaggedQueuedItemComparator {
-public:
-    TaggedQueuedItemComparator() {}
-
-    bool operator()(std::pair<T, queued_item> i1, std::pair<T, queued_item> i2) {
-        return (i1.first == i2.first)
-            ? (i1.second->getRowId() < i2.second->getRowId())
-            : (i1 < i2);
-    }
-};
-
 #endif /* QUEUEDITEM_HH */
