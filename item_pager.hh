@@ -16,22 +16,18 @@ typedef std::pair<int64_t, int64_t> row_range_t;
 class EventuallyPersistentStore;
 
 /**
- * ItemPager visits replica vbuckets and active vbuckets in separate phases.
- * The config_t.first is the vbucket state to skip during hash table visit, and
- * 0 means visiting all vbuckets. The config_t.second bool value indicates whether
- * random items ejection will be performed.
+ * ItemPager visits replica vbuckets and active vbuckets in one phases.
+ * The config_t is a bool value and it indicates whether random items ejection
+ * will be performed.
  */
 class PagingConfig {
 public:
-    typedef std::pair<vbucket_state_t, bool> config_t;
-
-    static const short int paging_max = 3;
+    static const short int paging_max = 2;
 
     static const short int paging_unreferenced = 0;
-    static const short int paging_replica = 1;
-    static const short int paging_active = 2;
+    static const short int paging_random = 1;
 
-    static const config_t phaseConfig[paging_max];
+    static const bool phaseConfig[paging_max];
 };
 
 /**

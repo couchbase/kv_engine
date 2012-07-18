@@ -855,6 +855,7 @@ private:
     friend class Deleter;
     friend class VBCBAdaptor;
     friend class ItemPager;
+    friend class PagingVisitor;
 
     EventuallyPersistentEngine     &engine;
     EPStats                        &stats;

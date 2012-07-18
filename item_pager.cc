@@ -14,11 +14,7 @@
 static const double EJECTION_RATIO_THRESHOLD(0.1);
 static const size_t MAX_PERSISTENCE_QUEUE_SIZE = 1000000;
 
-const PagingConfig::config_t PagingConfig::phaseConfig[paging_max] = {
-    PagingConfig::config_t(vbucket_state_t(0),  false),
-    PagingConfig::config_t(vbucket_state_active,  true),
-    PagingConfig::config_t(vbucket_state_replica, true)
-};
+const bool PagingConfig::phaseConfig[paging_max] = {false, true};
 
 /**
  * As part of the ItemPager, visit all of the objects in memory and
@@ -41,7 +37,7 @@ public:
      */
     PagingVisitor(EventuallyPersistentStore *s, EPStats &st, double pcnt,
                   bool *sfin, bool pause = false, double bias = 1)
-        : store(s), stats(st), config(PagingConfig::phaseConfig[0]), percent(pcnt),
+        : store(s), stats(st), randomEvict(PagingConfig::phaseConfig[0]), percent(pcnt),
           activeBias(bias), ejected(0), totalEjected(0), totalEjectionAttempts(0),
           startTime(ep_real_time()), stateFinalizer(sfin), canPause(pause), nru(true) {}
 
@@ -52,13 +48,13 @@ public:
             return;
         }
 
-        // return if not ItemPager, which uses valid evicition percentage
+        // return if not ItemPager, which uses valid eviction percentage
         if (percent <= 0) {
             return;
         }
 
         // always evict unreferenced items, or randomly evict referenced item
-        double r = config.second == false ?
+        double r = randomEvict == false ?
             1 : static_cast<double>(std::rand()) / static_cast<double>(RAND_MAX);
         if ((nru && !v->isReferenced()) || percent >= r) {
             ++totalEjectionAttempts;
@@ -83,14 +79,21 @@ public:
             return VBucketVisitor::visitBucket(vb);;
         }
 
-        // stop eviction whenever memory usage is below low watermark
+        // skip active vbuckets if active resident ratio is lower than replica
         double current = static_cast<double>(stats.getTotalMemoryUsed());
         double lower = static_cast<double>(stats.mem_low_wat);
-        if (current > lower &&
-            (config.first == 0 || config.first != vb->getState()))
+        double high = static_cast<double>(stats.mem_high_wat);
+        if (vb->getState() == vbucket_state_active && current < high &&
+            store->cachedResidentRatio.activeRatio <
+            store->cachedResidentRatio.replicaRatio)
         {
+            return false;
+        }
+
+        // stop eviction whenever memory usage is below low watermark
+        if (current > lower) {
             double p = (current - static_cast<double>(lower)) / current;
-            adjustPercent(p, config.first);
+            adjustPercent(p, vb->getState());
             return VBucketVisitor::visitBucket(vb);
         }
         return false;
@@ -143,21 +146,22 @@ public:
      */
     size_t getTotalEjectionAttempts() { return totalEjectionAttempts; }
 
-    void configPaging(PagingConfig::config_t cfg, double prob) {
-        config = cfg;
-        adjustPercent(prob, config.first);
+    void configPaging(bool cfg) {
+        randomEvict = cfg;
         if (store->getEPEngine().isDegradedMode()) {
             nru = false;
         }
     }
 
 private:
-    void adjustPercent(double prob, vbucket_state_t nostate) {
-        if (nostate == vbucket_state_active) {
+    void adjustPercent(double prob, vbucket_state_t state) {
+        if (state == vbucket_state_replica ||
+            state == vbucket_state_dead)
+        {
             // replica items should have higher eviction probability
             double p = prob*(2 - activeBias);
             percent = p < 0.9 ? p : 0.9;
-        } else if (nostate == vbucket_state_replica) {
+        } else {
             // active items have lower eviction probability
             percent = prob*activeBias;
         }
@@ -167,7 +171,7 @@ private:
 
     EventuallyPersistentStore *store;
     EPStats                   &stats;
-    PagingConfig::config_t     config;
+    bool                       randomEvict;
     double                     percent;
     double                     activeBias;
     size_t                     ejected;
@@ -204,15 +208,7 @@ bool ItemPager::callback(Dispatcher &d, TaskId t) {
         shared_ptr<PagingVisitor> pv(new PagingVisitor(store, stats, toKill,
                                                        &available, false, bias));
         std::srand(ep_real_time());
-
-        // skip active vbuckets if active resident ratio is lower than replica
-        if (phase == PagingConfig::paging_active &&
-            store->cachedResidentRatio.activeRatio <
-            store->cachedResidentRatio.replicaRatio)
-        {
-            phase = PagingConfig::paging_replica;
-        }
-        pv->configPaging(PagingConfig::phaseConfig[phase], toKill);
+        pv->configPaging(PagingConfig::phaseConfig[phase]);
         store->visit(pv, "Item pager", &d, Priority::ItemPagerPriority);
 
         phase = phase + 1;
