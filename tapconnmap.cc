@@ -73,15 +73,11 @@ void TapConnMap::disconnect(const void *cookie, int tapKeepAlive) {
                              cookie);
         }
         map.erase(iter);
-
-        // Notify the daemon thread so that it may reap them..
-        notify_UNLOCKED();
     }
 }
 
 bool TapConnMap::setEvents(const std::string &name,
                            std::list<queued_item> *q) {
-    bool shouldNotify(true);
     bool found(false);
     LockHolder lh(notifySync);
 
@@ -91,11 +87,8 @@ bool TapConnMap::setEvents(const std::string &name,
         assert(tp);
         found = true;
         tp->appendQueue(q);
-        shouldNotify = tp->paused; // notify if paused
-    }
-
-    if (shouldNotify) {
-        notify_UNLOCKED();
+        lh.unlock();
+        notifyPausedConnection_UNLOCKED(tp);
     }
 
     return found;
@@ -189,17 +182,12 @@ void TapConnMap::removeTapCursors_UNLOCKED(TapProducer *tp) {
 
 void TapConnMap::addFlushEvent() {
     LockHolder lh(notifySync);
-    bool shouldNotify(false);
     std::list<TapConnection*>::iterator iter;
     for (iter = all.begin(); iter != all.end(); iter++) {
         TapProducer *tc = dynamic_cast<TapProducer*>(*iter);
         if (tc && !tc->dumpQueue) {
             tc->flush();
-            shouldNotify = true;
         }
-    }
-    if (shouldNotify) {
-        notify_UNLOCKED();
     }
 }
 
@@ -328,8 +316,11 @@ bool TapConnMap::mapped(TapConnection *tc) {
     return rv;
 }
 
-bool TapConnMap::isPaused(TapProducer *tc) {
-    return tc && tc->paused;
+void TapConnMap::notifyPausedConnection_UNLOCKED(TapProducer *tc) {
+    if (tc && tc->paused) {
+        engine.notifyIOComplete(tc->getCookie(), ENGINE_SUCCESS);
+        tc->notifySent.set(true);
+    }
 }
 
 bool TapConnMap::shouldDisconnect(TapConnection *tc) {
@@ -362,7 +353,6 @@ void TapConnMap::shutdownAllTapConnections() {
 
 void TapConnMap::scheduleBackfill(const std::set<uint16_t> &backfillVBuckets) {
     LockHolder lh(notifySync);
-    bool shouldNotify(false);
     rel_time_t now = ep_current_time();
     std::list<TapConnection*>::iterator it = all.begin();
     for (; it != all.end(); ++it) {
@@ -381,11 +371,7 @@ void TapConnMap::scheduleBackfill(const std::set<uint16_t> &backfillVBuckets) {
         }
         if (vblist.size() > 0) {
             tp->scheduleBackfill(vblist);
-            shouldNotify = true;
         }
-    }
-    if (shouldNotify) {
-        notify_UNLOCKED();
     }
 }
 
@@ -409,7 +395,6 @@ void TapConnMap::resetReplicaChain() {
         // replica vbuckets, and then backfills items to the destination.
         tp->scheduleBackfill(vblist);
     }
-    notify_UNLOCKED();
 }
 
 void TapConnMap::notifyIOThreadMain() {
@@ -515,7 +500,6 @@ bool TapConnMap::closeTapConnectionByName(const std::string &name) {
             tp->setDisconnect(true);
             tp->paused = true;
             rv = true;
-            notify_UNLOCKED();
         }
     }
     return rv;

@@ -103,8 +103,6 @@ public:
      */
     template <typename V>
     bool performTapOp(const std::string &name, TapOperation<V> &tapop, V arg) {
-        bool shouldNotify(true);
-        bool clear(true);
         bool ret(true);
         LockHolder lh(notifySync);
 
@@ -113,14 +111,10 @@ public:
             TapProducer *tp = dynamic_cast<TapProducer*>(tc);
             assert(tp != NULL);
             tapop.perform(tp, arg);
-            shouldNotify = isPaused(tp);
-            clear = shouldDisconnect(tc);
+            lh.unlock();
+            notifyPausedConnection_UNLOCKED(tp);
         } else {
             ret = false;
-        }
-
-        if (shouldNotify) {
-            notify_UNLOCKED();
         }
 
         return ret;
@@ -265,6 +259,7 @@ private:
 
     bool isPaused(TapProducer *tc);
     bool shouldDisconnect(TapConnection *tc);
+    void notifyPausedConnection_UNLOCKED(TapProducer *tc);
 
     SyncObject                               notifySync;
     uint32_t                                 notifyCounter;
