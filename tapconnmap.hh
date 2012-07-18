@@ -70,14 +70,6 @@ private:
     bool implicitEnqueue;
 };
 
-/**
- * The noop tap operation will notify paused tap connections..
- */
-class NotifyPausedTapOperation : public TapOperation<EventuallyPersistentEngine*> {
-public:
-    void perform(TapProducer *, EventuallyPersistentEngine*) {}
-};
-
 class TAPSessionStats {
 public:
     TAPSessionStats() : normalShutdown(true) {}
