@@ -942,13 +942,13 @@ ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
                              logHeader(), s);
         }
 
-        if (checkBackfillCompletion_UNLOCKED()) {
+        if (checkBackfillCompletion_UNLOCKED() || (doTakeOver && tapLog.empty())) {
             notifyTapNotificationThread = true;
         }
 
         lh.unlock(); // Release the lock to avoid the deadlock with the notify thread
 
-        if (notifyTapNotificationThread || doTakeOver) {
+        if (notifyTapNotificationThread) {
             engine.notifyNotificationThread();
         }
 

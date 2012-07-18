@@ -107,7 +107,6 @@ public:
      */
     template <typename V>
     bool performTapOp(const std::string &name, TapOperation<V> &tapop, V arg) {
-        bool shouldNotify(true);
         bool ret(true);
         LockHolder lh(notifySync);
 
@@ -116,13 +115,10 @@ public:
             TapProducer *tp = dynamic_cast<TapProducer*>(tc);
             assert(tp != NULL);
             tapop.perform(tp, arg);
-            shouldNotify = isPaused(tp);
+            lh.unlock();
+            notifyPausedConnection_UNLOCKED(tp);
         } else {
             ret = false;
-        }
-
-        if (shouldNotify) {
-            notify_UNLOCKED();
         }
 
         return ret;
@@ -161,10 +157,8 @@ public:
      * Notify anyone who's waiting for tap stuff.
      */
     void notify() {
-        if (doNotify) {
-            LockHolder lh(notifySync);
-            notify_UNLOCKED();
-        }
+        LockHolder lh(notifySync);
+        notify_UNLOCKED();
     }
 
     uint32_t wait(double howlong, uint32_t previousCounter) {
@@ -312,7 +306,7 @@ private:
 
     bool mapped(TapConnection *tc);
 
-    bool isPaused(TapProducer *tc);
+    void notifyPausedConnection_UNLOCKED(TapProducer *tc);
 
     /**
      * Clear all the session stats for a given TAP producer
@@ -333,7 +327,6 @@ private:
     size_t tapNoopInterval;
     size_t nextTapNoop;
 
-    bool doNotify;
     TAPSessionStats prevSessionStats;
 };
 

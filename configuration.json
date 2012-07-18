@@ -375,12 +375,6 @@
             "default": "500",
             "type": "size_t"
         },
-        "tap_conn_map_notifications": {
-            "default": "true",
-            "descr": "Should TapConnMap use notifications or not",
-            "dynamic": false,
-            "type": "bool"
-        },
         "tap_keepalive": {
             "default": "0",
             "type": "size_t"
