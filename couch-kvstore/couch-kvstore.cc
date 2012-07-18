@@ -612,10 +612,10 @@ void CouchKVStore::getPersistedStats(std::map<std::string, std::string> &stats)
 bool CouchKVStore::snapshotVBuckets(const vbucket_map_t &m)
 {
     assert(!isReadOnly());
-    vbucket_map_t::const_iterator iter;
+    vbucket_map_t::const_reverse_iterator iter;
     bool success = true;
 
-    for (iter = m.begin(); iter != m.end(); ++iter) {
+    for (iter = m.rbegin(); iter != m.rend(); ++iter) {
         uint16_t vbucketId = iter->first;
         vbucket_state vbstate = iter->second;
         vbucket_map_t::iterator it =
