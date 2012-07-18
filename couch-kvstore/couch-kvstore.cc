@@ -1575,7 +1575,7 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, int rev, Doc **docs,
 
 void CouchKVStore::queueItem(CouchRequest *req)
 {
-    pendingReqsQ.push_back(req);
+    pendingReqsQ.push_front(req);
     pendingCommitCnt++;
 }
 
