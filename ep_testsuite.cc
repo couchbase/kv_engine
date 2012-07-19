@@ -7088,7 +7088,7 @@ static enum test_result test_observe_multi_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V
 
     // Set a bunch of items to try to drive up the persistence time
     item *it = NULL;
-    for (int i = 0; i < 30000; ++i) {
+    for (int i = 0; i < 50000; ++i) {
         std::stringstream key;
         key << "key-" << i;
         store(h, h1, NULL, OPERATION_ADD, key.str().c_str(), "somevalue", &it);
