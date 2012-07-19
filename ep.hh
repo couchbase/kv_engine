@@ -188,6 +188,13 @@ public:
         return numUncommittedItems;
     }
 
+    /**
+     * Return the last commit time per item in millisecond.
+     */
+    double getLastCommitTimePerItem() {
+        return lastCommitTimePerItem;
+    }
+
     void addCallback(PersistenceCallback *cb) {
         transactionCallbacks.push_back(cb);
     }
@@ -199,6 +206,7 @@ private:
     int          _remaining;
     Atomic<int>  txnSize;
     Atomic<size_t> numUncommittedItems;
+    Atomic<double> lastCommitTimePerItem;
     bool         intxn;
     std::list<queued_item>     uncommittedItems;
     std::list<PersistenceCallback*> transactionCallbacks;
@@ -604,6 +612,10 @@ public:
 
     size_t getNumUncommittedItems() {
         return tctx.getNumUncommittedItems();
+    }
+
+    double getLastCommitTimePerItem() {
+        return tctx.getLastCommitTimePerItem();
     }
 
     const Flusher* getFlusher();

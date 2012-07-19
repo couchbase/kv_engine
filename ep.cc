@@ -2584,6 +2584,8 @@ void TransactionContext::commit() {
     en = gethrtime();
     uint64_t millis = (en - st) / 1000000;
 
+    lastCommitTimePerItem.set(millis > 0 ?
+        static_cast<double>(numUncommittedItems) / static_cast<double>(millis) : 0);
     stats.commit_time.set(millis);
     stats.cumulativeCommitTime.incr(millis);
     intxn = false;

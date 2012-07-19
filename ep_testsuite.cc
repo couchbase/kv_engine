@@ -7086,8 +7086,16 @@ static enum test_result test_observe_multi_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     // Create some vbuckets
     check(set_vbucket_state(h, h1, 1, vbucket_state_active), "Failed to set vbucket state.");
 
-    // Set some keys
+    // Set a bunch of items to try to drive up the persistence time
     item *it = NULL;
+    for (int i = 0; i < 30000; ++i) {
+        std::stringstream key;
+        key << "key-" << i;
+        store(h, h1, NULL, OPERATION_ADD, key.str().c_str(), "somevalue", &it);
+        h1->release(h, NULL, it);
+    }
+
+    // Set some keys to observe
     uint64_t cas1, cas2, cas3;
     check(h1->allocate(h, NULL, &it, "key1", 4, 100, 0, 0)== ENGINE_SUCCESS,
           "Allocation failed.");
@@ -7107,16 +7115,20 @@ static enum test_result test_observe_multi_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V
           "Set should work.");
     h1->release(h, NULL, it);
 
-    // Time travel to make the avg persistence time increase
-    testHarness.time_travel(5);
-    wait_for_flusher_to_settle(h, h1);
-
     // Do observe
     std::map<std::string, uint16_t> obskeys;
     obskeys["key1"] = 0;
     obskeys["key2"] = 1;
     obskeys["key3"] = 1;
     protocol_binary_request_header *pkt = createObservePacket(obskeys);
+    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
+          "Observe failed.");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+
+    // Check avg persistence time
+    check((last_cas >> 32) > 0, "Avg persistence time not properly reported");
+
+    wait_for_flusher_to_settle(h, h1);
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Observe failed.");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
@@ -7128,9 +7140,6 @@ static enum test_result test_observe_multi_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     char key[10];
     uint8_t persisted;
     uint64_t cas;
-
-    // Check avg persistence time
-    check((last_cas >> 32) > 4500, "Avg persistence time not properly reported");
 
     memcpy(&vb, last_body, sizeof(uint16_t));
     check(ntohs(vb) == 0, "Wrong vbucket in result");
