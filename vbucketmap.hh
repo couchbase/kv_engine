@@ -19,6 +19,7 @@ public:
     RCPtr<VBucket> getBucket(uint16_t id) const;
     size_t getSize() const;
     std::vector<int> getBuckets(void) const;
+    std::vector<int> getBucketsSortedByState(void) const;
     bool isBucketDeletion(uint16_t id) const;
     bool setBucketDeletion(uint16_t id, bool delBucket);
     uint64_t getPersistenceCheckpointId(uint16_t id);

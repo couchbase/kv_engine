@@ -62,6 +62,20 @@ std::vector<int> VBucketMap::getBuckets(void) const {
     return rv;
 }
 
+std::vector<int> VBucketMap::getBucketsSortedByState(void) const {
+    std::vector<int> rv;
+    for (int state = vbucket_state_active;
+         state <= vbucket_state_dead; ++state) {
+        for (size_t i = 0; i < size; ++i) {
+            RCPtr<VBucket> b = buckets[i];
+            if (b && b->getState() == state) {
+                rv.push_back(b->getId());
+            }
+        }
+    }
+    return rv;
+}
+
 size_t VBucketMap::getSize(void) const {
     return size;
 }

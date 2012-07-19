@@ -177,6 +177,27 @@ static void testVBucketFilterFormatter(void) {
     assertFilterTxt(filter, "{ [1,103] }");
 }
 
+static void testGetVBucketsByState(void) {
+    Configuration config;
+    VBucketMap vbm(config);
+
+    int st = vbucket_state_dead;
+    for (int id = 0; id < 4; id++, st--) {
+        RCPtr<VBucket> v(new VBucket(id, (vbucket_state_t)st, global_stats,
+                                     checkpoint_config));
+        vbm.addBucket(v);
+        assert(vbm.getBucket(id) == v);
+    }
+
+    const std::vector<int> vblist = vbm.getBucketsSortedByState();
+    std::vector<int>::const_iterator itr = vblist.begin();
+    for (int id = 3; id >= 0; id--, itr++) {
+        assert(itr != vblist.end());
+        assert(*itr == id);
+    }
+
+}
+
 int main(int argc, char **argv) {
     (void)argc; (void)argv;
     putenv(strdup("ALLOW_NO_STATS_UPDATE=yeah"));
@@ -190,4 +211,5 @@ int main(int argc, char **argv) {
     testConcurrentUpdate();
     testVBucketFilter();
     testVBucketFilterFormatter();
+    testGetVBucketsByState();
 }

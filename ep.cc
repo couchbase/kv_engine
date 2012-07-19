@@ -1720,14 +1720,14 @@ std::queue<queued_item>* EventuallyPersistentStore::beginFlush() {
         }
 
         std::vector<queued_item> item_list;
-        size_t numOfVBuckets = vbuckets.getSize();
-
         item_list.reserve(getTxnSize());
-        assert(numOfVBuckets <= std::numeric_limits<uint16_t>::max());
 
-        for (size_t i = 0; i < numOfVBuckets; ++i) {
-            uint16_t vbid = static_cast<uint16_t>(i);
+        const std::vector<int> vblist = vbuckets.getBucketsSortedByState();
+        std::vector<int>::const_iterator itr;
+        for (itr = vblist.begin(); itr != vblist.end(); ++itr) {
+            uint16_t vbid = static_cast<uint16_t>(*itr);
             RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
+
             if (!vb) {
                 // Undefined vbucket..
                 continue;
