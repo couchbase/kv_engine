@@ -392,7 +392,9 @@ void CouchKVStore::get(const std::string &key, uint64_t, uint16_t vb,
 
         // record stats
         st.readTimeHisto.add((gethrtime() - start) / 1000);
-        st.readSizeHisto.add(key.length() + rv.getValue()->getNBytes());
+        if (errCode == COUCHSTORE_SUCCESS) {
+            st.readSizeHisto.add(key.length() + rv.getValue()->getNBytes());
+        }
     }
 
     if(errCode != COUCHSTORE_SUCCESS) {
@@ -1716,8 +1718,10 @@ int CouchKVStore::getMultiCb(Db *db, DocInfo *docinfo, void *ctx)
         // same seqid
         (*itr)->value = returnVal;
         st.readTimeHisto.add((gethrtime() - (*itr)->initTime) / 1000);
-        st.readSizeHisto.add(returnVal.getValue()->getKey().length() +
-                             returnVal.getValue()->getNBytes());
+        if (errCode == COUCHSTORE_SUCCESS) {
+            st.readSizeHisto.add(returnVal.getValue()->getKey().length() +
+                                 returnVal.getValue()->getNBytes());
+        }
     }
     return 0;
 }
