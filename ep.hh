@@ -827,7 +827,6 @@ private:
     void requeueRejectedItems(std::queue<queued_item> *rejects);
     void completeFlush(rel_time_t flush_start);
 
-    void enqueueCommit();
     int flushSome(std::queue<queued_item> *q,
                   std::queue<queued_item> *rejectQueue);
     int flushOne(std::queue<queued_item> *q,

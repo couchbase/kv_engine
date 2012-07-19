@@ -1693,14 +1693,6 @@ void EventuallyPersistentStore::reset() {
     }
 }
 
-void EventuallyPersistentStore::enqueueCommit() {
-    queued_item qi(new QueuedItem("", 0, queue_op_commit));
-    writing.push(qi);
-    stats.memOverhead.incr(sizeof(queued_item));
-    assert(stats.memOverhead.get() < GIGANTOR);
-    ++stats.totalEnqueued;
-}
-
 std::queue<queued_item>* EventuallyPersistentStore::beginFlush() {
     std::queue<queued_item> *rv(NULL);
 
