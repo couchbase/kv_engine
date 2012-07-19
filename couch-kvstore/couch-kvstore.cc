@@ -880,7 +880,7 @@ void CouchKVStore::addStats(const std::string &prefix,
     addStat(prefix_str, "readTime",       st.readTimeHisto,   add_stat, c);
     addStat(prefix_str, "readSize",       st.readSizeHisto,   add_stat, c);
     addStat(prefix_str, "numLoadedVb",    st.numLoadedVb,     add_stat, c);
-
+    addStat(prefix_str, "numCommitRetry", st.numCommitRetry,  add_stat, c);
     // failure stats
     addStat(prefix_str, "failure_open",   st.numOpenFailure, add_stat, c);
     addStat(prefix_str, "failure_get",    st.numGetFailure,  add_stat, c);
@@ -893,6 +893,7 @@ void CouchKVStore::addStats(const std::string &prefix,
         addStat(prefix_str, "failure_vbset", st.numVbSetFailure, add_stat, c);
         addStat(prefix_str, "writeTime",     st.writeTimeHisto,  add_stat, c);
         addStat(prefix_str, "writeSize",     st.writeSizeHisto,  add_stat, c);
+        addStat(prefix_str, "commitRetry",   st.commitRetryHisto,add_stat, c);
         addStat(prefix_str, "lastCommDocs",  st.docsCommitted,   add_stat, c);
     }
 }
@@ -1494,6 +1495,8 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, int rev, Doc **docs,
     uint16_t newFileRev;
     Db *db = NULL;
     bool retry_save_docs;
+    bool retried = false;
+    hrtime_t retry_begin = (hrtime_t)0;
 
     fileRev = rev;
     assert(fileRev);
@@ -1559,6 +1562,11 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, int rev, Doc **docs,
                                      vbid, newFileRev);
                     fileRev = newFileRev;
                     retry_save_docs = true;
+                    ++st.numCommitRetry;
+                    if (!retried) {
+                        retry_begin = gethrtime();
+                        retried = true;
+                    }
                 } else {
                     getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                                      "Warning: failed to notify CouchDB of "
@@ -1574,6 +1582,9 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, int rev, Doc **docs,
     /* update stat */
     if(errCode == COUCHSTORE_SUCCESS) {
         st.docsCommitted = docCount;
+    }
+    if (retried) {
+        st.commitRetryHisto.add((gethrtime() - retry_begin) / 1000);
     }
 
     return errCode;

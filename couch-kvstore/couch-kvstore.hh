@@ -40,6 +40,7 @@ public:
     Atomic<size_t> numDelFailure;
     Atomic<size_t> numOpenFailure;
     Atomic<size_t> numVbSetFailure;
+    Atomic<size_t> numCommitRetry;
 
     /* for flush and vb delete, no error handling in CouchKVStore, such
      * failure should be tracked in MC-engine  */
@@ -54,6 +55,8 @@ public:
     Histogram<size_t> writeSizeHisto;
     // Time spent in delete() calls.
     Histogram<hrtime_t> delTimeHisto;
+    // Time spent in disk commit retry
+    Histogram<hrtime_t> commitRetryHisto;
 };
 
 class EventuallyPersistentEngine;
