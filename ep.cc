@@ -2560,7 +2560,9 @@ void TransactionContext::leave(int completed) {
 
 void TransactionContext::commit() {
     BlockTimer timer(&stats.diskCommitHisto, "disk_commit", stats.timingLog);
-    rel_time_t cstart = ep_current_time();
+    hrtime_t st, en;
+    st = gethrtime();
+
     mutationLog.commit1();
     while (!underlying->commit()) {
         getLogger()->log(EXTENSION_LOG_WARNING, NULL,
@@ -2578,10 +2580,12 @@ void TransactionContext::commit() {
         delete *iter;
     }
     transactionCallbacks.clear();
-    rel_time_t complete_time = ep_current_time();
 
-    stats.commit_time.set(complete_time - cstart);
-    stats.cumulativeCommitTime.incr(complete_time - cstart);
+    en = gethrtime();
+    uint64_t millis = (en - st) / 1000000;
+
+    stats.commit_time.set(millis);
+    stats.cumulativeCommitTime.incr(millis);
     intxn = false;
     uncommittedItems.clear();
     numUncommittedItems = 0;

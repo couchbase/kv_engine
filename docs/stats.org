@@ -64,8 +64,9 @@ For introductory information on stats within membase, start with the
 |                                | queues.                                    |
 | ep_flusher_state               | Current state of the flusher thread.       |
 | ep_commit_num                  | Total number of write commits.             |
-| ep_commit_time                 | Number of seconds of most recent commit.   |
-| ep_commit_time_total           | Cumulative seconds spent committing.       |
+| ep_commit_time                 | Number of milliseconds of most recent      |
+|                                | commit.                                    |
+| ep_commit_time_total           | Cumulative milliseconds spent committing.  |
 | ep_vbucket_del                 | Number of vbucket deletion events.         |
 | ep_vbucket_del_fail            | Number of failed vbucket deletion events.  |
 | ep_vbucket_del_max_walltime    | Max wall time (µs) spent by deleting       |
