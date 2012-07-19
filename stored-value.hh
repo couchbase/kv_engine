@@ -558,7 +558,7 @@ public:
     /**
      * Logically delete this object.
      */
-    void del(EPStats &stats, HashTable &ht) {
+    void del(EPStats &stats, HashTable &ht, bool isMetaDelete=false) {
         if (isDeleted()) {
             return;
         }
@@ -568,7 +568,9 @@ public:
 
         resetValue();
         markDirty();
-        setCas(getCas() + 1);
+        if (!isMetaDelete) {
+            setCas(getCas() + 1);
+        }
 
         size_t newsize = size();
         if (oldsize < newsize) {
@@ -1306,7 +1308,7 @@ public:
                 if (!v->isResident()) {
                     --numNonResidentItems;
                 }
-                v->del(stats, *this);
+                v->del(stats, *this, use_meta);
                 updateMaxDeletedSeqno(v->getSeqno());
                 return rv;
             }
@@ -1338,7 +1340,7 @@ public:
                 }
                 v->setStoredValueState(StoredValue::state_deleted_key);
             }
-            v->del(stats, *this);
+            v->del(stats, *this, use_meta);
 
             updateMaxDeletedSeqno(v->getSeqno());
         }
