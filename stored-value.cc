@@ -275,6 +275,7 @@ HashTableStatVisitor HashTable::clear(bool deactivate) {
     assert(stats.currentSize.get() < GIGANTOR);
 
     numItems.set(0);
+    numTempItems.set(0);
     numNonResidentItems.set(0);
     memSize.set(0);
     cacheSize.set(0);
@@ -386,7 +387,7 @@ void HashTable::resize() {
 }
 
 void HashTable::visit(HashTableVisitor &visitor) {
-    if (numItems.get() == 0 || !isActive()) {
+    if ((numItems.get() + numTempItems.get()) == 0 || !isActive()) {
         return;
     }
     VisitorTracker vt(&visitors);
@@ -494,7 +495,12 @@ add_type_t HashTable::unlocked_add(int &bucket_num,
         } else {
             v = valFact(itm, values[bucket_num], *this, isDirty);
             values[bucket_num] = v;
-            ++numItems;
+
+            if (v->isTempItem()) {
+                ++numTempItems;
+            } else {
+                ++numItems;
+            }
 
             /**
              * Possibly, this item is being recreated. Conservatively assign
@@ -529,11 +535,7 @@ add_type_t HashTable::unlocked_addTempDeletedItem(int &bucket_num,
     // the value cuz normally a new item added is considered resident which does
     // not apply for temp item.
 
-    add_type_t rv = unlocked_add(bucket_num, itm, false, true);
-    if (rv == ADD_SUCCESS) {
-        ++numTempItems;
-    }
-    return rv;
+    return unlocked_add(bucket_num, itm, false, true);
 }
 
 void StoredValue::setMutationMemoryThreshold(double memThreshold) {

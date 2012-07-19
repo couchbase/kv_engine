@@ -6098,9 +6098,6 @@ static enum test_result test_get_meta_with_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V
 
     item *i = NULL;
     ItemMetaData itm_meta;
-    size_t temp = 0;
-
-    int curri, tempi;
 
     // test get_meta followed by set for an existing key. should pass.
     check(store(h, h1, NULL, OPERATION_SET, key1, "somevalue", &i) == ENGINE_SUCCESS,
@@ -6108,45 +6105,39 @@ static enum test_result test_get_meta_with_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     h1->release(h, NULL, i);
     wait_for_flusher_to_settle(h, h1);
     // check the stat
-    temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
-    check(temp == 0, "Expect zero getMeta ops");
+    check(get_int_stat(h, h1, "ep_num_ops_get_meta") == 0, "Expect zero getMeta ops");
     check(get_meta(h, h1, key1, itm_meta), "Expected to get meta");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
     check(store(h, h1, NULL, OPERATION_SET, key1, "someothervalue", &i) == ENGINE_SUCCESS,
           "Failed set.");
     // check the stat
-    temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
-    check(temp == 1, "Expect one getMeta op");
+    check(get_int_stat(h, h1, "ep_num_ops_get_meta") == 1, "Expect one getMeta op");
+    check(get_int_stat(h, h1, "curr_items") == 1, "Expected single curr_items");
+    check(get_int_stat(h, h1, "curr_temp_items") == 0, "Expected zero temp_items");
     h1->release(h, NULL, i);
 
     // check curr, temp item counts
-    curri = get_int_stat(h, h1, "curr_items");
-    tempi = get_int_stat(h, h1, "curr_temp_items");
-    check(tempi == 0, "Expected zero temp_items");
-    check(curri == 1, "Expected single curr_items");
+    check(get_int_stat(h, h1, "curr_items") == 1, "Expected single curr_items");
+    check(get_int_stat(h, h1, "curr_temp_items") == 0, "Expected zero temp_items");
 
     // test get_meta followed by set for a deleted key. should pass.
     check(h1->remove(h, NULL, key1, strlen(key1), 0, 0) == ENGINE_SUCCESS,
           "Delete failed");
     wait_for_flusher_to_settle(h, h1);
     check(get_meta(h, h1, key1, itm_meta), "Expected to get meta");
-    curri = get_int_stat(h, h1, "curr_items");
-    tempi = get_int_stat(h, h1, "curr_temp_items");
-    check(tempi == 1, "Expected single temp_items");
-    check(curri == tempi, "Expected single curr_items");
+    check(get_int_stat(h, h1, "curr_items") == 0, "Expected zero curr_items");
+    check(get_int_stat(h, h1, "curr_temp_items") == 1, "Expected single temp_items");
 
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
     check(last_deleted_flag, "Expected deleted flag to be set");
     check(store(h, h1, NULL, OPERATION_SET, key1, "someothervalue", &i) == ENGINE_SUCCESS,
           "Failed set.");
-    curri = get_int_stat(h, h1, "curr_items");
-    tempi = get_int_stat(h, h1, "curr_temp_items");
-    check(tempi == 0, "Expected zero temp_items");
-    check(curri == 1, "Expected single curr_items");
+
+    check(get_int_stat(h, h1, "curr_items") == 1, "Expected single curr_items");
+    check(get_int_stat(h, h1, "curr_temp_items") == 0, "Expected zero temp_items");
 
     // check the stat
-    temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
-    check(temp == 2, "Expect more getMeta ops");
+    check(get_int_stat(h, h1, "ep_num_ops_get_meta") == 2, "Expect more getMeta ops");
     h1->release(h, NULL, i);
 
     // test get_meta followed by set for a nonexistent key. should pass.
@@ -6155,8 +6146,8 @@ static enum test_result test_get_meta_with_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     check(store(h, h1, NULL, OPERATION_SET, key2, "someothervalue", &i) == ENGINE_SUCCESS,
           "Failed set.");
     // check the stat again
-    temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
-    check(temp == 3, "Failed operation should also count");
+    check(get_int_stat(h, h1, "ep_num_ops_get_meta") == 3,
+          "Failed operation should also count");
 
     h1->release(h, NULL, i);
     return SUCCESS;
@@ -6278,12 +6269,9 @@ static enum test_result test_delete_with_meta_deleted(ENGINE_HANDLE *h,
     const char *key = "delete_with_meta_key";
     const size_t keylen = strlen(key);
     item *i = NULL;
-    size_t temp = 0;
-    int curri, tempi;
 
     // check the stat
-    temp = get_int_stat(h, h1, "ep_num_ops_del_meta");
-    check(temp == 0, "Expect zero setMeta ops");
+    check(get_int_stat(h, h1, "ep_num_ops_del_meta") == 0, "Expect zero setMeta ops");
 
     // add a key
     check(store(h, h1, NULL, OPERATION_SET, key, "somevalue", &i) == ENGINE_SUCCESS,
@@ -6300,10 +6288,8 @@ static enum test_result test_delete_with_meta_deleted(ENGINE_HANDLE *h,
     check(get_meta(h, h1, key, itm_meta), "Expected to get meta");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
     check(last_deleted_flag, "Expected deleted flag to be set");
-    curri = get_int_stat(h, h1, "curr_items");
-    tempi = get_int_stat(h, h1, "curr_temp_items");
-    check(tempi == 1, "Expected single temp_items");
-    check(curri == tempi, "Expected single curr_items");
+    check(get_int_stat(h, h1, "curr_items") == 0, "Expected zero curr_items");
+    check(get_int_stat(h, h1, "curr_temp_items") == 1, "Expected single temp_items");
 
     // this is the cas to be used with a subsequent delete with meta
     uint64_t valid_cas = last_cas;
@@ -6318,23 +6304,18 @@ static enum test_result test_delete_with_meta_deleted(ENGINE_HANDLE *h,
     del_with_meta(h, h1, key, keylen, 0, &itm_meta, invalid_cas);
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
           "Expected invalid cas error");
-    temp = get_int_stat(h, h1, "ep_num_ops_del_meta");
-    check(temp == 0, "Faild ops does not count");
-    curri = get_int_stat(h, h1, "curr_items");
-    tempi = get_int_stat(h, h1, "curr_temp_items");
-    check(tempi == 1, "Expected single temp_items");
-    check(curri == tempi, "Expected single curr_items");
+    check(get_int_stat(h, h1, "ep_num_ops_del_meta") == 0, "Faild ops does not count");
+    check(get_int_stat(h, h1, "curr_items") == 0, "Expected zero curr_items");
+    check(get_int_stat(h, h1, "curr_temp_items") == 1, "Expected single temp_items");
 
     // do delete with meta with the correct cas value. should pass.
     del_with_meta(h, h1, key, keylen, 0, &itm_meta, valid_cas);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
-    temp = get_int_stat(h, h1, "ep_num_ops_del_meta");
-    check(temp == 1, "Expect some ops");
-    curri = get_int_stat(h, h1, "curr_items");
-    tempi = get_int_stat(h, h1, "curr_temp_items");
-    check(tempi == 0, "Expected single temp_items");
-    check(curri == 1, "Expected single curr_items");
     wait_for_flusher_to_settle(h, h1);
+
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    check(get_int_stat(h, h1, "ep_num_ops_del_meta") == 1, "Expect some ops");
+    check(get_int_stat(h, h1, "curr_items") == 0, "Expected zero curr_items");
+    check(get_int_stat(h, h1, "curr_temp_items") == 0, "Expected zero temp_items");
 
     // get metadata again to verify that delete with meta was successful
     ItemMetaData itm_meta2;
@@ -6345,10 +6326,8 @@ static enum test_result test_delete_with_meta_deleted(ENGINE_HANDLE *h,
     check(itm_meta.cas == itm_meta2.cas, "Expected cas to match");
     check(itm_meta.exptime == itm_meta2.exptime, "Expected exptime to match");
     check(itm_meta.flags == itm_meta2.flags, "Expected flags to match");
-    curri = get_int_stat(h, h1, "curr_items");
-    tempi = get_int_stat(h, h1, "curr_temp_items");
-    check(tempi == 1, "Expected single temp_items");
-    check(curri == tempi, "Expected single curr_items");
+    check(get_int_stat(h, h1, "curr_items") == 0, "Expected zero curr_items");
+    check(get_int_stat(h, h1, "curr_temp_items") == 1, "Expected single temp_items");
 
     h1->release(h, NULL, i);
     return SUCCESS;
@@ -6359,12 +6338,9 @@ static enum test_result test_delete_with_meta_nonexistent(ENGINE_HANDLE *h,
     const char *key = "delete_with_meta_key";
     const size_t keylen = strlen(key);
     ItemMetaData itm_meta;
-    size_t temp = 0;
-    int curri, tempi;
 
     // check the stat
-    temp = get_int_stat(h, h1, "ep_num_ops_del_meta");
-    check(temp == 0, "Expect zero setMeta ops");
+    check(get_int_stat(h, h1, "ep_num_ops_del_meta") == 0, "Expect zero setMeta ops");
 
     // wait until the vb snapshot has run
     wait_for_stat_change(h, h1, "ep_vb_snapshot_total", 0);
@@ -6372,10 +6348,8 @@ static enum test_result test_delete_with_meta_nonexistent(ENGINE_HANDLE *h,
     // get metadata of nonexistent key
     check(!get_meta(h, h1, key, itm_meta), "Expected get meta to return false");
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, "Expected enoent");
-    curri = get_int_stat(h, h1, "curr_items");
-    tempi = get_int_stat(h, h1, "curr_temp_items");
-    check(tempi == 1, "Expected single temp_items");
-    check(curri == tempi, "Expected single curr_items");
+    check(get_int_stat(h, h1, "curr_items") == 0, "Expected zero curr_items");
+    check(get_int_stat(h, h1, "curr_temp_items") == 1, "Expected single temp_items");
 
     // this is the cas to be used with a subsequent delete with meta
     uint64_t valid_cas = last_cas;
@@ -6393,24 +6367,19 @@ static enum test_result test_delete_with_meta_nonexistent(ENGINE_HANDLE *h,
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
           "Expected invalid cas error");
     // check the stat
-    temp = get_int_stat(h, h1, "ep_num_ops_del_meta");
-    check(temp == 0, "Failed op does not count");
-    curri = get_int_stat(h, h1, "curr_items");
-    tempi = get_int_stat(h, h1, "curr_temp_items");
-    check(tempi == 1, "Expected single temp_items");
-    check(curri == tempi, "Expected single curr_items");
+    check(get_int_stat(h, h1, "ep_num_ops_del_meta") == 0, "Failed op does not count");
+    check(get_int_stat(h, h1, "curr_items") == 0, "Expected zero curr_items");
+    check(get_int_stat(h, h1, "curr_temp_items") == 1, "Expected single temp_items");
 
     // do delete with meta with the correct cas value. should pass.
     del_with_meta(h, h1, key, keylen, 0, &itm_meta, valid_cas);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
-    // check the stat
-    temp = get_int_stat(h, h1, "ep_num_ops_del_meta");
-    check(temp == 1, "Expect one op");
-    curri = get_int_stat(h, h1, "curr_items");
-    tempi = get_int_stat(h, h1, "curr_temp_items");
-    check(tempi == 0, "Expected single temp_items");
-    check(curri == 1, "Expected zero curr_items");
     wait_for_flusher_to_settle(h, h1);
+
+    // check the stat
+    check(get_int_stat(h, h1, "ep_num_ops_del_meta") == 1, "Expect one op");
+    check(get_int_stat(h, h1, "curr_items") == 0, "Expected zero curr_items");
+    check(get_int_stat(h, h1, "curr_temp_items") == 0, "Expected zero temp_items");
 
     // get metadata again to verify that delete with meta was successful
     ItemMetaData itm_meta2;
@@ -6421,10 +6390,8 @@ static enum test_result test_delete_with_meta_nonexistent(ENGINE_HANDLE *h,
     check(itm_meta.cas == itm_meta2.cas, "Expected cas to match");
     check(itm_meta.exptime == itm_meta2.exptime, "Expected exptime to match");
     check(itm_meta.flags == itm_meta2.flags, "Expected flags to match");
-    curri = get_int_stat(h, h1, "curr_items");
-    tempi = get_int_stat(h, h1, "curr_temp_items");
-    check(tempi == 1, "Expected single temp_items");
-    check(curri == tempi, "Expected single curr_items");
+    check(get_int_stat(h, h1, "curr_items") == 0, "Expected zero curr_items");
+    check(get_int_stat(h, h1, "curr_temp_items") == 1, "Expected single temp_items");
 
     return SUCCESS;
 }
@@ -6606,10 +6573,11 @@ static enum test_result test_set_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     const char* val = "somevalue";
     const char* newVal = "someothervalue";
     size_t newValLen = strlen(newVal);
-    size_t temp = 0;
+
     // check the stat
-    temp = get_int_stat(h, h1, "ep_num_ops_set_meta");
-    check(temp == 0, "Expect zero ops");
+    check(get_int_stat(h, h1, "ep_num_ops_set_meta") == 0, "Expect zero ops");
+    check(get_int_stat(h, h1, "curr_items") == 0, "Expect zero items");
+    check(get_int_stat(h, h1, "curr_temp_items") == 0, "Expect zero temp items");
 
     // create a new key
     item *i = NULL;
@@ -6620,6 +6588,8 @@ static enum test_result test_set_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     ItemMetaData itm_meta;
     check(get_meta(h, h1, key, itm_meta), "Expected to get meta");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    check(get_int_stat(h, h1, "curr_items") == 1, "Expect one item");
+    check(get_int_stat(h, h1, "curr_temp_items") == 0, "Expect zero temp item");
 
     // this is the cas to be used with a subsequent set with meta
     uint64_t cas_for_set = last_cas;
@@ -6634,15 +6604,15 @@ static enum test_result test_set_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
           "Expected invalid cas error");
     // check the stat
-    temp = get_int_stat(h, h1, "ep_num_ops_set_meta");
-    check(temp == 0, "Failed op does not count");
+    check(get_int_stat(h, h1, "ep_num_ops_set_meta") == 0, "Failed op does not count");
 
     // do set with meta with the correct cas value. should pass.
     set_with_meta(h, h1, key, keylen, newVal, newValLen, 0, &itm_meta, cas_for_set);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
     // check the stat
-    temp = get_int_stat(h, h1, "ep_num_ops_set_meta");
-    check(temp == 1, "Expect some ops");
+    check(get_int_stat(h, h1, "ep_num_ops_set_meta") == 1, "Expect some ops");
+    check(get_int_stat(h, h1, "curr_items") == 1, "Expect one item");
+    check(get_int_stat(h, h1, "curr_temp_items") == 0, "Expect zero temp item");
 
     // get metadata again to verify that set with meta was successful
     check(get_meta(h, h1, key, itm_meta), "Expected to get meta");
@@ -6665,22 +6635,17 @@ static enum test_result test_set_with_meta_deleted(ENGINE_HANDLE *h, ENGINE_HAND
     const char* val = "somevalue";
     const char* newVal = "someothervalue";
     uint16_t newValLen = (uint16_t)strlen(newVal);
-    size_t temp = 0;
-    int curri, tempi;
 
     // check the stat
-    temp = get_int_stat(h, h1, "ep_num_ops_set_meta");
-    check(temp == 0, "Expect zero ops");
+    check(get_int_stat(h, h1, "ep_num_ops_set_meta") == 0, "Expect zero ops");
 
     // create a new key
     item *i = NULL;
     check(store(h, h1, NULL, OPERATION_SET, key, val, &i) == ENGINE_SUCCESS,
           "Failed set.");
     wait_for_flusher_to_settle(h, h1);
-    curri = get_int_stat(h, h1, "curr_items");
-    tempi = get_int_stat(h, h1, "curr_temp_items");
-    check(tempi == 0, "Expected zero temp_items");
-    check(curri == 1, "Expected single curr_items");
+    check(get_int_stat(h, h1, "curr_items") == 1, "Expected single curr_items");
+    check(get_int_stat(h, h1, "curr_temp_items") == 0, "Expected zero temp_items");
 
     // delete the key
     check(h1->remove(h, NULL, key, strlen(key), 0, 0) == ENGINE_SUCCESS,
@@ -6692,10 +6657,8 @@ static enum test_result test_set_with_meta_deleted(ENGINE_HANDLE *h, ENGINE_HAND
     check(get_meta(h, h1, key, itm_meta), "Expected to get meta");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
     check(last_deleted_flag, "Expected deleted flag to be set");
-    curri = get_int_stat(h, h1, "curr_items");
-    tempi = get_int_stat(h, h1, "curr_temp_items");
-    check(tempi == 1, "Expected single temp_items");
-    check(curri == tempi, "Expected single curr_items");
+    check(get_int_stat(h, h1, "curr_items") == 0, "Expected zero curr_items");
+    check(get_int_stat(h, h1, "curr_temp_items") == 1, "Expected single temp_items");
 
     // this is the cas to be used with a subsequent set with meta
     uint64_t cas_for_set = last_cas;
@@ -6710,23 +6673,17 @@ static enum test_result test_set_with_meta_deleted(ENGINE_HANDLE *h, ENGINE_HAND
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
           "Expected invalid cas error");
     // check the stat
-    temp = get_int_stat(h, h1, "ep_num_ops_set_meta");
-    check(temp == 0, "Failed op does not count");
-    curri = get_int_stat(h, h1, "curr_items");
-    tempi = get_int_stat(h, h1, "curr_temp_items");
-    check(tempi == 1, "Expected single temp_items");
-    check(curri == tempi, "Expected single curr_items");
+    check(get_int_stat(h, h1, "ep_num_ops_set_meta") == 0, "Failed op does not count");
+    check(get_int_stat(h, h1, "curr_items") == 0, "Expected zero curr_items");
+    check(get_int_stat(h, h1, "curr_temp_items") == 1, "Expected single temp_items");
 
     // do set with meta with the correct cas value. should pass.
     set_with_meta(h, h1, key, keylen, newVal, newValLen, 0, &itm_meta, cas_for_set);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
     // check the stat
-    temp = get_int_stat(h, h1, "ep_num_ops_set_meta");
-    check(temp == 1, "Expect some ops");
-    curri = get_int_stat(h, h1, "curr_items");
-    tempi = get_int_stat(h, h1, "curr_temp_items");
-    check(tempi == 0, "Expected zero temp_items");
-    check(curri == 1, "Expected single curr_items");
+    check(get_int_stat(h, h1, "ep_num_ops_set_meta") == 1, "Expect some ops");
+    check(get_int_stat(h, h1, "curr_items") == 1, "Expected single curr_items");
+    check(get_int_stat(h, h1, "curr_temp_items") == 0, "Expected zero temp_items");
 
     // get metadata again to verify that set with meta was successful
     check(get_meta(h, h1, key, itm_meta), "Expected to get meta");
@@ -6735,10 +6692,8 @@ static enum test_result test_set_with_meta_deleted(ENGINE_HANDLE *h, ENGINE_HAND
     check(itm_meta.cas == 0xdeadbeef, "Expected cas to match");
     check(itm_meta.exptime == 1735689600, "Expected exptime to match");
     check(itm_meta.flags == 0xdeadbeef, "Expected flags to match");
-    curri = get_int_stat(h, h1, "curr_items");
-    tempi = get_int_stat(h, h1, "curr_temp_items");
-    check(tempi == 0, "Expected zero temp_items");
-    check(curri == 1, "Expected single curr_items");
+    check(get_int_stat(h, h1, "curr_items") == 1, "Expected single curr_items");
+    check(get_int_stat(h, h1, "curr_temp_items") == 0, "Expected zero temp_items");
 
     h1->release(h, NULL, i);
     return SUCCESS;
@@ -6750,18 +6705,17 @@ static enum test_result test_set_with_meta_nonexistent(ENGINE_HANDLE *h, ENGINE_
     const char* val = "somevalue";
     size_t valLen = strlen(val);
     ItemMetaData itm_meta;
-    size_t temp = 0;
-    int curri, tempi;
 
     // check the stat
-    temp = get_int_stat(h, h1, "ep_num_ops_set_meta");
-    check(temp == 0, "Expect zero ops");
+    check(get_int_stat(h, h1, "ep_num_ops_set_meta") == 0, "Expect zero ops");
 
     // wait until the vb snapshot has run
     wait_for_stat_change(h, h1, "ep_vb_snapshot_total", 0);
     // get metadata for the key
     check(!get_meta(h, h1, key, itm_meta), "Expected get meta to return false");
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, "Expected enoent");
+    check(get_int_stat(h, h1, "curr_items") == 0, "Expected zero curr_items");
+    check(get_int_stat(h, h1, "curr_temp_items") == 1, "Expected single temp_items");
 
     // this is the cas to be used with a subsequent set with meta
     uint64_t cas_for_set = last_cas;
@@ -6776,23 +6730,17 @@ static enum test_result test_set_with_meta_nonexistent(ENGINE_HANDLE *h, ENGINE_
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
           "Expected invalid cas error");
     // check the stat
-    temp = get_int_stat(h, h1, "ep_num_ops_set_meta");
-    check(temp == 0, "Failed op does not count");
-    curri = get_int_stat(h, h1, "curr_items");
-    tempi = get_int_stat(h, h1, "curr_temp_items");
-    check(tempi == 1, "Expected single temp_items");
-    check(curri == tempi, "Expected single curr_items");
+    check(get_int_stat(h, h1, "ep_num_ops_set_meta") == 0, "Failed op does not count");
+    check(get_int_stat(h, h1, "curr_items") == 0, "Expected zero curr_items");
+    check(get_int_stat(h, h1, "curr_temp_items") == 1, "Expected single temp_items");
 
     // do set with meta with the correct cas value. should pass.
     set_with_meta(h, h1, key, keylen, val, valLen, 0, &itm_meta, cas_for_set);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
     // check the stat
-    temp = get_int_stat(h, h1, "ep_num_ops_set_meta");
-    check(temp == 1, "Expect some ops");
-    curri = get_int_stat(h, h1, "curr_items");
-    tempi = get_int_stat(h, h1, "curr_temp_items");
-    check(tempi == 0, "Expected zero temp_items");
-    check(curri == 1, "Expected single curr_items");
+    check(get_int_stat(h, h1, "ep_num_ops_set_meta") == 1, "Expect some ops");
+    check(get_int_stat(h, h1, "curr_items") == 1, "Expected single curr_items");
+    check(get_int_stat(h, h1, "curr_temp_items") == 0, "Expected zero temp_items");
 
     // get metadata again to verify that set with meta was successful
     check(get_meta(h, h1, key, itm_meta), "Expected to get meta");
@@ -6801,10 +6749,8 @@ static enum test_result test_set_with_meta_nonexistent(ENGINE_HANDLE *h, ENGINE_
     check(itm_meta.cas == 0xdeadbeef, "Expected cas to match");
     check(itm_meta.exptime == 1735689600, "Expected exptime to match");
     check(itm_meta.flags == 0xdeadbeef, "Expected flags to match");
-    curri = get_int_stat(h, h1, "curr_items");
-    tempi = get_int_stat(h, h1, "curr_temp_items");
-    check(tempi == 0, "Expected zero temp_items");
-    check(curri == 1, "Expected single curr_items");
+    check(get_int_stat(h, h1, "curr_items") == 1, "Expected single curr_items");
+    check(get_int_stat(h, h1, "curr_temp_items") == 0, "Expected zero temp_items");
 
     return SUCCESS;
 }
@@ -6980,7 +6926,6 @@ static enum test_result test_temp_item_deletion(ENGINE_HANDLE *h, ENGINE_HANDLE_
     // Do get_meta for an existing key
     char const *k1 = "k1";
     item *i = NULL;
-    int tempi, curri;
 
     check(store(h, h1, NULL, OPERATION_SET, k1, "somevalue", &i) == ENGINE_SUCCESS,
           "Failed set.");
@@ -6994,10 +6939,8 @@ static enum test_result test_temp_item_deletion(ENGINE_HANDLE *h, ENGINE_HANDLE_
     check(get_meta(h, h1, k1, itm_meta), "Expected to get meta");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
     check(last_deleted_flag, "Expected deleted flag to be set");
-    curri = get_int_stat(h, h1, "curr_items");
-    tempi = get_int_stat(h, h1, "curr_temp_items");
-    check(tempi == 1, "Expected single temp_items");
-    check(curri == tempi, "Expected single curr_items");
+    check(get_int_stat(h, h1, "curr_items") == 0, "Expected zero curr_items");
+    check(get_int_stat(h, h1, "curr_temp_items") == 1, "Expected single temp_items");
 
     // Do get_meta for a non-existing key
     char const *k2 = "k2";
@@ -7007,10 +6950,8 @@ static enum test_result test_temp_item_deletion(ENGINE_HANDLE *h, ENGINE_HANDLE_
     // Trigger the expiry pager and verify that two temp items are deleted
     testHarness.time_travel(30);
     wait_for_stat_to_be(h, h1, "ep_expired_pager", 2);
-    curri = get_int_stat(h, h1, "curr_items");
-    tempi = get_int_stat(h, h1, "curr_temp_items");
-    check(tempi == 0, "Expected zero temp_items");
-    check(curri == tempi, "Expected zero curr_items");
+    check(get_int_stat(h, h1, "curr_items") == 0, "Expected zero curr_items");
+    check(get_int_stat(h, h1, "curr_temp_items") == 0, "Expected zero temp_items");
 
     h1->release(h, NULL, i);
     return SUCCESS;

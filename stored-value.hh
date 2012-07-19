@@ -1173,6 +1173,7 @@ public:
             if (v->isTempItem()) {
                 v->clearId();
                 --numTempItems;
+                ++numItems;
             }
 
             if (!hasMetaData) {
@@ -1336,6 +1337,7 @@ public:
                 v->setExptime(newExptime);
                 if (v->isTempItem()) {
                     numTempItems--;
+                    numItems++;
                     v->clearId();
                 }
             }
@@ -1471,17 +1473,19 @@ public:
             if (!v->isDeleted() && v->isLocked(ep_current_time())) {
                 return false;
             }
-            if (v->isTempItem()) {
-                --numTempItems;
-            }
+
             values[bucket_num] = v->next;
             size_t currSize = v->size();
             StoredValue::reduceCacheSize(*this, currSize);
             StoredValue::reduceCurrentSize(stats, v->isDeleted() ? currSize
                                            : currSize - v->getValue()->length());
             StoredValue::reduceMetaDataSize(*this, v->metaDataSize());
+            if (v->isTempItem()) {
+                --numTempItems;
+            } else {
+                --numItems;
+            }
             delete v;
-            --numItems;
             return true;
         }
 
@@ -1491,17 +1495,19 @@ public:
                 if (!tmp->isDeleted() && tmp->isLocked(ep_current_time())) {
                     return false;
                 }
-                if (tmp->isTempItem()) {
-                    --numTempItems;
-                }
+
                 v->next = v->next->next;
                 size_t currSize = tmp->size();
                 StoredValue::reduceCacheSize(*this, currSize);
                 StoredValue::reduceCurrentSize(stats, tmp->isDeleted() ? currSize
                                                : currSize - tmp->getValue()->length());
                 StoredValue::reduceMetaDataSize(*this, tmp->metaDataSize());
+                if (tmp->isTempItem()) {
+                    --numTempItems;
+                } else {
+                    --numItems;
+                }
                 delete tmp;
-                --numItems;
                 return true;
             } else {
                 v = v->next;
