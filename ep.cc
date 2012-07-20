@@ -1946,10 +1946,7 @@ public:
                         double lower = static_cast<double>(stats->mem_low_wat);
                         // evict unreferenced replica items only
                         if (current > lower && !v->isReferenced()) {
-                            // Check if the key was already visited by all the cursors.
-                            if (vb->checkpointManager.eligibleForEviction(v->getKey())) {
-                                v->ejectValue(*stats, vb->ht);
-                            }
+                            v->ejectValue(*stats, vb->ht);
                         }
                     }
                 }
