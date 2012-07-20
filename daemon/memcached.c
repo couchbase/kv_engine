@@ -5266,6 +5266,8 @@ static enum try_read_result try_read_network(conn *c) {
             if (errno == EAGAIN || errno == EWOULDBLOCK) {
                 break;
             }
+            settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                            "%d Closing connection due to read error: %s", c->sfd, strerror(errno));
             return READ_ERROR;
         }
     }
@@ -5648,8 +5650,8 @@ bool conn_swallow(conn *c) {
     if (errno != ENOTCONN && errno != ECONNRESET) {
         /* otherwise we have a real error, on which we close the connection */
         settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
-                                        "Failed to read, and not due to blocking (%s)\n",
-                                        strerror(errno));
+                                        "%d Failed to read, and not due to blocking (%s)\n",
+                                        c->sfd, strerror(errno));
     }
 
     conn_set_state(c, conn_closing);
@@ -5716,10 +5718,10 @@ bool conn_nread(conn *c) {
     if (errno != ENOTCONN && errno != ECONNRESET) {
         /* otherwise we have a real error, on which we close the connection */
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                        "Failed to read, and not due to blocking:\n"
+                                        "%d Failed to read, and not due to blocking:\n"
                                         "errno: %d %s \n"
                                         "rcurr=%lx ritem=%lx rbuf=%lx rlbytes=%d rsize=%d\n",
-                                        errno, strerror(errno),
+                                        c->sfd, errno, strerror(errno),
                                         (long)c->rcurr, (long)c->ritem, (long)c->rbuf,
                                         (int)c->rlbytes, (int)c->rsize);
     }
