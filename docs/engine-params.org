@@ -121,6 +121,8 @@ memcached like this:
 | data_traffic_enabled   | bool   | True if we want to enable data traffic     |
 |                        |        | immediately after warmup completion        |
 | alog_sleep_time        | int    | Interval of access scanner task in (min)   |
+| alog_task_time         | int    | Hour (0 ~ 23) in GMT time at which access  |
+|                        |        | scanner will be scheduled to run.          |
 | pager_active_vb_pcnt   | int    | Percentage of active vbucket items among   |
 |                        |        | all evicted items by item pager.           |
 

@@ -97,6 +97,13 @@ public:
         // Default == 1 second
         return 1 * 1000 * 1000;
     }
+
+    /**
+     *! Dispatcher callback task start time at GMT hour (0 to 23)
+     */
+    virtual size_t startTime() {
+        return 24;
+    }
 };
 
 class CompareTasksByDueDate;
@@ -118,7 +125,7 @@ protected:
         state(task_running), isDaemonTask(isDaemon),
         blockShutdown(completeBeforeShutdown)
     {
-        snooze(sleeptime);
+        snooze(sleeptime, true);
     }
 
     Task(const Task &task) {
@@ -129,11 +136,7 @@ protected:
         blockShutdown = task.blockShutdown;
     }
 
-    void snooze(const double secs) {
-        LockHolder lh(mutex);
-        gettimeofday(&waketime, NULL);
-        advance_tv(waketime, secs);
-    }
+    void snooze(const double secs, bool first=false);
 
     virtual bool run(Dispatcher &d, TaskId t) {
         return callback->callback(d, t);

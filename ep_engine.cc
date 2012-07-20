@@ -415,6 +415,8 @@ extern "C" {
                 e->getConfiguration().setKlogCompactorQueueCap(v);
             } else if (strcmp(keyz, "alog_sleep_time") == 0) {
                 e->getConfiguration().setAlogSleepTime(v);
+            } else if (strcmp(keyz, "alog_task_time") == 0) {
+                e->getConfiguration().setAlogTaskTime(v);
             } else if (strcmp(keyz, "pager_active_vb_pcnt") == 0) {
                 e->getConfiguration().setPagerActiveVbPcnt(v);
             } else {

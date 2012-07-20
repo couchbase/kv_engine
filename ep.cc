@@ -98,6 +98,8 @@ public:
             store.setExpiryPagerSleeptime(value);
         } else if (key.compare("alog_sleep_time") == 0) {
             store.setAccessScannerSleeptime(value);
+        } else if (key.compare("alog_task_time") == 0) {
+            store.resetAccessScannerStartTime();
         } else if (key.compare("klog_max_log_size") == 0) {
             store.getMutationLogCompactorConfig().setMaxLogSize(value);
         } else if (key.compare("klog_max_entry_ratio") == 0) {
@@ -2326,6 +2328,8 @@ void EventuallyPersistentStore::warmupCompleted() {
             Configuration &config = engine.getConfiguration();
             config.addValueChangedListener("alog_sleep_time",
                                            new EPStoreValueChangeListener(*this));
+            config.addValueChangedListener("alog_task_time",
+                                           new EPStoreValueChangeListener(*this));
         }
     }
 
@@ -2506,6 +2510,20 @@ void EventuallyPersistentStore::setAccessScannerSleeptime(size_t val) {
     // store sleeptime in seconds
     accessScanner.sleeptime = val * 60;
     if (accessScanner.sleeptime != 0) {
+        AccessScanner *as = new AccessScanner(*this, stats, accessScanner.sleeptime);
+        shared_ptr<DispatcherCallback> cb(as);
+        dispatcher->schedule(cb, &accessScanner.task,
+                             Priority::AccessScannerPriority,
+                             accessScanner.sleeptime);
+    }
+}
+
+void EventuallyPersistentStore::resetAccessScannerStartTime() {
+    LockHolder lh(accessScanner.mutex);
+
+    if (accessScanner.sleeptime != 0) {
+        dispatcher->cancel(accessScanner.task);
+        // re-schedule task according to the new task start hour
         AccessScanner *as = new AccessScanner(*this, stats, accessScanner.sleeptime);
         shared_ptr<DispatcherCallback> cb(as);
         dispatcher->schedule(cb, &accessScanner.task,
