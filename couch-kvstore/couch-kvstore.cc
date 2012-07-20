@@ -1577,6 +1577,12 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, int rev, Doc **docs,
 
 void CouchKVStore::queueItem(CouchRequest *req)
 {
+    if (pendingCommitCnt &&
+        pendingReqsQ.front()->getVBucketId() != req->getVBucketId()) {
+        // got new request for a different vb, commit pending
+        // pending requests of the current vb firt
+        commit2couchstore();
+    }
     pendingReqsQ.push_back(req);
     pendingCommitCnt++;
 }
