@@ -120,7 +120,7 @@ management/sqlite3.exe: ${OBJDIR} ${GENFILES} ${SQLITE3_OBJS}
 
 .libs/ep.so: ${OBJDIR} ${GENFILES} $(EP_ENGINE_OBJS)
 	${LINK.cc} -o $@ -shared ${EP_ENGINE_OBJS} \
-                  ${LIB} -lpthread -lcouchstore -lsnappy -levent\
+                  ${LIB} -lpthread -lcouchstore.dll -lsnappy.dll -levent.dll\
                   -lws2_32
 ${GEN_CONFIG}: configuration.json
 	$(MAKE) $(MAKEFLAGS) -f win32/Makefile.genconf)
