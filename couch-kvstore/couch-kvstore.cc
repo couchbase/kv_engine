@@ -199,6 +199,9 @@ static void batchWarmupCallback(uint16_t vbId,
 
 
 struct GetMultiCbCtx {
+    GetMultiCbCtx(CouchKVStore &c, uint16_t v, vb_bgfetch_queue_t &f) :
+        cks(c), vbId(v), fetches(f) {}
+
     CouchKVStore &cks;
     uint16_t vbId;
     vb_bgfetch_queue_t &fetches;
@@ -461,7 +464,7 @@ void CouchKVStore::getMulti(uint16_t vb, vb_bgfetch_queue_t &itms)
         seqIds.push_back(item2fetch->value.getId());
     }
 
-    GetMultiCbCtx ctx = {*this, vb, itms};
+    GetMultiCbCtx ctx(*this, vb, itms);
     errCode = couchstore_docinfos_by_sequence(db, &seqIds[0], seqIds.size(),
                                               0, getMultiCbC, &ctx);
     if (errCode != COUCHSTORE_SUCCESS) {
