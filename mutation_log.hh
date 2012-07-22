@@ -461,12 +461,16 @@ struct mutation_log_uncommitted_t {
     uint16_t            vbucket;
 };
 
+class EventuallyPersistentEngine;
+
 /**
  * Read log entries back from the log to reconstruct the state.
  */
 class MutationLogHarvester {
 public:
-    MutationLogHarvester(MutationLog &ml) : mlog(ml) {
+    MutationLogHarvester(MutationLog &ml, EventuallyPersistentEngine *e = NULL) :
+        mlog(ml), engine(e)
+    {
         memset(itemsSeen, 0, sizeof(itemsSeen));
     }
 
@@ -510,7 +514,7 @@ public:
 private:
 
     MutationLog &mlog;
-
+    EventuallyPersistentEngine *engine;
     std::set<uint16_t> vbid_set;
 
     unordered_map<uint16_t, unordered_map<std::string, uint64_t> > committed;

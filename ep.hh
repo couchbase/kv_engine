@@ -557,7 +557,9 @@ public:
                        const hrtime_t start,
                        const hrtime_t stop);
 
-    RCPtr<VBucket> getVBucket(uint16_t vbid);
+    RCPtr<VBucket> getVBucket(uint16_t vbid) {
+        return vbuckets.getBucket(vbid);
+    }
 
     uint64_t getLastPersistedCheckpointId(uint16_t vb) {
         return vbuckets.getPersistenceCheckpointId(vb);

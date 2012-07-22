@@ -607,10 +607,6 @@ void EventuallyPersistentStore::stopBgFetcher() {
     }
 }
 
-RCPtr<VBucket> EventuallyPersistentStore::getVBucket(uint16_t vbucket) {
-    return vbuckets.getBucket(vbucket);
-}
-
 RCPtr<VBucket> EventuallyPersistentStore::getVBucket(uint16_t vbid,
                                                      vbucket_state_t wanted_state) {
     RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
@@ -2368,7 +2364,7 @@ bool EventuallyPersistentStore::warmupFromLog(const std::map<uint16_t, vbucket_s
 
     bool rv(true);
 
-    MutationLogHarvester harvester(mutationLog);
+    MutationLogHarvester harvester(mutationLog, &getEPEngine());
     for (std::map<uint16_t, vbucket_state>::const_iterator it = state.begin();
          it != state.end(); ++it) {
 

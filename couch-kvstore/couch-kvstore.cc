@@ -1770,7 +1770,7 @@ size_t CouchKVStore::warmup(MutationLog &lf,
                             Callback<size_t> &estimate)
 {
     assert(engine.getEpStore()->multiBGFetchEnabled());
-    MutationLogHarvester harvester(lf);
+    MutationLogHarvester harvester(lf, &engine);
     std::map<uint16_t, vbucket_state>::const_iterator it;
     for (it = vbmap.begin(); it != vbmap.end(); ++it) {
         harvester.setVBucket(it->first);

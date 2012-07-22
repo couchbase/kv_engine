@@ -6,6 +6,7 @@
 #include <sys/stat.h>
 
 #include "mutation_log.hh"
+#include "ep_engine.h"
 
 extern "C" {
 #include "crc32.h"
@@ -641,13 +642,23 @@ void MutationLogHarvester::apply(void *arg, mlCallback mlc) {
 }
 
 void MutationLogHarvester::apply(void *arg, mlCallbackWithQueue mlc) {
+    assert(engine);
     std::vector<std::pair<std::string, uint64_t> > fetches;
     std::set<uint16_t>::const_iterator it = vbid_set.begin();
     for (; it != vbid_set.end(); ++it) {
         uint16_t vb(*it);
+        RCPtr<VBucket> vbucket = engine->getEpStore()->getVBucket(vb);
+        if (!vbucket) {
+            continue;
+        }
         unordered_map<std::string, uint64_t>::iterator it2 = committed[vb].begin();
         for (; it2 != committed[vb].end(); ++it2) {
-            fetches.push_back(std::make_pair(it2->first, it2->second));
+            // cannot use rowid from access log, so must read from hashtable
+            std::string key = it2->first;
+            StoredValue *v = NULL;
+            if ((v = vbucket->ht.find(key, false))) {
+                fetches.push_back(std::make_pair(it2->first, v->getId()));
+            }
         }
         mlc(vb, fetches, arg);
         fetches.clear();

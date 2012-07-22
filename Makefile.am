@@ -200,7 +200,8 @@ ep_testsuite_la_DEPENDENCIES = libobjectregistry.la
 
 management_cbdbconvert_SOURCES = atomic.cc mutex.cc                     \
                                  management/dbconvert.cc testlogger.cc  \
-                                 item.cc
+                                 item.cc stored-value.cc ep_time.c      \
+                                 checkpoint.cc vbucketmap.cc
 management_cbdbconvert_LDADD = libkvstore.la libsqlite-kvstore.la       \
                                libmc-kvstore.la                         \
                                libblackhole-kvstore.la                  \
@@ -395,10 +396,11 @@ t_dirutils_test_LDFLAGS = -lgtest
 mutation_log_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
 mutation_log_test_SOURCES = t/mutation_log_test.cc mutation_log.hh	\
                             testlogger.cc mutation_log.cc \
-                            byteorder.c \
-                            crc32.h crc32.c
+                            byteorder.c crc32.h crc32.c \
+                            vbucketmap.cc item.cc atomic.cc mutex.cc \
+                            stored-value.cc ep_time.c checkpoint.cc
 mutation_log_test_DEPENDENCIES = mutation_log.hh
-mutation_log_test_LDADD =
+mutation_log_test_LDADD = libobjectregistry.la libconfiguration.la
 
 hrtime_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
 hrtime_test_SOURCES = t/hrtime_test.cc common.hh
