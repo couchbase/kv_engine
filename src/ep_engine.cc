@@ -25,6 +25,7 @@
 #include <assert.h>
 #include <fcntl.h>
 
+#include <memcached/util.h>
 #include <memcached/engine.h>
 #include <memcached/protocol_binary.h>
 #include "ep_engine.h"
@@ -3803,19 +3804,28 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getMeta(const void* cookie,
     std::string key((char *)(request->bytes + sizeof(request->bytes)),
                     (size_t)ntohs(request->message.header.request.keylen));
     uint16_t vbucket = ntohs(request->message.header.request.vbucket);
-
-    std::string meta;
-    uint64_t cas;
-    uint32_t flags;
+    ItemMetaData metadata;
+    uint32_t deleted;
 
     ENGINE_ERROR_CODE rv = epstore->getMetaData(key, vbucket, cookie,
-                                                meta, cas, flags);
+                                                metadata, deleted);
+    uint8_t meta[20];
+    deleted = htonl(deleted);
+    uint32_t flags = htonl(metadata.flags);
+    uint32_t exp = htonl(metadata.exptime);
+    uint64_t seqno = memcached_htonll(metadata.seqno);
+
+    memcpy(meta, &deleted, 4);
+    memcpy(meta + 4, &flags, 4);
+    memcpy(meta + 8, &exp, 4);
+    memcpy(meta + 12, &seqno, 8);
+
     if (rv == ENGINE_SUCCESS) {
-        rv = sendResponse(response, NULL, 0, (const void *)&flags, 4,
-                          meta.data(), meta.length(),
+        rv = sendResponse(response, NULL, 0, (const void *)meta,
+                          20, NULL, 0,
                           PROTOCOL_BINARY_RAW_BYTES,
                           PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                          cas, cookie);
+                          metadata.cas, cookie);
     } else if (rv != ENGINE_EWOULDBLOCK) {
         if (rv == ENGINE_KEY_ENOENT &&
             request->message.header.request.opcode == CMD_GETQ_META) {
@@ -3823,7 +3833,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getMeta(const void* cookie,
         } else {
             rv = sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
                               PROTOCOL_BINARY_RAW_BYTES,
-                              engine_error_2_protocol_error(rv), cas, cookie);
+                              engine_error_2_protocol_error(rv),
+                              metadata.cas, cookie);
         }
     }
 

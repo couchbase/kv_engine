@@ -300,16 +300,14 @@ public:
      * @parapm key the key to get the meta data for
      * @param vbucket the vbucket from which to retrieve the key
      * @param cookie the connection cookie
-     * @param meta where to store the meta informaion
-     * @param cas where to store the cas information
-     * @param flags where to store the flags information
+     * @param metadata where to store the meta informaion
+     * @param deleted specifies whether or not the key is deleted
      */
     ENGINE_ERROR_CODE getMetaData(const std::string &key,
                                   uint16_t vbucket,
                                   const void *cookie,
-                                  std::string &meta,
-                                  uint64_t &cas,
-                                  uint32_t &flags);
+                                  ItemMetaData &metadata,
+                                  uint32_t &deleted);
 
     /**
      * Set an item in the store.

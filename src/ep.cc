@@ -1258,9 +1258,8 @@ GetValue EventuallyPersistentStore::getInternal(const std::string &key,
 ENGINE_ERROR_CODE EventuallyPersistentStore::getMetaData(const std::string &key,
                                                          uint16_t vbucket,
                                                          const void *cookie,
-                                                         std::string &meta,
-                                                         uint64_t &cas,
-                                                         uint32_t &flags)
+                                                         ItemMetaData &metadata,
+                                                         uint32_t &deleted)
 {
     (void) cookie;
     RCPtr<VBucket> vb = getVBucket(vbucket);
@@ -1271,7 +1270,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::getMetaData(const std::string &key,
     }
 
     int bucket_num(0);
-    flags = 0;
+    deleted = 0;
     LockHolder lh = vb->ht.getLockedBucket(key, &bucket_num);
     StoredValue *v = vb->ht.unlocked_find(key, bucket_num, true);
 
@@ -1279,15 +1278,16 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::getMetaData(const std::string &key,
         stats.numOpsGetMeta++;
 
         if (v->isTempNonExistentItem()) {
-            cas = v->getCas();
+            metadata.cas = v->getCas();
             return ENGINE_KEY_ENOENT;
         } else {
             if (v->isDeleted() || v->isExpired(ep_real_time())) {
-                flags |= ntohl(GET_META_ITEM_DELETED_FLAG);
+                deleted |= GET_META_ITEM_DELETED_FLAG;
             }
-            cas = v->getCas();
-            ItemMetaData md(v->getCas(), v->getSeqno(), v->getFlags(), v->getExptime());
-            md.encode(meta);
+            metadata.cas = v->getCas();
+            metadata.flags = v->getFlags();
+            metadata.exptime = v->getExptime();
+            metadata.seqno = v->getSeqno();
             return ENGINE_SUCCESS;
         }
     } else {

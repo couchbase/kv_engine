@@ -200,30 +200,6 @@ typedef union {
     uint8_t bytes[sizeof(protocol_binary_request_header) + sizeof(engine_param_t)];
 } protocol_binary_request_set_param;
 
-/**
- * The return message for a CMD_GET_META returns just the meta data
- * section for an item. The body contains the meta information encoded
- * in network byte order as:
- *
- * uint8_t element type
- * uint8_t element length
- * n*uint8_t element value.
- *
- * The following types are currently defined:
- *   META_REVID - 0x01 With the following layout
- *       uint64_t seqno
- *       uint8_t  id[nnn] (where nnn == the length - size of seqno)
- */
-typedef union {
-    struct {
-        protocol_binary_request_header header;
-        struct {
-            uint32_t flags;
-        } body;
-    }message;
-    uint8_t bytes[sizeof(protocol_binary_request_header) + 4];
-} protocol_binary_response_get_meta;
-
 typedef union {
     struct {
         protocol_binary_request_header header;

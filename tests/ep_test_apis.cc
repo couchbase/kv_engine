@@ -21,6 +21,7 @@
 #include <stdlib.h>
 #include <sstream>
 #include <string.h>
+#include <memcached/util.h>
 
 #include "ep_test_apis.h"
 
@@ -38,6 +39,7 @@ char *last_key = NULL;
 char *last_body = NULL;
 bool last_deleted_flag = false;
 uint64_t last_cas = 0;
+ItemMetaData last_meta;
 
 extern "C" bool add_response_get_meta(const void *key, uint16_t keylen,
                                       const void *ext, uint8_t extlen,
@@ -93,10 +95,18 @@ bool add_response_get_meta(const void *key, uint16_t keylen, const void *ext,
                            const void *cookie) {
     (void)datatype;
     (void)cookie;
+    const uint8_t* ext_bytes = reinterpret_cast<const uint8_t*> (ext);
     if (ext && extlen > 0) {
         uint32_t flags;
-        memcpy(&flags, ext, extlen);
+        memcpy(&flags, ext_bytes, 4);
         last_deleted_flag = ntohl(flags) & GET_META_ITEM_DELETED_FLAG;
+        memcpy(&last_meta.flags, ext_bytes + 4, 4);
+        last_meta.flags = ntohl(last_meta.flags);
+        memcpy(&last_meta.exptime, ext_bytes + 8, 4);
+        last_meta.exptime = ntohl(last_meta.exptime);
+        memcpy(&last_meta.seqno, ext_bytes + 12, 8);
+        last_meta.seqno = memcached_ntohll(last_meta.seqno);
+        last_meta.cas = cas;
     }
     return add_response(key, keylen, ext, extlen, body, bodylen, datatype,
                         status, cas, cookie);
@@ -327,8 +337,7 @@ void getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
     free(request);
 }
 
-bool get_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
-              ItemMetaData &itm_meta) {
+bool get_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key) {
     protocol_binary_request_header *req = createPacket(CMD_GET_META, 0, 0, NULL,
                                                        0, key, strlen(key));
 
@@ -336,10 +345,9 @@ bool get_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
                                                 add_response_get_meta);
     check(ret == ENGINE_SUCCESS, "Expected get_meta call to be successful");
     if (last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-        return itm_meta.decode((uint8_t *)last_body);
-    } else {
-        return false;
+        return true;
     }
+    return false;
 }
 
 void observe(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,

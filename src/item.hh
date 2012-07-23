@@ -138,61 +138,6 @@ public:
         cas(c), seqno(s), flags(f), exptime(e) {
     }
 
-    void encode(std::string &dest)
-    {
-        uint8_t meta[26];
-        size_t len = sizeof(meta);
-        encode(meta, len);
-        dest.assign((char*)meta, len);
-    }
-
-    bool encode(uint8_t *dest, size_t &nbytes) const
-    {
-        if (nbytes < 26) {
-            return false;
-        }
-
-        uint64_t s = htonll(seqno);
-        uint64_t c = htonll(cas);
-        time_t e = htonl(exptime);
-        uint32_t f = htonl(flags);
-
-        dest[0] = 0x01;
-        dest[1] = 24;
-        memcpy(dest + 2, &s, 8);
-        memcpy(dest + 10, &c, 8);
-        memcpy(dest + 18, &e, 4);
-        memcpy(dest + 22, &f, 4);
-        nbytes = 26;
-        return true;
-    }
-
-    bool decode(const uint8_t *dta) {
-        if (*dta != 0x01) {
-            // Unsupported meta tag
-            return false;
-        }
-        ++dta;
-        if (*dta != 24) {
-            // Unsupported size
-            return false;
-        }
-        ++dta;
-        memcpy(&seqno, dta, 8);
-        seqno = ntohll(seqno);
-        dta += 8;
-        memcpy(&cas, dta, 8);
-        cas = ntohll(cas);
-        dta += 8;
-        memcpy(&exptime, dta, 4);
-        exptime = ntohl(exptime);
-        dta += 4;
-        memcpy(&flags, dta, 4);
-        flags = ntohl(flags);
-
-        return true;
-    }
-
     uint64_t cas;
     uint64_t seqno;
     uint32_t flags;

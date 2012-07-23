@@ -136,13 +136,6 @@ class MemcachedClient(object):
         extra = struct.pack('>IIQQ', flags, exp, seqno, remote_cas)
         return self._doCmd(cmd, key, value, extra, cas)
 
-    def _doRevCmd(self, cmd, key, exp, flags, value, rev, cas=0):
-        seqno, revid = rev
-        meta_data = struct.pack('>I', seqno) + revid
-        meta_type = memcacheConstants.META_REVID
-        meta = (meta_type, meta_data)
-        return self._doMetaCmd(cmd, key, exp, flags, value, meta, cas)
-
     def set(self, key, exp, flags, val):
         """Set a value in the memcached server."""
         return self._mutate(memcacheConstants.CMD_SET, key, exp, flags, 0, val)
@@ -152,11 +145,6 @@ class MemcachedClient(object):
         return self._doMetaCmd(memcacheConstants.CMD_SET_WITH_META,
                                key, value, 0, exp, flags, seqno, remote_cas)
 
-    def setWithRev(self, key, exp, flags, value, rev):
-        """Set a value and its revision in the memcached server."""
-        return self._doRevCmd(memcacheConstants.CMD_SET_WITH_META,
-                              key, exp, flags, value, rev)
-
     def add(self, key, exp, flags, val):
         """Add a value in the memcached server iff it doesn't already exist."""
         return self._mutate(memcacheConstants.CMD_ADD, key, exp, flags, 0, val)
@@ -164,10 +152,6 @@ class MemcachedClient(object):
     def addWithMeta(self, key, value, exp, flags, seqno, remote_cas):
         return self._doMetaCmd(memcacheConstants.CMD_ADD_WITH_META,
                                key, value, 0, exp, flags, seqno, remote_cas)
-
-    def addWithRev(self, key, exp, flags, value, rev):
-        return self._doRevCmd(memcacheConstants.CMD_ADD_WITH_META,
-                              key, exp, flags, value, rev)
 
     def replace(self, key, exp, flags, val):
         """Replace a value in the memcached server iff it already exists."""
@@ -192,28 +176,14 @@ class MemcachedClient(object):
         parts=self._doCmd(memcacheConstants.CMD_GET, key, '')
         return self.__parseGet(parts)
 
-    def __parseMeta(self, data):
-        flags = struct.unpack('I', data[-1][0:4])[0]
-        meta_type = struct.unpack('B', data[-1][4])[0]
-        length = struct.unpack('B', data[-1][5])[0]
-        meta = data[-1][6:6 + length]
-        return (meta_type, flags, meta)
-
     def getMeta(self, key):
         """Get the metadata for a given key within the memcached server."""
-        parts=self._doCmd(memcacheConstants.CMD_GET_META, key, '')
-        return self.__parseMeta(parts)
-
-    def getRev(self, key):
-        """Get the revision for a given key within the memcached server."""
-        (meta_type, flags, meta_data) = self.getMeta(key)
-        if meta_type != memcacheConstants.META_REVID:
-            raise ValueError("Invalid meta type %x" % meta_type)
-
-        seqno = struct.unpack('>Q', meta_data[:8])[0]
-        revid = meta_data[4:]
-
-        return (seqno, revid)
+        opaque, cas, data = self._doCmd(memcacheConstants.CMD_GET_META, key, '')
+        deleted = struct.unpack('>I', data[0:4])[0]
+        flags = struct.unpack('>I', data[4:8])[0]
+        exp = struct.unpack('>I', data[8:12])[0]
+        seqno = struct.unpack('>Q', data[12:20])[0]
+        return (deleted, flags, exp, seqno, cas)
 
     def getl(self, key, exp=15):
         """Get the value for a given key within the memcached server."""
