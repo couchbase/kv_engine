@@ -22,7 +22,7 @@ MEMCACHED=../memcached
 GEN_CONFIG = generated_configuration.hh generated_configuration.cc
 GEN_CODE = stats-info.h stats-info.c
 
-OBJDIR = .libs .libs/embedded .libs/poll .libs/management .libs/sqlite-kvstore .libs/mc-kvstore .libs/blackhole-kvstore .libs/couch-kvstore
+OBJDIR = .libs .libs/embedded .libs/poll .libs/management .libs/sqlite-kvstore .libs/blackhole-kvstore .libs/couch-kvstore
 BINARIES= ${GEN_CONFIG} ${GEN_CODE} .libs/ep.so management/sqlite3.exe
 LIB=$(LOCALLIB) -L${MEMCACHED}/lib
 INCLUDE= -Iwin32 -Isqlite-kvstore -I.libs -Iembedded -I${MEMCACHED}/include -I${MEMCACHED}/win32 -I. $(LOCALINC)
@@ -64,6 +64,7 @@ EP_ENGINE_CC_SRC = \
                  checkpoint_remover.cc \
                  configuration.cc \
                  couch-kvstore/couch-kvstore.cc \
+                 couch-kvstore/couch-notifier.cc \
                  couch-kvstore/dirutils.cc \
                  dispatcher.cc \
                  ep.cc \
@@ -75,8 +76,6 @@ EP_ENGINE_CC_SRC = \
                  item.cc \
                  item_pager.cc \
                  kvstore.cc \
-                 mc-kvstore/mc-engine.cc \
-                 mc-kvstore/mc-kvstore.cc \
                  memory_tracker.cc \
                  mutation_log.cc \
                  mutation_log_compactor.cc \
@@ -144,13 +143,6 @@ LIBSQLITE_KVSTORE_C_SRC = \
 
 LIBSQLITE_KVSTORE_OBJS = ${LIBSQLITE_KVSTORE_CC_SRC:%.cc=.libs/%.o} ${LIBSQLITE_KVSTORE_C_SRC:%.c=.libs/%.o}
 
-LIBMC_KVSTORE_CC_SRC = \
-        kvstore.cc \
-        mc-kvstore/mc-engine.cc \
-        mc-kvstore/mc-kvstore.cc
-
-LIBMC_KVSTORE_OBJS = ${LIBMC_KVSTORE_CC_SRC:%.cc=.libs/%.o}
-
 LIBCOUCH_KVSTORE_CC_SRC = \
         kvstore.cc \
         couch-kvstore/dirutils.cc \
@@ -180,7 +172,7 @@ ${OBJDIR} ${INSTALLDIRS}:; -@mkdir $@
 
 clean:
 	$(RM) ${EP_ENGINE_OBJS} ${BINARIES} ${EP_ENGINE_OBJS:.o=.d} \
-	${LIBMC_KVSTORE_OBJS:.o=.d} ${LIBCOUCH_KVSTORE_OBJS:.o=.d} \
+	${LIBCOUCH_KVSTORE_OBJS:.o=.d} \
               ${GENFILES} ${SQLITE3_OBJS} ${SQLITE3_OBJS:.o=.d}
 
 -include ${EP_ENGINE_OBJS:.o=.d}

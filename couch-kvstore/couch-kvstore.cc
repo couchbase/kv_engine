@@ -11,11 +11,11 @@
 #include <iostream>
 #include <fstream>
 
+#include "common.hh"
+#include "ep_engine.h"
 #include "couch-kvstore/couch-kvstore.hh"
 #include "couch-kvstore/dirutils.hh"
-#include "ep_engine.h"
 #include "tools/cJSON.h"
-#include "common.hh"
 
 #define STATWRITER_NAMESPACE couchstore_engine
 #include "statwriter.hh"
@@ -272,7 +272,7 @@ CouchKVStore::CouchKVStore(EventuallyPersistentEngine &theEngine,
     epStats(theEngine.getEpStats()),
     configuration(theEngine.getConfiguration()),
     dbname(configuration.getDbname()),
-    mc(NULL), pendingCommitCnt(0),
+    couchNotifier(NULL), pendingCommitCnt(0),
     intransaction(false)
 {
     open();
@@ -283,7 +283,7 @@ CouchKVStore::CouchKVStore(const CouchKVStore &copyFrom) :
     epStats(copyFrom.epStats),
     configuration(copyFrom.configuration),
     dbname(copyFrom.dbname),
-    mc(NULL),
+    couchNotifier(NULL),
     pendingCommitCnt(0), intransaction(false)
 {
     open();
@@ -296,7 +296,7 @@ void CouchKVStore::reset()
     // TODO CouchKVStore::flush() when couchstore api ready
     RememberingCallback<bool> cb;
 
-    mc->flush(cb);
+    couchNotifier->flush(cb);
     cb.waitForValue();
 
     vbucket_map_t::iterator itor = cachedVBStates.begin();
@@ -516,10 +516,10 @@ void CouchKVStore::del(const Item &itm,
 bool CouchKVStore::delVBucket(uint16_t vbucket)
 {
     assert(!isReadOnly());
-    assert(mc);
+    assert(couchNotifier);
     RememberingCallback<bool> cb;
 
-    mc->delVBucket(vbucket, cb);
+    couchNotifier->delVBucket(vbucket, cb);
     cb.waitForValue();
 
     cachedVBStates.erase(vbucket);
@@ -791,8 +791,9 @@ bool CouchKVStore::setVBucketState(uint16_t vbucketId, vbucket_state vbstate,
             uint64_t newHeaderPos = couchstore_get_header_position(db);
             RememberingCallback<uint16_t> lcb;
 
-            mc->notify_update(vbucketId, fileRev, newHeaderPos,
-                              stateChanged, vbstate.state, vbstate.checkpointId, lcb);
+            couchNotifier->notify_update(vbucketId, fileRev, newHeaderPos,
+                                         stateChanged, vbstate.state,
+                                         vbstate.checkpointId, lcb);
             if (lcb.val != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
                 if (lcb.val == PROTOCOL_BINARY_RESPONSE_ETMPFAIL) {
                     getLogger()->log(EXTENSION_LOG_WARNING, NULL,
@@ -1021,8 +1022,8 @@ void CouchKVStore::open()
     // TODO intransaction, is it needed?
     intransaction = false;
     if (!isReadOnly()) {
-        delete mc;
-        mc = new MemcachedEngine(&engine, configuration);
+        delete couchNotifier;
+        couchNotifier = new CouchNotifier(&engine, configuration);
     }
 
     struct stat dbstat;
@@ -1046,9 +1047,9 @@ void CouchKVStore::close()
 {
     intransaction = false;
     if (!isReadOnly()) {
-        delete mc;
+        delete couchNotifier;
     }
-    mc = NULL;
+    couchNotifier = NULL;
 }
 
 bool CouchKVStore::getDbFile(uint16_t vbucketId,
@@ -1550,7 +1551,7 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, int rev, Doc **docs,
 
             RememberingCallback<uint16_t> cb;
             uint64_t newHeaderPos = couchstore_get_header_position(db);
-            mc->notify_headerpos_update(vbid, newFileRev, newHeaderPos, cb);
+            couchNotifier->notify_headerpos_update(vbid, newFileRev, newHeaderPos, cb);
             if (cb.val != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
                 if (cb.val == PROTOCOL_BINARY_RESPONSE_ETMPFAIL) {
                     getLogger()->log(EXTENSION_LOG_WARNING, NULL,

@@ -7,8 +7,7 @@
 #include "histo.hh"
 #include "stats.hh"
 #include "configuration.hh"
-#include "mc-kvstore/mc-engine.hh"
-#include "tools/cJSON.h"
+#include "couch-kvstore/couch-notifier.hh"
 
 #define COUCHSTORE_NO_OPTIONS 0
 
@@ -319,7 +318,7 @@ private:
     EPStats &epStats;
     Configuration &configuration;
     const std::string dbname;
-    MemcachedEngine *mc;
+    CouchNotifier *couchNotifier;
     std::map<uint16_t, int>dbFileMap;
     std::list<CouchRequest *> pendingReqsQ;
     size_t pendingCommitCnt;

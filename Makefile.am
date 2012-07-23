@@ -21,7 +21,6 @@ noinst_LTLIBRARIES = \
                      libblackhole-kvstore.la \
                      libconfiguration.la \
                      libkvstore.la \
-                     libmc-kvstore.la \
                      libobjectregistry.la \
                      libsqlite-kvstore.la \
                      libcouch-kvstore.la \
@@ -143,20 +142,6 @@ libblackhole_kvstore_la_SOURCES = kvstore.hh \
                                   blackhole-kvstore/blackhole.cc \
                                   blackhole-kvstore/blackhole.hh
 
-libmc_kvstore_la_SOURCES = kvstore.hh \
-                           mc-kvstore/mc-engine.cc \
-                           mc-kvstore/mc-engine.hh \
-                           mc-kvstore/mc-kvstore.cc \
-                           mc-kvstore/mc-kvstore.hh \
-                           tools/cJSON.c \
-                           tools/cJSON.h
-
-
-libmc_kvstore_la_CPPFLAGS = -I$(top_srcdir) -I$(top_srcdir)/sqlite-kvstore \
-                            $(AM_CPPFLAGS)
-libmc_kvstore_la_LIBADD =
-libmc_kvstore_la_DEPENDENCIES =
-
 .generated_stat-info: gen_code docs/stats.json
 	./gen_code -j docs/stats.json -h stats-info.h -c stats-info.c -f get_stats_info && touch .generated_stat-info
 
@@ -174,25 +159,31 @@ libdirutils_la_SOURCES = couch-kvstore/dirutils.cc \
 libcouch_kvstore_la_SOURCES = kvstore.hh
 
 if HAVE_LIBCOUCHSTORE
-libcouch_kvstore_la_SOURCES += couch-kvstore/couch-kvstore.cc \
-                               couch-kvstore/couch-kvstore.hh
+libcouch_kvstore_la_SOURCES += couch-kvstore/couch-kvstore.cc    \
+                               couch-kvstore/couch-kvstore.hh    \
+                               couch-kvstore/couch-notifier.cc   \
+                               couch-kvstore/couch-notifier.hh   \
+                               tools/cJSON.c                     \
+                               tools/cJSON.h
 libcouch_kvstore_la_LIBADD = libdirutils.la $(LTLIBCOUCHSTORE)
 else
 libcouch_kvstore_la_SOURCES += couch-kvstore/couch-kvstore-dummy.hh \
                                couch-kvstore/couch-kvstore-dummy.cc
 endif
 
+libcouch_kvstore_la_CPPFLAGS = -I$(top_srcdir) -I$(top_srcdir)/couch-kvstore \
+                                $(AM_CPPFLAGS)
 
 libconfiguration_la_SOURCES = \
                               generated_configuration.hh \
                               configuration.hh \
                               configuration.cc
 
-ep_la_LIBADD = libkvstore.la libsqlite-kvstore.la libmc-kvstore.la \
+ep_la_LIBADD = libkvstore.la libsqlite-kvstore.la \
                libblackhole-kvstore.la libcouch-kvstore.la \
                libobjectregistry.la libconfiguration.la $(LTLIBEVENT)
 ep_la_DEPENDENCIES = libkvstore.la libsqlite-kvstore.la	\
-               libmc-kvstore.la libblackhole-kvstore.la	\
+               libblackhole-kvstore.la	\
                libobjectregistry.la libconfiguration.la \
                libcouch-kvstore.la
 ep_testsuite_la_LIBADD =libobjectregistry.la $(LTLIBEVENT)
@@ -203,14 +194,13 @@ management_cbdbconvert_SOURCES = atomic.cc mutex.cc                     \
                                  item.cc stored-value.cc ep_time.c      \
                                  checkpoint.cc vbucketmap.cc
 management_cbdbconvert_LDADD = libkvstore.la libsqlite-kvstore.la       \
-                               libmc-kvstore.la                         \
                                libblackhole-kvstore.la                  \
                                libobjectregistry.la                     \
                                libconfiguration.la libkvstore.la        \
                                libblackhole-kvstore.la                  \
                                libcouch-kvstore.la                      \
-                               libmc-kvstore.la $(LTLIBEVENT)
-management_cbdbconvert_DEPENDENCIES = libkvstore.la libsqlite-kvstore.la libmc-kvstore.la \
+                               $(LTLIBEVENT)
+management_cbdbconvert_DEPENDENCIES = libkvstore.la libsqlite-kvstore.la \
                                       libcouch-kvstore.la libobjectregistry.la libconfiguration.la
 
 if BUILD_EMBEDDED_LIBSQLITE3

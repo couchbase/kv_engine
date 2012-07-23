@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
-#ifndef MC_KVSTORE_MC_ENGINE_HH
-#define MC_KVSTORE_MC_ENGINE_HH
+#ifndef COUCH_NOTIFIER_HH
+#define COUCH_NOTIFIER_HH
 
 #include <vector>
 #include <queue>
@@ -78,38 +78,12 @@ public:
 class BinaryPacketHandler;
 class SelectBucketResponseHandler;
 
-class TapCallback {
+class CouchNotifier {
 public:
-    TapCallback(shared_ptr<Callback<GetValue> > &data, shared_ptr<RememberingCallback<bool> > &w) :
-        cb(data), complete(w) {
-    }
-
-    shared_ptr<Callback<GetValue> > cb;
-    shared_ptr<RememberingCallback<bool> > complete;
-};
-
-class MemcachedEngine {
-public:
-    MemcachedEngine(EventuallyPersistentEngine *engine, Configuration &config);
+    CouchNotifier(EventuallyPersistentEngine *engine, Configuration &config);
 
     void flush(Callback<bool> &cb);
-    void setmq(const Item &item, Callback<mutation_result> &cb);
-    void get(const std::string &key, uint16_t vb, Callback<GetValue> &cb);
-    void delmq(const Item &itm, Callback<int> &cb);
-    void stats(const std::string &key,
-               Callback<std::map<std::string, std::string> > &cb);
-    void setVBucket(uint16_t vb, vbucket_state_t state, Callback<bool> &cb);
     void delVBucket(uint16_t vb, Callback<bool> &cb);
-
-    // Set a bunch of vbuckets in a single operation
-    void snapshotVBuckets(const vbucket_map_t &m, Callback<bool> &cb);
-
-    void tap(shared_ptr<TapCallback> cb);
-    void tapKeys(shared_ptr<TapCallback> cb);
-    void tap(const std::vector<uint16_t> &vbids, bool full, shared_ptr<TapCallback> cb);
-    void noop(Callback<bool> &cb);
-
-    void setVBucketBatchCount(size_t batch_count, Callback<bool> *cb);
 
     void notify_update(uint16_t vbucket,
                        uint64_t file_version,
@@ -147,7 +121,6 @@ private:
     bool waitOnce();
 
     void handleResponse(protocol_binary_response_header *res);
-    void handleRequest(protocol_binary_request_header *req);
 
     bool waitForWritable();
     bool waitForReadable(bool tryOnce = false);
@@ -227,7 +200,6 @@ private:
 
     Mutex mutex;
     std::list<BinaryPacketHandler*> responseHandler;
-    std::list<BinaryPacketHandler*> tapHandler;
     EventuallyPersistentEngine *engine;
     EPStats *epStats;
     bool connected;
@@ -238,4 +210,4 @@ private:
     int numiovec;
 };
 
-#endif /* MC_ENGINE_HH */
+#endif /* COUCH_NOTIFIER_HH */

@@ -9,7 +9,6 @@
 #include "stats.hh"
 #include "kvstore.hh"
 #include "sqlite-kvstore.hh"
-#include "mc-kvstore/mc-kvstore.hh"
 #include "blackhole-kvstore/blackhole.hh"
 #include "warmup.hh"
 #ifdef HAVE_LIBCOUCHSTORE
@@ -30,8 +29,6 @@ KVStore *KVStoreFactory::create(EventuallyPersistentEngine &theEngine,
         ret = new CouchKVStore(theEngine, read_only);
     } else if (backend.compare("blackhole") == 0) {
         ret = new BlackholeKVStore(theEngine, read_only);
-    } else if (backend.compare("mccouch") == 0) {
-        ret = new MCKVStore(theEngine, read_only);
     } else {
         getLogger()->log(EXTENSION_LOG_WARNING, NULL, "Unknown backend: [%s]",
                 backend.c_str());
