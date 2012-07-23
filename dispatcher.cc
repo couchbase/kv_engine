@@ -38,40 +38,6 @@ static void* launch_dispatcher_thread(void *arg) {
     return NULL;
 }
 
-void Task::snooze(const double secs, bool first) {
-    LockHolder lh(mutex);
-    gettimeofday(&waketime, NULL);
-    size_t start = callback ? callback->startTime() : 24;
-    // set scheduled task time for new task only
-    if (first && (start == 0 || start <= 23) && secs >= 3600) {
-        struct tm tim;
-        struct timeval tmval = waketime;
-        gmtime_r(&tmval.tv_sec, &tim);
-        // change tm structure to the given start hour in GMT
-        tim.tm_min = 0;
-        tim.tm_sec = 0;
-        if (tim.tm_hour >= (time_t)start) {
-            tim.tm_hour = (time_t)start;
-            tmval.tv_sec = timegm(&tim);
-            // advance time until later than current time
-            while (tmval.tv_sec < waketime.tv_sec) {
-                advance_tv(tmval, secs);
-            }
-        } else if (tim.tm_hour < (time_t)start) {
-            tim.tm_hour = start;
-            tmval.tv_sec = timegm(&tim);
-            // backtrack time until last time larger than current time
-            time_t tsec;
-            while ((tsec = tmval.tv_sec - (int)secs) > waketime.tv_sec) {
-                tmval.tv_sec = tsec;
-            }
-        }
-        waketime = tmval;
-    } else {
-        advance_tv(waketime, secs);
-    }
-}
-
 void Dispatcher::start() {
     assert(state == dispatcher_running);
     if(pthread_create(&thread, NULL, launch_dispatcher_thread, this) != 0) {

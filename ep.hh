@@ -715,7 +715,6 @@ public:
 
     void setExpiryPagerSleeptime(size_t val);
     void setAccessScannerSleeptime(size_t val);
-    void resetAccessScannerStartTime();
 
     void resetAccessScannerTasktime() {
         accessScanner.tasktime = gethrtime();

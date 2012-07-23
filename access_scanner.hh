@@ -16,7 +16,6 @@ public:
                   size_t sleetime);
     bool callback(Dispatcher &d, TaskId t);
     std::string description();
-    size_t startTime();
 
 private:
     EventuallyPersistentStore &store;
