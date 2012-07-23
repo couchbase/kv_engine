@@ -7086,16 +7086,8 @@ static enum test_result test_observe_multi_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     // Create some vbuckets
     check(set_vbucket_state(h, h1, 1, vbucket_state_active), "Failed to set vbucket state.");
 
-    // Set a bunch of items to try to drive up the persistence time
-    item *it = NULL;
-    for (int i = 0; i < 50000; ++i) {
-        std::stringstream key;
-        key << "key-" << i;
-        store(h, h1, NULL, OPERATION_ADD, key.str().c_str(), "somevalue", &it);
-        h1->release(h, NULL, it);
-    }
-
     // Set some keys to observe
+    item *it = NULL;
     uint64_t cas1, cas2, cas3;
     check(h1->allocate(h, NULL, &it, "key1", 4, 100, 0, 0)== ENGINE_SUCCESS,
           "Allocation failed.");
@@ -7124,9 +7116,6 @@ static enum test_result test_observe_multi_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Observe failed.");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
-
-    // Check avg persistence time
-    check((last_cas >> 32) > 0, "Avg persistence time not properly reported");
 
     wait_for_flusher_to_settle(h, h1);
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
