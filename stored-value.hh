@@ -1304,7 +1304,7 @@ public:
                                         time_t newExptime=0) {
         mutation_type_t rv = NOT_FOUND;
         if (v) {
-            if (v->isExpired(ep_real_time())) {
+            if (v->isExpired(ep_real_time()) && !use_meta) {
                 if (!v->isResident()) {
                     --numNonResidentItems;
                 }
