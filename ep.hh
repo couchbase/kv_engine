@@ -123,7 +123,8 @@ class TransactionContext {
 public:
 
     TransactionContext(EPStats &st, KVStore *ks, MutationLog &log)
-        : stats(st), underlying(ks), mutationLog(log), _remaining(0), intxn(false) {}
+        : stats(st), underlying(ks), mutationLog(log), _remaining(0),
+          tranStartTime(0),intxn(false) {}
 
     /**
      * Call this whenever entering a transaction.
@@ -189,10 +190,10 @@ public:
     }
 
     /**
-     * Return the last commit time per item in millisecond.
+     * Return the last transaction time per item in millisecond.
      */
-    double getLastCommitTimePerItem() {
-        return lastCommitTimePerItem;
+    double getTransactionTimePerItem() {
+        return lastTranTimePerItem;
     }
 
     void addCallback(PersistenceCallback *cb) {
@@ -200,15 +201,16 @@ public:
     }
 
 private:
-    EPStats     &stats;
-    KVStore     *underlying;
+    EPStats &stats;
+    KVStore *underlying;
     MutationLog &mutationLog;
-    int          _remaining;
-    Atomic<int>  txnSize;
+    int _remaining;
+    Atomic<int> txnSize;
     Atomic<size_t> numUncommittedItems;
-    Atomic<double> lastCommitTimePerItem;
-    bool         intxn;
-    std::list<queued_item>     uncommittedItems;
+    Atomic<double> lastTranTimePerItem;
+    hrtime_t tranStartTime;
+    bool intxn;
+    std::list<queued_item> uncommittedItems;
     std::list<PersistenceCallback*> transactionCallbacks;
 };
 
@@ -616,8 +618,8 @@ public:
         return tctx.getNumUncommittedItems();
     }
 
-    double getLastCommitTimePerItem() {
-        return tctx.getLastCommitTimePerItem();
+    double getTransactionTimePerItem() {
+        return tctx.getTransactionTimePerItem();
     }
 
     const Flusher* getFlusher();

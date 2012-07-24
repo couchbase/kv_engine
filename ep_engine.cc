@@ -3530,14 +3530,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe(const void* cookie,
         result.write((char*) &cas, sizeof(uint64_t));
     }
 
-    uint64_t persist_time;
+    uint64_t persist_time = 0;
     double queue_size = static_cast<double>(stats.queue_size + stats.flusher_todo);
-    double item_commit_time = epstore->getLastCommitTimePerItem();
+    double item_trans_time = epstore->getTransactionTimePerItem();
 
-    if (item_commit_time > 0 && queue_size > 0) {
-        persist_time = static_cast<uint32_t>(queue_size * item_commit_time);
-    } else {
-        persist_time = static_cast<uint32_t>(stats.commit_time);
+    if (item_trans_time > 0 && queue_size > 0) {
+        persist_time = static_cast<uint32_t>(queue_size * item_trans_time);
     }
     persist_time = persist_time << 32;
 

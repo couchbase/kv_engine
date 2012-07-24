@@ -2532,6 +2532,7 @@ bool TransactionContext::enter() {
     if (!intxn) {
         _remaining = txnSize.get();
         intxn = underlying->begin();
+        tranStartTime = gethrtime();
     }
     return intxn;
 }
@@ -2545,8 +2546,8 @@ void TransactionContext::leave(int completed) {
 
 void TransactionContext::commit() {
     BlockTimer timer(&stats.diskCommitHisto, "disk_commit", stats.timingLog);
-    hrtime_t st, en;
-    st = gethrtime();
+    hrtime_t start, end;
+    start = gethrtime();
 
     mutationLog.commit1();
     while (!underlying->commit()) {
@@ -2566,13 +2567,14 @@ void TransactionContext::commit() {
     }
     transactionCallbacks.clear();
 
-    en = gethrtime();
-    uint64_t millis = (en - st) / 1000000;
+    end = gethrtime();
+    uint64_t commit_time = (end - start) / 1000000;
+    uint64_t trans_time = (end - tranStartTime) / 1000000;
 
-    lastCommitTimePerItem.set(millis > 0 ?
-        static_cast<double>(numUncommittedItems) / static_cast<double>(millis) : 0);
-    stats.commit_time.set(millis);
-    stats.cumulativeCommitTime.incr(millis);
+    lastTranTimePerItem = numUncommittedItems > 0 ?
+        static_cast<double>(trans_time) / static_cast<double>(numUncommittedItems) : 0;
+    stats.commit_time.set(commit_time);
+    stats.cumulativeCommitTime.incr(commit_time);
     intxn = false;
     uncommittedItems.clear();
     numUncommittedItems = 0;
