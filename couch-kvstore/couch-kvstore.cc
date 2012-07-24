@@ -880,22 +880,30 @@ void CouchKVStore::addStats(const std::string &prefix,
     addStat(prefix_str, "readTime",       st.readTimeHisto,   add_stat, c);
     addStat(prefix_str, "readSize",       st.readSizeHisto,   add_stat, c);
     addStat(prefix_str, "numLoadedVb",    st.numLoadedVb,     add_stat, c);
-    addStat(prefix_str, "numCommitRetry", st.numCommitRetry,  add_stat, c);
+
     // failure stats
     addStat(prefix_str, "failure_open",   st.numOpenFailure, add_stat, c);
     addStat(prefix_str, "failure_get",    st.numGetFailure,  add_stat, c);
 
-    // stats for read-write thread only
-    if( prefix.compare("rw") == 0 ) {
-        addStat(prefix_str, "delete",        st.delTimeHisto,    add_stat, c);
+    if (prefix.compare("rw") == 0) {
         addStat(prefix_str, "failure_set",   st.numSetFailure,   add_stat, c);
         addStat(prefix_str, "failure_del",   st.numDelFailure,   add_stat, c);
         addStat(prefix_str, "failure_vbset", st.numVbSetFailure, add_stat, c);
-        addStat(prefix_str, "writeTime",     st.writeTimeHisto,  add_stat, c);
-        addStat(prefix_str, "writeSize",     st.writeSizeHisto,  add_stat, c);
-        addStat(prefix_str, "commitRetry",   st.commitRetryHisto,add_stat, c);
         addStat(prefix_str, "lastCommDocs",  st.docsCommitted,   add_stat, c);
+        addStat(prefix_str, "numCommitRetry", st.numCommitRetry, add_stat, c);
     }
+}
+
+void CouchKVStore::addTimingStats(const std::string &prefix,
+                                  ADD_STAT add_stat, const void *c) {
+    if (prefix.compare("rw") != 0) {
+        return;
+    }
+    const char *prefix_str = prefix.c_str();
+    addStat(prefix_str, "delete",        st.delTimeHisto,    add_stat, c);
+    addStat(prefix_str, "writeTime",     st.writeTimeHisto,  add_stat, c);
+    addStat(prefix_str, "writeSize",     st.writeSizeHisto,  add_stat, c);
+    addStat(prefix_str, "commitRetry",   st.commitRetryHisto,add_stat, c);
 }
 
 template <typename T>

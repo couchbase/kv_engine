@@ -254,7 +254,9 @@ public:
                   Callback<GetValue> &cb,
                   Callback<size_t> &estimate);
 
-    virtual void addStats(const std::string &prefix, ADD_STAT add_stat, const void *c);
+    void addStats(const std::string &prefix, ADD_STAT add_stat, const void *c);
+    void addTimingStats(const std::string &prefix, ADD_STAT add_stat,
+                        const void *c);
     void optimizeWrites(std::vector<queued_item> &items);
     void processTxnSizeChange(size_t txn_size) {
         (void) txn_size;
