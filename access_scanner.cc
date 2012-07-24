@@ -111,3 +111,8 @@ bool AccessScanner::callback(Dispatcher &d, TaskId t) {
 std::string AccessScanner::description() {
     return std::string("Generating access log");
 }
+
+size_t AccessScanner::startTime() {
+    Configuration &cfg = store.getEPEngine().getConfiguration();
+    return cfg.getAlogTaskTime();
+}

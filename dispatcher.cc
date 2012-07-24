@@ -38,6 +38,52 @@ static void* launch_dispatcher_thread(void *arg) {
     return NULL;
 }
 
+/**
+ * It simulates timegm to convert the given GMT time to number of seconds
+ * since epoch but it uses C standard time functions.
+ */
+static time_t do_timegm(struct tm *tmv)
+{
+  time_t epoch = 0;
+  time_t offset = mktime(gmtime(&epoch));
+  time_t gmt = mktime(tmv);
+  return difftime(gmt, offset);
+}
+
+void Task::snooze(const double secs, bool first) {
+    LockHolder lh(mutex);
+    gettimeofday(&waketime, NULL);
+    size_t start = callback ? callback->startTime() : 24;
+    // set scheduled task time for new task only
+    if (first && (start == 0 || start <= 23) && secs >= 3600) {
+        struct tm tim;
+        struct timeval tmval = waketime;
+        tim = *gmtime((const time_t *)&tmval.tv_sec);
+        // change tm structure to the given start hour in GMT
+        tim.tm_min = 0;
+        tim.tm_sec = 0;
+        if (tim.tm_hour >= (time_t)start) {
+            tim.tm_hour = (time_t)start;
+            tmval.tv_sec = do_timegm(&tim);
+            // advance time until later than current time
+            while (tmval.tv_sec < waketime.tv_sec) {
+                advance_tv(tmval, secs);
+            }
+        } else if (tim.tm_hour < (time_t)start) {
+            tim.tm_hour = start;
+            tmval.tv_sec = do_timegm(&tim);
+            // backtrack time until last time larger than current time
+            time_t tsec;
+            while ((tsec = tmval.tv_sec - (int)secs) > waketime.tv_sec) {
+                tmval.tv_sec = tsec;
+            }
+        }
+        waketime = tmval;
+    } else {
+        advance_tv(waketime, secs);
+    }
+}
+
 void Dispatcher::start() {
     assert(state == dispatcher_running);
     if(pthread_create(&thread, NULL, launch_dispatcher_thread, this) != 0) {
