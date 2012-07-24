@@ -1152,7 +1152,7 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server
     startedEngineThreads(false),
     getServerApiFunc(get_server_api), getlExtension(NULL),
     tapConnMap(NULL), tapConfig(NULL), checkpointConfig(NULL),
-    mutation_count(0), warmingUp(true),
+    warmingUp(true),
     flushAllEnabled(false), startupTime(0)
 {
     interface.interface = 1;
@@ -1456,7 +1456,6 @@ ENGINE_ERROR_CODE  EventuallyPersistentEngine::store(const void *cookie,
         ret = epstore->set(*it, cookie);
         if (ret == ENGINE_SUCCESS) {
             *cas = it->getCas();
-            addMutationEvent(it);
         }
 
         break;
@@ -1475,7 +1474,6 @@ ENGINE_ERROR_CODE  EventuallyPersistentEngine::store(const void *cookie,
         ret = epstore->add(*it, cookie);
         if (ret == ENGINE_SUCCESS) {
             *cas = it->getCas();
-            addMutationEvent(it);
         }
         break;
 
@@ -1489,7 +1487,6 @@ ENGINE_ERROR_CODE  EventuallyPersistentEngine::store(const void *cookie,
             ret = epstore->set(*it, cookie);
             if (ret == ENGINE_SUCCESS) {
                 *cas = it->getCas();
-                addMutationEvent(it);
             }
             break;
         case ENGINE_KEY_ENOENT:
@@ -1536,9 +1533,6 @@ ENGINE_ERROR_CODE  EventuallyPersistentEngine::store(const void *cookie,
                 }
 
                 ret = store(cookie, old, cas, OPERATION_CAS, vbucket);
-                if (ret == ENGINE_SUCCESS) {
-                    addMutationEvent(static_cast<Item*>(i));
-                }
                 itemRelease(cookie, i);
             }
         } while (ret == ENGINE_KEY_EEXISTS);
@@ -1934,9 +1928,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
             }
             ret = epstore->deleteItem(k, 0, vbucket, cookie, true, meta,
                                       &itemMeta);
-            if (ret == ENGINE_SUCCESS) {
-                addDeleteEvent(k, vbucket, 0);
-            } else if (ret == ENGINE_KEY_ENOENT) {
+            if (ret == ENGINE_KEY_ENOENT) {
                 ret = ENGINE_SUCCESS;
             }
             TapConsumer *tc = dynamic_cast<TapConsumer*>(connection);
@@ -2051,9 +2043,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
                 ret = ENGINE_DISCONNECT;
             }
 
-            if (ret == ENGINE_SUCCESS) {
-                addMutationEvent(itm);
-            } else if (ret == ENGINE_ENOMEM) {
+            if (ret == ENGINE_ENOMEM) {
                 if (connection->supportsAck()) {
                     ret = ENGINE_TMPFAIL;
                 } else {
@@ -3929,7 +3919,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
     rc = engine_error_2_protocol_error(ret);
 
     if (ret == ENGINE_SUCCESS) {
-        addMutationEvent(itm);
         itm_meta.cas = itm->getCas();
     } else {
         itm_meta.cas = 0;
@@ -3994,10 +3983,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(const void* cookie,
                                                 &itm_meta);
     protocol_binary_response_status rc;
     rc = engine_error_2_protocol_error(ret);
-
-    if (ret == ENGINE_SUCCESS) {
-        addDeleteEvent(key, vbucket, ntohll(request->message.header.request.cas));
-    }
 
     if (opcode == CMD_DELQ_WITH_META && rc == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
         return ENGINE_SUCCESS;

@@ -460,7 +460,6 @@ void TapConnMap::notifyIOThreadMain() {
     // We should pause unless we purged some connections or
     // all queues have items.
     getExpiredConnections_UNLOCKED(deadClients);
-    engine.mutation_count = 0;
 
     // see if I have some channels that I have to signal..
     std::map<const void*, TapConnection*>::iterator iter;

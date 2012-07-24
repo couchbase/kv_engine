@@ -222,9 +222,7 @@ public:
                                                     false, // not use metadata
                                                     &itemMeta);
 
-        if (ret == ENGINE_SUCCESS) {
-            addDeleteEvent(key, vbucket, cas);
-        } else if (ret == ENGINE_KEY_ENOENT || ret == ENGINE_NOT_MY_VBUCKET) {
+        if (ret == ENGINE_KEY_ENOENT || ret == ENGINE_NOT_MY_VBUCKET) {
             if (isDegradedMode()) {
                 return ENGINE_TMPFAIL;
             }
@@ -680,14 +678,6 @@ private:
         trafficEnabled.set(true);
     }
 
-    void addMutationEvent(Item *) {
-        ++mutation_count;
-    }
-
-    void addDeleteEvent(const std::string &, uint16_t, uint64_t) {
-        ++mutation_count;
-    }
-
     void startEngineThreads(void);
     void stopEngineThreads(void) {
         if (startedEngineThreads) {
@@ -802,7 +792,6 @@ private:
     CheckpointConfig *checkpointConfig;
     Mutex tapMutex;
     size_t maxItemSize;
-    Atomic<uint64_t> mutation_count;
     size_t getlDefaultTimeout;
     size_t getlMaxTimeout;
     EPStats stats;
