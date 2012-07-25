@@ -1073,13 +1073,14 @@ public:
     TapBGFetchCallback(EventuallyPersistentEngine *e, const std::string &n,
                        const std::string &k, uint16_t vbid,
                        uint64_t r, hrtime_t token) :
-        epe(e), name(n), key(k), vbucket(vbid), rowid(r), connToken(token),
-        init(gethrtime()), start(0), counter(e->getEpStore()->bgFetchQueue) {
+        name(n), key(k), epe(e), init(gethrtime()),
+        connToken(token), rowid(r), vbucket(vbid)
+    {
         assert(epe);
     }
 
     bool callback(Dispatcher & d, TaskId t) {
-        start = gethrtime();
+        hrtime_t start = gethrtime();
         RememberingCallback<GetValue> gcb;
 
         EPStats &stats = epe->getEpStats();
@@ -1157,17 +1158,13 @@ public:
     }
 
 private:
+    const std::string name;
+    const std::string key;
     EventuallyPersistentEngine *epe;
-    const std::string           name;
-    std::string                 key;
-    uint16_t                    vbucket;
-    uint64_t                    rowid;
-    hrtime_t                    connToken;
-
     hrtime_t init;
-    hrtime_t start;
-
-    BGFetchCounter counter;
+    hrtime_t connToken;
+    uint64_t rowid;
+    uint16_t vbucket;
 };
 
 void TapProducer::queueBGFetch_UNLOCKED(const std::string &key, uint64_t id, uint16_t vb) {
