@@ -2,7 +2,13 @@
 
 #include "config.h"
 #include "tapthrottle.hh"
+#include "configuration.hh"
 
+TapThrottle::TapThrottle(Configuration &config, EPStats &s) :
+    queueCap(config.getTapThrottleQueueCap()),
+    capPercent(config.getTapThrottleCapPcnt()),
+    stats(s)
+{}
 
 bool TapThrottle::persistenceQueueSmallEnough() const {
     size_t queueSize = stats.queue_size.get() + stats.flusher_todo.get();
@@ -21,4 +27,17 @@ bool TapThrottle::hasSomeMemory() const {
 
 bool TapThrottle::shouldProcess() const {
     return persistenceQueueSmallEnough() && hasSomeMemory();
+}
+
+void TapThrottle::adjustWriteQueueCap(size_t totalItems) {
+    if (queueCap == -1) {
+        stats.tapThrottleWriteQueueCap.set(-1);
+        return;
+    }
+    size_t qcap = static_cast<size_t>(queueCap);
+    size_t throttleCap = 0;
+    if (capPercent > 0) {
+        throttleCap = (static_cast<double>(capPercent) / 100.0) * totalItems;
+    }
+    stats.tapThrottleWriteQueueCap.set(throttleCap > qcap ? throttleCap : qcap);
 }

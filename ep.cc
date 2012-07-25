@@ -60,8 +60,6 @@ public:
             stats.queue_age_cap.set(value);
         } else if (key.compare("tap_throttle_threshold") == 0) {
             stats.tapThrottleThreshold.set(static_cast<double>(value) / 100.0);
-        } else if (key.compare("tap_throttle_queue_cap") == 0) {
-            stats.tapThrottleWriteQueueCap.set(value);
         } else if (key.compare("warmup_min_memory_threshold") == 0) {
             stats.warmupMemUsedCap.set(static_cast<double>(value) / 100.0);
         } else if (key.compare("warmup_min_items_threshold") == 0) {
@@ -106,6 +104,10 @@ public:
             store.getMutationLogCompactorConfig().setMaxEntryRatio(value);
         } else if (key.compare("klog_compactor_queue_cap") == 0) {
             store.getMutationLogCompactorConfig().setMaxEntryRatio(value);
+        } else if (key.compare("tap_throttle_queue_cap") == 0) {
+            store.getEPEngine().getTapThrottle().setQueueCap(value);
+        } else if (key.compare("tap_throttle_cap_pcnt") == 0) {
+            store.getEPEngine().getTapThrottle().setCapPercent(value);
         } else {
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                              "Failed to change value for unknown variable, %s\n",
@@ -371,7 +373,9 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
 
     stats.tapThrottleWriteQueueCap.set(config.getTapThrottleQueueCap());
     config.addValueChangedListener("tap_throttle_queue_cap",
-                                   new StatsValueChangeListener(stats));
+                                   new EPStoreValueChangeListener(*this));
+    config.addValueChangedListener("tap_throttle_cap_pcnt",
+                                   new EPStoreValueChangeListener(*this));
 
     setBGFetchDelay(config.getBgFetchDelay());
     config.addValueChangedListener("bg_fetch_delay",

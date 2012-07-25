@@ -410,6 +410,17 @@
             "default": "0.1",
             "type": "float"
         },
+        "tap_throttle_cap_pcnt": {
+            "default": "10",
+            "descr": "Percentage of total items in write queue at which we throttle tap input",
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "max": 100,
+                    "min": 0
+                }
+            }
+        },
         "tap_throttle_queue_cap": {
             "default": "1000000",
             "descr": "Max size of a write queue to throttle incoming tap input.",

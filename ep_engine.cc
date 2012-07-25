@@ -260,6 +260,8 @@ extern "C" {
                 e->getConfiguration().setTapThrottleThreshold(v);
             } else if (strcmp(keyz, "tap_throttle_queue_cap") == 0) {
                 e->getConfiguration().setTapThrottleQueueCap(v);
+            } else if (strcmp(keyz, "tap_throttle_cap_pcnt") == 0) {
+                e->getConfiguration().setTapThrottleCapPcnt(v);
             } else {
                 *msg = "Unknown config param";
                 rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
@@ -1150,7 +1152,7 @@ ALLOCATOR_HOOKS_API *getHooksApi(void) {
 
 EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server_api) :
     forceShutdown(false), kvstore(NULL),
-    epstore(NULL), tapThrottle(new TapThrottle(stats)), databaseInitTime(0),
+    epstore(NULL), tapThrottle(NULL), databaseInitTime(0),
     startedEngineThreads(false),
     getServerApiFunc(get_server_api), getlExtension(NULL),
     tapConnMap(NULL), tapConfig(NULL), checkpointConfig(NULL),
@@ -1318,6 +1320,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
 
     tapConnMap = new TapConnMap(*this);
     tapConfig = new TapConfig(*this);
+    tapThrottle = new TapThrottle(configuration, stats);
     TapConfig::addConfigChangeListener(*this);
 
     checkpointConfig = new CheckpointConfig(*this);
@@ -2340,6 +2343,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
 
     epstore->updateCachedResidentRatio(activeCountVisitor.getMemResidentPer(),
                                        replicaCountVisitor.getMemResidentPer());
+    tapThrottle->adjustWriteQueueCap(activeCountVisitor.getNumItems() +
+                                     replicaCountVisitor.getNumItems() +
+                                     pendingCountVisitor.getNumItems());
 
     configuration.addStats(add_stat, cookie);
 

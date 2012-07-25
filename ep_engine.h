@@ -549,6 +549,8 @@ public:
 
     TapConfig &getTapConfig() { return *tapConfig; }
 
+    TapThrottle &getTapThrottle() { return *tapThrottle; }
+
     CheckpointConfig &getCheckpointConfig() { return *checkpointConfig; }
 
     bool isForceShutdown(void) const {
