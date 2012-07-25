@@ -1635,7 +1635,7 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
 
     VBucketFilter backFillVBFilter;
     if (connection->runBackfill(backFillVBFilter)) {
-        queueBackfill(backFillVBFilter, connection, cookie);
+        queueBackfill(backFillVBFilter, connection);
     }
 
     bool referenced = false;
@@ -2258,9 +2258,9 @@ void EventuallyPersistentEngine::startEngineThreads(void)
 }
 
 void EventuallyPersistentEngine::queueBackfill(const VBucketFilter &backfillVBFilter,
-                                               TapProducer *tc, const void *tok) {
+                                               TapProducer *tc) {
     shared_ptr<DispatcherCallback> backfill_cb(new BackfillTask(this, tc, epstore,
-                                                                tok, backfillVBFilter));
+                                                                backfillVBFilter));
     epstore->getNonIODispatcher()->schedule(backfill_cb, NULL,
                                             Priority::BackfillTaskPriority,
                                             0, false, false);

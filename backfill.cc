@@ -18,9 +18,9 @@ static bool isMemoryUsageTooHigh(EPStats &stats) {
  */
 class BackfillDiskCallback : public Callback<GetValue> {
 public:
-    BackfillDiskCallback(const void *token, const std::string &n,
+    BackfillDiskCallback(hrtime_t token, const std::string &n,
                          TapConnMap &tcm, EventuallyPersistentEngine* e)
-        : validityToken(token), tapConnName(n), connMap(tcm), engine(e) {
+        : connToken(token), tapConnName(n), connMap(tcm), engine(e) {
         assert(engine);
     }
 
@@ -28,7 +28,7 @@ public:
 
 private:
 
-    const void                 *validityToken;
+    hrtime_t                    connToken;
     const std::string           tapConnName;
     TapConnMap                 &connMap;
     EventuallyPersistentEngine *engine;
@@ -36,7 +36,7 @@ private:
 
 void BackfillDiskCallback::callback(GetValue &gv) {
     assert(gv.getValue());
-    CompletedBGFetchTapOperation tapop(validityToken, gv.getValue()->getVBucketId(), true);
+    CompletedBGFetchTapOperation tapop(connToken, gv.getValue()->getVBucketId(), true);
     // if the tap connection is closed, then free an Item instance
     if (!connMap.performTapOp(tapConnName, tapop, gv.getValue())) {
         delete gv.getValue();
@@ -54,7 +54,7 @@ bool BackfillDiskLoad::callback(Dispatcher &d, TaskId t) {
     }
 
     if (connMap.checkConnectivity(name) && !engine->getEpStore()->isFlushAllScheduled()) {
-        shared_ptr<Callback<GetValue> > backfill_cb(new BackfillDiskCallback(validityToken,
+        shared_ptr<Callback<GetValue> > backfill_cb(new BackfillDiskCallback(connToken,
                                                                              name, connMap,
                                                                              engine));
         if (backfillType == ALL_MUTATIONS) {
@@ -157,7 +157,7 @@ void BackFillVisitor::apply(void) {
                                                                    underlying,
                                                                    it->first,
                                                                    it->second,
-                                                                   validityToken));
+                                                                   connToken));
             d->schedule(cb, NULL, Priority::TapBgFetcherPriority);
         }
         vbuckets.clear();

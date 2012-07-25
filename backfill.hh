@@ -29,9 +29,9 @@ public:
 
     BackfillDiskLoad(const std::string &n, EventuallyPersistentEngine* e,
                      TapConnMap &tcm, KVStore *s, uint16_t vbid, backfill_t type,
-                     const void *token)
+                     hrtime_t token)
         : name(n), engine(e), connMap(tcm), store(s), vbucket(vbid), backfillType(type),
-        validityToken(token) { }
+       connToken(token) { }
 
     void callback(GetValue &gv);
 
@@ -46,7 +46,7 @@ private:
     KVStore                    *store;
     uint16_t                    vbucket;
     backfill_t                  backfillType;
-    const void                 *validityToken;
+    hrtime_t                    connToken;
 };
 
 /**
@@ -57,10 +57,10 @@ private:
 class BackFillVisitor : public VBucketVisitor {
 public:
     BackFillVisitor(EventuallyPersistentEngine *e, TapProducer *tc,
-                    const void *token, const VBucketFilter &backfillVBfilter):
+                    const VBucketFilter &backfillVBfilter):
         VBucketVisitor(backfillVBfilter), engine(e), name(tc->getName()),
         queue(new std::list<queued_item>),
-        validityToken(token), valid(true),
+        connToken(tc->getConnectionToken()), valid(true),
         efficientVBDump(e->epstore->getStorageProperties().hasEfficientVBDump()),
         residentRatioBelowThreshold(false) { }
 
@@ -92,7 +92,7 @@ private:
     const std::string name;
     std::list<queued_item> *queue;
     std::map<uint16_t, backfill_t> vbuckets;
-    const void *validityToken;
+    hrtime_t connToken;
     bool valid;
     bool efficientVBDump;
     bool residentRatioBelowThreshold;
@@ -108,9 +108,9 @@ class BackfillTask : public DispatcherCallback {
 public:
 
     BackfillTask(EventuallyPersistentEngine *e, TapProducer *tc,
-                 EventuallyPersistentStore *s, const void *tok,
+                 EventuallyPersistentStore *s,
                  const VBucketFilter &backfillVBFilter):
-      bfv(new BackFillVisitor(e, tc, tok, backfillVBFilter)), engine(e), epstore(s) {}
+      bfv(new BackFillVisitor(e, tc, backfillVBFilter)), engine(e), epstore(s) {}
 
     virtual ~BackfillTask() {}
 

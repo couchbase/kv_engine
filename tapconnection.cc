@@ -76,6 +76,7 @@ TapConnection::TapConnection(EventuallyPersistentEngine &theEngine,
     cookie(c),
     name(n),
     created(ep_current_time()),
+    connToken(gethrtime()),
     expiryTime((rel_time_t)-1),
     connected(true),
     disconnect(false),
@@ -1071,11 +1072,10 @@ class TapBGFetchCallback : public DispatcherCallback {
 public:
     TapBGFetchCallback(EventuallyPersistentEngine *e, const std::string &n,
                        const std::string &k, uint16_t vbid,
-                       uint64_t r, const void *c) :
-        epe(e), name(n), key(k), vbucket(vbid), rowid(r), cookie(c),
+                       uint64_t r, hrtime_t token) :
+        epe(e), name(n), key(k), vbucket(vbid), rowid(r), connToken(token),
         init(gethrtime()), start(0), counter(e->getEpStore()->bgFetchQueue) {
         assert(epe);
-        assert(cookie);
     }
 
     bool callback(Dispatcher & d, TaskId t) {
@@ -1104,7 +1104,7 @@ public:
                     ++stats.numTapBGFetchRequeued;
                     return true;
                 } else {
-                    CompletedBGFetchTapOperation tapop(cookie, vbucket);
+                    CompletedBGFetchTapOperation tapop(connToken, vbucket);
                     epe->getTapConnMap().performTapOp(name, tapop, gcb.val.getValue());
                     // As an item is deleted from hash table, push the item
                     // deletion event into the TAP queue.
@@ -1115,7 +1115,7 @@ public:
                     return false;
                 }
             } else {
-                CompletedBGFetchTapOperation tapop(cookie, vbucket);
+                CompletedBGFetchTapOperation tapop(connToken, vbucket);
                 epe->getTapConnMap().performTapOp(name, tapop, gcb.val.getValue());
                 getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                                  "VBucket %d not exist!!! TAP BG fetch failed for TAP %s\n",
@@ -1124,7 +1124,7 @@ public:
             }
         }
 
-        CompletedBGFetchTapOperation tapop(cookie, vbucket);
+        CompletedBGFetchTapOperation tapop(connToken, vbucket);
         if (!epe->getTapConnMap().performTapOp(name, tapop, gcb.val.getValue())) {
             delete gcb.val.getValue(); // Tap connection is closed. Free an item instance.
         }
@@ -1162,7 +1162,7 @@ private:
     std::string                 key;
     uint16_t                    vbucket;
     uint64_t                    rowid;
-    const void                 *cookie;
+    hrtime_t                    connToken;
 
     hrtime_t init;
     hrtime_t start;
@@ -1170,11 +1170,10 @@ private:
     BGFetchCounter counter;
 };
 
-void TapProducer::queueBGFetch_UNLOCKED(const std::string &key, uint64_t id,
-                                        uint16_t vb, const void *c) {
+void TapProducer::queueBGFetch_UNLOCKED(const std::string &key, uint64_t id, uint16_t vb) {
     shared_ptr<TapBGFetchCallback> dcb(new TapBGFetchCallback(&engine,
                                                               getName(), key,
-                                                              vb, id, c));
+                                                              vb, id, getConnectionToken()));
     engine.getEpStore()->getTapDispatcher()->schedule(dcb, NULL, Priority::TapBgFetcherPriority);
     ++bgJobIssued;
     std::map<uint16_t, TapCheckpointState>::iterator it = tapCheckpointState.find(vb);
@@ -1856,7 +1855,7 @@ Item* TapProducer::getNextItem(const void *c, uint16_t *vbucket, tap_event_t &re
                 itm->setSeqno(qi->getSeqno());
                 ret = TAP_DELETION;
             } else if (r == ENGINE_EWOULDBLOCK) {
-                queueBGFetch_UNLOCKED(qi->getKey(), gv.getId(), *vbucket, c);
+                queueBGFetch_UNLOCKED(qi->getKey(), gv.getId(), *vbucket);
                 // If there's an item ready, return NOOP so we'll come
                 // back immediately, otherwise pause the connection
                 // while we wait.
