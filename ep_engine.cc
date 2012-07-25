@@ -2026,7 +2026,7 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
 
     VBucketFilter backFillVBFilter;
     if (connection->runBackfill(backFillVBFilter)) {
-        queueBackfill(backFillVBFilter, connection, cookie);
+        queueBackfill(backFillVBFilter, connection);
     }
 
     // Check if there are any checkpoint start / end messages to be sent to the TAP client.
@@ -2123,7 +2123,7 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
 	            ret = TAP_DELETION;
             } else if (r == ENGINE_EWOULDBLOCK) {
                 connection->queueBGFetch(qi->getKey(), gv.getId(), *vbucket,
-                                         epstore->getVBucketVersion(*vbucket), cookie);
+                                         epstore->getVBucketVersion(*vbucket));
                 // If there's an item ready, return NOOP so we'll come
                 // back immediately, otherwise pause the connection
                 // while we wait.
@@ -2740,9 +2740,9 @@ void EventuallyPersistentEngine::startEngineThreads(void)
 }
 
 void EventuallyPersistentEngine::queueBackfill(const VBucketFilter &backfillVBFilter,
-                                               TapProducer *tc, const void *tok) {
+                                               TapProducer *tc) {
     shared_ptr<DispatcherCallback> backfill_cb(new BackfillTask(this, tc, epstore,
-                                                                tok, backfillVBFilter));
+                                                                backfillVBFilter));
     epstore->getNonIODispatcher()->schedule(backfill_cb, NULL,
                                             Priority::BackfillTaskPriority,
                                             0, false, false);

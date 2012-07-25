@@ -25,8 +25,8 @@ class BackfillDiskLoad : public DispatcherCallback, public Callback<GetValue> {
 public:
 
     BackfillDiskLoad(const std::string &n, EventuallyPersistentEngine* e,
-                     TapConnMap &tcm, KVStore *s, uint16_t vbid, const void *token)
-        : name(n), engine(e), connMap(tcm), store(s), vbucket(vbid), validityToken(token) {
+                     TapConnMap &tcm, KVStore *s, uint16_t vbid, hrtime_t token)
+        : name(n), engine(e), connMap(tcm), store(s), vbucket(vbid), connToken(token) {
 
         vbucket_version = engine->getEpStore()->getVBucketVersion(vbucket);
     }
@@ -44,7 +44,7 @@ private:
     KVStore                    *store;
     uint16_t                    vbucket;
     uint16_t                    vbucket_version;
-    const void                 *validityToken;
+    hrtime_t                    connToken;
 };
 
 /**
@@ -55,10 +55,10 @@ private:
 class BackFillVisitor : public VBucketVisitor {
 public:
     BackFillVisitor(EventuallyPersistentEngine *e, TapProducer *tc,
-                    const void *token, const VBucketFilter &backfillVBfilter):
+                    const VBucketFilter &backfillVBfilter):
         VBucketVisitor(backfillVBfilter), engine(e), name(tc->getName()),
         queue(new std::list<queued_item>),
-        found(), validityToken(token),
+        found(), connToken(tc->getConnectionToken()),
         maxBackfillSize(e->tapBacklogLimit), valid(true),
         efficientVBDump(e->epstore->getStorageProperties().hasEfficientVBDump()),
         residentRatioBelowThreshold(false) {
@@ -96,7 +96,7 @@ private:
     std::list<queued_item> *queue;
     std::vector<std::pair<uint16_t, queued_item> > found;
     std::vector<uint16_t> vbuckets;
-    const void *validityToken;
+    hrtime_t connToken;
     ssize_t maxBackfillSize;
     bool valid;
     bool efficientVBDump;
@@ -115,9 +115,9 @@ class BackfillTask : public DispatcherCallback {
 public:
 
     BackfillTask(EventuallyPersistentEngine *e, TapProducer *tc,
-                 EventuallyPersistentStore *s, const void *tok,
+                 EventuallyPersistentStore *s,
                  const VBucketFilter &backfillVBFilter):
-      bfv(new BackFillVisitor(e, tc, tok, backfillVBFilter)), engine(e), epstore(s) {}
+      bfv(new BackFillVisitor(e, tc, backfillVBFilter)), engine(e), epstore(s) {}
 
     virtual ~BackfillTask() {}
 

@@ -401,7 +401,7 @@ public:
      * Visit the objects and add them to the tap connecitons queue.
      * @todo this code should honor the backfill time!
      */
-    void queueBackfill(const VBucketFilter &backfillVBFilter, TapProducer *tc, const void *tok);
+    void queueBackfill(const VBucketFilter &backfillVBFilter, TapProducer *tc);
 
     void reportNullCookie(TapConnection &tc);
 

@@ -192,6 +192,11 @@ protected:
     rel_time_t created;
 
     /**
+     * Connection token created at TAP connection instantiation
+     */
+    hrtime_t connToken;
+
+    /**
      * when this tap conneciton expires.
      */
     rel_time_t expiryTime;
@@ -223,6 +228,7 @@ protected:
         cookie(c),
         name(n),
         created(ep_current_time()),
+        connToken(gethrtime()),
         expiryTime((rel_time_t)-1),
         connected(true),
         disconnect(false),
@@ -332,6 +338,10 @@ public:
 
     rel_time_t getExpiryTime() {
         return expiryTime;
+    }
+
+    hrtime_t getConnectionToken() const {
+        return connToken;
     }
 
     void setConnected(bool s) {
@@ -882,10 +892,9 @@ private:
      * @param id the disk id of the item to fetch
      * @param vb the vbucket ID
      * @param vbv the vbucket version
-     * @param c the connection cookie
      */
     void queueBGFetch(const std::string &key, uint64_t id, uint16_t vb,
-                      uint16_t vbv, const void *c);
+                      uint16_t vbv);
 
     TapProducer(EventuallyPersistentEngine &theEngine,
                 const void *cookie,

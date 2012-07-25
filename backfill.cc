@@ -14,7 +14,7 @@ static bool isMemoryUsageTooHigh(EPStats &stats) {
 }
 
 void BackfillDiskLoad::callback(GetValue &gv) {
-    CompletedBGFetchTapOperation tapop(validityToken, true);
+    CompletedBGFetchTapOperation tapop(connToken, true);
     // if the tap connection is closed, then free an Item instance
     if (!connMap.performTapOp(name, tapop, gv.getValue())) {
         delete gv.getValue();
@@ -112,7 +112,7 @@ void BackFillVisitor::apply(void) {
                                                                    engine->tapConnMap,
                                                                    underlying,
                                                                    *it,
-                                                                   validityToken));
+                                                                   connToken));
             d->schedule(cb, NULL, Priority::TapBgFetcherPriority);
         }
         vbuckets.clear();

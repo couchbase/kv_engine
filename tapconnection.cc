@@ -893,11 +893,10 @@ class TapBGFetchCallback : public DispatcherCallback {
 public:
     TapBGFetchCallback(EventuallyPersistentEngine *e, const std::string &n,
                        const std::string &k, uint16_t vbid, uint16_t vbv,
-                       uint64_t r, const void *c) :
-        epe(e), name(n), key(k), vbucket(vbid), vbver(vbv), rowid(r), cookie(c),
+                       uint64_t r, hrtime_t token) :
+        epe(e), name(n), key(k), vbucket(vbid), vbver(vbv), rowid(r), connToken(token),
         init(gethrtime()), start(0), counter(e->getEpStore()->bgFetchQueue) {
         assert(epe);
-        assert(cookie);
     }
 
     bool callback(Dispatcher & d, TaskId t) {
@@ -925,7 +924,7 @@ public:
                     ++stats.numTapBGFetchRequeued;
                     return true;
                 } else {
-                    CompletedBGFetchTapOperation tapop(cookie);
+                    CompletedBGFetchTapOperation tapop(connToken);
                     epe->getTapConnMap().performTapOp(name, tapop, gcb.val.getValue());
                     // As an item is deleted from hash table, push the item
                     // deletion event into the TAP queue.
@@ -937,7 +936,7 @@ public:
                     return false;
                 }
             } else {
-                CompletedBGFetchTapOperation tapop(cookie);
+                CompletedBGFetchTapOperation tapop(connToken);
                 epe->getTapConnMap().performTapOp(name, tapop, gcb.val.getValue());
                 getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                                  "VBucket %d not exist!!! TAP BG fetch failed for TAP %s\n",
@@ -946,7 +945,7 @@ public:
             }
         }
 
-        CompletedBGFetchTapOperation tapop(cookie);
+        CompletedBGFetchTapOperation tapop(connToken);
         if (!epe->getTapConnMap().performTapOp(name, tapop, gcb.val.getValue())) {
             delete gcb.val.getValue(); // Tap connection is closed. Free an item instance.
         }
@@ -985,7 +984,7 @@ private:
     uint16_t                    vbucket;
     uint16_t                    vbver;
     uint64_t                    rowid;
-    const void                 *cookie;
+    hrtime_t                    connToken;
 
     hrtime_t init;
     hrtime_t start;
@@ -994,12 +993,12 @@ private:
 };
 
 void TapProducer::queueBGFetch(const std::string &key, uint64_t id,
-                               uint16_t vb, uint16_t vbv, const void *c) {
+                               uint16_t vb, uint16_t vbv) {
     LockHolder lh(queueLock);
     shared_ptr<TapBGFetchCallback> dcb(new TapBGFetchCallback(&engine,
                                                               getName(), key,
                                                               vb, vbv,
-                                                              id, c));
+                                                              id, getConnectionToken()));
     engine.getEpStore()->getRODispatcher()->schedule(dcb, NULL, Priority::TapBgFetcherPriority);
     ++bgQueued;
     ++bgJobIssued;
