@@ -318,21 +318,19 @@ void CouchKVStore::set(const Item &itm, Callback<mutation_result> &cb)
     bool deleteItem = false;
     CouchRequestCallback requestcb;
     std::string dbFile;
+    int fileRev = 1;
 
     requestcb.setCb = &cb;
-    if (!(getDbFile(itm.getVBucketId(), dbFile))) {
-        ++st.numSetFailure;
-        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                         "Warning: failed to set data, cannot locate database file %s\n",
+    if ((getDbFile(itm.getVBucketId(), dbFile))) {
+        fileRev = dbFileRev(dbFile);
+    } else {
+        getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                         "Warning: cannot locate database file %s\n",
                          dbFile.c_str());
-        mutation_result p(MUTATION_FAILED, 0);
-        cb.callback(p);
-        return;
     }
 
     // each req will be de-allocated after commit
-    CouchRequest *req = new CouchRequest(itm, dbFileRev(dbFile), requestcb,
-                                         deleteItem);
+    CouchRequest *req = new CouchRequest(itm, fileRev, requestcb, deleteItem);
     queueItem(req);
 }
 
