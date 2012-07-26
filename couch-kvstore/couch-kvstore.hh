@@ -55,8 +55,12 @@ public:
     Histogram<size_t> writeSizeHisto;
     // Time spent in delete() calls.
     Histogram<hrtime_t> delTimeHisto;
-    // Time spent in disk commit retry
+    // Time spent in couchstore commit
+    Histogram<hrtime_t> commitHisto;
+    // Time spent in couchstore commit retry
     Histogram<hrtime_t> commitRetryHisto;
+    // Time spent in couchstore save documents
+    Histogram<hrtime_t> saveDocsHisto;
 };
 
 class EventuallyPersistentEngine;

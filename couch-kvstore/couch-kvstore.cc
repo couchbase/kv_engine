@@ -901,10 +901,12 @@ void CouchKVStore::addTimingStats(const std::string &prefix,
         return;
     }
     const char *prefix_str = prefix.c_str();
-    addStat(prefix_str, "delete",        st.delTimeHisto,    add_stat, c);
-    addStat(prefix_str, "writeTime",     st.writeTimeHisto,  add_stat, c);
-    addStat(prefix_str, "writeSize",     st.writeSizeHisto,  add_stat, c);
-    addStat(prefix_str, "commitRetry",   st.commitRetryHisto,add_stat, c);
+    addStat(prefix_str, "commit",      st.commitHisto,      add_stat, c);
+    addStat(prefix_str, "commitRetry", st.commitRetryHisto, add_stat, c);
+    addStat(prefix_str, "delete",      st.delTimeHisto,     add_stat, c);
+    addStat(prefix_str, "save_documents", st.saveDocsHisto, add_stat, c);
+    addStat(prefix_str, "writeTime",   st.writeTimeHisto,   add_stat, c);
+    addStat(prefix_str, "writeSize",   st.writeSizeHisto,   add_stat, c);
 }
 
 template <typename T>
@@ -1506,6 +1508,7 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, int rev, Doc **docs,
     bool retry_save_docs;
     bool retried = false;
     hrtime_t retry_begin = (hrtime_t)0;
+    hrtime_t cs_begin = (hrtime_t)0;
 
     fileRev = rev;
     assert(fileRev);
@@ -1542,8 +1545,10 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, int rev, Doc **docs,
                 }
             }
 
+            cs_begin = gethrtime();
             errCode = couchstore_save_documents(db, docs, docinfos, docCount,
                                                 0 /* no options */);
+            st.saveDocsHisto.add((gethrtime() - cs_begin) / 1000);
             if (errCode != COUCHSTORE_SUCCESS) {
                 getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                                  "Failed to save docs to database, error = %s\n",
@@ -1552,7 +1557,9 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, int rev, Doc **docs,
                 return errCode;
             }
 
+            cs_begin = gethrtime();
             errCode = couchstore_commit(db);
+            st.commitHisto.add((gethrtime() - cs_begin) / 1000);
             if (errCode) {
                 getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                                  "Commit failed: %s",

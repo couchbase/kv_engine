@@ -645,6 +645,7 @@ The following stats are available for the Sqlite database engine:
 The following stats are available for the CouchStore database engine:
 
 | backend_type      | Type of backend database engine                    |
+| commit            | Time spent in CouchStore commit operation          |
 | commitRetry       | Time spent in retry of commit operation            |
 | numLoadedVb       | Number of Vbuckets loaded into memory              |
 | numCommitRetry    | Number of commit retry                             |
@@ -652,6 +653,7 @@ The following stats are available for the CouchStore database engine:
 | failure_set       | Number of failed set operation                     |
 | failure_get       | Number of failed get operation                     |
 | failure_vbset     | Number of failed vbucket set operation             |
+| save_documents    | Time spent in CouchStore save documents operation  |
 
 
 ** Stats Reset
