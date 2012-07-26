@@ -208,7 +208,6 @@ void Flusher::completeFlush() {
 }
 
 double Flusher::computeMinSleepTime() {
-    // If we were preempted, keep going!
     if (flushQueue && !flushQueue->empty()) {
         flushRv = 0;
         prevFlushRv = 0;
@@ -216,6 +215,9 @@ double Flusher::computeMinSleepTime() {
     }
 
     if (flushRv + prevFlushRv == 0) {
+        if (!store->diskQueueEmpty()) {
+            return 0.0;
+        }
         minSleepTime = std::min(minSleepTime * 2, 1.0);
     } else {
         minSleepTime = DEFAULT_MIN_SLEEP_TIME;

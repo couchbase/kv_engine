@@ -827,6 +827,8 @@ private:
         return v != NULL;
     }
 
+    bool diskQueueEmpty();
+
     std::queue<queued_item> *beginFlush();
     void pushToOutgoingQueue(std::vector<queued_item> &items);
     void requeueRejectedItems(std::queue<queued_item> *rejects);

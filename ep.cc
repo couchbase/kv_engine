@@ -1695,10 +1695,14 @@ void EventuallyPersistentStore::reset() {
     }
 }
 
+bool EventuallyPersistentStore::diskQueueEmpty() {
+    return !hasItemsForPersistence() && writing.empty() && !diskFlushAll;
+}
+
 std::queue<queued_item>* EventuallyPersistentStore::beginFlush() {
     std::queue<queued_item> *rv(NULL);
 
-    if (!hasItemsForPersistence() && writing.empty() && !diskFlushAll) {
+    if (diskQueueEmpty()) {
         // If the persistence queue is empty, reset queue-related stats for each vbucket.
         size_t numOfVBuckets = vbuckets.getSize();
         for (size_t i = 0; i < numOfVBuckets; ++i) {
