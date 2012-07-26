@@ -118,6 +118,7 @@ For introductory information on stats within membase, start with the
 |                                | to purge expired items from memory/disk    |
 | ep_num_access_scanner_runs     | Number of times we ran accesss scanner     |
 |                                | to snapshot working set                    |
+| ep_access_scanner_task_time    | Time of the next access scanner task (GMT) |
 | ep_num_checkpoint_remover_runs | Number of times we ran checkpoint remover  |
 |                                | to remove closed unreferenced checkpoints. |
 | ep_items_rm_from_checkpoints   | Number of items removed from closed        |

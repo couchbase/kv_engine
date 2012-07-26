@@ -281,6 +281,8 @@ public:
     Atomic<size_t> mlogCompactorRuns;
     //! The number of tiems the access scanner runs
     Atomic<size_t> alogRuns;
+    //! The next access scanner task schedule time (GMT)
+    Atomic<hrtime_t> alogTime;
 
     //! Histogram of tap background wait loads.
     Histogram<hrtime_t> tapBgLoadHisto;

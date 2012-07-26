@@ -105,6 +105,7 @@ bool AccessScanner::callback(Dispatcher &d, TaskId t) {
     store.visit(pv, "Item access scanner", &d, Priority::ItemPagerPriority);
     ++stats.alogRuns;
     d.snooze(t, sleepTime);
+    stats.alogTime.set(t->getWaketime().tv_sec);
     return true;
 }
 

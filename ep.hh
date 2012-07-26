@@ -722,7 +722,7 @@ public:
     void resetAccessScannerStartTime();
 
     void resetAccessScannerTasktime() {
-        accessScanner.tasktime = gethrtime();
+        accessScanner.lastTaskRuntime = gethrtime();
         // notify item pager to check access scanner task time
         pager.biased = false;
     }
@@ -930,11 +930,11 @@ private:
         TaskId task;
     } expiryPager;
     struct ALogTask {
-        ALogTask() : sleeptime(0), tasktime(gethrtime()) {}
+        ALogTask() : sleeptime(0), lastTaskRuntime(gethrtime()) {}
         Mutex mutex;
         size_t sleeptime;
         TaskId task;
-        hrtime_t tasktime;
+        hrtime_t lastTaskRuntime;
     } accessScanner;
     struct ResidentRatio {
         Atomic<size_t> activeRatio;

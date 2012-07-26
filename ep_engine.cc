@@ -2672,6 +2672,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     add_casted_stat("ep_num_access_scanner_runs", epstats.alogRuns,
                     add_stat, cookie);
 
+    char timestr[20];
+    struct tm alogTim = *gmtime((time_t *)&epstats.alogTime);
+    strftime(timestr, 20, "%Y-%m-%d %H:%M:%S", &alogTim);
+    add_casted_stat("ep_access_scanner_task_time", timestr, add_stat, cookie);
+
     add_casted_stat("ep_startup_time", startupTime, add_stat, cookie);
 
     add_casted_stat("ep_flusher_num_completed", epstats.numCompletedFlush,

@@ -118,6 +118,8 @@ friend class CompareTasksByPriority;
 public:
     virtual ~Task() { }
 
+    const struct timeval& getWaketime() const { return waketime; }
+
 protected:
     Task(shared_ptr<DispatcherCallback> cb,  int p, double sleeptime = 0,
          bool isDaemon = true, bool completeBeforeShutdown = false) :

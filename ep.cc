@@ -2519,6 +2519,7 @@ void EventuallyPersistentStore::setAccessScannerSleeptime(size_t val) {
         dispatcher->schedule(cb, &accessScanner.task,
                              Priority::AccessScannerPriority,
                              accessScanner.sleeptime);
+        stats.alogTime.set(accessScanner.task->getWaketime().tv_sec);
     }
 }
 
@@ -2533,6 +2534,7 @@ void EventuallyPersistentStore::resetAccessScannerStartTime() {
         dispatcher->schedule(cb, &accessScanner.task,
                              Priority::AccessScannerPriority,
                              accessScanner.sleeptime);
+        stats.alogTime.set(accessScanner.task->getWaketime().tv_sec);
     }
 }
 

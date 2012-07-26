@@ -187,7 +187,7 @@ bool ItemPager::checkAccessScannerTask() {
     }
 
     // compute time difference (in seconds) since last access scanner task
-    hrtime_t tdiff = gethrtime() - store.accessScanner.tasktime;
+    hrtime_t tdiff = gethrtime() - store.accessScanner.lastTaskRuntime;
     tdiff /= 1000000000;
 
     Configuration &cfg = store.getEPEngine().getConfiguration();
