@@ -104,6 +104,9 @@ void Dispatcher::popNext() {
 }
 
 void Dispatcher::moveReadyTasks(const struct timeval &tv) {
+    if (!readyQueue.empty()) {
+        return;
+    }
     while (!futureQueue.empty()) {
         TaskId tid = futureQueue.top();
         if (less_tv(tid->waketime, tv)) {
