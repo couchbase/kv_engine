@@ -6332,8 +6332,9 @@ static enum test_result test_delete_with_meta_deleted(ENGINE_HANDLE *h,
     check(temp == 1, "Expect some ops");
     curri = get_int_stat(h, h1, "curr_items");
     tempi = get_int_stat(h, h1, "curr_temp_items");
-    check(tempi == 1, "Expected single temp_items");
-    check(curri == tempi, "Expected single curr_items");
+    check(tempi == 0, "Expected single temp_items");
+    check(curri == 1, "Expected single curr_items");
+    wait_for_flusher_to_settle(h, h1);
 
     // get metadata again to verify that delete with meta was successful
     ItemMetaData itm_meta2;
@@ -6407,8 +6408,9 @@ static enum test_result test_delete_with_meta_nonexistent(ENGINE_HANDLE *h,
     check(temp == 1, "Expect one op");
     curri = get_int_stat(h, h1, "curr_items");
     tempi = get_int_stat(h, h1, "curr_temp_items");
-    check(tempi == 1, "Expected single temp_items");
-    check(curri == tempi, "Expected zero curr_items");
+    check(tempi == 0, "Expected single temp_items");
+    check(curri == 1, "Expected zero curr_items");
+    wait_for_flusher_to_settle(h, h1);
 
     // get metadata again to verify that delete with meta was successful
     ItemMetaData itm_meta2;
