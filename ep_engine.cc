@@ -3516,11 +3516,17 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe(const void* cookie,
         // Get key stats
         uint16_t keystatus = 0;
         struct key_stats kstats;
-        ENGINE_ERROR_CODE rv = epstore->getKeyStats(key, vb_id, kstats);
+        ENGINE_ERROR_CODE rv = epstore->getKeyStats(key, vb_id, kstats, true);
         if (rv == ENGINE_SUCCESS) {
-            keystatus = kstats.dirty ? 0 : 1;
+            if (kstats.logically_deleted) {
+                keystatus = OBS_STATE_LOGICAL_DEL;
+            } else if (!kstats.dirty) {
+                keystatus = OBS_STATE_PERSISTED;
+            } else {
+                keystatus = OBS_STATE_NOT_PERSISTED;
+            }
         } else if (rv == ENGINE_KEY_ENOENT) {
-            keystatus = 0x80;
+            keystatus = OBS_STATE_NOT_FOUND;
         } else if (rv == ENGINE_NOT_MY_VBUCKET) {
             std::string msg("Not my vbucket");
             return sendResponse(response, NULL, 0, 0, 0, msg.c_str(), msg.length(),

@@ -35,7 +35,13 @@
 #define EXPAND_BUCKET 0x88
 #define SELECT_BUCKET 0x89
 
- */
+*/
+
+#define OBS_STATE_NOT_PERSISTED 0x00
+#define OBS_STATE_PERSISTED     0x01
+#define OBS_STATE_NOT_FOUND     0x80
+#define OBS_STATE_LOGICAL_DEL   0x81
+
 
 #define CMD_OBSERVE           0x92
 #define CMD_EVICT_KEY         0x93

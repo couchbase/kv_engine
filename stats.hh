@@ -466,6 +466,8 @@ struct key_stats {
     vbucket_state_t vb_state;
     //! True if this item is dirty.
     bool dirty;
+    //! True if the item has been logically deleted
+    bool logically_deleted;
 };
 
 #endif /* STATS_HH */
