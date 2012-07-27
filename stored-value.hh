@@ -733,8 +733,7 @@ typedef enum {
     WAS_CLEAN,                  //!< The item was clean before this mutation
     WAS_DIRTY,                  //!< This item was already dirty before this mutation
     IS_LOCKED,                  //!< The item is locked and can't be updated.
-    NOMEM,                      //!< Insufficient memory to store this item.
-    NEED_METADATA               //!< The metadata for this item isn't loaded
+    NOMEM                       //!< Insufficient memory to store this item.
 } mutation_type_t;
 
 /**
@@ -1126,10 +1125,6 @@ public:
         LockHolder lh = getLockedBucket(val.getKey(), &bucket_num);
         StoredValue *v = unlocked_find(val.getKey(), bucket_num, true,
                                        trackReference);
-
-        if (v && !v->_isSmall && v->getCas() == 0) {
-            return NEED_METADATA;
-        }
 
         /*
          * prior to checking for the lock, we should check if this object
