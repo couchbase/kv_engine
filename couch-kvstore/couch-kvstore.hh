@@ -329,7 +329,7 @@ private:
     const std::string dbname;
     CouchNotifier *couchNotifier;
     std::map<uint16_t, int>dbFileMap;
-    std::list<CouchRequest *> pendingReqsQ;
+    std::vector<CouchRequest *> pendingReqsQ;
     size_t pendingCommitCnt;
     bool intransaction;
 

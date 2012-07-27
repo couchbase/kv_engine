@@ -1425,8 +1425,8 @@ bool CouchKVStore::commit2couchstore(void)
 {
     Doc **docs;
     DocInfo **docinfos;
-    uint16_t vbucket2flush, vbucketId;
-    int reqIndex,  flushStartIndex, numDocs2save;
+    uint16_t vbucket2flush;
+    int reqIndex, fileRev;
     couchstore_error_t errCode;
     bool success = true;
 
@@ -1442,63 +1442,30 @@ bool CouchKVStore::commit2couchstore(void)
     docs = new Doc *[pendingCommitCnt];
     docinfos = new DocInfo *[pendingCommitCnt];
 
-    if ((req = pendingReqsQ.front()) == NULL) {
-        abort();
-    }
-    vbucket2flush = req->getVBucketId();
-    for (reqIndex = 0, flushStartIndex = 0, numDocs2save = 0;
-            pendingCommitCnt > 0;
-            reqIndex++, numDocs2save++, pendingCommitCnt--) {
-        if ((req = pendingReqsQ.front()) == NULL) {
-            abort();
-        }
+    assert(pendingReqsQ[0]);
+    vbucket2flush = pendingReqsQ[0]->getVBucketId();
+    fileRev = pendingReqsQ[0]->getRevNum();
+    for (reqIndex = 0; pendingCommitCnt > 0; ++reqIndex, --pendingCommitCnt) {
+        req = pendingReqsQ[reqIndex];
+        assert(req);
         committedReqs[reqIndex] = req;
         docs[reqIndex] = req->getDbDoc();
         docinfos[reqIndex] = req->getDbDocInfo();
-        vbucketId = req->getVBucketId();
-        pendingReqsQ.pop_front();
-
-        if (vbucketId != vbucket2flush) {
-            errCode = saveDocs(vbucket2flush,
-                               committedReqs[flushStartIndex]->getRevNum(),
-                               &docs[flushStartIndex],
-                               &docinfos[flushStartIndex],
-                               numDocs2save);
-            if (errCode) {
-                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                 "Warning: commit failed, cannot save CouchDB "
-                                 "docs for vbucket = %d rev = %d error = %d\n",
-                                 vbucket2flush,
-                                 committedReqs[flushStartIndex]->getRevNum(),
-                                 (int)errCode);
-                ++epStats.commitFailed;
-            }
-            commitCallback(&committedReqs[flushStartIndex], numDocs2save, errCode);
-            numDocs2save = 0;
-            flushStartIndex = reqIndex;
-            vbucket2flush = vbucketId;
-        }
+        assert(vbucket2flush == req->getVBucketId());
     }
 
-    if (reqIndex - flushStartIndex) {
-        // flush the rest
-        errCode = saveDocs(vbucket2flush,
-                           committedReqs[flushStartIndex]->getRevNum(),
-                           &docs[flushStartIndex],
-                           &docinfos[flushStartIndex],
-                           numDocs2save);
-        if (errCode) {
-            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "Warning: commit failed, cannot save CouchDB docs "
-                             "for vbucket = %d rev = %d error = %d\n",
-                             vbucket2flush,
-                             committedReqs[flushStartIndex]->getRevNum(),
-                             (int)errCode);
-            ++epStats.commitFailed;
-        }
-        commitCallback(&committedReqs[flushStartIndex], numDocs2save, errCode);
+    // flush all
+    errCode = saveDocs(vbucket2flush, fileRev, docs, docinfos, reqIndex);
+    if (errCode) {
+        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                "Warning: commit failed, cannot save CouchDB docs "
+                "for vbucket = %d rev = %d\n", vbucket2flush, fileRev);
+        ++epStats.commitFailed;
     }
+    commitCallback(committedReqs, reqIndex, errCode);
 
+    // clean up
+    pendingReqsQ.clear();
     while (reqIndex--) {
         delete committedReqs[reqIndex];
     }
