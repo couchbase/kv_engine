@@ -1930,6 +1930,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
                 TapEngineSpecific::readSpecificData(tap_event, engine_specific, nengine,
                                                     &itemMeta.seqno);
                 meta = true;
+                if (itemMeta.cas == 0) {
+                    itemMeta.cas = Item::nextCas();
+                }
             }
             ret = epstore->deleteItem(k, 0, vbucket, cookie, true, meta,
                                       &itemMeta);
