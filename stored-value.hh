@@ -472,9 +472,17 @@ public:
      * Is this a temporary item created for processing a get-meta request?
      */
      bool isTempItem() {
-         return(isTempNonExistentItem() || isTempDeletedItem());
+         return(isTempNonExistentItem() || isTempDeletedItem() || isTempInitialItem());
 
      }
+
+    /**
+     * Is this an initial temporary item?
+     */
+    bool isTempInitialItem() {
+        const int64_t l_id = getId();
+        return(l_id == state_temp_init);
+    }
 
     /**
      * Is this a temporary item created for a non-existent key?
@@ -651,6 +659,7 @@ public:
      */
     static const int64_t state_deleted_key;
     static const int64_t state_non_existent_key;
+    static const int64_t state_temp_init;
 
 private:
 
@@ -1184,7 +1193,7 @@ public:
             v = valFact(itm, values[bucket_num], *this);
             values[bucket_num] = v;
             ++numItems;
-            if (trackReference) {
+            if (trackReference && !v->isTempItem()) {
                 v->referenced(*this);
             }
 
@@ -1236,16 +1245,12 @@ public:
      * @param val the item to store
      * @param isDirty true if the item should be marked dirty on store
      * @param storeVal true if the value should be stored (paged-in)
-     * @param resetVal false if the value should be reset (marked as deleted)
-     *                       soon after being added. Useful for adding temporary
-     *                       items during get-meta processing.
      * @return an indication of what happened
      */
     add_type_t unlocked_add(int &bucket_num,
                             const Item &val,
                             bool isDirty = true,
-                            bool storeVal = true,
-                            bool resetVal = false);
+                            bool storeVal = true);
 
     /**
      * Add a temporary item to the hash table iff it doesn't already exist.

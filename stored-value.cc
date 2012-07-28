@@ -17,6 +17,7 @@ const int64_t StoredValue::state_id_cleared = -1;
 const int64_t StoredValue::state_id_pending = -2;
 const int64_t StoredValue::state_deleted_key = -3;
 const int64_t StoredValue::state_non_existent_key = -4;
+const int64_t StoredValue::state_temp_init = -5;
 
 static ssize_t prime_size_table[] = {
     3, 7, 13, 23, 47, 97, 193, 383, 769, 1531, 3067, 6143, 12289, 24571, 49157,
@@ -471,8 +472,7 @@ const char* HashTable::getDefaultStorageValueTypeStr() {
 add_type_t HashTable::unlocked_add(int &bucket_num,
                                    const Item &val,
                                    bool isDirty,
-                                   bool storeVal,
-                                   bool resetVal) {
+                                   bool storeVal) {
     StoredValue *v = unlocked_find(val.getKey(), bucket_num, true);
     add_type_t rv = ADD_SUCCESS;
     if (v && !v->isDeleted() && !v->isExpired(ep_real_time())) {
@@ -508,7 +508,7 @@ add_type_t HashTable::unlocked_add(int &bucket_num,
         if (!storeVal) {
             v->ejectValue(stats, *this);
         }
-        if (resetVal) {
+        if (v->isTempItem()) {
             v->resetValue();
         } else {
             v->referenced(*this);
@@ -522,13 +522,14 @@ add_type_t HashTable::unlocked_addTempDeletedItem(int &bucket_num,
                                                   const std::string &key) {
 
     assert(isActive());
-    Item itm(key.c_str(), key.length(), (size_t)0, (uint32_t)0, (time_t)0);
+    Item itm(key.c_str(), key.length(), (size_t)0, (uint32_t)0, (time_t)0,
+             0, StoredValue::state_temp_init);
 
     // if a temp item for a possibly deleted, set it non-resident by resetting
     // the value cuz normally a new item added is considered resident which does
     // not apply for temp item.
 
-    add_type_t rv = unlocked_add(bucket_num, itm, false, true, true);
+    add_type_t rv = unlocked_add(bucket_num, itm, false, true);
     if (rv == ADD_SUCCESS) {
         ++numTempItems;
     }
