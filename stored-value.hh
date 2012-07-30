@@ -1306,7 +1306,7 @@ public:
         mutation_type_t rv = NOT_FOUND;
         if (v) {
             if (v->isExpired(ep_real_time()) && !use_meta) {
-                if (!v->isResident()) {
+                if (!v->isResident() && !v->isDeleted()) {
                     --numNonResidentItems;
                 }
                 v->del(stats, *this, use_meta);
@@ -1322,7 +1322,7 @@ public:
                 return INVALID_CAS;
             }
 
-            if (!v->isResident()) {
+            if (!v->isResident() && !v->isDeleted()) {
                 --numNonResidentItems;
             }
 
