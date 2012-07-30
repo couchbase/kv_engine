@@ -1150,13 +1150,6 @@ static int add_iov(conn *c, const void *buf, int len) {
 
     assert(c != NULL);
 
-    if (len == 0) {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                        ">%d tried to send an empty chunk (ignored)%s",
-                                        c->sfd, (c->tap_iterator != NULL) ? " tap" : "");
-        return 0;
-    }
-
     do {
         m = &c->msglist[c->msgused - 1];
 
@@ -5347,12 +5340,11 @@ bool update_event(conn *c, const int new_flags) {
 static enum transmit_result transmit(conn *c) {
     assert(c != NULL);
 
-    while (c->msgcurr < c->msgused &&
-           c->msglist[c->msgcurr].msg_iovlen == 0) {
+    if (c->msgcurr < c->msgused &&
+            c->msglist[c->msgcurr].msg_iovlen == 0) {
         /* Finished writing the current msg; advance to the next. */
         c->msgcurr++;
     }
-
     if (c->msgcurr < c->msgused) {
         ssize_t res;
         struct msghdr *m = &c->msglist[c->msgcurr];
