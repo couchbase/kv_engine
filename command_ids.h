@@ -17,6 +17,8 @@
 #ifndef EP_ENGINE_COMMAND_IDS_H
 #define EP_ENGINE_COMMAND_IDS_H 1
 
+#include <memcached/protocol_binary.h>
+
 #define CMD_STOP_PERSISTENCE  0x80
 #define CMD_START_PERSISTENCE 0x81
 #define CMD_SET_PARAM         0x82
