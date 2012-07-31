@@ -1107,21 +1107,6 @@ static enum test_result test_get_miss(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return SUCCESS;
 }
 
-static enum test_result test_init_fail(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    // Restart once to ensure written to disk.
-    testHarness.reload_engine(&h, &h1,
-                              testHarness.engine_path,
-                              "dbname=/non/existent/path/dbname",
-                              false, false);
-
-    check(h1->initialize(h, "dbname=/non/existent/path/dbname")
-          == ENGINE_FAILED, "Failed to fail to initialize");
-
-    // This test will crash *after* this if it can't successfully
-    // destroy the engine.
-    return SUCCESS;
-}
-
 static enum test_result test_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
     check(ENGINE_SUCCESS ==
@@ -1806,46 +1791,6 @@ static enum test_result test_bug2509(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return get_int_stat(h, h1, "ep_warmup_dups") == 0 ? SUCCESS : FAIL;
 }
 
-static enum test_result test_bug2761(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    std::vector<std::string> keys;
-    // Make a vbucket mess.
-    for (int j = 0; j < 100; ++j) {
-        std::stringstream ss;
-        ss << "key" << j;
-        std::string key(ss.str());
-        keys.push_back(key);
-    }
-
-    std::vector<std::string>::iterator it;
-    for (int j = 0; j < 1000; ++j) {
-        check(set_vbucket_state(h, h1, 0, vbucket_state_dead), "Failed set set vbucket 0 dead.");
-        protocol_binary_request_header *pkt = createPacket(PROTOCOL_BINARY_CMD_DEL_VBUCKET, 0);
-        check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
-              "Failed to request delete bucket");
-        check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
-              "Expected vbucket deletion to work.");
-        check(set_vbucket_state(h, h1, 0, vbucket_state_active), "Failed set set vbucket 0 active.");
-        for (it = keys.begin(); it != keys.end(); ++it) {
-            item *i;
-            check(store(h, h1, NULL, OPERATION_SET, it->c_str(), it->c_str(), &i)
-                  == ENGINE_SUCCESS, "Failed to store a value");
-            h1->release(h, NULL, i);
-        }
-    }
-    wait_for_flusher_to_settle(h, h1);
-
-    for (it = keys.begin(); it != keys.end(); ++it) {
-        evict_key(h, h1, it->c_str(), 0, "Ejected.");
-    }
-    check(set_vbucket_state(h, h1, 0, vbucket_state_dead), "Failed set set vbucket 0 dead.");
-    sleep(1);
-    check(set_vbucket_state(h, h1, 0, vbucket_state_active), "Failed set set vbucket 0 active.");
-    for (it = keys.begin(); it != keys.end(); ++it) {
-        check_key_value(h, h1, it->c_str(), it->data(), it->size(), 0);
-    }
-    return SUCCESS;
-}
-
 // bug 2830 related items
 
 static void bug_2830_child(int reader, int writer) {
@@ -2116,38 +2061,6 @@ static enum test_result test_binKeys(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check_key_value(h, h1, key3, val3, strlen(val3));
     return SUCCESS;
 }
-
-static enum test_result test_mb4898(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    std::vector<std::string> keys;
-    for (int j = 0; j < 10; ++j) {
-        std::stringstream ss;
-        ss << "key-" << j;
-        std::string key(ss.str());
-        keys.push_back(key);
-    }
-
-    std::vector<std::string>::iterator it;
-    for (it = keys.begin(); it != keys.end(); ++it) {
-        item *i;
-        check(store(h, h1, NULL, OPERATION_SET, it->c_str(), it->c_str(), &i, 0, 0)
-              == ENGINE_SUCCESS, "Failed to store a value");
-        h1->release(h, NULL, i);
-    }
-    wait_for_flusher_to_settle(h, h1);
-
-    std::stringstream cfg;
-    cfg << testHarness.get_current_testcase()->cfg << ";klog_path=/tmp/mutation.log";
-    testHarness.reload_engine(&h, &h1,
-                              testHarness.engine_path,
-                              cfg.str().c_str(), // Enable a mutation log
-                              true, false);
-    assert(get_int_stat(h, h1, "curr_items") == 10);
-    check(get_int_stat(h, h1, "count_new", "klog") == 10,
-          "Number of new log entries should be 10");
-
-    return SUCCESS;
-}
-
 
 static enum test_result test_restart_bin_val(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
@@ -2921,47 +2834,6 @@ static enum test_result test_whitespace_db(ENGINE_HANDLE *h,
     }
 
     check(access(WHITESPACE_DB, F_OK) != -1, "I expected the whitespace db to exist");
-    return SUCCESS;
-}
-
-static enum test_result test_db_shards(ENGINE_HANDLE *h,
-                                           ENGINE_HANDLE_V1 *h1) {
-    vals.clear();
-    check(h1->get_stats(h, NULL, NULL, 0, add_stats) == ENGINE_SUCCESS,
-          "Failed to get stats.");
-    check(vals.find("ep_dbname") != vals.end(), "Found no db name");
-    std::string db_name = vals["ep_dbname"];
-    int dbShards = get_int_stat(h, h1, "ep_db_shards");
-    check(dbShards == 5, "Expected five shards for db store");
-
-    check(remove(db_name.c_str()) == 0,
-          "Error removing db file.");
-    for (int i = 0; i < dbShards; ++i) {
-        std::stringstream shard_name;
-        shard_name << db_name << "-" << i << ".sqlite";
-        std::string s_name = shard_name.str();
-        std::string error_msg("Error removing ");
-        error_msg.append(s_name);
-        check(remove(s_name.c_str()) == 0, error_msg.c_str());
-    }
-
-    return SUCCESS;
-}
-
-static enum test_result test_single_db_strategy(ENGINE_HANDLE *h,
-                                                ENGINE_HANDLE_V1 *h1) {
-    vals.clear();
-    check(h1->get_stats(h, NULL, NULL, 0, add_stats) == ENGINE_SUCCESS,
-          "Failed to get stats.");
-    check(vals.find("ep_dbname") != vals.end(), "Found no db name");
-    check(vals.find("ep_db_strategy") != vals.end(), "Found no db strategy");
-    std::string db_strategy = vals["ep_db_strategy"];
-    assert(strcmp(db_strategy.c_str(), "singleDB") == 0);
-
-    wait_for_persisted_value(h, h1, "key", "somevalue");
-    evict_key(h, h1, "key", 0, "Ejected.");
-    check_key_value(h, h1, "key", "somevalue", 9);
-
     return SUCCESS;
 }
 
@@ -5347,17 +5219,6 @@ static protocol_binary_request_header* create_restore_file_packet(const char *fn
     return header;
 }
 
-static enum test_result test_restore_not_enabled(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
-{
-    protocol_binary_request_header *req = create_restore_file_packet("foo");
-    ENGINE_ERROR_CODE r = h1->unknown_command(h, NULL, req, add_response);
-    check(r == ENGINE_SUCCESS, "The server should know the command");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED,
-          "The server should not allow restore to be initiated");
-    free(req);
-    return SUCCESS;
-}
-
 static void complete_restore(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
 {
     protocol_binary_request_header header;
@@ -5372,106 +5233,6 @@ static void complete_restore(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
     check(h1->get_stats(h, NULL, "restore", 7, add_stats) == ENGINE_SUCCESS,
           "Failed to get stats.");
     check(vals.empty(), "restore should be disabled");
-}
-
-static enum test_result test_restore_no_such_file(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
-{
-    protocol_binary_request_header *req = create_restore_file_packet("@@@no-such-file@@@");
-    ENGINE_ERROR_CODE r = h1->unknown_command(h, NULL, req, add_response);
-    check(r == ENGINE_SUCCESS, "The server should know the command");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT,
-          "The server should check if the file exists");
-    free(req);
-    complete_restore(h, h1);
-    return SUCCESS;
-}
-
-static enum test_result test_restore_invalid_file(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
-{
-    char cwd[1024];
-    if (!getcwd(cwd, sizeof(cwd))) {
-        fprintf(stderr, "Invoking getcwd failed!!!\n");
-        return FAIL;
-    }
-    strcat(cwd, "/sizes");
-    check(access(cwd, F_OK) == 0, "Could not find sizes");
-    protocol_binary_request_header *req = create_restore_file_packet(cwd);
-    ENGINE_ERROR_CODE r = h1->unknown_command(h, NULL, req, add_response);
-    check(r == ENGINE_SUCCESS, "The server should know the command");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
-          "The server should start the backup");
-    free(req);
-    waitfor_restore_state(h, h1, "zombie");
-    vals.clear();
-    check(h1->get_stats(h, NULL, "restore", 7, add_stats) == ENGINE_SUCCESS,
-          "Failed to get stats.");
-    check(vals.find("ep_restore:last_error") != vals.end(),
-          "Expected the restore manager to set an error message");
-    check(vals["ep_restore:number_busy"] == "0", "Expected no data change");
-    check(vals["ep_restore:number_skipped"] == "0", "Expected no data change");
-    check(vals["ep_restore:number_restored"] == "0", "Expected no data change");
-    check(vals["ep_restore:number_wrong_vbucket"] == "0", "Expected no data change");
-
-    complete_restore(h, h1);
-    return SUCCESS;
-}
-
-static enum test_result test_restore_data_miss(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
-{
-    item *it = NULL;
-    ENGINE_ERROR_CODE r;
-
-    r = h1->get(h, NULL, &it, "foo", 3, 0);
-    check(r == ENGINE_TMPFAIL, "Data miss should be tmpfail");
-
-    r = h1->allocate(h, NULL, &it, "foo", 3, 100, 0, 0);
-    check(r == ENGINE_SUCCESS, "Allocation failed.");
-
-    uint64_t cas;
-    r = h1->store(h, NULL, it, &cas, OPERATION_ADD, 0);
-    check(r == ENGINE_TMPFAIL, "Add shouldn't work during restore.");
-    r = h1->store(h, NULL, it, &cas, OPERATION_REPLACE, 0);
-    check(r == ENGINE_TMPFAIL, "Replace shouldn't work for a missing item during restore.");
-    r = h1->remove(h, NULL, "foobar", 6, 0, 0);
-    check(r == ENGINE_TMPFAIL, "Delete of non-existing item should work during restore");
-    r = h1->store(h, NULL, it, &cas, OPERATION_SET, 0);
-    check(r == ENGINE_SUCCESS, "Set should work.");
-    r = h1->store(h, NULL, it, &cas, OPERATION_REPLACE, 0);
-    check(r == ENGINE_SUCCESS, "Replace should work for existing objects.");
-    r = h1->remove(h, NULL, "foo", 3, 0, 0);
-    check(r == ENGINE_SUCCESS, "Delete of existing object should work");
-    h1->release(h, NULL, it);
-
-    uint64_t value;
-    r = h1->arithmetic(h, NULL, "bar", 3, true, false, 1, 0, 0,
-                       &cas, &value, 0);
-    check(r == ENGINE_TMPFAIL, "incr of nonexistsing key (without create) should be tmpfail");
-    r = h1->arithmetic(h, NULL, "bar", 3, true, true, 1, 0, 0,
-                       &cas, &value, 0);
-    check(r == ENGINE_TMPFAIL, "incr of nonexistsing key (with create) should tmpfail");
-
-    complete_restore(h, h1);
-    // Now we should be in operational mode...
-    r = h1->get(h, NULL, &it, "foo", 3, 0);
-    check(r == ENGINE_KEY_ENOENT, "Key shouldn't be there");
-
-    r = h1->allocate(h, NULL, &it, "foo", 3, 100, 0, 0);
-    check(r == ENGINE_SUCCESS, "Allocation failed.");
-
-    r = h1->store(h, NULL, it, &cas, OPERATION_ADD, 0);
-    check(r == ENGINE_SUCCESS, "Add should work for missing items.");
-    r = h1->remove(h, NULL, "foo", 3, 0, 0);
-    check(r == ENGINE_SUCCESS, "Delete of existing object should work");
-    r = h1->store(h, NULL, it, &cas, OPERATION_REPLACE, 0);
-    check(r == ENGINE_NOT_STORED, "Replace shouldn't work for a missing item.");
-    r = h1->arithmetic(h, NULL, "bar", 3, true, false, 1, 0, 0,
-                       &cas, &value, 0);
-    check(r == ENGINE_KEY_ENOENT, "incr of nonexistsing key (without create) shouldn't work");
-    r = h1->arithmetic(h, NULL, "bar", 3, true, true, 1, 0, 0,
-                       &cas, &value, 0);
-    check(r == ENGINE_SUCCESS, "incr of nonexistsing key (with create) should work");
-    h1->release(h, NULL, it);
-    return SUCCESS;
 }
 
 static void ensure_file(const char *fname)
@@ -5541,100 +5302,6 @@ static enum test_result test_restore_clean_vbucket_subset(ENGINE_HANDLE *h, ENGI
     check(vals["ep_restore:number_restored"] == "912", "We have one vbucket");
     check(vals["ep_restore:number_wrong_vbucket"] == "8148", "We don't have all vbuckets");
     check(vals["ep_restore:number_expired"] == "1", "We don't have all vbuckets");
-    complete_restore(h, h1);
-    return SUCCESS;
-}
-
-#ifdef future
-static enum test_result test_restore_multi(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    for (uint16_t ii = 0; ii < 1000; ++ ii) {
-        check(set_vbucket_state(h, h1, ii, vbucket_state_active), "Failed to activate vbucket");
-    }
-
-    for (int ii = 2; ii > 0; ii--) {
-        char cwd[1024];
-        if (!getcwd(cwd, sizeof(cwd))) {
-            fprintf(stderr, "Invoking getcwd failed!!!\n");
-            return FAIL;
-        }
-        sprintf(cwd + strlen(cwd), "/mbbackup-%04d.mbb", ii);
-        ensure_file(cwd);
-        protocol_binary_request_header *req = create_restore_file_packet(cwd);
-        ENGINE_ERROR_CODE r = h1->unknown_command(h, NULL, req, add_response);
-        check(r == ENGINE_SUCCESS, "The server should know the command");
-        check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
-              "The server should start the backup");
-        free(req);
-        waitfor_restore_state(h, h1, "zombie", 2000);
-    }
-
-    vals.clear();
-    dump_stats = true;
-    check(h1->get_stats(h, NULL, "restore", 7, add_stats) == ENGINE_SUCCESS,
-          "Failed to get stats.");
-    check(vals.find("ep_restore:last_error") == vals.end(),
-          "I shouldn't get an error message");
-    check(vals["ep_restore:number_skipped"] == "5", "Expected no data change");
-    check(vals["ep_restore:number_restored"] == "18118", "We have one vbucket");
-    check(vals["ep_restore:number_wrong_vbucket"] == "0", "We don't have all vbuckets");
-    check(vals["ep_restore:number_expired"] == "2", "We don't have all vbuckets");
-    complete_restore(h, h1);
-    return SUCCESS;
-}
-#endif
-
-static enum test_result test_restore_with_data(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    char cwd[1024];
-    if (!getcwd(cwd, sizeof(cwd))) {
-        fprintf(stderr, "Invoking getcwd failed!!!\n");
-        return FAIL;
-    }
-    strcat(cwd, "/mbbackup-0001.mbb");
-    ensure_file(cwd);
-    protocol_binary_request_header *req = create_restore_file_packet(cwd);
-
-    for (uint16_t ii = 0; ii < 100; ++ ii) {
-        check(set_vbucket_state(h, h1, ii, vbucket_state_active), "Failed to activate vbucket");
-    }
-
-    item *it = NULL;
-    uint64_t cas;
-    ENGINE_ERROR_CODE r;
-
-    r = h1->allocate(h, NULL, &it, "mykey1", 6, 100, 0, 0);
-    check(r == ENGINE_SUCCESS, "Allocation failed.");
-    r = h1->store(h, NULL, it, &cas, OPERATION_SET, 0);
-    check(r == ENGINE_SUCCESS, "Set should work.");
-    h1->release(h, NULL, it);
-
-    r = h1->allocate(h, NULL, &it, "mykey2", 6, 100, 0, 0);
-    check(r == ENGINE_SUCCESS, "Allocation failed.");
-    r = h1->store(h, NULL, it, &cas, OPERATION_SET, 0);
-    check(r == ENGINE_SUCCESS, "Set should work.");
-    r = h1->remove(h, NULL, "mykey2", 6, 0, 0);
-    check(r == ENGINE_SUCCESS, "Delete of existing object should work");
-    h1->release(h, NULL, it);
-
-    r = h1->allocate(h, NULL, &it, "mykey3", 6, 100, 0, 0);
-    check(r == ENGINE_SUCCESS, "Allocation failed.");
-    r = h1->store(h, NULL, it, &cas, OPERATION_SET, 0);
-    check(r == ENGINE_SUCCESS, "Set should work.");
-    h1->release(h, NULL, it);
-
-    r = h1->unknown_command(h, NULL, req, add_response);
-    check(r == ENGINE_SUCCESS, "The server should know the command");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
-          "The server should start the backup");
-    free(req);
-    waitfor_restore_state(h, h1, "zombie", 2000);
-    vals.clear();
-    check(h1->get_stats(h, NULL, "restore", 7, add_stats) == ENGINE_SUCCESS,
-          "Failed to get stats.");
-    check(vals.find("ep_restore:last_error") == vals.end(),
-          "I shouldn't get an error message");
-    check(vals["ep_restore:number_skipped"] == "3", "Expected no data change");
-    check(vals["ep_restore:number_restored"] == "9057", "We have one vbucket");
-    check(vals["ep_restore:number_wrong_vbucket"] == "0", "We don't have all vbuckets");
     complete_restore(h, h1);
     return SUCCESS;
 }
@@ -7418,14 +7085,6 @@ static void cleanup(engine_test_t *test, enum test_result result) {
     mccouchMock = 0;
 }
 
-// the backends is a bitmask for which backend to run the given test
-// for.
-#define BACKEND_SQLITE 2
-#define BACKEND_COUCH 1
-#define BACKEND_ALL 0x3
-#define SKIP_TEST 0x4
-#define BACKEND_VARIANTS 2
-
 class TestCase {
 public:
     TestCase(const char *_name,
@@ -7435,7 +7094,7 @@ public:
              const char *_cfg,
              enum test_result (*_prepare)(engine_test_t *test),
              void (*_cleanup)(engine_test_t *test, enum test_result result),
-             int _backends) : name(_name), cfg(_cfg), backends(_backends) {
+             bool _skip = false) : name(_name), cfg(_cfg), skip(_skip) {
         memset(&test, 0, sizeof(test));
         test.tfun = _tfun;
         test.test_setup = _test_setup;
@@ -7446,7 +7105,7 @@ public:
 
     TestCase(const TestCase &o) : name(o.name),
                                   cfg(o.cfg),
-                                  backends(o.backends) {
+                                  skip(o.skip) {
         memset(&test, 0, sizeof(test));
         test.tfun = o.test.tfun;
         test.test_setup = o.test.test_setup;
@@ -7457,45 +7116,35 @@ public:
         return name;
     }
 
-    engine_test_t *getTest(int backend) {
+    engine_test_t *getTest() {
         engine_test_t *ret = 0;
 
-        if (backends & backend) {
-            ret = new engine_test_t;
-            *ret = test;
+        ret = new engine_test_t;
+        *ret = test;
 
-            std::string nm(name);
-            std::stringstream ss;
-            if (cfg != 0) {
-                ss << cfg << ";";
-            } else {
-                ss << "flushall_enabled=true;";
-            }
+        std::string nm(name);
+        std::stringstream ss;
 
-            switch (backend) {
-            case BACKEND_SQLITE:
-                nm.append(" (sqlite)");
-                if (cfg == NULL || strstr(cfg, "backend") == NULL) {
-                    ss << "backend=sqlite";
-                }
-                break;
-            case BACKEND_COUCH:
-                nm.append(" (couchstore)");
-                ss << "backend=couchdb;couch_response_timeout=3000";
-                break;
-            case SKIP_TEST:
-                nm.append(" (skipped)");
-                ret->tfun = skipped_test_function;
-            default:
-                abort();
-            }
-            ret->name = strdup(nm.c_str());
-            std::string config = ss.str();
-            if (config.length() == 0) {
-                ret->cfg = 0;
-            } else {
-                ret->cfg = strdup(config.c_str());
-            }
+        if (cfg != 0) {
+            ss << cfg << ";";
+        } else {
+            ss << "flushall_enabled=true;";
+        }
+
+        if (skip) {
+            nm.append(" (skipped)");
+            ret->tfun = skipped_test_function;
+        } else {
+            nm.append(" (couchstore)");
+            ss << "backend=couchdb;couch_response_timeout=3000";
+        }
+
+        ret->name = strdup(nm.c_str());
+        std::string config = ss.str();
+        if (config.length() == 0) {
+            ret->cfg = 0;
+        } else {
+            ret->cfg = strdup(config.c_str());
         }
 
         return ret;
@@ -7505,7 +7154,7 @@ private:
     engine_test_t test;
     const char *name;
     const char *cfg;
-    int backends;
+    bool skip;
 };
 
 static engine_test_t *testcases;
@@ -7514,641 +7163,480 @@ MEMCACHED_PUBLIC_API
 engine_test_t* get_tests(void) {
     TestCase tc[] = {
         TestCase("validate engine handle", test_validate_engine_handle,
-                 NULL, teardown, "db_strategy=singleDB;dbname=:memory:",
-                 prepare, cleanup, BACKEND_SQLITE),
+                 NULL, teardown, NULL, prepare, cleanup),
         // basic tests
         TestCase("test alloc limit", test_alloc_limit, NULL, teardown,
-                 NULL, prepare, cleanup, BACKEND_ALL),
-        TestCase("test init failure", test_init_fail, NULL, teardown,
-                 NULL, prepare, cleanup, BACKEND_SQLITE),
+                 NULL, prepare, cleanup),
         TestCase("test total memory limit", test_memory_limit,
                  test_setup, teardown,
                  "max_size=5492;ht_locks=1;ht_size=3;chk_remover_stime=1;chk_period=60;mutation_mem_threshold=0.9",
-                 prepare, cleanup, BACKEND_ALL),
+                 prepare, cleanup),
         TestCase("test max_size changes", test_max_size_settings,
                  test_setup, teardown,
                  "max_size=1000;ht_locks=1;ht_size=3", prepare,
-                 cleanup, BACKEND_ALL),
+                 cleanup),
         TestCase("test whitespace dbname", test_whitespace_db,
                  test_setup, teardown,
                  "dbname=" WHITESPACE_DB ";ht_locks=1;ht_size=3",
-                 prepare, cleanup, BACKEND_ALL),
-        TestCase("test db shards", test_db_shards, test_setup,
-                 teardown, "db_shards=5;db_strategy=multiDB", prepare, cleanup,
-                 BACKEND_SQLITE),
-        TestCase("test single db strategy", test_single_db_strategy,
-                 test_setup, teardown, "db_strategy=singleDB",
-                 prepare, cleanup, BACKEND_SQLITE),
-        TestCase("test single in-memory db strategy", test_single_db_strategy,
-                 test_setup, teardown,
-                 "db_strategy=singleDB;dbname=:memory:", prepare, cleanup,
-                 BACKEND_SQLITE),
+                 prepare, cleanup),
         TestCase("get miss", test_get_miss, test_setup, teardown,
-                 NULL, prepare, cleanup, BACKEND_ALL),
+                 NULL, prepare, cleanup),
         TestCase("set", test_set, test_setup, teardown,
-                 NULL, prepare, cleanup, BACKEND_ALL),
+                 NULL, prepare, cleanup),
         TestCase("concurrent set", test_conc_set, test_setup,
-                 teardown, NULL, prepare, cleanup, BACKEND_ALL),
+                 teardown, NULL, prepare, cleanup),
         TestCase("set+get hit", test_set_get_hit, test_setup,
-                 teardown, NULL, prepare, cleanup, BACKEND_ALL),
+                 teardown, NULL, prepare, cleanup),
         TestCase("set+get hit with max_txn_size", test_set_get_hit,
                  test_setup, teardown,
-                 "ht_locks=1;ht_size=3;max_txn_size=10", prepare, cleanup,
-                 BACKEND_ALL),
+                 "ht_locks=1;ht_size=3;max_txn_size=10", prepare, cleanup),
         TestCase("getl", test_getl, test_setup, teardown,
-                 NULL, prepare, cleanup, BACKEND_ALL),
+                 NULL, prepare, cleanup),
         TestCase("unl",  test_unl, test_setup, teardown,
-                 NULL, prepare, cleanup, BACKEND_ALL),
+                 NULL, prepare, cleanup),
         TestCase("set+get hit (bin)", test_set_get_hit_bin,
-                 test_setup, teardown, NULL, prepare, cleanup,
-                 BACKEND_ALL),
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("set+change flags", test_set_change_flags,
-                 test_setup, teardown, NULL, prepare, cleanup,
-                 BACKEND_ALL),
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("add", test_add, test_setup, teardown, NULL,
-                 prepare, cleanup, BACKEND_ALL),
+                 prepare, cleanup),
         TestCase("add+add(same cas)", test_add_add_with_cas,
-                 test_setup, teardown, NULL, prepare, cleanup,
-                 BACKEND_ALL),
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("cas", test_cas, test_setup, teardown, NULL,
-                 prepare, cleanup, BACKEND_ALL),
+                 prepare, cleanup),
         TestCase("append", test_append, test_setup, teardown,
-                 NULL, prepare, cleanup, BACKEND_ALL),
+                 NULL, prepare, cleanup),
         TestCase("prepend", test_prepend, test_setup, teardown,
-                 NULL, prepare, cleanup,  BACKEND_ALL),
+                 NULL, prepare, cleanup),
         TestCase("replace", test_replace, test_setup, teardown,
-                 NULL, prepare, cleanup, BACKEND_ALL),
+                 NULL, prepare, cleanup),
         TestCase("incr miss", test_incr_miss, test_setup,
-                 teardown, NULL, prepare, cleanup,  BACKEND_ALL),
+                 teardown, NULL, prepare, cleanup),
         TestCase("incr", test_incr, test_setup, teardown, NULL,
-                 prepare, cleanup, BACKEND_ALL),
+                 prepare, cleanup),
         TestCase("incr with default", test_incr_default,
-                 test_setup, teardown, NULL, prepare, cleanup,
-                 BACKEND_ALL),
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("incr expiry", test_bug2799, test_setup,
-                 teardown, NULL, prepare, cleanup, BACKEND_ALL),
+                 teardown, NULL, prepare, cleanup),
         TestCase("test touch", test_touch, test_setup, teardown,
-                 NULL, prepare, cleanup, BACKEND_ALL),
+                 NULL, prepare, cleanup),
         TestCase("test gat", test_gat, test_setup, teardown,
-                 NULL, prepare, cleanup, BACKEND_ALL),
+                 NULL, prepare, cleanup),
         TestCase("test gatq", test_gatq, test_setup, teardown,
-                 NULL, prepare, cleanup, BACKEND_ALL),
+                 NULL, prepare, cleanup),
         TestCase("test mb5215", test_mb5215, test_setup, teardown,
-                 NULL, prepare, cleanup, BACKEND_COUCH),
+                 NULL, prepare, cleanup),
         TestCase("delete", test_delete, test_setup, teardown,
-                 NULL, prepare, cleanup, BACKEND_ALL),
+                 NULL, prepare, cleanup),
         TestCase("set/delete", test_set_delete, test_setup,
-                 teardown, NULL, prepare, cleanup, BACKEND_ALL),
+                 teardown, NULL, prepare, cleanup),
         TestCase("set/delete (invalid cas)", test_set_delete_invalid_cas,
-                 test_setup, teardown, NULL, prepare, cleanup,
-                 BACKEND_ALL),
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("delete/set/delete", test_delete_set, test_setup,
-                 teardown, NULL, prepare, cleanup, BACKEND_ALL),
+                 teardown, NULL, prepare, cleanup),
         TestCase("retain rowid over a soft delete", test_bug2509,
-                 test_setup, teardown, NULL, prepare, cleanup,
-                 BACKEND_ALL),
-        TestCase("vbucket deletion doesn't affect new data", test_bug2761,
-                 test_setup, teardown, NULL, prepare, cleanup,
-                 BACKEND_SQLITE),
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("start transaction failure handling", test_bug2830,
                  test_setup, teardown,
                  "db_shards=1;ht_size=13;ht_locks=7;db_strategy=multiDB",
-                 prepare, cleanup, SKIP_TEST),
+                 prepare, cleanup, true /* This test is skipped*/),
         TestCase("non-resident decrementers", test_mb3169,
-                 test_setup, teardown, NULL, prepare, cleanup,
-                 BACKEND_ALL),
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("resident ratio after warmup", test_mb5172,
-                 test_setup, teardown, NULL, prepare, cleanup,
-                 BACKEND_ALL),
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("flush", test_flush, test_setup, teardown,
-                 NULL, prepare, cleanup, BACKEND_ALL),
-        TestCase("flush with stats", test_flush_stats, test_setup,
-                 teardown,
+                 NULL, prepare, cleanup),
+        TestCase("flush with stats", test_flush_stats, test_setup, teardown,
                  "flushall_enabled=true;chk_remover_stime=1;chk_period=60",
-                 prepare, cleanup, BACKEND_ALL),
+                 prepare, cleanup),
         TestCase("flush multi vbuckets", test_flush_multiv,
-                 test_setup, teardown, NULL, prepare, cleanup,
-                 BACKEND_ALL),
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("flush multi vbuckets single mt", test_flush_multiv,
                  test_setup, teardown,
                  "flushall_enabled=true;db_strategy=singleMTDB;max_vbuckets=16;"
-                 "ht_size=7;ht_locks=3", prepare, cleanup, BACKEND_ALL),
+                 "ht_size=7;ht_locks=3", prepare, cleanup),
         TestCase("flush multi vbuckets multi mt", test_flush_multiv,
                  test_setup, teardown,
                  "flushall_enabled=true;db_strategy=multiMTDB;max_vbuckets=16;"
-                 "ht_size=7;ht_locks=3", prepare, cleanup, BACKEND_ALL),
+                 "ht_size=7;ht_locks=3", prepare, cleanup),
         TestCase("flush multi vbuckets multi mt vb", test_flush_multiv,
                  test_setup, teardown,
                  "flushall_enabled=true;db_strategy=multiMTVBDB;max_vbuckets=16;"
-                 "ht_size=7;ht_locks=3", prepare, cleanup, BACKEND_ALL),
-        TestCase("flush_disabled", test_flush_disabled, test_setup,
-                 teardown,
+                 "ht_size=7;ht_locks=3", prepare, cleanup),
+        TestCase("flush_disabled", test_flush_disabled, test_setup, teardown,
                  "flushall_enabled=false;db_strategy=multiMTVBDB;max_vbuckets=16;"
-                 "ht_size=7;ht_locks=3", prepare, cleanup, BACKEND_ALL),
-        TestCase("flushall params", test_CBD_152, test_setup,
-                 teardown,
+                 "ht_size=7;ht_locks=3", prepare, cleanup),
+        TestCase("flushall params", test_CBD_152, test_setup, teardown,
                  "flushall_enabled=true;db_strategy=multiMTVBDB;max_vbuckets=16;"
-                 "ht_size=7;ht_locks=3",
-                 prepare, cleanup, BACKEND_ALL),
+                 "ht_size=7;ht_locks=3", prepare, cleanup),
         TestCase("expiry", test_expiry, test_setup, teardown,
-                 NULL, prepare, cleanup, BACKEND_ALL),
+                 NULL, prepare, cleanup),
         TestCase("expiry_loader", test_expiry_loader, test_setup,
-                 teardown, NULL, prepare, cleanup, BACKEND_ALL),
+                 teardown, NULL, prepare, cleanup),
         TestCase("expiry_flush", test_expiry_flush, test_setup,
-                 teardown, NULL, prepare, cleanup, BACKEND_ALL),
+                 teardown, NULL, prepare, cleanup),
         TestCase("expiry_duplicate_warmup", test_bug3454, test_setup,
-                 teardown, NULL, prepare, cleanup, BACKEND_ALL),
+                 teardown, NULL, prepare, cleanup),
         TestCase("expiry_no_items_warmup", test_bug3522, test_setup,
-                 teardown, NULL, prepare, cleanup, BACKEND_ALL),
+                 teardown, NULL, prepare, cleanup),
         TestCase("replica read", test_get_replica, test_setup,
-                 teardown, NULL, prepare, cleanup, BACKEND_ALL),
+                 teardown, NULL, prepare, cleanup),
         TestCase("replica read: invalid state - active",
                  test_get_replica_active_state,
-                 test_setup, teardown, NULL, prepare, cleanup,
-                 BACKEND_ALL),
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("replica read: invalid state - pending",
                  test_get_replica_pending_state,
-                 test_setup, teardown, NULL, prepare, cleanup,
-                 BACKEND_ALL),
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("replica read: invalid state - dead",
                  test_get_replica_dead_state,
-                 test_setup, teardown, NULL, prepare, cleanup,
-                 BACKEND_ALL),
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("replica read: invalid key", test_get_replica_invalid_key,
-                 test_setup, teardown, NULL, prepare, cleanup,
-                 BACKEND_ALL),
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test observe no data", test_observe_no_data, NULL, teardown,
-                 NULL, prepare, cleanup, BACKEND_ALL),
+                 NULL, prepare, cleanup),
         TestCase("test observe single key", test_observe_single_key, NULL, teardown,
-                 NULL, prepare, cleanup, BACKEND_ALL),
+                 NULL, prepare, cleanup),
         TestCase("test observe multi key", test_observe_multi_key, NULL, teardown,
-                 NULL, prepare, cleanup, BACKEND_ALL),
+                 NULL, prepare, cleanup),
         TestCase("test multiple observes", test_multiple_observes, NULL, teardown,
-                 NULL, prepare, cleanup, BACKEND_ALL),
+                 NULL, prepare, cleanup),
         TestCase("test observe with not found", test_observe_with_not_found, NULL, teardown,
-                 NULL, prepare, cleanup, BACKEND_ALL),
+                 NULL, prepare, cleanup),
         TestCase("test observe not my vbucket", test_observe_errors, NULL, teardown,
-                 NULL, prepare, cleanup, BACKEND_ALL),
+                 NULL, prepare, cleanup),
         // Stats tests
         TestCase("stats", test_stats, test_setup, teardown, NULL,
-                 prepare, cleanup, BACKEND_ALL),
+                 prepare, cleanup),
         TestCase("io stats", test_io_stats, test_setup, teardown,
-                 NULL, prepare, cleanup, BACKEND_ALL),
+                 NULL, prepare, cleanup),
         TestCase("bg stats", test_bg_stats, test_setup, teardown,
-                 NULL, prepare, cleanup, BACKEND_ALL),
+                 NULL, prepare, cleanup),
         TestCase("mem stats", test_mem_stats, test_setup, teardown,
-                 "chk_remover_stime=1;chk_period=60", prepare, cleanup,
-                 BACKEND_ALL),
+                 "chk_remover_stime=1;chk_period=60", prepare, cleanup),
         TestCase("stats key", test_key_stats, test_setup, teardown,
-                 NULL, prepare, cleanup, BACKEND_ALL),
+                 NULL, prepare, cleanup),
         TestCase("stats vkey", test_vkey_stats, test_setup,
-                 teardown, NULL, prepare, cleanup, BACKEND_ALL),
+                 teardown, NULL, prepare, cleanup),
         TestCase("warmup stats", test_warmup_stats, test_setup,
-                 teardown, NULL, prepare, cleanup, BACKEND_ALL),
+                 teardown, NULL, prepare, cleanup),
         TestCase("stats curr_items", test_curr_items, test_setup,
-                 teardown, NULL, prepare, cleanup, BACKEND_ALL),
+                 teardown, NULL, prepare, cleanup),
         TestCase("startup token stat", test_cbd_225, test_setup,
-                 teardown, NULL, prepare, cleanup, BACKEND_ALL),
+                 teardown, NULL, prepare, cleanup),
         TestCase("number of completed flush stat", test_cbd_226, test_setup,
-                 teardown, NULL, prepare, cleanup, BACKEND_ALL),
+                 teardown, NULL, prepare, cleanup),
 
         // eviction
         TestCase("value eviction", test_value_eviction, test_setup,
-                 teardown, NULL, prepare, cleanup, BACKEND_ALL),
+                 teardown, NULL, prepare, cleanup),
         // duplicate items on disk
         TestCase("duplicate items on disk", test_duplicate_items_disk,
-                 test_setup, teardown, NULL, prepare, cleanup,
-                 BACKEND_ALL),
+                 test_setup, teardown, NULL, prepare, cleanup),
         // special non-Ascii keys
         TestCase("test special char keys", test_specialKeys, test_setup,
-                 teardown, NULL, prepare, cleanup, BACKEND_ALL),
+                 teardown, NULL, prepare, cleanup),
         TestCase("test binary keys", test_binKeys, test_setup,
-                 teardown, NULL, prepare, cleanup, BACKEND_ALL),
+                 teardown, NULL, prepare, cleanup),
         // tap tests
         TestCase("set tap param", test_set_tap_param, test_setup,
-                 teardown, NULL, prepare, cleanup, BACKEND_ALL),
+                 teardown, NULL, prepare, cleanup),
         TestCase("tap_noop_interval default config",
                  test_tap_noop_config_default,
-                 test_setup, teardown, NULL , prepare, cleanup,
-                 BACKEND_ALL),
+                 test_setup, teardown, NULL , prepare, cleanup),
         TestCase("tap_noop_interval config", test_tap_noop_config,
                  test_setup, teardown,
-                 "tap_noop_interval=10", prepare, cleanup, BACKEND_ALL),
-        TestCase("tap receiver mutation", test_tap_rcvr_mutate,
-                 test_setup, teardown,
-                 NULL, prepare, cleanup, BACKEND_ALL),
+                 "tap_noop_interval=10", prepare, cleanup),
+        TestCase("tap receiver mutation", test_tap_rcvr_mutate, test_setup,
+                 teardown, NULL, prepare, cleanup),
         TestCase("tap receiver checkpoint start/end", test_tap_rcvr_checkpoint,
-                 test_setup, teardown, NULL, prepare, cleanup,
-                 BACKEND_ALL),
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("tap receiver mutation (dead)", test_tap_rcvr_mutate_dead,
-                 test_setup, teardown, NULL, prepare, cleanup,
-                 BACKEND_ALL),
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("tap receiver mutation (pending)",
                  test_tap_rcvr_mutate_pending,
-                 test_setup, teardown, NULL, prepare, cleanup,
-                 BACKEND_ALL),
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("tap receiver mutation (replica)",
                  test_tap_rcvr_mutate_replica,
-                 test_setup, teardown, NULL, prepare, cleanup,
-                 BACKEND_ALL),
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("tap receiver delete", test_tap_rcvr_delete,
-                 test_setup, teardown, NULL, prepare, cleanup,
-                 BACKEND_ALL),
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("tap receiver delete (dead)", test_tap_rcvr_delete_dead,
-                 test_setup, teardown, NULL, prepare, cleanup,
-                 BACKEND_ALL),
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("tap receiver delete (pending)", test_tap_rcvr_delete_pending,
-                 test_setup, teardown, NULL, prepare, cleanup,
-                 BACKEND_ALL),
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("tap receiver delete (replica)", test_tap_rcvr_delete_replica,
-                 test_setup, teardown, NULL, prepare, cleanup,
-                 BACKEND_ALL),
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("tap stream", test_tap_stream, test_setup,
-                 teardown, NULL, prepare, cleanup, BACKEND_ALL),
+                 teardown, NULL, prepare, cleanup),
         TestCase("tap stream send deletes", test_tap_sends_deleted, test_setup,
-                 teardown, NULL, prepare, cleanup, BACKEND_COUCH),
+                 teardown, NULL, prepare, cleanup),
         TestCase("tap agg stats", test_tap_agg_stats, test_setup,
-                 teardown, NULL, prepare, cleanup, BACKEND_ALL),
+                 teardown, NULL, prepare, cleanup),
         TestCase("tap takeover (with concurrent mutations)", test_tap_takeover,
-                 test_setup, teardown, NULL, prepare, cleanup,
-                 BACKEND_ALL),
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("tap filter stream", test_tap_filter_stream,
                  test_setup, teardown,
-                 "tap_keepalive=100;ht_size=129;ht_locks=3", prepare, cleanup,
-                 BACKEND_ALL),
+                 "tap_keepalive=100;ht_size=129;ht_locks=3", prepare, cleanup),
         TestCase("tap default config", test_tap_default_config,
-                 test_setup, teardown, NULL , prepare, cleanup,
-                 BACKEND_ALL),
+                 test_setup, teardown, NULL , prepare, cleanup),
         TestCase("tap config", test_tap_config, test_setup,
                  teardown,
                  "tap_backoff_period=0.05;tap_ack_interval=10;tap_ack_window_size=2;tap_ack_grace_period=10",
-                 prepare, cleanup, BACKEND_ALL),
+                 prepare, cleanup),
         TestCase("tap acks stream", test_tap_ack_stream,
                  test_setup, teardown,
                  "tap_keepalive=100;ht_size=129;ht_locks=3;tap_backoff_period=0.05;chk_max_items=500",
-                 prepare, cleanup, BACKEND_ALL),
+                 prepare, cleanup),
         TestCase("tap implicit acks stream", test_tap_implicit_ack_stream,
                  test_setup, teardown,
                  "tap_keepalive=100;ht_size=129;ht_locks=3;tap_backoff_period=0.05;tap_ack_initial_sequence_number=4294967290;chk_max_items=500",
-                 prepare, cleanup, BACKEND_ALL),
+                 prepare, cleanup),
         TestCase("tap notify", test_tap_notify, test_setup,
-                 teardown, "max_size=1048576", prepare, cleanup, BACKEND_ALL),
+                 teardown, "max_size=1048576", prepare, cleanup),
         // restart tests
         TestCase("test restart", test_restart, test_setup,
-                 teardown, NULL, prepare, cleanup, BACKEND_ALL),
+                 teardown, NULL, prepare, cleanup),
         TestCase("set+get+restart+hit (bin)", test_restart_bin_val,
-                 test_setup, teardown, NULL, prepare, cleanup,
-                 BACKEND_ALL),
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("flush+restart", test_flush_restart, test_setup,
-                 teardown, NULL, prepare, cleanup, BACKEND_ALL),
+                 teardown, NULL, prepare, cleanup),
         TestCase("flush multiv+restart", test_flush_multiv_restart,
-                 test_setup, teardown, NULL, prepare, cleanup,
-                 BACKEND_ALL),
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test kill -9 bucket", test_kill9_bucket,
-                 test_setup, teardown, NULL, prepare, cleanup,
-                 BACKEND_ALL),
-        TestCase("test restart with non-empty DB and empty mutation log",
-                 test_mb4898, test_setup, teardown, NULL, prepare,
-                 cleanup, BACKEND_SQLITE),
+                 test_setup, teardown, NULL, prepare, cleanup),
         // disk>RAM tests
-        TestCase("verify not multi dispatcher", test_not_multi_dispatcher_conf,
-                 test_setup, teardown, NULL, prepare, cleanup,
-                 BACKEND_SQLITE),
         TestCase("disk>RAM golden path", test_disk_gt_ram_golden,
                  test_setup, teardown,
-                 "chk_remover_stime=1;chk_period=60", prepare, cleanup,
-                 BACKEND_ALL),
+                 "chk_remover_stime=1;chk_period=60", prepare, cleanup),
         TestCase("disk>RAM paged-out rm", test_disk_gt_ram_paged_rm,
                  test_setup, teardown,
-                 "chk_remover_stime=1;chk_period=60", prepare, cleanup,
-                 BACKEND_ALL),
+                 "chk_remover_stime=1;chk_period=60", prepare, cleanup),
         TestCase("disk>RAM update paged-out", test_disk_gt_ram_update_paged_out,
-                 test_setup, teardown, NULL, prepare, cleanup,
-                 BACKEND_ALL),
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("disk>RAM delete paged-out", test_disk_gt_ram_delete_paged_out,
-                 test_setup, teardown, NULL, prepare, cleanup,
-                 BACKEND_ALL),
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("disk>RAM paged-out incr", test_disk_gt_ram_incr,
-                 test_setup, teardown, NULL, prepare, cleanup,
-                 BACKEND_ALL),
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("disk>RAM set bgfetch race", test_disk_gt_ram_set_race,
-                 test_setup, teardown, NULL, prepare, cleanup,
-                 BACKEND_SQLITE),
+                 test_setup, teardown, NULL, prepare, cleanup, true),
         TestCase("disk>RAM incr bgfetch race", test_disk_gt_ram_incr_race,
-                 test_setup, teardown, NULL, prepare, cleanup, SKIP_TEST),
+                 test_setup, teardown, NULL, prepare, cleanup, true),
         TestCase("disk>RAM delete bgfetch race", test_disk_gt_ram_rm_race,
-                 test_setup, teardown, NULL, prepare, cleanup,
-                 BACKEND_SQLITE),
+                 test_setup, teardown, NULL, prepare, cleanup, true),
         // disk>RAM tests with WAL
         TestCase("verify multi dispatcher", test_multi_dispatcher_conf,
                  test_setup, teardown, MULTI_DISPATCHER_CONFIG,
-                 prepare, cleanup, BACKEND_ALL),
+                 prepare, cleanup),
         TestCase("verify multi dispatcher override",
                  test_not_multi_dispatcher_conf, test_setup,
                  teardown, MULTI_DISPATCHER_CONFIG ";concurrentDB=false",
-                 prepare, cleanup, BACKEND_ALL),
+                 prepare, cleanup),
         TestCase("disk>RAM golden path (wal)", test_disk_gt_ram_golden,
                  test_setup, teardown, MULTI_DISPATCHER_CONFIG,
-                 prepare, cleanup, BACKEND_ALL),
+                 prepare, cleanup),
         TestCase("disk>RAM paged-out rm (wal)", test_disk_gt_ram_paged_rm,
                  test_setup, teardown, MULTI_DISPATCHER_CONFIG,
-                 prepare, cleanup, BACKEND_ALL),
+                 prepare, cleanup),
         TestCase("disk>RAM update paged-out (wal)",
                  test_disk_gt_ram_update_paged_out, test_setup,
-                 teardown, MULTI_DISPATCHER_CONFIG, prepare, cleanup,
-                 BACKEND_ALL),
+                 teardown, MULTI_DISPATCHER_CONFIG, prepare, cleanup),
         TestCase("disk>RAM delete paged-out (wal)",
                  test_disk_gt_ram_delete_paged_out, test_setup,
-                 teardown, MULTI_DISPATCHER_CONFIG, prepare, cleanup,
-                 BACKEND_ALL),
+                 teardown, MULTI_DISPATCHER_CONFIG, prepare, cleanup),
         TestCase("disk>RAM paged-out incr (wal)", test_disk_gt_ram_incr,
                  test_setup, teardown, MULTI_DISPATCHER_CONFIG,
-                 prepare, cleanup, BACKEND_ALL),
-        TestCase("disk>RAM set bgfetch race (wal)", test_disk_gt_ram_set_race,
-                 test_setup, teardown, MULTI_DISPATCHER_CONFIG,
-                 prepare, cleanup, BACKEND_SQLITE),
+                 prepare, cleanup),
         TestCase("disk>RAM incr bgfetch race (wal)", test_disk_gt_ram_incr_race,
                  test_setup, teardown, MULTI_DISPATCHER_CONFIG,
-                 prepare, cleanup, SKIP_TEST),
-        TestCase("disk>RAM delete bgfetch race (wal)", test_disk_gt_ram_rm_race,
-                 test_setup, teardown, MULTI_DISPATCHER_CONFIG,
-                 prepare, cleanup, BACKEND_SQLITE),
+                 prepare, cleanup, true),
         // vbucket negative tests
         TestCase("vbucket incr (dead)", test_wrong_vb_incr,
-                 test_setup, teardown, NULL, prepare, cleanup,
-                 BACKEND_ALL),
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("vbucket incr (pending)", test_vb_incr_pending,
-                 test_setup, teardown, NULL, prepare, cleanup,
-                 BACKEND_ALL),
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("vbucket incr (replica)", test_vb_incr_replica,
-                 test_setup, teardown, NULL, prepare, cleanup,
-                 BACKEND_ALL),
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("vbucket get (dead)", test_wrong_vb_get,
-                 test_setup, teardown, NULL, prepare, cleanup,
-                 BACKEND_ALL),
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("vbucket get (pending)", test_vb_get_pending,
-                 test_setup, teardown, NULL, prepare, cleanup,
-                 BACKEND_ALL),
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("vbucket get (replica)", test_vb_get_replica,
-                 test_setup, teardown, NULL, prepare, cleanup,
-                 BACKEND_ALL),
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("vbucket getl (dead)", NULL, NULL, teardown, NULL, prepare,
-                 cleanup, BACKEND_ALL),
+                 cleanup),
         TestCase("vbucket getl (pending)", NULL, NULL, teardown, NULL,
-                 prepare, cleanup, BACKEND_ALL),
+                 prepare, cleanup),
         TestCase("vbucket getl (replica)", NULL, NULL, teardown, NULL,
-                 prepare, cleanup, BACKEND_ALL),
+                 prepare, cleanup),
         TestCase("vbucket set (dead)", test_wrong_vb_set,
-                 test_setup, teardown, NULL, prepare, cleanup,
-                 BACKEND_ALL),
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("vbucket set (pending)", test_vb_set_pending,
-                 test_setup, teardown, NULL, prepare, cleanup,
-                 BACKEND_ALL),
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("vbucket set (replica)", test_vb_set_replica,
-                 test_setup, teardown, NULL, prepare, cleanup,
-                 BACKEND_ALL),
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("vbucket replace (dead)", test_wrong_vb_replace,
-                 test_setup, teardown, NULL, prepare, cleanup,
-                 BACKEND_ALL),
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("vbucket replace (pending)", test_vb_replace_pending,
-                 test_setup, teardown, NULL, prepare, cleanup,
-                 BACKEND_ALL),
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("vbucket replace (replica)", test_vb_replace_replica,
-                 test_setup, teardown, NULL, prepare, cleanup,
-                 BACKEND_ALL),
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("vbucket add (dead)", test_wrong_vb_add,
-                 test_setup, teardown, NULL, prepare, cleanup,
-                 BACKEND_ALL),
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("vbucket add (pending)", test_vb_add_pending,
-                 test_setup, teardown, NULL, prepare, cleanup,
-                 BACKEND_ALL),
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("vbucket add (replica)", test_vb_add_replica,
-                 test_setup, teardown, NULL, prepare, cleanup,
-                 BACKEND_ALL),
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("vbucket cas (dead)", test_wrong_vb_cas,
-                 test_setup, teardown, NULL, prepare, cleanup,
-                 BACKEND_ALL),
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("vbucket cas (pending)", test_vb_cas_pending,
-                 test_setup, teardown, NULL, prepare, cleanup,
-                 BACKEND_ALL),
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("vbucket cas (replica)", test_vb_cas_replica,
-                 test_setup, teardown, NULL, prepare, cleanup,
-                 BACKEND_ALL),
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("vbucket append (dead)", test_wrong_vb_append,
-                 test_setup, teardown, NULL, prepare, cleanup,
-                 BACKEND_ALL),
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("vbucket append (pending)", test_vb_append_pending,
-                 test_setup, teardown, NULL, prepare, cleanup,
-                 BACKEND_ALL),
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("vbucket append (replica)", test_vb_append_replica,
-                 test_setup, teardown, NULL, prepare, cleanup,
-                 BACKEND_ALL),
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("vbucket prepend (dead)", test_wrong_vb_prepend,
-                 test_setup, teardown, NULL, prepare, cleanup,
-                 BACKEND_ALL),
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("vbucket prepend (pending)", test_vb_prepend_pending,
-                 test_setup, teardown, NULL, prepare, cleanup,
-                 BACKEND_ALL),
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("vbucket prepend (replica)", test_vb_prepend_replica,
-                 test_setup, teardown, NULL, prepare, cleanup,
-                 BACKEND_ALL),
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("vbucket del (dead)", test_wrong_vb_del,
-                 test_setup, teardown, NULL, prepare, cleanup,
-                 BACKEND_ALL),
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("vbucket del (pending)", test_vb_del_pending,
-                 test_setup, teardown, NULL, prepare, cleanup,
-                 BACKEND_ALL),
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("vbucket del (replica)", test_vb_del_replica,
-                 test_setup, teardown, NULL, prepare, cleanup,
-                 BACKEND_ALL),
+                 test_setup, teardown, NULL, prepare, cleanup),
         // Vbucket management tests
-        TestCase("no vb0 at startup", test_novb0,
-                 test_setup, teardown, "vb0=false", prepare,
-                 cleanup, BACKEND_ALL),
+        TestCase("no vb0 at startup", test_novb0, test_setup,
+                 teardown, "vb0=false", prepare, cleanup),
         TestCase("test vbucket get", test_vbucket_get, test_setup,
-                 teardown, NULL, prepare, cleanup, BACKEND_ALL),
+                 teardown, NULL, prepare, cleanup),
         TestCase("test vbucket get missing", test_vbucket_get_miss,
-                 test_setup, teardown, NULL, prepare, cleanup,
-                 BACKEND_ALL),
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test vbucket create", test_vbucket_create,
-                 test_setup, teardown, NULL, prepare, cleanup,
-                 BACKEND_ALL),
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test async vbucket destroy", test_async_vbucket_destroy,
-                 test_setup, teardown, NULL, prepare, cleanup,
-                 BACKEND_ALL),
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test sync vbucket destroy", test_sync_vbucket_destroy,
-                 test_setup, teardown, NULL, prepare, cleanup,
-                 BACKEND_ALL),
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test async vbucket destroy (multitable)", test_async_vbucket_destroy,
                  test_setup, teardown,
                  "db_strategy=multiMTVBDB;max_vbuckets=16;ht_size=7;ht_locks=3",
-                 prepare, cleanup, BACKEND_ALL),
+                 prepare, cleanup),
         TestCase("test sync vbucket destroy (multitable)", test_sync_vbucket_destroy,
                  test_setup, teardown,
                  "db_strategy=multiMTVBDB;max_vbuckets=16;ht_size=7;ht_locks=3",
-                 prepare, cleanup, BACKEND_ALL),
+                 prepare, cleanup),
         TestCase("test vbucket destroy stats", test_vbucket_destroy_stats,
                  test_setup, teardown,
                  "chk_remover_stime=1;chk_period=60",
-                 prepare, cleanup, BACKEND_ALL),
+                 prepare, cleanup),
         TestCase("test async vbucket destroy restart",
                  test_async_vbucket_destroy_restart, test_setup, teardown,
-                 NULL, prepare, cleanup, BACKEND_ALL),
+                 NULL, prepare, cleanup),
         TestCase("test sync vbucket destroy restart",
                  test_sync_vbucket_destroy_restart, NULL, teardown, NULL,
-                 prepare, cleanup, BACKEND_ALL),
+                 prepare, cleanup),
 
         // checkpoint tests
         TestCase("checkpoint: create a new checkpoint",
                  test_create_new_checkpoint,
                  test_setup, teardown,
                  "chk_max_items=500;item_num_based_new_chk=true",
-                 prepare, cleanup, BACKEND_ALL),
+                 prepare, cleanup),
         TestCase("checkpoint: extend the open checkpoint",
                  test_extend_open_checkpoint,
                  test_setup, teardown,
                  "chk_remover_stime=1;chk_max_items=500",
-                 prepare, cleanup, BACKEND_ALL),
+                 prepare, cleanup),
         TestCase("checkpoint: validate checkpoint config params",
                  test_validate_checkpoint_params,
-                 test_setup, teardown, NULL, prepare, cleanup,
-                 BACKEND_ALL),
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test checkpoint create", test_checkpoint_create,
                  test_setup, teardown,
                  "chk_max_items=5000;chk_period=600",
-                 prepare, cleanup, BACKEND_ALL),
+                 prepare, cleanup),
         TestCase("test checkpoint timeout", test_checkpoint_timeout,
                  test_setup, teardown,
                  "chk_max_items=5000;chk_period=600",
-                 prepare, cleanup, BACKEND_ALL),
+                 prepare, cleanup),
         TestCase("test checkpoint deduplication", test_checkpoint_deduplication,
                  test_setup, teardown,
                  "chk_max_items=5000;chk_period=600",
-                 prepare, cleanup, BACKEND_ALL),
+                 prepare, cleanup),
 
         // Restore tests
-        TestCase("restore: not enabled", test_restore_not_enabled,
-                 test_setup, teardown,
-                 "db_strategy=singleDB;dbname=:memory:",
-                 prepare, cleanup, BACKEND_SQLITE),
-        TestCase("restore: no such file", test_restore_no_such_file,
-                 test_setup, teardown,
-                 "db_strategy=singleDB;dbname=:memory:;restore_mode=true",
-                 prepare, cleanup, BACKEND_SQLITE),
-        TestCase("restore: invalid file", test_restore_invalid_file,
-                 test_setup, teardown,
-                 "db_strategy=singleDB;dbname=:memory:;restore_mode=true",
-                 prepare, cleanup, BACKEND_SQLITE),
-        TestCase("restore: data miss during restore", test_restore_data_miss,
-                 test_setup, teardown,
-                 "db_strategy=singleDB;dbname=:memory:;restore_mode=true",
-                 prepare, cleanup, BACKEND_SQLITE),
         TestCase("restore: no data in there", test_restore_clean,
                  test_setup, teardown,
-                 "restore_mode=true", prepare, cleanup, BACKEND_ALL),
+                 "restore_mode=true", prepare, cleanup),
         TestCase("restore: no data in there (with partial vbucket list)",
-                 test_restore_clean_vbucket_subset,
-                 test_setup, teardown,
-                 "restore_mode=true", prepare, cleanup, BACKEND_ALL),
-        TestCase("restore: with keys", test_restore_with_data,
-                 test_setup, teardown,
-                 "db_strategy=singleDB;dbname=:memory:;restore_mode=true",
-                 prepare, cleanup, BACKEND_SQLITE),
-#ifdef future
-        TestCase("restore: multiple incrementalfiles", test_restore_multi,
-                 NULL, teardown,
-                 "db_strategy=singleDB;dbname=:memory:;restore_mode=true",
-                 prepare, cleanup, BACKEND_SQLITE),
-#endif
+                 test_restore_clean_vbucket_subset, test_setup, teardown,
+                 "restore_mode=true", prepare, cleanup),
+
         // revision id's
-        TestCase("revision sequence numbers", test_revid,
-                 test_setup, teardown, NULL, prepare,
-                 cleanup, BACKEND_ALL),
-
+        TestCase("revision sequence numbers", test_revid, test_setup,
+                 teardown, NULL, prepare, cleanup),
         TestCase("mb-4314", test_regression_mb4314, test_setup,
-                 teardown, NULL, prepare, cleanup, BACKEND_ALL),
-
+                 teardown, NULL, prepare, cleanup),
         TestCase("mb-3466", test_mb3466, test_setup,
-                 teardown, NULL, prepare, cleanup, BACKEND_ALL),
+                 teardown, NULL, prepare, cleanup),
 
         // XDCR unit tests
         TestCase("get meta", test_get_meta, test_setup,
-                 teardown, NULL, prepare, cleanup, BACKEND_COUCH),
-
+                 teardown, NULL, prepare, cleanup),
         TestCase("get meta deleted", test_get_meta_deleted,
-                 test_setup, teardown, NULL, prepare, cleanup,
-                 BACKEND_COUCH),
-
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("get meta nonexistent", test_get_meta_nonexistent,
-                 test_setup, teardown, NULL, prepare, cleanup,
-                 BACKEND_COUCH),
-
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("get meta followed by get", test_get_meta_with_get,
-                 test_setup, teardown, NULL, prepare, cleanup,
-                 BACKEND_COUCH),
-
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("get meta followed by set", test_get_meta_with_set,
-                 test_setup, teardown, NULL, prepare, cleanup,
-                 BACKEND_COUCH),
-
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("get meta followed by delete", test_get_meta_with_delete,
-                 test_setup, teardown, NULL, prepare, cleanup,
-                 BACKEND_COUCH),
-
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("add with meta", test_add_with_meta, test_setup,
-                 teardown, NULL, prepare, cleanup, BACKEND_ALL),
-
+                 teardown, NULL, prepare, cleanup),
         TestCase("delete with meta", test_delete_with_meta,
-                 test_setup, teardown, NULL, prepare, cleanup,
-                 BACKEND_COUCH),
-
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("delete with meta deleted", test_delete_with_meta_deleted,
-                 test_setup, teardown, NULL, prepare, cleanup,
-                 BACKEND_COUCH),
-
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("delete with meta nonexistent",
                  test_delete_with_meta_nonexistent, test_setup,
-                 teardown, NULL, prepare, cleanup, BACKEND_COUCH),
-
+                 teardown, NULL, prepare, cleanup),
         TestCase("delete_with_meta race with concurrent delete",
                  test_delete_with_meta_race_with_delete, test_setup,
-                 teardown, NULL, prepare, cleanup, BACKEND_COUCH),
-
+                 teardown, NULL, prepare, cleanup),
         TestCase("delete_with_meta race with concurrent set",
                  test_delete_with_meta_race_with_set, test_setup,
-                 teardown, NULL, prepare, cleanup, BACKEND_COUCH),
-
+                 teardown, NULL, prepare, cleanup),
         TestCase("set with meta", test_set_with_meta, test_setup,
-                 teardown, NULL, prepare, cleanup, BACKEND_COUCH),
-
+                 teardown, NULL, prepare, cleanup),
         TestCase("set with meta deleted", test_set_with_meta_deleted,
-                 test_setup, teardown, NULL, prepare, cleanup,
-                 BACKEND_COUCH),
-
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("set with meta nonexistent", test_set_with_meta_nonexistent,
-                 test_setup, teardown, NULL, prepare, cleanup,
-                 BACKEND_COUCH),
-
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("set_with_meta race with concurrent set",
                  test_set_with_meta_race_with_set, test_setup,
-                 teardown, NULL, prepare, cleanup, BACKEND_COUCH),
-
+                 teardown, NULL, prepare, cleanup),
         TestCase("set_with_meta race with concurrent delete",
                  test_set_with_meta_race_with_delete, test_setup,
-                 teardown, NULL, prepare, cleanup, BACKEND_COUCH),
-
+                 teardown, NULL, prepare, cleanup),
         TestCase("temp item deletion", test_temp_item_deletion,
-                 test_setup,teardown,
-                 "exp_pager_stime=3", prepare, cleanup, BACKEND_COUCH),
+                 test_setup, teardown,
+                 "exp_pager_stime=3", prepare, cleanup),
 
         // mutation log compactor tests
         TestCase("compact a mutation log", test_compact_mutation_log,
                  test_setup, teardown,
                  "klog_path=/tmp/mutation.log;klog_max_log_size=32768;"
                  "klog_max_entry_ratio=2;klog_compactor_stime=5",
-                 prepare, cleanup, BACKEND_ALL),
+                 prepare, cleanup),
 
-        TestCase(NULL, NULL, NULL, NULL, NULL, prepare, cleanup, BACKEND_ALL)
+        TestCase(NULL, NULL, NULL, NULL, NULL, prepare, cleanup)
     };
 
     // Calculate the size of the tests..
@@ -8157,17 +7645,14 @@ engine_test_t* get_tests(void) {
         ++num;
     }
 
-    int total = num * BACKEND_VARIANTS;
-    testcases = static_cast<engine_test_t*>(calloc(total + 1,
+    testcases = static_cast<engine_test_t*>(calloc(num + 1,
                                                    sizeof(engine_test_t)));
 
     int ii = 0;
-    for (int variant = 1; variant <= BACKEND_VARIANTS; variant <<= 1) {
-        for (int jj = 0; jj < num; ++jj) {
-            engine_test_t *r = tc[jj].getTest(variant);
-            if (r != 0) {
-                testcases[ii++] = *r;
-            }
+    for (int jj = 0; jj < num; ++jj) {
+        engine_test_t *r = tc[jj].getTest();
+        if (r != 0) {
+            testcases[ii++] = *r;
         }
     }
 
