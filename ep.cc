@@ -656,7 +656,7 @@ public:
                 assert(deleted);
             } else if (v && v->isExpired(startTime)) {
                 vb->ht.unlocked_softDelete(v, 0);
-                e->queueDirty(vk.second, vb->getId(), queue_op_del,
+                e->queueDirty(vb, vk.second, vb->getId(), queue_op_del,
                               v->getSeqno(), v->getId(), false);
             }
         }
@@ -685,7 +685,7 @@ StoredValue *EventuallyPersistentStore::fetchValidValue(RCPtr<VBucket> &vb,
         if (v->isExpired(ep_real_time())) {
             incExpirationStat(vb, false);
             vb->ht.unlocked_softDelete(v, 0);
-            queueDirty(key, vb->getId(), queue_op_del, v->getSeqno(),
+            queueDirty(vb, key, vb->getId(), queue_op_del, v->getSeqno(),
                        v->getId());
             return NULL;
         }
@@ -774,7 +774,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::set(const Item &itm,
     case WAS_DIRTY:
         // Even if the item was dirty, push it into the vbucket's open checkpoint.
     case WAS_CLEAN:
-        queueDirty(itm.getKey(), itm.getVBucketId(), queue_op_set,
+        queueDirty(vb, itm.getKey(), itm.getVBucketId(), queue_op_set,
                    itm.getSeqno(), row_id);
         break;
     case INVALID_VBUCKET:
@@ -810,7 +810,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::add(const Item &itm,
         return ENGINE_NOT_STORED;
     case ADD_SUCCESS:
     case ADD_UNDEL:
-        queueDirty(itm.getKey(), itm.getVBucketId(), queue_op_set,
+        queueDirty(vb, itm.getKey(), itm.getVBucketId(), queue_op_set,
                    itm.getSeqno(), -1);
     }
     return ENGINE_SUCCESS;
@@ -852,7 +852,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::addTAPBackfillItem(const Item &itm,
     case NOT_FOUND:
         // FALLTHROUGH
     case WAS_CLEAN:
-        queueDirty(itm.getKey(), itm.getVBucketId(), queue_op_set,
+        queueDirty(vb, itm.getKey(), itm.getVBucketId(), queue_op_set,
                    itm.getSeqno(), row_id, true);
         break;
     case INVALID_VBUCKET:
@@ -1103,7 +1103,7 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
                 if (v->getExptime() != gcb.val.getValue()->getExptime()) {
                     assert(v->isDirty());
                     // exptime mutated, schedule it into new checkpoint
-                    queueDirty(key, vbucket, queue_op_set,
+                    queueDirty(vb, key, vbucket, queue_op_set,
                                v->getSeqno(), v->getId());
                 }
             }
@@ -1151,7 +1151,7 @@ void EventuallyPersistentStore::completeBGFetchMulti(uint16_t vbId,
                 if (v->getExptime() != fetchedValue->getExptime()) {
                     assert(v->isDirty());
                     // exptime mutated, schedule it into new checkpoint
-                    queueDirty(key, vbId, queue_op_set, v->getSeqno(),
+                    queueDirty(vb, key, vbId, queue_op_set, v->getSeqno(),
                             v->getId());
                 }
             }
@@ -1348,7 +1348,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setWithMeta(const Item &itm,
     case WAS_DIRTY:
     case WAS_CLEAN:
     case NOT_FOUND:
-        queueDirty(itm.getKey(), itm.getVBucketId(), queue_op_set,
+        queueDirty(vb, itm.getKey(), itm.getVBucketId(), queue_op_set,
                    itm.getSeqno(), row_id);
         break;
     }
@@ -1396,7 +1396,7 @@ GetValue EventuallyPersistentStore::getAndUpdateTtl(const std::string &key,
             if (exptime_mutated) {
                 // persist the itme in the underlying storage for
                 // mutated exptime
-                queueDirty(key, vbucket, queue_op_set, v->getSeqno(),
+                queueDirty(vb, key, vbucket, queue_op_set, v->getSeqno(),
                            v->getId());
             }
         } else {
@@ -1617,7 +1617,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteItem(const std::string &key,
     StoredValue *v = vb->ht.unlocked_find(key, bucket_num, use_meta, false);
     if (!v) {
         if (vb->getState() != vbucket_state_active && force) {
-            queueDirty(key, vbucket, queue_op_del, newSeqno, -1);
+            queueDirty(vb, key, vbucket, queue_op_del, newSeqno, -1);
         }
         return ENGINE_KEY_ENOENT;
     }
@@ -1646,7 +1646,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteItem(const std::string &key,
         uint64_t seqnum = v ? v->getSeqno() : 0;
         int64_t rowid = v ? v->getId() : -1;
         lh.unlock();
-        queueDirty(key, vbucket, queue_op_del, seqnum, rowid);
+        queueDirty(vb, key, vbucket, queue_op_del, seqnum, rowid);
     }
     return rv;
 }
@@ -2219,14 +2219,14 @@ int EventuallyPersistentStore::flushOne(std::queue<queued_item> *q,
 
 }
 
-void EventuallyPersistentStore::queueDirty(const std::string &key,
+void EventuallyPersistentStore::queueDirty(RCPtr<VBucket> &vb,
+                                           const std::string &key,
                                            uint16_t vbid,
                                            enum queue_operation op,
                                            uint64_t seqno,
                                            int64_t rowid,
                                            bool tapBackfill) {
     if (doPersistence) {
-        RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
         if (vb) {
             QueuedItem *qi = new QueuedItem(key, vbid, op,
                                             rowid, seqno);
