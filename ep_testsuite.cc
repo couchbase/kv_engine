@@ -7044,7 +7044,7 @@ static enum test_result test_observe_multi_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V
           "Observe failed.");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
 
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_stat_to_be(h, h1, "ep_total_persisted", 3);
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Observe failed.");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
@@ -7114,7 +7114,7 @@ static enum test_result test_multiple_observes(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     check(h1->store(h, NULL, it, &cas2, OPERATION_SET, 0)== ENGINE_SUCCESS,
           "Set should work.");
     h1->release(h, NULL, it);
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_stat_to_be(h, h1, "ep_total_persisted", 2);
 
     // Do observe
     std::map<std::string, uint16_t> obskeys;
@@ -7173,7 +7173,7 @@ static enum test_result test_observe_with_not_found(ENGINE_HANDLE *h, ENGINE_HAN
     check(h1->store(h, NULL, it, &cas1, OPERATION_SET, 0)== ENGINE_SUCCESS,
           "Set should work.");
     h1->release(h, NULL, it);
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_stat_to_be(h, h1, "ep_total_persisted", 1);
     stop_persistence(h, h1);
 
     check(h1->allocate(h, NULL, &it, "key3", 4, 100, 0, 0)== ENGINE_SUCCESS,
