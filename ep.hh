@@ -899,7 +899,6 @@ private:
     // by any other threads (because the flusher use it without
     // locking...
     std::queue<queued_item>              writing;
-    pthread_t                            thread;
     Atomic<size_t>                       bgFetchQueue;
     Atomic<bool>                         diskFlushAll;
     TransactionContext                   tctx;
