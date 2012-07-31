@@ -52,7 +52,7 @@ public:
     Flusher(EventuallyPersistentStore *st, Dispatcher *d) :
         store(st), _state(initializing), dispatcher(d),
         flushRv(0), prevFlushRv(0), minSleepTime(0.1),
-        flushQueue(NULL), rejectQueue(NULL), vbStateLoaded(false),
+        flushQueue(NULL), rejectQueue(NULL),
         forceShutdownReceived(false) {
     }
 
@@ -82,10 +82,6 @@ public:
     void wake(void);
     bool step(Dispatcher&, TaskId);
 
-    bool isVBStateLoaded() const {
-        return vbStateLoaded.get();
-    }
-
     enum flusher_state state() const;
     const char * stateName() const;
 
@@ -112,7 +108,6 @@ private:
     std::queue<queued_item> *rejectQueue;
     rel_time_t               flushStart;
 
-    Atomic<bool> vbStateLoaded;
     Atomic<bool> forceShutdownReceived;
 
     DISALLOW_COPY_AND_ASSIGN(Flusher);
