@@ -193,7 +193,7 @@ def main():
 
     nodata = True
     for kv, dbs in table_dbs.iteritems():
-        if 'kv_' in kv:
+        if 'kv_' in kv and 'invalid' not in kv:
            nodata = False
            break
     if nodata:
@@ -235,7 +235,7 @@ def main():
                     if count & 1023 == 0:
                         print count
        else:
-        if 'kv_' in kv:
+        if 'kv_' in kv and 'invalid' not in kv:
             for db_name in dbs:
                 cur.execute(sql.format(db_name, kv))
                 for k, flags, exptime, v in cur:
