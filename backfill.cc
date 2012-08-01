@@ -135,6 +135,11 @@ void BackFillVisitor::visit(StoredValue *v) {
     if (efficientVBDump && residentRatioBelowThreshold && !v->isResident()) {
         return;
     }
+
+    if (v->isTempItem()) {
+        return;
+    }
+
     queued_item qi(new QueuedItem(v->getKey(), currentBucket->getId(), queue_op_set,
                                   v->getId()));
     queue->push_back(qi);
