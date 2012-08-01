@@ -2406,8 +2406,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                     epstats.vbucketDeletions, add_stat, cookie);
     add_casted_stat("ep_vbucket_del_fail",
                     epstats.vbucketDeletionFail, add_stat, cookie);
-    add_casted_stat("ep_flush_preempts",
-                    epstats.flusherPreempts, add_stat, cookie);
     add_casted_stat("ep_flush_duration",
                     epstats.flushDuration, add_stat, cookie);
     add_casted_stat("ep_flush_duration_total",

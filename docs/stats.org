@@ -75,7 +75,6 @@ For introductory information on stats within membase, start with the
 |                                | vbuckets                                   |
 | ep_vbucket_del_avg_walltime    | Avg wall time (µs) spent by deleting       |
 |                                | a vbucket                                  |
-| ep_flush_preempts              | Num of flush early exits for read reqs.    |
 | ep_flush_duration              | Number of seconds of most recent flush.    |
 | ep_flush_duration_total        | Cumulative seconds spent flushing.         |
 | ep_flush_duration_highwat      | ep_flush_duration high water mark.         |

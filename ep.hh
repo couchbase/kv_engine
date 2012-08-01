@@ -845,12 +845,6 @@ private:
     StoredValue *fetchValidValue(RCPtr<VBucket> &vb, const std::string &key,
                                  int bucket_num, bool wantsDeleted=false, bool trackReference=true);
 
-    bool shouldPreemptFlush(size_t completed) {
-        return (completed > 100
-                && bgFetchQueue > 0
-                && !hasSeparateRODispatcher());
-    }
-
     size_t getWriteQueueSize(void);
 
     bool hasItemsForPersistence(void);

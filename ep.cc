@@ -1824,20 +1824,13 @@ int EventuallyPersistentStore::flushSome(std::queue<queued_item> *q,
     int tsz = tctx.remaining();
     int oldest = stats.min_data_age;
     int completed(0);
-    for (completed = 0;
-         completed < tsz && !q->empty() && !shouldPreemptFlush(completed);
-         ++completed) {
-
+    for (; completed < tsz && !q->empty(); ++completed) {
         int n = flushOne(q, rejectQueue);
         if (n != 0 && n < oldest) {
             oldest = n;
         }
     }
-    if (shouldPreemptFlush(completed)) {
-        ++stats.flusherPreempts;
-    } else {
-        tctx.commit();
-    }
+    tctx.commit();
     tctx.leave(completed);
     return oldest;
 }
