@@ -4651,7 +4651,6 @@ static enum test_result test_curr_items(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
     // Verify delete case.
     check(h1->remove(h, NULL, "k1", 2, 0, 0) == ENGINE_SUCCESS,
           "Failed remove with value.");
-    verify_curr_items(h, h1, 3, "one item deleted - not persisted");
 
     wait_for_stat_change(h, h1, "curr_items", 3);
     verify_curr_items(h, h1, 2, "one item deleted - persisted");
