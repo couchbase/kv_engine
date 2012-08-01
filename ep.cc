@@ -584,7 +584,6 @@ void EventuallyPersistentStore::stopFlusher() {
 }
 
 bool EventuallyPersistentStore::pauseFlusher() {
-    tctx.commitSoon();
     return flusher->pause();
 }
 
@@ -1821,7 +1820,7 @@ int EventuallyPersistentStore::flushSome(std::queue<queued_item> *q,
         }
         return 1; // This will cause us to jump out and delay a second
     }
-    int tsz = tctx.remaining();
+    int tsz = tctx.getTxnSize();
     int oldest = stats.min_data_age;
     int completed(0);
     for (; completed < tsz && !q->empty(); ++completed) {
@@ -1831,7 +1830,6 @@ int EventuallyPersistentStore::flushSome(std::queue<queued_item> *q,
         }
     }
     tctx.commit();
-    tctx.leave(completed);
     return oldest;
 }
 
@@ -2523,18 +2521,10 @@ void EventuallyPersistentStore::visit(VBucketVisitor &visitor)
 
 bool TransactionContext::enter() {
     if (!intxn) {
-        _remaining = txnSize.get();
         intxn = underlying->begin();
         tranStartTime = gethrtime();
     }
     return intxn;
-}
-
-void TransactionContext::leave(int completed) {
-    _remaining -= completed;
-    if (remaining() <= 0 && intxn) {
-        commit();
-    }
 }
 
 void TransactionContext::commit() {
