@@ -1813,4 +1813,43 @@ size_t CouchKVStore::warmup(MutationLog &lf,
     return cookie.loaded;
 }
 
+bool CouchKVStore::getEstimatedItemCount(size_t &items)
+{
+    Db *db = NULL;
+    couchstore_error_t errCode;
+    std::vector<std::string> files;
+
+    items = 0;
+
+    if (dbFileMap.empty()) {
+        // first scan all db files from data directory
+        discoverDbFiles(dbname, files);
+        populateFileNameMap(files);
+    }
+
+    std::map<uint16_t, int>::iterator fitr = dbFileMap.begin();
+    for (; fitr != dbFileMap.end(); ++fitr) {
+        errCode = openDB(fitr->first, fitr->second, &db, 0);
+        if (errCode == COUCHSTORE_SUCCESS) {
+            DbInfo info;
+            errCode = couchstore_db_info(db, &info);
+            if (errCode == COUCHSTORE_SUCCESS) {
+                items += info.doc_count;
+            } else {
+                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                 "Warning: failed to read database info for "
+                                 "vBucket = %d rev = %d\n",
+                                 fitr->first, fitr->second);
+            }
+            closeDatabaseHandle(db);
+        } else {
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                             "Warning: failed to open database file for "
+                             "vBucket = %d rev = %d\n",
+                             fitr->first, fitr->second);
+        }
+    }
+    return true;
+}
+
 /* end of couch-kvstore.cc */

@@ -495,6 +495,8 @@ bool Warmup::loadingAccessLog(Dispatcher&, TaskId)
         }
         transition(WarmupState::Done);
     } else {
+        size_t estimatedCount = store->getEPEngine().getEpStats().warmedUpKeys;
+        setEstimatedWarmupCount(estimatedCount);
         transition(WarmupState::LoadingData);
     }
 
@@ -519,6 +521,9 @@ bool Warmup::loadingKVPairs(Dispatcher&, TaskId)
 
 bool Warmup::loadingData(Dispatcher&, TaskId)
 {
+    size_t estimatedCount = store->getEPEngine().getEpStats().warmedUpKeys;
+    setEstimatedWarmupCount(estimatedCount);
+
     shared_ptr<Callback<GetValue> > cb(createLKVPCB(initialVbState, true,
                                        state.getState()));
     store->roUnderlying->dump(cb);
@@ -644,12 +649,12 @@ void Warmup::addStats(ADD_STAT add_stat, const void *c) const
         }
 
         if (estimatedItemCount == std::numeric_limits<size_t>::max()) {
-            addStat("estimated_item_count", "unknown", add_stat, c);
+            addStat("estimated_key_count", "unknown", add_stat, c);
         } else {
             if (estimateTime != 0) {
                 addStat("estimate_time", estimateTime / 1000, add_stat, c);
             }
-            addStat("estimated_item_count", estimatedItemCount, add_stat, c);
+            addStat("estimated_key_count", estimatedItemCount, add_stat, c);
         }
 
         if (corruptMutationLog) {
@@ -661,9 +666,9 @@ void Warmup::addStats(ADD_STAT add_stat, const void *c) const
         }
 
         if (estimatedWarmupCount ==  std::numeric_limits<size_t>::max()) {
-            addStat("estimated_warmup_count", "unknown", add_stat, c);
+            addStat("estimated_value_count", "unknown", add_stat, c);
         } else {
-            addStat("estimated_warmup_count", estimatedWarmupCount, add_stat, c);
+            addStat("estimated_value_count", estimatedWarmupCount, add_stat, c);
         }
    } else {
         addStat(NULL, "disabled", add_stat, c);

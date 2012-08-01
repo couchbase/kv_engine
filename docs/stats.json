@@ -40,11 +40,11 @@
         "ep_warmup_estimate_time": {
             "description": "The time spent estimating the number of keys in the cache"
         },
-        "ep_warmup_estimated_item_count": {
-            "description": "The estimated number of items in the cache, or 'unknown' if we don't know"
+        "ep_warmup_estimated_key_count": {
+            "description": "The estimated number of items keys to warm up, or 'unknown' if we don't know"
         },
-        "ep_warmup_estimated_warmup_count": {
-            "description": "The estimated number of items to warm up"
+        "ep_warmup_estimated_value_count": {
+            "description": "The estimated number of items values to warm up"
         },
         "ep_warmup_keys_time": {
             "description": "Time (usec) spent by warming keys."
