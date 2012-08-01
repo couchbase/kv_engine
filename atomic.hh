@@ -283,8 +283,8 @@ public:
     RCValue(const RCValue &) : _rc_refcount(0) {}
     ~RCValue() {}
 private:
-    template <class TT> friend class RCPtr;
-    template <class SS> friend class SingleThreadedRCPtr;
+    template <class MyTT> friend class RCPtr;
+    template <class MySS> friend class SingleThreadedRCPtr;
     int _rc_incref() const {
         return ++_rc_refcount;
     }
