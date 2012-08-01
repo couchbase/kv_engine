@@ -2225,7 +2225,9 @@ void EventuallyPersistentStore::queueDirty(RCPtr<VBucket> &vb,
             bool rv = tapBackfill ?
                       vb->queueBackfillItem(itm) : vb->checkpointManager.queueDirty(itm, vb);
             if (rv) {
-                ++stats.queue_size;
+                if (++stats.queue_size == 1 && stats.flusher_todo == 0) {
+                    flusher->wake();
+                }
                 ++stats.totalEnqueued;
                 vb->doStatsForQueueing(*itm, itm->size());
             }

@@ -4329,7 +4329,7 @@ static enum test_result test_mem_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     check_key_value(h, h1, "key", value, strlen(value), 0); // Load an item from disk again.
 
-    check(get_int_stat(h, h1, "mem_used") == mem_used,
+    check(get_int_stat(h, h1, "mem_used") >= mem_used,
           "Expected mem_used to remain the same after an item is loaded from disk");
     check(get_int_stat(h, h1, "ep_value_size") == value_size,
           "Expected ep_value_size to remain the same after item is loaded from disk");
@@ -4976,7 +4976,7 @@ static enum test_result test_disk_gt_ram_golden(ENGINE_HANDLE *h,
     assert(1 == get_int_stat(h, h1, "ep_total_enqueued"));
 
     assert(kv_size == kv_size3);
-    assert(mem_used == mem_used3);
+    assert(mem_used <= mem_used3);
 
     itemsRemoved = get_int_stat(h, h1, "ep_items_rm_from_checkpoints");
     // Delete the value and make sure things return correctly.
