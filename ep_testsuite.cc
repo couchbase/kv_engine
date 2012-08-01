@@ -6598,6 +6598,7 @@ static enum test_result test_temp_item_deletion(ENGINE_HANDLE *h, ENGINE_HANDLE_
     check(h1->remove(h, NULL, k1, strlen(k1), 0, 0) == ENGINE_SUCCESS,
           "Delete failed");
     wait_for_flusher_to_settle(h, h1);
+    wait_for_stat_to_be(h, h1, "curr_items", 0);
 
     ItemMetaData itm_meta;
     check(get_meta(h, h1, k1, itm_meta), "Expected to get meta");
