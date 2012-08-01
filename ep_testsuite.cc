@@ -2988,15 +2988,10 @@ static enum test_result test_vbucket_destroy_stats(ENGINE_HANDLE *h,
 
     wait_for_stat_change(h, h1, "ep_vbucket_del", vbucketDel);
 
-    int mem_used2 = get_int_stat(h, h1, "mem_used");
-    int cacheSize2 = get_int_stat(h, h1, "ep_total_cache_size");
-    int overhead2 = get_int_stat(h, h1, "ep_overhead");
-    int nonResident2 = get_int_stat(h, h1, "ep_num_non_resident");
-
-    check(mem_used2 == mem_used, "memory should be the same");
-    check(cacheSize2 == cacheSize, "cache size should be the same");
-    check(overhead2 == overhead, "overhead should be the same");
-    check(nonResident2 == nonResident, "non resident count should be the same");
+    wait_for_stat_to_be(h, h1, "mem_used", mem_used);
+    wait_for_stat_to_be(h, h1, "ep_total_cache_size", cacheSize);
+    wait_for_stat_to_be(h, h1, "ep_overhead", overhead);
+    wait_for_stat_to_be(h, h1, "ep_num_non_resident", nonResident);
 
     return SUCCESS;
 }
