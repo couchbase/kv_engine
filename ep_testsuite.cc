@@ -6282,6 +6282,7 @@ static enum test_result test_delete_with_meta_deleted(ENGINE_HANDLE *h,
     check(h1->remove(h, NULL, key, keylen, 0, 0) == ENGINE_SUCCESS,
           "Delete failed");
     wait_for_flusher_to_settle(h, h1);
+    wait_for_stat_to_be(h, h1, "curr_items", 0);
 
     // get metadata of deleted key
     ItemMetaData itm_meta;
@@ -6314,7 +6315,7 @@ static enum test_result test_delete_with_meta_deleted(ENGINE_HANDLE *h,
 
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
     check(get_int_stat(h, h1, "ep_num_ops_del_meta") == 1, "Expect some ops");
-    check(get_int_stat(h, h1, "curr_items") == 0, "Expected zero curr_items");
+    wait_for_stat_to_be(h, h1, "curr_items", 0);
     check(get_int_stat(h, h1, "curr_temp_items") == 0, "Expected zero temp_items");
 
     // get metadata again to verify that delete with meta was successful
@@ -6378,7 +6379,7 @@ static enum test_result test_delete_with_meta_nonexistent(ENGINE_HANDLE *h,
 
     // check the stat
     check(get_int_stat(h, h1, "ep_num_ops_del_meta") == 1, "Expect one op");
-    check(get_int_stat(h, h1, "curr_items") == 0, "Expected zero curr_items");
+    wait_for_stat_to_be(h, h1, "curr_items", 0);
     check(get_int_stat(h, h1, "curr_temp_items") == 0, "Expected zero temp_items");
 
     // get metadata again to verify that delete with meta was successful
@@ -6651,6 +6652,7 @@ static enum test_result test_set_with_meta_deleted(ENGINE_HANDLE *h, ENGINE_HAND
     check(h1->remove(h, NULL, key, strlen(key), 0, 0) == ENGINE_SUCCESS,
           "Delete failed");
     wait_for_flusher_to_settle(h, h1);
+    wait_for_stat_to_be(h, h1, "curr_items", 0);
 
     // get metadata for the key
     ItemMetaData itm_meta;
