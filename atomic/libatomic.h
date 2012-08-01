@@ -107,8 +107,8 @@ inline hrtime_t ep_sync_fetch_and_add(volatile hrtime_t *dest, hrtime_t value) {
     return original;
 }
 
-inline bool ep_sync_bool_compare_and_swap(volatile bool *dest, bool prev, bool next) {
-    hrtime_t original = *dest;
+inline bool ep_sync_bool_compare_and_swap(volatile uint8_t *dest, uint8_t prev, uint8_t next) {
+    uint8_t original = *dest;
     if (original == atomic_cas_8((volatile uint8_t*)dest, (uint8_t)prev, (uint8_t)next)) {
         return true;
     } else {
@@ -116,8 +116,14 @@ inline bool ep_sync_bool_compare_and_swap(volatile bool *dest, bool prev, bool n
     }
 }
 
+inline bool ep_sync_bool_compare_and_swap(volatile bool *dest, bool prev, bool next) {
+    return ep_sync_bool_compare_and_swap((volatile uint8_t*)dest,
+                                         (uint8_t)prev,
+                                         (uint8_t)next);
+}
+
 inline bool ep_sync_bool_compare_and_swap(volatile int *dest, int prev, int next) {
-    hrtime_t original = *dest;
+    uint_t original = *dest;
     if (original == atomic_cas_uint((volatile uint_t*)dest, (uint_t)prev, (uint_t)next)) {
         return true;
     } else {
@@ -125,43 +131,50 @@ inline bool ep_sync_bool_compare_and_swap(volatile int *dest, int prev, int next
     }
 }
 
-#ifdef _LP64
-inline bool ep_sync_bool_compare_and_swap(volatile unsigned int *dest, unsigned int prev, unsigned int next) {
-    hrtime_t original = *dest;
+inline bool ep_sync_bool_compare_and_swap(volatile unsigned int *dest,
+                                          unsigned int prev,
+                                          unsigned int next) {
+    uint_t original = *dest;
     if (original == atomic_cas_uint((volatile uint_t*)dest, (uint_t)prev, (uint_t)next)) {
         return true;
     } else {
         return false;
     }
 }
-#endif
 
-inline bool ep_sync_bool_compare_and_swap(volatile hrtime_t *dest, hrtime_t prev, hrtime_t next) {
-    hrtime_t original = *dest;
-    if (original == atomic_cas_64((volatile uint64_t*)dest, (uint64_t)prev, (uint64_t)next)) {
+inline bool ep_sync_bool_compare_and_swap(volatile uint64_t *dest,
+                                          uint64_t prev,
+                                          uint64_t next) {
+    uint64_t original = *dest;
+    if (original == atomic_cas_64(dest, prev, next)) {
         return true;
     } else {
         return false;
     }
 }
 
-inline bool ep_sync_bool_compare_and_swap(volatile size_t *dest, size_t prev, size_t next) {
-    size_t original = *dest;
+inline bool ep_sync_bool_compare_and_swap(volatile int64_t *dest,
+                                          int64_t prev,
+                                          int64_t next) {
+    uint64_t original = (uint64_t)*dest;
+    if (original == atomic_cas_64((volatile uint64_t*)dest,
+                                  (uint64_t)prev,
+                                  (uint64_t)next)) {
+        return true;
+    } else {
+        return false;
+    }
+}
 
 #ifdef _LP64
-    if (original == atomic_cas_64((volatile uint64_t*)dest, (uint64_t)prev, (uint64_t)next)) {
-        return true;
-    } else {
-        return false;
-    }
-#else
-    if (original == atomic_cas_32((volatile uint32_t*)dest, (uint32_t)prev, (uint32_t)next)) {
-        return true;
-    } else {
-        return false;
-    }
-#endif
+inline bool ep_sync_bool_compare_and_swap(volatile longlong_t *dest,
+                                          longlong_t prev,
+                                          longlong_t next) {
+    return ep_sync_bool_compare_and_swap((volatile uint64_t *)dest,
+                                         (uint64_t)prev,
+                                         (uint64_t)next);
 }
+#endif
 
 /*
  * Unfortunately C++ isn't all that happy about assinging everything to/from a
