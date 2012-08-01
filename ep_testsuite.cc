@@ -1762,7 +1762,7 @@ static enum test_result test_set_delete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
             "Failed remove with value.");
     checkeq(ENGINE_KEY_ENOENT, verify_key(h, h1, "key"), "Expected missing key");
     wait_for_flusher_to_settle(h, h1);
-    checkeq(0, get_int_stat(h, h1, "curr_items"), "Deleting left tombstone.");
+    wait_for_stat_to_be(h, h1, "curr_items", 0);
     return SUCCESS;
 }
 
@@ -3516,6 +3516,7 @@ static enum test_result test_tap_sends_deleted(ENGINE_HANDLE *h, ENGINE_HANDLE_V
                 ss.str().length(), 0, 0), "Delete failed");
     }
     wait_for_flusher_to_settle(h, h1);
+    wait_for_stat_to_be(h, h1, "curr_items", 2);
 
     const void *cookie = testHarness.create_cookie();
     testHarness.lock_cookie(cookie);
