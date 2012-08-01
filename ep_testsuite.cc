@@ -5494,47 +5494,6 @@ static void set_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     return;
 }
 
-static void add_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                          const char *key, const size_t keylen,
-                          const char *val, const size_t vallen,
-                          const uint32_t vb, ItemMetaData *itemMeta)
-{
-    union {
-        protocol_binary_request_header pkt;
-        protocol_binary_request_set_with_meta req;
-        char buffer[1024];
-    } msg;
-    memset(&msg.req, 0, sizeof(msg));
-
-    // extlen of operation ADD_WITH_META is 24
-    uint8_t extlen = 24;
-    size_t bodyLen = keylen + extlen + vallen;
-
-    msg.req.message.header.request.magic = PROTOCOL_BINARY_REQ;
-    msg.req.message.header.request.opcode = CMD_ADD_WITH_META;
-    msg.req.message.header.request.extlen = extlen;
-    msg.req.message.header.request.keylen = htons(keylen);
-    msg.req.message.header.request.vbucket = htons(vb);
-    msg.req.message.header.request.bodylen = htonl(bodyLen);
-    memcpy(msg.buffer + sizeof(msg.req.bytes), key, keylen);
-    // if comes with value
-    if( vallen > 0 && val ) {
-        memcpy(msg.buffer + sizeof(msg.req.bytes) + keylen, val, vallen);
-    }
-
-    msg.req.message.body.flags = htonl(itemMeta->flags);
-    msg.req.message.body.expiration = 0;
-    msg.req.message.body.seqno = htonll(itemMeta->seqno);
-    msg.req.message.body.cas = htonll(itemMeta->cas);
-
-    ENGINE_ERROR_CODE ret = h1->unknown_command(h, NULL, &msg.pkt,
-                                                add_response);
-
-    check(ret == ENGINE_SUCCESS, "Expected to be able to store with meta");
-
-    return;
-}
-
 static void del_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                           const char *key, const size_t keylen,
                           const uint32_t vb, ItemMetaData *itemMeta,
@@ -5859,37 +5818,6 @@ static enum test_result test_get_meta_with_delete(ENGINE_HANDLE *h, ENGINE_HANDL
     // check the stat again
     temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
     check(temp == 3, "Failed operation should also count");
-
-    return SUCCESS;
-}
-
-static enum test_result test_add_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
-{
-    const char *key = "mykey";
-    const size_t keylen = strlen(key);
-    ItemMetaData itemMeta;
-    size_t temp = 0;
-
-    // put some random metadata
-    itemMeta.seqno = 10;
-    itemMeta.cas = 0xdeadbeef;
-    itemMeta.exptime = 0;
-    itemMeta.flags = 0xdeadbeef;
-    // check the stat
-    temp = get_int_stat(h, h1, "ep_num_ops_set_meta");
-    check(temp == 0, "Expect zero setMeta ops");
-
-    // store an item with meta data
-    add_with_meta(h, h1, key, keylen, NULL, 0, 0, &itemMeta);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
-
-    // store the item again, expect key exists
-    add_with_meta(h, h1, key, keylen, NULL, 0, 0, &itemMeta);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
-          "Expected add to fail when the item exists already");
-    // check the stat
-    temp = get_int_stat(h, h1, "ep_num_ops_set_meta");
-    check(temp == 1, "Failed op does not count");
 
     return SUCCESS;
 }
@@ -7594,8 +7522,6 @@ engine_test_t* get_tests(void) {
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("get meta followed by delete", test_get_meta_with_delete,
                  test_setup, teardown, NULL, prepare, cleanup),
-        TestCase("add with meta", test_add_with_meta, test_setup,
-                 teardown, NULL, prepare, cleanup),
         TestCase("delete with meta", test_delete_with_meta,
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("delete with meta deleted", test_delete_with_meta_deleted,

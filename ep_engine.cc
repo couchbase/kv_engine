@@ -913,8 +913,6 @@ extern "C" {
             }
         case CMD_SET_WITH_META:
         case CMD_SETQ_WITH_META:
-        case CMD_ADD_WITH_META:
-        case CMD_ADDQ_WITH_META:
             {
                 rv = h->setWithMeta(cookie,
                                     reinterpret_cast<protocol_binary_request_set_with_meta*>(request),
@@ -3922,12 +3920,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
                             PROTOCOL_BINARY_RESPONSE_ENOMEM, 0, cookie);
     }
 
-    bool allowExisting = (opcode == CMD_SET_WITH_META ||
-                          opcode == CMD_SETQ_WITH_META);
-
     ENGINE_ERROR_CODE ret = epstore->setWithMeta(*itm,
                                                  ntohll(request->message.header.request.cas),
-                                                 cookie, false, allowExisting);
+                                                 cookie, false, true);
     protocol_binary_response_status rc;
     rc = engine_error_2_protocol_error(ret);
 
@@ -3938,7 +3933,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
     }
 
     delete itm;
-    if ((opcode == CMD_SETQ_WITH_META || opcode == CMD_ADDQ_WITH_META) &&
+    if ((opcode == CMD_SETQ_WITH_META) &&
         rc == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
         return ENGINE_SUCCESS;
     }

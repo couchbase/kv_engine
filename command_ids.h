@@ -121,8 +121,6 @@
  */
 #define CMD_SET_WITH_META 0xa2
 #define CMD_SETQ_WITH_META 0xa3
-#define CMD_ADD_WITH_META 0xa4
-#define CMD_ADDQ_WITH_META 0xa5
 
 /**
  * Command to snapshot VB states
