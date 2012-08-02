@@ -245,20 +245,6 @@ static std::string get_str_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     return s;
 }
 
-static void waitfor_restore_state(ENGINE_HANDLE *h,
-                                  ENGINE_HANDLE_V1 *h1,
-                                  const char *state,
-                                  uint32_t sampletime = 250)
-{
-    do {
-        usleep(sampletime);
-        vals.clear();
-        check(h1->get_stats(h, NULL, "restore", 7, add_stats) == ENGINE_SUCCESS,
-              "Failed to get stats.");
-    } while (vals["ep_restore:state"] != state);
-    vals.clear();
-}
-
 static bool wait_for_warmup_complete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     while (h1->get_stats(h, NULL, "warmup", 6, add_stats) == ENGINE_SUCCESS) {
         useconds_t sleepTime = 128;
@@ -5221,105 +5207,6 @@ static enum test_result test_kill9_bucket(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     return SUCCESS;
 }
 
-static protocol_binary_request_header* create_restore_file_packet(const char *fnm)
-{
-    protocol_binary_request_header *header;
-    uint32_t len = strlen(fnm);
-    header = (protocol_binary_request_header *)calloc(sizeof(*header), + len);
-    header->request.opcode = CMD_RESTORE_FILE;
-    header->request.keylen = htons((uint16_t)len);
-    header->request.bodylen = htonl(len);
-    memcpy(header + 1, fnm, len);
-    return header;
-}
-
-static void complete_restore(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
-{
-    protocol_binary_request_header header;
-    memset(&header, 0, sizeof(header));
-    header.request.opcode = CMD_RESTORE_COMPLETE;
-
-    ENGINE_ERROR_CODE r = h1->unknown_command(h, NULL, &header, add_response);
-    check(r == ENGINE_SUCCESS, "The server should know the command");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
-          "The server should disable restore");
-    vals.clear();
-    check(h1->get_stats(h, NULL, "restore", 7, add_stats) == ENGINE_SUCCESS,
-          "Failed to get stats.");
-    check(vals.empty(), "restore should be disabled");
-}
-
-static void ensure_file(const char *fname)
-{
-    if (access(fname, F_OK) != 0) {
-        std::stringstream ss;
-        ss << "No such file: " << fname;
-        check(access(fname, F_OK) == 0, ss.str().c_str());
-    }
-}
-
-static enum test_result test_restore_clean(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
-{
-    char cwd[1024];
-    if (!getcwd(cwd, sizeof(cwd))) {
-        fprintf(stderr, "Invoking getcwd failed!!!\n");
-        return FAIL;
-    }
-    strcat(cwd, "/mbbackup-0001.mbb");
-    ensure_file(cwd);
-
-    for (uint16_t ii = 0; ii < 100; ++ ii) {
-        check(set_vbucket_state(h, h1, ii, vbucket_state_active), "Failed to activate vbucket");
-    }
-
-    protocol_binary_request_header *req = create_restore_file_packet(cwd);
-    ENGINE_ERROR_CODE r = h1->unknown_command(h, NULL, req, add_response);
-    check(r == ENGINE_SUCCESS, "The server should know the command");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
-          "The server should start the backup");
-    free(req);
-    waitfor_restore_state(h, h1, "zombie", 2000);
-    vals.clear();
-    check(h1->get_stats(h, NULL, "restore", 7, add_stats) == ENGINE_SUCCESS,
-          "Failed to get stats.");
-    check(vals.find("ep_restore:last_error") == vals.end(),
-          "I shouldn't get an error message");
-    check(vals["ep_restore:number_skipped"] == "0", "Expected no data change");
-    check(vals["ep_restore:number_restored"] == "9060", "We have one vbucket");
-    check(vals["ep_restore:number_wrong_vbucket"] == "0", "We don't have all vbuckets");
-    check(vals["ep_restore:number_expired"] == "1", "We don't have all vbuckets");
-    complete_restore(h, h1);
-    return SUCCESS;
-}
-
-static enum test_result test_restore_clean_vbucket_subset(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    char cwd[1024];
-    if (!getcwd(cwd, sizeof(cwd))) {
-        fprintf(stderr, "Invoking getcwd failed!!!\n");
-        return FAIL;
-    }
-    strcat(cwd, "/mbbackup-0001.mbb");
-    ensure_file(cwd);
-    protocol_binary_request_header *req = create_restore_file_packet(cwd);
-    ENGINE_ERROR_CODE r = h1->unknown_command(h, NULL, req, add_response);
-    check(r == ENGINE_SUCCESS, "The server should know the command");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
-          "The server should start the backup");
-    free(req);
-    waitfor_restore_state(h, h1, "zombie", 2000);
-    vals.clear();
-    check(h1->get_stats(h, NULL, "restore", 7, add_stats) == ENGINE_SUCCESS,
-          "Failed to get stats.");
-    check(vals.find("ep_restore:last_error") == vals.end(),
-          "I shouldn't get an error message");
-    check(vals["ep_restore:number_skipped"] == "0", "Expected no data change");
-    check(vals["ep_restore:number_restored"] == "912", "We have one vbucket");
-    check(vals["ep_restore:number_wrong_vbucket"] == "8148", "We don't have all vbuckets");
-    check(vals["ep_restore:number_expired"] == "1", "We don't have all vbuckets");
-    complete_restore(h, h1);
-    return SUCCESS;
-}
-
 static enum test_result test_create_new_checkpoint(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     // Inserting more than 500 items will cause a new open checkpoint with id 2
     // to be created.
@@ -7518,14 +7405,6 @@ engine_test_t* get_tests(void) {
                  test_setup, teardown,
                  "chk_max_items=5000;chk_period=600",
                  prepare, cleanup),
-
-        // Restore tests
-        TestCase("restore: no data in there", test_restore_clean,
-                 test_setup, teardown,
-                 "restore_mode=true", prepare, cleanup),
-        TestCase("restore: no data in there (with partial vbucket list)",
-                 test_restore_clean_vbucket_subset, test_setup, teardown,
-                 "restore_mode=true", prepare, cleanup),
 
         // revision id's
         TestCase("revision sequence numbers", test_revid, test_setup,
