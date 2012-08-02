@@ -8,6 +8,7 @@
 #include "stats.hh"
 #include "configuration.hh"
 #include "couch-kvstore/couch-notifier.hh"
+#include "couch-kvstore/couch-fs-stats.hh"
 
 #define COUCHSTORE_NO_OPTIONS 0
 
@@ -61,6 +62,9 @@ public:
     Histogram<hrtime_t> commitRetryHisto;
     // Time spent in couchstore save documents
     Histogram<hrtime_t> saveDocsHisto;
+
+    // Stats from the underlying OS file operations done by couchstore.
+    CouchstoreStats fsStats;
 };
 
 class EventuallyPersistentEngine;
@@ -340,6 +344,7 @@ private:
 
     /* all stats */
     CouchKVStoreStats   st;
+    couch_file_ops statCollectingFileOps;
     /* vbucket state cache*/
     vbucket_map_t cachedVBStates;
 };

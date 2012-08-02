@@ -64,6 +64,7 @@ EP_ENGINE_CC_SRC = \
                  checkpoint_remover.cc \
                  configuration.cc \
                  couch-kvstore/couch-kvstore.cc \
+                 couch-kvstore/couch-fs-stats.cc \
                  couch-kvstore/couch-notifier.cc \
                  couch-kvstore/dirutils.cc \
                  dispatcher.cc \

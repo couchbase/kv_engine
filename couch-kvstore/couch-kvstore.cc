@@ -285,6 +285,7 @@ CouchKVStore::CouchKVStore(EventuallyPersistentEngine &theEngine,
     intransaction(false)
 {
     open();
+    statCollectingFileOps = getCouchstoreStatsOps(&st.fsStats);
 }
 
 CouchKVStore::CouchKVStore(const CouchKVStore &copyFrom) :
@@ -297,6 +298,7 @@ CouchKVStore::CouchKVStore(const CouchKVStore &copyFrom) :
 {
     open();
     dbFileMap = copyFrom.dbFileMap;
+    statCollectingFileOps = getCouchstoreStatsOps(&st.fsStats);
 }
 
 void CouchKVStore::reset()
@@ -914,6 +916,14 @@ void CouchKVStore::addTimingStats(const std::string &prefix,
     addStat(prefix_str, "save_documents", st.saveDocsHisto, add_stat, c);
     addStat(prefix_str, "writeTime",   st.writeTimeHisto,   add_stat, c);
     addStat(prefix_str, "writeSize",   st.writeSizeHisto,   add_stat, c);
+
+    // Couchstore file ops stats
+    addStat(prefix_str, "fsReadTime",  st.fsStats.readTimeHisto,  add_stat, c);
+    addStat(prefix_str, "fsWriteTime", st.fsStats.writeTimeHisto, add_stat, c);
+    addStat(prefix_str, "fsSyncTime",  st.fsStats.syncTimeHisto,  add_stat, c);
+    addStat(prefix_str, "fsReadSize",  st.fsStats.readSizeHisto,  add_stat, c);
+    addStat(prefix_str, "fsWriteSize", st.fsStats.writeSizeHisto, add_stat, c);
+    addStat(prefix_str, "fsReadSeek",  st.fsStats.readSeekHisto,  add_stat, c);
 }
 
 template <typename T>
@@ -1174,20 +1184,21 @@ couchstore_error_t CouchKVStore::openDB(uint16_t vbucketId,
 {
     couchstore_error_t errorCode;
     std::string dbFileName = getDBFileName(dbname, vbucketId, fileRev);
+    couch_file_ops* ops = &statCollectingFileOps;
 
     int newRevNum = fileRev;
     // first try to open database without options, we don't want to create
     // a duplicate db that has the same name with different revision number
-    if ((errorCode = couchstore_open_db(dbFileName.c_str(), 0, db))) {
+    if ((errorCode = couchstore_open_db_ex(dbFileName.c_str(), 0, ops, db))) {
         if ((newRevNum = checkNewRevNum(dbFileName))) {
-            errorCode = couchstore_open_db(dbFileName.c_str(), 0, db);
+            errorCode = couchstore_open_db_ex(dbFileName.c_str(), 0, ops, db);
             if (errorCode == COUCHSTORE_SUCCESS) {
                 updateDbFileMap(vbucketId, newRevNum);
             }
         } else {
             if (options) {
                 newRevNum = fileRev;
-                errorCode = couchstore_open_db(dbFileName.c_str(), options, db);
+                errorCode = couchstore_open_db_ex(dbFileName.c_str(), options, ops, db);
                 if (errorCode == COUCHSTORE_SUCCESS) {
                     updateDbFileMap(vbucketId, newRevNum, true);
                 }

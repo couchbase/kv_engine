@@ -161,6 +161,8 @@ libcouch_kvstore_la_SOURCES = kvstore.hh
 if HAVE_LIBCOUCHSTORE
 libcouch_kvstore_la_SOURCES += couch-kvstore/couch-kvstore.cc    \
                                couch-kvstore/couch-kvstore.hh    \
+                               couch-kvstore/couch-fs-stats.cc   \
+                               couch-kvstore/couch-fs-stats.hh   \
                                couch-kvstore/couch-notifier.cc   \
                                couch-kvstore/couch-notifier.hh   \
                                tools/cJSON.c                     \
