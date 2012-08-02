@@ -92,17 +92,6 @@
             "dynamic": false,
             "type": "std::string"
         },
-        "couch_default_batch_size": {
-            "default": "500",
-            "descr": "Default batch size per mccouch worker",
-            "type": "size_t",
-            "validator": {
-                "range": {
-                    "max": 10000000,
-                    "min": 1
-                }
-            }
-        },
         "couch_host": {
             "default": "localhost",
             "dynamic": false,
@@ -122,17 +111,6 @@
             "default": "180000",
             "descr": "Length of time to wait for a response from couchdb before reconnecting (in ms)",
             "type": "size_t"
-        },
-        "couch_vbucket_batch_count": {
-            "default": "4",
-            "descr": "max number of vbuckets that can be concurrently written by the mccouch side",
-            "type": "size_t",
-            "validator": {
-                "range": {
-                    "max": 256,
-                    "min": 1
-                }
-            }
         },
         "data_traffic_enabled": {
             "default": "true",
