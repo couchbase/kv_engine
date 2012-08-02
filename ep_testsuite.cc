@@ -1211,6 +1211,25 @@ static enum test_result test_set_get_hit_bin(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 
     return check_key_value(h, h1, "key", binaryData, sizeof(binaryData));
 }
 
+static enum test_result test_set_with_cas_non_existent(ENGINE_HANDLE *h,
+                                                       ENGINE_HANDLE_V1 *h1) {
+    const char *key = "test_expiry_flush";
+    item *i = NULL;
+
+    check(h1->allocate(h, NULL, &i, key, strlen(key), 10, 0, 0) == ENGINE_SUCCESS,
+          "Allocation failed.");
+
+    Item *it = reinterpret_cast<Item*>(i);
+    it->setCas(1234);
+
+    uint64_t cas = 0;
+    check(h1->store(h, NULL, i, &cas, OPERATION_SET, 0) == ENGINE_KEY_ENOENT,
+          "Expected not found");
+    h1->release(h, NULL, i);
+
+    return SUCCESS;
+}
+
 static enum test_result test_set_change_flags(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
     check(store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i) == ENGINE_SUCCESS,
@@ -7119,6 +7138,8 @@ engine_test_t* get_tests(void) {
         TestCase("unl",  test_unl, test_setup, teardown,
                  NULL, prepare, cleanup),
         TestCase("set+get hit (bin)", test_set_get_hit_bin,
+                 test_setup, teardown, NULL, prepare, cleanup),
+        TestCase("set with cas non-existent", test_set_with_cas_non_existent,
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("set+change flags", test_set_change_flags,
                  test_setup, teardown, NULL, prepare, cleanup),

@@ -1346,9 +1346,11 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setWithMeta(const Item &itm,
         break;
     case WAS_DIRTY:
     case WAS_CLEAN:
-    case NOT_FOUND:
         queueDirty(vb, itm.getKey(), itm.getVBucketId(), queue_op_set,
                    itm.getSeqno(), row_id);
+        break;
+    case NOT_FOUND:
+        ret = ENGINE_KEY_ENOENT;
         break;
     }
 

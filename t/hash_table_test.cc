@@ -62,7 +62,7 @@ static int count(HashTable &h, bool verify=true) {
 static void store(HashTable &h, std::string &k) {
     Item i(k, 0, 0, k.c_str(), k.length());
     int64_t row_id = -1;
-    assert(h.set(i, row_id) == NOT_FOUND);
+    assert(h.set(i, row_id) == WAS_CLEAN);
 }
 
 static void storeMany(HashTable &h, std::vector<std::string> &keys) {
@@ -401,7 +401,7 @@ static void testSizeStats() {
     Item i(k, 0, 0, someval, itemSize);
 
     int64_t row_id = -1;
-    assert(ht.set(i, row_id) == NOT_FOUND);
+    assert(ht.set(i, row_id) == WAS_CLEAN);
 
     ht.del(k);
 
@@ -427,7 +427,7 @@ static void testSizeStatsFlush() {
     Item i(k, 0, 0, someval, itemSize);
 
     int64_t row_id = -1;
-    assert(ht.set(i, row_id) == NOT_FOUND);
+    assert(ht.set(i, row_id) == WAS_CLEAN);
 
     ht.clear();
 
@@ -453,7 +453,7 @@ static void testSizeStatsSoftDel() {
     Item i(k, 0, 0, someval, itemSize);
 
     int64_t row_id = -1;
-    assert(ht.set(i, row_id) == NOT_FOUND);
+    assert(ht.set(i, row_id) == WAS_CLEAN);
 
     assert(ht.softDelete(k, 0, row_id) == WAS_DIRTY);
     ht.del(k);
@@ -480,7 +480,7 @@ static void testSizeStatsSoftDelFlush() {
     Item i(k, 0, 0, someval, itemSize);
 
     int64_t row_id = -1;
-    assert(ht.set(i, row_id) == NOT_FOUND);
+    assert(ht.set(i, row_id) == WAS_CLEAN);
 
     assert(ht.softDelete(k, 0, row_id) == WAS_DIRTY);
     ht.clear();
@@ -508,7 +508,7 @@ static void testSizeStatsEject() {
     Item i(k, 0, 0, someval, itemSize);
 
     int64_t row_id = -1;
-    assert(ht.set(i, row_id) == NOT_FOUND);
+    assert(ht.set(i, row_id) == WAS_CLEAN);
 
     StoredValue *v(ht.find(kstring));
     assert(v);
@@ -540,7 +540,7 @@ static void testSizeStatsEjectFlush() {
     Item i(k, 0, 0, someval, itemSize);
 
     int64_t row_id = -1;
-    assert(ht.set(i, row_id) == NOT_FOUND);
+    assert(ht.set(i, row_id) == WAS_CLEAN);
 
     StoredValue *v(ht.find(kstring));
     assert(v);

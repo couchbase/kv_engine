@@ -1206,6 +1206,7 @@ public:
             uint64_t seqno = getMaxDeletedSeqno() + 1;
             v->setSeqno(seqno);
             itm.setSeqno(seqno);
+            rv = WAS_CLEAN;
         }
         return rv;
     }
