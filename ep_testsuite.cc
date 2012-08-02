@@ -5516,7 +5516,7 @@ static void set_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 static void del_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                           const char *key, const size_t keylen,
                           const uint32_t vb, ItemMetaData *itemMeta,
-                          uint64_t cas_for_delete = 0)
+                          uint64_t cas_for_delete)
 {
     union {
         protocol_binary_request_header pkt;
@@ -5550,6 +5550,9 @@ static void del_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 
 static enum test_result test_regression_mb4314(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
 {
+    ItemMetaData itm_meta;
+    check(!get_meta(h, h1, "test_regression_mb4314", itm_meta), "Expected to get meta");
+
     union {
         protocol_binary_request_header pkt;
         protocol_binary_request_set_with_meta req;
@@ -5563,6 +5566,7 @@ static enum test_result test_regression_mb4314(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     msg.req.message.header.request.keylen = htons(22);
     msg.req.message.header.request.vbucket = htons(0);
     msg.req.message.header.request.bodylen = htonl(24 + 22);
+    msg.req.message.header.request.cas = htonll(last_cas);
     memcpy(msg.buffer + sizeof(msg.req.bytes), "test_regression_mb4314", 22);
     msg.req.message.body.flags = htonl(0xdeadbeef);
     msg.req.message.body.expiration = 0;
@@ -5861,9 +5865,10 @@ static enum test_result test_delete_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
     item *i = NULL;
     check(store(h, h1, NULL, OPERATION_SET, key,
                 "somevalue", &i) == ENGINE_SUCCESS, "Failed set.");
+    Item *it = reinterpret_cast<Item*>(i);
 
     // delete an item with meta data
-    del_with_meta(h, h1, key, keylen, 0, &itemMeta);
+    del_with_meta(h, h1, key, keylen, 0, &itemMeta, it->getCas());
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
     // check the stat
     temp = get_int_stat(h, h1, "ep_num_ops_del_meta");
