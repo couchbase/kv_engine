@@ -460,52 +460,38 @@ static bool test_setup(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return true;
 }
 
-static protocol_binary_request_header* create_packet(uint8_t opcode,
-                                                     const char *key,
-                                                     const char *val) {
-    char *pkt_raw = static_cast<char*>(calloc(1,
-                                              sizeof(protocol_binary_request_header)
-                                              + strlen(key)
-                                              + strlen(val)));
-    assert(pkt_raw);
-    protocol_binary_request_header *req =
-        (protocol_binary_request_header*)pkt_raw;
-    req->request.opcode = opcode;
-    req->request.bodylen = htonl(strlen(key) + strlen(val));
-    req->request.keylen = htons(strlen(key));
-    memcpy(pkt_raw + sizeof(protocol_binary_request_header),
-           key, strlen(key));
-    memcpy(pkt_raw + sizeof(protocol_binary_request_header) + strlen(key),
-           val, strlen(val));
-    return req;
-}
-
 static protocol_binary_request_header* createPacket(uint8_t opcode,
-                                                    uint16_t vbid,
+                                                    uint16_t vbid = 0,
+                                                    uint64_t cas = 0,
+                                                    const char *ext = NULL,
+                                                    uint32_t extlen = 0,
                                                     const char *key = NULL,
-                                                    const char *val = NULL) {
+                                                    uint32_t keylen = 0,
+                                                    const char *val = NULL,
+                                                    uint32_t vallen = 0) {
     char *pkt_raw;
-    uint32_t keylen = key != NULL ? strlen(key) : 0;
-    uint32_t vallen = val != NULL ? strlen(val) : 0;
-    pkt_raw = static_cast<char*>(calloc(1,
-                                        sizeof(protocol_binary_request_header)
-                                        + keylen
-                                        + vallen));
+    uint32_t headerlen = sizeof(protocol_binary_request_header);
+    pkt_raw = static_cast<char*>(calloc(1, headerlen + extlen + keylen + vallen));
     assert(pkt_raw);
     protocol_binary_request_header *req =
         (protocol_binary_request_header*)pkt_raw;
     req->request.opcode = opcode;
-    req->request.vbucket = ntohs(vbid);
-    req->request.bodylen = htonl(keylen + vallen);
     req->request.keylen = htons(keylen);
+    req->request.extlen = extlen;
+    req->request.vbucket = htons(vbid);
+    req->request.bodylen = htonl(keylen + vallen + extlen);
+    req->request.cas = ntohll(cas);
+
+    if (extlen > 0) {
+        memcpy(pkt_raw + headerlen, ext, extlen);
+    }
+
     if (keylen > 0) {
-        memcpy(pkt_raw + sizeof(protocol_binary_request_header),
-               key, keylen);
+        memcpy(pkt_raw + headerlen + extlen, key, keylen);
     }
 
     if (vallen > 0) {
-        memcpy(pkt_raw + sizeof(protocol_binary_request_header) + keylen,
-               val, vallen);
+        memcpy(pkt_raw + headerlen + extlen + keylen, val, vallen);
     }
 
     return req;
@@ -543,7 +529,7 @@ static void stop_persistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
         decayingSleep(&sleepTime);
     }
 
-    protocol_binary_request_header *pkt = create_packet(CMD_STOP_PERSISTENCE, "", "");
+    protocol_binary_request_header *pkt = createPacket(CMD_STOP_PERSISTENCE);
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Failed to stop persistence.");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
@@ -551,7 +537,7 @@ static void stop_persistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 }
 
 static void start_persistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    protocol_binary_request_header *pkt = create_packet(CMD_START_PERSISTENCE, "", "");
+    protocol_binary_request_header *pkt = createPacket(CMD_START_PERSISTENCE);
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Failed to stop persistence.");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
@@ -594,8 +580,8 @@ static void evict_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                       const char *msg = NULL, bool expectError = false) {
     int nonResidentItems = get_int_stat(h, h1, "ep_num_non_resident");
     int numEjectedItems = get_int_stat(h, h1, "ep_num_value_ejects");
-    protocol_binary_request_header *pkt = create_packet(CMD_EVICT_KEY,
-                                                        key, "");
+    protocol_binary_request_header *pkt = createPacket(CMD_EVICT_KEY, 0, 0,
+                                                       NULL, 0, key, strlen(key));
     pkt->request.vbucket = htons(vbucketId);
 
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
@@ -817,12 +803,12 @@ static enum test_result test_unl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const char *key = "k2";
     uint16_t vbucketId = 0;
 
-    protocol_binary_request_header *pkt = create_packet(CMD_GET_LOCKED,
-                                                        key, "");
+    protocol_binary_request_header *pkt = createPacket(CMD_GET_LOCKED, 0, 0,
+                                                       NULL, 0, key, strlen(key));
     pkt->request.vbucket = htons(vbucketId);
 
-    protocol_binary_request_header *pkt_ul = create_packet(CMD_UNLOCK_KEY,
-                                                        key, "");
+    protocol_binary_request_header *pkt_ul = createPacket(CMD_UNLOCK_KEY, 0, 0,
+                                                          NULL, 0, key, strlen(key));
     pkt_ul->request.vbucket = htons(vbucketId);
 
     check(h1->unknown_command(h, NULL, pkt_ul, add_response) == ENGINE_SUCCESS,
@@ -2917,17 +2903,20 @@ static enum test_result test_vbucket_create(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
 
 static enum test_result vbucket_destroy(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                              const char* value = NULL) {
+    uint32_t vallen = value ? strlen(value) : 0;
     check(set_vbucket_state(h, h1, 1, vbucket_state_active), "Failed to set vbucket state.");
 
     protocol_binary_request_header *pkt =
-        createPacket(PROTOCOL_BINARY_CMD_DEL_VBUCKET, 1, NULL, value);
+        createPacket(PROTOCOL_BINARY_CMD_DEL_VBUCKET, 1, 0, NULL, 0, NULL, 0,
+                     value, vallen);
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Failed to request delete bucket");
 
     check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL,
           "Expected failure deleting active bucket.");
 
-    pkt = createPacket(PROTOCOL_BINARY_CMD_DEL_VBUCKET, 2, NULL, value);
+    pkt = createPacket(PROTOCOL_BINARY_CMD_DEL_VBUCKET, 2, 0, NULL, 0, NULL, 0,
+                       value, vallen);
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Failed to request delete bucket");
     check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET,
@@ -2935,7 +2924,8 @@ static enum test_result vbucket_destroy(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 
     check(set_vbucket_state(h, h1, 1, vbucket_state_dead), "Failed set set vbucket 1 state.");
 
-    pkt = createPacket(PROTOCOL_BINARY_CMD_DEL_VBUCKET, 1, NULL, value);
+    pkt = createPacket(PROTOCOL_BINARY_CMD_DEL_VBUCKET, 1, 0, NULL, 0, NULL, 0,
+                       value, vallen);
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Failed to delete dead bucket.");
 
@@ -3003,8 +2993,10 @@ static enum test_result test_vbucket_destroy_stats(ENGINE_HANDLE *h,
 
 static enum test_result vbucket_destroy_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                                 const char* value = NULL) {
+    uint32_t vallen = value ? strlen(value) : 0;
     protocol_binary_request_header *pkt =
-        createPacket(PROTOCOL_BINARY_CMD_DEL_VBUCKET, 1, NULL, value);
+        createPacket(PROTOCOL_BINARY_CMD_DEL_VBUCKET, 1, 0, NULL, 0, NULL, 0,
+                     value, vallen);
     check(set_vbucket_state(h, h1, 1, vbucket_state_active), "Failed to set vbucket state.");
 
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
@@ -4641,8 +4633,8 @@ static enum test_result test_value_eviction(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
     evict_key(h, h1, "k1", 0, "Already ejected.");
     evict_key(h, h1, "k2", 1, "Already ejected.");
 
-    protocol_binary_request_header *pkt = create_packet(CMD_EVICT_KEY,
-                                                        "missing-key", "");
+    protocol_binary_request_header *pkt = createPacket(CMD_EVICT_KEY, 0, 0,
+                                                       NULL, 0, "missing-key", 11);
     pkt->request.vbucket = htons(0);
 
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
@@ -6750,13 +6742,13 @@ static enum test_result test_observe_errors(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
     free(pkt);
 
     // Check invalid packets
-    pkt = createPacket(CMD_OBSERVE, 0, NULL, "0");
+    pkt = createPacket(CMD_OBSERVE, 0, 0, NULL, 0, NULL, 0, "0", 1);
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Observe failed.");
     check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL, "Expected invalid");
     free(pkt);
 
-    pkt = createPacket(CMD_OBSERVE, 0, NULL, "0000");
+    pkt = createPacket(CMD_OBSERVE, 0, 0, NULL, 0, NULL, 0, "0000", 4);
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Observe failed.");
     check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL, "Expected invalid");
