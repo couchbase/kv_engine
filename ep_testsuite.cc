@@ -436,28 +436,21 @@ static bool add_response_get_meta(const void *key, uint16_t keylen,
                         status, cas, cookie);
 }
 
-static bool test_setup(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    wait_for_warmup_complete(h, h1);
+static void encodeExt(char *buffer, uint32_t val) {
+    val = htonl(val);
+    memcpy(buffer, (char*)&val, sizeof(val));
+}
 
-    // warmup is complete, notify ep engine that it must now enable
-    // data traffic
-    protocol_binary_request_no_extras req;
-    protocol_binary_request_header *pkt;
-    pkt = reinterpret_cast<protocol_binary_request_header *>(&req);
-    memset (&req, 0, sizeof(req));
+static void encodeWithMetaExt(char *buffer, ItemMetaData *meta) {
+    uint32_t flags = htonl(meta->flags);
+    uint32_t exp = htonl(meta->exptime);
+    uint64_t seqno = htonll(meta->seqno);
+    uint64_t cas = htonll(meta->cas);
 
-    req.message.header.request.magic = PROTOCOL_BINARY_REQ;
-    req.message.header.request.opcode = CMD_ENABLE_TRAFFIC;
-
-    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
-          "Failed to enable data traffic");
-
-    int restore_mode = get_int_stat(h, h1, "ep_restore_mode");
-    if (!restore_mode) {
-        check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
-              "Expected to be able to enable data traffic at engine level");
-    }
-    return true;
+    memcpy(buffer, (char*)&flags, sizeof(flags));
+    memcpy(buffer + 4, (char*)&exp, sizeof(exp));
+    memcpy(buffer + 8, (char*)&seqno, sizeof(seqno));
+    memcpy(buffer + 16, (char*)&cas, sizeof(cas));
 }
 
 static protocol_binary_request_header* createPacket(uint8_t opcode,
@@ -497,27 +490,21 @@ static protocol_binary_request_header* createPacket(uint8_t opcode,
     return req;
 }
 
-static protocol_binary_request_header* create_set_param_packet(uint8_t opcode,
-                                                               engine_param_t paramtype,
-                                                               const char *key,
-                                                               const char *val) {
-    size_t keylen = strlen(key);
-    size_t vallen = strlen(val);
-    size_t header_size = sizeof(protocol_binary_request_header) + sizeof(engine_param_t);
+static bool test_setup(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    wait_for_warmup_complete(h, h1);
 
-    char *pkt_raw = static_cast<char*>(calloc(1, header_size + keylen + vallen));
-    assert(pkt_raw);
-    protocol_binary_request_set_param *req = (protocol_binary_request_set_param*) pkt_raw;
-    req->message.header.request.magic = PROTOCOL_BINARY_REQ;
-    req->message.header.request.opcode = opcode;
-    req->message.header.request.extlen = sizeof(engine_param_t);
-    req->message.header.request.bodylen = htonl(keylen + vallen + sizeof(engine_param_t));
-    req->message.header.request.keylen = htons(keylen);
-    req->message.body.param_type = static_cast<engine_param_t>(htonl(paramtype));
-    memcpy(pkt_raw + header_size, key, keylen);
-    memcpy(pkt_raw + header_size + keylen, val, vallen);
+    // warmup is complete, notify ep engine that it must now enable
+    // data traffic
+    protocol_binary_request_header *pkt = createPacket(CMD_ENABLE_TRAFFIC);
+    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
+          "Failed to enable data traffic");
 
-    return (protocol_binary_request_header *)req;
+    int restore_mode = get_int_stat(h, h1, "ep_restore_mode");
+    if (!restore_mode) {
+        check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+              "Expected to be able to enable data traffic at engine level");
+    }
+    return true;
 }
 
 static void stop_persistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
@@ -556,23 +543,8 @@ static protocol_binary_request_header*
         value.write(it->first.c_str(), it->first.length());
     }
 
-    uint16_t val_len = value.str().length();
-
-    char *pkt_raw;
-    pkt_raw = static_cast<char*>(calloc(1, sizeof(protocol_binary_request_header)
-                                           + val_len));
-    assert(pkt_raw);
-    protocol_binary_request_header *req = (protocol_binary_request_header*)pkt_raw;
-    req->request.opcode = CMD_OBSERVE;
-    req->request.vbucket = ntohs(0);
-    req->request.bodylen = htonl(val_len);
-    req->request.keylen = htons(0);
-
-    if (val_len > 0) {
-        memcpy(pkt_raw + sizeof(protocol_binary_request_header),
-            value.str().data(), val_len);
-    }
-    return req;
+    return createPacket(CMD_OBSERVE, 0, 0, NULL, 0, NULL, 0, value.str().data(),
+                        value.str().length());
 }
 
 static void evict_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
@@ -613,23 +585,10 @@ static void evict_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 
 static bool get_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
                      ItemMetaData &itm_meta) {
-    uint16_t nkey = strlen(key);
+    protocol_binary_request_header *req = createPacket(CMD_GET_META, 0, 0, NULL,
+                                                       0, key, strlen(key));
 
-    union {
-        protocol_binary_request_header pkt;
-        protocol_binary_request_get req;
-        char buffer[1024];
-    } msg;
-    memset(&msg.req, 0, sizeof(msg));
-
-    msg.req.message.header.request.magic = PROTOCOL_BINARY_REQ;
-    msg.req.message.header.request.opcode = CMD_GET_META;
-    msg.req.message.header.request.keylen = ntohs(nkey);
-    msg.req.message.header.request.vbucket = htons(0);
-    msg.req.message.header.request.bodylen = htonl(nkey);
-    memcpy(msg.buffer + sizeof(msg.req.bytes), key, nkey);
-
-    ENGINE_ERROR_CODE ret = h1->unknown_command(h, NULL, &msg.pkt,
+    ENGINE_ERROR_CODE ret = h1->unknown_command(h, NULL, req,
                                                 add_response_get_meta);
     check(ret == ENGINE_SUCCESS, "Expected get_meta call to be successful");
     if (last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
@@ -641,24 +600,13 @@ static bool get_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
 
 static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const char *key = "k1";
-    uint16_t keylen = (uint16_t)strlen(key);
-    char *pkt_raw = static_cast<char*>(calloc(1,sizeof(protocol_binary_request_getl)
-                                                 + keylen));
-    memcpy(pkt_raw + sizeof(protocol_binary_request_getl), key, keylen);
     uint16_t vbucketId = 0;
     uint32_t expiration = 25;
+    protocol_binary_request_header *pkt;
 
-    protocol_binary_request_getl *gl = (protocol_binary_request_getl*)pkt_raw;
-    protocol_binary_request_header *pkt = (protocol_binary_request_header *)pkt_raw;
-
-    gl->message.header.request.magic = PROTOCOL_BINARY_REQ;
-    gl->message.header.request.opcode = CMD_GET_LOCKED;
-    gl->message.header.request.extlen = 4;
-    gl->message.header.request.bodylen = htonl(keylen + 4);
-    gl->message.header.request.keylen = htons(keylen);
-    gl->message.header.request.vbucket = htons(vbucketId);
-    gl->message.body.expiration = htonl(expiration);
-    memcpy(gl->bytes + sizeof(gl->bytes), key, keylen);
+    char ext[4];
+    encodeExt(ext, expiration);
+    pkt = createPacket(CMD_GET_LOCKED, vbucketId, 0, ext, 4, key, strlen(key));
 
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Getl Failed");
@@ -875,15 +823,10 @@ static enum test_result test_unl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 static bool set_vbucket_state(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                               uint16_t vb, vbucket_state_t state) {
 
-    protocol_binary_request_set_vbucket req;
+    char ext[4];
     protocol_binary_request_header *pkt;
-    pkt = reinterpret_cast<protocol_binary_request_header*>(&req);
-    memset(&req, 0, sizeof(req));
-
-    req.message.header.request.magic = PROTOCOL_BINARY_REQ;
-    req.message.header.request.opcode = PROTOCOL_BINARY_CMD_SET_VBUCKET;
-    req.message.header.request.vbucket = htons(vb);
-    req.message.body.state = static_cast<vbucket_state_t>(htonl(state));
+    encodeExt(ext, static_cast<uint32_t>(state));
+    pkt = createPacket(PROTOCOL_BINARY_CMD_SET_VBUCKET, vb, 0, ext, 4);
 
     if (h1->unknown_command(h, NULL, pkt, add_response) != ENGINE_SUCCESS) {
         return false;
@@ -894,9 +837,12 @@ static bool set_vbucket_state(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 
 static bool set_param(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                       engine_param_t paramtype, const char *param, const char *val) {
-    protocol_binary_request_header *pkt = create_set_param_packet(CMD_SET_PARAM,
-                                                                  paramtype,
-                                                                  param, val);
+    char ext[4];
+    protocol_binary_request_header *pkt;
+    encodeExt(ext, static_cast<uint32_t>(paramtype));
+    pkt = createPacket(CMD_SET_PARAM, 0, 0, ext, sizeof(engine_param_t), param,
+                       strlen(param), val, strlen(val));
+
     if (h1->unknown_command(h, NULL, pkt, add_response) != ENGINE_SUCCESS) {
         return false;
     }
@@ -907,15 +853,8 @@ static bool set_param(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 static bool verify_vbucket_state(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                  uint16_t vb, vbucket_state_t expected,
                                  bool mute = false) {
-
-    protocol_binary_request_get_vbucket req;
     protocol_binary_request_header *pkt;
-    pkt = reinterpret_cast<protocol_binary_request_header*>(&req);
-    memset(&req, 0, sizeof(req));
-
-    req.message.header.request.magic = PROTOCOL_BINARY_REQ;
-    req.message.header.request.opcode = PROTOCOL_BINARY_CMD_GET_VBUCKET;
-    req.message.header.request.vbucket = htons(vb);
+    pkt = createPacket(PROTOCOL_BINARY_CMD_GET_VBUCKET, vb, 0);
 
     ENGINE_ERROR_CODE errcode = h1->unknown_command(h, NULL, pkt, add_response);
     if (errcode != ENGINE_SUCCESS) {
@@ -2400,27 +2339,10 @@ static protocol_binary_request_header *
                                ENGINE_HANDLE_V1 *h1,
                                vbucket_state_t state,
                                bool makeinvalidkey = false) {
-    const char *key = "k0";
-    size_t key_size = strlen(key);
-
-    size_t hdr_size = sizeof(protocol_binary_request_no_extras);
-    char *pkt_raw = static_cast<char*>(calloc(1, strlen(key) + hdr_size));
-
     uint16_t id = 0;
-    uint8_t  extlen = 8;
-
-    protocol_binary_request_no_extras *gr;
+    const char *key = "k0";
     protocol_binary_request_header *pkt;
-
-    memcpy(pkt_raw + hdr_size, key, key_size);
-    gr = (protocol_binary_request_no_extras *)pkt_raw;
-    gr->message.header.request.opcode = CMD_GET_REPLICA;
-    gr->message.header.request.extlen = extlen;
-    gr->message.header.request.bodylen = htonl(key_size + extlen);
-    gr->message.header.request.keylen = htons(key_size);
-    gr->message.header.request.vbucket = htons(id);
-
-    pkt = &gr->message.header;
+    pkt = createPacket(CMD_GET_REPLICA, id, 0, NULL, 0, key, strlen(key));
 
     if (!makeinvalidkey) {
         item *i = NULL;
@@ -2518,45 +2440,37 @@ static enum test_result test_vb_del_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
 }
 
 static enum test_result test_touch(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    char buffer[512];
-    memset(buffer, 0, sizeof(buffer));
-    protocol_binary_request_touch *req = reinterpret_cast<protocol_binary_request_touch *>(buffer);
-    protocol_binary_request_header *request = reinterpret_cast<protocol_binary_request_header*>(req);
-
-    req->message.header.request.magic = PROTOCOL_BINARY_REQ;
-    req->message.header.request.opcode = PROTOCOL_BINARY_CMD_TOUCH;
-    req->message.header.request.extlen = 4;
-    req->message.header.request.bodylen = htonl(4);
-    req->message.body.expiration = ntohl(time(NULL) + 10);
+    char ext[4];
+    protocol_binary_request_header *request;
+    encodeExt(ext, (time(NULL) + 10));
+    request = createPacket(PROTOCOL_BINARY_CMD_TOUCH, 0, 0, ext, 4);
 
     // key is a mandatory field!
     check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
           "Failed to call touch");
     check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL, "Testing invalid arguments");
+    free(request);
 
     // extlen is a mandatory field!
-    req->message.header.request.extlen = 0;
-    req->message.header.request.keylen = 4;
+    request = createPacket(PROTOCOL_BINARY_CMD_TOUCH, 0, 0, NULL, 0, "akey", 4);
     check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
           "Failed to call touch");
     check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL, "Testing invalid arguments");
+    free(request);
 
     // Try to touch an unknown item...
-    req->message.header.request.extlen = 4;
-    req->message.header.request.keylen = htons(5);
-    req->message.header.request.bodylen = htonl(4 + 5);
-    memcpy(buffer + sizeof(req->bytes), "mykey", 5);
-
+    request = createPacket(PROTOCOL_BINARY_CMD_TOUCH, 0, 0, ext, 4, "mykey", 5);
     check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
           "Failed to call touch");
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, "Testing unknown key");
+    free(request);
 
     // illegal vbucket
-    req->message.header.request.vbucket = htons(5);
+    request = createPacket(PROTOCOL_BINARY_CMD_TOUCH, 5, 0, ext, 4, "mykey", 5);
     check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
           "Failed to call touch");
     check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, "Testing illegal vbucket");
-    req->message.header.request.vbucket = 0;
+    free(request);
 
     // Store the item!
     item *itm = NULL;
@@ -2567,9 +2481,11 @@ static enum test_result test_touch(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(check_key_value(h, h1, "mykey", "somevalue", strlen("somevalue")) == SUCCESS,
           "Failed to retrieve data");
 
+    request = createPacket(PROTOCOL_BINARY_CMD_TOUCH, 0, 0, ext, 4, "mykey", 5);
     check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
           "Failed to call touch");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "touch mykey");
+    free(request);
 
     // time-travel 9 secs..
     testHarness.time_travel(9);
@@ -2586,46 +2502,38 @@ static enum test_result test_touch(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 }
 
 static enum test_result test_gat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    char buffer[512];
-    memset(buffer, 0, sizeof(buffer));
-    protocol_binary_request_gat *req = reinterpret_cast<protocol_binary_request_gat *>(buffer);
-    protocol_binary_request_header *request = reinterpret_cast<protocol_binary_request_header*>(req);
-
-    req->message.header.request.magic = PROTOCOL_BINARY_REQ;
-    req->message.header.request.opcode = PROTOCOL_BINARY_CMD_GAT;
-    req->message.header.request.extlen = 4;
-    req->message.header.request.bodylen = htonl(4);
-    req->message.body.expiration = ntohl(10);
+    char ext[4];
+    protocol_binary_request_header *request;
+    encodeExt(ext, 10);
+    request = createPacket(PROTOCOL_BINARY_CMD_GAT, 0, 0, ext, 4);
 
     // key is a mandatory field!
     check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
           "Failed to call gat");
     check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL, "Testing invalid arguments");
+    free(request);
 
     // extlen is a mandatory field!
-    req->message.header.request.extlen = 0;
-    req->message.header.request.keylen = 4;
+    request = createPacket(PROTOCOL_BINARY_CMD_GAT, 0, 0, NULL, 0, "akey", 4);
     check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
           "Failed to call gat");
     check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL, "Testing invalid arguments");
+    free(request);
 
     // Try to touch an unknown item...
-    req->message.header.request.extlen = 4;
-    req->message.header.request.keylen = htons(5);
-    req->message.header.request.bodylen = htonl(4 + 5);
-    memcpy(buffer + sizeof(req->bytes), "mykey", 5);
-
+    request = createPacket(PROTOCOL_BINARY_CMD_GAT, 0, 0, ext, 4, "mykey", 5);
     check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
           "Failed to call gat");
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, "Testing unknown key");
+    free(request);
 
     // illegal vbucket
-    req->message.header.request.vbucket = htons(5);
+    request = createPacket(PROTOCOL_BINARY_CMD_GAT, 5, 0, ext, 4, "mykey", 5);
     check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
           "Failed to call touch");
 
     check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, "Testing illegal vbucket");
-    req->message.header.request.vbucket = 0;
+    free(request);
 
     // Store the item!
     item *itm = NULL;
@@ -2636,11 +2544,13 @@ static enum test_result test_gat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(check_key_value(h, h1, "mykey", "somevalue", strlen("somevalue")) == SUCCESS,
           "Failed to retrieve data");
 
+    request = createPacket(PROTOCOL_BINARY_CMD_GAT, 0, 0, ext, 4, "mykey", 5);
     check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
           "Failed to call gat");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "gat mykey");
     check(memcmp(last_body, "somevalue", sizeof("somevalue")) == 0,
           "Invalid data returned");
+    free(request);
 
     // time-travel 9 secs..
     testHarness.time_travel(9);
@@ -2657,48 +2567,40 @@ static enum test_result test_gat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 }
 
 static enum test_result test_gatq(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    char buffer[512];
-    memset(buffer, 0, sizeof(buffer));
-    protocol_binary_request_gat *req = reinterpret_cast<protocol_binary_request_gat *>(buffer);
-    protocol_binary_request_header *request = reinterpret_cast<protocol_binary_request_header*>(req);
-
-    req->message.header.request.magic = PROTOCOL_BINARY_REQ;
-    req->message.header.request.opcode = PROTOCOL_BINARY_CMD_GATQ;
-    req->message.header.request.extlen = 4;
-    req->message.header.request.bodylen = htonl(4);
-    req->message.body.expiration = ntohl(10);
+    char ext[4];
+    protocol_binary_request_header *request;
+    encodeExt(ext, 10);
+    request = createPacket(PROTOCOL_BINARY_CMD_GATQ, 0, 0, ext, 4);
 
     // key is a mandatory field!
     check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
           "Failed to call gat");
     check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL, "Testing invalid arguments");
+    free(request);
 
     // extlen is a mandatory field!
-    req->message.header.request.extlen = 0;
-    req->message.header.request.keylen = 4;
+    request = createPacket(PROTOCOL_BINARY_CMD_GATQ, 0, 0, NULL, 0, "akey", 4);
     check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
           "Failed to call gat");
     check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL, "Testing invalid arguments");
+    free(request);
 
     // Try to gat an unknown item...
-    req->message.header.request.extlen = 4;
-    req->message.header.request.keylen = htons(5);
-    req->message.header.request.bodylen = htonl(4 + 5);
-    memcpy(buffer + sizeof(req->bytes), "mykey", 5);
-
+    request = createPacket(PROTOCOL_BINARY_CMD_GATQ, 0, 0, ext, 4, "mykey", 5);
     last_status = static_cast<protocol_binary_response_status>(0xffff);
     check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
           "Failed to call gat");
+    free(request);
 
     // We should not have sent any response!
     check(last_status == 0xffff, "Testing unknown key");
 
     // illegal vbucket
-    req->message.header.request.vbucket = htons(5);
+    request = createPacket(PROTOCOL_BINARY_CMD_GATQ, 5, 0, ext, 4, "mykey", 5);
     check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
           "Failed to call touch");
     check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, "Testing illegal vbucket");
-    req->message.header.request.vbucket = 0;
+    free(request);
 
     // Store the item!
     item *itm = NULL;
@@ -2709,11 +2611,13 @@ static enum test_result test_gatq(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(check_key_value(h, h1, "mykey", "somevalue", strlen("somevalue")) == SUCCESS,
           "Failed to retrieve data");
 
+    request = createPacket(PROTOCOL_BINARY_CMD_GATQ, 0, 0, ext, 4, "mykey", 5);
     check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
           "Failed to call gat");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "gat mykey");
     check(memcmp(last_body, "somevalue", sizeof("somevalue")) == 0,
           "Invalid data returned");
+    free(request);
     // time-travel 9 secs..
     testHarness.time_travel(9);
 
@@ -2739,20 +2643,10 @@ static enum test_result test_mb5215(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     // set new exptime to 111
     int expTime = time(NULL) + 111;
-    char buffer[512];
-    memset(buffer, 0, sizeof(buffer));
-    protocol_binary_request_touch *req =
-        reinterpret_cast<protocol_binary_request_touch *>(buffer);
-    protocol_binary_request_header *request =
-        reinterpret_cast<protocol_binary_request_header*>(req);
-    req->message.header.request.magic = PROTOCOL_BINARY_REQ;
-    req->message.header.request.opcode = PROTOCOL_BINARY_CMD_TOUCH;
-    req->message.header.request.vbucket = 0;
-    req->message.header.request.extlen = 4;
-    req->message.header.request.keylen = htons(7);
-    req->message.header.request.bodylen = htonl(17);
-    req->message.body.expiration = ntohl(expTime);
-    memcpy(buffer + sizeof(req->bytes), "coolkey", 7);
+    char ext[4];
+    encodeExt(ext, expTime);
+    protocol_binary_request_header *request;
+    request = createPacket(PROTOCOL_BINARY_CMD_TOUCH, 0, 0, ext, 4, "coolkey", 7);
 
     check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
           "Failed to call touch");
@@ -2777,8 +2671,10 @@ static enum test_result test_mb5215(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     // evict key, touch expiration time, and verify
     evict_key(h, h1, "coolkey", 0, "Ejected.");
 
+    free(request);
     expTime = time(NULL) + 222;
-    req->message.body.expiration = ntohl(expTime);
+    encodeExt(ext, expTime);
+    request = createPacket(PROTOCOL_BINARY_CMD_TOUCH, 0, 0, ext, 4, "coolkey", 7);
     check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
           "Failed to call touch");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "touch coolkey");
@@ -2794,6 +2690,7 @@ static enum test_result test_mb5215(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     h1->release(h, NULL, itm);
     newExpTime = get_int_stat(h, h1, "key_exptime", statkey);
     check(newExpTime == expTime, "Failed to persist new exptime");
+    free(request);
 
     return SUCCESS;
 }
@@ -3687,35 +3584,22 @@ static enum test_result test_tap_filter_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V
             // We've got some of the elements.. Let's change the filter
             // and get the rest
             if (found == 10) {
-                size_t header_size = sizeof(protocol_binary_request_no_extras);
-                char *pkt_raw = static_cast<char*>(calloc(1, header_size + name.length() + 32));
-                protocol_binary_request_no_extras *req;
-                req = (protocol_binary_request_no_extras *)pkt_raw;
-
+                char val[32];
                 numOfVBs = htons(3); // vbuckets 0, 1, 2
-                pkt_raw += header_size;
-                memcpy(pkt_raw, name.c_str(), name.length());
-                pkt_raw += name.length();
-                memcpy(pkt_raw, &numOfVBs, sizeof(uint16_t));
-                pkt_raw += sizeof(uint16_t);
+                memcpy(val, &numOfVBs, sizeof(uint16_t));
                 for (int i = 0; i < 3; ++i) {
-                    memcpy(pkt_raw, &vbucketfilter[i], sizeof(uint16_t));
-                    pkt_raw += sizeof(uint16_t);
-                    memcpy(pkt_raw, &checkpointIds[i], sizeof(uint64_t));
-                    pkt_raw += sizeof(uint64_t);
+                    memcpy(val + i * 10 + 2, &vbucketfilter[i], sizeof(uint16_t));
+                    memcpy(val + i * 10 + 4, &checkpointIds[i], sizeof(uint64_t));
                 }
-
-                req->message.header.request.opcode = CMD_CHANGE_VB_FILTER;
-                req->message.header.request.bodylen = htonl(name.length() + 32);
-                req->message.header.request.keylen = htons(name.length());
-
                 protocol_binary_request_header *pkt;
-                pkt = reinterpret_cast<protocol_binary_request_header*>(req);
+                pkt = createPacket(CMD_CHANGE_VB_FILTER, 0, 0, NULL, 0, name.c_str(),
+                                   name.length(), val, 32);
+
                 check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
                       "Failed to change the TAP VB filter.");
                 check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
                       "Expected success response from changing the TAP VB filter.");
-                free((char *)req);
+                free(pkt);
             }
             break;
         case TAP_DISCONNECT:
@@ -5211,16 +5095,7 @@ static enum test_result test_create_new_checkpoint(ENGINE_HANDLE *h, ENGINE_HAND
         h1->release(h, NULL, i);
     }
 
-    protocol_binary_request_no_extras req;
-    protocol_binary_request_header *pkt;
-    pkt = reinterpret_cast<protocol_binary_request_header*>(&req);
-    memset(&req, 0, sizeof(req));
-
-    // Command to create a new checkpoint with id 3 by force.
-    req.message.header.request.magic = PROTOCOL_BINARY_REQ;
-    req.message.header.request.opcode = CMD_CREATE_CHECKPOINT;
-    req.message.header.request.vbucket = htons(0);
-
+    protocol_binary_request_header *pkt = createPacket(CMD_CREATE_CHECKPOINT);
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Failed to create a new checkpoint.");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
@@ -5233,18 +5108,10 @@ static enum test_result test_create_new_checkpoint(ENGINE_HANDLE *h, ENGINE_HAND
 }
 
 static enum test_result test_extend_open_checkpoint(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    char *pkt_raw = static_cast<char*>(calloc(1,
-                                              sizeof(protocol_binary_request_header)
-                                              + 4));
-    protocol_binary_request_header *pkt = (protocol_binary_request_header*) pkt_raw;
-
-    // Command to extend the open checkpoint.
-    pkt->request.magic = PROTOCOL_BINARY_REQ;
-    pkt->request.opcode = CMD_EXTEND_CHECKPOINT;
-    pkt->request.vbucket = htons(0);
-    pkt->request.bodylen = htonl(4);
-    uint32_t val = htonl(1);
-    memcpy(pkt_raw + sizeof(protocol_binary_request_header), &val, sizeof(uint32_t));
+    char val[4];
+    encodeExt(val, 1);
+    protocol_binary_request_header *pkt;
+    pkt = createPacket(CMD_EXTEND_CHECKPOINT, 0, 0, NULL, 0, NULL, 0, val, 4);
 
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Failed to extend the open checkpoint.");
@@ -5281,7 +5148,7 @@ static enum test_result test_extend_open_checkpoint(ENGINE_HANDLE *h, ENGINE_HAN
     check(get_int_stat(h, h1, "vb_0:last_closed_checkpoint_id", "checkpoint 0") == 1,
           "Last closed checkpoint Id for VB 0 should be 1");
 
-    free(pkt_raw);
+    free(pkt);
     return SUCCESS;
 }
 
@@ -5311,21 +5178,8 @@ static enum test_result test_validate_checkpoint_params(ENGINE_HANDLE *h, ENGINE
 
 static enum test_result test_revid(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
 {
-    union {
-        protocol_binary_request_header pkt;
-        protocol_binary_request_get_meta req;
-        char buffer[1024];
-    } msg;
-    memset(&msg.req, 0, sizeof(msg));
-
-    msg.req.message.header.request.magic = PROTOCOL_BINARY_REQ;
-    msg.req.message.header.request.opcode = CMD_GET_META;
-    msg.req.message.header.request.extlen = 0;
-    msg.req.message.header.request.keylen = ntohs(10);
-    msg.req.message.header.request.vbucket = htons(0);
-    msg.req.message.header.request.bodylen = htonl(10);
-    memcpy(msg.buffer + sizeof(msg.req.bytes), "test_revid", 10);
-
+    protocol_binary_request_header *pkt;
+    pkt = createPacket(CMD_GET_META, 0, 0, NULL, 0, "test_revid", 10);
 
     for (uint64_t ii = 1; ii < 10; ++ii) {
         item *it;
@@ -5333,7 +5187,7 @@ static enum test_result test_revid(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
               == ENGINE_SUCCESS, "Failed to store a value");
         h1->release(h, NULL, it);
 
-        ENGINE_ERROR_CODE ret = h1->unknown_command(h, NULL, &msg.pkt,
+        ENGINE_ERROR_CODE ret = h1->unknown_command(h, NULL, pkt,
                                                     add_response);
 
         check(ret == ENGINE_SUCCESS, "Failed to get meta data");
@@ -5355,41 +5209,14 @@ static void set_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                           const uint32_t vb, ItemMetaData *itemMeta,
                           uint64_t cas_for_set)
 {
-    union {
-        protocol_binary_request_header pkt;
-        protocol_binary_request_set_with_meta req;
-        char buffer[1024];
-    } msg;
-    memset(&msg.req, 0, sizeof(msg));
+    char ext[24];
+    encodeWithMetaExt(ext, itemMeta);
+    protocol_binary_request_header *pkt;
+    pkt = createPacket(CMD_SET_WITH_META, vb, cas_for_set, ext, 24, key, keylen,
+                       val, vallen);
 
-    // extlen of operation SET_WITH_META is 24
-    uint8_t extlen = 24;
-    size_t bodyLen = keylen + extlen + vallen;
-
-    msg.req.message.header.request.magic = PROTOCOL_BINARY_REQ;
-    msg.req.message.header.request.opcode = CMD_SET_WITH_META;
-    msg.req.message.header.request.extlen = extlen;
-    msg.req.message.header.request.keylen = htons(keylen);
-    msg.req.message.header.request.vbucket = htons(vb);
-    msg.req.message.header.request.bodylen = htonl(bodyLen);
-    msg.req.message.header.request.cas = htonll(cas_for_set);
-
-    memcpy(msg.buffer + sizeof(msg.req.bytes), key, keylen);
-    // if comes with value
-    if( vallen > 0 && val ) {
-        memcpy(msg.buffer + sizeof(msg.req.bytes) + keylen, val, vallen);
-    }
-    msg.req.message.body.flags = htonl(itemMeta->flags);
-    msg.req.message.body.expiration = htonl(itemMeta->exptime);
-    msg.req.message.body.seqno = htonll(itemMeta->seqno);
-    msg.req.message.body.cas = htonll(itemMeta->cas);
-
-    ENGINE_ERROR_CODE ret = h1->unknown_command(h, NULL, &msg.pkt,
-                                                add_response);
-
-    check(ret == ENGINE_SUCCESS, "Expected to be able to store with meta");
-
-    return;
+    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
+          "Expected to be able to store with meta");
 }
 
 static void del_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
@@ -5397,34 +5224,13 @@ static void del_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                           const uint32_t vb, ItemMetaData *itemMeta,
                           uint64_t cas_for_delete)
 {
-    union {
-        protocol_binary_request_header pkt;
-        protocol_binary_request_delete_with_meta req;
-        char buffer[1024];
-    } msg;
-    memset(&msg.req, 0, sizeof(msg));
+    char ext[24];
+    encodeWithMetaExt(ext, itemMeta);
+    protocol_binary_request_header *pkt;
+    pkt = createPacket(CMD_DEL_WITH_META, vb, cas_for_delete, ext, 24, key, keylen);
 
-    // extlen of operation DEL_WITH_META is 24
-    const uint8_t extlen = 24;
-    msg.req.message.header.request.magic = PROTOCOL_BINARY_REQ;
-    msg.req.message.header.request.opcode = CMD_DEL_WITH_META;
-    msg.req.message.header.request.extlen = extlen;
-    msg.req.message.header.request.keylen = htons(keylen);
-    msg.req.message.header.request.vbucket = htons(vb);
-    msg.req.message.header.request.bodylen = htonl(keylen + extlen);
-    msg.req.message.header.request.cas = htonll(cas_for_delete);
-    memcpy(msg.buffer + sizeof(msg.req.bytes), key, keylen);
-    msg.req.message.body.flags = htonl(itemMeta->flags);
-    msg.req.message.body.expiration = htonl(itemMeta->exptime);
-    msg.req.message.body.seqno = htonll(itemMeta->seqno);
-    msg.req.message.body.cas = htonll(itemMeta->cas);
-
-    ENGINE_ERROR_CODE ret = h1->unknown_command(h, NULL, &msg.pkt,
-                                                add_response);
-
-    check(ret == ENGINE_SUCCESS, "Expected to be able to delete with meta");
-
-    return;
+    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
+          "Expected to be able to delete with meta");
 }
 
 static enum test_result test_regression_mb4314(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
@@ -5432,34 +5238,15 @@ static enum test_result test_regression_mb4314(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     ItemMetaData itm_meta;
     check(!get_meta(h, h1, "test_regression_mb4314", itm_meta), "Expected to get meta");
 
-    union {
-        protocol_binary_request_header pkt;
-        protocol_binary_request_set_with_meta req;
-        char buffer[1024];
-    } msg;
-    memset(&msg.req, 0, sizeof(msg));
-
-    msg.req.message.header.request.magic = PROTOCOL_BINARY_REQ;
-    msg.req.message.header.request.opcode = CMD_SET_WITH_META;
-    msg.req.message.header.request.extlen = 24;
-    msg.req.message.header.request.keylen = htons(22);
-    msg.req.message.header.request.vbucket = htons(0);
-    msg.req.message.header.request.bodylen = htonl(24 + 22);
-    msg.req.message.header.request.cas = htonll(last_cas);
-    memcpy(msg.buffer + sizeof(msg.req.bytes), "test_regression_mb4314", 22);
-    msg.req.message.body.flags = htonl(0xdeadbeef);
-    msg.req.message.body.expiration = 0;
-    msg.req.message.body.seqno = htonll(10);
-    msg.req.message.body.cas = htonll(0xdeadbeef);
-
-    ENGINE_ERROR_CODE ret = h1->unknown_command(h, NULL, &msg.pkt,
-                                                add_response);
-    check(ret == ENGINE_SUCCESS, "Expected to be able to store with meta");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    itm_meta.flags = 0xdeadbeef;
+    itm_meta.exptime = 0;
+    itm_meta.seqno = 10;
+    itm_meta.cas = 0xdeadbeef;
+    set_with_meta(h, h1, "test_regression_mb4314", 22, NULL, 0, 0, &itm_meta, last_cas);
 
     // Now try to read the item back:
     item *it = NULL;
-    ret = h1->get(h, NULL, &it, "test_regression_mb4314", 22, 0);
+    ENGINE_ERROR_CODE ret = h1->get(h, NULL, &it, "test_regression_mb4314", 22, 0);
     check(ret == ENGINE_SUCCESS, "Expected to get the item back!");
     h1->release(h, NULL, it);
 
