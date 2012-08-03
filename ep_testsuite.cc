@@ -1077,19 +1077,6 @@ static enum test_result test_conc_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     wait_for_flusher_to_settle(h, h1);
 
-    std::string backend = get_str_stat(h, h1, "ep_backend");
-
-    // There should be no more newer items than deleted items (sqlite only).
-    if (backend.compare("sqlite") == 0 &&
-        std::abs(get_int_stat(h, h1, "ep_total_new_items") -
-        get_int_stat(h, h1, "ep_total_del_items")) > 1) {
-        std::cout << "new:       " << get_int_stat(h, h1, "ep_total_new_items") << std::endl
-                  << "rm:        " << get_int_stat(h, h1, "ep_total_del_items") << std::endl
-                  << "persisted: " << get_int_stat(h, h1, "ep_total_persisted") << std::endl
-                  << "commits:   " << get_int_stat(h, h1, "ep_commit_num") << std::endl;
-        abort();
-    }
-
     testHarness.reload_engine(&h, &h1,
                               testHarness.engine_path,
                               testHarness.get_current_testcase()->cfg,
