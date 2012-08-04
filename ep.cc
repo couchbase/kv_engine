@@ -440,7 +440,7 @@ public:
 
     virtual void stateChanged(const int, const int to) {
         if (waitForWarmup) {
-            if (to == WarmupState::LoadingAccessLog || to == WarmupState::Done) {
+            if (to == WarmupState::Done) {
                 LockHolder lh(syncobject);
                 syncobject.notify();
             }
@@ -456,9 +456,7 @@ public:
         int currstate = warmup.getState().getState();
 
         if (waitForWarmup) {
-            if (currstate == WarmupState::LoadingAccessLog ||
-                currstate == WarmupState::Done)
-            {
+            if (currstate == WarmupState::Done) {
                 return;
             }
         } else if (currstate != WarmupState::Initialize) {
