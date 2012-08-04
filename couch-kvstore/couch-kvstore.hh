@@ -75,18 +75,6 @@ typedef union {
     Callback <int> *delCb;
 } CouchRequestCallback;
 
-class LoadCallback
-{
-public:
-    LoadCallback(shared_ptr<Callback<GetValue> > &data,
-                 shared_ptr<RememberingCallback<bool> > &w) :
-        cb(data), complete(w) {
-    }
-
-    shared_ptr<Callback<GetValue> > cb;
-    shared_ptr<RememberingCallback<bool> > complete;
-};
-
 const size_t COUCHSTORE_METADATA_SIZE(2 * sizeof(uint32_t) + sizeof(uint64_t));
 
 class CouchRequest
@@ -294,7 +282,7 @@ public:
     CouchKVStoreStats &getCKVStoreStat(void) { return st; }
 
 protected:
-    void loadDB(shared_ptr<LoadCallback> cb, bool keysOnly,
+    void loadDB(shared_ptr<Callback<GetValue> > cb, bool keysOnly,
                 std::vector<uint16_t> *vbids,
                 couchstore_docinfos_options options=COUCHSTORE_NO_OPTIONS);
     bool setVBucketState(uint16_t vbucketId, vbucket_state vbstate,

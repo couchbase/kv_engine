@@ -228,7 +228,7 @@ public:
 };
 
 struct LoadResponseCtx {
-    shared_ptr<LoadCallback> callback;
+    shared_ptr<Callback<GetValue> > callback;
     uint16_t vbucketId;
     bool keysonly;
     EventuallyPersistentEngine *engine;
@@ -828,35 +828,27 @@ bool CouchKVStore::setVBucketState(uint16_t vbucketId, vbucket_state vbstate,
 
 void CouchKVStore::dump(shared_ptr<Callback<GetValue> > cb)
 {
-    shared_ptr<RememberingCallback<bool> > wait(new RememberingCallback<bool>());
-    shared_ptr<LoadCallback> callback(new LoadCallback(cb, wait));
-    loadDB(callback, false, NULL, COUCHSTORE_NO_DELETES);
+    loadDB(cb, false, NULL, COUCHSTORE_NO_DELETES);
 }
 
 void CouchKVStore::dump(uint16_t vb, shared_ptr<Callback<GetValue> > cb)
 {
-    shared_ptr<RememberingCallback<bool> > wait(new RememberingCallback<bool>());
-    shared_ptr<LoadCallback> callback(new LoadCallback(cb, wait));
     std::vector<uint16_t> vbids;
     vbids.push_back(vb);
-    loadDB(callback, false, &vbids);
+    loadDB(cb, false, &vbids);
 }
 
 void CouchKVStore::dumpKeys(const std::vector<uint16_t> &vbids,  shared_ptr<Callback<GetValue> > cb)
 {
-    shared_ptr<RememberingCallback<bool> > wait(new RememberingCallback<bool>());
-    shared_ptr<LoadCallback> callback(new LoadCallback(cb, wait));
     (void)vbids;
-    loadDB(callback, true, NULL, COUCHSTORE_NO_DELETES);
+    loadDB(cb, true, NULL, COUCHSTORE_NO_DELETES);
 }
 
 void CouchKVStore::dumpDeleted(uint16_t vb,  shared_ptr<Callback<GetValue> > cb)
 {
-    shared_ptr<RememberingCallback<bool> > wait(new RememberingCallback<bool>());
-    shared_ptr<LoadCallback> callback(new LoadCallback(cb, wait));
     std::vector<uint16_t> vbids;
     vbids.push_back(vb);
-    loadDB(callback, true, &vbids, COUCHSTORE_DELETES_ONLY);
+    loadDB(cb, true, &vbids, COUCHSTORE_DELETES_ONLY);
 }
 
 StorageProperties CouchKVStore::getStorageProperties()
@@ -945,7 +937,7 @@ void CouchKVStore::optimizeWrites(std::vector<queued_item> &items)
     std::sort(items.begin(), items.end(), cq);
 }
 
-void CouchKVStore::loadDB(shared_ptr<LoadCallback> cb, bool keysOnly,
+void CouchKVStore::loadDB(shared_ptr<Callback<GetValue> > cb, bool keysOnly,
                           std::vector<uint16_t> *vbids,
                           couchstore_docinfos_options options)
 {
@@ -1042,9 +1034,6 @@ void CouchKVStore::loadDB(shared_ptr<LoadCallback> cb, bool keysOnly,
         }
         db = NULL;
     }
-
-    bool success = true;
-    cb->complete->callback(success);
 }
 
 void CouchKVStore::open()
@@ -1354,7 +1343,7 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx)
     Item *it = NULL;
     Doc *doc = NULL;
     LoadResponseCtx *loadCtx = (LoadResponseCtx *)ctx;
-    shared_ptr<LoadCallback> callback = loadCtx->callback;
+    shared_ptr<Callback<GetValue> > cb = loadCtx->callback;
     EventuallyPersistentEngine *engine= loadCtx->engine;
     bool warmup = engine->stillWarmingUp();
 
@@ -1414,7 +1403,7 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx)
                   docinfo->rev_seq);
 
     GetValue rv(it, ENGINE_SUCCESS, -1, loadCtx->keysonly);
-    callback->cb->callback(rv);
+    cb->callback(rv);
 
     couchstore_free_document(doc);
 
