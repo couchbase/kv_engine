@@ -1708,121 +1708,6 @@ static enum test_result test_bug2509(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return get_int_stat(h, h1, "ep_warmup_dups") == 0 ? SUCCESS : FAIL;
 }
 
-// bug 2830 related items
-
-static void bug_2830_child(int reader, int writer) {
-    alarm(60);
-
-    sqlite3 *db;
-
-    const char * fn = "/tmp/test.db-0.sqlite";
-    if(sqlite3_open(fn, &db) !=  SQLITE_OK) {
-        throw std::runtime_error("Error initializing sqlite3");
-    }
-
-    // This will immediately lock the database
-    PreparedStatement pst(db, "begin immediate");
-    assert(pst.execute() >= 0);
-
-    // Signal we've got the txn so the parent can start trying to fail.
-    char buf[1];
-    buf[0] = 'x';
-    assert(write(writer, buf, 1) == 1);
-
-    // Wait for the signal that we've broken something
-    assert(read(reader, buf, 1) == 1);
-
-    // Let's go ahead and rollback before we close the DB.  Just to be nice.
-    PreparedStatement pstrollback(db, "rollback");
-    assert(pstrollback.execute() >= 0);
-    sqlite3_close(db);
-}
-
-extern "C" {
-    // This thread will watch for failures to begin a transaction, and
-    // then signal the child that it's done enough damage so it can
-    // exit.
-    static void* bug2830_thread(void *arg) {
-        ThreadData *td(static_cast<ThreadData*>(arg));
-
-        const char *key = "key";
-        const char *val = "value";
-        int initial = get_int_stat(td->h, td->h1, "ep_item_begin_failed");
-
-        item *i = NULL;
-        check(store(td->h, td->h1, NULL, OPERATION_SET, key, val, &i, 0, 0) == ENGINE_SUCCESS,
-              "Failed to store an item.");
-        td->h1->release(td->h, NULL, i);
-        wait_for_stat_change(td->h, td->h1, "ep_item_begin_failed", initial);
-        char buf[1];
-        assert(write(td->extra, buf, 1) == 1);
-        return NULL;
-    }
-}
-
-static enum test_result test_bug2830(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    // XXX:  Need to be able to detect the vb snapshot has run.  We can
-    // do that once MB-2663 is done.  Until then, 100ms should do.
-    usleep(100 * 1000);
-
-    pid_t child;
-    int p2c[2]; // parent to child
-    int c2p[2]; // child to parent
-
-    assert(pipe(p2c) == 0);
-    assert(pipe(c2p) == 0);
-
-    int childreader = p2c[0];
-    int childwriter = c2p[1];
-
-    int parentreader = c2p[0];
-    int parentwriter = p2c[1];
-
-    switch (child = fork()) {
-    case 0:
-        bug_2830_child(childreader, childwriter);
-        exit(0);
-        abort(); // not reached
-    case -1:
-        perror("fork");
-        abort();
-        break;
-    }
-
-    // Wait for the child to let us know we can start or work.
-    char buf[1];
-    assert(read(parentreader, buf, 1) == 1);
-
-    // Start a thread to monitor stats and let us know when we've had
-    // enough.
-    ThreadData *td = new ThreadData(h, h1, parentwriter);
-    pthread_t tid;
-    if (pthread_create(&tid, NULL, bug2830_thread, td) != 0) {
-        abort();
-    }
-
-    // Wait for the thread to indicate stuff's done.
-    assert(pthread_join(tid, NULL) == 0);
-
-    // And let us write out our data.
-    wait_for_flusher_to_settle(h, h1);
-    evict_key(h, h1, "key");
-    check_key_value(h, h1, "key", "value", 5);
-
-    // The child will die and we'll verify it does so safely.
-    int status;
-    assert(child == waitpid(child, &status, 0));
-    assert(WIFEXITED(status));
-    assert(WEXITSTATUS(status) == 0);
-
-    // Verify we had a failure.
-    assert(get_int_stat(h, h1, "ep_item_begin_failed") > 0);
-
-    return SUCCESS;
-}
-
-// end of bug 2830 related items
-
 static enum test_result test_delete_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     wait_for_persisted_value(h, h1, "key", "value1");
 
@@ -6838,10 +6723,6 @@ engine_test_t* get_tests(void) {
                  teardown, NULL, prepare, cleanup),
         TestCase("retain rowid over a soft delete", test_bug2509,
                  test_setup, teardown, NULL, prepare, cleanup),
-        TestCase("start transaction failure handling", test_bug2830,
-                 test_setup, teardown,
-                 "db_shards=1;ht_size=13;ht_locks=7;db_strategy=multiDB",
-                 prepare, cleanup, true /* This test is skipped*/),
         TestCase("non-resident decrementers", test_mb3169,
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("resident ratio after warmup", test_mb5172,
