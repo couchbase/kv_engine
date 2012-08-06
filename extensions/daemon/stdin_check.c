@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
+#include <string.h>
 
 #include "protocol_extension.h"
 
@@ -10,18 +11,52 @@ union c99hack {
     void (*exit_function)(void);
 };
 
+/*
+ * The stdin_term_handler allows you to shut down memcached from
+ * another process by the use of a pipe. It operates in a line mode
+ * with the following syntax: "command\n"
+ *
+ * The following commands exists:
+ *   shutdown - Request memcached to initiate a clean shutdown
+ *   die!     - Request memcached to die as fast as possible! like
+ *              the unix "kill -9"
+ *
+ * Please note that you may try to shut down cleanly and give
+ * memcached a grace period to complete, and if you don't want to wait
+ * any longer you may send "die!" and have it die immediately. All
+ * unknown commands will be ignored.
+ *
+ * If the input stream is closed a clean shutdown is initiated
+ */
 static void* check_stdin_thread(void* arg)
 {
-    int ch;
+    union c99hack chack = { .pointer = arg };
     pthread_detach(pthread_self());
 
-    do {
-        ch = getc(stdin);
-    } while (ch != EOF && ch != '\n' && ch != '\r');
+    char command[80];
+    while (fgets(command, sizeof(command), stdin) != NULL) {
+        /* Handle the command */
+        if (strcmp(command, "die!\n") == 0) {
+            fprintf(stderr, "'die!' on stdin.  Exiting super-quickly\n");
+            fflush(stderr);
+            _Exit(0);
+        } else if (strcmp(command, "shutdown\n") == 0) {
+            if (chack.pointer != NULL) {
+                fprintf(stderr, "EOL on stdin.  Initiating shutdown\n");
+                chack.exit_function();
+                chack.pointer = NULL;
+            }
+        } else {
+            fprintf(stderr, "Unknown command received on stdin.  Ignored\n");
+        }
+    }
 
-    fprintf(stderr, "%s on stdin.  Exiting\n", (ch == EOF) ? "EOF" : "EOL");
-    union c99hack chack = { .pointer = arg };
-    chack.exit_function();
+    /* The stream is closed.. do a nice shutdown */
+    if (chack.pointer != NULL) {
+        fprintf(stderr, "EOF on stdin.  Initiating shutdown \n");
+        chack.exit_function();
+    }
+
     /* NOTREACHED */
     return NULL;
 }
