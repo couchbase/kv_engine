@@ -52,15 +52,11 @@ static bool isJSON(const value_t &value)
         ++ii;
     }
 
-    if (ii < len && *ptr == '{') {
-        // This may be JSON. Unfortunately we don't know if it's zero
-        // terminated
-        std::string data(value->getData(), value->length());
-        cJSON *json = cJSON_Parse(data.c_str());
-        if (json != 0) {
-            isJSON = true;
-            cJSON_Delete(json);
-        }
+    std::string data(value->getData(), value->length());
+    cJSON *json = cJSON_Parse(data.c_str());
+    if (json != 0) {
+        isJSON = true;
+        cJSON_Delete(json);
     }
     return isJSON;
 }
