@@ -507,6 +507,108 @@ static bool test_setup(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return true;
 }
 
+static void createCheckpoint(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    protocol_binary_request_header *request = createPacket(CMD_CREATE_CHECKPOINT);
+    check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
+          "Failed to create a new checkpoint.");
+    free(request);
+}
+
+static void extendCheckpoint(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                             uint32_t checkpoint_num) {
+    char val[4];
+    encodeExt(val, checkpoint_num);
+    protocol_binary_request_header *request;
+    request = createPacket(CMD_EXTEND_CHECKPOINT, 0, 0, NULL, 0, NULL, 0, val, 4);
+    check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
+          "Failed to extend the open checkpoint.");
+    free(request);
+}
+
+static void changeVBFilter(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, std::string name,
+                           std::map<uint16_t, uint64_t> filtermap) {
+    std::stringstream value;
+    uint16_t vbs = htons(filtermap.size());
+    std::map<uint16_t, uint64_t>::iterator it;
+
+    value.write((char*) &vbs, sizeof(uint16_t));
+    for (it = filtermap.begin(); it != filtermap.end(); it++) {
+        uint16_t vb = htons(it->first);
+        uint16_t chkid = htonll(it->second);
+        value.write((char*) &vb, sizeof(uint16_t));
+        value.write((char*) &chkid, sizeof(uint64_t));
+    }
+
+    protocol_binary_request_header *request;
+    request = createPacket(CMD_CHANGE_VB_FILTER, 0, 0, NULL, 0, name.c_str(),
+                       name.length(), value.str().data(), value.str().length());
+    check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
+          "Failed to change the TAP VB filter.");
+    free(request);
+}
+
+static void vbucketDelete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, uint16_t vb,
+                          const char* args = NULL) {
+    uint32_t argslen = args ? strlen(args) : 0;
+    protocol_binary_request_header *pkt =
+        createPacket(PROTOCOL_BINARY_CMD_DEL_VBUCKET, vb, 0, NULL, 0, NULL, 0,
+                     args, argslen);
+    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
+          "Failed to request delete bucket");
+    free(pkt);
+}
+
+static void gat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
+                uint16_t vb, uint32_t exp, bool quiet = false) {
+    char ext[4];
+    uint8_t opcode = quiet ? PROTOCOL_BINARY_CMD_GATQ : PROTOCOL_BINARY_CMD_GAT;
+    uint32_t keylen = key ? strlen(key) : 0;
+    protocol_binary_request_header *request;
+    encodeExt(ext, exp);
+    request = createPacket(opcode, vb, 0, ext, 4, key, keylen);
+
+    check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
+          "Failed to call gat");
+    free(request);
+}
+
+static void getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
+                 uint16_t vb, uint32_t lock_timeout) {
+    char ext[4];
+    uint32_t keylen = key ? strlen(key) : 0;
+    protocol_binary_request_header *request;
+    encodeExt(ext, lock_timeout);
+    request = createPacket(CMD_GET_LOCKED, vb, 0, ext, 4, key, keylen);
+
+    check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
+          "Failed to call getl");
+    free(request);
+}
+
+static void touch(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
+                  uint16_t vb, uint32_t exp) {
+    char ext[4];
+    uint32_t keylen = key ? strlen(key) : 0;
+    protocol_binary_request_header *request;
+    encodeExt(ext, exp);
+    request = createPacket(PROTOCOL_BINARY_CMD_TOUCH, vb, 0, ext, 4, key, keylen);
+
+    check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
+          "Failed to call touch");
+    free(request);
+}
+
+static void unl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
+                 uint16_t vb, uint64_t cas = 0) {
+    uint32_t keylen = key ? strlen(key) : 0;
+    protocol_binary_request_header *request;
+    request = createPacket(CMD_UNLOCK_KEY, vb, cas, NULL, 0, key, keylen);
+
+    check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
+          "Failed to call unl");
+    free(request);
+}
+
 static void stop_persistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     while (true) {
         useconds_t sleepTime = 128;
@@ -531,8 +633,8 @@ static void start_persistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
           "Error starting persistence.");
 }
 
-static protocol_binary_request_header*
-       createObservePacket(std::map<std::string, uint16_t> obskeys) {
+static void observe(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                    std::map<std::string, uint16_t> obskeys) {
     std::stringstream value;
     std::map<std::string, uint16_t>::iterator it;
     for (it = obskeys.begin(); it != obskeys.end(); it++) {
@@ -543,8 +645,12 @@ static protocol_binary_request_header*
         value.write(it->first.c_str(), it->first.length());
     }
 
-    return createPacket(CMD_OBSERVE, 0, 0, NULL, 0, NULL, 0, value.str().data(),
-                        value.str().length());
+    protocol_binary_request_header *request;
+    request = createPacket(CMD_OBSERVE, 0, 0, NULL, 0, NULL, 0,
+                           value.str().data(), value.str().length());
+    check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
+          "Observe call failed");
+    free(request);
 }
 
 static void evict_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
@@ -602,15 +708,8 @@ static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const char *key = "k1";
     uint16_t vbucketId = 0;
     uint32_t expiration = 25;
-    protocol_binary_request_header *pkt;
 
-    char ext[4];
-    encodeExt(ext, expiration);
-    pkt = createPacket(CMD_GET_LOCKED, vbucketId, 0, ext, 4, key, strlen(key));
-
-    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
-          "Getl Failed");
-
+    getl(h, h1, key, vbucketId, expiration);
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT,
           "expected the key to be missing...");
     if (last_body != NULL && (strcmp(last_body, "NOT_FOUND") != 0)) {
@@ -624,8 +723,7 @@ static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     h1->release(h, NULL, i);
 
     /* retry getl, should succeed */
-    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
-          "Lock failed");
+    getl(h, h1, key, vbucketId, expiration);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
           "Expected to be able to getl on first try");
     check(strcmp("lockdata", last_body) == 0, "Body was malformed.");
@@ -634,8 +732,7 @@ static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     testHarness.time_travel(16);
 
     /* lock's taken so this should fail */
-    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
-          "Lock failed");
+    getl(h, h1, key, vbucketId, expiration);
     check(last_status == PROTOCOL_BINARY_RESPONSE_ETMPFAIL,
           "Expected to fail getl on second try");
 
@@ -657,8 +754,9 @@ static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     h1->release(h, NULL, i);
 
     /* acquire lock, should succeed */
-    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
-          "Lock failed");
+    getl(h, h1, key, vbucketId, expiration);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+          "Aquire lock should have succeeded");
 
     /* try an incr operation followed by a delete, both of which should fail */
     uint64_t cas = 0;
@@ -687,9 +785,9 @@ static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     h1->release(h, NULL, i);
 
     /* acquire lock, should succeed */
-    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
-          "Lock failed");
-
+    getl(h, h1, key, vbucketId, expiration);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+          "Aquire lock should have succeeded");
 
     /* append should fail */
     check(storeCasVb11(h, h1, NULL, OPERATION_APPEND, key,
@@ -725,10 +823,6 @@ static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check_key_value(h, h1, ekey, edata, strlen(edata));
     h1->release(h, NULL, it);
 
-    /* item created. lock it and wait for the object to expire */
-    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
-          "Lock failed");
-
     testHarness.time_travel(3);
     cas = last_cas;
 
@@ -751,17 +845,7 @@ static enum test_result test_unl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const char *key = "k2";
     uint16_t vbucketId = 0;
 
-    protocol_binary_request_header *pkt = createPacket(CMD_GET_LOCKED, 0, 0,
-                                                       NULL, 0, key, strlen(key));
-    pkt->request.vbucket = htons(vbucketId);
-
-    protocol_binary_request_header *pkt_ul = createPacket(CMD_UNLOCK_KEY, 0, 0,
-                                                          NULL, 0, key, strlen(key));
-    pkt_ul->request.vbucket = htons(vbucketId);
-
-    check(h1->unknown_command(h, NULL, pkt_ul, add_response) == ENGINE_SUCCESS,
-          "Getl Failed");
-
+    unl(h, h1, key, vbucketId);
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT,
           "expected the key to be missing...");
     if (last_body != NULL && (strcmp(last_body, "NOT_FOUND") != 0)) {
@@ -775,8 +859,7 @@ static enum test_result test_unl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     h1->release(h, NULL, i);
 
     /* getl, should succeed */
-    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
-          "Lock failed");
+    getl(h, h1, key, vbucketId, 0);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
           "Expected to be able to getl on first try");
 
@@ -784,8 +867,7 @@ static enum test_result test_unl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     uint64_t cas = last_cas;
 
     /* lock's taken unlocking with a random cas value should fail */
-    check(h1->unknown_command(h, NULL, pkt_ul, add_response) == ENGINE_SUCCESS,
-          "Unlock failed");
+    unl(h, h1, key, vbucketId);
     check(last_status == PROTOCOL_BINARY_RESPONSE_ETMPFAIL,
           "Expected to fail getl on second try");
 
@@ -794,26 +876,18 @@ static enum test_result test_unl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
         abort();
     }
 
-    /* set the correct cas value in the outgoing request */
-    pkt_ul->request.cas = htonll(cas);
-
-    check(h1->unknown_command(h, NULL, pkt_ul, add_response) == ENGINE_SUCCESS,
-          "Unlock failed");
+    unl(h, h1, key, vbucketId, cas);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
           "Expected to succed unl with correct cas");
 
     /* acquire lock, should succeed */
-    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
-          "Lock failed");
-
-    pkt_ul->request.cas = last_cas;
+    getl(h, h1, key, vbucketId, 0);
 
     /* wait 16 seconds */
     testHarness.time_travel(16);
 
     /* lock has expired, unl should fail */
-    check(h1->unknown_command(h, NULL, pkt_ul, add_response) == ENGINE_SUCCESS,
-          "Unlock failed");
+    unl(h, h1, key, vbucketId, last_cas);
     check(last_status == PROTOCOL_BINARY_RESPONSE_ETMPFAIL,
           "Expected to fail unl on lock timeout");
 
@@ -2312,18 +2386,12 @@ static enum test_result test_vb_del_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
 }
 
 static enum test_result test_touch(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    char ext[4];
-    protocol_binary_request_header *request;
-    encodeExt(ext, (time(NULL) + 10));
-    request = createPacket(PROTOCOL_BINARY_CMD_TOUCH, 0, 0, ext, 4);
-
     // key is a mandatory field!
-    check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
-          "Failed to call touch");
+    touch(h, h1, NULL, 0, (time(NULL) + 10));
     check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL, "Testing invalid arguments");
-    free(request);
 
     // extlen is a mandatory field!
+    protocol_binary_request_header *request;
     request = createPacket(PROTOCOL_BINARY_CMD_TOUCH, 0, 0, NULL, 0, "akey", 4);
     check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
           "Failed to call touch");
@@ -2331,18 +2399,12 @@ static enum test_result test_touch(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     free(request);
 
     // Try to touch an unknown item...
-    request = createPacket(PROTOCOL_BINARY_CMD_TOUCH, 0, 0, ext, 4, "mykey", 5);
-    check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
-          "Failed to call touch");
+    touch(h, h1, "mykey", 0, (time(NULL) + 10));
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, "Testing unknown key");
-    free(request);
 
     // illegal vbucket
-    request = createPacket(PROTOCOL_BINARY_CMD_TOUCH, 5, 0, ext, 4, "mykey", 5);
-    check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
-          "Failed to call touch");
+    touch(h, h1, "mykey", 5, (time(NULL) + 10));
     check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, "Testing illegal vbucket");
-    free(request);
 
     // Store the item!
     item *itm = NULL;
@@ -2353,11 +2415,8 @@ static enum test_result test_touch(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(check_key_value(h, h1, "mykey", "somevalue", strlen("somevalue")) == SUCCESS,
           "Failed to retrieve data");
 
-    request = createPacket(PROTOCOL_BINARY_CMD_TOUCH, 0, 0, ext, 4, "mykey", 5);
-    check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
-          "Failed to call touch");
+    touch(h, h1, "mykey", 0, (time(NULL) + 10));
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "touch mykey");
-    free(request);
 
     // time-travel 9 secs..
     testHarness.time_travel(9);
@@ -2374,38 +2433,25 @@ static enum test_result test_touch(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 }
 
 static enum test_result test_gat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    char ext[4];
-    protocol_binary_request_header *request;
-    encodeExt(ext, 10);
-    request = createPacket(PROTOCOL_BINARY_CMD_GAT, 0, 0, ext, 4);
-
     // key is a mandatory field!
-    check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
-          "Failed to call gat");
+    gat(h, h1, NULL, 0, 10);
     check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL, "Testing invalid arguments");
-    free(request);
 
     // extlen is a mandatory field!
+    protocol_binary_request_header *request;
     request = createPacket(PROTOCOL_BINARY_CMD_GAT, 0, 0, NULL, 0, "akey", 4);
     check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
           "Failed to call gat");
     check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL, "Testing invalid arguments");
     free(request);
 
-    // Try to touch an unknown item...
-    request = createPacket(PROTOCOL_BINARY_CMD_GAT, 0, 0, ext, 4, "mykey", 5);
-    check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
-          "Failed to call gat");
+    // Try to gat an unknown item...
+    gat(h, h1, "mykey", 0, 10);
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, "Testing unknown key");
-    free(request);
 
     // illegal vbucket
-    request = createPacket(PROTOCOL_BINARY_CMD_GAT, 5, 0, ext, 4, "mykey", 5);
-    check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
-          "Failed to call touch");
-
+    gat(h, h1, "mykey", 5, 10);
     check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, "Testing illegal vbucket");
-    free(request);
 
     // Store the item!
     item *itm = NULL;
@@ -2416,13 +2462,10 @@ static enum test_result test_gat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(check_key_value(h, h1, "mykey", "somevalue", strlen("somevalue")) == SUCCESS,
           "Failed to retrieve data");
 
-    request = createPacket(PROTOCOL_BINARY_CMD_GAT, 0, 0, ext, 4, "mykey", 5);
-    check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
-          "Failed to call gat");
+    gat(h, h1, "mykey", 0, 10);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "gat mykey");
     check(memcmp(last_body, "somevalue", sizeof("somevalue")) == 0,
           "Invalid data returned");
-    free(request);
 
     // time-travel 9 secs..
     testHarness.time_travel(9);
@@ -2439,40 +2482,29 @@ static enum test_result test_gat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 }
 
 static enum test_result test_gatq(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    char ext[4];
-    protocol_binary_request_header *request;
-    encodeExt(ext, 10);
-    request = createPacket(PROTOCOL_BINARY_CMD_GATQ, 0, 0, ext, 4);
-
     // key is a mandatory field!
-    check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
-          "Failed to call gat");
+    gat(h, h1, NULL, 0, 10, true);
     check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL, "Testing invalid arguments");
-    free(request);
 
     // extlen is a mandatory field!
+    protocol_binary_request_header *request;
     request = createPacket(PROTOCOL_BINARY_CMD_GATQ, 0, 0, NULL, 0, "akey", 4);
     check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
-          "Failed to call gat");
+          "Failed to call gatq");
     check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL, "Testing invalid arguments");
     free(request);
 
-    // Try to gat an unknown item...
-    request = createPacket(PROTOCOL_BINARY_CMD_GATQ, 0, 0, ext, 4, "mykey", 5);
+    // Try to gatq an unknown item...
     last_status = static_cast<protocol_binary_response_status>(0xffff);
-    check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
-          "Failed to call gat");
-    free(request);
+    gat(h, h1, "mykey", 0, 10, true);
 
     // We should not have sent any response!
     check(last_status == 0xffff, "Testing unknown key");
 
     // illegal vbucket
-    request = createPacket(PROTOCOL_BINARY_CMD_GATQ, 5, 0, ext, 4, "mykey", 5);
-    check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
-          "Failed to call touch");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, "Testing illegal vbucket");
-    free(request);
+    gat(h, h1, "mykey", 5, 10, true);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET,
+          "Testing illegal vbucket");
 
     // Store the item!
     item *itm = NULL;
@@ -2483,13 +2515,11 @@ static enum test_result test_gatq(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(check_key_value(h, h1, "mykey", "somevalue", strlen("somevalue")) == SUCCESS,
           "Failed to retrieve data");
 
-    request = createPacket(PROTOCOL_BINARY_CMD_GATQ, 0, 0, ext, 4, "mykey", 5);
-    check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
-          "Failed to call gat");
+    gat(h, h1, "mykey", 0, 10, true);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "gat mykey");
     check(memcmp(last_body, "somevalue", sizeof("somevalue")) == 0,
           "Invalid data returned");
-    free(request);
+
     // time-travel 9 secs..
     testHarness.time_travel(9);
 
@@ -2515,13 +2545,8 @@ static enum test_result test_mb5215(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     // set new exptime to 111
     int expTime = time(NULL) + 111;
-    char ext[4];
-    encodeExt(ext, expTime);
-    protocol_binary_request_header *request;
-    request = createPacket(PROTOCOL_BINARY_CMD_TOUCH, 0, 0, ext, 4, "coolkey", 7);
 
-    check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
-          "Failed to call touch");
+    touch(h, h1, "coolkey", 0, expTime);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "touch coolkey");
 
     //reload engine
@@ -2543,12 +2568,8 @@ static enum test_result test_mb5215(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     // evict key, touch expiration time, and verify
     evict_key(h, h1, "coolkey", 0, "Ejected.");
 
-    free(request);
     expTime = time(NULL) + 222;
-    encodeExt(ext, expTime);
-    request = createPacket(PROTOCOL_BINARY_CMD_TOUCH, 0, 0, ext, 4, "coolkey", 7);
-    check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
-          "Failed to call touch");
+    touch(h, h1, "coolkey", 0, expTime);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "touch coolkey");
 
     testHarness.reload_engine(&h, &h1,
@@ -2562,7 +2583,6 @@ static enum test_result test_mb5215(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     h1->release(h, NULL, itm);
     newExpTime = get_int_stat(h, h1, "key_exptime", statkey);
     check(newExpTime == expTime, "Failed to persist new exptime");
-    free(request);
 
     return SUCCESS;
 }
@@ -2672,32 +2692,19 @@ static enum test_result test_vbucket_create(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
 
 static enum test_result vbucket_destroy(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                              const char* value = NULL) {
-    uint32_t vallen = value ? strlen(value) : 0;
     check(set_vbucket_state(h, h1, 1, vbucket_state_active), "Failed to set vbucket state.");
 
-    protocol_binary_request_header *pkt =
-        createPacket(PROTOCOL_BINARY_CMD_DEL_VBUCKET, 1, 0, NULL, 0, NULL, 0,
-                     value, vallen);
-    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
-          "Failed to request delete bucket");
-
+    vbucketDelete(h, h1, 1, value);
     check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL,
           "Expected failure deleting active bucket.");
 
-    pkt = createPacket(PROTOCOL_BINARY_CMD_DEL_VBUCKET, 2, 0, NULL, 0, NULL, 0,
-                       value, vallen);
-    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
-          "Failed to request delete bucket");
+    vbucketDelete(h, h1, 2, value);
     check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET,
           "Expected failure deleting non-existent bucket.");
 
     check(set_vbucket_state(h, h1, 1, vbucket_state_dead), "Failed set set vbucket 1 state.");
 
-    pkt = createPacket(PROTOCOL_BINARY_CMD_DEL_VBUCKET, 1, 0, NULL, 0, NULL, 0,
-                       value, vallen);
-    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
-          "Failed to delete dead bucket.");
-
+    vbucketDelete(h, h1, 1, value);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
           "Expected failure deleting non-existent bucket.");
 
@@ -2740,10 +2747,7 @@ static enum test_result test_vbucket_destroy_stats(ENGINE_HANDLE *h,
     check(set_vbucket_state(h, h1, 1, vbucket_state_dead), "Failed set set vbucket 1 state.");
 
     int vbucketDel = get_int_stat(h, h1, "ep_vbucket_del");
-
-    protocol_binary_request_header *pkt = createPacket(PROTOCOL_BINARY_CMD_DEL_VBUCKET, 1);
-    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
-          "Failed to delete dead bucket.");
+    vbucketDelete(h, h1, 1);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
           "Expected failure deleting non-existent bucket.");
 
@@ -2762,14 +2766,9 @@ static enum test_result test_vbucket_destroy_stats(ENGINE_HANDLE *h,
 
 static enum test_result vbucket_destroy_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                                 const char* value = NULL) {
-    uint32_t vallen = value ? strlen(value) : 0;
-    protocol_binary_request_header *pkt =
-        createPacket(PROTOCOL_BINARY_CMD_DEL_VBUCKET, 1, 0, NULL, 0, NULL, 0,
-                     value, vallen);
     check(set_vbucket_state(h, h1, 1, vbucket_state_active), "Failed to set vbucket state.");
 
-    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
-          "Failed to request delete bucket");
+    vbucketDelete(h, h1, 1, value);
     check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL,
           "Expected failure deleting active bucket.");
 
@@ -2793,8 +2792,7 @@ static enum test_result vbucket_destroy_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_
 
     check(set_vbucket_state(h, h1, 1, vbucket_state_dead), "Failed set set vbucket 1 state.");
 
-    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
-          "Failed to delete dead bucket.");
+    vbucketDelete(h, h1, 1, value);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
           "Expected failure deleting non-existent bucket.");
 
@@ -3351,14 +3349,10 @@ static enum test_result test_tap_filter_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V
 
     const void *cookie = testHarness.create_cookie();
     testHarness.lock_cookie(cookie);
-    uint16_t vbucketfilter[3];
-    vbucketfilter[0] = htons(0);
-    vbucketfilter[1] = htons(1);
-    vbucketfilter[2] = htons(2);
-    uint64_t checkpointIds[3];
-    checkpointIds[0] = htonll(0);
-    checkpointIds[1] = htonll(0);
-    checkpointIds[2] = htonll(0);
+    std::map<uint16_t, uint64_t> filtermap;
+    filtermap[0] = 0;
+    filtermap[1] = 0;
+    filtermap[2] = 0;
 
     uint16_t numOfVBs = htons(2); // Start with vbuckets 0 and 1
     char *userdata = static_cast<char*>(calloc(1, 28));
@@ -3366,15 +3360,18 @@ static enum test_result test_tap_filter_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     memcpy(ptr, &numOfVBs, sizeof(uint16_t));
     ptr += sizeof(uint16_t);
     for (int i = 0; i < 2; ++i) { // vbucket ids
-        memcpy(ptr, &vbucketfilter[i], sizeof(uint16_t));
+        uint16_t vb = htons(i);
+        memcpy(ptr, &vb, sizeof(uint16_t));
         ptr += sizeof(uint16_t);
     }
     memcpy(ptr, &numOfVBs, sizeof(uint16_t));
     ptr += sizeof(uint16_t);
     for (int i = 0; i < 2; ++i) { // vbucket ids and their checkpoint ids
-        memcpy(ptr, &vbucketfilter[i], sizeof(uint16_t));
+        uint16_t vb = htons(i);
+        memcpy(ptr, &vb, sizeof(uint16_t));
         ptr += sizeof(uint16_t);
-        memcpy(ptr, &checkpointIds[i], sizeof(uint64_t));
+        uint64_t chkid = htonll(filtermap[i]);
+        memcpy(ptr, &chkid, sizeof(uint64_t));
         ptr += sizeof(uint64_t);
     }
 
@@ -3456,22 +3453,9 @@ static enum test_result test_tap_filter_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V
             // We've got some of the elements.. Let's change the filter
             // and get the rest
             if (found == 10) {
-                char val[32];
-                numOfVBs = htons(3); // vbuckets 0, 1, 2
-                memcpy(val, &numOfVBs, sizeof(uint16_t));
-                for (int i = 0; i < 3; ++i) {
-                    memcpy(val + i * 10 + 2, &vbucketfilter[i], sizeof(uint16_t));
-                    memcpy(val + i * 10 + 4, &checkpointIds[i], sizeof(uint64_t));
-                }
-                protocol_binary_request_header *pkt;
-                pkt = createPacket(CMD_CHANGE_VB_FILTER, 0, 0, NULL, 0, name.c_str(),
-                                   name.length(), val, 32);
-
-                check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
-                      "Failed to change the TAP VB filter.");
+                changeVBFilter(h, h1, name, filtermap);
                 check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
                       "Expected success response from changing the TAP VB filter.");
-                free(pkt);
             }
             break;
         case TAP_DISCONNECT:
@@ -4303,9 +4287,7 @@ static enum test_result test_curr_items(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
 
     // Now completely delete it.
     check(set_vbucket_state(h, h1, 0, vbucket_state_dead), "Failed set vbucket 0 state.");
-    protocol_binary_request_header *pkt = createPacket(PROTOCOL_BINARY_CMD_DEL_VBUCKET, 0);
-    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
-          "Failed to delete dead bucket.");
+    vbucketDelete(h, h1, 0);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
           "Expected success deleting vbucket.");
     verify_curr_items(h, h1, 0, "del vbucket");
@@ -4516,9 +4498,7 @@ static enum test_result test_duplicate_items_disk(ENGINE_HANDLE *h, ENGINE_HANDL
 
     check(set_vbucket_state(h, h1, 1, vbucket_state_dead), "Failed set set vbucket 1 state.");
     int vb_del_num = get_int_stat(h, h1, "ep_vbucket_del");
-    protocol_binary_request_header *pkt = createPacket(PROTOCOL_BINARY_CMD_DEL_VBUCKET, 1);
-    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
-          "Failed to delete dead bucket.");
+    vbucketDelete(h, h1, 1);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
           "Failure deleting dead bucket.");
     check(verify_vbucket_missing(h, h1, 1),
@@ -4967,9 +4947,7 @@ static enum test_result test_create_new_checkpoint(ENGINE_HANDLE *h, ENGINE_HAND
         h1->release(h, NULL, i);
     }
 
-    protocol_binary_request_header *pkt = createPacket(CMD_CREATE_CHECKPOINT);
-    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
-          "Failed to create a new checkpoint.");
+    createCheckpoint(h, h1);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
           "Expected success response from creating a new checkpoint");
 
@@ -4980,13 +4958,7 @@ static enum test_result test_create_new_checkpoint(ENGINE_HANDLE *h, ENGINE_HAND
 }
 
 static enum test_result test_extend_open_checkpoint(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    char val[4];
-    encodeExt(val, 1);
-    protocol_binary_request_header *pkt;
-    pkt = createPacket(CMD_EXTEND_CHECKPOINT, 0, 0, NULL, 0, NULL, 0, val, 4);
-
-    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
-          "Failed to extend the open checkpoint.");
+    extendCheckpoint(h, h1, 1);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
           "Expected success response from extending the open checkpoint");
 
@@ -5020,7 +4992,6 @@ static enum test_result test_extend_open_checkpoint(ENGINE_HANDLE *h, ENGINE_HAN
     check(get_int_stat(h, h1, "vb_0:last_closed_checkpoint_id", "checkpoint 0") == 1,
           "Last closed checkpoint Id for VB 0 should be 1");
 
-    free(pkt);
     return SUCCESS;
 }
 
@@ -5050,19 +5021,14 @@ static enum test_result test_validate_checkpoint_params(ENGINE_HANDLE *h, ENGINE
 
 static enum test_result test_revid(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
 {
-    protocol_binary_request_header *pkt;
-    pkt = createPacket(CMD_GET_META, 0, 0, NULL, 0, "test_revid", 10);
-
+    ItemMetaData meta;
     for (uint64_t ii = 1; ii < 10; ++ii) {
         item *it;
         check(store(h, h1, NULL, OPERATION_SET, "test_revid", "foo", &it, 0, 0)
               == ENGINE_SUCCESS, "Failed to store a value");
         h1->release(h, NULL, it);
 
-        ENGINE_ERROR_CODE ret = h1->unknown_command(h, NULL, pkt,
-                                                    add_response);
-
-        check(ret == ENGINE_SUCCESS, "Failed to get meta data");
+        check(get_meta(h, h1, "test_revid", meta), "Get meta failed");
         check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
         check(last_body[0] == 0x01, "Expected REVID meta");
         check(last_body[1] == 24, "Expected 26 bytes long revid");
@@ -6113,11 +6079,9 @@ static enum test_result test_temp_item_deletion(ENGINE_HANDLE *h, ENGINE_HANDLE_
 // ------------------------------ end of XDCR unit tests -----------------------//
 
 static enum test_result test_observe_no_data(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    protocol_binary_request_header *pkt = createPacket(CMD_OBSERVE, 0);
-    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
-          "Observe failed.");
+    std::map<std::string, uint16_t> obskeys;
+    observe(h, h1, obskeys);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
-    free(pkt);
     return SUCCESS;
 }
 
@@ -6136,11 +6100,8 @@ static enum test_result test_observe_single_key(ENGINE_HANDLE *h, ENGINE_HANDLE_
     // Do an observe
     std::map<std::string, uint16_t> obskeys;
     obskeys["key"] = 0;
-    protocol_binary_request_header *pkt = createObservePacket(obskeys);
-    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
-          "Observe failed.");
+    observe(h, h1, obskeys);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
-    free(pkt);
 
     // Check that the key is not persisted
     uint16_t vb;
@@ -6188,21 +6149,15 @@ static enum test_result test_observe_multi_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V
           "Set should work.");
     h1->release(h, NULL, it);
 
+    wait_for_stat_to_be(h, h1, "ep_total_persisted", 3);
+
     // Do observe
     std::map<std::string, uint16_t> obskeys;
     obskeys["key1"] = 0;
     obskeys["key2"] = 1;
     obskeys["key3"] = 1;
-    protocol_binary_request_header *pkt = createObservePacket(obskeys);
-    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
-          "Observe failed.");
+    observe(h, h1, obskeys);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
-
-    wait_for_stat_to_be(h, h1, "ep_total_persisted", 3);
-    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
-          "Observe failed.");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
-    free(pkt);
 
     // Check the result
     uint16_t vb;
@@ -6273,11 +6228,8 @@ static enum test_result test_multiple_observes(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     // Do observe
     std::map<std::string, uint16_t> obskeys;
     obskeys["key1"] = 0;
-    protocol_binary_request_header *pkt = createObservePacket(obskeys);
-    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
-          "Observe failed.");
+    observe(h, h1, obskeys);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
-    free(pkt);
 
     memcpy(&vb, last_body, sizeof(uint16_t));
     check(ntohs(vb) == 0, "Wrong vbucket in result");
@@ -6294,11 +6246,8 @@ static enum test_result test_multiple_observes(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     // Do another observe
     obskeys.clear();
     obskeys["key2"] = 0;
-    pkt = createObservePacket(obskeys);
-    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
-          "Observe failed.");
+    observe(h, h1, obskeys);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
-    free(pkt);
 
     memcpy(&vb, last_body, sizeof(uint16_t));
     check(ntohs(vb) == 0, "Wrong vbucket in result");
@@ -6343,11 +6292,8 @@ static enum test_result test_observe_with_not_found(ENGINE_HANDLE *h, ENGINE_HAN
     obskeys["key1"] = 0;
     obskeys["key2"] = 0;
     obskeys["key3"] = 1;
-    protocol_binary_request_header *pkt = createObservePacket(obskeys);
-    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
-          "Observe failed.");
+    observe(h, h1, obskeys);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
-    free(pkt);
 
     // Check the result
     uint16_t vb;
@@ -6393,13 +6339,11 @@ static enum test_result test_observe_errors(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
 
     // Check not my vbucket error
     obskeys["key"] = 1;
-    protocol_binary_request_header *pkt = createObservePacket(obskeys);
-    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
-          "Observe failed.");
+    observe(h, h1, obskeys);
     check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, "Expected not my vbucket");
-    free(pkt);
 
     // Check invalid packets
+    protocol_binary_request_header *pkt;
     pkt = createPacket(CMD_OBSERVE, 0, 0, NULL, 0, NULL, 0, "0", 1);
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Observe failed.");
