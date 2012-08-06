@@ -466,6 +466,7 @@ public:
 
     bool pauseFlusher(void);
     bool resumeFlusher(void);
+    void wakeUpFlusher(void);
 
     void startBgFetcher(void);
     void stopBgFetcher(void);

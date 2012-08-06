@@ -1970,6 +1970,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
                     checkpointId = ntohll(checkpointId);
 
                     if (tc->processCheckpointCommand(tap_event, vbucket, checkpointId)) {
+                        getEpStore()->wakeUpFlusher();
                         ret = ENGINE_SUCCESS;
                     } else {
                         ret = ENGINE_DISCONNECT;

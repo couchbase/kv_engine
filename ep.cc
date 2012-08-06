@@ -589,6 +589,12 @@ bool EventuallyPersistentStore::resumeFlusher() {
     return flusher->resume();
 }
 
+void EventuallyPersistentStore::wakeUpFlusher() {
+    if (stats.queue_size == 0 && stats.flusher_todo == 0) {
+        flusher->wake();
+    }
+}
+
 void EventuallyPersistentStore::startBgFetcher() {
     if (multiBGFetchEnabled()) {
         getLogger()->log(EXTENSION_LOG_INFO, NULL,
