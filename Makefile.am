@@ -258,7 +258,8 @@ ep_testsuite_la_SOURCES= tests/ep_testsuite.cc tests/ep_testsuite.h       \
                          src/dispatcher.cc src/ep_time.c                  \
                          src/ep_time.h src/sqlite-kvstore/sqlite-pst.cc   \
                          tools/cJSON.c tools/cJSON.h                      \
-                         mock/mccouch.cc mock/mccouch.hh
+                         mock/mccouch.cc mock/mccouch.hh                  \
+                         tests/ep_test_apis.cc tests/ep_test_apis.h
 ep_testsuite_la_LDFLAGS= -module -dynamic
 
 # This is because automake can't figure out how to build the same code
