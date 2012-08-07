@@ -5222,7 +5222,7 @@ static void set_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 static void del_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                           const char *key, const size_t keylen,
                           const uint32_t vb, ItemMetaData *itemMeta,
-                          uint64_t cas_for_delete)
+                          uint64_t cas_for_delete = 0)
 {
     char ext[24];
     encodeWithMetaExt(ext, itemMeta);
@@ -5531,10 +5531,9 @@ static enum test_result test_delete_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
     item *i = NULL;
     check(store(h, h1, NULL, OPERATION_SET, key,
                 "somevalue", &i) == ENGINE_SUCCESS, "Failed set.");
-    Item *it = reinterpret_cast<Item*>(i);
 
     // delete an item with meta data
-    del_with_meta(h, h1, key, keylen, 0, &itemMeta, it->getCas());
+    del_with_meta(h, h1, key, keylen, 0, &itemMeta);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
     // check the stat
     temp = get_int_stat(h, h1, "ep_num_ops_del_meta");
