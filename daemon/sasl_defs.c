@@ -138,20 +138,32 @@ static int sasl_log(void *context, int level, const char *message)
 }
 #endif
 
+typedef int (*sasl_callback_function)();
+
+
 static sasl_callback_t sasl_callbacks[] = {
 #ifdef ENABLE_SASL_PWDB
-   { SASL_CB_SERVER_USERDB_CHECKPASS, sasl_server_userdb_checkpass, NULL },
+   { .id = SASL_CB_SERVER_USERDB_CHECKPASS,
+     .proc = (sasl_callback_function)sasl_server_userdb_checkpass,
+     .context = NULL
+   },
 #endif
 
 #ifdef ENABLE_SASL
-   { SASL_CB_LOG, sasl_log, NULL },
+   { .id = SASL_CB_LOG,
+     .proc = (sasl_callback_function)sasl_log,
+     .context = NULL },
 #endif
 
 #ifdef HAVE_SASL_CB_GETCONF
-   { SASL_CB_GETCONF, sasl_getconf, NULL },
+   { .id = SASL_CB_GETCONF,
+     .proc = (sasl_callback_function)sasl_getconf,
+     .context = NULL },
 #endif
 
-   { SASL_CB_LIST_END, NULL, NULL }
+   { .id = SASL_CB_LIST_END,
+     .proc = NULL,
+     .context = NULL }
 };
 
 void init_sasl(void) {
