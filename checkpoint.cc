@@ -1018,6 +1018,7 @@ void CheckpointManager::checkAndAddNewCheckpoint(uint64_t id) {
     // simply set the current open checkpoint id to the one received from the active vbucket.
     if (checkpointList.back()->getId() == 0) {
         setOpenCheckpointId_UNLOCKED(id);
+        resetCursors();
         return;
     }
 
