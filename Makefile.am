@@ -170,7 +170,10 @@ libcouch_kvstore_la_SOURCES += src/couch-kvstore/couch-kvstore.cc    \
                                src/couch-kvstore/couch-notifier.cc   \
                                src/couch-kvstore/couch-notifier.hh   \
                                tools/cJSON.c                         \
-                               tools/cJSON.h
+                               tools/cJSON.h                         \
+                               tools/JSON_checker.c                  \
+                               tools/JSON_checker.h
+
 libcouch_kvstore_la_LIBADD = libdirutils.la $(LTLIBCOUCHSTORE)
 else
 libcouch_kvstore_la_SOURCES += src/couch-kvstore/couch-kvstore-dummy.hh \

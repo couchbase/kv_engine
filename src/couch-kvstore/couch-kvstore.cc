@@ -16,6 +16,7 @@
 #include "couch-kvstore/couch-kvstore.hh"
 #include "couch-kvstore/dirutils.hh"
 #include "tools/cJSON.h"
+#include "tools/JSON_checker.h"
 
 #define STATWRITER_NAMESPACE couchstore_engine
 #include "statwriter.hh"
@@ -65,22 +66,9 @@ static std::string getStrError() {
 
 static bool isJSON(const value_t &value)
 {
-    bool isJSON = false;
-    const char *ptr = value->getData();
-    size_t len = value->length();
-    size_t ii = 0;
-    while (ii < len && isspace(*ptr)) {
-        ++ptr;
-        ++ii;
-    }
-
-    std::string data(value->getData(), value->length());
-    cJSON *json = cJSON_Parse(data.c_str());
-    if (json != 0) {
-        isJSON = true;
-        cJSON_Delete(json);
-    }
-    return isJSON;
+    const int len = value->length();
+    const unsigned char *data = (unsigned char*) value->getData();
+    return checkUTF8JSON(data, len);
 }
 
 static const std::string getJSONObjString(const cJSON *i)
