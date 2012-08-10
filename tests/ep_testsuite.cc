@@ -208,34 +208,14 @@ static bool teardown(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return true;
 }
 
-static enum test_result check_key_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                                        const char* key,
-                                        const char* val, size_t vlen,
-                                        uint16_t vbucket = 0) {
-    item *i = NULL;
-    ENGINE_ERROR_CODE rv;
-    if ((rv = h1->get(h, NULL, &i, key, strlen(key), vbucket)) != ENGINE_SUCCESS) {
-        fprintf(stderr, "Expected ENGINE_SUCCESS on get of %s (vb=%d), got %d\n",
-                key, vbucket, rv);
-        abort();
-    }
-
+static void check_key_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                            const char* key, const char* val, size_t vlen,
+                            uint16_t vbucket = 0) {
     item_info info;
-    info.nvalue = 1;
-    check(h1->get_item_info(h, NULL, i, &info), "check_key_value");
-
-    assert(info.nvalue == 1);
-    if (vlen != info.value[0].iov_len) {
-        std::cerr << "Expected length " << vlen
-                  << " got " << info.value[0].iov_len << std::endl;
-        checkeq(vlen, (size_t)info.value[0].iov_len, "Length mismatch.");
-    }
-
-    check(memcmp(info.value[0].iov_base, val, vlen) == 0,
-          "Data mismatch");
-    h1->release(h, NULL, i);
-
-    return SUCCESS;
+    check(get_item_info(h, h1, &info, key, vbucket), "checking key and value");
+    check(info.nvalue == 1, "info.nvalue != 1");
+    check(vlen == info.value[0].iov_len, "Value length mismatch");
+    check(memcmp(info.value[0].iov_base, val, vlen) == 0, "Data mismatch");
 }
 
 static bool test_setup(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
@@ -601,7 +581,8 @@ static enum test_result test_set_get_hit_bin(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 
                        binaryData, sizeof(binaryData), 82758, &i, 0, 0),
           "Failed to set.");
     h1->release(h, NULL, i);
-    return check_key_value(h, h1, "key", binaryData, sizeof(binaryData));
+    check_key_value(h, h1, "key", binaryData, sizeof(binaryData));
+    return SUCCESS;
 }
 
 static enum test_result test_set_with_cas_non_existent(ENGINE_HANDLE *h,
@@ -694,8 +675,8 @@ static enum test_result test_add(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(store(h, h1, NULL, OPERATION_ADD,"key", "newvalue", &i) == ENGINE_SUCCESS,
           "Failed to add value again.");
     h1->release(h, NULL, i);
-
-    return check_key_value(h, h1, "key", "newvalue", 8);
+    check_key_value(h, h1, "key", "newvalue", 8);
+    return SUCCESS;
 }
 
 static enum test_result test_add_add_with_cas(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
@@ -732,7 +713,8 @@ static enum test_result test_replace(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(store(h, h1, NULL, OPERATION_REPLACE,"key", "somevalue", &i) == ENGINE_SUCCESS,
           "Failed to replace existing value.");
     h1->release(h, NULL, i);
-    return check_key_value(h, h1, "key", "somevalue", 9);
+    check_key_value(h, h1, "key", "somevalue", 9);
+    return SUCCESS;
 }
 
 static enum test_result test_incr_miss(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
@@ -764,7 +746,8 @@ static enum test_result test_incr_default(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
           "Failed third arith.");
     check(result == 3, "Failed third result verification.");
 
-    return check_key_value(h, h1, "key", "3", 1);
+    check_key_value(h, h1, "key", "3", 1);
+    return SUCCESS;
 }
 
 static enum test_result test_append(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
@@ -813,7 +796,8 @@ static enum test_result test_append(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     expected.append(binaryData1, sizeof(binaryData1) - 1);
     expected.append(binaryData2, sizeof(binaryData2) - 1);
 
-    return check_key_value(h, h1, "key", expected.data(), expected.length());
+    check_key_value(h, h1, "key", expected.data(), expected.length());
+    return SUCCESS;
 }
 
 static enum test_result test_prepend(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
@@ -862,7 +846,8 @@ static enum test_result test_prepend(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     expected.append(binaryData2, sizeof(binaryData2) - 1);
     expected.append(binaryData1, sizeof(binaryData1) - 1);
 
-    return check_key_value(h, h1, "key", expected.data(), expected.length());
+    check_key_value(h, h1, "key", expected.data(), expected.length());
+    return SUCCESS;
 }
 
 static enum test_result test_incr(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
@@ -877,7 +862,8 @@ static enum test_result test_incr(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                          0) == ENGINE_SUCCESS,
           "Failed to incr value.");
 
-    return check_key_value(h, h1, "key", "2", 1);
+    check_key_value(h, h1, "key", "2", 1);
+    return SUCCESS;
 }
 
 static enum test_result test_bug2799(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
@@ -1243,7 +1229,8 @@ static enum test_result test_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                               testHarness.engine_path,
                               testHarness.get_current_testcase()->cfg,
                               true, false);
-    return check_key_value(h, h1, "key", val, strlen(val));
+    check_key_value(h, h1, "key", val, strlen(val));
+    return SUCCESS;
 }
 
 static enum test_result test_specialKeys(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
@@ -1378,7 +1365,8 @@ static enum test_result test_restart_bin_val(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 
                               testHarness.get_current_testcase()->cfg,
                               true, false);
 
-    return check_key_value(h, h1, "key", binaryData, sizeof(binaryData));
+    check_key_value(h, h1, "key", binaryData, sizeof(binaryData));
+    return SUCCESS;
 }
 
 static enum test_result test_wrong_vb_get(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
@@ -1810,8 +1798,7 @@ static enum test_result test_touch(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
           "Failed set.");
     h1->release(h, NULL, itm);
 
-    check(check_key_value(h, h1, "mykey", "somevalue", strlen("somevalue")) == SUCCESS,
-          "Failed to retrieve data");
+    check_key_value(h, h1, "mykey", "somevalue", strlen("somevalue"));
 
     touch(h, h1, "mykey", 0, (time(NULL) + 10));
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "touch mykey");
@@ -1857,8 +1844,7 @@ static enum test_result test_gat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
           "Failed set.");
     h1->release(h, NULL, itm);
 
-    check(check_key_value(h, h1, "mykey", "somevalue", strlen("somevalue")) == SUCCESS,
-          "Failed to retrieve data");
+    check_key_value(h, h1, "mykey", "somevalue", strlen("somevalue"));
 
     gat(h, h1, "mykey", 0, 10);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "gat mykey");
@@ -1910,8 +1896,7 @@ static enum test_result test_gatq(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
           "Failed set.");
     h1->release(h, NULL, itm);
 
-    check(check_key_value(h, h1, "mykey", "somevalue", strlen("somevalue")) == SUCCESS,
-          "Failed to retrieve data");
+    check_key_value(h, h1, "mykey", "somevalue", strlen("somevalue"));
 
     gat(h, h1, "mykey", 0, 10, true);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "gat mykey");
@@ -1938,8 +1923,7 @@ static enum test_result test_mb5215(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
           == ENGINE_SUCCESS, "Failed set.");
     h1->release(h, NULL, itm);
 
-    check(check_key_value(h, h1, "coolkey", "cooler", strlen("cooler"))
-          == SUCCESS, "Failed to retrieve data");
+    check_key_value(h, h1, "coolkey", "cooler", strlen("cooler"));
 
     // set new exptime to 111
     int expTime = time(NULL) + 111;
@@ -2287,10 +2271,7 @@ static enum test_result test_tap_rcvr_mutate(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 
                              1, 0, TAP_MUTATION, 1, "key", 3, 828, 0, 0,
                              data, i, 0) == ENGINE_SUCCESS,
               "Failed tap notify.");
-        std::stringstream ss;
-        ss << "failed key at " << i;
-        check(check_key_value(h, h1, "key", data, i) == SUCCESS,
-              ss.str().c_str());
+        check_key_value(h, h1, "key", data, i);
         free(data);
     }
     return SUCCESS;
