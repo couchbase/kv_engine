@@ -533,12 +533,7 @@ void vbucketDelete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, uint16_t vb,
 }
 
 ENGINE_ERROR_CODE verify_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                             const char* key) {
-    return verify_vb_key(h, h1, key, 0);
-}
-
-ENGINE_ERROR_CODE verify_vb_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                                const char* key, uint16_t vbucket) {
+                             const char* key, uint16_t vbucket) {
     item *i = NULL;
     ENGINE_ERROR_CODE rv = h1->get(h, NULL, &i, key, strlen(key), vbucket);
     if (rv == ENGINE_SUCCESS) {

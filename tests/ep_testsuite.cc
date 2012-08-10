@@ -1022,7 +1022,7 @@ static enum test_result test_flush_multiv(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     h1->release(h, NULL, i);
 
     check(ENGINE_SUCCESS == verify_key(h, h1, "key"), "Expected key");
-    check(ENGINE_SUCCESS == verify_vb_key(h, h1, "key2", 2), "Expected key2");
+    check(ENGINE_SUCCESS == verify_key(h, h1, "key2", 2), "Expected key2");
 
     check_key_value(h, h1, "key", "somevalue", 9);
     check_key_value(h, h1, "key2", "somevalue", 9, 2);
@@ -1035,7 +1035,7 @@ static enum test_result test_flush_multiv(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     check(vals.find("ep_flush_all") != vals.end(), "Failed to get the status of flush_all");
 
     check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key"), "Expected missing key");
-    check(ENGINE_KEY_ENOENT == verify_vb_key(h, h1, "key2", 2), "Expected missing key");
+    check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key2", 2), "Expected missing key");
 
     return SUCCESS;
 }
@@ -1383,7 +1383,7 @@ static enum test_result test_restart_bin_val(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 
 
 static enum test_result test_wrong_vb_get(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     int numNotMyVBucket = get_int_stat(h, h1, "ep_num_not_my_vbuckets");
-    check(ENGINE_NOT_MY_VBUCKET == verify_vb_key(h, h1, "key", 1),
+    check(ENGINE_NOT_MY_VBUCKET == verify_key(h, h1, "key", 1),
           "Expected wrong bucket.");
     wait_for_stat_change(h, h1, "ep_num_not_my_vbuckets", numNotMyVBucket);
     return SUCCESS;
@@ -1406,7 +1406,7 @@ static enum test_result test_vb_get_pending(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
 static enum test_result test_vb_get_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(set_vbucket_state(h, h1, 1, vbucket_state_replica), "Failed to set vbucket state.");
     int numNotMyVBucket = get_int_stat(h, h1, "ep_num_not_my_vbuckets");
-    check(ENGINE_NOT_MY_VBUCKET == verify_vb_key(h, h1, "key", 1),
+    check(ENGINE_NOT_MY_VBUCKET == verify_key(h, h1, "key", 1),
           "Expected not my bucket.");
     wait_for_stat_change(h, h1, "ep_num_not_my_vbuckets", numNotMyVBucket);
     return SUCCESS;

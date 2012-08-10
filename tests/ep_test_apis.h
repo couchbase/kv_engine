@@ -91,9 +91,7 @@ void touch(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
 void unl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
          uint16_t vb, uint64_t cas = 0);
 ENGINE_ERROR_CODE verify_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                             const char* key);
-ENGINE_ERROR_CODE verify_vb_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                                const char* key, uint16_t vbucket);
+                             const char* key, uint16_t vbucket = 0);
 bool verify_vbucket_missing(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                             uint16_t vb);
 bool verify_vbucket_state(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, uint16_t vb,
