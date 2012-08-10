@@ -631,7 +631,7 @@ static enum test_result test_set_change_flags(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
 
     item_info info;
     uint32_t flags = 828258;
-    check(get_value(h, h1, "key", &info), "Failed to get value.");
+    check(get_item_info(h, h1, &info, "key"), "Failed to get value.");
     assert(info.flags != flags);
 
     check(storeCasVb11(h, h1, NULL, OPERATION_SET, "key",
@@ -639,7 +639,7 @@ static enum test_result test_set_change_flags(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
           "Failed to set again.");
     h1->release(h, NULL, i);
 
-    check(get_value(h, h1, "key", &info), "Failed to get value.");
+    check(get_item_info(h, h1, &info, "key"), "Failed to get value.");
 
     return info.flags == flags ? SUCCESS : FAIL;
 }
@@ -2933,7 +2933,7 @@ static enum test_result test_tap_ack_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
         std::stringstream ss;
         ss << i;
         item_info info;
-        check(get_value(h, h1, ss.str().c_str(), &info), "Verify items");
+        check(get_item_info(h, h1, &info, ss.str().c_str()), "Verify items");
     }
 
     const void *cookie = testHarness.create_cookie();
@@ -3083,7 +3083,7 @@ static enum test_result test_tap_implicit_ack_stream(ENGINE_HANDLE *h, ENGINE_HA
         std::stringstream ss;
         ss << i;
         item_info info;
-        check(get_value(h, h1, ss.str().c_str(), &info), "Verify items");
+        check(get_item_info(h, h1, &info, ss.str().c_str()), "Verify items");
     }
 
     const void *cookie = testHarness.create_cookie();

@@ -59,12 +59,12 @@ void evict_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
                bool expectError = false);
 void gat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
          uint16_t vb, uint32_t exp, bool quiet = false);
+bool get_item_info(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, item_info *info,
+                   const char* key, uint16_t vb = 0);
 bool get_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, item *i,
              std::string &key);
 void getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key, uint16_t vb,
           uint32_t lock_timeout);
-bool get_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-               const char* key, item_info *info);
 void observe(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
              std::map<std::string, uint16_t> obskeys);
 protocol_binary_request_header* prepare_get_replica(ENGINE_HANDLE *h,

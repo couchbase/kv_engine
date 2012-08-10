@@ -286,6 +286,23 @@ void gat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
     free(request);
 }
 
+bool get_item_info(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, item_info *info,
+                   const char* key, uint16_t vb) {
+    item *i = NULL;
+    if (h1->get(h, NULL, &i, key, strlen(key), vb) != ENGINE_SUCCESS) {
+        return false;
+    }
+    info->nvalue = 1;
+    if (!h1->get_item_info(h, NULL, i, info)) {
+        h1->release(h, NULL, i);
+        fprintf(stderr, "get_item_info failed\n");
+        return false;
+    }
+
+    h1->release(h, NULL, i);
+    return true;
+}
+
 bool get_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, item *i,
              std::string &key) {
 
@@ -326,23 +343,6 @@ bool get_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
     } else {
         return false;
     }
-}
-
-bool get_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-               const char* key, item_info *info) {
-    item *i = NULL;
-    if (h1->get(h, NULL, &i, key, strlen(key), 0) != ENGINE_SUCCESS) {
-        return false;
-    }
-    info->nvalue = 1;
-    if (!h1->get_item_info(h, NULL, i, info)) {
-        h1->release(h, NULL, i);
-        fprintf(stderr, "get_item_info failed\n");
-        return false;
-    }
-
-    h1->release(h, NULL, i);
-    return true;
 }
 
 void observe(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
