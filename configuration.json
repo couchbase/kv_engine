@@ -29,12 +29,12 @@
             }
         },
         "alog_task_time": {
-            "default": "10",
+            "default": "24",
             "descr": "Hour in GMT time when access scanner task is scheduled to run",
             "type": "size_t",
             "validator": {
                 "range": {
-                    "max": 23,
+                    "max": 24,
                     "min": 0
                 }
             }
