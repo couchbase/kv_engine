@@ -161,6 +161,14 @@ class MemcachedClient(object):
         """Add a value in the memcached server iff it doesn't already exist."""
         return self._mutate(memcacheConstants.CMD_ADD, key, exp, flags, 0, val)
 
+    def addWithMeta(self, key, value, exp, flags, seqno, remote_cas):
+        return self._doMetaCmd(memcacheConstants.CMD_ADD_WITH_META,
+                               key, value, 0, exp, flags, seqno, remote_cas)
+
+    def addWithRev(self, key, exp, flags, value, rev):
+        return self._doRevCmd(memcacheConstants.CMD_ADD_WITH_META,
+                              key, exp, flags, value, rev)
+
     def replace(self, key, exp, flags, val):
         """Replace a value in the memcached server iff it already exists."""
         return self._mutate(memcacheConstants.CMD_REPLACE, key, exp, flags, 0,
