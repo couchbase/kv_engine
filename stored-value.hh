@@ -1310,6 +1310,7 @@ public:
                 if (!v->isResident() && !v->isDeleted()) {
                     --numNonResidentItems;
                 }
+                v->setSeqno(newSeqno);
                 v->del(stats, *this, use_meta);
                 updateMaxDeletedSeqno(v->getSeqno());
                 return rv;
