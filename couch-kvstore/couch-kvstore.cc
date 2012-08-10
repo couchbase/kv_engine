@@ -589,9 +589,17 @@ void CouchKVStore::getPersistedStats(std::map<std::string, std::string> &stats)
         session_stats.open(fname.c_str(), ios::binary);
         session_stats.seekg (0, ios::end);
         int flen = session_stats.tellg();
+        if (flen < 0) {
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                             "Warning: error in session stats ifstream!!!\n");
+            session_stats.close();
+            return;
+        }
         session_stats.seekg (0, ios::beg);
-        buffer = new char[flen];
+        buffer = new char[flen + 1];
         session_stats.read(buffer, flen);
+        session_stats.close();
+        buffer[flen] = '\0';
 
         cJSON *json_obj = cJSON_Parse(buffer);
         if (!json_obj) {
@@ -610,7 +618,6 @@ void CouchKVStore::getPersistedStats(std::map<std::string, std::string> &stats)
         }
         cJSON_Delete(json_obj);
 
-        session_stats.close();
     } catch (const std::ifstream::failure& e) {
         getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                          "Warning: failed to load the engine session stats "
