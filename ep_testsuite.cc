@@ -5252,6 +5252,8 @@ static enum test_result test_get_meta_with_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V
           "Failed set.");
     h1->release(h, NULL, i);
     wait_for_flusher_to_settle(h, h1);
+    wait_for_stat_to_be(h, h1, "curr_items", 1);
+
     // check the stat
     check(get_int_stat(h, h1, "ep_num_ops_get_meta") == 0, "Expect zero getMeta ops");
     check(get_meta(h, h1, key1, itm_meta), "Expected to get meta");
@@ -5272,6 +5274,8 @@ static enum test_result test_get_meta_with_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     check(h1->remove(h, NULL, key1, strlen(key1), 0, 0) == ENGINE_SUCCESS,
           "Delete failed");
     wait_for_flusher_to_settle(h, h1);
+    wait_for_stat_to_be(h, h1, "curr_items", 0);
+
     check(get_meta(h, h1, key1, itm_meta), "Expected to get meta");
     check(get_int_stat(h, h1, "curr_items") == 0, "Expected zero curr_items");
     check(get_int_stat(h, h1, "curr_temp_items") == 1, "Expected single temp_items");
