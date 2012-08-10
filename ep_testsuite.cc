@@ -5062,40 +5062,14 @@ static void add_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                           const char *val, const size_t vallen,
                           const uint32_t vb, ItemMetaData *itemMeta)
 {
-    union {
-        protocol_binary_request_header pkt;
-        protocol_binary_request_set_with_meta req;
-        char buffer[1024];
-    } msg;
-    memset(&msg.req, 0, sizeof(msg));
+    char ext[24];
+    encodeWithMetaExt(ext, itemMeta);
+    protocol_binary_request_header *pkt;
+    pkt = createPacket(CMD_ADD_WITH_META, vb, 0, ext, 24, key, keylen,
+                       val, vallen);
 
-    // extlen of operation ADD_WITH_META is 24
-    uint8_t extlen = 24;
-    size_t bodyLen = keylen + extlen + vallen;
-
-    msg.req.message.header.request.magic = PROTOCOL_BINARY_REQ;
-    msg.req.message.header.request.opcode = CMD_ADD_WITH_META;
-    msg.req.message.header.request.extlen = extlen;
-    msg.req.message.header.request.keylen = htons(keylen);
-    msg.req.message.header.request.vbucket = htons(vb);
-    msg.req.message.header.request.bodylen = htonl(bodyLen);
-    memcpy(msg.buffer + sizeof(msg.req.bytes), key, keylen);
-    // if comes with value
-    if( vallen > 0 && val ) {
-        memcpy(msg.buffer + sizeof(msg.req.bytes) + keylen, val, vallen);
-    }
-
-    msg.req.message.body.flags = htonl(itemMeta->flags);
-    msg.req.message.body.expiration = 0;
-    msg.req.message.body.seqno = htonll(itemMeta->seqno);
-    msg.req.message.body.cas = htonll(itemMeta->cas);
-
-    ENGINE_ERROR_CODE ret = h1->unknown_command(h, NULL, &msg.pkt,
-                                                add_response);
-
-    check(ret == ENGINE_SUCCESS, "Expected to be able to store with meta");
-
-    return;
+    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
+          "Expected to be able to store with meta");
 }
 
 static void del_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
