@@ -7,8 +7,8 @@
 
 class ItemAccessVisitor : public VBucketVisitor {
 public:
-    ItemAccessVisitor(EventuallyPersistentStore &_store) : store(_store),
-                                                           startTime(ep_real_time())
+    ItemAccessVisitor(EventuallyPersistentStore &_store, EPStats &_stats) :
+        store(_store), stats(_stats), startTime(ep_real_time())
     {
         Configuration &conf = store.getEPEngine().getConfiguration();
         name = conf.getAlogPath();
@@ -54,6 +54,7 @@ public:
             log->commit2();
             delete log;
             log = NULL;
+            ++stats.alogRuns;
 
             if (num_items == 0) {
                 getLogger()->log(EXTENSION_LOG_INFO, NULL,
@@ -84,6 +85,7 @@ public:
 
 private:
     EventuallyPersistentStore &store;
+    EPStats &stats;
     rel_time_t startTime;
     std::string prev;
     std::string next;
@@ -100,10 +102,9 @@ AccessScanner::AccessScanner(EventuallyPersistentStore &_store, EPStats &st,
 bool AccessScanner::callback(Dispatcher &d, TaskId t) {
     // @todo we should be able to suspend this task to ensure that we're not
     //       running multiple in parallel
-    shared_ptr<ItemAccessVisitor> pv(new ItemAccessVisitor(store));
+    shared_ptr<ItemAccessVisitor> pv(new ItemAccessVisitor(store, stats));
     store.resetAccessScannerTasktime();
     store.visit(pv, "Item access scanner", &d, Priority::ItemPagerPriority);
-    ++stats.alogRuns;
     d.snooze(t, sleepTime);
     stats.alogTime.set(t->getWaketime().tv_sec);
     return true;
