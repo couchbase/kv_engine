@@ -22,6 +22,7 @@ private:
     EventuallyPersistentStore &store;
     EPStats &stats;
     size_t sleepTime;
+    bool available;
 };
 
 #endif /* ACCESS_SCANNER_HH */

@@ -7,8 +7,10 @@
 
 class ItemAccessVisitor : public VBucketVisitor {
 public:
-    ItemAccessVisitor(EventuallyPersistentStore &_store, EPStats &_stats) :
-        store(_store), stats(_stats), startTime(ep_real_time())
+    ItemAccessVisitor(EventuallyPersistentStore &_store, EPStats &_stats,
+                      bool *sfin) :
+        store(_store), stats(_stats), startTime(ep_real_time()),
+        stateFinalizer(sfin)
     {
         Configuration &conf = store.getEPEngine().getConfiguration();
         name = conf.getAlogPath();
@@ -48,6 +50,10 @@ public:
     }
 
     virtual void complete() {
+        if (stateFinalizer) {
+            *stateFinalizer = true;
+        }
+
         if (log != NULL) {
             size_t num_items = log->itemsLogged[ML_NEW];
             log->commit1();
@@ -92,19 +98,21 @@ private:
     std::string name;
 
     MutationLog *log;
+    bool *stateFinalizer;
 };
 
 AccessScanner::AccessScanner(EventuallyPersistentStore &_store, EPStats &st,
                              size_t sleeptime) :
-        store(_store), stats(st), sleepTime(sleeptime)
-{}
+    store(_store), stats(st), sleepTime(sleeptime), available(true)
+{ }
 
 bool AccessScanner::callback(Dispatcher &d, TaskId t) {
-    // @todo we should be able to suspend this task to ensure that we're not
-    //       running multiple in parallel
-    shared_ptr<ItemAccessVisitor> pv(new ItemAccessVisitor(store, stats));
-    store.resetAccessScannerTasktime();
-    store.visit(pv, "Item access scanner", &d, Priority::ItemPagerPriority);
+    if (available) {
+        available = false;
+        shared_ptr<ItemAccessVisitor> pv(new ItemAccessVisitor(store, stats, &available));
+        store.resetAccessScannerTasktime();
+        store.visit(pv, "Item access scanner", &d, Priority::ItemPagerPriority);
+    }
     d.snooze(t, sleepTime);
     stats.alogTime.set(t->getWaketime().tv_sec);
     return true;
