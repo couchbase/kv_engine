@@ -157,16 +157,18 @@ def histograms(mc, raw_stats):
 @cmd
 def stats_key(mc, key, vb):
     cmd = "key %s %s" % (key, str(vb))
-    vbs = mc.stats(cmd)
-    print "stats for key", key
-    stats_formatter(vbs)
+    vbs = stats_perform(mc, cmd)
+    if vbs:
+        print "stats for key", key
+        stats_formatter(vbs)
 
 @cmd
 def stats_vkey(mc, key, vb):
     cmd = "vkey %s %s" % (key, str(vb))
-    vbs = mc.stats(cmd)
-    print "verification for key", key
-    stats_formatter(vbs)
+    vbs = stats_perform(mc, cmd)
+    if vbs:
+        print "verification for key", key
+        stats_formatter(vbs)
 
 @cmd
 def stats_all(mc):
@@ -196,7 +198,9 @@ def time_label(s):
 
 @cmd
 def stats_timings(mc):
-    histograms(mc, mc.stats('timings'))
+    h = stats_perform(mc, 'timings')
+    if h:
+        histograms(mc, h)
 
 @cmd
 def stats_tap(mc):
@@ -252,7 +256,7 @@ def stats_config(mc):
 
 @cmd
 def stats_raw(mc, arg):
-    stats_formatter(mc.stats(arg))
+    stats_formatter(stats_perform(mc,arg))
 
 @cmd
 def stats_kvstore(mc):
@@ -260,7 +264,9 @@ def stats_kvstore(mc):
 
 @cmd
 def stats_kvtimings(mc):
-    histograms(mc, mc.stats('kvtimings'))
+    h = stats_perform(mc, 'kvtimings')
+    if h:
+        histograms(mc, h)
 
 def avg(s):
     return sum(s) / len(s)
@@ -281,7 +287,9 @@ def magic_cmp(a, b):
 
 @cmd
 def stats_hash(mc, with_detail=None):
-    h = mc.stats('hash')
+    h = stats_perform(mc,'hash')
+    if not h:
+        return
     with_detail = with_detail == 'detail'
 
     mins = []
@@ -320,7 +328,9 @@ def stats_hash(mc, with_detail=None):
 @cmd
 def stats_dispatcher(mc, with_logs='no'):
     with_logs = with_logs == 'logs'
-    sorig = mc.stats('dispatcher')
+    sorig = stats_perform(mc,'dispatcher')
+    if not sorig:
+        return
     s = {}
     logs = {}
     slowlogs = {}
@@ -361,7 +371,7 @@ def stats_dispatcher(mc, with_logs='no'):
 
 @cmd
 def reset(mc):
-    mc.stats('reset')
+    stats_perform(mc, 'reset')
 
 def main():
     c = clitool.CliTool()
