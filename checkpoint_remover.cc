@@ -56,8 +56,6 @@ private:
 
 bool ClosedUnrefCheckpointRemover::callback(Dispatcher &d, TaskId t) {
     if (available) {
-        ++stats.checkpointRemoverRuns;
-
         available = false;
         shared_ptr<CheckpointVisitor> pv(new CheckpointVisitor(store, stats, &available));
         store->visit(pv, "Checkpoint Remover", &d, Priority::CheckpointRemoverPriority);

@@ -59,8 +59,6 @@ For introductory information on stats within membase, start with the
 |                                | due to the expiry of the item              |
 | ep_queue_size                  | Number of items queued for storage.        |
 | ep_flusher_todo                | Number of items remaining to be written.   |
-| ep_flusher_num_completed       | Number of times the flusher completes      |
-|                                | persisting all items from the checkpoint   |
 |                                | queues.                                    |
 | ep_flusher_state               | Current state of the flusher thread.       |
 | ep_commit_num                  | Total number of write commits.             |
@@ -71,13 +69,9 @@ For introductory information on stats within membase, start with the
 | ep_vbucket_del_fail            | Number of failed vbucket deletion events.  |
 | ep_vbucket_del_max_walltime    | Max wall time (µs) spent by deleting       |
 |                                | a vbucket                                  |
-| ep_vbucket_del_total_walltime  | Total wall time (µs) spent by deleting     |
-|                                | vbuckets                                   |
 | ep_vbucket_del_avg_walltime    | Avg wall time (µs) spent by deleting       |
 |                                | a vbucket                                  |
-| ep_flush_duration              | Number of seconds of most recent flush.    |
 | ep_flush_duration_total        | Cumulative seconds spent flushing.         |
-| ep_flush_duration_highwat      | ep_flush_duration high water mark.         |
 | ep_flush_all                   | True if disk flush_all is scheduled        |
 | ep_num_ops_get_meta            | Number of getMeta operations               |
 | ep_num_ops_set_meta            | Number of setWithMeta operations           |
@@ -119,8 +113,6 @@ For introductory information on stats within membase, start with the
 | ep_num_access_scanner_runs     | Number of times we ran accesss scanner     |
 |                                | to snapshot working set                    |
 | ep_access_scanner_task_time    | Time of the next access scanner task (GMT) |
-| ep_num_checkpoint_remover_runs | Number of times we ran checkpoint remover  |
-|                                | to remove closed unreferenced checkpoints. |
 | ep_items_rm_from_checkpoints   | Number of items removed from closed        |
 |                                | unreferenced checkpoints.                  |
 | ep_num_value_ejects            | Number of times item values got ejected    |
@@ -159,14 +151,9 @@ For introductory information on stats within membase, start with the
 |                                | storage threads.                           |
 | ep_store_max_readwrite         | Maximum number of concurrent read/write    |
 |                                | storage threads.                           |
-| ep_db_cleaner_status           | Status of database cleaner that cleans up  |
-|                                | invalid items with old vbucket versions    |
 | ep_bg_wait                     | The total elapse time for the wait queue   |
 | ep_bg_load                     | The total elapse time for items to be      |
 |                                | loaded from the persistence layer          |
-| ep_latency_get_cmd             | The total elapse time for get command      |
-| ep_latency_arith_cmd           | The total eplase time for arith command    |
-
 | ep_inconsistent_slave_chk      | Flag indicating if we allow a "downstream" |
 |                                | master to receive checkpoint messages      |
 | ep_mlog_compactor_runs         | Number of times mutation log compactor is  |
@@ -679,7 +666,6 @@ Reset Stats:
 | ep_io_read_bytes                  |
 | ep_io_write_bytes                 |
 | ep_items_rm_from_checkpoints      |
-| ep_num_checkpoint_remover_runs    |
 | ep_num_eject_failures             |
 | ep_num_pager_runs                 |
 | ep_num_not_my_vbuckets            |
@@ -700,7 +686,6 @@ Reset Stats:
 | ep_tap_throttled                  |
 | ep_tap_total_fetched              |
 | ep_vbucket_del_max_walltime       |
-| ep_vbucket_del_total_walltime     |
 | pending_ops                       |
 
 Reset Histograms:
@@ -717,9 +702,6 @@ Reset Histograms:
 | disk_vb_del                       |
 | disk_invalid_vbtable_del          |
 | disk_commit                       |
-| ep_latency_arith_cmd              |
-| ep_latency_get_cmd                |
-| ep_latency_store_cmd              |
 | get_stats_cmd                     |
 | item_alloc_sizes                  |
 | get_vb_cmd                        |

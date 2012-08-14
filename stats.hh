@@ -76,8 +76,6 @@ public:
     Atomic<size_t> flusher_todo;
     //! Number of transaction commits.
     Atomic<size_t> flusherCommits;
-    // # of completed flushes since engine starts up
-    Atomic<size_t> numCompletedFlush;
     //! Total time spent flushing.
     Atomic<size_t> cumulativeFlushTime;
     //! Total time spent committing.
@@ -114,27 +112,27 @@ public:
     Atomic<rel_time_t> dataAge;
     //! Oldest data we've seen while persisting.
     Atomic<rel_time_t> dataAgeHighWat;
-    //! How long does it take to do an entire flush cycle.
-    Atomic<rel_time_t> flushDuration;
-    //! Longest flush cycle we've seen.
-    Atomic<rel_time_t> flushDurationHighWat;
     //! Amount of time spent in the commit phase.
     Atomic<rel_time_t> commit_time;
     //! Number of times we deleted a vbucket.
     Atomic<size_t> vbucketDeletions;
     //! Number of times we failed to delete a vbucket.
     Atomic<size_t> vbucketDeletionFail;
+
     //! Beyond this point are config items
     //! Minimum data age before a record can be persisted
     Atomic<int> min_data_age;
     //! Maximum data age before a record is forced to be persisted
     Atomic<int> queue_age_cap;
+    //! Pager low water mark.
+    Atomic<size_t> mem_low_wat;
+    //! Pager high water mark
+    Atomic<size_t> mem_high_wat;
+
     //! Number of times we needed to kick in the pager
     Atomic<size_t> pagerRuns;
     //! Number of times the expiry pager runs for purging expired items
     Atomic<size_t> expiryPagerRuns;
-    //! Number of times the checkpoint remover runs for removing closed unreferenced checkpoints.
-    Atomic<size_t> checkpointRemoverRuns;
     //! Number of items removed from closed unreferenced checkpoints.
     Atomic<size_t> itemsRemovedFromCheckpoints;
     //! Number of times a value is ejected
@@ -143,14 +141,6 @@ public:
     Atomic<size_t> numFailedEjects;
     //! Number of times "Not my bucket" happened
     Atomic<size_t> numNotMyVBuckets;
-    //! Whether the DB cleaner completes cleaning up invalid items with old vb versions
-    Atomic<bool> dbCleanerComplete;
-    //! Number of deleted items reverted from hot reload
-    Atomic<size_t> numRevertDeletes;
-    //! Number of new items reverted from hot reload
-    Atomic<size_t> numRevertAdds;
-    //! Number of updated items reverted from hot reload
-    Atomic<size_t> numRevertUpdates;
     //! Total size of stored objects.
     Atomic<size_t> currentSize;
     //! Total memory overhead to store values for resident keys.
@@ -161,11 +151,6 @@ public:
     Atomic<size_t> totalMemory;
     //! True if the memory usage tracker is enabled.
     Atomic<bool> memoryTrackerEnabled;
-
-    //! Pager low water mark.
-    Atomic<size_t> mem_low_wat;
-    //! Pager high water mark
-    Atomic<size_t> mem_high_wat;
 
     //! Number of times unrecoverable oom errors happened while processing operations.
     Atomic<size_t> oom_errors;
@@ -220,13 +205,13 @@ public:
     //! The longest load time
     Atomic<hrtime_t> bgMaxLoad;
 
+    //! Histogram of background wait loads.
+    Histogram<hrtime_t> bgLoadHisto;
+
     //! Max wall time of deleting a vbucket
     Atomic<hrtime_t> vbucketDelMaxWalltime;
     //! Total wall time of deleting vbuckets
     Atomic<hrtime_t> vbucketDelTotWalltime;
-
-    //! Histogram of background wait loads.
-    Histogram<hrtime_t> bgLoadHisto;
 
     //! Histogram of time an item spends non-resident.
     Histogram<rel_time_t> pagedOutTimeHisto;
@@ -270,6 +255,9 @@ public:
     //! The longest tap load time
     Atomic<hrtime_t> tapBgMaxLoad;
 
+    //! Histogram of tap background wait loads.
+    Histogram<hrtime_t> tapBgLoadHisto;
+
     //! The number of get with meta operations
     Atomic<size_t>  numOpsGetMeta;
     //! The number of set with meta operations
@@ -283,9 +271,6 @@ public:
     Atomic<size_t> alogRuns;
     //! The next access scanner task schedule time (GMT)
     Atomic<hrtime_t> alogTime;
-
-    //! Histogram of tap background wait loads.
-    Histogram<hrtime_t> tapBgLoadHisto;
 
     //! Histogram of queue processing dirty age.
     Histogram<hrtime_t> dirtyAgeHisto;
@@ -351,8 +336,6 @@ public:
     //! Histogram of disk commits
     Histogram<hrtime_t> diskCommitHisto;
 
-    Histogram<hrtime_t> checkpointRevertHisto;
-
     //! Histogram of setting vbucket state
     Histogram<hrtime_t> snapshotVbucketHisto;
 
@@ -368,11 +351,8 @@ public:
         tooOld.set(0);
         dirtyAge.set(0);
         dirtyAgeHighWat.set(0);
-        flushDuration.set(0);
-        flushDurationHighWat.set(0);
         commit_time.set(0);
         pagerRuns.set(0);
-        checkpointRemoverRuns.set(0);
         itemsRemovedFromCheckpoints.set(0);
         numValueEjects.set(0);
         numFailedEjects.set(0);

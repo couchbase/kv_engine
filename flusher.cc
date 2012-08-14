@@ -263,8 +263,6 @@ int Flusher::doFlush() {
                 delete rejectQueue;
                 rejectQueue = NULL;
                 flushQueue = NULL;
-                // increment stats
-                store->stats.numCompletedFlush++;
             }
         }
     }

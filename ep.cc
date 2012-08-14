@@ -1807,9 +1807,6 @@ void EventuallyPersistentStore::completeFlush(rel_time_t flush_start) {
     stats.flusher_todo.set(writing.size());
     stats.queue_size.set(getWriteQueueSize());
     rel_time_t complete_time = ep_current_time();
-    stats.flushDuration.set(complete_time - flush_start);
-    stats.flushDurationHighWat.set(std::max(stats.flushDuration.get(),
-                                            stats.flushDurationHighWat.get()));
     stats.cumulativeFlushTime.incr(complete_time - flush_start);
 }
 

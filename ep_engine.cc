@@ -2407,12 +2407,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                     epstats.vbucketDeletions, add_stat, cookie);
     add_casted_stat("ep_vbucket_del_fail",
                     epstats.vbucketDeletionFail, add_stat, cookie);
-    add_casted_stat("ep_flush_duration",
-                    epstats.flushDuration, add_stat, cookie);
     add_casted_stat("ep_flush_duration_total",
                     epstats.cumulativeFlushTime, add_stat, cookie);
-    add_casted_stat("ep_flush_duration_highwat",
-                    epstats.flushDurationHighWat, add_stat, cookie);
     add_casted_stat("ep_flush_all",
                     epstore->isFlushAllScheduled() ? "true" : "false", add_stat, cookie);
     add_casted_stat("curr_items", activeCountVisitor.getNumItems(), add_stat, cookie);
@@ -2581,8 +2577,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                     cookie);
     add_casted_stat("ep_num_expiry_pager_runs", epstats.expiryPagerRuns, add_stat,
                     cookie);
-    add_casted_stat("ep_num_checkpoint_remover_runs", epstats.checkpointRemoverRuns,
-                    add_stat, cookie);
     add_casted_stat("ep_items_rm_from_checkpoints", epstats.itemsRemovedFromCheckpoints,
                     add_stat, cookie);
     add_casted_stat("ep_num_value_ejects", epstats.numValueEjects, add_stat,
@@ -2591,9 +2585,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                     cookie);
     add_casted_stat("ep_num_not_my_vbuckets", epstats.numNotMyVBuckets, add_stat,
                     cookie);
-    add_casted_stat("ep_db_cleaner_status",
-                    epstats.dbCleanerComplete.get() ? "complete" : "running",
-                    add_stat, cookie);
 
     add_casted_stat("ep_dbinit", databaseInitTime, add_stat, cookie);
     add_casted_stat("ep_io_num_read", epstats.io_num_read, add_stat, cookie);
@@ -2612,9 +2603,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     if (epstats.vbucketDeletions > 0) {
         add_casted_stat("ep_vbucket_del_max_walltime",
                         epstats.vbucketDelMaxWalltime,
-                        add_stat, cookie);
-        add_casted_stat("ep_vbucket_del_total_walltime",
-                        epstats.vbucketDelTotWalltime,
                         add_stat, cookie);
         add_casted_stat("ep_vbucket_del_avg_walltime",
                         epstats.vbucketDelTotWalltime / epstats.vbucketDeletions,
@@ -2662,11 +2650,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                     replicaCountVisitor.getNonResident(),
                     add_stat, cookie);
 
-    add_casted_stat("ep_latency_get_cmd", epstats.getCmdHisto.total(),
-                    add_stat, cookie);
-    add_casted_stat("ep_latency_arith_cmd", epstats.arithCmdHisto.total(),
-                    add_stat, cookie);
-
     add_casted_stat("ep_degraded_mode", isDegradedMode(), add_stat, cookie);
     add_casted_stat("ep_exp_pager_stime", epstore->getExpiryPagerSleeptime(),
                     add_stat, cookie);
@@ -2682,9 +2665,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     add_casted_stat("ep_access_scanner_task_time", timestr, add_stat, cookie);
 
     add_casted_stat("ep_startup_time", startupTime, add_stat, cookie);
-
-    add_casted_stat("ep_flusher_num_completed", epstats.numCompletedFlush,
-                    add_stat, cookie);
 
     if (getConfiguration().isWarmup()) {
         Warmup *wp = epstore->getWarmup();

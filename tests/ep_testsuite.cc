@@ -4297,43 +4297,6 @@ static enum test_result test_curr_items(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
     return SUCCESS;
 }
 
-static enum test_result test_cbd_226(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    item *i = NULL;
-    size_t num_completed_flush = 0;
-    size_t temp1 = 0;
-    size_t temp2 = 0;
-
-    num_completed_flush = get_int_stat(h, h1, "ep_flusher_num_completed");
-
-    // store some random data, and flush them to disk
-    check(store(h, h1, NULL, OPERATION_SET,"k1", "v1", &i) == ENGINE_SUCCESS,
-          "Failed to fail to store an item.");
-    check(store(h, h1, NULL, OPERATION_SET,"k2", "v2", &i) == ENGINE_SUCCESS,
-          "Failed to fail to store an item.");
-    check(store(h, h1, NULL, OPERATION_SET,"k3", "v3", &i) == ENGINE_SUCCESS,
-          "Failed to fail to store an item.");
-    wait_for_flusher_to_settle(h, h1);
-
-    // check the stat again
-    temp1 = get_int_stat(h, h1, "ep_flusher_num_completed");
-    check((temp1 - num_completed_flush) > 0, "Expected some completed flush");
-
-    // again, store some random data, and flush them to disk
-    check(store(h, h1, NULL, OPERATION_SET,"k1", "v1", &i) == ENGINE_SUCCESS,
-          "Failed to fail to store an item.");
-    check(store(h, h1, NULL, OPERATION_SET,"k2", "v2", &i) == ENGINE_SUCCESS,
-          "Failed to fail to store an item.");
-    check(store(h, h1, NULL, OPERATION_SET,"k3", "v3", &i) == ENGINE_SUCCESS,
-          "Failed to fail to store an item.");
-    wait_for_flusher_to_settle(h, h1);
-
-    // check the stat again, expect more flush
-    temp2 = get_int_stat(h, h1, "ep_flusher_num_completed");
-    check((temp2 - temp1) > 0, "Expected more completed flush");
-
-    return SUCCESS;
-}
-
 static enum test_result test_value_eviction(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(set_vbucket_state(h, h1, 1, vbucket_state_active), "Failed to set vbucket state.");
 
@@ -6799,8 +6762,6 @@ engine_test_t* get_tests(void) {
         TestCase("stats curr_items", test_curr_items, test_setup,
                  teardown, NULL, prepare, cleanup),
         TestCase("startup token stat", test_cbd_225, test_setup,
-                 teardown, NULL, prepare, cleanup),
-        TestCase("number of completed flush stat", test_cbd_226, test_setup,
                  teardown, NULL, prepare, cleanup),
 
         // eviction
