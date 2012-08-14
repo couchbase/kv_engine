@@ -37,7 +37,7 @@
 #include <memcached/engine.h>
 #include <memcached/engine_testapp.h>
 
-#include "ep_testsuite.h"
+#include "tests/ep_testsuite.h"
 #include "command_ids.h"
 
 #ifdef linux

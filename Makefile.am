@@ -241,7 +241,7 @@ check_PROGRAMS=\
                vbucket_test
 
 if HAVE_GOOGLETEST
-check_PROGRAMS += t/dirutils_test
+check_PROGRAMS += dirutils_test
 endif
 
 TESTS=${check_PROGRAMS}
@@ -249,8 +249,8 @@ EXTRA_TESTS =
 
 ep_testsuite_la_CPPFLAGS = -I$(top_srcdir) -I$(top_srcdir)/sqlite-kvstore \
                          $(AM_CPPFLAGS) ${NO_WERROR}
-ep_testsuite_la_SOURCES= ep_testsuite.cc ep_testsuite.h atomic.cc       \
-                         locks.hh mutex.cc mutex.hh item.cc             \
+ep_testsuite_la_SOURCES= tests/ep_testsuite.cc tests/ep_testsuite.h     \
+                         atomic.cc locks.hh mutex.cc mutex.hh item.cc   \
                          testlogger_libify.cc dispatcher.cc ep_time.c   \
                          ep_time.h sqlite-kvstore/sqlite-pst.cc         \
                          tools/cJSON.c tools/cJSON.h                    \
@@ -265,8 +265,8 @@ testlogger_libify.cc: testlogger.cc
 if BUILD_GENERATED_TESTS
 memcachedlib_LTLIBRARIES += generated_suite.la
 
-.genstamp: t/gen_engine_test.py t/breakdancer.py
-	${top_srcdir}/t/gen_engine_test.py
+.genstamp: tests/module_tests/gen_engine_test.py tests/module_tests/breakdancer.py
+	${top_srcdir}/tests/module_tests/gen_engine_test.py
 	touch .genstamp
 
 GEN_FILES=generated_suite_0.c \
@@ -288,7 +288,7 @@ CLEANFILES+= $(GEN_FILES) .genstamp
 generated_suite_la_DEPENDENCIES = ep.la
 generated_suite_la_CFLAGS = $(AM_CFLAGS) -O0
 nodist_generated_suite_la_SOURCES = $(GEN_FILES)
-generated_suite_la_SOURCES= suite_stubs.c ep_testsuite.h
+generated_suite_la_SOURCES= suite_stubs.c tests/ep_testsuite.h
 generated_suite_la_LDFLAGS= -module -dynamic
 
 EXTRA_TESTS += generated_engine_tests
@@ -306,19 +306,20 @@ timing_tests_la_SOURCES= timing_tests.cc
 timing_tests_la_LDFLAGS= -module -dynamic
 
 atomic_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
-atomic_test_SOURCES = t/atomic_test.cc atomic.hh mutex.cc
+atomic_test_SOURCES = tests/module_tests/atomic_test.cc atomic.hh mutex.cc
 atomic_test_DEPENDENCIES = atomic.hh
 
 atomic_ptr_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
-atomic_ptr_test_SOURCES = t/atomic_ptr_test.cc atomic.cc atomic.hh mutex.cc mutex.hh
+atomic_ptr_test_SOURCES = tests/module_tests/atomic_ptr_test.cc atomic.cc \
+                          atomic.hh mutex.cc mutex.hh
 atomic_ptr_test_DEPENDENCIES = atomic.hh
 
 mutex_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
-mutex_test_SOURCES = t/mutex_test.cc locks.hh mutex.cc
+mutex_test_SOURCES = tests/module_tests/mutex_test.cc locks.hh mutex.cc
 mutex_test_DEPENDENCIES = locks.hh
 
 dispatcher_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
-dispatcher_test_SOURCES = t/dispatcher_test.cc dispatcher.cc	\
+dispatcher_test_SOURCES = tests/module_tests/dispatcher_test.cc dispatcher.cc	\
                           dispatcher.hh priority.cc priority.hh	\
                           testlogger.cc atomic.cc mutex.cc
 dispatcher_test_DEPENDENCIES = common.hh dispatcher.hh dispatcher.cc	\
@@ -326,19 +327,20 @@ dispatcher_test_DEPENDENCIES = common.hh dispatcher.hh dispatcher.cc	\
 dispatcher_test_LDADD = libobjectregistry.la
 
 hash_table_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
-hash_table_test_SOURCES = t/hash_table_test.cc item.cc stored-value.cc	\
-                          stored-value.hh testlogger.cc atomic.cc mutex.cc \
-                          tools/cJSON.c test_memory_tracker.cc memory_tracker.hh
+hash_table_test_SOURCES = tests/module_tests/hash_table_test.cc item.cc    \
+                          stored-value.cc stored-value.hh testlogger.cc    \
+                          atomic.cc mutex.cc tools/cJSON.c                 \
+                          test_memory_tracker.cc memory_tracker.hh
 hash_table_test_DEPENDENCIES = stored-value.cc stored-value.hh ep.hh item.hh \
                                libobjectregistry.la
 hash_table_test_LDADD = libobjectregistry.la
 
 misc_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
-misc_test_SOURCES = t/misc_test.cc common.hh
+misc_test_SOURCES = tests/module_tests/misc_test.cc common.hh
 misc_test_DEPENDENCIES = common.hh
 
 priority_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
-priority_test_SOURCES = t/priority_test.cc priority.hh priority.cc
+priority_test_SOURCES = tests/module_tests/priority_test.cc priority.hh priority.cc
 
 sizes_CPPFLAGS = -I$(top_srcdir) $(AM_CPPFLAGS)
 sizes_SOURCES = sizes.cc
@@ -357,7 +359,7 @@ management_sqlite3_DEPENDENCIES = libsqlite3.la
 management_sqlite3_LDADD = libsqlite3.la
 
 vbucket_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
-vbucket_test_SOURCES = t/vbucket_test.cc t/threadtests.hh vbucket.hh	       \
+vbucket_test_SOURCES = tests/module_tests/vbucket_test.cc tests/module_tests/threadtests.hh vbucket.hh	       \
                vbucket.cc stored-value.cc stored-value.hh atomic.cc	       \
                testlogger.cc checkpoint.hh checkpoint.cc byteorder.c           \
                mutex.cc vbucketmap.cc test_memory_tracker.cc memory_tracker.hh \
@@ -368,7 +370,7 @@ vbucket_test_DEPENDENCIES = vbucket.hh stored-value.cc stored-value.hh  \
 vbucket_test_LDADD = libobjectregistry.la libconfiguration.la
 
 checkpoint_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
-checkpoint_test_SOURCES = t/checkpoint_test.cc checkpoint.hh            \
+checkpoint_test_SOURCES = tests/module_tests/checkpoint_test.cc checkpoint.hh            \
                           checkpoint.cc vbucket.hh vbucket.cc           \
                           testlogger.cc stored-value.cc                 \
                           stored-value.hh queueditem.hh byteorder.c     \
@@ -380,13 +382,13 @@ checkpoint_test_DEPENDENCIES = checkpoint.hh vbucket.hh         \
               libobjectregistry.la libconfiguration.la
 checkpoint_test_LDADD = libobjectregistry.la libconfiguration.la
 
-t_dirutils_test_SOURCES = t/dirutils_test.cc
-t_dirutils_test_DEPENDENCIES = libdirutils.la
-t_dirutils_test_LDADD = libdirutils.la
-t_dirutils_test_LDFLAGS = -lgtest
+dirutils_test_SOURCES = tests/module_tests/dirutils_test.cc
+dirutils_test_DEPENDENCIES = libdirutils.la
+dirutils_test_LDADD = libdirutils.la
+dirutils_test_LDFLAGS = -lgtest
 
 mutation_log_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
-mutation_log_test_SOURCES = t/mutation_log_test.cc mutation_log.hh	\
+mutation_log_test_SOURCES = tests/module_tests/mutation_log_test.cc mutation_log.hh	\
                             testlogger.cc mutation_log.cc \
                             byteorder.c crc32.h crc32.c \
                             vbucketmap.cc item.cc atomic.cc mutex.cc \
@@ -395,23 +397,23 @@ mutation_log_test_DEPENDENCIES = mutation_log.hh
 mutation_log_test_LDADD = libobjectregistry.la libconfiguration.la
 
 hrtime_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
-hrtime_test_SOURCES = t/hrtime_test.cc common.hh
+hrtime_test_SOURCES = tests/module_tests/hrtime_test.cc common.hh
 
 histo_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
-histo_test_SOURCES = t/histo_test.cc common.hh histo.hh
+histo_test_SOURCES = tests/module_tests/histo_test.cc common.hh histo.hh
 histo_test_DEPENDENCIES = common.hh histo.hh
 
 chunk_creation_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
-chunk_creation_test_SOURCES = t/chunk_creation_test.cc common.hh
+chunk_creation_test_SOURCES = tests/module_tests/chunk_creation_test.cc common.hh
 
 pathexpand_test_CPPFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) \
                            -I$(top_srcdir)/sqlite-kvstore ${NO_WERROR}
-pathexpand_test_SOURCES = t/pathexpand_test.cc          \
+pathexpand_test_SOURCES = tests/module_tests/pathexpand_test.cc          \
                           sqlite-kvstore/pathexpand.hh  \
                           sqlite-kvstore/pathexpand.cc
 
 ringbuffer_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
-ringbuffer_test_SOURCES = t/ringbuffer_test.cc ringbuffer.hh
+ringbuffer_test_SOURCES = tests/module_tests/ringbuffer_test.cc ringbuffer.hh
 ringbuffer_test_DEPENDENCIES = ringbuffer.hh
 
 if BUILD_GETHRTIME
@@ -491,7 +493,7 @@ engine_tests: ep.la ep_testsuite.la
                 $(ENGINE_TESTS_EXTRA_OPTIONS) \
                 -E .libs/ep.so -t $(TEST_TIMEOUT) \
 		-T .libs/ep_testsuite.so \
-		-e 'flushall_enabled=true;ht_size=13;ht_locks=7;initfile=t/test_pragma.sql;min_data_age=0;db_strategy=multiMTVBDB'
+		-e 'flushall_enabled=true;ht_size=13;ht_locks=7;initfile=tests/module_tests/test_pragma.sql;min_data_age=0;db_strategy=multiMTVBDB'
 
 test: all check-TESTS engine_tests sizes
 	./sizes
