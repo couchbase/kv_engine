@@ -226,14 +226,6 @@ public:
         backfill.isBackfillPhase = backfillPhase;
     }
 
-    HashTable         ht;
-    CheckpointManager checkpointManager;
-    struct {
-        Mutex mutex;
-        std::queue<queued_item> items;
-        bool isBackfillPhase;
-    } backfill;
-
     bool getBGFetchItems(vb_bgfetch_queue_t &fetches);
     void queueBGFetchItem(VBucketBGFetchItem *fetch, BgFetcher *bgFetcher);
     size_t numPendingBGFetchItems(void) {
@@ -267,12 +259,20 @@ public:
         }
     }
 
+    void addStats(bool details, ADD_STAT add_stat, const void *c);
+
     static const vbucket_state_t ACTIVE;
     static const vbucket_state_t REPLICA;
     static const vbucket_state_t PENDING;
     static const vbucket_state_t DEAD;
 
-    void addStats(bool details, ADD_STAT add_stat, const void *c);
+    HashTable         ht;
+    CheckpointManager checkpointManager;
+    struct {
+        Mutex mutex;
+        std::queue<queued_item> items;
+        bool isBackfillPhase;
+    } backfill;
 
     Atomic<size_t>  opsCreate;
     Atomic<size_t>  opsUpdate;
