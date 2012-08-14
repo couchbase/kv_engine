@@ -73,9 +73,9 @@ bool BgFetcher::run(TaskId tid) {
         }
     }
 
-    size_t remains = numRemainingItems.decr(num_fetched_items);
+    size_t remains = stats.numRemainingBgJobs.decr(num_fetched_items);
     if (!pendingJob()) {
-        numRemainingItems.cas(remains, 0); // Reset the remaining counter
+        stats.numRemainingBgJobs.cas(remains, 0); // Reset the remaining counter
         // wait a bit until next fetche request arrives
         double sleep = std::max(store->getBGFetchDelay(), sleepInterval);
         dispatcher->snooze(tid, sleep);

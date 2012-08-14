@@ -146,6 +146,7 @@ public:
                              pendingOps.size(), pendingBGFetches.size());
         }
 
+        stats.numRemainingBgJobs.decr(pendingBGFetches.size());
         while(!pendingBGFetches.empty()) {
             delete pendingBGFetches.front();
             pendingBGFetches.pop();

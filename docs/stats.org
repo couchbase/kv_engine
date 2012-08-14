@@ -108,6 +108,7 @@ For introductory information on stats within membase, start with the
 |                                | happened while processing operations       |
 | ep_mem_tracker_enabled         | True if memory usage tracker is enabled    |
 | ep_bg_fetched                  | Number of items fetched from disk.         |
+| ep_bg_remaining_jobs           | Number of remaining bg fetch jobs.         |
 | ep_tap_bg_fetched              | Number of tap disk fetches                 |
 | ep_tap_bg_fetch_requeued       | Number of times a tap bg fetch task is     |
 |                                | requeued.                                  |

@@ -129,8 +129,6 @@ public:
     Atomic<int> min_data_age;
     //! Maximum data age before a record is forced to be persisted
     Atomic<int> queue_age_cap;
-    //! Number of times background fetches occurred.
-    Atomic<size_t> bg_fetched;
     //! Number of times we needed to kick in the pager
     Atomic<size_t> pagerRuns;
     //! Number of times the expiry pager runs for purging expired items
@@ -195,6 +193,10 @@ public:
     //! Histogram of pending operation wait times.
     Histogram<hrtime_t> pendingOpsHisto;
 
+    //! Number of times background fetches occurred.
+    Atomic<size_t> bg_fetched;
+    //! Number of remaining bg fetch jobs.
+    Atomic<size_t> numRemainingBgJobs;
     //! The number of samples the bgWaitDelta and bgLoadDelta contains of
     Atomic<size_t> bgNumOperations;
     /** The sum of the deltas (in usec) from an item was put in queue until

@@ -51,7 +51,7 @@ public:
     bool pendingJob(void);
 
     void notifyBGEvent(void) {
-        if (++numRemainingItems == 1) {
+        if (++stats.numRemainingBgJobs == 1) {
             LockHolder lh(taskMutex);
             assert(task.get());
             dispatcher->wake(task, &task);
@@ -68,7 +68,6 @@ private:
     TaskId task;
     Mutex taskMutex;
     EPStats &stats;
-    Atomic<size_t> numRemainingItems;
 };
 
 #endif /* BGFETCHER_HH */
