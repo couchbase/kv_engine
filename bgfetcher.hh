@@ -48,9 +48,7 @@ public:
     void start(void);
     void stop(void);
     bool run(TaskId tid);
-    bool pendingJob(void) {
-        return numRemainingItems > 0;
-    }
+    bool pendingJob(void);
 
     void notifyBGEvent(void) {
         if (++numRemainingItems == 1) {

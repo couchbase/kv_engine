@@ -73,7 +73,9 @@ bool BgFetcher::run(TaskId tid) {
         }
     }
 
-    if (numRemainingItems.decr(num_fetched_items) == 0) {
+    size_t remains = numRemainingItems.decr(num_fetched_items);
+    if (!pendingJob()) {
+        numRemainingItems.cas(remains, 0); // Reset the remaining counter
         // wait a bit until next fetche request arrives
         double sleep = std::max(store->getBGFetchDelay(), sleepInterval);
         dispatcher->snooze(tid, sleep);
@@ -81,3 +83,14 @@ bool BgFetcher::run(TaskId tid) {
     return true;
 }
 
+bool BgFetcher::pendingJob() {
+    const VBucketMap &vbMap = store->getVBuckets();
+    size_t numVbuckets = vbMap.getSize();
+    for (size_t vbid = 0; vbid < numVbuckets; ++vbid) {
+        RCPtr<VBucket> vb = vbMap.getBucket(vbid);
+        if (vb && vb->hasPendingBGFetchItems()) {
+            return true;
+        }
+    }
+    return false;
+}
