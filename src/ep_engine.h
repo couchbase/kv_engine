@@ -18,7 +18,7 @@
 #include <errno.h>
 #include <limits>
 
-#include "command_ids.h"
+#include "ep-engine/command_ids.h"
 
 #include "tapconnmap.hh"
 #include "tapconnection.hh"

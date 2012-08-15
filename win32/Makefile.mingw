@@ -19,13 +19,13 @@ TCMALLOC_FLAGS = -Wwrite-strings \
                     -fno-builtin-valloc -fno-builtin-pvalloc
 
 MEMCACHED=../memcached
-GEN_CONFIG = generated_configuration.hh generated_configuration.cc
-GEN_CODE = stats-info.h stats-info.c
+GEN_CONFIG = src/generated_configuration.hh src/generated_configuration.cc
+GEN_CODE = src/stats-info.h src/stats-info.c
 
-OBJDIR = .libs .libs/embedded .libs/poll .libs/management .libs/sqlite-kvstore .libs/blackhole-kvstore .libs/couch-kvstore
+OBJDIR = .libs .libs/src .libs/src/embedded .libs/poll .libs/management .libs/src/sqlite-kvstore .libs/src/blackhole-kvstore .libs/src/couch-kvstore
 BINARIES= ${GEN_CONFIG} ${GEN_CODE} .libs/ep.so management/sqlite3.exe
 LIB=$(LOCALLIB) -L${MEMCACHED}/lib
-INCLUDE= -Iwin32 -Isqlite-kvstore -I.libs -Iembedded -I${MEMCACHED}/include -I${MEMCACHED}/win32 -I. $(LOCALINC)
+INCLUDE= -Iwin32 -Isrc -Iinclude -Isrc/sqlite-kvstore -I.libs -Isrc/embedded -I${MEMCACHED}/include -I${MEMCACHED}/win32 -I. $(LOCALINC)
 GENFILES=.libs/config_version.h
 CPPFLAGS= $(MARCH) -O2 -DHAVE_CONFIG_H ${INCLUDE} -Wall -DSQLITE_THREADSAFE=2 -DHAVE_LIBCOUCHSTORE
 
@@ -55,65 +55,65 @@ CXXFLAGS = -std=gnu++0x -g \
            -DGLIBCXX_FORCE_NEW
 
 EP_ENGINE_CC_SRC = \
-                 access_scanner.cc \
-                 atomic.cc \
-                 backfill.cc \
-                 blackhole-kvstore/blackhole.cc \
-                 bgfetcher.cc \
-                 checkpoint.cc \
-                 checkpoint_remover.cc \
-                 configuration.cc \
-                 couch-kvstore/couch-kvstore.cc \
-                 couch-kvstore/couch-fs-stats.cc \
-                 couch-kvstore/couch-notifier.cc \
-                 couch-kvstore/dirutils.cc \
-                 dispatcher.cc \
-                 ep.cc \
-                 ep_engine.cc \
-                 ep_extension.cc \
-                 flusher.cc \
-                 htresizer.cc \
-                 invalid_vbtable_remover.cc \
-                 item.cc \
-                 item_pager.cc \
-                 kvstore.cc \
-                 memory_tracker.cc \
-                 mutation_log.cc \
-                 mutation_log_compactor.cc \
-                 mutex.cc \
-                 objectregistry.cc \
-                 priority.cc \
-                 queueditem.cc \
-                 restore_impl.cc \
-                 sizes.cc \
-                 sqlite-kvstore/factory.cc \
-                 sqlite-kvstore/pathexpand.cc \
-                 sqlite-kvstore/sqlite-eval.cc \
-                 sqlite-kvstore/sqlite-kvstore.cc \
-                 sqlite-kvstore/sqlite-pst.cc \
-                 sqlite-kvstore/sqlite-strategies.cc \
-                 statsnap.cc \
-                 stored-value.cc \
-                 tapconnection.cc \
-                 tapconnmap.cc \
-                 tapthrottle.cc \
-                 vbucket.cc \
-                 vbucketmap.cc \
-                 warmup.cc
+                 src/access_scanner.cc \
+                 src/atomic.cc \
+                 src/backfill.cc \
+                 src/blackhole-kvstore/blackhole.cc \
+                 src/bgfetcher.cc \
+                 src/checkpoint.cc \
+                 src/checkpoint_remover.cc \
+                 src/configuration.cc \
+                 src/couch-kvstore/couch-kvstore.cc \
+                 src/couch-kvstore/couch-fs-stats.cc \
+                 src/couch-kvstore/couch-notifier.cc \
+                 src/couch-kvstore/dirutils.cc \
+                 src/dispatcher.cc \
+                 src/ep.cc \
+                 src/ep_engine.cc \
+                 src/ep_extension.cc \
+                 src/flusher.cc \
+                 src/htresizer.cc \
+                 src/invalid_vbtable_remover.cc \
+                 src/item.cc \
+                 src/item_pager.cc \
+                 src/kvstore.cc \
+                 src/memory_tracker.cc \
+                 src/mutation_log.cc \
+                 src/mutation_log_compactor.cc \
+                 src/mutex.cc \
+                 src/objectregistry.cc \
+                 src/priority.cc \
+                 src/queueditem.cc \
+                 src/restore_impl.cc \
+                 src/sizes.cc \
+                 src/sqlite-kvstore/factory.cc \
+                 src/sqlite-kvstore/pathexpand.cc \
+                 src/sqlite-kvstore/sqlite-eval.cc \
+                 src/sqlite-kvstore/sqlite-kvstore.cc \
+                 src/sqlite-kvstore/sqlite-pst.cc \
+                 src/sqlite-kvstore/sqlite-strategies.cc \
+                 src/statsnap.cc \
+                 src/stored-value.cc \
+                 src/tapconnection.cc \
+                 src/tapconnmap.cc \
+                 src/tapthrottle.cc \
+                 src/vbucket.cc \
+                 src/vbucketmap.cc \
+                 src/warmup.cc
 
 EP_ENGINE_C_SRC = \
-                 byteorder.c \
-                 crc32.c \
-                 stats-info.c \
-                 embedded/sqlite3.c \
-                 ep_time.c \
-                 gethrtime.c \
+                 src/byteorder.c \
+                 src/crc32.c \
+                 src/stats-info.c \
+                 src/embedded/sqlite3.c \
+                 src/ep_time.c \
+                 src/gethrtime.c \
                  tools/cJSON.c \
-                 sqlite-kvstore/sqlite-vfs.c
+                 src/sqlite-kvstore/sqlite-vfs.c
 
 EP_ENGINE_OBJS = ${EP_ENGINE_C_SRC:%.c=.libs/%.o} ${EP_ENGINE_CC_SRC:%.cc=.libs/%.o}
 
-SQLITE3_SRC = embedded/sqlite3.c embedded/sqlite3-shell.c
+SQLITE3_SRC = src/embedded/sqlite3.c src/embedded/sqlite3-shell.c
 SQLITE3_OBJS = ${SQLITE3_SRC:%.c=.libs/%.o}
 
 management/sqlite3.exe: ${OBJDIR} ${GENFILES} ${SQLITE3_OBJS}
@@ -130,31 +130,31 @@ ${GEN_CODE}: docs\stats.json
 	$(MAKE) $(MAKEFLAGS) -f win32/Makefile.gencode)
 
 LIBSQLITE_KVSTORE_CC_SRC = \
-         kvstore.cc \
-         sqlite-kvstore/factory.cc \
-         sqlite-kvstore/pathexpand.cc \
-         sqlite-kvstore/sqlite-eval.cc \
-         sqlite-kvstore/sqlite-kvstore.cc \
-         sqlite-kvstore/sqlite-pst.cc \
-         sqlite-kvstore/sqlite-strategies.cc
+         src/kvstore.cc \
+         src/sqlite-kvstore/factory.cc \
+         src/sqlite-kvstore/pathexpand.cc \
+         src/sqlite-kvstore/sqlite-eval.cc \
+         src/sqlite-kvstore/sqlite-kvstore.cc \
+         src/sqlite-kvstore/sqlite-pst.cc \
+         src/sqlite-kvstore/sqlite-strategies.cc
 
 LIBSQLITE_KVSTORE_C_SRC = \
-         embedded/sqlite3.c \
-         sqlite-kvstore/sqlite-vfs.c
+         src/embedded/sqlite3.c \
+         src/sqlite-kvstore/sqlite-vfs.c
 
 LIBSQLITE_KVSTORE_OBJS = ${LIBSQLITE_KVSTORE_CC_SRC:%.cc=.libs/%.o} ${LIBSQLITE_KVSTORE_C_SRC:%.c=.libs/%.o}
 
 LIBCOUCH_KVSTORE_CC_SRC = \
-        kvstore.cc \
-        couch-kvstore/dirutils.cc \
-        couch-kvstore/couch-kvstore.cc
+        src/kvstore.cc \
+        src/couch-kvstore/dirutils.cc \
+        src/couch-kvstore/couch-kvstore.cc
 
 LIBCOUCH_KVSTORE_OBJS = ${LIBCOUCH_KVSTORE_CC_SRC:%.cc=.libs/%.o}
 
 MBDBCONVERT_SRC = \
         management/dbconvert.cc \
-        testlogger.cc \
-        objectregistry.cc
+        src/testlogger.cc \
+        src/objectregistry.cc
 
 MBDBCONVERT_OBJS = ${MBDBCONVERT_SRC:%.cc=.libs/%.o}
 management/cbdbconvert.exe: ${OBJDIR} ${GENFILES} ${MBDBCONVERT_OBJS} ${LIBKVSTORE_OBJS}

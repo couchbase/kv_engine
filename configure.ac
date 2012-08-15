@@ -7,9 +7,9 @@
 AC_PREREQ(2.59)
 m4_include([m4/version.m4])
 AC_INIT(ep-engine, VERSION_NUMBER, trond.norbye@gmail.com)
-AC_CONFIG_SRCDIR([ep.hh])
+AC_CONFIG_SRCDIR([README.markdown])
 AC_CONFIG_AUX_DIR(config)
-AM_CONFIG_HEADER([config.h])
+AM_CONFIG_HEADER([src/config.h])
 AC_CONFIG_MACRO_DIR([m4])
 AC_DISABLE_STATIC
 m4_ifdef([AM_PROG_AR], [AM_PROG_AR])

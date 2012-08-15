@@ -52,7 +52,7 @@
 #include "locks.hh"
 
 #include "ep_testsuite.h"
-#include "command_ids.h"
+#include "ep-engine/command_ids.h"
 #include "mock/mccouch.hh"
 
 

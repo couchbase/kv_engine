@@ -6,7 +6,7 @@
 #include <memcached/engine.h>
 
 #include "suite_stubs.h"
-#include "command_ids.h"
+#include "ep-engine/command_ids.h"
 
 int locktime = 30;
 int expiry = 3600;

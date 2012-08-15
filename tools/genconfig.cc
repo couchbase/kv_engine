@@ -329,11 +329,11 @@ int main(int argc, char **argv) {
         generate(cJSON_GetArrayItem(params, ii));
     }
 
-    ofstream headerfile("generated_configuration.hh");
+    ofstream headerfile("src/generated_configuration.hh");
     headerfile << prototypes.str();
     headerfile.close();
 
-    ofstream implfile("generated_configuration.cc");
+    ofstream implfile("src/generated_configuration.cc");
     implfile << implementation.str() << endl
              << "void Configuration::initialize() {" << endl
              << initialization.str()

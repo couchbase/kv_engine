@@ -38,7 +38,7 @@
 #include <memcached/engine_testapp.h>
 
 #include "tests/ep_testsuite.h"
-#include "command_ids.h"
+#include "ep-engine/command_ids.h"
 
 #ifdef linux
 /* /usr/include/netinet/in.h defines macros from ntohs() to _bswap_nn to

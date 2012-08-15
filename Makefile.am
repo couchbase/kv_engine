@@ -1,4 +1,6 @@
 ACLOCAL_AMFLAGS = -I m4 --force
+AM_CPPFLAGS += -I$(top_srcdir)/src -I${top_srcdir}/include
+
 bin_SCRIPTS = management/cbanalyze-core \
               management/squasher.sql \
               wrapper/cbadm-online-restore \
@@ -12,7 +14,7 @@ bin_SCRIPTS = management/cbanalyze-core \
               wrapper/cbstats \
               wrapper/cbvbucketctl
 
-pkginclude_HEADERS = command_ids.h
+pkginclude_HEADERS = include/ep-engine/command_ids.h
 
 
 memcachedlibdir = $(libdir)/memcached
@@ -33,9 +35,9 @@ fixup_stats_json:
 dist_doc_DATA = docs/stats.json
 
 bin_PROGRAMS = management/cbdbconvert
-BUILT_SOURCES = generated_configuration.cc \
-                generated_configuration.hh \
-                stats-info.c stats-info.h
+BUILT_SOURCES = src/generated_configuration.cc \
+                src/generated_configuration.hh \
+                src/stats-info.c src/stats-info.h
 CLEANFILES =
 
 EXTRA_DIST = Doxyfile LICENSE README.markdown configuration.json docs \
@@ -55,131 +57,131 @@ cbadm-online-update.1m: docs/cbadm-online-update.pod
 cbbackup-incremental.1m: docs/cbbackup-incremental.pod
 	${POD2MAN} -c "$*" -r "" -s 1m $< $@
 
-ep_la_CPPFLAGS = -I$(top_srcdir) $(AM_CPPFLAGS)
+ep_la_CPPFLAGS = $(AM_CPPFLAGS)
 ep_la_LDFLAGS = -module -dynamic
-ep_la_SOURCES = \
-                 access_scanner.cc \
-                 access_scanner.hh \
-                 atomic/gcc_atomics.h \
-                 atomic/libatomic.h \
-                 atomic.cc atomic.hh \
-                 backfill.hh \
-                 backfill.cc \
-                 bgfetcher.hh \
-                 bgfetcher.cc \
-                 callbacks.hh \
-                 checkpoint.hh \
-                 checkpoint.cc \
-                 checkpoint_remover.hh \
-                 checkpoint_remover.cc \
-                 command_ids.h \
-                 common.hh \
-                 config_static.h \
-                 dispatcher.cc dispatcher.hh \
-                 ep.cc ep.hh \
-                 ep_engine.cc ep_engine.h \
-                 ep_extension.cc ep_extension.h \
-                 ep_time.c ep_time.h \
-                 flusher.cc flusher.hh \
-                 histo.hh \
-                 htresizer.cc htresizer.hh \
-                 invalid_vbtable_remover.hh \
-                 invalid_vbtable_remover.cc \
-                 item.cc item.hh \
-                 item_pager.cc item_pager.hh \
-                 kvstore.hh \
-                 locks.hh \
-                 memory_tracker.cc memory_tracker.hh \
-                 mutex.cc mutex.hh \
-                 priority.cc priority.hh \
-                 queueditem.cc queueditem.hh \
-                 restore.hh \
-                 restore_impl.cc \
-                 ringbuffer.hh \
-                 sizes.cc \
-                 stats.hh \
-                 stats-info.h stats-info.c \
-                 statsnap.cc statsnap.hh \
-                 statwriter.hh \
-                 stored-value.cc stored-value.hh \
-                 syncobject.hh \
-                 tapconnection.cc tapconnection.hh \
-                 tapconnmap.cc tapconnmap.hh \
-                 tapthrottle.cc tapthrottle.hh \
-                 vbucket.cc vbucket.hh \
-                 vbucketmap.cc vbucketmap.hh \
-                 warmup.cc warmup.hh
+ep_la_SOURCES =  include/ep-engine/command_ids.h \
+                 src/access_scanner.cc \
+                 src/access_scanner.hh \
+                 src/atomic/gcc_atomics.h \
+                 src/atomic/libatomic.h \
+                 src/atomic.cc src/atomic.hh \
+                 src/backfill.hh \
+                 src/backfill.cc \
+                 src/bgfetcher.hh \
+                 src/bgfetcher.cc \
+                 src/callbacks.hh \
+                 src/checkpoint.hh \
+                 src/checkpoint.cc \
+                 src/checkpoint_remover.hh \
+                 src/checkpoint_remover.cc \
+                 src/common.hh \
+                 src/config_static.h \
+                 src/dispatcher.cc src/dispatcher.hh \
+                 src/ep.cc src/ep.hh \
+                 src/ep_engine.cc src/ep_engine.h \
+                 src/ep_extension.cc src/ep_extension.h \
+                 src/ep_time.c src/ep_time.h \
+                 src/flusher.cc src/flusher.hh \
+                 src/histo.hh \
+                 src/htresizer.cc src/htresizer.hh \
+                 src/invalid_vbtable_remover.hh \
+                 src/invalid_vbtable_remover.cc \
+                 src/item.cc src/item.hh \
+                 src/item_pager.cc src/item_pager.hh \
+                 src/kvstore.hh \
+                 src/locks.hh \
+                 src/memory_tracker.cc src/memory_tracker.hh \
+                 src/mutex.cc src/mutex.hh \
+                 src/priority.cc src/priority.hh \
+                 src/queueditem.cc src/queueditem.hh \
+                 src/restore.hh \
+                 src/restore_impl.cc \
+                 src/ringbuffer.hh \
+                 src/sizes.cc \
+                 src/stats.hh \
+                 src/stats-info.h src/stats-info.c \
+                 src/statsnap.cc src/statsnap.hh \
+                 src/statwriter.hh \
+                 src/stored-value.cc src/stored-value.hh \
+                 src/syncobject.hh \
+                 src/tapconnection.cc tapconnection.hh \
+                 src/tapconnmap.cc src/tapconnmap.hh \
+                 src/tapthrottle.cc src/tapthrottle.hh \
+                 src/vbucket.cc src/vbucket.hh \
+                 src/vbucketmap.cc src/vbucketmap.hh \
+                 src/warmup.cc src/warmup.hh
 
 
-libobjectregistry_la_SOURCES = objectregistry.cc objectregistry.hh
+libobjectregistry_la_CPPFLAGS = $(AM_CPPFLAGS)
+libobjectregistry_la_SOURCES = src/objectregistry.cc src/objectregistry.hh
 
-libkvstore_la_SOURCES = crc32.c crc32.h kvstore.cc kvstore.hh   \
-                        mutation_log.cc mutation_log.hh         \
-                        mutation_log_compactor.cc               \
-                        mutation_log_compactor.hh
-libkvstore_la_CPPFLAGS = -I$(top_srcdir) -I$(top_srcdir)/sqlite-kvstore \
-                         $(AM_CPPFLAGS)
+libkvstore_la_SOURCES = src/crc32.c src/crc32.h src/kvstore.cc src/kvstore.hh \
+                        src/mutation_log.cc src/mutation_log.hh               \
+                        src/mutation_log_compactor.cc                         \
+                        src/mutation_log_compactor.hh
+libkvstore_la_CPPFLAGS = -I$(top_srcdir)/src/sqlite-kvstore $(AM_CPPFLAGS)
 
-libsqlite_kvstore_la_SOURCES = kvstore.hh \
-                               sqlite-kvstore/factory.cc \
-                               sqlite-kvstore/pathexpand.hh \
-                               sqlite-kvstore/pathexpand.cc \
-                               sqlite-kvstore/sqlite-eval.cc \
-                               sqlite-kvstore/sqlite-eval.hh \
-                               sqlite-kvstore/sqlite-kvstore.cc \
-                               sqlite-kvstore/sqlite-kvstore.hh \
-                               sqlite-kvstore/sqlite-pst.cc \
-                               sqlite-kvstore/sqlite-pst.hh \
-                               sqlite-kvstore/sqlite-strategies.cc \
-                               sqlite-kvstore/sqlite-strategies.hh \
-                               sqlite-kvstore/sqlite-vfs.c
-libsqlite_kvstore_la_CPPFLAGS = -I$(top_srcdir) -I$(top_srcdir)/sqlite-kvstore \
+libsqlite_kvstore_la_SOURCES = src/kvstore.hh \
+                               src/sqlite-kvstore/factory.cc \
+                               src/sqlite-kvstore/pathexpand.hh \
+                               src/sqlite-kvstore/pathexpand.cc \
+                               src/sqlite-kvstore/sqlite-eval.cc \
+                               src/sqlite-kvstore/sqlite-eval.hh \
+                               src/sqlite-kvstore/sqlite-kvstore.cc \
+                               src/sqlite-kvstore/sqlite-kvstore.hh \
+                               src/sqlite-kvstore/sqlite-pst.cc \
+                               src/sqlite-kvstore/sqlite-pst.hh \
+                               src/sqlite-kvstore/sqlite-strategies.cc \
+                               src/sqlite-kvstore/sqlite-strategies.hh \
+                               src/sqlite-kvstore/sqlite-vfs.c
+libsqlite_kvstore_la_CPPFLAGS = -I$(top_srcdir)/src/sqlite-kvstore \
                                 $(AM_CPPFLAGS)
 libsqlite_kvstore_la_LIBADD =
 libsqlite_kvstore_la_DEPENDENCIES =
 
-libblackhole_kvstore_la_SOURCES = kvstore.hh \
-                                  blackhole-kvstore/blackhole.cc \
-                                  blackhole-kvstore/blackhole.hh
+libblackhole_kvstore_la_CPPFLAGS = -I$(top_srcdir)/src/blackhole-kvstore \
+                                   $(AM_CPPFLAGS)
+libblackhole_kvstore_la_SOURCES = src/kvstore.hh \
+                                  src/blackhole-kvstore/blackhole.cc \
+                                  src/blackhole-kvstore/blackhole.hh
 
 .generated_stat-info: gen_code docs/stats.json
-	./gen_code -j docs/stats.json -h stats-info.h -c stats-info.c -f get_stats_info && touch .generated_stat-info
+	./gen_code -j docs/stats.json -h src/stats-info.h -c src/stats-info.c \
+        -f get_stats_info && touch .generated_stat-info
 
-stats-info.h stats-info.c: .generated_stat-info
+src/stats-info.h src/stats-info.c: .generated_stat-info
 
 .generated_configuration: gen_config configuration.json
 	./gen_config && touch .generated_configuration
 
-generated_configuration.hh generated_configuration.cc: .generated_configuration
+src/generated_configuration.hh src/generated_configuration.cc: .generated_configuration
 
-libdirutils_la_SOURCES = couch-kvstore/dirutils.cc \
-                         couch-kvstore/dirutils.hh
+libdirutils_la_SOURCES = src/couch-kvstore/dirutils.cc \
+                         src/couch-kvstore/dirutils.hh
 
 
-libcouch_kvstore_la_SOURCES = kvstore.hh
+libcouch_kvstore_la_SOURCES = src/kvstore.hh
 
 if HAVE_LIBCOUCHSTORE
-libcouch_kvstore_la_SOURCES += couch-kvstore/couch-kvstore.cc    \
-                               couch-kvstore/couch-kvstore.hh    \
-                               couch-kvstore/couch-fs-stats.cc   \
-                               couch-kvstore/couch-fs-stats.hh   \
-                               couch-kvstore/couch-notifier.cc   \
-                               couch-kvstore/couch-notifier.hh   \
-                               tools/cJSON.c                     \
+libcouch_kvstore_la_SOURCES += src/couch-kvstore/couch-kvstore.cc    \
+                               src/couch-kvstore/couch-kvstore.hh    \
+                               src/couch-kvstore/couch-fs-stats.cc   \
+                               src/couch-kvstore/couch-fs-stats.hh   \
+                               src/couch-kvstore/couch-notifier.cc   \
+                               src/couch-kvstore/couch-notifier.hh   \
+                               tools/cJSON.c                         \
                                tools/cJSON.h
 libcouch_kvstore_la_LIBADD = libdirutils.la $(LTLIBCOUCHSTORE)
 else
-libcouch_kvstore_la_SOURCES += couch-kvstore/couch-kvstore-dummy.hh \
-                               couch-kvstore/couch-kvstore-dummy.cc
+libcouch_kvstore_la_SOURCES += src/couch-kvstore/couch-kvstore-dummy.hh \
+                               src/couch-kvstore/couch-kvstore-dummy.cc
 endif
 
-libcouch_kvstore_la_CPPFLAGS = -I$(top_srcdir) -I$(top_srcdir)/couch-kvstore \
-                                $(AM_CPPFLAGS)
+libcouch_kvstore_la_CPPFLAGS = -I$(top_srcdir)/src/couch-kvstore $(AM_CPPFLAGS)
 
-libconfiguration_la_SOURCES = \
-                              generated_configuration.hh \
-                              configuration.hh \
-                              configuration.cc
+libconfiguration_la_SOURCES = src/generated_configuration.hh \
+                              src/configuration.hh \
+                              src/configuration.cc
 
 ep_la_LIBADD = libkvstore.la libsqlite-kvstore.la \
                libblackhole-kvstore.la libcouch-kvstore.la \
@@ -191,10 +193,10 @@ ep_la_DEPENDENCIES = libkvstore.la libsqlite-kvstore.la	\
 ep_testsuite_la_LIBADD =libobjectregistry.la $(LTLIBEVENT)
 ep_testsuite_la_DEPENDENCIES = libobjectregistry.la
 
-management_cbdbconvert_SOURCES = atomic.cc mutex.cc                     \
-                                 management/dbconvert.cc testlogger.cc  \
-                                 item.cc stored-value.cc ep_time.c      \
-                                 checkpoint.cc vbucketmap.cc
+management_cbdbconvert_SOURCES = src/atomic.cc src/mutex.cc                    \
+                                 management/dbconvert.cc src/testlogger.cc     \
+                                 src/item.cc src/stored-value.cc src/ep_time.c \
+                                 src/checkpoint.cc src/vbucketmap.cc
 management_cbdbconvert_LDADD = libkvstore.la libsqlite-kvstore.la       \
                                libblackhole-kvstore.la                  \
                                libobjectregistry.la                     \
@@ -202,8 +204,9 @@ management_cbdbconvert_LDADD = libkvstore.la libsqlite-kvstore.la       \
                                libblackhole-kvstore.la                  \
                                libcouch-kvstore.la                      \
                                $(LTLIBEVENT)
-management_cbdbconvert_DEPENDENCIES = libkvstore.la libsqlite-kvstore.la \
-                                      libcouch-kvstore.la libobjectregistry.la libconfiguration.la
+management_cbdbconvert_DEPENDENCIES = libkvstore.la libsqlite-kvstore.la       \
+                                      libcouch-kvstore.la libobjectregistry.la \
+                                      libconfiguration.la
 
 if BUILD_EMBEDDED_LIBSQLITE3
 ep_la_LIBADD += libsqlite3.la
@@ -220,7 +223,7 @@ ep_testsuite_la_LIBADD += $(LIBSQLITE3)
 management_cbdbconvert_LDADD += $(LIBSQLITE3)
 endif
 
-libsqlite3_la_SOURCES = embedded/sqlite3.h embedded/sqlite3.c
+libsqlite3_la_SOURCES = src/embedded/sqlite3.h src/embedded/sqlite3.c
 libsqlite3_la_CFLAGS = $(AM_CFLAGS) ${NO_WERROR} -DSQLITE_THREADSAFE=2
 
 check_PROGRAMS=\
@@ -247,20 +250,21 @@ endif
 TESTS=${check_PROGRAMS}
 EXTRA_TESTS =
 
-ep_testsuite_la_CPPFLAGS = -I$(top_srcdir) -I$(top_srcdir)/sqlite-kvstore \
+ep_testsuite_la_CPPFLAGS = -I$(top_srcdir)/src/sqlite-kvstore \
                          $(AM_CPPFLAGS) ${NO_WERROR}
-ep_testsuite_la_SOURCES= tests/ep_testsuite.cc tests/ep_testsuite.h     \
-                         atomic.cc locks.hh mutex.cc mutex.hh item.cc   \
-                         testlogger_libify.cc dispatcher.cc ep_time.c   \
-                         ep_time.h sqlite-kvstore/sqlite-pst.cc         \
-                         tools/cJSON.c tools/cJSON.h                    \
+ep_testsuite_la_SOURCES= tests/ep_testsuite.cc tests/ep_testsuite.h       \
+                         src/atomic.cc locks.hh src/mutex.cc src/mutex.hh \
+                         src/item.cc  src/testlogger_libify.cc            \
+                         src/dispatcher.cc src/ep_time.c                  \
+                         src/ep_time.h src/sqlite-kvstore/sqlite-pst.cc   \
+                         tools/cJSON.c tools/cJSON.h                      \
                          mock/mccouch.cc mock/mccouch.hh
 ep_testsuite_la_LDFLAGS= -module -dynamic
 
 # This is because automake can't figure out how to build the same code
 # for two different targets.
-testlogger_libify.cc: testlogger.cc
-	cp $(top_srcdir)/testlogger.cc testlogger_libify.cc
+src/testlogger_libify.cc: src/testlogger.cc
+	cp $(top_srcdir)/src/testlogger.cc src/testlogger_libify.cc
 
 if BUILD_GENERATED_TESTS
 memcachedlib_LTLIBRARIES += generated_suite.la
@@ -288,7 +292,7 @@ CLEANFILES+= $(GEN_FILES) .genstamp
 generated_suite_la_DEPENDENCIES = ep.la
 generated_suite_la_CFLAGS = $(AM_CFLAGS) -O0
 nodist_generated_suite_la_SOURCES = $(GEN_FILES)
-generated_suite_la_SOURCES= suite_stubs.c tests/ep_testsuite.h
+generated_suite_la_SOURCES= src/suite_stubs.c tests/ep_testsuite.h
 generated_suite_la_LDFLAGS= -module -dynamic
 
 EXTRA_TESTS += generated_engine_tests
@@ -302,83 +306,92 @@ generated_engine_tests: generated_suite.la
 endif
 
 timing_tests_la_CFLAGS = $(AM_CFLAGS) ${NO_WERROR}
-timing_tests_la_SOURCES= timing_tests.cc
+timing_tests_la_SOURCES= tests/module_tests/timing_tests.cc
 timing_tests_la_LDFLAGS= -module -dynamic
 
-atomic_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
-atomic_test_SOURCES = tests/module_tests/atomic_test.cc atomic.hh mutex.cc
-atomic_test_DEPENDENCIES = atomic.hh
+atomic_test_CXXFLAGS = $(AM_CPPFLAGS) ${NO_WERROR}
+atomic_test_SOURCES = tests/module_tests/atomic_test.cc src/atomic.hh src/mutex.cc
+atomic_test_DEPENDENCIES = src/atomic.hh
 
-atomic_ptr_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
-atomic_ptr_test_SOURCES = tests/module_tests/atomic_ptr_test.cc atomic.cc \
-                          atomic.hh mutex.cc mutex.hh
-atomic_ptr_test_DEPENDENCIES = atomic.hh
+atomic_ptr_test_CXXFLAGS = $(AM_CPPFLAGS) ${NO_WERROR}
+atomic_ptr_test_SOURCES = tests/module_tests/atomic_ptr_test.cc src/atomic.cc \
+                          src/atomic.hh src/mutex.cc mutex.hh
+atomic_ptr_test_DEPENDENCIES = src/atomic.hh
 
-mutex_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
-mutex_test_SOURCES = tests/module_tests/mutex_test.cc locks.hh mutex.cc
-mutex_test_DEPENDENCIES = locks.hh
+mutex_test_CXXFLAGS = $(AM_CPPFLAGS) ${NO_WERROR}
+mutex_test_SOURCES = tests/module_tests/mutex_test.cc src/locks.hh src/mutex.cc
+mutex_test_DEPENDENCIES = src/locks.hh
 
-dispatcher_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
-dispatcher_test_SOURCES = tests/module_tests/dispatcher_test.cc dispatcher.cc	\
-                          dispatcher.hh priority.cc priority.hh	\
-                          testlogger.cc atomic.cc mutex.cc
-dispatcher_test_DEPENDENCIES = common.hh dispatcher.hh dispatcher.cc	\
-                               priority.cc priority.hh libobjectregistry.la
+dispatcher_test_CXXFLAGS = $(AM_CPPFLAGS) ${NO_WERROR}
+dispatcher_test_SOURCES = tests/module_tests/dispatcher_test.cc \
+                          src/dispatcher.cc	src/dispatcher.hh   \
+                          src/priority.cc src/priority.hh	    \
+                          src/testlogger.cc src/atomic.cc src/mutex.cc
+dispatcher_test_DEPENDENCIES = src/common.hh src/dispatcher.hh      \
+                               src/dispatcher.cc src/priority.cc 	\
+                               src/priority.hh libobjectregistry.la
 dispatcher_test_LDADD = libobjectregistry.la
 
-hash_table_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
-hash_table_test_SOURCES = tests/module_tests/hash_table_test.cc item.cc    \
-                          stored-value.cc stored-value.hh testlogger.cc    \
-                          atomic.cc mutex.cc tools/cJSON.c                 \
-                          test_memory_tracker.cc memory_tracker.hh
-hash_table_test_DEPENDENCIES = stored-value.cc stored-value.hh ep.hh item.hh \
-                               libobjectregistry.la
+hash_table_test_CXXFLAGS = $(AM_CPPFLAGS) ${NO_WERROR}
+hash_table_test_SOURCES = tests/module_tests/hash_table_test.cc src/item.cc  \
+                          src/stored-value.cc src/stored-value.hh            \
+                          src/testlogger.cc src/atomic.cc src/mutex.cc       \
+                          tools/cJSON.c src/memory_tracker.hh                \
+                          tests/module_tests/test_memory_tracker.cc
+hash_table_test_DEPENDENCIES = src/stored-value.cc src/stored-value.hh    \
+                               src/ep.hh src/item.hh libobjectregistry.la
 hash_table_test_LDADD = libobjectregistry.la
 
-misc_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
-misc_test_SOURCES = tests/module_tests/misc_test.cc common.hh
-misc_test_DEPENDENCIES = common.hh
+misc_test_CXXFLAGS = $(AM_CPPFLAGS) ${NO_WERROR}
+misc_test_SOURCES = tests/module_tests/misc_test.cc src/common.hh
+misc_test_DEPENDENCIES = src/common.hh
 
-priority_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
-priority_test_SOURCES = tests/module_tests/priority_test.cc priority.hh priority.cc
+priority_test_CXXFLAGS = $(AM_CPPFLAGS) ${NO_WERROR}
+priority_test_SOURCES = tests/module_tests/priority_test.cc src/priority.hh \
+                        src/priority.cc
 
-sizes_CPPFLAGS = -I$(top_srcdir) $(AM_CPPFLAGS)
-sizes_SOURCES = sizes.cc
-sizes_DEPENDENCIES = vbucket.hh stored-value.hh item.hh
+sizes_CPPFLAGS = $(AM_CPPFLAGS)
+sizes_SOURCES = src/sizes.cc
+sizes_DEPENDENCIES = src/vbucket.hh src/stored-value.hh src/item.hh
 
-gen_config_CPPFLAGS = -I$(top_srcdir) -I$(top_srcdir)/tools $(AM_CPPFLAGS)
+gen_config_CPPFLAGS = -I$(top_srcdir)/tools $(AM_CPPFLAGS)
 gen_config_SOURCES = tools/genconfig.cc tools/cJSON.c tools/cJSON.h
 gen_config_LDFLAGS = -lm
 
-gen_code_CPPFLAGS = -I$(top_srcdir) -I$(top_srcdir)/tools $(AM_CPPFLAGS)
+gen_code_CPPFLAGS = -I$(top_srcdir)/tools $(AM_CPPFLAGS)
 gen_code_SOURCES = tools/gencode.cc tools/cJSON.c tools/cJSON.h
 
-management_sqlite3_SOURCES = embedded/sqlite3-shell.c
+management_sqlite3_SOURCES = src/embedded/sqlite3-shell.c
 management_sqlite3_CFLAGS = $(AM_CFLAGS) ${NO_WERROR}
 management_sqlite3_DEPENDENCIES = libsqlite3.la
 management_sqlite3_LDADD = libsqlite3.la
 
-vbucket_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
-vbucket_test_SOURCES = tests/module_tests/vbucket_test.cc tests/module_tests/threadtests.hh vbucket.hh	       \
-               vbucket.cc stored-value.cc stored-value.hh atomic.cc	       \
-               testlogger.cc checkpoint.hh checkpoint.cc byteorder.c           \
-               mutex.cc vbucketmap.cc test_memory_tracker.cc memory_tracker.hh \
-               item.cc tools/cJSON.c bgfetcher.hh dispatcher.hh dispatcher.cc
-vbucket_test_DEPENDENCIES = vbucket.hh stored-value.cc stored-value.hh  \
-               checkpoint.hh checkpoint.cc libobjectregistry.la         \
-               libconfiguration.la
+vbucket_test_CXXFLAGS = $(AM_CPPFLAGS) ${NO_WERROR}
+vbucket_test_SOURCES = tests/module_tests/vbucket_test.cc              \
+               tests/module_tests/threadtests.hh src/vbucket.hh	       \
+               src/vbucket.cc src/stored-value.cc src/stored-value.hh  \
+               src/atomic.cc src/testlogger.cc src/checkpoint.hh 	   \
+               src/checkpoint.cc src/byteorder.c src/vbucketmap.cc     \
+               src/mutex.cc tests/module_tests/test_memory_tracker.cc  \
+               src/memory_tracker.hh src/item.cc tools/cJSON.c         \
+               src/bgfetcher.hh src/dispatcher.hh src/dispatcher.cc
+vbucket_test_DEPENDENCIES = src/vbucket.hh src/stored-value.cc     \
+                            src/stored-value.hh src/checkpoint.hh  \
+                            src/checkpoint.cc libobjectregistry.la \
+                            libconfiguration.la
 vbucket_test_LDADD = libobjectregistry.la libconfiguration.la
 
-checkpoint_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
-checkpoint_test_SOURCES = tests/module_tests/checkpoint_test.cc checkpoint.hh            \
-                          checkpoint.cc vbucket.hh vbucket.cc           \
-                          testlogger.cc stored-value.cc                 \
-                          stored-value.hh queueditem.hh byteorder.c     \
-                          atomic.cc mutex.cc test_memory_tracker.cc     \
-                          memory_tracker.hh item.cc tools/cJSON.c       \
-                          bgfetcher.hh dispatcher.hh dispatcher.cc
-checkpoint_test_DEPENDENCIES = checkpoint.hh vbucket.hh         \
-              stored-value.cc stored-value.hh queueditem.hh     \
+checkpoint_test_CXXFLAGS = $(AM_CPPFLAGS) ${NO_WERROR}
+checkpoint_test_SOURCES = tests/module_tests/checkpoint_test.cc                \
+                          src/checkpoint.hh src/checkpoint.cc src/vbucket.hh   \
+                          src/vbucket.cc src/testlogger.cc src/stored-value.cc \
+                          src/stored-value.hh src/queueditem.hh                \
+                          src/byteorder.c src/atomic.cc src/mutex.cc           \
+                          tests/module_tests/test_memory_tracker.cc            \
+                          src/memory_tracker.hh src/item.cc tools/cJSON.c      \
+                          src/bgfetcher.hh src/dispatcher.hh src/dispatcher.cc
+checkpoint_test_DEPENDENCIES = src/checkpoint.hh src/vbucket.hh         \
+              src/stored-value.cc src/stored-value.hh src/queueditem.hh \
               libobjectregistry.la libconfiguration.la
 checkpoint_test_LDADD = libobjectregistry.la libconfiguration.la
 
@@ -387,51 +400,53 @@ dirutils_test_DEPENDENCIES = libdirutils.la
 dirutils_test_LDADD = libdirutils.la
 dirutils_test_LDFLAGS = -lgtest
 
-mutation_log_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
-mutation_log_test_SOURCES = tests/module_tests/mutation_log_test.cc mutation_log.hh	\
-                            testlogger.cc mutation_log.cc \
-                            byteorder.c crc32.h crc32.c \
-                            vbucketmap.cc item.cc atomic.cc mutex.cc \
-                            stored-value.cc ep_time.c checkpoint.cc
-mutation_log_test_DEPENDENCIES = mutation_log.hh
+mutation_log_test_CXXFLAGS = $(AM_CPPFLAGS) ${NO_WERROR}
+mutation_log_test_SOURCES = tests/module_tests/mutation_log_test.cc         \
+                            src/mutation_log.hh	src/testlogger.cc           \
+                            src/mutation_log.cc src/byteorder.c src/crc32.h \
+                            src/crc32.c src/vbucketmap.cc src/item.cc       \
+                            src/atomic.cc src/mutex.cc src/stored-value.cc  \
+                            src/ep_time.c src/checkpoint.cc
+mutation_log_test_DEPENDENCIES = src/mutation_log.hh
 mutation_log_test_LDADD = libobjectregistry.la libconfiguration.la
 
-hrtime_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
+hrtime_test_CXXFLAGS = $(AM_CPPFLAGS) ${NO_WERROR}
 hrtime_test_SOURCES = tests/module_tests/hrtime_test.cc common.hh
 
-histo_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
-histo_test_SOURCES = tests/module_tests/histo_test.cc common.hh histo.hh
-histo_test_DEPENDENCIES = common.hh histo.hh
+histo_test_CXXFLAGS = $(AM_CPPFLAGS) ${NO_WERROR}
+histo_test_SOURCES = tests/module_tests/histo_test.cc src/common.hh src/histo.hh
+histo_test_DEPENDENCIES = src/common.hh src/histo.hh
 
-chunk_creation_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
-chunk_creation_test_SOURCES = tests/module_tests/chunk_creation_test.cc common.hh
+chunk_creation_test_CXXFLAGS = $(AM_CPPFLAGS) ${NO_WERROR}
+chunk_creation_test_SOURCES = tests/module_tests/chunk_creation_test.cc \
+                              src/common.hh
 
-pathexpand_test_CPPFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) \
-                           -I$(top_srcdir)/sqlite-kvstore ${NO_WERROR}
-pathexpand_test_SOURCES = tests/module_tests/pathexpand_test.cc          \
-                          sqlite-kvstore/pathexpand.hh  \
-                          sqlite-kvstore/pathexpand.cc
+pathexpand_test_CPPFLAGS = -I$(top_srcdir)/src/sqlite-kvstore \
+                           $(AM_CPPFLAGS) ${NO_WERROR}
+pathexpand_test_SOURCES = tests/module_tests/pathexpand_test.cc \
+                          src/sqlite-kvstore/pathexpand.hh      \
+                          src/sqlite-kvstore/pathexpand.cc
 
-ringbuffer_test_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) ${NO_WERROR}
-ringbuffer_test_SOURCES = tests/module_tests/ringbuffer_test.cc ringbuffer.hh
-ringbuffer_test_DEPENDENCIES = ringbuffer.hh
+ringbuffer_test_CXXFLAGS = $(AM_CPPFLAGS) ${NO_WERROR}
+ringbuffer_test_SOURCES = tests/module_tests/ringbuffer_test.cc src/ringbuffer.hh
+ringbuffer_test_DEPENDENCIES = src/ringbuffer.hh
 
 if BUILD_GETHRTIME
-ep_la_SOURCES += gethrtime.c
-hrtime_test_SOURCES += gethrtime.c
-dispatcher_test_SOURCES += gethrtime.c
-vbucket_test_SOURCES += gethrtime.c
-checkpoint_test_SOURCES += gethrtime.c
-management_cbdbconvert_SOURCES += gethrtime.c
-ep_testsuite_la_SOURCES += gethrtime.c
-hash_table_test_SOURCES += gethrtime.c
-mutation_log_test_SOURCES += gethrtime.c
+ep_la_SOURCES += src/gethrtime.c
+hrtime_test_SOURCES += src/gethrtime.c
+dispatcher_test_SOURCES += src/gethrtime.c
+vbucket_test_SOURCES += src/gethrtime.c
+checkpoint_test_SOURCES += src/gethrtime.c
+management_cbdbconvert_SOURCES += src/gethrtime.c
+ep_testsuite_la_SOURCES += src/gethrtime.c
+hash_table_test_SOURCES += src/gethrtime.c
+mutation_log_test_SOURCES += src/gethrtime.c
 endif
 
 if BUILD_BYTEORDER
-ep_la_SOURCES += byteorder.c
-ep_testsuite_la_SOURCES += byteorder.c
-management_cbdbconvert_SOURCES += byteorder.c
+ep_la_SOURCES += src/byteorder.c
+ep_testsuite_la_SOURCES += src/byteorder.c
+management_cbdbconvert_SOURCES += src/byteorder.c
 endif
 
 pythonlibdir=$(libdir)/python
@@ -493,7 +508,7 @@ engine_tests: ep.la ep_testsuite.la
                 $(ENGINE_TESTS_EXTRA_OPTIONS) \
                 -E .libs/ep.so -t $(TEST_TIMEOUT) \
 		-T .libs/ep_testsuite.so \
-		-e 'flushall_enabled=true;ht_size=13;ht_locks=7;initfile=tests/module_tests/test_pragma.sql;min_data_age=0;db_strategy=multiMTVBDB'
+		-e 'flushall_enabled=true;ht_size=13;ht_locks=7;;min_data_age=0;'
 
 test: all check-TESTS engine_tests sizes
 	./sizes
