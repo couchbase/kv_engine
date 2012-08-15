@@ -2069,10 +2069,10 @@ int EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
              found ? v->getFlags() : 0,
              found ? v->getExptime() : 0,
              found ? v->getValue() : value_t(NULL),
-             found ? v->getCas() : 0,
+             found ? v->getCas() : Item::nextCas(),
              rowid,
              qi->getVBucketId(),
-             found ? v->getSeqno() : 0);
+             found ? v->getSeqno() : qi->getSeqno());
 
     int ret = 0;
 
