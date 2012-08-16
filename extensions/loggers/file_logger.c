@@ -22,7 +22,7 @@ typedef FILE* gzFile;
 #define gzsetparams(a, b, c)
 #define gzflush(fp, b) fflush(fp);
 #define gzclose(fp) fclose(fp)
-#define gzwrite(fp, ptr, size) (int)fwrite(ptr, size, 1, fp);
+#define gzwrite(fp, ptr, size) (int)fwrite(ptr, 1, size, fp);
 static const char extension[] = "txt";
 #endif
 
