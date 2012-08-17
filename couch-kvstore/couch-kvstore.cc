@@ -104,10 +104,11 @@ static bool endWithCompact(const std::string &filename)
     return true;
 }
 
-static int dbFileRev(const std::string &dbname)
+static uint64_t dbFileRev(const std::string &dbname)
 {
+    char *ptr = NULL;
     size_t secondDot = dbname.rfind(".");
-    return atoi(dbname.substr(secondDot + 1).c_str());
+    return strtoull(dbname.substr(secondDot + 1).c_str(), &ptr, 10);
 }
 
 static void discoverDbFiles(const std::string &dir, std::vector<std::string> &v)
@@ -189,8 +190,7 @@ static void batchWarmupCallback(uint16_t vbId,
 
     if (engine->stillWarmingUp()) {
         vb_bgfetch_queue_t items2fetch;
-        std::vector<std::pair<std::string, uint64_t> >::iterator itm =
-            fetches.begin();
+        std::vector<std::pair<std::string, uint64_t> >::iterator itm = fetches.begin();
         for (; itm != fetches.end(); itm++) {
             // ignore duplicate Doc seq_id, if any in access log
             if (items2fetch.find((*itm).second) == items2fetch.end()) {
@@ -252,7 +252,7 @@ struct LoadResponseCtx {
     EventuallyPersistentEngine *engine;
 };
 
-CouchRequest::CouchRequest(const Item &it, int rev, CouchRequestCallback &cb, bool del) :
+CouchRequest::CouchRequest(const Item &it, uint64_t rev, CouchRequestCallback &cb, bool del) :
     value(it.getValue()), valuelen(it.getNBytes()),
     vbucketId(it.getVBucketId()), fileRevNum(rev),
     key(it.getKey()), deleteItem(del)
@@ -344,7 +344,7 @@ void CouchKVStore::set(const Item &itm, Callback<mutation_result> &cb)
     bool deleteItem = false;
     CouchRequestCallback requestcb;
     std::string dbFile;
-    int fileRev = 1;
+    uint64_t fileRev = 1;
 
     requestcb.setCb = &cb;
     if ((getDbFile(itm.getVBucketId(), dbFile))) {
@@ -365,10 +365,8 @@ void CouchKVStore::get(const std::string &key, uint64_t, uint16_t vb,
 {
     hrtime_t start = gethrtime();
     Db *db = NULL;
-    DocInfo *docInfo = NULL;
     std::string dbFile;
     GetValue rv;
-    sized_buf id;
 
     if (!(getDbFile(vb, dbFile))) {
         ++st.numGetFailure;
@@ -391,14 +389,14 @@ void CouchKVStore::get(const std::string &key, uint64_t, uint16_t vb,
         return;
     }
 
-    RememberingCallback<GetValue> *rc =
-        dynamic_cast<RememberingCallback<GetValue> *>(&cb);
+    RememberingCallback<GetValue> *rc = dynamic_cast<RememberingCallback<GetValue> *>(&cb);
     bool getMetaOnly = rc && rc->val.isPartial();
+    DocInfo *docInfo = NULL;
+    sized_buf id;
 
     id.size = key.size();
     id.buf = const_cast<char *>(key.c_str());
-    errCode = couchstore_docinfo_by_id(db, (uint8_t *)id.buf,
-                                       id.size, &docInfo);
+    errCode = couchstore_docinfo_by_id(db, (uint8_t *)id.buf, id.size, &docInfo);
     if (errCode != COUCHSTORE_SUCCESS) {
         if (!getMetaOnly) {
             // log error only if this is non-xdcr case
@@ -571,7 +569,7 @@ vbucket_map_t CouchKVStore::listPersistedVbuckets()
 
     Db *db = NULL;
     couchstore_error_t errorCode;
-    std::map<uint16_t, int>::iterator itr = dbFileMap.begin();
+    std::map<uint16_t, uint64_t>::iterator itr = dbFileMap.begin();
     for (; itr != dbFileMap.end(); itr++) {
         errorCode = openDB(itr->first, itr->second, &db, 0);
         if (errorCode != COUCHSTORE_SUCCESS) {
@@ -759,12 +757,10 @@ bool CouchKVStore::setVBucketState(uint16_t vbucketId, vbucket_state vbstate,
                                    bool stateChanged, bool newfile)
 {
     Db *db = NULL;
-    couchstore_error_t errorCode;
-    uint16_t fileRev, newFileRev;
+    uint64_t fileRev, newFileRev;
     std::stringstream id;
     std::string dbFileName;
-    std::map<uint16_t, int>::iterator mapItr;
-    int rev;
+    std::map<uint16_t, uint64_t>::iterator mapItr;
 
     id << vbucketId;
     dbFileName = dbname + "/" + id.str() + ".couch";
@@ -774,7 +770,7 @@ bool CouchKVStore::setVBucketState(uint16_t vbucketId, vbucket_state vbstate,
     } else {
         mapItr = dbFileMap.find(vbucketId);
         if (mapItr == dbFileMap.end()) {
-            rev = checkNewRevNum(dbFileName, true);
+            uint64_t rev = checkNewRevNum(dbFileName, true);
             if (rev == 0) {
                 fileRev = 1;
                 newfile = true;
@@ -786,6 +782,7 @@ bool CouchKVStore::setVBucketState(uint16_t vbucketId, vbucket_state vbstate,
         }
     }
 
+    couchstore_error_t errorCode;
     bool retry = true;
     while (retry) {
         retry = false;
@@ -816,7 +813,7 @@ bool CouchKVStore::setVBucketState(uint16_t vbucketId, vbucket_state vbstate,
         if (errorCode != COUCHSTORE_SUCCESS) {
             ++st.numVbSetFailure;
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "Warning: commit failed, vbid=%u rev=%u "
+                             "Warning: commit failed, vbid=%u rev=%llu "
                              "error=%s errno=%s",
                              vbucketId, fileRev, couchstore_strerror(errorCode),
                              couchkvstore_strerrno(errorCode).c_str());
@@ -833,12 +830,12 @@ bool CouchKVStore::setVBucketState(uint16_t vbucketId, vbucket_state vbstate,
                 if (lcb.val == PROTOCOL_BINARY_RESPONSE_ETMPFAIL) {
                     getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                                      "Retry notify CouchDB of update, "
-                                     "vbid=%u rev=%u\n", vbucketId, fileRev);
+                                     "vbid=%u rev=%llu\n", vbucketId, fileRev);
                     retry = true;
                 } else {
                     getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                                      "Warning: failed to notify CouchDB of update, "
-                                     "vbid=%u rev=%u error=0x%x\n",
+                                     "vbid=%u rev=%llu error=0x%x\n",
                                      vbucketId, fileRev, lcb.val);
                     abort();
                 }
@@ -966,11 +963,11 @@ void CouchKVStore::loadDB(shared_ptr<Callback<GetValue> > cb, bool keysOnly,
                           std::vector<uint16_t> *vbids,
                           couchstore_docinfos_options options)
 {
-    std::vector<std::string> files = std::vector<std::string>();
-    std::map<uint16_t, int> &filemap = dbFileMap;
-    std::map<uint16_t, int> vbmap;
-    std::vector< std::pair<uint16_t, int> > vbuckets;
-    std::vector< std::pair<uint16_t, int> > replicaVbuckets;
+    std::vector<std::string> files;
+    std::map<uint16_t, uint64_t> &filemap = dbFileMap;
+    std::map<uint16_t, uint64_t> vbmap;
+    std::vector< std::pair<uint16_t, uint64_t> > vbuckets;
+    std::vector< std::pair<uint16_t, uint64_t> > replicaVbuckets;
     bool loadingData = !vbids && !keysOnly;
 
     if (dbFileMap.empty()) {
@@ -991,7 +988,7 @@ void CouchKVStore::loadDB(shared_ptr<Callback<GetValue> > cb, bool keysOnly,
         listPersistedVbuckets();
     }
 
-    std::map<uint16_t, int>::iterator fitr = filemap.begin();
+    std::map<uint16_t, uint64_t>::iterator fitr = filemap.begin();
     for (; fitr != filemap.end(); fitr++) {
         if (loadingData) {
             vbucket_map_t::const_iterator vsit = cachedVBStates.find(fitr->first);
@@ -1010,7 +1007,7 @@ void CouchKVStore::loadDB(shared_ptr<Callback<GetValue> > cb, bool keysOnly,
     }
 
     if (loadingData) {
-        std::vector< std::pair<uint16_t, int> >::iterator it = replicaVbuckets.begin();
+        std::vector< std::pair<uint16_t, uint64_t> >::iterator it = replicaVbuckets.begin();
         for (; it != replicaVbuckets.end(); it++) {
             vbuckets.push_back(*it);
         }
@@ -1019,7 +1016,7 @@ void CouchKVStore::loadDB(shared_ptr<Callback<GetValue> > cb, bool keysOnly,
     Db *db = NULL;
     couchstore_error_t errorCode;
     int keyNum = 0;
-    std::vector< std::pair<uint16_t, int> >::iterator itr = vbuckets.begin();
+    std::vector< std::pair<uint16_t, uint64_t> >::iterator itr = vbuckets.begin();
     for (; itr != vbuckets.end(); itr++, keyNum++) {
         errorCode = openDB(itr->first, itr->second, &db, 0);
         if (errorCode != COUCHSTORE_SUCCESS) {
@@ -1096,17 +1093,16 @@ void CouchKVStore::close()
     couchNotifier = NULL;
 }
 
-bool CouchKVStore::getDbFile(uint16_t vbucketId,
-                             std::string &dbFileName)
+bool CouchKVStore::getDbFile(uint16_t vbucketId, std::string &dbFileName)
 {
     std::stringstream fileName;
     fileName << dbname << "/" << vbucketId << ".couch";
-    std::map<uint16_t, int>::iterator itr;
+    std::map<uint16_t, uint64_t>::iterator itr;
 
     itr = dbFileMap.find(vbucketId);
     if (itr == dbFileMap.end()) {
         dbFileName = fileName.str();
-        int rev = checkNewRevNum(dbFileName, true);
+        uint64_t rev = checkNewRevNum(dbFileName, true);
         if (rev > 0) {
             updateDbFileMap(vbucketId, rev, true);
             fileName << "." << rev;
@@ -1121,17 +1117,15 @@ bool CouchKVStore::getDbFile(uint16_t vbucketId,
     return true;
 }
 
-int CouchKVStore::checkNewRevNum(std::string &dbFileName, bool newFile)
+uint64_t CouchKVStore::checkNewRevNum(std::string &dbFileName, bool newFile)
 {
     using namespace CouchKVStoreDirectoryUtilities;
-    int newrev = 0;
-
-    std::string revnum, nameKey;
-    size_t secondDot;
+    uint64_t newrev = 0;
+    std::string nameKey;
 
     if (!newFile) {
         // extract out the file revision number first
-        secondDot = dbFileName.rfind(".");
+        size_t secondDot = dbFileName.rfind(".");
         nameKey = dbFileName.substr(0, secondDot);
     } else {
         nameKey = dbFileName;
@@ -1147,30 +1141,31 @@ int CouchKVStore::checkNewRevNum(std::string &dbFileName, bool newFile)
             continue;
         }
 
-        secondDot = filename.rfind(".");
-        revnum = filename.substr(secondDot + 1);
-        if (newrev < atoi(revnum.c_str())) {
-            newrev = atoi(revnum.c_str());
+        size_t secondDot = filename.rfind(".");
+        char *ptr = NULL;
+        uint64_t revnum = strtoull(filename.substr(secondDot + 1).c_str(), &ptr, 10);
+        if (newrev < revnum) {
+            newrev = revnum;
             dbFileName = filename;
         }
     }
     return newrev;
 }
 
-void CouchKVStore::updateDbFileMap(uint16_t vbucketId, int newFileRev,
+void CouchKVStore::updateDbFileMap(uint16_t vbucketId, uint64_t newFileRev,
                                    bool insertImmediately)
 {
     if (insertImmediately) {
-        dbFileMap.insert(std::pair<uint16_t, int>(vbucketId, newFileRev));
+        dbFileMap.insert(std::pair<uint16_t, uint64_t>(vbucketId, newFileRev));
         return;
     }
 
-    std::map<uint16_t, int>::iterator itr;
+    std::map<uint16_t, uint64_t>::iterator itr;
     itr = dbFileMap.find(vbucketId);
     if (itr != dbFileMap.end()) {
         itr->second = newFileRev;
     } else {
-        dbFileMap.insert(std::pair<uint16_t, int>(vbucketId, newFileRev));
+        dbFileMap.insert(std::pair<uint16_t, uint64_t>(vbucketId, newFileRev));
     }
 }
 
@@ -1183,7 +1178,7 @@ static std::string getDBFileName(const std::string &dbname, uint16_t vbid)
 
 static std::string getDBFileName(const std::string &dbname,
                                  uint16_t vbid,
-                                 uint16_t rev)
+                                 uint64_t rev)
 {
     std::stringstream ss;
     ss << dbname << "/" << vbid << ".couch." << rev;
@@ -1191,20 +1186,21 @@ static std::string getDBFileName(const std::string &dbname,
 }
 
 couchstore_error_t CouchKVStore::openDB(uint16_t vbucketId,
-                                        uint16_t fileRev,
+                                        uint64_t fileRev,
                                         Db **db,
                                         uint64_t options,
-                                        uint16_t *newFileRev)
+                                        uint64_t *newFileRev)
 {
-    couchstore_error_t errorCode;
     std::string dbFileName = getDBFileName(dbname, vbucketId, fileRev);
     couch_file_ops* ops = &statCollectingFileOps;
 
-    int newRevNum = fileRev;
+    uint64_t newRevNum = fileRev;
     // first try to open database without options, we don't want to create
     // a duplicate db that has the same name with different revision number
-    if ((errorCode = couchstore_open_db_ex(dbFileName.c_str(), 0, ops, db))) {
-        if ((newRevNum = checkNewRevNum(dbFileName))) {
+    couchstore_error_t errorCode = couchstore_open_db_ex(dbFileName.c_str(), 0, ops, db);
+    if (errorCode != COUCHSTORE_SUCCESS) {
+        newRevNum = checkNewRevNum(dbFileName);
+        if (newRevNum > 0) {
             errorCode = couchstore_open_db_ex(dbFileName.c_str(), 0, ops, db);
             if (errorCode == COUCHSTORE_SUCCESS) {
                 updateDbFileMap(vbucketId, newRevNum);
@@ -1242,26 +1238,25 @@ couchstore_error_t CouchKVStore::openDB(uint16_t vbucketId,
 
 void CouchKVStore::getFileNameMap(std::vector<uint16_t> *vbids,
                                   std::string &dirname,
-                                  std::map<uint16_t, int> &filemap)
+                                  std::map<uint16_t, uint64_t> &filemap)
 {
     std::vector<uint16_t>::iterator vbidItr;
-    std::map<uint16_t, int>::iterator dbFileItr;
 
     for (vbidItr = vbids->begin(); vbidItr != vbids->end(); vbidItr++) {
         std::string dbFileName = getDBFileName(dirname, *vbidItr);
-        dbFileItr = dbFileMap.find(*vbidItr);
+        std::map<uint16_t, uint64_t>::iterator dbFileItr = dbFileMap.find(*vbidItr);
         if (dbFileItr == dbFileMap.end()) {
-            int rev = checkNewRevNum(dbFileName, true);
+            uint64_t rev = checkNewRevNum(dbFileName, true);
             if (rev > 0) {
-                filemap.insert(std::pair<uint16_t, int>(*vbidItr, rev));
+                filemap.insert(std::pair<uint16_t, uint64_t>(*vbidItr, rev));
             } else {
                 getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                                  "Warning: database file does not exist, %s\n",
                                  dbFileName.c_str());
             }
         } else {
-            filemap.insert(std::pair<uint16_t, int>(dbFileItr->first,
-                                                    dbFileItr->second));
+            filemap.insert(std::pair<uint16_t, uint64_t>(dbFileItr->first,
+                                                         dbFileItr->second));
         }
     }
 }
@@ -1278,14 +1273,15 @@ void CouchKVStore::populateFileNameMap(std::vector<std::string> &filenames)
         size_t firstSlash = nameKey.rfind("/");
 
         std::string revNumStr = filename.substr(secondDot + 1);
-        int revNum = atoi(revNumStr.c_str());
+        char *ptr = NULL;
+        uint64_t revNum = strtoull(revNumStr.c_str(), &ptr, 10);
 
         std::string vbIdStr = nameKey.substr(firstSlash + 1, (firstDot - firstSlash) - 1);
         if (allDigit(vbIdStr)) {
             int vbId = atoi(vbIdStr.c_str());
-            std::map<uint16_t, int>::iterator mapItr = dbFileMap.find(vbId);
+            std::map<uint16_t, uint64_t>::iterator mapItr = dbFileMap.find(vbId);
             if (mapItr == dbFileMap.end()) {
-                dbFileMap.insert(std::pair<uint16_t, int>(vbId, revNum));
+                dbFileMap.insert(std::pair<uint16_t, uint64_t>(vbId, revNum));
             } else {
                 // duplicate key
                 if (mapItr->second < revNum) {
@@ -1448,30 +1444,22 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx)
 
 bool CouchKVStore::commit2couchstore(void)
 {
-    Doc **docs;
-    DocInfo **docinfos;
-    uint16_t vbucket2flush;
-    int reqIndex, fileRev;
-    couchstore_error_t errCode;
     bool success = true;
-
-    std::string dbName;
-    CouchRequest *req = NULL;
-    CouchRequest **committedReqs;
 
     if (pendingCommitCnt == 0) {
         return success;
     }
 
-    committedReqs = new CouchRequest *[pendingCommitCnt];
-    docs = new Doc *[pendingCommitCnt];
-    docinfos = new DocInfo *[pendingCommitCnt];
+    CouchRequest **committedReqs = new CouchRequest *[pendingCommitCnt];
+    Doc **docs = new Doc *[pendingCommitCnt];
+    DocInfo **docinfos = new DocInfo *[pendingCommitCnt];
 
     assert(pendingReqsQ[0]);
-    vbucket2flush = pendingReqsQ[0]->getVBucketId();
-    fileRev = pendingReqsQ[0]->getRevNum();
-    for (reqIndex = 0; pendingCommitCnt > 0; ++reqIndex, --pendingCommitCnt) {
-        req = pendingReqsQ[reqIndex];
+    uint16_t vbucket2flush = pendingReqsQ[0]->getVBucketId();
+    uint64_t fileRev = pendingReqsQ[0]->getRevNum();
+    int reqIndex = 0;
+    for (; pendingCommitCnt > 0; ++reqIndex, --pendingCommitCnt) {
+        CouchRequest *req = pendingReqsQ[reqIndex];
         assert(req);
         committedReqs[reqIndex] = req;
         docs[reqIndex] = req->getDbDoc();
@@ -1480,11 +1468,11 @@ bool CouchKVStore::commit2couchstore(void)
     }
 
     // flush all
-    errCode = saveDocs(vbucket2flush, fileRev, docs, docinfos, reqIndex);
+    couchstore_error_t errCode = saveDocs(vbucket2flush, fileRev, docs, docinfos, reqIndex);
     if (errCode) {
         getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                 "Warning: commit failed, cannot save CouchDB docs "
-                "for vbucket = %d rev = %d\n", vbucket2flush, fileRev);
+                "for vbucket = %d rev = %llu\n", vbucket2flush, fileRev);
         ++epStats.commitFailed;
     }
     commitCallback(committedReqs, reqIndex, errCode);
@@ -1500,29 +1488,26 @@ bool CouchKVStore::commit2couchstore(void)
     return success;
 }
 
-couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, int rev, Doc **docs,
+couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, uint64_t rev, Doc **docs,
                                           DocInfo **docinfos, int docCount)
 {
     couchstore_error_t errCode;
-    int fileRev;
-    uint16_t newFileRev;
-    Db *db = NULL;
-    bool retry_save_docs;
+    bool retry_save_docs = false;
     bool retried = false;
-    hrtime_t retry_begin = (hrtime_t)0;
-    hrtime_t cs_begin = (hrtime_t)0;
-
-    fileRev = rev;
+    hrtime_t retry_begin = 0;
+    uint64_t fileRev = rev;
     assert(fileRev);
 
     do {
+        Db *db = NULL;
+        uint64_t newFileRev;
         retry_save_docs = false;
         errCode = openDB(vbid, fileRev, &db,
                          (uint64_t)COUCHSTORE_OPEN_FLAG_CREATE, &newFileRev);
         if (errCode != COUCHSTORE_SUCCESS) {
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                              "Warning: failed to open database, vbucketId = %d "
-                             "fileRev = %d\n", vbid, fileRev);
+                             "fileRev = %llu\n", vbid, fileRev);
             return errCode;
         } else {
             uint32_t max = computeMaxDeletedSeqNum(docinfos, docCount);
@@ -1545,7 +1530,7 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, int rev, Doc **docs,
                 }
             }
 
-            cs_begin = gethrtime();
+            hrtime_t cs_begin = gethrtime();
             errCode = couchstore_save_documents(db, docs, docinfos, docCount,
                                                 0 /* no options */);
             st.saveDocsHisto.add((gethrtime() - cs_begin) / 1000);
@@ -1574,7 +1559,7 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, int rev, Doc **docs,
             if (cb.val != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
                 if (cb.val == PROTOCOL_BINARY_RESPONSE_ETMPFAIL) {
                     getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                   "Retry notify CouchDB of update, vbucket=%d rev=%d\n",
+                                   "Retry notify CouchDB of update, vbucket=%d rev=%llu\n",
                                      vbid, newFileRev);
                     fileRev = newFileRev;
                     retry_save_docs = true;
@@ -1620,7 +1605,7 @@ void CouchKVStore::queueItem(CouchRequest *req)
 
 void CouchKVStore::remVBucketFromDbFileMap(uint16_t vbucketId)
 {
-    std::map<uint16_t, int>::iterator itr;
+    std::map<uint16_t, uint64_t>::iterator itr;
 
     itr = dbFileMap.find(vbucketId);
     if (itr != dbFileMap.end()) {
@@ -1840,21 +1825,19 @@ size_t CouchKVStore::warmup(MutationLog &lf,
 
 bool CouchKVStore::getEstimatedItemCount(size_t &items)
 {
-    Db *db = NULL;
-    couchstore_error_t errCode;
-    std::vector<std::string> files;
-
     items = 0;
 
     if (dbFileMap.empty()) {
+        std::vector<std::string> files;
         // first scan all db files from data directory
         discoverDbFiles(dbname, files);
         populateFileNameMap(files);
     }
 
-    std::map<uint16_t, int>::iterator fitr = dbFileMap.begin();
+    std::map<uint16_t, uint64_t>::iterator fitr = dbFileMap.begin();
     for (; fitr != dbFileMap.end(); ++fitr) {
-        errCode = openDB(fitr->first, fitr->second, &db, 0);
+        Db *db = NULL;
+        couchstore_error_t errCode = openDB(fitr->first, fitr->second, &db, 0);
         if (errCode == COUCHSTORE_SUCCESS) {
             DbInfo info;
             errCode = couchstore_db_info(db, &info);
@@ -1863,14 +1846,14 @@ bool CouchKVStore::getEstimatedItemCount(size_t &items)
             } else {
                 getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                                  "Warning: failed to read database info for "
-                                 "vBucket = %d rev = %d\n",
+                                 "vBucket = %d rev = %llu\n",
                                  fitr->first, fitr->second);
             }
             closeDatabaseHandle(db);
         } else {
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                              "Warning: failed to open database file for "
-                             "vBucket = %d rev = %d\n",
+                             "vBucket = %d rev = %llu\n",
                              fitr->first, fitr->second);
         }
     }
