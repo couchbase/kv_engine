@@ -121,13 +121,13 @@ static void discoverDbFiles(const std::string &dir, std::vector<std::string> &v)
     }
 }
 
-static uint32_t computeMaxDeletedSeqNum(DocInfo **docinfos, const int numdocs)
+static uint64_t computeMaxDeletedSeqNum(DocInfo **docinfos, const int numdocs)
 {
-    uint32_t max = 0;
+    uint64_t max = 0;
     for (int idx = 0; idx < numdocs; idx++) {
         if (docinfos[idx]->deleted) {
             // check seq number only from a deleted file
-            uint32_t seqNum = (uint32_t)docinfos[idx]->rev_seq;
+            uint64_t seqNum = docinfos[idx]->rev_seq;
             max = std::max(seqNum, max);
         }
     }
@@ -1495,7 +1495,7 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, uint64_t rev, Doc **doc
                              "fileRev = %llu\n", vbid, fileRev);
             return errCode;
         } else {
-            uint32_t max = computeMaxDeletedSeqNum(docinfos, docCount);
+            uint64_t max = computeMaxDeletedSeqNum(docinfos, docCount);
 
             // update max_deleted_seq in the local doc (vbstate)
             // before save docs for the given vBucket
@@ -1667,7 +1667,7 @@ void CouchKVStore::readVBState(Db *db, uint16_t vbId, vbucket_state &vbState)
                              vbId, statjson.c_str());
         } else {
             vbState.state = VBucket::fromString(state.c_str());
-            parseUint32(max_deleted_seqno.c_str(), &vbState.maxDeletedSeqno);
+            parseUint64(max_deleted_seqno.c_str(), &vbState.maxDeletedSeqno);
             parseUint64(checkpoint_id.c_str(), &vbState.checkpointId);
         }
         cJSON_Delete(jsonObj);

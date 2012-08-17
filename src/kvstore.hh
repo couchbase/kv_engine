@@ -32,7 +32,7 @@ typedef std::pair<int, int64_t> mutation_result;
 struct vbucket_state {
     vbucket_state_t state;
     uint64_t checkpointId;
-    uint32_t maxDeletedSeqno;
+    uint64_t maxDeletedSeqno;
 };
 
 /**
