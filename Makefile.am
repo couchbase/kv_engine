@@ -251,14 +251,14 @@ TESTS=${check_PROGRAMS}
 EXTRA_TESTS =
 
 ep_testsuite_la_CPPFLAGS = -I$(top_srcdir)/src/sqlite-kvstore \
-                         $(AM_CPPFLAGS) ${NO_WERROR}
+                           -I$(top_srcdir)/tests $(AM_CPPFLAGS) ${NO_WERROR}
 ep_testsuite_la_SOURCES= tests/ep_testsuite.cc tests/ep_testsuite.h       \
                          src/atomic.cc locks.hh src/mutex.cc src/mutex.hh \
                          src/item.cc  src/testlogger_libify.cc            \
                          src/dispatcher.cc src/ep_time.c                  \
                          src/ep_time.h src/sqlite-kvstore/sqlite-pst.cc   \
                          tools/cJSON.c tools/cJSON.h                      \
-                         mock/mccouch.cc mock/mccouch.hh                  \
+                         tests/mock/mccouch.cc tests/mock/mccouch.hh      \
                          tests/ep_test_apis.cc tests/ep_test_apis.h
 ep_testsuite_la_LDFLAGS= -module -dynamic
 
