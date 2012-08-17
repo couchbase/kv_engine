@@ -310,20 +310,20 @@ timing_tests_la_CFLAGS = $(AM_CFLAGS) ${NO_WERROR}
 timing_tests_la_SOURCES= tests/module_tests/timing_tests.cc
 timing_tests_la_LDFLAGS= -module -dynamic
 
-atomic_test_CXXFLAGS = $(AM_CPPFLAGS) ${NO_WERROR}
+atomic_test_CXXFLAGS = $(AM_CPPFLAGS) $(AM_CXXFLAGS) ${NO_WERROR}
 atomic_test_SOURCES = tests/module_tests/atomic_test.cc src/atomic.hh src/mutex.cc
 atomic_test_DEPENDENCIES = src/atomic.hh
 
-atomic_ptr_test_CXXFLAGS = $(AM_CPPFLAGS) ${NO_WERROR}
+atomic_ptr_test_CXXFLAGS = $(AM_CPPFLAGS) $(AM_CXXFLAGS) ${NO_WERROR}
 atomic_ptr_test_SOURCES = tests/module_tests/atomic_ptr_test.cc src/atomic.cc \
-                          src/atomic.hh src/mutex.cc mutex.hh
+                          src/atomic.hh src/mutex.cc src/mutex.hh
 atomic_ptr_test_DEPENDENCIES = src/atomic.hh
 
-mutex_test_CXXFLAGS = $(AM_CPPFLAGS) ${NO_WERROR}
+mutex_test_CXXFLAGS = $(AM_CPPFLAGS) $(AM_CXXFLAGS) ${NO_WERROR}
 mutex_test_SOURCES = tests/module_tests/mutex_test.cc src/locks.hh src/mutex.cc
 mutex_test_DEPENDENCIES = src/locks.hh
 
-dispatcher_test_CXXFLAGS = $(AM_CPPFLAGS) ${NO_WERROR}
+dispatcher_test_CXXFLAGS = $(AM_CPPFLAGS) $(AM_CXXFLAGS) ${NO_WERROR}
 dispatcher_test_SOURCES = tests/module_tests/dispatcher_test.cc \
                           src/dispatcher.cc	src/dispatcher.hh   \
                           src/priority.cc src/priority.hh	    \
@@ -333,7 +333,7 @@ dispatcher_test_DEPENDENCIES = src/common.hh src/dispatcher.hh      \
                                src/priority.hh libobjectregistry.la
 dispatcher_test_LDADD = libobjectregistry.la
 
-hash_table_test_CXXFLAGS = $(AM_CPPFLAGS) ${NO_WERROR}
+hash_table_test_CXXFLAGS = $(AM_CPPFLAGS) $(AM_CXXFLAGS) ${NO_WERROR}
 hash_table_test_SOURCES = tests/module_tests/hash_table_test.cc src/item.cc  \
                           src/stored-value.cc src/stored-value.hh            \
                           src/testlogger.cc src/atomic.cc src/mutex.cc       \
@@ -343,11 +343,11 @@ hash_table_test_DEPENDENCIES = src/stored-value.cc src/stored-value.hh    \
                                src/ep.hh src/item.hh libobjectregistry.la
 hash_table_test_LDADD = libobjectregistry.la
 
-misc_test_CXXFLAGS = $(AM_CPPFLAGS) ${NO_WERROR}
+misc_test_CXXFLAGS = $(AM_CPPFLAGS) $(AM_CXXFLAGS) ${NO_WERROR}
 misc_test_SOURCES = tests/module_tests/misc_test.cc src/common.hh
 misc_test_DEPENDENCIES = src/common.hh
 
-priority_test_CXXFLAGS = $(AM_CPPFLAGS) ${NO_WERROR}
+priority_test_CXXFLAGS = $(AM_CPPFLAGS) $(AM_CXXFLAGS) ${NO_WERROR}
 priority_test_SOURCES = tests/module_tests/priority_test.cc src/priority.hh \
                         src/priority.cc
 
@@ -367,7 +367,7 @@ management_sqlite3_CFLAGS = $(AM_CFLAGS) ${NO_WERROR}
 management_sqlite3_DEPENDENCIES = libsqlite3.la
 management_sqlite3_LDADD = libsqlite3.la
 
-vbucket_test_CXXFLAGS = $(AM_CPPFLAGS) ${NO_WERROR}
+vbucket_test_CXXFLAGS = $(AM_CPPFLAGS) $(AM_CXXFLAGS) ${NO_WERROR}
 vbucket_test_SOURCES = tests/module_tests/vbucket_test.cc              \
                tests/module_tests/threadtests.hh src/vbucket.hh	       \
                src/vbucket.cc src/stored-value.cc src/stored-value.hh  \
@@ -382,7 +382,7 @@ vbucket_test_DEPENDENCIES = src/vbucket.hh src/stored-value.cc     \
                             libconfiguration.la
 vbucket_test_LDADD = libobjectregistry.la libconfiguration.la
 
-checkpoint_test_CXXFLAGS = $(AM_CPPFLAGS) ${NO_WERROR}
+checkpoint_test_CXXFLAGS = $(AM_CPPFLAGS) $(AM_CXXFLAGS) ${NO_WERROR}
 checkpoint_test_SOURCES = tests/module_tests/checkpoint_test.cc                \
                           src/checkpoint.hh src/checkpoint.cc src/vbucket.hh   \
                           src/vbucket.cc src/testlogger.cc src/stored-value.cc \
@@ -401,7 +401,7 @@ dirutils_test_DEPENDENCIES = libdirutils.la
 dirutils_test_LDADD = libdirutils.la
 dirutils_test_LDFLAGS = -lgtest
 
-mutation_log_test_CXXFLAGS = $(AM_CPPFLAGS) ${NO_WERROR}
+mutation_log_test_CXXFLAGS = $(AM_CPPFLAGS) $(AM_CXXFLAGS) ${NO_WERROR}
 mutation_log_test_SOURCES = tests/module_tests/mutation_log_test.cc         \
                             src/mutation_log.hh	src/testlogger.cc           \
                             src/mutation_log.cc src/byteorder.c src/crc32.h \
@@ -411,14 +411,14 @@ mutation_log_test_SOURCES = tests/module_tests/mutation_log_test.cc         \
 mutation_log_test_DEPENDENCIES = src/mutation_log.hh
 mutation_log_test_LDADD = libobjectregistry.la libconfiguration.la
 
-hrtime_test_CXXFLAGS = $(AM_CPPFLAGS) ${NO_WERROR}
+hrtime_test_CXXFLAGS = $(AM_CPPFLAGS) $(AM_CXXFLAGS) ${NO_WERROR}
 hrtime_test_SOURCES = tests/module_tests/hrtime_test.cc common.hh
 
-histo_test_CXXFLAGS = $(AM_CPPFLAGS) ${NO_WERROR}
+histo_test_CXXFLAGS = $(AM_CPPFLAGS) $(AM_CXXFLAGS) ${NO_WERROR}
 histo_test_SOURCES = tests/module_tests/histo_test.cc src/common.hh src/histo.hh
 histo_test_DEPENDENCIES = src/common.hh src/histo.hh
 
-chunk_creation_test_CXXFLAGS = $(AM_CPPFLAGS) ${NO_WERROR}
+chunk_creation_test_CXXFLAGS = $(AM_CPPFLAGS) $(AM_CXXFLAGS) ${NO_WERROR}
 chunk_creation_test_SOURCES = tests/module_tests/chunk_creation_test.cc \
                               src/common.hh
 
@@ -428,7 +428,7 @@ pathexpand_test_SOURCES = tests/module_tests/pathexpand_test.cc \
                           src/sqlite-kvstore/pathexpand.hh      \
                           src/sqlite-kvstore/pathexpand.cc
 
-ringbuffer_test_CXXFLAGS = $(AM_CPPFLAGS) ${NO_WERROR}
+ringbuffer_test_CXXFLAGS = $(AM_CPPFLAGS) $(AM_CXXFLAGS) ${NO_WERROR}
 ringbuffer_test_SOURCES = tests/module_tests/ringbuffer_test.cc src/ringbuffer.hh
 ringbuffer_test_DEPENDENCIES = src/ringbuffer.hh
 
