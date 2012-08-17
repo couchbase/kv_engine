@@ -1884,9 +1884,9 @@ public:
 
     PersistenceCallback(const queued_item &qi, std::queue<queued_item> *q,
                         EventuallyPersistentStore *st, MutationLog *ml,
-                        rel_time_t qd, rel_time_t d, EPStats *s, uint64_t c) :
+                        rel_time_t d, EPStats *s, uint64_t c) :
         queuedItem(qi), rq(q), store(st), mutationLog(ml),
-        queued(qd), dirtied(d), stats(s), cas(c) {
+        dirtied(d), stats(s), cas(c) {
 
         assert(rq);
         assert(s);
@@ -2019,7 +2019,6 @@ private:
     std::queue<queued_item> *rq;
     EventuallyPersistentStore *store;
     MutationLog *mutationLog;
-    rel_time_t queued;
     rel_time_t dirtied;
     EPStats *stats;
     uint64_t cas;
@@ -2144,7 +2143,7 @@ int EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
                                  stats.timingLog);
                 PersistenceCallback *cb;
                 cb = new PersistenceCallback(qi, rejectQueue, this, &mutationLog,
-                                             queued, dirtied, &stats, itm.getCas());
+                                             dirtied, &stats, itm.getCas());
                 tctx.addCallback(cb);
                 rwUnderlying->set(itm, *cb);
                 if (rowid == -1)  {
@@ -2160,7 +2159,7 @@ int EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
             BlockTimer timer(&stats.diskDelHisto, "disk_delete", stats.timingLog);
             PersistenceCallback *cb;
             cb = new PersistenceCallback(qi, rejectQueue, this, &mutationLog,
-                                         queued, dirtied, &stats, 0);
+                                         dirtied, &stats, 0);
 
             tctx.addCallback(cb);
             rwUnderlying->del(itm, rowid, *cb);
