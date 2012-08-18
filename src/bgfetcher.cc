@@ -42,7 +42,7 @@ void BgFetcher::doFetch(uint16_t vbId) {
         }
     }
     store->completeBGFetchMulti(vbId, fetchedItems, startTime);
-    stats.getMultiHisto.add(startTime-gethrtime()/1000, totalfetches);
+    stats.getMultiHisto.add((gethrtime()-startTime)/1000, totalfetches);
     clearItems();
 }
 
