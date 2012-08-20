@@ -2472,7 +2472,7 @@ void EventuallyPersistentStore::setAccessScannerSleeptime(size_t val) {
     LockHolder lh(accessScanner.mutex);
 
     if (accessScanner.sleeptime != 0) {
-        dispatcher->cancel(accessScanner.task);
+        tapDispatcher->cancel(accessScanner.task);
     }
 
     // store sleeptime in seconds
@@ -2480,9 +2480,9 @@ void EventuallyPersistentStore::setAccessScannerSleeptime(size_t val) {
     if (accessScanner.sleeptime != 0) {
         AccessScanner *as = new AccessScanner(*this, stats, accessScanner.sleeptime);
         shared_ptr<DispatcherCallback> cb(as);
-        dispatcher->schedule(cb, &accessScanner.task,
-                             Priority::AccessScannerPriority,
-                             accessScanner.sleeptime);
+        tapDispatcher->schedule(cb, &accessScanner.task,
+                                Priority::AccessScannerPriority,
+                                accessScanner.sleeptime);
         stats.alogTime.set(accessScanner.task->getWaketime().tv_sec);
     }
 }
@@ -2491,13 +2491,13 @@ void EventuallyPersistentStore::resetAccessScannerStartTime() {
     LockHolder lh(accessScanner.mutex);
 
     if (accessScanner.sleeptime != 0) {
-        dispatcher->cancel(accessScanner.task);
+        tapDispatcher->cancel(accessScanner.task);
         // re-schedule task according to the new task start hour
         AccessScanner *as = new AccessScanner(*this, stats, accessScanner.sleeptime);
         shared_ptr<DispatcherCallback> cb(as);
-        dispatcher->schedule(cb, &accessScanner.task,
-                             Priority::AccessScannerPriority,
-                             accessScanner.sleeptime);
+        tapDispatcher->schedule(cb, &accessScanner.task,
+                                Priority::AccessScannerPriority,
+                                accessScanner.sleeptime);
         stats.alogTime.set(accessScanner.task->getWaketime().tv_sec);
     }
 }

@@ -113,7 +113,7 @@ bool AccessScanner::callback(Dispatcher &d, TaskId t) {
         available = false;
         shared_ptr<ItemAccessVisitor> pv(new ItemAccessVisitor(store, stats, &available));
         store.resetAccessScannerTasktime();
-        store.visit(pv, "Item access scanner", &d, Priority::ItemPagerPriority);
+        store.visit(pv, "Item access scanner", &d, Priority::AccessScannerPriority);
     }
     d.snooze(t, sleepTime);
     stats.alogTime.set(t->getWaketime().tv_sec);
