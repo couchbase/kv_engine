@@ -61,6 +61,8 @@ public:
             delete log;
             log = NULL;
             ++stats.alogRuns;
+            stats.alogRuntime.set(ep_real_time() - startTime);
+            stats.alogNumItems.set(num_items);
 
             if (num_items == 0) {
                 getLogger()->log(EXTENSION_LOG_INFO, NULL,

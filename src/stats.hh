@@ -269,8 +269,12 @@ public:
     Atomic<size_t> mlogCompactorRuns;
     //! The number of tiems the access scanner runs
     Atomic<size_t> alogRuns;
+    //! The number of items that last access scanner task swept to log
+    Atomic<size_t> alogNumItems;
     //! The next access scanner task schedule time (GMT)
     Atomic<hrtime_t> alogTime;
+    //! The number of seconds that the last access scanner task took
+    Atomic<rel_time_t> alogRuntime;
 
     //! Histogram of queue processing dirty age.
     Histogram<hrtime_t> dirtyAgeHisto;
