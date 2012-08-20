@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <pthread.h>
+#include <sys/time.h>
 
 #ifdef HAVE_ZLIB_H
 #include <zlib.h>
@@ -67,6 +68,9 @@ struct logbuffer {
 /* The index in the buffers where we're currently inserting more data */
 static int currbuffer;
 
+/* If we should try to pretty-print the severity or not */
+static bool prettyprint = false;
+
 /* The size of the buffers (this may be tuned by the buffersize configuration
  * parameter */
 static size_t buffersz = 2048 * 1024;
@@ -112,6 +116,21 @@ static void add_log_entry(const char *msg, size_t size)
     pthread_mutex_unlock(&mutex);
 }
 
+static const char *severity2string(EXTENSION_LOG_LEVEL sev) {
+    switch (sev) {
+    case EXTENSION_LOG_WARNING:
+        return "WARNING";
+    case EXTENSION_LOG_INFO:
+        return "INFO   ";
+    case EXTENSION_LOG_DEBUG:
+        return "DEBUG  ";
+    case EXTENSION_LOG_DETAIL:
+        return "DETAIL ";
+    default:
+        return "????   ";
+    }
+}
+
 static void logger_log(EXTENSION_LOG_LEVEL severity,
                        const void* client_cookie,
                        const char *fmt, ...)
@@ -125,9 +144,36 @@ static void logger_log(EXTENSION_LOG_LEVEL severity,
          */
         char buffer[2048];
         size_t avail = sizeof(buffer) - 1;
-        int prefixlen = snprintf(buffer, avail, "%u %u: ",
-                                 sapi->core->get_current_time(),
-                                 (unsigned int)severity);
+        int prefixlen = 0;
+
+        struct timeval now;
+        if (gettimeofday(&now, NULL) == 0) {
+            struct tm tval;
+            time_t nsec = (time_t)now.tv_sec;
+            gmtime_r(&nsec, &tval);
+            char str[30];
+            if (asctime_r(&tval, str) == NULL) {
+                prefixlen = snprintf(buffer, avail, "%u.%06u",
+                                     (unsigned int)now.tv_sec,
+                                     (unsigned int)now.tv_usec);
+            } else {
+                /* trim off ' YYYY\n' */
+                str[strlen(str) - 6] = '\0';
+                prefixlen = snprintf(buffer, avail, "%s.%06u",
+                                     str, (unsigned int)now.tv_usec);
+            }
+        } else {
+            fprintf(stderr, "gettimeofday failed: %s\n", strerror(errno));
+            return;
+        }
+
+        if (prettyprint) {
+            prefixlen += snprintf(buffer+prefixlen, avail-prefixlen,
+                                  " %s: ", severity2string(severity));
+        } else {
+            prefixlen += snprintf(buffer+prefixlen, avail-prefixlen,
+                                  " %u: ", (unsigned int)severity);
+        }
 
         avail -= prefixlen;
         va_list ap;
@@ -298,6 +344,9 @@ EXTENSION_ERROR_CODE memcached_extensions_initialize(const char *config,
             { .key = "loglevel",
               .datatype = DT_STRING,
               .value.dt_string = &loglevel },
+            { .key = "prettyprint",
+              .datatype = DT_BOOL,
+              .value.dt_bool = &prettyprint },
             { .key = NULL}
         };
 
