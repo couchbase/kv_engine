@@ -75,6 +75,9 @@ static bool prettyprint = false;
  * parameter */
 static size_t buffersz = 2048 * 1024;
 
+/* The sleeptime between each forced flush of the buffer */
+static size_t sleeptime = 60;
+
 /* To avoid race condition we're protecting our shared resources with a
  * single mutex. */
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -243,6 +246,7 @@ static size_t flush_pending_io(gzFile file, struct logbuffer *lb) {
             }
         }
         lb->offset = 0;
+        gzflush(file, Z_PARTIAL_FLUSH);
     }
 
     return ret;
@@ -255,10 +259,16 @@ static void *logger_thead_main(void* arg)
 {
     size_t currsize = 0;
     gzFile fp = open_logfile(arg);
+    unsigned int next = time(NULL);
 
     pthread_mutex_lock(&mutex);
     while (run) {
-        while (buffers[currbuffer].offset > (buffersz * 0.75)) {
+        struct timeval tp;
+        gettimeofday(&tp, NULL);
+
+        while (tp.tv_sec >= next  ||
+               buffers[currbuffer].offset > (buffersz * 0.75)) {
+            next = tp.tv_sec + 1;
             int this  = currbuffer;
             currbuffer = (currbuffer == 0) ? 1 : 0;
             /* Let people who is blocked for space continue */
@@ -275,7 +285,10 @@ static void *logger_thead_main(void* arg)
             pthread_mutex_lock(&mutex);
         }
 
-        pthread_cond_wait(&cond, &mutex);
+        gettimeofday(&tp, NULL);
+        next = tp.tv_sec + (unsigned int)sleeptime;
+        struct timespec ts = { .tv_sec = next };
+        pthread_cond_timedwait(&cond, &mutex, &ts);
     }
 
     if (fp) {
@@ -347,6 +360,9 @@ EXTENSION_ERROR_CODE memcached_extensions_initialize(const char *config,
             { .key = "prettyprint",
               .datatype = DT_BOOL,
               .value.dt_bool = &prettyprint },
+            { .key = "sleeptime",
+              .datatype = DT_SIZE,
+              .value.dt_size = &sleeptime },
             { .key = NULL}
         };
 
