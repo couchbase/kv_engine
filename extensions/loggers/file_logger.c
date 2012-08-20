@@ -58,7 +58,7 @@ static size_t cyclesz = 100 * 1024 * 1024;
  * is way slower than our CPU, we might end up in a situation that we'll be
  * blocking the frontend threads if you're logging too much.
  */
-struct logbuffer {
+static struct logbuffer {
     /* Pointer to beginning of the datasegment of this buffer */
     char *data;
     /* The current offset of the buffer */
@@ -80,21 +80,21 @@ static size_t sleeptime = 60;
 
 /* To avoid race condition we're protecting our shared resources with a
  * single mutex. */
-pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
 /* The thread performing the disk IO will be waiting for the input buffers
  * to be filled by sleeping on the following condition variable. The
  * frontend threads will notify the condition variable when the buffer is
  * > 75% full
  */
-pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
+static pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
 
 /* In the "worst case scenarios" we're logging so much that the disk thread
  * can't keep up with the the frontend threads. In these rare situations
  * the frontend threads will block and wait for the flusher to free up log
  * space
  */
-pthread_cond_t space_cond = PTHREAD_COND_INITIALIZER;
+static pthread_cond_t space_cond = PTHREAD_COND_INITIALIZER;
 
 static void add_log_entry(const char *msg, size_t size)
 {
