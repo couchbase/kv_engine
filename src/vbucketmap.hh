@@ -13,7 +13,7 @@ public:
     VBucketMap(Configuration &config);
     ~VBucketMap();
 
-    void addBucket(const RCPtr<VBucket> &b);
+    ENGINE_ERROR_CODE addBucket(const RCPtr<VBucket> &b);
     void removeBucket(uint16_t id);
     void addBuckets(const std::vector<VBucket*> &newBuckets);
     RCPtr<VBucket> getBucket(uint16_t id) const;

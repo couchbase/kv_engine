@@ -905,13 +905,13 @@ void EventuallyPersistentStore::snapshotVBuckets(const Priority &priority) {
     }
 }
 
-void EventuallyPersistentStore::setVBucketState(uint16_t vbid,
-                                                vbucket_state_t to) {
+ENGINE_ERROR_CODE EventuallyPersistentStore::setVBucketState(uint16_t vbid,
+                                                             vbucket_state_t to) {
     // Lock to prevent a race condition between a failed update and add.
     LockHolder lh(vbsetMutex);
     RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
     if (vb && to == vb->getState()) {
-        return;
+        return ENGINE_SUCCESS;
     }
 
     if (vb) {
@@ -926,11 +926,15 @@ void EventuallyPersistentStore::setVBucketState(uint16_t vbid,
         // The first checkpoint for active vbucket should start with id 2.
         uint64_t start_chk_id = (to == vbucket_state_active) ? 2 : 0;
         newvb->checkpointManager.setOpenCheckpointId(start_chk_id);
-        vbuckets.addBucket(newvb);
+        if (vbuckets.addBucket(newvb) == ENGINE_ERANGE) {
+            lh.unlock();
+            return ENGINE_ERANGE;
+        }
         vbuckets.setPersistenceCheckpointId(vbid, 0);
         lh.unlock();
         scheduleVBSnapshot(Priority::VBucketPersistHighPriority);
     }
+    return ENGINE_SUCCESS;
 }
 
 void EventuallyPersistentStore::scheduleVBSnapshot(const Priority &p) {

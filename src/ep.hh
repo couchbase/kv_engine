@@ -536,8 +536,7 @@ public:
     }
 
     void snapshotVBuckets(const Priority &priority);
-    void setVBucketState(uint16_t vbid,
-                         vbucket_state_t state);
+    ENGINE_ERROR_CODE setVBucketState(uint16_t vbid, vbucket_state_t state);
 
     /**
      * Perform a fast vbucket deletion.

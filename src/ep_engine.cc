@@ -715,7 +715,13 @@ extern "C" {
                          PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
         }
 
-        e->setVBucketState(ntohs(req->message.header.request.vbucket), state);
+        uint16_t vb = ntohs(req->message.header.request.vbucket);
+        if(e->setVBucketState(vb, state) == ENGINE_ERANGE) {
+            const std::string msg("VBucket number too big");
+            return sendResponse(response, NULL, 0, NULL, 0, msg.c_str(),
+                                msg.length(), PROTOCOL_BINARY_RAW_BYTES,
+                                PROTOCOL_BINARY_RESPONSE_ERANGE, 0, cookie);
+        }
         return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
                             PROTOCOL_BINARY_RAW_BYTES,
                             PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);

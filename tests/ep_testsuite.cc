@@ -5784,7 +5784,13 @@ static enum test_result test_control_data_traffic(ENGINE_HANDLE *h, ENGINE_HANDL
     check(store(h, h1, NULL, OPERATION_SET, "key", "value2", &itm) == ENGINE_SUCCESS,
           "Failed to set key");
     h1->release(h, NULL, itm);
+    return SUCCESS;
+}
 
+static enum test_result test_set_vbucket_out_of_range(ENGINE_HANDLE *h,
+                                                       ENGINE_HANDLE_V1 *h1) {
+    check(!set_vbucket_state(h, h1, 10000, vbucket_state_active),
+          "Shouldn't have been able to set vbucket 10000");
     return SUCCESS;
 }
 
@@ -6015,6 +6021,8 @@ engine_test_t* get_tests(void) {
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("resident ratio after warmup", test_mb5172,
                  test_setup, teardown, NULL, prepare, cleanup),
+        TestCase("set vb 10000", test_set_vbucket_out_of_range,
+                 test_setup, teardown, "max_vbuckets=1024", prepare, cleanup),
         TestCase("flush", test_flush, test_setup, teardown,
                  NULL, prepare, cleanup),
         TestCase("flush with stats", test_flush_stats, test_setup, teardown,

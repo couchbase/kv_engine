@@ -32,15 +32,18 @@ RCPtr<VBucket> VBucketMap::getBucket(uint16_t id) const {
     }
 }
 
-void VBucketMap::addBucket(const RCPtr<VBucket> &b) {
+ENGINE_ERROR_CODE VBucketMap::addBucket(const RCPtr<VBucket> &b) {
     if (static_cast<size_t>(b->getId()) < size) {
         buckets[b->getId()].reset(b);
         getLogger()->log(EXTENSION_LOG_INFO, NULL,
                          "Mapped new vbucket %d in state %s",
                          b->getId(), VBucket::toString(b->getState()));
-    } else {
-        throw new NeedMoreBuckets;
+        return ENGINE_SUCCESS;
     }
+    getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                         "Cannot create vb %d, max vbuckets is %d",
+                         b->getId(), size);
+    return ENGINE_ERANGE;
 }
 
 void VBucketMap::removeBucket(uint16_t id) {

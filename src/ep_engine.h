@@ -520,8 +520,8 @@ public:
         return epstore->getVBucket(vbucket);
     }
 
-    void setVBucketState(uint16_t vbid, vbucket_state_t to) {
-        epstore->setVBucketState(vbid, to);
+    ENGINE_ERROR_CODE setVBucketState(uint16_t vbid, vbucket_state_t to) {
+        return epstore->setVBucketState(vbid, to);
     }
 
     ~EventuallyPersistentEngine() {

@@ -309,9 +309,4 @@ private:
     DISALLOW_COPY_AND_ASSIGN(VBucket);
 };
 
-/**
- * Exception thrown when need more vbuckets than originally specified.
- */
-class NeedMoreBuckets : std::exception {};
-
 #endif /* VBUCKET_HH */
