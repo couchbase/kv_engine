@@ -109,6 +109,7 @@ EP_ENGINE_C_SRC = \
                  src/ep_time.c \
                  src/gethrtime.c \
                  tools/cJSON.c \
+                 tools/JSON_checker.c \
                  src/sqlite-kvstore/sqlite-vfs.c
 
 EP_ENGINE_OBJS = ${EP_ENGINE_C_SRC:%.c=.libs/%.o} ${EP_ENGINE_CC_SRC:%.cc=.libs/%.o}
