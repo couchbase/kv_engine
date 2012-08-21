@@ -14,6 +14,7 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
+#include "config.h"
 
 #include <assert.h>
 #include <iostream>
@@ -22,11 +23,6 @@
 #include <string.h>
 
 #include "ep_test_apis.h"
-#include "config.h"
-
-#ifdef HAS_ARPA_INET_H
-#include <arpa/inet.h>
-#endif
 
 #define check(expr, msg) \
     static_cast<void>((expr) ? 0 : abort_msg(#expr, msg, __LINE__))
@@ -43,10 +39,11 @@ char *last_body = NULL;
 bool last_deleted_flag = false;
 uint64_t last_cas = 0;
 
-bool add_response_get_meta(const void *key, uint16_t keylen, const void *ext,
-                           uint8_t extlen, const void *body, uint32_t bodylen,
-                           uint8_t datatype, uint16_t status, uint64_t cas,
-                           const void *cookie);
+extern "C" bool add_response_get_meta(const void *key, uint16_t keylen,
+                                      const void *ext, uint8_t extlen,
+                                      const void *body, uint32_t bodylen,
+                                      uint8_t datatype, uint16_t status,
+                                      uint64_t cas, const void *cookie);
 void encodeExt(char *buffer, uint32_t val);
 void encodeWithMetaExt(char *buffer, ItemMetaData *meta);
 
