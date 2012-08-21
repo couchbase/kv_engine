@@ -63,7 +63,7 @@ AS_IF(test "x$GCC" = "xyes",
            LDFLAGS="-pthread $LDFLAGS"
           ]),
       ICC=no
-      DETECT_SUNCC([CPPFLAGS="-xldscope=hidden -mt $CPPFLAGS"
+      DETECT_SUNCC([CPPFLAGS="-xldscope=hidden -mt -D_POSIX_PTHREAD_SEMANTICS $CPPFLAGS"
                     CXXFLAGS="-xlang=c99 $CXXFLAGS"
                     CFLAGS="-xc99=all $CFLAGS"], []))
 
