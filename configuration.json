@@ -126,7 +126,7 @@
             "type": "std::string"
         },
         "dbname": {
-            "default": "/tmp/test.db",
+            "default": "/tmp/test",
             "descr": "Path to on-disk storage.",
             "dynamic": false,
             "type": "std::string"

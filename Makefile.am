@@ -216,15 +216,12 @@ management_cbdbconvert_DEPENDENCIES = libkvstore.la libsqlite-kvstore.la       \
 if BUILD_EMBEDDED_LIBSQLITE3
 ep_la_LIBADD += libsqlite3.la
 ep_la_DEPENDENCIES += libsqlite3.la
-ep_testsuite_la_LIBADD += libsqlite3.la
-ep_testsuite_la_DEPENDENCIES += libsqlite3.la
 management_cbdbconvert_LDADD += libsqlite3.la
 management_cbdbconvert_DEPENDENCIES += libsqlite3.la
 noinst_LTLIBRARIES += libsqlite3.la
 bin_PROGRAMS += management/sqlite3
 else
 ep_la_LIBADD += $(LIBSQLITE3)
-ep_testsuite_la_LIBADD += $(LIBSQLITE3)
 management_cbdbconvert_LDADD += $(LIBSQLITE3)
 endif
 
@@ -255,14 +252,12 @@ endif
 TESTS=${check_PROGRAMS}
 EXTRA_TESTS =
 
-ep_testsuite_la_CPPFLAGS = -I$(top_srcdir)/src/sqlite-kvstore \
-                           -I$(top_srcdir)/tests $(AM_CPPFLAGS) ${NO_WERROR}
+ep_testsuite_la_CPPFLAGS = -I$(top_srcdir)/tests $(AM_CPPFLAGS) ${NO_WERROR}
 ep_testsuite_la_SOURCES= tests/ep_testsuite.cc tests/ep_testsuite.h       \
                          src/atomic.cc src/mutex.cc src/mutex.hh          \
                          src/item.cc src/testlogger_libify.cc             \
                          src/dispatcher.cc src/ep_time.c src/locks.hh     \
-                         src/ep_time.h src/sqlite-kvstore/sqlite-pst.cc   \
-                         tools/cJSON.c tools/cJSON.h                      \
+                         src/ep_time.h         \
                          tests/mock/mccouch.cc tests/mock/mccouch.hh      \
                          tests/ep_test_apis.cc tests/ep_test_apis.h
 ep_testsuite_la_LDFLAGS= -module -dynamic

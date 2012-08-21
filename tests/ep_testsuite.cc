@@ -37,17 +37,7 @@
 #include <arpa/inet.h>
 #endif
 
-#include <memcached/engine.h>
-#include <memcached/engine_testapp.h>
-
-#ifdef USE_SYSTEM_LIBSQLITE3
-#include <sqlite3.h>
-#else
-#include "embedded/sqlite3.h"
-#endif
-
 #include "atomic.hh"
-#include "sqlite-pst.hh"
 #include "mutex.hh"
 #include "locks.hh"
 
@@ -162,27 +152,7 @@ static void rmrf(const char *fname)
 static enum test_result rmdb(void)
 {
     const char *files[] = { WHITESPACE_DB,
-                            WHITESPACE_DB,
-                            WHITESPACE_DB "-0.sqlite",
-                            WHITESPACE_DB "-1.sqlite",
-                            WHITESPACE_DB "-2.sqlite",
-                            WHITESPACE_DB "-3.sqlite",
-                            "/tmp/test.db",
-                            "/tmp/mutation.log",
-                            "/tmp/test.db-0.sqlite",
-                            "/tmp/test.db-1.sqlite",
-                            "/tmp/test.db-2.sqlite",
-                            "/tmp/test.db-3.sqlite",
-                            "/tmp/test.db-wal",
-                            "/tmp/test.db-0.sqlite-wal",
-                            "/tmp/test.db-1.sqlite-wal",
-                            "/tmp/test.db-2.sqlite-wal",
-                            "/tmp/test.db-3.sqlite-wal",
-                            "/tmp/test.db-shm",
-                            "/tmp/test.db-0.sqlite-shm",
-                            "/tmp/test.db-1.sqlite-shm",
-                            "/tmp/test.db-2.sqlite-shm",
-                            "/tmp/test.db-3.sqlite-shm",
+                            "/tmp/test",
                             NULL };
     int ii = 0;
     while (files[ii] != NULL) {
@@ -5799,9 +5769,7 @@ static enum test_result prepare(engine_test_t *test) {
         return ret;
     }
 
-    if (strstr(test->cfg, "backend=sqlite") != NULL) {
-        // No specialized init needed yet..
-    } else if (strstr(test->cfg, "backend=couchdb") != NULL) {
+    if (strstr(test->cfg, "backend=couchdb") != NULL) {
 #ifndef HAVE_LIBCOUCHSTORE
         (void)mccouchMock;
         return SKIPPED;
@@ -5815,7 +5783,7 @@ static enum test_result prepare(engine_test_t *test) {
         std::string dbname;
         const char *nm = strstr(test->cfg, "dbname=");
         if (nm == NULL) {
-            dbname.assign("/tmp/test.db");
+            dbname.assign("/tmp/test");
         } else {
             dbname.assign(nm + 7);
             std::string::size_type end = dbname.find(';');

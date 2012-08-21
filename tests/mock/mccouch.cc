@@ -382,7 +382,7 @@ void McConnection::handleRequest(protocol_binary_request_header *req)
 static void removeVbucketFile(uint16_t vbucket)
 {
     char fname[PATH_MAX];
-    snprintf(fname, sizeof(fname), "/tmp/test.db/%d.couch.1",
+    snprintf(fname, sizeof(fname), "/tmp/test/%d.couch.1",
              vbucket);
     remove(fname);
 }
