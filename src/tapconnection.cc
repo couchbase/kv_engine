@@ -1290,6 +1290,24 @@ void TapProducer::addStats(ADD_STAT add_stat, const void *c) {
     }
 }
 
+void TapProducer::aggregateQueueStats(TapCounter* aggregator) {
+    LockHolder lh(queueLock);
+    if (!aggregator) {
+        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                         "%s Pointer to the queue stats aggregator is NULL!!!\n",
+                         logHeader());
+        return;
+    }
+    aggregator->tap_queue += getQueueSize_UNLOCKED();
+    aggregator->tap_queueFill += queueFill;
+    aggregator->tap_queueDrain += queueDrain;
+    aggregator->tap_queueBackoff += numTapNack;
+    aggregator->tap_queueBackfillRemaining += getBackfillRemaining_UNLOCKED();
+    aggregator->tap_queueItemOnDisk += (bgJobIssued - bgJobCompleted);
+    aggregator->tap_totalBacklogSize += getBackfillRemaining_UNLOCKED() +
+                                        getRemainingOnCheckpoints_UNLOCKED();
+}
+
 void TapProducer::processedEvent(tap_event_t event, ENGINE_ERROR_CODE)
 {
     assert(event == TAP_ACK);

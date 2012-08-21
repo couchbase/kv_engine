@@ -2860,27 +2860,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doCheckpointStats(const void *cook
 /// @cond DETAILS
 
 /**
- * Aggregator object to count all tap stats.
- */
-struct TapCounter {
-    TapCounter()
-        : tap_queue(0), totalTaps(0),
-          tap_queueFill(0), tap_queueDrain(0), tap_queueBackoff(0),
-          tap_queueBackfillRemaining(0), tap_queueItemOnDisk(0), tap_totalBacklogSize(0)
-    {}
-
-    size_t      tap_queue;
-    size_t      totalTaps;
-
-    size_t      tap_queueFill;
-    size_t      tap_queueDrain;
-    size_t      tap_queueBackoff;
-    size_t      tap_queueBackfillRemaining;
-    size_t      tap_queueItemOnDisk;
-    size_t      tap_totalBacklogSize;
-};
-
-/**
  * Function object to send stats for a single tap connection.
  */
 struct TapStatBuilder {
@@ -2893,14 +2872,7 @@ struct TapStatBuilder {
 
         TapProducer *tp = dynamic_cast<TapProducer*>(tc);
         if (tp) {
-            aggregator->tap_queue += tp->getQueueSize();
-            aggregator->tap_queueFill += tp->getQueueFillTotal();
-            aggregator->tap_queueDrain += tp->getQueueDrainTotal();
-            aggregator->tap_queueBackoff += tp->getQueueBackoff();
-            aggregator->tap_queueBackfillRemaining += tp->getBackfillRemaining();
-            aggregator->tap_queueItemOnDisk += tp->getRemaingOnDisk();
-            aggregator->tap_totalBacklogSize += tp->getBackfillRemaining() +
-                                                tp->getRemainingOnCheckpoints();
+            tp->aggregateQueueStats(aggregator);
         }
     }
 
@@ -2935,15 +2907,8 @@ struct TapAggStatBuilder {
     }
 
     void aggregate(TapProducer *tp, TapCounter *tc){
-            ++tc->totalTaps;
-            tc->tap_queue += tp->getQueueSize();
-            tc->tap_queueFill += tp->getQueueFillTotal();
-            tc->tap_queueDrain += tp->getQueueDrainTotal();
-            tc->tap_queueBackoff += tp->getQueueBackoff();
-            tc->tap_queueBackfillRemaining += tp->getBackfillRemaining();
-            tc->tap_queueItemOnDisk += tp->getRemaingOnDisk();
-            tc->tap_totalBacklogSize += tp->getBackfillRemaining() +
-                                        tp->getRemainingOnCheckpoints();
+        ++tc->totalTaps;
+        tp->aggregateQueueStats(tc);
     }
 
     TapCounter *getTotalCounter() {

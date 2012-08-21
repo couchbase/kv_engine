@@ -105,6 +105,27 @@ public:
     queued_item item;
 };
 
+/**
+ * Aggregator object to count all tap stats.
+ */
+struct TapCounter {
+    TapCounter()
+        : tap_queue(0), totalTaps(0),
+          tap_queueFill(0), tap_queueDrain(0), tap_queueBackoff(0),
+          tap_queueBackfillRemaining(0), tap_queueItemOnDisk(0), tap_totalBacklogSize(0)
+    {}
+
+    size_t      tap_queue;
+    size_t      totalTaps;
+
+    size_t      tap_queueFill;
+    size_t      tap_queueDrain;
+    size_t      tap_queueBackoff;
+    size_t      tap_queueBackfillRemaining;
+    size_t      tap_queueItemOnDisk;
+    size_t      tap_totalBacklogSize;
+};
+
 typedef enum {
     backfill,
     checkpoint_start,
@@ -532,6 +553,8 @@ public:
     virtual void addStats(ADD_STAT add_stat, const void *c);
     virtual void processedEvent(tap_event_t event, ENGINE_ERROR_CODE ret);
     virtual const char *getType() const { return "producer"; };
+
+    void aggregateQueueStats(TapCounter* stats_aggregator);
 
     bool isSuspended() const;
     void setSuspended_UNLOCKED(bool value);
