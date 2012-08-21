@@ -1683,8 +1683,8 @@ std::queue<queued_item>* EventuallyPersistentStore::beginFlush() {
     if (diskQueueEmpty()) {
         // If the persistence queue is empty, reset queue-related stats for each vbucket.
         size_t numOfVBuckets = vbuckets.getSize();
+        assert(numOfVBuckets <= std::numeric_limits<uint16_t>::max());
         for (size_t i = 0; i < numOfVBuckets; ++i) {
-            assert(i <= std::numeric_limits<uint16_t>::max());
             uint16_t vbid = static_cast<uint16_t>(i);
             RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
             if (vb) {
@@ -1783,8 +1783,8 @@ void EventuallyPersistentStore::requeueRejectedItems(std::queue<queued_item> *re
 void EventuallyPersistentStore::completeFlush(rel_time_t flush_start) {
     size_t numOfVBuckets = vbuckets.getSize();
     bool schedule_vb_snapshot = false;
+    assert(numOfVBuckets <= std::numeric_limits<uint16_t>::max());
     for (size_t i = 0; i < numOfVBuckets; ++i) {
-        assert(i <= std::numeric_limits<uint16_t>::max());
         uint16_t vbid = static_cast<uint16_t>(i);
         RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
         if (!vb || vb->getState() == vbucket_state_dead) {
@@ -1839,8 +1839,8 @@ int EventuallyPersistentStore::flushSome(std::queue<queued_item> *q,
 size_t EventuallyPersistentStore::getWriteQueueSize(void) {
     size_t size = 0;
     size_t numOfVBuckets = vbuckets.getSize();
+    assert(numOfVBuckets <= std::numeric_limits<uint16_t>::max());
     for (size_t i = 0; i < numOfVBuckets; ++i) {
-        assert(i <= std::numeric_limits<uint16_t>::max());
         uint16_t vbid = static_cast<uint16_t>(i);
         RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
         if (vb && (vb->getState() != vbucket_state_dead)) {
@@ -1853,8 +1853,8 @@ size_t EventuallyPersistentStore::getWriteQueueSize(void) {
 bool EventuallyPersistentStore::hasItemsForPersistence(void) {
     bool hasItems = false;
     size_t numOfVBuckets = vbuckets.getSize();
+    assert(numOfVBuckets <= std::numeric_limits<uint16_t>::max());
     for (size_t i = 0; i < numOfVBuckets; ++i) {
-        assert(i <= std::numeric_limits<uint16_t>::max());
         uint16_t vbid = static_cast<uint16_t>(i);
         RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
         if (vb && (vb->getState() != vbucket_state_dead)) {
