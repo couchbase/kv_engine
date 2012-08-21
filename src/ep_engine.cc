@@ -3304,9 +3304,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doDispatcherStats(const void *cook
         doDispatcherStat("ro_dispatcher", rods, cookie, add_stat);
     }
 
-    if (epstore->hasSeparateTapDispatcher()) {
-        DispatcherState tapds(epstore->getTapDispatcher()->getDispatcherState());
-        doDispatcherStat("tap_dispatcher", tapds, cookie, add_stat);
+    if (epstore->hasSeparateAuxIODispatcher()) {
+        DispatcherState tapds(epstore->getAuxIODispatcher()->getDispatcherState());
+        doDispatcherStat("auxio_dispatcher", tapds, cookie, add_stat);
     }
 
     DispatcherState nds(epstore->getNonIODispatcher()->getDispatcherState());

@@ -1087,7 +1087,7 @@ public:
         EventuallyPersistentStore *epstore = epe->getEpStore();
         assert(epstore);
 
-        epstore->getTapUnderlying()->get(key, rowid, vbucket, gcb);
+        epstore->getAuxUnderlying()->get(key, rowid, vbucket, gcb);
         gcb.waitForValue();
         assert(gcb.fired);
 
@@ -1171,7 +1171,7 @@ void TapProducer::queueBGFetch_UNLOCKED(const std::string &key, uint64_t id, uin
     shared_ptr<TapBGFetchCallback> dcb(new TapBGFetchCallback(&engine,
                                                               getName(), key,
                                                               vb, id, getConnectionToken()));
-    engine.getEpStore()->getTapDispatcher()->schedule(dcb, NULL, Priority::TapBgFetcherPriority);
+    engine.getEpStore()->getAuxIODispatcher()->schedule(dcb, NULL, Priority::TapBgFetcherPriority);
     ++bgJobIssued;
     std::map<uint16_t, TapCheckpointState>::iterator it = tapCheckpointState.find(vb);
     if (it != tapCheckpointState.end()) {

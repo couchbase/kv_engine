@@ -321,11 +321,11 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
     if (storageProperties.maxConcurrency() > 2
         && storageProperties.maxReaders() > 2
         && concurrentDB) {
-        tapUnderlying = engine.newKVStore(true);
-        tapDispatcher = new Dispatcher(theEngine, "TAP_Dispatcher");
+        auxUnderlying = engine.newKVStore(true);
+        auxIODispatcher = new Dispatcher(theEngine, "AUXIO_Dispatcher");
     } else {
-        tapUnderlying = roUnderlying;
-        tapDispatcher = roDispatcher;
+        auxUnderlying = roUnderlying;
+        auxIODispatcher = roDispatcher;
     }
     nonIODispatcher = new Dispatcher(theEngine, "NONIO_Dispatcher");
     flusher = new Flusher(this, dispatcher);
@@ -424,7 +424,7 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
     startNonIODispatcher();
     assert(rwUnderlying);
     assert(roUnderlying);
-    assert(tapUnderlying);
+    assert(auxUnderlying);
 
     // @todo - Ideally we should run the warmup thread in it's own
     //         thread so that it won't block the flusher (in the write
@@ -533,10 +533,10 @@ EventuallyPersistentStore::~EventuallyPersistentStore() {
         delete roDispatcher;
         delete roUnderlying;
     }
-    if (hasSeparateTapDispatcher()) {
-        tapDispatcher->stop(forceShutdown);
-        delete tapDispatcher;
-        delete tapUnderlying;
+    if (hasSeparateAuxIODispatcher()) {
+        auxIODispatcher->stop(forceShutdown);
+        delete auxIODispatcher;
+        delete auxUnderlying;
     }
     nonIODispatcher->stop(forceShutdown);
 
@@ -552,8 +552,8 @@ void EventuallyPersistentStore::startDispatcher() {
     if (hasSeparateRODispatcher()) {
         roDispatcher->start();
     }
-    if (hasSeparateTapDispatcher()) {
-        tapDispatcher->start();
+    if (hasSeparateAuxIODispatcher()) {
+        auxIODispatcher->start();
     }
 }
 
@@ -2472,7 +2472,7 @@ void EventuallyPersistentStore::setAccessScannerSleeptime(size_t val) {
     LockHolder lh(accessScanner.mutex);
 
     if (accessScanner.sleeptime != 0) {
-        tapDispatcher->cancel(accessScanner.task);
+        auxIODispatcher->cancel(accessScanner.task);
     }
 
     // store sleeptime in seconds
@@ -2480,9 +2480,9 @@ void EventuallyPersistentStore::setAccessScannerSleeptime(size_t val) {
     if (accessScanner.sleeptime != 0) {
         AccessScanner *as = new AccessScanner(*this, stats, accessScanner.sleeptime);
         shared_ptr<DispatcherCallback> cb(as);
-        tapDispatcher->schedule(cb, &accessScanner.task,
-                                Priority::AccessScannerPriority,
-                                accessScanner.sleeptime);
+        auxIODispatcher->schedule(cb, &accessScanner.task,
+                                  Priority::AccessScannerPriority,
+                                  accessScanner.sleeptime);
         stats.alogTime.set(accessScanner.task->getWaketime().tv_sec);
     }
 }
@@ -2491,13 +2491,13 @@ void EventuallyPersistentStore::resetAccessScannerStartTime() {
     LockHolder lh(accessScanner.mutex);
 
     if (accessScanner.sleeptime != 0) {
-        tapDispatcher->cancel(accessScanner.task);
+        auxIODispatcher->cancel(accessScanner.task);
         // re-schedule task according to the new task start hour
         AccessScanner *as = new AccessScanner(*this, stats, accessScanner.sleeptime);
         shared_ptr<DispatcherCallback> cb(as);
-        tapDispatcher->schedule(cb, &accessScanner.task,
-                                Priority::AccessScannerPriority,
-                                accessScanner.sleeptime);
+        auxIODispatcher->schedule(cb, &accessScanner.task,
+                                  Priority::AccessScannerPriority,
+                                  accessScanner.sleeptime);
         stats.alogTime.set(accessScanner.task->getWaketime().tv_sec);
     }
 }
@@ -2505,8 +2505,8 @@ void EventuallyPersistentStore::resetAccessScannerStartTime() {
 void EventuallyPersistentStore::visit(VBucketVisitor &visitor)
 {
     size_t maxSize = vbuckets.getSize();
+    assert(maxSize <= std::numeric_limits<uint16_t>::max());
     for (size_t i = 0; i < maxSize; ++i) {
-        assert(i <= std::numeric_limits<uint16_t>::max());
         uint16_t vbid = static_cast<uint16_t>(i);
         RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
         if (vb) {
@@ -2576,8 +2576,8 @@ VBCBAdaptor::VBCBAdaptor(EventuallyPersistentStore *s,
 {
     const VBucketFilter &vbFilter = visitor->getVBucketFilter();
     size_t maxSize = store->vbuckets.getSize();
+    assert(maxSize <= std::numeric_limits<uint16_t>::max());
     for (size_t i = 0; i < maxSize; ++i) {
-        assert(i <= std::numeric_limits<uint16_t>::max());
         uint16_t vbid = static_cast<uint16_t>(i);
         RCPtr<VBucket> vb = store->vbuckets.getBucket(vbid);
         if (vb && vbFilter(vbid)) {

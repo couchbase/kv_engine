@@ -436,18 +436,18 @@ public:
     }
 
     /**
-     * Get the current tap-replication IO dispatcher.
+     * Get the auxiliary IO dispatcher.
      */
-    Dispatcher* getTapDispatcher(void) {
-        assert(tapDispatcher);
-        return tapDispatcher;
+    Dispatcher* getAuxIODispatcher(void) {
+        assert(auxIODispatcher);
+        return auxIODispatcher;
     }
 
     /**
-     * True if the RO dispatcher and tap-replication dispatcher are distinct.
+     * True if the RO dispatcher and auxiliary IO dispatcher are distinct.
      */
-    bool hasSeparateTapDispatcher() {
-        return roDispatcher != tapDispatcher;
+    bool hasSeparateAuxIODispatcher() {
+        return roDispatcher != auxIODispatcher;
     }
 
     /**
@@ -633,9 +633,9 @@ public:
         return roUnderlying;
     }
 
-    KVStore* getTapUnderlying() {
+    KVStore* getAuxUnderlying() {
         // This method might also be called leakAbstraction()
-        return tapUnderlying;
+        return auxUnderlying;
     }
 
     void deleteExpiredItems(std::list<std::pair<uint16_t, std::string> > &);
@@ -842,11 +842,11 @@ private:
     bool                            doPersistence;
     KVStore                        *rwUnderlying;
     KVStore                        *roUnderlying;
-    KVStore                        *tapUnderlying;
+    KVStore                        *auxUnderlying;
     StorageProperties               storageProperties;
     Dispatcher                     *dispatcher;
     Dispatcher                     *roDispatcher;
-    Dispatcher                     *tapDispatcher;
+    Dispatcher                     *auxIODispatcher;
     Dispatcher                     *nonIODispatcher;
     Flusher                        *flusher;
     BgFetcher                      *bgFetcher;
