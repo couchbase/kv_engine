@@ -2159,7 +2159,7 @@ void EventuallyPersistentStore::loadSessionStats() {
 }
 
 void EventuallyPersistentStore::warmupCompleted() {
-    engine.warmupCompleted();
+    stats.warmupComplete.set(true);
 
     // Run the vbucket state snapshot job once after the warmup
     scheduleVBSnapshot(Priority::VBucketPersistHighPriority);
@@ -2296,18 +2296,18 @@ void EventuallyPersistentStore::maybeEnableTraffic()
     if (memoryUsed  >= stats.mem_low_wat) {
         LOG(EXTENSION_LOG_WARNING,
             "Total memory use reached to the low water mark, stop warmup");
-       engine.warmupCompleted();
+        stats.warmupComplete.set(true);
     }
     if (memoryUsed > (maxSize * stats.warmupMemUsedCap)) {
         LOG(EXTENSION_LOG_WARNING,
                 "Enough MB of data loaded to enable traffic");
-        engine.warmupCompleted();
+        stats.warmupComplete.set(true);
     } else if (stats.warmedUpValues > (stats.warmedUpKeys * stats.warmupNumReadCap)) {
         // Let ep-engine think we're done with the warmup phase
         // (we should refactor this into "enableTraffic")
         LOG(EXTENSION_LOG_WARNING,
             "Enough number of items loaded to enable traffic");
-        engine.warmupCompleted();
+        stats.warmupComplete.set(true);
     }
 }
 

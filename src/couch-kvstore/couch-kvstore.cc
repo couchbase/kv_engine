@@ -1380,7 +1380,7 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx)
 
     // by setting volatile let the compiler know that the value
     // can change any time by anyone
-    volatile bool warmup = engine->isDegradedMode();
+    volatile bool warmup = !engine->getEpStats().warmupComplete.get();
 
     Doc *doc = NULL;
     void *valuePtr = NULL;
@@ -1438,7 +1438,7 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx)
 
     int returnCode = COUCHSTORE_SUCCESS;
     if (warmup) {
-        if (!engine->stillWarmingUp()) {
+        if (engine->getEpStats().warmupComplete.get()) {
             // warmup has completed, return COUCHSTORE_ERROR_CANCEL to
             // cancel remaining data dumps from couchstore
             LOG(EXTENSION_LOG_WARNING,

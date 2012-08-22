@@ -1175,7 +1175,6 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server
     startedEngineThreads(false),
     getServerApiFunc(get_server_api), getlExtension(NULL),
     tapConnMap(NULL), tapConfig(NULL), checkpointConfig(NULL),
-    warmingUp(true),
     flushAllEnabled(false), startupTime(0)
 {
     interface.interface = 1;
