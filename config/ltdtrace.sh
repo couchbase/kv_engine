@@ -20,7 +20,7 @@ do
     else
        set -e
        dir=`dirname $f`
-       fname=`grep ^pic_object= $f | cut -f 2 -d\'`
+       fname=`grep '^pic_object=' $f | cut -f 2 -d\'`
        cmd="$cmd $dir/$fname"
        set +e
     fi
