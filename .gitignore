@@ -9,6 +9,7 @@
 *.tcov
 *~
 .deps
+.dirstamp
 /.libs/
 /INSTALL
 /aclocal.m4

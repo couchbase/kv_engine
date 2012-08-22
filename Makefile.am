@@ -180,10 +180,10 @@ endif
 if DTRACE_INSTRUMENT_OBJ
 memcached_LDADD += memcached_dtrace.o
 memcached_DEPENDENCIES += memcached_dtrace.o
-CLEANFILES += memcached_dtrace.o default_engine_dtrace.lo
+CLEANFILES += memcached_dtrace.o engines/default_engine/default_engine_la-dtrace.lo
 
-default_engine_la_LIBADD += default_engine_dtrace.lo
-default_engine_la_DEPENDENCIES += default_engine_dtrace.lo
+default_engine_la_LIBADD += engines/default_engine/default_engine_la-dtrace.lo
+default_engine_la_DEPENDENCIES += engines/default_engine/default_engine_la-dtrace.lo
 endif
 
 # ASCII support for the scrub command
@@ -268,16 +268,14 @@ memcached_dtrace.h: memcached_dtrace.d
 	mv mmc_dtrace.tmp memcached_dtrace.h
 
 memcached_dtrace.o: $(memcached_OBJECTS)
-	$(DTRACE) $(DTRACEFLAGS) -G -o memcached_dtrace.o -s ${srcdir}/memcached_dtrace.d $(memcached_OBJECTS)
+	$(DTRACE) $(DTRACEFLAGS) -G -o memcached_dtrace.o \
+                 -s ${srcdir}/memcached_dtrace.d $(memcached_OBJECTS)
 
-# We don't have real libtool support for dtrace (at least I
-# don't know how that works), so instead I just copy the
-# .lo file from assoc.lo and replace all references to assoc.x with
-# default_engine_dtrace.x
-DEFAULT_ENGINE_OBJS=$(default_engine_la_OBJECTS:%lo=.libs/%o)
-default_engine_dtrace.lo: $(default_engine_la_OBJECTS)
-	$(DTRACE) $(DTRACEFLAGS) -G -o .libs/default_engine_la-default_engine_dtrace.o -s ${srcdir}/memcached_dtrace.d $(DEFAULT_ENGINE_OBJS)
-	sed -e s,assoc,default_engine_dtrace,g default_engine_la-assoc.lo > default_engine_dtrace.lo
+engines/default_engine/default_engine_la-dtrace.lo: $(default_engine_la_OBJECTS)
+	${top_srcdir}/config/ltdtrace.sh \
+	    $(DTRACE) $(DTRACEFLAGS) -G \
+               -o  engines/default_engine/default_engine_la-dtrace.lo \
+               -s ${srcdir}/memcached_dtrace.d $(default_engine_la_OBJECTS)
 
 DIST_DIRS = scripts
 EXTRA_DIST = doc scripts t memcached_dtrace.d m4/version.m4 \
