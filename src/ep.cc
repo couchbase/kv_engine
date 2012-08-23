@@ -1918,7 +1918,8 @@ public:
                         double current = static_cast<double>(stats->getTotalMemoryUsed());
                         double lower = static_cast<double>(stats->mem_low_wat);
                         // evict unreferenced replica items only
-                        if (current > lower && !v->isReferenced()) {
+                        if (current > lower && !v->isReferenced() &&
+                            vb->checkpointManager.eligibleForEviction(v->getKey())) {
                             v->ejectValue(*stats, vb->ht);
                         }
                     }

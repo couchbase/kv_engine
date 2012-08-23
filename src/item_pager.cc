@@ -63,7 +63,10 @@ public:
                 ++stats.numFailedEjects;
                 return;
             }
-            if (v->ejectValue(stats, currentBucket->ht)) {
+            // Check if the key was already visited by all the cursors.
+            bool can_evict =
+                currentBucket->checkpointManager.eligibleForEviction(v->getKey());
+            if (can_evict && v->ejectValue(stats, currentBucket->ht)) {
                 ++ejected;
             }
         }
