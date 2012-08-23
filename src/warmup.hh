@@ -81,6 +81,9 @@ public:
 
     hrtime_t getTime(void) { return warmup; }
 
+    size_t doWarmup(MutationLog &lf, const std::map<uint16_t,
+                    vbucket_state> &vbmap, Callback<GetValue> &cb);
+
 private:
     template <typename T>
     void addStat(const char *nm, T val, ADD_STAT add_stat, const void *c) const;

@@ -429,20 +429,6 @@ public:
     }
 
     /**
-     * Warmup function
-     *
-     * @param lf access log instance that contains the list of resident
-     * items before shutdown
-     * @param vbmap map instance where key is vbucket id and value is its state
-     * @param cb callback instance for warmup
-     * @param estimate callback instance for estimating warmup completion
-     */
-    size_t warmup(MutationLog &lf,
-                  const std::map<uint16_t, vbucket_state> &vbmap,
-                  Callback<GetValue> &cb,
-                  Callback<size_t> &estimate);
-
-    /**
      * Get the estimated number of items that are going to be loaded during warmup.
      *
      * @param items number of estimated items to be loaded during warmup
