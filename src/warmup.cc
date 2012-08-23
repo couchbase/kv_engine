@@ -225,7 +225,8 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
             }
         } while (!succeeded && retry-- > 0);
 
-        if (succeeded && i->isExpired(startTime)) {
+        bool expired = i->isExpired(startTime);
+        if (succeeded && expired) {
             ItemMetaData itemMeta;
 
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
@@ -237,8 +238,7 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
                                 true, false, // force, use_meta
                                 &itemMeta);
         }
-
-        if (succeeded && epstore->warmupTask->doReconstructLog()) {
+        if (succeeded && epstore->warmupTask->doReconstructLog() && !expired) {
             epstore->mutationLog.newItem(i->getVBucketId(), i->getKey(), i->getId());
         }
         delete i;

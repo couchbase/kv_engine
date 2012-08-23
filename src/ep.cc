@@ -1602,7 +1602,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteItem(const std::string &key,
     time_t newExptime = itemMeta->exptime;
 
     RCPtr<VBucket> vb = getVBucket(vbucket);
-    if (!vb || vb->getState() == vbucket_state_dead) {
+    if (!vb || (vb->getState() == vbucket_state_dead && !force)) {
         ++stats.numNotMyVBuckets;
         return ENGINE_NOT_MY_VBUCKET;
     } else if(vb->getState() == vbucket_state_replica && !force) {
