@@ -3,14 +3,6 @@
 #define BLACKHOLE_KVSTORE_H 1
 
 #include "kvstore.hh"
-#include "item.hh"
-#include "stats.hh"
-#include "configuration.hh"
-
-class EventuallyPersistentEngine;
-class EPStats;
-class MCKVStoreTestEnvironment;
-class MemcachedEngine;
 
 /**
  * A black hole kv-store
@@ -20,8 +12,7 @@ public:
     /**
      * Build it!
      */
-    BlackholeKVStore(EventuallyPersistentEngine &theEngine,
-                     bool read_only = false);
+    BlackholeKVStore(bool read_only = false);
 
     /**
      * Cleanup.

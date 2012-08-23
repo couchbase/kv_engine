@@ -28,7 +28,7 @@ KVStore *KVStoreFactory::create(EventuallyPersistentEngine &theEngine,
     } else if (backend.compare("couchdb") == 0) {
         ret = new CouchKVStore(theEngine, read_only);
     } else if (backend.compare("blackhole") == 0) {
-        ret = new BlackholeKVStore(theEngine, read_only);
+        ret = new BlackholeKVStore(read_only);
     } else {
         getLogger()->log(EXTENSION_LOG_WARNING, NULL, "Unknown backend: [%s]",
                 backend.c_str());
