@@ -230,7 +230,7 @@ void Dispatcher::schedule(shared_ptr<DispatcherCallback> callback,
     TaskId task(new Task(callback, priority.getPriorityValue(), sleeptime,
                          isDaemon, mustComplete));
     if (outtid) {
-        *outtid = TaskId(task);
+        *outtid = task;
     }
 
     getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
@@ -244,11 +244,10 @@ void Dispatcher::schedule(shared_ptr<DispatcherCallback> callback,
 void Dispatcher::wake(TaskId task, TaskId *outtid) {
     cancel(task);
     LockHolder lh(mutex);
-    TaskId oldTask(task);
-    TaskId newTask(new Task(*oldTask));
+    TaskId newTask(new Task(*task));
     newTask->snooze(0);
     if (outtid) {
-        *outtid = TaskId(newTask);
+        *outtid = newTask;
     }
 
     getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
