@@ -104,7 +104,7 @@ ep_la_SOURCES =  include/ep-engine/command_ids.h \
                  src/statwriter.hh \
                  src/stored-value.cc src/stored-value.hh \
                  src/syncobject.hh \
-                 src/tapconnection.cc tapconnection.hh \
+                 src/tapconnection.cc src/tapconnection.hh \
                  src/tapconnmap.cc src/tapconnmap.hh \
                  src/tapthrottle.cc src/tapthrottle.hh \
                  src/vbucket.cc src/vbucket.hh \
@@ -256,9 +256,9 @@ EXTRA_TESTS =
 ep_testsuite_la_CPPFLAGS = -I$(top_srcdir)/src/sqlite-kvstore \
                            -I$(top_srcdir)/tests $(AM_CPPFLAGS) ${NO_WERROR}
 ep_testsuite_la_SOURCES= tests/ep_testsuite.cc tests/ep_testsuite.h       \
-                         src/atomic.cc locks.hh src/mutex.cc src/mutex.hh \
-                         src/item.cc  src/testlogger_libify.cc            \
-                         src/dispatcher.cc src/ep_time.c                  \
+                         src/atomic.cc src/mutex.cc src/mutex.hh          \
+                         src/item.cc src/testlogger_libify.cc             \
+                         src/dispatcher.cc src/ep_time.c src/locks.hh     \
                          src/ep_time.h src/sqlite-kvstore/sqlite-pst.cc   \
                          tools/cJSON.c tools/cJSON.h                      \
                          tests/mock/mccouch.cc tests/mock/mccouch.hh      \
@@ -415,7 +415,7 @@ mutation_log_test_DEPENDENCIES = src/mutation_log.hh
 mutation_log_test_LDADD = libobjectregistry.la libconfiguration.la
 
 hrtime_test_CXXFLAGS = $(AM_CPPFLAGS) $(AM_CXXFLAGS) ${NO_WERROR}
-hrtime_test_SOURCES = tests/module_tests/hrtime_test.cc common.hh
+hrtime_test_SOURCES = tests/module_tests/hrtime_test.cc src/common.hh
 
 histo_test_CXXFLAGS = $(AM_CPPFLAGS) $(AM_CXXFLAGS) ${NO_WERROR}
 histo_test_SOURCES = tests/module_tests/histo_test.cc src/common.hh src/histo.hh
