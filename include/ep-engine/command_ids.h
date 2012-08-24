@@ -160,6 +160,11 @@
 #define CMD_ENABLE_TRAFFIC 0xad
 
 /**
+ * Command to disable data traffic temporarily
+ */
+#define CMD_DISABLE_TRAFFIC 0xae
+
+/**
  * Command to change the vbucket filter for a given TAP producer.
  */
 #define CMD_CHANGE_VB_FILTER 0xb0

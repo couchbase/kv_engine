@@ -939,8 +939,9 @@ extern "C" {
             }
             break;
         case CMD_ENABLE_TRAFFIC:
+        case CMD_DISABLE_TRAFFIC:
             {
-                rv = h->handleEnableTrafficCmd(cookie, response);
+                rv = h->handleTrafficControlCmd(cookie, request, response);
                 return rv;
             }
         }
@@ -1362,7 +1363,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     epstore->initialize();
 
     if(configuration.isDataTrafficEnabled()) {
-        enableTraffic();
+        enableTraffic(true);
     }
 
     getlExtension = new GetlExtension(epstore, getServerApiFunc);
@@ -4026,23 +4027,41 @@ EventuallyPersistentEngine::changeTapVBFilter(const void *cookie,
 }
 
 ENGINE_ERROR_CODE
-EventuallyPersistentEngine::handleEnableTrafficCmd(const void *cookie,
-                                                   ADD_RESPONSE response)
+EventuallyPersistentEngine::handleTrafficControlCmd(const void *cookie,
+                                                    protocol_binary_request_header *request,
+                                                    ADD_RESPONSE response)
 {
-    std::string msg;
-    if (isDegradedMode()) {
-        // engine is still warming up, do not turn on data traffic yet
-        msg.assign("Persistent engine is still warming up!");
-        return sendResponse(response, NULL, 0, NULL, 0,
-                            msg.c_str(), msg.length(),
-                            PROTOCOL_BINARY_RAW_BYTES,
-                            PROTOCOL_BINARY_RESPONSE_ETMPFAIL, 0, cookie);
+    std::stringstream msg;
+    int16_t status = PROTOCOL_BINARY_RESPONSE_SUCCESS;
+
+    switch (request->request.opcode) {
+    case CMD_ENABLE_TRAFFIC:
+        if (stillWarmingUp()) {
+            // engine is still warming up, do not turn on data traffic yet
+            msg << "Persistent engine is still warming up!";
+            status = PROTOCOL_BINARY_RESPONSE_ETMPFAIL;
+        } else {
+            if (enableTraffic(true)) {
+                msg << "Data traffic to persistent engine is enabled";
+            } else {
+                msg << "Data traffic to persistence engine was already enabled";
+            }
+        }
+        break;
+    case CMD_DISABLE_TRAFFIC:
+        if (enableTraffic(false)) {
+            msg << "Data traffic to persistence engine is disabled";
+        } else {
+            msg << "Data traffic to persistence engine was already disabled";
+        }
+        break;
+    default:
+        msg << "Unknown traffic control opcode: " << request->request.opcode;
+        status = PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND;
     }
 
-    enableTraffic();
-    msg.assign("Data traffic to persistent engine is enabled");
     return sendResponse(response, NULL, 0, NULL, 0,
-                        msg.c_str(), msg.length(),
+                        msg.str().c_str(), msg.str().length(),
                         PROTOCOL_BINARY_RAW_BYTES,
-                        PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
+                        status, 0, cookie);
 }

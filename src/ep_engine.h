@@ -585,8 +585,9 @@ public:
                                         protocol_binary_request_header *request,
                                         ADD_RESPONSE response);
 
-    ENGINE_ERROR_CODE handleEnableTrafficCmd(const void* cookie,
-                                             ADD_RESPONSE response);
+    ENGINE_ERROR_CODE handleTrafficControlCmd(const void* cookie,
+                                              protocol_binary_request_header *request,
+                                              ADD_RESPONSE response);
 
     size_t getGetlDefaultTimeout() const {
         return getlDefaultTimeout;
@@ -597,7 +598,7 @@ public:
     }
 
     bool isDegradedMode() const {
-        return (warmingUp.get() && !trafficEnabled.get()) || restore.enabled.get();
+        return warmingUp.get() || !trafficEnabled.get() || restore.enabled.get();
     }
 
     bool stillWarmingUp() const {
@@ -676,8 +677,8 @@ private:
         warmingUp.set(false);
     }
 
-    void enableTraffic() {
-        trafficEnabled.set(true);
+    bool enableTraffic(bool enable) {
+        return trafficEnabled.cas(!enable, enable);
     }
 
     void startEngineThreads(void);

@@ -5747,6 +5747,37 @@ static enum test_result test_CBD_152(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return SUCCESS;
 }
 
+static enum test_result test_control_data_traffic(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    item *itm = NULL;
+    check(store(h, h1, NULL, OPERATION_SET, "key", "value1", &itm) == ENGINE_SUCCESS,
+          "Failed to set key");
+    h1->release(h, NULL, itm);
+
+    protocol_binary_request_header *pkt = createPacket(CMD_DISABLE_TRAFFIC);
+    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
+          "Failed to send data traffic command to the server");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+          "Faile to disable data traffic");
+    free(pkt);
+
+    check(store(h, h1, NULL, OPERATION_SET, "key", "value2", &itm) == ENGINE_TMPFAIL,
+          "Expected to receive temporary failure");
+    h1->release(h, NULL, itm);
+
+    pkt = createPacket(CMD_ENABLE_TRAFFIC);
+    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
+          "Failed to send data traffic command to the server");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+          "Faile to enable data traffic");
+    free(pkt);
+
+    check(store(h, h1, NULL, OPERATION_SET, "key", "value2", &itm) == ENGINE_SUCCESS,
+          "Failed to set key");
+    h1->release(h, NULL, itm);
+
+    return SUCCESS;
+}
+
 static McCouchMockServer *mccouchMock;
 
 static enum test_result prepare(engine_test_t *test) {
@@ -5897,7 +5928,7 @@ engine_test_t* get_tests(void) {
         TestCase("validate engine handle", test_validate_engine_handle,
                  NULL, teardown, NULL, prepare, cleanup),
         // basic tests
-        TestCase("test alloc limit", test_alloc_limit, NULL, teardown,
+        TestCase("test alloc limit", test_alloc_limit, test_setup, teardown,
                  NULL, prepare, cleanup),
         TestCase("test total memory limit", test_memory_limit,
                  test_setup, teardown,
@@ -6022,18 +6053,18 @@ engine_test_t* get_tests(void) {
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("replica read: invalid key", test_get_replica_invalid_key,
                  test_setup, teardown, NULL, prepare, cleanup),
-        TestCase("test observe no data", test_observe_no_data, NULL, teardown,
+        TestCase("test observe no data", test_observe_no_data, test_setup, teardown,
                  NULL, prepare, cleanup),
-        TestCase("test observe single key", test_observe_single_key, NULL, teardown,
+        TestCase("test observe single key", test_observe_single_key, test_setup, teardown,
                  NULL, prepare, cleanup),
-        TestCase("test observe multi key", test_observe_multi_key, NULL, teardown,
+        TestCase("test observe multi key", test_observe_multi_key, test_setup, teardown,
                  NULL, prepare, cleanup),
-        TestCase("test multiple observes", test_multiple_observes, NULL, teardown,
+        TestCase("test multiple observes", test_multiple_observes, test_setup, teardown,
                  NULL, prepare, cleanup),
-        TestCase("test observe with not found", test_observe_with_not_found, NULL, teardown,
-                 NULL, prepare, cleanup),
-        TestCase("test observe not my vbucket", test_observe_errors, NULL, teardown,
-                 NULL, prepare, cleanup),
+        TestCase("test observe with not found", test_observe_with_not_found, test_setup,
+                 teardown, NULL, prepare, cleanup),
+        TestCase("test observe not my vbucket", test_observe_errors, test_setup,
+                 teardown, NULL, prepare, cleanup),
         // Stats tests
         TestCase("stats", test_stats, test_setup, teardown, NULL,
                  prepare, cleanup),
@@ -6267,7 +6298,7 @@ engine_test_t* get_tests(void) {
                  test_async_vbucket_destroy_restart, test_setup, teardown,
                  NULL, prepare, cleanup),
         TestCase("test sync vbucket destroy restart",
-                 test_sync_vbucket_destroy_restart, NULL, teardown, NULL,
+                 test_sync_vbucket_destroy_restart, test_setup, teardown, NULL,
                  prepare, cleanup),
 
         // checkpoint tests
@@ -6355,6 +6386,10 @@ engine_test_t* get_tests(void) {
                  "klog_path=/tmp/mutation.log;klog_max_log_size=32768;"
                  "klog_max_entry_ratio=2;klog_compactor_stime=5",
                  prepare, cleanup),
+
+        // Data traffic control tests
+        TestCase("control data traffic", test_control_data_traffic,
+                 test_setup, teardown, NULL, prepare, cleanup),
 
         TestCase(NULL, NULL, NULL, NULL, NULL, prepare, cleanup)
     };
