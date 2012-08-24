@@ -84,7 +84,6 @@ EP_ENGINE_CC_SRC = \
                  src/objectregistry.cc \
                  src/priority.cc \
                  src/queueditem.cc \
-                 src/restore_impl.cc \
                  src/sizes.cc \
                  src/sqlite-kvstore/factory.cc \
                  src/sqlite-kvstore/pathexpand.cc \

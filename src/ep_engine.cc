@@ -852,13 +852,6 @@ extern "C" {
                 rv = h->touch(cookie, request, response);
                 return rv;
             }
-        case CMD_RESTORE_FILE:
-        case CMD_RESTORE_ABORT:
-        case CMD_RESTORE_COMPLETE:
-            {
-                rv = h->handleRestoreCmd(cookie, request, response);
-                return rv;
-            }
         case CMD_STOP_PERSISTENCE:
             res = stopFlusher(h, &msg, &msg_size);
             break;
@@ -1191,7 +1184,6 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server
     info.info.features[info.info.num_features++].feature = ENGINE_FEATURE_CAS;
     info.info.features[info.info.num_features++].feature = ENGINE_FEATURE_PERSISTENT_STORAGE;
     info.info.features[info.info.num_features++].feature = ENGINE_FEATURE_LRU;
-    restore.manager = NULL;
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::reserveCookie(const void *cookie) {
@@ -1300,16 +1292,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     maxItemSize = configuration.getMaxItemSize();
     configuration.addValueChangedListener("max_item_size",
                                           new EpEngineValueChangeListener(*this));
-
-    if (configuration.isRestoreMode()) {
-        if ((restore.manager = create_restore_manager(*this)) == NULL) {
-            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                    "Failed to create restore manager");
-            return ENGINE_FAILED;
-        }
-        restore.manager->enableRestoreFileChecks(configuration.isRestoreFileChecks());
-        restore.enabled.set(true);
-    }
 
     getlDefaultTimeout = configuration.getGetlDefaultTimeout();
     configuration.addValueChangedListener("getl_default_timeout",
@@ -1457,10 +1439,7 @@ ENGINE_ERROR_CODE  EventuallyPersistentEngine::store(const void *cookie,
         // FALLTHROUGH
     case OPERATION_SET:
         if (isDegradedMode()) {
-            // We're allowed to run set in restore mode..
-            if (!restore.enabled.get()) {
-                return ENGINE_TMPFAIL;
-            }
+            return ENGINE_TMPFAIL;
         }
         ret = epstore->set(*it, cookie);
         if (ret == ENGINE_SUCCESS) {
@@ -1470,7 +1449,6 @@ ENGINE_ERROR_CODE  EventuallyPersistentEngine::store(const void *cookie,
         break;
 
     case OPERATION_ADD:
-        // you can't call add while the server is running in restore mode..
         if (isDegradedMode()) {
             return ENGINE_TMPFAIL;
         }
@@ -3335,12 +3313,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
         rv = doDispatcherStats(cookie, add_stat);
     } else if (nkey == 6 && strncmp(stat_key, "memory", 6) == 0) {
         rv = doMemoryStats(cookie, add_stat);
-    } else if (nkey == 7 && strncmp(stat_key, "restore", 7) == 0) {
-        rv = ENGINE_SUCCESS;
-        LockHolder lh(restore.mutex);
-        if (restore.manager) {
-            restore.manager->stats(cookie, add_stat);
-        }
     } else if (nkey > 4 && strncmp(stat_key, "key ", 4) == 0) {
         std::string key;
         std::string vbid;
@@ -3584,64 +3556,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::touch(const void *cookie,
     return rv;
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentEngine::handleRestoreCmd(const void *cookie,
-                                                               protocol_binary_request_header *request,
-                                                               ADD_RESPONSE response)
-{
-    LockHolder lh(restore.mutex);
-    if (restore.manager == NULL) { // we need another "mode" variable
-        std::string msg = "Restore mode is not enabled.";
-        return sendResponse(response, NULL, 0, NULL, 0, msg.c_str(), msg.length(),
-                            PROTOCOL_BINARY_RAW_BYTES,
-                            PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0, cookie);
-    }
-
-    if (request->request.opcode == CMD_RESTORE_FILE) {
-        std::string filename((const char*)request->bytes + sizeof(request->bytes) +
-                             request->request.extlen, ntohs(request->request.keylen));
-        try {
-            restore.manager->initialize(filename);
-        } catch (std::string e) {
-            return sendResponse(response, NULL, 0, NULL, 0, e.c_str(), e.length(),
-                                PROTOCOL_BINARY_RAW_BYTES,
-                                PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, 0, cookie);
-        }
-
-        try {
-            restore.manager->start();
-        } catch (std::string e) {
-            return sendResponse(response, NULL, 0, NULL, 0, e.c_str(),
-                                e.length(), PROTOCOL_BINARY_RAW_BYTES,
-                                PROTOCOL_BINARY_RESPONSE_EINTERNAL, 0, cookie);
-        }
-    } else if (request->request.opcode == CMD_RESTORE_ABORT) {
-        try {
-            restore.manager->abort();
-        } catch (std::string e) {
-            return sendResponse(response, NULL, 0, NULL, 0, e.c_str(),
-                                e.length(), PROTOCOL_BINARY_RAW_BYTES,
-                                PROTOCOL_BINARY_RESPONSE_EINTERNAL, 0, cookie);
-        }
-    } else {
-        if (restore.manager->isRunning()) {
-            return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
-                                PROTOCOL_BINARY_RAW_BYTES,
-                                PROTOCOL_BINARY_RESPONSE_EBUSY, 0, cookie);
-        }
-
-        destroy_restore_manager(restore.manager);
-        restore.enabled.set(false);
-        restore.manager = NULL;
-        if (!isDegradedMode()) {
-            epstore->completeDegradedMode();
-        }
-    }
-
-    return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
-                        PROTOCOL_BINARY_RAW_BYTES,
-                        PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
-}
-
 ENGINE_ERROR_CODE EventuallyPersistentEngine::deregisterTapClient(const void *cookie,
                                                         protocol_binary_request_header *request,
                                                         ADD_RESPONSE response)
@@ -3856,13 +3770,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
     }
 
     if (isDegradedMode()) {
-        // We're allowed to run set in restore mode..
-        if (!restore.enabled.get()) {
-            return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
-                                PROTOCOL_BINARY_RAW_BYTES,
-                                PROTOCOL_BINARY_RESPONSE_ETMPFAIL,
-                                0, cookie);
-        }
+        return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
+                            PROTOCOL_BINARY_RAW_BYTES,
+                            PROTOCOL_BINARY_RESPONSE_ETMPFAIL,
+                            0, cookie);
     }
 
     uint8_t opcode = request->message.header.request.opcode;
@@ -3925,13 +3836,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(const void* cookie,
     }
 
     if (isDegradedMode()) {
-        // We're allowed to run set in restore mode..
-        if (!restore.enabled.get()) {
-            return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
-                                PROTOCOL_BINARY_RAW_BYTES,
-                                PROTOCOL_BINARY_RESPONSE_ETMPFAIL,
-                                0, cookie);
-        }
+        return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
+                            PROTOCOL_BINARY_RAW_BYTES,
+                            PROTOCOL_BINARY_RESPONSE_ETMPFAIL,
+                            0, cookie);
     }
 
     uint8_t opcode = request->message.header.request.opcode;

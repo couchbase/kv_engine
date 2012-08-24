@@ -198,11 +198,6 @@ static bool test_setup(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Failed to enable data traffic");
 
-    int restore_mode = get_int_stat(h, h1, "ep_restore_mode");
-    if (!restore_mode) {
-        check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
-              "Expected to be able to enable data traffic at engine level");
-    }
     return true;
 }
 

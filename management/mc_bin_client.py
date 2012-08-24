@@ -390,14 +390,6 @@ class MemcachedClient(object):
     def bucket_select(self, name):
         return self._doCmd(memcacheConstants.CMD_SELECT_BUCKET, name, '')
 
-    def restore_file(self, filename):
-        """Initiate restore of a given file."""
-        return self._doCmd(memcacheConstants.CMD_RESTORE_FILE, filename, '', '', 0)
-
-    def restore_complete(self):
-        """Notify the server that we're done restoring."""
-        return self._doCmd(memcacheConstants.CMD_RESTORE_COMPLETE, '', '', '', 0)
-
     def deregister_tap_client(self, tap_name):
         """Deregister the TAP client with a given name."""
         return self._doCmd(memcacheConstants.CMD_DEREGISTER_TAP_CLIENT, tap_name, '', '', 0)

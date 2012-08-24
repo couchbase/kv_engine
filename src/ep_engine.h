@@ -23,7 +23,6 @@
 #include "tapconnmap.hh"
 #include "tapconnection.hh"
 #include "tapthrottle.hh"
-#include "restore.hh"
 #include "configuration.hh"
 
 extern "C" {
@@ -565,10 +564,6 @@ public:
 
     void notifyNotificationThread(void);
 
-    ENGINE_ERROR_CODE handleRestoreCmd(const void* cookie,
-                                       protocol_binary_request_header *request,
-                                       ADD_RESPONSE response);
-
     ENGINE_ERROR_CODE deregisterTapClient(const void* cookie,
                                           protocol_binary_request_header *request,
                                           ADD_RESPONSE response);
@@ -598,7 +593,7 @@ public:
     }
 
     bool isDegradedMode() const {
-        return warmingUp.get() || !trafficEnabled.get() || restore.enabled.get();
+        return warmingUp.get() || !trafficEnabled.get();
     }
 
     bool stillWarmingUp() const {
@@ -801,11 +796,6 @@ private:
     Configuration configuration;
     Atomic<bool> warmingUp;
     Atomic<bool> trafficEnabled;
-    struct {
-        Mutex mutex;
-        RestoreManager *manager;
-        Atomic<bool> enabled;
-    } restore;
 
     bool flushAllEnabled;
     // a unique system generated token initialized at each time

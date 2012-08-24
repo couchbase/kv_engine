@@ -660,15 +660,6 @@ public:
         return expiryPager.sleeptime;
     }
 
-    /**
-     * During restore from backup we read the most recent values first
-     * and works our way back until epoch.. We should therefore only
-     * add values to the backup if they're not there;
-     *
-     * @return 0 success, 1 skipped, -1 invalid vbucket
-     */
-    int restoreItem(const Item &itm, enum queue_operation op);
-
     bool isFlushAllScheduled() {
         return diskFlushAll.get();
     }
@@ -694,12 +685,6 @@ public:
         // notify item pager to check access scanner task time
         pager.biased = false;
     }
-
-    /**
-     * Complete the degraded mode phase by clearing the list of deleted items that
-     * are received from the upstream master via TAP or from the normal clients
-     */
-    void completeDegradedMode();
 
     /**
      * Get access to the mutation log.
@@ -866,17 +851,6 @@ private:
     TransactionContext                   tctx;
     Mutex                                vbsetMutex;
     uint32_t                             bgFetchDelay;
-    // During restore we're bypassing the checkpoint lists with the
-    // objects we're restoring, but we need them to be persisted.
-    // This is solved by using a separate list for those objects.
-    struct {
-        Mutex mutex;
-        std::map<uint16_t, std::vector<queued_item> > items;
-        // Maintain the list of deleted keys that are received from the upstream
-        // master via TAP or from the normal clients during online restore.
-        // As an alternative to std::set, we can consider boost::unordered_set later.
-        std::set<std::string> itemsDeleted;
-    } restore;
     struct ExpiryPagerDelta {
         ExpiryPagerDelta() : sleeptime(0) {}
         Mutex mutex;

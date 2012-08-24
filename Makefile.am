@@ -2,12 +2,7 @@ ACLOCAL_AMFLAGS = -I m4 --force
 AM_CPPFLAGS += -I$(top_srcdir)/src -I${top_srcdir}/include
 
 bin_SCRIPTS = management/cbanalyze-core \
-              management/squasher.sql \
-              wrapper/cbadm-online-restore \
-              wrapper/cbadm-online-update \
               wrapper/cbadm-tap-registration \
-              wrapper/cbbackup-incremental \
-              wrapper/cbbackup-merge-incremental \
               wrapper/cbdbmaint \
               wrapper/cbdbupgrade \
               wrapper/cbepctl \
@@ -46,16 +41,6 @@ EXTRA_DIST = Doxyfile LICENSE README.markdown configuration.json docs \
 noinst_PROGRAMS = sizes gen_config gen_code
 
 man_MANS =
-if BUILD_DOCS
-man_MANS += cbadm-online-update.1m \
-            cbbackup-incremental.1m
-endif
-
-cbadm-online-update.1m: docs/cbadm-online-update.pod
-	${POD2MAN} -c "$*" -r "" -s 1m $< $@
-
-cbbackup-incremental.1m: docs/cbbackup-incremental.pod
-	${POD2MAN} -c "$*" -r "" -s 1m $< $@
 
 ep_la_CPPFLAGS = $(AM_CPPFLAGS)
 ep_la_LDFLAGS = -module -dynamic
@@ -94,8 +79,6 @@ ep_la_SOURCES =  include/ep-engine/command_ids.h \
                  src/mutex.cc src/mutex.hh \
                  src/priority.cc src/priority.hh \
                  src/queueditem.cc src/queueditem.hh \
-                 src/restore.hh \
-                 src/restore_impl.cc \
                  src/ringbuffer.hh \
                  src/sizes.cc \
                  src/stats.hh \
@@ -458,16 +441,10 @@ pythonlib_DATA= \
                 management/mc_bin_server.py \
                 management/memcacheConstants.py \
                 management/tap.py \
-                management/tap_example.py \
-                management/util.py \
-                management/backup_util.py
+                management/tap_example.py
 
 pythonlib_SCRIPTS= \
-                management/cbadm-online-restore \
-                management/cbadm-online-update \
                 management/cbadm-tap-registration \
-                management/cbbackup-incremental \
-                management/cbbackup-merge-incremental \
                 management/cbdbmaint \
                 management/cbdbupgrade \
                 management/cbepctl \
@@ -475,11 +452,7 @@ pythonlib_SCRIPTS= \
                 management/cbvbucketctl
 
 PYTHON_TOOLS= \
-              wrapper/cbadm-online-restore \
-              wrapper/cbadm-online-update \
               wrapper/cbadm-tap-registration \
-              wrapper/cbbackup-incremental \
-              wrapper/cbbackup-merge-incremental \
               wrapper/cbdbmaint \
               wrapper/cbdbupgrade \
               wrapper/cbepctl \

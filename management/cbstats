@@ -247,10 +247,6 @@ def stats_memory(mc):
     stats_formatter(stats_perform(mc, 'memory'))
 
 @cmd
-def stats_restore(mc):
-    stats_formatter(stats_perform(mc, 'restore'))
-
-@cmd
 def stats_config(mc):
     stats_formatter(stats_perform(mc, 'config'))
 
@@ -390,7 +386,6 @@ def main():
     c.addCommand('prev-vbucket', stats_prev_vbucket, 'prev-vbucket')
     c.addCommand('raw', stats_raw, 'raw argument')
     c.addCommand('reset', reset, 'reset')
-    c.addCommand('restore', stats_restore, 'restore')
     c.addCommand('slabs', stats_slabs, 'slabs (memcached bucket only)')
     c.addCommand('tap', stats_tap, 'tap')
     c.addCommand('tapagg', stats_tapagg, 'tapagg')
