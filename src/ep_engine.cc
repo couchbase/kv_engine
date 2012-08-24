@@ -1391,7 +1391,7 @@ class AllFlusher : public DispatcherCallback {
 public:
     AllFlusher(EventuallyPersistentStore *st, TapConnMap &tcm)
         : epstore(st), tapConnMap(tcm) { }
-    bool callback(Dispatcher &, TaskId) {
+    bool callback(Dispatcher &, TaskId &) {
         doFlush();
         return false;
     }

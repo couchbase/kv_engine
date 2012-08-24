@@ -86,7 +86,7 @@ public:
         epStore(ep_store), mutationLog(log), compactorConfig(config), stats(st)
     { /* EMPTY */ }
 
-    bool callback(Dispatcher &d, TaskId t);
+    bool callback(Dispatcher &d, TaskId &t);
 
     /**
      * Description of task.

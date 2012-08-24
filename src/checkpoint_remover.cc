@@ -54,7 +54,7 @@ private:
     bool                      *stateFinalizer;
 };
 
-bool ClosedUnrefCheckpointRemover::callback(Dispatcher &d, TaskId t) {
+bool ClosedUnrefCheckpointRemover::callback(Dispatcher &d, TaskId &t) {
     if (available) {
         available = false;
         shared_ptr<CheckpointVisitor> pv(new CheckpointVisitor(store, stats, &available));

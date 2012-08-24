@@ -43,7 +43,7 @@ void BackfillDiskCallback::callback(GetValue &gv) {
     }
 }
 
-bool BackfillDiskLoad::callback(Dispatcher &d, TaskId t) {
+bool BackfillDiskLoad::callback(Dispatcher &d, TaskId &t) {
     if (isMemoryUsageTooHigh(engine->getEpStats())) {
         getLogger()->log(EXTENSION_LOG_INFO, NULL,
                          "VBucket %d backfill task from disk is temporarily suspended "
@@ -225,7 +225,7 @@ bool BackFillVisitor::checkValidity() {
     return valid;
 }
 
-bool BackfillTask::callback(Dispatcher &d, TaskId t) {
+bool BackfillTask::callback(Dispatcher &d, TaskId &t) {
     (void) t;
     epstore->visit(bfv, "Backfill task", &d, Priority::BackfillTaskPriority, true, 1);
     return false;

@@ -60,7 +60,7 @@ class Warmup {
 public:
     Warmup(EventuallyPersistentStore *st, Dispatcher *d);
 
-    bool step(Dispatcher&, TaskId);
+    bool step(Dispatcher&, TaskId &);
     void start(void);
 
     void addWarmupStateListener(WarmupStateListener *listener);
@@ -86,15 +86,15 @@ private:
 
     void fireStateChange(const int from, const int to);
 
-    bool initialize(Dispatcher&, TaskId);
-    bool loadingMutationLog(Dispatcher&, TaskId);
-    bool estimateDatabaseItemCount(Dispatcher&, TaskId);
-    bool keyDump(Dispatcher&, TaskId);
-    bool loadingAccessLog(Dispatcher&, TaskId);
-    bool checkForAccessLog(Dispatcher&, TaskId);
-    bool loadingKVPairs(Dispatcher&, TaskId);
-    bool loadingData(Dispatcher&, TaskId);
-    bool done(Dispatcher&, TaskId);
+    bool initialize(Dispatcher&, TaskId &);
+    bool loadingMutationLog(Dispatcher&, TaskId &);
+    bool estimateDatabaseItemCount(Dispatcher&, TaskId &);
+    bool keyDump(Dispatcher&, TaskId &);
+    bool loadingAccessLog(Dispatcher&, TaskId &);
+    bool checkForAccessLog(Dispatcher&, TaskId &);
+    bool loadingKVPairs(Dispatcher&, TaskId &);
+    bool loadingData(Dispatcher&, TaskId &);
+    bool done(Dispatcher&, TaskId &);
 
     void transition(int to);
 
@@ -142,7 +142,7 @@ public:
         return 10 * 60 * 1000 * 1000;
     }
 
-    bool callback(Dispatcher &d, TaskId t) {
+    bool callback(Dispatcher &d, TaskId &t) {
         return warmup->step(d, t);
     }
 

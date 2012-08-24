@@ -198,7 +198,7 @@ public:
         return rv.str();
     }
 
-    bool callback(Dispatcher &d, TaskId t);
+    bool callback(Dispatcher &d, TaskId &t);
 
 private:
     std::queue<uint16_t>        vbList;

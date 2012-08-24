@@ -200,7 +200,7 @@ bool ItemPager::checkAccessScannerTask() {
     return biased;
 }
 
-bool ItemPager::callback(Dispatcher &d, TaskId t) {
+bool ItemPager::callback(Dispatcher &d, TaskId &t) {
     double current = static_cast<double>(stats.getTotalMemoryUsed());
     double upper = static_cast<double>(stats.mem_high_wat);
     double lower = static_cast<double>(stats.mem_low_wat);
@@ -268,7 +268,7 @@ bool ItemPager::callback(Dispatcher &d, TaskId t) {
     return true;
 }
 
-bool ExpiredItemPager::callback(Dispatcher &d, TaskId t) {
+bool ExpiredItemPager::callback(Dispatcher &d, TaskId &t) {
     if (available) {
         ++stats.expiryPagerRuns;
 

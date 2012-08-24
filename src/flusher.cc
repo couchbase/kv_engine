@@ -19,7 +19,7 @@
 
 #include "flusher.hh"
 
-bool FlusherStepper::callback(Dispatcher &d, TaskId t) {
+bool FlusherStepper::callback(Dispatcher &d, TaskId &t) {
     return flusher->step(d, t);
 }
 
@@ -118,7 +118,7 @@ enum flusher_state Flusher::state() const {
     return _state;
 }
 
-void Flusher::initialize(TaskId tid) {
+void Flusher::initialize(TaskId &tid) {
     assert(task.get() == tid.get());
     getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
                      "Initializing flusher");
@@ -142,7 +142,7 @@ void Flusher::wake(void) {
     dispatcher->wake(task);
 }
 
-bool Flusher::step(Dispatcher &d, TaskId tid) {
+bool Flusher::step(Dispatcher &d, TaskId &tid) {
     try {
         switch (_state) {
         case initializing:

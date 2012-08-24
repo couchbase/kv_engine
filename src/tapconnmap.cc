@@ -24,7 +24,7 @@ public:
         descr = ss.str();
     }
 
-    bool callback(Dispatcher &, TaskId) {
+    bool callback(Dispatcher &, TaskId &) {
         if (releaseReference) {
             connection->releaseReference();
             releaseReference = false;

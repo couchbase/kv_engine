@@ -20,7 +20,7 @@ class BgFetcherCallback : public DispatcherCallback {
 public:
     BgFetcherCallback(BgFetcher *b) : bgfetcher(b) { }
 
-    bool callback(Dispatcher &d, TaskId t);
+    bool callback(Dispatcher &d, TaskId &t);
     std::string description() {
         return std::string("Batching background fetch.");
     }
@@ -47,7 +47,7 @@ public:
 
     void start(void);
     void stop(void);
-    bool run(TaskId tid);
+    bool run(TaskId &tid);
     bool pendingJob(void);
 
     void notifyBGEvent(void) {

@@ -328,7 +328,7 @@ void Warmup::start(void)
                          &task, Priority::WarmupPriority);
 }
 
-bool Warmup::initialize(Dispatcher&, TaskId)
+bool Warmup::initialize(Dispatcher&, TaskId &)
 {
     startTime = gethrtime();
     initialVbState = store->loadVBucketState();
@@ -337,7 +337,7 @@ bool Warmup::initialize(Dispatcher&, TaskId)
     return true;
 }
 
-bool Warmup::loadingMutationLog(Dispatcher&, TaskId)
+bool Warmup::loadingMutationLog(Dispatcher&, TaskId &)
 {
     shared_ptr<Callback<GetValue> > cb(createLKVPCB(initialVbState, false,
                                                     state.getState()));
@@ -371,7 +371,7 @@ bool Warmup::loadingMutationLog(Dispatcher&, TaskId)
     return true;
 }
 
-bool Warmup::estimateDatabaseItemCount(Dispatcher&, TaskId)
+bool Warmup::estimateDatabaseItemCount(Dispatcher&, TaskId &)
 {
     hrtime_t st = gethrtime();
     store->roUnderlying->getEstimatedItemCount(estimatedItemCount);
@@ -381,7 +381,7 @@ bool Warmup::estimateDatabaseItemCount(Dispatcher&, TaskId)
     return true;
 }
 
-bool Warmup::keyDump(Dispatcher&, TaskId)
+bool Warmup::keyDump(Dispatcher&, TaskId &)
 {
     bool success = false;
     if (store->roUnderlying->isKeyDumpSupported()) {
@@ -426,7 +426,7 @@ private:
     Warmup &warmup;
 };
 
-bool Warmup::checkForAccessLog(Dispatcher&, TaskId)
+bool Warmup::checkForAccessLog(Dispatcher&, TaskId &)
 {
     metadata = gethrtime() - startTime;
     getLogger()->log(EXTENSION_LOG_WARNING, NULL,
@@ -445,7 +445,7 @@ bool Warmup::checkForAccessLog(Dispatcher&, TaskId)
     return true;
 }
 
-bool Warmup::loadingAccessLog(Dispatcher&, TaskId)
+bool Warmup::loadingAccessLog(Dispatcher&, TaskId &)
 {
     EstimateWarmupSize w(*this);
     LoadStorageKVPairCallback *load_cb = createLKVPCB(initialVbState, true,
@@ -504,7 +504,7 @@ bool Warmup::loadingAccessLog(Dispatcher&, TaskId)
     return true;
 }
 
-bool Warmup::loadingKVPairs(Dispatcher&, TaskId)
+bool Warmup::loadingKVPairs(Dispatcher&, TaskId &)
 {
     shared_ptr<Callback<GetValue> > cb(createLKVPCB(initialVbState, false,
                                                     state.getState()));
@@ -519,7 +519,7 @@ bool Warmup::loadingKVPairs(Dispatcher&, TaskId)
     return true;
 }
 
-bool Warmup::loadingData(Dispatcher&, TaskId)
+bool Warmup::loadingData(Dispatcher&, TaskId &)
 {
     size_t estimatedCount = store->getEPEngine().getEpStats().warmedUpKeys;
     setEstimatedWarmupCount(estimatedCount);
@@ -531,7 +531,7 @@ bool Warmup::loadingData(Dispatcher&, TaskId)
     return true;
 }
 
-bool Warmup::done(Dispatcher&, TaskId)
+bool Warmup::done(Dispatcher&, TaskId &)
 {
     warmup = gethrtime() - startTime;
     store->warmupCompleted();
@@ -542,7 +542,7 @@ bool Warmup::done(Dispatcher&, TaskId)
     return false;
 }
 
-bool Warmup::step(Dispatcher &d, TaskId t) {
+bool Warmup::step(Dispatcher &d, TaskId &t) {
     try {
         switch (state.getState()) {
         case WarmupState::Initialize:

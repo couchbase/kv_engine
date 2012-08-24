@@ -14,7 +14,7 @@ class AccessScanner : public DispatcherCallback {
 public:
     AccessScanner(EventuallyPersistentStore &_store, EPStats &st,
                   size_t sleetime);
-    bool callback(Dispatcher &d, TaskId t);
+    bool callback(Dispatcher &d, TaskId &t);
     std::string description();
     size_t startTime();
 

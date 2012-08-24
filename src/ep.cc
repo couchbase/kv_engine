@@ -134,7 +134,7 @@ public:
         assert(cookie);
     }
 
-    bool callback(Dispatcher &, TaskId) {
+    bool callback(Dispatcher &, TaskId &) {
         ep->completeBGFetch(key, vbucket, rowid, cookie, init, type);
         return false;
     }
@@ -173,7 +173,7 @@ public:
         assert(lookup_cb);
     }
 
-    bool callback(Dispatcher &, TaskId) {
+    bool callback(Dispatcher &, TaskId &) {
         RememberingCallback<GetValue> gcb;
 
         ep->getROUnderlying()->get(key, rowid, vbucket, gcb);
@@ -209,7 +209,7 @@ public:
     SnapshotVBucketsCallback(EventuallyPersistentStore *e, const Priority &p)
         : ep(e), priority(p) { }
 
-    bool callback(Dispatcher &, TaskId) {
+    bool callback(Dispatcher &, TaskId &) {
         ep->snapshotVBuckets(priority);
         return false;
     }
@@ -227,7 +227,7 @@ public:
     VBucketMemoryDeletionCallback(EventuallyPersistentStore *e, RCPtr<VBucket> &vb) :
     ep(e), vbucket(vb) {}
 
-    bool callback(Dispatcher &, TaskId) {
+    bool callback(Dispatcher &, TaskId &) {
         vbucket->ht.clear();
         vbucket.reset();
         return false;
@@ -254,7 +254,7 @@ public:
                             ep(e), vbucket(vb->getId()),
                             stats(st), cookie(c) {}
 
-    bool callback(Dispatcher &, TaskId) {
+    bool callback(Dispatcher &, TaskId &) {
         hrtime_t start_time(gethrtime());
         vbucket_del_result result = ep->completeVBucketDeletion(vbucket);
         if (result == vbucket_del_success || result == vbucket_del_invalid) {
@@ -2587,7 +2587,7 @@ VBCBAdaptor::VBCBAdaptor(EventuallyPersistentStore *s,
     }
 }
 
-bool VBCBAdaptor::callback(Dispatcher & d, TaskId t) {
+bool VBCBAdaptor::callback(Dispatcher & d, TaskId &t) {
     if (!vbList.empty()) {
         currentvb = vbList.front();
         RCPtr<VBucket> vb = store->vbuckets.getBucket(currentvb);

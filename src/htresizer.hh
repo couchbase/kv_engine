@@ -17,7 +17,7 @@ public:
 
     HashtableResizer(EventuallyPersistentStore *s) : store(s) {}
 
-    bool callback(Dispatcher &d, TaskId t);
+    bool callback(Dispatcher &d, TaskId &t);
 
     std::string description() {
         return std::string("Adjusting hash table sizes.");

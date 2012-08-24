@@ -46,7 +46,7 @@ public:
     ItemPager(EventuallyPersistentStore *s, EPStats &st) :
         store(*s), stats(st), available(true), phase(PagingConfig::paging_unreferenced) {}
 
-    bool callback(Dispatcher &d, TaskId t);
+    bool callback(Dispatcher &d, TaskId &t);
 
     std::string description() { return std::string("Paging out items."); }
 
@@ -78,7 +78,7 @@ public:
         store(*s), stats(st), sleepTime(static_cast<double>(stime)),
         available(true) {}
 
-    bool callback(Dispatcher &d, TaskId t);
+    bool callback(Dispatcher &d, TaskId &t);
 
     std::string description() { return std::string("Paging expired items."); }
 

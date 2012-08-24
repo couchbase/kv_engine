@@ -26,7 +26,7 @@ const double DEFAULT_MIN_SLEEP_TIME = 0.1;
 class FlusherStepper : public DispatcherCallback {
 public:
     FlusherStepper(Flusher* f) : flusher(f) { }
-    bool callback(Dispatcher &d, TaskId t);
+    bool callback(Dispatcher &d, TaskId &t);
 
     std::string description() {
         return std::string("Running a flusher loop.");
@@ -76,11 +76,11 @@ public:
     bool pause();
     bool resume();
 
-    void initialize(TaskId);
+    void initialize(TaskId &);
 
     void start(void);
     void wake(void);
-    bool step(Dispatcher&, TaskId);
+    bool step(Dispatcher&, TaskId &);
 
     enum flusher_state state() const;
     const char * stateName() const;

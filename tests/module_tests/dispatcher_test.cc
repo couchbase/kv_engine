@@ -26,7 +26,7 @@ public:
     TestCallback(Thing *t) : thing(t) {
     }
 
-    bool callback(Dispatcher &d, TaskId t);
+    bool callback(Dispatcher &d, TaskId &t);
 
     std::string description() { return std::string("Test"); }
 
@@ -52,7 +52,7 @@ public:
     }
 };
 
-bool TestCallback::callback(Dispatcher &d, TaskId t) {
+bool TestCallback::callback(Dispatcher &d, TaskId &t) {
     return thing->doSomething(d, t);
 }
 

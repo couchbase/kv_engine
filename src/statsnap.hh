@@ -24,7 +24,7 @@ public:
     StatSnap(EventuallyPersistentEngine *e, bool runOneTimeOnly = false) :
         engine(e), runOnce(runOneTimeOnly) { }
 
-    bool callback(Dispatcher &d, TaskId t);
+    bool callback(Dispatcher &d, TaskId &t);
 
     /**
      * Grab stats from the engine.

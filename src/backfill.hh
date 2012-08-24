@@ -35,7 +35,7 @@ public:
 
     void callback(GetValue &gv);
 
-    bool callback(Dispatcher &, TaskId);
+    bool callback(Dispatcher &, TaskId &);
 
     std::string description();
 
@@ -114,7 +114,7 @@ public:
 
     virtual ~BackfillTask() {}
 
-    bool callback(Dispatcher &d, TaskId t);
+    bool callback(Dispatcher &d, TaskId &t);
 
     std::string description() {
         return std::string("Backfilling items from memory and disk.");

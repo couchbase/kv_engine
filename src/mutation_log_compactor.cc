@@ -52,7 +52,7 @@ private:
     size_t       totalItemsLogged;
 };
 
-bool MutationLogCompactor::callback(Dispatcher &d, TaskId t) {
+bool MutationLogCompactor::callback(Dispatcher &d, TaskId &t) {
     size_t num_new_items = mutationLog.itemsLogged[ML_NEW];
     size_t num_del_items = mutationLog.itemsLogged[ML_DEL];
     size_t num_logged_items = num_new_items + num_del_items;

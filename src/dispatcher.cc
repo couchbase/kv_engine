@@ -108,7 +108,7 @@ void Dispatcher::moveReadyTasks(const struct timeval &tv) {
         return;
     }
     while (!futureQueue.empty()) {
-        TaskId tid = futureQueue.top();
+        const TaskId &tid = futureQueue.top();
         if (less_tv(tid->waketime, tv)) {
             readyQueue.push(tid);
             futureQueue.pop();
@@ -169,7 +169,7 @@ void Dispatcher::run() {
             rel_time_t startReltime = ep_current_time();
             try {
                 running_task = true;
-                if(task->run(*this, TaskId(task))) {
+                if(task->run(*this, task)) {
                     reschedule(task);
                 }
             } catch (std::exception& e) {
@@ -241,7 +241,7 @@ void Dispatcher::schedule(shared_ptr<DispatcherCallback> callback,
     notify();
 }
 
-void Dispatcher::wake(TaskId task) {
+void Dispatcher::wake(TaskId &task) {
     LockHolder lh(mutex);
     task->snooze(0);
     getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
@@ -250,21 +250,21 @@ void Dispatcher::wake(TaskId task) {
     notify();
 }
 
-void Dispatcher::snooze(TaskId t, double sleeptime) {
+void Dispatcher::snooze(TaskId &t, double sleeptime) {
     getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
                      "%s: Snooze a task \"%s\"",
                      getName().c_str(), t->getName().c_str());
     t->snooze(sleeptime);
 }
 
-void Dispatcher::cancel(TaskId t) {
+void Dispatcher::cancel(TaskId &t) {
     getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
                      "%s: Cancel a task \"%s\"",
                      getName().c_str(), t->getName().c_str());
     t->cancel();
 }
 
-void Dispatcher::reschedule(TaskId task) {
+void Dispatcher::reschedule(TaskId &task) {
     // If the task is already in the queue it'll get run twice
     LockHolder lh(mutex);
     getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
@@ -297,7 +297,7 @@ void Dispatcher::completeNonDaemonTasks() {
                                  "%s: Running task \"%s\" during shutdown",
                                  getName().c_str(), task->getName().c_str());
                 try {
-                    while (task->run(*this, TaskId(task))) {
+                    while (task->run(*this, task)) {
                         getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
                                          "%s: Keep on running task \"%s\" during shutdown",
                                          getName().c_str(), task->getName().c_str());
@@ -329,7 +329,7 @@ void Dispatcher::completeNonDaemonTasks() {
                      getName().c_str());
 }
 
-bool IdleTask::run(Dispatcher &d, TaskId) {
+bool IdleTask::run(Dispatcher &d, TaskId &) {
     LockHolder lh(d.mutex);
     if (d.notifications.get() == dnotifications) {
         d.mutex.wait(waketime);

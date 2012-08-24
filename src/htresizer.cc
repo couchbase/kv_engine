@@ -23,7 +23,7 @@ public:
 
 };
 
-bool HashtableResizer::callback(Dispatcher &d, TaskId t) {
+bool HashtableResizer::callback(Dispatcher &d, TaskId &t) {
     shared_ptr<ResizingVisitor> pv(new ResizingVisitor);
     store->visit(pv, "Hashtable resizer", &d, Priority::ItemPagerPriority);
 

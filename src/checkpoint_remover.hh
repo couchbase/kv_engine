@@ -26,7 +26,7 @@ public:
                                  size_t interval) :
         store(s), stats(st), sleepTime(interval), available(true) {}
 
-    bool callback(Dispatcher &d, TaskId t);
+    bool callback(Dispatcher &d, TaskId &t);
 
     std::string description() {
         return std::string("Removing closed unreferenced checkpoints from memory");

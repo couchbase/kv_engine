@@ -84,7 +84,7 @@ public:
      *
      * @return true if the task should run again
      */
-    virtual bool callback(Dispatcher &d, TaskId t) = 0;
+    virtual bool callback(Dispatcher &d, TaskId &t) = 0;
 
     //! Print a human-readable description of this callback.
     virtual std::string description() = 0;
@@ -132,7 +132,7 @@ protected:
 
     void snooze(const double secs, bool first=false);
 
-    virtual bool run(Dispatcher &d, TaskId t) {
+    virtual bool run(Dispatcher &d, TaskId &t) {
         return callback->callback(d, t);
     }
 
@@ -172,7 +172,7 @@ public:
     IdleTask() : Task(shared_ptr<DispatcherCallback>(), 0),
                  dnotifications(0) {}
 
-    bool run(Dispatcher &d, TaskId t);
+    bool run(Dispatcher &d, TaskId &t);
 
     std::string getName() {
         return std::string("IdleTask (sleeping)");
@@ -210,7 +210,7 @@ private:
 class CompareTasksByDueDate {
 public:
     // true if t1 is before t2
-    bool operator()(TaskId t1, TaskId t2) {
+    bool operator()(TaskId &t1, TaskId &t2) {
         return less_tv(t2->waketime, t1->waketime);
     }
 };
@@ -220,7 +220,7 @@ public:
  */
 class CompareTasksByPriority {
 public:
-    bool operator()(TaskId t1, TaskId t2) {
+    bool operator()(TaskId &t1, TaskId &t2) {
         return t1->priority > t2->priority;
     }
 };
@@ -325,7 +325,7 @@ public:
      *
      * @param task the task to wake up
      */
-    void wake(TaskId task);
+    void wake(TaskId &task);
 
     /**
      * Start this dispatcher's thread.
@@ -348,12 +348,12 @@ public:
      * @param t the task to delay
      * @param sleeptime how long to delay the task
      */
-    void snooze(TaskId t, double sleeptime);
+    void snooze(TaskId &t, double sleeptime);
 
     /**
      * Cancel a task.
      */
-    void cancel(TaskId t);
+    void cancel(TaskId &t);
 
     /**
      * Get the name of the currently executing task.
@@ -381,7 +381,7 @@ private:
         taskDesc = "none";
     }
 
-    void reschedule(TaskId task);
+    void reschedule(TaskId &task);
 
     void notify() {
         ++notifications;

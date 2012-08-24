@@ -6,7 +6,7 @@
 
 const size_t PERSISTENCE_QUEUE_SIZE_THRESHOLD(1000000);
 
-bool InvalidVBTableRemover::callback(Dispatcher &d, TaskId t) {
+bool InvalidVBTableRemover::callback(Dispatcher &d, TaskId &t) {
     size_t queueSize = engine->getEpStats().queue_size.get() +
                        engine->getEpStats().flusher_todo.get();
     if (queueSize < PERSISTENCE_QUEUE_SIZE_THRESHOLD) {

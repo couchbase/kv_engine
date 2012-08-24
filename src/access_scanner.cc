@@ -108,7 +108,7 @@ AccessScanner::AccessScanner(EventuallyPersistentStore &_store, EPStats &st,
     store(_store), stats(st), sleepTime(sleeptime), available(true)
 { }
 
-bool AccessScanner::callback(Dispatcher &d, TaskId t) {
+bool AccessScanner::callback(Dispatcher &d, TaskId &t) {
     if (available) {
         available = false;
         shared_ptr<ItemAccessVisitor> pv(new ItemAccessVisitor(store, stats, &available));

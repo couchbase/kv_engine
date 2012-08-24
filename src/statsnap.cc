@@ -38,7 +38,7 @@ bool StatSnap::getStats() {
     return rv;
 }
 
-bool StatSnap::callback(Dispatcher &d, TaskId t) {
+bool StatSnap::callback(Dispatcher &d, TaskId &t) {
     if (getStats()) {
         engine->getEpStore()->getRWUnderlying()->snapshotStats(map);
     }

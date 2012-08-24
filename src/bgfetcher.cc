@@ -4,7 +4,7 @@
 
 const double BgFetcher::sleepInterval = 1.0;
 
-bool BgFetcherCallback::callback(Dispatcher &, TaskId t) {
+bool BgFetcherCallback::callback(Dispatcher &, TaskId &t) {
     return bgfetcher->run(t);
 }
 
@@ -57,7 +57,7 @@ void BgFetcher::clearItems(void) {
     }
 }
 
-bool BgFetcher::run(TaskId tid) {
+bool BgFetcher::run(TaskId &tid) {
     assert(tid.get());
     size_t num_fetched_items = 0;
 

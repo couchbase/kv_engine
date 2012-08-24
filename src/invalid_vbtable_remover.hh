@@ -18,7 +18,7 @@ class InvalidVBTableRemover : public DispatcherCallback {
 public:
     InvalidVBTableRemover(EventuallyPersistentEngine *e) : engine(e) { }
 
-    bool callback(Dispatcher &d, TaskId t);
+    bool callback(Dispatcher &d, TaskId &t);
 
     /**
      * Description of task.

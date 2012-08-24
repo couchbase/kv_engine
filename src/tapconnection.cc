@@ -770,7 +770,7 @@ public:
         descr = ss.str();
     }
 
-    bool callback(Dispatcher &, TaskId) {
+    bool callback(Dispatcher &, TaskId &) {
         connection.setSuspended(false);
         // The notify io thread will pick up this connection and resume it
         // Since we was suspended I guess we can wait a little bit
@@ -1079,7 +1079,7 @@ public:
         assert(epe);
     }
 
-    bool callback(Dispatcher & d, TaskId t) {
+    bool callback(Dispatcher & d, TaskId &t) {
         hrtime_t start = gethrtime();
         RememberingCallback<GetValue> gcb;
 
