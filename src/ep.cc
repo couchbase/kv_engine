@@ -1358,9 +1358,6 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setWithMeta(const Item &itm,
         break;
     }
 
-    if(ret == ENGINE_SUCCESS) {
-        stats.numOpsSetMeta++;
-    }
     return ret;
 }
 
@@ -1641,9 +1638,6 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteItem(const std::string &key,
     } else if (delrv == IS_LOCKED) {
         rv = ENGINE_TMPFAIL;
     } else { // WAS_CLEAN or WAS_DIRTY
-        if(use_meta) {
-            stats.numOpsDelMeta++;
-        }
         rv = ENGINE_SUCCESS;
     }
 
