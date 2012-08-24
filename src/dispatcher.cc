@@ -155,7 +155,7 @@ void Dispatcher::run() {
             if (less_tv(tv, task->waketime)) {
                 idleTask->setWaketime(task->waketime);
                 idleTask->setDispatcherNotifications(notifications.get());
-                task = idleTask;
+                task = static_cast<Task *>(idleTask.get());
                 taskDesc = task->getName();
             } else {
                 // Otherwise, do the normal thing.

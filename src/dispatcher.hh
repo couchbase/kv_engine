@@ -68,7 +68,7 @@ private:
 
 class Task;
 
-typedef shared_ptr<Task> TaskId;
+typedef SingleThreadedRCPtr<Task> TaskId;
 
 /**
  * Code executed when the dispatcher is ready to do your work.
@@ -112,7 +112,7 @@ class CompareTasksByPriority;
 /**
  * Tasks managed by the dispatcher.
  */
-class Task {
+class Task : public RCValue {
 friend class CompareTasksByDueDate;
 friend class CompareTasksByPriority;
 public:
@@ -123,19 +123,11 @@ public:
 protected:
     Task(shared_ptr<DispatcherCallback> cb,  int p, double sleeptime = 0,
          bool isDaemon = true, bool completeBeforeShutdown = false) :
-        callback(cb), priority(p),
+        RCValue(), callback(cb), priority(p),
         state(task_running), isDaemonTask(isDaemon),
         blockShutdown(completeBeforeShutdown)
     {
         snooze(sleeptime, true);
-    }
-
-    Task(const Task &task) {
-        priority = task.priority;
-        state = task_running;
-        callback = task.callback;
-        isDaemonTask = task.isDaemonTask;
-        blockShutdown = task.blockShutdown;
     }
 
     void snooze(const double secs, bool first=false);
@@ -167,6 +159,8 @@ protected:
 
     // Some of the tasks must complete during shutdown
     bool blockShutdown;
+
+    DISALLOW_COPY_AND_ASSIGN(Task);
 };
 
 /**
@@ -424,7 +418,7 @@ private:
                         CompareTasksByDueDate> futureQueue;
     RingBuffer<JobLogEntry> joblog;
     RingBuffer<JobLogEntry> slowjobs;
-    shared_ptr<IdleTask> idleTask;
+    SingleThreadedRCPtr<IdleTask> idleTask;
     enum dispatcher_state state;
     hrtime_t taskStart;
     bool running_task;
