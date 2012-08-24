@@ -7,7 +7,6 @@
 
 #include "kvstore.hh"
 
-class EventuallyPersistentEngine;
 class EPStats;
 
 /**
@@ -17,7 +16,7 @@ class EPStats;
 class CouchKVStore : public KVStore
 {
 public:
-    CouchKVStore(EventuallyPersistentEngine &theEngine, bool read_only = false);
+    CouchKVStore(EPStats &stats, Configuration &config, bool read_only = false);
     CouchKVStore(const CouchKVStore &from);
     void reset();
     bool begin();

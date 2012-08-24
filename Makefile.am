@@ -287,7 +287,7 @@ priority_test_SOURCES = tests/module_tests/priority_test.cc src/priority.hh \
                         src/priority.cc
 
 sizes_CPPFLAGS = $(AM_CPPFLAGS)
-sizes_SOURCES = src/sizes.cc
+sizes_SOURCES = src/sizes.cc src/mutex.hh src/mutex.cc src/testlogger.cc
 sizes_DEPENDENCIES = src/vbucket.hh src/stored-value.hh src/item.hh
 
 gen_config_CPPFLAGS = -I$(top_srcdir)/tools $(AM_CPPFLAGS)

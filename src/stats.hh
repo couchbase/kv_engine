@@ -9,6 +9,7 @@
 #include "atomic.hh"
 #include "histo.hh"
 #include "memory_tracker.hh"
+#include "mutex.hh"
 
 #ifndef DEFAULT_MAX_DATA_SIZE
 /* Something something something ought to be enough for anybody */
@@ -420,6 +421,12 @@ public:
 
     // Used by stats logging infrastructure.
     std::ostream *timingLog;
+
+    struct Shutdown {
+        Shutdown() : isShutdown(false) {}
+        bool isShutdown;
+        Mutex mutex;
+    } shutdown;
 
 private:
 

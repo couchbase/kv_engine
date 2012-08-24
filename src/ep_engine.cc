@@ -1373,7 +1373,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
 
 KVStore* EventuallyPersistentEngine::newKVStore(bool read_only) {
     // @todo nuke me!
-    return KVStoreFactory::create(*this, read_only);
+    return KVStoreFactory::create(stats, configuration, read_only);
 }
 
 void EventuallyPersistentEngine::destroy(bool force) {
@@ -3358,11 +3358,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
 void EventuallyPersistentEngine::notifyPendingConnections(void) {
     uint32_t blurb = tapConnMap->prepareWait();
     // No need to aquire shutdown lock
-    while (!shutdown.isShutdown) {
+    while (!stats.shutdown.isShutdown) {
         tapConnMap->notifyIOThreadMain();
         epstore->firePendingVBucketOps();
 
-        if (shutdown.isShutdown) {
+        if (stats.shutdown.isShutdown) {
             return;
         }
 
@@ -3371,8 +3371,8 @@ void EventuallyPersistentEngine::notifyPendingConnections(void) {
 }
 
 void EventuallyPersistentEngine::notifyNotificationThread(void) {
-    LockHolder lh(shutdown.mutex);
-    if (!shutdown.isShutdown) {
+    LockHolder lh(stats.shutdown.mutex);
+    if (!stats.shutdown.isShutdown) {
         tapConnMap->notify();
     }
 }

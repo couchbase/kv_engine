@@ -23,12 +23,13 @@
 #undef STATWRITER_NAMESPACE
 
 struct WarmupCookie {
-    WarmupCookie(KVStore *s, Callback<GetValue>&c) :
-        store(s), cb(c), engine(s->getEngine()), loaded(0), skipped(0), error(0)
+    WarmupCookie(EventuallyPersistentStore *s, Callback<GetValue>&c) :
+        store(s->getROUnderlying()), cb(c), stats(&s->getEPEngine().getEpStats()),
+        loaded(0), skipped(0), error(0)
     { /* EMPTY */ }
     KVStore *store;
     Callback<GetValue> &cb;
-    EventuallyPersistentEngine *engine;
+    EPStats *stats;
     size_t loaded;
     size_t skipped;
     size_t error;
@@ -39,9 +40,9 @@ static void batchWarmupCallback(uint16_t vbId,
                                 void *arg)
 {
     WarmupCookie *c = static_cast<WarmupCookie *>(arg);
-    EventuallyPersistentEngine *engine = c->engine;
+    EPStats *stats = c->stats;
 
-    if (engine->stillWarmingUp()) {
+    if (!stats->warmupComplete.get()) {
         vb_bgfetch_queue_t items2fetch;
         std::vector<std::pair<std::string, uint64_t> >::iterator itm = fetches.begin();
         for (; itm != fetches.end(); itm++) {
@@ -81,8 +82,9 @@ static void warmupCallback(void *arg, uint16_t vb,
                            const std::string &key, uint64_t rowid)
 {
     WarmupCookie *cookie = static_cast<WarmupCookie*>(arg);
+    EPStats *stats = cookie->stats;
 
-    if (cookie->engine->stillWarmingUp()) {
+    if (!stats->warmupComplete.get()) {
         RememberingCallback<GetValue> cb;
         cookie->store->get(key, rowid, vb, cb);
         cb.waitForValue();
@@ -599,7 +601,7 @@ size_t Warmup::doWarmup(MutationLog &lf, const std::map<uint16_t,
         hrtime2text(end - st).c_str(), total);
 
     st = gethrtime();
-    WarmupCookie cookie(store->roUnderlying, cb);
+    WarmupCookie cookie(store, cb);
     if (store->multiBGFetchEnabled()) {
         harvester.apply(&cookie, &batchWarmupCallback);
     } else {

@@ -12,7 +12,6 @@
 #include <fstream>
 
 #include "common.hh"
-#include "ep_engine.h"
 #include "couch-kvstore/couch-kvstore.hh"
 #include "couch-kvstore/dirutils.hh"
 #include "tools/cJSON.h"
@@ -171,7 +170,7 @@ struct LoadResponseCtx {
     shared_ptr<Callback<GetValue> > callback;
     uint16_t vbucketId;
     bool keysonly;
-    EventuallyPersistentEngine *engine;
+    EPStats *stats;
 };
 
 CouchRequest::CouchRequest(const Item &it, uint64_t rev, CouchRequestCallback &cb, bool del) :
@@ -219,13 +218,9 @@ CouchRequest::CouchRequest(const Item &it, uint64_t rev, CouchRequestCallback &c
     start = gethrtime();
 }
 
-CouchKVStore::CouchKVStore(EventuallyPersistentEngine &theEngine,
-                           bool read_only) :
-    KVStore(read_only), engine(theEngine),
-    epStats(theEngine.getEpStats()),
-    configuration(theEngine.getConfiguration()),
-    dbname(configuration.getDbname()),
-    couchNotifier(NULL), pendingCommitCnt(0),
+CouchKVStore::CouchKVStore(EPStats &stats, Configuration &config, bool read_only) :
+    KVStore(read_only), epStats(stats), configuration(config),
+    dbname(configuration.getDbname()), couchNotifier(NULL), pendingCommitCnt(0),
     intransaction(false)
 {
     open();
@@ -233,8 +228,7 @@ CouchKVStore::CouchKVStore(EventuallyPersistentEngine &theEngine,
 }
 
 CouchKVStore::CouchKVStore(const CouchKVStore &copyFrom) :
-    KVStore(copyFrom), engine(copyFrom.engine),
-    epStats(copyFrom.epStats),
+    KVStore(copyFrom), epStats(copyFrom.epStats),
     configuration(copyFrom.configuration),
     dbname(copyFrom.dbname),
     couchNotifier(NULL),
@@ -760,7 +754,7 @@ bool CouchKVStore::setVBucketState(uint16_t vbucketId, vbucket_state &vbstate,
                             "Warning: failed to notify CouchDB of update, "
                             "vbid=%u rev=%llu error=0x%x\n",
                             vbucketId, fileRev, lcb.val);
-                        if (!engine.isShutdownMode()) {
+                        if (!epStats.shutdown.isShutdown) {
                             closeDatabaseHandle(db);
                             return false;
                         }
@@ -963,7 +957,7 @@ void CouchKVStore::loadDB(shared_ptr<Callback<GetValue> > cb, bool keysOnly,
             ctx.vbucketId = itr->first;
             ctx.keysonly = keysOnly;
             ctx.callback = cb;
-            ctx.engine = &engine;
+            ctx.stats = &epStats;
             errorCode = couchstore_changes_since(db, 0, options, recordDbDumpC,
                                                  static_cast<void *>(&ctx));
             if (errorCode != COUCHSTORE_SUCCESS) {
@@ -992,7 +986,7 @@ void CouchKVStore::open()
     intransaction = false;
     if (!isReadOnly()) {
         delete couchNotifier;
-        couchNotifier = new CouchNotifier(&engine, configuration);
+        couchNotifier = new CouchNotifier(epStats, configuration);
     }
 
     struct stat dbstat;
@@ -1319,11 +1313,9 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx)
 {
     LoadResponseCtx *loadCtx = (LoadResponseCtx *)ctx;
     shared_ptr<Callback<GetValue> > cb = loadCtx->callback;
-    EventuallyPersistentEngine *engine= loadCtx->engine;
 
-    // by setting volatile let the compiler know that the value
-    // can change any time by anyone
-    volatile bool warmup = !engine->getEpStats().warmupComplete.get();
+    EPStats *stats= loadCtx->stats;
+    volatile bool warmup = !stats->warmupComplete.get();
 
     Doc *doc = NULL;
     void *valuePtr = NULL;
@@ -1381,7 +1373,7 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx)
 
     int returnCode = COUCHSTORE_SUCCESS;
     if (warmup) {
-        if (engine->getEpStats().warmupComplete.get()) {
+        if (stats->warmupComplete.get()) {
             // warmup has completed, return COUCHSTORE_ERROR_CANCEL to
             // cancel remaining data dumps from couchstore
             LOG(EXTENSION_LOG_WARNING,

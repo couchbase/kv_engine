@@ -591,10 +591,6 @@ public:
         return !stats.warmupComplete.get();
     }
 
-    bool isShutdownMode() const {
-        return shutdown.isShutdown;
-    }
-
 protected:
     friend class EpEngineValueChangeListener;
 
@@ -667,8 +663,8 @@ private:
     void stopEngineThreads(void) {
         if (startedEngineThreads) {
             {
-                LockHolder lh(shutdown.mutex);
-                shutdown.isShutdown = true;
+                LockHolder lh(stats.shutdown.mutex);
+                stats.shutdown.isShutdown = true;
                 tapConnMap->notify();
             }
             pthread_join(notifyThreadId, NULL);
@@ -762,11 +758,6 @@ private:
     time_t databaseInitTime;
     pthread_t notifyThreadId;
     bool startedEngineThreads;
-    struct Shutdown {
-        Shutdown() : isShutdown(false) {}
-        bool isShutdown;
-        Mutex mutex;
-    } shutdown;
     GET_SERVER_API getServerApiFunc;
     union {
         engine_info info;

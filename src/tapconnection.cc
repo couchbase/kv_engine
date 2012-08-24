@@ -769,7 +769,7 @@ public:
     }
 
     bool callback(Dispatcher &, TaskId &) {
-        if (engine.isShutdownMode()) {
+        if (engine.getEpStats().shutdown.isShutdown) {
             return false;
         }
         connection.setSuspended(false);

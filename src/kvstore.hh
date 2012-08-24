@@ -7,6 +7,7 @@
 #include <utility>
 #include <cstring>
 
+#include "configuration.hh"
 #include "stats.hh"
 #include "vbucket.hh"
 
@@ -93,9 +94,7 @@ enum db_type {
  */
 class KVStore {
 public:
-    KVStore(bool read_only = false) :
-        engine(NULL), readOnly(read_only) { }
-
+    KVStore(bool read_only = false) : readOnly(read_only) { }
 
     virtual ~KVStore() {}
 
@@ -296,18 +295,11 @@ public:
      */
     virtual void destroyInvalidVBuckets(bool destroyOnlyOne = false) = 0;
 
-    void setEngine(EventuallyPersistentEngine *theEngine) {
-        engine = theEngine;
-    }
-
-    EventuallyPersistentEngine *getEngine(void) { return engine; }
-
     bool isReadOnly(void) {
         return readOnly;
     }
 
 protected:
-    EventuallyPersistentEngine *engine;
     bool readOnly;
 
 };
@@ -322,10 +314,11 @@ public:
     /**
      * Create a KVStore with the given type.
      *
-     * @param theEngine the engine instance
+     * @param stats the engine stats
+     * @param config the engine configuration
      * @param read_only true if the kvstore instance is for read operations only
      */
-    static KVStore *create(EventuallyPersistentEngine &theEngine,
+    static KVStore *create(EPStats &stats, Configuration &config,
                            bool read_only = false);
 };
 

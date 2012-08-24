@@ -1032,7 +1032,7 @@ void EventuallyPersistentStore::snapshotStats() {
     std::map<std::string, std::string>  smap;
     bool rv = engine.getStats(&smap, NULL, 0, add_stat) == ENGINE_SUCCESS &&
               engine.getStats(&smap, "tap", 3, add_stat) == ENGINE_SUCCESS;
-    if (rv && engine.isShutdownMode()) {
+    if (rv && stats.shutdown.isShutdown) {
         smap["ep_force_shutdown"] = stats.forceShutdown ? "true" : "false";
         std::stringstream ss;
         ss << ep_real_time();
@@ -2313,9 +2313,9 @@ void EventuallyPersistentStore::stopWarmup(void)
 {
     // forcefully stop current warmup task
     if (engine.stillWarmingUp()) {
-        LOG(EXTENSION_LOG_WARNING,
-            "Stopping warmup while engine is loading data from underlying "
-            "storage, shutdown = %s\n", engine.isShutdownMode() ? "yes" : "no");
+        LOG(EXTENSION_LOG_WARNING, "Stopping warmup while engine is loading "
+            "data from underlying storage, shutdown = %s\n",
+            stats.shutdown.isShutdown ? "yes" : "no");
         warmupTask->stop();
     }
 }

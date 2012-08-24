@@ -254,8 +254,7 @@ public:
      * @param theEngine EventuallyPersistentEngine instance
      * @param read_only flag indicating if this kvstore instance is for read-only operations
      */
-    CouchKVStore(EventuallyPersistentEngine &theEngine,
-                 bool read_only = false);
+    CouchKVStore(EPStats &stats, Configuration &config, bool read_only = false);
 
     /**
      * Copy constructor
@@ -544,7 +543,6 @@ private:
     void setDocsCommitted(uint16_t docs);
     void closeDatabaseHandle(Db *db);
 
-    EventuallyPersistentEngine &engine;
     EPStats &epStats;
     Configuration &configuration;
     const std::string dbname;
