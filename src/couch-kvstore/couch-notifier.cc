@@ -22,12 +22,10 @@ static ssize_t sendmsg(SOCKET s, const struct msghdr *msg, int flags);
  */
 class BinaryPacketHandler {
 public:
-    BinaryPacketHandler(uint32_t sno, EPStats *st) :
-        seqno(sno), stats(st), start(0)
+    BinaryPacketHandler(uint32_t sno) :
+        seqno(sno), start(0)
     {
-        if (stats) {
-            start = gethrtime();
-        }
+        start = gethrtime();
     }
 
     virtual ~BinaryPacketHandler() { /* EMPTY */ }
@@ -62,14 +60,13 @@ private:
     }
 
 protected:
-    EPStats *stats;
     hrtime_t start;
 };
 
 class DelVBucketResponseHandler: public BinaryPacketHandler {
 public:
-    DelVBucketResponseHandler(uint32_t sno, EPStats *st, Callback<bool> &cb) :
-        BinaryPacketHandler(sno, st), callback(cb) {
+    DelVBucketResponseHandler(uint32_t sno, Callback<bool> &cb) :
+        BinaryPacketHandler(sno), callback(cb) {
     }
 
     virtual void response(protocol_binary_response_header *res) {
@@ -94,8 +91,8 @@ private:
 
 class FlushResponseHandler: public BinaryPacketHandler {
 public:
-    FlushResponseHandler(uint32_t sno, EPStats *st, Callback<bool> &cb) :
-        BinaryPacketHandler(sno, st), callback(cb) {
+    FlushResponseHandler(uint32_t sno, Callback<bool> &cb) :
+        BinaryPacketHandler(sno), callback(cb) {
     }
 
     virtual void response(protocol_binary_response_header *res) {
@@ -120,8 +117,8 @@ private:
 
 class SelectBucketResponseHandler: public BinaryPacketHandler {
 public:
-    SelectBucketResponseHandler(uint32_t sno, EPStats *st) :
-        BinaryPacketHandler(sno, st) {
+    SelectBucketResponseHandler(uint32_t sno) :
+        BinaryPacketHandler(sno) {
     }
 
     virtual void response(protocol_binary_response_header *res) {
@@ -140,9 +137,8 @@ public:
 
 class NotifyVbucketUpdateResponseHandler: public BinaryPacketHandler {
 public:
-    NotifyVbucketUpdateResponseHandler(uint32_t sno,
-                                       EPStats *st, Callback<uint16_t> &cb) :
-        BinaryPacketHandler(sno, st), callback(cb) {
+    NotifyVbucketUpdateResponseHandler(uint32_t sno, Callback<uint16_t> &cb) :
+        BinaryPacketHandler(sno), callback(cb) {
     }
 
     virtual void response(protocol_binary_response_header *res) {
@@ -166,14 +162,10 @@ CouchNotifier::CouchNotifier(EventuallyPersistentEngine *e, Configuration &confi
     sock(INVALID_SOCKET), configuration(config), configurationError(true),
     shutdown(false), seqno(0),
     currentCommand(0xff), lastSentCommand(0xff), lastReceivedCommand(0xff),
-    engine(e), epStats(NULL), connected(false), inSelectBucket(false)
+    engine(e), connected(false), inSelectBucket(false)
 {
     memset(&sendMsg, 0, sizeof(sendMsg));
     sendMsg.msg_iov = sendIov;
-
-    if (engine != NULL) {
-        epStats = &engine->getEpStats();
-    }
 
     // Select the bucket (will be sent immediately when we connect)
     selectBucket();
@@ -680,7 +672,7 @@ void CouchNotifier::delVBucket(uint16_t vb, Callback<bool> &cb) {
         sendIov[0].iov_len = sizeof(req.bytes);
         numiovec = 1;
 
-        sendCommand(new DelVBucketResponseHandler(seqno++, epStats, cb));
+        sendCommand(new DelVBucketResponseHandler(seqno++, cb));
     } while (!waitOnce());
 }
 
@@ -699,7 +691,7 @@ void CouchNotifier::flush(Callback<bool> &cb) {
         sendIov[0].iov_len = sizeof(req.bytes);
         numiovec = 1;
 
-        sendCommand(new FlushResponseHandler(seqno++, epStats, cb));
+        sendCommand(new FlushResponseHandler(seqno++, cb));
     } while (!waitOnce());
 }
 
@@ -724,7 +716,7 @@ void CouchNotifier::selectBucket() {
         numiovec = 2;
 
         inSelectBucket = true;
-        sendCommand(new SelectBucketResponseHandler(seqno++, epStats));
+        sendCommand(new SelectBucketResponseHandler(seqno++));
     } while (!waitOnce());
 
     inSelectBucket = false;
@@ -759,7 +751,7 @@ void CouchNotifier::notify_update(uint16_t vbucket,
         sendIov[0].iov_len = sizeof(req.bytes);
         numiovec = 1;
 
-        sendCommand(new NotifyVbucketUpdateResponseHandler(seqno++, epStats, cb));
+        sendCommand(new NotifyVbucketUpdateResponseHandler(seqno++, cb));
     } while(!waitOnce());
 }
 

@@ -201,7 +201,6 @@ private:
     Mutex mutex;
     std::list<BinaryPacketHandler*> responseHandler;
     EventuallyPersistentEngine *engine;
-    EPStats *epStats;
     bool connected;
     bool inSelectBucket;
 
