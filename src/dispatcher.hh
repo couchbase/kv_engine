@@ -330,9 +330,8 @@ public:
      * Wake up the given task.
      *
      * @param task the task to wake up
-     * @param outtid a newly assigned task ID (may be NULL)
      */
-    void wake(TaskId task, TaskId *outtid);
+    void wake(TaskId task);
 
     /**
      * Start this dispatcher's thread.

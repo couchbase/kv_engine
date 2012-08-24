@@ -54,7 +54,7 @@ public:
         if (++stats.numRemainingBgJobs == 1) {
             LockHolder lh(taskMutex);
             assert(task.get());
-            dispatcher->wake(task, &task);
+            dispatcher->wake(task);
         }
     }
 

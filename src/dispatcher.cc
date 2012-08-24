@@ -241,20 +241,12 @@ void Dispatcher::schedule(shared_ptr<DispatcherCallback> callback,
     notify();
 }
 
-void Dispatcher::wake(TaskId task, TaskId *outtid) {
-    cancel(task);
+void Dispatcher::wake(TaskId task) {
     LockHolder lh(mutex);
-    TaskId newTask(new Task(*task));
-    newTask->snooze(0);
-    if (outtid) {
-        *outtid = newTask;
-    }
-
+    task->snooze(0);
     getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
                      "%s: Wake a task \"%s\"",
                      getName().c_str(), task->getName().c_str());
-
-    futureQueue.push(newTask);
     notify();
 }
 

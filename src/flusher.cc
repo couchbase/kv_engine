@@ -139,7 +139,7 @@ void Flusher::start(void) {
 void Flusher::wake(void) {
     LockHolder lh(taskMutex);
     assert(task.get());
-    dispatcher->wake(task, &task);
+    dispatcher->wake(task);
 }
 
 bool Flusher::step(Dispatcher &d, TaskId tid) {
