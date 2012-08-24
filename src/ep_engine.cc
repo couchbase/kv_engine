@@ -421,6 +421,8 @@ extern "C" {
                 e->getConfiguration().setAlogTaskTime(v);
             } else if (strcmp(keyz, "pager_active_vb_pcnt") == 0) {
                 e->getConfiguration().setPagerActiveVbPcnt(v);
+            } else if (strcmp(keyz, "pager_unbiased_period") == 0) {
+                e->getConfiguration().setPagerUnbiasedPeriod(v);
             } else {
                 *msg = "Unknown config param";
                 rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;

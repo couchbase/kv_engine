@@ -133,6 +133,7 @@ Available params for "set":
 
   Available params for set flush_param:
     alog_sleep_time           - Access scanner interval (minute)
+    alog_task_time            - Access scanner next task time (UTC)
     bg_fetch_delay            - Delay before executing a bg fetch (test
                                 feature).
     couch_response_timeout    - timeout in receiving a response from couchdb.
@@ -142,6 +143,10 @@ Available params for "set":
     klog_max_log_size         - maximum size of a mutation log file allowed.
     klog_max_entry_ratio      - max ratio of # of items logged to # of unique
                                 items.
+    pager_active_vb_pcnt      - Percentage of active vbuckets items among
+                                all ejected items by item pager.
+    pager_unbiased_period     - Period after last access scanner run during
+                                which item pager preserve working set.
     queue_age_cap             - Maximum queue age before flushing data.
     max_size                  - Max memory used by the server.
     max_txn_size              - Maximum number of items in a flusher

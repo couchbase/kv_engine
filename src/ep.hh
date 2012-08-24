@@ -898,7 +898,7 @@ private:
     } cachedResidentRatio;
     struct ItemPagerInfo {
         ItemPagerInfo() : biased(true) {}
-        bool biased;
+        Atomic<bool> biased;
     } pager;
     size_t itemExpiryWindow;
     size_t vbDelChunkSize;
