@@ -276,6 +276,8 @@ CouchRequest::CouchRequest(const Item &it, uint64_t rev, CouchRequestCallback &c
     }
     dbDocInfo.id = dbDoc.id;
     dbDocInfo.content_meta = isjson ? COUCH_DOC_IS_JSON : COUCH_DOC_NON_JSON_MODE;
+    //Compress everything. Snappy is fast.
+    dbDocInfo.content_meta |= COUCH_DOC_IS_COMPRESSED;
     start = gethrtime();
 }
 
@@ -1302,7 +1304,7 @@ couchstore_error_t CouchKVStore::fetchDoc(Db *db, DocInfo *docinfo,
         epStats.io_read_bytes += docinfo->id.size;
     } else {
         Doc *doc = NULL;
-        errCode = couchstore_open_doc_with_docinfo(db, docinfo, &doc, 0);
+        errCode = couchstore_open_doc_with_docinfo(db, docinfo, &doc, DECOMPRESS_DOC_BODIES);
         if (errCode == COUCHSTORE_SUCCESS) {
             if (docinfo->deleted) {
                 // cannot read a doc that is marked deleted, just return
@@ -1334,10 +1336,6 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx)
     EventuallyPersistentEngine *engine= loadCtx->engine;
     bool warmup = engine->stillWarmingUp();
 
-    // TODO enable below when couchstore is ready
-    // bool compressed = (docinfo->content_meta & 0x80);
-    // uint8_t metaflags = (docinfo->content_meta & ~0x80);
-
     Doc *doc = NULL;
     void *valuePtr = NULL;
     size_t valuelen = 0;
@@ -1360,7 +1358,7 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx)
 
     if (!loadCtx->keysonly && !docinfo->deleted) {
         couchstore_error_t errCode ;
-        errCode = couchstore_open_doc_with_docinfo(db, docinfo, &doc, 0);
+        errCode = couchstore_open_doc_with_docinfo(db, docinfo, &doc, DECOMPRESS_DOC_BODIES);
 
         if (errCode == COUCHSTORE_SUCCESS) {
             if (doc->data.size) {
@@ -1496,7 +1494,7 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, uint64_t rev, Doc **doc
 
             hrtime_t cs_begin = gethrtime();
             errCode = couchstore_save_documents(db, docs, docinfos, docCount,
-                                                0 /* no options */);
+                                                COMPRESS_DOC_BODIES);
             st.saveDocsHisto.add((gethrtime() - cs_begin) / 1000);
             if (errCode != COUCHSTORE_SUCCESS) {
                 getLogger()->log(EXTENSION_LOG_WARNING, NULL,
