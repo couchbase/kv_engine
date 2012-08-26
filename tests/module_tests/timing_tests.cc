@@ -74,11 +74,7 @@ bool abort_msg(const char *expr, const char *msg, int line) {
 
 extern "C" {
     static void rmdb(void) {
-        unlink("/tmp/test.db");
-        unlink("/tmp/test.db-0.sqlite");
-        unlink("/tmp/test.db-1.sqlite");
-        unlink("/tmp/test.db-2.sqlite");
-        unlink("/tmp/test.db-3.sqlite");
+        unlink("/tmp/test");
     }
 
     static bool teardown(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {

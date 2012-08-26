@@ -2245,14 +2245,6 @@ void EventuallyPersistentStore::warmupCompleted() {
     // "0" sleep_time means that the first snapshot task will be executed right after
     // warmup. Subsequent snapshot tasks will be scheduled every 60 sec by default.
     dispatcher->schedule(sscb, NULL, Priority::StatSnapPriority, 0);
-
-    if (engine.getConfiguration().getBackend().compare("sqlite") == 0 &&
-        storageProperties.hasEfficientVBDeletion()) {
-        shared_ptr<DispatcherCallback> invalidVBTableRemover(new InvalidVBTableRemover(&engine));
-        dispatcher->schedule(invalidVBTableRemover, NULL,
-                             Priority::VBucketDeletionPriority,
-                             INVALID_VBTABLE_DEL_FREQ);
-    }
 }
 
 static void warmupLogCallback(void *arg, uint16_t vb,

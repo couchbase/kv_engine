@@ -40,15 +40,13 @@
             }
         },
         "backend": {
-            "default": "sqlite",
+            "default": "couchdb",
             "dynamic": false,
             "type": "std::string",
             "validator": {
                 "enum": [
                     "blackhole",
-                    "couchdb",
-                    "sqlite",
-                    "mccouch"
+                    "couchdb"
                 ]
             }
         },
@@ -116,14 +114,6 @@
             "default": "true",
             "descr": "True if we want to enable data traffic after warmup is complete",
             "type": "bool"
-        },
-        "db_shards": {
-            "default": "4",
-            "type": "size_t"
-        },
-        "db_strategy": {
-            "default": "multiMTVBDB",
-            "type": "std::string"
         },
         "dbname": {
             "default": "/tmp/test",
@@ -326,10 +316,6 @@
                     "min": 0
                 }
             }
-        },
-        "shardpattern": {
-            "default": "%d/%b-%i.sqlite",
-            "type": "std::string"
         },
         "stored_val_type": {
             "default": "",

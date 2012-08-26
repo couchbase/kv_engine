@@ -50,9 +50,6 @@
 /m4/lt~obsolete.m4
 /m4/version.m4
 /mc-kvstore-test
-/management/*bdbconvert
-/management/sqlite3
-/mbbackup-????.mbb
 /sizes
 /src/config.h
 /src/config.h.in
@@ -61,17 +58,8 @@
 /src/stats-info.[ch]
 /src/testlogger_libify.cc
 /tests/module_tests/*_test
-/wrapper/*badm-online-restore
-/wrapper/*badm-online-update
 /wrapper/*badm-tap-registration
-/wrapper/*bbackup
-/wrapper/*bbackup-incremental
-/wrapper/*bbackup-merge-incremental
-/wrapper/*bdbconvert
-/wrapper/*bdbmaint
-/wrapper/*bdbupgrade
 /wrapper/*bepctl
-/wrapper/*brestore
 /wrapper/*bstats
 /wrapper/*bvbucketctl
 /wrapper/wrapper

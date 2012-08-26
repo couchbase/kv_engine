@@ -28,14 +28,8 @@ memcached like this:
 |------------------------+--------+--------------------------------------------|
 | config_file            | string | Path to additional parameters.             |
 | dbname                 | string | Path to on-disk storage.                   |
-| shardpattern           | string | File pattern for shards (see below)        |
 | ht_locks               | int    | Number of locks per hash table.            |
 | ht_size                | int    | Number of buckets per hash table.          |
-| initfile               | string | Optional SQL script to run after           |
-|                        |        | opening DB                                 |
-| postInitfile           | string | Optional SQL script to run after           |
-|                        |        | all DB shards and statements have          |
-|                        |        | been initialized                           |
 | max_item_size          | int    | Maximum number of bytes allowed for        |
 |                        |        | an item.                                   |
 | max_size               | int    | Max cumulative item size in bytes.         |
@@ -72,9 +66,6 @@ memcached like this:
 | failpartialwarmup      | bool   | If false, continue running after failing   |
 |                        |        | to load some records.                      |
 | max_vbuckets           | int    | Maximum number of vbuckets expected (1024) |
-| db_shards              | int    | Number of shards for db store              |
-| db_strategy            | string | DB store strategy ("multiDB", "singleDB"   |
-|                        |        | or "singleMTDB")                           |
 | concurrentDB           | bool   | True (default) if concurrent DB reads are  |
 |                        |        | permitted where possible.                  |
 | chk_remover_stime      | int    | Interval for the checkpoint remover that   |
@@ -123,18 +114,3 @@ memcached like this:
 |                        }        | scanner will be scheduled to run.          |
 | pager_active_vb_pcnt   | int    | Percentage of active vbucket items among   |
 |                        |        | all evicted items by item pager.           |
-
-** Shard Patterns
-
-When using a multi-sharded database, =shardpattern= specifies how
-shards are named relative to the main database.
-
-=shardpattern= uses a printf-style string to expand the path with the
-given variables:
-
-- =%d= : The directory name containing the main database
-  (This will be =.= for relative paths).
-- =%b= : The base name of the main database.
-- =%i= : The shard number.
-
-The default value of =shardpattern= is =%d/%b-%i.sqlite=

@@ -84,7 +84,7 @@ extern "C" {
 
 #define WHITESPACE_DB "whitespace sucks.db"
 #define MULTI_DISPATCHER_CONFIG \
-    "initfile=t/wal.sql;ht_size=129;ht_locks=3;chk_remover_stime=1;chk_period=60;db_strategy=multiMTVBDB"
+    "ht_size=129;ht_locks=3;chk_remover_stime=1;chk_period=60"
 
 extern protocol_binary_response_status last_status;
 extern char *last_key;
@@ -5894,9 +5894,9 @@ public:
             ret->tfun = skipped_test_function;
         } else {
             nm.append(" (couchstore)");
-            ss << "backend=couchdb;couch_response_timeout=3000";
         }
 
+        ss << "backend=couchdb;couch_response_timeout=3000";
         ret->name = strdup(nm.c_str());
         std::string config = ss.str();
         if (config.length() == 0) {
@@ -6006,24 +6006,14 @@ engine_test_t* get_tests(void) {
                  "flushall_enabled=true;chk_remover_stime=1;chk_period=60",
                  prepare, cleanup),
         TestCase("flush multi vbuckets", test_flush_multiv,
-                 test_setup, teardown, NULL, prepare, cleanup),
-        TestCase("flush multi vbuckets single mt", test_flush_multiv,
                  test_setup, teardown,
-                 "flushall_enabled=true;db_strategy=singleMTDB;max_vbuckets=16;"
-                 "ht_size=7;ht_locks=3", prepare, cleanup),
-        TestCase("flush multi vbuckets multi mt", test_flush_multiv,
-                 test_setup, teardown,
-                 "flushall_enabled=true;db_strategy=multiMTDB;max_vbuckets=16;"
-                 "ht_size=7;ht_locks=3", prepare, cleanup),
-        TestCase("flush multi vbuckets multi mt vb", test_flush_multiv,
-                 test_setup, teardown,
-                 "flushall_enabled=true;db_strategy=multiMTVBDB;max_vbuckets=16;"
-                 "ht_size=7;ht_locks=3", prepare, cleanup),
+                 "flushall_enabled=true;max_vbuckets=16;ht_size=7;ht_locks=3",
+                 prepare, cleanup),
         TestCase("flush_disabled", test_flush_disabled, test_setup, teardown,
-                 "flushall_enabled=false;db_strategy=multiMTVBDB;max_vbuckets=16;"
-                 "ht_size=7;ht_locks=3", prepare, cleanup),
+                 "flushall_enabled=false;max_vbuckets=16;ht_size=7;ht_locks=3",
+                 prepare, cleanup),
         TestCase("flushall params", test_CBD_152, test_setup, teardown,
-                 "flushall_enabled=true;db_strategy=multiMTVBDB;max_vbuckets=16;"
+                 "flushall_enabled=true;max_vbuckets=16;"
                  "ht_size=7;ht_locks=3", prepare, cleanup),
         TestCase("expiry", test_expiry, test_setup, teardown,
                  NULL, prepare, cleanup),
@@ -6279,11 +6269,11 @@ engine_test_t* get_tests(void) {
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test async vbucket destroy (multitable)", test_async_vbucket_destroy,
                  test_setup, teardown,
-                 "db_strategy=multiMTVBDB;max_vbuckets=16;ht_size=7;ht_locks=3",
+                 "max_vbuckets=16;ht_size=7;ht_locks=3",
                  prepare, cleanup),
         TestCase("test sync vbucket destroy (multitable)", test_sync_vbucket_destroy,
                  test_setup, teardown,
-                 "db_strategy=multiMTVBDB;max_vbuckets=16;ht_size=7;ht_locks=3",
+                 "max_vbuckets=16;ht_size=7;ht_locks=3",
                  prepare, cleanup),
         TestCase("test vbucket destroy stats", test_vbucket_destroy_stats,
                  test_setup, teardown,

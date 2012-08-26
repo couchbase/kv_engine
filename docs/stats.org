@@ -128,8 +128,6 @@ For introductory information on stats within membase, start with the
 | ep_tap_keepalive               | Tap keepalive time.                        |
 | ep_dbname                      | DB path.                                   |
 | ep_dbinit                      | Number of seconds to initialize DB.        |
-| ep_dbshards                    | Number of shards for db store              |
-| ep_db_strategy                 | SQLite db strategy                         |
 | ep_io_num_read                 | Number of io read operations               |
 | ep_io_num_write                | Number of io write operations              |
 | ep_io_read_bytes               | Number of bytes read (key + values)        |
@@ -626,15 +624,6 @@ The following stats are available for all database engine:
 | writeTime         | Time spent in write operations                     |
 | writeSize         | Size of data in write operations                   |
 | delete            | Time spent  in delete() calls                      |
-
-The following stats are available for the Sqlite database engine:
-
-| sector_size       | Disk sector size (bytes)                           |
-| lock              | Number of database lock operations                 |
-| truncate          | Number of truncate operations                      |
-| sync              | Time spent in sync() calls                         |
-| readSeek          | Seek distance in read operations                   |
-| writeSeek         | Seek distance in write operations                  |
 
 The following stats are available for the CouchStore database engine:
 

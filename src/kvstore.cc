@@ -8,7 +8,6 @@
 #include "ep_engine.h"
 #include "stats.hh"
 #include "kvstore.hh"
-#include "sqlite-kvstore.hh"
 #include "blackhole-kvstore/blackhole.hh"
 #include "warmup.hh"
 #ifdef HAVE_LIBCOUCHSTORE
@@ -23,9 +22,7 @@ KVStore *KVStoreFactory::create(EventuallyPersistentEngine &theEngine,
 
     KVStore *ret = NULL;
     std::string backend = c.getBackend();
-    if (backend.compare("sqlite") == 0) {
-        ret = SqliteKVStoreFactory::create(theEngine, read_only);
-    } else if (backend.compare("couchdb") == 0) {
+    if (backend.compare("couchdb") == 0) {
         ret = new CouchKVStore(theEngine, read_only);
     } else if (backend.compare("blackhole") == 0) {
         ret = new BlackholeKVStore(read_only);

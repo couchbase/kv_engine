@@ -3,8 +3,6 @@ AM_CPPFLAGS += -I$(top_srcdir)/src -I${top_srcdir}/include
 
 bin_SCRIPTS = management/cbanalyze-core \
               wrapper/cbadm-tap-registration \
-              wrapper/cbdbmaint \
-              wrapper/cbdbupgrade \
               wrapper/cbepctl \
               wrapper/cbstats \
               wrapper/cbvbucketctl
@@ -19,7 +17,6 @@ noinst_LTLIBRARIES = \
                      libconfiguration.la \
                      libkvstore.la \
                      libobjectregistry.la \
-                     libsqlite-kvstore.la \
                      libcouch-kvstore.la \
                      libdirutils.la
 
@@ -29,7 +26,6 @@ fixup_stats_json:
 
 dist_doc_DATA = docs/stats.json
 
-bin_PROGRAMS = management/cbdbconvert
 BUILT_SOURCES = src/generated_configuration.cc \
                 src/generated_configuration.hh \
                 src/stats-info.c src/stats-info.h
@@ -102,27 +98,7 @@ libkvstore_la_SOURCES = src/crc32.c src/crc32.h src/kvstore.cc src/kvstore.hh \
                         src/mutation_log.cc src/mutation_log.hh               \
                         src/mutation_log_compactor.cc                         \
                         src/mutation_log_compactor.hh
-libkvstore_la_CPPFLAGS = -I$(top_srcdir)/src/sqlite-kvstore $(AM_CPPFLAGS)
-
-libsqlite_kvstore_la_SOURCES = src/kvstore.hh \
-                               src/sqlite-kvstore/factory.cc \
-                               src/sqlite-kvstore/pathexpand.hh \
-                               src/sqlite-kvstore/pathexpand.cc \
-                               src/sqlite-kvstore/sqlite-eval.cc \
-                               src/sqlite-kvstore/sqlite-eval.hh \
-                               src/sqlite-kvstore/sqlite-kvstore.cc \
-                               src/sqlite-kvstore/sqlite-kvstore.hh \
-                               src/sqlite-kvstore/sqlite-stats.hh \
-                               src/sqlite-kvstore/sqlite-pst.cc \
-                               src/sqlite-kvstore/sqlite-pst.hh \
-                               src/sqlite-kvstore/sqlite-strategies.cc \
-                               src/sqlite-kvstore/sqlite-strategies.hh \
-                               src/sqlite-kvstore/sqlite-vfs.c \
-                               src/sqlite-kvstore/sqlite-vfs.h
-libsqlite_kvstore_la_CPPFLAGS = -I$(top_srcdir)/src/sqlite-kvstore \
-                                $(AM_CPPFLAGS)
-libsqlite_kvstore_la_LIBADD =
-libsqlite_kvstore_la_DEPENDENCIES =
+libkvstore_la_CPPFLAGS = $(AM_CPPFLAGS)
 
 libblackhole_kvstore_la_CPPFLAGS = -I$(top_srcdir)/src/blackhole-kvstore \
                                    $(AM_CPPFLAGS)
@@ -171,45 +147,15 @@ libconfiguration_la_SOURCES = src/generated_configuration.hh \
                               src/configuration.hh \
                               src/configuration.cc
 
-ep_la_LIBADD = libkvstore.la libsqlite-kvstore.la \
+ep_la_LIBADD = libkvstore.la \
                libblackhole-kvstore.la libcouch-kvstore.la \
                libobjectregistry.la libconfiguration.la $(LTLIBEVENT)
-ep_la_DEPENDENCIES = libkvstore.la libsqlite-kvstore.la	\
+ep_la_DEPENDENCIES = libkvstore.la \
                libblackhole-kvstore.la	\
                libobjectregistry.la libconfiguration.la \
                libcouch-kvstore.la
 ep_testsuite_la_LIBADD =libobjectregistry.la $(LTLIBEVENT)
 ep_testsuite_la_DEPENDENCIES = libobjectregistry.la
-
-management_cbdbconvert_SOURCES = src/atomic.cc src/mutex.cc                    \
-                                 management/dbconvert.cc src/testlogger.cc     \
-                                 src/item.cc src/stored-value.cc src/ep_time.c \
-                                 src/checkpoint.cc src/vbucketmap.cc
-management_cbdbconvert_LDADD = libkvstore.la libsqlite-kvstore.la       \
-                               libblackhole-kvstore.la                  \
-                               libobjectregistry.la                     \
-                               libconfiguration.la libkvstore.la        \
-                               libblackhole-kvstore.la                  \
-                               libcouch-kvstore.la                      \
-                               $(LTLIBEVENT)
-management_cbdbconvert_DEPENDENCIES = libkvstore.la libsqlite-kvstore.la       \
-                                      libcouch-kvstore.la libobjectregistry.la \
-                                      libconfiguration.la
-
-if BUILD_EMBEDDED_LIBSQLITE3
-ep_la_LIBADD += libsqlite3.la
-ep_la_DEPENDENCIES += libsqlite3.la
-management_cbdbconvert_LDADD += libsqlite3.la
-management_cbdbconvert_DEPENDENCIES += libsqlite3.la
-noinst_LTLIBRARIES += libsqlite3.la
-bin_PROGRAMS += management/sqlite3
-else
-ep_la_LIBADD += $(LIBSQLITE3)
-management_cbdbconvert_LDADD += $(LIBSQLITE3)
-endif
-
-libsqlite3_la_SOURCES = src/embedded/sqlite3.h src/embedded/sqlite3.c
-libsqlite3_la_CFLAGS = $(AM_CFLAGS) ${NO_WERROR} -DSQLITE_THREADSAFE=2
 
 check_PROGRAMS=\
                atomic_ptr_test \
@@ -223,7 +169,6 @@ check_PROGRAMS=\
                misc_test \
                mutation_log_test \
                mutex_test \
-               pathexpand_test \
                priority_test \
                ringbuffer_test \
                vbucket_test
@@ -345,11 +290,6 @@ gen_config_LDFLAGS = -lm
 gen_code_CPPFLAGS = -I$(top_srcdir)/tools $(AM_CPPFLAGS)
 gen_code_SOURCES = tools/gencode.cc tools/cJSON.c tools/cJSON.h
 
-management_sqlite3_SOURCES = src/embedded/sqlite3-shell.c
-management_sqlite3_CFLAGS = $(AM_CFLAGS) ${NO_WERROR}
-management_sqlite3_DEPENDENCIES = libsqlite3.la
-management_sqlite3_LDADD = libsqlite3.la
-
 vbucket_test_CXXFLAGS = $(AM_CPPFLAGS) $(AM_CXXFLAGS) ${NO_WERROR}
 vbucket_test_SOURCES = tests/module_tests/vbucket_test.cc              \
                tests/module_tests/threadtests.hh src/vbucket.hh	       \
@@ -405,12 +345,6 @@ chunk_creation_test_CXXFLAGS = $(AM_CPPFLAGS) $(AM_CXXFLAGS) ${NO_WERROR}
 chunk_creation_test_SOURCES = tests/module_tests/chunk_creation_test.cc \
                               src/common.hh
 
-pathexpand_test_CPPFLAGS = -I$(top_srcdir)/src/sqlite-kvstore \
-                           $(AM_CPPFLAGS) ${NO_WERROR}
-pathexpand_test_SOURCES = tests/module_tests/pathexpand_test.cc \
-                          src/sqlite-kvstore/pathexpand.hh      \
-                          src/sqlite-kvstore/pathexpand.cc
-
 ringbuffer_test_CXXFLAGS = $(AM_CPPFLAGS) $(AM_CXXFLAGS) ${NO_WERROR}
 ringbuffer_test_SOURCES = tests/module_tests/ringbuffer_test.cc src/ringbuffer.hh
 ringbuffer_test_DEPENDENCIES = src/ringbuffer.hh
@@ -421,7 +355,6 @@ hrtime_test_SOURCES += src/gethrtime.c
 dispatcher_test_SOURCES += src/gethrtime.c
 vbucket_test_SOURCES += src/gethrtime.c
 checkpoint_test_SOURCES += src/gethrtime.c
-management_cbdbconvert_SOURCES += src/gethrtime.c
 ep_testsuite_la_SOURCES += src/gethrtime.c
 hash_table_test_SOURCES += src/gethrtime.c
 mutation_log_test_SOURCES += src/gethrtime.c
@@ -430,12 +363,10 @@ endif
 if BUILD_BYTEORDER
 ep_la_SOURCES += src/byteorder.c
 ep_testsuite_la_SOURCES += src/byteorder.c
-management_cbdbconvert_SOURCES += src/byteorder.c
 endif
 
 pythonlibdir=$(libdir)/python
 pythonlib_DATA= \
-                management/capture.py \
                 management/clitool.py \
                 management/mc_bin_client.py \
                 management/mc_bin_server.py \
@@ -445,16 +376,12 @@ pythonlib_DATA= \
 
 pythonlib_SCRIPTS= \
                 management/cbadm-tap-registration \
-                management/cbdbmaint \
-                management/cbdbupgrade \
                 management/cbepctl \
                 management/cbstats \
                 management/cbvbucketctl
 
 PYTHON_TOOLS= \
               wrapper/cbadm-tap-registration \
-              wrapper/cbdbmaint \
-              wrapper/cbdbupgrade \
               wrapper/cbepctl \
               wrapper/cbstats \
               wrapper/cbvbucketctl
@@ -498,8 +425,6 @@ ep_la_LIBADD += ep_la-probes.lo
 ep_la_DEPENDENCIES +=  ep_la-probes.lo
 ep_testsuite_la_LIBADD += ep_testsuite_la-probes.lo
 ep_testsuite_la_DEPENDENCIES += ep_testsuite_la-probes.lo
-management_cbdbconvert_LDADD += .libs/cddbconvert-probes.o
-management_cbdbconvert_DEPENDENCIES += .libs/cddbconvert-probes.o
 atomic_ptr_test_LDADD = .libs/atomic_ptr_test-probes.o
 atomic_ptr_test_DEPENDENCIES += .libs/atomic_ptr_test-probes.o
 atomic_test_LDADD = .libs/atomic_test-probes.o
@@ -549,12 +474,6 @@ ep_testsuite_la-probes.lo: $(ep_testsuite_la_OBJECTS) dtrace/probes.h
                   $(EP_TESTSUITE_OBJS)
 	sed -e s,ep_la-item,ep_testsuite_la-probes,g ep_la-item.lo \
                > ep_testsuite_la-probes.lo
-
-.libs/cddbconvert-probes.o: $(management_cbdbconvert_OBJECTS) dtrace/probes.h
-	$(DTRACE) $(DTRACEFLAGS) -G \
-                  -o .libs/cddbconvert-probes.o \
-                  -s ${srcdir}/dtrace/probes.d \
-                  $(management_cbdbconvert_OBJECTS)
 
 .libs/atomic_ptr_test-probes.o: $(atomic_ptr_test_OBJECTS) dtrace/probes.h
 	$(DTRACE) $(DTRACEFLAGS) -G \
