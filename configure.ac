@@ -57,13 +57,14 @@ AC_DEFUN([DETECT_SUNCC],
 
 ])
 
+CPPFLAGS="$CPPFLAGS -D_POSIX_PTHREAD_SEMANTICS"
 AS_IF(test "x$GCC" = "xyes",
       DETECT_ICC([CPPFLAGS="-pthread $CPPFLAGS"],
           [CPPFLAGS="-fvisibility=hidden -pthread $CPPFLAGS"
            LDFLAGS="-pthread $LDFLAGS"
           ]),
       ICC=no
-      DETECT_SUNCC([CPPFLAGS="-xldscope=hidden -mt -D_POSIX_PTHREAD_SEMANTICS $CPPFLAGS"
+      DETECT_SUNCC([CPPFLAGS="-xldscope=hidden -mt $CPPFLAGS"
                     CXXFLAGS="-xlang=c99 $CXXFLAGS"
                     CFLAGS="-xc99=all $CFLAGS"], []))
 
