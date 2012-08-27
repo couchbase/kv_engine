@@ -18,17 +18,181 @@ m4_include([m4/version.m4])
 AC_INIT(ep-engine, VERSION_NUMBER, support@couchbase.com)
 AC_CONFIG_SRCDIR([README.markdown])
 AC_CONFIG_AUX_DIR(config)
+
+# Preserve what the user specified as CFLAGS/CXXFLAGS/CPPFLAGS/LDFLAGS
+SAVE_CFLAGS="$CFLAGS"
+SAVE_CXXFLAGS="$CXXFLAGS"
+SAVE_CPPFLAGS="$CPPFLAGS"
+SAVE_LDFLAGS="$LDFLAGS"
+
+# The stupid automake system thinks it is a good idea to inject
+# -g -O2 to C(XX)FLAGS if it isn't set..
+# Why I don't like this? Well -g is in conflict with -g3 that I'm
+# adding for Sun Studio
+AS_IF([test "x$CFLAGS" = "x" ],
+      [CFLAGS="-I."])
+AS_IF([test "x$CXXFLAGS" = "x" ],
+      [CXXFLAGS="-I."])
+AS_IF([test "x$CPPFLAGS" = "x" ],
+      [CPPFLAGS="-I."])
+
+AC_USE_SYSTEM_EXTENSIONS
+AM_INIT_AUTOMAKE(subdir-objects foreign)
+AC_PROG_CXX
+AC_PROG_CC
+AM_PROG_CC_C_O
+AC_PROG_LN_S
+AC_DISABLE_STATIC
+AC_PROG_LIBTOOL
 AM_CONFIG_HEADER([src/config.h])
 AC_CONFIG_MACRO_DIR([m4])
-AC_DISABLE_STATIC
-m4_ifdef([AM_PROG_AR], [AM_PROG_AR])
 
-PANDORA_CANONICAL_TARGET(less-warnings, warnings-always-on, require-cxx,
-                         force-gcc42)
-PANDORA_SHARED_PTR
-PANDORA_REQUIRE_PTHREAD
-PANDORA_REQUIRE_LIBEVENT
-PANDORA_HAVE_LIBCOUCHSTORE
+# Restore CFLAGS/CXXFLAGS now that I've prevented automake
+# to inject the extra options ;)
+AS_IF([test "x$CFLAGS" = "x-I." ],
+      [CFLAGS=""])
+AS_IF([test "x$CXXFLAGS" = "x-I." ],
+      [CXXFLAGS=""])
+AS_IF([test "x$CPPFLAGS" = "x-I." ],
+      [CPPFLAGS=""])
+
+# the malloc tests seems to be broken for cross compilation.. ignore them
+ac_cv_func_malloc_0_nonnull=yes
+ac_cv_func_realloc_0_nonnull=yes
+
+COUCHBASE_GENERIC_COMPILER(c99 c++ pthread)
+
+AS_IF([test "$ac_cv_enable_gcov" = "yes"],
+      [ LIBS="$LIBS -lgcov" ])
+
+AC_CHECK_HEADERS_ONCE([arpa/inet.h netdb.h mach/mach_time.h poll.h
+                       atomic.h sysexits.h unistd.h sys/socket.h
+                       netinet/in.h netinet/tcp.h ws2tcpip.h
+                       winsock2.h])
+
+AC_LANG_PUSH(C++)
+AC_CHECK_HEADERS([memory tr1/memory boost/shared_ptr.hpp])
+AC_CACHE_CHECK([the namespace of shared_ptr],
+  [ac_cv_shared_namespace],[
+     for namespace in std tr1 std::tr1 boost
+     do
+       AC_COMPILE_IFELSE(
+          [AC_LANG_PROGRAM([[
+#if defined(HAVE_MEMORY)
+# include <memory>
+#endif
+#if defined(HAVE_TR1_MEMORY)
+# include <tr1/memory>
+#endif
+#if defined(HAVE_BOOST_SHARED_PTR_HPP)
+# include <boost/shared_ptr.hpp>
+#endif
+#include <string>
+
+using $namespace::shared_ptr;
+using namespace std;
+            ]],[[
+shared_ptr<string> test_ptr(new string("test string"));
+            ]])],
+            [
+              ac_cv_shared_ptr_namespace="${namespace}"
+              break
+            ],[ac_cv_shared_ptr_namespace=missing])
+       done
+  ])
+AS_IF([test "x$ac_cv_shared_ptr_namespace" = "missing" ],
+      AC_MSG_ERROR([Can't build ep-engine without a known shared_ptr]))
+
+AC_DEFINE_UNQUOTED([SHARED_PTR_NAMESPACE],
+                   ${ac_cv_shared_ptr_namespace},
+                   [The namespace in which SHARED_PTR can be found])
+
+AC_CHECK_HEADERS([tr1/unordered_map boost/unordered_map.hpp])
+AC_CACHE_CHECK([the location of unordered_map header file],
+    [ac_cv_unordered_namespace],[
+      for namespace in std tr1 std::tr1 boost
+      do
+        AC_COMPILE_IFELSE(
+          [AC_LANG_PROGRAM([[
+#if defined(HAVE_TR1_UNORDERED_MAP)
+# include <tr1/unordered_map>
+#endif
+#if defined(HAVE_BOOST_UNORDERED_MAP_HPP)
+# include <boost/unordered_map.hpp>
+#endif
+#include <string>
+
+using $namespace::unordered_map;
+using namespace std;
+            ]],[[
+unordered_map<string, string> test_map;
+            ]])],
+            [
+              ac_cv_unordered_map_namespace="${namespace}"
+              break
+            ],[ac_cv_unordered_map_namespace=missing])
+       done
+  ])
+
+AC_DEFINE_UNQUOTED([UNORDERED_MAP_NAMESPACE],
+                   ${ac_cv_unordered_map_namespace},
+                   [The namespace in which UNORDERED_MAP can be found])
+
+AS_IF([test "x$ac_cv_unordered_map_namespace" = "missing" ],
+      AC_MSG_ERROR([Can't build ep-engine without a known unordered_map]))
+
+AC_LANG_POP()
+
+
+saved_LIBS="$LIBS"
+LIBS="$LIBS -lcouchstore"
+AC_CACHE_CHECK([for libcouchstore],[ac_cv_have_libcouchstore],[
+   AC_TRY_LINK([
+      #include <sys/types.h>
+      #include <stdlib.h>
+      #include <libcouchstore/couch_db.h>
+       ],[
+          couchstore_close_db(NULL);
+       ], [
+          ac_cv_have_libcouchstore=yes
+       ], [
+          ac_cv_have_libcouchstore=no
+       ])
+   ])
+LIBS="$saved_LIBS"
+
+AS_IF([test "x$ac_cv_have_libcouchstore" = "xyes"],
+      [ AC_DEFINE([HAVE_LIBCOUCHSTORE], [1], [Have libcouchstore])
+        LTLIBCOUCHSTORE=-lcouchstore
+      ], [
+        AC_MSG_ERROR([Can't build ep-engine without libcouchstore])
+      ])
+
+AC_SUBST(LTLIBCOUCHSTORE)
+AM_CONDITIONAL(HAVE_LIBCOUCHSTORE, [test "x$ac_cv_have_libcouchstore" = "xyes"])
+
+AC_CACHE_CHECK([for libevent >= 1.4], [ac_cv_have_libevent],
+  [ saved_libs="$LIBS"
+    LIBS="$LIBS -levent"
+    AC_TRY_LINK([
+      #include <sys/types.h>
+      #include <event.h>
+            ],[
+      event_base_new();
+            ],[
+      ac_cv_have_libevent="yes"
+            ], [
+      ac_cv_have_libevent="no"
+      ])
+    LIBS="$saved_libs"
+  ])
+LIBS="$saved_LIBS"
+AS_IF([test "x$ac_cv_have_libevent" = "xyes"],
+      [ AC_DEFINE([HAVE_LIBEVENT], [1], [Have libevent])
+        LTLIBEVENT=-levent
+      ])
+AC_SUBST(LTLIBEVENT)
+
 PANDORA_ENABLE_DTRACE
 
 AC_ARG_ENABLE([valgrind],
@@ -69,20 +233,6 @@ AC_DEFUN([AC_C_HTONLL],
 ])
 
 AC_C_HTONLL
-
-AC_CHECK_HEADERS([arpa/inet.h])
-AC_CHECK_HEADERS([netdb.h])
-AC_CHECK_HEADERS([mach/mach_time.h])
-AC_CHECK_HEADERS([poll.h])
-AC_CHECK_HEADERS([atomic.h])
-AC_CHECK_HEADERS([sysexits.h])
-AC_CHECK_HEADERS([unistd.h])
-
-AC_CHECK_HEADERS_ONCE([sys/socket.h
-                       netinet/in.h
-                       netinet/tcp.h
-                       ws2tcpip.h
-                       winsock2.h])
 
 AC_CHECK_FUNCS(gethrtime)
 AC_SEARCH_LIBS(clock_gettime, rt)
@@ -149,6 +299,7 @@ AC_ARG_WITH([memcached],
 
 AS_IF(test "x${ac_cv_with_memcached}" != "x",
       [CPPFLAGS="-I${ac_cv_with_memcached}/include $CPPFLAGS"
+       AM_CPPFLAGS="$AM_CPPFLAGS $CPPFLAGS"
        PATH="${ac_cv_with_memcached}:$PATH"])
 
 AC_CHECK_HEADERS(memcached/engine.h)
@@ -166,13 +317,6 @@ AS_IF(test "x${ENGINE_TESTAPP}" = "xno",
       AC_MSG_ERROR([Can't build ep-engine without engine_testapp]))
 
 AM_CONDITIONAL(BUILD_BYTEORDER, test "x$ac_cv_have_htonll" != "xyes")
-
-AS_IF([test "x$SUNCC" = "xyes"],
-      [
-        CFLAGS="-D_XOPEN_SOURCE=600 $CFLAGS"
-        CPPFLAGS="-xldscope=hidden -mt $CPPFLAGS"
-        CXXFLAGS="-erroff=truncwarn1,signextwarn,notused,inllargeuse,wunreachable $CXXFLAGS"
-      ])
 
 AC_SEARCH_LIBS(socket, socket)
 AC_SEARCH_LIBS(gethostbyname, nsl)
@@ -210,23 +354,16 @@ return 0;
 
 AM_CONDITIONAL(HAVE_GOOGLETEST, [test "$ac_cv_have_gtest" = "yes"])
 
+dnl restore CFLAGS, CPPFLAGS, CXXFLAGS and LDFLAGS
+CFLAGS="$SAVE_CFLAGS"
+CXXFLAGS="$SAVE_CXXFLAGS"
+CPPFLAGS="$SAVE_CPPFLAGS"
+LDFLAGS="$SAVE_LDFLAGS"
+
 dnl ----------------------------------------------------------------------------
 
 AC_CONFIG_FILES(Makefile wrapper/wrapper)
 AC_OUTPUT
-echo "---"
-echo "Configuration summary for $PACKAGE_NAME version $VERSION"
-echo ""
-echo "   * Installation prefix:       $prefix"
-echo "   * System type:               $host_vendor-$host_os"
-echo "   * Host CPU:                  $host_cpu"
-echo "   * C Compiler:                $CC_VERSION"
-echo "   * C++ Compiler:              $CXX_VERSION"
-echo "   * Assertions enabled:        $ac_cv_assert"
-echo "   * Debug enabled:             $with_debug"
-echo "   * Warnings as failure:       $ac_cv_warnings_as_errors"
-echo "   * Google test framework:     $ac_cv_have_gtest"
-echo ""
 AS_IF(test "$ac_cv_have_gtest" = "", [
       echo "**************************************************************"
       echo "You should consider installing gtest to be able to run tests.."
