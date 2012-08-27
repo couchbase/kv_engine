@@ -201,18 +201,6 @@ AH_BOTTOM([
 #endif
 ])
 
-AC_ARG_WITH([docs],
-  [AS_HELP_STRING([--with-docs],
-    [Generate documentation (yes|no) @<:@default=yes@:>@])],
-  [with_docs=$withval],
-  [with_docs=yes])
-
-AS_IF([test "$with_docs" = "yes"],
-  [
-    REQUIRE_POD2MAN
-  ])
-AM_CONDITIONAL(BUILD_DOCS, test "$with_docs" = "yes")
-
 AC_CACHE_CHECK([for gtest], [ac_cv_have_gtest], [
   AC_LANG_PUSH([C++])
   SAVED_LIBS="$LIBS"
