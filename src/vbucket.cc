@@ -203,6 +203,7 @@ void VBucket::queueBGFetchItem(VBucketBGFetchItem *fetch,
                                BgFetcher *bgFetcher) {
     LockHolder lh(pendingBGFetchesLock);
     pendingBGFetches.push(fetch);
+    lh.unlock();
     assert(bgFetcher);
     bgFetcher->notifyBGEvent();
 }

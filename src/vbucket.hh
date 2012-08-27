@@ -230,7 +230,7 @@ public:
     bool getBGFetchItems(vb_bgfetch_queue_t &fetches);
     void queueBGFetchItem(VBucketBGFetchItem *fetch, BgFetcher *bgFetcher);
     size_t numPendingBGFetchItems(void) {
-        LockHolder lh(pendingBGFetchesLock);
+        // do a dirty read of number of fetch items
         return pendingBGFetches.size();
     }
     bool hasPendingBGFetchItems(void) {
