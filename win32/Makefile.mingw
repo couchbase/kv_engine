@@ -120,7 +120,7 @@ management/sqlite3.exe: ${OBJDIR} ${GENFILES} ${SQLITE3_OBJS}
 	${LINK.cc} -o $@ ${SQLITE3_OBJS}
 
 .libs/ep.so: ${OBJDIR} ${GENFILES} $(EP_ENGINE_OBJS)
-	${LINK.cc} -o $@ -shared ${EP_ENGINE_OBJS} \
+	${LINK.cc} -o $@ -shared ${EP_ENGINE_OBJS} ${MEMCACHED}/.libs/utilities/util.o \
                   ${LIB} -lpthread -lcouchstore -lsnappy -levent\
                   -lws2_32
 ${GEN_CONFIG}: configuration.json
