@@ -43,7 +43,7 @@ noinst_PROGRAMS = sizes gen_config gen_code
 man_MANS =
 
 ep_la_CPPFLAGS = $(AM_CPPFLAGS)
-ep_la_LDFLAGS = -module -dynamic
+ep_la_LDFLAGS = -module -dynamic -avoid-version
 ep_la_SOURCES =  include/ep-engine/command_ids.h \
                  src/access_scanner.cc \
                  src/access_scanner.hh \
@@ -243,7 +243,7 @@ ep_testsuite_la_SOURCES= tests/ep_testsuite.cc tests/ep_testsuite.h       \
                          src/ep_time.h         \
                          tests/mock/mccouch.cc tests/mock/mccouch.hh      \
                          tests/ep_test_apis.cc tests/ep_test_apis.h
-ep_testsuite_la_LDFLAGS= -module -dynamic
+ep_testsuite_la_LDFLAGS= -module -dynamic -avoid-version
 
 # This is because automake can't figure out how to build the same code
 # for two different targets.
@@ -277,7 +277,7 @@ generated_suite_la_DEPENDENCIES = ep.la
 generated_suite_la_CFLAGS = $(AM_CFLAGS) -O0
 nodist_generated_suite_la_SOURCES = $(GEN_FILES)
 generated_suite_la_SOURCES= src/suite_stubs.c tests/ep_testsuite.h
-generated_suite_la_LDFLAGS= -module -dynamic
+generated_suite_la_LDFLAGS= -module -dynamic -avoid-version
 
 EXTRA_TESTS += generated_engine_tests
 
@@ -291,7 +291,7 @@ endif
 
 timing_tests_la_CFLAGS = $(AM_CFLAGS) ${NO_WERROR}
 timing_tests_la_SOURCES= tests/module_tests/timing_tests.cc
-timing_tests_la_LDFLAGS= -module -dynamic
+timing_tests_la_LDFLAGS= -module -dynamic -avoid-version
 
 atomic_test_CXXFLAGS = $(AM_CPPFLAGS) $(AM_CXXFLAGS) ${NO_WERROR}
 atomic_test_SOURCES = tests/module_tests/atomic_test.cc src/atomic.hh src/mutex.cc
