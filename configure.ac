@@ -184,13 +184,6 @@ AC_SEARCH_LIBS(gethostbyname, nsl)
 AH_TOP([
 #ifndef CONFIG_H
 #define CONFIG_H
-/*
- * Copyright (C) 2010 NorthScale, Inc
- * All rights reserved.
- *
- * Use and distribution licensed under the BSD license.  See
- * the COPYING file in this directory for full text.
- */
 #ifdef _SYS_FEATURE_TESTS_H
 #error "You should include config.h as your first include file"
 #endif
