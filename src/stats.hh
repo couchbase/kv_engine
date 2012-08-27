@@ -334,9 +334,6 @@ public:
     //! Histogram of execution time of disk vbucket deletions
     Histogram<hrtime_t> diskVBDelHisto;
 
-    //! Histogram of execution time of invalid vbucket table deletions from disk
-    Histogram<hrtime_t> diskInvalidVBTableDelHisto;
-
     //! Histogram of disk commits
     Histogram<hrtime_t> diskCommitHisto;
 
@@ -411,7 +408,6 @@ public:
         diskUpdateHisto.reset();
         diskDelHisto.reset();
         diskVBDelHisto.reset();
-        diskInvalidVBTableDelHisto.reset();
         diskCommitHisto.reset();
 
         dataAgeHisto.reset();

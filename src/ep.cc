@@ -34,7 +34,6 @@
 #include "ep_engine.h"
 #include "htresizer.hh"
 #include "checkpoint_remover.hh"
-#include "invalid_vbtable_remover.hh"
 #include "access_scanner.hh"
 
 class StatsValueChangeListener : public ValueChangedListener {

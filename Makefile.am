@@ -65,8 +65,6 @@ ep_la_SOURCES =  include/ep-engine/command_ids.h \
                  src/flusher.cc src/flusher.hh \
                  src/histo.hh \
                  src/htresizer.cc src/htresizer.hh \
-                 src/invalid_vbtable_remover.hh \
-                 src/invalid_vbtable_remover.cc \
                  src/item.cc src/item.hh \
                  src/item_pager.cc src/item_pager.hh \
                  src/kvstore.hh \

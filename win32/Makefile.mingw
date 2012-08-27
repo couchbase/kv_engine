@@ -73,7 +73,6 @@ EP_ENGINE_CC_SRC = \
                  src/ep_extension.cc \
                  src/flusher.cc \
                  src/htresizer.cc \
-                 src/invalid_vbtable_remover.cc \
                  src/item.cc \
                  src/item_pager.cc \
                  src/kvstore.cc \

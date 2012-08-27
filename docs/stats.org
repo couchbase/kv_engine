@@ -693,7 +693,6 @@ Reset Histograms:
 | disk_update                       |
 | disk_del                          |
 | disk_vb_del                       |
-| disk_invalid_vbtable_del          |
 | disk_commit                       |
 | get_stats_cmd                     |
 | item_alloc_sizes                  |
