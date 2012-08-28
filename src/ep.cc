@@ -1884,9 +1884,11 @@ public:
                 StoredValue *v = store->fetchValidValue(vb, queuedItem->getKey(),
                                                         bucket_num, true, false);
                 if (v && value.second > 0) {
-                    mutationLog->newItem(queuedItem->getVBucketId(), queuedItem->getKey(),
-                                         value.second);
-                    ++stats->newItems;
+                    if (v->isPendingId()) {
+                        mutationLog->newItem(queuedItem->getVBucketId(), queuedItem->getKey(),
+                                             value.second);
+                        ++stats->newItems;
+                    }
                     v->setId(value.second);
                 }
                 if (v && v->getCas() == cas) {
