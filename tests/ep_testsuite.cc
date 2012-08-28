@@ -153,6 +153,7 @@ static enum test_result rmdb(void)
 {
     const char *files[] = { WHITESPACE_DB,
                             "/tmp/test",
+                            "/tmp/mutation.log",
                             NULL };
     int ii = 0;
     while (files[ii] != NULL) {
