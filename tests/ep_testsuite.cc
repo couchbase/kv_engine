@@ -3749,7 +3749,7 @@ static enum test_result test_mb3169(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
           == ENGINE_SUCCESS, "Failed to store a value");
     h1->release(h, NULL, i);
 
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_stat_to_be(h, h1, "ep_total_persisted", 4);
 
     evict_key(h, h1, "set", 0, "Ejected.");
     evict_key(h, h1, "incr", 0, "Ejected.");
