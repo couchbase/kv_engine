@@ -7,6 +7,8 @@
 #ifndef CONFIG_STATIC_H
 #define CONFIG_STATIC_H 1
 
+#define _FILE_OFFSET_BITS 64
+
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>
 #endif
