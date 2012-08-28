@@ -360,7 +360,7 @@ void CouchKVStore::get(const std::string &key, uint64_t, uint16_t vb,
                          "Warning: failed to retrieve data from vBucketId = %d "
                          "[key=%s], cannot locate database file %s\n",
                          vb, key.c_str(), dbFile.c_str());
-        rv.setStatus(ENGINE_NOT_MY_VBUCKET);
+        rv.setStatus(ENGINE_KEY_ENOENT);
         cb.callback(rv);
         return;
     }
