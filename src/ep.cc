@@ -1876,7 +1876,6 @@ public:
     // This callback is invoked for set only.
     void callback(mutation_result &value) {
         if (value.first == 1) {
-            stats->totalPersisted++;
             RCPtr<VBucket> vb = store->getVBucket(queuedItem->getVBucketId());
             if (vb) {
                 int bucket_num(0);
@@ -1908,6 +1907,7 @@ public:
                     }
                 }
             }
+            stats->totalPersisted++;
         } else {
             // If the return was 0 here, we're in a bad state because
             // we do not know the rowid of this object.
@@ -1950,16 +1950,8 @@ public:
         // 0 means we did not delete a row, but did not fail (did not exist)
         if (value >= 0) {
             RCPtr<VBucket> vb = store->getVBucket(queuedItem->getVBucketId());
-            if (value > 0) {
-                stats->totalPersisted++;
-                ++stats->delItems;
-                if (vb) {
-                    ++vb->opsDelete;
-                }
-            }
 
             mutationLog->delItem(queuedItem->getVBucketId(), queuedItem->getKey());
-
             // We have succesfully removed an item from the disk, we
             // may now remove it from the hash table.
             if (vb) {
@@ -1973,6 +1965,14 @@ public:
                     assert(deleted);
                 } else if (v) {
                     v->clearId();
+                }
+            }
+
+            if (value > 0) {
+                stats->totalPersisted++;
+                ++stats->delItems;
+                if (vb) {
+                    ++vb->opsDelete;
                 }
             }
         } else {
