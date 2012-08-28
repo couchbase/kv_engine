@@ -1117,7 +1117,7 @@ queued_item CheckpointManager::createCheckpointItem(uint64_t id,
     } else {
         key << "checkpoint_end";
     }
-    queued_item qi(new QueuedItem(key.str(), vbid, checkpoint_op, (int64_t) id));
+    queued_item qi(new QueuedItem(key.str(), vbid, checkpoint_op, id));
     return qi;
 }
 

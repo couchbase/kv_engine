@@ -1098,14 +1098,12 @@ public:
      * doesn't contain meta data.
      *
      * @param val the Item to store
-     * @param row_id the row id that is assigned to the item to store
      * @param trackReference true if we want to set the nru bit for the item
      * @return a result indicating the status of the store
      */
-    mutation_type_t set(const Item &val, int64_t &row_id,
-                        bool trackReference=true)
+    mutation_type_t set(const Item &val, bool trackReference=true)
     {
-        return set(val, val.getCas(), row_id, true, false, trackReference);
+        return set(val, val.getCas(), true, false, trackReference);
     }
 
     /**
@@ -1114,13 +1112,12 @@ public:
      *
      * @param val the Item to store
      * @param cas This is the cas value for the item <b>in</b> the cache
-     * @param row_id the row id that is assigned to the item to store
      * @param allowExisting should we allow existing items or not
      * @param hasMetaData should we keep the seqno the same or increment it
      * @param trackReference true if we want to set the nru bit for the item
      * @return a result indicating the status of the store
      */
-    mutation_type_t set(const Item &val, uint64_t cas, int64_t &row_id,
+    mutation_type_t set(const Item &val, uint64_t cas,
                         bool allowExisting, bool hasMetaData = true,
                         bool trackReference=true) {
         assert(isActive());
@@ -1184,7 +1181,6 @@ public:
                 --numNonResidentItems;
             }
             v->setValue(itm, stats, *this, hasMetaData /*Preserve seqno*/);
-            row_id = v->getId();
         } else if (cas != 0) {
             rv = NOT_FOUND;
         } else {
@@ -1272,18 +1268,13 @@ public:
      *
      * @param key the key of the item to delete
      * @param cas the expected CAS of the item (or 0 to override)
-     * @param row_id the row id that is assigned to the item to be deleted
      * @return an indicator of what the deletion did
      */
-    mutation_type_t softDelete(const std::string &key, uint64_t cas,
-                               int64_t &row_id) {
+    mutation_type_t softDelete(const std::string &key, uint64_t cas) {
         assert(isActive());
         int bucket_num(0);
         LockHolder lh = getLockedBucket(key, &bucket_num);
         StoredValue *v = unlocked_find(key, bucket_num, false, false);
-        if (v) {
-            row_id = v->getId();
-        }
         return unlocked_softDelete(v, cas);
     }
 

@@ -30,9 +30,8 @@ typedef enum {
 class QueuedItem : public RCValue {
 public:
     QueuedItem(const std::string &k, const uint16_t vb,
-               enum queue_operation o, const int64_t rid = -1,
-               const uint64_t seqno = 1)
-        : key(k), rowId(rid), seqNum(seqno), queued(ep_current_time()),
+               enum queue_operation o, const uint64_t seqno = 1)
+        : key(k), seqNum(seqno), queued(ep_current_time()),
           op(static_cast<uint16_t>(o)), vbucket(vb)
     {
         ObjectRegistry::onCreateQueuedItem(this);
@@ -48,7 +47,7 @@ public:
     enum queue_operation getOperation(void) const {
         return static_cast<enum queue_operation>(op);
     }
-    int64_t getRowId() const { return rowId; }
+
     uint64_t getSeqno() const { return seqNum; }
 
     void setQueuedTime(uint32_t queued_time) {
@@ -70,7 +69,6 @@ public:
 
 private:
     std::string key;
-    int64_t  rowId;
     uint64_t seqNum;
     uint32_t queued;
     uint16_t op;
@@ -89,30 +87,6 @@ public:
     CompareQueuedItemsByKey() {}
     bool operator()(const queued_item &i1, const queued_item &i2) {
         return i1->getKey() < i2->getKey();
-    }
-};
-
-/**
- * Order QueuedItem objects by their row ids.
- */
-class CompareQueuedItemsByRowId {
-public:
-    CompareQueuedItemsByRowId() {}
-    bool operator()(const queued_item &i1, const queued_item &i2) {
-        return i1->getRowId() < i2->getRowId();
-    }
-};
-
-/**
- * Order QueuedItem objects by their vbucket then row ids.
- */
-class CompareQueuedItemsByVBAndRowId {
-public:
-    CompareQueuedItemsByVBAndRowId() {}
-    bool operator()(const queued_item &i1, const queued_item &i2) {
-        return i1->getVBucketId() == i2->getVBucketId()
-            ? i1->getRowId() < i2->getRowId()
-            : i1->getVBucketId() < i2->getVBucketId();
     }
 };
 

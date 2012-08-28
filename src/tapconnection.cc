@@ -1109,7 +1109,7 @@ public:
                     epe->getTapConnMap().performTapOp(name, tapop, gcb.val.getValue());
                     // As an item is deleted from hash table, push the item
                     // deletion event into the TAP queue.
-                    queued_item qitem(new QueuedItem(key, vbucket, queue_op_del, -1));
+                    queued_item qitem(new QueuedItem(key, vbucket, queue_op_del));
                     std::list<queued_item> del_items;
                     del_items.push_back(qitem);
                     epe->getTapConnMap().setEvents(name, &del_items);
@@ -1556,7 +1556,7 @@ queued_item TapProducer::nextFgFetched_UNLOCKED(bool &shouldPause) {
                 break;
             case queue_op_checkpoint_start:
                 {
-                    it->second.currentCheckpointId = (uint64_t) qi->getRowId();
+                    it->second.currentCheckpointId = qi->getSeqno();
                     if (supportCheckpointSync) {
                         it->second.state = checkpoint_start;
                         addCheckpointMessage_UNLOCKED(qi);
@@ -1784,7 +1784,7 @@ Item* TapProducer::getNextItem(const void *c, uint16_t *vbucket, tap_event_t &re
             return NULL;
         }
         *vbucket = checkpoint_msg->getVBucketId();
-        uint64_t cid = htonll((uint64_t) checkpoint_msg->getRowId());
+        uint64_t cid = htonll(checkpoint_msg->getSeqno());
         value_t vblob(Blob::New((const char*)&cid, sizeof(cid)));
         itm = new Item(checkpoint_msg->getKey(), 0, 0, vblob,
                        0, -1, checkpoint_msg->getVBucketId());
@@ -1829,7 +1829,7 @@ Item* TapProducer::getNextItem(const void *c, uint16_t *vbucket, tap_event_t &re
         ++stats.numTapBGFetched;
         qi = queued_item(new QueuedItem(itm->getKey(), itm->getVBucketId(),
                                         ret == TAP_MUTATION ? queue_op_set : queue_op_del,
-                                        -1, itm->getId()));
+                                        itm->getSeqno()));
     } else if (hasItemFromVBHashtable_UNLOCKED()) { // Item from memory backfill or checkpoints
         if (waitForCheckpointMsgAck()) {
             getLogger()->log(EXTENSION_LOG_INFO, NULL,
