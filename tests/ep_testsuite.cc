@@ -523,6 +523,7 @@ static enum test_result test_conc_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                               testHarness.engine_path,
                               testHarness.get_current_testcase()->cfg,
                               true, false);
+    wait_for_warmup_complete(h, h1);
 
     assert(0 == get_int_stat(h, h1, "ep_warmed_dups"));
 
@@ -1152,6 +1153,7 @@ static enum test_result test_bug2509(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                               testHarness.engine_path,
                               testHarness.get_current_testcase()->cfg,
                               true, false);
+    wait_for_warmup_complete(h, h1);
 
     return get_int_stat(h, h1, "ep_warmup_dups") == 0 ? SUCCESS : FAIL;
 }
@@ -1168,6 +1170,7 @@ static enum test_result test_delete_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
                               testHarness.engine_path,
                               testHarness.get_current_testcase()->cfg,
                               true, false);
+    wait_for_warmup_complete(h, h1);
 
     check_key_value(h, h1, "key", "value2", 6);
     check(h1->remove(h, NULL, "key", 3, 0, 0) == ENGINE_SUCCESS,
@@ -1196,6 +1199,7 @@ static enum test_result test_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                               testHarness.engine_path,
                               testHarness.get_current_testcase()->cfg,
                               true, false);
+    wait_for_warmup_complete(h, h1);
     check_key_value(h, h1, "key", val, strlen(val));
     return SUCCESS;
 }
@@ -1258,6 +1262,7 @@ static enum test_result test_specialKeys(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
                               testHarness.engine_path,
                               testHarness.get_current_testcase()->cfg,
                               true, false);
+    wait_for_warmup_complete(h, h1);
     check_key_value(h, h1, key0, val0, strlen(val0));
     check_key_value(h, h1, key1, val1, strlen(val1));
     check_key_value(h, h1, key2, val2, strlen(val2));
@@ -1306,6 +1311,7 @@ static enum test_result test_binKeys(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                               testHarness.engine_path,
                               testHarness.get_current_testcase()->cfg,
                               true, false);
+    wait_for_warmup_complete(h, h1);
     check_key_value(h, h1, key0, val0, strlen(val0));
     check_key_value(h, h1, key1, val1, strlen(val1));
     check_key_value(h, h1, key2, val2, strlen(val2));
@@ -1331,6 +1337,7 @@ static enum test_result test_restart_bin_val(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 
                               testHarness.engine_path,
                               testHarness.get_current_testcase()->cfg,
                               true, false);
+    wait_for_warmup_complete(h, h1);
 
     check_key_value(h, h1, "key", binaryData, sizeof(binaryData));
     return SUCCESS;
@@ -1513,6 +1520,7 @@ static enum test_result test_expiry_loader(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
                               testHarness.engine_path,
                               testHarness.get_current_testcase()->cfg,
                               true, false);
+    wait_for_warmup_complete(h, h1);
     assert(0 == get_int_stat(h, h1, "ep_warmup_value_count", "warmup"));
 
     return SUCCESS;
@@ -1596,6 +1604,7 @@ static enum test_result test_bug3454(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                               testHarness.engine_path,
                               testHarness.get_current_testcase()->cfg,
                               true, false);
+    wait_for_warmup_complete(h, h1);
     assert(1 == get_int_stat(h, h1, "ep_warmup_value_count", "warmup"));
     assert(0 == get_int_stat(h, h1, "ep_warmup_dups", "warmup"));
 
@@ -1650,6 +1659,7 @@ static enum test_result test_bug3522(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                               testHarness.engine_path,
                               testHarness.get_current_testcase()->cfg,
                               true, false);
+    wait_for_warmup_complete(h, h1);
     assert(0 == get_int_stat(h, h1, "ep_warmup_value_count", "warmup"));
     assert(0 == get_int_stat(h, h1, "ep_warmup_dups", "warmup"));
 
@@ -2133,6 +2143,7 @@ static enum test_result vbucket_destroy_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_
                               testHarness.engine_path,
                               testHarness.get_current_testcase()->cfg,
                               true, false);
+    wait_for_warmup_complete(h, h1);
 
     check(verify_vbucket_state(h, h1, 1, vbucket_state_dead),
           "Bucket state was not dead after restart.");
@@ -2152,6 +2163,7 @@ static enum test_result vbucket_destroy_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_
                               testHarness.engine_path,
                               testHarness.get_current_testcase()->cfg,
                               true, false);
+    wait_for_warmup_complete(h, h1);
 
     if (verify_vbucket_state(h, h1, 1, vbucket_state_pending, true)) {
         std::cerr << "Bucket came up in pending state after delete." << std::endl;
@@ -3828,6 +3840,7 @@ static enum test_result test_duplicate_items_disk(ENGINE_HANDLE *h, ENGINE_HANDL
                               testHarness.engine_path,
                               testHarness.get_current_testcase()->cfg,
                               true, false);
+    wait_for_warmup_complete(h, h1);
     check(set_vbucket_state(h, h1, 1, vbucket_state_active), "Failed to set vbucket state.");
     // Make sure that a key/value item is persisted correctly
     for (it = keys.begin(); it != keys.end(); ++it) {
@@ -5703,6 +5716,7 @@ static enum test_result test_compact_mutation_log(ENGINE_HANDLE *h, ENGINE_HANDL
                               testHarness.engine_path,
                               testHarness.get_current_testcase()->cfg,
                               true, false);
+    wait_for_warmup_complete(h, h1);
     assert(get_int_stat(h, h1, "curr_items") == 1000);
     check(get_int_stat(h, h1, "count_new", "klog") == 1000,
           "Number of new log entries should be 2000");
