@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 #ifndef BGFETCHER_HH
-#define BGFETCHER 1
+#define BGFETCHER_HH 1
 
 #include <map>
 #include <vector>
