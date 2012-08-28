@@ -103,6 +103,6 @@ bool MutationLogCompactor::callback(Dispatcher &d, TaskId &t) {
         ++stats.mlogCompactorRuns;
     }
 
-    d.snooze(t, MUTATION_LOG_COMPACTOR_FREQ);
+    d.snooze(t, compactorConfig.getSleepTime());
     return rv;
 }
