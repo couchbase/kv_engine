@@ -201,8 +201,7 @@ bool Flusher::step(Dispatcher &d, TaskId &tid) {
 }
 
 void Flusher::completeFlush() {
-    doFlush();
-    while (flushQueue) {
+    while (!store->diskQueueEmpty()) {
         doFlush();
     }
 }

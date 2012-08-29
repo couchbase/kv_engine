@@ -1101,7 +1101,7 @@ bool CheckpointManager::hasNext(const std::string &name) {
     std::list<queued_item>::iterator curr = it->second.currentPos;
     ++curr;
     if (curr == (*(it->second.currentCheckpoint))->end() &&
-        (*(it->second.currentCheckpoint))->getState() == opened) {
+        (*(it->second.currentCheckpoint)) == checkpointList.back()) {
         hasMore = false;
     }
     return hasMore;
@@ -1127,7 +1127,7 @@ bool CheckpointManager::hasNextForPersistence() {
     std::list<queued_item>::iterator curr = persistenceCursor.currentPos;
     ++curr;
     if (curr == (*(persistenceCursor.currentCheckpoint))->end() &&
-        (*(persistenceCursor.currentCheckpoint))->getState() == opened) {
+        (*(persistenceCursor.currentCheckpoint)) == checkpointList.back()) {
         hasMore = false;
     }
     return hasMore;
