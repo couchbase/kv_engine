@@ -28,8 +28,8 @@
  * The state of a given checkpoint.
  */
 typedef enum {
-    opened, //!< The checkpoint is open.
-    closed  //!< The checkpoint is not open.
+    CHECKPOINT_OPEN, //!< The checkpoint is open.
+    CHECKPOINT_CLOSED  //!< The checkpoint is not open.
 } checkpoint_state;
 
 /**
@@ -92,7 +92,8 @@ typedef enum {
  */
 class Checkpoint {
 public:
-    Checkpoint(EPStats &st, uint64_t id, uint16_t vbid, checkpoint_state state = opened) :
+    Checkpoint(EPStats &st, uint64_t id, uint16_t vbid,
+               checkpoint_state state = CHECKPOINT_OPEN) :
         stats(st), checkpointId(id), vbucketId(vbid), creationTime(ep_real_time()),
         checkpointState(state), numItems(0), memOverhead(0) {
         stats.memOverhead.incr(memorySize());
@@ -462,7 +463,7 @@ private:
 
     queued_item nextItemFromClosedCheckpoint(CheckpointCursor &cursor, bool &isLastMutationItem);
 
-    queued_item nextItemFromOpenedCheckpoint(CheckpointCursor &cursor, bool &isLastMutationItem);
+    queued_item nextItemFromOpenCheckpoint(CheckpointCursor &cursor, bool &isLastMutationItem);
 
     void getAllItemsFromCurrentPosition(CheckpointCursor &cursor,
                                         uint64_t barrier,

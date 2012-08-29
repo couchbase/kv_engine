@@ -63,7 +63,7 @@ bool Checkpoint::keyExists(const std::string &key) {
 }
 
 queue_dirty_t Checkpoint::queueDirty(const queued_item &qi, CheckpointManager *checkpointManager) {
-    assert (checkpointState == opened);
+    assert (checkpointState == CHECKPOINT_OPEN);
 
     uint64_t newMutationId = checkpointManager->nextMutationId();
     queue_dirty_t rv;
@@ -202,7 +202,7 @@ uint64_t CheckpointManager::getOpenCheckpointId_UNLOCKED() {
     }
 
     uint64_t id = checkpointList.back()->getId();
-    return checkpointList.back()->getState() == opened ? id : id + 1;
+    return checkpointList.back()->getState() == CHECKPOINT_OPEN ? id : id + 1;
 }
 
 uint64_t CheckpointManager::getOpenCheckpointId() {
@@ -238,7 +238,8 @@ void CheckpointManager::setOpenCheckpointId_UNLOCKED(uint64_t id) {
 
 bool CheckpointManager::addNewCheckpoint_UNLOCKED(uint64_t id) {
     // This is just for making sure that the current checkpoint should be closed.
-    if (checkpointList.size() > 0 && checkpointList.back()->getState() == opened) {
+    if (checkpointList.size() > 0 &&
+        checkpointList.back()->getState() == CHECKPOINT_OPEN) {
         closeOpenCheckpoint_UNLOCKED(checkpointList.back()->getId());
     }
 
@@ -247,7 +248,7 @@ bool CheckpointManager::addNewCheckpoint_UNLOCKED(uint64_t id) {
                      id, vbucketId);
 
     bool empty = checkpointList.empty() ? true : false;
-    Checkpoint *checkpoint = new Checkpoint(stats, id, vbucketId, opened);
+    Checkpoint *checkpoint = new Checkpoint(stats, id, vbucketId, CHECKPOINT_OPEN);
     // Add a dummy item into the new checkpoint, so that any cursor referring to the actual first
     // item in this new checkpoint can be safely shifted left by 1 if the first item is removed
     // and pushed into the tail.
@@ -274,7 +275,7 @@ bool CheckpointManager::addNewCheckpoint_UNLOCKED(uint64_t id) {
         }
     }
     if (persistenceCursor.currentPos == (*(persistenceCursor.currentCheckpoint))->end()) {
-        if ((*(persistenceCursor.currentCheckpoint))->getState() == closed) {
+        if ((*(persistenceCursor.currentCheckpoint))->getState() == CHECKPOINT_CLOSED) {
             uint64_t chkid = (*(persistenceCursor.currentCheckpoint))->getId();
             if (moveCursorToNextCheckpoint(persistenceCursor)) {
                 pCursorPreCheckpointId = chkid;
@@ -301,7 +302,8 @@ bool CheckpointManager::closeOpenCheckpoint_UNLOCKED(uint64_t id) {
     if (checkpointList.size() == 0) {
         return false;
     }
-    if (id != checkpointList.back()->getId() || checkpointList.back()->getState() == closed) {
+    if (id != checkpointList.back()->getId() ||
+        checkpointList.back()->getState() == CHECKPOINT_CLOSED) {
         return true;
     }
 
@@ -312,7 +314,7 @@ bool CheckpointManager::closeOpenCheckpoint_UNLOCKED(uint64_t id) {
     queued_item qi = createCheckpointItem(id, vbucketId, queue_op_checkpoint_end);
     checkpointList.back()->queueDirty(qi, this);
     ++numItems;
-    checkpointList.back()->setState(closed);
+    checkpointList.back()->setState(CHECKPOINT_CLOSED);
     return true;
 }
 
@@ -685,7 +687,7 @@ void CheckpointManager::collapseClosedCheckpoints(std::list<Checkpoint*> &collap
 bool CheckpointManager::queueDirty(const queued_item &qi, const RCPtr<VBucket> &vbucket) {
     LockHolder lh(queueLock);
     if (vbucket->getState() != vbucket_state_active &&
-        checkpointList.back()->getState() == closed) {
+        checkpointList.back()->getState() == CHECKPOINT_CLOSED) {
         // Replica vbucket might receive items from the master even if the current open checkpoint
         // has been already closed, because some items from the backfill with an invalid token
         // are on the wire even after that backfill thread is closed. Simply ignore those items.
@@ -708,7 +710,7 @@ bool CheckpointManager::queueDirty(const queued_item &qi, const RCPtr<VBucket> &
     // Note that the creation of a new checkpoint on the replica vbucket will be controlled by TAP
     // mutation messages from the active vbucket, which contain the checkpoint Ids.
 
-    assert(checkpointList.back()->getState() == opened);
+    assert(checkpointList.back()->getState() == CHECKPOINT_OPEN);
     size_t numItemsBefore = getNumItemsForPersistence_UNLOCKED();
     if (checkpointList.back()->queueDirty(qi, this) == NEW_ITEM) {
         ++numItems;
@@ -730,7 +732,7 @@ void CheckpointManager::getAllItemsFromCurrentPosition(CheckpointCursor &cursor,
         while (++(cursor.currentPos) != (*(cursor.currentCheckpoint))->end()) {
             items.push_back(*(cursor.currentPos));
         }
-        if ((*(cursor.currentCheckpoint))->getState() == closed) {
+        if ((*(cursor.currentCheckpoint))->getState() == CHECKPOINT_CLOSED) {
             if (!moveCursorToNextCheckpoint(cursor)) {
                 --(cursor.currentPos);
                 break;
@@ -795,10 +797,10 @@ queued_item CheckpointManager::nextItem(const std::string &name, bool &isLastMut
     }
 
     CheckpointCursor &cursor = it->second;
-    if ((*(it->second.currentCheckpoint))->getState() == closed) {
+    if ((*(it->second.currentCheckpoint))->getState() == CHECKPOINT_CLOSED) {
         return nextItemFromClosedCheckpoint(cursor, isLastMutationItem);
     } else {
-        return nextItemFromOpenedCheckpoint(cursor, isLastMutationItem);
+        return nextItemFromOpenCheckpoint(cursor, isLastMutationItem);
     }
 }
 
@@ -824,19 +826,19 @@ queued_item CheckpointManager::nextItemFromClosedCheckpoint(CheckpointCursor &cu
             queued_item qi(new QueuedItem("", 0xffff, queue_op_empty));
             return qi;
         }
-        if ((*(cursor.currentCheckpoint))->getState() == closed) { // the close checkpoint.
+        if ((*(cursor.currentCheckpoint))->getState() == CHECKPOINT_CLOSED) {
             ++(cursor.currentPos); // Move the cursor to point to the actual first item.
             ++(cursor.offset);
             isLastMutationItem = isLastMutationItemInCheckpoint(cursor);
             return *(cursor.currentPos);
         } else { // the open checkpoint.
-            return nextItemFromOpenedCheckpoint(cursor, isLastMutationItem);
+            return nextItemFromOpenCheckpoint(cursor, isLastMutationItem);
         }
     }
 }
 
-queued_item CheckpointManager::nextItemFromOpenedCheckpoint(CheckpointCursor &cursor,
-                                                            bool &isLastMutationItem) {
+queued_item CheckpointManager::nextItemFromOpenCheckpoint(CheckpointCursor &cursor,
+                                                          bool &isLastMutationItem) {
     if (cursor.closedCheckpointOnly) {
         queued_item qi(new QueuedItem("", vbucketId, queue_op_empty));
         return qi;
@@ -898,9 +900,9 @@ void CheckpointManager::resetTAPCursors(const std::list<std::string> &cursors) {
 }
 
 bool CheckpointManager::moveCursorToNextCheckpoint(CheckpointCursor &cursor) {
-    if ((*(cursor.currentCheckpoint))->getState() == opened) {
+    if ((*(cursor.currentCheckpoint))->getState() == CHECKPOINT_OPEN) {
         return false;
-    } else if ((*(cursor.currentCheckpoint))->getState() == closed) {
+    } else if ((*(cursor.currentCheckpoint))->getState() == CHECKPOINT_CLOSED) {
         std::list<Checkpoint*>::iterator currCheckpoint = cursor.currentCheckpoint;
         if (++currCheckpoint == checkpointList.end()) {
             return false;
@@ -1039,7 +1041,7 @@ void CheckpointManager::checkAndAddNewCheckpoint(uint64_t id) {
         } else if ((checkpointList.back()->getId() + 1) == id) {
             isCollapsedCheckpoint = false;
         }
-        if (checkpointList.back()->getState() == opened &&
+        if (checkpointList.back()->getState() == CHECKPOINT_OPEN &&
             checkpointList.back()->getNumItems() == 0) {
             // If the current open checkpoint doesn't have any items, simply set its id to
             // the one from the master node.
@@ -1080,10 +1082,10 @@ void CheckpointManager::checkAndAddNewCheckpoint(uint64_t id) {
         }
         assert(checkpointList.size() == 1);
 
-        if (checkpointList.back()->getState() == closed) {
+        if (checkpointList.back()->getState() == CHECKPOINT_CLOSED) {
             checkpointList.back()->popBackCheckpointEndItem();
             --numItems;
-            checkpointList.back()->setState(opened);
+            checkpointList.back()->setState(CHECKPOINT_OPEN);
         }
         setOpenCheckpointId_UNLOCKED(id);
         resetCursors();
