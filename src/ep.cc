@@ -1100,14 +1100,22 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
             }
         } else {
             if (v && !v->isResident()) {
-                assert(gcb.val.getStatus() == ENGINE_SUCCESS);
-                v->unlocked_restoreValue(gcb.val.getValue(), stats, vb->ht);
-                assert(v->isResident());
-                if (v->getExptime() != gcb.val.getValue()->getExptime()) {
-                    assert(v->isDirty());
-                    // exptime mutated, schedule it into new checkpoint
-                    queueDirty(vb, key, vbucket, queue_op_set,
-                               v->getSeqno());
+                if (gcb.val.getStatus() == ENGINE_SUCCESS) {
+                    v->unlocked_restoreValue(gcb.val.getValue(), stats, vb->ht);
+                    assert(v->isResident());
+                    if (v->getExptime() != gcb.val.getValue()->getExptime()) {
+                        assert(v->isDirty());
+                        // exptime mutated, schedule it into new checkpoint
+                        queueDirty(vb, key, vbucket, queue_op_set,
+                                v->getSeqno());
+                    }
+                } else {
+                    // underlying kvstore couldn't fetch requested data
+                    // log returned error and notify TMPFAIL to client
+                    getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                            "Warning: failed background fetch for vb=%d seq=%d "
+                            "key=%s\n", vbucket, v->getId(), key.c_str());
+                    status = ENGINE_TMPFAIL;
                 }
             }
         }
@@ -1148,13 +1156,21 @@ void EventuallyPersistentStore::completeBGFetchMulti(uint16_t vbId,
             LockHolder blh = vb->ht.getLockedBucket(key, &bucket);
             StoredValue *v = fetchValidValue(vb, key, bucket, true);
             if (v && !v->isResident()) {
-                assert(status == ENGINE_SUCCESS);
-                v->unlocked_restoreValue(fetchedValue, stats, vb->ht);
-                assert(v->isResident());
-                if (v->getExptime() != fetchedValue->getExptime()) {
-                    assert(v->isDirty());
-                    // exptime mutated, schedule it into new checkpoint
-                    queueDirty(vb, key, vbId, queue_op_set, v->getSeqno());
+                if (status == ENGINE_SUCCESS) {
+                    v->unlocked_restoreValue(fetchedValue, stats, vb->ht);
+                    assert(v->isResident());
+                    if (v->getExptime() != fetchedValue->getExptime()) {
+                        assert(v->isDirty());
+                        // exptime mutated, schedule it into new checkpoint
+                        queueDirty(vb, key, vbId, queue_op_set, v->getSeqno());
+                    }
+                } else {
+                    // underlying kvstore couldn't fetch requested data
+                    // log returned error and notify TMPFAIL to client
+                    getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                            "Warning: failed background fetch for vb=%d seq=%d "
+                            "key=%s\n", vbId, v->getId(), key.c_str());
+                    status = ENGINE_TMPFAIL;
                 }
             }
         }
