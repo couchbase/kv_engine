@@ -16,6 +16,7 @@
  */
 #include "config.h"
 #include "mutex.hh"
+#include "common.hh"
 
 Mutex::Mutex() : held(false)
 {
@@ -56,9 +57,19 @@ Mutex::Mutex() : held(false)
 Mutex::~Mutex() {
     int e;
     if ((e = pthread_mutex_destroy(&mutex)) != 0) {
-        std::string message = "MUTEX ERROR: Failed to destroy mutex: ";
-        message.append(std::strerror(e));
-        throw std::runtime_error(message);
+        if (e == EINVAL) {
+            std::string err = std::strerror(e);
+            // mutex might have already destroyed, just log error
+            // and continue.  TODO: platform specific error handling
+            // for the case of EINVAL, especially on WIN32
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                             "Warning: Failed to destroy mutex: %s\n",
+                             err.c_str());
+        } else {
+            std::string message = "MUTEX ERROR: Failed to destroy mutex: ";
+            message.append(std::strerror(e));
+            throw std::runtime_error(message);
+        }
     }
 
     EP_MUTEX_DESTROYED(this);

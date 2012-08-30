@@ -237,16 +237,19 @@ timing_tests_la_SOURCES= tests/module_tests/timing_tests.cc
 timing_tests_la_LDFLAGS= -module -dynamic -avoid-version
 
 atomic_test_CXXFLAGS = $(AM_CPPFLAGS) $(AM_CXXFLAGS) ${NO_WERROR}
-atomic_test_SOURCES = tests/module_tests/atomic_test.cc src/atomic.hh src/mutex.cc
+atomic_test_SOURCES = tests/module_tests/atomic_test.cc src/atomic.hh \
+                      src/testlogger.cc src/mutex.cc
 atomic_test_DEPENDENCIES = src/atomic.hh
 
 atomic_ptr_test_CXXFLAGS = $(AM_CPPFLAGS) $(AM_CXXFLAGS) ${NO_WERROR}
 atomic_ptr_test_SOURCES = tests/module_tests/atomic_ptr_test.cc src/atomic.cc \
-                          src/atomic.hh src/mutex.cc src/mutex.hh
+                          src/atomic.hh src/testlogger.cc src/mutex.cc        \
+                          src/mutex.hh
 atomic_ptr_test_DEPENDENCIES = src/atomic.hh
 
 mutex_test_CXXFLAGS = $(AM_CPPFLAGS) $(AM_CXXFLAGS) ${NO_WERROR}
-mutex_test_SOURCES = tests/module_tests/mutex_test.cc src/locks.hh src/mutex.cc
+mutex_test_SOURCES = tests/module_tests/mutex_test.cc src/locks.hh \
+                     src/testlogger.cc src/mutex.cc
 mutex_test_DEPENDENCIES = src/locks.hh
 
 dispatcher_test_CXXFLAGS = $(AM_CPPFLAGS) $(AM_CXXFLAGS) ${NO_WERROR}
