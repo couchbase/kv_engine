@@ -65,6 +65,11 @@ COUCHBASE_GENERIC_COMPILER(c99 c++ pthread)
 AS_IF([test "$ac_cv_enable_gcov" = "yes"],
       [ LIBS="$LIBS -lgcov" ])
 
+AC_SEARCH_LIBS(pthread_create, pthread)
+if test "x$ac_cv_search_pthread_create" = "xno"; then
+  AC_MSG_ERROR([Can't enable threads without the POSIX thread library.])
+fi
+
 AC_CHECK_HEADERS_ONCE([arpa/inet.h netdb.h mach/mach_time.h poll.h
                        atomic.h sysexits.h unistd.h sys/socket.h
                        netinet/in.h netinet/tcp.h ws2tcpip.h
