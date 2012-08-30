@@ -355,21 +355,20 @@ void CouchKVStore::get(const std::string &key, uint64_t, uint16_t vb,
     GetValue rv;
 
     if (!(getDbFile(vb, dbFile))) {
-        ++st.numGetFailure;
-        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                         "Warning: failed to retrieve data from vBucketId = %d "
-                         "[key=%s], cannot locate database file %s\n",
-                         vb, key.c_str(), dbFile.c_str());
-        rv.setStatus(ENGINE_KEY_ENOENT);
-        cb.callback(rv);
-        return;
+        // just log error, openDB will attemp to open the database
+        // file again and handle the final error
+        getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                         "Info: cannot locate database file %s\n",
+                         dbFile.c_str());
     }
+
     couchstore_error_t errCode = openDB(vb, dbFileRev(dbFile), &db, 0, NULL);
     if (errCode != COUCHSTORE_SUCCESS) {
         ++st.numGetFailure;
         getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                         "Warning: failed to open database, name=%s\n",
-                         dbFile.c_str());
+                         "Warning: failed to open database to retrieve data "
+                         "from vBucketId = %d, key = %s, file = %s\n",
+                         vb, key.c_str(), dbFile.c_str());
         rv.setStatus(couchErr2EngineErr(errCode));
         cb.callback(rv);
         return;
@@ -428,22 +427,11 @@ void CouchKVStore::getMulti(uint16_t vb, vb_bgfetch_queue_t &itms)
     int numItems = itms.size();
 
     if (!(getDbFile(vb, dbFile))) {
-        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                         "Warning: cannot locate database file for data fetch, "
-                         "vBucketId = %d file = %s numDocs = %d\n",
-                          vb, dbFile.c_str(), numItems);
-        st.numGetFailure += numItems;
-
-        // populate error return value for each requested item
-        vb_bgfetch_queue_t::iterator itr = itms.begin();
-        for (; itr != itms.end(); itr++) {
-            std::list<VBucketBGFetchItem *> &fetches = (*itr).second;
-            std::list<VBucketBGFetchItem *>::iterator fitr = fetches.begin();
-            for (; fitr != fetches.end(); fitr++) {
-                (*fitr)->value.setStatus(ENGINE_NOT_MY_VBUCKET);
-            }
-        }
-        return;
+        // just log error, openDB will attempt to open the database
+        // file again and handle the final error
+        getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
+                         "Info: cannot locate database file %s\n",
+                         dbFile.c_str());
     }
 
     Db *db = NULL;
@@ -1076,6 +1064,7 @@ void CouchKVStore::close()
 
 bool CouchKVStore::getDbFile(uint16_t vbucketId, std::string &dbFileName)
 {
+    bool success = true;
     std::stringstream fileName;
     fileName << dbname << "/" << vbucketId << ".couch";
     std::map<uint16_t, uint64_t>::iterator itr;
@@ -1088,14 +1077,16 @@ bool CouchKVStore::getDbFile(uint16_t vbucketId, std::string &dbFileName)
             updateDbFileMap(vbucketId, rev, true);
             fileName << "." << rev;
         } else {
-            return false;
+            // assign file rev to initial value
+            fileName << "." << 1;
+            success = false;
         }
     } else {
         fileName  <<  "." << itr->second;
     }
 
     dbFileName = fileName.str();
-    return true;
+    return success;
 }
 
 uint64_t CouchKVStore::checkNewRevNum(std::string &dbFileName, bool newFile)
