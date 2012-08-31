@@ -37,23 +37,53 @@ void BgFetcher::doFetch(uint16_t vbId) {
         std::list<VBucketBGFetchItem *> &requestedItems = (*itr).second;
         std::list<VBucketBGFetchItem *>::iterator itm = requestedItems.begin();
         for(; itm != requestedItems.end(); itm++) {
+            if ((*itm)->value.getStatus() != ENGINE_SUCCESS &&
+                (*itm)->canRetry()) {
+                // underlying kvstore failed to fetch requested data
+                // don't return the failed request yet. Will requeue
+                // it for retry later
+                continue;
+            }
             fetchedItems.push_back(*itm);
             ++totalfetches;
         }
     }
-    store->completeBGFetchMulti(vbId, fetchedItems, startTime);
-    stats.getMultiHisto.add((gethrtime()-startTime)/1000, totalfetches);
-    clearItems();
+
+    if (totalfetches > 0) {
+        store->completeBGFetchMulti(vbId, fetchedItems, startTime);
+        stats.getMultiHisto.add((gethrtime()-startTime)/1000, totalfetches);
+    }
+
+    // failed requests will get requeued for retry within clearItems()
+    clearItems(vbId);
 }
 
-void BgFetcher::clearItems(void) {
+void BgFetcher::clearItems(uint16_t vbId) {
     vb_bgfetch_queue_t::iterator itr = items2fetch.begin();
     for(; itr != items2fetch.end(); itr++) {
         // every fetched item belonging to the same seq_id shares
-        // the same buffer, just delete it from the first fetched item
+        // a single data buffer, just delete it from the first fetched item
         std::list<VBucketBGFetchItem *> &doneItems = (*itr).second;
         VBucketBGFetchItem *firstItem = doneItems.front();
-        delete firstItem;
+        firstItem->delValue();
+
+        std::list<VBucketBGFetchItem *>::iterator dItr = doneItems.begin();
+        for (; dItr != doneItems.end(); dItr++) {
+            if ((*dItr)->value.getStatus() == ENGINE_SUCCESS ||
+                !(*dItr)->canRetry()) {
+                delete *dItr;
+            } else {
+                RCPtr<VBucket> vb = store->getVBuckets().getBucket(vbId);
+                assert(vb);
+                (*dItr)->incrRetryCount();
+                getLogger()->log(EXTENSION_LOG_INFO, NULL,
+                    "BgFetcher is re-queueing failed request for vb = %d "
+                    "seq = %d key = %s retry = %d\n",
+                     vbId, (*itr).first, (*dItr)->key.c_str(),
+                     (*dItr)->getRetryCount());
+                vb->queueBGFetchItem(*dItr, this, false);
+            }
+        }
     }
 }
 

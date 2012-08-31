@@ -200,12 +200,13 @@ void VBucket::addStat(const char *nm, T val, ADD_STAT add_stat, const void *c) {
 }
 
 void VBucket::queueBGFetchItem(VBucketBGFetchItem *fetch,
-                               BgFetcher *bgFetcher) {
+                               BgFetcher *bgFetcher, bool notify) {
     LockHolder lh(pendingBGFetchesLock);
     pendingBGFetches.push(fetch);
     lh.unlock();
-    assert(bgFetcher);
-    bgFetcher->notifyBGEvent();
+    if (notify) {
+        bgFetcher->notifyBGEvent();
+    }
 }
 
 bool VBucket::getBGFetchItems(vb_bgfetch_queue_t &fetches) {

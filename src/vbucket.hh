@@ -17,6 +17,7 @@
 #include "atomic.hh"
 #include "stored-value.hh"
 #include "checkpoint.hh"
+#include "bgfetcher.hh"
 
 const size_t BASE_VBUCKET_SIZE=1024;
 
@@ -100,25 +101,6 @@ private:
 };
 
 class EventuallyPersistentEngine;
-class BgFetcher;
-
-class VBucketBGFetchItem {
-public:
-    VBucketBGFetchItem(const std::string k, uint64_t s, const void *c) :
-                       key(k), cookie(c), initTime(gethrtime()) {
-        value.setId(s);
-    }
-    ~VBucketBGFetchItem() {
-        delete value.getValue();
-    }
-
-    const std::string key;
-    const void * cookie;
-    GetValue value;
-    hrtime_t initTime;
-};
-
-typedef unordered_map<uint64_t, std::list<VBucketBGFetchItem *> > vb_bgfetch_queue_t;
 
 /**
  * An individual vbucket.
@@ -228,7 +210,8 @@ public:
     }
 
     bool getBGFetchItems(vb_bgfetch_queue_t &fetches);
-    void queueBGFetchItem(VBucketBGFetchItem *fetch, BgFetcher *bgFetcher);
+    void queueBGFetchItem(VBucketBGFetchItem *fetch, BgFetcher *bgFetcher,
+                          bool notify = true);
     size_t numPendingBGFetchItems(void) {
         // do a dirty read of number of fetch items
         return pendingBGFetches.size();
