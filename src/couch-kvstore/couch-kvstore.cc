@@ -264,8 +264,10 @@ CouchRequest::CouchRequest(const Item &it, uint64_t rev, CouchRequestCallback &c
     }
     dbDocInfo.id = dbDoc.id;
     dbDocInfo.content_meta = isjson ? COUCH_DOC_IS_JSON : COUCH_DOC_NON_JSON_MODE;
-    //Compress everything. Snappy is fast.
-    dbDocInfo.content_meta |= COUCH_DOC_IS_COMPRESSED;
+    //Compress everything. Snappy is fast. Don't attempt to compress empty bodies.
+    if(dbDoc.data.size > 0) {
+        dbDocInfo.content_meta |= COUCH_DOC_IS_COMPRESSED;
+    }
     start = gethrtime();
 }
 
