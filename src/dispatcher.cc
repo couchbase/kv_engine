@@ -58,8 +58,8 @@ void Task::snooze(const double secs, bool first) {
     if (first && (start == 0 || start <= 23) && secs >= 3600) {
         struct tm tim;
         struct timeval tmval = waketime;
-        time_t secs = tmval.tv_sec;
-        tim = *(gmtime(&secs));
+        time_t seconds = tmval.tv_sec;
+        tim = *(gmtime(&seconds));
         // change tm structure to the given start hour in GMT
         tim.tm_min = 0;
         tim.tm_sec = 0;
