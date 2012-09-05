@@ -16,7 +16,7 @@
 
 #ifdef HAVE_ZLIB_H
 #include <zlib.h>
-static const char extension[] = "gz";
+#define supports_zlib true
 #else
 typedef FILE* gzFile;
 #define gzopen(path, mode) fopen(path, mode)
@@ -24,7 +24,7 @@ typedef FILE* gzFile;
 #define gzflush(fp, b) fflush(fp);
 #define gzclose(fp) fclose(fp)
 #define gzwrite(fp, ptr, size) (int)fwrite(ptr, 1, size, fp);
-static const char extension[] = "txt";
+#define supports_zlib false
 #endif
 
 #include <memcached/extension.h>
@@ -71,6 +71,9 @@ static int currbuffer;
 /* If we should try to pretty-print the severity or not */
 static bool prettyprint = false;
 
+/* If we should try to write the logs compressed or not */
+static bool compress_files = false;
+
 /* The size of the buffers (this may be tuned by the buffersize configuration
  * parameter */
 static size_t buffersz = 2048 * 1024;
@@ -95,6 +98,71 @@ static pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
  * space
  */
 static pthread_cond_t space_cond = PTHREAD_COND_INITIALIZER;
+
+typedef void * HANDLE;
+
+static HANDLE stdio_open(const char *path, const char *mode) {
+    HANDLE ret = fopen(path, mode);
+    if (ret) {
+        setbuf(ret, NULL);
+    }
+    return ret;
+}
+
+static HANDLE zlib_file_open(const char *path, const char *mode) {
+    gzFile ret = gzopen(path, mode);
+    if (ret) {
+        gzsetparams(ret, Z_DEFAULT_COMPRESSION, Z_DEFAULT_STRATEGY);
+    }
+
+    return ret;
+}
+
+static void stdio_close(HANDLE handle) {
+    (void)fclose(handle);
+}
+
+static void zlib_file_close(HANDLE handle) {
+    gzflush(handle, Z_FINISH);
+    gzclose(handle);
+}
+
+static void stdio_flush(HANDLE handle, int type) {
+    (void)type;
+    fflush(handle);
+}
+
+static void zlib_file_flush(HANDLE handle, int type) {
+    gzflush(handle, type);
+}
+
+static ssize_t stdio_write(HANDLE handle, const void *ptr, size_t nbytes) {
+    return (ssize_t)fwrite(ptr, 1, nbytes, handle);
+}
+
+static ssize_t zlib_file_write(HANDLE handle, const void *ptr, size_t nbytes) {
+    return (ssize_t)gzwrite(handle, ptr, nbytes);
+}
+
+struct io_ops {
+    HANDLE (*open)(const char *path, const char *mode);
+    void (*close)(HANDLE handle);
+    void (*flush)(HANDLE handle, int type);
+    ssize_t (*write)(HANDLE handle, const void *ptr, size_t nbytes);
+} iops = {
+    .open = stdio_open,
+    .close = stdio_close,
+    .flush = stdio_flush,
+    .write = stdio_write
+};
+
+struct io_ops zlib_ops ={
+    .open = zlib_file_open,
+    .close = zlib_file_close,
+    .flush = zlib_file_flush,
+    .write = zlib_file_write
+};
+static const char *extension = "txt";
 
 static void add_log_entry(const char *msg, size_t size)
 {
@@ -205,48 +273,45 @@ static void logger_log(EXTENSION_LOG_LEVEL severity,
     }
 }
 
-static gzFile open_logfile(const char *fnm) {
+static HANDLE open_logfile(const char *fnm) {
     static unsigned int next_id = 0;
     char fname[1024];
     do {
         sprintf(fname, "%s.%d.%s", fnm, next_id++, extension);
     } while (access(fname, F_OK) == 0);
-    gzFile ret = gzopen(fname, "wb");
-    if (ret) {
-        gzsetparams(ret, Z_DEFAULT_COMPRESSION, Z_DEFAULT_STRATEGY);
-    } else {
+    HANDLE ret = iops.open(fname, "wb");
+    if (!ret) {
         fprintf(stderr, "Failed to open memcached log file\n");
     }
     return ret;
 }
 
-static void close_logfile(gzFile fp) {
+static void close_logfile(HANDLE fp) {
     if (fp) {
-        gzflush(fp, Z_FINISH);
-        gzclose(fp);
+        iops.close(fp);
     }
 }
 
-static gzFile reopen_logfile(gzFile old, const char *fnm) {
+static HANDLE reopen_logfile(HANDLE old, const char *fnm) {
     close_logfile(old);
     return open_logfile(fnm);
 }
 
-static size_t flush_pending_io(gzFile file, struct logbuffer *lb) {
+static size_t flush_pending_io(HANDLE file, struct logbuffer *lb) {
     size_t ret = 0;
     if (lb->offset > 0) {
         char *ptr = lb->data;
         size_t towrite = ret = lb->offset;
 
         while (towrite > 0) {
-            int nw = gzwrite(file, ptr, towrite);
+            int nw = iops.write(file, ptr, towrite);
             if (nw > 0) {
                 ptr += nw;
                 towrite -= nw;
             }
         }
         lb->offset = 0;
-        gzflush(file, Z_PARTIAL_FLUSH);
+        iops.flush(file, Z_PARTIAL_FLUSH);
     }
 
     return ret;
@@ -258,7 +323,7 @@ static pthread_t tid;
 static void *logger_thead_main(void* arg)
 {
     size_t currsize = 0;
-    gzFile fp = open_logfile(arg);
+    HANDLE fp = open_logfile(arg);
     unsigned int next = time(NULL);
 
     pthread_mutex_lock(&mutex);
@@ -363,11 +428,19 @@ EXTENSION_ERROR_CODE memcached_extensions_initialize(const char *config,
             { .key = "sleeptime",
               .datatype = DT_SIZE,
               .value.dt_size = &sleeptime },
+            { .key = "compress",
+              .datatype = DT_BOOL,
+              .value.dt_bool = &compress_files },
             { .key = NULL}
         };
 
         if (sapi->core->parse_config(config, items, stderr) != ENGINE_SUCCESS) {
             return EXTENSION_FATAL;
+        }
+
+        if (compress_files && supports_zlib) {
+            iops = zlib_ops;
+            extension = "gz";
         }
 
         if (loglevel != NULL) {
