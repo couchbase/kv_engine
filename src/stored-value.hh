@@ -676,6 +676,7 @@ private:
             extra.feature.exptime = itm.getExptime();
             extra.feature.locked = false;
             extra.feature.resident = true;
+            extra.feature.nru = false;
             extra.feature.lock_expiry = 0;
             extra.feature.keylen = itm.getKey().length();
             extra.feature.seqno = itm.getSeqno();
