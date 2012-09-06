@@ -2246,7 +2246,7 @@ static enum test_return test_binary_bad_tap_ttl(void) {
 }
 
 static enum test_return test_issue_101(void) {
-    const int max = 2;
+#define max 2
     enum test_return ret = TEST_PASS;
     int fds[max];
     int ii = 0;

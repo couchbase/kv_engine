@@ -20,6 +20,11 @@ then
   enable_dependency_tracking=yes
 fi
 
+dnl Check for a couple of different compilers
+AC_CHECK_DECL([__SUNPRO_C], [SUNCC="yes"], [SUNCC="no"])
+AC_CHECK_DECL([__clang__], [CLANG="yes"], [CLANG="no"])
+AC_CHECK_DECL([__INTEL_COMPILER], [ICC="yes"], [ICC="no"])
+
 dnl **********************************************************************
 dnl DETECT_ICC ([ACTION-IF-YES], [ACTION-IF-NO])
 dnl
@@ -28,20 +33,7 @@ dnl sets the $ICC variable to "yes" or "no"
 dnl **********************************************************************
 AC_DEFUN([DETECT_ICC],
 [
-    ICC="no"
-    AC_MSG_CHECKING([for icc in use])
-    if test "$GCC" = "yes"; then
-       dnl check if this is icc acting as gcc in disguise
-       AC_EGREP_CPP([^__INTEL_COMPILER], [__INTEL_COMPILER],
-         AC_MSG_RESULT([no])
-         [$2],
-         AC_MSG_RESULT([yes])
-         [$1]
-         ICC="yes")
-    else
-       AC_MSG_RESULT([no])
-       [$2]
-    fi
+    AS_IF(test "x$ICC" = "xyes", [$1], [$2])
 ])
 
 dnl **********************************************************************
@@ -52,9 +44,7 @@ dnl sets the $SUNCC variable to "yes" or "no"
 dnl **********************************************************************
 AC_DEFUN([DETECT_SUNCC],
 [
-    AC_CHECK_DECL([__SUNPRO_C], [SUNCC="yes"], [SUNCC="no"])
     AS_IF(test "x$SUNCC" = "xyes", [$1], [$2])
-
 ])
 
 CPPFLAGS="$CPPFLAGS -D_POSIX_PTHREAD_SEMANTICS"
@@ -477,7 +467,14 @@ dnl Let the compiler be a bit more picky. Please note that you cannot
 dnl specify these flags to the compiler before AC_CHECK_FUNCS, because
 dnl the test program will generate a compilation warning and hence fail
 dnl to detect the function ;-)
-if test "$ICC" = "yes"
+if test "$CLANG" = "yes"
+then
+  CFLAGS="$CFLAGS -Wall -pedantic -Wmissing-prototypes -Wmissing-declarations -Wredundant-decls -fno-strict-aliasing"
+  dnl -pthread emits a warning on macosx causing compilation to fail..
+  AC_CHECK_DECL([__APPLE__], [APPLE="yes"], [APPLE="no"])
+  AS_IF([ test "x$APPLE" = "xno"],
+        [ CFLAGS="$CFLAGS -Werror" ])
+elif test "$ICC" = "yes"
 then
    dnl ICC trying to be gcc.
    CFLAGS="$CFLAGS -diag-disable 187 -Wall -Werror"
