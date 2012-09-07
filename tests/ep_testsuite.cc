@@ -5794,6 +5794,42 @@ static enum test_result test_set_vbucket_out_of_range(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+static enum test_result test_exp_persisted_set_del(ENGINE_HANDLE *h,
+                                                   ENGINE_HANDLE_V1 *h1) {
+    check(!get_meta(h, h1, "key3"), "Expected to get meta");
+
+    ItemMetaData itm_meta;
+    itm_meta.seqno = 1;
+    itm_meta.cas = 1;
+    itm_meta.exptime = 0;
+    itm_meta.flags = 0;
+    set_with_meta(h, h1, "key3", 4, "val0", 4, 0, &itm_meta, last_meta.cas);
+
+    itm_meta.seqno = 2;
+    itm_meta.cas = 2;
+    set_with_meta(h, h1, "key3", 4, "val1", 4, 0, &itm_meta, last_meta.cas);
+    wait_for_stat_to_be(h, h1, "ep_total_persisted", 1);
+
+    itm_meta.seqno = 3;
+    itm_meta.cas = 3;
+    itm_meta.exptime = 1735689600; // expires in 2025
+    set_with_meta(h, h1, "key3", 4, "val1", 4, 0, &itm_meta, last_meta.cas);
+    wait_for_stat_to_be(h, h1, "curr_items", 1);
+
+    testHarness.time_travel(500000000);
+    wait_for_stat_to_be(h, h1, "curr_items", 0);
+    wait_for_stat_to_be(h, h1, "ep_num_expiry_pager_runs", 1);
+
+    check(get_meta(h, h1, "key3"), "Expected to get meta");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    check(last_meta.seqno == 4, "Expected seqno to match");
+    check(last_meta.cas == 4, "Expected cas to match");
+    check(last_meta.exptime == 1735689600, "Expected exptime to match");
+    check(last_meta.flags == 0, "Expected flags to match");
+
+    return SUCCESS;
+}
+
 static McCouchMockServer *mccouchMock;
 
 static enum test_result prepare(engine_test_t *test) {
@@ -5940,7 +5976,7 @@ static engine_test_t *testcases;
 
 MEMCACHED_PUBLIC_API
 engine_test_t* get_tests(void) {
-    TestCase tc[] = {
+    TestCase tco[] = {
         TestCase("validate engine handle", test_validate_engine_handle,
                  NULL, teardown, NULL, prepare, cleanup),
         // basic tests
@@ -6384,6 +6420,8 @@ engine_test_t* get_tests(void) {
         TestCase("set_with_meta race with concurrent delete",
                  test_set_with_meta_race_with_delete, test_setup,
                  teardown, NULL, prepare, cleanup),
+        TestCase("test set_with_meta exp persisted", test_exp_persisted_set_del,
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("temp item deletion", test_temp_item_deletion,
                  test_setup, teardown,
                  "exp_pager_stime=3", prepare, cleanup),
@@ -6399,6 +6437,12 @@ engine_test_t* get_tests(void) {
         TestCase("control data traffic", test_control_data_traffic,
                  test_setup, teardown, NULL, prepare, cleanup),
 
+        TestCase(NULL, NULL, NULL, NULL, NULL, prepare, cleanup)
+    };
+    (void) tco;
+    TestCase tc[] = {
+        TestCase("test set_with_meta exp persisted", test_exp_persisted_set_del,
+                 test_setup, teardown, "exp_pager_stime=1", prepare, cleanup),
         TestCase(NULL, NULL, NULL, NULL, NULL, prepare, cleanup)
     };
 

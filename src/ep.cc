@@ -681,13 +681,19 @@ StoredValue *EventuallyPersistentStore::fetchValidValue(RCPtr<VBucket> &vb,
                                                         const std::string &key,
                                                         int bucket_num,
                                                         bool wantDeleted,
-                                                        bool trackReference) {
+                                                        bool trackReference,
+                                                        bool queueExpired) {
     StoredValue *v = vb->ht.unlocked_find(key, bucket_num, wantDeleted, trackReference);
     if (v && !v->isDeleted()) { // In the deleted case, we ignore expiration time.
         if (v->isExpired(ep_real_time())) {
             incExpirationStat(vb, false);
             vb->ht.unlocked_softDelete(v, 0);
-            queueDirty(vb, key, vb->getId(), queue_op_del, v->getSeqno());
+            if (queueExpired) {
+                queueDirty(vb, key, vb->getId(), queue_op_del, v->getSeqno());
+            }
+            if (wantDeleted) {
+                return v;
+            }
             return NULL;
         }
         v->touch();
@@ -2046,7 +2052,7 @@ int EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
 
     int bucket_num(0);
     LockHolder lh = vb->ht.getLockedBucket(qi->getKey(), &bucket_num);
-    StoredValue *v = fetchValidValue(vb, qi->getKey(), bucket_num, true, false);
+    StoredValue *v = fetchValidValue(vb, qi->getKey(), bucket_num, true, false, false);
 
     size_t itemBytes = qi->size();
     vb->doStatsForFlushing(*qi, itemBytes);
