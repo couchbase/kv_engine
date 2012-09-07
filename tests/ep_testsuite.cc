@@ -5814,11 +5814,9 @@ static enum test_result test_exp_persisted_set_del(ENGINE_HANDLE *h,
     itm_meta.cas = 3;
     itm_meta.exptime = 1735689600; // expires in 2025
     set_with_meta(h, h1, "key3", 4, "val1", 4, 0, &itm_meta, last_meta.cas);
-    wait_for_stat_to_be(h, h1, "curr_items", 1);
 
     testHarness.time_travel(500000000);
     wait_for_stat_to_be(h, h1, "curr_items", 0);
-    wait_for_stat_to_be(h, h1, "ep_num_expiry_pager_runs", 1);
 
     check(get_meta(h, h1, "key3"), "Expected to get meta");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
@@ -5976,7 +5974,7 @@ static engine_test_t *testcases;
 
 MEMCACHED_PUBLIC_API
 engine_test_t* get_tests(void) {
-    TestCase tco[] = {
+    TestCase tc[] = {
         TestCase("validate engine handle", test_validate_engine_handle,
                  NULL, teardown, NULL, prepare, cleanup),
         // basic tests
@@ -6437,12 +6435,6 @@ engine_test_t* get_tests(void) {
         TestCase("control data traffic", test_control_data_traffic,
                  test_setup, teardown, NULL, prepare, cleanup),
 
-        TestCase(NULL, NULL, NULL, NULL, NULL, prepare, cleanup)
-    };
-    (void) tco;
-    TestCase tc[] = {
-        TestCase("test set_with_meta exp persisted", test_exp_persisted_set_del,
-                 test_setup, teardown, "exp_pager_stime=1", prepare, cleanup),
         TestCase(NULL, NULL, NULL, NULL, NULL, prepare, cleanup)
     };
 
