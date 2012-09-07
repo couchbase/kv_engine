@@ -598,6 +598,7 @@ void ScheduleDiskBackfillTapOperation::perform(TapProducer *tc, void *) {
 
 void CompletedBGFetchTapOperation::perform(TapProducer *tc, Item *arg) {
     if (connToken != tc->getConnectionToken() && !tc->isReconnected()) {
+        delete arg;
         return;
     }
     tc->completeBGFetchJob(arg, vbid, implicitEnqueue);
