@@ -14,6 +14,10 @@
 #include <pthread.h>
 #include <sys/time.h>
 
+#ifdef WIN32_H
+#undef close
+#endif
+
 #ifdef HAVE_ZLIB_H
 #include <zlib.h>
 #define supports_zlib true
@@ -25,6 +29,7 @@ typedef FILE* gzFile;
 #define gzclose(fp) fclose(fp)
 #define gzwrite(fp, ptr, size) (int)fwrite(ptr, 1, size, fp);
 #define supports_zlib false
+#define Z_PARTIAL_FLUSH 0
 #endif
 
 #include <memcached/extension.h>
