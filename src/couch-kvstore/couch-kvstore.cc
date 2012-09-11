@@ -354,7 +354,8 @@ void CouchKVStore::get(const std::string &key, uint64_t, uint16_t vb,
                          dbFile.c_str());
     }
 
-    couchstore_error_t errCode = openDB(vb, dbFileRev(dbFile), &db, 0, NULL);
+    couchstore_error_t errCode = openDB(vb, dbFileRev(dbFile), &db,
+                                        COUCHSTORE_OPEN_FLAG_RDONLY);
     if (errCode != COUCHSTORE_SUCCESS) {
         ++st.numGetFailure;
         getLogger()->log(EXTENSION_LOG_WARNING, NULL,
@@ -427,7 +428,8 @@ void CouchKVStore::getMulti(uint16_t vb, vb_bgfetch_queue_t &itms)
     }
 
     Db *db = NULL;
-    couchstore_error_t errCode = openDB(vb, dbFileRev(dbFile), &db, 0);
+    couchstore_error_t errCode = openDB(vb, dbFileRev(dbFile), &db,
+                                        COUCHSTORE_OPEN_FLAG_RDONLY);
     if (errCode != COUCHSTORE_SUCCESS) {
         getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                          "Warning: failed to open database for data fetch, "
@@ -535,7 +537,8 @@ vbucket_map_t CouchKVStore::listPersistedVbuckets()
     couchstore_error_t errorCode;
     std::map<uint16_t, uint64_t>::iterator itr = dbFileMap.begin();
     for (; itr != dbFileMap.end(); itr++) {
-        errorCode = openDB(itr->first, itr->second, &db, 0);
+        errorCode = openDB(itr->first, itr->second, &db,
+                           COUCHSTORE_OPEN_FLAG_RDONLY);
         if (errorCode != COUCHSTORE_SUCCESS) {
             std::stringstream rev, vbid;
             rev  << itr->second;
@@ -980,7 +983,8 @@ void CouchKVStore::loadDB(shared_ptr<Callback<GetValue> > cb, bool keysOnly,
     int keyNum = 0;
     std::vector< std::pair<uint16_t, uint64_t> >::iterator itr = vbuckets.begin();
     for (; itr != vbuckets.end(); itr++, keyNum++) {
-        errorCode = openDB(itr->first, itr->second, &db, 0);
+        errorCode = openDB(itr->first, itr->second, &db,
+                           COUCHSTORE_OPEN_FLAG_RDONLY);
         if (errorCode != COUCHSTORE_SUCCESS) {
             std::stringstream rev, vbid;
             rev  << itr->second;
@@ -1789,7 +1793,8 @@ bool CouchKVStore::getEstimatedItemCount(size_t &items)
     std::map<uint16_t, uint64_t>::iterator fitr = dbFileMap.begin();
     for (; fitr != dbFileMap.end(); ++fitr) {
         Db *db = NULL;
-        couchstore_error_t errCode = openDB(fitr->first, fitr->second, &db, 0);
+        couchstore_error_t errCode = openDB(fitr->first, fitr->second, &db,
+                                            COUCHSTORE_OPEN_FLAG_RDONLY);
         if (errCode == COUCHSTORE_SUCCESS) {
             DbInfo info;
             errCode = couchstore_db_info(db, &info);
