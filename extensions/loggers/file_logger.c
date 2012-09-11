@@ -235,15 +235,14 @@ static void logger_log(EXTENSION_LOG_LEVEL severity,
             } else {
                 /* trim off ' YYYY\n' */
                 str[strlen(str) - 6] = '\0';
-#ifdef __WIN32__
-                /* Windows doesn't have the tm_zone member */
-                prefixlen = snprintf(buffer, avail, "%s.%06u",
-                                     str, (unsigned int)now.tv_usec);
-#else
                 prefixlen = snprintf(buffer, avail, "%s.%06u %s",
                                      str, (unsigned int)now.tv_usec,
-                                     tval.tm_zone);
+#ifdef HAVE_TM_ZONE
+                                     tval.tm_zone
+#else
+                                     tzname[tval.tm_isdst ? 1 : 0]
 #endif
+                                     );
             }
         } else {
             fprintf(stderr, "gettimeofday failed: %s\n", strerror(errno));
@@ -411,7 +410,12 @@ static void on_log_level(const void *cookie, ENGINE_EVENT_TYPE type,
 
 MEMCACHED_PUBLIC_API
 EXTENSION_ERROR_CODE memcached_extensions_initialize(const char *config,
-                                                     GET_SERVER_API get_server_api) {
+                                                     GET_SERVER_API get_server_api)
+{
+#ifdef HAVE_TM_ZONE
+    tzset();
+#endif
+
     sapi = get_server_api();
     if (sapi == NULL) {
         return EXTENSION_FATAL;

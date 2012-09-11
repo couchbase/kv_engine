@@ -404,6 +404,10 @@ AC_CHECK_FUNCS(mlockall)
 AC_CHECK_FUNCS(getpagesizes)
 AC_CHECK_FUNCS(memcntl)
 AC_CHECK_FUNCS(sigignore)
+AC_CHECK_MEMBER([struct tm.tm_zone],
+                 [AC_DEFINE([HAVE_TM_ZONE], [1], [Have tm_zone member])],
+                 [],
+                 [[#include <time.h>]])
 
 AC_DEFUN([AC_C_ALIGNMENT],
 [AC_CACHE_CHECK(for alignment, ac_cv_c_alignment,
