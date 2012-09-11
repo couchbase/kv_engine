@@ -235,9 +235,15 @@ static void logger_log(EXTENSION_LOG_LEVEL severity,
             } else {
                 /* trim off ' YYYY\n' */
                 str[strlen(str) - 6] = '\0';
+#ifdef __WIN32__
+                /* Windows doesn't have the tm_zone member */
+                prefixlen = snprintf(buffer, avail, "%s.%06u",
+                                     str, (unsigned int)now.tv_usec);
+#else
                 prefixlen = snprintf(buffer, avail, "%s.%06u %s",
                                      str, (unsigned int)now.tv_usec,
                                      tval.tm_zone);
+#endif
             }
         } else {
             fprintf(stderr, "gettimeofday failed: %s\n", strerror(errno));
