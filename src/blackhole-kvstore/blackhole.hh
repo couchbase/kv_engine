@@ -84,10 +84,6 @@ public:
 
     void dump(uint16_t vb, shared_ptr<Callback<GetValue> > cb);
 
-    void destroyInvalidVBuckets(bool destroyOnlyOne = false) {
-        (void) destroyOnlyOne;
-    }
-
 private:
 };
 

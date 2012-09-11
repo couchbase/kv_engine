@@ -37,7 +37,6 @@ public:
     bool snapshotVBuckets(const vbucket_map_t &m);
     void dump(shared_ptr<Callback<GetValue> > cb);
     void dump(uint16_t vbid, shared_ptr<Callback<GetValue> > cb);
-    void destroyInvalidVBuckets(bool destroyOnlyOne = false);
 };
 
 #endif

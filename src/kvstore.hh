@@ -286,22 +286,6 @@ public:
         // EMPTY
     }
 
-    virtual void processTxnSizeChange(size_t txn_size) {
-        (void)txn_size;
-    }
-
-    virtual void setVBBatchCount(size_t batch_count) {
-        (void)batch_count;
-    }
-
-    /**
-     * Remove invalid vbuckets from the underlying storage engine.
-     * @param destroyOnlyOne True if this run should remove only one invalid vbucket.
-     * This can be set to true if we want to delete all invalid vbuckets over the time.
-     */
-    virtual void destroyInvalidVBuckets(bool destroyOnlyOne = false) = 0;
-
-
     /**
      * Warm up the cache by using the given mutation log (this is actually an access log),
      * The default implementaiton of the warmup warmup will scan the access file and load

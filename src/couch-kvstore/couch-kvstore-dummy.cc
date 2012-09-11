@@ -27,11 +27,6 @@ void CouchKVStore::rollback()
     throw std::runtime_error("This kvstore should never be used");
 }
 
-void CouchKVStore::destroyInvalidVBuckets(bool)
-{
-    throw std::runtime_error("This kvstore should never be used");
-}
-
 void CouchKVStore::set(const Item &, Callback<mutation_result> &)
 {
     throw std::runtime_error("This kvstore should never be used");

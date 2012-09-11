@@ -450,16 +450,6 @@ public:
     void addTimingStats(const std::string &prefix, ADD_STAT add_stat,
                         const void *c);
 
-    void processTxnSizeChange(size_t txn_size) {
-        (void) txn_size;
-    }
-    void setVBBatchCount(size_t batch_count) {
-        (void) batch_count;
-    }
-    void destroyInvalidVBuckets(bool destroyOnlyOne = false) {
-        (void) destroyOnlyOne;
-    }
-
     static int recordDbDump(Db *db, DocInfo *docinfo, void *ctx);
     static int recordDbStat(Db *db, DocInfo *docinfo, void *ctx);
     static int getMultiCb(Db *db, DocInfo *docinfo, void *ctx);
