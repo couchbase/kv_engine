@@ -233,16 +233,17 @@ static void logger_log(EXTENSION_LOG_LEVEL severity,
                                      (unsigned int)now.tv_sec,
                                      (unsigned int)now.tv_usec);
             } else {
+                const char *tz;
+#ifdef HAVE_TM_ZONE
+                tz = tval.tm_zone;
+#else
+                tz = tzname[tval.tm_isdst ? 1 : 0];
+#endif
                 /* trim off ' YYYY\n' */
                 str[strlen(str) - 6] = '\0';
                 prefixlen = snprintf(buffer, avail, "%s.%06u %s",
                                      str, (unsigned int)now.tv_usec,
-#ifdef HAVE_TM_ZONE
-                                     tval.tm_zone
-#else
-                                     tzname[tval.tm_isdst ? 1 : 0]
-#endif
-                                     );
+                                     tz);
             }
         } else {
             fprintf(stderr, "gettimeofday failed: %s\n", strerror(errno));
