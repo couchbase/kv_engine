@@ -241,7 +241,6 @@ CouchRequest::CouchRequest(const Item &it, uint64_t rev, CouchRequestCallback &c
     uint32_t exptime = htonl(it.getExptime());
     uint32_t valuelen = it.getNBytes();
 
-    itemId = (it.getId() <= 0) ? 1 : 0;
     dbDoc.id.buf = const_cast<char *>(key.c_str());
     dbDoc.id.size = it.getNKey();
     if (valuelen) {

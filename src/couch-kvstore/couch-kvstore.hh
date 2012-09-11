@@ -156,15 +156,6 @@ public:
     }
 
     /**
-     * Get the sequence number of a document to be persisted
-     *
-     * @return sequence number of a document
-     */
-    int64_t getItemId(void) {
-        return itemId;
-    }
-
-    /**
      * Get the time in ns elapsed since the creation of this instance
      *
      * @return time in ns elapsed since the creation of this instance
@@ -209,7 +200,6 @@ private :
     std::string key;
     Doc dbDoc;
     DocInfo dbDocInfo;
-    int64_t itemId;
     bool deleteItem;
     CouchRequestCallback callback;
 
