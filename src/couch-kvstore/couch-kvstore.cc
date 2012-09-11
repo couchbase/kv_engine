@@ -232,14 +232,14 @@ struct LoadResponseCtx {
 };
 
 CouchRequest::CouchRequest(const Item &it, uint64_t rev, CouchRequestCallback &cb, bool del) :
-    value(it.getValue()), valuelen(it.getNBytes()),
-    vbucketId(it.getVBucketId()), fileRevNum(rev),
+    value(it.getValue()), vbucketId(it.getVBucketId()), fileRevNum(rev),
     key(it.getKey()), deleteItem(del)
 {
     bool isjson = false;
     uint64_t cas = htonll(it.getCas());
     uint32_t flags = it.getFlags();
     uint32_t exptime = htonl(it.getExptime());
+    uint32_t valuelen = it.getNBytes();
 
     itemId = (it.getId() <= 0) ? 1 : 0;
     dbDoc.id.buf = const_cast<char *>(key.c_str());

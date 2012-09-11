@@ -179,7 +179,7 @@ public:
      * @return length of a document body
      */
     size_t getNBytes() {
-        return valuelen;
+        return value ? value->length() : 0;
     }
 
     /**
