@@ -226,8 +226,8 @@ static void logger_log(EXTENSION_LOG_LEVEL severity,
         if (gettimeofday(&now, NULL) == 0) {
             struct tm tval;
             time_t nsec = (time_t)now.tv_sec;
-            gmtime_r(&nsec, &tval);
-            char str[30];
+            localtime_r(&nsec, &tval);
+            char str[40];
             if (asctime_r(&tval, str) == NULL) {
                 prefixlen = snprintf(buffer, avail, "%u.%06u",
                                      (unsigned int)now.tv_sec,
@@ -235,8 +235,9 @@ static void logger_log(EXTENSION_LOG_LEVEL severity,
             } else {
                 /* trim off ' YYYY\n' */
                 str[strlen(str) - 6] = '\0';
-                prefixlen = snprintf(buffer, avail, "%s.%06u",
-                                     str, (unsigned int)now.tv_usec);
+                prefixlen = snprintf(buffer, avail, "%s.%06u %s",
+                                     str, (unsigned int)now.tv_usec,
+                                     tval.tm_zone);
             }
         } else {
             fprintf(stderr, "gettimeofday failed: %s\n", strerror(errno));
