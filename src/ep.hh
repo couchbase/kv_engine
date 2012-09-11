@@ -179,7 +179,6 @@ private:
     Atomic<double> lastTranTimePerItem;
     hrtime_t tranStartTime;
     bool intxn;
-    std::list<queued_item> uncommittedItems;
     std::list<PersistenceCallback*> transactionCallbacks;
 };
 

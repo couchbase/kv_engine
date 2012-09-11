@@ -2511,12 +2511,11 @@ void TransactionContext::commit() {
     stats.commit_time.set(commit_time);
     stats.cumulativeCommitTime.incr(commit_time);
     intxn = false;
-    uncommittedItems.clear();
     numUncommittedItems = 0;
 }
 
 void TransactionContext::addUncommittedItem(const queued_item &qi) {
-    uncommittedItems.push_back(qi);
+    (void) qi;
     ++numUncommittedItems;
 }
 
