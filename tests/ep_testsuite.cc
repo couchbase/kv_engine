@@ -992,6 +992,84 @@ static enum test_result test_flush_multiv(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     return SUCCESS;
 }
 
+static int checkCurrItemsAfterShutdown(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                                       int numItems2Load, bool shutdownForce) {
+    std::vector<std::string> keys;
+    for (int index = 0; index < numItems2Load; ++index) {
+        std::stringstream s;
+        s << "keys_2_load-" << index;
+        std::string key(s.str());
+        keys.push_back(key);
+    }
+
+    check(get_int_stat(h, h1, "ep_total_persisted") == 0,
+          "Expected ep_total_persisted equals 0");
+    check(get_int_stat(h, h1, "curr_items") == 0,
+          "Expected curr_items equals 0");
+
+    // stop flusher before loading new items
+    protocol_binary_request_header *pkt = createPacket(CMD_STOP_PERSISTENCE);
+    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
+          "CMD_STOP_PERSISTENCE failed!");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+          "Falied to stop persistence!");
+    free(pkt);
+
+    std::vector<std::string>::iterator itr;
+    for (itr = keys.begin(); itr != keys.end(); ++itr) {
+        item *i;
+        check(store(h, h1, NULL, OPERATION_SET, itr->c_str(), "oracle", &i, 0, 0)
+              == ENGINE_SUCCESS, "Failed to store a value");
+        h1->release(h, NULL, i);
+    }
+
+    check(get_int_stat(h, h1, "ep_total_persisted") == 0,
+          "Incorrect ep_total_persisted, expected 0");
+    std::stringstream ss;
+    ss << "Incorrect curr_items, expected " << numItems2Load;
+    std::string errmsg(ss.str());
+    check(get_int_stat(h, h1, "curr_items") == numItems2Load,
+          errmsg.c_str());
+
+    // resume flusher before shutdown + warmup
+    pkt = createPacket(CMD_START_PERSISTENCE);
+    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
+          "CMD_START_PERSISTENCE failed!");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+          "Falied to start persistence!");
+    free(pkt);
+
+    // shutdown engine force and restart
+    testHarness.reload_engine(&h, &h1,
+                              testHarness.engine_path,
+                              testHarness.get_current_testcase()->cfg,
+                              true, shutdownForce);
+    wait_for_warmup_complete(h, h1);
+    return get_int_stat(h, h1, "curr_items");
+}
+
+static enum test_result test_flush_shutdown_force(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    // do not change the max_txn_size value being set prior to calling this function,
+    // it is currently set to 50 in order to slow down the flusher's drain speed
+    int numItems2load = 3000;
+    bool shutdownForce = true;
+    int currItems = checkCurrItemsAfterShutdown(h, h1, numItems2load, shutdownForce);
+    check (currItems <= numItems2load,
+           "Number of curr items should be <= 3000, unless previous "
+           "shutdown force had to wait for the flusher");
+    return SUCCESS;
+}
+
+static enum test_result test_flush_shutdown_noforce(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    int numItems2load = 3000;
+    bool shutdownForce = false;
+    int currItems = checkCurrItemsAfterShutdown(h, h1, numItems2load, shutdownForce);
+    check (currItems == numItems2load,
+           "Number of curr items should be equal to 3000, unless previous "
+           "shutdown did not wait for the flusher");
+    return SUCCESS;
+}
+
 static enum test_result test_flush_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
     // First try to delete something we know to not be there.
@@ -5713,7 +5791,7 @@ static enum test_result test_compact_mutation_log(ENGINE_HANDLE *h, ENGINE_HANDL
     wait_for_warmup_complete(h, h1);
     assert(get_int_stat(h, h1, "curr_items") == 1000);
     check(get_int_stat(h, h1, "count_new", "klog") == 1000,
-          "Number of new log entries should be 2000");
+          "Number of new log entries should be 1000");
     check(get_int_stat(h, h1, "count_del", "klog") == 0,
           "Number of delete log entries should be 0");
 
@@ -6201,6 +6279,12 @@ engine_test_t* get_tests(void) {
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test kill -9 bucket", test_kill9_bucket,
                  test_setup, teardown, NULL, prepare, cleanup),
+        TestCase("test shutdown with force", test_flush_shutdown_force,
+                 test_setup, teardown,
+                 "max_txn_size=30", prepare, cleanup),
+        TestCase("test shutdown without force", test_flush_shutdown_noforce,
+                 test_setup, teardown,
+                 "max_txn_size=30", prepare, cleanup),
         // disk>RAM tests
         TestCase("disk>RAM golden path", test_disk_gt_ram_golden,
                  test_setup, teardown,
