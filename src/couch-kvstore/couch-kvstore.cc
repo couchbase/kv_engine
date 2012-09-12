@@ -168,11 +168,13 @@ static void batchWarmupCallback(uint16_t vbId,
         vb_bgfetch_queue_t items2fetch;
         std::vector<std::pair<std::string, uint64_t> >::iterator itm = fetches.begin();
         for (; itm != fetches.end(); itm++) {
-            // ignore duplicate Doc seq_id, if any in access log
-            if (items2fetch.find((*itm).second) == items2fetch.end()) {
+            // ignore duplicate key with the same db seq id in the access log
+            if (items2fetch.find((*itm).second) != items2fetch.end()) {
                 continue;
             }
-            VBucketBGFetchItem *fit = new VBucketBGFetchItem((*itm).first, (*itm).second, NULL);
+            VBucketBGFetchItem *fit = new VBucketBGFetchItem((*itm).first,
+                                                             (*itm).second,
+                                                             NULL);
             items2fetch[(*itm).second].push_back(fit);
         }
 
