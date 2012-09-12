@@ -391,6 +391,7 @@ void CouchKVStore::get(const std::string &key, uint64_t, uint16_t vb,
                              couchkvstore_strerrno(errCode).c_str());
         }
     } else {
+        assert(docInfo);
         errCode = fetchDoc(db, docInfo, rv, vb, getMetaOnly);
         if (errCode != COUCHSTORE_SUCCESS) {
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
@@ -1288,7 +1289,6 @@ couchstore_error_t CouchKVStore::fetchDoc(Db *db, DocInfo *docinfo,
                                           GetValue &docValue, uint16_t vbId,
                                           bool metaOnly)
 {
-    assert(docinfo && db);
     couchstore_error_t errCode = COUCHSTORE_SUCCESS;
     sized_buf metadata = docinfo->rev_meta;
     uint32_t itemFlags;
@@ -1697,6 +1697,7 @@ couchstore_error_t CouchKVStore::saveVBState(Db *db, vbucket_state &vbState)
 
 int CouchKVStore::getMultiCb(Db *db, DocInfo *docinfo, void *ctx)
 {
+    assert(docinfo);
     std::string keyStr(docinfo->id.buf, docinfo->id.size);
     assert(ctx);
     GetMultiCbCtx *cbCtx = static_cast<GetMultiCbCtx *>(ctx);
@@ -1704,7 +1705,16 @@ int CouchKVStore::getMultiCb(Db *db, DocInfo *docinfo, void *ctx)
 
 
     vb_bgfetch_queue_t::iterator qitr = cbCtx->fetches.find(docinfo->db_seq);
-    assert(qitr != cbCtx->fetches.end());
+    if (qitr == cbCtx->fetches.end()) {
+        // this could be a serious race condition in couchstore,
+        // log a warning message and continue
+        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                         "Warning: couchstore returned invalid docinfo, "
+                         "no pending bgfetch has been issued for db_seq=%lld "
+                         "key = %s\n", docinfo->db_seq, keyStr.c_str());
+        return 0;
+    }
+
     std::list<VBucketBGFetchItem *> &fetches = (*qitr).second;
     GetValue returnVal;
     couchstore_error_t errCode = cbCtx->cks.fetchDoc(db, docinfo, returnVal,

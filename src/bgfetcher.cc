@@ -42,6 +42,10 @@ void BgFetcher::doFetch(uint16_t vbId) {
                 // underlying kvstore failed to fetch requested data
                 // don't return the failed request yet. Will requeue
                 // it for retry later
+                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                    "Warning: bgfetcher failed to fetch data for vb = %d "
+                    "seq = %lld key = %s retry = %d\n", vbId, (*itr).first,
+                     (*itm)->key.c_str(), (*itm)->getRetryCount());
                 continue;
             }
             fetchedItems.push_back(*itm);
@@ -76,9 +80,9 @@ void BgFetcher::clearItems(uint16_t vbId) {
                 RCPtr<VBucket> vb = store->getVBuckets().getBucket(vbId);
                 assert(vb);
                 (*dItr)->incrRetryCount();
-                getLogger()->log(EXTENSION_LOG_INFO, NULL,
+                getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
                     "BgFetcher is re-queueing failed request for vb = %d "
-                    "seq = %d key = %s retry = %d\n",
+                    "seq = %lld key = %s retry = %d\n",
                      vbId, (*itr).first, (*dItr)->key.c_str(),
                      (*dItr)->getRetryCount());
                 vb->queueBGFetchItem(*dItr, this, false);
