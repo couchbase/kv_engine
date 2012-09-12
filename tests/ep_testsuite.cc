@@ -198,6 +198,7 @@ static bool test_setup(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     protocol_binary_request_header *pkt = createPacket(CMD_ENABLE_TRAFFIC);
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Failed to enable data traffic");
+    free(pkt);
 
     return true;
 }
@@ -3795,6 +3796,7 @@ static enum test_result test_value_eviction(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
           "Failed to evict key.");
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT,
           "expected the key to be missing...");
+    free(pkt);
 
     h1->reset_stats(h, NULL);
     check(get_int_stat(h, h1, "ep_num_value_ejects") == 0,
