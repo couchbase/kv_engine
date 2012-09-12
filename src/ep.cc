@@ -656,7 +656,7 @@ public:
                 // has completed.
                 bool deleted = vb->ht.unlocked_del(vk.second, bucket_num);
                 assert(deleted);
-            } else if (v && v->isExpired(startTime)) {
+            } else if (v && v->isExpired(startTime) && !v->isDeleted()) {
                 vb->ht.unlocked_softDelete(v, 0);
                 e->queueDirty(vb, vk.second, vb->getId(), queue_op_del,
                               v->getSeqno(), false);
