@@ -759,6 +759,9 @@ extern "C" {
                 err = e->deleteVBucket(vbucket, cookie);
                 e->storeEngineSpecific(cookie, e);
             } else {
+                e->storeEngineSpecific(cookie, NULL);
+                getLogger()->log(EXTENSION_LOG_INFO, cookie,
+                                 "Completed sync deletion of vbucket %u", (unsigned)vbucket);
                 err = ENGINE_SUCCESS;
             }
         } else {
