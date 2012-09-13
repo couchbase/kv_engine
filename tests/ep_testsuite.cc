@@ -1646,13 +1646,14 @@ static enum test_result test_bug3522(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     }
     memcpy(info.value[0].iov_base, new_data, strlen(new_data));
 
+    int pager_runs = get_int_stat(h, h1, "ep_num_expiry_pager_runs");
     cas = 0;
     rv = h1->store(h, NULL, it, &cas, OPERATION_SET, 0);
     check(rv == ENGINE_SUCCESS, "Set failed.");
     check_key_value(h, h1, key, new_data, strlen(new_data));
     h1->release(h, NULL, it);
-    // As the expiry window is 3 sec by default, the flusher won't persist the new item, but will
-    // delete the old item from database before the shutdown.
+    wait_for_stat_change(h, h1, "ep_num_expiry_pager_runs", pager_runs);
+    wait_for_flusher_to_settle(h, h1);
 
     // Restart the engine.
     testHarness.reload_engine(&h, &h1,
@@ -6081,7 +6082,7 @@ engine_test_t* get_tests(void) {
         TestCase("expiry_duplicate_warmup", test_bug3454, test_setup,
                  teardown, NULL, prepare, cleanup),
         TestCase("expiry_no_items_warmup", test_bug3522, test_setup,
-                 teardown, NULL, prepare, cleanup),
+                 teardown, "exp_pager_stime=3", prepare, cleanup),
         TestCase("replica read", test_get_replica, test_setup,
                  teardown, NULL, prepare, cleanup),
         TestCase("replica read: invalid state - active",
