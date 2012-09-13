@@ -3898,7 +3898,7 @@ static enum test_result test_duplicate_items_disk(ENGINE_HANDLE *h, ENGINE_HANDL
     check(set_vbucket_state(h, h1, 1, vbucket_state_active), "Failed to set vbucket state.");
 
     std::vector<std::string> keys;
-    for (int j = 0; j < 2000; ++j) {
+    for (int j = 0; j < 100; ++j) {
         std::stringstream ss;
         ss << "key" << j;
         std::string key(ss.str());
