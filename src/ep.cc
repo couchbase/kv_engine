@@ -1607,7 +1607,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::getKeyStats(const std::string &key,
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentStore::deleteItem(const std::string &key,
-                                                        uint64_t cas,
+                                                        uint64_t* cas,
                                                         uint16_t vbucket,
                                                         const void *cookie,
                                                         bool force,
@@ -1647,11 +1647,12 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteItem(const std::string &key,
 
     mutation_type_t delrv;
     if (use_meta) {
-        delrv = vb->ht.unlocked_softDelete(v, cas, newSeqno, use_meta, newCas,
+        delrv = vb->ht.unlocked_softDelete(v, *cas, newSeqno, use_meta, newCas,
                                            newFlags, newExptime);
     } else {
-        delrv = vb->ht.unlocked_softDelete(v, cas);
+        delrv = vb->ht.unlocked_softDelete(v, *cas);
     }
+    *cas = v->getCas();
 
     ENGINE_ERROR_CODE rv;
     if (delrv == NOT_FOUND || delrv == INVALID_CAS) {
@@ -2378,8 +2379,8 @@ bool EventuallyPersistentStore::warmupFromLog(const std::map<uint16_t, vbucket_s
                 ItemMetaData itemMeta;
 
                 // Deletion is pushed into the checkpoint for persistence.
-                deleteItem(record.key,
-                           0, // cas
+                uint64_t cas = 0;
+                deleteItem(record.key, &cas,
                            record.vbucket, NULL,
                            true, false, // force, use_meta
                            &itemMeta);

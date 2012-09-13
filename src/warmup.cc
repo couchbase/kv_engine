@@ -232,8 +232,9 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                              "Item was expired at load:  %s",
                              i->getKey().c_str());
+            uint64_t cas = 0;
             epstore->deleteItem(i->getKey(),
-                                0, // cas
+                                &cas,
                                 i->getVBucketId(), NULL,
                                 true, false, // force, use_meta
                                 &itemMeta);

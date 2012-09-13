@@ -202,7 +202,7 @@ public:
     ENGINE_ERROR_CODE itemDelete(const void* cookie,
                                  const void* key,
                                  const size_t nkey,
-                                 uint64_t cas,
+                                 uint64_t* cas,
                                  uint16_t vbucket)
     {
         std::string k(static_cast<const char*>(key), nkey);
@@ -211,7 +211,7 @@ public:
 
     ENGINE_ERROR_CODE itemDelete(const void* cookie,
                                  const std::string &key,
-                                 uint64_t cas,
+                                 uint64_t* cas,
                                  uint16_t vbucket)
     {
         ItemMetaData itemMeta;

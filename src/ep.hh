@@ -375,7 +375,7 @@ public:
      * @return the result of the delete operation
      */
     ENGINE_ERROR_CODE deleteItem(const std::string &key,
-                                 uint64_t cas,
+                                 uint64_t* cas,
                                  uint16_t vbucket,
                                  const void *cookie,
                                  bool force,

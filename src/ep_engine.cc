@@ -147,7 +147,7 @@ extern "C" {
                                            const void* cookie,
                                            const void* key,
                                            const size_t nkey,
-                                           uint64_t cas,
+                                           uint64_t* cas,
                                            uint16_t vbucket)
     {
         ENGINE_ERROR_CODE err_code = getHandle(handle)->itemDelete(cookie, key, nkey,
@@ -1922,7 +1922,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
                     itemMeta.cas = Item::nextCas();
                 }
             }
-            ret = epstore->deleteItem(k, 0, vbucket, cookie, true, meta,
+            uint64_t cas = 0;
+            ret = epstore->deleteItem(k, &cas, vbucket, cookie, true, meta,
                                       &itemMeta);
             if (ret == ENGINE_KEY_ENOENT) {
                 ret = ENGINE_SUCCESS;
@@ -3859,21 +3860,20 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(const void* cookie,
     uint16_t nkey = ntohs(request->message.header.request.keylen);
     std::string key(key_ptr, nkey);
     uint16_t vbucket = ntohs(request->message.header.request.vbucket);
+    uint64_t cas = ntohll(request->message.header.request.cas);
 
     uint32_t flags = ntohl(request->message.body.flags);
     uint32_t expiration = ntohl(request->message.body.expiration);
     uint64_t seqno = ntohll(request->message.body.seqno);
-    uint64_t cas = ntohll(request->message.body.cas);
+    uint64_t metacas = ntohll(request->message.body.cas);
     expiration = expiration == 0 ? 0 : ep_abs_time(ep_reltime(expiration));
 
     size_t nbytes = ntohl(request->message.header.request.bodylen);
     nbytes -= nkey + request->message.header.request.extlen;
 
-    ItemMetaData itm_meta(cas, seqno, flags, expiration);
-    ENGINE_ERROR_CODE ret = epstore->deleteItem(key,
-                                                ntohll(request->message.header.request.cas),
-                                                vbucket, cookie, false, true,
-                                                &itm_meta);
+    ItemMetaData itm_meta(metacas, seqno, flags, expiration);
+    ENGINE_ERROR_CODE ret = epstore->deleteItem(key, &cas, vbucket, cookie,
+                                                false, true, &itm_meta);
     if (ret == ENGINE_SUCCESS) {
         stats.numOpsDelMeta++;
     }

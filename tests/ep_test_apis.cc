@@ -221,6 +221,11 @@ void createCheckpoint(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     free(request);
 }
 
+ENGINE_ERROR_CODE del(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
+                      uint64_t cas, uint16_t vbucket, const void* cookie) {
+    return h1->remove(h, cookie, key, strlen(key), &cas, vbucket);
+}
+
 void del_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
                    const size_t keylen, const uint32_t vb,
                    ItemMetaData *itemMeta, uint64_t cas_for_delete) {

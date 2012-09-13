@@ -265,8 +265,7 @@ static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                          0)  == ENGINE_TMPFAIL, "Incr failed");
 
 
-    check(h1->remove(h, NULL, key, 2, 0, 0) == ENGINE_TMPFAIL,
-          "Delete failed");
+    check(del(h, h1, key, 0, 0) == ENGINE_TMPFAIL, "Delete failed");
 
 
     /* bug MB 2699 append after getl should fail with ENGINE_TMPFAIL */
@@ -491,7 +490,7 @@ extern "C" {
             hp->h1->release(hp->h, NULL, it);
             usleep(10);
             // Ignoring the result here -- we're racing.
-            hp->h1->remove(hp->h, NULL, "key", 3, 0, 0);
+            del(hp->h, hp->h1, "key", 0, 0);
             usleep(10);
         }
         return NULL;
@@ -857,8 +856,7 @@ static enum test_result test_bug2799(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 static enum test_result test_flush(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
     // First try to delete something we know to not be there.
-    check(h1->remove(h, NULL, "key", 3, 0, 0) == ENGINE_KEY_ENOENT,
-          "Failed to fail initial delete.");
+    check(del(h, h1, "key", 0, 0) == ENGINE_KEY_ENOENT, "Failed to fail initial delete.");
     check(store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i) == ENGINE_SUCCESS,
           "Failed set.");
     h1->release(h, NULL, i);
@@ -997,8 +995,7 @@ static enum test_result test_flush_multiv(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
 static enum test_result test_flush_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
     // First try to delete something we know to not be there.
-    check(h1->remove(h, NULL, "key", 3, 0, 0) == ENGINE_KEY_ENOENT,
-          "Failed to fail initial delete.");
+    check(del(h, h1, "key", 0, 0) == ENGINE_KEY_ENOENT, "Failed to fail initial delete.");
     check(store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i) == ENGINE_SUCCESS,
           "Failed set.");
     h1->release(h, NULL, i);
@@ -1081,14 +1078,18 @@ static enum test_result test_flush_multiv_restart(ENGINE_HANDLE *h, ENGINE_HANDL
 static enum test_result test_delete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
     // First try to delete something we know to not be there.
-    check(h1->remove(h, NULL, "key", 3, 0, 0) == ENGINE_KEY_ENOENT,
-          "Failed to fail initial delete.");
+    check(del(h, h1, "key", 0, 0) == ENGINE_KEY_ENOENT, "Failed to fail initial delete.");
     check(store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i) == ENGINE_SUCCESS,
           "Failed set.");
+    Item *it = reinterpret_cast<Item*>(i);
+    uint64_t orig_cas = it->getCas();
     h1->release(h, NULL, i);
     check_key_value(h, h1, "key", "somevalue", 9);
-    check(h1->remove(h, NULL, "key", 3, 0, 0) == ENGINE_SUCCESS,
+
+    uint64_t cas = 0;
+    check(h1->remove(h, NULL, "key", 3, &cas, 0) == ENGINE_SUCCESS,
           "Failed remove with value.");
+    check(orig_cas + 1 == cas, "Cas mismatch on delete");
     check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key"), "Expected missing key");
 
     // Can I time travel to an expired object and delete it?
@@ -1096,7 +1097,7 @@ static enum test_result test_delete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
             "Failed set.");
     h1->release(h, NULL, i);
     testHarness.time_travel(3617);
-    checkeq(ENGINE_KEY_ENOENT, h1->remove(h, NULL, "key", 3, 0, 0),
+    checkeq(ENGINE_KEY_ENOENT, del(h, h1, "key", 0, 0),
             "Did not get ENOENT removing an expired object.");
     checkeq(ENGINE_KEY_ENOENT, verify_key(h, h1, "key"), "Expected missing key");
 
@@ -1109,7 +1110,7 @@ static enum test_result test_set_delete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
             "Failed set.");
     h1->release(h, NULL, i);
     check_key_value(h, h1, "key", "somevalue", 9);
-    checkeq(ENGINE_SUCCESS, h1->remove(h, NULL, "key", 3, 0, 0),
+    checkeq(ENGINE_SUCCESS, del(h, h1, "key", 0, 0),
             "Failed remove with value.");
     checkeq(ENGINE_KEY_ENOENT, verify_key(h, h1, "key"), "Expected missing key");
     wait_for_flusher_to_settle(h, h1);
@@ -1130,7 +1131,7 @@ static enum test_result test_set_delete_invalid_cas(ENGINE_HANDLE *h, ENGINE_HAN
           "Should be able to get info");
     h1->release(h, NULL, i);
 
-    check(h1->remove(h, NULL, "key", 3, info.cas + 1, 0) == ENGINE_KEY_EEXISTS,
+    check(del(h, h1, "key", info.cas + 1, 0) == ENGINE_KEY_EEXISTS,
           "Didn't expect to be able to remove the item with wrong cas");
     return SUCCESS;
 }
@@ -1143,8 +1144,7 @@ static enum test_result test_bug2509(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                 "Failed set.");
         h1->release(h, NULL, itm);
         usleep(10);
-        checkeq(ENGINE_SUCCESS, h1->remove(h, NULL, "key", 3, 0, 0),
-                "Failed remove with value.");
+        checkeq(ENGINE_SUCCESS, del(h, h1, "key", 0, 0), "Failed remove with value.");
         usleep(10);
     }
 
@@ -1161,8 +1161,7 @@ static enum test_result test_bug2509(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 static enum test_result test_delete_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     wait_for_persisted_value(h, h1, "key", "value1");
 
-    check(h1->remove(h, NULL, "key", 3, 0, 0) == ENGINE_SUCCESS,
-          "Failed remove with value.");
+    check(del(h, h1, "key", 0, 0) == ENGINE_SUCCESS, "Failed remove with value.");
 
     wait_for_persisted_value(h, h1, "key", "value2");
 
@@ -1173,8 +1172,7 @@ static enum test_result test_delete_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
     wait_for_warmup_complete(h, h1);
 
     check_key_value(h, h1, "key", "value2", 6);
-    check(h1->remove(h, NULL, "key", 3, 0, 0) == ENGINE_SUCCESS,
-          "Failed remove with value.");
+    check(del(h, h1, "key", 0, 0) == ENGINE_SUCCESS, "Failed remove with value.");
 
     testHarness.reload_engine(&h, &h1,
                               testHarness.engine_path,
@@ -1436,8 +1434,7 @@ static enum test_result test_wrong_vb_prepend(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
 
 static enum test_result test_wrong_vb_del(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     int numNotMyVBucket = get_int_stat(h, h1, "ep_num_not_my_vbuckets");
-    check(ENGINE_NOT_MY_VBUCKET == h1->remove(h, NULL, "key", 3, 0, 1),
-          "Expected wrong bucket.");
+    check(ENGINE_NOT_MY_VBUCKET == del(h, h1, "key", 0, 1), "Expected wrong bucket.");
     wait_for_stat_change(h, h1, "ep_num_not_my_vbuckets", numNotMyVBucket);
     return SUCCESS;
 }
@@ -1734,7 +1731,7 @@ static enum test_result test_vb_del_pending(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
     const void *cookie = testHarness.create_cookie();
     testHarness.set_ewouldblock_handling(cookie, false);
     check(set_vbucket_state(h, h1, 1, vbucket_state_pending), "Failed to set vbucket state.");
-    check(ENGINE_EWOULDBLOCK == h1->remove(h, cookie, "key", 3, 0, 1),
+    check(ENGINE_EWOULDBLOCK == del(h, h1, "key", 0, 1, cookie),
           "Expected woodblock.");
     testHarness.destroy_cookie(cookie);
     return SUCCESS;
@@ -1743,7 +1740,7 @@ static enum test_result test_vb_del_pending(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
 static enum test_result test_vb_del_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(set_vbucket_state(h, h1, 1, vbucket_state_replica), "Failed to set vbucket state.");
     int numNotMyVBucket = get_int_stat(h, h1, "ep_num_not_my_vbuckets");
-    check(ENGINE_NOT_MY_VBUCKET == h1->remove(h, NULL, "key", 3, 0, 1),
+    check(ENGINE_NOT_MY_VBUCKET == del(h, h1, "key", 0, 1),
           "Expected not my vbucket.");
     wait_for_stat_change(h, h1, "ep_num_not_my_vbuckets", numNotMyVBucket);
     return SUCCESS;
@@ -2015,8 +2012,7 @@ static enum test_result test_memory_limit(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
 
     int itemsRemoved = get_int_stat(h, h1, "ep_items_rm_from_checkpoints");
     // Until we remove that item
-    check(h1->remove(h, NULL, "key", 3, 0, 0) == ENGINE_SUCCESS,
-          "Failed remove with value.");
+    check(del(h, h1, "key", 0, 0) == ENGINE_SUCCESS, "Failed remove with value.");
     check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key"), "Expected missing key");
     testHarness.time_travel(65);
     wait_for_stat_change(h, h1, "ep_items_rm_from_checkpoints", itemsRemoved);
@@ -2502,8 +2498,7 @@ static enum test_result test_tap_sends_deleted(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     for (int ii = 0; ii < num_keys - 2; ++ii) {
         std::stringstream ss;
         ss << "key" << ii;
-        checkeq(ENGINE_SUCCESS, h1->remove(h, NULL, ss.str().c_str(),
-                ss.str().length(), 0, 0), "Delete failed");
+        checkeq(ENGINE_SUCCESS, del(h, h1, ss.str().c_str(), 0, 0), "Delete failed");
     }
     wait_for_flusher_to_settle(h, h1);
     wait_for_stat_to_be(h, h1, "curr_items", 2);
@@ -3634,8 +3629,7 @@ static enum test_result test_curr_items(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
     wait_for_flusher_to_settle(h, h1);
 
     // Verify delete case.
-    check(h1->remove(h, NULL, "k1", 2, 0, 0) == ENGINE_SUCCESS,
-          "Failed remove with value.");
+    check(del(h, h1, "k1", 0, 0) == ENGINE_SUCCESS, "Failed remove with value.");
 
     wait_for_stat_change(h, h1, "curr_items", 3);
     verify_curr_items(h, h1, 2, "one item deleted - persisted");
@@ -3808,8 +3802,7 @@ static enum test_result test_mb3169(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(get_int_stat(h, h1, "ep_num_non_resident") == 2,
           "Expected incr to mark item resident");
 
-    check(h1->remove(h, NULL, "delete", 6, 0, 0) == ENGINE_SUCCESS,
-          "Delete failed");
+    check(del(h, h1, "delete", 0, 0) == ENGINE_SUCCESS, "Delete failed");
 
     check(get_int_stat(h, h1, "ep_num_non_resident") == 1,
           "Expected delete to remove non-resident item");
@@ -3925,8 +3918,7 @@ static enum test_result test_disk_gt_ram_golden(ENGINE_HANDLE *h,
     itemsRemoved = get_int_stat(h, h1, "ep_items_rm_from_checkpoints");
     // Delete the value and make sure things return correctly.
     int numStored = get_int_stat(h, h1, "ep_total_persisted");
-    check(h1->remove(h, NULL, "k1", 2, 0, 0) == ENGINE_SUCCESS,
-          "Failed remove with value.");
+    check(del(h, h1, "k1", 0, 0) == ENGINE_SUCCESS, "Failed remove with value.");
     wait_for_stat_change(h, h1, "ep_total_persisted", numStored);
     testHarness.time_travel(65);
     wait_for_stat_change(h, h1, "ep_items_rm_from_checkpoints", itemsRemoved);
@@ -3957,8 +3949,7 @@ static enum test_result test_disk_gt_ram_paged_rm(ENGINE_HANDLE *h,
     // Delete the value and make sure things return correctly.
     int itemsRemoved = get_int_stat(h, h1, "ep_items_rm_from_checkpoints");
     int numStored = get_int_stat(h, h1, "ep_total_persisted");
-    check(h1->remove(h, NULL, "k1", 2, 0, 0) == ENGINE_SUCCESS,
-          "Failed remove with value.");
+    check(del(h, h1, "k1", 0, 0) == ENGINE_SUCCESS, "Failed remove with value.");
     wait_for_stat_change(h, h1, "ep_total_persisted", numStored);
     testHarness.time_travel(65);
     wait_for_stat_change(h, h1, "ep_items_rm_from_checkpoints", itemsRemoved);
@@ -4014,8 +4005,7 @@ static enum test_result test_disk_gt_ram_delete_paged_out(ENGINE_HANDLE *h,
 
     evict_key(h, h1, "k1");
 
-    check(h1->remove(h, NULL, "k1", 2, 0, 0) == ENGINE_SUCCESS,
-          "Failed to delete.");
+    check(del(h, h1, "k1", 0, 0) == ENGINE_SUCCESS, "Failed to delete.");
 
     check(verify_key(h, h1, "k1") == ENGINE_KEY_ENOENT, "Expected miss.");
 
@@ -4045,8 +4035,7 @@ extern "C" {
 
         usleep(2600); // Exacerbate race condition.
 
-        check(td->h1->remove(td->h, NULL, "k1", 2, 0, 0) == ENGINE_SUCCESS,
-              "Failed to delete.");
+        check(del(td->h, td->h1, "k1", 0, 0) == ENGINE_SUCCESS, "Failed to delete.");
 
         delete td;
         return NULL;
@@ -4459,8 +4448,7 @@ static enum test_result test_get_meta_deleted(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
     Item *it = reinterpret_cast<Item*>(i);
     wait_for_flusher_to_settle(h, h1);
 
-    check(h1->remove(h, NULL, key, strlen(key), it->getCas(), 0) == ENGINE_SUCCESS,
-          "Delete failed");
+    check(del(h, h1, key, it->getCas(), 0) == ENGINE_SUCCESS, "Delete failed");
     wait_for_flusher_to_settle(h, h1);
 
     // check the stat
@@ -4524,8 +4512,7 @@ static enum test_result test_get_meta_with_get(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     check(temp == 1, "Expect one getMeta op");
 
     // test get_meta followed by get for a deleted key. should fail.
-    check(h1->remove(h, NULL, key1, strlen(key1), 0, 0) == ENGINE_SUCCESS,
-          "Delete failed");
+    check(del(h, h1, key1, 0, 0) == ENGINE_SUCCESS, "Delete failed");
     wait_for_flusher_to_settle(h, h1);
     check(get_meta(h, h1, key1), "Expected to get meta");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
@@ -4578,8 +4565,7 @@ static enum test_result test_get_meta_with_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     check(get_int_stat(h, h1, "curr_temp_items") == 0, "Expected zero temp_items");
 
     // test get_meta followed by set for a deleted key. should pass.
-    check(h1->remove(h, NULL, key1, strlen(key1), 0, 0) == ENGINE_SUCCESS,
-          "Delete failed");
+    check(del(h, h1, key1, 0, 0) == ENGINE_SUCCESS, "Delete failed");
     wait_for_flusher_to_settle(h, h1);
 
     wait_for_stat_to_be(h, h1, "curr_items", 0);
@@ -4630,8 +4616,7 @@ static enum test_result test_get_meta_with_delete(ENGINE_HANDLE *h, ENGINE_HANDL
     check(temp == 0, "Expect zero getMeta ops");
     check(get_meta(h, h1, key1), "Expected to get meta");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
-    check(h1->remove(h, NULL, key1, strlen(key1), 0, 0) == ENGINE_SUCCESS,
-          "Delete failed");
+    check(del(h, h1, key1, 0, 0) == ENGINE_SUCCESS, "Delete failed");
     // check the stat
     temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
     check(temp == 1, "Expect one getMeta op");
@@ -4641,8 +4626,7 @@ static enum test_result test_get_meta_with_delete(ENGINE_HANDLE *h, ENGINE_HANDL
     check(get_meta(h, h1, key1), "Expected to get meta");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
     check(last_deleted_flag, "Expected deleted flag to be set");
-    check(h1->remove(h, NULL, key1, strlen(key1), 0, 0) == ENGINE_KEY_ENOENT,
-          "Expected enoent");
+    check(del(h, h1, key1, 0, 0) == ENGINE_KEY_ENOENT, "Expected enoent");
     // check the stat
     temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
     check(temp == 2, "Expect more getMeta op");
@@ -4650,8 +4634,7 @@ static enum test_result test_get_meta_with_delete(ENGINE_HANDLE *h, ENGINE_HANDL
     // test get_meta followed by delete for a nonexistent key. should fail.
     check(!get_meta(h, h1, key2), "Expected get meta to return false");
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, "Expected enoent");
-    check(h1->remove(h, NULL, key2, strlen(key2), 0, 0) == ENGINE_KEY_ENOENT,
-          "Expected enoent");
+    check(del(h, h1, key2, 0, 0) == ENGINE_KEY_ENOENT, "Expected enoent");
     // check the stat again
     temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
     check(temp == 3, "Failed operation should also count");
@@ -4737,7 +4720,7 @@ static enum test_result test_delete_with_meta_deleted(ENGINE_HANDLE *h,
     wait_for_flusher_to_settle(h, h1);
 
     // delete the key
-    check(h1->remove(h, NULL, key, keylen, 0, 0) == ENGINE_SUCCESS,
+    check(del(h, h1, key, 0, 0) == ENGINE_SUCCESS,
           "Delete failed");
     wait_for_flusher_to_settle(h, h1);
     wait_for_stat_to_be(h, h1, "curr_items", 0);
@@ -4900,8 +4883,7 @@ static enum test_result test_delete_with_meta_race_with_set(ENGINE_HANDLE *h, EN
     //
 
     // do get_meta for the deleted key
-    check(h1->remove(h, NULL, key1, keylen1, 0, 0) == ENGINE_SUCCESS,
-          "Delete failed");
+    check(del(h, h1, key1, 0, 0) == ENGINE_SUCCESS, "Delete failed");
     wait_for_flusher_to_settle(h, h1);
 
     check(get_meta(h, h1, key1), "Expected to get meta");
@@ -4966,8 +4948,7 @@ static enum test_result test_delete_with_meta_race_with_delete(ENGINE_HANDLE *h,
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
 
     // do a concurrent delete
-    check(h1->remove(h, NULL, key1, strlen(key1), 0, 0) == ENGINE_SUCCESS,
-          "Delete failed");
+    check(del(h, h1, key1, 0, 0) == ENGINE_SUCCESS, "Delete failed");
 
     // attempt delete_with_meta. should fail since cas is no longer valid.
     del_with_meta(h, h1, key1, keylen1, 0, &itm_meta, last_cas);
@@ -4989,8 +4970,7 @@ static enum test_result test_delete_with_meta_race_with_delete(ENGINE_HANDLE *h,
     check(last_deleted_flag, "Expected deleted flag to be set");
 
     // do a concurrent delete
-    check(h1->remove(h, NULL, key1, keylen1, 0, 0) == ENGINE_KEY_ENOENT,
-          "Delete failed");
+    check(del(h, h1, key1, 0, 0) == ENGINE_KEY_ENOENT, "Delete failed");
 
     // attempt delete_with_meta. should pass.
     del_with_meta(h, h1, key1, keylen1, 0, &itm_meta, last_cas);
@@ -5010,8 +4990,7 @@ static enum test_result test_delete_with_meta_race_with_delete(ENGINE_HANDLE *h,
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, "Expected enoent");
 
     // do a concurrent delete
-    check(h1->remove(h, NULL, key1, strlen(key1), 0, 0) == ENGINE_KEY_ENOENT,
-          "Delete failed");
+    check(del(h, h1, key1, 0, 0) == ENGINE_KEY_ENOENT, "Delete failed");
 
     // attempt delete_with_meta. should pass.
     del_with_meta(h, h1, key2, keylen2, 0, &itm_meta, last_cas);
@@ -5106,8 +5085,7 @@ static enum test_result test_set_with_meta_deleted(ENGINE_HANDLE *h, ENGINE_HAND
     check(get_int_stat(h, h1, "curr_temp_items") == 0, "Expected zero temp_items");
 
     // delete the key
-    check(h1->remove(h, NULL, key, strlen(key), 0, 0) == ENGINE_SUCCESS,
-          "Delete failed");
+    check(del(h, h1, key, 0, 0) == ENGINE_SUCCESS, "Delete failed");
     wait_for_flusher_to_settle(h, h1);
     wait_for_stat_to_be(h, h1, "curr_items", 0);
 
@@ -5254,8 +5232,7 @@ static enum test_result test_set_with_meta_race_with_set(ENGINE_HANDLE *h, ENGIN
     //
 
     // do get_meta for the deleted key
-    check(h1->remove(h, NULL, key1, strlen(key1), 0, 0) == ENGINE_SUCCESS,
-          "Delete failed");
+    check(del(h, h1, key1, 0, 0) == ENGINE_SUCCESS, "Delete failed");
     wait_for_flusher_to_settle(h, h1);
     check(get_meta(h, h1, key1), "Expected to get meta");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
@@ -5321,8 +5298,7 @@ static enum test_result test_set_with_meta_race_with_delete(ENGINE_HANDLE *h, EN
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
 
     // do a concurrent delete that changes the cas
-    check(h1->remove(h, NULL, key1, strlen(key1), 0, 0) == ENGINE_SUCCESS,
-          "Delete failed");
+    check(del(h, h1, key1, 0, 0) == ENGINE_SUCCESS, "Delete failed");
 
     // attempt set_with_meta. should fail since cas is no longer valid.
     set_with_meta(h, h1, key1, keylen1, NULL, 0, 0, &last_meta, last_cas);
@@ -5344,8 +5320,7 @@ static enum test_result test_set_with_meta_race_with_delete(ENGINE_HANDLE *h, EN
     check(last_deleted_flag, "Expected deleted flag to be set");
 
     // do a concurrent delete. should fail.
-    check(h1->remove(h, NULL, key1, strlen(key1), 0, 0) == ENGINE_KEY_ENOENT,
-          "Delete failed");
+    check(del(h, h1, key1, 0, 0) == ENGINE_KEY_ENOENT, "Delete failed");
 
     // attempt set_with_meta. should pass since cas is still valid.
     set_with_meta(h, h1, key1, keylen1, NULL, 0, 0, &last_meta, last_cas);
@@ -5364,8 +5339,7 @@ static enum test_result test_set_with_meta_race_with_delete(ENGINE_HANDLE *h, EN
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, "Expected enoent");
 
     // do a concurrent delete. should fail.
-    check(h1->remove(h, NULL, key2, strlen(key2), 0, 0) == ENGINE_KEY_ENOENT,
-          "Delete failed");
+    check(del(h, h1, key2, 0, 0) == ENGINE_KEY_ENOENT, "Delete failed");
 
     // attempt set_with_meta. should pass since cas is still valid.
     set_with_meta(h, h1, key2, keylen2, NULL, 0, 0, &last_meta, last_cas);
@@ -5388,8 +5362,7 @@ static enum test_result test_temp_item_deletion(ENGINE_HANDLE *h, ENGINE_HANDLE_
           "Failed set.");
     wait_for_flusher_to_settle(h, h1);
 
-    check(h1->remove(h, NULL, k1, strlen(k1), 0, 0) == ENGINE_SUCCESS,
-          "Delete failed");
+    check(del(h, h1, k1, 0, 0) == ENGINE_SUCCESS, "Delete failed");
     wait_for_flusher_to_settle(h, h1);
     wait_for_stat_to_be(h, h1, "curr_items", 0);
 
@@ -5621,8 +5594,7 @@ static enum test_result test_observe_with_not_found(ENGINE_HANDLE *h, ENGINE_HAN
     check(h1->store(h, NULL, it, &cas3, OPERATION_SET, 1)== ENGINE_SUCCESS,
           "Set should work.");
     h1->release(h, NULL, it);
-    check(h1->remove(h, NULL, "key3", 4, 0, 1) == ENGINE_SUCCESS,
-              "Failed to remove a key");
+    check(del(h, h1, "key3", 0, 1) == ENGINE_SUCCESS, "Failed to remove a key");
 
     // Do observe
     std::map<std::string, uint16_t> obskeys;
@@ -5718,8 +5690,7 @@ static enum test_result test_compact_mutation_log(ENGINE_HANDLE *h, ENGINE_HANDL
     wait_for_flusher_to_settle(h, h1);
 
     for (it = keys.begin(); it != keys.end(); ++it) {
-        check(h1->remove(h, NULL, (*it).c_str(), (*it).length(), 0, 0) == ENGINE_SUCCESS,
-              "Failed to remove a key");
+        check(del(h, h1, (*it).c_str(), 0, 0) == ENGINE_SUCCESS, "Failed to remove a key");
     }
     wait_for_flusher_to_settle(h, h1);
 

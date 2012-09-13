@@ -54,6 +54,8 @@ protocol_binary_request_header* createPacket(uint8_t opcode,
 
 
 // Basic Operations
+ENGINE_ERROR_CODE del(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
+                      uint64_t cas, uint16_t vbucket, const void* cookie = NULL);
 void evict_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
                uint16_t vbucketId = 0, const char *msg = NULL,
                bool expectError = false);
