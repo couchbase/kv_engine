@@ -623,25 +623,27 @@ bool CouchKVStore::snapshotVBuckets(const vbucket_map_t &vbstates)
         uint16_t vbucketId = iter->first;
         vbucket_state vbstate = iter->second;
         vbucket_map_t::iterator it = cachedVBStates.find(vbucketId);
-        bool state_changed = true;
+        uint32_t vb_change_type = VB_NO_CHANGE;
         if (it != cachedVBStates.end()) {
-            if (it->second.state == vbstate.state &&
-                it->second.checkpointId == vbstate.checkpointId) {
-                continue; // no changes
-            } else {
-                if (it->second.state == vbstate.state) {
-                    state_changed = false;
-                }
-                it->second.state = vbstate.state;
-                it->second.checkpointId = vbstate.checkpointId;
-                // Note that the max deleted seq number is maintained within CouchKVStore
-                vbstate.maxDeletedSeqno = it->second.maxDeletedSeqno;
+            if (it->second.state != vbstate.state) {
+                vb_change_type |= VB_STATE_CHANGED;
             }
+            if (it->second.checkpointId != vbstate.checkpointId) {
+                vb_change_type |= VB_CHECKPOINT_CHANGED;
+            }
+            if (vb_change_type == VB_NO_CHANGE) {
+                continue; // no changes
+            }
+            it->second.state = vbstate.state;
+            it->second.checkpointId = vbstate.checkpointId;
+            // Note that the max deleted seq number is maintained within CouchKVStore
+            vbstate.maxDeletedSeqno = it->second.maxDeletedSeqno;
         } else {
+            vb_change_type = VB_STATE_CHANGED | VB_CHECKPOINT_CHANGED;
             cachedVBStates[vbucketId] = vbstate;
         }
 
-        success = setVBucketState(vbucketId, vbstate, state_changed, false);
+        success = setVBucketState(vbucketId, vbstate, vb_change_type, false);
         if (!success) {
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                              "Warning: failed to set new state, %s, for vbucket %d\n",
@@ -719,7 +721,7 @@ bool CouchKVStore::snapshotStats(const std::map<std::string, std::string> &stats
 }
 
 bool CouchKVStore::setVBucketState(uint16_t vbucketId, vbucket_state vbstate,
-                                   bool stateChanged, bool newfile)
+                                   uint32_t vb_change_type, bool newfile)
 {
     Db *db = NULL;
     uint64_t fileRev, newFileRev;
@@ -787,10 +789,10 @@ bool CouchKVStore::setVBucketState(uint16_t vbucketId, vbucket_state vbstate,
         } else {
             uint64_t newHeaderPos = couchstore_get_header_position(db);
             RememberingCallback<uint16_t> lcb;
+            VBStateNotification vbs(vbstate.checkpointId, vbstate.state,
+                                    vb_change_type, vbucketId);
 
-            couchNotifier->notify_update(vbucketId, fileRev, newHeaderPos,
-                                         stateChanged, vbstate.state,
-                                         vbstate.checkpointId, lcb);
+            couchNotifier->notify_update(vbs, fileRev, newHeaderPos, lcb);
             if (lcb.val != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
                 if (lcb.val == PROTOCOL_BINARY_RESPONSE_ETMPFAIL) {
                     getLogger()->log(EXTENSION_LOG_WARNING, NULL,

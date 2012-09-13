@@ -722,12 +722,9 @@ void CouchNotifier::selectBucket() {
     inSelectBucket = false;
 }
 
-void CouchNotifier::notify_update(uint16_t vbucket,
+void CouchNotifier::notify_update(const VBStateNotification &vbs,
                                   uint64_t file_version,
                                   uint64_t header_offset,
-                                  bool vbucket_state_updated,
-                                  uint32_t state,
-                                  uint64_t checkpoint,
                                   Callback<uint16_t> &cb)
 {
     protocol_binary_request_notify_vbucket_update req;
@@ -737,15 +734,15 @@ void CouchNotifier::notify_update(uint16_t vbucket,
         req.message.header.request.magic = PROTOCOL_BINARY_REQ;
         req.message.header.request.opcode = CMD_NOTIFY_VBUCKET_UPDATE;
         req.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
-        req.message.header.request.vbucket = ntohs(vbucket);
+        req.message.header.request.vbucket = ntohs(vbs.vbucket);
         req.message.header.request.opaque = seqno;
         req.message.header.request.bodylen = ntohl(32);
 
         req.message.body.file_version = ntohll(file_version);
         req.message.body.header_offset = ntohll(header_offset);
-        req.message.body.vbucket_state_updated = (vbucket_state_updated) ? ntohl(1) : 0;
-        req.message.body.state = ntohl(state);
-        req.message.body.checkpoint = ntohll(checkpoint);
+        req.message.body.vbucket_state_updated = ntohl(vbs.updateType);
+        req.message.body.state = ntohl(vbs.state);
+        req.message.body.checkpoint = ntohll(vbs.checkpoint);
 
         sendIov[0].iov_base = (char*)req.bytes;
         sendIov[0].iov_len = sizeof(req.bytes);

@@ -78,6 +78,23 @@ public:
 class BinaryPacketHandler;
 class SelectBucketResponseHandler;
 
+#define VB_NO_CHANGE 0x00
+#define VB_STATE_CHANGED 0x01
+#define VB_CHECKPOINT_CHANGED 0x02
+
+class VBStateNotification {
+public:
+    VBStateNotification(uint64_t _chk, uint32_t _state,
+                        uint32_t _type, uint16_t _vbucket) :
+        checkpoint(_chk), state(_state),
+        updateType(_type), vbucket(_vbucket) { }
+
+    uint64_t checkpoint;
+    uint32_t state;
+    uint32_t updateType;
+    uint16_t vbucket;
+};
+
 class CouchNotifier {
 public:
     CouchNotifier(EventuallyPersistentEngine *engine, Configuration &config);
@@ -85,20 +102,17 @@ public:
     void flush(Callback<bool> &cb);
     void delVBucket(uint16_t vb, Callback<bool> &cb);
 
-    void notify_update(uint16_t vbucket,
+    void notify_update(const VBStateNotification &vbs,
                        uint64_t file_version,
                        uint64_t header_offset,
-                       bool vbucket_state_updated,
-                       uint32_t state,
-                       uint64_t checkpoint,
                        Callback<uint16_t> &cb);
 
     void notify_headerpos_update(uint16_t vbucket,
                                  uint64_t file_version,
                                  uint64_t header_offset,
                                  Callback<uint16_t> &cb) {
-        notify_update(vbucket, file_version, header_offset,
-                      false, 0, 0, cb);
+        VBStateNotification vbs(0, 0, VB_NO_CHANGE, vbucket);
+        notify_update(vbs, file_version, header_offset, cb);
     }
 
     void addStats(const std::string &prefix,
