@@ -1694,6 +1694,7 @@ std::queue<queued_item>* EventuallyPersistentStore::beginFlush() {
 
     if (diskQueueEmpty()) {
         // If the persistence queue is empty, reset queue-related stats for each vbucket.
+        bool schedule_vb_snapshot = false;
         size_t numOfVBuckets = vbuckets.getSize();
         assert(numOfVBuckets <= std::numeric_limits<uint16_t>::max());
         for (size_t i = 0; i < numOfVBuckets; ++i) {
@@ -1704,7 +1705,20 @@ std::queue<queued_item>* EventuallyPersistentStore::beginFlush() {
                 vb->dirtyQueueMem.set(0);
                 vb->dirtyQueueAge.set(0);
                 vb->dirtyQueuePendingWrites.set(0);
+                if (vb->getState() == vbucket_state_dead) {
+                    continue;
+                }
+                uint64_t chkid = vb->checkpointManager.getPersistenceCursorPreChkId();
+                if (chkid > 0 && chkid != vbuckets.getPersistenceCheckpointId(vbid)) {
+                    vbuckets.setPersistenceCheckpointId(vbid, chkid);
+                    schedule_vb_snapshot = true;
+                }
             }
+        }
+        // Schedule the vbucket state snapshot task to record the latest checkpoint Id
+        // that was successfully persisted for each vbucket.
+        if (schedule_vb_snapshot) {
+            scheduleVBSnapshot(Priority::VBucketPersistHighPriority);
         }
     } else {
         assert(rwUnderlying);
