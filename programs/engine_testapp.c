@@ -102,7 +102,7 @@ static ENGINE_ERROR_CODE mock_remove(ENGINE_HANDLE* handle,
                                      const void* cookie,
                                      const void* key,
                                      const size_t nkey,
-                                     uint64_t cas,
+                                     uint64_t* cas,
                                      uint16_t vbucket)
 {
     struct mock_engine *me = get_handle(handle);

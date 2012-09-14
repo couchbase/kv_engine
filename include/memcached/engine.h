@@ -256,7 +256,7 @@ extern "C" {
                                     const void* cookie,
                                     const void* key,
                                     const size_t nkey,
-                                    uint64_t cas,
+                                    uint64_t* cas,
                                     uint16_t vbucket);
 
         /**

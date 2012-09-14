@@ -3514,8 +3514,7 @@ static void process_bin_update(conn *c) {
         if (c->cmd == PROTOCOL_BINARY_CMD_SET) {
             /* @todo fix this for the ASYNC interface! */
             settings.engine.v1->remove(settings.engine.v0, c, key, nkey,
-                                       memcached_ntohll(req->message.header.request.cas),
-                                       c->binary_header.request.vbucket);
+                                       &c->cas, c->binary_header.request.vbucket);
         }
 
         /* swallow the data line */
@@ -3628,8 +3627,6 @@ static void process_bin_flush(conn *c) {
 }
 
 static void process_bin_delete(conn *c) {
-    protocol_binary_request_delete* req = binary_get_request(c);
-
     char* key = binary_get_key(c);
     size_t nkey = c->binary_header.request.keylen;
 
@@ -3653,8 +3650,7 @@ static void process_bin_delete(conn *c) {
             stats_prefix_record_delete(key, nkey);
         }
         ret = settings.engine.v1->remove(settings.engine.v0, c, key, nkey,
-                                         memcached_ntohll(req->message.header.request.cas),
-                                         c->binary_header.request.vbucket);
+                                         &c->cas, c->binary_header.request.vbucket);
     }
 
     /* For some reason the SLAB_INCR tries to access this... */
@@ -4635,7 +4631,8 @@ static void process_update_command(conn *c, mc_extension_token_t *tokens, const 
         /* Avoid stale data persisting in cache because we failed alloc.
          * Unacceptable for SET. Anywhere else too? */
         if (store_op == OPERATION_SET) {
-            settings.engine.v1->remove(settings.engine.v0, c, key, nkey, 0, 0);
+            uint64_t cas = 0;
+            settings.engine.v1->remove(settings.engine.v0, c, key, nkey, &cas, 0);
         }
     }
 }
@@ -4751,8 +4748,9 @@ static char *process_delete_command(conn *c, mc_extension_token_t *tokens,
     c->aiostat = ENGINE_SUCCESS;
     c->ewouldblock = false;
     if (ret == ENGINE_SUCCESS) {
+        uint64_t cas = 0;
         ret = settings.engine.v1->remove(settings.engine.v0, c,
-                                         key, nkey, 0, 0);
+                                         key, nkey, &cas, 0);
     }
 
     /* For some reason the SLAB_INCR tries to access this... */
