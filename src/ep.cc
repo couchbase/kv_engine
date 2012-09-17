@@ -1073,7 +1073,6 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
                                                 hrtime_t init,
                                                 bg_fetch_type_t type) {
     hrtime_t start(gethrtime());
-    ++stats.bg_fetched;
     std::stringstream ss;
     ss << "Completed a background fetch, now at " << bgFetchQueue.get()
        << std::endl;
@@ -1083,6 +1082,9 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
     RememberingCallback<GetValue> gcb;
     if (BG_FETCH_METADATA == type) {
         gcb.val.setPartial();
+        ++stats.bg_meta_fetched;
+    } else {
+        ++stats.bg_fetched;
     }
     roUnderlying->get(key, rowid, vbucket, gcb);
     gcb.waitForValue();

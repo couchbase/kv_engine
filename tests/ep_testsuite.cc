@@ -3371,6 +3371,28 @@ static enum test_result test_bg_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return SUCCESS;
 }
 
+static enum test_result test_bg_meta_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    item *itm = NULL;
+    h1->reset_stats(h, NULL);
+    wait_for_persisted_value(h, h1, "k1", "v1");
+    wait_for_persisted_value(h, h1, "k2", "v2");
+    evict_key(h, h1, "k1", 0, "Ejected.");
+    check(del(h, h1, "k2", 0, 0) == ENGINE_SUCCESS, "Failed remove with value.");
+    wait_for_stat_to_be(h, h1, "curr_items", 1);
+    checkeq(0, get_int_stat(h, h1, "ep_bg_fetched"), "Expected bg_fetched to be 0");
+    checkeq(0, get_int_stat(h, h1, "ep_bg_meta_fetched"), "Expected bg_meta_fetched to be 0");
+
+    check(get_meta(h, h1, "k2"), "Get meta failed");
+    checkeq(0, get_int_stat(h, h1, "ep_bg_fetched"), "Expected bg_fetched to be 0");
+    checkeq(1, get_int_stat(h, h1, "ep_bg_meta_fetched"), "Expected bg_meta_fetched to be 1");
+
+    check(h1->get(h, NULL, &itm, "k1", 2, 0) == ENGINE_SUCCESS, "Missing key");
+    checkeq(1, get_int_stat(h, h1, "ep_bg_fetched"), "Expected bg_fetched to be 1");
+    checkeq(1, get_int_stat(h, h1, "ep_bg_meta_fetched"), "Expected bg_meta_fetched to be 1");
+
+    return SUCCESS;
+}
+
 static enum test_result test_key_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
 
@@ -6114,6 +6136,8 @@ engine_test_t* get_tests(void) {
         TestCase("io stats", test_io_stats, test_setup, teardown,
                  NULL, prepare, cleanup),
         TestCase("bg stats", test_bg_stats, test_setup, teardown,
+                 NULL, prepare, cleanup),
+        TestCase("bg meta stats", test_bg_meta_stats, test_setup, teardown,
                  NULL, prepare, cleanup),
         TestCase("mem stats", test_mem_stats, test_setup, teardown,
                  "chk_remover_stime=1;chk_period=60", prepare, cleanup),

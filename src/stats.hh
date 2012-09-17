@@ -180,6 +180,8 @@ public:
 
     //! Number of times background fetches occurred.
     Atomic<size_t> bg_fetched;
+    //! Number of times meta background fetches occurred.
+    Atomic<size_t> bg_meta_fetched;
     //! Number of remaining bg fetch jobs.
     Atomic<size_t> numRemainingBgJobs;
     //! The number of samples the bgWaitDelta and bgLoadDelta contains of
