@@ -1140,7 +1140,7 @@ public:
          * a cas operation for a key that doesn't exist is not a very cool
          * thing to do. See MB 3252
          */
-        if (v && v->isExpired(ep_real_time())) {
+        if (v && v->isExpired(ep_real_time()) && !hasMetaData) {
             if (v->isLocked(ep_current_time())) {
                 v->unlock();
             }
