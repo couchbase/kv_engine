@@ -813,7 +813,10 @@ bool CouchKVStore::setVBucketState(uint16_t vbucketId, vbucket_state vbstate,
                                 "Warning: failed to notify CouchDB of update, "
                                 "vbid=%u rev=%llu error=0x%x\n",
                                 vbucketId, fileRev, lcb.val);
-                        abort();
+                        if (!engine.isShutdownMode()) {
+                            closeDatabaseHandle(db);
+                            return false;
+                        }
                     }
                 }
             }
@@ -1567,7 +1570,6 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, uint64_t rev, Doc **doc
                                      "Warning: failed to notify CouchDB of "
                                      "update for vbucket=%d, error=0x%x\n",
                                      vbid, cb.val);
-                    abort();
                 }
             }
             closeDatabaseHandle(db);
