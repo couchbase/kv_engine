@@ -1177,22 +1177,42 @@ couchstore_error_t CouchKVStore::openDB(uint16_t vbucketId,
     uint64_t newRevNum = fileRev;
     couchstore_error_t errorCode = COUCHSTORE_SUCCESS;
 
-    while (retry < MAX_OPEN_DB_RETRY) {
-        errorCode = couchstore_open_db_ex(dbFileName.c_str(),
-                                          options,
-                                          ops,
-                                          db);
-        if (errorCode == COUCHSTORE_SUCCESS ||
-            options == COUCHSTORE_OPEN_FLAG_CREATE) {
-            break; // no need to retry upon create failure
+    if (options == COUCHSTORE_OPEN_FLAG_CREATE) {
+        // first try to open the requested file without the create option
+        // in case it does already exist
+        errorCode = couchstore_open_db_ex(dbFileName.c_str(), 0, ops, db);
+        if (errorCode != COUCHSTORE_SUCCESS) {
+            newRevNum = checkNewRevNum(dbFileName);
+            if (newRevNum) {
+                errorCode = couchstore_open_db_ex(dbFileName.c_str(), 0,
+                                                  ops, db);
+            } else {
+                // requested file doesn't seem to exist, just create one
+                errorCode = couchstore_open_db_ex(dbFileName.c_str(), options,
+                                                  ops, db);
+                if (errorCode == COUCHSTORE_SUCCESS) {
+                    updateDbFileMap(vbucketId, fileRev, true);
+                    getLogger()->log(EXTENSION_LOG_INFO, NULL,
+                        "INFO: created new couch db file, name=%s rev=%d\n",
+                        dbFileName.c_str(), fileRev);
+                }
+            }
         }
-        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-            "Warning: couchstore_open_db failed, name=%s "
-            "error=%s [%s], retry it again!\n",
-            dbFileName.c_str(), couchstore_strerror(errorCode),
-            couchkvstore_strerrno(errorCode).c_str());
-        newRevNum = checkNewRevNum(dbFileName);
-        ++retry;
+    } else {
+        while (retry < MAX_OPEN_DB_RETRY) {
+            errorCode = couchstore_open_db_ex(dbFileName.c_str(),
+                                              options, ops, db);
+            if (errorCode == COUCHSTORE_SUCCESS) {
+                break;
+            }
+            getLogger()->log(EXTENSION_LOG_INFO, NULL,
+                    "INFO: couchstore_open_db failed, name=%s "
+                    "options=%X error=%s [%s], try it again!\n",
+                    dbFileName.c_str(), options, couchstore_strerror(errorCode),
+                    couchkvstore_strerrno(errorCode).c_str());
+            newRevNum = checkNewRevNum(dbFileName);
+            ++retry;
+        }
     }
 
     /* update command statistics */
@@ -1201,24 +1221,20 @@ couchstore_error_t CouchKVStore::openDB(uint16_t vbucketId,
         st.numOpenFailure++;
         getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                          "Warning: couchstore_open_db failed, name=%s "
-                         "option=%X retried=%d error=%s [%s]\n",
-                         dbFileName.c_str(), options, retry,
-                         couchstore_strerror(errorCode),
+                         "option=%X rev=%d retried=%d error=%s [%s]\n",
+                         dbFileName.c_str(), options,
+                         ((newRevNum > fileRev) ? newRevNum : fileRev),
+                         retry, couchstore_strerror(errorCode),
                          couchkvstore_strerrno(errorCode).c_str());
     } else {
-        if (options == COUCHSTORE_OPEN_FLAG_CREATE) {
-            // this is a brand new file, insert the revision number
-            updateDbFileMap(vbucketId, fileRev, true);
-        } else {
-            if (newRevNum != fileRev) {
-                // new reviion number found, update it
-                updateDbFileMap(vbucketId, newRevNum);
-            }
+        if (newRevNum > fileRev) {
+            // new revision number found, update it
+            updateDbFileMap(vbucketId, newRevNum);
         }
     }
 
     if (newFileRev != NULL) {
-        *newFileRev = newRevNum;
+        *newFileRev = (newRevNum > fileRev) ? newRevNum : fileRev;
     }
     return errorCode;
 }
