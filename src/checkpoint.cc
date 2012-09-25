@@ -1137,9 +1137,11 @@ bool CheckpointManager::hasNextForPersistence() {
 
 uint64_t CheckpointManager::createNewCheckpoint() {
     LockHolder lh(queueLock);
-    uint64_t chk_id = checkpointList.back()->getId();
-    closeOpenCheckpoint_UNLOCKED(chk_id);
-    addNewCheckpoint_UNLOCKED(chk_id + 1);
+    if (checkpointList.back()->getNumItems() > 0) {
+        uint64_t chk_id = checkpointList.back()->getId();
+        closeOpenCheckpoint_UNLOCKED(chk_id);
+        addNewCheckpoint_UNLOCKED(chk_id + 1);
+    }
     return checkpointList.back()->getId();
 }
 
