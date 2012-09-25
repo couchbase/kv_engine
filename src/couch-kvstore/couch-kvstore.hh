@@ -479,7 +479,7 @@ protected:
                          uint32_t vb_change_type, bool newfile = false,
                          bool notify = true);
     bool resetVBucket(uint16_t vbucketId, vbucket_state vbstate) {
-        setVBucketState(vbucketId, vbstate, VB_NO_CHANGE, true, false);
+        return setVBucketState(vbucketId, vbstate, VB_NO_CHANGE, true, false);
     }
 
     template <typename T>

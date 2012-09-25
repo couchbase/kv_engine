@@ -1925,8 +1925,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
                     itemMeta.cas = Item::nextCas();
                 }
             }
-            uint64_t cas = 0;
-            ret = epstore->deleteItem(k, &cas, vbucket, cookie, true, meta,
+            uint64_t delCas = 0;
+            ret = epstore->deleteItem(k, &delCas, vbucket, cookie, true, meta,
                                       &itemMeta);
             if (ret == ENGINE_KEY_ENOENT) {
                 ret = ENGINE_SUCCESS;
