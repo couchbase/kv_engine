@@ -3632,11 +3632,15 @@ EventuallyPersistentEngine::handleCheckpointCmds(const void *cookie,
             msg << "VBucket " << vbucket << " not in active state!!!";
             status = PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET;
         } else {
-            uint64_t checkpointId = vb->checkpointManager.createNewCheckpoint();
+            uint64_t checkpointId = htonll(vb->checkpointManager.createNewCheckpoint());
             getEpStore()->wakeUpFlusher();
-            checkpointId = htonll(checkpointId);
+
+            uint64_t persistedChkId = htonll(epstore->getLastPersistedCheckpointId(vb->getId()));
+            char val[128];
+            memcpy(val, &checkpointId, sizeof(uint64_t));
+            memcpy(val + sizeof(uint64_t), &persistedChkId, sizeof(uint64_t));
             return sendResponse(response, NULL, 0, NULL, 0,
-                                &checkpointId, sizeof(checkpointId),
+                                val, sizeof(uint64_t) * 2,
                                 PROTOCOL_BINARY_RAW_BYTES,
                                 status, 0, cookie);
         }
