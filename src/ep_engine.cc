@@ -3633,6 +3633,7 @@ EventuallyPersistentEngine::handleCheckpointCmds(const void *cookie,
             status = PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET;
         } else {
             uint64_t checkpointId = vb->checkpointManager.createNewCheckpoint();
+            getEpStore()->wakeUpFlusher();
             checkpointId = htonll(checkpointId);
             return sendResponse(response, NULL, 0, NULL, 0,
                                 &checkpointId, sizeof(checkpointId),
