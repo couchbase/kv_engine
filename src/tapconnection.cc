@@ -245,7 +245,8 @@ TapProducer::TapProducer(EventuallyPersistentEngine &theEngine,
     isSeqNumRotated(false),
     numNoops(0),
     tapFlagByteorderSupport(false),
-    specificData(NULL)
+    specificData(NULL),
+    backfillTimestamp(0)
 {
     evaluateFlags();
     queue = new std::list<queued_item>;
@@ -1255,6 +1256,7 @@ void TapProducer::addStats(ADD_STAT add_stat, const void *c) {
     addStat("pending_backfill", isPendingBackfill_UNLOCKED(), add_stat, c);
     addStat("pending_disk_backfill", diskBackfillCounter > 0, add_stat, c);
     addStat("backfill_completed", isBackfillCompleted_UNLOCKED(), add_stat, c);
+    addStat("backfill_start_timestamp", backfillTimestamp, add_stat, c);
 
     addStat("queue_memory", getQueueMemory(), add_stat, c);
     addStat("queue_fill", getQueueFillTotal(), add_stat, c);
@@ -1757,6 +1759,7 @@ void TapProducer::scheduleBackfill_UNLOCKED(const std::vector<uint16_t> &vblist)
     if (new_vblist.size() > 0) {
         doRunBackfill = true;
         backfillCompleted = false;
+        backfillTimestamp = ep_real_time();
     }
 }
 

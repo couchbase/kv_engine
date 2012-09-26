@@ -1161,6 +1161,8 @@ private:
 
     //! EP-engine specific item info
     uint8_t *specificData;
+    //! Timestamp of backfill start
+    time_t backfillTimestamp;
 
     DISALLOW_COPY_AND_ASSIGN(TapProducer);
 };
