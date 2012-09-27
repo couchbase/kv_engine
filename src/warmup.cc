@@ -358,7 +358,7 @@ bool Warmup::loadingMutationLog(Dispatcher&, TaskId &)
 
     try {
         success = store->warmupFromLog(initialVbState, cb);
-    } catch (MutationLog::ReadException e) {
+    } catch (MutationLog::ReadException &e) {
         corruptMutationLog = true;
         getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                          "Error reading warmup log:  %s", e.what());
@@ -371,7 +371,7 @@ bool Warmup::loadingMutationLog(Dispatcher&, TaskId &)
             if (store->mutationLog.reset()) {
                 setReconstructLog(true);
             }
-        } catch (MutationLog::ReadException e) {
+        } catch (MutationLog::ReadException &e) {
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                              "Failed to reset mutation log:  %s", e.what());
         }
@@ -472,7 +472,7 @@ bool Warmup::loadingAccessLog(Dispatcher&, TaskId &)
                                             *load_cb, w) != (size_t)-1) {
                 success = true;
             }
-        } catch (MutationLog::ReadException e) {
+        } catch (MutationLog::ReadException &e) {
             corruptAccessLog = true;
         }
     }
@@ -489,7 +489,7 @@ bool Warmup::loadingAccessLog(Dispatcher&, TaskId &)
                                                 *load_cb, w) != (size_t)-1) {
                     success = true;
                 }
-            } catch (MutationLog::ReadException e) {
+            } catch (MutationLog::ReadException &e) {
                 corruptAccessLog = true;
             }
         }

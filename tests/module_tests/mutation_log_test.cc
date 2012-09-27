@@ -363,7 +363,7 @@ static void testLoggingBadCRC() {
         try {
             h.load();
             abort();
-        } catch(MutationLog::CRCReadException e) {
+        } catch(MutationLog::CRCReadException &e) {
             // expected
         }
 
@@ -433,7 +433,7 @@ static void testLoggingShortRead() {
 
             h.load();
             abort();
-        } catch(MutationLog::ShortReadException e) {
+        } catch(MutationLog::ShortReadException &e) {
             // expected
         }
     }
@@ -446,7 +446,7 @@ static void testLoggingShortRead() {
         try {
             ml.open();
             abort();
-        } catch(MutationLog::ShortReadException e) {
+        } catch(MutationLog::ShortReadException &e) {
             // expected
         }
     }
@@ -462,7 +462,7 @@ static void testYUNOOPEN() {
     try {
         ml.open();
         abort();
-    } catch(MutationLog::ReadException e) {
+    } catch(MutationLog::ReadException &e) {
         std::string exp("Unable to open log file: Permission denied");
         // This is kind of a soft assertion.  The actual text may vary.
         if (e.what() != exp) {

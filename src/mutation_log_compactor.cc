@@ -86,7 +86,7 @@ bool MutationLogCompactor::callback(Dispatcher &d, TaskId &t) {
             LogCompactionVisitor compact_visitor(new_log, stats);
             epStore->visit(compact_visitor);
             mutationLog.replaceWith(new_log);
-        } catch (MutationLog::ReadException e) {
+        } catch (MutationLog::ReadException &e) {
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                              "Error in creating a new mutation log for compaction:  %s\n",
                              e.what());

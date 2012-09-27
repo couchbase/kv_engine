@@ -399,7 +399,7 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
         mutationLog.open();
         assert(theEngine.getConfiguration().getKlogPath() == ""
                || mutationLog.isEnabled());
-    } catch(MutationLog::ReadException e) {
+    } catch(MutationLog::ReadException &e) {
         getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                          "Error opening mutation log:  %s (disabling)", e.what());
         mutationLog.disable();
