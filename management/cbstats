@@ -165,7 +165,15 @@ def stats_key(mc, key, vb):
 @cmd
 def stats_vkey(mc, key, vb):
     cmd = "vkey %s %s" % (key, str(vb))
-    vbs = stats_perform(mc, cmd)
+    try:
+        vbs = mc.stats(cmd)
+    except mc_bin_client.MemcachedError, e:
+        print e.message
+        sys.exit()
+    except Exception, e:
+        print "Stats '%s' are not available from the requested engine." % cmd
+        sys.exit()
+
     if vbs:
         print "verification for key", key
         stats_formatter(vbs)
