@@ -17,7 +17,7 @@ int main(int argc, char **argv) {
     std::list<std::pair<uint64_t, uint64_t> >::iterator it;
 
     createChunkListFromArray(&elm_list, 0, chunk_list);
-    assert(chunk_list.size() == 0);
+    assert(chunk_list.empty());
     chunk_list.clear();
 
     createChunkListFromArray(&elm_list, 1, chunk_list);

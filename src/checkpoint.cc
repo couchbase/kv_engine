@@ -53,7 +53,7 @@ void Checkpoint::setState(checkpoint_state state) {
 }
 
 void Checkpoint::popBackCheckpointEndItem() {
-    if (toWrite.size() > 0 && toWrite.back()->getOperation() == queue_op_checkpoint_end) {
+    if (!toWrite.empty() && toWrite.back()->getOperation() == queue_op_checkpoint_end) {
         toWrite.pop_back();
     }
 }
@@ -197,7 +197,7 @@ CheckpointManager::~CheckpointManager() {
 }
 
 uint64_t CheckpointManager::getOpenCheckpointId_UNLOCKED() {
-    if (checkpointList.size() == 0) {
+    if (checkpointList.empty()) {
         return 0;
     }
 
@@ -224,7 +224,7 @@ uint64_t CheckpointManager::getLastClosedCheckpointId() {
 }
 
 void CheckpointManager::setOpenCheckpointId_UNLOCKED(uint64_t id) {
-    if (checkpointList.size() > 0) {
+    if (!checkpointList.empty()) {
         getLogger()->log(EXTENSION_LOG_INFO, NULL,
                          "Set the current open checkpoint id to %llu for vbucket %d.\n",
                          id, vbucketId);
@@ -238,7 +238,7 @@ void CheckpointManager::setOpenCheckpointId_UNLOCKED(uint64_t id) {
 
 bool CheckpointManager::addNewCheckpoint_UNLOCKED(uint64_t id) {
     // This is just for making sure that the current checkpoint should be closed.
-    if (checkpointList.size() > 0 &&
+    if (!checkpointList.empty() &&
         checkpointList.back()->getState() == CHECKPOINT_OPEN) {
         closeOpenCheckpoint_UNLOCKED(checkpointList.back()->getId());
     }
@@ -299,7 +299,7 @@ bool CheckpointManager::addNewCheckpoint(uint64_t id) {
 }
 
 bool CheckpointManager::closeOpenCheckpoint_UNLOCKED(uint64_t id) {
-    if (checkpointList.size() == 0) {
+    if (checkpointList.empty()) {
         return false;
     }
     if (id != checkpointList.back()->getId() ||
@@ -325,7 +325,7 @@ bool CheckpointManager::closeOpenCheckpoint(uint64_t id) {
 
 void CheckpointManager::registerPersistenceCursor() {
     LockHolder lh(queueLock);
-    assert(checkpointList.size() > 0);
+    assert(!checkpointList.empty());
     persistenceCursor.currentCheckpoint = checkpointList.begin();
     persistenceCursor.currentPos = checkpointList.front()->begin();
     checkpointList.front()->registerCursorName(persistenceCursor.name);
@@ -344,7 +344,7 @@ bool CheckpointManager::registerTAPCursor_UNLOCKED(const std::string &name,
                                                    uint64_t checkpointId,
                                                    bool closedCheckpointOnly,
                                                    bool alwaysFromBeginning) {
-    assert(checkpointList.size() > 0);
+    assert(!checkpointList.empty());
 
     bool found = false;
     std::list<Checkpoint*>::iterator it = checkpointList.begin();
@@ -1064,7 +1064,7 @@ void CheckpointManager::checkAndAddNewCheckpoint(uint64_t id) {
             addNewCheckpoint_UNLOCKED(id);
         }
     } else {
-        assert(checkpointList.size() > 0);
+        assert(!checkpointList.empty());
         std::list<Checkpoint*>::reverse_iterator rit = checkpointList.rbegin();
         ++rit; // Move to the last closed checkpoint.
         size_t numDuplicatedItems = 0, numMetaItems = 0;

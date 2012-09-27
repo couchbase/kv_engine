@@ -531,7 +531,7 @@ void TapProducer::registerTAPCursor(const std::map<uint16_t, uint64_t> &lastChec
         }
     }
 
-    if (backfill_vbuckets.size() > 0) {
+    if (!backfill_vbuckets.empty()) {
         if (backfillAge < current_time) {
             scheduleBackfill_UNLOCKED(backfill_vbuckets);
         }
@@ -1759,7 +1759,7 @@ void TapProducer::scheduleBackfill_UNLOCKED(const std::vector<uint16_t> &vblist)
                          logHeader(), *it);
     }
 
-    if (new_vblist.size() > 0) {
+    if (!new_vblist.empty()) {
         doRunBackfill = true;
         backfillCompleted = false;
         backfillTimestamp = ep_real_time();

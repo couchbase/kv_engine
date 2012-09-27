@@ -391,7 +391,7 @@ void TapConnMap::scheduleBackfill(const std::set<uint16_t> &backfillVBuckets) {
                 vblist.push_back(*vb_it);
             }
         }
-        if (vblist.size() > 0) {
+        if (!vblist.empty()) {
             tp->scheduleBackfill(vblist);
         }
     }
@@ -567,7 +567,7 @@ void TapConnMap::loadPrevSessionStats(const std::map<std::string, std::string> &
         if (it->second.compare("true") == 0) {
             prevSessionStats.normalShutdown = false;
         }
-    } else if (session_stats.size() > 0) { // possible crash on the previous session.
+    } else if (!session_stats.empty()) { // possible crash on the previous session.
         prevSessionStats.normalShutdown = false;
     }
 

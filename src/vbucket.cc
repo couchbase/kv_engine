@@ -216,7 +216,7 @@ bool VBucket::getBGFetchItems(vb_bgfetch_queue_t &fetches) {
         fetches[it->value.getId()].push_back(it);
         pendingBGFetches.pop();
     }
-    return fetches.size() > 0;
+    return !fetches.empty();
 }
 
 void VBucket::addStats(bool details, ADD_STAT add_stat, const void *c) {

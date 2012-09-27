@@ -562,7 +562,7 @@ McCouchMockServerInstance::McCouchMockServerInstance(int &port) :
     }
 
     freeaddrinfo(ainfo);
-    if (conns.size() == 0) {
+    if (conns.empty()) {
         throw runtime_error("Failed to create temp mock server");
     }
 

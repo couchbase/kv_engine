@@ -10,7 +10,7 @@ static void testEmpty() {
     RingBuffer<int> rb(10);
     assert(rb.size() == 0);
     std::vector<int> v(rb.contents());
-    assert(v.size() == 0);
+    assert(v.empty());
 }
 
 static void testPartial() {

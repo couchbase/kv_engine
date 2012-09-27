@@ -1870,7 +1870,7 @@ vb_flush_queue_t* EventuallyPersistentStore::beginFlush() {
             vb->getBackfillItems(item_list);
             // Get all dirty items from the checkpoint.
             vb->checkpointManager.getAllItemsForPersistence(item_list);
-            if (item_list.size() > 0) {
+            if (!item_list.empty()) {
                 num_items += pushToOutgoingQueue(item_list, vbid);
             }
         }
@@ -2103,7 +2103,7 @@ int EventuallyPersistentStore::flushHighPriorityVBQueue(vb_flush_queue_t *flushQ
                 vb->getBackfillItems(item_list);
                 // Get all dirty items from the checkpoint.
                 vb->checkpointManager.getAllItemsForPersistence(item_list);
-                if (item_list.size() > 0) {
+                if (!item_list.empty()) {
                     num_items += pushToOutgoingQueue(item_list, vbid);
                 }
             }
@@ -2604,7 +2604,7 @@ bool EventuallyPersistentStore::warmupFromLog(const std::map<uint16_t, vbucket_s
     // Anything left in the "loading" map at this point is uncommitted.
     std::vector<mutation_log_uncommitted_t> uitems;
     harvester.getUncommitted(uitems);
-    if (uitems.size() > 0) {
+    if (!uitems.empty()) {
         getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                          "%ld items were uncommitted in the mutation log file. "
                          "Deleting them from the underlying data store.\n",

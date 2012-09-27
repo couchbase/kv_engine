@@ -668,7 +668,7 @@ void CouchNotifier::wait()
 {
     std::list<BinaryPacketHandler*> *handler = &responseHandler;
 
-    while (handler->size() > 0 && waitForReadable()) {
+    while (!handler->empty() && waitForReadable()) {
         // We don't want to busy-loop, so wait until there is something
         // there...
         processInput();
@@ -680,7 +680,7 @@ bool CouchNotifier::waitOnce()
     std::list<BinaryPacketHandler*> *handler = &responseHandler;
 
     bool succeed = false;
-    while (handler->size() > 0 && (succeed = waitForReadable(true))) {
+    while (!handler->empty() && (succeed = waitForReadable(true))) {
         succeed = processInput();
     }
     return succeed;
