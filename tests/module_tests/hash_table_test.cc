@@ -196,7 +196,7 @@ static void testForwardDeletions() {
     assert(global_stats.currentSize.get() == initialSize);
 }
 
-static void verifyFound(HashTable &h, const std::vector<std::string> keys) {
+static void verifyFound(HashTable &h, const std::vector<std::string> &keys) {
     std::string missingKey = "aMissingKey";
     assert(h.find(missingKey) == NULL);
 

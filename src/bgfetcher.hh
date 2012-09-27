@@ -13,7 +13,7 @@ const uint16_t MAX_BGFETCH_RETRY=5;
 
 class VBucketBGFetchItem {
 public:
-    VBucketBGFetchItem(const std::string k, uint64_t s, const void *c) :
+    VBucketBGFetchItem(const std::string &k, uint64_t s, const void *c) :
                        key(k), cookie(c), retryCount(0), initTime(gethrtime()) {
         value.setId(s);
     }

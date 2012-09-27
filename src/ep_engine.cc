@@ -2973,7 +2973,7 @@ struct TapAggStatBuilder {
 
 /// @endcond
 
-static void showTapAggStat(const std::string prefix,
+static void showTapAggStat(const std::string &prefix,
                            TapCounter *counter,
                            const void *cookie,
                            ADD_STAT add_stat) {
@@ -3228,7 +3228,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTimingStats(const void *cookie,
 }
 
 static void showJobLog(const char *prefix, const char *logname,
-                       const std::vector<JobLogEntry> log,
+                       const std::vector<JobLogEntry> &log,
                        const void *cookie, ADD_STAT add_stat) {
     char statname[80] = {0};
     for (size_t i = 0; i < log.size(); ++i) {
