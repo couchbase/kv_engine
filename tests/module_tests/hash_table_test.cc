@@ -66,7 +66,7 @@ static void store(HashTable &h, std::string &k) {
 
 static void storeMany(HashTable &h, std::vector<std::string> &keys) {
     std::vector<std::string>::iterator it;
-    for (it = keys.begin(); it != keys.end(); it++) {
+    for (it = keys.begin(); it != keys.end(); ++it) {
         std::string key = *it;
         store(h, key);
     }
@@ -75,7 +75,7 @@ static void storeMany(HashTable &h, std::vector<std::string> &keys) {
 static void addMany(HashTable &h, std::vector<std::string> &keys,
                     add_type_t expect) {
     std::vector<std::string>::iterator it;
-    for (it = keys.begin(); it != keys.end(); it++) {
+    for (it = keys.begin(); it != keys.end(); ++it) {
         std::string k = *it;
         Item i(k, 0, 0, k.c_str(), k.length());
         add_type_t v = h.add(i);
@@ -164,7 +164,7 @@ static void testReverseDeletions() {
     std::reverse(keys.begin(), keys.end());
 
     std::vector<std::string>::iterator it;
-    for (it = keys.begin(); it != keys.end(); it++) {
+    for (it = keys.begin(); it != keys.end(); ++it) {
         std::string key = *it;
         h.del(key);
     }
@@ -187,7 +187,7 @@ static void testForwardDeletions() {
     assert(count(h) == nkeys);
 
     std::vector<std::string>::iterator it;
-    for (it = keys.begin(); it != keys.end(); it++) {
+    for (it = keys.begin(); it != keys.end(); ++it) {
         std::string key = *it;
         h.del(key);
     }
@@ -201,7 +201,7 @@ static void verifyFound(HashTable &h, const std::vector<std::string> keys) {
     assert(h.find(missingKey) == NULL);
 
     std::vector<std::string>::const_iterator it;
-    for (it = keys.begin(); it != keys.end(); it++) {
+    for (it = keys.begin(); it != keys.end(); ++it) {
         std::string key = *it;
         assert(h.find(key));
     }
@@ -340,13 +340,13 @@ static void testAdd() {
     assert(h.find(missingKey) == NULL);
 
     std::vector<std::string>::iterator it;
-    for (it = keys.begin(); it != keys.end(); it++) {
+    for (it = keys.begin(); it != keys.end(); ++it) {
         std::string key = *it;
         assert(h.find(key));
     }
 
     addMany(h, keys, ADD_EXISTS);
-    for (it = keys.begin(); it != keys.end(); it++) {
+    for (it = keys.begin(); it != keys.end(); ++it) {
         std::string key = *it;
         assert(h.find(key));
     }

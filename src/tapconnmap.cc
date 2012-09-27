@@ -207,7 +207,7 @@ void TapConnMap::removeTapCursors_UNLOCKED(TapProducer *tp) {
 void TapConnMap::addFlushEvent() {
     LockHolder lh(notifySync);
     std::list<TapConnection*>::iterator iter;
-    for (iter = all.begin(); iter != all.end(); iter++) {
+    for (iter = all.begin(); iter != all.end(); ++iter) {
         TapProducer *tc = dynamic_cast<TapProducer*>(*iter);
         if (tc && !tc->dumpQueue) {
             tc->flush();

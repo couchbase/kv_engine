@@ -169,7 +169,7 @@ static void batchWarmupCallback(uint16_t vbId,
     if (engine->stillWarmingUp()) {
         vb_bgfetch_queue_t items2fetch;
         std::vector<std::pair<std::string, uint64_t> >::iterator itm = fetches.begin();
-        for (; itm != fetches.end(); itm++) {
+        for (; itm != fetches.end(); ++itm) {
             // ignore duplicate key with the same db seq id in the access log
             if (items2fetch.find((*itm).second) != items2fetch.end()) {
                 continue;
@@ -183,7 +183,7 @@ static void batchWarmupCallback(uint16_t vbId,
         c->store->getMulti(vbId, items2fetch);
 
         vb_bgfetch_queue_t::iterator items = items2fetch.begin();
-        for (; items != items2fetch.end(); items++) {
+        for (; items != items2fetch.end(); ++items) {
            VBucketBGFetchItem * fetchedItem = (*items).second.back();
            GetValue &val = fetchedItem->value;
            if (val.getStatus() == ENGINE_SUCCESS) {
@@ -444,10 +444,10 @@ void CouchKVStore::getMulti(uint16_t vb, vb_bgfetch_queue_t &itms)
                          vb, dbFile.c_str(), numItems);
         st.numGetFailure += numItems;
         vb_bgfetch_queue_t::iterator itr = itms.begin();
-        for (; itr != itms.end(); itr++) {
+        for (; itr != itms.end(); ++itr) {
             std::list<VBucketBGFetchItem *> &fetches = (*itr).second;
             std::list<VBucketBGFetchItem *>::iterator fitr = fetches.begin();
-            for (; fitr != fetches.end(); fitr++) {
+            for (; fitr != fetches.end(); ++fitr) {
                 (*fitr)->value.setStatus(ENGINE_NOT_MY_VBUCKET);
             }
         }
@@ -457,7 +457,7 @@ void CouchKVStore::getMulti(uint16_t vb, vb_bgfetch_queue_t &itms)
     std::vector<uint64_t> seqIds;
     VBucketBGFetchItem *item2fetch;
     vb_bgfetch_queue_t::iterator itr = itms.begin();
-    for (; itr != itms.end(); itr++) {
+    for (; itr != itms.end(); ++itr) {
         item2fetch = (*itr).second.front();
         seqIds.push_back(item2fetch->value.getId());
     }
@@ -467,10 +467,10 @@ void CouchKVStore::getMulti(uint16_t vb, vb_bgfetch_queue_t &itms)
                                               0, getMultiCbC, &ctx);
     if (errCode != COUCHSTORE_SUCCESS) {
         st.numGetFailure += numItems;
-        for (itr = itms.begin(); itr != itms.end(); itr++) {
+        for (itr = itms.begin(); itr != itms.end(); ++itr) {
             std::list<VBucketBGFetchItem *> &fetches = (*itr).second;
             std::list<VBucketBGFetchItem *>::iterator fitr = fetches.begin();
-            for (; fitr != fetches.end(); fitr++) {
+            for (; fitr != fetches.end(); ++fitr) {
                 getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                                  "Warning: failed to read database by "
                                  "sequence id = %lld, vBucketId = %d "
@@ -551,7 +551,7 @@ vbucket_map_t CouchKVStore::listPersistedVbuckets()
     Db *db = NULL;
     couchstore_error_t errorCode;
     std::map<uint16_t, uint64_t>::iterator itr = dbFileMap.begin();
-    for (; itr != dbFileMap.end(); itr++) {
+    for (; itr != dbFileMap.end(); ++itr) {
         errorCode = openDB(itr->first, itr->second, &db,
                            COUCHSTORE_OPEN_FLAG_RDONLY);
         if (errorCode != COUCHSTORE_SUCCESS) {
@@ -982,7 +982,7 @@ void CouchKVStore::loadDB(shared_ptr<Callback<GetValue> > cb, bool keysOnly,
     }
 
     std::map<uint16_t, uint64_t>::iterator fitr = filemap.begin();
-    for (; fitr != filemap.end(); fitr++) {
+    for (; fitr != filemap.end(); ++fitr) {
         if (loadingData) {
             vbucket_map_t::const_iterator vsit = cachedVBStates.find(fitr->first);
             if (vsit != cachedVBStates.end()) {
@@ -1001,7 +1001,7 @@ void CouchKVStore::loadDB(shared_ptr<Callback<GetValue> > cb, bool keysOnly,
 
     if (loadingData) {
         std::vector< std::pair<uint16_t, uint64_t> >::iterator it = replicaVbuckets.begin();
-        for (; it != replicaVbuckets.end(); it++) {
+        for (; it != replicaVbuckets.end(); ++it) {
             vbuckets.push_back(*it);
         }
     }
@@ -1010,7 +1010,7 @@ void CouchKVStore::loadDB(shared_ptr<Callback<GetValue> > cb, bool keysOnly,
     couchstore_error_t errorCode;
     int keyNum = 0;
     std::vector< std::pair<uint16_t, uint64_t> >::iterator itr = vbuckets.begin();
-    for (; itr != vbuckets.end(); itr++, keyNum++) {
+    for (; itr != vbuckets.end(); ++itr, ++keyNum) {
         errorCode = openDB(itr->first, itr->second, &db,
                            COUCHSTORE_OPEN_FLAG_RDONLY);
         if (errorCode != COUCHSTORE_SUCCESS) {
@@ -1274,7 +1274,7 @@ void CouchKVStore::getFileNameMap(std::vector<uint16_t> *vbids,
 {
     std::vector<uint16_t>::iterator vbidItr;
 
-    for (vbidItr = vbids->begin(); vbidItr != vbids->end(); vbidItr++) {
+    for (vbidItr = vbids->begin(); vbidItr != vbids->end(); ++vbidItr) {
         std::string dbFileName = getDBFileName(dirname, *vbidItr);
         std::map<uint16_t, uint64_t>::iterator dbFileItr = dbFileMap.find(*vbidItr);
         if (dbFileItr == dbFileMap.end()) {
@@ -1297,7 +1297,7 @@ void CouchKVStore::populateFileNameMap(std::vector<std::string> &filenames)
 {
     std::vector<std::string>::iterator fileItr;
 
-    for (fileItr = filenames.begin(); fileItr != filenames.end(); fileItr++) {
+    for (fileItr = filenames.begin(); fileItr != filenames.end(); ++fileItr) {
         const std::string &filename = *fileItr;
         size_t secondDot = filename.rfind(".");
         std::string nameKey = filename.substr(0, secondDot);
@@ -1775,7 +1775,7 @@ int CouchKVStore::getMultiCb(Db *db, DocInfo *docinfo, void *ctx)
 
     returnVal.setStatus(cbCtx->cks.couchErr2EngineErr(errCode));
     std::list<VBucketBGFetchItem *>::iterator itr = fetches.begin();
-    for (; itr != fetches.end(); itr++) {
+    for (; itr != fetches.end(); ++itr) {
         // populate return value for remaining fetch items with the
         // same seqid
         (*itr)->value = returnVal;

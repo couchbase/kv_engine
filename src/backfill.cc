@@ -148,7 +148,7 @@ void BackFillVisitor::apply(void) {
     // If efficient VBdump is supported, schedule all the disk backfill tasks.
     if (efficientVBDump) {
         std::map<uint16_t, backfill_t>::iterator it = vbuckets.begin();
-        for (; it != vbuckets.end(); it++) {
+        for (; it != vbuckets.end(); ++it) {
             Dispatcher *d(engine->epstore->getAuxIODispatcher());
             KVStore *underlying(engine->epstore->getAuxUnderlying());
             assert(d);

@@ -33,10 +33,10 @@ void BgFetcher::doFetch(uint16_t vbId) {
     int totalfetches = 0;
     std::vector<VBucketBGFetchItem *> fetchedItems;
     vb_bgfetch_queue_t::iterator itr = items2fetch.begin();
-    for (; itr != items2fetch.end(); itr++) {
+    for (; itr != items2fetch.end(); ++itr) {
         std::list<VBucketBGFetchItem *> &requestedItems = (*itr).second;
         std::list<VBucketBGFetchItem *>::iterator itm = requestedItems.begin();
-        for(; itm != requestedItems.end(); itm++) {
+        for(; itm != requestedItems.end(); ++itm) {
             if ((*itm)->value.getStatus() != ENGINE_SUCCESS &&
                 (*itm)->canRetry()) {
                 // underlying kvstore failed to fetch requested data
@@ -65,7 +65,7 @@ void BgFetcher::doFetch(uint16_t vbId) {
 void BgFetcher::clearItems(uint16_t vbId) {
     vb_bgfetch_queue_t::iterator itr = items2fetch.begin();
     size_t numRequeuedItems = 0;
-    for(; itr != items2fetch.end(); itr++) {
+    for(; itr != items2fetch.end(); ++itr) {
         // every fetched item belonging to the same seq_id shares
         // a single data buffer, just delete it from the first fetched item
         std::list<VBucketBGFetchItem *> &doneItems = (*itr).second;
@@ -73,7 +73,7 @@ void BgFetcher::clearItems(uint16_t vbId) {
         firstItem->delValue();
 
         std::list<VBucketBGFetchItem *>::iterator dItr = doneItems.begin();
-        for (; dItr != doneItems.end(); dItr++) {
+        for (; dItr != doneItems.end(); ++dItr) {
             if ((*dItr)->value.getStatus() == ENGINE_SUCCESS ||
                 !(*dItr)->canRetry()) {
                 delete *dItr;

@@ -198,7 +198,7 @@ void changeVBFilter(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, std::string name,
     std::map<uint16_t, uint64_t>::iterator it;
 
     value.write((char*) &vbs, sizeof(uint16_t));
-    for (it = filtermap.begin(); it != filtermap.end(); it++) {
+    for (it = filtermap.begin(); it != filtermap.end(); ++it) {
         uint16_t vb = htons(it->first);
         uint16_t chkid = htonll(it->second);
         value.write((char*) &vb, sizeof(uint16_t));
@@ -369,7 +369,7 @@ void observe(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
              std::map<std::string, uint16_t> obskeys) {
     std::stringstream value;
     std::map<std::string, uint16_t>::iterator it;
-    for (it = obskeys.begin(); it != obskeys.end(); it++) {
+    for (it = obskeys.begin(); it != obskeys.end(); ++it) {
         uint16_t vb = htons(it->second);
         uint16_t keylen = htons(it->first.length());
         value.write((char*) &vb, sizeof(uint16_t));

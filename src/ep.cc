@@ -1176,7 +1176,7 @@ void EventuallyPersistentStore::completeBGFetchMulti(uint16_t vbId,
     }
 
     std::vector<VBucketBGFetchItem *>::iterator itemItr = fetchedItems.begin();
-    for (; itemItr != fetchedItems.end(); itemItr++) {
+    for (; itemItr != fetchedItems.end(); ++itemItr) {
         GetValue &value = (*itemItr)->value;
         ENGINE_ERROR_CODE status = value.getStatus();
         Item *fetchedValue = value.getValue();

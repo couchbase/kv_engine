@@ -95,7 +95,7 @@ queue_dirty_t Checkpoint::queueDirty(const queued_item &qi, CheckpointManager *c
 
         std::map<const std::string, CheckpointCursor>::iterator map_it;
         for (map_it = checkpointManager->tapCursors.begin();
-             map_it != checkpointManager->tapCursors.end(); map_it++) {
+             map_it != checkpointManager->tapCursors.end(); ++map_it) {
 
             if (*(map_it->second.currentCheckpoint) == this) {
                 const std::string &key = (*(map_it->second.currentPos))->getKey();
@@ -348,7 +348,7 @@ bool CheckpointManager::registerTAPCursor_UNLOCKED(const std::string &name,
 
     bool found = false;
     std::list<Checkpoint*>::iterator it = checkpointList.begin();
-    for (; it != checkpointList.end(); it++) {
+    for (; it != checkpointList.end(); ++it) {
         if (checkpointId == (*it)->getId()) {
             found = true;
             break;
@@ -435,7 +435,7 @@ bool CheckpointManager::removeTAPCursor(const std::string &name) {
     // However, we just want to do more sanity checks by looking at each checkpoint. This won't
     // cause much overhead because the max number of checkpoints allowed per vbucket is small.
     std::list<Checkpoint*>::iterator cit = checkpointList.begin();
-    for (; cit != checkpointList.end(); cit++) {
+    for (; cit != checkpointList.end(); ++cit) {
         (*cit)->removeCursorName(name);
     }
 
@@ -553,7 +553,7 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(const RCPtr<VBucket> &vbu
     size_t numCheckpointsRemoved = 0;
     std::list<Checkpoint*> unrefCheckpointList;
     std::list<Checkpoint*>::iterator it = checkpointList.begin();
-    for (; it != checkpointList.end(); it++) {
+    for (; it != checkpointList.end(); ++it) {
         removeInvalidCursorsOnCheckpoint(*it);
         if ((*it)->getNumberOfCursors() > 0) {
             break;
@@ -592,7 +592,7 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(const RCPtr<VBucket> &vbu
     lh.unlock();
 
     std::list<Checkpoint*>::iterator chkpoint_it = unrefCheckpointList.begin();
-    for (; chkpoint_it != unrefCheckpointList.end(); chkpoint_it++) {
+    for (; chkpoint_it != unrefCheckpointList.end(); ++chkpoint_it) {
         delete *chkpoint_it;
     }
 
@@ -894,7 +894,7 @@ void CheckpointManager::resetCursors() {
 void CheckpointManager::resetTAPCursors(const std::list<std::string> &cursors) {
     LockHolder lh(queueLock);
     std::list<std::string>::const_iterator it = cursors.begin();
-    for (; it != cursors.end(); it++) {
+    for (; it != cursors.end(); ++it) {
         registerTAPCursor_UNLOCKED(*it, getOpenCheckpointId_UNLOCKED(), false, true);
     }
 }

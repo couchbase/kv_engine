@@ -1332,8 +1332,8 @@ public:
                 v->setFlags(newFlags);
                 v->setExptime(newExptime);
                 if (v->isTempItem()) {
-                    numTempItems--;
-                    numItems++;
+                    --numTempItems;
+                    ++numItems;
                     v->clearId();
                 }
             }
