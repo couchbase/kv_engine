@@ -48,6 +48,7 @@ protected:
     pthread_t holder;
     bool held;
 
+private:
     DISALLOW_COPY_AND_ASSIGN(Mutex);
 };
 

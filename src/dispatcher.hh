@@ -160,6 +160,7 @@ protected:
     // Some of the tasks must complete during shutdown
     bool blockShutdown;
 
+private:
     DISALLOW_COPY_AND_ASSIGN(Task);
 };
 

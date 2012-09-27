@@ -74,6 +74,8 @@ protected:
     Priority(const char *nm, int p) : name(nm), priority(p) { }
     std::string name;
     int priority;
+
+private:
     DISALLOW_COPY_AND_ASSIGN(Priority);
 };
 
