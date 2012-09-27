@@ -153,7 +153,7 @@ public:
      * MutationLogEntry.
      */
     size_t len() const {
-        return MutationLogEntry::len(keylen);
+        return len(keylen);
     }
 
     /**

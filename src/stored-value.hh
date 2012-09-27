@@ -960,8 +960,8 @@ public:
      */
     HashTable(EPStats &st, size_t s = 0, size_t l = 0,
               enum stored_value_type t = featured) : stats(st), valFact(st, t) {
-        size = HashTable::getNumBuckets(s);
-        n_locks = HashTable::getNumLocks(l);
+        size = getNumBuckets(s);
+        n_locks = getNumLocks(l);
         valFact = StoredValueFactory(st, getDefaultStorageValueType());
         assert(size > 0);
         assert(n_locks > 0);
