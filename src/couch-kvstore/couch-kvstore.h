@@ -483,16 +483,10 @@ private:
     bool commit2couchstore(void);
     void queueItem(CouchRequest *req);
 
-    bool getDbFile(uint16_t vbucketId, std::string &dbFileName);
-
     uint64_t checkNewRevNum(std::string &dbname, bool newFile = false);
-
     void populateFileNameMap(std::vector<std::string> &filenames);
-    void getFileNameMap(std::vector<uint16_t> *vbids, std::string &dirname,
-                        std::map<uint16_t, uint64_t> &filemap);
-    void updateDbFileMap(uint16_t vbucketId, uint64_t newFileRev,
-                         bool insertImmediately = false);
     void remVBucketFromDbFileMap(uint16_t vbucketId);
+    void updateDbFileMap(uint16_t vbucketId, uint64_t newFileRev);
     couchstore_error_t openDB(uint16_t vbucketId, uint64_t fileRev, Db **db,
                               uint64_t options, uint64_t *newFileRev = NULL);
     couchstore_error_t openDB_retry(std::string &dbfile, uint64_t options,
@@ -511,10 +505,12 @@ private:
     Configuration &configuration;
     const std::string dbname;
     CouchNotifier *couchNotifier;
-    std::map<uint16_t, uint64_t>dbFileMap;
+    std::vector<uint64_t>dbFileRevMap;
+    uint16_t numDbFiles;
     std::vector<CouchRequest *> pendingReqsQ;
     size_t pendingCommitCnt;
     bool intransaction;
+    bool dbFileRevMapPopulated;
 
     /* all stats */
     CouchKVStoreStats   st;
