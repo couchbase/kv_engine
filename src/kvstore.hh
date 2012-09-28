@@ -30,6 +30,10 @@
 typedef std::pair<int, int64_t> mutation_result;
 
 struct vbucket_state {
+    vbucket_state() { }
+    vbucket_state(vbucket_state_t _state, uint64_t _chkid, uint64_t _maxDelSeqNum) :
+        state(_state), checkpointId(_chkid), maxDeletedSeqno(_maxDelSeqNum) { }
+
     vbucket_state_t state;
     uint64_t checkpointId;
     uint64_t maxDeletedSeqno;
@@ -195,7 +199,7 @@ public:
     /**
      * Delete a given vbucket database.
      */
-    virtual bool delVBucket(uint16_t vbucket) = 0;
+    virtual bool delVBucket(uint16_t vbucket, bool recreate = false) = 0;
 
     /**
      * Get a list of all persisted vbuckets (with their states).

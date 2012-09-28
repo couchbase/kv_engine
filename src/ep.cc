@@ -249,13 +249,13 @@ private:
 class VBucketDeletionCallback : public DispatcherCallback {
 public:
     VBucketDeletionCallback(EventuallyPersistentStore *e, RCPtr<VBucket> &vb,
-                            EPStats &st, const void* c = NULL) :
+                            EPStats &st, const void* c = NULL, bool rc = false) :
                             ep(e), vbucket(vb->getId()),
-                            stats(st), cookie(c) {}
+                            stats(st), cookie(c), recreate(rc) {}
 
     bool callback(Dispatcher &, TaskId &) {
         hrtime_t start_time(gethrtime());
-        vbucket_del_result result = ep->completeVBucketDeletion(vbucket);
+        vbucket_del_result result = ep->completeVBucketDeletion(vbucket, recreate);
         if (result == vbucket_del_success || result == vbucket_del_invalid) {
             hrtime_t spent(gethrtime() - start_time);
             hrtime_t wall_time = spent / 1000;
@@ -283,6 +283,7 @@ private:
     uint16_t vbucket;
     EPStats &stats;
     const void* cookie;
+    bool recreate;
 };
 
 EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine &theEngine,
@@ -958,13 +959,13 @@ void EventuallyPersistentStore::scheduleVBSnapshot(const Priority &p) {
 }
 
 vbucket_del_result
-EventuallyPersistentStore::completeVBucketDeletion(uint16_t vbid) {
+EventuallyPersistentStore::completeVBucketDeletion(uint16_t vbid, bool recreate) {
     LockHolder lh(vbsetMutex);
 
     RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
     if (!vb || vb->getState() == vbucket_state_dead || vbuckets.isBucketDeletion(vbid)) {
         lh.unlock();
-        if (rwUnderlying->delVBucket(vbid)) {
+        if (rwUnderlying->delVBucket(vbid, recreate)) {
             vbuckets.setBucketDeletion(vbid, false);
             mutationLog.deleteAll(vbid);
             // This is happening in an independent transaction, so
@@ -982,14 +983,17 @@ EventuallyPersistentStore::completeVBucketDeletion(uint16_t vbid) {
 }
 
 void EventuallyPersistentStore::scheduleVBDeletion(RCPtr<VBucket> &vb,
-                                                   const void* cookie=NULL, double delay=0) {
+                                                   const void* cookie,
+                                                   double delay,
+                                                   bool recreate) {
     shared_ptr<DispatcherCallback> mem_cb(new VBucketMemoryDeletionCallback(this, vb));
     nonIODispatcher->schedule(mem_cb, NULL, Priority::VBMemoryDeletionPriority, delay, false);
 
     if (vbuckets.setBucketDeletion(vb->getId(), true)) {
         shared_ptr<DispatcherCallback> cb(new VBucketDeletionCallback(this, vb,
                                                                       stats,
-                                                                      cookie));
+                                                                      cookie,
+                                                                      recreate));
         dispatcher->schedule(cb,
                              NULL, Priority::VBucketDeletionPriority,
                              delay, false);
@@ -1037,8 +1041,8 @@ bool EventuallyPersistentStore::resetVBucket(uint16_t vbid) {
         RCPtr<VBucket> newvb = vbuckets.getBucket(vbid);
         newvb->checkpointManager.resetTAPCursors(vb->checkpointManager.getTAPCursorNames());
 
-        // Clear all the items from the vbucket kv table on disk.
-        scheduleVBDeletion(vb);
+        // Delete the vbucket database file and recreate the empty file
+        scheduleVBDeletion(vb, NULL, 0, true);
         rv = true;
     }
     return rv;

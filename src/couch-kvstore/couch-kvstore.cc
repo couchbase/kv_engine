@@ -511,7 +511,7 @@ void CouchKVStore::del(const Item &itm,
     }
 }
 
-bool CouchKVStore::delVBucket(uint16_t vbucket)
+bool CouchKVStore::delVBucket(uint16_t vbucket, bool recreate)
 {
     assert(!isReadOnly());
     assert(couchNotifier);
@@ -520,7 +520,17 @@ bool CouchKVStore::delVBucket(uint16_t vbucket)
     couchNotifier->delVBucket(vbucket, cb);
     cb.waitForValue();
 
-    cachedVBStates.erase(vbucket);
+    if (recreate) {
+        vbucket_state vbstate(vbucket_state_dead, 0, 0);
+        vbucket_map_t::iterator it = cachedVBStates.find(vbucket);
+        if (it != cachedVBStates.end()) {
+            vbstate.state = it->second.state;
+        }
+        cachedVBStates[vbucket] = vbstate;
+        resetVBucket(vbucket, vbstate);
+    } else {
+        cachedVBStates.erase(vbucket);
+    }
     updateDbFileMap(vbucket, 1, false);
     return cb.val;
 }
@@ -726,7 +736,7 @@ bool CouchKVStore::snapshotStats(const std::map<std::string, std::string> &stats
     return rv;
 }
 
-bool CouchKVStore::setVBucketState(uint16_t vbucketId, vbucket_state vbstate,
+bool CouchKVStore::setVBucketState(uint16_t vbucketId, vbucket_state &vbstate,
                                    uint32_t vb_change_type, bool newfile,
                                    bool notify)
 {

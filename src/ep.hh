@@ -540,7 +540,7 @@ public:
     /**
      * Perform a fast vbucket deletion.
      */
-    vbucket_del_result completeVBucketDeletion(uint16_t vbid);
+    vbucket_del_result completeVBucketDeletion(uint16_t vbid, bool recreate);
 
     /**
      * Deletes a vbucket
@@ -732,7 +732,9 @@ protected:
 private:
 
     void scheduleVBDeletion(RCPtr<VBucket> &vb,
-                            const void* cookie, double delay);
+                            const void* cookie,
+                            double delay = 0,
+                            bool recreate = false);
 
     RCPtr<VBucket> getVBucket(uint16_t vbid, vbucket_state_t wanted_state);
 

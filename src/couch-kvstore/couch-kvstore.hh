@@ -326,9 +326,10 @@ public:
      * Delete a given vbucket database instance from the underlying storage system
      *
      * @param vbucket vbucket id
+     * @param recreate true if we need to create an empty vbucket after deletion
      * @return true if the vbucket deletion is completed successfully.
      */
-    bool delVBucket(uint16_t vbucket);
+    bool delVBucket(uint16_t vbucket, bool recreate);
 
     /**
      * Retrieve the list of persisted vbucket states
@@ -475,10 +476,10 @@ protected:
     void loadDB(shared_ptr<Callback<GetValue> > cb, bool keysOnly,
                 std::vector<uint16_t> *vbids,
                 couchstore_docinfos_options options=COUCHSTORE_NO_OPTIONS);
-    bool setVBucketState(uint16_t vbucketId, vbucket_state vbstate,
+    bool setVBucketState(uint16_t vbucketId, vbucket_state &vbstate,
                          uint32_t vb_change_type, bool newfile = false,
                          bool notify = true);
-    bool resetVBucket(uint16_t vbucketId, vbucket_state vbstate) {
+    bool resetVBucket(uint16_t vbucketId, vbucket_state &vbstate) {
         return setVBucketState(vbucketId, vbstate, VB_NO_CHANGE, true, false);
     }
 

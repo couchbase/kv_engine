@@ -49,7 +49,7 @@ void BlackholeKVStore::del(const Item &,
     cb.callback(val);
 }
 
-bool BlackholeKVStore::delVBucket(uint16_t)
+bool BlackholeKVStore::delVBucket(uint16_t, bool)
 {
     return true;
 }

@@ -63,7 +63,7 @@ public:
     void del(const Item &itm, uint64_t rowid,
              Callback<int> &cb);
 
-    bool delVBucket(uint16_t vbucket);
+    bool delVBucket(uint16_t vbucket, bool recreate);
 
     vbucket_map_t listPersistedVbuckets(void);
 
