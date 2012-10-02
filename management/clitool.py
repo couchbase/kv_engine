@@ -78,4 +78,5 @@ class CliTool(object):
         print >>sys.stderr, "Usage: %s host:port %s" % (program, cmds[0])
         for c in cmds[1:]:
             print >>sys.stderr, "  or   %s host:port %s" % (program, c)
+        print >>sys.stderr, self.extraUsage
         sys.exit(1)
