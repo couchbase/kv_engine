@@ -1348,8 +1348,8 @@ couchstore_error_t CouchKVStore::fetchDoc(Db *db, DocInfo *docinfo,
         errCode = couchstore_open_doc_with_docinfo(db, docinfo, &doc, DECOMPRESS_DOC_BODIES);
         if (errCode == COUCHSTORE_SUCCESS) {
             if (docinfo->deleted) {
-                // cannot read a doc that is marked deleted, just return
-                // document not found error code
+                // do not read a doc that is marked deleted, just return the
+                // error code as not found but still release the document body.
                 errCode = COUCHSTORE_ERROR_DOC_NOT_FOUND;
             } else {
                 assert(doc && (doc->id.size <= UINT16_MAX));
@@ -1359,12 +1359,12 @@ couchstore_error_t CouchKVStore::fetchDoc(Db *db, DocInfo *docinfo,
                                     itemFlags, (time_t)exptime, valuePtr, valuelen,
                                     cas, -1, vbId);
                 docValue = GetValue(it);
-                couchstore_free_document(doc);
 
                 // update ep-engine IO stats
                 ++epStats.io_num_read;
                 epStats.io_read_bytes += docinfo->id.size + valuelen;
             }
+            couchstore_free_document(doc);
         }
     }
     return errCode;
