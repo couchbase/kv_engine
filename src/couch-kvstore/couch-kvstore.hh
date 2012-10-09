@@ -505,8 +505,11 @@ private:
     void updateDbFileMap(uint16_t vbucketId, uint64_t newFileRev,
                          bool insertImmediately = false);
     void remVBucketFromDbFileMap(uint16_t vbucketId);
-    couchstore_error_t  openDB(uint16_t vbucketId, uint64_t fileRev, Db **db,
-                               uint64_t options, uint64_t *newFileRev = NULL);
+    couchstore_error_t openDB(uint16_t vbucketId, uint64_t fileRev, Db **db,
+                              uint64_t options, uint64_t *newFileRev = NULL);
+    couchstore_error_t openDB_retry(std::string &dbfile, uint64_t options,
+                                    const couch_file_ops *ops,
+                                    Db **db, uint64_t *newFileRev);
     couchstore_error_t saveDocs(uint16_t vbid, uint64_t rev, Doc **docs,
                                 DocInfo **docinfos, int docCount);
     void commitCallback(CouchRequest **committedReqs, int numReqs,

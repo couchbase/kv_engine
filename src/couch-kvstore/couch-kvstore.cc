@@ -28,7 +28,7 @@ static const int MUTATION_FAILED = -1;
 static const int DOC_NOT_FOUND = 0;
 static const int MUTATION_SUCCESS = 1;
 
-static const int MAX_OPEN_DB_RETRY = 2;
+static const int MAX_OPEN_DB_RETRY = 10;
 
 extern "C" {
     static int recordDbDumpC(Db *db, DocInfo *docinfo, void *ctx)
@@ -201,7 +201,6 @@ static void batchWarmupCallback(uint16_t vbId,
         c->skipped++;
     }
 }
-
 
 struct GetMultiCbCtx {
     GetMultiCbCtx(CouchKVStore &c, uint16_t v, vb_bgfetch_queue_t &f) :
@@ -1195,10 +1194,11 @@ couchstore_error_t CouchKVStore::openDB(uint16_t vbucketId,
         // in case it does already exist
         errorCode = couchstore_open_db_ex(dbFileName.c_str(), 0, ops, db);
         if (errorCode != COUCHSTORE_SUCCESS) {
+            // open_db failed but still check if the file exists
             newRevNum = checkNewRevNum(dbFileName);
-            if (newRevNum) {
-                errorCode = couchstore_open_db_ex(dbFileName.c_str(), 0,
-                                                  ops, db);
+            bool fileExists = (newRevNum) ? true : false;
+            if (fileExists) {
+                errorCode = openDB_retry(dbFileName, 0, ops, db, &newRevNum);
             } else {
                 // requested file doesn't seem to exist, just create one
                 errorCode = couchstore_open_db_ex(dbFileName.c_str(), options,
@@ -1212,20 +1212,7 @@ couchstore_error_t CouchKVStore::openDB(uint16_t vbucketId,
             }
         }
     } else {
-        while (retry < MAX_OPEN_DB_RETRY) {
-            errorCode = couchstore_open_db_ex(dbFileName.c_str(),
-                                              options, ops, db);
-            if (errorCode == COUCHSTORE_SUCCESS) {
-                break;
-            }
-            getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                    "INFO: couchstore_open_db failed, name=%s "
-                    "options=%X error=%s [%s], try it again!\n",
-                    dbFileName.c_str(), options, couchstore_strerror(errorCode),
-                    couchkvstore_strerrno(errorCode).c_str());
-            newRevNum = checkNewRevNum(dbFileName);
-            ++retry;
-        }
+        errorCode = openDB_retry(dbFileName, options, ops, db, &newRevNum);
     }
 
     /* update command statistics */
@@ -1250,6 +1237,30 @@ couchstore_error_t CouchKVStore::openDB(uint16_t vbucketId,
         *newFileRev = (newRevNum > fileRev) ? newRevNum : fileRev;
     }
     return errorCode;
+}
+
+couchstore_error_t CouchKVStore::openDB_retry(std::string &dbfile,
+                                              uint64_t options,
+                                              const couch_file_ops *ops,
+                                              Db** db, uint64_t *newFileRev)
+{
+    int retry = 0;
+    couchstore_error_t errCode = COUCHSTORE_SUCCESS;
+
+    while (retry < MAX_OPEN_DB_RETRY) {
+       errCode = couchstore_open_db_ex(dbfile.c_str(), options, ops, db);
+       if (errCode == COUCHSTORE_SUCCESS) {
+          return errCode;
+       }
+       getLogger()->log(EXTENSION_LOG_INFO, NULL,
+                   "INFO: couchstore_open_db failed, name=%s "
+                   "options=%X error=%s [%s], try it again!\n",
+                   dbfile.c_str(), options, couchstore_strerror(errCode),
+                   couchkvstore_strerrno(errCode).c_str());
+       *newFileRev = checkNewRevNum(dbfile);
+       ++retry;
+    }
+    return errCode;
 }
 
 void CouchKVStore::getFileNameMap(std::vector<uint16_t> *vbids,
