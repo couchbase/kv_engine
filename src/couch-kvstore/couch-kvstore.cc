@@ -49,7 +49,7 @@ extern "C" {
         const size_t max_msg_len = 256;
         char msg[max_msg_len];
         couchstore_last_os_error(msg, max_msg_len);
-        std::string errorStr(msg, max_msg_len);
+        std::string errorStr(msg);
         return errorStr;
     }
 }
