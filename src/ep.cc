@@ -1617,6 +1617,33 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::getKeyStats(const std::string &key,
     return ENGINE_KEY_ENOENT;
 }
 
+std::string EventuallyPersistentStore::validateKey(const std::string &key,
+                                                   uint16_t vbucket,
+                                                   Item &diskItem) {
+    int bucket_num(0);
+    RCPtr<VBucket> vb = getVBucket(vbucket);
+    LockHolder lh = vb->ht.getLockedBucket(key, &bucket_num);
+    StoredValue *v = fetchValidValue(vb, key, bucket_num, false,
+                                     false, true);
+
+    if (v) {
+        if (diskItem.getNBytes() != v->valLength()) {
+            return "length_mismatch";
+        } else if (diskItem.getFlags() != v->getFlags()) {
+            return "flags_mismatch";
+        } else if (v->isResident() && memcmp(diskItem.getData(),
+                                             v->getValue()->getData(),
+                                             diskItem.getNBytes())) {
+            return "data_mismatch";
+        } else {
+            return "valid";
+        }
+    } else {
+        return "item_deleted";
+    }
+
+}
+
 ENGINE_ERROR_CODE EventuallyPersistentStore::deleteItem(const std::string &key,
                                                         uint64_t* cas,
                                                         uint16_t vbucket,

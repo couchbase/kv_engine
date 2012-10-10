@@ -5935,6 +5935,47 @@ static enum test_result test_exp_persisted_set_del(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+static enum test_result test_stats_vkey_valid_field(ENGINE_HANDLE *h,
+                                                    ENGINE_HANDLE_V1 *h1) {
+    const void *cookie = testHarness.create_cookie();
+
+    // Check vkey when a key doesn't exist
+    const char* stats_key = "vkey key 0";
+    check(h1->get_stats(h, cookie, stats_key, strlen(stats_key),
+                        add_stats) == ENGINE_KEY_ENOENT, "Expected not found.");
+
+
+    stop_persistence(h, h1);
+
+    item *itm = NULL;
+    check(store(h, h1, NULL, OPERATION_SET, "key", "value", &itm) == ENGINE_SUCCESS,
+          "Failed to set key");
+    h1->release(h, NULL, itm);
+
+    // Check to make sure a non-persisted item is 'dirty'
+    check(h1->get_stats(h, cookie, stats_key, strlen(stats_key),
+                        add_stats) == ENGINE_SUCCESS, "Failed to get stats.");
+    check(vals.find("key_valid")->second.compare("dirty") == 0,
+          "Expected 'dirty'");
+
+    // Check that a key that is resident and persisted returns valid
+    start_persistence(h, h1);
+    wait_for_stat_to_be(h, h1, "ep_total_persisted", 1);
+    check(h1->get_stats(h, cookie, stats_key, strlen(stats_key),
+                        add_stats) == ENGINE_SUCCESS, "Failed to get stats.");
+    check(vals.find("key_valid")->second.compare("valid") == 0,
+          "Expected 'valid'");
+
+    // Check that an evicted key still returns valid
+    evict_key(h, h1, "key", 0, "Ejected.");
+    check(h1->get_stats(h, cookie, "vkey key 0", 10, add_stats) == ENGINE_SUCCESS,
+          "Failed to get stats.");
+    check(vals.find("key_valid")->second.compare("valid") == 0, "Expected 'valid'");
+
+    testHarness.destroy_cookie(cookie);
+    return SUCCESS;
+}
+
 static McCouchMockServer *mccouchMock;
 
 static enum test_result prepare(engine_test_t *test) {
@@ -6229,6 +6270,8 @@ engine_test_t* get_tests(void) {
                  NULL, prepare, cleanup),
         TestCase("stats vkey", test_vkey_stats, test_setup,
                  teardown, NULL, prepare, cleanup),
+        TestCase("stats vkey callback tests", test_stats_vkey_valid_field,
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("warmup stats", test_warmup_stats, test_setup,
                  teardown, NULL, prepare, cleanup),
         TestCase("stats curr_items", test_curr_items, test_setup,

@@ -92,6 +92,11 @@ void LookupCallback::callback(GetValue &value) {
     } else {
         engine->addLookupResult(cookie, NULL);
     }
+
+    if (forceSuccess) {
+        engine->notifyIOComplete(cookie, ENGINE_SUCCESS);
+        return;
+    }
     engine->notifyIOComplete(cookie, value.getStatus());
 }
 
@@ -3090,7 +3095,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doKeyStats(const void *cookie,
             diskItem.reset();
         }
     } else if (validate) {
-        shared_ptr<LookupCallback> cb(new LookupCallback(this, cookie));
+        shared_ptr<LookupCallback> cb(new LookupCallback(this, cookie, true));
         rv = epstore->getFromUnderlying(key, vbid, cookie, cb);
         if (rv == ENGINE_NOT_MY_VBUCKET || rv == ENGINE_KEY_ENOENT) {
             if (isDegradedMode()) {
@@ -3106,30 +3111,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doKeyStats(const void *cookie,
         if (validate) {
             if (kstats.dirty) {
                 valid.assign("dirty");
+            } else if (diskItem.get()) {
+                valid.assign(epstore->validateKey(key, vbid, *diskItem));
             } else {
-                GetValue gv(epstore->get(key, vbid, cookie, serverApi->core));
-                if (gv.getStatus() == ENGINE_SUCCESS) {
-                    shared_ptr<Item> itm(gv.getValue());
-                    if (diskItem.get()) {
-                        // Both items exist
-                        if (diskItem->getNBytes() != itm->getNBytes()) {
-                            valid.assign("length_mismatch");
-                        } else if (memcmp(diskItem->getData(), itm->getData(),
-                                          diskItem->getNBytes()) != 0) {
-                            valid.assign("data_mismatch");
-                        } else if (diskItem->getFlags() != itm->getFlags()) {
-                            valid.assign("flags_mismatch");
-                        } else {
-                            valid.assign("valid");
-                        }
-                    } else {
-                        // Since we do the disk lookup first, this could
-                        // be transient
-                        valid.assign("ram_but_not_disk");
-                    }
-                } else {
-                    valid.assign("item_deleted");
-                }
+                valid.assign("ram_but_not_disk");
             }
             getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "Key '%s' is %s\n",
                              key.c_str(), valid.c_str());
