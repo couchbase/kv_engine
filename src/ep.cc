@@ -2172,14 +2172,23 @@ int EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
         }
     } else if (deleted || !found) {
         if (!vbuckets.isBucketDeletion(qi->getVBucketId())) {
-            lh.unlock();
-            BlockTimer timer(&stats.diskDelHisto, "disk_delete", stats.timingLog);
-            PersistenceCallback *cb;
-            cb = new PersistenceCallback(qi, rejectQueue, this, &mutationLog,
-                                         dirtied, &stats, 0);
-
-            tctx.addCallback(cb);
-            rwUnderlying->del(itm, rowid, *cb);
+            if (vbuckets.isHighPriorityVbSnapshotScheduled()) {
+                // wait until the high priority snapshop task is complete
+                if (found) {
+                    v->clearPendingId();
+                }
+                lh.unlock();
+                rejectQueue->push(qi);
+                ++vb->opsReject;
+            } else {
+                lh.unlock();
+                BlockTimer timer(&stats.diskDelHisto, "disk_delete", stats.timingLog);
+                PersistenceCallback *cb;
+                cb = new PersistenceCallback(qi, rejectQueue, this, &mutationLog,
+                        dirtied, &stats, 0);
+                tctx.addCallback(cb);
+                rwUnderlying->del(itm, rowid, *cb);
+            }
         }
     }
 
