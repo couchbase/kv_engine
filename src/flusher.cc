@@ -207,7 +207,7 @@ void Flusher::completeFlush() {
 }
 
 double Flusher::computeMinSleepTime() {
-    if (flushQueue && !flushQueue->empty()) {
+    if (!store->outgoingQueueEmpty()) {
         flushRv = 0;
         prevFlushRv = 0;
         return 0.0;
@@ -234,38 +234,60 @@ int Flusher::doFlush() {
         if (flushQueue) {
             getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
                              "Beginning a write queue flush.\n");
-            rejectQueue = new std::queue<queued_item>();
             flushStart = ep_current_time();
+            flushPhase = 1;
         }
     }
 
     // Now do the every pass thing.
     if (flushQueue) {
-        if (!flushQueue->empty()) {
-            int n = store->flushSome(flushQueue, rejectQueue);
-            if (_state == pausing) {
-                transition_state(paused);
-            }
-            flushRv = std::min(n, flushRv);
+        int n = store->flushOutgoingQueue(flushQueue, flushPhase++);
+        if (_state == pausing) {
+            transition_state(paused);
         }
+        flushRv = std::min(n, flushRv);
 
-        if (flushQueue->empty()) {
-            if (!rejectQueue->empty()) {
-                // Requeue the rejects.
-                store->requeueRejectedItems(rejectQueue);
-            } else {
-                store->completeFlush(flushStart);
-                getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                                 "Completed a flush, age of oldest item was %ds\n",
-                                 flushRv);
-
-                delete rejectQueue;
-                rejectQueue = NULL;
-                flushQueue = NULL;
-            }
+        if (store->outgoingQueueEmpty()) {
+            store->completeFlush(flushStart);
+            getLogger()->log(EXTENSION_LOG_INFO, NULL,
+                             "Completed a flush, age of oldest item was %ds\n",
+                             flushRv);
+            flushQueue = NULL;
         }
     }
 
     return flushRv;
 }
 
+void Flusher::addHighPriorityVBucket(uint16_t vbid, uint64_t chkid,
+                                     const void *cookie) {
+    LockHolder lh(priorityVBMutex);
+    priorityVBList[vbid] = HighPriorityVBEntry(cookie, chkid);
+}
+
+void Flusher::removeHighPriorityVBucket(uint16_t vbid) {
+    LockHolder lh(priorityVBMutex);
+    priorityVBList.erase(vbid);
+}
+
+void Flusher::getAllHighPriorityVBuckets(std::vector<uint16_t> &vbs) {
+    LockHolder lh(priorityVBMutex);
+    std::map<uint16_t, HighPriorityVBEntry>::iterator it = priorityVBList.begin();
+    for (; it != priorityVBList.end(); ++it) {
+        vbs.push_back(it->first);
+    }
+}
+
+HighPriorityVBEntry Flusher::getHighPriorityVBEntry(uint16_t vbid) {
+    LockHolder lh(priorityVBMutex);
+    std::map<uint16_t, HighPriorityVBEntry>::iterator it = priorityVBList.find(vbid);
+    if (it != priorityVBList.end()) {
+        return it->second;
+    } else {
+        return HighPriorityVBEntry(NULL, 0);
+    }
+}
+
+size_t Flusher::getNumOfHighPriorityVBs() {
+    return priorityVBList.size();
+}

@@ -104,8 +104,7 @@ protected:
     RCPtr<VBucket> currentBucket;
 };
 
-typedef std::pair<int64_t, int64_t> chunk_range_t;
-typedef std::list<chunk_range_t>::iterator chunk_range_iterator_t;
+typedef std::map<uint16_t, std::queue<queued_item> > vb_flush_queue_t;
 
 // Forward declaration
 class Flusher;
@@ -780,27 +779,33 @@ private:
         return v != NULL;
     }
 
+    /**
+     * Return true if both incoming and outgoing queues are empty
+     */
     bool diskQueueEmpty();
 
-    std::queue<queued_item> *beginFlush();
-    void pushToOutgoingQueue(std::vector<queued_item> &items);
-    void requeueRejectedItems(std::queue<queued_item> *rejects);
+    /**
+     * Return true if the outgoing queues are empty
+     */
+    bool outgoingQueueEmpty();
+
+    vb_flush_queue_t* beginFlush();
+    size_t pushToOutgoingQueue(std::vector<queued_item> &items, uint16_t vbid);
     void completeFlush(rel_time_t flush_start);
 
-    int flushSome(std::queue<queued_item> *q,
-                  std::queue<queued_item> *rejectQueue);
-    int flushOne(std::queue<queued_item> *q,
-                 std::queue<queued_item> *rejectQueue);
+    int flushOutgoingQueue(vb_flush_queue_t *queue, size_t phase);
+    int flushHighPriorityVBQueue(vb_flush_queue_t *queue, int data_age);
+    int flushVBQueue(std::queue<queued_item> &vb_queue, uint16_t vbid, int data_age);
+    int flushOne(std::queue<queued_item> &queue,
+                 std::queue<queued_item> &rejectQueue);
     int flushOneDeleteAll(void);
-    int flushOneDelOrSet(const queued_item &qi, std::queue<queued_item> *rejectQueue);
+    int flushOneDelOrSet(const queued_item &qi, std::queue<queued_item> &rejectQueue);
 
     StoredValue *fetchValidValue(RCPtr<VBucket> &vb, const std::string &key,
                                  int bucket_num, bool wantsDeleted=false,
                                  bool trackReference=true, bool queueExpired=true);
 
-    size_t getWriteQueueSize(void);
-
-    bool hasItemsForPersistence(void);
+    size_t incomingQueueSize(void);
 
     GetValue getInternal(const std::string &key, uint16_t vbucket,
                          const void *cookie, bool queueBG,
@@ -845,12 +850,12 @@ private:
     // track of the objects it works on. It should _not_ be used
     // by any other threads (because the flusher use it without
     // locking...
-    std::queue<queued_item>              writing;
-    Atomic<size_t>                       bgFetchQueue;
-    Atomic<bool>                         diskFlushAll;
-    TransactionContext                   tctx;
-    Mutex                                vbsetMutex;
-    uint32_t                             bgFetchDelay;
+    vb_flush_queue_t writingQueues;
+    Atomic<size_t> bgFetchQueue;
+    Atomic<bool> diskFlushAll;
+    TransactionContext tctx;
+    Mutex vbsetMutex;
+    uint32_t bgFetchDelay;
     struct ExpiryPagerDelta {
         ExpiryPagerDelta() : sleeptime(0) {}
         Mutex mutex;
@@ -875,6 +880,7 @@ private:
     size_t itemExpiryWindow;
     size_t vbDelChunkSize;
     size_t vbChunkDelThresholdTime;
+    Atomic<bool> snapshotVBState;
 
     DISALLOW_COPY_AND_ASSIGN(EventuallyPersistentStore);
 };

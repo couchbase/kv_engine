@@ -449,6 +449,7 @@ form to describe when time was spent doing various things:
 | get_vb_cmd            | servicing vbucket status requests              |
 | set_vb_cmd            | servicing vbucket set state commands           |
 | del_vb_cmd            | servicing vbucket deletion commands            |
+| chk_persistence_cmd   | waiting for checkpoint persistence             |
 | tap_vb_set            | servicing tap vbucket set state commands       |
 | tap_vb_reset          | servicing tap vbucket reset commands           |
 | tap_mutation          | servicing tap mutations                        |
@@ -689,6 +690,7 @@ Reset Histograms:
 | bg_wait                           |
 | bg_tap_load                       |
 | bg_tap_wait                       |
+| chk_persistence_cmd               |
 | data_age                          |
 | del_vb_cmd                        |
 | disk_insert                       |

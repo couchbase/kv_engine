@@ -4409,6 +4409,38 @@ static enum test_result test_extend_open_checkpoint(ENGINE_HANDLE *h, ENGINE_HAN
     return SUCCESS;
 }
 
+static enum test_result test_checkpoint_persistence(ENGINE_HANDLE *h,
+                                                    ENGINE_HANDLE_V1 *h1) {
+    for (int j = 0; j < 1000; ++j) {
+        std::stringstream ss;
+        ss << "key" << j;
+        item *i;
+        check(store(h, h1, NULL, OPERATION_SET,
+              ss.str().c_str(), ss.str().c_str(), &i, 0, 0) == ENGINE_SUCCESS,
+              "Failed to store a value");
+        h1->release(h, NULL, i);
+    }
+
+    createCheckpoint(h, h1);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+          "Expected success response from creating a new checkpoint");
+
+    // Last closed checkpoint id for vbucket 0.
+    int closed_chk_id = get_int_stat(h, h1, "vb_0:last_closed_checkpoint_id",
+                                     "checkpoint 0");
+    // Request to prioritize persisting vbucket 0.
+    check(checkpointPersistence(h, h1, closed_chk_id) == ENGINE_SUCCESS,
+          "Failed to request checkpoint persistence");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+          "Expected success response for checkpoint persistence");
+
+    // Issue another request with unexpected larger checkpoint id 100.
+    check(checkpointPersistence(h, h1, 100) == ENGINE_TMPFAIL,
+          "Expected temp failure for checkpoint persistence request");
+
+    return SUCCESS;
+}
+
 static enum test_result test_validate_checkpoint_params(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     set_param(h, h1, engine_param_checkpoint, "chk_max_items", "1000");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
@@ -6450,6 +6482,11 @@ engine_test_t* get_tests(void) {
         TestCase("test checkpoint deduplication", test_checkpoint_deduplication,
                  test_setup, teardown,
                  "chk_max_items=5000;chk_period=600",
+                 prepare, cleanup),
+        TestCase("checkpoint: wait for persistence",
+                 test_checkpoint_persistence,
+                 test_setup, teardown,
+                 "chk_max_items=500;max_checkpoints=5;item_num_based_new_chk=true",
                  prepare, cleanup),
 
         // revision id's

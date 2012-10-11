@@ -284,6 +284,17 @@ void extendCheckpoint(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     free(request);
 }
 
+ENGINE_ERROR_CODE checkpointPersistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                                        uint64_t checkpoint_id) {
+    checkpoint_id = htonll(checkpoint_id);
+    protocol_binary_request_header *request;
+    request = createPacket(CMD_CHECKPOINT_PERSISTENCE, 0, 0, NULL, 0, NULL, 0,
+                           (const char *)&checkpoint_id, sizeof(uint64_t));
+    ENGINE_ERROR_CODE rv = h1->unknown_command(h, NULL, request, add_response);
+    free(request);
+    return rv;
+}
+
 void gat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
          uint16_t vb, uint32_t exp, bool quiet) {
     char ext[4];

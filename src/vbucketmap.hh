@@ -22,7 +22,9 @@ public:
     std::vector<int> getBucketsSortedByState(void) const;
     bool isBucketDeletion(uint16_t id) const;
     bool setBucketDeletion(uint16_t id, bool delBucket);
-    uint64_t getPersistenceCheckpointId(uint16_t id);
+    bool isBucketCreation(uint16_t id) const;
+    bool setBucketCreation(uint16_t id, bool rv);
+    uint64_t getPersistenceCheckpointId(uint16_t id) const;
     void setPersistenceCheckpointId(uint16_t id, uint64_t checkpointId);
     /**
      * Check if a vbucket snapshot task is currently scheduled with
@@ -84,10 +86,12 @@ public:
      *                "false".
      */
     bool setLowPriorityVbSnapshotFlag(bool lowPrioritySnapshot);
+
 private:
 
     RCPtr<VBucket> *buckets;
     Atomic<bool> *bucketDeletion;
+    Atomic<bool> *bucketCreation;
     Atomic<uint64_t> *persistenceCheckpointIds;
     Atomic<bool> highPriorityVbSnapshot;
     Atomic<bool> lowPriorityVbSnapshot;

@@ -320,6 +320,9 @@ public:
     //! Histogram of get_stats commands.
     Histogram<hrtime_t> getStatsCmdHisto;
 
+    //! Histogram of wait_for_checkpoint_persistence command
+    Histogram<hrtime_t> chkPersistenceHisto;
+
     //
     // DB timers.
     //
@@ -406,6 +409,7 @@ public:
         tapVbucketSetHisto.reset();
         notifyIOHisto.reset();
         getStatsCmdHisto.reset();
+        chkPersistenceHisto.reset();
         diskInsertHisto.reset();
         diskUpdateHisto.reset();
         diskDelHisto.reset();

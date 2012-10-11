@@ -170,7 +170,11 @@ public:
 
     // Get age sum in millisecond
     uint64_t getQueueAge() {
-        return (ep_current_time() * dirtyQueueSize - dirtyQueueAge) * 1000;
+        rel_time_t currentAge = ep_current_time() * dirtyQueueSize;
+        if (currentAge < dirtyQueueAge) {
+            return 0;
+        }
+        return (currentAge - dirtyQueueAge) * 1000;
     }
 
     void fireAllOps(EventuallyPersistentEngine &engine);

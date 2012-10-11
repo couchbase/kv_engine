@@ -904,6 +904,7 @@ extern "C" {
         case CMD_LAST_CLOSED_CHECKPOINT:
         case CMD_CREATE_CHECKPOINT:
         case CMD_EXTEND_CHECKPOINT:
+        case CMD_CHECKPOINT_PERSISTENCE:
             {
                 rv = h->handleCheckpointCmds(cookie, request, response);
                 return rv;
@@ -3171,6 +3172,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTimingStats(const void *cookie,
     add_casted_stat("get_vb_cmd", stats.getVbucketCmdHisto, add_stat, cookie);
     add_casted_stat("set_vb_cmd", stats.setVbucketCmdHisto, add_stat, cookie);
     add_casted_stat("del_vb_cmd", stats.delVbucketCmdHisto, add_stat, cookie);
+    add_casted_stat("chk_persistence_cmd", stats.chkPersistenceHisto,
+                    add_stat, cookie);
     // Tap commands
     add_casted_stat("tap_vb_set", stats.tapVbucketSetHisto, add_stat, cookie);
     add_casted_stat("tap_vb_reset", stats.tapVbucketResetHisto, add_stat, cookie);
@@ -3661,6 +3664,37 @@ EventuallyPersistentEngine::handleCheckpointCmds(const void *cookie,
                        bodylen - keylen);
                 val = ntohl(val);
                 vb->checkpointManager.setCheckpointExtension(val > 0 ? true : false);
+            }
+        }
+        break;
+    case CMD_CHECKPOINT_PERSISTENCE:
+        {
+            uint16_t keylen = ntohs(req->request.keylen);
+            uint32_t bodylen = ntohl(req->request.bodylen);
+            if ((bodylen - keylen) == 0) {
+                msg << "No checkpoint id is given for CMD_CHECKPOINT_PERSISTENCE!!!";
+                status = PROTOCOL_BINARY_RESPONSE_EINVAL;
+            } else {
+                uint64_t chk_id;
+                memcpy(&chk_id, req->bytes + sizeof(req->bytes) + keylen,
+                       bodylen - keylen);
+                chk_id = ntohll(chk_id);
+                void *es = getEngineSpecific(cookie);
+                if (!es) {
+                    uint16_t persisted_chk_id =
+                        epstore->getVBuckets().getPersistenceCheckpointId(vbucket);
+                    if (chk_id > persisted_chk_id) {
+                        Flusher *flusher = const_cast<Flusher *>(epstore->getFlusher());
+                        flusher->addHighPriorityVBucket(vbucket, chk_id, cookie);
+                        storeEngineSpecific(cookie, this);
+                        return ENGINE_EWOULDBLOCK;
+                    }
+                } else {
+                    storeEngineSpecific(cookie, NULL);
+                    getLogger()->log(EXTENSION_LOG_INFO, cookie,
+                                     "Checkpoint %llu persisted for vbucket %d.",
+                                     chk_id, vbucket);
+                }
             }
         }
         break;

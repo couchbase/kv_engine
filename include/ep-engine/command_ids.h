@@ -138,6 +138,11 @@
  */
 #define CMD_CHANGE_VB_FILTER 0xb0
 
+/**
+ * Command to wait for the checkpoint persistence
+ */
+#define CMD_CHECKPOINT_PERSISTENCE 0xb1
+
 
 /**
  * TAP OPAQUE command list

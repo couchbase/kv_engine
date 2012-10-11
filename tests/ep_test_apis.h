@@ -103,6 +103,8 @@ bool verify_vbucket_state(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, uint16_t vb,
 void createCheckpoint(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
 void extendCheckpoint(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                       uint32_t checkpoint_num);
+ENGINE_ERROR_CODE checkpointPersistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                                        uint64_t checkpoint_id);
 
 // Stats Operations
 int get_int_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *statname,
