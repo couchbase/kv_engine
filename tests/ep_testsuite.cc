@@ -1728,6 +1728,7 @@ static enum test_result test_bug3522(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(rv == ENGINE_SUCCESS, "Set failed.");
     check_key_value(h, h1, key, new_data, strlen(new_data));
     h1->release(h, NULL, it);
+    testHarness.time_travel(3);
     wait_for_stat_change(h, h1, "ep_num_expiry_pager_runs", pager_runs);
     wait_for_flusher_to_settle(h, h1);
 
