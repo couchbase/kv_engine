@@ -160,7 +160,7 @@ private:
  */
 CouchNotifier::CouchNotifier(EventuallyPersistentEngine *e, Configuration &config) :
     sock(INVALID_SOCKET), configuration(config), configurationError(true),
-    shutdown(false), seqno(0),
+    seqno(0),
     currentCommand(0xff), lastSentCommand(0xff), lastReceivedCommand(0xff),
     engine(e), connected(false), inSelectBucket(false)
 {
@@ -311,7 +311,7 @@ void CouchNotifier::ensureConnection()
 
         getLogger()->log(EXTENSION_LOG_WARNING, this, "%s\n", rv.str().c_str());
         while (!connect()) {
-            if (shutdown) {
+            if (engine->isForceShutdown() && engine->isShutdownMode()) {
                 return ;
             }
 
