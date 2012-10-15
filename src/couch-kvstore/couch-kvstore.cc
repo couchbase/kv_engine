@@ -1802,9 +1802,9 @@ ENGINE_ERROR_CODE CouchKVStore::couchErr2EngineErr(couchstore_error_t errCode)
     case COUCHSTORE_ERROR_ALLOC_FAIL:
         return ENGINE_ENOMEM;
     case COUCHSTORE_ERROR_DOC_NOT_FOUND:
-        return ENGINE_KEY_ENOENT;
     case COUCHSTORE_ERROR_NO_SUCH_FILE:
-        return ENGINE_NOT_MY_VBUCKET;
+    case COUCHSTORE_ERROR_NO_HEADER:
+        return ENGINE_KEY_ENOENT;
     default:
         // same as the general error return code of
         // EvetuallyPersistentStore::getInternal
