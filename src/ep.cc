@@ -1019,8 +1019,8 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteVBucket(uint16_t vbid, const 
     if (vb->getState() == vbucket_state_dead) {
         vbuckets.removeBucket(vbid);
         lh.unlock();
-        scheduleVBSnapshot(Priority::VBucketPersistHighPriority);
         scheduleVBDeletion(vb, c);
+        scheduleVBSnapshot(Priority::VBucketPersistHighPriority);
         if (c) {
             return ENGINE_EWOULDBLOCK;
         }

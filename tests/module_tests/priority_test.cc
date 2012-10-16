@@ -8,7 +8,7 @@ int main(int argc, char **argv) {
    (void)argc; (void)argv;
 
    assert(Priority::BgFetcherPriority > Priority::TapBgFetcherPriority);
-   assert(Priority::TapBgFetcherPriority == Priority::VBucketPersistHighPriority);
+   assert(Priority::TapBgFetcherPriority == Priority::VBucketDeletionPriority);
    assert(Priority::VBucketPersistHighPriority > Priority::VKeyStatBgFetcherPriority);
    assert(Priority::VKeyStatBgFetcherPriority > Priority::FlusherPriority);
    assert(Priority::FlusherPriority > Priority::ItemPagerPriority);
