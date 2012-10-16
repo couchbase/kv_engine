@@ -3670,6 +3670,9 @@ static void process_bin_delete(conn *c) {
     case ENGINE_NOT_MY_VBUCKET:
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, 0);
         break;
+    case ENGINE_TMPFAIL:
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ETMPFAIL, 0);
+        break;
     case ENGINE_EWOULDBLOCK:
         c->ewouldblock = true;
         break;
