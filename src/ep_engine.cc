@@ -3532,21 +3532,29 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::touch(const void *cookie,
         delete it;
     } else if (rv == ENGINE_KEY_ENOENT) {
         if (isDegradedMode()) {
-            rv = sendResponse(response, NULL, 0, NULL, 0, NULL, 0, PROTOCOL_BINARY_RAW_BYTES,
+            std::string msg("Temporary Failure");
+            rv = sendResponse(response, NULL, 0, NULL, 0, msg.c_str(),
+                              msg.length(), PROTOCOL_BINARY_RAW_BYTES,
                               PROTOCOL_BINARY_RESPONSE_ETMPFAIL, 0, cookie);
         } else if (request->request.opcode == PROTOCOL_BINARY_CMD_GATQ) {
             // GATQ should not return response upon cache miss
             rv = ENGINE_SUCCESS;
         } else {
-            rv = sendResponse(response, NULL, 0, NULL, 0, NULL, 0, PROTOCOL_BINARY_RAW_BYTES,
+            std::string msg("Not Found");
+            rv = sendResponse(response, NULL, 0, NULL, 0, msg.c_str(),
+                              msg.length(), PROTOCOL_BINARY_RAW_BYTES,
                               PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, 0, cookie);
         }
     } else if (rv == ENGINE_NOT_MY_VBUCKET) {
         if (isDegradedMode()) {
-            rv = sendResponse(response, NULL, 0, NULL, 0, NULL, 0, PROTOCOL_BINARY_RAW_BYTES,
+            std::string msg("Temporary Failure");
+            rv = sendResponse(response, NULL, 0, NULL, 0, msg.c_str(),
+                              msg.length(), PROTOCOL_BINARY_RAW_BYTES,
                               PROTOCOL_BINARY_RESPONSE_ETMPFAIL, 0, cookie);
         } else {
-            rv = sendResponse(response, NULL, 0, NULL, 0, NULL, 0, PROTOCOL_BINARY_RAW_BYTES,
+            std::string msg("Not My VBucket");
+            rv = sendResponse(response, NULL, 0, NULL, 0, msg.c_str(),
+                              msg.length(), PROTOCOL_BINARY_RAW_BYTES,
                               PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, 0, cookie);
         }
     }
