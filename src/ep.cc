@@ -1293,7 +1293,8 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::getMetaData(const std::string &key,
                                                          uint16_t vbucket,
                                                          const void *cookie,
                                                          ItemMetaData &metadata,
-                                                         uint32_t &deleted)
+                                                         uint32_t &deleted,
+                                                         bool trackReferenced)
 {
     (void) cookie;
     RCPtr<VBucket> vb = getVBucket(vbucket);
@@ -1306,7 +1307,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::getMetaData(const std::string &key,
     int bucket_num(0);
     deleted = 0;
     LockHolder lh = vb->ht.getLockedBucket(key, &bucket_num);
-    StoredValue *v = vb->ht.unlocked_find(key, bucket_num, true);
+    StoredValue *v = vb->ht.unlocked_find(key, bucket_num, true, trackReferenced);
 
     if (v) {
         stats.numOpsGetMeta++;

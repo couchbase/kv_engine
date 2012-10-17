@@ -264,7 +264,7 @@ public:
      * @param cookie the connection cookie
      * @param queueBG if true, automatically queue a background fetch if necessary
      * @param honorStates if false, fetch a result regardless of state
-     * @param trackReference true if we want to set the reference bit for the item
+     * @param trackReference true if we want to set the nru bit for the item
      *
      * @return a GetValue representing the result of the request
      */
@@ -299,13 +299,15 @@ public:
      * @param vbucket the vbucket from which to retrieve the key
      * @param cookie the connection cookie
      * @param metadata where to store the meta informaion
+     * @param true if we want to set the nru bit for the item
      * @param deleted specifies whether or not the key is deleted
      */
     ENGINE_ERROR_CODE getMetaData(const std::string &key,
                                   uint16_t vbucket,
                                   const void *cookie,
                                   ItemMetaData &metadata,
-                                  uint32_t &deleted);
+                                  uint32_t &deleted,
+                                  bool trackReference = false);
 
     /**
      * Set an item in the store.
@@ -323,7 +325,7 @@ public:
                                   const void *cookie,
                                   bool force,
                                   bool allowReplace,
-                                  bool trackReference = true);
+                                  bool trackReference = false);
 
     /**
      * Retrieve a value, but update its TTL first

@@ -473,8 +473,10 @@ const char* HashTable::getDefaultStorageValueTypeStr() {
 add_type_t HashTable::unlocked_add(int &bucket_num,
                                    const Item &val,
                                    bool isDirty,
-                                   bool storeVal) {
-    StoredValue *v = unlocked_find(val.getKey(), bucket_num, true);
+                                   bool storeVal,
+                                   bool trackReference) {
+    StoredValue *v = unlocked_find(val.getKey(), bucket_num,
+                                   true, trackReference);
     add_type_t rv = ADD_SUCCESS;
     if (v && !v->isDeleted() && !v->isExpired(ep_real_time())) {
         rv = ADD_EXISTS;
@@ -535,7 +537,10 @@ add_type_t HashTable::unlocked_addTempDeletedItem(int &bucket_num,
     // the value cuz normally a new item added is considered resident which does
     // not apply for temp item.
 
-    return unlocked_add(bucket_num, itm, false, true);
+    return unlocked_add(bucket_num, itm,
+                        false,  // isDirty
+                        true,   // storeVal
+                        false); // trackReference
 }
 
 void StoredValue::setMutationMemoryThreshold(double memThreshold) {

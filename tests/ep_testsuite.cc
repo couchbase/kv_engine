@@ -3449,11 +3449,22 @@ static enum test_result test_bg_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 static enum test_result test_bg_meta_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *itm = NULL;
     h1->reset_stats(h, NULL);
+
+    int eject_items = get_int_stat(h, h1, "vb_active_num_ref_ejects");
+    int ref_items = get_int_stat(h, h1, "vb_active_num_ref_items");
+    check(eject_items == 0 && ref_items == 0, "Expected num_ref init values");
+
     wait_for_persisted_value(h, h1, "k1", "v1");
     wait_for_persisted_value(h, h1, "k2", "v2");
+
     evict_key(h, h1, "k1", 0, "Ejected.");
     check(del(h, h1, "k2", 0, 0) == ENGINE_SUCCESS, "Failed remove with value.");
     wait_for_stat_to_be(h, h1, "curr_items", 1);
+
+    eject_items = get_int_stat(h, h1, "vb_active_num_ref_ejects");
+    check(eject_items == 1, "Expected num_ref_ejects equals to 1");
+    ref_items = get_int_stat(h, h1, "vb_active_num_ref_items");
+
     checkeq(0, get_int_stat(h, h1, "ep_bg_fetched"), "Expected bg_fetched to be 0");
     checkeq(0, get_int_stat(h, h1, "ep_bg_meta_fetched"), "Expected bg_meta_fetched to be 0");
 
@@ -3461,9 +3472,33 @@ static enum test_result test_bg_meta_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     checkeq(0, get_int_stat(h, h1, "ep_bg_fetched"), "Expected bg_fetched to be 0");
     checkeq(1, get_int_stat(h, h1, "ep_bg_meta_fetched"), "Expected bg_meta_fetched to be 1");
 
+    int temp = get_int_stat(h, h1, "vb_active_num_ref_items");
+    check(temp == ref_items, "Expected num_ref_items remains the same after getWithMeta");
+
     check(h1->get(h, NULL, &itm, "k1", 2, 0) == ENGINE_SUCCESS, "Missing key");
     checkeq(1, get_int_stat(h, h1, "ep_bg_fetched"), "Expected bg_fetched to be 1");
     checkeq(1, get_int_stat(h, h1, "ep_bg_meta_fetched"), "Expected bg_meta_fetched to be 1");
+
+    temp = get_int_stat(h, h1, "vb_active_num_ref_items");
+    check(temp == ref_items, "Expected num_ref_items remains the same after get missing key");
+
+    // store new key with some random metadata
+    const size_t keylen = strlen("k3");
+    ItemMetaData itemMeta;
+    itemMeta.seqno = 10;
+    itemMeta.cas = 0xdeadbeef;
+    itemMeta.exptime = 0;
+    itemMeta.flags = 0xdeadbeef;
+
+    add_with_meta(h, h1, "k3", keylen, NULL, 0, 0, &itemMeta);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Set meta failed");
+
+    temp = get_int_stat(h, h1, "vb_active_num_ref_items");
+    check(temp == ref_items, "Expected num_ref_items remains the same after setWithMeta");
+
+    check(get_meta(h, h1, "k2"), "Get meta failed");
+    temp = get_int_stat(h, h1, "vb_active_num_ref_items");
+    check(temp == ref_items, "Expected num_ref_items remains the same after getWithMeta");
 
     return SUCCESS;
 }

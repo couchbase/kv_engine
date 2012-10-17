@@ -1244,12 +1244,14 @@ public:
      * @param val the item to store
      * @param isDirty true if the item should be marked dirty on store
      * @param storeVal true if the value should be stored (paged-in)
+     * @param trackReference true if the nru bit should be set
      * @return an indication of what happened
      */
     add_type_t unlocked_add(int &bucket_num,
                             const Item &val,
                             bool isDirty = true,
-                            bool storeVal = true);
+                            bool storeVal = true,
+                            bool trackReference = true);
 
     /**
      * Add a temporary item to the hash table iff it doesn't already exist.
