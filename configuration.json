@@ -60,10 +60,6 @@
                 }
             }
         },
-        "cache_size": {
-            "default": "0",
-            "type": "size_t"
-        },
         "chk_max_items": {
             "default": "5000",
             "type": "size_t"

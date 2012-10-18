@@ -2561,9 +2561,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     add_casted_stat("ep_mem_tracker_enabled",
                     stats.memoryTrackerEnabled ? "true" : "false",
                     add_stat, cookie);
-    add_casted_stat("ep_storage_type",
-                    HashTable::getDefaultStorageValueTypeStr(),
-                    add_stat, cookie);
     add_casted_stat("ep_bg_fetched", epstats.bg_fetched, add_stat,
                     cookie);
     add_casted_stat("ep_bg_meta_fetched", epstats.bg_meta_fetched, add_stat,
@@ -2698,7 +2695,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doMemoryStats(const void *cookie,
                                                            ADD_STAT add_stat) {
-
+    add_casted_stat("bytes", stats.getTotalMemoryUsed(), add_stat, cookie);
     add_casted_stat("mem_used", stats.getTotalMemoryUsed(), add_stat, cookie);
     add_casted_stat("ep_kv_size", stats.currentSize, add_stat, cookie);
     add_casted_stat("ep_value_size", stats.totalValueSize, add_stat, cookie);
@@ -3303,7 +3300,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
         rv = doVBucketStats(cookie, add_stat, true, false);
     } else if (nkey >= 10 && strncmp(stat_key, "checkpoint", 10) == 0) {
         rv = doCheckpointStats(cookie, add_stat, stat_key, nkey);
-    } else if (nkey == 4 && strncmp(stat_key, "klog", 10) == 0) {
+    } else if (nkey == 4 && strncmp(stat_key, "klog", 4) == 0) {
         rv = doKlogStats(cookie, add_stat);
     } else if (nkey == 7 && strncmp(stat_key, "timings", 7) == 0) {
         rv = doTimingStats(cookie, add_stat);

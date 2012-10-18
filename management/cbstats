@@ -259,6 +259,18 @@ def stats_config(mc):
     stats_formatter(stats_perform(mc, 'config'))
 
 @cmd
+def stats_warmup(mc):
+    stats_formatter(stats_perform(mc, 'warmup'))
+
+@cmd
+def stats_klog(mc):
+    stats_formatter(stats_perform(mc, 'klog'))
+
+@cmd
+def stats_info(mc):
+    stats_formatter(stats_perform(mc, 'info'))
+
+@cmd
 def stats_raw(mc, arg):
     stats_formatter(stats_perform(mc,arg))
 
@@ -388,6 +400,7 @@ def main():
     c.addCommand('hash', stats_hash, 'hash [detail]')
     c.addCommand('items', stats_items, 'items (memcached bucket only)')
     c.addCommand('key', stats_key, 'key keyname vbid')
+    c.addCommand('klog', stats_klog, 'klog')
     c.addCommand('kvstore', stats_kvstore, 'kvstore')
     c.addCommand('kvtimings', stats_kvtimings, 'kvtimings')
     c.addCommand('memory', stats_memory, 'memory')
@@ -401,6 +414,7 @@ def main():
     c.addCommand('vbucket', stats_vbucket, 'vbucket')
     c.addCommand('vbucket-details', stats_vbucket_details, 'vbucket-details')
     c.addCommand('vkey', stats_vkey, 'vkey keyname vbid')
+    c.addCommand('warmup', stats_warmup, 'warmup')
     c.addFlag('-a', 'allBuckets', 'iterate over all buckets (requires admin u/p)')
     c.addOption('-b', 'bucketName', 'the bucket to get stats from (Default: default)')
     c.addOption('-p', 'password', 'the password for the bucket if one exists')
