@@ -4470,9 +4470,13 @@ static enum test_result test_checkpoint_persistence(ENGINE_HANDLE *h,
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
           "Expected success response for checkpoint persistence");
 
-    // Issue another request with unexpected larger checkpoint id 100.
+    // Issue another request with unexpected larger checkpoint id 100, which
+    // causes timeout.
     check(checkpointPersistence(h, h1, 100) == ENGINE_TMPFAIL,
           "Expected temp failure for checkpoint persistence request");
+    check(get_int_stat(h, h1, "ep_chk_persistence_timeout") > 10,
+          "Expected CHECKPOINT_PERSISTENCE_TIMEOUT was adjusted to be greater"
+          " than 10 secs");
 
     return SUCCESS;
 }

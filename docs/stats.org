@@ -191,7 +191,9 @@ For introductory information on stats within membase, start with the
 | ep_chk_max_items                   | The number of items allowed in a       |
 |                                    | checkpoint before a new one is created |
 | ep_chk_period                      | The maximum lifetime of a checkpoint   |
-|                                    | before a new one is created
+|                                    | before a new one is created            |
+| ep_chk_persistence_timeout         | Timeout for vbucket checkpoint         |
+|                                    | persistence                            |
 | ep_chk_remover_stime               | The time interval for purging closed   |
 |                                    | checkpoints from memory                |
 | ep_concurrentDB                    | Enables multiple dispatchers           |

@@ -19,7 +19,8 @@ enum flusher_state {
 class Flusher;
 
 const double DEFAULT_MIN_SLEEP_TIME = 0.1;
-const size_t MAX_CHECKPOINT_PERSISTENCE_TIME = 10; // 10 sec.
+const size_t MIN_CHK_FLUSH_TIMEOUT = 10; // 10 sec.
+const size_t MAX_CHK_FLUSH_TIMEOUT = 60; // 60 sec.
 
 /**
  * A DispatcherCallback adaptor over Flusher.
@@ -64,8 +65,8 @@ public:
         store(st), _state(initializing), dispatcher(d),
         flushRv(0), prevFlushRv(0), minSleepTime(0.1),
         flushQueue(NULL),
-        forceShutdownReceived(false), flushPhase(0) {
-    }
+        forceShutdownReceived(false), flushPhase(0),
+        chkFlushTimeout(MIN_CHK_FLUSH_TIMEOUT) { }
 
     ~Flusher() {
         if (_state != stopped) {
@@ -97,6 +98,9 @@ public:
     HighPriorityVBEntry getHighPriorityVBEntry(uint16_t vbid);
     size_t getNumOfHighPriorityVBs();
 
+    size_t getCheckpointFlushTimeout() const;
+    void adjustCheckpointFlushTimeout(size_t wall_time);
+
 private:
     bool transition_state(enum flusher_state to);
     int doFlush();
@@ -124,6 +128,7 @@ private:
     Mutex priorityVBMutex;
     std::map<uint16_t, HighPriorityVBEntry> priorityVBList;
     size_t flushPhase;
+    size_t chkFlushTimeout;
 
     DISALLOW_COPY_AND_ASSIGN(Flusher);
 };

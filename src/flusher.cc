@@ -291,3 +291,19 @@ HighPriorityVBEntry Flusher::getHighPriorityVBEntry(uint16_t vbid) {
 size_t Flusher::getNumOfHighPriorityVBs() {
     return priorityVBList.size();
 }
+
+size_t Flusher::getCheckpointFlushTimeout() const {
+    return chkFlushTimeout;
+}
+
+void Flusher::adjustCheckpointFlushTimeout(size_t wall_time) {
+    size_t middle = (MIN_CHK_FLUSH_TIMEOUT + MAX_CHK_FLUSH_TIMEOUT) / 2;
+
+    if (wall_time <= MIN_CHK_FLUSH_TIMEOUT) {
+        chkFlushTimeout = MIN_CHK_FLUSH_TIMEOUT;
+    } else if (wall_time <= middle) {
+        chkFlushTimeout = middle;
+    } else {
+        chkFlushTimeout = MAX_CHK_FLUSH_TIMEOUT;
+    }
+}

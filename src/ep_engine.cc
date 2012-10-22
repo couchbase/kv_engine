@@ -2688,7 +2688,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                     add_stat, cookie);
     add_casted_stat("ep_num_ops_del_meta", epstats.numOpsDelMeta,
                     add_stat, cookie);
-
+    add_casted_stat("ep_chk_persistence_timeout",
+                    epstore->getFlusher()->getCheckpointFlushTimeout(),
+                    add_stat, cookie);
 
     return ENGINE_SUCCESS;
 }

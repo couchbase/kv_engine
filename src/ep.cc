@@ -1800,11 +1800,13 @@ vb_flush_queue_t* EventuallyPersistentStore::beginFlush() {
                         flusher->removeHighPriorityVBucket(vbid);
                         hrtime_t wall_time(gethrtime() - vb_entry.start);
                         stats.chkPersistenceHisto.add(wall_time / 1000);
+                        flusher->adjustCheckpointFlushTimeout(wall_time / 1000000000);
                     } else {
                         size_t spent = (gethrtime() - vb_entry.start) / 1000000000;
-                        if (spent > MAX_CHECKPOINT_PERSISTENCE_TIME) {
+                        if (spent > flusher->getCheckpointFlushTimeout()) {
                             engine.notifyIOComplete(vb_entry.cookie, ENGINE_TMPFAIL);
                             flusher->removeHighPriorityVBucket(vbid);
+                            flusher->adjustCheckpointFlushTimeout(spent);
                         }
                     }
                 }
@@ -1928,9 +1930,10 @@ int EventuallyPersistentStore::flushVBQueue(std::queue<queued_item> &vb_queue,
     if (vb_queue.empty()) {
         HighPriorityVBEntry vb_entry = flusher->getHighPriorityVBEntry(vbid);
         size_t spent = (gethrtime() - vb_entry.start) / 1000000000;
-        if (vb_entry.cookie && spent > MAX_CHECKPOINT_PERSISTENCE_TIME) {
+        if (vb_entry.cookie && spent > flusher->getCheckpointFlushTimeout()) {
             engine.notifyIOComplete(vb_entry.cookie, ENGINE_TMPFAIL);
             flusher->removeHighPriorityVBucket(vbid);
+            flusher->adjustCheckpointFlushTimeout(spent);
         }
         return oldest;
     }
@@ -1967,6 +1970,7 @@ int EventuallyPersistentStore::flushVBQueue(std::queue<queued_item> &vb_queue,
                 notified = true;
                 hrtime_t wall_time(gethrtime() - vb_entry.start);
                 stats.chkPersistenceHisto.add(wall_time / 1000);
+                flusher->adjustCheckpointFlushTimeout(wall_time / 1000000000);
             }
         } else {
             size_t qsize = rejectQueue.size();
@@ -1983,9 +1987,10 @@ int EventuallyPersistentStore::flushVBQueue(std::queue<queued_item> &vb_queue,
 
     if (!notified && vb_entry.cookie) {
         size_t spent = (gethrtime() - vb_entry.start) / 1000000000;
-        if (spent > MAX_CHECKPOINT_PERSISTENCE_TIME) {
+        if (spent > flusher->getCheckpointFlushTimeout()) {
             engine.notifyIOComplete(vb_entry.cookie, ENGINE_TMPFAIL);
             flusher->removeHighPriorityVBucket(vbid);
+            flusher->adjustCheckpointFlushTimeout(spent);
         }
     }
 
