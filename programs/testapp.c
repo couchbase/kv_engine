@@ -1150,7 +1150,6 @@ static void validate_response_header(protocol_binary_response_no_extras *respons
             assert(response->message.header.response.keylen == 0);
             assert(response->message.header.response.extlen == 0);
             assert(response->message.header.response.bodylen == 0);
-            assert(response->message.header.response.cas == 0);
             break;
 
         case PROTOCOL_BINARY_CMD_DECREMENT:
@@ -1445,6 +1444,49 @@ static enum test_return test_binary_delete(void) {
 static enum test_return test_binary_deleteq(void) {
     return test_binary_delete_impl("test_binary_deleteq",
                                    PROTOCOL_BINARY_CMD_DELETEQ);
+}
+
+static enum test_return test_binary_delete_cas_impl(const char *key, bool bad) {
+    union {
+        protocol_binary_request_no_extras request;
+        protocol_binary_response_no_extras response;
+        char bytes[1024];
+    } send, receive;
+    size_t len;
+    len = storage_command(send.bytes, sizeof(send.bytes),
+                          PROTOCOL_BINARY_CMD_SET,
+                          key, strlen(key), NULL, 0, 0, 0);
+    safe_send(send.bytes, len, false);
+    safe_recv_packet(receive.bytes, sizeof(receive.bytes));
+    validate_response_header(&receive.response, PROTOCOL_BINARY_CMD_SET,
+                             PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    len = raw_command(send.bytes, sizeof(send.bytes),
+                       PROTOCOL_BINARY_CMD_DELETE, key, strlen(key), NULL, 0);
+
+    send.request.message.header.request.cas = receive.response.message.header.response.cas;
+    if (bad) {
+        ++send.request.message.header.request.cas;
+    }
+    safe_send(send.bytes, len, false);
+    safe_recv_packet(receive.bytes, sizeof(receive.bytes));
+    if (bad) {
+        validate_response_header(&receive.response, PROTOCOL_BINARY_CMD_DELETE,
+                                 PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS);
+    } else {
+        validate_response_header(&receive.response, PROTOCOL_BINARY_CMD_DELETE,
+                                 PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    }
+
+    return TEST_PASS;
+}
+
+
+static enum test_return test_binary_delete_cas(void) {
+    return test_binary_delete_cas_impl("test_binary_delete_cas", false);
+}
+
+static enum test_return test_binary_delete_bad_cas(void) {
+    return test_binary_delete_cas_impl("test_binary_delete_bad_cas", true);
 }
 
 static enum test_return test_binary_get_impl(const char *key, uint8_t cmd) {
@@ -2351,6 +2393,8 @@ struct testcase testcases[] = {
     { "binary_replace", test_binary_replace },
     { "binary_replaceq", test_binary_replaceq },
     { "binary_delete", test_binary_delete },
+    { "binary_delete_cas", test_binary_delete_cas },
+    { "binary_delete_bad_cas", test_binary_delete_bad_cas },
     { "binary_deleteq", test_binary_deleteq },
     { "binary_get", test_binary_get },
     { "binary_getq", test_binary_getq },

@@ -3513,8 +3513,9 @@ static void process_bin_update(conn *c) {
          */
         if (c->cmd == PROTOCOL_BINARY_CMD_SET) {
             /* @todo fix this for the ASYNC interface! */
+            uint64_t cas = 0;
             settings.engine.v1->remove(settings.engine.v0, c, key, nkey,
-                                       &c->cas, c->binary_header.request.vbucket);
+                                       &cas, c->binary_header.request.vbucket);
         }
 
         /* swallow the data line */
@@ -3627,8 +3628,10 @@ static void process_bin_flush(conn *c) {
 }
 
 static void process_bin_delete(conn *c) {
+    protocol_binary_request_delete* req = binary_get_request(c);
     char* key = binary_get_key(c);
     size_t nkey = c->binary_header.request.keylen;
+    uint64_t cas = memcached_ntohll(req->message.header.request.cas);
 
     assert(c != NULL);
 
@@ -3650,13 +3653,14 @@ static void process_bin_delete(conn *c) {
             stats_prefix_record_delete(key, nkey);
         }
         ret = settings.engine.v1->remove(settings.engine.v0, c, key, nkey,
-                                         &c->cas, c->binary_header.request.vbucket);
+                                         &cas, c->binary_header.request.vbucket);
     }
 
     /* For some reason the SLAB_INCR tries to access this... */
     item_info_holder info = { .info = { .nvalue = 1 } };
     switch (ret) {
     case ENGINE_SUCCESS:
+        c->cas = cas;
         write_bin_response(c, NULL, 0, 0, 0);
         SLAB_INCR(c, delete_hits, key, nkey);
         break;
@@ -5049,7 +5053,6 @@ static int try_read_command(conn *c) {
             c->binary_header.request.bodylen = ntohl(req->request.bodylen);
             c->binary_header.request.vbucket = ntohs(req->request.vbucket);
             c->binary_header.request.cas = memcached_ntohll(req->request.cas);
-
 
             if (c->binary_header.request.magic != PROTOCOL_BINARY_REQ &&
                 !(c->binary_header.request.magic == PROTOCOL_BINARY_RES &&
