@@ -164,6 +164,7 @@ check_PROGRAMS=\
                hash_table_test \
                histo_test \
                hrtime_test \
+               json_test \
                misc_test \
                mutation_log_test \
                mutex_test \
@@ -275,6 +276,11 @@ hash_table_test_LDADD = libobjectregistry.la
 misc_test_CXXFLAGS = $(AM_CPPFLAGS) $(AM_CXXFLAGS) ${NO_WERROR}
 misc_test_SOURCES = tests/module_tests/misc_test.cc src/common.hh
 misc_test_DEPENDENCIES = src/common.hh
+
+json_test_CXXFLAGS = $(AM_CPPFLAGS) $(AM_CXXFLAGS) ${NO_WERROR}
+json_test_SOURCES = tests/module_tests/json_test.cc tools/JSON_checker.c \
+                    tools/JSON_checker.h src/common.hh
+json_test_DEPENDENCIES = src/common.hh
 
 priority_test_CXXFLAGS = $(AM_CPPFLAGS) $(AM_CXXFLAGS) ${NO_WERROR}
 priority_test_SOURCES = tests/module_tests/priority_test.cc src/priority.hh \
