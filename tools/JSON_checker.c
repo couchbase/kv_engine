@@ -454,7 +454,7 @@ checkUTF8JSON(const unsigned char* data, size_t size) {
         //Feed fake space to the validator to force it to finish validating
         //numerical values, iff it hasn't marked the current stream as valid
         if(jc->state != OK) {
-            badjson = JSON_checker_char(jc, 32);
+            badjson = !JSON_checker_char(jc, 32);
         }
         if(!badjson) {
             badjson = !JSON_checker_done(jc);
