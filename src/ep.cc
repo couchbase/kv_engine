@@ -2313,55 +2313,62 @@ int EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
     }
 
     if (isDirty && !deleted) {
-        if (!vbuckets.isBucketDeletion(qi->getVBucketId())) {
-            // Wait until the vbucket database is created by the vbucket state
-            // snapshot task.
-            if (vbuckets.isBucketCreation(qi->getVBucketId())) {
-                v->clearPendingId();
-                lh.unlock();
-                rejectQueue.push(qi);
-                ++vb->opsReject;
-            } else {
-                assert(rowid == v->getId());
-                if (rowid == -1) {
-                    v->setPendingId();
-                }
+        bool isVBDeletion = vbuckets.isBucketDeletion(qi->getVBucketId());
+        bool isVBCreation = vbuckets.isBucketCreation(qi->getVBucketId());
+        if (isVBDeletion && !isVBCreation) {
+            return ret;
+        }
+        // Wait until the vbucket database is created by the vbucket state
+        // snapshot task.
+        if (isVBCreation) {
+            v->clearPendingId();
+            lh.unlock();
+            rejectQueue.push(qi);
+            ++vb->opsReject;
+        } else {
+            assert(rowid == v->getId());
+            if (rowid == -1) {
+                v->setPendingId();
+            }
 
-                lh.unlock();
-                BlockTimer timer(rowid == -1 ?
-                                 &stats.diskInsertHisto : &stats.diskUpdateHisto,
-                                 rowid == -1 ? "disk_insert" : "disk_update",
-                                 stats.timingLog);
-                PersistenceCallback *cb;
-                cb = new PersistenceCallback(qi, rejectQueue, this, &mutationLog,
-                                             dirtied, &stats, itm.getCas());
-                tctx.addCallback(cb);
-                rwUnderlying->set(itm, *cb);
-                if (rowid == -1)  {
-                    ++vb->opsCreate;
-                } else {
-                    ++vb->opsUpdate;
-                }
+            lh.unlock();
+            BlockTimer timer(rowid == -1 ?
+                             &stats.diskInsertHisto : &stats.diskUpdateHisto,
+                             rowid == -1 ? "disk_insert" : "disk_update",
+                             stats.timingLog);
+            PersistenceCallback *cb;
+            cb = new PersistenceCallback(qi, rejectQueue, this, &mutationLog,
+                                         dirtied, &stats, itm.getCas());
+            tctx.addCallback(cb);
+            rwUnderlying->set(itm, *cb);
+            if (rowid == -1)  {
+                ++vb->opsCreate;
+            } else {
+                ++vb->opsUpdate;
             }
         }
     } else if (deleted || !found) {
-        if (!vbuckets.isBucketDeletion(qi->getVBucketId())) {
-            if (vbuckets.isBucketCreation(qi->getVBucketId())) {
-                if (found) {
-                    v->clearPendingId();
-                }
-                lh.unlock();
-                rejectQueue.push(qi);
-                ++vb->opsReject;
-            } else {
-                lh.unlock();
-                BlockTimer timer(&stats.diskDelHisto, "disk_delete", stats.timingLog);
-                PersistenceCallback *cb;
-                cb = new PersistenceCallback(qi, rejectQueue, this, &mutationLog,
-                                             dirtied, &stats, 0);
-                tctx.addCallback(cb);
-                rwUnderlying->del(itm, rowid, *cb);
+        bool isVBDeletion = vbuckets.isBucketDeletion(qi->getVBucketId());
+        bool isVBCreation = vbuckets.isBucketCreation(qi->getVBucketId());
+        if (isVBDeletion && !isVBCreation) {
+            return ret;
+        }
+
+        if (isVBCreation) {
+            if (found) {
+                v->clearPendingId();
             }
+            lh.unlock();
+            rejectQueue.push(qi);
+            ++vb->opsReject;
+        } else {
+            lh.unlock();
+            BlockTimer timer(&stats.diskDelHisto, "disk_delete", stats.timingLog);
+            PersistenceCallback *cb;
+            cb = new PersistenceCallback(qi, rejectQueue, this, &mutationLog,
+                                         dirtied, &stats, 0);
+            tctx.addCallback(cb);
+            rwUnderlying->del(itm, rowid, *cb);
         }
     }
 
