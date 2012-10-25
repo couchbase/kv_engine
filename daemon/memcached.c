@@ -1714,6 +1714,11 @@ static void complete_incr_bin(conn *c) {
     assert(c != NULL);
     assert(c->wsize >= sizeof(*rsp));
 
+    if (req->message.header.request.cas != 0) {
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL, 0);
+        return;
+    }
+
     /* fix byteorder in the request */
     uint64_t delta = memcached_ntohll(req->message.body.delta);
     uint64_t initial = memcached_ntohll(req->message.body.initial);

@@ -1625,6 +1625,44 @@ static enum test_return test_binary_incrq(void) {
                                  PROTOCOL_BINARY_CMD_INCREMENTQ);
 }
 
+static enum test_return test_binary_incr_invalid_cas_impl(const char* key, uint8_t cmd) {
+    union {
+        protocol_binary_request_no_extras request;
+        protocol_binary_response_no_extras response_header;
+        protocol_binary_response_incr response;
+        char bytes[1024];
+    } send, receive;
+    size_t len = arithmetic_command(send.bytes, sizeof(send.bytes), cmd,
+                                    key, strlen(key), 1, 0, 0);
+
+    send.request.message.header.request.cas = 5;
+    safe_send(send.bytes, len, false);
+    safe_recv_packet(receive.bytes, sizeof(receive.bytes));
+    validate_response_header(&receive.response_header, cmd,
+                             PROTOCOL_BINARY_RESPONSE_EINVAL);
+    return TEST_PASS;
+}
+
+static enum test_return test_binary_invalid_cas_incr(void) {
+    return test_binary_incr_invalid_cas_impl("test_binary_incr",
+                                             PROTOCOL_BINARY_CMD_INCREMENT);
+}
+
+static enum test_return test_binary_invalid_cas_incrq(void) {
+    return test_binary_incr_invalid_cas_impl("test_binary_incrq",
+                                             PROTOCOL_BINARY_CMD_INCREMENTQ);
+}
+
+static enum test_return test_binary_invalid_cas_decr(void) {
+    return test_binary_incr_invalid_cas_impl("test_binary_incr",
+                                             PROTOCOL_BINARY_CMD_DECREMENT);
+}
+
+static enum test_return test_binary_invalid_cas_decrq(void) {
+    return test_binary_incr_invalid_cas_impl("test_binary_incrq",
+                                             PROTOCOL_BINARY_CMD_DECREMENTQ);
+}
+
 static enum test_return test_binary_decr_impl(const char* key, uint8_t cmd) {
     union {
         protocol_binary_request_no_extras request;
@@ -2404,6 +2442,10 @@ struct testcase testcases[] = {
     { "binary_incrq", test_binary_incrq },
     { "binary_decr", test_binary_decr },
     { "binary_decrq", test_binary_decrq },
+    { "binary_incr_invalid_cas", test_binary_invalid_cas_incr },
+    { "binary_incrq_invalid_cas", test_binary_invalid_cas_incrq },
+    { "binary_decr_invalid_cas", test_binary_invalid_cas_decr },
+    { "binary_decrq_invalid_cas", test_binary_invalid_cas_decrq },
     { "binary_version", test_binary_version },
     { "binary_flush", test_binary_flush },
     { "binary_flushq", test_binary_flushq },
