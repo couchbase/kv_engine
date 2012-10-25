@@ -1916,13 +1916,15 @@ int EventuallyPersistentStore::flushOutgoingQueue(vb_flush_queue_t *flushQueue,
         if (phase == 1 && priority_vbs != 0 && (iteration % priority_vbs) == 0) {
             oldest = flushHighPriorityVBQueue(flushQueue, oldest);
         }
-        oldest = flushVBQueue(vb_queue, vbid, oldest);
+        RCPtr<VBucket> vb = getVBucket(vbid);
+        oldest = flushVBQueue(vb, vb_queue, vbid, oldest);
         ++iteration;
     }
     return oldest;
 }
 
-int EventuallyPersistentStore::flushVBQueue(std::queue<queued_item> &vb_queue,
+int EventuallyPersistentStore::flushVBQueue(RCPtr<VBucket> &vb,
+                                            std::queue<queued_item> &vb_queue,
                                             uint16_t vbid,
                                             int data_age) {
     int oldest = data_age;
@@ -1947,7 +1949,7 @@ int EventuallyPersistentStore::flushVBQueue(std::queue<queued_item> &vb_queue,
 
     std::queue<queued_item> rejectQueue;
     while (!vb_queue.empty()) {
-        int n = flushOne(vb_queue, rejectQueue);
+        int n = flushOne(vb_queue, rejectQueue, vb);
         if (n != 0 && n < oldest) {
             oldest = n;
         }
@@ -1956,7 +1958,6 @@ int EventuallyPersistentStore::flushVBQueue(std::queue<queued_item> &vb_queue,
 
     bool notified = false;
     HighPriorityVBEntry vb_entry = flusher->getHighPriorityVBEntry(vbid);
-    RCPtr<VBucket> vb = getVBucket(vbid);
     if (vb) {
         if (rejectQueue.empty()) {
             uint64_t chkid = vb->checkpointManager.getPersistenceCursorPreChkId();
@@ -2015,7 +2016,7 @@ int EventuallyPersistentStore::flushHighPriorityVBQueue(vb_flush_queue_t *flushQ
         vb_flush_queue_t::iterator vit = flushQueue->find(vbid);
         if (vit != flushQueue->end()) {
             std::queue<queued_item> &vb_queue = vit->second;
-            oldest = flushVBQueue(vb_queue, vbid, oldest);
+            oldest = flushVBQueue(vb, vb_queue, vbid, oldest);
             // vbucket outgoing queue is empty.
             if (vb_queue.empty()) {
                 std::vector<queued_item> item_list;
@@ -2226,9 +2227,9 @@ int EventuallyPersistentStore::flushOneDeleteAll() {
 // still a bit better off running the older code that figures it out
 // based on what's in memory.
 int EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
-                                                std::queue<queued_item> &rejectQueue) {
+                                                std::queue<queued_item> &rejectQueue,
+                                                RCPtr<VBucket> &vb) {
 
-    RCPtr<VBucket> vb = getVBucket(qi->getVBucketId());
     if (!vb) {
         return 0;
     }
@@ -2357,7 +2358,8 @@ int EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
 }
 
 int EventuallyPersistentStore::flushOne(std::queue<queued_item> &queue,
-                                        std::queue<queued_item> &rejectQueue) {
+                                        std::queue<queued_item> &rejectQueue,
+                                        RCPtr<VBucket> &vb) {
 
     queued_item qi = queue.front();
     queue.pop();
@@ -2370,7 +2372,7 @@ int EventuallyPersistentStore::flushOne(std::queue<queued_item> &queue,
     case queue_op_del:
         {
             size_t prevRejectCount = rejectQueue.size();
-            rv = flushOneDelOrSet(qi, rejectQueue);
+            rv = flushOneDelOrSet(qi, rejectQueue, vb);
             if (rejectQueue.size() == prevRejectCount) {
                 // flush operation was not rejected
                 tctx.addUncommittedItem(qi);

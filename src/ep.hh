@@ -800,11 +800,15 @@ private:
 
     int flushOutgoingQueue(vb_flush_queue_t *queue, size_t phase);
     int flushHighPriorityVBQueue(vb_flush_queue_t *queue, int data_age);
-    int flushVBQueue(std::queue<queued_item> &vb_queue, uint16_t vbid, int data_age);
+    int flushVBQueue(RCPtr<VBucket> &vb, std::queue<queued_item> &vb_queue,
+                     uint16_t vbid, int data_age);
     int flushOne(std::queue<queued_item> &queue,
-                 std::queue<queued_item> &rejectQueue);
+                 std::queue<queued_item> &rejectQueue,
+                 RCPtr<VBucket> &vb);
     int flushOneDeleteAll(void);
-    int flushOneDelOrSet(const queued_item &qi, std::queue<queued_item> &rejectQueue);
+    int flushOneDelOrSet(const queued_item &qi,
+                         std::queue<queued_item> &rejectQueue,
+                         RCPtr<VBucket> &vb);
 
     StoredValue *fetchValidValue(RCPtr<VBucket> &vb, const std::string &key,
                                  int bucket_num, bool wantsDeleted=false,
