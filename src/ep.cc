@@ -1907,6 +1907,7 @@ int EventuallyPersistentStore::flushOutgoingQueue(vb_flush_queue_t *flushQueue,
 
     size_t iteration = 0;
     int oldest = stats.min_data_age;
+    std::vector<uint16_t> invalid_vbs;
     vb_flush_queue_t::iterator vit = flushQueue->begin();
     for (; vit != flushQueue->end(); ++vit) {
         uint16_t vbid = vit->first;
@@ -1918,8 +1919,17 @@ int EventuallyPersistentStore::flushOutgoingQueue(vb_flush_queue_t *flushQueue,
         }
         RCPtr<VBucket> vb = getVBucket(vbid);
         oldest = flushVBQueue(vb, vb_queue, vbid, oldest);
+        if (!vb && vb_queue.empty()) {
+            invalid_vbs.push_back(vbid);
+        }
         ++iteration;
     }
+
+    std::vector<uint16_t>::iterator it = invalid_vbs.begin();
+    for (; it != invalid_vbs.end(); ++it) {
+        flushQueue->erase(*it);
+    }
+
     return oldest;
 }
 
@@ -1932,7 +1942,8 @@ int EventuallyPersistentStore::flushVBQueue(RCPtr<VBucket> &vb,
     if (vb_queue.empty()) {
         HighPriorityVBEntry vb_entry = flusher->getHighPriorityVBEntry(vbid);
         size_t spent = (gethrtime() - vb_entry.start) / 1000000000;
-        if (vb_entry.cookie && spent > flusher->getCheckpointFlushTimeout()) {
+        if (vb_entry.cookie &&
+            (!vb || spent > flusher->getCheckpointFlushTimeout())) {
             engine.notifyIOComplete(vb_entry.cookie, ENGINE_TMPFAIL);
             flusher->removeHighPriorityVBucket(vbid);
             flusher->adjustCheckpointFlushTimeout(spent);
@@ -1988,7 +1999,7 @@ int EventuallyPersistentStore::flushVBQueue(RCPtr<VBucket> &vb,
 
     if (!notified && vb_entry.cookie) {
         size_t spent = (gethrtime() - vb_entry.start) / 1000000000;
-        if (spent > flusher->getCheckpointFlushTimeout()) {
+        if (!vb || spent > flusher->getCheckpointFlushTimeout()) {
             engine.notifyIOComplete(vb_entry.cookie, ENGINE_TMPFAIL);
             flusher->removeHighPriorityVBucket(vbid);
             flusher->adjustCheckpointFlushTimeout(spent);
