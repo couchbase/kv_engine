@@ -1822,8 +1822,18 @@ Item* TapProducer::getNextItem(const void *c, uint16_t *vbucket, tap_event_t &re
         GetValue gv(engine.getEpStore()->get(itm->getKey(), itm->getVBucketId(),
                                              c, false, false, false));
         if (gv.getStatus() == ENGINE_SUCCESS) {
+            Item *mem_itm = gv.getValue();
+            // Skip a disk backfill item that is currently resident with
+            // the same seqno and cas. This item was already backfilled from memory.
+            if (!backfillCompleted && mem_itm->getSeqno() == itm->getSeqno() &&
+                mem_itm->getCas() == itm->getCas()) {
+                delete itm;
+                delete mem_itm;
+                ret = TAP_NOOP;
+                return NULL;
+            }
             delete itm;
-            itm = gv.getValue();
+            itm = mem_itm;
         } else if (gv.getStatus() == ENGINE_KEY_ENOENT || itm->isExpired(ep_real_time())) {
             ret = TAP_DELETION;
         }
