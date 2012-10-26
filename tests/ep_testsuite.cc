@@ -1298,6 +1298,47 @@ static enum test_result test_delete_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
     return SUCCESS;
 }
 
+static enum test_result test_get_delete_missing_file(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    const char *key = "key";
+    wait_for_persisted_value(h, h1, key, "value2delete");
+
+    // whack the db file and directory where the key is stored
+    rmdb();
+
+    item *i = NULL;
+    int errorCode = h1->get(h, NULL, &i, key, strlen(key), 0);
+    h1->release(h, NULL, i);
+
+    // ep engine must be unaware of well-being of the db file as long as
+    // the item is still in the memory
+    check(errorCode == ENGINE_SUCCESS, "Expected success for get");
+
+    i = NULL;
+    evict_key(h, h1, key);
+    errorCode = h1->get(h, NULL, &i, key, strlen(key), 0);
+    h1->release(h, NULL, i);
+
+    // ep engine must be now aware of the ill-fated db file where
+    // the item is supposedly stored
+    check(errorCode == ENGINE_TMPFAIL, "Expected tmp fail for get");
+
+    int total_del_items = get_int_stat(h, h1, "ep_total_del_items");
+    int total_persisted = get_int_stat(h, h1, "ep_total_persisted");
+
+    // ep engine must still attempt to delete the item and return
+    // ENGINE_SUCCESS
+    errorCode = del(h, h1, "key", 0, 0);
+    check(errorCode == ENGINE_SUCCESS, "Expected success for del");
+
+    wait_for_flusher_to_settle(h, h1);
+    check(total_del_items == get_int_stat(h, h1, "ep_total_del_items"),
+          "expected no change in total_del_items stat");
+    check(total_persisted == get_int_stat(h, h1, "ep_total_persisted"),
+          "expected no change in total_persisted stat");
+    return SUCCESS;
+}
+
+
 static enum test_result test_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
     static const char val[] = "somevalue";
@@ -6354,6 +6395,8 @@ engine_test_t* get_tests(void) {
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("delete/set/delete", test_delete_set, test_setup,
                  teardown, NULL, prepare, cleanup),
+        TestCase("get/delete with missing db file", test_get_delete_missing_file,
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("retain rowid over a soft delete", test_bug2509,
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("vbucket deletion doesn't affect new data", test_bug7023,

@@ -117,6 +117,8 @@ static int getMutationStatus(couchstore_error_t errCode)
     switch (errCode) {
     case COUCHSTORE_SUCCESS:
         return MUTATION_SUCCESS;
+    case COUCHSTORE_ERROR_NO_HEADER:
+    case COUCHSTORE_ERROR_NO_SUCH_FILE:
     case COUCHSTORE_ERROR_DOC_NOT_FOUND:
         // this return causes ep engine to drop the failed flush
         // of an item since it does not know about the itme any longer
@@ -491,23 +493,21 @@ void CouchKVStore::del(const Item &itm,
     assert(!isReadOnly());
     assert(intransaction);
     std::string dbFile;
+    CouchRequestCallback requestcb;
+    uint64_t fileRev = 1;
 
+    requestcb.delCb = &cb;
     if (getDbFile(itm.getVBucketId(), dbFile)) {
-        CouchRequestCallback requestcb;
-        requestcb.delCb = &cb;
-        // each req will be de-allocated after commit
-        CouchRequest *req = new CouchRequest(itm, dbFileRev(dbFile),
-                                             requestcb, true);
-        queueItem(req);
-    } else {
-        ++st.numDelFailure;
+        fileRev = dbFileRev(dbFile);
+     } else {
         getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                         "Warning: failed to delete data, cannot locate "
-                         "database file %s\n",
+                         "Warning: cannot locate database file %s for delete\n",
                          dbFile.c_str());
-        int value = DOC_NOT_FOUND;
-        cb.callback(value);
     }
+
+    // each req will be de-allocated after commit
+    CouchRequest *req = new CouchRequest(itm, fileRev, requestcb, true);
+    queueItem(req);
 }
 
 bool CouchKVStore::delVBucket(uint16_t vbucket, bool recreate)
