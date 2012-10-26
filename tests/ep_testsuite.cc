@@ -2472,7 +2472,7 @@ static enum test_result test_tap_agg_stats(ENGINE_HANDLE *h,
 }
 
 static enum test_result test_tap_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    const int num_keys = 30;
+    const int num_keys = 100;
     bool keys[num_keys];
     int initialPersisted = get_int_stat(h, h1, "ep_total_persisted");
 
@@ -2491,7 +2491,8 @@ static enum test_result test_tap_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
         decayingSleep(&sleepTime);
     }
 
-    for (int ii = 0; ii < num_keys; ++ii) {
+    // Evict 50 items to have the resident ratio as 50%
+    for (int ii = 0; ii < (num_keys / 2); ++ii) {
         std::stringstream ss;
         ss << ii;
         evict_key(h, h1, ss.str().c_str(), 0, "Ejected.");
@@ -2516,6 +2517,7 @@ static enum test_result test_tap_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
     tap_event_t event;
     std::string key;
 
+    size_t num_tap_items = 0;
     uint16_t unlikely_vbucket_identifier = 17293;
 
     do {
@@ -2540,6 +2542,7 @@ static enum test_result test_tap_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
                   "Unexpected item arrived on tap stream");
             h1->release(h, cookie, it);
             testHarness.lock_cookie(cookie);
+            ++num_tap_items;
             break;
         case TAP_DISCONNECT:
             break;
@@ -2553,6 +2556,7 @@ static enum test_result test_tap_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
     for (int ii = 0; ii < num_keys; ++ii) {
         check(keys[ii], "Failed to receive key");
     }
+    check(num_tap_items == 100, "Expected to receive no duplicate tap items");
 
     testHarness.unlock_cookie(cookie);
     check(get_int_stat(h, h1, "ep_tap_total_fetched", "tap") != 0,
