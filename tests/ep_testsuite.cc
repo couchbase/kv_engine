@@ -6053,6 +6053,32 @@ static enum test_result test_stats_vkey_valid_field(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+static enum test_result test_multiple_transactions(ENGINE_HANDLE *h,
+                                                   ENGINE_HANDLE_V1 *h1) {
+    check(set_vbucket_state(h, h1, 1, vbucket_state_active),
+          "Failed to set vbucket state.");
+    for (int j = 0; j < 1000; ++j) {
+        std::stringstream s1;
+        s1 << "key-0-" << j;
+        item *i;
+        check(store(h, h1, NULL, OPERATION_SET,
+              s1.str().c_str(), s1.str().c_str(), &i, 0, 0) == ENGINE_SUCCESS,
+              "Failed to store a value");
+        h1->release(h, NULL, i);
+        std::stringstream s2;
+        s2 << "key-1-" << j;
+        check(store(h, h1, NULL, OPERATION_SET,
+              s2.str().c_str(), s2.str().c_str(), &i, 0, 1) == ENGINE_SUCCESS,
+              "Failed to store a value");
+        h1->release(h, NULL, i);
+    }
+    wait_for_stat_to_be(h, h1, "ep_total_persisted", 2000);
+    check(get_int_stat(h, h1, "ep_commit_num") > 1,
+          "Expected 20 transaction completions at least");
+    return SUCCESS;
+}
+
+
 static McCouchMockServer *mccouchMock;
 
 static enum test_result prepare(engine_test_t *test) {
@@ -6676,6 +6702,10 @@ engine_test_t* get_tests(void) {
         // Data traffic control tests
         TestCase("control data traffic", test_control_data_traffic,
                  test_setup, teardown, NULL, prepare, cleanup),
+
+        // Transaction tests
+        TestCase("multiple transactions", test_multiple_transactions,
+                 test_setup, teardown, "max_txn_size=100", prepare, cleanup),
 
         TestCase(NULL, NULL, NULL, NULL, NULL, prepare, cleanup)
     };

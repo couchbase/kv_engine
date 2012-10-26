@@ -65,7 +65,7 @@ public:
         store(st), _state(initializing), dispatcher(d),
         flushRv(0), prevFlushRv(0), minSleepTime(0.1),
         flushQueue(NULL),
-        forceShutdownReceived(false), flushPhase(0),
+        forceShutdownReceived(false), flushPhase(0), nextVbid(0),
         chkFlushTimeout(MIN_CHK_FLUSH_TIMEOUT) { }
 
     ~Flusher() {
@@ -128,6 +128,7 @@ private:
     Mutex priorityVBMutex;
     std::map<uint16_t, HighPriorityVBEntry> priorityVBList;
     size_t flushPhase;
+    uint16_t nextVbid;
     size_t chkFlushTimeout;
 
     DISALLOW_COPY_AND_ASSIGN(Flusher);

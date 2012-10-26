@@ -1923,29 +1923,55 @@ void EventuallyPersistentStore::completeFlush(rel_time_t flush_start) {
 }
 
 int EventuallyPersistentStore::flushOutgoingQueue(vb_flush_queue_t *flushQueue,
-                                                  size_t phase) {
+                                                  size_t &flushPhase,
+                                                  uint16_t &nextVbid) {
     if (diskFlushAll) {
         flushOneDeleteAll(); // Reset the database.
     }
 
-    size_t iteration = 0;
     int oldest = stats.min_data_age;
+    if (!tctx.enter()) {
+        ++stats.beginFailed;
+        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                         "Failed to start a transaction.\n");
+        return oldest;
+    }
+
+    int completed = 0;
+    size_t iteration = 0;
     std::vector<uint16_t> invalid_vbs;
-    vb_flush_queue_t::iterator vit = flushQueue->begin();
+    vb_flush_queue_t::iterator vit = flushQueue->lower_bound(nextVbid);
     for (; vit != flushQueue->end(); ++vit) {
         uint16_t vbid = vit->first;
         std::queue<queued_item> &vb_queue = vit->second;
         // Interleave regular and high priority vbuckets.
         size_t priority_vbs = flusher->getNumOfHighPriorityVBs();
-        if (phase == 1 && priority_vbs != 0 && (iteration % priority_vbs) == 0) {
+        if (flushPhase == 1 && priority_vbs != 0 && (iteration % priority_vbs) == 0) {
             oldest = flushHighPriorityVBQueue(flushQueue, oldest);
         }
         RCPtr<VBucket> vb = getVBucket(vbid);
+        completed += vb_queue.size();
         oldest = flushVBQueue(vb, vb_queue, vbid, oldest);
         if (!vb && vb_queue.empty()) {
             invalid_vbs.push_back(vbid);
         }
+        if (tctx.getTxnSize() <= completed) {
+            ++vit;
+            break;
+        }
         ++iteration;
+    }
+
+    tctx.commit();
+
+    if (vit != flushQueue->end()) {
+        nextVbid = vit->first;
+    } else {
+        // Flusher iterates the outgoing queues of all vbuckets once and
+        // will visit them again to see if there are any remaining items
+        // in the outgoing queues.
+        nextVbid = flushQueue->empty() ? 0 : flushQueue->begin()->first;
+        ++flushPhase;
     }
 
     std::vector<uint16_t>::iterator it = invalid_vbs.begin();
@@ -1978,13 +2004,6 @@ int EventuallyPersistentStore::flushVBQueue(RCPtr<VBucket> &vb,
         return oldest;
     }
 
-    if (!tctx.enter()) {
-        ++stats.beginFailed;
-        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                         "Failed to start a transaction.\n");
-        return oldest;
-    }
-
     std::queue<queued_item> rejectQueue;
     while (!vb_queue.empty()) {
         int n = flushOne(vb_queue, rejectQueue, vb);
@@ -1992,7 +2011,6 @@ int EventuallyPersistentStore::flushVBQueue(RCPtr<VBucket> &vb,
             oldest = n;
         }
     }
-    tctx.commit();
 
     bool notified = false;
     HighPriorityVBEntry vb_entry = flusher->getHighPriorityVBEntry(vbid);

@@ -236,12 +236,13 @@ int Flusher::doFlush() {
                              "Beginning a write queue flush.\n");
             flushStart = ep_current_time();
             flushPhase = 1;
+            nextVbid = flushQueue->empty() ? 0 : flushQueue->begin()->first;
         }
     }
 
     // Now do the every pass thing.
     if (flushQueue) {
-        int n = store->flushOutgoingQueue(flushQueue, flushPhase++);
+        int n = store->flushOutgoingQueue(flushQueue, flushPhase, nextVbid);
         if (_state == pausing) {
             transition_state(paused);
         }

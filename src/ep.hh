@@ -798,7 +798,9 @@ private:
     size_t pushToOutgoingQueue(std::vector<queued_item> &items, uint16_t vbid);
     void completeFlush(rel_time_t flush_start);
 
-    int flushOutgoingQueue(vb_flush_queue_t *queue, size_t phase);
+    int flushOutgoingQueue(vb_flush_queue_t *queue,
+                           size_t &flushPhase,
+                           uint16_t &nextVbid);
     int flushHighPriorityVBQueue(vb_flush_queue_t *queue, int data_age);
     int flushVBQueue(RCPtr<VBucket> &vb, std::queue<queued_item> &vb_queue,
                      uint16_t vbid, int data_age);
