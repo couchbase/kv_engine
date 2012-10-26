@@ -1801,12 +1801,20 @@ vb_flush_queue_t* EventuallyPersistentStore::beginFlush() {
                         hrtime_t wall_time(gethrtime() - vb_entry.start);
                         stats.chkPersistenceHisto.add(wall_time / 1000);
                         flusher->adjustCheckpointFlushTimeout(wall_time / 1000000000);
+                        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                         "Notified the completion of checkpoint "
+                                         "persistence for vbucket %d, cookie %p\n",
+                                         vbid, vb_entry.cookie);
                     } else {
                         size_t spent = (gethrtime() - vb_entry.start) / 1000000000;
                         if (spent > flusher->getCheckpointFlushTimeout()) {
                             engine.notifyIOComplete(vb_entry.cookie, ENGINE_TMPFAIL);
                             flusher->removeHighPriorityVBucket(vbid);
                             flusher->adjustCheckpointFlushTimeout(spent);
+                            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                         "Notified the timeout on checkpoint "
+                                         "persistence for vbucket %d, cookie %p\n",
+                                         vbid, vb_entry.cookie);
                         }
                     }
                 }
@@ -1947,6 +1955,10 @@ int EventuallyPersistentStore::flushVBQueue(RCPtr<VBucket> &vb,
             engine.notifyIOComplete(vb_entry.cookie, ENGINE_TMPFAIL);
             flusher->removeHighPriorityVBucket(vbid);
             flusher->adjustCheckpointFlushTimeout(spent);
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                             "Notified the timeout on checkpoint "
+                             "persistence for vbucket %d, cookie %p\n",
+                             vbid, vb_entry.cookie);
         }
         return oldest;
     }
@@ -1983,6 +1995,10 @@ int EventuallyPersistentStore::flushVBQueue(RCPtr<VBucket> &vb,
                 hrtime_t wall_time(gethrtime() - vb_entry.start);
                 stats.chkPersistenceHisto.add(wall_time / 1000);
                 flusher->adjustCheckpointFlushTimeout(wall_time / 1000000000);
+                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                 "Notified the completion of checkpoint "
+                                 "persistence for vbucket %d, cookie %p\n",
+                                 vbid, vb_entry.cookie);
             }
         } else {
             size_t qsize = rejectQueue.size();
@@ -2003,6 +2019,10 @@ int EventuallyPersistentStore::flushVBQueue(RCPtr<VBucket> &vb,
             engine.notifyIOComplete(vb_entry.cookie, ENGINE_TMPFAIL);
             flusher->removeHighPriorityVBucket(vbid);
             flusher->adjustCheckpointFlushTimeout(spent);
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                             "Notified the timeout on checkpoint "
+                             "persistence for vbucket %d, cookie %p\n",
+                             vbid, vb_entry.cookie);
         }
     }
 
