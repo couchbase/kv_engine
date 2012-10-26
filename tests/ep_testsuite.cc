@@ -1237,6 +1237,40 @@ static enum test_result test_bug2509(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return get_int_stat(h, h1, "ep_warmup_dups") == 0 ? SUCCESS : FAIL;
 }
 
+static enum test_result test_bug7023(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    std::vector<std::string> keys;
+    // Make a vbucket mess.
+    for (int j = 0; j < 10000; ++j) {
+        std::stringstream ss;
+        ss << "key" << j;
+        std::string key(ss.str());
+        keys.push_back(key);
+    }
+
+    std::vector<std::string>::iterator it;
+    for (int j = 0; j < 5; ++j) {
+        check(set_vbucket_state(h, h1, 0, vbucket_state_dead), "Failed set set vbucket 0 dead.");
+        vbucketDelete(h, h1, 0);
+        check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+              "Expected vbucket deletion to work.");
+        check(set_vbucket_state(h, h1, 0, vbucket_state_active), "Failed set set vbucket 0 active.");
+        for (it = keys.begin(); it != keys.end(); ++it) {
+            item *i;
+            check(store(h, h1, NULL, OPERATION_SET, it->c_str(), it->c_str(), &i)
+                  == ENGINE_SUCCESS, "Failed to store a value");
+        }
+    }
+    wait_for_flusher_to_settle(h, h1);
+
+    // Restart again, to verify no data loss.
+    testHarness.reload_engine(&h, &h1,
+                              testHarness.engine_path,
+                              testHarness.get_current_testcase()->cfg,
+                              true, false);
+    wait_for_warmup_complete(h, h1);
+    return get_int_stat(h, h1, "ep_warmup_value_count", "warmup") == 10000 ? SUCCESS : FAIL;
+}
+
 static enum test_result test_delete_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     wait_for_persisted_value(h, h1, "key", "value1");
 
@@ -6241,6 +6275,8 @@ engine_test_t* get_tests(void) {
         TestCase("delete/set/delete", test_delete_set, test_setup,
                  teardown, NULL, prepare, cleanup),
         TestCase("retain rowid over a soft delete", test_bug2509,
+                 test_setup, teardown, NULL, prepare, cleanup),
+        TestCase("vbucket deletion doesn't affect new data", test_bug7023,
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("non-resident decrementers", test_mb3169,
                  test_setup, teardown, NULL, prepare, cleanup),

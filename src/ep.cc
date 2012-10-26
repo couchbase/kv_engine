@@ -972,6 +972,15 @@ EventuallyPersistentStore::completeVBucketDeletion(uint16_t vbid, bool recreate)
     RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
     if (!vb || vb->getState() == vbucket_state_dead || vbuckets.isBucketDeletion(vbid)) {
         lh.unlock();
+        // Clean up the vbucket outgoing flush queue.
+        vb_flush_queue_t::iterator it = writingQueues.find(vbid);
+        if (it != writingQueues.end()) {
+            std::queue<queued_item> &vb_queue = it->second;
+            stats.flusher_todo.decr(vb_queue.size());
+            stats.memOverhead.decr(sizeof(queued_item) * vb_queue.size());
+            assert(stats.memOverhead.get() < GIGANTOR);
+            writingQueues.erase(vbid);
+        }
         if (rwUnderlying->delVBucket(vbid, recreate)) {
             vbuckets.setBucketDeletion(vbid, false);
             mutationLog.deleteAll(vbid);
@@ -1844,6 +1853,12 @@ vb_flush_queue_t* EventuallyPersistentStore::beginFlush() {
                 continue;
             }
 
+            // Don't grab any new dirty items from the vbucket incoming queue
+            // if the new empty vbucket database isn't created on disk yet.
+            if (vbuckets.isBucketCreation(vbid)) {
+                continue;
+            }
+
             // Grab all the backfill items if exist.
             vb->getBackfillItems(item_list);
             // Get all dirty items from the checkpoint.
@@ -2048,6 +2063,11 @@ int EventuallyPersistentStore::flushHighPriorityVBQueue(vb_flush_queue_t *flushQ
         if (vit != flushQueue->end()) {
             std::queue<queued_item> &vb_queue = vit->second;
             oldest = flushVBQueue(vb, vb_queue, vbid, oldest);
+            // Don't grab any new dirty items from the vbucket incoming queue
+            // if the new empty vbucket database isn't created on disk yet.
+            if (vbuckets.isBucketCreation(vbid)) {
+                continue;
+            }
             // vbucket outgoing queue is empty.
             if (vb_queue.empty()) {
                 std::vector<queued_item> item_list;
@@ -2333,14 +2353,12 @@ int EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
     }
 
     if (isDirty && !deleted) {
-        bool isVBDeletion = vbuckets.isBucketDeletion(qi->getVBucketId());
-        bool isVBCreation = vbuckets.isBucketCreation(qi->getVBucketId());
-        if (isVBDeletion && !isVBCreation) {
+        if (vbuckets.isBucketDeletion(qi->getVBucketId())) {
             return ret;
         }
         // Wait until the vbucket database is created by the vbucket state
         // snapshot task.
-        if (isVBCreation) {
+        if (vbuckets.isBucketCreation(qi->getVBucketId())) {
             v->clearPendingId();
             lh.unlock();
             rejectQueue.push(qi);
@@ -2368,13 +2386,11 @@ int EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
             }
         }
     } else if (deleted || !found) {
-        bool isVBDeletion = vbuckets.isBucketDeletion(qi->getVBucketId());
-        bool isVBCreation = vbuckets.isBucketCreation(qi->getVBucketId());
-        if (isVBDeletion && !isVBCreation) {
+        if (vbuckets.isBucketDeletion(qi->getVBucketId())) {
             return ret;
         }
 
-        if (isVBCreation) {
+        if (vbuckets.isBucketCreation(qi->getVBucketId())) {
             if (found) {
                 v->clearPendingId();
             }
