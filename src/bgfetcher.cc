@@ -64,6 +64,7 @@ void BgFetcher::doFetch(uint16_t vbId) {
 
 void BgFetcher::clearItems(uint16_t vbId) {
     vb_bgfetch_queue_t::iterator itr = items2fetch.begin();
+    size_t numRequeuedItems = 0;
     for(; itr != items2fetch.end(); itr++) {
         // every fetched item belonging to the same seq_id shares
         // a single data buffer, just delete it from the first fetched item
@@ -85,9 +86,14 @@ void BgFetcher::clearItems(uint16_t vbId) {
                     "seq = %lld key = %s retry = %d\n",
                      vbId, (*itr).first, (*dItr)->key.c_str(),
                      (*dItr)->getRetryCount());
+                ++numRequeuedItems;
                 vb->queueBGFetchItem(*dItr, this, false);
             }
         }
+    }
+
+    if (numRequeuedItems) {
+        stats.numRemainingBgJobs.incr(numRequeuedItems);
     }
 }
 
@@ -108,11 +114,16 @@ bool BgFetcher::run(TaskId &tid) {
     }
 
     size_t remains = stats.numRemainingBgJobs.decr(num_fetched_items);
-    if (!pendingJob()) {
-        stats.numRemainingBgJobs.cas(remains, 0); // Reset the remaining counter
-        // wait a bit until next fetche request arrives
+    if (!remains) {
+        // wait a bit until next fetch request arrives
         double sleep = std::max(store->getBGFetchDelay(), sleepInterval);
         dispatcher->snooze(tid, sleep);
+
+        if (stats.numRemainingBgJobs.get()) {
+           // check again numRemainingBgJobs, a new fetch request
+           // could have arrvied right before calling above snooze()
+           dispatcher->snooze(tid, 0);
+        }
     }
     return true;
 }
