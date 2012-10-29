@@ -774,18 +774,32 @@ extern "C" {
         }
         switch (err) {
             case ENGINE_SUCCESS:
+                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                 "Deletion of vbucket %d was completed.\n", vbucket);
                 break;
             case ENGINE_NOT_MY_VBUCKET:
+                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                 "Deletion of vbucket %d failed because the vbucket "
+                                 "doesn't exist!!!\n", vbucket);
                 msg = "Failed to delete vbucket.  Bucket not found.";
                 res = PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET;
                 break;
             case ENGINE_EINVAL:
+                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                 "Deletion of vbucket %d failed because the vbucket "
+                                 "is not in a dead state\n", vbucket);
                 msg = "Failed to delete vbucket.  Must be in the dead state.";
                 res = PROTOCOL_BINARY_RESPONSE_EINVAL;
                 break;
             case ENGINE_EWOULDBLOCK:
+                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                 "Requst to vbucket %d deletion is in EWOULDBLOCK until "
+                                 "the database file is removed from disk.\n", vbucket);
                 return ENGINE_EWOULDBLOCK;
             default:
+                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                 "Deletion of vbucket %d failed "
+                                 "because of unknown reasons\n", vbucket);
                 msg = "Failed to delete vbucket.  Unknown reason.";
                 res = PROTOCOL_BINARY_RESPONSE_EINTERNAL;
         }
@@ -2118,7 +2132,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
                         getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                                      "%s Failed to reset a vbucket %d. Force disconnect\n",
                                      connection->logHeader(), vbucket);
+                    } else {
+                         getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                     "%s Reset vbucket %d was completed succecssfully.\n",
+                                     connection->logHeader(), vbucket);
                     }
+
                     TapConsumer *tc = dynamic_cast<TapConsumer*>(connection);
                     if (tc) {
                         tc->setBackfillPhase(true, vbucket);
