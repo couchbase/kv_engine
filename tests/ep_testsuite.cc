@@ -3756,6 +3756,45 @@ static enum test_result test_cbd_225(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return SUCCESS;
 }
 
+static enum test_result test_notifier_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    item *it = NULL;
+    check(set_vbucket_state(h, h1, 0, vbucket_state_active), "Failed to set VB0 state.");
+
+    for (int i = 0; i < 1000; ++i) {
+        std::stringstream key;
+        key << "key-what" << i;
+        check(ENGINE_SUCCESS ==
+              store(h, h1, NULL, OPERATION_SET, key.str().c_str(), "somevalue2remember", &it),
+              "Error setting.");
+        h1->release(h, NULL, it);
+    }
+    wait_for_flusher_to_settle(h, h1);
+
+    check(h1->get_stats(h, NULL, "kvstore", 7, add_stats) == ENGINE_SUCCESS,
+          "expected kvstore stats");
+
+    std::string rcmd = vals["rw:last_received_command"];
+    std::string scmd = vals["rw:last_sent_command"];
+    check(strcmp(rcmd.c_str(), "notify_vbucket_update") == 0,
+          "expected notify_vbucket_update for last received command");
+    check(strcmp(scmd.c_str(), "notify_vbucket_update") == 0,
+          "expected notify_vbucket_update for last sent command");
+
+    int error = get_int_stat(h, h1, "rw:notify_vbucket_update:error", "kvstore");
+    check(error == 0, "expected zero notify_vbucket_update error");
+
+    // every file update should increment the same number of file close
+    // and notify_vbucket_udpate
+    int close = get_int_stat(h, h1, "rw:close", "kvstore");
+    int sent = get_int_stat(h, h1, "rw:notify_vbucket_update:sent", "kvstore");
+    check(close == sent, "expected notify_vbucket_update equals to close");
+
+    int success = get_int_stat(h, h1, "rw:notify_vbucket_update:success", "kvstore");
+    check(sent == success, "expected notify_vbucket_update success");
+    return SUCCESS;
+}
+
+
 static enum test_result test_curr_items(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
 
@@ -6397,6 +6436,8 @@ engine_test_t* get_tests(void) {
         TestCase("stats curr_items", test_curr_items, test_setup,
                  teardown, NULL, prepare, cleanup),
         TestCase("startup token stat", test_cbd_225, test_setup,
+                 teardown, NULL, prepare, cleanup),
+        TestCase("mccouch notifier stat", test_notifier_stats, test_setup,
                  teardown, NULL, prepare, cleanup),
 
         // eviction

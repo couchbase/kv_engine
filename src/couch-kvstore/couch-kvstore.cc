@@ -903,6 +903,11 @@ void CouchKVStore::addStats(const std::string &prefix,
         addStat(prefix_str, "failure_vbset", st.numVbSetFailure, add_stat, c);
         addStat(prefix_str, "lastCommDocs",  st.docsCommitted,   add_stat, c);
         addStat(prefix_str, "numCommitRetry", st.numCommitRetry, add_stat, c);
+
+        // stats for CouchNotifier
+        if (!isReadOnly()) {
+            couchNotifier->addStats(prefix, add_stat, c);
+        }
     }
 }
 

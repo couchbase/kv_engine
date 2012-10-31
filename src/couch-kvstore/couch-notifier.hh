@@ -18,6 +18,18 @@
 #define evutil_socket_t int
 #endif
 
+/*
+ * Current CouchNotifier commands
+ */
+enum notifierCmd {
+    update_vbucket_cmd = 1,
+    flush_vbucket_cmd,
+    del_vbucket_cmd,
+    select_bucket_cmd,
+    unknown_cmd
+};
+const int MAX_NUM_NOTIFIER_CMD = unknown_cmd;
+
 class Buffer {
 public:
     char *data;
@@ -141,6 +153,8 @@ private:
 
     bool connect();
     void ensureConnection(void);
+    int  commandId(uint8_t opcode);
+    const char *cmdId2str(int id);
 
     evutil_socket_t sock;
 
@@ -208,8 +222,7 @@ private:
                 addStat(name.str(), "error", numError, add_stat, c);
             }
         }
-    } commandStats[0xff]; // @todo make this map smaller.. we only use
-    // a subset of the packets...
+    } commandStats[MAX_NUM_NOTIFIER_CMD];
 
     Mutex mutex;
     std::list<BinaryPacketHandler*> responseHandler;
