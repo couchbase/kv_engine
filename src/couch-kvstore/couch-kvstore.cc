@@ -1344,8 +1344,6 @@ couchstore_error_t CouchKVStore::fetchDoc(Db *db, DocInfo *docinfo,
     itemFlags = ntohl(itemFlags);
 
     if (metaOnly) {
-        // we should allow a metadata disk fetch for deleted items only
-        assert(docinfo->deleted);
         Item *it = new Item(docinfo->id.buf, (size_t)docinfo->id.size,
                             docinfo->size, itemFlags, (time_t)exptime, cas);
         it->setSeqno(docinfo->rev_seq);
