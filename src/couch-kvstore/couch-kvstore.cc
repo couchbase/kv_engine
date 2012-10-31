@@ -872,9 +872,9 @@ StorageProperties CouchKVStore::getStorageProperties()
 bool CouchKVStore::commit(void)
 {
     assert(!isReadOnly());
-    // TODO get rid of bogus intransaction business
-    assert(intransaction);
-    intransaction = commit2couchstore() ? false : true;
+    if (intransaction) {
+        intransaction = commit2couchstore() ? false : true;
+    }
     return !intransaction;
 
 }

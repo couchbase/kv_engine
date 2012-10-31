@@ -1932,14 +1932,9 @@ int EventuallyPersistentStore::flushOutgoingQueue(vb_flush_queue_t *flushQueue,
         flushOneDeleteAll(); // Reset the database.
     }
 
-    int oldest = stats.min_data_age;
-    if (!tctx.enter()) {
-        ++stats.beginFailed;
-        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                         "Failed to start a transaction.\n");
-        return oldest;
-    }
+    tctx.enter();
 
+    int oldest = stats.min_data_age;
     int completed = 0;
     size_t iteration = 0;
     std::vector<uint16_t> invalid_vbs;
@@ -2075,6 +2070,9 @@ int EventuallyPersistentStore::flushHighPriorityVBQueue(vb_flush_queue_t *flushQ
     int oldest = data_age;
     size_t num_items = 0;
 
+    tctx.commit();
+    tctx.enter();
+
     std::vector<uint16_t> vblist;
     flusher->getAllHighPriorityVBuckets(vblist);
     std::vector<uint16_t>::iterator it = vblist.begin();
@@ -2107,6 +2105,9 @@ int EventuallyPersistentStore::flushHighPriorityVBQueue(vb_flush_queue_t *flushQ
             }
         }
     }
+
+    tctx.commit();
+    tctx.enter();
 
     if (num_items > 0) {
         if (stats.queue_size > num_items) {
@@ -2738,13 +2739,24 @@ void EventuallyPersistentStore::visit(VBucketVisitor &visitor)
 
 bool TransactionContext::enter() {
     if (!intxn) {
-        intxn = underlying->begin();
+        while (!underlying->begin()) {
+            ++stats.beginFailed;
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                             "Failed to start a transaction!!! Retry in 1 sec ...\n");
+            sleep(1);
+        }
+        intxn = true;
         tranStartTime = gethrtime();
     }
     return intxn;
 }
 
 void TransactionContext::commit() {
+    if (numUncommittedItems == 0) {
+        intxn = false;
+        return;
+    }
+
     BlockTimer timer(&stats.diskCommitHisto, "disk_commit", stats.timingLog);
     hrtime_t start, end;
     start = gethrtime();
