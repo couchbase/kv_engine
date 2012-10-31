@@ -91,12 +91,12 @@ public:
     enum flusher_state state() const;
     const char * stateName() const;
 
-    void addHighPriorityVBucket(uint16_t vbid, uint64_t chkid,
+    void addHighPriorityVBEntry(uint16_t vbid, uint64_t chkid,
                                 const void *cookie);
-    void removeHighPriorityVBucket(uint16_t vbid);
+    void removeHighPriorityVBEntry(uint16_t vbid, const void *cookie);
     void getAllHighPriorityVBuckets(std::vector<uint16_t> &vbs);
-    HighPriorityVBEntry getHighPriorityVBEntry(uint16_t vbid);
-    size_t getNumOfHighPriorityVBs();
+    std::list<HighPriorityVBEntry> getHighPriorityVBEntries(uint16_t vbid);
+    size_t getNumOfHighPriorityVBs() const;
 
     size_t getCheckpointFlushTimeout() const;
     void adjustCheckpointFlushTimeout(size_t wall_time);
@@ -126,7 +126,7 @@ private:
     Atomic<bool> forceShutdownReceived;
 
     Mutex priorityVBMutex;
-    std::map<uint16_t, HighPriorityVBEntry> priorityVBList;
+    std::map<uint16_t, std::list<HighPriorityVBEntry> > priorityVBList;
     size_t flushPhase;
     uint16_t nextVbid;
     size_t chkFlushTimeout;

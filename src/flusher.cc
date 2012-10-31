@@ -260,36 +260,62 @@ int Flusher::doFlush() {
     return flushRv;
 }
 
-void Flusher::addHighPriorityVBucket(uint16_t vbid, uint64_t chkid,
+void Flusher::addHighPriorityVBEntry(uint16_t vbid, uint64_t chkid,
                                      const void *cookie) {
     LockHolder lh(priorityVBMutex);
-    priorityVBList[vbid] = HighPriorityVBEntry(cookie, chkid);
+    std::map<uint16_t, std::list<HighPriorityVBEntry> >::iterator it =
+        priorityVBList.find(vbid);
+    if (it == priorityVBList.end()) {
+        std::list<HighPriorityVBEntry> vb_entries;
+        vb_entries.push_back(HighPriorityVBEntry(cookie, chkid));
+        priorityVBList.insert(std::make_pair(vbid, vb_entries));
+    } else {
+        it->second.push_back(HighPriorityVBEntry(cookie, chkid));
+    }
 }
 
-void Flusher::removeHighPriorityVBucket(uint16_t vbid) {
+void Flusher::removeHighPriorityVBEntry(uint16_t vbid, const void *cookie) {
     LockHolder lh(priorityVBMutex);
-    priorityVBList.erase(vbid);
+    std::map<uint16_t, std::list<HighPriorityVBEntry> >::iterator it =
+        priorityVBList.find(vbid);
+    if (it != priorityVBList.end()) {
+        std::list<HighPriorityVBEntry> &vb_entries = it->second;
+        std::list<HighPriorityVBEntry>::iterator vit = vb_entries.begin();
+        for (; vit != vb_entries.end(); ++vit) {
+            if ((*vit).cookie == cookie) {
+                break;
+            }
+        }
+        if (vit != vb_entries.end()) {
+            vb_entries.erase(vit);
+        }
+        if (vb_entries.empty()) {
+            priorityVBList.erase(vbid);
+        }
+    }
 }
 
 void Flusher::getAllHighPriorityVBuckets(std::vector<uint16_t> &vbs) {
     LockHolder lh(priorityVBMutex);
-    std::map<uint16_t, HighPriorityVBEntry>::iterator it = priorityVBList.begin();
+    std::map<uint16_t, std::list<HighPriorityVBEntry> >::iterator it =
+        priorityVBList.begin();
     for (; it != priorityVBList.end(); ++it) {
         vbs.push_back(it->first);
     }
 }
 
-HighPriorityVBEntry Flusher::getHighPriorityVBEntry(uint16_t vbid) {
+std::list<HighPriorityVBEntry> Flusher::getHighPriorityVBEntries(uint16_t vbid) {
     LockHolder lh(priorityVBMutex);
-    std::map<uint16_t, HighPriorityVBEntry>::iterator it = priorityVBList.find(vbid);
+    std::list<HighPriorityVBEntry> vb_entries;
+    std::map<uint16_t, std::list<HighPriorityVBEntry> >::iterator it =
+        priorityVBList.find(vbid);
     if (it != priorityVBList.end()) {
-        return it->second;
-    } else {
-        return HighPriorityVBEntry(NULL, 0);
+        vb_entries.assign(it->second.begin(), it->second.end());
     }
+    return vb_entries;
 }
 
-size_t Flusher::getNumOfHighPriorityVBs() {
+size_t Flusher::getNumOfHighPriorityVBs() const {
     return priorityVBList.size();
 }
 

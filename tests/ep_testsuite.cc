@@ -4479,39 +4479,58 @@ static enum test_result test_extend_open_checkpoint(ENGINE_HANDLE *h, ENGINE_HAN
     return SUCCESS;
 }
 
+extern "C" {
+    static void* checkpoint_persistence_thread(void *arg) {
+        struct handle_pair *hp = static_cast<handle_pair *>(arg);
+
+        // Issue a request with the unexpected large checkpoint id 100, which
+        // will cause timeout.
+        check(checkpointPersistence(hp->h, hp->h1, 100) == ENGINE_TMPFAIL,
+              "Expected temp failure for checkpoint persistence request");
+        check(get_int_stat(hp->h, hp->h1, "ep_chk_persistence_timeout") > 10,
+              "Expected CHECKPOINT_PERSISTENCE_TIMEOUT was adjusted to be greater"
+              " than 10 secs");
+
+        item *it = NULL;
+        for (int j = 0; j < 1000; ++j) {
+            std::stringstream ss;
+            ss << "key" << j;
+            item *i;
+            check(store(hp->h, hp->h1, NULL, OPERATION_SET,
+                  ss.str().c_str(), ss.str().c_str(), &i, 0, 0) == ENGINE_SUCCESS,
+                  "Failed to store a value");
+            hp->h1->release(hp->h, NULL, i);
+        }
+
+        createCheckpoint(hp->h, hp->h1);
+
+        // Last closed checkpoint id for vbucket 0.
+        int closed_chk_id = get_int_stat(hp->h, hp->h1, "vb_0:last_closed_checkpoint_id",
+                                         "checkpoint 0");
+        // Request to prioritize persisting vbucket 0.
+        check(checkpointPersistence(hp->h, hp->h1, closed_chk_id) == ENGINE_SUCCESS,
+              "Failed to request checkpoint persistence");
+
+        return NULL;
+    }
+}
+
 static enum test_result test_checkpoint_persistence(ENGINE_HANDLE *h,
                                                     ENGINE_HANDLE_V1 *h1) {
-    for (int j = 0; j < 1000; ++j) {
-        std::stringstream ss;
-        ss << "key" << j;
-        item *i;
-        check(store(h, h1, NULL, OPERATION_SET,
-              ss.str().c_str(), ss.str().c_str(), &i, 0, 0) == ENGINE_SUCCESS,
-              "Failed to store a value");
-        h1->release(h, NULL, i);
+    const int  n_threads = 2;
+    pthread_t threads[n_threads];
+    struct handle_pair hp = {h, h1};
+
+    for (int i = 0; i < n_threads; ++i) {
+        int r = pthread_create(&threads[i], NULL, checkpoint_persistence_thread, &hp);
+        assert(r == 0);
     }
 
-    createCheckpoint(h, h1);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
-          "Expected success response from creating a new checkpoint");
-
-    // Last closed checkpoint id for vbucket 0.
-    int closed_chk_id = get_int_stat(h, h1, "vb_0:last_closed_checkpoint_id",
-                                     "checkpoint 0");
-    // Request to prioritize persisting vbucket 0.
-    check(checkpointPersistence(h, h1, closed_chk_id) == ENGINE_SUCCESS,
-          "Failed to request checkpoint persistence");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
-          "Expected success response for checkpoint persistence");
-
-    // Issue another request with unexpected larger checkpoint id 100, which
-    // causes timeout.
-    check(checkpointPersistence(h, h1, 100) == ENGINE_TMPFAIL,
-          "Expected temp failure for checkpoint persistence request");
-    check(get_int_stat(h, h1, "ep_chk_persistence_timeout") > 10,
-          "Expected CHECKPOINT_PERSISTENCE_TIMEOUT was adjusted to be greater"
-          " than 10 secs");
-
+    for (int i = 0; i < n_threads; ++i) {
+        void *trv = NULL;
+        int r = pthread_join(threads[i], &trv);
+        assert(r == 0);
+    }
     return SUCCESS;
 }
 

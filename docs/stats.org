@@ -192,6 +192,8 @@ For introductory information on stats within membase, start with the
 |                                    | checkpoint before a new one is created |
 | ep_chk_period                      | The maximum lifetime of a checkpoint   |
 |                                    | before a new one is created            |
+| ep_chk_persistence_remains         | Number of remaining vbuckets for       |
+|                                    | checkpoint persistence                 |
 | ep_chk_persistence_timeout         | Timeout for vbucket checkpoint         |
 |                                    | persistence                            |
 | ep_chk_remover_stime               | The time interval for purging closed   |

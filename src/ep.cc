@@ -1802,11 +1802,14 @@ vb_flush_queue_t* EventuallyPersistentStore::beginFlush() {
                     vbuckets.setPersistenceCheckpointId(vbid, chkid);
                     schedule_vb_snapshot = true;
                 }
-                HighPriorityVBEntry vb_entry = flusher->getHighPriorityVBEntry(vbid);
-                if (vb_entry.cookie) {
+                std::list<HighPriorityVBEntry> vb_entries =
+                    flusher->getHighPriorityVBEntries(vbid);
+                std::list<HighPriorityVBEntry>::iterator vit = vb_entries.begin();
+                for (; vit != vb_entries.end(); ++vit) {
+                    HighPriorityVBEntry &vb_entry = *vit;
                     if (vb_entry.checkpoint <= chkid) {
                         engine.notifyIOComplete(vb_entry.cookie, ENGINE_SUCCESS);
-                        flusher->removeHighPriorityVBucket(vbid);
+                        flusher->removeHighPriorityVBEntry(vbid, vb_entry.cookie);
                         hrtime_t wall_time(gethrtime() - vb_entry.start);
                         stats.chkPersistenceHisto.add(wall_time / 1000);
                         flusher->adjustCheckpointFlushTimeout(wall_time / 1000000000);
@@ -1818,7 +1821,7 @@ vb_flush_queue_t* EventuallyPersistentStore::beginFlush() {
                         size_t spent = (gethrtime() - vb_entry.start) / 1000000000;
                         if (spent > flusher->getCheckpointFlushTimeout()) {
                             engine.notifyIOComplete(vb_entry.cookie, ENGINE_TMPFAIL);
-                            flusher->removeHighPriorityVBucket(vbid);
+                            flusher->removeHighPriorityVBEntry(vbid, vb_entry.cookie);
                             flusher->adjustCheckpointFlushTimeout(spent);
                             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                                          "Notified the timeout on checkpoint "
@@ -1989,17 +1992,20 @@ int EventuallyPersistentStore::flushVBQueue(RCPtr<VBucket> &vb,
     int oldest = data_age;
 
     if (vb_queue.empty()) {
-        HighPriorityVBEntry vb_entry = flusher->getHighPriorityVBEntry(vbid);
-        size_t spent = (gethrtime() - vb_entry.start) / 1000000000;
-        if (vb_entry.cookie &&
-            (!vb || spent > flusher->getCheckpointFlushTimeout())) {
-            engine.notifyIOComplete(vb_entry.cookie, ENGINE_TMPFAIL);
-            flusher->removeHighPriorityVBucket(vbid);
-            flusher->adjustCheckpointFlushTimeout(spent);
-            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "Notified the timeout on checkpoint "
-                             "persistence for vbucket %d, cookie %p\n",
-                             vbid, vb_entry.cookie);
+        std::list<HighPriorityVBEntry> vb_entries = flusher->getHighPriorityVBEntries(vbid);
+        std::list<HighPriorityVBEntry>::iterator vit = vb_entries.begin();
+        for (; vit != vb_entries.end(); ++vit) {
+            HighPriorityVBEntry &vb_entry = *vit;
+            size_t spent = (gethrtime() - vb_entry.start) / 1000000000;
+            if (!vb || spent > flusher->getCheckpointFlushTimeout()) {
+                engine.notifyIOComplete(vb_entry.cookie, ENGINE_TMPFAIL);
+                flusher->removeHighPriorityVBEntry(vbid, vb_entry.cookie);
+                flusher->adjustCheckpointFlushTimeout(spent);
+                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                 "Notified the timeout on checkpoint "
+                                 "persistence for vbucket %d, cookie %p\n",
+                                 vbid, vb_entry.cookie);
+            }
         }
         return oldest;
     }
@@ -2012,26 +2018,12 @@ int EventuallyPersistentStore::flushVBQueue(RCPtr<VBucket> &vb,
         }
     }
 
-    bool notified = false;
-    HighPriorityVBEntry vb_entry = flusher->getHighPriorityVBEntry(vbid);
     if (vb) {
         if (rejectQueue.empty()) {
             uint64_t chkid = vb->checkpointManager.getPersistenceCursorPreChkId();
             if (chkid > 0 && chkid != vbuckets.getPersistenceCheckpointId(vbid)) {
                 vbuckets.setPersistenceCheckpointId(vbid, chkid);
                 snapshotVBState = true;
-            }
-            if (vb_entry.checkpoint <= chkid && vb_entry.cookie) {
-                engine.notifyIOComplete(vb_entry.cookie, ENGINE_SUCCESS);
-                flusher->removeHighPriorityVBucket(vbid);
-                notified = true;
-                hrtime_t wall_time(gethrtime() - vb_entry.start);
-                stats.chkPersistenceHisto.add(wall_time / 1000);
-                flusher->adjustCheckpointFlushTimeout(wall_time / 1000000000);
-                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                 "Notified the completion of checkpoint "
-                                 "persistence for vbucket %d, cookie %p\n",
-                                 vbid, vb_entry.cookie);
             }
         } else {
             size_t qsize = rejectQueue.size();
@@ -2046,16 +2038,32 @@ int EventuallyPersistentStore::flushVBQueue(RCPtr<VBucket> &vb,
         }
     }
 
-    if (!notified && vb_entry.cookie) {
-        size_t spent = (gethrtime() - vb_entry.start) / 1000000000;
-        if (!vb || spent > flusher->getCheckpointFlushTimeout()) {
-            engine.notifyIOComplete(vb_entry.cookie, ENGINE_TMPFAIL);
-            flusher->removeHighPriorityVBucket(vbid);
-            flusher->adjustCheckpointFlushTimeout(spent);
+    uint64_t persisted_chkid = vbuckets.getPersistenceCheckpointId(vbid);
+    std::list<HighPriorityVBEntry> vb_entries = flusher->getHighPriorityVBEntries(vbid);
+    std::list<HighPriorityVBEntry>::iterator vit = vb_entries.begin();
+    for (; vit != vb_entries.end(); ++vit) {
+        HighPriorityVBEntry &vb_entry = *vit;
+        if (vb_entry.checkpoint <= persisted_chkid) {
+            engine.notifyIOComplete(vb_entry.cookie, ENGINE_SUCCESS);
+            flusher->removeHighPriorityVBEntry(vbid, vb_entry.cookie);
+            hrtime_t wall_time(gethrtime() - vb_entry.start);
+            stats.chkPersistenceHisto.add(wall_time / 1000);
+            flusher->adjustCheckpointFlushTimeout(wall_time / 1000000000);
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "Notified the timeout on checkpoint "
+                             "Notified the completion of checkpoint "
                              "persistence for vbucket %d, cookie %p\n",
                              vbid, vb_entry.cookie);
+        } else {
+            size_t spent = (gethrtime() - vb_entry.start) / 1000000000;
+            if (!vb || spent > flusher->getCheckpointFlushTimeout()) {
+                engine.notifyIOComplete(vb_entry.cookie, ENGINE_TMPFAIL);
+                flusher->removeHighPriorityVBEntry(vbid, vb_entry.cookie);
+                flusher->adjustCheckpointFlushTimeout(spent);
+                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                 "Notified the timeout on checkpoint "
+                                 "persistence for vbucket %d, cookie %p\n",
+                                 vbid, vb_entry.cookie);
+            }
         }
     }
 

@@ -2710,6 +2710,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     add_casted_stat("ep_chk_persistence_timeout",
                     epstore->getFlusher()->getCheckpointFlushTimeout(),
                     add_stat, cookie);
+    add_casted_stat("ep_chk_persistence_remains",
+                    epstore->getFlusher()->getNumOfHighPriorityVBs(),
+                    add_stat, cookie);
 
     return ENGINE_SUCCESS;
 }
@@ -3696,7 +3699,7 @@ EventuallyPersistentEngine::handleCheckpointCmds(const void *cookie,
                         epstore->getVBuckets().getPersistenceCheckpointId(vbucket);
                     if (chk_id > persisted_chk_id) {
                         Flusher *flusher = const_cast<Flusher *>(epstore->getFlusher());
-                        flusher->addHighPriorityVBucket(vbucket, chk_id, cookie);
+                        flusher->addHighPriorityVBEntry(vbucket, chk_id, cookie);
                         storeEngineSpecific(cookie, this);
                         return ENGINE_EWOULDBLOCK;
                     }
