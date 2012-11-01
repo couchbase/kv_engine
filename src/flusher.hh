@@ -20,7 +20,7 @@ class Flusher;
 
 const double DEFAULT_MIN_SLEEP_TIME = 0.1;
 const size_t MIN_CHK_FLUSH_TIMEOUT = 10; // 10 sec.
-const size_t MAX_CHK_FLUSH_TIMEOUT = 60; // 60 sec.
+const size_t MAX_CHK_FLUSH_TIMEOUT = 30; // 30 sec.
 
 /**
  * A DispatcherCallback adaptor over Flusher.
