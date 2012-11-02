@@ -1389,7 +1389,10 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx)
     LoadResponseCtx *loadCtx = (LoadResponseCtx *)ctx;
     shared_ptr<Callback<GetValue> > cb = loadCtx->callback;
     EventuallyPersistentEngine *engine= loadCtx->engine;
-    bool warmup = engine->stillWarmingUp();
+
+    // by setting volatile let the compiler know that the value
+    // can change any time by anyone
+    volatile bool warmup = engine->isDegradedMode();
 
     Doc *doc = NULL;
     void *valuePtr = NULL;
