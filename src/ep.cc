@@ -1051,14 +1051,16 @@ bool EventuallyPersistentStore::resetVBucket(uint16_t vbid) {
         vbuckets.removeBucket(vbid);
         lh.unlock();
 
-        setVBucketState(vbid, vb->getState());
+        vbucket_state_t vbstate = vb->getState();
+        std::list<std::string> tap_cursors = vb->checkpointManager.getTAPCursorNames();
+        // Delete the vbucket database file and recreate the empty file
+        scheduleVBDeletion(vb, NULL, 0, true);
+        setVBucketState(vbid, vbstate);
 
         // Copy the all cursors from the old vbucket into the new vbucket
         RCPtr<VBucket> newvb = vbuckets.getBucket(vbid);
-        newvb->checkpointManager.resetTAPCursors(vb->checkpointManager.getTAPCursorNames());
+        newvb->checkpointManager.resetTAPCursors(tap_cursors);
 
-        // Delete the vbucket database file and recreate the empty file
-        scheduleVBDeletion(vb, NULL, 0, true);
         rv = true;
     }
     return rv;
@@ -1986,7 +1988,7 @@ int EventuallyPersistentStore::flushVBQueue(RCPtr<VBucket> &vb,
                                             int data_age) {
     int oldest = data_age;
 
-    if (vb_queue.empty()) {
+    if (vb_queue.empty() || vbuckets.isBucketCreation(vbid)) {
         std::list<HighPriorityVBEntry> vb_entries = flusher->getHighPriorityVBEntries(vbid);
         std::list<HighPriorityVBEntry>::iterator vit = vb_entries.begin();
         for (; vit != vb_entries.end(); ++vit) {
