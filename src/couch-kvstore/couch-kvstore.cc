@@ -654,7 +654,7 @@ bool CouchKVStore::snapshotVBuckets(const vbucket_map_t &vbstates)
             // Note that the max deleted seq number is maintained within CouchKVStore
             vbstate.maxDeletedSeqno = it->second.maxDeletedSeqno;
         } else {
-            vb_change_type = VB_STATE_CHANGED | VB_CHECKPOINT_CHANGED;
+            vb_change_type = VB_STATE_CHANGED;
             cachedVBStates[vbucketId] = vbstate;
         }
 
