@@ -494,14 +494,13 @@ void EventuallyPersistentStore::initialize() {
     }
 
     size_t expiryPagerSleeptime = config.getExpPagerStime();
-    if (HashTable::getDefaultStorageValueType() != small) {
-        shared_ptr<DispatcherCallback> cb(new ItemPager(this, stats));
-        nonIODispatcher->schedule(cb, NULL, Priority::ItemPagerPriority, 10);
 
-        setExpiryPagerSleeptime(expiryPagerSleeptime);
-        config.addValueChangedListener("exp_pager_stime",
-                                       new EPStoreValueChangeListener(*this));
-    }
+    shared_ptr<DispatcherCallback> cb(new ItemPager(this, stats));
+    nonIODispatcher->schedule(cb, NULL, Priority::ItemPagerPriority, 10);
+
+    setExpiryPagerSleeptime(expiryPagerSleeptime);
+    config.addValueChangedListener("exp_pager_stime",
+                                    new EPStoreValueChangeListener(*this));
 
     shared_ptr<DispatcherCallback> htr(new HashtableResizer(this));
     nonIODispatcher->schedule(htr, NULL, Priority::HTResizePriority, 10);
@@ -2518,16 +2517,14 @@ void EventuallyPersistentStore::warmupCompleted() {
     // Run the vbucket state snapshot job once after the warmup
     scheduleVBSnapshot(Priority::VBucketPersistHighPriority);
 
-    if (HashTable::getDefaultStorageValueType() != small) {
-        if (engine.getConfiguration().getAlogPath().length() > 0) {
-            size_t smin = engine.getConfiguration().getAlogSleepTime();
-            setAccessScannerSleeptime(smin);
-            Configuration &config = engine.getConfiguration();
-            config.addValueChangedListener("alog_sleep_time",
-                                           new EPStoreValueChangeListener(*this));
-            config.addValueChangedListener("alog_task_time",
-                                           new EPStoreValueChangeListener(*this));
-        }
+    if (engine.getConfiguration().getAlogPath().length() > 0) {
+        size_t smin = engine.getConfiguration().getAlogSleepTime();
+        setAccessScannerSleeptime(smin);
+        Configuration &config = engine.getConfiguration();
+        config.addValueChangedListener("alog_sleep_time",
+                                       new EPStoreValueChangeListener(*this));
+        config.addValueChangedListener("alog_task_time",
+                                       new EPStoreValueChangeListener(*this));
     }
 
     shared_ptr<StatSnap> sscb(new StatSnap(&engine));

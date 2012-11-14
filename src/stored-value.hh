@@ -26,14 +26,6 @@ class StoredValueFactory;
 // StoredValue so it can figure it out at runtime.
 
 /**
- * StoredValue "small" data storage.
- */
-struct small_data {
-    uint8_t keylen;             //!< Length of the key.
-    char    keybytes[1];        //!< The key itself.
-};
-
-/**
  * StoredValue "featured" data type.
  */
 struct feature_data {
@@ -46,14 +38,6 @@ struct feature_data {
     bool       nru : 1;         //!< True if referenced since last sweep
     uint8_t    keylen;          //!< Length of the key
     char       keybytes[1];     //!< The key itself.
-};
-
-/**
- * Union of StoredValue data.
- */
-union stored_value_bodies {
-    struct small_data   small;  //!< The small type.
-    struct feature_data feature; //!< The featured type.
 };
 
 /**
@@ -79,7 +63,7 @@ public:
      */
     void touch() {
         if (isResident() && !isDirty()) {
-            dirtiness = ep_current_time() >> 2;
+            dirtiness = ep_current_time() >> 1;
         }
     }
 
@@ -91,7 +75,7 @@ public:
      * Mark this item as needing to be persisted.
      */
     void markDirty() {
-        dirtiness = ep_current_time() >> 2;
+        dirtiness = ep_current_time() >> 1;
         _isDirty = 1;
     }
 
@@ -104,7 +88,7 @@ public:
      * @param dataAge the previous dataAge of this record
      */
     void reDirty(rel_time_t dataAge) {
-        dirtiness = dataAge >> 2;
+        dirtiness = dataAge >> 1;
         _isDirty = 1;
         clearPendingId();
     }
@@ -118,7 +102,7 @@ public:
      */
     void markClean(rel_time_t *dataAge) {
         if (dataAge) {
-            *dataAge = dirtiness << 2;
+            *dataAge = dirtiness << 1;
         }
         _isDirty = 0;
         touch();
@@ -139,7 +123,7 @@ public:
     }
 
     bool eligibleForEviction() {
-        return isResident() && isClean() && !isDeleted() && !_isSmall;
+        return isResident() && isClean() && !isDeleted();
     }
 
     /**
@@ -159,22 +143,14 @@ public:
      * Get the pointer to the beginning of the key.
      */
     const char* getKeyBytes() const {
-        if (_isSmall) {
-            return extra.small.keybytes;
-        } else {
-            return extra.feature.keybytes;
-        }
+        return extra.keybytes;
     }
 
     /**
      * Get the length of the key.
      */
     uint8_t getKeyLen() const {
-        if (_isSmall) {
-            return extra.small.keylen;
-        } else {
-            return extra.feature.keylen;
-        }
+        return extra.keylen;
     }
 
     /**
@@ -208,18 +184,12 @@ public:
      * @return the expiration time for feature items, 0 for small items
      */
     time_t getExptime() const {
-        if (_isSmall) {
-            return 0;
-        } else {
-            return extra.feature.exptime;
-        }
+        return extra.exptime;
     }
 
     void setExptime(time_t tim) {
-        if (!_isSmall) {
-            extra.feature.exptime = tim;
-            markDirty();
-        }
+        extra.exptime = tim;
+        markDirty();
     }
 
     /**
@@ -253,16 +223,16 @@ public:
         value = itm.getValue();
         setResident();
         flags = itm.getFlags();
-        if (!_isSmall) {
-            extra.feature.cas = itm.getCas();
-            extra.feature.exptime = itm.getExptime();
-            if (preserveSeqno) {
-                extra.feature.seqno = itm.getSeqno();
-            } else {
-                ++extra.feature.seqno;
-                itm.setSeqno(extra.feature.seqno);
-            }
+
+        extra.cas = itm.getCas();
+        extra.exptime = itm.getExptime();
+        if (preserveSeqno) {
+            extra.seqno = itm.getSeqno();
+        } else {
+            ++extra.seqno;
+            itm.setSeqno(extra.seqno);
         }
+
         markDirty();
         size_t newSize = size();
         increaseCacheSize(ht, newSize);
@@ -276,9 +246,7 @@ public:
         assert(!isDeleted());
         value.reset();
         // item no longer resident once reset the value
-        if (!_isSmall) {
-            extra.feature.resident = false;
-        }
+        extra.resident = false;
     }
 
     size_t valLength() {
@@ -334,11 +302,7 @@ public:
      * @return the cas ID for feature items, 0 for small items
      */
     uint64_t getCas() const {
-        if (_isSmall) {
-            return 0;
-        } else {
-            return extra.feature.cas;
-        }
+        return extra.cas;
     }
 
     /**
@@ -348,7 +312,7 @@ public:
      * timestamp only has four seconds of accuracy.
      */
     rel_time_t getDataAge() const {
-        return dirtiness << 2;
+        return dirtiness << 1;
     }
 
     /**
@@ -365,9 +329,7 @@ public:
      * This is a NOOP for small item types.
      */
     void setCas(uint64_t c) {
-        if (!_isSmall) {
-            extra.feature.cas = c;
-        }
+        extra.cas = c;
     }
 
     /**
@@ -376,20 +338,16 @@ public:
      * This is a NOOP for small item types.
      */
     void lock(rel_time_t expiry) {
-        if (!_isSmall) {
-            extra.feature.locked = true;
-            extra.feature.lock_expiry = expiry;
-        }
+        extra.locked = true;
+        extra.lock_expiry = expiry;
     }
 
     /**
      * Unlock this item.
      */
     void unlock() {
-        if (!_isSmall) {
-            extra.feature.locked = false;
-            extra.feature.lock_expiry = 0;
-        }
+        extra.locked = false;
+        extra.lock_expiry = 0;
     }
 
     /**
@@ -520,11 +478,11 @@ public:
         if (getKeyLen() % sizeof(void*) != 0) {
             kalign = sizeof(void*) - getKeyLen() % sizeof(void*);
         }
-        return sizeOf(_isSmall) + getKeyLen() + vallen + valign + kalign;
+        return sizeOf() + getKeyLen() + vallen + valign + kalign;
     }
 
     size_t metaDataSize() {
-        return sizeOf(_isSmall) + getKeyLen();
+        return sizeOf() + getKeyLen();
     }
 
     /**
@@ -534,26 +492,18 @@ public:
      * @return true if the item is locked
      */
     bool isLocked(rel_time_t curtime) {
-        if (_isSmall) {
+        if (extra.locked && (curtime > extra.lock_expiry)) {
+            extra.locked = false;
             return false;
-        } else {
-            if (extra.feature.locked && (curtime > extra.feature.lock_expiry)) {
-                extra.feature.locked = false;
-                return false;
-            }
-            return extra.feature.locked;
         }
+        return extra.locked;
     }
 
     /**
      * True if this value is resident in memory currently.
      */
     bool isResident() const {
-        if (_isSmall) {
-            return true;
-        } else {
-            return extra.feature.resident;
-        }
+        return extra.resident;
     }
 
     /**
@@ -598,11 +548,7 @@ public:
 
 
     uint64_t getSeqno() const {
-        if (_isSmall) {
-            return 0;
-        } else {
-            return extra.feature.seqno;
-        }
+        return extra.seqno;
     }
 
     /**
@@ -611,9 +557,7 @@ public:
      * This is a NOOP for small item types.
      */
     void setSeqno(uint64_t s) {
-        if (!_isSmall) {
-            extra.feature.seqno = s;
-        }
+        extra.seqno = s;
     }
 
 
@@ -636,10 +580,9 @@ public:
      *
      * @return the size in bytes required (minus key) for a StoredValue.
      */
-    static size_t sizeOf(bool small) {
+    static size_t sizeOf() {
         // Subtract one because the length of the string is computed on demand.
-        size_t base = sizeof(StoredValue) - sizeof(union stored_value_bodies) - 1;
-        return base + (small ? sizeof(struct small_data) : sizeof(struct feature_data));
+        return sizeof(StoredValue) - 1;
     }
 
     /**
@@ -664,23 +607,19 @@ public:
 private:
 
     StoredValue(const Item &itm, StoredValue *n, EPStats &stats, HashTable &ht,
-                bool setDirty = true, bool small = false) :
+                bool setDirty = true) :
         value(itm.getValue()), next(n), id(itm.getId()),
-        dirtiness(0), _isSmall(small), flags(itm.getFlags())
+        dirtiness(0), flags(itm.getFlags())
     {
 
-        if (_isSmall) {
-            extra.small.keylen = itm.getKey().length();
-        } else {
-            extra.feature.cas = itm.getCas();
-            extra.feature.exptime = itm.getExptime();
-            extra.feature.locked = false;
-            extra.feature.resident = true;
-            extra.feature.nru = false;
-            extra.feature.lock_expiry = 0;
-            extra.feature.keylen = itm.getKey().length();
-            extra.feature.seqno = itm.getSeqno();
-        }
+        extra.cas = itm.getCas();
+        extra.exptime = itm.getExptime();
+        extra.locked = false;
+        extra.resident = true;
+        extra.nru = false;
+        extra.lock_expiry = 0;
+        extra.keylen = itm.getKey().length();
+        extra.seqno = itm.getSeqno();
 
         if (setDirty) {
             markDirty();
@@ -694,14 +633,12 @@ private:
     }
 
     void setResident() {
-        if (!_isSmall) {
-            extra.feature.resident = true;
-        }
+        extra.resident = true;
     }
 
     void timestampEviction() {
         assert(!isResident());
-        dirtiness = ep_current_time() >> 2;
+        dirtiness = ep_current_time() >> 1;
     }
 
     friend class HashTable;
@@ -710,13 +647,12 @@ private:
     value_t            value;          // 16 bytes
     StoredValue        *next;          // 8 bytes
     int64_t            id;             // 8 bytes
-    uint32_t           dirtiness : 30; // 30 bits -+
-    bool               _isSmall  :  1; // 1 bit    | 4 bytes
-    bool               _isDirty  :  1; // 1 bit  --+
+    uint32_t           dirtiness : 31; // 31 bits
+    bool               _isDirty  :  1; // 1 bit
     uint32_t           flags;          // 4 bytes
 
 
-    union stored_value_bodies extra;
+    struct feature_data extra;
 
     static void increaseMetaDataSize(HashTable &ht, size_t by);
     static void reduceMetaDataSize(HashTable &ht, size_t by);
@@ -894,7 +830,7 @@ public:
     /**
      * Create a new StoredValueFactory of the given type.
      */
-    StoredValueFactory(EPStats &s, enum stored_value_type t = featured) : stats(&s),type(t) { }
+    StoredValueFactory(EPStats &s) : stats(&s) { }
 
     /**
      * Create a new StoredValue with the given item.
@@ -906,42 +842,26 @@ public:
      */
     StoredValue *operator ()(const Item &itm, StoredValue *n, HashTable &ht,
                              bool setDirty = true) {
-        switch(type) {
-        case small:
-            return newStoredValue(itm, n, ht, setDirty, true);
-            break;
-        case featured:
-            return newStoredValue(itm, n, ht, setDirty, false);
-            break;
-        default:
-            abort();
-        };
+        return newStoredValue(itm, n, ht, setDirty);
     }
 
 private:
 
     StoredValue* newStoredValue(const Item &itm, StoredValue *n, HashTable &ht,
-                                bool setDirty, bool small) {
-        size_t base = StoredValue::sizeOf(small);
+                                bool setDirty) {
+        size_t base = StoredValue::sizeOf();
 
         const std::string &key = itm.getKey();
         assert(key.length() < 256);
         size_t len = key.length() + base;
 
         StoredValue *t = new (::operator new(len))
-            StoredValue(itm, n, *stats, ht, setDirty, small);
-        if (small) {
-            std::memcpy(t->extra.small.keybytes, key.data(), key.length());
-        } else {
-            std::memcpy(t->extra.feature.keybytes, key.data(), key.length());
-        }
-
+        StoredValue(itm, n, *stats, ht, setDirty);
+        std::memcpy(t->extra.keybytes, key.data(), key.length());
         return t;
     }
 
     EPStats                *stats;
-    enum stored_value_type  type;
-
 };
 
 /**
@@ -956,13 +876,10 @@ public:
      * @param st the global stats reference
      * @param s the number of hash table buckets
      * @param l the number of locks in the hash table
-     * @param t the type of StoredValues this hash table will contain
      */
-    HashTable(EPStats &st, size_t s = 0, size_t l = 0,
-              enum stored_value_type t = featured) : stats(st), valFact(st, t) {
-        size = getNumBuckets(s);
-        n_locks = getNumLocks(l);
-        valFact = StoredValueFactory(st, getDefaultStorageValueType());
+    HashTable(EPStats &st, size_t s = 0, size_t l = 0) : stats(st), valFact(st) {
+        size = HashTable::getNumBuckets(s);
+        n_locks = HashTable::getNumLocks(l);
         assert(size > 0);
         assert(n_locks > 0);
         assert(visitors == 0);
@@ -1559,30 +1476,6 @@ public:
      * Set the default number of locks.
      */
     static void setDefaultNumLocks(size_t);
-
-    /**
-     * Set the stored value type by name.
-     *
-     * @param t either "small" or "featured"
-     *
-     * @return true if this type is not handled.
-     */
-    static bool setDefaultStorageValueType(const char *t);
-
-    /**
-     * Set the default StoredValue type by enum value.
-     */
-    static void setDefaultStorageValueType(enum stored_value_type);
-
-    /**
-     * Get the default StoredValue type.
-     */
-    static enum stored_value_type getDefaultStorageValueType();
-
-    /**
-     * Get the default StoredValue type as a string.
-     */
-    static const char* getDefaultStorageValueTypeStr();
 
     /**
      * Get the max deleted seqno seen so far.
