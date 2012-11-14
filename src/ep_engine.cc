@@ -1295,13 +1295,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     // Start updating the variables from the config!
     HashTable::setDefaultNumBuckets(configuration.getHtSize());
     HashTable::setDefaultNumLocks(configuration.getHtLocks());
-    std::string storedValType = configuration.getStoredValType();
-    if (storedValType.length() > 0) {
-        if (!HashTable::setDefaultStorageValueType(storedValType.c_str())) {
-            LOG(EXTENSION_LOG_WARNING, "Unhandled storage value type: %s",
-                configuration.getStoredValType().c_str());
-        }
-    }
+    StoredValue::setMutationMemoryThreshold(configuration.getMutationMemThreshold());
 
     if (configuration.getMaxSize() == 0) {
         configuration.setMaxSize(std::numeric_limits<size_t>::max());

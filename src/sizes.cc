@@ -63,12 +63,8 @@ int main(int, char **) {
     std::string s();
 
     display("GIGANTOR", GIGANTOR);
-    display("Small Stored Value", StoredValue::sizeOf(true));
-    display("Featured Stored Value", StoredValue::sizeOf(false));
-
-    display("... Small data", sizeof(struct small_data));
+    display("Stored Value", StoredValue::sizeOf());
     display("... Feature data", sizeof(struct feature_data));
-    display("... Bodies Union", sizeof(union stored_value_bodies));
 
     display("Stored Value Factory", sizeof(StoredValueFactory));
     display("Blob", sizeof(Blob));

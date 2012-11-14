@@ -298,10 +298,6 @@
                 }
             }
         },
-        "stored_val_type": {
-            "default": "",
-            "type": "std::string"
-        },
         "tap_ack_grace_period": {
             "default": "300",
             "type": "size_t"

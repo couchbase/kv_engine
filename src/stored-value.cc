@@ -33,7 +33,7 @@ bool StoredValue::ejectValue(EPStats &stats, HashTable &ht) {
         blobval uval;
         uval.len = valLength();
         value_t sp(Blob::New(uval.chlen, sizeof(uval)));
-        extra.feature.resident = false;
+        extra.resident = false;
         timestampEviction();
         value = sp;
         size_t newsize = size();
@@ -63,33 +63,27 @@ bool StoredValue::ejectValue(EPStats &stats, HashTable &ht) {
 }
 
 void StoredValue::referenced() {
-    if (!_isSmall) {
-        if (extra.feature.nru > MIN_NRU_VALUE) {
-            --extra.feature.nru;
-        }
+    if (extra.nru > MIN_NRU_VALUE) {
+        --extra.nru;
     }
 }
 
 void StoredValue::setNRUValue(uint8_t nru_val) {
     if (nru_val <= MAX_NRU_VALUE) {
-        extra.feature.nru = nru_val;
+        extra.nru = nru_val;
     }
 }
 
 uint8_t StoredValue::incrNRUValue() {
     uint8_t ret = MAX_NRU_VALUE;
-    if (!_isSmall && extra.feature.nru < MAX_NRU_VALUE) {
-        ret = ++extra.feature.nru;
+    if (extra.nru < MAX_NRU_VALUE) {
+        ret = ++extra.nru;
     }
     return ret;
 }
 
 uint8_t StoredValue::getNRUValue() {
-    uint8_t ret = MAX_NRU_VALUE;
-    if (!_isSmall) {
-        ret = extra.feature.nru;
-    }
-    return ret;
+    return extra.nru;
 }
 
 bool StoredValue::unlocked_restoreValue(Item *itm, EPStats &stats,
@@ -97,11 +91,11 @@ bool StoredValue::unlocked_restoreValue(Item *itm, EPStats &stats,
     // If cas == we loaded the object from our meta file, but
     // we didn't know the size of the object.. Don't report
     // this as an unexpected size change.
-    if (getCas() == 0 && !_isSmall) {
-        extra.feature.cas = itm->getCas();
+    if (getCas() == 0) {
+        extra.cas = itm->getCas();
         flags = itm->getFlags();
-        extra.feature.exptime = itm->getExptime();
-        extra.feature.seqno = itm->getSeqno();
+        extra.exptime = itm->getExptime();
+        extra.seqno = itm->getSeqno();
         setValue(*itm, stats, ht, true);
         if (!isResident()) {
             --ht.numNonResidentItems;
@@ -127,7 +121,7 @@ bool StoredValue::unlocked_restoreValue(Item *itm, EPStats &stats,
 
         rel_time_t evicted_time(getEvictedTime());
         stats.pagedOutTimeHisto.add(ep_current_time() - evicted_time);
-        extra.feature.resident = true;
+        extra.resident = true;
         value = itm->getValue();
 
         size_t newsize = size();
@@ -167,7 +161,7 @@ mutation_type_t HashTable::insert(const Item &itm, bool eject, bool partial) {
         v = valFact(itm, values[bucket_num], *this);
         v->markClean(NULL);
         if (partial) {
-            v->extra.feature.resident = false;
+            v->extra.resident = false;
             ++numNonResidentItems;
         }
         values[bucket_num] = v;
@@ -181,10 +175,10 @@ mutation_type_t HashTable::insert(const Item &itm, bool eject, bool partial) {
         // Verify that the CAS isn't changed
         if (v->getCas() != itm.getCas()) {
             if (v->getCas() == 0) {
-                v->extra.feature.cas = itm.getCas();
+                v->extra.cas = itm.getCas();
                 v->flags = itm.getFlags();
-                v->extra.feature.exptime = itm.getExptime();
-                v->extra.feature.seqno = itm.getSeqno();
+                v->extra.exptime = itm.getExptime();
+                v->extra.seqno = itm.getSeqno();
             } else {
                 return INVALID_CAS;
             }
@@ -441,36 +435,6 @@ void HashTable::visitDepth(HashTableDepthVisitor &visitor) {
     }
 
     assert(visited == size);
-}
-
-bool HashTable::setDefaultStorageValueType(const char *t) {
-    bool rv = false;
-    if (t && strcmp(t, "featured") == 0) {
-        setDefaultStorageValueType(featured);
-        rv = true;
-    } else if (t && strcmp(t, "small") == 0) {
-        setDefaultStorageValueType(small);
-        rv = true;
-    }
-    return rv;
-}
-
-void HashTable::setDefaultStorageValueType(enum stored_value_type t) {
-    defaultStoredValueType = t;
-}
-
-enum stored_value_type HashTable::getDefaultStorageValueType() {
-    return defaultStoredValueType;
-}
-
-const char* HashTable::getDefaultStorageValueTypeStr() {
-    const char *rv = "unknown";
-    switch(getDefaultStorageValueType()) {
-    case small: rv = "small"; break;
-    case featured: rv = "featured"; break;
-    default: abort();
-    }
-    return rv;
 }
 
 add_type_t HashTable::unlocked_add(int &bucket_num,

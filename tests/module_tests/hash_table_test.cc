@@ -221,11 +221,6 @@ static void testFind() {
     testFind(h);
 }
 
-static void testFindSmall() {
-    HashTable h(global_stats, 5, 1, small);
-    testFind(h);
-}
-
 static void testAddExpiry() {
     HashTable h(global_stats, 5, 1);
     std::string k("aKey");
@@ -558,7 +553,6 @@ int main() {
     testReverseDeletions();
     testForwardDeletions();
     testFind();
-    testFindSmall();
     testAdd();
     testAddExpiry();
     testDepthCounting();
