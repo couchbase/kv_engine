@@ -64,7 +64,6 @@ int main(int, char **) {
 
     display("GIGANTOR", GIGANTOR);
     display("Stored Value", StoredValue::sizeOf());
-    display("... Feature data", sizeof(struct feature_data));
 
     display("Stored Value Factory", sizeof(StoredValueFactory));
     display("Blob", sizeof(Blob));

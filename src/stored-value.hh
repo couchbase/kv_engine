@@ -21,25 +21,6 @@ extern "C" {
 class HashTable;
 class StoredValueFactory;
 
-// One of the following structs overlays at the end of StoredItem.
-// This is figured out dynamically and stored in one bit in
-// StoredValue so it can figure it out at runtime.
-
-/**
- * StoredValue "featured" data type.
- */
-struct feature_data {
-    uint64_t   cas;             //!< CAS identifier.
-    uint64_t   seqno;           //!< Revision id sequence number
-    uint32_t   exptime;         //!< Expiration time of this item.
-    rel_time_t lock_expiry;     //!< getl lock expiration
-    bool       locked : 1;      //!< True if this item is locked
-    bool       resident : 1;    //!< True if this object's value is in memory.
-    bool       nru : 1;         //!< True if referenced since last sweep
-    uint8_t    keylen;          //!< Length of the key
-    char       keybytes[1];     //!< The key itself.
-};
-
 /**
  * Contents stored when swapped out.
  */
@@ -143,14 +124,14 @@ public:
      * Get the pointer to the beginning of the key.
      */
     const char* getKeyBytes() const {
-        return extra.keybytes;
+        return keybytes;
     }
 
     /**
      * Get the length of the key.
      */
     uint8_t getKeyLen() const {
-        return extra.keylen;
+        return keylen;
     }
 
     /**
@@ -184,11 +165,11 @@ public:
      * @return the expiration time for feature items, 0 for small items
      */
     time_t getExptime() const {
-        return extra.exptime;
+        return exptime;
     }
 
     void setExptime(time_t tim) {
-        extra.exptime = tim;
+        exptime = tim;
         markDirty();
     }
 
@@ -224,13 +205,13 @@ public:
         setResident();
         flags = itm.getFlags();
 
-        extra.cas = itm.getCas();
-        extra.exptime = itm.getExptime();
+        cas = itm.getCas();
+        exptime = itm.getExptime();
         if (preserveSeqno) {
-            extra.seqno = itm.getSeqno();
+            seqno = itm.getSeqno();
         } else {
-            ++extra.seqno;
-            itm.setSeqno(extra.seqno);
+            ++seqno;
+            itm.setSeqno(seqno);
         }
 
         markDirty();
@@ -246,7 +227,7 @@ public:
         assert(!isDeleted());
         value.reset();
         // item no longer resident once reset the value
-        extra.resident = false;
+        resident = false;
     }
 
     size_t valLength() {
@@ -302,7 +283,7 @@ public:
      * @return the cas ID for feature items, 0 for small items
      */
     uint64_t getCas() const {
-        return extra.cas;
+        return cas;
     }
 
     /**
@@ -329,7 +310,7 @@ public:
      * This is a NOOP for small item types.
      */
     void setCas(uint64_t c) {
-        extra.cas = c;
+        cas = c;
     }
 
     /**
@@ -338,16 +319,16 @@ public:
      * This is a NOOP for small item types.
      */
     void lock(rel_time_t expiry) {
-        extra.locked = true;
-        extra.lock_expiry = expiry;
+        locked = true;
+        lock_expiry = expiry;
     }
 
     /**
      * Unlock this item.
      */
     void unlock() {
-        extra.locked = false;
-        extra.lock_expiry = 0;
+        locked = false;
+        lock_expiry = 0;
     }
 
     /**
@@ -492,18 +473,18 @@ public:
      * @return true if the item is locked
      */
     bool isLocked(rel_time_t curtime) {
-        if (extra.locked && (curtime > extra.lock_expiry)) {
-            extra.locked = false;
+        if (locked && (curtime > lock_expiry)) {
+            locked = false;
             return false;
         }
-        return extra.locked;
+        return locked;
     }
 
     /**
      * True if this value is resident in memory currently.
      */
     bool isResident() const {
-        return extra.resident;
+        return resident;
     }
 
     /**
@@ -548,7 +529,7 @@ public:
 
 
     uint64_t getSeqno() const {
-        return extra.seqno;
+        return seqno;
     }
 
     /**
@@ -557,7 +538,7 @@ public:
      * This is a NOOP for small item types.
      */
     void setSeqno(uint64_t s) {
-        extra.seqno = s;
+        seqno = s;
     }
 
 
@@ -611,15 +592,14 @@ private:
         value(itm.getValue()), next(n), id(itm.getId()),
         dirtiness(0), flags(itm.getFlags())
     {
-
-        extra.cas = itm.getCas();
-        extra.exptime = itm.getExptime();
-        extra.locked = false;
-        extra.resident = true;
-        extra.nru = false;
-        extra.lock_expiry = 0;
-        extra.keylen = itm.getKey().length();
-        extra.seqno = itm.getSeqno();
+        cas = itm.getCas();
+        exptime = itm.getExptime();
+        locked = false;
+        resident = true;
+        nru = false;
+        lock_expiry = 0;
+        keylen = itm.getKey().length();
+        seqno = itm.getSeqno();
 
         if (setDirty) {
             markDirty();
@@ -633,7 +613,7 @@ private:
     }
 
     void setResident() {
-        extra.resident = true;
+        resident = true;
     }
 
     void timestampEviction() {
@@ -646,13 +626,19 @@ private:
 
     value_t            value;          // 16 bytes
     StoredValue        *next;          // 8 bytes
+    uint64_t           cas;            //!< CAS identifier.
+    uint64_t           seqno;          //!< Revision id sequence number
     int64_t            id;             // 8 bytes
+    rel_time_t         lock_expiry;    //!< getl lock expiration
+    uint32_t           exptime;        //!< Expiration time of this item.
+    uint32_t           flags;          // 4 bytes
     uint32_t           dirtiness : 31; // 31 bits
     bool               _isDirty  :  1; // 1 bit
-    uint32_t           flags;          // 4 bytes
-
-
-    struct feature_data extra;
+    bool               locked    :  1;
+    bool               resident  :  1; //!< True if this object's value is in memory.
+    bool               nru       :  1; //!< True if referenced since last sweep
+    uint8_t            keylen;
+    char               keybytes[1];    //!< The key itself.
 
     static void increaseMetaDataSize(HashTable &ht, size_t by);
     static void reduceMetaDataSize(HashTable &ht, size_t by);
@@ -857,7 +843,7 @@ private:
 
         StoredValue *t = new (::operator new(len))
         StoredValue(itm, n, *stats, ht, setDirty);
-        std::memcpy(t->extra.keybytes, key.data(), key.length());
+        std::memcpy(t->keybytes, key.data(), key.length());
         return t;
     }
 
