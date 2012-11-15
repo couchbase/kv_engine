@@ -83,7 +83,6 @@ def time_label(s):
     return "%d%s" % (s / factor, lbl)
 
 def sec_label(s):
-    print "sec_label(%d)" % s
     return time_label(s * 1000000)
 
 def size_label(s):
