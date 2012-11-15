@@ -319,7 +319,6 @@ public:
      * This is a NOOP for small item types.
      */
     void lock(rel_time_t expiry) {
-        locked = true;
         lock_expiry = expiry;
     }
 
@@ -327,7 +326,6 @@ public:
      * Unlock this item.
      */
     void unlock() {
-        locked = false;
         lock_expiry = 0;
     }
 
@@ -473,11 +471,11 @@ public:
      * @return true if the item is locked
      */
     bool isLocked(rel_time_t curtime) {
-        if (locked && (curtime > lock_expiry)) {
-            locked = false;
+        if (lock_expiry == 0 || (curtime > lock_expiry)) {
+            lock_expiry = 0;
             return false;
         }
-        return locked;
+        return true;
     }
 
     /**
@@ -594,7 +592,6 @@ private:
     {
         cas = itm.getCas();
         exptime = itm.getExptime();
-        locked = false;
         resident = true;
         nru = false;
         lock_expiry = 0;
@@ -634,7 +631,6 @@ private:
     uint32_t           flags;          // 4 bytes
     uint32_t           dirtiness : 31; // 31 bits
     bool               _isDirty  :  1; // 1 bit
-    bool               locked    :  1;
     bool               resident  :  1; //!< True if this object's value is in memory.
     bool               nru       :  1; //!< True if referenced since last sweep
     uint8_t            keylen;
