@@ -33,7 +33,7 @@ bool StoredValue::ejectValue(EPStats &stats, HashTable &ht) {
         blobval uval;
         uval.len = valLength();
         value_t sp(Blob::New(uval.chlen, sizeof(uval)));
-        extra.resident = false;
+        resident = false;
         timestampEviction();
         value = sp;
         size_t newsize = size();
@@ -63,27 +63,27 @@ bool StoredValue::ejectValue(EPStats &stats, HashTable &ht) {
 }
 
 void StoredValue::referenced() {
-    if (extra.nru > MIN_NRU_VALUE) {
-        --extra.nru;
+    if (nru > MIN_NRU_VALUE) {
+        --nru;
     }
 }
 
 void StoredValue::setNRUValue(uint8_t nru_val) {
     if (nru_val <= MAX_NRU_VALUE) {
-        extra.nru = nru_val;
+        nru = nru_val;
     }
 }
 
 uint8_t StoredValue::incrNRUValue() {
     uint8_t ret = MAX_NRU_VALUE;
-    if (extra.nru < MAX_NRU_VALUE) {
-        ret = ++extra.nru;
+    if (nru < MAX_NRU_VALUE) {
+        ret = ++nru;
     }
     return ret;
 }
 
 uint8_t StoredValue::getNRUValue() {
-    return extra.nru;
+    return nru;
 }
 
 bool StoredValue::unlocked_restoreValue(Item *itm, EPStats &stats,
@@ -92,10 +92,10 @@ bool StoredValue::unlocked_restoreValue(Item *itm, EPStats &stats,
     // we didn't know the size of the object.. Don't report
     // this as an unexpected size change.
     if (getCas() == 0) {
-        extra.cas = itm->getCas();
+        cas = itm->getCas();
         flags = itm->getFlags();
-        extra.exptime = itm->getExptime();
-        extra.seqno = itm->getSeqno();
+        exptime = itm->getExptime();
+        seqno = itm->getSeqno();
         setValue(*itm, stats, ht, true);
         if (!isResident()) {
             --ht.numNonResidentItems;
@@ -121,7 +121,7 @@ bool StoredValue::unlocked_restoreValue(Item *itm, EPStats &stats,
 
         rel_time_t evicted_time(getEvictedTime());
         stats.pagedOutTimeHisto.add(ep_current_time() - evicted_time);
-        extra.resident = true;
+        resident = true;
         value = itm->getValue();
 
         size_t newsize = size();
@@ -161,7 +161,7 @@ mutation_type_t HashTable::insert(const Item &itm, bool eject, bool partial) {
         v = valFact(itm, values[bucket_num], *this);
         v->markClean(NULL);
         if (partial) {
-            v->extra.resident = false;
+            v->resident = false;
             ++numNonResidentItems;
         }
         values[bucket_num] = v;
@@ -175,10 +175,10 @@ mutation_type_t HashTable::insert(const Item &itm, bool eject, bool partial) {
         // Verify that the CAS isn't changed
         if (v->getCas() != itm.getCas()) {
             if (v->getCas() == 0) {
-                v->extra.cas = itm.getCas();
+                v->cas = itm.getCas();
                 v->flags = itm.getFlags();
-                v->extra.exptime = itm.getExptime();
-                v->extra.seqno = itm.getSeqno();
+                v->exptime = itm.getExptime();
+                v->seqno = itm.getSeqno();
             } else {
                 return INVALID_CAS;
             }
