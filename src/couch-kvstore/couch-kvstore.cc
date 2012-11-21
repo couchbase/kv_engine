@@ -238,7 +238,7 @@ CouchRequest::CouchRequest(const Item &it, uint64_t rev, CouchRequestCallback &c
 {
     bool isjson = false;
     uint64_t cas = htonll(it.getCas());
-    uint32_t flags = htonl(it.getFlags());
+    uint32_t flags = it.getFlags();
     uint32_t exptime = htonl(it.getExptime());
 
     itemId = (it.getId() <= 0) ? 1 : 0;
@@ -1346,7 +1346,7 @@ couchstore_error_t CouchKVStore::fetchDoc(Db *db, DocInfo *docinfo,
     memcpy(&exptime, (metadata.buf) + 8, 4);
     exptime = ntohl(exptime);
     memcpy(&itemFlags, (metadata.buf) + 12, 4);
-    itemFlags = ntohl(itemFlags);
+    itemFlags = itemFlags;
 
     if (metaOnly) {
         Item *it = new Item(docinfo->id.buf, (size_t)docinfo->id.size,
@@ -1410,7 +1410,7 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx)
     memcpy(&cas, metadata.buf, 8);
     memcpy(&exptime, (metadata.buf) + 8, 4);
     memcpy(&itemflags, (metadata.buf) + 12, 4);
-    itemflags = ntohl(itemflags);
+    itemflags = itemflags;
     exptime = ntohl(exptime);
     cas = ntohll(cas);
 

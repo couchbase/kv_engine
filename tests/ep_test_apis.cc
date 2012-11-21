@@ -101,7 +101,6 @@ bool add_response_get_meta(const void *key, uint16_t keylen, const void *ext,
         memcpy(&flags, ext_bytes, 4);
         last_deleted_flag = ntohl(flags) & GET_META_ITEM_DELETED_FLAG;
         memcpy(&last_meta.flags, ext_bytes + 4, 4);
-        last_meta.flags = ntohl(last_meta.flags);
         memcpy(&last_meta.exptime, ext_bytes + 8, 4);
         last_meta.exptime = ntohl(last_meta.exptime);
         memcpy(&last_meta.seqno, ext_bytes + 12, 8);
@@ -131,7 +130,7 @@ void encodeExt(char *buffer, uint32_t val) {
 }
 
 void encodeWithMetaExt(char *buffer, ItemMetaData *meta) {
-    uint32_t flags = htonl(meta->flags);
+    uint32_t flags = meta->flags;
     uint32_t exp = htonl(meta->exptime);
     uint64_t seqno = htonll(meta->seqno);
     uint64_t cas = htonll(meta->cas);

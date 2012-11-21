@@ -3791,7 +3791,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getMeta(const void* cookie,
                                                 metadata, deleted);
     uint8_t meta[20];
     deleted = htonl(deleted);
-    uint32_t flags = htonl(metadata.flags);
+    uint32_t flags = metadata.flags;
     uint32_t exp = htonl(metadata.exptime);
     uint64_t seqno = memcached_htonll(metadata.seqno);
 
@@ -3848,7 +3848,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
     size_t vallen = bodylen - keylen - extlen;
     uint8_t *dta = key + keylen;
 
-    uint32_t flags = ntohl(request->message.body.flags);
+    uint32_t flags = request->message.body.flags;
     uint32_t expiration = ntohl(request->message.body.expiration);
     uint64_t seqno = ntohll(request->message.body.seqno);
     uint64_t cas = ntohll(request->message.body.cas);
@@ -3920,7 +3920,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(const void* cookie,
     uint16_t vbucket = ntohs(request->message.header.request.vbucket);
     uint64_t cas = ntohll(request->message.header.request.cas);
 
-    uint32_t flags = ntohl(request->message.body.flags);
+    uint32_t flags = request->message.body.flags;
     uint32_t expiration = ntohl(request->message.body.expiration);
     uint64_t seqno = ntohll(request->message.body.seqno);
     uint64_t metacas = ntohll(request->message.body.cas);
