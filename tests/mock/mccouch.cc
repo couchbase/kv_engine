@@ -106,13 +106,13 @@ public:
 
 namespace mccouch
 {
-    const static int mockIgnoreAccept    =  0;
-    const static int mockCloseSocket     =  1;
-    const static int mockDropResponse    =  2;
-    const static int mockGarbageResponse =  3;
-    const static int mockEtmpfail        =  4;
-    const static int mockSlowResponse    =  5;
-    const static int mockInvalid         = -1;
+    static const int mockIgnoreAccept    =  0;
+    static const int mockCloseSocket     =  1;
+    static const int mockDropResponse    =  2;
+    static const int mockGarbageResponse =  3;
+    static const int mockEtmpfail        =  4;
+    static const int mockSlowResponse    =  5;
+    static const int mockInvalid         = -1;
 
     static bool mockRandomFailure = false;
     static int  mockRandomRange;
