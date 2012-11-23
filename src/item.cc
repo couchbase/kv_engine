@@ -14,7 +14,7 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-#include "item.hh"
+#include "item.h"
 
 #include "tools/cJSON.h"
 

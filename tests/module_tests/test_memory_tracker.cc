@@ -1,6 +1,6 @@
 #include "config.h"
 
-#include "memory_tracker.hh"
+#include "memory_tracker.h"
 
 /**
  * THIS FILE SHOULD NEVER ACTUALLY BE RUN. IT IS JUST USED TO GET SOME OF OUR

@@ -24,17 +24,17 @@
 #include <fstream>
 #include <functional>
 
-#include "ep.hh"
-#include "flusher.hh"
-#include "warmup.hh"
-#include "statsnap.hh"
-#include "locks.hh"
-#include "dispatcher.hh"
-#include "kvstore.hh"
+#include "ep.h"
+#include "flusher.h"
+#include "warmup.h"
+#include "statsnap.h"
+#include "locks.h"
+#include "dispatcher.h"
+#include "kvstore.h"
 #include "ep_engine.h"
-#include "htresizer.hh"
-#include "checkpoint_remover.hh"
-#include "access_scanner.hh"
+#include "htresizer.h"
+#include "checkpoint_remover.h"
+#include "access_scanner.h"
 
 class StatsValueChangeListener : public ValueChangedListener {
 public:

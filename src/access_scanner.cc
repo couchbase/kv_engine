@@ -3,7 +3,7 @@
 #include <iostream>
 
 #include "ep_engine.h"
-#include "access_scanner.hh"
+#include "access_scanner.h"
 
 class ItemAccessVisitor : public VBucketVisitor {
 public:

@@ -2,9 +2,9 @@
 
 #include "config.h"
 
-#include "htresizer.hh"
-#include "ep.hh"
-#include "stored-value.hh"
+#include "htresizer.h"
+#include "ep.h"
+#include "stored-value.h"
 
 static const double FREQUENCY(60.0);
 

@@ -5,7 +5,7 @@
 
 #include <sys/stat.h>
 
-#include "mutation_log.hh"
+#include "mutation_log.h"
 #include "ep_engine.h"
 
 extern "C" {

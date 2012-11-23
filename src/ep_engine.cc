@@ -29,15 +29,15 @@
 #include <memcached/engine.h>
 #include <memcached/protocol_binary.h>
 #include "ep_engine.h"
-#include "tapthrottle.hh"
-#include "htresizer.hh"
-#include "backfill.hh"
-#include "warmup.hh"
-#include "memory_tracker.hh"
+#include "tapthrottle.h"
+#include "htresizer.h"
+#include "backfill.h"
+#include "warmup.h"
+#include "memory_tracker.h"
 #include "stats-info.h"
 
 #define STATWRITER_NAMESPACE core_engine
-#include "statwriter.hh"
+#include "statwriter.h"
 #undef STATWRITER_NAMESPACE
 
 static SERVER_EXTENSION_API *extensionApi;

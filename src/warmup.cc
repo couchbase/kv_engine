@@ -15,11 +15,11 @@
  *   limitations under the License.
  */
 #include "config.h"
-#include "warmup.hh"
+#include "warmup.h"
 #include "ep_engine.h"
 
 #define STATWRITER_NAMESPACE warmup
-#include "statwriter.hh"
+#include "statwriter.h"
 #undef STATWRITER_NAMESPACE
 
 const int WarmupState::Initialize = 0;

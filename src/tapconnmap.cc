@@ -4,8 +4,8 @@
 #include <algorithm>
 
 #include "ep_engine.h"
-#include "tapconnmap.hh"
-#include "tapconnection.hh"
+#include "tapconnmap.h"
+#include "tapconnection.h"
 
 /**
  * Dispatcher task to nuke a tap connection.

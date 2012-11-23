@@ -6,8 +6,8 @@
 #include <string>
 #include <map>
 
-#include "common.hh"
-#include "statsnap.hh"
+#include "common.h"
+#include "statsnap.h"
 #include "ep_engine.h"
 
 extern "C" {

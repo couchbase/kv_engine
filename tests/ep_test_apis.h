@@ -25,7 +25,7 @@
 #include <memcached/engine_testapp.h>
 
 #include "ep-engine/command_ids.h"
-#include "item.hh"
+#include "item.h"
 
 #ifdef __cplusplus
 extern "C" {

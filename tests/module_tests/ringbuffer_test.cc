@@ -4,7 +4,7 @@
 #include <cassert>
 #include <vector>
 
-#include "ringbuffer.hh"
+#include "ringbuffer.h"
 
 static void testEmpty() {
     RingBuffer<int> rb(10);

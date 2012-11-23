@@ -4,13 +4,13 @@
 #include <cstdlib>
 #include <cctype>
 #include <algorithm>
-#include "locks.hh"
+#include "locks.h"
 
-#include "couch-kvstore/couch-notifier.hh"
+#include "couch-kvstore/couch-notifier.h"
 #include "ep_engine.h"
 
 #define STATWRITER_NAMESPACE couch_notifier
-#include "statwriter.hh"
+#include "statwriter.h"
 #undef STATWRITER_NAMESPACE
 
 #ifdef WIN32

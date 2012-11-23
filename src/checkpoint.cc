@@ -1,7 +1,7 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 #include "config.h"
-#include "vbucket.hh"
-#include "checkpoint.hh"
+#include "vbucket.h"
+#include "checkpoint.h"
 #include "ep_engine.h"
 
 /**
@@ -37,7 +37,7 @@ private:
 };
 
 #define STATWRITER_NAMESPACE checkpoint
-#include "statwriter.hh"
+#include "statwriter.h"
 #undef STATWRITER_NAMESPACE
 
 Checkpoint::~Checkpoint() {

@@ -37,14 +37,14 @@
 #include <arpa/inet.h>
 #endif
 
-#include "atomic.hh"
-#include "mutex.hh"
-#include "locks.hh"
+#include "atomic.h"
+#include "mutex.h"
+#include "locks.h"
 
 #include "ep-engine/command_ids.h"
 #include "ep_testsuite.h"
 #include "ep_test_apis.h"
-#include "mock/mccouch.hh"
+#include "mock/mccouch.h"
 
 
 #ifdef linux

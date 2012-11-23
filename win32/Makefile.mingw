@@ -19,7 +19,7 @@ TCMALLOC_FLAGS = -Wwrite-strings \
                     -fno-builtin-valloc -fno-builtin-pvalloc
 
 MEMCACHED=../memcached
-GEN_CONFIG = src/generated_configuration.hh src/generated_configuration.cc
+GEN_CONFIG = src/generated_configuration.h src/generated_configuration.cc
 GEN_CODE = src/stats-info.h src/stats-info.c
 
 OBJDIR = .libs .libs/src .libs/poll .libs/management .libs/src/blackhole-kvstore .libs/src/couch-kvstore

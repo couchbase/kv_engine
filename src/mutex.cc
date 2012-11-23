@@ -15,8 +15,8 @@
  *   limitations under the License.
  */
 #include "config.h"
-#include "mutex.hh"
-#include "common.hh"
+#include "mutex.h"
+#include "common.h"
 
 Mutex::Mutex() : held(false)
 {

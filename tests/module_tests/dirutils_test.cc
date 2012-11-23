@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 #include "config.h"
-#include "couch-kvstore/dirutils.hh"
+#include "couch-kvstore/dirutils.h"
 #include <sys/stat.h>
 #include <cerrno>
 #include <gtest/gtest.h>

@@ -1,8 +1,8 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 
 #include "config.h"
-#include "mutation_log_compactor.hh"
-#include "ep.hh"
+#include "mutation_log_compactor.h"
+#include "ep.h"
 
 /**
  * Visit all the items in memory and dump them into a new mutation log file.

@@ -4,16 +4,16 @@
 #include <string>
 #include <map>
 
-#include "common.hh"
+#include "common.h"
 #include "ep_engine.h"
-#include "stats.hh"
-#include "kvstore.hh"
-#include "blackhole-kvstore/blackhole.hh"
-#include "warmup.hh"
+#include "stats.h"
+#include "kvstore.h"
+#include "blackhole-kvstore/blackhole.h"
+#include "warmup.h"
 #ifdef HAVE_LIBCOUCHSTORE
-#include "couch-kvstore/couch-kvstore.hh"
+#include "couch-kvstore/couch-kvstore.h"
 #else
-#include "couch-kvstore/couch-kvstore-dummy.hh"
+#include "couch-kvstore/couch-kvstore-dummy.h"
 #endif
 
 KVStore *KVStoreFactory::create(EventuallyPersistentEngine &theEngine,

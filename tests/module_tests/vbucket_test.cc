@@ -7,11 +7,11 @@
 #include <vector>
 #include <algorithm>
 
-#include "configuration.hh"
-#include "vbucket.hh"
-#include "vbucketmap.hh"
-#include "stats.hh"
-#include "threadtests.hh"
+#include "configuration.h"
+#include "vbucket.h"
+#include "vbucketmap.h"
+#include "stats.h"
+#include "threadtests.h"
 
 static const size_t numThreads = 10;
 static const size_t vbucketsEach = 100;

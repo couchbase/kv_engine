@@ -6,9 +6,9 @@
 #include <utility>
 #include <list>
 
-#include "common.hh"
-#include "item_pager.hh"
-#include "ep.hh"
+#include "common.h"
+#include "item_pager.h"
+#include "ep.h"
 #include "ep_engine.h"
 
 static const double EJECTION_RATIO_THRESHOLD(0.1);

@@ -15,7 +15,7 @@
  *   limitations under the License.
  */
 #include "config.h"
-#include "priority.hh"
+#include "priority.h"
 
 // Priorities for Read-only dispatcher
 const Priority Priority::BgFetcherPriority("bg_fetcher_priority", 0);

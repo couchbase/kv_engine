@@ -2,7 +2,7 @@
 
 #include "config.h"
 
-#include "common.hh"
+#include "common.h"
 
 extern "C" {
 static const char* test_get_logger_name(void) {

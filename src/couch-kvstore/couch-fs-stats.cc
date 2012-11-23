@@ -1,7 +1,7 @@
 #include "config.h"
-#include "common.hh"
-#include "histo.hh"
-#include "couch-kvstore/couch-fs-stats.hh"
+#include "common.h"
+#include "histo.h"
+#include "couch-kvstore/couch-fs-stats.h"
 
 extern "C" {
 static couch_file_handle cfs_construct(void* cookie);

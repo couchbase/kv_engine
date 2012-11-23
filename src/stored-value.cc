@@ -3,7 +3,7 @@
 #include <cassert>
 #include <limits>
 
-#include "stored-value.hh"
+#include "stored-value.h"
 
 #ifndef DEFAULT_HT_SIZE
 #define DEFAULT_HT_SIZE 1531

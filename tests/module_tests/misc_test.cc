@@ -2,7 +2,7 @@
 #include <cassert>
 #include <iostream>
 
-#include "common.hh"
+#include "common.h"
 
 static void negativeValidate(const char *s) {
     uint16_t n;

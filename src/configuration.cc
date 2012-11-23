@@ -17,14 +17,14 @@
 
 #include "config.h"
 
-#include "configuration.hh"
+#include "configuration.h"
 #include <vector>
 #include <limits>
 #include <sstream>
 #include <iostream>
 
 #define STATWRITER_NAMESPACE config
-#include "statwriter.hh"
+#include "statwriter.h"
 #undef STATWRITER_NAMESPACE
 
 Configuration::Configuration() {

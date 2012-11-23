@@ -329,7 +329,7 @@ int main(int argc, char **argv) {
         generate(cJSON_GetArrayItem(params, ii));
     }
 
-    ofstream headerfile("src/generated_configuration.hh");
+    ofstream headerfile("src/generated_configuration.h");
     headerfile << prototypes.str();
     headerfile.close();
 

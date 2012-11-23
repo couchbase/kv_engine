@@ -1,7 +1,7 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 #include "config.h"
 #include <dirent.h>
-#include "couch-kvstore/dirutils.hh"
+#include "couch-kvstore/dirutils.h"
 #include <string.h>
 
 namespace CouchKVStoreDirectoryUtilities

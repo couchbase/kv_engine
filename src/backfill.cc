@@ -1,9 +1,9 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 #include "config.h"
-#include "vbucket.hh"
+#include "vbucket.h"
 #include "ep_engine.h"
-#include "ep.hh"
-#include "backfill.hh"
+#include "ep.h"
+#include "backfill.h"
 
 
 static bool isMemoryUsageTooHigh(EPStats &stats) {

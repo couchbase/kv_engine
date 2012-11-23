@@ -18,12 +18,12 @@
 #include <algorithm>
 #include <limits>
 
-#include "item.hh"
-#include "stored-value.hh"
-#include "ep.hh"
-#include "vbucket.hh"
-#include "histo.hh"
-#include "checkpoint.hh"
+#include "item.h"
+#include "stored-value.h"
+#include "ep.h"
+#include "vbucket.h"
+#include "histo.h"
+#include "checkpoint.h"
 
 static void display(const char *name, size_t size) {
     std::cout << name << "\t" << size << std::endl;

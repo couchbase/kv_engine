@@ -10,7 +10,7 @@
 #include <stdexcept>
 
 #include "assert.h"
-#include "mutation_log.hh"
+#include "mutation_log.h"
 
 #define TMP_LOG_FILE "/tmp/mlt_test.log"
 

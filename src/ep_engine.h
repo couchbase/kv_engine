@@ -2,13 +2,13 @@
 #ifndef EP_ENGINE_H
 #define EP_ENGINE_H 1
 
-#include "locks.hh"
-#include "ep.hh"
-#include "flusher.hh"
-#include "kvstore.hh"
+#include "locks.h"
+#include "ep.h"
+#include "flusher.h"
+#include "kvstore.h"
 #include "ep_extension.h"
-#include "dispatcher.hh"
-#include "item_pager.hh"
+#include "dispatcher.h"
+#include "item_pager.h"
 
 #include <cstdio>
 #include <map>
@@ -20,10 +20,10 @@
 
 #include "ep-engine/command_ids.h"
 
-#include "tapconnmap.hh"
-#include "tapconnection.hh"
-#include "tapthrottle.hh"
-#include "configuration.hh"
+#include "tapconnmap.h"
+#include "tapconnection.h"
+#include "tapthrottle.h"
+#include "configuration.h"
 
 extern "C" {
     EXPORT_FUNCTION

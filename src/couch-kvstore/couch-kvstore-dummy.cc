@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 #include "config.h"
-#include "couch-kvstore/couch-kvstore-dummy.hh"
+#include "couch-kvstore/couch-kvstore-dummy.h"
 
 CouchKVStore::CouchKVStore(EventuallyPersistentEngine &, bool) : KVStore()
 {

@@ -29,7 +29,7 @@
 #include <stdexcept>
 
 #include "memcached/protocol_binary.h"
-#include "mock/mccouch.hh"
+#include "mock/mccouch.h"
 
 
 using namespace std;

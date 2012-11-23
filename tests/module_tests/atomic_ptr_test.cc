@@ -2,9 +2,9 @@
 #include <assert.h>
 #include <pthread.h>
 
-#include "atomic.hh"
-#include "locks.hh"
-#include "threadtests.hh"
+#include "atomic.h"
+#include "locks.h"
+#include "threadtests.h"
 
 #define NUM_THREADS 50
 #define NUM_TIMES 100000

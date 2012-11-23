@@ -15,8 +15,8 @@
  *   limitations under the License.
  */
 #include "config.h"
-#include "dispatcher.hh"
-#include "objectregistry.hh"
+#include "dispatcher.h"
+#include "objectregistry.h"
 
 extern "C" {
     static void* launch_dispatcher_thread(void* arg);

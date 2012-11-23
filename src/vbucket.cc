@@ -2,11 +2,11 @@
 #include "config.h"
 #include <functional>
 
-#include "vbucket.hh"
+#include "vbucket.h"
 #include "ep_engine.h"
 
 #define STATWRITER_NAMESPACE vbucket
-#include "statwriter.hh"
+#include "statwriter.h"
 #undef STATWRITER_NAMESPACE
 
 VBucketFilter VBucketFilter::filter_diff(const VBucketFilter &other) const {

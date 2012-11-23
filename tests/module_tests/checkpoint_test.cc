@@ -8,10 +8,10 @@
 #include <algorithm>
 
 #include "assert.h"
-#include "queueditem.hh"
-#include "checkpoint.hh"
-#include "vbucket.hh"
-#include "stats.hh"
+#include "queueditem.h"
+#include "checkpoint.h"
+#include "vbucket.h"
+#include "stats.h"
 
 #define NUM_TAP_THREADS 3
 #define NUM_SET_THREADS 4

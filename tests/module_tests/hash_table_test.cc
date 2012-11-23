@@ -6,11 +6,11 @@
 #include <cassert>
 #include <algorithm>
 
-#include <ep.hh>
-#include <item.hh>
-#include <stats.hh>
+#include <ep.h>
+#include <item.h>
+#include <stats.h>
 
-#include "threadtests.hh"
+#include "threadtests.h"
 
 time_t time_offset;
 

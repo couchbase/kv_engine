@@ -6,7 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "ep.hh"
+#include "ep.h"
 #include <memcached/extension.h>
 
 extern "C" {

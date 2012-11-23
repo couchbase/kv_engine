@@ -17,10 +17,10 @@
 
 #include "config.h"
 #include "ep_engine.h"
-#include "dispatcher.hh"
+#include "dispatcher.h"
 
 #define STATWRITER_NAMESPACE tap
-#include "statwriter.hh"
+#include "statwriter.h"
 #undef STATWRITER_NAMESPACE
 
 const uint8_t TapEngineSpecific::nru(1);

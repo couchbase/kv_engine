@@ -16,7 +16,7 @@
  */
 
 #include "config.h"
-#include "atomic.hh"
+#include "atomic.h"
 
 SpinLock::SpinLock() : lock(0) {
     EP_SPINLOCK_CREATED(this);

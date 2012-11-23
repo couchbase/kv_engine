@@ -3,7 +3,7 @@
 #include <iostream>
 
 #include "tools/JSON_checker.h"
-#include "common.hh"
+#include "common.h"
 
 #define check(expr, msg) {if(!(expr)) \
     { std::cerr << "JSON test failed: " << msg << std::endl; exit(1); }}

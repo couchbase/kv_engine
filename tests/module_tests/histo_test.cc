@@ -5,7 +5,7 @@
 #include <functional>
 #include <algorithm>
 
-#include "histo.hh"
+#include "histo.h"
 
 class PopulatedSamples {
 public:

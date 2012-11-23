@@ -11,15 +11,15 @@
 #include <iostream>
 #include <fstream>
 
-#include "common.hh"
+#include "common.h"
 #include "ep_engine.h"
-#include "couch-kvstore/couch-kvstore.hh"
-#include "couch-kvstore/dirutils.hh"
+#include "couch-kvstore/couch-kvstore.h"
+#include "couch-kvstore/dirutils.h"
 #include "tools/cJSON.h"
 #include "tools/JSON_checker.h"
 
 #define STATWRITER_NAMESPACE couchstore_engine
-#include "statwriter.hh"
+#include "statwriter.h"
 #undef STATWRITER_NAMESPACE
 
 using namespace CouchKVStoreDirectoryUtilities;

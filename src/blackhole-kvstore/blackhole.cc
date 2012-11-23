@@ -5,7 +5,7 @@
 #include <cctype>
 #include <algorithm>
 
-#include "blackhole-kvstore/blackhole.hh"
+#include "blackhole-kvstore/blackhole.h"
 
 BlackholeKVStore::BlackholeKVStore(bool)
 {

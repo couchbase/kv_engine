@@ -17,7 +17,7 @@
 #include "config.h"
 #include <stdlib.h>
 
-#include "flusher.hh"
+#include "flusher.h"
 
 bool FlusherStepper::callback(Dispatcher &d, TaskId &t) {
     return flusher->step(d, t);

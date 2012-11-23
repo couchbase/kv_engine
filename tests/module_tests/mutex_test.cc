@@ -2,8 +2,8 @@
 #include <cassert>
 #include <iostream>
 
-#include "common.hh"
-#include "locks.hh"
+#include "common.h"
+#include "locks.h"
 
 int main(int argc, char **argv) {
     (void)argc; (void)argv;

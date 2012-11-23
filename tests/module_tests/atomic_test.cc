@@ -3,8 +3,8 @@
 #include <vector>
 #include <algorithm>
 
-#include "atomic.hh"
-#include "threadtests.hh"
+#include "atomic.h"
+#include "threadtests.h"
 
 const size_t numThreads    = 100;
 const size_t numIterations = 1000;
