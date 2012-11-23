@@ -411,6 +411,15 @@ valgrind_engine_tests: ep.la ep_testsuite.la
              ENGINE_TESTAPP_LAUNCHER="$(VALGRIND) $(VALGRIND_OPTIONS)" \
              engine_tests
 
+cpplint:
+	python tools/cpplint.py --verbose=0 --filter=- \
+        src/*.cc src/*.h src/atomic/*.h \
+        src/blackhole-kvstore/*.cc src/blackhole-kvstore/*.h \
+        src/couch-kvstore/*.cc src/couch-kvstore/*.h \
+        tests/*.cc tests/*.h \
+        tests/mock/*.cc tests/mock/*.h \
+        tests/module_tests/*.cc tests/module_tests/*.h
+
 engine_tests: ep.la ep_testsuite.la
 	$(ENGINE_TESTAPP_LAUNCHER) $(ENGINE_TESTAPP) \
                 $(ENGINE_TESTS_EXTRA_OPTIONS) \
@@ -418,7 +427,7 @@ engine_tests: ep.la ep_testsuite.la
 		-T .libs/ep_testsuite.so \
 		-e 'flushall_enabled=true;ht_size=13;ht_locks=7;;min_data_age=0;'
 
-test: all check-TESTS engine_tests sizes
+test: all check-TESTS engine_tests cpplint sizes
 	./sizes
 
 if HAVE_DTRACE
