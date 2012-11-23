@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
-#ifndef BACKFILL_HH
-#define BACKFILL_HH 1
+#ifndef SRC_BACKFILL_H_
+#define SRC_BACKFILL_H_ 1
 
 #include <assert.h>
 #include <set>
@@ -125,4 +125,4 @@ public:
     EventuallyPersistentStore *epstore;
 };
 
-#endif /* BACKFILL_HH */
+#endif  // SRC_BACKFILL_H_

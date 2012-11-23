@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
-#ifndef COUCH_NOTIFIER_HH
-#define COUCH_NOTIFIER_HH
+#ifndef SRC_COUCH_KVSTORE_COUCH_NOTIFIER_H_
+#define SRC_COUCH_KVSTORE_COUCH_NOTIFIER_H_ 1
 
 #include <vector>
 #include <queue>
@@ -235,4 +235,4 @@ private:
     int numiovec;
 };
 
-#endif /* COUCH_NOTIFIER_HH */
+#endif  // SRC_COUCH_KVSTORE_COUCH_NOTIFIER_H_

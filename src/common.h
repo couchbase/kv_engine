@@ -1,5 +1,5 @@
-#ifndef COMMON_H
-#define COMMON_H 1
+#ifndef SRC_COMMON_H_
+#define SRC_COMMON_H_ 1
 
 #include <cassert>
 #include <errno.h>
@@ -270,4 +270,4 @@ bool sorted(ForwardIterator first, ForwardIterator last, Compare compare) {
 }
 
 #define GIGANTOR ((size_t)1<<(sizeof(size_t)*8-1))
-#endif /* COMMON_H */
+#endif  // SRC_COMMON_H_

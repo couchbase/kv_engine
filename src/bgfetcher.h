@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
-#ifndef BGFETCHER_HH
-#define BGFETCHER_HH 1
+#ifndef SRC_BGFETCHER_H_
+#define SRC_BGFETCHER_H_ 1
 
 #include <map>
 #include <vector>
@@ -103,4 +103,4 @@ private:
     EPStats &stats;
 };
 
-#endif /* BGFETCHER_HH */
+#endif  // SRC_BGFETCHER_H_

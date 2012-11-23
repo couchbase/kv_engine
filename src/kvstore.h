@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
-#ifndef KVSTORE_HH
-#define KVSTORE_HH 1
+#ifndef SRC_KVSTORE_H_
+#define SRC_KVSTORE_H_ 1
 
 #include <map>
 #include <string>
@@ -339,4 +339,4 @@ public:
                            bool read_only = false);
 };
 
-#endif // KVSTORE_HH
+#endif  // SRC_KVSTORE_H_

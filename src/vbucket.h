@@ -1,7 +1,7 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 
-#ifndef VBUCKET_HH
-#define VBUCKET_HH 1
+#ifndef SRC_VBUCKET_H_
+#define SRC_VBUCKET_H_ 1
 
 #include <cassert>
 
@@ -296,4 +296,4 @@ private:
     DISALLOW_COPY_AND_ASSIGN(VBucket);
 };
 
-#endif /* VBUCKET_HH */
+#endif  // SRC_VBUCKET_H_

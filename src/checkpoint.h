@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
-#ifndef CHECKPOINT_HH
-#define CHECKPOINT_HH 1
+#ifndef SRC_CHECKPOINT_H_
+#define SRC_CHECKPOINT_H_ 1
 
 #include <assert.h>
 #include <list>
@@ -625,4 +625,4 @@ private:
     bool keepClosedCheckpoints;
 };
 
-#endif /* CHECKPOINT_HH */
+#endif  // SRC_CHECKPOINT_H_

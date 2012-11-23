@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
-#ifndef LOCKS_H
-#define LOCKS_H 1
+#ifndef SRC_LOCKS_H_
+#define SRC_LOCKS_H_ 1
 
 #include <stdexcept>
 #include <iostream>
@@ -121,4 +121,4 @@ private:
     DISALLOW_COPY_AND_ASSIGN(MultiLockHolder);
 };
 
-#endif /* LOCKS_H */
+#endif  // SRC_LOCKS_H_

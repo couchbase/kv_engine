@@ -1,5 +1,5 @@
-#ifndef HISTO_HH
-#define HISTO_HH
+#ifndef SRC_HISTO_H_
+#define SRC_HISTO_H_ 1
 
 #include <cmath>
 #include <ostream>
@@ -418,4 +418,4 @@ std::ostream& operator <<(std::ostream &out, const Histogram<T> &b) {
     return out;
 }
 
-#endif /* HISTO_HH */
+#endif  // SRC_HISTO_H_

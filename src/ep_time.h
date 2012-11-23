@@ -14,8 +14,8 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-#ifndef EP_TIME_H
-#define EP_TIME_H
+#ifndef SRC_EP_TIME_H_
+#define SRC_EP_TIME_H_ 1
 
 #include <time.h>
 #include <memcached/types.h>
@@ -33,4 +33,4 @@ extern time_t ep_real_time(void);
 }
 #endif
 
-#endif
+#endif  // SRC_EP_TIME_H_

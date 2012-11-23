@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
-#ifndef TAPTHROTTLE_HH
-#define TAPTHROTTLE_HH 1
+#ifndef SRC_TAPTHROTTLE_H_
+#define SRC_TAPTHROTTLE_H_ 1
 
 #include "common.h"
 #include "dispatcher.h"
@@ -36,4 +36,4 @@ private:
     EPStats &stats;
 };
 
-#endif // TAPTHROTTLE_HH
+#endif  // SRC_TAPTHROTTLE_H_

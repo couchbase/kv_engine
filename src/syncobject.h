@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
-#ifndef SYNCOBJECT_HH
-#define SYNCOBJECT_HH 1
+#ifndef SRC_SYNCOBJECT_H_
+#define SRC_SYNCOBJECT_H_ 1
 
 #include <stdexcept>
 #include <iostream>
@@ -86,5 +86,5 @@ private:
     DISALLOW_COPY_AND_ASSIGN(SyncObject);
 };
 
-#endif
+#endif  // SRC_SYNCOBJECT_H_
 

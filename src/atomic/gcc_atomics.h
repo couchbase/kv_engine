@@ -1,6 +1,6 @@
 /* -*- Mode: C; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
-#ifndef ATOMIC_GCC_ATOMICS_H
-#define ATOMIC_GCC_ATOMICS_H 1
+#ifndef SRC_ATOMIC_GCC_ATOMICS_H_
+#define SRC_ATOMIC_GCC_ATOMICS_H_ 1
 
 #define ep_sync_add_and_fetch(a, b) __sync_add_and_fetch(a, b);
 #define ep_sync_bool_compare_and_swap(a, b, c) __sync_bool_compare_and_swap(a, b, c)
@@ -9,4 +9,4 @@
 #define ep_sync_lock_test_and_set(a, b) __sync_lock_test_and_set(a, b)
 #define ep_sync_synchronize() __sync_synchronize()
 
-#endif
+#endif  // SRC_ATOMIC_GCC_ATOMICS_H_

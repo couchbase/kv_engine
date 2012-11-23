@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
-#ifndef MUTEX_HH
-#define MUTEX_HH 1
+#ifndef SRC_MUTEX_H_
+#define SRC_MUTEX_H_ 1
 
 #include <stdexcept>
 #include <iostream>
@@ -52,4 +52,4 @@ private:
     DISALLOW_COPY_AND_ASSIGN(Mutex);
 };
 
-#endif
+#endif  // SRC_MUTEX_H_

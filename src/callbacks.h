@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
-#ifndef CALLBACKS_H
-#define CALLBACKS_H 1
+#ifndef SRC_CALLBACKS_H_
+#define SRC_CALLBACKS_H_ 1
 
 #include <cassert>
 
@@ -178,4 +178,4 @@ private:
     DISALLOW_COPY_AND_ASSIGN(TimedRememberingCallback);
 };
 
-#endif /* CALLBACKS_H */
+#endif  // SRC_CALLBACKS_H_

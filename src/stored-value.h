@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
-#ifndef STORED_VALUE_H
-#define STORED_VALUE_H 1
+#ifndef SRC_STORED_VALUE_H_
+#define SRC_STORED_VALUE_H_ 1
 
 #include <climits>
 #include <cstring>
@@ -1528,4 +1528,4 @@ private:
     DISALLOW_COPY_AND_ASSIGN(HashTable);
 };
 
-#endif /* STORED_VALUE_H */
+#endif  // SRC_STORED_VALUE_H_

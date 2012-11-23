@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
-#ifndef ITEM_HH
-#define ITEM_HH
+#ifndef SRC_ITEM_H_
+#define SRC_ITEM_H_
 #include "config.h"
 
 #include <string>
@@ -360,4 +360,4 @@ private:
     DISALLOW_COPY_AND_ASSIGN(Item);
 };
 
-#endif
+#endif  // SRC_ITEM_H_

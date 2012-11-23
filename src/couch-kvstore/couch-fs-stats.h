@@ -1,5 +1,5 @@
-#ifndef COUCH_FS_STATS_H
-#define COUCH_FS_STATS_H 1
+#ifndef SRC_COUCH_KVSTORE_COUCH_FS_STATS_H_
+#define SRC_COUCH_KVSTORE_COUCH_FS_STATS_H_ 1
 #include <libcouchstore/couch_db.h>
 
 struct CouchstoreStats {
@@ -24,4 +24,4 @@ struct CouchstoreStats {
 
 couch_file_ops getCouchstoreStatsOps(CouchstoreStats* stats);
 
-#endif
+#endif  // SRC_COUCH_KVSTORE_COUCH_FS_STATS_H_

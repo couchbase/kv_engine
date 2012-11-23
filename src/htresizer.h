@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
-#ifndef HTRESIZER_HH
-#define HTRESIZER_HH 1
+#ifndef SRC_HTRESIZER_H_
+#define SRC_HTRESIZER_H_ 1
 
 #include "config.h"
 
@@ -27,4 +27,4 @@ private:
     EventuallyPersistentStore *store;
 };
 
-#endif // HTRESIZER_HH
+#endif  // SRC_HTRESIZER_H_

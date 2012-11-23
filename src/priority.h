@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
-#ifndef PRIORITY_HH
-#define PRIORITY_HH
+#ifndef SRC_PRIORITY_H_
+#define SRC_PRIORITY_H_ 1
 
 #include "common.h"
 
@@ -79,4 +79,4 @@ private:
     DISALLOW_COPY_AND_ASSIGN(Priority);
 };
 
-#endif
+#endif  // SRC_PRIORITY_H_

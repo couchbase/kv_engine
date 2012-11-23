@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
-#ifndef MUTATION_LOG_COMPACTOR_HH
-#define MUTATION_LOG_COMPACTOR_HH 1
+#ifndef SRC_MUTATION_LOG_COMPACTOR_H_
+#define SRC_MUTATION_LOG_COMPACTOR_H_ 1
 
 #include "common.h"
 #include "dispatcher.h"
@@ -103,4 +103,4 @@ private:
     EPStats &stats;
 };
 
-#endif /* MUTATION_LOG_COMPACTOR_HH */
+#endif  // SRC_MUTATION_LOG_COMPACTOR_H_

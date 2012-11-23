@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
-#ifndef EP_EXTENSION_H
-#define EP_EXTENSION_H 1
+#ifndef SRC_EP_EXTENSION_H_
+#define SRC_EP_EXTENSION_H_ 1
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -34,5 +34,5 @@ private:
     EventuallyPersistentStore *backend;
 };
 
-#endif /* EP_EXTENSION_H */
+#endif  // SRC_EP_EXTENSION_H_
 

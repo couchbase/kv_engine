@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
-#ifndef EP_ENGINE_H
-#define EP_ENGINE_H 1
+#ifndef SRC_EP_ENGINE_H_
+#define SRC_EP_ENGINE_H_ 1
 
 #include "locks.h"
 #include "ep.h"
@@ -808,4 +808,4 @@ private:
     time_t startupTime;
 };
 
-#endif
+#endif  // SRC_EP_ENGINE_H_

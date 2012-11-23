@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
-#ifndef QUEUEDITEM_HH
-#define QUEUEDITEM_HH 1
+#ifndef SRC_QUEUEDITEM_H_
+#define SRC_QUEUEDITEM_H_ 1
 
 #include "common.h"
 #include "item.h"
@@ -103,4 +103,4 @@ public:
     }
 };
 
-#endif /* QUEUEDITEM_HH */
+#endif  // SRC_QUEUEDITEM_H_

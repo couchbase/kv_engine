@@ -14,8 +14,8 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-#ifndef CONFIGURATION_HH
-#define CONFIGURATION_HH
+#ifndef SRC_CONFIGURATION_H_
+#define SRC_CONFIGURATION_H_ 1
 
 #include <string>
 #include <map>
@@ -387,4 +387,4 @@ private:
                                      const Configuration &config);
 };
 
-#endif
+#endif  // SRC_CONFIGURATION_H_

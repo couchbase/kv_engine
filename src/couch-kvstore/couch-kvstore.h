@@ -1,5 +1,5 @@
-#ifndef COUCH_KVSTORE_H
-#define COUCH_KVSTORE_H 1
+#ifndef SRC_COUCH_KVSTORE_COUCH_KVSTORE_H_
+#define SRC_COUCH_KVSTORE_COUCH_KVSTORE_H_ 1
 
 #include "libcouchstore/couch_db.h"
 #include "kvstore.h"
@@ -515,4 +515,4 @@ private:
     vbucket_map_t cachedVBStates;
 };
 
-#endif /* COUCHSTORE_KVSTORE_H */
+#endif  // SRC_COUCH_KVSTORE_COUCH_KVSTORE_H_

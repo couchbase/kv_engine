@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
-#ifndef ACCESS_SCANNER_HH
-#define ACCESS_SCANNER_HH 1
+#ifndef SRC_ACCESS_SCANNER_H_
+#define SRC_ACCESS_SCANNER_H_ 1
 
 #include "common.h"
 #include "dispatcher.h"
@@ -25,4 +25,4 @@ private:
     bool available;
 };
 
-#endif /* ACCESS_SCANNER_HH */
+#endif  // SRC_ACCESS_SCANNER_H_

@@ -4,8 +4,8 @@
  * of the source files without having to put all of them in AH_BOTTOM
  * in configure.ac.
  */
-#ifndef CONFIG_STATIC_H
-#define CONFIG_STATIC_H 1
+#ifndef SRC_CONFIG_STATIC_H_
+#define SRC_CONFIG_STATIC_H_ 1
 
 #define _FILE_OFFSET_BITS 64
 
@@ -107,4 +107,4 @@ extern "C" {
 #include "dtrace/dummy_probes.h"
 #endif
 
-#endif
+#endif  // SRC_CONFIG_STATIC_H_

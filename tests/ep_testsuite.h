@@ -1,5 +1,5 @@
-#ifndef EP_TESTSUITE_H
-#define EP_TESTSUITE_H 1
+#ifndef TESTS_EP_TESTSUITE_H_
+#define TESTS_EP_TESTSUITE_H_ 1
 
 #include <memcached/engine.h>
 #include <memcached/engine_testapp.h>
@@ -21,4 +21,4 @@ bool teardown_suite(void);
 }
 #endif
 
-#endif
+#endif  // TESTS_EP_TESTSUITE_H_

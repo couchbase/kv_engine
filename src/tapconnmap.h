@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
-#ifndef TAPCONNMAP_HH
-#define TAPCONNMAP_HH 1
+#ifndef SRC_TAPCONNMAP_H_
+#define SRC_TAPCONNMAP_H_ 1
 
 #include <map>
 #include <list>
@@ -330,4 +330,4 @@ private:
     TAPSessionStats prevSessionStats;
 };
 
-#endif /* TAPCONNMAP_HH */
+#endif  // SRC_TAPCONNMAP_H_

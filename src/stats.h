@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
-#ifndef STATS_HH
-#define STATS_HH 1
+#ifndef SRC_STATS_H_
+#define SRC_STATS_H_ 1
 
 #include <map>
 #include <memcached/engine.h>
@@ -460,4 +460,4 @@ struct key_stats {
     bool logically_deleted;
 };
 
-#endif /* STATS_HH */
+#endif  // SRC_STATS_H_

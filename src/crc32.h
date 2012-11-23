@@ -1,8 +1,8 @@
-#ifndef CRC32_H
-#define CRC32_H 1
+#ifndef SRC_CRC32_H_
+#define SRC_CRC32_H_ 1
 
 #include <stdint.h>
 
 uint32_t crc32buf(uint8_t *buf, size_t len);
 
-#endif /* CRC32_H */
+#endif  // SRC_CRC32_H_

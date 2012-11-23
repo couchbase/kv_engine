@@ -14,8 +14,8 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-#ifndef MOCK_MCCOUCH_HH
-#define MOCK_MCCOUCH_HH
+#ifndef TESTS_MOCK_MCCOUCH_H_
+#define TESTS_MOCK_MCCOUCH_H_ 1
 
 namespace mccouch
 {
@@ -32,4 +32,4 @@ private:
     mccouch::McCouchMockServerInstance *instance;
 };
 
-#endif
+#endif  // TESTS_MOCK_MCCOUCH_H_

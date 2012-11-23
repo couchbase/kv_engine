@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
-#ifndef DISPATCHER_HH
-#define DISPATCHER_HH
+#ifndef SRC_DISPATCHER_H_
+#define SRC_DISPATCHER_H_ 1
 
 #include <stdexcept>
 #include <queue>
@@ -429,4 +429,4 @@ private:
     std::string name;
 };
 
-#endif
+#endif  // SRC_DISPATCHER_H_

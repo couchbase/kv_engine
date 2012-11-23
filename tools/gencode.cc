@@ -63,6 +63,24 @@ static void usage(void)
     exit(EXIT_FAILURE);
 }
 
+static void str_replace_char(char* str, char toReplace, char replaceWith) {
+    int i;
+    for (i = 0; *(str + i) != '\0'; i++) {
+        if (*(str + i) == toReplace) {
+            *(str + i) = replaceWith;
+        }
+    }
+}
+
+static void all_caps(char* str) {
+    int i;
+    for (i = 0; *(str + i) != '\0'; i++) {
+        if (*(str + i) >= 'a' && *(str + i) <= 'z') {
+            *(str + i) -= 32;
+        }
+    }
+}
+
 int main(int argc, char **argv) {
     int cmd;
     const char *json = NULL;
@@ -114,11 +132,17 @@ int main(int argc, char **argv) {
 
     time_t t = time(NULL);
     ofstream headerfile(hfile);
+    char* macro = strdup(hfile);
+    str_replace_char(macro, '/', '_');
+    str_replace_char(macro, '-', '_');
+    str_replace_char(macro, '.', '_');
+    all_caps(macro);
+
     headerfile << "/////////////////////////////////" << endl
                << "// Generated file, do not edit //" << endl
                << "/////////////////////////////////" << endl
-               << "#ifndef GENERATED_" << getpid() << "_" << t << endl
-               << "#define GENERATED_" << getpid() << "_" << t << endl
+               << "#ifndef " << macro << "_" << endl
+               << "#define " << macro << "_" << endl
                << endl
                << "#ifdef __cplusplus" << endl
                << "extern \"C\" {" << endl
@@ -129,7 +153,7 @@ int main(int argc, char **argv) {
                << "#ifdef __cplusplus" << endl
                << "}" << endl
                << "#endif" << endl
-               << "#endif" << endl;
+               << "#endif  // " << macro << "_" << endl;
     headerfile.close();
 
     ofstream sourcefile(cfile);

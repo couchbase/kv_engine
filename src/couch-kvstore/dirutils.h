@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
-#ifndef COUCH_KVSTORE_DIRUTILS_H
-#define COUCH_KVSTORE_DIRUTILS_H 1
+#ifndef SRC_COUCH_KVSTORE_DIRUTILS_H_
+#define SRC_COUCH_KVSTORE_DIRUTILS_H_ 1
 
 #include <string>
 #include <vector>
@@ -38,4 +38,4 @@ namespace CouchKVStoreDirectoryUtilities
     vector<string> findFilesContaining(const string &dir, const string &name);
 }
 
-#endif
+#endif  // SRC_COUCH_KVSTORE_DIRUTILS_H_

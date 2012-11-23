@@ -1,5 +1,5 @@
-#ifndef RINGBUFFER_HH
-#define RINGBUFFER_HH
+#ifndef SRC_RINGBUFFER_H_
+#define SRC_RINGBUFFER_H_ 1
 
 #include <cassert>
 #include <vector>
@@ -75,4 +75,4 @@ private:
     DISALLOW_COPY_AND_ASSIGN(RingBuffer);
 };
 
-#endif /* RINGBUFFER_HH */
+#endif  // SRC_RINGBUFFER_H_

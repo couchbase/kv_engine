@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
-#ifndef ITEM_PAGER_HH
-#define ITEM_PAGER_HH 1
+#ifndef SRC_ITEM_PAGER_H_
+#define SRC_ITEM_PAGER_H_ 1
 
 #include <map>
 #include <vector>
@@ -89,4 +89,4 @@ private:
     bool                       available;
 };
 
-#endif /* ITEM_PAGER_HH */
+#endif  // SRC_ITEM_PAGER_H_

@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
-#ifndef TAPCONNECTION_HH
-#define TAPCONNECTION_HH 1
+#ifndef SRC_TAPCONNECTION_H_
+#define SRC_TAPCONNECTION_H_ 1
 
 #include <set>
 
@@ -1167,4 +1167,4 @@ private:
     DISALLOW_COPY_AND_ASSIGN(TapProducer);
 };
 
-#endif
+#endif  // SRC_TAPCONNECTION_H_

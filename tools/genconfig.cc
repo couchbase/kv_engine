@@ -129,7 +129,9 @@ static string getEnumValidatorCode(const std::string &key, cJSON *o) {
 static void initialize() {
     prototypes << "// ###########################################" << endl
                << "// # DO NOT EDIT! THIS IS A GENERATED FILE " << endl
-               << "// ###########################################" << endl;
+               << "// ###########################################" << endl
+               << "#ifndef SRC_GENERATED_CONFIGURATION_H_" << endl
+               << "#define SRC_GENERATED_CONFIGURATION_H_ 1" << endl;
 
     implementation << "// ###########################################" << endl
                    << "// # DO NOT EDIT! THIS IS A GENERATED FILE " << endl
@@ -328,6 +330,7 @@ int main(int argc, char **argv) {
     for (int ii = 0; ii < num; ++ii) {
         generate(cJSON_GetArrayItem(params, ii));
     }
+    prototypes << "#endif  // SRC_GENERATED_CONFIGURATION_H_" << endl;
 
     ofstream headerfile("src/generated_configuration.h");
     headerfile << prototypes.str();

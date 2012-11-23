@@ -327,8 +327,8 @@ AC_SEARCH_LIBS(socket, socket)
 AC_SEARCH_LIBS(gethostbyname, nsl)
 
 AH_TOP([
-#ifndef CONFIG_H
-#define CONFIG_H
+#ifndef SRC_CONFIG_H_
+#define SRC_CONFIG_H_ 1
 #ifdef _SYS_FEATURE_TESTS_H
 #error "You should include config.h as your first include file"
 #endif
@@ -336,7 +336,7 @@ AH_TOP([
 
 AH_BOTTOM([
 #include "config_static.h"
-#endif
+#endif  // SRC_CONFIG_H_
 ])
 
 AC_CACHE_CHECK([for gtest], [ac_cv_have_gtest], [

@@ -15,8 +15,8 @@
  *   limitations under the License.
  */
 
-#ifndef MEMORY_TRACKER_H
-#define MEMORY_TRACKER_H
+#ifndef SRC_MEMORY_TRACKER_H_
+#define SRC_MEMORY_TRACKER_H_ 1
 
 #include "config.h"
 #include "common.h"
@@ -59,4 +59,4 @@ private:
     allocator_stats stats;
 };
 
-#endif /* MEMORY_TRACKER_H */
+#endif  // SRC_MEMORY_TRACKER_H_

@@ -15,8 +15,8 @@
  *   limitations under the License.
  */
 
-#ifndef EP_TEST_APIS_H
-#define EP_TEST_APIS_H 1
+#ifndef TESTS_EP_TEST_APIS_H_
+#define TESTS_EP_TEST_APIS_H_ 1
 
 #include <map>
 #include <string>
@@ -148,4 +148,4 @@ void set_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
 }
 #endif
 
-#endif
+#endif  // TESTS_EP_TEST_APIS_H_

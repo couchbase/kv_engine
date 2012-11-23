@@ -14,8 +14,8 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-#ifndef EP_HH
-#define EP_HH 1
+#ifndef SRC_EP_H_
+#define SRC_EP_H_ 1
 
 #include <pthread.h>
 #include <assert.h>
@@ -920,4 +920,4 @@ private:
 };
 
 
-#endif /* EP_HH */
+#endif  // SRC_EP_H_

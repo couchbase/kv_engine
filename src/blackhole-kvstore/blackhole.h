@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
-#ifndef BLACKHOLE_KVSTORE_H
-#define BLACKHOLE_KVSTORE_H 1
+#ifndef SRC_BLACKHOLE_KVSTORE_BLACKHOLE_H_
+#define SRC_BLACKHOLE_KVSTORE_BLACKHOLE_H_ 1
 
 #include "kvstore.h"
 
@@ -87,4 +87,4 @@ public:
 private:
 };
 
-#endif /* Blackhole_KVSTORE_H */
+#endif  // SRC_BLACKHOLE_KVSTORE_BLACKHOLE_H_

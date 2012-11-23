@@ -1,5 +1,5 @@
-#ifndef COUCH_KVSTORE_DUMMY_H
-#define COUCH_KVSTORE_DUMMY_H 1
+#ifndef SRC_COUCH_KVSTORE_COUCH_KVSTORE_DUMMY_H_
+#define SRC_COUCH_KVSTORE_COUCH_KVSTORE_DUMMY_H_ 1
 
 #ifdef HAVE_LIBCOUCHSTORE
 #error "This header file should only be included if you don't have libcouchstore"
@@ -39,4 +39,4 @@ public:
     void dump(uint16_t vbid, shared_ptr<Callback<GetValue> > cb);
 };
 
-#endif
+#endif  // SRC_COUCH_KVSTORE_COUCH_KVSTORE_DUMMY_H_

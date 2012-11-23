@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
-#ifndef STATSNAP_HH
-#define STATSNAP_HH 1
+#ifndef SRC_STATSNAP_H_
+#define SRC_STATSNAP_H_ 1
 
 #include "common.h"
 
@@ -53,4 +53,4 @@ private:
     std::map<std::string, std::string>  map;
 };
 
-#endif /* STATSNAP_HH */
+#endif  // SRC_STATSNAP_H_

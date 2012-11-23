@@ -1,5 +1,5 @@
-#ifndef TESTSUITE_H
-#define TESTSUITE_H 1
+#ifndef SRC_SUITE_STUBS_H_
+#define SRC_SUITE_STUBS_H_ 1
 
 #include <assert.h>
 
@@ -49,4 +49,4 @@ engine_test_t* get_tests_7(void);
 engine_test_t* get_tests_8(void);
 engine_test_t* get_tests_9(void);
 
-#endif /* TESTSUITE_H */
+#endif  // SRC_SUITE_STUBS_H_

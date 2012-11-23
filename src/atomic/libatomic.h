@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
-#ifndef ATOMIC_LIBATOMIC_H
-#define ATOMIC_LIBATOMIC_H 1
+#ifndef SRC_ATOMIC_LIBATOMIC_H_
+#define SRC_ATOMIC_LIBATOMIC_H_ 1
 
 /**
  * atomic.h provides a function interface to the various atomic functions,
@@ -219,4 +219,4 @@ inline bool ep_sync_bool_compare_and_swap(IntQueue * volatile *dest, IntQueue *p
 }
 
 
-#endif
+#endif  // SRC_ATOMIC_LIBATOMIC_H_

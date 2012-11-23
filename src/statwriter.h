@@ -8,6 +8,9 @@
 #include "ep_engine.h"
 #include "histo.h"
 
+#ifndef SRC_STATWRITER_H_
+#define SRC_STATWRITER_H_ 1
+
 namespace STATWRITER_NAMESPACE {
 
 inline void add_casted_stat(const char *k, const char *v,
@@ -81,3 +84,5 @@ void add_prefixed_stat(P prefix, const char *nm, Histogram<T> &val,
 }
 
 using namespace STATWRITER_NAMESPACE;
+
+#endif  // SRC_STATWRITER_H_

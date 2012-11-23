@@ -14,8 +14,8 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-#ifndef OBJECTREGISTRY_HH
-#define OBJECTREGISTRY_HH 1
+#ifndef SRC_OBJECTREGISTRY_H_
+#define SRC_OBJECTREGISTRY_H_ 1
 
 class EventuallyPersistentEngine;
 class Blob;
@@ -40,4 +40,4 @@ public:
     static bool memoryDeallocated(size_t mem);
 };
 
-#endif
+#endif  // SRC_OBJECTREGISTRY_H_

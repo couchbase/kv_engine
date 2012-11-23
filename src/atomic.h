@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
-#ifndef ATOMIC_HH
-#define ATOMIC_HH
+#ifndef SRC_ATOMIC_H_
+#define SRC_ATOMIC_H_ 1
 
 #include <pthread.h>
 #include <queue>
@@ -469,4 +469,4 @@ private:
     T *value;
 };
 
-#endif // ATOMIC_HH
+#endif  // SRC_ATOMIC_H_

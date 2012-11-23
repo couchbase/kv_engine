@@ -14,8 +14,8 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-#ifndef WARMUP_HH
-#define WARMUP_HH
+#ifndef SRC_WARMUP_H_
+#define SRC_WARMUP_H_ 1
 
 #include "ep.h"
 #include <ostream>
@@ -151,4 +151,4 @@ private:
     Warmup *warmup;
 };
 
-#endif
+#endif  // SRC_WARMUP_H_

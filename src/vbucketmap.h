@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
-#ifndef VBUCKETMAP_HH
-#define VBUCKETMAP_HH 1
+#ifndef SRC_VBUCKETMAP_H_
+#define SRC_VBUCKETMAP_H_ 1
 
 #include "configuration.h"
 #include "vbucket.h"
@@ -100,4 +100,4 @@ private:
     DISALLOW_COPY_AND_ASSIGN(VBucketMap);
 };
 
-#endif /* VBUCKET_HH */
+#endif  // SRC_VBUCKETMAP_H_

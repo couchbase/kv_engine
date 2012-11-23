@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
-#ifndef FLUSHER_H
-#define FLUSHER_H 1
+#ifndef SRC_FLUSHER_H_
+#define SRC_FLUSHER_H_ 1
 
 #include "common.h"
 #include "ep.h"
@@ -134,4 +134,4 @@ private:
     DISALLOW_COPY_AND_ASSIGN(Flusher);
 };
 
-#endif /* FLUSHER_H */
+#endif  // SRC_FLUSHER_H_

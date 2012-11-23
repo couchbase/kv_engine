@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
-#ifndef CHECKPOINT_REMOVER_HH
-#define CHECKPOINT_REMOVER_HH 1
+#ifndef SRC_CHECKPOINT_REMOVER_H_
+#define SRC_CHECKPOINT_REMOVER_H_ 1
 
 #include <assert.h>
 #include <set>
@@ -39,4 +39,4 @@ private:
     bool                       available;
 };
 
-#endif /* CHECKPOINT_REMOVER_HH */
+#endif  // SRC_CHECKPOINT_REMOVER_H_

@@ -1,5 +1,5 @@
-#ifndef MUTATION_LOG_HH
-#define MUTATION_LOG_HH 1
+#ifndef SRC_MUTATION_LOG_H_
+#define SRC_MUTATION_LOG_H_ 1
 
 #include <vector>
 #include <set>
@@ -522,4 +522,4 @@ private:
     size_t itemsSeen[MUTATION_LOG_TYPES];
 };
 
-#endif /* MUTATION_LOG_HH */
+#endif  // SRC_MUTATION_LOG_H_

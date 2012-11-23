@@ -7,6 +7,9 @@
 
 #include "locks.h"
 
+#ifndef TESTS_MODULE_TESTS_THREADTESTS_H_
+#define TESTS_MODULE_TESTS_THREADTESTS_H_ 1
+
 template <typename T>
 class Generator {
 public:
@@ -121,3 +124,5 @@ std::vector<T> getCompletedThreads(size_t n, Generator<T> *gen) {
 
     return results;
 }
+
+#endif  // TESTS_MODULE_TESTS_THREADTESTS_H_
