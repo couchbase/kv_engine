@@ -223,11 +223,15 @@ def stats_tapagg(mc):
 
 @cmd
 def stats_checkpoint(mc, vb=-1):
-    if vb == -1:
-        cmd = 'checkpoint'
-    else:
-        cmd = "checkpoint %s" % (str(vb))
-    stats_formatter(stats_perform(mc, cmd))
+    try:
+        vb = int(vb)
+        if vb == -1:
+            cmd = 'checkpoint'
+        else:
+            cmd = "checkpoint %s" % (str(vb))
+        stats_formatter(stats_perform(mc, cmd))
+    except ValueError:
+        print 'Specified vbucket \"%s\" is not valid' % str(vb)
 
 @cmd
 def stats_allocator(mc):

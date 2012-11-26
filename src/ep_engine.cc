@@ -2885,7 +2885,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doCheckpointStats(const void *cook
     } else if (nkey > 11) {
         std::string vbid(&stat_key[11], nkey - 11);
         uint16_t vbucket_id(0);
-        parseUint16(vbid.c_str(), &vbucket_id);
+        if (!parseUint16(vbid.c_str(), &vbucket_id)) {
+            return ENGINE_EINVAL;
+        }
         RCPtr<VBucket> vb = getVBucket(vbucket_id);
         StatCheckpointVisitor::addCheckpointStat(cookie, add_stat, epstore, vb);
     }
