@@ -1,14 +1,15 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 
 #include "config.h"
-#include <iostream>
+
 #include <cstdlib>
-#include <string>
+#include <iostream>
 #include <map>
+#include <string>
 
 #include "common.h"
-#include "statsnap.h"
 #include "ep_engine.h"
+#include "statsnap.h"
 
 extern "C" {
     static void add_stat(const char *key, const uint16_t klen,

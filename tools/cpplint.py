@@ -281,11 +281,12 @@ for op, inv_replacement in [('==', 'NE'), ('!=', 'EQ'),
 
 # These constants define types of headers for use with
 # _IncludeState.CheckNextIncludeOrder().
-_C_SYS_HEADER = 1
-_CPP_SYS_HEADER = 2
-_LIKELY_MY_HEADER = 3
-_POSSIBLE_MY_HEADER = 4
-_OTHER_HEADER = 5
+_CONFIG_HEADER = 1
+_C_SYS_HEADER = 2
+_CPP_SYS_HEADER = 3
+_LIKELY_MY_HEADER = 4
+_POSSIBLE_MY_HEADER = 5
+_OTHER_HEADER = 6
 
 
 _regexp_compile_cache = {}
@@ -377,12 +378,14 @@ class _IncludeState(dict):
   # self._section will move monotonically through this set. If it ever
   # needs to move backwards, CheckNextIncludeOrder will raise an error.
   _INITIAL_SECTION = 0
-  _MY_H_SECTION = 1
-  _C_SECTION = 2
-  _CPP_SECTION = 3
-  _OTHER_H_SECTION = 4
+  _CONFIG_SECTION = 1
+  _MY_H_SECTION = 2
+  _C_SECTION = 3
+  _CPP_SECTION = 4
+  _OTHER_H_SECTION = 5
 
   _TYPE_NAMES = {
+      _CONFIG_HEADER: 'Generated config file',
       _C_SYS_HEADER: 'C system header',
       _CPP_SYS_HEADER: 'C++ system header',
       _LIKELY_MY_HEADER: 'header this file implements',
@@ -391,6 +394,7 @@ class _IncludeState(dict):
       }
   _SECTION_NAMES = {
       _INITIAL_SECTION: "... nothing. (This can't be an error.)",
+      _CONFIG_SECTION: 'the autotools generated config.h file',
       _MY_H_SECTION: 'a header this file implements',
       _C_SECTION: 'C system header',
       _CPP_SECTION: 'C++ system header',
@@ -454,7 +458,15 @@ class _IncludeState(dict):
 
     last_section = self._section
 
-    if header_type == _C_SYS_HEADER:
+    #print self._section, header_type, self._TYPE_NAMES[header_type]
+
+    if header_type == _CONFIG_HEADER:
+      if self._section <= self._CONFIG_SECTION:
+        self._section = self._CONFIG_SECTION
+      else:
+        self._last_header = ''
+        return error_message
+    elif header_type == _C_SYS_HEADER:
       if self._section <= self._C_SECTION:
         self._section = self._C_SECTION
       else:
@@ -2338,6 +2350,7 @@ def _ClassifyInclude(fileinfo, include, is_system):
     >>> _ClassifyInclude(FileInfo('foo/foo.cc'), 'foo/bar.h', False)
     _OTHER_HEADER
   """
+
   # This is a list of all standard c++ header files, except
   # those already checked for above.
   is_stl_h = include in _STL_HEADERS
@@ -2348,6 +2361,9 @@ def _ClassifyInclude(fileinfo, include, is_system):
       return _CPP_SYS_HEADER
     else:
       return _C_SYS_HEADER
+
+  if include == 'config.h':
+    return _CONFIG_HEADER
 
   # If the target file and the include we're checking share a
   # basename when we drop common extensions, and the include
@@ -2394,9 +2410,9 @@ def CheckIncludeLine(filename, clean_lines, linenum, include_state, error):
   line = clean_lines.lines[linenum]
 
   # "include" should use the new style "foo/bar.h" instead of just "bar.h"
-  if _RE_PATTERN_INCLUDE_NEW_STYLE.search(line):
-    error(filename, linenum, 'build/include', 4,
-          'Include the directory when naming .h files')
+  #if _RE_PATTERN_INCLUDE_NEW_STYLE.search(line):
+  #  error(filename, linenum, 'build/include', 4,
+  #        'Include the directory when naming .h files')
 
   # we shouldn't include a file more than once. actually, there are a
   # handful of instances where doing so is okay, but in general it's
@@ -2413,11 +2429,12 @@ def CheckIncludeLine(filename, clean_lines, linenum, include_state, error):
       include_state[include] = linenum
 
       # We want to ensure that headers appear in the right order:
-      # 1) for foo.cc, foo.h  (preferred location)
-      # 2) c system files
-      # 3) cpp system files
-      # 4) for foo.cc, foo.h  (deprecated location)
-      # 5) other google headers
+      # 1) config.h
+      # 2) for foo.cc, foo.h  (preferred location)
+      # 3) c system files
+      # 4) cpp system files
+      # 5) for foo.cc, foo.h  (deprecated location)
+      # 6) other couchbase headers
       #
       # We classify each include statement as one of those 5 types
       # using a number of techniques. The include_state object keeps
@@ -2426,9 +2443,14 @@ def CheckIncludeLine(filename, clean_lines, linenum, include_state, error):
       error_message = include_state.CheckNextIncludeOrder(
           _ClassifyInclude(fileinfo, include, is_system))
       if error_message:
-        error(filename, linenum, 'build/include_order', 4,
-              '%s. Should be: %s.h, c system, c++ system, other.' %
-              (error_message, fileinfo.BaseName()))
+        if fileinfo.IsSource():
+          error(filename, linenum, 'build/include_order', 4,
+                '%s. Should be: config.h, %s.h, c system, c++ system, other.' %
+                (error_message, fileinfo.BaseName()))
+        else:
+          error(filename, linenum, 'build/include_order', 4,
+                '%s. Should be: config.h, c system, c++ system, other.' %
+                error_message)
       if not include_state.IsInAlphabeticalOrder(include):
         error(filename, linenum, 'build/include_alpha', 4,
               'Include "%s" not in alphabetical order' % include)
@@ -3187,6 +3209,10 @@ def ProcessFileData(filename, file_extension, lines, error,
     ProcessLine(filename, file_extension, clean_lines, line,
                 include_state, function_state, class_state, error,
                 extra_check_functions)
+  if not 'config.h' in include_state \
+    and os.path.split(filename)[-1] != 'config.h':
+    error(filename, 0, 'build/include_order', 4,
+          'config.h should be included in all files')
   class_state.CheckFinished(filename, error)
 
   CheckForIncludeWhatYouUse(filename, clean_lines, include_state, error)

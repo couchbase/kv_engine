@@ -2,17 +2,25 @@
 #ifndef SRC_TAPCONNECTION_H_
 #define SRC_TAPCONNECTION_H_ 1
 
-#include <set>
+#include "config.h"
 
-#include "common.h"
+#include <list>
+#include <map>
+#include <queue>
+#include <set>
+#include <string>
+#include <vector>
+
 #include "atomic.h"
-#include "mutex.h"
+#include "common.h"
 #include "locks.h"
+#include "mutex.h"
 #include "vbucket.h"
 
 // forward decl
 class EventuallyPersistentEngine;
 class TapConnMap;
+class TapProducer;
 class BackFillVisitor;
 class TapBGFetchCallback;
 class CompleteBackfillOperation;

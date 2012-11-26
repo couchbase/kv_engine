@@ -2,16 +2,18 @@
 #ifndef SRC_KVSTORE_H_
 #define SRC_KVSTORE_H_ 1
 
+#include "config.h"
+
+#include <cstring>
 #include <map>
 #include <string>
 #include <utility>
+#include <vector>
 
-#include <cstring>
-
-#include "stats.h"
 #include "item.h"
-#include "queueditem.h"
 #include "mutation_log.h"
+#include "queueditem.h"
+#include "stats.h"
 #include "vbucket.h"
 
 /**

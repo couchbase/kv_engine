@@ -131,11 +131,17 @@ static void initialize() {
                << "// # DO NOT EDIT! THIS IS A GENERATED FILE " << endl
                << "// ###########################################" << endl
                << "#ifndef SRC_GENERATED_CONFIGURATION_H_" << endl
-               << "#define SRC_GENERATED_CONFIGURATION_H_ 1" << endl;
+               << "#define SRC_GENERATED_CONFIGURATION_H_ 1" << endl
+               << endl
+               << "#include \"config.h\"" << endl
+               << endl
+               << "#include <string>" << endl;
 
     implementation << "// ###########################################" << endl
                    << "// # DO NOT EDIT! THIS IS A GENERATED FILE " << endl
-                   << "// ###########################################" << endl;
+                   << "// ###########################################" << endl
+                   << endl
+                   << "#include \"config.h\"" << endl;
     validators["range"] = getRangeValidatorCode;
     validators["enum"] = getEnumValidatorCode;
     getters["std::string"] = "getString";

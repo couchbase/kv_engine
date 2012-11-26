@@ -15,7 +15,9 @@
  *   limitations under the License.
  */
 #include "config.h"
+
 #include "ep_engine.h"
+#include "objectregistry.h"
 
 static ThreadLocal<EventuallyPersistentEngine*> *th;
 static ThreadLocal<Atomic<size_t>*> *initial_track;

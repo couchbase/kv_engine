@@ -1,7 +1,10 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
-#include "config.h"
-#include "vbucketmap.h"
 
+#include "config.h"
+
+#include <vector>
+
+#include "vbucketmap.h"
 
 VBucketMap::VBucketMap(Configuration &config) :
     buckets(new RCPtr<VBucket>[config.getMaxVbuckets()]),

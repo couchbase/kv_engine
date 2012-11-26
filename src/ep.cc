@@ -16,25 +16,30 @@
  */
 
 #include "config.h"
-#include <vector>
-#include <time.h>
+
 #include <string.h>
-#include <sstream>
-#include <iostream>
+#include <time.h>
+
 #include <fstream>
 #include <functional>
+#include <iostream>
+#include <map>
+#include <sstream>
+#include <string>
+#include <utility>
+#include <vector>
 
-#include "ep.h"
-#include "flusher.h"
-#include "warmup.h"
-#include "statsnap.h"
-#include "locks.h"
-#include "dispatcher.h"
-#include "kvstore.h"
-#include "ep_engine.h"
-#include "htresizer.h"
-#include "checkpoint_remover.h"
 #include "access_scanner.h"
+#include "checkpoint_remover.h"
+#include "dispatcher.h"
+#include "ep.h"
+#include "ep_engine.h"
+#include "flusher.h"
+#include "htresizer.h"
+#include "kvstore.h"
+#include "locks.h"
+#include "statsnap.h"
+#include "warmup.h"
 
 class StatsValueChangeListener : public ValueChangedListener {
 public:

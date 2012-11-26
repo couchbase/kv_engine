@@ -16,12 +16,15 @@
  */
 
 #include "config.h"
-#include "ep_engine.h"
-#include "dispatcher.h"
 
+#include <limits>
+
+#include "dispatcher.h"
+#include "ep_engine.h"
 #define STATWRITER_NAMESPACE tap
 #include "statwriter.h"
 #undef STATWRITER_NAMESPACE
+#include "tapconnection.h"
 
 const uint8_t TapEngineSpecific::nru(1);
 const short int TapEngineSpecific::sizeRevSeqno(8);

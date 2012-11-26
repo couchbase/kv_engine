@@ -2,9 +2,11 @@
 #ifndef SRC_PRIORITY_H_
 #define SRC_PRIORITY_H_ 1
 
-#include "common.h"
+#include "config.h"
 
 #include <string>
+
+#include "common.h"
 
 /**
  * Task priority definition.

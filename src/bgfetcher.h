@@ -2,12 +2,16 @@
 #ifndef SRC_BGFETCHER_H_
 #define SRC_BGFETCHER_H_ 1
 
-#include <map>
-#include <vector>
+#include "config.h"
+
 #include <list>
+#include <map>
+#include <string>
+#include <vector>
 
 #include "common.h"
 #include "dispatcher.h"
+#include "item.h"
 
 const uint16_t MAX_BGFETCH_RETRY=5;
 

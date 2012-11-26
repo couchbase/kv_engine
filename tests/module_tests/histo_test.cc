@@ -1,9 +1,10 @@
 #include "config.h"
+
+#include <algorithm>
 #include <cassert>
-#include <sstream>
 #include <cmath>
 #include <functional>
-#include <algorithm>
+#include <sstream>
 
 #include "histo.h"
 

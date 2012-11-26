@@ -14,13 +14,17 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
+
 #include "config.h"
+
+#include <memcached/extension.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
+#include <string>
+
 #include "ep_extension.h"
-#include <memcached/extension.h>
 
 #define ITEM_LOCK_TIMEOUT       15    /* 15 seconds */
 #define MAX_KEY_LEN             250   /* maximum permissible key length */

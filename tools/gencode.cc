@@ -144,6 +144,8 @@ int main(int argc, char **argv) {
                << "#ifndef " << macro << "_" << endl
                << "#define " << macro << "_" << endl
                << endl
+               << "#include \"config.h\"" << endl
+               << endl
                << "#ifdef __cplusplus" << endl
                << "extern \"C\" {" << endl
                << "#endif" << endl

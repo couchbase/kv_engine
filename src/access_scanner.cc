@@ -1,9 +1,10 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 #include "config.h"
+
 #include <iostream>
 
-#include "ep_engine.h"
 #include "access_scanner.h"
+#include "ep_engine.h"
 
 class ItemAccessVisitor : public VBucketVisitor {
 public:

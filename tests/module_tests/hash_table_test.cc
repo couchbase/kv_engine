@@ -1,14 +1,13 @@
 #include "config.h"
 
-#include <signal.h>
-
-#include <limits>
-#include <cassert>
-#include <algorithm>
-
 #include <ep.h>
 #include <item.h>
+#include <signal.h>
 #include <stats.h>
+
+#include <algorithm>
+#include <cassert>
+#include <limits>
 
 #include "threadtests.h"
 

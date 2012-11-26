@@ -1,20 +1,22 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
+
 #include "config.h"
 
-#include <string>
 #include <map>
+#include <string>
 
-#include "common.h"
-#include "ep_engine.h"
-#include "stats.h"
-#include "kvstore.h"
 #include "blackhole-kvstore/blackhole.h"
-#include "warmup.h"
+#include "common.h"
 #ifdef HAVE_LIBCOUCHSTORE
 #include "couch-kvstore/couch-kvstore.h"
 #else
 #include "couch-kvstore/couch-kvstore-dummy.h"
 #endif
+#include "ep_engine.h"
+#include "kvstore.h"
+#include "stats.h"
+#include "warmup.h"
+
 
 KVStore *KVStoreFactory::create(EventuallyPersistentEngine &theEngine,
                                 bool read_only) {

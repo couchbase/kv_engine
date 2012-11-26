@@ -18,11 +18,13 @@
 #ifndef TESTS_EP_TEST_APIS_H_
 #define TESTS_EP_TEST_APIS_H_ 1
 
-#include <map>
-#include <string>
+#include "config.h"
 
 #include <memcached/engine.h>
 #include <memcached/engine_testapp.h>
+
+#include <map>
+#include <string>
 
 #include "ep-engine/command_ids.h"
 #include "item.h"

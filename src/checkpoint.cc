@@ -1,8 +1,16 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 #include "config.h"
-#include "vbucket.h"
+
+#include <string>
+#include <utility>
+#include <vector>
+
 #include "checkpoint.h"
 #include "ep_engine.h"
+#define STATWRITER_NAMESPACE checkpoint
+#include "statwriter.h"
+#undef STATWRITER_NAMESPACE
+#include "vbucket.h"
 
 /**
  * A listener class to update checkpoint related configs at runtime.
@@ -35,10 +43,6 @@ public:
 private:
     CheckpointConfig &config;
 };
-
-#define STATWRITER_NAMESPACE checkpoint
-#include "statwriter.h"
-#undef STATWRITER_NAMESPACE
 
 Checkpoint::~Checkpoint() {
     getLogger()->log(EXTENSION_LOG_INFO, NULL,

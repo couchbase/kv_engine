@@ -2,11 +2,14 @@
 #ifndef SRC_STATS_H_
 #define SRC_STATS_H_ 1
 
-#include <map>
+#include "config.h"
+
 #include <memcached/engine.h>
 
-#include "common.h"
+#include <map>
+
 #include "atomic.h"
+#include "common.h"
 #include "histo.h"
 #include "memory_tracker.h"
 

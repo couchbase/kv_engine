@@ -1,9 +1,10 @@
 #include "config.h"
+
 #include <cassert>
 #include <iostream>
 
-#include "tools/JSON_checker.h"
 #include "common.h"
+#include "tools/JSON_checker.h"
 
 #define check(expr, msg) {if(!(expr)) \
     { std::cerr << "JSON test failed: " << msg << std::endl; exit(1); }}

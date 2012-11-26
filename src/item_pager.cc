@@ -1,15 +1,18 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 
 #include "config.h"
-#include <iostream>
+
 #include <cstdlib>
-#include <utility>
+#include <iostream>
+#include <limits>
 #include <list>
+#include <string>
+#include <utility>
 
 #include "common.h"
-#include "item_pager.h"
 #include "ep.h"
 #include "ep_engine.h"
+#include "item_pager.h"
 
 static const double EJECTION_RATIO_THRESHOLD(0.1);
 static const size_t MAX_PERSISTENCE_QUEUE_SIZE = 1000000;

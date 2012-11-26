@@ -17,6 +17,8 @@
 #ifndef TESTS_MOCK_MCCOUCH_H_
 #define TESTS_MOCK_MCCOUCH_H_ 1
 
+#include "config.h"
+
 namespace mccouch
 {
     class McCouchMockServerInstance;

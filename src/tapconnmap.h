@@ -2,13 +2,18 @@
 #ifndef SRC_TAPCONNMAP_H_
 #define SRC_TAPCONNMAP_H_ 1
 
-#include <map>
-#include <list>
+#include "config.h"
+
 #include <iterator>
+#include <list>
+#include <map>
+#include <set>
+#include <string>
+#include <vector>
 
 #include "common.h"
-#include "queueditem.h"
 #include "locks.h"
+#include "queueditem.h"
 #include "syncobject.h"
 
 // Forward declaration

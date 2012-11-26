@@ -1,11 +1,12 @@
 #include "config.h"
+
 #include <cassert>
 
-#include "dispatcher.h"
 #include "atomic.h"
+#include "dispatcher.h"
+#include "ep_engine.h"
 #include "locks.h"
 #include "priority.h"
-#include "ep_engine.h"
 
 EventuallyPersistentEngine *engine = NULL;
 Dispatcher dispatcher(*engine);

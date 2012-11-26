@@ -19,10 +19,12 @@
 #define SRC_MEMORY_TRACKER_H_ 1
 
 #include "config.h"
-#include "common.h"
-#include "atomic.h"
 
 #include <map>
+#include <string>
+
+#include "atomic.h"
+#include "common.h"
 
 /**
  * This class is used by ep-engine to hook into memcached's memory tracking

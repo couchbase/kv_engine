@@ -15,10 +15,15 @@
  *   limitations under the License.
  */
 
-#include "memory_tracker.h"
+#include "config.h"
 
-#include "objectregistry.h"
 #include <memcached/engine.h>
+
+#include <string>
+#include <utility>
+
+#include "memory_tracker.h"
+#include "objectregistry.h"
 
 bool MemoryTracker::tracking = false;
 MemoryTracker *MemoryTracker::instance = NULL;

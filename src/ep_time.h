@@ -17,8 +17,10 @@
 #ifndef SRC_EP_TIME_H_
 #define SRC_EP_TIME_H_ 1
 
-#include <time.h>
+#include "config.h"
+
 #include <memcached/types.h>
+#include <time.h>
 
 #ifdef __cplusplus
 extern "C" {

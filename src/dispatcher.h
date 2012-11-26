@@ -2,11 +2,16 @@
 #ifndef SRC_DISPATCHER_H_
 #define SRC_DISPATCHER_H_ 1
 
-#include <stdexcept>
-#include <queue>
+#include "config.h"
 
-#include "common.h"
+#include <deque>
+#include <queue>
+#include <stdexcept>
+#include <string>
+#include <vector>
+
 #include "atomic.h"
+#include "common.h"
 #include "locks.h"
 #include "priority.h"
 #include "ringbuffer.h"

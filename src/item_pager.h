@@ -2,9 +2,13 @@
 #ifndef SRC_ITEM_PAGER_H_
 #define SRC_ITEM_PAGER_H_ 1
 
-#include <map>
-#include <vector>
+#include "config.h"
+
 #include <list>
+#include <map>
+#include <string>
+#include <utility>
+#include <vector>
 
 #include "common.h"
 #include "dispatcher.h"

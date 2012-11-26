@@ -2,10 +2,14 @@
 #ifndef SRC_MUTATION_LOG_COMPACTOR_H_
 #define SRC_MUTATION_LOG_COMPACTOR_H_ 1
 
+#include "config.h"
+
+#include <string>
+
 #include "common.h"
 #include "dispatcher.h"
-#include "stats.h"
 #include "mutation_log.h"
+#include "stats.h"
 
 const size_t MAX_LOG_SIZE((size_t)(unsigned int)-1);
 const size_t MAX_ENTRY_RATIO(10);

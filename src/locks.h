@@ -2,10 +2,12 @@
 #ifndef SRC_LOCKS_H_
 #define SRC_LOCKS_H_ 1
 
-#include <stdexcept>
+#include "config.h"
+
+#include <functional>
 #include <iostream>
 #include <sstream>
-#include <functional>
+#include <stdexcept>
 
 #include "common.h"
 #include "mutex.h"

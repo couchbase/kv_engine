@@ -4,6 +4,8 @@
 
 #include "config.h"
 
+#include <string>
+
 #include "dispatcher.h"
 
 class EventuallyPersistentStore;

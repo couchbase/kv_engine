@@ -2,13 +2,21 @@
 #ifndef SRC_BACKFILL_H_
 #define SRC_BACKFILL_H_ 1
 
+#include "config.h"
+
 #include <assert.h>
+
+#include <list>
+#include <map>
 #include <set>
+#include <string>
 
 #include "common.h"
-#include "stats.h"
 #include "dispatcher.h"
 #include "ep_engine.h"
+#include "stats.h"
+
+
 
 #define BACKFILL_MEM_THRESHOLD 0.95
 

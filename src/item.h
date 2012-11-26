@@ -1,16 +1,18 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 #ifndef SRC_ITEM_H_
 #define SRC_ITEM_H_
+
 #include "config.h"
 
-#include <string>
-#include <string.h>
-#include <stdio.h>
 #include <memcached/engine.h>
+#include <stdio.h>
+#include <string.h>
 
-#include "mutex.h"
-#include "locks.h"
+#include <string>
+
 #include "atomic.h"
+#include "locks.h"
+#include "mutex.h"
 #include "objectregistry.h"
 #include "stats.h"
 

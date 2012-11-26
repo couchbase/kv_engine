@@ -1,17 +1,19 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
+
 #include "config.h"
+
 #include <pthread.h>
 #include <signal.h>
 
-#include <vector>
-#include <set>
 #include <algorithm>
+#include <set>
+#include <vector>
 
 #include "assert.h"
-#include "queueditem.h"
 #include "checkpoint.h"
-#include "vbucket.h"
+#include "queueditem.h"
 #include "stats.h"
+#include "vbucket.h"
 
 #define NUM_TAP_THREADS 3
 #define NUM_SET_THREADS 4

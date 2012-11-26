@@ -17,12 +17,14 @@
 
 #include "config.h"
 
-#include "configuration.h"
-#include <vector>
+#include <algorithm>
+#include <iostream>
 #include <limits>
 #include <sstream>
-#include <iostream>
+#include <vector>
 
+#include "configuration.h"
+#include "generated_configuration.cc"
 #define STATWRITER_NAMESPACE config
 #include "statwriter.h"
 #undef STATWRITER_NAMESPACE
@@ -30,8 +32,6 @@
 Configuration::Configuration() {
     initialize();
 }
-
-#include "generated_configuration.cc"
 
 std::string Configuration::getString(const std::string &key) const {
     Mutex *ptr = const_cast<Mutex*> (&mutex);

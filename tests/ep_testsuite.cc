@@ -14,38 +14,36 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-#include "config.h"
 
-#include <iostream>
-#include <sstream>
-#include <map>
-#include <string>
-#include <vector>
-#include <sstream>
-#include <cstdlib>
-#include <sys/stat.h>
-#include <assert.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/wait.h>
-#include <pthread.h>
-#include <netinet/in.h>
-#include <dirent.h>
+#include "config.h"
 
 #ifdef HAS_ARPA_INET_H
 #include <arpa/inet.h>
 #endif
+#include <assert.h>
+#include <dirent.h>
+#include <netinet/in.h>
+#include <pthread.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/stat.h>
+#include <sys/wait.h>
+
+#include <cstdlib>
+#include <iostream>
+#include <map>
+#include <sstream>
+#include <string>
+#include <vector>
 
 #include "atomic.h"
-#include "mutex.h"
-#include "locks.h"
-
 #include "ep-engine/command_ids.h"
-#include "ep_testsuite.h"
 #include "ep_test_apis.h"
+#include "ep_testsuite.h"
+#include "locks.h"
 #include "mock/mccouch.h"
-
+#include "mutex.h"
 
 #ifdef linux
 /* /usr/include/netinet/in.h defines macros from ntohs() to _bswap_nn to

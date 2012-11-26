@@ -5,6 +5,11 @@
 #error "This header file should only be included if you don't have libcouchstore"
 #endif
 
+#include "config.h"
+
+#include <map>
+#include <string>
+
 #include "kvstore.h"
 
 class EventuallyPersistentEngine;

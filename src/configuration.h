@@ -17,14 +17,19 @@
 #ifndef SRC_CONFIGURATION_H_
 #define SRC_CONFIGURATION_H_ 1
 
-#include <string>
+#include "config.h"
+
+#include <assert.h>
+#include <memcached/engine.h>
+
+#include <algorithm>
+#include <iostream>
 #include <map>
 #include <set>
-#include <assert.h>
-#include <iostream>
+#include <string>
+#include <vector>
 
 #include "locks.h"
-#include "memcached/engine.h"
 
 /**
  * The value changed listeners runs _without_ the global mutex for
@@ -261,7 +266,7 @@ public:
     ~Configuration();
 
     // Include the generated prototypes for the member functions
-#include "generated_configuration.h"
+#include "generated_configuration.h" // NOLINT(*)
 
     /**
      * Parse a configuration string and set the local members

@@ -17,28 +17,30 @@
 
 #include "config.h"
 
-#include <limits>
-#include <iostream>
-#include <fstream>
-#include <cstdio>
-#include <cstring>
 #include <assert.h>
 #include <fcntl.h>
-
-#include <memcached/util.h>
 #include <memcached/engine.h>
 #include <memcached/protocol_binary.h>
-#include "ep_engine.h"
-#include "tapthrottle.h"
-#include "htresizer.h"
+#include <memcached/util.h>
+
+#include <cstdio>
+#include <cstring>
+#include <fstream>
+#include <iostream>
+#include <limits>
+#include <string>
+#include <vector>
+
 #include "backfill.h"
-#include "warmup.h"
+#include "ep_engine.h"
+#include "htresizer.h"
 #include "memory_tracker.h"
 #include "stats-info.h"
-
 #define STATWRITER_NAMESPACE core_engine
 #include "statwriter.h"
 #undef STATWRITER_NAMESPACE
+#include "tapthrottle.h"
+#include "warmup.h"
 
 static SERVER_EXTENSION_API *extensionApi;
 static ALLOCATOR_HOOKS_API *hooksApi;

@@ -2,13 +2,16 @@
 #ifndef SRC_MUTEX_H_
 #define SRC_MUTEX_H_ 1
 
-#include <stdexcept>
-#include <iostream>
-#include <sstream>
+#include "config.h"
+
 #include <pthread.h>
+
+#include <cassert>
 #include <cerrno>
 #include <cstring>
-#include <cassert>
+#include <iostream>
+#include <sstream>
+#include <stdexcept>
 
 #include "common.h"
 

@@ -8,6 +8,9 @@
  * each function. Let's use function overloading instead and let the compiler
  * pick the one it wants...
  */
+
+#include "config.h"
+
 #include <atomic.h>
 #include <queue>
 

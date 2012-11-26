@@ -1,14 +1,22 @@
 #ifndef SRC_COUCH_KVSTORE_COUCH_KVSTORE_H_
 #define SRC_COUCH_KVSTORE_COUCH_KVSTORE_H_ 1
 
+#include "config.h"
+
 #include "libcouchstore/couch_db.h"
-#include "kvstore.h"
-#include "item.h"
-#include "histo.h"
-#include "stats.h"
+
+#include <map>
+#include <string>
+#include <vector>
+
 #include "configuration.h"
-#include "couch-kvstore/couch-notifier.h"
 #include "couch-kvstore/couch-fs-stats.h"
+#include "couch-kvstore/couch-notifier.h"
+#include "histo.h"
+#include "item.h"
+#include "kvstore.h"
+#include "stats.h"
+
 
 #define COUCHSTORE_NO_OPTIONS 0
 

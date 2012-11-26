@@ -1,6 +1,8 @@
 #ifndef TESTS_EP_TESTSUITE_H_
 #define TESTS_EP_TESTSUITE_H_ 1
 
+#include "config.h"
+
 #include <memcached/engine.h>
 #include <memcached/engine_testapp.h>
 

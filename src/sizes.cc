@@ -13,17 +13,20 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
+
 #include "config.h"
+
 #include <stdio.h>
+
 #include <algorithm>
 #include <limits>
 
+#include "checkpoint.h"
+#include "ep.h"
+#include "histo.h"
 #include "item.h"
 #include "stored-value.h"
-#include "ep.h"
 #include "vbucket.h"
-#include "histo.h"
-#include "checkpoint.h"
 
 static void display(const char *name, size_t size) {
     std::cout << name << "\t" << size << std::endl;

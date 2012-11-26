@@ -1,22 +1,24 @@
 #ifndef SRC_MUTATION_LOG_H_
 #define SRC_MUTATION_LOG_H_ 1
 
-#include <vector>
-#include <set>
-#include <iterator>
-#include <limits>
-#include <algorithm>
-#include <functional>
-#include <numeric>
-#include <iterator>
-#include <exception>
-
-#include <cstdio>
+#include "config.h"
 
 #include <fcntl.h>
 
-#include "common.h"
+#include <algorithm>
+#include <cstdio>
+#include <exception>
+#include <functional>
+#include <iterator>
+#include <limits>
+#include <numeric>
+#include <set>
+#include <string>
+#include <utility>
+#include <vector>
+
 #include "atomic.h"
+#include "common.h"
 #include "histo.h"
 
 #define ML_BUFLEN (128 * 1024 * 1024)

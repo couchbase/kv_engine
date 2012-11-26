@@ -2,6 +2,10 @@
 #ifndef SRC_QUEUEDITEM_H_
 #define SRC_QUEUEDITEM_H_ 1
 
+#include "config.h"
+
+#include <string>
+
 #include "common.h"
 #include "item.h"
 #include "stats.h"

@@ -2,6 +2,11 @@
 #ifndef SRC_BLACKHOLE_KVSTORE_BLACKHOLE_H_
 #define SRC_BLACKHOLE_KVSTORE_BLACKHOLE_H_ 1
 
+#include "config.h"
+
+#include <map>
+#include <string>
+
 #include "kvstore.h"
 
 /**

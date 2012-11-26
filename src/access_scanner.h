@@ -2,8 +2,13 @@
 #ifndef SRC_ACCESS_SCANNER_H_
 #define SRC_ACCESS_SCANNER_H_ 1
 
+#include "config.h"
+
+#include <string>
+
 #include "common.h"
 #include "dispatcher.h"
+#include "ep_engine.h"
 
 // Forward declaration.
 class EventuallyPersistentStore;

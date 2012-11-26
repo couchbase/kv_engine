@@ -2,11 +2,15 @@
 #ifndef SRC_SYNCOBJECT_H_
 #define SRC_SYNCOBJECT_H_ 1
 
-#include <stdexcept>
-#include <iostream>
-#include <sstream>
+#include "config.h"
+
 #include <pthread.h>
 #include <sys/time.h>
+
+#include <iostream>
+#include <sstream>
+#include <stdexcept>
+#include <string>
 
 #include "common.h"
 

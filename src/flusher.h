@@ -2,9 +2,16 @@
 #ifndef SRC_FLUSHER_H_
 #define SRC_FLUSHER_H_ 1
 
+#include "config.h"
+
+#include <list>
+#include <map>
+#include <string>
+#include <vector>
+
 #include "common.h"
-#include "ep.h"
 #include "dispatcher.h"
+#include "ep.h"
 #include "mutation_log.h"
 
 enum flusher_state {

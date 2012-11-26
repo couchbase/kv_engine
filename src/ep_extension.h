@@ -2,12 +2,14 @@
 #ifndef SRC_EP_EXTENSION_H_
 #define SRC_EP_EXTENSION_H_ 1
 
+#include "config.h"
+
+#include <memcached/extension.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "ep.h"
-#include <memcached/extension.h>
 
 extern "C" {
     typedef ENGINE_ERROR_CODE (*RESPONSE_HANDLER_T)(const void *, int , const char *);

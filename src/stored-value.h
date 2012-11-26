@@ -2,16 +2,19 @@
 #ifndef SRC_STORED_VALUE_H_
 #define SRC_STORED_VALUE_H_ 1
 
+#include "config.h"
+
+#include <algorithm>
 #include <climits>
 #include <cstring>
-#include <algorithm>
+#include <string>
 
 #include "common.h"
+#include "histo.h"
 #include "item.h"
 #include "locks.h"
-#include "stats.h"
-#include "histo.h"
 #include "queueditem.h"
+#include "stats.h"
 
 extern "C" {
     extern rel_time_t (*ep_current_time)();

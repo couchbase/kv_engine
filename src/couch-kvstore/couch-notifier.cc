@@ -1,14 +1,15 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 #include "config.h"
+
 #include <string.h>
-#include <cstdlib>
-#include <cctype>
+
 #include <algorithm>
-#include "locks.h"
+#include <cctype>
+#include <cstdlib>
 
 #include "couch-kvstore/couch-notifier.h"
 #include "ep_engine.h"
-
+#include "locks.h"
 #define STATWRITER_NAMESPACE couch_notifier
 #include "statwriter.h"
 #undef STATWRITER_NAMESPACE

@@ -17,8 +17,14 @@
 #ifndef SRC_WARMUP_H_
 #define SRC_WARMUP_H_ 1
 
-#include "ep.h"
+#include "config.h"
+
+#include <list>
+#include <map>
 #include <ostream>
+#include <string>
+
+#include "ep.h"
 
 class WarmupState {
 public:

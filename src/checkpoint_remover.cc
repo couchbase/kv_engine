@@ -1,9 +1,10 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 #include "config.h"
-#include "vbucket.h"
-#include "ep_engine.h"
-#include "ep.h"
+
 #include "checkpoint_remover.h"
+#include "ep.h"
+#include "ep_engine.h"
+#include "vbucket.h"
 
 /**
  * Remove all the closed unreferenced checkpoints for each vbucket.

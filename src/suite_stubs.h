@@ -1,6 +1,8 @@
 #ifndef SRC_SUITE_STUBS_H_
 #define SRC_SUITE_STUBS_H_ 1
 
+#include "config.h"
+
 #include <assert.h>
 
 #include "ep_testsuite.h"

@@ -1,6 +1,11 @@
 #ifndef SRC_COUCH_KVSTORE_COUCH_FS_STATS_H_
 #define SRC_COUCH_KVSTORE_COUCH_FS_STATS_H_ 1
+
+#include "config.h"
+
 #include <libcouchstore/couch_db.h>
+
+#include "histo.h"
 
 struct CouchstoreStats {
     CouchstoreStats() :

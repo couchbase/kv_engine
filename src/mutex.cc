@@ -14,9 +14,13 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
+
 #include "config.h"
-#include "mutex.h"
+
+#include <string>
+
 #include "common.h"
+#include "mutex.h"
 
 Mutex::Mutex() : held(false)
 {

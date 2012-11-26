@@ -2,6 +2,8 @@
 #ifndef SRC_ATOMIC_GCC_ATOMICS_H_
 #define SRC_ATOMIC_GCC_ATOMICS_H_ 1
 
+#include "config.h"
+
 #define ep_sync_add_and_fetch(a, b) __sync_add_and_fetch(a, b);
 #define ep_sync_bool_compare_and_swap(a, b, c) __sync_bool_compare_and_swap(a, b, c)
 #define ep_sync_fetch_and_add(a, b) __sync_fetch_and_add(a, b);

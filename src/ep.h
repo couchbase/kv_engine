@@ -17,37 +17,41 @@
 #ifndef SRC_EP_H_
 #define SRC_EP_H_ 1
 
-#include <pthread.h>
+#include "config.h"
+
 #include <assert.h>
+#include <memcached/engine.h>
+#include <pthread.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-#include <stdexcept>
-#include <iostream>
-#include <queue>
-#include <limits>
 #include <unistd.h>
 
-#include <set>
-#include <list>
-#include <queue>
 #include <algorithm>
+#include <iostream>
+#include <limits>
+#include <list>
+#include <map>
+#include <queue>
+#include <set>
+#include <stdexcept>
+#include <string>
+#include <utility>
+#include <vector>
 
-#include <memcached/engine.h>
-
-#include "queueditem.h"
-#include "stats.h"
-#include "locks.h"
-#include "kvstore.h"
-#include "stored-value.h"
 #include "atomic.h"
+#include "bgfetcher.h"
 #include "dispatcher.h"
-#include "vbucket.h"
-#include "vbucketmap.h"
 #include "item_pager.h"
+#include "kvstore.h"
+#include "locks.h"
 #include "mutation_log.h"
 #include "mutation_log_compactor.h"
-#include "bgfetcher.h"
+#include "queueditem.h"
+#include "stats.h"
+#include "stored-value.h"
+#include "vbucket.h"
+#include "vbucketmap.h"
 
 #define MAX_BG_FETCH_DELAY 900
 

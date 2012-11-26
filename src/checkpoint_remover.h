@@ -2,12 +2,15 @@
 #ifndef SRC_CHECKPOINT_REMOVER_H_
 #define SRC_CHECKPOINT_REMOVER_H_ 1
 
+#include "config.h"
+
 #include <assert.h>
 #include <set>
+#include <string>
 
 #include "common.h"
-#include "stats.h"
 #include "dispatcher.h"
+#include "stats.h"
 
 class EventuallyPersistentStore;
 

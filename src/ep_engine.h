@@ -2,28 +2,30 @@
 #ifndef SRC_EP_ENGINE_H_
 #define SRC_EP_ENGINE_H_ 1
 
-#include "locks.h"
-#include "ep.h"
-#include "flusher.h"
-#include "kvstore.h"
-#include "ep_extension.h"
-#include "dispatcher.h"
-#include "item_pager.h"
+#include "config.h"
 
-#include <cstdio>
-#include <map>
-#include <list>
-#include <sstream>
-#include <algorithm>
 #include <errno.h>
+
+#include <algorithm>
+#include <cstdio>
 #include <limits>
+#include <list>
+#include <map>
+#include <sstream>
+#include <string>
 
-#include "ep-engine/command_ids.h"
-
-#include "tapconnmap.h"
-#include "tapconnection.h"
-#include "tapthrottle.h"
 #include "configuration.h"
+#include "dispatcher.h"
+#include "ep.h"
+#include "ep-engine/command_ids.h"
+#include "ep_extension.h"
+#include "flusher.h"
+#include "item_pager.h"
+#include "kvstore.h"
+#include "locks.h"
+#include "tapconnection.h"
+#include "tapconnmap.h"
+#include "tapthrottle.h"
 
 extern "C" {
     EXPORT_FUNCTION

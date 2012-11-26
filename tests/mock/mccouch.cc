@@ -14,23 +14,26 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
+
 #include "config.h"
-#include <vector>
-#include <queue>
+
+#include <errno.h>
 #include <event.h>
-#include <fstream>
+#include <limits.h>
+#include <memcached/protocol_binary.h>
+#include <pthread.h>
+
 #include <cassert>
 #include <cstdlib>
 #include <cstring>
-#include <limits.h>
+#include <fstream>
 #include <list>
-#include <pthread.h>
-#include <errno.h>
+#include <queue>
 #include <stdexcept>
+#include <string>
+#include <vector>
 
-#include "memcached/protocol_binary.h"
 #include "mock/mccouch.h"
-
 
 using namespace std;
 using namespace mccouch;

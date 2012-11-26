@@ -2,6 +2,10 @@
 #ifndef SRC_VBUCKETMAP_H_
 #define SRC_VBUCKETMAP_H_ 1
 
+#include "config.h"
+
+#include <vector>
+
 #include "configuration.h"
 #include "vbucket.h"
 

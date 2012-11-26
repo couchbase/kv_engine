@@ -3,21 +3,25 @@
 #ifndef SRC_VBUCKET_H_
 #define SRC_VBUCKET_H_ 1
 
-#include <cassert>
-
-#include <map>
-#include <vector>
-#include <set>
-#include <sstream>
-#include <algorithm>
+#include "config.h"
 
 #include <memcached/engine.h>
-#include "queueditem.h"
-#include "common.h"
+
+#include <algorithm>
+#include <cassert>
+#include <map>
+#include <queue>
+#include <set>
+#include <sstream>
+#include <utility>
+#include <vector>
+
 #include "atomic.h"
-#include "stored-value.h"
-#include "checkpoint.h"
 #include "bgfetcher.h"
+#include "checkpoint.h"
+#include "common.h"
+#include "queueditem.h"
+#include "stored-value.h"
 
 const size_t BASE_VBUCKET_SIZE=1024;
 

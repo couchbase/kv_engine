@@ -2,13 +2,19 @@
 #ifndef SRC_COUCH_KVSTORE_COUCH_NOTIFIER_H_
 #define SRC_COUCH_KVSTORE_COUCH_NOTIFIER_H_ 1
 
-#include <vector>
-#include <queue>
+#include "config.h"
+
 #include <event.h>
-#include "mutex.h"
-#include "configuration.h"
+
+#include <list>
+#include <queue>
+#include <string>
+#include <vector>
+
 #include "callbacks.h"
+#include "configuration.h"
 #include "kvstore.h"
+#include "mutex.h"
 
 /*
  * libevent2 define evutil_socket_t so that it'll automagically work

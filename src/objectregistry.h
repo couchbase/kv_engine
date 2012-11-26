@@ -17,6 +17,8 @@
 #ifndef SRC_OBJECTREGISTRY_H_
 #define SRC_OBJECTREGISTRY_H_ 1
 
+#include "config.h"
+
 class EventuallyPersistentEngine;
 class Blob;
 class QueuedItem;

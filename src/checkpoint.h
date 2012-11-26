@@ -2,13 +2,18 @@
 #ifndef SRC_CHECKPOINT_H_
 #define SRC_CHECKPOINT_H_ 1
 
+#include "config.h"
+
 #include <assert.h>
+
 #include <list>
 #include <map>
 #include <set>
+#include <string>
+#include <vector>
 
-#include "common.h"
 #include "atomic.h"
+#include "common.h"
 #include "locks.h"
 #include "queueditem.h"
 #include "stats.h"

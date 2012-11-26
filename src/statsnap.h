@@ -2,11 +2,12 @@
 #ifndef SRC_STATSNAP_H_
 #define SRC_STATSNAP_H_ 1
 
-#include "common.h"
+#include "config.h"
 
-#include <string>
 #include <map>
+#include <string>
 
+#include "common.h"
 #include "dispatcher.h"
 #include "stats.h"
 

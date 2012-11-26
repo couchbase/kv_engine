@@ -14,13 +14,20 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-#include "config.h"
-#include "warmup.h"
-#include "ep_engine.h"
 
+#include "config.h"
+
+#include <limits>
+#include <list>
+#include <map>
+#include <string>
+#include <vector>
+
+#include "ep_engine.h"
 #define STATWRITER_NAMESPACE warmup
 #include "statwriter.h"
 #undef STATWRITER_NAMESPACE
+#include "warmup.h"
 
 const int WarmupState::Initialize = 0;
 const int WarmupState::LoadingMutationLog = 1;

@@ -1,9 +1,9 @@
 #include "config.h"
 
-#include <iostream>
-
 #include <memcached/engine.h>
 #include <memcached/protocol_binary.h>
+
+#include <iostream>
 
 #include "ep_engine.h"
 #include "histo.h"

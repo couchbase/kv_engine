@@ -16,6 +16,7 @@
  */
 
 #include "config.h"
+
 #include "atomic.h"
 
 SpinLock::SpinLock() : lock(0) {

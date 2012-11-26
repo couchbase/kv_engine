@@ -7,17 +7,9 @@
 #ifndef SRC_CONFIG_STATIC_H_
 #define SRC_CONFIG_STATIC_H_ 1
 
+#include "config.h"
+
 #define _FILE_OFFSET_BITS 64
-
-#ifdef HAVE_UNISTD_H
-#include <unistd.h>
-#endif
-
-#include <sys/types.h>
-
-#ifdef HAVE_INTTYPES_H
-#include <inttypes.h>
-#endif
 
 #if ((defined (__SUNPRO_C) || defined(__SUNPRO_CC)) || defined __GNUC__)
 #define EXPORT_FUNCTION __attribute__ ((visibility("default")))
@@ -29,12 +21,12 @@
 #include <arpa/inet.h>
 #endif
 
-#ifdef HAVE_NETDB_H
-#include <netdb.h>
+#ifdef HAVE_INTTYPES_H
+#include <inttypes.h>
 #endif
 
-#ifdef HAVE_SYS_SOCKET_H
-#include <sys/socket.h>
+#ifdef HAVE_NETDB_H
+#include <netdb.h>
 #endif
 
 #ifdef HAVE_NETINET_IN_H
@@ -43,6 +35,20 @@
 
 #ifdef HAVE_NETINET_TCP_H
 #include <netinet/tcp.h>
+#endif
+
+#ifdef HAVE_POLL_H
+#include <poll.h>
+#endif
+
+#ifdef HAVE_SYS_SOCKET_H
+#include <sys/socket.h>
+#endif
+
+#include <sys/types.h>
+
+#ifdef HAVE_UNISTD_H
+#include <unistd.h>
 #endif
 
 #ifdef HAVE_WINSOCK2_H
@@ -75,14 +81,6 @@ extern "C" {
 
 #endif
 
-#ifndef SQLITE_HAS_CODEC
-#define SQLITE_HAS_CODEC 0
-#endif
-
-#ifdef HAVE_POLL_H
-#include <poll.h>
-#endif
-
 #ifdef linux
 #undef ntohs
 #undef ntohl
@@ -101,10 +99,10 @@ extern "C" {
 #endif
 #endif
 
-#ifdef HAVE_DTRACE
-#include "dtrace/probes.h"
-#else
+#ifndef HAVE_DTRACE
 #include "dtrace/dummy_probes.h"
+#else
+#include "dtrace/probes.h"
 #endif
 
 #endif  // SRC_CONFIG_STATIC_H_

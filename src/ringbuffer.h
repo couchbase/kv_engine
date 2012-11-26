@@ -1,9 +1,11 @@
 #ifndef SRC_RINGBUFFER_H_
 #define SRC_RINGBUFFER_H_ 1
 
+#include "config.h"
+
+#include <algorithm>
 #include <cassert>
 #include <vector>
-#include <algorithm>
 
 #include "common.h"
 

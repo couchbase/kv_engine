@@ -1,17 +1,19 @@
 #ifndef SRC_HISTO_H_
 #define SRC_HISTO_H_ 1
 
+#include "config.h"
+
+#include <algorithm>
 #include <cmath>
-#include <ostream>
-#include <vector>
+#include <functional>
 #include <iterator>
 #include <limits>
-#include <algorithm>
-#include <functional>
 #include <numeric>
+#include <ostream>
+#include <vector>
 
-#include "common.h"
 #include "atomic.h"
+#include "common.h"
 
 // Forward declaration.
 template <typename T>

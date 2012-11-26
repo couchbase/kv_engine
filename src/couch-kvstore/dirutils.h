@@ -2,6 +2,8 @@
 #ifndef SRC_COUCH_KVSTORE_DIRUTILS_H_
 #define SRC_COUCH_KVSTORE_DIRUTILS_H_ 1
 
+#include "config.h"
+
 #include <string>
 #include <vector>
 

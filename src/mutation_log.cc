@@ -1,16 +1,18 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 
 #include "config.h"
-#include <algorithm>
 
 #include <sys/stat.h>
 
-#include "mutation_log.h"
-#include "ep_engine.h"
+#include <algorithm>
+#include <string>
+#include <utility>
 
 extern "C" {
 #include "crc32.h"
 }
+#include "ep_engine.h"
+#include "mutation_log.h"
 
 const char *mutation_log_type_names[] = {
     "new", "del", "del_all", "commit1", "commit2", NULL

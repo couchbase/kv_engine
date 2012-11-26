@@ -1,13 +1,15 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
+
 #include "config.h"
+
 #include <functional>
+#include <string>
 
-#include "vbucket.h"
 #include "ep_engine.h"
-
 #define STATWRITER_NAMESPACE vbucket
 #include "statwriter.h"
 #undef STATWRITER_NAMESPACE
+#include "vbucket.h"
 
 VBucketFilter VBucketFilter::filter_diff(const VBucketFilter &other) const {
     std::vector<uint16_t> tmp(acceptable.size() + other.size());

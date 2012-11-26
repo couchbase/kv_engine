@@ -2,6 +2,8 @@
 #ifndef SRC_TAPTHROTTLE_H_
 #define SRC_TAPTHROTTLE_H_ 1
 
+#include "config.h"
+
 #include "common.h"
 #include "dispatcher.h"
 #include "stats.h"

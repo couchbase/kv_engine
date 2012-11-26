@@ -1,17 +1,19 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
+
 #include "config.h"
+
 #include <pthread.h>
 #include <signal.h>
 
+#include <algorithm>
 #include <cassert>
 #include <vector>
-#include <algorithm>
 
 #include "configuration.h"
-#include "vbucket.h"
-#include "vbucketmap.h"
 #include "stats.h"
 #include "threadtests.h"
+#include "vbucket.h"
+#include "vbucketmap.h"
 
 static const size_t numThreads = 10;
 static const size_t vbucketsEach = 100;

@@ -1,26 +1,33 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
+
 #include "config.h"
-#include <string.h>
-#include <cstdlib>
-#include <cctype>
-#include <algorithm>
-#include <stdio.h>
-#include <sys/types.h>
+
 #include <fcntl.h>
+#include <stdio.h>
+#include <string.h>
 #include <sys/stat.h>
-#include <iostream>
+#include <sys/types.h>
+
+#include <algorithm>
+#include <cctype>
+#include <cstdlib>
 #include <fstream>
+#include <iostream>
+#include <list>
+#include <map>
+#include <string>
+#include <utility>
+#include <vector>
 
 #include "common.h"
-#include "ep_engine.h"
 #include "couch-kvstore/couch-kvstore.h"
 #include "couch-kvstore/dirutils.h"
-#include "tools/cJSON.h"
-#include "tools/JSON_checker.h"
-
+#include "ep_engine.h"
 #define STATWRITER_NAMESPACE couchstore_engine
 #include "statwriter.h"
 #undef STATWRITER_NAMESPACE
+#include "tools/cJSON.h"
+#include "tools/JSON_checker.h"
 
 using namespace CouchKVStoreDirectoryUtilities;
 

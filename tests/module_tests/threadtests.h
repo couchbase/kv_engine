@@ -1,9 +1,11 @@
+#include "config.h"
+
 #include <pthread.h>
 
+#include <algorithm>
 #include <cassert>
 #include <iostream>
 #include <vector>
-#include <algorithm>
 
 #include "locks.h"
 

@@ -14,14 +14,17 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
+
 #include "config.h"
 
 #include <assert.h>
-#include <iostream>
-#include <stdlib.h>
-#include <sstream>
-#include <string.h>
 #include <memcached/util.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include <algorithm>
+#include <iostream>
+#include <sstream>
 
 #include "ep_test_apis.h"
 

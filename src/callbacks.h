@@ -2,6 +2,8 @@
 #ifndef SRC_CALLBACKS_H_
 #define SRC_CALLBACKS_H_ 1
 
+#include "config.h"
+
 #include <cassert>
 
 #include "locks.h"

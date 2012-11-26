@@ -2,17 +2,16 @@
 #ifndef SRC_ATOMIC_H_
 #define SRC_ATOMIC_H_ 1
 
-#include <pthread.h>
-#include <queue>
-#include <sched.h>
+#include "config.h"
+
 #include <errno.h>
+#include <pthread.h>
+#include <sched.h>
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "callbacks.h"
-#include "locks.h"
-
-#define MAX_THREADS 100
+#include <algorithm>
+#include <queue>
 
 #if defined(HAVE_GCC_ATOMICS)
 #include "atomic/gcc_atomics.h"
@@ -21,6 +20,10 @@
 #else
 #error "Don't know how to use atomics on your target system!"
 #endif
+#include "callbacks.h"
+#include "locks.h"
+
+#define MAX_THREADS 100
 
 extern "C" {
    typedef void (*ThreadLocalDestructor)(void *);

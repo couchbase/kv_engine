@@ -1,7 +1,7 @@
 #include "config.h"
 
-#include <iostream>
 #include <cassert>
+#include <iostream>
 #include <vector>
 
 #include "ringbuffer.h"

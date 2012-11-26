@@ -1,14 +1,16 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 #include "config.h"
-#include "couch-kvstore/dirutils.h"
-#include <sys/stat.h>
-#include <cerrno>
+
 #include <gtest/gtest.h>
+#include <sys/stat.h>
+
+#include <cerrno>
+#include <iostream>
+
+#include "couch-kvstore/dirutils.h"
 
 using namespace CouchKVStoreDirectoryUtilities;
 using namespace std;
-
-#include <iostream>
 
 class DirnameTest : public ::testing::Test
 {

@@ -1,10 +1,13 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
-#include "config.h"
-#include "vbucket.h"
-#include "ep_engine.h"
-#include "ep.h"
-#include "backfill.h"
 
+#include "config.h"
+
+#include <string>
+
+#include "atomic.h"
+#include "backfill.h"
+#include "ep.h"
+#include "vbucket.h"
 
 static bool isMemoryUsageTooHigh(EPStats &stats) {
     double memoryUsed = static_cast<double>(stats.getTotalMemoryUsed());
