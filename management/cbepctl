@@ -4,6 +4,7 @@ import time
 import clitool
 import mc_bin_client
 import memcacheConstants
+import sys
 
 def cmd(f):
     """Decorate a function with code to authenticate based on 1-2
