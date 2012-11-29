@@ -103,6 +103,9 @@ public:
             store.getMutationLogCompactorConfig().setMaxEntryRatio(value);
         } else if (key.compare("klog_compactor_queue_cap") == 0) {
             store.getMutationLogCompactorConfig().setMaxEntryRatio(value);
+        } else if (key.compare("mutation_mem_threshold") == 0) {
+            double mem_threshold = static_cast<double>(value) / 100;
+            StoredValue::setMutationMemoryThreshold(mem_threshold);
         } else if (key.compare("tap_throttle_queue_cap") == 0) {
             store.getEPEngine().getTapThrottle().setQueueCap(value);
         } else if (key.compare("tap_throttle_cap_pcnt") == 0) {
@@ -388,6 +391,11 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
     stats.warmupNumReadCap.set(static_cast<double>(config.getWarmupMinItemsThreshold()) / 100.0);
     config.addValueChangedListener("warmup_min_items_threshold",
                                    new StatsValueChangeListener(stats));
+
+    double mem_threshold = static_cast<double>(config.getMutationMemThreshold()) / 100;
+    StoredValue::setMutationMemoryThreshold(mem_threshold);
+    config.addValueChangedListener("mutation_mem_threshold",
+                                   new EPStoreValueChangeListener(*this));
 
     if (startVb0) {
         RCPtr<VBucket> vb(new VBucket(0, vbucket_state_active, stats,

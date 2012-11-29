@@ -379,6 +379,9 @@ extern "C" {
                 validate(vsize, static_cast<uint64_t>(0),
                          std::numeric_limits<uint64_t>::max());
                 e->getConfiguration().setMemHighWat(vsize);
+            } else if (strcmp(keyz, "mutation_mem_threshold") == 0) {
+                validate(v, 0, 100);
+                e->getConfiguration().setMutationMemThreshold(v);
             } else if (strcmp(keyz, "timing_log") == 0) {
                 EPStats &stats = e->getEpStats();
                 std::ostream *old = stats.timingLog;
@@ -1296,7 +1299,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     // Start updating the variables from the config!
     HashTable::setDefaultNumBuckets(configuration.getHtSize());
     HashTable::setDefaultNumLocks(configuration.getHtLocks());
-    StoredValue::setMutationMemoryThreshold(configuration.getMutationMemThreshold());
     std::string storedValType = configuration.getStoredValType();
     if (storedValType.length() > 0) {
         if (!HashTable::setDefaultStorageValueType(storedValType.c_str())) {

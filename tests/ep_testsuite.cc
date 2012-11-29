@@ -2153,8 +2153,11 @@ static enum test_result test_whitespace_db(ENGINE_HANDLE *h,
 }
 
 static enum test_result test_memory_limit(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    set_param(h, h1, engine_param_flush, "mutation_mem_threshold", "95");
     int used = get_int_stat(h, h1, "mem_used");
-    int max = static_cast<int>(get_int_stat(h, h1, "ep_max_data_size") * 0.9);
+    double mem_threshold =
+        static_cast<double>(get_int_stat(h, h1, "ep_mutation_mem_threshold")) / 100;
+    int max = static_cast<int>(get_int_stat(h, h1, "ep_max_data_size") * mem_threshold);
     check(get_int_stat(h, h1, "ep_oom_errors") == 0 &&
           get_int_stat(h, h1, "ep_tmp_oom_errors") == 0, "Expected no OOM errors.");
     assert(used < max);
@@ -6351,7 +6354,7 @@ engine_test_t* get_tests(void) {
                  NULL, prepare, cleanup),
         TestCase("test total memory limit", test_memory_limit,
                  test_setup, teardown,
-                 "max_size=5492;ht_locks=1;ht_size=3;chk_remover_stime=1;chk_period=60;mutation_mem_threshold=0.9",
+                 "max_size=5492;ht_locks=1;ht_size=3;chk_remover_stime=1;chk_period=60",
                  prepare, cleanup),
         TestCase("test max_size changes", test_max_size_settings,
                  test_setup, teardown,
