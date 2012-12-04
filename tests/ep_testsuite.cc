@@ -1947,6 +1947,29 @@ static enum test_result test_touch(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return SUCCESS;
 }
 
+static enum test_result test_touch_mb7342(ENGINE_HANDLE *h,
+                                          ENGINE_HANDLE_V1 *h1) {
+    const char *key = "MB-7342";
+    // Store the item!
+    item *itm = NULL;
+    check(store(h, h1, NULL, OPERATION_SET, key, "v", &itm) == ENGINE_SUCCESS,
+          "Failed set.");
+    h1->release(h, NULL, itm);
+
+    touch(h, h1, key, 0, 0);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "touch key");
+
+    check_key_value(h, h1, key, "v", 1);
+
+    // Travel a loong time to see if the object is still there (the default
+    // store sets an exp time of 3600
+    testHarness.time_travel(3700);
+
+    check_key_value(h, h1, key, "v", 1);
+
+    return SUCCESS;
+}
+
 static enum test_result test_gat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     // key is a mandatory field!
     gat(h, h1, NULL, 0, 10);
@@ -6380,6 +6403,8 @@ engine_test_t* get_tests(void) {
         TestCase("incr expiry", test_bug2799, test_setup,
                  teardown, NULL, prepare, cleanup),
         TestCase("test touch", test_touch, test_setup, teardown,
+                 NULL, prepare, cleanup),
+        TestCase("test touch (MB-7342)", test_touch_mb7342, test_setup, teardown,
                  NULL, prepare, cleanup),
         TestCase("test gat", test_gat, test_setup, teardown,
                  NULL, prepare, cleanup),

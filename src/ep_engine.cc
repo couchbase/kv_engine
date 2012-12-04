@@ -3533,7 +3533,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::touch(const void *cookie,
     // try to get the object
     std::string k(static_cast<const char*>(key), nkey);
 
-    exptime = serverApi->core->abstime(serverApi->core->realtime(exptime));
+    if (exptime != 0) {
+        exptime = serverApi->core->abstime(serverApi->core->realtime(exptime));
+    }
     GetValue gv(epstore->getAndUpdateTtl(k, vbucket, cookie,
                                          request->request.opcode != PROTOCOL_BINARY_CMD_TOUCH,
                                          (time_t)exptime));
