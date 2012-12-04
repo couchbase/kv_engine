@@ -524,6 +524,7 @@ void EventuallyPersistentStore::initialize() {
 
 EventuallyPersistentStore::~EventuallyPersistentStore() {
     bool forceShutdown = engine.isForceShutdown();
+    stopWarmup();
     stopFlusher();
     stopBgFetcher();
     dispatcher->schedule(shared_ptr<DispatcherCallback>(new StatSnap(&engine, true)),
@@ -2666,6 +2667,18 @@ void EventuallyPersistentStore::maybeEnableTraffic()
         getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                 "Enough number of items loaded to enable traffic");
         engine.warmupCompleted();
+    }
+}
+
+void EventuallyPersistentStore::stopWarmup(void)
+{
+    // forcefully stop current warmup task
+    if (engine.stillWarmingUp()) {
+        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+            "Stopping warmup while engine is loading data from underlying "
+            "storage, shutdown = %s\n",
+            engine.isShutdownMode() ? "yes" : "no");
+        warmupTask->stop();
     }
 }
 

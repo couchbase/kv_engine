@@ -318,7 +318,8 @@ void Warmup::setEstimatedWarmupCount(size_t to)
     estimatedWarmupCount = to;
 }
 
-void Warmup::setReconstructLog(bool val) {
+void Warmup::setReconstructLog(bool val)
+{
     reconstructLog = val;
 }
 
@@ -327,6 +328,17 @@ void Warmup::start(void)
     store->stats.warmupComplete.set(false);
     dispatcher->schedule(shared_ptr<WarmupStepper>(new WarmupStepper(this)),
                          &task, Priority::WarmupPriority);
+}
+
+void Warmup::stop(void)
+{
+    if (task.get()) {
+        dispatcher->cancel(task);
+        // immediately transition to completion so that
+        // the warmup listener also breaks away from the waiting
+        transition(WarmupState::Done);
+        done(*dispatcher, task);
+    }
 }
 
 bool Warmup::initialize(Dispatcher&, TaskId &)

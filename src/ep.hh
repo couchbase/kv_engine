@@ -732,6 +732,7 @@ protected:
     bool warmupFromLog(const std::map<uint16_t, vbucket_state> &state,
                        shared_ptr<Callback<GetValue> >cb);
     void warmupCompleted();
+    void stopWarmup(void);
 
 private:
 

@@ -62,6 +62,7 @@ public:
 
     bool step(Dispatcher&, TaskId &);
     void start(void);
+    void stop(void);
 
     void addWarmupStateListener(WarmupStateListener *listener);
     void removeWarmupStateListener(WarmupStateListener *listener);
