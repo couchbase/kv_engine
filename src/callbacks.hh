@@ -72,6 +72,8 @@ template <typename RV>
 class Callback {
 public:
 
+    Callback() : myStatus(0) {}
+
     virtual ~Callback() {}
 
     /**
