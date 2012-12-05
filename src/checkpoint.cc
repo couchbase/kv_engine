@@ -381,7 +381,7 @@ bool CheckpointManager::registerTAPCursor_UNLOCKED(const std::string &name,
         CheckpointCursor cursor(name, it, (*it)->begin(),
                             numItems - ((*it)->getNumItems() + 1), // 1 is for checkpoint start item
                             closedCheckpointOnly, open_chk_id);
-        tapCursors[name] = cursor;
+        tapCursors.insert(std::pair<std::string, CheckpointCursor>(name, cursor));
         (*it)->registerCursorName(name);
     } else {
         size_t offset = 0;
@@ -409,7 +409,7 @@ bool CheckpointManager::registerTAPCursor_UNLOCKED(const std::string &name,
         }
 
         CheckpointCursor cursor(name, it, curr, offset, closedCheckpointOnly, open_chk_id);
-        tapCursors[name] = cursor;
+        tapCursors.insert(std::pair<std::string, CheckpointCursor>(name, cursor));
         // Register the tap cursor's name to the checkpoint.
         (*it)->registerCursorName(name);
     }

@@ -57,9 +57,14 @@ class CheckpointCursor {
     friend class CheckpointManager;
     friend class Checkpoint;
 public:
-    CheckpointCursor() { }
 
-    CheckpointCursor(const std::string &n) : name(n) { }
+    CheckpointCursor(const std::string &n)
+        : name(n),
+          currentCheckpoint(),
+          currentPos(),
+          offset(0),
+          closedCheckpointOnly(false),
+          openChkIdAtRegistration(0) { }
 
     CheckpointCursor(const std::string &n,
                      std::list<Checkpoint*>::iterator checkpoint,

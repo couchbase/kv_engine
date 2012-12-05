@@ -324,7 +324,7 @@ void Configuration::addStats(ADD_STAT add_stat, const void *c) const {
  */
 class ConfigItem: public config_item {
 public:
-    ConfigItem(const char *theKey, config_datatype theDatatype) {
+    ConfigItem(const char *theKey, config_datatype theDatatype) : holder(NULL) {
         key = theKey;
         datatype = theDatatype;
         value.dt_string = &holder;

@@ -140,7 +140,7 @@ class TapCheckpointState {
 public:
     TapCheckpointState() :
         currentCheckpointId(0), lastSeqNum(0), bgResultSize(0),
-        bgJobIssued(0), bgJobCompleted(0), lastItem(false) {}
+        bgJobIssued(0), bgJobCompleted(0), lastItem(false), state(backfill) {}
 
     TapCheckpointState(uint16_t vb, uint64_t checkpointId, tap_checkpoint_state s) :
         vbucket(vb), currentCheckpointId(checkpointId), lastSeqNum(0),
