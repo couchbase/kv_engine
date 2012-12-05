@@ -752,7 +752,7 @@ static enum test_result test_append(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
           == ENGINE_E2BIG,
           "Expected append failure.");
     h1->release(h, NULL, i);
-    delete bigBinaryData3;
+    delete[] bigBinaryData3;
 
     check(storeCasVb11(h, h1, NULL, OPERATION_APPEND, "key",
                        binaryData2, sizeof(binaryData2) - 1, 82758, &i, 0, 0)
@@ -802,7 +802,7 @@ static enum test_result test_prepend(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
           == ENGINE_E2BIG,
           "Expected prepend failure.");
     h1->release(h, NULL, i);
-    delete bigBinaryData3;
+    delete[] bigBinaryData3;
 
     check(storeCasVb11(h, h1, NULL, OPERATION_PREPEND, "key",
                        binaryData2, sizeof(binaryData2) - 1, 82758, &i, 0, 0)
