@@ -34,7 +34,7 @@ public:
 
     WarmupState() : state(Initialize) {}
 
-    void transition(int to);
+    void transition(int to, bool allowAnystate);
     const char *toString(void) const;
 
     int getState(void) const { return state; }
@@ -97,7 +97,7 @@ private:
     bool loadingData(Dispatcher&, TaskId &);
     bool done(Dispatcher&, TaskId &);
 
-    void transition(int to);
+    void transition(int to, bool force=false);
 
 
     LoadStorageKVPairCallback *createLKVPCB(const std::map<uint16_t, vbucket_state> &st,

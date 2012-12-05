@@ -61,8 +61,8 @@ const char *WarmupState::getStateDescription(int st) const {
     }
 }
 
-void WarmupState::transition(int to) {
-    if (legalTransition(to)) {
+void WarmupState::transition(int to, bool allowAnystate) {
+    if (allowAnystate || legalTransition(to)) {
         std::stringstream ss;
         ss << "Warmup transition from state \""
            << getStateDescription(state) << "\" to \""
@@ -336,7 +336,7 @@ void Warmup::stop(void)
         dispatcher->cancel(task);
         // immediately transition to completion so that
         // the warmup listener also breaks away from the waiting
-        transition(WarmupState::Done);
+        transition(WarmupState::Done, true);
         done(*dispatcher, task);
     }
 }
@@ -591,10 +591,12 @@ bool Warmup::step(Dispatcher &d, TaskId &t) {
     }
 }
 
-void Warmup::transition(int to) {
+void Warmup::transition(int to, bool force) {
     int old = state.getState();
-    state.transition(to);
-    fireStateChange(old, to);
+    if (old != WarmupState::Done) {
+        state.transition(to, force);
+        fireStateChange(old, to);
+    }
 }
 
 void Warmup::addWarmupStateListener(WarmupStateListener *listener) {
