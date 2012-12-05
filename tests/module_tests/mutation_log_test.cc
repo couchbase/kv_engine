@@ -31,8 +31,8 @@ static void testUnconfigured() {
 static void testSyncSet() {
 
     // Some basics
-    assert(SYNC_COMMIT_1 | SYNC_COMMIT_2 == SYNC_FULL);
-    assert(FLUSH_COMMIT_1 | FLUSH_COMMIT_2 == FLUSH_FULL);
+    assert((SYNC_COMMIT_1 | SYNC_COMMIT_2) == SYNC_FULL);
+    assert((FLUSH_COMMIT_1 | FLUSH_COMMIT_2) == FLUSH_FULL);
     // No overlap
     assert((FLUSH_FULL & ~SYNC_FULL) == FLUSH_FULL);
     assert((SYNC_FULL & ~FLUSH_FULL) == SYNC_FULL);
@@ -53,7 +53,7 @@ static void testSyncSet() {
     assert(ml.getSyncConfig() == SYNC_COMMIT_2);
 
     assert(ml.setSyncConfig("full"));
-    assert(ml.getSyncConfig() == SYNC_COMMIT_1|SYNC_COMMIT_2);
+    assert(ml.getSyncConfig() == (SYNC_COMMIT_1|SYNC_COMMIT_2));
 
     assert(!ml.setSyncConfig("otherwise"));
 
@@ -71,7 +71,7 @@ static void testSyncSet() {
     assert(ml.getFlushConfig() == FLUSH_COMMIT_2);
 
     assert(ml.setFlushConfig("full"));
-    assert(ml.getFlushConfig() == FLUSH_COMMIT_1|FLUSH_COMMIT_2);
+    assert(ml.getFlushConfig() == (FLUSH_COMMIT_1|FLUSH_COMMIT_2));
 
     assert(!ml.setFlushConfig("otherwise"));
 
