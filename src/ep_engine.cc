@@ -1924,6 +1924,22 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
     std::string k(static_cast<const char*>(key), nkey);
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
 
+    if (tap_event == TAP_MUTATION || tap_event == TAP_DELETION) {
+        if (!tapThrottle->shouldProcess()) {
+            ++stats.tapThrottled;
+            if (connection->supportsAck()) {
+                ret = ENGINE_TMPFAIL;
+            } else {
+                ret = ENGINE_DISCONNECT;
+                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                 "%s Can't throttle streams without ack support."
+                                 " Force disconnect...\n",
+                                 connection->logHeader());
+            }
+            return ret;
+        }
+    }
+
     switch (tap_event) {
     case TAP_ACK:
         ret = processTapAck(cookie, tap_seqno, tap_flags, k);
@@ -2010,20 +2026,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
         break;
     case TAP_MUTATION:
         {
-            if (!tapThrottle->shouldProcess()) {
-                ++stats.tapThrottled;
-                if (connection->supportsAck()) {
-                    ret = ENGINE_TMPFAIL;
-                } else {
-                    ret = ENGINE_DISCONNECT;
-                    getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                     "%s Can't throttle streams without ack support."
-                                     " Force disconnect...\n",
-                                     connection->logHeader());
-                }
-                break;
-            }
-
             BlockTimer timer(&stats.tapMutationHisto);
             TapConsumer *tc = dynamic_cast<TapConsumer*>(connection);
             value_t vblob(Blob::New(static_cast<const char*>(data), ndata));
