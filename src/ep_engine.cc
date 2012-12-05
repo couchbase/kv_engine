@@ -1951,6 +1951,14 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
         break;
     case TAP_DELETION:
         {
+            TapConsumer *tc = dynamic_cast<TapConsumer*>(connection);
+            if (!tc) {
+                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                                 "%s not a consumer! Force disconnect\n",
+                                 connection->logHeader());
+                return ENGINE_DISCONNECT;
+            }
+
             bool meta = false;
             ItemMetaData itemMeta(0, cas, flags, exptime);
 
@@ -1964,12 +1972,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
             }
             uint64_t delCas = 0;
             ret = epstore->deleteItem(k, &delCas, vbucket, cookie, true, meta,
-                                      &itemMeta);
+                                      &itemMeta, tc->isBackfillPhase(vbucket));
             if (ret == ENGINE_KEY_ENOENT) {
                 ret = ENGINE_SUCCESS;
             }
-            TapConsumer *tc = dynamic_cast<TapConsumer*>(connection);
-            if (tc && !tc->supportsCheckpointSync()) {
+            if (!tc->supportsCheckpointSync()) {
                 // If the checkpoint synchronization is not supported,
                 // check if a new checkpoint should be created or not.
                 tc->checkVBOpenCheckpoint(vbucket);

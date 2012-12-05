@@ -365,14 +365,14 @@ public:
     /**
      * delete an item in the store.
      * @param key the key of the item
-     * @param newSeqno the new seq no of the item
      * @param cas the CAS ID for a CASed delete (0 to override)
      * @param vbucket the vbucket for the key
      * @param cookie the cookie representing the client
      * @param force override access to the vbucket even if the state of the
      *              vbucket would deny mutations.
      * @param use_meta delete an item using its meta data
-     * @param newItem pointer to metadata of new item
+     * @param newItemMeta pointer to metadata of new item
+     * @param tapBackfill true if an item deletion is from TAP backfill stream
      * @return the result of the delete operation
      */
     ENGINE_ERROR_CODE deleteItem(const std::string &key,
@@ -381,7 +381,8 @@ public:
                                  const void *cookie,
                                  bool force,
                                  bool use_meta,
-                                 ItemMetaData *newItemMeta);
+                                 ItemMetaData *newItemMeta,
+                                 bool tapBackfill = false);
 
 
 

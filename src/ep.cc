@@ -1663,7 +1663,8 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteItem(const std::string &key,
                                                         const void *cookie,
                                                         bool force,
                                                         bool use_meta,
-                                                        ItemMetaData *itemMeta)
+                                                        ItemMetaData *itemMeta,
+                                                        bool tapBackfill)
 {
     uint64_t newSeqno = itemMeta->seqno;
     uint64_t newCas   = itemMeta->cas;
@@ -1691,7 +1692,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteItem(const std::string &key,
     StoredValue *v = vb->ht.unlocked_find(key, bucket_num, use_meta, false);
     if (!v) {
         if (vb->getState() != vbucket_state_active && force) {
-            queueDirty(vb, key, vbucket, queue_op_del, newSeqno);
+            queueDirty(vb, key, vbucket, queue_op_del, newSeqno, tapBackfill);
         }
         return ENGINE_KEY_ENOENT;
     }
@@ -1717,7 +1718,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteItem(const std::string &key,
     if (delrv == WAS_CLEAN || delrv == WAS_DIRTY || delrv == NOT_FOUND) {
         uint64_t seqnum = v ? v->getSeqno() : 1;
         lh.unlock();
-        queueDirty(vb, key, vbucket, queue_op_del, seqnum);
+        queueDirty(vb, key, vbucket, queue_op_del, seqnum, tapBackfill);
     }
     return rv;
 }
