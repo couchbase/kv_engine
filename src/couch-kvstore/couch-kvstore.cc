@@ -1189,7 +1189,6 @@ couchstore_error_t CouchKVStore::openDB(uint16_t vbucketId,
     std::string dbFileName = getDBFileName(dbname, vbucketId, fileRev);
     couch_file_ops* ops = &statCollectingFileOps;
 
-    int retry = 0;
     uint64_t newRevNum = fileRev;
     couchstore_error_t errorCode = COUCHSTORE_SUCCESS;
 
@@ -1225,10 +1224,10 @@ couchstore_error_t CouchKVStore::openDB(uint16_t vbucketId,
         st.numOpenFailure++;
         getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                          "Warning: couchstore_open_db failed, name=%s "
-                         "option=%X rev=%d retried=%d error=%s [%s]\n",
+                         "option=%X rev=%d error=%s [%s]\n",
                          dbFileName.c_str(), options,
                          ((newRevNum > fileRev) ? newRevNum : fileRev),
-                         retry, couchstore_strerror(errorCode),
+                         couchstore_strerror(errorCode),
                          couchkvstore_strerrno(errorCode).c_str());
     } else {
         if (newRevNum > fileRev) {

@@ -48,12 +48,12 @@ static bool isRange(std::set<uint16_t>::const_iterator it,
 
 std::ostream& operator <<(std::ostream &out, const VBucketFilter &filter)
 {
-    bool needcomma = false;
     std::set<uint16_t>::const_iterator it;
 
     if (filter.acceptable.empty()) {
         out << "{ empty }";
     } else {
+        bool needcomma = false;
         out << "{ ";
         for (it = filter.acceptable.begin();
              it != filter.acceptable.end();
