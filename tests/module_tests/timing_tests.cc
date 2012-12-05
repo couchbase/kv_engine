@@ -196,6 +196,7 @@ static test_result test_persistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                            size, 9713, &it, 0, 0) == ENGINE_SUCCESS,
                   "store failure");
     }
+    free(data);
     wait_for_flusher_to_settle(h, h1);
 
     std::cout << total << " at " << size << " - "
