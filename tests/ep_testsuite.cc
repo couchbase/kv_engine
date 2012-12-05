@@ -2701,7 +2701,6 @@ static enum test_result test_tap_sends_deleted(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     uint32_t seqno;
     uint16_t vbucket;
     tap_event_t event;
-    std::string key;
 
     do {
         event = iter(h, cookie, &it, &engine_specific,
@@ -4594,7 +4593,6 @@ extern "C" {
               "Expected CHECKPOINT_PERSISTENCE_TIMEOUT was adjusted to be greater"
               " than 10 secs");
 
-        item *it = NULL;
         for (int j = 0; j < 1000; ++j) {
             std::stringstream ss;
             ss << "key" << j;

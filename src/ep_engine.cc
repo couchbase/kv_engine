@@ -3937,9 +3937,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(const void* cookie,
     uint64_t metacas = ntohll(request->message.body.cas);
     expiration = expiration == 0 ? 0 : ep_abs_time(ep_reltime(expiration));
 
-    size_t nbytes = ntohl(request->message.header.request.bodylen);
-    nbytes -= nkey + request->message.header.request.extlen;
-
     ItemMetaData itm_meta(metacas, seqno, flags, expiration);
     ENGINE_ERROR_CODE ret = epstore->deleteItem(key, &cas, vbucket, cookie,
                                                 false, true, &itm_meta);
