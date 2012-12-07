@@ -1576,6 +1576,13 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, uint64_t rev, Doc **doc
                 return errCode;
             }
 
+            if (engine.isShutdownMode()) {
+                // shutdown is in progress, no need to notify mccouch
+                // the compactor must have already exited!
+                closeDatabaseHandle(db);
+                break;
+            }
+
             RememberingCallback<uint16_t> cb;
             uint64_t newHeaderPos = couchstore_get_header_position(db);
             couchNotifier->notify_headerpos_update(vbid, newFileRev, newHeaderPos, cb);
