@@ -123,10 +123,6 @@ public:
     Atomic<size_t> vbucketDeletionFail;
 
     //! Beyond this point are config items
-    //! Minimum data age before a record can be persisted
-    Atomic<int> min_data_age;
-    //! Maximum data age before a record is forced to be persisted
-    Atomic<int> queue_age_cap;
     //! Pager low water mark.
     Atomic<size_t> mem_low_wat;
     //! Pager high water mark

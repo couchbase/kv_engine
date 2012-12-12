@@ -29,9 +29,7 @@ For introductory information on stats within membase, start with the
 | ep_storage_age                     | Seconds since most recently            |
 |                                    | stored object was initially queued     |
 | ep_storage_age_highwat             | ep_storage_age high water mark         |
-| ep_min_data_age                    | Minimum data age setting               |
 | ep_startup_time                    | System-generated engine startup time   |
-| ep_queue_age_cap                   | Queue age cap setting                  |
 | ep_max_txn_size                    | Max number of updates per transaction  |
 | ep_data_age                        | Seconds since most recently            |
 |                                    | stored object was modified             |
@@ -912,25 +910,6 @@ multiple times before hitting persistence, it starts to be clearer.
 
 =ep_storage_age= is how long the object has been waiting to be
 persisted.
-
-** Too Young
-
-=ep_too_young= is incremented every time an object is encountered
-whose =data age= is more recent than is allowable for the persistence
-layer.
-
-For example, if an object that was queued five minutes ago is picked
-off the =todo= queue and found to have been updated fifteen seconds
-ago, it will not be stored, =ep_too_young= will be incremented, and
-the key will go back on the input queue.
-
-** Too Old
-
-=ep_too_old= is incremented every time an object is encountered whose
-=queue age= exceeds the =ep_queue_age_cap= setting.
-
-=ep_queue_age_cap= generally exists as a safety net to prevent the
-=ep_min_data_age= setting from preventing persistence altogether.
 
 ** Warming Up
 

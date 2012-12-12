@@ -261,17 +261,6 @@
             "default": "max",
             "type": "size_t"
         },
-        "min_data_age": {
-            "default": "0",
-            "descr": "Minimum data stability time before persist",
-            "type": "size_t",
-            "validator": {
-                "range": {
-                    "max": 86400,
-                    "min": 0
-                }
-            }
-        },
         "mutation_mem_threshold": {
             "default": "90",
             "type": "size_t"
@@ -301,17 +290,6 @@
         "postInitfile": {
             "default": "",
             "type": "std::string"
-        },
-        "queue_age_cap": {
-            "default": "900",
-            "descr": "Maximum queue time before forcing persist",
-            "type": "size_t",
-            "validator": {
-                "range": {
-                    "max": 86400,
-                    "min": 0
-                }
-            }
         },
         "tap_ack_grace_period": {
             "default": "300",

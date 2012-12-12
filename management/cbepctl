@@ -148,13 +148,11 @@ Available params for "set":
                                 all ejected items by item pager.
     pager_unbiased_period     - Period after last access scanner run during
                                 which item pager preserve working set.
-    queue_age_cap             - Maximum queue age before flushing data.
     max_size                  - Max memory used by the server.
     max_txn_size              - Maximum number of items in a flusher
                                 transaction.
     mem_high_wat              - High water mark.
     mem_low_wat               - Low water mark.
-    min_data_age              - Minimum data age before flushing data.
     mutation_mem_threshold    - Memory threshold (%) on the current bucket quota
                                 for accepting a new mutation.
     timing_log                - path to log detailed timing stats.

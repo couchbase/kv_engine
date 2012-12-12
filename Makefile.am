@@ -426,7 +426,7 @@ engine_tests: ep.la ep_testsuite.la
                 $(ENGINE_TESTS_EXTRA_OPTIONS) \
                 -E .libs/ep.so -t $(TEST_TIMEOUT) \
 		-T .libs/ep_testsuite.so \
-		-e 'flushall_enabled=true;ht_size=13;ht_locks=7;;min_data_age=0;'
+		-e 'flushall_enabled=true;ht_size=13;ht_locks=7;'
 
 test: all check-TESTS engine_tests cpplint sizes
 	./sizes

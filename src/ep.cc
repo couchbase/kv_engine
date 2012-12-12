@@ -48,9 +48,7 @@ public:
     }
 
     virtual void sizeValueChanged(const std::string &key, size_t value) {
-        if (key.compare("min_data_age") == 0) {
-            stats.min_data_age.set(value);
-        } else if (key.compare("max_size") == 0) {
+        if (key.compare("max_size") == 0) {
             stats.setMaxDataSize(value);
             size_t low_wat = static_cast<size_t>(static_cast<double>(value) * 0.6);
             size_t high_wat = static_cast<size_t>(static_cast<double>(value) * 0.75);
@@ -60,8 +58,6 @@ public:
             stats.mem_low_wat.set(value);
         } else if (key.compare("mem_high_wat") == 0) {
             stats.mem_high_wat.set(value);
-        } else if (key.compare("queue_age_cap") == 0) {
-            stats.queue_age_cap.set(value);
         } else if (key.compare("tap_throttle_threshold") == 0) {
             stats.tapThrottleThreshold.set(static_cast<double>(value) / 100.0);
         } else if (key.compare("warmup_min_memory_threshold") == 0) {
@@ -355,10 +351,6 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
     config.addValueChangedListener("max_txn_size",
                                    new EPStoreValueChangeListener(*this));
 
-    stats.min_data_age.set(config.getMinDataAge());
-    config.addValueChangedListener("min_data_age",
-                                   new StatsValueChangeListener(stats));
-
     stats.setMaxDataSize(config.getMaxSize());
     config.addValueChangedListener("max_size",
                                    new StatsValueChangeListener(stats));
@@ -369,10 +361,6 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
 
     stats.mem_high_wat.set(config.getMemHighWat());
     config.addValueChangedListener("mem_high_wat",
-                                   new StatsValueChangeListener(stats));
-
-    stats.queue_age_cap.set(config.getQueueAgeCap());
-    config.addValueChangedListener("queue_age_cap",
                                    new StatsValueChangeListener(stats));
 
     stats.tapThrottleThreshold.set(static_cast<double>(config.getTapThrottleThreshold())
@@ -1950,7 +1938,7 @@ int EventuallyPersistentStore::flushOutgoingQueue(vb_flush_queue_t *flushQueue,
 
     tctx.enter();
 
-    int oldest = stats.min_data_age;
+    int oldest = 0;
     int completed = 0;
     size_t iteration = 0;
     std::vector<uint16_t> invalid_vbs;
@@ -2361,28 +2349,10 @@ int EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
 
     if (isDirty) {
         dirtied = v->getDataAge();
-        // Calculate stats if this had a positive time.
-        rel_time_t now = ep_current_time();
-        int dataAge = now - dirtied;
-        int dirtyAge = now - queued;
-        bool eligible = true;
-
-        if (v->isPendingId()) {
-            eligible = false;
-        } else if (dirtyAge > stats.queue_age_cap.get()) {
-            ++stats.tooOld;
-        } else if (dataAge < stats.min_data_age.get()) {
-            eligible = false;
-            // Skip this one.  It's too young.
-            ret = stats.min_data_age.get() - dataAge;
-            ++stats.tooYoung;
-        }
-
-        if (eligible) {
+        if (!v->isPendingId()) {
+            int dirtyAge = ep_current_time() - queued;
             stats.dirtyAgeHisto.add(dirtyAge * 1000000);
-            stats.dataAgeHisto.add(dataAge * 1000000);
             stats.dirtyAge.set(dirtyAge);
-            stats.dataAge.set(dataAge);
             stats.dirtyAgeHighWat.set(std::max(stats.dirtyAge.get(),
                                                stats.dirtyAgeHighWat.get()));
             stats.dataAgeHighWat.set(std::max(stats.dataAge.get(),

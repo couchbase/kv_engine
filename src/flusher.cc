@@ -181,7 +181,6 @@ bool Flusher::step(Dispatcher &d, TaskId &tid) {
                 getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "%s",
                                  ss.str().c_str());
             }
-            store->stats.min_data_age = 0;
             completeFlush();
             getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "Flusher stopped\n");
             transition_state(stopped);
@@ -236,7 +235,7 @@ int Flusher::doFlush() {
 
     // On a fresh entry, flushQueue is null and we need to build one.
     if (!flushQueue) {
-        flushRv = store->stats.min_data_age;
+        flushRv = 0;
         flushQueue = store->beginFlush();
         if (flushQueue) {
             getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
