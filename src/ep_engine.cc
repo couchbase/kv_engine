@@ -325,11 +325,7 @@ extern "C" {
         // Handle the actual mutation.
         try {
             int v = atoi(valz);
-            if (strcmp(keyz, "min_data_age") == 0) {
-                e->getConfiguration().setMinDataAge(v);
-            } else if (strcmp(keyz, "queue_age_cap") == 0) {
-                e->getConfiguration().setQueueAgeCap(v);
-            } else if (strcmp(keyz, "max_txn_size") == 0) {
+            if (strcmp(keyz, "max_txn_size") == 0) {
                 e->getConfiguration().setMaxTxnSize(v);
             } else if (strcmp(keyz, "bg_fetch_delay") == 0) {
                 e->getConfiguration().setBgFetchDelay(v);

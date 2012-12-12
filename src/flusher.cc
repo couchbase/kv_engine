@@ -168,7 +168,6 @@ bool Flusher::step(Dispatcher &d, TaskId &tid) {
                    << std::endl;
                 LOG(EXTENSION_LOG_DEBUG, "%s", ss.str().c_str());
             }
-            store->stats.min_data_age = 0;
             completeFlush();
             LOG(EXTENSION_LOG_DEBUG, "Flusher stopped");
             transition_state(stopped);

@@ -150,7 +150,6 @@ Available params for "set":
                                    transaction.
     mem_high_wat                 - High water mark.
     mem_low_wat                  - Low water mark.
-    min_data_age                 - Minimum data age before flushing data.
     mutation_mem_threshold       - Memory threshold (%) on the current bucket quota
                                    for accepting a new mutation.
     timing_log                   - path to log detailed timing stats.

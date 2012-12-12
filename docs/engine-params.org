@@ -38,8 +38,6 @@ memcached like this:
 | mem_high_wat                | int    | Automatically evict when exceeding         |
 |                             |        | this size.                                 |
 | mem_low_wat                 | int    | Low water mark to aim for when evicting.   |
-| min_data_age                | int    | Minimum data stability time before         |
-|                             |        | persist.                                   |
 | queue_age_cap               | int    | Maximum queue time before forcing persist. |
 | couch_response_timeout      | int    | The maximum time to wait for couch to      |
 |                             |        | respond to a persistence request before    |
