@@ -414,8 +414,6 @@ public:
      */
     void queueBackfill(const VBucketFilter &backfillVBFilter, TapProducer *tc);
 
-    void reportNullCookie(TapConnection &tc);
-
     void notifyIOComplete(const void *cookie, ENGINE_ERROR_CODE status) {
         if (cookie == NULL) {
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
