@@ -2572,6 +2572,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                     replicaCountVisitor.getPendingWrites() +
                     pendingCountVisitor.getPendingWrites(),
                     add_stat, cookie);
+    add_casted_stat("ep_meta_data_memory",
+                    activeCountVisitor.getMetaDataMemory() +
+                    replicaCountVisitor.getMetaDataMemory() +
+                    pendingCountVisitor.getMetaDataMemory(),
+                    add_stat, cookie);
 
     size_t memUsed =  stats.getTotalMemoryUsed();
     add_casted_stat("mem_used", memUsed, add_stat, cookie);

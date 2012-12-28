@@ -330,6 +330,7 @@ For introductory information on stats within membase, start with the
 | ep_diskqueue_drain            | Total drained items on disk queue          |
 | ep_diskqueue_pending          | Total bytes of pending writes              |
 | ep_vb_snapshot_total          | Total VB state snapshots persisted in disk |
+| ep_meta_data_memory           | Total memory used by meta data             |
 
 
 *** Active vBucket class stats
