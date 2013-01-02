@@ -5,10 +5,12 @@ use warnings;
 use strict;
 
 my $version = `git describe`;
+my $changeset = `git rev-parse HEAD`;
 if ($ENV{'PRODUCT_VERSION'}) {
    $version = $ENV{'PRODUCT_VERSION'}
 }
 chomp $version;
+chomp $changeset;
 # Test the various versions.
 #my $version = 'foob';
 #my $version = '1.4.2-30-gf966dba';
@@ -20,7 +22,9 @@ unless ($version =~ m/^\d+\.\d+\.\d+/) {
 }
 
 $version =~ s/-/_/g;
-write_file('m4/version.m4', "m4_define([VERSION_NUMBER], [$version])\n");
+my $version_str = "m4_define([VERSION_NUMBER], [$version])\n";
+my $changeset_str = "m4_define([GIT_CHANGESET], [$changeset])\n";
+write_file('m4/version.m4', ($version_str . $changeset_str));
 my ($VERSION, $FULLVERSION, $RELEASE);
 
 if ($version =~ m/^(\d+\.\d+\.\d+)_rc(\d+)$/) {
