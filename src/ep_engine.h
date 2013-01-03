@@ -269,7 +269,20 @@ public:
                                int nkey,
                                ADD_STAT add_stat);
 
-    void resetStats() { stats.reset(); }
+    void resetStats() {
+        stats.reset();
+        if (epstore) {
+            if (epstore->getRWUnderlying()) {
+                epstore->getRWUnderlying()->resetStats();
+            }
+            if (epstore->getROUnderlying()) {
+                epstore->getROUnderlying()->resetStats();
+            }
+            if (epstore->getAuxUnderlying()) {
+                epstore->getAuxUnderlying()->resetStats();
+            }
+        }
+    }
 
     ENGINE_ERROR_CODE store(const void *cookie,
                             item* itm,

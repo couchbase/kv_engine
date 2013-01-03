@@ -3,6 +3,7 @@
 #include <libcouchstore/couch_db.h>
 
 struct CouchstoreStats {
+public:
     CouchstoreStats() :
         readSeekHisto(ExponentialGenerator<size_t>(1, 2), 50),
         readSizeHisto(ExponentialGenerator<size_t>(1, 2), 25),
@@ -20,6 +21,15 @@ struct CouchstoreStats {
     Histogram<size_t> writeSizeHisto;
     //Time spent in sync
     Histogram<hrtime_t> syncTimeHisto;
+
+    void reset() {
+        readTimeHisto.reset();
+        readSeekHisto.reset();
+        readSizeHisto.reset();
+        writeTimeHisto.reset();
+        writeSizeHisto.reset();
+        syncTimeHisto.reset();
+    }
 };
 
 couch_file_ops getCouchstoreStatsOps(CouchstoreStats* stats);

@@ -141,6 +141,12 @@ public:
     }
 
     /**
+     * Resets kvstore specific stats
+     */
+     virtual void resetStats() {
+     }
+
+    /**
      * Reset the store to a clean state.
      */
     virtual void reset() = 0;

@@ -29,6 +29,29 @@ public:
       writeSizeHisto(ExponentialGenerator<size_t>(1, 2), 25) {
     }
 
+    void reset() {
+        docsCommitted.set(0);
+        numOpen.set(0);
+        numClose.set(0);
+        numLoadedVb.set(0);
+        numGetFailure.set(0);
+        numSetFailure.set(0);
+        numDelFailure.set(0);
+        numOpenFailure.set(0);
+        numVbSetFailure.set(0);
+        numCommitRetry.set(0);
+
+        readTimeHisto.reset();
+        readSizeHisto.reset();
+        writeTimeHisto.reset();
+        writeSizeHisto.reset();
+        delTimeHisto.reset();
+        commitHisto.reset();
+        commitRetryHisto.reset();
+        saveDocsHisto.reset();
+        fsStats.reset();
+    }
+
     // the number of docs committed
     Atomic<size_t> docsCommitted;
     // the number of open() calls
@@ -449,6 +472,13 @@ public:
      */
     void addTimingStats(const std::string &prefix, ADD_STAT add_stat,
                         const void *c);
+
+    /**
+     * Resets couchstore stats
+     */
+    void resetStats() {
+        st.reset();
+    }
 
     void processTxnSizeChange(size_t txn_size) {
         (void) txn_size;
