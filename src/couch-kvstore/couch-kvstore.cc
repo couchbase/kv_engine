@@ -877,6 +877,7 @@ void CouchKVStore::addTimingStats(const std::string &prefix,
     addStat(prefix_str, "save_documents", st.saveDocsHisto, add_stat, c);
     addStat(prefix_str, "writeTime",   st.writeTimeHisto,   add_stat, c);
     addStat(prefix_str, "writeSize",   st.writeSizeHisto,   add_stat, c);
+    addStat(prefix_str, "bulkSize",    st.batchSize,        add_stat, c);
 
     // Couchstore file ops stats
     addStat(prefix_str, "fsReadTime",  st.fsStats.readTimeHisto,  add_stat, c);
@@ -1504,6 +1505,7 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, uint64_t rev, Doc **doc
                                      vbid, cb.val);
                 }
             }
+            st.batchSize.add(docCount);
             closeDatabaseHandle(db);
         }
     } while (retry_save_docs);

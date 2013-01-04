@@ -381,6 +381,9 @@ extern "C" {
                 validate(vsize, static_cast<uint64_t>(0),
                          std::numeric_limits<uint64_t>::max());
                 e->getConfiguration().setMemHighWat(vsize);
+            } else if (strcmp(keyz, "mutation_mem_threshold") == 0) {
+                validate(v, 0, 100);
+                e->getConfiguration().setMutationMemThreshold(v);
             } else if (strcmp(keyz, "timing_log") == 0) {
                 EPStats &stats = e->getEpStats();
                 std::ostream *old = stats.timingLog;
@@ -1298,7 +1301,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     // Start updating the variables from the config!
     HashTable::setDefaultNumBuckets(configuration.getHtSize());
     HashTable::setDefaultNumLocks(configuration.getHtLocks());
-    StoredValue::setMutationMemoryThreshold(configuration.getMutationMemThreshold());
 
     if (configuration.getMaxSize() == 0) {
         configuration.setMaxSize(std::numeric_limits<size_t>::max());
@@ -2564,6 +2566,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                     replicaCountVisitor.getPendingWrites() +
                     pendingCountVisitor.getPendingWrites(),
                     add_stat, cookie);
+    add_casted_stat("ep_meta_data_memory",
+                    activeCountVisitor.getMetaDataMemory() +
+                    replicaCountVisitor.getMetaDataMemory() +
+                    pendingCountVisitor.getMetaDataMemory(),
+                    add_stat, cookie);
 
     size_t memUsed =  stats.getTotalMemoryUsed();
     add_casted_stat("mem_used", memUsed, add_stat, cookie);
@@ -2572,8 +2579,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     add_casted_stat("ep_value_size", stats.totalValueSize, add_stat, cookie);
     add_casted_stat("ep_overhead", stats.memOverhead, add_stat, cookie);
     add_casted_stat("ep_max_data_size", epstats.getMaxDataSize(), add_stat, cookie);
-    add_casted_stat("ep_mem_low_wat", epstats.mem_low_wat, add_stat, cookie);
-    add_casted_stat("ep_mem_high_wat", epstats.mem_high_wat, add_stat, cookie);
     add_casted_stat("ep_total_cache_size",
                     activeCountVisitor.getCacheSize() +
                     replicaCountVisitor.getCacheSize() +

@@ -37,6 +37,30 @@ public:
       writeSizeHisto(ExponentialGenerator<size_t>(1, 2), 25) {
     }
 
+    void reset() {
+        docsCommitted.set(0);
+        numOpen.set(0);
+        numClose.set(0);
+        numLoadedVb.set(0);
+        numGetFailure.set(0);
+        numSetFailure.set(0);
+        numDelFailure.set(0);
+        numOpenFailure.set(0);
+        numVbSetFailure.set(0);
+        numCommitRetry.set(0);
+
+        readTimeHisto.reset();
+        readSizeHisto.reset();
+        writeTimeHisto.reset();
+        writeSizeHisto.reset();
+        delTimeHisto.reset();
+        commitHisto.reset();
+        commitRetryHisto.reset();
+        saveDocsHisto.reset();
+        batchSize.reset();
+        fsStats.reset();
+    }
+
     // the number of docs committed
     Atomic<size_t> docsCommitted;
     // the number of open() calls
@@ -73,6 +97,8 @@ public:
     Histogram<hrtime_t> commitRetryHisto;
     // Time spent in couchstore save documents
     Histogram<hrtime_t> saveDocsHisto;
+    // Batch size of saveDocs calls
+    Histogram<size_t> batchSize;
 
     // Stats from the underlying OS file operations done by couchstore.
     CouchstoreStats fsStats;
@@ -447,6 +473,13 @@ public:
      */
     void addTimingStats(const std::string &prefix, ADD_STAT add_stat,
                         const void *c);
+
+    /**
+     * Resets couchstore stats
+     */
+    void resetStats() {
+        st.reset();
+    }
 
     static int recordDbDump(Db *db, DocInfo *docinfo, void *ctx);
     static int recordDbStat(Db *db, DocInfo *docinfo, void *ctx);
