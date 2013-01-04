@@ -49,6 +49,7 @@ public:
         commitHisto.reset();
         commitRetryHisto.reset();
         saveDocsHisto.reset();
+        batchSize.reset();
         fsStats.reset();
     }
 
@@ -88,6 +89,8 @@ public:
     Histogram<hrtime_t> commitRetryHisto;
     // Time spent in couchstore save documents
     Histogram<hrtime_t> saveDocsHisto;
+    // Batch size of saveDocs calls
+    Histogram<size_t> batchSize;
 
     // Stats from the underlying OS file operations done by couchstore.
     CouchstoreStats fsStats;
