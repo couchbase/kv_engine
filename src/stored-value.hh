@@ -46,15 +46,6 @@ public:
         ::operator delete(p);
      }
 
-    /**
-     * Update the "last used" time for the object.
-     */
-    void touch() {
-        if (isResident() && !isDirty()) {
-            dirtiness = ep_current_time() >> 1;
-        }
-    }
-
     uint8_t getNRUValue();
 
     void setNRUValue(uint8_t nru_val);
@@ -67,7 +58,6 @@ public:
      * Mark this item as needing to be persisted.
      */
     void markDirty() {
-        dirtiness = ep_current_time() >> 1;
         _isDirty = 1;
     }
 
@@ -79,8 +69,7 @@ public:
      *
      * @param dataAge the previous dataAge of this record
      */
-    void reDirty(rel_time_t dataAge) {
-        dirtiness = dataAge >> 1;
+    void reDirty() {
         _isDirty = 1;
         clearPendingId();
     }
@@ -92,12 +81,8 @@ public:
      * @param dataAge an output parameter that captures the time this
      *                item was marked dirty
      */
-    void markClean(rel_time_t *dataAge) {
-        if (dataAge) {
-            *dataAge = dirtiness << 1;
-        }
+    void markClean() {
         _isDirty = 0;
-        touch();
     }
 
     /**
@@ -291,24 +276,6 @@ public:
      */
     uint64_t getCas() const {
         return cas;
-    }
-
-    /**
-     * Get the time of dirtiness of this item.
-     *
-     * Note that the clock loses four bits of resolution, so the
-     * timestamp only has four seconds of accuracy.
-     */
-    rel_time_t getDataAge() const {
-        return dirtiness << 1;
-    }
-
-    /**
-     * Get the timestamp at which time this object went non-resident.
-     */
-    rel_time_t getEvictedTime() const {
-        assert(!isResident());
-        return getDataAge();
     }
 
     /**
@@ -580,9 +547,7 @@ private:
 
     StoredValue(const Item &itm, StoredValue *n, EPStats &stats, HashTable &ht,
                 bool setDirty = true) :
-        value(itm.getValue()), next(n), id(itm.getId()),
-        dirtiness(0), flags(itm.getFlags())
-    {
+        value(itm.getValue()), next(n), id(itm.getId()), flags(itm.getFlags()) {
         cas = itm.getCas();
         exptime = itm.getExptime();
         locked = false;
@@ -595,7 +560,7 @@ private:
         if (setDirty) {
             markDirty();
         } else {
-            markClean(NULL);
+            markClean();
         }
 
         increaseMetaDataSize(ht, metaDataSize());
@@ -605,11 +570,6 @@ private:
 
     void setResident() {
         resident = true;
-    }
-
-    void timestampEviction() {
-        assert(!isResident());
-        dirtiness = ep_current_time() >> 1;
     }
 
     friend class HashTable;
@@ -623,7 +583,6 @@ private:
     rel_time_t         lock_expiry;    //!< getl lock expiration
     uint32_t           exptime;        //!< Expiration time of this item.
     uint32_t           flags;          // 4 bytes
-    uint32_t           dirtiness : 31; // 31 bits
     bool               _isDirty  :  1; // 1 bit
     bool               locked    :  1;
     bool               resident  :  1; //!< True if this object's value is in memory.

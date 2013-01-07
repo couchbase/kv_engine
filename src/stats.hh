@@ -24,7 +24,6 @@ class EPStats {
 public:
 
     EPStats() : dirtyAgeHisto(GrowingWidthGenerator<hrtime_t>(0, ONE_SECOND, 1.4), 25),
-                dataAgeHisto(GrowingWidthGenerator<hrtime_t>(0, ONE_SECOND, 1.4), 25),
                 diskCommitHisto(GrowingWidthGenerator<hrtime_t>(0, ONE_SECOND, 1.4), 25),
                 mlogCompactorHisto(GrowingWidthGenerator<hrtime_t>(0, ONE_SECOND, 1.4), 25),
                 timingLog(NULL), maxDataSize(DEFAULT_MAX_DATA_SIZE) {}
@@ -112,10 +111,6 @@ public:
     Atomic<rel_time_t> dirtyAge;
     //! Oldest enqueued object we've seen while persisting.
     Atomic<rel_time_t> dirtyAgeHighWat;
-    //! How old persisted data was when it hit the persistence layer
-    Atomic<rel_time_t> dataAge;
-    //! Oldest data we've seen while persisting.
-    Atomic<rel_time_t> dataAgeHighWat;
     //! Amount of time spent in the commit phase.
     Atomic<rel_time_t> commit_time;
     //! Number of times we deleted a vbucket.
@@ -215,9 +210,6 @@ public:
     //! Total wall time of deleting vbuckets
     Atomic<hrtime_t> vbucketDelTotWalltime;
 
-    //! Histogram of time an item spends non-resident.
-    Histogram<rel_time_t> pagedOutTimeHisto;
-
     /* TAP related stats */
     //! The total number of tap events sent (not including noops)
     Atomic<size_t> numTapFetched;
@@ -280,8 +272,6 @@ public:
 
     //! Histogram of queue processing dirty age.
     Histogram<hrtime_t> dirtyAgeHisto;
-    //! Histogram of queue processing data age.
-    Histogram<hrtime_t> dataAgeHisto;
 
     //! Histogram of item allocation sizes.
     Histogram<size_t> itemAllocSizeHisto;
@@ -399,7 +389,6 @@ public:
         pendingOpsHisto.reset();
         bgWaitHisto.reset();
         bgLoadHisto.reset();
-        pagedOutTimeHisto.reset();
         tapBgWaitHisto.reset();
         tapBgLoadHisto.reset();
         getVbucketCmdHisto.reset();
@@ -420,7 +409,6 @@ public:
         diskVBDelHisto.reset();
         diskCommitHisto.reset();
 
-        dataAgeHisto.reset();
         itemAllocSizeHisto.reset();
         dirtyAgeHisto.reset();
         mlogCompactorHisto.reset();
@@ -446,10 +434,6 @@ struct key_stats {
     uint64_t cas;
     //! The expiration time of the itme
     rel_time_t exptime;
-    //! When the item was dirtied (if applicable).
-    rel_time_t data_age;
-    //! Last modification time
-    rel_time_t last_modification_time;
     //! The item's current flags.
     uint32_t flags;
     //! The vbucket state for this key

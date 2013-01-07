@@ -33,7 +33,6 @@ bool StoredValue::ejectValue(EPStats &stats, HashTable &ht) {
         uval.len = valLength();
         value_t sp(Blob::New(uval.chlen, sizeof(uval)));
         resident = false;
-        timestampEviction();
         value = sp;
         size_t newsize = size();
         size_t new_valsize = value->length();
@@ -99,7 +98,7 @@ bool StoredValue::unlocked_restoreValue(Item *itm, EPStats &stats,
         if (!isResident()) {
             --ht.numNonResidentItems;
         }
-        markClean(NULL);
+        markClean();
         return true;
     }
 
@@ -118,8 +117,6 @@ bool StoredValue::unlocked_restoreValue(Item *itm, EPStats &stats,
             }
         }
 
-        rel_time_t evicted_time(getEvictedTime());
-        stats.pagedOutTimeHisto.add(ep_current_time() - evicted_time);
         resident = true;
         value = itm->getValue();
 
@@ -158,7 +155,7 @@ mutation_type_t HashTable::insert(const Item &itm, bool eject, bool partial) {
 
     if (v == NULL) {
         v = valFact(itm, values[bucket_num], *this);
-        v->markClean(NULL);
+        v->markClean();
         if (partial) {
             v->resident = false;
             ++numNonResidentItems;
@@ -188,7 +185,7 @@ mutation_type_t HashTable::insert(const Item &itm, bool eject, bool partial) {
         v->setValue(const_cast<Item&>(itm), stats, *this, true);
     }
 
-    v->markClean(NULL);
+    v->markClean();
 
     if (eject && !partial) {
         v->ejectValue(stats, *this);
@@ -457,7 +454,7 @@ add_type_t HashTable::unlocked_add(int &bucket_num,
             if (isDirty) {
                 v->markDirty();
             } else {
-                v->markClean(NULL);
+                v->markClean();
             }
         } else {
             v = valFact(itm, values[bucket_num], *this, isDirty);
