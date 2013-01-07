@@ -2378,14 +2378,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                     epstats.dirtyAge, add_stat, cookie);
     add_casted_stat("ep_storage_age_highwat",
                     epstats.dirtyAgeHighWat, add_stat, cookie);
-    add_casted_stat("ep_data_age",
-                    epstats.dataAge, add_stat, cookie);
-    add_casted_stat("ep_data_age_highwat",
-                    epstats.dataAgeHighWat, add_stat, cookie);
-    add_casted_stat("ep_too_young",
-                    epstats.tooYoung, add_stat, cookie);
-    add_casted_stat("ep_too_old",
-                    epstats.tooOld, add_stat, cookie);
     add_casted_stat("ep_total_enqueued",
                     epstats.totalEnqueued, add_stat, cookie);
     add_casted_stat("ep_total_new_items", stats.newItems, add_stat, cookie);
@@ -3149,10 +3141,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doKeyStats(const void *cookie,
         add_casted_stat("key_exptime", kstats.exptime, add_stat, cookie);
         add_casted_stat("key_flags", kstats.flags, add_stat, cookie);
         add_casted_stat("key_cas", kstats.cas, add_stat, cookie);
-        add_casted_stat("key_data_age", kstats.dirty ? now -
-                        kstats.data_age : 0, add_stat, cookie);
-        add_casted_stat("key_last_modification_time", kstats.last_modification_time,
-                        add_stat, cookie);
         add_casted_stat("key_vb_state", VBucket::toString(kstats.vb_state), add_stat,
                         cookie);
         if (validate) {
@@ -3172,8 +3160,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTimingStats(const void *cookie,
     add_casted_stat("pending_ops", stats.pendingOpsHisto, add_stat, cookie);
 
     add_casted_stat("storage_age", stats.dirtyAgeHisto, add_stat, cookie);
-    add_casted_stat("data_age", stats.dataAgeHisto, add_stat, cookie);
-    add_casted_stat("paged_out_time", stats.pagedOutTimeHisto, add_stat, cookie);
 
     // Regular commands
     add_casted_stat("get_cmd", stats.getCmdHisto, add_stat, cookie);

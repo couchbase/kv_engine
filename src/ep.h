@@ -766,14 +766,11 @@ private:
      * @param key the item's key to retrieve
      * @param vbid the vbucket containing the item
      * @param f the method to invoke on the item
-     * @param arg the argument to supply to the method f
      *
      * @return true if the object was found and method was invoked
      */
-    template<typename A>
     bool invokeOnLockedStoredValue(const std::string &key, uint16_t vbid,
-                                   void (StoredValue::* f)(A),
-                                   A &arg) {
+                                   void (StoredValue::* f)()) {
         RCPtr<VBucket> vb = getVBucket(vbid);
         if (!vb) {
             return false;
@@ -784,7 +781,7 @@ private:
         StoredValue *v = vb->ht.unlocked_find(key, bucket_num, true);
 
         if (v) {
-            std::mem_fun(f)(v, arg);
+            std::mem_fun(f)(v);
         }
         return v != NULL;
     }

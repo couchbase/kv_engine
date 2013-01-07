@@ -499,7 +499,7 @@ static void testSizeStatsEject() {
 
     StoredValue *v(ht.find(kstring));
     assert(v);
-    v->markClean(NULL);
+    v->markClean();
     assert(v->ejectValue(global_stats, ht));
 
     ht.del(k);
@@ -530,7 +530,7 @@ static void testSizeStatsEjectFlush() {
 
     StoredValue *v(ht.find(kstring));
     assert(v);
-    v->markClean(NULL);
+    v->markClean();
     assert(v->ejectValue(global_stats, ht));
 
     ht.clear();

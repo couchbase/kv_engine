@@ -699,7 +699,6 @@ StoredValue *EventuallyPersistentStore::fetchValidValue(RCPtr<VBucket> &vb,
             }
             return NULL;
         }
-        v->touch();
     }
     return v;
 }
@@ -723,7 +722,7 @@ protocol_binary_response_status EventuallyPersistentStore::evictKey(const std::s
     *msg_size = 0;
     if (v) {
         if (force)  {
-            v->markClean(NULL);
+            v->markClean();
         }
         if (v->isResident()) {
             if (v->ejectValue(stats, vb->ht)) {
@@ -1622,9 +1621,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::getKeyStats(const std::string &key,
         kstats.exptime = v->getExptime();
         kstats.flags = v->getFlags();
         kstats.cas = v->getCas();
-        kstats.data_age = v->getDataAge();
         kstats.vb_state = vb->getState();
-        kstats.last_modification_time = ep_abs_time(v->getDataAge());
         return ENGINE_SUCCESS;
     }
     return ENGINE_KEY_ENOENT;
@@ -2151,9 +2148,9 @@ public:
 
     PersistenceCallback(const queued_item &qi, std::queue<queued_item> &q,
                         EventuallyPersistentStore *st, MutationLog *ml,
-                        rel_time_t d, EPStats *s, uint64_t c) :
+                        EPStats *s, uint64_t c) :
         queuedItem(qi), rq(q), store(st), mutationLog(ml),
-        dirtied(d), stats(s), cas(c) {
+        stats(s), cas(c) {
 
         assert(s);
     }
@@ -2178,7 +2175,7 @@ public:
                 if (v && v->getCas() == cas) {
                     // mark this item clean only if current and stored cas
                     // value match
-                    v->markClean(NULL);
+                    v->markClean();
                     vbucket_state_t vbstate = vb->getState();
                     if (vbstate != vbucket_state_active &&
                         vbstate != vbucket_state_pending) {
@@ -2275,8 +2272,7 @@ private:
         ++stats->flushFailed;
         store->invokeOnLockedStoredValue(queuedItem->getKey(),
                                          queuedItem->getVBucketId(),
-                                         &StoredValue::reDirty,
-                                         dirtied);
+                                         &StoredValue::reDirty);
         rq.push(queuedItem);
     }
 
@@ -2284,7 +2280,6 @@ private:
     std::queue<queued_item> &rq;
     EventuallyPersistentStore *store;
     MutationLog *mutationLog;
-    rel_time_t dirtied;
     EPStats *stats;
     uint64_t cas;
     DISALLOW_COPY_AND_ASSIGN(PersistenceCallback);
@@ -2342,24 +2337,21 @@ int EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
 
     if (!deleted && isDirty && v->isExpired(ep_real_time() + itemExpiryWindow)) {
         ++stats.flushExpired;
-        v->markClean(&dirtied);
+        v->markClean();
         v->clearId();
         return ret;
     }
 
     if (isDirty) {
-        dirtied = v->getDataAge();
         if (!v->isPendingId()) {
             int dirtyAge = ep_current_time() - queued;
             stats.dirtyAgeHisto.add(dirtyAge * 1000000);
             stats.dirtyAge.set(dirtyAge);
             stats.dirtyAgeHighWat.set(std::max(stats.dirtyAge.get(),
                                                stats.dirtyAgeHighWat.get()));
-            stats.dataAgeHighWat.set(std::max(stats.dataAge.get(),
-                                              stats.dataAgeHighWat.get()));
         } else {
             isDirty = false;
-            v->reDirty(dirtied);
+            v->reDirty();
             rejectQueue.push(qi);
             ++vb->opsReject;
         }
@@ -2389,7 +2381,7 @@ int EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
                              stats.timingLog);
             PersistenceCallback *cb;
             cb = new PersistenceCallback(qi, rejectQueue, this, &mutationLog,
-                                         dirtied, &stats, itm.getCas());
+                                         &stats, itm.getCas());
             tctx.addCallback(cb);
             rwUnderlying->set(itm, *cb);
             if (rowid == -1)  {
@@ -2415,7 +2407,7 @@ int EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
             BlockTimer timer(&stats.diskDelHisto, "disk_delete", stats.timingLog);
             PersistenceCallback *cb;
             cb = new PersistenceCallback(qi, rejectQueue, this, &mutationLog,
-                                         dirtied, &stats, 0);
+                                         &stats, 0);
             tctx.addCallback(cb);
             rwUnderlying->del(itm, rowid, *cb);
         }

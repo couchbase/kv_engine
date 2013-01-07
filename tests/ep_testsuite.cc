@@ -3523,9 +3523,6 @@ static enum test_result test_bg_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     testHarness.time_travel(43);
     check_key_value(h, h1, "a", "b\r\n", 3, 0);
 
-    checkeq(1, get_int_stat(h, h1, "paged_out_time_32,64", "timings"),
-            "Expected one sample from 32s to 64s.");
-
     checkeq(1, get_int_stat(h, h1, "ep_bg_num_samples"),
             "Expected one sample");
 
@@ -3625,10 +3622,7 @@ static enum test_result test_key_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(vals.find("key_exptime") != vals.end(), "Found no key_exptime");
     check(vals.find("key_flags") != vals.end(), "Found no key_flags");
     check(vals.find("key_cas") != vals.end(), "Found no key_cas");
-    check(vals.find("key_data_age") != vals.end(), "Found no key_data_age");
     check(vals.find("key_vb_state") != vals.end(), "Found no key_vb_state");
-    check(vals.find("key_last_modification_time") != vals.end(),
-                    "Found no key_last_modification_time");
 
     // stat for key "k2" and vbucket "1"
     const char *statkey2 = "key k2 1";
@@ -3638,10 +3632,7 @@ static enum test_result test_key_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(vals.find("key_exptime") != vals.end(), "Found no key_exptime");
     check(vals.find("key_flags") != vals.end(), "Found no key_flags");
     check(vals.find("key_cas") != vals.end(), "Found no key_cas");
-    check(vals.find("key_data_age") != vals.end(), "Found no key_data_age");
     check(vals.find("key_vb_state") != vals.end(), "Found no key_vb_state");
-    check(vals.find("key_last_modification_time") != vals.end(),
-                    "Found no key_last_modification_time");
 
     testHarness.destroy_cookie(cookie);
     return SUCCESS;
@@ -3673,9 +3664,6 @@ static enum test_result test_vkey_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
     check(vals.find("key_exptime") != vals.end(), "Found no key_exptime");
     check(vals.find("key_flags") != vals.end(), "Found no key_flags");
     check(vals.find("key_cas") != vals.end(), "Found no key_cas");
-    check(vals.find("key_data_age") != vals.end(), "Found no key_data_age");
-    check(vals.find("key_last_modification_time") != vals.end(),
-                    "Found no key_last_modification_time");
     check(vals.find("key_vb_state") != vals.end(), "Found no key_vb_state");
     check(vals.find("key_valid") != vals.end(), "Found no key_valid");
 
@@ -3687,9 +3675,6 @@ static enum test_result test_vkey_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
     check(vals.find("key_exptime") != vals.end(), "Found no key_exptime");
     check(vals.find("key_flags") != vals.end(), "Found no key_flags");
     check(vals.find("key_cas") != vals.end(), "Found no key_cas");
-    check(vals.find("key_data_age") != vals.end(), "Found no key_data_age");
-    check(vals.find("key_last_modification_time") != vals.end(),
-                    "Found no key_last_modification_time");
     check(vals.find("key_vb_state") != vals.end(), "Found no key_vb_state");
     check(vals.find("key_valid") != vals.end(), "Found no key_valid");
 
@@ -3701,9 +3686,6 @@ static enum test_result test_vkey_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
     check(vals.find("key_exptime") != vals.end(), "Found no key_exptime");
     check(vals.find("key_flags") != vals.end(), "Found no key_flags");
     check(vals.find("key_cas") != vals.end(), "Found no key_cas");
-    check(vals.find("key_data_age") != vals.end(), "Found no key_data_age");
-    check(vals.find("key_last_modification_time") != vals.end(),
-          "Found no key_last_modification_time");
     check(vals.find("key_vb_state") != vals.end(), "Found no key_vb_state");
     check(vals.find("key_valid") != vals.end(), "Found no key_valid");
 
@@ -3715,9 +3697,6 @@ static enum test_result test_vkey_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
     check(vals.find("key_exptime") != vals.end(), "Found no key_exptime");
     check(vals.find("key_flags") != vals.end(), "Found no key_flags");
     check(vals.find("key_cas") != vals.end(), "Found no key_cas");
-    check(vals.find("key_data_age") != vals.end(), "Found no key_data_age");
-    check(vals.find("key_last_modification_time") != vals.end(),
-          "Found no key_last_modification_time");
     check(vals.find("key_vb_state") != vals.end(), "Found no key_vb_state");
     check(vals.find("key_valid") != vals.end(), "Found no key_valid");
 
@@ -3729,9 +3708,6 @@ static enum test_result test_vkey_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
     check(vals.find("key_exptime") != vals.end(), "Found no key_exptime");
     check(vals.find("key_flags") != vals.end(), "Found no key_flags");
     check(vals.find("key_cas") != vals.end(), "Found no key_cas");
-    check(vals.find("key_data_age") != vals.end(), "Found no key_data_age");
-    check(vals.find("key_last_modification_time") != vals.end(),
-          "Found no key_last_modification_time");
     check(vals.find("key_vb_state") != vals.end(), "Found no key_vb_state");
     check(vals.find("key_valid") != vals.end(), "Found no key_valid");
 
