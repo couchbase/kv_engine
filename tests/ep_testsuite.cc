@@ -4609,14 +4609,6 @@ extern "C" {
         }
 
         createCheckpoint(hp->h, hp->h1);
-
-        // Last closed checkpoint id for vbucket 0.
-        int closed_chk_id = get_int_stat(hp->h, hp->h1, "vb_0:last_closed_checkpoint_id",
-                                         "checkpoint 0");
-        // Request to prioritize persisting vbucket 0.
-        check(checkpointPersistence(hp->h, hp->h1, closed_chk_id) == ENGINE_SUCCESS,
-              "Failed to request checkpoint persistence");
-
         return NULL;
     }
 }
@@ -4637,6 +4629,14 @@ static enum test_result test_checkpoint_persistence(ENGINE_HANDLE *h,
         int r = pthread_join(threads[i], &trv);
         assert(r == 0);
     }
+
+    // Last closed checkpoint id for vbucket 0.
+    int closed_chk_id = get_int_stat(h, h1, "vb_0:last_closed_checkpoint_id",
+                                     "checkpoint 0");
+    // Request to prioritize persisting vbucket 0.
+    check(checkpointPersistence(h, h1, closed_chk_id) == ENGINE_SUCCESS,
+          "Failed to request checkpoint persistence");
+
     return SUCCESS;
 }
 
