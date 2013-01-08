@@ -361,8 +361,8 @@ extern "C" {
                 validate(vsize, static_cast<uint64_t>(0),
                          std::numeric_limits<uint64_t>::max());
                 e->getConfiguration().setMaxSize(vsize);
-                e->getConfiguration().setMemLowWat(percentOf(vsize, 0.6));
-                e->getConfiguration().setMemHighWat(percentOf(vsize, 0.75));
+                e->getConfiguration().setMemLowWat(percentOf(vsize, 0.75));
+                e->getConfiguration().setMemHighWat(percentOf(vsize, 0.85));
             } else if (strcmp(keyz, "mem_low_wat") == 0) {
                 // Want more bits than int.
                 char *ptr = NULL;
@@ -1313,11 +1313,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     }
 
     if (configuration.getMemLowWat() == std::numeric_limits<size_t>::max()) {
-        configuration.setMemLowWat(percentOf(configuration.getMaxSize(), 0.6));
+        configuration.setMemLowWat(percentOf(configuration.getMaxSize(), 0.75));
     }
 
     if (configuration.getMemHighWat() == std::numeric_limits<size_t>::max()) {
-        configuration.setMemHighWat(percentOf(configuration.getMaxSize(), 0.75));
+        configuration.setMemHighWat(percentOf(configuration.getMaxSize(), 0.85));
     }
 
     maxItemSize = configuration.getMaxItemSize();

@@ -4427,18 +4427,18 @@ static bool epsilon(int val, int target, int ep=5) {
 static enum test_result test_max_size_settings(ENGINE_HANDLE *h,
                                                ENGINE_HANDLE_V1 *h1) {
     check(get_int_stat(h, h1, "ep_max_data_size") == 1000, "Incorrect initial size.");
-    check(epsilon(get_int_stat(h, h1, "ep_mem_low_wat"), 600),
+    check(epsilon(get_int_stat(h, h1, "ep_mem_low_wat"), 750),
           "Incorrect initial low wat.");
-    check(epsilon(get_int_stat(h, h1, "ep_mem_high_wat"), 750),
+    check(epsilon(get_int_stat(h, h1, "ep_mem_high_wat"), 850),
           "Incorrect initial high wat.");
 
     set_param(h, h1, engine_param_flush, "max_size", "1000000");
 
     check(get_int_stat(h, h1, "ep_max_data_size") == 1000000,
           "Incorrect new size.");
-    check(epsilon(get_int_stat(h, h1, "ep_mem_low_wat"), 600000),
+    check(epsilon(get_int_stat(h, h1, "ep_mem_low_wat"), 750000),
           "Incorrect larger low wat.");
-    check(epsilon(get_int_stat(h, h1, "ep_mem_high_wat"), 750000),
+    check(epsilon(get_int_stat(h, h1, "ep_mem_high_wat"), 850000),
           "Incorrect larger high wat.");
 
     set_param(h, h1, engine_param_flush, "mem_low_wat", "700000");
@@ -4453,9 +4453,9 @@ static enum test_result test_max_size_settings(ENGINE_HANDLE *h,
 
     check(get_int_stat(h, h1, "ep_max_data_size") == 100,
           "Incorrect smaller size.");
-    check(epsilon(get_int_stat(h, h1, "ep_mem_low_wat"), 60),
+    check(epsilon(get_int_stat(h, h1, "ep_mem_low_wat"), 75),
           "Incorrect smaller low wat.");
-    check(epsilon(get_int_stat(h, h1, "ep_mem_high_wat"), 75),
+    check(epsilon(get_int_stat(h, h1, "ep_mem_high_wat"), 85),
           "Incorrect smaller high wat.");
 
     set_param(h, h1, engine_param_flush, "mem_low_wat", "50");
@@ -4567,7 +4567,7 @@ static enum test_result test_extend_open_checkpoint(ENGINE_HANDLE *h, ENGINE_HAN
           "Last closed checkpoint Id for VB 0 should be still 0");
 
     set_param(h, h1, engine_param_flush, "max_size", "100000");
-    check(epsilon(get_int_stat(h, h1, "ep_mem_high_wat"), 75000),
+    check(epsilon(get_int_stat(h, h1, "ep_mem_high_wat"), 85000),
           "Incorrect larger high wat.");
 
     int itemsRemoved = get_int_stat(h, h1, "ep_items_rm_from_checkpoints");
