@@ -63,7 +63,7 @@ int main(int, char **) {
     std::string s();
 
     display("GIGANTOR", GIGANTOR);
-    display("Stored Value", StoredValue::sizeOf());
+    display("Stored Value", sizeof(StoredValue));
 
     display("Stored Value Factory", sizeof(StoredValueFactory));
     display("Blob", sizeof(Blob));

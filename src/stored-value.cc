@@ -11,7 +11,6 @@
 
 size_t HashTable::defaultNumBuckets = DEFAULT_HT_SIZE;
 size_t HashTable::defaultNumLocks = 193;
-enum stored_value_type HashTable::defaultStoredValueType = featured;
 double StoredValue::mutation_mem_threshold = 0.9;
 const int64_t StoredValue::state_id_cleared = -1;
 const int64_t StoredValue::state_id_pending = -2;
