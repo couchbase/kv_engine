@@ -233,10 +233,6 @@ public:
         }
     }
 
-    size_t getKeyValLength() {
-        return valLength() + getKeyLen();
-    }
-
     /**
      * Eject an item value from memory.
      * @param stats the global stat instance
@@ -424,11 +420,11 @@ public:
         if (getKeyLen() % sizeof(void*) != 0) {
             kalign = sizeof(void*) - getKeyLen() % sizeof(void*);
         }
-        return sizeOf() + getKeyLen() + vallen + valign + kalign;
+        return sizeof(StoredValue) + getKeyLen() + vallen + valign + kalign;
     }
 
     size_t metaDataSize() {
-        return sizeOf() + getKeyLen();
+        return sizeof(StoredValue) + getKeyLen();
     }
 
     /**
@@ -514,22 +510,6 @@ public:
      * @param vbucket the vbucket containing this item.
      */
     Item *toItem(bool lck, uint16_t vbucket) const;
-
-    /**
-     * Get the size of a StoredValue object.
-     *
-     * This method exists because the size of a StoredValue as used
-     * cannot be determined entirely at compile time due to the two
-     * different extras sections that are used.
-     *
-     * @param small if true, we want the small variety, otherwise featured
-     *
-     * @return the size in bytes required (minus key) for a StoredValue.
-     */
-    static size_t sizeOf() {
-        // Subtract one because the length of the string is computed on demand.
-        return sizeof(StoredValue) - 1;
-    }
 
     /**
      * Set the memory threshold on the current bucket quota for accepting a new mutation
@@ -755,14 +735,6 @@ private:
 };
 
 /**
- * Types of stored values.
- */
-enum stored_value_type {
-    small,                      //!< Small (minimally featured) stored values.
-    featured                    //!< Full featured stored values.
-};
-
-/**
  * Creator of StoredValue instances.
  */
 class StoredValueFactory {
@@ -790,7 +762,7 @@ private:
 
     StoredValue* newStoredValue(const Item &itm, StoredValue *n, HashTable &ht,
                                 bool setDirty) {
-        size_t base = StoredValue::sizeOf();
+        size_t base = sizeof(StoredValue);
 
         const std::string &key = itm.getKey();
         assert(key.length() < 256);
@@ -1469,7 +1441,6 @@ private:
 
     static size_t                 defaultNumBuckets;
     static size_t                 defaultNumLocks;
-    static enum stored_value_type defaultStoredValueType;
 
     int getBucketForHash(int h) {
         return abs(h % static_cast<int>(size));
