@@ -10,15 +10,12 @@
 #include <string>
 
 #include "common.h"
+#include "ep_time.h"
 #include "histo.h"
 #include "item.h"
 #include "locks.h"
 #include "queueditem.h"
 #include "stats.h"
-
-extern "C" {
-    extern rel_time_t (*ep_current_time)();
-}
 
 // Forward declaration for StoredValue
 class HashTable;
