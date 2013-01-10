@@ -1615,9 +1615,7 @@ std::string EventuallyPersistentStore::validateKey(const std::string &key,
                                      false, true);
 
     if (v) {
-        if (diskItem.getNBytes() != v->valLength()) {
-            return "length_mismatch";
-        } else if (diskItem.getFlags() != v->getFlags()) {
+        if (diskItem.getFlags() != v->getFlags()) {
             return "flags_mismatch";
         } else if (v->isResident() && memcmp(diskItem.getData(),
                                              v->getValue()->getData(),

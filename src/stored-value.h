@@ -45,14 +45,6 @@ class HashTable;
 class StoredValueFactory;
 
 /**
- * Contents stored when swapped out.
- */
-union blobval {
-    uint32_t len;               //!< The length as an integer.
-    char     chlen[4];          //!< The length as a four byte integer
-};
-
-/**
  * In-memory storage for an item.
  */
 class StoredValue {
@@ -212,9 +204,10 @@ public:
     void setValue(Item &itm, EPStats &stats, HashTable &ht, bool preserveSeqno) {
         size_t currSize = size();
         reduceCacheSize(ht, currSize);
-        reduceCurrentSize(stats, isDeleted() ? currSize : currSize - value->length());
+        reduceCurrentSize(stats, (isDeleted() || !isResident()) ? currSize
+                                 : currSize - value->length());
         value = itm.getValue();
-        setResident();
+        deleted = false;
         flags = itm.getFlags();
 
         cas = itm.getCas();
@@ -237,27 +230,9 @@ public:
      */
     void resetValue() {
         assert(!isDeleted());
-        value.reset();
+        markNotResident();
         // item no longer resident once reset the value
-        resident = false;
-    }
-
-    size_t valLength() {
-        if (isDeleted()) {
-            return 0;
-        } else if (isResident()) {
-            return value->length();
-        } else {
-            // This is a special case for two phase warmup as an item's value size
-            // is not known during the first phase warmup.
-            if (value->length() == 0) {
-                return 0;
-            }
-            blobval uval;
-            assert(value->length() == sizeof(uval));
-            std::memcpy(uval.chlen, value->getData(), sizeof(uval));
-            return static_cast<size_t>(uval.len);
-        }
+        deleted = true;
     }
 
     /**
@@ -429,6 +404,13 @@ public:
 
      }
 
+    size_t valuelen() {
+        if (isDeleted() || !isResident()) {
+            return 0;
+        }
+        return value->length();
+    }
+
     /**
      * Get the total size of this item.
      *
@@ -438,7 +420,7 @@ public:
         // This differs from valLength in that it reports the
         // *resident* length instead of the length of the actual value
         // as it existed.
-        size_t vallen = isDeleted() ? 0 : value->length();
+        size_t vallen = valuelen();
         size_t valign = 0;
         if (vallen % sizeof(void*) != 0) {
             valign = sizeof(void*) - vallen % sizeof(void*);
@@ -472,14 +454,18 @@ public:
      * True if this value is resident in memory currently.
      */
     bool isResident() const {
-        return resident;
+        return value.get() != NULL;
+    }
+
+    void markNotResident() {
+        value.reset();
     }
 
     /**
      * True if this object is logically deleted.
      */
     bool isDeleted() const {
-        return value.get() == NULL;
+        return deleted;
     }
 
     /**
@@ -491,7 +477,7 @@ public:
         }
 
         size_t oldsize = size();
-        size_t old_valsize = value->length();
+        size_t old_valsize = valuelen();
 
         resetValue();
         markDirty();
@@ -564,7 +550,7 @@ private:
         value(itm.getValue()), next(n), id(itm.getId()), flags(itm.getFlags()) {
         cas = itm.getCas();
         exptime = itm.getExptime();
-        resident = true;
+        deleted = false;
         nru = INITIAL_NRU_VALUE;
         lock_expiry = 0;
         keylen = itm.getKey().length();
@@ -581,10 +567,6 @@ private:
         increaseCurrentSize(stats, size() - value->length());
     }
 
-    void setResident() {
-        resident = true;
-    }
-
     friend class HashTable;
     friend class StoredValueFactory;
 
@@ -597,7 +579,7 @@ private:
     uint32_t           exptime;        //!< Expiration time of this item.
     uint32_t           flags;          // 4 bytes
     bool               _isDirty  :  1; // 1 bit
-    bool               resident  :  1; //!< True if this object's value is in memory.
+    bool               deleted   :  1;
     uint8_t            nru       :  2; //!< True if referenced since last sweep
     uint8_t            keylen;
     char               keybytes[1];    //!< The key itself.
@@ -719,7 +701,7 @@ public:
     void visit(StoredValue *v) {
         ++numTotal;
         memSize += v->size();
-        valSize += v->isDeleted() ? 0 : v->getValue()->length();
+        valSize += v->valuelen();
 
         if (v->isResident()) {
             cacheSize += v->size();
@@ -1326,9 +1308,10 @@ public:
 
             values[bucket_num] = v->next;
             size_t currSize = v->size();
+            size_t redSize = (v->isDeleted() || !v->isResident()) ? currSize
+                             : currSize - v->getValue()->length();
             StoredValue::reduceCacheSize(*this, currSize);
-            StoredValue::reduceCurrentSize(stats, v->isDeleted() ? currSize
-                                           : currSize - v->getValue()->length());
+            StoredValue::reduceCurrentSize(stats, redSize);
             StoredValue::reduceMetaDataSize(*this, v->metaDataSize());
             if (v->isTempItem()) {
                 --numTempItems;
@@ -1348,9 +1331,10 @@ public:
 
                 v->next = v->next->next;
                 size_t currSize = tmp->size();
+                size_t redSize = (tmp->isDeleted() || !tmp->isResident()) ? currSize
+                                 : currSize - tmp->getValue()->length();
                 StoredValue::reduceCacheSize(*this, currSize);
-                StoredValue::reduceCurrentSize(stats, tmp->isDeleted() ? currSize
-                                               : currSize - tmp->getValue()->length());
+                StoredValue::reduceCurrentSize(stats, redSize);
                 StoredValue::reduceMetaDataSize(*this, tmp->metaDataSize());
                 if (tmp->isTempItem()) {
                     --numTempItems;

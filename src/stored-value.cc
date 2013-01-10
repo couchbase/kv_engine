@@ -47,13 +47,9 @@ bool StoredValue::ejectValue(EPStats &stats, HashTable &ht) {
     if (eligibleForEviction()) {
         size_t oldsize = size();
         size_t old_valsize = value->length();
-        blobval uval;
-        uval.len = valLength();
-        value_t sp(Blob::New(uval.chlen, sizeof(uval)));
-        resident = false;
-        value = sp;
+        markNotResident();
+        value = NULL;
         size_t newsize = size();
-        size_t new_valsize = value->length();
 
         // ejecting the value may increase the object size....
         if (oldsize < newsize) {
@@ -63,7 +59,7 @@ bool StoredValue::ejectValue(EPStats &stats, HashTable &ht) {
         }
         // Add or substract the key/meta data overhead differenece.
         size_t old_keymeta_overhead = (oldsize - old_valsize);
-        size_t new_keymeta_overhead = (newsize - new_valsize);
+        size_t new_keymeta_overhead = newsize;
         if (old_keymeta_overhead < new_keymeta_overhead) {
             increaseCurrentSize(stats, new_keymeta_overhead - old_keymeta_overhead);
         } else if (new_keymeta_overhead < old_keymeta_overhead) {
@@ -122,20 +118,9 @@ bool StoredValue::unlocked_restoreValue(Item *itm, EPStats &stats,
 
     if (!isResident()) {
         size_t oldsize = size();
-        size_t old_valsize = isDeleted() ? 0 : value->length();
-        if (itm->getValue()->length() != valLength()) {
-            if (valLength()) {
-                // generate warning msg only if valLength() > 0, otherwise,
-                // no warning is necessary since it is the very first
-                // background fetch after warmup.
-                int diff(static_cast<int>(valLength()) - // expected
-                        static_cast<int>(itm->getValue()->length())); // got
-                LOG(EXTENSION_LOG_WARNING,
-                    "Object unexpectedly changed size by %d bytes", diff);
-            }
-        }
+        size_t old_valsize = valuelen();
 
-        resident = true;
+        deleted = false;
         value = itm->getValue();
 
         size_t newsize = size();
@@ -175,7 +160,7 @@ mutation_type_t HashTable::insert(const Item &itm, bool eject, bool partial) {
         v = valFact(itm, values[bucket_num], *this);
         v->markClean();
         if (partial) {
-            v->resident = false;
+            v->markNotResident();
             ++numNonResidentItems;
         }
         values[bucket_num] = v;
