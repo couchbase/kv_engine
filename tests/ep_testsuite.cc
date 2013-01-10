@@ -2156,7 +2156,7 @@ static enum test_result test_memory_limit(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     int used = get_int_stat(h, h1, "mem_used");
     double mem_threshold =
         static_cast<double>(get_int_stat(h, h1, "ep_mutation_mem_threshold")) / 100;
-    int max = static_cast<int>(get_int_stat(h, h1, "ep_max_data_size") * mem_threshold);
+    int max = static_cast<int>(get_int_stat(h, h1, "ep_max_size") * mem_threshold);
     check(get_int_stat(h, h1, "ep_oom_errors") == 0 &&
           get_int_stat(h, h1, "ep_tmp_oom_errors") == 0, "Expected no OOM errors.");
     assert(used < max);
@@ -4404,7 +4404,7 @@ static bool epsilon(int val, int target, int ep=5) {
 
 static enum test_result test_max_size_settings(ENGINE_HANDLE *h,
                                                ENGINE_HANDLE_V1 *h1) {
-    check(get_int_stat(h, h1, "ep_max_data_size") == 1000, "Incorrect initial size.");
+    check(get_int_stat(h, h1, "ep_max_size") == 1000, "Incorrect initial size.");
     check(epsilon(get_int_stat(h, h1, "ep_mem_low_wat"), 750),
           "Incorrect initial low wat.");
     check(epsilon(get_int_stat(h, h1, "ep_mem_high_wat"), 850),
@@ -4412,7 +4412,7 @@ static enum test_result test_max_size_settings(ENGINE_HANDLE *h,
 
     set_param(h, h1, engine_param_flush, "max_size", "1000000");
 
-    check(get_int_stat(h, h1, "ep_max_data_size") == 1000000,
+    check(get_int_stat(h, h1, "ep_max_size") == 1000000,
           "Incorrect new size.");
     check(epsilon(get_int_stat(h, h1, "ep_mem_low_wat"), 750000),
           "Incorrect larger low wat.");
@@ -4429,7 +4429,7 @@ static enum test_result test_max_size_settings(ENGINE_HANDLE *h,
 
     set_param(h, h1, engine_param_flush, "max_size", "100");
 
-    check(get_int_stat(h, h1, "ep_max_data_size") == 100,
+    check(get_int_stat(h, h1, "ep_max_size") == 100,
           "Incorrect smaller size.");
     check(epsilon(get_int_stat(h, h1, "ep_mem_low_wat"), 75),
           "Incorrect smaller low wat.");
