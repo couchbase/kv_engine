@@ -21,8 +21,7 @@ class EventuallyPersistentEngine;
  */
 class StatSnap : public DispatcherCallback {
 public:
-    StatSnap(EventuallyPersistentEngine *e, bool runOneTimeOnly = false) :
-        engine(e), runOnce(runOneTimeOnly) { }
+    StatSnap(EventuallyPersistentEngine *e, bool runOneTimeOnly = false);
 
     bool callback(Dispatcher &d, TaskId &t);
 

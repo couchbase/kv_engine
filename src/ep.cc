@@ -531,8 +531,6 @@ EventuallyPersistentStore::~EventuallyPersistentStore() {
     stopWarmup();
     stopFlusher();
     stopBgFetcher();
-    dispatcher->schedule(shared_ptr<DispatcherCallback>(new StatSnap(&engine, true)),
-                         NULL, Priority::StatSnapPriority, 0, false, true);
     dispatcher->stop(forceShutdown);
     if (hasSeparateRODispatcher()) {
         roDispatcher->stop(forceShutdown);

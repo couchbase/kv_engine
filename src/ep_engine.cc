@@ -37,6 +37,7 @@
 #include "warmup.hh"
 #include "memory_tracker.hh"
 #include "stats-info.h"
+#include "statsnap.hh"
 
 #define STATWRITER_NAMESPACE core_engine
 #include "statwriter.hh"
@@ -1401,6 +1402,9 @@ KVStore* EventuallyPersistentEngine::newKVStore(bool read_only) {
 void EventuallyPersistentEngine::destroy(bool force) {
     forceShutdown = force;
     stopEngineThreads();
+    shared_ptr<DispatcherCallback> dist(new StatSnap(this, true));
+    getEpStore()->getDispatcher()->schedule(dist, NULL, Priority::StatSnapPriority,
+                                            0, false, true);
     tapConnMap->shutdownAllTapConnections();
 }
 

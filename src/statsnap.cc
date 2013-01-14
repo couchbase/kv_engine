@@ -25,8 +25,14 @@ extern "C" {
     }
 }
 
+StatSnap::StatSnap(EventuallyPersistentEngine *e, bool runOneTimeOnly) :
+    engine(e), runOnce(runOneTimeOnly) {
+    if (runOnce) {
+        getStats();
+    }
+}
+
 bool StatSnap::getStats() {
-    map.clear();
     bool rv = engine->getStats(this, NULL, 0, add_stat) == ENGINE_SUCCESS &&
               engine->getStats(this, "tap", 3, add_stat) == ENGINE_SUCCESS;
     if (rv && engine->isShutdownMode()) {
@@ -39,9 +45,11 @@ bool StatSnap::getStats() {
 }
 
 bool StatSnap::callback(Dispatcher &d, TaskId &t) {
-    if (getStats()) {
-        engine->getEpStore()->getRWUnderlying()->snapshotStats(map);
+    if (map.empty()) {
+        getStats();
     }
+    engine->getEpStore()->getRWUnderlying()->snapshotStats(map);
+    map.clear();
     if (runOnce) {
         return false;
     }

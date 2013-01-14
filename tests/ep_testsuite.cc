@@ -180,6 +180,18 @@ static bool teardown(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return true;
 }
 
+static const void* createTapConn(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                                 const char *name) {
+    const void *cookie = testHarness.create_cookie();
+    testHarness.lock_cookie(cookie);
+    TAP_ITERATOR iter = h1->get_tap_iterator(h, cookie, name,
+                                             strlen(name),
+                                             TAP_CONNECT_FLAG_DUMP, NULL,
+                                             0);
+    check(iter != NULL, "Failed to create a tap iterator");
+    return cookie;
+}
+
 static void check_key_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                             const char* key, const char* val, size_t vlen,
                             uint16_t vbucket = 0) {
@@ -1352,6 +1364,23 @@ static enum test_result test_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                               true, false);
     wait_for_warmup_complete(h, h1);
     check_key_value(h, h1, "key", val, strlen(val));
+    return SUCCESS;
+}
+
+static enum test_result test_restart_session_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    createTapConn(h, h1, "tap_client_thread");
+
+    testHarness.reload_engine(&h, &h1,
+                              testHarness.engine_path,
+                              testHarness.get_current_testcase()->cfg,
+                              true, false);
+    wait_for_warmup_complete(h, h1);
+    createTapConn(h, h1, "tap_client_thread");
+
+    check(h1->get_stats(h, NULL, "tap", 3, add_stats) == ENGINE_SUCCESS,
+          "Failed to get stats.");
+    std::string val = vals["eq_tapq:tap_client_thread:backfill_completed"];
+    check(strcmp(val.c_str(), "true") == 0, "Don't expect the backfill upon restart");
     return SUCCESS;
 }
 
@@ -2534,18 +2563,6 @@ static enum test_result verify_item(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
           "Data mismatch");
 
     return SUCCESS;
-}
-
-static const void* createTapConn(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                                 const char *name) {
-    const void *cookie = testHarness.create_cookie();
-    testHarness.lock_cookie(cookie);
-    TAP_ITERATOR iter = h1->get_tap_iterator(h, cookie, name,
-                                             strlen(name),
-                                             TAP_CONNECT_FLAG_DUMP, NULL,
-                                             0);
-    check(iter != NULL, "Failed to create a tap iterator");
-    return cookie;
 }
 
 static enum test_result test_tap_agg_stats(ENGINE_HANDLE *h,
@@ -6657,6 +6674,8 @@ engine_test_t* get_tests(void) {
                  teardown, "max_size=1048576", prepare, cleanup),
         // restart tests
         TestCase("test restart", test_restart, test_setup,
+                 teardown, NULL, prepare, cleanup),
+        TestCase("test restart with session stats", test_restart_session_stats, test_setup,
                  teardown, NULL, prepare, cleanup),
         TestCase("set+get+restart+hit (bin)", test_restart_bin_val,
                  test_setup, teardown, NULL, prepare, cleanup),
