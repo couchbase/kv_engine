@@ -60,6 +60,8 @@ public:
     Atomic<size_t> warmDups;
     //! Number of OOM failures at warmup time.
     Atomic<size_t> warmOOM;
+    //! Number of expired keys during data loading
+    Atomic<size_t> warmupExpired;
 
     //! Fill % of memory used during warmup we're going to enable traffic
     Atomic<double> warmupMemUsedCap;

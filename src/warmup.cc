@@ -229,6 +229,8 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
         if (succeeded && expired) {
             ItemMetaData itemMeta;
 
+            ++stats.warmupExpired;
+            epstore->incExpirationStat(vb, false);
             getLogger()->log(EXTENSION_LOG_WARNING, NULL,
                              "Item was expired at load:  %s",
                              i->getKey().c_str());
@@ -650,6 +652,7 @@ void Warmup::addStats(ADD_STAT add_stat, const void *c) const
         addStat("value_count", stats.warmedUpValues, add_stat, c);
         addStat("dups", stats.warmDups, add_stat, c);
         addStat("oom", stats.warmOOM, add_stat, c);
+        addStat("item_expired", stats.warmupExpired, add_stat, c);
         addStat("min_memory_threshold",
                 stats.warmupMemUsedCap * 100.0, add_stat, c);
         addStat("min_item_threshold",
