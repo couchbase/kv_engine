@@ -131,7 +131,7 @@ typedef SingleThreadedRCPtr<Blob> value_t;
 class ItemMetaData {
 public:
     ItemMetaData() :
-        cas(0), seqno(0), flags(0), exptime(0) {
+        cas(0), seqno(1), flags(0), exptime(0) {
     }
 
     ItemMetaData(uint64_t c, uint32_t s, uint32_t f, time_t e) :

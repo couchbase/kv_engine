@@ -1960,7 +1960,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
             }
 
             bool meta = false;
-            ItemMetaData itemMeta(0, cas, flags, exptime);
+            ItemMetaData itemMeta(cas, 1, flags, exptime);
 
             if (nengine == TapEngineSpecific::sizeRevSeqno) {
                 TapEngineSpecific::readSpecificData(tap_event, engine_specific, nengine,
