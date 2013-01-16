@@ -7,7 +7,7 @@ AC_CONFIG_AUX_DIR(config)
 AC_CANONICAL_SYSTEM
 AC_CONFIG_SRCDIR(Makefile.am)
 AM_INIT_AUTOMAKE(subdir-objects foreign)
-AM_CONFIG_HEADER(config.h)
+AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_MACRO_DIR([m4])
 
 AC_PROG_CC
