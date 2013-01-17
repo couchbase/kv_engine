@@ -127,21 +127,55 @@ static string getEnumValidatorCode(const std::string &key, cJSON *o) {
 }
 
 static void initialize() {
-    prototypes << "// ###########################################" << endl
-               << "// # DO NOT EDIT! THIS IS A GENERATED FILE " << endl
-               << "// ###########################################" << endl
-               << "#ifndef SRC_GENERATED_CONFIGURATION_H_" << endl
-               << "#define SRC_GENERATED_CONFIGURATION_H_ 1" << endl
-               << endl
-               << "#include \"config.h\"" << endl
-               << endl
-               << "#include <string>" << endl;
+    prototypes
+        << "/*" << endl
+        << " *     Copyright 2011 Couchbase, Inc" << endl
+        << " *" << endl
+        << " *   Licensed under the Apache License, Version 2.0 (the \"License\");" << endl
+        << " *   you may not use this file except in compliance with the License." << endl
+        << " *   You may obtain a copy of the License at" << endl
+        << " *" << endl
+        << " *       http://www.apache.org/licenses/LICENSE-2.0" << endl
+        << " *" << endl
+        << " *   Unless required by applicable law or agreed to in writing, software" << endl
+        << " *   distributed under the License is distributed on an \"AS IS\" BASIS," << endl
+        << " *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied." << endl
+        << " *   See the License for the specific language governing permissions and" << endl
+        << " *   limitations under the License." << endl
+        << " */" << endl
+        << endl
+        << "// ###########################################" << endl
+        << "// # DO NOT EDIT! THIS IS A GENERATED FILE " << endl
+        << "// ###########################################" << endl
+        << "#ifndef SRC_GENERATED_CONFIGURATION_H_" << endl
+        << "#define SRC_GENERATED_CONFIGURATION_H_ 1" << endl
+        << endl
+        << "#include \"config.h\"" << endl
+        << endl
+        << "#include <string>" << endl;
 
-    implementation << "// ###########################################" << endl
-                   << "// # DO NOT EDIT! THIS IS A GENERATED FILE " << endl
-                   << "// ###########################################" << endl
-                   << endl
-                   << "#include \"config.h\"" << endl;
+    implementation
+        << "/*" << endl
+        << " *     Copyright 2011 Couchbase, Inc" << endl
+        << " *" << endl
+        << " *   Licensed under the Apache License, Version 2.0 (the \"License\");" << endl
+        << " *   you may not use this file except in compliance with the License." << endl
+        << " *   You may obtain a copy of the License at" << endl
+        << " *" << endl
+        << " *       http://www.apache.org/licenses/LICENSE-2.0" << endl
+        << " *" << endl
+        << " *   Unless required by applicable law or agreed to in writing, software" << endl
+        << " *   distributed under the License is distributed on an \"AS IS\" BASIS," << endl
+        << " *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied." << endl
+        << " *   See the License for the specific language governing permissions and" << endl
+        << " *   limitations under the License." << endl
+        << " */" << endl
+        << endl
+        << "// ###########################################" << endl
+        << "// # DO NOT EDIT! THIS IS A GENERATED FILE " << endl
+        << "// ###########################################" << endl
+        << endl
+        << "#include \"config.h\"" << endl;
     validators["range"] = getRangeValidatorCode;
     validators["enum"] = getEnumValidatorCode;
     getters["std::string"] = "getString";

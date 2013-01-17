@@ -138,37 +138,71 @@ int main(int argc, char **argv) {
     str_replace_char(macro, '.', '_');
     all_caps(macro);
 
-    headerfile << "/////////////////////////////////" << endl
-               << "// Generated file, do not edit //" << endl
-               << "/////////////////////////////////" << endl
-               << "#ifndef " << macro << "_" << endl
-               << "#define " << macro << "_" << endl
-               << endl
-               << "#include \"config.h\"" << endl
-               << endl
-               << "#ifdef __cplusplus" << endl
-               << "extern \"C\" {" << endl
-               << "#endif" << endl
-               << endl
-               << "const char *" << function << "(void);" << endl
-               << endl
-               << "#ifdef __cplusplus" << endl
-               << "}" << endl
-               << "#endif" << endl
-               << "#endif  // " << macro << "_" << endl;
+    headerfile 
+        << "/*" << endl
+        << " *     Copyright 2012 Couchbase, Inc" << endl
+        << " *" << endl
+        << " *   Licensed under the Apache License, Version 2.0 (the \"License\");" << endl
+        << " *   you may not use this file except in compliance with the License." << endl
+        << " *   You may obtain a copy of the License at" << endl
+        << " *" << endl
+        << " *       http://www.apache.org/licenses/LICENSE-2.0" << endl
+        << " *" << endl
+        << " *   Unless required by applicable law or agreed to in writing, software" << endl
+        << " *   distributed under the License is distributed on an \"AS IS\" BASIS," << endl
+        << " *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied." << endl
+        << " *   See the License for the specific language governing permissions and" << endl
+        << " *   limitations under the License." << endl
+        << " */" << endl
+        << endl
+        << "/////////////////////////////////" << endl
+        << "// Generated file, do not edit //" << endl
+        << "/////////////////////////////////" << endl
+        << "#ifndef " << macro << "_" << endl
+        << "#define " << macro << "_" << endl
+        << endl
+        << "#include \"config.h\"" << endl
+        << endl
+        << "#ifdef __cplusplus" << endl
+        << "extern \"C\" {" << endl
+        << "#endif" << endl
+        << endl
+        << "const char *" << function << "(void);" << endl
+        << endl
+        << "#ifdef __cplusplus" << endl
+        << "}" << endl
+        << "#endif" << endl
+        << "#endif  // " << macro << "_" << endl;
     headerfile.close();
 
     ofstream sourcefile(cfile);
-    sourcefile << "/////////////////////////////////" << endl
-               << "// Generated file, do not edit //" << endl
-               << "/////////////////////////////////" << endl
-               << "#include \"config.h\"" << endl
-               << "#include \"" << hfile << "\"" << endl
-               << endl
-               << "const char *" << function << "(void)" << endl
-               << "{" << endl
-               << "    return " << c << ";" << endl
-               << "}" << endl;
+    sourcefile 
+        << "/*" << endl
+        << " *     Copyright 2012 Couchbase, Inc" << endl
+        << " *" << endl
+        << " *   Licensed under the Apache License, Version 2.0 (the \"License\");" << endl
+        << " *   you may not use this file except in compliance with the License." << endl
+        << " *   You may obtain a copy of the License at" << endl
+        << " *" << endl
+        << " *       http://www.apache.org/licenses/LICENSE-2.0" << endl
+        << " *" << endl
+        << " *   Unless required by applicable law or agreed to in writing, software" << endl
+        << " *   distributed under the License is distributed on an \"AS IS\" BASIS," << endl
+        << " *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied." << endl
+        << " *   See the License for the specific language governing permissions and" << endl
+        << " *   limitations under the License." << endl
+        << " */" << endl
+        << endl
+        << "/////////////////////////////////" << endl
+        << "// Generated file, do not edit //" << endl
+        << "/////////////////////////////////" << endl
+        << "#include \"config.h\"" << endl
+        << "#include \"" << hfile << "\"" << endl
+        << endl
+        << "const char *" << function << "(void)" << endl
+        << "{" << endl
+        << "    return " << c << ";" << endl
+        << "}" << endl;
 
     cJSON_Delete(c);
 

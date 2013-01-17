@@ -413,7 +413,7 @@ valgrind_engine_tests: ep.la ep_testsuite.la
 
 cpplint:
 	python tools/cpplint.py --verbose=0 \
-        --filter=-,+build,-build/namespaces \
+        --filter=-,+legal,+build,-build/namespaces \
         src/*.cc src/*.h src/atomic/*.h \
         src/blackhole-kvstore/*.cc src/blackhole-kvstore/*.h \
         src/couch-kvstore/*.cc src/couch-kvstore/*.h \
