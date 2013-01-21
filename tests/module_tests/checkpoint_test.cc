@@ -142,10 +142,7 @@ static void *launch_set_thread(void *arg) {
 }
 }
 
-int main(int argc, char **argv) {
-    (void)argc; (void)argv;
-    putenv(strdup("ALLOW_NO_STATS_UPDATE=yeah"));
-
+void basic_chk_test() {
     HashTable::setDefaultNumBuckets(5);
     HashTable::setDefaultNumLocks(1);
     RCPtr<VBucket> vbucket(new VBucket(0, vbucket_state_active, global_stats, checkpoint_config));
@@ -242,6 +239,56 @@ int main(int argc, char **argv) {
     delete gate;
     delete mutex;
     delete counter;
+}
 
-    return 0;
+void test_reset_checkpoint_id() {
+    RCPtr<VBucket> vbucket(new VBucket(0, vbucket_state_active, global_stats,
+                                       checkpoint_config));
+    CheckpointManager *checkpoint_manager =
+        new CheckpointManager(global_stats, 0, checkpoint_config, 1);
+
+    int i;
+    for (i = 0; i < 10; ++i) {
+        std::stringstream key;
+        key << "key-" << i;
+        queued_item qi(new QueuedItem (key.str(), 0, queue_op_set));
+        checkpoint_manager->queueDirty(qi, vbucket);
+    }
+    checkpoint_manager->createNewCheckpoint();
+
+    size_t itemPos;
+    size_t lastMutationId = -1;
+    std::vector<queued_item> items;
+    checkpoint_manager->getAllItemsForPersistence(items);
+    for(itemPos = 0; itemPos < items.size(); ++itemPos) {
+        queued_item qi = items.at(itemPos);
+        if (itemPos == 0 || itemPos == (items.size() - 1)) {
+            assert(qi->getOperation() == queue_op_checkpoint_start);
+        } else if (itemPos == (items.size() - 2)) {
+            assert(qi->getOperation() == queue_op_checkpoint_end);
+        } else {
+            assert(qi->getOperation() == queue_op_set);
+        }
+    }
+    assert(items.size() == 13);
+    items.clear();
+
+    checkpoint_manager->checkAndAddNewCheckpoint(1);
+    checkpoint_manager->getAllItemsForPersistence(items);
+    for(itemPos = 0; itemPos < items.size(); ++itemPos) {
+        queued_item qi = items.at(itemPos);
+        if (itemPos == 0) {
+            assert(qi->getOperation() == queue_op_checkpoint_start);
+        } else {
+            assert(qi->getOperation() == queue_op_set);
+        }
+    }
+    assert(items.size() == 11);
+}
+
+int main(int argc, char **argv) {
+    (void)argc; (void)argv;
+    putenv(strdup("ALLOW_NO_STATS_UPDATE=yeah"));
+    basic_chk_test();
+    test_reset_checkpoint_id();
 }

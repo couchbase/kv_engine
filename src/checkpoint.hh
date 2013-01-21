@@ -437,6 +437,16 @@ public:
      */
     uint64_t getPersistenceCursorPreChkId();
 
+    /**
+     * This method performs the following steps for creating a new checkpoint with a given ID i1:
+     * 1) Check if the checkpoint manager contains any checkpoints with IDs >= i1.
+     * 2) If exists, collapse all checkpoints and set the open checkpoint id to a given ID.
+     * 3) Otherwise, simply create a new open checkpoint with a given ID.
+     * This method is mainly for dealing with rollback events from a TAP producer.
+     * @param id the id of a checkpoint to be created.
+     */
+    void checkAndAddNewCheckpoint(uint64_t id);
+
 private:
 
     bool registerTAPCursor_UNLOCKED(const std::string &name,
@@ -489,16 +499,6 @@ private:
 
     bool closeOpenCheckpoint_UNLOCKED(uint64_t id);
     bool closeOpenCheckpoint(uint64_t id);
-
-    /**
-     * This method performs the following steps for creating a new checkpoint with a given ID i1:
-     * 1) Check if the checkpoint manager contains any checkpoints with IDs >= i1.
-     * 2) If exists, collapse all checkpoints and set the open checkpoint id to a given ID.
-     * 3) Otherwise, simply create a new open checkpoint with a given ID.
-     * This method is mainly for dealing with rollback events from a TAP producer.
-     * @param id the id of a checkpoint to be created.
-     */
-    void checkAndAddNewCheckpoint(uint64_t id);
 
     uint64_t nextMutationId() {
         return ++mutationCounter;
