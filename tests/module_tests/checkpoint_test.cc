@@ -281,17 +281,7 @@ void test_reset_checkpoint_id() {
     lastMutationId = 0;
     manager->checkAndAddNewCheckpoint(1);
     manager->getAllItemsForPersistence(items);
-    for(itemPos = 0; itemPos < items.size(); ++itemPos) {
-        queued_item qi = items.at(itemPos);
-        assert(manager->getMutationIdForKey(chk, qi->getKey()) > lastMutationId);
-        lastMutationId = manager->getMutationIdForKey(chk, qi->getKey());
-        if (itemPos == 0) {
-            assert(qi->getOperation() == queue_op_checkpoint_start);
-        } else {
-            assert(qi->getOperation() == queue_op_set);
-        }
-    }
-    assert(items.size() == 11);
+    assert(items.size() == 0);
 }
 
 int main(int argc, char **argv) {
