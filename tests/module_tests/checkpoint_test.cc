@@ -244,7 +244,7 @@ void basic_chk_test() {
 void test_reset_checkpoint_id() {
     RCPtr<VBucket> vbucket(new VBucket(0, vbucket_state_active, global_stats,
                                        checkpoint_config));
-    CheckpointManager *checkpoint_manager =
+    CheckpointManager *manager =
         new CheckpointManager(global_stats, 0, checkpoint_config, 1);
 
     int i;
@@ -252,20 +252,24 @@ void test_reset_checkpoint_id() {
         std::stringstream key;
         key << "key-" << i;
         queued_item qi(new QueuedItem (key.str(), 0, queue_op_set));
-        checkpoint_manager->queueDirty(qi, vbucket);
+        manager->queueDirty(qi, vbucket);
     }
-    checkpoint_manager->createNewCheckpoint();
+    manager->createNewCheckpoint();
 
     size_t itemPos;
-    size_t lastMutationId = -1;
+    uint64_t chk = 1;
+    size_t lastMutationId = 0;
     std::vector<queued_item> items;
-    checkpoint_manager->getAllItemsForPersistence(items);
+    manager->getAllItemsForPersistence(items);
     for(itemPos = 0; itemPos < items.size(); ++itemPos) {
         queued_item qi = items.at(itemPos);
+        assert(manager->getMutationIdForKey(chk, qi->getKey()) > lastMutationId);
+        lastMutationId = manager->getMutationIdForKey(chk, qi->getKey());
         if (itemPos == 0 || itemPos == (items.size() - 1)) {
             assert(qi->getOperation() == queue_op_checkpoint_start);
         } else if (itemPos == (items.size() - 2)) {
             assert(qi->getOperation() == queue_op_checkpoint_end);
+            chk++;
         } else {
             assert(qi->getOperation() == queue_op_set);
         }
@@ -273,10 +277,14 @@ void test_reset_checkpoint_id() {
     assert(items.size() == 13);
     items.clear();
 
-    checkpoint_manager->checkAndAddNewCheckpoint(1);
-    checkpoint_manager->getAllItemsForPersistence(items);
+    chk = 1;
+    lastMutationId = 0;
+    manager->checkAndAddNewCheckpoint(1);
+    manager->getAllItemsForPersistence(items);
     for(itemPos = 0; itemPos < items.size(); ++itemPos) {
         queued_item qi = items.at(itemPos);
+        assert(manager->getMutationIdForKey(chk, qi->getKey()) > lastMutationId);
+        lastMutationId = manager->getMutationIdForKey(chk, qi->getKey());
         if (itemPos == 0) {
             assert(qi->getOperation() == queue_op_checkpoint_start);
         } else {

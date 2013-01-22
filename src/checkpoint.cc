@@ -154,6 +154,10 @@ size_t Checkpoint::mergePrevCheckpoint(Checkpoint *pPrevCheckpoint) {
                      "Collapse the checkpoint %llu into the checkpoint %llu for vbucket %d.\n",
                      pPrevCheckpoint->getId(), checkpointId, vbucketId);
 
+    keyIndex["dummy_key"].mutation_id =
+        pPrevCheckpoint->getMutationIdForKey("dummy_key");
+    keyIndex["checkpoint_start"].mutation_id =
+        pPrevCheckpoint->getMutationIdForKey("checkpoint_start");
     for (; rit != pPrevCheckpoint->rend(); ++rit) {
         const std::string &key = (*rit)->getKey();
         if ((*rit)->getOperation() != queue_op_del &&
@@ -998,6 +1002,16 @@ void CheckpointManager::decrTapCursorFromCheckpointEnd(const std::string &name) 
         decrCursorOffset_UNLOCKED(it->second, 1);
         decrCursorPos_UNLOCKED(it->second);
     }
+}
+
+uint64_t CheckpointManager::getMutationIdForKey(uint64_t chk_id, std::string key) {
+    std::list<Checkpoint*>::iterator itr = checkpointList.begin();
+    for (; itr != checkpointList.end(); ++itr) {
+        if (chk_id == (*itr)->getId()) {
+            return (*itr)->getMutationIdForKey(key);
+        }
+    }
+    return 0;
 }
 
 bool CheckpointManager::isLastMutationItemInCheckpoint(CheckpointCursor &cursor) {

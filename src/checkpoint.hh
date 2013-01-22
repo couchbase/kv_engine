@@ -447,6 +447,14 @@ public:
      */
     void checkAndAddNewCheckpoint(uint64_t id);
 
+    /**
+     * Gets the mutation id for a given checkpoint item.
+     * @param The checkpoint to look for the key in
+     * @param The key to get the mutation id for
+     * @return The mutation id or 0 if not found
+     */
+    uint64_t getMutationIdForKey(uint64_t chk_id, std::string key);
+
 private:
 
     bool registerTAPCursor_UNLOCKED(const std::string &name,
