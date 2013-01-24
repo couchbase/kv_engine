@@ -71,6 +71,7 @@ queue_dirty_t Checkpoint::queueDirty(const queued_item &qi, CheckpointManager *c
     checkpoint_index::iterator it = keyIndex.find(qi->getKey());
     // Check if this checkpoint already had an item for the same key.
     if (it != keyIndex.end()) {
+        rv = EXISTING_ITEM;
         std::list<queued_item>::iterator currPos = it->second.position;
         uint64_t currMutationId = it->second.mutation_id;
         CheckpointCursor &pcursor = checkpointManager->persistenceCursor;
@@ -84,6 +85,7 @@ queue_dirty_t Checkpoint::queueDirty(const queued_item &qi, CheckpointManager *c
                 uint64_t mutationId = ita->second.mutation_id;
                 if (currMutationId <= mutationId) {
                     checkpointManager->decrCursorOffset_UNLOCKED(pcursor, 1);
+                    rv = PERSIST_AGAIN;
                 }
             }
             // If the persistence cursor points to the existing item for the same key,
@@ -119,7 +121,6 @@ queue_dirty_t Checkpoint::queueDirty(const queued_item &qi, CheckpointManager *c
         toWrite.push_back(existing_itm);
         // Remove the existing item for the same key from the list.
         toWrite.erase(currPos);
-        rv = EXISTING_ITEM;
     } else {
         if (qi->getOperation() == queue_op_set || qi->getOperation() == queue_op_del) {
             ++numItems;
@@ -709,12 +710,12 @@ bool CheckpointManager::queueDirty(const queued_item &qi, const RCPtr<VBucket> &
 
     assert(checkpointList.back()->getState() == CHECKPOINT_OPEN);
     size_t numItemsBefore = getNumItemsForPersistence_UNLOCKED();
-    if (checkpointList.back()->queueDirty(qi, this) == NEW_ITEM) {
+    queue_dirty_t result = checkpointList.back()->queueDirty(qi, this);
+    if (result == NEW_ITEM) {
         ++numItems;
     }
-    size_t numItemsAfter = getNumItemsForPersistence_UNLOCKED();
 
-    return (numItemsAfter - numItemsBefore) > 0;
+    return result != EXISTING_ITEM;
 }
 
 void CheckpointManager::getAllItemsFromCurrentPosition(CheckpointCursor &cursor,

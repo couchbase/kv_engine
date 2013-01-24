@@ -83,8 +83,24 @@ private:
  * Result from invoking queueDirty in the current open checkpoint.
  */
 typedef enum {
-    EXISTING_ITEM,     //!< The item was already in the checkpoint and pushed back to the tail.
-    NEW_ITEM          //!< The item is newly added to the tail.
+    /*
+     * The item exists on the right hand side of the persistence cursor. The
+     * item will be deduplicated and doesn't change the size of the checkpoint.
+     */
+    EXISTING_ITEM,
+
+    /**
+     * The item exists on the left hand side of the persistence cursor. It will
+     * be dedeuplicated and moved the to right hand side, but the item needs
+     * to be re-persisted.
+     */
+    PERSIST_AGAIN,
+
+    /**
+     * The item doesn't exist yet in the checkpoint. Adding this item will
+     * increase the size of the checkpoint.
+     */
+    NEW_ITEM
 } queue_dirty_t;
 
 /**
