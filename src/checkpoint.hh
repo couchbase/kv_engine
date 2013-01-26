@@ -540,7 +540,7 @@ private:
 
     void collapseCheckpoints(uint64_t id);
 
-    void resetCursors();
+    void resetCursors(bool resetPersistenceCursor = true);
 
     void putCursorsInChk(std::map<std::string, uint64_t> &cursors,
                          std::list<Checkpoint*>::iterator chkItr);

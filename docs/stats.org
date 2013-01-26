@@ -58,7 +58,7 @@ For introductory information on stats within membase, start with the
 | ep_item_flush_expired              | Number of times an item is not flushed |
 |                                    | due to the expiry of the item          |
 | ep_queue_size                      | Number of items queued for storage     |
-| ep_flusher_todo                    | Number of items remaining to be        |
+| ep_flusher_todo                    | Number of items currently being        |
 |                                    | written                                |
 | ep_flusher_state                   | Current state of the flusher thread    |
 | ep_commit_num                      | Total number of write commits          |

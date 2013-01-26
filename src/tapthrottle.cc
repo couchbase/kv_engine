@@ -11,7 +11,7 @@ TapThrottle::TapThrottle(Configuration &config, EPStats &s) :
 {}
 
 bool TapThrottle::persistenceQueueSmallEnough() const {
-    size_t queueSize = stats.queue_size.get() + stats.flusher_todo.get();
+    size_t queueSize = stats.diskQueueSize.get();
     if (stats.tapThrottleWriteQueueCap == -1) {
         return true;
     }

@@ -72,8 +72,10 @@ public:
     //! The tap throttle write queue cap
     Atomic<ssize_t> tapThrottleWriteQueueCap;
 
-    //! size of the input queue
-    Atomic<size_t> queue_size;
+    //! Amount of checkpoint persistence commands waiting
+    Atomic<size_t> highPriorityChks;
+    //! Amount of items waiting for persistence
+    Atomic<size_t> diskQueueSize;
     //! Size of the in-process (output) queue.
     Atomic<size_t> flusher_todo;
     //! Number of transaction commits.

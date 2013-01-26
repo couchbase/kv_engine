@@ -57,7 +57,7 @@ bool MutationLogCompactor::callback(Dispatcher &d, TaskId &t) {
     size_t num_del_items = mutationLog.itemsLogged[ML_DEL];
     size_t num_logged_items = num_new_items + num_del_items;
     size_t num_unique_items = num_new_items - num_del_items;
-    size_t queue_size = stats.queue_size.get() + stats.flusher_todo.get();
+    size_t queue_size = stats.diskQueueSize.get();
 
     bool rv = true;
     bool schedule_compactor =

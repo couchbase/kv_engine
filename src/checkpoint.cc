@@ -871,12 +871,14 @@ void CheckpointManager::clear(vbucket_state_t vbState) {
     resetCursors();
 }
 
-void CheckpointManager::resetCursors() {
+void CheckpointManager::resetCursors(bool resetPersistenceCursor) {
     // Reset the persistence cursor.
-    persistenceCursor.currentCheckpoint = checkpointList.begin();
-    persistenceCursor.currentPos = checkpointList.front()->begin();
-    persistenceCursor.offset = 0;
-    checkpointList.front()->registerCursorName(persistenceCursor.name);
+    if (resetPersistenceCursor) {
+        persistenceCursor.currentCheckpoint = checkpointList.begin();
+        persistenceCursor.currentPos = checkpointList.front()->begin();
+        persistenceCursor.offset = 0;
+        checkpointList.front()->registerCursorName(persistenceCursor.name);
+    }
 
     // Reset all the TAP cursors.
     std::map<const std::string, CheckpointCursor>::iterator cit = tapCursors.begin();
@@ -1027,7 +1029,7 @@ void CheckpointManager::checkAndAddNewCheckpoint(uint64_t id) {
     // simply set the current open checkpoint id to the one received from the active vbucket.
     if (checkpointList.back()->getId() == 0) {
         setOpenCheckpointId_UNLOCKED(id);
-        resetCursors();
+        resetCursors(false);
         return;
     }
 
@@ -1059,7 +1061,7 @@ void CheckpointManager::checkAndAddNewCheckpoint(uint64_t id) {
             std::set<std::string>::const_iterator cit = cursors.begin();
             for (; cit != cursors.end(); ++cit) {
                 if ((*cit).compare(persistenceCursor.name) == 0) { // Persistence cursor
-                    persistenceCursor.currentPos = checkpointList.back()->begin();
+                    continue;
                 } else { // TAP cursors
                     std::map<const std::string, CheckpointCursor>::iterator mit =
                         tapCursors.find(*cit);

@@ -81,6 +81,8 @@ std::ostream& operator <<(std::ostream &out, const VBucketFilter &filter)
     return out;
 }
 
+size_t VBucket::chkFlushTimeout = MIN_CHK_FLUSH_TIMEOUT;
+
 const vbucket_state_t VBucket::ACTIVE = static_cast<vbucket_state_t>(htonl(vbucket_state_active));
 const vbucket_state_t VBucket::REPLICA = static_cast<vbucket_state_t>(htonl(vbucket_state_replica));
 const vbucket_state_t VBucket::PENDING = static_cast<vbucket_state_t>(htonl(vbucket_state_pending));
@@ -178,6 +180,8 @@ void VBucket::resetStats() {
     opsDelete.set(0);
     opsReject.set(0);
 
+    stats.diskQueueSize.decr(dirtyQueueSize.get());
+    assert(stats.diskQueueSize < GIGANTOR);
     dirtyQueueSize.set(0);
     dirtyQueueMem.set(0);
     dirtyQueueFill.set(0);
@@ -217,6 +221,64 @@ bool VBucket::getBGFetchItems(vb_bgfetch_queue_t &fetches) {
         pendingBGFetches.pop();
     }
     return fetches.size() > 0;
+}
+
+void VBucket::addHighPriorityVBEntry(uint64_t chkid, const void *cookie) {
+    LockHolder lh(hpChksMutex);
+    hpChks.push_back(HighPriorityVBEntry(cookie, chkid));
+    ++stats.highPriorityChks;
+}
+
+void VBucket::notifyCheckpointPersisted(EventuallyPersistentEngine &e,
+                                        uint64_t chkid) {
+    LockHolder lh(hpChksMutex);
+    std::list<HighPriorityVBEntry>::iterator entry = hpChks.begin();
+    while (entry != hpChks.end()) {
+        hrtime_t wall_time(gethrtime() - entry->start);
+        size_t spent = wall_time / 1000000000;
+        if (entry->checkpoint <= chkid) {
+            e.notifyIOComplete(entry->cookie, ENGINE_SUCCESS);
+            stats.chkPersistenceHisto.add(wall_time / 1000);
+            adjustCheckpointFlushTimeout(wall_time / 1000000000);
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                             "Notified the completion of checkpoint "
+                             "persistence for vbucket %d, cookie %p\n",
+                             id, entry->cookie);
+            entry = hpChks.erase(entry);
+            --stats.highPriorityChks;
+        } else if (spent > getCheckpointFlushTimeout()) {
+            e.notifyIOComplete(entry->cookie, ENGINE_TMPFAIL);
+            adjustCheckpointFlushTimeout(spent);
+            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                             "Notified the timeout on checkpoint "
+                             "persistence for vbucket %d, cookie %p\n",
+                             id, entry->cookie);
+            entry = hpChks.erase(entry);
+            --stats.highPriorityChks;
+        } else {
+            ++entry;
+        }
+    }
+}
+
+void VBucket::adjustCheckpointFlushTimeout(size_t wall_time) {
+    size_t middle = (MIN_CHK_FLUSH_TIMEOUT + MAX_CHK_FLUSH_TIMEOUT) / 2;
+
+    if (wall_time <= MIN_CHK_FLUSH_TIMEOUT) {
+        chkFlushTimeout = MIN_CHK_FLUSH_TIMEOUT;
+    } else if (wall_time <= middle) {
+        chkFlushTimeout = middle;
+    } else {
+        chkFlushTimeout = MAX_CHK_FLUSH_TIMEOUT;
+    }
+}
+
+size_t VBucket::getHighPriorityChkSize() const {
+    return hpChks.size();
+}
+
+size_t VBucket::getCheckpointFlushTimeout() {
+    return chkFlushTimeout;
 }
 
 void VBucket::addStats(bool details, ADD_STAT add_stat, const void *c) {

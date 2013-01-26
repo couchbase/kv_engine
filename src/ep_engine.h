@@ -90,7 +90,8 @@ public:
                                                  opsReject(0), queueSize(0),
                                                  queueMemory(0), queueAge(0),
                                                  queueFill(0), queueDrain(0),
-                                                 pendingWrites(0)
+                                                 pendingWrites(0),
+                                                 chkPersistRemaining(0)
     { }
 
     bool visitBucket(RCPtr<VBucket> &vb);
@@ -141,6 +142,7 @@ public:
     size_t getQueueDrain() { return queueDrain; }
     uint64_t getAge() { return queueAge; }
     size_t getPendingWrites() { return pendingWrites; }
+    size_t getChkPersistRemaining() { return chkPersistRemaining; }
 
 private:
     vbucket_state_t desired_state;
@@ -169,6 +171,7 @@ private:
     size_t queueFill;
     size_t queueDrain;
     size_t pendingWrites;
+    size_t chkPersistRemaining;
 };
 
 /**

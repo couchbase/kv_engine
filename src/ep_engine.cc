@@ -2308,6 +2308,10 @@ bool VBucketCountVisitor::visitBucket(RCPtr<VBucket> &vb) {
     numTempItems += vb->ht.getNumTempItems();
     nonResident += vb->ht.getNumNonResidentItems();
 
+    if (vb->getHighPriorityChkSize() > 0) {
+        chkPersistRemaining++;
+    }
+
     if (desired_state != vbucket_state_dead) {
         htMemory += vb->ht.memorySize();
         htItemMemory += vb->ht.getItemMemory();
@@ -2415,14 +2419,13 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     add_casted_stat("ep_item_flush_expired",
                     epstats.flushExpired, add_stat, cookie);
     add_casted_stat("ep_queue_size",
-                    epstats.queue_size, add_stat, cookie);
+                    epstats.diskQueueSize, add_stat, cookie);
     add_casted_stat("ep_flusher_todo",
                     epstats.flusher_todo, add_stat, cookie);
-    add_casted_stat("ep_diskqueue_items",
-                    epstats.queue_size + epstats.flusher_todo,
-                    add_stat, cookie);
     add_casted_stat("ep_uncommitted_items",
-                    epstore->getNumUncommittedItems(), add_stat, cookie);
+                    epstats.flusher_todo, add_stat, cookie);
+    add_casted_stat("ep_diskqueue_items",
+                    epstats.diskQueueSize, add_stat, cookie);
     add_casted_stat("ep_flusher_state",
                     epstore->getFlusher()->stateName(),
                     add_stat, cookie);
@@ -2723,12 +2726,13 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     add_casted_stat("ep_num_ops_del_meta", epstats.numOpsDelMeta,
                     add_stat, cookie);
     add_casted_stat("ep_chk_persistence_timeout",
-                    epstore->getFlusher()->getCheckpointFlushTimeout(),
+                    VBucket::getCheckpointFlushTimeout(),
                     add_stat, cookie);
     add_casted_stat("ep_chk_persistence_remains",
-                    epstore->getFlusher()->getNumOfHighPriorityVBs(),
+                    activeCountVisitor.getChkPersistRemaining() +
+                    pendingCountVisitor.getChkPersistRemaining() +
+                    replicaCountVisitor.getChkPersistRemaining(),
                     add_stat, cookie);
-
     return ENGINE_SUCCESS;
 }
 
@@ -3516,7 +3520,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe(const void* cookie,
     }
 
     uint64_t persist_time = 0;
-    double queue_size = static_cast<double>(stats.queue_size + stats.flusher_todo);
+    double queue_size = static_cast<double>(stats.diskQueueSize);
     double item_trans_time = epstore->getTransactionTimePerItem();
 
     if (item_trans_time > 0 && queue_size > 0) {
@@ -3730,8 +3734,7 @@ EventuallyPersistentEngine::handleCheckpointCmds(const void *cookie,
                     uint16_t persisted_chk_id =
                         epstore->getVBuckets().getPersistenceCheckpointId(vbucket);
                     if (chk_id > persisted_chk_id) {
-                        Flusher *flusher = const_cast<Flusher *>(epstore->getFlusher());
-                        flusher->addHighPriorityVBEntry(vbucket, chk_id, cookie);
+                        vb->addHighPriorityVBEntry(chk_id, cookie);
                         storeEngineSpecific(cookie, this);
                         return ENGINE_EWOULDBLOCK;
                     }
