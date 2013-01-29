@@ -3571,6 +3571,18 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::touch(const void *cookie,
                               cookie);
         }
         delete it;
+    } else if (rv == ENGINE_KEY_EEXISTS) {
+        if (isDegradedMode()) {
+            std::string msg("Temporary Failure");
+            rv = sendResponse(response, NULL, 0, NULL, 0, msg.c_str(),
+                              msg.length(), PROTOCOL_BINARY_RAW_BYTES,
+                              PROTOCOL_BINARY_RESPONSE_ETMPFAIL, 0, cookie);
+        } else {
+            std::string msg("Lock Error");
+            rv = sendResponse(response, NULL, 0, NULL, 0, msg.c_str(),
+                              msg.length(), PROTOCOL_BINARY_RAW_BYTES,
+                              PROTOCOL_BINARY_RESPONSE_ETMPFAIL, 0, cookie);
+        }
     } else if (rv == ENGINE_KEY_ENOENT) {
         if (isDegradedMode()) {
             std::string msg("Temporary Failure");

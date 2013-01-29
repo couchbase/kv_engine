@@ -1442,6 +1442,10 @@ GetValue EventuallyPersistentStore::getAndUpdateTtl(const std::string &key,
     StoredValue *v = fetchValidValue(vb, key, bucket_num);
 
     if (v) {
+        if (v->isLocked(ep_current_time())) {
+            GetValue rv(NULL, ENGINE_KEY_EEXISTS, 0);
+            return rv;
+        }
         bool exptime_mutated = exptime != v->getExptime() ? true : false;
         if (exptime_mutated) {
            v->markDirty();

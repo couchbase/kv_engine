@@ -6199,6 +6199,57 @@ static enum test_result test_multiple_transactions(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+static enum test_result test_gat_locked(ENGINE_HANDLE *h,
+                                        ENGINE_HANDLE_V1 *h1) {
+    item *itm = NULL;
+    check(store(h, h1, NULL, OPERATION_SET,
+                "key", "value", &itm) == ENGINE_SUCCESS, "Failed to set key");
+    h1->release(h, NULL, itm);
+
+    getl(h, h1, "key", 0, 15);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+          "Expected getl to succeed on key");
+
+    gat(h, h1, "key", 0, 10);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_ETMPFAIL, "Expected tmp fail");
+    check(strncmp(last_body, "Lock Error", 10) == 0, "Wrong error message");
+
+    testHarness.time_travel(16);
+    gat(h, h1, "key", 0, 10);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+
+    testHarness.time_travel(11);
+    check(h1->get(h, NULL, &itm, "key", 3, 0) == ENGINE_KEY_ENOENT,
+          "Expected value to be expired");
+
+    return SUCCESS;
+}
+
+static enum test_result test_touch_locked(ENGINE_HANDLE *h,
+                                        ENGINE_HANDLE_V1 *h1) {
+    item *itm = NULL;
+    check(store(h, h1, NULL, OPERATION_SET,
+                "key", "value", &itm) == ENGINE_SUCCESS, "Failed to set key");
+    h1->release(h, NULL, itm);
+
+    getl(h, h1, "key", 0, 15);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+          "Expected getl to succeed on key");
+
+    touch(h, h1, "key", 0, 10);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_ETMPFAIL, "Expected tmp fail");
+    check(strncmp(last_body, "Lock Error", 10) == 0, "Wrong error message");
+
+    testHarness.time_travel(16);
+    touch(h, h1, "key", 0, 10);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+
+    testHarness.time_travel(11);
+    check(h1->get(h, NULL, &itm, "key", 3, 0) == ENGINE_KEY_ENOENT,
+          "Expected value to be expired");
+
+    return SUCCESS;
+}
 
 static McCouchMockServer *mccouchMock;
 
@@ -6413,6 +6464,10 @@ engine_test_t* get_tests(void) {
                  NULL, prepare, cleanup),
         TestCase("test gatq", test_gatq, test_setup, teardown,
                  NULL, prepare, cleanup),
+        TestCase("test locked gat", test_gat_locked,
+                 test_setup, teardown, NULL, prepare, cleanup),
+        TestCase("test locked touch", test_touch_locked,
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test mb5215", test_mb5215, test_setup, teardown,
                  NULL, prepare, cleanup),
         TestCase("delete", test_delete, test_setup, teardown,
