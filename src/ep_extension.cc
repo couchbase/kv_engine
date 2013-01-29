@@ -92,7 +92,7 @@ void GetlExtension::initialize()
         cookie = ptr;
         serverApi->extension->register_extension(EXTENSION_ASCII_PROTOCOL, ptr);
 
-        getLogger()->log(EXTENSION_LOG_INFO, NULL, "Loaded extension: getl\n");
+        LOG(EXTENSION_LOG_INFO, "Loaded extension: getl");
     }
 }
 

@@ -87,11 +87,14 @@ static inline int my_pthread_cond_timedwait(pthread_cond_t *restrict cond,
     void operator=(const TypeName&)
 
 // Utility functions implemented in various modules.
-extern EXTENSION_LOGGER_DESCRIPTOR *getLogger(void);
+
+extern void LOG(EXTENSION_LOG_LEVEL severity, const char *fmt, ...);
 
 #include "ep_time.h"
 
 extern ALLOCATOR_HOOKS_API *getHooksApi(void);
+
+static SERVER_LOG_API *loggerApi;
 
 // Time handling functions
 inline void advance_tv(struct timeval &tv, const double secs) {

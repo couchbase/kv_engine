@@ -24,10 +24,12 @@
 #include <cstring>
 #include <assert.h>
 #include <fcntl.h>
+#include <stdarg.h>
 
 #include <memcached/util.h>
 #include <memcached/engine.h>
 #include <memcached/protocol_binary.h>
+#include "common.hh"
 #include "ep_engine.h"
 #include "tapthrottle.hh"
 #include "htresizer.hh"
@@ -40,7 +42,6 @@
 #include "statwriter.hh"
 #undef STATWRITER_NAMESPACE
 
-static SERVER_EXTENSION_API *extensionApi;
 static ALLOCATOR_HOOKS_API *hooksApi;
 
 static size_t percentOf(size_t val, double percent) {
@@ -388,18 +389,17 @@ extern "C" {
                 stats.timingLog = NULL;
                 delete old;
                 if (strcmp(valz, "off") == 0) {
-                    getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                                     "Disabled timing log.");
+                    LOG(EXTENSION_LOG_INFO, "Disabled timing log.");
                 } else {
                     std::ofstream *tmp(new std::ofstream(valz));
                     if (tmp->good()) {
-                        getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                                         "Logging detailed timings to ``%s''.", valz);
+                        LOG(EXTENSION_LOG_INFO,
+                            "Logging detailed timings to ``%s''.", valz);
                         stats.timingLog = tmp;
                     } else {
-                        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                         "Error setting detailed timing log to ``%s'':  %s",
-                                         valz, strerror(errno));
+                        LOG(EXTENSION_LOG_WARNING,
+                            "Error setting detailed timing log to ``%s'':  %s",
+                            valz, strerror(errno));
                         delete tmp;
                     }
                 }
@@ -466,9 +466,7 @@ extern "C" {
 
         std::string key(keyz, keylen);
 
-        getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                         "Manually evicting object with key %s\n",
-                         keyz);
+        LOG(EXTENSION_LOG_DEBUG, "Manually evicting object with key %s\n", keyz);
 
         protocol_binary_response_status rv = e->evictKey(key, vbucket, msg, msg_size);
         if (rv == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET ||
@@ -513,10 +511,8 @@ extern "C" {
         }
 
         if (lockTimeout >  max_timeout || lockTimeout < 1) {
-            getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                             "Illegal value for lock timeout specified %u."
-                             " Using default value: %u\n",
-                             lockTimeout, default_timeout);
+            LOG(EXTENSION_LOG_DEBUG, "Illegal value for lock timeout specified "
+                "%u. Using default value: %u\n", lockTimeout, default_timeout);
             lockTimeout = default_timeout;
         }
 
@@ -584,9 +580,7 @@ extern "C" {
         uint16_t vbucket = ntohs(request->request.vbucket);
         std::string key(keyz, keylen);
 
-        getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                         "Executing unl for key %s\n",
-                         keyz);
+        LOG(EXTENSION_LOG_DEBUG, "Executing unl for key %s\n", keyz);
 
         RememberingCallback<GetValue> getCb;
         uint64_t cas = ntohll(request->request.cas);
@@ -768,8 +762,8 @@ extern "C" {
                 e->storeEngineSpecific(cookie, e);
             } else {
                 e->storeEngineSpecific(cookie, NULL);
-                getLogger()->log(EXTENSION_LOG_INFO, cookie,
-                                 "Completed sync deletion of vbucket %u", (unsigned)vbucket);
+                LOG(EXTENSION_LOG_INFO, "Completed sync deletion of vbucket %u",
+                    (unsigned)vbucket);
                 err = ENGINE_SUCCESS;
             }
         } else {
@@ -777,32 +771,29 @@ extern "C" {
         }
         switch (err) {
             case ENGINE_SUCCESS:
-                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                 "Deletion of vbucket %d was completed.\n", vbucket);
+                LOG(EXTENSION_LOG_WARNING,
+                    "Deletion of vbucket %d was completed.", vbucket);
                 break;
             case ENGINE_NOT_MY_VBUCKET:
-                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                 "Deletion of vbucket %d failed because the vbucket "
-                                 "doesn't exist!!!\n", vbucket);
+                LOG(EXTENSION_LOG_WARNING, "Deletion of vbucket %d failed "
+                    "because the vbucket doesn't exist!!!", vbucket);
                 msg = "Failed to delete vbucket.  Bucket not found.";
                 res = PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET;
                 break;
             case ENGINE_EINVAL:
-                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                 "Deletion of vbucket %d failed because the vbucket "
-                                 "is not in a dead state\n", vbucket);
+                LOG(EXTENSION_LOG_WARNING, "Deletion of vbucket %d failed "
+                    "because the vbucket is not in a dead state\n", vbucket);
                 msg = "Failed to delete vbucket.  Must be in the dead state.";
                 res = PROTOCOL_BINARY_RESPONSE_EINVAL;
                 break;
             case ENGINE_EWOULDBLOCK:
-                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                 "Requst to vbucket %d deletion is in EWOULDBLOCK until "
-                                 "the database file is removed from disk.\n", vbucket);
+                LOG(EXTENSION_LOG_WARNING, "Requst to vbucket %d deletion is in"
+                    " EWOULDBLOCK until the database file is removed from disk",
+                    vbucket);
                 return ENGINE_EWOULDBLOCK;
             default:
-                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                 "Deletion of vbucket %d failed "
-                                 "because of unknown reasons\n", vbucket);
+                LOG(EXTENSION_LOG_WARNING, "Deletion of vbucket %d failed "
+                    "because of unknown reasons\n", vbucket);
                 msg = "Failed to delete vbucket.  Unknown reason.";
                 res = PROTOCOL_BINARY_RESPONSE_EINTERNAL;
         }
@@ -1111,7 +1102,7 @@ extern "C" {
         }
 
         hooksApi = api->alloc_hooks;
-        extensionApi = api->extension;
+        loggerApi = api->log;
         MemoryTracker::getInstance();
 
         Atomic<size_t>* inital_tracking = new Atomic<size_t>();
@@ -1167,12 +1158,26 @@ extern "C" {
     }
 } // C linkage
 
-EXTENSION_LOGGER_DESCRIPTOR *getLogger(void) {
-    if (extensionApi != NULL) {
-        return (EXTENSION_LOGGER_DESCRIPTOR*)extensionApi->get_extension(EXTENSION_LOGGER);
-    }
+void LOG(EXTENSION_LOG_LEVEL severity, const char *fmt, ...) {
+    char buffer[2048];
 
-    return NULL;
+    if (loggerApi != NULL) {
+        EXTENSION_LOGGER_DESCRIPTOR* logger =
+            (EXTENSION_LOGGER_DESCRIPTOR*)loggerApi->get_logger();
+        EventuallyPersistentEngine* engine = ObjectRegistry::getCurrentEngine();
+
+        if (loggerApi->get_level() <= severity) {
+            va_list va;
+            va_start(va, fmt);
+            vsprintf(buffer, fmt, va);
+            if (engine) {
+                logger->log(severity, NULL, "(%s) %s", engine->getName(), buffer);
+            } else {
+                logger->log(severity, NULL, "(No Engine) %s", buffer);
+            }
+            va_end(va);
+        }
+    }
 }
 
 ALLOCATOR_HOOKS_API *getHooksApi(void) {
@@ -1296,15 +1301,16 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         }
     }
 
+    name = configuration.getCouchBucket();
+
     // Start updating the variables from the config!
     HashTable::setDefaultNumBuckets(configuration.getHtSize());
     HashTable::setDefaultNumLocks(configuration.getHtLocks());
     std::string storedValType = configuration.getStoredValType();
     if (storedValType.length() > 0) {
         if (!HashTable::setDefaultStorageValueType(storedValType.c_str())) {
-            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                         "Unhandled storage value type: %s",
-                         configuration.getStoredValType().c_str());
+            LOG(EXTENSION_LOG_WARNING, "Unhandled storage value type: %s",
+                configuration.getStoredValType().c_str());
         }
     }
 
@@ -1356,8 +1362,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
                << std::endl;
         }
 
-        getLogger()->log(EXTENSION_LOG_WARNING, NULL, "%s",
-                         ss.str().c_str());
+        LOG(EXTENSION_LOG_WARNING, "%s", ss.str().c_str());
         return ENGINE_FAILED;
     }
 
@@ -1385,7 +1390,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     // record engine initialization time
     startupTime = ep_real_time();
 
-    getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "Engine init complete.\n");
+    LOG(EXTENSION_LOG_DEBUG, "Engine init complete.\n");
 
     return ENGINE_SUCCESS;
 }
@@ -1601,17 +1606,15 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
     }
 
     if (connection->isTimeForNoop()) {
-        getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                         "%s Sending a NOOP message.\n",
-                         connection->logHeader());
+        LOG(EXTENSION_LOG_INFO, "%s Sending a NOOP message.\n",
+            connection->logHeader());
         return TAP_NOOP;
     }
 
     if (connection->isSuspended() || connection->windowIsFull()) {
-        getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                     "%s Connection in pause state because it is in suspended state or "
-                     " its ack windows is full.\n",
-                     connection->logHeader());
+        LOG(EXTENSION_LOG_INFO, "%s Connection in pause state because it is in"
+            " suspended state or its ack windows is full.\n",
+            connection->logHeader());
         return TAP_PAUSE;
     }
 
@@ -1620,27 +1623,27 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
     if (ev.event != TAP_PAUSE) {
         switch (ev.event) {
         case TAP_VBUCKET_SET:
-            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "%s Sending TAP_VBUCKET_SET with vbucket %d and state \"%s\"\n",
-                             connection->logHeader(), ev.vbucket,
-                             VBucket::toString(ev.state));
+            LOG(EXTENSION_LOG_WARNING,
+                "%s Sending TAP_VBUCKET_SET with vbucket %d and state \"%s\"\n",
+                connection->logHeader(), ev.vbucket,
+                VBucket::toString(ev.state));
             connection->encodeVBucketStateTransition(ev, es, nes, vbucket);
             break;
         case TAP_OPAQUE:
-            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "%s Sending TAP_OPAQUE with command \"%s\" and vbucket %d\n",
-                             connection->logHeader(),
-                             TapConnection::opaqueCmdToString(ntohl((uint32_t) ev.state)),
-                             ev.vbucket);
+            LOG(EXTENSION_LOG_WARNING,
+                "%s Sending TAP_OPAQUE with command \"%s\" and vbucket %d\n",
+                connection->logHeader(),
+                TapConnection::opaqueCmdToString(ntohl((uint32_t) ev.state)),
+                ev.vbucket);
             connection->opaqueCommandCode = (uint32_t) ev.state;
             *vbucket = ev.vbucket;
             *es = &connection->opaqueCommandCode;
             *nes = sizeof(connection->opaqueCommandCode);
             break;
         default:
-            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "%s Unknown TapVBucketEvent message type %d\n",
-                             connection->logHeader(), ev.event);
+            LOG(EXTENSION_LOG_WARNING,
+                "%s Unknown TapVBucketEvent message type %d\n",
+                connection->logHeader(), ev.event);
             abort();
         }
         return ev.event;
@@ -1692,10 +1695,10 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
     if (ret == TAP_PAUSE && (connection->dumpQueue || connection->doTakeOver)) {
         TapVBucketEvent vbev = connection->checkDumpOrTakeOverCompletion();
         if (vbev.event == TAP_VBUCKET_SET) {
-            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "%s Sending TAP_VBUCKET_SET with vbucket %d and state \"%s\"\n",
-                             connection->logHeader(), vbev.vbucket,
-                             VBucket::toString(vbev.state));
+            LOG(EXTENSION_LOG_WARNING,
+                "%s Sending TAP_VBUCKET_SET with vbucket %d and state \"%s\"\n",
+                connection->logHeader(), vbev.vbucket,
+                VBucket::toString(vbev.state));
             connection->encodeVBucketStateTransition(vbev, es, nes, vbucket);
         }
         ret = vbev.event;
@@ -1714,8 +1717,8 @@ tap_event_t EventuallyPersistentEngine::walkTapQueue(const void *cookie,
                                                      uint16_t *vbucket) {
     TapProducer *connection = getTapProducer(cookie);
     if (!connection) {
-        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                         "Failed to lookup TAP connection.. Disconnecting\n");
+        LOG(EXTENSION_LOG_WARNING,
+            "Failed to lookup TAP connection.. Disconnecting\n");
         return TAP_DISCONNECT;
     }
 
@@ -1785,9 +1788,9 @@ bool EventuallyPersistentEngine::createTapQueue(const void *cookie,
 
     if (flags & TAP_CONNECT_FLAG_BACKFILL) { /* */
         if (nuserdata < sizeof(backfillAge)) {
-            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "Backfill age is missing. Reject connection request from %s\n",
-                             name.c_str());
+            LOG(EXTENSION_LOG_WARNING,
+                "Backfill age is missing. Reject connection request from %s\n",
+                name.c_str());
             return false;
         }
         // use memcpy to avoid alignemt issues
@@ -1800,9 +1803,9 @@ bool EventuallyPersistentEngine::createTapQueue(const void *cookie,
     if (flags & TAP_CONNECT_FLAG_LIST_VBUCKETS) {
         uint16_t nvbuckets;
         if (nuserdata < sizeof(nvbuckets)) {
-            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "Number of vbuckets is missing. Reject connection request from %s\n",
-                             name.c_str());
+            LOG(EXTENSION_LOG_WARNING,
+                "Number of vbuckets is missing. Reject connection request from %s\n",
+                name.c_str());
             return false;
         }
         memcpy(&nvbuckets, ptr, sizeof(nvbuckets));
@@ -1811,9 +1814,9 @@ bool EventuallyPersistentEngine::createTapQueue(const void *cookie,
         nvbuckets = ntohs(nvbuckets);
         if (nvbuckets > 0) {
             if (nuserdata < (sizeof(uint16_t) * nvbuckets)) {
-                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                 "# of vbuckets not matched. Reject connection request from %s\n",
-                                 name.c_str());
+                LOG(EXTENSION_LOG_WARNING,
+                    "# of vbuckets not matched. Reject connection request from %s\n",
+                    name.c_str());
                 return false;
             }
             for (uint16_t ii = 0; ii < nvbuckets; ++ii) {
@@ -1836,9 +1839,8 @@ bool EventuallyPersistentEngine::createTapQueue(const void *cookie,
         }
         if (nCheckpoints > 0) {
             if (nuserdata < ((sizeof(uint16_t) + sizeof(uint64_t)) * nCheckpoints)) {
-                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "# of checkpoint Ids not matched. Reject connection request from %s\n",
-                             name.c_str());
+                LOG(EXTENSION_LOG_WARNING, "# of checkpoint Ids not matched. "
+                    "Reject connection request from %s\n", name.c_str());
                 return false;
             }
             for (uint16_t j = 0; j < nCheckpoints; ++j) {
@@ -1904,17 +1906,16 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
     TapConnection *connection = NULL;
     if (specific == NULL) {
         if (tap_event == TAP_ACK) {
-            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "Tap producer with cookie %s does not exist."
-                             " Force disconnect...\n", (char *) cookie);
+            LOG(EXTENSION_LOG_WARNING, "Tap producer with cookie %s does not "
+                "exist. Force disconnect...\n", (char *) cookie);
             // tap producer is no longer connected..
             return ENGINE_DISCONNECT;
         } else {
             // Create a new tap consumer...
             connection = tapConnMap->newConsumer(cookie);
             if (connection == NULL) {
-                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                 "Failed to create new tap consumer. Force disconnect\n");
+                LOG(EXTENSION_LOG_WARNING, "Failed to create new tap consumer. "
+                    "Force disconnect\n");
                 return ENGINE_DISCONNECT;
             }
             storeEngineSpecific(cookie, connection);
@@ -1933,10 +1934,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
                 ret = ENGINE_TMPFAIL;
             } else {
                 ret = ENGINE_DISCONNECT;
-                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                 "%s Can't throttle streams without ack support."
-                                 " Force disconnect...\n",
-                                 connection->logHeader());
+                LOG(EXTENSION_LOG_WARNING, "%s Can't throttle streams without "
+                    "ack support. Force disconnect...\n",
+                    connection->logHeader());
             }
             return ret;
         }
@@ -1948,16 +1948,15 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
         break;
     case TAP_FLUSH:
         ret = flush(cookie, 0);
-        getLogger()->log(EXTENSION_LOG_WARNING, NULL, "%s Received flush.\n",
-                         connection->logHeader());
+        LOG(EXTENSION_LOG_WARNING, "%s Received flush.\n",
+            connection->logHeader());
         break;
     case TAP_DELETION:
         {
             TapConsumer *tc = dynamic_cast<TapConsumer*>(connection);
             if (!tc) {
-                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                 "%s not a consumer! Force disconnect\n",
-                                 connection->logHeader());
+                LOG(EXTENSION_LOG_WARNING, "%s not a consumer! Force disconnect",
+                    connection->logHeader());
                 return ENGINE_DISCONNECT;
             }
 
@@ -2014,22 +2013,21 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
                         ret = ENGINE_SUCCESS;
                     } else {
                         ret = ENGINE_DISCONNECT;
-                        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                         "%s Error processing checkpoint %llu. Force disconnect\n",
-                                         connection->logHeader(), checkpointId);
+                        LOG(EXTENSION_LOG_WARNING, "%s Error processing "
+                            "checkpoint %llu. Force disconnect\n",
+                            connection->logHeader(), checkpointId);
                     }
                 } else {
                     ret = ENGINE_DISCONNECT;
-                    getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                     "%s Checkpoint Id is missing in CHECKPOINT messages."
-                                     " Force disconnect...\n",
-                                     connection->logHeader());
+                    LOG(EXTENSION_LOG_WARNING, "%s Checkpoint Id is missing in "
+                        "CHECKPOINT messages. Force disconnect...\n",
+                        connection->logHeader());
                 }
             } else {
                 ret = ENGINE_DISCONNECT;
-                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                 "%s not a consumer! Force disconnect\n",
-                                 connection->logHeader());
+                LOG(EXTENSION_LOG_WARNING,
+                    "%s not a consumer! Force disconnect\n",
+                    connection->logHeader());
             }
         }
         break;
@@ -2070,9 +2068,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
                     }
                 }
             } else {
-                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                 "%s not a consumer! Force disconnect\n",
-                                 connection->logHeader());
+                LOG(EXTENSION_LOG_WARNING,
+                    "%s not a consumer! Force disconnect\n",
+                    connection->logHeader());
                 ret = ENGINE_DISCONNECT;
             }
 
@@ -2080,10 +2078,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
                 if (connection->supportsAck()) {
                     ret = ENGINE_TMPFAIL;
                 } else {
-                    getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                     "%s Connection does not support tap ack'ing.."
-                                     " Force disconnect\n",
-                                     connection->logHeader());
+                    LOG(EXTENSION_LOG_WARNING, "%s Connection does not support "
+                        "tap ack'ing.. Force disconnect\n",
+                        connection->logHeader());
                     ret = ENGINE_DISCONNECT;
                 }
             }
@@ -2094,9 +2091,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
             }
 
             if (ret == ENGINE_DISCONNECT) {
-                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                 "%s Failed to apply tap mutation. Force disconnect\n",
-                                 connection->logHeader());
+                LOG(EXTENSION_LOG_WARNING, "%s Failed to apply tap mutation. "
+                    "Force disconnect\n", connection->logHeader());
             }
         }
         break;
@@ -2114,15 +2110,13 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
                 // set as the default when we move to .next after 2.0
                 // (currently we need to allow the message for
                 // backwards compatibility)
-                getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                                 "%s Enable auto nack mode\n",
-                                 connection->logHeader());
+                LOG(EXTENSION_LOG_INFO, "%s Enable auto nack mode\n",
+                    connection->logHeader());
                 break;
             case TAP_OPAQUE_ENABLE_CHECKPOINT_SYNC:
                 connection->setSupportCheckpointSync(true);
-                getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                                 "%s Enable checkpoint synchronization\n",
-                                 connection->logHeader());
+                LOG(EXTENSION_LOG_INFO, "%s Enable checkpoint synchronization\n",
+                    connection->logHeader());
                 break;
             case TAP_OPAQUE_OPEN_CHECKPOINT:
                 /**
@@ -2130,24 +2124,24 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
                  * from closed checkpoints only. At this time, only incremental backup client
                  * receives this event so that it can close the connection and reconnect later.
                  */
-                 getLogger()->log(EXTENSION_LOG_INFO, NULL, "%s Beginning of checkpoint.\n",
-                                 connection->logHeader());
+                LOG(EXTENSION_LOG_INFO, "%s Beginning of checkpoint.\n",
+                    connection->logHeader());
                 break;
             case TAP_OPAQUE_INITIAL_VBUCKET_STREAM:
                 {
-                    getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                                     "%s Backfill started for vbucket %d.\n",
-                                     connection->logHeader(), vbucket);
+                    LOG(EXTENSION_LOG_INFO,
+                        "%s Backfill started for vbucket %d.\n",
+                        connection->logHeader(), vbucket);
                     BlockTimer timer(&stats.tapVbucketResetHisto);
                     ret = resetVBucket(vbucket) ? ENGINE_SUCCESS : ENGINE_DISCONNECT;
                     if (ret == ENGINE_DISCONNECT) {
-                        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                     "%s Failed to reset a vbucket %d. Force disconnect\n",
-                                     connection->logHeader(), vbucket);
+                        LOG(EXTENSION_LOG_WARNING,
+                            "%s Failed to reset a vbucket %d. Force disconnect\n",
+                            connection->logHeader(), vbucket);
                     } else {
-                         getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                     "%s Reset vbucket %d was completed succecssfully.\n",
-                                     connection->logHeader(), vbucket);
+                        LOG(EXTENSION_LOG_WARNING,
+                            "%s Reset vbucket %d was completed succecssfully.\n",
+                            connection->logHeader(), vbucket);
                     }
 
                     TapConsumer *tc = dynamic_cast<TapConsumer*>(connection);
@@ -2155,23 +2149,23 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
                         tc->setBackfillPhase(true, vbucket);
                     } else {
                         ret = ENGINE_DISCONNECT;
-                        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                         "TAP consumer doesn't exists. Force disconnect\n");
+                        LOG(EXTENSION_LOG_WARNING,
+                            "TAP consumer doesn't exists. Force disconnect\n");
                     }
                 }
                 break;
             case TAP_OPAQUE_CLOSE_BACKFILL:
                 {
-                    getLogger()->log(EXTENSION_LOG_INFO, NULL, "%s Backfill finished.\n",
-                                     connection->logHeader());
+                    LOG(EXTENSION_LOG_INFO, "%s Backfill finished.\n",
+                        connection->logHeader());
                     TapConsumer *tc = dynamic_cast<TapConsumer*>(connection);
                     if (tc) {
                         tc->setBackfillPhase(false, vbucket);
                     } else {
                         ret = ENGINE_DISCONNECT;
-                        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                         "%s not a consumer! Force disconnect\n",
-                                         connection->logHeader());
+                        LOG(EXTENSION_LOG_WARNING,
+                            "%s not a consumer! Force disconnect\n",
+                            connection->logHeader());
                     }
                 }
                 break;
@@ -2181,28 +2175,28 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
                  * closes the tap replication stream and switches to TAKEOVER_VBUCKETS phase.
                  * This is just an informative message and doesn't require any action.
                  */
-                getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                                 "%s Received close tap stream. Switching to takeover phase.\n",
-                                 connection->logHeader());
+                LOG(EXTENSION_LOG_INFO,
+                    "%s Received close tap stream. Switching to takeover phase.\n",
+                    connection->logHeader());
                 break;
             case TAP_OPAQUE_COMPLETE_VB_FILTER_CHANGE:
                 /**
                  * This opaque message is just for notifying that the source node receives
                  * change_vbucket_filter request and processes it successfully.
                  */
-                getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                                 "%s Notified that the source node changed a vbucket filter.\n",
-                                 connection->logHeader());
+                LOG(EXTENSION_LOG_INFO,
+                    "%s Notified that the source node changed a vbucket filter.\n",
+                    connection->logHeader());
                 break;
             default:
-                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                 "%s Received an unknown opaque command\n",
-                                 connection->logHeader());
+                LOG(EXTENSION_LOG_WARNING,
+                    "%s Received an unknown opaque command\n",
+                    connection->logHeader());
             }
         } else {
-            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "%s Received tap opaque with unknown size %d\n",
-                             connection->logHeader(), nengine);
+            LOG(EXTENSION_LOG_WARNING,
+                "%s Received tap opaque with unknown size %d\n",
+                connection->logHeader(), nengine);
         }
         break;
 
@@ -2212,10 +2206,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
 
             if (nengine != sizeof(vbucket_state_t)) {
                 // illegal datasize
-                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                 "%s Received TAP_VBUCKET_SET with illegal size."
-                                 " Force disconnect\n",
-                                 connection->logHeader());
+                LOG(EXTENSION_LOG_WARNING,
+                    "%s Received TAP_VBUCKET_SET with illegal size."
+                    " Force disconnect\n", connection->logHeader());
                 ret = ENGINE_DISCONNECT;
                 break;
             }
@@ -2225,16 +2218,16 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
             state = (vbucket_state_t)ntohl(state);
 
             if (!is_valid_vbucket_state_t(state)) {
-                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                 "%s Received an invalid vbucket state. Force disconnect\n",
-                                 connection->logHeader());
+                LOG(EXTENSION_LOG_WARNING,
+                    "%s Received an invalid vbucket state. Force disconnect\n",
+                    connection->logHeader());
                 ret = ENGINE_DISCONNECT;
                 break;
             }
 
-            getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                             "%s Received TAP_VBUCKET_SET with vbucket %d and state \"%s\"\n",
-                             connection->logHeader(), vbucket, VBucket::toString(state));
+            LOG(EXTENSION_LOG_INFO,
+                "%s Received TAP_VBUCKET_SET with vbucket %d and state \"%s\"\n",
+                connection->logHeader(), vbucket, VBucket::toString(state));
 
             epstore->setVBucketState(vbucket, state);
         }
@@ -2242,9 +2235,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
 
     default:
         // Unknown command
-        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                        "%s Recieved bad opcode, ignoring message\n",
-                        connection->logHeader());
+        LOG(EXTENSION_LOG_WARNING,
+            "%s Recieved bad opcode, ignoring message\n",
+            connection->logHeader());
     }
 
     connection->processedEvent(tap_event, ret);
@@ -2255,15 +2248,14 @@ TapProducer* EventuallyPersistentEngine::getTapProducer(const void *cookie) {
     TapProducer *rv =
         reinterpret_cast<TapProducer*>(getEngineSpecific(cookie));
     if (!(rv && rv->connected)) {
-        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                         "Walking a non-existent tap queue, disconnecting\n");
+        LOG(EXTENSION_LOG_WARNING,
+            "Walking a non-existent tap queue, disconnecting\n");
         return NULL;
     }
 
     if (rv->doDisconnect()) {
-        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                         "%s Disconnecting pending connection\n",
-                         rv->logHeader());
+        LOG(EXTENSION_LOG_WARNING,
+            "%s Disconnecting pending connection\n", rv->logHeader());
         return NULL;
     }
     return rv;
@@ -2276,8 +2268,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::processTapAck(const void *cookie,
 {
     TapProducer *connection = getTapProducer(cookie);
     if (!connection) {
-        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                         "Unable to process tap ack. No producer found\n");
+        LOG(EXTENSION_LOG_WARNING,
+            "Unable to process tap ack. No producer found\n");
         return ENGINE_DISCONNECT;
     }
 
@@ -3131,9 +3123,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doKeyStats(const void *cookie,
     if (fetchLookupResult(cookie, &it)) {
         diskItem.reset(it); // Will be null if the key was not found
         if (!validate) {
-            getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                             "Found lookup results for non-validating key "
-                             "stat call. Would have leaked\n");
+            LOG(EXTENSION_LOG_DEBUG,
+                "Found lookup results for non-validating key "
+                "stat call. Would have leaked\n");
             diskItem.reset();
         }
     } else if (validate) {
@@ -3158,8 +3150,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doKeyStats(const void *cookie,
             } else {
                 valid.assign("ram_but_not_disk");
             }
-            getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "Key '%s' is %s\n",
-                             key.c_str(), valid.c_str());
+            LOG(EXTENSION_LOG_DEBUG, "Key '%s' is %s\n", key.c_str(),
+                valid.c_str());
         }
         add_casted_stat("key_is_dirty", kstats.dirty, add_stat, cookie);
         add_casted_stat("key_exptime", kstats.exptime, add_stat, cookie);
@@ -3324,9 +3316,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
                                                        ADD_STAT add_stat) {
     BlockTimer timer(&stats.getStatsCmdHisto);
     if (stat_key != NULL) {
-        getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "stats %s %d", stat_key, nkey);
+        LOG(EXTENSION_LOG_DEBUG, "stats %s %d", stat_key, nkey);
     } else {
-        getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "stats engine");
+        LOG(EXTENSION_LOG_DEBUG, "stats engine");
     }
 
     ENGINE_ERROR_CODE rv = ENGINE_KEY_ENOENT;
@@ -3477,8 +3469,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe(const void* cookie,
         const std::string key(data + offset, keylen);
         offset += keylen;
 
-        getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "Observing key: %s, in vbucket %d.",
-                         key.c_str(), vb_id);
+        LOG(EXTENSION_LOG_DEBUG, "Observing key: %s, in vbucket %d.",
+            key.c_str(), vb_id);
 
         // Get key stats
         uint16_t keystatus = 0;
@@ -3740,9 +3732,9 @@ EventuallyPersistentEngine::handleCheckpointCmds(const void *cookie,
                     }
                 } else {
                     storeEngineSpecific(cookie, NULL);
-                    getLogger()->log(EXTENSION_LOG_INFO, cookie,
-                                     "Checkpoint %llu persisted for vbucket %d.",
-                                     chk_id, vbucket);
+                    LOG(EXTENSION_LOG_INFO,
+                        "Checkpoint %llu persisted for vbucket %d.",
+                        chk_id, vbucket);
                 }
             }
         }

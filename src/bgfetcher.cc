@@ -23,10 +23,9 @@ void BgFetcher::stop() {
 
 void BgFetcher::doFetch(uint16_t vbId) {
     hrtime_t startTime(gethrtime());
-    getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                     "BgFetcher is fetching data, vBucket = %d numDocs = %d, "
-                     "startTime = %lld\n",
-                     vbId, items2fetch.size(), startTime/1000000);
+    LOG(EXTENSION_LOG_DEBUG, "BgFetcher is fetching data, vBucket = %d "
+        "numDocs = %d, startTime = %lld\n", vbId, items2fetch.size(),
+        startTime/1000000);
 
     store->getROUnderlying()->getMulti(vbId, items2fetch);
 
@@ -42,10 +41,9 @@ void BgFetcher::doFetch(uint16_t vbId) {
                 // underlying kvstore failed to fetch requested data
                 // don't return the failed request yet. Will requeue
                 // it for retry later
-                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                    "Warning: bgfetcher failed to fetch data for vb = %d "
-                    "seq = %lld key = %s retry = %d\n", vbId, (*itr).first,
-                     (*itm)->key.c_str(), (*itm)->getRetryCount());
+                LOG(EXTENSION_LOG_WARNING, "Warning: bgfetcher failed to fetch "
+                    "data for vb = %d seq = %lld key = %s retry = %d\n", vbId,
+                    (*itr).first, (*itm)->key.c_str(), (*itm)->getRetryCount());
                 continue;
             }
             fetchedItems.push_back(*itm);
@@ -81,9 +79,8 @@ void BgFetcher::clearItems(uint16_t vbId) {
                 RCPtr<VBucket> vb = store->getVBuckets().getBucket(vbId);
                 assert(vb);
                 (*dItr)->incrRetryCount();
-                getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                    "BgFetcher is re-queueing failed request for vb = %d "
-                    "seq = %lld key = %s retry = %d\n",
+                LOG(EXTENSION_LOG_DEBUG, "BgFetcher is re-queueing failed "
+                    "request for vb = %d seq = %lld key = %s retry = %d\n",
                      vbId, (*itr).first, (*dItr)->key.c_str(),
                      (*dItr)->getRetryCount());
                 ++numRequeuedItems;

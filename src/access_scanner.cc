@@ -21,9 +21,8 @@ public:
         assert(log != NULL);
         log->open();
         if (!log->isOpen()) {
-            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "FATAL: Failed to open access log: %s",
-                             next.c_str());
+            LOG(EXTENSION_LOG_WARNING, "FATAL: Failed to open access log: %s",
+                next.c_str());
             delete log;
             log = NULL;
         }
@@ -32,9 +31,8 @@ public:
     void visit(StoredValue *v) {
         if (log != NULL && v->isReferenced(true, &currentBucket->ht)) {
             if (v->isExpired(startTime) || v->isDeleted()) {
-                getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                                 "INFO: Skipping expired/deleted item: %s",
-                                 v->getKey().c_str());
+                LOG(EXTENSION_LOG_INFO, "INFO: Skipping expired/deleted item: %s",
+                    v->getKey().c_str());
             } else {
                 log->newItem(currentBucket->getId(), v->getKey(), v->getId());
             }
@@ -65,27 +63,23 @@ public:
             stats.alogNumItems.set(num_items);
 
             if (num_items == 0) {
-                getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                                 "The new access log is empty. "
-                                 "Delete it without replacing the current access log...\n");
+                LOG(EXTENSION_LOG_INFO, "The new access log is empty. "
+                    "Delete it without replacing the current access log...\n");
                 remove(next.c_str());
                 return;
             }
 
             if (access(prev.c_str(), F_OK) == 0 && remove(prev.c_str()) == -1) {
-                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                 "FATAL: Failed to remove '%s': %s",
-                                 prev.c_str(), strerror(errno));
+                LOG(EXTENSION_LOG_WARNING, "FATAL: Failed to remove '%s': %s",
+                    prev.c_str(), strerror(errno));
                 remove(next.c_str());
             } else if (access(name.c_str(), F_OK) == 0 && rename(name.c_str(), prev.c_str()) == -1) {
-                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                 "FATAL: Failed to rename '%s' to '%s': %s",
-                                 name.c_str(), prev.c_str(), strerror(errno));
+                LOG(EXTENSION_LOG_WARNING, "FATAL: Failed to rename '%s' to '%s': %s",
+                    name.c_str(), prev.c_str(), strerror(errno));
                 remove(next.c_str());
             } else if (rename(next.c_str(), name.c_str()) == -1) {
-                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                 "FATAL: Failed to rename '%s' to '%s': %s",
-                                 next.c_str(), name.c_str(), strerror(errno));
+                LOG(EXTENSION_LOG_WARNING, "FATAL: Failed to rename '%s' to '%s': %s",
+                    next.c_str(), name.c_str(), strerror(errno));
                 remove(next.c_str());
             }
         }

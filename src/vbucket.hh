@@ -134,10 +134,10 @@ public:
 
     ~VBucket() {
         if (!pendingOps.empty() || !pendingBGFetches.empty()) {
-            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "Have %ld pending ops and %ld pending reads "
-                             "while destroying vbucket\n",
-                             pendingOps.size(), pendingBGFetches.size());
+            LOG(EXTENSION_LOG_WARNING,
+                "Have %ld pending ops and %ld pending reads "
+                "while destroying vbucket\n",
+                pendingOps.size(), pendingBGFetches.size());
         }
 
         stats.diskQueueSize.decr(dirtyQueueSize.get());
@@ -149,8 +149,7 @@ public:
         }
         stats.memOverhead.decr(sizeof(VBucket) + ht.memorySize() + sizeof(CheckpointManager));
         assert(stats.memOverhead.get() < GIGANTOR);
-        getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                         "Destroying vbucket %d\n", id);
+        LOG(EXTENSION_LOG_INFO, "Destroying vbucket %d\n", id);
     }
 
     int getId(void) const { return id; }

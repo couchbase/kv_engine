@@ -41,9 +41,9 @@ private:
 #undef STATWRITER_NAMESPACE
 
 Checkpoint::~Checkpoint() {
-    getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                     "Checkpoint %llu for vbucket %d is purged from memory.\n",
-                     checkpointId, vbucketId);
+    LOG(EXTENSION_LOG_INFO,
+        "Checkpoint %llu for vbucket %d is purged from memory",
+        checkpointId, vbucketId);
     stats.memOverhead.decr(memorySize());
     assert(stats.memOverhead.get() < GIGANTOR);
 }
@@ -151,9 +151,9 @@ size_t Checkpoint::mergePrevCheckpoint(Checkpoint *pPrevCheckpoint) {
     size_t newEntryMemOverhead = 0;
     std::list<queued_item>::reverse_iterator rit = pPrevCheckpoint->rbegin();
 
-    getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                     "Collapse the checkpoint %llu into the checkpoint %llu for vbucket %d.\n",
-                     pPrevCheckpoint->getId(), checkpointId, vbucketId);
+    LOG(EXTENSION_LOG_INFO,
+        "Collapse the checkpoint %llu into the checkpoint %llu for vbucket %d",
+        pPrevCheckpoint->getId(), checkpointId, vbucketId);
 
     keyIndex["dummy_key"].mutation_id =
         pPrevCheckpoint->getMutationIdForKey("dummy_key");
@@ -231,9 +231,9 @@ uint64_t CheckpointManager::getLastClosedCheckpointId() {
 
 void CheckpointManager::setOpenCheckpointId_UNLOCKED(uint64_t id) {
     if (checkpointList.size() > 0) {
-        getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                         "Set the current open checkpoint id to %llu for vbucket %d.\n",
-                         id, vbucketId);
+        LOG(EXTENSION_LOG_INFO,
+            "Set the current open checkpoint id to %llu for vbucket %d",
+            id, vbucketId);
         checkpointList.back()->setId(id);
         // Update the checkpoint_start item with the new Id.
         queued_item qi = createCheckpointItem(id, vbucketId, queue_op_checkpoint_start);
@@ -249,9 +249,8 @@ bool CheckpointManager::addNewCheckpoint_UNLOCKED(uint64_t id) {
         closeOpenCheckpoint_UNLOCKED(checkpointList.back()->getId());
     }
 
-    getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                     "Create a new open checkpoint %llu for vbucket %d.\n",
-                     id, vbucketId);
+    LOG(EXTENSION_LOG_INFO, "Create a new open checkpoint %llu for vbucket %d",
+        id, vbucketId);
 
     bool empty = checkpointList.empty() ? true : false;
     Checkpoint *checkpoint = new Checkpoint(stats, id, vbucketId, CHECKPOINT_OPEN);
@@ -313,8 +312,8 @@ bool CheckpointManager::closeOpenCheckpoint_UNLOCKED(uint64_t id) {
         return true;
     }
 
-    getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                     "Close the open checkpoint %llu for vbucket %d\n", id, vbucketId);
+    LOG(EXTENSION_LOG_INFO, "Close the open checkpoint %llu for vbucket %d",
+        id, vbucketId);
 
     // This item represents the end of the current open checkpoint and is sent to the slave node.
     queued_item qi = createCheckpointItem(id, vbucketId, queue_op_checkpoint_end);
@@ -361,9 +360,9 @@ bool CheckpointManager::registerTAPCursor_UNLOCKED(const std::string &name,
         }
     }
 
-    getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                     "Register the tap cursor with the name \"%s\" for vbucket %d.\n",
-                     name.c_str(), vbucketId);
+    LOG(EXTENSION_LOG_INFO,
+        "Register the tap cursor with the name \"%s\" for vbucket %d",
+        name.c_str(), vbucketId);
 
     // Get the current open_checkpoint_id. The cursor that grabs items from closed checkpoints
     // only walks the checkpoint datastructure until it reaches to the beginning of the
@@ -379,10 +378,10 @@ bool CheckpointManager::registerTAPCursor_UNLOCKED(const std::string &name,
     }
 
     if (!found) {
-        getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                         "Checkpoint %llu for vbucket %d doesn't exist in memory. "
-                         "Set the cursor with the name \"%s\" to the open checkpoint.\n",
-                         checkpointId, vbucketId, name.c_str());
+        LOG(EXTENSION_LOG_DEBUG,
+            "Checkpoint %llu for vbucket %d doesn't exist in memory. "
+            "Set the cursor with the name \"%s\" to the open checkpoint.\n",
+            checkpointId, vbucketId, name.c_str());
         it = --(checkpointList.end());
         CheckpointCursor cursor(name, it, (*it)->begin(),
                             numItems - ((*it)->getNumItems() + 1), // 1 is for checkpoint start item
@@ -393,10 +392,10 @@ bool CheckpointManager::registerTAPCursor_UNLOCKED(const std::string &name,
         size_t offset = 0;
         std::list<queued_item>::iterator curr;
 
-        getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                         "Checkpoint %llu for vbucket %d exists in memory. "
-                         "Set the cursor with the name \"%s\" to the checkpoint %llu\n",
-                         checkpointId, vbucketId, name.c_str(), checkpointId);
+        LOG(EXTENSION_LOG_DEBUG,
+            "Checkpoint %llu for vbucket %d exists in memory. "
+            "Set the cursor with the name \"%s\" to the checkpoint %llu\n",
+            checkpointId, vbucketId, name.c_str(), checkpointId);
 
         if (!alwaysFromBeginning &&
             map_it != tapCursors.end() &&
@@ -426,9 +425,9 @@ bool CheckpointManager::registerTAPCursor_UNLOCKED(const std::string &name,
 bool CheckpointManager::removeTAPCursor(const std::string &name) {
     LockHolder lh(queueLock);
 
-    getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                     "Remove the checkpoint cursor with the name \"%s\" from vbucket %d.\n",
-                     name.c_str(), vbucketId);
+    LOG(EXTENSION_LOG_INFO,
+        "Remove the checkpoint cursor with the name \"%s\" from vbucket %d",
+        name.c_str(), vbucketId);
 
     std::map<const std::string, CheckpointCursor>::iterator it = tapCursors.find(name);
     if (it == tapCursors.end()) {
@@ -749,9 +748,9 @@ void CheckpointManager::getAllItemsForPersistence(std::vector<queued_item> &item
     persistenceCursor.offset = numItems;
     pCursorPreCheckpointId = getLastClosedCheckpointId_UNLOCKED();
 
-    getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                     "Grab %ld items through the persistence cursor from vbucket %d.\n",
-                     items.size(), vbucketId);
+    LOG(EXTENSION_LOG_DEBUG,
+        "Grab %ld items through the persistence cursor from vbucket %d",
+        items.size(), vbucketId);
 }
 
 void CheckpointManager::getAllItemsForTAPConnection(const std::string &name,
@@ -759,17 +758,17 @@ void CheckpointManager::getAllItemsForTAPConnection(const std::string &name,
     LockHolder lh(queueLock);
     std::map<const std::string, CheckpointCursor>::iterator it = tapCursors.find(name);
     if (it == tapCursors.end()) {
-        getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                         "The cursor for TAP connection \"%s\" is not found in the checkpoint.\n",
-                         name.c_str());
+        LOG(EXTENSION_LOG_DEBUG,
+            "The cursor for TAP connection \"%s\" is not found in the checkpoint",
+            name.c_str());
         return;
     }
     getAllItemsFromCurrentPosition(it->second, 0, items);
     it->second.offset = numItems;
 
-    getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                     "Grab %ld items through the tap cursor with name \"%s\" from vbucket %d.\n",
-                     items.size(), name.c_str(), vbucketId);
+    LOG(EXTENSION_LOG_DEBUG,
+        "Grab %ld items through the tap cursor with name \"%s\" from vbucket %d",
+        items.size(), name.c_str(), vbucketId);
 }
 
 queued_item CheckpointManager::nextItem(const std::string &name, bool &isLastMutationItem) {
@@ -777,18 +776,16 @@ queued_item CheckpointManager::nextItem(const std::string &name, bool &isLastMut
     isLastMutationItem = false;
     std::map<const std::string, CheckpointCursor>::iterator it = tapCursors.find(name);
     if (it == tapCursors.end()) {
-        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                         "The cursor with name \"%s\" is not found in "
-                         "the checkpoint of vbucket %d.\n",
-                         name.c_str(), vbucketId);
+        LOG(EXTENSION_LOG_WARNING, "The cursor with name \"%s\" is not found in"
+            " the checkpoint of vbucket %d.\n", name.c_str(), vbucketId);
         queued_item qi(new QueuedItem("", 0xffff, queue_op_empty));
         return qi;
     }
     if (checkpointList.back()->getId() == 0) {
-        getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                         "VBucket %d is still in backfill phase that doesn't allow "
-                         " the tap cursor to fetch an item from it's current checkpoint.\n",
-                         vbucketId);
+        LOG(EXTENSION_LOG_INFO,
+            "VBucket %d is still in backfill phase that doesn't allow "
+            " the tap cursor to fetch an item from it's current checkpoint",
+            vbucketId);
         queued_item qi(new QueuedItem("", 0xffff, queue_op_empty));
         return qi;
     }
@@ -1222,9 +1219,9 @@ void CheckpointManager::decrCursorOffset_UNLOCKED(CheckpointCursor &cursor, size
         cursor.offset -= decr;
     } else {
         cursor.offset = 0;
-        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                         "%s cursor offset is negative. Reset it to 0.",
-                         cursor.name.c_str());
+        LOG(EXTENSION_LOG_WARNING,
+            "%s cursor offset is negative. Reset it to 0.",
+            cursor.name.c_str());
     }
 }
 
@@ -1272,7 +1269,7 @@ bool CheckpointConfig::validateCheckpointMaxItemsParam(size_t checkpoint_max_ite
         ss << "New checkpoint_max_items param value " << checkpoint_max_items
            << " is not ranged between the min allowed value " << MIN_CHECKPOINT_ITEMS
            << " and max value " << MAX_CHECKPOINT_ITEMS;
-        getLogger()->log(EXTENSION_LOG_WARNING, NULL, "%s\n", ss.str().c_str());
+        LOG(EXTENSION_LOG_WARNING, "%s", ss.str().c_str());
         return false;
     }
     return true;
@@ -1285,7 +1282,7 @@ bool CheckpointConfig::validateCheckpointPeriodParam(size_t checkpoint_period) {
         ss << "New checkpoint_period param value " << checkpoint_period
            << " is not ranged between the min allowed value " << MIN_CHECKPOINT_PERIOD
            << " and max value " << MAX_CHECKPOINT_PERIOD;
-        getLogger()->log(EXTENSION_LOG_WARNING, NULL, "%s\n", ss.str().c_str());
+        LOG(EXTENSION_LOG_WARNING, "%s\n", ss.str().c_str());
         return false;
     }
     return true;
@@ -1298,7 +1295,7 @@ bool CheckpointConfig::validateMaxCheckpointsParam(size_t max_checkpoints) {
         ss << "New max_checkpoints param value " << max_checkpoints
            << " is not ranged between the min allowed value " << DEFAULT_MAX_CHECKPOINTS
            << " and max value " << MAX_CHECKPOINTS_UPPER_BOUND;
-        getLogger()->log(EXTENSION_LOG_WARNING, NULL, "%s\n", ss.str().c_str());
+        LOG(EXTENSION_LOG_WARNING, "%s\n", ss.str().c_str());
         return false;
     }
     return true;

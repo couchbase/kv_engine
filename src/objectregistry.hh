@@ -32,6 +32,8 @@ public:
     static void onCreateItem(Item *pItem);
     static void onDeleteItem(Item *pItem);
 
+    static EventuallyPersistentEngine *getCurrentEngine();
+
     static EventuallyPersistentEngine *onSwitchThread(EventuallyPersistentEngine *engine,
                                                       bool want_old_thread_local = false);
 

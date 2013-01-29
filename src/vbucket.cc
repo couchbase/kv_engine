@@ -107,9 +107,9 @@ void VBucket::fireAllOps(EventuallyPersistentEngine &engine, ENGINE_ERROR_CODE c
     engine.notifyIOComplete(pendingOps, code);
     pendingOps.clear();
 
-    getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                     "Fired pendings ops for vbucket %d in state %s\n",
-                     id, VBucket::toString(state));
+    LOG(EXTENSION_LOG_INFO,
+        "Fired pendings ops for vbucket %d in state %s\n",
+        id, VBucket::toString(state));
 }
 
 void VBucket::fireAllOps(EventuallyPersistentEngine &engine) {
@@ -132,9 +132,8 @@ void VBucket::setState(vbucket_state_t to, SERVER_HANDLE_V1 *sapi) {
         checkpointManager.setOpenCheckpointId(2);
     }
 
-    getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                     "transitioning vbucket %d from %s to %s\n",
-                     id, VBucket::toString(oldstate), VBucket::toString(to));
+    LOG(EXTENSION_LOG_DEBUG, "transitioning vbucket %d from %s to %s",
+        id, VBucket::toString(oldstate), VBucket::toString(to));
 
     state = to;
 }
@@ -240,19 +239,15 @@ void VBucket::notifyCheckpointPersisted(EventuallyPersistentEngine &e,
             e.notifyIOComplete(entry->cookie, ENGINE_SUCCESS);
             stats.chkPersistenceHisto.add(wall_time / 1000);
             adjustCheckpointFlushTimeout(wall_time / 1000000000);
-            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "Notified the completion of checkpoint "
-                             "persistence for vbucket %d, cookie %p\n",
-                             id, entry->cookie);
+            LOG(EXTENSION_LOG_WARNING, "Notified the completion of checkpoint "
+                "persistence for vbucket %d, cookie %p", id, entry->cookie);
             entry = hpChks.erase(entry);
             --stats.highPriorityChks;
         } else if (spent > getCheckpointFlushTimeout()) {
             e.notifyIOComplete(entry->cookie, ENGINE_TMPFAIL);
             adjustCheckpointFlushTimeout(spent);
-            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "Notified the timeout on checkpoint "
-                             "persistence for vbucket %d, cookie %p\n",
-                             id, entry->cookie);
+            LOG(EXTENSION_LOG_WARNING, "Notified the timeout on checkpoint "
+                "persistence for vbucket %d, cookie %p", id, entry->cookie);
             entry = hpChks.erase(entry);
             --stats.highPriorityChks;
         } else {

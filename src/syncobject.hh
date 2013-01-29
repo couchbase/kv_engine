@@ -34,9 +34,8 @@ public:
                 // cond. object might have already destroyed, just log
                 // error and continue.  TODO: platform specific error
                 // handling for the case of EINVAL, especially on WIN32
-                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                 "Warning: Failed to destroy cond. object: %s\n",
-                                 err.c_str());
+                LOG(EXTENSION_LOG_WARNING,
+                    "Warning: Failed to destroy cond. object: %s", err.c_str());
             } else {
                 throw std::runtime_error("MUTEX ERROR: Failed to destroy cond.");
             }

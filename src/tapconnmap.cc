@@ -82,19 +82,18 @@ void TapConnMap::disconnect(const void *cookie, int tapKeepAlive) {
             TapConsumer *tc = dynamic_cast<TapConsumer*>(iter->second);
             if (tc || iter->second->doDisconnect()) {
                 iter->second->setExpiryTime(now - 1);
-                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                 "%s disconnected", iter->second->logHeader());
+                LOG(EXTENSION_LOG_WARNING, "%s disconnected",
+                    iter->second->logHeader());
             } else {
                 iter->second->setExpiryTime(now + tapKeepAlive);
-                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                 "%s disconnected, keep alive for %d seconds",
-                                 iter->second->logHeader(), tapKeepAlive);
+                LOG(EXTENSION_LOG_WARNING,
+                    "%s disconnected, keep alive for %d seconds",
+                    iter->second->logHeader(), tapKeepAlive);
             }
             iter->second->setConnected(false);
         } else {
-            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "Found half-linked tap connection at: %p\n",
-                             cookie);
+            LOG(EXTENSION_LOG_WARNING,
+                "Found half-linked tap connection at: %p", cookie);
         }
         map.erase(iter);
     }
@@ -195,9 +194,9 @@ void TapConnMap::removeTapCursors_UNLOCKED(TapProducer *tp) {
                 continue;
             }
             if (tp->vbucketFilter(vbid)) {
-                getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                                 "%s Remove the TAP cursor from vbucket %d\n",
-                                 tp->logHeader(), vbid);
+                LOG(EXTENSION_LOG_INFO,
+                    "%s Remove the TAP cursor from vbucket %d",
+                    tp->logHeader(), vbid);
                 vb->checkpointManager.removeTAPCursor(tp->name);
             }
         }
@@ -219,8 +218,7 @@ TapConsumer *TapConnMap::newConsumer(const void* cookie)
 {
     LockHolder lh(notifySync);
     TapConsumer *tap = new TapConsumer(engine, cookie, TapConnection::getAnonName());
-    getLogger()->log(EXTENSION_LOG_INFO, NULL, "%s created\n",
-                     tap->logHeader());
+    LOG(EXTENSION_LOG_INFO, "%s created", tap->logHeader());
     all.push_back(tap);
     map[cookie] = tap;
     return tap;
@@ -256,9 +254,8 @@ TapProducer *TapConnMap::newProducer(const void* cookie,
         map.erase(old_cookie);
 
         if (tapKeepAlive == 0 || (tap->mayCompleteDumpOrTakeover() && tap->idle())) {
-            getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                             "%s keep alive timed out, should be nuked\n",
-                             tap->logHeader());
+            LOG(EXTENSION_LOG_INFO,
+                "%s keep alive timed out, should be nuked", tap->logHeader());
             tap->setName(TapConnection::getAnonName());
             tap->setDisconnect(true);
             tap->setConnected(false);
@@ -266,9 +263,8 @@ TapProducer *TapConnMap::newProducer(const void* cookie,
             tap->setExpiryTime(ep_current_time() - 1);
             tap = NULL;
         } else {
-            getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                             "%s exists... grabbing the channel\n",
-                             tap->logHeader());
+            LOG(EXTENSION_LOG_INFO, "%s exists... grabbing the channel",
+                tap->logHeader());
             // Create the dummy expired tap connection for the old connection cookie.
             // This dummy tap connection will be used for releasing the corresponding
             // memcached connection.
@@ -287,8 +283,7 @@ TapProducer *TapConnMap::newProducer(const void* cookie,
     bool reconnect = false;
     if (tap == NULL) {
         tap = new TapProducer(engine, cookie, name, flags);
-        getLogger()->log(EXTENSION_LOG_INFO, NULL, "%s created\n",
-                         tap->logHeader());
+        LOG(EXTENSION_LOG_INFO, "%s created", tap->logHeader());
         all.push_back(tap);
     } else {
         tap->setCookie(cookie);
@@ -350,8 +345,7 @@ void TapConnMap::notifyPausedConnection_UNLOCKED(TapProducer *tc) {
 }
 
 void TapConnMap::shutdownAllTapConnections() {
-    getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                     "Shutting down tap connections!");
+    LOG(EXTENSION_LOG_WARNING, "Shutting down tap connections!");
     LockHolder lh(notifySync);
     // We should pause unless we purged some connections or
     // all queues have items.
@@ -361,9 +355,8 @@ void TapConnMap::shutdownAllTapConnections() {
     Dispatcher *d = engine.getEpStore()->getNonIODispatcher();
     std::list<TapConnection*>::iterator ii;
     for (ii = all.begin(); ii != all.end(); ++ii) {
-        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                         "Schedule cleanup of \"%s\"",
-                         (*ii)->getName().c_str());
+        LOG(EXTENSION_LOG_WARNING, "Schedule cleanup of \"%s\"",
+            (*ii)->getName().c_str());
         d->schedule(shared_ptr<DispatcherCallback>
                     (new TapConnectionReaperCallback(engine, *ii)),
                     NULL, Priority::TapConnectionReaperPriority,
@@ -407,9 +400,8 @@ void TapConnMap::resetReplicaChain() {
         if (!(tp && (tp->isConnected() || tp->getExpiryTime() > now))) {
             continue;
         }
-        getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                         "%s Reset the replication chain.\n",
-                         tp->logHeader());
+        LOG(EXTENSION_LOG_INFO, "%s Reset the replication chain",
+            tp->logHeader());
         // Get the list of vbuckets that each TAP producer is replicating
         VBucketFilter vbfilter = tp->getVBucketFilter();
         std::vector<uint16_t> vblist (vbfilter.getVBSet().begin(), vbfilter.getVBSet().end());
@@ -428,9 +420,8 @@ bool TapConnMap::changeVBucketFilter(const std::string &name,
     if (tc) {
         TapProducer *tp = dynamic_cast<TapProducer*>(tc);
         if (tp && (tp->isConnected() || tp->getExpiryTime() > ep_current_time())) {
-            getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                             "%s Change the vbucket filter.\n",
-                             tp->logHeader());
+            LOG(EXTENSION_LOG_INFO, "%s Change the vbucket filter",
+                tp->logHeader());
             tp->setVBucketFilter(vbuckets, true);
             tp->registerTAPCursor(checkpoints);
             rv = true;
@@ -467,9 +458,9 @@ void TapConnMap::notifyIOThreadMain() {
         TapProducer *tp = dynamic_cast<TapProducer*>(iter->second);
         if (tp != NULL) {
             if (tp->supportsAck() && (tp->getExpiryTime() < now) && tp->windowIsFull()) {
-                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                         "%s Expired and ack windows is full. Disconnecting...\n",
-                         tp->logHeader());
+                LOG(EXTENSION_LOG_WARNING,
+                    "%s Expired and ack windows is full. Disconnecting...",
+                    tp->logHeader());
                 tp->setDisconnect(true);
             } else if (addNoop) {
                 tp->setTimeForNoop();
@@ -498,9 +489,8 @@ void TapConnMap::notifyIOThreadMain() {
         Dispatcher *d = engine.getEpStore()->getNonIODispatcher();
         std::list<TapConnection*>::iterator ii;
         for (ii = deadClients.begin(); ii != deadClients.end(); ++ii) {
-            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "Schedule cleanup of \"%s\"",
-                             (*ii)->getName().c_str());
+            LOG(EXTENSION_LOG_WARNING, "Schedule cleanup of \"%s\"",
+                (*ii)->getName().c_str());
             d->schedule(shared_ptr<DispatcherCallback>
                         (new TapConnectionReaperCallback(engine, *ii)),
                         NULL, Priority::TapConnectionReaperPriority,
@@ -542,9 +532,8 @@ bool TapConnMap::closeTapConnectionByName(const std::string &name) {
     if (tc) {
         TapProducer *tp = dynamic_cast<TapProducer*>(tc);
         if (tp) {
-            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "%s Connection is closed by force.\n",
-                             tp->logHeader());
+            LOG(EXTENSION_LOG_WARNING, "%s Connection is closed by force",
+                tp->logHeader());
             tp->setRegisteredClient(false);
             removeTapCursors_UNLOCKED(tp);
 

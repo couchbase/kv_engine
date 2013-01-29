@@ -36,9 +36,8 @@ void Flusher::wait(void) {
     }
     hrtime_t endt(gethrtime());
     if ((endt - startt) > 1000) {
-        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                         "Had to wait %s for shutdown\n",
-                         hrtime2text(endt - startt).c_str());
+        LOG(EXTENSION_LOG_WARNING,  "Had to wait %s for shutdown\n",
+            hrtime2text(endt - startt).c_str());
     }
 }
 
@@ -86,20 +85,17 @@ const char * Flusher::stateName(enum flusher_state st) const {
 
 bool Flusher::transition_state(enum flusher_state to) {
 
-    getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                     "Attempting transition from %s to %s\n",
-                     stateName(_state), stateName(to));
+    LOG(EXTENSION_LOG_DEBUG, "Attempting transition from %s to %s",
+        stateName(_state), stateName(to));
 
     if (!forceShutdownReceived && !validTransition(_state, to)) {
-        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                         "Invalid transitioning from %s to %s\n",
-                         stateName(_state), stateName(to));
+        LOG(EXTENSION_LOG_WARNING, "Invalid transitioning from %s to %s",
+            stateName(_state), stateName(to));
         return false;
     }
 
-    getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                     "Transitioning from %s to %s\n",
-                     stateName(_state), stateName(to));
+    LOG(EXTENSION_LOG_DEBUG, "Transitioning from %s to %s",
+        stateName(_state), stateName(to));
 
     _state = to;
     //Reschedule the task
@@ -120,8 +116,7 @@ enum flusher_state Flusher::state() const {
 
 void Flusher::initialize(TaskId &tid) {
     assert(task.get() == tid.get());
-    getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                     "Initializing flusher");
+    LOG(EXTENSION_LOG_DEBUG, "Initializing flusher");
     transition_state(running);
 }
 
@@ -171,26 +166,24 @@ bool Flusher::step(Dispatcher &d, TaskId &tid) {
                 std::stringstream ss;
                 ss << "Shutting down flusher (Write of all dirty items)"
                    << std::endl;
-                getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "%s",
-                                 ss.str().c_str());
+                LOG(EXTENSION_LOG_DEBUG, "%s", ss.str().c_str());
             }
             store->stats.min_data_age = 0;
             completeFlush();
-            getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "Flusher stopped\n");
+            LOG(EXTENSION_LOG_DEBUG, "Flusher stopped");
             transition_state(stopped);
             return false;
         case stopped:
             return false;
         default:
-            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                "Unexpected state in flusher: %s", stateName());
+            LOG(EXTENSION_LOG_WARNING, "Unexpected state in flusher: %s",
+                stateName());
             assert(false);
         }
     } catch(std::runtime_error &e) {
         std::stringstream ss;
         ss << "Exception in flusher loop: " << e.what() << std::endl;
-        getLogger()->log(EXTENSION_LOG_WARNING, NULL, "%s",
-                         ss.str().c_str());
+        LOG(EXTENSION_LOG_WARNING, "%s", ss.str().c_str());
         assert(false);
     }
 
@@ -247,8 +240,7 @@ uint16_t Flusher::getNextVb() {
     }
 
     if (hpVbs.empty() && lpVbs.empty()) {
-        getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                         "Trying to flush but no vbucket exist");
+        LOG(EXTENSION_LOG_INFO, "Trying to flush but no vbucket exist");
         return NO_VBUCKETS_INSTANTIATED;
     } else if (!hpVbs.empty()) {
         uint16_t vbid = hpVbs.front();

@@ -62,9 +62,8 @@ Mutex::~Mutex() {
             // mutex might have already destroyed, just log error
             // and continue.  TODO: platform specific error handling
             // for the case of EINVAL, especially on WIN32
-            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "Warning: Failed to destroy mutex: %s\n",
-                             err.c_str());
+            LOG(EXTENSION_LOG_WARNING, "Warning: Failed to destroy mutex: %s",
+                err.c_str());
         } else {
             std::string message = "MUTEX ERROR: Failed to destroy mutex: ";
             message.append(std::strerror(e));

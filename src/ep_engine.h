@@ -267,6 +267,10 @@ public:
         return ret;
     }
 
+    const char* getName() {
+        return name.c_str();
+    }
+
     ENGINE_ERROR_CODE getStats(const void* cookie,
                                const char* stat_key,
                                int nkey,
@@ -434,8 +438,7 @@ public:
 
     void notifyIOComplete(const void *cookie, ENGINE_ERROR_CODE status) {
         if (cookie == NULL) {
-            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "Tried to signal a NULL cookie!");
+            LOG(EXTENSION_LOG_WARNING, "Tried to signal a NULL cookie!");
         } else {
             BlockTimer bt(&stats.notifyIOHisto);
             EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
@@ -471,9 +474,8 @@ public:
         protocol_binary_response_status rv = PROTOCOL_BINARY_RESPONSE_SUCCESS;
         *msg = NULL;
         if (!epstore->pauseFlusher()) {
-            getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                             "Attempted to stop flusher in state [%s]\n",
-                             epstore->getFlusher()->stateName());
+            LOG(EXTENSION_LOG_INFO, "Attempted to stop flusher in state [%s]",
+                epstore->getFlusher()->stateName());
             *msg = "Flusher not running.";
             rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
         }
@@ -485,9 +487,8 @@ public:
         protocol_binary_response_status rv = PROTOCOL_BINARY_RESPONSE_SUCCESS;
         *msg = NULL;
         if (!epstore->resumeFlusher()) {
-            getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                             "Attempted to start flusher in state [%s]\n",
-                             epstore->getFlusher()->stateName());
+            LOG(EXTENSION_LOG_INFO, "Attempted to start flusher in state [%s]",
+                epstore->getFlusher()->stateName());
             *msg = "Flusher not shut down.";
             rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
         }
@@ -751,13 +752,12 @@ private:
         std::map<const void*, Item*>::iterator it = lookups.find(cookie);
         if (it != lookups.end()) {
             if (it->second != NULL) {
-                getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                                 "Cleaning up old lookup result for '%s'\n",
-                                 it->second->getKey().c_str());
+                LOG(EXTENSION_LOG_DEBUG,
+                    "Cleaning up old lookup result for '%s'",
+                    it->second->getKey().c_str());
                 delete it->second;
             } else {
-                getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                                 "Cleaning up old null lookup result\n");
+                LOG(EXTENSION_LOG_DEBUG, "Cleaning up old null lookup result");
             }
             lookups.erase(it);
         }
@@ -810,6 +810,7 @@ private:
     TapConfig *tapConfig;
     CheckpointConfig *checkpointConfig;
     Mutex tapMutex;
+    std::string name;
     size_t maxItemSize;
     size_t getlDefaultTimeout;
     size_t getlMaxTimeout;

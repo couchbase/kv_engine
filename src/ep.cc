@@ -64,9 +64,9 @@ public:
         } else if (key.compare("warmup_min_items_threshold") == 0) {
             stats.warmupNumReadCap.set(static_cast<double>(value) / 100.0);
         } else {
-            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "Failed to change value for unknown variable, %s\n",
-                             key.c_str());
+            LOG(EXTENSION_LOG_WARNING,
+                "Failed to change value for unknown variable, %s\n",
+                key.c_str());
         }
     }
 
@@ -111,9 +111,9 @@ public:
         } else if (key.compare("tap_throttle_cap_pcnt") == 0) {
             store.getEPEngine().getTapThrottle().setCapPercent(value);
         } else {
-            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "Failed to change value for unknown variable, %s\n",
-                             key.c_str());
+            LOG(EXTENSION_LOG_WARNING,
+                "Failed to change value for unknown variable, %s\n",
+                key.c_str());
         }
     }
 
@@ -302,11 +302,10 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
               engine.getConfiguration().getAlogBlockSize()),
     diskFlushAll(false), bgFetchDelay(0), snapshotVBState(false)
 {
-    getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                     "Storage props:  c=%ld/r=%ld/rw=%ld\n",
-                     storageProperties.maxConcurrency(),
-                     storageProperties.maxReaders(),
-                     storageProperties.maxWriters());
+    LOG(EXTENSION_LOG_INFO, "Storage props:  c=%ld/r=%ld/rw=%ld\n",
+        storageProperties.maxConcurrency(),
+        storageProperties.maxReaders(),
+        storageProperties.maxWriters());
 
     doPersistence = getenv("EP_NO_PERSISTENCE") == NULL;
     dispatcher = new Dispatcher(theEngine, "RW_Dispatcher");
@@ -405,8 +404,8 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
         assert(theEngine.getConfiguration().getKlogPath() == ""
                || mutationLog.isEnabled());
     } catch(MutationLog::ReadException e) {
-        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                         "Error opening mutation log:  %s (disabling)", e.what());
+        LOG(EXTENSION_LOG_WARNING,
+            "Error opening mutation log:  %s (disabling)", e.what());
         mutationLog.disable();
     }
 
@@ -492,9 +491,9 @@ void EventuallyPersistentStore::initialize() {
     warmupTask->removeWarmupStateListener(&warmupListener);
 
     if (config.isFailpartialwarmup() && stats.warmOOM > 0) {
-        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                         "Warmup failed to load %d records due to OOM, exiting.\n",
-                         static_cast<unsigned int>(stats.warmOOM));
+        LOG(EXTENSION_LOG_WARNING,
+            "Warmup failed to load %d records due to OOM, exiting.\n",
+            static_cast<unsigned int>(stats.warmOOM));
         exit(1);
     }
 
@@ -604,8 +603,8 @@ void EventuallyPersistentStore::wakeUpFlusher() {
 
 void EventuallyPersistentStore::startBgFetcher() {
     if (multiBGFetchEnabled()) {
-        getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                         "Starting bg fetcher for underlying storage\n");
+        LOG(EXTENSION_LOG_INFO,
+            "Starting bg fetcher for underlying storage");
         bgFetcher->start();
     }
 }
@@ -613,12 +612,10 @@ void EventuallyPersistentStore::startBgFetcher() {
 void EventuallyPersistentStore::stopBgFetcher() {
     if (multiBGFetchEnabled()) {
         if (bgFetcher->pendingJob()) {
-            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "Shutting down engine while there are "
-                             "still pending data read from database storage\n");
+            LOG(EXTENSION_LOG_WARNING, "Shutting down engine while there are "
+                "still pending data read from database storage");
         }
-        getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                         "Stopping bg fetcher for underlying storage\n");
+        LOG(EXTENSION_LOG_INFO, "Stopping bg fetcher for underlying storage");
         bgFetcher->stop();
     }
 }
@@ -915,8 +912,8 @@ void EventuallyPersistentStore::snapshotVBuckets(const Priority &priority) {
     visit(v);
     hrtime_t start = gethrtime();
     if (!rwUnderlying->snapshotVBuckets(v.states)) {
-        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                         "VBucket snapshot task failed!!! Reschedule it...\n");
+        LOG(EXTENSION_LOG_WARNING,
+            "VBucket snapshot task failed!!! Rescheduling");
         scheduleVBSnapshot(priority);
     } else {
         stats.snapshotVbucketHisto.add((gethrtime() - start) / 1000);
@@ -1103,7 +1100,7 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
     std::stringstream ss;
     ss << "Completed a background fetch, now at " << bgFetchQueue.get()
        << std::endl;
-    getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "%s\n", ss.str().c_str());
+    LOG(EXTENSION_LOG_DEBUG, "%s", ss.str().c_str());
 
     // Go find the data
     RememberingCallback<GetValue> gcb;
@@ -1147,9 +1144,9 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
                 } else {
                     // underlying kvstore couldn't fetch requested data
                     // log returned error and notify TMPFAIL to client
-                    getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                            "Warning: failed background fetch for vb=%d seq=%d "
-                            "key=%s\n", vbucket, v->getId(), key.c_str());
+                    LOG(EXTENSION_LOG_WARNING,
+                        "Warning: failed background fetch for vb=%d seq=%d "
+                        "key=%s", vbucket, v->getId(), key.c_str());
                     status = ENGINE_TMPFAIL;
                 }
             }
@@ -1172,11 +1169,11 @@ void EventuallyPersistentStore::completeBGFetchMulti(uint16_t vbId,
     stats.bg_fetched += fetchedItems.size();
     RCPtr<VBucket> vb = getVBucket(vbId);
     if (!vb) {
-       getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                        "EP Store completes %d of batched background fetch for "
-                        "for vBucket = %d that is already deleted\n",
-                        (int)fetchedItems.size(), vbId);
-       return;
+        LOG(EXTENSION_LOG_WARNING,
+            "EP Store completes %d of batched background fetch for "
+            "for vBucket = %d that is already deleted\n",
+            (int)fetchedItems.size(), vbId);
+        return;
     }
 
     std::vector<VBucketBGFetchItem *>::iterator itemItr = fetchedItems.begin();
@@ -1202,9 +1199,9 @@ void EventuallyPersistentStore::completeBGFetchMulti(uint16_t vbId,
                 } else {
                     // underlying kvstore couldn't fetch requested data
                     // log returned error and notify TMPFAIL to client
-                    getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                            "Warning: failed background fetch for vb=%d seq=%d "
-                            "key=%s\n", vbId, v->getId(), key.c_str());
+                    LOG(EXTENSION_LOG_WARNING,
+                        "Warning: failed background fetch for vb=%d seq=%d "
+                        "key=%s", vbId, v->getId(), key.c_str());
                     status = ENGINE_TMPFAIL;
                 }
             }
@@ -1216,13 +1213,13 @@ void EventuallyPersistentStore::completeBGFetchMulti(uint16_t vbId,
         std::stringstream ss;
         ss << "Completed a background fetch, now at "
            << vb->numPendingBGFetchItems() << std::endl;
-        getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "%s\n", ss.str().c_str());
+        LOG(EXTENSION_LOG_DEBUG, "%s", ss.str().c_str());
     }
 
-    getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                     "EP Store completes %d of batched background fetch "
-                     "for vBucket = %d endTime = %lld\n",
-                     fetchedItems.size(), vbId, gethrtime()/1000000);
+    LOG(EXTENSION_LOG_DEBUG,
+        "EP Store completes %d of batched background fetch "
+        "for vBucket = %d endTime = %lld\n",
+        fetchedItems.size(), vbId, gethrtime()/1000000);
 }
 
 void EventuallyPersistentStore::bgFetch(const std::string &key,
@@ -1243,7 +1240,7 @@ void EventuallyPersistentStore::bgFetch(const std::string &key,
         vb->queueBGFetchItem(fetchThis, bgFetcher);
         ss << "Queued a background fetch, now at "
            << vb->numPendingBGFetchItems() << std::endl;
-        getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "%s\n", ss.str().c_str());
+        LOG(EXTENSION_LOG_DEBUG, "%s", ss.str().c_str());
     } else {
         shared_ptr<BGFetchCallback> dcb(new BGFetchCallback(this, key,
                                                             vbucket,
@@ -1251,7 +1248,7 @@ void EventuallyPersistentStore::bgFetch(const std::string &key,
         assert(bgFetchQueue > 0);
         ss << "Queued a background fetch, now at " << bgFetchQueue.get()
            << std::endl;
-        getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "%s\n", ss.str().c_str());
+        LOG(EXTENSION_LOG_DEBUG, "%s", ss.str().c_str());
         roDispatcher->schedule(dcb, NULL, Priority::BgFetcherGetMetaPriority,
                                bgFetchDelay);
     }
@@ -1819,11 +1816,11 @@ public:
                     ss << "Persisting ``" << queuedItem->getKey() << "'' on vb"
                        << queuedItem->getVBucketId() << " (rowid=" << v->getId()
                        << ") returned 0 updates\n";
-                    getLogger()->log(EXTENSION_LOG_WARNING, NULL, "%s", ss.str().c_str());
+                    LOG(EXTENSION_LOG_WARNING, "%s", ss.str().c_str());
                 } else {
-                    getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                     "Error persisting now missing ``%s'' from vb%d\n",
-                                     queuedItem->getKey().c_str(), queuedItem->getVBucketId());
+                    LOG(EXTENSION_LOG_WARNING,
+                        "Error persisting now missing ``%s'' from vb%d",
+                        queuedItem->getKey().c_str(), queuedItem->getVBucketId());
                 }
             --stats->diskQueueSize;
             assert(stats->diskQueueSize < GIGANTOR);
@@ -1831,7 +1828,7 @@ public:
                 std::stringstream ss;
                 ss << "Fatal error in persisting SET ``" << queuedItem->getKey() << "'' on vb "
                    << queuedItem->getVBucketId() << "!!! Requeue it...\n";
-                getLogger()->log(EXTENSION_LOG_WARNING, NULL, "%s", ss.str().c_str());
+                LOG(EXTENSION_LOG_WARNING, "%s", ss.str().c_str());
                 redirty();
             }
         }
@@ -1880,7 +1877,7 @@ public:
             std::stringstream ss;
             ss << "Fatal error in persisting DELETE ``" << queuedItem->getKey() << "'' on vb "
                << queuedItem->getVBucketId() << "!!! Requeue it...\n";
-            getLogger()->log(EXTENSION_LOG_WARNING, NULL, "%s", ss.str().c_str());
+            LOG(EXTENSION_LOG_WARNING, "%s", ss.str().c_str());
             redirty();
         }
     }
@@ -1956,8 +1953,8 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
         if (!items.empty()) {
             while (!rwUnderlying->begin()) {
                 ++stats.beginFailed;
-                getLogger()->log(EXTENSION_LOG_WARNING, NULL, "Failed to start"
-                                 " a transaction!!! Retry in 1 sec ...\n");
+                LOG(EXTENSION_LOG_WARNING, "Failed to start a transaction!!! "
+                    "Retry in 1 sec ...");
                 sleep(1);
             }
             rwUnderlying->optimizeWrites(items);
@@ -1992,8 +1989,8 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
             mutationLog.commit1();
             while (!rwUnderlying->commit()) {
                 ++stats.commitFailed;
-                getLogger()->log(EXTENSION_LOG_WARNING, NULL, "Flusher commit "
-                                 "failed!!! Retry in 1 sec...\n");
+                LOG(EXTENSION_LOG_WARNING, "Flusher commit failed!!! Retry in "
+                    "1 sec...\n");
                 sleep(1);
             }
 
@@ -2265,9 +2262,8 @@ bool EventuallyPersistentStore::warmupFromLog(const std::map<uint16_t, vbucket_s
     hrtime_t end1(gethrtime());
 
     if (!rv) {
-        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                         "Failed to read mutation log: %s",
-                         mutationLog.getLogFile().c_str());
+        LOG(EXTENSION_LOG_WARNING, "Failed to read mutation log: %s",
+            mutationLog.getLogFile().c_str());
         return false;
     }
 
@@ -2281,26 +2277,23 @@ bool EventuallyPersistentStore::warmupFromLog(const std::map<uint16_t, vbucket_s
 
     warmupTask->setEstimatedItemCount(harvester.total());
 
-    getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                     "Completed log read in %s with %ld entries\n",
-                     hrtime2text(end1 - start).c_str(), harvester.total());
+    LOG(EXTENSION_LOG_DEBUG, "Completed log read in %s with %ld entries",
+        hrtime2text(end1 - start).c_str(), harvester.total());
 
     harvester.apply(&cb, &warmupLogCallback);
     mutationLog.resetCounts(harvester.getItemsSeen());
 
     hrtime_t end2(gethrtime());
-    getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                     "Completed repopulation from log in %llums\n",
-                     ((end2 - end1) / 1000000));
+    LOG(EXTENSION_LOG_DEBUG, "Completed repopulation from log in %llums",
+        ((end2 - end1) / 1000000));
 
     // Anything left in the "loading" map at this point is uncommitted.
     std::vector<mutation_log_uncommitted_t> uitems;
     harvester.getUncommitted(uitems);
     if (uitems.size() > 0) {
-        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                         "%ld items were uncommitted in the mutation log file. "
-                         "Deleting them from the underlying data store.\n",
-                         uitems.size());
+        LOG(EXTENSION_LOG_WARNING,
+            "%ld items were uncommitted in the mutation log file. "
+            "Deleting them from the underlying data store.\n", uitems.size());
         std::vector<mutation_log_uncommitted_t>::iterator uit = uitems.begin();
         for (; uit != uitems.end(); ++uit) {
             const mutation_log_uncommitted_t &record = *uit;
@@ -2346,19 +2339,19 @@ void EventuallyPersistentStore::maybeEnableTraffic()
     double maxSize = static_cast<double>(stats.getMaxDataSize());
 
     if (memoryUsed  >= stats.mem_low_wat) {
-        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                "Total memory use reached to the low water mark, stop warmup");
+        LOG(EXTENSION_LOG_WARNING,
+            "Total memory use reached to the low water mark, stop warmup");
        engine.warmupCompleted();
     }
     if (memoryUsed > (maxSize * stats.warmupMemUsedCap)) {
-        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+        LOG(EXTENSION_LOG_WARNING,
                 "Enough MB of data loaded to enable traffic");
         engine.warmupCompleted();
     } else if (stats.warmedUpValues > (stats.warmedUpKeys * stats.warmupNumReadCap)) {
         // Let ep-engine think we're done with the warmup phase
         // (we should refactor this into "enableTraffic")
-        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                "Enough number of items loaded to enable traffic");
+        LOG(EXTENSION_LOG_WARNING,
+            "Enough number of items loaded to enable traffic");
         engine.warmupCompleted();
     }
 }
@@ -2367,10 +2360,9 @@ void EventuallyPersistentStore::stopWarmup(void)
 {
     // forcefully stop current warmup task
     if (engine.stillWarmingUp()) {
-        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+        LOG(EXTENSION_LOG_WARNING,
             "Stopping warmup while engine is loading data from underlying "
-            "storage, shutdown = %s\n",
-            engine.isShutdownMode() ? "yes" : "no");
+            "storage, shutdown = %s\n", engine.isShutdownMode() ? "yes" : "no");
         warmupTask->stop();
     }
 }
