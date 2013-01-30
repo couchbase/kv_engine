@@ -311,6 +311,33 @@ static void stats_reset(const void *cookie) {
     settings.engine.v1->reset_stats(settings.engine.v0, cookie);
 }
 
+static int get_number_of_worker_threads(void) {
+    int ret;
+    char *override = getenv("MEMCACHED_NUM_CPUS");
+    if (override == NULL) {
+#ifdef __WIN32__
+        SYSTEM_INFO sysinfo;
+        GetSystemInfo(&sysinfo);
+        ret = (int)sysinfo.dwNumberOfProcessors;
+#else
+        ret = (int)sysconf(_SC_NPROCESSORS_ONLN);
+#endif
+        if (ret > 4) {
+            ret *= 0.75;
+            if (ret < 4) {
+                ret = 4;
+            }
+        }
+    } else {
+        ret = atoi(override);
+        if (ret == 0) {
+            ret = 4;
+        }
+    }
+
+    return ret;
+}
+
 static void settings_init(void) {
     settings.use_cas = true;
     settings.port = 11211;
@@ -323,7 +350,7 @@ static void settings_init(void) {
     settings.evict_to_free = 1;       /* push old items out of cache when memory runs out */
     settings.factor = 1.25;
     settings.chunk_size = 48;         /* space for a modest key and value */
-    settings.num_threads = 4;         /* N workers */
+    settings.num_threads = get_number_of_worker_threads();
     settings.prefix_delimiter = ':';
     settings.detail_enabled = 0;
     settings.allow_detailed = true;
@@ -5160,7 +5187,7 @@ static void usage(void) {
     printf("              \":\" (colon). If this option is specified, stats collection\n");
     printf("              is turned on automatically; if not, then it may be turned on\n");
     printf("              by sending the \"stats detail on\" command to the server.\n");
-    printf("-t <num>      number of threads to use (default: 4)\n");
+    printf("-t <num>      number of threads to use (default: number of cpus * 0.75)\n");
     printf("-R            Maximum number of requests per event, limits the number of\n");
     printf("              requests process for a given connection to prevent \n");
     printf("              starvation (default: 20)\n");
