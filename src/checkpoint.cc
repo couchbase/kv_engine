@@ -1132,10 +1132,12 @@ void CheckpointManager::putCursorsInChk(std::map<std::string, uint64_t> &cursors
                     persistenceCursor.currentCheckpoint = chkItr;
                     persistenceCursor.currentPos = last;
                     persistenceCursor.offset = (i > 0) ? i - 1 : 0;
+                    chk->registerCursorName(persistenceCursor.name);
                 } else {
                     tapCursors[mit->first].currentCheckpoint = chkItr;
                     tapCursors[mit->first].currentPos = last;
                     tapCursors[mit->first].offset = (i > 0) ? i - 1 : 0;
+                    chk->registerCursorName(tapCursors[mit->first].name);
                 }
                 cursors.erase(mit);
                 break;
@@ -1151,10 +1153,12 @@ void CheckpointManager::putCursorsInChk(std::map<std::string, uint64_t> &cursors
             persistenceCursor.currentCheckpoint = chkItr;
             persistenceCursor.currentPos = last;
             persistenceCursor.offset = (i > 0) ? i - 1 : 0;
+            chk->registerCursorName(persistenceCursor.name);
         } else {
             tapCursors[mit->first].currentCheckpoint = chkItr;
             tapCursors[mit->first].currentPos = last;
             tapCursors[mit->first].offset = (i > 0) ? i - 1 : 0;
+            chk->registerCursorName(tapCursors[mit->first].name);
         }
     }
 }
