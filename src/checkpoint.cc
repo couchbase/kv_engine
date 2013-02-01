@@ -709,7 +709,6 @@ bool CheckpointManager::queueDirty(const queued_item &qi, const RCPtr<VBucket> &
     // mutation messages from the active vbucket, which contain the checkpoint Ids.
 
     assert(checkpointList.back()->getState() == CHECKPOINT_OPEN);
-    size_t numItemsBefore = getNumItemsForPersistence_UNLOCKED();
     queue_dirty_t result = checkpointList.back()->queueDirty(qi, this);
     if (result == NEW_ITEM) {
         ++numItems;
@@ -945,7 +944,7 @@ uint64_t CheckpointManager::checkOpenCheckpoint_UNLOCKED(bool forceCreation, boo
 
 bool CheckpointManager::eligibleForEviction(const std::string &key) {
     LockHolder lh(queueLock);
-    uint64_t smallest_mid = 0;
+    uint64_t smallest_mid;
 
     // Get the mutation id of the item pointed by the slowest cursor.
     // This won't cause much overhead as the number of cursors per vbucket is

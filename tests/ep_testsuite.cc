@@ -937,7 +937,6 @@ static enum test_result test_flush_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
     int mem_used2 = get_int_stat(h, h1, "mem_used");
     int overhead2 = get_int_stat(h, h1, "ep_overhead");
     int cacheSize2 = get_int_stat(h, h1, "ep_total_cache_size");
-    int nonResident2 = get_int_stat(h, h1, "ep_num_non_resident");
 
     assert(mem_used2 > mem_used);
     // "mem_used2 - overhead2" (i.e., ep_kv_size) should be greater than the hashtable cache size
@@ -953,7 +952,7 @@ static enum test_result test_flush_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
     mem_used2 = get_int_stat(h, h1, "mem_used");
     overhead2 = get_int_stat(h, h1, "ep_overhead");
     cacheSize2 = get_int_stat(h, h1, "ep_total_cache_size");
-    nonResident2 = get_int_stat(h, h1, "ep_num_non_resident");
+    int nonResident2 = get_int_stat(h, h1, "ep_num_non_resident");
 
     assert(mem_used2 == mem_used);
     assert(overhead2 == overhead);
@@ -2704,7 +2703,6 @@ static enum test_result test_tap_sends_deleted(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     uint32_t seqno;
     uint16_t vbucket;
     tap_event_t event;
-    std::string key;
 
     do {
         event = iter(h, cookie, &it, &engine_specific,
@@ -3787,12 +3785,9 @@ static enum test_result test_warmup_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
 
 static enum test_result test_cbd_225(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
-    time_t token1 = 0;
-    time_t token2 = 0;
-    time_t token3 = 0;
 
     // get engine startup token
-    token1 = get_int_stat(h, h1, "ep_startup_time");
+    time_t token1 = get_int_stat(h, h1, "ep_startup_time");
     check(token1 != 0, "Expected non-zero startup token");
 
     // store some random data
@@ -3805,7 +3800,7 @@ static enum test_result test_cbd_225(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     wait_for_flusher_to_settle(h, h1);
 
     // check token again, which should be the same as before
-    token2 = get_int_stat(h, h1, "ep_startup_time");
+    time_t token2 = get_int_stat(h, h1, "ep_startup_time");
     check(token2 == token1, "Expected the same startup token");
 
     // reload the engine
@@ -3817,7 +3812,7 @@ static enum test_result test_cbd_225(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     wait_for_warmup_complete(h, h1);
 
     // check token, this time we should get a different one
-    token3 = get_int_stat(h, h1, "ep_startup_time");
+    time_t token3 = get_int_stat(h, h1, "ep_startup_time");
     check(token3 != token1, "Expected a different startup token");
 
     return SUCCESS;
@@ -4597,7 +4592,6 @@ extern "C" {
               "Expected CHECKPOINT_PERSISTENCE_TIMEOUT was adjusted to be greater"
               " than 10 secs");
 
-        item *it = NULL;
         for (int j = 0; j < 1000; ++j) {
             std::stringstream ss;
             ss << "key" << j;
@@ -4805,14 +4799,13 @@ static enum test_result test_get_meta_with_get(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     char const *key2 = "key2";
 
     item *i = NULL;
-    size_t temp = 0;
     // test get_meta followed by get for an existing key. should pass.
     check(store(h, h1, NULL, OPERATION_SET, key1, "somevalue", &i) == ENGINE_SUCCESS,
           "Failed set.");
     h1->release(h, NULL, i);
     wait_for_flusher_to_settle(h, h1);
     // check the stat
-    temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
+    size_t temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
     check(temp == 0, "Expect zero getMeta ops");
     check(get_meta(h, h1, key1), "Expected to get meta");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
@@ -4915,7 +4908,6 @@ static enum test_result test_get_meta_with_delete(ENGINE_HANDLE *h, ENGINE_HANDL
     char const *key2 = "key2";
 
     item *i = NULL;
-    size_t temp = 0;
 
     // test get_meta followed by delete for an existing key. should pass.
     check(store(h, h1, NULL, OPERATION_SET, key1, "somevalue", &i) == ENGINE_SUCCESS,
@@ -4923,7 +4915,7 @@ static enum test_result test_get_meta_with_delete(ENGINE_HANDLE *h, ENGINE_HANDL
     h1->release(h, NULL, i);
     wait_for_flusher_to_settle(h, h1);
     // check the stat
-    temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
+    size_t temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
     check(temp == 0, "Expect zero getMeta ops");
     check(get_meta(h, h1, key1), "Expected to get meta");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
@@ -4989,9 +4981,8 @@ static enum test_result test_delete_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
     const char *key = "delete_with_meta_key";
     const size_t keylen = strlen(key);
     ItemMetaData itemMeta;
-    size_t temp = 0;
     // check the stat
-    temp = get_int_stat(h, h1, "ep_num_ops_del_meta");
+    size_t temp = get_int_stat(h, h1, "ep_num_ops_del_meta");
     check(temp == 0, "Expect zero setMeta ops");
 
     // put some random meta data
@@ -5161,9 +5152,8 @@ static enum test_result test_delete_with_meta_race_with_set(ENGINE_HANDLE *h, EN
     itm_meta.cas = 0xdeadbeef;
     itm_meta.exptime = 1735689600; // expires in 2025
     itm_meta.flags = 0xdeadbeef;
-    size_t temp = 0;
     // check the stat
-    temp = get_int_stat(h, h1, "ep_num_ops_del_meta");
+    size_t temp = get_int_stat(h, h1, "ep_num_ops_del_meta");
     check(temp == 0, "Expect zero ops");
 
     //
@@ -5242,9 +5232,8 @@ static enum test_result test_delete_with_meta_race_with_delete(ENGINE_HANDLE *h,
     uint16_t keylen2 = (uint16_t)strlen(key2);
     item *i = NULL;
     ItemMetaData itm_meta;
-    size_t temp = 0;
     // check the stat
-    temp = get_int_stat(h, h1, "ep_num_ops_del_meta");
+    size_t temp = get_int_stat(h, h1, "ep_num_ops_del_meta");
     check(temp == 0, "Expect zero ops");
 
     //
@@ -5510,9 +5499,8 @@ static enum test_result test_set_with_meta_race_with_set(ENGINE_HANDLE *h, ENGIN
     char const *key2 = "key2";
     size_t keylen2 = strlen(key2);
     item *i = NULL;
-    size_t temp = 0;
     // check the stat
-    temp = get_int_stat(h, h1, "ep_num_ops_set_meta");
+    size_t temp = get_int_stat(h, h1, "ep_num_ops_set_meta");
     check(temp == 0, "Expect zero ops");
 
     //
@@ -5592,9 +5580,8 @@ static enum test_result test_set_with_meta_race_with_delete(ENGINE_HANDLE *h, EN
     char const *key2 = "key2";
     size_t keylen2 = strlen(key2);
     item *i = NULL;
-    size_t temp = 0;
     // check the stat
-    temp = get_int_stat(h, h1, "ep_num_ops_set_meta");
+    size_t temp = get_int_stat(h, h1, "ep_num_ops_set_meta");
     check(temp == 0, "Expect zero op");
 
     //
@@ -6353,9 +6340,7 @@ public:
     }
 
     engine_test_t *getTest() {
-        engine_test_t *ret = 0;
-
-        ret = new engine_test_t;
+        engine_test_t *ret = new engine_test_t;
         *ret = test;
 
         std::string nm(name);

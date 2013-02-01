@@ -130,13 +130,12 @@ inline bool parseUint16(const char *in, uint16_t *out) {
 
 inline bool parseUint32(const char *str, uint32_t *out) {
     char *endptr = NULL;
-    unsigned long l = 0;
     assert(out);
     assert(str);
     *out = 0;
     errno = 0;
 
-    l = strtoul(str, &endptr, 10);
+    unsigned long l = strtoul(str, &endptr, 10);
     if (errno == ERANGE) {
         return false;
     }
