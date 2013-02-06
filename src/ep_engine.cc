@@ -1658,8 +1658,8 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
         queueBackfill(backFillVBFilter, connection);
     }
 
-    bool referenced = false;
-    Item *it = connection->getNextItem(cookie, vbucket, ret, referenced);
+    uint8_t nru = INITIAL_NRU_VALUE;
+    Item *it = connection->getNextItem(cookie, vbucket, ret, nru);
     switch (ret) {
     case TAP_CHECKPOINT_START:
     case TAP_CHECKPOINT_END:
@@ -1668,7 +1668,7 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
         *itm = it;
         if (ret == TAP_MUTATION) {
             *nes = TapEngineSpecific::packSpecificData(ret, connection, it->getSeqno(),
-                                                       referenced);
+                                                       nru);
             *es = connection->specificData;
         } else if (ret == TAP_DELETION) {
             *nes = TapEngineSpecific::packSpecificData(ret, connection, it->getSeqno());
@@ -2044,18 +2044,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
 
             if (tc) {
                 bool meta = false;
-                bool nru = false;
+                uint8_t nru = INITIAL_NRU_VALUE;
                 if (nengine >= TapEngineSpecific::sizeRevSeqno) {
                     uint64_t seqnum;
-                    uint8_t extra = 0;
                     TapEngineSpecific::readSpecificData(tap_event, engine_specific, nengine,
-                                                        &seqnum, &extra);
-                    // extract replicated item nru reference
-                    if (nengine == TapEngineSpecific::sizeTotal &&
-                        extra == TapEngineSpecific::nru)
-                    {
-                        nru = true;
-                    }
+                                                        &seqnum, &nru);
                     itm->setCas(cas);
                     itm->setSeqno(seqnum);
                     meta = true;
@@ -2313,8 +2306,6 @@ bool VBucketCountVisitor::visitBucket(RCPtr<VBucket> &vb) {
         htCacheSize += vb->ht.cacheSize;
         numEjects += vb->ht.getNumEjects();
         numExpiredItems += vb->numExpiredItems;
-        numReferencedItems += vb->ht.getNumReferenced();
-        numReferencedEjects += vb->ht.getNumReferencedEjects();
         metaDataMemory += vb->ht.metaDataMemory;
         opsCreate += vb->opsCreate;
         opsUpdate += vb->opsUpdate;
@@ -2473,10 +2464,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     add_casted_stat("vb_active_queue_fill", activeCountVisitor.getQueueFill(), add_stat, cookie);
     add_casted_stat("vb_active_queue_drain", activeCountVisitor.getQueueDrain(),
                    add_stat, cookie);
-    add_casted_stat("vb_active_num_ref_items", activeCountVisitor.getReferenced(),
-                    add_stat, cookie);
-    add_casted_stat("vb_active_num_ref_ejects", activeCountVisitor.getReferencedEjects(),
-                    add_stat, cookie);
 
     add_casted_stat("vb_replica_num", replicaCountVisitor.getVBucketNumber(), add_stat, cookie);
     add_casted_stat("vb_replica_curr_items", replicaCountVisitor.getNumItems(), add_stat, cookie);
@@ -2503,10 +2490,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                    add_stat, cookie);
     add_casted_stat("vb_replica_queue_fill", replicaCountVisitor.getQueueFill(), add_stat, cookie);
     add_casted_stat("vb_replica_queue_drain", replicaCountVisitor.getQueueDrain(), add_stat, cookie);
-    add_casted_stat("vb_replica_num_ref_items", replicaCountVisitor.getReferenced(),
-                    add_stat, cookie);
-    add_casted_stat("vb_replica_num_ref_ejects", replicaCountVisitor.getReferencedEjects(),
-                    add_stat, cookie);
 
     add_casted_stat("vb_pending_num", pendingCountVisitor.getVBucketNumber(), add_stat, cookie);
     add_casted_stat("vb_pending_curr_items", pendingCountVisitor.getNumItems(), add_stat, cookie);
@@ -2533,10 +2516,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                    add_stat, cookie);
     add_casted_stat("vb_pending_queue_fill", pendingCountVisitor.getQueueFill(), add_stat, cookie);
     add_casted_stat("vb_pending_queue_drain", pendingCountVisitor.getQueueDrain(), add_stat, cookie);
-    add_casted_stat("vb_pending_num_ref_items", pendingCountVisitor.getReferenced(),
-                    add_stat, cookie);
-    add_casted_stat("vb_pending_num_ref_ejects", pendingCountVisitor.getReferencedEjects(),
-                    add_stat, cookie);
 
     add_casted_stat("vb_dead_num", deadCountVisitor.getVBucketNumber(), add_stat, cookie);
 

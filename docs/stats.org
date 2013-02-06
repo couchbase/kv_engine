@@ -356,9 +356,6 @@ For introductory information on stats within membase, start with the
 | vb_active_queue_pending       | Total bytes of pending writes              |
 | vb_active_queue_fill          | Total enqueued items                       |
 | vb_active_queue_drain         | Total drained items                        |
-| vb_active_num_ref_items       | Number of referenced items                 |
-| vb_active_num_ref_ejects      | Number of times referenced item values     |
-|                               | got ejected                                |
 
 *** Replica vBucket stats
 
@@ -383,9 +380,6 @@ For introductory information on stats within membase, start with the
 | vb_replica_queue_pending      | Total bytes of pending writes              |
 | vb_replica_queue_fill         | Total enqueued items                       |
 | vb_replica_queue_drain        | Total drained items                        |
-| vb_replica_num_ref_items      | Number of referenced items                 |
-| vb_replica_num_ref_ejects     | Number of times referenced item values     |
-|                               | got ejected                                |
 
 *** Pending vBucket stats
 
@@ -410,9 +404,6 @@ For introductory information on stats within membase, start with the
 | vb_pending_queue_pending      | Total bytes of pending writes              |
 | vb_pending_queue_fill         | Total enqueued items                       |
 | vb_pending_queue_drain        | Total drained items                        |
-| vb_pending_num_ref_items      | Number of referenced items                 |
-| vb_pending_num_ref_ejects     | Number of times referenced item values     |
-|                               | got ejected                                |
 
 ** Tap stats
 

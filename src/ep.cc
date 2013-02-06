@@ -748,7 +748,7 @@ protocol_binary_response_status EventuallyPersistentStore::evictKey(const std::s
 ENGINE_ERROR_CODE EventuallyPersistentStore::set(const Item &itm,
                                                  const void *cookie,
                                                  bool force,
-                                                 bool trackReference) {
+                                                 uint8_t nru) {
 
     RCPtr<VBucket> vb = getVBucket(itm.getVBucketId());
     if (!vb || vb->getState() == vbucket_state_dead) {
@@ -765,7 +765,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::set(const Item &itm,
 
     bool cas_op = (itm.getCas() != 0);
 
-    mutation_type_t mtype = vb->ht.set(itm, trackReference);
+    mutation_type_t mtype = vb->ht.set(itm, nru);
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
 
     switch (mtype) {
@@ -828,7 +828,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::add(const Item &itm,
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentStore::addTAPBackfillItem(const Item &itm, bool meta,
-                                                                bool trackReference) {
+                                                                uint8_t nru) {
 
     RCPtr<VBucket> vb = getVBucket(itm.getVBucketId());
     if (!vb ||
@@ -842,9 +842,9 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::addTAPBackfillItem(const Item &itm,
     mutation_type_t mtype;
 
     if (meta) {
-        mtype = vb->ht.set(itm, 0, true, true, trackReference);
+        mtype = vb->ht.set(itm, 0, true, true, nru);
     } else {
-        mtype = vb->ht.set(itm, trackReference);
+        mtype = vb->ht.set(itm, nru);
     }
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
 
@@ -1290,11 +1290,11 @@ GetValue EventuallyPersistentStore::getInternal(const std::string &key,
                 bgFetch(key, vbucket, v->getId(), cookie);
             }
             return GetValue(NULL, ENGINE_EWOULDBLOCK, v->getId(), true,
-                            v->isReferenced());
+                            v->getNRUValue());
         }
 
         GetValue rv(v->toItem(v->isLocked(ep_current_time()), vbucket),
-                    ENGINE_SUCCESS, v->getId(), false, v->isReferenced());
+                    ENGINE_SUCCESS, v->getId(), false, v->getNRUValue());
         return rv;
     } else {
         GetValue rv;
@@ -1365,7 +1365,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setWithMeta(const Item &itm,
                                                          const void *cookie,
                                                          bool force,
                                                          bool allowExisting,
-                                                         bool trackReference)
+                                                         uint8_t nru)
 {
     RCPtr<VBucket> vb = getVBucket(itm.getVBucketId());
     if (!vb || vb->getState() == vbucket_state_dead) {
@@ -1381,7 +1381,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setWithMeta(const Item &itm,
     }
 
     mutation_type_t mtype = vb->ht.set(itm, cas, allowExisting,
-                                       true, trackReference);
+                                       true, nru);
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
 
     switch (mtype) {

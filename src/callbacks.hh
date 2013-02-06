@@ -15,13 +15,13 @@ class GetValue {
 public:
     GetValue() : value(NULL), id(-1),
                  status(ENGINE_KEY_ENOENT),
-                 partial(false), nru(false) { }
+                 partial(false), nru(0xff) { }
 
     explicit GetValue(Item *v, ENGINE_ERROR_CODE s=ENGINE_SUCCESS,
                       uint64_t i = -1,
-                      bool incomplete = false, bool reference = false) :
+                      bool incomplete = false, uint8_t _nru = 0xff) :
         value(v), id(i), status(s),
-        partial(incomplete), nru(reference) { }
+        partial(incomplete), nru(_nru) { }
 
     /**
      * The value retrieved for the key.
@@ -52,7 +52,7 @@ public:
 
     void setPartial() { partial = true; }
 
-    bool isReferenced() const { return nru; }
+    uint8_t getNRUValue() const { return nru; }
 
     void setValue(Item *i) { value = i; }
 
@@ -62,7 +62,7 @@ private:
     uint64_t id;
     ENGINE_ERROR_CODE status;
     bool partial;
-    bool nru;
+    uint8_t nru;
 };
 
 /**

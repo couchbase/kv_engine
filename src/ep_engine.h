@@ -83,8 +83,6 @@ public:
                                                  numVbucket(0), htMemory(0),
                                                  htItemMemory(0), htCacheSize(0),
                                                  numEjects(0), numExpiredItems(0),
-                                                 numReferencedItems(0),
-                                                 numReferencedEjects(0),
                                                  metaDataMemory(0), opsCreate(0),
                                                  opsUpdate(0), opsDelete(0),
                                                  opsReject(0), queueSize(0),
@@ -120,10 +118,6 @@ public:
 
     size_t getExpired() { return numExpiredItems; }
 
-    size_t getReferenced() { return numReferencedItems; }
-
-    size_t getReferencedEjects() { return numReferencedEjects; }
-
     size_t getMetaDataMemory() { return metaDataMemory; }
 
     size_t getHashtableMemory() { return htMemory; }
@@ -156,8 +150,6 @@ private:
     size_t htCacheSize;
     size_t numEjects;
     size_t numExpiredItems;
-    size_t numReferencedItems;
-    size_t numReferencedEjects;
     size_t metaDataMemory;
 
     size_t opsCreate;

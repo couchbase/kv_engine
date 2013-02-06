@@ -286,7 +286,6 @@ void VBucket::addStats(bool details, ADD_STAT add_stat, const void *c) {
         addStat("num_items", numItems, add_stat, c);
         addStat("num_temp_items", tempItems, add_stat, c);
         addStat("num_non_resident", ht.getNumNonResidentItems(), add_stat, c);
-        addStat("num_referenced", ht.getNumReferenced(), add_stat, c);
         addStat("ht_memory", ht.memorySize(), add_stat, c);
         addStat("ht_item_memory", ht.getItemMemory(), add_stat, c);
         addStat("ht_cache_size", ht.cacheSize, add_stat, c);

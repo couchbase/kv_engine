@@ -56,34 +56,47 @@ bool StoredValue::ejectValue(EPStats &stats, HashTable &ht) {
         ++stats.numValueEjects;
         ++ht.numNonResidentItems;
         ++ht.numEjects;
-        if (isReferenced()) {
-            ++ht.numReferencedEjects;
-        }
         return true;
     }
     ++stats.numFailedEjects;
     return false;
 }
 
-void StoredValue::referenced(HashTable &ht) {
-    if (!_isSmall && extra.feature.nru == false) {
-        extra.feature.nru = true;
-        ++ht.numReferenced;
+void StoredValue::referenced() {
+    if (!_isSmall) {
+        if (extra.feature.nru > MIN_NRU_VALUE) {
+            --extra.feature.nru;
+        }
     }
 }
 
-bool StoredValue::isReferenced(bool reset, HashTable *ht) {
-    bool ret = false;
+void StoredValue::setNRUValue(uint8_t nru_val) {
+    if (nru_val <= MAX_NRU_VALUE) {
+        extra.feature.nru = nru_val;
+    }
+}
+
+uint8_t StoredValue::getNRUValue() {
+    uint8_t ret = MAX_NRU_VALUE;
     if (!_isSmall) {
         ret = extra.feature.nru;
-        if (reset && extra.feature.nru) {
-            extra.feature.nru = false;
-            assert(ht);
-            --ht->numReferenced;
-        }
     }
     return ret;
 }
+
+bool StoredValue::isReferenced() {
+    bool ret = false;
+    if (!_isSmall) {
+        // With two NRU bits, we set a given item's NRU value to the default
+        // value (i.e., two) if it is newly inserted in the hash table, and
+        // then decrement its nru value every time it's referenced through GET.
+        // Therefore, we consider an item as the referenced one iff its nru
+        // value is less than the default value.
+        ret = extra.feature.nru < INITIAL_NRU_VALUE;
+    }
+    return ret;
+}
+
 
 bool StoredValue::unlocked_restoreValue(Item *itm, EPStats &stats,
                                         HashTable &ht) {
@@ -277,8 +290,6 @@ HashTableStatVisitor HashTable::clear(bool deactivate) {
     numNonResidentItems.set(0);
     memSize.set(0);
     cacheSize.set(0);
-    numReferenced.set(0);
-    numReferencedEjects.set(0);
 
     return rv;
 }
@@ -471,10 +482,9 @@ const char* HashTable::getDefaultStorageValueTypeStr() {
 add_type_t HashTable::unlocked_add(int &bucket_num,
                                    const Item &val,
                                    bool isDirty,
-                                   bool storeVal,
-                                   bool trackReference) {
+                                   bool storeVal) {
     StoredValue *v = unlocked_find(val.getKey(), bucket_num,
-                                   true, trackReference);
+                                   true, false);
     add_type_t rv = ADD_SUCCESS;
     if (v && !v->isDeleted() && !v->isExpired(ep_real_time())) {
         rv = ADD_EXISTS;
@@ -516,8 +526,7 @@ add_type_t HashTable::unlocked_add(int &bucket_num,
         }
         if (v->isTempItem()) {
             v->resetValue();
-        } else {
-            v->referenced(*this);
+            v->setNRUValue(MAX_NRU_VALUE);
         }
     }
 
@@ -537,8 +546,7 @@ add_type_t HashTable::unlocked_addTempDeletedItem(int &bucket_num,
 
     return unlocked_add(bucket_num, itm,
                         false,  // isDirty
-                        true,   // storeVal
-                        false); // trackReference
+                        true);   // storeVal
 }
 
 void StoredValue::setMutationMemoryThreshold(double memThreshold) {

@@ -23,7 +23,6 @@
 #include "statwriter.hh"
 #undef STATWRITER_NAMESPACE
 
-const uint8_t TapEngineSpecific::nru(1);
 const short int TapEngineSpecific::sizeRevSeqno(8);
 const short int TapEngineSpecific::sizeExtra(1);
 const short int TapEngineSpecific::sizeTotal(9);
@@ -48,17 +47,16 @@ void TapEngineSpecific::readSpecificData(tap_event_t ev, void *engine_specific,
 }
 
 uint16_t TapEngineSpecific::packSpecificData(tap_event_t ev, TapProducer *tp,
-                                             uint64_t seqnum, bool referenced)
+                                             uint64_t seqnum, uint8_t nru)
 {
     uint64_t seqno;
     uint16_t nengine = 0;
     if (ev == TAP_MUTATION || ev == TAP_DELETION || ev == TAP_CHECKPOINT_START) {
         seqno = htonll(seqnum);
         memcpy(tp->specificData, (void *)&seqno, sizeRevSeqno);
-        if (ev == TAP_MUTATION && referenced) {
-            // transfer item nru reference bit in item extra byte
-            uint8_t itemNru = TapEngineSpecific::nru;
-            memcpy(&tp->specificData[sizeRevSeqno], (void*)&itemNru, sizeExtra);
+        if (ev == TAP_MUTATION) {
+            // transfer item's nru value in item extra byte
+            memcpy(&tp->specificData[sizeRevSeqno], (void*)&nru, sizeExtra);
             nengine = sizeTotal;
         } else {
             nengine = sizeRevSeqno;
@@ -1084,7 +1082,8 @@ public:
             if (vb) {
                 int bucket_num(0);
                 LockHolder lh = vb->ht.getLockedBucket(key, &bucket_num);
-                StoredValue *v = epstore->fetchValidValue(vb, key, bucket_num);
+                StoredValue *v = epstore->fetchValidValue(vb, key, bucket_num,
+                                                          false, false, true);
                 if (v) {
                     rowid = v->getId();
                     const TapConfig &config = epe->getTapConfig();
@@ -1745,7 +1744,7 @@ void TapProducer::scheduleBackfill_UNLOCKED(const std::vector<uint16_t> &vblist)
 }
 
 Item* TapProducer::getNextItem(const void *c, uint16_t *vbucket, tap_event_t &ret,
-                               bool &referenced) {
+                               uint8_t &nru) {
     LockHolder lh(queueLock);
     Item *itm = NULL;
 
@@ -1804,9 +1803,7 @@ Item* TapProducer::getNextItem(const void *c, uint16_t *vbucket, tap_event_t &re
             ret = TAP_DELETION;
         }
 
-        if (gv.isReferenced()) {
-            referenced = true;
-        }
+        nru = gv.getNRUValue();
 
         ++stats.numTapBGFetched;
         qi = queued_item(new QueuedItem(itm->getKey(), itm->getVBucketId(),
@@ -1839,9 +1836,7 @@ Item* TapProducer::getNextItem(const void *c, uint16_t *vbucket, tap_event_t &re
             if (r == ENGINE_SUCCESS) {
                 itm = gv.getValue();
                 assert(itm);
-                if (gv.isReferenced()) {
-                    referenced = true;
-                }
+                nru = gv.getNRUValue();
                 ret = TAP_MUTATION;
             } else if (r == ENGINE_KEY_ENOENT) {
                 // Item was deleted and set a message type to tap_deletion.

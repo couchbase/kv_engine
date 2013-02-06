@@ -285,8 +285,6 @@ private:
  */
 class TapEngineSpecific {
 public:
-    // item specific extra data
-    static const uint8_t nru;
 
     // size of item revision seq number
     static const short int sizeRevSeqno;
@@ -313,11 +311,11 @@ public:
      * @param ev tap event
      * @param tp tap producer connection
      * @param seqnum item sequence number
-     * @param referenced true if item nru reference is set
+     * @param nru value of the item replicated
      * @return size of tap engine specific data (bytes)
      */
     static uint16_t packSpecificData(tap_event_t ev, TapProducer *tp, uint64_t seqnum,
-                                     bool referenced = false);
+                                     uint8_t nru = 0xff);
 };
 
 /**
@@ -648,7 +646,7 @@ private:
      * tap_deletion) to be transmitted.
      */
     Item *getNextItem(const void *c, uint16_t *vbucket, tap_event_t &ret,
-                      bool &referenced);
+                      uint8_t &nru);
 
     /**
      * Check if TAP_DUMP or TAP_TAKEOVER is completed and close the connection if
