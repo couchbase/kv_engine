@@ -94,7 +94,7 @@ public:
 
     void setNRUValue(uint8_t nru_val);
 
-    bool isReferenced();
+    uint8_t incrNRUValue();
 
     void referenced();
 

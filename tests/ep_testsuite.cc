@@ -4544,22 +4544,6 @@ static enum test_result test_extend_open_checkpoint(ENGINE_HANDLE *h, ENGINE_HAN
     check(get_int_stat(h, h1, "vb_0:last_closed_checkpoint_id", "checkpoint 0") == 0,
           "Last closed checkpoint Id for VB 0 should be still 0");
 
-    set_param(h, h1, engine_param_flush, "max_size", "100000");
-    check(epsilon(get_int_stat(h, h1, "ep_mem_high_wat"), 85000),
-          "Incorrect larger high wat.");
-
-    int itemsRemoved = get_int_stat(h, h1, "ep_items_rm_from_checkpoints");
-    testHarness.time_travel(60);
-    // Wait until the current open checkpoint is closed and purged from memory.
-    wait_for_stat_change(h, h1, "ep_items_rm_from_checkpoints", itemsRemoved);
-
-    check(h1->get_stats(h, NULL, "checkpoint 0", 12, add_stats) == ENGINE_SUCCESS,
-          "Failed to get stats.");
-    std::string extension_enabled = vals["vb_0:checkpoint_extension"];
-    assert(strcmp(extension_enabled.c_str(), "false") == 0);
-    check(get_int_stat(h, h1, "vb_0:last_closed_checkpoint_id", "checkpoint 0") == 1,
-          "Last closed checkpoint Id for VB 0 should be 1");
-
     return SUCCESS;
 }
 
@@ -6062,6 +6046,73 @@ static enum test_result test_control_data_traffic(ENGINE_HANDLE *h, ENGINE_HANDL
     return SUCCESS;
 }
 
+static enum test_result test_item_pager(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    std::vector<std::string> keys;
+    char data[1024];
+    memset(data, 'x', sizeof(data));
+
+    for (int j = 0; j < 100; ++j) {
+        std::stringstream ss;
+        ss << "key-" << j;
+        std::string key(ss.str());
+        keys.push_back(key);
+    }
+
+    std::vector<std::string>::iterator it;
+    for (it = keys.begin(); it != keys.end(); ++it) {
+        item *i;
+        check(store(h, h1, NULL, OPERATION_SET, it->c_str(), data, &i)
+              == ENGINE_SUCCESS, "Failed to store a value");
+        h1->release(h, NULL, i);
+        // Reference each item multiple times.
+        for (int k = 0; k < 5; ++k) {
+            check(h1->get(h, NULL, &i, it->c_str(), strlen(it->c_str()), 0) == ENGINE_SUCCESS,
+                  "Failed to get value.");
+            h1->release(h, NULL, i);
+        }
+    }
+    keys.clear();
+
+    for (int j = 100; j < 200;  ++j) {
+        std::stringstream ss;
+        ss << "key-" << j;
+        std::string key(ss.str());
+        keys.push_back(key);
+    }
+
+    for (it = keys.begin(); it != keys.end(); ++it) {
+        item *i;
+        store(h, h1, NULL, OPERATION_SET, it->c_str(), data, &i);
+        h1->release(h, NULL, i);
+    }
+    keys.clear();
+
+    testHarness.time_travel(5);
+
+    wait_for_memory_usage_below(h, h1, get_int_stat(h, h1, "ep_mem_low_wat"));
+    check(get_int_stat(h, h1, "ep_num_non_resident") > 0,
+          "Expect some non-resident items");
+
+    for (int j = 0; j < 100; ++j) {
+        std::stringstream ss;
+        ss << "key-" << j;
+        std::string key(ss.str());
+        keys.push_back(key);
+    }
+
+    int bg_fetched = get_int_stat(h, h1, "ep_bg_fetched");
+    for (it = keys.begin(); it != keys.end(); ++it) {
+        item *i;
+        check(h1->get(h, NULL, &i, it->c_str(), strlen(it->c_str()), 0) == ENGINE_SUCCESS,
+             "Failed to get value.");
+        h1->release(h, NULL, i);
+    }
+    check(get_int_stat(h, h1, "ep_bg_fetched") == bg_fetched,
+          "Not expect to have disk reads for referenced items");
+
+    return SUCCESS;
+}
+
 static enum test_result test_set_vbucket_out_of_range(ENGINE_HANDLE *h,
                                                        ENGINE_HANDLE_V1 *h1) {
     check(!set_vbucket_state(h, h1, 10000, vbucket_state_active),
@@ -6508,6 +6559,9 @@ engine_test_t* get_tests(void) {
                  teardown, NULL, prepare, cleanup),
         TestCase("test observe not my vbucket", test_observe_errors, test_setup,
                  teardown, NULL, prepare, cleanup),
+        TestCase("test item pager", test_item_pager, test_setup,
+                 teardown, "max_size=204800", prepare, cleanup),
+
         // Stats tests
         TestCase("stats", test_stats, test_setup, teardown, NULL,
                  prepare, cleanup),

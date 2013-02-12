@@ -16,19 +16,12 @@ typedef std::pair<int64_t, int64_t> row_range_t;
 class EventuallyPersistentStore;
 
 /**
- * ItemPager visits replica vbuckets and active vbuckets in one phases.
- * The config_t is a bool value and it indicates whether random items ejection
- * will be performed.
+ * The item pager phase
  */
-class PagingConfig {
-public:
-    static const short int paging_max = 2;
-
-    static const short int paging_unreferenced = 0;
-    static const short int paging_random = 1;
-
-    static const bool phaseConfig[paging_max];
-};
+typedef enum {
+    PAGING_UNREFERENCED,
+    PAGING_RANDOM
+} item_pager_phase;
 
 /**
  * Dispatcher job responsible for periodically pushing data out of
@@ -44,19 +37,26 @@ public:
      * @param st the stats
      */
     ItemPager(EventuallyPersistentStore *s, EPStats &st) :
-        store(*s), stats(st), available(true), phase(PagingConfig::paging_unreferenced) {}
+        store(*s), stats(st), available(true), phase(PAGING_UNREFERENCED) {}
 
     bool callback(Dispatcher &d, TaskId &t);
+
+    item_pager_phase getPhase() const {
+        return phase;
+    }
+
+    void setPhase(item_pager_phase item_phase) {
+        phase = item_phase;
+    }
 
     std::string description() { return std::string("Paging out items."); }
 
 private:
-    bool checkAccessScannerTask();
 
     EventuallyPersistentStore &store;
-    EPStats                   &stats;
-    bool                       available;
-    short int                  phase;
+    EPStats &stats;
+    bool available;
+    item_pager_phase phase;
 };
 
 /**

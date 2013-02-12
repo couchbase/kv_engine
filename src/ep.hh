@@ -610,8 +610,6 @@ public:
 
     void resetAccessScannerTasktime() {
         accessScanner.lastTaskRuntime = gethrtime();
-        // notify item pager to check access scanner task time
-        pager.biased = false;
     }
 
     /**
@@ -787,10 +785,6 @@ private:
         Atomic<size_t> activeRatio;
         Atomic<size_t> replicaRatio;
     } cachedResidentRatio;
-    struct ItemPagerInfo {
-        ItemPagerInfo() : biased(true) {}
-        Atomic<bool> biased;
-    } pager;
     size_t transactionSize;
     size_t lastTransTimePerItem;
     size_t itemExpiryWindow;

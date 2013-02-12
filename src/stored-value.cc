@@ -76,6 +76,14 @@ void StoredValue::setNRUValue(uint8_t nru_val) {
     }
 }
 
+uint8_t StoredValue::incrNRUValue() {
+    uint8_t ret = MAX_NRU_VALUE;
+    if (!_isSmall && extra.feature.nru < MAX_NRU_VALUE) {
+        ret = ++extra.feature.nru;
+    }
+    return ret;
+}
+
 uint8_t StoredValue::getNRUValue() {
     uint8_t ret = MAX_NRU_VALUE;
     if (!_isSmall) {
@@ -83,20 +91,6 @@ uint8_t StoredValue::getNRUValue() {
     }
     return ret;
 }
-
-bool StoredValue::isReferenced() {
-    bool ret = false;
-    if (!_isSmall) {
-        // With two NRU bits, we set a given item's NRU value to the default
-        // value (i.e., two) if it is newly inserted in the hash table, and
-        // then decrement its nru value every time it's referenced through GET.
-        // Therefore, we consider an item as the referenced one iff its nru
-        // value is less than the default value.
-        ret = extra.feature.nru < INITIAL_NRU_VALUE;
-    }
-    return ret;
-}
-
 
 bool StoredValue::unlocked_restoreValue(Item *itm, EPStats &stats,
                                         HashTable &ht) {

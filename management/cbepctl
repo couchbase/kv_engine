@@ -144,8 +144,6 @@ Available params for "set":
                                 items.
     pager_active_vb_pcnt      - Percentage of active vbuckets items among
                                 all ejected items by item pager.
-    pager_unbiased_period     - Period after last access scanner run during
-                                which item pager preserve working set.
     queue_age_cap             - Maximum queue age before flushing data.
     max_size                  - Max memory used by the server.
     max_txn_size              - Maximum number of items in a flusher

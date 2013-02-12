@@ -255,9 +255,6 @@ For introductory information on stats within membase, start with the
 |                                    | that we should start sending temp oom  |
 |                                    | or oom message when hitting            |
 | ep_pager_active_vb_pcnt            | Active vbuckets paging percentage      |
-| ep_pager_unbiased_period           | Number of minutes since access scanner |
-|                                    | time in which item pager ignores items |
-|                                    | nru info                               |
 | ep_stored_val_type                 | The meta data type used for items      |
 | ep_tap_ack_grace_period            | The amount of time to wait for a tap   |
 |                                    | acks before disconnecting              |
