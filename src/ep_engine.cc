@@ -1962,7 +1962,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
             }
 
             bool meta = false;
-            ItemMetaData itemMeta(0, cas, flags, exptime);
+            ItemMetaData itemMeta(cas, DEFAULT_REV_SEQ_NUM, flags, exptime);
 
             if (nengine == TapEngineSpecific::sizeRevSeqno) {
                 TapEngineSpecific::readSpecificData(tap_event, engine_specific, nengine,
@@ -1970,6 +1970,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
                 meta = true;
                 if (itemMeta.cas == 0) {
                     itemMeta.cas = Item::nextCas();
+                }
+                if (itemMeta.seqno == 0) {
+                    itemMeta.seqno = DEFAULT_REV_SEQ_NUM;
                 }
             }
             uint64_t delCas = 0;

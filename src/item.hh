@@ -124,6 +124,8 @@ private:
 
 typedef SingleThreadedRCPtr<Blob> value_t;
 
+const uint64_t DEFAULT_REV_SEQ_NUM = 1;
+
 /**
  * The ItemMetaData structure is used to pass meata data information of
  * an Item.
@@ -131,11 +133,11 @@ typedef SingleThreadedRCPtr<Blob> value_t;
 class ItemMetaData {
 public:
     ItemMetaData() :
-        cas(0), seqno(0), flags(0), exptime(0) {
+        cas(0), seqno(DEFAULT_REV_SEQ_NUM), flags(0), exptime(0) {
     }
 
     ItemMetaData(uint64_t c, uint32_t s, uint32_t f, time_t e) :
-        cas(c), seqno(s), flags(f), exptime(e) {
+        cas(c), seqno(s == 0 ? DEFAULT_REV_SEQ_NUM : s), flags(f), exptime(e) {
     }
 
     uint64_t cas;
@@ -308,6 +310,9 @@ public:
     }
 
     void setSeqno(uint64_t to) {
+        if (to == 0) {
+            to = DEFAULT_REV_SEQ_NUM;
+        }
         metaData.seqno = to;
     }
 
