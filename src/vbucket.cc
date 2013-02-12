@@ -212,14 +212,16 @@ void VBucket::queueBGFetchItem(VBucketBGFetchItem *fetch,
     }
 }
 
-bool VBucket::getBGFetchItems(vb_bgfetch_queue_t &fetches) {
+size_t VBucket::getBGFetchItems(vb_bgfetch_queue_t &fetches) {
     LockHolder lh(pendingBGFetchesLock);
+    size_t num_items = 0;
     while (!pendingBGFetches.empty()) {
         VBucketBGFetchItem *it = pendingBGFetches.front();
         fetches[it->value.getId()].push_back(it);
         pendingBGFetches.pop();
+        num_items++;
     }
-    return fetches.size() > 0;
+    return num_items;
 }
 
 void VBucket::addHighPriorityVBEntry(uint64_t chkid, const void *cookie) {

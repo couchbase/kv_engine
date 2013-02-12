@@ -2,7 +2,7 @@
 #include "config.h"
 #include "ep.hh"
 
-const double BgFetcher::sleepInterval = 1.0;
+const double BgFetcher::sleepInterval = 60.0;
 
 bool BgFetcherCallback::callback(Dispatcher &, TaskId &t) {
     return bgfetcher->run(t);
@@ -54,6 +54,7 @@ void BgFetcher::doFetch(uint16_t vbId) {
     if (totalfetches > 0) {
         store->completeBGFetchMulti(vbId, fetchedItems, startTime);
         stats.getMultiHisto.add((gethrtime()-startTime)/1000, totalfetches);
+        total_num_fetched_items += totalfetches;
     }
 
     // failed requests will get requeued for retry within clearItems()
@@ -63,6 +64,7 @@ void BgFetcher::doFetch(uint16_t vbId) {
 void BgFetcher::clearItems(uint16_t vbId) {
     vb_bgfetch_queue_t::iterator itr = items2fetch.begin();
     size_t numRequeuedItems = 0;
+
     for(; itr != items2fetch.end(); itr++) {
         // every fetched item belonging to the same seq_id shares
         // a single data buffer, just delete it from the first fetched item
@@ -89,39 +91,51 @@ void BgFetcher::clearItems(uint16_t vbId) {
         }
     }
 
-    if (numRequeuedItems) {
-        stats.numRemainingBgJobs.incr(numRequeuedItems);
-    }
+    total_num_requeued_items += numRequeuedItems;
 }
 
 bool BgFetcher::run(TaskId &tid) {
     assert(tid.get());
-    size_t num_fetched_items = 0;
+    size_t total_num_items2fetch = 0;
 
-    const VBucketMap &vbMap = store->getVBuckets();
-    size_t numVbuckets = vbMap.getSize();
-    for (size_t vbid = 0; vbid < numVbuckets; vbid++) {
-        RCPtr<VBucket> vb = vbMap.getBucket(vbid);
-        assert(items2fetch.empty());
-        if (vb && vb->getBGFetchItems(items2fetch)) {
-            doFetch(vbid);
-            num_fetched_items += items2fetch.size();
-            items2fetch.clear();
+    total_num_fetched_items = 0;
+    total_num_requeued_items = 0;
+
+    if(stats.numRemainingBgJobs.get()) {
+        const VBucketMap &vbMap = store->getVBuckets();
+        size_t numVbuckets = vbMap.getSize();
+        size_t num_items2fetch;
+        for (size_t vbid = 0; vbid < numVbuckets; vbid++) {
+            RCPtr<VBucket> vb = vbMap.getBucket(vbid);
+            num_items2fetch = 0;
+            if (vb && (num_items2fetch =
+                       vb->getBGFetchItems(items2fetch))) {
+                doFetch(vbid);
+                total_num_items2fetch += num_items2fetch;
+                items2fetch.clear();
+            }
         }
+
+        stats.numRemainingBgJobs.decr(total_num_fetched_items);
+
+        LOG(EXTENSION_LOG_DEBUG, "BgFetcher: total_num_items2fetch = %d "
+            "total_num_fetched_items = %d totaL_num_requeued_items = %d",
+            total_num_items2fetch, total_num_fetched_items,
+            total_num_requeued_items);
     }
 
-    size_t remains = stats.numRemainingBgJobs.decr(num_fetched_items);
-    if (!remains) {
+    if(stats.numRemainingBgJobs.get()) {
         // wait a bit until next fetch request arrives
         double sleep = std::max(store->getBGFetchDelay(), sleepInterval);
         dispatcher->snooze(tid, sleep);
 
         if (stats.numRemainingBgJobs.get()) {
-           // check again numRemainingBgJobs, a new fetch request
-           // could have arrvied right before calling above snooze()
-           dispatcher->snooze(tid, 0);
+            // check again numRemainingBgJobs, a new fetch request
+            // could have arrvied right before calling above snooze()
+            dispatcher->snooze(tid, 0);
         }
     }
+
     return true;
 }
 
