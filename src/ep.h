@@ -119,72 +119,6 @@ class EventuallyPersistentStore;
 class PersistenceCallback;
 
 /**
- * Maintains scope of a underlying storage transaction, being useful
- * and what not.
- */
-class TransactionContext {
-public:
-
-    TransactionContext(EPStats &st, KVStore *ks, MutationLog &log)
-        : stats(st), underlying(ks), mutationLog(log),
-          tranStartTime(0),intxn(false) {}
-
-    /**
-     * Call this whenever entering a transaction.
-     *
-     * @return true if we're in a transaction
-     */
-    bool enter();
-
-    /**
-     * Explicitly commit a transaction.
-     */
-    void commit();
-
-    /**
-     * Get the current number of updates permitted per transaction.
-     */
-    int getTxnSize() {
-        return txnSize.get();
-    }
-
-    /**
-     * Set the current number of updates permitted per transaction.
-     */
-    void setTxnSize(int to) {
-        txnSize.set(to);
-    }
-
-    void addUncommittedItem(const queued_item &item);
-
-    size_t getNumUncommittedItems() {
-        return numUncommittedItems;
-    }
-
-    /**
-     * Return the last transaction time per item in millisecond.
-     */
-    double getTransactionTimePerItem() {
-        return lastTranTimePerItem;
-    }
-
-    void addCallback(PersistenceCallback *cb) {
-        transactionCallbacks.push_back(cb);
-    }
-
-private:
-    EPStats &stats;
-    KVStore *underlying;
-    MutationLog &mutationLog;
-    Atomic<int> txnSize;
-    Atomic<size_t> numUncommittedItems;
-    Atomic<double> lastTranTimePerItem;
-    hrtime_t tranStartTime;
-    bool intxn;
-    std::list<PersistenceCallback*> transactionCallbacks;
-};
-
-/**
  * VBucket visitor callback adaptor.
  */
 class VBCBAdaptor : public DispatcherCallback {
@@ -577,22 +511,6 @@ public:
                     NULL, prio, 0, isDaemon);
     }
 
-    int getTxnSize() {
-        return tctx.getTxnSize();
-    }
-
-    void setTxnSize(int to) {
-        tctx.setTxnSize(to);
-    }
-
-    size_t getNumUncommittedItems() {
-        return tctx.getNumUncommittedItems();
-    }
-
-    double getTransactionTimePerItem() {
-        return tctx.getTransactionTimePerItem();
-    }
-
     const Flusher* getFlusher();
     Warmup* getWarmup(void) const;
 
@@ -666,8 +584,16 @@ public:
         return expiryPager.sleeptime;
     }
 
+    size_t getTransactionTimePerItem() {
+        return lastTransTimePerItem;
+    }
+
     bool isFlushAllScheduled() {
         return diskFlushAll.get();
+    }
+
+    void setTransactionSize(size_t value) {
+        transactionSize = value;
     }
 
     void setItemExpiryWindow(size_t value) {
@@ -721,6 +647,13 @@ public:
         cachedResidentRatio.activeRatio.set(activePerc);
         cachedResidentRatio.replicaRatio.set(replicaPerc);
     }
+
+    /**
+     * Flushes all items waiting for persistence in a given vbucket
+     * @param vbid The id of the vbucket to flush
+     * @return The amount of items flushed
+     */
+    int flushVBucket(uint16_t vbid);
 
 protected:
     // During the warmup phase we might want to enable external traffic
@@ -786,39 +719,13 @@ private:
         return v != NULL;
     }
 
-    /**
-     * Return true if both incoming and outgoing queues are empty
-     */
-    bool diskQueueEmpty();
-
-    /**
-     * Return true if the outgoing queues are empty
-     */
-    bool outgoingQueueEmpty();
-
-    vb_flush_queue_t* beginFlush();
-    size_t pushToOutgoingQueue(std::vector<queued_item> &items, uint16_t vbid);
-    void completeFlush(rel_time_t flush_start);
-
-    int flushOutgoingQueue(vb_flush_queue_t *queue,
-                           size_t &flushPhase,
-                           uint16_t &nextVbid);
-    int flushHighPriorityVBQueue(vb_flush_queue_t *queue, int data_age);
-    int flushVBQueue(RCPtr<VBucket> &vb, std::queue<queued_item> &vb_queue,
-                     uint16_t vbid, int data_age);
-    int flushOne(std::queue<queued_item> &queue,
-                 std::queue<queued_item> &rejectQueue,
-                 RCPtr<VBucket> &vb);
-    int flushOneDeleteAll(void);
-    int flushOneDelOrSet(const queued_item &qi,
-                         std::queue<queued_item> &rejectQueue,
-                         RCPtr<VBucket> &vb);
+    void flushOneDeleteAll(void);
+    PersistenceCallback* flushOneDelOrSet(const queued_item &qi,
+                                          RCPtr<VBucket> &vb);
 
     StoredValue *fetchValidValue(RCPtr<VBucket> &vb, const std::string &key,
                                  int bucket_num, bool wantsDeleted=false,
                                  bool trackReference=true, bool queueExpired=true);
-
-    size_t incomingQueueSize(void);
 
     GetValue getInternal(const std::string &key, uint16_t vbucket,
                          const void *cookie, bool queueBG,
@@ -859,14 +766,9 @@ private:
     MutationLogCompactorConfig      mlogCompactorConfig;
     MutationLog                     accessLog;
 
-    // The writing queue is used by the flusher thread to keep
-    // track of the objects it works on. It should _not_ be used
-    // by any other threads (because the flusher use it without
-    // locking...
-    vb_flush_queue_t writingQueues;
+    vb_flush_queue_t rejectQueues;
     Atomic<size_t> bgFetchQueue;
     Atomic<bool> diskFlushAll;
-    TransactionContext tctx;
     Mutex vbsetMutex;
     uint32_t bgFetchDelay;
     struct ExpiryPagerDelta {
@@ -890,6 +792,8 @@ private:
         ItemPagerInfo() : biased(true) {}
         Atomic<bool> biased;
     } pager;
+    size_t transactionSize;
+    size_t lastTransTimePerItem;
     size_t itemExpiryWindow;
     size_t vbDelChunkSize;
     size_t vbChunkDelThresholdTime;

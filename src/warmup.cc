@@ -74,8 +74,7 @@ void WarmupState::transition(int to, bool allowAnystate) {
         ss << "Warmup transition from state \""
            << getStateDescription(state) << "\" to \""
            << getStateDescription(to) << "\"";
-        getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "%s",
-                         ss.str().c_str());
+        LOG(EXTENSION_LOG_DEBUG, "%s", ss.str().c_str());
         state = to;
     } else {
         // Throw an exception to make it possible to test the logic ;)
@@ -197,27 +196,27 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
                 if (retry == 2) {
                     if (hasPurged) {
                         if (++stats.warmOOM == 1) {
-                            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                             "Warmup dataload failure: max_size too low.");
+                            LOG(EXTENSION_LOG_WARNING,
+                                "Warmup dataload failure: max_size too low.");
                         }
                     } else {
-                        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                         "Emergency startup purge to free space for load.");
+                        LOG(EXTENSION_LOG_WARNING,
+                            "Emergency startup purge to free space for load.");
                         purge();
                     }
                 } else {
-                    getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                     "Cannot store an item after emergency purge.");
+                    LOG(EXTENSION_LOG_WARNING,
+                        "Cannot store an item after emergency purge.");
                     ++stats.warmOOM;
                 }
                 break;
             case INVALID_CAS:
                 if (epstore->getROUnderlying()->isKeyDumpSupported()) {
-                    getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                        "Value changed in memory before restore from disk. Ignored disk value for: %s.",
-                         i->getKey().c_str());
+                    LOG(EXTENSION_LOG_DEBUG,
+                        "Value changed in memory before restore from disk. "
+                        "Ignored disk value for: %s.", i->getKey().c_str());
                 } else {
-                    getLogger()->log(EXTENSION_LOG_WARNING, NULL,
+                    LOG(EXTENSION_LOG_WARNING,
                         "Warmup dataload error: Duplicate key: %s.",
                         i->getKey().c_str());
                 }
@@ -236,9 +235,10 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
         if (succeeded && expired) {
             ItemMetaData itemMeta;
 
-            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "Item was expired at load:  %s",
-                             i->getKey().c_str());
+            ++stats.warmupExpired;
+            epstore->incExpirationStat(vb, false);
+            LOG(EXTENSION_LOG_WARNING, "Item was expired at load:  %s",
+                i->getKey().c_str());
             uint64_t cas = 0;
             epstore->deleteItem(i->getKey(),
                                 &cas,
@@ -367,8 +367,7 @@ bool Warmup::loadingMutationLog(Dispatcher&, TaskId &)
         success = store->warmupFromLog(initialVbState, cb);
     } catch (MutationLog::ReadException &e) {
         corruptMutationLog = true;
-        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                         "Error reading warmup log:  %s", e.what());
+        LOG(EXTENSION_LOG_WARNING, "Error reading warmup log:  %s", e.what());
     }
 
     if (success) {
@@ -379,12 +378,12 @@ bool Warmup::loadingMutationLog(Dispatcher&, TaskId &)
                 setReconstructLog(true);
             }
         } catch (MutationLog::ReadException &e) {
-            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "Failed to reset mutation log:  %s", e.what());
+            LOG(EXTENSION_LOG_WARNING, "Failed to reset mutation log:  %s",
+                e.what());
         }
 
-        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                         "Failed to load mutation log, falling back to key dump");
+        LOG(EXTENSION_LOG_WARNING,
+            "Failed to load mutation log, falling back to key dump");
         transition(WarmupState::EstimateDatabaseItemCount);
     }
 
@@ -425,8 +424,8 @@ bool Warmup::keyDump(Dispatcher&, TaskId &)
         transition(WarmupState::CheckForAccessLog);
     } else {
         if (store->roUnderlying->isKeyDumpSupported()) {
-            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "Failed to dump keys, falling back to full dump");
+            LOG(EXTENSION_LOG_WARNING,
+                "Failed to dump keys, falling back to full dump");
         }
         transition(WarmupState::LoadingKVPairs);
     }
@@ -449,9 +448,8 @@ private:
 bool Warmup::checkForAccessLog(Dispatcher&, TaskId &)
 {
     metadata = gethrtime() - startTime;
-    getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                     "metadata loaded in %s",
-                     hrtime2text(metadata).c_str());
+    LOG(EXTENSION_LOG_WARNING, "metadata loaded in %s",
+        hrtime2text(metadata).c_str());
 
     std::string curr = store->accessLog.getLogFile();
     std::string old = store->accessLog.getLogFile();
@@ -504,10 +502,9 @@ bool Warmup::loadingAccessLog(Dispatcher&, TaskId &)
 
     size_t numItems = store->getEPEngine().getEpStats().warmedUpValues;
     if (success && numItems) {
-        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                         "%d items loaded from access log, completed in %s",
-                         numItems,
-                         hrtime2text((gethrtime() - stTime) / 1000).c_str());
+        LOG(EXTENSION_LOG_WARNING,
+            "%d items loaded from access log, completed in %s", numItems,
+            hrtime2text((gethrtime() - stTime) / 1000).c_str());
         if (doReconstructLog()) {
             store->mutationLog.commit1();
             store->mutationLog.commit2();
@@ -556,9 +553,8 @@ bool Warmup::done(Dispatcher&, TaskId &)
     warmup = gethrtime() - startTime;
     store->warmupCompleted();
     store->stats.warmupComplete.set(true);
-    getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                     "warmup completed in %s",
-                     hrtime2text(warmup).c_str());
+    LOG(EXTENSION_LOG_WARNING, "warmup completed in %s",
+        hrtime2text(warmup).c_str());
     return false;
 }
 
@@ -584,16 +580,14 @@ bool Warmup::step(Dispatcher &d, TaskId &t) {
         case WarmupState::Done:
             return done(d, t);
         default:
-            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "Internal error.. Illegal warmup state %d",
-                             state.getState());
+            LOG(EXTENSION_LOG_WARNING,
+                "Internal error.. Illegal warmup state %d", state.getState());
             abort();
         }
     } catch(std::runtime_error &e) {
         std::stringstream ss;
         ss << "Exception in warmup loop: " << e.what() << std::endl;
-        getLogger()->log(EXTENSION_LOG_WARNING, NULL, "%s",
-                         ss.str().c_str());
+        LOG(EXTENSION_LOG_WARNING, "%s", ss.str().c_str());
         abort();
     }
 }
@@ -657,6 +651,7 @@ void Warmup::addStats(ADD_STAT add_stat, const void *c) const
         addStat("value_count", stats.warmedUpValues, add_stat, c);
         addStat("dups", stats.warmDups, add_stat, c);
         addStat("oom", stats.warmOOM, add_stat, c);
+        addStat("item_expired", stats.warmupExpired, add_stat, c);
         addStat("min_memory_threshold",
                 stats.warmupMemUsedCap * 100.0, add_stat, c);
         addStat("min_item_threshold",

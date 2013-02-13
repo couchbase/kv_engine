@@ -95,9 +95,12 @@ using UNORDERED_MAP_NAMESPACE::unordered_map;
     void operator=(const TypeName&)
 
 // Utility functions implemented in various modules.
-extern EXTENSION_LOGGER_DESCRIPTOR *getLogger(void);
+
+extern void LOG(EXTENSION_LOG_LEVEL severity, const char *fmt, ...);
 
 extern ALLOCATOR_HOOKS_API *getHooksApi(void);
+
+static SERVER_LOG_API *loggerApi;
 
 // Time handling functions
 inline void advance_tv(struct timeval &tv, const double secs) {
@@ -136,13 +139,12 @@ inline bool parseUint16(const char *in, uint16_t *out) {
 
 inline bool parseUint32(const char *str, uint32_t *out) {
     char *endptr = NULL;
-    unsigned long l = 0;
     assert(out);
     assert(str);
     *out = 0;
     errno = 0;
 
-    l = strtoul(str, &endptr, 10);
+    unsigned long l = strtoul(str, &endptr, 10);
     if (errno == ERANGE) {
         return false;
     }

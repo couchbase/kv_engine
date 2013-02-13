@@ -29,8 +29,7 @@ KVStore *KVStoreFactory::create(EventuallyPersistentEngine &theEngine,
     } else if (backend.compare("blackhole") == 0) {
         ret = new BlackholeKVStore(read_only);
     } else {
-        getLogger()->log(EXTENSION_LOG_WARNING, NULL, "Unknown backend: [%s]",
-                backend.c_str());
+        LOG(EXTENSION_LOG_WARNING, "Unknown backend: [%s]", backend.c_str());
     }
 
     if (ret != NULL) {
@@ -66,9 +65,9 @@ static void warmupCallback(void *arg, uint16_t vb,
             cookie->cb.callback(cb.val);
             cookie->loaded++;
         } else {
-            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                    "Warning: warmup failed to load data for vBucket = %d key = %s error = %X\n",
-                    vb, key.c_str(), cb.val.getStatus());
+            LOG(EXTENSION_LOG_WARNING, "Warning: warmup failed to load data for "
+                "vBucket = %d key = %s error = %X", vb, key.c_str(),
+                cb.val.getStatus());
             cookie->error++;
         }
     } else {
@@ -95,19 +94,17 @@ size_t KVStore::warmup(MutationLog &lf,
 
     size_t total = harvester.total();
     estimate.callback(total);
-    getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                     "Completed log read in %s with %ld entries\n",
-                     hrtime2text(end - start).c_str(), total);
+    LOG(EXTENSION_LOG_DEBUG, "Completed log read in %s with %ld entries",
+        hrtime2text(end - start).c_str(), total);
 
     WarmupCookie cookie(this, cb);
     start = gethrtime();
     harvester.apply(&cookie, &warmupCallback);
     end = gethrtime();
 
-    getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                     "Populated log in %s with (l: %ld, s: %ld, e: %ld)",
-                     hrtime2text(end - start).c_str(),
-                     cookie.loaded, cookie.skipped, cookie.error);
+    LOG(EXTENSION_LOG_DEBUG,"Populated log in %s with (l: %ld, s: %ld, e: %ld)",
+        hrtime2text(end - start).c_str(), cookie.loaded, cookie.skipped,
+        cookie.error);
 
     return cookie.loaded;
 }

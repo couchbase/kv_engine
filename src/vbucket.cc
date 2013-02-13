@@ -3,6 +3,7 @@
 #include "config.h"
 
 #include <functional>
+#include <list>
 #include <string>
 
 #include "ep_engine.h"
@@ -83,6 +84,8 @@ std::ostream& operator <<(std::ostream &out, const VBucketFilter &filter)
     return out;
 }
 
+size_t VBucket::chkFlushTimeout = MIN_CHK_FLUSH_TIMEOUT;
+
 const vbucket_state_t VBucket::ACTIVE = static_cast<vbucket_state_t>(htonl(vbucket_state_active));
 const vbucket_state_t VBucket::REPLICA = static_cast<vbucket_state_t>(htonl(vbucket_state_replica));
 const vbucket_state_t VBucket::PENDING = static_cast<vbucket_state_t>(htonl(vbucket_state_pending));
@@ -107,9 +110,9 @@ void VBucket::fireAllOps(EventuallyPersistentEngine &engine, ENGINE_ERROR_CODE c
     engine.notifyIOComplete(pendingOps, code);
     pendingOps.clear();
 
-    getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                     "Fired pendings ops for vbucket %d in state %s\n",
-                     id, VBucket::toString(state));
+    LOG(EXTENSION_LOG_INFO,
+        "Fired pendings ops for vbucket %d in state %s\n",
+        id, VBucket::toString(state));
 }
 
 void VBucket::fireAllOps(EventuallyPersistentEngine &engine) {
@@ -132,9 +135,8 @@ void VBucket::setState(vbucket_state_t to, SERVER_HANDLE_V1 *sapi) {
         checkpointManager.setOpenCheckpointId(2);
     }
 
-    getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                     "transitioning vbucket %d from %s to %s\n",
-                     id, VBucket::toString(oldstate), VBucket::toString(to));
+    LOG(EXTENSION_LOG_DEBUG, "transitioning vbucket %d from %s to %s",
+        id, VBucket::toString(oldstate), VBucket::toString(to));
 
     state = to;
 }
@@ -180,6 +182,8 @@ void VBucket::resetStats() {
     opsDelete.set(0);
     opsReject.set(0);
 
+    stats.diskQueueSize.decr(dirtyQueueSize.get());
+    assert(stats.diskQueueSize < GIGANTOR);
     dirtyQueueSize.set(0);
     dirtyQueueMem.set(0);
     dirtyQueueFill.set(0);
@@ -211,14 +215,70 @@ void VBucket::queueBGFetchItem(VBucketBGFetchItem *fetch,
     }
 }
 
-bool VBucket::getBGFetchItems(vb_bgfetch_queue_t &fetches) {
+size_t VBucket::getBGFetchItems(vb_bgfetch_queue_t &fetches) {
     LockHolder lh(pendingBGFetchesLock);
+    size_t num_items = 0;
     while (!pendingBGFetches.empty()) {
         VBucketBGFetchItem *it = pendingBGFetches.front();
         fetches[it->value.getId()].push_back(it);
         pendingBGFetches.pop();
+        num_items++;
     }
-    return !fetches.empty();
+    return num_items;
+}
+
+void VBucket::addHighPriorityVBEntry(uint64_t chkid, const void *cookie) {
+    LockHolder lh(hpChksMutex);
+    hpChks.push_back(HighPriorityVBEntry(cookie, chkid));
+    ++stats.highPriorityChks;
+}
+
+void VBucket::notifyCheckpointPersisted(EventuallyPersistentEngine &e,
+                                        uint64_t chkid) {
+    LockHolder lh(hpChksMutex);
+    std::list<HighPriorityVBEntry>::iterator entry = hpChks.begin();
+    while (entry != hpChks.end()) {
+        hrtime_t wall_time(gethrtime() - entry->start);
+        size_t spent = wall_time / 1000000000;
+        if (entry->checkpoint <= chkid) {
+            e.notifyIOComplete(entry->cookie, ENGINE_SUCCESS);
+            stats.chkPersistenceHisto.add(wall_time / 1000);
+            adjustCheckpointFlushTimeout(wall_time / 1000000000);
+            LOG(EXTENSION_LOG_WARNING, "Notified the completion of checkpoint "
+                "persistence for vbucket %d, cookie %p", id, entry->cookie);
+            entry = hpChks.erase(entry);
+            --stats.highPriorityChks;
+        } else if (spent > getCheckpointFlushTimeout()) {
+            e.notifyIOComplete(entry->cookie, ENGINE_TMPFAIL);
+            adjustCheckpointFlushTimeout(spent);
+            LOG(EXTENSION_LOG_WARNING, "Notified the timeout on checkpoint "
+                "persistence for vbucket %d, cookie %p", id, entry->cookie);
+            entry = hpChks.erase(entry);
+            --stats.highPriorityChks;
+        } else {
+            ++entry;
+        }
+    }
+}
+
+void VBucket::adjustCheckpointFlushTimeout(size_t wall_time) {
+    size_t middle = (MIN_CHK_FLUSH_TIMEOUT + MAX_CHK_FLUSH_TIMEOUT) / 2;
+
+    if (wall_time <= MIN_CHK_FLUSH_TIMEOUT) {
+        chkFlushTimeout = MIN_CHK_FLUSH_TIMEOUT;
+    } else if (wall_time <= middle) {
+        chkFlushTimeout = middle;
+    } else {
+        chkFlushTimeout = MAX_CHK_FLUSH_TIMEOUT;
+    }
+}
+
+size_t VBucket::getHighPriorityChkSize() const {
+    return hpChks.size();
+}
+
+size_t VBucket::getCheckpointFlushTimeout() {
+    return chkFlushTimeout;
 }
 
 void VBucket::addStats(bool details, ADD_STAT add_stat, const void *c) {

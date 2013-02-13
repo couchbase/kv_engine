@@ -48,10 +48,9 @@ void BackfillDiskCallback::callback(GetValue &gv) {
 
 bool BackfillDiskLoad::callback(Dispatcher &d, TaskId &t) {
     if (isMemoryUsageTooHigh(engine->getEpStats())) {
-        getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                         "VBucket %d backfill task from disk is temporarily suspended "
-                         "because the current memory usage is too high.\n",
-                         vbucket);
+        LOG(EXTENSION_LOG_INFO, "VBucket %d backfill task from disk is "
+            "temporarily suspended  because the current memory usage is too high",
+            vbucket);
         d.snooze(t, 1);
         return true;
     }
@@ -66,15 +65,14 @@ bool BackfillDiskLoad::callback(Dispatcher &d, TaskId &t) {
                    backfillType == DELETIONS_ONLY) {
             store->dumpDeleted(vbucket, backfill_cb);
         } else {
-            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                     "Underlying KVStore doesn't support this kind of backfill.\n");
+            LOG(EXTENSION_LOG_WARNING,
+                "Underlying KVStore doesn't support this kind of backfill");
             abort();
         }
     }
 
-    getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                     "VBucket %d backfill task from disk is completed.\n",
-                     vbucket);
+    LOG(EXTENSION_LOG_INFO,"VBucket %d backfill task from disk is completed",
+        vbucket);
 
     // Should decr the disk backfill counter regardless of the connectivity status
     CompleteDiskBackfillTapOperation op;
@@ -155,9 +153,9 @@ void BackFillVisitor::apply(void) {
             Dispatcher *d(engine->epstore->getAuxIODispatcher());
             KVStore *underlying(engine->epstore->getAuxUnderlying());
             assert(d);
-            getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                             "Schedule a full backfill from disk for vbucket %d.\n",
-                              it->first);
+            LOG(EXTENSION_LOG_INFO,
+                "Schedule a full backfill from disk for vbucket %d.\n",
+                it->first);
             shared_ptr<DispatcherCallback> cb(new BackfillDiskLoad(name,
                                                                    engine,
                                                                    *engine->tapConnMap,
@@ -186,9 +184,8 @@ bool BackFillVisitor::pauseVisitor() {
 
     ssize_t theSize(engine->tapConnMap->backfillQueueDepth(name));
     if (!checkValidity() || theSize < 0) {
-        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                         "TapProducer %s went away.  Stopping backfill.\n",
-                         name.c_str());
+        LOG(EXTENSION_LOG_WARNING, "TapProducer %s went away. Stopping backfill",
+            name.c_str());
         valid = false;
         return false;
     }
@@ -197,10 +194,8 @@ bool BackFillVisitor::pauseVisitor() {
     pause = theSize > maxBackfillSize;
 
     if (pause) {
-        getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                         "Tap queue depth is too big for %s!!! ",
-                         "Pausing backfill temporarily...\n",
-                         name.c_str());
+        LOG(EXTENSION_LOG_INFO, "Tap queue depth is too big for %s!!! ",
+            "Pausing backfill temporarily...\n", name.c_str());
     }
     return pause;
 }
@@ -209,19 +204,17 @@ void BackFillVisitor::complete() {
     apply();
     CompleteBackfillTapOperation tapop;
     engine->tapConnMap->performTapOp(name, tapop, static_cast<void*>(NULL));
-    getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                     "Backfill dispatcher task for TapProducer %s is completed.\n",
-                     name.c_str());
+    LOG(EXTENSION_LOG_INFO,
+        "Backfill dispatcher task for TapProducer %s is completed.\n",
+        name.c_str());
 }
 
 bool BackFillVisitor::checkValidity() {
     if (valid) {
         valid = engine->tapConnMap->checkConnectivity(name);
         if (!valid) {
-            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "Backfilling connectivity for %s went invalid. "
-                             "Stopping backfill.\n",
-                             name.c_str());
+            LOG(EXTENSION_LOG_WARNING, "Backfilling connectivity for %s went "
+                "invalid. Stopping backfill.\n", name.c_str());
         }
     }
     return valid;

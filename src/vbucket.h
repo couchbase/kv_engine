@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <list>
 #include <map>
 #include <queue>
 #include <set>
@@ -23,7 +24,19 @@
 #include "queueditem.h"
 #include "stored-value.h"
 
-const size_t BASE_VBUCKET_SIZE=1024;
+const size_t MIN_CHK_FLUSH_TIMEOUT = 10; // 10 sec.
+const size_t MAX_CHK_FLUSH_TIMEOUT = 30; // 30 sec.
+
+struct HighPriorityVBEntry {
+    HighPriorityVBEntry() :
+        cookie(NULL), checkpoint(0), start(gethrtime()) { }
+    HighPriorityVBEntry(const void *c, uint64_t chk) :
+        cookie(c), checkpoint(chk), start(gethrtime()) { }
+
+    const void *cookie;
+    uint64_t checkpoint;
+    hrtime_t start;
+};
 
 /**
  * Function object that returns true if the given vbucket is acceptable.
@@ -126,12 +139,14 @@ public:
 
     ~VBucket() {
         if (!pendingOps.empty() || !pendingBGFetches.empty()) {
-            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "Have %ld pending ops and %ld pending reads "
-                             "while destroying vbucket\n",
-                             pendingOps.size(), pendingBGFetches.size());
+            LOG(EXTENSION_LOG_WARNING,
+                "Have %ld pending ops and %ld pending reads "
+                "while destroying vbucket\n",
+                pendingOps.size(), pendingBGFetches.size());
         }
 
+        stats.diskQueueSize.decr(dirtyQueueSize.get());
+        assert(stats.diskQueueSize < GIGANTOR);
         stats.numRemainingBgJobs.decr(pendingBGFetches.size());
         while(!pendingBGFetches.empty()) {
             delete pendingBGFetches.front();
@@ -139,8 +154,7 @@ public:
         }
         stats.memOverhead.decr(sizeof(VBucket) + ht.memorySize() + sizeof(CheckpointManager));
         assert(stats.memOverhead.get() < GIGANTOR);
-        getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                         "Destroying vbucket %d\n", id);
+        LOG(EXTENSION_LOG_INFO, "Destroying vbucket %d\n", id);
     }
 
     int getId(void) const { return id; }
@@ -217,7 +231,7 @@ public:
         backfill.isBackfillPhase = backfillPhase;
     }
 
-    bool getBGFetchItems(vb_bgfetch_queue_t &fetches);
+    size_t getBGFetchItems(vb_bgfetch_queue_t &fetches);
     void queueBGFetchItem(VBucketBGFetchItem *fetch, BgFetcher *bgFetcher,
                           bool notify = true);
     size_t numPendingBGFetchItems(void) {
@@ -250,6 +264,12 @@ public:
             return vbucket_state_dead;
         }
     }
+
+    void addHighPriorityVBEntry(uint64_t chkid, const void *cookie);
+    void notifyCheckpointPersisted(EventuallyPersistentEngine &e,
+                                   uint64_t chkid);
+    size_t getHighPriorityChkSize() const;
+    static size_t getCheckpointFlushTimeout();
 
     void addStats(bool details, ADD_STAT add_stat, const void *c);
 
@@ -286,6 +306,8 @@ private:
 
     void fireAllOps(EventuallyPersistentEngine &engine, ENGINE_ERROR_CODE code);
 
+    void adjustCheckpointFlushTimeout(size_t wall_time);
+
     int                      id;
     Atomic<vbucket_state_t>  state;
     vbucket_state_t          initialState;
@@ -296,6 +318,10 @@ private:
 
     Mutex pendingBGFetchesLock;
     std::queue<VBucketBGFetchItem *> pendingBGFetches;
+
+    Mutex hpChksMutex;
+    std::list<HighPriorityVBEntry> hpChks;
+    static size_t chkFlushTimeout;
 
     DISALLOW_COPY_AND_ASSIGN(VBucket);
 };

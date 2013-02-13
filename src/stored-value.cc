@@ -111,9 +111,8 @@ bool StoredValue::unlocked_restoreValue(Item *itm, EPStats &stats,
                 // background fetch after warmup.
                 int diff(static_cast<int>(valLength()) - // expected
                         static_cast<int>(itm->getValue()->length())); // got
-                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                        "Object unexpectedly changed size by %d bytes\n",
-                        diff);
+                LOG(EXTENSION_LOG_WARNING,
+                    "Object unexpectedly changed size by %d bytes", diff);
             }
         }
 
@@ -210,8 +209,7 @@ bool StoredValue::unlocked_restoreMeta(Item *itm, ENGINE_ERROR_CODE status) {
         setStoredValueState(state_non_existent_key);
         return true;
     default:
-        getLogger()->log(
-            EXTENSION_LOG_WARNING, NULL,
+        LOG(EXTENSION_LOG_WARNING,
             "The underlying storage returned error %d for get_meta\n", status);
         return false;
     }

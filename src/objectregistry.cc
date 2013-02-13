@@ -111,6 +111,10 @@ void ObjectRegistry::onDeleteItem(Item *pItem)
    }
 }
 
+EventuallyPersistentEngine *ObjectRegistry::getCurrentEngine() {
+    return th->get();
+}
+
 EventuallyPersistentEngine *ObjectRegistry::onSwitchThread(EventuallyPersistentEngine *engine,
                                                            bool want_old_thread_local)
 {
@@ -137,9 +141,9 @@ bool ObjectRegistry::memoryAllocated(size_t mem) {
     EPStats &stats = engine->getEpStats();
     stats.totalMemory.incr(mem);
     if (stats.memoryTrackerEnabled && stats.totalMemory.get() >= GIGANTOR) {
-        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                         "Total memory in memoryAllocated() >= GIGANTOR !!! "
-                         "Disable the memory tracker...\n");
+        LOG(EXTENSION_LOG_WARNING,
+            "Total memory in memoryAllocated() >= GIGANTOR !!! "
+            "Disable the memory tracker...\n");
         stats.memoryTrackerEnabled.set(false);
     }
     return true;
@@ -156,9 +160,9 @@ bool ObjectRegistry::memoryDeallocated(size_t mem) {
     EPStats &stats = engine->getEpStats();
     stats.totalMemory.decr(mem);
     if (stats.memoryTrackerEnabled && stats.totalMemory.get() >= GIGANTOR) {
-        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                         "Total memory in memoryDeallocated() >= GIGANTOR !!! "
-                         "Disable the memory tracker...\n");
+        LOG(EXTENSION_LOG_WARNING,
+            "Total memory in memoryDeallocated() >= GIGANTOR !!! "
+            "Disable the memory tracker...\n");
         stats.memoryTrackerEnabled.set(false);
     }
     return true;

@@ -47,9 +47,8 @@ public:
      * @param value the new value for the key
      */
     virtual void booleanValueChanged(const std::string &key, bool) {
-        getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                         "Configuration error.. %s does not expect"
-                         " a boolean value", key.c_str());
+        LOG(EXTENSION_LOG_DEBUG, "Configuration error.. %s does not expect"
+            " a boolean value", key.c_str());
     }
 
     /**
@@ -58,9 +57,8 @@ public:
      * @param value the new value for the key
      */
     virtual void sizeValueChanged(const std::string &key, size_t) {
-        getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                         "Configuration error.. %s does not expect"
-                         " a size value", key.c_str());
+        LOG(EXTENSION_LOG_DEBUG, "Configuration error.. %s does not expect"
+            " a size value", key.c_str());
     }
 
     /**
@@ -69,9 +67,8 @@ public:
      * @param value the new value for the key
      */
     virtual void ssizeValueChanged(const std::string &key, ssize_t) {
-        getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                         "Configuration error.. %s does not expect"
-                         " a size value", key.c_str());
+        LOG(EXTENSION_LOG_DEBUG, "Configuration error.. %s does not expect"
+            " a size value", key.c_str());
     }
 
     /**
@@ -80,9 +77,8 @@ public:
      * @param value the new value for the key
      */
     virtual void floatValueChanged(const std::string &key, float) {
-        getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                         "Configuration error.. %s does not expect"
-                         " a floating point value", key.c_str());
+        LOG(EXTENSION_LOG_DEBUG, "Configuration error.. %s does not expect"
+            " a floating point value", key.c_str());
     }
     /**
      * Callback if when a string configuration value changed
@@ -90,9 +86,8 @@ public:
      * @param value the new value for the key
      */
     virtual void stringValueChanged(const std::string &key, const char *) {
-        getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                         "Configuration error.. %s does not expect"
-                         " a string value", key.c_str());
+        LOG(EXTENSION_LOG_DEBUG, "Configuration error.. %s does not expect"
+            " a string value", key.c_str());
     }
 
     virtual ~ValueChangedListener() { /* EMPTY */}
@@ -112,9 +107,8 @@ public:
      * @return true the value is ok, false the value is not ok
      */
     virtual bool validateBool(const std::string &key, bool) {
-        getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                         "Configuration error.. %s does not take"
-                         " a boolean parameter", key.c_str());
+        LOG(EXTENSION_LOG_DEBUG, "Configuration error.. %s does not take"
+            " a boolean parameter", key.c_str());
         return false;
     }
 
@@ -125,9 +119,8 @@ public:
      * @return true the value is ok, false the value is not ok
      */
     virtual bool validateSize(const std::string &key, size_t) {
-        getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                         "Configuration error.. %s does not take"
-                         " a size_t parameter", key.c_str());
+        LOG(EXTENSION_LOG_DEBUG, "Configuration error.. %s does not take"
+            " a size_t parameter", key.c_str());
         return false;
     }
 
@@ -138,9 +131,8 @@ public:
      * @return true the value is ok, false the value is not ok
      */
     virtual bool validateSSize(const std::string &key, ssize_t) {
-        getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                         "Configuration error.. %s does not take"
-                         " a ssize_t parameter", key.c_str());
+        LOG(EXTENSION_LOG_DEBUG, "Configuration error.. %s does not take"
+            " a ssize_t parameter", key.c_str());
         return false;
     }
 
@@ -151,9 +143,8 @@ public:
      * @return true the value is ok, false the value is not ok
      */
     virtual bool validateFloat(const std::string &key, float) {
-        getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                         "Configuration error.. %s does not take"
-                         " a floating point parameter", key.c_str());
+        LOG(EXTENSION_LOG_DEBUG, "Configuration error.. %s does not take"
+            " a floating point parameter", key.c_str());
         return false;
     }
 
@@ -164,9 +155,8 @@ public:
      * @return true the value is ok, false the value is not ok
      */
     virtual bool validateString(const std::string &key, const char *) {
-        getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                         "Configuration error.. %s does not take"
-                         " a character string", key.c_str());
+        LOG(EXTENSION_LOG_DEBUG, "Configuration error.. %s does not take"
+            " a character string", key.c_str());
         return false;
     }
 

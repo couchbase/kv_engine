@@ -102,11 +102,9 @@ static ENGINE_ERROR_CODE storeCasVb11(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     item *it = NULL;
     uint64_t cas = 0;
 
-    ENGINE_ERROR_CODE rv = ENGINE_SUCCESS;
-
-    rv = h1->allocate(h, cookie, &it,
-                      key, strlen(key),
-                      vlen, flags, 3600);
+    ENGINE_ERROR_CODE rv = h1->allocate(h, cookie, &it,
+                                        key, strlen(key),
+                                        vlen, flags, 3600);
     check(rv == ENGINE_SUCCESS, "Allocation failed.");
 
     item_info info;
@@ -160,8 +158,7 @@ static void verify_curr_items(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 
 static void wait_for_flusher_to_settle(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     useconds_t sleepTime = 128;
-    while (get_int_stat(h, h1, "ep_flusher_todo")
-           + get_int_stat(h, h1, "ep_queue_size") > 0) {
+    while (get_int_stat(h, h1, "ep_queue_size") > 0) {
         decayingSleep(&sleepTime);
     }
 }

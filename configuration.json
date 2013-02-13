@@ -262,7 +262,7 @@
             "type": "size_t"
         },
         "mutation_mem_threshold": {
-            "default": "90",
+            "default": "95",
             "type": "size_t"
         },
         "pager_active_vb_pcnt": {

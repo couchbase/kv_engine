@@ -35,9 +35,9 @@ public:
     void update() {
         stats.itemsRemovedFromCheckpoints.incr(removed);
         if (removed > 0) {
-            getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                             "Removed %ld closed unreferenced checkpoints from VBucket %d.\n",
-                             removed, currentBucket->getId());
+            LOG(EXTENSION_LOG_INFO,
+                "Removed %ld closed unreferenced checkpoints from VBucket %d",
+                removed, currentBucket->getId());
         }
         removed = 0;
     }

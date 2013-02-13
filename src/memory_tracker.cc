@@ -66,17 +66,16 @@ extern "C" {
 
 MemoryTracker::MemoryTracker() {
     if (getenv("EP_NO_MEMACCOUNT") != NULL) {
-        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                        "Memory allocation tracking disabled");
+        LOG(EXTENSION_LOG_WARNING, "Memory allocation tracking disabled");
         return;
     }
     stats.ext_stats_size = getHooksApi()->get_extra_stats_size();
     stats.ext_stats = (allocator_ext_stat*) calloc(stats.ext_stats_size,
                                                    sizeof(allocator_ext_stat));
     if (getHooksApi()->add_new_hook(&NewHook)) {
-        getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "Registered add hook");
+        LOG(EXTENSION_LOG_DEBUG, "Registered add hook");
         if (getHooksApi()->add_delete_hook(&DeleteHook)) {
-            getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "Registered delete hook");
+            LOG(EXTENSION_LOG_DEBUG, "Registered delete hook");
             std::cout.flush();
             tracking = true;
             updateStats();
@@ -88,7 +87,7 @@ MemoryTracker::MemoryTracker() {
         std::cout.flush();
         getHooksApi()->remove_new_hook(&NewHook);
     }
-    getLogger()->log(EXTENSION_LOG_WARNING, NULL, "Failed to register allocator hooks");
+    LOG(EXTENSION_LOG_WARNING, "Failed to register allocator hooks");
 }
 
 MemoryTracker::~MemoryTracker() {

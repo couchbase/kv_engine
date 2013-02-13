@@ -29,13 +29,11 @@ static void* launch_dispatcher_thread(void *arg) {
     try {
         dispatcher->run();
     } catch (std::exception& e) {
-        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                         "%s: Caught an exception: %s\n",
-                         dispatcher->getName().c_str(), e.what());
+        LOG(EXTENSION_LOG_WARNING, "%s: Caught an exception: %s\n",
+            dispatcher->getName().c_str(), e.what());
     } catch(...) {
-        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                         "%s: Caught a fatal exception\n",
-                         dispatcher->getName().c_str());
+        LOG(EXTENSION_LOG_WARNING, "%s: Caught a fatal exception\n",
+            dispatcher->getName().c_str());
     }
     return NULL;
 }
@@ -124,7 +122,7 @@ void Dispatcher::moveReadyTasks(const struct timeval &tv) {
 
 void Dispatcher::run() {
     ObjectRegistry::onSwitchThread(&engine);
-    getLogger()->log(EXTENSION_LOG_INFO, NULL, "%s: Starting\n", getName().c_str());
+    LOG(EXTENSION_LOG_INFO, "%s: Starting", getName().c_str());
     for (;;) {
         LockHolder lh(mutex);
         // Having acquired the lock, verify our state and break out if
@@ -176,13 +174,13 @@ void Dispatcher::run() {
                     reschedule(task);
                 }
             } catch (std::exception& e) {
-                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                 "%s: Exception caught in task \"%s\": %s\n",
-                                 getName().c_str(), task->getName().c_str(), e.what());
+                LOG(EXTENSION_LOG_WARNING,
+                    "%s: Exception caught in task \"%s\": %s",
+                    getName().c_str(), task->getName().c_str(), e.what());
             } catch(...) {
-                getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                 "%s: Fatal exception caught in task \"%s\"\n",
-                                 getName().c_str(), task->getName().c_str());
+                LOG(EXTENSION_LOG_WARNING,
+                    "%s: Fatal exception caught in task \"%s\"\n",
+                    getName().c_str(), task->getName().c_str());
             }
             running_task = false;
 
@@ -198,7 +196,7 @@ void Dispatcher::run() {
     completeNonDaemonTasks();
     state = dispatcher_stopped;
     notify();
-    getLogger()->log(EXTENSION_LOG_INFO, NULL, "%s: Exited\n", getName().c_str());
+    LOG(EXTENSION_LOG_INFO,"%s: Exited", getName().c_str());
 }
 
 void Dispatcher::stop(bool force) {
@@ -207,12 +205,12 @@ void Dispatcher::stop(bool force) {
         return;
     }
     forceTermination = force;
-    getLogger()->log(EXTENSION_LOG_INFO, NULL, "%s: Stopping\n", getName().c_str());
+    LOG(EXTENSION_LOG_INFO, "%s: Stopping", getName().c_str());
     state = dispatcher_stopping;
     notify();
     lh.unlock();
     pthread_join(thread, NULL);
-    getLogger()->log(EXTENSION_LOG_INFO, NULL, "%s: Stopped\n", getName().c_str());
+    LOG(EXTENSION_LOG_INFO, "%s: Stopped", getName().c_str());
 }
 
 void Dispatcher::schedule(shared_ptr<DispatcherCallback> callback,
@@ -236,9 +234,8 @@ void Dispatcher::schedule(shared_ptr<DispatcherCallback> callback,
         *outtid = task;
     }
 
-    getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                     "%s: Schedule a task \"%s\"",
-                     getName().c_str(), task->getName().c_str());
+    LOG(EXTENSION_LOG_DEBUG, "%s: Schedule a task \"%s\"",
+        getName().c_str(), task->getName().c_str());
 
     futureQueue.push(task);
     notify();
@@ -247,32 +244,28 @@ void Dispatcher::schedule(shared_ptr<DispatcherCallback> callback,
 void Dispatcher::wake(TaskId &task) {
     LockHolder lh(mutex);
     task->snooze(0);
-    getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                     "%s: Wake a task \"%s\"",
-                     getName().c_str(), task->getName().c_str());
+    LOG(EXTENSION_LOG_DEBUG, "%s: Wake a task \"%s\"",
+        getName().c_str(), task->getName().c_str());
     notify();
 }
 
 void Dispatcher::snooze(TaskId &t, double sleeptime) {
-    getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                     "%s: Snooze a task \"%s\"",
-                     getName().c_str(), t->getName().c_str());
+    LOG(EXTENSION_LOG_DEBUG, "%s: Snooze a task \"%s\"",
+        getName().c_str(), t->getName().c_str());
     t->snooze(sleeptime);
 }
 
 void Dispatcher::cancel(TaskId &t) {
-    getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                     "%s: Cancel a task \"%s\"",
-                     getName().c_str(), t->getName().c_str());
+    LOG(EXTENSION_LOG_DEBUG, "%s: Cancel a task \"%s\"",
+        getName().c_str(), t->getName().c_str());
     t->cancel();
 }
 
 void Dispatcher::reschedule(TaskId &task) {
     // If the task is already in the queue it'll get run twice
     LockHolder lh(mutex);
-    getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                     "%s: Reschedule a task \"%s\"",
-                     getName().c_str(), task->getName().c_str());
+    LOG(EXTENSION_LOG_DEBUG, "%s: Reschedule a task \"%s\"",
+        getName().c_str(), task->getName().c_str());
     futureQueue.push(task);
     notify();
 }
@@ -285,9 +278,9 @@ void Dispatcher::completeNonDaemonTasks() {
         assert(task);
         // Skip a daemon task
         if (task->isDaemonTask) {
-            getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                             "%s: Skipping daemon task \"%s\" during shutdown\n",
-                             getName().c_str(), task->getName().c_str());
+            LOG(EXTENSION_LOG_INFO,
+                "%s: Skipping daemon task \"%s\" during shutdown\n",
+                getName().c_str(), task->getName().c_str());
 
             continue;
         }
@@ -296,40 +289,39 @@ void Dispatcher::completeNonDaemonTasks() {
             LockHolder tlh(task->mutex);
             if (task->state == task_running) {
                 tlh.unlock();
-                getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                                 "%s: Running task \"%s\" during shutdown",
-                                 getName().c_str(), task->getName().c_str());
+                LOG(EXTENSION_LOG_DEBUG,
+                    "%s: Running task \"%s\" during shutdown",
+                    getName().c_str(), task->getName().c_str());
                 try {
                     while (task->run(*this, task)) {
-                        getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                                         "%s: Keep on running task \"%s\" during shutdown",
-                                         getName().c_str(), task->getName().c_str());
+                        LOG(EXTENSION_LOG_DEBUG,
+                            "%s: Keep on running task \"%s\" during shutdown",
+                            getName().c_str(), task->getName().c_str());
                     }
                 } catch (std::exception& e) {
-                    getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                     "%s: Exception caught in task \"%s\" "
-                                     "during shutdown: \"%s\"",
-                                     getName().c_str(), task->getName().c_str(), e.what());
+                    LOG(EXTENSION_LOG_WARNING,
+                        "%s: Exception caught in task \"%s\" "
+                        "during shutdown: \"%s\"",
+                        getName().c_str(), task->getName().c_str(), e.what());
                 } catch (...) {
-                    getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                                     "%s: Fatal exception caught in task \"%s\" "
-                                     "during shutdown",
-                                     getName().c_str(), task->getName().c_str());
+                    LOG(EXTENSION_LOG_WARNING,
+                        "%s: Fatal exception caught in task \"%s\" "
+                        "during shutdown",
+                        getName().c_str(), task->getName().c_str());
                 }
-                getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                                 "%s: Task \"%s\" completed during shutdown",
-                                 getName().c_str(), task->getName().c_str());
+                LOG(EXTENSION_LOG_DEBUG,
+                    "%s: Task \"%s\" completed during shutdown",
+                    getName().c_str(), task->getName().c_str());
             }
         } else {
-            getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                             "%s: Skipping task \"%s\" during shutdown",
-                             getName().c_str(), task->getName().c_str());
+            LOG(EXTENSION_LOG_INFO, "%s: Skipping task \"%s\" during shutdown",
+                getName().c_str(), task->getName().c_str());
         }
     }
 
-    getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                     "%s: Completed all the non-daemon tasks as part of shutdown\n",
-                     getName().c_str());
+    LOG(EXTENSION_LOG_INFO,
+        "%s: Completed all the non-daemon tasks as part of shutdown\n",
+        getName().c_str());
 }
 
 bool IdleTask::run(Dispatcher &d, TaskId &) {

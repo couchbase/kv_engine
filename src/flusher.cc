@@ -43,9 +43,8 @@ void Flusher::wait(void) {
     }
     hrtime_t endt(gethrtime());
     if ((endt - startt) > 1000) {
-        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                         "Had to wait %s for shutdown\n",
-                         hrtime2text(endt - startt).c_str());
+        LOG(EXTENSION_LOG_WARNING,  "Had to wait %s for shutdown\n",
+            hrtime2text(endt - startt).c_str());
     }
 }
 
@@ -93,20 +92,17 @@ const char * Flusher::stateName(enum flusher_state st) const {
 
 bool Flusher::transition_state(enum flusher_state to) {
 
-    getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                     "Attempting transition from %s to %s\n",
-                     stateName(_state), stateName(to));
+    LOG(EXTENSION_LOG_DEBUG, "Attempting transition from %s to %s",
+        stateName(_state), stateName(to));
 
     if (!forceShutdownReceived && !validTransition(_state, to)) {
-        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                         "Invalid transitioning from %s to %s\n",
-                         stateName(_state), stateName(to));
+        LOG(EXTENSION_LOG_WARNING, "Invalid transitioning from %s to %s",
+            stateName(_state), stateName(to));
         return false;
     }
 
-    getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                     "Transitioning from %s to %s\n",
-                     stateName(_state), stateName(to));
+    LOG(EXTENSION_LOG_DEBUG, "Transitioning from %s to %s",
+        stateName(_state), stateName(to));
 
     _state = to;
     //Reschedule the task
@@ -127,8 +123,7 @@ enum flusher_state Flusher::state() const {
 
 void Flusher::initialize(TaskId &tid) {
     assert(task.get() == tid.get());
-    getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                     "Initializing flusher");
+    LOG(EXTENSION_LOG_DEBUG, "Initializing flusher");
     transition_state(running);
 }
 
@@ -178,25 +173,23 @@ bool Flusher::step(Dispatcher &d, TaskId &tid) {
                 std::stringstream ss;
                 ss << "Shutting down flusher (Write of all dirty items)"
                    << std::endl;
-                getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "%s",
-                                 ss.str().c_str());
+                LOG(EXTENSION_LOG_DEBUG, "%s", ss.str().c_str());
             }
             completeFlush();
-            getLogger()->log(EXTENSION_LOG_DEBUG, NULL, "Flusher stopped\n");
+            LOG(EXTENSION_LOG_DEBUG, "Flusher stopped");
             transition_state(stopped);
             return false;
         case stopped:
             return false;
         default:
-            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                "Unexpected state in flusher: %s", stateName());
+            LOG(EXTENSION_LOG_WARNING, "Unexpected state in flusher: %s",
+                stateName());
             assert(false);
         }
     } catch(std::runtime_error &e) {
         std::stringstream ss;
         ss << "Exception in flusher loop: " << e.what() << std::endl;
-        getLogger()->log(EXTENSION_LOG_WARNING, NULL, "%s",
-                         ss.str().c_str());
+        LOG(EXTENSION_LOG_WARNING, "%s", ss.str().c_str());
         assert(false);
     }
 
@@ -207,136 +200,64 @@ bool Flusher::step(Dispatcher &d, TaskId &tid) {
 }
 
 void Flusher::completeFlush() {
-    while (!store->diskQueueEmpty()) {
+    while(store->stats.diskQueueSize.get() != 0) {
         doFlush();
     }
 }
 
 double Flusher::computeMinSleepTime() {
-    if (!store->outgoingQueueEmpty()) {
-        flushRv = 0;
-        prevFlushRv = 0;
-        return 0.0;
-    }
-
-    if (flushRv + prevFlushRv == 0) {
-        if (!store->diskQueueEmpty()) {
-            return 0.0;
-        }
-        minSleepTime = std::min(minSleepTime * 2, 1.0);
-    } else {
+    if (store->stats.diskQueueSize.get() > 0 ||
+        store->stats.highPriorityChks.get() > 0) {
         minSleepTime = DEFAULT_MIN_SLEEP_TIME;
+        return 0;
     }
-    prevFlushRv = flushRv;
-    return std::max(static_cast<double>(flushRv), minSleepTime);
+    minSleepTime *= 2;
+    return std::min(minSleepTime, 1.0);
 }
 
-int Flusher::doFlush() {
-
-    // On a fresh entry, flushQueue is null and we need to build one.
-    if (!flushQueue) {
-        flushRv = 0;
-        flushQueue = store->beginFlush();
-        if (flushQueue) {
-            getLogger()->log(EXTENSION_LOG_DEBUG, NULL,
-                             "Beginning a write queue flush.\n");
-            flushStart = ep_current_time();
-            flushPhase = 1;
-            nextVbid = flushQueue->empty() ? 0 : flushQueue->begin()->first;
-        }
-    }
-
-    // Now do the every pass thing.
-    if (flushQueue) {
-        int n = store->flushOutgoingQueue(flushQueue, flushPhase, nextVbid);
-        if (_state == pausing) {
-            transition_state(paused);
-        }
-        flushRv = std::min(n, flushRv);
-
-        if (store->outgoingQueueEmpty()) {
-            store->completeFlush(flushStart);
-            getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                             "Completed a flush, age of oldest item was %ds\n",
-                             flushRv);
-            flushQueue = NULL;
-        }
-    }
-
-    return flushRv;
-}
-
-void Flusher::addHighPriorityVBEntry(uint16_t vbid, uint64_t chkid,
-                                     const void *cookie) {
-    LockHolder lh(priorityVBMutex);
-    std::map<uint16_t, std::list<HighPriorityVBEntry> >::iterator it =
-        priorityVBList.find(vbid);
-    if (it == priorityVBList.end()) {
-        std::list<HighPriorityVBEntry> vb_entries;
-        vb_entries.push_back(HighPriorityVBEntry(cookie, chkid));
-        priorityVBList.insert(std::make_pair(vbid, vb_entries));
-    } else {
-        it->second.push_back(HighPriorityVBEntry(cookie, chkid));
+void Flusher::doFlush() {
+    uint16_t nextVb = getNextVb();
+    if (nextVb != NO_VBUCKETS_INSTANTIATED || store->diskFlushAll) {
+        store->flushVBucket(nextVb);
     }
 }
 
-void Flusher::removeHighPriorityVBEntry(uint16_t vbid, const void *cookie) {
-    LockHolder lh(priorityVBMutex);
-    std::map<uint16_t, std::list<HighPriorityVBEntry> >::iterator it =
-        priorityVBList.find(vbid);
-    if (it != priorityVBList.end()) {
-        std::list<HighPriorityVBEntry> &vb_entries = it->second;
-        std::list<HighPriorityVBEntry>::iterator vit = vb_entries.begin();
-        for (; vit != vb_entries.end(); ++vit) {
-            if ((*vit).cookie == cookie) {
-                break;
+uint16_t Flusher::getNextVb() {
+    if (lpVbs.empty()) {
+        std::vector<int> vbs = store->getVBuckets().getBucketsSortedByState();
+        std::vector<int>::iterator itr = vbs.begin();
+        for (; itr != vbs.end(); ++itr) {
+            lpVbs.push(static_cast<uint16_t>(*itr));
+        }
+    }
+
+    if (!doHighPriority && store->stats.highPriorityChks.get() > 0 &&
+        hpVbs.empty()) {
+        std::vector<int> vbs = store->getVBuckets().getBuckets();
+        std::vector<int>::iterator itr = vbs.begin();
+        for (; itr != vbs.end(); ++itr) {
+            RCPtr<VBucket> vb = store->getVBucket(*itr);
+            if (vb && vb->getHighPriorityChkSize() > 0) {
+                hpVbs.push(static_cast<uint16_t>(*itr));
             }
         }
-        if (vit != vb_entries.end()) {
-            vb_entries.erase(vit);
-        }
-        if (vb_entries.empty()) {
-            priorityVBList.erase(vbid);
-        }
+        numHighPriority = vbs.size();
+        doHighPriority = true;
     }
-}
 
-void Flusher::getAllHighPriorityVBuckets(std::vector<uint16_t> &vbs) {
-    LockHolder lh(priorityVBMutex);
-    std::map<uint16_t, std::list<HighPriorityVBEntry> >::iterator it =
-        priorityVBList.begin();
-    for (; it != priorityVBList.end(); ++it) {
-        vbs.push_back(it->first);
-    }
-}
-
-std::list<HighPriorityVBEntry> Flusher::getHighPriorityVBEntries(uint16_t vbid) {
-    LockHolder lh(priorityVBMutex);
-    std::list<HighPriorityVBEntry> vb_entries;
-    std::map<uint16_t, std::list<HighPriorityVBEntry> >::iterator it =
-        priorityVBList.find(vbid);
-    if (it != priorityVBList.end()) {
-        vb_entries.assign(it->second.begin(), it->second.end());
-    }
-    return vb_entries;
-}
-
-size_t Flusher::getNumOfHighPriorityVBs() const {
-    return priorityVBList.size();
-}
-
-size_t Flusher::getCheckpointFlushTimeout() const {
-    return chkFlushTimeout;
-}
-
-void Flusher::adjustCheckpointFlushTimeout(size_t wall_time) {
-    size_t middle = (MIN_CHK_FLUSH_TIMEOUT + MAX_CHK_FLUSH_TIMEOUT) / 2;
-
-    if (wall_time <= MIN_CHK_FLUSH_TIMEOUT) {
-        chkFlushTimeout = MIN_CHK_FLUSH_TIMEOUT;
-    } else if (wall_time <= middle) {
-        chkFlushTimeout = middle;
+    if (hpVbs.empty() && lpVbs.empty()) {
+        LOG(EXTENSION_LOG_INFO, "Trying to flush but no vbucket exist");
+        return NO_VBUCKETS_INSTANTIATED;
+    } else if (!hpVbs.empty()) {
+        uint16_t vbid = hpVbs.front();
+        hpVbs.pop();
+        return vbid;
     } else {
-        chkFlushTimeout = MAX_CHK_FLUSH_TIMEOUT;
+        if (doHighPriority && --numHighPriority < 0) {
+            doHighPriority = false;
+        }
+        uint16_t vbid = lpVbs.front();
+        lpVbs.pop();
+        return vbid;
     }
 }

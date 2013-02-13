@@ -107,14 +107,12 @@ public:
         store.deleteExpiredItems(expired);
 
         if (numEjected() > 0) {
-            getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                             "Paged out %ld values\n", numEjected());
+            LOG(EXTENSION_LOG_INFO, "Paged out %ld values", numEjected());
         }
 
         size_t num_expired = expired.size();
         if (num_expired > 0) {
-            getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                             "Purged %ld expired items\n", num_expired);
+            LOG(EXTENSION_LOG_INFO, "Purged %ld expired items", num_expired);
         }
 
         totalEjected += (ejected + num_expired);
@@ -123,7 +121,7 @@ public:
     }
 
     bool pauseVisitor() {
-        size_t queueSize = stats.queue_size.get() + stats.flusher_todo.get();
+        size_t queueSize = stats.diskQueueSize.get();
         return canPause && queueSize >= MAX_PERSISTENCE_QUEUE_SIZE;
     }
 
@@ -216,8 +214,7 @@ bool ItemPager::callback(Dispatcher &d, TaskId &t) {
         std::stringstream ss;
         ss << "Using " << stats.getTotalMemoryUsed()
            << " bytes of memory, paging out %0f%% of items." << std::endl;
-        getLogger()->log(EXTENSION_LOG_INFO, NULL, ss.str().c_str(),
-                         (toKill*100.0));
+        LOG(EXTENSION_LOG_INFO, ss.str().c_str(), (toKill*100.0));
 
         // compute active vbuckets evicition bias factor
         Configuration &cfg = store.getEPEngine().getConfiguration();

@@ -93,8 +93,24 @@ private:
  * Result from invoking queueDirty in the current open checkpoint.
  */
 typedef enum {
-    EXISTING_ITEM,     //!< The item was already in the checkpoint and pushed back to the tail.
-    NEW_ITEM          //!< The item is newly added to the tail.
+    /*
+     * The item exists on the right hand side of the persistence cursor. The
+     * item will be deduplicated and doesn't change the size of the checkpoint.
+     */
+    EXISTING_ITEM,
+
+    /**
+     * The item exists on the left hand side of the persistence cursor. It will
+     * be dedeuplicated and moved the to right hand side, but the item needs
+     * to be re-persisted.
+     */
+    PERSIST_AGAIN,
+
+    /**
+     * The item doesn't exist yet in the checkpoint. Adding this item will
+     * increase the size of the checkpoint.
+     */
+    NEW_ITEM
 } queue_dirty_t;
 
 /**
@@ -447,6 +463,24 @@ public:
      */
     uint64_t getPersistenceCursorPreChkId();
 
+    /**
+     * This method performs the following steps for creating a new checkpoint with a given ID i1:
+     * 1) Check if the checkpoint manager contains any checkpoints with IDs >= i1.
+     * 2) If exists, collapse all checkpoints and set the open checkpoint id to a given ID.
+     * 3) Otherwise, simply create a new open checkpoint with a given ID.
+     * This method is mainly for dealing with rollback events from a TAP producer.
+     * @param id the id of a checkpoint to be created.
+     */
+    void checkAndAddNewCheckpoint(uint64_t id);
+
+    /**
+     * Gets the mutation id for a given checkpoint item.
+     * @param The checkpoint to look for the key in
+     * @param The key to get the mutation id for
+     * @return The mutation id or 0 if not found
+     */
+    uint64_t getMutationIdForKey(uint64_t chk_id, std::string key);
+
 private:
 
     bool registerTAPCursor_UNLOCKED(const std::string &name,
@@ -500,16 +534,6 @@ private:
     bool closeOpenCheckpoint_UNLOCKED(uint64_t id);
     bool closeOpenCheckpoint(uint64_t id);
 
-    /**
-     * This method performs the following steps for creating a new checkpoint with a given ID i1:
-     * 1) Check if the checkpoint manager contains any checkpoints with IDs >= i1.
-     * 2) If exists, collapse all checkpoints and set the open checkpoint id to a given ID.
-     * 3) Otherwise, simply create a new open checkpoint with a given ID.
-     * This method is mainly for dealing with rollback events from a TAP producer.
-     * @param id the id of a checkpoint to be created.
-     */
-    void checkAndAddNewCheckpoint(uint64_t id);
-
     uint64_t nextMutationId() {
         return ++mutationCounter;
     }
@@ -524,7 +548,12 @@ private:
 
     void collapseClosedCheckpoints(std::list<Checkpoint*> &collapsedChks);
 
-    void resetCursors();
+    void collapseCheckpoints(uint64_t id);
+
+    void resetCursors(bool resetPersistenceCursor = true);
+
+    void putCursorsInChk(std::map<std::string, uint64_t> &cursors,
+                         std::list<Checkpoint*>::iterator chkItr);
 
     static queued_item createCheckpointItem(uint64_t id, uint16_t vbid,
                                             enum queue_operation checkpoint_op);

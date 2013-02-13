@@ -94,8 +94,7 @@ def drain(mc):
     try:
         while True:
             s = mc.stats()
-            if s['ep_queue_size'] == "0" and \
-                s['ep_flusher_todo'] == "0":
+            if s['ep_queue_size'] == "0":
                 print("done")
                 return
             time.sleep(2)

@@ -32,10 +32,10 @@ public:
         if (numItemsLogged > 0) {
             mutationLog.commit1();
             mutationLog.commit2();
-            getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                             "Mutation log compactor: Dumped %ld items from VBucket %d "
-                             "into a new mutation log file.\n",
-                             numItemsLogged, currentBucket->getId());
+            LOG(EXTENSION_LOG_INFO,
+                "Mutation log compactor: Dumped %ld items from VBucket %d "
+                "into a new mutation log file.",
+                numItemsLogged, currentBucket->getId());
             totalItemsLogged += numItemsLogged;
             numItemsLogged = 0;
         }
@@ -43,9 +43,9 @@ public:
 
     void complete() {
         update();
-        getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                         "Mutation log compactor: Completed by dumping total %ld items "
-                         "into a new mutation log file.\n", totalItemsLogged);
+        LOG(EXTENSION_LOG_INFO,
+            "Mutation log compactor: Completed by dumping total %ld items "
+            "into a new mutation log file.", totalItemsLogged);
     }
 
 private:
@@ -60,7 +60,7 @@ bool MutationLogCompactor::callback(Dispatcher &d, TaskId &t) {
     size_t num_del_items = mutationLog.itemsLogged[ML_DEL];
     size_t num_logged_items = num_new_items + num_del_items;
     size_t num_unique_items = num_new_items - num_del_items;
-    size_t queue_size = stats.queue_size.get() + stats.flusher_todo.get();
+    size_t queue_size = stats.diskQueueSize.get();
 
     bool rv = true;
     bool schedule_compactor =
@@ -72,9 +72,9 @@ bool MutationLogCompactor::callback(Dispatcher &d, TaskId &t) {
         std::string compact_file = mutationLog.getLogFile() + ".compact";
         if (access(compact_file.c_str(), F_OK) == 0 &&
             remove(compact_file.c_str()) != 0) {
-            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "Can't remove the existing compacted log file \"%s\"\n",
-                             compact_file.c_str());
+            LOG(EXTENSION_LOG_WARNING,
+                "Can't remove the existing compacted log file \"%s\"",
+                compact_file.c_str());
             return false;
         }
 
@@ -90,12 +90,12 @@ bool MutationLogCompactor::callback(Dispatcher &d, TaskId &t) {
             epStore->visit(compact_visitor);
             mutationLog.replaceWith(new_log);
         } catch (MutationLog::ReadException &e) {
-            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "Error in creating a new mutation log for compaction:  %s\n",
-                             e.what());
+            LOG(EXTENSION_LOG_WARNING,
+                "Error in creating a new mutation log for compaction:  %s",
+                e.what());
         } catch (...) {
-            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "Fatal error caught in task \"%s\"\n", description().c_str());
+            LOG(EXTENSION_LOG_WARNING, "Fatal error caught in task \"%s\"",
+                description().c_str());
         }
 
         if (!mutationLog.isOpen()) {

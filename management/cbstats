@@ -96,13 +96,6 @@ def size_label(s):
 @cmd
 
 def histograms(mc, raw_stats):
-    def seg(k, v):
-        # Parse ('some_stat_x_y', 'v') into (('some_stat', x, y), v)
-        ka = k.split('_')
-        k = '_'.join(ka[0:-1])
-        kstart, kend = [int(x) for x in ka[-1].split(',')]
-        return ((k, kstart, kend), int(v))
-
     # Try to figure out the terminal width.  If we can't, 79 is good
     def termWidth():
         try:
@@ -114,44 +107,55 @@ def histograms(mc, raw_stats):
         except:
             return 79
 
-    # Acquire, sort, categorize, and label the timings.
-    stats = sorted([seg(*kv) for kv in raw_stats.items()])
-    dd = {}
-    totals = {}
-    longest = 0
-    labelers = {'klogPadding': size_label,
-                'item_alloc_sizes': size_label,
-                'paged_out_time': sec_label}
-    for s in stats:
-        def_lbl = time_label
-        if s[0][0].endswith("Size"):
-            def_lbl = size_label
-        elif s[0][0].endswith("Seek"):
-            def_lbl = size_label
-        labeler = labelers.get(s[0][0], def_lbl)
-        lbl = "%s - %s" % (labeler(s[0][1]), labeler(s[0][2]))
-        longest = max(longest, len(lbl) + 1)
-        k = s[0][0]
-        l = dd.get(k, [])
-        l.append((lbl, s[1]))
-        dd[k] = l
-        totals[k] = totals.get(k, 0) + s[1]
+    special_labels = {'klogPadding': size_label,
+                      'item_alloc_sizes': size_label,
+                      'paged_out_time': sec_label}
 
-    # Now do the actual output
-    for k in sorted(dd):
-        print " %s (%d total)" % (k, totals[k])
-        widestnum = max(len(str(v[1])) for v in dd[k])
-        ccount = 0
-        for lbl,v in dd[k]:
-            ccount += v
-            pcnt = (ccount * 100.0) / totals[k]
-            # This is the important part being printed
-            toprint = "    %s: (%6.02f%%) %s" % (lbl.ljust(longest), pcnt,
-                                                 str(v).rjust(widestnum))
-            # Throw in a bar graph since they're popular and eye catchy
+    histodata = {}
+    for k, v in raw_stats.items():
+        # Parse out a data point
+        ka = k.split('_')
+        k = '_'.join(ka[0:-1])
+        kstart, kend = [int(x) for x in ka[-1].split(',')]
+
+        # Create a label for the data point
+        label_func = time_label
+        if k.endswith("Size") or k.endswith("Seek"):
+            label_func = size_label
+        elif k in special_labels:
+            label_func = special_labels[k]
+
+        label = "%s - %s" % (label_func(kstart), label_func(kend))
+        
+        if not k in histodata:
+            histodata[k] = []
+        histodata[k].append({'start' : int(kstart),
+                             'end'   : int(kend),
+                             'label' : label,
+                             'lb_fun': label_func,
+                             'value' : int(v)})
+    
+    for name, data_points in histodata.items():
+        max_label_len = max([len(stat['label']) for stat in data_points])
+        widestval = len(str(max([stat['value'] for stat in data_points])))
+        total = sum([stat['value'] for stat in data_points])
+        avg = sum([((x['end'] - x['start']) * x['value']) for x in data_points]) / total
+
+        print " %s (%d total)" % (name, total)
+
+        total_seen = 0
+        for dp in sorted(data_points, key=lambda x: x['start']):
+            total_seen += dp['value']
+            pcnt = (total_seen * 100.0) / total
+            toprint  = "    %s : (%6.02f%%) %s" % \
+                       (dp['label'].ljust(max_label_len), pcnt,
+                       str(dp['value']).rjust(widestval))
+
             remaining = termWidth() - len(toprint) - 2
-            lpcnt = float(v) / totals[k]
+            lpcnt = float(dp['value']) / total
             print "%s %s" % (toprint, '#' * int(lpcnt * remaining))
+        print "    %s : (%s)" % ("Avg".ljust(max_label_len),
+                                dp['lb_fun'](avg).rjust(7))
 
 @cmd
 def stats_key(mc, key, vb):
@@ -219,11 +223,15 @@ def stats_tapagg(mc):
 
 @cmd
 def stats_checkpoint(mc, vb=-1):
-    if vb == -1:
-        cmd = 'checkpoint'
-    else:
-        cmd = "checkpoint %s" % (str(vb))
-    stats_formatter(stats_perform(mc, cmd))
+    try:
+        vb = int(vb)
+        if vb == -1:
+            cmd = 'checkpoint'
+        else:
+            cmd = "checkpoint %s" % (str(vb))
+        stats_formatter(stats_perform(mc, cmd))
+    except ValueError:
+        print 'Specified vbucket \"%s\" is not valid' % str(vb)
 
 @cmd
 def stats_allocator(mc):

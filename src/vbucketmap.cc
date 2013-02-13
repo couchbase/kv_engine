@@ -41,14 +41,12 @@ RCPtr<VBucket> VBucketMap::getBucket(uint16_t id) const {
 ENGINE_ERROR_CODE VBucketMap::addBucket(const RCPtr<VBucket> &b) {
     if (static_cast<size_t>(b->getId()) < size) {
         buckets[b->getId()].reset(b);
-        getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                         "Mapped new vbucket %d in state %s",
-                         b->getId(), VBucket::toString(b->getState()));
+        LOG(EXTENSION_LOG_INFO, "Mapped new vbucket %d in state %s",
+            b->getId(), VBucket::toString(b->getState()));
         return ENGINE_SUCCESS;
     }
-    getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                         "Cannot create vb %d, max vbuckets is %d",
-                         b->getId(), size);
+    LOG(EXTENSION_LOG_WARNING, "Cannot create vb %d, max vbuckets is %d",
+        b->getId(), size);
     return ENGINE_ERANGE;
 }
 

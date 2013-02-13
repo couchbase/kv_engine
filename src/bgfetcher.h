@@ -102,6 +102,8 @@ private:
     EventuallyPersistentStore *store;
     Dispatcher *dispatcher;
     vb_bgfetch_queue_t items2fetch;
+    size_t total_num_fetched_items;
+    size_t total_num_requeued_items;
     TaskId task;
     Mutex taskMutex;
     EPStats &stats;

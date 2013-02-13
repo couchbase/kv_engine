@@ -6,6 +6,7 @@
 
 #include <list>
 #include <map>
+#include <queue>
 #include <string>
 #include <vector>
 
@@ -13,6 +14,8 @@
 #include "dispatcher.h"
 #include "ep.h"
 #include "mutation_log.h"
+
+#define NO_VBUCKETS_INSTANTIATED 0xFFFF
 
 enum flusher_state {
     initializing,
@@ -26,8 +29,6 @@ enum flusher_state {
 class Flusher;
 
 const double DEFAULT_MIN_SLEEP_TIME = 0.1;
-const size_t MIN_CHK_FLUSH_TIMEOUT = 10; // 10 sec.
-const size_t MAX_CHK_FLUSH_TIMEOUT = 30; // 30 sec.
 
 /**
  * A DispatcherCallback adaptor over Flusher.
@@ -51,17 +52,6 @@ private:
     Flusher *flusher;
 };
 
-struct HighPriorityVBEntry {
-    HighPriorityVBEntry() :
-        cookie(NULL), checkpoint(0), start(gethrtime()) { }
-    HighPriorityVBEntry(const void *c, uint64_t chk) :
-        cookie(c), checkpoint(chk), start(gethrtime()) { }
-
-    const void *cookie;
-    uint64_t checkpoint;
-    hrtime_t start;
-};
-
 /**
  * Manage persistence of data for an EventuallyPersistentStore.
  */
@@ -69,17 +59,14 @@ class Flusher {
 public:
 
     Flusher(EventuallyPersistentStore *st, Dispatcher *d) :
-        store(st), _state(initializing), dispatcher(d),
-        flushRv(0), prevFlushRv(0), minSleepTime(0.1),
-        flushQueue(NULL),
-        forceShutdownReceived(false), flushPhase(0), nextVbid(0),
-        chkFlushTimeout(MIN_CHK_FLUSH_TIMEOUT) { }
+        store(st), _state(initializing), dispatcher(d), minSleepTime(0.1),
+        forceShutdownReceived(false), doHighPriority(false),
+        numHighPriority(0) { }
 
     ~Flusher() {
         if (_state != stopped) {
-            getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "Flusher being destroyed in state %s\n",
-                             stateName(_state));
+            LOG(EXTENSION_LOG_WARNING, "Flusher being destroyed in state %s",
+                stateName(_state));
 
         }
     }
@@ -98,24 +85,16 @@ public:
     enum flusher_state state() const;
     const char * stateName() const;
 
-    void addHighPriorityVBEntry(uint16_t vbid, uint64_t chkid,
-                                const void *cookie);
-    void removeHighPriorityVBEntry(uint16_t vbid, const void *cookie);
-    void getAllHighPriorityVBuckets(std::vector<uint16_t> &vbs);
-    std::list<HighPriorityVBEntry> getHighPriorityVBEntries(uint16_t vbid);
-    size_t getNumOfHighPriorityVBs() const;
-
-    size_t getCheckpointFlushTimeout() const;
-    void adjustCheckpointFlushTimeout(size_t wall_time);
-
 private:
     bool transition_state(enum flusher_state to);
-    int doFlush();
+    void doFlush();
     void completeFlush();
     void schedule_UNLOCKED();
     double computeMinSleepTime();
 
     const char * stateName(enum flusher_state st) const;
+
+    uint16_t getNextVb();
 
     EventuallyPersistentStore   *store;
     volatile enum flusher_state  _state;
@@ -123,20 +102,13 @@ private:
     TaskId                       task;
     Dispatcher                  *dispatcher;
 
-    // Current flush cycle state.
-    int                      flushRv;
-    int                      prevFlushRv;
     double                   minSleepTime;
-    vb_flush_queue_t        *flushQueue;
     rel_time_t               flushStart;
-
     Atomic<bool> forceShutdownReceived;
-
-    Mutex priorityVBMutex;
-    std::map<uint16_t, std::list<HighPriorityVBEntry> > priorityVBList;
-    size_t flushPhase;
-    uint16_t nextVbid;
-    size_t chkFlushTimeout;
+    std::queue<uint16_t> hpVbs;
+    std::queue<uint16_t> lpVbs;
+    bool doHighPriority;
+    int numHighPriority;
 
     DISALLOW_COPY_AND_ASSIGN(Flusher);
 };

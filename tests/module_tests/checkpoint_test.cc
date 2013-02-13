@@ -143,10 +143,7 @@ static void *launch_set_thread(void *arg) {
 }
 }
 
-int main(int argc, char **argv) {
-    (void)argc; (void)argv;
-    putenv(strdup("ALLOW_NO_STATS_UPDATE=yeah"));
-
+void basic_chk_test() {
     HashTable::setDefaultNumBuckets(5);
     HashTable::setDefaultNumLocks(1);
     RCPtr<VBucket> vbucket(new VBucket(0, vbucket_state_active, global_stats, checkpoint_config));
@@ -243,6 +240,54 @@ int main(int argc, char **argv) {
     delete gate;
     delete mutex;
     delete counter;
+}
 
-    return 0;
+void test_reset_checkpoint_id() {
+    RCPtr<VBucket> vbucket(new VBucket(0, vbucket_state_active, global_stats,
+                                       checkpoint_config));
+    CheckpointManager *manager =
+        new CheckpointManager(global_stats, 0, checkpoint_config, 1);
+
+    int i;
+    for (i = 0; i < 10; ++i) {
+        std::stringstream key;
+        key << "key-" << i;
+        queued_item qi(new QueuedItem (key.str(), 0, queue_op_set));
+        manager->queueDirty(qi, vbucket);
+    }
+    manager->createNewCheckpoint();
+
+    size_t itemPos;
+    uint64_t chk = 1;
+    size_t lastMutationId = 0;
+    std::vector<queued_item> items;
+    manager->getAllItemsForPersistence(items);
+    for(itemPos = 0; itemPos < items.size(); ++itemPos) {
+        queued_item qi = items.at(itemPos);
+        assert(manager->getMutationIdForKey(chk, qi->getKey()) > lastMutationId);
+        lastMutationId = manager->getMutationIdForKey(chk, qi->getKey());
+        if (itemPos == 0 || itemPos == (items.size() - 1)) {
+            assert(qi->getOperation() == queue_op_checkpoint_start);
+        } else if (itemPos == (items.size() - 2)) {
+            assert(qi->getOperation() == queue_op_checkpoint_end);
+            chk++;
+        } else {
+            assert(qi->getOperation() == queue_op_set);
+        }
+    }
+    assert(items.size() == 13);
+    items.clear();
+
+    chk = 1;
+    lastMutationId = 0;
+    manager->checkAndAddNewCheckpoint(1);
+    manager->getAllItemsForPersistence(items);
+    assert(items.size() == 0);
+}
+
+int main(int argc, char **argv) {
+    (void)argc; (void)argv;
+    putenv(strdup("ALLOW_NO_STATS_UPDATE=yeah"));
+    basic_chk_test();
+    test_reset_checkpoint_id();
 }

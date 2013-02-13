@@ -56,7 +56,7 @@ For introductory information on stats within membase, start with the
 | ep_item_flush_expired              | Number of times an item is not flushed |
 |                                    | due to the expiry of the item          |
 | ep_queue_size                      | Number of items queued for storage     |
-| ep_flusher_todo                    | Number of items remaining to be        |
+| ep_flusher_todo                    | Number of items currently being        |
 |                                    | written                                |
 | ep_flusher_state                   | Current state of the flusher thread    |
 | ep_commit_num                      | Total number of write commits          |
@@ -790,6 +790,7 @@ Stats =warmup= shows statistics related to warmup logic
 | ep_warmup_value_count           | Number of values warmed up                 |
 | ep_warmup_dups                  | Duplicates encountered during warmup       |
 | ep_warmup_oom                   | OOMs encountered during warmup             |
+| ep_warmup_item_expired          | Number of items expired during warmup      |
 | ep_warmup_time                  | Time (µs) spent by warming data            |
 | ep_warmup_keys_time             | Time (µs) spent by warming keys            |
 | ep_warmup_mutation_log          | Number of keys present in mutation log     |

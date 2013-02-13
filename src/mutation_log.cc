@@ -316,16 +316,14 @@ bool MutationLog::reset() {
     close();
 
     if (remove(getLogFile().c_str()) == -1) {
-        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                         "FATAL: Failed to remove '%s': %s",
-                         getLogFile().c_str(), strerror(errno));
+        LOG(EXTENSION_LOG_WARNING, "FATAL: Failed to remove '%s': %s",
+            getLogFile().c_str(), strerror(errno));
         return false;
     }
 
     open();
-    getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                     "Reset a mutation log '%s' successfully.\n",
-                     getLogFile().c_str());
+    LOG(EXTENSION_LOG_INFO, "Reset a mutation log '%s' successfully.",
+        getLogFile().c_str());
     return true;
 }
 
@@ -347,15 +345,15 @@ bool MutationLog::replaceWith(MutationLog &mlog) {
         std::stringstream ss;
         ss << "Unable to rename a mutation log \"" << mlog.getLogFile() << "\" "
            << "to \"" << getLogFile() << "\": " << strerror(errno);
-        getLogger()->log(EXTENSION_LOG_WARNING, NULL,
-                         "%s!!! Reopened the old log file.\n", ss.str().c_str());
+        LOG(EXTENSION_LOG_WARNING, "%s!!! Reopened the old log file",
+            ss.str().c_str());
         return false;
     }
 
     open();
-    getLogger()->log(EXTENSION_LOG_INFO, NULL,
-                     "Renamed a mutation log \"%s\" to \"%s\" and reopened it.\n",
-                     mlog.getLogFile().c_str(), getLogFile().c_str());
+    LOG(EXTENSION_LOG_INFO,
+        "Renamed a mutation log \"%s\" to \"%s\" and reopened it",
+        mlog.getLogFile().c_str(), getLogFile().c_str());
     return true;
 }
 
