@@ -124,7 +124,7 @@ bool BgFetcher::run(TaskId &tid) {
             total_num_requeued_items);
     }
 
-    if(stats.numRemainingBgJobs.get()) {
+    if(!stats.numRemainingBgJobs.get()) {
         // wait a bit until next fetch request arrives
         double sleep = std::max(store->getBGFetchDelay(), sleepInterval);
         dispatcher->snooze(tid, sleep);
