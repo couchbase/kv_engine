@@ -254,14 +254,14 @@ CouchRequest::CouchRequest(const Item &it, uint64_t rev, CouchRequestCallback &c
     uint64_t cas = htonll(it.getCas());
     uint32_t flags = it.getFlags();
     uint32_t exptime = htonl(it.getExptime());
-    uint32_t valuelen = it.getNBytes();
+    uint32_t vlen = it.getNBytes();
 
     dbDoc.id.buf = const_cast<char *>(key.c_str());
     dbDoc.id.size = it.getNKey();
-    if (valuelen) {
+    if (vlen) {
         isjson = isJSON(value);
         dbDoc.data.buf = const_cast<char *>(value->getData());
-        dbDoc.data.size = valuelen;
+        dbDoc.data.size = vlen;
     } else {
         dbDoc.data.buf = NULL;
         dbDoc.data.size = 0;
@@ -641,7 +641,7 @@ bool CouchKVStore::snapshotVBuckets(const vbucket_map_t &vbstates)
             cachedVBStates[vbucketId] = vbstate;
         }
 
-        success = setVBucketState(vbucketId, vbstate, vb_change_type, false);
+        success = setVBucketState(vbucketId, vbstate, vb_change_type);
         if (!success) {
             LOG(EXTENSION_LOG_WARNING,
                 "Warning: failed to set new state, %s, for vbucket %d\n",
@@ -717,8 +717,7 @@ bool CouchKVStore::snapshotStats(const std::map<std::string, std::string> &stats
 }
 
 bool CouchKVStore::setVBucketState(uint16_t vbucketId, vbucket_state &vbstate,
-                                   uint32_t vb_change_type, bool newfile,
-                                   bool notify)
+                                   uint32_t vb_change_type, bool notify)
 {
     Db *db = NULL;
     uint64_t fileRev, newFileRev;
@@ -1097,15 +1096,7 @@ void CouchKVStore::updateDbFileMap(uint16_t vbucketId, uint64_t newFileRev)
         return;
     }
 
-    uint64_t rev = dbFileRevMap[vbucketId];
     dbFileRevMap[vbucketId] = newFileRev;
-}
-
-static std::string getDBFileName(const std::string &dbname, uint16_t vbid)
-{
-    std::stringstream ss;
-    ss << dbname << "/" << vbid << ".couch";
-    return ss.str();
 }
 
 static std::string getDBFileName(const std::string &dbname,

@@ -1916,7 +1916,6 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
     rel_time_t flush_start = ep_current_time();
     RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
     if (vb && !vbuckets.isBucketCreation(vbid)) {
-        size_t num_items = 0;
         std::vector<queued_item> items;
 
         uint64_t chkid = vb->checkpointManager.getPersistenceCursorPreChkId();
@@ -2033,7 +2032,7 @@ EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
     int64_t rowid = found ? v->getId() : -1;
     bool deleted = found && v->isDeleted();
     bool isDirty = found && v->isDirty();
-    rel_time_t queued(qi->getQueuedTime()), dirtied(0);
+    rel_time_t queued(qi->getQueuedTime());
 
     Item itm(qi->getKey(),
              found ? v->getFlags() : 0,

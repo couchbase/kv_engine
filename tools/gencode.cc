@@ -130,7 +130,6 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
-    time_t t = time(NULL);
     ofstream headerfile(hfile);
     char* macro = strdup(hfile);
     str_replace_char(macro, '/', '_');

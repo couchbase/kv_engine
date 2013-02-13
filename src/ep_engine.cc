@@ -44,6 +44,7 @@
 #include "warmup.h"
 
 static ALLOCATOR_HOOKS_API *hooksApi;
+static SERVER_LOG_API *loggerApi;
 
 static size_t percentOf(size_t val, double percent) {
     return static_cast<size_t>(static_cast<double>(val) * percent);
@@ -1763,11 +1764,11 @@ bool EventuallyPersistentEngine::createTapQueue(const void *cookie,
         return false;
     }
 
-    std::string name = "eq_tapq:";
+    std::string tq_name = "eq_tapq:";
     if (client.length() == 0) {
-        name.assign(TapConnection::getAnonName());
+        tq_name.assign(TapConnection::getAnonName());
     } else {
-        name.append(client);
+        tq_name.append(client);
     }
 
     // Decoding the userdata section of the packet and update the filters
@@ -1780,7 +1781,7 @@ bool EventuallyPersistentEngine::createTapQueue(const void *cookie,
         if (nuserdata < sizeof(backfillAge)) {
             LOG(EXTENSION_LOG_WARNING,
                 "Backfill age is missing. Reject connection request from %s\n",
-                name.c_str());
+                tq_name.c_str());
             return false;
         }
         // use memcpy to avoid alignemt issues
@@ -1795,7 +1796,7 @@ bool EventuallyPersistentEngine::createTapQueue(const void *cookie,
         if (nuserdata < sizeof(nvbuckets)) {
             LOG(EXTENSION_LOG_WARNING,
                 "Number of vbuckets is missing. Reject connection request from %s\n",
-                name.c_str());
+                tq_name.c_str());
             return false;
         }
         memcpy(&nvbuckets, ptr, sizeof(nvbuckets));
@@ -1806,7 +1807,7 @@ bool EventuallyPersistentEngine::createTapQueue(const void *cookie,
             if (nuserdata < (sizeof(uint16_t) * nvbuckets)) {
                 LOG(EXTENSION_LOG_WARNING,
                     "# of vbuckets not matched. Reject connection request from %s\n",
-                    name.c_str());
+                    tq_name.c_str());
                 return false;
             }
             for (uint16_t ii = 0; ii < nvbuckets; ++ii) {
@@ -1830,7 +1831,7 @@ bool EventuallyPersistentEngine::createTapQueue(const void *cookie,
         if (nCheckpoints > 0) {
             if (nuserdata < ((sizeof(uint16_t) + sizeof(uint64_t)) * nCheckpoints)) {
                 LOG(EXTENSION_LOG_WARNING, "# of checkpoint Ids not matched. "
-                    "Reject connection request from %s\n", name.c_str());
+                    "Reject connection request from %s\n", tq_name.c_str());
                 return false;
             }
             for (uint16_t j = 0; j < nCheckpoints; ++j) {
@@ -1859,12 +1860,12 @@ bool EventuallyPersistentEngine::createTapQueue(const void *cookie,
         isClosedCheckpointOnly = closedCheckpointOnly > 0 ? true : false;
     }
 
-    TapProducer *tp = dynamic_cast<TapProducer*>(tapConnMap->findByName(name));
+    TapProducer *tp = dynamic_cast<TapProducer*>(tapConnMap->findByName(tq_name));
     if (tp && tp->isConnected() && !tp->doDisconnect() && isRegisteredClient) {
         return false;
     }
 
-    tapConnMap->newProducer(cookie, name, flags,
+    tapConnMap->newProducer(cookie, tq_name, flags,
                             backfillAge,
                             static_cast<int>(configuration.getTapKeepalive()),
                             isRegisteredClient,
@@ -3104,7 +3105,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doKeyStats(const void *cookie,
     Item *it = NULL;
     shared_ptr<Item> diskItem;
     struct key_stats kstats;
-    rel_time_t now = ep_current_time();
+
     if (fetchLookupResult(cookie, &it)) {
         diskItem.reset(it); // Will be null if the key was not found
         if (!validate) {
@@ -3595,9 +3596,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deregisterTapClient(const void *co
                                                         ADD_RESPONSE response)
 {
     std::string tap_name = "eq_tapq:";
-    std::string name((const char*)request->bytes + sizeof(request->bytes) +
+    std::string tq_name((const char*)request->bytes + sizeof(request->bytes) +
                       request->request.extlen, ntohs(request->request.keylen));
-    tap_name.append(name);
+    tap_name.append(tq_name);
 
     // Close the tap connection for the registered TAP client and remove its checkpoint cursors.
     bool rv = tapConnMap->closeTapConnectionByName(tap_name);

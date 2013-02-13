@@ -117,8 +117,6 @@ extern void LOG(EXTENSION_LOG_LEVEL severity, const char *fmt, ...);
 
 extern ALLOCATOR_HOOKS_API *getHooksApi(void);
 
-static SERVER_LOG_API *loggerApi;
-
 // Time handling functions
 inline void advance_tv(struct timeval &tv, const double secs) {
     double ip, fp;

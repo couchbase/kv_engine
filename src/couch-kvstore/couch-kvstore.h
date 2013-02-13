@@ -515,10 +515,9 @@ protected:
                 std::vector<uint16_t> *vbids,
                 couchstore_docinfos_options options=COUCHSTORE_NO_OPTIONS);
     bool setVBucketState(uint16_t vbucketId, vbucket_state &vbstate,
-                         uint32_t vb_change_type, bool newfile = false,
-                         bool notify = true);
+                         uint32_t vb_change_type, bool notify = true);
     bool resetVBucket(uint16_t vbucketId, vbucket_state &vbstate) {
-        return setVBucketState(vbucketId, vbstate, VB_STATE_CHANGED, true, true);
+        return setVBucketState(vbucketId, vbstate, VB_STATE_CHANGED, true);
     }
 
     template <typename T>
