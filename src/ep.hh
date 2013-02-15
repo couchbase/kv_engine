@@ -473,9 +473,15 @@ public:
     ENGINE_ERROR_CODE setVBucketState(uint16_t vbid, vbucket_state_t state);
 
     /**
-     * Perform a fast vbucket deletion.
+     * Physically deletes a VBucket from disk. This function should only
+     * be called on a VBucket that has already been logically deleted.
+     *
+     * @param vbid The VBucket to physically delete
+     * @param cookie The connection that requested the deletion
+     * @param recreate Whether or not to recreate the VBucket after deletion
      */
-    vbucket_del_result completeVBucketDeletion(uint16_t vbid, bool recreate);
+    bool completeVBucketDeletion(uint16_t vbid, const void* cookie,
+                                 bool recreate);
 
     /**
      * Deletes a vbucket

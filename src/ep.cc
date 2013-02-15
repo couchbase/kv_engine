@@ -251,28 +251,13 @@ private:
  */
 class VBucketDeletionCallback : public DispatcherCallback {
 public:
-    VBucketDeletionCallback(EventuallyPersistentStore *e, RCPtr<VBucket> &vb,
-                            EPStats &st, const void* c = NULL, bool rc = false) :
-                            ep(e), vbucket(vb->getId()),
-                            stats(st), cookie(c), recreate(rc) {}
+    VBucketDeletionCallback(EventuallyPersistentStore *e, uint16_t vbid,
+                            const void* c = NULL, bool rc = false) :
+                            ep(e), vbucket(vbid), cookie(c),
+                            recreate(rc) {}
 
     bool callback(Dispatcher &, TaskId &) {
-        hrtime_t start_time(gethrtime());
-        vbucket_del_result result = ep->completeVBucketDeletion(vbucket, recreate);
-        if (result == vbucket_del_success || result == vbucket_del_invalid) {
-            hrtime_t spent(gethrtime() - start_time);
-            hrtime_t wall_time = spent / 1000;
-            BlockTimer::log(spent, "disk_vb_del", stats.timingLog);
-            stats.diskVBDelHisto.add(wall_time);
-            stats.vbucketDelMaxWalltime.setIfBigger(wall_time);
-            stats.vbucketDelTotWalltime.incr(wall_time);
-            if (cookie) {
-                ep->getEPEngine().notifyIOComplete(cookie, ENGINE_SUCCESS);
-            }
-            return false;
-        }
-
-        return true;
+        return !ep->completeVBucketDeletion(vbucket, cookie, recreate);
     }
 
     std::string description() {
@@ -284,7 +269,6 @@ public:
 private:
     EventuallyPersistentStore *ep;
     uint16_t vbucket;
-    EPStats &stats;
     const void* cookie;
     bool recreate;
 };
@@ -966,10 +950,13 @@ void EventuallyPersistentStore::scheduleVBSnapshot(const Priority &p) {
                          NULL, p, 0, false);
 }
 
-vbucket_del_result
-EventuallyPersistentStore::completeVBucketDeletion(uint16_t vbid, bool recreate) {
+bool EventuallyPersistentStore::completeVBucketDeletion(uint16_t vbid,
+                                                        const void* cookie,
+                                                        bool recreate) {
     LockHolder lh(vbsetMutex);
 
+    hrtime_t start_time(gethrtime());
+    vbucket_del_result result = vbucket_del_invalid;
     RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
     if (!vb || vb->getState() == vbucket_state_dead || vbuckets.isBucketDeletion(vbid)) {
         lh.unlock();
@@ -989,13 +976,27 @@ EventuallyPersistentStore::completeVBucketDeletion(uint16_t vbid, bool recreate)
             mutationLog.commit1();
             mutationLog.commit2();
             ++stats.vbucketDeletions;
-            return vbucket_del_success;
+            result = vbucket_del_success;
         } else {
             ++stats.vbucketDeletionFail;
-            return vbucket_del_fail;
+            result =  vbucket_del_fail;
         }
     }
-    return vbucket_del_invalid;
+
+    if (result == vbucket_del_success || result == vbucket_del_invalid) {
+        hrtime_t spent(gethrtime() - start_time);
+        hrtime_t wall_time = spent / 1000;
+        BlockTimer::log(spent, "disk_vb_del", stats.timingLog);
+        stats.diskVBDelHisto.add(wall_time);
+        stats.vbucketDelMaxWalltime.setIfBigger(wall_time);
+        stats.vbucketDelTotWalltime.incr(wall_time);
+        if (cookie) {
+            engine.notifyIOComplete(cookie, ENGINE_SUCCESS);
+        }
+        return true;
+    }
+
+    return false;
 }
 
 void EventuallyPersistentStore::scheduleVBDeletion(RCPtr<VBucket> &vb,
@@ -1006,8 +1007,8 @@ void EventuallyPersistentStore::scheduleVBDeletion(RCPtr<VBucket> &vb,
     nonIODispatcher->schedule(mem_cb, NULL, Priority::VBMemoryDeletionPriority, delay, false);
 
     if (vbuckets.setBucketDeletion(vb->getId(), true)) {
-        shared_ptr<DispatcherCallback> cb(new VBucketDeletionCallback(this, vb,
-                                                                      stats,
+        shared_ptr<DispatcherCallback> cb(new VBucketDeletionCallback(this,
+                                                                      vb->getId(),
                                                                       cookie,
                                                                       recreate));
         dispatcher->schedule(cb,
