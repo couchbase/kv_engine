@@ -2559,6 +2559,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     add_casted_stat("ep_kv_size", stats.currentSize, add_stat, cookie);
     add_casted_stat("ep_value_size", stats.totalValueSize, add_stat, cookie);
     add_casted_stat("ep_overhead", stats.memOverhead, add_stat, cookie);
+    add_casted_stat("ep_max_data_size", epstats.getMaxDataSize(), add_stat, cookie);
     add_casted_stat("ep_total_cache_size",
                     activeCountVisitor.getCacheSize() +
                     replicaCountVisitor.getCacheSize() +
@@ -2714,7 +2715,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doMemoryStats(const void *cookie,
     add_casted_stat("ep_kv_size", stats.currentSize, add_stat, cookie);
     add_casted_stat("ep_value_size", stats.totalValueSize, add_stat, cookie);
     add_casted_stat("ep_overhead", stats.memOverhead, add_stat, cookie);
-    add_casted_stat("ep_max_size", stats.getMaxDataSize(), add_stat, cookie);
+    add_casted_stat("ep_max_data_size", stats.getMaxDataSize(), add_stat, cookie);
     add_casted_stat("ep_mem_low_wat", stats.mem_low_wat, add_stat, cookie);
     add_casted_stat("ep_mem_high_wat", stats.mem_high_wat, add_stat, cookie);
     add_casted_stat("ep_oom_errors", stats.oom_errors, add_stat, cookie);

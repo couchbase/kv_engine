@@ -95,6 +95,7 @@ For introductory information on stats within membase, start with the
 | ep_overhead                        | Extra memory used by transient data    |
 |                                    | like persistence queues, replication   |
 |                                    | queues, checkpoints, etc               |
+| ep_max_data_size                   | Max amount of data allowed in memory   |
 | ep_mem_low_wat                     | Low water mark for auto-evictions      |
 | ep_mem_high_wat                    | High water mark for auto-evictions     |
 | ep_total_cache_size                | The total byte size of all items, no   |
@@ -710,7 +711,7 @@ Note that tcmalloc stats are not available on some operating systems
 | ep_overhead                         | Extra memory used by transient data  |
 |                                     | like persistence queue, replication  |
 |                                     | queues, checkpoints, etc             |
-| ep_max_size                         | Max amount of data allowed in memory |
+| ep_max_data_size                    | Max amount of data allowed in memory |
 | ep_mem_low_wat                      | Low water mark for auto-evictions    |
 | ep_mem_high_wat                     | High water mark for auto-evictions   |
 | ep_oom_errors                       | Number of times unrecoverable OOMs   |
