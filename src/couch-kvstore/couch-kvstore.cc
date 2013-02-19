@@ -608,7 +608,7 @@ void CouchKVStore::getPersistedStats(std::map<std::string, std::string> &stats)
         for (int i = 0; i < json_arr_size; ++i) {
             cJSON *obj = cJSON_GetArrayItem(json_obj, i);
             if (obj) {
-                stats[obj->string] = obj->valuestring;
+                stats[obj->string] = obj->valuestring ? obj->valuestring : "";
             }
         }
         cJSON_Delete(json_obj);
