@@ -431,6 +431,10 @@ extern "C" {
                 e->getConfiguration().setAlogTaskTime(v);
             } else if (strcmp(keyz, "pager_active_vb_pcnt") == 0) {
                 e->getConfiguration().setPagerActiveVbPcnt(v);
+            } else if (strcmp(keyz, "warmup_min_memory_threshold") == 0) {
+                e->getConfiguration().setWarmupMinMemoryThreshold(v);
+            } else if (strcmp(keyz, "warmup_min_items_threshold") == 0) {
+                e->getConfiguration().setWarmupMinItemsThreshold(v);
             } else {
                 *msg = "Unknown config param";
                 rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;

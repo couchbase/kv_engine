@@ -3740,6 +3740,24 @@ static enum test_result test_vkey_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
     return SUCCESS;
 }
 
+static enum test_result test_warmup_conf(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    check(get_int_stat(h, h1, "ep_warmup_min_items_threshold") == 100,
+          "Incorrect initial warmup min items threshold.");
+    check(get_int_stat(h, h1, "ep_warmup_min_memory_threshold") == 100,
+          "Incorrect initial warmup min memory threshold.");
+
+    set_param(h, h1, engine_param_flush, "warmup_min_items_threshold", "80");
+    set_param(h, h1, engine_param_flush, "warmup_min_memory_threshold", "80");
+
+    check(get_int_stat(h, h1, "ep_warmup_min_items_threshold") == 80,
+          "Incorrect smaller warmup min items threshold.");
+    check(get_int_stat(h, h1, "ep_warmup_min_memory_threshold") == 80,
+          "Incorrect smaller warmup min memory threshold.");
+
+    return SUCCESS;
+}
+
+
 static enum test_result test_warmup_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *it = NULL;
     check(set_vbucket_state(h, h1, 0, vbucket_state_active), "Failed to set VB0 state.");
@@ -6578,6 +6596,8 @@ engine_test_t* get_tests(void) {
                  teardown, NULL, prepare, cleanup),
         TestCase("test item pager", test_item_pager, test_setup,
                  teardown, "max_size=204800", prepare, cleanup),
+        TestCase("warmup conf", test_warmup_conf, test_setup,
+                 teardown, NULL, prepare, cleanup),
 
         // Stats tests
         TestCase("stats", test_stats, test_setup, teardown, NULL,
