@@ -640,6 +640,8 @@ public:
         cachedResidentRatio.replicaRatio.set(replicaPerc);
     }
 
+    bool compactMutationLog(size_t &sleeptime);
+
     /**
      * Flushes all items waiting for persistence in a given vbucket
      * @param vbid The id of the vbucket to flush

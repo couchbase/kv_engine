@@ -21,6 +21,11 @@
 
 #define ML_BUFLEN (128 * 1024 * 1024)
 
+const size_t MAX_LOG_SIZE((size_t)(unsigned int)-1);
+const size_t MAX_ENTRY_RATIO(10);
+const size_t LOG_COMPACTOR_QUEUE_CAP(500000);
+const int MUTATION_LOG_COMPACTOR_FREQ(3600);
+
 const size_t MIN_LOG_HEADER_SIZE(4096);
 const uint8_t MUTATION_LOG_MAGIC(0x45);
 const size_t HEADER_RESERVED(4);
@@ -90,6 +95,63 @@ private:
     uint32_t _blockSize;
     uint32_t _blockCount;
     uint32_t _rdwr;
+};
+
+/**
+ * Mutation log compactor config that is used to control the scheduling of
+ * the log compactor
+ */
+class MutationLogCompactorConfig {
+public:
+    MutationLogCompactorConfig() :
+        maxLogSize(MAX_LOG_SIZE), maxEntryRatio(MAX_ENTRY_RATIO),
+        queueCap(LOG_COMPACTOR_QUEUE_CAP),
+        sleepTime(MUTATION_LOG_COMPACTOR_FREQ) { }
+
+    MutationLogCompactorConfig(size_t max_log_size,
+                               size_t max_entry_ratio,
+                               size_t queue_cap,
+                               size_t stime) :
+        maxLogSize(max_log_size), maxEntryRatio(max_entry_ratio),
+        queueCap(queue_cap), sleepTime(stime) { }
+
+    void setMaxLogSize(size_t max_log_size) {
+        maxLogSize = max_log_size;
+    }
+
+    size_t getMaxLogSize() const {
+        return maxLogSize;
+    }
+
+    void setMaxEntryRatio(size_t max_entry_ratio) {
+        maxEntryRatio = max_entry_ratio;
+    }
+
+    size_t getMaxEntryRatio() const {
+        return maxEntryRatio;
+    }
+
+    void setQueueCap(size_t queue_cap) {
+        queueCap = queue_cap;
+    }
+
+    size_t getQueueCap() const {
+        return queueCap;
+    }
+
+    void setSleepTime(size_t stime) {
+        sleepTime = stime;
+    }
+
+    size_t getSleepTime() const {
+        return sleepTime;
+    }
+
+private:
+    size_t maxLogSize;
+    size_t maxEntryRatio;
+    size_t queueCap;
+    size_t sleepTime;
 };
 
 typedef enum {
