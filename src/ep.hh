@@ -406,6 +406,11 @@ public:
     void stopBgFetcher(void);
 
     /**
+     * Takes a snapshot of the current stats and persists them to disk.
+     */
+    void snapshotStats(void);
+
+    /**
      * Enqueue a background fetch for a key.
      *
      * @param key the key to be bg fetched

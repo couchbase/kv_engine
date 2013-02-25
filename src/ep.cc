@@ -1054,6 +1054,34 @@ bool EventuallyPersistentStore::resetVBucket(uint16_t vbid) {
     return rv;
 }
 
+extern "C" {
+    static void add_stat(const char *key, const uint16_t klen,
+                         const char *val, const uint32_t vlen,
+                         const void *cookie) {
+        assert(cookie);
+        void *ptr = const_cast<void *>(cookie);
+        std::map<std::string, std::string> *smap =
+            static_cast<std::map<std::string, std::string>*>(ptr);
+
+        std::string k(key, klen);
+        std::string v(val, vlen);
+        smap->insert(std::pair<std::string, std::string>(k, v));
+    }
+}
+
+void EventuallyPersistentStore::snapshotStats() {
+    std::map<std::string, std::string>  smap;
+    bool rv = engine.getStats(&smap, NULL, 0, add_stat) == ENGINE_SUCCESS &&
+              engine.getStats(&smap, "tap", 3, add_stat) == ENGINE_SUCCESS;
+    if (rv && engine.isShutdownMode()) {
+        smap["ep_force_shutdown"] = engine.isForceShutdown() ? "true" : "false";
+        std::stringstream ss;
+        ss << ep_real_time();
+        smap["ep_shutdown_time"] = ss.str();
+    }
+    rwUnderlying->snapshotStats(smap);
+}
+
 void EventuallyPersistentStore::updateBGStats(const hrtime_t init,
                                               const hrtime_t start,
                                               const hrtime_t stop) {
