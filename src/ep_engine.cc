@@ -1356,8 +1356,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     }
 
     databaseInitTime = ep_real_time() - start;
-    epstore = new EventuallyPersistentStore(*this, kvstore, configuration.isVb0(),
-                                            configuration.isConcurrentDB());
+    epstore = new EventuallyPersistentStore(*this, kvstore, configuration.isVb0());
     if (epstore == NULL) {
         return ENGINE_ENOMEM;
     }
@@ -2637,13 +2636,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                         add_stat, cookie);
     }
 
-    StorageProperties sprop(epstore->getStorageProperties());
-    add_casted_stat("ep_store_max_concurrency", sprop.maxConcurrency(),
-                    add_stat, cookie);
-    add_casted_stat("ep_store_max_readers", sprop.maxReaders(),
-                    add_stat, cookie);
-    add_casted_stat("ep_store_max_readwrite", sprop.maxWriters(),
-                    add_stat, cookie);
     add_casted_stat("ep_num_non_resident",
                     activeCountVisitor.getNonResident() +
                     pendingCountVisitor.getNonResident() +
@@ -3252,15 +3244,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doDispatcherStats(const void *cook
     DispatcherState ds(epstore->getDispatcher()->getDispatcherState());
     doDispatcherStat("dispatcher", ds, cookie, add_stat);
 
-    if (epstore->hasSeparateRODispatcher()) {
-        DispatcherState rods(epstore->getRODispatcher()->getDispatcherState());
-        doDispatcherStat("ro_dispatcher", rods, cookie, add_stat);
-    }
+    DispatcherState rods(epstore->getRODispatcher()->getDispatcherState());
+    doDispatcherStat("ro_dispatcher", rods, cookie, add_stat);
 
-    if (epstore->hasSeparateAuxIODispatcher()) {
-        DispatcherState tapds(epstore->getAuxIODispatcher()->getDispatcherState());
-        doDispatcherStat("auxio_dispatcher", tapds, cookie, add_stat);
-    }
+    DispatcherState tapds(epstore->getAuxIODispatcher()->getDispatcherState());
+    doDispatcherStat("auxio_dispatcher", tapds, cookie, add_stat);
 
     DispatcherState nds(epstore->getNonIODispatcher()->getDispatcherState());
     doDispatcherStat("nio_dispatcher", nds, cookie, add_stat);

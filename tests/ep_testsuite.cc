@@ -4420,19 +4420,6 @@ static enum test_result test_multi_dispatcher_conf(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_not_multi_dispatcher_conf(ENGINE_HANDLE *h,
-                                                       ENGINE_HANDLE_V1 *h1) {
-    vals.clear();
-    check(h1->get_stats(h, NULL, "dispatcher", strlen("dispatcher"),
-                        add_stats) == ENGINE_SUCCESS,
-          "Failed to get stats.");
-    if (vals.find("ro_dispatcher:status") != vals.end()) {
-        std::cerr << "Expected ro_dispatcher to not be running." << std::endl;
-        return FAIL;
-    }
-    return SUCCESS;
-}
-
 static bool epsilon(int val, int target, int ep=5) {
     return abs(val - target) < ep;
 }
@@ -6733,10 +6720,6 @@ engine_test_t* get_tests(void) {
         // disk>RAM tests with WAL
         TestCase("verify multi dispatcher", test_multi_dispatcher_conf,
                  test_setup, teardown, MULTI_DISPATCHER_CONFIG,
-                 prepare, cleanup),
-        TestCase("verify multi dispatcher override",
-                 test_not_multi_dispatcher_conf, test_setup,
-                 teardown, MULTI_DISPATCHER_CONFIG ";concurrentDB=false",
                  prepare, cleanup),
         TestCase("disk>RAM golden path (wal)", test_disk_gt_ram_golden,
                  test_setup, teardown, MULTI_DISPATCHER_CONFIG,

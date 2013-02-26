@@ -72,10 +72,6 @@
             "default": "5",
             "type": "size_t"
         },
-        "concurrentDB": {
-            "default": "true",
-            "type": "bool"
-        },
         "config_file": {
             "default": "",
             "dynamic": false,

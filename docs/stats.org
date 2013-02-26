@@ -160,13 +160,7 @@ For introductory information on stats within membase, start with the
 | ep_bg_max_load                     | The longest load time (µs)             |
 | ep_bg_load_avg                     | The average time (µs) for an item to   |
 |                                    | be loaded from the persistence layer   |
-| ep_num_non_resident                | The number of non-resident items       |                                 |
-| ep_store_max_concurrency           | Maximum allowed concurrency at the     |
-|                                    | storage layer                          |
-| ep_store_max_readers               | Maximum number of concurrent read-only |
-|                                    | storage threads                        |
-| ep_store_max_readwrite             | Maximum number of concurrent           |
-|                                    | read/writestorage threads              |
+| ep_num_non_resident                | The number of non-resident items       |
 | ep_bg_wait                         | The total elapse time for the wait     |
 |                                    | queue                                  |
 | ep_bg_load                         | The total elapse time for items to be  |
@@ -198,7 +192,6 @@ For introductory information on stats within membase, start with the
 |                                    | persistence                            |
 | ep_chk_remover_stime               | The time interval for purging closed   |
 |                                    | checkpoints from memory                |
-| ep_concurrentDB                    | Enables multiple dispatchers           |
 | ep_config_file                     | The location of the ep-engine config   |
 |                                    | file                                   |
 | ep_couch_bucket                    | The name of this bucket                |

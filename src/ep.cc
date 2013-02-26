@@ -262,8 +262,7 @@ private:
 
 EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine &theEngine,
                                                      KVStore *t,
-                                                     bool startVb0,
-                                                     bool concurrentDB) :
+                                                     bool startVb0) :
     engine(theEngine), stats(engine.getEpStats()), rwUnderlying(t),
     storageProperties(t->getStorageProperties()), bgFetcher(NULL),
     vbuckets(theEngine.getConfiguration()),
@@ -273,31 +272,15 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
               engine.getConfiguration().getAlogBlockSize()),
     diskFlushAll(false), bgFetchDelay(0), snapshotVBState(false)
 {
-    LOG(EXTENSION_LOG_INFO, "Storage props:  c=%ld/r=%ld/rw=%ld\n",
-        storageProperties.maxConcurrency(),
-        storageProperties.maxReaders(),
-        storageProperties.maxWriters());
-
     doPersistence = getenv("EP_NO_PERSISTENCE") == NULL;
     dispatcher = new Dispatcher(theEngine, "RW_Dispatcher");
-    if (storageProperties.maxConcurrency() > 1
-        && storageProperties.maxReaders() > 1
-        && concurrentDB) {
-        roUnderlying = engine.newKVStore(true);
-        roDispatcher = new Dispatcher(theEngine, "RO_Dispatcher");
-    } else {
-        roUnderlying = rwUnderlying;
-        roDispatcher = dispatcher;
-    }
-    if (storageProperties.maxConcurrency() > 2
-        && storageProperties.maxReaders() > 2
-        && concurrentDB) {
-        auxUnderlying = engine.newKVStore(true);
-        auxIODispatcher = new Dispatcher(theEngine, "AUXIO_Dispatcher");
-    } else {
-        auxUnderlying = roUnderlying;
-        auxIODispatcher = roDispatcher;
-    }
+
+    roUnderlying = engine.newKVStore(true);
+    roDispatcher = new Dispatcher(theEngine, "RO_Dispatcher");
+
+    auxUnderlying = engine.newKVStore(true);
+    auxIODispatcher = new Dispatcher(theEngine, "AUXIO_Dispatcher");
+
     nonIODispatcher = new Dispatcher(theEngine, "NONIO_Dispatcher");
     flusher = new Flusher(this, dispatcher);
 
@@ -502,34 +485,29 @@ EventuallyPersistentStore::~EventuallyPersistentStore() {
     stopWarmup();
     stopFlusher();
     stopBgFetcher();
+
     dispatcher->stop(forceShutdown);
-    if (hasSeparateRODispatcher()) {
-        roDispatcher->stop(forceShutdown);
-        delete roDispatcher;
-        delete roUnderlying;
-    }
-    if (hasSeparateAuxIODispatcher()) {
-        auxIODispatcher->stop(forceShutdown);
-        delete auxIODispatcher;
-        delete auxUnderlying;
-    }
+    roDispatcher->stop(forceShutdown);
+    auxIODispatcher->stop(forceShutdown);
     nonIODispatcher->stop(forceShutdown);
 
     delete flusher;
     delete bgFetcher;
-    delete dispatcher;
-    delete nonIODispatcher;
     delete warmupTask;
+
+    delete dispatcher;
+    delete roDispatcher;
+    delete auxIODispatcher;
+    delete nonIODispatcher;
+
+    delete roUnderlying;
+    delete auxUnderlying;
 }
 
 void EventuallyPersistentStore::startDispatcher() {
     dispatcher->start();
-    if (hasSeparateRODispatcher()) {
-        roDispatcher->start();
-    }
-    if (hasSeparateAuxIODispatcher()) {
-        auxIODispatcher->start();
-    }
+    roDispatcher->start();
+    auxIODispatcher->start();
 }
 
 void EventuallyPersistentStore::startNonIODispatcher() {

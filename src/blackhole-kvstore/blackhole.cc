@@ -80,9 +80,7 @@ void BlackholeKVStore::dump(uint16_t, shared_ptr<Callback<GetValue> >)
 
 StorageProperties BlackholeKVStore::getStorageProperties()
 {
-    size_t concurrency(10);
-    StorageProperties rv(concurrency, concurrency - 1, 1, true, true,
-                         true, false);
+    StorageProperties rv(true, true, true, false);
     return rv;
 }
 

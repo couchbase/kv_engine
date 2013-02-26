@@ -59,18 +59,10 @@ typedef std::map<uint16_t, vbucket_state> vbucket_map_t;
 class StorageProperties {
 public:
 
-    StorageProperties(size_t c, size_t r, size_t w, bool evb, bool evd,
-                      bool pd, bool eget)
-        : maxc(c), maxr(r), maxw(w), efficientVBDump(evb),
-          efficientVBDeletion(evd), persistedDeletions(pd),
-          efficientGet(eget) {}
+    StorageProperties(bool evb, bool evd, bool pd, bool eget)
+        : efficientVBDump(evb), efficientVBDeletion(evd),
+          persistedDeletions(pd), efficientGet(eget) {}
 
-    //! The maximum number of active queries.
-    size_t maxConcurrency()   const { return maxc; }
-    //! Maximum number of active read-only connections.
-    size_t maxReaders()       const { return maxr; }
-    //! Maximum number of active connections for read and write.
-    size_t maxWriters()       const { return maxw; }
     //! True if we can efficiently dump a single vbucket.
     bool hasEfficientVBDump() const { return efficientVBDump; }
     //! True if we can efficiently delete a vbucket all at once.
@@ -83,9 +75,6 @@ public:
     bool hasEfficientGet() const { return efficientGet; }
 
 private:
-    size_t maxc;
-    size_t maxr;
-    size_t maxw;
     bool efficientVBDump;
     bool efficientVBDeletion;
     bool persistedDeletions;

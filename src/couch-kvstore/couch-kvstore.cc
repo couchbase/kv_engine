@@ -858,9 +858,7 @@ void CouchKVStore::dumpDeleted(uint16_t vb,  shared_ptr<Callback<GetValue> > cb)
 
 StorageProperties CouchKVStore::getStorageProperties()
 {
-    size_t concurrency(10);
-    StorageProperties rv(concurrency, concurrency - 1, 1, true, true,
-                         true, true);
+    StorageProperties rv(true, true, true, true);
     return rv;
 }
 

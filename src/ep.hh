@@ -156,8 +156,7 @@ class EventuallyPersistentStore {
 public:
 
     EventuallyPersistentStore(EventuallyPersistentEngine &theEngine,
-                              KVStore *t, bool startVb0,
-                              bool concurrentDB);
+                              KVStore *t, bool startVb0);
 
     ~EventuallyPersistentStore();
 
@@ -363,25 +362,11 @@ public:
     }
 
     /**
-     * True if the RW dispatcher and RO dispatcher are distinct.
-     */
-    bool hasSeparateRODispatcher() {
-        return dispatcher != roDispatcher;
-    }
-
-    /**
      * Get the auxiliary IO dispatcher.
      */
     Dispatcher* getAuxIODispatcher(void) {
         assert(auxIODispatcher);
         return auxIODispatcher;
-    }
-
-    /**
-     * True if the RO dispatcher and auxiliary IO dispatcher are distinct.
-     */
-    bool hasSeparateAuxIODispatcher() {
-        return roDispatcher != auxIODispatcher;
     }
 
     /**
@@ -647,7 +632,7 @@ public:
     }
 
     bool multiBGFetchEnabled() {
-        return hasSeparateRODispatcher() && storageProperties.hasEfficientGet();
+        return storageProperties.hasEfficientGet();
     }
 
     void updateCachedResidentRatio(size_t activePerc, size_t replicaPerc) {
