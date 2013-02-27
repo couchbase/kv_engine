@@ -209,16 +209,14 @@ void VBucket::queueBGFetchItem(VBucketBGFetchItem *fetch,
     }
 }
 
-size_t VBucket::getBGFetchItems(vb_bgfetch_queue_t &fetches) {
+bool VBucket::getBGFetchItems(vb_bgfetch_queue_t &fetches) {
     LockHolder lh(pendingBGFetchesLock);
-    size_t num_items = 0;
     while (!pendingBGFetches.empty()) {
         VBucketBGFetchItem *it = pendingBGFetches.front();
         fetches[it->value.getId()].push_back(it);
         pendingBGFetches.pop();
-        num_items++;
     }
-    return num_items;
+    return fetches.size() > 0;
 }
 
 void VBucket::addStats(bool details, ADD_STAT add_stat, const void *c) {
