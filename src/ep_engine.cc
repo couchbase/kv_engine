@@ -88,20 +88,6 @@ static ENGINE_ERROR_CODE sendResponse(ADD_RESPONSE response, const void *key,
     return rv;
 }
 
-void LookupCallback::callback(GetValue &value) {
-    if (value.getStatus() == ENGINE_SUCCESS) {
-        engine->addLookupResult(cookie, value.getValue());
-    } else {
-        engine->addLookupResult(cookie, NULL);
-    }
-
-    if (forceSuccess) {
-        engine->notifyIOComplete(cookie, ENGINE_SUCCESS);
-        return;
-    }
-    engine->notifyIOComplete(cookie, value.getStatus());
-}
-
 template <typename T>
 static void validate(T v, T l, T h) {
     if (v < l || v > h) {
@@ -3117,8 +3103,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doKeyStats(const void *cookie,
             diskItem.reset();
         }
     } else if (validate) {
-        shared_ptr<LookupCallback> cb(new LookupCallback(this, cookie, true));
-        rv = epstore->getFromUnderlying(key, vbid, cookie, cb);
+        rv = epstore->statsVKey(key, vbid, cookie);
         if (rv == ENGINE_NOT_MY_VBUCKET || rv == ENGINE_KEY_ENOENT) {
             if (isDegradedMode()) {
                 return ENGINE_TMPFAIL;

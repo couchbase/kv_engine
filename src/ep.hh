@@ -284,10 +284,12 @@ public:
      *
      * @return a status resulting form executing the method
      */
-    ENGINE_ERROR_CODE getFromUnderlying(const std::string &key,
-                                        uint16_t vbucket,
-                                        const void *cookie,
-                                        shared_ptr<Callback<GetValue> > cb);
+    ENGINE_ERROR_CODE statsVKey(const std::string &key,
+                                uint16_t vbucket,
+                                const void *cookie);
+
+    void completeStatsVKey(const void* cookie, std::string &key, uint16_t vbid,
+                           uint64_t bySeqNum);
 
     protocol_binary_response_status evictKey(const std::string &key,
                                              uint16_t vbucket,

@@ -55,25 +55,6 @@ class EventuallyPersistentEngine;
 class TapConnMap;
 
 /**
- * Base storage callback for things that look up data.
- */
-class LookupCallback : public Callback<GetValue> {
-public:
-    LookupCallback(EventuallyPersistentEngine *e, const void* c) :
-        engine(e), cookie(c), forceSuccess(false) {}
-
-    LookupCallback(EventuallyPersistentEngine *e, const void* c,
-                   const bool force) :
-        engine(e), cookie(c), forceSuccess(force) {}
-
-    virtual void callback(GetValue &value);
-private:
-    EventuallyPersistentEngine *engine;
-    const void *cookie;
-    const bool forceSuccess;
-};
-
-/**
  * Vbucket visitor that counts active vbuckets.
  */
 class VBucketCountVisitor : public VBucketVisitor {

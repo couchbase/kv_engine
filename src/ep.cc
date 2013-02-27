@@ -166,23 +166,14 @@ class VKeyStatBGFetchCallback : public DispatcherCallback {
 public:
     VKeyStatBGFetchCallback(EventuallyPersistentStore *e,
                             const std::string &k, uint16_t vbid,
-                            uint64_t r,
-                            const void *c, shared_ptr<Callback<GetValue> > cb) :
-        ep(e), key(k), vbucket(vbid), rowid(r), cookie(c),
-        lookup_cb(cb), counter(e->bgFetchQueue) {
+                            uint64_t s, const void *c) :
+        ep(e), key(k), vbucket(vbid), bySeqNum(s), cookie(c) {
         assert(ep);
         assert(cookie);
-        assert(lookup_cb);
     }
 
     bool callback(Dispatcher &, TaskId &) {
-        RememberingCallback<GetValue> gcb;
-
-        ep->getROUnderlying()->get(key, rowid, vbucket, gcb);
-        gcb.waitForValue();
-        assert(gcb.fired);
-        lookup_cb->callback(gcb.val);
-
+        ep->completeStatsVKey(cookie, key, vbucket, bySeqNum);
         return false;
     }
 
@@ -196,10 +187,8 @@ private:
     EventuallyPersistentStore       *ep;
     std::string                      key;
     uint16_t                         vbucket;
-    uint64_t                         rowid;
+    uint64_t                         bySeqNum;
     const void                      *cookie;
-    shared_ptr<Callback<GetValue> >  lookup_cb;
-    BGFetchCounter                   counter;
 };
 
 /**
@@ -1472,10 +1461,9 @@ GetValue EventuallyPersistentStore::getAndUpdateTtl(const std::string &key,
 }
 
 ENGINE_ERROR_CODE
-EventuallyPersistentStore::getFromUnderlying(const std::string &key,
-                                             uint16_t vbucket,
-                                             const void *cookie,
-                                             shared_ptr<Callback<GetValue> > cb) {
+EventuallyPersistentStore::statsVKey(const std::string &key,
+                                     uint16_t vbucket,
+                                     const void *cookie) {
     RCPtr<VBucket> vb = getVBucket(vbucket);
     if (!vb) {
         return ENGINE_NOT_MY_VBUCKET;
@@ -1489,13 +1477,34 @@ EventuallyPersistentStore::getFromUnderlying(const std::string &key,
         shared_ptr<VKeyStatBGFetchCallback> dcb(new VKeyStatBGFetchCallback(this, key,
                                                                             vbucket,
                                                                             v->getId(),
-                                                                            cookie, cb));
+                                                                            cookie));
+        bgFetchQueue++;
         assert(bgFetchQueue > 0);
         roDispatcher->schedule(dcb, NULL, Priority::VKeyStatBgFetcherPriority, bgFetchDelay);
         return ENGINE_EWOULDBLOCK;
     } else {
         return ENGINE_KEY_ENOENT;
     }
+}
+
+void EventuallyPersistentStore::completeStatsVKey(const void* cookie,
+                                                  std::string &key,
+                                                  uint16_t vbid,
+                                                  uint64_t bySeqNum) {
+    RememberingCallback<GetValue> gcb;
+
+    roUnderlying->get(key, bySeqNum, vbid, gcb);
+    gcb.waitForValue();
+    assert(gcb.fired);
+
+    if (gcb.val.getStatus() == ENGINE_SUCCESS) {
+        engine.addLookupResult(cookie, gcb.val.getValue());
+    } else {
+        engine.addLookupResult(cookie, NULL);
+    }
+
+    bgFetchQueue--;
+    engine.notifyIOComplete(cookie, ENGINE_SUCCESS);
 }
 
 bool EventuallyPersistentStore::getLocked(const std::string &key,
