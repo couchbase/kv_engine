@@ -2,7 +2,7 @@
 #include "config.h"
 #include "ep.hh"
 
-const double BgFetcher::sleepInterval = 1.0;
+const double BgFetcher::sleepInterval = 60.0;
 
 bool BgFetcherCallback::callback(Dispatcher &, TaskId &t) {
     return bgfetcher->run(t);
