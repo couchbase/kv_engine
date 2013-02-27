@@ -54,6 +54,7 @@ void Checkpoint::setState(checkpoint_state state) {
 
 void Checkpoint::popBackCheckpointEndItem() {
     if (toWrite.size() > 0 && toWrite.back()->getOperation() == queue_op_checkpoint_end) {
+        keyIndex.erase(toWrite.back()->getKey());
         toWrite.pop_back();
     }
 }
