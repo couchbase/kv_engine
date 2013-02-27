@@ -131,7 +131,7 @@ public:
                     const std::string &k, uint16_t vbid,
                     uint64_t r, const void *c, bg_fetch_type_t t) :
         ep(e), key(k), vbucket(vbid), rowid(r), cookie(c), type(t),
-        counter(ep->bgFetchQueue), init(gethrtime()) {
+        init(gethrtime()) {
         assert(ep);
         assert(cookie);
     }
@@ -154,9 +154,7 @@ private:
     uint64_t                   rowid;
     const void                *cookie;
     bg_fetch_type_t            type;
-    BGFetchCounter             counter;
-
-    hrtime_t init;
+    hrtime_t                   init;
 };
 
 /**
@@ -1085,11 +1083,6 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
                                                 hrtime_t init,
                                                 bg_fetch_type_t type) {
     hrtime_t start(gethrtime());
-    std::stringstream ss;
-    ss << "Completed a background fetch, now at " << bgFetchQueue.get()
-       << std::endl;
-    LOG(EXTENSION_LOG_DEBUG, "%s", ss.str().c_str());
-
     // Go find the data
     RememberingCallback<GetValue> gcb;
     if (BG_FETCH_METADATA == type) {
@@ -1145,6 +1138,7 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
 
     hrtime_t stop = gethrtime();
     updateBGStats(init, start, stop);
+    bgFetchQueue--;
 
     delete gcb.val.getValue();
     engine.notifyIOComplete(cookie, status);
@@ -1233,6 +1227,7 @@ void EventuallyPersistentStore::bgFetch(const std::string &key,
         shared_ptr<BGFetchCallback> dcb(new BGFetchCallback(this, key,
                                                             vbucket,
                                                             rowid, cookie, type));
+        bgFetchQueue++;
         assert(bgFetchQueue > 0);
         ss << "Queued a background fetch, now at " << bgFetchQueue.get()
            << std::endl;

@@ -803,27 +803,4 @@ private:
     DISALLOW_COPY_AND_ASSIGN(EventuallyPersistentStore);
 };
 
-/**
- * Object whose existence maintains a counter incremented.
- *
- * When the object is constructed, it increments the given counter,
- * when destructed, it decrements the counter.
- */
-class BGFetchCounter {
-public:
-
-    BGFetchCounter(Atomic<size_t> &c) : counter(c) {
-        ++counter;
-    }
-
-    ~BGFetchCounter() {
-        --counter;
-        assert(counter.get() < GIGANTOR);
-    }
-
-private:
-    Atomic<size_t> &counter;
-};
-
-
 #endif /* EP_HH */
