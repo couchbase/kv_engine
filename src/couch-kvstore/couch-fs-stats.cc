@@ -11,12 +11,13 @@ static ssize_t cfs_pread(couch_file_handle, void *, size_t, cs_off_t);
 static ssize_t cfs_pwrite(couch_file_handle, const void *, size_t, cs_off_t);
 static cs_off_t cfs_goto_eof(couch_file_handle);
 static couchstore_error_t cfs_sync(couch_file_handle);
+static couchstore_error_t cfs_advise(couch_file_handle, cs_off_t, cs_off_t, couchstore_file_advice_t);
 static void cfs_destroy(couch_file_handle);
 }
 
 couch_file_ops getCouchstoreStatsOps(CouchstoreStats* stats) {
     couch_file_ops ops = {
-        3,
+        4,
         cfs_construct,
         cfs_open,
         cfs_close,
@@ -24,6 +25,7 @@ couch_file_ops getCouchstoreStatsOps(CouchstoreStats* stats) {
         cfs_pwrite,
         cfs_goto_eof,
         cfs_sync,
+        cfs_advise,
         cfs_destroy,
         stats
     };
@@ -84,6 +86,12 @@ static couchstore_error_t cfs_sync(couch_file_handle h) {
     StatFile* sf = reinterpret_cast<StatFile*>(h);
     BlockTimer bt(&sf->stats->syncTimeHisto);
     return sf->orig_ops->sync(sf->orig_handle);
+}
+
+static couchstore_error_t cfs_advise(couch_file_handle h, cs_off_t offs, cs_off_t len,
+                                     couchstore_file_advice_t adv) {
+    StatFile* sf = reinterpret_cast<StatFile*>(h);
+    sf->orig_ops->advise(sf->orig_handle, offs, len, adv);
 }
 
 static void cfs_destroy(couch_file_handle h) {
