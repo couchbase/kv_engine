@@ -80,6 +80,12 @@ def time_label(s):
         product = sz * product
         sizeMap.insert(0, (l, product))
     lbl, factor = itertools.dropwhile(lambda x: x[1] > s, sizeMap).next()
+
+    # Give some extra granularity for timings in minutes
+    if lbl == 'm':
+        mins = s / factor
+        secs = (s % factor) / (factor / 60)
+        return '%d%s:%02ds' % (mins, lbl, secs)
     return "%d%s" % (s / factor, lbl)
 
 def sec_label(s):
@@ -184,28 +190,6 @@ def stats_vkey(mc, key, vb):
 @cmd
 def stats_all(mc):
     stats_formatter(stats_perform(mc))
-
-def time_label(s):
-    # -(2**64) -> '-inf'
-    # 2**64 -> 'inf'
-    # 0 -> '0'
-    # 4 -> '4us'
-    # 838384 -> '838ms'
-    # 8283852 -> '8s'
-    if s > BIG_VALUE:
-        return 'inf'
-    elif s < SMALL_VALUE:
-        return '-inf'
-    elif s == 0:
-        return '0'
-    product = 1
-    sizes = (('us', 1), ('ms', 1000), ('s', 1000), ('m', 60))
-    sizeMap = []
-    for l,sz in sizes:
-        product = sz * product
-        sizeMap.insert(0, (l, product))
-    lbl, factor = itertools.dropwhile(lambda x: x[1] > s, sizeMap).next()
-    return "%d%s" % (s / factor, lbl)
 
 @cmd
 def stats_timings(mc):
