@@ -1172,7 +1172,7 @@ void LOG(EXTENSION_LOG_LEVEL severity, const char *fmt, ...) {
         if (loggerApi->get_level() <= severity) {
             va_list va;
             va_start(va, fmt);
-            vsprintf(buffer, fmt, va);
+            vsnprintf(buffer, sizeof(buffer) - 1, fmt, va);
             if (engine) {
                 logger->log(severity, NULL, "(%s) %s", engine->getName(), buffer);
             } else {
