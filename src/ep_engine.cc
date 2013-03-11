@@ -3463,7 +3463,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe(const void* cookie,
         // Get key stats
         uint16_t keystatus = 0;
         struct key_stats kstats;
-        bzero(&kstats, sizeof(key_stats));
+        memset(&kstats, 0, sizeof(key_stats));
         ENGINE_ERROR_CODE rv = epstore->getKeyStats(key, vb_id, kstats, true);
         if (rv == ENGINE_SUCCESS) {
             if (kstats.logically_deleted) {
