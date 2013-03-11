@@ -613,10 +613,14 @@ void CouchKVStore::getPersistedStats(std::map<std::string, std::string> &stats)
         }
         cJSON_Delete(json_obj);
 
-    } catch (const std::ifstream::failure& e) {
+    } catch (const std::ifstream::failure &e) {
         LOG(EXTENSION_LOG_WARNING,
             "Warning: failed to load the engine session stats "
             " due to IO exception \"%s\"", e.what());
+    } catch (...) {
+        LOG(EXTENSION_LOG_WARNING,
+            "Warning: failed to load the engine session stats "
+            " due to IO exception");
     }
 
     delete[] buffer;
