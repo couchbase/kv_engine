@@ -214,11 +214,18 @@ void VBucket::queueBGFetchItem(VBucketBGFetchItem *fetch,
 
 bool VBucket::getBGFetchItems(vb_bgfetch_queue_t &fetches) {
     LockHolder lh(pendingBGFetchesLock);
-    while (!pendingBGFetches.empty()) {
+    int items;
+    for (items = 0; !pendingBGFetches.empty(); items++) {
         VBucketBGFetchItem *it = pendingBGFetches.front();
         fetches[it->value.getId()].push_back(it);
         pendingBGFetches.pop();
     }
+
+    int dedups = items - fetches.size();
+    if (dedups) {
+        stats.numRemainingBgJobs.decr(dedups);
+    }
+
     return fetches.size() > 0;
 }
 

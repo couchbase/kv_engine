@@ -131,7 +131,7 @@ bool BgFetcher::run(size_t tid) {
         if (pendingFetch.get()) {
             // check again a new fetch request could have arrived
             // right before calling above snooze()
-            IOManager::get()->snooze(taskId, 0);
+            IOManager::get()->wake(taskId);
         }
     }
     return true;
