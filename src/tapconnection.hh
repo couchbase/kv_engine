@@ -324,7 +324,7 @@ public:
  * to be able of being kept across connections, but the consumers don't contain
  * anything that can't be recreated.
  */
-class TapConnection {
+class TapConnection : public RCValue {
 protected:
     /**
      * We need to be able to generate unique names, so let's just use a 64 bit counter

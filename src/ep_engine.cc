@@ -1872,7 +1872,7 @@ bool EventuallyPersistentEngine::createTapQueue(const void *cookie,
         isClosedCheckpointOnly = closedCheckpointOnly > 0 ? true : false;
     }
 
-    TapProducer *tp = dynamic_cast<TapProducer*>(tapConnMap->findByName(tapName));
+    TapProducer *tp = dynamic_cast<TapProducer*>(tapConnMap->findByName(name).get());
     if (tp && tp->isConnected() && !tp->doDisconnect() && isRegisteredClient) {
         return false;
     }
@@ -2876,11 +2876,11 @@ struct TapStatBuilder {
     TapStatBuilder(const void *c, ADD_STAT as, TapCounter* tc)
         : cookie(c), add_stat(as), aggregator(tc) {}
 
-    void operator() (TapConnection *tc) {
+    void operator() (connection_t &tc) {
         ++aggregator->totalTaps;
         tc->addStats(add_stat, cookie);
 
-        TapProducer *tp = dynamic_cast<TapProducer*>(tc);
+        TapProducer *tp = dynamic_cast<TapProducer*>(tc.get());
         if (tp) {
             tp->aggregateQueueStats(aggregator);
         }
@@ -2933,9 +2933,9 @@ struct TapAggStatBuilder {
         return rv;
     }
 
-    void operator() (TapConnection *tc) {
+    void operator() (connection_t &tc) {
 
-        TapProducer *tp = dynamic_cast<TapProducer*>(tc);
+        TapProducer *tp = dynamic_cast<TapProducer*>(tc.get());
 
         if (tp && tp->isConnected()) {
             TapCounter *aggregator = getTarget(tp);
