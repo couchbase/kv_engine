@@ -44,7 +44,7 @@ AM_PROG_CC_C_O
 AC_PROG_LN_S
 AC_DISABLE_STATIC
 AC_PROG_LIBTOOL
-AM_CONFIG_HEADER([src/config.h])
+AC_CONFIG_HEADERS([src/config.h])
 AC_CONFIG_MACRO_DIR([m4])
 
 # Restore CFLAGS/CXXFLAGS now that I've prevented automake
