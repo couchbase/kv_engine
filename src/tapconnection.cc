@@ -248,6 +248,7 @@ TapProducer::TapProducer(EventuallyPersistentEngine &theEngine,
     evaluateFlags();
     queue = new std::list<queued_item>;
     specificData = new uint8_t[TapEngineSpecific::sizeTotal];
+    transmitted = new Atomic<size_t>[theEngine.getConfiguration().getMaxVbuckets()];
 
     if (supportAck) {
         expiryTime = ep_current_time() + engine.getTapConfig().getAckGracePeriod();
@@ -331,6 +332,11 @@ void TapProducer::setVBucketFilter(const std::vector<uint16_t> &vbuckets,
 {
     LockHolder lh(queueLock);
     VBucketFilter diff;
+
+    std::vector<uint16_t>::const_iterator itr;
+    for (itr = vbuckets.begin(); itr != vbuckets.end(); ++itr) {
+        transmitted[*itr].set(0);
+    }
 
     // time to join the filters..
     if (flags & TAP_CONNECT_FLAG_LIST_VBUCKETS) {
@@ -703,6 +709,7 @@ void TapProducer::rollback() {
                     }
                 }
                 addEvent_UNLOCKED(i->item);
+                transmitted[i->vbucket]--;
             }
             break;
         case TAP_OPAQUE:
@@ -977,6 +984,7 @@ ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
             ++iter;
         }
         tapLog.erase(tapLog.begin(), iter);
+        transmitted[iter->vbucket]--;
         break;
     default:
         tapLog.erase(tapLog.begin(), iter);
@@ -986,6 +994,7 @@ ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
             logHeader(), seqnoReceived, status, msg.c_str());
         setDisconnect(true);
         expiryTime = 0;
+        transmitted[iter->vbucket]--;
         ret = ENGINE_DISCONNECT;
     }
 
@@ -1274,6 +1283,24 @@ void TapProducer::addStats(ADD_STAT add_stat, const void *c) {
 
     if (tapFlagByteorderSupport) {
         addStat("flag_byteorder_support", true, add_stat, c);
+    }
+
+    std::set<uint16_t> vbs = vbucketFilter.getVBSet();
+    if (vbs.empty()) {
+        std::vector<int> ids = engine.getEpStore()->getVBuckets().getBuckets();
+        std::vector<int>::iterator itr;
+        for (itr = ids.begin(); itr != ids.end(); ++itr) {
+            std::stringstream msg;
+            msg << "sent_from_vb_" << *itr;
+            addStat(msg.str().c_str(), transmitted[*itr], add_stat, c);
+        }
+    } else {
+        std::set<uint16_t>::iterator itr;
+        for (itr = vbs.begin(); itr != vbs.end(); ++itr) {
+            std::stringstream msg;
+            msg << "sent_from_vb_" << *itr;
+            addStat(msg.str().c_str(), transmitted[*itr], add_stat, c);
+        }
     }
 }
 
@@ -1770,6 +1797,7 @@ Item* TapProducer::getNextItem(const void *c, uint16_t *vbucket, tap_event_t &re
         value_t vblob(Blob::New((const char*)&cid, sizeof(cid)));
         itm = new Item(checkpoint_msg->getKey(), 0, 0, vblob,
                        0, -1, checkpoint_msg->getVBucketId());
+        transmitted[checkpoint_msg->getVBucketId()]++;
         return itm;
     }
 
@@ -1884,6 +1912,7 @@ Item* TapProducer::getNextItem(const void *c, uint16_t *vbucket, tap_event_t &re
         if (!isBackfillCompleted_UNLOCKED() && totalBackfillBacklogs > 0) {
             --totalBackfillBacklogs;
         }
+        transmitted[qi->getVBucketId()]++;
     }
 
     return itm;

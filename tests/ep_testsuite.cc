@@ -2747,6 +2747,75 @@ static enum test_result test_tap_sends_deleted(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     return SUCCESS;
 }
 
+static enum test_result test_sent_from_vb(ENGINE_HANDLE *h,
+                                          ENGINE_HANDLE_V1 *h1) {
+    const int num_keys = 5;
+    for (int ii = 0; ii < num_keys; ++ii) {
+        std::stringstream ss;
+        ss << "key" << ii;
+        check(store(h, h1, NULL, OPERATION_SET, ss.str().c_str(),
+                    "value", NULL, 0, 0) == ENGINE_SUCCESS,
+              "Failed to store an item.");
+    }
+    wait_for_flusher_to_settle(h, h1);
+
+    const void *cookie = testHarness.create_cookie();
+    testHarness.lock_cookie(cookie);
+    std::string name = "tap_client_thread";
+    TAP_ITERATOR iter = h1->get_tap_iterator(h, cookie, name.c_str(),
+                                             name.length(),
+                                             TAP_CONNECT_FLAG_DUMP, NULL,
+                                             0);
+    check(iter != NULL, "Failed to create a tap iterator");
+
+    item *it;
+    void *engine_specific;
+    uint16_t nengine_specific;
+    uint8_t ttl;
+    uint16_t flags;
+    uint32_t seqno;
+    uint16_t vbucket;
+    tap_event_t event;
+
+    do {
+        event = iter(h, cookie, &it, &engine_specific,
+                     &nengine_specific, &ttl, &flags,
+                     &seqno, &vbucket);
+
+        switch (event) {
+        case TAP_PAUSE:
+            testHarness.waitfor_cookie(cookie);
+            break;
+        case TAP_OPAQUE:
+        case TAP_NOOP:
+        case TAP_DISCONNECT:
+            break;
+        case TAP_MUTATION:
+            break;
+        case TAP_DELETION:
+            break;
+        default:
+            std::cerr << "Unexpected event:  " << event << std::endl;
+            return FAIL;
+        }
+
+    } while (event != TAP_DISCONNECT);
+
+    check(get_int_stat(h, h1, "eq_tapq:tap_client_thread:sent_from_vb_0",
+                       "tap") == 5, "Incorrect number of items sent");
+
+
+    std::map<uint16_t, uint64_t> vbmap;
+    vbmap[0] = 0;
+    changeVBFilter(h, h1, "tap_client_thread", vbmap);
+    check(get_int_stat(h, h1, "eq_tapq:tap_client_thread:sent_from_vb_0",
+                       "tap") == 0, "Incorrect number of items sent");
+
+    testHarness.unlock_cookie(cookie);
+
+    return SUCCESS;
+}
+
 static enum test_result test_tap_takeover(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const int num_keys = 30;
     bool keys[num_keys];
@@ -6623,6 +6692,8 @@ engine_test_t* get_tests(void) {
         TestCase("tap stream", test_tap_stream, test_setup,
                  teardown, NULL, prepare, cleanup),
         TestCase("tap stream send deletes", test_tap_sends_deleted, test_setup,
+                 teardown, NULL, prepare, cleanup),
+        TestCase("tap tap sent from vb", test_sent_from_vb, test_setup,
                  teardown, NULL, prepare, cleanup),
         TestCase("tap agg stats", test_tap_agg_stats, test_setup,
                  teardown, NULL, prepare, cleanup),
