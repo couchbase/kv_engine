@@ -108,9 +108,8 @@ class BackfillTask : public DispatcherCallback {
 public:
 
     BackfillTask(EventuallyPersistentEngine *e, TapProducer *tc,
-                 EventuallyPersistentStore *s,
                  const VBucketFilter &backfillVBFilter):
-      bfv(new BackFillVisitor(e, tc, backfillVBFilter)), engine(e), epstore(s) {}
+      bfv(new BackFillVisitor(e, tc, backfillVBFilter)), engine(e) {}
 
     virtual ~BackfillTask() {}
 
@@ -122,7 +121,6 @@ public:
 
     shared_ptr<BackFillVisitor> bfv;
     EventuallyPersistentEngine *engine;
-    EventuallyPersistentStore *epstore;
 };
 
 #endif /* BACKFILL_HH */

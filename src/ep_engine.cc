@@ -2275,7 +2275,7 @@ void EventuallyPersistentEngine::startEngineThreads(void)
 
 void EventuallyPersistentEngine::queueBackfill(const VBucketFilter &backfillVBFilter,
                                                TapProducer *tc) {
-    shared_ptr<DispatcherCallback> backfill_cb(new BackfillTask(this, tc, epstore,
+    shared_ptr<DispatcherCallback> backfill_cb(new BackfillTask(this, tc,
                                                                 backfillVBFilter));
     epstore->getNonIODispatcher()->schedule(backfill_cb, NULL,
                                             Priority::BackfillTaskPriority,
