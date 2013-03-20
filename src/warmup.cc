@@ -112,7 +112,6 @@ static void warmupCallback(void *arg, uint16_t vb,
 }
 
 const int WarmupState::Initialize = 0;
-const int WarmupState::LoadingMutationLog = 1;
 const int WarmupState::EstimateDatabaseItemCount = 2;
 const int WarmupState::KeyDump = 3;
 const int WarmupState::CheckForAccessLog = 4;
@@ -129,8 +128,6 @@ const char *WarmupState::getStateDescription(int st) const {
     switch (st) {
     case Initialize:
         return "initialize";
-    case LoadingMutationLog:
-        return "loading mutation log";
     case EstimateDatabaseItemCount:
         return "estimating database item count";
     case KeyDump:
@@ -169,15 +166,11 @@ void WarmupState::transition(int to, bool allowAnystate) {
 bool WarmupState::legalTransition(int to) const {
     switch (state) {
     case Initialize:
-        return to == LoadingMutationLog;
-    case LoadingMutationLog:
-        return (to == CheckForAccessLog ||
-                to == EstimateDatabaseItemCount);
+        return (to == EstimateDatabaseItemCount);
     case EstimateDatabaseItemCount:
         return (to == KeyDump);
     case KeyDump:
-        return (to == LoadingKVPairs ||
-                to == CheckForAccessLog);
+        return (to == LoadingKVPairs || to == CheckForAccessLog);
     case CheckForAccessLog:
         return (to == LoadingAccessLog || to == LoadingData);
     case LoadingAccessLog:
@@ -330,9 +323,7 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
                                 true, false, // force, use_meta
                                 false, &itemMeta);
         }
-        if (succeeded && epstore->warmupTask->doReconstructLog() && !expired) {
-            epstore->mutationLog.newItem(i->getVBucketId(), i->getKey(), i->getId());
-        }
+
         delete i;
         val.setValue(NULL);
 
@@ -343,7 +334,6 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
 
     switch (warmupState) {
         case WarmupState::KeyDump:
-        case WarmupState::LoadingMutationLog:
             ++stats.warmedUpKeys;
             break;
         case WarmupState::LoadingData:
@@ -390,9 +380,7 @@ void LoadStorageKVPairCallback::purge() {
 
 Warmup::Warmup(EventuallyPersistentStore *st, Dispatcher *d) :
     state(), store(st), dispatcher(d), startTime(0), metadata(0), warmup(0),
-    reconstructLog(false), estimateTime(0),
-    estimatedItemCount(std::numeric_limits<size_t>::max()),
-    corruptMutationLog(false),
+    estimateTime(0), estimatedItemCount(std::numeric_limits<size_t>::max()),
     corruptAccessLog(false),
     estimatedWarmupCount(std::numeric_limits<size_t>::max())
 {
@@ -407,11 +395,6 @@ void Warmup::setEstimatedItemCount(size_t to)
 void Warmup::setEstimatedWarmupCount(size_t to)
 {
     estimatedWarmupCount = to;
-}
-
-void Warmup::setReconstructLog(bool val)
-{
-    reconstructLog = val;
 }
 
 void Warmup::start(void)
@@ -437,40 +420,7 @@ bool Warmup::initialize(Dispatcher&, TaskId &)
     startTime = gethrtime();
     initialVbState = store->loadVBucketState();
     store->loadSessionStats();
-    transition(WarmupState::LoadingMutationLog);
-    return true;
-}
-
-bool Warmup::loadingMutationLog(Dispatcher&, TaskId &)
-{
-    shared_ptr<Callback<GetValue> > cb(createLKVPCB(initialVbState, false,
-                                                    state.getState()));
-    bool success = false;
-
-    try {
-        success = store->warmupFromLog(initialVbState, cb);
-    } catch (MutationLog::ReadException &e) {
-        corruptMutationLog = true;
-        LOG(EXTENSION_LOG_WARNING, "Error reading warmup log:  %s", e.what());
-    }
-
-    if (success) {
-        transition(WarmupState::CheckForAccessLog);
-    } else {
-        try {
-            if (store->mutationLog.reset()) {
-                setReconstructLog(true);
-            }
-        } catch (MutationLog::ReadException &e) {
-            LOG(EXTENSION_LOG_WARNING, "Failed to reset mutation log:  %s",
-                e.what());
-        }
-
-        LOG(EXTENSION_LOG_WARNING,
-            "Failed to load mutation log, falling back to key dump");
-        transition(WarmupState::EstimateDatabaseItemCount);
-    }
-
+    transition(WarmupState::EstimateDatabaseItemCount);
     return true;
 }
 
@@ -574,11 +524,6 @@ bool Warmup::loadingAccessLog(Dispatcher&, TaskId &)
         LOG(EXTENSION_LOG_WARNING,
             "%d items loaded from access log, completed in %s", numItems,
             hrtime2text((gethrtime() - stTime) / 1000).c_str());
-        if (doReconstructLog()) {
-            store->mutationLog.commit1();
-            store->mutationLog.commit2();
-            setReconstructLog(false);
-        }
         transition(WarmupState::Done);
     } else {
         size_t estimatedCount = store->getEPEngine().getEpStats().warmedUpKeys;
@@ -629,12 +574,6 @@ bool Warmup::loadingKVPairs(Dispatcher&, TaskId &)
     shared_ptr<Callback<GetValue> > cb(createLKVPCB(initialVbState, false,
                                                     state.getState()));
     store->getAuxUnderlying()->dump(cb);
-
-    if (doReconstructLog()) {
-        store->mutationLog.commit1();
-        store->mutationLog.commit2();
-        setReconstructLog(false);
-    }
     transition(WarmupState::Done);
     return true;
 }
@@ -666,8 +605,6 @@ bool Warmup::step(Dispatcher &d, TaskId &t) {
         switch (state.getState()) {
         case WarmupState::Initialize:
             return initialize(d, t);
-        case WarmupState::LoadingMutationLog:
-            return loadingMutationLog(d, t);
         case WarmupState::EstimateDatabaseItemCount:
             return estimateDatabaseItemCount(d, t);
         case WarmupState::KeyDump:
@@ -775,10 +712,6 @@ void Warmup::addStats(ADD_STAT add_stat, const void *c) const
                 addStat("estimate_time", estimateTime / 1000, add_stat, c);
             }
             addStat("estimated_key_count", estimatedItemCount, add_stat, c);
-        }
-
-        if (corruptMutationLog) {
-            addStat("mutation_log", "corrupt", add_stat, c);
         }
 
         if (corruptAccessLog) {

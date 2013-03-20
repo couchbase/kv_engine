@@ -207,23 +207,6 @@ private:
 };
 
 /**
- * A task that compacts a mutation log file.
- */
-class MutationLogCompactor : public GlobalTask {
-public:
-    MutationLogCompactor(EventuallyPersistentEngine *e, const Priority &p,
-                         bool sleeptime = 0, bool isDaemon = false,
-                         bool shutdown = false) :
-        GlobalTask(e, p, sleeptime, 0, isDaemon, shutdown) { }
-
-    bool run();
-
-    std::string getDescription() {
-        return "MutationLogCompactor: Writing hash table items to new log file";
-    }
-};
-
-/**
  * A task for fetching items from disk.
  */
 class BgFetcherTask : public GlobalTask {

@@ -412,21 +412,6 @@ extern "C" {
             } else if (strcmp(keyz, "couch_response_timeout") == 0) {
                 checkNumeric(valz);
                 e->getConfiguration().setCouchResponseTimeout(v);
-            } else if (strcmp(keyz, "klog_max_log_size") == 0) {
-                char *ptr = NULL;
-                checkNumeric(valz);
-                uint64_t msize = strtoull(valz, &ptr, 10);
-                validate(msize, static_cast<uint64_t>(0),
-                         std::numeric_limits<uint64_t>::max());
-                e->getConfiguration().setKlogMaxLogSize((size_t)msize);
-            } else if (strcmp(keyz, "klog_max_entry_ratio") == 0) {
-                checkNumeric(valz);
-                validate(v, 0, std::numeric_limits<int>::max());
-                e->getConfiguration().setKlogMaxEntryRatio(v);
-            } else if (strcmp(keyz, "klog_compactor_queue_cap") == 0) {
-                checkNumeric(valz);
-                validate(v, 0, std::numeric_limits<int>::max());
-                e->getConfiguration().setKlogCompactorQueueCap(v);
             } else if (strcmp(keyz, "alog_sleep_time") == 0) {
                 checkNumeric(valz);
                 e->getConfiguration().setAlogSleepTime(v);
@@ -3180,19 +3165,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTimingStats(const void *cookie,
     add_casted_stat("item_alloc_sizes", stats.itemAllocSizeHisto,
                     add_stat, cookie);
 
-    // Mutation Log
-    const MutationLog *mutationLog(epstore->getMutationLog());
-    if (mutationLog->isEnabled()) {
-        add_casted_stat("klogPadding", mutationLog->paddingHisto,
-                        add_stat, cookie);
-        add_casted_stat("klogFlushTime", mutationLog->flushTimeHisto,
-                        add_stat, cookie);
-        add_casted_stat("klogSyncTime", mutationLog->syncTimeHisto,
-                        add_stat, cookie);
-        add_casted_stat("klogCompactorTime", stats.mlogCompactorHisto,
-                        add_stat, cookie);
-    }
-
     return ENGINE_SUCCESS;
 }
 
@@ -3251,21 +3223,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doDispatcherStats(const void *cook
     return ENGINE_SUCCESS;
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentEngine::doKlogStats(const void* cookie,
-                                                          ADD_STAT add_stat) {
-    const MutationLog *mutationLog(epstore->getMutationLog());
-    add_casted_stat("size", mutationLog->logSize, add_stat, cookie);
-    for (int i(0); i < MUTATION_LOG_TYPES; ++i) {
-        size_t v(mutationLog->itemsLogged[i]);
-        if (v > 0) {
-            char key[32];
-            snprintf(key, sizeof(key), "count_%s", mutation_log_type_names[i]);
-            add_casted_stat(key, v, add_stat, cookie);
-        }
-    }
-    return ENGINE_SUCCESS;
-}
-
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doWorkloadStats(const void *cookie,
                                                               ADD_STAT add_stat) {
     char statname[80] = {0};
@@ -3315,8 +3272,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
         rv = doVBucketStats(cookie, add_stat, true, false);
     } else if (nkey >= 10 && strncmp(stat_key, "checkpoint", 10) == 0) {
         rv = doCheckpointStats(cookie, add_stat, stat_key, nkey);
-    } else if (nkey == 4 && strncmp(stat_key, "klog", 4) == 0) {
-        rv = doKlogStats(cookie, add_stat);
     } else if (nkey == 7 && strncmp(stat_key, "timings", 7) == 0) {
         rv = doTimingStats(cookie, add_stat);
     } else if (nkey == 10 && strncmp(stat_key, "dispatcher", 10) == 0) {

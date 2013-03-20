@@ -587,18 +587,6 @@ public:
         accessScanner.lastTaskRuntime = gethrtime();
     }
 
-    /**
-     * Get access to the mutation log.
-     */
-    const MutationLog *getMutationLog() const { return &mutationLog; }
-
-    /**
-     * Get the config of the mutation log compactor.
-     */
-    MutationLogCompactorConfig &getMutationLogCompactorConfig() {
-        return mlogCompactorConfig;
-    }
-
     void incExpirationStat(RCPtr<VBucket> &vb, bool byPager = true) {
         if (byPager) {
             ++stats.expired_pager;
@@ -616,8 +604,6 @@ public:
         cachedResidentRatio.activeRatio.set(activePerc);
         cachedResidentRatio.replicaRatio.set(replicaPerc);
     }
-
-    bool compactMutationLog(size_t &sleeptime);
 
     /**
      * Flushes all items waiting for persistence in a given vbucket
@@ -645,8 +631,6 @@ protected:
     std::map<uint16_t, vbucket_state> loadVBucketState();
     void loadSessionStats();
 
-    bool warmupFromLog(const std::map<uint16_t, vbucket_state> &state,
-                       shared_ptr<Callback<GetValue> >cb);
     void warmupCompleted();
     void stopWarmup(void);
 
@@ -733,9 +717,6 @@ private:
     ConflictResolution             *conflictResolver;
     VBucketMap                      vbMap;
     SyncObject                      mutex;
-
-    MutationLog                     mutationLog;
-    MutationLogCompactorConfig      mlogCompactorConfig;
     MutationLog                     accessLog;
 
     Atomic<size_t> bgFetchQueue;

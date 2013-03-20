@@ -93,13 +93,6 @@ bool StatSnap::run() {
     return true;
 }
 
-bool MutationLogCompactor::run() {
-    size_t sleeptime = 0;
-    bool rv = engine->getEpStore()->compactMutationLog(sleeptime);
-    IOManager::get()->snooze(taskId, sleeptime);
-    return rv;
-}
-
 bool BgFetcherTask::run() {
     return bgfetcher->run(taskId);
 }

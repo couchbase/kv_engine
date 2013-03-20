@@ -29,7 +29,6 @@
 class WarmupState {
 public:
     static const int Initialize;
-    static const int LoadingMutationLog;
     static const int EstimateDatabaseItemCount;
     static const int KeyDump;
     static const int LoadingAccessLog;
@@ -81,10 +80,6 @@ public:
 
     void addStats(ADD_STAT add_stat, const void *c) const;
 
-    void setReconstructLog(bool val);
-
-    bool doReconstructLog(void) const { return reconstructLog; }
-
     hrtime_t getTime(void) { return warmup; }
 
     size_t doWarmup(MutationLog &lf, const std::map<uint16_t,
@@ -97,7 +92,6 @@ private:
     void fireStateChange(const int from, const int to);
 
     bool initialize(Dispatcher&, TaskId &);
-    bool loadingMutationLog(Dispatcher&, TaskId &);
     bool estimateDatabaseItemCount(Dispatcher&, TaskId &);
     bool keyDump(Dispatcher&, TaskId &);
     bool loadingAccessLog(Dispatcher&, TaskId &);
@@ -121,12 +115,9 @@ private:
     hrtime_t warmup;
     // I need the initial vbstate transferred between two states :(
     std::map<uint16_t, vbucket_state>  initialVbState;
-    // True if a mutation log should be reconstructed at warmup
-    bool reconstructLog;
 
     hrtime_t estimateTime;
     size_t estimatedItemCount;
-    bool corruptMutationLog;
     bool corruptAccessLog;
     size_t estimatedWarmupCount;
 

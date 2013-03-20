@@ -75,14 +75,6 @@ size_t IOManager::scheduleStatsSnapshot(EventuallyPersistentEngine *engine,
     return schedule(task, (sid % writers));
 }
 
-size_t IOManager::scheduleMLogCompactor(EventuallyPersistentEngine *engine,
-                                        const Priority &priority, int sleeptime,
-                                        bool isDaemon, bool blockShutdown) {
-    ExTask task = new MutationLogCompactor(engine, priority, sleeptime,
-                                          isDaemon, blockShutdown);
-    return schedule(task, 0);
-}
-
 size_t IOManager::scheduleMultiBGFetcher(EventuallyPersistentEngine *engine,
                                          BgFetcher *b, const Priority &priority,
                                          int sid, int sleeptime, bool isDaemon,

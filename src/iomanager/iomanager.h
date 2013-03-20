@@ -49,11 +49,6 @@ public:
                                  bool isDaemon = false,
                                  bool blockShutdown = false);
 
-    size_t scheduleMLogCompactor(EventuallyPersistentEngine *engine,
-                                 const Priority &priority, int sleeptime = 0,
-                                 bool isDaemon = false,
-                                 bool blockShutdown = false);
-
     size_t scheduleMultiBGFetcher(EventuallyPersistentEngine *engine,
                                   BgFetcher *bg, const Priority &priority,
                                   int sid, int sleeptime = 0,

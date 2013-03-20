@@ -113,8 +113,7 @@ def histograms(mc, raw_stats):
         except:
             return 79
 
-    special_labels = {'klogPadding': size_label,
-                      'item_alloc_sizes': size_label,
+    special_labels = {'item_alloc_sizes': size_label,
                       'paged_out_time': sec_label}
 
     histodata = {}
@@ -267,10 +266,6 @@ def stats_warmup(mc):
     stats_formatter(stats_perform(mc, 'warmup'))
 
 @cmd
-def stats_klog(mc):
-    stats_formatter(stats_perform(mc, 'klog'))
-
-@cmd
 def stats_info(mc):
     stats_formatter(stats_perform(mc, 'info'))
 
@@ -404,7 +399,6 @@ def main():
     c.addCommand('hash', stats_hash, 'hash [detail]')
     c.addCommand('items', stats_items, 'items (memcached bucket only)')
     c.addCommand('key', stats_key, 'key keyname vbid')
-    c.addCommand('klog', stats_klog, 'klog')
     c.addCommand('kvstore', stats_kvstore, 'kvstore')
     c.addCommand('kvtimings', stats_kvtimings, 'kvtimings')
     c.addCommand('memory', stats_memory, 'memory')

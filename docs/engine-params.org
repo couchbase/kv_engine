@@ -95,11 +95,6 @@ memcached like this:
 | tap_throttle_cap_pcnt       | int    | Percentage of total items in write queue   |
 |                             |        | to throttle tap input. 0 means use fixed   |
 |                             |        | throttle queue cap.                        |
-| klog_path                   | string | Path to the mutation key log.              |
-| klog_block_size             | int    | Mutation key log block size.               |
-| klog_flush                  | string | When to force buffer flushes during        |
-|                             |        | klog (off, commit1, commit2, full)         |
-| klog_sync                   | string | When to fsync during klog.                 |
 | flushall_enabled            | bool   | True if we enable flush_all command; The   |
 |                             |        | default value is False.                    |
 | data_traffic_enabled        | bool   | True if we want to enable data traffic     |

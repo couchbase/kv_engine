@@ -99,12 +99,6 @@ public:
             store.setAccessScannerSleeptime(value);
         } else if (key.compare("alog_task_time") == 0) {
             store.resetAccessScannerStartTime();
-        } else if (key.compare("klog_max_log_size") == 0) {
-            store.getMutationLogCompactorConfig().setMaxLogSize(value);
-        } else if (key.compare("klog_max_entry_ratio") == 0) {
-            store.getMutationLogCompactorConfig().setMaxEntryRatio(value);
-        } else if (key.compare("klog_compactor_queue_cap") == 0) {
-            store.getMutationLogCompactorConfig().setMaxEntryRatio(value);
         } else if (key.compare("mutation_mem_threshold") == 0) {
             double mem_threshold = static_cast<double>(value) / 100;
             StoredValue::setMutationMemoryThreshold(mem_threshold);
@@ -148,11 +142,9 @@ private:
 EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine &theEngine) :
     engine(theEngine), stats(engine.getEpStats()),
     vbMap(theEngine.getConfiguration(), *this),
-    mutationLog(theEngine.getConfiguration().getKlogPath(),
-                theEngine.getConfiguration().getKlogBlockSize()),
     accessLog(engine.getConfiguration().getAlogPath(),
               engine.getConfiguration().getAlogBlockSize()),
-    diskFlushAll(false), bgFetchDelay(0), statsSnapshotTaskId(0), mLogCompactorTaskId(0),
+    diskFlushAll(false), bgFetchDelay(0), statsSnapshotTaskId(0),
     lastTransTimePerItem(0),snapshotVBState(false)
 {
     Configuration &config = engine.getConfiguration();
@@ -223,30 +215,6 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
                                       engine.getCheckpointConfig(), vbMap.getShard(0)));
         vbMap.addBucket(vb);
     }
-
-    try {
-        mutationLog.open();
-        assert(theEngine.getConfiguration().getKlogPath() == ""
-               || mutationLog.isEnabled());
-    } catch(MutationLog::ReadException &e) {
-        LOG(EXTENSION_LOG_WARNING,
-            "Error opening mutation log:  %s (disabling)", e.what());
-        mutationLog.disable();
-    }
-
-    bool syncset(mutationLog.setSyncConfig(theEngine.getConfiguration().getKlogSync()));
-    assert(syncset);
-
-    mlogCompactorConfig.setMaxLogSize(config.getKlogMaxLogSize());
-    config.addValueChangedListener("klog_max_log_size",
-                                   new EPStoreValueChangeListener(*this));
-    mlogCompactorConfig.setMaxEntryRatio(config.getKlogMaxEntryRatio());
-    config.addValueChangedListener("klog_max_entry_ratio",
-                                   new EPStoreValueChangeListener(*this));
-    mlogCompactorConfig.setQueueCap(config.getKlogCompactorQueueCap());
-    config.addValueChangedListener("klog_compactor_queue_cap",
-                                   new EPStoreValueChangeListener(*this));
-    mlogCompactorConfig.setSleepTime(config.getKlogCompactorStime());
 
     // @todo - Ideally we should run the warmup thread in it's own
     //         thread so that it won't block the flusher (in the write
@@ -346,13 +314,6 @@ bool EventuallyPersistentStore::initialize() {
     nonIODispatcher->schedule(chk_cb, NULL,
                               Priority::CheckpointRemoverPriority,
                               checkpointRemoverInterval);
-
-    if (mutationLog.isEnabled()) {
-        IOManager* iom = IOManager::get();
-        mLogCompactorTaskId =
-            iom->scheduleMLogCompactor(&engine, Priority::MutationLogCompactorPriority,
-                                       static_cast<int>(mlogCompactorConfig.getSleepTime()));
-    }
     return true;
 }
 
@@ -861,11 +822,6 @@ bool EventuallyPersistentStore::completeVBucketDeletion(uint16_t vbid,
         KVStore *rwUnderlying = getRWUnderlying(vbid);
         if (rwUnderlying->delVBucket(vbid, recreate)) {
             vbMap.setBucketDeletion(vbid, false);
-            mutationLog.deleteAll(vbid);
-            // This is happening in an independent transaction, so
-            // we're going go ahead and commit it out.
-            mutationLog.commit1();
-            mutationLog.commit2();
             ++stats.vbucketDeletions;
             result = vbucket_del_success;
         } else {
@@ -1746,10 +1702,8 @@ class PersistenceCallback : public Callback<mutation_result>,
 public:
 
     PersistenceCallback(const queued_item &qi, RCPtr<VBucket> &vb,
-                        EventuallyPersistentStore *st, MutationLog *ml,
-                        EPStats *s, uint64_t c) :
-        queuedItem(qi), vbucket(vb), store(st), mutationLog(ml),
-        stats(s), cas(c) {
+                        EventuallyPersistentStore *st, EPStats *s, uint64_t c)
+        : queuedItem(qi), vbucket(vb), store(st), stats(s), cas(c) {
         assert(vb);
         assert(s);
     }
@@ -1763,8 +1717,6 @@ public:
                                                     bucket_num, true, false);
             if (v && value.second > 0) {
                 if (v->isPendingBySeqno()) {
-                    mutationLog->newItem(queuedItem->getVBucketId(), queuedItem->getKey(),
-                                         value.second);
                     ++stats->newItems;
                 }
                 v->setBySeqno(value.second);
@@ -1821,7 +1773,6 @@ public:
         // 1 means we deleted one row
         // 0 means we did not delete a row, but did not fail (did not exist)
         if (value >= 0) {
-            mutationLog->delItem(queuedItem->getVBucketId(), queuedItem->getKey());
             // We have succesfully removed an item from the disk, we
             // may now remove it from the hash table.
             int bucket_num(0);
@@ -1871,7 +1822,6 @@ private:
     const queued_item queuedItem;
     RCPtr<VBucket> &vbucket;
     EventuallyPersistentStore *store;
-    MutationLog *mutationLog;
     EPStats *stats;
     uint64_t cas;
     DISALLOW_COPY_AND_ASSIGN(PersistenceCallback);
@@ -1881,16 +1831,6 @@ void EventuallyPersistentStore::flushOneDeleteAll() {
     // just pick one underlying is enough to
     // reset entire underlying database store
     vbMap.shards[EP_PRIMARY_SHARD]->getRWUnderlying()->reset();
-
-    // Log a flush of every known vbucket.
-    std::vector<int> vbs(vbMap.getBuckets());
-    for (std::vector<int>::iterator it(vbs.begin()); it != vbs.end(); ++it) {
-        mutationLog.deleteAll(static_cast<uint16_t>(*it));
-    }
-    // This is happening in an independent transaction, so we're going
-    // go ahead and commit it out.
-    mutationLog.commit1();
-    mutationLog.commit2();
     diskFlushAll.cas(true, false);
     stats.decrDiskQueueSize(1);
 }
@@ -1956,7 +1896,6 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
                              stats.timingLog);
             hrtime_t start = gethrtime();
 
-            mutationLog.commit1();
             while (!rwUnderlying->commit()) {
                 ++stats.commitFailed;
                 LOG(EXTENSION_LOG_WARNING, "Flusher commit failed!!! Retry in "
@@ -1969,7 +1908,6 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
                 pcbs.pop_front();
             }
 
-            mutationLog.commit2();
             ++stats.flusherCommits;
             hrtime_t end = gethrtime();
             uint64_t commit_time = (end - start) / 1000000;
@@ -2087,8 +2025,7 @@ EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
                              rowid == -1 ? "disk_insert" : "disk_update",
                              stats.timingLog);
             PersistenceCallback *cb;
-            cb = new PersistenceCallback(qi, vb, this,
-                                         &mutationLog, &stats, itm.getCas());
+            cb = new PersistenceCallback(qi, vb, this, &stats, itm.getCas());
             rwUnderlying->set(itm, *cb);
             if (rowid == -1)  {
                 ++vb->opsCreate;
@@ -2115,7 +2052,7 @@ EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
             lh.unlock();
             BlockTimer timer(&stats.diskDelHisto, "disk_delete", stats.timingLog);
             PersistenceCallback *cb;
-            cb = new PersistenceCallback(qi, vb, this, &mutationLog, &stats, 0);
+            cb = new PersistenceCallback(qi, vb, this, &stats, 0);
             rwUnderlying->del(itm, rowid, *cb);
             return cb;
         }
@@ -2182,113 +2119,6 @@ void EventuallyPersistentStore::warmupCompleted() {
     statsSnapshotTaskId =
         iom->scheduleStatsSnapshot(&engine, Priority::StatSnapPriority, 0,
                                    false, 0);
-}
-
-static void warmupLogCallback(void *arg, uint16_t vb,
-                              const std::string &key, uint64_t rowid) {
-    shared_ptr<Callback<GetValue> > *cb = reinterpret_cast<shared_ptr<Callback<GetValue> >*>(arg);
-    Item *itm = new Item(key.data(), key.size(),
-                         0, // flags
-                         0, // exp
-                         NULL, 0, // data
-                         0, // CAS
-                         rowid,
-                         vb);
-
-    GetValue gv(itm, ENGINE_SUCCESS, rowid, true /* partial */);
-
-    (*cb)->callback(gv);
-}
-
-bool EventuallyPersistentStore::warmupFromLog(const std::map<uint16_t, vbucket_state> &state,
-                                              shared_ptr<Callback<GetValue> > cb) {
-
-    if (!mutationLog.exists()) {
-        return false;
-    }
-
-    bool rv(true);
-
-    MutationLogHarvester harvester(mutationLog, &getEPEngine());
-    for (std::map<uint16_t, vbucket_state>::const_iterator it = state.begin();
-         it != state.end(); ++it) {
-
-        harvester.setVBucket(it->first);
-    }
-
-    hrtime_t start(gethrtime());
-    rv = harvester.load();
-    hrtime_t end1(gethrtime());
-
-    if (!rv) {
-        LOG(EXTENSION_LOG_WARNING, "Failed to read mutation log: %s",
-            mutationLog.getLogFile().c_str());
-        return false;
-    }
-
-    if (harvester.total() == 0) {
-        // We didn't read a single item from the log..
-        // @todo. the harvester should be extened to either
-        // "throw" a FileNotFound exception, or a method we may
-        // look at in order to check if it existed.
-        return false;
-    }
-
-    warmupTask->setEstimatedItemCount(harvester.total());
-
-    LOG(EXTENSION_LOG_DEBUG, "Completed log read in %s with %ld entries",
-        hrtime2text(end1 - start).c_str(), harvester.total());
-
-    harvester.apply(&cb, &warmupLogCallback);
-    mutationLog.resetCounts(harvester.getItemsSeen());
-
-    hrtime_t end2(gethrtime());
-    LOG(EXTENSION_LOG_DEBUG, "Completed repopulation from log in %llums",
-        ((end2 - end1) / 1000000));
-
-    // Anything left in the "loading" map at this point is uncommitted.
-    std::vector<mutation_log_uncommitted_t> uitems;
-    harvester.getUncommitted(uitems);
-    if (!uitems.empty()) {
-        LOG(EXTENSION_LOG_WARNING,
-            "%ld items were uncommitted in the mutation log file. "
-            "Deleting them from the underlying data store.\n", uitems.size());
-        std::vector<mutation_log_uncommitted_t>::iterator uit = uitems.begin();
-        for (; uit != uitems.end(); ++uit) {
-            const mutation_log_uncommitted_t &record = *uit;
-            RCPtr<VBucket> vb = getVBucket(record.vbucket);
-            if (!vb) {
-                continue;
-            }
-
-            bool should_delete = false;
-            if (record.type == ML_NEW) {
-                Item itm(record.key.c_str(), record.key.size(),
-                         0, 0, // flags, expiration
-                         NULL, 0, // data
-                         0, // CAS,
-                         record.rowid, record.vbucket);
-                if (vb->ht.insert(itm, false, true) == NOT_FOUND) {
-                    should_delete = true;
-                }
-            } else if (record.type == ML_DEL) {
-                should_delete = true;
-            }
-
-            if (should_delete) {
-                ItemMetaData itemMeta;
-
-                // Deletion is pushed into the checkpoint for persistence.
-                uint64_t cas = 0;
-                deleteItem(record.key, &cas,
-                           record.vbucket, NULL,
-                           true, false, // force, use_meta
-                           false, &itemMeta);
-            }
-        }
-    }
-
-    return rv;
 }
 
 void EventuallyPersistentStore::maybeEnableTraffic()
@@ -2394,109 +2224,6 @@ void EventuallyPersistentStore::visit(VBucketVisitor &visitor)
         }
     }
     visitor.complete();
-}
-
-/**
- * Visit all the items in memory and dump them into a new mutation log file.
- */
-class LogCompactionVisitor : public VBucketVisitor {
-public:
-    LogCompactionVisitor(MutationLog &log, EPStats &st)
-        : mutationLog(log), stats(st), numItemsLogged(0), totalItemsLogged(0)
-    { }
-
-    void visit(StoredValue *v) {
-        if (!v->isDeleted() && v->hasBySeqno()) {
-            ++numItemsLogged;
-            mutationLog.newItem(currentBucket->getId(), v->getKey(),
-                                v->getBySeqno());
-        }
-    }
-
-    bool visitBucket(RCPtr<VBucket> &vb) {
-        update();
-        return VBucketVisitor::visitBucket(vb);
-    }
-
-    void update() {
-        if (numItemsLogged > 0) {
-            mutationLog.commit1();
-            mutationLog.commit2();
-            LOG(EXTENSION_LOG_INFO,
-                "Mutation log compactor: Dumped %ld items from VBucket %d "
-                "into a new mutation log file.",
-                numItemsLogged, currentBucket->getId());
-            totalItemsLogged += numItemsLogged;
-            numItemsLogged = 0;
-        }
-    }
-
-    void complete() {
-        update();
-        LOG(EXTENSION_LOG_INFO,
-            "Mutation log compactor: Completed by dumping total %ld items "
-            "into a new mutation log file.", totalItemsLogged);
-    }
-
-private:
-    MutationLog &mutationLog;
-    EPStats     &stats;
-    size_t       numItemsLogged;
-    size_t       totalItemsLogged;
-};
-
-bool EventuallyPersistentStore::compactMutationLog(size_t& sleeptime) {
-    size_t num_new_items = mutationLog.itemsLogged[ML_NEW];
-    size_t num_del_items = mutationLog.itemsLogged[ML_DEL];
-    size_t num_logged_items = num_new_items + num_del_items;
-    size_t num_unique_items = num_new_items - num_del_items;
-    size_t queue_size = stats.diskQueueSize.get();
-
-    bool rv = true;
-    bool schedule_compactor =
-        mutationLog.logSize > mlogCompactorConfig.getMaxLogSize() &&
-        num_logged_items > (num_unique_items * mlogCompactorConfig.getMaxEntryRatio()) &&
-        queue_size < mlogCompactorConfig.getQueueCap();
-
-    if (schedule_compactor) {
-        std::string compact_file = mutationLog.getLogFile() + ".compact";
-        if (access(compact_file.c_str(), F_OK) == 0 &&
-            remove(compact_file.c_str()) != 0) {
-            LOG(EXTENSION_LOG_WARNING,
-                "Can't remove the existing compacted log file \"%s\"",
-                compact_file.c_str());
-            return false;
-        }
-
-        BlockTimer timer(&stats.mlogCompactorHisto, "klogCompactorTime", stats.timingLog);
-        pauseFlusher();
-        try {
-            MutationLog new_log(compact_file, mutationLog.getBlockSize());
-            new_log.open();
-            assert(new_log.isEnabled());
-            new_log.setSyncConfig(mutationLog.getSyncConfig());
-
-            LogCompactionVisitor compact_visitor(new_log, stats);
-            visit(compact_visitor);
-            mutationLog.replaceWith(new_log);
-        } catch (MutationLog::ReadException e) {
-            LOG(EXTENSION_LOG_WARNING,
-                "Error in creating a new mutation log for compaction:  %s",
-                e.what());
-        } catch (...) {
-            LOG(EXTENSION_LOG_WARNING, "Fatal error caught in Mutation Log "
-                "Compactor task");
-        }
-
-        if (!mutationLog.isOpen()) {
-            mutationLog.disable();
-            rv = false;
-        }
-        resumeFlusher();
-        ++stats.mlogCompactorRuns;
-    }
-    sleeptime = mlogCompactorConfig.getSleepTime();
-    return rv;
 }
 
 VBCBAdaptor::VBCBAdaptor(EventuallyPersistentStore *s,

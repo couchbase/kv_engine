@@ -164,8 +164,6 @@ For introductory information on stats within membase, start with the
 |                                    | queue                                  |
 | ep_bg_load                         | The total elapse time for items to be  |
 |                                    | loaded from the persistence layer      |
-| ep_mlog_compactor_runs             | Number of times mutation log compactor |
-|                                    | is executed                            |
 | ep_allow_data_loss_during_shutdown | Whether data loss is allowed during    |
 |                                    | server shutdown                        |
 | ep_alog_block_size                 | Access log block size                  |
@@ -222,17 +220,6 @@ For introductory information on stats within membase, start with the
 |                                    | checkpoints for each vbucket unless    |
 |                                    | the memory usage is above high water   |
 |                                    | mark                                   |
-| ep_klog_block_size                 | Logging block size                     |
-| ep_klog_compactor_queue_cap        | Persistence queue cap to prevent the   |
-|                                    | log compactor from being scheduled     |
-| ep_klog_compactor_stime            | Sleep time of a mutation log compactor |
-| ep_klog_flush                      | When to flush the log (complete        |
-|                                    | current block)                         |
-| ep_klog_max_entry_ratio            | Maximum ratio of the number of items   |
-|                                    | logged to the number of unique items   |
-| ep_klog_max_log_size               | Maximum size of a log file allowed     |
-| ep_klog_path                       | Path to the mutation key log           |
-| ep_klog_sync                       | When to sync the log                   |
 | ep_max_checkpoints                 | The maximum amount of checkpoints that |
 |                                    | can be in memory per vbucket           |
 | ep_max_item_size                   | The maximum value size                 |
@@ -607,10 +594,6 @@ form to describe when time was spent doing various things:
 | disk_vb_del           | waiting for disk to delete a vbucket           |
 | disk_commit           | waiting for a commit after a batch of updates  |
 | disk_vbstate_snapshot | Time spent persisting vbucket state changes    |
-| klogPadding           | Amount of wasted "padding" space in the klog   |
-| klogFlushTime         | Time spent flushing the klog                   |
-| klogSyncTime          | Time spent syncing the klog                    |
-| klogCompactorTime     | Time spent by the mutation log compactor       |
 | item_alloc_sizes      | Item allocation size counters (in bytes)       |
 
 
@@ -743,18 +726,6 @@ flags_mismatch - The flags in memory don't match the flags on disk.
 valid - The key is both on disk and in memory
 ram_but_not_disk - The value doesn't exist yet on disk.
 item_deleted - The item has been deleted.
-
-** Key Log
-
-Stats =klog= shows counts what's going on with the key mutation log.
-
-| size          | The size of the logfile                    |
-| count_new     | Number of "new key" events in the log      |
-| count_del     | Number of "deleted key" events in the log  |
-| count_del_all | Number of "delete all" events in the log   |
-| count_commit1 | Number of "commit1" events in the log      |
-| count_commit2 | Number of "commit2" events in the log      |
-
 
 ** Warmup
 
