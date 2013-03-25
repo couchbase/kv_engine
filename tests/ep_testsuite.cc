@@ -2259,10 +2259,6 @@ static enum test_result vbucket_destroy(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                              const char* value = NULL) {
     check(set_vbucket_state(h, h1, 1, vbucket_state_active), "Failed to set vbucket state.");
 
-    vbucketDelete(h, h1, 1, value);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL,
-          "Expected failure deleting active bucket.");
-
     vbucketDelete(h, h1, 2, value);
     check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET,
           "Expected failure deleting non-existent bucket.");
@@ -2332,10 +2328,6 @@ static enum test_result test_vbucket_destroy_stats(ENGINE_HANDLE *h,
 static enum test_result vbucket_destroy_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                                 const char* value = NULL) {
     check(set_vbucket_state(h, h1, 1, vbucket_state_active), "Failed to set vbucket state.");
-
-    vbucketDelete(h, h1, 1, value);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL,
-          "Expected failure deleting active bucket.");
 
     // Store a value so the restart will try to resurrect it.
     item *i = NULL;

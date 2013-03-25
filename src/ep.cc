@@ -977,17 +977,14 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteVBucket(uint16_t vbid, const 
         return ENGINE_NOT_MY_VBUCKET;
     }
 
-    if (vb->getState() == vbucket_state_dead) {
-        vbuckets.removeBucket(vbid);
-        lh.unlock();
-        scheduleVBDeletion(vb, c);
-        scheduleVBSnapshot(Priority::VBucketPersistHighPriority);
-        if (c) {
-            return ENGINE_EWOULDBLOCK;
-        }
-        return ENGINE_SUCCESS;
+    vbuckets.removeBucket(vbid);
+    lh.unlock();
+    scheduleVBDeletion(vb, c);
+    scheduleVBSnapshot(Priority::VBucketPersistHighPriority);
+    if (c) {
+        return ENGINE_EWOULDBLOCK;
     }
-    return ENGINE_EINVAL;
+    return ENGINE_SUCCESS;
 }
 
 bool EventuallyPersistentStore::resetVBucket(uint16_t vbid) {
