@@ -76,12 +76,6 @@ AC_ARG_ENABLE(sasl,
 AC_ARG_ENABLE(isasl,
   [AS_HELP_STRING([--enable-isasl],[Enable internal SASL implementation])])
 
-AC_ARG_ENABLE(sasl_pwdb,
-  [AS_HELP_STRING([--enable-sasl-pwdb],[Enable plaintext password db])])
-
-AS_IF([test "x$enable_sasl_pwdb" = "xyes"],
-      [enable_sasl=yes ])
-
 
 dnl **********************************************************************
 dnl DETECT_SASL_CB_GETCONF
@@ -126,9 +120,6 @@ elif test "x$enable_sasl" = "xyes"; then
       AC_MSG_ERROR([Failed to locate the library containing sasl_server_init])
     ])
 
-  AS_IF([test "x$enable_sasl_pwdb" = "xyes"],
-        [AC_DEFINE([ENABLE_SASL_PWDB], 1,
-                   [Set to nonzero if you want to enable a SASL pwdb])])
   # test user supplied saslpasswd2 path - if supplied, or try to locate
   AC_ARG_WITH(saslpasswd2,
        [  --with-saslpasswd2=PATH  Specify location of saslpasswd2 binary],

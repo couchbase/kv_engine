@@ -16,69 +16,6 @@ const char * const locations[] = {
 };
 #endif
 
-#ifdef ENABLE_SASL_PWDB
-#define MAX_ENTRY_LEN 256
-
-static const char *memcached_sasl_pwdb;
-
-static int sasl_server_userdb_checkpass(sasl_conn_t *conn,
-                                        void *context,
-                                        const char *user,
-                                        const char *pass,
-                                        unsigned passlen,
-                                        struct propctx *propctx)
-{
-    size_t unmlen = strlen(user);
-    if ((passlen + unmlen) > (MAX_ENTRY_LEN - 4)) {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                "WARNING: Failed to authenticate <%s> due to too long password (%d)",
-                user, passlen);
-        return SASL_NOAUTHZ;
-    }
-
-    FILE *pwfile = fopen(memcached_sasl_pwdb, "r");
-    if (pwfile == NULL) {
-        if (settings.verbose) {
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                     "WARNING: Failed to open sasl database <%s>: %s",
-                     memcached_sasl_pwdb, strerror(errno));
-        }
-        return SASL_NOAUTHZ;
-    }
-
-    char buffer[MAX_ENTRY_LEN];
-    bool ok = false;
-
-    while ((fgets(buffer, sizeof(buffer), pwfile)) != NULL) {
-        if (memcmp(user, buffer, unmlen) == 0 && buffer[unmlen] == ':') {
-            /* This is the correct user */
-            ++unmlen;
-            if (memcmp(pass, buffer + unmlen, passlen) == 0 &&
-                (buffer[unmlen + passlen] == ':' || /* Additional tokens */
-                 buffer[unmlen + passlen] == '\n' || /* end of line */
-                 buffer[unmlen + passlen] == '\r'|| /* dos format? */
-                 buffer[unmlen + passlen] == '\0')) { /* line truncated */
-                ok = true;
-            }
-
-            break;
-        }
-    }
-    (void)fclose(pwfile);
-    if (ok) {
-        return SASL_OK;
-    }
-
-    if (settings.verbose) {
-        settings.extensions.logger->log(EXTENSION_LOG_INFO, NULL,
-                             "INFO: User <%s> failed to authenticate",
-                              user);
-    }
-
-    return SASL_NOAUTHZ;
-}
-#endif
-
 #ifdef HAVE_SASL_CB_GETCONF
 static int sasl_getconf(void *context, const char **path)
 {
@@ -142,13 +79,6 @@ typedef int (*sasl_callback_function)();
 
 
 static sasl_callback_t sasl_callbacks[] = {
-#ifdef ENABLE_SASL_PWDB
-   { .id = SASL_CB_SERVER_USERDB_CHECKPASS,
-     .proc = (sasl_callback_function)sasl_server_userdb_checkpass,
-     .context = NULL
-   },
-#endif
-
 #ifdef ENABLE_SASL
    { .id = SASL_CB_LOG,
      .proc = (sasl_callback_function)sasl_log,
@@ -167,19 +97,6 @@ static sasl_callback_t sasl_callbacks[] = {
 };
 
 void init_sasl(void) {
-#ifdef ENABLE_SASL_PWDB
-    memcached_sasl_pwdb = getenv("MEMCACHED_SASL_PWDB");
-    if (memcached_sasl_pwdb == NULL) {
-       if (settings.verbose) {
-           settings.extensions.logger->log(EXTENSION_LOG_INFO, NULL,
-                  "INFO: MEMCACHED_SASL_PWDB not specified. "
-                  "Internal passwd database disabled.");
-       }
-       sasl_callbacks[0].id = SASL_CB_LIST_END;
-       sasl_callbacks[0].proc = NULL;
-    }
-#endif
-
     if (sasl_server_init(sasl_callbacks, "memcached") != SASL_OK) {
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
                                         "Error initializing sasl.");
